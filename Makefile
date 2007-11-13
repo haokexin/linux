@@ -1154,6 +1154,10 @@ modules modules_install: FORCE
 	@echo
 	@exit 1
 
+PHONY += _modinst_
+_modinst_:
+	@echo "Modules disabled -- none to install"
+
 endif # CONFIG_MODULES
 
 ###
