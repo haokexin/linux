@@ -1458,6 +1458,19 @@ config XIP_PHYS_ADDR
 	  be linked for and stored to.  This address is dependent on your
 	  own flash usage.
 
+config XIP_UBOOT_HDR
+	bool "Add a u-boot header to XIP Kernel"
+	depends on XIP_KERNEL
+	default n
+	help
+	  This will add a u-boot header to you XIP kernel and offset the
+	  kernel execute address accordingly. Write the resulting uxipImage
+	  to the location you selected for "XIP Kernel Physical Location".
+
+	  This is u-boot specific. If you are using another boot loader,
+	  say No.
+
+
 config KEXEC
 	bool "Kexec system call (EXPERIMENTAL)"
 	depends on EXPERIMENTAL

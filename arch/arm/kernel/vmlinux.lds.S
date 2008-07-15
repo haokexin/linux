@@ -20,7 +20,11 @@ jiffies = jiffies_64 + 4;
 SECTIONS
 {
 #ifdef CONFIG_XIP_KERNEL
+#ifdef CONFIG_XIP_UBOOT_HDR
+	. = XIP_VIRT_ADDR(CONFIG_XIP_PHYS_ADDR + 0x40); /* 0x40 is uboot header size */
+#else
 	. = XIP_VIRT_ADDR(CONFIG_XIP_PHYS_ADDR);
+#endif
 #else
 	. = PAGE_OFFSET + TEXT_OFFSET;
 #endif

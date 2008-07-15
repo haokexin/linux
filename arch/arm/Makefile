@@ -203,6 +203,13 @@ endif
 # The byte offset of the kernel image in RAM from the start of RAM.
 TEXT_OFFSET := $(textofs-y)
 
+ifeq ($(CONFIG_XIP_UBOOT_HDR),y)
+  # we're adding a u-boot header with mkimage so offset the address 0x40
+  CONFIG_XIP_PHYS_ADDR := $(shell echo $(CONFIG_XIP_PHYS_ADDR) 0x40 | \
+		awk --non-decimal-data '/[:xdigit:]/ \
+		 { printf("0x%x\n", $$1 + $$2) }' )
+endif
+
 # The first directory contains additional information for the boot setup code
 ifneq ($(machine-y),)
 MACHINE  := arch/arm/mach-$(word 1,$(machine-y))/

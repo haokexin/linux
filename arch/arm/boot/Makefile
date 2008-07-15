@@ -33,12 +33,17 @@ ifeq ($(CONFIG_XIP_KERNEL),y)
 
 $(obj)/xipImage: vmlinux FORCE
 	$(call if_changed,objcopy)
+ifeq ($(CONFIG_XIP_UBOOT_HDR),y)
+	$(call if_changed,uxipimage)
+	@rm $@
+	@echo '  Kernel: $(@D)/uxipImage is ready (physical address: $(CONFIG_XIP_PHYS_ADDR))'
+else
 	@echo '  Kernel: $@ is ready (physical address: $(CONFIG_XIP_PHYS_ADDR))'
-
+endif
 $(obj)/Image $(obj)/zImage: FORCE
 	@echo 'Kernel configured for XIP (CONFIG_XIP_KERNEL=y)'
-	@echo 'Only the xipImage target is available in this case'
-	@false
+	@echo 'Only the xipImage or uxipImage target is available in this case'
+	@true
 
 else
 
@@ -77,9 +82,28 @@ else
 $(obj)/uImage: STARTADDR=$(LOADADDR)
 endif
 
+CONFIG_UXIP_PHYS_ADDR := $(shell echo $(CONFIG_XIP_PHYS_ADDR) 0x40 | \
+		awk --non-decimal-data '/[:xdigit:]/ \
+		 { printf("0x%x\n", $$1 + $$2) }' )
+
+quiet_cmd_uxipimage = UXIPIMAGE  $(@D)/uxipImage
+      cmd_uxipimage = $(CONFIG_SHELL) $(MKIMAGE) -A arm -O linux -T kernel \
+		   -C none -a $(CONFIG_XIP_PHYS_ADDR) -e $(CONFIG_UXIP_PHYS_ADDR) \
+		   -n 'Linux-$(KERNELRELEASE)' -d $@  $(@D)/uxipImage
+
+ifeq ($(CONFIG_XIP_KERNEL),y)
+
+$(obj)/uImage: FORCE
+	@echo 'Kernel configured for XIP (CONFIG_XIP_KERNEL=y)'
+	@echo 'No uImage created in this case'
+	@true
+else
+
 $(obj)/uImage:	$(obj)/zImage FORCE
 	$(call if_changed,uimage)
 	@echo '  Image $@ is ready'
+
+endif
 
 $(obj)/bootp/bootp: $(obj)/zImage initrd FORCE
 	$(Q)$(MAKE) $(build)=$(obj)/bootp $@
