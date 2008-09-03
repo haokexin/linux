@@ -3408,8 +3408,10 @@ retry:
 			goto retry;
 		}
 		get_task_struct(iter.task);
-		if (security_task_lookup(task))
+		if (security_task_lookup(iter.task)) {
+			iter.tgid += 1;
 			goto retry;
+		}
 	}
 	rcu_read_unlock();
 	return iter;

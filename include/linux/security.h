@@ -1823,6 +1823,7 @@ int security_netlink_send(struct sock *sk, struct sk_buff *skb);
 int security_secid_to_secctx(u32 secid, char **secdata, u32 *seclen);
 int security_secctx_to_secid(const char *secdata, u32 seclen, u32 *secid);
 void security_release_secctx(char *secdata, u32 seclen);
+int security_task_lookup(struct task_struct *p);
 
 int security_inode_notifysecctx(struct inode *inode, void *ctx, u32 ctxlen);
 int security_inode_setsecctx(struct dentry *dentry, void *ctx, u32 ctxlen);
@@ -2366,11 +2367,6 @@ static inline int security_task_prctl(int option, unsigned long arg2,
 				      unsigned long arg5)
 {
 	return cap_task_prctl(option, arg2, arg3, arg3, arg5);
-}
-
-static inline int security_task_lookup(struct task_struct *p)
-{
-	return security_ops->task_lookup(p);
 }
 
 static inline int security_task_lookup(struct task_struct *p)
