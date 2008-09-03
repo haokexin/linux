@@ -85,6 +85,7 @@ int cap_capable(struct task_struct *tsk, const struct cred *cred, int cap,
 {
 	return cap_raised(cred->cap_effective, cap) ? 0 : -EPERM;
 }
+EXPORT_SYMBOL(cap_capable);
 
 /**
  * cap_settime - Determine whether the current process may set the system clock
@@ -122,6 +123,7 @@ int cap_ptrace_access_check(struct task_struct *child, unsigned int mode)
 	rcu_read_unlock();
 	return ret;
 }
+EXPORT_SYMBOL(cap_ptrace_access_check);
 
 /**
  * cap_ptrace_traceme - Determine whether another process may trace the current
