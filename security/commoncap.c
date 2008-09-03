@@ -98,6 +98,7 @@ int cap_capable(const struct cred *cred, struct user_namespace *targ_ns,
 
 	/* We never get here */
 }
+EXPORT_SYMBOL(cap_capable);
 
 /**
  * cap_settime - Determine whether the current process may set the system clock
@@ -147,6 +148,7 @@ out:
 	rcu_read_unlock();
 	return ret;
 }
+EXPORT_SYMBOL(cap_ptrace_access_check);
 
 /**
  * cap_ptrace_traceme - Determine whether another process may trace the current

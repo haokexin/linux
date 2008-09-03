@@ -127,6 +127,7 @@ int __init register_security(struct security_operations *ops)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(register_security);
 
 /* Security operations */
 
@@ -1004,6 +1005,15 @@ int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen)
 	return security_ops->inode_getsecctx(inode, ctx, ctxlen);
 }
 EXPORT_SYMBOL(security_inode_getsecctx);
+
+int security_task_lookup(struct task_struct *p)
+{
+	if (security_ops && security_ops->task_lookup)
+		return security_ops->task_lookup(p);
+
+	return 0;
+}
+EXPORT_SYMBOL(security_task_lookup);
 
 #ifdef CONFIG_SECURITY_NETWORK
 
