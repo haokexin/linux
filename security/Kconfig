@@ -183,7 +183,7 @@ config SECURITY_BSDJAIL
 	help
 	  Provides BSD Jail compartmentalization functionality.
 	  See Documentation/bsdjail.txt for more information and
-	  usage instructions.
+	  usage instructions. Note: this module can't be unloaded.
 	  
 	  If you are unsure how to answer this question, answer N.
 
