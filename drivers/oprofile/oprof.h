@@ -39,4 +39,7 @@ void oprofile_timer_init(struct oprofile_operations *ops);
 int oprofile_set_backtrace(unsigned long depth);
 int oprofile_set_timeout(unsigned long time);
 
+/* custom agent capabilities, currently just one - trace thru system call */
+#define OPROFILE_SYSCALL_TRACE_ENABLE 0x1
+
 #endif /* OPROF_H */

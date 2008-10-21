@@ -419,6 +419,27 @@ fail:
 }
 
 /*
+ * This serves to add an escape code to indicate switching into
+ * user space during tracing across the sysetm call boundary
+ */
+int oprofile_syscall_trace_boundary(void)
+{
+	struct oprofile_cpu_buffer *cpu_buf = &__get_cpu_var(op_cpu_buffer);
+
+	if (!cpu_buf || !cpu_buf->tracing)
+		return 0;
+
+	/* Set buffer state to user to prevent traces from being filtered out */
+	cpu_buf->last_is_kernel = 1;
+	if (op_add_code(cpu_buf, 0, 0, current)) {
+		cpu_buf->sample_lost_overflow++;
+		return 0;
+	}
+
+	return 1;
+}
+
+/*
  * This serves to avoid cpu buffer overflow, and makes sure
  * the task mortuary progresses
  *

@@ -185,4 +185,16 @@ int oprofile_add_data(struct op_entry *entry, unsigned long val);
 int oprofile_add_data64(struct op_entry *entry, u64 val);
 int oprofile_write_commit(struct op_entry *entry);
 
+/* Set and get the flag indicating that the oprofile device reader expects
+ *  backtraces across the system call
+ */
+int oprofile_set_trace_thru_syscall(unsigned int enable);
+unsigned int oprofile_get_trace_thru_syscall(void);
+
+/*
+ * Add an escape code to the cpu buffer indicate switching into
+ * user space during tracing across the system call boundary
+ */
+int oprofile_syscall_trace_boundary(void);
+
 #endif /* OPROFILE_H */
