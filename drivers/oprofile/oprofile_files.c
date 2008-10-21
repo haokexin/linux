@@ -165,6 +165,44 @@ static const struct file_operations dump_fops = {
 	.write		= dump_write,
 };
 
+static ssize_t enhanced_backtrace_read(struct file *file,
+		char __user *buf, size_t count, loff_t *offset)
+{
+	return oprofilefs_ulong_to_user(oprofile_get_trace_thru_syscall(),
+			buf, count, offset);
+}
+
+
+static ssize_t enhanced_backtrace_write(struct file *file,
+		char const __user *buf, size_t count, loff_t *offset)
+{
+	unsigned long val;
+	int retval = 0;
+
+	if (*offset)
+		return -EINVAL;
+
+	retval = oprofilefs_ulong_from_user(&val, buf, count);
+	if (retval)
+		return retval;
+
+	/* Allow for additional backtracing features, but for now the only
+	 * additional capability is tracing across the system call boundary
+	 */
+	if (val & OPROFILE_SYSCALL_TRACE_ENABLE)
+		retval = oprofile_set_trace_thru_syscall(1);
+
+	if (retval)
+		return retval;
+
+	return count;
+}
+
+static const struct file_operations enhanced_backtrace_fops = {
+	.read       = enhanced_backtrace_read,
+	.write      = enhanced_backtrace_write,
+};
+
 void oprofile_create_files(struct super_block *sb, struct dentry *root)
 {
 	/* reinitialize default values */
@@ -182,6 +220,8 @@ void oprofile_create_files(struct super_block *sb, struct dentry *root)
 	oprofilefs_create_file(sb, root, "cpu_type", &cpu_type_fops);
 	oprofilefs_create_file(sb, root, "backtrace_depth", &depth_fops);
 	oprofilefs_create_file(sb, root, "pointer_size", &pointer_size_fops);
+	oprofilefs_create_file(sb, root,
+			"enhanced_backtrace", &enhanced_backtrace_fops);
 #ifdef CONFIG_OPROFILE_EVENT_MULTIPLEX
 	oprofilefs_create_file(sb, root, "time_slice", &timeout_fops);
 #endif

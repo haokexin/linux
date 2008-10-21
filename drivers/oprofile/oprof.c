@@ -26,6 +26,7 @@ struct oprofile_operations oprofile_ops;
 
 unsigned long oprofile_started;
 unsigned long oprofile_backtrace_depth;
+static unsigned int trace_thru_syscall;
 static unsigned long is_setup;
 static DEFINE_MUTEX(start_mutex);
 
@@ -246,6 +247,29 @@ int oprofile_set_backtrace(unsigned long val)
 out:
 	mutex_unlock(&start_mutex);
 	return err;
+}
+
+int oprofile_set_trace_thru_syscall(unsigned int val)
+{
+	int err = 0;
+
+	mutex_lock(&start_mutex);
+
+	if (oprofile_started) {
+		err = -EBUSY;
+		goto out;
+	}
+
+	trace_thru_syscall = val;
+
+out:
+	mutex_unlock(&start_mutex);
+	return err;
+}
+
+unsigned int oprofile_get_trace_thru_syscall(void)
+{
+	return trace_thru_syscall;
 }
 
 static int __init oprofile_init(void)
