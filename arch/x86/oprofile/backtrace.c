@@ -53,24 +53,48 @@ struct frame_head {
 	unsigned long ret;
 } __attribute__((packed));
 
+struct frame_head32 {
+	unsigned int bp;
+	unsigned int ret;
+} __attribute__((packed));
+
+#if CONFIG_IA32_EMULATION
+#define OP_FRAME_SIZE (test_thread_flag(TIF_32BIT) ? \
+	sizeof(struct frame_head32) : \
+	sizeof(struct frame_head))
+#define GET_FRAME_RET(frame) (test_thread_flag(TIF_32BIT) ? \
+	((struct frame_head32 *)frame)->ret : \
+	((struct frame_head *)frame)->ret)
+#define GET_FRAME_BP(frame) \
+	(test_thread_flag(TIF_32BIT) ? \
+	(struct frame_head *)((unsigned long)\
+		((struct frame_head32 *)frame)->bp) : \
+	((struct frame_head *)frame)->bp)
+#else
+#define OP_FRAME_SIZE (sizeof(struct frame_head))
+#define GET_FRAME_RET(frame) (((struct frame_head *)frame)->ret)
+#define GET_FRAME_BP(frame) (((struct frame_head *)frame)->bp)
+#endif
+
 static struct frame_head *dump_user_backtrace(struct frame_head *head)
 {
+	/* large enough for both ia32 and x86_64 frames */
 	struct frame_head bufhead[2];
 
 	/* Also check accessibility of one struct frame_head beyond */
-	if (!access_ok(VERIFY_READ, head, sizeof(bufhead)))
+	if (!access_ok(VERIFY_READ, head, OP_FRAME_SIZE))
 		return NULL;
-	if (__copy_from_user_inatomic(bufhead, head, sizeof(bufhead)))
+	if (__copy_from_user_inatomic(bufhead, head, OP_FRAME_SIZE))
 		return NULL;
 
-	oprofile_add_trace(bufhead[0].ret);
+	oprofile_add_trace(GET_FRAME_RET(bufhead));
 
 	/* frame pointers should strictly progress back up the stack
 	 * (towards higher addresses) */
-	if (head >= bufhead[0].bp)
+	if (head >= GET_FRAME_BP(bufhead))
 		return NULL;
 
-	return bufhead[0].bp;
+	return GET_FRAME_BP(bufhead);
 }
 
 void
