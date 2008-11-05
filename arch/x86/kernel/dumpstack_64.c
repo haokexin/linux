@@ -144,6 +144,15 @@ void dump_trace(struct task_struct *task, struct pt_regs *regs,
 		unsigned long *stack, unsigned long bp,
 		const struct stacktrace_ops *ops, void *data)
 {
+	dump_trace_extended(task, regs, stack, bp, ops, data, 0);
+}
+EXPORT_SYMBOL(dump_trace);
+
+void dump_trace_extended(struct task_struct *task, struct pt_regs *regs,
+		unsigned long *stack, unsigned long bp,
+		const struct stacktrace_ops *ops,
+		void *data, unsigned int with_sp)
+{
 	const unsigned cpu = get_cpu();
 	unsigned long *irq_stack_end =
 		(unsigned long *)per_cpu(irq_stack_ptr, cpu);
@@ -190,7 +199,7 @@ void dump_trace(struct task_struct *task, struct pt_regs *regs,
 				break;
 
 			bp = ops->walk_stack(tinfo, stack, bp, ops,
-					     data, estack_end, &graph);
+					     data, estack_end, &graph, with_sp);
 			ops->stack(data, "<EOE>");
 			/*
 			 * We link to the next stack via the
@@ -209,7 +218,7 @@ void dump_trace(struct task_struct *task, struct pt_regs *regs,
 				if (ops->stack(data, "IRQ") < 0)
 					break;
 				bp = ops->walk_stack(tinfo, stack, bp,
-					ops, data, irq_stack_end, &graph);
+					ops, data, irq_stack_end, &graph, with_sp);
 				/*
 				 * We link to the next stack (which would be
 				 * the process stack normally) the last
@@ -229,10 +238,10 @@ void dump_trace(struct task_struct *task, struct pt_regs *regs,
 	/*
 	 * This handles the process stack:
 	 */
-	bp = ops->walk_stack(tinfo, stack, bp, ops, data, NULL, &graph);
+	bp = ops->walk_stack(tinfo, stack, bp, ops, data, NULL, &graph, with_sp);
 	put_cpu();
 }
-EXPORT_SYMBOL(dump_trace);
+EXPORT_SYMBOL(dump_trace_extended);
 
 void
 show_stack_log_lvl(struct task_struct *task, struct pt_regs *regs,

@@ -176,6 +176,19 @@ ENTRY(native_usergs_sysret64)
 ENDPROC(native_usergs_sysret64)
 #endif /* CONFIG_PARAVIRT */
 
+#ifdef CONFIG_OPROFILE
+#define OPROF_ARGOFFSET		0
+#define OPROF_SAVE_REST		SAVE_REST
+#define OPROF_RESTORE_REST	RESTORE_REST
+#define	NORM_SAVE_REST
+#define NORM_RESTORE_REST
+#else
+#define OPROF_ARGOFFSET		ARGOFFSET
+#define OPROF_SAVE_REST
+#define OPROF_RESTORE_REST
+#define NORM_SAVE_REST		SAVE_REST
+#define NORM_RESTORE_REST	RESTORE_REST
+#endif
 
 .macro TRACE_IRQS_IRETQ offset=ARGOFFSET
 #ifdef CONFIG_TRACE_IRQFLAGS
@@ -345,6 +358,7 @@ END(save_args)
 
 ENTRY(save_rest)
 	PARTIAL_FRAME 1 REST_SKIP+8
+#ifndef CONFIG_OPROFILE
 	movq 5*8+16(%rsp), %r11	/* save return address */
 	movq_cfi rbx, RBX+16
 	movq_cfi rbp, RBP+16
@@ -353,6 +367,7 @@ ENTRY(save_rest)
 	movq_cfi r14, R14+16
 	movq_cfi r15, R15+16
 	movq %r11, 8(%rsp)	/* return address */
+#endif
 	FIXUP_TOP_OF_STACK %r11, 16
 	ret
 	CFI_ENDPROC
@@ -486,7 +501,11 @@ system_call_fastpath:
 	cmpq $__NR_syscall_max,%rax
 	ja badsys
 	movq %r10,%rcx
+	OPROF_SAVE_REST
 	call *sys_call_table(,%rax,8)  # XXX:	 rip relative
+	.globl system_call_done
+system_call_done:
+	OPROF_RESTORE_REST
 	movq %rax,RAX-ARGOFFSET(%rsp)
 /*
  * Syscall return path ending with SYSRET (fast path)
@@ -616,7 +635,11 @@ tracesys:
 	cmpq $__NR_syscall_max,%rax
 	ja   int_ret_from_sys_call	/* RAX(%rsp) set to -ENOSYS above */
 	movq %r10,%rcx	/* fixup for C */
+	OPROF_SAVE_REST
 	call *sys_call_table(,%rax,8)
+	.globl tracesys_done
+tracesys_done:
+	OPROF_RESTORE_REST
 	movq %rax,RAX-ARGOFFSET(%rsp)
 	/* Use IRET because user could have changed frame */
 
@@ -696,7 +719,9 @@ END(system_call)
 	.macro PTREGSCALL label,func,arg
 ENTRY(\label)
 	PARTIAL_FRAME 1 8		/* offset 8: return address */
+#ifndef CONFIG_OPROFILE
 	subq $REST_SKIP, %rsp
+#endif
 	CFI_ADJUST_CFA_OFFSET REST_SKIP
 	call save_rest
 	DEFAULT_FRAME 0 8		/* offset 8: return address */
@@ -716,6 +741,7 @@ END(\label)
 ENTRY(ptregscall_common)
 	DEFAULT_FRAME 1 8	/* offset 8: return address */
 	RESTORE_TOP_OF_STACK %r11, 8
+#ifndef CONFIG_OPROFILE
 	movq_cfi_restore R15+8, r15
 	movq_cfi_restore R14+8, r14
 	movq_cfi_restore R13+8, r13
@@ -723,6 +749,9 @@ ENTRY(ptregscall_common)
 	movq_cfi_restore RBP+8, rbp
 	movq_cfi_restore RBX+8, rbx
 	ret $REST_SKIP		/* pop extended registers */
+#else
+	ret
+#endif
 	CFI_ENDPROC
 END(ptregscall_common)
 
@@ -731,7 +760,7 @@ ENTRY(stub_execve)
 	popq %r11
 	CFI_ADJUST_CFA_OFFSET -8
 	CFI_REGISTER rip, r11
-	SAVE_REST
+	NORM_SAVE_REST
 	FIXUP_TOP_OF_STACK %r11
 	movq %rsp, %rcx
 	call sys_execve
@@ -750,7 +779,7 @@ ENTRY(stub_rt_sigreturn)
 	CFI_STARTPROC
 	addq $8, %rsp
 	CFI_ADJUST_CFA_OFFSET	-8
-	SAVE_REST
+	NORM_SAVE_REST
 	movq %rsp,%rdi
 	FIXUP_TOP_OF_STACK %r11
 	call sys_rt_sigreturn

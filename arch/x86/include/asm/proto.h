@@ -14,6 +14,13 @@ void ia32_syscall(void);
 void ia32_cstar_target(void);
 void ia32_sysenter_target(void);
 
+/* for oprofile system call checks */
+extern void system_call_done(void);
+extern void tracesys_done(void);
+extern void ia32_syscall_done(void);
+extern void ia32_cstar_done(void);
+extern void ia32_sysenter_done(void);
+
 void syscall32_cpu_init(void);
 
 void x86_configure_nx(void);
