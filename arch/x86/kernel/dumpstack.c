@@ -88,7 +88,8 @@ unsigned long
 print_context_stack(struct thread_info *tinfo,
 		unsigned long *stack, unsigned long bp,
 		const struct stacktrace_ops *ops, void *data,
-		unsigned long *end, int *graph)
+		unsigned long *end, int *graph,
+		int with_sp)
 {
 	struct stack_frame *frame = (struct stack_frame *)bp;
 
@@ -98,11 +99,21 @@ print_context_stack(struct thread_info *tinfo,
 		addr = *stack;
 		if (__kernel_text_address(addr)) {
 			if ((unsigned long) stack == bp + sizeof(long)) {
-				ops->address(data, addr, 1);
+				if (with_sp) {
+					ops->address_with_sp(data,
+						addr, (unsigned long)stack);
+				} else {
+					ops->address(data, addr, 1);
+				}
 				frame = frame->next_frame;
 				bp = (unsigned long) frame;
 			} else {
-				ops->address(data, addr, 0);
+				if (with_sp) {
+					ops->address_with_sp(data,
+						addr, (unsigned long)stack);
+				} else {
+					ops->address(data, addr, 0);
+				}
 			}
 			print_ftrace_graph_addr(addr, data, ops, tinfo, graph);
 		}
@@ -116,7 +127,8 @@ unsigned long
 print_context_stack_bp(struct thread_info *tinfo,
 		       unsigned long *stack, unsigned long bp,
 		       const struct stacktrace_ops *ops, void *data,
-		       unsigned long *end, int *graph)
+		       unsigned long *end, int *graph,
+			int with_sp)
 {
 	struct stack_frame *frame = (struct stack_frame *)bp;
 	unsigned long *ret_addr = &frame->return_address;
@@ -126,8 +138,13 @@ print_context_stack_bp(struct thread_info *tinfo,
 
 		if (!__kernel_text_address(addr))
 			break;
+		if (with_sp) {
+			ops->address_with_sp(data,
+					addr, (unsigned long)stack);
+		} else {
+			ops->address(data, addr, 1);
+		}
 
-		ops->address(data, addr, 1);
 		frame = frame->next_frame;
 		ret_addr = &frame->return_address;
 		print_ftrace_graph_addr(addr, data, ops, tinfo, graph);

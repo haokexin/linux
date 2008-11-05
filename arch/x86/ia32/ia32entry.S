@@ -25,6 +25,31 @@
 #define sysretl_audit ia32_ret_from_sys_call
 #endif
 
+#ifdef CONFIG_OPROFILE
+#define OPROF_ARGOFFSET	0
+#else
+#define OPROF_ARGOFFSET ARGOFFSET
+#endif
+
+	.macro OPROF_SAVE_REST reg, tmp, savereg=1
+#ifdef CONFIG_OPROFILE
+	SAVE_REST
+	movq	RBP(%rsp), \tmp
+	.if \savereg
+	movq	\reg, RBP(%rsp)
+	.endif
+#endif
+	.endm
+
+	.macro OPROF_RESTORE_REST tmp, restorereg=1
+#ifdef CONFIG_OPROFILE
+	.if \restorereg
+	movq	\tmp, RBP(%rsp)
+	.endif
+	RESTORE_REST
+#endif
+	.endm
+
 #define IA32_NR_syscalls ((ia32_syscall_end - ia32_sys_call_table)/8)
 
 	.macro IA32_ARG_FIXUP noebp=0
@@ -164,7 +189,11 @@ ENTRY(ia32_sysenter_target)
 sysenter_do_call:
 	IA32_ARG_FIXUP
 sysenter_dispatch:
+	OPROF_SAVE_REST %r9, %r15
 	call	*ia32_sys_call_table(,%rax,8)
+	.globl ia32_sysenter_done
+ia32_sysenter_done:
+	OPROF_RESTORE_REST %r15
 	movq	%rax,RAX-ARGOFFSET(%rsp)
 	GET_THREAD_INFO(%r10)
 	DISABLE_INTERRUPTS(CLBR_NONE)
@@ -325,7 +354,11 @@ ENTRY(ia32_cstar_target)
 cstar_do_call:
 	IA32_ARG_FIXUP 1
 cstar_dispatch:
+	OPROF_SAVE_REST %r9, %r15
 	call *ia32_sys_call_table(,%rax,8)
+	.globl ia32_cstar_done
+ia32_cstar_done:
+	OPROF_RESTORE_REST %r15
 	movq %rax,RAX-ARGOFFSET(%rsp)
 	GET_THREAD_INFO(%r10)
 	DISABLE_INTERRUPTS(CLBR_NONE)
@@ -435,7 +468,11 @@ ENTRY(ia32_syscall)
 	ja ia32_badsys
 ia32_do_call:
 	IA32_ARG_FIXUP
+	OPROF_SAVE_REST %rbp, %r15, 0
 	call *ia32_sys_call_table(,%rax,8) # xxx: rip relative
+	.globl ia32_syscall_done
+ia32_syscall_done:
+	OPROF_RESTORE_REST %r15, 0
 ia32_sysret:
 	movq %rax,RAX-ARGOFFSET(%rsp)
 ia32_ret_from_sys_call:
@@ -469,7 +506,7 @@ quiet_ni_syscall:
 	.globl \label
 \label:
 	leaq \func(%rip),%rax
-	leaq -ARGOFFSET+8(%rsp),\arg	/* 8 for return address */
+	leaq -OPROF_ARGOFFSET+8(%rsp),\arg	/* 8 for return address */
 	jmp  ia32_ptregs_common	
 	.endm
 
@@ -489,18 +526,22 @@ ENTRY(ia32_ptregs_common)
 	CFI_ENDPROC
 	CFI_STARTPROC32	simple
 	CFI_SIGNAL_FRAME
-	CFI_DEF_CFA	rsp,SS+8-ARGOFFSET
-	CFI_REL_OFFSET	rax,RAX-ARGOFFSET
-	CFI_REL_OFFSET	rcx,RCX-ARGOFFSET
-	CFI_REL_OFFSET	rdx,RDX-ARGOFFSET
-	CFI_REL_OFFSET	rsi,RSI-ARGOFFSET
-	CFI_REL_OFFSET	rdi,RDI-ARGOFFSET
-	CFI_REL_OFFSET	rip,RIP-ARGOFFSET
-/*	CFI_REL_OFFSET	cs,CS-ARGOFFSET*/
-/*	CFI_REL_OFFSET	rflags,EFLAGS-ARGOFFSET*/
-	CFI_REL_OFFSET	rsp,RSP-ARGOFFSET
-/*	CFI_REL_OFFSET	ss,SS-ARGOFFSET*/
+	CFI_DEF_CFA	rsp,SS+8-OPROF_ARGOFFSET
+	CFI_REL_OFFSET	rax,RAX-OPROF_ARGOFFSET
+	CFI_REL_OFFSET	rcx,RCX-OPROF_ARGOFFSET
+	CFI_REL_OFFSET	rdx,RDX-OPROF_ARGOFFSET
+	CFI_REL_OFFSET	rsi,RSI-OPROF_ARGOFFSET
+	CFI_REL_OFFSET	rdi,RDI-OPROF_ARGOFFSET
+	CFI_REL_OFFSET	rip,RIP-OPROF_ARGOFFSET
+/*	CFI_REL_OFFSET	cs,CS-OPROF_ARGOFFSET*/
+/*	CFI_REL_OFFSET	rflags,EFLAGS-OPROF_ARGOFFSET*/
+	CFI_REL_OFFSET	rsp,RSP-OPROF_ARGOFFSET
+/*	CFI_REL_OFFSET	ss,SS-OPROF_ARGOFFSET*/
+#ifdef CONFIG_OPROFILE
+	movq	%r15, RBP(%rsp)	/* SAVE_REST at syscall */
+#else
 	SAVE_REST
+#endif
 	call *%rax
 	RESTORE_REST
 	jmp  ia32_sysret	/* misbalances the return cache */
