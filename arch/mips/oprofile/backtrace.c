@@ -37,6 +37,36 @@
 #define BACKTRACE_ABORTED (0UL)
 
 /*
+ * op_is_syscall_ret()
+ * returns non-zero if the return pc is within a system call handler
+ * at a point where the user registers have been saved on the stack.
+ */
+#pragma weak handle_sys
+#pragma weak ret_from_handle_sys
+#pragma weak handle_sysn32
+#pragma weak ret_from_handle_sysn32
+#pragma weak handle_sys64
+#pragma weak ret_from_handle_sys64
+
+extern void handle_sys(void);
+extern void ret_from_handle_sys(void);
+extern void handle_sysn32(void);
+extern void ret_from_handle_sysn32(void);
+extern void handle_sys64(void);
+extern void ret_from_handle_sys64(void);
+
+static inline
+int op_is_syscall_ret(unsigned long pc)
+{
+	return ((pc >= (unsigned long)handle_sys) &&
+			(pc < (unsigned long)ret_from_handle_sys)) ||
+	       ((pc >= (unsigned long)handle_sysn32) &&
+			(pc < (unsigned long)ret_from_handle_sysn32)) ||
+	       ((pc >= (unsigned long)handle_sys64) &&
+			(pc < (unsigned long)ret_from_handle_sys64));
+}
+
+/*
  * op_kernel_backtrace()
  * returns a pointer to the user register set if op_user_backtrace should
  * proceed
@@ -47,6 +77,7 @@ struct pt_regs *op_kernel_backtrace(struct pt_regs *const regs,
 {
 	/* taken from arch/mips/kernel/traps.c */
 	unsigned long pc = regs->cp0_epc;
+	int trace_thru_syscall = oprofile_get_trace_thru_syscall();
 
 	if (__kernel_text_address(pc)) {
 #ifdef CONFIG_KALLSYMS
@@ -54,7 +85,20 @@ struct pt_regs *op_kernel_backtrace(struct pt_regs *const regs,
 		unsigned long ra = regs->regs[31];
 		while (pc && *depth) {
 			--(*depth);
-			pc = unwind_stack(current, &sp, pc, &ra);
+			if (trace_thru_syscall && op_is_syscall_ret(pc)) {
+				struct pt_regs *uregs = (struct pt_regs *) sp;
+				if (__kernel_text_address(uregs->cp0_epc)) {
+					pc = uregs->cp0_epc;
+					sp = uregs->regs[29];
+					ra = uregs->regs[31];
+				} else {
+					oprofile_syscall_trace_boundary();
+					oprofile_add_trace(uregs->cp0_epc);
+					return uregs;
+				}
+			} else {
+				pc = unwind_stack(current, &sp, pc, &ra);
+			}
 			oprofile_add_trace(pc);
 		}
 #endif
