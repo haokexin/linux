@@ -14,6 +14,7 @@
 #include <asm/cpu-info.h>
 
 #include "op_impl.h"
+#include "backtrace.h"
 
 extern struct op_mips_model op_model_mipsxx_ops __weak;
 extern struct op_mips_model op_model_rm9000_ops __weak;
@@ -103,10 +104,6 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 	if (!lmodel)
 		return -ENODEV;
 
-	res = lmodel->init();
-	if (res)
-		return res;
-
 	model = lmodel;
 
 	ops->create_files	= op_mips_create_files;
@@ -114,12 +111,17 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 	//ops->shutdown         = op_mips_shutdown;
 	ops->start		= op_mips_start;
 	ops->stop		= op_mips_stop;
-	ops->cpu_type		= lmodel->cpu_type;
+	ops->backtrace		= mips_backtrace;
 
-	printk(KERN_INFO "oprofile: using %s performance monitoring.\n",
-	       lmodel->cpu_type);
-
-	return 0;
+	res = lmodel->init();
+	if (res) {
+		printk(KERN_INFO "oprofile: cpu model init failed.\n");
+	} else {
+		ops->cpu_type = lmodel->cpu_type;
+		printk(KERN_INFO "oprofile: using %s performance monitoring.\n",
+			lmodel->cpu_type);
+	}
+	return res;
 }
 
 void oprofile_arch_exit(void)
