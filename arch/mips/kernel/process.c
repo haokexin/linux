@@ -451,6 +451,7 @@ unsigned long unwind_stack(struct task_struct *task, unsigned long *sp,
 	*ra = 0;
 	return __kernel_text_address(pc) ? pc : 0;
 }
+EXPORT_SYMBOL_GPL(unwind_stack);
 #endif
 
 /*
