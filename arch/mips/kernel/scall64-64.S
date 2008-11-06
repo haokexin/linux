@@ -23,6 +23,7 @@
 #ifndef CONFIG_BINFMT_ELF32
 /* Neither O32 nor N32, so define handle_sys here */
 #define handle_sys64 handle_sys
+#define ret_from_handle_sys64 ret_from_handle_sys
 #endif
 
 	.align  5
@@ -123,6 +124,7 @@ illegal_syscall:
 	sd	t0, PT_R7(sp)
 	j	n64_syscall_exit
 	END(handle_sys64)
+EXPORT(ret_from_handle_sys64)
 
 	.align	3
 	.type	sys_call_table,@object
