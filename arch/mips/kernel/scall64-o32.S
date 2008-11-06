@@ -172,6 +172,7 @@ not_o32_scall:
 	j	handle_sys64
 #endif
 	END(handle_sys)
+EXPORT(ret_from_handle_sys)
 
 LEAF(sys32_syscall)
 	subu	t0, a0, __NR_O32_Linux	# check syscall number

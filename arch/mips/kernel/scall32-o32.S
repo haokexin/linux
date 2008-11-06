@@ -186,6 +186,7 @@ illegal_syscall:
 	sw	t0, PT_R7(sp)
 	j	o32_syscall_exit
 	END(handle_sys)
+EXPORT(ret_from_handle_sys)
 
 	LEAF(sys_syscall)
 	subu	t0, a0, __NR_O32_Linux	# check syscall number

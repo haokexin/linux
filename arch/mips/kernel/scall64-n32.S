@@ -26,6 +26,7 @@
 #ifndef CONFIG_MIPS32_O32
 /* No O32, so define handle_sys here */
 #define handle_sysn32 handle_sys
+#define ret_from_handle_sysn32 ret_from_handle_sys
 #endif
 
 	.align  5
@@ -118,6 +119,7 @@ not_n32_scall:
 	j	handle_sys64
 
 	END(handle_sysn32)
+EXPORT(ret_from_handle_sysn32)
 
 	.align	3
 	.type	sysn32_call_table,@object
