@@ -112,6 +112,10 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 	ops->start		= op_mips_start;
 	ops->stop		= op_mips_stop;
 	ops->backtrace		= mips_backtrace;
+#if defined(CONFIG_64BIT)
+	/* set do_page_fault and do_ade handler callback */
+	is_oprofile_fault	= op_page_fault_filter;
+#endif
 
 	res = lmodel->init();
 	if (res) {

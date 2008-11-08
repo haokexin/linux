@@ -31,6 +31,13 @@
 DEFINE_TRACE(page_fault_entry);
 DEFINE_TRACE(page_fault_exit);
 
+#if defined(CONFIG_64BIT) && \
+		(defined(CONFIG_OPROFILE_MODULE) || defined(CONFIG_OPROFILE))
+int (*is_oprofile_fault)(struct pt_regs *regs) = 0;
+EXPORT_SYMBOL_GPL(is_oprofile_fault);
+#endif
+
+
 /*
  * This routine handles page faults.  It determines the address,
  * and the problem, and then passes it off to one of the appropriate
@@ -45,6 +52,14 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long write,
 	const int field = sizeof(unsigned long) * 2;
 	siginfo_t info;
 	int fault;
+
+#if defined(CONFIG_64BIT) && \
+		(defined(CONFIG_OPROFILE_MODULE) || defined(CONFIG_OPROFILE))
+	/* for stack and frame pointer validity checking */
+	if (is_oprofile_fault && (*is_oprofile_fault)(regs)) {
+		return;
+	}
+#endif
 
 #if 0
 	printk("Cpu%d[%s:%d:%0*lx:%ld:%0*lx]\n", raw_smp_processor_id(),
