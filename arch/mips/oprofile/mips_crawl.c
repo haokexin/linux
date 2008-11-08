@@ -214,6 +214,73 @@ long double     64 (128 in n32)     128
  *-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 int op_context_debug_output; /* = 0 */
 
+#if defined(CONFIG_64BIT)
+
+/*
+ * Make a page fault or else prove we won't.  Tool used by PCOk and SPOk
+ * Return 0 if no page fault, 1 if page fault happened
+ *
+ * NOTE: The probe_kernel_read() routine does not catch unaligned
+ * exceptions which occur in the upper address space for MIPS64.
+ */
+noinline int will_page_fault(const void *const address)
+{
+	register long ret asm("$2") = 0;
+
+	asm(".set noreorder");
+	asm("ssnop");
+
+	/* dereference the given address.  If this causes a page fault, our
+	 * installed handlers should intercept this and set the "ret" register
+	 * to 1.
+	 * This instruction has an artificial dependency on the "ret" variable
+	 * as an input parameter, which ensures "ret" is not forcefully set to
+	 * true after our page fault handling mechanism may have set it false.
+	 */
+	asm("lw   $3, %1" ::"X" (ret), "m" (*(long *)address));
+
+	asm("ssnop");
+	asm(".set reorder");
+
+	return ret;
+}
+
+/*
+ * Delimit the end of oprofile_address_checker
+ */
+noinline int will_page_fault_end(void)
+{
+	return op_context_debug_output;
+}
+
+/*
+ * callback for do_page_fault and do_ade
+ * return 1 to abort the do_page_fault
+ * return 0 if fault not caused by our backtrace
+ */
+unsigned int op_page_fault_filter(struct pt_regs *regs)
+{
+	unsigned long pc = regs->cp0_epc;
+
+	if ((pc >= (unsigned long) will_page_fault) &&
+		(pc <= (unsigned long) will_page_fault_end)) {
+		/* page corresponding to pc isn't in memory, set return
+		 * value to true
+		 */
+		regs->regs[REG_V0] = 1;
+
+		/* change pc to right instruction (*/
+		regs->cp0_epc = pc + sizeof(tInst);
+
+		return 1;
+	}
+
+	/* return 0, since this isn't our page fault */
+	return 0;
+}
+
+#else
+
 /*
  * Make a page fault or else prove we won't.  Tool used by PCOk and SPOk
  * Return 0 if no page fault, 1 if page fault happened
@@ -225,6 +292,9 @@ int will_page_fault(const void *const address)
 		return 1;	/* page fault or address error */
 	return 0;
 }
+
+#endif
+
 
 /**
  * op_frame_crawl - given a target pc value, locate the calling stack frame

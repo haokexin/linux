@@ -362,8 +362,9 @@ static int __init mipsxx_init(void)
 
 	case CPU_SB1:
 	case CPU_SB1A:
-		op_model_mipsxx_ops.cpu_type = "mips/sb1";
-		break;
+		op_model_mipsxx_ops.cpu_type = "mips/sb1-timer";
+		/* since the pmr's dont fire yet, return nodev */
+		return -ENODEV;
 
 	default:
 		printk(KERN_ERR "Profiling unsupported for this CPU\n");
