@@ -506,7 +506,8 @@ struct mtd_info *cfi_cmdset_0001(struct map_info *map, int primary)
 
 		if (cfi->cfiq->BlockEraseTimeoutTyp)
 			cfi->chips[i].erase_time =
-				1000<<cfi->cfiq->BlockEraseTimeoutTyp;
+				CONFIG_MTD_CFI_INTELEXT_ERASE_MULTIPLIER
+                                       <<cfi->cfiq->BlockEraseTimeoutTyp;
 		else
 			cfi->chips[i].erase_time = 2000000;
 
