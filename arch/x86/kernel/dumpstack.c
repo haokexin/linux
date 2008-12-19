@@ -101,7 +101,7 @@ print_context_stack(struct thread_info *tinfo,
 			if ((unsigned long) stack == bp + sizeof(long)) {
 				if (with_sp) {
 					ops->address_with_sp(data,
-						addr, (unsigned long)stack);
+						addr, (unsigned long)stack, 1);
 				} else {
 					ops->address(data, addr, 1);
 				}
@@ -110,7 +110,7 @@ print_context_stack(struct thread_info *tinfo,
 			} else {
 				if (with_sp) {
 					ops->address_with_sp(data,
-						addr, (unsigned long)stack);
+						addr, (unsigned long)stack, bp == 0);
 				} else {
 					ops->address(data, addr, 0);
 				}
@@ -140,7 +140,7 @@ print_context_stack_bp(struct thread_info *tinfo,
 			break;
 		if (with_sp) {
 			ops->address_with_sp(data,
-					addr, (unsigned long)stack);
+					addr, (unsigned long)stack, 1);
 		} else {
 			ops->address(data, addr, 1);
 		}

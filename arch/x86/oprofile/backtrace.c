@@ -59,9 +59,12 @@ static void backtrace_address(void *data, unsigned long addr, int reliable)
 }
 
 static void backtrace_address_with_sp(void *data, unsigned long addr,
-		unsigned long sp)
+		unsigned long sp, int reliable)
 {
 	struct backtrace_data *bt_data = (struct backtrace_data *) data;
+
+	if (!reliable)
+		return;
 
 	/* check if return is from a system call */
 	bt_data->syscall_frame_test((void (*)(void)) addr, sp , bt_data);
@@ -221,6 +224,6 @@ x86_backtrace(struct pt_regs * const regs, unsigned int depth)
 			return;
 	}
 
-	while (depth-- && head)
+	while (bt_data.depth-- && head)
 		head = dump_user_backtrace(head);
 }
