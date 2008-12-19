@@ -38,7 +38,7 @@ struct stacktrace_ops {
 	void (*address)(void *data, unsigned long address, int reliable);
 	/* returns return address and sp for this address  */
 	void (*address_with_sp)(void *data, unsigned long address,
-		unsigned long sp);
+		unsigned long sp, int reliable);
 	/* On negative return stop dumping */
 	int (*stack)(void *data, char *name);
 	walk_stack_t	walk_stack;
