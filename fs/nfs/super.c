@@ -1569,7 +1569,7 @@ static int nfs_try_mount(struct nfs_parsed_mount_data *args,
 	 * Now ask the mount server to map our export path
 	 * to a file handle.
 	 */
-	status = nfs_mount(&request);
+	status = nfs_mount(&request,NFS_MNT_PROGRAM);
 	if (status != 0) {
 		dfprintk(MOUNT, "NFS: unable to mount server %s, error %d\n",
 				request.hostname, status);
@@ -1742,6 +1742,7 @@ static int nfs_validate_mount_data(void *options,
 {
 	struct nfs_mount_data *data = (struct nfs_mount_data *)options;
 	struct sockaddr *sap = (struct sockaddr *)&args->nfs_server.address;
+	args->nfs_prog		= NFS_PROGRAM;
 
 	if (data == NULL)
 		goto out_no_data;
@@ -1761,6 +1762,8 @@ static int nfs_validate_mount_data(void *options,
 			goto out_no_sec;
 	case 5:
 		memset(data->context, 0, sizeof(data->context));
+	case 7:
+		args->nfs_prog = (data->version >= 7) ? data->nfs_prog : NFS_PROGRAM;
 	case 6:
 		if (data->flags & NFS_MOUNT_VER3) {
 			if (data->root.size > NFS3_FHSIZE || data->root.size == 0)
@@ -2487,6 +2490,7 @@ static int nfs4_validate_mount_data(void *options,
 
 	if (data == NULL)
 		goto out_no_data;
+	args->nfs_prog		= NFS_PROGRAM;
 
 	switch (data->version) {
 	case 1:

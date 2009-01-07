@@ -41,6 +41,7 @@ struct nfs_client {
 
 	u32			cl_minorversion;/* NFSv4 minorversion */
 	struct rpc_cred		*cl_machine_cred;
+	int			nfs_prog;
 
 #ifdef CONFIG_NFS_V4
 	u64			cl_clientid;	/* constant */
@@ -71,6 +72,7 @@ struct nfs_client {
 	 */
 	char			cl_ipaddr[48];
 	unsigned char		cl_id_uniquifier;
+
 	int		     (* cl_call_sync)(struct nfs_server *server,
 					      struct rpc_message *msg,
 					      struct nfs4_sequence_args *args,
