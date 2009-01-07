@@ -47,6 +47,7 @@ struct nfs_client {
 
 	u32			cl_minorversion;/* NFSv4 minorversion */
 	struct rpc_cred		*cl_machine_cred;
+	int			nfs_prog;
 
 #ifdef CONFIG_NFS_V4
 	u64			cl_clientid;	/* constant */
@@ -72,7 +73,9 @@ struct nfs_client {
 	 */
 	char			cl_ipaddr[48];
 	unsigned char		cl_id_uniquifier;
+
 	u32			cl_cb_ident;	/* v4.0 callback identifier */
+
 	const struct nfs4_minor_version_ops *cl_mvops;
 
 	/* The sequence id to use for the next CREATE_SESSION */
