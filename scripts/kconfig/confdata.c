@@ -505,7 +505,8 @@ int conf_write(const char *name)
 				while (1) {
 					l = strcspn(str, "\"\\");
 					if (l) {
-						fwrite(str, l, 1, out);
+						int w;
+						w = fwrite(str, l, 1, out);
 						str += l;
 					}
 					if (!*str)
@@ -756,8 +757,8 @@ int conf_write_autoconf(void)
 			while (1) {
 				l = strcspn(str, "\"\\");
 				if (l) {
-					fwrite(str, l, 1, out);
-					fwrite(str, l, 1, out_h);
+					int w = fwrite(str, l, 1, out);
+					w = fwrite(str, l, 1, out_h);
 					str += l;
 				}
 				if (!*str)
