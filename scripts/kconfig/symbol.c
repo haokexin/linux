@@ -90,6 +90,7 @@ const char *sym_type_name(enum symbol_type type)
 	case S_UNKNOWN:
 		return "unknown";
 	case S_OTHER:
+	case S_IGNORED:
 		break;
 	}
 	return "???";
