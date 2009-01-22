@@ -101,22 +101,29 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 		break;
 	};
 
-	if (!lmodel)
-		return -ENODEV;
 
 	model = lmodel;
 
-	ops->create_files	= op_mips_create_files;
-	ops->setup		= op_mips_setup;
-	//ops->shutdown         = op_mips_shutdown;
-	ops->start		= op_mips_start;
-	ops->stop		= op_mips_stop;
+	/* Enable backtrace even if defaulting to timer mode */
 	ops->backtrace		= mips_backtrace;
+
 #if defined(CONFIG_64BIT)
 	/* set do_page_fault and do_ade handler callback */
 	is_oprofile_fault	= op_page_fault_filter;
 #endif
 
+	if (!lmodel) {
+		printk(KERN_WARNING
+			"oprofile: limited support for cpu type %d\n",
+			current_cpu_type());
+		return -ENODEV;
+	}
+
+	ops->create_files	= op_mips_create_files;
+	ops->setup		= op_mips_setup;
+	/* ops->shutdown         = op_mips_shutdown; */
+	ops->start		= op_mips_start;
+	ops->stop		= op_mips_stop;
 	res = lmodel->init();
 	if (res) {
 		printk(KERN_INFO "oprofile: cpu model init failed.\n");
