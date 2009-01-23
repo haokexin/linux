@@ -244,5 +244,16 @@ config SECURITY_BSDJAIL
 	  
 	  If you are unsure how to answer this question, answer N.
 
+config SECURITY_BSDJAIL_USE_NAMESPACE
+	bool "Copying name space"
+	depends on SECURITY_BSDJAIL
+	default y
+	help
+	  This could be useful, so that future mounts outside the jail
+	  don't affect the jail.  But it's not necessary, and requires
+	  exporting copy_namespace from fs/namespace.c, Actually, it
+	  would also be useful for truly hiding information about mounts
+	  which do not exist in this jail.
+
 endmenu
 

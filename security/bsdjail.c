@@ -255,9 +255,10 @@ int enable_jail(struct task_struct *tsk)
 	 *
 	 * Actually, it would also be useful for truly hiding
 	 * information about mounts which do not exist in this jail.
-#define USE_JAIL_NAMESPACE
+	 * "#define USE_JAIL_NAMESPACE" has been replace with
+	 * CONFIG_SECURITY_BSDJAIL_USE_NAMESPACE.
 	 */
-#ifdef USE_JAIL_NAMESPACE
+#ifdef CONFIG_SECURITY_BSDJAIL_USE_NAMESPACE
 	bsdj_debug(BSDJAIL_DBG, "bsdjail: copying namespace.\n");
 	retval = -EPERM;
 	if (copy_namespaces(CLONE_NEWNS, tsk))
