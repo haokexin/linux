@@ -163,6 +163,7 @@ out:
 	put_nsproxy(old_ns);
 	return err;
 }
+EXPORT_SYMBOL(copy_namespaces);
 
 void free_nsproxy(struct nsproxy *ns)
 {
