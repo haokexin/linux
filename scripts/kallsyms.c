@@ -108,8 +108,9 @@ static int read_symbol(FILE *in, struct sym_entry *s)
 	rc = fscanf(in, "%llx %c %499s\n", &s->addr, &stype, str);
 	if (rc != 3) {
 		if (rc != EOF) {
+			char *c;
 			/* skip line */
-			fgets(str, 500, in);
+			c = fgets(str, 500, in);
 		}
 		return -1;
 	}
