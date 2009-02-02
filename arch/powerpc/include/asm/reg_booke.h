@@ -37,8 +37,12 @@
 #define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_IR|MSR_DR|MSR_CE)
 #define MSR_USER	(MSR_KERNEL|MSR_PR|MSR_EE)
 #else
-#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE)
-#define MSR_USER	(MSR_KERNEL|MSR_PR|MSR_EE)
+#ifdef CONFIG_WR_OCD_DEBUG
+#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE|MSR_DE)
+#else
+#define MSR_KERNEL     (MSR_ME|MSR_RI|MSR_CE)
+#endif	/* OCD */
+#define MSR_USER       (MSR_KERNEL|MSR_PR|MSR_EE)
 #endif
 
 /* Special Purpose Registers (SPRNs)*/
