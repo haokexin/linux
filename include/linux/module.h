@@ -310,11 +310,13 @@ struct module
 	unsigned int num_symtab, core_num_syms;
 	char *strtab, *core_strtab;
 
-	/* Section attributes */
-	struct module_sect_attrs *sect_attrs;
-
 	/* Notes attributes */
 	struct module_notes_attrs *notes_attrs;
+#endif
+
+#if defined(CONFIG_KALLSYMS) || defined (CONFIG_WR_OCD_DEBUG)
+	/* Section attributes */
+	struct module_sect_attrs *sect_attrs;
 #endif
 
 	/* The command line arguments (may be mangled).  People like
