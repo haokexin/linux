@@ -1261,6 +1261,7 @@ resolve_symbol_wait(struct module *mod,
  */
 #ifdef CONFIG_SYSFS
 
+#if (defined(CONFIG_KALLSYMS) || defined (CONFIG_WR_OCD_DEBUG))
 #ifdef CONFIG_KALLSYMS
 static inline bool sect_empty(const Elf_Shdr *sect)
 {
@@ -1288,6 +1289,7 @@ static ssize_t module_sect_show(struct module_attribute *mattr,
 		container_of(mattr, struct module_sect_attr, mattr);
 	return sprintf(buf, "0x%pK\n", (void *)sattr->address);
 }
+#endif /* CONFIG_KALLSYMS */
 
 static void free_sect_attrs(struct module_sect_attrs *sect_attrs)
 {
@@ -1335,7 +1337,9 @@ static void add_sect_attrs(struct module *mod, const struct load_info *info)
 			goto out;
 		sect_attrs->nsections++;
 		sysfs_attr_init(&sattr->mattr.attr);
+#ifdef CONFIG_KALLSYMS
 		sattr->mattr.show = module_sect_show;
+#endif
 		sattr->mattr.store = NULL;
 		sattr->mattr.attr.name = sattr->name;
 		sattr->mattr.attr.mode = S_IRUGO;
@@ -1364,6 +1368,7 @@ static void remove_sect_attrs(struct module *mod)
 	}
 }
 
+#ifdef CONFIG_KALLSYMS
 /*
  * /sys/module/foo/notes/.section.name gives contents of SHT_NOTE sections.
  */
@@ -1461,8 +1466,9 @@ static void remove_notes_attrs(struct module *mod)
 	if (mod->notes_attrs)
 		free_notes_attrs(mod->notes_attrs, mod->notes_attrs->notes);
 }
+#endif /* CONFIG_KALLSYMS */
 
-#else
+#else /* ! (CONFIG_KALLSYMS || CONFIG_WR_OCD_DEBUG) */
 
 static inline void add_sect_attrs(struct module *mod,
 				  const struct load_info *info)
@@ -1473,6 +1479,7 @@ static inline void remove_sect_attrs(struct module *mod)
 {
 }
 
+#ifdef CONFIG_KALLSYMS
 static inline void add_notes_attrs(struct module *mod,
 				   const struct load_info *info)
 {
@@ -1482,6 +1489,7 @@ static inline void remove_notes_attrs(struct module *mod)
 {
 }
 #endif /* CONFIG_KALLSYMS */
+#endif /* CONFIG_KALLSYMS || CONFIG_WR_OCD_DEBUG */
 
 static void add_usage_links(struct module *mod)
 {
