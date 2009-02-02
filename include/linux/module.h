@@ -329,7 +329,8 @@ struct module
 	struct module_notes_attrs *notes_attrs;
 #endif
 
-#if defined(CONFIG_KALLSYMS) || defined(CONFIG_KGDB_MODULES)
+#if defined(CONFIG_KALLSYMS) || defined(CONFIG_KGDB_MODULES) \
+	|| defined (CONFIG_WR_OCD_DEBUG)
 	/* Section attributes */
 	struct module_sect_attrs *sect_attrs;
 #endif

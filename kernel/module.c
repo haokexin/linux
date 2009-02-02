@@ -1092,7 +1092,8 @@ static const struct kernel_symbol *resolve_symbol(Elf_Shdr *sechdrs,
  * J. Corbet <corbet@lwn.net>
  */
 #ifdef CONFIG_SYSFS
-#if (defined(CONFIG_KGDB_MODULES) || defined(CONFIG_KALLSYMS))
+#if (defined(CONFIG_KGDB_MODULES) || defined(CONFIG_KALLSYMS) || \
+     defined (CONFIG_WR_OCD_DEBUG))
 #ifdef CONFIG_KALLSYMS
 
 static inline bool sect_empty(const Elf_Shdr *sect)
@@ -1199,7 +1200,7 @@ static void remove_sect_attrs(struct module *mod)
 		mod->sect_attrs = NULL;
 	}
 }
-#else /* ! (CONFIG_KALLSYMS || CONFIG_KGDB_MODULES) */
+#else /* ! (CONFIG_KALLSYMS || CONFIG_KGDB_MODULES || CONFIG_WR_OCD_DEBUG) */
 
 static inline void add_sect_attrs(struct module *mod, unsigned int nsect,
 		char *sectstrings, Elf_Shdr *sechdrs)
@@ -1210,7 +1211,7 @@ static inline void remove_sect_attrs(struct module *mod)
 {
 }
 
-#endif /* CONFIG_KALLSYMS || CONFIG_KGDB_MODULES */
+#endif /* CONFIG_KALLSYMS || CONFIG_KGDB_MODULES || CONFIG_WR_OCD_DEBUG */
 #endif /* CONFIG_SYSFS */
 
 #ifdef CONFIG_KALLSYMS
