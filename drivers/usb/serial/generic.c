@@ -563,7 +563,7 @@ int usb_serial_handle_sysrq_char(struct tty_struct *tty,
 {
 	if (port->sysrq && port->port.console) {
 		if (ch && time_before(jiffies, port->sysrq)) {
-			handle_sysrq(ch, tty);
+			handle_sysrq_tasklet(ch, tty);
 			port->sysrq = 0;
 			return 1;
 		}

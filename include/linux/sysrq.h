@@ -52,6 +52,7 @@ extern int __sysrq_enabled;
  */
 
 void handle_sysrq(int key, struct tty_struct *tty);
+void handle_sysrq_tasklet(int key, struct tty_struct *tty);
 void __handle_sysrq(int key, struct tty_struct *tty, int check_mask);
 int register_sysrq_key(int key, struct sysrq_key_op *op);
 int unregister_sysrq_key(int key, struct sysrq_key_op *op);
@@ -68,6 +69,9 @@ static inline int __reterr(void)
 	return -EINVAL;
 }
 static inline void handle_sysrq(int key, struct tty_struct *tty)
+{
+}
+static inline void handle_sysrq_tasklet(int key, struct tty_struct *tty)
 {
 }
 
