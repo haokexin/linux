@@ -53,6 +53,9 @@
 #define DRIVER_AUTHOR "Greg Kroah-Hartman <greg@kroah.com>, Bill Ryder <bryder@sgi.com>, Kuba Ober <kuba@mareimbrium.org>, Andreas Mohr"
 #define DRIVER_DESC "USB FTDI Serial Converters Driver"
 
+/* number of outstanding urbs to prevent userspace DoS from happening */
+#define URB_UPPER_LIMIT	42
+
 static int debug;
 static __u16 vendor = FTDI_VID;
 static __u16 product;
@@ -839,6 +842,7 @@ static struct usb_serial_driver ftdi_sio_device = {
 	.ioctl =		ftdi_ioctl,
 	.set_termios =		ftdi_set_termios,
 	.break_ctl =		ftdi_break_ctl,
+	.max_in_flight_urbs =	URB_UPPER_LIMIT,
 };
 
 
@@ -848,9 +852,6 @@ static struct usb_serial_driver ftdi_sio_device = {
 /* High and low are for DTR, RTS etc etc */
 #define HIGH 1
 #define LOW 0
-
-/* number of outstanding urbs to prevent userspace DoS from happening */
-#define URB_UPPER_LIMIT	42
 
 /*
  * ***************************************************************************

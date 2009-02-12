@@ -455,8 +455,9 @@ static void pl2303_send(struct usb_serial_port *port)
 	port->write_urb->transfer_buffer_length = count;
 	result = usb_submit_urb(port->write_urb, GFP_ATOMIC);
 	if (result) {
-		dev_err(&port->dev, "%s - failed submitting write urb,"
-			" error %d\n", __func__, result);
+		if (!(port->port.console))
+			dev_err(&port->dev, "%s - failed submitting write urb,"
+				" error %d\n", __func__, result);
 		priv->write_urb_in_use = 0;
 		/* TODO: reschedule pl2303_send */
 	}
@@ -1187,6 +1188,7 @@ static struct usb_serial_driver pl2303_device = {
 	.chars_in_buffer =	pl2303_chars_in_buffer,
 	.attach =		pl2303_startup,
 	.release =		pl2303_release,
+	.max_in_flight_urbs =	-1,
 };
 
 static int __init pl2303_init(void)
