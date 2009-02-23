@@ -44,5 +44,15 @@ asmlinkage long sys_sigaltstack(const stack_t __user *uss,
 		stack_t __user *uoss, unsigned long r5, unsigned long r6,
 		unsigned long r7, unsigned long r8, struct pt_regs *regs);
 
+
+/* for Oprofile tracing across system call */
+#ifdef CONFIG_PPC64
+asmlinkage void system_call_common(void);
+asmlinkage void save_nvgprs(void);
+#else
+asmlinkage void DoSyscall(void);
+asmlinkage void handle_page_fault(void);
+#endif
+
 #endif /* __KERNEL__ */
 #endif /* __ASM_POWERPC_SYSCALLS_H */
