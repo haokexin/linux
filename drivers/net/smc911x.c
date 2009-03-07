@@ -182,7 +182,7 @@ static void smc911x_reset(struct net_device *dev)
 	if ((SMC_GET_PMT_CTRL(lp) & PMT_CTRL_READY_) == 0) {
 		/* Write to the bytetest will take out of powerdown */
 		SMC_SET_BYTE_TEST(lp, 0);
-		timeout=10;
+		timeout=10000;
 		do {
 			udelay(10);
 			reg = SMC_GET_PMT_CTRL(lp) & PMT_CTRL_READY_;
