@@ -1,3 +1,14 @@
+config WRNOTE
+	bool "Add extra notes to ELF coredumps for enhanced debugging"
+	depends on BINFMT_ELF
+	help
+	  Selecting this option adds three notes to a core dump.
+	  - NT_WR_KERNEL_INFO: holds information on OS version, BSP name, CPU
+	    numbers
+	  - NT_WR_PRPSINFO: holds pr_gid, pr_pid, pr_ppid, pr_fname, and
+	    pr_psargs
+	  - NT_WR_PRSTATUS: holdspr_cursig, pr_pid, pr_ppid, pr_reg, pr_fpreg
+
 
 config PRINTK_TIME
 	bool "Show timing information on printks"
