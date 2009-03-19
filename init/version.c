@@ -37,6 +37,10 @@ struct uts_namespace init_uts_ns = {
 };
 EXPORT_SYMBOL_GPL(init_uts_ns);
 
+#ifdef CONFIG_WRNOTE
+const char linux_compiler[] = LINUX_COMPILER;
+#endif
+
 /* FIXED STRINGS! Don't touch! */
 const char linux_banner[] =
 	"Linux version " UTS_RELEASE " (" LINUX_COMPILE_BY "@"
