@@ -108,6 +108,10 @@ static inline struct new_utsname *init_utsname(void)
 
 extern struct rw_semaphore uts_sem;
 
+#ifdef CONFIG_WRNOTE
+extern const char linux_compiler[];
+#endif
+
 #endif /* __KERNEL__ */
 
 #endif /* _LINUX_UTSNAME_H */
