@@ -14,6 +14,7 @@
 #define OPROFILE_H
 
 #include <linux/types.h>
+#include <linux/cpumask.h>
 #include <linux/spinlock.h>
 #include <asm/atomic.h>
  
@@ -136,6 +137,20 @@ int oprofilefs_create_ro_atomic(struct super_block * sb, struct dentry * root,
 /** create a directory */
 struct dentry * oprofilefs_mkdir(struct super_block * sb, struct dentry * root,
 	char const * name);
+
+/**
+ * Convert a cpumask_t into a cpu list string and copy it to the given user
+ * buffer @buf, updating *offset appropriately. Returns bytes written
+ * or -EFAULT.
+ */
+ssize_t oprofilefs_cpulist_to_user(const cpumask_t *mask, char __user *buf, size_t count, loff_t *offset);
+
+/**
+ * Read an ASCII string which denotes a list of cpus from a userspace buffer
+ * and assign mask on success.
+ * Returns 0 on success, < 0 on error.
+ */
+int oprofilefs_cpulist_from_user(cpumask_t *mask, char const __user *buf, size_t count);
 
 /**
  * Write the given asciz string to the given user buffer @buf, updating *offset

@@ -24,6 +24,7 @@ struct oprofile_operations;
 extern unsigned long oprofile_buffer_size;
 extern unsigned long oprofile_cpu_buffer_size;
 extern unsigned long oprofile_buffer_watershed;
+extern cpumask_t fs_sampled_cpus;
 extern unsigned long oprofile_time_slice;
 
 extern struct oprofile_operations oprofile_ops;

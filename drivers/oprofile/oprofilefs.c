@@ -15,6 +15,8 @@
 #include <linux/oprofile.h>
 #include <linux/fs.h>
 #include <linux/pagemap.h>
+#include <linux/ctype.h>
+#include <linux/cpumask.h>
 #include <asm/uaccess.h>
 
 #include "oprof.h"
@@ -40,6 +42,51 @@ static const struct super_operations s_ops = {
 	.drop_inode 	= generic_delete_inode,
 };
 
+ssize_t oprofilefs_cpulist_to_user(const cpumask_t *mask, char __user *buf,
+		size_t count, loff_t *offset)
+{
+	char *page;
+	char *s;
+	ssize_t retval;
+
+	page = (char *)__get_free_page(GFP_TEMPORARY);
+	if (!page)
+		return -ENOMEM;
+
+	s = page;
+	s += cpulist_scnprintf(s, PAGE_SIZE-1, mask);
+	*s++ = '\n';
+
+	retval = simple_read_from_buffer(buf, count, offset, page, s - page);
+	free_page((unsigned long)page);
+	return retval;
+}
+
+
+int oprofilefs_cpulist_from_user(cpumask_t *mask, char const __user *buf,
+		size_t count)
+{
+	char *page;
+	int retval;
+
+	page = (char *)__get_free_page(GFP_TEMPORARY);
+	if (!page)
+		return -ENOMEM;
+
+	if (count >= PAGE_SIZE)
+		count = PAGE_SIZE-1;
+
+	if (copy_from_user(page, buf, count)) {
+		retval = -EFAULT;
+		goto out;
+	}
+	page[count] = '\0';
+
+	retval = cpulist_parse(page, mask);
+out:
+	free_page((unsigned long)page);
+	return retval;
+}
 
 ssize_t oprofilefs_str_to_user(char const *str, char __user *buf, size_t count, loff_t *offset)
 {
