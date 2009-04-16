@@ -319,8 +319,15 @@ void oprofile_add_sample(struct pt_regs * const regs, unsigned long event)
 {
 	int is_kernel = !user_mode(regs);
 	unsigned long pc = profile_pc(regs);
+	unsigned int this_cpu = get_cpu();
+
+	if (!cpu_isset(this_cpu, fs_sampled_cpus)) {
+		put_cpu();
+		return;
+	}
 
 	__oprofile_add_ext_sample(pc, regs, event, is_kernel);
+	put_cpu();
 }
 
 /*

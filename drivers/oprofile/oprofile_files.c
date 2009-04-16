@@ -24,6 +24,7 @@ unsigned long oprofile_buffer_size;
 unsigned long oprofile_cpu_buffer_size;
 unsigned long oprofile_buffer_watershed;
 unsigned long oprofile_time_slice;
+cpumask_t fs_sampled_cpus;
 
 #ifdef CONFIG_OPROFILE_EVENT_MULTIPLEX
 
@@ -203,6 +204,36 @@ static const struct file_operations enhanced_backtrace_fops = {
 	.write      = enhanced_backtrace_write,
 };
 
+static ssize_t sampled_cpus_read(struct file *file,
+		char __user *buf, size_t count, loff_t *offset)
+{
+	return oprofilefs_cpulist_to_user(&fs_sampled_cpus, buf, count, offset);
+}
+
+
+static ssize_t sampled_cpus_write(struct file *file,
+		char const __user *buf, size_t count, loff_t *offset)
+{
+	cpumask_t new_value;
+	int retval;
+
+	retval = oprofilefs_cpulist_from_user(&new_value, buf, count);
+	if (retval)
+		return retval;
+
+	if (!cpus_intersects(new_value, cpu_online_map))
+		return -EINVAL;
+
+	cpus_and(fs_sampled_cpus, new_value, cpu_online_map);
+	return count;
+}
+
+
+static const struct file_operations sampled_cpus_fops = {
+	.read       = sampled_cpus_read,
+	.write      = sampled_cpus_write,
+};
+
 void oprofile_create_files(struct super_block *sb, struct dentry *root)
 {
 	/* reinitialize default values */
@@ -222,10 +253,12 @@ void oprofile_create_files(struct super_block *sb, struct dentry *root)
 	oprofilefs_create_file(sb, root, "pointer_size", &pointer_size_fops);
 	oprofilefs_create_file(sb, root,
 			"enhanced_backtrace", &enhanced_backtrace_fops);
+	oprofilefs_create_file(sb, root, "sampled_cpus", &sampled_cpus_fops);
 #ifdef CONFIG_OPROFILE_EVENT_MULTIPLEX
 	oprofilefs_create_file(sb, root, "time_slice", &timeout_fops);
 #endif
 	oprofile_create_stats_files(sb, root);
 	if (oprofile_ops.create_files)
 		oprofile_ops.create_files(sb, root);
+	fs_sampled_cpus = cpu_online_map;
 }
