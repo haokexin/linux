@@ -6,13 +6,21 @@
  * Maximum page that is mapped directly into kernel memory.
  * XXX: Since we copy virt we can use any page we allocate
  */
+#ifdef CONFIG_FSL_BOOKE
+#define KEXEC_SOURCE_MEMORY_LIMIT 0x2fffffff
+#else
 #define KEXEC_SOURCE_MEMORY_LIMIT (-1UL)
+#endif
 
 /*
  * Maximum address we can reach in physical address mode.
  * XXX: I want to allow initrd in highmem. Otherwise set to rmo on LPAR.
  */
+#ifdef CONFIG_FSL_BOOKE
+#define KEXEC_DESTINATION_MEMORY_LIMIT 0x2fffffff
+#else
 #define KEXEC_DESTINATION_MEMORY_LIMIT (-1UL)
+#endif
 
 /* Maximum address we can use for the control code buffer */
 #ifdef __powerpc64__
