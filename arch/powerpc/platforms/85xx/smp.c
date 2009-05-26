@@ -39,7 +39,7 @@ extern void __early_start(void);
 #define SIZE_BOOT_ENTRY		(NUM_BOOT_ENTRY * sizeof(u32))
 
 #ifndef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
-static void __init
+static void __cpuinit
 smp_85xx_kick_cpu(int nr)
 {
 	unsigned long flags;
@@ -126,7 +126,7 @@ static void __init smp_85xx_kick_cpu(int nr)
 }
 #endif	/* CONFIG_KEXEC_POWERPC_SMP_BOOTABLE */
 
-static void __init
+static void __cpuinit
 smp_85xx_setup_cpu(int cpu_nr)
 {
 	mpic_setup_this_cpu();
@@ -138,7 +138,20 @@ struct smp_ops_t smp_85xx_ops = {
 #ifdef CONFIG_KEXEC
 	.kexec_stop_cpus = default_kexec_stop_cpus,
 #endif
+#if defined(CONFIG_HOTPLUG_CPU)
+	.cpu_enable = generic_cpu_enable,
+	.cpu_disable = generic_cpu_disable,
+	.cpu_die = generic_cpu_die,
+#endif
 };
+
+#if defined(CONFIG_HOTPLUG_CPU) && !defined(CONFIG_WRHV)
+void cpu_die(void)
+{
+	if (smp_85xx_ops.cpu_die)
+		smp_85xx_ops.cpu_die(smp_processor_id());
+}
+#endif
 
 void __init mpc85xx_smp_init(void)
 {

@@ -148,6 +148,13 @@ static u32 mpic_infos[][MPIC_IDX_END] = {
 
 #endif /* CONFIG_MPIC_WEIRD */
 
+#ifdef CONFIG_AMP
+static unsigned int amp_sm_vipi;
+#ifndef CONFIG_SMP
+static unsigned int amp_mpic_probe_called;
+#endif
+#endif
+
 /*
  * Register accessor functions
  */
@@ -664,7 +671,7 @@ static inline u32 mpic_physmask(u32 cpumask)
 	return mask;
 }
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_AMP)
 /* Get the mpic structure from the IPI number */
 static inline struct mpic * mpic_from_ipi(unsigned int ipi)
 {
@@ -804,7 +811,7 @@ static void mpic_end_ht_irq(unsigned int irq)
 }
 #endif /* !CONFIG_MPIC_U3_HT_IRQS */
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_AMP)
 
 static void mpic_unmask_ipi(unsigned int irq)
 {
@@ -969,7 +976,9 @@ static struct irq_chip mpic_irq_chip = {
 	.set_type	= mpic_set_irq_type,
 };
 
-#ifdef CONFIG_SMP
+
+#if defined(CONFIG_SMP) || defined(CONFIG_AMP)
+
 static struct irq_chip mpic_ipi_chip = {
 	.mask		= mpic_mask_ipi,
 	.unmask		= mpic_unmask_ipi,
@@ -1001,6 +1010,14 @@ static int mpic_host_match(struct irq_host *h, struct device_node *node)
 	return h->of_node == NULL || h->of_node == node;
 }
 
+#if defined(CONFIG_AMP) || defined(CONFIG_SMP)
+static void __mpic_setup_irqchip(struct mpic *mpic, unsigned int virq)
+{
+	set_irq_chip_data(virq, mpic);
+	set_irq_chip_and_handler(virq, &mpic->hc_ipi, handle_percpu_irq);
+}
+#endif
+
 static int mpic_host_map(struct irq_host *h, unsigned int virq,
 			 irq_hw_number_t hw)
 {
@@ -1028,9 +1045,11 @@ static int mpic_host_map(struct irq_host *h, unsigned int virq,
 		WARN_ON(!(mpic->flags & MPIC_PRIMARY));
 
 		DBG("mpic: mapping as IPI\n");
-		set_irq_chip_data(virq, mpic);
-		set_irq_chip_and_handler(virq, &mpic->hc_ipi,
-					 handle_percpu_irq);
+#ifdef CONFIG_AMP
+		/* need to keep IPI free for AMP */
+		if (mpic->ipi_vecs[0] != CONFIG_AMP_IPI_NUM)
+#endif
+			__mpic_setup_irqchip(mpic, virq);
 		return 0;
 	}
 #endif /* CONFIG_SMP */
@@ -1139,7 +1158,7 @@ struct mpic * __init mpic_alloc(struct device_node *node,
 		mpic->hc_ht_irq.set_affinity = mpic_set_affinity;
 #endif /* CONFIG_MPIC_U3_HT_IRQS */
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_AMP)
 	mpic->hc_ipi = mpic_ipi_chip;
 	mpic->hc_ipi.name = name;
 #endif /* CONFIG_SMP */
@@ -1577,6 +1596,20 @@ void mpic_send_ipi(unsigned int ipi_no, unsigned int cpu_mask)
 		       mpic_physmask(cpu_mask & cpus_addr(cpu_online_map)[0]));
 }
 
+void mpic_send_amp_ipi(unsigned int ipi_no, unsigned int cpu_mask)
+{
+	struct mpic *mpic = mpic_primary;
+
+	BUG_ON(mpic == NULL);
+
+#ifdef DEBUG_IPI
+	DBG("%s: send_ipi(ipi_no: %d)\n", mpic->name, ipi_no);
+#endif
+
+	mpic_cpu_write(MPIC_INFO(CPU_IPI_DISPATCH_0) +
+			ipi_no * MPIC_INFO(CPU_IPI_DISPATCH_STRIDE), cpu_mask);
+}
+
 static unsigned int _mpic_get_one_irq(struct mpic *mpic, int reg)
 {
 	u32 src;
@@ -1668,6 +1701,11 @@ void mpic_request_ipis(void)
 			printk(KERN_ERR "Failed to map %s\n", smp_ipi_name[i]);
 			continue;
 		}
+#ifdef CONFIG_AMP
+		if (i == CONFIG_AMP_IPI_NUM) /*Unused allow request from external driver in AMP */
+			amp_sm_vipi = vipi;
+		else
+#endif
 		smp_request_message_ipi(vipi, i);
 	}
 }
@@ -1714,6 +1752,91 @@ void __devinit smp_mpic_setup_cpu(int cpu)
 	mpic_setup_this_cpu();
 }
 #endif /* CONFIG_SMP */
+
+#ifdef CONFIG_AMP
+#ifndef CONFIG_SMP
+void mpic_request_ipis(void)
+{
+
+	struct mpic *mpic = mpic_primary;
+	BUG_ON(mpic == NULL);
+
+	printk(KERN_INFO "mpic: requesting IPIs ... \n");
+
+	amp_sm_vipi = irq_create_mapping(mpic->irqhost,
+					     mpic->ipi_vecs[0] + CONFIG_AMP_IPI_NUM);
+	if (amp_sm_vipi == NO_IRQ)
+		printk(KERN_ERR "Failed to map IPI %d\n",CONFIG_AMP_IPI_NUM );
+}
+#endif
+
+#ifndef MSG_ALL
+#define MSG_ALL 0x22
+#endif
+#ifndef MSG_ALL_BUT_SELF
+#define MSG_ALL_BUT_SELF 0x21
+#endif
+
+void amp_mpic_message_pass(int target, int msg)
+{
+	if (target > MSG_ALL) {
+		printk(KERN_DEBUG "Unknown AMP IPI message: 0x%x\n",msg);
+		return;
+	}
+
+	switch (target) {
+	case MSG_ALL:
+		mpic_send_amp_ipi(msg, 0xffffffff);
+		break;
+	case MSG_ALL_BUT_SELF:
+		mpic_send_amp_ipi(msg, 0xffffffff & ~(1 << smp_processor_id()));
+		break;
+	default:
+		mpic_send_amp_ipi(msg, 1 << target );
+		break;
+	}
+}
+EXPORT_SYMBOL(amp_mpic_message_pass);
+
+void amp_mpic_probe(void)
+{
+#ifndef CONFIG_SMP
+	if (amp_mpic_probe_called == 0) {
+		amp_mpic_probe_called=1;
+		mpic_request_ipis();
+	}
+#endif
+}
+
+
+int amp_ipi_sm_request(void *ipi_isr)
+{
+	struct mpic *mpic = mpic_primary;
+	static char *ipi_names[] = {
+			"IPI0",
+			"IPI1",
+			"IPI2 (shared memory driver)",
+			"IPI3",
+	};
+	int ipi_num = -1;
+
+	amp_mpic_probe();
+
+	ipi_num = CONFIG_AMP_IPI_NUM; /* Default unused IPI in SMP mode*/
+
+	set_irq_chip_data(amp_sm_vipi, mpic);
+	set_irq_chip_and_handler(amp_sm_vipi, &mpic->hc_ipi, handle_fasteoi_irq);
+
+	if ((request_irq(amp_sm_vipi,ipi_isr, IRQF_DISABLED|IRQF_PERCPU,
+			ipi_names[ipi_num], mpic)) !=0) {
+		printk(KERN_DEBUG "request_irq FAILED for %s",ipi_names[ipi_num]);
+		return 1;
+	}
+
+	return ipi_num;
+}
+EXPORT_SYMBOL(amp_ipi_sm_request);
+#endif /* CONFIG_AMP */
 
 #ifdef CONFIG_PM
 static int mpic_suspend(struct sys_device *dev, pm_message_t state)

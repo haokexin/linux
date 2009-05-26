@@ -154,6 +154,24 @@ config FSL_EMB_PERF_EVENT_E500
 	depends on FSL_EMB_PERF_EVENT && E500
 	default y
 
+config AMP
+	depends on PPC_E500MC || FSL_BOOKE
+	bool "Asymmetric multi-processing support"
+	---help---
+	This enables support for systems with more than one CPU and
+	is only supported currently with 8572/8578.
+	If you don't know what to do here, say N.
+
+config AMP_IPI_NUM
+	depends on AMP
+	int "IPI used for AMP shared memory driver"
+	range 0 3
+	default "2" if SMP
+	default "0"
+	---help---
+	The chooses which IPI should be used. If SMP and AMP is both
+	enabled 2  should be the default although this is a untested mode.
+
 config 4xx
 	bool
 	depends on 40x || 44x

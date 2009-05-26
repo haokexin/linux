@@ -45,6 +45,8 @@ int generic_cpu_disable(void);
 int generic_cpu_enable(unsigned int cpu);
 void generic_cpu_die(unsigned int cpu);
 void generic_mach_cpu_die(void);
+extern int start_secondary(void *unused);
+extern void abort(void);
 #endif
 
 #ifdef CONFIG_PPC64
