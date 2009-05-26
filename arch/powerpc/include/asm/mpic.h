@@ -260,7 +260,7 @@ struct mpic
 #ifdef CONFIG_MPIC_U3_HT_IRQS
 	struct irq_chip		hc_ht_irq;
 #endif
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) || defined(CONFIG_AMP)
 	struct irq_chip		hc_ipi;
 #endif
 	struct irq_chip         hc_tm;

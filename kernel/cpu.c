@@ -77,11 +77,13 @@ void cpu_maps_update_begin(void)
 {
 	mutex_lock(&cpu_add_remove_lock);
 }
+EXPORT_SYMBOL(cpu_maps_update_begin);
 
 void cpu_maps_update_done(void)
 {
 	mutex_unlock(&cpu_add_remove_lock);
 }
+EXPORT_SYMBOL(cpu_maps_update_done);
 
 /*
  * This ensures that the hotplug operation can begin only when the

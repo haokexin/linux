@@ -3,6 +3,7 @@
 #
 obj-$(CONFIG_SMP) += smp.o
 obj-$(CONFIG_MPC85xx_CPUFREQ) += cpufreq.o
+obj-$(CONFIG_AMP) += amp.o
 
 obj-$(CONFIG_MPC8540_ADS) += mpc85xx_ads.o
 obj-$(CONFIG_MPC8560_ADS) += mpc85xx_ads.o

@@ -313,6 +313,8 @@ int generic_cpu_disable(void)
 	set_cpu_online(cpu, false);
 #ifdef CONFIG_PPC64
 	vdso_data->processorCount--;
+#endif
+#ifdef CONFIG_HOTPLUG_CPU
 	fixup_irqs(cpu_online_map);
 #endif
 	return 0;
@@ -329,15 +331,14 @@ int generic_cpu_enable(unsigned int cpu)
 	per_cpu(cpu_state, cpu) = CPU_UP_PREPARE;
 	smp_wmb();
 
-	while (!cpu_online(cpu))
-		cpu_relax();
 
-#ifdef CONFIG_PPC64
+#ifdef CONFIG_HOTPLUG_CPU
 	fixup_irqs(cpu_online_map);
 	/* counter the irq disable in fixup_irqs */
 	local_irq_enable();
 #endif
-	return 0;
+
+	return 1;
 }
 
 void generic_cpu_die(unsigned int cpu)
@@ -362,6 +363,9 @@ void generic_mach_cpu_die(void)
 	printk(KERN_DEBUG "CPU%d offline\n", cpu);
 	__get_cpu_var(cpu_state) = CPU_DEAD;
 	smp_wmb();
+
+	abort();
+
 	while (__get_cpu_var(cpu_state) != CPU_UP_PREPARE)
 		cpu_relax();
 	set_cpu_online(cpu, true);
@@ -552,7 +556,7 @@ int setup_profiling_timer(unsigned int multiplier)
 	return 0;
 }
 
-void __init smp_cpus_done(unsigned int max_cpus)
+void __cpuinit smp_cpus_done(unsigned int max_cpus)
 {
 	cpumask_t old_mask;
 
