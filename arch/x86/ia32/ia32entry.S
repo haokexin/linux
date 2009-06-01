@@ -25,14 +25,14 @@
 #define sysretl_audit ia32_ret_from_sys_call
 #endif
 
-#ifdef CONFIG_OPROFILE
+#ifdef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 #define OPROF_ARGOFFSET	0
 #else
 #define OPROF_ARGOFFSET ARGOFFSET
 #endif
 
 	.macro OPROF_SAVE_REST reg, tmp, savereg=1
-#ifdef CONFIG_OPROFILE
+#ifdef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 	SAVE_REST
 	movq	RBP(%rsp), \tmp
 	.if \savereg
@@ -42,7 +42,7 @@
 	.endm
 
 	.macro OPROF_RESTORE_REST tmp, restorereg=1
-#ifdef CONFIG_OPROFILE
+#ifdef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 	.if \restorereg
 	movq	\tmp, RBP(%rsp)
 	.endif
@@ -537,7 +537,7 @@ ENTRY(ia32_ptregs_common)
 /*	CFI_REL_OFFSET	rflags,EFLAGS-OPROF_ARGOFFSET*/
 	CFI_REL_OFFSET	rsp,RSP-OPROF_ARGOFFSET
 /*	CFI_REL_OFFSET	ss,SS-OPROF_ARGOFFSET*/
-#ifdef CONFIG_OPROFILE
+#ifdef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 	movq	%r15, RBP(%rsp)	/* SAVE_REST at syscall */
 #else
 	SAVE_REST

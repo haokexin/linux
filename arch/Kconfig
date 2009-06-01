@@ -30,6 +30,14 @@ config OPROFILE_EVENT_MULTIPLEX
 config HAVE_OPROFILE
 	bool
 
+config OPROFILE_SYSCALL_TRAVERSE
+	bool "Enable OProfile unwind from kernel through syscall"
+	depends on OPROFILE
+	default n
+	help
+	  Enable OProfile unwind from kernel through syscall to user
+	  space.
+
 config KPROBES
 	bool "Kprobes"
 	depends on KALLSYMS && MODULES

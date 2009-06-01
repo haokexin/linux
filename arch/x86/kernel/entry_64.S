@@ -176,7 +176,7 @@ ENTRY(native_usergs_sysret64)
 ENDPROC(native_usergs_sysret64)
 #endif /* CONFIG_PARAVIRT */
 
-#ifdef CONFIG_OPROFILE
+#ifdef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 #define OPROF_ARGOFFSET		0
 #define OPROF_SAVE_REST		SAVE_REST
 #define OPROF_RESTORE_REST	RESTORE_REST
@@ -358,7 +358,7 @@ END(save_args)
 
 ENTRY(save_rest)
 	PARTIAL_FRAME 1 REST_SKIP+8
-#ifndef CONFIG_OPROFILE
+#ifndef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 	movq 5*8+16(%rsp), %r11	/* save return address */
 	movq_cfi rbx, RBX+16
 	movq_cfi rbp, RBP+16
@@ -719,7 +719,7 @@ END(system_call)
 	.macro PTREGSCALL label,func,arg
 ENTRY(\label)
 	PARTIAL_FRAME 1 8		/* offset 8: return address */
-#ifndef CONFIG_OPROFILE
+#ifndef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 	subq $REST_SKIP, %rsp
 #endif
 	CFI_ADJUST_CFA_OFFSET REST_SKIP
@@ -741,7 +741,7 @@ END(\label)
 ENTRY(ptregscall_common)
 	DEFAULT_FRAME 1 8	/* offset 8: return address */
 	RESTORE_TOP_OF_STACK %r11, 8
-#ifndef CONFIG_OPROFILE
+#ifndef CONFIG_OPROFILE_SYSCALL_TRAVERSE
 	movq_cfi_restore R15+8, r15
 	movq_cfi_restore R14+8, r14
 	movq_cfi_restore R13+8, r13
