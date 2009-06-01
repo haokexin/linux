@@ -15,6 +15,9 @@
 #include <asm/uaccess.h>
 #include <asm/stacktrace.h>
 #include <asm/proto.h>
+#include "../kernel/oprofile_sysret_lookup.h"
+
+static struct oprofile_sysret_lookup *op_sysret;
 
 struct backtrace_data {
 	/* user input to enable kernel-syscall-userland tracing */
@@ -135,24 +138,13 @@ static inline void set_basepointer(unsigned long sp,
 	bt_data->bp = frame_pointer(regs);
 }
 
-#if defined(CONFIG_OPROFILE_MODULE)
-/*
- * This causes system call traversal to fail, but the only other choice
- * for oprofile as module is to export some dangerous symbols
- */
-void system_call_done(void) {}
-void tracesys_done(void) {}
-void ia32_syscall_done(void) {}
-void ia32_sysenter_done(void) {}
-void ia32_cstar_done(void) {}
-#endif
-
 #if defined(CONFIG_X86_64)
 static inline void in_x86_64_syscall_frame(
 	void (*addr)(void), unsigned long sp,
 	struct backtrace_data *bt_data)
 {
-	if ((addr == system_call_done) || (addr == tracesys_done))
+	if ((addr == op_sysret->system_call_done)
+	|| (addr == op_sysret->tracesys_done))
 		set_basepointer(sp, bt_data);
 }
 #endif
@@ -162,8 +154,9 @@ static inline void in_ia32_syscall_frame(
 	void (*addr)(void), unsigned long sp,
 	struct backtrace_data *bt_data)
 {
-	if ((addr == ia32_syscall_done) || (addr == ia32_cstar_done)
-		|| (addr == ia32_sysenter_done))
+	if ((addr == op_sysret->ia32_syscall_done)
+	|| (addr == op_sysret->ia32_cstar_done)
+	|| (addr == op_sysret->ia32_sysenter_done))
 		set_basepointer(sp, bt_data);
 }
 #endif
@@ -173,7 +166,8 @@ static inline void in_x86_32_syscall_frame(
 	void (*addr)(void), unsigned long sp,
 	struct backtrace_data *bt_data)
 {
-	if ((addr == system_call_done) || (addr == ia32_sysenter_done))
+	if ((addr == op_sysret->system_call_done)
+	|| (addr == op_sysret->ia32_sysenter_done))
 		set_basepointer(sp, bt_data);
 }
 #endif
@@ -208,6 +202,9 @@ x86_backtrace(struct pt_regs * const regs, unsigned int depth)
 		.depth = depth,
 		.bp = 0,
 	};
+
+	if (unlikely(op_sysret == 0))
+		op_sysret = init_oprofile_sysret();
 
 	bt_data.syscall_frame_test = SYSCALL_FRAME_TEST;
 
