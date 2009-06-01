@@ -125,6 +125,10 @@ obj-$(CONFIG_SWIOTLB)			+= pci-swiotlb.o
 obj-$(CONFIG_HAVE_PSRWLOCK_ASM_CALL)	+= call_64.o
 obj-$(CONFIG_HAVE_PSRWLOCK_ASM_CALL)	+= call_export_64.o
 
+ifdef CONFIG_OPROFILE
+	obj-y	+= oprofile_sysret_lookup.o
+endif
+
 ###
 # 64 bit specific files
 ifeq ($(CONFIG_X86_64),y)
