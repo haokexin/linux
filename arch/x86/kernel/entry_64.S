@@ -331,6 +331,12 @@ ENTRY(save_args)
 
 	leaq -ARGOFFSET+16(%rsp),%rdi	/* arg1 for handler */
 	movq_cfi rbp, 8		/* push %rbp */
+#if defined(CONFIG_OPROFILE) || defined(CONFIG_OPROFILE_MODULE)
+        /*
+         * Save the rbp to let oprofile backtrace the user stack
+        */
+        movq %rbp, -8(%rsp)
+#endif
 	leaq 8(%rsp), %rbp		/* mov %rsp, %ebp */
 	testl $3, CS(%rdi)
 	je 1f
