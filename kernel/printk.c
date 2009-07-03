@@ -447,6 +447,7 @@ static void __call_console_drivers(unsigned start, unsigned end)
 
 	for_each_console(con) {
 		if ((con->flags & CON_ENABLED) && con->write &&
+				console_atomic_safe(con) &&
 				(cpu_online(smp_processor_id()) ||
 				(con->flags & CON_ANYTIME)))
 			con->write(con, &LOG_BUF(start), end - start);
