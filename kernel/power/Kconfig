@@ -190,6 +190,21 @@ config PM_SNAPSHOT
 	  consistent snapshot being taken the system will be mostly frozen
 	  during the time of the snapshot.
 
+config PM_SNAPSHOT
+	bool "Live snapshots"
+	depends on PM && PM_SLEEP && ARCH_PM_SNAPSHOT_POSSIBLE && !NUMA && !HIGHMEM
+	---help---
+	  This allows taking a snapshot of the state of a running system.  The
+	  snapshot file will be a standard core file so all common tools can be
+	  used to analyze it.  To take a snapshot just echo the filename of the
+	  snapshot to be created into the control file like
+	  "echo /root/snapshot > /sys/ksnap/ksnap".
+
+	  Depending on the amount of memory in the system and filesystem
+	  performance taking a snapshot may be a slow process; to allow a
+	  consistent snapshot being taken the system will be mostly frozen
+	  during the time of the snapshot.
+
 config PM_STD_PARTITION
 	string "Default resume partition"
 	depends on HIBERNATION
