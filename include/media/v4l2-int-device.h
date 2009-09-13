@@ -231,6 +231,12 @@ enum v4l2_int_ioctl_num {
 	 *
 	 */
 	vidioc_int_priv_start_num = 2000,
+	/* VIDIOC_INT_PRIV_G_PIXCLK */
+	vidioc_int_priv_g_pixclk_num,
+	/* VIDIOC_INT_PRIV_G_ACTIVESIZE */
+	vidioc_int_priv_g_activesize_num,
+	/* VIDIOC_INT_PRIV_G_FULLSIZE */
+	vidioc_int_priv_g_fullsize_num,
 };
 
 /*
@@ -308,4 +314,7 @@ V4L2_INT_WRAPPER_0(reset);
 V4L2_INT_WRAPPER_0(init);
 V4L2_INT_WRAPPER_1(g_chip_ident, int, *);
 
+V4L2_INT_WRAPPER_1(priv_g_pixclk, u32, *);
+V4L2_INT_WRAPPER_1(priv_g_activesize, struct v4l2_pix_format, *);
+V4L2_INT_WRAPPER_1(priv_g_fullsize, struct v4l2_pix_format, *);
 #endif
