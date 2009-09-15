@@ -407,6 +407,7 @@ void __init smp_setup_cpu_maps(void)
 	struct device_node *dn = NULL;
 	int cpu = 0;
 	int nthreads = 1;
+	const int *disabled;
 
 	DBG("smp_setup_cpu_maps()\n");
 
@@ -429,10 +430,13 @@ void __init smp_setup_cpu_maps(void)
 				intserv = &cpu;	/* assume logical == phys */
 		}
 
+		disabled = of_get_property(dn, "cpu-disabled", NULL);
+
 		for (j = 0; j < nthreads && cpu < NR_CPUS; j++) {
 			DBG("    thread %d -> cpu %d (hard id %d)\n",
 			    j, cpu, intserv[j]);
-			set_cpu_present(cpu, true);
+			if (!disabled)
+				set_cpu_present(cpu, true);
 			set_hard_smp_processor_id(cpu, intserv[j]);
 			set_cpu_possible(cpu, true);
 			cpu++;
