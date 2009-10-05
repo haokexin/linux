@@ -216,8 +216,11 @@ extern struct sctp_globals {
 	/* Flag to indicate if PR-SCTP is enabled. */
 	int prsctp_enable;
 
-	/* Flag to idicate if SCTP-AUTH is enabled */
+	/* Flag to indicate if SCTP-AUTH is enabled */
 	int auth_enable;
+
+	/* Flag to indicate if ECN is enabled for new connections */
+	int ecn_enable;
 
 	/*
 	 * Policy to control SCTP IPv4 address scoping
@@ -271,6 +274,7 @@ extern struct sctp_globals {
 #define sctp_addip_noauth		(sctp_globals.addip_noauth_enable)
 #define sctp_prsctp_enable		(sctp_globals.prsctp_enable)
 #define sctp_auth_enable		(sctp_globals.auth_enable)
+#define sctp_ecn_enable 		(sctp_globals.ecn_enable)
 #define sctp_checksum_disable		(sctp_globals.checksum_disable)
 #define sctp_rwnd_upd_shift		(sctp_globals.rwnd_update_shift)
 

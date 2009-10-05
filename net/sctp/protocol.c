@@ -1262,6 +1262,9 @@ SCTP_STATIC __init int sctp_init(void)
 	/* Set the default rwnd update threshold */
 	sctp_rwnd_upd_shift		= SCTP_DEFAULT_RWND_SHIFT;
 
+	/* Enable ECN by default. */
+	sctp_ecn_enable = 1;
+
 	sctp_sysctl_register();
 
 	INIT_LIST_HEAD(&sctp_address_families);

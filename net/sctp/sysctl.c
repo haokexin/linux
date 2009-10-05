@@ -251,6 +251,13 @@ static ctl_table sctp_table[] = {
 		.extra1		= &one,
 		.extra2		= &rwnd_scale_max,
 	},
+	{
+		.procname	= "ecn_enable",
+		.data		= &sctp_ecn_enable,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= &proc_dointvec,
+	},
 
 	{ /* sentinel */ }
 };
