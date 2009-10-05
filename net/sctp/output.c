@@ -347,6 +347,7 @@ int sctp_packet_transmit(struct sctp_packet *packet)
 	struct sock *sk;
 	int err = 0;
 	int padding;		/* How much padding do we need?  */
+	int use_ecn;
 	__u8 has_data = 0;
 	struct dst_entry *dst = tp->dst;
 	unsigned char *auth = NULL;	/* pointer to auth in skb data */
@@ -537,7 +538,12 @@ int sctp_packet_transmit(struct sctp_packet *packet)
 	 * Note: The works for IPv6 layer checks this bit too later
 	 * in transmission.  See IP6_ECN_flow_xmit().
 	 */
-	(*tp->af_specific->ecn_capable)(nskb->sk);
+	if (asoc)
+		use_ecn = asoc->peer.ecn_capable;
+	else
+		use_ecn = sctp_ecn_enable;
+	if (use_ecn)
+		(*tp->af_specific->ecn_capable)(nskb->sk);
 
 	/* Set up the IP options.  */
 	/* BUG: not implemented

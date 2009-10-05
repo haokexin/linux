@@ -233,7 +233,8 @@ struct sctp_chunk *sctp_make_init(const struct sctp_association *asoc,
 
 	chunksize = sizeof(init) + addrs_len;
 	chunksize += WORD_ROUND(SCTP_SAT_LEN(num_types));
-	chunksize += sizeof(ecap_param);
+	if (sctp_ecn_enable)
+		chunksize += sizeof(ecap_param);
 
 	if (sctp_prsctp_enable)
 		chunksize += sizeof(prsctp_param);
@@ -315,7 +316,8 @@ struct sctp_chunk *sctp_make_init(const struct sctp_association *asoc,
 	sctp_addto_chunk(retval, sizeof(sat), &sat);
 	sctp_addto_chunk(retval, num_types * sizeof(__u16), &types);
 
-	sctp_addto_chunk(retval, sizeof(ecap_param), &ecap_param);
+	if (sctp_ecn_enable)
+		sctp_addto_chunk(retval, sizeof(ecap_param), &ecap_param);
 
 	/* Add the supported extensions parameter.  Be nice and add this
 	 * fist before addiding the parameters for the extensions themselves
@@ -2536,7 +2538,8 @@ do_addr_param:
 		break;
 
 	case SCTP_PARAM_ECN_CAPABLE:
-		asoc->peer.ecn_capable = 1;
+		if (sctp_ecn_enable)
+			asoc->peer.ecn_capable = 1;
 		break;
 
 	case SCTP_PARAM_ADAPTATION_LAYER_IND:
