@@ -9,8 +9,8 @@
 
 #include <linux/oprofile.h>
 #include <linux/sched.h>
+#include <linux/uaccess.h>
 #include <asm/processor.h>
-#include <asm/uaccess.h>
 #include <asm/compat.h>
 #include <asm/syscalls.h>
 
@@ -45,7 +45,7 @@ static unsigned int user_getsp32(unsigned int sp, int is_first)
 	 * which means that we've done all that we can do from
 	 * interrupt context.
 	 */
-	if (__copy_from_user_inatomic(stack_frame, p, sizeof(stack_frame)))
+	if (probe_kernel_read(stack_frame, p, sizeof(stack_frame)))
 		return 0;
 
 	if (!is_first)
@@ -66,7 +66,7 @@ static unsigned long user_getsp64(unsigned long sp, int is_first)
 	if (!access_ok(VERIFY_READ, (void __user *)sp, sizeof(stack_frame)))
 		return 0;
 
-	if (__copy_from_user_inatomic(stack_frame, (void __user *)sp,
+	if (probe_kernel_read(stack_frame, (void __user *)sp,
 					sizeof(stack_frame)))
 		return 0;
 
