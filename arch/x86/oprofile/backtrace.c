@@ -11,8 +11,8 @@
 #include <linux/oprofile.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/uaccess.h>
 #include <asm/ptrace.h>
-#include <asm/uaccess.h>
 #include <asm/stacktrace.h>
 #include <asm/proto.h>
 #include "../kernel/oprofile_sysret_lookup.h"
@@ -180,7 +180,7 @@ static struct frame_head *dump_user_backtrace(struct frame_head *head)
 	/* Also check accessibility of one struct frame_head beyond */
 	if (!access_ok(VERIFY_READ, head, OP_FRAME_SIZE))
 		return NULL;
-	if (__copy_from_user_inatomic(bufhead, head, OP_FRAME_SIZE))
+	if (probe_kernel_read(bufhead, head, OP_FRAME_SIZE))
 		return NULL;
 
 	oprofile_add_trace(GET_FRAME_RET(bufhead));
