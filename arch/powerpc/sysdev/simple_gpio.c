@@ -94,7 +94,7 @@ static int __init u8_simple_gpiochip_add(struct device_node *np)
 	struct of_gpio_chip *of_gc;
 	struct gpio_chip *gc;
 
-	u8_gc = kzalloc(sizeof(*u8_gc), GFP_KERNEL);
+	u8_gc = kzalloc(sizeof(*u8_gc), GFP_ATOMIC);
 	if (!u8_gc)
 		return -ENOMEM;
 
