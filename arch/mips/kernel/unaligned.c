@@ -453,12 +453,6 @@ static void emulate_load_store_insn(struct pt_regs *regs,
 		 */
 		goto sigbus;
 
-#if defined(CONFIG_64BIT) \
-	&& (defined(CONFIG_OPROFILE_MODULE) || defined(CONFIG_OPROFILE))
-	if (is_oprofile_fault && (*is_oprofile_fault)(regs))
-		return;
-#endif
-
 	/*
 	 * COP2 is available to implementor for application specific use.
 	 * It's up to applications to register a notifier chain and do
@@ -514,14 +508,6 @@ sigill:
 	die_if_kernel("Unhandled kernel unaligned access or invalid instruction", regs);
 	force_sig(SIGILL, current);
 }
-
-#if defined(CONFIG_64BIT) \
-	&& (defined(CONFIG_OPROFILE_MODULE) || defined(CONFIG_OPROFILE))
-/*
- * For oprofile backtrace code. If oprofile is enabled, this callback is valid
- */
-extern int (*is_oprofile_fault)(struct pt_regs *regs);
-#endif
 
 asmlinkage void do_ade(struct pt_regs *regs)
 {

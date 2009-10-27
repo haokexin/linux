@@ -22,21 +22,4 @@
  */
 extern void mips_backtrace(struct pt_regs *const regs, unsigned int depth);
 
-#if defined(CONFIG_64BIT)
-/*
- * Callback from do_page_fault and do_ade to detect if
- * page fault occured during an oprofile_backtrace.
- * returns 1 if caller should not handle the fault
- *   (caused by oprofile backtracing)
- * returns 0 if the caller should handle the fault
- */
-extern unsigned int (*is_oprofile_fault)(struct pt_regs *regs);
-
-/*
- * Callback from do_page_fault and do_ade to set return
- * of oprofile user space address valididator to false
- */
-extern unsigned int op_page_fault_filter(struct pt_regs *regs);
-#endif
-
 #endif /* BACKTRACE_H */

@@ -78,10 +78,6 @@ typedef unsigned long tAddr;	/* Address type */
 /* Number of back branches before we stop taking them */
 #define MAX_ARB_BRANCHES         10
 
-typedef unsigned int tInst;	/* Instruction type */
-typedef int rOffset;		/* instruction register offset field */
-#define INST_SIZE (4)		/* Size of instr -- avoid sizeof() overhead */
-
 /*
  *  Parameters - define context parameters here
  */

@@ -201,6 +201,7 @@ double          64                  64
 long double     64 (128 in n32)     128
 */
 
+#include <linux/sched.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/ptrace.h>
@@ -223,69 +224,41 @@ int op_context_debug_output; /* = 0 */
  * NOTE: The probe_kernel_read() routine does not catch unaligned
  * exceptions which occur in the upper address space for MIPS64.
  */
-noinline int will_page_fault(const void *const address)
+int __will_fault(const void *const address, size_t size)
 {
-	register long ret asm("$2") = 0;
+	long t;
+	int ret = 1;
 
-	asm(".set noreorder");
-	asm("ssnop");
+	if ((unsigned long)address & (size - 1))
+		goto done;
 
-	/* dereference the given address.  If this causes a page fault, our
-	 * installed handlers should intercept this and set the "ret" register
-	 * to 1.
-	 * This instruction has an artificial dependency on the "ret" variable
-	 * as an input parameter, which ensures "ret" is not forcefully set to
-	 * true after our page fault handling mechanism may have set it false.
-	 */
-	asm("lw   $3, %1" ::"X" (ret), "m" (*(long *)address));
+	if (!access_ok(VERIFY_READ, address, size))
+		goto done;
 
-	asm("ssnop");
-	asm(".set reorder");
-
-	return ret;
-}
-
-/*
- * Delimit the end of oprofile_address_checker
- */
-noinline int will_page_fault_end(void)
-{
-	return op_context_debug_output;
-}
-
-/*
- * callback for do_page_fault and do_ade
- * return 1 to abort the do_page_fault
- * return 0 if fault not caused by our backtrace
- */
-unsigned int op_page_fault_filter(struct pt_regs *regs)
-{
-	unsigned long pc = regs->cp0_epc;
-
-	if ((pc >= (unsigned long) will_page_fault) &&
-		(pc <= (unsigned long) will_page_fault_end)) {
-		/* page corresponding to pc isn't in memory, set return
-		 * value to true
-		 */
-		regs->regs[REG_V0] = 1;
-
-		/* change pc to right instruction (*/
-		regs->cp0_epc = pc + sizeof(tInst);
-
-		return 1;
+	switch (size) {
+	case 4:
+		if (__get_user_nocheck(t, (unsigned int *)address, 4))
+			goto done;
+		break;
+	case 8:
+		if (__get_user_nocheck(t, (unsigned long *)address, 8))
+			goto done;
+		 break;
+	default:
+		goto done;
 	}
 
-	/* return 0, since this isn't our page fault */
-	return 0;
+	ret = 0;
+done:
+	return ret;
 }
-
 #else
 
 /*
  * Make a page fault or else prove we won't.  Tool used by PCOk and SPOk
  * Return 0 if no page fault, 1 if page fault happened
  */
-int will_page_fault(const void *const address)
+int __will_fault(const void *const address, size_t size)
 {
 	long dst;
 	if (probe_kernel_read(&dst, (void *)address, sizeof(long)) != 0)

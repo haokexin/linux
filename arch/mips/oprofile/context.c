@@ -19,6 +19,7 @@
  *
  */
 
+#include <linux/sched.h>
 #include <linux/uaccess.h>
 #include "mips_context.h"
 #include "stack_crawl.h"
@@ -107,13 +108,11 @@ bool apply_delta(const struct new_value_delta *const delta,
 			    (void *)((unsigned long)child->gpregs[delta->reg] +
 				     delta->offset);
 		}
-		if (will_page_fault(target)) {
-			d1printf
-			    ("Invalid address %p picked up from gpregs+%d\n",
-			     target, delta->reg);
+		if (probe_kernel_read(result, target, sizeof(*result))) {
+			d1printf("Invalid address %p picked up from gpregs+%d\n",
+				target, delta->reg);
 			return false;
 		}
-		*result = *target;
 	}
 
 	else if (LOCATION_ABSOLUTE == delta->location) {
@@ -195,7 +194,8 @@ bool apply_context_results(struct op_context *const child,
 			     target);
 			return false;
 		}
-		parent->fp = *target;
+		if (probe_kernel_address(target, parent->fp))
+			return false;
 	}
 #  endif /* RTITOOLS_CONTEXT_USES_SP */
 	else {
@@ -219,7 +219,8 @@ bool apply_context_results(struct op_context *const child,
 			     target);
 			return false;
 		}
-		parent->pc = *target;
+		if (probe_kernel_read(&parent->pc, target, sizeof(parent->pc)))
+			return false;
 	}
 #endif /* USES_SP */
 

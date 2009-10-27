@@ -20,6 +20,7 @@
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/mm.h>
+#include <linux/uaccess.h>
 #include <linux/oprofile.h>
 #include <asm/uaccess.h>
 #include <asm/stacktrace.h>

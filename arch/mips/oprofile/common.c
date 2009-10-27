@@ -112,11 +112,6 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 	/* Enable backtrace even if defaulting to timer mode */
 	ops->backtrace		= mips_backtrace;
 
-#if defined(CONFIG_64BIT)
-	/* set do_page_fault and do_ade handler callback */
-	is_oprofile_fault	= op_page_fault_filter;
-#endif
-
 	if (!lmodel) {
 		printk(KERN_WARNING
 			"oprofile: limited support for cpu type %d\n",
