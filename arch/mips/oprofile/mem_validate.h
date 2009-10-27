@@ -22,7 +22,12 @@
 /*
  * Return 1 if will  page fault, or 0 if it won't
  */
-extern int will_page_fault(const void *const address);
+extern int __will_fault(const void *const address, size_t size);
+
+
+typedef unsigned int tInst;	/* Instruction type */
+typedef int rOffset;		/* instruction register offset field */
+#define INST_SIZE (4)		/* Size of instr -- avoid sizeof() overhead */
 
 /*
  * Context address types
@@ -69,7 +74,7 @@ typedef struct {
  */
 struct memory_access_data {
 	void *pc_copied;
-	void *data;
+	tInst data;
 };
 
 /*
@@ -84,9 +89,10 @@ struct memory_access_data {
  */
 static inline bool PCOk(const void const *pc, struct memory_access_data *membuf)
 {
-	if (will_page_fault(pc))
+	if (__will_fault(pc, sizeof(tInst)))
 		return false;
-	if (__copy_from_user_inatomic(&membuf->data, pc, sizeof(membuf->data)))
+
+	if (probe_kernel_address(pc, membuf->data))
 		return false;
 	membuf->pc_copied = (void *)pc;
 	return true;
@@ -112,12 +118,10 @@ static inline bool PCOk(const void const *pc, struct memory_access_data *membuf)
  * op_frame_crawl().
  */
 
-static inline
-    void *instruction(const void const *pc, struct memory_access_data *membuf)
+static inline void *instruction(const void const *pc, struct memory_access_data *membuf)
 {
 	if (membuf->pc_copied != pc) {
-		if (__copy_from_user_inatomic
-		    (&membuf->data, pc, sizeof(membuf->data))) {
+		if (probe_kernel_address(pc, membuf->data)) {
 			/* copy failed, stuff bad instruction into the buffer */
 			membuf->data = 0;
 		}
@@ -149,7 +153,7 @@ static inline
   */
 static inline bool SPOk(const void *const sp, crawl_validation *validation)
 {
-	return !will_page_fault(sp);
+	return !__will_fault(sp, sizeof(*sp));
 }
 
 #endif /* _MEM_VALIDATE_H_ */
