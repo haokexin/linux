@@ -215,7 +215,6 @@ long double     64 (128 in n32)     128
  *-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-*/
 int op_context_debug_output; /* = 0 */
 
-#if defined(CONFIG_64BIT)
 
 /*
  * Make a page fault or else prove we won't.  Tool used by PCOk and SPOk
@@ -237,11 +236,11 @@ int __will_fault(const void *const address, size_t size)
 
 	switch (size) {
 	case 4:
-		if (__get_user_nocheck(t, (unsigned int *)address, 4))
+		if (__get_user_nocheck(t, (uint32_t *)address, 4))
 			goto done;
 		break;
 	case 8:
-		if (__get_user_nocheck(t, (unsigned long *)address, 8))
+		if (__get_user_nocheck(t, (uint64_t *)address, 8))
 			goto done;
 		 break;
 	default:
@@ -252,21 +251,6 @@ int __will_fault(const void *const address, size_t size)
 done:
 	return ret;
 }
-#else
-
-/*
- * Make a page fault or else prove we won't.  Tool used by PCOk and SPOk
- * Return 0 if no page fault, 1 if page fault happened
- */
-int __will_fault(const void *const address, size_t size)
-{
-	long dst;
-	if (probe_kernel_read(&dst, (void *)address, sizeof(long)) != 0)
-		return 1;	/* page fault or address error */
-	return 0;
-}
-
-#endif
 
 
 /**
@@ -326,7 +310,9 @@ bool op_frame_crawl(void *startpc,
 	/* most clauses don't use the frame pointer, so by default we mark it as
 	   untracked for the current frame. */
 
+#if RTITOOLS_CONTEXT_USES_FP
 	res_frame->fpLocation.location = LOCATION_UNUSED;
+#endif
 
 	/*
 	 * walk forward from the vicinity of the PC to determine
@@ -353,8 +339,10 @@ resumeFwdSearch:
 		 * ld    ra,offset(sp)  [64-bit regs]
 		 * ... [restore other registers]
 		 * addiu sp,sp,positiveamount
+		 *    OR
+		 * daddiu sp,sp,positiveamount  [64-bit regs]
 		 * jr    ra
-		 * ... [possibly addiu sp,sp,positiveamount] ...
+		 * ... [possibly [d]addiu sp,sp,positiveamount] ...
 		 */
 
 		/*--- lw  ra,offset(sp)
@@ -374,14 +362,7 @@ resumeFwdSearch:
 			if ((curInst & MASK_SWLW_OPCODE) == INST_RESTORE_RA_32) {
 				d2printf("  %p: lw ra,0x%lx(sp)\n", pcCur,
 					 offset);
-			}
-			/* MIPS64 BE has this -- we need to offset by a 32-bit
-			 * register width to get the least significant 32 bits
-			 * of the address because VxWorks currently supports
-			 * only 32-bit addresses.
-			 */
-			if ((curInst & MASK_SWLW_OPCODE) == INST_RESTORE_RA_64) {
-				res_frame->pcLocation.offset += REGISTER_OFFSET;
+			} else {
 				d2printf("  %p: ld ra,0x%lx(sp)\n", pcCur,
 					 res_frame->pcLocation.offset);
 			}
@@ -411,7 +392,8 @@ resumeFwdSearch:
 			    *(uint32_t *) instruction(pcCur + 2, client_arg);
 
 			if (((nextInst & MASK_JUMP_OPCODE) == INST_J) &&
-			    ((nextNextInst & MASK_OPCODE) == INST_ADDIU)) {
+			    (((nextNextInst & MASK_OPCODE) == INST_ADDIU_32) ||
+			     ((nextNextInst & MASK_OPCODE) == INST_ADDIU_64))) {
 				location_set_reg_off(&res_frame->spLocation,
 						     BT_REG_SP,
 						     nextNextInst &
@@ -426,6 +408,7 @@ resumeFwdSearch:
 			continue;
 		}
 
+#if RTITOOLS_CONTEXT_USES_FP
 		/*--- move sp,fp
 		 * restoring intermediate sp from fp
 		 */
@@ -453,6 +436,7 @@ resumeFwdSearch:
 			}
 			continue;
 		}
+#endif
 
 		/*--- jr ra
 		 * End of routine.
@@ -549,6 +533,7 @@ resumeFwdSearch:
 						break;
 					}
 
+#if RTITOOLS_CONTEXT_USES_FP
 					/*--- lw  fp,+d(sp)
 					 * restoration of stack frame pointer
 					 * register from stack
@@ -572,6 +557,7 @@ resumeFwdSearch:
 						}
 						continue;
 					}
+#endif
 
 					/* find PC if not already known */
 					if ((res_frame->pcLocation.location ==
@@ -749,6 +735,7 @@ resumeFwdSearch:
 					 * the SP will have an absolute location and its offset
 					 * will be adjusted by any addiu value.
 					 */
+#if RTITOOLS_CONTEXT_USES_FP
 					if ((travInst == INST_SP_TO_FP)
 					    && ((i - j) != 0)) {
 						fpBeingUsed = true;
@@ -783,6 +770,7 @@ resumeFwdSearch:
 						}
 						continue;
 					}
+#endif
 
 					if ((travInst & MASK_ADD_OPCODE) ==
 					    INST_ADD_TO_SP) {
@@ -1093,8 +1081,9 @@ resumeFwdSearch:
 
 				if (((localPrevInst[0] & MASK_BASIC_OPCODE) ==
 				     INST_ADDU)
-				    && ((localPrevInst[1] & MASK_OPCODE) ==
-					INST_ADDIU)
+				    && ((localPrevInst[1]
+						& MASK_ADDIU_OPCODE) ==
+							INST_ADDIU_32)
 				    && ((localPrevInst[2] & MASK_OPCODE) ==
 					INST_LUI) && (curInst == INST_NOP)
 				    && ((nextInst[0] & MASK_BRANCH_OPCODE) ==
@@ -1270,7 +1259,9 @@ follow_branch:
 		/* most clauses don't use the frame pointer, so by default we
 		 * mark it as untracked for the current frame.
 		 */
+#if RTITOOLS_CONTEXT_USES_FP
 		res_frame->fpLocation.location = LOCATION_UNUSED;
+#endif
 
 		pcCurStart = startpc;
 		d2printf("< %p: Begin reverse search\n", pcCurStart);
@@ -1300,6 +1291,7 @@ follow_branch:
 			 * ...
 			 */
 
+#if RTITOOLS_CONTEXT_USES_FP
 			/*--- move fp,sp  [move s8,sp]
 			 * This signals that the fp is being used in this
 			 * routine and we must use it also, but only if we
@@ -1338,6 +1330,7 @@ follow_branch:
 				}
 				continue;
 			}
+#endif
 
 			/*--- SW  ra,offset(sp)
 			 *    SD  ra,offset(sp)
@@ -1383,6 +1376,7 @@ follow_branch:
 					travInst =
 					    *(tInst *) instruction(pcCur - j,
 								   client_arg);
+#if RTITOOLS_CONTEXT_USES_FP
 					/*--- sw  fp,+d(sp)
 					 * Storing of stack frame pointer register on stack.
 					 * If we started here, fp is not yet on stack.
@@ -1406,6 +1400,7 @@ follow_branch:
 						}
 						continue;
 					}
+#endif
 
 					if ((travInst & MASK_ADD_OPCODE) ==
 					    INST_ADD_TO_SP) {

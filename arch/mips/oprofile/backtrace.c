@@ -125,9 +125,7 @@ void op_user_backtrace(struct pt_regs *const regs, unsigned int *depth)
 	unsigned long pc_sample;
 	child.pc = (void *)regs->cp0_epc;
 	child.sp = (void *)regs->regs[REG_SP];
-	child.fp = (void *)regs->regs[REG_S8];
 	child.gpregs[BT_REG_SP] = regs->regs[REG_SP];
-	child.gpregs[BT_REG_FP] = regs->regs[REG_S8];
 	child.gpregs[BT_REG_LR] = regs->regs[REG_RA];
 	/*  child could be a leaf, impacting frame_crawl */
 	child.leaf = true;
@@ -150,9 +148,7 @@ void op_user_backtrace(struct pt_regs *const regs, unsigned int *depth)
 		oprofile_add_trace(pc_sample);
 		child.pc = parent.pc;
 		child.sp = parent.sp;
-		child.fp = parent.fp;
 		child.gpregs[BT_REG_SP] = (unsigned long)parent.sp;
-		child.gpregs[BT_REG_FP] = (unsigned long)parent.fp;
 		child.leaf = 0;
 		have_gprs = 0;
 		if (pc_sample == BACKTRACE_ABORTED)
