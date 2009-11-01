@@ -153,7 +153,7 @@ static inline void *instruction(const void const *pc, struct memory_access_data 
   */
 static inline bool SPOk(const void *const sp, crawl_validation *validation)
 {
-	return !__will_fault(sp, sizeof(*sp));
+	return !__will_fault(sp, sizeof(sp));
 }
 
 #endif /* _MEM_VALIDATE_H_ */

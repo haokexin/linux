@@ -116,14 +116,16 @@ typedef unsigned long tAddr;	/* Address type */
  */
 #define INST_UNKNOWN       (0xffffffff)
 
-#define INST_ADD_TO_SP     (0x23bd0000)	/* addi/addiu sp,sp,immed */
+#define INST_ADD_TO_SP     (0x23bd0000)	/* (d)addi/(d)addiu sp,sp,immed */
 #define MASK_ADD_OFFSET    (0x0000ffff)	/* Signed 16-bit offset added to SP */
 #define MASK_NEG_OFFSET    (0x00008000)
 #define NEG_SIGN_EXTEND     0xffff0000
-#define MASK_ADD_OPCODE    (0xfbff0000)	/* ignore addi/addiu differences */
+#define MASK_ADD_OPCODE    (0xbbff0000)	/* ignore (d)addi/(d)addiu diffs */
 
 #define MASK_OPCODE         0xfc000000	/* MIPS major op codes are 1st 6 bits */
-#define INST_ADDIU          0x24000000	/* addiu rd,rs,immed */
+#define INST_ADDIU_32       0x24000000	/* addiu rd,rs,immed */
+#define INST_ADDIU_64       0x64000000	/* daddiu rd,rs,immed */
+#define MASK_ADDIU_OPCODE   0xbc000000	/* ignore daddiu/addiu diffs */
 #define INST_LUI            0x3c000000	/* lui   rd,immed    */
 
 #define MASK_BASIC_OPCODE   0xfc0007ff	/* add, sub, mult, div, jr, mov, etc. */
@@ -201,7 +203,7 @@ typedef unsigned long tAddr;	/* Address type */
 #define RTITOOLS_CONTEXT_CHECK_TOP_LAST         (0)
 
 #define RTITOOLS_CONTEXT_USES_SP  (1)	/* Does context package use sp? */
-#define RTITOOLS_CONTEXT_USES_FP  (1)	/* Does context package use fp? */
+#define RTITOOLS_CONTEXT_USES_FP  (0)	/* Does context package use fp? */
 
 /* Register numbers for op_context */
 enum register_name {
