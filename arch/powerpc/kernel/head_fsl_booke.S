@@ -536,6 +536,7 @@ interrupt_base:
 	/* Floating Point Unavailable Interrupt */
 #ifdef CONFIG_PPC_FPU
 	FP_UNAVAILABLE_EXCEPTION
+	EXCEPTION(0x0800, FloatingPointUnavailableErrata, program_check_exception, EXC_XFER_EE)
 #else
 #ifdef CONFIG_E200
 	/* E200 treats 'normal' floating point instructions as FP Unavail exception */
@@ -1061,6 +1062,15 @@ _GLOBAL(__setup_e500_ivors)
 
 /* Adjust or setup IVORs for e500mc */
 _GLOBAL(__setup_e500mc_ivors)
+#ifdef CONFIG_PPC_FPU
+	mfspr	r3,SPRN_PVR
+	xoris	r0,r3,0x8023
+	cmpwi	r0,0x0010
+	bne	1f		/* skip if !rev1.0 */
+	li	r3,FloatingPointUnavailableErrata@l
+	mtspr	SPRN_IVOR7,r3
+1:
+#endif
 	li	r3,DebugDebug@l
 	mtspr	SPRN_IVOR15,r3
 	li	r3,PerformanceMonitor@l
