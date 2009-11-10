@@ -1166,6 +1166,9 @@ _GLOBAL(set_context)
 #endif
 	mtspr	SPRN_PID,r3
 	isync			/* Force context change */
+#ifdef CONFIG_P4080_ERRATUM_CPU8
+	isync
+#endif
 	blr
 
 _GLOBAL(flush_dcache_L1)
