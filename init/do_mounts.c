@@ -457,7 +457,9 @@ retry:
 		printk("DEBUG_BLOCK_EXT_DEVT is enabled, you need to specify "
 		       "explicit textual name for \"root=\" boot option.\n");
 #endif
-		panic("VFS: Unable to mount root fs on %s", b);
+		printk(KERN_EMERG "VFS: Unable to mount root fs on %s\n", b);
+		printk(KERN_EMERG "User configuration error - no valid root filesystem found\n");
+		panic("Invalid configuration from end user prevents continuing");
 	}
 	if (!(flags & SB_RDONLY)) {
 		flags |= SB_RDONLY;
@@ -470,7 +472,9 @@ retry:
 	for (p = fs_names; *p; p += strlen(p)+1)
 		printk(" %s", p);
 	printk("\n");
-	panic("VFS: Unable to mount root fs on %s", b);
+	printk(KERN_EMERG "VFS: Unable to mount root fs on %s\n", b);
+	printk(KERN_EMERG "User configuration error - no valid root filesystem found\n");
+	panic("Invalid configuration from end user prevents continuing");
 out:
 	put_page(page);
 }
