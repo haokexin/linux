@@ -429,7 +429,9 @@ retry:
 		printk("Please append a correct \"root=\" boot option; here are the available partitions:\n");
 
 		printk_all_partitions();
-		panic("VFS: Unable to mount root fs on %s", b);
+		printk(KERN_EMERG "VFS: Unable to mount root fs on %s\n", b);
+		printk(KERN_EMERG "User configuration error - no valid root filesystem found\n");
+		panic("Invalid configuration from end user prevents continuing");
 	}
 	if (!(flags & SB_RDONLY)) {
 		flags |= SB_RDONLY;
@@ -442,7 +444,9 @@ retry:
 	for (i = 0, p = fs_names; i < num_fs; i++, p += strlen(p)+1)
 		printk(" %s", p);
 	printk("\n");
-	panic("VFS: Unable to mount root fs on %s", b);
+	printk(KERN_EMERG "VFS: Unable to mount root fs on %s\n", b);
+	printk(KERN_EMERG "User configuration error - no valid root filesystem found\n");
+	panic("Invalid configuration from end user prevents continuing");
 out:
 	put_page(page);
 }
