@@ -1108,6 +1108,13 @@ static irqreturn_t smc911x_interrupt(int irq, void *dev_id)
 				} else
 #endif
 				smc911x_rcv(dev);
+
+				if (rx_overrun) {
+					SMC_GET_MAC_CR(lp, cr);
+					cr |= MAC_CR_RXEN_;
+					SMC_SET_MAC_CR(lp, cr);
+					SMC_ACK_INT(lp, INT_STS_RXSTOP_INT_);
+				}
 			}
 			SMC_ACK_INT(lp, INT_STS_RSFL_);
 		}
