@@ -510,6 +510,8 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 		 */
 		switch (musb->xceiv->state) {
 		case OTG_STATE_A_HOST:
+		case OTG_STATE_A_IDLE:
+		case OTG_STATE_B_IDLE:
 			/* recovery is dicey once we've gotten past the
 			 * initial stages of enumeration, but if VBUS
 			 * stayed ok at the other end of the link, and
@@ -684,6 +686,7 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 				otg_state_string(musb),
 				MUSB_MODE(musb), devctl);
 		handled = IRQ_HANDLED;
+		musb->vbuserr_retry = VBUSERR_RETRY_COUNT;
 
 		switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_MUSB_HDRC_HCD
