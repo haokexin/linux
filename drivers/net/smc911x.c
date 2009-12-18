@@ -2181,9 +2181,18 @@ static int smc911x_drv_resume(struct platform_device *dev)
 	DBG(SMC_DEBUG_FUNC, "--> %s\n", __func__);
 	if (ndev) {
 		struct smc911x_local *lp = netdev_priv(ndev);
+		unsigned int reg, timeout = 0;
 
 		if (netif_running(ndev)) {
-			smc911x_reset(ndev);
+			SMC_SET_BYTE_TEST(lp, 0);
+			timeout = 10000;
+			do {
+				udelay(10);
+				reg = SMC_GET_PMT_CTRL(lp) & PMT_CTRL_READY_;
+			} while (--timeout && !reg);
+			if (timeout == 0)
+				PRINTK("%s: smc911x_reset timeout waiting for"
+					"PM restore\n", dev->name);
 			if (lp->phy_type != 0)
 				smc911x_phy_configure(&lp->phy_configure);
 			smc911x_enable(ndev);
