@@ -945,6 +945,9 @@ config PLAT_PXA
 config PLAT_VERSATILE
 	bool
 
+config ARM_TIMER_SP804
+	bool
+
 source arch/arm/mm/Kconfig
 
 config IWMMXT
