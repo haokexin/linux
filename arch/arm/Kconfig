@@ -942,6 +942,9 @@ config PLAT_ORION
 config PLAT_PXA
 	bool
 
+config PLAT_VERSATILE
+	bool
+
 source arch/arm/mm/Kconfig
 
 config IWMMXT
