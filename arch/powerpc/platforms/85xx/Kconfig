@@ -169,6 +169,7 @@ config P3041_DS
 	select SWIOTLB
 	select MPC8xxx_GPIO
 	select HAS_RAPIDIO
+	select HAS_FSL_PAMU
 	select FSL_HYDRA_DS_MDIO if PHYLIB
 	help
 	  This option enables support for the P3041 DS board
