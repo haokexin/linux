@@ -144,6 +144,7 @@ struct uart_8250_port {
 	unsigned char		mcr_mask;	/* mask of user bits */
 	unsigned char		mcr_force;	/* mask of forced bits */
 	unsigned char		cur_iotype;	/* Running I/O type */
+	unsigned char		lsr_last;	/* LSR of last IRQ event */
 
 	/*
 	 * Some bits in registers are cleared on a read, so they must
@@ -1529,7 +1530,14 @@ static void serial8250_handle_port(struct uart_8250_port *up)
 
 	spin_lock_irqsave(&up->port.lock, flags);
 
-	status = serial_inp(up, UART_LSR);
+	if (unlikely(up->lsr_last & UART_LSR_BI && up->bugs & UART_BUG_PPC)) {
+		up->lsr_last &= ~UART_LSR_BI;
+		serial_inp(up, UART_RX);
+		spin_unlock_irqrestore(&up->port.lock, flags);
+		return;
+	}
+
+	status = up->lsr_last = serial_inp(up, UART_LSR);
 
 	DEBUG_INTR("status = %x...", status);
 
@@ -1948,6 +1956,7 @@ static int serial8250_startup(struct uart_port *port)
 
 	up->capabilities = uart_config[up->port.type].flags;
 	up->mcr = 0;
+	up->bugs |= UART_KNOWN_BUGS;
 
 	if (up->port.iotype != up->cur_iotype)
 		set_io_from_upio(port);

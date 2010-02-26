@@ -49,6 +49,7 @@ struct serial8250_config {
 #define UART_BUG_TXEN	(1 << 1)	/* UART has buggy TX IIR status */
 #define UART_BUG_NOMSR	(1 << 2)	/* UART has buggy MSR status bits (Au1x00) */
 #define UART_BUG_THRE	(1 << 3)	/* UART has buggy THRE reassertion */
+#define UART_BUG_PPC	(1 << 4)	/* UART has buggy PPC break IRQ storm */
 
 #define PROBE_RSA	(1 << 0)
 #define PROBE_ANY	(~0)
@@ -78,3 +79,22 @@ struct serial8250_config {
 #else
 #define ALPHA_KLUDGE_MCR 0
 #endif
+
+/*
+ * The following UART bugs are currently dynamically detected and not
+ * required to be contingent on any particular compile time options.
+ */
+#define HAS_BUG_QUOT	0	/* assign UART_BUG_QUOT to enable */
+#define HAS_BUG_TXEN	0	/* assign UART_BUG_TXEN to enable */
+#define HAS_BUG_NOMSR	0	/* assign UART_BUG_NOMSR to enable */
+#define HAS_BUG_THRE	0	/* assign UART_BUG_THRE to enable */
+
+#ifdef CONFIG_SERIAL_8250_PPC_BUG
+#define HAS_BUG_PPC	UART_BUG_PPC
+#else
+#define HAS_BUG_PPC	0
+#endif
+
+#define UART_KNOWN_BUGS (HAS_BUG_QUOT | HAS_BUG_TXEN | HAS_BUG_NOMSR | \
+			HAS_BUG_THRE | HAS_BUG_PPC)
+
