@@ -17,6 +17,7 @@
 
 #include <linux/atomic.h>
 #include <linux/rcupdate.h>
+#include <linux/kmemcheck.h>
 
 /* size of the nodename buffer */
 #define UNX_MAXNODENAME	32
@@ -27,7 +28,9 @@ struct auth_cred {
 	gid_t	gid;
 	struct group_info *group_info;
 	const char *principal;
+	kmemcheck_bitfield_begin(flags);
 	unsigned char machine_cred : 1;
+	kmemcheck_bitfield_end(flags);
 };
 
 /*
