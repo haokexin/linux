@@ -50,6 +50,7 @@ struct rpc_cred *rpc_lookup_machine_cred(const char *service_name)
 		.machine_cred = 1,
 	};
 
+	kmemcheck_annotate_bitfield(&acred,flags);
 	dprintk("RPC:       looking up machine cred for service %s\n",
 			service_name);
 	return generic_auth.au_ops->lookup_cred(&generic_auth, &acred, 0);
@@ -83,6 +84,7 @@ generic_create_cred(struct rpc_auth *auth, struct auth_cred *acred, int flags)
 	if (gcred == NULL)
 		return ERR_PTR(-ENOMEM);
 
+	kmemcheck_annotate_bitfield(&(gcred->acred),flags);
 	rpcauth_init_cred(&gcred->gc_base, acred, &generic_auth, &generic_credops);
 	gcred->gc_base.cr_flags = 1UL << RPCAUTH_CRED_UPTODATE;
 
