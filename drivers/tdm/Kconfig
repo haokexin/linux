@@ -36,4 +36,5 @@ config TDM_DEBUG_CORE
 
 source drivers/tdm/device/Kconfig
 source drivers/tdm/line_ctrl/Kconfig
+source drivers/tdm/test/Kconfig
 endif # TDM

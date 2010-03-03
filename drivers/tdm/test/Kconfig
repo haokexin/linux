@@ -1,0 +1,12 @@
+#
+# TDM line control driver config file
+#
+
+
+config TDM_TEST
+	tristate "TDM test Module"
+	default n
+	---help---
+	  This TDM test module is a small test module which
+	  registers with the TDM core(framework) and sets up
+	  a TDM Voice path between Port 0 and Port 1 for each slic.
