@@ -35,6 +35,7 @@
 #include <linux/hash.h>
 #include <linux/pid_namespace.h>
 #include <linux/init_task.h>
+#include <linux/proc_fs.h>
 #include <linux/syscalls.h>
 
 #define pid_hashfn(nr, ns)	\
@@ -78,6 +79,7 @@ struct pid_namespace init_pid_ns = {
 	.last_pid = 0,
 	.level = 0,
 	.child_reaper = &init_task,
+	.proc_inum = PROC_PID_INIT_INO,
 };
 EXPORT_SYMBOL_GPL(init_pid_ns);
 
