@@ -500,7 +500,7 @@ int __init fsl_pq_mdio_init(void)
 {
 	return of_register_platform_driver(&fsl_pq_mdio_driver);
 }
-module_init(fsl_pq_mdio_init);
+subsys_initcall_sync(fsl_pq_mdio_init);
 
 void fsl_pq_mdio_exit(void)
 {
