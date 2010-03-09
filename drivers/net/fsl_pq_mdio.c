@@ -322,6 +322,7 @@ static int fsl_pq_mdio_probe(struct of_device *ofdev,
 
 	if (of_device_is_compatible(np, "fsl,gianfar-mdio") ||
 			of_device_is_compatible(np, "fsl,gianfar-tbi") ||
+			of_device_is_compatible(np, "fsl,fman-mdio") ||
 			of_device_is_compatible(np, "fsl,ucc-mdio") ||
 			of_device_is_compatible(np, "ucc_geth_phy"))
 		map -= offsetof(struct fsl_pq_mdio, miimcfg);
