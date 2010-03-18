@@ -2046,15 +2046,18 @@ static int omapfb_get_recommended_bpp(struct omapfb2_device *fbdev,
 		struct omap_dss_device *dssdev)
 {
 	int i;
+	int bpp = 0;
 
 	BUG_ON(dssdev->driver->get_recommended_bpp == NULL);
 
 	for (i = 0; i < fbdev->num_bpp_overrides; ++i) {
-		if (dssdev == fbdev->bpp_overrides[i].dssdev)
-			return fbdev->bpp_overrides[i].bpp;
+		if (dssdev == fbdev->bpp_overrides[i].dssdev) {
+			bpp = fbdev->bpp_overrides[i].bpp;
+			break;
+		}
 	}
 
-	return dssdev->driver->get_recommended_bpp(dssdev);
+	return bpp ? bpp : dssdev->driver->get_recommended_bpp(dssdev);
 }
 
 static int omapfb_parse_def_modes(struct omapfb2_device *fbdev)
