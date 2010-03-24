@@ -484,6 +484,9 @@ static ssize_t ads7846_disable_store(struct device *dev,
 	if (strict_strtoul(buf, 10, &i))
 		return -EINVAL;
 
+	if (!i)
+		regulator_enable(ts->reg);
+
 	spin_lock_irq(&ts->lock);
 
 	if (i)
@@ -492,6 +495,9 @@ static ssize_t ads7846_disable_store(struct device *dev,
 		ads7846_enable(ts);
 
 	spin_unlock_irq(&ts->lock);
+
+	if (i)
+		regulator_disable(ts->reg);
 
 	return count;
 }
@@ -789,9 +795,11 @@ static void ads7846_disable(struct ads7846 *ts)
 			msleep(1);
 			spin_lock_irq(&ts->lock);
 		}
+
+		ts->irq_disabled = 1;
+		disable_irq(ts->spi->irq);
 	}
 
-	regulator_disable(ts->reg);
 
 	/* we know the chip's in lowpower mode since we always
 	 * leave it that way after every request
@@ -803,8 +811,6 @@ static void ads7846_enable(struct ads7846 *ts)
 {
 	if (!ts->disabled)
 		return;
-
-	regulator_enable(ts->reg);
 
 	ts->disabled = 0;
 	ts->irq_disabled = 0;
@@ -822,6 +828,8 @@ static int ads7846_suspend(struct spi_device *spi, pm_message_t message)
 
 	spin_unlock_irq(&ts->lock);
 
+	regulator_disable(ts->reg);
+
 	if (device_may_wakeup(&ts->spi->dev))
 		enable_irq_wake(ts->spi->irq);
 
@@ -835,6 +843,8 @@ static int ads7846_resume(struct spi_device *spi)
 
 	if (device_may_wakeup(&ts->spi->dev))
 		disable_irq_wake(ts->spi->irq);
+
+	regulator_enable(ts->reg);
 
 	spin_lock_irq(&ts->lock);
 
