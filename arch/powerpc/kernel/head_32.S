@@ -138,7 +138,21 @@ __start:
 	trap
 #endif /* CONFIG_PPC_PMAC */
 
-1:	mr	r31,r3			/* save parameters */
+1:
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+	/* purgatory did not touch r25, which contains the CPU1
+	 * boot info address: release CPU1 now and bring it into
+	 * this kernel: CPUs have a 1:1 mapping of the RAM at
+	 * this point. */
+
+	lis	r31, kexec_secondary_hold@h
+	ori	r31, r31, kexec_secondary_hold@l
+	subis	r31, r31, PAGE_OFFSET@h
+	stw	r31, 0(r25)
+	sync
+#endif
+
+	mr	r31,r3			/* save parameters */
 	mr	r30,r4
 	li	r24,0			/* cpu # */
 

@@ -935,3 +935,31 @@ relocate_new_kernel_end:
 relocate_new_kernel_size:
 	.long relocate_new_kernel_end - relocate_new_kernel
 #endif
+
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+
+	.globl kexec_secondary_hold_addr
+kexec_secondary_hold_addr:
+	.long 0
+
+	.globl kexec_secondary_hold
+kexec_secondary_hold:
+	lis	r3, kexec_secondary_hold_addr@h
+	ori	r3, r3, kexec_secondary_hold_addr@l
+	subis	r3, r3, PAGE_OFFSET@h
+
+	/* spin waiting for a non-zero address to branch to */
+1:	sync	/* relax */
+	lwz	r5, 0(r3)
+	cmpwi	r5, 0
+	beq	1b
+	/* end of spin loop */
+
+	isync
+	sync
+	mtlr	r5
+	blrl
+	/* not reached, jumped to _entry_start in new kernel */
+
+#endif 	/* CONFIG_KEXEC_POWERPC_SMP_BOOTABLE */
+

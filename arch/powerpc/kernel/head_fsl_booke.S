@@ -62,6 +62,20 @@ _ENTRY(_start);
 	 * of abatron_pteptrs
 	 */
 	nop
+
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+	/* purgatory did not touch r25, which contains the CPU1
+	 * boot info address: release CPU1 now and bring it into
+	 * this kernel: CPUs have a 1:1 mapping of the RAM at
+	 * this point. */
+
+	lis	r31, kexec_secondary_hold@h
+	ori	r31, r31, kexec_secondary_hold@l
+	subis	r31, r31, PAGE_OFFSET@h
+	stw	r31, 0(r25)
+	sync
+#endif
+
 /*
  * Save parameters we are passed
  */
@@ -136,6 +150,7 @@ match_TLB:
 	mtspr	SPRN_MAS1,r7
 	tlbwe
 
+/* r3 contains current MAS0[ESEL] */
 /* 2. Invalidate all entries except the entry we're executing in */
 	mfspr	r9,SPRN_TLB1CFG
 	andi.	r9,r9,0xfff
