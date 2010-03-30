@@ -12,6 +12,7 @@
 #include <linux/kexec.h>
 #include <linux/mm.h>
 #include <linux/string.h>
+#include <linux/delay.h>
 #include <asm/cacheflush.h>
 #include <asm/hw_irq.h>
 #include <asm/io.h>
@@ -38,6 +39,9 @@ void smp_stop_cpus(struct kimage *image)
 
 	smp_ops->kexec_stop_cpus(image);
 }
+extern u32 relocate_new_kernel_secondary_spin;
+extern u32 relocate_new_kernel_spin_addr;
+extern u32 relocate_new_kernel_ready;
 #else /* !CONFIG_SMP */
 void smp_stop_cpus(struct kimage *image)
 {
@@ -57,6 +61,20 @@ void smp_stop_cpus(struct kimage *image)
 
 extern const unsigned char relocate_new_kernel[];
 extern const unsigned int relocate_new_kernel_size;
+typedef void(*rnk_t)(unsigned long *, unsigned long *, unsigned long);
+
+#ifdef CONFIG_SMP
+/* This is currently only used by SMP code but could be used by UP or
+ * shared code if needed: if that's ever the case, remove conditional
+ * compile flag.
+ */
+static u32 kexec_find_reloc(struct kimage *image, u32 symbol)
+{
+	u32 base = (u32)page_address(image->control_code_page);
+	u32 offset = symbol - (u32)relocate_new_kernel;
+	return base + offset;
+}
+#endif
 
 /* This is in its own routine since it can be called by a CPU that is not
  * the one on which 'kexec -e' was invoked, in some special cases, eg. a
@@ -108,6 +126,89 @@ void default_machine_kexec(struct kimage *image)
 
 	/* not reached */
 }
+
+#ifdef CONFIG_SMP
+/* CPU 1 will always be the one calling this function */
+static void _smp_kexec_secondary_cpu_down(void *arg)
+{
+	u32 rnkss; 	 /* relocate_new_kernel_secondary_spin */
+	u32 spin;	 /* addr of the relocated start address
+			  * variable on which CPU1 will spin */
+	u32 ready;	 /* addr of the relocated ready variable */
+	rnk_t rnk;	 /* relocate_new_kernel() */
+
+	struct kimage *image = (struct kimage *)arg;
+
+	rnkss = (u32)&relocate_new_kernel_secondary_spin;
+	rnkss = virt_to_phys((void *)kexec_find_reloc(image, rnkss));
+
+	spin  = (u32)((&relocate_new_kernel_spin_addr));
+	spin  = virt_to_phys((void *)kexec_find_reloc(image, spin));
+
+	ready = (u32)&relocate_new_kernel_ready;
+	ready = virt_to_phys((void *)kexec_find_reloc(image, ready));
+
+	rnk = (rnk_t)kexec_find_reloc((struct kimage *)arg,
+				(u32)relocate_new_kernel);
+
+	local_irq_disable();
+
+	flush_icache_range((u32)rnk, (u32)rnk + KEXEC_CONTROL_PAGE_SIZE);
+
+	rnk((unsigned long *)spin, (unsigned long *)ready, rnkss);
+	/* not reached */
+}
+
+static void _smp_kexec_wait_for_secondaries(void *arg)
+{
+	volatile u32 *ready;	 /* addr of the relocated ready variable,
+				  * we spin on it, don't want it to be
+				  * optimized out. */
+	char buffer[32];
+
+	local_irq_disable();
+	ready = (void*)kexec_find_reloc((struct kimage *)arg,
+				(u32)&relocate_new_kernel_ready);
+	while(!(*ready)) {
+		cpu_relax();
+	}
+	mdelay(1);	/* should be plenty for cpu1 to start spinning
+			 * on the start address variable */
+}
+
+static void _smp_kexec_leave_kernel(void *arg)
+{
+	_smp_kexec_wait_for_secondaries(arg);
+	kexec_leave_kernel(arg);
+}
+
+void default_kexec_stop_cpus(void *arg)
+{
+	int cpu;
+
+	/* Initialization from head_[32|fsl_booke].S expects HW CPU #0 as
+	 * the boot CPU: thus, if we're CPU1, call CPU0 and have it do
+	 * the rest of the shutdown sequence, then put ourselves on
+	 * a spin; if we're CPU0, call CPU1 to put itself on a spin,
+	 * then do the rest of the shutdown sequence. */
+	preempt_disable();
+	/* get hardware CPU# from special Processor Identity Register */
+	cpu = mfspr(SPRN_PIR);
+	if (0 == cpu) {
+		/* shutdown cpu 1 and wait for it */
+		smp_call_function(_smp_kexec_secondary_cpu_down, arg, 0);
+		_smp_kexec_wait_for_secondaries(arg);
+
+		/* was called from default_machine_kexec, continues there */
+	} else {
+		smp_call_function(_smp_kexec_leave_kernel, arg, 0);
+		_smp_kexec_secondary_cpu_down(arg);
+
+		/* not reached, going to wait on
+		 * relocate_new_kernel_secondary_spin() */
+	}
+}
+#endif /* CONFIG_SMP */
 
 int default_machine_kexec_prepare(struct kimage *image)
 {
