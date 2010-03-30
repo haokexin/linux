@@ -372,6 +372,27 @@ config KEXEC
 	  support.  As of this writing the exact hardware interface is
 	  strongly in flux, so no good recommendation can be made.
 
+config KEXEC_POWERPC_SMP_BOOTABLE
+	bool "Kernel bootable by kexec"
+	depends on SMP && (PPC_MULTIPLATFORM || PPC_85xx) && EXPERIMENTAL
+	help
+	  Some PowerPC kernels need a special treatment to be able to shut
+	  down CPUs and bring them safely to the kernel being kexec'ed into.
+	  Including this option adds the functionality needed by the kernel
+	  being kexec'ed into to bring itself up. The functionality for
+	  preparing the original kernel to go down and shut down the CPUs
+	  is included when the KEXEC option is selected.
+
+	  The original kernel booting out of the firmware should NOT be
+	  using this option.
+
+	  This option is to be used for the kernel being kexec'ed INTO. It
+	  will NOT WORK for booting out of the firmware.
+
+	  If a kernel is created to be kexec'ed into and also to be able to
+	  kexec into another kernel, both KEXEC_POWERPC_SMP_BOOTABLE and
+	  KEXEC should be included.
+
 config CRASH_DUMP
 	bool "Build a kdump crash kernel"
 	depends on (PPC_MULTIPLATFORM || PPC_85xx || PPC64 || 6xx)
