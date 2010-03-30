@@ -702,9 +702,14 @@ _GLOBAL(__main)
 	 */
 	.globl relocate_new_kernel
 relocate_new_kernel:
+	/* CPU0: */
 	/* r3 = page_list   */
 	/* r4 = reboot_code_buffer */
 	/* r5 = start_address      */
+	/* CPU1: */
+	/* r3 = spin variable   */
+	/* r4 = ready variable */
+	/* r5 = address of relocate_new_kernel_secondary_spin */
 
 #ifdef CONFIG_FSL_BOOKE
 	/*
@@ -785,7 +790,16 @@ relocate_new_kernel:
 	mr	r8, r0
 	ori     r8, r8, MSR_RI|MSR_ME
 	mtspr	SPRN_SRR1, r8
+#ifdef CONFIG_SMP
+	mfspr	r6, SPRN_PIR
+	cmpwi	r6, 0
+	beq	cpu0
+	addi	r8, r4, 1f - relocate_new_kernel_ready
+	b	all_cpus
+#endif
+cpu0:
 	addi	r8, r4, 1f - relocate_new_kernel
+all_cpus:
 	mtspr	SPRN_SRR0, r8
 	sync
 	rfi
@@ -793,6 +807,14 @@ relocate_new_kernel:
 1:
 	/* from this point address translation is turned off */
 	/* and interrupts are disabled */
+
+#ifdef CONFIG_SMP
+	/* if not CPU0, jump to spin */
+	mfspr	r6, SPRN_PIR
+	mtlr	r5
+	cmpwi	r6, 0
+	bnelr
+#endif
 
 	/* set a new stack at the bottom of our page... */
 	/* (not really needed now) */
@@ -840,7 +862,7 @@ relocate_new_kernel:
 	subi    r8, r8, 4
 9:
 	lwzu    r0, 4(r9)  /* do the copy */
-	xor	r6, r6, r0
+	xor	r6, r6, r0	/* calculate checksum (unused ?) */
 	stwu    r0, 4(r8)
 	dcbst	0, r8
 	sync
@@ -859,11 +881,53 @@ relocate_new_kernel:
 	isync
 	sync
 
-	/* jump to the entry point, usually the setup routine */
+#ifdef CONFIG_SMP
+	/* save the spin address in a C callee-saved register that is not
+	 * trampled by purgatory (purgatory invokes some C code): at this
+	 * point, r4 is holding the physical address of the control code
+	 * page we're currently executing in */
+	addi	r25, r4, relocate_new_kernel_spin_addr - relocate_new_kernel
+#endif
+
+	/* jump to the entry point, usually the purgatory */
 	mtlr	r5
 	blrl
 
 1:	b	1b
+
+#ifdef CONFIG_SMP
+	.globl relocate_new_kernel_spin_addr
+relocate_new_kernel_spin_addr:
+	.long 0
+
+	.globl relocate_new_kernel_ready
+relocate_new_kernel_ready:
+	.long 0
+
+	.globl relocate_new_kernel_secondary_spin
+relocate_new_kernel_secondary_spin:
+	/* r3 contains the spin address */
+	/* r4 contains the ready address */
+
+	/* signal CPU0 that we've left the kernel */
+	lis	r5, 1
+	stw	r5, 0(r4)
+	sync
+
+	/* spin waiting for a non-zero address to branch to */
+1:	sync	/* relax */
+	lwz	r5, 0(r3)
+	cmpwi	r5, 0
+	beq	1b
+	/* end of spin loop */
+
+	isync
+	sync
+	mtlr	r5
+	blrl
+	/* not reached, CPU is now on hold in the new kernel */
+
+#endif	/* CONFIG_SMP */
 
 relocate_new_kernel_end:
 
