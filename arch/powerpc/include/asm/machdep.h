@@ -43,6 +43,10 @@ struct smp_ops_t {
 	int   (*cpu_disable)(void);
 	void  (*cpu_die)(unsigned int nr);
 	int   (*cpu_bootable)(unsigned int nr);
+#ifdef CONFIG_KEXEC
+	/* this must be called will local interrupts disabled */
+	void  (*kexec_stop_cpus)(void *arg);
+#endif
 };
 #endif
 
