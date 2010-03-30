@@ -199,6 +199,7 @@ union ich8_flash_protected_range {
 static s32 e1000_setup_link_ich8lan(struct e1000_hw *hw);
 static void e1000_clear_hw_cntrs_ich8lan(struct e1000_hw *hw);
 static void e1000_initialize_hw_bits_ich8lan(struct e1000_hw *hw);
+static s32 e1000_reset_hw_ich8lan(struct e1000_hw *hw);
 static s32 e1000_erase_flash_bank_ich8lan(struct e1000_hw *hw, u32 bank);
 static s32 e1000_retry_write_flash_byte_ich8lan(struct e1000_hw *hw,
 						u32 offset, u8 byte);
@@ -286,8 +287,12 @@ static s32 e1000_init_phy_params_pchlan(struct e1000_hw *hw)
 
 	phy->id = e1000_phy_unknown;
 	ret_val = e1000e_get_phy_id(hw);
-	if (ret_val)
-		goto out;
+	if (ret_val) {
+		e1000_reset_hw_ich8lan(hw);
+		ret_val = e1000e_get_phy_id(hw);
+		if (ret_val)
+			goto out;
+	}
 	if ((phy->id == 0) || (phy->id == PHY_REVISION_MASK)) {
 		/*
 		 * In case the PHY needs to be in mdio slow mode (eg. 82577),
