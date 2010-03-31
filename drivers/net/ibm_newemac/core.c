@@ -1358,9 +1358,15 @@ static int emac_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	struct emac_instance *dev = netdev_priv(ndev);
 	unsigned int len = skb->len;
 	int slot;
-
 	u16 ctrl = EMAC_TX_CTRL_GFCS | EMAC_TX_CTRL_GP | MAL_TX_CTRL_READY |
 	    MAL_TX_CTRL_LAST | emac_tx_csum(dev, skb);
+
+#ifdef CONFIG_NET_POLL_CONTROLLER
+	if (unlikely(dev->tx_cnt == NUM_TX_BUFF)) {
+		netif_stop_queue(ndev);
+		return -EBUSY;
+	}
+#endif
 
 	slot = dev->tx_slot++;
 	if (dev->tx_slot == NUM_TX_BUFF) {
@@ -1521,6 +1527,61 @@ static void emac_parse_tx_error(struct emac_instance *dev, u16 ctrl)
 	if (ctrl & EMAC_TX_ST_SQE)
 		++st->tx_bd_sqe;
 }
+
+#ifdef CONFIG_NET_POLL_CONTROLLER
+/*
+ * emac_poll_tx_nobh() is called during netpolling, it is
+ * samiliar to emac_poll_tx except that it does not
+ * lock/unlock bottom half. Otherwise, kernel will panic.
+ *
+ */
+static void emac_poll_tx_nobh(void *param)
+{
+	struct emac_instance *dev = param;
+	u32 bad_mask;
+
+	DBG2(dev, "poll_tx, %d %d" NL, dev->tx_cnt, dev->ack_slot);
+
+	if (emac_has_feature(dev, EMAC_FTR_HAS_TAH))
+		bad_mask = EMAC_IS_BAD_TX_TAH;
+	else
+		bad_mask = EMAC_IS_BAD_TX;
+
+	/*	netif_tx_lock_bh(dev->ndev); */
+	if (dev->tx_cnt) {
+		u16 ctrl;
+		int slot = dev->ack_slot, n = 0;
+again:
+		ctrl = dev->tx_desc[slot].ctrl;
+		if (!(ctrl & MAL_TX_CTRL_READY)) {
+			struct sk_buff *skb = dev->tx_skb[slot];
+			++n;
+
+			if (skb) {
+				dev_kfree_skb(skb);
+				dev->tx_skb[slot] = NULL;
+			}
+			slot = (slot + 1) % NUM_TX_BUFF;
+
+			if (unlikely(ctrl & bad_mask))
+				emac_parse_tx_error(dev, ctrl);
+
+			if (--dev->tx_cnt)
+				goto again;
+		}
+		if (n) {
+			dev->ack_slot = slot;
+			if (netif_queue_stopped(dev->ndev) &&
+			    dev->tx_cnt < EMAC_TX_WAKEUP_THRESH)
+				netif_wake_queue(dev->ndev);
+
+			DBG2(dev, "tx %d pkts" NL, n);
+		}
+	}
+	/* netif_tx_unlock_bh(dev->ndev); */
+}
+#endif
+
 
 static void emac_poll_tx(void *param)
 {
@@ -2692,6 +2753,28 @@ static int __devinit emac_init_config(struct emac_instance *dev)
 	return 0;
 }
 
+#ifdef CONFIG_NET_POLL_CONTROLLER
+void poll_ctrl(struct net_device *dev)
+{
+	int budget = 16;
+
+	struct emac_instance *emac_dev = netdev_priv(dev);
+	struct mal_instance *mal = dev_get_drvdata(&emac_dev->mal_dev->dev);
+
+	/* disable  MAL interrupts */
+	mal_disable_eob_irq(mal);
+	napi_disable(&mal->napi);
+
+	emac_poll_rx(netdev_priv(dev), budget);
+	emac_poll_tx_nobh(netdev_priv(dev));
+
+	napi_enable(&mal->napi);
+	/* Enable mal interrupts */
+	mal_enable_eob_irq(mal);
+
+}
+#endif
+
 static const struct net_device_ops emac_netdev_ops = {
 	.ndo_open		= emac_open,
 	.ndo_stop		= emac_close,
@@ -2703,6 +2786,9 @@ static const struct net_device_ops emac_netdev_ops = {
 	.ndo_set_mac_address	= eth_mac_addr,
 	.ndo_start_xmit		= emac_start_xmit,
 	.ndo_change_mtu		= eth_change_mtu,
+#ifdef CONFIG_NET_POLL_CONTROLLER
+	.ndo_poll_controller	= poll_ctrl,
+#endif
 };
 
 static const struct net_device_ops emac_gige_netdev_ops = {
@@ -2716,6 +2802,9 @@ static const struct net_device_ops emac_gige_netdev_ops = {
 	.ndo_set_mac_address	= eth_mac_addr,
 	.ndo_start_xmit		= emac_start_xmit_sg,
 	.ndo_change_mtu		= emac_change_mtu,
+#ifdef CONFIG_NET_POLL_CONTROLLER
+	.ndo_poll_controller	= poll_ctrl,
+#endif
 };
 
 static int __devinit emac_probe(struct of_device *ofdev,
