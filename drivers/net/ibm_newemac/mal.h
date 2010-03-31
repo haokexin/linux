@@ -261,6 +261,20 @@ static inline int mal_has_feature(struct mal_instance *dev,
 		(MAL_FTRS_POSSIBLE & dev->features & feature);
 }
 
+/* synchronized by mal_poll() */
+static inline void mal_enable_eob_irq(struct mal_instance *mal)
+{
+	/* XXX might want to cache MAL_CFG as the DCR read can be slooooow */
+	set_mal_dcrn(mal, MAL_CFG, get_mal_dcrn(mal, MAL_CFG) | MAL_CFG_EOPIE);
+}
+
+/* synchronized by NAPI state */
+static inline void mal_disable_eob_irq(struct mal_instance *mal)
+{
+	/* XXX might want to cache MAL_CFG as the DCR read can be slooooow */
+	set_mal_dcrn(mal, MAL_CFG, get_mal_dcrn(mal, MAL_CFG) & ~MAL_CFG_EOPIE);
+}
+
 /* Register MAL devices */
 int mal_init(void);
 void mal_exit(void);

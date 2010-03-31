@@ -77,7 +77,9 @@ static inline int netpoll_rx_on(struct sk_buff *skb)
 
 static inline int netpoll_receive_skb(struct sk_buff *skb)
 {
+#ifndef CONFIG_IBM_NEW_EMAC
 	if (!list_empty(&skb->dev->napi_list))
+#endif
 		return netpoll_rx(skb);
 	return 0;
 }

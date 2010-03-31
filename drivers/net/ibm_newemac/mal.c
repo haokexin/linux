@@ -200,24 +200,6 @@ void mal_poll_del(struct mal_instance *mal, struct mal_commac *commac)
 	spin_unlock_irqrestore(&mal->lock, flags);
 }
 
-/* synchronized by mal_poll() */
-static inline void mal_enable_eob_irq(struct mal_instance *mal)
-{
-	MAL_DBG2(mal, "enable_irq" NL);
-
-	// XXX might want to cache MAL_CFG as the DCR read can be slooooow
-	set_mal_dcrn(mal, MAL_CFG, get_mal_dcrn(mal, MAL_CFG) | MAL_CFG_EOPIE);
-}
-
-/* synchronized by NAPI state */
-static inline void mal_disable_eob_irq(struct mal_instance *mal)
-{
-	// XXX might want to cache MAL_CFG as the DCR read can be slooooow
-	set_mal_dcrn(mal, MAL_CFG, get_mal_dcrn(mal, MAL_CFG) & ~MAL_CFG_EOPIE);
-
-	MAL_DBG2(mal, "disable_irq" NL);
-}
-
 static irqreturn_t mal_serr(int irq, void *dev_instance)
 {
 	struct mal_instance *mal = dev_instance;
