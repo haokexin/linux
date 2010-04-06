@@ -1057,6 +1057,7 @@ int usb_serial_probe(struct usb_interface *interface,
 exit:
 	/* success */
 	usb_set_intfdata(interface, serial);
+	kgdboc_init_hook();
 	return 0;
 
 probe_error:
@@ -1179,8 +1180,10 @@ static int serial_poll_init(struct tty_driver *driver, int line,
 	if (!serial)
 		return -1;
 
-	if (!serial->type->poll_get_char)
+	if (!serial->type->poll_get_char) {
+		mutex_unlock(&serial->disc_mutex);
 		return -1;
+	}
 
 	port = serial->port[line - serial->minor];
 	if (rx_callback)
@@ -1197,6 +1200,7 @@ static int serial_poll_init(struct tty_driver *driver, int line,
 	}
 #endif
 
+	mutex_unlock(&serial->disc_mutex);
 	return 0;
 }
 
@@ -1208,7 +1212,8 @@ static int serial_poll_get_char(struct tty_driver *driver, int line)
 	struct urb *urb;
 	int ret = -1;
 
-	serial = usb_serial_get_by_index(line);
+	//	serial = usb_serial_get_by_index(line);
+	serial = serial_table[line];
 	if (!serial)
 		return -1;
 
@@ -1247,7 +1252,8 @@ static void serial_poll_put_char(struct tty_driver *driver, int line, char ch)
 	char buf[2];
 	int retval;
 
-	serial = usb_serial_get_by_index(line);
+	//	serial = usb_serial_get_by_index(line);
+	serial = serial_table[line];
 	if (!serial)
 		return;
 

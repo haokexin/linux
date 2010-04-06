@@ -28,6 +28,7 @@ static struct kgdb_io		kgdboc_io_ops;
 static int configured		= -1;
 
 static char config[MAX_CONFIG_LEN];
+static char config_try_later;
 static struct kparam_string kps = {
 	.string			= config,
 	.maxlen			= MAX_CONFIG_LEN,
@@ -183,8 +184,10 @@ static int configure_kgdboc(void)
 		goto do_register;
 
 	p = tty_find_polling_driver(cptr, &tty_line);
-	if (!p)
+	if (!p) {
+		config_try_later = config[0];
 		goto noconfig;
+	}
 
 	cons = console_drivers;
 	while (cons) {
@@ -220,12 +223,12 @@ static int configure_kgdboc(void)
 	if (p->ops->poll_init(p, tty_line, str, kgdboc_rx_callback))
 		goto noconfig;
 
-do_register:
 	/* Open the port and obtain a tty which call low level driver startup */
 	if (tty_console_poll_open(kgdb_tty_driver, &kgdb_filp,
 				  kgdb_tty_line) != 0)
 		goto noconfig;
 
+do_register:
 	err = kgdb_register_io_module(&kgdboc_io_ops);
 	if (err)
 		goto noconfig;
@@ -242,6 +245,15 @@ noconfig:
 
 	return err;
 }
+
+#ifdef CONFIG_KGDB_SERIAL_CONSOLE
+void kgdboc_init_hook(void) {
+	if (config_try_later && configured == 0) {
+		config[0] = config_try_later;
+		configure_kgdboc();
+	}
+}
+#endif
 
 static int __init init_kgdboc(void)
 {
@@ -261,21 +273,19 @@ static int kgdboc_get_char(void)
 	if (buffered_char >= 0)
 		return xchg(&buffered_char, -1);
 
-	do {
-		ret = kgdb_tty_driver->ops->poll_get_char(kgdb_tty_driver,
-						kgdb_tty_line);
-		if (ret != -2)
-			return ret;
+	ret = kgdb_tty_driver->ops->poll_get_char(kgdb_tty_driver,
+						  kgdb_tty_line);
+	if (ret != -2)
+		return ret;
 
-		/* A return of -2 means use the poll character ring */
-		if (ch_head != ch_tail) {
-			ret = ch_ring[ch_head];
-			ch_head++;
-			if (ch_head >= MAX_CHAR_RING)
-				ch_head = 0;
-			return ret;
-		}
-	} while (ret == -2);
+	/* A return of -2 means use the poll character ring */
+	if (ch_head != ch_tail) {
+		ret = ch_ring[ch_head];
+		ch_head++;
+		if (ch_head >= MAX_CHAR_RING)
+			ch_head = 0;
+		return ret;
+	}
 
 	return -1;
 }
