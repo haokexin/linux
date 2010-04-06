@@ -30,6 +30,7 @@
 #define NUMREGBYTES		(90*sizeof(u64))
 #define NUMCRITREGBYTES		(12*sizeof(u64))
 #endif
+#define DBG_MAX_REG_NUM		38
 #define BREAK_INSTR_SIZE	4
 #define CACHE_FLUSH_IS_SAFE	0
 

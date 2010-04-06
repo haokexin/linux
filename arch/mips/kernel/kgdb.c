@@ -50,6 +50,70 @@ static struct hard_trap_info {
 	{ 0, 0}			/* Must be last */
 };
 
+struct dbg_reg_def_t dbg_reg_def[DBG_MAX_REG_NUM] =
+{
+	{ "zero", sizeof(long), offsetof(struct pt_regs, regs[0]) },
+	{ "at", sizeof(long), offsetof(struct pt_regs, regs[1]) },
+	{ "v0", sizeof(long), offsetof(struct pt_regs, regs[2]) },
+	{ "v1", sizeof(long), offsetof(struct pt_regs, regs[3]) },
+	{ "a0", sizeof(long), offsetof(struct pt_regs, regs[4]) },
+	{ "a1", sizeof(long), offsetof(struct pt_regs, regs[5]) },
+	{ "a2", sizeof(long), offsetof(struct pt_regs, regs[6]) },
+	{ "a3", sizeof(long), offsetof(struct pt_regs, regs[7]) },
+	{ "t0", sizeof(long), offsetof(struct pt_regs, regs[8]) },
+	{ "t1", sizeof(long), offsetof(struct pt_regs, regs[9]) },
+	{ "t2", sizeof(long), offsetof(struct pt_regs, regs[10]) },
+	{ "t3", sizeof(long), offsetof(struct pt_regs, regs[11]) },
+	{ "t4", sizeof(long), offsetof(struct pt_regs, regs[12]) },
+	{ "t5", sizeof(long), offsetof(struct pt_regs, regs[13]) },
+	{ "t6", sizeof(long), offsetof(struct pt_regs, regs[14]) },
+	{ "t7", sizeof(long), offsetof(struct pt_regs, regs[15]) },
+	{ "s0", sizeof(long), offsetof(struct pt_regs, regs[16]) },
+	{ "s1", sizeof(long), offsetof(struct pt_regs, regs[17]) },
+	{ "s2", sizeof(long), offsetof(struct pt_regs, regs[18]) },
+	{ "s3", sizeof(long), offsetof(struct pt_regs, regs[19]) },
+	{ "s4", sizeof(long), offsetof(struct pt_regs, regs[20]) },
+	{ "s5", sizeof(long), offsetof(struct pt_regs, regs[21]) },
+	{ "s6", sizeof(long), offsetof(struct pt_regs, regs[22]) },
+	{ "s7", sizeof(long), offsetof(struct pt_regs, regs[23]) },
+	{ "t8", sizeof(long), offsetof(struct pt_regs, regs[24]) },
+	{ "t9", sizeof(long), offsetof(struct pt_regs, regs[25]) },
+	{ "k0", sizeof(long), offsetof(struct pt_regs, regs[26]) },
+	{ "k1", sizeof(long), offsetof(struct pt_regs, regs[27]) },
+	{ "gp", sizeof(long), offsetof(struct pt_regs, regs[28]) },
+	{ "sp", sizeof(long), offsetof(struct pt_regs, regs[29]) },
+	{ "s8", sizeof(long), offsetof(struct pt_regs, regs[30]) },
+	{ "ra", sizeof(long), offsetof(struct pt_regs, regs[31]) },
+	{ "sr", sizeof(long), offsetof(struct pt_regs, cp0_status) },
+	{ "lo", sizeof(long), offsetof(struct pt_regs, lo) },
+	{ "hi", sizeof(long), offsetof(struct pt_regs, hi) },
+	{ "bad", sizeof(long), offsetof(struct pt_regs, cp0_badvaddr) },
+	{ "cause", sizeof(long), offsetof(struct pt_regs, cp0_cause) },
+	{ "pc", sizeof(long), offsetof(struct pt_regs, cp0_epc) },
+};
+
+int dbg_set_reg(int regno, void *mem, struct pt_regs *regs)
+{
+	if (regno < 0 || regno >= DBG_MAX_REG_NUM)
+		return -EINVAL;
+
+	if (dbg_reg_def[regno].offset != -1)
+		memcpy((void *)regs + dbg_reg_def[regno].offset, mem,
+		       dbg_reg_def[regno].size);
+	return 0;
+}
+
+char *dbg_get_reg(int regno, void *mem, struct pt_regs *regs)
+{
+	if (regno >= DBG_MAX_REG_NUM || regno < 0)
+		return NULL;
+
+	if (dbg_reg_def[regno].offset != -1)
+		memcpy(mem, (void *)regs + dbg_reg_def[regno].offset,
+		       dbg_reg_def[regno].size);
+	return dbg_reg_def[regno].name;
+}
+
 void arch_kgdb_breakpoint(void)
 {
 	__asm__ __volatile__(
@@ -84,25 +148,10 @@ static int compute_signal(int tt)
 	return SIGHUP;		/* default for things we don't know about */
 }
 
+#if 0
 void pt_regs_to_gdb_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 {
 	int reg;
-
-#if (KGDB_GDB_REG_SIZE == 32)
-	u32 *ptr = (u32 *)gdb_regs;
-#else
-	u64 *ptr = (u64 *)gdb_regs;
-#endif
-
-	for (reg = 0; reg < 32; reg++)
-		*(ptr++) = regs->regs[reg];
-
-	*(ptr++) = regs->cp0_status;
-	*(ptr++) = regs->lo;
-	*(ptr++) = regs->hi;
-	*(ptr++) = regs->cp0_badvaddr;
-	*(ptr++) = regs->cp0_cause;
-	*(ptr++) = regs->cp0_epc;
 
 	/* FP REGS */
 	if (!(current && (regs->cp0_status & ST0_CU1)))
@@ -117,23 +166,7 @@ void gdb_regs_to_pt_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 {
 	int reg;
 
-#if (KGDB_GDB_REG_SIZE == 32)
-	const u32 *ptr = (u32 *)gdb_regs;
-#else
-	const u64 *ptr = (u64 *)gdb_regs;
-#endif
-
-	for (reg = 0; reg < 32; reg++)
-		regs->regs[reg] = *(ptr++);
-
-	regs->cp0_status = *(ptr++);
-	regs->lo = *(ptr++);
-	regs->hi = *(ptr++);
-	regs->cp0_badvaddr = *(ptr++);
-	regs->cp0_cause = *(ptr++);
-	regs->cp0_epc = *(ptr++);
-
-	/* FP REGS from current */
+	/* FPREGS from current */
 	if (!(current && (regs->cp0_status & ST0_CU1)))
 		return;
 
@@ -141,7 +174,7 @@ void gdb_regs_to_pt_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 		current->thread.fpu.fpr[reg] = *(ptr++);
 	restore_fp(current);
 }
-
+#endif
 /*
  * Similar to regs_to_gdb_regs() except that process is sleeping and so
  * we may not be able to get all the info.
