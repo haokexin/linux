@@ -161,7 +161,10 @@ static void pl011_rx_chars(struct uart_amba_port *uap)
 			else if (ch & UART011_DR_FE)
 				flag = TTY_FRAME;
 		}
-
+#ifdef CONFIG_CONSOLE_POLL
+		if (uap->port.poll_rx_cb && uap->port.poll_rx_cb(ch & 255))
+			goto ignore_char;
+#endif
 		if (uart_handle_sysrq_char(&uap->port, ch & 255))
 			goto ignore_char;
 
