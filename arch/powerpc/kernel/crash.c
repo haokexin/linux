@@ -93,11 +93,7 @@ void crash_ipi_callback(struct pt_regs *regs)
 	if (ppc_md.kexec_cpu_down)
 		ppc_md.kexec_cpu_down(1, 1);
 
-#ifdef CONFIG_PPC64
 	kexec_smp_wait();
-#else
-	for (;;);	/* FIXME */
-#endif
 
 	/* NOTREACHED */
 }
@@ -452,3 +448,10 @@ void default_machine_crash_shutdown(struct pt_regs *regs)
 	if (ppc_md.kexec_cpu_down)
 		ppc_md.kexec_cpu_down(1, 0);
 }
+
+#ifdef CONFIG_PPC32
+int kexec_is_handling_crash(void)
+{
+	return (cpus_weight(cpus_in_crash) != 0);
+}
+#endif

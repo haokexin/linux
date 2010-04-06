@@ -16,6 +16,7 @@
 #include <asm/cacheflush.h>
 #include <asm/hw_irq.h>
 #include <asm/io.h>
+#include <asm/kexec.h>
 
 typedef NORET_TYPE void (*relocate_new_kernel_t)(
 				unsigned long indirection_page,
@@ -164,7 +165,6 @@ static void _smp_kexec_wait_for_secondaries(void *arg)
 	volatile u32 *ready;	 /* addr of the relocated ready variable,
 				  * we spin on it, don't want it to be
 				  * optimized out. */
-	char buffer[32];
 
 	local_irq_disable();
 	ready = (void*)kexec_find_reloc((struct kimage *)arg,
@@ -182,6 +182,7 @@ static void _smp_kexec_leave_kernel(void *arg)
 	kexec_leave_kernel(arg);
 }
 
+static struct kimage * __crash_smp_flag = NULL;
 void default_kexec_stop_cpus(void *arg)
 {
 	int cpu;
@@ -191,23 +192,54 @@ void default_kexec_stop_cpus(void *arg)
 	 * the rest of the shutdown sequence, then put ourselves on
 	 * a spin; if we're CPU0, call CPU1 to put itself on a spin,
 	 * then do the rest of the shutdown sequence. */
+
+	/* if this is coming while handling a crash, the CPU that did not
+	 * crash is already spinning in a loop with its interrupts locked:
+	 * get it out of that loop and execute its normal kexec shutdown
+	 * sequence */
 	preempt_disable();
 	/* get hardware CPU# from special Processor Identity Register */
 	cpu = mfspr(SPRN_PIR);
 	if (0 == cpu) {
 		/* shutdown cpu 1 and wait for it */
-		smp_call_function(_smp_kexec_secondary_cpu_down, arg, 0);
+		if(kexec_is_handling_crash()) {
+			__crash_smp_flag = arg;
+			smp_mb();
+		} else {
+			smp_call_function(_smp_kexec_secondary_cpu_down, arg, 0);
+		}
 		_smp_kexec_wait_for_secondaries(arg);
 
 		/* was called from default_machine_kexec, continues there */
 	} else {
-		smp_call_function(_smp_kexec_leave_kernel, arg, 0);
+		if(kexec_is_handling_crash()) {
+			__crash_smp_flag = arg;
+			smp_mb();
+		} else {
+			smp_call_function(_smp_kexec_leave_kernel, arg, 0);
+		}
 		_smp_kexec_secondary_cpu_down(arg);
 
 		/* not reached, going to wait on
 		 * relocate_new_kernel_secondary_spin() */
 	}
 }
+
+void kexec_smp_wait(void)
+{
+	int cpu;
+	while(!__crash_smp_flag) {
+		cpu_relax();
+	}
+	/* get hardware CPU# from special Processor Identity Register */
+	cpu = mfspr(SPRN_PIR);
+	if(0 == cpu) {
+		_smp_kexec_leave_kernel(__crash_smp_flag);
+	} else {
+		_smp_kexec_secondary_cpu_down(__crash_smp_flag);
+	}
+}
+
 #endif /* CONFIG_SMP */
 
 int default_machine_kexec_prepare(struct kimage *image)
