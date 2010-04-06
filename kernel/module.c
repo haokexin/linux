@@ -614,6 +614,9 @@ static void module_unload_free(struct module *mod)
 			}
 		}
 	}
+	blocking_notifier_call_chain(&module_notify_list,
+				MODULE_STATE_GOING,
+				mod);
 }
 
 #ifdef CONFIG_MODULE_FORCE_UNLOAD
@@ -1082,7 +1085,9 @@ static const struct kernel_symbol *resolve_symbol(Elf_Shdr *sechdrs,
  * /sys/module/foo/sections stuff
  * J. Corbet <corbet@lwn.net>
  */
-#if defined(CONFIG_KALLSYMS) && defined(CONFIG_SYSFS)
+#ifdef CONFIG_SYSFS
+#if (defined(CONFIG_KGDB_MODULES) || defined(CONFIG_KALLSYMS))
+#ifdef CONFIG_KALLSYMS
 
 static inline bool sect_empty(const Elf_Shdr *sect)
 {
@@ -1110,6 +1115,7 @@ static ssize_t module_sect_show(struct module_attribute *mattr,
 		container_of(mattr, struct module_sect_attr, mattr);
 	return sprintf(buf, "0x%lx\n", sattr->address);
 }
+#endif /* CONFIG_KALLSYMS */
 
 static void free_sect_attrs(struct module_sect_attrs *sect_attrs)
 {
@@ -1157,7 +1163,9 @@ static void add_sect_attrs(struct module *mod, unsigned int nsect,
 			goto out;
 		sect_attrs->nsections++;
 		sysfs_attr_init(&sattr->mattr.attr);
+#ifdef CONFIG_KALLSYMS
 		sattr->mattr.show = module_sect_show;
+#endif
 		sattr->mattr.store = NULL;
 		sattr->mattr.attr.name = sattr->name;
 		sattr->mattr.attr.mode = S_IRUGO;
@@ -1185,7 +1193,21 @@ static void remove_sect_attrs(struct module *mod)
 		mod->sect_attrs = NULL;
 	}
 }
+#else /* ! (CONFIG_KALLSYMS || CONFIG_KGDB_MODULES) */
 
+static inline void add_sect_attrs(struct module *mod, unsigned int nsect,
+		char *sectstrings, Elf_Shdr *sechdrs)
+{
+}
+
+static inline void remove_sect_attrs(struct module *mod)
+{
+}
+
+#endif /* CONFIG_KALLSYMS || CONFIG_KGDB_MODULES */
+#endif /* CONFIG_SYSFS */
+
+#ifdef CONFIG_KALLSYMS
 /*
  * /sys/module/foo/notes/.section.name gives contents of SHT_NOTE sections.
  */
@@ -1284,18 +1306,7 @@ static void remove_notes_attrs(struct module *mod)
 	if (mod->notes_attrs)
 		free_notes_attrs(mod->notes_attrs, mod->notes_attrs->notes);
 }
-
 #else
-
-static inline void add_sect_attrs(struct module *mod, unsigned int nsect,
-		char *sectstrings, Elf_Shdr *sechdrs)
-{
-}
-
-static inline void remove_sect_attrs(struct module *mod)
-{
-}
-
 static inline void add_notes_attrs(struct module *mod, unsigned int nsect,
 				   char *sectstrings, Elf_Shdr *sechdrs)
 {

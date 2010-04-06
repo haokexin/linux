@@ -18,6 +18,14 @@ menuconfig KGDB
 
 if KGDB
 
+config KGDB_MODULES
+	bool "KGDB: Debug modules without KALLSYMS"
+	depends on KGDB && !KALLSYMS && SYSFS
+	default y
+	help
+	  This option allows you to debug kernel modules with a
+	  kernel module aware debugger without using KALLSYMS.
+
 config KGDB_SERIAL_CONSOLE
 	tristate "KGDB: use kgdb over the serial console"
 	select CONSOLE_POLL
