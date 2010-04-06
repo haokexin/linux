@@ -527,10 +527,13 @@ endif # $(dot-config)
 all: vmlinux
 
 ifdef CONFIG_CC_OPTIMIZE_FOR_SIZE
-KBUILD_CFLAGS	+= -Os
+COPTIMIZE	+= -Os
 else
-KBUILD_CFLAGS	+= -O2
+COPTIMIZE	+= -O2
 endif
+# COPTIMIZE may be overridden on the make command line with
+# 	make ... COPTIMIZE=""
+KBUILD_CFLAGS	+= $(COPTIMIZE)
 
 include $(srctree)/arch/$(SRCARCH)/Makefile
 
