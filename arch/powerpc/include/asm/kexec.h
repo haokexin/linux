@@ -86,6 +86,9 @@ extern void machine_kexec_simple(struct kimage *image);
 extern void crash_kexec_secondary(struct pt_regs *regs);
 extern int overlaps_crashkernel(unsigned long start, unsigned long size);
 extern void reserve_crashkernel(void);
+#ifdef CONFIG_PPC32
+extern int kexec_is_handling_crash(void);
+#endif
 
 #else /* !CONFIG_KEXEC */
 static inline int kexec_sr_activated(int cpu) { return 0; }
