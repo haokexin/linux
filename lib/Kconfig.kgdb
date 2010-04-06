@@ -55,6 +55,17 @@ config KGDB_8250
 	  attached via this driver,  the configured serial port cannot be
 	  used by the standard 8250 driver or serial earlyprintk/earlycon.
 
+config KGDBOE
+	tristate "KGDB: On ethernet"
+	depends on KGDB && NET
+	select NETPOLL
+	select NETPOLL_TRAP
+	help
+	  Uses the NETPOLL API to communicate with the host GDB via UDP.
+	  In order for this to work, the ethernet interface specified must
+	  support the NETPOLL API, and this must be initialized at boot.
+	  See the documentation for syntax.
+
 config KGDB_TESTS
 	bool "KGDB: internal test suite"
 	default n
