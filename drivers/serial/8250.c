@@ -1439,6 +1439,10 @@ receive_chars(struct uart_8250_port *up, unsigned int *status)
 			else if (lsr & UART_LSR_FE)
 				flag = TTY_FRAME;
 		}
+#ifdef CONFIG_CONSOLE_POLL
+		if (up->port.poll_rx_cb && up->port.poll_rx_cb(ch))
+			goto ignore_char;
+#endif
 		if (uart_handle_sysrq_char(&up->port, ch))
 			goto ignore_char;
 
