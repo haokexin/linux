@@ -297,6 +297,14 @@ extern atomic_t			kgdb_active;
 #endif /* CONFIG_KGDB */
 
 /* Common to all that include kgdb.h */
+#ifdef CONFIG_VT
+extern void dbg_pre_vt_hook(void);
+extern void dbg_post_vt_hook(void);
+#else /* ! CONFIG_VT */
+#define dbg_pre_vt_hook()
+#define dbg_post_vt_hook()
+#endif /* CONFIG_VT */
+
 struct dbg_kms_ops {
 	int (*activate_console) (struct dbg_kms_ops *ops);
 	int (*restore_console) (struct dbg_kms_ops *ops);

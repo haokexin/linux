@@ -75,6 +75,7 @@
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/crc32.h> /* For counting font checksums */
+#include <linux/kgdb.h>
 #include <asm/fb.h>
 #include <asm/irq.h>
 #include <asm/system.h>
@@ -2316,6 +2317,12 @@ static int fbcon_blank(struct vc_data *vc, int blank, int mode_switch)
 			ops->graphics = 0;
 			ops->var = info->var;
 		}
+	}
+
+	if (in_dbg_master()) {
+		if (info->fbops->fb_blank)
+			info->fbops->fb_blank(blank, info);
+		return 0;
 	}
 
  	if (!fbcon_is_inactive(vc, info)) {
