@@ -2149,7 +2149,13 @@ uart_report_port(struct uart_driver *drv, struct uart_port *port)
 	case UPIO_AU:
 	case UPIO_TSI:
 	case UPIO_DWAPB:
-		snprintf(address, sizeof(address),
+		if (port->mapbase == 0)
+			snprintf(address, sizeof(address),
+			 "MMIO 0x%llx membase %p",
+			 (unsigned long long)port->mapbase,
+			 port->membase);
+		else
+			snprintf(address, sizeof(address),
 			 "MMIO 0x%llx", (unsigned long long)port->mapbase);
 		break;
 	default:
@@ -2562,6 +2568,8 @@ int uart_match_port(struct uart_port *port1, struct uart_port *port2)
 	case UPIO_AU:
 	case UPIO_TSI:
 	case UPIO_DWAPB:
+		if (port1->mapbase == 0 && port2->mapbase == 0)
+			return (port1->membase == port2->membase);
 		return (port1->mapbase == port2->mapbase);
 	}
 	return 0;

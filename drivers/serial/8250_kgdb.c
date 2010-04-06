@@ -49,6 +49,9 @@ static struct uart_port kgdb8250_port;
 /* UART port we might have stolen from the 8250 driver */
 static int hijacked_line;
 
+/* Flag for if we need to call request_mem_region */
+static int kgdb8250_needs_request_mem_region;
+
 static int late_init_passed;
 static int fully_initialized;
 static int buffered_char = -1;
@@ -56,6 +59,18 @@ static int buffered_char = -1;
 static struct kgdb_io kgdb8250_io_ops;	/* initialized later */
 
 static int kgdb8250_uart_init(void);
+
+#ifdef CONFIG_KGDB_8250
+/* Weak alias in case a particular arch need to implment a specific
+ * point where the serial initialization is completed for early debug.
+ * This is only applicable if the kgdb8250 driver is a built-in.
+ */
+int __weak kgdb8250_early_debug_ready(void)
+{
+	return 1;
+}
+#endif
+
 
 static inline unsigned int kgdb8250_ioread(u8 mask)
 {
@@ -208,7 +223,7 @@ static int kgdb8250_uart_init(void)
 
 /*
  * Syntax for this cmdline option is:
- *   <io|mmio>,<address>[/<regshift>],<baud rate>,<irq> or
+ *   <io|mmio|mbase>,<address>[/<regshift>],<baud rate>,<irq> or
  *   ttyS<n>,<baud rate>
  */
 static int kgdb8250_parse_config(char *str)
@@ -217,6 +232,11 @@ static int kgdb8250_parse_config(char *str)
 
 	/* Save the option string in case we fail and can retry later. */
 	strncpy(config, str, KGD8250_MAX_CONFIG_STR-1);
+
+#ifdef CONFIG_KGDB_8250
+	if (!kgdb8250_early_debug_ready())
+		return 0;
+#endif
 
 	/* Empty config or leading white space (like LF) means "disabled" */
 	if (!strlen(config) || isspace(config[0]))
@@ -229,6 +249,10 @@ static int kgdb8250_parse_config(char *str)
 		kgdb8250_port.iotype = UPIO_MEM;
 		kgdb8250_port.flags = UPF_IOREMAP;
 		str += 4;
+	} else if (!strncmp(str, "mbase", 5)) {
+		kgdb8250_port.iotype = UPIO_MEM;
+		kgdb8250_port.flags &= ~UPF_IOREMAP;
+		str += 5;
 	} else if (!strncmp(str, "ttyS", 4)) {
 		str += 4;
 		if (*str < '0' || *str > '9')
@@ -242,7 +266,7 @@ static int kgdb8250_parse_config(char *str)
 			if (late_init_passed)
 				return err;
 			printk(KERN_WARNING "kgdb8250: ttyS%d init delayed, "
-			       "use io/mmio syntax for early init.\n",
+			       "use io/mmio/mbase syntax for early init.\n",
 			       line);
 			return 0;
 		}
@@ -268,9 +292,12 @@ static int kgdb8250_parse_config(char *str)
 
 	if (kgdb8250_port.iotype == UPIO_PORT)
 		kgdb8250_port.iobase = simple_strtoul(str, &str, 16);
-	else
+	else if (kgdb8250_port.flags & UPF_IOREMAP)
 		kgdb8250_port.mapbase =
-			(unsigned long)simple_strtoul(str, &str, 16);
+			(unsigned long) simple_strtoul(str, &str, 16);
+	else
+		kgdb8250_port.membase =
+			(void *) simple_strtoul(str, &str, 16);
 
 	if (*str == '/') {
 		str++;
@@ -304,6 +331,9 @@ static int kgdb8250_early_init(void)
 	/* Internal driver setup. */
 	switch (kgdb8250_port.iotype) {
 	case UPIO_MEM:
+		kgdb8250_needs_request_mem_region = 0;
+		if (kgdb8250_port.mapbase)
+			kgdb8250_needs_request_mem_region = 1;
 		if (kgdb8250_port.flags & UPF_IOREMAP)
 			kgdb8250_port.membase = ioremap(kgdb8250_port.mapbase,
 						8 << kgdb8250_port.regshift);
@@ -354,7 +384,8 @@ static int kgdb8250_late_init(void)
 
 	/* Request memory/io regions that we use. */
 	if (kgdb8250_port.iotype == UPIO_MEM) {
-		if (!request_mem_region(kgdb8250_port.mapbase,
+		if (kgdb8250_needs_request_mem_region &&
+			!request_mem_region(kgdb8250_port.mapbase,
 					8 << kgdb8250_port.regshift, "kgdb"))
 			goto rollback;
 	} else {
@@ -417,7 +448,8 @@ static void kgdb8250_cleanup(void)
 	if (kgdb8250_port.iotype == UPIO_MEM) {
 		if (kgdb8250_port.flags & UPF_IOREMAP)
 			iounmap(kgdb8250_port.membase);
-		release_mem_region(kgdb8250_port.mapbase,
+		if (kgdb8250_needs_request_mem_region)
+			release_mem_region(kgdb8250_port.mapbase,
 				   8 << kgdb8250_port.regshift);
 	} else {
 		ioport_unmap(ioaddr);
@@ -485,5 +517,15 @@ module_param_call(kgdb8250, kgdb8250_set_config, param_get_string, &kps, 0644);
 MODULE_PARM_DESC(kgdb8250, "ttyS<n>,<baud rate>");
 
 #ifdef CONFIG_KGDB_8250
+/* This function can be called for a board that has early debugging
+ * but later than early param processing time.  It is expected that
+ * this function is called as soon as it is permissible for the board
+ * to start taking exceptions and the serial IO mappings are in
+ * place.
+ */
+void kgdb8250_arch_init(void)
+{
+	kgdb8250_parse_config(config);
+}
 early_param("kgdb8250", kgdb8250_parse_config);
 #endif

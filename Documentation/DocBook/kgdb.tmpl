@@ -388,11 +388,13 @@
    <orderedlist>
    <listitem><para>Full serial address specification:
    <itemizedlist>
-   <listitem><para><constant>kgdb8250=&lt;io|mmio&gt;,&lt;address&gt;[/&lt;regshift&gt;],&lt;baud rate&gt;,&lt;irq&gt;</constant></para></listitem>
+   <listitem><para><constant>kgdb8250=&lt;io|mmio|mbase&gt;,&lt;address&gt;[/&lt;regshift&gt;],&lt;baud rate&gt;,&lt;irq&gt;</constant></para></listitem>
    <listitem><para>
    The values <constant>io</constant> or <constant>mmio</constant>
    refer to if the address being passed next needs to be memory
-   mapped (<constant>mmio</constant>) or not.  The
+   mapped (<constant>mmio</constant>) or not.  The mbase (short for
+   membase) parameter is only used if mapbase is set to zero for uart
+   definition, which is the case for some ppc boards.  The
    <constant>address</constant> must be passed in hex and is the
    hardware address and will be remapped if passed as
    <constant>mmio</constant>. An optional
@@ -717,6 +719,63 @@ Task Addr       Pid   Parent [*] cpu State Thread     Command
 (gdb)
   </programlisting></informalexample>
   </para>
+  </sect1>
+  <sect1 id="kgdb8250Internals">
+  <title>kgdb8250 API</title>
+  <para>
+  The kgdb8250 driver essentially hijacks a uart for use with kgdb.
+  The aim of the implementation is to provide debugging as early as
+  possible after the exception processing and uarts are initialized.
+  </para>
+  <para>
+  On some architectures or specific boards the kgdb8250 driver's
+  registration needs to be delayed beyond the kernel argument
+  processing time.  With the kgdb8250 driver it is possible to
+  override the default implementation so as to provide a hook to delay
+  the I/O driver registration for kgdb.
+  </para>
+  <para>
+  The following is and example of code that would go into the
+  architecture or board specific implementation to delay the kgdb8250
+  final initialization to the correct time.
+  <programlisting>
+#include &lt;linux/kgdb8250.h&gt;
+
+/* ... other arch or board specific functions ... */
+
+#ifdef CONFIG_KGDB_8250
+static int kgdb8250_ready;
+int kgdb8250_early_debug_ready(void)
+{
+	return kgdb8250_ready;
+}
+#endif
+
+/* This is an example uart init function, the important part is
+ * adding in the part inclusive of the #ifdef
+ */
+void example_uart_init(void)
+{
+
+/* ... uart and exceptions are finally setup ... */
+#ifdef CONFIG_KGDB_8250
+	kgdb8250_ready = 1;
+	kgdb8250_arch_init();
+#endif
+
+/* Note, that if kgdbwait was specified on the
+ * kernel command line the board will stop at this
+ * point and wait for the debugger
+ */
+
+}
+  </programlisting>
+  </para>
+  <para>
+  The API function descriptions follow for kgdb8250_early_debug_ready() and
+  kgdb8250_arch_init().
+  </para>
+!Iinclude/linux/kgdb8250.h
   </sect1>
   </chapter>
   <chapter id="KGDBTestSuite">
