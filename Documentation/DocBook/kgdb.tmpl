@@ -362,6 +362,99 @@
    </para>
   </para>
   </sect1>
+  <sect1 id="kgdb8250">
+  <title>Kernel parameter: kgdb8250</title>
+   <para>
+   You can build the make the kgdb8250 driver as a kernel module
+   "8250_kgdb.ko" or as a built-in.  Either way you must pass the
+   parameter <constant>kgdb8250=&lt;args described
+   below&gt;</constant> to configure the I/O driver.  Alternately if
+   you used the kgdb8250 kgdb I/O driver as a built-in you can
+   configure it at run time by using the echo command to send the
+   configuration into the sysfs parameters.  Note that when using
+   sysfs, you omit the "<constant>kgdb8250=</constant>" For example:
+   <itemizedlist>
+   <listitem><para><constant>kgdb8250=ttyS&lt;n&gt;,&lt;baud rate&gt;</constant></para></listitem>
+   </itemizedlist>
+   </para>
+   <para>
+   You can also return kgdb back to the unregistered state by using:
+   <itemizedlist>
+   <listitem><para><constant>echo "" &gt; /sys/module/8250_kgdb/paramaters/kgdb8250</constant></para></listitem>
+   </itemizedlist>
+   </para>
+   <para>
+   When loading the 8250_kgdb.ko module or using the kgdb8250 driver as a built in, the configuration takes one of two forms.
+   <orderedlist>
+   <listitem><para>Full serial address specification:
+   <itemizedlist>
+   <listitem><para><constant>kgdb8250=&lt;io|mmio&gt;,&lt;address&gt;[/&lt;regshift&gt;],&lt;baud rate&gt;,&lt;irq&gt;</constant></para></listitem>
+   <listitem><para>
+   The values <constant>io</constant> or <constant>mmio</constant>
+   refer to if the address being passed next needs to be memory
+   mapped (<constant>mmio</constant>) or not.  The
+   <constant>address</constant> must be passed in hex and is the
+   hardware address and will be remapped if passed as
+   <constant>mmio</constant>. An optional
+   <constant>regshift</constant> value can be given to express
+   address spreading of the 8250
+   registers. <constant>regshift</constant> just as the succeeding
+   <constant>baud rate</constant> and <constant>irq</constant> values
+   are base-10. The supported values for <constant>baud
+   rate</constant> are <constant>9600</constant>,
+   <constant>19200</constant>, <constant>38400</constant>,
+   <constant>57600</constant>, and <constant>115200</constant>.
+   </para>
+   <para>
+   To specify the values of the serial port at boot:
+   </para>
+   <para>
+   <constant>kgdb8250=io,3f8,115200,3</constant>
+   </para>
+   <para>
+   On certain non x86 archs it might look something like:
+   </para>
+   <para>
+   <constant>kgdb8250=mmio,0xff5e0000,115200,74</constant>
+   </para>
+   </listitem>
+   </itemizedlist>
+   </para></listitem>
+   <listitem><para>Simple configuration:
+   <itemizedlist>
+   <listitem><para><constant>kgdb8250=&lt;tty_name&gt;,&lt;baud rate&gt;</constant></para></listitem>
+   <listitem>
+   <para>
+   The simple configuration can be used so long as you are not trying
+   to perform "early" debugging on a platform that supports early
+   debugging.  Early debugging allows you to debug the kernel prior
+   to console_init() and the tty driver registration.  In the case of
+   the simple configuration the address, port type and irq
+   information can be obtained dynamically by the kgdb I/O driver
+   after the tty's are registered.  Here is an example of the simple
+   configuration parameter for ttyS0:
+   </para>
+   <para>
+   <constant>kgdb8250=ttyS0,115200</constant>
+   </para>
+   </listitem>
+   </itemizedlist>
+   </para></listitem>
+   </orderedlist>
+   If you do use the full serial address configuration and the
+   kgdbwait parameter to boot your kernel, on some architectures it
+   may be able to stop before console output has started in which it
+   might look like the target machine is hung when in reality it is
+   just waiting for the debugger.
+   </para>
+   <para>
+   Finally, it should be noted that you should not try to multiplex a
+   standard serial console and use the kgdb8250 driver at the same
+   time if you have a single serial port IE: "console=ttyS0,11520
+   kgdb8250=ttyS0,115200".  You should use the kgdboc and not the
+   kgdb8250 driver if this is what you want to do.
+   </para>
+  </sect1>
   </chapter>
   <chapter id="usingKDB">
   <title>Using kdb</title>
