@@ -1055,7 +1055,9 @@ static void kdb_dumpregs(struct pt_regs *regs)
 {
 	int old_lvl = console_loglevel;
 	console_loglevel = 15;
+	kdb_trap_printk++;
 	show_regs(regs);
+	kdb_trap_printk--;
 	kdb_printf("\n");
 	console_loglevel = old_lvl;
 }
@@ -1822,7 +1824,9 @@ static int kdb_sr(int argc, const char **argv)
 		__sysrq_enabled = 1;
 	}
 
+	kdb_trap_printk++;
 	handle_sysrq(*argv[1], NULL);
+	kdb_trap_printk--;
 
 	return 0;
 }
