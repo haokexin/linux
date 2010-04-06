@@ -133,7 +133,7 @@ static int force_hwbrks;
 static int hwbreaks_ok;
 static int hw_break_val;
 static int hw_break_val2;
-#if defined(CONFIG_ARM) || defined(CONFIG_MIPS) || defined(CONFIG_SPARC)
+#if defined(CONFIG_MIPS) || defined(CONFIG_SPARC)
 static int arch_needs_sstep_emulation = 1;
 #else
 static int arch_needs_sstep_emulation;
