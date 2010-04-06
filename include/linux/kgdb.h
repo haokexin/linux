@@ -294,12 +294,34 @@ extern int kgdb_nmicallback(int cpu, void *regs);
 
 extern int			kgdb_single_step;
 extern atomic_t			kgdb_active;
+#endif /* CONFIG_KGDB */
+
+/* Common to all that include kgdb.h */
+struct dbg_kms_ops {
+	int (*activate_console) (struct dbg_kms_ops *ops);
+	int (*restore_console) (struct dbg_kms_ops *ops);
+};
+
+#ifdef CONFIG_KGDB
 #define in_dbg_master() \
 	(raw_smp_processor_id() == atomic_read(&kgdb_active))
 extern bool dbg_is_early;
 extern void __init dbg_late_init(void);
+
+extern struct dbg_kms_ops *dbg_kms_ops;
+extern int dbg_kms_ops_register(struct dbg_kms_ops *ops);
+extern int dbg_kms_ops_unregister(struct dbg_kms_ops *ops);
 #else /* ! CONFIG_KGDB */
 #define in_dbg_master() (0)
 #define dbg_late_init()
+
+static inline int dbg_kms_ops_register(struct dbg_kms_ops *ops)
+{
+	return 0;
+}
+static inline int dbg_kms_ops_unregister(struct dbg_kms_ops *ops)
+{
+	return 0;
+}
 #endif /* ! CONFIG_KGDB */
 #endif /* _KGDB_H_ */

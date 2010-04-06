@@ -809,6 +809,29 @@ static void kgdb_register_callbacks(void)
 	}
 }
 
+struct dbg_kms_ops *dbg_kms_ops;
+EXPORT_SYMBOL_GPL(dbg_kms_ops);
+
+int dbg_kms_ops_register(struct dbg_kms_ops *ops)
+{
+	if (dbg_kms_ops) {
+		printk(KERN_ERR "dbg_core: KMS ops already in use\n");
+		return -1;
+	}
+	dbg_kms_ops = ops;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dbg_kms_ops_register);
+
+int dbg_kms_ops_unregister(struct dbg_kms_ops *ops)
+{
+	if (dbg_kms_ops != ops)
+		printk(KERN_ERR "dbg_core: KMS ops do not match\n");
+	dbg_kms_ops = NULL;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(dbg_kms_ops_unregister);
+
 static void kgdb_unregister_callbacks(void)
 {
 	/*

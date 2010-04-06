@@ -32,6 +32,7 @@ static struct kparam_string kps = {
 	.maxlen			= MAX_CONFIG_LEN,
 };
 
+static int kgdboc_use_kms;  /* 1 if we use kernel mode switching */
 static struct tty_driver	*kgdb_tty_driver;
 static int			kgdb_tty_line;
 
@@ -115,6 +116,12 @@ static int configure_kgdboc(void)
 	err = -ENODEV;
 	kgdboc_io_ops.is_console = 0;
 	kgdb_tty_driver = NULL;
+
+	kgdboc_use_kms = 0;
+	if (strncmp(cptr, "kms,", 4) == 0) {
+		cptr += 4;
+		kgdboc_use_kms = 1;
+	}
 
 	if (kgdboc_register_kbd(&cptr))
 		goto do_register;
@@ -215,6 +222,11 @@ static int param_set_kgdboc_var(const char *kmessage, struct kernel_param *kp)
 
 static void kgdboc_pre_exp_handler(void)
 {
+	if (kgdboc_use_kms && dbg_kms_ops &&
+	    dbg_kms_ops->activate_console)
+		if (dbg_kms_ops->activate_console(dbg_kms_ops))
+			printk(KERN_ERR "kgdboc: kernel mode switch error\n");
+
 	/* Increment the module count when the debugger is active */
 	if (!kgdb_connected)
 		try_module_get(THIS_MODULE);
@@ -225,6 +237,10 @@ static void kgdboc_post_exp_handler(void)
 	/* decrement the module count when the debugger detaches */
 	if (!kgdb_connected)
 		module_put(THIS_MODULE);
+	if (kgdboc_use_kms && dbg_kms_ops &&
+	    dbg_kms_ops->restore_console)
+		if (dbg_kms_ops->restore_console(dbg_kms_ops))
+			printk(KERN_ERR "kgdboc: graphics restore failed\n");
 	kgdboc_clear_kbd();
 }
 
