@@ -66,6 +66,7 @@ enum port_dev_state {
  * @work: work queue entry for the line discipline waking up.
  * @throttled: nonzero if the read urb is inactive to throttle the device
  * @throttle_req: nonzero if the tty wants to throttle us
+ * @poll_rx_cb: Optional console polling callback routine
  * @dev: pointer to the serial device
  *
  * This structure is used by the usb-serial core and drivers for the specific
@@ -105,6 +106,9 @@ struct usb_serial_port {
 	struct work_struct	work;
 	char			throttled;
 	char			throttle_req;
+#ifdef CONFIG_CONSOLE_POLL
+	int			(*poll_rx_cb)(u8);
+#endif /* CONFIG_CONSOLE_POLL */
 	unsigned long		sysrq; /* sysrq timeout */
 	struct device		dev;
 	enum port_dev_state	dev_state;
@@ -267,6 +271,9 @@ struct usb_serial_driver {
 	void (*write_int_callback)(struct urb *urb);
 	void (*read_bulk_callback)(struct urb *urb);
 	void (*write_bulk_callback)(struct urb *urb);
+#ifdef CONFIG_CONSOLE_POLL
+	int (*poll_get_char)(struct usb_serial_port *port);
+#endif
 };
 #define to_usb_serial_driver(d) \
 	container_of(d, struct usb_serial_driver, driver)

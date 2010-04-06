@@ -807,6 +807,9 @@ static int  ftdi_ioctl(struct tty_struct *tty, struct file *file,
 static void ftdi_break_ctl(struct tty_struct *tty, int break_state);
 static void ftdi_throttle(struct tty_struct *tty);
 static void ftdi_unthrottle(struct tty_struct *tty);
+#ifdef CONFIG_CONSOLE_POLL
+static int ftdi_poll_get_char(struct usb_serial_port *port);
+#endif
 
 static unsigned short int ftdi_232am_baud_base_to_divisor(int baud, int base);
 static unsigned short int ftdi_232am_baud_to_divisor(int baud);
@@ -843,6 +846,9 @@ static struct usb_serial_driver ftdi_sio_device = {
 	.set_termios =		ftdi_set_termios,
 	.break_ctl =		ftdi_break_ctl,
 	.max_in_flight_urbs =	URB_UPPER_LIMIT,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_get_char = ftdi_poll_get_char,
+#endif
 };
 
 
@@ -2079,6 +2085,10 @@ static int ftdi_process_packet(struct tty_struct *tty,
 		tty_insert_flip_string(tty, ch, len);
 	else {
 		for (i = 0; i < len; i++, ch++) {
+#ifdef CONFIG_CONSOLE_POLL
+			if (!(port->poll_rx_cb &&
+			      port->poll_rx_cb(*ch)))
+#endif
 			if (!usb_serial_handle_sysrq_char(tty, port, *ch))
 				tty_insert_flip_char(tty, *ch, flag);
 		}
@@ -2166,6 +2176,13 @@ static void ftdi_break_ctl(struct tty_struct *tty, int break_state)
 
 }
 
+#ifdef CONFIG_CONSOLE_POLL
+static int ftdi_poll_get_char(struct usb_serial_port *port)
+{
+	/* Indicate this driver requires high level polling */
+	return -2;
+}
+#endif /* CONFIG_CONSOLE_POLL */
 
 /* old_termios contains the original termios settings and tty->termios contains
  * the new setting to be used

@@ -36,6 +36,8 @@
 #include <linux/usb.h>
 #include <linux/usb/serial.h>
 #include <linux/kfifo.h>
+#include <linux/kgdb.h>
+#include "../core/hcd.h"
 #include "pl2303.h"
 
 /*
@@ -1157,6 +1159,136 @@ int usb_serial_resume(struct usb_interface *intf)
 }
 EXPORT_SYMBOL(usb_serial_resume);
 
+#ifdef CONFIG_CONSOLE_POLL
+static int serial_poll_init(struct tty_driver *driver, int line,
+		char *options, void *rx_callback)
+{
+	struct usb_serial *serial;
+	struct usb_serial_port *port;
+
+#if 0
+	struct uart_driver *drv = driver->driver_state;
+	struct uart_state *state = drv->state + line;
+	int baud = 9600;
+	int bits = 8;
+	int parity = 'n';
+	int flow = 'n';
+#endif
+
+	serial = usb_serial_get_by_index(line);
+	if (!serial)
+		return -1;
+
+	if (!serial->type->poll_get_char)
+		return -1;
+
+	port = serial->port[line - serial->minor];
+	if (rx_callback)
+		port->poll_rx_cb = rx_callback;
+
+#if 0
+	port = state->port;
+	if (!(port->ops->poll_get_char && port->ops->poll_put_char))
+		return -1;
+
+	if (options) {
+		uart_parse_options(options, &baud, &parity, &bits, &flow);
+		return uart_set_options(port, NULL, baud, parity, bits, flow);
+	}
+#endif
+
+	return 0;
+}
+
+static int serial_poll_get_char(struct tty_driver *driver, int line)
+{
+	struct usb_serial *serial;
+	struct usb_serial_port *port;
+	struct usb_hcd *hcd;
+	struct urb *urb;
+	int ret = -1;
+
+	serial = usb_serial_get_by_index(line);
+	if (!serial)
+		return -1;
+
+	port = serial->port[line - serial->minor];
+
+	if (serial->type->poll_get_char)
+		ret = serial->type->poll_get_char(port);
+	if (ret != -2)
+		return ret;
+	/*
+	 * -2 indicates that low level driver wants the interrupt
+	 * service routine to be polled in order to service character
+	 * poll requests.  This involves making a direct request to
+	 * the HCD.
+	 */
+	urb = port->read_urb;
+	if (!urb) {
+		printk("%s - bad read_urb pointer - exiting", __func__);
+		return -1;
+	}
+
+	hcd = bus_to_hcd(urb->dev->bus);
+	if (hcd)
+		usb_hcd_irq(0, hcd);
+
+	return ret;
+}
+
+static void serial_poll_put_char(struct tty_driver *driver, int line, char ch)
+{
+	struct usb_serial *serial;
+	struct usb_serial_port *port;
+	struct usb_hcd *hcd;
+	struct urb *urb;
+	int failcnt;
+	char buf[2];
+	int retval;
+
+	serial = usb_serial_get_by_index(line);
+	if (!serial)
+		return;
+
+	if (serial->dev->state == USB_STATE_NOTATTACHED)
+		return;
+
+	port = serial->port[line - serial->minor];
+
+	if (!port->port.count)
+		return;
+
+	buf[0] = ch;
+
+	retval = 0;
+	failcnt = 100000;
+	urb = port->read_urb;
+	if (!urb) {
+		printk(KERN_CRIT "%s - bad read_urb pointer - exiting", __func__);
+		return;
+	}
+	hcd = bus_to_hcd(urb->dev->bus);
+	/* Perform the chip level write */
+	while (failcnt) {
+		if (serial->type->write)
+			retval = serial->type->write(NULL, port, buf, 1);
+		else
+			retval = usb_serial_generic_write(NULL, port, buf, 1);
+		if (retval == 1)
+			break;
+		/* Run the hcd device to clear out extra packets */
+		if (hcd)
+			usb_hcd_irq(0, hcd);
+		failcnt--;
+	}
+	if (retval <= 0)
+		printk(KERN_CRIT "USB-SERIAL: error writing '%c' to port\n", ch);
+
+	return;
+}
+#endif
+
 static const struct tty_operations serial_ops = {
 	.open =			serial_open,
 	.close =		serial_close,
@@ -1174,6 +1306,11 @@ static const struct tty_operations serial_ops = {
 	.cleanup = 		serial_cleanup,
 	.install = 		serial_install,
 	.proc_fops =		&serial_proc_fops,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_init	= serial_poll_init,
+	.poll_get_char	= serial_poll_get_char,
+	.poll_put_char	= serial_poll_put_char,
+#endif
 };
 
 
