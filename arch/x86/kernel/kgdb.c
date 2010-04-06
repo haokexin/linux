@@ -92,22 +92,27 @@ struct dbg_reg_def_t dbg_reg_def[DBG_MAX_REG_NUM] =
 #endif
 };
 
-void dbg_set_reg(int regno, void *mem, struct pt_regs *regs)
+int dbg_set_reg(int regno, void *mem, struct pt_regs *regs)
 {
-	if (regno >= DBG_MAX_REG_NUM ||	regno < 0 ||
+	if (
 #ifdef CONFIG_X86_32
 	    regno == GDB_SS || regno == GDB_FS || regno == GDB_GS ||
 #endif
-	    regno == GDB_SP)
-		return;
+	    regno == GDB_SP || regno == GDB_ORIG_AX)
+		return 0;
 
 	if (dbg_reg_def[regno].offset != -1)
 		memcpy((void *)regs + dbg_reg_def[regno].offset, mem,
 		       dbg_reg_def[regno].size);
+	return 0;
 }
 
 char *dbg_get_reg(int regno, void *mem, struct pt_regs *regs)
 {
+	if (regno == GDB_ORIG_AX) {
+		memcpy(mem, &regs->orig_ax, sizeof(regs->orig_ax));
+		return "orig_ax";
+	}
 	if (regno >= DBG_MAX_REG_NUM || regno < 0)
 		return NULL;
 
@@ -132,23 +137,6 @@ char *dbg_get_reg(int regno, void *mem, struct pt_regs *regs)
 #endif
 	}
 	return dbg_reg_def[regno].name;
-}
-
-/**
- *	pt_regs_to_gdb_regs - Convert ptrace regs to GDB regs
- *	@gdb_regs: A pointer to hold the registers in the order GDB wants.
- *	@regs: The &struct pt_regs of the current process.
- *
- *	Convert the pt_regs in @regs into the format for registers that
- *	GDB expects, stored in @gdb_regs.
- */
-void pt_regs_to_gdb_regs(unsigned long *gdb_regs, struct pt_regs *regs)
-{
-	int i;
-
-	for (i = 0; i < DBG_MAX_REG_NUM; i++) {
-		dbg_get_reg(i, &gdb_regs[i], regs);
-	}
 }
 
 /**
@@ -199,23 +187,6 @@ void sleeping_thread_to_gdb_regs(unsigned long *gdb_regs, struct task_struct *p)
 	gdb_regs[GDB_R15]	= 0;
 #endif
 	gdb_regs[GDB_SP]	= p->thread.sp;
-}
-
-/**
- *	gdb_regs_to_pt_regs - Convert GDB regs to ptrace regs.
- *	@gdb_regs: A pointer to hold the registers we've received from GDB.
- *	@regs: A pointer to a &struct pt_regs to hold these values in.
- *
- *	Convert the GDB regs in @gdb_regs into the pt_regs, and store them
- *	in @regs.
- */
-void gdb_regs_to_pt_regs(unsigned long *gdb_regs, struct pt_regs *regs)
-{
-	int i;
-
-	for (i = 0; i < DBG_MAX_REG_NUM; i++) {
-		dbg_set_reg(i, &gdb_regs[i], regs);
-	}
 }
 
 static struct hw_breakpoint {

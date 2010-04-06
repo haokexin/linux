@@ -95,6 +95,11 @@ extern int kgdb_fault_expected;
 #define _PC			15
 #define _CPSR			(GDB_MAX_REGS - 1)
 
+#define DBG_MAX_REG_NUM		26
+#define DBG_FP_REG_NUM		_FP
+#define DBG_SP_REG_NUM		_SPT
+#define DBG_PC_REG_NUM		_PC
+
 /*
  * So that we can denote the end of a frame for tracing,
  * in the simple case:

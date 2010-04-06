@@ -39,6 +39,7 @@ enum regnames {
 	GDB_FS,			/* 14 */
 	GDB_GS,			/* 15 */
 };
+#define GDB_ORIG_AX		41
 #define DBG_MAX_REG_NUM		16
 #define NUMREGBYTES		((GDB_GS+1)*4)
 #else /* ! CONFIG_X86_32 */
@@ -64,10 +65,14 @@ enum regnames {
 	GDB_CS,			/* 18 */
 	GDB_SS,			/* 19 */
 };
+#define GDB_ORIG_AX		57
 #define DBG_MAX_REG_NUM		20
 /* 17 64 bit regs and 3 32 bit regs */
 #define NUMREGBYTES		((17 * 8) + (3 * 4))
-#endif /* CONFIG_X86_32 */
+#endif /* ! CONFIG_X86_32 */
+#define DBG_FP_REG_NUM		GDB_BP
+#define DBG_SP_REG_NUM		GDB_SP
+#define DBG_PC_REG_NUM		GDB_PC
 
 static inline void arch_kgdb_breakpoint(void)
 {
