@@ -41,6 +41,7 @@
 #include <linux/delay.h>
 #include <linux/sched.h>
 #include <linux/sysrq.h>
+#include <linux/reboot.h>
 #include <linux/init.h>
 #include <linux/kgdb.h>
 #include <linux/kdb.h>
@@ -790,6 +791,20 @@ void __init dbg_late_init(void)
 	kdb_init(KDB_INIT_FULL);
 }
 
+static int
+dbg_notify_reboot(struct notifier_block *this, unsigned long code, void *x)
+{
+	if (!kgdb_connected || dbg_kdb_mode)
+		return NOTIFY_DONE;
+	return gdbstub_reboot_notify(code);
+}
+
+static struct notifier_block dbg_reboot_notifier = {
+	.notifier_call		= dbg_notify_reboot,
+	.next			= NULL,
+	.priority		= INT_MAX,
+};
+
 static void kgdb_register_callbacks(void)
 {
 	if (!kgdb_io_module_registered) {
@@ -797,6 +812,7 @@ static void kgdb_register_callbacks(void)
 		kgdb_arch_init();
 		if (!dbg_is_early)
 			kgdb_arch_late();
+		register_reboot_notifier(&dbg_reboot_notifier);
 		atomic_notifier_chain_register(&panic_notifier_list,
 					       &kgdb_panic_event_nb);
 #ifdef CONFIG_MAGIC_SYSRQ
@@ -840,6 +856,7 @@ static void kgdb_unregister_callbacks(void)
 	 * break exceptions at the time.
 	 */
 	if (kgdb_io_module_registered) {
+		unregister_reboot_notifier(&dbg_reboot_notifier);
 		kgdb_io_module_registered = 0;
 		atomic_notifier_chain_unregister(&panic_notifier_list,
 					       &kgdb_panic_event_nb);

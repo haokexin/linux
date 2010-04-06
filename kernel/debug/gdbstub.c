@@ -1114,3 +1114,30 @@ int gdbstub_state(struct kgdb_state *ks, char *cmd)
 	put_packet(remcom_out_buffer);
 	return 0;
 }
+
+int gdbstub_reboot_notify(unsigned long code)
+{
+	unsigned long flags;
+
+	if (code == SYS_RESTART || code == SYS_HALT || code == SYS_POWER_OFF) {
+		local_irq_save(flags);
+		if (dbg_io_ops->write_char) {
+			/* Do not use put_packet to avoid hanging
+			 * in case the attached debugger disappeared
+			 * or does not respond timely.
+			 */
+			dbg_io_ops->write_char('$');
+			dbg_io_ops->write_char('X');
+			dbg_io_ops->write_char('0');
+			dbg_io_ops->write_char('0');
+			dbg_io_ops->write_char('#');
+			dbg_io_ops->write_char('b');
+			dbg_io_ops->write_char('8');
+			if (dbg_io_ops->flush)
+				dbg_io_ops->flush();
+		}
+		kgdb_connected = 0;
+		local_irq_restore(flags);
+	}
+	return NOTIFY_DONE;
+}

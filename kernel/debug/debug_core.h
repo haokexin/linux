@@ -63,6 +63,7 @@ extern int dbg_switch_cpu;
 /* gdbstub interface functions */
 extern int gdb_serial_stub(struct kgdb_state *ks);
 extern void gdbstub_msg_write(const char *s, int len);
+extern int gdbstub_reboot_notify(unsigned long code);
 
 /* gdbstub functions used for kdb <-> gdbstub transition */
 extern int gdbstub_state(struct kgdb_state *ks, char *cmd);
