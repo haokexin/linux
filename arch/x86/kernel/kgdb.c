@@ -49,6 +49,91 @@
 #include <asm/system.h>
 #include <asm/apic.h>
 
+struct dbg_reg_def_t dbg_reg_def[DBG_MAX_REG_NUM] =
+{
+#ifdef CONFIG_X86_32
+	{ "ax", 4, offsetof(struct pt_regs, ax) },
+	{ "cx", 4, offsetof(struct pt_regs, cx) },
+	{ "dx", 4, offsetof(struct pt_regs, dx) },
+	{ "bx", 4, offsetof(struct pt_regs, bx) },
+	{ "sp", 4, offsetof(struct pt_regs, sp) },
+	{ "bp", 4, offsetof(struct pt_regs, bp) },
+	{ "si", 4, offsetof(struct pt_regs, si) },
+	{ "di", 4, offsetof(struct pt_regs, di) },
+	{ "ip", 4, offsetof(struct pt_regs, ip) },
+	{ "flags", 4, offsetof(struct pt_regs, flags) },
+	{ "cs", 4, offsetof(struct pt_regs, cs) },
+	{ "ss", 4, offsetof(struct pt_regs, ss) },
+	{ "ds", 4, offsetof(struct pt_regs, ds) },
+	{ "es", 4, offsetof(struct pt_regs, es) },
+	{ "fs", 4, -1 },
+	{ "gs", 4, -1 },
+#else
+	{ "ax", 8, offsetof(struct pt_regs, ax) },
+	{ "bx", 8, offsetof(struct pt_regs, bx) },
+	{ "cx", 8, offsetof(struct pt_regs, cx) },
+	{ "dx", 8, offsetof(struct pt_regs, dx) },
+	{ "si", 8, offsetof(struct pt_regs, dx) },
+	{ "di", 8, offsetof(struct pt_regs, di) },
+	{ "bp", 8, offsetof(struct pt_regs, bp) },
+	{ "sp", 8, offsetof(struct pt_regs, sp) },
+	{ "r8", 8, offsetof(struct pt_regs, r8) },
+	{ "r9", 8, offsetof(struct pt_regs, r9) },
+	{ "r10", 8, offsetof(struct pt_regs, r10) },
+	{ "r11", 8, offsetof(struct pt_regs, r11) },
+	{ "r12", 8, offsetof(struct pt_regs, r12) },
+	{ "r13", 8, offsetof(struct pt_regs, r13) },
+	{ "r14", 8, offsetof(struct pt_regs, r14) },
+	{ "r15", 8, offsetof(struct pt_regs, r15) },
+	{ "ip", 8, offsetof(struct pt_regs, ip) },
+	{ "flags", 4, offsetof(struct pt_regs, flags) },
+	{ "cs", 4, offsetof(struct pt_regs, cs) },
+	{ "ss", 4, offsetof(struct pt_regs, ss) },
+#endif
+};
+
+void dbg_set_reg(int regno, void *mem, struct pt_regs *regs)
+{
+	if (regno >= DBG_MAX_REG_NUM ||	regno < 0 ||
+#ifdef CONFIG_X86_32
+	    regno == GDB_SS || regno == GDB_FS || regno == GDB_GS ||
+#endif
+	    regno == GDB_SP)
+		return;
+
+	if (dbg_reg_def[regno].offset != -1)
+		memcpy((void *)regs + dbg_reg_def[regno].offset, mem,
+		       dbg_reg_def[regno].size);
+}
+
+char *dbg_get_reg(int regno, void *mem, struct pt_regs *regs)
+{
+	if (regno >= DBG_MAX_REG_NUM || regno < 0)
+		return NULL;
+
+	if (dbg_reg_def[regno].offset != -1)
+		memcpy(mem, (void *)regs + dbg_reg_def[regno].offset,
+		       dbg_reg_def[regno].size);
+
+	switch (regno) {
+#ifdef CONFIG_X86_32
+	case GDB_SS:
+		if (!user_mode_vm(regs))
+			*(unsigned long *)mem = __KERNEL_DS;
+		break;
+	case GDB_SP:
+		if (!user_mode_vm(regs))
+			*(unsigned long *)mem = kernel_stack_pointer(regs);
+		break;
+	case GDB_GS:
+	case GDB_FS:
+		*(unsigned long *)mem = 0xFFFF;
+		break;
+#endif
+	}
+	return dbg_reg_def[regno].name;
+}
+
 /**
  *	pt_regs_to_gdb_regs - Convert ptrace regs to GDB regs
  *	@gdb_regs: A pointer to hold the registers in the order GDB wants.
@@ -59,45 +144,11 @@
  */
 void pt_regs_to_gdb_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 {
-#ifndef CONFIG_X86_32
-	u32 *gdb_regs32 = (u32 *)gdb_regs;
-#endif
-	gdb_regs[GDB_AX]	= regs->ax;
-	gdb_regs[GDB_BX]	= regs->bx;
-	gdb_regs[GDB_CX]	= regs->cx;
-	gdb_regs[GDB_DX]	= regs->dx;
-	gdb_regs[GDB_SI]	= regs->si;
-	gdb_regs[GDB_DI]	= regs->di;
-	gdb_regs[GDB_BP]	= regs->bp;
-	gdb_regs[GDB_PC]	= regs->ip;
-#ifdef CONFIG_X86_32
-	gdb_regs[GDB_PS]	= regs->flags;
-	gdb_regs[GDB_DS]	= regs->ds;
-	gdb_regs[GDB_ES]	= regs->es;
-	gdb_regs[GDB_CS]	= regs->cs;
-	gdb_regs[GDB_FS]	= 0xFFFF;
-	gdb_regs[GDB_GS]	= 0xFFFF;
-	if (user_mode_vm(regs)) {
-		gdb_regs[GDB_SS] = regs->ss;
-		gdb_regs[GDB_SP] = regs->sp;
-	} else {
-		gdb_regs[GDB_SS] = __KERNEL_DS;
-		gdb_regs[GDB_SP] = kernel_stack_pointer(regs);
+	int i;
+
+	for (i = 0; i < DBG_MAX_REG_NUM; i++) {
+		dbg_get_reg(i, &gdb_regs[i], regs);
 	}
-#else
-	gdb_regs[GDB_R8]	= regs->r8;
-	gdb_regs[GDB_R9]	= regs->r9;
-	gdb_regs[GDB_R10]	= regs->r10;
-	gdb_regs[GDB_R11]	= regs->r11;
-	gdb_regs[GDB_R12]	= regs->r12;
-	gdb_regs[GDB_R13]	= regs->r13;
-	gdb_regs[GDB_R14]	= regs->r14;
-	gdb_regs[GDB_R15]	= regs->r15;
-	gdb_regs32[GDB_PS]	= regs->flags;
-	gdb_regs32[GDB_CS]	= regs->cs;
-	gdb_regs32[GDB_SS]	= regs->ss;
-	gdb_regs[GDB_SP]	= kernel_stack_pointer(regs);
-#endif
 }
 
 /**
@@ -160,35 +211,11 @@ void sleeping_thread_to_gdb_regs(unsigned long *gdb_regs, struct task_struct *p)
  */
 void gdb_regs_to_pt_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 {
-#ifndef CONFIG_X86_32
-	u32 *gdb_regs32 = (u32 *)gdb_regs;
-#endif
-	regs->ax		= gdb_regs[GDB_AX];
-	regs->bx		= gdb_regs[GDB_BX];
-	regs->cx		= gdb_regs[GDB_CX];
-	regs->dx		= gdb_regs[GDB_DX];
-	regs->si		= gdb_regs[GDB_SI];
-	regs->di		= gdb_regs[GDB_DI];
-	regs->bp		= gdb_regs[GDB_BP];
-	regs->ip		= gdb_regs[GDB_PC];
-#ifdef CONFIG_X86_32
-	regs->flags		= gdb_regs[GDB_PS];
-	regs->ds		= gdb_regs[GDB_DS];
-	regs->es		= gdb_regs[GDB_ES];
-	regs->cs		= gdb_regs[GDB_CS];
-#else
-	regs->r8		= gdb_regs[GDB_R8];
-	regs->r9		= gdb_regs[GDB_R9];
-	regs->r10		= gdb_regs[GDB_R10];
-	regs->r11		= gdb_regs[GDB_R11];
-	regs->r12		= gdb_regs[GDB_R12];
-	regs->r13		= gdb_regs[GDB_R13];
-	regs->r14		= gdb_regs[GDB_R14];
-	regs->r15		= gdb_regs[GDB_R15];
-	regs->flags		= gdb_regs32[GDB_PS];
-	regs->cs		= gdb_regs32[GDB_CS];
-	regs->ss		= gdb_regs32[GDB_SS];
-#endif
+	int i;
+
+	for (i = 0; i < DBG_MAX_REG_NUM; i++) {
+		dbg_set_reg(i, &gdb_regs[i], regs);
+	}
 }
 
 static struct hw_breakpoint {
