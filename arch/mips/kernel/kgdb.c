@@ -251,6 +251,7 @@ static int kgdb_mips_notify(struct notifier_block *self, unsigned long cmd,
 	struct die_args *args = (struct die_args *)ptr;
 	struct pt_regs *regs = args->regs;
 	int trap = (regs->cp0_cause & 0x7c) >> 2;
+	int ss_trap = trap;
 	int error;
 
 	PRINTK("%s at 0x%lx (trap %d)\n", __func__,
@@ -280,6 +281,9 @@ static int kgdb_mips_notify(struct notifier_block *self, unsigned long cmd,
 		flush_icache_range(stepped_address,
 				   stepped_address + 4);
 
+		if (regs->cp0_epc == stepped_address)
+			ss_trap = 0;
+
 		/* Restore original interrupts in cpsr regs */
 		regs->cp0_status |= stepped_cp0_status_ie;
 		stepped_opcode = 0;
@@ -305,7 +309,7 @@ static int kgdb_mips_notify(struct notifier_block *self, unsigned long cmd,
 	}
 #endif /* DEBUG_IT */
 
-	if (kgdb_handle_exception(trap, compute_signal(trap), cmd, regs))
+	if (kgdb_handle_exception(ss_trap, compute_signal(trap), cmd, regs))
 		return NOTIFY_DONE;
 
 	if (atomic_read(&kgdb_setting_breakpoint))
