@@ -24,6 +24,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/kgdb.h>
+#include "../../kernel/debug/debug_core.h"
 #include <linux/interrupt.h>
 #include <linux/serial_reg.h>
 #include <linux/ioport.h>
@@ -87,6 +88,8 @@ static inline void kgdb8250_iowrite(u8 val, u8 mask)
  */
 static void kgdb8250_put_debug_char(u8 chr)
 {
+	if (chr == '\n' && dbg_kdb_mode)
+		kgdb8250_put_debug_char('\r');
 	while (!(kgdb8250_ioread(UART_LSR) & UART_LSR_THRE))
 		cpu_relax();
 
@@ -100,27 +103,24 @@ static int kgdb8250_get_debug_char(void)
 {
 	unsigned int lsr;
 
-	while (1) {
-		/* Did the interrupt handler catch something before us? */
-		if (buffered_char >= 0)
-			return xchg(&buffered_char, -1);
+	/* Did the interrupt handler catch something before us? */
+	if (buffered_char >= 0)
+		return xchg(&buffered_char, -1);
 
-		lsr = kgdb8250_ioread(UART_LSR);
-		if (lsr & UART_LSR_DR)
-			return kgdb8250_ioread(UART_RX);
+	lsr = kgdb8250_ioread(UART_LSR);
+	if (lsr & UART_LSR_DR)
+		return kgdb8250_ioread(UART_RX);
 
-		/*
-		 * If we have a framing error assume somebody messed with
-		 * our uart.  Reprogram it and send '-' both ways...
-		 */
-		if (lsr & (UART_LSR_PE | UART_LSR_FE)) {
-			kgdb8250_uart_init();
-			kgdb8250_put_debug_char('-');
-			return '-';
-		}
-
-		cpu_relax();
+	/*
+	 * If we have a framing error assume somebody messed with
+	 * our uart.  Reprogram it and send '-' both ways...
+	 */
+	if (lsr & (UART_LSR_PE | UART_LSR_FE)) {
+		kgdb8250_uart_init();
+		kgdb8250_put_debug_char('-');
+		return '-';
 	}
+	return NO_POLL_CHAR;
 }
 
 /*
