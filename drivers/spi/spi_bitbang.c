@@ -295,7 +295,8 @@ static void bitbang_work(struct work_struct *work)
 		list_for_each_entry (t, &m->transfers, transfer_list) {
 
 			/* override speed or wordsize? */
-			if (t->speed_hz || t->bits_per_word)
+			if (t->speed_hz || t->bits_per_word ||
+					spi->bits_per_word)
 				do_setup = 1;
 
 			/* init (-1) or override (1) transfer params */
