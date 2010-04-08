@@ -87,6 +87,7 @@ struct thread_info {
 #define TIF_USER_RETURN_NOTIFY	11	/* notify kernel of userspace return */
 #define TIF_NOTSC		16	/* TSC is not accessible in userland */
 #define TIF_IA32		17	/* 32bit process */
+#define TIF_32BIT		TIF_IA32 /* 32bit process */
 #define TIF_FORK		18	/* ret_from_fork */
 #define TIF_MEMDIE		20
 #define TIF_DEBUG		21	/* uses debug registers */
