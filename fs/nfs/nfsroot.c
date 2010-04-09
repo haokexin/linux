@@ -96,7 +96,7 @@
 #define NFS_MNT_PORT	627
 
 /* Default path we try to mount. "%s" gets replaced by our IP address */
-#define NFS_ROOT		"/tftpboot/%s"
+#define NFS_ROOT		CONFIG_ROOT_NFS_PATH
 
 /* Parameters passed from the kernel command line */
 static char nfs_root_name[256] __initdata = "";
@@ -409,7 +409,10 @@ static int __init nfs_root_setup(char *line)
 		int n = strlen(line) + sizeof(NFS_ROOT) - 1;
 		if (n >= sizeof(nfs_root_name))
 			line[sizeof(nfs_root_name) - sizeof(NFS_ROOT) - 2] = '\0';
-		sprintf(nfs_root_name, NFS_ROOT, line);
+		if (strstr(NFS_ROOT, "%s"))
+			sprintf(nfs_root_name, NFS_ROOT, line);
+		else
+			strlcpy(nfs_root_name, NFS_ROOT, sizeof(nfs_root_name));
 	}
 	root_server_addr = root_nfs_parse_addr(nfs_root_name);
 	return 1;
