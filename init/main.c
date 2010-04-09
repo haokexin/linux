@@ -838,6 +838,7 @@ static noinline int init_post(void)
 
 static int __init kernel_init(void * unused)
 {
+	struct stat console_stat;
 	/*
 	 * Wait until kthreadd is all set-up.
 	 */
@@ -862,6 +863,12 @@ static int __init kernel_init(void * unused)
 	sched_init_smp();
 
 	do_basic_setup();
+
+	/* Use /dev/console to infer if the rootfs is setup properly */
+	if (sys_newlstat((char __user *) "/dev/console", (struct stat __user *) &console_stat)
+			|| !S_ISCHR(console_stat.st_mode)) {
+		panic("/dev/console is missing or not a character device!\nPlease ensure your rootfs is properly configured\n");
+	}
 
 	/* Open the /dev/console on the rootfs, this should never fail */
 	if (sys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
