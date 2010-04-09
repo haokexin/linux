@@ -221,6 +221,26 @@ if NETWORK_FILESYSTEMS
 source "fs/nfs/Kconfig"
 source "fs/nfsd/Kconfig"
 
+config ROOT_NFS_PATH
+	string "Default NFS Root file system path"
+	depends on ROOT_NFS
+	default "/tftpboot/%s"
+	help
+	  If you intend to boot your box with an NFS-mounted root filesystem,
+	  you will need to specify a path on your boot server where the
+	  filesytems is located.  If you don't specify one in your kernel boot
+	  arguments, or if you specify the 'ip=on' option, this is the path
+	  which will actually be used.  Only one format option is respected
+	  here, '%s' is translated into the ip address of your box, and it is
+	  only interpreted the first time it is found in the string.  Strings
+	  are silently truncated to 255 bytes total, including the string
+	  representation of the local IP address.
+
+	  This has no effect if you specify a path in your kernel boot
+	  arguments.
+
+	  Choose the default unless you know why you want something different.
+
 config LOCKD
 	tristate
 	depends on FILE_LOCKING
