@@ -2245,6 +2245,10 @@ config ARCH_SUSPEND_POSSIBLE
 	def_bool y
 	depends on SYS_SUPPORTS_HOTPLUG_CPU || !SMP
 
+config ARCH_PM_SNAPSHOT_POSSIBLE
+	def_bool y
+	depends on SYS_SUPPORTS_HOTPLUG_CPU || !SMP
+
 source "kernel/power/Kconfig"
 
 endmenu
