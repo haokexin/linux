@@ -383,12 +383,12 @@ static inline int has_valid_asid(const struct mm_struct *mm)
 
 static void r4k__flush_cache_vmap(void)
 {
-	r4k_blast_dcache();
+	r4k_on_each_cpu((void *)r4k_blast_dcache, NULL, 1);
 }
 
 static void r4k__flush_cache_vunmap(void)
 {
-	r4k_blast_dcache();
+	r4k_on_each_cpu((void *)r4k_blast_dcache, NULL, 1);
 }
 
 static inline void local_r4k_flush_cache_range(void * args)
@@ -614,7 +614,7 @@ static void r4k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
 	 * explicitly
 	 */
 	if (cpu_has_safe_index_cacheops && size >= dcache_size) {
-		r4k_blast_dcache();
+		r4k_on_each_cpu((void *)r4k_blast_dcache, NULL, 1);
 	} else {
 		R4600_HIT_CACHEOP_WAR_IMPL;
 		blast_dcache_range(addr, addr + size);
@@ -652,7 +652,7 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
 	}
 
 	if (cpu_has_safe_index_cacheops && size >= dcache_size) {
-		r4k_blast_dcache();
+		r4k_on_each_cpu((void *)r4k_blast_dcache, NULL, 1);
 	} else {
 		unsigned long lsize = cpu_dcache_line_size();
 		unsigned long almask = ~(lsize - 1);
