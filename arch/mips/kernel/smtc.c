@@ -798,7 +798,7 @@ void smtc_send_ipi(int cpu, int type, unsigned int action)
 	unsigned long flags;
 	int mtflags;
 	unsigned long tcrestart;
-	extern void r4k_wait_irqoff(void), __pastwait(void);
+	extern void r4k_wait_irqoff(void), __startwait(void), __pastwait(void);
 	int set_resched_flag = (type == LINUX_SMP_IPI &&
 				action == SMP_RESCHEDULE_YOURSELF);
 
@@ -854,7 +854,7 @@ void smtc_send_ipi(int cpu, int type, unsigned int action)
 			 */
 			if (cpu_wait == r4k_wait_irqoff) {
 				tcrestart = read_tc_c0_tcrestart();
-				if (tcrestart >= (unsigned long)r4k_wait_irqoff
+				if (tcrestart >= (unsigned long)__startwait
 				    && tcrestart < (unsigned long)__pastwait) {
 					write_tc_c0_tcrestart(__pastwait);
 					tcstatus &= ~TCSTATUS_IXMT;
