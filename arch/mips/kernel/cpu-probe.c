@@ -62,13 +62,15 @@ void r4k_wait_irqoff(void)
 {
 	local_irq_disable();
 	if (!need_resched())
-		__asm__("	.set	push		\n"
+		__asm__(" 	.globl __startwait	\n"
+			"__startwait:			\n"
+			"	.set	push		\n"
 			"	.set	mips3		\n"
 			"	wait			\n"
-			"	.set	pop		\n");
+			"	.set	pop		\n"
+			" 	.globl __pastwait	\n"
+			"__pastwait:			\n");
 	local_irq_enable();
-	__asm__(" 	.globl __pastwait	\n"
-		"__pastwait:			\n");
 	return;
 }
 
@@ -939,6 +941,9 @@ __cpuinit void cpu_probe(void)
 {
 	struct cpuinfo_mips *c = &current_cpu_data;
 	unsigned int cpu = smp_processor_id();
+#ifdef CONFIG_MIPS_MT_SMTC
+	unsigned int i = 0;
+#endif
 
 	c->processor_id	= PRID_IMP_UNKNOWN;
 	c->fpu_id	= FPIR_IMP_NONE;
@@ -994,6 +999,15 @@ __cpuinit void cpu_probe(void)
 		}
 	}
 
+#ifdef CONFIG_MIPS_MT_SMTC
+	/*
+	 * The SMTC kernel probes only one time so it's necessary to provide
+	 * others cpu name here,.
+	 */
+	for (i = 0; i < NR_CPUS;i++)
+		if(i != cpu)
+			__cpu_name[i] = __cpu_name[cpu];
+#endif
 	if (cpu_has_mips_r2)
 		c->srsets = ((read_c0_srsctl() >> 26) & 0x0f) + 1;
 	else
