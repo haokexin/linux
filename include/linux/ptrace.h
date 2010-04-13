@@ -3,6 +3,7 @@
 /* ptrace.h */
 /* structs and defines to help the user use the ptrace system call. */
 
+#ifdef __KERNEL__
 /* has the defines to get at the registers. */
 
 #define PTRACE_TRACEME		   0
@@ -26,6 +27,7 @@
 #define PTRACE_GETEVENTMSG	0x4201
 #define PTRACE_GETSIGINFO	0x4202
 #define PTRACE_SETSIGINFO	0x4203
+#endif
 
 /*
  * Generic ptrace interface that exports the architecture specific regsets
