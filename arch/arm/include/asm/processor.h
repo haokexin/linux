@@ -35,6 +35,7 @@ union debug_insn {
 
 struct debug_entry {
 	u32			address;
+	int                     is_thumb;
 	union debug_insn	insn;
 };
 
