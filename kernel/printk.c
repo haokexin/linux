@@ -80,6 +80,9 @@ EXPORT_SYMBOL_GPL(console_printk);
 int oops_in_progress;
 EXPORT_SYMBOL(oops_in_progress);
 
+static void (*emit_crash_char_fn)(char c);
+static bool recursive_emit_crash_char;
+
 /*
  * console_sem protects the console_drivers list, and also
  * provides serialisation for access to the entire console
@@ -529,8 +532,35 @@ static void call_console_drivers(unsigned start, unsigned end)
 	_call_console_drivers(start_print, end, msg_level);
 }
 
+/*
+ * This emits a character intended for a crash log. We take special care
+ * to avoid recursive use so that we don't end up in an crash reporting loop.
+ */
+static void emit_crash_char(char c)
+{
+	static	bool in_call;
+
+	if (emit_crash_char_fn != NULL) {
+		/* Detect recursive calls and ignore them. This could happen
+		 * if the function we use to emit the character to the crash
+		 * log failed and called printk. Though we ignore the output,
+		 * we remember that we had a recursive call so that we can
+		 * report it later. */
+		if (in_call)
+			recursive_emit_crash_char = true;
+
+		else {
+			in_call = true;
+			emit_crash_char_fn(c);
+			in_call = false;
+		}
+	}
+}
+
 static void emit_log_char(char c)
 {
+	emit_crash_char(c);
+
 	LOG_BUF(log_end) = c;
 	log_end++;
 	if (log_end - log_start > log_buf_len)
@@ -539,6 +569,28 @@ static void emit_log_char(char c)
 		con_start = log_end - log_buf_len;
 	if (logged_chars < log_buf_len)
 		logged_chars++;
+}
+
+/*
+ * Register a function to emit a crash character
+ * @fn:	Function to register
+ */
+void register_emit_crash_char(void (*fn)(char c))
+{
+	emit_crash_char_fn = fn;
+}
+
+/*
+ * Unregister a function emiting a crash character
+ */
+void unregister_emit_crash_char()
+{
+	emit_crash_char_fn = NULL;
+
+	if (recursive_emit_crash_char) {
+		pr_err("emit_crash_char was called recursively!\n");
+		recursive_emit_crash_char = false;
+	}
 }
 
 /*
@@ -563,9 +615,9 @@ static void zap_locks(void)
 }
 
 #if defined(CONFIG_PRINTK_TIME)
-static int printk_time = 1;
+int printk_time = 1;
 #else
-static int printk_time = 0;
+int printk_time;
 #endif
 module_param_named(time, printk_time, bool, S_IRUGO | S_IWUSR);
 
