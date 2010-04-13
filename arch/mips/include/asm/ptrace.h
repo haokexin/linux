@@ -54,6 +54,7 @@ struct pt_regs {
 #endif
 } __attribute__ ((aligned (8)));
 
+#ifdef __KERNEL__
 /* Arbitrarily choose the same ptrace numbers as used by the Sparc code. */
 #define PTRACE_GETREGS		12
 #define PTRACE_SETREGS		13
@@ -61,6 +62,7 @@ struct pt_regs {
 #define PTRACE_SETFPREGS		15
 /* #define PTRACE_GETFPXREGS		18 */
 /* #define PTRACE_SETFPXREGS		19 */
+#endif
 
 #define PTRACE_OLDSETOPTIONS	21
 

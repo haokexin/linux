@@ -57,6 +57,7 @@
 
 #endif /* !__i386__ */
 
+#ifdef __KERNEL__
 /* Arbitrarily choose the same ptrace numbers as used by the Sparc code. */
 #define PTRACE_GETREGS            12
 #define PTRACE_SETREGS            13
@@ -64,6 +65,7 @@
 #define PTRACE_SETFPREGS          15
 #define PTRACE_GETFPXREGS         18
 #define PTRACE_SETFPXREGS         19
+#endif
 
 #define PTRACE_OLDSETOPTIONS      21
 
