@@ -71,6 +71,23 @@ static u32 *thumbGetNpc(u16 instr,	/* the current instruction */
 			struct task_struct *child,	/* pointer to task registers */
 			int *backToArm);
 
+static inline int ptrace_access_process_vm(struct task_struct *tsk,
+			unsigned long addr,
+			void *buf,
+			int len,
+			int write)
+{
+	if (!(preempt_count() & PREEMPT_ACTIVE)) {
+		int ret;
+		add_preempt_count(PREEMPT_ACTIVE);
+		ret = access_process_vm(tsk, addr, buf, len, write);
+		sub_preempt_count(PREEMPT_ACTIVE);
+		return ret;
+	}
+
+	return access_process_vm(tsk, addr, buf, len, write);
+}
+
 /*
  * does not yet catch signals sent when the child dies.
  * in exit.c or in signal.c.
@@ -159,7 +176,7 @@ read_u32(struct task_struct *task, unsigned long addr, u32 *res)
 {
 	int ret;
 
-	ret = access_process_vm(task, addr, res, sizeof(*res), 0);
+	ret = ptrace_access_process_vm(task, addr, res, sizeof(*res), 0);
 
 	return ret == sizeof(*res) ? 0 : -EIO;
 }
@@ -173,13 +190,13 @@ read_instr(struct task_struct *task, unsigned long addr, u32 *res,
 	if ((addr & 1) || is_thumb) {
 		u16 val;
 		pr_debug("%s: reading a THUMB instrution\n", __FUNCTION__);
-		ret = access_process_vm(task, addr & ~1, &val, sizeof(val), 0);
+		ret = ptrace_access_process_vm(task, addr & ~1, &val, sizeof(val), 0);
 		ret = ret == sizeof(val) ? 0 : -EIO;
 		*res = val;
 	} else {
 		u32 val;
 		pr_debug("%s: reading an ARM instrution\n", __FUNCTION__);
-		ret = access_process_vm(task, addr & ~3, &val, sizeof(val), 0);
+		ret = ptrace_access_process_vm(task, addr & ~3, &val, sizeof(val), 0);
 		ret = ret == sizeof(val) ? 0 : -EIO;
 		*res = val;
 	}
@@ -196,7 +213,7 @@ swap_insn(struct task_struct *task, unsigned long addr,
 	pr_debug("%s new insn 0x%x for addr 0x%lx, size %d\n",
 	       __FUNCTION__, *((int *)new_insn), addr, size);
 
-	ret = access_process_vm(task, addr, old_insn, size, 0);
+	ret = ptrace_access_process_vm(task, addr, old_insn, size, 0);
 
 	if (size == 2) {
 		short old, new;
@@ -213,7 +230,7 @@ swap_insn(struct task_struct *task, unsigned long addr,
 	}
 
 	if (ret == size)
-		ret = access_process_vm(task, addr, new_insn, size, 1);
+		ret = ptrace_access_process_vm(task, addr, new_insn, size, 1);
 	else
 		pr_debug("%s ERROR\n", __FUNCTION__);
 	return ret;
