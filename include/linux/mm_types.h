@@ -138,6 +138,7 @@ struct vm_area_struct {
 
 	pgprot_t vm_page_prot;		/* Access permissions of this VMA. */
 	unsigned long vm_flags;		/* Flags, see mm.h. */
+	int is_xip;
 
 	struct rb_node vm_rb;
 
