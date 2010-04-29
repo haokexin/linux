@@ -21,6 +21,7 @@
 #include <linux/marker.h>
 #include <linux/kallsyms.h>
 #include <linux/signal.h>
+#include <linux/audit.h>
 #include <linux/uaccess.h>
 #include <trace/syscall.h>
 
@@ -858,6 +859,15 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 	return ret;
 }
 
+static inline int audit_arch(void)
+{
+#ifdef __ARMEB__
+	return AUDIT_ARCH_ARMEB;
+#else
+	return AUDIT_ARCH_ARM;
+#endif
+}
+
 asmlinkage int syscall_trace(int why, struct pt_regs *regs, int scno)
 {
 	unsigned long ip;
@@ -866,6 +876,20 @@ asmlinkage int syscall_trace(int why, struct pt_regs *regs, int scno)
 		trace_syscall_entry(regs, scno);
 	else
 		trace_syscall_exit(regs->ARM_r0);
+
+	/* do the secure computing check first */
+	if (!why)
+		secure_computing(scno);
+
+	if (unlikely(current->audit_context)) {
+		/* why == 0, enter; why == 1, exit */
+		if (!why)
+			audit_syscall_entry(audit_arch(), scno,
+					    regs->ARM_r0, regs->ARM_r1,
+					    regs->ARM_r2, regs->ARM_r3);
+		else
+			audit_syscall_exit(AUDITSC_RESULT(regs->ARM_r0), regs->ARM_r0);
+	}
 
 	if (!test_thread_flag(TIF_SYSCALL_TRACE))
 		return scno;

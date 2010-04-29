@@ -92,6 +92,10 @@ config GENERIC_HARDIRQS
 	bool
 	default y
 
+config AUDIT_ARCH
+	bool
+	default y
+
 config STACKTRACE_SUPPORT
 	bool
 	default y
