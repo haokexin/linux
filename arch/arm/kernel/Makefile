@@ -60,3 +60,6 @@ obj-$(CONFIG_DEBUG_LL)	+= debug.o
 obj-$(CONFIG_EARLY_PRINTK)	+= early_printk.o
 
 extra-y := $(head-y) init_task.o vmlinux.lds
+
+obj-$(CONFIG_AUDIT)		+= audit.o
+compat-obj-$(CONFIG_AUDIT)	+= compat_audit.o
