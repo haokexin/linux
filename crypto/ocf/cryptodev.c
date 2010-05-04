@@ -58,9 +58,9 @@ __FBSDID("$FreeBSD: src/sys/opencrypto/cryptodev.c,v 1.34 2007/05/09 19:37:02 gn
 #include <linux/mount.h>
 #include <linux/miscdevice.h>
 #include <linux/version.h>
+#include <linux/cryptodev.h>
 #include <asm/uaccess.h>
 
-#include <cryptodev.h>
 #include <uio.h>
 
 extern asmlinkage long sys_dup(unsigned int fildes);
