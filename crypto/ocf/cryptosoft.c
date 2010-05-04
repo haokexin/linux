@@ -51,11 +51,11 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,10)
 #include <linux/scatterlist.h>
 #endif
+#include <linux/cryptodev.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
 #include <crypto/hash.h>
 #endif
 
-#include <cryptodev.h>
 #include <uio.h>
 
 struct {

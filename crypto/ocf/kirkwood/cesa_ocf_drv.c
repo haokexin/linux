@@ -44,9 +44,9 @@ disclaimer.
 #include <linux/spinlock.h>
 #include "ctrlEnv/sys/mvSysCesa.h"
 #include "cesa/mvCesa.h" /* moved here before cryptodev.h due to include dependencies */
-#include <cryptodev.h>
 #include <uio.h>
 #include <plat/mv_cesa.h>
+#include <linux/cryptodev.h>
 #include <linux/mbus.h>
 #include "mvDebug.h"
 

@@ -129,7 +129,7 @@
 #include <linux/of_platform.h>
 #endif
 
-#include <cryptodev.h>
+#include <linux/cryptodev.h>
 #include <uio.h>
 
 #define DRV_NAME "talitos" 

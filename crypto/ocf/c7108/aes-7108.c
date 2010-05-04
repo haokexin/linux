@@ -43,7 +43,7 @@
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
 #include <linux/highmem.h>
-#include <cryptodev.h>
+#include <linux/cryptodev.h>
 #include <uio.h>
 #include <aes-7108.h>
 

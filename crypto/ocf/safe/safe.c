@@ -48,13 +48,13 @@ __FBSDID("$FreeBSD: src/sys/dev/safe/safe.c,v 1.18 2007/03/21 03:42:50 sam Exp $
 #include <linux/random.h>
 #include <linux/version.h>
 #include <linux/skbuff.h>
+#include <linux/cryptodev.h>
 #include <asm/io.h>
 
 /*
  * SafeNet SafeXcel-1141 hardware crypto accelerator
  */
 
-#include <cryptodev.h>
 #include <uio.h>
 #include <safe/safereg.h>
 #include <safe/safevar.h>

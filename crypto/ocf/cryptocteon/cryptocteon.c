@@ -42,7 +42,7 @@
 #include <linux/random.h>
 #include <linux/scatterlist.h>
 
-#include <cryptodev.h>
+#include <linux/cryptodev.h>
 #include <uio.h>
 
 struct {

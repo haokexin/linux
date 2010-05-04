@@ -44,6 +44,7 @@
 #include <linux/wait.h>
 #include <linux/crypto.h>
 #include <linux/interrupt.h>
+#include <linux/cryptodev.h>
 #include <asm/scatterlist.h>
 
 #include <IxTypes.h>
@@ -54,7 +55,6 @@
 #include <IxOsServices.h>
 #include <IxOsCacheMMU.h>
 
-#include <cryptodev.h>
 #include <uio.h>
 
 #ifndef IX_MBUF_PRIV
