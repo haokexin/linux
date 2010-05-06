@@ -477,6 +477,11 @@ GLOBAL(system_call_after_swapgs)
 	SAVE_ARGS 8,0
 	movq  %rax,ORIG_RAX-ARGOFFSET(%rsp)
 	movq  %rcx,RIP-ARGOFFSET(%rsp)
+#ifdef CONFIG_MICROSTATE_ACCT
+	SAVE_ARGS
+	call msa_kernel
+	RESTORE_ARGS
+#endif
 	CFI_REL_OFFSET rip,RIP-ARGOFFSET
 	testl $_TIF_WORK_SYSCALL_ENTRY,TI_flags+THREAD_INFO(%rsp,RIP-ARGOFFSET)
 	jnz tracesys
@@ -511,6 +516,11 @@ sysret_check:
 	 */
 	TRACE_IRQS_ON
 	movq RIP-ARGOFFSET(%rsp),%rcx
+#ifdef CONFIG_MICROSTATE_ACCT
+	SAVE_ARGS
+	call msa_user
+	RESTORE_ARGS
+#endif
 	CFI_REGISTER	rip,rcx
 	RESTORE_ARGS 1,-ARG_SKIP,0
 	/*CFI_REGISTER	rflags,r11*/
@@ -619,6 +629,11 @@ tracesys:
 GLOBAL(int_ret_from_sys_call)
 	DISABLE_INTERRUPTS(CLBR_NONE)
 	TRACE_IRQS_OFF
+#ifdef CONFIG_MICROSTATE_ACCT
+	SAVE_ARGS
+	call msa_user
+	RESTORE_ARGS
+#endif
 	movl $_TIF_ALLWORK_MASK,%edi
 	/* edi:	mask to check */
 GLOBAL(int_with_check)
@@ -672,6 +687,11 @@ int_restore_rest:
 	RESTORE_REST
 	DISABLE_INTERRUPTS(CLBR_NONE)
 	TRACE_IRQS_OFF
+#ifdef CONFIG_MICROSTATE_ACCT
+	SAVE_ARGS
+	call msa_user
+	RESTORE_ARGS
+#endif
 	jmp int_with_check
 	CFI_ENDPROC
 END(system_call)
@@ -1510,6 +1530,11 @@ ENTRY(error_exit)
 	movl %ebx,%eax
 	RESTORE_REST
 	DISABLE_INTERRUPTS(CLBR_NONE)
+#ifdef CONFIG_MICROSTATE_ACCT
+	SAVE_ARGS
+	call msa_user
+	RESTORE_ARGS
+#endif
 	TRACE_IRQS_OFF
 	GET_THREAD_INFO(%rcx)
 	testl %eax,%eax

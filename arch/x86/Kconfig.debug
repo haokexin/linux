@@ -5,6 +5,38 @@ config TRACE_IRQFLAGS_SUPPORT
 
 source "lib/Kconfig.debug"
 
+config MICROSTATE_ACCT
+	bool "Microstate accounting"
+	help
+	  This option causes the kernel to keep very accurate track of
+	  how long your threads spend on the runqueues, running, or asleep or
+	  stopped.  It will slow down your kernel.
+	  Times are reported in /proc/pid/msa and through a new msa()
+	  system call.
+
+choice
+	depends on MICROSTATE_ACCT
+	prompt "Microstate timing source"
+	default MICROSTATE_ACCT_SCHED_CLOCK_CLOCKSOURCE
+
+config MICROSTATE_ACCT_SCHED_CLOCK_CLOCKSOURCE
+        bool "Use the sched_clock clocksource for microstate timing"
+        help
+	  Use the kernel's built-in sched_clock clock-source for
+	  timing.  In some cases the TSC runs at a variable rate,
+	  which will distort the microstate measurements.  This timer,
+          although having slightly more overhead, and probably a lower
+          resolution will always run at a constant rate.
+
+config MICROSTATE_ACCT_TSC_CLOCKSOURCE
+	bool "Use on-chip TSC for microstate timings"
+	depends on X86_TSC
+	help
+	  If your machine's clock runs at constant rate, then this timer
+	  gives you cycle precision in measuring times spent in microstates.
+
+endchoice
+
 config STRICT_DEVMEM
 	bool "Filter access to /dev/mem"
 	---help---

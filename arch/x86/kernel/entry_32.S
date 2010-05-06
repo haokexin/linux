@@ -343,6 +343,11 @@ ENTRY(resume_userspace)
 					# setting need_resched or sigpending
 					# between sampling and the iret
 	TRACE_IRQS_OFF
+#ifdef CONFIG_MICROSTATE_ACCT
+	pushl %eax
+	call msa_user
+	popl %eax
+#endif
 	movl TI_flags(%ebp), %ecx
 	andl $_TIF_WORK_MASK, %ecx	# is there any work to be done on
 					# int/exception return?
@@ -405,6 +410,11 @@ sysenter_past_esp:
 
 	pushl_cfi %eax
 	SAVE_ALL
+#ifdef CONFIG_MICROSTATE_ACCT
+	pushl %eax
+	call msa_kernel
+	popl %eax
+#endif
 	ENABLE_INTERRUPTS(CLBR_NONE)
 
 /*
@@ -436,6 +446,11 @@ sysenter_do_call:
 	testl $_TIF_ALLWORK_MASK, %ecx
 	jne sysexit_audit
 sysenter_exit:
+#ifdef CONFIG_MICROSTATE_ACCT
+	pushl %eax
+	call msa_user
+	popl %eax
+#endif
 /* if something modifies registers it must also disable sysexit */
 	movl PT_EIP(%esp), %edx
 	movl PT_OLDESP(%esp), %ecx
@@ -501,6 +516,11 @@ ENTRY(system_call)
 	RING0_INT_FRAME			# can't unwind into user space anyway
 	pushl_cfi %eax			# save orig_eax
 	SAVE_ALL
+#ifdef CONFIG_MICROSTATE_ACCT
+	pushl %eax
+	call msa_kernel
+	popl %eax
+#endif
 	GET_THREAD_INFO(%ebp)
 					# system call tracing in operation / emulation
 	testl $_TIF_WORK_SYSCALL_ENTRY,TI_flags(%ebp)

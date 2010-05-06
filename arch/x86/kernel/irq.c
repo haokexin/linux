@@ -10,6 +10,7 @@
 #include <linux/ftrace.h>
 #include <linux/delay.h>
 #include <linux/export.h>
+#include <linux/msa.h>
 
 #include <asm/apic.h>
 #include <asm/io_apic.h>
@@ -191,6 +192,8 @@ unsigned int __irq_entry do_IRQ(struct pt_regs *regs)
 
 	irq = __this_cpu_read(vector_irq[vector]);
 
+	msa_start_irq(vector);
+
 	if (!handle_irq(irq, regs)) {
 		ack_APIC_irq();
 
@@ -199,7 +202,7 @@ unsigned int __irq_entry do_IRQ(struct pt_regs *regs)
 				__func__, smp_processor_id(), vector, irq);
 	}
 
-	irq_exit();
+	msa_irq_exit(vector, regs->cs != __KERNEL_CS);
 
 	set_irq_regs(old_regs);
 	return 1;
@@ -215,15 +218,15 @@ void smp_x86_platform_ipi(struct pt_regs *regs)
 	ack_APIC_irq();
 
 	irq_enter();
-
 	exit_idle();
+	msa_start_irq(X86_PLATFORM_IPI_VECTOR);
 
 	inc_irq_stat(x86_platform_ipis);
 
 	if (x86_platform_ipi_callback)
 		x86_platform_ipi_callback();
 
-	irq_exit();
+	msa_irq_exit(X86_PLATFORM_IPI_VECTOR, regs->cs != __KERNEL_CS);
 
 	set_irq_regs(old_regs);
 }

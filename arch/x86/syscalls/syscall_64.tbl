@@ -321,6 +321,7 @@
 312	common	sched_setparam2		sys_sched_setparam2
 313	common	sched_getparam2		sys_sched_getparam2
 314	common	sched_setscheduler2	sys_sched_setscheduler2
+315	common	msa			sys_msa
 #
 # x32-specific system call numbers start at 512 to avoid cache impact
 # for native 64-bit operation.

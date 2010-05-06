@@ -358,3 +358,4 @@
 349	i386	sched_setparam2		sys_sched_setparam2
 350	i386	sched_getparam2		sys_sched_getparam2
 351	i386	sched_setscheduler2	sys_sched_setscheduler2
+352	i386	msa			sys_msa

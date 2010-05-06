@@ -13,6 +13,7 @@
 #include <linux/perf_event.h>		/* perf_sw_event		*/
 #include <linux/hugetlb.h>		/* hstate_index_to_shift	*/
 #include <linux/prefetch.h>		/* prefetchw			*/
+#include <linux/msa.h>			/* msa_kernel()			*/
 
 #include <asm/traps.h>			/* dotraplinkage, ...		*/
 #include <asm/pgalloc.h>		/* pgd_*(), ...			*/
@@ -1065,7 +1066,9 @@ do_page_fault(struct pt_regs *regs, unsigned long error_code)
 		bad_area_nosemaphore(regs, error_code, address);
 
 		return;
-	}
+	} else
+		/* We just left userspace */
+		msa_kernel();
 
 	/* kprobes don't want to hook the spurious faults: */
 	if (unlikely(notify_page_fault(regs)))

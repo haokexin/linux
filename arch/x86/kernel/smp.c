@@ -271,18 +271,20 @@ void smp_call_function_interrupt(struct pt_regs *regs)
 {
 	ack_APIC_irq();
 	irq_enter();
+	msa_start_irq(CALL_FUNCTION_SINGLE_VECTOR);
 	generic_smp_call_function_interrupt();
 	inc_irq_stat(irq_call_count);
-	irq_exit();
+	msa_irq_exit(CALL_FUNCTION_SINGLE_VECTOR, regs->cs != __KERNEL_CS);
 }
 
 void smp_call_function_single_interrupt(struct pt_regs *regs)
 {
 	ack_APIC_irq();
 	irq_enter();
+	msa_start_irq(CALL_FUNCTION_SINGLE_VECTOR);
 	generic_smp_call_function_single_interrupt();
 	inc_irq_stat(irq_call_count);
-	irq_exit();
+	msa_irq_exit(CALL_FUNCTION_SINGLE_VECTOR, regs->cs != __KERNEL_CS);
 }
 
 static int __init nonmi_ipi_setup(char *str)
