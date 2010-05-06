@@ -47,7 +47,8 @@ rq_sched_info_depart(struct rq *rq, unsigned long long delta)
 # define schedstat_set(var, val)	do { } while (0)
 #endif
 
-#if defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT)
+#if defined(CONFIG_SCHEDSTATS) || defined(CONFIG_TASK_DELAY_ACCT) || \
+    defined(CONFIG_MICROSTATE_ACCT)
 static inline void sched_info_reset_dequeued(struct task_struct *t)
 {
 	t->sched_info.last_queued = 0;
@@ -68,6 +69,9 @@ static inline void sched_info_dequeued(struct task_struct *t)
 			delta = now - t->sched_info.last_queued;
 	sched_info_reset_dequeued(t);
 	t->sched_info.run_delay += delta;
+#ifdef MICROSTATE_ACCT_USING_SCHED_CLOCK
+	t->microstates.last_change += delta;
+#endif
 
 	rq_sched_info_dequeued(task_rq(t), delta);
 }

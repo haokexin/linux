@@ -21,6 +21,7 @@
 #include <linux/hardirq.h>
 #include <linux/sched.h>
 #include <linux/jiffies.h>
+#include <linux/kernel_stat.h>
 #include <linux/acct.h>
 #include <linux/tsacct_kern.h>
 #include <linux/proc_fs.h>
@@ -37,6 +38,13 @@ struct msa_irq {
 	msa_time_t times;
 	msa_time_t last_entered;
 };
+
+/*
+ * Dummy this out for the moment.
+ */
+void account_process_tick(struct task_struct *p, int user_tick)
+{
+}
 
 /*
  * Time spent in interrupt handlers
@@ -69,6 +77,7 @@ void msa_switch(struct task_struct *prev, struct task_struct *next)
 
 	next_msp->timers[next_msp->cur_state] += now - next_msp->last_change;
 	prev_msp->timers[prev_msp->cur_state] += now - prev_msp->last_change;
+	msa_system_time(prev, msa_to_cputime(now - prev_msp->last_change));
 
 	/*
 	 * Update states, state is sort of a bitmask, except that
@@ -195,8 +204,11 @@ out:
  */
 void msa_set_timer(struct task_struct *p, int next_state)
 {
-	struct microstates *msp = &current->microstates;
-	__msa_set_timer(msp, MSA_ONCPU_SYS);
+	struct microstates *msp = &p->microstates;
+	msa_time_t delta;
+
+	delta = __msa_set_timer(msp, MSA_ONCPU_SYS);
+	msa_user_time(p, msa_to_cputime(delta));
 }
 
 /*
@@ -210,8 +222,13 @@ void msa_set_timer(struct task_struct *p, int next_state)
  */
 asmlinkage void msa_kernel(void)
 {
-	struct microstates *msp = &current->microstates;
-	__msa_set_timer(msp, MSA_ONCPU_SYS);
+	struct task_struct *p = current;
+	struct microstates *msp = &p->microstates;
+	msa_time_t delta;
+
+	delta = __msa_set_timer_onswitch(msp, MSA_ONCPU_SYS);
+	if (delta)
+		msa_user_time(p, msa_to_cputime(delta));
 }
 
 /**
@@ -221,8 +238,13 @@ asmlinkage void msa_kernel(void)
  */
 asmlinkage void msa_user(void)
 {
-	struct microstates *msp = &current->microstates;
-	__msa_set_timer(msp, MSA_ONCPU_USER);
+	struct task_struct *p = current;
+	struct microstates *msp = &p->microstates;
+	msa_time_t delta;
+
+	delta = __msa_set_timer_onswitch(msp, MSA_ONCPU_USER);
+	if (delta)
+		msa_system_time(p, msa_to_cputime(delta));
 }
 
 /**
@@ -258,6 +280,10 @@ void msa_start_irq(int irq_id)
 		msa_time_t delta = now - msp->last_change;
 		msp->timers[msp->cur_state] += delta;
 		msp->last_change = now;
+		if (msp->cur_state == MSA_ONCPU_USER)
+			msa_user_time(p, msa_to_cputime(delta));
+		else
+			msa_system_time(p, msa_to_cputime(delta));
 		if (msp->cur_state == MSA_ONCPU_USER
 				|| msp->cur_state == MSA_ONCPU_SYS) {
 			msp->next_state = msp->cur_state;
@@ -310,6 +336,7 @@ void msa_irq_exit(int irq_id, int is_going_to_user)
 {
 	struct task_struct *p = current;
 	struct microstates *msp = &p->microstates;
+	u64 *cpustat = kcpustat_this_cpu->cpustat;
 	msa_time_t now, delta;
 	struct msa_irq *mip;
 	int nested;
@@ -323,6 +350,8 @@ void msa_irq_exit(int irq_id, int is_going_to_user)
 	MSA_NOW(now);
 	delta = now - mip[irq_id].last_entered;
 	mip[irq_id].times += delta;
+	if (!nested)
+		cpustat[CPUTIME_IRQ] +=	msa_to_cputime64(delta);
 
 	irq_exit();
 
@@ -330,6 +359,7 @@ void msa_irq_exit(int irq_id, int is_going_to_user)
 		msa_time_t before = now;
 		MSA_NOW(now);
 		delta = now - before;
+		cpustat[CPUTIME_SOFTIRQ] += msa_to_cputime64(delta);
 		msp->timers[msp->cur_state] += now - msp->last_change;
 		msp->last_change = now;
 		if (is_going_to_user)

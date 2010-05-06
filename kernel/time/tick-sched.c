@@ -553,7 +553,7 @@ void tick_nohz_idle_exit(void)
 {
 	int cpu = smp_processor_id();
 	struct tick_sched *ts = &per_cpu(tick_cpu_sched, cpu);
-#ifndef CONFIG_VIRT_CPU_ACCOUNTING
+#if !defined(CONFIG_VIRT_CPU_ACCOUNTING) && !defined(CONFIG_MICROSTATE_ACCT)
 	unsigned long ticks;
 #endif
 	ktime_t now;
@@ -579,7 +579,7 @@ void tick_nohz_idle_exit(void)
 	select_nohz_load_balancer(0);
 	tick_do_update_jiffies64(now);
 
-#ifndef CONFIG_VIRT_CPU_ACCOUNTING
+#if !defined(CONFIG_VIRT_CPU_ACCOUNTING) && !defined(CONFIG_MICROSTATE_ACCT)
 	/*
 	 * We stopped the tick in idle. Update process times would miss the
 	 * time we slept as update_process_times does only a 1 tick

@@ -121,10 +121,23 @@ static inline unsigned int kstat_cpu_irqs_sum(unsigned int cpu)
  */
 extern unsigned long long task_delta_exec(struct task_struct *);
 
+#ifdef CONFIG_MICROSTATE_ACCT
+/* stub those out: */
+static inline void account_user_time(struct task_struct *p, cputime_t c,
+				     cputime_t s) { }
+static inline void account_system_time(struct task_struct *p, int o,
+				       cputime_t c, cputime_t s) { }
+static inline void account_idle_time(cputime_t c) { }
+/* and use those instead: */
+extern void msa_user_time(struct task_struct *, cputime_t);
+extern void msa_system_time(struct task_struct *, cputime_t);
+#else
 extern void account_user_time(struct task_struct *, cputime_t, cputime_t);
 extern void account_system_time(struct task_struct *, int, cputime_t, cputime_t);
-extern void account_steal_time(cputime_t);
 extern void account_idle_time(cputime_t);
+#endif
+
+extern void account_steal_time(cputime_t);
 
 extern void account_process_tick(struct task_struct *, int user);
 extern void account_steal_ticks(unsigned long ticks);

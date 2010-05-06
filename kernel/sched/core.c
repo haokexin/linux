@@ -2788,32 +2788,6 @@ static inline void task_group_account_field(struct task_struct *p, int index,
 #endif
 }
 
-
-/*
- * Account user cpu time to a process.
- * @p: the process that the cpu time gets accounted to
- * @cputime: the cpu time spent in user space since the last update
- * @cputime_scaled: cputime scaled by cpu frequency
- */
-void account_user_time(struct task_struct *p, cputime_t cputime,
-		       cputime_t cputime_scaled)
-{
-	int index;
-
-	/* Add user time to process. */
-	p->utime += cputime;
-	p->utimescaled += cputime_scaled;
-	account_group_user_time(p, cputime);
-
-	index = (TASK_NICE(p) > 0) ? CPUTIME_NICE : CPUTIME_USER;
-
-	/* Add user time to cpustat. */
-	task_group_account_field(p, index, (__force u64) cputime);
-
-	/* Account for user time used */
-	acct_update_integrals(p);
-}
-
 /*
  * Account guest cpu time to a process.
  * @p: the process that the cpu time gets accounted to
@@ -2839,6 +2813,32 @@ static void account_guest_time(struct task_struct *p, cputime_t cputime,
 		cpustat[CPUTIME_USER] += (__force u64) cputime;
 		cpustat[CPUTIME_GUEST] += (__force u64) cputime;
 	}
+}
+
+#ifndef CONFIG_MICROSTATE_ACCT
+/*
+ * Account user cpu time to a process.
+ * @p: the process that the cpu time gets accounted to
+ * @cputime: the cpu time spent in user space since the last update
+ * @cputime_scaled: cputime scaled by cpu frequency
+ */
+void account_user_time(struct task_struct *p, cputime_t cputime,
+		       cputime_t cputime_scaled)
+{
+	int index;
+
+	/* Add user time to process. */
+	p->utime += cputime;
+	p->utimescaled += cputime_scaled;
+	account_group_user_time(p, cputime);
+
+	index = (TASK_NICE(p) > 0) ? CPUTIME_NICE : CPUTIME_USER;
+
+	/* Add user time to cpustat. */
+	task_group_account_field(p, index, (__force u64) cputime);
+
+	/* Account for user time used */
+	acct_update_integrals(p);
 }
 
 /*
@@ -2892,17 +2892,6 @@ void account_system_time(struct task_struct *p, int hardirq_offset,
 }
 
 /*
- * Account for involuntary wait time.
- * @cputime: the cpu time spent in involuntary wait
- */
-void account_steal_time(cputime_t cputime)
-{
-	u64 *cpustat = kcpustat_this_cpu->cpustat;
-
-	cpustat[CPUTIME_STEAL] += (__force u64) cputime;
-}
-
-/*
  * Account for idle time.
  * @cputime: the cpu time spent in idle wait
  */
@@ -2915,6 +2904,83 @@ void account_idle_time(cputime_t cputime)
 		cpustat[CPUTIME_IOWAIT] += (__force u64) cputime;
 	else
 		cpustat[CPUTIME_IDLE] += (__force u64) cputime;
+}
+
+#else
+
+/*
+ * In the microstate case we do things a bit differently as irq and softirq
+ * accounting are done separately.  The user version is duplicated under
+ * a different name because invokations with the original name are stubbed
+ * away.
+ */
+
+void msa_user_time(struct task_struct *p, cputime_t cputime)
+{
+	int index;
+	u64 *cpustat;
+
+	preempt_disable();
+	cpustat = kcpustat_this_cpu->cpustat;
+	p->utime = cputime_add(p->utime, cputime);
+	p->utimescaled = cputime_add(p->utimescaled,
+				     cputime_to_scaled(cputime));
+	account_group_user_time(p, cputime);
+
+	/* Add user time to cpustat. */
+	index = (TASK_NICE(p) > 0) ? CPUTIME_NICE : CPUTIME_USER;
+	task_group_account_field(p, index, (__force u64) cputime);
+	preempt_enable();
+
+	/* Account for user time used */
+	acct_update_integrals(p);
+}
+
+void msa_system_time(struct task_struct *p, cputime_t cputime)
+{
+	u64 *cpustat;
+	cputime_t cputime_scaled = cputime_to_scaled(cputime);
+	struct rq *rq = this_rq();
+	cputime64_t tmp;
+
+	preempt_disable();
+
+	if ((p->flags & PF_VCPU) && (irq_count() - HARDIRQ_OFFSET == 0)) {
+		account_guest_time(p, cputime, cputime_scaled);
+		preempt_enable();
+		return;
+	}
+
+	cpustat = kcpustat_this_cpu->cpustat;
+	p->stime = cputime_add(p->stime, cputime);
+	p->stimescaled = cputime_add(p->stimescaled, cputime_scaled);
+	account_group_system_time(p, cputime);
+
+	/* Add system time to cpustat. */
+	tmp = cputime_to_cputime64(cputime);
+	if (p != rq->idle)
+		cpustat[CPUTIME_SYSTEM] += tmp;
+	else if (atomic_read(&rq->nr_iowait) > 0)
+		cpustat[CPUTIME_IOWAIT] += tmp;
+	else
+		cpustat[CPUTIME_IDLE] += tmp;
+	preempt_enable();
+
+	/* Account for system time used */
+	acct_update_integrals(p);
+}
+
+#endif  /* CONFIG_MICROSTATE_ACCT */
+
+/*
+ * Account for involuntary wait time.
+ * @cputime: the cpu time spent in involuntary wait
+ */
+void account_steal_time(cputime_t cputime)
+{
+	u64 *cpustat = kcpustat_this_cpu->cpustat;
+
+	cpustat[CPUTIME_STEAL] += (__force u64) cputime;
 }
 
 static __always_inline bool steal_account_process_tick(void)
@@ -2936,7 +3002,7 @@ static __always_inline bool steal_account_process_tick(void)
 	return false;
 }
 
-#ifndef CONFIG_VIRT_CPU_ACCOUNTING
+#if !defined(CONFIG_VIRT_CPU_ACCOUNTING) && !defined(CONFIG_MICROSTATE_ACCT)
 
 #ifdef CONFIG_IRQ_TIME_ACCOUNTING
 /*
@@ -3059,12 +3125,12 @@ void account_idle_ticks(unsigned long ticks)
 	account_idle_time(jiffies_to_cputime(ticks));
 }
 
-#endif
+#endif /*!defined(CONFIG_VIRT_CPU_ACCOUNTING) && !defined(CONFIG_MICROSTATE_ACCT) */
 
 /*
  * Use precise platform statistics if available:
  */
-#ifdef CONFIG_VIRT_CPU_ACCOUNTING
+#if defined(CONFIG_VIRT_CPU_ACCOUNTING) || defined(CONFIG_MICROSTATE_ACCT)
 void task_times(struct task_struct *p, cputime_t *ut, cputime_t *st)
 {
 	*ut = p->utime;
@@ -3149,7 +3215,7 @@ void thread_group_times(struct task_struct *p, cputime_t *ut, cputime_t *st)
 	*ut = sig->prev_utime;
 	*st = sig->prev_stime;
 }
-#endif
+#endif /* defined(CONFIG_VIRT_CPU_ACCOUNTING) || defined(CONFIG_MICROSTATE_ACCT) */
 
 /*
  * This function gets called by the timer code, with HZ frequency.

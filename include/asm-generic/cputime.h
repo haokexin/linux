@@ -1,6 +1,10 @@
 #ifndef _ASM_GENERIC_CPUTIME_H
 #define _ASM_GENERIC_CPUTIME_H
 
+#ifdef CONFIG_MICROSTATE_ACCT
+#include "cputime_msa.h"
+#else
+
 #include <linux/time.h>
 #include <linux/jiffies.h>
 
@@ -66,4 +70,5 @@ typedef u64 __nocast cputime64_t;
 #define cputime64_to_clock_t(__ct)	\
 	jiffies_64_to_clock_t(cputime64_to_jiffies64(__ct))
 
+#endif
 #endif

@@ -14,6 +14,7 @@
  */
 #  define MSA_NOW(now)  do { (now) = sched_clock(); } while (0)
 #  define MSA_TO_NSEC(clk) (clk)
+#  define MICROSTATE_ACCT_USING_SCHED_CLOCK
 # endif
 
 #endif /* _ASM_GENERIC_MSA_H */
