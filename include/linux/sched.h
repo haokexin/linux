@@ -60,6 +60,7 @@ struct sched_param {
 #include <linux/thread_info.h>
 #include <linux/cpumask.h>
 #include <linux/errno.h>
+#include <linux/msa.h>
 #include <linux/nodemask.h>
 #include <linux/mm_types.h>
 
@@ -1400,6 +1401,9 @@ struct task_struct {
 	unsigned long nvcsw, nivcsw; /* context switch counts */
 	struct timespec start_time; 		/* monotonic time */
 	struct timespec real_start_time;	/* boot based time */
+#ifdef CONFIG_MICROSTATE_ACCT
+	struct microstates microstates;
+#endif
 /* mm fault and swap info: this can arguably be seen as either mm-specific or thread-specific */
 	unsigned long min_flt, maj_flt;
 

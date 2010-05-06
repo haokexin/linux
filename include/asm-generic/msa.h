@@ -1,0 +1,19 @@
+/*
+ * asm-generic/msa.h
+ * Provide a generic time-of-day clock for
+ * microstate accounting.
+ */
+
+#ifndef _ASM_GENERIC_MSA_H
+#define _ASM_GENERIC_MSA_H
+
+# ifdef __KERNEL__
+/*
+ * Every architecture is supposed to provide sched_clock, a free-running,
+ * non-wrapping, per-cpu clock in nanoseconds.
+ */
+#  define MSA_NOW(now)  do { (now) = sched_clock(); } while (0)
+#  define MSA_TO_NSEC(clk) (clk)
+# endif
+
+#endif /* _ASM_GENERIC_MSA_H */

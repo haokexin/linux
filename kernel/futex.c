@@ -1768,6 +1768,7 @@ static void futex_wait_queue_me(struct futex_hash_bucket *hb, struct futex_q *q,
 	 * queue_me() calls spin_unlock() upon completion, both serializing
 	 * access to the hash list and forcing another memory barrier.
 	 */
+	msa_next_state(current, MSA_FUTEX_SLEEP);
 	set_current_state(TASK_INTERRUPTIBLE);
 	queue_me(q, hb);
 
@@ -2026,6 +2027,7 @@ retry_private:
 	/*
 	 * Block on the PI mutex:
 	 */
+	msa_next_state(current, MSA_FUTEX_SLEEP);
 	if (!trylock)
 		ret = rt_mutex_timed_lock(&q.pi_state->pi_mutex, to, 1);
 	else {

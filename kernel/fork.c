@@ -1205,6 +1205,8 @@ static struct task_struct *copy_process(unsigned long clone_flags,
 	p->vfork_done = NULL;
 	spin_lock_init(&p->alloc_lock);
 
+	msa_init(p);
+
 	init_sigpending(&p->pending);
 
 	p->utime = p->stime = p->gtime = 0;

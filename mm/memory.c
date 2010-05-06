@@ -616,6 +616,8 @@ int __pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 
 	smp_wmb(); /* See comment in __pte_alloc */
 
+	msa_next_state(current, MSA_PAGING_SLEEP);
+
 	spin_lock(&init_mm.page_table_lock);
 	if (likely(pmd_none(*pmd))) {	/* Has another populated it ? */
 		pmd_populate_kernel(&init_mm, pmd, new);
@@ -623,6 +625,7 @@ int __pte_alloc_kernel(pmd_t *pmd, unsigned long address)
 	} else
 		VM_BUG_ON(pmd_trans_splitting(*pmd));
 	spin_unlock(&init_mm.page_table_lock);
+	msa_next_state(current, MSA_UNKNOWN);
 	if (new)
 		pte_free_kernel(&init_mm, new);
 	return 0;
@@ -2912,8 +2915,10 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
 	page = lookup_swap_cache(entry);
 	if (!page) {
 		grab_swap_token(mm); /* Contend for token _before_ read-in */
+		msa_next_state(current, MSA_PAGING_SLEEP);
 		page = swapin_readahead(entry,
 					GFP_HIGHUSER_MOVABLE, vma, address);
+		msa_next_state(current, MSA_UNKNOWN);
 		if (!page) {
 			/*
 			 * Back out if somebody else faulted in this pte
@@ -3213,7 +3218,9 @@ static int __do_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 	vmf.flags = flags;
 	vmf.page = NULL;
 
+	msa_next_state(current, MSA_PAGING_SLEEP);
 	ret = vma->vm_ops->fault(vma, &vmf);
+	msa_next_state(current, MSA_UNKNOWN);
 	if (unlikely(ret & (VM_FAULT_ERROR | VM_FAULT_NOPAGE |
 			    VM_FAULT_RETRY)))
 		goto uncharge_out;

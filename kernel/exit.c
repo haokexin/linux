@@ -200,6 +200,8 @@ repeat:
 			leader->exit_state = EXIT_DEAD;
 	}
 
+	msa_update_parent(p->parent, p);
+
 	write_unlock_irq(&tasklist_lock);
 	release_thread(p);
 	call_rcu(&p->rcu, delayed_put_task_struct);

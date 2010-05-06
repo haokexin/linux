@@ -715,6 +715,7 @@ static void set_load_weight(struct task_struct *p)
 static void enqueue_task(struct rq *rq, struct task_struct *p, int flags)
 {
 	update_rq_clock(rq);
+	msa_next_state(p, MSA_ONRUNQUEUE);
 	sched_info_queued(p);
 	p->sched_class->enqueue_task(rq, p, flags);
 }
@@ -1912,6 +1913,7 @@ static inline void
 prepare_task_switch(struct rq *rq, struct task_struct *prev,
 		    struct task_struct *next)
 {
+	msa_switch(prev, next);
 	sched_info_switch(prev, next);
 	perf_event_task_sched_out(prev, next);
 	fire_sched_out_preempt_notifiers(prev, next);
