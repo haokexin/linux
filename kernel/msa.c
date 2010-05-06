@@ -447,6 +447,97 @@ SYSCALL_DEFINE3(msa, int, ntimers, int, which, msa_time_t __user *, timers)
 	return 0;
 }
 
+#ifdef CONFIG_PROC_FS
+
+/*
+ * Display the total number of nanoseconds since boot spent
+ * in handling each interrupt on each processor.
+ */
+
+static void *msa_irq_time_seq_start(struct seq_file *f, loff_t *pos)
+{
+	return (*pos <= NR_IRQS) ? pos : NULL;
+}
+
+static void *msa_irq_time_seq_next(struct seq_file *f, void *v, loff_t *pos)
+{
+	(*pos)++;
+	if (*pos > NR_IRQS)
+		return NULL;
+	return pos;
+}
+
+static void msa_irq_time_seq_stop(struct seq_file *f, void *v)
+{
+	/* Nothing to do */
+}
+
+static int msa_irq_time_seq_show(struct seq_file *f, void *v)
+{
+	int i = *(loff_t *) v, cpu;
+
+	if (i == 0) {
+		msa_time_t now;
+		char cpuname[10];
+		MSA_NOW(now);
+		seq_printf(f, "Now: %15llu\n", now);
+		seq_printf(f, "     ");
+		for_each_present_cpu(cpu) {
+			sprintf(cpuname, "CPU%d", cpu);
+			seq_printf(f, " %15s", cpuname);
+		}
+		seq_putc(f, '\n');
+	}
+
+	if (i < NR_IRQS) {
+		int all_zeroes = 0;
+		for_each_present_cpu(cpu)
+			if (!(all_zeroes = !per_cpu(msa_irq, cpu)[i].times))
+				break;
+		if (all_zeroes)
+			return 0;
+		seq_printf(f, "%3d: ", i);
+		for_each_present_cpu(cpu) {
+			msa_time_t x = MSA_TO_NSEC(per_cpu(msa_irq, cpu)[i].times);
+			seq_printf(f, " %15llu", (unsigned long long)x);
+		}
+		seq_putc(f, '\n');
+	}
+
+	return 0;
+}
+
+static struct seq_operations msa_irq_time_seq_ops = {
+	.start	= msa_irq_time_seq_start,
+	.next	= msa_irq_time_seq_next,
+	.stop	= msa_irq_time_seq_stop,
+	.show	= msa_irq_time_seq_show,
+};
+
+static int msa_irq_time_open(struct inode *inode, struct file *filp)
+{
+	return seq_open(filp, &msa_irq_time_seq_ops);
+}
+
+static struct file_operations proc_msa_irq_time_ops = {
+	.open		= msa_irq_time_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= seq_release,
+};
+
+static int __init proc_msa_irq_time_iinit(void)
+{
+	struct proc_dir_entry *entry;
+	entry = create_proc_entry("msa_irq_time", 0, NULL);
+	if (entry)
+		entry->proc_fops = &proc_msa_irq_time_ops;
+	return 0;
+}
+
+fs_initcall(proc_msa_irq_time_iinit);
+#endif
+
 #else
 /*
  * Stub for sys_msa when CONFIG_MICROSTATE_ACCT is off.
