@@ -648,6 +648,10 @@ endif #CGROUP_SCHED
 
 endif # CGROUPS
 
+config CGROUP_PAGE
+	def_bool y
+	depends on CGROUP_MEM_RES_CTLR
+
 config MM_OWNER
 	bool
 
