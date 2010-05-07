@@ -648,9 +648,20 @@ endif #CGROUP_SCHED
 
 endif # CGROUPS
 
+config CGROUP_BLKIO
+	bool "Block I/O cgroup subsystem"
+	depends on CGROUPS && BLOCK
+	select MM_OWNER
+	help
+	  Provides a Resource Controller which enables to track the onwner
+	  of every Block I/O requests.
+	  The information this subsystem provides can be used from any
+	  kind of module such as dm-ioband device mapper modules or
+	  the cfq-scheduler.
+
 config CGROUP_PAGE
 	def_bool y
-	depends on CGROUP_MEM_RES_CTLR
+	depends on CGROUP_MEM_RES_CTLR || CGROUP_BLKIO
 
 config MM_OWNER
 	bool
