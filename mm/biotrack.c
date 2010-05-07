@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/smp.h>
 #include <linux/bit_spinlock.h>
+#include <linux/slab.h>
 #include <linux/blkdev.h>
 #include <linux/biotrack.h>
 #include <linux/mm_inline.h>

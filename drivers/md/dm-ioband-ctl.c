@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/bio.h>
+#include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/rbtree.h>
@@ -433,8 +434,7 @@ static int ioband_ctr(struct dm_target *ti, unsigned argc, char **argv)
 	}
 	io_limit = val;
 
-	r = dm_get_device(ti, argv[0], 0, ti->len,
-			  dm_table_get_mode(ti->table), &dev);
+	r = dm_get_device(ti, argv[0], dm_table_get_mode(ti->table), &dev);
 	if (r) {
 		ti->error = "Device lookup failed";
 		return r;

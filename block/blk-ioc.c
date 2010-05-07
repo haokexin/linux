@@ -90,7 +90,6 @@ void init_io_context(struct io_context *ioc)
 	ioc->ioprio = 0;
 	ioc->last_waited = jiffies; /* doesn't matter... */
 	ioc->nr_batch_requests = 0; /* because this is 0 */
-	ioc->aic = NULL;
 	INIT_RADIX_TREE(&ioc->radix_root, GFP_ATOMIC | __GFP_HIGH);
 	INIT_HLIST_HEAD(&ioc->cic_list);
 	ioc->ioc_data = NULL;

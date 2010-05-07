@@ -20,6 +20,7 @@
 
 #include <linux/bio.h>
 #include <linux/workqueue.h>
+#include <linux/slab.h>
 #include <linux/rbtree.h>
 #include <linux/jiffies.h>
 #include <linux/random.h>
