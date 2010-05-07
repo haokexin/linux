@@ -319,4 +319,17 @@ config DM_UEVENT
 	---help---
 	Generate udev events for DM events.
 
+config DM_IOBAND
+	tristate "I/O bandwidth control (EXPERIMENTAL)"
+	depends on BLK_DEV_DM && EXPERIMENTAL
+	---help---
+	This device-mapper target allows to define how the
+	available bandwidth of a storage device should be
+	shared between processes, cgroups, the partitions or the LUNs.
+
+	Information on how to use dm-ioband is available in:
+	   <file:Documentation/device-mapper/ioband.txt>.
+
+	If unsure, say N.
+
 endif # MD
