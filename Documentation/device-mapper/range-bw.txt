@@ -1,0 +1,99 @@
+Range-BW I/O controller by Dong-Jae Kang <djkang@etri.re.kr>
+
+
+1. Introduction
+===============
+
+The design of Range-BW is related with three another parts, Cgroup,
+bio-cgroup (or blkio-cgroup) and dm-ioband and it was implemented as
+an additional controller for dm-ioband.
+Cgroup framework is used to support process grouping mechanism and
+bio-cgroup is used to control delayed I/O or non-direct I/O. Finally,
+dm-ioband is a kind of I/O controller allowing the proportional I/O
+bandwidth to process groups based on its priority.
+The supposed controller supports the process group-based range
+bandwidth according to the priority or importance of the group. Range
+bandwidth means the predicable I/O bandwidth with minimum and maximum
+value defined by administrator.
+
+Minimum I/O bandwidth should be guaranteed for stable performance or
+reliability of specific service and I/O bandwidth over maximum should
+be throttled to protect the limited I/O resource from
+over-provisioning in unnecessary usage or to reserve the I/O bandwidth
+for another use.
+So, Range-BW was implemented to include the two concepts, guaranteeing
+of minimum I/O requirement and limitation of unnecessary bandwidth
+depending on its priority.
+And it was implemented as device mapper driver such like dm-ioband.
+So, it is independent of the underlying specific I/O scheduler, for
+example, CFQ, AS, NOOP, deadline and so on.
+
+* Attention
+Range-BW supports the predicable I/O bandwidth, but it should be
+configured in the scope of total I/O bandwidth of the I/O system to
+guarantee the minimum I/O requirement. For example, if total I/O
+bandwidth is 40Mbytes/sec,
+
+the summary of I/O bandwidth configured in each process group should
+be equal or smaller than 40Mbytes/sec.
+So, we need to check total I/O bandwidth before set it up.
+
+2. Setup and Installation
+=========================
+
+This part is same with dm-ioband,
+../../Documentation/device-mapper/ioband.txt or
+http://sourceforge.net/apps/trac/ioband/wiki/dm-ioband/man/setup
+except the allocation of range-bw values.
+
+3. Usage
+========
+
+It is very useful to refer the documentation for dm-ioband in
+../../Documentation/device-mapper/ioband.txt or
+
+http://sourceforge.net/apps/trac/ioband/wiki/dm-ioband, because
+Range-BW follows the basic semantics of dm-ioband.
+This example is for range-bw configuration.
+
+# mount the cgroup
+mount -t cgroup -o blkio none /root/cgroup/blkio
+
+# create the process groups (3 groups)
+mkdir /root/cgroup/blkio/bgroup1
+mkdir /root/cgroup/blkio/bgroup2
+mkdir /root/cgroup/blkio/bgroup3
+
+# create the ioband device ( name : ioband1 )
+echo "0 $(blockdev --getsize /dev/sdb2) ioband /dev/sdb2 1 0 0 none
+range-bw 0 :0:0" | dmsetup create ioband1
+: Attention - device name (/dev/sdb2) should be modified depending on
+your system
+
+# init ioband device ( type and policy )
+dmsetup message ioband1 0 type cgroup
+dmsetup message ioband1 0 policy range-bw
+
+# attach the groups to the ioband device
+dmsetup message ioband1 0 attach 2
+dmsetup message ioband1 0 attach 3
+dmsetup message ioband1 0 attach 4
+: group number can be referred in /root/cgroup/blkio/bgroup1/blkio.id
+
+# allocate the values ( range-bw ) : XXX Kbytes
+: the sum of minimum I/O bandwidth in each group should be equal or
+smaller than total bandwidth to be supported by your system
+
+# range : about 100~500 Kbytes
+dmsetup message ioband1 0 range-bw 2:100:500
+
+# range : about 700~1000 Kbytes
+dmsetup message ioband1 0 range-bw 3:700:1000
+
+# range : about 30~35Mbytes
+dmsetup message ioband1 0 range-bw 4:30000:35000
+
+You can confirm the configuration of range-bw by using this command :
+[root@localhost range-bw]# dmsetup table --target ioband
+ioband1: 0 305235000 ioband 8:18 1 4 128 cgroup \
+    range-bw 16384 :0:0 2:100:500 3:700:1000 4:30000:35000
