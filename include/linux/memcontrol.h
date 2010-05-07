@@ -37,6 +37,8 @@ struct mm_struct;
  * (Of course, if memcg does memory allocation in future, GFP_KERNEL is sane.)
  */
 
+extern void __init_mem_page_cgroup(struct page_cgroup *pc);
+
 extern int mem_cgroup_newpage_charge(struct page *page, struct mm_struct *mm,
 				gfp_t gfp_mask);
 /* for swap handling */
@@ -130,6 +132,10 @@ unsigned long mem_cgroup_soft_limit_reclaim(struct zone *zone, int order,
 						int zid);
 #else /* CONFIG_CGROUP_MEM_RES_CTLR */
 struct mem_cgroup;
+
+static inline void __init_mem_page_cgroup(struct page_cgroup *pc)
+{
+}
 
 static inline int mem_cgroup_newpage_charge(struct page *page,
 					struct mm_struct *mm, gfp_t gfp_mask)
