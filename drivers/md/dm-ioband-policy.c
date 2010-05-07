@@ -8,6 +8,7 @@
 #include <linux/bio.h>
 #include <linux/workqueue.h>
 #include <linux/rbtree.h>
+#include <linux/seq_file.h>
 #include "dm.h"
 #include "dm-ioband.h"
 
@@ -360,7 +361,7 @@ static int policy_weight_param(struct ioband_group *gp,
 	if (value)
 		err = strict_strtol(value, 0, &val);
 
-	if (!strcmp(cmd, "weight")) {
+	if (!cmd || !strcmp(cmd, "weight")) {
 		if (!value)
 			r = set_weight(gp, DEFAULT_WEIGHT);
 		else if (!err && 0 < val && val <= SHORT_MAX)
@@ -425,6 +426,19 @@ static void policy_weight_show(struct ioband_group *gp, int *szp,
 	*szp = sz;
 }
 
+static void policy_weight_show_device(struct seq_file *m,
+				      struct ioband_device *dp)
+{
+	seq_printf(m, " token=%d carryover=%d",
+				dp->g_token_bucket, dp->g_carryover);
+}
+
+static void policy_weight_show_group(struct seq_file *m,
+				     struct ioband_group *gp)
+{
+	seq_printf(m, " weight=%d%%", gp->c_weight);
+}
+
 /*
  *  <Method>      <description>
  * g_can_submit   : To determine whether a given group has the right to
@@ -453,6 +467,8 @@ static void policy_weight_show(struct ioband_group *gp, int *szp,
  *                  Return 1 if a given group can't receive any more BIOs,
  *                  otherwise return 0.
  * g_show         : Show the configuration.
+ * g_show_device  : Show the configuration of the specified ioband device.
+ * g_show_group   : Show the configuration of the spacified ioband group.
  */
 static int policy_weight_init(struct ioband_device *dp, int argc, char **argv)
 {
@@ -475,6 +491,8 @@ static int policy_weight_init(struct ioband_device *dp, int argc, char **argv)
 	dp->g_set_param = policy_weight_param;
 	dp->g_should_block = is_queue_full;
 	dp->g_show = policy_weight_show;
+	dp->g_show_device = policy_weight_show_device;
+	dp->g_show_group = policy_weight_show_group;
 
 	dp->g_epoch = 0;
 	dp->g_weight_total = 0;

@@ -20,6 +20,9 @@
 #include <linux/blkdev.h>
 #include <linux/biotrack.h>
 #include <linux/mm_inline.h>
+#include <linux/seq_file.h>
+#include <linux/dm-ioctl.h>
+#include <../drivers/md/dm-ioband.h>
 
 /*
  * The block I/O tracking mechanism is implemented on the cgroup memory
@@ -46,6 +49,8 @@ static struct io_context default_blkio_io_context;
 static struct blkio_cgroup default_blkio_cgroup = {
 	.io_context	= &default_blkio_io_context,
 };
+static DEFINE_MUTEX(ioband_ops_lock);
+static const struct ioband_cgroup_ops *ioband_ops;
 
 /**
  * blkio_cgroup_set_owner() - set the owner ID of a page.
@@ -181,6 +186,14 @@ blkio_cgroup_create(struct cgroup_subsys *ss, struct cgroup *cgrp)
 static void blkio_cgroup_destroy(struct cgroup_subsys *ss, struct cgroup *cgrp)
 {
 	struct blkio_cgroup *biog = cgroup_blkio(cgrp);
+	int id;
+
+	mutex_lock(&ioband_ops_lock);
+	if (ioband_ops) {
+		id = css_id(&biog->css);
+		ioband_ops->remove_group(id);
+	}
+	mutex_unlock(&ioband_ops_lock);
 
 	put_io_context(biog->io_context);
 	free_css_id(&blkio_cgroup_subsys, &biog->css);
@@ -261,6 +274,25 @@ struct cgroup *get_cgroup_from_page(struct page *page)
 }
 EXPORT_SYMBOL(get_cgroup_from_page);
 
+/**
+ * blkio_cgroup_register_ioband() - register ioband
+ * @p:	a pointer to struct ioband_cgroup_ops
+ *
+ * Calling with NULL means unregistration.
+ * Returns 0 on success.
+ */
+int blkio_cgroup_register_ioband(const struct ioband_cgroup_ops *p)
+{
+	if (blkio_cgroup_disabled())
+		return -1;
+
+	mutex_lock(&ioband_ops_lock);
+	ioband_ops = p;
+	mutex_unlock(&ioband_ops_lock);
+	return 0;
+}
+EXPORT_SYMBOL(blkio_cgroup_register_ioband);
+
 /* Read the ID of the specified blkio cgroup. */
 static u64 blkio_id_read(struct cgroup *cgrp, struct cftype *cft)
 {
@@ -269,10 +301,130 @@ static u64 blkio_id_read(struct cgroup *cgrp, struct cftype *cft)
 	return (u64)css_id(&biog->css);
 }
 
+/* Show all ioband devices and their settings. */
+static int blkio_devs_read(struct cgroup *cgrp, struct cftype *cft,
+							struct seq_file *m)
+{
+	mutex_lock(&ioband_ops_lock);
+	if (ioband_ops)
+		ioband_ops->show_device(m);
+	mutex_unlock(&ioband_ops_lock);
+	return 0;
+}
+
+/* Configure ioband devices specified by an ioband device ID */
+static int blkio_devs_write(struct cgroup *cgrp, struct cftype *cft,
+							const char *buffer)
+{
+	char **argv;
+	int argc, r = 0;
+
+	if (cgrp != cgrp->top_cgroup)
+		return -EACCES;
+
+	argv = argv_split(GFP_KERNEL, buffer, &argc);
+	if (!argv)
+		return -ENOMEM;
+
+	mutex_lock(&ioband_ops_lock);
+	if (ioband_ops)
+		r = ioband_ops->config_device(argc, argv);
+	mutex_unlock(&ioband_ops_lock);
+
+	argv_free(argv);
+	return r;
+}
+
+/* Show the information of the specified blkio cgroup. */
+static int blkio_group_read(struct cgroup *cgrp, struct cftype *cft,
+							struct seq_file *m)
+{
+	struct blkio_cgroup *biog;
+	int id;
+
+	mutex_lock(&ioband_ops_lock);
+	if (ioband_ops) {
+		biog = cgroup_blkio(cgrp);
+		id = css_id(&biog->css);
+		ioband_ops->show_group(m, cft->private, id);
+	}
+	mutex_unlock(&ioband_ops_lock);
+	return 0;
+}
+
+/* Configure the specified blkio cgroup. */
+static int blkio_group_config_write(struct cgroup *cgrp, struct cftype *cft,
+							const char *buffer)
+{
+	struct blkio_cgroup *biog;
+	char **argv;
+	int argc, parent, id, r = 0;
+
+	argv = argv_split(GFP_KERNEL, buffer, &argc);
+	if (!argv)
+		return -ENOMEM;
+
+	mutex_lock(&ioband_ops_lock);
+	if (ioband_ops) {
+		if (cgrp == cgrp->top_cgroup)
+			parent = 0;
+		else {
+			biog = cgroup_blkio(cgrp->parent);
+			parent = css_id(&biog->css);
+		}
+		biog = cgroup_blkio(cgrp);
+		id = css_id(&biog->css);
+		r = ioband_ops->config_group(argc, argv, parent, id);
+	}
+	mutex_unlock(&ioband_ops_lock);
+	argv_free(argv);
+	return r;
+}
+
+/* Reset the statictics counter of the specified blkio cgroup. */
+static int blkio_group_stats_write(struct cgroup *cgrp, struct cftype *cft,
+							const char *buffer)
+{
+	struct blkio_cgroup *biog;
+	char **argv;
+	int argc, id, r = 0;
+
+	argv = argv_split(GFP_KERNEL, buffer, &argc);
+	if (!argv)
+		return -ENOMEM;
+
+	mutex_lock(&ioband_ops_lock);
+	if (ioband_ops) {
+		biog = cgroup_blkio(cgrp);
+		id = css_id(&biog->css);
+		r = ioband_ops->reset_group_stats(argc, argv, id);
+	}
+	mutex_unlock(&ioband_ops_lock);
+	argv_free(argv);
+	return r;
+}
+
 static struct cftype blkio_files[] = {
 	{
 		.name = "id",
 		.read_u64 = blkio_id_read,
+	},
+	{
+		.name = "devices",
+		.read_seq_string = blkio_devs_read,
+		.write_string = blkio_devs_write,
+	},
+	{
+		.name = "settings",
+		.read_seq_string = blkio_group_read,
+		.write_string = blkio_group_config_write,
+		.private = IOG_INFO_CONFIG,
+	},
+	{
+		.name = "stats",
+		.read_seq_string = blkio_group_read,
+		.write_string = blkio_group_stats_write,
+		.private = IOG_INFO_STATS,
 	},
 };
 

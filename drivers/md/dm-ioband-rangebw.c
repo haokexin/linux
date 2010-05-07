@@ -25,6 +25,7 @@
 #include <linux/random.h>
 #include <linux/time.h>
 #include <linux/timer.h>
+#include <linux/seq_file.h>
 #include "dm.h"
 #include "md.h"
 #include "dm-ioband.h"
@@ -456,7 +457,7 @@ static int policy_range_bw_param(struct ioband_group *gp,
 			err++;
 	}
 
-	if (!strcmp(cmd, "range-bw")) {
+	if (!cmd || !strcmp(cmd, "range-bw")) {
 		if (!err && 0 <= min_val &&
 		    min_val <= (INT_MAX / 2) &&	0 <= max_val &&
 		    max_val <= (INT_MAX / 2) && min_val <= max_val)
@@ -542,6 +543,12 @@ static void policy_range_bw_show(struct ioband_group *gp, int *szp,
 		DMEMIT(" %d:%d:%d", p->c_id, p->c_min_bw, p->c_max_bw);
 	}
 	*szp = sz;
+}
+
+static void policy_range_bw_show_group(struct seq_file *m,
+				       struct ioband_group *gp)
+{
+	seq_printf(m, " range-bw=%d:%d", gp->c_min_bw, gp->c_max_bw);
 }
 
 static int range_bw_prepare_token(struct ioband_group *gp,
@@ -630,6 +637,8 @@ static void range_bw_timeover(unsigned long gp)
  *                  Return 1 if a given group can't receive any more BIOs,
  *                  otherwise return 0.
  * g_show         : Show the configuration.
+ * g_show_device  : Show the configuration of the specified ioband device.
+ * g_show_group   : Show the configuration of the spacified ioband group.
  */
 
 int policy_range_bw_init(struct ioband_device *dp, int argc, char **argv)
@@ -653,6 +662,8 @@ int policy_range_bw_init(struct ioband_device *dp, int argc, char **argv)
 	dp->g_set_param = policy_range_bw_param;
 	dp->g_should_block = range_bw_queue_full;
 	dp->g_show = policy_range_bw_show;
+	dp->g_show_device = NULL;
+	dp->g_show_group = policy_range_bw_show_group;
 
 	dp->g_min_bw_total = 0;
 	dp->g_running_gp = NULL;
