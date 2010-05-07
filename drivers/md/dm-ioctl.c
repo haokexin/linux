@@ -1674,3 +1674,4 @@ out:
 
 	return r;
 }
+EXPORT_SYMBOL(dm_copy_name_and_uuid);

@@ -15,6 +15,8 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/rbtree.h>
+#include <linux/biotrack.h>
+#include <linux/dm-ioctl.h>
 #include "dm.h"
 #include "md.h"
 #include "dm-ioband.h"
@@ -108,6 +110,7 @@ static struct ioband_device *alloc_ioband_device(const char *name,
 	INIT_DELAYED_WORK(&new_dp->g_conductor, ioband_conduct);
 	INIT_LIST_HEAD(&new_dp->g_groups);
 	INIT_LIST_HEAD(&new_dp->g_list);
+	INIT_LIST_HEAD(&new_dp->g_heads);
 	INIT_LIST_HEAD(&new_dp->g_root_groups);
 	spin_lock_init(&new_dp->g_lock);
 	bio_list_init(&new_dp->g_urgent_bios);
@@ -249,6 +252,7 @@ static int ioband_group_init(struct ioband_device *dp,
 	int r;
 
 	INIT_LIST_HEAD(&gp->c_list);
+	INIT_LIST_HEAD(&gp->c_heads);
 	INIT_LIST_HEAD(&gp->c_sibling);
 	INIT_LIST_HEAD(&gp->c_children);
 	gp->c_parent = parent;
@@ -291,7 +295,8 @@ static int ioband_group_init(struct ioband_device *dp,
 		ioband_group_add_node(&head->c_group_root, gp);
 		gp->c_dev = head->c_dev;
 		gp->c_target = head->c_target;
-	}
+	} else
+		list_add_tail(&gp->c_heads, &dp->g_heads);
 
 	spin_unlock_irqrestore(&dp->g_lock, flags);
 	return 0;
@@ -306,6 +311,8 @@ static void ioband_group_release(struct ioband_group *head,
 	list_del(&gp->c_sibling);
 	if (head)
 		rb_erase(&gp->c_group_node, &head->c_group_root);
+	else
+		list_del(&gp->c_heads);
 	dp->g_group_dtr(gp);
 	kfree(gp);
 }
@@ -1351,6 +1358,235 @@ static struct target_type ioband_target = {
 	.iterate_devices = ioband_iterate_devices,
 };
 
+#ifdef CONFIG_CGROUP_BLKIO
+/* Copy mapped device name into supplied buffers */
+static void ioband_copy_name(struct ioband_group *gp, char *name)
+{
+	struct mapped_device *md;
+
+	md = dm_table_get_md(gp->c_target->table);
+	dm_copy_name_and_uuid(md, name, NULL);
+	dm_put(md);
+}
+
+/* Show all ioband devices and their settings */
+static void ioband_cgroup_show_device(struct seq_file *m)
+{
+	struct ioband_device *dp;
+	struct ioband_group *head;
+	char name[DM_NAME_LEN];
+
+	mutex_lock(&ioband_lock);
+	list_for_each_entry(dp, &ioband_device_list, g_list) {
+		seq_printf(m, "%s policy=%s io_throttle=%d io_limit=%d",
+			   dp->g_name, dp->g_policy->p_name,
+			   dp->g_io_throttle, dp->g_io_limit);
+		if (dp->g_show_device)
+			dp->g_show_device(m, dp);
+		seq_putc(m, '\n');
+
+		list_for_each_entry(head, &dp->g_heads, c_heads) {
+			if (strcmp(head->c_type->t_name, "cgroup"))
+				continue;
+			ioband_copy_name(head, name);
+			seq_printf(m, "  %s\n", name);
+		}
+	}
+	mutex_unlock(&ioband_lock);
+}
+
+/* Configure the ioband device specified by share name or device name */
+static int ioband_cgroup_config_device(int argc, char **argv)
+{
+	struct ioband_device *dp;
+	struct ioband_group *head;
+	char name[DM_NAME_LEN];
+	int r;
+
+	if (argc < 1)
+		return -EINVAL;
+
+	mutex_lock(&ioband_lock);
+	list_for_each_entry(dp, &ioband_device_list, g_list) {
+		/* lookup by share name */
+		if (!strcmp(dp->g_name, argv[0])) {
+			head = list_first_entry(&dp->g_heads,
+					      struct ioband_group, c_heads);
+			goto found;
+		}
+
+		/* lookup by device name */
+		list_for_each_entry(head, &dp->g_heads, c_heads) {
+			ioband_copy_name(head, name);
+			if (!strcmp(name, argv[0]))
+				goto found;
+		}
+	}
+	mutex_unlock(&ioband_lock);
+	return -ENODEV;
+
+found:
+	if (!strcmp(head->c_type->t_name, "cgroup"))
+		r = __ioband_message(head->c_target, --argc, &argv[1]);
+	else
+		r = -ENODEV;
+
+	mutex_unlock(&ioband_lock);
+	return r;
+}
+
+/* Show the settings of the blkio cgroup specified by ID */
+static void ioband_cgroup_show_group(struct seq_file *m, int type, int id)
+{
+	struct ioband_device *dp;
+	struct ioband_group *head, *gp;
+	struct disk_stats *st;
+	char name[DM_NAME_LEN];
+	unsigned long flags;
+
+	mutex_lock(&ioband_lock);
+	list_for_each_entry(dp, &ioband_device_list, g_list) {
+		list_for_each_entry(head, &dp->g_heads, c_heads) {
+			if (strcmp(head->c_type->t_name, "cgroup"))
+				continue;
+
+			gp = (id == 1) ? head : ioband_group_find(head, id);
+			if (!gp)
+				continue;
+
+			ioband_copy_name(head, name);
+			seq_puts(m, name);
+
+			switch (type) {
+			case IOG_INFO_CONFIG:
+				if (dp->g_show_group)
+					dp->g_show_group(m, gp);
+				break;
+			case IOG_INFO_STATS:
+				st = &gp->c_stats;
+				spin_lock_irqsave(&dp->g_lock, flags);
+				seq_printf(m, " %lu %lu %lu %lu"
+					   " %lu %lu %lu %lu %d %lu %lu",
+					   st->ios[0], st->merges[0],
+					   st->sectors[0], st->ticks[0],
+					   st->ios[1], st->merges[1],
+					   st->sectors[1], st->ticks[1],
+					   nr_blocked_group(gp),
+					   st->io_ticks, st->time_in_queue);
+				spin_unlock_irqrestore(&dp->g_lock, flags);
+				break;
+			}
+			seq_putc(m, '\n');
+		}
+	}
+	mutex_unlock(&ioband_lock);
+}
+
+/* Configure the blkio cgroup specified by device name and group ID */
+static int ioband_cgroup_config_group(int argc, char **argv,
+				      int parent, int id)
+{
+	struct ioband_device *dp;
+	struct ioband_group *head, *gp;
+	char name[DM_NAME_LEN];
+	int r;
+
+	if (argc != 1 && argc != 2)
+		return -EINVAL;
+
+	mutex_lock(&ioband_lock);
+	list_for_each_entry(dp, &ioband_device_list, g_list) {
+		list_for_each_entry(head, &dp->g_heads, c_heads) {
+			if (strcmp(head->c_type->t_name, "cgroup"))
+				continue;
+			ioband_copy_name(head, name);
+			if (!strcmp(name, argv[0]))
+				goto found;
+		}
+	}
+	mutex_unlock(&ioband_lock);
+	return -ENODEV;
+
+found:
+	if (argc == 1) {
+		/* remove the group unless it is not a root cgroup */
+		r = (id == 1) ? -EINVAL : ioband_group_detach(head, id);
+	} else {
+		/* create a group or modify the group settings */
+		gp = (id == 1) ? head : ioband_group_find(head, id);
+
+		if (!gp)
+			r = ioband_group_attach(head, parent, id, argv[1]);
+		else
+			r = gp->c_banddev->g_set_param(gp, NULL, argv[1]);
+	}
+
+	mutex_unlock(&ioband_lock);
+	return r;
+}
+
+/*
+ * Reset the statistics counter of the blkio cgroup specified by
+ * device name and group ID.
+ */
+static int ioband_cgroup_reset_group_stats(int argc, char **argv, int id)
+{
+	struct ioband_device *dp;
+	struct ioband_group *head, *gp;
+	char name[DM_NAME_LEN];
+
+	if (argc != 1)
+		return -EINVAL;
+
+	mutex_lock(&ioband_lock);
+	list_for_each_entry(dp, &ioband_device_list, g_list) {
+		list_for_each_entry(head, &dp->g_heads, c_heads) {
+			if (strcmp(head->c_type->t_name, "cgroup"))
+				continue;
+			ioband_copy_name(head, name);
+			if (strcmp(name, argv[0]))
+				continue;
+
+			gp = (id == 1) ? head : ioband_group_find(head, id);
+			if (gp)
+				memset(&gp->c_stats, 0, sizeof(gp->c_stats));
+
+			mutex_unlock(&ioband_lock);
+			return 0;
+		}
+	}
+	mutex_unlock(&ioband_lock);
+	return -ENODEV;
+}
+
+/* Remove the blkio cgroup specified by ID */
+static void ioband_cgroup_remove_group(int id)
+{
+	struct ioband_device *dp;
+	struct ioband_group *head;
+
+	mutex_lock(&ioband_lock);
+	list_for_each_entry(dp, &ioband_device_list, g_list) {
+		list_for_each_entry(head, &dp->g_heads, c_heads) {
+			if (strcmp(head->c_type->t_name, "cgroup"))
+				continue;
+			if (ioband_group_find(head, id))
+				ioband_group_detach(head, id);
+		}
+	}
+	mutex_unlock(&ioband_lock);
+}
+
+static const struct ioband_cgroup_ops ioband_ops = {
+	.show_device		= ioband_cgroup_show_device,
+	.config_device		= ioband_cgroup_config_device,
+	.show_group		= ioband_cgroup_show_group,
+	.config_group		= ioband_cgroup_config_group,
+	.reset_group_stats 	= ioband_cgroup_reset_group_stats,
+	.remove_group		= ioband_cgroup_remove_group,
+};
+#endif
+
 static int __init dm_ioband_init(void)
 {
 	int r;
@@ -1358,11 +1594,18 @@ static int __init dm_ioband_init(void)
 	r = dm_register_target(&ioband_target);
 	if (r < 0)
 		DMERR("register failed %d", r);
+#ifdef CONFIG_CGROUP_BLKIO
+	else
+		r = blkio_cgroup_register_ioband(&ioband_ops);
+#endif
 	return r;
 }
 
 static void __exit dm_ioband_exit(void)
 {
+#ifdef CONFIG_CGROUP_BLKIO
+	blkio_cgroup_unregister_ioband();
+#endif
 	dm_unregister_target(&ioband_target);
 }
 

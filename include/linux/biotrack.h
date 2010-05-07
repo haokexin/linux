@@ -9,6 +9,7 @@
 
 struct io_context;
 struct block_device;
+struct ioband_cgroup_ops;
 
 struct blkio_cgroup {
 	struct cgroup_subsys_state css;
@@ -48,6 +49,12 @@ extern void blkio_cgroup_copy_owner(struct page *page, struct page *opage);
 extern struct io_context *get_blkio_cgroup_iocontext(struct bio *bio);
 extern unsigned long get_blkio_cgroup_id(struct bio *bio);
 extern struct cgroup *get_cgroup_from_page(struct page *page);
+extern int blkio_cgroup_register_ioband(const struct ioband_cgroup_ops *ops);
+
+static inline int blkio_cgroup_unregister_ioband(void)
+{
+	return blkio_cgroup_register_ioband(NULL);
+}
 
 #else /* !CONFIG_CGROUP_BLKIO */
 

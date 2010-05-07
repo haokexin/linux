@@ -44,6 +44,7 @@ struct ioband_device {
 
 	int g_ref;
 	struct list_head g_list;
+	struct list_head g_heads;
 	struct list_head g_root_groups;
 	int g_flags;
 	char g_name[IOBAND_NAME_MAX + 1];
@@ -60,6 +61,8 @@ struct ioband_device {
 	int (*g_set_param) (struct ioband_group *, const char *, const char *);
 	int (*g_should_block) (struct ioband_group *, int);
 	void (*g_show) (struct ioband_group *, int *, char *, unsigned);
+	void (*g_show_device) (struct seq_file *, struct ioband_device *);
+	void (*g_show_group) (struct seq_file *, struct ioband_group *);
 
 	/* members for weight balancing policy */
 	int g_epoch;
@@ -99,6 +102,7 @@ struct ioband_device {
 
 struct ioband_group {
 	struct list_head c_list;
+	struct list_head c_heads;
 	struct list_head c_sibling;
 	struct list_head c_children;
 	struct ioband_group *c_parent;
@@ -149,6 +153,20 @@ struct ioband_group {
 	int     c_wait_p_count;
 
 };
+
+struct blkio_cgroup;
+
+struct ioband_cgroup_ops {
+	void (*show_device)(struct seq_file *);
+	int (*config_device)(int, char **);
+	void (*show_group)(struct seq_file *, int, int);
+	int (*config_group)(int, char **, int, int);
+	int (*reset_group_stats)(int, char **, int);
+	void (*remove_group)(int);
+};
+
+#define IOG_INFO_CONFIG	0
+#define IOG_INFO_STATS	1
 
 #define IOBAND_URGENT 1
 
