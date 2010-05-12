@@ -36,9 +36,17 @@
 #define MSR_USER	(MSR_KERNEL|MSR_PR|MSR_EE)
 #else
 #ifdef CONFIG_WR_OCD_DEBUG
-#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE|MSR_DE)
+#if defined(CONFIG_PPC85xx_VT_MODE)
+#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE|MSR_DE|MSR_IR|MSR_DR)
 #else
-#define MSR_KERNEL     (MSR_ME|MSR_RI|MSR_CE)
+#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE|MSR_DE)
+#endif
+#else
+#if defined(CONFIG_PPC85xx_VT_MODE)
+#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE|MSR_IR|MSR_DR)
+#else
+#define MSR_KERNEL	(MSR_ME|MSR_RI|MSR_CE)
+#endif
 #endif	/* OCD */
 #define MSR_USER       (MSR_KERNEL|MSR_PR|MSR_EE)
 #endif

@@ -282,6 +282,10 @@ reenable_mmu:				/* re-enable mmu so we can */
 	bctr				/* jump to handler */
 #else /* CONFIG_TRACE_IRQFLAGS */
 	mtspr	SPRN_SRR0,r11
+#ifdef CONFIG_PPC85xx_VT_MODE
+	/* Guest Exception should be AS = 0 */
+	rlwinm	r10,r10,0,~(MSR_IR|MSR_DR)
+#endif
 	mtspr	SPRN_SRR1,r10
 	mtlr	r9
 	SYNC
@@ -1034,7 +1038,15 @@ exc_exit_restart:
 	lwz	r12,_NIP(r1)
 	FIX_SRR1(r9,r10)
 	mtspr	SPRN_SRR0,r12
+#ifdef	CONFIG_PPC85xx_VT_MODE
+	mr	r12,r9
+	ori	r9,r9,(MSR_IR|MSR_DR)
+#endif
 	mtspr	SPRN_SRR1,r9
+#ifdef	CONFIG_PPC85xx_VT_MODE
+	mr	r9,r12
+	lwz	r12,_NIP(r1)
+#endif
 	REST_4GPRS(9, r1)
 	lwz	r1,GPR1(r1)
 	.globl exc_exit_restart_end
