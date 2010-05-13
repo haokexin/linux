@@ -17,6 +17,7 @@
 #include <trace/timer.h>
 #include <trace/kernel.h>
 #include <trace/fault.h>
+#include <trace/events/sched.h>
 
 /*
  * This should probably be added to s390.
@@ -109,13 +110,13 @@ notrace void probe_irq_exit(irqreturn_t retval)
 
 /* kernel_softirq_entry specialized tracepoint probe */
 
-void probe_irq_softirq_entry(struct softirq_action *h,
+void probe_softirq_entry(struct softirq_action *h,
 	struct softirq_action *softirq_vec);
 
-DEFINE_MARKER_TP(kernel, softirq_entry, irq_softirq_entry,
-	probe_irq_softirq_entry, "softirq_id #1u%lu");
+DEFINE_MARKER_TP(kernel, softirq_entry, softirq_entry,
+	probe_softirq_entry, "softirq_id #1u%lu");
 
-notrace void probe_irq_softirq_entry(struct softirq_action *h,
+notrace void probe_softirq_entry(struct softirq_action *h,
 	struct softirq_action *softirq_vec)
 {
 	struct marker *marker;
@@ -130,13 +131,13 @@ notrace void probe_irq_softirq_entry(struct softirq_action *h,
 
 /* kernel_softirq_exit specialized tracepoint probe */
 
-void probe_irq_softirq_exit(struct softirq_action *h,
+void probe_softirq_exit(struct softirq_action *h,
 	struct softirq_action *softirq_vec);
 
-DEFINE_MARKER_TP(kernel, softirq_exit, irq_softirq_exit,
-	probe_irq_softirq_exit, "softirq_id #1u%lu");
+DEFINE_MARKER_TP(kernel, softirq_exit, softirq_exit,
+	probe_softirq_exit, "softirq_id #1u%lu");
 
-notrace void probe_irq_softirq_exit(struct softirq_action *h,
+notrace void probe_softirq_exit(struct softirq_action *h,
 	struct softirq_action *softirq_vec)
 {
 	struct marker *marker;
@@ -151,12 +152,12 @@ notrace void probe_irq_softirq_exit(struct softirq_action *h,
 
 /* kernel_softirq_raise specialized tracepoint probe */
 
-void probe_irq_softirq_raise(unsigned int nr);
+void probe_softirq_raise(unsigned int nr);
 
-DEFINE_MARKER_TP(kernel, softirq_raise, irq_softirq_raise,
-	probe_irq_softirq_raise, "softirq_id #1u%u");
+DEFINE_MARKER_TP(kernel, softirq_raise, softirq_raise,
+	probe_softirq_raise, "softirq_id #1u%u");
 
-notrace void probe_irq_softirq_raise(unsigned int nr)
+notrace void probe_softirq_raise(unsigned int nr)
 {
 	struct marker *marker;
 	unsigned char data;
