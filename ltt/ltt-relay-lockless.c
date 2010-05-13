@@ -441,7 +441,11 @@ static void switch_buffer(unsigned long data)
 	struct ltt_chanbuf *buf = (struct ltt_chanbuf *)data;
 	struct ltt_chan *chan = container_of(buf->a.chan, struct ltt_chan, a);
 
-	ltt_force_switch(buf, FORCE_ACTIVE);
+	/*
+	 * Only flush buffers periodically if readers are active.
+	 */
+	if (atomic_long_read(&buf->active_readers))
+		ltt_force_switch(buf, FORCE_ACTIVE);
 
 	buf->switch_timer.expires += chan->switch_timer_interval;
 	add_timer_on(&buf->switch_timer, smp_processor_id());
