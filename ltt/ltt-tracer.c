@@ -376,11 +376,27 @@ static void trace_async_wakeup(struct ltt_trace_struct *trace)
 static void async_wakeup(unsigned long data)
 {
 	struct ltt_trace_struct *trace;
+
+	/*
+	 * PREEMPT_RT does not allow spinlocks to be taken within preempt
+	 * disable sections (spinlock taken in wake_up). However, mainline won't
+	 * allow mutex to be taken in interrupt context. Ugly.
+	 * A proper way to do this would be to turn the timer into a
+	 * periodically woken up thread, but it adds to the footprint.
+	 */
+#ifndef CONFIG_PREEMPT_RT
 	rcu_read_lock_sched();
+#else
+	ltt_lock_traces();
+#endif
 	list_for_each_entry_rcu(trace, &ltt_traces.head, list) {
 		trace_async_wakeup(trace);
 	}
+#ifndef CONFIG_PREEMPT_RT
 	rcu_read_unlock_sched();
+#else
+	ltt_unlock_traces();
+#endif
 
 	mod_timer(&ltt_async_wakeup_timer, jiffies + LTT_PERCPU_TIMER_INTERVAL);
 }
