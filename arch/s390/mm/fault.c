@@ -5,6 +5,7 @@
  *    Copyright (C) 1999 IBM Deutschland Entwicklung GmbH, IBM Corporation
  *    Author(s): Hartmut Penner (hp@de.ibm.com)
  *               Ulrich Weigand (uweigand@de.ibm.com)
+ *  Portions added by T. Halloran: (C) Copyright 2002 IBM Poughkeepsie, IBM Corporation
  *
  *  Derived from "arch/i386/mm/fault.c"
  *    Copyright (C) 1995  Linus Torvalds
@@ -31,6 +32,7 @@
 #include <linux/uaccess.h>
 #include <linux/hugetlb.h>
 #include <asm/asm-offsets.h>
+#include <trace/fault.h>
 #include <asm/system.h>
 #include <asm/pgtable.h>
 #include <asm/s390_ext.h>
@@ -55,6 +57,12 @@ extern int sysctl_userprocess_debug;
 #define VM_FAULT_BADCONTEXT	0x010000
 #define VM_FAULT_BADMAP		0x020000
 #define VM_FAULT_BADACCESS	0x040000
+
+DEFINE_TRACE(page_fault_entry);
+DEFINE_TRACE(page_fault_exit);
+DEFINE_TRACE(page_fault_nosem_entry);
+DEFINE_TRACE(page_fault_nosem_exit);
+
 
 static inline int notify_page_fault(struct pt_regs *regs)
 {
@@ -254,7 +262,10 @@ static noinline void do_fault_error(struct pt_regs *regs, long int_code,
 			/* User mode accesses just cause a SIGSEGV */
 			si_code = (fault == VM_FAULT_BADMAP) ?
 				SEGV_MAPERR : SEGV_ACCERR;
+			trace_page_fault_nosem_entry(regs, int_code & 0xffff,
+						     trans_exc_code);
 			do_sigsegv(regs, int_code, si_code, trans_exc_code);
+			trace_page_fault_nosem_exit();
 			return;
 		}
 	case VM_FAULT_BADCONTEXT:
@@ -346,8 +357,11 @@ static inline int do_exception(struct pt_regs *regs, int access,
 	 * make sure we exit gracefully rather than endlessly redo
 	 * the fault.
 	 */
+	trace_page_fault_entry(regs, error_code & 0xffff, mm, vma, address,
+			       write);
 	fault = handle_mm_fault(mm, vma, address,
 				(access == VM_WRITE) ? FAULT_FLAG_WRITE : 0);
+	trace_page_fault_exit(fault);
 	if (unlikely(fault & VM_FAULT_ERROR))
 		goto out_up;
 
