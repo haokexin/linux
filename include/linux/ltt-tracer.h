@@ -462,6 +462,67 @@ static inline size_t ltt_write_event_header(struct ltt_trace_struct *trace,
 	return buf_offset;
 }
 
+/*
+ * ltt_read_event_header
+ * buf_offset must aligned on 32 bits
+ */
+static inline size_t ltt_read_event_header(struct rchan_buf *buf,
+		long buf_offset, u64 *tsc, u32 *event_size, u16 *eID,
+		unsigned int *rflags)
+{
+	struct ltt_event_header header;
+	u16 small_size;
+
+	ltt_relay_read(buf, buf_offset, &header, sizeof(header));
+	buf_offset += sizeof(header);
+
+	*event_size = INT_MAX;
+	*eID = header.id_time >> LTT_TSC_BITS;
+	*tsc = header.id_time & LTT_TSC_MASK;
+
+	switch (*eID) {
+	case 29:
+		*rflags = LTT_RFLAG_ID_SIZE_TSC;
+		ltt_relay_read(buf, buf_offset, eID, sizeof(u16));
+		buf_offset += sizeof(u16);
+		ltt_relay_read(buf, buf_offset, &small_size, sizeof(u16));
+		buf_offset += sizeof(u16);
+		if (small_size == LTT_MAX_SMALL_SIZE) {
+			ltt_relay_read(buf, buf_offset, event_size,
+					sizeof(u32));
+			buf_offset += sizeof(u32);
+		} else
+			*event_size = small_size;
+		buf_offset += ltt_align(buf_offset, sizeof(u64));
+		ltt_relay_read(buf, buf_offset, tsc, sizeof(u64));
+		buf_offset += sizeof(u64);
+		break;
+	case 30:
+		*rflags = LTT_RFLAG_ID_SIZE;
+		ltt_relay_read(buf, buf_offset, eID, sizeof(u16));
+		buf_offset += sizeof(u16);
+		ltt_relay_read(buf, buf_offset, &small_size, sizeof(u16));
+		buf_offset += sizeof(u16);
+		if (small_size == LTT_MAX_SMALL_SIZE) {
+			ltt_relay_read(buf, buf_offset, event_size,
+					sizeof(u32));
+			buf_offset += sizeof(u32);
+		} else
+			*event_size = small_size;
+		break;
+	case 31:
+		*rflags = LTT_RFLAG_ID;
+		ltt_relay_read(buf, buf_offset, eID, sizeof(u16));
+		buf_offset += sizeof(u16);
+		break;
+	default:
+		*rflags = 0;
+		break;
+	}
+
+	return buf_offset;
+}
+
 /* Lockless LTTng */
 
 /* Buffer offset macros */
