@@ -444,7 +444,8 @@ static void switch_buffer(unsigned long data)
 	if (atomic_long_read(&buf->active_readers))
 		ltt_force_switch(buf, FORCE_ACTIVE);
 
-	mod_timer_pinned(&buf->switch_timer, chan->switch_timer_interval);
+	mod_timer_pinned(&buf->switch_timer,
+			 jiffies + chan->switch_timer_interval);
 }
 
 static void ltt_chanbuf_start_switch_timer(struct ltt_chanbuf *buf)
