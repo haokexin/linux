@@ -57,5 +57,6 @@ void ltt_channels_trace_set_timer(struct ltt_chan *chan,
 
 int _ltt_channels_get_event_id(const char *channel, const char *name);
 int ltt_channels_get_event_id(const char *channel, const char *name);
+void _ltt_channels_reset_event_ids(void);
 
 #endif /* _LTT_CHANNELS_H */
