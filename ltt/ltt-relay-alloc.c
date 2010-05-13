@@ -428,7 +428,7 @@ EXPORT_SYMBOL_GPL(ltt_relay_close);
 /*
  * Start iteration at the previous element. Skip the real list head.
  */
-static struct buf_page *ltt_relay_find_prev_page(struct rchan_buf *buf,
+struct buf_page *ltt_relay_find_prev_page(struct rchan_buf *buf,
 	struct buf_page *page, size_t offset, ssize_t diff_offset)
 {
 	struct buf_page *iter;
@@ -460,13 +460,15 @@ static struct buf_page *ltt_relay_find_prev_page(struct rchan_buf *buf,
 			return iter;
 		}
 	}
+	WARN_ON(1);
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(ltt_relay_find_prev_page);
 
 /*
  * Start iteration at the next element. Skip the real list head.
  */
-static struct buf_page *ltt_relay_find_next_page(struct rchan_buf *buf,
+struct buf_page *ltt_relay_find_next_page(struct rchan_buf *buf,
 	struct buf_page *page, size_t offset, ssize_t diff_offset)
 {
 	struct buf_page *iter;
@@ -498,48 +500,10 @@ static struct buf_page *ltt_relay_find_next_page(struct rchan_buf *buf,
 			return iter;
 		}
 	}
+	WARN_ON(1);
 	return NULL;
 }
-
-/*
- * Find the page containing "offset". Cache it if it is after the currently
- * cached page.
- */
-static struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
-		struct buf_page **page_cache,
-		struct buf_page *page, size_t offset)
-{
-	ssize_t diff_offset;
-	ssize_t half_buf_size = buf->chan->alloc_size >> 1;
-
-	/*
-	 * Make sure this is the page we want to write into. The current
-	 * page is changed concurrently by other writers. [wrh]page are
-	 * used as a cache remembering the last page written
-	 * to/read/looked up for header address. No synchronization;
-	 * could have to find the previous page is a nested write
-	 * occured. Finding the right page is done by comparing the
-	 * dest_offset with the buf_page offsets.
-	 * When at the exact opposite of the buffer, bias towards forward search
-	 * because it will be cached.
-	 */
-
-	diff_offset = (ssize_t)offset - (ssize_t)page->offset;
-	if (diff_offset <= -(ssize_t)half_buf_size)
-		diff_offset += buf->chan->alloc_size;
-	else if (diff_offset > half_buf_size)
-		diff_offset -= buf->chan->alloc_size;
-
-	if (unlikely(diff_offset >= (ssize_t)PAGE_SIZE)) {
-		page = ltt_relay_find_next_page(buf, page, offset, diff_offset);
-		WARN_ON(!page);
-		*page_cache = page;
-	} else if (unlikely(diff_offset < 0)) {
-		page = ltt_relay_find_prev_page(buf, page, offset, diff_offset);
-		WARN_ON(!page);
-	}
-	return page;
-}
+EXPORT_SYMBOL_GPL(ltt_relay_find_next_page);
 
 /**
  * ltt_relay_write - write data to a ltt_relay buffer.
@@ -547,26 +511,14 @@ static struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
  * @offset : offset within the buffer
  * @src : source address
  * @len : length to write
+ * @page : cached buffer page
+ * @pagecpy : page size copied so far
  */
-int ltt_relay_write(struct rchan_buf *buf, size_t offset,
-	const void *src, size_t len)
+void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
+	const void *src, size_t len, struct buf_page *page, ssize_t pagecpy)
 {
-	struct buf_page *page;
-	ssize_t pagecpy, orig_len;
-
-	orig_len = len;
-	offset &= buf->chan->alloc_size - 1;
-	page = buf->wpage;
-	if (unlikely(!len))
-		return 0;
-	for (;;) {
-		page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
-		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-		memcpy(page_address(page->page)
-			+ (offset & ~PAGE_MASK), src, pagecpy);
+	do {
 		len -= pagecpy;
-		if (likely(!len))
-			break;
 		src += pagecpy;
 		offset += pagecpy;
 		/*
@@ -574,10 +526,14 @@ int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 		 * subbuffers.
 		 */
 		WARN_ON(offset >= buf->chan->alloc_size);
-	}
-	return orig_len;
+
+		page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
+		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
+		ltt_relay_do_copy(page_address(page->page)
+			+ (offset & ~PAGE_MASK), src, pagecpy);
+	} while (unlikely(len != pagecpy));
 }
-EXPORT_SYMBOL_GPL(ltt_relay_write);
+EXPORT_SYMBOL_GPL(_ltt_relay_write);
 
 /**
  * ltt_relay_read - read data from ltt_relay_buffer.
