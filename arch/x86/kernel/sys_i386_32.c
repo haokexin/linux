@@ -18,6 +18,7 @@
 #include <linux/file.h>
 #include <linux/utsname.h>
 #include <linux/ipc.h>
+#include <trace/ipc.h>
 
 #include <linux/uaccess.h>
 #include <linux/unistd.h>
