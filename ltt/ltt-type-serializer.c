@@ -47,8 +47,11 @@ notrace void _ltt_specialized_trace(const struct marker *mdata,
 	eID = mdata->event_id;
 	chan_index = mdata->channel_id;
 
-	/* Iterate on each trace */
-	list_for_each_entry_rcu(trace, &ltt_traces.head, list) {
+	/*
+	 * Iterate on each trace, typically small number of active traces,
+	 * list iteration with prefetch is usually slower.
+	 */
+	__list_for_each_entry_rcu(trace, &ltt_traces.head, list) {
 		if (unlikely(!trace->active))
 			continue;
 		if (unlikely(!ltt_run_filter(trace, eID)))
