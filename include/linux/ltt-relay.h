@@ -5,7 +5,10 @@
  * Copyright (C) 1999, 2000, 2001, 2002 - Karim Yaghmour (karim@opersys.com)
  * Copyright (C) 2008 - Mathieu Desnoyers (mathieu.desnoyers@polymtl.ca)
  *
- * CONFIG_RELAY definitions and declarations
+ * CONFIG_RELAY definitions and declarations.
+ *
+ * Credits to Steven Rostedt for proposing to use an extra-subbuffer owned by
+ * the reader in flight recorder mode.
  */
 
 #ifndef _LINUX_LTT_RELAY_H
@@ -30,16 +33,27 @@
  */
 #define LTT_RELAY_CHANNEL_VERSION		8
 
+struct rchan_page {
+	void *virt;			/* page virtual address (cached) */
+	struct page *page;		/* pointer to page structure */
+};
+
+struct rchan_sb {
+	struct rchan_page *pages;	/* Pointer to rchan pages for subbuf */
+};
+
 /*
  * Per-cpu relay channel buffer
  */
 struct rchan_buf {
 	void *chan_private;		/* private data for this buf */
-	void **virt;			/* Array of pointers to page addr */
-	struct page **pages;		/* Array of pointers to pages */
+	struct rchan_sb *rchan_wsb;	/* Array of rchan_sb for writer */
+	struct rchan_sb rchan_rsb;	/* rchan_sb for reader */
 	struct rchan *chan;		/* associated channel */
 	struct dentry *dentry;		/* channel file dentry */
 	struct kref kref;		/* channel buffer refcount */
+	void **_virt;			/* Array of pointers to page addr */
+	struct page **_pages;		/* Array of pointers to pages */
 	unsigned int page_count;	/* number of current buffer pages */
 	unsigned int cpu;		/* this buf's cpu */
 	unsigned int random_access;	/* buffer performs random page access */
@@ -60,6 +74,7 @@ struct rchan {
 	struct list_head list;		/* for channel list */
 	struct dentry *parent;		/* parent dentry passed to open */
 	int subbuf_size_order;		/* order of sub-buffer size */
+	int extra_reader_sb;		/* bool: has extra reader subbuffer */
 	char base_filename[NAME_MAX];	/* saved base filename */
 };
 
@@ -232,14 +247,15 @@ memcpy_fallback:
 static __inline__ int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 	const void *src, size_t len)
 {
-	size_t index;
+	size_t sbidx, index;
 	ssize_t pagecpy;
 
 	offset &= buf->chan->alloc_size - 1;
-	index = offset >> PAGE_SHIFT;
+	sbidx = offset >> buf->chan->subbuf_size_order;
+	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
 	pagecpy = min_t(size_t, len, (- offset) & ~PAGE_MASK);
-	ltt_relay_do_copy(buf->virt[index] + (offset & ~PAGE_MASK),
-			  src, pagecpy);
+	ltt_relay_do_copy(buf->rchan_wsb[sbidx].pages[index].virt
+				+ (offset & ~PAGE_MASK), src, pagecpy);
 
 	if (unlikely(len != pagecpy))
 		_ltt_relay_write(buf, offset, src, len, pagecpy);
@@ -255,7 +271,8 @@ struct rchan *ltt_relay_open(const char *base_filename,
 			 size_t subbuf_size,
 			 size_t n_subbufs,
 			 struct rchan_callbacks *cb,
-			 void *private_data);
+			 void *private_data,
+			 int extra_reader_sb);
 extern void ltt_relay_close(struct rchan *chan);
 
 void ltt_relay_get_chan(struct rchan *chan);

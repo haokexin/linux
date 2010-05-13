@@ -880,7 +880,8 @@ static int ltt_relay_create_channel(const char *trace_name,
 			subbuf_size,
 			n_subbufs,
 			&trace->callbacks,
-			ltt_chan);
+			ltt_chan,
+			overwrite);
 	tmpname_len = strlen(tmpname);
 	if (tmpname_len > 0) {
 		/* Remove final _ for pretty printing */
