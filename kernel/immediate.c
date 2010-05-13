@@ -142,6 +142,10 @@ EXPORT_SYMBOL_GPL(core_imv_update);
 
 /**
  * imv_unref
+ * @begin: pointer to the beginning of the range
+ * @end: pointer to the end of the range
+ * @start: beginning of the region to consider
+ * @size: size of the region to consider
  *
  * Deactivate any immediate value reference pointing into the code region in the
  * range start to start + size.
