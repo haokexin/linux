@@ -46,6 +46,7 @@
 #include <linux/cpu.h>
 #include <linux/mutex.h>
 #include <linux/time.h>
+#include <trace/rcu.h>
 
 #include "rcutree.h"
 
@@ -130,6 +131,10 @@ static int qlowmark = 100;	/* Once only this many pending, use blimit. */
 module_param(blimit, int, 0);
 module_param(qhimark, int, 0);
 module_param(qlowmark, int, 0);
+
+DEFINE_TRACE(rcu_tree_call_rcu);
+DEFINE_TRACE(rcu_tree_call_rcu_bh);
+DEFINE_TRACE(rcu_tree_callback);
 
 static void force_quiescent_state(struct rcu_state *rsp, int relaxed);
 static int rcu_pending(int cpu);
@@ -1096,6 +1101,7 @@ static void rcu_do_batch(struct rcu_state *rsp, struct rcu_data *rdp)
 	while (list) {
 		next = list->next;
 		prefetch(next);
+		trace_rcu_tree_callback(list);
 		list->func(list);
 		list = next;
 		if (++count >= rdp->blimit)
@@ -1435,6 +1441,7 @@ EXPORT_SYMBOL_GPL(call_rcu_sched);
  */
 void call_rcu_bh(struct rcu_head *head, void (*func)(struct rcu_head *rcu))
 {
+	trace_rcu_tree_call_rcu_bh(head, _RET_IP_);
 	__call_rcu(head, func, &rcu_bh_state);
 }
 EXPORT_SYMBOL_GPL(call_rcu_bh);
