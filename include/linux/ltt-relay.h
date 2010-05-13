@@ -300,5 +300,6 @@ int update_read_sb_index(struct ltt_chanbuf_alloc *bufa,
 ssize_t ltt_relay_file_splice_read(struct file *in, loff_t *ppos,
 				   struct pipe_inode_info *pipe, size_t len,
 				   unsigned int flags);
+loff_t ltt_relay_no_llseek(struct file *file, loff_t offset, int origin);
 
 #endif /* _LINUX_LTT_RELAY_H */

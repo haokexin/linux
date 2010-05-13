@@ -194,6 +194,7 @@ static const struct file_operations ltt_file_operations = {
 	.poll = ltt_poll,
 	.splice_read = ltt_relay_file_splice_read,
 	.ioctl = ltt_ioctl,
+	.llseek = ltt_relay_no_llseek,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl = ltt_compat_ioctl,
 #endif
