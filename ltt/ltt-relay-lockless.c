@@ -863,7 +863,7 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 		return -ENOMEM;
 
 	ltt_buf->commit_count =
-		kzalloc_node(ALIGN(sizeof(ltt_buf->commit_count) * n_subbufs,
+		kzalloc_node(ALIGN(sizeof(*ltt_buf->commit_count) * n_subbufs,
 				   1 << INTERNODE_CACHE_SHIFT),
 			GFP_KERNEL, cpu_to_node(cpu));
 	if (!ltt_buf->commit_count) {
@@ -873,7 +873,7 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 
 #ifdef CONFIG_LTT_VMCORE
 	ltt_buf->commit_seq =
-		kzalloc_node(ALIGN(sizeof(ltt_buf->commit_seq) * n_subbufs,
+		kzalloc_node(ALIGN(sizeof(*ltt_buf->commit_seq) * n_subbufs,
 				   1 << INTERNODE_CACHE_SHIFT),
 			GFP_KERNEL, cpu_to_node(cpu));
 	if (!ltt_buf->commit_seq) {
