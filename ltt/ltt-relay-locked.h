@@ -89,7 +89,7 @@ struct ltt_channel_buf_struct {
 	struct timer_list switch_timer;	/* timer for periodical switch */
 	unsigned long switch_timer_interval;	/* in jiffies. 0 unset */
 	struct rchan_buf *rbuf;		/* Pointer to rchan_buf */
-} ____cacheline_aligned;
+} ____cacheline_internodealigned_in_smp;
 
 /*
  * A switch is done during tracing or as a final flush after tracing (so it
