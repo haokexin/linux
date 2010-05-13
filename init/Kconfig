@@ -1168,6 +1168,8 @@ config SLOW_WORK_DEBUG
 
 	  See Documentation/slow-work.txt.
 
+source "ltt/Kconfig"
+
 endmenu		# General setup
 
 config HAVE_GENERIC_DMA_COHERENT
