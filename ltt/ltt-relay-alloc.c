@@ -153,7 +153,6 @@ int ltt_chanbuf_alloc_create(struct ltt_chanbuf_alloc *buf,
 		goto end;
 
 	buf->chan = chan;
-	buf->allocated = 1;
 	buf->cpu = cpu;
 end:
 	return ret;
