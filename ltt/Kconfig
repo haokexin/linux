@@ -70,6 +70,17 @@ config LTT_FAST_SERIALIZE
 	  Library for serializing information from custom, efficient, tracepoint
 	  probes.
 
+config LTT_TRACEPROBES
+	tristate "Compile lttng tracing probes"
+	depends on LTT_FAST_SERIALIZE
+	depends on LTT_SERIALIZE
+	default m
+	select LTT_FILTER
+	help
+	  Compile lttng tracing probes, which connect to the tracepoints when
+	  loaded and format the information collected by the tracepoints with
+	  the Markers.
+
 config LTT_TRACE_CONTROL
 	tristate "Linux Trace Toolkit Trace Controller"
 	depends on LTT_TRACER
