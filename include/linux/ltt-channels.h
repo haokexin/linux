@@ -22,7 +22,6 @@ struct rchan_buf;
 struct ltt_channel_struct {
 	/* First 32 bytes cache-hot cacheline */
 	struct ltt_trace_struct	*trace;
-	void *buf;
 	void *trans_channel_data;
 	int overwrite:1;
 	int active:1;
@@ -55,6 +54,7 @@ struct ltt_channel_buf_access_ops {
 	int (*release)(struct rchan_buf *buf);
 	int (*get_subbuf)(struct rchan_buf *buf, unsigned long *consumed);
 	int (*put_subbuf)(struct rchan_buf *buf, unsigned long consumed);
+	int (*is_finalized)(struct rchan_buf *buf);
 	unsigned long (*get_n_subbufs)(struct rchan_buf *buf);
 	unsigned long (*get_subbuf_size)(struct rchan_buf *buf);
 	void (*start_switch_timer)(struct ltt_channel_struct *ltt_channel);

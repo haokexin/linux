@@ -631,9 +631,11 @@ int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
 		strpagelen = strnlen(str, pagelen);
 		if (len) {
 			pagecpy = min_t(size_t, len, strpagelen);
-			memcpy(dest, str, pagecpy);
+			if (dest) {
+				memcpy(dest, str, pagecpy);
+				dest += pagecpy;
+			}
 			len -= pagecpy;
-			dest += pagecpy;
 		}
 		offset += strpagelen;
 		index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
@@ -645,7 +647,7 @@ int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
 		 */
 		WARN_ON(offset >= buf->chan->alloc_size);
 	}
-	if (len)
+	if (dest && len)
 		((char *)dest)[0] = 0;
 	return offset - orig_offset;
 }
