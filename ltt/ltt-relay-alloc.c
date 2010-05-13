@@ -126,8 +126,10 @@ static int relay_alloc_buf(struct rchan_buf *buf, size_t *size,
 	return 0;
 
 free_rchan_wsb:
-	for (i = 0; i < n_subbufs; i++)
+	for (i = 0; i < n_subbufs; i++) {
+		RCHAN_SB_CLEAR_NOREF(buf->rchan_wsb[i].pages);
 		kfree(buf->rchan_wsb[i].pages);
+	}
 	kfree(buf->rchan_wsb);
 depopulate:
 	/*
@@ -207,10 +209,14 @@ static void relay_destroy_buf(struct rchan_buf *buf)
 	long i;
 
 	/* Destroy index */
-	if (chan->extra_reader_sb)
+	if (chan->extra_reader_sb) {
+		RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
 		kfree(buf->rchan_rsb.pages);
-	for (i = 0; i < chan->n_subbufs; i++)
+	}
+	for (i = 0; i < chan->n_subbufs; i++) {
+		RCHAN_SB_CLEAR_NOREF(buf->rchan_wsb[i].pages);
 		kfree(buf->rchan_wsb[i].pages);
+	}
 	kfree(buf->rchan_wsb);
 
 	/* Destroy pages */
@@ -519,6 +525,7 @@ void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
 	const void *src, size_t len, ssize_t pagecpy)
 {
 	size_t sbidx, index;
+	struct rchan_page *rpages;
 
 	do {
 		len -= pagecpy;
@@ -534,8 +541,10 @@ void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
 		WARN_ON(offset >= buf->chan->alloc_size);
 
 		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-		ltt_relay_do_copy(buf->rchan_wsb[sbidx].pages[index].virt
-				+ (offset & ~PAGE_MASK), src, pagecpy);
+		rpages = buf->rchan_wsb[sbidx].pages;
+		WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
+		ltt_relay_do_copy(rpages[index].virt + (offset & ~PAGE_MASK),
+				  src, pagecpy);
 	} while (unlikely(len != pagecpy));
 }
 EXPORT_SYMBOL_GPL(_ltt_relay_write);
@@ -546,23 +555,27 @@ EXPORT_SYMBOL_GPL(_ltt_relay_write);
  * @offset : offset within the buffer
  * @dest : destination address
  * @len : length to write
+ *
+ * Should be protected by get_subbuf/put_subbuf.
  */
 int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 	void *dest, size_t len)
 {
-	size_t sbidx, index;
+	size_t index;
 	ssize_t pagecpy, orig_len;
+	struct rchan_page *rpages;
 
 	orig_len = len;
 	offset &= buf->chan->alloc_size - 1;
-	sbidx = offset >> buf->chan->subbuf_size_order;
 	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
 	if (unlikely(!len))
 		return 0;
 	for (;;) {
 		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-		memcpy(dest, buf->rchan_wsb[sbidx].pages[index].virt
-			+ (offset & ~PAGE_MASK), pagecpy);
+		rpages = buf->rchan_rsb.pages;
+		WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
+		memcpy(dest, rpages[index].virt + (offset & ~PAGE_MASK),
+		       pagecpy);
 		len -= pagecpy;
 		if (likely(!len))
 			break;
@@ -573,7 +586,6 @@ int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 		 * Underlying layer should never ask for reads across
 		 * subbuffers.
 		 */
-		WARN_ON(sbidx != offset >> buf->chan->subbuf_size_order);
 		WARN_ON(offset >= buf->chan->alloc_size);
 	}
 	return orig_len;
@@ -588,21 +600,23 @@ EXPORT_SYMBOL_GPL(ltt_relay_read);
  * @len : destination's length
  *
  * return string's length
+ * Should be protected by get_subbuf/put_subbuf.
  */
 int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
 		void *dest, size_t len)
 {
-	size_t sbidx, index;
+	size_t index;
 	ssize_t pagecpy, pagelen, strpagelen, orig_offset;
 	char *str;
+	struct rchan_page *rpages;
 
 	offset &= buf->chan->alloc_size - 1;
-	sbidx = offset >> buf->chan->subbuf_size_order;
 	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
 	orig_offset = offset;
 	for (;;) {
-		str = (char *)buf->rchan_wsb[sbidx].pages[index].virt
-				+ (offset & ~PAGE_MASK);
+		rpages = buf->rchan_rsb.pages;
+		WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
+		str = (char *)rpages[index].virt + (offset & ~PAGE_MASK);
 		pagelen = PAGE_SIZE - (offset & ~PAGE_MASK);
 		strpagelen = strnlen(str, pagelen);
 		if (len) {
@@ -619,7 +633,6 @@ int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
 		 * Underlying layer should never ask for reads across
 		 * subbuffers.
 		 */
-		WARN_ON(sbidx != offset >> buf->chan->subbuf_size_order);
 		WARN_ON(offset >= buf->chan->alloc_size);
 	}
 	if (len)
@@ -632,17 +645,44 @@ EXPORT_SYMBOL_GPL(ltt_relay_read_cstr);
  * ltt_relay_read_get_page - Get a whole page to read from
  * @buf : buffer
  * @offset : offset within the buffer
+ *
+ * Should be protected by get_subbuf/put_subbuf.
  */
 struct page *ltt_relay_read_get_page(struct rchan_buf *buf, size_t offset)
 {
-	size_t sbidx, index;
+	size_t index;
+	struct rchan_page *rpages;
 
 	offset &= buf->chan->alloc_size - 1;
-	sbidx = offset >> buf->chan->subbuf_size_order;
 	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
-	return buf->rchan_wsb[sbidx].pages[index].page;
+	rpages = buf->rchan_rsb.pages;
+	WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
+	return rpages[index].page;
 }
 EXPORT_SYMBOL_GPL(ltt_relay_read_get_page);
+
+/**
+ * ltt_relay_read_offset_address - get address of a location within the buffer
+ * @buf : buffer
+ * @offset : offset within the buffer.
+ *
+ * Return the address where a given offset is located (for read).
+ * Should be used to get the current subbuffer header pointer. Given we know
+ * it's never on a page boundary, it's safe to write directly to this address,
+ * as long as the write is never bigger than a page size.
+ */
+void *ltt_relay_read_offset_address(struct rchan_buf *buf, size_t offset)
+{
+	size_t index;
+	struct rchan_page *rpages;
+
+	offset &= buf->chan->alloc_size - 1;
+	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
+	rpages = buf->rchan_rsb.pages;
+	WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
+	return rpages[index].virt + (offset & ~PAGE_MASK);
+}
+EXPORT_SYMBOL_GPL(ltt_relay_read_offset_address);
 
 /**
  * ltt_relay_offset_address - get address of a location within the buffer
@@ -657,11 +697,14 @@ EXPORT_SYMBOL_GPL(ltt_relay_read_get_page);
 void *ltt_relay_offset_address(struct rchan_buf *buf, size_t offset)
 {
 	size_t sbidx, index;
+	struct rchan_page *rpages;
 
 	offset &= buf->chan->alloc_size - 1;
 	sbidx = offset >> buf->chan->subbuf_size_order;
 	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
-	return buf->rchan_wsb[sbidx].pages[index].virt + (offset & ~PAGE_MASK);
+	rpages = buf->rchan_wsb[sbidx].pages;
+	WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
+	return rpages[index].virt + (offset & ~PAGE_MASK);
 }
 EXPORT_SYMBOL_GPL(ltt_relay_offset_address);
 
