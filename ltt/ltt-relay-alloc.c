@@ -17,14 +17,8 @@
 #include <linux/cpu.h>
 #include <linux/bitops.h>
 #include <linux/ltt-tracer.h>
-#include <linux/rculist.h>
 
 #include "ltt-relay-select.h"	/* for cpu hotplug */
-
-/* Protect list and channel structures (alloc/free) for sleepable operations */
-static DEFINE_MUTEX(ltt_relay_alloc_mutex);
-/* list of open channels, for cpu hotplug. */
-static LIST_HEAD(ltt_relay_channels);
 
 /**
  * ltt_chanbuf_allocate - allocate a channel buffer
@@ -205,26 +199,31 @@ int __cpuinit ltt_relay_hotcpu_callback(struct notifier_block *nb,
 					void *hcpu)
 {
 	unsigned int cpu = (unsigned long)hcpu;
+	struct ltt_trace *trace;
 	struct ltt_chan *chan;
-	int ret;
+	struct ltt_chanbuf *buf;
+	int ret, i;
 
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
-		mutex_lock(&ltt_relay_alloc_mutex);
-		list_for_each_entry_rcu(chan, &ltt_relay_channels, a.list) {
-			struct ltt_chanbuf *buf = per_cpu_ptr(chan->a.buf, cpu);
+		/*
+		 * CPU hotplug lock protects trace lock from this callback.
+		 */
+		__list_for_each_entry_rcu(trace, &ltt_traces.head, list) {
+			for (i = 0; i < trace->nr_channels; i++) {
+				chan = &trace->channels[i];
+				buf = per_cpu_ptr(chan->a.buf, cpu);
+				ret = ltt_chanbuf_create(buf, &chan->a, cpu);
+				if (ret) {
+					printk(KERN_ERR
+					  "ltt_relay_hotcpu_callback: cpu %d "
+					  "buffer creation failed\n", cpu);
+					return NOTIFY_BAD;
+				}
 
-			ret = ltt_chanbuf_create(buf, &chan->a, cpu);
-			if (ret) {
-				printk(KERN_ERR
-					"ltt_relay_hotcpu_callback: cpu %d "
-					"buffer creation failed\n", cpu);
-				mutex_unlock(&ltt_relay_alloc_mutex);
-				return NOTIFY_BAD;
 			}
 		}
-		mutex_unlock(&ltt_relay_alloc_mutex);
 		break;
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
@@ -236,27 +235,25 @@ int __cpuinit ltt_relay_hotcpu_callback(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
-			       int sleepable)
+/*
+ * Must be called with either trace lock or rcu read lock sched held.
+ */
+void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu)
 {
+	struct ltt_trace *trace;
 	struct ltt_chan *chan;
+	struct ltt_chanbuf *buf;
+	int i;
 
-	if (sleepable)
-		rcu_read_lock();
-	else
-		rcu_read_lock_sched_notrace();
-	list_for_each_entry_rcu(chan, &ltt_relay_channels, a.list) {
-		struct ltt_chanbuf *buf;
-
-		if (!chan->active)
-			continue;
-		buf = per_cpu_ptr(chan->a.buf, cpu);
-		cb(buf);
+	__list_for_each_entry_rcu(trace, &ltt_traces.head, list) {
+		for (i = 0; i < trace->nr_channels; i++) {
+			chan = &trace->channels[i];
+			if (!chan->active)
+				continue;
+			buf = per_cpu_ptr(chan->a.buf, cpu);
+			cb(buf);
+		}
 	}
-	if (sleepable)
-		rcu_read_unlock();
-	else
-		rcu_read_unlock_sched_notrace();
 }
 
 /**
@@ -317,14 +314,11 @@ int ltt_chan_alloc_init(struct ltt_chan_alloc *chan, struct ltt_trace *trace,
 	if (!chan->buf)
 		goto free_chan;
 
-	mutex_lock(&ltt_relay_alloc_mutex);
 	for_each_online_cpu(i) {
 		ret = ltt_chanbuf_create(per_cpu_ptr(chan->buf, i), chan, i);
 		if (ret)
 			goto free_bufs;
 	}
-	list_add_rcu(&chan->list, &ltt_relay_channels);
-	mutex_unlock(&ltt_relay_alloc_mutex);
 
 	return 0;
 
@@ -337,7 +331,6 @@ free_bufs:
 		ltt_chanbuf_remove_file(buf);
 		ltt_chanbuf_free(buf);
 	}
-	mutex_unlock(&ltt_relay_alloc_mutex);
 	free_percpu(chan->buf);
 free_chan:
 	kref_put(&chan->kref, ltt_chan_free);
@@ -354,13 +347,6 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 {
 	unsigned int i;
 
-	mutex_lock(&ltt_relay_alloc_mutex);
-	list_del_rcu(&chan->list);
-	/* Delay channel free for RCU channel list, protected by
-	 * RCU sched (tracing code) and standard RCU (hotplug management). */
-	synchronize_sched();
-	synchronize_rcu();
-
 	for_each_possible_cpu(i) {
 		struct ltt_chanbuf *buf = per_cpu_ptr(chan->buf, i);
 
@@ -369,7 +355,6 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 		ltt_chanbuf_remove_file(buf);
 		ltt_chanbuf_free(buf);
 	}
-	mutex_unlock(&ltt_relay_alloc_mutex);
 	free_percpu(chan->buf);
 	kref_put(&chan->trace->kref, ltt_release_trace);
 	wake_up_interruptible(&chan->trace->kref_wq);

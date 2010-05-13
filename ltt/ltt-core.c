@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/debugfs.h>
 #include <linux/kref.h>
+#include <linux/cpu.h>
 
 /* Traces structures */
 struct ltt_traces ltt_traces = {
@@ -64,14 +65,19 @@ out:
 }
 EXPORT_SYMBOL_GPL(get_ltt_root);
 
+/*
+ * ltt_lock_traces/ltt_unlock_traces also disables cpu hotplug.
+ */
 void ltt_lock_traces(void)
 {
 	mutex_lock(&ltt_traces_mutex);
+	get_online_cpus();
 }
 EXPORT_SYMBOL_GPL(ltt_lock_traces);
 
 void ltt_unlock_traces(void)
 {
+	put_online_cpus();
 	mutex_unlock(&ltt_traces_mutex);
 }
 EXPORT_SYMBOL_GPL(ltt_unlock_traces);
