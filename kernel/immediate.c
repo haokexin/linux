@@ -7,6 +7,7 @@
 #include <linux/mutex.h>
 #include <linux/immediate.h>
 #include <linux/memory.h>
+#include <linux/cpu.h>
 
 #include <asm/sections.h>
 
@@ -41,9 +42,12 @@ void imv_update_range(const struct __imv *begin,
 	for (iter = begin; iter < end; iter++) {
 		if (!iter->imv) /* Skip removed __init immediate values */
 			continue;
+		/* workaround on_each_cpu cpu hotplug race */
+		get_online_cpus();
 		mutex_lock(&text_mutex);
 		ret = arch_imv_update(iter, !imv_early_boot_complete);
 		mutex_unlock(&text_mutex);
+		put_online_cpus();
 		if (imv_early_boot_complete && ret)
 			printk(KERN_WARNING
 				"Invalid immediate value. "
