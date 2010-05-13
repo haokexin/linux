@@ -36,6 +36,7 @@
 #include <linux/cpu.h>
 #include <linux/moduleparam.h>
 #include <linux/errno.h>
+#include <linux/immediate.h>
 #include <linux/err.h>
 #include <linux/vermagic.h>
 #include <linux/notifier.h>
@@ -2324,6 +2325,11 @@ static noinline struct module *load_module(void __user *umod,
 	mod->ctors = section_objs(hdr, sechdrs, secstrings, ".ctors",
 				  sizeof(*mod->ctors), &mod->num_ctors);
 #endif
+#ifdef CONFIG_IMMEDIATE
+	mod->immediate = section_objs(hdr, sechdrs, secstrings, "__imv",
+					sizeof(*mod->immediate),
+					&mod->num_immediate);
+#endif
 
 #ifdef CONFIG_MARKERS
 	mod->markers = section_objs(hdr, sechdrs, secstrings, "__markers",
@@ -3167,4 +3173,39 @@ int module_get_iter_tracepoints(struct tracepoint_iter *iter)
 	mutex_unlock(&module_mutex);
 	return found;
 }
+#endif
+
+#ifdef CONFIG_IMMEDIATE
+/**
+ * _module_imv_update - update all immediate values in the kernel
+ *
+ * Iterate on the kernel core and modules to update the immediate values.
+ * Module_mutex must be held be the caller.
+ */
+void _module_imv_update(void)
+{
+	struct module *mod;
+
+	list_for_each_entry(mod, &modules, list) {
+		if (mod->taints)
+			continue;
+		imv_update_range(mod->immediate,
+			mod->immediate + mod->num_immediate);
+	}
+}
+EXPORT_SYMBOL_GPL(_module_imv_update);
+
+/**
+ * module_imv_update - update all immediate values in the kernel
+ *
+ * Iterate on the kernel core and modules to update the immediate values.
+ * Takes module_mutex.
+ */
+void module_imv_update(void)
+{
+	mutex_lock(&module_mutex);
+	_module_imv_update();
+	mutex_unlock(&module_mutex);
+}
+EXPORT_SYMBOL_GPL(module_imv_update);
 #endif
