@@ -106,6 +106,7 @@ config LTT_TRACEPROBES
 config LTT_TRACE_CONTROL
 	tristate "Linux Trace Toolkit Trace Controller"
 	depends on LTT_TRACER
+	depends on LTT_SERIALIZE
 	default y
 	help
 	  If you enable this option, the debugfs-based Linux Trace Toolkit Trace
