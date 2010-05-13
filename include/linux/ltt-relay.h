@@ -167,6 +167,10 @@ extern struct buf_page *ltt_relay_read_get_page(struct rchan_buf *buf,
 extern void *ltt_relay_offset_address(struct rchan_buf *buf,
 	size_t offset);
 
+extern struct buf_page *ltt_relay_cache_page_slow(struct rchan_buf *buf,
+		struct buf_page **page_cache,
+		struct buf_page *page, size_t offset);
+
 /*
  * Find the page containing "offset". Cache it if it is after the currently
  * cached page.
@@ -175,33 +179,8 @@ static __inline__ struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
 		struct buf_page **page_cache,
 		struct buf_page *page, size_t offset)
 {
-	ssize_t diff_offset;
-	ssize_t half_buf_size = buf->chan->alloc_size >> 1;
-
-	/*
-	 * Make sure this is the page we want to write into. The current
-	 * page is changed concurrently by other writers. [wrh]page are
-	 * used as a cache remembering the last page written
-	 * to/read/looked up for header address. No synchronization;
-	 * could have to find the previous page is a nested write
-	 * occured. Finding the right page is done by comparing the
-	 * dest_offset with the buf_page offsets.
-	 * When at the exact opposite of the buffer, bias towards forward search
-	 * because it will be cached.
-	 */
-
-	diff_offset = (ssize_t)offset - (ssize_t)page->offset;
-	if (diff_offset <= -(ssize_t)half_buf_size)
-		diff_offset += buf->chan->alloc_size;
-	else if (diff_offset > half_buf_size)
-		diff_offset -= buf->chan->alloc_size;
-
-	if (unlikely(diff_offset >= (ssize_t)PAGE_SIZE)) {
-		page = ltt_relay_find_next_page(buf, page, offset, diff_offset);
-		*page_cache = page;
-	} else if (unlikely(diff_offset < 0)) {
-		page = ltt_relay_find_prev_page(buf, page, offset, diff_offset);
-	}
+	if (unlikely((offset & PAGE_MASK) != page->offset))
+		return ltt_relay_cache_page_slow(buf, page_cache, page, offset);
 	return page;
 }
 
@@ -294,7 +273,7 @@ static __inline__ int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 	page = buf->wpage;
 
 	page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
-	pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
+	pagecpy = min_t(size_t, len, (- offset) & ~PAGE_MASK);
 	ltt_relay_do_copy(page->virt + (offset & ~PAGE_MASK), src, pagecpy);
 
 	if (unlikely(len != pagecpy))
