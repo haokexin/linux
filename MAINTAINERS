@@ -3484,6 +3484,13 @@ L:	lm-sensors@lm-sensors.org
 S:	Maintained
 F:	drivers/hwmon/lm73.c
 
+LINUX TRACE TOOLKIT NEXT GENERATION
+P:	Mathieu Desnoyers
+M:	mathieu.desnoyers@polymtl.ca
+L:	ltt-dev@lttng.org
+W:	http://ltt.polymtl.ca
+S:	Maintained
+
 LM83 HARDWARE MONITOR DRIVER
 M:	Jean Delvare <khali@linux-fr.org>
 L:	lm-sensors@lm-sensors.org
