@@ -821,6 +821,7 @@ int ltt_trace_alloc(const char *trace_name)
 	if (list_empty(&ltt_traces.head)) {
 		mod_timer(&ltt_async_wakeup_timer,
 				jiffies + LTT_PERCPU_TIMER_INTERVAL);
+		set_kernel_trace_flag_all_tasks();
 	}
 	list_add_rcu(&trace->list, &ltt_traces.head);
 	synchronize_sched();
@@ -892,6 +893,7 @@ static int _ltt_trace_destroy(struct ltt_trace_struct	*trace)
 	list_del_rcu(&trace->list);
 	synchronize_sched();
 	if (list_empty(&ltt_traces.head)) {
+		clear_kernel_trace_flag_all_tasks();
 		/*
 		 * We stop the asynchronous delivery of reader wakeup, but
 		 * we must make one last check for reader wakeups pending
