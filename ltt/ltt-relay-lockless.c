@@ -1337,7 +1337,7 @@ static struct notifier_block fn_ltt_chanbuf_hotcpu_callback = {
 	.priority = 6,
 };
 
-static int __init ltt_relay_init(void)
+int __init ltt_relay_init(void)
 {
 	printk(KERN_INFO "LTT : ltt-relay init\n");
 
@@ -1348,7 +1348,7 @@ static int __init ltt_relay_init(void)
 	return 0;
 }
 
-static void __exit ltt_relay_exit(void)
+void __exit ltt_relay_exit(void)
 {
 	printk(KERN_INFO "LTT : ltt-relay exit\n");
 
@@ -1356,9 +1356,6 @@ static void __exit ltt_relay_exit(void)
 	unregister_cpu_notifier(&fn_ltt_chanbuf_hotcpu_callback);
 	ltt_transport_unregister(&ltt_relay_transport);
 }
-
-module_init(ltt_relay_init);
-module_exit(ltt_relay_exit);
 
 MODULE_LICENSE("GPL and additional rights");
 MODULE_AUTHOR("Mathieu Desnoyers");

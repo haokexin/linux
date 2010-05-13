@@ -184,6 +184,9 @@ extern int ltt_chanbuf_put_subbuf(struct ltt_chanbuf *buf,
 extern void ltt_chan_start_switch_timer(struct ltt_chan *chan);
 extern void ltt_chan_stop_switch_timer(struct ltt_chan *chan);
 
+extern int ltt_relay_init(void);
+extern void ltt_relay_exit(void);
+
 static __inline__
 unsigned long ltt_chanbuf_get_offset(struct ltt_chanbuf *buf)
 {
