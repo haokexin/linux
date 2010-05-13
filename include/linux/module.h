@@ -15,6 +15,7 @@
 #include <linux/stringify.h>
 #include <linux/kobject.h>
 #include <linux/moduleparam.h>
+#include <linux/immediate.h>
 #include <linux/marker.h>
 #include <linux/tracepoint.h>
 
@@ -342,6 +343,10 @@ struct module
 	/* The command line arguments (may be mangled).  People like
 	   keeping pointers to this stuff */
 	char *args;
+#ifdef CONFIG_IMMEDIATE
+	const struct __imv *immediate;
+	unsigned int num_immediate;
+#endif
 #ifdef CONFIG_MARKERS
 	struct marker *markers;
 	unsigned int num_markers;
@@ -548,6 +553,9 @@ extern int module_get_iter_markers(struct marker_iter *iter);
 extern void module_update_tracepoints(void);
 extern int module_get_iter_tracepoints(struct tracepoint_iter *iter);
 
+extern void _module_imv_update(void);
+extern void module_imv_update(void);
+
 #else /* !CONFIG_MODULES... */
 #define EXPORT_SYMBOL(sym)
 #define EXPORT_SYMBOL_GPL(sym)
@@ -680,6 +688,14 @@ static inline int module_get_iter_tracepoints(struct tracepoint_iter *iter)
 static inline int module_get_iter_markers(struct marker_iter *iter)
 {
 	return 0;
+}
+
+static inline void _module_imv_update(void)
+{
+}
+
+static inline void module_imv_update(void)
+{
 }
 
 #endif /* CONFIG_MODULES */
