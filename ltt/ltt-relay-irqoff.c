@@ -138,6 +138,8 @@ static struct dentry *ltt_create_buf_file_callback(const char *filename,
 			&ltt_file_operations);
 	if (!dentry)
 		goto error;
+	if (buf->cpu == 0)
+		buf->ascii_dentry = ltt_ascii_create(ltt_chan->trace, ltt_chan);
 	return dentry;
 error:
 	ltt_relay_destroy_buffer(ltt_chan, buf->cpu);
@@ -149,6 +151,7 @@ static int ltt_remove_buf_file_callback(struct dentry *dentry)
 	struct rchan_buf *buf = dentry->d_inode->i_private;
 	struct ltt_channel_struct *ltt_chan = buf->chan->private_data;
 
+	ltt_ascii_remove(ltt_chan, buf->ascii_dentry);
 	debugfs_remove(dentry);
 	ltt_relay_destroy_buffer(ltt_chan, buf->cpu);
 
@@ -213,6 +216,13 @@ static int _ltt_release(struct rchan_buf *buf)
 	WARN_ON(atomic_long_read(&ltt_buf->active_readers) != 1);
 	atomic_long_dec(&ltt_buf->active_readers);
 	return 0;
+}
+
+static int is_finalized(struct rchan_buf *buf)
+{
+	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
+
+	return ltt_buf->finalized;
 }
 
 /*
@@ -445,6 +455,7 @@ static struct ltt_channel_buf_access_ops ltt_channel_buf_accessor = {
 	.get_consumed = get_consumed,
 	.get_subbuf = get_subbuf,
 	.put_subbuf = put_subbuf,
+	.is_finalized = is_finalized,
 	.get_n_subbufs = get_n_subbufs,
 	.get_subbuf_size = get_subbuf_size,
 	.open = _ltt_open,
@@ -830,6 +841,7 @@ static void ltt_relay_print_buffer_errors(struct ltt_channel_struct *ltt_chan,
 
 static void ltt_relay_remove_dirs(struct ltt_trace_struct *trace)
 {
+	ltt_ascii_remove_dir(trace);
 	debugfs_remove(trace->dentry.trace_root);
 }
 
@@ -976,6 +988,7 @@ end:
 static int ltt_relay_create_dirs(struct ltt_trace_struct *new_trace)
 {
 	struct dentry *ltt_root_dentry;
+	int ret;
 
 	ltt_root_dentry = get_ltt_root();
 	if (!ltt_root_dentry)
@@ -989,6 +1002,10 @@ static int ltt_relay_create_dirs(struct ltt_trace_struct *new_trace)
 				new_trace->trace_name);
 		return EEXIST;
 	}
+	ret = ltt_ascii_create_dir(new_trace);
+	if (ret)
+		printk(KERN_WARNING "LTT : Unable to create ascii output file "
+				    "for trace %s\n", new_trace->trace_name);
 
 	new_trace->callbacks.create_buf_file = ltt_create_buf_file_callback;
 	new_trace->callbacks.remove_buf_file = ltt_remove_buf_file_callback;

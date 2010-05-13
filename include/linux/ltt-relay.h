@@ -63,6 +63,7 @@ struct rchan_buf {
 	unsigned int page_count;	/* number of current buffer pages */
 	unsigned int cpu;		/* this buf's cpu */
 	unsigned int random_access;	/* buffer performs random page access */
+	struct dentry *ascii_dentry;	/* Text output dentry */
 } ____cacheline_aligned;
 
 /*
@@ -169,6 +170,8 @@ extern struct page *ltt_relay_read_get_page(struct rchan_buf *buf,
  * as long as the write is never bigger than a page size.
  */
 extern void *ltt_relay_offset_address(struct rchan_buf *buf,
+	size_t offset);
+extern void *ltt_relay_read_offset_address(struct rchan_buf *buf,
 	size_t offset);
 
 #ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS

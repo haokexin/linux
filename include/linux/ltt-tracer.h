@@ -656,6 +656,35 @@ extern void ltt_dump_marker_state(struct ltt_trace_struct *trace);
 void ltt_lock_traces(void);
 void ltt_unlock_traces(void);
 
+#ifdef CONFIG_LTT_ASCII
+extern int ltt_ascii_create_dir(struct ltt_trace_struct *new_trace);
+extern void ltt_ascii_remove_dir(struct ltt_trace_struct *trace);
+extern struct dentry *ltt_ascii_create(struct ltt_trace_struct *trace,
+		struct ltt_channel_struct *ltt_channel);
+extern void ltt_ascii_remove(struct ltt_channel_struct *ltt_channel,
+		struct dentry *ascii);
+#else
+static inline int ltt_ascii_create_dir(struct ltt_trace_struct *new_trace)
+{
+	return 0;
+}
+
+static inline void ltt_ascii_remove_dir(struct ltt_trace_struct *trace)
+{
+}
+
+static inline struct dentry *ltt_ascii_create(struct ltt_trace_struct *trace,
+		struct ltt_channel_struct *ltt_channel)
+{
+	return NULL;
+}
+
+static inline void ltt_ascii_remove(struct ltt_channel_struct *ltt_channel,
+		struct dentry *ascii)
+{
+}
+#endif
+
 extern void ltt_statedump_register_kprobes_dump(
 	void (*callback)(void *call_data));
 extern void ltt_statedump_unregister_kprobes_dump(
