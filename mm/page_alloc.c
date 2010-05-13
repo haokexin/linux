@@ -51,6 +51,7 @@
 #include <linux/memory.h>
 #include <trace/events/kmem.h>
 #include <linux/ftrace_event.h>
+#include <trace/page_alloc.h>
 
 #include <asm/tlbflush.h>
 #include <asm/div64.h>
@@ -105,6 +106,9 @@ gfp_t clear_gfp_allowed_mask(gfp_t mask)
 #ifdef CONFIG_HUGETLB_PAGE_SIZE_VARIABLE
 int pageblock_order __read_mostly;
 #endif
+
+DEFINE_TRACE(page_alloc);
+DEFINE_TRACE(page_free);
 
 static void __free_pages_ok(struct page *page, unsigned int order);
 
@@ -610,6 +614,8 @@ static void __free_pages_ok(struct page *page, unsigned int order)
 	trace_mm_page_free_direct(page, order);
 	kmemcheck_free_shadow(page, order);
 
+	trace_page_free(page, order);
+
 	for (i = 0 ; i < (1 << order) ; ++i)
 		bad += free_pages_check(page + i);
 	if (bad)
@@ -1110,6 +1116,8 @@ void free_hot_cold_page(struct page *page, int cold)
 
 	trace_mm_page_free_direct(page, 0);
 	kmemcheck_free_shadow(page, 0);
+
+	trace_page_free(page, 0);
 
 	if (PageAnon(page))
 		page->mapping = NULL;
@@ -1948,6 +1956,7 @@ nopage:
 	}
 	return page;
 got_pg:
+	trace_page_alloc(page, order);
 	if (kmemcheck_enabled)
 		kmemcheck_pagealloc_alloc(page, order, gfp_mask);
 	return page;
