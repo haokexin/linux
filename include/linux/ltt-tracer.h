@@ -534,7 +534,7 @@ size_t ltt_read_event_header(struct ltt_chanbuf_alloc *bufa, long buf_offset,
 #define LTT_DEFAULT_N_SUBBUFS_HIGH	2
 #define LTT_TRACER_MAGIC_NUMBER		0x00D6B7ED
 #define LTT_TRACER_VERSION_MAJOR	2
-#define LTT_TRACER_VERSION_MINOR	5
+#define LTT_TRACER_VERSION_MINOR	6
 
 /**
  * ltt_write_trace_header - Write trace header
