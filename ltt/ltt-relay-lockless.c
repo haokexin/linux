@@ -521,9 +521,16 @@ static void ltt_chanbuf_idle_switch(struct ltt_chanbuf *buf)
 		ltt_force_switch(buf, FORCE_ACTIVE);
 }
 
+/*
+ * ltt_chanbuf_switch is called from a remote CPU to ensure that the buffers of
+ * a cpu which went down are flushed. Note that if we execute concurrently
+ * with trace allocation, a buffer might appear be unallocated (because it
+ * detects that the target CPU is offline).
+ */
 static void ltt_chanbuf_switch(struct ltt_chanbuf *buf)
 {
-	ltt_force_switch(buf, FORCE_ACTIVE);
+	if (buf->a.allocated)
+		ltt_force_switch(buf, FORCE_ACTIVE);
 }
 
 /**

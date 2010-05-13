@@ -242,7 +242,10 @@ void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
 {
 	struct ltt_chan *chan;
 
-	rcu_read_lock();
+	if (sleepable)
+		rcu_read_lock();
+	else
+		rcu_read_lock_sched_notrace();
 	list_for_each_entry_rcu(chan, &ltt_relay_channels, a.list) {
 		struct ltt_chanbuf *buf;
 
@@ -251,7 +254,10 @@ void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
 		buf = per_cpu_ptr(chan->a.buf, cpu);
 		cb(buf);
 	}
-	rcu_read_unlock();
+	if (sleepable)
+		rcu_read_unlock();
+	else
+		rcu_read_unlock_sched_notrace();
 }
 
 /**
@@ -350,6 +356,12 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 	unsigned int i;
 
 	mutex_lock(&ltt_relay_alloc_mutex);
+	list_del_rcu(&chan->list);
+	/* Delay channel free for RCU channel list, protected by
+	 * RCU sched (tracing code) and standard RCU (hotplug management). */
+	synchronize_sched();
+	synchronize_rcu();
+
 	for_each_possible_cpu(i) {
 		struct ltt_chanbuf *buf = per_cpu_ptr(chan->buf, i);
 
@@ -358,11 +370,7 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 		ltt_chanbuf_remove_file(buf);
 		kref_put(&buf->a.kref, ltt_chanbuf_free);
 	}
-	list_del_rcu(&chan->list);
 	mutex_unlock(&ltt_relay_alloc_mutex);
-	/* Delay channel free for RCU channel list, protected by
-	 * RCU sched. */
-	synchronize_sched();
 	free_percpu(chan->buf);
 	kref_put(&chan->trace->kref, ltt_release_trace);
 	wake_up_interruptible(&chan->trace->kref_wq);
