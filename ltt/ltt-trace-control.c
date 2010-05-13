@@ -79,14 +79,14 @@ static struct dentry *dir_lookup(struct dentry *parent, const char *name)
 
 
 static ssize_t alloc_write(struct file *file, const char __user *user_buf,
-		size_t count, loff_t *ppos)
+			   size_t count, loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
-	char cmd[NAME_MAX];
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
+	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -109,12 +109,16 @@ static ssize_t alloc_write(struct file *file, const char __user *user_buf,
 		goto err_alloc_trace;
 	}
 
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return count;
 
 err_alloc_trace:
 err_bad_cmd:
 err_get_cmd:
 err_copy_from_user:
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return err;
 }
 
@@ -124,14 +128,14 @@ static const struct file_operations ltt_alloc_operations = {
 
 
 static ssize_t enabled_write(struct file *file, const char __user *user_buf,
-		size_t count, loff_t *ppos)
+			     size_t count, loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
-	char cmd[NAME_MAX];
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
+	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -154,8 +158,8 @@ static ssize_t enabled_write(struct file *file, const char __user *user_buf,
 		err = ltt_trace_start(file->f_dentry->d_parent->d_name.name);
 		if (IS_ERR_VALUE(err)) {
 			printk(KERN_ERR
-				"enabled_write: ltt_trace_start failed: %d\n",
-				err);
+			       "enabled_write: ltt_trace_start failed: %d\n",
+			       err);
 			err = -EPERM;
 			goto err_start_trace;
 		}
@@ -166,8 +170,8 @@ static ssize_t enabled_write(struct file *file, const char __user *user_buf,
 		err = ltt_trace_stop(file->f_dentry->d_parent->d_name.name);
 		if (IS_ERR_VALUE(err)) {
 			printk(KERN_ERR
-				"enabled_write: ltt_trace_stop failed: %d\n",
-				err);
+			       "enabled_write: ltt_trace_stop failed: %d\n",
+			       err);
 			err = -EPERM;
 			goto err_stop_trace;
 		}
@@ -177,6 +181,8 @@ static ssize_t enabled_write(struct file *file, const char __user *user_buf,
 		goto err_bad_cmd;
 	}
 
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return count;
 
 err_stop_trace:
@@ -184,6 +190,8 @@ err_start_trace:
 err_bad_cmd:
 err_get_cmd:
 err_copy_from_user:
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return err;
 }
 
@@ -193,14 +201,14 @@ static const struct file_operations ltt_enabled_operations = {
 
 
 static ssize_t trans_write(struct file *file, const char __user *user_buf,
-		size_t count, loff_t *ppos)
+			   size_t count, loff_t *ppos)
 {
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
+	char *trans_name = (char *)__get_free_page(GFP_KERNEL);
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
-	char trans_name[NAME_MAX];
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -212,18 +220,22 @@ static ssize_t trans_write(struct file *file, const char __user *user_buf,
 	}
 
 	err = ltt_trace_set_type(file->f_dentry->d_parent->d_name.name,
-		trans_name);
+				 trans_name);
 	if (IS_ERR_VALUE(err)) {
 		printk(KERN_ERR "trans_write: ltt_trace_set_type failed: %d\n",
-			err);
+		       err);
 		goto err_set_trans;
 	}
 
+	free_page((unsigned long)buf);
+	free_page((unsigned long)trans_name);
 	return count;
 
 err_set_trans:
 err_get_transname:
 err_copy_from_user:
+	free_page((unsigned long)buf);
+	free_page((unsigned long)trans_name);
 	return err;
 }
 
@@ -236,13 +248,13 @@ static ssize_t channel_subbuf_num_write(struct file *file,
 		const char __user *user_buf, size_t count, loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
 	unsigned int num;
 	const char *channel_name;
 	const char *trace_name;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -259,15 +271,17 @@ static ssize_t channel_subbuf_num_write(struct file *file,
 	err = ltt_trace_set_channel_subbufcount(trace_name, channel_name, num);
 	if (IS_ERR_VALUE(err)) {
 		printk(KERN_ERR "channel_subbuf_num_write: "
-			"ltt_trace_set_channel_subbufcount failed: %d\n", err);
+		       "ltt_trace_set_channel_subbufcount failed: %d\n", err);
 		goto err_set_subbufcount;
 	}
 
+	free_page((unsigned long)buf);
 	return count;
 
 err_set_subbufcount:
 err_get_number:
 err_copy_from_user:
+	free_page((unsigned long)buf);
 	return err;
 }
 
@@ -276,17 +290,19 @@ static const struct file_operations ltt_channel_subbuf_num_operations = {
 };
 
 
-static ssize_t channel_subbuf_size_write(struct file *file,
-	const char __user *user_buf, size_t count, loff_t *ppos)
+static
+ssize_t channel_subbuf_size_write(struct file *file,
+				  const char __user *user_buf,
+				  size_t count, loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
 	unsigned int num;
 	const char *channel_name;
 	const char *trace_name;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -303,15 +319,17 @@ static ssize_t channel_subbuf_size_write(struct file *file,
 	err = ltt_trace_set_channel_subbufsize(trace_name, channel_name, num);
 	if (IS_ERR_VALUE(err)) {
 		printk(KERN_ERR "channel_subbuf_size_write: "
-		"ltt_trace_set_channel_subbufsize failed: %d\n", err);
+		       "ltt_trace_set_channel_subbufsize failed: %d\n", err);
 		goto err_set_subbufsize;
 	}
 
+	free_page((unsigned long)buf);
 	return count;
 
 err_set_subbufsize:
 err_get_number:
 err_copy_from_user:
+	free_page((unsigned long)buf);
 	return err;
 }
 
@@ -319,17 +337,19 @@ static const struct file_operations ltt_channel_subbuf_size_operations = {
 	.write = channel_subbuf_size_write,
 };
 
-static ssize_t channel_switch_timer_write(struct file *file,
-	const char __user *user_buf, size_t count, loff_t *ppos)
+static
+ssize_t channel_switch_timer_write(struct file *file,
+				   const char __user *user_buf,
+				   size_t count, loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
 	unsigned long num;
 	const char *channel_name;
 	const char *trace_name;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -349,15 +369,17 @@ static ssize_t channel_switch_timer_write(struct file *file,
 	err = ltt_trace_set_channel_switch_timer(trace_name, channel_name, num);
 	if (IS_ERR_VALUE(err)) {
 		printk(KERN_ERR "channel_switch_timer_write: "
-		"ltt_trace_set_channel_switch_timer failed: %d\n", err);
+		       "ltt_trace_set_channel_switch_timer failed: %d\n", err);
 		goto err_set_switch_timer;
 	}
 
+	free_page((unsigned long)buf);
 	return count;
 
 err_set_switch_timer:
 err_get_number:
 err_copy_from_user:
+	free_page((unsigned long)buf);
 	return err;
 }
 
@@ -365,17 +387,19 @@ static struct file_operations ltt_channel_switch_timer_operations = {
 	.write = channel_switch_timer_write,
 };
 
-static ssize_t channel_overwrite_write(struct file *file,
-	const char __user *user_buf, size_t count, loff_t *ppos)
+static
+ssize_t channel_overwrite_write(struct file *file,
+				const char __user *user_buf, size_t count,
+				loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
-	char cmd[NAME_MAX];
 	const char *channel_name;
 	const char *trace_name;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
+	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -399,10 +423,11 @@ static ssize_t channel_overwrite_write(struct file *file,
 	case 'y':
 	case '1':
 		err = ltt_trace_set_channel_overwrite(trace_name, channel_name,
-			1);
+						      1);
 		if (IS_ERR_VALUE(err)) {
 			printk(KERN_ERR "channel_overwrite_write: "
-			"ltt_trace_set_channel_overwrite failed: %d\n", err);
+			       "ltt_trace_set_channel_overwrite failed: %d\n",
+			       err);
 			goto err_set_subbufsize;
 		}
 		break;
@@ -410,10 +435,11 @@ static ssize_t channel_overwrite_write(struct file *file,
 	case 'n':
 	case '0':
 		err = ltt_trace_set_channel_overwrite(trace_name, channel_name,
-			0);
+						      0);
 		if (IS_ERR_VALUE(err)) {
 			printk(KERN_ERR "channel_overwrite_write: "
-			"ltt_trace_set_channel_overwrite failed: %d\n", err);
+			       "ltt_trace_set_channel_overwrite failed: %d\n",
+			       err);
 			goto err_set_subbufsize;
 		}
 		break;
@@ -422,12 +448,16 @@ static ssize_t channel_overwrite_write(struct file *file,
 		goto err_bad_cmd;
 	}
 
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return count;
 
 err_set_subbufsize:
 err_bad_cmd:
 err_get_cmd:
 err_copy_from_user:
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return err;
 }
 
@@ -436,17 +466,19 @@ static const struct file_operations ltt_channel_overwrite_operations = {
 };
 
 
-static ssize_t channel_enable_write(struct file *file,
-	const char __user *user_buf, size_t count, loff_t *ppos)
+static
+ssize_t channel_enable_write(struct file *file,
+			     const char __user *user_buf, size_t count,
+			     loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
-	char cmd[NAME_MAX];
 	const char *channel_name;
 	const char *trace_name;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
+	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -470,10 +502,11 @@ static ssize_t channel_enable_write(struct file *file,
 	case 'y':
 	case '1':
 		err = ltt_trace_set_channel_enable(trace_name, channel_name,
-			1);
+						   1);
 		if (IS_ERR_VALUE(err)) {
 			printk(KERN_ERR "channel_enable_write: "
-			"ltt_trace_set_channel_enable failed: %d\n", err);
+			       "ltt_trace_set_channel_enable failed: %d\n",
+			       err);
 			goto err_set_subbufsize;
 		}
 		break;
@@ -481,10 +514,11 @@ static ssize_t channel_enable_write(struct file *file,
 	case 'n':
 	case '0':
 		err = ltt_trace_set_channel_enable(trace_name, channel_name,
-			0);
+						   0);
 		if (IS_ERR_VALUE(err)) {
 			printk(KERN_ERR "channel_enable_write: "
-			"ltt_trace_set_channel_enable failed: %d\n", err);
+			       "ltt_trace_set_channel_enable failed: %d\n",
+			       err);
 			goto err_set_subbufsize;
 		}
 		break;
@@ -493,12 +527,16 @@ static ssize_t channel_enable_write(struct file *file,
 		goto err_bad_cmd;
 	}
 
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return count;
 
 err_set_subbufsize:
 err_bad_cmd:
 err_get_cmd:
 err_copy_from_user:
+	free_page((unsigned long)buf);
+	free_page((unsigned long)cmd);
 	return err;
 }
 
@@ -508,7 +546,7 @@ static const struct file_operations ltt_channel_enable_operations = {
 
 
 static int _create_trace_control_dir(const char *trace_name,
-				     struct ltt_trace_struct *trace)
+				     struct ltt_trace *trace)
 {
 	int err;
 	struct dentry *trace_root, *channel_root;
@@ -519,37 +557,37 @@ static int _create_trace_control_dir(const char *trace_name,
 	trace_root = debugfs_create_dir(trace_name, ltt_control_dir);
 	if (IS_ERR(trace_root) || !trace_root) {
 		printk(KERN_ERR "_create_trace_control_dir: "
-			"create control root dir of %s failed\n", trace_name);
+		       "create control root dir of %s failed\n", trace_name);
 		err = -ENOMEM;
 		goto err_create_trace_root;
 	}
 
 	/* debugfs/control/trace_name/alloc */
 	tmp_den = debugfs_create_file("alloc", S_IWUSR, trace_root, NULL,
-		&ltt_alloc_operations);
+				      &ltt_alloc_operations);
 	if (IS_ERR(tmp_den) || !tmp_den) {
 		printk(KERN_ERR "_create_trace_control_dir: "
-			"create file of alloc failed\n");
+		       "create file of alloc failed\n");
 		err = -ENOMEM;
 		goto err_create_subdir;
 	}
 
 	/* debugfs/control/trace_name/trans */
 	tmp_den = debugfs_create_file("trans", S_IWUSR, trace_root, NULL,
-		&ltt_trans_operations);
+				      &ltt_trans_operations);
 	if (IS_ERR(tmp_den) || !tmp_den) {
 		printk(KERN_ERR "_create_trace_control_dir: "
-			"create file of trans failed\n");
+		       "create file of trans failed\n");
 		err = -ENOMEM;
 		goto err_create_subdir;
 	}
 
 	/* debugfs/control/trace_name/enabled */
 	tmp_den = debugfs_create_file("enabled", S_IWUSR, trace_root, NULL,
-		&ltt_enabled_operations);
+				      &ltt_enabled_operations);
 	if (IS_ERR(tmp_den) || !tmp_den) {
 		printk(KERN_ERR "_create_trace_control_dir: "
-			"create file of enabled failed\n");
+		       "create file of enabled failed\n");
 		err = -ENOMEM;
 		goto err_create_subdir;
 	}
@@ -558,7 +596,7 @@ static int _create_trace_control_dir(const char *trace_name,
 	channel_root = debugfs_create_dir("channel", trace_root);
 	if (IS_ERR(channel_root) || !channel_root) {
 		printk(KERN_ERR "_create_trace_control_dir: "
-			"create dir of channel failed\n");
+		       "create dir of channel failed\n");
 		err = -ENOMEM;
 		goto err_create_subdir;
 	}
@@ -580,68 +618,72 @@ static int _create_trace_control_dir(const char *trace_name,
 
 	for (i = 0; i < trace->nr_channels; i++) {
 		struct dentry *channel_den;
-		struct ltt_channel_struct *channel;
+		struct ltt_chan *chan;
 
-		channel = &trace->channels[i];
-		if (!channel->active)
+		chan = &trace->channels[i];
+		if (!chan->active)
 			continue;
-		channel_den = debugfs_create_dir(channel->channel_name,
+		channel_den = debugfs_create_dir(chan->a.filename,
 						 channel_root);
 		if (IS_ERR(channel_den) || !channel_den) {
 			printk(KERN_ERR "_create_trace_control_dir: "
-				"create channel dir of %s failed\n",
-				channel->channel_name);
+			       "create channel dir of %s failed\n",
+			       chan->a.filename);
 			err = -ENOMEM;
 			goto err_create_subdir;
 		}
 
 		tmp_den = debugfs_create_file("subbuf_num", S_IWUSR,
-			channel_den, NULL, &ltt_channel_subbuf_num_operations);
+					      channel_den, NULL,
+					      &ltt_channel_subbuf_num_operations);
 		if (IS_ERR(tmp_den) || !tmp_den) {
 			printk(KERN_ERR "_create_trace_control_dir: "
-				"create subbuf_num in %s failed\n",
-				channel->channel_name);
+			       "create subbuf_num in %s failed\n",
+			       chan->a.filename);
 			err = -ENOMEM;
 			goto err_create_subdir;
 		}
 
 		tmp_den = debugfs_create_file("subbuf_size", S_IWUSR,
-			channel_den, NULL, &ltt_channel_subbuf_size_operations);
+					      channel_den, NULL,
+					      &ltt_channel_subbuf_size_operations);
 		if (IS_ERR(tmp_den) || !tmp_den) {
 			printk(KERN_ERR "_create_trace_control_dir: "
-				"create subbuf_size in %s failed\n",
-				channel->channel_name);
+			       "create subbuf_size in %s failed\n",
+			       chan->a.filename);
 			err = -ENOMEM;
 			goto err_create_subdir;
 		}
 
 		tmp_den = debugfs_create_file("enable", S_IWUSR, channel_den,
-			NULL, &ltt_channel_enable_operations);
+					      NULL,
+					      &ltt_channel_enable_operations);
 		if (IS_ERR(tmp_den) || !tmp_den) {
 			printk(KERN_ERR "_create_trace_control_dir: "
-				"create enable in %s failed\n",
-				channel->channel_name);
+			       "create enable in %s failed\n",
+			       chan->a.filename);
 			err = -ENOMEM;
 			goto err_create_subdir;
 		}
 
 		tmp_den = debugfs_create_file("overwrite", S_IWUSR, channel_den,
-			NULL, &ltt_channel_overwrite_operations);
+					      NULL,
+					      &ltt_channel_overwrite_operations);
 		if (IS_ERR(tmp_den) || !tmp_den) {
 			printk(KERN_ERR "_create_trace_control_dir: "
-				"create overwrite in %s failed\n",
-				channel->channel_name);
+			       "create overwrite in %s failed\n",
+			       chan->a.filename);
 			err = -ENOMEM;
 			goto err_create_subdir;
 		}
 
 		tmp_den = debugfs_create_file("switch_timer", S_IWUSR,
-			channel_den, NULL,
-			&ltt_channel_switch_timer_operations);
+					      channel_den, NULL,
+					      &ltt_channel_switch_timer_operations);
 		if (IS_ERR(tmp_den) || !tmp_den) {
 			printk(KERN_ERR "_create_trace_control_dir: "
-				"create switch_timer in %s failed\n",
-				channel->channel_name);
+			       "create switch_timer in %s failed\n",
+			       chan->a.filename);
 			err = -ENOMEM;
 			goto err_create_subdir;
 		}
@@ -655,16 +697,17 @@ err_create_trace_root:
 	return err;
 }
 
-static ssize_t setup_trace_write(struct file *file, const char __user *user_buf,
-		size_t count, loff_t *ppos)
+static
+ssize_t setup_trace_write(struct file *file, const char __user *user_buf,
+			  size_t count, loff_t *ppos)
 {
 	int err = 0;
-	char buf[NAME_MAX];
 	int buf_size;
-	char trace_name[NAME_MAX];
-	struct ltt_trace_struct *trace;
+	struct ltt_trace *trace;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
+	char *trace_name = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -681,7 +724,7 @@ static ssize_t setup_trace_write(struct file *file, const char __user *user_buf,
 	err = _ltt_trace_setup(trace_name);
 	if (IS_ERR_VALUE(err)) {
 		printk(KERN_ERR
-			"setup_trace_write: ltt_trace_setup failed: %d\n", err);
+		       "setup_trace_write: ltt_trace_setup failed: %d\n", err);
 		goto err_setup_trace;
 	}
 	trace = _ltt_trace_find_setup(trace_name);
@@ -689,13 +732,15 @@ static ssize_t setup_trace_write(struct file *file, const char __user *user_buf,
 	err = _create_trace_control_dir(trace_name, trace);
 	if (IS_ERR_VALUE(err)) {
 		printk(KERN_ERR "setup_trace_write: "
-			"_create_trace_control_dir failed: %d\n", err);
+		       "_create_trace_control_dir failed: %d\n", err);
 		goto err_create_trace_control_dir;
 	}
 
 	ltt_unlock_traces();
 	mutex_unlock(&control_lock);
 
+	free_page((unsigned long)buf);
+	free_page((unsigned long)trace_name);
 	return count;
 
 err_create_trace_control_dir:
@@ -705,6 +750,8 @@ err_setup_trace:
 	mutex_unlock(&control_lock);
 err_get_tracename:
 err_copy_from_user:
+	free_page((unsigned long)buf);
+	free_page((unsigned long)trace_name);
 	return err;
 }
 
@@ -712,17 +759,17 @@ static const struct file_operations ltt_setup_trace_operations = {
 	.write = setup_trace_write,
 };
 
-static ssize_t destroy_trace_write(struct file *file,
-		const char __user *user_buf, size_t count, loff_t *ppos)
+static
+ssize_t destroy_trace_write(struct file *file, const char __user *user_buf,
+			    size_t count, loff_t *ppos)
 {
-	int err = 0;
-	char buf[NAME_MAX];
-	int buf_size;
-	char trace_name[NAME_MAX];
 	struct dentry *trace_den;
+	int buf_size;
+	int err = 0;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
+	char *trace_name = (char *)__get_free_page(GFP_KERNEL);
 
-
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -738,8 +785,8 @@ static ssize_t destroy_trace_write(struct file *file,
 	err = ltt_trace_destroy(trace_name);
 	if (IS_ERR_VALUE(err)) {
 		printk(KERN_ERR
-			"destroy_trace_write: ltt_trace_destroy failed: %d\n",
-			err);
+		       "destroy_trace_write: ltt_trace_destroy failed: %d\n",
+		       err);
 		err = -EPERM;
 		goto err_destroy_trace;
 	}
@@ -747,8 +794,8 @@ static ssize_t destroy_trace_write(struct file *file,
 	trace_den = dir_lookup(ltt_control_dir, trace_name);
 	if (!trace_den) {
 		printk(KERN_ERR
-			"destroy_trace_write: lookup for %s's dentry failed\n",
-			trace_name);
+		       "destroy_trace_write: lookup for %s's dentry failed\n",
+		       trace_name);
 		err = -ENOENT;
 		goto err_get_dentry;
 	}
@@ -757,6 +804,8 @@ static ssize_t destroy_trace_write(struct file *file,
 
 	mutex_unlock(&control_lock);
 
+	free_page((unsigned long)buf);
+	free_page((unsigned long)trace_name);
 	return count;
 
 err_get_dentry:
@@ -764,6 +813,8 @@ err_destroy_trace:
 	mutex_unlock(&control_lock);
 err_get_tracename:
 err_copy_from_user:
+	free_page((unsigned long)buf);
+	free_page((unsigned long)trace_name);
 	return err;
 }
 
@@ -777,8 +828,9 @@ static void init_marker_dir(struct dentry *dentry,
 	dentry->d_inode->i_op = opt;
 }
 
-static ssize_t marker_enable_read(struct file *filp, char __user *ubuf,
-			    size_t cnt, loff_t *ppos)
+static
+ssize_t marker_enable_read(struct file *filp, char __user *ubuf,
+			   size_t cnt, loff_t *ppos)
 {
 	char *buf;
 	const char *channel, *marker;
@@ -815,21 +867,22 @@ static ssize_t marker_enable_read(struct file *filp, char __user *ubuf,
 	return len;
 }
 
-static ssize_t marker_enable_write(struct file *filp, const char __user *ubuf,
-				size_t cnt, loff_t *ppos)
+static
+ssize_t marker_enable_write(struct file *filp, const char __user *ubuf,
+			    size_t cnt, loff_t *ppos)
 {
-	char buf[NAME_MAX];
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
 	int buf_size;
-	int err = 0;
+	ssize_t ret = 0;
 	const char *channel, *marker;
 
 	marker = filp->f_dentry->d_parent->d_name.name;
 	channel = filp->f_dentry->d_parent->d_parent->d_name.name;
 
-	buf_size = min(cnt, sizeof(buf) - 1);
-	err = copy_from_user(buf, ubuf, buf_size);
-	if (err)
-		return err;
+	buf_size = min(cnt, PAGE_SIZE - 1);
+	ret = copy_from_user(buf, ubuf, buf_size);
+	if (ret)
+		goto end;
 
 	buf[buf_size] = 0;
 
@@ -837,22 +890,25 @@ static ssize_t marker_enable_write(struct file *filp, const char __user *ubuf,
 	case 'Y':
 	case 'y':
 	case '1':
-		err = ltt_marker_connect(channel, marker, "default");
-		if (err)
-			return err;
+		ret = ltt_marker_connect(channel, marker, "default");
+		if (ret)
+			goto end;
 		break;
 	case 'N':
 	case 'n':
 	case '0':
-		err = ltt_marker_disconnect(channel, marker, "default");
-		if (err)
-			return err;
+		ret = ltt_marker_disconnect(channel, marker, "default");
+		if (ret)
+			goto end;
 		break;
 	default:
-		return -EPERM;
+		ret = -EPERM;
+		goto end;
 	}
-
-	return cnt;
+	ret = cnt;
+end:
+	free_page((unsigned long)buf);
+	return ret;
 }
 
 static const struct file_operations enable_fops = {
@@ -864,8 +920,9 @@ static const struct file_operations enable_fops = {
  * In practice, the output size should never be larger than 4096 kB. If it
  * ever happens, the output will simply be truncated.
  */
-static ssize_t marker_info_read(struct file *filp, char __user *ubuf,
-			    size_t cnt, loff_t *ppos)
+static
+ssize_t marker_info_read(struct file *filp, char __user *ubuf,
+			 size_t cnt, loff_t *ppos)
 {
 	char *buf;
 	const char *channel, *marker;
@@ -1285,28 +1342,32 @@ static int __init ltt_trace_control_init(void)
 	ltt_control_dir = debugfs_create_dir(LTT_CONTROL_DIR, ltt_root_dentry);
 	if (IS_ERR(ltt_control_dir) || !ltt_control_dir) {
 		printk(KERN_ERR
-			"ltt_channel_control_init: create dir of %s failed\n",
-			LTT_CONTROL_DIR);
+		       "ltt_channel_control_init: create dir of %s failed\n",
+		       LTT_CONTROL_DIR);
 		err = -ENOMEM;
 		goto err_create_control_dir;
 	}
 
 	ltt_setup_trace_file = debugfs_create_file(LTT_SETUP_TRACE_FILE,
-		S_IWUSR, ltt_root_dentry, NULL, &ltt_setup_trace_operations);
+						   S_IWUSR, ltt_root_dentry,
+						   NULL,
+						   &ltt_setup_trace_operations);
 	if (IS_ERR(ltt_setup_trace_file) || !ltt_setup_trace_file) {
 		printk(KERN_ERR
-			"ltt_channel_control_init: create file of %s failed\n",
-			LTT_SETUP_TRACE_FILE);
+		       "ltt_channel_control_init: create file of %s failed\n",
+		       LTT_SETUP_TRACE_FILE);
 		err = -ENOMEM;
 		goto err_create_setup_trace_file;
 	}
 
 	ltt_destroy_trace_file = debugfs_create_file(LTT_DESTROY_TRACE_FILE,
-		S_IWUSR, ltt_root_dentry, NULL, &ltt_destroy_trace_operations);
+						     S_IWUSR, ltt_root_dentry,
+						     NULL,
+						     &ltt_destroy_trace_operations);
 	if (IS_ERR(ltt_destroy_trace_file) || !ltt_destroy_trace_file) {
 		printk(KERN_ERR
-			"ltt_channel_control_init: create file of %s failed\n",
-			LTT_DESTROY_TRACE_FILE);
+		       "ltt_channel_control_init: create file of %s failed\n",
+		       LTT_DESTROY_TRACE_FILE);
 		err = -ENOMEM;
 		goto err_create_destroy_trace_file;
 	}
@@ -1315,8 +1376,8 @@ static int __init ltt_trace_control_init(void)
 						 ltt_root_dentry);
 	if (IS_ERR(markers_control_dir) || !markers_control_dir) {
 		printk(KERN_ERR
-			"ltt_channel_control_init: create dir of %s failed\n",
-			MARKERS_CONTROL_DIR);
+		       "ltt_channel_control_init: create dir of %s failed\n",
+		       MARKERS_CONTROL_DIR);
 		err = -ENOMEM;
 		goto err_create_marker_control_dir;
 	}
@@ -1349,7 +1410,7 @@ static void __exit ltt_trace_control_exit(void)
 
 	/* destory all traces */
 	list_for_each_entry(trace_dir, &ltt_control_dir->d_subdirs,
-		d_u.d_child) {
+			    d_u.d_child) {
 		ltt_trace_stop(trace_dir->d_name.name);
 		ltt_trace_destroy(trace_dir->d_name.name);
 	}

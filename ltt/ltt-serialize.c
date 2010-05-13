@@ -127,9 +127,10 @@ enum ltt_type {
  * %*.*:*v expects sizeof(*ptr), __alignof__(*ptr), elem_num, ptr
  *         where elem_num is the number of elements in the sequence
  */
-static inline const char *parse_trace_type(const char *fmt,
-		char *trace_size, enum ltt_type *trace_type,
-		unsigned long *attributes)
+static inline
+const char *parse_trace_type(const char *fmt, char *trace_size,
+			     enum ltt_type *trace_type,
+			     unsigned long *attributes)
 {
 	int qualifier;		/* 'h', 'l', or 'L' for integer fields */
 				/* 'z' support added 23/7/1999 S.H.    */
@@ -228,8 +229,9 @@ parse_end:
  * Field width and precision are *not* supported.
  * %n not supported.
  */
-static inline const char *parse_c_type(const char *fmt,
-		char *c_size, enum ltt_type *c_type, char *outfmt)
+static inline
+const char *parse_c_type(const char *fmt, char *c_size, enum ltt_type *c_type,
+			 char *outfmt)
 {
 	int qualifier;		/* 'h', 'l', or 'L' for integer fields */
 				/* 'z' support added 23/7/1999 S.H.    */
@@ -320,11 +322,11 @@ parse_end:
 	return fmt;
 }
 
-static inline size_t serialize_trace_data(struct rchan_buf *buf,
-		size_t buf_offset,
-		char trace_size, enum ltt_type trace_type,
-		char c_size, enum ltt_type c_type,
-		int *largest_align, va_list *args)
+static inline
+size_t serialize_trace_data(struct ltt_chanbuf *buf, size_t buf_offset,
+			    char trace_size, enum ltt_type trace_type,
+			    char c_size, enum ltt_type c_type,
+			    int *largest_align, va_list *args)
 {
 	union {
 		unsigned long v_ulong;
@@ -361,16 +363,13 @@ static inline size_t serialize_trace_data(struct rchan_buf *buf,
 	case LTT_TYPE_UNSIGNED_INT:
 		switch (c_size) {
 		case 1:
-			tmp.v_ulong = (unsigned long)(uint8_t)
-					va_arg(*args, unsigned int);
+			tmp.v_ulong = (unsigned long)(uint8_t)va_arg(*args, unsigned int);
 			break;
 		case 2:
-			tmp.v_ulong = (unsigned long)(uint16_t)
-					va_arg(*args, unsigned int);
+			tmp.v_ulong = (unsigned long)(uint16_t)va_arg(*args, unsigned int);
 			break;
 		case 4:
-			tmp.v_ulong = (unsigned long)(uint32_t)
-					va_arg(*args, unsigned int);
+			tmp.v_ulong = (unsigned long)(uint32_t)va_arg(*args, unsigned int);
 			break;
 		case 8:
 			tmp.v_uint64 = va_arg(*args, uint64_t);
@@ -385,8 +384,8 @@ static inline size_t serialize_trace_data(struct rchan_buf *buf,
 			tmp.v_string.s = "<NULL>";
 		tmp.v_string.len = strlen(tmp.v_string.s)+1;
 		if (buf)
-			ltt_relay_write(buf, buf_offset, tmp.v_string.s,
-				tmp.v_string.len);
+			ltt_relay_write(&buf->a, buf->a.chan, buf_offset,
+					tmp.v_string.s, tmp.v_string.len);
 		buf_offset += tmp.v_string.len;
 		goto copydone;
 	default:
@@ -413,31 +412,37 @@ static inline size_t serialize_trace_data(struct rchan_buf *buf,
 			switch (trace_size) {
 			case 1:
 				if (c_size == 8)
-					ltt_relay_write(buf, buf_offset,
+					ltt_relay_write(&buf->a, buf->a.chan,
+					buf_offset,
 					(uint8_t[]){ (uint8_t)tmp.v_uint64 },
 					sizeof(uint8_t));
 				else
-					ltt_relay_write(buf, buf_offset,
+					ltt_relay_write(&buf->a, buf->a.chan,
+					buf_offset,
 					(uint8_t[]){ (uint8_t)tmp.v_ulong },
 					sizeof(uint8_t));
 				break;
 			case 2:
 				if (c_size == 8)
-					ltt_relay_write(buf, buf_offset,
+					ltt_relay_write(&buf->a, buf->a.chan,
+					buf_offset,
 					(uint16_t[]){ (uint16_t)tmp.v_uint64 },
 					sizeof(uint16_t));
 				else
-					ltt_relay_write(buf, buf_offset,
+					ltt_relay_write(&buf->a, buf->a.chan,
+					buf_offset,
 					(uint16_t[]){ (uint16_t)tmp.v_ulong },
 					sizeof(uint16_t));
 				break;
 			case 4:
 				if (c_size == 8)
-					ltt_relay_write(buf, buf_offset,
+					ltt_relay_write(&buf->a, buf->a.chan,
+					buf_offset,
 					(uint32_t[]){ (uint32_t)tmp.v_uint64 },
 					sizeof(uint32_t));
 				else
-					ltt_relay_write(buf, buf_offset,
+					ltt_relay_write(&buf->a, buf->a.chan,
+					buf_offset,
 					(uint32_t[]){ (uint32_t)tmp.v_ulong },
 					sizeof(uint32_t));
 				break;
@@ -446,7 +451,7 @@ static inline size_t serialize_trace_data(struct rchan_buf *buf,
 				 * c_size cannot be other than 8 here because
 				 * trace_size > 4.
 				 */
-				ltt_relay_write(buf, buf_offset,
+				ltt_relay_write(&buf->a, buf->a.chan, buf_offset,
 				(uint64_t[]){ (uint64_t)tmp.v_uint64 },
 				sizeof(uint64_t));
 				break;
@@ -463,12 +468,12 @@ static inline size_t serialize_trace_data(struct rchan_buf *buf,
 		if (buf) {
 			switch (trace_type) {
 			case LTT_TYPE_SIGNED_INT:
-				ltt_relay_write(buf, buf_offset,
+				ltt_relay_write(&buf->a, buf->a.chan, buf_offset,
 					(int64_t[]){ (int64_t)tmp.v_ulong },
 					sizeof(int64_t));
 				break;
 			case LTT_TYPE_UNSIGNED_INT:
-				ltt_relay_write(buf, buf_offset,
+				ltt_relay_write(&buf->a, buf->a.chan, buf_offset,
 					(uint64_t[]){ (uint64_t)tmp.v_ulong },
 					sizeof(uint64_t));
 				break;
@@ -484,10 +489,11 @@ copydone:
 	return buf_offset;
 }
 
-notrace size_t ltt_serialize_data(struct rchan_buf *buf, size_t buf_offset,
-			struct ltt_serialize_closure *closure,
-			void *serialize_private, int *largest_align,
-			const char *fmt, va_list *args)
+notrace size_t
+ltt_serialize_data(struct ltt_chanbuf *buf, size_t buf_offset,
+		   struct ltt_serialize_closure *closure,
+		   void *serialize_private, int *largest_align,
+		   const char *fmt, va_list *args)
 {
 	char trace_size = 0, c_size = 0;	/*
 						 * 0 (unset), 1, 2, 4, 8 bytes.
@@ -504,7 +510,7 @@ notrace size_t ltt_serialize_data(struct rchan_buf *buf, size_t buf_offset,
 				break;
 			attributes = 0;
 			fmt = parse_trace_type(fmt, &trace_size, &trace_type,
-				&attributes);
+					       &attributes);
 			break;
 		case '%':
 			/* c types (%) */
@@ -523,10 +529,11 @@ notrace size_t ltt_serialize_data(struct rchan_buf *buf, size_t buf_offset,
 			if (c_type == LTT_TYPE_STRING)
 				trace_type = LTT_TYPE_STRING;
 			/* perform trace write */
-			buf_offset = serialize_trace_data(buf,
-						buf_offset, trace_size,
-						trace_type, c_size, c_type,
-						largest_align, args);
+			buf_offset = serialize_trace_data(buf, buf_offset,
+							  trace_size,
+							  trace_type, c_size,
+							  c_type,
+							  largest_align, args);
 			trace_size = 0;
 			c_size = 0;
 			trace_type = LTT_TYPE_NONE;
@@ -540,13 +547,15 @@ notrace size_t ltt_serialize_data(struct rchan_buf *buf, size_t buf_offset,
 }
 EXPORT_SYMBOL_GPL(ltt_serialize_data);
 
-static inline uint64_t unserialize_base_type(struct rchan_buf *buf,
-		size_t *ppos, char trace_size, enum ltt_type trace_type)
+static inline
+uint64_t unserialize_base_type(struct ltt_chanbuf *buf,
+			       size_t *ppos, char trace_size,
+			       enum ltt_type trace_type)
 {
 	uint64_t tmp;
 
 	*ppos += ltt_align(*ppos, trace_size);
-	ltt_relay_read(buf, *ppos, &tmp, trace_size);
+	ltt_relay_read(&buf->a, *ppos, &tmp, trace_size);
 	*ppos += trace_size;
 
 	switch (trace_type) {
@@ -582,16 +591,18 @@ static inline uint64_t unserialize_base_type(struct rchan_buf *buf,
 	return 0;
 }
 
-static int serialize_printf_data(struct rchan_buf *buf, size_t *ppos,
-		char trace_size, enum ltt_type trace_type,
-		char c_size, enum ltt_type c_type,
-		char *output, ssize_t outlen, const char *outfmt)
+static
+int serialize_printf_data(struct ltt_chanbuf *buf, size_t *ppos,
+			  char trace_size, enum ltt_type trace_type,
+			  char c_size, enum ltt_type c_type, char *output,
+			  ssize_t outlen, const char *outfmt)
 {
 	u64 value;
 	outlen = outlen < 0 ? 0 : outlen;
 
 	if (trace_type == LTT_TYPE_STRING) {
-		size_t len = ltt_relay_read_cstr(buf, *ppos, output, outlen);
+		size_t len = ltt_relay_read_cstr(&buf->a, *ppos, output,
+						 outlen);
 		*ppos += len + 1;
 		return len;
 	}
@@ -618,8 +629,9 @@ static int serialize_printf_data(struct rchan_buf *buf, size_t *ppos,
  * '\0', as per ISO C99. If the return is greater than or equal to @outlen,
  * the resulting string is truncated.
  */
-size_t ltt_serialize_printf(struct rchan_buf *buf, unsigned long buf_offset,
-		size_t *msg_size, char *output, size_t outlen, const char *fmt)
+size_t ltt_serialize_printf(struct ltt_chanbuf *buf, unsigned long buf_offset,
+			    size_t *msg_size, char *output, size_t outlen,
+			    const char *fmt)
 {
 	char trace_size = 0, c_size = 0;	/*
 						 * 0 (unset), 1, 2, 4, 8 bytes.
@@ -644,7 +656,7 @@ size_t ltt_serialize_printf(struct rchan_buf *buf, unsigned long buf_offset,
 			}
 			attributes = 0;
 			fmt = parse_trace_type(fmt, &trace_size, &trace_type,
-				&attributes);
+					       &attributes);
 			break;
 		case '%':
 			/* c types (%) */
@@ -669,9 +681,9 @@ size_t ltt_serialize_printf(struct rchan_buf *buf, unsigned long buf_offset,
 
 			/* perform trace printf */
 			len = serialize_printf_data(buf, &msgpos, trace_size,
-					trace_type, c_size, c_type,
-					output + outpos, outlen - outpos,
-					outfmt);
+						    trace_type, c_size, c_type,
+						    output + outpos,
+						    outlen - outpos, outfmt);
 			outpos += len;
 			trace_size = 0;
 			c_size = 0;
@@ -715,7 +727,7 @@ unsigned int ltt_fmt_largest_align(size_t align_drift, const char *fmt)
 				break;
 			attributes = 0;
 			fmt = parse_trace_type(fmt, &trace_size, &trace_type,
-				&attributes);
+					       &attributes);
 
 			largest_align = max_t(int, largest_align, trace_size);
 			if (largest_align >= ltt_get_alignment())
@@ -762,21 +774,22 @@ EXPORT_SYMBOL_GPL(ltt_fmt_largest_align);
  * Calculate data size
  * Assume that the padding for alignment starts at a sizeof(void *) address.
  */
-static notrace size_t ltt_get_data_size(struct ltt_serialize_closure *closure,
-				void *serialize_private, int *largest_align,
-				const char *fmt, va_list *args)
+static notrace
+size_t ltt_get_data_size(struct ltt_serialize_closure *closure,
+			 void *serialize_private, int *largest_align,
+			 const char *fmt, va_list *args)
 {
 	ltt_serialize_cb cb = closure->callbacks[0];
 	closure->cb_idx = 0;
-	return (size_t)cb(NULL, 0, closure, serialize_private,
-				largest_align, fmt, args);
+	return (size_t)cb(NULL, 0, closure, serialize_private, largest_align,
+			  fmt, args);
 }
 
 static notrace
-void ltt_write_event_data(struct rchan_buf *buf, size_t buf_offset,
-				struct ltt_serialize_closure *closure,
-				void *serialize_private, int largest_align,
-				const char *fmt, va_list *args)
+void ltt_write_event_data(struct ltt_chanbuf *buf, size_t buf_offset,
+			  struct ltt_serialize_closure *closure,
+			  void *serialize_private, int largest_align,
+			  const char *fmt, va_list *args)
 {
 	ltt_serialize_cb cb = closure->callbacks[0];
 	closure->cb_idx = 0;
@@ -785,18 +798,18 @@ void ltt_write_event_data(struct rchan_buf *buf, size_t buf_offset,
 }
 
 
-notrace void ltt_vtrace(const struct marker *mdata, void *probe_data,
-			void *call_data, const char *fmt, va_list *args)
+notrace
+void ltt_vtrace(const struct marker *mdata, void *probe_data, void *call_data,
+		const char *fmt, va_list *args)
 {
 	int largest_align, ret;
 	struct ltt_active_marker *pdata;
 	uint16_t eID;
 	size_t data_size, slot_size;
 	unsigned int chan_index;
-	struct ltt_channel_struct *channel;
-	struct ltt_trace_struct *trace, *dest_trace = NULL;
-	struct rchan_buf *buf;
-	void *transport_data;
+	struct ltt_chanbuf *buf;
+	struct ltt_chan *chan;
+	struct ltt_trace *trace, *dest_trace = NULL;
 	uint64_t tsc;
 	long buf_offset;
 	va_list args_copy;
@@ -835,7 +848,7 @@ notrace void ltt_vtrace(const struct marker *mdata, void *probe_data,
 	 */
 	largest_align = 1;	/* must be non-zero for ltt_align */
 	data_size = ltt_get_data_size(&closure, serialize_private,
-					&largest_align, fmt, &args_copy);
+				      &largest_align, fmt, &args_copy);
 	largest_align = min_t(int, largest_align, sizeof(void *));
 	va_end(args_copy);
 
@@ -864,40 +877,37 @@ notrace void ltt_vtrace(const struct marker *mdata, void *probe_data,
 		 */
 		if (unlikely(chan_index >= trace->nr_channels))
 			continue;
-		channel = &trace->channels[chan_index];
-		if (!channel->active)
+		chan = &trace->channels[chan_index];
+		if (!chan->active)
 			continue;
 
 		/* reserve space : header and data */
-		ret = ltt_reserve_slot(trace, channel, &transport_data,
-					data_size, &slot_size, &buf_offset,
-					&tsc, &rflags,
-					largest_align, cpu);
+		ret = ltt_reserve_slot(chan, trace, data_size, largest_align,
+				       cpu, &buf, &slot_size, &buf_offset,
+				       &tsc, &rflags);
 		if (unlikely(ret < 0))
 			continue; /* buffer full */
 
 		va_copy(args_copy, *args);
-		/* FIXME : could probably encapsulate transport better. */
-		buf = ((struct rchan *)channel->trans_channel_data)->buf[cpu];
 		/* Out-of-order write : header and data */
-		buf_offset = ltt_write_event_header(trace,
-					channel, buf, buf_offset,
-					eID, data_size, tsc, rflags);
+		buf_offset = ltt_write_event_header(&buf->a, &chan->a,
+						    buf_offset, eID, data_size,
+						    tsc, rflags);
 		ltt_write_event_data(buf, buf_offset, &closure,
-					serialize_private,
-					largest_align, fmt, &args_copy);
+				     serialize_private, largest_align, fmt,
+				     &args_copy);
 		va_end(args_copy);
 		/* Out-of-order commit */
-		ltt_commit_slot(channel, &transport_data, buf_offset,
-				data_size, slot_size);
+		ltt_commit_slot(buf, chan, buf_offset, data_size, slot_size);
 	}
 	__get_cpu_var(ltt_nesting)--;
 	rcu_read_unlock_sched_notrace();
 }
 EXPORT_SYMBOL_GPL(ltt_vtrace);
 
-notrace void ltt_trace(const struct marker *mdata, void *probe_data,
-		       void *call_data, const char *fmt, ...)
+notrace
+void ltt_trace(const struct marker *mdata, void *probe_data, void *call_data,
+	       const char *fmt, ...)
 {
 	va_list args;
 

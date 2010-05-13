@@ -34,7 +34,7 @@ config LTT_FILTER
 config HAVE_LTT_DUMP_TABLES
 	def_bool n
 
-config LTT_RELAY_ALLOC
+config LTT_RELAY
 	def_bool n
 
 choice
@@ -47,7 +47,7 @@ choice
 
 	config LTT_RELAY_LOCKLESS
 		bool "Linux Trace Toolkit High-speed Lockless Data Relay"
-	select LTT_RELAY_ALLOC
+	select LTT_RELAY
 	select DEBUG_FS
 	help
 	  Support using the fast lockless algorithm to log the data obtained
@@ -58,16 +58,18 @@ choice
 
 	config LTT_RELAY_IRQOFF
 		bool "Linux Trace Toolkit Irq-off Data Relay"
-	select LTT_RELAY_ALLOC
+	select LTT_RELAY
 	select DEBUG_FS
+	depends on BROKEN
 	help
 	  Support using interrupt disable algorithm to log the data obtained
 	  through LTT.
 
 	config LTT_RELAY_LOCKED
 		bool "Linux Trace Toolkit Lock-Protected Data Relay"
-	select LTT_RELAY_ALLOC
+	select LTT_RELAY
 	select DEBUG_FS
+	depends on BROKEN
 	help
 	  Support using the slow spinlock and interrupt disable algorithm to log
 	  the data obtained through LTT.
@@ -76,7 +78,7 @@ endchoice
 
 config LTT_SERIALIZE
 	tristate "Linux Trace Toolkit Serializer"
-	depends on LTT_RELAY_ALLOC
+	depends on LTT_RELAY
 	depends on (LTT_RELAY_LOCKLESS || LTT_RELAY_IRQOFF || LTT_RELAY_LOCKED)
 	default y
 	help
@@ -85,7 +87,7 @@ config LTT_SERIALIZE
 
 config LTT_FAST_SERIALIZE
 	tristate "Linux Trace Toolkit Custom Serializer"
-	depends on LTT_RELAY_ALLOC
+	depends on LTT_RELAY
 	depends on (LTT_RELAY_LOCKLESS || LTT_RELAY_IRQOFF || LTT_RELAY_LOCKED)
 	default y
 	help
@@ -211,7 +213,7 @@ config LTT_ASCII
 	bool "Linux Trace Toolkit Ascii Output (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
 	depends on LTT_TRACER
-	depends on LTT_RELAY_ALLOC
+	depends on LTT_RELAY
 	depends on LTT_SERIALIZE
 	default n
 	help

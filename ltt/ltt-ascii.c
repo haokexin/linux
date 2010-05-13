@@ -43,6 +43,8 @@
 #include <linux/cpu.h>
 #include <linux/fs.h>
 
+#include "ltt-relay-select.h"
+
 #if 0
 #define DEBUGP printk
 #else
@@ -56,7 +58,7 @@ struct ltt_relay_iter;
 
 struct ltt_relay_cpu_iter {
 	/* cpu buffer information */
-	struct rchan_buf *buf;
+	struct ltt_chanbuf *buf;
 	struct ltt_relay_iter *iter;
 	int sb_ref;		/* holding a reference to a subbuffer */
 	long read_sb_offset;	/* offset of the subbuffer read */
@@ -73,7 +75,7 @@ struct ltt_relay_cpu_iter {
 
 struct ltt_relay_iter {
 	struct ltt_relay_cpu_iter iter_cpu[NR_CPUS];
-	struct ltt_channel_struct *ltt_channel;
+	struct ltt_chan *chan;
 	loff_t pos;
 	int cpu;
 	int nr_refs;
@@ -85,7 +87,7 @@ static int is_subbuffer_offset_end(struct ltt_relay_cpu_iter *citer,
 	long sub_offset = SUBBUF_OFFSET(offset, citer->buf->chan);
 
 	return (sub_offset + citer->header->lost_size
-			>= citer->buf->chan->subbuf_size);
+			>= citer->buf->chan->sb_size);
 }
 
 static u64 calculate_tsc(u64 pre_tsc, u64 read_tsc, unsigned int rflags)
@@ -126,10 +128,12 @@ static void update_new_event(struct ltt_relay_cpu_iter *citer, long hdr_offset)
 
 	WARN_ON_ONCE(hdr_offset != citer->hdr_offset);
 
-	tmp_offset = ltt_read_event_header(citer->buf, hdr_offset,
-			&read_tsc, &citer->data_size, &citer->eID, &rflags);
+	tmp_offset = ltt_read_event_header(&citer->buf.a, hdr_offset,
+					   &read_tsc, &citer->data_size,
+					   &citer->eID, &rflags);
 	citer->payload_offset = calculate_payload_offset(tmp_offset,
-			citer->chID, citer->eID);
+							 citer->chID,
+							 citer->eID);
 
 	citer->tsc = calculate_tsc(citer->tsc, read_tsc, rflags);
 }
@@ -169,13 +173,10 @@ static int subbuffer_start(struct ltt_relay_cpu_iter *citer, long *offset)
 {
 	int ret;
 	struct ltt_relay_iter *iter = citer->iter;
-	struct ltt_channel_buf_access_ops *buf_access_ops;
 
-	buf_access_ops = iter->ltt_channel->buf_access_ops;
-
-	ret = buf_access_ops->get_subbuf(citer->buf, offset);
+	ret = ltt_chanbuf_get_subbuf(citer->buf, offset);
 	if (!ret) {
-		citer->header = ltt_relay_read_offset_address(citer->buf,
+		citer->header = ltt_relay_read_offset_address(&citer->buf.a,
 							      *offset);
 		citer->hdr_offset = (*offset) + ltt_subbuffer_header_size();
 		citer->tsc = citer->header->cycle_count_begin;
@@ -183,12 +184,12 @@ static int subbuffer_start(struct ltt_relay_cpu_iter *citer, long *offset)
 		citer->sb_ref = 1;
 		return 0;
 	} else {
-		if (buf_access_ops->is_finalized(citer->buf)) {
+		if (is_finalized(citer->buf)) {
 			/*
 			 * Currently, kill the iterator for
 			 * this cpu buffer (TODO resume support)
 			 */
-			buf_access_ops->release(citer->buf);
+			ltt_chanbuf_release_read(citer->buf);
 			citer->buf = NULL;
 			return -ENODATA;
 		}
@@ -203,8 +204,7 @@ static void subbuffer_stop(struct ltt_relay_cpu_iter *citer,
 	struct ltt_relay_iter *iter = citer->iter;
 
 	WARN_ON_ONCE(!citer->sb_ref);
-	ret = iter->ltt_channel->buf_access_ops->put_subbuf(
-			citer->buf, offset);
+	ret = ltt_chanbuf_put_subbuf(citer->buf, offset);
 	WARN_ON_ONCE(ret);
 	citer->sb_ref = 0;
 	iter->nr_refs--;
@@ -220,13 +220,13 @@ static void ltt_relay_advance_cpu_iter(struct ltt_relay_cpu_iter *citer)
 	if (unlikely(is_subbuffer_offset_end(citer,
 					     old_offset + citer->data_size))) {
 		DEBUGP(KERN_DEBUG "LTT ASCII stop cpu %d offset %lX\n",
-			citer->buf->cpu, citer->read_sb_offset);
+		       citer->buf->cpu, citer->read_sb_offset);
 		subbuffer_stop(citer, citer->read_sb_offset);
 		for (;;) {
 			ret = subbuffer_start(citer, &citer->read_sb_offset);
 			DEBUGP(KERN_DEBUG
-				"LTT ASCII start cpu %d ret %d offset %lX\n",
-				citer->buf->cpu, ret, citer->read_sb_offset);
+			       "LTT ASCII start cpu %d ret %d offset %lX\n",
+			       citer->buf->cpu, ret, citer->read_sb_offset);
 			if (!ret || ret == -ENODATA) {
 				break;	/* got data, or finalized */
 			} else {	/* -EAGAIN */
@@ -237,11 +237,10 @@ static void ltt_relay_advance_cpu_iter(struct ltt_relay_cpu_iter *citer)
 		}
 	} else {
 		new_offset += citer->data_size;
-		citer->hdr_offset = new_offset + ltt_align(new_offset,
-				sizeof(struct ltt_event_header));
+		citer->hdr_offset = new_offset + ltt_align(new_offset, sizeof(struct ltt_event_header));
 		DEBUGP(KERN_DEBUG
-			"LTT ASCII old_offset %lX new_offset %lX cpu %d\n",
-			old_offset, new_offset, citer->buf->cpu);
+		       "LTT ASCII old_offset %lX new_offset %lX cpu %d\n",
+		       old_offset, new_offset, citer->buf->cpu);
 	}
 
 	update_cpu_iter(citer, citer->hdr_offset);
@@ -312,14 +311,16 @@ static void ascii_stop(struct seq_file *m, void *v)
 {
 }
 
-static int seq_serialize(struct seq_file *m, struct rchan_buf *buf,
-		size_t buf_offset, const char *fmt, size_t *data_size)
+static
+int seq_serialize(struct seq_file *m, struct ltt_chanbuf *buf,
+		  size_t buf_offset, const char *fmt, size_t *data_size)
 {
 	int len;
 
 	if (m->count < m->size) {
 		len = ltt_serialize_printf(buf, buf_offset, data_size,
-				m->buf + m->count, m->size - m->count, fmt);
+					   m->buf + m->count,
+					   m->size - m->count, fmt);
 		if (m->count + len < m->size) {
 			m->count += len;
 			return 0;
@@ -377,27 +378,23 @@ static struct seq_operations ascii_seq_ops = {
 
 /* FIXME : cpu hotplug support */
 static int ltt_relay_iter_open_channel(struct ltt_relay_iter *iter,
-		struct ltt_channel_struct *ltt_channel)
+				       struct ltt_chan *chan)
 {
 	int i, ret;
-	struct rchan *chan = ltt_channel->trans_channel_data;
 	u16 chID = ltt_channels_get_index_from_name(ltt_channel->channel_name);
-	struct ltt_channel_buf_access_ops *buf_access_ops;
-
-	buf_access_ops = ltt_channel->buf_access_ops;
 
 	/* we don't need lock relay_channels_mutex */
 	for_each_possible_cpu(i) {
 		struct ltt_relay_cpu_iter *citer = &iter->iter_cpu[i];
 
-		citer->buf = chan->buf[i];
+		citer->buf = per_cpu_ptr(chan.a->buf, i);
 		if (!citer->buf)
 			continue;
 
 		citer->iter = iter;	/* easy lazy parent info */
 		citer->chID = chID;
 
-		ret = buf_access_ops->open(citer->buf);
+		ret = ltt_chanbuf_open_read(citer->buf);
 		if (ret) {
 			/* Failed to open a percpu buffer, close everything. */
 			citer->buf = NULL;
@@ -430,7 +427,7 @@ error:
 		struct ltt_relay_cpu_iter *citer = &iter->iter_cpu[i];
 
 		if (citer->buf)
-			buf_access_ops->release(citer->buf);
+			ltt_chanbuf_release_read(citer->buf);
 	}
 	return ret;
 }
@@ -438,9 +435,6 @@ error:
 static int ltt_relay_iter_release_channel(struct ltt_relay_iter *iter)
 {
 	int i;
-	struct ltt_channel_buf_access_ops *buf_access_ops;
-
-	buf_access_ops = iter->ltt_channel->buf_access_ops;
 
 	for_each_possible_cpu(i) {
 		struct ltt_relay_cpu_iter *citer = &iter->iter_cpu[i];
@@ -451,10 +445,10 @@ static int ltt_relay_iter_release_channel(struct ltt_relay_iter *iter)
 				"LTT ASCII release stop cpu %d offset %lX\n",
 				citer->buf->cpu, citer->read_sb_offset);
 			subbuffer_stop(&iter->iter_cpu[i],
-			       citer->read_sb_offset);
+				       citer->read_sb_offset);
 		}
 		if (citer->buf)
-			buf_access_ops->release(citer->buf);
+			ltt_chanbuf_release_read(citer->buf);
 	}
 	WARN_ON_ONCE(iter->nr_refs);
 	return 0;
@@ -463,13 +457,13 @@ static int ltt_relay_iter_release_channel(struct ltt_relay_iter *iter)
 static int ltt_relay_ascii_open(struct inode *inode, struct file *file)
 {
 	int ret;
-	struct ltt_channel_struct *ltt_channel = inode->i_private;
+	struct ltt_chan *chan = inode->i_private;
 	struct ltt_relay_iter *iter = kzalloc(sizeof(*iter), GFP_KERNEL);
 	if (!iter)
 		return -ENOMEM;
 
-	iter->ltt_channel = ltt_channel;
-	ret = ltt_relay_iter_open_channel(iter, ltt_channel);
+	iter->chan = chan;
+	ret = ltt_relay_iter_open_channel(iter, chan);
 	if (ret)
 		goto error_free_alloc;
 
@@ -505,38 +499,37 @@ static struct file_operations ltt_ascii_fops =
 	.owner = THIS_MODULE,
 };
 
-struct dentry *ltt_ascii_create(struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *ltt_channel)
+int ltt_ascii_create(struct ltt_chan *chan)
 {
-	struct dentry *entry = debugfs_create_file(ltt_channel->channel_name,
-			S_IRUSR | S_IRGRP, trace->dentry.ascii_root,
-			ltt_channel,
-			&ltt_ascii_fops);
-	if (entry)
-		entry->d_inode->i_private = ltt_channel;
-	return entry;
+	struct dentry *dentry;
+
+	dentry = debugfs_create_file(chan->a.filename,
+				     S_IRUSR | S_IRGRP,
+				     trace->dentry.ascii_root,
+				     chan, &ltt_ascii_fops);
+	if (dentry)
+		dentry->d_inode->i_private = chan;
+	return PTR_ERR(dentry);
 }
 EXPORT_SYMBOL_GPL(ltt_ascii_create);
 
-void ltt_ascii_remove(struct ltt_channel_struct *ltt_channel,
-		struct dentry *ascii)
+void ltt_ascii_remove(struct ltt_chan *chan)
 {
-	if (ascii)
-		debugfs_remove(ascii);
+	debugfs_remove(chan->ascii_dentry);
 }
 EXPORT_SYMBOL_GPL(ltt_ascii_remove);
 
-int ltt_ascii_create_dir(struct ltt_trace_struct *new_trace)
+int ltt_ascii_create_dir(struct ltt_trace *new_trace)
 {
 	new_trace->dentry.ascii_root = debugfs_create_dir(new_trace->trace_name,
-		ltt_ascii_dir_dentry);
+							  ltt_ascii_dir_dentry);
 	if (!new_trace->dentry.ascii_root)
 		return -EEXIST;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(ltt_ascii_create_dir);
 
-void ltt_ascii_remove_dir(struct ltt_trace_struct *trace)
+void ltt_ascii_remove_dir(struct ltt_trace *trace)
 {
 	debugfs_remove(trace->dentry.ascii_root);
 }

@@ -30,8 +30,8 @@ static DEFINE_PER_CPU(int, system_tracing_cpu);
 static atomic_t system_trace_refcount __read_mostly;
 
 
-static notrace void
-ltt_tracer_call(unsigned long ip, unsigned long parent_ip)
+static notrace
+void ltt_tracer_call(unsigned long ip, unsigned long parent_ip)
 {
 	int cpu = raw_smp_processor_id();
 	if (likely(!per_cpu(tracing_cpu, cpu)
@@ -41,13 +41,13 @@ ltt_tracer_call(unsigned long ip, unsigned long parent_ip)
 		   ip, parent_ip);
 }
 
-static notrace void ltt_tap_marker(const struct marker *mdata,
-	void *probe_data, void *call_data,
-	const char *fmt, va_list *args)
+static notrace
+void ltt_tap_marker(const struct marker *mdata, void *probe_data,
+		    void *call_data, const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
 	if (likely(!per_cpu(tracing_cpu, cpu)
-			&& !atomic_read(&system_trace_refcount)))
+	    && !atomic_read(&system_trace_refcount)))
 		return;
 	ltt_vtrace(mdata, probe_data, call_data, fmt, args);
 }
@@ -63,9 +63,9 @@ static struct ftrace_ops trace_ops __read_mostly =
 	.func = ltt_tracer_call,
 };
 
-static notrace void ftrace_cpu_start(const struct marker *mdata,
-	void *probe_data, void *call_data,
-	const char *fmt, va_list *args)
+static notrace
+void ftrace_cpu_start(const struct marker *mdata, void *probe_data,
+		      void *call_data, const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
 	per_cpu(tracing_cpu, cpu) = 1;
@@ -77,9 +77,9 @@ struct ltt_available_probe ftrace_cpu_start_probe = {
 	.probe_func = ftrace_cpu_start,
 };
 
-static notrace void ftrace_cpu_stop(const struct marker *mdata,
-	void *probe_data, void *call_data,
-	const char *fmt, va_list *args)
+static notrace
+void ftrace_cpu_stop(const struct marker *mdata, void *probe_data,
+		     void *call_data, const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
 	per_cpu(tracing_cpu, cpu) = 0;
@@ -91,9 +91,9 @@ struct ltt_available_probe ftrace_cpu_stop_probe = {
 	.probe_func = ftrace_cpu_stop,
 };
 
-static notrace void ftrace_system_start(const struct marker *mdata,
-	void *probe_data, void *call_data,
-	const char *fmt, va_list *args)
+static notrace
+void ftrace_system_start(const struct marker *mdata, void *probe_data,
+			 void *call_data, const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
 	int value = xchg(&per_cpu(system_tracing_cpu, cpu), 1);
@@ -107,9 +107,9 @@ struct ltt_available_probe ftrace_system_start_probe = {
 	.probe_func = ftrace_system_start,
 };
 
-static notrace void ftrace_system_stop(const struct marker *mdata,
-	void *probe_data, void *call_data,
-	const char *fmt, va_list *args)
+static notrace
+void ftrace_system_stop(const struct marker *mdata, void *probe_data,
+			void *call_data, const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
 	int value = xchg(&per_cpu(system_tracing_cpu, cpu), 0);

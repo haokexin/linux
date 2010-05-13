@@ -48,10 +48,10 @@ struct ltt_serialize_closure;
 struct ltt_probe_private_data;
 
 /* Serialization callback '%k' */
-typedef size_t (*ltt_serialize_cb)(struct rchan_buf *buf, size_t buf_offset,
-			struct ltt_serialize_closure *closure,
-			void *serialize_private, int *largest_align,
-			const char *fmt, va_list *args);
+typedef size_t (*ltt_serialize_cb)(struct ltt_chanbuf *buf, size_t buf_offset,
+				   struct ltt_serialize_closure *closure,
+				   void *serialize_private, int *largest_align,
+				   const char *fmt, va_list *args);
 
 struct ltt_serialize_closure {
 	ltt_serialize_cb *callbacks;
@@ -59,10 +59,10 @@ struct ltt_serialize_closure {
 	unsigned int cb_idx;
 };
 
-size_t ltt_serialize_data(struct rchan_buf *buf, size_t buf_offset,
-			struct ltt_serialize_closure *closure,
-			void *serialize_private,
-			int *largest_align, const char *fmt, va_list *args);
+size_t ltt_serialize_data(struct ltt_chanbuf *buf, size_t buf_offset,
+			  struct ltt_serialize_closure *closure,
+			  void *serialize_private, int *largest_align,
+			  const char *fmt, va_list *args);
 
 struct ltt_available_probe {
 	const char *name;		/* probe name */
@@ -73,7 +73,7 @@ struct ltt_available_probe {
 };
 
 struct ltt_probe_private_data {
-	struct ltt_trace_struct *trace;	/*
+	struct ltt_trace *trace;	/*
 					 * Target trace, for metadata
 					 * or statedump.
 					 */
@@ -116,13 +116,13 @@ struct ltt_active_marker {
 };
 
 extern void ltt_vtrace(const struct marker *mdata, void *probe_data,
-	void *call_data, const char *fmt, va_list *args);
+		       void *call_data, const char *fmt, va_list *args);
 extern void ltt_trace(const struct marker *mdata, void *probe_data,
-	void *call_data, const char *fmt, ...);
+		      void *call_data, const char *fmt, ...);
 
-size_t ltt_serialize_printf(struct rchan_buf *buf,
-		unsigned long buf_offset, size_t *msg_size,
-		char *output, size_t outlen, const char *fmt);
+size_t ltt_serialize_printf(struct ltt_chanbuf *buf, unsigned long buf_offset,
+			    size_t *msg_size, char *output, size_t outlen,
+			    const char *fmt);
 
 /*
  * Unique ID assigned to each registered probe.
@@ -154,30 +154,28 @@ struct user_dbg_data {
 
 struct ltt_trace_ops {
 	/* First 32 bytes cache-hot cacheline */
-	void (*wakeup_channel) (struct ltt_channel_struct *ltt_channel);
-	int (*user_blocking) (struct ltt_trace_struct *trace,
-				unsigned int index, size_t data_size,
-				struct user_dbg_data *dbg);
+	void (*wakeup_channel) (struct ltt_chan *chan);
+	int (*user_blocking) (struct ltt_trace *trace, unsigned int index,
+			      size_t data_size, struct user_dbg_data *dbg);
 	/* End of first 32 bytes cacheline */
-	int (*create_dirs) (struct ltt_trace_struct *new_trace);
-	void (*remove_dirs) (struct ltt_trace_struct *new_trace);
-	int (*create_channel) (const char *trace_name,
-				struct ltt_trace_struct *trace,
-				struct dentry *dir, const char *channel_name,
-				struct ltt_channel_struct *ltt_chan,
-				unsigned int subbuf_size,
-				unsigned int n_subbufs, int overwrite);
-	void (*finish_channel) (struct ltt_channel_struct *channel);
-	void (*remove_channel) (struct ltt_channel_struct *channel);
-	void (*user_errors) (struct ltt_trace_struct *trace,
-				unsigned int index, size_t data_size,
-				struct user_dbg_data *dbg, int cpu);
+	int (*create_dirs) (struct ltt_trace *new_trace);
+	void (*remove_dirs) (struct ltt_trace *new_trace);
+	int (*create_channel) (const char *channel_name, struct ltt_chan *chan,
+			       struct dentry *parent, size_t sb_size,
+			       size_t n_sb, int overwrite,
+			       struct ltt_trace *trace);
+	void (*finish_channel) (struct ltt_chan *chan);
+	void (*remove_channel) (struct kref *kref);
+	void (*user_errors) (struct ltt_trace *trace, unsigned int index,
+			     size_t data_size, struct user_dbg_data *dbg,
+			     int cpu);
+	void (*start_switch_timer) (struct ltt_chan *chan);
+	void (*stop_switch_timer) (struct ltt_chan *chan);
 #ifdef CONFIG_HOTPLUG_CPU
-	int (*handle_cpuhp) (struct notifier_block *nb,
-				unsigned long action, void *hcpu,
-				struct ltt_trace_struct *trace);
+	int (*handle_cpuhp) (struct notifier_block *nb, unsigned long action,
+			     void *hcpu, struct ltt_trace *trace);
 #endif
-} ____cacheline_aligned;
+};
 
 struct ltt_transport {
 	char *name;
@@ -192,14 +190,14 @@ enum trace_mode { LTT_TRACE_NORMAL, LTT_TRACE_FLIGHT, LTT_TRACE_HYBRID };
 #define CHANNEL_FLAG_OVERWRITE	(1U<<1)
 
 /* Per-trace information - each trace/flight recorder represented by one */
-struct ltt_trace_struct {
+struct ltt_trace {
 	/* First 32 bytes cache-hot cacheline */
 	struct list_head list;
-	struct ltt_trace_ops *ops;
+	struct ltt_chan *channels;
+	unsigned int nr_channels;
 	int active;
 	/* Second 32 bytes cache-hot cacheline */
-	struct ltt_channel_struct *channels;
-	unsigned int nr_channels;
+	struct ltt_trace_ops *ops;
 	u32 freq_scale;
 	u64 start_freq;
 	u64 start_tsc;
@@ -210,7 +208,6 @@ struct ltt_trace_struct {
 		struct dentry			*trace_root;
 		struct dentry			*ascii_root;
 	} dentry;
-	struct rchan_callbacks callbacks;
 	struct kref kref; /* Each channel has a kref of the trace struct */
 	struct ltt_transport *transport;
 	struct kref ltt_transport_kref;
@@ -300,13 +297,13 @@ struct ltt_subbuffer_header {
 };
 
 /**
- * ltt_subbuffer_header_size - called on buffer-switch to a new sub-buffer
+ * ltt_sb_header_size - called on buffer-switch to a new sub-buffer
  *
  * Return header size without padding after the structure. Don't use packed
  * structure because gcc generates inefficient code on some architectures
  * (powerpc, mips..)
  */
-static __inline__ size_t ltt_subbuffer_header_size(void)
+static __inline__ size_t ltt_sb_header_size(void)
 {
 	return offsetof(struct ltt_subbuffer_header, header_end);
 }
@@ -331,12 +328,10 @@ static __inline__ size_t ltt_subbuffer_header_size(void)
  * The payload must itself determine its own alignment from the biggest type it
  * contains.
  * */
-static __inline__ unsigned char ltt_get_header_size(
-		struct ltt_channel_struct *channel,
-		size_t offset,
-		size_t data_size,
-		size_t *before_hdr_pad,
-		unsigned int rflags)
+static __inline__
+unsigned char ltt_get_header_size(struct ltt_chan *chan, size_t offset,
+				  size_t data_size, size_t *before_hdr_pad,
+				  unsigned int rflags)
 {
 	size_t orig_offset = offset;
 	size_t padding;
@@ -371,20 +366,19 @@ static __inline__ unsigned char ltt_get_header_size(
 	return offset - orig_offset;
 }
 
-extern size_t ltt_write_event_header_slow(struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *channel,
-		struct rchan_buf *buf, long buf_offset,
-		u16 eID, u32 event_size,
-		u64 tsc, unsigned int rflags);
+extern
+size_t ltt_write_event_header_slow(struct ltt_chanbuf_alloc *bufa,
+				   struct ltt_chan_alloc *chana,
+				   long buf_offset, u16 eID, u32 event_size,
+				   u64 tsc, unsigned int rflags);
 
 /*
  * ltt_write_event_header
  *
  * Writes the event header to the offset (already aligned on 32-bits).
  *
- * @trace : trace to write to.
- * @channel : pointer to the channel structure..
  * @buf : buffer to write to.
+ * @chan : pointer to the channel structure..
  * @buf_offset : buffer offset to write to (aligned on 32 bits).
  * @eID : event ID
  * @event_size : size of the event, excluding the event header.
@@ -393,11 +387,11 @@ extern size_t ltt_write_event_header_slow(struct ltt_trace_struct *trace,
  *
  * returns : offset where the event data must be written.
  */
-static __inline__ size_t ltt_write_event_header(struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *channel,
-		struct rchan_buf *buf, long buf_offset,
-		u16 eID, u32 event_size,
-		u64 tsc, unsigned int rflags)
+static __inline__
+size_t ltt_write_event_header(struct ltt_chanbuf_alloc *bufa,
+			      struct ltt_chan_alloc *chana,
+			      long buf_offset, u16 eID, u32 event_size, u64 tsc,
+			      unsigned int rflags)
 {
 	struct ltt_event_header header;
 
@@ -406,28 +400,29 @@ static __inline__ size_t ltt_write_event_header(struct ltt_trace_struct *trace,
 
 	header.id_time = eID << LTT_TSC_BITS;
 	header.id_time |= (u32)tsc & LTT_TSC_MASK;
-	ltt_relay_write(buf, buf_offset, &header, sizeof(header));
+	ltt_relay_write(bufa, chana, buf_offset, &header, sizeof(header));
 	buf_offset += sizeof(header);
 
 	return buf_offset;
 
 slow_path:
-	return ltt_write_event_header_slow(trace, channel, buf, buf_offset,
-			eID, event_size, tsc, rflags);
+	return ltt_write_event_header_slow(bufa, chana, buf_offset,
+					   eID, event_size, tsc, rflags);
 }
 
 /*
  * ltt_read_event_header
  * buf_offset must aligned on 32 bits
  */
-static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
-		long buf_offset, u64 *tsc, u32 *event_size, u16 *eID,
-		unsigned int *rflags)
+static __inline__
+size_t ltt_read_event_header(struct ltt_chanbuf_alloc *bufa, long buf_offset,
+			     u64 *tsc, u32 *event_size, u16 *eID,
+			     unsigned int *rflags)
 {
 	struct ltt_event_header header;
 	u16 small_size;
 
-	ltt_relay_read(buf, buf_offset, &header, sizeof(header));
+	ltt_relay_read(bufa, buf_offset, &header, sizeof(header));
 	buf_offset += sizeof(header);
 
 	*event_size = INT_MAX;
@@ -437,28 +432,28 @@ static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
 	switch (*eID) {
 	case 29:
 		*rflags = LTT_RFLAG_ID_SIZE_TSC;
-		ltt_relay_read(buf, buf_offset, eID, sizeof(u16));
+		ltt_relay_read(bufa, buf_offset, eID, sizeof(u16));
 		buf_offset += sizeof(u16);
-		ltt_relay_read(buf, buf_offset, &small_size, sizeof(u16));
+		ltt_relay_read(bufa, buf_offset, &small_size, sizeof(u16));
 		buf_offset += sizeof(u16);
 		if (small_size == LTT_MAX_SMALL_SIZE) {
-			ltt_relay_read(buf, buf_offset, event_size,
+			ltt_relay_read(bufa, buf_offset, event_size,
 					sizeof(u32));
 			buf_offset += sizeof(u32);
 		} else
 			*event_size = small_size;
 		buf_offset += ltt_align(buf_offset, sizeof(u64));
-		ltt_relay_read(buf, buf_offset, tsc, sizeof(u64));
+		ltt_relay_read(bufa, buf_offset, tsc, sizeof(u64));
 		buf_offset += sizeof(u64);
 		break;
 	case 30:
 		*rflags = LTT_RFLAG_ID_SIZE;
-		ltt_relay_read(buf, buf_offset, eID, sizeof(u16));
+		ltt_relay_read(bufa, buf_offset, eID, sizeof(u16));
 		buf_offset += sizeof(u16);
-		ltt_relay_read(buf, buf_offset, &small_size, sizeof(u16));
+		ltt_relay_read(bufa, buf_offset, &small_size, sizeof(u16));
 		buf_offset += sizeof(u16);
 		if (small_size == LTT_MAX_SMALL_SIZE) {
-			ltt_relay_read(buf, buf_offset, event_size,
+			ltt_relay_read(bufa, buf_offset, event_size,
 					sizeof(u32));
 			buf_offset += sizeof(u32);
 		} else
@@ -466,7 +461,7 @@ static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
 		break;
 	case 31:
 		*rflags = LTT_RFLAG_ID;
-		ltt_relay_read(buf, buf_offset, eID, sizeof(u16));
+		ltt_relay_read(bufa, buf_offset, eID, sizeof(u16));
 		buf_offset += sizeof(u16);
 		break;
 	default:
@@ -486,15 +481,15 @@ static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
  * the offset, which leaves only the buffer number.
  */
 #define BUFFER_TRUNC(offset, chan) \
-	((offset) & (~((chan)->alloc_size-1)))
-#define BUFFER_OFFSET(offset, chan) ((offset) & ((chan)->alloc_size - 1))
-#define SUBBUF_OFFSET(offset, chan) ((offset) & ((chan)->subbuf_size - 1))
+	((offset) & (~((chan)->a.buf_size - 1)))
+#define BUFFER_OFFSET(offset, chan) ((offset) & ((chan)->a.buf_size - 1))
+#define SUBBUF_OFFSET(offset, chan) ((offset) & ((chan)->a.sb_size - 1))
 #define SUBBUF_ALIGN(offset, chan) \
-	(((offset) + (chan)->subbuf_size) & (~((chan)->subbuf_size - 1)))
+	(((offset) + (chan)->a.sb_size) & (~((chan)->a.sb_size - 1)))
 #define SUBBUF_TRUNC(offset, chan) \
-	((offset) & (~((chan)->subbuf_size - 1)))
+	((offset) & (~((chan)->a.sb_size - 1)))
 #define SUBBUF_INDEX(offset, chan) \
-	(BUFFER_OFFSET((offset), chan) >> (chan)->subbuf_size_order)
+	(BUFFER_OFFSET((offset), chan) >> (chan)->a.sb_size_order)
 
 /*
  * Control channels :
@@ -505,8 +500,8 @@ static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
  * cpu channel :
  * cpu
  */
-#define LTT_RELAY_ROOT		"ltt"
-#define LTT_RELAY_LOCKED_ROOT	"ltt-locked"
+#define LTT_RELAY_ROOT			"ltt"
+#define LTT_RELAY_LOCKED_ROOT		"ltt-locked"
 
 #define LTT_METADATA_CHANNEL		"metadata_state"
 #define LTT_FD_STATE_CHANNEL		"fd_state"
@@ -526,7 +521,7 @@ static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
 #define LTT_MM_CHANNEL			"mm"
 #define LTT_RCU_CHANNEL			"rcu"
 
-#define LTT_FLIGHT_PREFIX	"flight-"
+#define LTT_FLIGHT_PREFIX		"flight-"
 
 #define LTT_ASCII			"ascii"
 
@@ -546,8 +541,9 @@ static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
  * @trace: Trace information
  * @header: Memory address where the information must be written to
  */
-static __inline__ void ltt_write_trace_header(struct ltt_trace_struct *trace,
-		struct ltt_subbuffer_header *header)
+static __inline__
+void ltt_write_trace_header(struct ltt_trace *trace,
+			    struct ltt_subbuffer_header *header)
 {
 	header->magic_number = LTT_TRACER_MAGIC_NUMBER;
 	header->major_version = LTT_TRACER_VERSION_MAJOR;
@@ -577,7 +573,7 @@ enum ltt_module_function {
 };
 
 extern int ltt_module_register(enum ltt_module_function name, void *function,
-		struct module *owner);
+			       struct module *owner);
 extern void ltt_module_unregister(enum ltt_module_function name);
 
 void ltt_transport_register(struct ltt_transport *transport);
@@ -606,25 +602,30 @@ union ltt_control_args {
 
 int _ltt_trace_setup(const char *trace_name);
 int ltt_trace_setup(const char *trace_name);
-struct ltt_trace_struct *_ltt_trace_find_setup(const char *trace_name);
+struct ltt_trace *_ltt_trace_find_setup(const char *trace_name);
 int ltt_trace_set_type(const char *trace_name, const char *trace_type);
 int ltt_trace_set_channel_subbufsize(const char *trace_name,
-		const char *channel_name, unsigned int size);
+				     const char *channel_name,
+				     unsigned int size);
 int ltt_trace_set_channel_subbufcount(const char *trace_name,
-		const char *channel_name, unsigned int cnt);
+				      const char *channel_name,
+				      unsigned int cnt);
 int ltt_trace_set_channel_switch_timer(const char *trace_name,
-		const char *channel_name, unsigned long interval);
+				       const char *channel_name,
+				       unsigned long interval);
 int ltt_trace_set_channel_enable(const char *trace_name,
-		const char *channel_name, unsigned int enable);
+				 const char *channel_name,
+				 unsigned int enable);
 int ltt_trace_set_channel_overwrite(const char *trace_name,
-		const char *channel_name, unsigned int overwrite);
+				    const char *channel_name,
+				    unsigned int overwrite);
 int ltt_trace_alloc(const char *trace_name);
 int ltt_trace_destroy(const char *trace_name);
 int ltt_trace_start(const char *trace_name);
 int ltt_trace_stop(const char *trace_name);
 
 extern int ltt_control(enum ltt_control_msg msg, const char *trace_name,
-		const char *trace_type, union ltt_control_args args);
+		       const char *trace_type, union ltt_control_args args);
 
 enum ltt_filter_control_msg {
 	LTT_FILTER_DEFAULT_ACCEPT,
@@ -632,11 +633,9 @@ enum ltt_filter_control_msg {
 };
 
 extern int ltt_filter_control(enum ltt_filter_control_msg msg,
-		const char *trace_name);
+			      const char *trace_name);
 
 extern struct dentry *get_filter_root(void);
-
-extern void ltt_buffer_destroy(struct ltt_channel_struct *ltt_chan);
 
 void ltt_core_register(int (*function)(u8, void *));
 
@@ -648,47 +647,43 @@ void ltt_release_transport(struct kref *kref);
 extern int ltt_probe_register(struct ltt_available_probe *pdata);
 extern int ltt_probe_unregister(struct ltt_available_probe *pdata);
 extern int ltt_marker_connect(const char *channel, const char *mname,
-		const char *pname);
+			      const char *pname);
 extern int ltt_marker_disconnect(const char *channel, const char *mname,
-		const char *pname);
-extern void ltt_dump_marker_state(struct ltt_trace_struct *trace);
+				 const char *pname);
+extern void ltt_dump_marker_state(struct ltt_trace *trace);
 
 void ltt_lock_traces(void);
 void ltt_unlock_traces(void);
 
 #ifdef CONFIG_LTT_ASCII
-extern int ltt_ascii_create_dir(struct ltt_trace_struct *new_trace);
-extern void ltt_ascii_remove_dir(struct ltt_trace_struct *trace);
-extern struct dentry *ltt_ascii_create(struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *ltt_channel);
-extern void ltt_ascii_remove(struct ltt_channel_struct *ltt_channel,
-		struct dentry *ascii);
+extern int ltt_ascii_create_dir(struct ltt_trace *new_trace);
+extern void ltt_ascii_remove_dir(struct ltt_trace *trace);
+extern int ltt_ascii_create(struct ltt_chan *chan);
+extern void ltt_ascii_remove(struct ltt_chan *chan);
 #else
-static inline int ltt_ascii_create_dir(struct ltt_trace_struct *new_trace)
+static inline int ltt_ascii_create_dir(struct ltt_trace *new_trace)
 {
 	return 0;
 }
 
-static inline void ltt_ascii_remove_dir(struct ltt_trace_struct *trace)
+static inline void ltt_ascii_remove_dir(struct ltt_trace *trace)
 {
 }
 
-static inline struct dentry *ltt_ascii_create(struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *ltt_channel)
+static inline int ltt_ascii_create(struct ltt_chan *chan)
 {
-	return NULL;
+	return 0;
 }
 
-static inline void ltt_ascii_remove(struct ltt_channel_struct *ltt_channel,
-		struct dentry *ascii)
+static inline void ltt_ascii_remove(struct ltt_chan *chan)
 {
 }
 #endif
 
-extern void ltt_statedump_register_kprobes_dump(
-	void (*callback)(void *call_data));
-extern void ltt_statedump_unregister_kprobes_dump(
-	void (*callback)(void *call_data));
+extern
+void ltt_statedump_register_kprobes_dump(void (*callback)(void *call_data));
+extern
+void ltt_statedump_unregister_kprobes_dump(void (*callback)(void *call_data));
 
 extern void ltt_dump_softirq_vec(void *call_data);
 

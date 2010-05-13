@@ -32,8 +32,9 @@ static struct dentry *ltt_event_file;
  * Inspired from tracing_mark_write implementation from Steven Rostedt and
  * Ingo Molnar.
  */
-static ssize_t write_event(struct file *file, const char __user *user_buf,
-		size_t count, loff_t *ppos)
+static
+ssize_t write_event(struct file *file, const char __user *user_buf,
+		    size_t count, loff_t *ppos)
 {
 	struct marker *marker;
 	char *buf, *end;
@@ -60,8 +61,8 @@ static ssize_t write_event(struct file *file, const char __user *user_buf,
 	/* Add final \0 to copycount */
 	copycount++;
 	marker = &GET_MARKER(userspace, event);
-	ltt_specialized_trace(marker, marker->single.probe_private,
-		buf, copycount, sizeof(char));
+	ltt_specialized_trace(marker, marker->single.probe_private, buf,
+			      copycount, sizeof(char));
 	/* If there is no \0 nor \n in count, do not return a larger value */
 	ret = min_t(size_t, copycount, count);
 string_err:

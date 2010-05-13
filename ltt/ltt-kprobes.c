@@ -47,22 +47,21 @@ static int module_exit;
 
 static void trace_kprobe_table_entry(void *call_data, struct kprobe_entry *e)
 {
-	char namebuf[KSYM_NAME_LEN];
 	unsigned long addr;
+	char *namebuf = (char *)__get_free_page(GFP_KERNEL);
 
 	if (e->kp.addr) {
-		sprint_symbol(namebuf,
-			      (unsigned long)e->kp.addr);
+		sprint_symbol(namebuf, (unsigned long)e->kp.addr);
 		addr = (unsigned long)e->kp.addr;
 	} else {
-		strcpy(namebuf, e->kp.symbol_name);
+		strncpy(namebuf, e->kp.symbol_name, PAGE_SIZE - 1);
 		/* TODO : add offset */
 		addr = kallsyms_lookup_name(namebuf);
 	}
 	if (addr)
-		__trace_mark(0, kprobe_state, kprobe_table,
-			call_data,
-			"ip 0x%lX symbol %s", addr, namebuf);
+		__trace_mark(0, kprobe_state, kprobe_table, call_data,
+			     "ip 0x%lX symbol %s", addr, namebuf);
+	free_page((unsigned long)namebuf);
 }
 
 DEFINE_MARKER(kernel, kprobe, "ip %lX");
@@ -75,7 +74,7 @@ static int ltt_kprobe_handler_pre(struct kprobe *p, struct pt_regs *regs)
 	data = (unsigned long)p->addr;
 	marker = &GET_MARKER(kernel, kprobe);
 	ltt_specialized_trace(marker, marker->single.probe_private,
-		&data, sizeof(data), sizeof(data));
+			      &data, sizeof(data), sizeof(data));
 	return 0;
 }
 
@@ -212,8 +211,8 @@ static ssize_t enable_op_write(struct file *file,
 	const char __user *user_buf, size_t count, loff_t *ppos)
 {
 	int err, buf_size;
-	char buf[NAME_MAX];
 	char *end;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
 	mutex_lock(&ltt_kprobes_mutex);
 	if (module_exit) {
@@ -221,7 +220,7 @@ static ssize_t enable_op_write(struct file *file,
 		goto error;
 	}
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto error;
@@ -232,11 +231,13 @@ static ssize_t enable_op_write(struct file *file,
 	err = ltt_register_kprobe(buf);
 	if (err)
 		goto error;
-	mutex_unlock(&ltt_kprobes_mutex);
 
+	mutex_unlock(&ltt_kprobes_mutex);
+	free_page((unsigned long)buf);
 	return count;
 error:
 	mutex_unlock(&ltt_kprobes_mutex);
+	free_page((unsigned long)buf);
 	return err;
 }
 
@@ -248,14 +249,14 @@ static ssize_t disable_op_write(struct file *file,
 	const char __user *user_buf, size_t count, loff_t *ppos)
 {
 	int err, buf_size;
-	char buf[NAME_MAX];
 	char *end;
+	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
 	mutex_lock(&ltt_kprobes_mutex);
 	if (module_exit)
 		goto end;
 
-	buf_size = min(count, sizeof(buf) - 1);
+	buf_size = min(count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto error;
@@ -268,9 +269,11 @@ static ssize_t disable_op_write(struct file *file,
 		goto error;
 end:
 	mutex_unlock(&ltt_kprobes_mutex);
+	free_page((unsigned long)buf);
 	return count;
 error:
 	mutex_unlock(&ltt_kprobes_mutex);
+	free_page((unsigned long)buf);
 	return err;
 }
 
@@ -418,8 +421,9 @@ static int __init ltt_kprobes_init(void)
 	}
 
 	ltt_kprobes_enable_dentry = debugfs_create_file(LTT_KPROBES_ENABLE,
-		S_IWUSR, ltt_kprobes_dir, NULL,
-		&ltt_kprobes_enable);
+							S_IWUSR,
+							ltt_kprobes_dir, NULL,
+							&ltt_kprobes_enable);
 	if (IS_ERR(ltt_kprobes_enable_dentry) || !ltt_kprobes_enable_dentry) {
 		printk(KERN_ERR
 		       "ltt_kprobes_init: failed to create file %s\n",
@@ -429,8 +433,9 @@ static int __init ltt_kprobes_init(void)
 	}
 
 	ltt_kprobes_disable_dentry = debugfs_create_file(LTT_KPROBES_DISABLE,
-		S_IWUSR, ltt_kprobes_dir, NULL,
-		&ltt_kprobes_disable);
+							 S_IWUSR,
+							 ltt_kprobes_dir, NULL,
+							 &ltt_kprobes_disable);
 	if (IS_ERR(ltt_kprobes_disable_dentry) || !ltt_kprobes_disable_dentry) {
 		printk(KERN_ERR
 		       "ltt_kprobes_init: failed to create file %s\n",
@@ -440,8 +445,8 @@ static int __init ltt_kprobes_init(void)
 	}
 
 	ltt_kprobes_list_dentry = debugfs_create_file(LTT_KPROBES_LIST,
-		S_IWUSR, ltt_kprobes_dir, NULL,
-		&ltt_kprobes_list);
+						      S_IWUSR, ltt_kprobes_dir,
+						      NULL, &ltt_kprobes_list);
 	if (IS_ERR(ltt_kprobes_list_dentry) || !ltt_kprobes_list_dentry) {
 		printk(KERN_ERR
 		       "ltt_kprobes_init: failed to create file %s\n",

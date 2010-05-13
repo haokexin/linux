@@ -82,7 +82,7 @@ enum lttng_process_status {
 
 #ifdef CONFIG_INET
 static void ltt_enumerate_device(struct ltt_probe_private_data *call_data,
-		struct net_device *dev)
+				 struct net_device *dev)
 {
 	struct in_device *in_dev;
 	struct in_ifaddr *ifa;
@@ -90,21 +90,21 @@ static void ltt_enumerate_device(struct ltt_probe_private_data *call_data,
 	if (dev->flags & IFF_UP) {
 		in_dev = in_dev_get(dev);
 		if (in_dev) {
-			for (ifa = in_dev->ifa_list;
-					ifa != NULL;
-					ifa = ifa->ifa_next)
+			for (ifa = in_dev->ifa_list; ifa != NULL;
+			     ifa = ifa->ifa_next)
 				__trace_mark(0, netif_state,
-					network_ipv4_interface,
-					call_data,
-					"name %s address #n4u%lu up %d",
-					dev->name,
-					(unsigned long)ifa->ifa_address, 0);
+					     network_ipv4_interface,
+					     call_data,
+					     "name %s address #n4u%lu up %d",
+					     dev->name,
+					     (unsigned long)ifa->ifa_address,
+					     0);
 			in_dev_put(in_dev);
 		}
 	} else
 		__trace_mark(0, netif_state, network_ip_interface,
-			call_data, "name %s address #n4u%lu up %d",
-			dev->name, 0UL, 0);
+			     call_data, "name %s address #n4u%lu up %d",
+			     dev->name, 0UL, 0);
 }
 
 static inline int
@@ -130,7 +130,7 @@ ltt_enumerate_network_ip_interface(struct ltt_probe_private_data *call_data)
 
 static inline void
 ltt_enumerate_task_fd(struct ltt_probe_private_data *call_data,
-		struct task_struct *t, char *tmp)
+		      struct task_struct *t, char *tmp)
 {
 	struct fdtable *fdt;
 	struct file *filp;
@@ -149,9 +149,9 @@ ltt_enumerate_task_fd(struct ltt_probe_private_data *call_data,
 		path = d_path(&filp->f_path, tmp, PAGE_SIZE);
 		/* Make sure we give at least some info */
 		__trace_mark(0, fd_state, file_descriptor, call_data,
-			"filename %s pid %d fd %u",
-			(IS_ERR(path))?(filp->f_dentry->d_name.name):(path),
-			t->pid, i);
+			     "filename %s pid %d fd %u",
+			     (IS_ERR(path))?(filp->f_dentry->d_name.name):(path),
+			     t->pid, i);
 	}
 	spin_unlock(&t->files->file_lock);
 }
@@ -200,14 +200,11 @@ ltt_enumerate_task_vm_maps(struct ltt_probe_private_data *call_data,
 			else
 				ino = 0;
 			__trace_mark(0, vm_state, vm_map, call_data,
-					"pid %d start %lu end %lu flags %lu "
-					"pgoff %lu inode %lu",
-					t->pid,
-					map->vm_start,
-					map->vm_end,
-					map->vm_flags,
-					map->vm_pgoff << PAGE_SHIFT,
-					ino);
+				     "pid %d start %lu end %lu flags %lu "
+				     "pgoff %lu inode %lu",
+				     t->pid, map->vm_start, map->vm_end,
+				     map->vm_flags, map->vm_pgoff << PAGE_SHIFT,
+				     ino);
 			map = map->vm_next;
 		}
 		up_read(&mm->mmap_sem);
@@ -249,8 +246,8 @@ static inline void list_interrupts(struct ltt_probe_private_data *call_data)
 		raw_spin_lock(&desc->lock);
 		for (action = desc->action; action; action = action->next)
 			__trace_mark(0, irq_state, interrupt, call_data,
-				"name %s action %s irq_id %u",
-				irq_chip_name, action->name, irq);
+				     "name %s action %s irq_id %u",
+				     irq_chip_name, action->name, irq);
 		raw_spin_unlock(&desc->lock);
 		local_irq_restore(flags);
 	}
@@ -323,10 +320,10 @@ ltt_enumerate_process_states(struct ltt_probe_private_data *call_data)
 			type = LTTNG_KERNEL_THREAD;
 
 		__trace_mark(0, task_state, process_state, call_data,
-				"pid %d parent_pid %d name %s type %d mode %d "
-				"submode %d status %d tgid %d",
-				t->pid, t->parent->pid, t->comm,
-				type, mode, submode, status, t->tgid);
+			     "pid %d parent_pid %d name %s type %d mode %d "
+			     "submode %d status %d tgid %d",
+			     t->pid, t->parent->pid, t->comm,
+			     type, mode, submode, status, t->tgid);
 		task_unlock(t);
 	} while (t != &init_task);
 
@@ -407,7 +404,7 @@ static int do_ltt_statedump(struct ltt_probe_private_data *call_data)
 	return 0;
 }
 
-int ltt_statedump_start(struct ltt_trace_struct *trace)
+int ltt_statedump_start(struct ltt_trace *trace)
 {
 	struct ltt_probe_private_data call_data;
 	printk(KERN_DEBUG "LTT state dump begin\n");
