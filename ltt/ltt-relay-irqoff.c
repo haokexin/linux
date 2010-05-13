@@ -307,6 +307,11 @@ static int get_subbuf(struct rchan_buf *buf, unsigned long *consumed)
 	   == 0) {
 		return -EAGAIN;
 	}
+
+	/* No page exchange, use the writer page directly */
+	buf->rchan_rsb.pages = buf->rchan_wsb[consumed_idx].pages;
+	RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
+
 	*consumed = consumed_old;
 	return 0;
 }
@@ -320,6 +325,7 @@ static int put_subbuf(struct rchan_buf *buf, unsigned long consumed)
 
 	consumed_old = consumed;
 	consumed_new = SUBBUF_ALIGN(consumed_old, buf->chan);
+	RCHAN_SB_SET_NOREF(buf->rchan_rsb.pages);
 
 	spin_lock(&ltt_buf->full_lock);
 	if (atomic_long_cmpxchg(&ltt_buf->consumed, consumed_old,
@@ -871,6 +877,7 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 	init_waitqueue_head(&ltt_buf->read_wait);
 	spin_lock_init(&ltt_buf->full_lock);
 
+	RCHAN_SB_CLEAR_NOREF(buf->rchan_wsb[0].pages);
 	ltt_buffer_begin(buf, trace->start_tsc, 0);
 	/* atomic_add made on local variable on data that belongs to
 	 * various CPUs : ok because tracing not started (for this cpu). */
@@ -1398,16 +1405,22 @@ void ltt_force_switch_irqoff_slow(struct rchan_buf *buf,
 	/*
 	 * Push the reader if necessary
 	 */
-	if (mode == FORCE_ACTIVE)
+	if (mode == FORCE_ACTIVE) {
 		ltt_reserve_push_reader(ltt_channel, ltt_buf, rchan,
 					buf, &offsets);
+		ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.end - 1,
+							      rchan));
+	}
 
 	/*
 	 * Switch old subbuffer if needed.
 	 */
-	if (offsets.end_switch_old)
+	if (offsets.end_switch_old) {
+		ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.old - 1,
+							      rchan));
 		ltt_reserve_switch_old_subbuf(ltt_channel, ltt_buf, rchan, buf,
 			&offsets, &tsc);
+	}
 
 	/*
 	 * Populate new subbuffer.
@@ -1586,11 +1599,19 @@ int ltt_reserve_slot_irqoff_slow(struct ltt_trace_struct *trace,
 	ltt_reserve_push_reader(ltt_channel, ltt_buf, rchan, buf, &offsets);
 
 	/*
+	 * Clear noref flag for this subbuffer.
+	 */
+	ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.end - 1, rchan));
+
+	/*
 	 * Switch old subbuffer if needed.
 	 */
-	if (unlikely(offsets.end_switch_old))
+	if (unlikely(offsets.end_switch_old)) {
+		ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.old - 1,
+							      rchan));
 		ltt_reserve_switch_old_subbuf(ltt_channel, ltt_buf, rchan, buf,
 			&offsets, tsc);
+	}
 
 	/*
 	 * Populate new subbuffer.
