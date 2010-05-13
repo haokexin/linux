@@ -491,6 +491,8 @@ void ltt_release_trace(struct kref *kref)
 {
 	struct ltt_trace *trace = container_of(kref, struct ltt_trace, kref);
 
+	trace->ops->remove_dirs(trace);
+	module_put(trace->transport->owner);
 	ltt_channels_trace_free(trace->channels, trace->nr_channels);
 	kfree(trace);
 }
@@ -906,9 +908,11 @@ int ltt_trace_alloc(const char *trace_name)
 	return 0;
 
 create_channel_error:
-	for (chan--; chan >= 0; chan--)
+	for (chan--; chan >= 0; chan--) {
 		if (trace->channels[chan].active)
-			trace->ops->remove_channel(&trace->channels[chan].a.kref);
+			kref_put(&trace->channels[chan].a.kref,
+				 trace->ops->remove_channel);
+	}
 	trace->ops->remove_dirs(trace);
 
 dirs_error:
@@ -1010,12 +1014,9 @@ static void __ltt_trace_destroy(struct ltt_trace *trace)
 	for (i = 0; i < trace->nr_channels; i++) {
 		chan = &trace->channels[i];
 		if (chan->active)
-			trace->ops->remove_channel(&chan->a.kref);
+			kref_put(&chan->a.kref,
+				 trace->ops->remove_channel);
 	}
-
-	trace->ops->remove_dirs(trace);
-
-	module_put(trace->transport->owner);
 
 	/*
 	 * Wait for lttd readers to release the files, therefore making sure
