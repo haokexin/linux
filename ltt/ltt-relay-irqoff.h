@@ -161,6 +161,20 @@ static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
 #endif
 
 #ifdef CONFIG_LTT_VMCORE
+static __inline__ void ltt_vmcore_check_deliver(
+		struct ltt_channel_buf_struct *ltt_buf,
+		long commit_count, long idx)
+{
+	local_set(&ltt_buf->commit_seq[idx], commit_count);
+}
+#else
+static __inline__ void ltt_vmcore_check_deliver(
+		struct ltt_channel_buf_struct *ltt_buf,
+		long commit_count, long idx)
+{
+}
+#endif
+
 static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf,
 		struct rchan *rchan,
@@ -172,18 +186,14 @@ static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
 			>> ltt_channel->n_subbufs_order)
 			- ((commit_count - rchan->subbuf_size)
 			   & ltt_channel->commit_count_mask) == 0)) {
-		local_set(&ltt_buf->commit_seq[idx], commit_count);
+		/*
+		 * Set noref flag for this subbuffer.
+		 */
+		ltt_set_noref_flag(rchan, buf, idx);
+		ltt_vmcore_check_deliver(ltt_buf, commit_count, idx);
 	}
 }
-#else
-static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
-		struct ltt_channel_buf_struct *ltt_buf,
-		struct rchan *rchan,
-		struct rchan_buf *buf,
-		long offset, long commit_count, long idx)
-{
-}
-#endif
+
 
 static __inline__ int ltt_poll_deliver(struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf,
@@ -320,6 +330,11 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	 * needed).
 	 */
 	save_last_tsc(ltt_buf, *tsc);
+
+	/*
+	 * Clear noref flag for this subbuffer.
+	 */
+	ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(o_end - 1, rchan));
 
 	*buf_offset = o_begin + before_hdr_pad;
 	return 0;
