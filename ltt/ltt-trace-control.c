@@ -758,12 +758,18 @@ static const struct file_operations ltt_destroy_trace_operations = {
 	.write = destroy_trace_write,
 };
 
+static void init_marker_dir(struct dentry *dentry,
+			    const struct inode_operations *opt)
+{
+	dentry->d_inode->i_op = opt;
+}
+
 static ssize_t marker_enable_read(struct file *filp, char __user *ubuf,
 			    size_t cnt, loff_t *ppos)
 {
 	char *buf;
 	const char *channel, *marker;
-	int len;
+	int len, enabled, present;
 
 	marker = filp->f_dentry->d_parent->d_name.name;
 	channel = filp->f_dentry->d_parent->d_parent->d_name.name;
@@ -771,10 +777,21 @@ static ssize_t marker_enable_read(struct file *filp, char __user *ubuf,
 	len = 0;
 	buf = (char *)__get_free_page(GFP_KERNEL);
 
-	if (is_marker_enabled(channel, marker))
+	lock_markers();
+
+	enabled = _is_marker_enabled(channel, marker);
+	present = _is_marker_present(channel, marker);
+
+	unlock_markers();
+
+	if (enabled && present)
 		len = snprintf(buf, PAGE_SIZE, "%d\n", 1);
+	else if (enabled && !present)
+		len = snprintf(buf, PAGE_SIZE, "%d\n", 2);
 	else
 		len = snprintf(buf, PAGE_SIZE, "%d\n", 0);
+
+
 	if (len >= PAGE_SIZE) {
 		len = PAGE_SIZE;
 		buf[PAGE_SIZE] = '\0';
@@ -850,6 +867,13 @@ static ssize_t marker_info_read(struct file *filp, char __user *ubuf,
 
 	lock_markers();
 
+	if (_is_marker_enabled(channel, marker) &&
+	    !_is_marker_present(channel, marker)) {
+		len += snprintf(buf + len, PAGE_SIZE - len,
+				"Marker Pre-enabled\n");
+		goto out;
+	}
+
 	marker_iter_reset(&iter);
 	marker_iter_start(&iter);
 	for (; iter.marker != NULL; marker_iter_next(&iter)) {
@@ -876,8 +900,8 @@ static ssize_t marker_info_read(struct file *filp, char __user *ubuf,
 	}
 	marker_iter_stop(&iter);
 
+out:
 	unlock_markers();
-
 	if (len >= PAGE_SIZE) {
 		len = PAGE_SIZE;
 		buf[PAGE_SIZE] = '\0';
@@ -891,6 +915,154 @@ static ssize_t marker_info_read(struct file *filp, char __user *ubuf,
 
 static const struct file_operations info_fops = {
 	.read = marker_info_read,
+};
+
+static int marker_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+{
+	struct dentry *marker_d, *enable_d, *info_d, *channel_d;
+	int ret;
+
+	ret = 0;
+	channel_d = (struct dentry *)dir->i_private;
+	mutex_unlock(&dir->i_mutex);
+
+	marker_d = debugfs_create_dir(dentry->d_name.name,
+				      channel_d);
+	if (IS_ERR(marker_d)) {
+		ret = PTR_ERR(marker_d);
+		goto out;
+	}
+
+	enable_d = debugfs_create_file("enable", 0644, marker_d,
+				       NULL, &enable_fops);
+	if (IS_ERR(enable_d) || !enable_d) {
+		printk(KERN_ERR
+		       "%s: create file of %s failed\n",
+		       __func__, "enable");
+		ret = -ENOMEM;
+		goto remove_marker_dir;
+	}
+
+	info_d = debugfs_create_file("info", 0644, marker_d,
+				     NULL, &info_fops);
+	if (IS_ERR(info_d) || !info_d) {
+		printk(KERN_ERR
+		       "%s: create file of %s failed\n",
+		       __func__, "info");
+		ret = -ENOMEM;
+		goto remove_enable_dir;
+	}
+
+	goto out;
+
+remove_enable_dir:
+	debugfs_remove(enable_d);
+remove_marker_dir:
+	debugfs_remove(marker_d);
+out:
+	mutex_lock_nested(&dir->i_mutex, I_MUTEX_PARENT);
+	return ret;
+}
+
+static int marker_rmdir(struct inode *dir, struct dentry *dentry)
+{
+	struct dentry *marker_d, *channel_d;
+	const char *channel, *name;
+	int ret, enabled, present;
+
+	ret = 0;
+
+	channel_d = (struct dentry *)dir->i_private;
+	channel = channel_d->d_name.name;
+
+	marker_d = dir_lookup(channel_d, dentry->d_name.name);
+
+	if (!marker_d) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	name = marker_d->d_name.name;
+
+	lock_markers();
+
+	enabled = _is_marker_enabled(channel, name);
+	present = _is_marker_present(channel, name);
+
+	unlock_markers();
+
+	if (present || (!present && enabled)) {
+		ret = -EPERM;
+		goto out;
+	}
+
+	mutex_unlock(&dir->i_mutex);
+	mutex_unlock(&dentry->d_inode->i_mutex);
+	debugfs_remove_recursive(marker_d);
+	mutex_lock_nested(&dir->i_mutex, I_MUTEX_PARENT);
+	mutex_lock(&dentry->d_inode->i_mutex);
+out:
+	return ret;
+}
+
+const struct inode_operations channel_dir_opt = {
+	.lookup = simple_lookup,
+	.mkdir = marker_mkdir,
+	.rmdir = marker_rmdir,
+};
+
+static int channel_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+{
+	struct dentry *channel_d;
+	int ret;
+
+	ret = 0;
+	mutex_unlock(&dir->i_mutex);
+
+	channel_d = debugfs_create_dir(dentry->d_name.name,
+				       markers_control_dir);
+	if (IS_ERR(channel_d)) {
+		ret = PTR_ERR(channel_d);
+		goto out;
+	}
+
+	channel_d->d_inode->i_private = (void *)channel_d;
+	init_marker_dir(channel_d, &channel_dir_opt);
+out:
+	mutex_lock_nested(&dir->i_mutex, I_MUTEX_PARENT);
+	return ret;
+}
+
+static int channel_rmdir(struct inode *dir, struct dentry *dentry)
+{
+	struct dentry *channel_d;
+	int ret;
+
+	ret = 0;
+
+	channel_d = dir_lookup(markers_control_dir, dentry->d_name.name);
+	if (!channel_d) {
+		ret = -ENOENT;
+		goto out;
+	}
+
+	if (list_empty(&channel_d->d_subdirs)) {
+		mutex_unlock(&dir->i_mutex);
+		mutex_unlock(&dentry->d_inode->i_mutex);
+		debugfs_remove(channel_d);
+		mutex_lock_nested(&dir->i_mutex, I_MUTEX_PARENT);
+		mutex_lock(&dentry->d_inode->i_mutex);
+	} else
+		ret = -EPERM;
+
+out:
+	return ret;
+}
+
+const struct inode_operations root_dir_opt = {
+	.lookup = simple_lookup,
+	.mkdir = channel_mkdir,
+	.rmdir = channel_rmdir
 };
 
 static int build_marker_file(struct marker *marker)
@@ -909,6 +1081,8 @@ static int build_marker_file(struct marker *marker)
 			err = -ENOMEM;
 			goto err_build_fail;
 		}
+		channel_d->d_inode->i_private = (void *)channel_d;
+		init_marker_dir(channel_d, &channel_dir_opt);
 	}
 
 	marker_d  = dir_lookup(channel_d, marker->name);
@@ -971,15 +1145,12 @@ static int build_marker_control_files(void)
 	for (; iter.marker != NULL; marker_iter_next(&iter)) {
 		err = build_marker_file(iter.marker);
 		if (err)
-			goto err_build_fail;
+			goto out;
 	}
 	marker_iter_stop(&iter);
 
+out:
 	unlock_markers();
-
-	return 0;
-
-err_build_fail:
 	return err;
 }
 
@@ -1131,6 +1302,8 @@ static int __init ltt_trace_control_init(void)
 		err = -ENOMEM;
 		goto err_create_marker_control_dir;
 	}
+
+	init_marker_dir(markers_control_dir, &root_dir_opt);
 
 	if (build_marker_control_files())
 		goto err_build_fail;
