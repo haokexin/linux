@@ -137,8 +137,14 @@ struct rchan_callbacks {
 	int (*remove_buf_file)(struct dentry *dentry);
 };
 
-extern int ltt_relay_write(struct rchan_buf *buf, size_t offset,
-	const void *src, size_t len);
+extern struct buf_page *ltt_relay_find_prev_page(struct rchan_buf *buf,
+	struct buf_page *page, size_t offset, ssize_t diff_offset);
+
+extern struct buf_page *ltt_relay_find_next_page(struct rchan_buf *buf,
+	struct buf_page *page, size_t offset, ssize_t diff_offset);
+
+extern void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
+	const void *src, size_t len, struct buf_page *page, ssize_t pagecpy);
 
 extern int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 	void *dest, size_t len);
@@ -154,6 +160,87 @@ extern struct buf_page *ltt_relay_read_get_page(struct rchan_buf *buf,
  */
 extern void *ltt_relay_offset_address(struct rchan_buf *buf,
 	size_t offset);
+
+/*
+ * Find the page containing "offset". Cache it if it is after the currently
+ * cached page.
+ */
+static inline struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
+		struct buf_page **page_cache,
+		struct buf_page *page, size_t offset)
+{
+	ssize_t diff_offset;
+	ssize_t half_buf_size = buf->chan->alloc_size >> 1;
+
+	/*
+	 * Make sure this is the page we want to write into. The current
+	 * page is changed concurrently by other writers. [wrh]page are
+	 * used as a cache remembering the last page written
+	 * to/read/looked up for header address. No synchronization;
+	 * could have to find the previous page is a nested write
+	 * occured. Finding the right page is done by comparing the
+	 * dest_offset with the buf_page offsets.
+	 * When at the exact opposite of the buffer, bias towards forward search
+	 * because it will be cached.
+	 */
+
+	diff_offset = (ssize_t)offset - (ssize_t)page->offset;
+	if (diff_offset <= -(ssize_t)half_buf_size)
+		diff_offset += buf->chan->alloc_size;
+	else if (diff_offset > half_buf_size)
+		diff_offset -= buf->chan->alloc_size;
+
+	if (unlikely(diff_offset >= (ssize_t)PAGE_SIZE)) {
+		page = ltt_relay_find_next_page(buf, page, offset, diff_offset);
+		*page_cache = page;
+	} else if (unlikely(diff_offset < 0)) {
+		page = ltt_relay_find_prev_page(buf, page, offset, diff_offset);
+	}
+	return page;
+}
+
+static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
+{
+	switch (len) {
+	case 0:
+		break;
+	case 1:
+		*(u8 *)dest = *(const u8 *)src;
+		break;
+	case 2:
+		*(u16 *)dest = *(const u16 *)src;
+		break;
+	case 4:
+		*(u32 *)dest = *(const u32 *)src;
+		break;
+#if (BITS_PER_LONG == 64)
+	case 8:
+		*(u64 *)dest = *(const u64 *)src;
+		break;
+#endif
+	default:
+		memcpy(dest, src, len);
+	}
+}
+
+static inline int ltt_relay_write(struct rchan_buf *buf, size_t offset,
+	const void *src, size_t len)
+{
+	struct buf_page *page;
+	ssize_t pagecpy;
+
+	offset &= buf->chan->alloc_size - 1;
+	page = buf->wpage;
+
+	page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
+	pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
+	ltt_relay_do_copy(page_address(page->page)
+		+ (offset & ~PAGE_MASK), src, pagecpy);
+
+	if (unlikely(len != pagecpy))
+		_ltt_relay_write(buf, offset, src, len, page, pagecpy);
+	return len;
+}
 
 /*
  * CONFIG_LTT_RELAY kernel API, ltt/ltt-relay-alloc.c
