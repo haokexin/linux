@@ -41,7 +41,7 @@ static struct pt_regs *get_irq_regs(void)
 void probe_irq_entry(unsigned int id, struct pt_regs *regs,
 	struct irqaction *action);
 
-DEFINE_MARKER_TP(kernel_irq_entry, irq_entry, probe_irq_entry,
+DEFINE_MARKER_TP(kernel, irq_entry, irq_entry, probe_irq_entry,
 	"ip %lu handler %p irq_id #2u%u kernel_mode #1u%u");
 
 notrace void probe_irq_entry(unsigned int id, struct pt_regs *regs,
@@ -62,15 +62,15 @@ notrace void probe_irq_entry(unsigned int id, struct pt_regs *regs,
 	data.f2 = (unsigned long) (action ? action->handler : NULL);
 	data.f3 = id;
 
-	marker = &GET_MARKER(kernel_irq_entry);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, irq_entry);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, serialize_sizeof(data), sizeof(long));
 }
 
 void probe_irq_next_handler(unsigned int id, struct irqaction *action,
 		irqreturn_t prev_ret);
 
-DEFINE_MARKER_TP(kernel_irq_next_handler, irq_next_handler,
+DEFINE_MARKER_TP(kernel, irq_next_handler, irq_next_handler,
 	probe_irq_next_handler,
 	"handler %p prev_ret #1u%u");
 
@@ -83,8 +83,8 @@ notrace void probe_irq_next_handler(unsigned int id, struct irqaction *action,
 	data.f1 = (unsigned long) (action ? action->handler : NULL);
 	data.f2 = prev_ret;
 
-	marker = &GET_MARKER(kernel_irq_next_handler);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, irq_next_handler);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, serialize_sizeof(data), sizeof(long));
 }
 
@@ -92,7 +92,7 @@ notrace void probe_irq_next_handler(unsigned int id, struct irqaction *action,
 
 void probe_irq_exit(irqreturn_t retval);
 
-DEFINE_MARKER_TP(kernel_irq_exit, irq_exit, probe_irq_exit,
+DEFINE_MARKER_TP(kernel, irq_exit, irq_exit, probe_irq_exit,
 	"handled #1u%u");
 
 notrace void probe_irq_exit(irqreturn_t retval)
@@ -102,8 +102,8 @@ notrace void probe_irq_exit(irqreturn_t retval)
 
 	data = IRQ_RETVAL(retval);
 
-	marker = &GET_MARKER(kernel_irq_exit);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, irq_exit);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, sizeof(data), sizeof(data));
 }
 
@@ -112,7 +112,7 @@ notrace void probe_irq_exit(irqreturn_t retval)
 void probe_irq_softirq_entry(struct softirq_action *h,
 	struct softirq_action *softirq_vec);
 
-DEFINE_MARKER_TP(kernel_softirq_entry, irq_softirq_entry,
+DEFINE_MARKER_TP(kernel, softirq_entry, irq_softirq_entry,
 	probe_irq_softirq_entry, "softirq_id #1u%lu");
 
 notrace void probe_irq_softirq_entry(struct softirq_action *h,
@@ -123,8 +123,8 @@ notrace void probe_irq_softirq_entry(struct softirq_action *h,
 
 	data = ((unsigned long)h - (unsigned long)softirq_vec) / sizeof(*h);
 
-	marker = &GET_MARKER(kernel_softirq_entry);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, softirq_entry);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, sizeof(data), sizeof(data));
 }
 
@@ -133,7 +133,7 @@ notrace void probe_irq_softirq_entry(struct softirq_action *h,
 void probe_irq_softirq_exit(struct softirq_action *h,
 	struct softirq_action *softirq_vec);
 
-DEFINE_MARKER_TP(kernel_softirq_exit, irq_softirq_exit,
+DEFINE_MARKER_TP(kernel, softirq_exit, irq_softirq_exit,
 	probe_irq_softirq_exit, "softirq_id #1u%lu");
 
 notrace void probe_irq_softirq_exit(struct softirq_action *h,
@@ -144,8 +144,8 @@ notrace void probe_irq_softirq_exit(struct softirq_action *h,
 
 	data = ((unsigned long)h - (unsigned long)softirq_vec) / sizeof(*h);
 
-	marker = &GET_MARKER(kernel_softirq_exit);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, softirq_exit);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, sizeof(data), sizeof(data));
 }
 
@@ -153,7 +153,7 @@ notrace void probe_irq_softirq_exit(struct softirq_action *h,
 
 void probe_irq_softirq_raise(unsigned int nr);
 
-DEFINE_MARKER_TP(kernel_softirq_raise, irq_softirq_raise,
+DEFINE_MARKER_TP(kernel, softirq_raise, irq_softirq_raise,
 	probe_irq_softirq_raise, "softirq_id #1u%u");
 
 notrace void probe_irq_softirq_raise(unsigned int nr)
@@ -163,55 +163,55 @@ notrace void probe_irq_softirq_raise(unsigned int nr)
 
 	data = nr;
 
-	marker = &GET_MARKER(kernel_softirq_raise);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, softirq_raise);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, sizeof(data), sizeof(data));
 }
 
 /* Standard probes */
 void probe_irq_tasklet_low_entry(struct tasklet_struct *t)
 {
-	trace_mark_tp(kernel_tasklet_low_entry, irq_tasklet_low_entry,
+	trace_mark_tp(kernel, tasklet_low_entry, irq_tasklet_low_entry,
 		probe_irq_tasklet_low_entry, "func %p data %lu",
 		t->func, t->data);
 }
 
 void probe_irq_tasklet_low_exit(struct tasklet_struct *t)
 {
-	trace_mark_tp(kernel_tasklet_low_exit, irq_tasklet_low_exit,
+	trace_mark_tp(kernel, tasklet_low_exit, irq_tasklet_low_exit,
 		probe_irq_tasklet_low_exit, "func %p data %lu",
 		t->func, t->data);
 }
 
 void probe_irq_tasklet_high_entry(struct tasklet_struct *t)
 {
-	trace_mark_tp(kernel_tasklet_high_entry, irq_tasklet_high_entry,
+	trace_mark_tp(kernel, tasklet_high_entry, irq_tasklet_high_entry,
 		probe_irq_tasklet_high_entry, "func %p data %lu",
 		t->func, t->data);
 }
 
 void probe_irq_tasklet_high_exit(struct tasklet_struct *t)
 {
-	trace_mark_tp(kernel_tasklet_high_exit, irq_tasklet_high_exit,
+	trace_mark_tp(kernel, tasklet_high_exit, irq_tasklet_high_exit,
 		probe_irq_tasklet_high_exit, "func %p data %lu",
 		t->func, t->data);
 }
 
 void probe_sched_kthread_stop(struct task_struct *t)
 {
-	trace_mark_tp(kernel_kthread_stop, sched_kthread_stop,
+	trace_mark_tp(kernel, kthread_stop, sched_kthread_stop,
 		probe_sched_kthread_stop, "pid %d", t->pid);
 }
 
 void probe_sched_kthread_stop_ret(int ret)
 {
-	trace_mark_tp(kernel_kthread_stop_ret, sched_kthread_stop_ret,
+	trace_mark_tp(kernel, kthread_stop_ret, sched_kthread_stop_ret,
 		probe_sched_kthread_stop_ret, "ret %d", ret);
 }
 
 void probe_sched_wait_task(struct rq *rq, struct task_struct *p)
 {
-	trace_mark_tp(kernel_sched_wait_task, sched_wait_task,
+	trace_mark_tp(kernel, sched_wait_task, sched_wait_task,
 		probe_sched_wait_task, "pid %d state #2d%ld",
 		p->pid, p->state);
 }
@@ -220,7 +220,7 @@ void probe_sched_wait_task(struct rq *rq, struct task_struct *p)
 
 void probe_sched_wakeup(struct rq *rq, struct task_struct *p);
 
-DEFINE_MARKER_TP(kernel_sched_try_wakeup, sched_wakeup,
+DEFINE_MARKER_TP(kernel, sched_try_wakeup, sched_wakeup,
 	probe_sched_wakeup, "pid %d cpu_id %u state #2d%ld");
 
 notrace void probe_sched_wakeup(struct rq *rq, struct task_struct *p)
@@ -232,14 +232,14 @@ notrace void probe_sched_wakeup(struct rq *rq, struct task_struct *p)
 	data.f2 = task_cpu(p);
 	data.f3 = p->state;
 
-	marker = &GET_MARKER(kernel_sched_try_wakeup);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, sched_try_wakeup);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, serialize_sizeof(data), sizeof(int));
 }
 
 void probe_sched_wakeup_new(struct rq *rq, struct task_struct *p, int success)
 {
-	trace_mark_tp(kernel_sched_wakeup_new_task, sched_wakeup_new,
+	trace_mark_tp(kernel, sched_wakeup_new_task, sched_wakeup_new,
 		probe_sched_wakeup_new, "pid %d state #2d%ld cpu_id %u",
 		p->pid, p->state, task_cpu(p));
 }
@@ -249,7 +249,7 @@ void probe_sched_wakeup_new(struct rq *rq, struct task_struct *p, int success)
 void probe_sched_switch(struct rq *rq, struct task_struct *prev,
 		struct task_struct *next);
 
-DEFINE_MARKER_TP(kernel_sched_schedule, sched_switch, probe_sched_switch,
+DEFINE_MARKER_TP(kernel, sched_schedule, sched_switch, probe_sched_switch,
 	"prev_pid %d next_pid %d prev_state #2d%ld");
 
 notrace void probe_sched_switch(struct rq *rq, struct task_struct *prev,
@@ -262,46 +262,46 @@ notrace void probe_sched_switch(struct rq *rq, struct task_struct *prev,
 	data.f2 = next->pid;
 	data.f3 = prev->state;
 
-	marker = &GET_MARKER(kernel_sched_schedule);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, sched_schedule);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, serialize_sizeof(data), sizeof(int));
 }
 
 void probe_sched_migrate_task(struct task_struct *p, int dest_cpu)
 {
-	trace_mark_tp(kernel_sched_migrate_task, sched_migrate_task,
+	trace_mark_tp(kernel, sched_migrate_task, sched_migrate_task,
 		probe_sched_migrate_task, "pid %d state #2d%ld dest_cpu %d",
 		p->pid, p->state, dest_cpu);
 }
 
 void probe_sched_signal_send(int sig, struct siginfo *info, struct task_struct *t)
 {
-	trace_mark_tp(kernel_send_signal, signal_generate,
+	trace_mark_tp(kernel, send_signal, signal_generate,
 		probe_sched_signal_send, "pid %d signal %d", t->pid, sig);
 }
 
 void probe_sched_process_free(struct task_struct *p)
 {
-	trace_mark_tp(kernel_process_free, sched_process_free,
+	trace_mark_tp(kernel, process_free, sched_process_free,
 		probe_sched_process_free, "pid %d", p->pid);
 }
 
 void probe_sched_process_exit(struct task_struct *p)
 {
-	trace_mark_tp(kernel_process_exit, sched_process_exit,
+	trace_mark_tp(kernel, process_exit, sched_process_exit,
 		probe_sched_process_exit, "pid %d", p->pid);
 }
 
 void probe_sched_process_wait(struct pid *pid)
 {
-	trace_mark_tp(kernel_process_wait, sched_process_wait,
+	trace_mark_tp(kernel, process_wait, sched_process_wait,
 		probe_sched_process_wait, "pid %d", pid_nr(pid));
 }
 
 void probe_sched_process_fork(struct task_struct *parent,
 		struct task_struct *child)
 {
-	trace_mark_tp(kernel_process_fork, sched_process_fork,
+	trace_mark_tp(kernel, process_fork, sched_process_fork,
 		probe_sched_process_fork,
 		"parent_pid %d child_pid %d child_tgid %d",
 		parent->pid, child->pid, child->tgid);
@@ -309,21 +309,21 @@ void probe_sched_process_fork(struct task_struct *parent,
 
 void probe_sched_kthread_create(void *fn, int pid)
 {
-	trace_mark_tp(kernel_kthread_create, sched_kthread_create,
+	trace_mark_tp(kernel, kthread_create, sched_kthread_create,
 		probe_sched_kthread_create,
 		"fn %p pid %d", fn, pid);
 }
 
 void probe_timer_itimer_expired(struct signal_struct *sig)
 {
-	trace_mark_tp(kernel_timer_itimer_expired, timer_itimer_expired,
+	trace_mark_tp(kernel, timer_itimer_expired, timer_itimer_expired,
 		probe_timer_itimer_expired, "pid %d",
 		pid_nr(sig->leader_pid));
 }
 
 void probe_timer_itimer_set(int which, struct itimerval *value)
 {
-	trace_mark_tp(kernel_timer_itimer_set,
+	trace_mark_tp(kernel, timer_itimer_set,
 		timer_itimer_set, probe_timer_itimer_set,
 		"which %d interval_sec %ld interval_usec %ld "
 		"value_sec %ld value_usec %ld",
@@ -338,7 +338,7 @@ void probe_timer_itimer_set(int which, struct itimerval *value)
 
 void probe_timer_set(struct timer_list *timer);
 
-DEFINE_MARKER_TP(kernel_timer_set, timer_set, probe_timer_set,
+DEFINE_MARKER_TP(kernel, timer_set, timer_set, probe_timer_set,
 	"expires %lu function %p data %lu");
 
 notrace void probe_timer_set(struct timer_list *timer)
@@ -350,15 +350,15 @@ notrace void probe_timer_set(struct timer_list *timer)
 	data.f2 = (unsigned long)timer->function;
 	data.f3 = timer->data;
 
-	marker = &GET_MARKER(kernel_timer_set);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, timer_set);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, serialize_sizeof(data), sizeof(long));
 }
 
 void probe_timer_update_time(struct timespec *_xtime,
 		struct timespec *_wall_to_monotonic)
 {
-	trace_mark_tp(kernel_timer_update_time, timer_update_time,
+	trace_mark_tp(kernel, timer_update_time, timer_update_time,
 		probe_timer_update_time,
 		"jiffies #8u%llu xtime_sec %ld xtime_nsec %ld "
 		"walltomonotonic_sec %ld walltomonotonic_nsec %ld",
@@ -368,13 +368,13 @@ void probe_timer_update_time(struct timespec *_xtime,
 
 void probe_timer_timeout(struct task_struct *p)
 {
-	trace_mark_tp(kernel_timer_timeout, timer_timeout,
+	trace_mark_tp(kernel, timer_timeout, timer_timeout,
 		probe_timer_timeout, "pid %d", p->pid);
 }
 
 void probe_kernel_printk(unsigned long retaddr)
 {
-	trace_mark_tp(kernel_printk, kernel_printk,
+	trace_mark_tp(kernel, printk, kernel_printk,
 		probe_kernel_printk, "ip 0x%lX", retaddr);
 }
 
@@ -400,7 +400,7 @@ void probe_kernel_vprintk(unsigned long retaddr, char *buf, int len)
 			mark_len--;
 		saved_char = mark_buf[mark_len];
 		mark_buf[mark_len] = '\0';
-		trace_mark_tp(kernel_vprintk, kernel_vprintk,
+		trace_mark_tp(kernel, vprintk, kernel_vprintk,
 			probe_kernel_vprintk,
 			"loglevel #1u%u string %s ip 0x%lX",
 			loglevel, mark_buf, retaddr);
@@ -411,13 +411,13 @@ void probe_kernel_vprintk(unsigned long retaddr, char *buf, int len)
 #ifdef CONFIG_MODULES
 void probe_kernel_module_free(struct module *mod)
 {
-	trace_mark_tp(kernel_module_free, kernel_module_free,
+	trace_mark_tp(kernel, module_free, kernel_module_free,
 		probe_kernel_module_free, "name %s", mod->name);
 }
 
 void probe_kernel_module_load(struct module *mod)
 {
-	trace_mark_tp(kernel_module_load, kernel_module_load,
+	trace_mark_tp(kernel, module_load, kernel_module_load,
 		probe_kernel_module_load, "name %s", mod->name);
 }
 #endif

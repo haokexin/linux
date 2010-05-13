@@ -16,7 +16,7 @@
 
 void probe_syscall_entry(struct pt_regs *regs, long id);
 
-DEFINE_MARKER_TP(kernel_syscall_entry, syscall_entry,
+DEFINE_MARKER_TP(kernel, syscall_entry, syscall_entry,
 	probe_syscall_entry, "ip #p%ld syscall_id #2u%u");
 
 notrace void probe_syscall_entry(struct pt_regs *regs, long id)
@@ -27,8 +27,8 @@ notrace void probe_syscall_entry(struct pt_regs *regs, long id)
 	data.f1 = instruction_pointer(regs);
 	data.f2 = (unsigned short)id;
 
-	marker = &GET_MARKER(kernel_syscall_entry);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, syscall_entry);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, serialize_sizeof(data), sizeof(long));
 }
 
@@ -36,15 +36,15 @@ notrace void probe_syscall_entry(struct pt_regs *regs, long id)
 
 void probe_syscall_exit(long ret);
 
-DEFINE_MARKER_TP(kernel_syscall_exit, syscall_exit,
+DEFINE_MARKER_TP(kernel, syscall_exit, syscall_exit,
 	probe_syscall_exit, "ret %ld");
 
 notrace void probe_syscall_exit(long ret)
 {
 	struct marker *marker;
 
-	marker = &GET_MARKER(kernel_syscall_exit);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, syscall_exit);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&ret, sizeof(ret), sizeof(ret));
 }
 

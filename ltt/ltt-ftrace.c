@@ -37,7 +37,8 @@ ltt_tracer_call(unsigned long ip, unsigned long parent_ip)
 	if (likely(!per_cpu(tracing_cpu, cpu)
 			&& !atomic_read(&system_trace_refcount)))
 		return;
-	trace_mark(ftrace_entry, "ip 0x%lX parent_ip 0x%lX", ip, parent_ip);
+	trace_mark(function_trace, entry, "ip 0x%lX parent_ip 0x%lX",
+		   ip, parent_ip);
 }
 
 static notrace void ltt_tap_marker(const struct marker *mdata,

@@ -15,7 +15,7 @@
 
 void probe_trap_entry(struct pt_regs *regs, long id);
 
-DEFINE_MARKER_TP(kernel_trap_entry, trap_entry,
+DEFINE_MARKER_TP(kernel, trap_entry, trap_entry,
 	probe_trap_entry, "ip #p%ld trap_id #2u%u");
 
 notrace void probe_trap_entry(struct pt_regs *regs, long id)
@@ -29,8 +29,8 @@ notrace void probe_trap_entry(struct pt_regs *regs, long id)
 		data.f1 = 0UL;
 	data.f2 = (unsigned short)id;
 
-	marker = &GET_MARKER(kernel_trap_entry);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, trap_entry);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		&data, serialize_sizeof(data), sizeof(long));
 }
 
@@ -38,15 +38,15 @@ notrace void probe_trap_entry(struct pt_regs *regs, long id)
 
 void probe_trap_exit(void);
 
-DEFINE_MARKER_TP(kernel_trap_exit, trap_exit,
+DEFINE_MARKER_TP(kernel, trap_exit, trap_exit,
 	probe_trap_exit, MARK_NOARGS);
 
 notrace void probe_trap_exit(void)
 {
 	struct marker *marker;
 
-	marker = &GET_MARKER(kernel_trap_exit);
-	ltt_specialized_trace(marker->single.probe_private,
+	marker = &GET_MARKER(kernel, trap_exit);
+	ltt_specialized_trace(marker, marker->single.probe_private,
 		NULL, 0, 0);
 }
 

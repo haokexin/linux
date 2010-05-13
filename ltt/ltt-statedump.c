@@ -81,7 +81,8 @@ static void ltt_enumerate_device(struct ltt_probe_private_data *call_data,
 			for (ifa = in_dev->ifa_list;
 					ifa != NULL;
 					ifa = ifa->ifa_next)
-				__trace_mark(0, list_network_ipv4_interface,
+				__trace_mark(0, netif_state,
+					network_ipv4_interface,
 					call_data,
 					"name %s address #4u%lu up %d",
 					dev->name,
@@ -89,8 +90,9 @@ static void ltt_enumerate_device(struct ltt_probe_private_data *call_data,
 			in_dev_put(in_dev);
 		}
 	} else
-		__trace_mark(0, list_network_ip_interface, call_data,
-			"name %s address #4u%lu up %d", dev->name, 0UL, 0);
+		__trace_mark(0, netif_state, network_ip_interface,
+			call_data, "name %s address #4u%lu up %d",
+			dev->name, 0UL, 0);
 }
 
 static inline int
@@ -134,7 +136,7 @@ ltt_enumerate_task_fd(struct ltt_probe_private_data *call_data,
 			continue;
 		path = d_path(&filp->f_path, tmp, PAGE_SIZE);
 		/* Make sure we give at least some info */
-		__trace_mark(0, list_file_descriptor, call_data,
+		__trace_mark(0, fd_state, file_descriptor, call_data,
 			"filename %s pid %d fd %u",
 			(IS_ERR(path))?(filp->f_dentry->d_name.name):(path),
 			t->pid, i);
@@ -185,7 +187,7 @@ ltt_enumerate_task_vm_maps(struct ltt_probe_private_data *call_data,
 				ino = map->vm_file->f_dentry->d_inode->i_ino;
 			else
 				ino = 0;
-			__trace_mark(0, list_vm_map, call_data,
+			__trace_mark(0, vm_state, vm_map, call_data,
 					"pid %d start %lu end %lu flags %lu "
 					"pgoff %lu inode %lu",
 					t->pid,
@@ -234,7 +236,7 @@ static inline void list_interrupts(struct ltt_probe_private_data *call_data)
 		local_irq_save(flags);
 		raw_spin_lock(&desc->lock);
 		for (action = desc->action; action; action = action->next)
-			__trace_mark(0, list_interrupt, call_data,
+			__trace_mark(0, irq_state, interrupt, call_data,
 				"name %s action %s irq_id %u",
 				irq_chip_name, action->name, irq);
 		raw_spin_unlock(&desc->lock);
@@ -308,7 +310,7 @@ ltt_enumerate_process_states(struct ltt_probe_private_data *call_data)
 		else
 			type = LTTNG_KERNEL_THREAD;
 
-		__trace_mark(0, list_process_state, call_data,
+		__trace_mark(0, task_state, process_state, call_data,
 				"pid %d parent_pid %d name %s type %d mode %d "
 				"submode %d status %d tgid %d",
 				t->pid, t->parent->pid, t->comm,
@@ -363,7 +365,8 @@ static int do_ltt_statedump(struct ltt_probe_private_data *call_data)
 	BUG_ON(atomic_read(&kernel_threads_to_run) != 0);
 	/* Our work is done */
 	printk(KERN_DEBUG "LTT state dump end\n");
-	__trace_mark(0, list_statedump_end, call_data, MARK_NOARGS);
+	__trace_mark(0, global_state, statedump_end,
+		     call_data, MARK_NOARGS);
 	return 0;
 }
 
