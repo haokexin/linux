@@ -28,6 +28,15 @@
 /* Needs a _much_ better name... */
 #define FIX_SIZE(x) ((((x) - 1) & PAGE_MASK) + PAGE_SIZE)
 
+/* Use lowest pointer bit to show the sub-buffer has no reference. */
+#define RCHAN_NOREF_FLAG	0x1UL
+
+#define RCHAN_SB_IS_NOREF(x)	((unsigned long)(x) & RCHAN_NOREF_FLAG)
+#define RCHAN_SB_SET_NOREF(x)	\
+	(x = (struct rchan_page *)((unsigned long)(x) | RCHAN_NOREF_FLAG))
+#define RCHAN_SB_CLEAR_NOREF(x)	\
+	(x = (struct rchan_page *)((unsigned long)(x) & ~RCHAN_NOREF_FLAG))
+
 /*
  * Tracks changes to rchan/rchan_buf structs
  */
@@ -249,17 +258,98 @@ static __inline__ int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 {
 	size_t sbidx, index;
 	ssize_t pagecpy;
+	struct rchan_page *rpages;
 
 	offset &= buf->chan->alloc_size - 1;
 	sbidx = offset >> buf->chan->subbuf_size_order;
 	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
 	pagecpy = min_t(size_t, len, (- offset) & ~PAGE_MASK);
-	ltt_relay_do_copy(buf->rchan_wsb[sbidx].pages[index].virt
-				+ (offset & ~PAGE_MASK), src, pagecpy);
+	rpages = buf->rchan_wsb[sbidx].pages;
+	WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
+	ltt_relay_do_copy(rpages[index].virt + (offset & ~PAGE_MASK),
+			  src, pagecpy);
 
 	if (unlikely(len != pagecpy))
 		_ltt_relay_write(buf, offset, src, len, pagecpy);
 	return len;
+}
+
+/**
+ * ltt_clear_noref_flag - Clear the noref subbuffer flag, for writer.
+ */
+static __inline__ void ltt_clear_noref_flag(struct rchan *rchan,
+					    struct rchan_buf *buf,
+					    long idx)
+{
+	struct rchan_page *sb_pages, *new_sb_pages;
+
+	sb_pages = buf->rchan_wsb[idx].pages;
+	for (;;) {
+		if (!RCHAN_SB_IS_NOREF(sb_pages))
+			return;	/* Already writing to this buffer */
+		new_sb_pages = sb_pages;
+		RCHAN_SB_CLEAR_NOREF(new_sb_pages);
+		new_sb_pages = cmpxchg(&buf->rchan_wsb[idx].pages,
+			sb_pages, new_sb_pages);
+		if (likely(new_sb_pages == sb_pages))
+			break;
+		sb_pages = new_sb_pages;
+	}
+}
+
+/**
+ * ltt_set_noref_flag - Set the noref subbuffer flag, for writer.
+ */
+static __inline__ void ltt_set_noref_flag(struct rchan *rchan,
+					  struct rchan_buf *buf,
+					  long idx)
+{
+	struct rchan_page *sb_pages, *new_sb_pages;
+
+	sb_pages = buf->rchan_wsb[idx].pages;
+	for (;;) {
+		if (RCHAN_SB_IS_NOREF(sb_pages))
+			return;	/* Already set */
+		new_sb_pages = sb_pages;
+		RCHAN_SB_SET_NOREF(new_sb_pages);
+		new_sb_pages = cmpxchg(&buf->rchan_wsb[idx].pages,
+			sb_pages, new_sb_pages);
+		if (likely(new_sb_pages == sb_pages))
+			break;
+		sb_pages = new_sb_pages;
+	}
+}
+
+/**
+ * update_read_sb_index - Read-side subbuffer index update.
+ */
+static __inline__ int update_read_sb_index(struct rchan_buf *buf,
+					   long consumed_idx)
+{
+	struct rchan_page *old_wpage, *new_wpage;
+
+	if (unlikely(buf->chan->extra_reader_sb)) {
+		/*
+		 * Exchange the target writer subbuffer with our own unused
+		 * subbuffer.
+		 */
+		old_wpage = buf->rchan_wsb[consumed_idx].pages;
+		if (unlikely(!RCHAN_SB_IS_NOREF(old_wpage)))
+			return -EAGAIN;
+		WARN_ON_ONCE(!RCHAN_SB_IS_NOREF(buf->rchan_rsb.pages));
+		new_wpage = cmpxchg(&buf->rchan_wsb[consumed_idx].pages,
+				old_wpage,
+				buf->rchan_rsb.pages);
+		if (unlikely(old_wpage != new_wpage))
+			return -EAGAIN;
+		buf->rchan_rsb.pages = new_wpage;
+		RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
+	} else {
+		/* No page exchange, use the writer page directly */
+		buf->rchan_rsb.pages = buf->rchan_wsb[consumed_idx].pages;
+		RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
+	}
+	return 0;
 }
 
 /*
