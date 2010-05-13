@@ -19,8 +19,9 @@ obj-$(CONFIG_LTT_TRACEPROBES)	+= kernel-trace.o mm-trace.o fs-trace.o \
 ifeq ($(CONFIG_NET),y)
 ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_net-trace.o = -pg
+CFLAGS_REMOVE_net-extended-trace.o = -pg
 endif
-obj-$(CONFIG_LTT_TRACEPROBES)	+= net-trace.o
+obj-$(CONFIG_LTT_TRACEPROBES)	+= net-trace.o net-extended-trace.o
 endif
 
 ifdef CONFIG_JBD2
