@@ -24,6 +24,10 @@
 
 #include <asm/atomic.h>
 
+#ifdef CONFIG_M68K	/* system.h local_irq_enable depends on sched.h */
+#include <linux/sched.h>
+#endif
+
 #define NR_PREEMPT_BUSY_LOOPS	100
 
 /*
