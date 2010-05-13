@@ -1893,6 +1893,8 @@ int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 		if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
 			skb_dst_drop(skb);
 
+		trace_net_dev_xmit(skb);
+
 		rc = ops->ndo_start_xmit(skb, dev);
 		if (rc == NETDEV_TX_OK)
 			txq_trans_update(txq);
@@ -1919,13 +1921,14 @@ gso:
 
 		skb->next = nskb->next;
 		nskb->next = NULL;
-
 		/*
 		 * If device doesnt need nskb->dst, release it right now while
 		 * its hot in this cpu cache
 		 */
 		if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
 			skb_dst_drop(nskb);
+
+		trace_net_dev_xmit(nskb);
 
 		rc = ops->ndo_start_xmit(nskb, dev);
 		if (unlikely(rc != NETDEV_TX_OK)) {
@@ -2117,7 +2120,6 @@ int dev_queue_xmit(struct sk_buff *skb)
 	}
 
 gso:
-	trace_net_dev_xmit(skb);
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.
 	 */
@@ -2223,6 +2225,8 @@ int netif_rx(struct sk_buff *skb)
 
 	if (!skb->tstamp.tv64)
 		net_timestamp(skb);
+
+	trace_net_dev_receive(skb);
 
 	/*
 	 * The code is rearranged so that the path is the most
@@ -2520,6 +2524,8 @@ int netif_receive_skb(struct sk_buff *skb)
 	if (netpoll_receive_skb(skb))
 		return NET_RX_DROP;
 
+	trace_net_dev_receive(skb);
+
 	if (!skb->skb_iif)
 		skb->skb_iif = skb->dev->ifindex;
 
@@ -2535,7 +2541,6 @@ int netif_receive_skb(struct sk_buff *skb)
 
 	__get_cpu_var(netdev_rx_stat).total++;
 
-	trace_net_dev_receive(skb);
 	skb_reset_network_header(skb);
 	skb_reset_transport_header(skb);
 	skb->mac_len = skb->network_header - skb->mac_header;
