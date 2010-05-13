@@ -393,6 +393,8 @@
 #define __NR_perf_event_open		(__NR_SYSCALL_BASE+364)
 #define __NR_recvmmsg			(__NR_SYSCALL_BASE+365)
 
+#define __NR_syscall_max 366
+
 /*
  * The following SWIs are ARM private.
  */
