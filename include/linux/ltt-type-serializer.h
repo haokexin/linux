@@ -2,6 +2,7 @@
 #define _LTT_TYPE_SERIALIZER_H
 
 #include <linux/ltt-tracer.h>
+#include <linux/if.h>	/* For IFNAMSIZ */
 
 /*
  * largest_align must be non-zero, equal to the minimum between the largest type
@@ -101,6 +102,35 @@ struct serialize_long_short {
 struct serialize_long_char {
 	unsigned long f1;
 	unsigned char f2;
+	unsigned char end_field[0];
+} LTT_ALIGN;
+
+struct serialize_long_ifname {
+	unsigned long f1;
+	unsigned char f2[IFNAMSIZ];
+	unsigned char end_field[0];
+} LTT_ALIGN;
+
+struct serialize_sizet_int {
+	size_t f1;
+	unsigned int f2;
+	unsigned char end_field[0];
+} LTT_ALIGN;
+
+struct serialize_long_long_sizet_int {
+	unsigned long f1;
+	unsigned long f2;
+	size_t f3;
+	unsigned int f4;
+	unsigned char end_field[0];
+} LTT_ALIGN;
+
+struct serialize_long_long_sizet_int_int {
+	unsigned long f1;
+	unsigned long f2;
+	size_t f3;
+	unsigned int f4;
+	unsigned int f5;
 	unsigned char end_field[0];
 } LTT_ALIGN;
 
