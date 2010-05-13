@@ -422,6 +422,27 @@ void probe_kernel_module_load(struct module *mod)
 }
 #endif
 
+void probe_kernel_panic(const char *fmt, va_list args)
+{
+	char info[64];
+	vsnprintf(info, sizeof(info), fmt, args);
+	trace_mark_tp(kernel, panic, kernel_panic, probe_kernel_panic,
+		"info %s", info);
+}
+
+void probe_kernel_kernel_kexec(struct kimage *image)
+{
+	trace_mark_tp(kernel, kernel_kexec, kernel_kernel_kexec,
+		probe_kernel_kernel_kexec, "image %p", image);
+}
+
+void probe_kernel_crash_kexec(struct kimage *image, struct pt_regs *regs)
+{
+	trace_mark_tp(kernel, crash_kexec, kernel_crash_kexec,
+		probe_kernel_crash_kexec, "image %p ip %p", image,
+		regs ? (void *)instruction_pointer(regs) : NULL);
+}
+
 /* kernel_page_fault_entry specialized tracepoint probe */
 
 void probe_kernel_page_fault_entry(struct pt_regs *regs, int trapnr,
