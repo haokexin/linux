@@ -150,16 +150,26 @@ static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
 }
 #endif
 
-static __inline__ void ltt_deliver(struct rchan_buf *buf,
-		unsigned int subbuf_idx,
-		long commit_count)
+static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
+		struct ltt_channel_buf_struct *ltt_buf,
+		struct rchan *rchan,
+		struct rchan_buf *buf,
+		long offset, long commit_count, long idx)
 {
-	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
-
+	/* Check if all commits have been done */
+	if (unlikely((BUFFER_TRUNC(offset, rchan)
+			>> ltt_channel->n_subbufs_order)
+			- ((commit_count - rchan->subbuf_size)
+			   & ltt_channel->commit_count_mask) == 0)) {
+		/*
+		 * Set noref flag for this subbuffer.
+		 */
+		ltt_set_noref_flag(rchan, buf, idx);
 #ifdef CONFIG_LTT_VMCORE
-	ltt_buf->commit_seq[subbuf_idx] = commit_count;
+		ltt_buf->commit_seq[subbuf_idx] = commit_count;
 #endif
-	ltt_buf->wakeup_readers = 1;
+		ltt_buf->wakeup_readers = 1;
+	}
 }
 
 /*
@@ -343,12 +353,9 @@ static __inline__ void ltt_commit_slot(
 
 	ltt_buf->commit_count[endidx] += slot_size;
 	commit_count = ltt_buf->commit_count[endidx];
-	/* Check if all commits have been done */
-	if (unlikely((BUFFER_TRUNC(offset_end - 1, rchan)
-			>> ltt_channel->n_subbufs_order)
-			- ((commit_count - rchan->subbuf_size)
-			   & ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, endidx, commit_count);
+
+	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
+			  offset_end - 1, commit_count, endidx);
 	/*
 	 * Update lost_size for each commit. It's needed only for extracting
 	 * ltt buffers from vmcore, after crash.
