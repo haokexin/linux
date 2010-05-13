@@ -229,6 +229,11 @@ static inline void list_splice_init_rcu(struct list_head *list,
 		pos != (head); \
 		pos = rcu_dereference_raw(pos->next))
 
+#define __list_for_each_entry_rcu(pos, head, member) \
+	for (pos = list_entry(rcu_dereference((head)->next), typeof(*pos), member); \
+		&pos->member != (head); \
+		pos = list_entry(rcu_dereference(pos->member.next), typeof(*pos), member))
+
 /**
  * list_for_each_entry_rcu	-	iterate over rcu list of given type
  * @pos:	the type * to use as a loop cursor.
