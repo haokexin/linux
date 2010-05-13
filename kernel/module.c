@@ -75,7 +75,9 @@ EXPORT_TRACEPOINT_SYMBOL(module_get);
 #define INIT_OFFSET_MASK (1UL << (BITS_PER_LONG-1))
 
 /* List of modules, protected by module_mutex or preempt_disable
- * (delete uses stop_machine/add uses RCU list operations). */
+ * (delete uses stop_machine/add uses RCU list operations).
+ * Sorted by ascending list node address.
+ */
 DEFINE_MUTEX(module_mutex);
 EXPORT_SYMBOL_GPL(module_mutex);
 static LIST_HEAD(modules);
@@ -2041,6 +2043,7 @@ static noinline struct module *load_module(void __user *umod,
 	unsigned long symoffs, stroffs, *strmap;
 
 	mm_segment_t old_fs;
+	struct module *iter;
 
 	DEBUGP("load_module: umod=%p, len=%lu, uargs=%p\n",
 	       umod, len, uargs);
@@ -2448,8 +2451,23 @@ static noinline struct module *load_module(void __user *umod,
 	 * function to insert in a way safe to concurrent readers.
 	 * The mutex protects against concurrent writers.
 	 */
+	/*
+	 * We sort the modules by struct module pointer address to permit
+	 * correct iteration over modules of, at least, kallsyms for preemptible
+	 * operations, such as read(). Sorting by struct module pointer address
+	 * is equivalent to sort by list node address.
+	 */
+	list_for_each_entry_reverse(iter, &modules, list) {
+		BUG_ON(iter == mod);	/* Should never be in the list twice */
+		if (iter < mod) {
+			/* We belong to the location right after iter. */
+			list_add_rcu(&mod->list, &iter->list);
+			goto module_added;
+		}
+	}
+	/* We should be added at the head of the list */
 	list_add_rcu(&mod->list, &modules);
-
+module_added:
 	err = parse_args(mod->name, mod->args, mod->kp, mod->num_kp, NULL);
 	if (err < 0)
 		goto unlink;
@@ -2850,12 +2868,12 @@ static char *module_flags(struct module *mod, char *buf)
 static void *m_start(struct seq_file *m, loff_t *pos)
 {
 	mutex_lock(&module_mutex);
-	return seq_list_start(&modules, *pos);
+	return seq_sorted_list_start(&modules, pos);
 }
 
 static void *m_next(struct seq_file *m, void *p, loff_t *pos)
 {
-	return seq_list_next(p, &modules, pos);
+	return seq_sorted_list_next(p, &modules, pos);
 }
 
 static void m_stop(struct seq_file *m, void *p)
