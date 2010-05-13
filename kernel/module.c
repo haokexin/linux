@@ -56,6 +56,7 @@
 #include <linux/async.h>
 #include <linux/percpu.h>
 #include <linux/kmemleak.h>
+#include <trace/kernel.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/module.h>
@@ -97,6 +98,9 @@ static BLOCKING_NOTIFIER_HEAD(module_notify_list);
 
 /* Bounds of module allocation, for speeding __module_address */
 static unsigned long module_addr_min = -1UL, module_addr_max = 0;
+
+DEFINE_TRACE(kernel_module_load);
+DEFINE_TRACE(kernel_module_free);
 
 int register_module_notifier(struct notifier_block * nb)
 {
@@ -1464,6 +1468,7 @@ static int __unlink_module(void *_mod)
 /* Free a module, remove from lists, etc (must hold module_mutex). */
 static void free_module(struct module *mod)
 {
+	trace_kernel_module_free(mod);
 	trace_module_free(mod);
 
 	/* Delete from various lists */
@@ -2492,6 +2497,8 @@ module_added:
 	vfree(hdr);
 
 	trace_module_load(mod);
+
+	trace_kernel_module_load(mod);
 
 	/* Done! */
 	return mod;
