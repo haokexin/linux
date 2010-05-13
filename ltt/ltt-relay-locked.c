@@ -796,6 +796,19 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 		kfree(ltt_buf);
 		return -ENOMEM;
 	}
+
+#ifdef CONFIG_LTT_VMCORE
+	ltt_buf->commit_seq =
+		kzalloc_node(ALIGN(sizeof(ltt_buf->commit_seq) * n_subbufs,
+				   1 << INTERNODE_CACHE_SHIFT),
+			GFP_KERNEL, cpu_to_node(cpu));
+	if (!ltt_buf->commit_seq) {
+		kfree(ltt_buf->commit_count);
+		kfree(ltt_buf);
+		return -ENOMEM;
+	}
+#endif
+
 	buf->chan_private = ltt_buf;
 
 	kref_get(&trace->kref);
@@ -822,6 +835,9 @@ static void ltt_relay_destroy_buffer(struct ltt_channel_struct *ltt_chan,
 	kref_put(&ltt_chan->trace->ltt_transport_kref,
 		ltt_release_transport);
 	ltt_relay_print_buffer_errors(ltt_chan, cpu);
+#ifdef CONFIG_LTT_VMCORE
+	kfree(ltt_buf->commit_seq);
+#endif
 	kfree(ltt_buf->commit_count);
 	kfree(ltt_buf);
 	kref_put(&trace->kref, ltt_release_trace);
@@ -1173,7 +1189,7 @@ static void ltt_reserve_switch_old_subbuf(
 			>> ltt_channel->n_subbufs_order)
 			- ((offsets->commit_count - rchan->subbuf_size)
 			   & ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, oldidx, NULL);
+		ltt_deliver(buf, oldidx, offsets->commit_count);
 }
 
 /*
@@ -1199,7 +1215,7 @@ static void ltt_reserve_switch_new_subbuf(
 			>> ltt_channel->n_subbufs_order)
 			- ((offsets->commit_count - rchan->subbuf_size)
 			   & ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, beginidx, NULL);
+		ltt_deliver(buf, beginidx, offsets->commit_count);
 }
 
 /*
@@ -1238,7 +1254,7 @@ static void ltt_reserve_end_switch_current(
 			>> ltt_channel->n_subbufs_order)
 			- ((offsets->commit_count - rchan->subbuf_size)
 			   & ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, endidx, NULL);
+		ltt_deliver(buf, endidx, offsets->commit_count);
 }
 
 /*
