@@ -263,7 +263,7 @@ notrace void probe_net_napi_schedule(struct napi_struct *n)
 	data.f1 = (unsigned long)n;
 	data_len += sizeof(data.f1);
 	/* No need to align for strings */
-	strcpy(data.f2, n->dev->name);
+	strcpy(data.f2, n->dev ? n->dev->name : "<unk>");
 	data_len += strlen(data.f2) + 1;
 
 	marker = &GET_MARKER(net, napi_schedule);
@@ -286,7 +286,7 @@ notrace void probe_net_napi_poll(struct napi_struct *n)
 	data.f1 = (unsigned long)n;
 	data_len += sizeof(data.f1);
 	/* No need to align for strings */
-	strcpy(data.f2, n->dev->name);
+	strcpy(data.f2, n->dev ? n->dev->name : "<unk>");
 	data_len += strlen(data.f2) + 1;
 
 	marker = &GET_MARKER(net, napi_poll);
@@ -309,7 +309,7 @@ notrace void probe_net_napi_complete(struct napi_struct *n)
 	data.f1 = (unsigned long)n;
 	data_len += sizeof(data.f1);
 	/* No need to align for strings */
-	strcpy(data.f2, n->dev->name);
+	strcpy(data.f2, n->dev ? n->dev->name : "<unk>");
 	data_len += strlen(data.f2) + 1;
 
 	marker = &GET_MARKER(net, napi_complete);
