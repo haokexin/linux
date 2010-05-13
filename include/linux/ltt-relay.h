@@ -32,6 +32,8 @@
 #define RCHAN_SB_CLEAR_NOREF(x)	\
 	(x = (struct chanbuf_page *)((unsigned long)(x) & ~RCHAN_NOREF_FLAG))
 
+struct ltt_trace;
+
 struct chanbuf_page {
 	void *virt;			/* page virtual address (cached) */
 	struct page *page;		/* pointer to page structure */
@@ -73,14 +75,14 @@ struct ltt_chan_alloc {
 	unsigned long n_sb;		/* Number of sub-buffers */
 	struct dentry *parent;		/* Associated parent dentry */
 	struct dentry *ascii_dentry;	/* Text output dentry */
-	struct rcu_head rcu_cb;		/* RCU callback for buf removal */
+	struct ltt_trace *trace;	/* Associated trace */
 	char filename[NAME_MAX];	/* Filename for channel files */
 };
 
 int ltt_chanbuf_alloc_create(struct ltt_chanbuf_alloc *buf,
 			     struct ltt_chan_alloc *chan, int cpu);
 void ltt_chanbuf_alloc_free(struct ltt_chanbuf_alloc *buf);
-int ltt_chan_alloc_init(struct ltt_chan_alloc *chan,
+int ltt_chan_alloc_init(struct ltt_chan_alloc *chan, struct ltt_trace *trace,
 			const char *base_filename,
 			struct dentry *parent, size_t sb_size,
 			size_t n_sb, int extra_reader_sb, int overwrite);

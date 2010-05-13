@@ -17,8 +17,6 @@
 
 #define EVENTS_PER_CHANNEL	65536
 
-struct ltt_trace;
-
 struct ltt_chan {
 	struct ltt_chan_alloc a;		/* Parent. First field. */
 	int overwrite:1;
@@ -29,7 +27,6 @@ struct ltt_chan {
 						 * bits used to represent the
 						 * subbuffer index.
 						 */
-	struct ltt_trace *trace;
 	unsigned long switch_timer_interval;
 };
 
