@@ -57,6 +57,7 @@
 #include <linux/pipe_fs_i.h>
 #include <linux/splice.h>
 #include <linux/spinlock.h>
+#include <linux/hardirq.h>
 
 #if 0
 #define printk_dbg(fmt, args...) printk(fmt, args)
@@ -226,6 +227,7 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	long o_begin, o_end, o_old;
 	size_t before_hdr_pad;
 	unsigned long flags;
+	unsigned int nest;
 
 	raw_local_irq_save(flags);
 	__raw_spin_lock(&ltt_buf->lock);
@@ -233,7 +235,8 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	/*
 	 * Perform retryable operations.
 	 */
-	if (unlikely(__get_cpu_var(ltt_nesting) > 4)) {
+	nest = __get_cpu_var(ltt_nesting);
+	if (unlikely(nest > 4 || (in_nmi() && nest > 1))) {
 		ltt_buf->events_lost++;
 		__raw_spin_unlock(&ltt_buf->lock);
 		raw_local_irq_restore(flags);
