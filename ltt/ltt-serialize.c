@@ -889,7 +889,7 @@ notrace void ltt_vtrace(const struct marker *mdata, void *probe_data,
 		va_end(args_copy);
 		/* Out-of-order commit */
 		ltt_commit_slot(channel, &transport_data, buf_offset,
-				slot_size);
+				data_size, slot_size);
 	}
 	__get_cpu_var(ltt_nesting)--;
 	rcu_read_unlock_sched_notrace();
