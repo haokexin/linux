@@ -488,7 +488,7 @@ dotraplinkage void __kprobes do_int3(struct pt_regs *regs, long error_code)
 			== NOTIFY_STOP)
 		return;
 #endif /* CONFIG_KGDB_LOW_LEVEL_TRAP */
-#ifdef CONFIG_KPROBES
+#if (defined(CONFIG_KPROBES) || defined(USE_IMMEDIATE))
 	if (notify_die(DIE_INT3, "int3", regs, error_code, 3, SIGTRAP)
 			== NOTIFY_STOP)
 		return;
