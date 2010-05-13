@@ -347,27 +347,35 @@ static __inline__ unsigned char ltt_get_header_size(
 	offset += padding;
 	offset += sizeof(struct ltt_event_header);
 
-	switch (rflags) {
-	case LTT_RFLAG_ID_SIZE_TSC:
-		offset += sizeof(u16) + sizeof(u16);
-		if (data_size >= LTT_MAX_SMALL_SIZE)
-			offset += sizeof(u32);
-		offset += ltt_align(offset, sizeof(u64));
-		offset += sizeof(u64);
-		break;
-	case LTT_RFLAG_ID_SIZE:
-		offset += sizeof(u16) + sizeof(u16);
-		if (data_size >= LTT_MAX_SMALL_SIZE)
-			offset += sizeof(u32);
-		break;
-	case LTT_RFLAG_ID:
-		offset += sizeof(u16);
-		break;
+	if (unlikely(rflags)) {
+		switch (rflags) {
+		case LTT_RFLAG_ID_SIZE_TSC:
+			offset += sizeof(u16) + sizeof(u16);
+			if (data_size >= LTT_MAX_SMALL_SIZE)
+				offset += sizeof(u32);
+			offset += ltt_align(offset, sizeof(u64));
+			offset += sizeof(u64);
+			break;
+		case LTT_RFLAG_ID_SIZE:
+			offset += sizeof(u16) + sizeof(u16);
+			if (data_size >= LTT_MAX_SMALL_SIZE)
+				offset += sizeof(u32);
+			break;
+		case LTT_RFLAG_ID:
+			offset += sizeof(u16);
+			break;
+		}
 	}
 
 	*before_hdr_pad = padding;
 	return offset - orig_offset;
 }
+
+extern size_t ltt_write_event_header_slow(struct ltt_trace_struct *trace,
+		struct ltt_channel_struct *channel,
+		struct rchan_buf *buf, long buf_offset,
+		u16 eID, u32 event_size,
+		u64 tsc, unsigned int rflags);
 
 /*
  * ltt_write_event_header
@@ -392,69 +400,20 @@ static __inline__ size_t ltt_write_event_header(struct ltt_trace_struct *trace,
 		u64 tsc, unsigned int rflags)
 {
 	struct ltt_event_header header;
-	u16 small_size;
 
-	switch (rflags) {
-	case LTT_RFLAG_ID_SIZE_TSC:
-		header.id_time = 29 << LTT_TSC_BITS;
-		break;
-	case LTT_RFLAG_ID_SIZE:
-		header.id_time = 30 << LTT_TSC_BITS;
-		break;
-	case LTT_RFLAG_ID:
-		header.id_time = 31 << LTT_TSC_BITS;
-		break;
-	default:
-		header.id_time = eID << LTT_TSC_BITS;
-		break;
-	}
+	if (unlikely(rflags))
+		goto slow_path;
+
+	header.id_time = eID << LTT_TSC_BITS;
 	header.id_time |= (u32)tsc & LTT_TSC_MASK;
 	ltt_relay_write(buf, buf_offset, &header, sizeof(header));
 	buf_offset += sizeof(header);
 
-	switch (rflags) {
-	case LTT_RFLAG_ID_SIZE_TSC:
-		small_size = (u16)min_t(u32, event_size, LTT_MAX_SMALL_SIZE);
-		ltt_relay_write(buf, buf_offset,
-			&eID, sizeof(u16));
-		buf_offset += sizeof(u16);
-		ltt_relay_write(buf, buf_offset,
-			&small_size, sizeof(u16));
-		buf_offset += sizeof(u16);
-		if (small_size == LTT_MAX_SMALL_SIZE) {
-			ltt_relay_write(buf, buf_offset,
-				&event_size, sizeof(u32));
-			buf_offset += sizeof(u32);
-		}
-		buf_offset += ltt_align(buf_offset, sizeof(u64));
-		ltt_relay_write(buf, buf_offset,
-			&tsc, sizeof(u64));
-		buf_offset += sizeof(u64);
-		break;
-	case LTT_RFLAG_ID_SIZE:
-		small_size = (u16)min_t(u32, event_size, LTT_MAX_SMALL_SIZE);
-		ltt_relay_write(buf, buf_offset,
-			&eID, sizeof(u16));
-		buf_offset += sizeof(u16);
-		ltt_relay_write(buf, buf_offset,
-			&small_size, sizeof(u16));
-		buf_offset += sizeof(u16);
-		if (small_size == LTT_MAX_SMALL_SIZE) {
-			ltt_relay_write(buf, buf_offset,
-				&event_size, sizeof(u32));
-			buf_offset += sizeof(u32);
-		}
-		break;
-	case LTT_RFLAG_ID:
-		ltt_relay_write(buf, buf_offset,
-			&eID, sizeof(u16));
-		buf_offset += sizeof(u16);
-		break;
-	default:
-		break;
-	}
-
 	return buf_offset;
+
+slow_path:
+	return ltt_write_event_header_slow(trace, channel, buf, buf_offset,
+			eID, event_size, tsc, rflags);
 }
 
 /*
