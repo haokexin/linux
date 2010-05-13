@@ -190,8 +190,7 @@ __kprobes int arch_imv_update(const struct __imv *imv, int early)
 	unsigned char opcode_size = imv->insn_size - imv->size;
 	unsigned long insn = imv->imv - opcode_size;
 	unsigned long len;
-	char *vaddr;
-	struct page *pages[1];
+	void *buffer;
 
 #ifdef CONFIG_KPROBES
 	/*
@@ -242,29 +241,17 @@ __kprobes int arch_imv_update(const struct __imv *imv, int early)
 		_imv_bypass(&bypass_eip, &bypass_after_int3);
 
 		after_imv = imv->imv + imv->size;
+		len = NR_NOPS - imv->insn_size;
 
-		/*
-		 * Using the _early variants because nobody is executing the
-		 * bypass code while we patch it. It is protected by the
-		 * imv_mutex. Since we modify the instructions non atomically
-		 * (for nops), we have to use the _early variant.
-		 * We must however deal with RO pages.
-		 * Use a single page : 10 bytes are aligned on 16 bytes
-		 * boundaries.
-		 */
-		pages[0] = virt_to_page((void *)bypass_eip);
-		vaddr = vmap(pages, 1, VM_MAP, PAGE_KERNEL);
-		BUG_ON(!vaddr);
-		text_poke_early(&vaddr[bypass_eip & ~PAGE_MASK],
-			(void *)insn, imv->insn_size);
+		/* Allocate buffer to prepare new bypass */
+		buffer = kmalloc(imv->insn_size + len, GFP_KERNEL);
+		memcpy(buffer, (void *)insn, imv->insn_size);
 		/*
 		 * Fill the rest with nops.
 		 */
-		len = NR_NOPS - imv->insn_size;
-		add_nops((void *)
-			&vaddr[(bypass_eip & ~PAGE_MASK) + imv->insn_size],
-			len);
-		vunmap(vaddr);
+		add_nops(buffer + imv->insn_size, len);
+		text_poke((void *)bypass_eip, buffer, imv->insn_size + len);
+		kfree(buffer);
 
 		target_after_int3 = insn + BREAKPOINT_INS_LEN;
 		/* register_die_notifier has memory barriers */
