@@ -261,6 +261,20 @@ notrace void probe_tcpv4_rcv(struct sk_buff *skb)
 		&skb, sizeof(skb), sizeof(skb));
 }
 
+void probe_udpv4_rcv(struct sk_buff *skb);
+
+DEFINE_MARKER_TP(net, udpv4_rcv, net_udpv4_rcv, probe_udpv4_rcv,
+	"skb %p");
+
+notrace void probe_udpv4_rcv(struct sk_buff *skb)
+{
+	struct marker *marker;
+
+	marker = &GET_MARKER(net, udpv4_rcv);
+	ltt_specialized_trace(marker, marker->single.probe_private,
+		&skb, sizeof(skb), sizeof(skb));
+}
+
 #ifdef CONFIG_NETPOLL
 void probe_net_napi_schedule(struct napi_struct *n);
 
