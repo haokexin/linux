@@ -99,7 +99,6 @@ struct ltt_channel_buf_struct {
 					 * Wait queue for blocking user space
 					 * writers
 					 */
-	atomic_t wakeup_readers;	/* Boolean : wakeup readers waiting ? */
 	wait_queue_head_t read_wait;	/* reader wait queue */
 	unsigned int finalized;		/* buffer has been finalized */
 	struct timer_list switch_timer;	/* timer for periodical switch */
@@ -161,16 +160,72 @@ static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
 }
 #endif
 
-static __inline__ void ltt_deliver(struct rchan_buf *buf,
-		unsigned int subbuf_idx,
-		long commit_count)
-{
-	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
-
 #ifdef CONFIG_LTT_VMCORE
-	local_set(&ltt_buf->commit_seq[subbuf_idx], commit_count);
+static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
+		struct ltt_channel_buf_struct *ltt_buf,
+		struct rchan *rchan,
+		struct rchan_buf *buf,
+		long offset, long commit_count, long idx)
+{
+	/* Check if all commits have been done */
+	if (unlikely((BUFFER_TRUNC(offset, rchan)
+			>> ltt_channel->n_subbufs_order)
+			- ((commit_count - rchan->subbuf_size)
+			   & ltt_channel->commit_count_mask) == 0)) {
+		local_set(&ltt_buf->commit_seq[idx], commit_count);
+	}
+}
+#else
+static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
+		struct ltt_channel_buf_struct *ltt_buf,
+		struct rchan *rchan,
+		struct rchan_buf *buf,
+		long offset, long commit_count, long idx)
+{
+}
 #endif
-	atomic_set(&ltt_buf->wakeup_readers, 1);
+
+static __inline__ int ltt_poll_deliver(struct ltt_channel_struct *ltt_channel,
+		struct ltt_channel_buf_struct *ltt_buf,
+		struct rchan *rchan,
+		struct rchan_buf *buf)
+{
+	long consumed_old, consumed_idx, commit_count, write_offset;
+
+	consumed_old = atomic_long_read(&ltt_buf->consumed);
+	consumed_idx = SUBBUF_INDEX(consumed_old, buf->chan);
+	commit_count = local_read(&ltt_buf->commit_count[consumed_idx]);
+	/*
+	 * No memory barrier here, since we are only interested
+	 * in a statistically correct polling result. The next poll will
+	 * get the data is we are racing. The mb() that ensures correct
+	 * memory order is in get_subbuf.
+	 */
+	write_offset = local_read(&ltt_buf->offset);
+
+	/*
+	 * Check that the subbuffer we are trying to consume has been
+	 * already fully committed.
+	 */
+
+	if (((commit_count - rchan->subbuf_size)
+	     & ltt_channel->commit_count_mask)
+	    - (BUFFER_TRUNC(consumed_old, buf->chan)
+	       >> ltt_channel->n_subbufs_order)
+	    != 0)
+		return 0;
+
+	/*
+	 * Check that we are not about to read the same subbuffer in
+	 * which the writer head is.
+	 */
+	if ((SUBBUF_TRUNC(write_offset, buf->chan)
+	   - SUBBUF_TRUNC(consumed_old, buf->chan))
+	   == 0)
+		return 0;
+
+	return 1;
+
 }
 
 /*
@@ -190,9 +245,11 @@ static __inline__ int ltt_relay_try_reserve(
 
 	*tsc = trace_clock_read64();
 
-	prefetch(&ltt_buf->commit_count[SUBBUF_INDEX(*o_begin, rchan)]);
 #ifdef CONFIG_LTT_VMCORE
+	prefetch(&ltt_buf->commit_count[SUBBUF_INDEX(*o_begin, rchan)]);
 	prefetch(&ltt_buf->commit_seq[SUBBUF_INDEX(*o_begin, rchan)]);
+#else
+	prefetchw(&ltt_buf->commit_count[SUBBUF_INDEX(*o_begin, rchan)]);
 #endif
 	if (last_tsc_overflow(ltt_buf, *tsc))
 		*rflags = LTT_RFLAG_ID_SIZE_TSC;
@@ -349,12 +406,9 @@ static __inline__ void ltt_commit_slot(
 	smp_wmb();
 	commit_count = local_read(&ltt_buf->commit_count[endidx]) + slot_size;
 	local_set(&ltt_buf->commit_count[endidx], commit_count);
-	/* Check if all commits have been done */
-	if (unlikely((BUFFER_TRUNC(offset_end - 1, rchan)
-			>> ltt_channel->n_subbufs_order)
-			- ((commit_count - rchan->subbuf_size)
-			   & ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, endidx, commit_count);
+
+	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
+		offset_end - 1, commit_count, endidx);
 	/*
 	 * Update lost_size for each commit. It's needed only for extracting
 	 * ltt buffers from vmcore, after crash.
