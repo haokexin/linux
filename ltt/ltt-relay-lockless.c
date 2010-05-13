@@ -452,7 +452,7 @@ static void ltt_chanbuf_start_switch_timer(struct ltt_chanbuf *buf)
 	if (!chan->switch_timer_interval)
 		return;
 
-	init_timer(&buf->switch_timer);
+	init_timer_deferrable(&buf->switch_timer);
 	buf->switch_timer.function = switch_buffer;
 	buf->switch_timer.expires = jiffies + chan->switch_timer_interval;
 	buf->switch_timer.data = (unsigned long)buf;
