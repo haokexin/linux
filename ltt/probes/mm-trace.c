@@ -124,6 +124,22 @@ void probe_swap_file_open(struct file *file, char *filename)
 }
 #endif
 
+void probe_add_to_page_cache(struct address_space *mapping, pgoff_t offset)
+{
+	trace_mark_tp(mm, add_to_page_cache, add_to_page_cache,
+		probe_add_to_page_cache,
+		"inode %lu sdev %u",
+		mapping->host->i_ino, mapping->host->i_sb->s_dev);
+}
+
+void probe_remove_from_page_cache(struct address_space *mapping)
+{
+	trace_mark_tp(mm, remove_from_page_cache, remove_from_page_cache,
+		probe_remove_from_page_cache,
+		"inode %lu sdev %u",
+		mapping->host->i_ino, mapping->host->i_sb->s_dev);
+}
+
 MODULE_LICENSE("GPL and additional rights");
 MODULE_AUTHOR("Mathieu Desnoyers");
 MODULE_DESCRIPTION("MM Tracepoint Probes");
