@@ -158,6 +158,37 @@ static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
 }
 #endif
 
+static __inline__ void ltt_reserve_push_reader(
+		struct ltt_channel_buf_struct *ltt_buf,
+		struct rchan *rchan,
+		struct rchan_buf *buf,
+		long offset)
+{
+	long consumed_old, consumed_new;
+
+	do {
+		consumed_old = atomic_long_read(&ltt_buf->consumed);
+		/*
+		 * If buffer is in overwrite mode, push the reader consumed
+		 * count if the write position has reached it and we are not
+		 * at the first iteration (don't push the reader farther than
+		 * the writer). This operation can be done concurrently by many
+		 * writers in the same buffer, the writer being at the farthest
+		 * write position sub-buffer index in the buffer being the one
+		 * which will win this loop.
+		 * If the buffer is not in overwrite mode, pushing the reader
+		 * only happens if a sub-buffer is corrupted.
+		 */
+		if (unlikely((SUBBUF_TRUNC(offset, buf->chan)
+		   - SUBBUF_TRUNC(consumed_old, buf->chan))
+		   >= rchan->alloc_size))
+			consumed_new = SUBBUF_ALIGN(consumed_old, buf->chan);
+		else
+			return;
+	} while (unlikely(atomic_long_cmpxchg(&ltt_buf->consumed, consumed_old,
+			consumed_new) != consumed_old));
+}
+
 #ifdef CONFIG_LTT_VMCORE
 static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf,
@@ -314,6 +345,11 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	 * needed).
 	 */
 	save_last_tsc(ltt_buf, *tsc);
+
+	/*
+	 * Push the reader if necessary
+	 */
+	ltt_reserve_push_reader(ltt_buf, rchan, buf, o_end - 1);
 
 	*buf_offset = o_begin + before_hdr_pad;
 	return 0;

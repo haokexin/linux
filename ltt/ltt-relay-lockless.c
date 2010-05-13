@@ -1138,39 +1138,6 @@ static void ltt_relay_print_user_errors(struct ltt_trace_struct *trace,
 			dbg->write, dbg->read);
 }
 
-static void ltt_reserve_push_reader(
-		struct ltt_channel_struct *ltt_channel,
-		struct ltt_channel_buf_struct *ltt_buf,
-		struct rchan *rchan,
-		struct rchan_buf *buf,
-		struct ltt_reserve_switch_offsets *offsets)
-{
-	long consumed_old, consumed_new;
-
-	do {
-		consumed_old = atomic_long_read(&ltt_buf->consumed);
-		/*
-		 * If buffer is in overwrite mode, push the reader consumed
-		 * count if the write position has reached it and we are not
-		 * at the first iteration (don't push the reader farther than
-		 * the writer). This operation can be done concurrently by many
-		 * writers in the same buffer, the writer being at the farthest
-		 * write position sub-buffer index in the buffer being the one
-		 * which will win this loop.
-		 * If the buffer is not in overwrite mode, pushing the reader
-		 * only happens if a sub-buffer is corrupted.
-		 */
-		if (unlikely((SUBBUF_TRUNC(offsets->end-1, buf->chan)
-		   - SUBBUF_TRUNC(consumed_old, buf->chan))
-		   >= rchan->alloc_size))
-			consumed_new = SUBBUF_ALIGN(consumed_old, buf->chan);
-		else
-			return;
-	} while (unlikely(atomic_long_cmpxchg(&ltt_buf->consumed, consumed_old,
-			consumed_new) != consumed_old));
-}
-
-
 /*
  * ltt_reserve_switch_old_subbuf: switch old subbuffer
  *
@@ -1408,8 +1375,7 @@ void ltt_force_switch_lockless_slow(struct rchan_buf *buf,
 	 * Push the reader if necessary
 	 */
 	if (mode == FORCE_ACTIVE)
-		ltt_reserve_push_reader(ltt_channel, ltt_buf, rchan,
-					buf, &offsets);
+		ltt_reserve_push_reader(ltt_buf, rchan, buf, offsets.end - 1);
 
 	/*
 	 * Switch old subbuffer if needed.
@@ -1595,7 +1561,7 @@ int ltt_reserve_slot_lockless_slow(struct ltt_trace_struct *trace,
 	/*
 	 * Push the reader if necessary
 	 */
-	ltt_reserve_push_reader(ltt_channel, ltt_buf, rchan, buf, &offsets);
+	ltt_reserve_push_reader(ltt_buf, rchan, buf, offsets.end - 1);
 
 	/*
 	 * Switch old subbuffer if needed.
