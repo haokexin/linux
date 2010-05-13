@@ -9,6 +9,7 @@
 
 #include <linux/module.h>
 #include <linux/buffer_head.h>
+#include <linux/ltt-type-serializer.h>
 #include <trace/fs.h>
 
 void probe_fs_buffer_wait_start(struct buffer_head *bh)
@@ -60,17 +61,43 @@ void probe_fs_llseek(unsigned int fd, loff_t offset, unsigned int origin)
 }
 
 void probe_fs_read(unsigned int fd, char __user *buf, size_t count,
+		ssize_t ret);
+
+DEFINE_MARKER_TP(fs, read, fs_read, probe_fs_read,
+	"count %zu fd %u");
+
+notrace void probe_fs_read(unsigned int fd, char __user *buf, size_t count,
 		ssize_t ret)
 {
-	trace_mark_tp(fs, read, fs_read, probe_fs_read,
-		"fd %u count %zu", fd, count);
+	struct marker *marker;
+	struct serialize_sizet_int data;
+
+	data.f1 = count;
+	data.f2 = fd;
+
+	marker = &GET_MARKER(fs, read);
+	ltt_specialized_trace(marker, marker->single.probe_private,
+		&data, serialize_sizeof(data), sizeof(size_t));
 }
 
-void probe_fs_write(unsigned int fd, const char __user *buf,
-		size_t count, ssize_t ret)
+void probe_fs_write(unsigned int fd, char __user *buf, size_t count,
+		ssize_t ret);
+
+DEFINE_MARKER_TP(fs, write, fs_write, probe_fs_write,
+	"count %zu fd %u");
+
+notrace void probe_fs_write(unsigned int fd, char __user *buf, size_t count,
+		ssize_t ret)
 {
-	trace_mark_tp(fs, write, fs_write, probe_fs_write,
-		"fd %u count %zu", fd, count);
+	struct marker *marker;
+	struct serialize_sizet_int data;
+
+	data.f1 = count;
+	data.f2 = fd;
+
+	marker = &GET_MARKER(fs, write);
+	ltt_specialized_trace(marker, marker->single.probe_private,
+		&data, serialize_sizeof(data), sizeof(size_t));
 }
 
 void probe_fs_pread64(unsigned int fd, char __user *buf, size_t count,
