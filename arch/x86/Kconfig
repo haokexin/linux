@@ -22,6 +22,7 @@ config X86
 	select HAVE_READQ
 	select HAVE_WRITEQ
 	select HAVE_UNSTABLE_SCHED_CLOCK
+	select HAVE_GET_CYCLES
 	select HAVE_IDE
 	select HAVE_OPROFILE
 	select HAVE_PERF_EVENTS if (!M386 && !M486)
