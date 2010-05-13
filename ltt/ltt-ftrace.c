@@ -40,14 +40,15 @@ ltt_tracer_call(unsigned long ip, unsigned long parent_ip)
 	trace_mark(ftrace_entry, "ip 0x%lX parent_ip 0x%lX", ip, parent_ip);
 }
 
-static notrace void ltt_tap_marker(void *probe_data, void *call_data,
+static notrace void ltt_tap_marker(const struct marker *mdata,
+	void *probe_data, void *call_data,
 	const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
 	if (likely(!per_cpu(tracing_cpu, cpu)
 			&& !atomic_read(&system_trace_refcount)))
 		return;
-	ltt_vtrace(probe_data, call_data, fmt, args);
+	ltt_vtrace(mdata, probe_data, call_data, fmt, args);
 }
 
 struct ltt_available_probe ltt_tap_marker_probe = {
@@ -61,7 +62,8 @@ static struct ftrace_ops trace_ops __read_mostly =
 	.func = ltt_tracer_call,
 };
 
-static notrace void ftrace_cpu_start(void *probe_data, void *call_data,
+static notrace void ftrace_cpu_start(const struct marker *mdata,
+	void *probe_data, void *call_data,
 	const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
@@ -74,7 +76,8 @@ struct ltt_available_probe ftrace_cpu_start_probe = {
 	.probe_func = ftrace_cpu_start,
 };
 
-static notrace void ftrace_cpu_stop(void *probe_data, void *call_data,
+static notrace void ftrace_cpu_stop(const struct marker *mdata,
+	void *probe_data, void *call_data,
 	const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
@@ -87,7 +90,8 @@ struct ltt_available_probe ftrace_cpu_stop_probe = {
 	.probe_func = ftrace_cpu_stop,
 };
 
-static notrace void ftrace_system_start(void *probe_data, void *call_data,
+static notrace void ftrace_system_start(const struct marker *mdata,
+	void *probe_data, void *call_data,
 	const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
@@ -102,7 +106,8 @@ struct ltt_available_probe ftrace_system_start_probe = {
 	.probe_func = ftrace_system_start,
 };
 
-static notrace void ftrace_system_stop(void *probe_data, void *call_data,
+static notrace void ftrace_system_stop(const struct marker *mdata,
+	void *probe_data, void *call_data,
 	const char *fmt, va_list *args)
 {
 	int cpu = raw_smp_processor_id();
@@ -169,4 +174,4 @@ module_exit(ltt_ftrace_exit);
 
 MODULE_LICENSE("GPL and additional rights");
 MODULE_AUTHOR("Mathieu Desnoyers");
-MODULE_DESCRIPTION("Linux Trace Toolkit Ftrace");
+MODULE_DESCRIPTION("Linux Trace Toolkit Function Tracer Support");
