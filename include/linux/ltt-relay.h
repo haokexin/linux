@@ -34,6 +34,7 @@ struct rchan_buf;
 
 struct buf_page {
 	struct page *page;
+	void *virt;		/* page address of the struct page */
 	size_t offset;		/* page offset in the buffer */
 	struct list_head list;	/* buffer linked list */
 };
@@ -286,8 +287,7 @@ static inline int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 
 	page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
 	pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-	ltt_relay_do_copy(page_address(page->page)
-		+ (offset & ~PAGE_MASK), src, pagecpy);
+	ltt_relay_do_copy(page->virt + (offset & ~PAGE_MASK), src, pagecpy);
 
 	if (unlikely(len != pagecpy))
 		_ltt_relay_write(buf, offset, src, len, page, pagecpy);

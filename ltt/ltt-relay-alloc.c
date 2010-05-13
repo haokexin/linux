@@ -54,6 +54,7 @@ static int relay_alloc_buf(struct rchan_buf *buf, size_t *size)
 			goto depopulate;
 		}
 		list_add_tail(&buf_page->list, &buf->pages);
+		buf_page->virt = page_address(buf_page->page);
 		buf_page->offset = (size_t)i << PAGE_SHIFT;
 		set_page_private(buf_page->page, (unsigned long)buf_page);
 		if (i == 0) {
@@ -529,8 +530,8 @@ void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
 
 		page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
 		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-		ltt_relay_do_copy(page_address(page->page)
-			+ (offset & ~PAGE_MASK), src, pagecpy);
+		ltt_relay_do_copy(page->virt
+				+ (offset & ~PAGE_MASK), src, pagecpy);
 	} while (unlikely(len != pagecpy));
 }
 EXPORT_SYMBOL_GPL(_ltt_relay_write);
@@ -556,8 +557,7 @@ int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 	for (;;) {
 		page = ltt_relay_cache_page(buf, &buf->rpage, page, offset);
 		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-		memcpy(dest, page_address(page->page) + (offset & ~PAGE_MASK),
-			pagecpy);
+		memcpy(dest, page->virt + (offset & ~PAGE_MASK), pagecpy);
 		len -= pagecpy;
 		if (likely(!len))
 			break;
@@ -610,7 +610,7 @@ void *ltt_relay_offset_address(struct rchan_buf *buf, size_t offset)
 	if (offset < page->offset || offset >= page->offset + PAGE_SIZE)
 		buf->hpage[odd] = page = buf->wpage;
 	page = ltt_relay_cache_page(buf, &buf->hpage[odd], page, offset);
-	return page_address(page->page) + (offset & ~PAGE_MASK);
+	return page->virt + (offset & ~PAGE_MASK);
 }
 EXPORT_SYMBOL_GPL(ltt_relay_offset_address);
 
