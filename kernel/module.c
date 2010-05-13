@@ -2061,6 +2061,12 @@ static noinline struct module *load_module(void __user *umod,
 	if (len > 64 * 1024 * 1024 || (hdr = vmalloc(len)) == NULL)
 		return ERR_PTR(-ENOMEM);
 
+	/*
+	 * Make sure the module text or data access never generates any page
+	 * fault.
+	 */
+	vmalloc_sync_all();
+
 	if (copy_from_user(hdr, umod, len) != 0) {
 		err = -EFAULT;
 		goto free_hdr;
