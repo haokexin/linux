@@ -86,7 +86,7 @@ static ssize_t alloc_write(struct file *file, const char __user *user_buf,
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -135,7 +135,7 @@ static ssize_t enabled_write(struct file *file, const char __user *user_buf,
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -208,7 +208,7 @@ static ssize_t trans_write(struct file *file, const char __user *user_buf,
 	int err = 0;
 	int buf_size;
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -254,7 +254,7 @@ static ssize_t channel_subbuf_num_write(struct file *file,
 	const char *trace_name;
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -302,7 +302,7 @@ ssize_t channel_subbuf_size_write(struct file *file,
 	const char *trace_name;
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -349,7 +349,7 @@ ssize_t channel_switch_timer_write(struct file *file,
 	const char *trace_name;
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -399,7 +399,7 @@ ssize_t channel_overwrite_write(struct file *file,
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -478,7 +478,7 @@ ssize_t channel_enable_write(struct file *file,
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 	char *cmd = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -707,7 +707,7 @@ ssize_t setup_trace_write(struct file *file, const char __user *user_buf,
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 	char *trace_name = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -769,7 +769,7 @@ ssize_t destroy_trace_write(struct file *file, const char __user *user_buf,
 	char *buf = (char *)__get_free_page(GFP_KERNEL);
 	char *trace_name = (char *)__get_free_page(GFP_KERNEL);
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto err_copy_from_user;
@@ -879,7 +879,7 @@ ssize_t marker_enable_write(struct file *filp, const char __user *ubuf,
 	marker = filp->f_dentry->d_parent->d_name.name;
 	channel = filp->f_dentry->d_parent->d_parent->d_name.name;
 
-	buf_size = min(cnt, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, cnt, PAGE_SIZE - 1);
 	ret = copy_from_user(buf, ubuf, buf_size);
 	if (ret)
 		goto end;

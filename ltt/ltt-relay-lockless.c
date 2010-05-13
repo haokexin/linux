@@ -207,8 +207,8 @@ free_init:
 	wake_up_interruptible(&chan->trace->kref_wq);
 #ifdef CONFIG_LTT_VMCORE
 	kfree(buf->commit_seq);
-#endif
 free_commit:
+#endif
 	kfree(buf->commit_count);
 free_chanbuf:
 	ltt_chanbuf_alloc_free(&buf->a);
@@ -611,7 +611,7 @@ void ltt_relay_print_subbuffer_errors(struct ltt_chanbuf *buf,
 		       "commit count [cc, cc_sb] [%lu,%lu].\n",
 		       chan->a.filename, cons_idx, commit_count,
 		       commit_count_sb);
-	printk(KERN_ALERT "LTT : %s : commit count : %lu, subbuf size %zd\n",
+	printk(KERN_ALERT "LTT : %s : commit count : %lu, subbuf size %lu\n",
 	       chan->a.filename, commit_count, chan->a.sb_size);
 }
 
