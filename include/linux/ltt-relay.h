@@ -53,6 +53,7 @@ struct rchan_buf {
 	struct buf_page *rpage;		/* current subbuf read page (cache) */
 	unsigned int page_count;	/* number of current buffer pages */
 	unsigned int cpu;		/* this buf's cpu */
+	unsigned int random_access;	/* buffer performs random page access */
 } ____cacheline_aligned;
 
 /*
