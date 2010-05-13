@@ -38,7 +38,14 @@ void _ltt_specialized_trace(const struct marker *mdata, void *probe_data,
 	rcu_read_lock_sched_notrace();
 	cpu = smp_processor_id();
 	__get_cpu_var(ltt_nesting)++;
-
+	/*
+	 * asm volatile and "memory" clobber prevent the compiler from moving
+	 * instructions out of the ltt nesting count. This is required to ensure
+	 * that probe side-effects which can cause recursion (e.g. unforeseen
+	 * traps, divisions by 0, ...) are triggered within the incremented
+	 * nesting count section.
+	 */
+	barrier();
 	eID = mdata->event_id;
 	chan_index = mdata->channel_id;
 
@@ -88,6 +95,14 @@ void _ltt_specialized_trace(const struct marker *mdata, void *probe_data,
 		/* Out-of-order commit */
 		ltt_commit_slot(buf, chan, buf_offset, data_size, slot_size);
 	}
+	/*
+	 * asm volatile and "memory" clobber prevent the compiler from moving
+	 * instructions out of the ltt nesting count. This is required to ensure
+	 * that probe side-effects which can cause recursion (e.g. unforeseen
+	 * traps, divisions by 0, ...) are triggered within the incremented
+	 * nesting count section.
+	 */
+	barrier();
 	__get_cpu_var(ltt_nesting)--;
 	rcu_read_unlock_sched_notrace();
 }
