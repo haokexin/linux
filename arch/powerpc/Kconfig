@@ -140,6 +140,7 @@ config PPC
 	select HAVE_SYSCALL_WRAPPERS if PPC64
 	select GENERIC_ATOMIC64 if PPC32
 	select HAVE_PERF_EVENTS
+	select HAVE_GET_CYCLES if PPC64
 
 config EARLY_PRINTK
 	bool
