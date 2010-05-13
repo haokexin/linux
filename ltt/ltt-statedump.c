@@ -32,6 +32,10 @@
 #include <linux/fdtable.h>
 #include <linux/swap.h>
 
+#ifdef CONFIG_GENERIC_HARDIRQS
+#include <linux/irq.h>
+#endif
+
 #define NB_PROC_CHUNK 20
 
 static atomic_t kernel_threads_to_run;
