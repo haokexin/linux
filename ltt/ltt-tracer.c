@@ -41,6 +41,14 @@
 #include <linux/vmalloc.h>
 #include <asm/atomic.h>
 
+static void synchronize_trace(void)
+{
+	synchronize_sched();
+#ifdef CONFIG_PREEMPT_RT
+	synchronize_rcu();
+#endif
+}
+
 static void async_wakeup(unsigned long data);
 
 static DEFINE_TIMER(ltt_async_wakeup_timer, async_wakeup, 0, 0);
@@ -321,7 +329,7 @@ void ltt_module_unregister(enum ltt_module_function name)
 		ltt_filter_unregister();
 		ltt_run_filter_owner = NULL;
 		/* Wait for preempt sections to finish */
-		synchronize_sched();
+		synchronize_trace();
 		break;
 	case LTT_FUNCTION_FILTER_CONTROL:
 		ltt_filter_control_functor = ltt_filter_control_default;
@@ -429,13 +437,13 @@ static void async_wakeup(unsigned long data)
 	 * PREEMPT_RT does not allow spinlocks to be taken within preempt
 	 * disable sections (spinlock taken in wake_up). However, mainline won't
 	 * allow mutex to be taken in interrupt context. Ugly.
-	 * A proper way to do this would be to turn the timer into a
-	 * periodically woken up thread, but it adds to the footprint.
+	 * Take a standard RCU read lock for RT kernels, which imply that we
+	 * also have to synchronize_rcu() upon updates.
 	 */
 #ifndef CONFIG_PREEMPT_RT
 	rcu_read_lock_sched();
 #else
-	ltt_lock_traces();
+	rcu_read_lock();
 #endif
 	list_for_each_entry_rcu(trace, &ltt_traces.head, list) {
 		trace_async_wakeup(trace);
@@ -443,7 +451,7 @@ static void async_wakeup(unsigned long data)
 #ifndef CONFIG_PREEMPT_RT
 	rcu_read_unlock_sched();
 #else
-	ltt_unlock_traces();
+	rcu_read_unlock();
 #endif
 
 	mod_timer(&ltt_async_wakeup_timer, jiffies + LTT_PERCPU_TIMER_INTERVAL);
@@ -901,7 +909,7 @@ int ltt_trace_alloc(const char *trace_name)
 		set_kernel_trace_flag_all_tasks();
 	}
 	list_add_rcu(&trace->list, &ltt_traces.head);
-	synchronize_sched();
+	synchronize_trace();
 
 	ltt_unlock_traces();
 
@@ -974,7 +982,7 @@ static int _ltt_trace_destroy(struct ltt_trace *trace)
 	}
 	/* Everything went fine */
 	list_del_rcu(&trace->list);
-	synchronize_sched();
+	synchronize_trace();
 	if (list_empty(&ltt_traces.head)) {
 		clear_kernel_trace_flag_all_tasks();
 		/*
@@ -1195,7 +1203,7 @@ static int _ltt_trace_stop(struct ltt_trace *trace)
 			trace->nr_channels);
 		trace->active = 0;
 		ltt_traces.num_active_traces--;
-		synchronize_sched(); /* Wait for each tracing to be finished */
+		synchronize_trace(); /* Wait for each tracing to be finished */
 	}
 	module_put(ltt_run_filter_owner);
 	/* Everything went fine */
@@ -1327,12 +1335,12 @@ static void __exit ltt_exit(void)
 	list_for_each_entry_rcu(trace, &ltt_traces.head, list)
 		_ltt_trace_stop(trace);
 	/* Wait for quiescent state. Readers have preemption disabled. */
-	synchronize_sched();
+	synchronize_trace();
 	/* Safe iteration is now permitted. It does not have to be RCU-safe
 	 * because no readers are left. */
 	list_for_each_safe(pos, n, &ltt_traces.head) {
 		trace = container_of(pos, struct ltt_trace, list);
-		/* _ltt_trace_destroy does a synchronize_sched() */
+		/* _ltt_trace_destroy does a synchronize_trace() */
 		_ltt_trace_destroy(trace);
 		__ltt_trace_destroy(trace);
 	}
