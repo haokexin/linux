@@ -542,4 +542,19 @@ do {									\
 extern void lockdep_rcu_dereference(const char *file, const int line);
 #endif
 
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+# ifdef CONFIG_PROVE_LOCKING
+#  define psrwlock_acquire(l, s, t, i)		lock_acquire(l, s, t, 0, 2, NULL, i)
+#  define psrwlock_acquire_read(l, s, t, i)	lock_acquire(l, s, t, 2, 2, NULL, i)
+# else
+#  define psrwlock_acquire(l, s, t, i)		lock_acquire(l, s, t, 0, 1, NULL, i)
+#  define psrwlock_acquire_read(l, s, t, i)	lock_acquire(l, s, t, 2, 1, NULL, i)
+# endif
+# define psrwlock_release(l, n, i)		lock_release(l, n, i)
+#else
+# define psrwlock_acquire(l, s, t, i)		do { } while (0)
+# define psrwlock_acquire_read(l, s, t, i)	do { } while (0)
+# define psrwlock_release(l, n, i)		do { } while (0)
+#endif
+
 #endif /* __LINUX_LOCKDEP_H */

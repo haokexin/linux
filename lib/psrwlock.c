@@ -11,11 +11,19 @@
  */
 
 #include <linux/psrwlock.h>
-#include <linux/wait.h>
+#include <linux/list.h>
+#include <linux/linkage.h>
 #include <linux/freezer.h>
 #include <linux/module.h>
+#include <linux/debug_locks.h>
 
 #include <asm/processor.h>
+
+#ifdef CONFIG_DEBUG_PSRWLOCK
+# include "psrwlock-debug.h"
+#else
+# include "psrwlock.h"
+#endif
 
 #ifdef WBIAS_RWLOCK_DEBUG
 #define printk_dbg printk
@@ -41,7 +49,37 @@ enum v_type {
 static int rwlock_wait(void *vptr, psrwlock_t *rwlock,
 		unsigned long mask, unsigned long test_mask,
 		unsigned long full_mask, int check_full_mask,
-		enum v_type vtype, enum lock_type ltype, long state);
+		enum v_type vtype, enum lock_type ltype, long state,
+		unsigned long ip);
+
+/***
+ * psrwlock_init - initialize the psrwlock
+ * @lock: the psrwlock to be initialized
+ * @key: the lock_class_key for the class; used by mutex lock debugging
+ *
+ * Initialize the psrwlock to unlocked state.
+ *
+ * It is not allowed to initialize an already locked psrwlock.
+ */
+void
+__psrwlock_init(struct psrwlock *lock, const char *name,
+		struct lock_class_key *key, u32 rctx, enum psrw_prio wctx)
+{
+	unsigned int i;
+
+	atomic_set(&lock->uc, 0);
+	atomic_set(&lock->ws, 0);
+	for (i = 0; i < PSRW_NR_PRIO; i++)
+		atomic_set(&lock->prio[i], 0);
+	lock->rctx_bitmap = rctx;
+	lock->wctx = wctx;
+	INIT_LIST_HEAD(&lock->wait_list_r);
+	INIT_LIST_HEAD(&lock->wait_list_w);
+
+	debug_psrwlock_init(lock, name, key);
+}
+
+EXPORT_SYMBOL(__psrwlock_init);
 
 /*
  * Lock out a specific uncontended execution context from the read lock. Wait
@@ -59,7 +97,8 @@ static int _pswrite_lock_ctx_wait_sub(void *v_inout,
 		unsigned long wait_mask, unsigned long test_mask,
 		unsigned long full_mask, long offset,
 		enum v_type vtype, enum lock_type ltype,
-		enum preempt_type ptype, int trylock, long state)
+		enum preempt_type ptype, int trylock, long state,
+		unsigned long ip)
 {
 	long try = NR_PREEMPT_BUSY_LOOPS;
 	unsigned long newv;
@@ -77,12 +116,13 @@ static int _pswrite_lock_ctx_wait_sub(void *v_inout,
 
 	for (;;) {
 		if (v & wait_mask || (v & test_mask) >= full_mask) {
+			lock_contended(&rwlock->dep_map, ip);
 			if (trylock)
 				return 0;
 			if (ptype == PSRW_PREEMPT && unlikely(!(--try))) {
 				ret = rwlock_wait(vptr, rwlock, wait_mask,
 					test_mask, full_mask, 1,
-					vtype, ltype, state);
+					vtype, ltype, state, ip);
 				if (ret < 0)
 					return ret;
 				try = NR_PREEMPT_BUSY_LOOPS;
@@ -129,7 +169,8 @@ static int _pswrite_lock_ctx_wait_sub(void *v_inout,
 static int _pswrite_lock_ctx_wait(unsigned long v_in, void *vptr,
 		psrwlock_t *rwlock, unsigned long wait_mask,
 		enum v_type vtype, enum lock_type ltype,
-		enum preempt_type ptype, int trylock, long state)
+		enum preempt_type ptype, int trylock, long state,
+		unsigned long ip)
 {
 	int try = NR_PREEMPT_BUSY_LOOPS;
 	unsigned long v = v_in;
@@ -140,10 +181,11 @@ static int _pswrite_lock_ctx_wait(unsigned long v_in, void *vptr,
 	smp_mb();
 	while (v & wait_mask) {
 		if (ptype == PSRW_PREEMPT && unlikely(!(--try))) {
+			lock_contended(&rwlock->dep_map, ip);
 			if (trylock)
 				return 0;
 			ret = rwlock_wait(vptr, rwlock, wait_mask, 0, 0, 0,
-				vtype, ltype, state);
+				vtype, ltype, state, ip);
 			if (ret < 0)
 				return ret;
 			try = NR_PREEMPT_BUSY_LOOPS;
@@ -171,9 +213,11 @@ static int _pswrite_lock_ctx_wait(unsigned long v_in, void *vptr,
 static int rwlock_wait(void *vptr, psrwlock_t *rwlock,
 		unsigned long mask, unsigned long test_mask,
 		unsigned long full_mask, int check_full_mask,
-		enum v_type vtype, enum lock_type ltype, long state)
+		enum v_type vtype, enum lock_type ltype, long state,
+		unsigned long ip)
 {
-	DECLARE_WAITQUEUE(psrwlock_wq, current);
+	struct task_struct *task = current;
+	struct psrwlock_waiter waiter;
 	unsigned long v;
 	int wq_active, ws, ret = 1;
 
@@ -184,12 +228,15 @@ static int rwlock_wait(void *vptr, psrwlock_t *rwlock,
 	ws = atomic_read(&rwlock->ws);
 	_pswrite_lock_ctx_wait_sub(&ws, &rwlock->ws, rwlock,
 		0, WS_WQ_MUTEX, WS_WQ_MUTEX, WS_WQ_MUTEX,
-		V_INT, ltype, PSRW_NON_PREEMPT, 0, TASK_UNINTERRUPTIBLE);
+		V_INT, ltype, PSRW_NON_PREEMPT, 0, TASK_UNINTERRUPTIBLE, ip);
+
+	debug_psrwlock_lock_common(rwlock, &waiter);
+
 	/*
 	 * Got the waitqueue mutex, get into the wait queue.
 	 */
-	wq_active = waitqueue_active(&rwlock->wq_read)
-			|| waitqueue_active(&rwlock->wq_write);
+	wq_active = !list_empty(&rwlock->wait_list_r)
+			|| !list_empty(&rwlock->wait_list_w);
 	if (!wq_active)
 		atomic_add(UC_WQ_ACTIVE, &rwlock->uc);
 	/* Set the UC_WQ_ACTIVE flag before testing the condition. */
@@ -209,21 +256,26 @@ static int rwlock_wait(void *vptr, psrwlock_t *rwlock,
 	/*
 	 * got a signal ? (not done in TASK_UNINTERRUPTIBLE)
 	 */
-	if (unlikely(signal_pending_state(state, current))) {
+	if (unlikely(signal_pending_state(state, task))) {
 		ret = -EINTR;
 		goto skip_sleep;
 	}
 
+	debug_psrwlock_add_waiter(rwlock, &waiter, task_thread_info(task));
+
 	/*
+	 * Add waiting tasks to the end of the waitqueue (FIFO):
 	 * Only one thread will be woken up at a time.
 	 */
 	if (ltype == PSRW_WRITE)
-		add_wait_queue_exclusive_locked(&rwlock->wq_write,
-			&psrwlock_wq);
+		list_add_tail(&waiter.list, &rwlock->wait_list_w);
 	else
-		__add_wait_queue(&rwlock->wq_read, &psrwlock_wq);
-	__set_current_state(state);
+		list_add_tail(&waiter.list, &rwlock->wait_list_r);
+	waiter.task = task;
+	__set_task_state(task, state);
 	smp_mb();	/* Insure memory ordering when clearing the mutex. */
+
+
 	atomic_sub(WS_WQ_MUTEX, &rwlock->ws);
 	psrwlock_irq_enable();
 
@@ -237,20 +289,18 @@ static int rwlock_wait(void *vptr, psrwlock_t *rwlock,
 	ws = atomic_read(&rwlock->ws);
 	_pswrite_lock_ctx_wait_sub(&ws, &rwlock->ws, rwlock,
 		0, WS_WQ_MUTEX, WS_WQ_MUTEX, WS_WQ_MUTEX,
-		V_INT, ltype, PSRW_NON_PREEMPT, 0, TASK_UNINTERRUPTIBLE);
-	__set_current_state(TASK_RUNNING);
-	if (ltype == PSRW_WRITE)
-		remove_wait_queue_locked(&rwlock->wq_write, &psrwlock_wq);
-	else
-		remove_wait_queue_locked(&rwlock->wq_read, &psrwlock_wq);
+		V_INT, ltype, PSRW_NON_PREEMPT, 0, TASK_UNINTERRUPTIBLE, ip);
+	__set_task_state(task, TASK_RUNNING);
+	psrwlock_remove_waiter(rwlock, &waiter, task_thread_info(task));
 skip_sleep:
-	wq_active = waitqueue_active(&rwlock->wq_read)
-			|| waitqueue_active(&rwlock->wq_write);
+	wq_active = !list_empty(&rwlock->wait_list_r)
+			|| !list_empty(&rwlock->wait_list_w);
 	if (!wq_active)
 		atomic_sub(UC_WQ_ACTIVE, &rwlock->uc);
 	smp_mb();	/* Insure memory ordering when clearing the mutex. */
 	atomic_sub(WS_WQ_MUTEX, &rwlock->ws);
 	psrwlock_irq_enable();
+	debug_psrwlock_free_waiter(&waiter);
 	return ret;
 }
 
@@ -258,6 +308,13 @@ skip_sleep:
  * Reader lock
  */
 
+#ifdef CONFIG_DEBUG_PSRWLOCK
+static int _psread_lock_fast_check(unsigned int uc, psrwlock_t *rwlock,
+	unsigned int uc_rmask)
+{
+	return 0;
+}
+#else
 /*
  * _psread_lock_fast_check
  *
@@ -297,15 +354,18 @@ static int _psread_lock_fast_check(unsigned int uc, psrwlock_t *rwlock,
 	}
 	return 0;
 }
+#endif
 
 int __psread_lock_slow(psrwlock_t *rwlock,
 		unsigned int uc_rmask, atomic_long_t *vptr,
-		int trylock, enum preempt_type ptype, long state)
+		int trylock, enum preempt_type ptype, long state,
+		unsigned long ip)
 {
 	u32 rctx = rwlock->rctx_bitmap;
 	unsigned long v;
 	unsigned int uc;
 	int ret;
+	int subclass = SINGLE_DEPTH_NESTING;	/* TODO : parameter */
 
 	if (unlikely(in_irq() || irqs_disabled()))
 		WARN_ON_ONCE(!(rctx & PSR_IRQ) || ptype != PSRW_NON_PREEMPT);
@@ -325,13 +385,15 @@ int __psread_lock_slow(psrwlock_t *rwlock,
 				|| ptype != PSRW_PREEMPT));
 #endif
 
+	psrwlock_acquire_read(&rwlock->dep_map, subclass, trylock, ip);
+
 	/*
 	 * A cmpxchg read uc, which implies strict ordering.
 	 */
 	v = atomic_long_read(vptr);
 	ret = _pswrite_lock_ctx_wait_sub(&v, vptr, rwlock,
 		CTX_WMASK, CTX_RMASK, CTX_RMASK, CTX_ROFFSET,
-		V_LONG, PSRW_READ, ptype, trylock, state);
+		V_LONG, PSRW_READ, ptype, trylock, state, ip);
 	if (unlikely(ret < 1))
 		goto fail;
 
@@ -356,7 +418,7 @@ int __psread_lock_slow(psrwlock_t *rwlock,
 	uc = atomic_read(&rwlock->uc);
 	ret = _pswrite_lock_ctx_wait_sub(&uc, &rwlock->uc, rwlock,
 		UC_WRITER, UC_READER_MASK, uc_rmask, UC_READER_OFFSET,
-		V_INT, PSRW_READ, ptype, trylock, state);
+		V_INT, PSRW_READ, ptype, trylock, state, ip);
 	/*
 	 * _pswrite_lock_ctx_wait_sub has a memory barrier
 	 */
@@ -367,6 +429,9 @@ int __psread_lock_slow(psrwlock_t *rwlock,
 	 */
 	if (unlikely(ret < 1))
 		goto fail_preempt;
+
+	lock_acquired(&rwlock->dep_map, ip);
+	debug_psrwlock_set_owner(rwlock, (void *)-1UL);	/* -1 : all readers */
 
 	/* Success */
 	return 1;
@@ -379,6 +444,7 @@ fail_preempt:
 	psrwlock_preempt_check(uc, rwlock);
 fail:
 	cpu_relax();
+	psrwlock_release(&rwlock->dep_map, 1, ip);
 	return ret;
 
 }
@@ -407,7 +473,7 @@ void _psread_lock_slow_irq(unsigned int uc, psrwlock_t *rwlock)
 		return;
 	__psread_lock_slow(rwlock, UC_HARDIRQ_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_IRQ],
-			0, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE);
+			0, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_lock_slow_irq);
 
@@ -421,7 +487,7 @@ void _psread_lock_slow_bh(unsigned int uc, psrwlock_t *rwlock)
 		return;
 	__psread_lock_slow(rwlock, UC_SOFTIRQ_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_BH],
-			0, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE);
+			0, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_lock_slow_bh);
 
@@ -435,7 +501,7 @@ void _psread_lock_slow_inatomic(unsigned int uc, psrwlock_t *rwlock)
 		return;
 	__psread_lock_slow(rwlock, UC_NPTHREAD_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_NP],
-			0, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE);
+			0, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_lock_slow_inatomic);
 
@@ -449,7 +515,7 @@ void _psread_lock_slow(unsigned int uc, psrwlock_t *rwlock)
 		return;
 	__psread_lock_slow(rwlock, UC_PTHREAD_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_P],
-			0, PSRW_PREEMPT, TASK_UNINTERRUPTIBLE);
+			0, PSRW_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_lock_slow);
 
@@ -463,7 +529,7 @@ int _psread_lock_interruptible_slow(unsigned int uc, psrwlock_t *rwlock)
 		return 0;
 	ret = __psread_lock_slow(rwlock, UC_PTHREAD_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_P],
-			0, PSRW_PREEMPT, TASK_INTERRUPTIBLE);
+			0, PSRW_PREEMPT, TASK_INTERRUPTIBLE, _RET_IP_);
 	if (ret < 1)
 		return ret;
 	return 0;
@@ -480,7 +546,7 @@ int _psread_trylock_slow_irq(unsigned int uc, psrwlock_t *rwlock)
 		return 1;
 	return __psread_lock_slow(rwlock, UC_HARDIRQ_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_IRQ],
-			1, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE);
+			1, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_trylock_slow_irq);
 
@@ -494,7 +560,7 @@ int _psread_trylock_slow_bh(unsigned int uc, psrwlock_t *rwlock)
 		return 1;
 	return __psread_lock_slow(rwlock, UC_SOFTIRQ_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_BH],
-			1, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE);
+			1, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_trylock_slow_bh);
 
@@ -508,7 +574,7 @@ int _psread_trylock_slow_inatomic(unsigned int uc, psrwlock_t *rwlock)
 		return 1;
 	return __psread_lock_slow(rwlock, UC_NPTHREAD_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_NP],
-			1, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE);
+			1, PSRW_NON_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_trylock_slow_inatomic);
 
@@ -522,7 +588,7 @@ int _psread_trylock_slow(unsigned int uc, psrwlock_t *rwlock)
 		return 1;
 	return __psread_lock_slow(rwlock, UC_PTHREAD_READER_MASK,
 			&rwlock->prio[PSRW_PRIO_P],
-			1, PSRW_PREEMPT, TASK_UNINTERRUPTIBLE);
+			1, PSRW_PREEMPT, TASK_UNINTERRUPTIBLE, _RET_IP_);
 }
 EXPORT_SYMBOL(_psread_trylock_slow);
 
@@ -531,7 +597,7 @@ EXPORT_SYMBOL(_psread_trylock_slow);
 
 static int _pswrite_lock_out_context(unsigned int *uc_inout,
 	atomic_long_t *vptr, psrwlock_t *rwlock,
-	enum preempt_type ptype, int trylock, long state)
+	enum preempt_type ptype, int trylock, long state, unsigned long ip)
 {
 	int ret;
 	unsigned long v;
@@ -540,7 +606,7 @@ static int _pswrite_lock_out_context(unsigned int *uc_inout,
 	v = atomic_long_read(vptr);
 	ret = _pswrite_lock_ctx_wait_sub(&v, vptr, rwlock,
 		0, CTX_WMASK, CTX_WMASK, CTX_WOFFSET,
-		V_LONG, PSRW_WRITE, ptype, trylock, state);
+		V_LONG, PSRW_WRITE, ptype, trylock, state, ip);
 	if (unlikely(ret < 1))
 		return ret;
 	/*
@@ -548,14 +614,14 @@ static int _pswrite_lock_out_context(unsigned int *uc_inout,
 	 * removed by next subscription.
 	 */
 	ret = _pswrite_lock_ctx_wait(v, vptr, rwlock,
-		CTX_RMASK, V_LONG, PSRW_WRITE, ptype, trylock, state);
+		CTX_RMASK, V_LONG, PSRW_WRITE, ptype, trylock, state, ip);
 	if (unlikely(ret < 1))
 		goto fail_clean_slow;
 	/* Wait for uncontended readers and writers to unlock */
 	*uc_inout = atomic_read(&rwlock->uc);
 	ret = _pswrite_lock_ctx_wait(*uc_inout, &rwlock->uc, rwlock,
 		UC_WRITER | UC_READER_MASK,
-		V_INT, PSRW_WRITE, ptype, trylock, state);
+		V_INT, PSRW_WRITE, ptype, trylock, state, ip);
 	if (ret < 1)
 		goto fail_clean_slow;
 	return 1;
@@ -566,7 +632,7 @@ fail_clean_slow:
 }
 
 static void writer_count_inc(unsigned int *uc, psrwlock_t *rwlock,
-		enum preempt_type ptype)
+		enum preempt_type ptype, unsigned long ip)
 {
 	unsigned int ws;
 
@@ -578,7 +644,7 @@ static void writer_count_inc(unsigned int *uc, psrwlock_t *rwlock,
 	_pswrite_lock_ctx_wait_sub(&ws, &rwlock->ws, rwlock,
 		WS_COUNT_MUTEX, WS_MASK, WS_MASK,
 		WS_COUNT_MUTEX + WS_OFFSET,
-		V_INT, PSRW_WRITE, ptype, 0, TASK_UNINTERRUPTIBLE);
+		V_INT, PSRW_WRITE, ptype, 0, TASK_UNINTERRUPTIBLE, ip);
 	/* First writer in slow path ? */
 	if ((ws & WS_MASK) == WS_OFFSET) {
 		atomic_add(UC_SLOW_WRITER, &rwlock->uc);
@@ -589,7 +655,7 @@ static void writer_count_inc(unsigned int *uc, psrwlock_t *rwlock,
 }
 
 static void writer_count_dec(unsigned int *uc, psrwlock_t *rwlock,
-		enum preempt_type ptype)
+		enum preempt_type ptype, unsigned long ip)
 {
 	unsigned int ws;
 
@@ -601,7 +667,7 @@ static void writer_count_dec(unsigned int *uc, psrwlock_t *rwlock,
 	_pswrite_lock_ctx_wait_sub(&ws, &rwlock->ws, rwlock,
 		WS_COUNT_MUTEX, WS_COUNT_MUTEX, WS_COUNT_MUTEX,
 		WS_COUNT_MUTEX - WS_OFFSET,
-		V_INT, PSRW_WRITE, ptype, 0, TASK_UNINTERRUPTIBLE);
+		V_INT, PSRW_WRITE, ptype, 0, TASK_UNINTERRUPTIBLE, ip);
 	/* Last writer in slow path ? */
 	if (!(ws & WS_MASK)) {
 		atomic_sub(UC_SLOW_WRITER, &rwlock->uc);
@@ -612,13 +678,15 @@ static void writer_count_dec(unsigned int *uc, psrwlock_t *rwlock,
 }
 
 static int __pswrite_lock_slow_common(unsigned int uc, psrwlock_t *rwlock,
-		int trylock, long state)
+		int trylock, long state, unsigned long ip)
 {
+	struct task_struct *task = current;
 	enum psrw_prio wctx = rwlock->wctx;
 	u32 rctx = rwlock->rctx_bitmap;
 	enum preempt_type ptype;
 	unsigned int ws;
 	int ret;
+	int subclass = SINGLE_DEPTH_NESTING;	/* TODO : parameter */
 
 	write_context_enable(wctx, rctx);
 
@@ -641,14 +709,16 @@ static int __pswrite_lock_slow_common(unsigned int uc, psrwlock_t *rwlock,
 	else
 		ptype = PSRW_NON_PREEMPT;
 
+	psrwlock_acquire(&rwlock->dep_map, subclass, trylock, ip);
+
 	/* Increment the slow path writer count */
-	writer_count_inc(&uc, rwlock, ptype);
+	writer_count_inc(&uc, rwlock, ptype, ip);
 
 	if (rctx & PSR_PTHREAD) {
 		ptype = PSRW_PREEMPT;
 		ret = _pswrite_lock_out_context(&uc,
 			&rwlock->prio[PSRW_PRIO_P], rwlock,
-			ptype, trylock, state);
+			ptype, trylock, state, ip);
 		if (unlikely(ret < 1))
 			goto fail_dec_count;
 	}
@@ -662,7 +732,7 @@ static int __pswrite_lock_slow_common(unsigned int uc, psrwlock_t *rwlock,
 		ptype = PSRW_NON_PREEMPT;
 		ret = _pswrite_lock_out_context(&uc,
 			&rwlock->prio[PSRW_PRIO_NP], rwlock,
-			ptype, trylock, state);
+			ptype, trylock, state, ip);
 		if (unlikely(ret < 1))
 			goto fail_unsub_pthread;
 	}
@@ -674,7 +744,7 @@ static int __pswrite_lock_slow_common(unsigned int uc, psrwlock_t *rwlock,
 		ptype = PSRW_NON_PREEMPT;
 		ret = _pswrite_lock_out_context(&uc,
 			&rwlock->prio[PSRW_PRIO_BH], rwlock,
-			ptype, trylock, state);
+			ptype, trylock, state, ip);
 		if (unlikely(ret < 1))
 			goto fail_unsub_npthread;
 	}
@@ -686,7 +756,7 @@ static int __pswrite_lock_slow_common(unsigned int uc, psrwlock_t *rwlock,
 		ptype = PSRW_NON_PREEMPT;
 		ret = _pswrite_lock_out_context(&uc,
 			&rwlock->prio[PSRW_PRIO_IRQ], rwlock,
-			ptype, trylock, state);
+			ptype, trylock, state, ip);
 		if (unlikely(ret < 1))
 			goto fail_unsub_bh;
 	}
@@ -701,10 +771,13 @@ static int __pswrite_lock_slow_common(unsigned int uc, psrwlock_t *rwlock,
 	ws = atomic_read(&rwlock->ws);
 	ret = _pswrite_lock_ctx_wait_sub(&ws, &rwlock->ws, rwlock,
 		0, WS_LOCK_MUTEX, WS_LOCK_MUTEX, WS_LOCK_MUTEX,
-		V_INT, PSRW_WRITE, ptype, trylock, state);
+		V_INT, PSRW_WRITE, ptype, trylock, state, ip);
 	if (unlikely(ret < 1))
 		goto fail_unsub_irq;
 	/* atomic_cmpxchg orders writes */
+
+	lock_acquired(&rwlock->dep_map, ip);
+	debug_psrwlock_set_owner(rwlock, task_thread_info(task));
 
 	return 1;	/* success */
 
@@ -732,9 +805,10 @@ fail_dec_count:
 		ptype = PSRW_PREEMPT;
 	else
 		ptype = PSRW_NON_PREEMPT;
-	writer_count_dec(&uc, rwlock, ptype);
+	writer_count_dec(&uc, rwlock, ptype, ip);
 	psrwlock_preempt_check(uc, rwlock);
 	cpu_relax();
+	psrwlock_release(&rwlock->dep_map, 1, ip);
 	return ret;
 }
 
@@ -745,7 +819,8 @@ fail_dec_count:
  */
 asmregparm void _pswrite_lock_slow(unsigned int uc, psrwlock_t *rwlock)
 {
-	__pswrite_lock_slow_common(uc, rwlock, 0, TASK_UNINTERRUPTIBLE);
+	__pswrite_lock_slow_common(uc, rwlock, 0, TASK_UNINTERRUPTIBLE,
+				   _RET_IP_);
 }
 EXPORT_SYMBOL_GPL(_pswrite_lock_slow);
 
@@ -757,7 +832,8 @@ asmregparm int _pswrite_lock_interruptible_slow(unsigned int uc,
 {
 	int ret;
 
-	ret = __pswrite_lock_slow_common(uc, rwlock, 0, TASK_INTERRUPTIBLE);
+	ret = __pswrite_lock_slow_common(uc, rwlock, 0, TASK_INTERRUPTIBLE,
+				   _RET_IP_);
 	if (ret < 1)
 		return ret;
 	return 0;
@@ -770,7 +846,8 @@ EXPORT_SYMBOL_GPL(_pswrite_lock_interruptible_slow);
 asmregparm
 int _pswrite_trylock_slow(unsigned int uc, psrwlock_t *rwlock)
 {
-	return __pswrite_lock_slow_common(uc, rwlock, 1, TASK_INTERRUPTIBLE);
+	return __pswrite_lock_slow_common(uc, rwlock, 1, TASK_INTERRUPTIBLE,
+				   _RET_IP_);
 }
 EXPORT_SYMBOL_GPL(_pswrite_trylock_slow);
 
@@ -780,6 +857,11 @@ void _pswrite_unlock_slow(unsigned int uc, psrwlock_t *rwlock)
 	enum psrw_prio wctx = rwlock->wctx;
 	u32 rctx = rwlock->rctx_bitmap;
 	enum preempt_type ptype;
+	int nested = 1;	/* FIXME : allow nested = 0 ? */
+
+	mutex_release(&rwlock->dep_map, nested, _RET_IP_);
+	debug_psrwlock_unlock(rwlock, 0);
+	debug_psrwlock_clear_owner(rwlock);
 
 	/*
 	 * We get here either :
@@ -829,7 +911,7 @@ void _pswrite_unlock_slow(unsigned int uc, psrwlock_t *rwlock)
 			ptype = PSRW_PREEMPT;
 		else
 			ptype = PSRW_NON_PREEMPT;
-		writer_count_dec(&uc, rwlock, ptype);
+		writer_count_dec(&uc, rwlock, ptype, _RET_IP_);
 		psrwlock_preempt_check(uc, rwlock);
 	}
 }
@@ -845,6 +927,7 @@ asmregparm void _psrwlock_wakeup(unsigned int uc, psrwlock_t *rwlock)
 {
 	unsigned long flags;
 	unsigned int ws;
+	struct psrwlock_waiter *waiter;
 
 	/*
 	 * Busy-loop waiting for the waitqueue mutex.
@@ -856,7 +939,8 @@ asmregparm void _psrwlock_wakeup(unsigned int uc, psrwlock_t *rwlock)
 	ws = atomic_read(&rwlock->ws);
 	_pswrite_lock_ctx_wait_sub(&ws, &rwlock->ws, rwlock,
 		0, WS_WQ_MUTEX, WS_WQ_MUTEX, WS_WQ_MUTEX,
-		V_INT, PSRW_READ, PSRW_NON_PREEMPT, 0, TASK_UNINTERRUPTIBLE);
+		V_INT, PSRW_READ, PSRW_NON_PREEMPT, 0, TASK_UNINTERRUPTIBLE,
+		_RET_IP_);
 	/*
 	 * If there is at least one non-preemptable writer subscribed or holding
 	 * higher priority write masks, let it handle the wakeup when it exits
@@ -888,10 +972,14 @@ asmregparm void _psrwlock_wakeup(unsigned int uc, psrwlock_t *rwlock)
 	 * First do an exclusive wake-up of the first writer if there is one
 	 * waiting, else wake-up the readers.
 	 */
-	if (waitqueue_active(&rwlock->wq_write))
-		wake_up_locked(&rwlock->wq_write);
+	if (!list_empty(&rwlock->wait_list_w))
+		waiter = list_entry(rwlock->wait_list_w.next,
+				    struct psrwlock_waiter, list);
 	else
-		wake_up_locked(&rwlock->wq_read);
+		waiter = list_entry(rwlock->wait_list_r.next,
+				    struct psrwlock_waiter, list);
+	debug_psrwlock_wake_waiter(rwlock, waiter);
+	wake_up_process(waiter->task);
 	smp_mb();	/*
 			 * Insure global memory order when clearing the mutex.
 			 */
