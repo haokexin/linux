@@ -34,16 +34,24 @@ config LTT_FILTER
 config HAVE_LTT_DUMP_TABLES
 	def_bool n
 
-config LTT_RELAY
-	tristate "LTTng buffer relay"
-	depends on LTT_TRACER
+config LTT_TRACER
+	tristate "Linux Trace Toolkit Tracer"
 	default y
 	help
-	  Build the LTTng ring-buffer.
+	  If you enable this option, the Linux Trace Toolkit Tracer will be
+	  either built in the kernel or as module.
+
+	  Critical parts of the kernel will call upon the kernel tracing
+	  function. The data is then recorded by the tracer if a trace daemon
+	  is running in user-space and has issued a "start" command.
+
+	  For more information on kernel tracing, the trace daemon or the event
+	  decoder, please check the following address :
+	       http://lttng.org
 
 choice
 	prompt "LTTng Buffer Concurrency Management Algorithm"
-	depends on LTT_RELAY
+	depends on LTT_TRACER
 	default LTT_RELAY_LOCKLESS
 	help
 	  Choose between the fast lockless and the slower, spinlock/irq disable
@@ -79,7 +87,7 @@ endchoice
 
 config LTT_SERIALIZE
 	tristate "Linux Trace Toolkit Serializer"
-	depends on LTT_RELAY
+	depends on LTT_TRACER
 	depends on (LTT_RELAY_LOCKLESS || LTT_RELAY_IRQOFF || LTT_RELAY_LOCKED)
 	default y
 	help
@@ -88,7 +96,7 @@ config LTT_SERIALIZE
 
 config LTT_FAST_SERIALIZE
 	tristate "Linux Trace Toolkit Custom Serializer"
-	depends on LTT_RELAY
+	depends on LTT_TRACER
 	depends on (LTT_RELAY_LOCKLESS || LTT_RELAY_IRQOFF || LTT_RELAY_LOCKED)
 	default y
 	help
@@ -114,23 +122,6 @@ config LTT_TRACE_CONTROL
 	help
 	  If you enable this option, the debugfs-based Linux Trace Toolkit Trace
 	  Controller will be either built in the kernel or as module.
-
-config LTT_TRACER
-	tristate "Linux Trace Toolkit Tracer"
-	default y
-	help
-	  If you enable this option, the Linux Trace Toolkit Tracer will be
-	  either built in the kernel or as module.
-
-	  Critical parts of the kernel will call upon the kernel tracing
-	  function. The data is then recorded by the tracer if a trace daemon
-	  is running in user-space and has issued a "start" command.
-
-	  For more information on kernel tracing, the trace daemon or the event
-	  decoder, please check the following address :
-	       http://www.opersys.com/ltt
-	  See also the experimental page of the project :
-	       http://ltt.polymtl.ca
 
 config LTT_ALIGNMENT
 	bool "Align Linux Trace Toolkit Traces"
@@ -214,7 +205,6 @@ config LTT_ASCII
 	bool "Linux Trace Toolkit Ascii Output (EXPERIMENTAL)"
 	depends on EXPERIMENTAL
 	depends on LTT_TRACER
-	depends on LTT_RELAY
 	depends on LTT_SERIALIZE
 	default n
 	help

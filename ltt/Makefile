@@ -19,7 +19,7 @@ ifdef CONFIG_LTT_RELAY_LOCKED
 RELAY_LOCKING := ltt-relay-locked.o
 endif
 
-obj-$(CONFIG_LTT_RELAY) += ltt-relay.o
+obj-$(CONFIG_LTT_TRACER) += ltt-relay.o
 ltt-relay-objs := $(RELAY_LOCKING) ltt-relay-alloc.o ltt-relay-splice.o \
 		  ltt-relay-vfs.o
 
