@@ -201,4 +201,14 @@ config LTT_FTRACE
 	  function tracing while a trace is being taken. Typically used when the
 	  surroundings of a problem has been identified in a prior trace.
 
+config LTT_ASCII
+	bool "Linux Trace Toolkit Ascii Output (work in progress)"
+	depends on LTT_TRACER
+	depends on LTT_RELAY_ALLOC
+	depends on LTT_SERIALIZE
+	default n
+	help
+	  Output trace data in a text-formatted ascii file, presented in
+	  /mnt/debugfs/ltt/ascii/<trace name>.
+
 endif # LTT
