@@ -66,7 +66,7 @@
 struct ltt_reserve_switch_offsets {
 	long begin, end, old;
 	long begin_switch, end_switch_current, end_switch_old;
-	long commit_count, reserve_commit_diff;
+	long reserve_commit_diff;
 	size_t before_hdr_pad, size;
 };
 
@@ -815,7 +815,6 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 		local_set(&ltt_buf->commit_count[j], 0);
 	init_waitqueue_head(&ltt_buf->write_wait);
 	init_waitqueue_head(&ltt_buf->read_wait);
-	atomic_set(&ltt_buf->wakeup_readers, 0);
 	spin_lock_init(&ltt_buf->full_lock);
 
 	ltt_buffer_begin(buf, trace->start_tsc, 0);
@@ -957,10 +956,9 @@ static void ltt_relay_async_wakeup_chan(struct ltt_channel_struct *ltt_channel)
 			continue;
 
 		ltt_buf = rchan->buf[i]->chan_private;
-		if (atomic_read(&ltt_buf->wakeup_readers) == 1) {
-			atomic_set(&ltt_buf->wakeup_readers, 0);
+		if (ltt_poll_deliver(ltt_channel, ltt_buf,
+				     rchan, rchan->buf[i]))
 			wake_up_interruptible(&ltt_buf->read_wait);
-		}
 	}
 }
 
@@ -1185,20 +1183,20 @@ static void ltt_reserve_switch_old_subbuf(
 		struct ltt_reserve_switch_offsets *offsets, u64 *tsc)
 {
 	long oldidx = SUBBUF_INDEX(offsets->old - 1, rchan);
+	long commit_count, padding_size;
 
+	padding_size = rchan->subbuf_size
+			- (SUBBUF_OFFSET(offsets->old - 1, rchan) + 1);
 	ltt_buffer_end(buf, *tsc, offsets->old, oldidx);
 	/* Must write buffer end before incrementing commit count */
 	smp_wmb();
-	offsets->commit_count = local_read(&ltt_buf->commit_count[oldidx])
-				  + rchan->subbuf_size
-				  - (SUBBUF_OFFSET(offsets->old - 1, rchan)
-				     + 1);
-	local_set(&ltt_buf->commit_count[oldidx], offsets->commit_count);
-	if (likely((BUFFER_TRUNC(offsets->old - 1, rchan)
-			>> ltt_channel->n_subbufs_order)
-			- ((offsets->commit_count - rchan->subbuf_size)
-				& ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, oldidx, offsets->commit_count);
+	commit_count = local_read(&ltt_buf->commit_count[oldidx])
+				  + padding_size;
+	local_set(&ltt_buf->commit_count[oldidx], commit_count);
+	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
+		offsets->old - 1, commit_count, oldidx);
+	ltt_write_commit_counter(buf, ltt_buf, oldidx,
+		offsets->old, commit_count, padding_size);
 }
 
 /*
@@ -1215,19 +1213,18 @@ static void ltt_reserve_switch_new_subbuf(
 		struct ltt_reserve_switch_offsets *offsets, u64 *tsc)
 {
 	long beginidx = SUBBUF_INDEX(offsets->begin, rchan);
+	long commit_count;
 
 	ltt_buffer_begin(buf, *tsc, beginidx);
 	/* Must write buffer end before incrementing commit count */
 	smp_wmb();
-	offsets->commit_count = local_read(&ltt_buf->commit_count[beginidx])
+	commit_count = local_read(&ltt_buf->commit_count[beginidx])
 				  + ltt_subbuffer_header_size();
-	local_set(&ltt_buf->commit_count[beginidx], offsets->commit_count);
-	/* Check if the written buffer has to be delivered */
-	if (unlikely((BUFFER_TRUNC(offsets->begin, rchan)
-			>> ltt_channel->n_subbufs_order)
-			- ((offsets->commit_count - rchan->subbuf_size)
-				& ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, beginidx, offsets->commit_count);
+	local_set(&ltt_buf->commit_count[beginidx], commit_count);
+	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
+		offsets->begin, commit_count, beginidx);
+	ltt_write_commit_counter(buf, ltt_buf, beginidx,
+		offsets->begin, commit_count, ltt_subbuffer_header_size());
 }
 
 
@@ -1256,20 +1253,20 @@ static void ltt_reserve_end_switch_current(
 		struct ltt_reserve_switch_offsets *offsets, u64 *tsc)
 {
 	long endidx = SUBBUF_INDEX(offsets->end - 1, rchan);
+	long commit_count, padding_size;
 
+	padding_size = rchan->subbuf_size
+			- (SUBBUF_OFFSET(offsets->end - 1, rchan) + 1);
 	ltt_buffer_end(buf, *tsc, offsets->end, endidx);
 	/* Must write buffer begin before incrementing commit count */
 	smp_wmb();
-	offsets->commit_count = local_read(&ltt_buf->commit_count[endidx])
-				  + rchan->subbuf_size
-				  - (SUBBUF_OFFSET(offsets->end - 1, rchan)
-				     + 1);
-	local_set(&ltt_buf->commit_count[endidx], offsets->commit_count);
-	if (likely((BUFFER_TRUNC(offsets->end - 1, rchan)
-			>> ltt_channel->n_subbufs_order)
-			- ((offsets->commit_count - rchan->subbuf_size)
-				& ltt_channel->commit_count_mask) == 0))
-		ltt_deliver(buf, endidx, offsets->commit_count);
+	commit_count = local_read(&ltt_buf->commit_count[endidx])
+				  + padding_size;
+	local_set(&ltt_buf->commit_count[endidx], commit_count);
+	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
+		offsets->end - 1, commit_count, endidx);
+	ltt_write_commit_counter(buf, ltt_buf, endidx,
+		offsets->end, commit_count, padding_size);
 }
 
 /*
