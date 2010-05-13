@@ -624,7 +624,7 @@ static int subbuf_splice_actor(struct file *in,
 
 	for (; spd.nr_pages < nr_pages; spd.nr_pages++) {
 		unsigned int this_len;
-		struct buf_page *page;
+		struct page *page;
 
 		if (!len)
 			break;
@@ -633,7 +633,7 @@ static int subbuf_splice_actor(struct file *in,
 
 		this_len = PAGE_SIZE - poff;
 		page = ltt_relay_read_get_page(buf, roffset);
-		spd.pages[spd.nr_pages] = page->page;
+		spd.pages[spd.nr_pages] = page;
 		spd.partial[spd.nr_pages].offset = poff;
 		spd.partial[spd.nr_pages].len = this_len;
 
