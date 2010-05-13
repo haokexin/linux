@@ -23,6 +23,11 @@
 
 #include "ltt-relay-select.h"
 
+loff_t ltt_relay_no_llseek(struct file *file, loff_t offset, int origin)
+{
+	return -ESPIPE;
+}
+
 static void ltt_relay_pipe_buf_release(struct pipe_inode_info *pipe,
 				       struct pipe_buffer *pbuf)
 {
