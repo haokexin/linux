@@ -100,6 +100,8 @@ void __init imv_init_complete(void)
 	imv_early_boot_complete = 1;
 }
 
+#ifdef CONFIG_MODULES
+
 int imv_module_notify(struct notifier_block *self,
 		      unsigned long val, void *data)
 {
@@ -127,3 +129,5 @@ static int init_imv(void)
 	return register_module_notifier(&imv_module_nb);
 }
 __initcall(init_imv);
+
+#endif /* CONFIG_MODULES */

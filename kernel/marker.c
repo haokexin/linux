@@ -1163,8 +1163,6 @@ void markers_compact_event_ids(void)
 	}
 }
 
-#ifdef CONFIG_MODULES
-
 /**
  * marker_get_iter_range - Get a next marker iterator given a range.
  * @marker: current markers (in), next marker (out)
@@ -1234,6 +1232,8 @@ void marker_iter_reset(struct marker_iter *iter)
 	iter->marker = NULL;
 }
 EXPORT_SYMBOL_GPL(marker_iter_reset);
+
+#ifdef CONFIG_MODULES
 
 int marker_module_notify(struct notifier_block *self,
 			 unsigned long val, void *data)
