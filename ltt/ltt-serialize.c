@@ -531,6 +531,48 @@ notrace size_t ltt_serialize_data(struct rchan_buf *buf, size_t buf_offset,
 }
 EXPORT_SYMBOL_GPL(ltt_serialize_data);
 
+static inline uint64_t unserialize_base_type(struct rchan_buf *buf,
+		size_t *ppos, char trace_size, enum ltt_type trace_type)
+{
+	uint64_t tmp;
+
+	*ppos += ltt_align(*ppos, trace_size);
+	ltt_relay_read(buf, *ppos, &tmp, trace_size);
+	*ppos += trace_size;
+
+	switch (trace_type) {
+	case LTT_TYPE_SIGNED_INT:
+		switch (trace_size) {
+		case 1:
+			return (uint64_t)*(int8_t *)&tmp;
+		case 2:
+			return (uint64_t)*(int16_t *)&tmp;
+		case 4:
+			return (uint64_t)*(int32_t *)&tmp;
+		case 8:
+			return tmp;
+		}
+		break;
+	case LTT_TYPE_UNSIGNED_INT:
+		switch (trace_size) {
+		case 1:
+			return (uint64_t)*(uint8_t *)&tmp;
+		case 2:
+			return (uint64_t)*(uint16_t *)&tmp;
+		case 4:
+			return (uint64_t)*(uint32_t *)&tmp;
+		case 8:
+			return tmp;
+		}
+		break;
+	default:
+		break;
+	}
+
+	BUG();
+	return 0;
+}
+
 /*
  * Calculate data size
  * Assume that the padding for alignment starts at a sizeof(void *) address.
