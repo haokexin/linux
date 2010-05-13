@@ -45,6 +45,7 @@
 #include <linux/debugfs.h>
 #include <linux/module.h>
 #include <linux/string.h>
+#include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/cpu.h>
 #include <linux/fs.h>
@@ -530,7 +531,18 @@ EXPORT_SYMBOL_GPL(ltt_ascii_create);
 
 void ltt_ascii_remove(struct ltt_chan *chan)
 {
-	debugfs_remove(chan->a.ascii_dentry);
+	struct dentry *dentry;
+
+	dentry = dget(chan->a.ascii_dentry);
+	debugfs_remove(dentry);
+	/* TODO: wait / wakeup instead */
+	/*
+	 * Wait for every reference to the dentry to be gone,
+	 * except us.
+	 */
+	while (atomic_read(&dentry->d_count) != 1)
+		msleep(100);
+	dput(dentry);
 }
 EXPORT_SYMBOL_GPL(ltt_ascii_remove);
 
