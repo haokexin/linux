@@ -20,6 +20,7 @@
 #include <linux/poll.h>
 #include <linux/kref.h>
 #include <linux/mm.h>
+#include <linux/ltt-core.h>
 
 /* Needs a _much_ better name... */
 #define FIX_SIZE(x) ((((x) - 1) & PAGE_MASK) + PAGE_SIZE)
@@ -199,6 +200,7 @@ static inline struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
 	return page;
 }
 
+#ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
 static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 {
 	switch (len) {
@@ -222,6 +224,53 @@ static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 		memcpy(dest, src, len);
 	}
 }
+#else
+/*
+ * Returns whether the dest and src addresses are aligned on
+ * min(sizeof(void *), len). Call this with statically known len for efficiency.
+ */
+static inline int addr_aligned(const void *dest, const void *src, size_t len)
+{
+	if (ltt_align((size_t)dest, len))
+		return 0;
+	if (ltt_align((size_t)src, len))
+		return 0;
+	return 1;
+}
+
+static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
+{
+	switch (len) {
+	case 0:
+		break;
+	case 1:
+		*(u8 *)dest = *(const u8 *)src;
+		break;
+	case 2:
+		if (unlikely(!addr_aligned(dest, src, 2)))
+			goto memcpy_fallback;
+		*(u16 *)dest = *(const u16 *)src;
+		break;
+	case 4:
+		if (unlikely(!addr_aligned(dest, src, 4)))
+			goto memcpy_fallback;
+		*(u32 *)dest = *(const u32 *)src;
+		break;
+#if (BITS_PER_LONG == 64)
+	case 8:
+		if (unlikely(!addr_aligned(dest, src, 8)))
+			goto memcpy_fallback;
+		*(u64 *)dest = *(const u64 *)src;
+		break;
+#endif
+	default:
+		goto memcpy_fallback;
+	}
+	return;
+memcpy_fallback:
+	memcpy(dest, src, len);
+}
+#endif
 
 static inline int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 	const void *src, size_t len)
