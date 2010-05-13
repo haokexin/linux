@@ -444,6 +444,7 @@ static void switch_buffer(unsigned long data)
 	if (atomic_long_read(&buf->active_readers))
 		ltt_force_switch(buf, FORCE_ACTIVE);
 
+	del_timer(&buf->switch_timer);
 	buf->switch_timer.expires += chan->switch_timer_interval;
 	add_timer_on(&buf->switch_timer, smp_processor_id());
 }
