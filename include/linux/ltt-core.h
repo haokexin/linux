@@ -65,6 +65,8 @@ static inline int ltt_get_alignment(void)
 	return sizeof(void *);
 }
 
+extern unsigned int ltt_fmt_largest_align(size_t align_drift, const char *fmt);
+
 #else
 
 static inline unsigned int ltt_align(size_t align_drift,
@@ -79,6 +81,13 @@ static inline int ltt_get_alignment(void)
 {
 	return 0;
 }
+
+static inline unsigned int ltt_fmt_largest_align(size_t align_drift,
+		const char *fmt)
+{
+	return 0;
+}
+
 #endif /* defined(CONFIG_LTT) && defined(CONFIG_LTT_ALIGNMENT) */
 
 #endif /* LTT_CORE_H */

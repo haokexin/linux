@@ -695,6 +695,67 @@ size_t ltt_serialize_printf(struct rchan_buf *buf, unsigned long buf_offset,
 }
 EXPORT_SYMBOL_GPL(ltt_serialize_printf);
 
+#ifdef CONFIG_LTT_ALIGNMENT
+
+unsigned int ltt_fmt_largest_align(size_t align_drift, const char *fmt)
+{
+	char trace_size = 0, c_size = 0;
+	enum ltt_type trace_type = LTT_TYPE_NONE, c_type = LTT_TYPE_NONE;
+	unsigned long attributes = 0;
+	int largest_align = 1;
+
+	for (; *fmt ; ++fmt) {
+		switch (*fmt) {
+		case '#':
+			/* tracetypes (#) */
+			++fmt;			/* skip first '#' */
+			if (*fmt == '#')	/* Escaped ## */
+				break;
+			attributes = 0;
+			fmt = parse_trace_type(fmt, &trace_size, &trace_type,
+				&attributes);
+
+			largest_align = max_t(int, largest_align, trace_size);
+			if (largest_align >= ltt_get_alignment())
+				goto exit;
+			break;
+		case '%':
+			/* c types (%) */
+			++fmt;			/* skip first '%' */
+			if (*fmt == '%')	/* Escaped %% */
+				break;
+			fmt = parse_c_type(fmt, &c_size, &c_type, NULL);
+			/*
+			 * Output c types if no trace types has been
+			 * specified.
+			 */
+			if (!trace_size)
+				trace_size = c_size;
+			if (trace_type == LTT_TYPE_NONE)
+				trace_type = c_type;
+			if (c_type == LTT_TYPE_STRING)
+				trace_type = LTT_TYPE_STRING;
+
+			largest_align = max_t(int, largest_align, trace_size);
+			if (largest_align >= ltt_get_alignment())
+				goto exit;
+
+			trace_size = 0;
+			c_size = 0;
+			trace_type = LTT_TYPE_NONE;
+			c_size = LTT_TYPE_NONE;
+			break;
+		}
+	}
+
+exit:
+	largest_align = min_t(int, largest_align, ltt_get_alignment());
+	return (largest_align - align_drift) & (largest_align - 1);
+}
+EXPORT_SYMBOL_GPL(ltt_fmt_largest_align);
+
+#endif
+
 /*
  * Calculate data size
  * Assume that the padding for alignment starts at a sizeof(void *) address.
