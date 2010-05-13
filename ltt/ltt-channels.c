@@ -299,6 +299,7 @@ void ltt_channels_trace_free(struct ltt_chan *channels,
 	kref_put(&index_kref, release_trace_channel);
 	mutex_unlock(&ltt_channel_mutex);
 	unlock_markers();
+	marker_update_probes();
 }
 EXPORT_SYMBOL_GPL(ltt_channels_trace_free);
 
@@ -366,6 +367,19 @@ int ltt_channels_get_event_id(const char *channel, const char *name)
 	ret = _ltt_channels_get_event_id(channel, name);
 	mutex_unlock(&ltt_channel_mutex);
 	return ret;
+}
+
+/**
+ * ltt_channels_reset_event_ids - reset event IDs at compaction
+ *
+ * Called with lock marker and channel mutex held.
+ */
+void _ltt_channels_reset_event_ids(void)
+{
+	struct ltt_channel_setting *iter;
+
+	list_for_each_entry(iter, &ltt_channels, list)
+		iter->free_event_id = 0;
 }
 
 MODULE_LICENSE("GPL and additional rights");
