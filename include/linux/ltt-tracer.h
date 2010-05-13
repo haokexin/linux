@@ -388,11 +388,11 @@ static __inline__ unsigned char ltt_get_header_size(
 static __inline__ size_t ltt_write_event_header(struct ltt_trace_struct *trace,
 		struct ltt_channel_struct *channel,
 		struct rchan_buf *buf, long buf_offset,
-		u16 eID, size_t event_size,
+		u16 eID, u32 event_size,
 		u64 tsc, unsigned int rflags)
 {
 	struct ltt_event_header header;
-	size_t small_size;
+	u16 small_size;
 
 	switch (rflags) {
 	case LTT_RFLAG_ID_SIZE_TSC:
@@ -414,40 +414,40 @@ static __inline__ size_t ltt_write_event_header(struct ltt_trace_struct *trace,
 
 	switch (rflags) {
 	case LTT_RFLAG_ID_SIZE_TSC:
-		small_size = min_t(size_t, event_size, LTT_MAX_SMALL_SIZE);
+		small_size = (u16)min_t(u32, event_size, LTT_MAX_SMALL_SIZE);
 		ltt_relay_write(buf, buf_offset,
-			(u16[]){ (u16)eID }, sizeof(u16));
+			&eID, sizeof(u16));
 		buf_offset += sizeof(u16);
 		ltt_relay_write(buf, buf_offset,
-			(u16[]){ (u16)small_size }, sizeof(u16));
+			&small_size, sizeof(u16));
 		buf_offset += sizeof(u16);
 		if (small_size == LTT_MAX_SMALL_SIZE) {
 			ltt_relay_write(buf, buf_offset,
-				(u32[]){ (u32)event_size }, sizeof(u32));
+				&event_size, sizeof(u32));
 			buf_offset += sizeof(u32);
 		}
 		buf_offset += ltt_align(buf_offset, sizeof(u64));
 		ltt_relay_write(buf, buf_offset,
-			(u64[]){ (u64)tsc }, sizeof(u64));
+			&tsc, sizeof(u64));
 		buf_offset += sizeof(u64);
 		break;
 	case LTT_RFLAG_ID_SIZE:
-		small_size = min_t(size_t, event_size, LTT_MAX_SMALL_SIZE);
+		small_size = (u16)min_t(u32, event_size, LTT_MAX_SMALL_SIZE);
 		ltt_relay_write(buf, buf_offset,
-			(u16[]){ (u16)eID }, sizeof(u16));
+			&eID, sizeof(u16));
 		buf_offset += sizeof(u16);
 		ltt_relay_write(buf, buf_offset,
-			(u16[]){ (u16)small_size }, sizeof(u16));
+			&small_size, sizeof(u16));
 		buf_offset += sizeof(u16);
 		if (small_size == LTT_MAX_SMALL_SIZE) {
 			ltt_relay_write(buf, buf_offset,
-				(u32[]){ (u32)event_size }, sizeof(u32));
+				&event_size, sizeof(u32));
 			buf_offset += sizeof(u32);
 		}
 		break;
 	case LTT_RFLAG_ID:
 		ltt_relay_write(buf, buf_offset,
-			(u16[]){ (u16)eID }, sizeof(u16));
+			&eID, sizeof(u16));
 		buf_offset += sizeof(u16);
 		break;
 	default:
