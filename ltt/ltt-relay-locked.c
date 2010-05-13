@@ -222,6 +222,7 @@ static int get_subbuf(struct rchan_buf *buf, unsigned long *consumed)
 		(struct ltt_channel_struct *)buf->chan->private_data;
 	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
 	long consumed_old, consumed_idx, commit_count, write_offset;
+	int ret;
 
 	WARN_ON(atomic_long_read(&ltt_buf->active_readers) != 1);
 
@@ -256,9 +257,9 @@ static int get_subbuf(struct rchan_buf *buf, unsigned long *consumed)
 		return -EAGAIN;
 	}
 
-	/* No page exchange, use the writer page directly */
-	buf->rchan_rsb.pages = buf->rchan_wsb[consumed_idx].pages;
-	RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
+	ret = update_read_sb_index(buf, consumed_idx);
+	if (ret)
+		return ret;
 
 	__raw_spin_unlock(&ltt_buf->lock);
 	local_irq_enable();
@@ -277,15 +278,18 @@ static int put_subbuf(struct rchan_buf *buf, unsigned long consumed)
 	__raw_spin_lock(&ltt_buf->lock);
 	consumed_old = consumed;
 	consumed_new = SUBBUF_ALIGN(consumed_old, buf->chan);
+	WARN_ON_ONCE(RCHAN_SB_IS_NOREF(buf->rchan_rsb.pages));
 	RCHAN_SB_SET_NOREF(buf->rchan_rsb.pages);
 
 	if (ltt_buf->consumed != consumed_old) {
-		/* We have been pushed by the writer : the last
-		 * buffer read _is_ corrupted! It can also
-		 * happen if this is a buffer we never got. */
+		/* We have been pushed by the writer. */
 		__raw_spin_unlock(&ltt_buf->lock);
 		local_irq_enable();
-		return -EIO;
+		/*
+		 * We exchanged the subbuffer pages. No corruption possible
+		 * even if the writer did push us. No more -EIO possible.
+		 */
+		return 0;
 	} else {
 		/* tell the client that buffer is now unfull */
 		int index;
