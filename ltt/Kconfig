@@ -31,6 +31,9 @@ if LTT
 config LTT_FILTER
 	tristate
 
+config HAVE_LTT_DUMP_TABLES
+	def_bool n
+
 config LTT_RELAY_ALLOC
 	def_bool n
 
