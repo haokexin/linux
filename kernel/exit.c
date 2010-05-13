@@ -522,6 +522,8 @@ struct files_struct *get_files_struct(struct task_struct *task)
 	return files;
 }
 
+EXPORT_SYMBOL(get_files_struct);
+
 void put_files_struct(struct files_struct *files)
 {
 	struct fdtable *fdt;
@@ -542,6 +544,8 @@ void put_files_struct(struct files_struct *files)
 		rcu_read_unlock();
 	}
 }
+
+EXPORT_SYMBOL(put_files_struct);
 
 void reset_files_struct(struct files_struct *files)
 {
