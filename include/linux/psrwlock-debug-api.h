@@ -29,7 +29,7 @@ static inline void psread_lock_irq(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_IRQ));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_IRQ));
 	uc = atomic_read(&rwlock->uc);
 	psread_lock_slow_irq(uc, rwlock);
 }
@@ -39,7 +39,7 @@ static inline int psread_trylock_irq(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_IRQ));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_IRQ));
 	uc = atomic_read(&rwlock->uc);
 	return psread_trylock_slow_irq(uc, rwlock);
 }
@@ -53,7 +53,7 @@ static inline void psread_lock_bh(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_BH));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_BH));
 	uc = atomic_read(&rwlock->uc);
 	psread_lock_slow_bh(uc, rwlock);
 }
@@ -63,7 +63,7 @@ static inline int psread_trylock_bh(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_BH));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_BH));
 	uc = atomic_read(&rwlock->uc);
 	return psread_trylock_slow_bh(uc, rwlock);
 }
@@ -78,7 +78,7 @@ static inline void psread_lock_inatomic(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
 	uc = atomic_read(&rwlock->uc);
 	psread_lock_slow_inatomic(uc, rwlock);
 }
@@ -88,7 +88,7 @@ static inline int psread_trylock_inatomic(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
 	uc = atomic_read(&rwlock->uc);
 	return psread_trylock_slow_inatomic(uc, rwlock);
 }
@@ -103,7 +103,7 @@ static inline void psread_lock(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
 	uc = atomic_read(&rwlock->uc);
 	psread_lock_slow(uc, rwlock);
 }
@@ -113,7 +113,7 @@ static inline int psread_lock_interruptible(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
 	uc = atomic_read(&rwlock->uc);
 	return psread_lock_interruptible_slow(uc, rwlock);
 }
@@ -123,7 +123,7 @@ static inline int psread_trylock(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
 	uc = atomic_read(&rwlock->uc);
 	return psread_trylock_slow(uc, rwlock);
 }

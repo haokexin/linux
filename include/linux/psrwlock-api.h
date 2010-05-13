@@ -36,7 +36,7 @@ static inline void psread_lock_irq(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_IRQ));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_IRQ));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return;
@@ -48,7 +48,7 @@ static inline int psread_trylock_irq(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_IRQ));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_IRQ));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return 1;
@@ -64,7 +64,7 @@ static inline void psread_lock_bh(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_BH));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_BH));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return;
@@ -76,7 +76,7 @@ static inline int psread_trylock_bh(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_BH));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_BH));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return 1;
@@ -93,7 +93,7 @@ static inline void psread_lock_inatomic(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return;
@@ -105,7 +105,7 @@ static inline int psread_trylock_inatomic(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_NPTHREAD));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return 1;
@@ -122,7 +122,7 @@ static inline void psread_lock(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return;
@@ -134,7 +134,7 @@ static inline int psread_lock_interruptible(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return 0;
@@ -146,7 +146,7 @@ static inline int psread_trylock(psrwlock_t *rwlock,
 {
 	unsigned int uc;
 
-	BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
+	MAYBE_BUILD_BUG_ON(!(rctx & PSR_PTHREAD));
 	uc = atomic_cmpxchg(&rwlock->uc, 0, UC_READER_OFFSET);
 	if (likely(!uc))
 		return 1;

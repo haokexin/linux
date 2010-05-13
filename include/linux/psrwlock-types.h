@@ -132,7 +132,7 @@ do {									\
 #define CHECK_PSRWLOCK_MAP(x, wctx, rctx)				\
 	static inline void __psrwlock_bad_context_map_##x(void)		\
 	{								\
-		BUILD_BUG_ON((~(~0UL << (wctx))) & (rctx));		\
+		MAYBE_BUILD_BUG_ON((~(~0UL << (wctx))) & (rctx));	\
 	}
 
 extern void __psrwlock_init(struct psrwlock *lock, const char *name,
