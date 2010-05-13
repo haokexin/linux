@@ -188,6 +188,8 @@ extern const struct clkops clkops_null;
 
 extern struct clk dummy_ck;
 
+struct clocksource *get_clocksource_32k(void);
+
 /* Clock flags */
 #define ENABLE_REG_32BIT	(1 << 0)	/* Use 32-bit access */
 #define CLOCK_IDLE_CONTROL	(1 << 1)
