@@ -138,6 +138,7 @@ static inline void _imv_bypass(unsigned long *bypassaddr,
 
 static void imv_synchronize_core(void *info)
 {
+	smp_rmb();	/* read new instructions before continuing */
 	sync_core();	/* use cpuid to stop speculative execution */
 }
 
@@ -275,9 +276,9 @@ __kprobes int arch_imv_update(const struct __imv *imv, int early)
 		 * Make sure the breakpoint is set before we continue (visible
 		 * to other CPUs and interrupts).
 		 */
-		wmb();
+		smp_wmb();
 		/*
-		 * Execute serializing instruction on each CPU.
+		 * Execute smp_rmb() and serializing instruction on each CPU.
 		 */
 		ret = on_each_cpu(imv_synchronize_core, NULL, 1);
 		BUG_ON(ret != 0);
@@ -288,7 +289,12 @@ __kprobes int arch_imv_update(const struct __imv *imv, int early)
 		 * Make sure the value can be seen from other CPUs and
 		 * interrupts.
 		 */
-		wmb();
+		smp_wmb();
+		/*
+		 * Execute smp_rmb() on each CPU.
+		 */
+		ret = on_each_cpu(imv_synchronize_core, NULL, 1);
+		BUG_ON(ret != 0);
 		text_poke((void *)insn, (unsigned char *)bypass_eip, 1);
 		/*
 		 * Wait for all int3 handlers to end (interrupts are disabled in
