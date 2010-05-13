@@ -98,7 +98,7 @@ static inline void mark_rodata_ro(void) { }
 #ifdef CONFIG_TC
 extern void tc_init(void);
 #endif
-#ifdef CONFIG_IMMEDIATE
+#ifdef USE_IMMEDIATE
 extern void imv_init_complete(void);
 #else
 static inline void imv_init_complete(void) { }
