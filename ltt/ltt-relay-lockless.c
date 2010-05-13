@@ -112,6 +112,9 @@ void ltt_buffer_end(struct ltt_chanbuf *buf, u64 tsc, unsigned int offset,
 	header->subbuf_corrupt = local_read(&buf->corrupted_subbuffers);
 }
 
+/*
+ * Must be called under trace lock or cpu hotplug protection.
+ */
 void ltt_chanbuf_free(struct ltt_chanbuf *buf)
 {
 	struct ltt_chan *chan = container_of(buf->a.chan, struct ltt_chan, a);
@@ -126,10 +129,7 @@ void ltt_chanbuf_free(struct ltt_chanbuf *buf)
 }
 
 /*
- * Must be called under ltt_relay_alloc_mutex protection to ensure serialization
- * of CPU hotplug vs channel creation.
- * ltt_chanbuf_free does not have this requirement, because it is never used for
- * cpu hotplug.
+ * Must be called under trace lock or cpu hotplug protection.
  */
 int ltt_chanbuf_create(struct ltt_chanbuf *buf, struct ltt_chan_alloc *chana,
 		       int cpu)
@@ -454,6 +454,9 @@ static void ltt_chanbuf_start_switch_timer(struct ltt_chanbuf *buf)
 	add_timer_on(&buf->switch_timer, buf->a.cpu);
 }
 
+/*
+ * called with ltt traces lock held.
+ */
 void ltt_chan_start_switch_timer(struct ltt_chan *chan)
 {
 	int cpu;
@@ -461,14 +464,12 @@ void ltt_chan_start_switch_timer(struct ltt_chan *chan)
 	if (!chan->switch_timer_interval)
 		return;
 
-	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct ltt_chanbuf *buf;
 
 		buf = per_cpu_ptr(chan->a.buf, cpu);
 		ltt_chanbuf_start_switch_timer(buf);
 	}
-	put_online_cpus();
 }
 /*
  * Cannot use del_timer_sync with add_timer_on, so use an IPI to locally
@@ -491,6 +492,9 @@ static void ltt_chanbuf_stop_switch_timer(struct ltt_chanbuf *buf)
 	smp_call_function(stop_switch_timer_ipi, buf, 1);
 }
 
+/*
+ * called with ltt traces lock held.
+ */
 void ltt_chan_stop_switch_timer(struct ltt_chan *chan)
 {
 	int cpu;
@@ -498,14 +502,12 @@ void ltt_chan_stop_switch_timer(struct ltt_chan *chan)
 	if (!chan->switch_timer_interval)
 		return;
 
-	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct ltt_chanbuf *buf;
 
 		buf = per_cpu_ptr(chan->a.buf, cpu);
 		ltt_chanbuf_stop_switch_timer(buf);
 	}
-	put_online_cpus();
 }
 
 static void ltt_chanbuf_idle_switch(struct ltt_chanbuf *buf)
@@ -548,18 +550,20 @@ int ltt_chanbuf_hotcpu_callback(struct notifier_block *nb,
 	case CPU_DOWN_FAILED_FROZEN:
 	case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:
-		ltt_chan_for_each_channel(ltt_chanbuf_start_switch_timer,
-					  cpu, 1);
+		/*
+		 * CPU hotplug lock protects trace lock from this callback.
+		 */
+		ltt_chan_for_each_channel(ltt_chanbuf_start_switch_timer, cpu);
 		return NOTIFY_OK;
 
 	case CPU_DOWN_PREPARE:
 	case CPU_DOWN_PREPARE_FROZEN:
 		/*
 		 * Performs an IPI to delete the timer locally on the target
-		 * CPU.
+		 * CPU.	CPU hotplug lock protects trace lock from this
+		 * callback.
 		 */
-		ltt_chan_for_each_channel(ltt_chanbuf_stop_switch_timer,
-					  cpu, 1);
+		ltt_chan_for_each_channel(ltt_chanbuf_stop_switch_timer, cpu);
 		return NOTIFY_OK;
 
 	case CPU_DEAD:
@@ -568,9 +572,10 @@ int ltt_chanbuf_hotcpu_callback(struct notifier_block *nb,
 		 * Performing a buffer switch on a remote CPU. Performed by
 		 * the CPU responsible for doing the hotunplug after the target
 		 * CPU stopped running completely. Ensures that all data
-		 * from that remote CPU is flushed.
+		 * from that remote CPU is flushed. CPU hotplug lock protects
+		 * trace lock from this callback.
 		 */
-		ltt_chan_for_each_channel(ltt_chanbuf_switch, cpu, 0);
+		ltt_chan_for_each_channel(ltt_chanbuf_switch, cpu);
 		return NOTIFY_OK;
 
 	default:
@@ -581,9 +586,12 @@ int ltt_chanbuf_hotcpu_callback(struct notifier_block *nb,
 static int pm_idle_entry_callback(struct notifier_block *self,
 				  unsigned long val, void *data)
 {
-	if (val == IDLE_START)
+	if (val == IDLE_START) {
+		rcu_read_lock_sched_notrace();
 		ltt_chan_for_each_channel(ltt_chanbuf_idle_switch,
-					  smp_processor_id(), 0);
+					  smp_processor_id());
+		rcu_read_unlock_sched_notrace();
+	}
 	return 0;
 }
 

@@ -16,7 +16,6 @@
 #include <linux/sched.h>
 #include <linux/timer.h>
 #include <linux/wait.h>
-#include <linux/list.h>
 #include <linux/fs.h>
 #include <linux/poll.h>
 #include <linux/kref.h>
@@ -69,7 +68,6 @@ struct ltt_chan_alloc {
 	int extra_reader_sb:1;		/* Bool: has extra reader subbuffer */
 	struct ltt_chanbuf *buf;	/* Channel per-cpu buffers */
 
-	struct list_head list;		/* Channel list */
 	struct kref kref;		/* Reference count */
 	unsigned long n_sb;		/* Number of sub-buffers */
 	struct dentry *parent;		/* Associated parent dentry */
@@ -90,8 +88,7 @@ int ltt_chanbuf_create_file(const char *filename, struct dentry *parent,
 			    int mode, struct ltt_chanbuf *buf);
 int ltt_chanbuf_remove_file(struct ltt_chanbuf *buf);
 
-void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
-			       int sleepable);
+void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu);
 
 extern void _ltt_relay_write(struct ltt_chanbuf_alloc *bufa,
 			     size_t offset, const void *src, size_t len,
