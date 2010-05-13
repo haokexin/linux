@@ -247,6 +247,20 @@ void probe_socket_call(int call, unsigned long a0)
 		"call %d a0 %lu", call, a0);
 }
 
+void probe_tcpv4_rcv(struct sk_buff *skb);
+
+DEFINE_MARKER_TP(net, tcpv4_rcv, net_tcpv4_rcv, probe_tcpv4_rcv,
+	"skb %p");
+
+notrace void probe_tcpv4_rcv(struct sk_buff *skb)
+{
+	struct marker *marker;
+
+	marker = &GET_MARKER(net, tcpv4_rcv);
+	ltt_specialized_trace(marker, marker->single.probe_private,
+		&skb, sizeof(skb), sizeof(skb));
+}
+
 #ifdef CONFIG_NETPOLL
 void probe_net_napi_schedule(struct napi_struct *n);
 
