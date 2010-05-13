@@ -16,6 +16,7 @@
 #include <linux/mm.h>
 #include <linux/cpu.h>
 #include <linux/bitops.h>
+#include <linux/delay.h>
 #include <linux/ltt-tracer.h>
 
 #include "ltt-relay-select.h"	/* for cpu hotplug */
@@ -360,7 +361,7 @@ void ltt_chan_alloc_remove_files(struct ltt_chan_alloc *chan)
 		 * except us.
 		 */
 		while (atomic_read(&dentry->d_count) != 1)
-			cpu_relax();
+			msleep(100);
 		dput(dentry);
 	}
 }
