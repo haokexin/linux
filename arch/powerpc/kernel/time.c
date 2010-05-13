@@ -54,6 +54,7 @@
 #include <linux/irq.h>
 #include <linux/delay.h>
 #include <linux/perf_event.h>
+#include <trace/trap.h>
 #include <asm/trace.h>
 
 #include <asm/io.h>
