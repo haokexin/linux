@@ -7,96 +7,22 @@
 #include <linux/mutex.h>
 #include <linux/immediate.h>
 #include <linux/memory.h>
-#include <linux/cpu.h>
-#include <linux/stop_machine.h>
 
 #include <asm/sections.h>
-#include <asm/cacheflush.h>
-#include <asm/atomic.h>
 
 /*
  * Kernel ready to execute the SMP update that may depend on trap and ipi.
  */
 static int imv_early_boot_complete;
-static atomic_t stop_machine_first;
-static int wrote_text;
 
 extern struct __imv __start___imv[];
 extern struct __imv __stop___imv[];
-
-static int stop_machine_imv_update(void *imv_ptr)
-{
-	struct __imv *imv = imv_ptr;
-
-	if (atomic_dec_and_test(&stop_machine_first)) {
-		text_poke((void *)imv->imv, (void *)imv->var, imv->size);
-		smp_wmb(); /* make sure other cpus see that this has run */
-		wrote_text = 1;
-	} else {
-		while (!wrote_text)
-			smp_rmb();
-		sync_core();
-	}
-
-	flush_icache_range(imv->imv, imv->imv + imv->size);
-
-	return 0;
-}
 
 /*
  * imv_mutex nests inside module_mutex. imv_mutex protects builtin
  * immediates and module immediates.
  */
 static DEFINE_MUTEX(imv_mutex);
-
-/**
- * apply_imv_update - update one immediate value
- * @imv: pointer of type const struct __imv to update
- *
- * Update one immediate value. Must be called with imv_mutex held.
- * It makes sure all CPUs are not executing the modified code by having them
- * busy looping with interrupts disabled.
- * It does _not_ protect against NMI and MCE (could be a problem with Intel's
- * errata if we use immediate values in their code path).
- */
-static int apply_imv_update(const struct __imv *imv)
-{
-	/*
-	 * If the variable and the instruction have the same value, there is
-	 * nothing to do.
-	 */
-	switch (imv->size) {
-	case 1:	if (*(uint8_t *)imv->imv
-				== *(uint8_t *)imv->var)
-			return 0;
-		break;
-	case 2:	if (*(uint16_t *)imv->imv
-				== *(uint16_t *)imv->var)
-			return 0;
-		break;
-	case 4:	if (*(uint32_t *)imv->imv
-				== *(uint32_t *)imv->var)
-			return 0;
-		break;
-	case 8:	if (*(uint64_t *)imv->imv
-				== *(uint64_t *)imv->var)
-			return 0;
-		break;
-	default:return -EINVAL;
-	}
-
-	if (imv_early_boot_complete) {
-		mutex_lock(&text_mutex);
-		atomic_set(&stop_machine_first, 1);
-		wrote_text = 0;
-		stop_machine_run(stop_machine_imv_update, (void *)imv,
-					ALL_CPUS);
-		mutex_unlock(&text_mutex);
-	} else
-		text_poke_early((void *)imv->imv, (void *)imv->var,
-				imv->size);
-	return 0;
-}
 
 /**
  * imv_update_range - Update immediate values in a range
@@ -115,7 +41,9 @@ void imv_update_range(const struct __imv *begin,
 	for (iter = begin; iter < end; iter++) {
 		if (!iter->imv) /* Skip removed __init immediate values */
 			continue;
-		ret = apply_imv_update(iter);
+		mutex_lock(&text_mutex);
+		ret = arch_imv_update(iter, !imv_early_boot_complete);
+		mutex_unlock(&text_mutex);
 		if (imv_early_boot_complete && ret)
 			printk(KERN_WARNING
 				"Invalid immediate value. "
