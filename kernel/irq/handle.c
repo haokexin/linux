@@ -21,6 +21,7 @@
 #include <linux/hash.h>
 #include <linux/radix-tree.h>
 #include <trace/events/irq.h>
+#include <trace/irq.h>
 
 #include "internals.h"
 
@@ -197,6 +198,7 @@ int __init early_irq_init(void)
 
 	return arch_early_irq_init();
 }
+EXPORT_SYMBOL(irq_to_desc);
 
 struct irq_desc * __ref irq_to_desc_alloc_node(unsigned int irq, int node)
 {
@@ -271,6 +273,7 @@ int __init early_irq_init(void)
 	}
 	return arch_early_irq_init();
 }
+EXPORT_SYMBOL(irq_to_desc);
 
 struct irq_desc *irq_to_desc(unsigned int irq)
 {
