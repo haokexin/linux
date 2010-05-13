@@ -196,6 +196,13 @@ int ltt_chanbuf_create(struct ltt_chanbuf *buf, struct ltt_chan_alloc *chana,
 	if (ret)
 		goto free_init;
 
+	/*
+	 * Ensure the buffer is ready before setting it to allocated.
+	 * Used for cpu hotplug vs async wakeup.
+	 */
+	smp_wmb();
+	buf->a.allocated = 1;
+
 	return 0;
 
 	/* Error handling */
@@ -747,7 +754,11 @@ static void ltt_relay_async_wakeup_chan(struct ltt_chan *chan)
 		buf = per_cpu_ptr(chan->a.buf, i);
 		if (!buf->a.allocated)
 			continue;
-
+		/*
+		 * Ensure the buffer has been allocated before reading its
+		 * content. Sync cpu hotplug vs async wakeup.
+		 */
+		smp_rmb();
 		if (ltt_poll_deliver(buf, chan))
 			wake_up_interruptible(&buf->read_wait);
 	}
