@@ -227,7 +227,7 @@ parse_end:
  * %n not supported.
  */
 static inline const char *parse_c_type(const char *fmt,
-		char *c_size, enum ltt_type *c_type)
+		char *c_size, enum ltt_type *c_type, char *outfmt)
 {
 	int qualifier;		/* 'h', 'l', or 'L' for integer fields */
 				/* 'z' support added 23/7/1999 S.H.    */
@@ -257,6 +257,13 @@ repeat:
 			qualifier = 'L';
 			++fmt;
 		}
+	}
+
+	if (outfmt) {
+		if (qualifier != -1)
+			*outfmt++ = (char)qualifier;
+		*outfmt++ = *fmt;
+		*outfmt = 0;
 	}
 
 	switch (*fmt) {
@@ -502,7 +509,7 @@ notrace size_t ltt_serialize_data(struct rchan_buf *buf, size_t buf_offset,
 			++fmt;			/* skip first '%' */
 			if (*fmt == '%')	/* Escaped %% */
 				break;
-			fmt = parse_c_type(fmt, &c_size, &c_type);
+			fmt = parse_c_type(fmt, &c_size, &c_type, NULL);
 			/*
 			 * Output c types if no trace types has been
 			 * specified.
@@ -572,6 +579,121 @@ static inline uint64_t unserialize_base_type(struct rchan_buf *buf,
 	BUG();
 	return 0;
 }
+
+static int serialize_printf_data(struct rchan_buf *buf, size_t *ppos,
+		char trace_size, enum ltt_type trace_type,
+		char c_size, enum ltt_type c_type,
+		char *output, ssize_t outlen, const char *outfmt)
+{
+	u64 value;
+	outlen = outlen < 0 ? 0 : outlen;
+
+	if (trace_type == LTT_TYPE_STRING) {
+		size_t len = ltt_relay_read_cstr(buf, *ppos, output, outlen);
+		*ppos += len + 1;
+		return len;
+	}
+
+	value = unserialize_base_type(buf, ppos, trace_size, trace_type);
+
+	if (c_size == 8)
+		return snprintf(output, outlen, outfmt, value);
+	else
+		return snprintf(output, outlen, outfmt, (unsigned int)value);
+}
+
+/**
+ * ltt_serialize_printf - Format a string and place it in a buffer
+ * @buf: The ltt-relay buffer that store binary data
+ * @buf_offset: binary data's offset in @buf (should be masked to use as offset)
+ * @msg_size: return message's length
+ * @output: The buffer to place the result into
+ * @outlen: The size of the buffer, including the trailing '\0'
+ * @fmt: The format string to use
+ *
+ * The return value is the number of characters which would
+ * be generated for the given input, excluding the trailing
+ * '\0', as per ISO C99. If the return is greater than or equal to @outlen,
+ * the resulting string is truncated.
+ */
+size_t ltt_serialize_printf(struct rchan_buf *buf, unsigned long buf_offset,
+		size_t *msg_size, char *output, size_t outlen, const char *fmt)
+{
+	char trace_size = 0, c_size = 0;	/*
+						 * 0 (unset), 1, 2, 4, 8 bytes.
+						 */
+	enum ltt_type trace_type = LTT_TYPE_NONE, c_type = LTT_TYPE_NONE;
+	unsigned long attributes = 0;
+	char outfmt[4] = "%";
+	size_t outpos = 0;
+	size_t len;
+	unsigned long msgpos = buf_offset;
+
+	for (; *fmt ; ++fmt) {
+		switch (*fmt) {
+		case '#':
+			/* tracetypes (#) */
+			++fmt;			/* skip first '#' */
+			if (*fmt == '#') {	/* Escaped ## */
+				if (outpos < outlen)
+					output[outpos] = '#';
+				outpos++;
+				break;
+			}
+			attributes = 0;
+			fmt = parse_trace_type(fmt, &trace_size, &trace_type,
+				&attributes);
+			break;
+		case '%':
+			/* c types (%) */
+			++fmt;			/* skip first '%' */
+			if (*fmt == '%') {	/* Escaped %% */
+				if (outpos < outlen)
+					output[outpos] = '%';
+				outpos++;
+				break;
+			}
+			fmt = parse_c_type(fmt, &c_size, &c_type, outfmt + 1);
+			/*
+			 * Output c types if no trace types has been
+			 * specified.
+			 */
+			if (!trace_size)
+				trace_size = c_size;
+			if (trace_type == LTT_TYPE_NONE)
+				trace_type = c_type;
+			if (c_type == LTT_TYPE_STRING)
+				trace_type = LTT_TYPE_STRING;
+
+			/* perform trace printf */
+			len = serialize_printf_data(buf, &msgpos, trace_size,
+					trace_type, c_size, c_type,
+					output + outpos, outlen - outpos,
+					outfmt);
+			outpos += len;
+			trace_size = 0;
+			c_size = 0;
+			trace_type = LTT_TYPE_NONE;
+			c_size = LTT_TYPE_NONE;
+			attributes = 0;
+			break;
+		default:
+			if (outpos < outlen)
+				output[outpos] = *fmt;
+			outpos++;
+			break;
+		}
+	}
+	if (msg_size)
+		*msg_size = (size_t)(msgpos - buf_offset);
+	/*
+	 * Make sure we end output with terminating \0 when truncated.
+	 */
+	if (outpos >= outlen + 1)
+		output[outlen] = '\0';
+	return outpos;
+}
+EXPORT_SYMBOL_GPL(ltt_serialize_printf);
 
 /*
  * Calculate data size

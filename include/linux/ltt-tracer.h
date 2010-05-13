@@ -120,6 +120,10 @@ extern void ltt_vtrace(const struct marker *mdata, void *probe_data,
 extern void ltt_trace(const struct marker *mdata, void *probe_data,
 	void *call_data, const char *fmt, ...);
 
+size_t ltt_serialize_printf(struct rchan_buf *buf,
+		unsigned long buf_offset, size_t *msg_size,
+		char *output, size_t outlen, const char *fmt);
+
 /*
  * Unique ID assigned to each registered probe.
  */
