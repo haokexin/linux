@@ -241,7 +241,6 @@ void vmalloc_sync_all(void)
 		spin_unlock_irqrestore(&pgd_lock, flags);
 	}
 }
-EXPORT_SYMBOL_GPL(vmalloc_sync_all);
 
 /*
  * 32-bit:
