@@ -120,6 +120,9 @@ obj-$(CONFIG_X86_CHECK_BIOS_CORRUPTION) += check.o
 
 obj-$(CONFIG_SWIOTLB)			+= pci-swiotlb.o
 
+obj-$(CONFIG_HAVE_PSRWLOCK_ASM_CALL)	+= call_64.o
+obj-$(CONFIG_HAVE_PSRWLOCK_ASM_CALL)	+= call_export_64.o
+
 ###
 # 64 bit specific files
 ifeq ($(CONFIG_X86_64),y)
