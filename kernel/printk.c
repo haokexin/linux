@@ -617,7 +617,7 @@ asmlinkage int printk(const char *fmt, ...)
 	}
 #endif
 	va_start(args, fmt);
-	trace_kernel_printk(_RET_IP_);
+	_trace_kernel_printk(_RET_IP_);
 	r = vprintk(fmt, args);
 	va_end(args);
 
@@ -740,7 +740,7 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 	printed_len += vscnprintf(printk_buf + printed_len,
 				  sizeof(printk_buf) - printed_len, fmt, args);
 
-	trace_kernel_vprintk(_RET_IP_, printk_buf, printed_len);
+	_trace_kernel_vprintk(_RET_IP_, printk_buf, printed_len);
 
 	p = printk_buf;
 
