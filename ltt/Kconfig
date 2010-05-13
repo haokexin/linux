@@ -37,6 +37,19 @@ config HAVE_LTT_DUMP_TABLES
 config LTT_RELAY_ALLOC
 	def_bool n
 
+config LTT_RELAY
+	tristate "Linux Trace Toolkit High-speed Lockless Data Relay"
+	select DEBUG_FS
+	select LTT_RELAY_ALLOC
+	depends on LTT_TRACER
+	default y
+	help
+	  Support using the fast lockless algorithm to log the data obtained
+	  through LTT.
+
+	  If you don't have special hardware, you almost certainly want
+	  to say Y here.
+
 config LTT_RELAY_LOCKED
 	tristate "Linux Trace Toolkit Lock-Protected Data Relay"
 	select DEBUG_FS
