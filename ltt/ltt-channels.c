@@ -30,6 +30,7 @@ static LIST_HEAD(ltt_channels);
  * more trace channels are allocated.
  */
 static unsigned int free_index;
+/* index_kref is protected by both ltt_channel_mutex and lock_markers */
 static struct kref index_kref;	/* Keeps track of allocated trace channels */
 
 static struct ltt_channel_setting *lookup_channel(const char *name)
@@ -81,6 +82,17 @@ static void release_trace_channel(struct kref *kref)
 	list_for_each_entry_safe(iter, n, &ltt_channels, list)
 		release_channel_setting(&iter->kref);
 }
+
+/*
+ * ltt_channel_trace_ref :  Is there an existing trace session ?
+ *
+ * Must be called with lock_markers() held.
+ */
+int ltt_channels_trace_ref(void)
+{
+	return !!atomic_read(&index_kref.refcount);
+}
+EXPORT_SYMBOL_GPL(ltt_channels_trace_ref);
 
 /**
  * ltt_channels_register - Register a trace channel.
@@ -237,6 +249,7 @@ struct ltt_channel_struct *ltt_channels_trace_alloc(unsigned int *nr_channels,
 	struct ltt_channel_struct *channel = NULL;
 	struct ltt_channel_setting *iter;
 
+	lock_markers();
 	mutex_lock(&ltt_channel_mutex);
 	if (!free_index)
 		goto end;
@@ -260,6 +273,7 @@ struct ltt_channel_struct *ltt_channels_trace_alloc(unsigned int *nr_channels,
 	}
 end:
 	mutex_unlock(&ltt_channel_mutex);
+	unlock_markers();
 	return channel;
 }
 EXPORT_SYMBOL_GPL(ltt_channels_trace_alloc);

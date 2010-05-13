@@ -84,6 +84,7 @@ int ltt_channels_set_default(const char *name,
 			     unsigned int subbuf_cnt);
 const char *ltt_channels_get_name_from_index(unsigned int index);
 int ltt_channels_get_index_from_name(const char *name);
+int ltt_channels_trace_ref(void);
 struct ltt_channel_struct *ltt_channels_trace_alloc(unsigned int *nr_channels,
 						    int overwrite,
 						    int active);
