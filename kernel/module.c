@@ -2608,6 +2608,10 @@ SYSCALL_DEFINE3(init_module, void __user *, umod,
 	mutex_lock(&module_mutex);
 	/* Drop initial reference. */
 	module_put(mod);
+#ifdef CONFIG_IMMEDIATE
+	imv_unref(mod->immediate, mod->immediate + mod->num_immediate,
+		mod->module_init, mod->init_size);
+#endif
 	trim_init_extable(mod);
 #ifdef CONFIG_KALLSYMS
 	mod->num_symtab = mod->core_num_syms;
