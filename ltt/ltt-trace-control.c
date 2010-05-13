@@ -21,6 +21,7 @@
 #include <linux/debugfs.h>
 #include <linux/ltt-tracer.h>
 #include <linux/notifier.h>
+#include <linux/jiffies.h>
 
 #define LTT_CONTROL_DIR "control"
 #define MARKERS_CONTROL_DIR "markers"
@@ -304,6 +305,51 @@ static const struct file_operations ltt_channel_subbuf_size_operations = {
 	.write = channel_subbuf_size_write,
 };
 
+static ssize_t channel_switch_timer_write(struct file *file,
+	const char __user *user_buf, size_t count, loff_t *ppos)
+{
+	int err = 0;
+	char buf[NAME_MAX];
+	int buf_size;
+	unsigned long num;
+	const char *channel_name;
+	const char *trace_name;
+
+	buf_size = min(count, sizeof(buf) - 1);
+	err = copy_from_user(buf, user_buf, buf_size);
+	if (err)
+		goto err_copy_from_user;
+	buf[buf_size] = 0;
+
+	if (sscanf(buf, "%lu", &num) != 1) {
+		err = -EPERM;
+		goto err_get_number;
+	}
+
+	channel_name = file->f_dentry->d_parent->d_name.name;
+	trace_name = file->f_dentry->d_parent->d_parent->d_parent->d_name.name;
+
+	/* Convert from ms to jiffies */
+	num = msecs_to_jiffies(num);
+
+	err = ltt_trace_set_channel_switch_timer(trace_name, channel_name, num);
+	if (IS_ERR_VALUE(err)) {
+		printk(KERN_ERR "channel_switch_timer_write: "
+		"ltt_trace_set_channel_switch_timer failed: %d\n", err);
+		goto err_set_switch_timer;
+	}
+
+	return count;
+
+err_set_switch_timer:
+err_get_number:
+err_copy_from_user:
+	return err;
+}
+
+static struct file_operations ltt_channel_switch_timer_operations = {
+	.write = channel_switch_timer_write,
+};
 
 static ssize_t channel_overwrite_write(struct file *file,
 	const char __user *user_buf, size_t count, loff_t *ppos)
@@ -513,7 +559,8 @@ static int _create_trace_control_dir(const char *trace_name,
 	 *             |   |-- enable
 	 *             |   |-- overwrite
 	 *             |   |-- subbuf_num
-	 *             |   `-- subbuf_size
+	 *             |   |-- subbuf_size
+	 *             |   `-- switch_timer
 	 *             `-- ...
 	 */
 
@@ -569,6 +616,17 @@ static int _create_trace_control_dir(const char *trace_name,
 		if (IS_ERR(tmp_den) || !tmp_den) {
 			printk(KERN_ERR "_create_trace_control_dir: "
 				"create overwrite in %s failed\n",
+				channel->channel_name);
+			err = -ENOMEM;
+			goto err_create_subdir;
+		}
+
+		tmp_den = debugfs_create_file("switch_timer", S_IWUSR,
+			channel_den, NULL,
+			&ltt_channel_switch_timer_operations);
+		if (IS_ERR(tmp_den) || !tmp_den) {
+			printk(KERN_ERR "_create_trace_control_dir: "
+				"create switch_timer in %s failed\n",
 				channel->channel_name);
 			err = -ENOMEM;
 			goto err_create_subdir;
