@@ -19,6 +19,7 @@
 #include <linux/init.h>
 #include <linux/signal.h>
 #include <linux/uaccess.h>
+#include <trace/syscall.h>
 
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -51,6 +52,10 @@
 #define BREAKINST_ARM	0xe7f001f0
 #define BREAKINST_THUMB	0xde01
 #endif
+
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 /*
  * this routine will get a word off of the processes privileged stack.
@@ -831,6 +836,11 @@ long arch_ptrace(struct task_struct *child, long request, long addr, long data)
 asmlinkage int syscall_trace(int why, struct pt_regs *regs, int scno)
 {
 	unsigned long ip;
+
+	if (!why)
+		trace_syscall_entry(regs, scno);
+	else
+		trace_syscall_exit(regs->ARM_r0);
 
 	if (!test_thread_flag(TIF_SYSCALL_TRACE))
 		return scno;
