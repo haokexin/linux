@@ -842,12 +842,13 @@ ssize_t marker_enable_read(struct file *filp, char __user *ubuf,
 	len = 0;
 	buf = (char *)__get_free_page(GFP_KERNEL);
 
-	lock_markers();
-
-	enabled = _is_marker_enabled(channel, marker);
-	present = _is_marker_present(channel, marker);
-
-	unlock_markers();
+	/*
+	 * Note: we cannot take the marker lock to make these two checks
+	 * atomic, because the marker mutex nests inside the module mutex, taken
+	 * inside the marker present check.
+	 */
+	enabled = is_marker_enabled(channel, marker);
+	present = is_marker_present(channel, marker);
 
 	if (enabled && present)
 		len = snprintf(buf, PAGE_SIZE, "%d\n", 1);
@@ -935,16 +936,12 @@ ssize_t marker_info_read(struct file *filp, char __user *ubuf,
 	len = 0;
 	buf = (char *)__get_free_page(GFP_KERNEL);
 
-	lock_markers();
-
-	if (_is_marker_enabled(channel, marker) &&
-	    !_is_marker_present(channel, marker)) {
+	if (is_marker_enabled(channel, marker) &&
+	    !is_marker_present(channel, marker)) {
 		len += snprintf(buf + len, PAGE_SIZE - len,
 				"Marker Pre-enabled\n");
-		unlock_markers();
 		goto out;
 	}
-	unlock_markers();
 
 	marker_iter_reset(&iter);
 	marker_iter_start(&iter);
@@ -1057,12 +1054,8 @@ static int marker_rmdir(struct inode *dir, struct dentry *dentry)
 
 	name = marker_d->d_name.name;
 
-	lock_markers();
-
-	enabled = _is_marker_enabled(channel, name);
-	present = _is_marker_present(channel, name);
-
-	unlock_markers();
+	enabled = is_marker_enabled(channel, name);
+	present = is_marker_present(channel, name);
 
 	if (present || (!present && enabled)) {
 		ret = -EPERM;
