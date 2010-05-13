@@ -386,8 +386,6 @@ void do_IRQ(struct pt_regs *regs)
 	struct pt_regs *old_regs = set_irq_regs(regs);
 	unsigned int irq;
 
-	trace_irq_entry(regs);
-
 	irq_enter();
 
 	check_stack_overflow();
@@ -410,8 +408,6 @@ void do_IRQ(struct pt_regs *regs)
 		timer_interrupt(regs);
 	}
 #endif
-
-	trace_irq_exit(regs);
 }
 
 void __init init_IRQ(void)
