@@ -1195,7 +1195,7 @@ static void ltt_reserve_switch_new_subbuf(
 	ltt_buf->commit_count[beginidx] += ltt_subbuffer_header_size();
 	offsets->commit_count = ltt_buf->commit_count[beginidx];
 	/* Check if the written buffer has to be delivered */
-	if (unlikely((BUFFER_TRUNC(offsets->end - 1, rchan)
+	if (unlikely((BUFFER_TRUNC(offsets->begin, rchan)
 			>> ltt_channel->n_subbufs_order)
 			- ((offsets->commit_count - rchan->subbuf_size)
 			   & ltt_channel->commit_count_mask) == 0))
