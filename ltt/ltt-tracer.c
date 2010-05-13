@@ -455,7 +455,7 @@ void ltt_release_trace(struct kref *kref)
 {
 	struct ltt_trace_struct *trace = container_of(kref,
 			struct ltt_trace_struct, kref);
-	ltt_channels_trace_free(trace->channels);
+	ltt_channels_trace_free(trace->channels, trace->nr_channels);
 	kfree(trace);
 }
 EXPORT_SYMBOL_GPL(ltt_release_trace);
@@ -1006,6 +1006,7 @@ static int _ltt_trace_start(struct ltt_trace_struct *trace)
 		printk(KERN_ERR "LTT : Can't lock filter module.\n");
 		goto get_ltt_run_filter_error;
 	}
+	ltt_channels_trace_start_timer(trace->channels, trace->nr_channels);
 	trace->active = 1;
 	/* Read by trace points without protection : be careful */
 	ltt_traces.num_active_traces++;
@@ -1072,6 +1073,8 @@ static int _ltt_trace_stop(struct ltt_trace_struct *trace)
 		printk(KERN_INFO "LTT : Tracing not active for trace %s\n",
 				trace->trace_name);
 	if (trace->active) {
+		ltt_channels_trace_stop_timer(trace->channels,
+			trace->nr_channels);
 		trace->active = 0;
 		ltt_traces.num_active_traces--;
 		synchronize_sched(); /* Wait for each tracing to be finished */
