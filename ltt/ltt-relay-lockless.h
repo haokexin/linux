@@ -314,6 +314,15 @@ int ltt_poll_deliver(struct ltt_chanbuf *buf, struct ltt_chan *chan)
 
 }
 
+static __inline__
+u32 get_read_sb_size(struct ltt_chanbuf *buf)
+{
+	struct ltt_subbuffer_header *header =
+		(struct ltt_subbuffer_header *)
+			ltt_relay_read_offset_address(&buf->a, 0);
+	return header->sb_size;
+}
+
 /*
  * returns 0 if reserve ok, or 1 if the slow path must be taken.
  */
@@ -434,9 +443,9 @@ void ltt_force_switch(struct ltt_chanbuf *buf, enum force_switch_mode mode)
 
 /*
  * for flight recording. must be called after relay_commit.
- * This function decrements de subbuffer's lost_size each time the commit count
- * reaches back the reserve offset (module subbuffer size). It is useful for
- * crash dump.
+ * This function increments the subbuffer's commit_seq counter each time the
+ * commit count reaches back the reserve offset (module subbuffer size). It is
+ * useful for crash dump.
  */
 #ifdef CONFIG_LTT_VMCORE
 static __inline__
@@ -525,7 +534,7 @@ void ltt_commit_slot(struct ltt_chanbuf *buf, struct ltt_chan *chan,
 
 	ltt_check_deliver(buf, chan, offset_end - 1, commit_count, endidx);
 	/*
-	 * Update lost_size for each commit. It's needed only for extracting
+	 * Update data_size for each commit. It's needed only for extracting
 	 * ltt buffers from vmcore, after crash.
 	 */
 	ltt_write_commit_counter(buf, chan, endidx, buf_offset,

@@ -281,8 +281,8 @@ struct ltt_subbuffer_header {
 					 * used all along the trace.
 					 */
 	uint32_t freq_scale;		/* Frequency scaling (divisor) */
-	uint32_t lost_size;		/* Size unused at end of subbuffer */
-	uint32_t buf_size;		/* Size of this subbuffer */
+	uint32_t data_size;		/* Size of data in subbuffer */
+	uint32_t sb_size;		/* Subbuffer size (include padding) */
 	uint32_t events_lost;		/*
 					 * Events lost in this subbuffer since
 					 * the beginning of the trace.
@@ -534,7 +534,7 @@ size_t ltt_read_event_header(struct ltt_chanbuf_alloc *bufa, long buf_offset,
 #define LTT_DEFAULT_N_SUBBUFS_HIGH	2
 #define LTT_TRACER_MAGIC_NUMBER		0x00D6B7ED
 #define LTT_TRACER_VERSION_MAJOR	2
-#define LTT_TRACER_VERSION_MINOR	4
+#define LTT_TRACER_VERSION_MINOR	5
 
 /**
  * ltt_write_trace_header - Write trace header
@@ -702,14 +702,16 @@ static __inline__ void ltt_dump_idt_table(void *call_data)
 
 /* Relay IOCTL */
 
-/* Get the next sub buffer that can be read. */
-#define RELAY_GET_SUBBUF		_IOR(0xF5, 0x00, __u32)
-/* Release the oldest reserved (by "get") sub buffer. */
-#define RELAY_PUT_SUBBUF		_IOW(0xF5, 0x01, __u32)
-/* returns the number of sub buffers in the per cpu channel. */
-#define RELAY_GET_N_SUBBUFS		_IOR(0xF5, 0x02, __u32)
-/* returns the size of the sub buffers. */
-#define RELAY_GET_SUBBUF_SIZE		_IOR(0xF5, 0x03, __u32)
+/* Get the next sub-buffer that can be read. */
+#define RELAY_GET_SB			_IOR(0xF5, 0x00, __u32)
+/* Release the oldest reserved (by "get") sub-buffer. */
+#define RELAY_PUT_SB			_IOW(0xF5, 0x01, __u32)
+/* returns the number of sub-buffers in the per cpu channel. */
+#define RELAY_GET_N_SB			_IOR(0xF5, 0x02, __u32)
+/* returns the size of the current sub-buffer. */
+#define RELAY_GET_SB_SIZE		_IOR(0xF5, 0x03, __u32)
+/* returns the maximum size for sub-buffers. */
+#define RELAY_GET_MAX_SB_SIZE		_IOR(0xF5, 0x04, __u32)
 
 #endif /* CONFIG_LTT */
 

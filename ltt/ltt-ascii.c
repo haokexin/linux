@@ -87,15 +87,17 @@ struct ltt_relay_iter {
 	int nr_refs;
 };
 
+/*
+ * offset of 0 in subbuffer means "subbuf size" (filled subbuffer).
+ */
 static int is_subbuffer_offset_end(struct ltt_relay_cpu_iter *citer,
 				   long offset)
 {
 	struct ltt_chan *chan = container_of(citer->buf->a.chan,
 					     struct ltt_chan, a);
-	long sub_offset = SUBBUF_OFFSET(offset, chan);
+	long sub_offset = SUBBUF_OFFSET(offset - 1, chan) + 1;
 
-	return (sub_offset + citer->header->lost_size
-		>= citer->buf->a.chan->sb_size);
+	return (sub_offset <= citer->header->data_size);
 }
 
 static u64 calculate_tsc(u64 pre_tsc, u64 read_tsc, unsigned int rflags)
