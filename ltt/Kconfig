@@ -170,21 +170,6 @@ config LTT_VMCORE
 
 	  Special crash extension should be used to extract ltt buffers.
 
-config LTT_KPROBES
-	bool "Linux Trace Toolkit Kprobes Support"
-	depends on HAVE_KPROBES
-	depends on LTT_TRACE_CONTROL
-	depends on LTT_FAST_SERIALIZE
-	select KPROBES
-	select KALLSYMS
-	default y
-	help
-	  Allows connecting the LTTng tracer on kprobes using simple debugfs
-	  file operations :
-	    ltt/kprobes/enable
-	    ltt/kprobes/disable
-	    ltt/kprobes/list
-
 config LTT_STATEDUMP
 	tristate "Linux Trace Toolkit State Dump"
 	depends on LTT_TRACER
@@ -195,6 +180,22 @@ config LTT_STATEDUMP
 
 	  This module saves the state of the running kernel at trace start
 	  into the trace buffers along with the ongoing tracing information.
+
+config LTT_KPROBES
+	tristate "Linux Trace Toolkit Kprobes Support"
+	depends on HAVE_KPROBES
+	depends on LTT_TRACE_CONTROL
+	depends on LTT_FAST_SERIALIZE
+	depends on LTT_STATEDUMP
+	select KPROBES
+	select KALLSYMS
+	default y
+	help
+	  Allows connecting the LTTng tracer on kprobes using simple debugfs
+	  file operations :
+	    ltt/kprobes/enable
+	    ltt/kprobes/disable
+	    ltt/kprobes/list
 
 config LTT_FTRACE
 	bool "Linux Trace Toolkit Function Tracer Support"
