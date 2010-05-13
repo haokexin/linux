@@ -656,13 +656,10 @@ extern void ltt_dump_marker_state(struct ltt_trace_struct *trace);
 void ltt_lock_traces(void);
 void ltt_unlock_traces(void);
 
-#ifdef CONFIG_LTT_KPROBES
-extern void ltt_dump_kprobes_table(void *call_data);
-#else
-static __inline__ void ltt_dump_kprobes_table(void *call_data)
-{
-}
-#endif
+extern void ltt_statedump_register_kprobes_dump(
+	void (*callback)(void *call_data));
+extern void ltt_statedump_unregister_kprobes_dump(
+	void (*callback)(void *call_data));
 
 extern void ltt_dump_softirq_vec(void *call_data);
 

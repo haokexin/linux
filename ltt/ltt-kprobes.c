@@ -375,6 +375,10 @@ static const struct file_operations ltt_kprobes_list = {
 	.release = ltt_kprobes_list_release,
 };
 
+/*
+ * kprobes table dump. Callback invoked by ltt-statedump. ltt-statedump must
+ * take a reference to this module before calling this callback.
+ */
 void ltt_dump_kprobes_table(void *call_data)
 {
 	struct kprobe_entry *e;
@@ -445,6 +449,7 @@ static int __init ltt_kprobes_init(void)
 		ret = -ENOMEM;
 		goto err_no_list;
 	}
+	ltt_statedump_register_kprobes_dump(ltt_dump_kprobes_table);
 
 	mutex_unlock(&ltt_kprobes_mutex);
 	return ret;
@@ -467,6 +472,7 @@ static void __exit ltt_kprobes_exit(void)
 	printk(KERN_INFO "LTT : ltt-kprobes exit\n");
 	mutex_lock(&ltt_kprobes_mutex);
 	module_exit = 1;
+	ltt_statedump_unregister_kprobes_dump(ltt_dump_kprobes_table);
 	debugfs_remove(ltt_kprobes_list_dentry);
 	debugfs_remove(ltt_kprobes_disable_dentry);
 	debugfs_remove(ltt_kprobes_enable_dentry);

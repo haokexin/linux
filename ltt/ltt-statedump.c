@@ -31,6 +31,7 @@
 #include <linux/marker.h>
 #include <linux/fdtable.h>
 #include <linux/swap.h>
+#include <linux/mutex.h>
 
 #ifdef CONFIG_GENERIC_HARDIRQS
 #include <linux/irq.h>
@@ -41,6 +42,13 @@
 static atomic_t kernel_threads_to_run;
 static struct delayed_work cpu_work[NR_CPUS];
 static struct task_struct *work_wake_task;
+
+static void empty_cb(void *call_data)
+{
+}
+
+static DEFINE_MUTEX(statedump_cb_mutex);
+static void (*ltt_dump_kprobes_table_cb)(void *call_data) = empty_cb;
 
 enum lttng_thread_type {
 	LTTNG_USER_THREAD = 0,
@@ -325,6 +333,22 @@ ltt_enumerate_process_states(struct ltt_probe_private_data *call_data)
 	return 0;
 }
 
+void ltt_statedump_register_kprobes_dump(void (*callback)(void *call_data))
+{
+	mutex_lock(&statedump_cb_mutex);
+	ltt_dump_kprobes_table_cb = callback;
+	mutex_unlock(&statedump_cb_mutex);
+}
+EXPORT_SYMBOL_GPL(ltt_statedump_register_kprobes_dump);
+
+void ltt_statedump_unregister_kprobes_dump(void (*callback)(void *call_data))
+{
+	mutex_lock(&statedump_cb_mutex);
+	ltt_dump_kprobes_table_cb = empty_cb;
+	mutex_unlock(&statedump_cb_mutex);
+}
+EXPORT_SYMBOL_GPL(ltt_statedump_unregister_kprobes_dump);
+
 void ltt_statedump_work_func(struct work_struct *work)
 {
 	if (atomic_dec_and_test(&kernel_threads_to_run)) {
@@ -336,6 +360,7 @@ void ltt_statedump_work_func(struct work_struct *work)
 static int do_ltt_statedump(struct ltt_probe_private_data *call_data)
 {
 	int cpu;
+	struct module *cb_owner;
 
 	printk(KERN_DEBUG "LTT state dump thread start\n");
 	ltt_enumerate_process_states(call_data);
@@ -345,10 +370,18 @@ static int do_ltt_statedump(struct ltt_probe_private_data *call_data)
 	list_interrupts(call_data);
 	ltt_enumerate_network_ip_interface(call_data);
 	ltt_dump_swap_files(call_data);
-	ltt_dump_kprobes_table(call_data);
 	ltt_dump_sys_call_table(call_data);
 	ltt_dump_softirq_vec(call_data);
 	ltt_dump_idt_table(call_data);
+
+	mutex_lock(&statedump_cb_mutex);
+
+	cb_owner = __module_address((unsigned long)ltt_dump_kprobes_table_cb);
+	__module_get(cb_owner);
+	ltt_dump_kprobes_table_cb(call_data);
+	module_put(cb_owner);
+
+	mutex_unlock(&statedump_cb_mutex);
 
 	/*
 	 * Fire off a work queue on each CPU. Their sole purpose in life
