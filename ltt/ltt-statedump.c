@@ -340,6 +340,9 @@ static int do_ltt_statedump(struct ltt_probe_private_data *call_data)
 	ltt_enumerate_network_ip_interface(call_data);
 	ltt_dump_swap_files(call_data);
 	ltt_dump_kprobes_table(call_data);
+	ltt_dump_sys_call_table(call_data);
+	ltt_dump_softirq_vec(call_data);
+	ltt_dump_idt_table(call_data);
 
 	/*
 	 * Fire off a work queue on each CPU. Their sole purpose in life

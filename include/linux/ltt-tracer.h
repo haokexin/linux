@@ -690,6 +690,21 @@ static inline void ltt_dump_kprobes_table(void *call_data)
 }
 #endif
 
+extern void ltt_dump_softirq_vec(void *call_data);
+
+#ifdef CONFIG_HAVE_LTT_DUMP_TABLES
+extern void ltt_dump_sys_call_table(void *call_data);
+extern void ltt_dump_idt_table(void *call_data);
+#else
+static inline void ltt_dump_sys_call_table(void *call_data)
+{
+}
+
+static inline void ltt_dump_idt_table(void *call_data)
+{
+}
+#endif
+
 /* Relay IOCTL */
 
 /* Get the next sub buffer that can be read. */
