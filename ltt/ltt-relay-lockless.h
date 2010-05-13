@@ -73,7 +73,8 @@ struct commit_counters {
 };
 
 /* LTTng lockless logging buffer info */
-struct ltt_channel_buf_struct {
+struct ltt_chanbuf {
+	struct ltt_chanbuf_alloc a;	/* Parent. First field. */
 	/* First 32 bytes cache-hot cacheline */
 	local_t offset;			/* Current offset in the buffer */
 	struct commit_counters *commit_count;
@@ -107,9 +108,7 @@ struct ltt_channel_buf_struct {
 	wait_queue_head_t read_wait;	/* reader wait queue */
 	unsigned int finalized;		/* buffer has been finalized */
 	struct timer_list switch_timer;	/* timer for periodical switch */
-	unsigned long switch_timer_interval;	/* in jiffies. 0 unset */
-	struct rchan_buf *rbuf;		/* Pointer to rchan_buf */
-} ____cacheline_internodealigned_in_smp;
+};
 
 /*
  * A switch is done during tracing or as a final flush after tracing (so it
@@ -117,13 +116,16 @@ struct ltt_channel_buf_struct {
  */
 enum force_switch_mode { FORCE_ACTIVE, FORCE_FLUSH };
 
-extern int ltt_reserve_slot_lockless_slow(struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *ltt_channel, void **transport_data,
-		size_t data_size, size_t *slot_size, long *buf_offset, u64 *tsc,
-		unsigned int *rflags, int largest_align, int cpu);
+extern
+int ltt_reserve_slot_lockless_slow(struct ltt_chan *chan,
+				   struct ltt_trace *trace, size_t data_size,
+				   int largest_align, int cpu,
+				   struct ltt_chanbuf **ret_buf,
+				   size_t *slot_size, long *buf_offset,
+				   u64 *tsc, unsigned int *rflags);
 
-extern void ltt_force_switch_lockless_slow(struct rchan_buf *buf,
-		enum force_switch_mode mode);
+extern void ltt_force_switch_lockless_slow(struct ltt_chanbuf *buf,
+					   enum force_switch_mode mode);
 
 /*
  * Last TSC comparison functions. Check if the current TSC overflows
@@ -132,49 +134,81 @@ extern void ltt_force_switch_lockless_slow(struct rchan_buf *buf,
  */
 
 #if (BITS_PER_LONG == 32)
-static __inline__ void save_last_tsc(struct ltt_channel_buf_struct *ltt_buf,
-					u64 tsc)
+static __inline__ void save_last_tsc(struct ltt_chanbuf *buf, u64 tsc)
 {
-	ltt_buf->last_tsc = (unsigned long)(tsc >> LTT_TSC_BITS);
+	buf->last_tsc = (unsigned long)(tsc >> LTT_TSC_BITS);
 }
 
-static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
-					u64 tsc)
+static __inline__ int last_tsc_overflow(struct ltt_chanbuf *buf, u64 tsc)
 {
 	unsigned long tsc_shifted = (unsigned long)(tsc >> LTT_TSC_BITS);
 
-	if (unlikely((tsc_shifted - ltt_buf->last_tsc)))
+	if (unlikely((tsc_shifted - buf->last_tsc)))
 		return 1;
 	else
 		return 0;
 }
 #else
-static __inline__ void save_last_tsc(struct ltt_channel_buf_struct *ltt_buf,
-					u64 tsc)
+static __inline__ void save_last_tsc(struct ltt_chanbuf *buf, u64 tsc)
 {
-	ltt_buf->last_tsc = (unsigned long)tsc;
+	buf->last_tsc = (unsigned long)tsc;
 }
 
-static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
-					u64 tsc)
+static __inline__ int last_tsc_overflow(struct ltt_chanbuf *buf, u64 tsc)
 {
-	if (unlikely((tsc - ltt_buf->last_tsc) >> LTT_TSC_BITS))
+	if (unlikely((tsc - buf->last_tsc) >> LTT_TSC_BITS))
 		return 1;
 	else
 		return 0;
 }
 #endif
 
-static __inline__ void ltt_reserve_push_reader(
-		struct ltt_channel_buf_struct *ltt_buf,
-		struct rchan *rchan,
-		struct rchan_buf *buf,
-		long offset)
+extern
+int ltt_chanbuf_create(struct ltt_chanbuf *buf, struct ltt_chan_alloc *chana,
+		       int cpu);
+extern void ltt_chanbuf_free(struct kref *kref);
+extern int ltt_chan_create(const char *base_filename, struct ltt_chan *chan,
+			   struct dentry *parent, size_t sb_size, size_t n_sb,
+			   int overwrite, struct ltt_trace *trace);
+extern void ltt_chan_free(struct kref *kref);
+
+/* Buffer access operations */
+
+extern int ltt_chanbuf_open_read(struct ltt_chanbuf *buf);
+extern void ltt_chanbuf_release_read(struct ltt_chanbuf *buf);
+extern int ltt_chanbuf_get_subbuf(struct ltt_chanbuf *buf,
+				  unsigned long *consumed);
+extern int ltt_chanbuf_put_subbuf(struct ltt_chanbuf *buf,
+				  unsigned long consumed);
+extern void ltt_chan_start_switch_timer(struct ltt_chan *chan);
+extern void ltt_chan_stop_switch_timer(struct ltt_chan *chan);
+
+static __inline__
+unsigned long ltt_chanbuf_get_offset(struct ltt_chanbuf *buf)
+{
+	return local_read(&buf->offset);
+}
+
+static __inline__
+unsigned long ltt_chanbuf_get_consumed(struct ltt_chanbuf *buf)
+{
+	return atomic_long_read(&buf->consumed);
+}
+
+static __inline__
+int ltt_chanbuf_is_finalized(struct ltt_chanbuf *buf)
+{
+	return buf->finalized;
+}
+
+static __inline__
+void ltt_reserve_push_reader(struct ltt_chanbuf *buf, struct ltt_chan *chan,
+			     long offset)
 {
 	long consumed_old, consumed_new;
 
 	do {
-		consumed_old = atomic_long_read(&ltt_buf->consumed);
+		consumed_old = atomic_long_read(&buf->consumed);
 		/*
 		 * If buffer is in overwrite mode, push the reader consumed
 		 * count if the write position has reached it and we are not
@@ -186,90 +220,84 @@ static __inline__ void ltt_reserve_push_reader(
 		 * If the buffer is not in overwrite mode, pushing the reader
 		 * only happens if a sub-buffer is corrupted.
 		 */
-		if (unlikely((SUBBUF_TRUNC(offset, buf->chan)
-		   - SUBBUF_TRUNC(consumed_old, buf->chan))
-		   >= rchan->alloc_size))
-			consumed_new = SUBBUF_ALIGN(consumed_old, buf->chan);
+		if (unlikely((SUBBUF_TRUNC(offset, chan)
+			      - SUBBUF_TRUNC(consumed_old, chan))
+			     >= chan->a.buf_size))
+			consumed_new = SUBBUF_ALIGN(consumed_old, chan);
 		else
 			return;
-	} while (unlikely(atomic_long_cmpxchg(&ltt_buf->consumed, consumed_old,
-			consumed_new) != consumed_old));
+	} while (unlikely(atomic_long_cmpxchg(&buf->consumed, consumed_old,
+					      consumed_new) != consumed_old));
 }
 
 #ifdef CONFIG_LTT_VMCORE
-static __inline__ void ltt_vmcore_check_deliver(
-		struct ltt_channel_buf_struct *ltt_buf,
-		long commit_count, long idx)
+static __inline__
+void ltt_vmcore_check_deliver(struct ltt_chanbuf *buf, long commit_count,
+			      long idx)
 {
-	local_set(&ltt_buf->commit_seq[idx], commit_count);
+	local_set(&buf->commit_seq[idx], commit_count);
 }
 #else
-static __inline__ void ltt_vmcore_check_deliver(
-		struct ltt_channel_buf_struct *ltt_buf,
-		long commit_count, long idx)
+static __inline__
+void ltt_vmcore_check_deliver(struct ltt_chanbuf *buf, long commit_count,
+			      long idx)
 {
 }
 #endif
 
-static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
-		struct ltt_channel_buf_struct *ltt_buf,
-		struct rchan *rchan,
-		struct rchan_buf *buf,
-		long offset, long commit_count, long idx)
+static __inline__
+void ltt_check_deliver(struct ltt_chanbuf *buf, struct ltt_chan *chan,
+		       long offset, long commit_count, long idx)
 {
-	long old_commit_count = commit_count - rchan->subbuf_size;
+	long old_commit_count = commit_count - chan->a.sb_size;
 
 	/* Check if all commits have been done */
-	if (unlikely((BUFFER_TRUNC(offset, rchan)
-			>> ltt_channel->n_subbufs_order)
-			- (old_commit_count
-			   & ltt_channel->commit_count_mask) == 0)) {
+	if (unlikely((BUFFER_TRUNC(offset, chan) >> chan->a.n_sb_order)
+		     - (old_commit_count & chan->commit_count_mask) == 0)) {
 		/*
 		 * If we succeeded in updating the cc_sb, we are delivering
 		 * the subbuffer. Deals with concurrent updates of the "cc"
 		 * value without adding a add_return atomic operation to the
 		 * fast path.
 		 */
-		if (likely(local_cmpxchg(&ltt_buf->commit_count[idx].cc_sb,
+		if (likely(local_cmpxchg(&buf->commit_count[idx].cc_sb,
 					 old_commit_count, commit_count)
 			   == old_commit_count)) {
 			/*
 			 * Set noref flag for this subbuffer.
 			 */
-			ltt_set_noref_flag(rchan, buf, idx);
-			ltt_vmcore_check_deliver(ltt_buf, commit_count, idx);
+			ltt_set_noref_flag(&buf->a, idx);
+			ltt_vmcore_check_deliver(buf, commit_count, idx);
 		}
 	}
 }
 
 
-static __inline__ int ltt_poll_deliver(struct ltt_channel_struct *ltt_channel,
-		struct ltt_channel_buf_struct *ltt_buf,
-		struct rchan *rchan,
-		struct rchan_buf *buf)
+static __inline__
+int ltt_poll_deliver(struct ltt_chanbuf *buf, struct ltt_chan *chan)
 {
 	long consumed_old, consumed_idx, commit_count, write_offset;
 
-	consumed_old = atomic_long_read(&ltt_buf->consumed);
-	consumed_idx = SUBBUF_INDEX(consumed_old, buf->chan);
-	commit_count = local_read(&ltt_buf->commit_count[consumed_idx].cc_sb);
+	consumed_old = atomic_long_read(&buf->consumed);
+	consumed_idx = SUBBUF_INDEX(consumed_old, chan);
+	commit_count = local_read(&buf->commit_count[consumed_idx].cc_sb);
 	/*
 	 * No memory barrier here, since we are only interested
 	 * in a statistically correct polling result. The next poll will
 	 * get the data is we are racing. The mb() that ensures correct
 	 * memory order is in get_subbuf.
 	 */
-	write_offset = local_read(&ltt_buf->offset);
+	write_offset = local_read(&buf->offset);
 
 	/*
 	 * Check that the subbuffer we are trying to consume has been
 	 * already fully committed.
 	 */
 
-	if (((commit_count - rchan->subbuf_size)
-	     & ltt_channel->commit_count_mask)
-	    - (BUFFER_TRUNC(consumed_old, buf->chan)
-	       >> ltt_channel->n_subbufs_order)
+	if (((commit_count - chan->a.sb_size)
+	     & chan->commit_count_mask)
+	    - (BUFFER_TRUNC(consumed_old, chan)
+	       >> chan->a.n_sb_order)
 	    != 0)
 		return 0;
 
@@ -277,8 +305,8 @@ static __inline__ int ltt_poll_deliver(struct ltt_channel_struct *ltt_channel,
 	 * Check that we are not about to read the same subbuffer in
 	 * which the writer head is.
 	 */
-	if ((SUBBUF_TRUNC(write_offset, buf->chan)
-	   - SUBBUF_TRUNC(consumed_old, buf->chan))
+	if ((SUBBUF_TRUNC(write_offset, chan)
+	   - SUBBUF_TRUNC(consumed_old, chan))
 	   == 0)
 		return 0;
 
@@ -289,38 +317,33 @@ static __inline__ int ltt_poll_deliver(struct ltt_channel_struct *ltt_channel,
 /*
  * returns 0 if reserve ok, or 1 if the slow path must be taken.
  */
-static __inline__ int ltt_relay_try_reserve(
-		struct ltt_channel_struct *ltt_channel,
-		struct ltt_channel_buf_struct *ltt_buf, struct rchan *rchan,
-		struct rchan_buf *buf,
-		size_t data_size,
-		u64 *tsc, unsigned int *rflags, int largest_align,
-		long *o_begin, long *o_end, long *o_old,
-		size_t *before_hdr_pad, size_t *size)
+static __inline__
+int ltt_relay_try_reserve(struct ltt_chanbuf *buf, struct ltt_chan *chan,
+			  size_t data_size, u64 *tsc, unsigned int *rflags,
+			  int largest_align, long *o_begin, long *o_end,
+			  long *o_old, size_t *before_hdr_pad, size_t *size)
 {
-	*o_begin = local_read(&ltt_buf->offset);
+	*o_begin = local_read(&buf->offset);
 	*o_old = *o_begin;
 
 	*tsc = trace_clock_read64();
 
 #ifdef CONFIG_LTT_VMCORE
-	prefetch(&ltt_buf->commit_count[SUBBUF_INDEX(*o_begin, rchan)]);
-	prefetch(&ltt_buf->commit_seq[SUBBUF_INDEX(*o_begin, rchan)]);
+	prefetch(&buf->commit_count[SUBBUF_INDEX(*o_begin, chan)]);
+	prefetch(&buf->commit_seq[SUBBUF_INDEX(*o_begin, chan)]);
 #else
-	prefetchw(&ltt_buf->commit_count[SUBBUF_INDEX(*o_begin, rchan)]);
+	prefetchw(&buf->commit_count[SUBBUF_INDEX(*o_begin, chan)]);
 #endif
-	if (last_tsc_overflow(ltt_buf, *tsc))
+	if (last_tsc_overflow(buf, *tsc))
 		*rflags = LTT_RFLAG_ID_SIZE_TSC;
 
-	if (unlikely(SUBBUF_OFFSET(*o_begin, buf->chan) == 0))
+	if (unlikely(SUBBUF_OFFSET(*o_begin, chan) == 0))
 		return 1;
 
-	*size = ltt_get_header_size(ltt_channel,
-				*o_begin, data_size,
-				before_hdr_pad, *rflags);
+	*size = ltt_get_header_size(chan, *o_begin, data_size, before_hdr_pad,
+				    *rflags);
 	*size += ltt_align(*o_begin + *size, largest_align) + data_size;
-	if (unlikely((SUBBUF_OFFSET(*o_begin, buf->chan) + *size)
-		     > buf->chan->subbuf_size))
+	if (unlikely((SUBBUF_OFFSET(*o_begin, chan) + *size) > chan->a.sb_size))
 		return 1;
 
 	/*
@@ -329,7 +352,7 @@ static __inline__ int ltt_relay_try_reserve(
 	 */
 	*o_end = *o_begin + *size;
 
-	if (unlikely((SUBBUF_OFFSET(*o_end, buf->chan)) == 0))
+	if (unlikely((SUBBUF_OFFSET(*o_end, chan)) == 0))
 		/*
 		 * The offset_end will fall at the very beginning of the next
 		 * subbuffer.
@@ -339,14 +362,15 @@ static __inline__ int ltt_relay_try_reserve(
 	return 0;
 }
 
-static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *ltt_channel, void **transport_data,
-		size_t data_size, size_t *slot_size, long *buf_offset, u64 *tsc,
-		unsigned int *rflags, int largest_align, int cpu)
+static __inline__
+int ltt_reserve_slot(struct ltt_chan *chan,
+		     struct ltt_trace *trace, size_t data_size,
+		     int largest_align, int cpu,
+		     struct ltt_chanbuf **ret_buf,
+		     size_t *slot_size, long *buf_offset, u64 *tsc,
+		     unsigned int *rflags)
 {
-	struct rchan *rchan = ltt_channel->trans_channel_data;
-	struct rchan_buf *buf = *transport_data = rchan->buf[cpu];
-	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
+	struct ltt_chanbuf *buf = *ret_buf = per_cpu_ptr(chan->a.buf, cpu);
 	long o_begin, o_end, o_old;
 	size_t before_hdr_pad;
 
@@ -354,17 +378,16 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	 * Perform retryable operations.
 	 */
 	if (unlikely(__get_cpu_var(ltt_nesting) > 4)) {
-		local_inc(&ltt_buf->events_lost);
+		local_inc(&buf->events_lost);
 		return -EPERM;
 	}
 
-	if (unlikely(ltt_relay_try_reserve(ltt_channel, ltt_buf,
-			rchan, buf, data_size, tsc, rflags,
-			largest_align, &o_begin, &o_end, &o_old,
-			&before_hdr_pad, slot_size)))
+	if (unlikely(ltt_relay_try_reserve(buf, chan, data_size, tsc, rflags,
+					   largest_align, &o_begin, &o_end,
+					   &o_old, &before_hdr_pad, slot_size)))
 		goto slow_path;
 
-	if (unlikely(local_cmpxchg(&ltt_buf->offset, o_old, o_end) != o_old))
+	if (unlikely(local_cmpxchg(&buf->offset, o_old, o_end) != o_old))
 		goto slow_path;
 
 	/*
@@ -373,24 +396,25 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	 * events, never the opposite (missing a full TSC event when it would be
 	 * needed).
 	 */
-	save_last_tsc(ltt_buf, *tsc);
+	save_last_tsc(buf, *tsc);
 
 	/*
 	 * Push the reader if necessary
 	 */
-	ltt_reserve_push_reader(ltt_buf, rchan, buf, o_end - 1);
+	ltt_reserve_push_reader(buf, chan, o_end - 1);
 
 	/*
 	 * Clear noref flag for this subbuffer.
 	 */
-	ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(o_end - 1, rchan));
+	ltt_clear_noref_flag(&buf->a, SUBBUF_INDEX(o_end - 1, chan));
 
 	*buf_offset = o_begin + before_hdr_pad;
 	return 0;
 slow_path:
-	return ltt_reserve_slot_lockless_slow(trace, ltt_channel,
-		transport_data, data_size, slot_size, buf_offset, tsc,
-		rflags, largest_align, cpu);
+	return ltt_reserve_slot_lockless_slow(chan, trace, data_size,
+					      largest_align, cpu, ret_buf,
+					      slot_size, buf_offset, tsc,
+					      rflags);
 }
 
 /*
@@ -402,8 +426,8 @@ slow_path:
  * operations, this function must be called from the CPU which owns the buffer
  * for a ACTIVE flush.
  */
-static __inline__ void ltt_force_switch(struct rchan_buf *buf,
-		enum force_switch_mode mode)
+static __inline__
+void ltt_force_switch(struct ltt_chanbuf *buf, enum force_switch_mode mode)
 {
 	return ltt_force_switch_lockless_slow(buf, mode);
 }
@@ -415,9 +439,10 @@ static __inline__ void ltt_force_switch(struct rchan_buf *buf,
  * crash dump.
  */
 #ifdef CONFIG_LTT_VMCORE
-static __inline__ void ltt_write_commit_counter(struct rchan_buf *buf,
-		struct ltt_channel_buf_struct *ltt_buf,
-		long idx, long buf_offset, long commit_count, size_t data_size)
+static __inline__
+void ltt_write_commit_counter(struct ltt_chanbuf *buf, struct ltt_chan *chan,
+			      long idx, long buf_offset, long commit_count,
+			      size_t data_size)
 {
 	long offset;
 	long commit_seq_old;
@@ -430,18 +455,19 @@ static __inline__ void ltt_write_commit_counter(struct rchan_buf *buf,
 	 * buffer full/empty mismatch because offset is never zero here
 	 * (subbuffer header and event headers have non-zero length).
 	 */
-	if (unlikely(SUBBUF_OFFSET(offset - commit_count, buf->chan)))
+	if (unlikely(SUBBUF_OFFSET(offset - commit_count, chan)))
 		return;
 
-	commit_seq_old = local_read(&ltt_buf->commit_seq[idx]);
+	commit_seq_old = local_read(&buf->commit_seq[idx]);
 	while (commit_seq_old < commit_count)
-		commit_seq_old = local_cmpxchg(&ltt_buf->commit_seq[idx],
+		commit_seq_old = local_cmpxchg(&buf->commit_seq[idx],
 					 commit_seq_old, commit_count);
 }
 #else
-static __inline__ void ltt_write_commit_counter(struct rchan_buf *buf,
-		struct ltt_channel_buf_struct *ltt_buf,
-		long idx, long buf_offset, long commit_count, size_t data_size)
+static __inline__
+void ltt_write_commit_counter(struct ltt_chanbuf *buf, struct ltt_chan *chan,
+			      long idx, long buf_offset, long commit_count,
+			      size_t data_size)
 {
 }
 #endif
@@ -452,22 +478,18 @@ static __inline__ void ltt_write_commit_counter(struct rchan_buf *buf,
  *
  * Parameters:
  *
- * @ltt_channel : channel structure
- * @transport_data: transport-specific data
+ * @buf: buffer.
+ * @chan: channel.
  * @buf_offset : offset following the event header.
  * @data_size : size of the event data.
  * @slot_size : size of the reserved slot.
  */
-static __inline__ void ltt_commit_slot(
-		struct ltt_channel_struct *ltt_channel,
-		void **transport_data, long buf_offset,
-		size_t data_size, size_t slot_size)
+static __inline__
+void ltt_commit_slot(struct ltt_chanbuf *buf, struct ltt_chan *chan,
+		     long buf_offset, size_t data_size, size_t slot_size)
 {
-	struct rchan_buf *buf = *transport_data;
-	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
-	struct rchan *rchan = buf->chan;
 	long offset_end = buf_offset;
-	long endidx = SUBBUF_INDEX(offset_end - 1, rchan);
+	long endidx = SUBBUF_INDEX(offset_end - 1, chan);
 	long commit_count;
 
 #ifdef LTT_NO_IPI_BARRIER
@@ -480,8 +502,8 @@ static __inline__ void ltt_commit_slot(
 	 */
 	barrier();
 #endif
-	local_add(slot_size, &ltt_buf->commit_count[endidx].cc);
-	local_inc(&ltt_buf->commit_count[endidx].events);
+	local_add(slot_size, &buf->commit_count[endidx].cc);
+	local_inc(&buf->commit_count[endidx].events);
 	/*
 	 * commit count read can race with concurrent OOO commit count updates.
 	 * This is only needed for ltt_check_deliver (for non-polling delivery
@@ -499,16 +521,15 @@ static __inline__ void ltt_commit_slot(
 	 *   reserve offset for a specific sub-buffer, which is completely
 	 *   independent of the order.
 	 */
-	commit_count = local_read(&ltt_buf->commit_count[endidx].cc);
+	commit_count = local_read(&buf->commit_count[endidx].cc);
 
-	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
-		offset_end - 1, commit_count, endidx);
+	ltt_check_deliver(buf, chan, offset_end - 1, commit_count, endidx);
 	/*
 	 * Update lost_size for each commit. It's needed only for extracting
 	 * ltt buffers from vmcore, after crash.
 	 */
-	ltt_write_commit_counter(buf, ltt_buf, endidx,
-				 buf_offset, commit_count, data_size);
+	ltt_write_commit_counter(buf, chan, endidx, buf_offset,
+				 commit_count, data_size);
 }
 
 #endif //_LTT_LTT_RELAY_LOCKLESS_H

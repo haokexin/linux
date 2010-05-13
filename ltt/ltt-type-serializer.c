@@ -12,8 +12,8 @@
 
 #include "ltt-relay-select.h"
 
-notrace void _ltt_specialized_trace(const struct marker *mdata,
-		void *probe_data,
+notrace
+void _ltt_specialized_trace(const struct marker *mdata, void *probe_data,
 		void *serialize_private, unsigned int data_size,
 		unsigned int largest_align)
 {
@@ -21,10 +21,9 @@ notrace void _ltt_specialized_trace(const struct marker *mdata,
 	uint16_t eID;
 	size_t slot_size;
 	unsigned int chan_index;
-	struct ltt_channel_struct *channel;
-	struct ltt_trace_struct *trace;
-	struct rchan_buf *buf;
-	void *transport_data;
+	struct ltt_chanbuf *buf;
+	struct ltt_chan *chan;
+	struct ltt_trace *trace;
 	uint64_t tsc;
 	long buf_offset;
 	int cpu;
@@ -65,33 +64,29 @@ notrace void _ltt_specialized_trace(const struct marker *mdata,
 		 */
 		if (unlikely(chan_index >= trace->nr_channels))
 			continue;
-		channel = &trace->channels[chan_index];
-		if (!channel->active)
+		chan = &trace->channels[chan_index];
+		if (!chan->active)
 			continue;
 
 		/* reserve space : header and data */
-		ret = ltt_reserve_slot(trace, channel, &transport_data,
-					data_size, &slot_size, &buf_offset,
-					&tsc, &rflags,
-					largest_align, cpu);
+		ret = ltt_reserve_slot(chan, trace, data_size, largest_align,
+				       cpu, &buf, &slot_size, &buf_offset, &tsc,
+				       &rflags);
 		if (unlikely(ret < 0))
 			continue; /* buffer full */
 
-		/* FIXME : could probably encapsulate transport better. */
-		buf = ((struct rchan *)channel->trans_channel_data)->buf[cpu];
 		/* Out-of-order write : header and data */
-		buf_offset = ltt_write_event_header(trace,
-					channel, buf, buf_offset,
-					eID, data_size, tsc, rflags);
+		buf_offset = ltt_write_event_header(&buf->a, &chan->a,
+						    buf_offset, eID, data_size,
+						    tsc, rflags);
 		if (data_size) {
 			buf_offset += ltt_align(buf_offset, largest_align);
-			ltt_relay_write(buf, buf_offset, serialize_private,
-				data_size);
+			ltt_relay_write(&buf->a, &chan->a, buf_offset,
+					serialize_private, data_size);
 			buf_offset += data_size;
 		}
 		/* Out-of-order commit */
-		ltt_commit_slot(channel, &transport_data, buf_offset,
-				data_size, slot_size);
+		ltt_commit_slot(buf, chan, buf_offset, data_size, slot_size);
 	}
 	__get_cpu_var(ltt_nesting)--;
 	rcu_read_unlock_sched_notrace();

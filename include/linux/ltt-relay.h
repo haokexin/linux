@@ -1,11 +1,9 @@
-/*
- * linux/include/linux/ltt-relay.h
+ /*
+ * include/linux/ltt-relay.h
  *
- * Copyright (C) 2002, 2003 - Tom Zanussi (zanussi@us.ibm.com), IBM Corp
- * Copyright (C) 1999, 2000, 2001, 2002 - Karim Yaghmour (karim@opersys.com)
- * Copyright (C) 2008 - Mathieu Desnoyers (mathieu.desnoyers@polymtl.ca)
+ * Copyright (C) 2008,2009 - Mathieu Desnoyers <mathieu.desnoyers@polymtl.ca>
  *
- * CONFIG_RELAY definitions and declarations.
+ * Dual LGPL v2.1/GPL v2 license.
  *
  * Credits to Steven Rostedt for proposing to use an extra-subbuffer owned by
  * the reader in flight recorder mode.
@@ -30,138 +28,80 @@
 
 #define RCHAN_SB_IS_NOREF(x)	((unsigned long)(x) & RCHAN_NOREF_FLAG)
 #define RCHAN_SB_SET_NOREF(x)	\
-	(x = (struct rchan_page *)((unsigned long)(x) | RCHAN_NOREF_FLAG))
+	(x = (struct chanbuf_page *)((unsigned long)(x) | RCHAN_NOREF_FLAG))
 #define RCHAN_SB_CLEAR_NOREF(x)	\
-	(x = (struct rchan_page *)((unsigned long)(x) & ~RCHAN_NOREF_FLAG))
+	(x = (struct chanbuf_page *)((unsigned long)(x) & ~RCHAN_NOREF_FLAG))
 
-/*
- * Tracks changes to rchan/rchan_buf structs
- */
-#define LTT_RELAY_CHANNEL_VERSION		8
-
-struct rchan_page {
+struct chanbuf_page {
 	void *virt;			/* page virtual address (cached) */
 	struct page *page;		/* pointer to page structure */
 };
 
-struct rchan_sb {
-	struct rchan_page *pages;	/* Pointer to rchan pages for subbuf */
+struct chanbuf_sb {
+	struct chanbuf_page *pages;	/* Pointer to rchan pages for subbuf */
 };
 
-/*
- * Per-cpu relay channel buffer
- */
-struct rchan_buf {
-	void *chan_private;		/* private data for this buf */
-	struct rchan_sb *rchan_wsb;	/* Array of rchan_sb for writer */
-	struct rchan_sb rchan_rsb;	/* rchan_sb for reader */
-	struct rchan *chan;		/* associated channel */
-	struct dentry *dentry;		/* channel file dentry */
-	struct kref kref;		/* channel buffer refcount */
+struct ltt_chanbuf_alloc {
+	struct chanbuf_sb *buf_wsb;	/* Array of rchan_sb for writer */
+	struct chanbuf_sb buf_rsb;	/* chanbuf_sb for reader */
 	void **_virt;			/* Array of pointers to page addr */
 	struct page **_pages;		/* Array of pointers to pages */
-	unsigned int page_count;	/* number of current buffer pages */
-	unsigned int cpu;		/* this buf's cpu */
-	unsigned int random_access;	/* buffer performs random page access */
+	struct dentry *dentry;		/* Associated file dentry */
+	unsigned int nr_pages;		/* Number pages in buffer */
+
+	struct ltt_chan_alloc *chan;	/* Associated channel */
+	struct kref kref;		/* Reference count */
+	unsigned int cpu;		/* This buffer's cpu */
+	unsigned int allocated:1;	/* Bool: is buffer allocated ? */
+};
+
+/*
+ * Forward declaration of locking-specific per-cpu buffer structure.
+ */
+struct ltt_chanbuf;
+
+struct ltt_chan_alloc {
+	unsigned long buf_size;		/* Size of the buffer */
+	unsigned long sb_size;		/* Sub-buffer size */
+	unsigned int sb_size_order;	/* Order of sub-buffer size */
+	unsigned int n_sb_order;	/* Number of sub-buffers per buffer */
+	int extra_reader_sb:1;		/* Bool: has extra reader subbuffer */
+	struct ltt_chanbuf *buf;	/* Channel per-cpu buffers */
+
+	struct list_head list;		/* Channel list */
+	struct kref kref;		/* Reference count */
+	unsigned long n_sb;		/* Number of sub-buffers */
+	struct dentry *parent;		/* Associated parent dentry */
 	struct dentry *ascii_dentry;	/* Text output dentry */
-} ____cacheline_aligned;
-
-/*
- * Relay channel data structure
- */
-struct rchan {
-	u32 version;			/* the version of this struct */
-	size_t subbuf_size;		/* sub-buffer size */
-	size_t n_subbufs;		/* number of sub-buffers per buffer */
-	size_t alloc_size;		/* total buffer size allocated */
-	struct rchan_callbacks *cb;	/* client callbacks */
-	struct kref kref;		/* channel refcount */
-	void *private_data;		/* for user-defined data */
-	struct rchan_buf *buf[NR_CPUS]; /* per-cpu channel buffers */
-	struct list_head list;		/* for channel list */
-	struct dentry *parent;		/* parent dentry passed to open */
-	int subbuf_size_order;		/* order of sub-buffer size */
-	int extra_reader_sb;		/* bool: has extra reader subbuffer */
-	char base_filename[NAME_MAX];	/* saved base filename */
+	char filename[NAME_MAX];	/* Filename for channel files */
 };
 
-/*
- * Relay channel client callbacks
- */
-struct rchan_callbacks {
-	/*
-	 * subbuf_start - called on buffer-switch to a new sub-buffer
-	 * @buf: the channel buffer containing the new sub-buffer
-	 * @subbuf: the start of the new sub-buffer
-	 * @prev_subbuf: the start of the previous sub-buffer
-	 * @prev_padding: unused space at the end of previous sub-buffer
-	 *
-	 * The client should return 1 to continue logging, 0 to stop
-	 * logging.
-	 *
-	 * NOTE: subbuf_start will also be invoked when the buffer is
-	 *       created, so that the first sub-buffer can be initialized
-	 *       if necessary.  In this case, prev_subbuf will be NULL.
-	 *
-	 * NOTE: the client can reserve bytes at the beginning of the new
-	 *       sub-buffer by calling subbuf_start_reserve() in this callback.
-	 */
-	int (*subbuf_start) (struct rchan_buf *buf,
-			     void *subbuf,
-			     void *prev_subbuf,
-			     size_t prev_padding);
+int ltt_chanbuf_alloc_create(struct ltt_chanbuf_alloc *buf,
+			     struct ltt_chan_alloc *chan, int cpu);
+void ltt_chanbuf_alloc_free(struct ltt_chanbuf_alloc *buf);
+int ltt_chan_alloc_init(struct ltt_chan_alloc *chan,
+			const char *base_filename,
+			struct dentry *parent, size_t sb_size,
+			size_t n_sb, int extra_reader_sb, int overwrite);
+void ltt_chan_alloc_free(struct ltt_chan_alloc *chan);
+int ltt_chanbuf_create_file(const char *filename, struct dentry *parent,
+			    int mode, struct ltt_chanbuf *buf);
+int ltt_chanbuf_remove_file(struct ltt_chanbuf *buf);
 
-	/*
-	 * create_buf_file - create file to represent a relay channel buffer
-	 * @filename: the name of the file to create
-	 * @parent: the parent of the file to create
-	 * @mode: the mode of the file to create
-	 * @buf: the channel buffer
-	 *
-	 * Called during relay_open(), once for each per-cpu buffer,
-	 * to allow the client to create a file to be used to
-	 * represent the corresponding channel buffer.  If the file is
-	 * created outside of relay, the parent must also exist in
-	 * that filesystem.
-	 *
-	 * The callback should return the dentry of the file created
-	 * to represent the relay buffer.
-	 *
-	 * Setting the is_global outparam to a non-zero value will
-	 * cause relay_open() to create a single global buffer rather
-	 * than the default set of per-cpu buffers.
-	 *
-	 * See Documentation/filesystems/relayfs.txt for more info.
-	 */
-	struct dentry *(*create_buf_file)(const char *filename,
-					  struct dentry *parent,
-					  int mode,
-					  struct rchan_buf *buf);
+void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu);
 
-	/*
-	 * remove_buf_file - remove file representing a relay channel buffer
-	 * @dentry: the dentry of the file to remove
-	 *
-	 * Called during relay_close(), once for each per-cpu buffer,
-	 * to allow the client to remove a file used to represent a
-	 * channel buffer.
-	 *
-	 * The callback should return 0 if successful, negative if not.
-	 */
-	int (*remove_buf_file)(struct dentry *dentry);
-};
+extern void _ltt_relay_write(struct ltt_chanbuf_alloc *bufa,
+			     size_t offset, const void *src, size_t len,
+			     ssize_t pagecpy);
 
-extern void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
-	const void *src, size_t len, ssize_t pagecpy);
+extern int ltt_relay_read(struct ltt_chanbuf_alloc *bufa,
+			  size_t offset, void *dest, size_t len);
 
-extern int ltt_relay_read(struct rchan_buf *buf, size_t offset,
-	void *dest, size_t len);
+extern int ltt_relay_read_cstr(struct ltt_chanbuf_alloc *bufa,
+			       size_t offset, void *dest, size_t len);
 
-extern int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
-	void *dest, size_t len);
-
-extern struct page *ltt_relay_read_get_page(struct rchan_buf *buf,
-	size_t offset);
+extern struct page *ltt_relay_read_get_page(struct ltt_chanbuf_alloc *bufa,
+					    size_t offset);
 
 /*
  * Return the address where a given offset is located.
@@ -169,13 +109,14 @@ extern struct page *ltt_relay_read_get_page(struct rchan_buf *buf,
  * it's never on a page boundary, it's safe to write directly to this address,
  * as long as the write is never bigger than a page size.
  */
-extern void *ltt_relay_offset_address(struct rchan_buf *buf,
-	size_t offset);
-extern void *ltt_relay_read_offset_address(struct rchan_buf *buf,
-	size_t offset);
+extern void *ltt_relay_offset_address(struct ltt_chanbuf_alloc *bufa,
+				      size_t offset);
+extern void *ltt_relay_read_offset_address(struct ltt_chanbuf_alloc *bufa,
+					   size_t offset);
 
 #ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
-static __inline__ void ltt_relay_do_copy(void *dest, const void *src, size_t len)
+static __inline__
+void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 {
 	switch (len) {
 	case 0:
@@ -206,7 +147,8 @@ static __inline__ void ltt_relay_do_copy(void *dest, const void *src, size_t len
  * Returns whether the dest and src addresses are aligned on
  * min(sizeof(void *), len). Call this with statically known len for efficiency.
  */
-static __inline__ int addr_aligned(const void *dest, const void *src, size_t len)
+static __inline__
+int addr_aligned(const void *dest, const void *src, size_t len)
 {
 	if (ltt_align((size_t)dest, len))
 		return 0;
@@ -215,7 +157,8 @@ static __inline__ int addr_aligned(const void *dest, const void *src, size_t len
 	return 1;
 }
 
-static __inline__ void ltt_relay_do_copy(void *dest, const void *src, size_t len)
+static __inline__
+void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 {
 	switch (len) {
 	case 0:
@@ -253,43 +196,44 @@ memcpy_fallback:
 }
 #endif
 
-static __inline__ int ltt_relay_write(struct rchan_buf *buf, size_t offset,
-	const void *src, size_t len)
+static __inline__
+int ltt_relay_write(struct ltt_chanbuf_alloc *bufa,
+		    struct ltt_chan_alloc *chana, size_t offset,
+		    const void *src, size_t len)
 {
 	size_t sbidx, index;
 	ssize_t pagecpy;
-	struct rchan_page *rpages;
+	struct chanbuf_page *rpages;
 
-	offset &= buf->chan->alloc_size - 1;
-	sbidx = offset >> buf->chan->subbuf_size_order;
-	index = (offset & (buf->chan->subbuf_size - 1)) >> PAGE_SHIFT;
+	offset &= chana->buf_size - 1;
+	sbidx = offset >> chana->sb_size_order;
+	index = (offset & (chana->sb_size - 1)) >> PAGE_SHIFT;
 	pagecpy = min_t(size_t, len, (- offset) & ~PAGE_MASK);
-	rpages = buf->rchan_wsb[sbidx].pages;
+	rpages = bufa->buf_wsb[sbidx].pages;
 	WARN_ON_ONCE(RCHAN_SB_IS_NOREF(rpages));
 	ltt_relay_do_copy(rpages[index].virt + (offset & ~PAGE_MASK),
 			  src, pagecpy);
 
 	if (unlikely(len != pagecpy))
-		_ltt_relay_write(buf, offset, src, len, pagecpy);
+		_ltt_relay_write(bufa, offset, src, len, pagecpy);
 	return len;
 }
 
 /**
  * ltt_clear_noref_flag - Clear the noref subbuffer flag, for writer.
  */
-static __inline__ void ltt_clear_noref_flag(struct rchan *rchan,
-					    struct rchan_buf *buf,
-					    long idx)
+static __inline__
+void ltt_clear_noref_flag(struct ltt_chanbuf_alloc *bufa, long idx)
 {
-	struct rchan_page *sb_pages, *new_sb_pages;
+	struct chanbuf_page *sb_pages, *new_sb_pages;
 
-	sb_pages = buf->rchan_wsb[idx].pages;
+	sb_pages = bufa->buf_wsb[idx].pages;
 	for (;;) {
 		if (!RCHAN_SB_IS_NOREF(sb_pages))
 			return;	/* Already writing to this buffer */
 		new_sb_pages = sb_pages;
 		RCHAN_SB_CLEAR_NOREF(new_sb_pages);
-		new_sb_pages = cmpxchg(&buf->rchan_wsb[idx].pages,
+		new_sb_pages = cmpxchg(&bufa->buf_wsb[idx].pages,
 			sb_pages, new_sb_pages);
 		if (likely(new_sb_pages == sb_pages))
 			break;
@@ -300,19 +244,18 @@ static __inline__ void ltt_clear_noref_flag(struct rchan *rchan,
 /**
  * ltt_set_noref_flag - Set the noref subbuffer flag, for writer.
  */
-static __inline__ void ltt_set_noref_flag(struct rchan *rchan,
-					  struct rchan_buf *buf,
-					  long idx)
+static __inline__
+void ltt_set_noref_flag(struct ltt_chanbuf_alloc *bufa, long idx)
 {
-	struct rchan_page *sb_pages, *new_sb_pages;
+	struct chanbuf_page *sb_pages, *new_sb_pages;
 
-	sb_pages = buf->rchan_wsb[idx].pages;
+	sb_pages = bufa->buf_wsb[idx].pages;
 	for (;;) {
 		if (RCHAN_SB_IS_NOREF(sb_pages))
 			return;	/* Already set */
 		new_sb_pages = sb_pages;
 		RCHAN_SB_SET_NOREF(new_sb_pages);
-		new_sb_pages = cmpxchg(&buf->rchan_wsb[idx].pages,
+		new_sb_pages = cmpxchg(&bufa->buf_wsb[idx].pages,
 			sb_pages, new_sb_pages);
 		if (likely(new_sb_pages == sb_pages))
 			break;
@@ -323,58 +266,39 @@ static __inline__ void ltt_set_noref_flag(struct rchan *rchan,
 /**
  * update_read_sb_index - Read-side subbuffer index update.
  */
-static __inline__ int update_read_sb_index(struct rchan_buf *buf,
-					   long consumed_idx)
+static __inline__
+int update_read_sb_index(struct ltt_chanbuf_alloc *bufa,
+			 struct ltt_chan_alloc *chana,
+			 long consumed_idx)
 {
-	struct rchan_page *old_wpage, *new_wpage;
+	struct chanbuf_page *old_wpage, *new_wpage;
 
-	if (unlikely(buf->chan->extra_reader_sb)) {
+	if (unlikely(chana->extra_reader_sb)) {
 		/*
 		 * Exchange the target writer subbuffer with our own unused
 		 * subbuffer.
 		 */
-		old_wpage = buf->rchan_wsb[consumed_idx].pages;
+		old_wpage = bufa->buf_wsb[consumed_idx].pages;
 		if (unlikely(!RCHAN_SB_IS_NOREF(old_wpage)))
 			return -EAGAIN;
-		WARN_ON_ONCE(!RCHAN_SB_IS_NOREF(buf->rchan_rsb.pages));
-		new_wpage = cmpxchg(&buf->rchan_wsb[consumed_idx].pages,
+		WARN_ON_ONCE(!RCHAN_SB_IS_NOREF(bufa->buf_rsb.pages));
+		new_wpage = cmpxchg(&bufa->buf_wsb[consumed_idx].pages,
 				old_wpage,
-				buf->rchan_rsb.pages);
+				bufa->buf_rsb.pages);
 		if (unlikely(old_wpage != new_wpage))
 			return -EAGAIN;
-		buf->rchan_rsb.pages = new_wpage;
-		RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
+		bufa->buf_rsb.pages = new_wpage;
+		RCHAN_SB_CLEAR_NOREF(bufa->buf_rsb.pages);
 	} else {
 		/* No page exchange, use the writer page directly */
-		buf->rchan_rsb.pages = buf->rchan_wsb[consumed_idx].pages;
-		RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
+		bufa->buf_rsb.pages = bufa->buf_wsb[consumed_idx].pages;
+		RCHAN_SB_CLEAR_NOREF(bufa->buf_rsb.pages);
 	}
 	return 0;
 }
 
-/*
- * CONFIG_LTT_RELAY kernel API, ltt/ltt-relay-alloc.c
- */
-
-struct rchan *ltt_relay_open(const char *base_filename,
-			 struct dentry *parent,
-			 size_t subbuf_size,
-			 size_t n_subbufs,
-			 struct rchan_callbacks *cb,
-			 void *private_data,
-			 int extra_reader_sb);
-extern void ltt_relay_close(struct rchan *chan);
-
-void ltt_relay_get_chan(struct rchan *chan);
-void ltt_relay_put_chan(struct rchan *chan);
-
-void ltt_relay_get_chan_buf(struct rchan_buf *buf);
-void ltt_relay_put_chan_buf(struct rchan_buf *buf);
-
-/*
- * exported ltt_relay file operations, ltt/ltt-relay-alloc.c
- */
-extern const struct file_operations ltt_relay_file_operations;
+ssize_t ltt_relay_file_splice_read(struct file *in, loff_t *ppos,
+				   struct pipe_inode_info *pipe, size_t len,
+				   unsigned int flags);
 
 #endif /* _LINUX_LTT_RELAY_H */
-

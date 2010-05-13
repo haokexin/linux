@@ -33,8 +33,8 @@ struct dentry *get_filter_root(void)
 						    ltt_root_dentry);
 		if (!ltt_filter_dir)
 			printk(KERN_ERR
-				"ltt_filter_init: failed to create dir %s\n",
-				LTT_FILTER_DIR);
+			       "ltt_filter_init: failed to create dir %s\n",
+			       LTT_FILTER_DIR);
 	}
 err_no_root:
 	mutex_unlock(&ltt_filter_mutex);

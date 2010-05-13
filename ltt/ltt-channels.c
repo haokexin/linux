@@ -158,12 +158,12 @@ EXPORT_SYMBOL_GPL(ltt_channels_unregister);
 /**
  * ltt_channels_set_default - Set channel default behavior.
  * @name: default channel name
- * @subbuf_size: size of the subbuffers
- * @subbuf_cnt: number of subbuffers
+ * @sb_size: size of the subbuffers
+ * @n_sb: number of subbuffers
  */
 int ltt_channels_set_default(const char *name,
-			     unsigned int subbuf_size,
-			     unsigned int subbuf_cnt)
+			     unsigned int sb_size,
+			     unsigned int n_sb)
 {
 	struct ltt_channel_setting *setting;
 	int ret = 0;
@@ -174,8 +174,8 @@ int ltt_channels_set_default(const char *name,
 		ret = -ENOENT;
 		goto end;
 	}
-	setting->subbuf_size = subbuf_size;
-	setting->subbuf_cnt = subbuf_cnt;
+	setting->sb_size = sb_size;
+	setting->n_sb = n_sb;
 end:
 	mutex_unlock(&ltt_channel_mutex);
 	return ret;
@@ -234,19 +234,18 @@ EXPORT_SYMBOL_GPL(ltt_channels_get_index_from_name);
 
 /**
  * ltt_channels_trace_alloc - Allocate channel structures for a trace
- * @subbuf_size: subbuffer size. 0 uses default.
- * @subbuf_cnt: number of subbuffers per per-cpu buffers. 0 uses default.
+ * @sb_size: subbuffer size. 0 uses default.
+ * @n_sb: number of subbuffers per per-cpu buffers. 0 uses default.
  * @flags: Default channel flags
  *
  * Use the current channel list to allocate the channels for a trace.
  * Called with trace lock held. Does not perform the trace buffer allocation,
  * because we must let the user overwrite specific channel sizes.
  */
-struct ltt_channel_struct *ltt_channels_trace_alloc(unsigned int *nr_channels,
-						    int overwrite,
-						    int active)
+struct ltt_chan *ltt_channels_trace_alloc(unsigned int *nr_channels,
+					  int overwrite, int active)
 {
-	struct ltt_channel_struct *channel = NULL;
+	struct ltt_chan *chan = NULL;
 	struct ltt_channel_setting *iter;
 
 	lock_markers();
@@ -258,24 +257,23 @@ struct ltt_channel_struct *ltt_channels_trace_alloc(unsigned int *nr_channels,
 	else
 		kref_get(&index_kref);
 	*nr_channels = free_index;
-	channel = kzalloc(sizeof(struct ltt_channel_struct) * free_index,
-			  GFP_KERNEL);
-	if (!channel)
+	chan = kzalloc(sizeof(struct ltt_chan) * free_index, GFP_KERNEL);
+	if (!chan)
 		goto end;
 	list_for_each_entry(iter, &ltt_channels, list) {
 		if (!atomic_read(&iter->kref.refcount))
 			continue;
-		channel[iter->index].subbuf_size = iter->subbuf_size;
-		channel[iter->index].subbuf_cnt = iter->subbuf_cnt;
-		channel[iter->index].overwrite = overwrite;
-		channel[iter->index].active = active;
-		channel[iter->index].channel_name = iter->name;
-		channel[iter->index].switch_timer_interval = 0;
+		chan[iter->index].a.sb_size = iter->sb_size;
+		chan[iter->index].a.n_sb = iter->n_sb;
+		chan[iter->index].overwrite = overwrite;
+		chan[iter->index].active = active;
+		strncpy(chan[iter->index].a.filename, iter->name, NAME_MAX - 1);
+		chan[iter->index].switch_timer_interval = 0;
 	}
 end:
 	mutex_unlock(&ltt_channel_mutex);
 	unlock_markers();
-	return channel;
+	return chan;
 }
 EXPORT_SYMBOL_GPL(ltt_channels_trace_alloc);
 
@@ -286,8 +284,8 @@ EXPORT_SYMBOL_GPL(ltt_channels_trace_alloc);
  * Called with trace lock held. The actual channel buffers must be freed before
  * this function is called.
  */
-void ltt_channels_trace_free(struct ltt_channel_struct *channels,
-		unsigned int nr_channels)
+void ltt_channels_trace_free(struct ltt_chan *channels,
+			     unsigned int nr_channels)
 {
 	lock_markers();
 	mutex_lock(&ltt_channel_mutex);
@@ -304,38 +302,12 @@ EXPORT_SYMBOL_GPL(ltt_channels_trace_free);
  * @interval: interval of timer interrupt, in jiffies. 0 inhibits timer.
  */
 
-void ltt_channels_trace_set_timer(struct ltt_channel_struct *channel,
-	unsigned long interval)
+void ltt_channels_trace_set_timer(struct ltt_chan *chan,
+				  unsigned long interval)
 {
-	channel->switch_timer_interval = interval;
+	chan->switch_timer_interval = interval;
 }
 EXPORT_SYMBOL_GPL(ltt_channels_trace_set_timer);
-
-/*
- * called with trace lock held.
- */
-void ltt_channels_trace_start_timer(struct ltt_channel_struct *channels,
-	unsigned int nr_channels)
-{
-	int i;
-
-	for (i = 0; i < nr_channels; i++)
-		channels[i].buf_access_ops->start_switch_timer(&channels[i]);
-}
-EXPORT_SYMBOL_GPL(ltt_channels_trace_start_timer);
-
-/*
- * called with trace lock held.
- */
-void ltt_channels_trace_stop_timer(struct ltt_channel_struct *channels,
-	unsigned int nr_channels)
-{
-	int i;
-
-	for (i = 0; i < nr_channels; i++)
-		channels[i].buf_access_ops->stop_switch_timer(&channels[i]);
-}
-EXPORT_SYMBOL_GPL(ltt_channels_trace_stop_timer);
 
 /**
  * _ltt_channels_get_event_id - get next event ID for a marker

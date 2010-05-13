@@ -8,18 +8,21 @@ obj-$(CONFIG_LTT_TRACER)		+= ltt-tracer.o
 obj-$(CONFIG_LTT_TRACE_CONTROL)		+= ltt-marker-control.o
 
 ifdef CONFIG_LTT_RELAY_LOCKLESS
-obj-$(CONFIG_LTT_TRACER)		+= ltt-relay-lockless.o
+RELAY_LOCKING := ltt-relay-lockless.o
 endif
 
 ifdef CONFIG_LTT_RELAY_IRQOFF
-obj-$(CONFIG_LTT_TRACER)		+= ltt-relay-irqoff.o
+RELAY_LOCKING := ltt-relay-irqoff.o
 endif
 
 ifdef CONFIG_LTT_RELAY_LOCKED
-obj-$(CONFIG_LTT_TRACER)		+= ltt-relay-locked.o
+RELAY_LOCKING := ltt-relay-locked.o
 endif
 
-obj-$(CONFIG_LTT_RELAY_ALLOC)		+= ltt-relay-alloc.o
+obj-$(CONFIG_LTT_RELAY) += ltt-relay.o
+ltt-relay-objs := $(RELAY_LOCKING) ltt-relay-alloc.o ltt-relay-splice.o \
+		  ltt-relay-vfs.o
+
 obj-$(CONFIG_LTT_SERIALIZE)		+= ltt-serialize.o
 obj-$(CONFIG_LTT_STATEDUMP)		+= ltt-statedump.o
 obj-$(CONFIG_LTT_FAST_SERIALIZE)	+= ltt-type-serializer.o
