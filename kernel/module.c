@@ -2325,7 +2325,7 @@ static noinline struct module *load_module(void __user *umod,
 	mod->ctors = section_objs(hdr, sechdrs, secstrings, ".ctors",
 				  sizeof(*mod->ctors), &mod->num_ctors);
 #endif
-#ifdef CONFIG_IMMEDIATE
+#ifdef USE_IMMEDIATE
 	mod->immediate = section_objs(hdr, sechdrs, secstrings, "__imv",
 					sizeof(*mod->immediate),
 					&mod->num_immediate);
@@ -2608,7 +2608,7 @@ SYSCALL_DEFINE3(init_module, void __user *, umod,
 	mutex_lock(&module_mutex);
 	/* Drop initial reference. */
 	module_put(mod);
-#ifdef CONFIG_IMMEDIATE
+#ifdef USE_IMMEDIATE
 	imv_unref(mod->immediate, mod->immediate + mod->num_immediate,
 		mod->module_init, mod->init_size);
 #endif
@@ -3179,7 +3179,7 @@ int module_get_iter_tracepoints(struct tracepoint_iter *iter)
 }
 #endif
 
-#ifdef CONFIG_IMMEDIATE
+#ifdef USE_IMMEDIATE
 /**
  * _module_imv_update - update all immediate values in the kernel
  *

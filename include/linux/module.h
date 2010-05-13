@@ -343,7 +343,7 @@ struct module
 	/* The command line arguments (may be mangled).  People like
 	   keeping pointers to this stuff */
 	char *args;
-#ifdef CONFIG_IMMEDIATE
+#ifdef USE_IMMEDIATE
 	struct __imv *immediate;
 	unsigned int num_immediate;
 #endif
@@ -689,7 +689,7 @@ static inline int module_get_iter_markers(struct marker_iter *iter)
 
 #endif /* CONFIG_MODULES */
 
-#if defined(CONFIG_MODULES) && defined(CONFIG_IMMEDIATE)
+#if defined(CONFIG_MODULES) && defined(USE_IMMEDIATE)
 extern void _module_imv_update(void);
 extern void module_imv_update(void);
 #else
