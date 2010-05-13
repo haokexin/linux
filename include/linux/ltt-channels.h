@@ -35,18 +35,6 @@ struct ltt_channel_struct {
 						 */
 	/* End of first 32 bytes cacheline */
 
-	/*
-	 * buffer_begin - called on buffer-switch to a new sub-buffer
-	 * @buf: the channel buffer containing the new sub-buffer
-	 */
-	void (*buffer_begin) (struct rchan_buf *buf,
-			u64 tsc, unsigned int subbuf_idx);
-	/*
-	 * buffer_end - called on buffer-switch to a new sub-buffer
-	 * @buf: the channel buffer containing the previous sub-buffer
-	 */
-	void (*buffer_end) (struct rchan_buf *buf,
-			u64 tsc, unsigned int offset, unsigned int subbuf_idx);
 	struct kref kref;	/* Channel transport reference count */
 	struct ltt_channel_buf_access_ops *buf_access_ops;
 	unsigned int subbuf_size;

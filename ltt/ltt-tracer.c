@@ -339,26 +339,6 @@ static inline int is_channel_overwrite(enum ltt_channels chan,
 	}
 }
 
-/**
- * ltt_write_trace_header - Write trace header
- * @trace: Trace information
- * @header: Memory address where the information must be written to
- */
-void notrace ltt_write_trace_header(struct ltt_trace_struct *trace,
-		struct ltt_subbuffer_header *header)
-{
-	header->magic_number = LTT_TRACER_MAGIC_NUMBER;
-	header->major_version = LTT_TRACER_VERSION_MAJOR;
-	header->minor_version = LTT_TRACER_VERSION_MINOR;
-	header->arch_size = sizeof(void *);
-	header->alignment = ltt_get_alignment();
-	header->start_time_sec = trace->start_time.tv_sec;
-	header->start_time_usec = trace->start_time.tv_usec;
-	header->start_freq = trace->start_freq;
-	header->freq_scale = trace->freq_scale;
-}
-EXPORT_SYMBOL_GPL(ltt_write_trace_header);
-
 static void trace_async_wakeup(struct ltt_trace_struct *trace)
 {
 	int i;

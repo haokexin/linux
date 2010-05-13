@@ -154,16 +154,6 @@ struct user_dbg_data {
 
 struct ltt_trace_ops {
 	/* First 32 bytes cache-hot cacheline */
-	int (*reserve_slot) (struct ltt_trace_struct *trace,
-				struct ltt_channel_struct *channel,
-				void **transport_data, size_t data_size,
-				size_t *slot_size, long *buf_offset, u64 *tsc,
-				unsigned int *rflags,
-				int largest_align,
-				int cpu);
-	void (*commit_slot) (struct ltt_channel_struct *channel,
-				void **transport_data, long buf_offset,
-				size_t slot_size);
 	void (*wakeup_channel) (struct ltt_channel_struct *ltt_channel);
 	int (*user_blocking) (struct ltt_trace_struct *trace,
 				unsigned int index, size_t data_size,
@@ -548,68 +538,6 @@ static inline size_t ltt_read_event_header(struct rchan_buf *buf,
 	(BUFFER_OFFSET((offset), chan) >> (chan)->subbuf_size_order)
 
 /*
- * ltt_reserve_slot
- *
- * Atomic slot reservation in a LTTng buffer. It will take care of
- * sub-buffer switching.
- *
- * Parameters:
- *
- * @trace : the trace structure to log to.
- * @channel : the chanel to reserve space into.
- * @transport_data : specific transport data.
- * @data_size : size of the variable length data to log.
- * @slot_size : pointer to total size of the slot (out)
- * @buf_offset : pointer to reserve offset (out)
- * @tsc : pointer to the tsc at the slot reservation (out)
- * @rflags : reservation flags (header specificity)
- * @cpu : cpu id
- *
- * Return : -ENOSPC if not enough space, else 0.
- */
-static inline int ltt_reserve_slot(
-		struct ltt_trace_struct *trace,
-		struct ltt_channel_struct *channel,
-		void **transport_data,
-		size_t data_size,
-		size_t *slot_size,
-		long *buf_offset,
-		u64 *tsc,
-		unsigned int *rflags,
-		int largest_align,
-		int cpu)
-{
-	return trace->ops->reserve_slot(trace, channel, transport_data,
-			data_size, slot_size, buf_offset, tsc, rflags,
-			largest_align, cpu);
-}
-
-
-/*
- * ltt_commit_slot
- *
- * Atomic unordered slot commit. Increments the commit count in the
- * specified sub-buffer, and delivers it if necessary.
- *
- * Parameters:
- *
- * @channel : the chanel to reserve space into.
- * @transport_data : specific transport data.
- * @buf_offset : offset of beginning of reserved slot
- * @slot_size : size of the reserved slot.
- */
-static inline void ltt_commit_slot(
-		struct ltt_channel_struct *channel,
-		void **transport_data,
-		long buf_offset,
-		size_t slot_size)
-{
-	struct ltt_trace_struct *trace = channel->trace;
-
-	trace->ops->commit_slot(channel, transport_data, buf_offset, slot_size);
-}
-
-/*
  * Control channels :
  * control/metadata
  * control/interrupts
@@ -653,6 +581,25 @@ static inline void ltt_commit_slot(
 #define LTT_TRACER_MAGIC_NUMBER		0x00D6B7ED
 #define LTT_TRACER_VERSION_MAJOR	2
 #define LTT_TRACER_VERSION_MINOR	3
+
+/**
+ * ltt_write_trace_header - Write trace header
+ * @trace: Trace information
+ * @header: Memory address where the information must be written to
+ */
+static inline void ltt_write_trace_header(struct ltt_trace_struct *trace,
+		struct ltt_subbuffer_header *header)
+{
+	header->magic_number = LTT_TRACER_MAGIC_NUMBER;
+	header->major_version = LTT_TRACER_VERSION_MAJOR;
+	header->minor_version = LTT_TRACER_VERSION_MINOR;
+	header->arch_size = sizeof(void *);
+	header->alignment = ltt_get_alignment();
+	header->start_time_sec = trace->start_time.tv_sec;
+	header->start_time_usec = trace->start_time.tv_usec;
+	header->start_freq = trace->start_freq;
+	header->freq_scale = trace->freq_scale;
+}
 
 /*
  * Size reserved for high priority events (interrupts, NMI, BH) at the end of a
@@ -730,8 +677,6 @@ extern int ltt_filter_control(enum ltt_filter_control_msg msg,
 
 extern struct dentry *get_filter_root(void);
 
-void ltt_write_trace_header(struct ltt_trace_struct *trace,
-		struct ltt_subbuffer_header *header);
 extern void ltt_buffer_destroy(struct ltt_channel_struct *ltt_chan);
 
 void ltt_core_register(int (*function)(u8, void *));

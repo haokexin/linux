@@ -17,6 +17,12 @@
 #include <linux/module.h>
 #include <linux/ltt-tracer.h>
 
+#ifdef CONFIG_LTT_RELAY_LOCKLESS
+#include "ltt-relay-lockless.h"
+#else
+#include "ltt-relay-locked.h"
+#endif
+
 enum ltt_type {
 	LTT_TYPE_SIGNED_INT,
 	LTT_TYPE_UNSIGNED_INT,

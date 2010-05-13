@@ -37,12 +37,18 @@ config HAVE_LTT_DUMP_TABLES
 config LTT_RELAY_ALLOC
 	def_bool n
 
-config LTT_RELAY
-	tristate "Linux Trace Toolkit High-speed Lockless Data Relay"
-	select DEBUG_FS
-	select LTT_RELAY_ALLOC
+choice
+	prompt "LTTng Buffer Concurrency Management Algorithm"
 	depends on LTT_TRACER
-	default y
+	default LTT_RELAY_LOCKLESS
+	help
+	  Choose between the fast lockless and the slower, spinlock/irq disable
+	  mechanism to manage tracing concurrency within a buffer.
+
+	config LTT_RELAY_LOCKLESS
+		bool "Linux Trace Toolkit High-speed Lockless Data Relay"
+	select LTT_RELAY_ALLOC
+	select DEBUG_FS
 	help
 	  Support using the fast lockless algorithm to log the data obtained
 	  through LTT.
@@ -50,15 +56,33 @@ config LTT_RELAY
 	  If you don't have special hardware, you almost certainly want
 	  to say Y here.
 
-config LTT_RELAY_LOCKED
-	tristate "Linux Trace Toolkit Lock-Protected Data Relay"
-	select DEBUG_FS
+	config LTT_RELAY_LOCKED
+		bool "Linux Trace Toolkit Lock-Protected Data Relay"
 	select LTT_RELAY_ALLOC
-	depends on LTT_TRACER
-	default n
+	select DEBUG_FS
 	help
 	  Support using the slow spinlock and interrupt disable algorithm to log
 	  the data obtained through LTT.
+
+endchoice
+
+config LTT_SERIALIZE
+	tristate "Linux Trace Toolkit Serializer"
+	depends on LTT_RELAY_ALLOC
+	depends on (LTT_RELAY_LOCKLESS || LTT_RELAY_LOCKED)
+	default y
+	help
+	  Library for serializing information from format string and argument
+	  list to the trace buffers.
+
+config LTT_FAST_SERIALIZE
+	tristate "Linux Trace Toolkit Custom Serializer"
+	depends on LTT_RELAY_ALLOC
+	depends on (LTT_RELAY_LOCKLESS || LTT_RELAY_LOCKED)
+	default y
+	help
+	  Library for serializing information from custom, efficient, tracepoint
+	  probes.
 
 config LTT_RELAY_CHECK_RANDOM_ACCESS
 	bool "Debug check for random access in ltt relay buffers"
@@ -69,22 +93,6 @@ config LTT_RELAY_CHECK_RANDOM_ACCESS
 	  buffers are a linked list, such access are rather slow. Rare accesses
 	  are OK; they can be caused by large writes (more than a page large) or
 	  by reentrancy (e.g. interrupt nesting over the tracing code).
-
-config LTT_SERIALIZE
-	tristate "Linux Trace Toolkit Serializer"
-	depends on LTT_RELAY_ALLOC
-	default y
-	help
-	  Library for serializing information from format string and argument
-	  list to the trace buffers.
-
-config LTT_FAST_SERIALIZE
-	tristate "Linux Trace Toolkit Custom Serializer"
-	depends on LTT_RELAY_ALLOC
-	default y
-	help
-	  Library for serializing information from custom, efficient, tracepoint
-	  probes.
 
 config LTT_TRACEPROBES
 	tristate "Compile lttng tracing probes"
