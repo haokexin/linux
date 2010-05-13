@@ -96,14 +96,14 @@ static void ltt_enumerate_device(struct ltt_probe_private_data *call_data,
 				__trace_mark(0, netif_state,
 					network_ipv4_interface,
 					call_data,
-					"name %s address #4u%lu up %d",
+					"name %s address #n4u%lu up %d",
 					dev->name,
 					(unsigned long)ifa->ifa_address, 0);
 			in_dev_put(in_dev);
 		}
 	} else
 		__trace_mark(0, netif_state, network_ip_interface,
-			call_data, "name %s address #4u%lu up %d",
+			call_data, "name %s address #n4u%lu up %d",
 			dev->name, 0UL, 0);
 }
 

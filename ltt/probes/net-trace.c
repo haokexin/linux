@@ -19,7 +19,7 @@
 void probe_net_dev_xmit(struct sk_buff *skb);
 
 DEFINE_MARKER_TP(net, dev_xmit, net_dev_xmit, probe_net_dev_xmit,
-	"skb %p protocol #2u%hu");
+	"skb %p protocol #n2u%hu");
 
 notrace void probe_net_dev_xmit(struct sk_buff *skb)
 {
@@ -37,7 +37,7 @@ notrace void probe_net_dev_xmit(struct sk_buff *skb)
 void probe_net_dev_receive(struct sk_buff *skb);
 
 DEFINE_MARKER_TP(net, dev_receive, net_dev_receive, probe_net_dev_receive,
-	"skb %p protocol #2u%hu");
+	"skb %p protocol #n2u%hu");
 
 notrace void probe_net_dev_receive(struct sk_buff *skb)
 {
