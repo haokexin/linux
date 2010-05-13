@@ -35,6 +35,7 @@ static LIST_HEAD(relay_channels);
 static int relay_alloc_buf(struct rchan_buf *buf, size_t *size)
 {
 	unsigned int i, n_pages;
+	struct buf_page *buf_pages;
 	struct buf_page *buf_page, *n;
 
 	*size = PAGE_ALIGN(*size);
@@ -42,17 +43,18 @@ static int relay_alloc_buf(struct rchan_buf *buf, size_t *size)
 
 	INIT_LIST_HEAD(&buf->pages);
 
+	buf_pages = kmalloc_node(ALIGN(sizeof(*buf_page) * n_pages,
+				       1 << INTERNODE_CACHE_SHIFT),
+			GFP_KERNEL, cpu_to_node(buf->cpu));
+	if (unlikely(!buf_pages))
+		return -ENOMEM;
+
 	for (i = 0; i < n_pages; i++) {
-		buf_page = kmalloc_node(sizeof(*buf_page), GFP_KERNEL,
-			cpu_to_node(buf->cpu));
-		if (unlikely(!buf_page))
-			goto depopulate;
+		buf_page = &buf_pages[i];
 		buf_page->page = alloc_pages_node(cpu_to_node(buf->cpu),
 			GFP_KERNEL | __GFP_ZERO, 0);
-		if (unlikely(!buf_page->page)) {
-			kfree(buf_page);
+		if (unlikely(!buf_page->page))
 			goto depopulate;
-		}
 		list_add_tail(&buf_page->list, &buf->pages);
 		buf_page->virt = page_address(buf_page->page);
 		buf_page->offset = (size_t)i << PAGE_SHIFT;
@@ -71,8 +73,8 @@ depopulate:
 	list_for_each_entry_safe(buf_page, n, &buf->pages, list) {
 		list_del_init(&buf_page->list);
 		__free_page(buf_page->page);
-		kfree(buf_page);
 	}
+	kfree(buf_pages);
 	return -ENOMEM;
 }
 
