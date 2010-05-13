@@ -33,3 +33,11 @@ endif
 obj-$(CONFIG_LTT_TRACEPROBES)	+= ext4-trace.o
 endif
 
+ifdef CONFIG_BLOCK
+ifdef CONFIG_FTRACE
+CFLAGS_REMOVE_block-trace.o = -pg
+endif
+obj-$(CONFIG_LTT_TRACEPROBES)	+= block-trace.o
+endif
+
+
