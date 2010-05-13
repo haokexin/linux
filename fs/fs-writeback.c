@@ -76,9 +76,13 @@ static inline bool bdi_work_on_stack(struct bdi_work *work)
 }
 
 static inline void bdi_work_init(struct bdi_work *work,
-				 struct wb_writeback_args *args)
+				 struct wb_writeback_args *args,
+				 int on_stack)
 {
-	INIT_RCU_HEAD(&work->rcu_head);
+	if (on_stack)
+		rcu_head_init_on_stack(&work->rcu_head);
+	else
+		rcu_head_init(&work->rcu_head);
 	work->args = *args;
 	work->state = WS_USED;
 }
@@ -202,7 +206,7 @@ static void bdi_alloc_queue_work(struct backing_dev_info *bdi,
 	 */
 	work = kmalloc(sizeof(*work), GFP_ATOMIC);
 	if (work) {
-		bdi_work_init(work, args);
+		bdi_work_init(work, args, 0);
 		bdi_queue_work(bdi, work);
 	} else {
 		struct bdi_writeback *wb = &bdi->wb;
@@ -233,11 +237,12 @@ static void bdi_sync_writeback(struct backing_dev_info *bdi,
 	};
 	struct bdi_work work;
 
-	bdi_work_init(&work, &args);
+	bdi_work_init(&work, &args, 1);
 	work.state |= WS_ONSTACK;
 
 	bdi_queue_work(bdi, &work);
 	bdi_wait_on_work_clear(&work);
+	destroy_rcu_head_on_stack(&work.rcu_head);
 }
 
 /**
