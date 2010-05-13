@@ -594,10 +594,17 @@ void *ltt_relay_offset_address(struct ltt_chanbuf_alloc *bufa, size_t offset)
 }
 EXPORT_SYMBOL_GPL(ltt_relay_offset_address);
 
-static __init int ltt_relay_init(void)
+static __init int ltt_relay_alloc_init(void)
 {
 	hotcpu_notifier(ltt_relay_hotcpu_callback, 5);
+	ltt_relay_init();
 	return 0;
 }
 
-module_init(ltt_relay_init);
+static void __exit ltt_relay_alloc_exit(void)
+{
+	ltt_relay_exit();
+}
+
+module_init(ltt_relay_alloc_init);
+module_exit(ltt_relay_alloc_exit);
