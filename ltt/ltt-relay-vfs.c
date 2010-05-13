@@ -109,15 +109,17 @@ static unsigned int ltt_poll(struct file *filp, poll_table *wait)
  *
  *	This ioctl implements three commands necessary for a minimal
  *	producer/consumer implementation :
- *	RELAY_GET_SUBBUF
- *		Get the next sub buffer that can be read. It never blocks.
- *	RELAY_PUT_SUBBUF
+ *	RELAY_GET_SB
+ *		Get the next sub-buffer that can be read. It never blocks.
+ *	RELAY_PUT_SB
  *		Release the currently read sub-buffer. Parameter is the last
  *		put subbuffer (returned by GET_SUBBUF).
- *	RELAY_GET_N_BUBBUFS
- *		returns the number of sub buffers in the per cpu channel.
- *	RELAY_GET_SUBBUF_SIZE
- *		returns the size of the sub buffers.
+ *	RELAY_GET_N_SB
+ *		returns the number of sub-buffers in the per cpu channel.
+ *	RELAY_GET_SB_SIZE
+ *		returns the size of the current sub-buffer.
+ *	RELAY_GET_MAX_SB_SIZE
+ *		returns the maximum size for sub-buffers.
  */
 static
 int ltt_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
@@ -127,7 +129,7 @@ int ltt_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	u32 __user *argp = (u32 __user *)arg;
 
 	switch (cmd) {
-	case RELAY_GET_SUBBUF:
+	case RELAY_GET_SB:
 	{
 		unsigned long consumed;
 		int ret;
@@ -139,7 +141,7 @@ int ltt_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 			return put_user((u32)consumed, argp);
 		break;
 	}
-	case RELAY_PUT_SUBBUF:
+	case RELAY_PUT_SB:
 	{
 		u32 uconsumed_old;
 		int ret;
@@ -157,10 +159,13 @@ int ltt_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 			return ret;
 		break;
 	}
-	case RELAY_GET_N_SUBBUFS:
+	case RELAY_GET_N_SB:
 		return put_user((u32)buf->a.chan->n_sb, argp);
 		break;
-	case RELAY_GET_SUBBUF_SIZE:
+	case RELAY_GET_SB_SIZE:
+		return put_user(get_read_sb_size(buf), argp);
+		break;
+	case RELAY_GET_MAX_SB_SIZE:
 		return put_user((u32)buf->a.chan->sb_size, argp);
 		break;
 	default:

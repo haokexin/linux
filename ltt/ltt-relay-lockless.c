@@ -87,8 +87,7 @@ void ltt_buffer_begin(struct ltt_chanbuf *buf, u64 tsc, unsigned int subbuf_idx)
 				subbuf_idx * chan->a.sb_size);
 
 	header->cycle_count_begin = tsc;
-	header->lost_size = 0xFFFFFFFF; /* for debugging */
-	header->buf_size = chan->a.sb_size;
+	header->data_size = 0xFFFFFFFF; /* for debugging */
 	ltt_write_trace_header(chan->a.trace, header);
 }
 
@@ -105,8 +104,10 @@ void ltt_buffer_end(struct ltt_chanbuf *buf, u64 tsc, unsigned int offset,
 		(struct ltt_subbuffer_header *)
 			ltt_relay_offset_address(&buf->a,
 				subbuf_idx * chan->a.sb_size);
+	u32 data_size = SUBBUF_OFFSET(offset - 1, chan) + 1;
 
-	header->lost_size = SUBBUF_OFFSET((chan->a.sb_size - offset), chan);
+	header->data_size = data_size;
+	header->sb_size = PAGE_ALIGN(data_size);
 	header->cycle_count_end = tsc;
 	header->events_lost = local_read(&buf->events_lost);
 	header->subbuf_corrupt = local_read(&buf->corrupted_subbuffers);
