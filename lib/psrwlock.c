@@ -70,7 +70,7 @@ __psrwlock_init(struct psrwlock *lock, const char *name,
 	atomic_set(&lock->uc, 0);
 	atomic_set(&lock->ws, 0);
 	for (i = 0; i < PSRW_NR_PRIO; i++)
-		atomic_set(&lock->prio[i], 0);
+		atomic_long_set(&lock->prio[i], 0);
 	lock->rctx_bitmap = rctx;
 	lock->wctx = wctx;
 	INIT_LIST_HEAD(&lock->wait_list_r);
