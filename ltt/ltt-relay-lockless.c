@@ -444,9 +444,7 @@ static void switch_buffer(unsigned long data)
 	if (atomic_long_read(&buf->active_readers))
 		ltt_force_switch(buf, FORCE_ACTIVE);
 
-	del_timer(&buf->switch_timer);
-	buf->switch_timer.expires += chan->switch_timer_interval;
-	add_timer_on(&buf->switch_timer, smp_processor_id());
+	mod_timer_pinned(&buf->switch_timer, chan->switch_timer_interval);
 }
 
 static void ltt_chanbuf_start_switch_timer(struct ltt_chanbuf *buf)
@@ -480,16 +478,6 @@ void ltt_chan_start_switch_timer(struct ltt_chan *chan)
 		ltt_chanbuf_start_switch_timer(buf);
 	}
 }
-/*
- * Cannot use del_timer_sync with add_timer_on, so use an IPI to locally
- * delete the timer.
- */
-static void stop_switch_timer_ipi(void *info)
-{
-	struct ltt_chanbuf *buf = (struct ltt_chanbuf *)info;
-
-	del_timer(&buf->switch_timer);
-}
 
 static void ltt_chanbuf_stop_switch_timer(struct ltt_chanbuf *buf)
 {
@@ -498,7 +486,7 @@ static void ltt_chanbuf_stop_switch_timer(struct ltt_chanbuf *buf)
 	if (!chan->switch_timer_interval)
 		return;
 
-	smp_call_function(stop_switch_timer_ipi, buf, 1);
+	del_timer_sync(&buf->switch_timer);
 }
 
 /*
