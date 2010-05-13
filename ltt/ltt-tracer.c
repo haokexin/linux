@@ -1272,6 +1272,7 @@ int __init ltt_init(void)
 {
 	/* Make sure no page fault can be triggered by this module */
 	vmalloc_sync_all();
+	init_timer_deferrable(&ltt_async_wakeup_timer);
 	return 0;
 }
 
