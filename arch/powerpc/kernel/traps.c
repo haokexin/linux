@@ -33,6 +33,7 @@
 #include <linux/bug.h>
 #include <linux/kdebug.h>
 #include <linux/debugfs.h>
+#include <linux/ltt-core.h>
 
 #include <asm/emulated_ops.h>
 #include <asm/pgtable.h>
@@ -142,6 +143,10 @@ int die(const char *str, struct pt_regs *regs, long err)
 #endif
 #ifdef CONFIG_NUMA
 		printk("NUMA ");
+#endif
+#ifdef CONFIG_LTT
+		printk("LTT NESTING LEVEL : %u ", __get_cpu_var(ltt_nesting));
+		printk("\n");
 #endif
 		printk("%s\n", ppc_md.name ? ppc_md.name : "");
 
