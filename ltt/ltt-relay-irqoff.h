@@ -57,6 +57,7 @@
 #include <linux/cpu.h>
 #include <linux/pipe_fs_i.h>
 #include <linux/splice.h>
+#include <linux/hardirq.h>
 #include <asm/atomic.h>
 #include <asm/local.h>
 
@@ -224,13 +225,15 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
 	long o_begin, o_end, o_old;
 	size_t before_hdr_pad;
+	unsigned int nest;
 
 	raw_local_irq_save(ltt_buf->irqflags);
 
 	/*
 	 * Perform retryable operations.
 	 */
-	if (unlikely(__get_cpu_var(ltt_nesting) > 4)) {
+	nest = __get_cpu_var(ltt_nesting);
+	if (unlikely(nest > 4 || (in_nmi() && nest > 1))) {
 		local_inc(&ltt_buf->events_lost);
 		raw_local_irq_restore(ltt_buf->irqflags);
 		return -EPERM;
