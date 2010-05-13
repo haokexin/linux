@@ -616,6 +616,8 @@ void timer_interrupt(struct pt_regs * regs)
 	 * some CPUs will continuue to take decrementer exceptions */
 	set_dec(DECREMENTER_MAX);
 
+	trace_trap_entry(regs, regs->trap);
+
 #ifdef CONFIG_PPC32
 	if (atomic_read(&ppc_n_lost_interrupts) != 0)
 		do_IRQ(regs);
@@ -628,6 +630,7 @@ void timer_interrupt(struct pt_regs * regs)
 		if (now <= DECREMENTER_MAX)
 			set_dec((int)now);
 		trace_timer_interrupt_exit(regs);
+		trace_trap_exit();
 		return;
 	}
 	old_regs = set_irq_regs(regs);
@@ -665,6 +668,7 @@ void timer_interrupt(struct pt_regs * regs)
 	set_irq_regs(old_regs);
 
 	trace_timer_interrupt_exit(regs);
+	trace_trap_exit();
 }
 
 void wakeup_decrementer(void)
