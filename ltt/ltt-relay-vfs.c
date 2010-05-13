@@ -55,10 +55,7 @@ end:
 static int ltt_release(struct inode *inode, struct file *file)
 {
 	struct ltt_chanbuf *buf = inode->i_private;
-	struct ltt_chan *chan = container_of(buf->a.chan, struct ltt_chan, a);
 
-	ltt_ascii_remove(chan);
-	debugfs_remove(buf->a.dentry);
 	ltt_chanbuf_release_read(buf);
 
 	return 0;
