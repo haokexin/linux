@@ -28,6 +28,9 @@ menuconfig LTT
 
 if LTT
 
+config LTT_FILTER
+	tristate
+
 config LTT_RELAY_ALLOC
 	def_bool n
 
