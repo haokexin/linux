@@ -659,6 +659,36 @@ traces_error:
 }
 EXPORT_SYMBOL_GPL(ltt_trace_set_channel_subbufcount);
 
+int ltt_trace_set_channel_switch_timer(const char *trace_name,
+		const char *channel_name, unsigned long interval)
+{
+	int err = 0;
+	struct ltt_trace_struct *trace;
+	int index;
+
+	ltt_lock_traces();
+
+	trace = _ltt_trace_find_setup(trace_name);
+	if (!trace) {
+		printk(KERN_ERR "LTT : Trace not found %s\n", trace_name);
+		err = -ENOENT;
+		goto traces_error;
+	}
+
+	index = ltt_channels_get_index_from_name(channel_name);
+	if (index < 0) {
+		printk(KERN_ERR "LTT : Channel %s not found\n", channel_name);
+		err = -ENOENT;
+		goto traces_error;
+	}
+	ltt_channels_trace_set_timer(&trace->channels[index], interval);
+
+traces_error:
+	ltt_unlock_traces();
+	return err;
+}
+EXPORT_SYMBOL_GPL(ltt_trace_set_channel_switch_timer);
+
 int ltt_trace_set_channel_enable(const char *trace_name,
 		const char *channel_name, unsigned int enable)
 {

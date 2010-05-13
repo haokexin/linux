@@ -703,6 +703,8 @@ int ltt_trace_set_channel_subbufsize(const char *trace_name,
 		const char *channel_name, unsigned int size);
 int ltt_trace_set_channel_subbufcount(const char *trace_name,
 		const char *channel_name, unsigned int cnt);
+int ltt_trace_set_channel_switch_timer(const char *trace_name,
+		const char *channel_name, unsigned long interval);
 int ltt_trace_set_channel_enable(const char *trace_name,
 		const char *channel_name, unsigned int enable);
 int ltt_trace_set_channel_overwrite(const char *trace_name,
