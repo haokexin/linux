@@ -31,12 +31,12 @@ endif
 obj-$(CONFIG_LTT_TRACEPROBES)	+= jbd2-trace.o
 endif
 
-ifdef CONFIG_EXT4_FS
-ifdef CONFIG_FTRACE
-CFLAGS_REMOVE_ext4-trace.o = -pg
-endif
-obj-$(CONFIG_LTT_TRACEPROBES)	+= ext4-trace.o
-endif
+#ifdef CONFIG_EXT4_FS
+#ifdef CONFIG_FTRACE
+#CFLAGS_REMOVE_ext4-trace.o = -pg
+#endif
+#obj-$(CONFIG_LTT_TRACEPROBES)	+= ext4-trace.o
+#endif
 
 ifdef CONFIG_BLOCK
 ifdef CONFIG_FTRACE
