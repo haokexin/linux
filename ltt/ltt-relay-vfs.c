@@ -212,7 +212,10 @@ int ltt_chanbuf_create_file(const char *filename, struct dentry *parent,
 		ret = -ENOMEM;
 		goto end;
 	}
-	snprintf(tmpname, NAME_MAX, "%s_%d", chan->a.filename, buf->a.cpu);
+
+	snprintf(tmpname, NAME_MAX, "%s%s_%d",
+		 chan->overwrite ? LTT_FLIGHT_PREFIX : "",
+		 chan->a.filename, buf->a.cpu);
 
 	buf->a.dentry = debugfs_create_file(tmpname, mode, parent, buf,
 					    &ltt_file_operations);
