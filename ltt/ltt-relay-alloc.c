@@ -447,7 +447,7 @@ struct buf_page *ltt_relay_find_prev_page(struct rchan_buf *buf,
 		if (offset >= iter->offset
 			&& offset < iter->offset + PAGE_SIZE) {
 #ifdef CONFIG_LTT_RELAY_CHECK_RANDOM_ACCESS
-			if (i > 1) {
+			if (!buf->random_access && i > 1) {
 				printk(KERN_WARNING
 					"Backward random access detected in "
 					"ltt_relay. Iterations %u, "
@@ -487,7 +487,7 @@ struct buf_page *ltt_relay_find_next_page(struct rchan_buf *buf,
 		if (offset >= iter->offset
 			&& offset < iter->offset + PAGE_SIZE) {
 #ifdef CONFIG_LTT_RELAY_CHECK_RANDOM_ACCESS
-			if (i > 1) {
+			if (!buf->random_access && i > 1) {
 				printk(KERN_WARNING
 					"Forward random access detected in "
 					"ltt_relay. Iterations %u, "
