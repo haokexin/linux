@@ -18,3 +18,11 @@ CFLAGS_REMOVE_net-trace.o = -pg
 endif
 obj-$(CONFIG_LTT_TRACEPROBES)	+= net-trace.o
 endif
+
+ifdef CONFIG_JBD2
+ifdef CONFIG_FTRACE
+CFLAGS_REMOVE_jbd2-trace.o = -pg
+endif
+obj-$(CONFIG_LTT_TRACEPROBES)	+= jbd2-trace.o
+endif
+
