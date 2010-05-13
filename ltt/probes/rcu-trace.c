@@ -13,19 +13,19 @@
 #ifdef CONFIG_TREE_RCU
 void probe_rcu_tree_callback(struct rcu_head *head)
 {
-	trace_mark_tp(rcu_tree_callback, rcu_tree_callback,
+	trace_mark_tp(rcu, tree_callback, rcu_tree_callback,
 		probe_rcu_tree_callback, "func %p", head->func);
 }
 
 void probe_rcu_tree_call_rcu(struct rcu_head *head, unsigned long ip)
 {
-	trace_mark_tp(rcu_tree_call_rcu, rcu_tree_call_rcu,
+	trace_mark_tp(rcu, tree_call_rcu, rcu_tree_call_rcu,
 		probe_rcu_tree_call_rcu, "func %p ip 0x%lX", head->func, ip);
 }
 
 void probe_rcu_tree_call_rcu_bh(struct rcu_head *head, unsigned long ip)
 {
-	trace_mark_tp(rcu_tree_call_rcu_bh, rcu_tree_call_rcu_bh,
+	trace_mark_tp(rcu, tree_call_rcu_bh, rcu_tree_call_rcu_bh,
 		probe_rcu_tree_call_rcu_bh, "func %p ip 0x%lX",
 		head->func, ip);
 }
