@@ -424,8 +424,11 @@ static int ltt_relay_iter_open_channel(struct ltt_relay_iter *iter,
 		}
 		update_cpu_iter(citer, citer->hdr_offset);
 	}
-	if (!iter->nr_refs)
-		return -ENODATA; /* no data available */
+	if (!iter->nr_refs) {
+		ret = -ENODATA;
+		goto error;
+	}
+
 	return 0;
 
 error:
