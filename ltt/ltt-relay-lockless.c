@@ -762,6 +762,24 @@ static ssize_t ltt_relay_file_splice_read(struct file *in,
 	return ret;
 }
 
+static void ltt_relay_print_written(
+		struct ltt_channel_struct *ltt_chan,
+		long cons_off, unsigned int cpu)
+{
+	struct rchan *rchan = ltt_chan->trans_channel_data;
+	struct ltt_channel_buf_struct *ltt_buf = rchan->buf[cpu]->chan_private;
+	long cons_idx, events_count;
+
+	cons_idx = SUBBUF_INDEX(cons_off, rchan);
+	events_count = local_read(&ltt_buf->commit_count[cons_idx].events);
+
+	if (events_count)
+		printk(KERN_INFO
+			"LTT: %lu events written in channel %s "
+			"(cpu %u, index %lu)\n",
+			events_count, ltt_chan->channel_name, cpu, cons_idx);
+}
+
 static void ltt_relay_print_subbuffer_errors(
 		struct ltt_channel_struct *ltt_chan,
 		long cons_off, unsigned int cpu)
@@ -809,6 +827,9 @@ static void ltt_relay_print_errors(struct ltt_trace_struct *trace,
 	 */
 	if (!rchan)
 		return;
+	for (cons_off = 0; cons_off < rchan->alloc_size;
+	     cons_off = SUBBUF_ALIGN(cons_off, rchan))
+		ltt_relay_print_written(ltt_chan, cons_off, cpu);
 	for (cons_off = atomic_long_read(&ltt_buf->consumed);
 			(SUBBUF_TRUNC(local_read(&ltt_buf->offset),
 				      rchan)
@@ -893,6 +914,7 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 	for (j = 0; j < n_subbufs; j++) {
 		local_set(&ltt_buf->commit_count[j].cc, 0);
 		local_set(&ltt_buf->commit_count[j].cc_sb, 0);
+		local_set(&ltt_buf->commit_count[j].events, 0);
 	}
 	init_waitqueue_head(&ltt_buf->write_wait);
 	init_waitqueue_head(&ltt_buf->read_wait);

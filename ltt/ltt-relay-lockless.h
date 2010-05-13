@@ -69,6 +69,7 @@
 struct commit_counters {
 	local_t cc;
 	local_t cc_sb;			/* Incremented _once_ at sb switch */
+	local_t events;			/* Event count */
 };
 
 /* LTTng lockless logging buffer info */
@@ -480,6 +481,7 @@ static __inline__ void ltt_commit_slot(
 	barrier();
 #endif
 	local_add(slot_size, &ltt_buf->commit_count[endidx].cc);
+	local_inc(&ltt_buf->commit_count[endidx].events);
 	/*
 	 * commit count read can race with concurrent OOO commit count updates.
 	 * This is only needed for ltt_check_deliver (for non-polling delivery
