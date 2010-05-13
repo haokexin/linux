@@ -25,9 +25,6 @@
 #include <linux/mm.h>
 #include <linux/ltt-core.h>
 
-/* Needs a _much_ better name... */
-#define FIX_SIZE(x) ((((x) - 1) & PAGE_MASK) + PAGE_SIZE)
-
 /* Use lowest pointer bit to show the sub-buffer has no reference. */
 #define RCHAN_NOREF_FLAG	0x1UL
 

@@ -39,7 +39,6 @@ static int relay_alloc_buf(struct rchan_buf *buf, size_t *size,
 	struct page **pages;
 	void **virt;
 
-	*size = PAGE_ALIGN(*size);
 	n_pages = *size >> PAGE_SHIFT;
 	n_pages_per_sb = n_pages >> get_count_order(n_subbufs);
 	if (extra_reader_sb)
@@ -421,8 +420,8 @@ static int __cpuinit relay_hotcpu_callback(struct notifier_block *nb,
  *	ltt_relay_open - create a new relay channel
  *	@base_filename: base name of files to create
  *	@parent: dentry of parent directory, %NULL for root directory
- *	@subbuf_size: size of sub-buffers
- *	@n_subbufs: number of sub-buffers
+ *	@subbuf_size: size of sub-buffers (> PAGE_SIZE, power of 2)
+ *	@n_subbufs: number of sub-buffers (power of 2)
  *	@cb: client callback functions
  *	@private_data: user-defined data
  *	@extra_reader_sb: allocate an extra subbuffer for the reader
@@ -454,11 +453,20 @@ struct rchan *ltt_relay_open(const char *base_filename,
 	if (!chan)
 		return NULL;
 
+	/* Check that the subbuffer size is larger than a page. */
+	WARN_ON_ONCE(subbuf_size < PAGE_SIZE);
+
+	/*
+	 * Make sure the number of subbuffers and subbuffer size are power of 2.
+	 */
+	WARN_ON_ONCE(hweight32(subbuf_size) != 1);
+	WARN_ON(hweight32(n_subbufs) != 1);
+
 	chan->version = LTT_RELAY_CHANNEL_VERSION;
 	chan->n_subbufs = n_subbufs;
 	chan->subbuf_size = subbuf_size;
 	chan->subbuf_size_order = get_count_order(subbuf_size);
-	chan->alloc_size = FIX_SIZE(subbuf_size * n_subbufs);
+	chan->alloc_size = subbuf_size * n_subbufs;
 	chan->parent = parent;
 	chan->private_data = private_data;
 	chan->extra_reader_sb = extra_reader_sb;

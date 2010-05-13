@@ -512,6 +512,10 @@ EXPORT_SYMBOL_GPL(ltt_release_trace);
 static inline void prepare_chan_size_num(unsigned int *subbuf_size,
 					 unsigned int *n_subbufs)
 {
+	/* Make sure the subbuffer size is larger than a page */
+	*subbuf_size = max_t(unsigned int, *subbuf_size, PAGE_SIZE);
+
+	/* round to next power of 2 */
 	*subbuf_size = 1 << get_count_order(*subbuf_size);
 	*n_subbufs = 1 << get_count_order(*n_subbufs);
 
