@@ -162,4 +162,15 @@ config LTT_KPROBES
 	    ltt/kprobes/disable
 	    ltt/kprobes/list
 
+config LTT_STATEDUMP
+	tristate "Linux Trace Toolkit State Dump"
+	depends on LTT_TRACER
+	default m
+	help
+	  If you enable this option, the Linux Trace Toolkit State Dump will
+	  be either built in the kernel or as module.
+
+	  This module saves the state of the running kernel at trace start
+	  into the trace buffers along with the ongoing tracing information.
+
 endif # LTT
