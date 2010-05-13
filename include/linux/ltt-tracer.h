@@ -166,6 +166,7 @@ struct ltt_trace_ops {
 			       struct ltt_trace *trace);
 	void (*finish_channel) (struct ltt_chan *chan);
 	void (*remove_channel) (struct kref *kref);
+	void (*remove_channel_files) (struct ltt_chan *chan);
 	void (*user_errors) (struct ltt_trace *trace, unsigned int index,
 			     size_t data_size, struct user_dbg_data *dbg,
 			     int cpu);

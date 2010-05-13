@@ -171,6 +171,7 @@ extern int ltt_chan_create(const char *base_filename, struct ltt_chan *chan,
 			   struct dentry *parent, size_t sb_size, size_t n_sb,
 			   int overwrite, struct ltt_trace *trace);
 extern void ltt_chan_free(struct kref *kref);
+extern void ltt_chan_remove_files(struct ltt_chan *chan);
 
 /* Buffer access operations */
 

@@ -84,6 +84,7 @@ int ltt_chan_alloc_init(struct ltt_chan_alloc *chan, struct ltt_trace *trace,
 			struct dentry *parent, size_t sb_size,
 			size_t n_sb, int extra_reader_sb, int overwrite);
 void ltt_chan_alloc_free(struct ltt_chan_alloc *chan);
+void ltt_chan_alloc_remove_files(struct ltt_chan_alloc *chan);
 int ltt_chanbuf_create_file(const char *filename, struct dentry *parent,
 			    int mode, struct ltt_chanbuf *buf);
 int ltt_chanbuf_remove_file(struct ltt_chanbuf *buf);
