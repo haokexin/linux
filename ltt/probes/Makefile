@@ -3,9 +3,10 @@
 ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_kernel-trace.o = -pg
 CFLAGS_REMOVE_mm-trace.o = -pg
+CFLAGS_REMOVE_fs-trace.o = -pg
 endif
 
-obj-$(CONFIG_LTT_TRACEPROBES)	+= kernel-trace.o mm-trace.o
+obj-$(CONFIG_LTT_TRACEPROBES)	+= kernel-trace.o mm-trace.o fs-trace.o
 
 ifeq ($(CONFIG_NET),y)
 ifdef CONFIG_FTRACE
