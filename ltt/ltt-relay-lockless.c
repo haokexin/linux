@@ -218,11 +218,18 @@ free_chanbuf:
 	return ret;
 }
 
+void ltt_chan_remove_files(struct ltt_chan *chan)
+{
+	ltt_ascii_remove(chan);
+	ltt_chan_alloc_remove_files(&chan->a);
+}
+EXPORT_SYMBOL_GPL(ltt_chan_remove_files);
+
+
 void ltt_chan_free(struct kref *kref)
 {
 	struct ltt_chan *chan = container_of(kref, struct ltt_chan, a.kref);
 
-	ltt_ascii_remove(chan);
 	ltt_chan_alloc_free(&chan->a);
 }
 EXPORT_SYMBOL_GPL(ltt_chan_free);
@@ -1316,6 +1323,7 @@ static struct ltt_transport ltt_relay_transport = {
 		.create_channel = ltt_chan_create,
 		.finish_channel = ltt_relay_finish_channel,
 		.remove_channel = ltt_chan_free,
+		.remove_channel_files = ltt_chan_remove_files,
 		.wakeup_channel = ltt_relay_async_wakeup_chan,
 		.user_blocking = ltt_relay_user_blocking,
 		.user_errors = ltt_relay_print_user_errors,

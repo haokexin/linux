@@ -909,9 +909,11 @@ int ltt_trace_alloc(const char *trace_name)
 
 create_channel_error:
 	for (chan--; chan >= 0; chan--) {
-		if (trace->channels[chan].active)
-			kref_put(&trace->channels[chan].a.kref,
-				 trace->ops->remove_channel);
+		if (trace->channels[chan].active) {
+			struct ltt_chan *chanp = &trace->channels[chan];
+			trace->ops->remove_channel_files(chanp);
+			kref_put(&chanp->a.kref, trace->ops->remove_channel);
+		}
 	}
 	trace->ops->remove_dirs(trace);
 
@@ -1013,9 +1015,11 @@ static void __ltt_trace_destroy(struct ltt_trace *trace)
 
 	for (i = 0; i < trace->nr_channels; i++) {
 		chan = &trace->channels[i];
-		if (chan->active)
+		if (chan->active) {
+			trace->ops->remove_channel_files(chan);
 			kref_put(&chan->a.kref,
 				 trace->ops->remove_channel);
+		}
 	}
 
 	/*

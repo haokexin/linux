@@ -337,6 +337,35 @@ free_chan:
 }
 
 /**
+ * ltt_chan_alloc_remove_files - remove channel files.
+ * @chan: the channel
+ *
+ * Remove all channel files and wait for dentry use counts to become zero.
+ */
+void ltt_chan_alloc_remove_files(struct ltt_chan_alloc *chan)
+{
+	unsigned int i;
+	struct dentry *dentry;
+
+	for_each_possible_cpu(i) {
+		struct ltt_chanbuf *buf = per_cpu_ptr(chan->buf, i);
+
+		if (!buf->a.allocated)
+			continue;
+		dentry = dget(buf->a.dentry);
+		ltt_chanbuf_remove_file(buf);
+		/* TODO: wait / wakeup instead */
+		/*
+		 * Wait for every reference to the dentry to be gone,
+		 * except us.
+		 */
+		while (atomic_read(&dentry->d_count) != 1)
+			cpu_relax();
+		dput(dentry);
+	}
+}
+
+/**
  * ltt_chan_alloc_free - destroy the channel
  * @chan: the channel
  *
@@ -351,7 +380,6 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 
 		if (!buf->a.allocated)
 			continue;
-		ltt_chanbuf_remove_file(buf);
 		ltt_chanbuf_free(buf);
 	}
 	free_percpu(chan->buf);
