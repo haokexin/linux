@@ -5,11 +5,14 @@
  * Copyright (C) 2008 Mathieu Desnoyers (mathieu.desnoyers@polymtl.ca)
  *
  * Dynamic tracer channel allocation.
+
+ * Dual LGPL v2.1/GPL v2 license.
  */
 
 #include <linux/limits.h>
 #include <linux/kref.h>
 #include <linux/list.h>
+#include <linux/timer.h>
 
 #define EVENTS_PER_CHANNEL	65536
 
@@ -48,6 +51,7 @@ struct ltt_channel_struct {
 	struct ltt_channel_buf_access_ops *buf_access_ops;
 	unsigned int subbuf_size;
 	unsigned int subbuf_cnt;
+	unsigned long switch_timer_interval;
 	const char *channel_name;
 } ____cacheline_aligned;
 
@@ -65,6 +69,8 @@ struct ltt_channel_buf_access_ops {
 	int (*put_subbuf)(struct rchan_buf *buf, unsigned long consumed);
 	unsigned long (*get_n_subbufs)(struct rchan_buf *buf);
 	unsigned long (*get_subbuf_size)(struct rchan_buf *buf);
+	void (*start_switch_timer)(struct ltt_channel_struct *ltt_channel);
+	void (*stop_switch_timer)(struct ltt_channel_struct *ltt_channel);
 };
 
 struct ltt_channel_setting {
@@ -88,7 +94,15 @@ int ltt_channels_trace_ref(void);
 struct ltt_channel_struct *ltt_channels_trace_alloc(unsigned int *nr_channels,
 						    int overwrite,
 						    int active);
-void ltt_channels_trace_free(struct ltt_channel_struct *channels);
+void ltt_channels_trace_free(struct ltt_channel_struct *channels,
+	unsigned int nr_channels);
+void ltt_channels_trace_set_timer(struct ltt_channel_struct *channel,
+				  unsigned long interval);
+void ltt_channels_trace_start_timer(struct ltt_channel_struct *channels,
+	unsigned int nr_channels);
+void ltt_channels_trace_stop_timer(struct ltt_channel_struct *channels,
+	unsigned int nr_channels);
+
 int _ltt_channels_get_event_id(const char *channel, const char *name);
 int ltt_channels_get_event_id(const char *channel, const char *name);
 

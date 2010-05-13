@@ -91,6 +91,9 @@ struct ltt_channel_buf_struct {
 	atomic_t wakeup_readers;	/* Boolean : wakeup readers waiting ? */
 	wait_queue_head_t read_wait;	/* reader wait queue */
 	unsigned int finalized;		/* buffer has been finalized */
+	struct timer_list switch_timer;	/* timer for periodical switch */
+	unsigned long switch_timer_interval;	/* in jiffies. 0 unset */
+	struct rchan_buf *rbuf;		/* Pointer to rchan_buf */
 } ____cacheline_aligned;
 
 static const struct file_operations ltt_file_operations;
@@ -385,6 +388,78 @@ static unsigned long get_subbuf_size(struct rchan_buf *buf)
 	return buf->chan->subbuf_size;
 }
 
+static void switch_buffer(unsigned long data)
+{
+	struct ltt_channel_buf_struct *ltt_buf =
+		(struct ltt_channel_buf_struct *)data;
+	struct rchan_buf *buf = ltt_buf->rbuf;
+
+	if (buf)
+		ltt_force_switch(buf, FORCE_ACTIVE);
+
+	ltt_buf->switch_timer.expires += ltt_buf->switch_timer_interval;
+	add_timer_on(&ltt_buf->switch_timer, smp_processor_id());
+}
+
+static void start_switch_timer(struct ltt_channel_struct *ltt_channel)
+{
+	struct rchan *rchan = ltt_channel->trans_channel_data;
+	int cpu;
+
+	if (!ltt_channel->switch_timer_interval)
+		return;
+
+	// TODO : hotplug
+	for_each_online_cpu(cpu) {
+		struct ltt_channel_buf_struct *ltt_buf;
+		struct rchan_buf *buf;
+
+		buf = rchan->buf[cpu];
+		ltt_buf = buf->chan_private;
+		buf->random_access = 1;
+		ltt_buf->switch_timer_interval =
+			ltt_channel->switch_timer_interval;
+		init_timer(&ltt_buf->switch_timer);
+		ltt_buf->switch_timer.function = switch_buffer;
+		ltt_buf->switch_timer.expires = jiffies +
+					ltt_buf->switch_timer_interval;
+		ltt_buf->switch_timer.data = (unsigned long)ltt_buf;
+		add_timer_on(&ltt_buf->switch_timer, cpu);
+	}
+}
+
+/*
+ * Cannot use del_timer_sync with add_timer_on, so use an IPI to locally
+ * delete the timer.
+ */
+static void stop_switch_timer_ipi(void *info)
+{
+	struct ltt_channel_buf_struct *ltt_buf =
+		(struct ltt_channel_buf_struct *)info;
+
+	del_timer(&ltt_buf->switch_timer);
+}
+
+static void stop_switch_timer(struct ltt_channel_struct *ltt_channel)
+{
+	struct rchan *rchan = ltt_channel->trans_channel_data;
+	int cpu;
+
+	if (!ltt_channel->switch_timer_interval)
+		return;
+
+	// TODO : hotplug
+	for_each_online_cpu(cpu) {
+		struct ltt_channel_buf_struct *ltt_buf;
+		struct rchan_buf *buf;
+
+		buf = rchan->buf[cpu];
+		ltt_buf = buf->chan_private;
+		smp_call_function(stop_switch_timer_ipi, ltt_buf, 1);
+		buf->random_access = 0;
+	}
+}
+
 static struct ltt_channel_buf_access_ops ltt_channel_buf_accessor = {
 	.get_offset   = get_offset,
 	.get_consumed = get_consumed,
@@ -394,8 +469,9 @@ static struct ltt_channel_buf_access_ops ltt_channel_buf_accessor = {
 	.get_subbuf_size = get_subbuf_size,
 	.open = _ltt_open,
 	.release = _ltt_release,
+	.start_switch_timer = start_switch_timer,
+	.stop_switch_timer = stop_switch_timer,
 };
-
 
 /**
  *	ltt_open - open file op for ltt files
@@ -819,6 +895,7 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 	local_set(&ltt_buf->events_lost, 0);
 	local_set(&ltt_buf->corrupted_subbuffers, 0);
 	ltt_buf->finalized = 0;
+	ltt_buf->rbuf = buf;
 
 	return 0;
 }

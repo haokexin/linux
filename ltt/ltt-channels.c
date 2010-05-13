@@ -270,6 +270,7 @@ struct ltt_channel_struct *ltt_channels_trace_alloc(unsigned int *nr_channels,
 		channel[iter->index].overwrite = overwrite;
 		channel[iter->index].active = active;
 		channel[iter->index].channel_name = iter->name;
+		channel[iter->index].switch_timer_interval = 0;
 	}
 end:
 	mutex_unlock(&ltt_channel_mutex);
@@ -285,7 +286,8 @@ EXPORT_SYMBOL_GPL(ltt_channels_trace_alloc);
  * Called with trace lock held. The actual channel buffers must be freed before
  * this function is called.
  */
-void ltt_channels_trace_free(struct ltt_channel_struct *channels)
+void ltt_channels_trace_free(struct ltt_channel_struct *channels,
+		unsigned int nr_channels)
 {
 	lock_markers();
 	mutex_lock(&ltt_channel_mutex);
@@ -295,6 +297,45 @@ void ltt_channels_trace_free(struct ltt_channel_struct *channels)
 	unlock_markers();
 }
 EXPORT_SYMBOL_GPL(ltt_channels_trace_free);
+
+/**
+ * ltt_channels_trace_set_timer - set switch timer
+ * @channel: channel
+ * @interval: interval of timer interrupt, in jiffies. 0 inhibits timer.
+ */
+
+void ltt_channels_trace_set_timer(struct ltt_channel_struct *channel,
+	unsigned long interval)
+{
+	channel->switch_timer_interval = interval;
+}
+EXPORT_SYMBOL_GPL(ltt_channels_trace_set_timer);
+
+/*
+ * called with trace lock held.
+ */
+void ltt_channels_trace_start_timer(struct ltt_channel_struct *channels,
+	unsigned int nr_channels)
+{
+	int i;
+
+	for (i = 0; i < nr_channels; i++)
+		channels[i].buf_access_ops->start_switch_timer(&channels[i]);
+}
+EXPORT_SYMBOL_GPL(ltt_channels_trace_start_timer);
+
+/*
+ * called with trace lock held.
+ */
+void ltt_channels_trace_stop_timer(struct ltt_channel_struct *channels,
+	unsigned int nr_channels)
+{
+	int i;
+
+	for (i = 0; i < nr_channels; i++)
+		channels[i].buf_access_ops->stop_switch_timer(&channels[i]);
+}
+EXPORT_SYMBOL_GPL(ltt_channels_trace_stop_timer);
 
 /**
  * _ltt_channels_get_event_id - get next event ID for a marker
