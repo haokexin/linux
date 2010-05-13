@@ -151,6 +151,9 @@ extern void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
 extern int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 	void *dest, size_t len);
 
+extern int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
+	void *dest, size_t len);
+
 extern struct buf_page *ltt_relay_read_get_page(struct rchan_buf *buf,
 	size_t offset);
 

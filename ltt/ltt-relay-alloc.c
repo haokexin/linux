@@ -574,6 +574,51 @@ int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 EXPORT_SYMBOL_GPL(ltt_relay_read);
 
 /**
+ * ltt_relay_read_cstr - read a C-style string from ltt_relay_buffer.
+ * @buf : buffer
+ * @offset : offset within the buffer
+ * @dest : destination address
+ * @len : destination's length
+ *
+ * return string's length
+ */
+int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
+		void *dest, size_t len)
+{
+	struct buf_page *page;
+	ssize_t pagecpy, pagelen, strpagelen, orig_offset;
+	char *str;
+
+	offset &= buf->chan->alloc_size - 1;
+	orig_offset = offset;
+	page = buf->rpage;
+	for (;;) {
+		page = ltt_relay_cache_page(buf, &buf->rpage, page, offset);
+		str = (char *)page->virt + (offset & ~PAGE_MASK);
+		pagelen = PAGE_SIZE - (offset & ~PAGE_MASK);
+		strpagelen = strnlen(str, pagelen);
+		if (len) {
+			pagecpy = min_t(size_t, len, strpagelen);
+			memcpy(dest, str, pagecpy);
+			len -= pagecpy;
+			dest += pagecpy;
+		}
+		offset += strpagelen;
+		if (strpagelen < pagelen)
+			break;
+		/*
+		 * Underlying layer should never ask for reads across
+		 * subbuffers.
+		 */
+		WARN_ON(offset >= buf->chan->alloc_size);
+	}
+	if (len)
+		((char *)dest)[0] = 0;
+	return offset - orig_offset;
+}
+EXPORT_SYMBOL_GPL(ltt_relay_read_cstr);
+
+/**
  * ltt_relay_read_get_page - Get a whole page to read from
  * @buf : buffer
  * @offset : offset within the buffer
