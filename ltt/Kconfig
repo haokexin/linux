@@ -84,16 +84,6 @@ config LTT_FAST_SERIALIZE
 	  Library for serializing information from custom, efficient, tracepoint
 	  probes.
 
-config LTT_RELAY_CHECK_RANDOM_ACCESS
-	bool "Debug check for random access in ltt relay buffers"
-	depends on LTT_RELAY_ALLOC
-	default n
-	help
-	  Add checks for random access to LTTng relay buffers. Given those
-	  buffers are a linked list, such access are rather slow. Rare accesses
-	  are OK; they can be caused by large writes (more than a page large) or
-	  by reentrancy (e.g. interrupt nesting over the tracing code).
-
 config LTT_TRACEPROBES
 	tristate "Compile lttng tracing probes"
 	depends on LTT_FAST_SERIALIZE
