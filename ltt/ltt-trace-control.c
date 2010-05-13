@@ -900,7 +900,9 @@ static ssize_t marker_info_read(struct file *filp, char __user *ubuf,
 				       "event_id: %hu\n"
 				       "call: 0x%p\n"
 				       "probe %s : 0x%p\n\n",
+#ifdef CONFIG_MODULES
 				       iter.module ? iter.module->name :
+#endif
 				       "Core Kernel",
 				       iter.marker->format,
 				       _imv_read(iter.marker->state),
@@ -1165,6 +1167,7 @@ out:
 	return err;
 }
 
+#ifdef CONFIG_MODULES
 static int remove_marker_control_dir(struct module *mod, struct marker *marker)
 {
 	struct dentry *channel_d, *marker_d;
@@ -1256,6 +1259,13 @@ static int module_notify(struct notifier_block *self,
 	}
 	return NOTIFY_DONE;
 }
+#else
+static inline int module_notify(struct notifier_block *self,
+		unsigned long val, void *data)
+{
+	return 0;
+}
+#endif
 
 static struct notifier_block module_nb = {
 	.notifier_call = module_notify,
