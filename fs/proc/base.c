@@ -3408,6 +3408,8 @@ retry:
 			goto retry;
 		}
 		get_task_struct(iter.task);
+		if (security_task_lookup(task))
+			goto retry;
 	}
 	rcu_read_unlock();
 	return iter;

@@ -788,6 +788,11 @@ static inline void security_free_mnt_opts(struct security_mnt_opts *opts)
  *	@arg5 contains a argument.
  *	Return -ENOSYS if no-one wanted to handle this op, any other value to
  *	cause prctl() to return immediately with that value.
+ * @task_lookup:
+ *	Check permission to see the /proc/<pid> entry for process @p.
+ *	@p contains the task_struct for task <pid> which is being looked
+ *	up under /proc
+ *	return 0 if permission is granted.
  * @task_to_inode:
  *	Set the security attributes for an inode based on an associated task's
  *	security attributes, e.g. for /proc/pid inodes.
@@ -1530,6 +1535,7 @@ struct security_operations {
 	int (*task_prctl) (int option, unsigned long arg2,
 			   unsigned long arg3, unsigned long arg4,
 			   unsigned long arg5);
+	int (*task_lookup)(struct task_struct *p);
 	void (*task_to_inode) (struct task_struct *p, struct inode *inode);
 
 	int (*ipc_permission) (struct kern_ipc_perm *ipcp, short flag);
@@ -2360,6 +2366,16 @@ static inline int security_task_prctl(int option, unsigned long arg2,
 				      unsigned long arg5)
 {
 	return cap_task_prctl(option, arg2, arg3, arg3, arg5);
+}
+
+static inline int security_task_lookup(struct task_struct *p)
+{
+	return security_ops->task_lookup(p);
+}
+
+static inline int security_task_lookup(struct task_struct *p)
+{
+	return 0;
 }
 
 static inline void security_task_to_inode(struct task_struct *p, struct inode *inode)

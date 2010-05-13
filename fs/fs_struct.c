@@ -36,6 +36,7 @@ void set_fs_root(struct fs_struct *fs, struct path *path)
 	if (old_root.dentry)
 		path_put_longterm(&old_root);
 }
+EXPORT_SYMBOL(set_fs_root);
 
 /*
  * Replace the fs->{pwdmnt,pwd} with {mnt,dentry}. Put the old values.
@@ -64,6 +65,7 @@ static inline int replace_path(struct path *p, const struct path *old, const str
 	*p = *new;
 	return 1;
 }
+EXPORT_SYMBOL(set_fs_pwd);
 
 void chroot_fs_refs(struct path *old_root, struct path *new_root)
 {
