@@ -142,6 +142,7 @@ config PPC
 	select GENERIC_ATOMIC64 if PPC32
 	select HAVE_PERF_EVENTS
 	select HAVE_GET_CYCLES if PPC64
+	select HAVE_IMMEDIATE
 
 config EARLY_PRINTK
 	bool
