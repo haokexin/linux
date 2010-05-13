@@ -30,27 +30,16 @@
  */
 #define LTT_RELAY_CHANNEL_VERSION		8
 
-struct rchan_buf;
-
-struct buf_page {
-	struct page *page;
-	void *virt;		/* page address of the struct page */
-	size_t offset;		/* page offset in the buffer */
-	struct list_head list;	/* buffer linked list */
-};
-
 /*
  * Per-cpu relay channel buffer
  */
 struct rchan_buf {
 	void *chan_private;		/* private data for this buf */
+	void **virt;			/* Array of pointers to page addr */
+	struct page **pages;		/* Array of pointers to pages */
 	struct rchan *chan;		/* associated channel */
 	struct dentry *dentry;		/* channel file dentry */
 	struct kref kref;		/* channel buffer refcount */
-	struct list_head pages;		/* list of buffer pages */
-	struct buf_page *wpage;		/* current write page (cache) */
-	struct buf_page *hpage[2];	/* current subbuf header page (cache) */
-	struct buf_page *rpage;		/* current subbuf read page (cache) */
 	unsigned int page_count;	/* number of current buffer pages */
 	unsigned int cpu;		/* this buf's cpu */
 	unsigned int random_access;	/* buffer performs random page access */
@@ -140,14 +129,8 @@ struct rchan_callbacks {
 	int (*remove_buf_file)(struct dentry *dentry);
 };
 
-extern struct buf_page *ltt_relay_find_prev_page(struct rchan_buf *buf,
-	struct buf_page *page, size_t offset, ssize_t diff_offset);
-
-extern struct buf_page *ltt_relay_find_next_page(struct rchan_buf *buf,
-	struct buf_page *page, size_t offset, ssize_t diff_offset);
-
 extern void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
-	const void *src, size_t len, struct buf_page *page, ssize_t pagecpy);
+	const void *src, size_t len, ssize_t pagecpy);
 
 extern int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 	void *dest, size_t len);
@@ -155,7 +138,7 @@ extern int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 extern int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
 	void *dest, size_t len);
 
-extern struct buf_page *ltt_relay_read_get_page(struct rchan_buf *buf,
+extern struct page *ltt_relay_read_get_page(struct rchan_buf *buf,
 	size_t offset);
 
 /*
@@ -166,23 +149,6 @@ extern struct buf_page *ltt_relay_read_get_page(struct rchan_buf *buf,
  */
 extern void *ltt_relay_offset_address(struct rchan_buf *buf,
 	size_t offset);
-
-extern struct buf_page *ltt_relay_cache_page_slow(struct rchan_buf *buf,
-		struct buf_page **page_cache,
-		struct buf_page *page, size_t offset);
-
-/*
- * Find the page containing "offset". Cache it if it is after the currently
- * cached page.
- */
-static __inline__ struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
-		struct buf_page **page_cache,
-		struct buf_page *page, size_t offset)
-{
-	if (unlikely((offset & PAGE_MASK) != page->offset))
-		return ltt_relay_cache_page_slow(buf, page_cache, page, offset);
-	return page;
-}
 
 #ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
 static __inline__ void ltt_relay_do_copy(void *dest, const void *src, size_t len)
@@ -266,18 +232,17 @@ memcpy_fallback:
 static __inline__ int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 	const void *src, size_t len)
 {
-	struct buf_page *page;
+	size_t index;
 	ssize_t pagecpy;
 
 	offset &= buf->chan->alloc_size - 1;
-	page = buf->wpage;
-
-	page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
+	index = offset >> PAGE_SHIFT;
 	pagecpy = min_t(size_t, len, (- offset) & ~PAGE_MASK);
-	ltt_relay_do_copy(page->virt + (offset & ~PAGE_MASK), src, pagecpy);
+	ltt_relay_do_copy(buf->virt[index] + (offset & ~PAGE_MASK),
+			  src, pagecpy);
 
 	if (unlikely(len != pagecpy))
-		_ltt_relay_write(buf, offset, src, len, page, pagecpy);
+		_ltt_relay_write(buf, offset, src, len, pagecpy);
 	return len;
 }
 

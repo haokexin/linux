@@ -34,47 +34,53 @@ static LIST_HEAD(relay_channels);
  */
 static int relay_alloc_buf(struct rchan_buf *buf, size_t *size)
 {
-	unsigned int i, n_pages;
-	struct buf_page *buf_pages;
-	struct buf_page *buf_page, *n;
+	long i, n_pages;
+	struct page **pages;
+	void **virt;
 
 	*size = PAGE_ALIGN(*size);
 	n_pages = *size >> PAGE_SHIFT;
 
-	INIT_LIST_HEAD(&buf->pages);
-
-	buf_pages = kmalloc_node(ALIGN(sizeof(*buf_page) * n_pages,
-				       1 << INTERNODE_CACHE_SHIFT),
+	pages = kmalloc_node(max_t(size_t, sizeof(*pages) * n_pages,
+				   1 << INTERNODE_CACHE_SHIFT),
 			GFP_KERNEL, cpu_to_node(buf->cpu));
-	if (unlikely(!buf_pages))
-		return -ENOMEM;
+	if (unlikely(!pages))
+		goto pages_error;
+
+	virt = kmalloc_node(ALIGN(sizeof(*virt) * n_pages,
+				  1 << INTERNODE_CACHE_SHIFT),
+			GFP_KERNEL, cpu_to_node(buf->cpu));
+	if (unlikely(!virt))
+		goto virt_error;
 
 	for (i = 0; i < n_pages; i++) {
-		buf_page = &buf_pages[i];
-		buf_page->page = alloc_pages_node(cpu_to_node(buf->cpu),
+		pages[i] = alloc_pages_node(cpu_to_node(buf->cpu),
 			GFP_KERNEL | __GFP_ZERO, 0);
-		if (unlikely(!buf_page->page))
+		if (unlikely(!pages[i]))
 			goto depopulate;
-		list_add_tail(&buf_page->list, &buf->pages);
-		buf_page->virt = page_address(buf_page->page);
-		buf_page->offset = (size_t)i << PAGE_SHIFT;
-		set_page_private(buf_page->page, (unsigned long)buf_page);
-		if (i == 0) {
-			buf->wpage = buf_page;
-			buf->hpage[0] = buf_page;
-			buf->hpage[1] = buf_page;
-			buf->rpage = buf_page;
-		}
+		virt[i] = page_address(pages[i]);
 	}
 	buf->page_count = n_pages;
+	buf->pages = pages;
+	buf->virt = virt;
+	/*
+	 * If kmalloc ever uses vmalloc underneath, make sure the buffer pages
+	 * will not fault.
+	 */
+	vmalloc_sync_all();
 	return 0;
 
 depopulate:
-	list_for_each_entry_safe(buf_page, n, &buf->pages, list) {
-		list_del_init(&buf_page->list);
-		__free_page(buf_page->page);
-	}
-	kfree(buf_pages);
+	/*
+	 * Free all pages from [ i - 1 down to 0 ].
+	 * If i = 0, don't free anything.
+	 */
+	for (i--; i >= 0; i--)
+		__free_page(pages[i]);
+	kfree(virt);
+virt_error:
+	kfree(pages);
+pages_error:
 	return -ENOMEM;
 }
 
@@ -137,13 +143,14 @@ EXPORT_SYMBOL_GPL(ltt_relay_put_chan);
 static void relay_destroy_buf(struct rchan_buf *buf)
 {
 	struct rchan *chan = buf->chan;
-	struct buf_page *buf_page, *n;
+	struct page **pages;
+	long i;
 
-	list_for_each_entry_safe(buf_page, n, &buf->pages, list) {
-		list_del_init(&buf_page->list);
-		__free_page(buf_page->page);
-		kfree(buf_page);
-	}
+	pages = buf->pages;
+	for (i = 0; i < buf->page_count; i++)
+		__free_page(pages[i]);
+	kfree(buf->pages);
+	kfree(buf->virt);
 	chan->buf[buf->cpu] = NULL;
 	kfree(buf);
 	kref_put(&chan->kref, relay_destroy_channel);
@@ -428,86 +435,6 @@ void ltt_relay_close(struct rchan *chan)
 }
 EXPORT_SYMBOL_GPL(ltt_relay_close);
 
-/*
- * Start iteration at the previous element. Skip the real list head.
- */
-struct buf_page *ltt_relay_find_prev_page(struct rchan_buf *buf,
-	struct buf_page *page, size_t offset, ssize_t diff_offset)
-{
-	struct buf_page *iter;
-	size_t orig_iter_off;
-	unsigned int i = 0;
-
-	orig_iter_off = page->offset;
-	list_for_each_entry_reverse(iter, &page->list, list) {
-		/*
-		 * Skip the real list head.
-		 */
-		if (&iter->list == &buf->pages)
-			continue;
-		i++;
-		if (offset >= iter->offset
-			&& offset < iter->offset + PAGE_SIZE) {
-#ifdef CONFIG_LTT_RELAY_CHECK_RANDOM_ACCESS
-			if (!buf->random_access && i > 1) {
-				printk(KERN_WARNING
-					"Backward random access detected in "
-					"ltt_relay. Iterations %u, "
-					"offset %zu, orig iter->off %zu, "
-					"iter->off %zu diff_offset %zd.\n", i,
-					offset, orig_iter_off, iter->offset,
-					diff_offset);
-				WARN_ON(1);
-			}
-#endif
-			return iter;
-		}
-	}
-	WARN_ON(1);
-	return NULL;
-}
-EXPORT_SYMBOL_GPL(ltt_relay_find_prev_page);
-
-/*
- * Start iteration at the next element. Skip the real list head.
- */
-struct buf_page *ltt_relay_find_next_page(struct rchan_buf *buf,
-	struct buf_page *page, size_t offset, ssize_t diff_offset)
-{
-	struct buf_page *iter;
-	unsigned int i = 0;
-	size_t orig_iter_off;
-
-	orig_iter_off = page->offset;
-	list_for_each_entry(iter, &page->list, list) {
-		/*
-		 * Skip the real list head.
-		 */
-		if (&iter->list == &buf->pages)
-			continue;
-		i++;
-		if (offset >= iter->offset
-			&& offset < iter->offset + PAGE_SIZE) {
-#ifdef CONFIG_LTT_RELAY_CHECK_RANDOM_ACCESS
-			if (!buf->random_access && i > 1) {
-				printk(KERN_WARNING
-					"Forward random access detected in "
-					"ltt_relay. Iterations %u, "
-					"offset %zu, orig iter->off %zu, "
-					"iter->off %zu diff_offset %zd.\n", i,
-					offset, orig_iter_off, iter->offset,
-					diff_offset);
-				WARN_ON(1);
-			}
-#endif
-			return iter;
-		}
-	}
-	WARN_ON(1);
-	return NULL;
-}
-EXPORT_SYMBOL_GPL(ltt_relay_find_next_page);
-
 /**
  * ltt_relay_write - write data to a ltt_relay buffer.
  * @buf : buffer
@@ -518,21 +445,24 @@ EXPORT_SYMBOL_GPL(ltt_relay_find_next_page);
  * @pagecpy : page size copied so far
  */
 void _ltt_relay_write(struct rchan_buf *buf, size_t offset,
-	const void *src, size_t len, struct buf_page *page, ssize_t pagecpy)
+	const void *src, size_t len, ssize_t pagecpy)
 {
+	size_t index;
+
 	do {
 		len -= pagecpy;
 		src += pagecpy;
 		offset += pagecpy;
+		index = offset >> PAGE_SHIFT;
+
 		/*
 		 * Underlying layer should never ask for writes across
 		 * subbuffers.
 		 */
 		WARN_ON(offset >= buf->chan->alloc_size);
 
-		page = ltt_relay_cache_page(buf, &buf->wpage, page, offset);
 		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-		ltt_relay_do_copy(page->virt
+		ltt_relay_do_copy(buf->virt[index]
 				+ (offset & ~PAGE_MASK), src, pagecpy);
 	} while (unlikely(len != pagecpy));
 }
@@ -548,23 +478,23 @@ EXPORT_SYMBOL_GPL(_ltt_relay_write);
 int ltt_relay_read(struct rchan_buf *buf, size_t offset,
 	void *dest, size_t len)
 {
-	struct buf_page *page;
+	size_t index;
 	ssize_t pagecpy, orig_len;
 
 	orig_len = len;
 	offset &= buf->chan->alloc_size - 1;
-	page = buf->rpage;
+	index = offset >> PAGE_SHIFT;
 	if (unlikely(!len))
 		return 0;
 	for (;;) {
-		page = ltt_relay_cache_page(buf, &buf->rpage, page, offset);
 		pagecpy = min_t(size_t, len, PAGE_SIZE - (offset & ~PAGE_MASK));
-		memcpy(dest, page->virt + (offset & ~PAGE_MASK), pagecpy);
+		memcpy(dest, buf->virt[index] + (offset & ~PAGE_MASK), pagecpy);
 		len -= pagecpy;
 		if (likely(!len))
 			break;
 		dest += pagecpy;
 		offset += pagecpy;
+		index = offset >> PAGE_SHIFT;
 		/*
 		 * Underlying layer should never ask for reads across
 		 * subbuffers.
@@ -587,16 +517,15 @@ EXPORT_SYMBOL_GPL(ltt_relay_read);
 int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
 		void *dest, size_t len)
 {
-	struct buf_page *page;
+	size_t index;
 	ssize_t pagecpy, pagelen, strpagelen, orig_offset;
 	char *str;
 
 	offset &= buf->chan->alloc_size - 1;
+	index = offset >> PAGE_SHIFT;
 	orig_offset = offset;
-	page = buf->rpage;
 	for (;;) {
-		page = ltt_relay_cache_page(buf, &buf->rpage, page, offset);
-		str = (char *)page->virt + (offset & ~PAGE_MASK);
+		str = (char *)buf->virt[index] + (offset & ~PAGE_MASK);
 		pagelen = PAGE_SIZE - (offset & ~PAGE_MASK);
 		strpagelen = strnlen(str, pagelen);
 		if (len) {
@@ -606,6 +535,7 @@ int ltt_relay_read_cstr(struct rchan_buf *buf, size_t offset,
 			dest += pagecpy;
 		}
 		offset += strpagelen;
+		index = offset >> PAGE_SHIFT;
 		if (strpagelen < pagelen)
 			break;
 		/*
@@ -625,14 +555,13 @@ EXPORT_SYMBOL_GPL(ltt_relay_read_cstr);
  * @buf : buffer
  * @offset : offset within the buffer
  */
-struct buf_page *ltt_relay_read_get_page(struct rchan_buf *buf, size_t offset)
+struct page *ltt_relay_read_get_page(struct rchan_buf *buf, size_t offset)
 {
-	struct buf_page *page;
+	size_t index;
 
 	offset &= buf->chan->alloc_size - 1;
-	page = buf->rpage;
-	page = ltt_relay_cache_page(buf, &buf->rpage, page, offset);
-	return page;
+	index = offset >> PAGE_SHIFT;
+	return buf->pages[index];
 }
 EXPORT_SYMBOL_GPL(ltt_relay_read_get_page);
 
@@ -648,54 +577,13 @@ EXPORT_SYMBOL_GPL(ltt_relay_read_get_page);
  */
 void *ltt_relay_offset_address(struct rchan_buf *buf, size_t offset)
 {
-	struct buf_page *page;
-	unsigned int odd;
+	size_t index;
 
 	offset &= buf->chan->alloc_size - 1;
-	odd = !!(offset & buf->chan->subbuf_size);
-	page = buf->hpage[odd];
-	if (offset < page->offset || offset >= page->offset + PAGE_SIZE)
-		buf->hpage[odd] = page = buf->wpage;
-	page = ltt_relay_cache_page(buf, &buf->hpage[odd], page, offset);
-	return page->virt + (offset & ~PAGE_MASK);
+	index = offset >> PAGE_SHIFT;
+	return buf->virt[index] + (offset & ~PAGE_MASK);
 }
 EXPORT_SYMBOL_GPL(ltt_relay_offset_address);
-
-
-extern struct buf_page *ltt_relay_cache_page_slow(struct rchan_buf *buf,
-		struct buf_page **page_cache,
-		struct buf_page *page, size_t offset)
-{
-	ssize_t diff_offset;
-	ssize_t half_buf_size = buf->chan->alloc_size >> 1;
-
-	/*
-	 * Make sure this is the page we want to write into. The current
-	 * page is changed concurrently by other writers. [wrh]page are
-	 * used as a cache remembering the last page written
-	 * to/read/looked up for header address. No synchronization;
-	 * could have to find the previous page is a nested write
-	 * occured. Finding the right page is done by comparing the
-	 * dest_offset with the buf_page offsets.
-	 * When at the exact opposite of the buffer, bias towards forward search
-	 * because it will be cached.
-	 */
-
-	diff_offset = (ssize_t)offset - (ssize_t)page->offset;
-	if (diff_offset <= -(ssize_t)half_buf_size)
-		diff_offset += buf->chan->alloc_size;
-	else if (diff_offset > half_buf_size)
-		diff_offset -= buf->chan->alloc_size;
-
-	if (unlikely(diff_offset >= (ssize_t)PAGE_SIZE)) {
-		page = ltt_relay_find_next_page(buf, page, offset, diff_offset);
-		*page_cache = page;
-	} else if (unlikely(diff_offset < 0)) {
-		page = ltt_relay_find_prev_page(buf, page, offset, diff_offset);
-	}
-	return page;
-}
-EXPORT_SYMBOL_GPL(ltt_relay_cache_page_slow);
 
 /**
  *	relay_file_open - open file op for relay files
