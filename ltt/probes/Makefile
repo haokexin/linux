@@ -6,3 +6,10 @@ CFLAGS_REMOVE_mm-trace.o = -pg
 endif
 
 obj-$(CONFIG_LTT_TRACEPROBES)	+= kernel-trace.o mm-trace.o
+
+ifeq ($(CONFIG_NET),y)
+ifdef CONFIG_FTRACE
+CFLAGS_REMOVE_net-trace.o = -pg
+endif
+obj-$(CONFIG_LTT_TRACEPROBES)	+= net-trace.o
+endif
