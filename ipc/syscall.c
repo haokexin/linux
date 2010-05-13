@@ -13,6 +13,8 @@
 #include <linux/syscalls.h>
 #include <linux/uaccess.h>
 
+DEFINE_TRACE(sys_ipc);
+
 SYSCALL_DEFINE6(ipc, unsigned int, call, int, first, unsigned long, second,
 		unsigned long, third, void __user *, ptr, long, fifth)
 {
@@ -20,6 +22,8 @@ SYSCALL_DEFINE6(ipc, unsigned int, call, int, first, unsigned long, second,
 
 	version = call >> 16; /* hack for backward compatibility */
 	call &= 0xffff;
+
+	trace_ipc_call(call, first);
 
 	switch (call) {
 	case SEMOP:
