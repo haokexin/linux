@@ -36,8 +36,21 @@ struct dentry *ltt_control_dir, *ltt_setup_trace_file, *ltt_destroy_trace_file,
 
 /*
  * the traces_lock nests inside control_lock.
+ * control_lock protects the consistency of directories presented in ltt
+ * directory.
  */
 static DEFINE_MUTEX(control_lock);
+
+/*
+ * big note about locking for marker control files :
+ * If a marker control file is added/removed manually racing with module
+ * load/unload, there may be warning messages appearing, but those two
+ * operations should be able to execute concurrently without any lock
+ * synchronizing their operation one wrt another.
+ * Locking the marker mutex, module mutex and also keeping a mutex here
+ * from mkdir/rmdir _and_ from the notifier called from module load/unload makes
+ * life miserable and just asks for deadlocks.
+ */
 
 /*
  * lookup a file/dir in parent dir.
@@ -871,8 +884,10 @@ static ssize_t marker_info_read(struct file *filp, char __user *ubuf,
 	    !_is_marker_present(channel, marker)) {
 		len += snprintf(buf + len, PAGE_SIZE - len,
 				"Marker Pre-enabled\n");
+		unlock_markers();
 		goto out;
 	}
+	unlock_markers();
 
 	marker_iter_reset(&iter);
 	marker_iter_start(&iter);
@@ -901,7 +916,6 @@ static ssize_t marker_info_read(struct file *filp, char __user *ubuf,
 	marker_iter_stop(&iter);
 
 out:
-	unlock_markers();
 	if (len >= PAGE_SIZE) {
 		len = PAGE_SIZE;
 		buf[PAGE_SIZE] = '\0';
@@ -1138,8 +1152,6 @@ static int build_marker_control_files(void)
 	if (!markers_control_dir)
 		return -EEXIST;
 
-	lock_markers();
-
 	marker_iter_reset(&iter);
 	marker_iter_start(&iter);
 	for (; iter.marker != NULL; marker_iter_next(&iter)) {
@@ -1150,7 +1162,6 @@ static int build_marker_control_files(void)
 	marker_iter_stop(&iter);
 
 out:
-	unlock_markers();
 	return err;
 }
 
@@ -1173,8 +1184,6 @@ static int remove_marker_control_dir(struct module *mod, struct marker *marker)
 		return -ENOENT;
 	name = marker_d->d_name.name;
 
-	lock_markers();
-
 	marker_iter_reset(&iter);
 	marker_iter_start(&iter);
 	for (; iter.marker != NULL; marker_iter_next(&iter)) {
@@ -1192,7 +1201,6 @@ static int remove_marker_control_dir(struct module *mod, struct marker *marker)
 
 end:
 	marker_iter_stop(&iter);
-	unlock_markers();
 	return 0;
 }
 
