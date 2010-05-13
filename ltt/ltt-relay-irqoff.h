@@ -402,8 +402,16 @@ static __inline__ void ltt_commit_slot(
 	long endidx = SUBBUF_INDEX(offset_end - 1, rchan);
 	long commit_count;
 
-	/* Must write slot data before incrementing commit count */
+#ifdef LTT_NO_IPI_BARRIER
 	smp_wmb();
+#else
+	/*
+	 * Must write slot data before incrementing commit count.
+	 * This compiler barrier is upgraded into a smp_mb() by the IPI
+	 * sent by get_subbuf().
+	 */
+	barrier();
+#endif
 	commit_count = local_read(&ltt_buf->commit_count[endidx]) + slot_size;
 	local_set(&ltt_buf->commit_count[endidx], commit_count);
 

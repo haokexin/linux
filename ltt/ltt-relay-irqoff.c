@@ -216,6 +216,17 @@ static int _ltt_release(struct rchan_buf *buf)
 	return 0;
 }
 
+/*
+ * Promote compiler barrier to a smp_mb().
+ * For the specific LTTng case, this IPI call should be removed if the
+ * architecture does not reorder writes.  This should eventually be provided by
+ * a separate architecture-specific infrastructure.
+ */
+static void remote_mb(void *info)
+{
+	smp_mb();
+}
+
 static int get_subbuf(struct rchan_buf *buf, unsigned long *consumed)
 {
 	struct ltt_channel_struct *ltt_channel =
@@ -231,8 +242,51 @@ static int get_subbuf(struct rchan_buf *buf, unsigned long *consumed)
 	 * data and the write offset. Correct consumed offset ordering
 	 * wrt commit count is insured by the use of cmpxchg to update
 	 * the consumed offset.
+	 * smp_call_function_single can fail if the remote CPU is offline,
+	 * this is OK because then there is no wmb to execute there.
+	 * If our thread is executing on the same CPU as the on the buffers
+	 * belongs to, we don't have to synchronize it at all. If we are
+	 * migrated, the scheduler will take care of the memory barriers.
+	 * Normally, smp_call_function_single() should ensure program order when
+	 * executing the remote function, which implies that it surrounds the
+	 * function execution with :
+	 * smp_mb()
+	 * send IPI
+	 * csd_lock_wait
+	 *                recv IPI
+	 *                smp_mb()
+	 *                exec. function
+	 *                smp_mb()
+	 *                csd unlock
+	 * smp_mb()
+	 *
+	 * However, smp_call_function_single() does not seem to clearly execute
+	 * such barriers. It depends on spinlock semantic to provide the barrier
+	 * before executing the IPI and, when busy-looping, csd_lock_wait only
+	 * executes smp_mb() when it has to wait for the other CPU.
+	 *
+	 * I don't trust this code. Therefore, let's add the smp_mb() sequence
+	 * required ourself, even if duplicated. It has no performance impact
+	 * anyway.
+	 *
+	 * smp_mb() is needed because smp_rmb() and smp_wmb() only order read vs
+	 * read and write vs write. They do not ensure core synchronization. We
+	 * really have to ensure total order between the 3 barriers running on
+	 * the 2 CPUs.
+	 */
+#ifdef LTT_NO_IPI_BARRIER
+	/*
+	 * Local rmb to match the remote wmb to read the commit count before the
+	 * buffer data and the write offset.
 	 */
 	smp_rmb();
+#else
+	if (raw_smp_processor_id() != buf->cpu) {
+		smp_mb();	/* Total order with IPI handler smp_mb() */
+		smp_call_function_single(buf->cpu, remote_mb, NULL, 1);
+		smp_mb();	/* Total order with IPI handler smp_mb() */
+	}
+#endif
 	write_offset = local_read(&ltt_buf->offset);
 	/*
 	 * Check that the subbuffer we are trying to consume has been
@@ -1188,8 +1242,12 @@ static void ltt_reserve_switch_old_subbuf(
 	padding_size = rchan->subbuf_size
 			- (SUBBUF_OFFSET(offsets->old - 1, rchan) + 1);
 	ltt_buffer_end(buf, *tsc, offsets->old, oldidx);
-	/* Must write buffer end before incrementing commit count */
-	smp_wmb();
+	/*
+	 * Must write slot data before incrementing commit count.
+	 * This compiler barrier is upgraded into a smp_wmb() by the IPI
+	 * sent by get_subbuf() when it does its smp_rmb().
+	 */
+	barrier();
 	commit_count = local_read(&ltt_buf->commit_count[oldidx])
 				  + padding_size;
 	local_set(&ltt_buf->commit_count[oldidx], commit_count);
@@ -1216,8 +1274,12 @@ static void ltt_reserve_switch_new_subbuf(
 	long commit_count;
 
 	ltt_buffer_begin(buf, *tsc, beginidx);
-	/* Must write buffer end before incrementing commit count */
-	smp_wmb();
+	/*
+	 * Must write slot data before incrementing commit count.
+	 * This compiler barrier is upgraded into a smp_wmb() by the IPI
+	 * sent by get_subbuf() when it does its smp_rmb().
+	 */
+	barrier();
 	commit_count = local_read(&ltt_buf->commit_count[beginidx])
 				  + ltt_subbuffer_header_size();
 	local_set(&ltt_buf->commit_count[beginidx], commit_count);
@@ -1258,8 +1320,12 @@ static void ltt_reserve_end_switch_current(
 	padding_size = rchan->subbuf_size
 			- (SUBBUF_OFFSET(offsets->end - 1, rchan) + 1);
 	ltt_buffer_end(buf, *tsc, offsets->end, endidx);
-	/* Must write buffer begin before incrementing commit count */
-	smp_wmb();
+	/*
+	 * Must write slot data before incrementing commit count.
+	 * This compiler barrier is upgraded into a smp_wmb() by the IPI
+	 * sent by get_subbuf() when it does its smp_rmb().
+	 */
+	barrier();
 	commit_count = local_read(&ltt_buf->commit_count[endidx])
 				  + padding_size;
 	local_set(&ltt_buf->commit_count[endidx], commit_count);
