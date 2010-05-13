@@ -114,6 +114,15 @@ config LTT_DEBUG_EVENT_SIZE
 	help
 	  Tracer-internal option to help debugging event type encoding problems.
 
+config LTT_USERSPACE_EVENT
+	tristate "Support logging events from userspace"
+	depends on LTT_TRACER
+	depends on LTT_FAST_SERIALIZE
+	default m
+	help
+	  This option lets userspace write text events in
+	  /debugfs/ltt/write_event.
+
 config LTT_VMCORE
 	bool "Support trace extraction from crash dump"
 	default y
