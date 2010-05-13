@@ -172,7 +172,7 @@ static __inline__ int ltt_relay_try_reserve(
 		size_t data_size,
 		u64 *tsc, unsigned int *rflags, int largest_align,
 		long *o_begin, long *o_end, long *o_old,
-		long *before_hdr_pad, long *size)
+		size_t *before_hdr_pad, size_t *size)
 {
 	*o_begin = ltt_buf->offset;
 	*o_old = *o_begin;
