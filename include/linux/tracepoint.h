@@ -39,6 +39,25 @@ struct tracepoint {
 #define TP_PROTO(args...)	args
 #define TP_ARGS(args...)	args
 
+#define DECLARE_TRACE_NOP(name, proto, args)				\
+	static inline void trace_##name(proto)				\
+	{ }								\
+	static inline void _trace_##name(proto)				\
+	{ }								\
+	static inline int register_trace_##name(void (*probe)(proto))	\
+	{								\
+		return -ENOSYS;						\
+	}								\
+	static inline int unregister_trace_##name(void (*probe)(proto))	\
+	{								\
+		return -ENOSYS;						\
+	}
+
+#define DEFINE_TRACE_FN_NOP(name, reg, unreg)
+#define DEFINE_TRACE_NOP(name)
+#define EXPORT_TRACEPOINT_SYMBOL_GPL_NOP(name)
+#define EXPORT_TRACEPOINT_SYMBOL_NOP(name)
+
 #ifdef CONFIG_TRACEPOINTS
 
 /*
@@ -121,25 +140,13 @@ extern void tracepoint_update_probe_range(struct tracepoint *begin,
 	struct tracepoint *end);
 
 #else /* !CONFIG_TRACEPOINTS */
-#define DECLARE_TRACE(name, proto, args)				\
-	static inline void trace_##name(proto)				\
-	{ }								\
-	static inline void _trace_##name(proto)				\
-	{ }								\
-	static inline int register_trace_##name(void (*probe)(proto))	\
-	{								\
-		return -ENOSYS;						\
-	}								\
-	static inline int unregister_trace_##name(void (*probe)(proto))	\
-	{								\
-		return -ENOSYS;						\
-	}
 
-#define DEFINE_TRACE_FN(name, reg, unreg)
-#define DEFINE_TRACE(name)
-#define EXPORT_TRACEPOINT_SYMBOL_GPL(name)
-#define EXPORT_TRACEPOINT_SYMBOL(name)
-
+#define DEFINE_TRACE_FN			DEFINE_TRACE_FN_NOP
+#define DECLARE_TRACE			DECLARE_TRACE_NOP
+#define DEFINE_TRACE			DEFINE_TRACE_NOP
+#define EXPORT_TRACEPOINT_SYMBOL_GPL	EXPORT_TRACEPOINT_SYMBOL_GPL_NOP
+#define EXPORT_TRACEPOINT_SYMBOL	EXPORT_TRACEPOINT_SYMBOL_NOP
+  
 static inline void tracepoint_update_probe_range(struct tracepoint *begin,
 	struct tracepoint *end)
 { }
