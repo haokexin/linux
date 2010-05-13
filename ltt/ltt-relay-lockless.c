@@ -662,10 +662,11 @@ static int subbuf_splice_actor(struct file *in,
 	consumed_idx = SUBBUF_INDEX(consumed_old, buf->chan);
 
 	/*
-	 * Adjust read len, if longer than what is available
+	 * Adjust read len, if longer than what is available.
+	 * Max read size is 1 subbuffer due to get_subbuf/put_subbuf for
+	 * protection.
 	 */
-	bytes_avail = SUBBUF_TRUNC(local_read(&ltt_buf->offset), buf->chan)
-		    - consumed_old;
+	bytes_avail = buf->chan->subbuf_size;
 	WARN_ON(bytes_avail > buf->chan->alloc_size);
 	len = min_t(size_t, len, bytes_avail);
 	subbuf_pages = bytes_avail >> PAGE_SHIFT;
