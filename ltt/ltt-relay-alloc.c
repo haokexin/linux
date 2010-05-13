@@ -91,7 +91,7 @@ int ltt_chanbuf_allocate(struct ltt_chanbuf_alloc *buf, size_t size,
 		if (unlikely(!buf->buf_rsb.pages))
 			goto free_buf_wsb;
 	} else {
-		buf->buf_rsb.pages = NULL;
+		buf->buf_rsb.pages = buf->buf_wsb[0].pages;
 	}
 
 	/* Assign pages to write-side page index */
