@@ -1183,6 +1183,7 @@ config HAVE_IMMEDIATE
 config IMMEDIATE
 	default y
 	depends on HAVE_IMMEDIATE
+	depends on BROKEN || !PPC
 	bool "Immediate value optimization" if EMBEDDED
 	help
 	  Immediate values are used as read-mostly variables that are rarely
