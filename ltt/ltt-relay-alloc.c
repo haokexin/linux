@@ -107,6 +107,7 @@ static int relay_alloc_buf(struct rchan_buf *buf, size_t *size,
 			buf->rchan_wsb[i].pages[j].page = pages[page_idx];
 			page_idx++;
 		}
+		RCHAN_SB_SET_NOREF(buf->rchan_wsb[i].pages);
 	}
 
 	if (extra_reader_sb) {
@@ -116,6 +117,7 @@ static int relay_alloc_buf(struct rchan_buf *buf, size_t *size,
 			buf->rchan_rsb.pages[j].page = pages[page_idx];
 			page_idx++;
 		}
+		RCHAN_SB_SET_NOREF(buf->rchan_rsb.pages);
 	}
 
 	/*
