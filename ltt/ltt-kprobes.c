@@ -220,7 +220,7 @@ static ssize_t enable_op_write(struct file *file,
 		goto error;
 	}
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto error;
@@ -256,7 +256,7 @@ static ssize_t disable_op_write(struct file *file,
 	if (module_exit)
 		goto end;
 
-	buf_size = min(count, PAGE_SIZE - 1);
+	buf_size = min_t(size_t, count, PAGE_SIZE - 1);
 	err = copy_from_user(buf, user_buf, buf_size);
 	if (err)
 		goto error;
