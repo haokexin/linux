@@ -73,6 +73,7 @@ struct ltt_chan_alloc {
 	unsigned long n_sb;		/* Number of sub-buffers */
 	struct dentry *parent;		/* Associated parent dentry */
 	struct dentry *ascii_dentry;	/* Text output dentry */
+	struct rcu_head rcu_cb;		/* RCU callback for buf removal */
 	char filename[NAME_MAX];	/* Filename for channel files */
 };
 
@@ -88,7 +89,8 @@ int ltt_chanbuf_create_file(const char *filename, struct dentry *parent,
 			    int mode, struct ltt_chanbuf *buf);
 int ltt_chanbuf_remove_file(struct ltt_chanbuf *buf);
 
-void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu);
+void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
+			       int sleepable);
 
 extern void _ltt_relay_write(struct ltt_chanbuf_alloc *bufa,
 			     size_t offset, const void *src, size_t len,

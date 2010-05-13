@@ -17,9 +17,11 @@
 #include <linux/cpu.h>
 #include <linux/bitops.h>
 #include <linux/ltt-tracer.h>
+#include <linux/rculist.h>
 
 #include "ltt-relay-select.h"	/* for cpu hotplug */
 
+/* Protect list and channel structures (alloc/free) for sleepable operations */
 static DEFINE_MUTEX(ltt_relay_alloc_mutex);
 /* list of open channels, for cpu hotplug. */
 static LIST_HEAD(ltt_relay_channels);
@@ -211,7 +213,7 @@ int __cpuinit ltt_relay_hotcpu_callback(struct notifier_block *nb,
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
 		mutex_lock(&ltt_relay_alloc_mutex);
-		list_for_each_entry(chan, &ltt_relay_channels, a.list) {
+		list_for_each_entry_rcu(chan, &ltt_relay_channels, a.list) {
 			struct ltt_chanbuf *buf = per_cpu_ptr(chan->a.buf, cpu);
 
 			ret = ltt_chanbuf_create(buf, &chan->a, cpu);
@@ -235,12 +237,13 @@ int __cpuinit ltt_relay_hotcpu_callback(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu)
+void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
+			       int sleepable)
 {
 	struct ltt_chan *chan;
 
-	mutex_lock(&ltt_relay_alloc_mutex);
-	list_for_each_entry(chan, &ltt_relay_channels, a.list) {
+	rcu_read_lock();
+	list_for_each_entry_rcu(chan, &ltt_relay_channels, a.list) {
 		struct ltt_chanbuf *buf;
 
 		if (!chan->active)
@@ -248,7 +251,7 @@ void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu)
 		buf = per_cpu_ptr(chan->a.buf, cpu);
 		cb(buf);
 	}
-	mutex_unlock(&ltt_relay_alloc_mutex);
+	rcu_read_unlock();
 }
 
 /**
@@ -312,7 +315,7 @@ int ltt_chan_alloc_init(struct ltt_chan_alloc *chan,
 		if (ret)
 			goto free_bufs;
 	}
-	list_add(&chan->list, &ltt_relay_channels);
+	list_add_rcu(&chan->list, &ltt_relay_channels);
 	mutex_unlock(&ltt_relay_alloc_mutex);
 
 	return 0;
@@ -331,6 +334,13 @@ free_bufs:
 free_chan:
 	kref_put(&chan->kref, ltt_chan_free);
 	return -ENOMEM;
+}
+
+void ltt_chan_alloc_free_rcu(struct rcu_head *head)
+{
+	struct ltt_chan_alloc *chana =
+		container_of(head, struct ltt_chan_alloc, rcu_cb);
+	free_percpu(chana->buf);
 }
 
 /**
@@ -352,9 +362,9 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 		ltt_chanbuf_remove_file(buf);
 		kref_put(&buf->a.kref, ltt_chanbuf_free);
 	}
-	list_del(&chan->list);
+	list_del_rcu(&chan->list);
 	mutex_unlock(&ltt_relay_alloc_mutex);
-	free_percpu(chan->buf);
+	call_rcu(&chan->rcu_cb, ltt_chan_alloc_free_rcu);
 }
 
 /**
