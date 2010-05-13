@@ -1077,7 +1077,7 @@ void ltt_channels_trace_start_timer(struct ltt_chan *channels,
 
 	for (i = 0; i < nr_channels; i++) {
 		struct ltt_chan *chan = &channels[i];
-		chan->trace->ops->start_switch_timer(chan);
+		chan->a.trace->ops->start_switch_timer(chan);
 	}
 }
 
@@ -1092,7 +1092,7 @@ void ltt_channels_trace_stop_timer(struct ltt_chan *channels,
 
 	for (i = 0; i < nr_channels; i++) {
 		struct ltt_chan *chan = &channels[i];
-		chan->trace->ops->stop_switch_timer(chan);
+		chan->a.trace->ops->stop_switch_timer(chan);
 	}
 }
 

@@ -256,6 +256,8 @@ void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
 
 /**
  * ltt_chan_create - create a new relay channel
+ * @chan: channel
+ * @trace: trace
  * @base_filename: base name of files to create
  * @parent: dentry of parent directory, %NULL for root directory
  * @sb_size: size of sub-buffers (> PAGE_SIZE, power of 2)
@@ -270,7 +272,7 @@ void ltt_chan_for_each_channel(void (*cb) (struct ltt_chanbuf *buf), int cpu,
  * base_filename_0...base_filename_N-1.  File permissions will
  * be %S_IRUSR.
  */
-int ltt_chan_alloc_init(struct ltt_chan_alloc *chan,
+int ltt_chan_alloc_init(struct ltt_chan_alloc *chan, struct ltt_trace *trace,
 			const char *base_filename,
 			struct dentry *parent, size_t sb_size,
 			size_t n_sb, int extra_reader_sb, int overwrite)
@@ -293,16 +295,17 @@ int ltt_chan_alloc_init(struct ltt_chan_alloc *chan,
 	WARN_ON_ONCE(hweight32(sb_size) != 1);
 	WARN_ON(hweight32(n_sb) != 1);
 
+	chan->trace = trace;
 	chan->buf_size = n_sb * sb_size;
 	chan->sb_size = sb_size;
 	chan->sb_size_order = get_count_order(sb_size);
 	chan->n_sb_order = get_count_order(n_sb);
 	chan->extra_reader_sb = extra_reader_sb;
-
 	chan->n_sb = n_sb;
 	chan->parent = parent;
 	strlcpy(chan->filename, base_filename, NAME_MAX);
 	kref_init(&chan->kref);
+	kref_get(&chan->trace->kref);
 
 	/* Allocating the child structure */
 	chan->buf = alloc_percpu(struct ltt_chanbuf);
@@ -336,13 +339,6 @@ free_chan:
 	return -ENOMEM;
 }
 
-void ltt_chan_alloc_free_rcu(struct rcu_head *head)
-{
-	struct ltt_chan_alloc *chana =
-		container_of(head, struct ltt_chan_alloc, rcu_cb);
-	free_percpu(chana->buf);
-}
-
 /**
  * ltt_chan_alloc_free - destroy the channel
  * @chan: the channel
@@ -364,7 +360,12 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 	}
 	list_del_rcu(&chan->list);
 	mutex_unlock(&ltt_relay_alloc_mutex);
-	call_rcu(&chan->rcu_cb, ltt_chan_alloc_free_rcu);
+	/* Delay channel free for RCU channel list, protected by
+	 * RCU sched. */
+	synchronize_sched();
+	free_percpu(chan->buf);
+	kref_put(&chan->trace->kref, ltt_release_trace);
+	wake_up_interruptible(&chan->trace->kref_wq);
 }
 
 /**

@@ -512,7 +512,7 @@ int ltt_ascii_create(struct ltt_chan *chan)
 
 	dentry = debugfs_create_file(chan->a.filename,
 				     S_IRUSR | S_IRGRP,
-				     chan->trace->dentry.ascii_root,
+				     chan->a.trace->dentry.ascii_root,
 				     chan, &ltt_ascii_fops);
 	if (IS_ERR(dentry))
 		return PTR_ERR(dentry);

@@ -50,6 +50,7 @@
 #include <linux/stat.h>
 #include <linux/cpu.h>
 #include <linux/idle.h>
+#include <linux/delay.h>
 #include <asm/atomic.h>
 #include <asm/local.h>
 #include <linux/notifier.h>
@@ -88,7 +89,7 @@ void ltt_buffer_begin(struct ltt_chanbuf *buf, u64 tsc, unsigned int subbuf_idx)
 	header->cycle_count_begin = tsc;
 	header->lost_size = 0xFFFFFFFF; /* for debugging */
 	header->buf_size = chan->a.sb_size;
-	ltt_write_trace_header(chan->trace, header);
+	ltt_write_trace_header(chan->a.trace, header);
 }
 
 /*
@@ -123,9 +124,6 @@ void ltt_chanbuf_free(struct kref *kref)
 #endif
 	kfree(buf->commit_count);
 
-	kref_put(&chan->trace->kref, ltt_release_trace);
-	wake_up_interruptible(&chan->trace->kref_wq);
-
 	ltt_chanbuf_alloc_free(&buf->a);
 }
 
@@ -139,7 +137,7 @@ int ltt_chanbuf_create(struct ltt_chanbuf *buf, struct ltt_chan_alloc *chana,
 		       int cpu)
 {
 	struct ltt_chan *chan = container_of(chana, struct ltt_chan, a);
-	struct ltt_trace *trace = chan->trace;
+	struct ltt_trace *trace = chana->trace;
 	unsigned int j, n_sb;
 	int ret;
 
@@ -172,7 +170,6 @@ int ltt_chanbuf_create(struct ltt_chanbuf *buf, struct ltt_chan_alloc *chana,
 	}
 #endif
 
-	kref_get(&chan->trace->kref);
 	local_set(&buf->offset, ltt_sb_header_size());
 	atomic_long_set(&buf->consumed, 0);
 	atomic_long_set(&buf->active_readers, 0);
@@ -205,8 +202,6 @@ int ltt_chanbuf_create(struct ltt_chanbuf *buf, struct ltt_chan_alloc *chana,
 
 	/* Error handling */
 free_init:
-	kref_put(&chan->trace->kref, ltt_release_trace);
-	wake_up_interruptible(&chan->trace->kref_wq);
 #ifdef CONFIG_LTT_VMCORE
 	kfree(buf->commit_seq);
 free_commit:
@@ -237,10 +232,9 @@ int ltt_chan_create(const char *base_filename,
 	int ret;
 
 	chan->overwrite = overwrite;
-	chan->trace = trace;
 
-	ret = ltt_chan_alloc_init(&chan->a, base_filename, parent, sb_size,
-				  n_sb, overwrite, overwrite);
+	ret = ltt_chan_alloc_init(&chan->a, trace, base_filename, parent,
+				  sb_size, n_sb, overwrite, overwrite);
 	if (ret)
 		goto error;
 
@@ -670,7 +664,7 @@ void ltt_relay_print_errors(struct ltt_chanbuf *buf, struct ltt_chan *chan,
 static
 void ltt_relay_print_buffer_errors(struct ltt_chan *chan, unsigned int cpu)
 {
-	struct ltt_trace *trace = chan->trace;
+	struct ltt_trace *trace = chan->a.trace;
 	struct ltt_chanbuf *buf = per_cpu_ptr(chan->a.buf, cpu);
 
 	if (local_read(&buf->events_lost))
