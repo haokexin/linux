@@ -1554,7 +1554,7 @@ int ltt_reserve_slot_locked_slow(struct ltt_trace_struct *trace,
 EXPORT_SYMBOL_GPL(ltt_reserve_slot_locked_slow);
 
 static struct ltt_transport ltt_relay_transport = {
-	.name = "relay-locked",
+	.name = "relay",
 	.owner = THIS_MODULE,
 	.ops = {
 		.create_dirs = ltt_relay_create_dirs,
