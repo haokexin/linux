@@ -18,3 +18,4 @@ obj-$(CONFIG_LTT_FILTER)		+= ltt-filter.o
 obj-$(CONFIG_LTT_KPROBES)		+= ltt-kprobes.o
 obj-$(CONFIG_LTT_TRACEPROBES)		+= probes/
 obj-$(CONFIG_LTT_FTRACE)		+= ltt-ftrace.o
+obj-$(CONFIG_LTT_ASCII)			+= ltt-ascii.o

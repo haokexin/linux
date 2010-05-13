@@ -218,6 +218,7 @@ struct ltt_trace_struct {
 	struct ltt_channel_setting *settings;
 	struct {
 		struct dentry			*trace_root;
+		struct dentry			*ascii_root;
 	} dentry;
 	struct rchan_callbacks callbacks;
 	struct kref kref; /* Each channel has a kref of the trace struct */
@@ -639,6 +640,8 @@ static inline void ltt_commit_slot(
 #define LTT_RCU_CHANNEL			"rcu"
 
 #define LTT_FLIGHT_PREFIX	"flight-"
+
+#define LTT_ASCII			"ascii"
 
 /* Tracer properties */
 #define LTT_DEFAULT_SUBBUF_SIZE_LOW	65536
