@@ -180,6 +180,9 @@ static __inline__ int ltt_relay_try_reserve(
 	*o_old = *o_begin;
 
 	*tsc = trace_clock_read64();
+
+	prefetch(&ltt_buf->commit_count[SUBBUF_INDEX(*o_begin, rchan)]);
+
 	if (last_tsc_overflow(ltt_buf, *tsc))
 		*rflags = LTT_RFLAG_ID_SIZE_TSC;
 
