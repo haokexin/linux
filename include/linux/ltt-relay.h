@@ -171,7 +171,7 @@ extern void *ltt_relay_offset_address(struct rchan_buf *buf,
  * Find the page containing "offset". Cache it if it is after the currently
  * cached page.
  */
-static inline struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
+static __inline__ struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
 		struct buf_page **page_cache,
 		struct buf_page *page, size_t offset)
 {
@@ -206,7 +206,7 @@ static inline struct buf_page *ltt_relay_cache_page(struct rchan_buf *buf,
 }
 
 #ifdef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
-static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
+static __inline__ void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 {
 	switch (len) {
 	case 0:
@@ -225,7 +225,7 @@ static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 		break;
 	default:
 		/*
-		 * What we really want here is an inline memcpy, but we don't
+		 * What we really want here is an __inline__ memcpy, but we don't
 		 * have constants, so gcc generally uses a function call.
 		 */
 		for (; len > 0; len--)
@@ -237,7 +237,7 @@ static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
  * Returns whether the dest and src addresses are aligned on
  * min(sizeof(void *), len). Call this with statically known len for efficiency.
  */
-static inline int addr_aligned(const void *dest, const void *src, size_t len)
+static __inline__ int addr_aligned(const void *dest, const void *src, size_t len)
 {
 	if (ltt_align((size_t)dest, len))
 		return 0;
@@ -246,7 +246,7 @@ static inline int addr_aligned(const void *dest, const void *src, size_t len)
 	return 1;
 }
 
-static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
+static __inline__ void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 {
 	switch (len) {
 	case 0:
@@ -284,7 +284,7 @@ memcpy_fallback:
 }
 #endif
 
-static inline int ltt_relay_write(struct rchan_buf *buf, size_t offset,
+static __inline__ int ltt_relay_write(struct rchan_buf *buf, size_t offset,
 	const void *src, size_t len)
 {
 	struct buf_page *page;

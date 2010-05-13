@@ -108,13 +108,13 @@ struct ltt_channel_buf_struct {
  */
 
 #if (BITS_PER_LONG == 32)
-static inline void save_last_tsc(struct ltt_channel_buf_struct *ltt_buf,
+static __inline__ void save_last_tsc(struct ltt_channel_buf_struct *ltt_buf,
 					u64 tsc)
 {
 	ltt_buf->last_tsc = (unsigned long)(tsc >> LTT_TSC_BITS);
 }
 
-static inline int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
+static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
 					u64 tsc)
 {
 	unsigned long tsc_shifted = (unsigned long)(tsc >> LTT_TSC_BITS);
@@ -125,13 +125,13 @@ static inline int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
 		return 0;
 }
 #else
-static inline void save_last_tsc(struct ltt_channel_buf_struct *ltt_buf,
+static __inline__ void save_last_tsc(struct ltt_channel_buf_struct *ltt_buf,
 					u64 tsc)
 {
 	ltt_buf->last_tsc = (unsigned long)tsc;
 }
 
-static inline int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
+static __inline__ int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
 					u64 tsc)
 {
 	if (unlikely((tsc - ltt_buf->last_tsc) >> LTT_TSC_BITS))
@@ -147,7 +147,7 @@ static inline int last_tsc_overflow(struct ltt_channel_buf_struct *ltt_buf,
  */
 enum force_switch_mode { FORCE_ACTIVE, FORCE_FLUSH };
 
-static inline void ltt_buffer_begin(struct rchan_buf *buf,
+static __inline__ void ltt_buffer_begin(struct rchan_buf *buf,
 			u64 tsc, unsigned int subbuf_idx)
 {
 	struct ltt_channel_struct *channel =
@@ -167,7 +167,7 @@ static inline void ltt_buffer_begin(struct rchan_buf *buf,
  * offset is assumed to never be 0 here : never deliver a completely empty
  * subbuffer. The lost size is between 0 and subbuf_size-1.
  */
-static inline void ltt_buffer_end(struct rchan_buf *buf,
+static __inline__ void ltt_buffer_end(struct rchan_buf *buf,
 		u64 tsc, unsigned int offset, unsigned int subbuf_idx)
 {
 	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
@@ -183,7 +183,7 @@ static inline void ltt_buffer_end(struct rchan_buf *buf,
 	header->subbuf_corrupt = local_read(&ltt_buf->corrupted_subbuffers);
 }
 
-static inline void ltt_deliver(struct rchan_buf *buf, unsigned int subbuf_idx,
+static __inline__ void ltt_deliver(struct rchan_buf *buf, unsigned int subbuf_idx,
 		void *subbuf)
 {
 	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
@@ -203,7 +203,7 @@ struct ltt_reserve_switch_offsets {
  * 0 if ok
  * !0 if execution must be aborted.
  */
-static inline int ltt_relay_try_reserve(
+static __inline__ int ltt_relay_try_reserve(
 		struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf, struct rchan *rchan,
 		struct rchan_buf *buf,
@@ -320,7 +320,7 @@ static inline int ltt_relay_try_reserve(
  * 0 if ok
  * !0 if execution must be aborted.
  */
-static inline int ltt_relay_try_switch(
+static __inline__ int ltt_relay_try_switch(
 		enum force_switch_mode mode,
 		struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf, struct rchan *rchan,
@@ -378,7 +378,7 @@ static inline int ltt_relay_try_switch(
 	return 0;
 }
 
-static inline void ltt_reserve_push_reader(
+static __inline__ void ltt_reserve_push_reader(
 		struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf,
 		struct rchan *rchan,
@@ -472,7 +472,7 @@ static inline void ltt_reserve_push_reader(
  *
  * Note : offset_old should never be 0 here.
  */
-static inline void ltt_reserve_switch_old_subbuf(
+static __inline__ void ltt_reserve_switch_old_subbuf(
 		struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf, struct rchan *rchan,
 		struct rchan_buf *buf,
@@ -502,7 +502,7 @@ static inline void ltt_reserve_switch_old_subbuf(
  * sub-buffer before this code gets executed, caution.  The commit makes sure
  * that this code is executed before the deliver of this sub-buffer.
  */
-static inline void ltt_reserve_switch_new_subbuf(
+static __inline__ void ltt_reserve_switch_new_subbuf(
 		struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf, struct rchan *rchan,
 		struct rchan_buf *buf,
@@ -542,7 +542,7 @@ static inline void ltt_reserve_switch_new_subbuf(
  * (uncommited) subbuffer will be declared corrupted, and that the new subbuffer
  * will be declared corrupted too because of the commit count adjustment.
  */
-static inline void ltt_reserve_end_switch_current(
+static __inline__ void ltt_reserve_end_switch_current(
 		struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf, struct rchan *rchan,
 		struct rchan_buf *buf,
@@ -579,7 +579,7 @@ static inline void ltt_reserve_end_switch_current(
  * Return : -ENOSPC if not enough space, else returns 0.
  * It will take care of sub-buffer switching.
  */
-static inline int ltt_reserve_slot(struct ltt_trace_struct *trace,
+static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 		struct ltt_channel_struct *ltt_channel, void **transport_data,
 		size_t data_size, size_t *slot_size, long *buf_offset, u64 *tsc,
 		unsigned int *rflags, int largest_align, int cpu)
@@ -652,7 +652,7 @@ static inline int ltt_reserve_slot(struct ltt_trace_struct *trace,
  * operations, this function must be called from the CPU which owns the buffer
  * for a ACTIVE flush.
  */
-static inline void ltt_force_switch(struct rchan_buf *buf,
+static __inline__ void ltt_force_switch(struct rchan_buf *buf,
 		enum force_switch_mode mode)
 {
 	struct ltt_channel_struct *ltt_channel =
@@ -715,7 +715,7 @@ static inline void ltt_force_switch(struct rchan_buf *buf,
  * subbuffer).
  */
 #ifdef CONFIG_LTT_VMCORE
-static inline void ltt_write_commit_counter(struct rchan_buf *buf,
+static __inline__ void ltt_write_commit_counter(struct rchan_buf *buf,
 		long buf_offset, size_t slot_size)
 {
 	struct ltt_channel_buf_struct *ltt_buf = buf->chan_private;
@@ -746,7 +746,7 @@ static inline void ltt_write_commit_counter(struct rchan_buf *buf,
 	}
 }
 #else
-static inline void ltt_write_commit_counter(struct rchan_buf *buf,
+static __inline__ void ltt_write_commit_counter(struct rchan_buf *buf,
 		long buf_offset, size_t slot_size)
 {
 }
@@ -763,7 +763,7 @@ static inline void ltt_write_commit_counter(struct rchan_buf *buf,
  * @buf_offset : offset following the event header.
  * @slot_size : size of the reserved slot.
  */
-static inline void ltt_commit_slot(
+static __inline__ void ltt_commit_slot(
 		struct ltt_channel_struct *ltt_channel,
 		void **transport_data, long buf_offset, size_t slot_size)
 {
