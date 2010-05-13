@@ -38,6 +38,7 @@
  * Dual LGPL v2.1/GPL v2 license.
  */
 
+#include <linux/cache.h>
 #include <linux/time.h>
 #include <linux/ltt-tracer.h>
 #include <linux/ltt-relay.h>
@@ -99,7 +100,7 @@ struct ltt_channel_buf_struct {
 	struct timer_list switch_timer;	/* timer for periodical switch */
 	unsigned long switch_timer_interval;	/* in jiffies. 0 unset */
 	struct rchan_buf *rbuf;		/* Pointer to rchan_buf */
-} ____cacheline_aligned;
+} ____cacheline_internodealigned_in_smp;
 
 /*
  * A switch is done during tracing or as a final flush after tracing (so it
