@@ -10,11 +10,7 @@
 #include <linux/module.h>
 #include <linux/ltt-type-serializer.h>
 
-#ifdef CONFIG_LTT_RELAY_LOCKLESS
-#include "ltt-relay-lockless.h"
-#else
-#include "ltt-relay-locked.h"
-#endif
+#include "ltt-relay-select.h"
 
 notrace void _ltt_specialized_trace(const struct marker *mdata,
 		void *probe_data,
