@@ -1024,9 +1024,16 @@ static void __ltt_trace_destroy(struct ltt_trace *trace)
 	 */
 	if (atomic_read(&trace->kref.refcount) > 1) {
 		int ret = 0;
+		/*
+		 * Unlock traces and CPU hotplug while we wait for lttd to
+		 * release the files.
+		 */
+		ltt_unlock_traces();
 		__wait_event_interruptible(trace->kref_wq,
 			(atomic_read(&trace->kref.refcount) == 1), ret);
+		ltt_lock_traces();
 	}
+
 	kref_put(&trace->kref, ltt_release_trace);
 }
 
@@ -1043,9 +1050,8 @@ int ltt_trace_destroy(const char *trace_name)
 		if (err)
 			goto error;
 
-		ltt_unlock_traces();
-
 		__ltt_trace_destroy(trace);
+		ltt_unlock_traces();
 		put_trace_clock();
 
 		return 0;
