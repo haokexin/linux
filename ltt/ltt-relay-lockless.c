@@ -49,8 +49,10 @@
 #include <linux/smp_lock.h>
 #include <linux/stat.h>
 #include <linux/cpu.h>
+#include <linux/idle.h>
 #include <asm/atomic.h>
 #include <asm/local.h>
+#include <linux/notifier.h>
 
 #include "ltt-relay-lockless.h"
 
@@ -513,6 +515,14 @@ void ltt_chan_stop_switch_timer(struct ltt_chan *chan)
 	put_online_cpus();
 }
 
+static void ltt_chanbuf_idle_switch(struct ltt_chanbuf *buf)
+{
+	struct ltt_chan *chan = container_of(buf->a.chan, struct ltt_chan, a);
+
+	if (chan->switch_timer_interval)
+		ltt_force_switch(buf, FORCE_ACTIVE);
+}
+
 static void ltt_chanbuf_switch(struct ltt_chanbuf *buf)
 {
 	ltt_force_switch(buf, FORCE_ACTIVE);
@@ -538,7 +548,8 @@ int ltt_chanbuf_hotcpu_callback(struct notifier_block *nb,
 	case CPU_DOWN_FAILED_FROZEN:
 	case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:
-		ltt_chan_for_each_channel(ltt_chanbuf_start_switch_timer, cpu);
+		ltt_chan_for_each_channel(ltt_chanbuf_start_switch_timer,
+					  cpu, 1);
 		return NOTIFY_OK;
 
 	case CPU_DOWN_PREPARE:
@@ -547,7 +558,8 @@ int ltt_chanbuf_hotcpu_callback(struct notifier_block *nb,
 		 * Performs an IPI to delete the timer locally on the target
 		 * CPU.
 		 */
-		ltt_chan_for_each_channel(ltt_chanbuf_stop_switch_timer, cpu);
+		ltt_chan_for_each_channel(ltt_chanbuf_stop_switch_timer,
+					  cpu, 1);
 		return NOTIFY_OK;
 
 	case CPU_DEAD:
@@ -558,13 +570,27 @@ int ltt_chanbuf_hotcpu_callback(struct notifier_block *nb,
 		 * CPU stopped running completely. Ensures that all data
 		 * from that remote CPU is flushed.
 		 */
-		ltt_chan_for_each_channel(ltt_chanbuf_switch, cpu);
+		ltt_chan_for_each_channel(ltt_chanbuf_switch, cpu, 0);
 		return NOTIFY_OK;
 
 	default:
 		return NOTIFY_DONE;
 	}
 }
+
+static int pm_idle_entry_callback(struct notifier_block *self,
+				  unsigned long val, void *data)
+{
+	if (val == IDLE_START)
+		ltt_chan_for_each_channel(ltt_chanbuf_idle_switch,
+					  smp_processor_id(), 0);
+	return 0;
+}
+
+struct notifier_block pm_idle_entry_notifier = {
+	.notifier_call = pm_idle_entry_callback,
+	.priority = ~0U,	/* smallest prio, run after tracing events */
+};
 
 static
 void ltt_relay_print_written(struct ltt_chan *chan, long cons_off,
@@ -1297,6 +1323,7 @@ static int __init ltt_relay_init(void)
 
 	ltt_transport_register(&ltt_relay_transport);
 	register_cpu_notifier(&fn_ltt_chanbuf_hotcpu_callback);
+	register_idle_notifier(&pm_idle_entry_notifier);
 
 	return 0;
 }
@@ -1305,6 +1332,7 @@ static void __exit ltt_relay_exit(void)
 {
 	printk(KERN_INFO "LTT : ltt-relay exit\n");
 
+	unregister_idle_notifier(&pm_idle_entry_notifier);
 	unregister_cpu_notifier(&fn_ltt_chanbuf_hotcpu_callback);
 	ltt_transport_unregister(&ltt_relay_transport);
 }
