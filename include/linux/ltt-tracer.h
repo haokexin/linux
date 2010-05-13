@@ -658,6 +658,8 @@ enum ltt_filter_control_msg {
 extern int ltt_filter_control(enum ltt_filter_control_msg msg,
 		const char *trace_name);
 
+extern struct dentry *get_filter_root(void);
+
 void ltt_write_trace_header(struct ltt_trace_struct *trace,
 		struct ltt_subbuffer_header *header);
 extern void ltt_buffer_destroy(struct ltt_channel_struct *ltt_chan);
