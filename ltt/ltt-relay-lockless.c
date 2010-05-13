@@ -990,6 +990,7 @@ int ltt_relay_try_switch_slow(enum force_switch_mode mode,
 {
 	long sb_index;
 	long reserve_commit_diff;
+	long off;
 
 	offsets->begin = local_read(&buf->offset);
 	offsets->old = offsets->begin;
@@ -998,7 +999,8 @@ int ltt_relay_try_switch_slow(enum force_switch_mode mode,
 
 	*tsc = trace_clock_read64();
 
-	if (SUBBUF_OFFSET(offsets->begin, chan) != 0) {
+	off = SUBBUF_OFFSET(offsets->begin, chan);
+	if ((mode != FORCE_ACTIVE && off > 0) || off > ltt_sb_header_size()) {
 		offsets->begin = SUBBUF_ALIGN(offsets->begin, chan);
 		offsets->end_switch_old = 1;
 	} else {
