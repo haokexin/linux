@@ -629,7 +629,7 @@ size_t ltt_serialize_printf(struct rchan_buf *buf, unsigned long buf_offset,
 	char outfmt[4] = "%";
 	size_t outpos = 0;
 	size_t len;
-	unsigned long msgpos = buf_offset;
+	size_t msgpos = buf_offset;
 
 	for (; *fmt ; ++fmt) {
 		switch (*fmt) {
