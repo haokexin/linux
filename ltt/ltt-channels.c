@@ -66,7 +66,6 @@ static void release_channel_setting(struct kref *kref)
 			iter->index = free_index++;
 			iter->free_event_id = 0;
 		}
-		markers_compact_event_ids();
 	}
 }
 
@@ -81,6 +80,8 @@ static void release_trace_channel(struct kref *kref)
 
 	list_for_each_entry_safe(iter, n, &ltt_channels, list)
 		release_channel_setting(&iter->kref);
+	if (atomic_read(&index_kref.refcount) == 0)
+		markers_compact_event_ids();
 }
 
 /*
@@ -134,23 +135,28 @@ EXPORT_SYMBOL_GPL(ltt_channels_register);
 /**
  * ltt_channels_unregister - Unregister a trace channel.
  * @name: channel name
+ * @compacting: performing compaction
  *
  * Must be called with markers mutex held.
  */
-int ltt_channels_unregister(const char *name)
+int ltt_channels_unregister(const char *name, int compacting)
 {
 	struct ltt_channel_setting *setting;
 	int ret = 0;
 
-	mutex_lock(&ltt_channel_mutex);
+	if (!compacting)
+		mutex_lock(&ltt_channel_mutex);
 	setting = lookup_channel(name);
 	if (!setting || atomic_read(&setting->kref.refcount) == 0) {
 		ret = -ENOENT;
 		goto end;
 	}
 	kref_put(&setting->kref, release_channel_setting);
+	if (!compacting && atomic_read(&index_kref.refcount) == 0)
+			markers_compact_event_ids();
 end:
-	mutex_unlock(&ltt_channel_mutex);
+	if (!compacting)
+		mutex_unlock(&ltt_channel_mutex);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(ltt_channels_unregister);

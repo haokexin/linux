@@ -41,7 +41,7 @@ struct ltt_channel_setting {
 };
 
 int ltt_channels_register(const char *name);
-int ltt_channels_unregister(const char *name);
+int ltt_channels_unregister(const char *name, int compacting);
 int ltt_channels_set_default(const char *name,
 			     unsigned int subbuf_size,
 			     unsigned int subbuf_cnt);
