@@ -40,6 +40,22 @@ ltt_tracer_call(unsigned long ip, unsigned long parent_ip)
 	trace_mark(ftrace_entry, "ip 0x%lX parent_ip 0x%lX", ip, parent_ip);
 }
 
+static notrace void ltt_tap_marker(void *probe_data, void *call_data,
+	const char *fmt, va_list *args)
+{
+	int cpu = raw_smp_processor_id();
+	if (likely(!per_cpu(tracing_cpu, cpu)
+			&& !atomic_read(&system_trace_refcount)))
+		return;
+	ltt_vtrace(probe_data, call_data, fmt, args);
+}
+
+struct ltt_available_probe ltt_tap_marker_probe = {
+	.name = "ltt_tap_marker",
+	.format = NULL,
+	.probe_func = ltt_tap_marker,
+};
+
 static struct ftrace_ops trace_ops __read_mostly =
 {
 	.func = ltt_tracer_call,
@@ -115,6 +131,8 @@ static int __init ltt_ftrace_init(void)
 	BUG_ON(ret);
 	ret = ltt_probe_register(&ftrace_system_stop_probe);
 	BUG_ON(ret);
+	ret = ltt_probe_register(&ltt_tap_marker_probe);
+	BUG_ON(ret);
 
 	/*
 	 * Keep a refcount on ourselves, because ftrace forbids freeing
@@ -134,6 +152,8 @@ static void __exit ltt_ftrace_exit(void)
 	int ret;
 
 	printk(KERN_INFO "LTT : ltt-ftrace exit\n");
+	ret = ltt_probe_unregister(&ltt_tap_marker_probe);
+	BUG_ON(ret);
 	ret = ltt_probe_unregister(&ftrace_system_stop_probe);
 	BUG_ON(ret);
 	ret = ltt_probe_unregister(&ftrace_system_start_probe);
