@@ -15,3 +15,4 @@ obj-$(CONFIG_LTT_TRACE_CONTROL)		+= ltt-trace-control.o
 obj-$(CONFIG_LTT_USERSPACE_EVENT)	+= ltt-userspace-event.o
 obj-$(CONFIG_LTT_FILTER)		+= ltt-filter.o
 obj-$(CONFIG_LTT_KPROBES)		+= ltt-kprobes.o
+obj-$(CONFIG_LTT_TRACEPROBES)		+= probes/
