@@ -3,6 +3,8 @@
 
 #ifdef CONFIG_LTT_RELAY_LOCKLESS
 #include "ltt-relay-lockless.h"
+#elif defined(CONFIG_LTT_RELAY_IRQOFF)
+#include "ltt-relay-irqoff.h"
 #elif defined(CONFIG_LTT_RELAY_LOCKED)
 #include "ltt-relay-locked.h"
 #else
