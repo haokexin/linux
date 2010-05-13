@@ -29,6 +29,7 @@
 #include <linux/ipc.h>
 #include <linux/uaccess.h>
 #include <linux/slab.h>
+#include <trace/ipc.h>
 
 #include <asm/asm.h>
 #include <asm/branch.h>
@@ -40,6 +41,8 @@
 #include <asm/shmparam.h>
 #include <asm/sysmips.h>
 #include <asm/uaccess.h>
+
+DEFINE_TRACE(ipc_call);
 
 /*
  * For historic reasons the pipe(2) syscall on MIPS has an unusual calling
