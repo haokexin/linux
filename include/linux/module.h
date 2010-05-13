@@ -546,6 +546,7 @@ int register_module_notifier(struct notifier_block * nb);
 int unregister_module_notifier(struct notifier_block * nb);
 
 extern void print_modules(void);
+extern void list_modules(void *call_data);
 
 extern void module_update_markers(void);
 extern int module_get_iter_markers(struct marker_iter *iter);
@@ -666,6 +667,10 @@ static inline int unregister_module_notifier(struct notifier_block * nb)
 #define module_put_and_exit(code) do_exit(code)
 
 static inline void print_modules(void)
+{
+}
+
+static inline void list_modules(void *call_data)
 {
 }
 
