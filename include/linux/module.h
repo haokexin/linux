@@ -553,9 +553,6 @@ extern int module_get_iter_markers(struct marker_iter *iter);
 extern void module_update_tracepoints(void);
 extern int module_get_iter_tracepoints(struct tracepoint_iter *iter);
 
-extern void _module_imv_update(void);
-extern void module_imv_update(void);
-
 #else /* !CONFIG_MODULES... */
 #define EXPORT_SYMBOL(sym)
 #define EXPORT_SYMBOL_GPL(sym)
@@ -690,6 +687,12 @@ static inline int module_get_iter_markers(struct marker_iter *iter)
 	return 0;
 }
 
+#endif /* CONFIG_MODULES */
+
+#if defined(CONFIG_MODULES) && defined(CONFIG_IMMEDIATE)
+extern void _module_imv_update(void);
+extern void module_imv_update(void);
+#else
 static inline void _module_imv_update(void)
 {
 }
@@ -697,8 +700,7 @@ static inline void _module_imv_update(void)
 static inline void module_imv_update(void)
 {
 }
-
-#endif /* CONFIG_MODULES */
+#endif
 
 struct device_driver;
 #ifdef CONFIG_SYSFS
