@@ -36,6 +36,7 @@
 #include <linux/file.h>
 #include <linux/init.h>
 #include <linux/personality.h>
+#include <trace/ipc.h>
 
 #include <asm/uaccess.h>
 #include <asm/syscalls.h>
