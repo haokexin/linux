@@ -682,6 +682,14 @@ extern void ltt_dump_marker_state(struct ltt_trace_struct *trace);
 void ltt_lock_traces(void);
 void ltt_unlock_traces(void);
 
+#ifdef CONFIG_LTT_KPROBES
+extern void ltt_dump_kprobes_table(void *call_data);
+#else
+static inline void ltt_dump_kprobes_table(void *call_data)
+{
+}
+#endif
+
 /* Relay IOCTL */
 
 /* Get the next sub buffer that can be read. */

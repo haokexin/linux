@@ -136,4 +136,19 @@ config LTT_VMCORE
 
 	  Special crash extension should be used to extract ltt buffers.
 
+config LTT_KPROBES
+	bool "Linux Trace Toolkit Kprobes Support"
+	depends on HAVE_KPROBES
+	depends on LTT_TRACE_CONTROL
+	depends on LTT_FAST_SERIALIZE
+	select KPROBES
+	select KALLSYMS
+	default y
+	help
+	  Allows connecting the LTTng tracer on kprobes using simple debugfs
+	  file operations :
+	    ltt/kprobes/enable
+	    ltt/kprobes/disable
+	    ltt/kprobes/list
+
 endif # LTT
