@@ -307,6 +307,13 @@ void probe_sched_process_fork(struct task_struct *parent,
 		parent->pid, child->pid, child->tgid);
 }
 
+void probe_sched_kthread_create(void *fn, int pid)
+{
+	trace_mark_tp(kernel_kthread_create, sched_kthread_create,
+		probe_sched_kthread_create,
+		"fn %p pid %d", fn, pid);
+}
+
 void probe_timer_itimer_expired(struct signal_struct *sig)
 {
 	trace_mark_tp(kernel_timer_itimer_expired, timer_itimer_expired,
