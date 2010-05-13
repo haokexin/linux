@@ -136,7 +136,7 @@ enum marker_id {
 
 /* static ids 0-1 reserved for internal use. */
 #define MARKER_CORE_IDS		2
-static inline enum marker_id marker_id_type(uint16_t id)
+static __inline__ enum marker_id marker_id_type(uint16_t id)
 {
 	if (id < MARKER_CORE_IDS)
 		return (enum marker_id)id;
@@ -306,7 +306,7 @@ struct ltt_subbuffer_header {
  * structure because gcc generates inefficient code on some architectures
  * (powerpc, mips..)
  */
-static inline size_t ltt_subbuffer_header_size(void)
+static __inline__ size_t ltt_subbuffer_header_size(void)
 {
 	return offsetof(struct ltt_subbuffer_header, header_end);
 }
@@ -331,7 +331,7 @@ static inline size_t ltt_subbuffer_header_size(void)
  * The payload must itself determine its own alignment from the biggest type it
  * contains.
  * */
-static inline unsigned char ltt_get_header_size(
+static __inline__ unsigned char ltt_get_header_size(
 		struct ltt_channel_struct *channel,
 		size_t offset,
 		size_t data_size,
@@ -385,7 +385,7 @@ static inline unsigned char ltt_get_header_size(
  *
  * returns : offset where the event data must be written.
  */
-static inline size_t ltt_write_event_header(struct ltt_trace_struct *trace,
+static __inline__ size_t ltt_write_event_header(struct ltt_trace_struct *trace,
 		struct ltt_channel_struct *channel,
 		struct rchan_buf *buf, long buf_offset,
 		u16 eID, size_t event_size,
@@ -461,7 +461,7 @@ static inline size_t ltt_write_event_header(struct ltt_trace_struct *trace,
  * ltt_read_event_header
  * buf_offset must aligned on 32 bits
  */
-static inline size_t ltt_read_event_header(struct rchan_buf *buf,
+static __inline__ size_t ltt_read_event_header(struct rchan_buf *buf,
 		long buf_offset, u64 *tsc, u32 *event_size, u16 *eID,
 		unsigned int *rflags)
 {
@@ -587,7 +587,7 @@ static inline size_t ltt_read_event_header(struct rchan_buf *buf,
  * @trace: Trace information
  * @header: Memory address where the information must be written to
  */
-static inline void ltt_write_trace_header(struct ltt_trace_struct *trace,
+static __inline__ void ltt_write_trace_header(struct ltt_trace_struct *trace,
 		struct ltt_subbuffer_header *header)
 {
 	header->magic_number = LTT_TRACER_MAGIC_NUMBER;
@@ -700,7 +700,7 @@ void ltt_unlock_traces(void);
 #ifdef CONFIG_LTT_KPROBES
 extern void ltt_dump_kprobes_table(void *call_data);
 #else
-static inline void ltt_dump_kprobes_table(void *call_data)
+static __inline__ void ltt_dump_kprobes_table(void *call_data)
 {
 }
 #endif
@@ -711,11 +711,11 @@ extern void ltt_dump_softirq_vec(void *call_data);
 extern void ltt_dump_sys_call_table(void *call_data);
 extern void ltt_dump_idt_table(void *call_data);
 #else
-static inline void ltt_dump_sys_call_table(void *call_data)
+static __inline__ void ltt_dump_sys_call_table(void *call_data)
 {
 }
 
-static inline void ltt_dump_idt_table(void *call_data)
+static __inline__ void ltt_dump_idt_table(void *call_data)
 {
 }
 #endif
