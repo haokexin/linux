@@ -183,12 +183,10 @@ config LTT_STATEDUMP
 
 config LTT_KPROBES
 	tristate "Linux Trace Toolkit Kprobes Support"
-	depends on HAVE_KPROBES
 	depends on LTT_TRACE_CONTROL
 	depends on LTT_FAST_SERIALIZE
 	depends on LTT_STATEDUMP
-	select KPROBES
-	select KALLSYMS
+	depends on KPROBES
 	default y
 	help
 	  Allows connecting the LTTng tracer on kprobes using simple debugfs
