@@ -9,7 +9,7 @@
  * Dual BSD/GPL v2 license.
  */
 
-#ifdef CONFIG_IMMEDIATE
+#ifdef USE_IMMEDIATE
 
 #include <asm/immediate.h>
 
