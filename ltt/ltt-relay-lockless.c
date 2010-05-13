@@ -236,7 +236,7 @@ static int get_subbuf(struct rchan_buf *buf, unsigned long *consumed)
 
 	consumed_old = atomic_long_read(&ltt_buf->consumed);
 	consumed_idx = SUBBUF_INDEX(consumed_old, buf->chan);
-	commit_count = local_read(&ltt_buf->commit_count[consumed_idx]);
+	commit_count = local_read(&ltt_buf->commit_count[consumed_idx].cc_sb);
 	/*
 	 * Make sure we read the commit count before reading the buffer
 	 * data and the write offset. Correct consumed offset ordering
@@ -308,6 +308,11 @@ static int get_subbuf(struct rchan_buf *buf, unsigned long *consumed)
 	   == 0) {
 		return -EAGAIN;
 	}
+
+	/* No page exchange, use the writer page directly */
+	buf->rchan_rsb.pages = buf->rchan_wsb[consumed_idx].pages;
+	RCHAN_SB_CLEAR_NOREF(buf->rchan_rsb.pages);
+
 	*consumed = consumed_old;
 	return 0;
 }
@@ -321,6 +326,7 @@ static int put_subbuf(struct rchan_buf *buf, unsigned long consumed)
 
 	consumed_old = consumed;
 	consumed_new = SUBBUF_ALIGN(consumed_old, buf->chan);
+	RCHAN_SB_SET_NOREF(buf->rchan_rsb.pages);
 
 	spin_lock(&ltt_buf->full_lock);
 	if (atomic_long_cmpxchg(&ltt_buf->consumed, consumed_old,
@@ -747,10 +753,11 @@ static void ltt_relay_print_subbuffer_errors(
 {
 	struct rchan *rchan = ltt_chan->trans_channel_data;
 	struct ltt_channel_buf_struct *ltt_buf = rchan->buf[cpu]->chan_private;
-	long cons_idx, commit_count, write_offset;
+	long cons_idx, commit_count, commit_count_sb, write_offset;
 
 	cons_idx = SUBBUF_INDEX(cons_off, rchan);
-	commit_count = local_read(&ltt_buf->commit_count[cons_idx]);
+	commit_count = local_read(&ltt_buf->commit_count[cons_idx].cc);
+	commit_count_sb = local_read(&ltt_buf->commit_count[cons_idx].cc_sb);
 	/*
 	 * No need to order commit_count and write_offset reads because we
 	 * execute after trace is stopped when there are no readers left.
@@ -766,8 +773,9 @@ static void ltt_relay_print_subbuffer_errors(
 	    != 0)
 		printk(KERN_ALERT
 			"LTT : %s : subbuffer %lu has non filled "
-			"commit count %lu.\n",
-			ltt_chan->channel_name, cons_idx, commit_count);
+			"commit count [cc, cc_sb] [%lu,%lu].\n",
+			ltt_chan->channel_name, cons_idx, commit_count,
+			commit_count_sb);
 	printk(KERN_ALERT "LTT : %s : commit count : %lu, subbuf size %zd\n",
 			ltt_chan->channel_name, commit_count,
 			rchan->subbuf_size);
@@ -866,16 +874,19 @@ static int ltt_relay_create_buffer(struct ltt_trace_struct *trace,
 	local_set(&ltt_buf->offset, ltt_subbuffer_header_size());
 	atomic_long_set(&ltt_buf->consumed, 0);
 	atomic_long_set(&ltt_buf->active_readers, 0);
-	for (j = 0; j < n_subbufs; j++)
-		local_set(&ltt_buf->commit_count[j], 0);
+	for (j = 0; j < n_subbufs; j++) {
+		local_set(&ltt_buf->commit_count[j].cc, 0);
+		local_set(&ltt_buf->commit_count[j].cc_sb, 0);
+	}
 	init_waitqueue_head(&ltt_buf->write_wait);
 	init_waitqueue_head(&ltt_buf->read_wait);
 	spin_lock_init(&ltt_buf->full_lock);
 
+	RCHAN_SB_CLEAR_NOREF(buf->rchan_wsb[0].pages);
 	ltt_buffer_begin(buf, trace->start_tsc, 0);
 	/* atomic_add made on local variable on data that belongs to
 	 * various CPUs : ok because tracing not started (for this cpu). */
-	local_add(ltt_subbuffer_header_size(), &ltt_buf->commit_count[0]);
+	local_add(ltt_subbuffer_header_size(), &ltt_buf->commit_count[0].cc);
 
 	local_set(&ltt_buf->events_lost, 0);
 	local_set(&ltt_buf->corrupted_subbuffers, 0);
@@ -1180,8 +1191,8 @@ static void ltt_reserve_switch_old_subbuf(
 	 */
 	barrier();
 	local_add(padding_size,
-		  &ltt_buf->commit_count[oldidx]);
-	commit_count = local_read(&ltt_buf->commit_count[oldidx]);
+		  &ltt_buf->commit_count[oldidx].cc);
+	commit_count = local_read(&ltt_buf->commit_count[oldidx].cc);
 	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
 		offsets->old - 1, commit_count, oldidx);
 	ltt_write_commit_counter(buf, ltt_buf, oldidx,
@@ -1213,8 +1224,8 @@ static void ltt_reserve_switch_new_subbuf(
 	 */
 	barrier();
 	local_add(ltt_subbuffer_header_size(),
-		  &ltt_buf->commit_count[beginidx]);
-	commit_count = local_read(&ltt_buf->commit_count[beginidx]);
+		  &ltt_buf->commit_count[beginidx].cc);
+	commit_count = local_read(&ltt_buf->commit_count[beginidx].cc);
 	/* Check if the written buffer has to be delivered */
 	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
 		offsets->begin, commit_count, beginidx);
@@ -1262,8 +1273,8 @@ static void ltt_reserve_end_switch_current(
 	 */
 	barrier();
 	local_add(padding_size,
-		  &ltt_buf->commit_count[endidx]);
-	commit_count = local_read(&ltt_buf->commit_count[endidx]);
+		  &ltt_buf->commit_count[endidx].cc);
+	commit_count = local_read(&ltt_buf->commit_count[endidx].cc);
 	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
 		offsets->end - 1, commit_count, endidx);
 	ltt_write_commit_counter(buf, ltt_buf, endidx,
@@ -1310,7 +1321,7 @@ static int ltt_relay_try_switch_slow(
 	reserve_commit_diff =
 		(BUFFER_TRUNC(offsets->begin, buf->chan)
 		 >> ltt_channel->n_subbufs_order)
-		- (local_read(&ltt_buf->commit_count[subbuf_index])
+		- (local_read(&ltt_buf->commit_count[subbuf_index].cc_sb)
 			& ltt_channel->commit_count_mask);
 	if (reserve_commit_diff == 0) {
 		/* Next buffer not corrupted. */
@@ -1376,15 +1387,21 @@ void ltt_force_switch_lockless_slow(struct rchan_buf *buf,
 	/*
 	 * Push the reader if necessary
 	 */
-	if (mode == FORCE_ACTIVE)
+	if (mode == FORCE_ACTIVE) {
 		ltt_reserve_push_reader(ltt_buf, rchan, buf, offsets.end - 1);
+		ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.end - 1,
+							      rchan));
+	}
 
 	/*
 	 * Switch old subbuffer if needed.
 	 */
-	if (offsets.end_switch_old)
+	if (offsets.end_switch_old) {
+		ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.old - 1,
+							      rchan));
 		ltt_reserve_switch_old_subbuf(ltt_channel, ltt_buf, rchan, buf,
 			&offsets, &tsc);
+	}
 
 	/*
 	 * Populate new subbuffer.
@@ -1446,9 +1463,9 @@ static int ltt_relay_try_reserve_slow(struct ltt_channel_struct *ltt_channel,
 		/* Test new buffer integrity */
 		subbuf_index = SUBBUF_INDEX(offsets->begin, buf->chan);
 		reserve_commit_diff =
-			(BUFFER_TRUNC(offsets->begin, buf->chan)
-			 >> ltt_channel->n_subbufs_order)
-			- (local_read(&ltt_buf->commit_count[subbuf_index])
+		  (BUFFER_TRUNC(offsets->begin, buf->chan)
+		   >> ltt_channel->n_subbufs_order)
+		  - (local_read(&ltt_buf->commit_count[subbuf_index].cc_sb)
 				& ltt_channel->commit_count_mask);
 		if (likely(reserve_commit_diff == 0)) {
 			/* Next buffer not corrupted. */
@@ -1566,11 +1583,19 @@ int ltt_reserve_slot_lockless_slow(struct ltt_trace_struct *trace,
 	ltt_reserve_push_reader(ltt_buf, rchan, buf, offsets.end - 1);
 
 	/*
+	 * Clear noref flag for this subbuffer.
+	 */
+	ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.end - 1, rchan));
+
+	/*
 	 * Switch old subbuffer if needed.
 	 */
-	if (unlikely(offsets.end_switch_old))
+	if (unlikely(offsets.end_switch_old)) {
+		ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(offsets.old - 1,
+							      rchan));
 		ltt_reserve_switch_old_subbuf(ltt_channel, ltt_buf, rchan, buf,
 			&offsets, tsc);
+	}
 
 	/*
 	 * Populate new subbuffer.

@@ -66,11 +66,17 @@
 #define printk_dbg(fmt, args...)
 #endif
 
+struct commit_counters {
+	local_t cc;
+	local_t cc_sb;			/* Incremented _once_ at sb switch */
+};
+
 /* LTTng lockless logging buffer info */
 struct ltt_channel_buf_struct {
 	/* First 32 bytes cache-hot cacheline */
 	local_t offset;			/* Current offset in the buffer */
-	local_t *commit_count;		/* Commit count per sub-buffer */
+	struct commit_counters *commit_count;
+					/* Commit count per sub-buffer */
 	atomic_long_t consumed;		/*
 					 * Current offset in the buffer
 					 * standard atomic access (shared)
@@ -190,29 +196,51 @@ static __inline__ void ltt_reserve_push_reader(
 }
 
 #ifdef CONFIG_LTT_VMCORE
-static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
+static __inline__ void ltt_vmcore_check_deliver(
 		struct ltt_channel_buf_struct *ltt_buf,
-		struct rchan *rchan,
-		struct rchan_buf *buf,
-		long offset, long commit_count, long idx)
+		long commit_count, long idx)
 {
-	/* Check if all commits have been done */
-	if (unlikely((BUFFER_TRUNC(offset, rchan)
-			>> ltt_channel->n_subbufs_order)
-			- ((commit_count - rchan->subbuf_size)
-			   & ltt_channel->commit_count_mask) == 0)) {
-		local_set(&ltt_buf->commit_seq[idx], commit_count);
-	}
+	local_set(&ltt_buf->commit_seq[idx], commit_count);
 }
 #else
-static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
+static __inline__ void ltt_vmcore_check_deliver(
 		struct ltt_channel_buf_struct *ltt_buf,
-		struct rchan *rchan,
-		struct rchan_buf *buf,
-		long offset, long commit_count, long idx)
+		long commit_count, long idx)
 {
 }
 #endif
+
+static __inline__ void ltt_check_deliver(struct ltt_channel_struct *ltt_channel,
+		struct ltt_channel_buf_struct *ltt_buf,
+		struct rchan *rchan,
+		struct rchan_buf *buf,
+		long offset, long commit_count, long idx)
+{
+	long old_commit_count = commit_count - rchan->subbuf_size;
+
+	/* Check if all commits have been done */
+	if (unlikely((BUFFER_TRUNC(offset, rchan)
+			>> ltt_channel->n_subbufs_order)
+			- (old_commit_count
+			   & ltt_channel->commit_count_mask) == 0)) {
+		/*
+		 * If we succeeded in updating the cc_sb, we are delivering
+		 * the subbuffer. Deals with concurrent updates of the "cc"
+		 * value without adding a add_return atomic operation to the
+		 * fast path.
+		 */
+		if (likely(local_cmpxchg(&ltt_buf->commit_count[idx].cc_sb,
+					 old_commit_count, commit_count)
+			   == old_commit_count)) {
+			/*
+			 * Set noref flag for this subbuffer.
+			 */
+			ltt_set_noref_flag(rchan, buf, idx);
+			ltt_vmcore_check_deliver(ltt_buf, commit_count, idx);
+		}
+	}
+}
+
 
 static __inline__ int ltt_poll_deliver(struct ltt_channel_struct *ltt_channel,
 		struct ltt_channel_buf_struct *ltt_buf,
@@ -223,7 +251,7 @@ static __inline__ int ltt_poll_deliver(struct ltt_channel_struct *ltt_channel,
 
 	consumed_old = atomic_long_read(&ltt_buf->consumed);
 	consumed_idx = SUBBUF_INDEX(consumed_old, buf->chan);
-	commit_count = local_read(&ltt_buf->commit_count[consumed_idx]);
+	commit_count = local_read(&ltt_buf->commit_count[consumed_idx].cc_sb);
 	/*
 	 * No memory barrier here, since we are only interested
 	 * in a statistically correct polling result. The next poll will
@@ -351,6 +379,11 @@ static __inline__ int ltt_reserve_slot(struct ltt_trace_struct *trace,
 	 */
 	ltt_reserve_push_reader(ltt_buf, rchan, buf, o_end - 1);
 
+	/*
+	 * Clear noref flag for this subbuffer.
+	 */
+	ltt_clear_noref_flag(rchan, buf, SUBBUF_INDEX(o_end - 1, rchan));
+
 	*buf_offset = o_begin + before_hdr_pad;
 	return 0;
 slow_path:
@@ -446,7 +479,7 @@ static __inline__ void ltt_commit_slot(
 	 */
 	barrier();
 #endif
-	local_add(slot_size, &ltt_buf->commit_count[endidx]);
+	local_add(slot_size, &ltt_buf->commit_count[endidx].cc);
 	/*
 	 * commit count read can race with concurrent OOO commit count updates.
 	 * This is only needed for ltt_check_deliver (for non-polling delivery
@@ -464,7 +497,7 @@ static __inline__ void ltt_commit_slot(
 	 *   reserve offset for a specific sub-buffer, which is completely
 	 *   independent of the order.
 	 */
-	commit_count = local_read(&ltt_buf->commit_count[endidx]);
+	commit_count = local_read(&ltt_buf->commit_count[endidx].cc);
 
 	ltt_check_deliver(ltt_channel, ltt_buf, rchan, buf,
 		offset_end - 1, commit_count, endidx);
