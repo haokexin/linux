@@ -233,5 +233,16 @@ config DEFAULT_SECURITY
 	default "yama" if DEFAULT_SECURITY_YAMA
 	default "" if DEFAULT_SECURITY_DAC
 
+config SECURITY_BSDJAIL
+	tristate "BSD Jail LSM"
+	depends on SECURITY
+	select SECURITY_NETWORK
+	help
+	  Provides BSD Jail compartmentalization functionality.
+	  See Documentation/bsdjail.txt for more information and
+	  usage instructions.
+	  
+	  If you are unsure how to answer this question, answer N.
+
 endmenu
 
