@@ -176,4 +176,16 @@ config LTT_STATEDUMP
 	  This module saves the state of the running kernel at trace start
 	  into the trace buffers along with the ongoing tracing information.
 
+config LTT_FTRACE
+	bool "Linux Trace Toolkit Ftrace Support"
+	depends on LTT_TRACER
+	depends on LTT_TRACE_CONTROL=y
+	depends on FTRACE
+	default y
+	help
+	  Integration of function entry trace with LTTng. Connect the
+	  ftrace_cpu_start and ftrace_cpu_stop probes to markers to start/stop
+	  function tracing while a trace is being taken. Typically used when the
+	  surroundings of a problem has been identified in a prior trace.
+
 endif # LTT
