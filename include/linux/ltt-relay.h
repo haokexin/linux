@@ -215,13 +215,16 @@ static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 	case 4:
 		*(u32 *)dest = *(const u32 *)src;
 		break;
-#if (BITS_PER_LONG == 64)
 	case 8:
 		*(u64 *)dest = *(const u64 *)src;
 		break;
-#endif
 	default:
-		memcpy(dest, src, len);
+		/*
+		 * What we really want here is an inline memcpy, but we don't
+		 * have constants, so gcc generally uses a function call.
+		 */
+		for (; len > 0; len--)
+			*(u8 *)dest++ = *(const u8 *)src++;
 	}
 }
 #else
@@ -256,19 +259,19 @@ static inline void ltt_relay_do_copy(void *dest, const void *src, size_t len)
 			goto memcpy_fallback;
 		*(u32 *)dest = *(const u32 *)src;
 		break;
-#if (BITS_PER_LONG == 64)
 	case 8:
 		if (unlikely(!addr_aligned(dest, src, 8)))
 			goto memcpy_fallback;
 		*(u64 *)dest = *(const u64 *)src;
 		break;
-#endif
 	default:
-		goto memcpy_fallback;
+		/*
+		 * What we really want here is an inline memcpy, but we don't
+		 * have constants, so gcc generally uses a function call.
+		 */
+		for (; len > 0; len--)
+			*(u8 *)dest++ = *(const u8 *)src++;
 	}
-	return;
-memcpy_fallback:
-	memcpy(dest, src, len);
 }
 #endif
 
