@@ -166,7 +166,7 @@ static __inline__ int last_tsc_overflow(struct ltt_chanbuf *buf, u64 tsc)
 extern
 int ltt_chanbuf_create(struct ltt_chanbuf *buf, struct ltt_chan_alloc *chana,
 		       int cpu);
-extern void ltt_chanbuf_free(struct kref *kref);
+extern void ltt_chanbuf_free(struct ltt_chanbuf *buf);
 extern int ltt_chan_create(const char *base_filename, struct ltt_chan *chan,
 			   struct dentry *parent, size_t sb_size, size_t n_sb,
 			   int overwrite, struct ltt_trace *trace);

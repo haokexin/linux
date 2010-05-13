@@ -112,10 +112,8 @@ void ltt_buffer_end(struct ltt_chanbuf *buf, u64 tsc, unsigned int offset,
 	header->subbuf_corrupt = local_read(&buf->corrupted_subbuffers);
 }
 
-void ltt_chanbuf_free(struct kref *kref)
+void ltt_chanbuf_free(struct ltt_chanbuf *buf)
 {
-	struct ltt_chanbuf *buf = container_of(kref, struct ltt_chanbuf,
-					       a.kref);
 	struct ltt_chan *chan = container_of(buf->a.chan, struct ltt_chan, a);
 
 	ltt_relay_print_buffer_errors(chan, buf->a.cpu);
@@ -256,9 +254,7 @@ EXPORT_SYMBOL_GPL(ltt_chan_create);
 int ltt_chanbuf_open_read(struct ltt_chanbuf *buf)
 {
 	kref_get(&buf->a.chan->kref);
-	kref_get(&buf->a.kref);
 	if (!atomic_long_add_unless(&buf->active_readers, 1, 1)) {
-		kref_put(&buf->a.kref, ltt_chanbuf_free);
 		kref_put(&buf->a.chan->kref, ltt_chan_free);
 		return -EBUSY;
 	}
@@ -271,7 +267,6 @@ void ltt_chanbuf_release_read(struct ltt_chanbuf *buf)
 	//ltt_relay_destroy_buffer(&buf->a.chan->a, buf->a.cpu);
 	WARN_ON(atomic_long_read(&buf->active_readers) != 1);
 	atomic_long_dec(&buf->active_readers);
-	kref_put(&buf->a.kref, ltt_chanbuf_free);
 	kref_put(&buf->a.chan->kref, ltt_chan_free);
 }
 

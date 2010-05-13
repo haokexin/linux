@@ -52,7 +52,6 @@ struct ltt_chanbuf_alloc {
 	unsigned int nr_pages;		/* Number pages in buffer */
 
 	struct ltt_chan_alloc *chan;	/* Associated channel */
-	struct kref kref;		/* Reference count */
 	unsigned int cpu;		/* This buffer's cpu */
 	unsigned int allocated:1;	/* Bool: is buffer allocated ? */
 };

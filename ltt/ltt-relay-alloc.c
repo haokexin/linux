@@ -158,7 +158,6 @@ int ltt_chanbuf_alloc_create(struct ltt_chanbuf_alloc *buf,
 	if (ret)
 		goto end;
 
-	kref_init(&buf->kref);
 	buf->chan = chan;
 	buf->allocated = 1;
 	buf->cpu = cpu;
@@ -336,7 +335,7 @@ free_bufs:
 		if (!buf->a.allocated)
 			continue;
 		ltt_chanbuf_remove_file(buf);
-		kref_put(&buf->a.kref, ltt_chanbuf_free);
+		ltt_chanbuf_free(buf);
 	}
 	mutex_unlock(&ltt_relay_alloc_mutex);
 	free_percpu(chan->buf);
@@ -368,7 +367,7 @@ void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 		if (!buf->a.allocated)
 			continue;
 		ltt_chanbuf_remove_file(buf);
-		kref_put(&buf->a.kref, ltt_chanbuf_free);
+		ltt_chanbuf_free(buf);
 	}
 	mutex_unlock(&ltt_relay_alloc_mutex);
 	free_percpu(chan->buf);
