@@ -16,28 +16,28 @@
 
 void probe_net_dev_xmit(struct sk_buff *skb)
 {
-	trace_mark_tp(net_dev_xmit, net_dev_xmit,
+	trace_mark_tp(net, dev_xmit, net_dev_xmit,
 		probe_net_dev_xmit,
 		"skb %p protocol #2u%hu", skb, skb->protocol);
 }
 
 void probe_net_dev_receive(struct sk_buff *skb)
 {
-	trace_mark_tp(net_dev_receive, net_dev_receive,
+	trace_mark_tp(net, dev_receive, net_dev_receive,
 		probe_net_dev_receive, "skb %p protocol #2u%hu",
 		skb, skb->protocol);
 }
 
 void probe_ipv4_addr_add(struct in_ifaddr *ifa)
 {
-	trace_mark_tp(net_insert_ifa_ipv4, ipv4_addr_add,
+	trace_mark_tp(netif_state, insert_ifa_ipv4, ipv4_addr_add,
 		probe_ipv4_addr_add, "label %s address #4u%u",
 		ifa->ifa_label, (unsigned int)ifa->ifa_address);
 }
 
 void probe_ipv4_addr_del(struct in_ifaddr *ifa)
 {
-	trace_mark_tp(net_del_ifa_ipv4, ipv4_addr_del,
+	trace_mark_tp(netif_state, del_ifa_ipv4, ipv4_addr_del,
 		probe_ipv4_addr_del, "label %s address #4u%u",
 		ifa->ifa_label, (unsigned int)ifa->ifa_address);
 }
@@ -46,7 +46,8 @@ void probe_ipv6_addr_add(struct inet6_ifaddr *ifa)
 {
 	__u8 *addr = ifa->addr.s6_addr;
 
-	trace_mark_tp(net_insert_ifa_ipv6, ipv6_addr_add, probe_ipv6_addr_add,
+	trace_mark_tp(netif_state, insert_ifa_ipv6, ipv6_addr_add,
+		probe_ipv6_addr_add,
 		"label %s "
 		"a15 #1x%c a14 #1x%c a13 #1x%c a12 #1x%c "
 		"a11 #1x%c a10 #1x%c a9 #1x%c a8 #1x%c "
@@ -63,7 +64,8 @@ void probe_ipv6_addr_del(struct inet6_ifaddr *ifa)
 {
 	__u8 *addr = ifa->addr.s6_addr;
 
-	trace_mark_tp(net_insert_ifa_ipv6, ipv6_addr_del, probe_ipv6_addr_del,
+	trace_mark_tp(netif_state, insert_ifa_ipv6, ipv6_addr_del,
+		probe_ipv6_addr_del,
 		"label %s "
 		"a15 #1x%c a14 #1x%c a13 #1x%c a12 #1x%c "
 		"a11 #1x%c a10 #1x%c a9 #1x%c a8 #1x%c "
@@ -79,7 +81,7 @@ void probe_ipv6_addr_del(struct inet6_ifaddr *ifa)
 void probe_socket_sendmsg(struct socket *sock, struct msghdr *msg,
 		size_t size, int ret)
 {
-	trace_mark_tp(net_socket_sendmsg, socket_sendmsg, probe_socket_sendmsg,
+	trace_mark_tp(net, socket_sendmsg, socket_sendmsg, probe_socket_sendmsg,
 		"sock %p family %d type %d protocol %d size %zu",
 		sock, sock->sk->sk_family, sock->sk->sk_type,
 		sock->sk->sk_protocol, size);
@@ -88,7 +90,7 @@ void probe_socket_sendmsg(struct socket *sock, struct msghdr *msg,
 void probe_socket_recvmsg(struct socket *sock, struct msghdr *msg,
 		size_t size, int flags, int ret)
 {
-	trace_mark_tp(net_socket_recvmsg, socket_recvmsg, probe_socket_recvmsg,
+	trace_mark_tp(net, socket_recvmsg, socket_recvmsg, probe_socket_recvmsg,
 		"sock %p family %d type %d protocol %d size %zu",
 		sock, sock->sk->sk_family, sock->sk->sk_type,
 		sock->sk->sk_protocol, size);
@@ -96,7 +98,7 @@ void probe_socket_recvmsg(struct socket *sock, struct msghdr *msg,
 
 void probe_socket_create(struct socket *sock, int fd)
 {
-	trace_mark_tp(net_socket_create, socket_create, probe_socket_create,
+	trace_mark_tp(net, socket_create, socket_create, probe_socket_create,
 		"sock %p family %d type %d protocol %d fd %d",
 		sock, sock->sk->sk_family, sock->sk->sk_type,
 		sock->sk->sk_protocol, fd);
@@ -104,14 +106,14 @@ void probe_socket_create(struct socket *sock, int fd)
 
 void probe_socket_call(int call, unsigned long a0)
 {
-	trace_mark_tp(net_socket_call, socket_call, probe_socket_call,
+	trace_mark_tp(net, socket_call, socket_call, probe_socket_call,
 		"call %d a0 %lu", call, a0);
 }
 
 #ifdef CONFIG_NETPOLL
 void probe_net_napi_schedule(struct napi_struct *n)
 {
-	trace_mark_tp(net_napi_schedule, net_napi_schedule,
+	trace_mark_tp(net, napi_schedule, net_napi_schedule,
 		probe_net_napi_schedule,
 		"napi_struct %p name %s",
 		n, n->dev->name);
@@ -119,14 +121,14 @@ void probe_net_napi_schedule(struct napi_struct *n)
 
 void probe_net_napi_poll(struct napi_struct *n)
 {
-	trace_mark_tp(net_napi_poll, net_napi_poll, probe_net_napi_poll,
+	trace_mark_tp(net, napi_poll, net_napi_poll, probe_net_napi_poll,
 		"napi_struct %p name %s",
 		n, n->dev->name);
 }
 
 void probe_net_napi_complete(struct napi_struct *n)
 {
-	trace_mark_tp(net_napi_complete, net_napi_complete,
+	trace_mark_tp(net, napi_complete, net_napi_complete,
 		probe_net_napi_complete,
 		"napi_struct %p name %s",
 		n, n->dev->name);
@@ -134,20 +136,20 @@ void probe_net_napi_complete(struct napi_struct *n)
 #else /* !CONFIG_NETPOLL */
 void probe_net_napi_schedule(struct napi_struct *n)
 {
-	trace_mark_tp(net_napi_schedule, net_napi_schedule,
+	trace_mark_tp(net, napi_schedule, net_napi_schedule,
 		probe_net_napi_schedule,
 		"napi_struct %p", n);
 }
 
 void probe_net_napi_poll(struct napi_struct *n)
 {
-	trace_mark_tp(net_napi_poll, net_napi_poll, probe_net_napi_poll,
+	trace_mark_tp(net, napi_poll, net_napi_poll, probe_net_napi_poll,
 		"napi_struct %p", n);
 }
 
 void probe_net_napi_complete(struct napi_struct *n)
 {
-	trace_mark_tp(net_napi_complete, net_napi_complete,
+	trace_mark_tp(net, napi_complete, net_napi_complete,
 		probe_net_napi_complete,
 		"napi_struct %p", n);
 }

@@ -13,25 +13,25 @@
 
 void probe_lockdep_hardirqs_on(unsigned long retaddr)
 {
-	trace_mark_tp(lockdep_hardirqs_on, lockdep_hardirqs_on,
+	trace_mark_tp(lockdep, hardirqs_on, lockdep_hardirqs_on,
 		probe_lockdep_hardirqs_on, "retaddr 0x%lX", retaddr);
 }
 
 void probe_lockdep_hardirqs_off(unsigned long retaddr)
 {
-	trace_mark_tp(lockdep_hardirqs_off, lockdep_hardirqs_off,
+	trace_mark_tp(lockdep, hardirqs_off, lockdep_hardirqs_off,
 		probe_lockdep_hardirqs_off, "retaddr 0x%lX", retaddr);
 }
 
 void probe_lockdep_softirqs_on(unsigned long retaddr)
 {
-	trace_mark_tp(lockdep_softirqs_on, lockdep_softirqs_on,
+	trace_mark_tp(lockdep, softirqs_on, lockdep_softirqs_on,
 		probe_lockdep_softirqs_on, "retaddr 0x%lX", retaddr);
 }
 
 void probe_lockdep_softirqs_off(unsigned long retaddr)
 {
-	trace_mark_tp(lockdep_softirqs_off, lockdep_softirqs_off,
+	trace_mark_tp(lockdep, softirqs_off, lockdep_softirqs_off,
 		probe_lockdep_softirqs_off, "retaddr 0x%lX", retaddr);
 }
 
@@ -39,7 +39,7 @@ void probe_lockdep_lock_acquire(unsigned long retaddr,
 		unsigned int subclass, struct lockdep_map *lock, int trylock,
 		int read, int hardirqs_off)
 {
-	trace_mark_tp(lockdep_lock_acquire, lockdep_lock_acquire,
+	trace_mark_tp(lockdep, lock_acquire, lockdep_lock_acquire,
 		probe_lockdep_lock_acquire,
 		"retaddr 0x%lX subclass %u lock %p trylock %d read %d "
 		"hardirqs_off %d",
@@ -49,7 +49,7 @@ void probe_lockdep_lock_acquire(unsigned long retaddr,
 void probe_lockdep_lock_release(unsigned long retaddr,
 		struct lockdep_map *lock, int nested)
 {
-	trace_mark_tp(lockdep_lock_release, lockdep_lock_release,
+	trace_mark_tp(lockdep, lock_release, lockdep_lock_release,
 		probe_lockdep_lock_release,
 		"retaddr 0x%lX lock %p nested %d",
 		retaddr, lock, nested);
