@@ -404,6 +404,9 @@ void default_machine_crash_shutdown(struct pt_regs *regs)
 		if (!desc || !desc->chip || !desc->chip->eoi)
 			continue;
 
+		if(!desc)
+			continue;
+
 		if (desc->status & IRQ_INPROGRESS)
 			desc->chip->eoi(i);
 
