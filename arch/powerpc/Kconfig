@@ -356,7 +356,8 @@ config ARCH_ENABLE_MEMORY_HOTREMOVE
 
 config KEXEC
 	bool "kexec system call (EXPERIMENTAL)"
-	depends on PPC_BOOK3S && EXPERIMENTAL
+	depends on (PPC_BOOK3S || PPC_MULTIPLATFORM || PPC_85xx) && EXPERIMENTAL
+	select PROC_DEVICETREE
 	help
 	  kexec is a system call that implements the ability to shutdown your
 	  current kernel, and to start another kernel.  It is like a reboot
@@ -373,8 +374,9 @@ config KEXEC
 
 config CRASH_DUMP
 	bool "Build a kdump crash kernel"
-	depends on PPC64 || 6xx
+	depends on (PPC_MULTIPLATFORM || PPC_85xx || PPC64 || 6xx)
 	select RELOCATABLE if PPC64
+	select PROC_VMCORE
 	help
 	  Build a kernel suitable for use as a kdump capture kernel.
 	  The same kernel binary can be used as production kernel and dump

@@ -706,6 +706,75 @@ relocate_new_kernel:
 	/* r4 = reboot_code_buffer */
 	/* r5 = start_address      */
 
+#ifdef CONFIG_FSL_BOOKE
+	/*
+	 * Since we can't turn off the MMU, we must create an identity
+	 * map for kernel low memory.  We start by invalidating the
+	 * TLB entries we don't need.
+	 *
+	 * First, invalidate the TLB0 entries
+	 */
+	li	r6, 0x04
+	tlbivax	0, r6
+#ifdef CONFIG_SMP
+	tlbsync
+#endif
+	msync
+
+	/*
+	 * Kernel low memory is mapped by TLB1 entries 0, 1, and 2.
+	 * Preserve these, but invalidate all other TLB1 entries.
+	 */
+	li	r7, 3			/* first TLB1 entry */
+	mfspr	r6, SPRN_TLB1CFG
+	andi.	r6, r6, 0xfff
+	mr	r8, r6
+	subf	r6, r7, r6
+	mtctr	r6
+1:
+	rlwinm	r6, r7, 16, 12, 15
+	oris	r6, r6, 0x1000
+	mtspr	SPRN_MAS0, r6
+	tlbre
+	mfspr	r6, SPRN_MAS1
+	rlwinm	r6, r6, 0, 2, 31	/* Clear MAS1 Valid and IPROT */
+	mtspr	SPRN_MAS1, r6
+	tlbwe
+	isync
+	addi	r7, r7, 1
+	bdnz	1b
+
+	/*
+	 * Using TLB1 entries 3, 4, and 5, identity-map kernel low
+	 * memory by copying and modifying the contents of TLB1
+	 * entries 0, 1 and 2, respectively.
+	 */
+	li	r7, 0			/* source TLB entry */
+	li	r8, 3			/* destination TLB entry */
+	li	r6, 3			/* number of TLBs to copy */
+	mtctr	r6
+1:
+	rlwinm	r6, r7, 16, 12, 15
+	oris	r6, r6, 0x1000
+	mtspr	SPRN_MAS0, r6
+	tlbre
+
+	mfspr	r6, SPRN_MAS2
+	lis	r0, PAGE_OFFSET@h
+	subf	r6, r0, r6		/* identity map */
+	mtspr	SPRN_MAS2, r6
+
+	rlwinm	r6, r8, 16, 12, 15
+	oris	r6, r6, 0x1000
+	mtspr	SPRN_MAS0, r6
+	tlbwe
+	sync
+	isync
+	addi	r7, r7, 1
+	addi	r8, r8, 1
+	bdnz	1b
+#endif	/* CONFIG_FSL_BOOKE */
+
 	li	r0, 0
 
 	/*
