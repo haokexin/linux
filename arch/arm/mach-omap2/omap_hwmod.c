@@ -60,7 +60,7 @@
 #define MAX_MODULE_SOFTRESET_WAIT	10000
 
 /* Name of the OMAP hwmod for the MPU */
-#define MPU_INITIATOR_NAME		"mpu_hwmod"
+#define MPU_INITIATOR_NAME		"mpu"
 
 /* omap_hwmod_list contains all registered struct omap_hwmods */
 static LIST_HEAD(omap_hwmod_list);
