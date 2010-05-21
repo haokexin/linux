@@ -38,6 +38,7 @@ extern void __early_start(void);
 #define NUM_BOOT_ENTRY		8
 #define SIZE_BOOT_ENTRY		(NUM_BOOT_ENTRY * sizeof(u32))
 
+#ifndef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
 static void __init
 smp_85xx_kick_cpu(int nr)
 {
@@ -94,6 +95,36 @@ smp_85xx_kick_cpu(int nr)
 
 	pr_debug("waited %d msecs for CPU #%d.\n", n, nr);
 }
+#else
+extern u32 kexec_secondary_hold_addr;
+static void __init smp_85xx_kick_cpu(int nr)
+{
+	unsigned long flags;
+	int n = 0;
+
+	WARN_ON (nr < 0 || nr >= NR_CPUS);
+
+	pr_debug("smp_85xx_kick_cpu: kick CPU #%d\n", nr);
+
+	local_irq_save(flags);
+
+	/* a kexec-bootable kernel has its secondary CPU spinning on
+	 * kexec_secondary_hold_addr in the new kernel text/data at this
+	 * point: release it and make it start its true kernel execution,
+	 * at __early_start() */
+
+	kexec_secondary_hold_addr = (u32)__pa(__early_start);
+	mb();
+
+	/* Wait a bit for the CPU to ack. */
+	while ((__secondary_hold_acknowledge != nr) && (++n < 1000))
+		mdelay(1);
+
+	local_irq_restore(flags);
+
+	pr_debug("waited %d msecs for CPU #%d.\n", n, nr);
+}
+#endif	/* CONFIG_KEXEC_POWERPC_SMP_BOOTABLE */
 
 static void __init
 smp_85xx_setup_cpu(int cpu_nr)
@@ -101,8 +132,12 @@ smp_85xx_setup_cpu(int cpu_nr)
 	mpic_setup_this_cpu();
 }
 
+extern void default_kexec_stop_cpus(void *arg);
 struct smp_ops_t smp_85xx_ops = {
 	.kick_cpu = smp_85xx_kick_cpu,
+#ifdef CONFIG_KEXEC
+	.kexec_stop_cpus = default_kexec_stop_cpus,
+#endif
 };
 
 void __init mpc85xx_smp_init(void)
