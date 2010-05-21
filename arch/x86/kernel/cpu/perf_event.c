@@ -214,10 +214,10 @@ x86_perf_event_update(struct perf_event *event)
 	 * count to the generic event atomically:
 	 */
 again:
-	prev_raw_count = atomic64_read(&hwc->prev_count);
+	prev_raw_count = local64_read(&hwc->prev_count);
 	rdmsrl(hwc->event_base + idx, new_raw_count);
 
-	if (atomic64_cmpxchg(&hwc->prev_count, prev_raw_count,
+	if (local64_cmpxchg(&hwc->prev_count, prev_raw_count,
 					new_raw_count) != prev_raw_count)
 		goto again;
 
@@ -232,8 +232,8 @@ again:
 	delta = (new_raw_count << shift) - (prev_raw_count << shift);
 	delta >>= shift;
 
-	atomic64_add(delta, &event->count);
-	atomic64_sub(delta, &hwc->period_left);
+	local64_add(delta, &event->count);
+	local64_sub(delta, &hwc->period_left);
 
 	return new_raw_count;
 }
@@ -496,7 +496,7 @@ static int __hw_perf_event_init(struct perf_event *event)
 	if (!hwc->sample_period) {
 		hwc->sample_period = x86_pmu.max_period;
 		hwc->last_period = hwc->sample_period;
-		atomic64_set(&hwc->period_left, hwc->sample_period);
+		local64_set(&hwc->period_left, hwc->sample_period);
 	} else {
 		/*
 		 * If we have a PMU initialized but no APIC
@@ -875,7 +875,7 @@ static int
 x86_perf_event_set_period(struct perf_event *event)
 {
 	struct hw_perf_event *hwc = &event->hw;
-	s64 left = atomic64_read(&hwc->period_left);
+	s64 left = local64_read(&hwc->period_left);
 	s64 period = hwc->sample_period;
 	int err, ret = 0, idx = hwc->idx;
 
@@ -887,14 +887,14 @@ x86_perf_event_set_period(struct perf_event *event)
 	 */
 	if (unlikely(left <= -period)) {
 		left = period;
-		atomic64_set(&hwc->period_left, left);
+		local64_set(&hwc->period_left, left);
 		hwc->last_period = period;
 		ret = 1;
 	}
 
 	if (unlikely(left <= 0)) {
 		left += period;
-		atomic64_set(&hwc->period_left, left);
+		local64_set(&hwc->period_left, left);
 		hwc->last_period = period;
 		ret = 1;
 	}
@@ -913,7 +913,7 @@ x86_perf_event_set_period(struct perf_event *event)
 	 * The hw event starts counting from this event offset,
 	 * mark it to be able to extra future deltas:
 	 */
-	atomic64_set(&hwc->prev_count, (u64)-left);
+	local64_set(&hwc->prev_count, (u64)-left);
 
 	err = checking_wrmsrl(hwc->event_base + idx,
 			     (u64)(-left) & x86_pmu.event_mask);
