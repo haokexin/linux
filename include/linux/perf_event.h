@@ -586,6 +586,7 @@ struct perf_event {
 
 	enum perf_event_active_state	state;
 	atomic64_t			count;
+	atomic64_t			child_count;
 
 	/*
 	 * These are the total time in nanoseconds that the event
