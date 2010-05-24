@@ -43,8 +43,6 @@
 #include <asm/sysmips.h>
 #include <asm/uaccess.h>
 
-DEFINE_TRACE(ipc_call);
-
 /*
  * For historic reasons the pipe(2) syscall on MIPS has an unusual calling
  * convention.  It returns results in registers $v0 / $v1 which means there
