@@ -93,6 +93,7 @@
 #include <linux/rcupdate.h>
 #include <linux/kprobes.h>
 #include <linux/io.h>
+#include <linux/slab.h>
 
 #include <asm/cacheflush.h>
 

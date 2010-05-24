@@ -11,6 +11,7 @@
 #include <linux/fs.h>
 #include <linux/debugfs.h>
 #include <linux/ltt-type-serializer.h>
+#include <linux/slab.h>
 
 #define LTT_WRITE_EVENT_FILE	"write_event"
 
