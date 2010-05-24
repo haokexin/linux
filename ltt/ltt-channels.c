@@ -15,6 +15,7 @@
 #include <linux/ltt-channels.h>
 #include <linux/mutex.h>
 #include <linux/vmalloc.h>
+#include <linux/slab.h>
 
 /*
  * ltt_channel_mutex may be nested inside the LTT trace mutex.
