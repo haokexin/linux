@@ -35,6 +35,14 @@ __setup("savemaxmem=", parse_savemaxmem);
 
 static void *kdump_buf_page;
 
+static int default_machine_check_pfn_validity(unsigned long pfn)
+{
+	return 1;
+}
+/* Do NOT set this to NULL */
+int (*_machine_check_pfn_validity)(unsigned long pfn) =
+	default_machine_check_pfn_validity;
+
 /**
  * copy_oldmem_page - copy one page from "oldmem"
  * @pfn: page frame number to be copied
@@ -63,7 +71,7 @@ ssize_t copy_oldmem_page(unsigned long pfn, char *buf,
 		return 0;
 
 	/* see if the PFN is valid and present */
-	if (pfn_present(pfn) && pfn_valid(pfn)) {
+	if (_machine_check_pfn_validity(pfn)) {
 		vaddr = kmap_atomic_pfn(pfn, KM_PTE0);
 
 		if (!userbuf) {
