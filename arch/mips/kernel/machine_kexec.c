@@ -22,10 +22,7 @@ extern unsigned long kexec_indirection_page;
 int (*_machine_kexec_prepare)(struct kimage *);
 void (*_machine_kexec_shutdown)(void);
 void (*_machine_crash_shutdown)(struct pt_regs *regs);
-#ifdef CONFIG_SMP
-void (*relocated_kexec_smp_wait) (void *);
-atomic_t kexec_ready_to_reboot = ATOMIC_INIT(0);
-#endif
+void (*_machine_smp_handle_restart)(unsigned long reloc) = NULL;
 
 int
 machine_kexec_prepare(struct kimage *kimage)
@@ -57,6 +54,23 @@ machine_crash_shutdown(struct pt_regs *regs)
 }
 
 typedef void (*noretfun_t)(void) __attribute__((noreturn));
+
+#ifdef CONFIG_SMP
+void (*relocated_kexec_smp_wait) (void *);
+atomic_t kexec_ready_to_reboot = ATOMIC_INIT(0);
+static void default_machine_smp_handle_restart(unsigned long reloc)
+{
+	/* All secondary cpus now may jump to kexec_wait cycle */
+	relocated_kexec_smp_wait =
+		(void *)(reloc + (kexec_smp_wait - relocate_new_kernel));
+	smp_wmb();
+	atomic_set(&kexec_ready_to_reboot, 1);
+}
+#else
+static void default_machine_smp_handle_restart(unsigned long reloc)
+{
+}
+#endif
 
 void
 machine_kexec(struct kimage *image)
@@ -109,13 +123,13 @@ machine_kexec(struct kimage *image)
 	printk("Will call new kernel at %08lx\n", image->start);
 	printk("Bye ...\n");
 	__flush_cache_all();
-#ifdef CONFIG_SMP
-	/* All secondary cpus now may jump to kexec_wait cycle */
-	relocated_kexec_smp_wait = reboot_code_buffer +
-		(kexec_smp_wait - relocate_new_kernel);
-	smp_wmb();
-	atomic_set(&kexec_ready_to_reboot, 1);
-#endif
+
+	if(_machine_smp_handle_restart) {
+		_machine_smp_handle_restart(reboot_code_buffer);
+	} else {
+		default_machine_smp_handle_restart(reboot_code_buffer);
+	}
+
 	((noretfun_t) reboot_code_buffer)();
 }
 
