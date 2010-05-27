@@ -62,21 +62,36 @@ ssize_t copy_oldmem_page(unsigned long pfn, char *buf,
 	if (!csize)
 		return 0;
 
-	vaddr = kmap_atomic_pfn(pfn, KM_PTE0);
+	/* see if the PFN is valid and present */
+	if (pfn_present(pfn) && pfn_valid(pfn)) {
+		vaddr = kmap_atomic_pfn(pfn, KM_PTE0);
 
-	if (!userbuf) {
-		memcpy(buf, (vaddr + offset), csize);
-		kunmap_atomic(vaddr, KM_PTE0);
-	} else {
-		if (!kdump_buf_page) {
-			printk(KERN_WARNING "Kdump: Kdump buffer page not"
-			       " allocated\n");
-			return -EFAULT;
+		if (!userbuf) {
+			memcpy(buf, (vaddr + offset), csize);
+			kunmap_atomic(vaddr, KM_PTE0);
+		} else {
+			if (!kdump_buf_page) {
+				printk(KERN_WARNING "Kdump: Kdump buffer " \
+					"page not allocated\n");
+				return -EFAULT;
+			}
+			copy_page(kdump_buf_page, vaddr);
+			kunmap_atomic(vaddr, KM_PTE0);
+			if (copy_to_user(buf,
+				(kdump_buf_page + offset), csize))
+				return -EFAULT;
 		}
-		copy_page(kdump_buf_page, vaddr);
-		kunmap_atomic(vaddr, KM_PTE0);
-		if (copy_to_user(buf, (kdump_buf_page + offset), csize))
-			return -EFAULT;
+	} else {
+		/* the PFN isn't present and/or valid in the paging tables
+		 * use the __va() macro to get the virtual address from the PFN
+		 */
+		vaddr = (void *)(__va(pfn * PAGE_SIZE));
+		if (!userbuf) {
+			memcpy(buf, (vaddr + offset), csize);
+		} else {
+			if (copy_to_user(buf, (vaddr + offset), csize))
+				return -EFAULT;
+		}
 	}
 
 	return csize;

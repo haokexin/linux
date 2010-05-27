@@ -21,7 +21,7 @@ LEAF(relocate_new_kernel)
      PTR_L a2,    arg2
      PTR_L a3,    arg3
 
-	PTR_L		s0, kexec_indirection_page
+	PTR_LA		s0, kexec_indirection_page
 	PTR_L		s1, kexec_start_address
 
 process_entry:
@@ -31,25 +31,40 @@ process_entry:
 	/* destination page */
 	and		s3, s2, 0x1
 	beq		s3, zero, 1f
+	nop
 	and		s4, s2, ~0x1	/* store destination addr in s4 */
+
+	nop
 	b		process_entry
+	nop
 
 1:
 	/* indirection page, update s0  */
 	and		s3, s2, 0x2
 	beq		s3, zero, 1f
+	nop
 	and		s0, s2, ~0x2
+
+	nop
+
 	b		process_entry
+	nop
 
 1:
 	/* done page */
 	and		s3, s2, 0x4
 	beq		s3, zero, 1f
+	nop
+
+	nop
 	b		done
+	nop
+
 1:
 	/* source page */
 	and		s3, s2, 0x8
 	beq		s3, zero, process_entry
+	nop
 	and		s2, s2, ~0x8
 	li		s6, (1 << PAGE_SHIFT) / SZREG
 
@@ -60,9 +75,15 @@ copy_word:
 	PTR_ADD		s4, s4, SZREG
 	PTR_ADD		s2, s2, SZREG
 	LONG_SUB	s6, s6, 1
-	beq		s6, zero, process_entry
+	beq		s6, zero, 1f
+	nop
 	b		copy_word
-	b		process_entry
+	nop
+
+1:
+	nop
+	b 		process_entry
+	nop
 
 done:
 #ifdef CONFIG_SMP
@@ -70,21 +91,32 @@ done:
         was moved to it's location. Note - we need relocated address
         of kexec_flag.  */
 
-     bal        1f
- 1:     move        t1,ra;
-     PTR_LA        t2,1b
-     PTR_LA        t0,kexec_flag
-     PTR_SUB        t0,t0,t2;
-     PTR_ADD        t0,t1,t0;
-     LONG_S        zero,(t0)
+	.align	3
+	bal	1f
+	nop
+1:
+	.align	3
+	PTR_ADDIU	ra, ra, -8
+	move		t1, ra;
+	PTR_LA		t2, done
+	PTR_LA		t0, kexec_flag
+	PTR_SUB		t0, t0, t2;
+	PTR_ADD		t0, t1, t0;
+	LONG_S		zero, (t0)
 #endif
 
      /* Some platforms need I-cache to be flushed before
      * jumping to new kernel.
       */
+#ifdef CONFIG_CPU_CAVIUM_OCTEON
+	cache	0, 0($0)
+#endif
 
 	/* jump to kexec_start_address */
 	j		s1
+	nop
+	nop
+	nop
 	END(relocate_new_kernel)
 
 #ifdef CONFIG_SMP
@@ -104,18 +136,31 @@ LEAF(kexec_smp_wait)
      * kexec_flag.
      */
 
-    bal        1f
-1:    move        t1,ra;
-    PTR_LA        t2,1b
-    PTR_LA        t0,kexec_flag
-    PTR_SUB        t0,t0,t2;
-    PTR_ADD        t0,t1,t0;
+wait:
+	.align	3
+	bal	1f
+	nop
+1:
+	.align	3
+	PTR_ADDIU	ra,ra,-8
+	move		t1,ra;
+	PTR_LA		t2,wait
+	PTR_LA		t0,kexec_flag
+	PTR_SUB		t0,t0,t2;
+	PTR_ADD		t0,t1,t0;
 
-1:    LONG_L        s0, (t0)
-    bne        s0, zero,1b
+1:
+	LONG_L		s0,(t0)
+	bne		s0, zero,1b
+	nop
 
-    j        s1
-    END(kexec_smp_wait)
+#ifdef CONFIG_CPU_CAVIUM_OCTEON
+	cache	0, 0($0)
+#endif
+
+	j        s1
+	nop
+	END(kexec_smp_wait)
 #endif
 
 
@@ -164,6 +209,16 @@ kexec_indirection_page:
 	EXPORT(kexec_indirection_page)
 	PTR		0
 	.size		kexec_indirection_page, PTRSIZE
+
+kexec_bss_start:
+	EXPORT(kexec_bss_start)
+	PTR		0
+	.size		kexec_bss_start, PTRSIZE
+
+kexec_bss_stop:
+	EXPORT(kexec_bss_stop)
+	PTR		0
+	.size		kexec_bss_stop, PTRSIZE
 
 relocate_new_kernel_end:
 

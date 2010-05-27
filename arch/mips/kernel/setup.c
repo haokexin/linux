@@ -452,15 +452,22 @@ static int __init early_parse_mem(char *p)
 }
 early_param("mem", early_parse_mem);
 
+static inline unsigned long long get_total_mem(void)
+{
+	unsigned long long total;
+
+	total = max_low_pfn - min_low_pfn;
+#ifdef CONFIG_HIGHMEM
+	total += highend_pfn - highstart_pfn;
+#endif
+
+	return total << PAGE_SHIFT;
+}
+
+
 static void __init arch_mem_init(char **cmdline_p)
 {
 	extern void plat_mem_setup(void);
-
-	/* call board setup routine */
-	plat_mem_setup();
-
-	pr_info("Determined physical RAM map:\n");
-	print_memory_map();
 
 #ifdef CONFIG_CMDLINE_BOOL
 #ifdef CONFIG_CMDLINE_OVERRIDE
@@ -481,16 +488,23 @@ static void __init arch_mem_init(char **cmdline_p)
 
 	parse_early_param();
 
+	plat_mem_setup();
+
 	if (usermem) {
 		pr_info("User-defined physical RAM map:\n");
+		print_memory_map();
+	} else {
+		pr_info("Determined physical RAM map:\n");
 		print_memory_map();
 	}
 
 	bootmem_init();
 #ifdef CONFIG_KEXEC
+	pr_info("Crashkernel info:\n");
+	pr_info("\tstart=%llu end=%llu\n", crashk_res.start, crashk_res.end);
 	if (crashk_res.start != crashk_res.end)
 		reserve_bootmem(crashk_res.start,
-				crashk_res.end - crashk_res.start + 1);
+			crashk_res.end - crashk_res.start + 1, 0);
 #endif
 	sparse_init();
 	paging_init();
