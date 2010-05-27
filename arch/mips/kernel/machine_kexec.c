@@ -22,6 +22,7 @@ extern unsigned long kexec_indirection_page;
 int (*_machine_kexec_prepare)(struct kimage *);
 void (*_machine_kexec_shutdown)(void);
 void (*_machine_crash_shutdown)(struct pt_regs *regs);
+void (*_machine_cache_flush)(void) = NULL;
 void (*_machine_smp_handle_restart)(unsigned long reloc) = NULL;
 
 int
@@ -122,7 +123,12 @@ machine_kexec(struct kimage *image)
 
 	printk("Will call new kernel at %08lx\n", image->start);
 	printk("Bye ...\n");
-	__flush_cache_all();
+
+	if(_machine_cache_flush) {
+		_machine_cache_flush();
+	} else {
+		__flush_cache_all();
+	}
 
 	if(_machine_smp_handle_restart) {
 		_machine_smp_handle_restart(reboot_code_buffer);
