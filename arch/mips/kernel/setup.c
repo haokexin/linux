@@ -21,7 +21,7 @@
 #include <linux/console.h>
 #include <linux/pfn.h>
 #include <linux/debugfs.h>
-
+#include <linux/kexec.h>
 #include <asm/addrspace.h>
 #include <asm/bootinfo.h>
 #include <asm/bugs.h>
@@ -487,6 +487,11 @@ static void __init arch_mem_init(char **cmdline_p)
 	}
 
 	bootmem_init();
+#ifdef CONFIG_KEXEC
+	if (crashk_res.start != crashk_res.end)
+		reserve_bootmem(crashk_res.start,
+				crashk_res.end - crashk_res.start + 1);
+#endif
 	sparse_init();
 	paging_init();
 }
@@ -541,6 +546,9 @@ static void __init resource_init(void)
 		 */
 		request_resource(res, &code_resource);
 		request_resource(res, &data_resource);
+#ifdef CONFIG_KEXEC
+		request_resource(res, &crashk_res);
+#endif
 	}
 }
 

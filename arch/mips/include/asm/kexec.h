@@ -7,7 +7,9 @@
  */
 
 #ifndef _MIPS_KEXEC
-# define _MIPS_KEXEC
+#define _MIPS_KEXEC
+
+#include <linux/stacktrace.h>
 
 /* Maximum physical address we can use pages from */
 #define KEXEC_SOURCE_MEMORY_LIMIT (0x20000000)
@@ -24,7 +26,24 @@
 static inline void crash_setup_regs(struct pt_regs *newregs,
 				    struct pt_regs *oldregs)
 {
-	/* Dummy implementation for now */
+	if (oldregs)
+		memcpy(newregs, oldregs, sizeof(*newregs));
+	else
+	prepare_frametrace(newregs);
 }
 
+#ifdef CONFIG_KEXEC
+struct kimage;
+extern unsigned long kexec_args[4];
+extern int (*_machine_kexec_prepare)(struct kimage *);
+extern void (*_machine_kexec_shutdown)(void);
+extern void (*_machine_crash_shutdown)(struct pt_regs *regs);
+extern void default_machine_crash_shutdown(struct pt_regs *regs);
+#ifdef CONFIG_SMP
+extern const unsigned char kexec_smp_wait[];
+extern unsigned long secondary_kexec_args[4];
+extern void (*relocated_kexec_smp_wait)(void *);
+extern atomic_t kexec_ready_to_reboot;
+#endif
+#endif
 #endif /* !_MIPS_KEXEC */
