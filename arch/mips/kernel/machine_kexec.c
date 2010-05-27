@@ -19,9 +19,19 @@ extern const size_t relocate_new_kernel_size;
 extern unsigned long kexec_start_address;
 extern unsigned long kexec_indirection_page;
 
+int (*_machine_kexec_prepare)(struct kimage *);
+void (*_machine_kexec_shutdown)(void);
+void (*_machine_crash_shutdown)(struct pt_regs *regs);
+#ifdef CONFIG_SMP
+void (*relocated_kexec_smp_wait) (void *);
+atomic_t kexec_ready_to_reboot = ATOMIC_INIT(0);
+#endif
+
 int
 machine_kexec_prepare(struct kimage *kimage)
 {
+	if (_machine_kexec_prepare)
+		return _machine_kexec_prepare(kimage);
 	return 0;
 }
 
@@ -33,11 +43,17 @@ machine_kexec_cleanup(struct kimage *kimage)
 void
 machine_shutdown(void)
 {
+	if (_machine_kexec_shutdown)
+		_machine_kexec_shutdown();
 }
 
 void
 machine_crash_shutdown(struct pt_regs *regs)
 {
+	if (_machine_crash_shutdown)
+		_machine_crash_shutdown(regs);
+	else
+		default_machine_crash_shutdown(regs);
 }
 
 typedef void (*noretfun_t)(void) __attribute__((noreturn));
@@ -52,7 +68,8 @@ machine_kexec(struct kimage *image)
 	reboot_code_buffer =
 	  (unsigned long)page_address(image->control_code_page);
 
-	kexec_start_address = image->start;
+	kexec_start_address = (unsigned long) phys_to_virt(image->start);
+
 	kexec_indirection_page =
 		(unsigned long) phys_to_virt(image->head & PAGE_MASK);
 
@@ -60,10 +77,9 @@ machine_kexec(struct kimage *image)
 	       relocate_new_kernel_size);
 
 	/*
-	 * The generic kexec code builds a page list with physical
-	 * addresses. they are directly accessible through KSEG0 (or
-	 * CKSEG0 or XPHYS if on 64bit system), hence the
-	 * pys_to_virt() call.
+	 * The generic kexec code builds a page list with physical addresses.
+	 * They are directly accessible through KSEG0 (or CKSEG0 or XPHYS if on
+	 * 64bit system), hence the phys_to_virt() call.
 	 */
 	for (ptr = &image->head; (entry = *ptr) && !(entry &IND_DONE);
 	     ptr = (entry & IND_INDIRECTION) ?
@@ -81,5 +97,37 @@ machine_kexec(struct kimage *image)
 	printk("Will call new kernel at %08lx\n", image->start);
 	printk("Bye ...\n");
 	__flush_cache_all();
+#ifdef CONFIG_SMP
+	/* All secondary cpus now may jump to kexec_wait cycle */
+	relocated_kexec_smp_wait = reboot_code_buffer +
+		(kexec_smp_wait - relocate_new_kernel);
+	smp_wmb();
+	atomic_set(&kexec_ready_to_reboot, 1);
+#endif
 	((noretfun_t) reboot_code_buffer)();
 }
+
+/*
+ * crashkernel=size at addr specifies the location to reserve for
+ * a crash kernel.  By reserving this memory we guarantee
+ * that linux never sets it up as a DMA target.
+ * Useful for holding code to do something appropriate
+ * after a kernel panic.
+ */
+static int __init parse_crashkernel(char *arg) {
+	unsigned long size, base;
+
+	size = memparse(arg, &arg);
+	if (*arg == '@') {
+		base = memparse(arg+1, &arg);
+		/*
+		 * FIXME: Do I want a sanity check
+		 * to validate the memory range?
+		 */
+		crashk_res.start = base;
+		crashk_res.end   = base + size - 1;
+	}
+
+	return 0;
+}
+early_param("crashkernel", parse_crashkernel);
