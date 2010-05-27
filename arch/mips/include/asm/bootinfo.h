@@ -114,6 +114,8 @@ extern char arcs_cmdline[COMMAND_LINE_SIZE];
  */
 extern unsigned long fw_arg0, fw_arg1, fw_arg2, fw_arg3;
 
+extern void plat_kexec_setup(void);
+
 /*
  * Platform memory detection hook called by setup_arch
  */

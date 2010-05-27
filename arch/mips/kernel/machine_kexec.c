@@ -70,8 +70,20 @@ machine_kexec(struct kimage *image)
 
 	kexec_start_address = (unsigned long) phys_to_virt(image->start);
 
-	kexec_indirection_page =
-		(unsigned long) phys_to_virt(image->head & PAGE_MASK);
+	/* kexec_indirection_page is marked with the IND_INDIRECTION flag
+	 * in the lower bits of the address. The assembly code in
+	 * relocate_kernel.S will take care of masking it off.
+	 *
+	 * The image->head is a physical address: we need the virtual mapping.
+	 *
+	 * In the case of a crash_dump kernel, assign a dummy IND_DONE page
+	 */
+	if(KEXEC_TYPE_CRASH == image->type) {
+		kexec_indirection_page = IND_DONE;
+	} else {
+		kexec_indirection_page =
+			(unsigned long)phys_to_virt(image->head);
+	}
 
 	memcpy((void*)reboot_code_buffer, relocate_new_kernel,
 	       relocate_new_kernel_size);
@@ -114,7 +126,7 @@ machine_kexec(struct kimage *image)
  * Useful for holding code to do something appropriate
  * after a kernel panic.
  */
-static int __init parse_crashkernel(char *arg) {
+static int __init mips_parse_crashkernel(char *arg) {
 	unsigned long size, base;
 
 	size = memparse(arg, &arg);
@@ -130,4 +142,4 @@ static int __init parse_crashkernel(char *arg) {
 
 	return 0;
 }
-early_param("crashkernel", parse_crashkernel);
+early_param("crashkernel", mips_parse_crashkernel);

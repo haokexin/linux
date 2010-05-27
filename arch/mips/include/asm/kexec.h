@@ -9,7 +9,7 @@
 #ifndef _MIPS_KEXEC
 #define _MIPS_KEXEC
 
-#include <linux/stacktrace.h>
+#include <asm/stacktrace.h>
 
 /* Maximum physical address we can use pages from */
 #define KEXEC_SOURCE_MEMORY_LIMIT (0x20000000)
