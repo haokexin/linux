@@ -86,6 +86,7 @@ int dbg_switch_cpu;
 
 /* Use kdb or gdbserver mode */
 int dbg_kdb_mode = 1;
+EXPORT_SYMBOL_GPL(dbg_kdb_mode);
 
 static int __init opt_kgdb_con(char *str)
 {
