@@ -57,6 +57,7 @@
 #include <asm/desc.h>
 #include <asm/i387.h>
 #include <asm/mce.h>
+#include <asm/syscall.h>
 
 #include <asm/mach_traps.h>
 
