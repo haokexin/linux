@@ -27,6 +27,7 @@
 #include <linux/init.h>
 #include <linux/percpu.h>
 #include <linux/hardirq.h>
+#include <linux/rcupdate.h>
 #include <asm/pgalloc.h>
 #include <asm/tlbflush.h>
 #include <asm/tlb.h>
@@ -92,7 +93,7 @@ static void pte_free_rcu_callback(struct rcu_head *head)
 
 static void pte_free_submit(struct pte_freelist_batch *batch)
 {
-	INIT_RCU_HEAD(&batch->rcu);
+	rcu_head_init(&batch->rcu);
 	call_rcu(&batch->rcu, pte_free_rcu_callback);
 }
 
