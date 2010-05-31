@@ -19,8 +19,6 @@ asmlinkage long sys32_ipc(u32 call, int first, int second, int third,
 	version = call >> 16; /* hack for backward compatibility */
 	call &= 0xffff;
 
-	trace_ipc_call(call, first);
-
 	switch (call) {
 	case SEMOP:
 		/* struct sembuf is the same on 32 and 64bit :)) */
