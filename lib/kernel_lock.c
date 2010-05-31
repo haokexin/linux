@@ -5,6 +5,9 @@
  * relegated to obsolescence, but used by various less
  * important (or lazy) subsystems.
  */
+
+#include <linux/kmemtrace.h>
+#include <linux/kmemcheck.h>
 #include <linux/module.h>
 #include <linux/kallsyms.h>
 #include <linux/semaphore.h>
