@@ -80,7 +80,7 @@ char ignore_fpu_irq;
  */
 gate_desc idt_table[NR_VECTORS] __page_aligned_data = { { { { 0, 0 } } }, };
 
-extern unsigned long sys_call_table[];
+extern const unsigned long sys_call_table[];
 extern unsigned long syscall_table_size;
 
 #endif
