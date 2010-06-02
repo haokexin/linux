@@ -539,4 +539,5 @@ EXPORT(syso32_call_table)
 	PTR	sys_perf_event_open
 	PTR	sys_accept4
 	PTR     compat_sys_recvmmsg
+	PTR	sys_revokeat
 	.size	sys_call_table,.-sys_call_table
