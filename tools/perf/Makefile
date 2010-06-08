@@ -514,8 +514,8 @@ else
 endif
 
 ifndef NO_LIBPERL
-PERL_EMBED_LDOPTS = `perl -MExtUtils::Embed -e ldopts 2>/dev/null`
-PERL_EMBED_CCOPTS = `perl -MExtUtils::Embed -e ccopts 2>/dev/null`
+PERL_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)perl -MExtUtils::Embed -e ldopts 2>/dev/null`
+PERL_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)perl -MExtUtils::Embed -e ccopts 2>/dev/null`
 endif
 
 ifneq ($(shell sh -c "(echo '\#include <EXTERN.h>'; echo '\#include <perl.h>'; echo 'int main(void) { perl_alloc(); return 0; }') | $(CC) -x c - $(PERL_EMBED_CCOPTS) -o $(BITBUCKET) $(PERL_EMBED_LDOPTS) > /dev/null 2>&1 && echo y"), y)
@@ -527,8 +527,8 @@ else
 endif
 
 ifndef NO_LIBPYTHON
-PYTHON_EMBED_LDOPTS = `python-config --ldflags 2>/dev/null`
-PYTHON_EMBED_CCOPTS = `python-config --cflags 2>/dev/null`
+PYTHON_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)python-config --ldflags 2>/dev/null`
+PYTHON_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)python-config --cflags 2>/dev/null`
 endif
 
 ifneq ($(shell sh -c "(echo '\#include <Python.h>'; echo 'int main(void) { Py_Initialize(); return 0; }') | $(CC) -x c - $(PYTHON_EMBED_CCOPTS) -o /dev/null $(PYTHON_EMBED_LDOPTS) > /dev/null 2>&1 && echo y"), y)
