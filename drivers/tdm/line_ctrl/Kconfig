@@ -1,0 +1,10 @@
+#
+# TDM line control driver config file
+#
+
+
+config SLIC_ZARLINK
+	tristate "Zarlink Slic intialization Module"
+		default n
+		---help---
+		  This module initialize and configure the zarlink slic
