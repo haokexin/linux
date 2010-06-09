@@ -12,6 +12,7 @@ config MIPS
 	select HAVE_FUNCTION_GRAPH_TRACER
 	select RTC_LIB if !MACH_LOONGSON
 	select HAVE_LTT_DUMP_TABLES
+	select GENERIC_ATOMIC64 if !64BIT
 
 mainmenu "Linux/MIPS Kernel Configuration"
 
