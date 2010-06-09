@@ -437,6 +437,7 @@ enum perf_callchain_context {
 
 #ifdef CONFIG_PERF_EVENTS
 # include <asm/perf_event.h>
+# include <asm/local64.h>
 #endif
 
 #ifdef CONFIG_HAVE_HW_BREAKPOINT
@@ -455,7 +456,6 @@ enum perf_callchain_context {
 #include <linux/ftrace.h>
 #include <linux/cpu.h>
 #include <asm/atomic.h>
-#include <asm/local64.h>
 
 #define PERF_MAX_STACK_DEPTH		255
 
