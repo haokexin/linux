@@ -289,6 +289,28 @@
 					label = "SPI (RW) JFFS2 RFS";
 				};
 			};
+
+			legerity@0{
+				compatible = "fsl,espi-slic";
+				reg = <1>;
+				linux,modalias = "legerity";
+				spi-max-frequency = <8000000>;
+				ch1-rx-slot = <0>;
+				ch1-tx-slot = <0>;
+				ch2-rx-slot = <2>;
+				ch2-tx-slot = <2>;
+			};
+
+			legerity@1{
+				compatible = "fsl,espi-slic";
+				reg = <2>;
+				linux,modalias = "legerity";
+				spi-max-frequency = <8000000>;
+				ch1-rx-slot = <4>;
+				ch1-tx-slot = <4>;
+				ch2-rx-slot = <6>;
+				ch2-tx-slot = <6>;
+			};
 		};
 
 		gpio: gpio-controller@f000 {

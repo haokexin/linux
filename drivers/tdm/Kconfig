@@ -35,4 +35,5 @@ config TDM_DEBUG_CORE
 	  problem with TDM support and want to see more of what is going on.
 
 source drivers/tdm/device/Kconfig
+source drivers/tdm/line_ctrl/Kconfig
 endif # TDM
