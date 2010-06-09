@@ -1162,7 +1162,7 @@ follow_branch:
 				    ("  %p: arbitrary branch [delay] by %ld to %p\n",
 				     pcCur - 1, offset, pcCur + offset);
 
-				pcCurStart = pcCur + offset;
+				pcCurStart = pcCur + offset - 1;
 				i = 0;
 
 				/* we limit the number of arbitrary branches taken */
