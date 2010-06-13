@@ -254,6 +254,10 @@ struct sdhci_host {
 #define SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12		(1<<25)
 /* Controller cannot set DCR[DMA__AHB2MAG_IRQ_BYPASS] automatically*/
 #define SDHCI_QUIRK_SET_AHB2MAG_IRQ_BYPASS             (1<<26)
+/* Controller has weird bit setting for some registers due to errata */
+#define SDHCI_QUIRK_QORIQ_REG_WEIRD			(1<<27)
+/* Controller has time out errata */
+#define SDHCI_QUIRK_QORIQ_TIMEOUT_WEIRD			(1<<28)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */

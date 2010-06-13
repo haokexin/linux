@@ -173,6 +173,16 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 
 	if (host->quirks & SDHCI_QUIRK_RESTORE_IRQS_AFTER_RESET)
 		sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, ier);
+
+	/* Add P4080 ESDHC9 errata workaround.
+	 * Reset value of WML register should be 0x02100210
+	 * Only need on Rev1 silicon
+	 */
+#define ESDHC_WML	0x44
+	if (host->quirks & SDHCI_QUIRK_QORIQ_REG_WEIRD)
+		if ((mfspr(SPRN_SVR) & 0xff) == 0x10)
+			sdhci_writel(host, 0x02100210, ESDHC_WML);
+
 }
 
 static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
@@ -633,6 +643,17 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_data *data)
 		count = 0xE;
 	}
 
+	/* Add p4080 ESDHC11 workaround. Only need on Rev1 silicon */
+	if (host->quirks & SDHCI_QUIRK_QORIQ_TIMEOUT_WEIRD)
+		if ((mfspr(SPRN_SVR) & 0xff) == 0x10) {
+			if (count == 4)
+				count = 5;
+			if (count == 8)
+				count = 9;
+			if (count == 12)
+				count = 13;
+		}
+
 	return count;
 }
 
@@ -787,6 +808,15 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_data *data)
 		else
 			ctrl |= SDHCI_CTRL_SDMA;
 		sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
+	}
+
+	/* The default value of DMAS bits of Protocol Control Register is not
+	 * correct. clear these two bits to use simple DMA */
+#define  ESDHCI_CTRL_DMAS_MASK		0xFFFFFCFF
+	if (host->quirks & SDHCI_QUIRK_QORIQ_REG_WEIRD) {
+		ctrl = sdhci_readl(host, SDHCI_HOST_CONTROL);
+		ctrl = ctrl & ESDHCI_CTRL_DMAS_MASK;
+		sdhci_writel(host, ctrl, SDHCI_HOST_CONTROL);
 	}
 
 	if (!(host->flags & SDHCI_REQ_USE_DMA)) {
@@ -1728,6 +1758,9 @@ int sdhci_add_host(struct sdhci_host *host)
 	}
 
 	caps = sdhci_readl(host, SDHCI_CAPABILITIES);
+
+	 /* Workaround for P4080 ESDHC12 errata */
+	caps &= ~(SDHCI_CAN_VDD_180 | SDHCI_CAN_VDD_330);
 
 	if (host->quirks & SDHCI_QUIRK_FORCE_DMA)
 		host->flags |= SDHCI_USE_SDMA;
