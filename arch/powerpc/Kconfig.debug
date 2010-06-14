@@ -4,7 +4,7 @@ source "lib/Kconfig.debug"
 
 config PPC_DISABLE_WERROR
 	bool "Don't build arch/powerpc code with -Werror"
-	default n
+	default y
 	help
 	  This option tells the compiler NOT to build the code under
 	  arch/powerpc with the -Werror flag (which means warnings
