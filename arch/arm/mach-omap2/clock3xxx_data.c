@@ -45,6 +45,8 @@
 #define OMAP3630_MAX_JTYPE_DPLL_MULT	4095
 #define OMAP3_MAX_DPLL_DIV		128
 
+extern unsigned long long cpu_hz;
+
 /*
  * DPLL1 supplies clock to the MPU.
  * DPLL2 supplies clock to the IVA2.
@@ -3580,6 +3582,8 @@ int __init omap3xxx_clk_init(void)
 	       "%ld.%01ld/%ld/%ld MHz\n",
 	       (osc_sys_ck.rate / 1000000), (osc_sys_ck.rate / 100000) % 10,
 	       (core_ck.rate / 1000000), (arm_fck.rate / 1000000));
+
+	cpu_hz = arm_fck.rate;
 
 	/*
 	 * Only enable those clocks we will need, let the drivers
