@@ -125,6 +125,4 @@ const struct clkops clkops_omap3430es2_hsotgusb_wait = {
 	.find_companion = omap2_clk_dflt_find_companion,
 };
 
-unsigned long long cpu_hz;
-EXPORT_SYMBOL(cpu_hz);
 

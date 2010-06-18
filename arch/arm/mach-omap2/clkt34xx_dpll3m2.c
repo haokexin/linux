@@ -32,6 +32,9 @@
 
 #define CYCLES_PER_MHZ			1000000
 
+unsigned long long cpu_hz;
+EXPORT_SYMBOL(cpu_hz);
+
 /*
  * CORE DPLL (DPLL3) M2 divider rate programming functions
  *
@@ -78,6 +81,8 @@ int omap3_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate)
 		pr_debug("clock: will unlock SDRC DLL\n");
 		unlock_dll = 1;
 	}
+	
+	cpu_hz = arm_fck_p->rate;
 
 	/*
 	 * XXX This only needs to be done when the CPU frequency changes
