@@ -382,7 +382,7 @@ static noinline __kprobes int vmalloc_fault(unsigned long address)
 	 * case just flush:
 	 */
 	pgd_paddr = read_cr3();
-	pgd = __va(pgd_paddr) + pgd_index(address);
+	pgd = (pgd_t * )__va(pgd_paddr) + pgd_index(address);
 	pgd_ref = pgd_offset_k(address);
 	if (pgd_none(*pgd_ref))
 		return -1;
