@@ -132,15 +132,33 @@ asmlinkage __cpuinit void start_secondary(void)
 	cpu_idle();
 }
 
+#ifdef CONFIG_MICROSTATE_ACCT
+/*
+ * Only caller of smp_call_function_interrupt() knows irq number.
+ * So smp_call_function_interrupt() should have irq argument.
+ */
+void __irq_entry smp_call_function_interrupt(int irq)
+#else
 /*
  * Call into both interrupt handlers, as we share the IPI for them
  */
 void __irq_entry smp_call_function_interrupt(void)
+#endif
 {
+#ifndef CONFIG_MICROSTATE_ACCT
+	/*
+	* When MSA isn't selected msa_start_irq() is empty and
+	* and we don't care what irq number would be passed
+	* to msa_start_irq()/msa_irq_exit().
+	*/
+       int irq = 0;
+#endif
+
 	irq_enter();
+	msa_start_irq(irq);
 	generic_smp_call_function_single_interrupt();
 	generic_smp_call_function_interrupt();
-	irq_exit();
+	msa_irq_exit(irq, msa_get_reg());
 }
 
 static void stop_this_cpu(void *dummy)

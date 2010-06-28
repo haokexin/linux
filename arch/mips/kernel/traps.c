@@ -888,6 +888,7 @@ asmlinkage void do_ri(struct pt_regs *regs)
 		return;
 
 	die_if_kernel("Reserved instruction in kernel code", regs);
+	msa_kernel();
 
 	if (unlikely(compute_return_epc(regs) < 0))
 		return;
@@ -985,6 +986,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 	unsigned long __maybe_unused flags;
 
 	die_if_kernel("do_cpu invoked from kernel context!", regs);
+
+	msa_kernel();
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
 

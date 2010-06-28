@@ -23,6 +23,7 @@
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
 #include <asm/sysmips.h>
+#include <asm/msa_calling.h>
 
 	.align  5
 NESTED(handle_sys, PT_SIZE, sp)
@@ -31,6 +32,7 @@ NESTED(handle_sys, PT_SIZE, sp)
 	TRACE_IRQS_ON_RELOAD
 	STI
 	.set	at
+	MSA_KERNEL
 	ld	t1, PT_EPC(sp)		# skip syscall on return
 
 	dsubu	t0, v0, __NR_O32_Linux	# check syscall number
@@ -107,6 +109,7 @@ o32_syscall_exit:
 	and	t0, a2, t0
 	bnez	t0, o32_syscall_exit_work
 
+	MSA_USER
 	j	restore_partial
 
 o32_syscall_exit_work:
@@ -550,4 +553,5 @@ sys_call_table:
 	PTR	sys_setns
 	PTR	compat_sys_process_vm_readv	/* 4345 */
 	PTR	compat_sys_process_vm_writev
+	PTR	sys_msa
 	.size	sys_call_table,.-sys_call_table

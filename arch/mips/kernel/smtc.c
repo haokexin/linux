@@ -946,10 +946,11 @@ static void __irq_entry smtc_clock_tick_interrupt(void)
 	int irq = MIPS_CPU_IRQ_BASE + 1;
 
 	irq_enter();
+	msa_start_irq(irq);
 	kstat_incr_irqs_this_cpu(irq, irq_to_desc(irq));
 	cd = &per_cpu(mips_clockevent_device, cpu);
 	cd->event_handler(cd);
-	irq_exit();
+	msa_irq_exit(irq, msa_get_reg());
 }
 
 void ipi_decode(struct smtc_ipi *pipi)

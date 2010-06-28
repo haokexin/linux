@@ -39,6 +39,11 @@ struct msa_irq {
 	msa_time_t last_entered;
 };
 
+#ifdef CONFIG_MICROSTATE_C0_COUNT_REGISTER
+msa_time_t msa_cycles_last;
+u32 msa_last_count;
+__cacheline_aligned_in_smp DEFINE_SEQLOCK(msa_seqlock);
+#endif
 /*
  * Dummy this out for the moment.
  */
@@ -249,34 +254,18 @@ asmlinkage void msa_user(void)
 		msa_system_time(p, msa_to_cputime(delta));
 }
 
-/**
- * msa_start_irq: mark the start of an interrupt handler.
- * @irq: irq number being handled.
- *
- * Update the current task state to MSA_INTERRUPTED, and start
- * accumulating time to the interrupt handler for irq.
- *
- * Note that the irq_id does not have to be the actual irq, just some way
- * to uniquely identify the interrupt source that is less than NR_IRQ.
- * x86 uses the vector, for instance, since the IRQ numbers don't map
- * to all the relevant interrupt sources.
- */
-void msa_start_irq(int irq_id)
+static inline void _msa_start_irq(int irq, int nested)
 {
 	struct task_struct *p = current;
 	struct microstates *msp = &p->microstates;
 	msa_time_t now;
-	int nested;
 
-	BUG_ON(irq_id > NR_IRQS);
+	BUG_ON(irq > NR_IRQS);
 
 	/* we're in an interrupt handler... no possibility of preemption */
 	MSA_NOW(now);
 
-	nested = hardirq_count() - HARDIRQ_OFFSET;
-	BUG_ON(nested < 0);
-
-	__get_cpu_var(msa_irq)[irq_id].last_entered = now;
+	__get_cpu_var(msa_irq)[irq].last_entered = now;
 
 	if (!nested) {
 		msa_time_t delta = now - msp->last_change;
@@ -292,6 +281,37 @@ void msa_start_irq(int irq_id)
 			msp->cur_state = MSA_INTERRUPTED;
 		}
 	}
+}
+
+/*
+ * msa_start_irq: mark the start of an interrupt handler.
+ * @irq: irq number being handled.
+ *
+ * Update the current task state to MSA_INTERRUPTED, and start
+ * accumulating time to the interrupt handler for irq.
+ */
+void msa_start_irq(int irq)
+{
+	int nested;
+
+	/* we're in an interrupt handler... no possibility of preemption */
+	nested = hardirq_count() - HARDIRQ_OFFSET;
+	BUG_ON(nested < 0);
+
+	_msa_start_irq(irq, nested);
+}
+
+/*
+ * Same as msa_start_irq() except it's called from irq handler that
+ * don't call irq_enter/irq_exit.
+ */
+void msa_start_irq_raw(int irq)
+{
+	int nested;
+
+	/* we're in an interrupt handler... no possibility of preemption */
+	nested = hardirq_count();
+	_msa_start_irq(irq, nested);
 }
 
 /**
@@ -479,6 +499,46 @@ SYSCALL_DEFINE3(msa, int, ntimers, int, which, msa_time_t __user *, timers)
 	}
 
 	return 0;
+}
+
+/*
+ * Same as msa_irq_exit() except it's called from irq handler that
+ * don't call irq_enter/irq_exit. So don't call irq_exit() here and
+ * don't account softirqs time.
+ */
+void msa_irq_exit_raw(int irq_id)
+{
+	struct task_struct *p = current;
+	struct microstates *mp = &p->microstates;
+	u64 *cpustat = kcpustat_this_cpu->cpustat;
+	msa_time_t now, delta;
+	struct msa_irq *mip;
+	int nested;
+
+	BUG_ON(irq_id > NR_IRQS);
+
+	mip = get_cpu_var(msa_irq);
+	nested = hardirq_count();
+	BUG_ON(nested < 0);
+
+	MSA_NOW(now);
+	delta = now - mip[irq_id].last_entered;
+	mip[irq_id].times += delta;
+	if (!nested) {
+		msa_time_t before = now;
+
+		cpustat[CPUTIME_IRQ] +=	msa_to_cputime64(delta);
+
+		MSA_NOW(now);
+		delta = now - before;
+		if (mp->cur_state == MSA_INTERRUPTED) {
+			mp->timers[mp->cur_state] += now - mp->last_change;
+			mp->last_change = now;
+			mp->cur_state = mp->next_state;
+		}
+	}
+
+	put_cpu_var(msa_irq);
 }
 
 #ifdef CONFIG_PROC_FS

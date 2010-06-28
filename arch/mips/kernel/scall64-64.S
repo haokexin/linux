@@ -19,6 +19,7 @@
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
 #include <asm/war.h>
+#include <asm/msa_calling.h>
 
 #ifndef CONFIG_BINFMT_ELF32
 /* Neither O32 nor N32, so define handle_sys here */
@@ -37,6 +38,7 @@ NESTED(handle_sys64, PT_SIZE, sp)
 	TRACE_IRQS_ON_RELOAD
 	STI
 	.set	at
+	MSA_KERNEL
 #endif
 
 	dsubu	t0, v0, __NR_64_Linux	# check syscall number
@@ -80,6 +82,7 @@ n64_syscall_exit:
 	and	t0, a2, t0
 	bnez	t0, n64_syscall_exit_work
 
+	MSA_USER
 	j	restore_partial
 
 n64_syscall_exit_work:
@@ -432,4 +435,5 @@ sys_call_table:
 	PTR	sys_setns
 	PTR	sys_process_vm_readv
 	PTR	sys_process_vm_writev		/* 5305 */
+	PTR	sys_msa
 	.size	sys_call_table,.-sys_call_table

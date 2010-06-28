@@ -44,6 +44,12 @@ asmlinkage void __kprobes do_page_fault(struct pt_regs *regs, unsigned long writ
 	unsigned int flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE |
 						 (write ? FAULT_FLAG_WRITE : 0);
 
+#ifdef CONFIG_MICROSTATE_ACCT
+	if (user_mode(regs))
+		msa_kernel();
+#endif
+
+
 #if 0
 	printk("Cpu%d[%s:%d:%0*lx:%ld:%0*lx]\n", raw_smp_processor_id(),
 	       current->comm, current->pid, field, address, write,

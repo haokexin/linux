@@ -19,6 +19,7 @@
 #ifdef CONFIG_MIPS_MT_SMTC
 #include <asm/mipsmtregs.h>
 #endif
+#include <asm/msa_calling.h>
 
 #ifndef CONFIG_PREEMPT
 #define resume_kernel	restore_all
@@ -47,6 +48,7 @@ resume_userspace:
 	LONG_L	a2, TI_FLAGS($28)	# current->work
 	andi	t0, a2, _TIF_WORK_MASK	# (ignoring syscall_trace)
 	bnez	t0, work_pending
+	MSA_USER
 	j	restore_all
 
 #ifdef CONFIG_PREEMPT
@@ -76,6 +78,7 @@ FEXPORT(syscall_exit)
 	li	t0, _TIF_ALLWORK_MASK
 	and	t0, a2, t0
 	bnez	t0, syscall_exit_work
+	MSA_USER
 
 FEXPORT(restore_all)			# restore full frame
 #ifdef CONFIG_MIPS_MT_SMTC
@@ -153,6 +156,11 @@ work_resched:
 	LONG_L	a2, TI_FLAGS($28)
 	andi	t0, a2, _TIF_WORK_MASK	# is there any work to be done
 					# other than syscall tracing?
+#ifdef CONFIG_MICROSTATE_ACCT
+	bnez    t0, msa_user_skip
+	MSA_USER
+msa_user_skip:
+#endif
 	beqz	t0, restore_all
 	andi	t0, a2, _TIF_NEED_RESCHED
 	bnez	t0, work_resched

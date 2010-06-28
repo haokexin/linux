@@ -141,10 +141,11 @@ static inline void check_stack_overflow(void) {}
 void __irq_entry do_IRQ(unsigned int irq)
 {
 	irq_enter();
+	msa_start_irq(irq);
 	check_stack_overflow();
 	if (!smtc_handle_on_other_cpu(irq))
 		generic_handle_irq(irq);
-	irq_exit();
+	msa_irq_exit(irq, msa_get_reg());
 }
 
 #ifdef CONFIG_MIPS_MT_SMTC_IRQAFF
@@ -156,9 +157,10 @@ void __irq_entry do_IRQ(unsigned int irq)
 void __irq_entry do_IRQ_no_affinity(unsigned int irq)
 {
 	irq_enter();
+	msa_start_irq(irq);
 	smtc_im_backstop(irq);
 	generic_handle_irq(irq);
-	irq_exit();
+	msa_irq_exit(irq, msa_get_reg());
 }
 
 #endif /* CONFIG_MIPS_MT_SMTC_IRQAFF */

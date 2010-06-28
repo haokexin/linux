@@ -127,6 +127,28 @@ jiffies_to_compat_timeval(unsigned long jiffies, struct compat_timeval *value)
 	value->tv_usec = rem / NSEC_PER_USEC;
 }
 
+#ifdef CONFIG_MICROSTATE_ACCT
+#ifdef cputime_to_timeval
+#undef cputime_to_timeval
+#endif
+#define cputime_to_timeval(__ct, __val) (*(__val) = ns_to_timeval_compat(__ct))
+
+/*
+ * ns_to_timeval_compat - same as ns_to_timeval, except
+ * it returns struct compat_timeval.
+ */
+static struct compat_timeval ns_to_timeval_compat(const s64 nsec)
+{
+	struct timespec ts = ns_to_timespec(nsec);
+	struct compat_timeval tv;
+
+	tv.tv_sec = ts.tv_sec;
+	tv.tv_usec = (suseconds_t) ts.tv_nsec / 1000;
+
+	return tv;
+}
+#endif
+
 void elf32_core_copy_regs(elf_gregset_t grp, struct pt_regs *regs)
 {
 	int i;

@@ -16,6 +16,7 @@
 #include <asm/stackframe.h>
 #include <asm/thread_info.h>
 #include <asm/unistd.h>
+#include <asm/msa_calling.h>
 
 /* This duplicates the definition from <linux/sched.h> */
 #define PT_TRACESYS	0x00000002	/* tracing system calls */
@@ -36,6 +37,7 @@ NESTED(handle_sysn32, PT_SIZE, sp)
 	TRACE_IRQS_ON_RELOAD
 	STI
 	.set	at
+	MSA_KERNEL
 #endif
 
 	dsubu	t0, v0, __NR_N32_Linux	# check syscall number
@@ -78,6 +80,7 @@ NESTED(handle_sysn32, PT_SIZE, sp)
 	and	t0, a2, t0
 	bnez	t0, n32_syscall_exit_work
 
+	MSA_USER
 	j	restore_partial
 
 n32_syscall_exit_work:
@@ -432,4 +435,5 @@ EXPORT(sysn32_call_table)
 	PTR	sys_setns
 	PTR	compat_sys_process_vm_readv
 	PTR	compat_sys_process_vm_writev	/* 6310 */
+	PTR	sys_msa
 	.size	sysn32_call_table,.-sysn32_call_table

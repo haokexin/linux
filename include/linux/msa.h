@@ -75,8 +75,13 @@ void msa_update_parent(struct task_struct *parent, struct task_struct *this);
 void msa_init(struct task_struct *p);
 void msa_set_timer(struct task_struct *p, int state);
 void msa_start_irq(int irq);
+void msa_start_irq_raw(int irq);
 void msa_continue_irq(int oldirq, int newirq);
 void msa_irq_exit(int irq, int is_going_to_user);
+void msa_irq_exit_raw(int irq);
+#ifdef CONFIG_MIPS
+void msa_irq_exit_raw(int irq);
+#endif
 asmlinkage void msa_kernel(void);
 asmlinkage void msa_user(void);
 
