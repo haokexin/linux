@@ -1702,6 +1702,7 @@ static int smc_ethtool_geteeprom_len(struct net_device *dev)
 	return 0x23 * 2;
 }
 
+#ifdef CONFIG_SMC91X_EEPROM_OPERATION
 static int smc_ethtool_geteeprom(struct net_device *dev,
 		struct ethtool_eeprom *eeprom, u8 *data)
 {
@@ -1751,6 +1752,7 @@ static int smc_ethtool_seteeprom(struct net_device *dev,
 	return 0;
 }
 
+#endif
 
 static const struct ethtool_ops smc_ethtool_ops = {
 	.get_settings	= smc_ethtool_getsettings,
@@ -1762,8 +1764,10 @@ static const struct ethtool_ops smc_ethtool_ops = {
 	.nway_reset	= smc_ethtool_nwayreset,
 	.get_link	= ethtool_op_get_link,
 	.get_eeprom_len = smc_ethtool_geteeprom_len,
+#ifdef CONFIG_SMC91X_EEPROM_OPERATION
 	.get_eeprom	= smc_ethtool_geteeprom,
 	.set_eeprom	= smc_ethtool_seteeprom,
+#endif
 };
 
 static const struct net_device_ops smc_netdev_ops = {
