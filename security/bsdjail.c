@@ -743,6 +743,18 @@ static void free_sock_security(struct sock *sk)
 	set_sock_security(sk, NULL);
 }
 
+static int alloc_sock_security(struct sock *sk, int family, gfp_t gfp_flags)
+{
+	struct jail_struct *tsec;
+
+	tsec = jail_of(current);
+	set_sock_security(sk, tsec);
+	if (tsec)
+		kref_get(&tsec->kref);
+
+	return 0;
+}
+
 /*
  * The next three (socket) hooks prevent a process in a jail from sending
  * data to a abstract unix domain socket which was bound outside the jail.
@@ -1333,6 +1345,7 @@ static struct security_operations bsdjail_security_ops = {
 	.unix_stream_connect =		jail_socket_unix_stream_connect,
 	.unix_may_send =		jail_socket_unix_may_send,
 	.sk_free_security =		free_sock_security,
+	.sk_alloc_security =		alloc_sock_security,
 
 	.inode_mknod =			jail_inode_mknod,
 	.inode_permission =		jail_inode_permission,
