@@ -157,15 +157,17 @@ void kmemcheck_error_save(enum kmemcheck_shadow state,
 	unsigned long address, unsigned int size, struct pt_regs *regs)
 {
 	static unsigned long prev_ip;
+	static unsigned long prev_addr;
 
 	struct kmemcheck_error *e;
 	void *shadow_copy;
 	void *memory_copy;
 
 	/* Don't report several adjacent errors from the same EIP. */
-	if (regs->ip == prev_ip)
+	if ((regs->ip == prev_ip) && (address == prev_addr))
 		return;
 	prev_ip = regs->ip;
+	prev_addr = address;
 
 	e = error_next_wr();
 	if (!e)
