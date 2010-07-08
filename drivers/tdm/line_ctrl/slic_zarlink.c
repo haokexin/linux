@@ -48,13 +48,7 @@
 #define DRV_DESC "FREESCALE DEVELOPED ZARLINK SLIC DRIVER"
 #define DRV_NAME "legerity"
 
-#ifdef CONFIG_MPC831x_RDB
-#define NUM_OF_SLICS 1
-#endif
-
-#ifdef CONFIG_MPC85xx_RDB
-#define NUM_OF_SLICS 2
-#endif
+#define MAX_NUM_OF_SLICS 10
 
 #define TESTING_PRODUCT_CODE
 
@@ -64,7 +58,7 @@ struct spi_transfer t;
 struct slic_channel {
 	unsigned int ch1_rx_slot, ch1_tx_slot, ch2_rx_slot, ch2_tx_slot;
 };
-struct slic_channel slic_ch[NUM_OF_SLICS];
+struct slic_channel slic_ch[MAX_NUM_OF_SLICS];
 static int num_slics;
 
 /** \brief      Driver's license
@@ -247,22 +241,6 @@ static int slic_init_configure(unsigned char device_handle,
 	len = 0x01;
 	slic_cmd(device_handle, CHANNEL1, WRITE_CONVERTER_CFG, len, &temp3[0]);
 
-#ifdef CONFIG_MPC831x_RDB
-	/* Set Switching Paramenters as for Le88221 */
-	temp3[0] = 0x2;
-	temp3[1] = 0x4;
-	temp3[2] = 0x84;
-	len = 0x03;
-	slic_cmd(device_handle, CHANNEL1, WRITE_SWITCH_REGULATOR_PARAMS, len,
-			&temp3[0]);
-
-	temp3[0] = 0x01;
-	len = 0x01;
-	slic_cmd(device_handle, CHANNEL1, WRITE_SWITCH_REGULATOR_CTRL, len,
-			&temp3[0]);
-#endif
-
-#ifdef CONFIG_MPC85xx_RDB
 	/* Set Switching Paramenters as for Le88266
 	 * 1. BSI[1:0] = 00b (sense pin VBL is SWVSY, VBH is SWVSZ)
 	 * 2. SWFS[1:0] = 00b (setting frequency as 384kHz in high power mode)
@@ -284,7 +262,7 @@ static int slic_init_configure(unsigned char device_handle,
 	len = 0x01;
 	slic_cmd(device_handle, CHANNEL1, WRITE_SWITCH_REGULATOR_CTRL, len,
 			&temp3[0]);
-#endif
+
 	/* Wait 20ms before switching from low power to high power */
 	mdelay(20);
 
@@ -324,22 +302,6 @@ static int slic_init_configure(unsigned char device_handle,
 	len = 0x01;
 	slic_cmd(device_handle, CHANNEL1, WRITE_CONVERTER_CFG, len, &temp3[0]);
 
-#ifdef CONFIG_MPC831x_RDB
-	/* Set Switching Paramenters as for Le88221 */
-	temp3[0] = 0x80;
-	temp3[1] = 0x11;
-	temp3[2] = 0x80;
-	len = 0x03;
-	slic_cmd(device_handle, CHANNEL1, WRITE_SWITCH_REGULATOR_PARAMS, len,
-			&temp3[0]);
-
-	temp3[0] = 0xf;
-	len = 0x01;
-	slic_cmd(device_handle, CHANNEL1, WRITE_SWITCH_REGULATOR_CTRL, len,
-			&temp3[0]);
-#endif
-
-#ifdef CONFIG_MPC85xx_RDB
 	/* Set Switching Paramenters as for Le88266
 	 * 1. BSI[1:0] = 00b (sense pin VBL is SWVSY, VBH is SWVSZ)
 	 * 2. SWFS[1:0] = 00b (setting frequency as 384kHz in high power mode)
@@ -361,7 +323,7 @@ static int slic_init_configure(unsigned char device_handle,
 	len = 0x01;
 	slic_cmd(device_handle, CHANNEL1, WRITE_SWITCH_REGULATOR_CTRL, len,
 			&temp3[0]);
-#endif
+
 	/* Setting the channel specific parameters */
 	for (channel_id = CHANNEL1; channel_id <= CHANNEL2; channel_id++) {
 
@@ -673,22 +635,19 @@ static int slic_probe(struct spi_device *spi)
 	spi->mode = 0;
 	spi->mode |= SPI_CPHA | SPI_CPOL;
 
-	/* Initialize the SLIC */
-#ifdef CONFIG_MPC831x_RDB
-	slic_ch[num_slics].ch1_tx_slot = 0;
-	slic_ch[num_slics].ch1_rx_slot = 0;
-	slic_ch[num_slics].ch2_tx_slot = 2;
-	slic_ch[num_slics].ch2_rx_slot = 2;
-#endif
+	if (num_slics >= MAX_NUM_OF_SLICS) {
+		printk(KERN_ERR "Exceeded the max number of slics\n");
+		return ret;
+	}
 
-#ifdef CONFIG_MPC85xx_RDB
+	/* Initialize the SLIC */
 	configure_spi_pdata(spi);
 	data = spi->dev.platform_data;
 	slic_ch[num_slics].ch1_tx_slot = data->ch1_tx_slot;
 	slic_ch[num_slics].ch1_rx_slot = data->ch1_rx_slot;
 	slic_ch[num_slics].ch2_tx_slot = data->ch2_tx_slot;
 	slic_ch[num_slics].ch2_rx_slot = data->ch2_rx_slot;
-#endif
+
 	device_handle = 0x0;
 	ret = slic_init_configure(device_handle, spi, num_slics);
 	if (ret == 0) {

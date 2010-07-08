@@ -357,28 +357,6 @@ static int tdm_fsl_starlite_reg_init(struct tdm_priv *priv)
 {
 	int i;
 	phys_addr_t base = get_immrbase();
-
-#ifdef CONFIG_MPC831x_RDB
-	__be32 __iomem *psccr;
-	__be32 __iomem *psicr;
-
-	psccr = ioremap(base + SCCR_OFFSET, 4);
-	if (!psccr)
-		return -1;
-	/* CSB:TDM clk =1 */
-	clrsetbits_be32(psccr, SCCR_TDM_MASK, TDM_CM_01);
-	iounmap(psccr);
-
-	psicr = ioremap(base + SICRL_OFFSET, 4);
-	if (!psicr)
-		return -1;
-	/* enable TDM in SICR */
-	clrbits32(psicr, SICRL_TDM_MASK);
-	iounmap(psicr);
-
-#endif
-
-#ifdef CONFIG_MPC85xx_RDB
 	__be32 __iomem *pmuxcr;
 
 	pmuxcr = ioremap(base + PMUXCR_OFFSET, 4);
@@ -387,8 +365,6 @@ static int tdm_fsl_starlite_reg_init(struct tdm_priv *priv)
 
 	out_be32(pmuxcr, in_be32(pmuxcr) | PMUXCR_TDM_ENABLE);
 	iounmap(pmuxcr);
-#endif
-
 
 	/* channel/group round robin */
 	out_be32(&priv->dmac_regs->dmacr, DMACR_ERGA | DMACR_ERCA);
