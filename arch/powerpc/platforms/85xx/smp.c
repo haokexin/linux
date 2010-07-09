@@ -130,6 +130,8 @@ static void __cpuinit
 smp_85xx_setup_cpu(int cpu_nr)
 {
 	mpic_setup_this_cpu();
+	if (cpu_has_feature(CPU_FTR_DBELL))
+		doorbell_setup_this_cpu();
 }
 
 extern void default_kexec_stop_cpus(void *arg);
@@ -165,7 +167,7 @@ void __init mpc85xx_smp_init(void)
 	}
 
 	if (cpu_has_feature(CPU_FTR_DBELL))
-		smp_85xx_ops.message_pass = smp_dbell_message_pass;
+		smp_85xx_ops.message_pass = doorbell_message_pass;
 
 	BUG_ON(!smp_85xx_ops.message_pass);
 
