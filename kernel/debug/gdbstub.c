@@ -36,10 +36,6 @@
 #include <linux/uaccess.h>
 #include <asm/cacheflush.h>
 #include <asm/unaligned.h>
-#ifdef CONFIG_ARM
-#include <asm/procinfo.h>
-#include <asm/cputype.h>
-#endif
 #include "debug_core.h"
 
 #define KGDB_MAX_THREAD_QUERY 17
@@ -774,13 +770,9 @@ static void gdb_cmd_query(struct kgdb_state *ks)
 			strcat(remcom_out_buffer, cur_cpu_spec[0].cpu_name);
 #elif defined(CONFIG_ARM)
 			{
-				extern struct proc_info_list
-					*lookup_processor_type(unsigned int);
-				struct proc_info_list *list;
-				list = lookup_processor_type(read_cpuid_id());
-				if (list)
-					strcat(remcom_out_buffer,
-					       list->cpu_name);
+				extern const char *ARM_cpu_name;
+				if (ARM_cpu_name)
+					strcat(remcom_out_buffer, ARM_cpu_name);
 			}
 #elif defined(CONFIG_MIPS)
 			{

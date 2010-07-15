@@ -117,7 +117,7 @@ static struct stack stacks[NR_CPUS];
 char elf_platform[ELF_PLATFORM_SIZE];
 EXPORT_SYMBOL(elf_platform);
 
-static const char *cpu_name;
+const char *ARM_cpu_name;
 static const char *machine_name;
 static char __initdata cmd_line[COMMAND_LINE_SIZE];
 
@@ -285,7 +285,7 @@ static void __init setup_processor(void)
 		while (1);
 	}
 
-	cpu_name = list->cpu_name;
+	ARM_cpu_name = list->cpu_name;
 
 #ifdef MULTI_CPU
 	processor = *list->proc;
@@ -301,7 +301,7 @@ static void __init setup_processor(void)
 #endif
 
 	printk("CPU: %s [%08x] revision %d (ARMv%s), cr=%08lx\n",
-	       cpu_name, read_cpuid_id(), read_cpuid_id() & 15,
+	       ARM_cpu_name, read_cpuid_id(), read_cpuid_id() & 15,
 	       proc_arch[cpu_architecture()], cr_alignment);
 
 	sprintf(init_utsname()->machine, "%s%c", list->arch_name, ENDIANNESS);
@@ -793,7 +793,7 @@ static int c_show(struct seq_file *m, void *v)
 	int i;
 
 	seq_printf(m, "Processor\t: %s rev %d (%s)\n",
-		   cpu_name, read_cpuid_id() & 15, elf_platform);
+		   ARM_cpu_name, read_cpuid_id() & 15, elf_platform);
 
 #if defined(CONFIG_SMP)
 	for_each_online_cpu(i) {
