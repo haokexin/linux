@@ -7520,7 +7520,7 @@ YCHAR *yaffs_GetSymlinkAlias(yaffs_Object *obj)
 {
 	obj = yaffs_GetEquivalentObject(obj);
 	if (obj->variantType == YAFFS_OBJECT_TYPE_SYMLINK)
-		return yaffs_CloneString(obj->variant.symLinkVariant.alias);
+		return (obj->variant.symLinkVariant.alias);
 	else
 		return yaffs_CloneString(_Y(""));
 }

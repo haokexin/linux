@@ -548,7 +548,6 @@ static int yaffs_readlink(struct dentry *dentry, char __user *buffer,
 		return -ENOMEM;
 
 	ret = vfs_readlink(dentry, buffer, buflen, alias);
-	kfree(alias);
 	return ret;
 }
 
@@ -574,7 +573,6 @@ static int yaffs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	}
 
 	ret = vfs_follow_link(nd, alias);
-	kfree(alias);
 out:
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 13))
 	return ERR_PTR(ret);
