@@ -2148,7 +2148,9 @@ SYSCALL_DEFINE2(mkdir, const char __user *, pathname, int, mode)
  */
 void dentry_unhash(struct dentry *dentry)
 {
-	dget(dentry);
+	spin_lock(&dcache_lock);
+	dget_locked(dentry);
+	spin_unlock(&dcache_lock);
 	shrink_dcache_parent(dentry);
 	spin_lock(&dcache_lock);
 	spin_lock(&dentry->d_lock);
