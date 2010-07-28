@@ -35,6 +35,7 @@ endif
 
 BOOTCFLAGS	+= -I$(obj) -I$(srctree)/$(obj)
 
+DTB_BOOT_CPU	?= 0
 DTS_FLAGS	?= -p 1024
 
 $(obj)/4xx.o: BOOTCFLAGS += -mcpu=405
@@ -332,7 +333,7 @@ $(obj)/treeImage.%: vmlinux $(obj)/%.dtb $(wrapperbits)
 DTC = $(objtree)/scripts/dtc/dtc
 
 $(obj)/%.dtb: $(dtstree)/%.dts
-	$(DTC) -O dtb -o $(obj)/$*.dtb -b 0 $(DTS_FLAGS) $(dtstree)/$*.dts
+	$(DTC) -O dtb -o $(obj)/$*.dtb -b ${DTB_BOOT_CPU} $(DTS_FLAGS) $(dtstree)/$*.dts
 
 # If there isn't a platform selected then just strip the vmlinux.
 ifeq (,$(image-y))
