@@ -1,6 +1,7 @@
 #include "util.h"
 #include "parse-options.h"
 #include "cache.h"
+#include <stdbool.h>
 
 #define OPT_SHORT 1
 #define OPT_UNSET 2
