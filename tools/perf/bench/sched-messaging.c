@@ -16,6 +16,7 @@
 #include "bench.h"
 
 /* Test groups of 20 processes spraying to 20 receivers */
+#include <stdbool.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
