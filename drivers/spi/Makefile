@@ -23,6 +23,7 @@ obj-$(CONFIG_SPI_DW_PCI)		+= dw_spi_pci.o
 obj-$(CONFIG_SPI_DW_MMIO)		+= dw_spi_mmio.o
 obj-$(CONFIG_SPI_FSL_LIB)		+= spi_fsl_lib.o
 obj-$(CONFIG_SPI_FSL_SPI)		+= spi_fsl_spi.o
+obj-$(CONFIG_SPI_FSL_ESPI)		+= spi_fsl_espi.o
 obj-$(CONFIG_SPI_GPIO)			+= spi_gpio.o
 obj-$(CONFIG_SPI_IMX)			+= spi_imx.o
 obj-$(CONFIG_SPI_LM70_LLP)		+= spi_lm70llp.o

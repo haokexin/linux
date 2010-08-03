@@ -22,10 +22,12 @@
 struct mpc8xxx_spi {
 	struct device *dev;
 	struct fsl_spi_reg __iomem *base;
+	struct fsl_espi_reg __iomem *espi_base;
 
 	/* rx & tx bufs from the spi_transfer */
 	const void *tx;
 	void *rx;
+	int len;
 
 	int subblock;
 	struct spi_pram __iomem *pram;
