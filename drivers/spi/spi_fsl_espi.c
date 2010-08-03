@@ -485,6 +485,7 @@ static struct spi_master * __devinit fsl_espi_probe(struct device *dev,
 		goto err_probe;
 
 	master->setup = fsl_espi_setup;
+	master->flags = SPI_MASTER_TRANS_LIMIT;
 
 	mpc8xxx_spi = spi_master_get_devdata(master);
 	mpc8xxx_spi->spi_do_one_msg = fsl_espi_do_one_msg;

@@ -261,6 +261,7 @@ struct spi_master {
 #define SPI_MASTER_HALF_DUPLEX	BIT(0)		/* can't do full duplex */
 #define SPI_MASTER_NO_RX	BIT(1)		/* can't do buffer read */
 #define SPI_MASTER_NO_TX	BIT(2)		/* can't do buffer write */
+#define SPI_MASTER_TRANS_LIMIT	BIT(3)		/* have trans length limit */
 
 	/* Setup mode and clock, etc (spi driver may call many times).
 	 *
