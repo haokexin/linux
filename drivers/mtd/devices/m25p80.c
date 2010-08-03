@@ -4,6 +4,7 @@
  * Author: Mike Lavender, mike@steroidmicros.com
  *
  * Copyright (c) 2005, Intec Automation Inc.
+ * Copyright 2010 Freescale Semiconductor, Inc.
  *
  * Some parts are based on lart.c by Abraham Van Der Merwe
  *
@@ -827,6 +828,31 @@ static const struct spi_device_id *__devinit jedec_probe(struct spi_device *spi)
 	return NULL;
 }
 
+/*
+ * parse_flash_partition - Parse the flash partition on the SPI bus
+ * @spi: Pointer to spi_device device
+ */
+void parse_flash_partition(struct spi_device *spi)
+{
+	struct mtd_partition *parts;
+	struct flash_platform_data *pdata;
+	int nr_parts = 0;
+	struct device_node *np = spi->dev.archdata.of_node;
+
+	nr_parts = of_mtd_parse_partitions(&spi->dev, np, &parts);
+	if (!nr_parts)
+		return;
+
+	pdata = kzalloc(sizeof(*pdata), GFP_KERNEL);
+	if (!pdata)
+		return;
+
+	pdata->parts = parts;
+	pdata->nr_parts = nr_parts;
+	spi->dev.platform_data = pdata;
+
+	return;
+}
 
 /*
  * board specific setup should have ensured the SPI clock used here
@@ -846,6 +872,10 @@ static int __devinit m25p_probe(struct spi_device *spi)
 	 * a chip ID, try the JEDEC id commands; they'll work for most
 	 * newer chips, even if we don't recognize the particular chip.
 	 */
+
+	/* Parse the flash partition */
+	parse_flash_partition(spi);
+
 	data = spi->dev.platform_data;
 	if (data && data->type) {
 		const struct spi_device_id *plat_id;
