@@ -125,6 +125,19 @@ config SPI_DAVINCI
 	help
 	  SPI master controller for DaVinci and DA8xx SPI modules.
 
+config SPI_FSL_LIB
+	tristate
+	depends on FSL_SOC
+
+config SPI_FSL_SPI
+	tristate "Freescale SPI controller"
+	depends on FSL_SOC
+	select SPI_FSL_LIB
+	help
+	  This enables using the Freescale SPI controllers in master mode.
+	  MPC83xx platform uses the controller in cpu mode or CPM/QE mode.
+	  MPC8569 uses the controller in QE mode, MPC8610 in cpu mode.
+
 config SPI_GPIO
 	tristate "GPIO-based bitbanging SPI Master"
 	depends on GENERIC_GPIO
@@ -172,13 +185,6 @@ config SPI_MPC52xx_PSC
 	help
 	  This enables using the Freescale MPC52xx Programmable Serial
 	  Controller in master SPI mode.
-
-config SPI_MPC8xxx
-	tristate "Freescale MPC8xxx SPI controller"
-	depends on FSL_SOC
-	help
-	  This enables using the Freescale MPC8xxx SPI controllers in master
-	  mode.
 
 config SPI_OMAP_UWIRE
 	tristate "OMAP1 MicroWire"
