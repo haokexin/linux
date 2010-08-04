@@ -332,6 +332,7 @@ free_bufs:
 		ltt_chanbuf_free(buf);
 	}
 	free_percpu(chan->buf);
+	chan->buf = NULL;
 free_chan:
 	kref_put(&chan->kref, ltt_chan_free);
 	return -ENOMEM;
@@ -375,15 +376,17 @@ void ltt_chan_alloc_remove_files(struct ltt_chan_alloc *chan)
 void ltt_chan_alloc_free(struct ltt_chan_alloc *chan)
 {
 	unsigned int i;
+	if(chan->buf) {
+		for_each_possible_cpu(i) {
+			struct ltt_chanbuf *buf = per_cpu_ptr(chan->buf, i);
 
-	for_each_possible_cpu(i) {
-		struct ltt_chanbuf *buf = per_cpu_ptr(chan->buf, i);
-
-		if (!buf->a.allocated)
-			continue;
-		ltt_chanbuf_free(buf);
+			if (!buf->a.allocated)
+				continue;
+			ltt_chanbuf_free(buf);
+		}
+		free_percpu(chan->buf);
+		chan->buf = NULL;
 	}
-	free_percpu(chan->buf);
 	kref_put(&chan->trace->kref, ltt_release_trace);
 	wake_up_interruptible(&chan->trace->kref_wq);
 }
