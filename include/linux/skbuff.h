@@ -456,6 +456,7 @@ static inline struct sk_buff *alloc_skb_header(unsigned int size,
 }
 #endif
 
+extern void skb_recycle(struct sk_buff *skb);
 extern int skb_recycle_check(struct sk_buff *skb, int skb_size);
 
 extern struct sk_buff *skb_morph(struct sk_buff *dst, struct sk_buff *src);
@@ -2096,5 +2097,21 @@ static inline void skb_forward_csum(struct sk_buff *skb)
 }
 
 bool skb_partial_csum_set(struct sk_buff *skb, u16 start, u16 off);
+static inline int skb_is_recycleable(struct sk_buff *skb, int skb_size)
+{
+	if (skb_is_nonlinear(skb) || skb->fclone != SKB_FCLONE_UNAVAILABLE)
+		return 0;
+
+	skb_size = SKB_DATA_ALIGN(skb_size + NET_SKB_PAD);
+	if (skb_end_pointer(skb) - skb->head < skb_size)
+		return 0;
+
+	if (skb_shared(skb) || skb_cloned(skb))
+		return 0;
+
+	return 1;
+}
+
+
 #endif	/* __KERNEL__ */
 #endif	/* _LINUX_SKBUFF_H */
