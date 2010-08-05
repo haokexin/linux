@@ -43,6 +43,7 @@ dev_archdata_get_node(const struct dev_archdata *ad)
 }
 
 struct pdev_archdata {
+	u64 dma_mask;
 };
 
 #endif /* _ASM_POWERPC_DEVICE_H */
