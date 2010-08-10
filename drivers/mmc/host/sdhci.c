@@ -811,7 +811,7 @@ static void sdhci_set_transfer_mode(struct sdhci_host *host,
 		if (host->quirks & SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12)
 			mode |= SDHCI_TRNS_MULTI | SDHCI_TRNS_ACMD12;
 		else
-		mode |= SDHCI_TRNS_MULTI;
+			mode |= SDHCI_TRNS_MULTI;
 	}
 	if (data->flags & MMC_DATA_READ)
 		mode |= SDHCI_TRNS_READ;
