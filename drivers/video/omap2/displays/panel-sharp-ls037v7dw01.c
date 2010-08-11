@@ -57,6 +57,9 @@ static int sharp_ls_power_on(struct omap_dss_device *dssdev)
 {
 	int r = 0;
 
+	if (dssdev->state == OMAP_DSS_DISPLAY_ACTIVE)
+		return 0;
+
 	r = omapdss_dpi_display_enable(dssdev);
 	if (r)
 		goto err0;
@@ -79,6 +82,9 @@ err0:
 
 static void sharp_ls_power_off(struct omap_dss_device *dssdev)
 {
+	if (dssdev->state != OMAP_DSS_DISPLAY_ACTIVE)
+		return;
+
 	if (dssdev->platform_disable)
 		dssdev->platform_disable(dssdev);
 
