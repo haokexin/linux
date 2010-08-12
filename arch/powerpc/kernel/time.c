@@ -888,9 +888,22 @@ static cycle_t rtc_read(struct clocksource *cs)
 	return (cycle_t)get_rtc();
 }
 
+/*
+ * We compare the timebase to the cycle_last value in the clocksource
+ * structure to avoid a nasty time-warp.  This can be observed in a very
+ * small window right after one CPU updated cycle_last under the xtime lock,
+ * and the other CPU reads a TSC value which is smaller than the cycle_last
+ * reference value due to a TSC which is slighty behind.  This delta is
+ * nowhere else observable, but in that case it results in a large forward
+ * time jump due to the unsigned delta calculation of the time keeping core
+ * code, which is necessary to support wrapping clocksources like pm timer.
+ */
 static cycle_t timebase_read(struct clocksource *cs)
 {
-	return (cycle_t)get_tb();
+	cycle_t ret = (cycle_t)get_tb();
+
+	return ret >= clocksource_timebase.cycle_last ?
+	       ret : clocksource_timebase.cycle_last;
 }
 
 void update_vsyscall(struct timespec *wall_time, struct clocksource *clock,
