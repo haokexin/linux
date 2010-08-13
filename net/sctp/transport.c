@@ -301,9 +301,16 @@ void sctp_transport_route(struct sctp_transport *transport,
 
 	if (saddr)
 		memcpy(&transport->saddr, saddr, sizeof(union sctp_addr));
-	else
+	else {
 		af->get_saddr(opt, asoc, dst, daddr, &transport->saddr);
-
+		/* When using source address routing, since dst was
+		 * looked up prior to filling in the source address, dst
+		 * needs to be looked up again to get the correct dst
+		*/
+		if (dst)
+			dst_release(dst);
+		dst = af->get_dst(asoc, daddr, &transport->saddr);
+	}
 	transport->dst = dst;
 	if ((transport->param_flags & SPP_PMTUD_DISABLE) && transport->pathmtu) {
 		return;
