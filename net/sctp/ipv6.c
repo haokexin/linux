@@ -244,6 +244,7 @@ static struct dst_entry *sctp_v6_get_dst(struct sctp_association *asoc,
 {
 	struct dst_entry *dst;
 	struct flowi fl;
+	int err;
 
 	memset(&fl, 0, sizeof(fl));
 	ipv6_addr_copy(&fl.fl6_dst, &daddr->v6.sin6_addr);
@@ -261,11 +262,36 @@ static struct dst_entry *sctp_v6_get_dst(struct sctp_association *asoc,
 	dst = ip6_route_output(&init_net, NULL, &fl);
 	if (!dst->error) {
 		struct rt6_info *rt;
+		struct sock *sk;
+		struct net *net = NULL;
 		rt = (struct rt6_info *)dst;
 		SCTP_DEBUG_PRINTK("rt6_dst:%pI6 rt6_src:%pI6\n",
 			&rt->rt6i_dst.addr, &rt->rt6i_src.addr);
+		if (saddr)
+		{
+			sk = asoc ? asoc->base.sk : NULL;
+#ifdef CONFIG_NET_NS
+			/* in this config sock_net() doesn't check for
+			 * null pointers before dereferencing sk.  Need to
+			 * ensure sk is valid before calling sock_net()
+			 */
+			if (sk)
+#endif
+			net = sock_net(sk);
+			fl.proto = IPPROTO_SCTP;
+			if (sk) fl.oif = sk->sk_bound_dev_if;
+			fl.fl_ip_dport = daddr->v6.sin6_port;
+			fl.fl_ip_sport = saddr->v6.sin6_port;
+			if ((err = __xfrm_lookup(net, &dst, &fl, sk, 0)) < 0) {
+				if (err == -EREMOTE)
+					err = ip6_dst_blackhole(sk, &dst, &fl);
+				if (err < 0)
+					goto failure;
+			}
+		}
 		return dst;
 	}
+failure:
 	SCTP_DEBUG_PRINTK("NO ROUTE\n");
 	dst_release(dst);
 	return NULL;
