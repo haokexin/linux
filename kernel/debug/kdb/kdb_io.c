@@ -35,6 +35,7 @@ static void kgdb_transition_check(char *buffer)
 {
 	int slen = strlen(buffer);
 	if (strncmp(buffer, "$?#3f", slen) != 0 &&
+	    strncmp(buffer, "$Hc-1#09", slen) != 0 &&
 	    strncmp(buffer, "$qSupported#37", slen) != 0 &&
 	    strncmp(buffer, "+$qSupported#37", slen) != 0) {
 		KDB_STATE_SET(KGDB_TRANS);
@@ -392,6 +393,12 @@ poll_again:
 			    strcmp(lastchar - 5, "$?#3f") == 0) {
 				strcpy(buffer, "kgdb");
 				KDB_STATE_SET(DOING_KGDB);
+				return buffer;
+			}
+			if (lastchar - buffer >= 8 &&
+			    strcmp(lastchar - 8, "$Hc-1#09") == 0) {
+				strcpy(buffer, "kgdb");
+				KDB_STATE_SET(DOING_KGDB2);
 				return buffer;
 			}
 			if (lastchar - buffer >= 14 &&
