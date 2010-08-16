@@ -2404,10 +2404,12 @@ static YCHAR *yaffs_CloneString(const YCHAR *str)
 		str = _Y("");
 
 	len = yaffs_strnlen(str,YAFFS_MAX_ALIAS_LENGTH);
-	newStr = YMALLOC((len + 1) * sizeof(YCHAR));
-	if (newStr){
-		yaffs_strncpy(newStr, str,len);
-		newStr[len] = 0;
+	if(len != 0) {
+		newStr = YMALLOC((len + 1) * sizeof(YCHAR));
+		if (newStr){
+			yaffs_strncpy(newStr, str,len);
+			newStr[len] = 0;
+		}
 	}
 	return newStr;
 
