@@ -2049,6 +2049,8 @@ static void yaffs_put_super(struct super_block *sb)
 {
 	yaffs_Device *dev = yaffs_SuperToDevice(sb);
 
+	yaffs_BackgroundStop(dev);
+
 	T(YAFFS_TRACE_OS, ("yaffs_put_super\n"));
 
 	yaffs_GrossLock(dev);
@@ -2057,8 +2059,6 @@ static void yaffs_put_super(struct super_block *sb)
 
 	if (yaffs_DeviceToContext(dev)->putSuperFunc)
 		yaffs_DeviceToContext(dev)->putSuperFunc(sb);
-
-	yaffs_BackgroundStop(dev);
 
 	yaffs_Deinitialise(dev);
 
