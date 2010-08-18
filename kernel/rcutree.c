@@ -529,6 +529,22 @@ static void check_cpu_stall(struct rcu_state *rsp, struct rcu_data *rdp)
 	}
 }
 
+/**
+ * rcu_cpu_stall_reset - prevent further stall warnings in current grace period
+ *
+ * Set the stall-warning timeout way off into the future, thus preventing
+ * any RCU CPU stall-warning messages from appearing in the current set of
+ * RCU grace periods.
+ *
+ * The caller must disable hard irqs.
+ */
+void rcu_cpu_stall_reset(void)
+{
+       rcu_sched_state.jiffies_stall = jiffies + ULONG_MAX / 2;
+       rcu_bh_state.jiffies_stall = jiffies + ULONG_MAX / 2;
+       rcu_preempt_stall_reset();
+}
+
 #else /* #ifdef CONFIG_RCU_CPU_STALL_DETECTOR */
 
 static void record_gp_stall_check_time(struct rcu_state *rsp)
@@ -536,6 +552,10 @@ static void record_gp_stall_check_time(struct rcu_state *rsp)
 }
 
 static void check_cpu_stall(struct rcu_state *rsp, struct rcu_data *rdp)
+{
+}
+
+void rcu_cpu_stall_reset(void)
 {
 }
 

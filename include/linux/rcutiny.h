@@ -74,6 +74,10 @@ static inline void rcu_sched_force_quiescent_state(void)
 {
 }
 
+static inline void rcu_cpu_stall_reset(void)
+{
+}
+
 #define synchronize_rcu synchronize_sched
 
 static inline void synchronize_rcu_expedited(void)
