@@ -118,7 +118,7 @@ static int cramfs_mmap(struct file *file, struct vm_area_struct *vma)
 	 */
 	vma->vm_flags |= VM_IO;
 	vma->is_xip = 1;
-	flush_tlb_page(vma, address);
+	flush_tlb_page(vma, vma->vm_start);
 	if (remap_pfn_range(vma, vma->vm_start, address >> PAGE_SHIFT, length,
 			     vma->vm_page_prot))
 		return -EAGAIN;
