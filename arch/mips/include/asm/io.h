@@ -116,6 +116,10 @@ static inline void set_io_port_base(unsigned long base)
  */
 static inline unsigned long virt_to_phys(volatile const void *address)
 {
+#ifdef CONFIG_64BIT
+	if((unsigned long) address >= CKSEG0)
+		return (unsigned long)address - CKSEG0 + PHYS_OFFSET;
+#endif
 	return (unsigned long)address - PAGE_OFFSET + PHYS_OFFSET;
 }
 
