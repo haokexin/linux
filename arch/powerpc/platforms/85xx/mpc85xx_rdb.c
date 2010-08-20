@@ -58,7 +58,7 @@ void __init mpc85xx_rdb_pic_init(void)
 		return;
 	}
 
-	if (of_flat_dt_is_compatible(root, "fsl,85XXRDB-CAMP")) {
+	if (of_flat_dt_is_compatible(root, "fsl,MPC85XXRDB-CAMP")) {
 		mpic = mpic_alloc(np, r.start,
 			MPIC_PRIMARY |
 			MPIC_BIG_ENDIAN | MPIC_BROKEN_FRR_NIRQS,
