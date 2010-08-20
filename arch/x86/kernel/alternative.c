@@ -539,7 +539,7 @@ void *__kprobes text_poke(void *addr, const void *opcode, size_t len)
 	struct page *pages[2];
 	int i;
 
-	if (!core_kernel_text((unsigned long)addr)) {
+	if (!virt_addr_valid(addr)) {
 		pages[0] = vmalloc_to_page(addr);
 		pages[1] = vmalloc_to_page(addr + PAGE_SIZE);
 	} else {
