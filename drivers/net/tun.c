@@ -968,10 +968,12 @@ static int tun_set_iff(struct net *net, struct file *file, struct ifreq *ifr)
 {
 	struct sock *sk;
 	struct tun_struct *tun;
-	struct net_device *dev;
+	struct net_device *dev = NULL;
 	int err;
 
-	dev = __dev_get_by_name(net, ifr->ifr_name);
+	if(strlen(&(ifr->ifr_name[0])))
+		dev = __dev_get_by_name(net, ifr->ifr_name);
+
 	if (dev) {
 		const struct cred *cred = current_cred();
 
