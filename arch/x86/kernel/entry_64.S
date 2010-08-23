@@ -319,25 +319,26 @@ ENDPROC(native_usergs_sysret64)
 ENTRY(save_args)
 	XCPT_FRAME
 	cld
-	movq_cfi rdi, RDI+16-ARGOFFSET
-	movq_cfi rsi, RSI+16-ARGOFFSET
-	movq_cfi rdx, RDX+16-ARGOFFSET
-	movq_cfi rcx, RCX+16-ARGOFFSET
-	movq_cfi rax, RAX+16-ARGOFFSET
-	movq_cfi  r8,  R8+16-ARGOFFSET
-	movq_cfi  r9,  R9+16-ARGOFFSET
-	movq_cfi r10, R10+16-ARGOFFSET
-	movq_cfi r11, R11+16-ARGOFFSET
+	movq_cfi rdi, RDI+24-ARGOFFSET
+	movq_cfi rsi, RSI+24-ARGOFFSET
+	movq_cfi rdx, RDX+24-ARGOFFSET
+	movq_cfi rcx, RCX+24-ARGOFFSET
+	movq_cfi rax, RAX+24-ARGOFFSET
+	movq_cfi  r8,  R8+24-ARGOFFSET
+	movq_cfi  r9,  R9+24-ARGOFFSET
+	movq_cfi r10, R10+24-ARGOFFSET
+	movq_cfi r11, R11+24-ARGOFFSET
 
-	leaq -ARGOFFSET+16(%rsp),%rdi	/* arg1 for handler */
-	movq_cfi rbp, 8		/* push %rbp */
-#if defined(CONFIG_OPROFILE) || defined(CONFIG_OPROFILE_MODULE)
-        /*
-         * Save the rbp to let oprofile backtrace the user stack
-        */
-        movq %rbp, -8(%rsp)
-#endif
-	leaq 8(%rsp), %rbp		/* mov %rsp, %ebp */
+	leaq -ARGOFFSET+24(%rsp),%rdi	/* arg1 for handler */
+	movq_cfi rbp, 16		/* push %rbp */
+	/*
+	 * Save rbp twice: One is for marking the stack frame, as usual, and the
+	 * other, to fill pt_regs properly. This is because bx comes right
+	 * before the last saved register in that structure, and not bp. If the
+	 * base pointer were in the place bx is today, this would not be needed.
+	 */
+	movq %rbp, 8(%rsp)
+	leaq 16(%rsp), %rbp		/* mov %rsp, %rbp */
 	testl $3, CS(%rdi)
 	je 1f
 	SWAPGS
@@ -845,8 +846,8 @@ END(interrupt)
 
 /* 0(%rsp): ~(interrupt number) */
 	.macro interrupt func
-	subq $10*8, %rsp
-	CFI_ADJUST_CFA_OFFSET 10*8
+	subq $11*8, %rsp
+	CFI_ADJUST_CFA_OFFSET 11*8
 	call save_args
 	PARTIAL_FRAME 0
 	call \func
