@@ -881,6 +881,7 @@ static int e1000_reg_test(struct e1000_adapter *adapter, u64 *data)
 	switch (mac->type) {
 	case e1000_ich10lan:
 	case e1000_pchlan:
+	case e1000_pch2lan:
 		mask |= (1 << 18);
 		break;
 	default:
@@ -1289,6 +1290,17 @@ static int e1000_integrated_phy_loopback(struct e1000_adapter *adapter)
 			     E1000_CTRL_FRCDPX | /* Set the Force Duplex Bit */
 			     E1000_CTRL_SPD_100 |/* Force Speed to 100 */
 			     E1000_CTRL_FD);	 /* Force Duplex to FULL */
+		break;
+	case e1000_phy_82579:
+		/* Disable PHY energy detect power down */
+		e1e_rphy(hw, PHY_REG(0, 21), &phy_reg);
+		e1e_wphy(hw, PHY_REG(0, 21), phy_reg & ~(1 << 3));
+		/* Disable full chip energy detect */
+		e1e_rphy(hw, PHY_REG(776, 18), &phy_reg);
+		e1e_wphy(hw, PHY_REG(776, 18), phy_reg | 1);
+		/* Enable loopback on the PHY */
+#define I82577_PHY_LBK_CTRL          19
+		e1e_wphy(hw, I82577_PHY_LBK_CTRL, 0x8001);
 		break;
 	case e1000_phy_bm:
 		/* Set Default MAC Interface speed to 1GB */
@@ -1858,6 +1870,7 @@ static int e1000_phys_id(struct net_device *netdev, u32 data)
 
 	if ((hw->phy.type == e1000_phy_ife) ||
 	    (hw->mac.type == e1000_pchlan) ||
+	    (hw->mac.type == e1000_pch2lan) ||
 	    (hw->mac.type == e1000_82583) ||
 	    (hw->mac.type == e1000_82574)) {
 		INIT_WORK(&adapter->led_blink_task, e1000e_led_blink_task);
