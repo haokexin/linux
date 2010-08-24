@@ -3642,7 +3642,8 @@ SCTP_STATIC int sctp_init_sock(struct sock *sk)
 	sp->initmsg.sinit_num_ostreams   = sctp_max_outstreams;
 	sp->initmsg.sinit_max_instreams  = sctp_max_instreams;
 	sp->initmsg.sinit_max_attempts   = sctp_max_retrans_init;
-	sp->initmsg.sinit_max_init_timeo = sctp_rto_max;
+	sp->initmsg.sinit_max_init_timeo = (sctp_rto_max <= USHORT_MAX) ?
+					   sctp_rto_max : USHORT_MAX;
 
 	/* Initialize default RTO related parameters.  These parameters can
 	 * be modified for with the SCTP_RTOINFO socket option.
