@@ -278,6 +278,8 @@ static struct dst_entry *sctp_v6_get_dst(struct sctp_association *asoc,
 			if (sk)
 #endif
 			net = sock_net(sk);
+			if (!net)
+				goto failure;
 			fl.proto = IPPROTO_SCTP;
 			if (sk) fl.oif = sk->sk_bound_dev_if;
 			fl.fl_ip_dport = daddr->v6.sin6_port;
