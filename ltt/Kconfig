@@ -202,9 +202,10 @@ config LTT_FTRACE
 	  surroundings of a problem has been identified in a prior trace.
 
 config LTT_ASCII
-	bool "Linux Trace Toolkit Ascii Output (EXPERIMENTAL)"
+	bool "Linux Trace Toolkit Ascii Output (EXPERIMENTAL)" if LTT_TRACER = "y"
 	depends on EXPERIMENTAL
 	depends on LTT_TRACER
+        depends on LTT_RELAY_LOCKLESS
 	depends on LTT_SERIALIZE
 	default n
 	help
