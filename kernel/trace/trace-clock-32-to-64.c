@@ -65,7 +65,7 @@ static void update_synthetic_tsc(void)
 	struct synthetic_tsc_struct *cpu_synth;
 	u32 tsc;
 
-	cpu_synth = &per_cpu(synthetic_tsc, smp_processor_id());
+	cpu_synth = &__get_cpu_var(synthetic_tsc);
 	tsc = trace_clock_read32();		/* Hardware clocksource read */
 
 	if (tsc < HW_LS32(cpu_synth->tsc[cpu_synth->index].sel.ls32)) {
@@ -104,7 +104,7 @@ void _trace_clock_write_synthetic_tsc(u64 value)
 	struct synthetic_tsc_struct *cpu_synth;
 	unsigned int new_index;
 
-	cpu_synth = &per_cpu(synthetic_tsc, smp_processor_id());
+	cpu_synth = &__get_cpu_var(synthetic_tsc);
 	new_index = 1 - cpu_synth->index; /* 0 <-> 1 */
 	cpu_synth->tsc[new_index].val = value;
 	barrier();
@@ -120,7 +120,7 @@ u64 notrace trace_clock_read_synthetic_tsc(void)
 	u32 tsc;
 
 	preempt_disable_notrace();
-	cpu_synth = &per_cpu(synthetic_tsc, smp_processor_id());
+	cpu_synth = &__get_cpu_var(synthetic_tsc);
 	index = ACCESS_ONCE(cpu_synth->index);	/* atomic read */
 	tsc = trace_clock_read32();		/* Hardware clocksource read */
 
@@ -150,8 +150,7 @@ static void tsc_timer_fct(unsigned long data)
 {
 	update_synthetic_tsc();
 
-	mod_timer_pinned(&per_cpu(tsc_timer, smp_processor_id()),
-		  jiffies + precalc_expire);
+	mod_timer_pinned(&__get_cpu_var(tsc_timer), jiffies + precalc_expire);
 }
 
 /*
