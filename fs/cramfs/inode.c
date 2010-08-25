@@ -90,7 +90,7 @@ static int cramfs_iget5_set(struct inode *inode, void *opaque)
 #ifdef CONFIG_CRAMFS_LINEAR_XIP
 static int cramfs_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	unsigned long address, length;
+	unsigned long long address, length;
 	struct inode *inode = file->f_dentry->d_inode;
 	struct super_block *sb = inode->i_sb;
 	struct cramfs_sb_info *sbi = CRAMFS_SB(sb);
@@ -118,7 +118,7 @@ static int cramfs_mmap(struct file *file, struct vm_area_struct *vma)
 	 */
 	vma->vm_flags |= VM_IO;
 	vma->is_xip = 1;
-	flush_tlb_page(vma, vma->vm_start);
+	flush_tlb_page(vma, (unsigned long)(sbi->linear_virt_addr));
 	if (remap_pfn_range(vma, vma->vm_start, address >> PAGE_SHIFT, length,
 			     vma->vm_page_prot))
 		return -EAGAIN;
@@ -376,9 +376,9 @@ static int cramfs_fill_super(struct super_block *sb, void *data, int silent)
 		printk(KERN_ERR "cramfs: unknown physical address for linear cramfs image\n");
 		goto out;
 	}
-	sbi->linear_phys_addr = simple_strtoul(p + 9, NULL, 0);
+	sbi->linear_phys_addr = simple_strtoull(p + 9, NULL, 0);
 	if (sbi->linear_phys_addr & (PAGE_SIZE-1)) {
-		printk(KERN_ERR "cramfs: physical address 0x%lx for linear cramfs isn't aligned to a page boundary\n",
+		printk(KERN_ERR "cramfs: physical address 0x%llx for linear cramfs isn't aligned to a page boundary\n",
 			sbi->linear_phys_addr);
 		goto out;
 	}
@@ -386,7 +386,7 @@ static int cramfs_fill_super(struct super_block *sb, void *data, int silent)
 		printk(KERN_ERR "cramfs: physical address for linear cramfs image can't be 0\n");
 		goto out;
 	}
-	printk(KERN_INFO "cramfs: checking physical address 0x%lx for linear cramfs image\n",
+	printk(KERN_INFO "cramfs: checking physical address 0x%llx for linear cramfs image\n",
 			sbi->linear_phys_addr);
 
 	/* Map only one page for now.  Will remap it when fs size is known. */
@@ -669,7 +669,6 @@ static int cramfs_readpage(struct file *file, struct page * page)
 				PAGE_CACHE_SIZE);
 			mutex_unlock(&read_mutex);
 			bytes_filled = PAGE_CACHE_SIZE;
-			pgdata = kmap(page);
 		} else {
 #endif /* CONFIG_CRAMFS_LINEAR_XIP */
 		start_offset = OFFSET(inode) + maxblock*4;
