@@ -44,12 +44,12 @@ struct msg_msgseg {
 #define DATALEN_MSG	(PAGE_SIZE-sizeof(struct msg_msg))
 #define DATALEN_SEG	(PAGE_SIZE-sizeof(struct msg_msgseg))
 
-struct msg_msg *load_msg(const void __user *src, int len)
+struct msg_msg *load_msg(const void __user *src, size_t len)
 {
 	struct msg_msg *msg;
 	struct msg_msgseg **pseg;
 	int err;
-	int alen;
+	size_t alen;
 
 	alen = len;
 	if (alen > DATALEN_MSG)
