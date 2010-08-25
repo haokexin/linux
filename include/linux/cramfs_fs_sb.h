@@ -11,7 +11,7 @@ struct cramfs_sb_info {
 			unsigned long files;
 			unsigned long flags;
 #ifdef CONFIG_CRAMFS_LINEAR
-			unsigned long linear_phys_addr;
+			unsigned long long linear_phys_addr;
 			char	     *linear_virt_addr;
 #endif /* CONFIG_CRAMFS_LINEAR */
 };
