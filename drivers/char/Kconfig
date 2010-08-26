@@ -4,6 +4,13 @@
 
 menu "Character devices"
 
+config PCH_PHUB
+        tristate "PCH PHUB"
+        depends on PCI
+        help
+          If you say yes to this option, support will be included for the
+          PCH Packet Hub Host controller.
+
 config VT
 	bool "Virtual terminal" if EMBEDDED
 	depends on !S390
