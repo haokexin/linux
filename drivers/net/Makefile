@@ -299,3 +299,4 @@ obj-$(CONFIG_SFC) += sfc/
 obj-$(CONFIG_WIMAX) += wimax/
 
 obj-$(CONFIG_OCTEON_MGMT_ETHERNET) += octeon/
+obj-$(CONFIG_PCH_GBE) += pch_gbe/
