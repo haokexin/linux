@@ -115,4 +115,6 @@ source "drivers/platform/Kconfig"
 source "drivers/tdm/Kconfig"
 
 source "drivers/wrhv/Kconfig"
+
+source "drivers/net/dpa/NetCommSw/Kconfig"
 endmenu
