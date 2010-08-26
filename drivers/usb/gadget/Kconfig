@@ -220,6 +220,20 @@ config USB_OTG
 
 	   Select this only if your OMAP board has a Mini-AB connector.
 
+config USB_GADGET_PCH
+	boolean "PCH USB Dev"
+	depends on PCI
+	select USB_GADGET_DUALSPEED
+	help
+	   PCH USB device is a PCI based USB peripheral controller which
+	   supports both full and high speed USB 2.0 data transfers.
+
+config PCH_USBDEV
+	tristate
+	depends on USB_GADGET_PCH
+	default USB_GADGET
+	select USB_GADGET_SELECTED
+
 config USB_GADGET_PXA25X
 	boolean "PXA 25x or IXP 4xx"
 	depends on (ARCH_PXA && PXA25x) || ARCH_IXP4XX

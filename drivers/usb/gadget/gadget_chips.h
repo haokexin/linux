@@ -142,6 +142,11 @@
 #define gadget_is_s3c_hsotg(g)    0
 #endif
 
+#ifdef CONFIG_USB_GADGET_PCH
+#define	gadget_is_pch(g)	(!strcmp("pch_udc", (g)->name))
+#else
+#define	gadget_is_pch(g)	0
+#endif
 
 #if defined(CONFIG_USB_CNS3XXX_OTG_BOTH) || \
 	defined(CONFIG_USB_CNS3XXX_OTG_PCD_ONLY)
@@ -207,8 +212,10 @@ static inline int usb_gadget_controller_number(struct usb_gadget *gadget)
 		return 0x25;
 	else if (gadget_is_s3c_hsotg(gadget))
 		return 0x26;
-	else if (gadget_is_dwc_otg_pcd(gadget))
+	else if (gadget_is_pch(gadget))
 		return 0x27;
+	else if (gadget_is_dwc_otg_pcd(gadget))
+		return 0x28;
 	return -ENOENT;
 }
 
