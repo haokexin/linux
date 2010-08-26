@@ -36,6 +36,16 @@ comment "DMA Devices"
 config ASYNC_TX_DISABLE_CHANNEL_SWITCH
 	bool
 
+config PCH_UART_DMA
+	tristate "PCH DMA Controller"
+	depends on PCI && X86
+        select DMA_ENGINE
+	help
+	  Support the Topcliff PCH DMA controller.
+
+	  This value must equal to SERIAL_8250_PCH.
+	  This config PCH_UART_DMA is referred by PCH UART.
+
 config INTEL_IOATDMA
 	tristate "Intel I/OAT DMA support"
 	depends on PCI && X86
