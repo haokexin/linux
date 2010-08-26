@@ -2010,6 +2010,11 @@ menuconfig NETDEV_1000
 	  If you say N, all options in this submenu will be skipped and disabled.
 
 if NETDEV_1000
+config PCH_GBE
+        tristate "PCH Gigabit Ethernet"
+        ---help---
+          This is an gigabit ethernet driver for PCH.
+          resources.
 source "drivers/net/cns3xxx/Kconfig"
 
 config ACENIC
