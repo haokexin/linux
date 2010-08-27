@@ -25,6 +25,8 @@
 #include "sdhci-of.h"
 #include "sdhci.h"
 
+#include <sysdev/fsl_soc.h>
+
 #ifdef CONFIG_MMC_SDHCI_BIG_ENDIAN_32BIT_BYTE_SWAPPER
 
 /*
@@ -154,6 +156,12 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 		host->ops = &sdhci_of_data->ops;
 	}
 
+	if (of_get_property(np, "sdhci,auto-cmd12", NULL))
+		host->quirks |= SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12;
+
+	if (of_get_property(np, "sdhci,broken-timeout", NULL))
+		host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
+
 	if (of_get_property(np, "sdhci,1-bit-only", NULL))
 		host->quirks |= SDHCI_QUIRK_FORCE_1_BIT_DATA;
 
@@ -163,6 +171,50 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 	clk = of_get_property(np, "clock-frequency", &size);
 	if (clk && size == sizeof(*clk) && *clk)
 		of_host->clock = *clk;
+	else {
+		/* clock frequency of peripherals maybe not fixed by u-boot
+		 * on some platforms, then need to find proper clock of
+		 * SDHCI controller by CPU's bus frequency.*/
+		struct device_node *cpu;
+
+		cpu = of_find_node_by_type(NULL, "cpu");
+		if (cpu) {
+			unsigned int size;
+			const u32 *prop = of_get_property(cpu, "bus-frequency", &size);
+			of_host->clock = *prop;
+			of_node_put(cpu);
+		} else {
+			ret = -EINVAL;
+			goto err_bad_freq;
+		}
+
+		/*
+		 * SDHCI input clock can be scaled against platform bus frequency.
+		 */
+		if (of_get_property(np, "sdhci,clk-scale", NULL)) {
+
+			void __iomem *immap = NULL;
+			unsigned int sdhccm;
+
+			immap = ioremap(get_immrbase(), 0x1000);
+			if (!immap) {
+				ret = -ENOMEM;
+				goto err_bad_freq;
+			}
+
+			sdhccm = (in_be32(immap + SDHCI_SCCR_OFFS) & SDHCI_SDHCCM_MASK)
+				>> SDHCI_SDHCCM_SHIFT;
+
+			iounmap(immap);
+
+			if (sdhccm == 0) {
+				printk(KERN_ERR "The eSDHC clock was disable!\n");
+				ret = -EBADSLT;
+				goto err_bad_freq;
+			} else
+				of_host->clock /= sdhccm;
+		}
+	}
 
 	ret = sdhci_add_host(host);
 	if (ret)
@@ -171,6 +223,7 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 	return 0;
 
 err_add_host:
+err_bad_freq:
 	irq_dispose_mapping(host->irq);
 err_no_irq:
 	iounmap(host->ioaddr);
