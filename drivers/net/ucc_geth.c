@@ -3485,7 +3485,7 @@ err:
 
 /* Called when something needs to use the ethernet device */
 /* Returns 0 for success. */
-static int ucc_geth_open(struct net_device *dev)
+int ucc_geth_open(struct net_device *dev)
 {
 	struct ucc_geth_private *ugeth = netdev_priv(dev);
 	int err;
@@ -3542,7 +3542,7 @@ err:
 }
 
 /* Stops the kernel queue, and halts the controller */
-static int ucc_geth_close(struct net_device *dev)
+int ucc_geth_close(struct net_device *dev)
 {
 	struct ucc_geth_private *ugeth = netdev_priv(dev);
 
