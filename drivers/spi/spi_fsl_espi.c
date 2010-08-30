@@ -390,16 +390,31 @@ static void fsl_espi_cpu_irq(struct mpc8xxx_spi *mspi, u32 events)
 {
 	/* We need handle RX first */
 	if (events & SPIE_NE) {
-		u32 rx_data;
+		u32 rx_data, tmp;
+		u8 rx_data_8;
 
 		/* Spin until RX is done */
 		while (SPIE_RXCNT(events) < min(4, mspi->len)) {
 			cpu_relax();
 			events = mpc8xxx_spi_read_reg(&mspi->espi_base->event);
 		}
-		mspi->len -= 4;
 
-		rx_data = mpc8xxx_spi_read_reg(&mspi->espi_base->receive);
+		if (mspi->len >= 4) {
+			rx_data = mpc8xxx_spi_read_reg(
+					&mspi->espi_base->receive);
+		} else {
+			tmp = mspi->len;
+			rx_data = 0;
+			while (tmp--) {
+				rx_data_8 = in_8((u8 *)
+						&mspi->espi_base->receive);
+				rx_data |= (rx_data_8 << (tmp * 8));
+			}
+
+			rx_data <<= (4 - mspi->len) * 8;
+		}
+
+		mspi->len -= 4;
 
 		if (mspi->rx)
 			mspi->get_rx(rx_data, mspi);
