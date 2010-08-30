@@ -255,13 +255,18 @@ uec_set_ringparam(struct net_device *netdev,
 		return -EINVAL;
 	}
 
-	ug_info->bdRingLenRx[queue] = ring->rx_pending;
-	ug_info->bdRingLenTx[queue] = ring->tx_pending;
-
 	if (netif_running(netdev)) {
-		/* FIXME: restart automatically */
-		printk(KERN_INFO
-			"Please re-open the interface.\n");
+		printk(KERN_INFO "Stopping interface %s.\n", netdev->name);
+		ucc_geth_close(netdev);
+
+		ug_info->bdRingLenRx[queue] = ring->rx_pending;
+		ug_info->bdRingLenTx[queue] = ring->tx_pending;
+
+		printk(KERN_INFO "Reactivating interface %s.\n", netdev->name);
+		ucc_geth_open(netdev);
+	} else {
+		ug_info->bdRingLenRx[queue] = ring->rx_pending;
+		ug_info->bdRingLenTx[queue] = ring->tx_pending;
 	}
 
 	return ret;
