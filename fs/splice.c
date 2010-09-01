@@ -1313,7 +1313,7 @@ static long do_splice(struct file *in, loff_t __user *off_in,
 		if (off_in)
 			return -ESPIPE;
 		if (off_out) {
-			if (!(out->f_mode & FMODE_PWRITE))
+			if (!(out->f_mode & (FMODE_WRITE | FMODE_PWRITE)))
 				return -EINVAL;
 			if (copy_from_user(&offset, off_out, sizeof(loff_t)))
 				return -EFAULT;
@@ -1333,7 +1333,7 @@ static long do_splice(struct file *in, loff_t __user *off_in,
 		if (off_out)
 			return -ESPIPE;
 		if (off_in) {
-			if (!(in->f_mode & FMODE_PREAD))
+			if (!(in->f_mode & (FMODE_READ | FMODE_PREAD)))
 				return -EINVAL;
 			if (copy_from_user(&offset, off_in, sizeof(loff_t)))
 				return -EFAULT;
