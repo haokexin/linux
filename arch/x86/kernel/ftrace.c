@@ -53,7 +53,7 @@ int ftrace_arch_code_modify_prepare(void)
 	return 0;
 }
 
-int ftrace_arch_code_modify_post_process(void)
+int ftrace_arch_code_modify_post_process(void *data)
 {
 	modifying_code = 0;
 	set_kernel_text_ro();

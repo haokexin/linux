@@ -42,6 +42,17 @@ enum ftrace_tracing_type_t {
 /* Current tracing type, default is FTRACE_TYPE_ENTER */
 extern enum ftrace_tracing_type_t ftrace_tracing_type;
 
+/* Tracing command flags */
+enum {
+	FTRACE_ENABLE_CALLS		= (1 << 0),
+	FTRACE_DISABLE_CALLS		= (1 << 1),
+	FTRACE_UPDATE_TRACE_FUNC	= (1 << 2),
+	FTRACE_ENABLE_MCOUNT		= (1 << 3),
+	FTRACE_DISABLE_MCOUNT		= (1 << 4),
+	FTRACE_START_FUNC_RET		= (1 << 5),
+	FTRACE_STOP_FUNC_RET		= (1 << 6),
+};
+
 /**
  * ftrace_stop - stop function tracer.
  *
@@ -108,7 +119,7 @@ struct ftrace_func_command {
 #ifdef CONFIG_DYNAMIC_FTRACE
 
 int ftrace_arch_code_modify_prepare(void);
-int ftrace_arch_code_modify_post_process(void);
+int ftrace_arch_code_modify_post_process(void *data);
 
 struct seq_file;
 

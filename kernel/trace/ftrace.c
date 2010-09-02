@@ -858,16 +858,6 @@ struct ftrace_func_probe {
 	struct rcu_head		rcu;
 };
 
-enum {
-	FTRACE_ENABLE_CALLS		= (1 << 0),
-	FTRACE_DISABLE_CALLS		= (1 << 1),
-	FTRACE_UPDATE_TRACE_FUNC	= (1 << 2),
-	FTRACE_ENABLE_MCOUNT		= (1 << 3),
-	FTRACE_DISABLE_MCOUNT		= (1 << 4),
-	FTRACE_START_FUNC_RET		= (1 << 5),
-	FTRACE_STOP_FUNC_RET		= (1 << 6),
-};
-
 static int ftrace_filtered;
 
 static struct dyn_ftrace *ftrace_new_addrs;
@@ -1108,7 +1098,7 @@ int __weak ftrace_arch_code_modify_prepare(void)
  * archs can override this function if they must do something
  * after the modifying code is performed.
  */
-int __weak ftrace_arch_code_modify_post_process(void)
+int __weak ftrace_arch_code_modify_post_process(void *data)
 {
 	return 0;
 }
@@ -1144,7 +1134,7 @@ static void ftrace_run_update_code(int command)
 
 	stop_machine(__ftrace_modify_code, &command, NULL);
 
-	ret = ftrace_arch_code_modify_post_process();
+	ret = ftrace_arch_code_modify_post_process(&command);
 	FTRACE_WARN_ON(ret);
 }
 
@@ -2640,6 +2630,25 @@ static __init int ftrace_init_dyn_debugfs(struct dentry *d_tracer)
 	return 0;
 }
 
+/*
+ * archs can override this function if they must do something
+ * before the modifying code in module is performed.
+ */
+
+int __weak ftrace_arch_module_modify_prepare(void)
+{
+	return 0;
+}
+
+/*
+ * archs can override this function if they must do something
+ * after the modifying code in module is performed.
+ */
+int __weak ftrace_arch_module_modify_post_process(void)
+{
+	return 0;
+}
+
 static int ftrace_process_locs(struct module *mod,
 			       unsigned long *start,
 			       unsigned long *end)
@@ -2647,6 +2656,7 @@ static int ftrace_process_locs(struct module *mod,
 	unsigned long *p;
 	unsigned long addr;
 	unsigned long flags;
+	int ret = 0;
 
 	mutex_lock(&ftrace_lock);
 	p = start;
@@ -2663,13 +2673,21 @@ static int ftrace_process_locs(struct module *mod,
 		ftrace_record_ip(addr);
 	}
 
+	ret = ftrace_arch_module_modify_prepare();
+	FTRACE_WARN_ON(ret);
+	if (ret)
+		goto out;
+
 	/* disable interrupts to prevent kstop machine */
 	local_irq_save(flags);
 	ftrace_update_code(mod);
 	local_irq_restore(flags);
-	mutex_unlock(&ftrace_lock);
 
-	return 0;
+	ret = ftrace_arch_module_modify_post_process();
+	FTRACE_WARN_ON(ret);
+out:
+	mutex_unlock(&ftrace_lock);
+	return ret;
 }
 
 #ifdef CONFIG_MODULES
