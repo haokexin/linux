@@ -68,6 +68,46 @@ static inline void ftrace_dyn_arch_init_insns(void)
 #endif
 }
 
+#define FTRACE_CALL_IP ((unsigned long)(&ftrace_call))
+
+#ifdef CONFIG_FUNCTION_GRAPH_TRACER
+extern void ftrace_graph_call(void);
+#define FTRACE_GRAPH_CALL_IP	((unsigned long)(&ftrace_graph_call))
+#endif
+
+static inline void flush_icache_from(unsigned long start)
+{
+	flush_icache_range(start, start + 8);
+}
+
+int ftrace_arch_code_modify_post_process(void *data)
+{
+	int *command = data;
+
+	if (*command & (FTRACE_ENABLE_CALLS | FTRACE_DISABLE_CALLS)) {
+		__flush_cache_all();
+		return 0;
+	}
+
+	if (*command & FTRACE_UPDATE_TRACE_FUNC)
+		flush_icache_from(FTRACE_CALL_IP);
+
+	if (*command & (FTRACE_START_FUNC_RET | FTRACE_STOP_FUNC_RET))
+		flush_icache_from(FTRACE_GRAPH_CALL_IP);
+
+	return 0;
+}
+
+int ftrace_arch_module_modify_post_process(void)
+{
+	__flush_cache_all();
+	return 0;
+}
+
+/*
+ * In MIPS, ftrace_modify_code() doesn't flush the icache, If use it,
+ * please flush the icache yourself.
+ */
 static int ftrace_modify_code(unsigned long ip, unsigned int new_code)
 {
 	int faulted;
@@ -77,8 +117,6 @@ static int ftrace_modify_code(unsigned long ip, unsigned int new_code)
 
 	if (unlikely(faulted))
 		return -EFAULT;
-
-	flush_icache_range(ip, ip + 8);
 
 	return 0;
 }
@@ -145,8 +183,6 @@ int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
 	return ftrace_modify_code(ip, new);
 }
 
-#define FTRACE_CALL_IP ((unsigned long)(&ftrace_call))
-
 int ftrace_update_ftrace_func(ftrace_func_t func)
 {
 	unsigned int new;
@@ -161,11 +197,14 @@ int __init ftrace_dyn_arch_init(void *data)
 	/* Encode the instructions when booting */
 	ftrace_dyn_arch_init_insns();
 
-	/* Remove "b ftrace_stub" to ensure ftrace_caller() is executed */
-	ftrace_modify_code(MCOUNT_ADDR, INSN_NOP);
-
 	/* The return code is retured via data */
 	*(unsigned long *)data = 0;
+
+	/* Remove "b ftrace_stub" to ensure ftrace_caller() is executed */
+	ftrace_modify_code(MCOUNT_ADDR, INSN_NOP);
+	/* To flush the icache in SMP, the irq should be enabled */
+	local_irq_enable();
+	flush_icache_from(MCOUNT_ADDR);
 
 	return 0;
 }
@@ -174,9 +213,6 @@ int __init ftrace_dyn_arch_init(void *data)
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
 
 #ifdef CONFIG_DYNAMIC_FTRACE
-
-extern void ftrace_graph_call(void);
-#define FTRACE_GRAPH_CALL_IP	((unsigned long)(&ftrace_graph_call))
 
 int ftrace_enable_ftrace_graph_caller(void)
 {
