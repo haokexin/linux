@@ -169,10 +169,7 @@ __setup("kgdboe=", option_setup);
 /* With our config string set by some means, configure kgdboe. */
 static int configure_kgdboe(void)
 {
-	if (option_setup(config))
-		return 0;
-
-	if (!configured) {
+	if (option_setup(config) || !configured) {
 		printk(KERN_ERR "kgdboe: configuration incorrect - " \
 		       "kgdboe not loaded.\n");
 		printk(KERN_ERR "  Usage: kgdboe=[src-port]@[src-ip]/[dev]," \
@@ -258,8 +255,6 @@ static int param_set_kgdboe_var(const char *kmessage, struct kernel_param *kp)
 		cleanup_kgdboe();
 		configured = 0;
 	}
-	if (config[0] == '\0')
-		return 0;
 
 	configure_kgdboe();
 
