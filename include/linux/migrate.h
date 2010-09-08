@@ -22,6 +22,7 @@ extern int migrate_prep(void);
 extern int migrate_vmas(struct mm_struct *mm,
 		const nodemask_t *from, const nodemask_t *to,
 		unsigned long flags);
+extern void migrate_page_copy(struct page *newpage, struct page *page);
 #else
 #define PAGE_MIGRATION 0
 
@@ -37,6 +38,9 @@ static inline int migrate_vmas(struct mm_struct *mm,
 {
 	return -ENOSYS;
 }
+
+static inline void migrate_page_copy(struct page *newpage,
+				     struct page *page) {}
 
 /* Possible settings for the migrate_page() method in address_operations */
 #define migrate_page NULL
