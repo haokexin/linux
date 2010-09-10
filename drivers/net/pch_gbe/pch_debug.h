@@ -29,6 +29,8 @@
 #ifndef __PCH_DEBUG_H__
 #define __PCH_DEBUG_H__
 
+#include <linux/module.h>
+
 #ifdef MODULE
 #define PCH_LOG(level, fmt, args...) printk(level "%s:" fmt "\n",\
        THIS_MODULE->name, ##args)
