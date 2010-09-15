@@ -2298,6 +2298,8 @@ static int cxgb_extension_ioctl(struct net_device *dev, void __user *useraddr)
 
 		memset(&edata, 0, sizeof(struct ch_reg));
 
+		memset(&edata, 0, sizeof(struct ch_reg));
+
 		edata.cmd = CHELSIO_GET_QSET_NUM;
 		edata.val = pi->nqsets;
 		if (copy_to_user(useraddr, &edata, sizeof(edata)))
