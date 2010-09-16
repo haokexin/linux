@@ -1687,7 +1687,7 @@ unsigned int mpic_get_coreint_irq(void)
 {
 #ifdef CONFIG_BOOKE
 	struct mpic *mpic = mpic_primary;
-	u32 src;
+	u32 src, ret;
 
 	BUG_ON(mpic == NULL);
 
@@ -1705,7 +1705,13 @@ unsigned int mpic_get_coreint_irq(void)
 		return NO_IRQ;
 	}
 
-	return irq_linear_revmap(mpic->irqhost, src);
+	ret = irq_linear_revmap(mpic->irqhost, src);
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+	if (ret == NO_IRQ)
+		mpic_eoi(mpic);
+#endif
+
+	return ret;
 #else
 	return NO_IRQ;
 #endif
