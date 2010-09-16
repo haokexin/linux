@@ -757,12 +757,40 @@ relocate_new_kernel:
 	 * First, invalidate the TLB0 entries
 	 */
 
+/* p4080 might throw machine check exceptions if multiple CPUs do the tlbsync
+ * concurrently: use a test-and-set mutex to control access to the
+ * instruction */
+#if defined(CONFIG_SMP) && defined(CONFIG_P4080_DS)
+	bl	1f
+1:
+	mflr	r31  /* get PC */
+	subi	r31, r31, 4 /* substract 1 instruction: r31 now contains
+			     * relocated address of relocate_new_kernel */
+	li	r30, tlbsync_corenet_lock - relocate_new_kernel
+	add	r30, r30, r31 /* r30 contains relocated tlbsync_corenet_lock */
+2:
+	/* test-and-set lock */
+	sync
+	lwarx	r29, 0, r30
+	cmpwi	r29, 0
+	bne-	2b
+	li	r29, 1
+	stwcx.	r29, 0, r30
+	bne-	2b
+	sync
+#endif
 	li	r6, 0x04
 	tlbivax	0, r6
 #ifdef CONFIG_SMP
 	tlbsync
 #endif
 	msync
+#if defined(CONFIG_SMP) && defined(CONFIG_P4080_DS)
+	/* release test-and-set lock */
+	li	r29, 0
+	stw	r29, 0(r30)
+	sync
+#endif
 
 	/*
 	 * Kernel low memory is mapped by TLB1 entries 0, 1, and 2.
@@ -972,6 +1000,11 @@ relocate_new_kernel_secondary_spin:
 	/* not reached, CPU is now on hold in the new kernel */
 
 #endif	/* CONFIG_SMP */
+
+#if defined(CONFIG_SMP) && defined(CONFIG_P4080_DS)
+tlbsync_corenet_lock:
+	.long 0
+#endif
 
 relocate_new_kernel_end:
 
