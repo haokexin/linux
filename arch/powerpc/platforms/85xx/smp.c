@@ -108,6 +108,7 @@ smp_85xx_kick_cpu(int nr)
 }
 #else
 extern u32 kexec_secondary_hold_addr;
+extern u32 kexec_secondary_cpu_to_wakeup;
 static void __init smp_85xx_kick_cpu(int nr)
 {
 	unsigned long flags;
@@ -124,7 +125,11 @@ static void __init smp_85xx_kick_cpu(int nr)
 	 * point: release it and make it start its true kernel execution,
 	 * at __early_start() */
 
-	kexec_secondary_hold_addr = (u32)__pa(__early_start);
+	if (!kexec_secondary_hold_addr) {
+		kexec_secondary_hold_addr = (u32)__pa(__early_start);
+		mb();
+	}
+	kexec_secondary_cpu_to_wakeup = (u32)nr;
 	mb();
 
 	/* Wait a bit for the CPU to ack. */

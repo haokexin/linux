@@ -727,6 +727,13 @@ _GLOBAL(__main)
 	blr
 
 #ifdef CONFIG_KEXEC
+
+/* e500mc has 64 entries in TLB1, e500vX have 16 */
+#ifdef CONFIG_PPC_E500MC
+#define MAS0_ESEL_MASK_MSB 10
+#else
+#define MAS0_ESEL_MASK_MSB 12
+#endif
 	/*
 	 * Must be relocatable PIC code callable as a C function.
 	 */
@@ -736,7 +743,7 @@ relocate_new_kernel:
 	/* r3 = page_list   */
 	/* r4 = reboot_code_buffer */
 	/* r5 = start_address      */
-	/* CPU1: */
+	/* CPUn: */
 	/* r3 = spin variable   */
 	/* r4 = ready variable */
 	/* r5 = address of relocate_new_kernel_secondary_spin */
@@ -749,6 +756,7 @@ relocate_new_kernel:
 	 *
 	 * First, invalidate the TLB0 entries
 	 */
+
 	li	r6, 0x04
 	tlbivax	0, r6
 #ifdef CONFIG_SMP
@@ -766,8 +774,9 @@ relocate_new_kernel:
 	mr	r8, r6
 	subf	r6, r7, r6
 	mtctr	r6
+
 1:
-	rlwinm	r6, r7, 16, 12, 15
+	rlwinm	r6, r7, 16, MAS0_ESEL_MASK_MSB, 15
 	oris	r6, r6, 0x1000
 	mtspr	SPRN_MAS0, r6
 	tlbre
@@ -789,7 +798,7 @@ relocate_new_kernel:
 	li	r6, 3			/* number of TLBs to copy */
 	mtctr	r6
 1:
-	rlwinm	r6, r7, 16, 12, 15
+	rlwinm	r6, r7, 16, MAS0_ESEL_MASK_MSB, 15
 	oris	r6, r6, 0x1000
 	mtspr	SPRN_MAS0, r6
 	tlbre
@@ -799,7 +808,7 @@ relocate_new_kernel:
 	subf	r6, r0, r6		/* identity map */
 	mtspr	SPRN_MAS2, r6
 
-	rlwinm	r6, r8, 16, 12, 15
+	rlwinm	r6, r8, 16, MAS0_ESEL_MASK_MSB, 15
 	oris	r6, r6, 0x1000
 	mtspr	SPRN_MAS0, r6
 	tlbwe
@@ -824,7 +833,7 @@ relocate_new_kernel:
 	mfspr	r6, SPRN_PIR
 	cmpwi	r6, 0
 	beq	cpu0
-	addi	r8, r4, 1f - relocate_new_kernel_ready
+	addi	r8, r3, 1f - relocate_new_kernel_spin_addr
 	b	all_cpus
 #endif
 cpu0:
@@ -837,6 +846,7 @@ all_cpus:
 1:
 	/* from this point address translation is turned off */
 	/* and interrupts are disabled */
+
 
 #ifdef CONFIG_SMP
 	/* if not CPU0, jump to spin */
@@ -940,9 +950,13 @@ relocate_new_kernel_secondary_spin:
 	/* r4 contains the ready address */
 
 	/* signal CPU0 that we've left the kernel */
-	lis	r5, 1
-	stw	r5, 0(r4)
-	sync
+	li r5, 0
+1:
+	sync	/* relax */
+	lwarx	r5, 0, r4
+	addi	r5, r5, 1
+	stwcx.	r5, 0, r4
+	bne-	1b
 
 	/* spin waiting for a non-zero address to branch to */
 1:	sync	/* relax */
@@ -971,19 +985,30 @@ relocate_new_kernel_size:
 	.globl kexec_secondary_hold_addr
 kexec_secondary_hold_addr:
 	.long 0
+	.globl kexec_secondary_cpu_to_wakeup
+kexec_secondary_cpu_to_wakeup:
+	.long 0
 
 	.globl kexec_secondary_hold
 kexec_secondary_hold:
+	mfspr	r5, SPRN_PIR /* who are we ? */
+
+	lis	r3, kexec_secondary_cpu_to_wakeup@h
+	ori	r3, r3, kexec_secondary_cpu_to_wakeup@l
+	subis	r3, r3, PAGE_OFFSET@h
+
+	/* spin waiting for our CPU number to come up */
+1:	sync	/* relax */
+	lwz	r20, 0(r3)
+	cmpw	r20, r5
+	bne	1b
+	/* end of spin loop */
+
+	/* load address to branch to */
 	lis	r3, kexec_secondary_hold_addr@h
 	ori	r3, r3, kexec_secondary_hold_addr@l
 	subis	r3, r3, PAGE_OFFSET@h
-
-	/* spin waiting for a non-zero address to branch to */
-1:	sync	/* relax */
 	lwz	r5, 0(r3)
-	cmpwi	r5, 0
-	beq	1b
-	/* end of spin loop */
 
 	isync
 	sync
