@@ -129,16 +129,18 @@ void default_machine_kexec(struct kimage *image)
 }
 
 #ifdef CONFIG_SMP
-/* CPU 1 will always be the one calling this function */
+/* secondary CPUs will always be the ones calling this function */
 static void _smp_kexec_secondary_cpu_down(void *arg)
 {
 	u32 rnkss; 	 /* relocate_new_kernel_secondary_spin */
 	u32 spin;	 /* addr of the relocated start address
-			  * variable on which CPU1 will spin */
+			  * variable on which CPUn will spin */
 	u32 ready;	 /* addr of the relocated ready variable */
 	rnk_t rnk;	 /* relocate_new_kernel() */
 
 	struct kimage *image = (struct kimage *)arg;
+
+	local_irq_disable();
 
 	rnkss = (u32)&relocate_new_kernel_secondary_spin;
 	rnkss = virt_to_phys((void *)kexec_find_reloc(image, rnkss));
@@ -152,8 +154,6 @@ static void _smp_kexec_secondary_cpu_down(void *arg)
 	rnk = (rnk_t)kexec_find_reloc((struct kimage *)arg,
 				(u32)relocate_new_kernel);
 
-	local_irq_disable();
-
 	flush_icache_range((u32)rnk, (u32)rnk + KEXEC_CONTROL_PAGE_SIZE);
 
 	rnk((unsigned long *)spin, (unsigned long *)ready, rnkss);
@@ -165,15 +165,17 @@ static void _smp_kexec_wait_for_secondaries(void *arg)
 	volatile u32 *ready;	 /* addr of the relocated ready variable,
 				  * we spin on it, don't want it to be
 				  * optimized out. */
+	unsigned int ncpus;
 
 	local_irq_disable();
 	ready = (void*)kexec_find_reloc((struct kimage *)arg,
 				(u32)&relocate_new_kernel_ready);
-	while(!(*ready)) {
+	ncpus = num_online_cpus()-1;
+	while(*ready != ncpus) {
 		cpu_relax();
 	}
-	mdelay(1);	/* should be plenty for cpu1 to start spinning
-			 * on the start address variable */
+	mdelay(1);	/* should be plenty for secondary CPUs to start
+			 * spinning on the start address variable */
 }
 
 static void _smp_kexec_leave_kernel(void *arg)
@@ -182,15 +184,24 @@ static void _smp_kexec_leave_kernel(void *arg)
 	kexec_leave_kernel(arg);
 }
 
+static void _smp_handle_non_kexecing_cpu(void *arg)
+{
+	/* get hardware CPU# from special Processor Identity Register */
+	if (mfspr(SPRN_PIR) == 0) {
+		_smp_kexec_leave_kernel(arg);
+	} else {
+		_smp_kexec_secondary_cpu_down(arg);
+	}
+	/* NOT REACHED */
+}
+
 static struct kimage * __crash_smp_flag = NULL;
 void default_kexec_stop_cpus(void *arg)
 {
-	int cpu;
-
 	/* Initialization from head_[32|fsl_booke].S expects HW CPU #0 as
-	 * the boot CPU: thus, if we're CPU1, call CPU0 and have it do
+	 * the boot CPU: thus, if we're CPUn, call CPU0 and have it do
 	 * the rest of the shutdown sequence, then put ourselves on
-	 * a spin; if we're CPU0, call CPU1 to put itself on a spin,
+	 * a spin; if we're CPU0, call CPUn to put themselves on a spin,
 	 * then do the rest of the shutdown sequence. */
 
 	/* if this is coming while handling a crash, the CPU that did not
@@ -198,26 +209,19 @@ void default_kexec_stop_cpus(void *arg)
 	 * get it out of that loop and execute its normal kexec shutdown
 	 * sequence */
 	preempt_disable();
+	/* shutdown cpu 1 and wait for it */
+	if(kexec_is_handling_crash()) {
+		__crash_smp_flag = arg;
+		smp_mb();
+	} else {
+		smp_call_function(_smp_handle_non_kexecing_cpu, arg, 0);
+	}
 	/* get hardware CPU# from special Processor Identity Register */
-	cpu = mfspr(SPRN_PIR);
-	if (0 == cpu) {
-		/* shutdown cpu 1 and wait for it */
-		if(kexec_is_handling_crash()) {
-			__crash_smp_flag = arg;
-			smp_mb();
-		} else {
-			smp_call_function(_smp_kexec_secondary_cpu_down, arg, 0);
-		}
+	if (mfspr(SPRN_PIR) == 0) {
 		_smp_kexec_wait_for_secondaries(arg);
 
 		/* was called from default_machine_kexec, continues there */
 	} else {
-		if(kexec_is_handling_crash()) {
-			__crash_smp_flag = arg;
-			smp_mb();
-		} else {
-			smp_call_function(_smp_kexec_leave_kernel, arg, 0);
-		}
 		_smp_kexec_secondary_cpu_down(arg);
 
 		/* not reached, going to wait on
@@ -227,17 +231,10 @@ void default_kexec_stop_cpus(void *arg)
 
 void kexec_smp_wait(void)
 {
-	int cpu;
 	while(!__crash_smp_flag) {
 		cpu_relax();
 	}
-	/* get hardware CPU# from special Processor Identity Register */
-	cpu = mfspr(SPRN_PIR);
-	if(0 == cpu) {
-		_smp_kexec_leave_kernel(__crash_smp_flag);
-	} else {
-		_smp_kexec_secondary_cpu_down(__crash_smp_flag);
-	}
+	_smp_handle_non_kexecing_cpu(__crash_smp_flag);
 }
 
 #endif /* CONFIG_SMP */
