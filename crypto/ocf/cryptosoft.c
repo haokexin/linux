@@ -844,6 +844,7 @@ static void swcr_process_req(struct swcr_req *req)
 		case 0:
 			dprintk("crypto OP %s %d\n", ret ? "failed" : "success", ret);
 			crp->crp_etype = ret;
+			ablkcipher_request_free(req->crypto_req);
 			goto done;
 		}
 		} break;
