@@ -403,6 +403,60 @@ static int __devinit fsl_of_pamu_probe(struct of_device *dev,
 	return 0;
 }
 
+static int fsl_of_pamu_shutdown(struct of_device *dev)
+{
+	void __iomem *pamu_regs, *guts_regs;
+	u32 pamubypenr, pamu_counter;
+	unsigned long pamu_reg_off;
+	struct device_node *guts_node;
+	u64 size;
+
+	pr_info("Shutdown Freescale PAMU/IOMMU\n");
+
+	pamu_regs = of_iomap(dev->node, 0);
+	if (!pamu_regs) {
+		dev_err(&dev->dev, "ioremap failed\n");
+		return -ENOMEM;
+	}
+	of_get_address(dev->node, 0, &size, NULL);
+
+	guts_node = of_find_compatible_node(NULL, NULL,
+			"fsl,qoriq-device-config-1.0");
+	if (!guts_node) {
+		dev_err(&dev->dev, "%s guts devnode not found!\n",
+				dev->node->full_name);
+		iounmap(pamu_regs);
+		return -ENODEV;
+	}
+
+	guts_regs = of_iomap(guts_node, 0);
+	if (!guts_regs) {
+		dev_err(&dev->dev, "guts ioremap failed\n");
+		iounmap(pamu_regs);
+		return -ENOMEM;
+	}
+	of_node_put(guts_node);
+
+	pamubypenr = in_be32(guts_regs + PAMUBYPENR);
+
+	for (pamu_reg_off = 0, pamu_counter = 0x80000000; pamu_reg_off < size;
+	     pamu_reg_off += PAMU_OFFSET, pamu_counter >>= 1) {
+		u32 *pc, tmp;
+
+		pc = (u32 *)((unsigned long)pamu_regs + pamu_reg_off + PAMU_PC);
+		tmp = in_be32(pc);
+		tmp &= ~PAMU_PC_PE;
+		out_be32(pc, tmp);
+
+		/* Enable PAMU bypass for this PAMU */
+		pamubypenr |= pamu_counter;
+	}
+
+	/* Disable all relevant PAMU(s) */
+	out_be32(guts_regs + PAMUBYPENR, pamubypenr);
+	return 0;
+}
+
 static const struct of_device_id fsl_of_pamu_ids[] = {
 	{
 		.compatible = "fsl,p4080-pamu",
@@ -417,6 +471,7 @@ static struct of_platform_driver fsl_of_pamu_driver = {
 	.name = "fsl-of-pamu",
 	.match_table = fsl_of_pamu_ids,
 	.probe = fsl_of_pamu_probe,
+	.shutdown = fsl_of_pamu_shutdown,
 };
 
 static __init int fsl_of_pamu_init(void)
