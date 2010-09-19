@@ -263,6 +263,7 @@ struct mpic
 #ifdef CONFIG_SMP
 	struct irq_chip		hc_ipi;
 #endif
+	struct irq_chip         hc_tm;
 	const char		*name;
 	/* Flags */
 	unsigned int		flags;
