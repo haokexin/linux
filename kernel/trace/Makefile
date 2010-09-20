@@ -62,6 +62,7 @@ ifeq ($(CONFIG_TRACING),y)
 obj-$(CONFIG_KGDB_KDB) += trace_kdb.o
 endif
 obj-$(CONFIG_HAVE_TRACE_CLOCK_32_TO_64) += trace-clock-32-to-64.o
-obj-$(CONFIG_HAVE_TRACE_CLOCK_GENERIC) += trace-clock.o
+obj-$(CONFIG_HAVE_TRACE_CLOCK_GENERIC) += trace-clock.o trace-clock-cyc2ns.o
+obj-$(CONFIG_HAVE_TRACE_CLOCK) += trace-clock-cyc2ns.o
 
 libftrace-y := ftrace.o
