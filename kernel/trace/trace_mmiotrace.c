@@ -362,10 +362,10 @@ void mmio_trace_mapping(struct mmiotrace_map *map)
 	struct trace_array *tr = mmio_trace_array;
 	struct trace_array_cpu *data;
 
-	preempt_disable();
+	preempt_disable_notrace();
 	data = tr->data[smp_processor_id()];
 	__trace_mmiotrace_map(tr, data, map);
-	preempt_enable();
+	preempt_enable_notrace();
 }
 
 int mmio_trace_printk(const char *fmt, va_list args)

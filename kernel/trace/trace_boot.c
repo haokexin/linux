@@ -142,7 +142,7 @@ void trace_boot_call(struct boot_trace_call *bt, initcall_t fn)
 	 * disappear because it is in the .init section.
 	 */
 	sprint_symbol(bt->func, (unsigned long)fn);
-	preempt_disable();
+	preempt_disable_notrace();
 
 	buffer = tr->buffer;
 	event = trace_buffer_lock_reserve(buffer, TRACE_BOOT_CALL,
@@ -154,7 +154,7 @@ void trace_boot_call(struct boot_trace_call *bt, initcall_t fn)
 	if (!filter_check_discard(call, entry, buffer, event))
 		trace_buffer_unlock_commit(buffer, event, 0, 0);
  out:
-	preempt_enable();
+	preempt_enable_notrace();
 }
 
 void trace_boot_ret(struct boot_trace_ret *bt, initcall_t fn)
@@ -169,7 +169,7 @@ void trace_boot_ret(struct boot_trace_ret *bt, initcall_t fn)
 		return;
 
 	sprint_symbol(bt->func, (unsigned long)fn);
-	preempt_disable();
+	preempt_disable_notrace();
 
 	buffer = tr->buffer;
 	event = trace_buffer_lock_reserve(buffer, TRACE_BOOT_RET,
@@ -181,5 +181,5 @@ void trace_boot_ret(struct boot_trace_ret *bt, initcall_t fn)
 	if (!filter_check_discard(call, entry, buffer, event))
 		trace_buffer_unlock_commit(buffer, event, 0, 0);
  out:
-	preempt_enable();
+	preempt_enable_notrace();
 }

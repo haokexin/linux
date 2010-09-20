@@ -177,7 +177,7 @@ void trace_hw_branch(u64 from, u64 to)
 	if (unlikely(!trace_hw_branches_enabled))
 		return;
 
-	local_irq_save(irq1);
+	raw_local_irq_save(irq1);
 	cpu = raw_smp_processor_id();
 	if (atomic_inc_return(&tr->data[cpu]->disabled) != 1)
 		goto out;
@@ -197,7 +197,7 @@ void trace_hw_branch(u64 from, u64 to)
 
  out:
 	atomic_dec(&tr->data[cpu]->disabled);
-	local_irq_restore(irq1);
+	raw_local_irq_restore(irq1);
 }
 
 static void trace_bts_at(const struct bts_trace *trace, void *at)

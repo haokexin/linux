@@ -123,9 +123,9 @@ static void trace_note_time(struct blk_trace *bt)
 	words[0] = now.tv_sec;
 	words[1] = now.tv_nsec;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	trace_note(bt, 0, BLK_TN_TIMESTAMP, words, sizeof(words));
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 void __trace_note_message(struct blk_trace *bt, const char *fmt, ...)
@@ -139,14 +139,14 @@ void __trace_note_message(struct blk_trace *bt, const char *fmt, ...)
 		     !blk_tracer_enabled))
 		return;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	buf = per_cpu_ptr(bt->msg_data, smp_processor_id());
 	va_start(args, fmt);
 	n = vscnprintf(buf, BLK_TN_MAX_MSG, fmt, args);
 	va_end(args);
 
 	trace_note(bt, 0, BLK_TN_MESSAGE, buf, n);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(__trace_note_message);
 
@@ -224,7 +224,7 @@ static void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 	 * some space in the relay per-cpu buffer, to prevent an irq
 	 * from coming in and stepping on our toes.
 	 */
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 
 	if (unlikely(tsk->btrace_seq != blktrace_seq))
 		trace_note_tsk(bt, tsk);
@@ -262,7 +262,7 @@ record_it:
 		}
 	}
 
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static struct dentry *blk_tree_root;

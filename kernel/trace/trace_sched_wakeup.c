@@ -65,11 +65,11 @@ wakeup_tracer_call(unsigned long ip, unsigned long parent_ip)
 	if (unlikely(disabled != 1))
 		goto out;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 
 	trace_function(tr, ip, parent_ip, flags, pc);
 
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
  out:
 	atomic_dec(&data->disabled);
@@ -142,7 +142,7 @@ probe_wakeup_sched_switch(struct rq *rq, struct task_struct *prev,
 	if (likely(disabled != 1))
 		goto out;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	arch_spin_lock(&wakeup_lock);
 
 	/* We could race with grabbing wakeup_lock */
@@ -170,7 +170,7 @@ probe_wakeup_sched_switch(struct rq *rq, struct task_struct *prev,
 out_unlock:
 	__wakeup_reset(wakeup_trace);
 	arch_spin_unlock(&wakeup_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 out:
 	atomic_dec(&wakeup_trace->data[cpu]->disabled);
 }
@@ -192,11 +192,11 @@ static void wakeup_reset(struct trace_array *tr)
 
 	tracing_reset_online_cpus(tr);
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	arch_spin_lock(&wakeup_lock);
 	__wakeup_reset(tr);
 	arch_spin_unlock(&wakeup_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static void
