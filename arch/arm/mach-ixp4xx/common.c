@@ -429,9 +429,9 @@ static void __init ixp4xx_clocksource_init(void)
 /*
  * sched_clock()
  */
-unsigned long long sched_clock(void)
+unsigned long long notrace sched_clock(void)
 {
-	cycle_t cyc = ixp4xx_get_cycles(NULL);
+	cycle_t cyc = *IXP4XX_OSTS;
 	struct clocksource *cs = &clocksource_ixp4xx;
 
 	return clocksource_cyc2ns(cyc, cs->mult, cs->shift);

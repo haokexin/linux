@@ -178,7 +178,7 @@ struct clocksource *get_clocksource_32k(void)
  * Returns current time from boot in nsecs. It's OK for this to wrap
  * around for now, as it's just a relative time stamp.
  */
-unsigned long long sched_clock(void)
+unsigned long long notrace sched_clock(void)
 {
 	return clocksource_cyc2ns(clocksource_32k.read(&clocksource_32k),
 				  clocksource_32k.mult, clocksource_32k.shift);
