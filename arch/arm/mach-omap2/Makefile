@@ -9,6 +9,11 @@ ifndef CONFIG_ARCH_TI816X
 obj-y += pm.o
 endif
 
+ifdef CONFIG_FUNCTION_TRACER
+# Do not profile debug and lowlevel utilities
+CFLAGS_REMOVE_trace-clock.o = -pg
+endif
+
 omap-2-3-common				= irq.o sdrc.o prm2xxx_3xxx.o
 hwmod-common				= omap_hwmod.o \
 					  omap_hwmod_common_data.o
