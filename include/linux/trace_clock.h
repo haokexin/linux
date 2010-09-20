@@ -12,8 +12,13 @@
 #include <linux/compiler.h>
 #include <linux/types.h>
 
+typedef unsigned long long (*trace_clock_t)(void);
+
 extern u64 notrace trace_clock_local(void);
 extern u64 notrace trace_clock(void);
 extern u64 notrace trace_clock_global(void);
+
+extern void notrace register_trace_clock(void);
+extern void notrace unregister_trace_clock(void);
 
 #endif /* _LINUX_TRACE_CLOCK_H */
