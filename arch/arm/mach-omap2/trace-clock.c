@@ -122,7 +122,7 @@ static void clear_ccnt_ms(unsigned long data)
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 
 	if (!pm_count->fast_clock_ready)
 		goto end;
@@ -135,7 +135,7 @@ static void clear_ccnt_ms(unsigned long data)
 	write_ctens(read_ctens() |  (1 << 31));	/* enable counter */
 	isb();
 end:
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	mod_timer_pinned(&pm_count->clear_ccnt_ms_timer,
 		  jiffies + clear_ccnt_interval);
@@ -150,7 +150,7 @@ void save_sync_trace_clock(void)
 	unsigned long flags;
 	int cpu;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
 	raw_spin_lock(&pm_count->lock);
@@ -174,7 +174,7 @@ end:
 	 * keeping track of time with ext. clock.
 	 */
 	write_ctens(read_ctens() & ~(1 << 31));	/* disable counter */
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 /*
@@ -183,7 +183,7 @@ end:
  * Called after time is saved and before it is resynced.
  * Also used to periodically resync the drifting dvfs clock on external clock.
  */
-u64 _trace_clock_read_slow(void)
+u64 notrace _trace_clock_read_slow(void)
 {
 	struct pm_save_count *pm_count;
 	u64 ref_time;
@@ -228,7 +228,7 @@ void resync_trace_clock(void)
 	u32 regval;
 	int cpu;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
 	raw_spin_lock(&pm_count->lock);
@@ -298,7 +298,7 @@ void resync_trace_clock(void)
 	}
 end:
 	raw_spin_unlock(&pm_count->lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 /*
@@ -350,7 +350,7 @@ static void clock_resync_timer_fct(unsigned long data)
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	local_fiq_disable();	/* disable fiqs for floor value */
 
 	/* Need to resync if we had more than 1 dvfs event in period */
@@ -359,7 +359,7 @@ static void clock_resync_timer_fct(unsigned long data)
 	pm_count->dvfs_count = 0;
 
 	local_fiq_enable();
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static void prepare_timer(int cpu)
@@ -496,7 +496,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 			local_irq_save(flags);
 			pm_count->ext_32k = clock->read(clock);
 			pm_count->int_fast_clock = trace_clock_read64();
-			local_irq_restore(flags);
+			raw_local_irq_restore(flags);
 			pm_count->refcount = 1;
 			pm_count->dvfs_count = 0;
 			prepare_timer(hotcpu);
@@ -590,7 +590,7 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	if (val != CPUFREQ_POSTCHANGE)
 		return 0;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	cpu = smp_processor_id();
 	WARN_ON_ONCE(cpu != freq->cpu);
 	pm_count = &per_cpu(pm_save_count, cpu);
@@ -634,7 +634,7 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	pm_count->dvfs_count++;
 end:
 	raw_spin_unlock(&pm_count->lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 	return 0;
 }
 
