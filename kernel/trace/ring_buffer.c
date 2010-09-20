@@ -2842,7 +2842,7 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 	int nr_loops = 0;
 	int ret;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	arch_spin_lock(&cpu_buffer->lock);
 
  again:
@@ -2933,7 +2933,7 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 
  out:
 	arch_spin_unlock(&cpu_buffer->lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	return reader;
 }
@@ -3185,7 +3185,7 @@ ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts)
 
 	dolock = rb_ok_to_lock();
  again:
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	if (dolock)
 		spin_lock(&cpu_buffer->reader_lock);
 	event = rb_buffer_peek(cpu_buffer, ts);
@@ -3193,7 +3193,7 @@ ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts)
 		rb_advance_reader(cpu_buffer);
 	if (dolock)
 		spin_unlock(&cpu_buffer->reader_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	if (event && event->type_len == RINGBUF_TYPE_PADDING)
 		goto again;
@@ -3247,13 +3247,13 @@ ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts)
 
  again:
 	/* might be called in atomic */
-	preempt_disable();
+	preempt_disable_notrace();
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
 		goto out;
 
 	cpu_buffer = buffer->buffers[cpu];
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	if (dolock)
 		spin_lock(&cpu_buffer->reader_lock);
 
@@ -3263,10 +3263,10 @@ ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts)
 
 	if (dolock)
 		spin_unlock(&cpu_buffer->reader_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
  out:
-	preempt_enable();
+	preempt_enable_notrace();
 
 	if (event && event->type_len == RINGBUF_TYPE_PADDING)
 		goto again;
@@ -3474,13 +3474,13 @@ int ring_buffer_empty(struct ring_buffer *buffer)
 	/* yes this is racy, but if you don't like the race, lock the buffer */
 	for_each_buffer_cpu(buffer, cpu) {
 		cpu_buffer = buffer->buffers[cpu];
-		local_irq_save(flags);
+		raw_local_irq_save(flags);
 		if (dolock)
 			spin_lock(&cpu_buffer->reader_lock);
 		ret = rb_per_cpu_empty(cpu_buffer);
 		if (dolock)
 			spin_unlock(&cpu_buffer->reader_lock);
-		local_irq_restore(flags);
+		raw_local_irq_restore(flags);
 
 		if (!ret)
 			return 0;
@@ -3508,13 +3508,13 @@ int ring_buffer_empty_cpu(struct ring_buffer *buffer, int cpu)
 	dolock = rb_ok_to_lock();
 
 	cpu_buffer = buffer->buffers[cpu];
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	if (dolock)
 		spin_lock(&cpu_buffer->reader_lock);
 	ret = rb_per_cpu_empty(cpu_buffer);
 	if (dolock)
 		spin_unlock(&cpu_buffer->reader_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	return ret;
 }

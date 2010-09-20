@@ -67,7 +67,7 @@ static int trace_test_buffer(struct trace_array *tr, unsigned long *count)
 	int cpu, ret = 0;
 
 	/* Don't allow flipping of max traces now */
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	arch_spin_lock(&ftrace_max_lock);
 
 	cnt = ring_buffer_entries(tr->buffer);
@@ -87,7 +87,7 @@ static int trace_test_buffer(struct trace_array *tr, unsigned long *count)
 	}
 	tracing_on();
 	arch_spin_unlock(&ftrace_max_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	if (count)
 		*count = cnt;

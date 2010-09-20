@@ -620,7 +620,7 @@ function_profile_call(unsigned long ip, unsigned long parent_ip)
 	if (!ftrace_profile_enabled)
 		return;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 
 	stat = &__get_cpu_var(ftrace_profile_stats);
 	if (!stat->hash || !ftrace_profile_enabled)
@@ -635,7 +635,7 @@ function_profile_call(unsigned long ip, unsigned long parent_ip)
 
 	rec->counter++;
  out:
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER
@@ -652,7 +652,7 @@ static void profile_graph_return(struct ftrace_graph_ret *trace)
 	struct ftrace_profile *rec;
 	unsigned long flags;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	stat = &__get_cpu_var(ftrace_profile_stats);
 	if (!stat->hash || !ftrace_profile_enabled)
 		goto out;
@@ -679,7 +679,7 @@ static void profile_graph_return(struct ftrace_graph_ret *trace)
 		rec->time += calltime;
 
  out:
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static int register_ftrace_profiler(void)
@@ -2679,9 +2679,9 @@ static int ftrace_process_locs(struct module *mod,
 		goto out;
 
 	/* disable interrupts to prevent kstop machine */
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	ftrace_update_code(mod);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	ret = ftrace_arch_module_modify_post_process();
 	FTRACE_WARN_ON(ret);
@@ -2763,9 +2763,9 @@ void __init ftrace_init(void)
 	/* Keep the ftrace pointer to the stub */
 	addr = (unsigned long)ftrace_stub;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	ftrace_dyn_arch_init(&addr);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	/* ftrace_dyn_arch_init places the return code in addr */
 	if (addr)

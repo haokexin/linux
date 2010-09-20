@@ -140,7 +140,7 @@ __kprobes void *perf_trace_buf_prepare(int size, unsigned short type,
 	pc = preempt_count();
 
 	/* Protect the per cpu buffer, begin the rcu read side */
-	local_irq_save(*irq_flags);
+	raw_local_irq_save(*irq_flags);
 
 	*rctxp = perf_swevent_get_recursion_context();
 	if (*rctxp < 0)
@@ -169,7 +169,7 @@ __kprobes void *perf_trace_buf_prepare(int size, unsigned short type,
 err:
 	perf_swevent_put_recursion_context(*rctxp);
 err_recursion:
-	local_irq_restore(*irq_flags);
+	raw_local_irq_restore(*irq_flags);
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(perf_trace_buf_prepare);

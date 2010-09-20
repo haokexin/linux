@@ -53,7 +53,7 @@ static inline void check_stack(void)
 	if (!object_is_on_stack(&this_size))
 		return;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	arch_spin_lock(&max_stack_lock);
 
 	/* a race could have already updated it */
@@ -104,7 +104,7 @@ static inline void check_stack(void)
 
  out:
 	arch_spin_unlock(&max_stack_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 static void
@@ -171,7 +171,7 @@ stack_max_size_write(struct file *filp, const char __user *ubuf,
 	if (ret < 0)
 		return ret;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 
 	/*
 	 * In case we trace inside arch_spin_lock() or after (NMI),
@@ -186,7 +186,7 @@ stack_max_size_write(struct file *filp, const char __user *ubuf,
 	arch_spin_unlock(&max_stack_lock);
 
 	per_cpu(trace_active, cpu)--;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 	return count;
 }
@@ -220,7 +220,7 @@ static void *t_start(struct seq_file *m, loff_t *pos)
 {
 	int cpu;
 
-	local_irq_disable();
+	raw_local_irq_disable();
 
 	cpu = smp_processor_id();
 	per_cpu(trace_active, cpu)++;
@@ -242,7 +242,7 @@ static void t_stop(struct seq_file *m, void *p)
 	cpu = smp_processor_id();
 	per_cpu(trace_active, cpu)--;
 
-	local_irq_enable();
+	raw_local_irq_enable();
 }
 
 static int trace_lookup_stack(struct seq_file *m, long i)

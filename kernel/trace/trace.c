@@ -91,14 +91,14 @@ DEFINE_PER_CPU(int, ftrace_cpu_disabled);
 
 static inline void ftrace_disable_cpu(void)
 {
-	preempt_disable();
+	preempt_disable_notrace();
 	__this_cpu_inc(ftrace_cpu_disabled);
 }
 
 static inline void ftrace_enable_cpu(void)
 {
 	__this_cpu_dec(ftrace_cpu_disabled);
-	preempt_enable();
+	preempt_enable_notrace();
 }
 
 cpumask_var_t __read_mostly	tracing_buffer_mask;
@@ -1060,7 +1060,7 @@ void trace_find_cmdline(int pid, char comm[])
 		return;
 	}
 
-	preempt_disable();
+	preempt_disable_notrace();
 	arch_spin_lock(&trace_cmdline_lock);
 	map = map_pid_to_cmdline[pid];
 	if (map != NO_CMDLINE_MAP)
@@ -1069,7 +1069,7 @@ void trace_find_cmdline(int pid, char comm[])
 		strcpy(comm, "<...>");
 
 	arch_spin_unlock(&trace_cmdline_lock);
-	preempt_enable();
+	preempt_enable_notrace();
 }
 
 void tracing_record_cmdline(struct task_struct *tsk)
@@ -1360,7 +1360,7 @@ ftrace_special(unsigned long arg1, unsigned long arg2, unsigned long arg3)
 		return;
 
 	pc = preempt_count();
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	cpu = raw_smp_processor_id();
 	data = tr->data[cpu];
 
@@ -1368,7 +1368,7 @@ ftrace_special(unsigned long arg1, unsigned long arg2, unsigned long arg3)
 		ftrace_trace_special(tr, arg1, arg2, arg3, pc);
 
 	atomic_dec(&data->disabled);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 /**
@@ -1408,7 +1408,7 @@ int trace_vbprintk(unsigned long ip, const char *fmt, va_list args)
 		goto out;
 
 	/* Lockdep uses trace_printk for lock tracing */
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	arch_spin_lock(&trace_buf_lock);
 	len = vbin_printf(trace_buf, TRACE_BUF_SIZE, fmt, args);
 
@@ -1433,7 +1433,7 @@ int trace_vbprintk(unsigned long ip, const char *fmt, va_list args)
 
 out_unlock:
 	arch_spin_unlock(&trace_buf_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 
 out:
 	atomic_dec_return(&data->disabled);
@@ -2410,7 +2410,7 @@ tracing_cpumask_write(struct file *filp, const char __user *ubuf,
 
 	mutex_lock(&tracing_cpumask_update_lock);
 
-	local_irq_disable();
+	raw_local_irq_disable();
 	arch_spin_lock(&ftrace_max_lock);
 	for_each_tracing_cpu(cpu) {
 		/*
@@ -2427,7 +2427,7 @@ tracing_cpumask_write(struct file *filp, const char __user *ubuf,
 		}
 	}
 	arch_spin_unlock(&ftrace_max_lock);
-	local_irq_enable();
+	raw_local_irq_enable();
 
 	cpumask_copy(tracing_cpumask, tracing_cpumask_new);
 
@@ -4410,7 +4410,7 @@ static void __ftrace_dump(bool disable_tracing)
 	int cnt = 0, cpu;
 
 	/* only one dump */
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	arch_spin_lock(&ftrace_dump_lock);
 	if (dump_ran)
 		goto out;
@@ -4484,7 +4484,7 @@ static void __ftrace_dump(bool disable_tracing)
 
  out:
 	arch_spin_unlock(&ftrace_dump_lock);
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 }
 
 /* By default: disable tracing after the dump */
