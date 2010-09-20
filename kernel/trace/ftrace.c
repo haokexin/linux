@@ -3112,6 +3112,7 @@ int register_ftrace_function(struct ftrace_ops *ops)
 	mutex_lock(&ftrace_lock);
 
 	ret = __register_ftrace_function(ops);
+	register_trace_clock();
 	ftrace_startup(0);
 
 	mutex_unlock(&ftrace_lock);
@@ -3131,6 +3132,7 @@ int unregister_ftrace_function(struct ftrace_ops *ops)
 	mutex_lock(&ftrace_lock);
 	ret = __unregister_ftrace_function(ops);
 	ftrace_shutdown(0);
+	unregister_trace_clock();
 	mutex_unlock(&ftrace_lock);
 
 	return ret;

@@ -20,8 +20,12 @@
 #include <linux/sched.h>
 #include <linux/ktime.h>
 #include <linux/trace_clock.h>
+#include <linux/trace-clock.h>
+#include <linux/delay.h>
 
 #include "trace.h"
+
+trace_clock_t ftrace_trace_clock __read_mostly = sched_clock;
 
 /*
  * trace_clock_local(): the simplest and least coherent tracing clock.
@@ -40,7 +44,7 @@ u64 notrace trace_clock_local(void)
 	 * CPUs, nor across CPU idle events.
 	 */
 	resched = ftrace_preempt_disable();
-	clock = sched_clock();
+	clock = ftrace_trace_clock();
 	ftrace_preempt_enable(resched);
 
 	return clock;
@@ -114,3 +118,101 @@ u64 notrace trace_clock_global(void)
 
 	return now;
 }
+
+/*
+ * If the trace clock can distinguish 1us' delta, we consider
+ * it has high resolution
+ */
+
+#define DELAY_US 1
+
+static bool trace_clock_get_hres(trace_clock_t func)
+{
+	unsigned long long flags;
+	u64 t1, t2, delta;
+
+	/* func() return nanosecs */
+	t1 = func();
+	raw_local_irq_save(flags);
+	udelay(DELAY_US);
+	raw_local_irq_restore(flags);
+	t2 = func();
+
+	delta = t2 - t1;
+
+	if (delta > 0)
+		return 1;
+
+	return 0;
+}
+
+static bool trace_clock_registered __read_mostly;
+static bool sched_clock_has_hres __read_mostly;
+static bool trace_clock_read64_ns_has_hres __read_mostly;
+
+void notrace register_trace_clock(void)
+{
+	if (trace_clock_registered)
+		return;
+	/*
+	 * If there is a high resolution sched_clock(), no need to
+	 * register another one.
+	 */
+	if (sched_clock_has_hres)
+		return;
+
+	if (trace_clock_read64_ns_has_hres) {
+		get_trace_clock();
+		ftrace_trace_clock = trace_clock_read64_ns;
+		trace_clock_registered = 1;
+	}
+}
+
+void notrace unregister_trace_clock(void)
+{
+	if (trace_clock_registered) {
+		trace_clock_registered = 0;
+		ftrace_trace_clock = sched_clock;
+		put_trace_clock();
+	}
+}
+
+static int __init check_res_of_trace_clock(void)
+{
+	int has_hres;
+
+	pr_info("%s: sched_clock() ", __func__);
+	if (trace_clock_get_hres(sched_clock)) {
+		pr_cont("high resolution\n");
+		sched_clock_has_hres = 1;
+	} else {
+		pr_cont("low resolution\n");
+
+		get_trace_clock();
+		pr_info("%s: trace_clock_read64_ns() ", __func__);
+		if (trace_clock_get_hres(trace_clock_read64_ns)) {
+			pr_cont("has high resolution\n");
+			trace_clock_read64_ns_has_hres = 1;
+		} else
+			pr_cont("has low resolution\n");
+		put_trace_clock();
+	}
+
+	has_hres = sched_clock_has_hres | trace_clock_read64_ns_has_hres;
+	WARN(!has_hres, "No available high resolution trace clock\n");
+
+	return 0;
+}
+
+/*
+ * Note: check_res_of_trace_clock() must be called to initialize the
+ * trace_clock_read64_ns_has_hres before the register of irqsoff,
+ * preemptoff, preemptirqsoff and wakeup tracers, otherwise, the
+ * selftest of them will fail.
+ *
+ * The low-level clocks must be initialized before us, in
+ * early_initcall(), otherwise, the kernel may hang after decompressing
+ * the kernel.
+ */
+
+arch_initcall(check_res_of_trace_clock);
