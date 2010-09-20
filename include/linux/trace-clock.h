@@ -1,5 +1,5 @@
-#ifndef _LINUX_TRACE_CLOCK_H
-#define _LINUX_TRACE_CLOCK_H
+#ifndef _LINUX_TRACE__CLOCK_H
+#define _LINUX_TRACE__CLOCK_H
 
 /*
  * Trace clock
@@ -14,4 +14,4 @@
 #else
 #include <asm-generic/trace-clock.h>
 #endif /* CONFIG_HAVE_TRACE_CLOCK */
-#endif /* _LINUX_TRACE_CLOCK_H */
+#endif /* _LINUX_TRACE__CLOCK_H */
