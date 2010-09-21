@@ -145,6 +145,7 @@ int overlaps_crashkernel(unsigned long start, unsigned long size)
 
 /* Values we need to export to the second kernel via the device tree. */
 static unsigned long kernel_end;
+static unsigned long crashk_base;
 static unsigned long crashk_size;
 
 static struct property kernel_end_prop = {
@@ -156,7 +157,7 @@ static struct property kernel_end_prop = {
 static struct property crashk_base_prop = {
 	.name = "linux,crashkernel-base",
 	.length = sizeof(unsigned long),
-	.value = &crashk_res.start,
+	.value = &crashk_base,
 };
 
 static struct property crashk_size_prop = {
@@ -180,6 +181,7 @@ static void __init export_crashk_values(struct device_node *node)
 		prom_remove_property(node, prop);
 
 	if (crashk_res.start != 0) {
+		crashk_base = crashk_res.start;
 		prom_add_property(node, &crashk_base_prop);
 		crashk_size = crashk_res.end - crashk_res.start + 1;
 		prom_add_property(node, &crashk_size_prop);
