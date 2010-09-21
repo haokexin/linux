@@ -75,7 +75,7 @@ volatile unsigned int cpu_callin_map[NR_CPUS];
 
 int smt_enabled_at_boot = 1;
 
-static void (*crash_ipi_function_ptr)(struct pt_regs *) = NULL;
+void (*crash_ipi_function_ptr)(struct pt_regs *) = NULL;
 
 #ifdef CONFIG_PPC64
 void __devinit smp_generic_kick_cpu(int nr)

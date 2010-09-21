@@ -62,6 +62,7 @@ void doorbell_message_pass(int target, int msg)
 	}
 }
 
+extern void (*crash_ipi_function_ptr)(struct pt_regs *);
 void doorbell_exception(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
@@ -73,10 +74,24 @@ void doorbell_exception(struct pt_regs *regs)
 	if (!info->messages || (num_online_cpus() < 2))
 		goto out;
 
-	for (msg = 0; msg < 4; msg++)
-		if (test_and_clear_bit(msg, &info->messages))
+	for (msg = 0; msg < 4; msg++) {
+		if (test_and_clear_bit(msg, &info->messages)) {
+			/* crash kernel needs regs */
+			if (PPC_MSG_DEBUGGER_BREAK == msg) {
+				if (crash_ipi_function_ptr) {
+					struct pt_regs *old_regs;
+					old_regs = set_irq_regs(regs);
+					smp_message_recv(msg);
+					/* We should *NEVER* hit this, but
+					 * for the sake of symmetry, handle
+					 * this case. */
+					set_irq_regs(old_regs);
+					continue;
+				}
+			}
 			smp_message_recv(msg);
-
+		}
+	}
 out:
 	set_irq_regs(old_regs);
 }
