@@ -172,7 +172,7 @@ native_transfer_to_handler:
 	beq	2f			/* if from user, fix up THREAD.regs */
 	addi	r11,r1,STACK_FRAME_OVERHEAD
 	stw	r11,PT_REGS(r12)
-#if defined(CONFIG_40x) || defined(CONFIG_BOOKE) && !defined(CONFIG_PARAVIRT)
+#if defined(CONFIG_40x) || defined(CONFIG_BOOKE)
 	/* Check to see if the dbcr0 register is set up to debug.  Use the
 	   internal debug mode bit to do this. */
 	lwz	r12,THREAD_DBCR0(r12)
@@ -180,10 +180,14 @@ native_transfer_to_handler:
 	beq+	3f
 	/* From user and task is ptraced - load up global dbcr0 */
 	li	r12,-1			/* clear all pending debug events */
+	mr	r9,r3
+	lis	r3,SPRN_DBSR_W_RN(r12)@h
+	ori	r3,r3,SPRN_DBSR_W_RN(r12)@l
 	mtspr	SPRN_DBSR,r12
-	lis	r11,global_dbcr0@ha
+	mr	r3,r9
+	lis     r11,global_dbcr0@ha
 	tophys(r11,r11)
-	addi	r11,r11,global_dbcr0@l
+	addi    r11,r11,global_dbcr0@l
 #ifdef CONFIG_SMP
 	rlwinm	r9,r1,0,0,(31-THREAD_SHIFT)
 	lwz	r9,TI_CPU(r9)
@@ -191,7 +195,12 @@ native_transfer_to_handler:
 	add	r11,r11,r9
 #endif
 	lwz	r12,0(r11)
+	mr	r9,r3
+	lis	r3,SPRN_DBCR0_W_RN(r12)@h
+	ori	r3,r3,SPRN_DBCR0_W_RN(r12)@l
 	mtspr	SPRN_DBCR0,r12
+	mr	r3,r9
+	lwz     r12,0(r11)
 	lwz	r12,4(r11)
 	addi	r12,r12,-1
 	stw	r12,4(r11)
@@ -416,7 +425,7 @@ syscall_exit_cont:
 	lwz	r3,GPR3(r1)
 1:
 #endif /* CONFIG_TRACE_IRQFLAGS */
-#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE) && !(CONFIG_PARAVIRT)
+#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE)
 	/* If the process has its own DBCR0 value, load it up.  The internal
 	   debug mode bit tells us that dbcr0 should be loaded. */
 	lwz	r0,THREAD+THREAD_DBCR0(r2)
@@ -864,7 +873,7 @@ user_exc_return:		/* r10 contains MSR_KERNEL here */
 	bne	do_work
 
 restore_user:
-#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE) && !defined(CONFIG_PARAVIRT)
+#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE)
 	/* Check whether this process has its own DBCR0 value.  The internal
 	   debug mode bit tells us that dbcr0 should be loaded. */
 	lwz	r0,THREAD+THREAD_DBCR0(r2)
@@ -1230,7 +1239,11 @@ native_load_dbcr0:
 	rlwinm	r10,r10,0,~MSR_DE
 	mtmsr	r10
 	isync
+	mr	r9,r3
+	lis	r3,SPRN_DBCR0_R_RN(r10)@h
+	ori	r3,r3,SPRN_DBCR0_R_RN(r10)@l
 	mfspr	r10,SPRN_DBCR0
+	mr	r3,r9
 	lis	r11,global_dbcr0@ha
 	addi	r11,r11,global_dbcr0@l
 #ifdef CONFIG_SMP
@@ -1240,12 +1253,18 @@ native_load_dbcr0:
 	add	r11,r11,r9
 #endif
 	stw	r10,0(r11)
+	mr	r9,r3
+	lis	r3,SPRN_DBCR0_W_RN(r0)@h
+	ori	r3,r3,SPRN_DBCR0_W_RN(r0)@l
 	mtspr	SPRN_DBCR0,r0
 	lwz	r10,4(r11)
 	addi	r10,r10,1
 	stw	r10,4(r11)
 	li	r11,-1
+	lis	r3,SPRN_DBSR_W_RN(r11)@h
+	ori	r3,r3,SPRN_DBSR_W_RN(r11)@l
 	mtspr	SPRN_DBSR,r11	/* clear all pending debug events */
+	mr	r3,r9
 	blr
 
 	.section .bss
