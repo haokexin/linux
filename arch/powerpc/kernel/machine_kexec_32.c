@@ -204,9 +204,9 @@ void default_kexec_stop_cpus(void *arg)
 	 * a spin; if we're CPU0, call CPUn to put themselves on a spin,
 	 * then do the rest of the shutdown sequence. */
 
-	/* if this is coming while handling a crash, the CPU that did not
-	 * crash is already spinning in a loop with its interrupts locked:
-	 * get it out of that loop and execute its normal kexec shutdown
+	/* if this is coming while handling a crash, the CPUs that did not
+	 * crash are already spinning in a loop with their interrupts locked:
+	 * get them out of that loop and execute their normal kexec shutdown
 	 * sequence */
 	preempt_disable();
 	/* shutdown cpu 1 and wait for it */
