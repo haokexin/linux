@@ -82,7 +82,12 @@ static inline void flush_icache_from(unsigned long start)
 
 int ftrace_arch_code_modify_post_process(void *data)
 {
-	int *command = data;
+	int *command;
+
+	if (data == NULL)
+		return 0;
+
+	command = data;
 
 	if (*command & (FTRACE_ENABLE_CALLS | FTRACE_DISABLE_CALLS)) {
 		__flush_cache_all();
