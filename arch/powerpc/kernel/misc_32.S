@@ -957,6 +957,9 @@ all_cpus:
 	addi	r25, r4, relocate_new_kernel_spin_addr - relocate_new_kernel
 #endif
 
+	/* purgatory expects r3 to contain the boot CPU: make it happy */
+	mfspr	r3, SPRN_PIR /* who are we ? */
+
 	/* jump to the entry point, usually the purgatory */
 	mtlr	r5
 	blrl
