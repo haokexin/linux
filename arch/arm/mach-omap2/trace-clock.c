@@ -493,7 +493,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 		spin_lock(&trace_clock_lock);
 		if (trace_clock_refcount) {
 			pm_count = &per_cpu(pm_save_count, hotcpu);
-			local_irq_save(flags);
+			raw_local_irq_save(flags);
 			pm_count->ext_32k = clock->read(clock);
 			pm_count->int_fast_clock = trace_clock_read64();
 			raw_local_irq_restore(flags);
