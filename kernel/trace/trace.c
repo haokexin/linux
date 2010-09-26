@@ -2719,14 +2719,6 @@ tracing_ctrl_write(struct file *filp, const char __user *ubuf,
 	return cnt;
 }
 
-static int tracing_ctrl_release(struct inode *inode, struct file *file)
-{
-	/* Release the trace clock when the debugfs is umounted */
-	unregister_trace_clock();
-
-	return 0;
-}
-
 static ssize_t
 tracing_set_trace_read(struct file *filp, char __user *ubuf,
 		       size_t cnt, loff_t *ppos)
@@ -3558,7 +3550,6 @@ static const struct file_operations tracing_ctrl_fops = {
 	.open		= tracing_open_generic,
 	.read		= tracing_ctrl_read,
 	.write		= tracing_ctrl_write,
-	.release	= tracing_ctrl_release,
 };
 
 static const struct file_operations set_tracer_fops = {
