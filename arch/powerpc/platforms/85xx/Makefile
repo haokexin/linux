@@ -1,7 +1,8 @@
 #
 # Makefile for the PowerPC 85xx linux kernel.
 #
-obj-$(CONFIG_SMP) += smp.o
+obj-$(CONFIG_SMP) += smp.o bootpage.o
+obj-$(CONFIG_SUSPEND)     += suspend-asm.o
 obj-$(CONFIG_MPC85xx_CPUFREQ) += cpufreq.o
 obj-$(CONFIG_AMP) += amp.o
 

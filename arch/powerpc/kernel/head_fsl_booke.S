@@ -23,6 +23,7 @@
  *	PowerPC 44x support, Matt Porter <mporter@kernel.crashing.org>
  *    Copyright 2004 Freescale Semiconductor, Inc
  *	PowerPC e500 modifications, Kumar Gala <galak@kernel.crashing.org>
+ *    Copyright 2008, 2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -478,6 +479,37 @@ skpinv:	addi	r6,r6,1				/* Increment */
 	rlwimi	r12, r10, 22, 20, 29;	/* Compute PTE address */		\
 	lwz	r11, 0(r12);		/* Get Linux PTE */
 #endif
+
+_GLOBAL(flush_disable_L1)
+/*
+ * Flush L1 d-cache, invalidate and disable d-cache,
+ * invalidate and disable i-cache
+ */
+	mflr	r10
+	bl	flush_dcache_L1	/* Flush L1 d-cache */
+	mtlr	r10
+
+	mfspr	r4, SPRN_L1CSR0	/* Invalidate and disable d-cache */
+	li	r5, 2
+	rlwimi	r4, r5, 0, 3
+
+	msync
+	isync
+	mtspr	SPRN_L1CSR0, r4
+	isync
+
+1:	mfspr	r4, SPRN_L1CSR0	/* Wait for the invalidate to finish */
+	andi.	r4, r4, 2
+	bne	1b
+
+	mfspr	r4, SPRN_L1CSR1	/* Invalidate and disable i-cache */
+	li	r5, 2
+	rlwimi	r4, r5, 0, 3
+
+	mtspr	SPRN_L1CSR1, r4
+	isync
+
+	blr
 
 /*
  * Interrupt vector entry code
