@@ -3,6 +3,8 @@
 #ifdef __KERNEL__
 
 #include <asm/mmu.h>
+#include <asm/of_device.h>
+#include <linux/suspend.h>
 
 struct spi_device;
 
@@ -20,6 +22,15 @@ struct spi_board_info;
 struct device_node;
 
 extern void fsl_rstcr_restart(char *cmd);
+
+#ifdef CONFIG_FSL_PMC
+int pmc_enable_wake(struct of_device *ofdev, suspend_state_t state,
+		bool enable);
+void pmc_enable_lossless(int enable);
+#else
+#define pmc_enable_wake(ofdev, state, enable)	(-EINVAL)
+#define pmc_enable_lossless(enable) do {} while (0);
+#endif
 
 #if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 struct platform_diu_data_ops {
