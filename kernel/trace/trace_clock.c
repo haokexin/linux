@@ -25,15 +25,13 @@
 
 #include "trace.h"
 
-trace_clock_t ftrace_trace_clock __read_mostly = sched_clock;
-
 /*
  * trace_clock_local(): the simplest and least coherent tracing clock.
  *
  * Useful for tracing that does not cross to other CPUs nor
  * does it go through idle events.
  */
-u64 notrace trace_clock_local(void)
+u64 notrace orig_trace_clock_local(void)
 {
 	u64 clock;
 	int resched;
@@ -44,10 +42,17 @@ u64 notrace trace_clock_local(void)
 	 * CPUs, nor across CPU idle events.
 	 */
 	resched = ftrace_preempt_disable();
-	clock = ftrace_trace_clock();
+	clock = sched_clock();
 	ftrace_preempt_enable(resched);
 
 	return clock;
+}
+
+trace_clock_t ftrace_trace_clock __read_mostly = orig_trace_clock_local;
+
+u64 notrace trace_clock_local(void)
+{
+	return ftrace_trace_clock();
 }
 
 /*
@@ -192,7 +197,7 @@ void notrace unregister_trace_clock(void)
 	trace_clock_lock();
 	if (trace_clock_registered) {
 		trace_clock_registered = 0;
-		ftrace_trace_clock = sched_clock;
+		ftrace_trace_clock = orig_trace_clock_local;
 		put_trace_clock();
 	}
 	trace_clock_unlock();
@@ -203,7 +208,7 @@ static int __init check_res_of_trace_clock(void)
 	int has_hres;
 
 	pr_info("%s: sched_clock() ", __func__);
-	if (trace_clock_get_hres(sched_clock)) {
+	if (trace_clock_get_hres(orig_trace_clock_local)) {
 		pr_cont("high resolution\n");
 		sched_clock_has_hres = 1;
 	} else {
