@@ -150,31 +150,52 @@ static bool trace_clock_registered __read_mostly;
 static bool sched_clock_has_hres __read_mostly;
 static bool trace_clock_read64_ns_has_hres __read_mostly;
 
+static DEFINE_MUTEX(trace_clock_mutex);
+/*
+ * trace_clock_lock/trace_clock_unlock also disables cpu hotplug.
+ */
+void trace_clock_lock(void)
+{
+	mutex_lock(&trace_clock_mutex);
+	get_online_cpus();
+}
+
+void trace_clock_unlock(void)
+{
+	put_online_cpus();
+	mutex_unlock(&trace_clock_mutex);
+}
+
 void notrace register_trace_clock(void)
 {
+	trace_clock_lock();
 	if (trace_clock_registered)
-		return;
+		goto out;
 	/*
 	 * If there is a high resolution sched_clock(), no need to
 	 * register another one.
 	 */
 	if (sched_clock_has_hres)
-		return;
+		goto out;
 
 	if (trace_clock_read64_ns_has_hres) {
 		get_trace_clock();
 		ftrace_trace_clock = trace_clock_read64_ns;
 		trace_clock_registered = 1;
 	}
+out:
+	trace_clock_unlock();
 }
 
 void notrace unregister_trace_clock(void)
 {
+	trace_clock_lock();
 	if (trace_clock_registered) {
 		trace_clock_registered = 0;
 		ftrace_trace_clock = sched_clock;
 		put_trace_clock();
 	}
+	trace_clock_unlock();
 }
 
 static int __init check_res_of_trace_clock(void)
