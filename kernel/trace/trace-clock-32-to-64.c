@@ -130,7 +130,7 @@ u64 notrace trace_clock_read_synthetic_tsc(void)
 			+ (1ULL << TC_HW_BITS);
 	else
 		ret = SW_MS32(cpu_synth->tsc[index].val) | (u64)tsc;
-	preempt_enable_notrace();
+	preempt_enable_no_resched_notrace();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(trace_clock_read_synthetic_tsc);
