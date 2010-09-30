@@ -2702,6 +2702,7 @@ tracing_ctrl_write(struct file *filp, const char __user *ubuf,
 	if (tracer_enabled ^ val) {
 		if (val) {
 			tracer_enabled = 1;
+			register_trace_clock();
 			if (current_trace->start)
 				current_trace->start(tr);
 			tracing_start();
@@ -2710,6 +2711,7 @@ tracing_ctrl_write(struct file *filp, const char __user *ubuf,
 			tracing_stop();
 			if (current_trace->stop)
 				current_trace->stop(tr);
+			unregister_trace_clock();
 		}
 	}
 	mutex_unlock(&trace_types_lock);
