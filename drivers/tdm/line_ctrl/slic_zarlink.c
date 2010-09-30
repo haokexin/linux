@@ -33,7 +33,6 @@
     But we have used so much of her original code and ideas that it seems
     only fair to recognize her as co-author -- Rajesh & Hemant */
 
-#include <linux/autoconf.h>
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/kernel.h>
