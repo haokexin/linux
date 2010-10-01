@@ -1,0 +1,152 @@
+/*
+ * arch/arm/mach-spear13xx/include/mach/irqs.h
+ *
+ * IRQ helper macros for spear13xx machine family
+ *
+ * Copyright (C) 2010 ST Microelectronics
+ * Shiraz Hashim <shiraz.hashim@st.com>
+ * Bhupesh Sharma <bhupesh.sharma@st.com>
+ *
+ * This file is licensed under the terms of the GNU General Public
+ * License version 2. This program is licensed "as is" without any
+ * warranty of any kind, whether express or implied.
+ */
+
+#ifndef __MACH_IRQS_H
+#define __MACH_IRQS_H
+
+/* IRQ definitions */
+/*
+ * SGI : ID0 - ID15
+ * PPI : ID16 - ID31
+ * SHPI : ID32 - ID224
+ */
+
+#define IRQ_LOCALTIMER		29
+#define IRQ_LOCALWDOG		30
+
+/* Shared Peripheral Interrupt (SHPI) */
+#define IRQ_SHPI_START		32
+
+#define IRQ_PLAY_I2S0		(IRQ_SHPI_START + 10)
+#define IRQ_REC_I2S0		(IRQ_SHPI_START + 11)
+#define IRQ_ADC			(IRQ_SHPI_START + 12)
+#define IRQ_CLCD		(IRQ_SHPI_START + 13)
+#define IRQ_DMAC0_FLAG_0	(IRQ_SHPI_START + 14)
+#define IRQ_DMAC0_FLAG_1	(IRQ_SHPI_START + 15)
+#define IRQ_DMAC0_FLAG_2	(IRQ_SHPI_START + 16)
+#define IRQ_DMAC0_FLAG_3	(IRQ_SHPI_START + 17)
+#define IRQ_DMAC0_FLAG_4	(IRQ_SHPI_START + 18)
+#define IRQ_DMAC0_COMBINED	(IRQ_SHPI_START + 19)
+#define IRQ_FSMC0		(IRQ_SHPI_START + 20)
+#define IRQ_FSMC1		(IRQ_SHPI_START + 21)
+#define IRQ_FSMC2		(IRQ_SHPI_START + 22)
+#define IRQ_FSMC3		(IRQ_SHPI_START + 23)
+#define IRQ_GPIO0		(IRQ_SHPI_START + 24)
+#define IRQ_GPIO1		(IRQ_SHPI_START + 25)
+#define IRQ_PLAY_I2S1		(IRQ_SHPI_START + 26)
+#define IRQ_JPEG		(IRQ_SHPI_START + 27)
+#define IRQ_SDHCI		(IRQ_SHPI_START + 28)
+#define IRQ_CF			(IRQ_SHPI_START + 29)
+#define IRQ_SMI			(IRQ_SHPI_START + 30)
+#define IRQ_SSP			(IRQ_SHPI_START + 31)
+#define IRQ_C3			(IRQ_SHPI_START + 32)
+#define IRQ_GMAC_1		(IRQ_SHPI_START + 33)
+#define IRQ_GMAC_2		(IRQ_SHPI_START + 34)
+#define IRQ_UART		(IRQ_SHPI_START + 35)
+#define IRQ_RTC			(IRQ_SHPI_START + 36)
+#define IRQ_GPT0_TMR0		(IRQ_SHPI_START + 37)
+#define IRQ_GPT0_TMR1		(IRQ_SHPI_START + 38)
+#define IRQ_GPT1_TMR0		(IRQ_SHPI_START + 39)
+#define IRQ_GPT1_TMR1		(IRQ_SHPI_START + 40)
+#define IRQ_I2C			(IRQ_SHPI_START + 41)
+#define IRQ_GPT2_TMR0		(IRQ_SHPI_START + 42)
+#define IRQ_GPT2_TMR1		(IRQ_SHPI_START + 43)
+#define IRQ_GPT3_TMR0		(IRQ_SHPI_START + 44)
+#define IRQ_GPT3_TMR1		(IRQ_SHPI_START + 45)
+
+#define IRQ_JPEG_RME		(IRQ_SHPI_START + 52)
+#define IRQ_KBD			(IRQ_SHPI_START + 52)
+#define IRQ_REC_I2S1		(IRQ_SHPI_START + 53)
+#define IRQ_DMAC1_FLAG_0	(IRQ_SHPI_START + 54)
+#define IRQ_DMAC1_FLAG_1	(IRQ_SHPI_START + 55)
+#define IRQ_DMAC1_FLAG_2	(IRQ_SHPI_START + 56)
+#define IRQ_DMAC1_FLAG_3	(IRQ_SHPI_START + 57)
+#define IRQ_DMAC1_FLAG_4	(IRQ_SHPI_START + 58)
+#define IRQ_DMAC1_COMBINED	(IRQ_SHPI_START + 59)
+
+#define IRQ_UDC			(IRQ_SHPI_START + 62)
+#define IRQ_UPD			(IRQ_SHPI_START + 63)
+#define IRQ_USBH_EHCI0		(IRQ_SHPI_START + 64)
+#define IRQ_USBH_OHCI0		(IRQ_SHPI_START + 65)
+#define IRQ_USBH_EHCI1		(IRQ_SHPI_START + 66)
+#define IRQ_USBH_OHCI1		(IRQ_SHPI_START + 67)
+#define IRQ_PCIE0		(IRQ_SHPI_START + 68)
+#define IRQ_PCIE1		(IRQ_SHPI_START + 69)
+#define IRQ_PCIE2		(IRQ_SHPI_START + 70)
+
+/* Add spear1310 specific IRQs here */
+#ifdef CONFIG_MACH_SPEAR1310
+#define IRQ_FSMC_PC1		(IRQ_SHPI_START + 76)
+#define IRQ_FSMC_PC2		(IRQ_SHPI_START + 77)
+#define IRQ_FSMC_PC3		(IRQ_SHPI_START + 78)
+#define IRQ_FSMC_PC4		(IRQ_SHPI_START + 79)
+#define IRQ_RS4850		(IRQ_SHPI_START + 80)
+#define IRQ_RS4851		(IRQ_SHPI_START + 81)
+#define IRQ_CCAN0		(IRQ_SHPI_START + 82)
+#define IRQ_CCAN1		(IRQ_SHPI_START + 83)
+#define IRQ_TDM0		(IRQ_SHPI_START + 84)
+#define IRQ_TDM1		(IRQ_SHPI_START + 85)
+#define IRQ_UART1		(IRQ_SHPI_START + 86)
+#define IRQ_UART2		(IRQ_SHPI_START + 87)
+#define IRQ_UART3		(IRQ_SHPI_START + 88)
+#define IRQ_UART4		(IRQ_SHPI_START + 89)
+#define IRQ_UART5		(IRQ_SHPI_START + 90)
+#define IRQ_I2C_CNTR		(IRQ_SHPI_START + 91)
+#define IRQ_GETH1_SBD		(IRQ_SHPI_START + 92)
+#define IRQ_GETH1_PMT		(IRQ_SHPI_START + 93)
+#define IRQ_GETH2_SBD		(IRQ_SHPI_START + 94)
+#define IRQ_GETH2_PMT		(IRQ_SHPI_START + 95)
+#define IRQ_GETH3_SBD		(IRQ_SHPI_START + 96)
+#define IRQ_GETH3_PMT		(IRQ_SHPI_START + 97)
+#define IRQ_GETH4_SBD		(IRQ_SHPI_START + 98)
+#define IRQ_GETH4_PMT		(IRQ_SHPI_START + 99)
+#define IRQ_GPIO		(IRQ_SHPI_START + 100)
+#define IRQ_PCI_BRDG_HOST_FATAL (IRQ_SHPI_START + 101)
+#define IRQ_PCI_INTA		(IRQ_SHPI_START + 102)
+#define IRQ_PCI_INTB		(IRQ_SHPI_START + 103)
+#define IRQ_PCI_INTC		(IRQ_SHPI_START + 104)
+#define IRQ_PCI_INTD		(IRQ_SHPI_START + 105)
+#define IRQ_PCI_ME_TO_ARM	(IRQ_SHPI_START + 106)
+#define IRQ_PCI_SERR_TO_ARM	(IRQ_SHPI_START + 107)
+#endif /* CONFIG_MACH_SPEAR1310 */
+
+#define IRQ_GIC_END		(IRQ_SHPI_START + 128)
+#define VIRQ_START		IRQ_GIC_END
+
+/* GPIO pins virtual irqs */
+#define SPEAR_GPIO0_INT_BASE	(VIRQ_START + 0)
+#define SPEAR_GPIO1_INT_BASE	(SPEAR_GPIO0_INT_BASE + 8)
+#define SPEAR_GPIO_INT_END	(SPEAR_GPIO1_INT_BASE + 8)
+
+/* PCIE MSI virtual irqs */
+#define SPEAR_NUM_MSI_IRQS	64
+#define SPEAR_MSI0_INT_BASE	(SPEAR_GPIO_INT_END + 0)
+#define SPEAR_MSI0_INT_END	(SPEAR_MSI0_INT_BASE + SPEAR_NUM_MSI_IRQS)
+#define SPEAR_MSI1_INT_BASE	(SPEAR_MSI0_INT_END + 0)
+#define SPEAR_MSI1_INT_END	(SPEAR_MSI1_INT_BASE + SPEAR_NUM_MSI_IRQS)
+#define SPEAR_MSI2_INT_BASE	(SPEAR_MSI1_INT_END + 0)
+#define SPEAR_MSI2_INT_END	(SPEAR_MSI2_INT_BASE + SPEAR_NUM_MSI_IRQS)
+
+#define SPEAR_NUM_INTX_IRQS	4
+#define SPEAR_INTX0_BASE	(SPEAR_MSI2_INT_END + 0)
+#define SPEAR_INTX0_END		(SPEAR_INTX0_BASE + SPEAR_NUM_INTX_IRQS)
+#define SPEAR_INTX1_BASE	(SPEAR_INTX0_END + 0)
+#define SPEAR_INTX1_END		(SPEAR_INTX1_BASE + SPEAR_NUM_INTX_IRQS)
+#define SPEAR_INTX2_BASE	(SPEAR_INTX1_END + 0)
+#define SPEAR_INTX2_END		(SPEAR_INTX2_BASE + SPEAR_NUM_INTX_IRQS)
+
+#define VIRQ_END		SPEAR_INTX2_END
+#define NR_IRQS			VIRQ_END
+
+#endif /* __MACH_IRQS_H */

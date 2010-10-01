@@ -1,0 +1,63 @@
+/*
+ * arch/arm/mach-spear13xx/include/mach/spear1310.h
+ *
+ * SPEAr1310 Machine specific definition
+ *
+ * Copyright (C) 2010 ST Microelectronics
+ * Bhupesh Sharma <bhupesh.sharma@st.com>
+ *
+ * This file is licensed under the terms of the GNU General Public
+ * License version 2. This program is licensed "as is" without any
+ * warranty of any kind, whether express or implied.
+ */
+
+#ifdef CONFIG_MACH_SPEAR1310
+
+#ifndef __MACH_SPEAR1310_H
+#define __MACH_SPEAR1310_H
+
+#define SPEAR1310_TDM_E1_0_BASE		UL(0x6C200000)
+#define SPEAR1310_TDM_E1_1_BASE		UL(0x6C300000)
+#define SPEAR1310_RS485_0_BASE		UL(0x6C400000)
+#define SPEAR1310_RS485_1_BASE		UL(0x6C500000)
+#define SPEAR1310_RAS_BASE		UL(0x6C800000)
+#define SPEAR1310_GETH1_BASE		UL(0x6D000000)
+#define SPEAR1310_GETH2_BASE		UL(0x6D100000)
+#define SPEAR1310_GETH3_BASE		UL(0x6D200000)
+#define SPEAR1310_GETH4_BASE		UL(0x6D300000)
+#define SPEAR1310_UART1_BASE		UL(0x6D400000)
+#define SPEAR1310_UART2_BASE		UL(0x6D500000)
+#define SPEAR1310_UART3_BASE		UL(0x6D600000)
+#define SPEAR1310_UART4_BASE		UL(0x6D700000)
+#define SPEAR1310_UART5_BASE		UL(0x6D800000)
+#define SPEAR1310_I2C1_BASE		UL(0x6D900000)
+#define SPEAR1310_CAN0_BASE		UL(0x6DA00000)
+#define SPEAR1310_CAN1_BASE		UL(0x6DB00000)
+#define SPEAR1310_RAS_BASE		UL(0x6C800000)
+#define SPEAR1310_FSMC1_CS0_BASE	UL(0x70000000)
+#define SPEAR1310_FSMC1_CS1_BASE	UL(0x74000000)
+#define SPEAR1310_FSMC1_CS2_BASE	UL(0x78000000)
+#define SPEAR1310_FSMC1_CS3_BASE	UL(0x7C000000)
+#define SPEAR1310_FSMC1_BASE		UL(0x6FF00000)
+
+/* RAS Area Control Register */
+#define SPEAR1310_RAS_CTRL_REG0		(SPEAR1310_RAS_BASE + 0x0)
+#define SPEAR1310_RAS_CTRL_REG1		(SPEAR1310_RAS_BASE + 0x4)
+#define SPEAR1310_SMII_PHY_CLK_MASK		0xC
+#define SPEAR1310_RGMII_PHY_CLK_MASK		0xC
+#define SPEAR1310_RMII_PHY_CLK_MASK		0x3
+#define SPEAR1310_PHY_CLK_SHIFT		0
+
+#define RAS_FSMC_MODE_MASK		0x3
+#define RAS_FSMC_MODE_NOR		0
+#define RAS_FSMC_MODE_NAND		1
+#define RAS_FSMC_MODE_SRAM		2
+#define RAS_FSMC_WIDTH_MASK		0x30
+#define RAS_FSMC_WIDTH_8		0x00
+#define RAS_FSMC_WIDTH_16		0x10
+#define RAS_FSMC_WIDTH_32		0x20
+#define RAS_FSMC_CS_SPLIT		0x40
+
+#endif /* __MACH_SPEAR1310_H */
+
+#endif /* CONFIG_MACH_SPEAR1310 */
