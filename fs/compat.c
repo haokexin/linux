@@ -590,9 +590,6 @@ ssize_t compat_rw_copy_check_uvector(int type,
 	if (nr_segs == 0)
 		goto out;
 
-	ret = -EINVAL;
-	if (nr_segs > UIO_MAXIOV || nr_segs < 0)
-		goto out;
 	if (nr_segs > fast_segs) {
 		ret = -ENOMEM;
 		iov = kmalloc(nr_segs*sizeof(struct iovec), GFP_KERNEL);
@@ -1158,6 +1155,9 @@ static ssize_t compat_do_readv_writev(int type, struct file *file,
 
 	ret = -EINVAL;
 	if (!file->f_op)
+		goto out;
+
+	if (nr_segs > UIO_MAXIOV)
 		goto out;
 
 	ret = -EFAULT;
