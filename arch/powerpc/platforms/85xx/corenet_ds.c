@@ -153,6 +153,14 @@ int __init declare_of_platform_devices(void)
 		}
 	}
 
+	for_each_compatible_node(np, NULL, "fsl,hydra-mdio") {
+		dev = of_platform_device_create(np, NULL, NULL);
+		if (!dev) {
+			of_node_put(np);
+			return -ENOMEM;
+		}
+	}
+
 	return 0;
 }
 
