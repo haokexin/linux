@@ -104,4 +104,6 @@ obj-$(CONFIG_MIPS_CPUFREQ)	+= cpufreq/
 
 EXTRA_CFLAGS += -Werror
 
+obj-$(CONFIG_HW_PERF_EVENTS)	+= perf_event.o
+
 CPPFLAGS_vmlinux.lds		:= $(KBUILD_CFLAGS)
