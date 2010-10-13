@@ -46,10 +46,16 @@
 #ifndef __ASSEMBLY__
 #include <linux/cpumask.h>
 #include <asm/reg.h>
+#include <asm/cacheflush.h>
 
 typedef void (*crash_shutdown_t)(void);
 
 #ifdef CONFIG_KEXEC
+
+#define kexec_flush_icache_page(page) {				\
+	unsigned long addr = (unsigned long)page_address(page);	\
+	flush_icache_range(addr, addr + PAGE_SIZE);		\
+}
 
 /*
  * This function is responsible for capturing register states if coming
