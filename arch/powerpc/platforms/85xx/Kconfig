@@ -11,6 +11,8 @@ menuconfig FSL_SOC_BOOKE
 
 if FSL_SOC_BOOKE
 
+if PPC32
+
 config MPC8540_ADS
 	bool "Freescale MPC8540 ADS"
 	select DEFAULT_UIMAGE
@@ -156,7 +158,6 @@ config SBC8560
 config P4080_DS
 	bool "Freescale P4080 DS"
 	select DEFAULT_UIMAGE
-	select PPC_FSL_BOOK3E
 	select PPC_E500MC
 	select PHYS_64BIT
 	select SWIOTLB
@@ -184,6 +185,8 @@ config WRHV_P4080DS
 	select PPC85xx_VT_MODE
 	help
 	  This option enables support for the P4080 DS board on Wind River Hypervisor.
+
+endif # PPC32
 
 config PPC85xx_VT_MODE
 	bool

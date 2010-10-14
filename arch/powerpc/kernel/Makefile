@@ -54,7 +54,9 @@ obj-$(CONFIG_IBMVIO)		+= vio.o
 obj-$(CONFIG_IBMEBUS)           += ibmebus.o
 obj-$(CONFIG_GENERIC_TBSYNC)	+= smp-tbsync.o
 obj-$(CONFIG_CRASH_DUMP)	+= crash_dump.o
+ifeq ($(CONFIG_PPC32),y)
 obj-$(CONFIG_E500)		+= idle_e500.o
+endif
 obj-$(CONFIG_6xx)		+= idle_6xx.o l2cr_6xx.o cpu_setup_6xx.o
 obj-$(CONFIG_TAU)		+= tau_6xx.o
 obj-$(CONFIG_HIBERNATION)	+= swsusp.o suspend.o
@@ -80,7 +82,8 @@ obj-$(CONFIG_PARAVIRT)          += paravirt_entry_32.o paravirt_misc_32.o
 endif
 
 obj-$(CONFIG_44x)		+= cpu_setup_44x.o
-obj-$(CONFIG_FSL_BOOKE)		+= cpu_setup_fsl_booke.o dbell.o
+obj-$(CONFIG_PPC_FSL_BOOK3E)	+= cpu_setup_fsl_booke.o dbell.o
+obj-$(CONFIG_PPC_BOOK3E_64)	+= dbell.o
 obj-$(USE_IMMEDIATE)		+= immediate.o
 
 extra-y				:= head_$(CONFIG_WORD_SIZE).o
