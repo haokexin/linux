@@ -437,8 +437,8 @@ static void __early_init_mmu(int boot_cpu)
 		linear_map_top = map_mem_in_cams(linear_map_top, num_cams);
 
 		/* limit memory so we dont have linear faults */
-		memblock_enforce_memory_limit(linear_map_top);
-		memblock_analyze();
+		lmb_enforce_memory_limit(linear_map_top);
+		lmb_analyze();
 	}
 #endif
 
