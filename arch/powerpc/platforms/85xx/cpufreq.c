@@ -102,20 +102,6 @@ static void set_pll(unsigned int pll, int cpu)
 	printk("PMJCR request %08x at CPU %d\n", tmp, cpu);
 }
 
-static void verify_pll(int cpu)
-{
-	int shift;
-	u32 busfreq, pll, corefreq;
-
-	shift = (cpu == 1) ? 24 : 16;
-	busfreq = fsl_get_sys_freq();
-	pll = (in_be32(porpllsr) >> shift) & 0x3f;
-
-	corefreq = (busfreq * pll) >> 1;
-	corefreq /= 1000000;
-	printk("PORPLLSR core freq %dMHz at CPU %d\n", corefreq, cpu);
-}
-
 /*
  * cpufreq functions
  */
@@ -196,8 +182,6 @@ static int mpc85xx_cpufreq_target(struct cpufreq_policy *policy,
 	mutex_unlock(&mpc85xx_switch_mutex);
 
 	ppc_proc_freq = freqs.new * 1000ul;
-
-	verify_pll(policy->cpu);
 
 	return 0;
 }
