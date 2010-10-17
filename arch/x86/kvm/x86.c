@@ -3330,12 +3330,18 @@ int emulate_clts(struct kvm_vcpu *vcpu)
 
 int emulator_get_dr(struct x86_emulate_ctxt *ctxt, int dr, unsigned long *dest)
 {
+	if (!kvm_x86_ops->get_dr)
+		return X86EMUL_UNHANDLEABLE;
+
 	return kvm_x86_ops->get_dr(ctxt->vcpu, dr, dest);
 }
 
 int emulator_set_dr(struct x86_emulate_ctxt *ctxt, int dr, unsigned long value)
 {
 	unsigned long mask = (ctxt->mode == X86EMUL_MODE_PROT64) ? ~0ULL : ~0U;
+
+	if (!kvm_x86_ops->set_dr)
+		return X86EMUL_UNHANDLEABLE;
 
 	return kvm_x86_ops->set_dr(ctxt->vcpu, dr, value & mask);
 }
