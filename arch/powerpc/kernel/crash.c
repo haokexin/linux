@@ -411,6 +411,21 @@ void default_machine_crash_shutdown(struct pt_regs *regs)
 	}
 
 	/*
+	 * Make a note of crashing cpu. Will be used in machine_kexec
+	 * such that another IPI will not be sent.
+	 */
+	crashing_cpu = smp_processor_id();
+	crash_save_cpu(regs, crashing_cpu);
+	crash_kexec_prepare_cpus(crashing_cpu);
+	cpu_set(crashing_cpu, cpus_in_crash);
+	crash_kexec_stop_spus();
+#if defined(CONFIG_PPC_STD_MMU_64) && defined(CONFIG_SMP)
+	crash_kexec_wait_realmode(crashing_cpu);
+#endif
+	if (ppc_md.kexec_cpu_down)
+		ppc_md.kexec_cpu_down(1, 0);
+
+	/*
 	 * Call registered shutdown routines savely.  Swap out
 	 * __debugger_fault_handler, and replace on exit.
 	 */
@@ -432,21 +447,6 @@ void default_machine_crash_shutdown(struct pt_regs *regs)
 	}
 	crash_shutdown_cpu = -1;
 	__debugger_fault_handler = old_handler;
-
-	/*
-	 * Make a note of crashing cpu. Will be used in machine_kexec
-	 * such that another IPI will not be sent.
-	 */
-	crashing_cpu = smp_processor_id();
-	crash_save_cpu(regs, crashing_cpu);
-	crash_kexec_prepare_cpus(crashing_cpu);
-	cpu_set(crashing_cpu, cpus_in_crash);
-	crash_kexec_stop_spus();
-#if defined(CONFIG_PPC_STD_MMU_64) && defined(CONFIG_SMP)
-	crash_kexec_wait_realmode(crashing_cpu);
-#endif
-	if (ppc_md.kexec_cpu_down)
-		ppc_md.kexec_cpu_down(1, 0);
 }
 
 #ifdef CONFIG_PPC32
