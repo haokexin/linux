@@ -286,10 +286,15 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 	int error;
 	char *algo;
 	int mode;
+	static DEFINE_SPINLOCK(session_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&session_lock, flags);
 
 	dprintk("%s()\n", __FUNCTION__);
 	if (sid == NULL || cri == NULL) {
 		dprintk("%s,%d - EINVAL\n", __FILE__, __LINE__);
+		spin_unlock_irqrestore(&session_lock, flags);
 		return EINVAL;
 	}
 
@@ -315,6 +320,7 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 			else
 				swcr_sesnum /= 2;
 			dprintk("%s,%d: ENOBUFS\n", __FILE__, __LINE__);
+			spin_unlock_irqrestore(&session_lock, flags);
 			return ENOBUFS;
 		}
 		memset(swd, 0, swcr_sesnum * sizeof(struct swcr_data *));
@@ -338,6 +344,7 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 		if (*swd == NULL) {
 			swcr_freesession(NULL, i);
 			dprintk("%s,%d: ENOBUFS\n", __FILE__, __LINE__);
+			spin_unlock_irqrestore(&session_lock, flags);
 			return ENOBUFS;
 		}
 		memset(*swd, 0, sizeof(struct swcr_data));
@@ -346,6 +353,7 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 				cri->cri_alg>=sizeof(crypto_details)/sizeof(crypto_details[0])){
 			printk("cryptosoft: Unknown algorithm 0x%x\n", cri->cri_alg);
 			swcr_freesession(NULL, i);
+			spin_unlock_irqrestore(&session_lock, flags);
 			return EINVAL;
 		}
 
@@ -353,6 +361,7 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 		if (!algo || !*algo) {
 			printk("cryptosoft: Unsupported algorithm 0x%x\n", cri->cri_alg);
 			swcr_freesession(NULL, i);
+			spin_unlock_irqrestore(&session_lock, flags);
 			return EINVAL;
 		}
 
@@ -370,6 +379,7 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 		}
 
 		if ((*swd)->sw_type & SW_TYPE_BLKCIPHER) {
+			spin_unlock_irqrestore(&session_lock, flags);
 			dprintk("%s crypto_alloc_*blkcipher(%s, 0x%x)\n", __FUNCTION__,
 					algo, mode);
 
@@ -384,10 +394,12 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 				(*swd)->sw_tfm = crypto_blkcipher_tfm(
 						crypto_alloc_blkcipher(algo, 0, CRYPTO_ALG_ASYNC));
 			}
+			spin_lock_irqsave(&session_lock, flags);
 			if (!(*swd)->sw_tfm) {
 				dprintk("cryptosoft: crypto_alloc_blkcipher failed(%s, 0x%x)\n",
 						algo,mode);
 				swcr_freesession(NULL, i);
+				spin_unlock_irqrestore(&session_lock, flags);
 				return EINVAL;
 			}
 
@@ -420,9 +432,11 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 				printk("cryptosoft: setkey failed %d (crt_flags=0x%x)\n", error,
 						(*swd)->sw_tfm->crt_flags);
 				swcr_freesession(NULL, i);
+				spin_unlock_irqrestore(&session_lock, flags);
 				return error;
 			}
 		} else if ((*swd)->sw_type & (SW_TYPE_HMAC | SW_TYPE_HASH)) {
+			spin_unlock_irqrestore(&session_lock, flags);
 			dprintk("%s crypto_alloc_*hash(%s, 0x%x)\n", __FUNCTION__,
 					algo, mode);
 
@@ -438,10 +452,12 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 						crypto_alloc_hash(algo, 0, CRYPTO_ALG_ASYNC));
 			}
 
+			spin_lock_irqsave(&session_lock, flags);
 			if (!(*swd)->sw_tfm) {
 				dprintk("cryptosoft: crypto_alloc_hash failed(%s,0x%x)\n",
 						algo, mode);
 				swcr_freesession(NULL, i);
+				spin_unlock_irqrestore(&session_lock, flags);
 				return EINVAL;
 			}
 
@@ -451,6 +467,7 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 			if ((*swd)->u.hmac.sw_key == NULL) {
 				swcr_freesession(NULL, i);
 				dprintk("%s,%d: ENOBUFS\n", __FILE__, __LINE__);
+				spin_unlock_irqrestore(&session_lock, flags);
 				return ENOBUFS;
 			}
 			memcpy((*swd)->u.hmac.sw_key, cri->cri_key, (*swd)->u.hmac.sw_klen);
@@ -464,29 +481,35 @@ swcr_newsession(device_t dev, u_int32_t *sid, struct cryptoini *cri)
 						crypto_hash_cast((*swd)->sw_tfm));
 			}
 		} else if ((*swd)->sw_type & SW_TYPE_COMP) {
+			spin_unlock_irqrestore(&session_lock, flags);
 			(*swd)->sw_tfm = crypto_comp_tfm(
 					crypto_alloc_comp(algo, 0, CRYPTO_ALG_ASYNC));
+			spin_lock_irqsave(&session_lock, flags);
 			if (!(*swd)->sw_tfm) {
 				dprintk("cryptosoft: crypto_alloc_comp failed(%s,0x%x)\n",
 						algo, mode);
 				swcr_freesession(NULL, i);
+				spin_unlock_irqrestore(&session_lock, flags);
 				return EINVAL;
 			}
 			(*swd)->u.sw_comp_buf = kmalloc(CRYPTO_MAX_DATA_LEN, SLAB_ATOMIC);
 			if ((*swd)->u.sw_comp_buf == NULL) {
 				swcr_freesession(NULL, i);
 				dprintk("%s,%d: ENOBUFS\n", __FILE__, __LINE__);
+				spin_unlock_irqrestore(&session_lock, flags);
 				return ENOBUFS;
 			}
 		} else {
 			printk("cryptosoft: Unhandled sw_type %d\n", (*swd)->sw_type);
 			swcr_freesession(NULL, i);
+			spin_unlock_irqrestore(&session_lock, flags);
 			return EINVAL;
 		}
 
 		cri = cri->cri_next;
 		swd = &((*swd)->sw_next);
 	}
+	spin_unlock_irqrestore(&session_lock, flags);
 	return 0;
 }
 
@@ -605,6 +628,8 @@ static void swcr_process_req(struct swcr_req *req)
 	struct sk_buff *skb = (struct sk_buff *) crp->crp_buf;
 	struct uio *uiop = (struct uio *) crp->crp_buf;
 	int sg_num, sg_len, skip;
+	static DEFINE_SPINLOCK(crypto_req_lock);
+	unsigned long flags;
 
 	dprintk("%s()\n", __FUNCTION__);
 
@@ -718,11 +743,14 @@ static void swcr_process_req(struct swcr_req *req)
 			goto done;
 		}
 
+		spin_lock_irqsave(&crypto_req_lock, flags);
+
 		req->crypto_req =
 				ahash_request_alloc(__crypto_ahash_cast(sw->sw_tfm),GFP_KERNEL);
 		if (!req->crypto_req) {
 			crp->crp_etype = ENOMEM;
 			dprintk("%s,%d: ENOMEM ahash_request_alloc", __FILE__, __LINE__);
+			spin_unlock_irqrestore(&crypto_req_lock, flags);
 			goto done;
 		}
 
@@ -739,14 +767,18 @@ static void swcr_process_req(struct swcr_req *req)
 		switch (ret) {
 		case -EINPROGRESS:
 		case -EBUSY:
+			spin_unlock_irqrestore(&crypto_req_lock, flags);
 			return;
 		default:
 		case 0:
 			dprintk("hash OP %s %d\n", ret ? "failed" : "success", ret);
 			crp->crp_etype = ret;
 			ahash_request_free(req->crypto_req);
+			spin_unlock_irqrestore(&crypto_req_lock, flags);
 			goto done;
 		}
+
+		spin_unlock_irqrestore(&crypto_req_lock, flags);
 		} break;
 #endif /* HAVE_AHASH */
 
@@ -772,12 +804,14 @@ static void swcr_process_req(struct swcr_req *req)
 			goto done;
 		}
 
+		spin_lock_irqsave(&crypto_req_lock, flags);
 		req->crypto_req = ablkcipher_request_alloc(
 				__crypto_ablkcipher_cast(sw->sw_tfm), GFP_KERNEL);
 		if (!req->crypto_req) {
 			crp->crp_etype = ENOMEM;
 			dprintk("%s,%d: ENOMEM ablkcipher_request_alloc",
 					__FILE__, __LINE__);
+			spin_unlock_irqrestore(&crypto_req_lock, flags);
 			goto done;
 		}
 
@@ -839,14 +873,17 @@ static void swcr_process_req(struct swcr_req *req)
 		switch (ret) {
 		case -EINPROGRESS:
 		case -EBUSY:
+			spin_unlock_irqrestore(&crypto_req_lock, flags);
 			return;
 		default:
 		case 0:
 			dprintk("crypto OP %s %d\n", ret ? "failed" : "success", ret);
 			crp->crp_etype = ret;
 			ablkcipher_request_free(req->crypto_req);
+			spin_unlock_irqrestore(&crypto_req_lock, flags);
 			goto done;
 		}
+		spin_unlock_irqrestore(&crypto_req_lock, flags);
 		} break;
 #endif /* HAVE_ABLKCIPHER */
 
