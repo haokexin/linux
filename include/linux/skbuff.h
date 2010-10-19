@@ -443,6 +443,19 @@ static inline struct sk_buff *alloc_skb_fclone(unsigned int size,
 	return __alloc_skb(size, priority, 1, -1);
 }
 
+#if defined(CONFIG_ARCH_COMCERTO)
+extern struct sk_buff *__alloc_skb_header(unsigned int size, u8* data,
+							gfp_t gfp_mask,
+							int fclone,
+							int node);
+static inline struct sk_buff *alloc_skb_header(unsigned int size,
+					u8 *data,
+					gfp_t priority)
+{
+	return __alloc_skb_header(size, data, priority, 0, -1);
+}
+#endif
+
 extern int skb_recycle_check(struct sk_buff *skb, int skb_size);
 
 extern struct sk_buff *skb_morph(struct sk_buff *dst, struct sk_buff *src);
