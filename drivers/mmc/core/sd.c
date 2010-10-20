@@ -594,6 +594,10 @@ static int mmc_sd_resume(struct mmc_host *host)
 
 	mmc_claim_host(host);
 	err = mmc_sd_init_card(host, host->ocr, host->card);
+#ifdef CONFIG_P1022_DS
+	if (err == -EILSEQ)
+		err = 0;
+#endif
 	mmc_release_host(host);
 
 	return err;

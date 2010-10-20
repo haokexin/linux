@@ -90,15 +90,13 @@ void sdhci_be32bs_writeb(struct sdhci_host *host, u8 val, int reg)
 static int sdhci_of_suspend(struct of_device *ofdev, pm_message_t state)
 {
 	struct sdhci_host *host = dev_get_drvdata(&ofdev->dev);
-
-	return mmc_suspend_host(host->mmc, state);
+	return sdhci_suspend_host(host, state);
 }
 
 static int sdhci_of_resume(struct of_device *ofdev)
 {
 	struct sdhci_host *host = dev_get_drvdata(&ofdev->dev);
-
-	return mmc_resume_host(host->mmc);
+	return sdhci_resume_host(host);
 }
 
 #else
@@ -219,7 +217,10 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 	ret = sdhci_add_host(host);
 	if (ret)
 		goto err_add_host;
-
+#ifdef CONFIG_P1022_DS
+	host->mmc->pm_flags |= MMC_PM_KEEP_POWER;
+	host->mmc->caps |= MMC_CAP_NONREMOVABLE;
+#endif	
 	return 0;
 
 err_add_host:
