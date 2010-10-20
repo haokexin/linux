@@ -479,4 +479,6 @@ static __init int fsl_of_pamu_init(void)
 	return of_register_platform_driver(&fsl_of_pamu_driver);
 }
 
+#ifndef CONFIG_CRASH_DUMP
 arch_initcall(fsl_of_pamu_init);
+#endif
