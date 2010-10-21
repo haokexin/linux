@@ -198,6 +198,11 @@ config P4080_DS
 config WRHV_E500
 	bool
 
+config P4080_SIMICS
+	bool "Freescale P4080 SIMICS"
+	help
+	  This option enables support for the P4080 SIMICS
+
 config FSL_85XX_CACHE_SRAM
 	bool
 	select PPC_LIB_RHEAP
