@@ -345,6 +345,10 @@ int do_settimeofday(struct timespec *tv)
 
 	write_sequnlock_irqrestore(&xtime_lock, flags);
 
+#if defined(CONFIG_P4080_DS) && defined(CONFIG_P4080_SIMICS)
+	udelay(100);
+#endif
+
 	/* signal hrtimers about time change */
 	clock_was_set();
 
