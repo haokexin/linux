@@ -356,6 +356,15 @@ int __weak page_is_ram(unsigned long pfn)
 	return walk_system_ram_range(pfn, 1, NULL, __is_ram) == 1;
 }
 
+static void resource_clip(struct resource *res, resource_size_t min,
+			  resource_size_t max)
+{
+	if (res->start < min)
+		res->start = min;
+	if (res->end > max)
+		res->end = max;
+}
+
 /*
  * Find empty slot in the resource tree given range and alignment.
  */
@@ -385,10 +394,8 @@ static int find_resource(struct resource *root, struct resource *new,
 			tmp.end = this->start - 1;
 		else
 			tmp.end = root->end;
-		if (tmp.start < min)
-			tmp.start = min;
-		if (tmp.end > max)
-			tmp.end = max;
+
+		resource_clip(&tmp, min, max);
 		tmp.start = ALIGN(tmp.start, align);
 		if (alignf)
 			tmp.start = alignf(alignf_data, &tmp, size, align);
