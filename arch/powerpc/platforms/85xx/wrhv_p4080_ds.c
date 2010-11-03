@@ -37,6 +37,7 @@ extern struct vb_config *wr_config;
 extern struct vb_status *wr_status;
 extern struct vb_control *wr_control;
 extern int wrhv_set_law_base(int index, unsigned long long addr);
+extern unsigned long long wrhv_get_law_base(int index);
 extern int wrhv_set_law_attr(int index, unsigned int attr);
 extern int wrhv_get_law_attr(int index);
 
@@ -322,6 +323,7 @@ define_machine(p4080_ds) {
 	.init_early		= p4080_init_early,
 	.power_save		= wrhv_power_save,
 	.set_law_base		= wrhv_set_law_base,
+	.get_law_base           = wrhv_get_law_base,
 	.set_law_attr		= wrhv_set_law_attr,
 	.get_law_attr		= wrhv_get_law_attr,
 	.get_mdio_bus		= p4080_get_vb_mdio_bus,
