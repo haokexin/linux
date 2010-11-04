@@ -418,7 +418,7 @@ void node_print(struct print_buf *buf, struct tipc_node *n_ptr, char *str)
 			continue;
 		tipc_printf(buf, "Links[%u]: %x, ", i, n_ptr->links[i]);
 	}
-	tipc_printf(buf, "Active links: [%x,%x]\n",
+	tipc_printf(buf, "Active links: [%p,%p]\n",
 		    n_ptr->active_links[0], n_ptr->active_links[1]);
 }
 #endif

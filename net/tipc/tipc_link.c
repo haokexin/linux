@@ -512,7 +512,7 @@ static void link_remote_delete(struct link *l_ptr)
 void tipc_link_start(struct link *l_ptr)
 {
 	tipc_node_lock(l_ptr->owner);
-	dbg("tipc_link_start %x\n", l_ptr);
+	dbg("tipc_link_start %p\n", l_ptr);
 	link_state_event(l_ptr, STARTING_EVT);
 	tipc_node_unlock(l_ptr->owner);
 }
@@ -1109,7 +1109,7 @@ int tipc_link_send(struct sk_buff *buf, u32 dest, u32 selector)
 		tipc_node_lock(n_ptr);
 		l_ptr = n_ptr->active_links[selector & 1];
 		if (l_ptr) {
-			dbg("tipc_link_send: found link %x for dest %x\n", l_ptr, dest);
+			dbg("tipc_link_send: found link %p for dest %x\n", l_ptr, dest);
 			res = tipc_link_send_buf(l_ptr, buf);
 		} else {
 			dbg("Attempt to send msg to unreachable node:\n");
@@ -1184,7 +1184,7 @@ int tipc_send_buf_fast(struct sk_buff *buf, u32 destnode)
 	if (likely(n_ptr)) {
 		tipc_node_lock(n_ptr);
 		l_ptr = n_ptr->active_links[selector];
-		dbg("send_fast: buf %x selected %x, destnode = %x\n",
+		dbg("send_fast: buf %p selected %p, destnode = %x\n",
 		    buf, l_ptr, destnode);
 		if (likely(l_ptr)) {
 			res = link_send_buf_fast(l_ptr, buf, &dummy);
@@ -1665,7 +1665,7 @@ void tipc_link_retransmit(struct link *l_ptr, struct sk_buff *buf,
 
 	msg = buf_msg(buf);
 
-	dbg("Retransmitting %u in link %x\n", retransmits, l_ptr);
+	dbg("Retransmitting %u in link %p\n", retransmits, l_ptr);
 
 	if (tipc_bearer_congested(l_ptr->b_ptr, l_ptr)) {
 		if (l_ptr->retransm_queue_size == 0) {
@@ -2898,7 +2898,7 @@ int tipc_link_recv_fragment(struct sk_buff **pending, struct sk_buff **fb,
 		set_expected_frags(pbuf,exp_frags);
 		return 0;
 	}
-	dbg(" Discarding orphan fragment %x\n",fbuf);
+	dbg(" Discarding orphan fragment %p\n",fbuf);
 	msg_dbg(fragm,"ORPHAN:");
 	dbg("Pending long buffers:\n");
 	dbg_print_buf_chain(*pending);
@@ -3514,7 +3514,7 @@ static void link_dump_rec_queue(struct link *l_ptr)
 	crs = l_ptr->oldest_deferred_in;
 	while (crs) {
 		if (crs->data == (void *)0x0000a3a3) {
-			info("buffer %x invalid\n", crs);
+			info("buffer %p invalid\n", crs);
 			return;
 		}
 		msg_dbg(buf_msg(crs), "In rec queue: \n");
@@ -3559,9 +3559,9 @@ static void dbg_print_link_state(struct print_buf *buf, struct link *l_ptr)
 		     != (l_ptr->out_queue_size - 1))
 		    || (l_ptr->last_out->next != 0)) {
 			tipc_printf(buf, "\nSend queue inconsistency\n");
-			tipc_printf(buf, "first_out= %x ", l_ptr->first_out);
-			tipc_printf(buf, "next_out= %x ", l_ptr->next_out);
-			tipc_printf(buf, "last_out= %x ", l_ptr->last_out);
+			tipc_printf(buf, "first_out= %p ", l_ptr->first_out);
+			tipc_printf(buf, "next_out= %p ", l_ptr->next_out);
+			tipc_printf(buf, "last_out= %p ", l_ptr->last_out);
 			link_dump_send_queue(l_ptr);
 		}
 	} else
