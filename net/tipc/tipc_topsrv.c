@@ -2,7 +2,7 @@
  * net/tipc/tipc_topsrv.c: TIPC network topology service
  *
  * Copyright (c) 2000-2006, Ericsson AB
- * Copyright (c) 2005-2008, Wind River Systems
+ * Copyright (c) 2005-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -252,7 +252,7 @@ static void subscr_terminate(struct subscriber *subscriber)
 			k_cancel_timer(&sub->timer);
 			k_term_timer(&sub->timer);
 		}
-		dbg("Term: Removing sub %u,%u,%u from subscriber %x list\n",
+		dbg("Term: Removing sub %u,%u,%u from subscriber %p list\n",
 		    sub->seq.type, sub->seq.lower, sub->seq.upper, subscriber);
 		subscr_del(sub);
 	}
@@ -310,7 +310,7 @@ static void subscr_cancel(struct tipc_subscr *s,
 		k_term_timer(&sub->timer);
 		spin_lock_bh(subscriber->lock);
 	}
-	dbg("Cancel: removing sub %u,%u,%u from subscriber %x list\n",
+	dbg("Cancel: removing sub %u,%u,%u from subscriber %p list\n",
 	    sub->seq.type, sub->seq.lower, sub->seq.upper, subscriber);
 	subscr_del(sub);
 }
