@@ -4817,21 +4817,39 @@ static irqreturn_t e1000_intr_msix(int irq, void *data)
 static void e1000_netpoll(struct net_device *netdev)
 {
 	struct e1000_adapter *adapter = netdev_priv(netdev);
+	int ret;
 
 	switch (adapter->int_mode) {
 	case E1000E_INT_MODE_MSIX:
-		e1000_intr_msix(adapter->pdev->irq, netdev);
+		ret = e1000_intr_msix(adapter->pdev->irq, netdev);
 		break;
 	case E1000E_INT_MODE_MSI:
 		disable_irq(adapter->pdev->irq);
-		e1000_intr_msi(adapter->pdev->irq, netdev);
+		ret = e1000_intr_msi(adapter->pdev->irq, netdev);
 		enable_irq(adapter->pdev->irq);
 		break;
 	default: /* E1000E_INT_MODE_LEGACY */
 		disable_irq(adapter->pdev->irq);
-		e1000_intr(adapter->pdev->irq, netdev);
+		ret = e1000_intr(adapter->pdev->irq, netdev);
 		enable_irq(adapter->pdev->irq);
 		break;
+	}
+
+	if (adapter->int_mode != E1000E_INT_MODE_LEGACY ||
+			ret != IRQ_HANDLED) {
+		/*
+		 * Work around HW erratta where ICR could have the rx
+		 * interrupt cleared, if it came in, in the same cycle
+		 * as the poll
+		 */
+
+		if (napi_schedule_prep(&adapter->napi)) {
+			adapter->total_tx_bytes = 0;
+			adapter->total_tx_packets = 0;
+			adapter->total_rx_bytes = 0;
+			adapter->total_rx_packets = 0;
+			__napi_schedule(&adapter->napi);
+		}
 	}
 }
 #endif
