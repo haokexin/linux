@@ -1473,7 +1473,7 @@ int tipc_send_buf(u32 ref, struct sk_buff *buf, unsigned int dsz)
 	u32 destnode;
 	u32 hsz;
 	u32 sz;
-	u32 res;
+	int res;
 
 	p_ptr = tipc_port_deref(ref);
 	if (!p_ptr || !p_ptr->publ.connected)
