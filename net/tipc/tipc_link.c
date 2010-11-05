@@ -668,7 +668,7 @@ void tipc_link_reset(struct link *l_ptr)
 		return;
 
 	tipc_node_link_down(l_ptr->owner, l_ptr);
-	tipc_bearer_remove_dest(l_ptr->b_ptr, l_ptr->addr, &l_ptr->media_addr);
+	tipc_bearer_remove_dest(l_ptr->b_ptr, l_ptr->addr);
 #if 0
 	printk("\nReset link <%s>\n", l_ptr->name);
 	dbg_link_dump("\n\nDumping link <%s>:\n", l_ptr->name);
@@ -714,7 +714,7 @@ static void link_activate(struct link *l_ptr)
 {
 	l_ptr->next_in_no = l_ptr->stats.recv_info = 1;
 	tipc_node_link_up(l_ptr->owner, l_ptr);
-	tipc_bearer_add_dest(l_ptr->b_ptr, l_ptr->addr, &l_ptr->media_addr);
+	tipc_bearer_add_dest(l_ptr->b_ptr, l_ptr->addr);
 }
 
 /**

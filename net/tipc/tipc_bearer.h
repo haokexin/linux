@@ -2,7 +2,7 @@
  * net/tipc/tipc_bearer.h: Include file for TIPC bearer code
  * 
  * Copyright (c) 1996-2006, Ericsson AB
- * Copyright (c) 2005-2008, Wind River Systems
+ * Copyright (c) 2005-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -91,10 +91,8 @@ void tipc_media_addr_printf(struct print_buf *pb, struct tipc_media_addr *a);
 struct sk_buff *tipc_media_get_names(void);
 
 struct sk_buff *tipc_bearer_get_names(void);
-void tipc_bearer_add_dest(struct bearer *b_ptr, u32 dest,
-			  struct tipc_media_addr *maddr);
-void tipc_bearer_remove_dest(struct bearer *b_ptr, u32 dest,
-			     struct tipc_media_addr *maddr);
+void tipc_bearer_add_dest(struct bearer *b_ptr, u32 dest);
+void tipc_bearer_remove_dest(struct bearer *b_ptr, u32 dest);
 void tipc_bearer_remove_discoverer(struct bearer *b_ptr, u32 dest);
 void tipc_bearer_schedule(struct bearer *b_ptr, struct link *l_ptr);
 struct bearer *tipc_bearer_find(const char *name);
