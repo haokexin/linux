@@ -2,7 +2,7 @@
  * net/tipc/tipc_node.c: TIPC node management routines
  *
  * Copyright (c) 2000-2006, Ericsson AB
- * Copyright (c) 2005-2008, Wind River Systems
+ * Copyright (c) 2005-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -323,8 +323,9 @@ static inline void node_abort_link_changeover(struct tipc_node *n_ptr)
 }
 #endif
 
-static void node_cleanup_finished(unsigned long node_addr)
+static void node_cleanup_finished(unsigned long node_addr_arg)
 {
+	u32 node_addr = (u32)node_addr_arg;
 	struct tipc_node *n_ptr;
 	 
 	read_lock_bh(&tipc_net_lock);

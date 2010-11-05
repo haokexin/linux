@@ -2,7 +2,7 @@
  * net/tipc/tipc_name_distr.c: TIPC name distribution code
  * 
  * Copyright (c) 2000-2006, Ericsson AB
- * Copyright (c) 2005-2008, Wind River Systems
+ * Copyright (c) 2005-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -299,8 +299,9 @@ static void named_distribute(struct list_head *delivery_list, u32 dest_node,
  * tipc_named_node_up - tell specified node about relevant name info
  */
 
-void tipc_named_node_up(unsigned long node)
+void tipc_named_node_up(unsigned long node_arg)
 {
+	u32 node = (u32)node_arg;
 	struct sk_buff *buf;
 	struct sk_buff *temp_buf;
 	struct list_head delivery_list;
@@ -364,9 +365,10 @@ void tipc_named_node_up(unsigned long node)
  * tipc_named_node_up_uni - tell uni-cluster node about relevant name info
  */
 
-void tipc_named_node_up_uni(unsigned long node)
+void tipc_named_node_up_uni(unsigned long node_arg)
 {
 #ifdef CONFIG_TIPC_UNICLUSTER_FRIENDLY
+	u32 node = (u32)node_arg;
 	struct sk_buff *buf;
 	struct sk_buff *temp_buf;
 	struct list_head delivery_list;
@@ -885,8 +887,9 @@ static void route_distribute(struct list_head *delivery_list, u32 dest_node,
  * tipc_route_node_up - tell specified node about relevant routes
  */
 
-void tipc_route_node_up(unsigned long node)
+void tipc_route_node_up(unsigned long node_arg)
 {
+	u32 node = (u32)node_arg;
 	struct sk_buff *buf;
 	struct sk_buff *temp_buf;
 	struct list_head delivery_list;

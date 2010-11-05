@@ -1571,8 +1571,9 @@ found:
  * tipc_routetbl_publish - publish route to neighboring node  
  */
 
-void tipc_routetbl_publish(unsigned long node_addr)
+void tipc_routetbl_publish(unsigned long node_addr_arg)
 {
+	u32 node_addr = (u32)node_addr_arg;
 	struct publication *publ;
 	u32 elm_addr;
 	int scope;
@@ -1608,8 +1609,9 @@ void tipc_routetbl_publish(unsigned long node_addr)
  * tipc_routetbl_withdraw - withdraw route to neighboring node  
  */
 
-void tipc_routetbl_withdraw(unsigned long node_addr)
+void tipc_routetbl_withdraw(unsigned long node_addr_arg)
 {
+	u32 node_addr = (u32)node_addr_arg;
 	struct publication *publ;
 	u32 elm_addr;
 	int dist_mask;
@@ -1646,8 +1648,9 @@ void tipc_routetbl_withdraw(unsigned long node_addr)
  * tipc_routetbl_withdraw_node - trigger implied withdrawal
  */
 
-void tipc_routetbl_withdraw_node(unsigned long node_addr)
+void tipc_routetbl_withdraw_node(unsigned long node_addr_arg)
 {
+	u32 node_addr = (u32)node_addr_arg;
 	struct publication publ;
 
 	publ.type = TIPC_ROUTE;

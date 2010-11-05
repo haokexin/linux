@@ -517,8 +517,9 @@ int tipc_port_reject_sections(struct port *p_ptr, struct tipc_msg *hdr,
 	return tipc_reject_msg(buf, err);
 }
 
-static void port_timeout(unsigned long ref)
+static void port_timeout(unsigned long ref_arg)
 {
+	u32 ref = (u32)ref_arg;
 	struct port *p_ptr = tipc_port_lock(ref);
 	struct sk_buff *buf = NULL;
 
@@ -550,8 +551,9 @@ static void port_timeout(unsigned long ref)
 }
 
 
-static void port_handle_node_down(unsigned long ref)
+static void port_handle_node_down(unsigned long ref_arg)
 {
+	u32 ref = (u32)ref_arg;
 	struct port *p_ptr = tipc_port_lock(ref);
 	struct sk_buff* buf = NULL;
 
@@ -990,8 +992,9 @@ static u32 port_dispatcher(struct tipc_port *dummy, struct sk_buff *buf)
  *
  */
 
-static void port_wakeup_sh(unsigned long ref)
+static void port_wakeup_sh(unsigned long ref_arg)
 {
+	u32 ref = (u32)ref_arg;
 	struct port *p_ptr;
 	struct user_port *up_ptr;
 	tipc_continue_event cb = NULL;
