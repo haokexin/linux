@@ -2,7 +2,7 @@
  * net/tipc/tipc_cfgsrv.c: TIPC configuration service code
  *
  * Copyright (c) 2002-2006, Ericsson AB
- * Copyright (c) 2004-2007, Wind River Systems
+ * Copyright (c) 2004-2007, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -58,8 +58,8 @@ static struct manager mng = { 0 };
 static DEFINE_SPINLOCK(config_lock);
 
 static const void *req_tlv_area;	/* request message TLV area */
-static int req_tlv_space;		/* request message TLV area size */
-static int rep_headroom;		/* reply message headroom to use */
+static u32 req_tlv_space;		/* request message TLV area size */
+static u32 rep_headroom;		/* reply message headroom to use */
 
 
 struct sk_buff *tipc_cfg_reply_alloc(int payload_size)
@@ -73,7 +73,7 @@ struct sk_buff *tipc_cfg_reply_alloc(int payload_size)
 }
 
 int tipc_cfg_append_tlv(struct sk_buff *buf, int tlv_type,
-			void *tlv_data, int tlv_data_size)
+			void *tlv_data, size_t tlv_data_size)
 {
 	struct tlv_desc *tlv = (struct tlv_desc *)skb_tail_pointer(buf);
 	int new_tlv_space = TLV_SPACE(tlv_data_size);
@@ -107,7 +107,7 @@ struct sk_buff *tipc_cfg_reply_unsigned_type(u16 tlv_type, u32 value)
 struct sk_buff *tipc_cfg_reply_string_type(u16 tlv_type, char *string)
 {
 	struct sk_buff *buf;
-	int string_len = strlen(string) + 1;
+	size_t string_len = strlen(string) + 1;
 
 	buf = tipc_cfg_reply_alloc(TLV_SPACE(string_len));
 	if (buf)
@@ -495,7 +495,7 @@ static struct sk_buff *cfg_set_netid(void)
 }
 
 struct sk_buff *tipc_cfg_do_cmd(u32 orig_node, u16 cmd, const void *request_area,
-				int request_space, int reply_headroom)
+				u32 request_space, u32 reply_headroom)
 {
 	struct sk_buff *rep_tlv_buf;
 

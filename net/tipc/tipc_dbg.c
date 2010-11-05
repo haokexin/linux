@@ -379,7 +379,7 @@ int tipc_log_resize(size_t log_size)
  * tipc_log_resize_cmd - reconfigure size of TIPC log buffer
  */
 
-struct sk_buff *tipc_log_resize_cmd(const void *req_tlv_area, int req_tlv_space)
+struct sk_buff *tipc_log_resize_cmd(const void *req_tlv_area, u32 req_tlv_space)
 {
 	u32 value;
 

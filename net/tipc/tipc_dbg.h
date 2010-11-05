@@ -67,7 +67,7 @@ int tipc_log_resize(size_t log_size);
 static inline int tipc_log_resize(size_t log_size) { return 0; }
 #endif
 struct sk_buff *tipc_log_resize_cmd(const void *req_tlv_area,
-				    int req_tlv_space);
+				    u32 req_tlv_space);
 struct sk_buff *tipc_log_dump(void);
 
 #endif

@@ -2,7 +2,7 @@
  * net/tipc/tipc_discover.c: TIPC neighbor discovery code
  * 
  * Copyright (c) 2003-2006, Ericsson AB
- * Copyright (c) 2005-2008, Wind River Systems
+ * Copyright (c) 2005-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -85,7 +85,7 @@ static int disc_addr_match(struct tipc_media_addr *ma1, u32 ta1,
 }
 
 struct sk_buff *tipc_disc_cmd_create_link(const void *disc_tlv_area, 
-					  int disc_tlv_space) 
+					  u32 disc_tlv_space) 
 {
         char *cmd_str;
 	char cmd[TIPC_MAX_BEARER_NAME + TIPC_MAX_MEDIA_ADDR + TIPC_MAX_ADDR + 1];

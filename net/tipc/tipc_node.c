@@ -442,7 +442,7 @@ u32 tipc_available_nodes(const u32 domain)
 
 #ifdef CONFIG_TIPC_CONFIG_SERVICE
 
-struct sk_buff *tipc_node_get_nodes(const void *req_tlv_area, int req_tlv_space)
+struct sk_buff *tipc_node_get_nodes(const void *req_tlv_area, u32 req_tlv_space)
 {
 	u32 domain;
 	struct sk_buff *buf;
@@ -493,7 +493,7 @@ struct sk_buff *tipc_node_get_nodes(const void *req_tlv_area, int req_tlv_space)
 	return buf;
 }
 
-struct sk_buff *tipc_node_get_links(const void *req_tlv_area, int req_tlv_space)
+struct sk_buff *tipc_node_get_links(const void *req_tlv_area, u32 req_tlv_space)
 {
 	u32 domain;
 	struct sk_buff *buf;
