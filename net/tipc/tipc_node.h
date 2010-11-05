@@ -2,7 +2,7 @@
  * net/tipc/tipc_node.h: Include file for TIPC node management routines
  * 
  * Copyright (c) 2000-2006, Ericsson AB
- * Copyright (c) 2005-2008, Wind River Systems
+ * Copyright (c) 2005-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -76,8 +76,8 @@ struct tipc_node {
 	int working_links;
 	int permit_changeover;
 	int cleanup_required;
-	u16 signature;
-	u16 flags;
+	unsigned int signature;
+	unsigned int flags;
 	struct {
 		char supportable;
 		char supported;
