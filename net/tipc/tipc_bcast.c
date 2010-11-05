@@ -734,7 +734,7 @@ void tipc_bcbearer_push(void)
 
 #ifdef CONFIG_TIPC_CONFIG_SERVICE
 
-int tipc_bclink_stats(char *buf, const u32 buf_size)
+size_t tipc_bclink_stats(char *buf, const size_t buf_size)
 {
 	struct print_buf pb;
 

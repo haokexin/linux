@@ -1174,7 +1174,7 @@ struct sk_buff *tipc_nametbl_get(const void *req_tlv_area, int req_tlv_space)
 	struct tipc_name_table_query *argv;
 	struct tlv_desc *rep_tlv;
 	struct print_buf b;
-	int str_len;
+	size_t str_len;
 
 	if (!TLV_CHECK(req_tlv_area, req_tlv_space, TIPC_TLV_NAME_TBL_QUERY))
 		return tipc_cfg_reply_error_string(TIPC_CFG_TLV_ERROR);
