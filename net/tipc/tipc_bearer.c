@@ -336,8 +336,7 @@ struct sk_buff *tipc_bearer_get_names(void)
 
 #endif
 
-void tipc_bearer_add_dest(struct bearer *b_ptr, u32 dest,
-			  struct tipc_media_addr *maddr)
+void tipc_bearer_add_dest(struct bearer *b_ptr, u32 dest)
 {
 	struct discoverer *d_ptr;
 	struct discoverer *temp_d_ptr;
@@ -355,8 +354,7 @@ void tipc_bearer_add_dest(struct bearer *b_ptr, u32 dest,
 	}
 }
 
-void tipc_bearer_remove_dest(struct bearer *b_ptr, u32 dest,
-			  struct tipc_media_addr *maddr)
+void tipc_bearer_remove_dest(struct bearer *b_ptr, u32 dest)
 {
 	struct discoverer *d_ptr;
 	struct discoverer *temp_d_ptr;
