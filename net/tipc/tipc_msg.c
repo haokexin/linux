@@ -2,7 +2,7 @@
  * net/tipc/msg.c: TIPC message header routines
  *
  * Copyright (c) 2000-2006, Ericsson AB
- * Copyright (c) 2005-2007, Wind River Systems
+ * Copyright (c) 2005-2007, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +53,8 @@ int tipc_msg_build(struct tipc_msg *hdr,
 		   struct iovec const *msg_sect, u32 num_sect,
 		   int max_size, int usrmem, struct sk_buff** buf)
 {
-	int dsz, sz, hsz, pos, res, cnt;
+	int dsz, sz, hsz, pos, res;
+	u32 cnt;
 
 	dsz = tipc_msg_calc_data_size(msg_sect, num_sect);
 	if (unlikely(dsz > TIPC_MAX_USER_MSG_SIZE)) {
@@ -80,9 +81,9 @@ int tipc_msg_build(struct tipc_msg *hdr,
 					      msg_sect[cnt].iov_len);
 		else
 			skb_copy_to_linear_data_offset(*buf, pos,
-						       msg_sect[cnt].iov_base,
-						       msg_sect[cnt].iov_len);
-		pos += msg_sect[cnt].iov_len;
+					msg_sect[cnt].iov_base,
+					(unsigned int)msg_sect[cnt].iov_len);
+		pos += (int)msg_sect[cnt].iov_len;
 	}
 	if (likely(res))
 		return dsz;
@@ -115,10 +116,10 @@ void tipc_msg_init(struct tipc_msg *m, u32 user, u32 type,
 int tipc_msg_calc_data_size(struct iovec const *msg_sect, u32 num_sect)
 {
 	int dsz = 0;
-	int i;
+	u32 i;
 
 	for (i = 0; i < num_sect; i++)
-		dsz += msg_sect[i].iov_len;
+		dsz += (int)msg_sect[i].iov_len;
 	return dsz;
 }
 
