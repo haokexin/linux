@@ -2,7 +2,7 @@
  * net/tipc/tipc_dbg.h: Include file for TIPC print buffer routines
  *
  * Copyright (c) 1997-2006, Ericsson AB
- * Copyright (c) 2005-2007, Wind River Systems
+ * Copyright (c) 2005-2007, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,7 @@
 
 struct print_buf {
 	char *buf;
-	u32 size;
+	size_t size;
 	char *crs;
 	int echo;
 };
@@ -55,16 +55,16 @@ struct print_buf {
 #define TIPC_PB_MIN_SIZE 64	/* minimum size for a print buffer's array */
 #define TIPC_PB_MAX_STR 512	/* max printable string (with trailing NUL) */
 
-void tipc_printbuf_init(struct print_buf *pb, char *buf, u32 size);
+void tipc_printbuf_init(struct print_buf *pb, char *buf, size_t size);
 void tipc_printbuf_reset(struct print_buf *pb);
 int  tipc_printbuf_empty(struct print_buf *pb);
-int  tipc_printbuf_validate(struct print_buf *pb);
+size_t tipc_printbuf_validate(struct print_buf *pb);
 void tipc_printbuf_move(struct print_buf *pb_to, struct print_buf *pb_from);
 
 #ifdef CONFIG_TIPC_CONFIG_SERVICE
-int tipc_log_resize(int log_size);
+int tipc_log_resize(size_t log_size);
 #else
-static inline int tipc_log_resize(int log_size) { return 0; }
+static inline int tipc_log_resize(size_t log_size) { return 0; }
 #endif
 struct sk_buff *tipc_log_resize_cmd(const void *req_tlv_area,
 				    int req_tlv_space);

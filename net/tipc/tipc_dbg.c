@@ -2,7 +2,7 @@
  * net/tipc/tipc_dbg.c: TIPC print buffer routines
  *
  * Copyright (c) 1996-2006, Ericsson AB
- * Copyright (c) 2005-2007, Wind River Systems
+ * Copyright (c) 2005-2007, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -100,7 +100,7 @@ static DEFINE_SPINLOCK(print_lock);
  * becomes a null device that discards anything written to it.
  */
 
-void tipc_printbuf_init(struct print_buf *pb, char *raw, u32 size)
+void tipc_printbuf_init(struct print_buf *pb, char *raw, size_t size)
 {
 	pb->buf = raw;
 	pb->crs = raw;
@@ -151,7 +151,7 @@ int tipc_printbuf_empty(struct print_buf *pb)
  * Returns length of print buffer data string (including trailing NUL)
  */
 
-int tipc_printbuf_validate(struct print_buf *pb)
+size_t tipc_printbuf_validate(struct print_buf *pb)
 {
 	char *err = "\n\n*** PRINT BUFFER OVERFLOW ***\n\n";
 	char *cp_buf;
@@ -187,7 +187,7 @@ int tipc_printbuf_validate(struct print_buf *pb)
 
 void tipc_printbuf_move(struct print_buf *pb_to, struct print_buf *pb_from)
 {
-	int len;
+	size_t len;
 
 	/* Handle the cases where contents can't be moved */
 
@@ -232,8 +232,8 @@ void tipc_printbuf_move(struct print_buf *pb_to, struct print_buf *pb_from)
 
 void tipc_printf(struct print_buf *pb, const char *fmt, ...)
 {
-	int chars_to_add;
-	int chars_left;
+	size_t chars_to_add;
+	size_t chars_left;
 	char save_char;
 
 	spin_lock_bh(&print_lock);
@@ -275,12 +275,12 @@ void tipc_printf(struct print_buf *pb, const char *fmt, ...)
  * print_to_console - write string of bytes to console in multiple chunks
  */
 
-static void print_to_console(char *crs, int len)
+static void print_to_console(char *crs, size_t len)
 {
-	int rest = len;
+	size_t rest = len;
 
 	while (rest > 0) {
-		int sz = rest < TIPC_PB_MAX_STR ? rest : TIPC_PB_MAX_STR;
+		size_t sz = rest < TIPC_PB_MAX_STR ? rest : TIPC_PB_MAX_STR;
 		char c = crs[sz];
 
 		crs[sz] = 0;
@@ -297,7 +297,7 @@ static void print_to_console(char *crs, int len)
 
 static void printbuf_dump_dbg(struct print_buf *pb)
 {
-	int len;
+	size_t len;
 
 	if (!pb->buf) {
 		printk("*** PRINT BUFFER NOT ALLOCATED ***");
@@ -323,7 +323,7 @@ static void printbuf_dump_dbg(struct print_buf *pb)
 
 void tipc_dump_dbg(struct print_buf *pb, const char *fmt, ...)
 {
-	int len;
+	size_t len;
 
 	if (pb == TIPC_CONS)
 		return;
@@ -352,7 +352,7 @@ void tipc_dump_dbg(struct print_buf *pb, const char *fmt, ...)
  * @log_size: print buffer size to use
  */
 
-int tipc_log_resize(int log_size)
+int tipc_log_resize(size_t log_size)
 {
 	int res = 0;
 
@@ -415,7 +415,7 @@ struct sk_buff *tipc_log_dump(void)
 	else {
 		struct tlv_desc *rep_tlv;
 		struct print_buf pb;
-		int str_len;
+		size_t str_len;
 
 		str_len = min(TIPC_LOG->size, 32768u);
 		spin_unlock_bh(&print_lock);

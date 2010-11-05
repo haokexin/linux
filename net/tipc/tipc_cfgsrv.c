@@ -261,7 +261,7 @@ static struct sk_buff *tipc_show_stats(void)
 	struct sk_buff *buf;
 	struct tlv_desc *rep_tlv;
 	struct print_buf pb;
-	int str_len;
+	size_t str_len;
 	u32 value;
 
 	if (!TLV_CHECK(req_tlv_area, req_tlv_space, TIPC_TLV_UNSIGNED))

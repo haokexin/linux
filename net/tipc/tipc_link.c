@@ -3316,7 +3316,8 @@ static u32 percent(u32 count, u32 total)
  * Returns length of print buffer data string (or 0 if error)
  */
 
-static int tipc_link_stats(const char *name, char *buf, const u32 buf_size)
+static size_t tipc_link_stats(const char *name, char *buf,
+			      const size_t buf_size)
 {
 	struct print_buf pb;
 	struct link *l_ptr;
@@ -3406,7 +3407,7 @@ struct sk_buff *tipc_link_cmd_show_stats(const void *req_tlv_area, int req_tlv_s
 {
 	struct sk_buff *buf;
 	struct tlv_desc *rep_tlv;
-	int str_len;
+	size_t str_len;
 
 	if (!TLV_CHECK(req_tlv_area, req_tlv_space, TIPC_TLV_LINK_NAME))
 		return tipc_cfg_reply_error_string(TIPC_CFG_TLV_ERROR);

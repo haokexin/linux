@@ -713,7 +713,7 @@ struct sk_buff *tipc_port_get_ports(void)
 	struct tlv_desc *rep_tlv;
 	struct print_buf pb;
 	struct port *p_ptr;
-	int str_len;
+	size_t str_len;
 
 	buf = tipc_cfg_reply_alloc(TLV_SPACE(MAX_PORT_QUERY));
 	if (!buf)
