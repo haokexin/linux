@@ -2,7 +2,7 @@
  * net/tipc/tipc_bearer.c: TIPC bearer code
  *
  * Copyright (c) 1996-2006, Ericsson AB
- * Copyright (c) 2004-2008, Wind River Systems
+ * Copyright (c) 2004-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -60,7 +60,7 @@ struct bearer *tipc_bearers = NULL;
 
 static int media_name_valid(const char *name)
 {
-	u32 len;
+	size_t len;
 
 	len = strlen(name);
 	if ((len + 1) > TIPC_MAX_MEDIA_NAME)
@@ -224,8 +224,8 @@ static int bearer_name_validate(const char *name,
 	char name_copy[TIPC_MAX_BEARER_NAME];
 	char *media_name;
 	char *if_name;
-	u32 media_len;
-	u32 if_len;
+	size_t media_len;
+	size_t if_len;
 
 	/* copy bearer name & ensure length is OK */
 
@@ -631,7 +631,7 @@ restart:
 	b_ptr->media = m_ptr;
 	b_ptr->tolerance = m_ptr->tolerance;
 	b_ptr->window = m_ptr->window;
-	b_ptr->net_plane = bearer_id + 'A';
+	b_ptr->net_plane = (unsigned char)(bearer_id + 'A');
 
 	INIT_LIST_HEAD(&b_ptr->cong_links);
 	INIT_LIST_HEAD(&b_ptr->links);
