@@ -2,7 +2,7 @@
  * net/tipc/tipc_link.h: Include file for TIPC link code
  *
  * Copyright (c) 1995-2006, Ericsson AB
- * Copyright (c) 2004-2008, Wind River Systems
+ * Copyright (c) 2004-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -231,10 +231,10 @@ int tipc_link_is_active(struct link *l_ptr);
 void tipc_link_start(struct link *l_ptr);
 u32 tipc_link_push_packet(struct link *l_ptr);
 void tipc_link_stop(struct link *l_ptr);
-struct sk_buff *tipc_link_cmd_delete(const void *req_tlv_area, int req_tlv_space);
-struct sk_buff *tipc_link_cmd_config(const void *req_tlv_area, int req_tlv_space, u16 cmd);
-struct sk_buff *tipc_link_cmd_show_stats(const void *req_tlv_area, int req_tlv_space);
-struct sk_buff *tipc_link_cmd_reset_stats(const void *req_tlv_area, int req_tlv_space);
+struct sk_buff *tipc_link_cmd_delete(const void *req_tlv_area, u32 req_tlv_space);
+struct sk_buff *tipc_link_cmd_config(const void *req_tlv_area, u32 req_tlv_space, u16 cmd);
+struct sk_buff *tipc_link_cmd_show_stats(const void *req_tlv_area, u32 req_tlv_space);
+struct sk_buff *tipc_link_cmd_reset_stats(const void *req_tlv_area, u32 req_tlv_space);
 void tipc_link_reset(struct link *l_ptr);
 int tipc_link_send(struct sk_buff *buf, u32 dest, u32 selector);
 int tipc_link_send_buf(struct link *l_ptr, struct sk_buff *buf);

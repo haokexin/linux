@@ -2,7 +2,7 @@
  * include/linux/tipc_config.h: Include file for TIPC configuration interface
  * 
  * Copyright (c) 2003-2006, Ericsson AB
- * Copyright (c) 2005-2007, Wind River Systems
+ * Copyright (c) 2005-2007, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -289,14 +289,15 @@ struct tlv_desc {
 	__be16 tlv_type;	/* TLV identifier */
 };
 
-#define TLV_ALIGNTO 4
+#define TLV_ALIGNTO 4u
 
-#define TLV_ALIGN(datalen) (((datalen)+(TLV_ALIGNTO-1)) & ~(TLV_ALIGNTO-1))
-#define TLV_LENGTH(datalen) (sizeof(struct tlv_desc) + (datalen))
+#define TLV_ALIGN(datalen) \
+		((__u16)(((datalen)+(TLV_ALIGNTO-1)) & ~(TLV_ALIGNTO-1)))
+#define TLV_LENGTH(datalen) ((__u16)(sizeof(struct tlv_desc) + (datalen)))
 #define TLV_SPACE(datalen) (TLV_ALIGN(TLV_LENGTH(datalen)))
 #define TLV_DATA(tlv) ((void *)((char *)(tlv) + TLV_LENGTH(0)))
 
-static inline int TLV_OK(const void *tlv, __u16 space)
+static inline int TLV_OK(const void *tlv, __u32 space)
 {
 	/*
 	 * Would also like to check that "tlv" is a multiple of 4,
@@ -311,13 +312,13 @@ static inline int TLV_OK(const void *tlv, __u16 space)
 		(ntohs(((struct tlv_desc *)tlv)->tlv_len) <= space);
 }
 
-static inline int TLV_CHECK(const void *tlv, __u16 space, __u16 exp_type)
+static inline int TLV_CHECK(const void *tlv, __u32 space, __u16 exp_type)
 {
 	return TLV_OK(tlv, space) && 
 		(ntohs(((struct tlv_desc *)tlv)->tlv_type) == exp_type);
 }
 
-static inline int TLV_SET(void *tlv, __u16 type, void *data, __u16 len)
+static inline __u16 TLV_SET(void *tlv, __u16 type, void *data, size_t len)
 {
 	struct tlv_desc *tlv_ptr;
 	__u16 tlv_len;
@@ -409,16 +410,16 @@ struct tipc_cfg_msg_hdr
 #define TCM_F_REQUEST	0x1	/* Flag: Request message */
 #define TCM_F_MORE	0x2	/* Flag: Message to be continued */
 
-#define TCM_ALIGN(datalen)  (((datalen)+3) & ~3)
-#define TCM_LENGTH(datalen) (sizeof(struct tipc_cfg_msg_hdr) + datalen)
+#define TCM_ALIGN(datalen)  ((__u32)(((datalen)+3) & ~3))
+#define TCM_LENGTH(datalen) ((__u32)(sizeof(struct tipc_cfg_msg_hdr) + datalen))
 #define TCM_SPACE(datalen)  (TCM_ALIGN(TCM_LENGTH(datalen)))
 #define TCM_DATA(tcm_hdr)   ((void *)((char *)(tcm_hdr) + TCM_LENGTH(0)))
 
-static inline int TCM_SET(void *msg, __u16 cmd, __u16 flags,
-			  void *data, __u16 data_len)
+static inline __u32 TCM_SET(void *msg, __u16 cmd, __u16 flags,
+			    void *data, __u32 data_len)
 {
 	struct tipc_cfg_msg_hdr *tcm_hdr;
-	int msg_len;
+	__u32 msg_len;
 
 	msg_len = TCM_LENGTH(data_len);
 	tcm_hdr = (struct tipc_cfg_msg_hdr *)msg;

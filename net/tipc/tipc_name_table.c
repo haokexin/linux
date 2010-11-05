@@ -1168,7 +1168,7 @@ void tipc_nametbl_print(struct print_buf *buf, const char *str)
 
 #define MAX_NAME_TBL_QUERY 32768
 
-struct sk_buff *tipc_nametbl_get(const void *req_tlv_area, int req_tlv_space)
+struct sk_buff *tipc_nametbl_get(const void *req_tlv_area, u32 req_tlv_space)
 {
 	struct sk_buff *buf;
 	struct tipc_name_table_query *argv;
@@ -1697,7 +1697,7 @@ void tipc_routetbl_purge(u32 region_addr)
  */
 
 struct sk_buff *tipc_nametbl_get_routes(const void *req_tlv_area,
-					int req_tlv_space)
+					u32 req_tlv_space)
 {
 	u32 target;
 	u32 payload_size;

@@ -2,7 +2,7 @@
  * net/tipc/tipc_port.h: Include file for TIPC port code
  *
  * Copyright (c) 1994-2007, Ericsson AB
- * Copyright (c) 2004-2008, Wind River Systems
+ * Copyright (c) 2004-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -115,7 +115,7 @@ int tipc_port_reject_sections(struct port *p_ptr, struct tipc_msg *hdr,
 			      struct iovec const *msg_sect, u32 num_sect,
 			      int err);
 struct sk_buff *tipc_port_get_ports(void);
-struct sk_buff *port_show_stats(const void *req_tlv_area, int req_tlv_space);
+struct sk_buff *port_show_stats(const void *req_tlv_area, u32 req_tlv_space);
 void tipc_port_recv_proto_msg(struct sk_buff *buf);
 void tipc_port_recv_mcast(struct sk_buff *buf, struct port_list *dp);
 void tipc_port_reinit(void);

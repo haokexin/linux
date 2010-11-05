@@ -3122,7 +3122,7 @@ static int cmd_set_link_value(const char *name, u32 new_value, u16 cmd)
 }
 
 
-struct sk_buff *tipc_link_cmd_config(const void *req_tlv_area, int req_tlv_space,
+struct sk_buff *tipc_link_cmd_config(const void *req_tlv_area, u32 req_tlv_space,
 				     u16 cmd)
 {
 	struct tipc_link_config *args;
@@ -3171,7 +3171,7 @@ static void link_reset_statistics(struct link *l_ptr)
 
 #ifdef CONFIG_TIPC_CONFIG_SERVICE
 
-struct sk_buff *tipc_link_cmd_reset_stats(const void *req_tlv_area, int req_tlv_space)
+struct sk_buff *tipc_link_cmd_reset_stats(const void *req_tlv_area, u32 req_tlv_space)
 {
 	char *link_name;
 	struct link *l_ptr;
@@ -3202,7 +3202,7 @@ struct sk_buff *tipc_link_cmd_reset_stats(const void *req_tlv_area, int req_tlv_
 }
 
 #ifdef PROTO_MULTI_DISCOVERY_OBJECT
-struct sk_buff *tipc_link_cmd_delete(const void *req_tlv_area, int req_tlv_space)
+struct sk_buff *tipc_link_cmd_delete(const void *req_tlv_area, u32 req_tlv_space)
 {
         char *cmd_str;
 	char *link_name;
@@ -3403,7 +3403,7 @@ static size_t tipc_link_stats(const char *name, char *buf,
 
 #define MAX_LINK_STATS_INFO 2000
 
-struct sk_buff *tipc_link_cmd_show_stats(const void *req_tlv_area, int req_tlv_space)
+struct sk_buff *tipc_link_cmd_show_stats(const void *req_tlv_area, u32 req_tlv_space)
 {
 	struct sk_buff *buf;
 	struct tlv_desc *rep_tlv;

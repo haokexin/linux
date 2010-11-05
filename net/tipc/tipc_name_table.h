@@ -92,7 +92,7 @@ extern int tipc_own_routes;
 extern int tipc_all_routes;
 
 u32 tipc_nametbl_publ_port(void);
-struct sk_buff *tipc_nametbl_get(const void *req_tlv_area, int req_tlv_space);
+struct sk_buff *tipc_nametbl_get(const void *req_tlv_area, u32 req_tlv_space);
 u32 tipc_nametbl_translate(u32 type, u32 instance, u32 *node);
 int tipc_nametbl_mc_translate(u32 type, u32 lower, u32 upper, u32 limit,
 			 struct port_list *dports);
@@ -127,6 +127,6 @@ void tipc_routetbl_withdraw(unsigned long node_addr);
 void tipc_routetbl_withdraw_node(unsigned long node_addr);
 void tipc_routetbl_purge(u32 region_addr);
 struct sk_buff *tipc_nametbl_get_routes(const void *req_tlv_area,
-					int req_tlv_space);
+					u32 req_tlv_space);
 
 #endif

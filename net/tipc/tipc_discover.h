@@ -2,7 +2,7 @@
  * net/tipc/tipc_discover.h: Include file for TIPC neighbor discovery code
  *
  * Copyright (c) 2003-2006, Ericsson AB
- * Copyright (c) 2005-2007, Wind River Systems
+ * Copyright (c) 2005-2007, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -70,6 +70,6 @@ void tipc_disc_deactivate(struct discoverer *d_ptr);
 void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr);
 void tipc_disc_send_msg(struct discoverer *d_ptr);
 struct sk_buff *tipc_disc_cmd_create_link(const void *disc_tlv_area, 
-					  int disc_tlv_space);
+					  u32 disc_tlv_space);
 
 #endif
