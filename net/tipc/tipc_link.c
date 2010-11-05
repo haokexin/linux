@@ -261,8 +261,8 @@ static int link_name_validate(const char *name, struct link_name *name_parts)
 	char dummy;
 	u32 z_local, c_local, n_local;
 	u32 z_peer, c_peer, n_peer;
-	u32 if_local_len;
-	u32 if_peer_len;
+	size_t if_local_len;
+	size_t if_peer_len;
 
 	/* copy link name & ensure length is OK */
 
@@ -1254,7 +1254,7 @@ exit:
 			if (link_congested(l_ptr) || 
 			    !list_empty(&l_ptr->b_ptr->cong_links)) {
 				link_schedule_port(l_ptr, sender->publ.ref,
-						   res);
+						   (u32)res);
 				res = -ELINKCONG;
 				goto exit;
 			}
@@ -1364,7 +1364,7 @@ again:
 		u32 sz;
 
 		if (!sect_rest) {
-			sect_rest = msg_sect[++curr_sect].iov_len;
+			sect_rest = (u32)msg_sect[++curr_sect].iov_len;
 			sect_crs = (const unchar *)msg_sect[curr_sect].iov_base;
 		}
 
@@ -1596,7 +1596,7 @@ static void link_reset_all(unsigned long addr)
 
 	tipc_node_lock(n_ptr);
 
-	tipc_addr_string_fill(addr_string, addr);
+	tipc_addr_string_fill(addr_string, (u32)addr);
 	warn("Resetting all links to %s\n", addr_string);
 
 	for (i = 0; i < TIPC_MAX_BEARERS; i++) {
@@ -1632,7 +1632,8 @@ static void link_retransmit_failure(struct link *l_ptr, struct sk_buff *buf)
 		char addr_string[16];
 
 		dbg_printf(TIPC_OUTPUT, "Msg seq number: %u,  ", buf_seqno(buf));
-		dbg_printf(TIPC_OUTPUT, "Outstanding acks: %u\n", (u32)buf_handle(buf));
+		dbg_printf(TIPC_OUTPUT, "Outstanding acks: %u\n",
+			   (u32)(unsigned long)(char *)buf_handle(buf));
 		
 		/* recover retransmit requester */
 		n_ptr = (struct tipc_node *)l_ptr->owner->node_list.next;
@@ -2761,7 +2762,7 @@ exit:
 
 static inline u32 get_long_msg_orig(struct sk_buff *buf)
 {
-	return (u32)(unsigned long)buf_handle(buf);
+	return (u32)(unsigned long)(char *)buf_handle(buf);
 }
 
 static inline void set_long_msg_orig(struct sk_buff *buf, u32 orig)
