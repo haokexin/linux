@@ -2,7 +2,7 @@
  * include/net/tipc/tipc.h: Main include file for TIPC users
  * 
  * Copyright (c) 2003-2006, Ericsson AB
- * Copyright (c) 2005,2008 Wind River Systems
+ * Copyright (c) 2005, 2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -231,14 +231,6 @@ int tipc_multicast(u32 portref,
 		   u32 domain,	/* currently unused */
 		   unsigned int section_count,
 		   struct iovec const *msg);
-
-#if 0
-int tipc_multicast_buf(u32 portref, 
-		       struct tipc_name_seq const *seq, 
-		       u32 domain,
-		       void *buf,
-		       unsigned int size);
-#endif
 
 /*
  * TIPC subscription routines
