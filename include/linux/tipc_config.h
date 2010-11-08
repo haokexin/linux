@@ -81,12 +81,6 @@
 #define  TIPC_CMD_SHOW_LINK_STATS   0x000B    /* tx link_name, rx ultra_string */
 #define  TIPC_CMD_SHOW_STATS        0x000F    /* tx unsigned, rx ultra_string */
 
-#if 0
-#define  TIPC_CMD_SHOW_PORT_STATS   0x0008    /* tx port_ref, rx ultra_string */
-#define  TIPC_CMD_RESET_PORT_STATS  0x0009    /* tx port_ref, rx none */
-#define  TIPC_CMD_GET_LINK_PEER     0x000D    /* tx link_name, rx ? */
-#endif
-
 /* 
  * Protected commands:
  * May only be issued by "network administration capable" process.
@@ -101,9 +95,6 @@
 #define  TIPC_CMD_GET_MAX_ZONES     0x4007    /* tx none, rx unsigned */
 #define  TIPC_CMD_GET_MAX_CLUSTERS  0x4008    /* tx none, rx unsigned */
 #define  TIPC_CMD_GET_MAX_NODES     0x4009    /* tx none, rx unsigned */
-#if 0
-#define  TIPC_CMD_GET_MAX_SLAVES    0x400A    /* tx none, rx unsigned */
-#endif
 #define  TIPC_CMD_GET_NETID         0x400B    /* tx none, rx unsigned */
 #define  TIPC_CMD_GET_MAX_REMOTES   0x400C    /* tx none, rx unsigned */
 
@@ -117,10 +108,6 @@
 #define  TIPC_CMD_RESET_LINK_STATS  0x410C    /* tx link_name, rx none */
 #define  TIPC_CMD_CREATE_LINK       0x4103    /* tx link_create, rx none */
 #define  TIPC_CMD_DELETE_LINK       0x4104    /* tx link_name, rx none */
-#if 0
-#define  TIPC_CMD_BLOCK_LINK        0x4105    /* tx link_name, rx none */
-#define  TIPC_CMD_UNBLOCK_LINK      0x4106    /* tx link_name, rx none */
-#endif
 
 /* 
  * Private commands:
@@ -129,9 +116,6 @@
  */
 
 #define  TIPC_CMD_SET_NODE_ADDR     0x8001    /* tx net_addr, rx none */
-#if 0
-#define  TIPC_CMD_SET_ZONE_MASTER   0x8002    /* tx none, rx none */
-#endif
 #define  TIPC_CMD_SET_REMOTE_MNG    0x8003    /* tx unsigned, rx none */
 #define  TIPC_CMD_SET_MAX_PORTS     0x8004    /* tx unsigned, rx none */
 #define  TIPC_CMD_SET_MAX_PUBL      0x8005    /* tx unsigned, rx none */
@@ -139,9 +123,6 @@
 #define  TIPC_CMD_SET_MAX_ZONES     0x8007    /* tx unsigned, rx none */
 #define  TIPC_CMD_SET_MAX_CLUSTERS  0x8008    /* tx unsigned, rx none */
 #define  TIPC_CMD_SET_MAX_NODES     0x8009    /* tx unsigned, rx none */
-#if 0
-#define  TIPC_CMD_SET_MAX_SLAVES    0x800A    /* tx unsigned, rx none */
-#endif
 #define  TIPC_CMD_SET_NETID         0x800B    /* tx unsigned, rx none */
 #define  TIPC_CMD_SET_MAX_REMOTES   0x800C    /* tx unsigned, rx none */
 
@@ -265,15 +246,6 @@ struct tipc_name_table_query {
 #define TIPC_CFG_NO_REMOTE	"\x83"	/* remote management not enabled */
 #define TIPC_CFG_NOT_SUPPORTED  "\x84"	/* request is not supported by TIPC */
 #define TIPC_CFG_INVALID_VALUE  "\x85"  /* request has invalid argument value */
-
-#if 0
-/* prototypes TLV structures for proposed commands */
-struct tipc_link_create {
-	__be32   domain;
-	struct tipc_media_addr peer_addr;
-	char bearer_name[TIPC_MAX_BEARER_NAME];
-};
-#endif
 
 /*
  * A TLV consists of a descriptor, followed by the TLV value.

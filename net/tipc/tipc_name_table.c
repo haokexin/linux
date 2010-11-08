@@ -2,7 +2,7 @@
  * net/tipc/tipc_name_table.c: TIPC name table code
  *
  * Copyright (c) 2000-2006, Ericsson AB
- * Copyright (c) 2004-2008, 2010 Wind River Systems
+ * Copyright (c) 2004-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1156,16 +1156,6 @@ static void nametbl_list(struct print_buf *buf, u32 depth_info,
 	}
 }
 
-#if 0
-void tipc_nametbl_print(struct print_buf *buf, const char *str)
-{
-	tipc_printf(buf, str);
-	read_lock_bh(&tipc_nametbl_lock);
-	nametbl_list(buf, 0, 0, 0, 0);
-	read_unlock_bh(&tipc_nametbl_lock);
-}
-#endif
-
 #define MAX_NAME_TBL_QUERY 32768
 
 struct sk_buff *tipc_nametbl_get(const void *req_tlv_area, u32 req_tlv_space)
@@ -1197,13 +1187,6 @@ struct sk_buff *tipc_nametbl_get(const void *req_tlv_area, u32 req_tlv_space)
 
 	return buf;
 }
-
-#if 0
-void tipc_nametbl_dump(void)
-{
-	nametbl_list(TIPC_CONS, 0, 0, 0, 0);
-}
-#endif
 
 #endif
 

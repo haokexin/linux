@@ -408,22 +408,6 @@ static void node_lost_contact(struct tipc_node *n_ptr)
 	tipc_k_signal((Handler)node_cleanup_finished, n_ptr->elm.addr);
 }
 
-#if 0
-void node_print(struct print_buf *buf, struct tipc_node *n_ptr, char *str)
-{
-	u32 i;
-
-	tipc_printf(buf, "\n\n%s", str);
-	for (i = 0; i < TIPC_MAX_BEARERS; i++) {
-		if (!n_ptr->links[i])
-			continue;
-		tipc_printf(buf, "Links[%u]: %x, ", i, n_ptr->links[i]);
-	}
-	tipc_printf(buf, "Active links: [%p,%p]\n",
-		    n_ptr->active_links[0], n_ptr->active_links[1]);
-}
-#endif
-
 u32 tipc_available_nodes(const u32 domain)
 {
 	struct tipc_node *n_ptr;

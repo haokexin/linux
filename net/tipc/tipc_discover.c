@@ -276,10 +276,6 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 		return;
 	found_disc = 0;
 	list_for_each_entry(d_ptr, &b_ptr->disc_list, disc_list) {
-#if 0
-		if (disc_addr_match(&d_ptr->dest, d_ptr->domain,
-				    &media_addr, orig))
-#endif
 		if (tipc_in_scope(d_ptr->domain, orig)) {
 			found_disc = 1;
 			break;
@@ -287,12 +283,6 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 	}
 	if (!found_disc)
 		return;
-#if 0
-	if (is_slave(tipc_own_addr) && is_slave(orig))
-		return;
-	if (is_slave(orig) && !in_own_cluster(orig))
-		return;
-#endif
 
         /* We can accept discovery messages from requesting node */
 
