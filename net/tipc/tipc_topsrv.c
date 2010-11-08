@@ -550,12 +550,9 @@ int tipc_subscr_start(void)
 	spin_lock_init(&topsrv.lock);
 	INIT_LIST_HEAD(&topsrv.subscriber_list);
 
-	spin_lock_bh(&topsrv.lock);
 	res = tipc_attach(&topsrv.user_ref, NULL, NULL);
-	if (res) {
-		spin_unlock_bh(&topsrv.lock);
+	if (res)
 		return res;
-	}
 
 	res = tipc_createport(topsrv.user_ref,
 			      NULL,
@@ -575,14 +572,12 @@ int tipc_subscr_start(void)
 	if (res)
 		goto failed;
 
-	spin_unlock_bh(&topsrv.lock);
 	return 0;
 
 failed:
 	err("Failed to create subscription service\n");
 	tipc_detach(topsrv.user_ref);
 	topsrv.user_ref = 0;
-	spin_unlock_bh(&topsrv.lock);
 	return res;
 }
 
