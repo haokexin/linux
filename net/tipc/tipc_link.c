@@ -1627,8 +1627,7 @@ static void link_retransmit_failure(struct link *l_ptr, struct sk_buff *buf)
 		dbg_printf(TIPC_OUTPUT, "Outstanding acks: %u\n",
 			   (u32)(unsigned long)(char *)buf_handle(buf));
 		
-		/* recover retransmit requester */
-		n_ptr = (struct tipc_node *)l_ptr->owner->node_list.next;
+                n_ptr = tipc_bclink_retransmit_to();
 		tipc_node_lock(n_ptr);
 
 		tipc_addr_string_fill(addr_string, n_ptr->elm.addr);

@@ -3,7 +3,7 @@
  *
  * Copyright (c) 2004-2006, Ericsson AB
  * Copyright (c) 2004, Intel Corporation.
- * Copyright (c) 2005-2008, Wind River Systems
+ * Copyright (c) 2005-2008, 2010, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -104,6 +104,7 @@ struct bcbearer {
  * @link: (non-standard) broadcast link structure
  * @node: (non-standard) node structure representing b'cast link's peer node
  * @bcast_nodes: map of b'cast capable nodes in cluster
+ * @retransmit_to: node that most recently requested a retransmit
  * 
  * Handles sequence numbering, fragmentation, bundling, etc.
  */
@@ -112,6 +113,7 @@ struct bclink {
 	struct link link;
 	struct tipc_node node;
 	struct tipc_node_map bcast_nodes;
+	struct tipc_node *retransmit_to;
 };
 
 
@@ -171,6 +173,17 @@ static void bclink_update_last_sent(struct tipc_node *node, u32 seqno)
 }
 
 /**
+ * tipc_bclink_retransmit_to - get most recent node to request retransmission
+ *
+ * Called with bc_lock locked
+ */
+
+struct tipc_node *tipc_bclink_retransmit_to(void)
+{
+	return bclink->retransmit_to;
+}
+
+ /**
  * bclink_retransmit_pkt - retransmit broadcast packets
  * @after: sequence number of last packet to *not* retransmit
  * @to: sequence number of last packet to retransmit
@@ -440,9 +453,7 @@ void tipc_bclink_recv_pkt(struct sk_buff *buf)
 			tipc_node_unlock(node);
 			spin_lock_bh(&bc_lock);
 			bcl->stats.recv_nacks++;
-			/* remember retransmit requester */
-			bcl->owner->node_list.next = 
-				(struct list_head *)node;
+			bclink->retransmit_to = node;
 			bclink_retransmit_pkt(msg_bcgap_after(msg),
 					      msg_bcgap_to(msg));
 			spin_unlock_bh(&bc_lock);
