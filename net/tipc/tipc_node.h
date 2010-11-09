@@ -41,6 +41,11 @@
 #include "tipc_bearer.h"
 #include "tipc_net.h"
 
+/* Flags used to block (re)establishment of contact with a neighboring node */
+
+#define WAIT_PEER_DOWN	0x0001	/* wait to see that peer's links are down */
+#define WAIT_NAMES_GONE	0x0002	/* wait for peer's publications to be purged */
+
 /**
  * struct tipc_node - TIPC node structure
  * @elm: generic network element structure for node
@@ -51,7 +56,7 @@
  * @link_cnt: number of links to node
  * @working_links: number of working links to node (both active and standby)
  * @permit_changeover: non-zero if node has redundant links to this system
- * @cleanup_required: non-zero if cleaning up after a prior loss of contact
+ * @block_setup: bit mask of conditions preventing link establishment to node
  * @signature: random node instance identifier (always 0 for a uni-cluster node)
  * @flags: bit array indicating node's capabilities
  * @bclink: broadcast-related info
@@ -75,7 +80,7 @@ struct tipc_node {
 	int link_cnt;
 	int working_links;
 	int permit_changeover;
-	int cleanup_required;
+	int block_setup;
 	unsigned int signature;
 	unsigned int flags;
 	struct {

@@ -1850,17 +1850,24 @@ void tipc_recv_msg(struct sk_buff *head, struct tipc_bearer *tb_ptr)
 			goto cont;
 		tipc_node_lock(n_ptr);
 
-		/* Don't talk to neighbor during cleanup after last session */
-
-		if (n_ptr->cleanup_required) {
-			tipc_node_unlock(n_ptr);                
-			goto cont;
-		}
-
 		/* Locate unicast link endpoint that should handle message */
 
 		l_ptr = n_ptr->links[b_ptr->identity];
 		if (unlikely(!l_ptr)) {
+			tipc_node_unlock(n_ptr);
+			goto cont;
+		}
+
+		/* Verify that communication with node is currently allowed */
+
+		if ((n_ptr->block_setup & WAIT_PEER_DOWN) &&
+		    (msg_user(msg) == LINK_PROTOCOL) &&
+		    (msg_type(msg) == RESET_MSG ||
+		     msg_type(msg) == ACTIVATE_MSG) &&
+		    !msg_redundant_link(msg))
+		    n_ptr->block_setup &= ~WAIT_PEER_DOWN;
+
+		if (n_ptr->block_setup) {
 			tipc_node_unlock(n_ptr);
 			goto cont;
 		}
