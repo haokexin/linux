@@ -89,6 +89,7 @@ struct tipc_node *tipc_node_create(u32 addr)
 				break;
 		}
 		list_add_tail(&n_ptr->node_list, &curr_n_ptr->node_list);
+		n_ptr->block_setup = WAIT_PEER_DOWN;
 
 		node_count++;
 	} else {
@@ -327,7 +328,7 @@ static inline void node_abort_link_changeover(struct tipc_node *n_ptr)
 }
 #endif
 
-static void node_cleanup_finished(unsigned long node_addr_arg)
+static void node_name_purge_complete(unsigned long node_addr_arg)
 {
 	u32 node_addr = (u32)node_addr_arg;
 	struct tipc_node *n_ptr;
@@ -336,7 +337,7 @@ static void node_cleanup_finished(unsigned long node_addr_arg)
 	n_ptr = tipc_net_find_node(node_addr);
 	if (n_ptr) {
 		tipc_node_lock(n_ptr);
-		n_ptr->cleanup_required = 0;
+		n_ptr->block_setup &= ~WAIT_NAMES_GONE;
 		tipc_node_unlock(n_ptr);
 	}
 	read_unlock_bh(&tipc_net_lock);
@@ -406,10 +407,10 @@ static void node_lost_contact(struct tipc_node *n_ptr)
 			      n_ptr->elm.addr);
 	}
 
-	/* Prevent re-contact with node until all cleanup is done */
+	/* Prevent re-contact with node until cleanup is done */
 
-	n_ptr->cleanup_required = 1;
-	tipc_k_signal((Handler)node_cleanup_finished, n_ptr->elm.addr);
+	n_ptr->block_setup = WAIT_PEER_DOWN | WAIT_NAMES_GONE;
+	tipc_k_signal((Handler)node_name_purge_complete, n_ptr->elm.addr);
 }
 
 u32 tipc_available_nodes(const u32 domain)

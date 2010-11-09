@@ -169,13 +169,6 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
         }
         tipc_node_lock(n_ptr);
 
-	/* Don't talk to neighbor during cleanup after last session */
-
-	if (n_ptr->cleanup_required) {
-		tipc_node_unlock(n_ptr);                
-		return;
-	}
-
 	/* Prepare to validate requesting node's signature and media address */
 
 	link = n_ptr->links[b_ptr->identity];
