@@ -438,14 +438,6 @@ struct sk_buff *tipc_cfg_do_cmd(u32 orig_node, u16 cmd, const void *request_area
 	case TIPC_CMD_SET_LINK_WINDOW:
 		rep_tlv_buf = tipc_link_cmd_config(req_tlv_area, req_tlv_space, cmd);
 		break;
-#ifdef PROTO_MULTI_DISCOVERY_OBJECT
-	case TIPC_CMD_CREATE_LINK:
-		rep_tlv_buf = tipc_disc_cmd_create_link(req_tlv_area, req_tlv_space);
-		break;
-	case TIPC_CMD_DELETE_LINK:
-		rep_tlv_buf = tipc_link_cmd_delete(req_tlv_area, req_tlv_space);
-		break;
-#endif
 	case TIPC_CMD_ENABLE_BEARER:
 		rep_tlv_buf = cfg_enable_bearer();
 		break;
