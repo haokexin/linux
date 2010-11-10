@@ -2193,7 +2193,7 @@ void tipc_link_send_proto_msg(struct link *l_ptr, u32 msg_typ, int probe_msg,
 		msg_set_max_pkt(msg, l_ptr->max_pkt_target);
 	}
 
-	msg_set_redundant_link(msg, tipc_node_has_redundant_links(l_ptr->owner));
+	msg_set_redundant_link(msg, tipc_node_alt_link_is_up(l_ptr));
 	msg_set_linkprio(msg, l_ptr->priority);
 	msg_set_timestamp(msg, jiffies_to_msecs(jiffies));
 	msg_set_size(msg, msg_size);

@@ -222,10 +222,14 @@ int tipc_node_is_up(struct tipc_node *n_ptr)
 	return (n_ptr->active_links[0] != NULL);
 }
 
-int tipc_node_has_redundant_links(struct tipc_node *n_ptr)
+/**
+ * tipc_node_alt_link_is_up - is an alternate link to this one available?
+ */
+
+int tipc_node_alt_link_is_up(struct link *l_ptr)
 {
 #ifdef CONFIG_TIPC_MULTIPLE_LINKS
-	return (n_ptr->working_links > 1);
+	return (l_ptr->owner->working_links > tipc_link_is_up(l_ptr));
 #else
 	return 0;
 #endif
