@@ -64,7 +64,6 @@ int tipc_disc_create(struct bearer *b_ptr, struct tipc_media_addr *dest,
 		     u32 domain);
 void tipc_disc_update(struct discoverer *d_ptr);
 void tipc_disc_delete(struct discoverer *d_ptr);
-void tipc_disc_deactivate(struct discoverer *d_ptr);
 void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr);
 void tipc_disc_send_msg(struct discoverer *d_ptr);
 struct sk_buff *tipc_disc_cmd_create_link(const void *disc_tlv_area, 
