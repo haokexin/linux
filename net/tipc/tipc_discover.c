@@ -287,17 +287,6 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 }
 
 /**
- * tipc_disc_deactivate - deactivate discoverer searching
- * @d_ptr: ptr to discoverer structure
- */
-
-void tipc_disc_deactivate(struct discoverer *d_ptr)
-{
-        k_cancel_timer(&d_ptr->timer);
-        d_ptr->timer_intv = TIPC_DISC_INACTIVE;
-} 
-
-/**
  * tipc_disc_update - update frequency of periodic link setup requests
  * @d_ptr: ptr to discovery structure
  * 
@@ -376,7 +365,7 @@ exit:
  * @dest: destination address for discovery message
  * @domain: network domain of node(s) to be discovered
  * 
- * Returns 1 if successful, otherwise 0.
+ * Returns 0 if successful, otherwise -errno.
  *
  * 'tipc_net_lock' must be write-locked by caller on entry
  */
@@ -388,12 +377,12 @@ int tipc_disc_create(struct bearer *b_ptr, struct tipc_media_addr *dest,
 
 	d_ptr = kmalloc(sizeof(*d_ptr), GFP_ATOMIC);
 	if (!d_ptr)
-		return 0;
+		return -ENOMEM;
 
 	d_ptr->buf = disc_init_msg(DSC_REQ_MSG, domain, b_ptr);
 	if (!d_ptr->buf) {
 		kfree(d_ptr);
-		return 0;
+		return -ENOMSG;
 	}
 
 	b_ptr->disc_obj = d_ptr;
@@ -405,13 +394,12 @@ int tipc_disc_create(struct bearer *b_ptr, struct tipc_media_addr *dest,
 	k_init_timer(&d_ptr->timer, (Handler)disc_timeout, (unsigned long)d_ptr);
         k_start_timer(&d_ptr->timer, d_ptr->timer_intv);
 	tipc_disc_send_msg(d_ptr);
-	return 1;
+	return 0;
 } 
 
 /**
  * tipc_disc_delete - stop sending periodic link setup requests
  * @disc: ptr to link request structure
- * Timer must be cancelled or expired before doing this call
  */
 
 void tipc_disc_delete(struct discoverer *d_ptr) 
@@ -419,6 +407,7 @@ void tipc_disc_delete(struct discoverer *d_ptr)
 	if (!d_ptr)
 		return;
 
+	k_cancel_timer(&d_ptr->timer);
 	k_term_timer(&d_ptr->timer);
 	buf_discard(d_ptr->buf);
 	kfree(d_ptr);

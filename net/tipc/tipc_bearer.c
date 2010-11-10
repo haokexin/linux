@@ -52,6 +52,8 @@ static u32 media_count = 0;
 
 struct bearer *tipc_bearers = NULL;
 
+static void bearer_disable(struct bearer *b_ptr);
+
 /**
  * media_name_valid - validate media name
  *
@@ -509,7 +511,8 @@ int tipc_enable_bearer(const char *name, u32 disc_domain, u32 priority)
 		warn("Bearer <%s> rejected, illegal name\n", name);
 		return -EINVAL;
 	}
-	if (!tipc_addr_domain_valid(disc_domain)) {
+	if (!tipc_addr_domain_valid(disc_domain) ||
+	    (disc_domain == tipc_own_addr)) {
 		warn("Bearer <%s> rejected, illegal discovery domain\n", name);
 		return -EINVAL;
 	}
@@ -526,7 +529,7 @@ int tipc_enable_bearer(const char *name, u32 disc_domain, u32 priority)
 	if (!m_ptr) {
 		warn("Bearer <%s> rejected, media <%s> not registered\n", name,
 		     b_name.media_name);
-		goto failed;
+		goto exit;
 	}
 	if (priority == TIPC_MEDIA_LINK_PRI)
 		priority = m_ptr->priority;
@@ -541,14 +544,14 @@ restart:
 		}
 		if (!strcmp(name, tipc_bearers[i].publ.name)) {
 			warn("Bearer <%s> rejected, already enabled\n", name);
-			goto failed;
+			goto exit;
 		}
 		if ((tipc_bearers[i].priority == priority) &&
 		    (++with_this_prio > 2)) {
 			if (priority-- == 0) {
 				warn("Bearer <%s> rejected, duplicate priority\n",
 				     name);
-				goto failed;
+				goto exit;
 			}
 			warn("Bearer <%s> priority adjustment required %u->%u\n",
 			     name, priority + 1, priority);
@@ -558,7 +561,7 @@ restart:
 	if (bearer_id >= TIPC_MAX_BEARERS) {
 		warn("Bearer <%s> rejected, bearer limit reached (%u)\n", 
 		     name, TIPC_MAX_BEARERS);
-		goto failed;
+		goto exit;
 	}
 
 	b_ptr = &tipc_bearers[bearer_id];
@@ -583,19 +586,21 @@ restart:
 
 	INIT_LIST_HEAD(&b_ptr->cong_links);
 	INIT_LIST_HEAD(&b_ptr->links);
-	if (disc_domain != tipc_own_addr) {
-		tipc_disc_create(b_ptr, &m_ptr->bcast_addr, disc_domain);
-	}
 	spin_lock_init(&b_ptr->publ.lock);
 	b_ptr->active = 1;
 
-	write_unlock_bh(&tipc_net_lock);
+	res = tipc_disc_create(b_ptr, &m_ptr->bcast_addr, disc_domain);
+	if (res) {
+		bearer_disable(b_ptr);
+		warn("Bearer <%s> rejected, discovery object creation failed\n", 
+		     name);
+		goto exit;
+	}
 
 	tipc_addr_string_fill(addr_string, disc_domain);
 	info("Enabled bearer <%s>, discovery domain %s, priority %u\n",
 	     name, addr_string, priority);
-	return 0;
-failed:
+exit:
 	write_unlock_bh(&tipc_net_lock);
 	return res;
 }
@@ -640,12 +645,11 @@ int tipc_block_bearer(const char *name)
  * Note: This routine assumes caller holds tipc_net_lock.
  */
 
-static int bearer_disable(struct bearer *b_ptr)
+static void bearer_disable(struct bearer *b_ptr)
 {
 	struct link *l_ptr;
 	struct link *temp_l_ptr;
 
-	info("Disabling bearer <%s>\n", b_ptr->publ.name);
 	spin_lock_bh(&b_ptr->publ.lock);
 	b_ptr->publ.blocked = 1;
 	b_ptr->media->disable_bearer(&b_ptr->publ);
@@ -654,14 +658,10 @@ static int bearer_disable(struct bearer *b_ptr)
 	}
 	spin_unlock_bh(&b_ptr->publ.lock);
 
-	/* Safe to delete discovery struct here. Bearer is inactive now */
-
-	tipc_disc_deactivate(b_ptr->disc_obj);
 	tipc_disc_delete(b_ptr->disc_obj);
 
 	spin_lock_term(&b_ptr->publ.lock); 
 	memset(b_ptr, 0, sizeof(struct bearer));
-	return 0;
 }
 
 int tipc_disable_bearer(const char *name)
@@ -676,7 +676,9 @@ int tipc_disable_bearer(const char *name)
 		res = -EINVAL;
 	}
 	else {
-		res = bearer_disable(b_ptr);
+		info("Disabling bearer <%s>\n", b_ptr->publ.name);
+		bearer_disable(b_ptr);
+		res = 0;
 	}
 	write_unlock_bh(&tipc_net_lock);
 	return res;
@@ -702,14 +704,18 @@ int tipc_bearer_init(void)
 
 void tipc_bearer_stop(void)
 {
+	struct bearer *b_ptr;
 	u32 i;
 
 	if (!tipc_bearers)
 		return;
 
 	for (i = 0; i < TIPC_MAX_BEARERS; i++) {
-		if (tipc_bearers[i].active)
-			bearer_disable(&tipc_bearers[i]);
+		b_ptr = &tipc_bearers[i];
+		if (b_ptr->active) {
+			info("Disabling bearer <%s>\n", b_ptr->publ.name);
+			bearer_disable(b_ptr);
+		}
 	}
 	kfree(tipc_bearers);
 	tipc_bearers = NULL;
