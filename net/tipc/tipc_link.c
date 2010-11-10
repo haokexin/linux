@@ -499,7 +499,6 @@ static void link_remote_delete(struct link *l_ptr)
 
 	write_lock_bh(&tipc_net_lock);
         spin_lock_bh(&b_ptr->publ.lock);
-        tipc_bearer_remove_discoverer(b_ptr,l_ptr->addr);
         tipc_link_delete(l_ptr);
         spin_unlock_bh(&b_ptr->publ.lock);
 	write_unlock_bh(&tipc_net_lock);
@@ -875,7 +874,6 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			/* fall through */
 		case TIMEOUT_EVT:
 			dbg_link("TIM \n");
-                        tipc_bearer_send_discover(l_ptr->b_ptr,l_ptr->addr);
 			tipc_link_send_proto_msg(l_ptr, RESET_MSG, 0, 0, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);

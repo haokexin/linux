@@ -123,10 +123,8 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 	u32 signature = msg_node_sig(msg);
 	u32 node_flags = msg_node_flags(msg);
 	struct tipc_node *n_ptr;
-        struct discoverer *d_ptr;
 	int addr_mismatch;
         int link_fully_up;
-	int found_disc;
 
 	b_ptr->media->msg2addr(&media_addr, &msg->hdr[5]);
 	msg_dbg(msg, "RECV:");
@@ -158,14 +156,7 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 
 	if (!tipc_in_scope(dest, tipc_own_addr))
 		return;
-	found_disc = 0;
-	list_for_each_entry(d_ptr, &b_ptr->disc_list, disc_list) {
-		if (tipc_in_scope(d_ptr->domain, orig)) {
-			found_disc = 1;
-			break;
-		}
-	}
-	if (!found_disc)
+	if (!tipc_in_scope(b_ptr->disc_obj->domain, orig))
 		return;
 
         /* We can accept discovery messages from requesting node */
@@ -405,8 +396,8 @@ int tipc_disc_create(struct bearer *b_ptr, struct tipc_media_addr *dest,
 		return 0;
 	}
 
+	b_ptr->disc_obj = d_ptr;
 	d_ptr->bearer = b_ptr;
-        list_add(&d_ptr->disc_list, &b_ptr->disc_list);
 	memcpy(&d_ptr->dest, dest, sizeof(*dest));
         d_ptr->domain = domain;
 	d_ptr->num_nodes = 0;
@@ -430,7 +421,6 @@ void tipc_disc_delete(struct discoverer *d_ptr)
 
 	k_term_timer(&d_ptr->timer);
 	buf_discard(d_ptr->buf);
-        list_del_init(&d_ptr->disc_list);
 	kfree(d_ptr);
 }
 

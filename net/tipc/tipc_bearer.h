@@ -49,7 +49,7 @@
  * @window: default window size for bearer
  * @tolerance: default link tolerance for bearer
  * @identity: array index of this bearer within TIPC bearer array
- * @disc_list: list of neighbor discovery objects
+ * @disc_obj: pointer to neighbor discovery object associated with bearer
  * @links: list of non-congested links associated with bearer
  * @cong_links: list of congested links associated with bearer
  * @continue_count: # of times bearer has resumed after congestion or blocking
@@ -66,7 +66,7 @@ struct bearer {
 	u32 window;
 	u32 tolerance;
 	u32 identity;
-	struct list_head disc_list;
+	struct discoverer *disc_obj;
 	struct list_head links;
 	struct list_head cong_links;
 	u32 continue_count;
@@ -93,7 +93,6 @@ struct sk_buff *tipc_media_get_names(void);
 struct sk_buff *tipc_bearer_get_names(void);
 void tipc_bearer_add_dest(struct bearer *b_ptr, u32 dest);
 void tipc_bearer_remove_dest(struct bearer *b_ptr, u32 dest);
-void tipc_bearer_remove_discoverer(struct bearer *b_ptr, u32 dest);
 void tipc_bearer_schedule(struct bearer *b_ptr, struct link *l_ptr);
 struct bearer *tipc_bearer_find(const char *name);
 struct tipc_media *tipc_media_find_name(const char *name);
@@ -102,7 +101,6 @@ int tipc_bearer_congested(struct bearer *b_ptr, struct link *l_ptr);
 int tipc_bearer_init(void);
 void tipc_bearer_stop(void);
 void tipc_bearer_lock_push(struct bearer *b_ptr);
-void tipc_bearer_send_discover(struct bearer *b_ptr, u32 dest);
 
 /**
  * tipc_bearer_send- sends buffer to destination over bearer
