@@ -339,80 +339,30 @@ struct sk_buff *tipc_bearer_get_names(void)
 void tipc_bearer_add_dest(struct bearer *b_ptr, u32 dest)
 {
 	struct discoverer *d_ptr;
-	struct discoverer *temp_d_ptr;
 
 	if (in_own_cluster(dest)) {
 		tipc_nmap_add(&b_ptr->nodes, dest);
 		tipc_bcbearer_sort();
 	}
 
-	list_for_each_entry_safe(d_ptr, temp_d_ptr, &b_ptr->disc_list, disc_list) {
-		if (tipc_in_scope(d_ptr->domain, dest)) {
-			d_ptr->num_nodes++;
-			/* tipc_disc_update(d_ptr); */
-		}
-	}
+	d_ptr = b_ptr->disc_obj;
+	if (tipc_in_scope(d_ptr->domain, dest))
+		d_ptr->num_nodes++;
 }
 
 void tipc_bearer_remove_dest(struct bearer *b_ptr, u32 dest)
 {
 	struct discoverer *d_ptr;
-	struct discoverer *temp_d_ptr;
 
 	if (in_own_cluster(dest)) {
 		tipc_nmap_remove(&b_ptr->nodes, dest);
 		tipc_bcbearer_sort();
 	}
 
-	list_for_each_entry_safe(d_ptr, temp_d_ptr, &b_ptr->disc_list, disc_list) {
-		if (tipc_in_scope(d_ptr->domain, dest)) {
-			d_ptr->num_nodes--;
-			tipc_disc_update(d_ptr);
-		}
-	}
-}
-
-
-/*  
- * tipc_bearer_send_discover: 'Individual' discoverer's, i.e. those having a
- * fully specified address, are controlled by the corresponding link's timer,
- * instead of the discovery timer.
- */
-
-void tipc_bearer_send_discover(struct bearer *b_ptr, u32 dest)
-{
-	/* TODO: This needs to be reworked */
-
-	struct discoverer *d_ptr;
-	struct discoverer *temp_d_ptr;
-
-	list_for_each_entry_safe(d_ptr, temp_d_ptr, &b_ptr->disc_list, disc_list) {
-		if (d_ptr->domain == dest) {
-			tipc_disc_send_msg(d_ptr);
-			break;
-		}
-	}
-}
-
-/**
- * tipc_bearer_remove_discoverer(): 
- * Remove the discovery item for 'dest' from bearer's list.
- * Note: bearer item is locked. tipc_net_lock is write_locked.
- */
-
-void tipc_bearer_remove_discoverer(struct bearer *b_ptr, u32 dest)
-{
-	struct discoverer *d_ptr;
-	struct discoverer *temp_d_ptr;
-
-	if (in_own_cluster(dest))
-		return;
-
-	list_for_each_entry_safe(d_ptr, temp_d_ptr, &b_ptr->disc_list, disc_list) {
-		if (tipc_in_scope(dest, d_ptr->domain)) {
-			tipc_disc_deactivate(d_ptr);
-			tipc_disc_delete(d_ptr);
-		}
+	d_ptr = b_ptr->disc_obj;
+	if (tipc_in_scope(d_ptr->domain, dest)) {
+		d_ptr->num_nodes--;
+		tipc_disc_update(d_ptr);
 	}
 }
 
@@ -633,7 +583,6 @@ restart:
 
 	INIT_LIST_HEAD(&b_ptr->cong_links);
 	INIT_LIST_HEAD(&b_ptr->links);
-	INIT_LIST_HEAD(&b_ptr->disc_list);
 	if (disc_domain != tipc_own_addr) {
 		tipc_disc_create(b_ptr, &m_ptr->bcast_addr, disc_domain);
 	}
@@ -695,8 +644,6 @@ static int bearer_disable(struct bearer *b_ptr)
 {
 	struct link *l_ptr;
 	struct link *temp_l_ptr;
-	struct discoverer *d_ptr;
-	struct discoverer *temp_d_ptr;
 
 	info("Disabling bearer <%s>\n", b_ptr->publ.name);
 	spin_lock_bh(&b_ptr->publ.lock);
@@ -709,10 +656,8 @@ static int bearer_disable(struct bearer *b_ptr)
 
 	/* Safe to delete discovery struct here. Bearer is inactive now */
 
-	list_for_each_entry_safe(d_ptr, temp_d_ptr, &b_ptr->disc_list, disc_list) {
-		tipc_disc_deactivate(d_ptr);
-		tipc_disc_delete(d_ptr);
-	}
+	tipc_disc_deactivate(b_ptr->disc_obj);
+	tipc_disc_delete(b_ptr->disc_obj);
 
 	spin_lock_term(&b_ptr->publ.lock); 
 	memset(b_ptr, 0, sizeof(struct bearer));

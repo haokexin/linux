@@ -42,7 +42,6 @@
 /**
  * struct discoverer - information about an ongoing link setup request
  * @bearer: bearer used for discovery messages
- * @disc_list: adjacent discoverers belonging to the same bearer
  * @dest: destination address for discovery messages
  * @domain: network domain of node(s) which should respond to discovery message
  * @num_nodes: number of nodes currently discovered
@@ -53,7 +52,6 @@
  
 struct discoverer {
 	struct bearer *bearer;
-	struct list_head disc_list;
 	struct tipc_media_addr dest;
         u32 domain;
 	int num_nodes;
