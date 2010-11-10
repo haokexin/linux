@@ -96,7 +96,7 @@ struct tipc_node *tipc_node_create(u32 addr);
 void tipc_node_delete(struct tipc_node *n_ptr);
 void tipc_node_link_up(struct tipc_node *n_ptr, struct link *l_ptr);
 void tipc_node_link_down(struct tipc_node *n_ptr, struct link *l_ptr);
-int tipc_node_has_redundant_links(struct tipc_node *n_ptr);
+int tipc_node_alt_link_is_up(struct link *l_ptr);
 int tipc_node_is_up(struct tipc_node *n_ptr);
 struct tipc_node *tipc_node_attach_link(struct link *l_ptr);
 void tipc_node_detach_link(struct tipc_node *n_ptr, struct link *l_ptr);
