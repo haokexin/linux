@@ -1801,6 +1801,7 @@ void tipc_recv_msg(struct sk_buff *head, struct tipc_bearer *tb_ptr)
 		u32 seq_no;
 		u32 ackd;
 		u32 released;
+		int ret;
 
 		buf = head;
 		head = head->next;
@@ -1959,11 +1960,15 @@ deliver:
                                         break;
                                 case MSG_FRAGMENTER:
                                         l_ptr->stats.recv_fragments++;
-                                        if (tipc_link_recv_fragment(&l_ptr->defragm_buf, 
-                                                                    &buf, &msg)) {
+                                        ret = tipc_link_recv_fragment(
+						&l_ptr->defragm_buf,
+						&buf, &msg);
+                                        if (ret == 1) {
                                                 l_ptr->stats.recv_fragmented++;
                                                 goto deliver;
                                         }
+                                        if (ret == -1)
+                                            l_ptr->next_in_no--;
                                         break;
 #ifdef CONFIG_TIPC_MULTIPLE_LINKS
                                 case CHANGEOVER_PROTOCOL:
@@ -2856,7 +2861,9 @@ int tipc_link_recv_fragment(struct sk_buff **pending, struct sk_buff **fb,
 			set_expected_frags(pbuf,exp_fragm_cnt - 1); 
 			reset_timer_cnt(pbuf);
 		} else {
-			warn("Link unable to reassemble fragmented message\n");
+			dbg("Link unable to reassemble fragmented message\n");
+			buf_discard(fbuf);
+			return -1;
 		}
 		buf_discard(fbuf);
 		return 0;
