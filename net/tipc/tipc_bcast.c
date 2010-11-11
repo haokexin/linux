@@ -321,7 +321,7 @@ static void bclink_peek_nack(struct tipc_msg *msg)
 
 	tipc_node_lock(n_ptr);
 
-	if (tipc_node_is_up(n_ptr) && n_ptr->bclink.supported &&
+	if (n_ptr->bclink.supported &&
 	    (n_ptr->bclink.last_in != n_ptr->bclink.last_sent) &&
 	    (n_ptr->bclink.last_in == msg_bcgap_after(msg)))
 		n_ptr->bclink.oos_state = 2;
@@ -394,7 +394,7 @@ void tipc_bclink_recv_pkt(struct sk_buff *buf)
 		goto exit;
 
 	tipc_node_lock(node);
-	if (unlikely(!tipc_node_is_up(node) || !node->bclink.supported))
+	if (unlikely(!node->bclink.supported))
 		goto unlock;
 
 	/* Handle broadcast protocol message */
