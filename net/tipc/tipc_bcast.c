@@ -402,7 +402,7 @@ static void bclink_accept_pkt(struct tipc_node *node, u32 seqno)
 	if (((seqno - tipc_own_addr) % TIPC_MIN_LINK_WIN) == 0) {
 	        tipc_link_send_proto_msg(
 	                node->active_links[node->elm.addr & 1],
-	                STATE_MSG, 0, 0, 0, 0, 0, 0);
+			STATE_MSG, 0, 0, 0, 0, 0);
 	        bcl->stats.sent_acks++;
 	}
 }
