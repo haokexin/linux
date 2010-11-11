@@ -561,9 +561,6 @@ void tipc_named_distribute(struct publication *publ, int msg_type,
  * In rare cases the link may have come back up again when this
  * function is called, and we have two items representing the same
  * publication. Nudge this item's key to distinguish it from the other.
- *
- * Publication's network element subscription is already unsubscribed, 
- * so we don't have to do that here ...
  */
 
 static void named_purge_publ(struct publication *publ)
@@ -574,6 +571,7 @@ static void named_purge_publ(struct publication *publ)
 	publ = tipc_nametbl_remove_publ(publ->type, publ->lower, 
 					publ->node, publ->ref, publ->key);
 	if (publ != NULL) {
+		tipc_netsub_unbind(&publ->subscr);
 		tipc_named_remove_publ(publ);
 	}
 
@@ -1045,9 +1043,6 @@ void tipc_route_distribute(struct publication *publ, int msg_type,
  * In rare cases the link may have come back up again when this
  * function is called, and we have two items representing the same
  * publication. Nudge this item's key to distinguish it from the other.
- *
- * Publication's network element subscription is already unsubscribed, 
- * so we don't have to do that here ...
  */
 
 static void route_purge_publ(struct publication *publ)
@@ -1058,6 +1053,7 @@ static void route_purge_publ(struct publication *publ)
 	publ = tipc_nameseq_remove_publ(route_table,publ->lower, 
 					publ->node, publ->ref, publ->key);
 	if (publ != NULL) {
+		tipc_netsub_unbind(&publ->subscr);
 		tipc_all_routes--;
 		tipc_route_remove_publ(publ);
 	}
