@@ -280,8 +280,10 @@ static void node_established_contact(struct tipc_node *n_ptr)
 
 		/* Add to multicast destination map, if applicable */
 
-		if (n_ptr->bclink.supported)
+		if (n_ptr->bclink.supportable) {
 			tipc_bclink_add_node(n_ptr->elm.addr);
+			n_ptr->bclink.supported = 1;
+		}
 	} else {
 
 		/* Publish new inter-cluster (or inter-zone) route */

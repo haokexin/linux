@@ -55,7 +55,8 @@
  * @signature: random node instance identifier (always 0 for a uni-cluster node)
  * @flags: bit array indicating node's capabilities
  * @bclink: broadcast-related info
- *    @supported: non-zero if node supports TIPC b'cast capability
+ *    @supportable: non-zero if node supports TIPC b'cast link capability
+ *    @supported: non-zero if node is currently part of b'cast link group
  *    @acked: sequence # of last outbound b'cast message acknowledged by node
  *    @last_in: sequence # of last in-sequence b'cast message received from node
  *    @last_sent: sequence # of last b'cast message sent by node
@@ -78,7 +79,8 @@ struct tipc_node {
 	u16 signature;
 	u16 flags;
 	struct {
-		int supported;
+		char supportable;
+		char supported;
 		u32 acked;
 		u32 last_in;
 		u32 last_sent;
