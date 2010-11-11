@@ -179,29 +179,35 @@ u32 tipc_ref_acquire(void *object, spinlock_t **lock)
 		index = tipc_ref_table.first_free;
 		entry = &(tipc_ref_table.entries[index]);
 		index_mask = tipc_ref_table.index_mask;
-		/* take lock in case a previous user of entry still holds it */
-		spin_lock_bh(&entry->lock);
 		next_plus_upper = entry->ref;
 		tipc_ref_table.first_free = next_plus_upper & index_mask;
 		ref = (next_plus_upper & ~index_mask) + index;
-		entry->ref = ref;
-		entry->object = object;
-		*lock = &entry->lock;
 	}
 	else if (tipc_ref_table.init_point < tipc_ref_table.capacity) {
 		index = tipc_ref_table.init_point++;
 		entry = &(tipc_ref_table.entries[index]);
 		spin_lock_init(&entry->lock);
-		spin_lock_bh(&entry->lock);
 		ref = tipc_ref_table.start_mask + index;
+	}
+	else {
+		entry = NULL;
+		ref = 0;
+	}
+	write_unlock_bh(&ref_table_lock);
+
+	/*
+	 * update ref value & object pointer for chosen entry, but only after
+	 * taking its lock (ensures no one is referencing the current values)
+	 *
+	 * exit with lock still held -- see note at start of routine
+	 */
+
+	if (entry) {
+		spin_lock_bh(&entry->lock);
 		entry->ref = ref;
 		entry->object = object;
 		*lock = &entry->lock;
 	}
-	else {
-		ref = 0;
-	}
-	write_unlock_bh(&ref_table_lock);
 
 	return ref;
 }
