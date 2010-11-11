@@ -760,11 +760,12 @@ static struct publication *mng_publ = NULL;
 
 int tipc_cfg_init(void)
 {
-	mng_publ = tipc_nametbl_publish_rsv(TIPC_CFG_SRV, tipc_own_addr,
-					    tipc_own_addr, TIPC_CLUSTER_SCOPE,
-					    0, tipc_random);
-	if (mng_publ == NULL)
+	if (tipc_nametbl_publish_rsv(TIPC_CFG_SRV, tipc_own_addr,
+				     tipc_own_addr, TIPC_CLUSTER_SCOPE,
+				     0, tipc_random, &mng_publ) < 0) {
 		err("Unable to create configuration service identifier\n");
+		mng_publ = NULL;
+	}
 	return !mng_publ;
 }
 

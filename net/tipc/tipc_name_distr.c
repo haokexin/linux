@@ -397,18 +397,17 @@ void tipc_named_node_up_uni(unsigned long node)
  * named_cluster_distribute - send name to all adjacent cluster nodes
  */
 
-static void named_cluster_distribute(struct publication *publ, int msg_type,
-				     int dist_mask)
+static int named_cluster_distribute(struct publication *publ, int msg_type,
+				    int dist_mask)
 {
 	struct sk_buff *buf;
+	int res;
 
 	dist_mask &= ~TIPC_DIST_TO_CLUSTER;
 
 	buf = named_prepare_buf(msg_type, 1, NAME_ITEM_SIZE, tipc_addr(0, 0, 0));
-	if (!buf) {
-		warn("Memory squeeze; failed to distribute publication\n");
-		return;
-	}
+	if (!buf)
+		return -ENOMEM;
 
 	name_to_item(publ, dist_mask, msg_data(buf_msg(buf)), NAME_ITEM_SIZE);
 
@@ -445,7 +444,7 @@ static void named_cluster_distribute(struct publication *publ, int msg_type,
 		}
 
 		buf_discard(buf);
-		return;
+		return 0;
 	}
 #endif
 
@@ -456,9 +455,8 @@ static void named_cluster_distribute(struct publication *publ, int msg_type,
 	 * of the lone name item, so the "new style" form is OK here
 	 */
 
-	if (tipc_bclink_send_msg(buf) < 0) {
-		warn("Publication distribution to cluster failed\n");
-	}
+	res = tipc_bclink_send_msg(buf);
+	return (res < 0) ? res : 0;
 }
 
 /**
@@ -536,14 +534,15 @@ static void named_network_distribute(struct publication *publ, int msg_type,
  * tipc_named_distribute - send name info to relevant nodes
  */
 
-void tipc_named_distribute(struct publication *publ, int msg_type,
-			   int dist_mask)
+int tipc_named_distribute(struct publication *publ, int msg_type,
+			  int dist_mask)
 {
-	if (tipc_mode != TIPC_NET_MODE)
-		return;
+	int res = 0;
 
+	if (tipc_mode != TIPC_NET_MODE)
+		return res;
 	if (dist_mask & TIPC_DIST_TO_CLUSTER) {
-		named_cluster_distribute(publ, msg_type, dist_mask);
+		res = named_cluster_distribute(publ, msg_type, dist_mask);
 	}
 	if (dist_mask & TIPC_DIST_TO_ZONE) {
 		named_zone_distribute(publ, msg_type, dist_mask);
@@ -551,6 +550,7 @@ void tipc_named_distribute(struct publication *publ, int msg_type,
 	if (dist_mask & TIPC_DIST_TO_NETWORK) {
 		named_network_distribute(publ, msg_type, dist_mask);
 	}
+	return res;
 }
 
 /**

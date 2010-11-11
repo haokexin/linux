@@ -2,7 +2,7 @@
  * net/tipc/tipc_name_table.c: TIPC name table code
  *
  * Copyright (c) 2000-2006, Ericsson AB
- * Copyright (c) 2004-2008, Wind River Systems
+ * Copyright (c) 2004-2008, 2010 Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -50,6 +50,8 @@
  */
 
 static int tipc_nametbl_size = 1024;		/* must be a power of 2 */
+
+#define WITH_TIMER_ACTIVE     10	/* withdrawl reattempt period (in ms) */
 
 /**
  * struct sub_seq - container for all published instances of a name sequence
@@ -105,12 +107,31 @@ struct name_seq {
  * @types: pointer to fixed-sized array of name sequence lists,
  *         accessed via hashing on 'type'; name sequence lists are *not* sorted
  * @local_publ_count: number of publications issued by this node
+ * @publishing_port_ref: port that is currently publishing a name (0 if none)
  */
 
 struct name_table {
 	struct hlist_head *types;
 	u32 local_publ_count;
+	u32 publishing_port_ref;
 };
+
+/**
+ *  struct withdraw_table - table of withdrawn port name publications
+ *  @publ_list: list of withdrawn publications yet to be publicized
+ *  @port_list: list of ports waiting for publication list to become empty
+ *  @timer: timer used to retrydistribution of withdrawn publications
+ *  @lock: spinlock controlling access to withdraw table fields
+ */
+
+struct withdraw_table {
+	struct list_head publ_list;
+	struct list_head port_list;
+	struct timer_list timer;
+	spinlock_t lock;
+};
+
+static struct withdraw_table with_table;
 
 static struct name_table table = { NULL } ;
 static atomic_t rsv_publ_ok = ATOMIC_INIT(0);
@@ -788,6 +809,15 @@ exit:
 }
 
 /**
+ * tipc_nametbl_publ_port - get port that is currently publishing (0 if none)
+ */
+
+u32 tipc_nametbl_publ_port(void)
+{
+	return table.publishing_port_ref;
+}
+
+/**
  * tipc_publish_rsv - publish port name using a reserved name type
  */
 
@@ -808,15 +838,17 @@ int tipc_publish_rsv(u32 ref, unsigned int scope,
  *                        but first check permissions
  */
 
-struct publication *tipc_nametbl_publish(u32 type, u32 lower, u32 upper, 
-					 u32 scope, u32 port_ref, u32 key)
+int tipc_nametbl_publish(u32 type, u32 lower, u32 upper, u32 scope,
+			 u32 port_ref, u32 key, struct publication **publ)
 {
 	if ((type < TIPC_RESERVED_TYPES) && !atomic_read(&rsv_publ_ok)) {
 		warn("Failed to publish reserved name <%u,%u,%u>\n",
 		     type, lower, upper);
-		return NULL;
+		return -EINVAL;
 	}
-	return tipc_nametbl_publish_rsv(type, lower, upper, scope, port_ref, key);
+
+	return tipc_nametbl_publish_rsv(type, lower, upper, scope, port_ref,
+					key, publ);
 }
 
 /**
@@ -824,31 +856,72 @@ struct publication *tipc_nametbl_publish(u32 type, u32 lower, u32 upper,
  *                            without checking for permissions
  */
 
-struct publication *tipc_nametbl_publish_rsv(u32 type, u32 lower, u32 upper, 
-					     u32 scope, u32 port_ref, u32 key)
+int tipc_nametbl_publish_rsv(u32 type, u32 lower, u32 upper,
+			     u32 scope, u32 port_ref, u32 key,
+			     struct publication **publ)
 {
-	struct publication *publ;
+	struct port *p_ptr;
+	int res = -EINVAL;
 
 	if (table.local_publ_count >= tipc_max_publications) {
 		warn("Publication failed, local publication limit reached (%u)\n", 
 		     tipc_max_publications);
-		return NULL;
+		return res;
 	}
+
+	/*
+	 * schedule port to re-attempt name publication later
+	 * if a backlog of undistributed name publications exists
+	 */
+
+	spin_lock_bh(&with_table.lock);
+	if (!list_empty(&with_table.publ_list)) {
+		spin_lock_bh(&tipc_port_list_lock);
+		p_ptr = tipc_port_lock(port_ref);
+		if (p_ptr->wakeup && list_empty(&p_ptr->wait_list)) {
+			p_ptr->publ.congested = 1;
+			list_add_tail(&p_ptr->wait_list, &with_table.port_list);
+		}
+		tipc_port_unlock(p_ptr);
+		spin_unlock_bh(&tipc_port_list_lock);
+		spin_unlock_bh(&with_table.lock);
+		return -ELINKCONG;
+	}
+	spin_unlock_bh(&with_table.lock);
+
+	/* add publication to name table */
 
 	write_lock_bh(&tipc_nametbl_lock);
-	publ = tipc_nametbl_insert_publ(type, lower, upper, scope,
-					tipc_own_addr, port_ref, key);
-	if (likely(publ)) {
-		table.local_publ_count++;
-		tipc_named_insert_publ(publ);
+	*publ = tipc_nametbl_insert_publ(type, lower, upper, scope,
+					 tipc_own_addr, port_ref, key);
+	if (!*publ) {
+		write_unlock_bh(&tipc_nametbl_lock);
+		return res;
 	}
-	write_unlock_bh(&tipc_nametbl_lock);
+	table.local_publ_count++;
+	tipc_named_insert_publ(*publ);
 
-	if (likely(publ)) {
-		tipc_named_distribute(publ, DIST_PUBLISH,
-				      dist_mask_for_scope[publ->scope]);
+	/*
+	 * try to distribute publication;
+	 * if not OK delete the publication from the name table
+	 *
+	 * note: the publishing port is scheduled to re-attempt name
+	 * publication later if the failure is caused by link congestion
+	 */
+
+	table.publishing_port_ref = port_ref;
+	res = tipc_named_distribute(*publ, DIST_PUBLISH,
+				    dist_mask_for_scope[(*publ)->scope]);
+	if (res < 0) {
+		*publ = tipc_nametbl_remove_publ(type, lower, tipc_own_addr,
+						 port_ref, key);
+		table.local_publ_count--;
+		tipc_named_remove_publ(*publ);
+		kfree(*publ);
 	}
-	return publ;
+	table.publishing_port_ref = 0;
+	write_unlock_bh(&tipc_nametbl_lock);
+	return res;
 }
 
 /**
@@ -859,24 +932,36 @@ void tipc_nametbl_withdraw(u32 type, u32 lower, u32 ref, u32 key)
 {
 	struct publication *publ;
 
+	/* remove publication from name table */
+
 	write_lock_bh(&tipc_nametbl_lock);
 	publ = tipc_nametbl_remove_publ(type, lower, tipc_own_addr, ref, key);
-	if (likely(publ)) {
-		table.local_publ_count--;
-		tipc_named_remove_publ(publ);
-	}
-	write_unlock_bh(&tipc_nametbl_lock);
-
-	if (likely(publ)) {
-		list_del_init(&publ->pport_list);
-		tipc_named_distribute(publ, DIST_WITHDRAW,
-				      dist_mask_for_scope[publ->scope]);
-		kfree(publ);
-	} else {
+	if (!publ) {
 		err("Unable to remove local publication\n"
 		    "(type=%u, lower=%u, ref=%u, key=%u)\n",
 		    type, lower, ref, key);
+		write_unlock_bh(&tipc_nametbl_lock);
+		return;
 	}
+	table.local_publ_count--;
+	tipc_named_remove_publ(publ);
+	write_unlock_bh(&tipc_nametbl_lock);
+
+	/*
+	 * try to distribute withdrawl of published name;
+	 * if not OK add publication to withdraw table's list of withdrawn names
+	 */
+
+	spin_lock_bh(&with_table.lock);
+	if (!list_empty(&with_table.publ_list))
+		list_add_tail(&publ->distr_list, &with_table.publ_list);
+	else if (tipc_named_distribute(publ, DIST_WITHDRAW,
+				       dist_mask_for_scope[publ->scope]) < 0) {
+		list_add_tail(&publ->distr_list, &with_table.publ_list);
+		k_start_timer(&with_table.timer, WITH_TIMER_ACTIVE);
+	} else
+		kfree(publ);
+	spin_unlock_bh(&with_table.lock);
 }
 
 /**
@@ -1122,6 +1207,69 @@ void tipc_nametbl_dump(void)
 
 #endif
 
+/**
+ * wakeup_waiting_ports - wake up ports waiting to publish a new name
+ */
+
+static void wakeup_waiting_ports(void)
+{
+	struct port *p_ptr;
+	struct port *temp_p_ptr;
+
+	spin_lock_bh(&tipc_port_list_lock);
+	list_for_each_entry_safe(p_ptr, temp_p_ptr, &with_table.port_list,
+				 wait_list) {
+		spin_lock_bh(p_ptr->publ.lock);
+		list_del_init(&p_ptr->wait_list);
+		p_ptr->publ.congested = 0;
+		p_ptr->wakeup(&p_ptr->publ);
+		spin_unlock_bh(p_ptr->publ.lock);
+	}
+	spin_unlock_bh(&tipc_port_list_lock);
+}
+
+/**
+ * deferred_withdrawl_check - re-attempt withdrawn name publication
+ */
+
+static void deferred_withdrawl_check(unsigned long dummy)
+{
+	struct publication *publ;
+	int res;
+
+	spin_lock_bh(&with_table.lock);
+
+	/* try to distribute first publication in the list */
+
+	publ = list_entry((&with_table.publ_list)->next, struct publication,
+			  distr_list);
+	res = tipc_named_distribute(publ, DIST_WITHDRAW,
+				    dist_mask_for_scope[publ->scope]);
+
+	/* try again later if still blocked by link congestion */
+
+	if (unlikely(res < 0)) {
+		k_start_timer(&with_table.timer, WITH_TIMER_ACTIVE);
+		spin_unlock_bh(&with_table.lock);
+		return;
+	}
+
+	/* delete publication, and keep going if there are more to do */
+
+	list_del_init(&publ->distr_list);
+	kfree(publ);
+	if (!list_empty(&with_table.publ_list)) {
+		tipc_k_signal(deferred_withdrawl_check, 0UL);
+		spin_unlock_bh(&with_table.lock);
+		return;
+	}
+
+	/* no publications left, so wake up ports waiting to publish names */
+
+	wakeup_waiting_ports();
+	spin_unlock_bh(&with_table.lock);
+}
+
 int tipc_nametbl_init(void)
 {
 	table.types = kcalloc(tipc_nametbl_size, sizeof(struct hlist_head),
@@ -1130,11 +1278,19 @@ int tipc_nametbl_init(void)
 		return -ENOMEM;
 
 	table.local_publ_count = 0;
+
+	INIT_LIST_HEAD(&with_table.publ_list);
+	INIT_LIST_HEAD(&with_table.port_list);
+	k_init_timer(&with_table.timer, deferred_withdrawl_check, 0UL);
+	spin_lock_init(&with_table.lock);
+
 	return 0;
 }
 
 void tipc_nametbl_stop(void)
 {
+	struct publication *publ;
+	struct publication *publ_temp;
 	u32 i;
 
 	if (!table.types)
@@ -1150,8 +1306,20 @@ void tipc_nametbl_stop(void)
 	kfree(table.types);
 	table.types = NULL;
 	write_unlock_bh(&tipc_nametbl_lock);
-}
 
+	/* Clean up withdrawn publication table */
+
+	k_cancel_timer(&with_table.timer);
+	k_term_timer(&with_table.timer);
+	spin_lock_bh(&with_table.lock);
+	list_for_each_entry_safe(publ, publ_temp,
+				 &with_table.publ_list, distr_list) {
+		list_del_init(&publ->distr_list);
+		kfree(publ);
+	}
+	wakeup_waiting_ports();
+	spin_unlock_bh(&with_table.lock);
+}
 
 /*
  * ROUTING TABLE CODE

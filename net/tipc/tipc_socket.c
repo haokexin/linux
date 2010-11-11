@@ -381,7 +381,10 @@ static int release(struct socket *sock)
 static int bind(struct socket *sock, struct sockaddr *uaddr, int uaddr_len)
 {
 	struct sockaddr_tipc *addr = (struct sockaddr_tipc *)uaddr;
-	u32 portref = tipc_sk_port(sock->sk)->ref;
+	struct sock *sk = sock->sk;
+	struct tipc_port *tport = tipc_sk_port(sk);
+	u32 portref = tport->ref;
+	int res;
 
 	if (unlikely(!uaddr_len))
 		return tipc_withdraw(portref, 0, NULL);
@@ -396,9 +399,22 @@ static int bind(struct socket *sock, struct sockaddr *uaddr, int uaddr_len)
 	else if (addr->addrtype != TIPC_ADDR_NAMESEQ)
 		return -EAFNOSUPPORT;
 
-	return (addr->scope > 0) ?
-		tipc_publish(portref, addr->scope, &addr->addr.nameseq) :
-		tipc_withdraw(portref, -addr->scope, &addr->addr.nameseq);
+	if (addr->scope < 0)
+		return tipc_withdraw(portref, -addr->scope,
+				     &addr->addr.nameseq);
+
+	do {
+		res = tipc_publish(portref, addr->scope, &addr->addr.nameseq);
+		if (likely(res != -ELINKCONG))
+			break;
+
+		res = wait_event_interruptible(*sk->sk_sleep,
+					       !tport->congested);
+		if (res)
+			break;
+	} while (1);
+
+	return res;
 }
 
 /**

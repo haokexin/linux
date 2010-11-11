@@ -1129,30 +1129,36 @@ int tipc_publish(u32 ref, unsigned int scope, struct tipc_name_seq const *seq)
 	struct port *p_ptr;
 	struct publication *publ;
 	u32 key;
-	int res = -EINVAL;
+	int res;
+
+	if (seq->lower > seq->upper)
+		return -EINVAL;
+	if ((scope < TIPC_ZONE_SCOPE) || (scope > TIPC_NODE_SCOPE))
+		return -EINVAL;
 
 	p_ptr = tipc_port_lock(ref);
 	if (!p_ptr)
 		return -EINVAL;
-	if (p_ptr->publ.connected)
+	if (p_ptr->publ.connected) {
+		res = -EINVAL;
 		goto exit;
-	if (seq->lower > seq->upper)
-		goto exit;
-	if ((scope < TIPC_ZONE_SCOPE) || (scope > TIPC_NODE_SCOPE))
-		goto exit;
+	}
 	key = ref + p_ptr->pub_count + 1;
 	if (key == ref) {
 		res = -EADDRINUSE;
 		goto exit;
 	}
-	publ = tipc_nametbl_publish(seq->type, seq->lower, seq->upper,
-				    scope, p_ptr->publ.ref, key);
-	if (publ) {
-		list_add(&publ->pport_list, &p_ptr->publications);
-		p_ptr->pub_count++;
-		p_ptr->publ.published = 1;
-		res = 0;
-	}
+	tipc_port_unlock(p_ptr);
+
+	res = tipc_nametbl_publish(seq->type, seq->lower, seq->upper,
+				   scope, p_ptr->publ.ref, key, &publ);
+	if (res)
+		return res;
+
+	spin_lock_bh(p_ptr->publ.lock);
+	list_add(&publ->pport_list, &p_ptr->publications);
+	p_ptr->pub_count++;
+	p_ptr->publ.published = 1;
 exit:
 	tipc_port_unlock(p_ptr);
 	return res;
@@ -1163,21 +1169,16 @@ int tipc_withdraw(u32 ref, unsigned int scope, struct tipc_name_seq const *seq)
 	struct port *p_ptr;
 	struct publication *publ;
 	struct publication *tpubl;
-	int res = -EINVAL;
+	int res;
 
 	p_ptr = tipc_port_lock(ref);
 	if (!p_ptr)
 		return -EINVAL;
-	if (!seq) {
-		list_for_each_entry_safe(publ, tpubl,
-					 &p_ptr->publications, pport_list) {
-			tipc_nametbl_withdraw(publ->type, publ->lower,
-					      publ->ref, publ->key);
-		}
-		res = 0;
-	} else {
-		list_for_each_entry_safe(publ, tpubl,
-					 &p_ptr->publications, pport_list) {
+
+	res = seq ? -EINVAL : 0;
+	list_for_each_entry_safe(publ, tpubl, &p_ptr->publications,
+				 pport_list) {
+		if (seq) {
 			if (publ->scope != scope)
 				continue;
 			if (publ->type != seq->type)
@@ -1186,12 +1187,17 @@ int tipc_withdraw(u32 ref, unsigned int scope, struct tipc_name_seq const *seq)
 				continue;
 			if (publ->upper != seq->upper)
 				break;
-			tipc_nametbl_withdraw(publ->type, publ->lower,
-					      publ->ref, publ->key);
-			res = 0;
-			break;
 		}
+		list_del_init(&publ->pport_list);
+		tipc_port_unlock(p_ptr);
+		tipc_nametbl_withdraw(publ->type, publ->lower,
+				      publ->ref, publ->key);
+		res = 0;
+		spin_lock_bh(p_ptr->publ.lock);
+		if (seq)
+			break;
 	}
+
 	if (list_empty(&p_ptr->publications))
 		p_ptr->publ.published = 0;
 	tipc_port_unlock(p_ptr);
