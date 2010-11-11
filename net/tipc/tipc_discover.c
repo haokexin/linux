@@ -404,24 +404,21 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 		}
 	}
 
-	/* Accept node info in discovery message */
+	/* Accept discovery message & send response, if necessary */
 
 	n_ptr->flags = node_flags;
         link_fully_up = link_working_working(link);
-        tipc_node_unlock(n_ptr);
 
-	/* Send response to discovery message, if necessary */
-
-        if ((type == DSC_RESP_MSG) || link_fully_up)
-                return;
-        if (b_ptr->publ.blocked)
-		return;
-        rbuf = disc_init_msg(DSC_RESP_MSG, orig, b_ptr);
-        if (rbuf != NULL) {
-                msg_dbg(buf_msg(rbuf), "SEND:");
-                tipc_bearer_send(b_ptr, rbuf, &media_addr);
-		buf_discard(rbuf);
+	if ((type == DSC_REQ_MSG) && !link_fully_up && !b_ptr->publ.blocked) {
+		rbuf = disc_init_msg(DSC_RESP_MSG, orig, b_ptr);
+		if (rbuf != NULL) {
+			msg_dbg(buf_msg(rbuf), "SEND:");
+			tipc_bearer_send(b_ptr, rbuf, &media_addr);
+			buf_discard(rbuf);
+		}
 	}
+
+	tipc_node_unlock(n_ptr);
 }
 
 /**
