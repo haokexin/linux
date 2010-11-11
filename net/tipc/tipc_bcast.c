@@ -371,6 +371,32 @@ exit:
 }
 
 /**
+ * bclink_accept_pkt - accept an incoming, in-sequence broadcast packet
+ *
+ * Called with both sending node's lock and bc_lock taken.
+ */
+
+static void bclink_accept_pkt(struct tipc_node *node, u32 seqno)
+{
+	bclink_update_last_sent(node, seqno);
+	node->bclink.last_in = seqno;
+	node->bclink.oos_state = 0;
+	bcl->stats.recv_info++;
+
+	/*
+	 * Unicast an ACK periodically, ensuring that
+	 * all nodes in the cluster don't ACK at the same time
+	 */
+
+	if (((seqno - tipc_own_addr) % TIPC_MIN_LINK_WIN) == 0) {
+	        tipc_link_send_proto_msg(
+	                node->active_links[node->elm.addr & 1],
+	                STATE_MSG, 0, 0, 0, 0, 0, 0);
+	        bcl->stats.sent_acks++;
+	}
+}
+
+/**
  * tipc_bclink_recv_pkt - receive a broadcast packet, and deliver upwards
  *
  * tipc_net_lock is read_locked, no other locks set
@@ -383,6 +409,7 @@ void tipc_bclink_recv_pkt(struct sk_buff *buf)
 	u32 seqno;
 	u32 next_in;
 	int deferred;
+	int ret;
 
 #if (TIPC_BCAST_LOSS_RATE)
 	static int rx_count = 0;
@@ -434,42 +461,32 @@ void tipc_bclink_recv_pkt(struct sk_buff *buf)
 	next_in = mod(node->bclink.last_in + 1);
 
 	if (seqno == next_in) {
-		bclink_update_last_sent(node, seqno);
 receive:
-		node->bclink.last_in = seqno;
-		node->bclink.oos_state = 0;
-
-		spin_lock_bh(&bc_lock);
-		bcl->stats.recv_info++;
-
-		/*
-		 * Unicast an ACK periodically, ensuring that
-		 * all nodes in the cluster don't ACK at the same time
-		 */
-
-		if (((seqno - tipc_own_addr) % TIPC_MIN_LINK_WIN) == 0) {
-			tipc_link_send_proto_msg(
-				node->active_links[node->elm.addr & 1],
-				STATE_MSG, 0, 0, 0, 0, 0, 0);
-			bcl->stats.sent_acks++;
-		}
-
 		/* Deliver message to destination */
 
 		if (likely(msg_isdata(msg))) {
+			spin_lock_bh(&bc_lock);
+			bclink_accept_pkt(node, seqno);
 			spin_unlock_bh(&bc_lock);
 			tipc_node_unlock(node);
 			tipc_port_recv_mcast(buf, NULL);
 		} else if (msg_user(msg) == MSG_BUNDLER) {
+			spin_lock_bh(&bc_lock);
+			bclink_accept_pkt(node, seqno);
 			bcl->stats.recv_bundles++;
 			bcl->stats.recv_bundled += msg_msgcnt(msg);
 			spin_unlock_bh(&bc_lock);
 			tipc_node_unlock(node);
 			tipc_link_recv_bundle(buf);
 		} else if (msg_user(msg) == MSG_FRAGMENTER) {
+			ret = tipc_link_recv_fragment(&node->bclink.defragm,
+						      &buf, &msg);
+			if (ret < 0)
+				goto unlock;
+			spin_lock_bh(&bc_lock);
+			bclink_accept_pkt(node, seqno);
 			bcl->stats.recv_fragments++;
-			if (tipc_link_recv_fragment(&node->bclink.defragm,
-						    &buf, &msg)) {
+			if (ret > 0) {
 				bcl->stats.recv_fragmented++;
 				msg_set_destnode_cache(msg, tipc_own_addr);
 			}
@@ -477,14 +494,20 @@ receive:
 			tipc_node_unlock(node);
 			tipc_net_route_msg(buf);
 		} else if (msg_user(msg) == NAME_DISTRIBUTOR) {
+			spin_lock_bh(&bc_lock);
+			bclink_accept_pkt(node, seqno);
 			spin_unlock_bh(&bc_lock);
 			tipc_node_unlock(node);
 			tipc_named_recv(buf);
 		} else if (msg_user(msg) == ROUTE_DISTRIBUTOR) {
+			spin_lock_bh(&bc_lock);
+			bclink_accept_pkt(node, seqno);
 			spin_unlock_bh(&bc_lock);
 			tipc_node_unlock(node);
 			tipc_route_recv(buf);
 		} else {
+			spin_lock_bh(&bc_lock);
+			bclink_accept_pkt(node, seqno);
 			spin_unlock_bh(&bc_lock);
 			tipc_node_unlock(node);
 			tipc_net_route_msg(buf);
