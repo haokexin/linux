@@ -2265,13 +2265,12 @@ static void link_recv_proto_msg(struct link *l_ptr, struct sk_buff *buf)
 				break; /* duplicate or old reset: ignore */
 			}
 		}
+		link_state_event(l_ptr, RESET_MSG);
                 if (msg_stop(msg)) {
-                        tipc_link_reset(l_ptr);
                         l_ptr->blocked = 1;
                         tipc_k_signal((Handler)link_remote_delete,(unsigned long)l_ptr);
                         break;
                 }
-
 		/* fall thru' */
 	case ACTIVATE_MSG:
 		/* Update link settings according other endpoint's values */
@@ -2305,10 +2304,11 @@ static void link_recv_proto_msg(struct link *l_ptr, struct sk_buff *buf)
 			l_ptr->owner->bclink.oos_state = 0;
 		}
 
-		link_state_event(l_ptr, msg_type(msg));
-
 		l_ptr->peer_session = msg_session(msg);
 		l_ptr->peer_bearer_id = msg_bearer_id(msg);
+
+		if (msg_type(msg) == ACTIVATE_MSG)
+			link_state_event(l_ptr, ACTIVATE_MSG);
 		break;
 	case STATE_MSG:
 
