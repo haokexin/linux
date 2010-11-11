@@ -2295,19 +2295,19 @@ static void link_recv_proto_msg(struct link *l_ptr, struct sk_buff *buf)
 			in_own_cluster(l_ptr->owner->elm.addr) &&
 			(max_pkt_info != 0);
 
-		link_state_event(l_ptr, msg_type(msg));
+		/* Synchronize broadcast link info, if not done previously */
 
-		l_ptr->peer_session = msg_session(msg);
-		l_ptr->peer_bearer_id = msg_bearer_id(msg);
-
-		/* Synchronize broadcast link information */
-
-		if (!tipc_node_has_redundant_links(l_ptr->owner)) {
+		if (!tipc_node_is_up(l_ptr->owner)) {
 			l_ptr->owner->bclink.last_sent =
 				l_ptr->owner->bclink.last_in =
 				msg_last_bcast(msg);
 			l_ptr->owner->bclink.oos_state = 0;
 		}
+
+		link_state_event(l_ptr, msg_type(msg));
+
+		l_ptr->peer_session = msg_session(msg);
+		l_ptr->peer_bearer_id = msg_bearer_id(msg);
 		break;
 	case STATE_MSG:
 
