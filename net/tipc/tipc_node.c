@@ -358,8 +358,8 @@ static void node_lost_contact(struct tipc_node *n_ptr)
 			n_ptr->bclink.defragm = NULL;
 		}
 
-		tipc_bclink_acknowledge(n_ptr, mod(n_ptr->bclink.acked + 10000));
 		tipc_bclink_remove_node(n_ptr->elm.addr);
+		tipc_bclink_acknowledge(n_ptr, mod(n_ptr->bclink.acked + 10000));
 
 		n_ptr->bclink.supported = 0;
 	}
