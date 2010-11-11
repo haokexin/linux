@@ -247,6 +247,7 @@ struct tipc_port *tipc_createport_raw(void *usr_handle,
 	p_ptr->user_port = NULL;
 	k_init_timer(&p_ptr->timer, (Handler)port_timeout, ref);
 	INIT_LIST_HEAD(&p_ptr->publications);
+	INIT_LIST_HEAD(&p_ptr->port_list);
 
 	/*
 	 * Must hold port list lock while initializing message header template
