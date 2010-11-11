@@ -50,7 +50,7 @@ static void node_established_contact(struct tipc_node *n_ptr);
 
 static LIST_HEAD(nodes_list);	/* sorted list of neighboring nodes */
 static int node_count = 0;     	/* number of neighboring nodes that exist */
-static int link_count = 0;     	/* number of unicast links node currently has */
+static atomic_t link_count = ATOMIC_INIT(0);  /* # unicast links to neighbors */
 
 static DEFINE_SPINLOCK(node_create_lock);
 
@@ -251,7 +251,7 @@ struct tipc_node *tipc_node_attach_link(struct link *l_ptr)
 		if (!n_ptr->links[bearer_id]) {
 			n_ptr->links[bearer_id] = l_ptr;
 			n_ptr->link_cnt++;
-			link_count++;
+			atomic_inc(&link_count);
 			return n_ptr;
 		}
 		tipc_addr_string_fill(addr_string, l_ptr->addr);
@@ -265,7 +265,7 @@ void tipc_node_detach_link(struct tipc_node *n_ptr, struct link *l_ptr)
 {
 	n_ptr->links[l_ptr->b_ptr->identity] = NULL;
 	n_ptr->link_cnt--;
-	link_count--;
+	atomic_dec(&link_count);
 }
 
 static void node_established_contact(struct tipc_node *n_ptr)
@@ -515,7 +515,8 @@ struct sk_buff *tipc_node_get_links(const void *req_tlv_area, int req_tlv_space)
 
 	/* Get space for all unicast links + broadcast link */
 
-	payload_size = TLV_SPACE(sizeof(link_info)) * (link_count + 1);
+	payload_size = TLV_SPACE(sizeof(link_info)) *
+		(atomic_read(&link_count) + 1);
 	if (payload_size > 32768u) {
 		read_unlock_bh(&tipc_net_lock);
 		return tipc_cfg_reply_error_string(TIPC_CFG_NOT_SUPPORTED
