@@ -292,12 +292,11 @@ void tipc_bclink_update_link_state(struct tipc_node *n_ptr, u32 last_sent)
 				 ? buf_seqno(n_ptr->bclink.deferred_head) - 1
 				 : n_ptr->bclink.last_sent);
 
-		tipc_bearer_send(&bcbearer->bearer, buf, NULL);
-		buf_discard(buf);
-
 		spin_lock_bh(&bc_lock);
+		tipc_bearer_send(&bcbearer->bearer, buf, NULL);
 		bcl->stats.sent_nacks++;
 		spin_unlock_bh(&bc_lock);
+		buf_discard(buf);
 
 		n_ptr->bclink.oos_state++;
 	}
