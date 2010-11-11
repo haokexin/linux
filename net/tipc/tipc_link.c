@@ -527,7 +527,7 @@ void tipc_link_start(struct link *l_ptr)
  * has abated.
  */
 
-static int link_schedule_port(struct link *l_ptr, u32 origport, u32 sz)
+static void link_schedule_port(struct link *l_ptr, u32 origport, u32 sz)
 {
 	struct port *p_ptr;
 
@@ -546,7 +546,6 @@ exit:
 		tipc_port_unlock(p_ptr);
 	}
 	spin_unlock_bh(&tipc_port_list_lock);
-	return -ELINKCONG;
 }
 
 void tipc_link_wakeup_ports(struct link *l_ptr, int all)
@@ -1013,10 +1012,18 @@ int tipc_link_send_buf(struct link *l_ptr, struct sk_buff *buf)
 			buf_discard(buf);
 			return -ELINKCONG;
 		}
+
+		if (imp == NAME_DISTRIBUTOR) {
+			link_schedule_port(l_ptr, tipc_nametbl_publ_port(),
+					   size);
+			buf_discard(buf);
+			return -ELINKCONG;
+		}
+
 		msg_dbg(msg, "TIPC: Congestion, throwing away\n");
 		buf_discard(buf);
 		if (imp > CONN_MANAGER) {
-			warn("Resetting link <%s>, send queue full", l_ptr->name);
+			warn("Resetting link <%s>, send queue full!\n", l_ptr->name);
 			tipc_link_reset(l_ptr);
 		}
 		return dsz;
@@ -1246,8 +1253,9 @@ exit:
 
 			if (link_congested(l_ptr) || 
 			    !list_empty(&l_ptr->b_ptr->cong_links)) {
-				res = link_schedule_port(l_ptr,
-							 sender->publ.ref, res);
+				link_schedule_port(l_ptr, sender->publ.ref,
+						   res);
+				res = -ELINKCONG;
 				goto exit;
 			}
 

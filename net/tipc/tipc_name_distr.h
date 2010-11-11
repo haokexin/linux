@@ -47,7 +47,7 @@
 
 void tipc_named_insert_publ(struct publication *publ);
 void tipc_named_remove_publ(struct publication *publ);
-void tipc_named_distribute(struct publication *publ, int msg_type,
+int tipc_named_distribute(struct publication *publ, int msg_type,
 			   int dist_mask);
 void tipc_named_node_up(unsigned long node);
 void tipc_named_node_up_uni(unsigned long node);
