@@ -38,6 +38,7 @@
 #include <net/tipc/tipc_plugin_if.h>
 #include <net/tipc/tipc_plugin_msg.h>
 #include <linux/netdevice.h>
+#include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
