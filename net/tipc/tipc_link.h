@@ -245,7 +245,7 @@ int  tipc_link_recv_fragment(struct sk_buff **pending,
 			     struct sk_buff **fb,
 			     struct tipc_msg **msg);
 void tipc_link_send_proto_msg(struct link *l_ptr, u32 msg_typ, int prob, u32 gap,
-			      u32 tolerance, u32 priority, u32 acked_mtu, int stop);
+			      u32 tolerance, u32 priority, u32 acked_mtu);
 void tipc_link_push_queue(struct link *l_ptr);
 u32 tipc_link_defer_pkt(struct sk_buff **head, struct sk_buff **tail,
 			struct sk_buff *buf, u32 buf_seq_no);

@@ -745,12 +745,12 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			if (l_ptr->next_in_no != l_ptr->checkpoint) {
 				l_ptr->checkpoint = l_ptr->next_in_no;
 				if (tipc_bclink_acks_missing(l_ptr->owner)) {
-					tipc_link_send_proto_msg(l_ptr, STATE_MSG,
-							    0, 0, 0, 0, 0, 0);
+					tipc_link_send_proto_msg(l_ptr,
+						STATE_MSG, 0, 0, 0, 0, 0);
 					l_ptr->fsm_msg_cnt++;
 				} else if (l_ptr->max_pkt < l_ptr->max_pkt_target) {
-					tipc_link_send_proto_msg(l_ptr, STATE_MSG,
-							    1, 0, 0, 0, 0, 0);
+					tipc_link_send_proto_msg(l_ptr,
+						STATE_MSG, 1, 0, 0, 0, 0);
 					l_ptr->fsm_msg_cnt++;
 				}
 				link_set_timer(l_ptr, cont_intv);
@@ -759,7 +759,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			dbg_link(" -> WU\n");
 			l_ptr->state = WORKING_UNKNOWN;
 			l_ptr->fsm_msg_cnt = 0;
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG, 1, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 STATE_MSG, 1, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv / 4);
 			break;
@@ -770,7 +771,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			tipc_link_reset(l_ptr);
 			l_ptr->state = RESET_RESET;
 			l_ptr->fsm_msg_cnt = 0;
-			tipc_link_send_proto_msg(l_ptr, ACTIVATE_MSG, 0, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 ACTIVATE_MSG, 0, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);
 			break;
@@ -796,7 +798,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			tipc_link_reset(l_ptr);
 			l_ptr->state = RESET_RESET;
 			l_ptr->fsm_msg_cnt = 0;
-			tipc_link_send_proto_msg(l_ptr, ACTIVATE_MSG, 0, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 ACTIVATE_MSG, 0, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);
 			break;
@@ -808,8 +811,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 				l_ptr->fsm_msg_cnt = 0;
 				l_ptr->checkpoint = l_ptr->next_in_no;
 				if (tipc_bclink_acks_missing(l_ptr->owner)) {
-					tipc_link_send_proto_msg(l_ptr, STATE_MSG,
-							    0, 0, 0, 0, 0, 0);
+					tipc_link_send_proto_msg(l_ptr,
+						STATE_MSG, 0, 0, 0, 0, 0);
 					l_ptr->fsm_msg_cnt++;
 				}
 				link_set_timer(l_ptr, cont_intv);
@@ -817,8 +820,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 				dbg_link("Probing %u/%u,timer = %u ms)\n",
 					 l_ptr->fsm_msg_cnt, l_ptr->abort_limit,
 					 cont_intv / 4);
-				tipc_link_send_proto_msg(l_ptr, STATE_MSG, 
-						    1, 0, 0, 0, 0, 0);
+				tipc_link_send_proto_msg(l_ptr,
+					STATE_MSG, 1, 0, 0, 0, 0);
 				l_ptr->fsm_msg_cnt++;
 				link_set_timer(l_ptr, cont_intv / 4);
 			} else {	/* Link has failed */
@@ -829,8 +832,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 				tipc_link_reset(l_ptr);
 				l_ptr->state = RESET_UNKNOWN;
 				l_ptr->fsm_msg_cnt = 0;
-				tipc_link_send_proto_msg(l_ptr, RESET_MSG,
-						    0, 0, 0, 0, 0, 0);
+				tipc_link_send_proto_msg(l_ptr,
+					RESET_MSG, 0, 0, 0, 0, 0);
 				l_ptr->fsm_msg_cnt++;
 				link_set_timer(l_ptr, cont_intv);
 			}
@@ -855,7 +858,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			l_ptr->state = WORKING_WORKING;
 			l_ptr->fsm_msg_cnt = 0;
 			link_activate(l_ptr);
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG, 1, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 STATE_MSG, 1, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);
 			break;
@@ -864,7 +868,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			dbg_link(" -> RR\n");
 			l_ptr->state = RESET_RESET;
 			l_ptr->fsm_msg_cnt = 0;
-			tipc_link_send_proto_msg(l_ptr, ACTIVATE_MSG, 1, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 ACTIVATE_MSG, 1, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);
 			break;
@@ -874,7 +879,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			/* fall through */
 		case TIMEOUT_EVT:
 			dbg_link("TIM \n");
-			tipc_link_send_proto_msg(l_ptr, RESET_MSG, 0, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 RESET_MSG, 0, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);
 			break;
@@ -898,7 +904,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			l_ptr->state = WORKING_WORKING;
 			l_ptr->fsm_msg_cnt = 0;
 			link_activate(l_ptr);
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG, 1, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 STATE_MSG, 1, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);
 			break;
@@ -907,7 +914,8 @@ static void link_state_event(struct link *l_ptr, unsigned event)
 			break;
 		case TIMEOUT_EVT:
 			dbg_link("TIM\n");
-			tipc_link_send_proto_msg(l_ptr, ACTIVATE_MSG, 0, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 ACTIVATE_MSG, 0, 0, 0, 0, 0);
 			l_ptr->fsm_msg_cnt++;
 			link_set_timer(l_ptr, cont_intv);
 			dbg_link("fsm_msg_cnt %u\n", l_ptr->fsm_msg_cnt);
@@ -1909,7 +1917,8 @@ void tipc_recv_msg(struct sk_buff *head, struct tipc_bearer *tb_ptr)
 			tipc_link_wakeup_ports(l_ptr, 0);
 		if (unlikely(++l_ptr->unacked_window >= TIPC_MIN_LINK_WIN)) {
 			l_ptr->stats.sent_acks++;
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG, 0, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 STATE_MSG, 0, 0, 0, 0, 0);
 		}
 
 		/* Now (finally!) process the incoming message */
@@ -2114,7 +2123,8 @@ static void link_handle_out_of_seq_msg(struct link *l_ptr,
 		l_ptr->deferred_inqueue_sz++;
 		l_ptr->stats.deferred_recv++;
 		if ((l_ptr->deferred_inqueue_sz % 16) == 1)
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG, 0, 0, 0, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+						 STATE_MSG, 0, 0, 0, 0, 0);
 	} else
 		l_ptr->stats.duplicates++;
 }
@@ -2123,8 +2133,7 @@ static void link_handle_out_of_seq_msg(struct link *l_ptr,
  * Send protocol message to the other endpoint.
  */
 void tipc_link_send_proto_msg(struct link *l_ptr, u32 msg_typ, int probe_msg,
-                              u32 gap, u32 tolerance, u32 priority, u32 ack_mtu,
-                              int stop)
+			      u32 gap, u32 tolerance, u32 priority, u32 ack_mtu)
 {
 	struct sk_buff *buf = NULL;
 	struct tipc_msg *msg = l_ptr->pmsg;
@@ -2169,7 +2178,6 @@ void tipc_link_send_proto_msg(struct link *l_ptr, u32 msg_typ, int probe_msg,
 		msg_set_linkprio(msg, priority);
 		msg_set_max_pkt(msg, ack_mtu);
 		msg_set_ack(msg, mod(l_ptr->next_in_no - 1));
-		msg_set_stop(msg, 0);
 		msg_set_probe(msg, probe_msg != 0);
 		if (probe_msg) {
 			u32 mtu = l_ptr->max_pkt;
@@ -2193,13 +2201,13 @@ void tipc_link_send_proto_msg(struct link *l_ptr, u32 msg_typ, int probe_msg,
 		msg_set_ack(msg, mod(l_ptr->reset_checkpoint - 1));
 		msg_set_seq_gap(msg, 0);
 		msg_set_next_sent(msg, 1);
-		msg_set_stop(msg, stop);
 		msg_set_probe(msg, 0);
 		msg_set_link_tolerance(msg, l_ptr->tolerance);
 		msg_set_linkprio(msg, l_ptr->priority);
 		msg_set_max_pkt(msg, l_ptr->max_pkt_target);
 	}
 
+	msg_set_stop(msg, 0);
 	msg_set_redundant_link(msg, tipc_node_alt_link_is_up(l_ptr));
 	msg_set_linkprio(msg, l_ptr->priority);
 	msg_set_timestamp(msg, jiffies_to_msecs(jiffies));
@@ -2367,8 +2375,8 @@ static void link_recv_proto_msg(struct link *l_ptr, struct sk_buff *buf)
 						      msg_last_bcast(msg));
 
 		if (rec_gap || (msg_probe(msg))) {
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG,
-					    0, rec_gap, 0, 0, max_pkt_ack, 0);
+			tipc_link_send_proto_msg(l_ptr,
+				STATE_MSG, 0, rec_gap, 0, 0, max_pkt_ack);
 		}
 		if (msg_seq_gap(msg)) {
 			msg_dbg(msg, "With Gap:");
@@ -3069,13 +3077,13 @@ static int cmd_set_link_value(const char *name, u32 new_value, u16 cmd)
 		switch (cmd) {
 		case TIPC_CMD_SET_LINK_TOL:
 			link_set_supervision_props(l_ptr, new_value);
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG,
-				0, 0, new_value, 0, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+				STATE_MSG, 0, 0, new_value, 0, 0);
 			break;
 		case TIPC_CMD_SET_LINK_PRI:
 			l_ptr->priority = new_value;
-			tipc_link_send_proto_msg(l_ptr, STATE_MSG,
-				0, 0, 0, new_value, 0, 0);
+			tipc_link_send_proto_msg(l_ptr,
+				STATE_MSG, 0, 0, 0, new_value, 0);
 			break;
 		case TIPC_CMD_SET_LINK_WINDOW:
 			tipc_link_set_queue_limits(l_ptr, new_value);
