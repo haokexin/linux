@@ -240,6 +240,7 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 	u32 node_flags = msg_node_flags(msg);
 	struct tipc_node *n_ptr;
         struct discoverer *d_ptr;
+	int addr_mismatch;
         int link_fully_up;
 	int found_disc;
 
@@ -310,41 +311,78 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 		return;
 	}
 
+	/* Prepare to validate requesting node's signature and media address */
+
+	link = n_ptr->links[b_ptr->identity];
+	addr_mismatch = (link != NULL) &&
+		memcmp(&link->media_addr, &media_addr, sizeof(media_addr));
+
 	/*
 	 * Ensure discovery message's signature is correct
 	 *
-	 * If signature is incorrect and there is at least one working link
-	 * to the node, reject the request (must be from a duplicate node).
-	 *
 	 * If signature is incorrect and there is no working link to the node,
-	 * accept the new signature but "invalidate" all existing links to the
+	 * accept the new signature but invalidate all existing links to the
 	 * node so they won't re-activate without a new discovery message.
-	 * (Note: It might be better to delete these "stale" link endpoints,
-	 * but this could be tricky [see tipc_link_delete()].)
+	 *
+	 * If signature is incorrect and the requested link to the node is
+	 * working, accept the new signature. (This is an instance of delayed
+	 * rediscovery, where a link endpoint was able to re-establish contact
+	 * with its peer endpoint on a node that rebooted before receiving a
+	 * discovery message from that node.)
+	 *
+	 * If signature is incorrect and there is a working link to the node
+	 * that is not the requested link, reject the request (must be from
+	 * a duplicate node).
 	 */
 
 	if (signature != n_ptr->signature) {
-		if (n_ptr->working_links > 0) {
-			disc_dupl_alert(b_ptr, orig, &media_addr);
-			tipc_node_unlock(n_ptr);                
-			return;
-		} else {
+		if (n_ptr->working_links == 0) {
 			struct link *curr_link;
 			int i;
 
 			for (i = 0; i < TIPC_MAX_BEARERS; i++) {
-				if ((curr_link = n_ptr->links[i]) != NULL) {
+				curr_link = n_ptr->links[i];
+				if (curr_link) {
 					memset(&curr_link->media_addr, 0, 
 					       sizeof(media_addr));
 					tipc_link_reset(curr_link);
 				}
 			}
+			addr_mismatch = (link != NULL);
+		} else if (tipc_link_is_up(link) && !addr_mismatch) {
+			/* delayed rediscovery */
+		} else {
+			disc_dupl_alert(b_ptr, orig, &media_addr);
+			tipc_node_unlock(n_ptr);                
+			return;
+		}
+		n_ptr->signature = signature;
+	}
+
+	/*
+	 * Ensure discovery message's media address is correct
+	 *
+	 * If media address doesn't match and the link is working, reject the
+	 * request (must be from a duplicate node).
+	 *
+	 * If media address doesn't match and the link is not working, accept
+	 * the new media address and reset the link to ensure it starts up
+	 * cleanly.
+	 */
+
+	if (addr_mismatch) {
+		if (tipc_link_is_up(link)) {
+			disc_dupl_alert(b_ptr, orig, &media_addr);
+			tipc_node_unlock(n_ptr);
+			return;
+		} else {
+			memcpy(&link->media_addr, &media_addr,
+			       sizeof(media_addr));
+			tipc_link_reset(link);
 		}
 	}
 
-	/* Create a link endpoint for this bearer if none currently exists */
-
-	link = n_ptr->links[b_ptr->identity];
+	/* Create a link endpoint for this bearer, if necessary */
 
 	if (link == NULL) {
 #ifndef CONFIG_TIPC_MULTIPLE_LINKS
@@ -361,39 +399,13 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 		link = tipc_link_create(b_ptr, orig, &media_addr);
 		if (link == NULL) {
 			warn("Memory squeeze; Failed to create link\n");
-			tipc_node_unlock(n_ptr);                
-			return;
-		}
-		goto link_ok;
-	}
-
-	/*
-	 * Ensure discovery message's media address is correct
-	 *
-	 * If media address doesn't match and the link is working, reject the
-	 * request (must be from a duplicate node).
-	 *
-	 * If media address doesn't match and the link is not working, accept
-	 * the new media address and reset the link to ensure it starts up
-	 * cleanly.
-	 */
-
-	if (memcmp(&link->media_addr, &media_addr, sizeof(media_addr))) {
-		if (tipc_link_is_up(link)) {
-			disc_dupl_alert(b_ptr, orig, &media_addr);
 			tipc_node_unlock(n_ptr);
 			return;
-		} else {
-			memcpy(&link->media_addr, &media_addr,
-			       sizeof(media_addr));
-			tipc_link_reset(link);
 		}
 	}
 
 	/* Accept node info in discovery message */
 
-link_ok:
-	n_ptr->signature = signature;
 	n_ptr->flags = node_flags;
         link_fully_up = link_working_working(link);
         tipc_node_unlock(n_ptr);
