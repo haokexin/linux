@@ -482,14 +482,13 @@ void tipc_netsub_unbind(struct net_subscr *net_sub)
 void tipc_netsub_notify(struct net_element *e_ptr, u32 affected_addr)
 {
 	struct net_subscr *ns;
-	struct net_subscr *tns;
 
-	list_for_each_entry_safe(ns, tns, &e_ptr->nsub, sub_list) {
-		if (tipc_in_scope(affected_addr, ns->addr)) {
-			ns->element = NULL;
-			list_del_init(&ns->sub_list);
+	list_for_each_entry(ns, &e_ptr->nsub, sub_list) {
+		if (ns->handle_element_down &&
+		    tipc_in_scope(affected_addr, ns->addr)) {
 			tipc_k_signal((Handler)ns->handle_element_down,
 				      (unsigned long)ns->usr_handle);
+			ns->handle_element_down = NULL;
 		}
 	}
 }
