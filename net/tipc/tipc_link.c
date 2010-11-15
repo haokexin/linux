@@ -2688,6 +2688,8 @@ void tipc_link_recv_bundle(struct sk_buff *buf)
  */
 int tipc_link_send_long_buf(struct link *l_ptr, struct sk_buff *buf)
 {
+	struct sk_buff *buf_chain = NULL;
+	struct sk_buff *buf_chain_tail = (struct sk_buff *)&buf_chain;
 	struct tipc_msg *inmsg = buf_msg(buf);
 	struct tipc_msg fragm_hdr;
 	u32 insize = msg_size(inmsg);
@@ -2714,8 +2716,6 @@ int tipc_link_send_long_buf(struct link *l_ptr, struct sk_buff *buf)
 	msg_set_link_selector(&fragm_hdr, msg_link_selector(inmsg));
 	msg_set_fragm_msg_no(&fragm_hdr, 
 			     atomic_inc_return(&link_fragm_msg_no) & 0xffff);
-	msg_set_fragm_no(&fragm_hdr, fragm_no);
-	l_ptr->stats.sent_fragmented++;
 
 	/* Chop up message: */
 
@@ -2728,28 +2728,41 @@ int tipc_link_send_long_buf(struct link *l_ptr, struct sk_buff *buf)
 		}
 		fragm = buf_acquire(fragm_sz + INT_H_SIZE);
 		if (fragm == NULL) {
-			warn("Link unable to fragment message\n");
-			dsz = -ENOMEM;
-			goto exit;
+			buf_discard(buf);
+			while (buf_chain) {
+				buf = buf_chain;
+				buf_chain = buf_chain->next;
+				buf_discard(buf);
+			}
+			return -ENOMEM;
 		}
 		msg_set_size(&fragm_hdr, fragm_sz + INT_H_SIZE);
+		msg_set_fragm_no(&fragm_hdr, fragm_no++);
 		skb_copy_to_linear_data(fragm, &fragm_hdr, INT_H_SIZE);
 		skb_copy_to_linear_data_offset(fragm, INT_H_SIZE, crs,
 					       fragm_sz);
+		buf_chain_tail->next = fragm;
+		buf_chain_tail = fragm;
 
-		/*  Send queued messages first, if any: */
-
-		l_ptr->stats.sent_fragments++;
-		tipc_link_send_buf(l_ptr, fragm);
-		if (!tipc_link_is_up(l_ptr))
-			return dsz;
-		msg_set_fragm_no(&fragm_hdr, ++fragm_no);
 		rest -= fragm_sz;
 		crs += fragm_sz;
 		msg_set_type(&fragm_hdr, FRAGMENT);
 	}
-exit:
 	buf_discard(buf);
+
+	/* Append chain of fragments to send queue & send them */
+
+	if (!l_ptr->next_out)
+		l_ptr->next_out = buf_chain;
+	while (buf_chain) {
+		buf = buf_chain;
+		buf_chain = buf_chain->next;
+		link_add_to_outqueue(l_ptr, buf, buf_msg(buf));
+		l_ptr->stats.sent_fragments++;
+	}
+	l_ptr->stats.sent_fragmented++;
+	tipc_link_push_queue(l_ptr);
+
 	return dsz;
 }
 
