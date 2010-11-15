@@ -327,7 +327,7 @@ static struct sk_buff *cfg_set_max_remotes(void)
 	value = ntohl(*(__be32 *)TLV_DATA(req_tlv_area));
 	if (value == tipc_max_remotes)
 		return tipc_cfg_reply_none();
-	if (value != delimit(value, 0, 255))
+	if (value > 255)
 		return tipc_cfg_reply_error_string(TIPC_CFG_INVALID_VALUE
 						   " (max remotes must be 0-255)");
 	if (tipc_mode == TIPC_NET_MODE)
