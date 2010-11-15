@@ -119,8 +119,8 @@ int  tipc_register_media(struct tipc_media *m_ptr)
 	if (!media_name_valid(m_ptr->name)) {
 		goto exit;
 	}
-	if ((m_ptr->priority < TIPC_MIN_LINK_PRI) ||
-	    (m_ptr->priority > TIPC_MAX_LINK_PRI)) {
+	assert(TIPC_MIN_LINK_PRI == 0);
+	if (m_ptr->priority > TIPC_MAX_LINK_PRI) {
 		goto exit;
 	}
 	if ((m_ptr->tolerance < TIPC_MIN_LINK_TOL) || 
@@ -516,8 +516,8 @@ int tipc_enable_bearer(const char *name, u32 disc_domain, u32 priority)
 		warn("Bearer <%s> rejected, illegal discovery domain\n", name);
 		return -EINVAL;
 	}
-	if ((priority < TIPC_MIN_LINK_PRI ||
-	     priority > TIPC_MAX_LINK_PRI) &&
+	assert(TIPC_MIN_LINK_PRI == 0);
+	if ((priority > TIPC_MAX_LINK_PRI) &&
 	    (priority != TIPC_MEDIA_LINK_PRI)) {
 		warn("Bearer <%s> rejected, illegal priority\n", name);
 		return -EINVAL;

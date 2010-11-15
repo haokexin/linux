@@ -3049,8 +3049,8 @@ static int value_is_valid(u16 cmd, u32 new_value)
 		return (new_value >= TIPC_MIN_LINK_TOL) &&
 			(new_value <= TIPC_MAX_LINK_TOL);
 	case TIPC_CMD_SET_LINK_PRI:
-		return (new_value >= TIPC_MIN_LINK_PRI) &&
-			(new_value <= TIPC_MAX_LINK_PRI);
+		assert(TIPC_MIN_LINK_PRI == 0);
+		return (new_value <= TIPC_MAX_LINK_PRI);
 	case TIPC_CMD_SET_LINK_WINDOW:
 		return (new_value >= TIPC_MIN_LINK_WIN) &&
 			(new_value <= TIPC_MAX_LINK_WIN);

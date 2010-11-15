@@ -544,7 +544,7 @@ static inline void msg_set_probe(struct tipc_msg *m, u32 val)
 
 static inline unsigned char msg_net_plane(struct tipc_msg *m)
 {
-	return msg_bits(m, 5, 1, 7) + 'A';
+	return (unsigned char)(msg_bits(m, 5, 1, 7) + 'A');
 }
 
 static inline void msg_set_net_plane(struct tipc_msg *m, unsigned char n)
