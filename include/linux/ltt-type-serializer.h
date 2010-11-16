@@ -172,6 +172,8 @@ struct serialize_l214421224411111 {
 	uint8_t end_field[0];
 } LTT_ALIGN;
 
+#pragma pack(4)
+
 struct serialize_l4412228 {
 	unsigned long f1;
 	uint32_t f2;
@@ -183,4 +185,6 @@ struct serialize_l4412228 {
 	uint64_t f8;
 	unsigned char end_field[0];
 } LTT_ALIGN;
+
+#pragma pack()
 #endif /* _LTT_TYPE_SERIALIZER_H */
