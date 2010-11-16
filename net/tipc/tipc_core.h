@@ -61,7 +61,7 @@
 #include <linux/vmalloc.h>
 
 
-#define TIPC_MOD_VER "1.7.7-rc2"
+#define TIPC_MOD_VER "1.7.7-rc3"
 
 /*
  * Spinlock wrappers (lets TIPC common files run unchanged on other OS's)
