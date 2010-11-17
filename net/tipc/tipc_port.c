@@ -239,7 +239,6 @@ struct tipc_port *tipc_createport_raw(void *usr_handle,
 	p_ptr->publ.usr_handle = usr_handle;
 	p_ptr->publ.max_pkt = MAX_PKT_DEFAULT;
 	p_ptr->publ.ref = ref;
-	p_ptr->sent = 1;
 	INIT_LIST_HEAD(&p_ptr->wait_list);
 	INIT_LIST_HEAD(&p_ptr->subscription.sub_list);
 	p_ptr->dispatcher = dispatcher;
@@ -808,6 +807,7 @@ static void port_dispatcher_sigh(void *dummy)
 				tipc_conn_msg_event cb = up_ptr->conn_msg_cb;
 				u32 peer_port = port_peerport(p_ptr);
 				u32 peer_node = port_peernode(p_ptr);
+				u32 dsz;
 
 				tipc_port_unlock(p_ptr);
 				if (unlikely(!cb))
@@ -820,13 +820,14 @@ static void port_dispatcher_sigh(void *dummy)
 					goto reject;
 				/* TODO: Don't access conn_unacked field
 					 while port is unlocked ... */
-				if (unlikely(++p_ptr->publ.conn_unacked >=
-					     TIPC_FLOW_CONTROL_WIN))
+				dsz = msg_data_sz(msg);
+				if (unlikely(dsz &&
+					     (++p_ptr->publ.conn_unacked >=
+					      TIPC_FLOW_CONTROL_WIN)))
 					tipc_acknowledge(dref,
 							 p_ptr->publ.conn_unacked);
 				skb_pull(buf, msg_hdr_sz(msg));
-				cb(usr_handle, dref, &buf, msg_data(msg),
-				   msg_data_sz(msg));
+				cb(usr_handle, dref, &buf, msg_data(msg), dsz);
 				break;
 			}
 		case TIPC_DIRECT_MSG:{
@@ -1406,16 +1407,15 @@ int tipc_send(u32 ref, unsigned int num_sect, struct iovec const *msg_sect)
 		else
 			res = tipc_port_recv_sections(p_ptr, num_sect,
 						      msg_sect);
-
 		if (likely(res != -ELINKCONG)) {
 			p_ptr->publ.congested = 0;
-			p_ptr->sent++;
+			if (res > 0)
+				p_ptr->sent++;
 			return res;
 		}
 	}
 	if (port_unreliable(p_ptr)) {
 		p_ptr->publ.congested = 0;
-		/* Just calculate msg length and return */
 		return tipc_msg_calc_data_size(msg_sect, num_sect);
 	}
 	return -ELINKCONG;
@@ -1453,14 +1453,12 @@ int tipc_send_buf(u32 ref, struct sk_buff *buf, unsigned int dsz)
 		destnode = port_peernode(p_ptr);
 		if (!addr_in_node(destnode))
 			res = tipc_send_buf_fast(buf, destnode);
-		else {
-			tipc_port_recv_msg(buf);
-			res = sz;
-		}
-
+		else
+			res = tipc_port_recv_msg(buf);
 		if (likely(res != -ELINKCONG)) {
 			p_ptr->publ.congested = 0;
-			p_ptr->sent++;
+			if (res > 0)
+				p_ptr->sent++;
 			return res;
 		}
 	}
@@ -1508,20 +1506,22 @@ int tipc_forward2name(u32 ref,
 	msg_set_destport(msg, destport);
 
 	if (likely(destport || destnode)) {
-		p_ptr->sent++;
 		if (addr_in_node(destnode))
-			return tipc_port_recv_sections(p_ptr, num_sect,
-						       msg_sect);
-		if (!orig->node)
-			msg_set_orignode(msg, tipc_own_addr);
-		res = tipc_link_send_sections_fast(p_ptr, msg_sect, num_sect,
-						   destnode);
-		if (likely(res != -ELINKCONG))
-			return res;
-		if (port_unreliable(p_ptr)) {
-			/* Just calculate msg length and return */
-			return tipc_msg_calc_data_size(msg_sect, num_sect);
+			res = tipc_port_recv_sections(p_ptr, num_sect,
+						      msg_sect);
+		else {
+			if (!orig->node)
+				msg_set_orignode(msg, tipc_own_addr);
+			res = tipc_link_send_sections_fast(p_ptr, msg_sect,
+							   num_sect, destnode);
 		}
+		if (likely(res != -ELINKCONG)) {
+			if (res > 0)
+				p_ptr->sent++;
+			return res;
+		}
+		if (port_unreliable(p_ptr))
+			return tipc_msg_calc_data_size(msg_sect, num_sect);
 		return -ELINKCONG;
 	}
 	return tipc_port_reject_sections(p_ptr, msg, msg_sect, num_sect,
@@ -1590,14 +1590,18 @@ int tipc_forward_buf2name(u32 ref,
 	skb_copy_to_linear_data(buf, msg, LONG_H_SIZE);
 
 	if (likely(destport || destnode)) {
-		p_ptr->sent++;
 		if (addr_in_node(destnode))
-			return tipc_port_recv_msg(buf);
-		if (!orig->node)
-			msg_set_orignode(msg, tipc_own_addr);
-		res = tipc_send_buf_fast(buf, destnode);
-		if (likely(res != -ELINKCONG))
+			res = tipc_port_recv_msg(buf);
+		else {
+			if (!orig->node)
+				msg_set_orignode(msg, tipc_own_addr);
+			res = tipc_send_buf_fast(buf, destnode);
+		}
+		if (likely(res != -ELINKCONG)) {
+			if (res > 0)
+				p_ptr->sent++;
 			return res;
+		}
 		if (port_unreliable(p_ptr))
 			return dsz;
 		return -ELINKCONG;
@@ -1651,17 +1655,20 @@ int tipc_forward2port(u32 ref,
 	msg_set_destnode(msg, dest->node);
 	msg_set_destport(msg, dest->ref);
 
-	p_ptr->sent++;
 	if (addr_in_node(dest->node))
-		return tipc_port_recv_sections(p_ptr, num_sect, msg_sect);
-	if (!orig->node)
-		msg_set_orignode(msg, tipc_own_addr);
-	res = tipc_link_send_sections_fast(p_ptr, msg_sect, num_sect,
-					   dest->node);
-	if (likely(res != -ELINKCONG))
+		res = tipc_port_recv_sections(p_ptr, num_sect, msg_sect);
+	else {
+		if (!orig->node)
+			msg_set_orignode(msg, tipc_own_addr);
+		res = tipc_link_send_sections_fast(p_ptr, msg_sect, num_sect,
+						   dest->node);
+	}
+	if (likely(res != -ELINKCONG)) {
+		if (res > 0)
+			p_ptr->sent++;
 		return res;
+	}
 	if (port_unreliable(p_ptr)) {
-		/* Just calculate msg length and return */
 		return tipc_msg_calc_data_size(msg_sect, num_sect);
 	}
 	return -ELINKCONG;
@@ -1718,14 +1725,18 @@ int tipc_forward_buf2port(u32 ref,
 	skb_push(buf, DIR_MSG_H_SIZE);
 	skb_copy_to_linear_data(buf, msg, DIR_MSG_H_SIZE);
 
-	p_ptr->sent++;
 	if (addr_in_node(dest->node))
-		return tipc_port_recv_msg(buf);
-	if (!orig->node)
-		msg_set_orignode(msg, tipc_own_addr);
-	res = tipc_send_buf_fast(buf, dest->node);
-	if (likely(res != -ELINKCONG))
+		res = tipc_port_recv_msg(buf);
+	else {
+		if (!orig->node)
+			msg_set_orignode(msg, tipc_own_addr);
+		res = tipc_send_buf_fast(buf, dest->node);
+	}
+	if (likely(res != -ELINKCONG)) {
+		if (res > 0)
+			p_ptr->sent++;
 		return res;
+	}
 	if (port_unreliable(p_ptr))
 		return dsz;
 	return -ELINKCONG;
