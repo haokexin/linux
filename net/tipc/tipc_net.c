@@ -171,7 +171,7 @@ static void net_insert_element(struct net_element *e_ptr, net_element_set_t *set
 	for (i = 0; i < set->first_free; i++) {
 		dbg_assert(set->element[i]->addr != e_ptr->addr);
 		if (set->element[i]->addr > e_ptr->addr) {
-			int sz = (set->first_free - i) * sizeof(e_ptr);
+			size_t sz = (set->first_free - i) * sizeof(e_ptr);
 			memmove(&set->element[i+1], &set->element[i], sz);
 			break;
 		}

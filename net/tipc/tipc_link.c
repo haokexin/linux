@@ -2308,7 +2308,7 @@ static void link_recv_proto_msg(struct link *l_ptr, struct sk_buff *buf)
 		} else {
 			l_ptr->max_pkt = l_ptr->max_pkt_target;
 		}
-		l_ptr->owner->bclink.supportable = (max_pkt_info != 0);
+		l_ptr->owner->bclink.supportable = (char)(max_pkt_info != 0);
 
 		/* Synchronize broadcast link info, if not done previously */
 
