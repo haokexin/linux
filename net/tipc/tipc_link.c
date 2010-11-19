@@ -56,12 +56,6 @@
 #define INVALID_SESSION 0x10000
 
 /*
- * Limit for deferred reception queue:
- */
-
-#define DEF_QUEUE_LIMIT 256u
-
-/*
  * Link state events:
  */
 
