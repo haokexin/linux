@@ -302,8 +302,6 @@ static void named_distribute(struct list_head *delivery_list, u32 dest_node,
 void tipc_named_node_up(unsigned long node_arg)
 {
 	u32 node = (u32)node_arg;
-	struct sk_buff *buf;
-	struct sk_buff *temp_buf;
 	struct list_head delivery_list;
 
 	INIT_LIST_HEAD(&delivery_list);
@@ -353,12 +351,7 @@ void tipc_named_node_up(unsigned long node_arg)
 
 	read_unlock_bh(&tipc_nametbl_lock); 
 
-	list_for_each_safe(buf, temp_buf, ((struct sk_buff *)&delivery_list)) {
-		list_del((struct list_head *)buf);
-		if (tipc_link_send(buf, node, node) < 0) {
-			warn("Bulk publication not sent\n");
-		}
-	}
+	tipc_link_send_names(&delivery_list, node);
 }
 
 /**
@@ -369,8 +362,6 @@ void tipc_named_node_up_uni(unsigned long node_arg)
 {
 #ifdef CONFIG_TIPC_UNICLUSTER_FRIENDLY
 	u32 node = (u32)node_arg;
-	struct sk_buff *buf;
-	struct sk_buff *temp_buf;
 	struct list_head delivery_list;
 
 	INIT_LIST_HEAD(&delivery_list);
@@ -386,12 +377,7 @@ void tipc_named_node_up_uni(unsigned long node_arg)
 
 	read_unlock_bh(&tipc_nametbl_lock); 
 
-	list_for_each_safe(buf, temp_buf, ((struct sk_buff *)&delivery_list)) {
-		list_del((struct list_head *)buf);
-		if (tipc_link_send(buf, node, node) < 0) {
-			warn("Bulk publication not sent\n");
-		}
-	}
+	tipc_link_send_names(&delivery_list, node);
 #endif
 }
 
