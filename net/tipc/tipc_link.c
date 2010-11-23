@@ -977,6 +977,19 @@ static void link_add_to_outqueue(struct link *l_ptr,
 		l_ptr->stats.max_queue_sz = l_ptr->out_queue_size;
 }
 
+static void link_add_chain_to_outqueue(struct link *l_ptr,
+				       struct sk_buff *buf_chain)
+{
+	if (!l_ptr->next_out)
+		l_ptr->next_out = buf_chain;
+	while (buf_chain) {
+		struct sk_buff *buf = buf_chain;
+
+		buf_chain = buf_chain->next;
+		link_add_to_outqueue(l_ptr, buf, buf_msg(buf));
+	}
+}
+
 /*
  * tipc_link_send_buf() is the 'full path' for messages, called from
  * inside TIPC when the 'fast path' in tipc_send_buf
@@ -1438,24 +1451,11 @@ reject:
 						 TIPC_ERR_NO_NODE);
 	}
 
-	/* Append whole chain to send queue: */
+	/* Append chain of fragments to send queue & send them */
 
-	buf = buf_chain;
-	if (!l_ptr->next_out)
-		l_ptr->next_out = buf_chain;
+	link_add_chain_to_outqueue(l_ptr, buf_chain);
+	l_ptr->stats.sent_fragments += fragm_no;
 	l_ptr->stats.sent_fragmented++;
-	while (buf) {
-		struct sk_buff *next = buf->next;
-		struct tipc_msg *msg = buf_msg(buf);
-
-		l_ptr->stats.sent_fragments++;
-		link_add_to_outqueue(l_ptr, buf, msg);
-		msg_dbg(msg, ">ADD>");
-		buf = next;
-	}
-
-	/* Send it, if possible: */
-
 	tipc_link_push_queue(l_ptr);
 	tipc_node_unlock(node);
 	return dsz;
@@ -2692,7 +2692,7 @@ int tipc_link_send_long_buf(struct link *l_ptr, struct sk_buff *buf)
 	u32 rest = insize;
 	u32 pack_sz = l_ptr->max_pkt;
 	u32 fragm_sz = pack_sz - INT_H_SIZE;
-	u32 fragm_no = 1;
+	u32 fragm_no = 0;
 	u32 destaddr;
 
 	if (msg_short(inmsg))
@@ -2731,7 +2731,7 @@ int tipc_link_send_long_buf(struct link *l_ptr, struct sk_buff *buf)
 			return -ENOMEM;
 		}
 		msg_set_size(&fragm_hdr, fragm_sz + INT_H_SIZE);
-		msg_set_fragm_no(&fragm_hdr, fragm_no++);
+		msg_set_fragm_no(&fragm_hdr, ++fragm_no);
 		skb_copy_to_linear_data(fragm, &fragm_hdr, INT_H_SIZE);
 		skb_copy_to_linear_data_offset(fragm, INT_H_SIZE, crs,
 					       fragm_sz);
@@ -2746,14 +2746,8 @@ int tipc_link_send_long_buf(struct link *l_ptr, struct sk_buff *buf)
 
 	/* Append chain of fragments to send queue & send them */
 
-	if (!l_ptr->next_out)
-		l_ptr->next_out = buf_chain;
-	while (buf_chain) {
-		buf = buf_chain;
-		buf_chain = buf_chain->next;
-		link_add_to_outqueue(l_ptr, buf, buf_msg(buf));
-		l_ptr->stats.sent_fragments++;
-	}
+	link_add_chain_to_outqueue(l_ptr, buf_chain);
+	l_ptr->stats.sent_fragments += fragm_no;
 	l_ptr->stats.sent_fragmented++;
 	tipc_link_push_queue(l_ptr);
 
