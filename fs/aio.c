@@ -1016,6 +1016,10 @@ static int aio_read_evt(struct kioctx *ioctx, struct io_event *ent)
 	unsigned long head;
 	int ret = 0;
 
+#ifdef CONFIG_PREEMPT_RT
+	spin_lock(&info->ring_lock);
+#endif
+
 	ring = kmap_atomic(info->ring_pages[0], KM_USER0);
 	dprintk("in aio_read_evt h%lu t%lu m%lu\n",
 		 (unsigned long)ring->head, (unsigned long)ring->tail,
@@ -1024,7 +1028,9 @@ static int aio_read_evt(struct kioctx *ioctx, struct io_event *ent)
 	if (ring->head == ring->tail)
 		goto out;
 
+#ifndef CONFIG_PREEMPT_RT
 	spin_lock(&info->ring_lock);
+#endif
 
 	head = ring->head % info->nr;
 	if (head != ring->tail) {
@@ -1036,10 +1042,15 @@ static int aio_read_evt(struct kioctx *ioctx, struct io_event *ent)
 		ret = 1;
 		put_aio_ring_event(evp, KM_USER1);
 	}
+#ifndef CONFIG_PREEMPT_RT
 	spin_unlock(&info->ring_lock);
+#endif
 
 out:
 	kunmap_atomic(ring, KM_USER0);
+#ifdef CONFIG_PREEMPT_RT
+	spin_unlock(&info->ring_lock);
+#endif
 	dprintk("leaving aio_read_evt: %d  h%lu t%lu\n", ret,
 		 (unsigned long)ring->head, (unsigned long)ring->tail);
 	return ret;
