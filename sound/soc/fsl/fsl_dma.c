@@ -658,10 +658,12 @@ static int fsl_dma_hw_params(struct snd_pcm_substream *substream,
 			link->source_attr = cpu_to_be32(CCSR_DMA_ATR_SNOOP);
 
 			link->dest_addr = cpu_to_be32(ssi_sxx_phys);
-			link->dest_attr = cpu_to_be32(CCSR_DMA_ATR_NOSNOOP);
+			link->dest_attr = cpu_to_be32(CCSR_DMA_ATR_NOSNOOP |
+				upper_32_bits(ssi_sxx_phys));
 		} else {
 			link->source_addr = cpu_to_be32(ssi_sxx_phys);
-			link->source_attr = cpu_to_be32(CCSR_DMA_ATR_NOSNOOP);
+			link->source_attr = cpu_to_be32(CCSR_DMA_ATR_NOSNOOP |
+				upper_32_bits(ssi_sxx_phys));
 
 			link->dest_addr = cpu_to_be32(temp_addr);
 			link->dest_attr = cpu_to_be32(CCSR_DMA_ATR_SNOOP);
