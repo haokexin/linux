@@ -210,6 +210,8 @@ struct fsl_lbc_regs {
 #define FCR_CMD3_SHIFT        0
 	__be32 fbar;            /**< Flash Block Address Register */
 #define FBAR_BLK     0x00FFFFFF
+#define FBAR_SP_BAR_SHIFT		5
+#define FBAR_LP_BAR_SHIFT		6
 	__be32 fpar;            /**< Flash Page Address Register */
 #define FPAR_SP_PI   0x00007C00
 #define FPAR_SP_PI_SHIFT     10
