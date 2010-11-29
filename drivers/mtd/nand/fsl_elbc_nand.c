@@ -857,7 +857,7 @@ static int __devinit fsl_elbc_chip_probe(struct fsl_elbc_ctrl *ctrl,
 		    (in_be32(&lbc->bank[bank].br) & BR_MSEL) == BR_MS_FCM &&
 		    (in_be32(&lbc->bank[bank].br) &
 		     in_be32(&lbc->bank[bank].or) & BR_BA)
-		     == res.start)
+		     == fsl_lbc_addr(res.start))
 			break;
 
 	if (bank >= MAX_BANKS) {
