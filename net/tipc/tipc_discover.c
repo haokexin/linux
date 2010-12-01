@@ -254,7 +254,7 @@ void tipc_disc_recv_msg(struct sk_buff *buf, struct bearer *b_ptr)
 			return;
 		}
 #endif
-		link = tipc_link_create(b_ptr, orig, &media_addr);
+		link = tipc_link_create(n_ptr, b_ptr, &media_addr);
 		if (link == NULL) {
 			warn("Memory squeeze; Failed to create link\n");
 			tipc_node_unlock(n_ptr);
