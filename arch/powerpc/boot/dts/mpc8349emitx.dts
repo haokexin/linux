@@ -209,7 +209,7 @@
 			#size-cells = <0>;
 			interrupt-parent = <&ipic>;
 			interrupts = <38 0x8>;
-			dr_mode = "peripheral";
+			dr_mode = "otg";
 			phy_type = "ulpi";
 		};
 
