@@ -106,6 +106,9 @@ struct fsl_espi {
 	u32 spibrg;		/* SPIBRG input clock */
 	u32 rx_shift;		/* RX data reg shift when in qe mode */
 	u32 tx_shift;		/* TX data reg shift when in qe mode */
+#ifdef CONFIG_SUSPEND
+	struct fsl_espi_reg	save_regs;
+#endif
 };
 
 struct fsl_espi_cs {
@@ -361,6 +364,47 @@ static void fsl_espi_cleanup(struct spi_device *spi)
 	spi->controller_state = NULL;
 }
 
+
+#ifdef CONFIG_SUSPEND
+/* save espi registers */
+static int fsl_espi_suspend(struct of_device *ofdev, pm_message_t state)
+{
+	struct fsl_espi *fsl_espi;
+	struct spi_master *master;
+	int i;
+	master = platform_get_drvdata(ofdev);
+	fsl_espi = spi_master_get_devdata(master);
+
+	fsl_espi->save_regs.mode = in_be32(&fsl_espi->regs->mode);
+	fsl_espi->save_regs.event = in_be32(&fsl_espi->regs->event);
+	fsl_espi->save_regs.mask = in_be32(&fsl_espi->regs->mask);
+	for (i = 0; i < 4; i++)
+		fsl_espi->save_regs.csmode[i] =
+			in_be32(&fsl_espi->regs->csmode[i]);
+
+	return 0;
+}
+
+/* restore espi registers */
+static int fsl_espi_resume(struct of_device *ofdev)
+{
+	struct fsl_espi *fsl_espi;
+	struct spi_master *master;
+	int i;
+	master = platform_get_drvdata(ofdev);
+	fsl_espi = spi_master_get_devdata(master);
+
+	out_be32(&fsl_espi->regs->mode, fsl_espi->save_regs.mode);
+	out_be32(&fsl_espi->regs->event, fsl_espi->save_regs.event);
+	out_be32(&fsl_espi->regs->mask, fsl_espi->save_regs.mask);
+	for (i = 0; i < 4; i++)
+		out_be32(&fsl_espi->regs->csmode[i],
+			fsl_espi->save_regs.csmode[i]);
+
+	return 0;
+}
+#endif
+
 static int __init fsl_espi_probe(struct of_device *ofdev,
 					const struct of_device_id *match)
 {
@@ -525,6 +569,10 @@ static struct of_platform_driver fsl_espi_driver = {
 	.match_table = fsl_espi_of_match,
 	.probe = fsl_espi_probe,
 	.remove = __exit_p(fsl_espi_remove),
+#ifdef CONFIG_SUSPEND
+	.suspend     = fsl_espi_suspend,
+	.resume      = fsl_espi_resume,
+#endif
 	.driver = {
 		.name = "fsl-espi",
 		.owner = THIS_MODULE,
