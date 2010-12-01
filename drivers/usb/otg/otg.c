@@ -64,3 +64,20 @@ int otg_set_transceiver(struct otg_transceiver *x)
 	return 0;
 }
 EXPORT_SYMBOL(otg_set_transceiver);
+
+#ifdef CONFIG_FSL_USB2_OTG
+static struct resource *otg_resources;
+
+struct resource *otg_get_resources(void)
+{
+	return otg_resources;
+}
+EXPORT_SYMBOL(otg_get_resources);
+
+int otg_set_resources(struct resource *resources)
+{
+	otg_resources = resources;
+	return 0;
+}
+EXPORT_SYMBOL(otg_set_resources);
+#endif

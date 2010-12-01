@@ -69,4 +69,12 @@ config NOP_USB_XCEIV
 	 built-in with usb ip or which are autonomous and doesn't require any
 	 phy programming such as ISP1x04 etc.
 
+config FSL_USB2_OTG
+	bool "Freescale USB OTG Transceiver Driver"
+	depends on USB_EHCI_FSL
+	select USB_OTG
+	select USB_OTG_UTILS
+	help
+	  Enable this to support Freescale USB OTG transceiver.
+
 endif # USB || OTG

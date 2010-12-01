@@ -35,4 +35,7 @@
 #define FSL_SOC_USB_SICTRL	0x410	/* NOTE: big-endian */
 #define FSL_SOC_USB_CTRL	0x500	/* NOTE: big-endian */
 #define SNOOP_SIZE_2GB		0x1e
+
+extern struct resource *otg_get_resources(void);
+
 #endif				/* _EHCI_FSL_H */
