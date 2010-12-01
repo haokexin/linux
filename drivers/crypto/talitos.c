@@ -1739,6 +1739,15 @@ static int hw_supports(struct device *dev, __be32 desc_hdr_template)
 	return ret;
 }
 
+#ifdef CONFIG_SUSPEND
+static int talitos_resume(struct of_device *ofdev)
+{
+	struct device *dev = &ofdev->dev;
+	init_device(dev);
+	return 0;
+}
+#endif
+
 static int talitos_remove(struct of_device *ofdev)
 {
 	struct device *dev = &ofdev->dev;
@@ -1972,6 +1981,9 @@ static struct of_platform_driver talitos_driver = {
 	.match_table = talitos_match,
 	.probe = talitos_probe,
 	.remove = talitos_remove,
+#ifdef CONFIG_SUSPEND
+	.resume = talitos_resume,
+#endif
 };
 
 static int __init talitos_init(void)
