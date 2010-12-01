@@ -77,37 +77,53 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 		return -ENODEV;
 	}
 
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (!res) {
-		dev_err(&pdev->dev,
-			"Found HC with no IRQ. Check %s setup!\n",
-			dev_name(&pdev->dev));
-		return -ENODEV;
-	}
-	irq = res->start;
-
 	hcd = usb_create_hcd(driver, &pdev->dev, dev_name(&pdev->dev));
 	if (!hcd) {
 		retval = -ENOMEM;
 		goto err1;
 	}
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(&pdev->dev,
-			"Found HC with no register addr. Check %s setup!\n",
-			dev_name(&pdev->dev));
-		retval = -ENODEV;
-		goto err2;
+#ifdef CONFIG_FSL_USB2_OTG
+	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
+		res = otg_get_resources();
+		if (!res) {
+			dev_err(&pdev->dev,
+				"Found HC with no IRQ. Check %s setup!\n",
+				dev_name(&pdev->dev));
+			return -ENODEV;
+		}
+		irq = res[1].start;
+		hcd->rsrc_start = res[0].start;
+		hcd->rsrc_len = res[0].end - res[0].start + 1;
+	} else
+#endif
+	{
+		res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
+		if (!res) {
+			dev_err(&pdev->dev,
+				"Found HC with no IRQ. Check %s setup!\n",
+				dev_name(&pdev->dev));
+			return -ENODEV;
+		}
+		irq = res->start;
+
+		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+		if (!res) {
+			dev_err(&pdev->dev, "Found HC with no register addr. "
+				"Check %s setup!\n", dev_name(&pdev->dev));
+			retval = -ENODEV;
+			goto err2;
+		}
+		hcd->rsrc_start = res->start;
+		hcd->rsrc_len = res->end - res->start + 1;
+		if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len,
+					driver->description)) {
+			dev_dbg(&pdev->dev, "controller already in use\n");
+			retval = -EBUSY;
+			goto err2;
+		}
 	}
-	hcd->rsrc_start = res->start;
-	hcd->rsrc_len = res->end - res->start + 1;
-	if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len,
-				driver->description)) {
-		dev_dbg(&pdev->dev, "controller already in use\n");
-		retval = -EBUSY;
-		goto err2;
-	}
+
 	hcd->regs = ioremap(hcd->rsrc_start, hcd->rsrc_len);
 
 	if (hcd->regs == NULL) {
@@ -127,12 +143,38 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 	retval = usb_add_hcd(hcd, irq, IRQF_DISABLED | IRQF_SHARED);
 	if (retval != 0)
 		goto err4;
+
+#ifdef CONFIG_FSL_USB2_OTG
+	if (pdata->operating_mode == FSL_USB2_DR_OTG) {
+		struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+
+		dbg("pdev=0x%p  hcd=0x%p  ehci=0x%p\n", pdev, hcd, ehci);
+
+		ehci->transceiver = otg_get_transceiver();
+		dbg("ehci->transceiver=0x%p\n", ehci->transceiver);
+
+		if (ehci->transceiver) {
+			retval = otg_set_host(ehci->transceiver,
+					      &ehci_to_hcd(ehci)->self);
+			if (retval) {
+				if (ehci->transceiver)
+					put_device(ehci->transceiver->dev);
+				goto err4;
+			}
+		} else {
+			printk(KERN_ERR "can't find transceiver\n");
+			retval = -ENODEV;
+			goto err4;
+		}
+	}
+#endif
 	return retval;
 
       err4:
 	iounmap(hcd->regs);
       err3:
-	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
+	if (pdata->operating_mode != FSL_USB2_DR_OTG)
+		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
       err2:
 	usb_put_hcd(hcd);
       err1:
@@ -154,9 +196,17 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 static void usb_hcd_fsl_remove(struct usb_hcd *hcd,
 			       struct platform_device *pdev)
 {
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+
+	if (ehci->transceiver) {
+		otg_set_host(ehci->transceiver, NULL);
+		put_device(ehci->transceiver->dev);
+	} else {
+		release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
+	}
+
 	usb_remove_hcd(hcd);
 	iounmap(hcd->regs);
-	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
 	usb_put_hcd(hcd);
 }
 
@@ -300,6 +350,15 @@ struct ehci_fsl {
 
 #ifdef CONFIG_PM
 
+static int ehci_fsl_drv_restore(struct device *dev)
+{
+	struct usb_hcd *hcd = dev_get_drvdata(dev);
+
+	usb_root_hub_lost_power(hcd->self.root_hub);
+	return 0;
+}
+
+#ifndef CONFIG_FSL_USB2_OTG
 static struct ehci_fsl *hcd_to_ehci_fsl(struct usb_hcd *hcd)
 {
 	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
@@ -343,21 +402,145 @@ static int ehci_fsl_drv_resume(struct device *dev)
 	return 0;
 }
 
-static int ehci_fsl_drv_restore(struct device *dev)
+#else
+static int ehci_fsl_otg_drv_suspend(struct device *dev)
 {
 	struct usb_hcd *hcd = dev_get_drvdata(dev);
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	struct fsl_usb2_platform_data *pdata = dev->platform_data;
+	u32 tmp;
 
-	usb_root_hub_lost_power(hcd->self.root_hub);
+#ifdef DEBUG
+	u32 mode = ehci_readl(ehci, hcd->regs + FSL_SOC_USB_USBMODE);
+	mode &= USBMODE_CM_MASK;
+	tmp = ehci_readl(ehci, hcd->regs + 0x140);	/* usbcmd */
+
+	dev_dbg(dev, "('%s'): suspend=%d already_suspended=%d "
+		"mode=%d  usbcmd %08x\n", pdata->name, pdata->suspended,
+		pdata->already_suspended, mode, tmp);
+#endif
+
+	/*
+	 * If the controller is already suspended, then this must be a
+	 * PM suspend.  Remember this fact, so that we will leave the
+	 * controller suspended at PM resume time.
+	 */
+	if (pdata->suspended) {
+		dev_dbg(dev, "already suspended, leaving early\n");
+		pdata->already_suspended = 1;
+		return 0;
+	}
+
+	dev_dbg(dev, "suspending...\n");
+
+	hcd->state = HC_STATE_SUSPENDED;
+	dev->power.power_state = PMSG_SUSPEND;
+
+	/* ignore non-host interrupts */
+	clear_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+
+	/* stop the controller */
+	tmp = ehci_readl(ehci, &ehci->regs->command);
+	tmp &= ~CMD_RUN;
+	ehci_writel(ehci, tmp, &ehci->regs->command);
+
+	/* save EHCI registers */
+	pdata->pm_command = ehci_readl(ehci, &ehci->regs->command);
+	pdata->pm_command &= ~CMD_RUN;
+	pdata->pm_status  = ehci_readl(ehci, &ehci->regs->status);
+	pdata->pm_intr_enable  = ehci_readl(ehci, &ehci->regs->intr_enable);
+	pdata->pm_frame_index  = ehci_readl(ehci, &ehci->regs->frame_index);
+	pdata->pm_segment  = ehci_readl(ehci, &ehci->regs->segment);
+	pdata->pm_frame_list  = ehci_readl(ehci, &ehci->regs->frame_list);
+	pdata->pm_async_next  = ehci_readl(ehci, &ehci->regs->async_next);
+	pdata->pm_configured_flag  =
+		ehci_readl(ehci, &ehci->regs->configured_flag);
+	pdata->pm_portsc = ehci_readl(ehci, &ehci->regs->port_status[0]);
+
+	/* clear the W1C bits */
+	pdata->pm_portsc &= cpu_to_hc32(ehci, ~PORT_RWC_BITS);
+
+	pdata->suspended = 1;
+
+	/* clear PP to cut power to the port */
+	tmp = ehci_readl(ehci, &ehci->regs->port_status[0]);
+	tmp &= ~PORT_POWER;
+	ehci_writel(ehci, tmp, &ehci->regs->port_status[0]);
+
+	return 0;
+ }
+
+static int ehci_fsl_otg_drv_resume(struct device *dev)
+{
+	struct usb_hcd *hcd = dev_get_drvdata(dev);
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	struct fsl_usb2_platform_data *pdata = dev->platform_data;
+	u32 tmp;
+
+	dev_dbg(dev, "('%s'): suspend=%d already_suspended=%d\n",
+		pdata->name, pdata->suspended, pdata->already_suspended);
+
+	/*
+	 * If the controller was already suspended at suspend time,
+	 * then don't resume it now.
+	 */
+	if (pdata->already_suspended) {
+		dev_dbg(dev, "already suspended, leaving early\n");
+		pdata->already_suspended = 0;
+		return 0;
+	}
+
+	if (!pdata->suspended) {
+		dev_dbg(dev, "not suspended, leaving early\n");
+		return 0;
+	}
+
+	pdata->suspended = 0;
+
+	dev_dbg(dev, "resuming...\n");
+
+	/* set host mode */
+	tmp = (3 << 0);
+	ehci_writel(ehci, tmp, hcd->regs + FSL_SOC_USB_USBMODE);
+
+	/* restore EHCI registers */
+	ehci_writel(ehci, pdata->pm_command, &ehci->regs->command);
+	ehci_writel(ehci, pdata->pm_intr_enable, &ehci->regs->intr_enable);
+	ehci_writel(ehci, pdata->pm_frame_index, &ehci->regs->frame_index);
+	ehci_writel(ehci, pdata->pm_segment, &ehci->regs->segment);
+	ehci_writel(ehci, pdata->pm_frame_list, &ehci->regs->frame_list);
+	ehci_writel(ehci, pdata->pm_async_next, &ehci->regs->async_next);
+	ehci_writel(ehci, pdata->pm_configured_flag,
+		    &ehci->regs->configured_flag);
+	ehci_writel(ehci, pdata->pm_portsc, &ehci->regs->port_status[0]);
+
+	set_bit(HCD_FLAG_HW_ACCESSIBLE, &hcd->flags);
+	hcd->state = HC_STATE_RUNNING;
+	dev->power.power_state = PMSG_ON;
+
+	tmp = ehci_readl(ehci, &ehci->regs->command);
+	tmp |= CMD_RUN;
+	ehci_writel(ehci, tmp, &ehci->regs->command);
+
+	usb_hcd_resume_root_hub(hcd);
+
 	return 0;
 }
+#endif /* CONFIG_FSL_USB2_OTG */
 
-static struct dev_pm_ops ehci_fsl_pm_ops = {
+static const struct dev_pm_ops ehci_fsl_pm_ops = {
+#ifdef CONFIG_FSL_USB2_OTG
+	.suspend = ehci_fsl_otg_drv_suspend,
+	.resume = ehci_fsl_otg_drv_resume,
+#else
 	.suspend = ehci_fsl_drv_suspend,
 	.resume = ehci_fsl_drv_resume,
+#endif
 	.restore = ehci_fsl_drv_restore,
 };
 
 #define EHCI_FSL_PM_OPS		(&ehci_fsl_pm_ops)
+
 #else
 #define EHCI_FSL_PM_OPS		NULL
 #endif /* CONFIG_PM */
@@ -401,6 +584,7 @@ static const struct hc_driver ehci_fsl_hc_driver = {
 	.hub_control = ehci_hub_control,
 	.bus_suspend = ehci_bus_suspend,
 	.bus_resume = ehci_bus_resume,
+	.start_port_reset = ehci_start_port_reset,
 	.relinquish_port = ehci_relinquish_port,
 	.port_handed_over = ehci_port_handed_over,
 

@@ -160,6 +160,11 @@ struct ehci_hcd {			/* one per controller */
 	struct dentry		*debug_periodic;
 	struct dentry		*debug_registers;
 #endif
+	/*
+	 * OTG controllers and transceivers need software interaction
+	 */
+	struct otg_transceiver	*transceiver;
+	u32			power_budget;
 };
 
 /* convert between an HCD pointer and the corresponding EHCI_HCD */

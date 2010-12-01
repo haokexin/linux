@@ -27,6 +27,7 @@
  */
 
 /*-------------------------------------------------------------------------*/
+#include <linux/usb/otg.h>
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E|PORT_WKDISC_E|PORT_WKCONN_E)
 
@@ -692,6 +693,37 @@ ehci_hub_descriptor (
 	desc->wHubCharacteristics = cpu_to_le16(temp);
 }
 
+#ifdef CONFIG_FSL_USB2_OTG
+static int ehci_start_port_reset(struct usb_hcd *hcd, unsigned port)
+{
+	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
+	u32 status;
+
+	if (!port)
+		return -EINVAL;
+	port--;
+
+	/* start port reset before HNP protocol time out */
+	status = readl(&ehci->regs->port_status[port]);
+	if (!(status & PORT_CONNECT))
+		return -ENODEV;
+
+	/* khubd will finish the reset later */
+	if (ehci_is_TDI(ehci))
+		writel(PORT_RESET | (status & ~(PORT_CSC | PORT_PEC
+				| PORT_OCC)), &ehci->regs->port_status[port]);
+	else
+		writel(PORT_RESET, &ehci->regs->port_status[port]);
+
+	return 0;
+}
+#else
+static int ehci_start_port_reset(struct usb_hcd *hcd, unsigned port)
+{
+	return 0;
+}
+#endif /* CONFIG_FSL_USB2_OTG */
+
 /*-------------------------------------------------------------------------*/
 
 static int ehci_hub_control (
@@ -760,6 +792,13 @@ static int ehci_hub_control (
 				goto error;
 			if (ehci->no_selective_suspend)
 				break;
+#ifdef CONFIG_FSL_USB2_OTG
+			if ((hcd->self.otg_port == (wIndex + 1))
+					&& hcd->self.b_hnp_enable) {
+				otg_start_hnp(ehci->transceiver);
+				break;
+			}
+#endif
 			if (!(temp & PORT_SUSPEND))
 				break;
 			if ((temp & PORT_PE) == 0)
