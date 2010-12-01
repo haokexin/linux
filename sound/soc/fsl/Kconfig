@@ -22,6 +22,16 @@ config SND_SOC_MPC8610_HPCD
 	help
 	  Say Y if you want to enable audio on the Freescale MPC8610 HPCD.
 
+config SND_SOC_P1022_DS
+	tristate "ALSA SoC support for the Freescale P1022DS board"
+	# I2C is necessary for the WM8776 driver
+	depends on P1022_DS && I2C
+	select SND_SOC_WM8776
+	select GENERIC_ISA_DMA
+	default y if P1022_DS
+	help
+	  Say Y if you want to enable audio on the Freescale P1022_DS.
+
 config SND_SOC_MPC5200_I2S
 	tristate "Freescale MPC5200 PSC in I2S mode driver"
 	depends on PPC_MPC52xx && PPC_BESTCOMM
