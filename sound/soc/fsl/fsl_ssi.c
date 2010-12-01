@@ -3,7 +3,9 @@
  *
  * Author: Timur Tabi <timur@freescale.com>
  *
- * Copyright 2007-2008 Freescale Semiconductor, Inc.  This file is licensed
+ * Copyright 2007-2008, 2010 Freescale Semiconductor, Inc.
+ *
+ * This file is licensed
  * under the terms of the GNU General Public License version 2.  This
  * program is licensed "as is" without any warranty of any kind, whether
  * express or implied.
@@ -22,7 +24,11 @@
 #include <sound/initval.h>
 #include <sound/soc.h>
 
+#ifdef CONFIG_SND_SOC_P1022_DS
+#include <asm/immap_85xx.h>
+#else
 #include <asm/immap_86xx.h>
+#endif
 
 #include "fsl_ssi.h"
 
@@ -340,7 +346,11 @@ static int fsl_ssi_startup(struct snd_pcm_substream *substream,
 		 * watermark should never be an odd number.
 		 */
 		out_be32(&ssi->sfcsr,
+#ifdef CONFIG_SND_SOC_P1022_DS
+			CCSR_SSI_SFCSR_TFWM0(13) | CCSR_SSI_SFCSR_RFWM0(2));
+#else
 			 CCSR_SSI_SFCSR_TFWM0(6) | CCSR_SSI_SFCSR_RFWM0(2));
+#endif
 
 		/*
 		 * We keep the SSI disabled because if we enable it, then the
