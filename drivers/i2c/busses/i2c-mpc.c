@@ -63,6 +63,9 @@ struct mpc_i2c {
 	wait_queue_head_t queue;
 	struct i2c_adapter adap;
 	int irq;
+#ifdef CONFIG_SUSPEND
+	u32 save_fdr;
+#endif
 };
 
 struct mpc_i2c_divider {
@@ -543,6 +546,28 @@ static struct i2c_adapter mpc_ops = {
 	.timeout = HZ,
 };
 
+#ifdef CONFIG_SUSPEND
+/* save i2c registers */
+static int fsl_i2c_suspend(struct of_device *op, pm_message_t state)
+{
+	struct mpc_i2c *i2c = dev_get_drvdata(&op->dev);
+
+	i2c->save_fdr = readb(i2c->base + MPC_I2C_FDR);
+
+	return 0;
+}
+
+/* restore i2c registers */
+static int fsl_i2c_resume(struct of_device *op)
+{
+	struct mpc_i2c *i2c = dev_get_drvdata(&op->dev);
+
+	writeb(i2c->save_fdr & 0xff, i2c->base + MPC_I2C_FDR);
+
+	return 0;
+}
+#endif
+
 static int __devinit fsl_i2c_probe(struct of_device *op,
 				   const struct of_device_id *match)
 {
@@ -677,6 +702,10 @@ static struct of_platform_driver mpc_i2c_driver = {
 	.match_table	= mpc_i2c_of_match,
 	.probe		= fsl_i2c_probe,
 	.remove		= __devexit_p(fsl_i2c_remove),
+#ifdef CONFIG_SUSPEND
+	.suspend     = fsl_i2c_suspend,
+	.resume      = fsl_i2c_resume,
+#endif
 	.driver		= {
 		.owner	= THIS_MODULE,
 		.name	= DRV_NAME,
