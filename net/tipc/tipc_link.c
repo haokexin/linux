@@ -370,19 +370,35 @@ static void link_set_timer(struct link *l_ptr, u32 time)
 
 /**
  * tipc_link_create - create a new link
+ * @n_ptr: point to associated node
  * @b_ptr: pointer to associated bearer
- * @peer: network address of node at other end of link
  * @media_addr: media address to use when sending messages over link
  *
  * Returns pointer to link.
  */
 
-struct link *tipc_link_create(struct bearer *b_ptr, const u32 peer,
+struct link *tipc_link_create(struct tipc_node *n_ptr, struct bearer *b_ptr,
 			      const struct tipc_media_addr *media_addr)
 {
 	struct link *l_ptr;
 	struct tipc_msg *msg;
 	char *if_name;
+	char addr_string[16];
+	u32 peer = n_ptr->elm.addr;
+
+	if (n_ptr->link_cnt >= TIPC_MAX_BEARERS) {
+		tipc_addr_string_fill(addr_string, n_ptr->elm.addr);
+		err("Attempt to establish more than %d links to %s\n",
+		    n_ptr->link_cnt, addr_string);
+		return NULL;
+	}
+
+	if (n_ptr->links[b_ptr->identity]) {
+		tipc_addr_string_fill(addr_string, n_ptr->elm.addr);
+		err("Attempt to establish second link on <%s> to %s \n",
+		    b_ptr->publ.name, addr_string);
+		return NULL;
+	}
 
 	l_ptr = kzalloc(sizeof(*l_ptr), GFP_ATOMIC);
 	if (!l_ptr) {
@@ -410,6 +426,7 @@ struct link *tipc_link_create(struct bearer *b_ptr, const u32 peer,
 		tipc_zone(peer), tipc_cluster(peer), tipc_node(peer));
 		/* note: peer i/f is appended to link name by reset/activate */
 	memcpy(&l_ptr->media_addr, media_addr, sizeof(*media_addr));
+	l_ptr->owner = n_ptr;
 	l_ptr->checkpoint = 1;
 	l_ptr->peer_session = INVALID_SESSION;
 	l_ptr->b_ptr = b_ptr;
@@ -428,15 +445,7 @@ struct link *tipc_link_create(struct bearer *b_ptr, const u32 peer,
 	l_ptr->next_out_no = 1;
 	INIT_LIST_HEAD(&l_ptr->waiting_ports);
 	link_reset_statistics(l_ptr);
-
-	l_ptr->owner = tipc_node_attach_link(l_ptr);
-	if (!l_ptr->owner) {
-		if (LINK_LOG_BUF_SIZE)
-			kfree(l_ptr->print_buf.buf);
-		kfree(l_ptr);
-		return NULL;
-	}
-
+	tipc_node_attach_link(n_ptr, l_ptr);
 	k_init_timer(&l_ptr->timer, (Handler)link_timeout, (unsigned long)l_ptr);
 	list_add_tail(&l_ptr->link_list, &b_ptr->links);
 

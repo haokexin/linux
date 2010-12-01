@@ -236,34 +236,11 @@ int tipc_node_alt_link_is_up(struct link *l_ptr)
 #endif
 }
 
-struct tipc_node *tipc_node_attach_link(struct link *l_ptr)
+void tipc_node_attach_link(struct tipc_node *n_ptr, struct link *l_ptr)
 {
-	struct tipc_node *n_ptr = tipc_net_find_node(l_ptr->addr);
-
-	if (!n_ptr)
-		n_ptr = tipc_node_create(l_ptr->addr);
-	if (n_ptr) {
-		u32 bearer_id = l_ptr->b_ptr->identity;
-		char addr_string[16];
-
-		if (n_ptr->link_cnt >= TIPC_MAX_BEARERS) {
-			tipc_addr_string_fill(addr_string, n_ptr->elm.addr);
-			err("Attempt to more than %d links to %s\n",
-			    n_ptr->link_cnt, addr_string);
-			return NULL;
-		}
-
-		if (!n_ptr->links[bearer_id]) {
-			n_ptr->links[bearer_id] = l_ptr;
-			n_ptr->link_cnt++;
-			atomic_inc(&link_count);
-			return n_ptr;
-		}
-		tipc_addr_string_fill(addr_string, l_ptr->addr);
-		err("Attempt to establish second link on <%s> to %s \n",
-		    l_ptr->b_ptr->publ.name, addr_string);
-	}
-	return NULL;
+	n_ptr->links[l_ptr->b_ptr->identity] = l_ptr;
+	n_ptr->link_cnt++;
+	atomic_inc(&link_count);
 }
 
 void tipc_node_detach_link(struct tipc_node *n_ptr, struct link *l_ptr)
