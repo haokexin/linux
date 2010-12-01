@@ -901,8 +901,10 @@ restore:
 	 * we could encode what the exception did somewhere or test the exception
 	 * type in the pt_regs but that sounds overkill
 	 */
+#ifndef CONFIG_PROVE_LOCKING
 	andi.	r10,r9,MSR_PR
 	bne	1f /* Do nothing if restore to user-mode */
+#endif
 	andi.	r10,r9,MSR_EE
 	beq	1f
 	bl	trace_hardirqs_on
