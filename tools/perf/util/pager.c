@@ -57,8 +57,20 @@ void setup_pager(void)
 	}
 	if (!pager)
 		pager = getenv("PAGER");
-	if (!pager)
-		pager = "less";
+	if (!pager) {
+		struct stat buf;
+		if (!stat("/bin/less", &buf))
+			pager = "/bin/less";
+		else if (!stat("/usr/bin/less", &buf))
+			pager = "/usr/bin/less";
+		else if (!stat("/bin/more", &buf))
+			pager = "/bin/more";
+		else if (!stat("/usr/bin/more", &buf))
+			pager = "/usr/bin/more";
+		else
+			/* Last resort is hope less is somewhere... */
+			pager = "less";
+	}
 	else if (!*pager || !strcmp(pager, "cat"))
 		return;
 

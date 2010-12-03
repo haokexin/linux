@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # perf archive
 # Arnaldo Carvalho de Melo <acme@redhat.com>
 
