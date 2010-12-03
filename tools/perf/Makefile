@@ -198,7 +198,11 @@ ifndef PERF_DEBUG
   CFLAGS_OPTIMIZE = -O6
 endif
 
+ifneq ($(LIBPERL_DIR),)
+CFLAGS = -ggdb3 -Wall -Wextra -std=gnu99 $(CFLAGS_OPTIMIZE) -D_FORTIFY_SOURCE=2 $(EXTRA_WARNINGS) $(EXTRA_CFLAGS)
+else
 CFLAGS = -ggdb3 -Wall -Wextra -std=gnu99 -Werror $(CFLAGS_OPTIMIZE) -D_FORTIFY_SOURCE=2 $(EXTRA_WARNINGS) $(EXTRA_CFLAGS)
+endif
 EXTLIBS = -lpthread -lrt -lelf -lm
 ALL_CFLAGS = $(CFLAGS) -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 ALL_LDFLAGS = $(LDFLAGS)
@@ -513,9 +517,10 @@ else
 	LIB_OBJS += util/probe-finder.o
 endif
 
+ifeq ($(LIBPERL_DIR),)
 ifndef NO_LIBPERL
-PERL_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)perl -MExtUtils::Embed -e ldopts 2>/dev/null`
-PERL_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)perl -MExtUtils::Embed -e ccopts 2>/dev/null`
+PERL_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)\perl -MExtUtils::Embed -e ldopts 2>/dev/null`
+PERL_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)\perl -MExtUtils::Embed -e ccopts 2>/dev/null`
 endif
 
 ifneq ($(shell sh -c "(echo '\#include <EXTERN.h>'; echo '\#include <perl.h>'; echo 'int main(void) { perl_alloc(); return 0; }') | $(CC) -x c - $(PERL_EMBED_CCOPTS) -o $(BITBUCKET) $(PERL_EMBED_LDOPTS) > /dev/null 2>&1 && echo y"), y)
@@ -525,16 +530,29 @@ else
 	LIB_OBJS += util/scripting-engines/trace-event-perl.o
 	LIB_OBJS += scripts/perl/Perf-Trace-Util/Context.o
 endif
+else
+	BASIC_CFLAGS += -I=$(LIBPERL_DIR)/CORE
+	ALL_LDFLAGS += -L=$(LIBPERL_DIR)/CORE -lperl
+	LIB_OBJS += util/scripting-engines/trace-event-perl.o
+	LIB_OBJS += scripts/perl/Perf-Trace-Util/Context.o
+endif
 
+ifeq ($(PYTHON_MAJOR),)
 ifndef NO_LIBPYTHON
-PYTHON_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)python-config --ldflags 2>/dev/null`
-PYTHON_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)python-config --cflags 2>/dev/null`
+PYTHON_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)\python-config --ldflags 2>/dev/null`
+PYTHON_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)\python-config --cflags 2>/dev/null`
 endif
 
 ifneq ($(shell sh -c "(echo '\#include <Python.h>'; echo 'int main(void) { Py_Initialize(); return 0; }') | $(CC) -x c - $(PYTHON_EMBED_CCOPTS) -o /dev/null $(PYTHON_EMBED_LDOPTS) > /dev/null 2>&1 && echo y"), y)
 	BASIC_CFLAGS += -DNO_LIBPYTHON
 else
 	ALL_LDFLAGS += $(PYTHON_EMBED_LDOPTS)
+	LIB_OBJS += util/scripting-engines/trace-event-python.o
+	LIB_OBJS += scripts/python/Perf-Trace-Util/Context.o
+endif
+else
+	BASIC_CFLAGS += -I=/usr/include/python$(PYTHON_MAJOR)
+	ALL_LDFLAGS += -L=/usr/lib/python$(PYTHON_MAJOR)/config  -lpython2.6
 	LIB_OBJS += util/scripting-engines/trace-event-python.o
 	LIB_OBJS += scripts/python/Perf-Trace-Util/Context.o
 endif
