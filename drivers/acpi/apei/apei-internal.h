@@ -113,4 +113,5 @@ void apei_estatus_print(const char *pfx,
 			const struct acpi_hest_generic_status *estatus);
 int apei_estatus_check_header(const struct acpi_hest_generic_status *estatus);
 int apei_estatus_check(const struct acpi_hest_generic_status *estatus);
+#define HW_ERR      "[Hardware Error]: "
 #endif
