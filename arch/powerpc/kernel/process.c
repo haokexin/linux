@@ -337,7 +337,17 @@ static void prime_debug_regs(struct thread_struct *thread)
 	mtspr(SPRN_DVC1, thread->dvc1);
 	mtspr(SPRN_DVC2, thread->dvc2);
 #endif
+#if defined (CONFIG_WR_OCD_DEBUG) && defined (CONFIG_BOOKE)
+	if (thread->dbcr0 & DBCR0_ICMP){
+		thread->dbcr0 &= ~DBCR0_ICMP;
+		mtspr(SPRN_DBCR0, thread->dbcr0);
+		thread->dbcr0 |= DBCR0_ICMP;
+	}
+	else
+		mtspr(SPRN_DBCR0, thread->dbcr0);
+#else
 	mtspr(SPRN_DBCR0, thread->dbcr0);
+#endif
 	mtspr(SPRN_DBCR1, thread->dbcr1);
 #ifdef CONFIG_BOOKE
 	mtspr(SPRN_DBCR2, thread->dbcr2);
