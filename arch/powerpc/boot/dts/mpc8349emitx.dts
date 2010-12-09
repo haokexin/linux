@@ -398,19 +398,45 @@
 			  0x3 0x0 0xf0000000 0x210>;	/* CF slot */
 
 		flash@0,0 {
-			compatible = "cfi-flash";
-			reg = <0x0      0x0 0x800000>;
-			bank-width = <2>;
-			device-width = <1>;
-		};
-
-		flash@0,800000 {
 			#address-cells = <1>;
 			#size-cells = <1>;
 			compatible = "cfi-flash";
-			reg = <0x0 0x800000 0x800000>;
+			reg = <0x0 0x0 0x1000000>;
 			bank-width = <2>;
 			device-width = <1>;
+
+			hrcw@0 {
+				reg = <0x0 0x20000>;
+				read-only;
+			};
+
+			dtb@20000 {
+				reg = <0x20000 0xe0000>;
+			};
+
+			kernel@100000 {
+				reg = <0x100000 0x600000>;
+			};
+
+			u-boot-backup@700000 {
+				reg = <0x700000 0x100000>;
+				read-only;
+			};
+
+			hrcw-backup@800000 {
+				reg = <0x800000 0x20000>;
+				read-only;
+			};
+
+			rootfs@820000 {
+				reg = <0x820000 0x6e0000>;
+			};
+
+			u-boot@f00000 {
+				reg = <0xf00000 0x100000>;
+				read-only;
+			};
+
 		};
 
 		pata@3,0 {
