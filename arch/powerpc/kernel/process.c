@@ -722,6 +722,13 @@ int copy_thread(unsigned long clone_flags, unsigned long usp,
 	}
 	childregs->gpr[3] = 0;  /* Result from fork() */
 	sp -= STACK_FRAME_OVERHEAD;
+	/*
+	 * for kernel thread, set saved frame pointer
+	 * with a valid value, so that CALLER_ADDR1 will be valid later.
+	 */
+	if ((childregs->msr & MSR_PR) == 0) {
+		*(unsigned long*)sp = regs->gpr[1];
+	}
 
 	/*
 	 * The way this works is that at some point in the future
