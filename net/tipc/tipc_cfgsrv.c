@@ -545,14 +545,14 @@ static void cfg_named_msg_event(void *userdata,
 	rep_buf = tipc_cfg_do_cmd(orig->node,
 				  ntohs(req_hdr->tcm_type),
 				  msg + sizeof(*req_hdr),
-				  size - sizeof(*req_hdr),
+				  (u32)(size - sizeof(*req_hdr)),
 				  BUF_HEADROOM + MAX_H_SIZE + sizeof(*rep_hdr));
 	if (rep_buf) {
 		skb_push(rep_buf, sizeof(*rep_hdr));
 		rep_hdr = (struct tipc_cfg_msg_hdr *)rep_buf->data;
 		memcpy(rep_hdr, req_hdr, sizeof(*rep_hdr));
 		rep_hdr->tcm_len = htonl(rep_buf->len);
-		rep_hdr->tcm_flags &= htons(~TCM_F_REQUEST);
+		rep_hdr->tcm_flags &= htons((short)(~TCM_F_REQUEST));
 	} else {
 		rep_buf = *buf;
 		*buf = NULL;
