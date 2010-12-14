@@ -41,6 +41,13 @@ extern unsigned long long wrhv_get_law_base(int index);
 extern int wrhv_set_law_attr(int index, unsigned int attr);
 extern int wrhv_get_law_attr(int index);
 
+static int __init p4080_is_svr_rev(int maj, int min)
+{
+	u32 svr = mfspr(SPRN_SVR);
+
+	return ((svr >> 4) & 0xf) == maj && (svr & 0xf) == min;
+}
+
 static void __init wrhv_mpc85xx_pic_init(void)
 {
 	wrhv_init_irq();
