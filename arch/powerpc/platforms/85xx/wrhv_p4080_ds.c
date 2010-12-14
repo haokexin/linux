@@ -48,6 +48,63 @@ static int __init p4080_is_svr_rev(int maj, int min)
 	return ((svr >> 4) & 0xf) == maj && (svr & 0xf) == min;
 }
 
+static int __init p4080_errata_gen8(void)
+{
+	struct device_node *fp, *np;
+	struct property *pp;
+	int *p;
+
+	if (!p4080_is_svr_rev(1, 0))
+		return 0;
+
+	/* Find 10GbE of FMAN2 */
+	for_each_compatible_node(fp, NULL, "fsl,fman") {
+		p = (int *)of_get_property(fp, "cell-index", NULL);
+		if (!p || (*p != 1))
+			continue;
+
+		np = of_find_compatible_node(fp, NULL, "fsl,fman-10g-mac");
+		if (np)
+			break;
+	}
+
+	if (!np)
+		return 0;
+
+	pp = of_find_property(np, "phy-handle", NULL);
+	if (pp)
+		prom_remove_property(np, pp);
+
+	pp = kzalloc(sizeof(*pp), GFP_KERNEL);
+	if (!pp) {
+		pr_err("Alloc memory failed\n");
+		return -1;
+	}
+
+	p = kmalloc(sizeof(int) * 5, GFP_KERNEL);
+	if (!p) {
+		pr_err("Alloc memory failed\n");
+		return -1;
+	}
+
+	p[0] = 9;	/* phy id */
+	p[1] = 1;	/* duplex */
+	p[2] = 10000;	/* speed */
+	p[3] = 0;	/* pause */
+	p[4] = 0;	/* asym_pause */
+
+	pp->name = "fixed-link";
+	pp->value = p;
+	pp->length = 5;
+
+	prom_add_property(np, pp);
+	of_node_put(np);
+
+	pr_info("Workaround for Errata GEN8 enabled\n");
+	return 0;
+}
+machine_postcore_initcall(p4080_ds, p4080_errata_gen8);
+
 static void __init wrhv_mpc85xx_pic_init(void)
 {
 	wrhv_init_irq();
