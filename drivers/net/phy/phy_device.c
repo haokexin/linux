@@ -6,7 +6,7 @@
  *
  * Author: Andy Fleming
  *
- * Copyright (c) 2004-2006, 2008-2009 Freescale Semiconductor, Inc.
+ * Copyright (c) 2004-2006, 2008-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -434,12 +434,12 @@ int phy_init_hw(struct phy_device *phydev)
 int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
 		      u32 flags, phy_interface_t interface)
 {
-	int err = 0;
 	struct device *d = &phydev->dev;
 
 	/* Assume that if there is no driver, that it doesn't
 	 * exist, and we should use the genphy driver. */
 	if (NULL == d->driver) {
+		int err;
 		if (interface == PHY_INTERFACE_MODE_XGMII)
 			d->driver = &gen10g_driver.driver;
 		else
@@ -455,8 +455,7 @@ int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
 
 	if (phydev->attached_dev) {
 		dev_err(&dev->dev, "PHY already attached\n");
-		err = -EBUSY;
-		goto err_already_attached;
+		return -EBUSY;
 	}
 
 	phydev->attached_dev = dev;
@@ -468,26 +467,7 @@ int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
 	/* Do initial configuration here, now that
 	 * we have certain key parameters
 	 * (dev_flags and interface) */
- 	if (phydev->drv->config_init) {
- 		err = phy_scan_fixups(phydev);
- 
- 		if (err < 0)
-			goto err_fixups_failed;
- 
- 		err = phydev->drv->config_init(phydev);
- 
- 		if (err < 0)
-			goto err_config_failed;
- 	}
- 
- 	return 0;
-
-err_config_failed:
-err_fixups_failed:
-err_already_attached:
-	phy_detach(phydev);
-
-	return err;
+	return phy_init_hw(phydev);
 }
 EXPORT_SYMBOL(phy_attach_direct);
 
