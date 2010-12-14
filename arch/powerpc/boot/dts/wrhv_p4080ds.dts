@@ -1002,6 +1002,11 @@
 			#sleep-cells = <1>;
 		};
 
+		serdes@ea800{
+			compatible = "fsl,p4080-serdes";
+			reg = <0xea000 0x1000>;
+		};
+
 		mpic: pic@40000 {
 			clock-frequency = <0>;
 			interrupt-controller;

@@ -32,6 +32,7 @@
 
 #include <asm/wrhv.h>
 #include <vbi/vbi.h>
+#include "corenet_ds.h"
 
 extern struct vb_config *wr_config;
 extern struct vb_status *wr_status;
@@ -104,6 +105,55 @@ static int __init p4080_errata_gen8(void)
 	return 0;
 }
 machine_postcore_initcall(p4080_ds, p4080_errata_gen8);
+
+static int __init p4080_errata_serdes9(struct corenet_serdes *sd)
+{
+	int i;
+
+	/* Fix for XAUI on FMAN2. We only support serdes protocol 0x10 now. */
+	for (i = 16; i < 20; i++)
+		clrsetbits_be32(&sd->lane[i].ttlcr0, SRDS_TTLCR0_FLT_SEL_MASK,
+				0x03000000 | SRDS_TTLCR0_PM_DIS);
+
+
+	clrbits32(&sd->bank[2].pllcr1, SRDS_PLLCR1_PLL_BWSEL);
+
+	for (i = 16; i < 20; i++)
+		clrbits32(&sd->lane[i].gcr0, SRDS_GCR0_RRST);
+
+	mdelay(1);
+	for (i = 16; i < 20; i++)
+		setbits32(&sd->lane[i].gcr0, SRDS_GCR0_RRST);
+
+	pr_info("Workaround for Errata SERDES9 enabled\n");
+	return 0;
+}
+
+static int __init p4080_serdes_errata(void)
+{
+	struct device_node *np;
+	struct corenet_serdes *sd;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,p4080-serdes");
+	if (!np) {
+		pr_err("fsl,p4080-serdes device node not found\n");
+		return -1;
+	}
+
+	sd = of_iomap(np, 0);
+	if (!sd) {
+		pr_err("%s ioremap failed\n", np->full_name);
+		of_node_put(np);
+		return -1;
+	}
+
+	p4080_errata_serdes9(sd);
+
+	iounmap(sd);
+	of_node_put(np);
+	return 0;
+}
+machine_postcore_initcall(p4080_ds, p4080_serdes_errata);
 
 static void __init wrhv_mpc85xx_pic_init(void)
 {
