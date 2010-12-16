@@ -365,6 +365,10 @@ static void resource_clip(struct resource *res, resource_size_t min,
 		res->end = max;
 }
 
+void __weak arch_remove_reservations(struct resource *avail)
+{
+}
+
 static resource_size_t simple_align_resource(void *data,
 					     const struct resource *avail,
 					     resource_size_t size,
@@ -388,6 +392,7 @@ static int find_resource(struct resource *root, struct resource *new,
 	struct resource *this = root->child;
 	struct resource tmp = *new;
 
+	tmp.flags = new->flags;
 	tmp.start = root->start;
 	/*
 	 * Skip past an allocated resource that starts at 0, since the assignment
@@ -404,6 +409,7 @@ static int find_resource(struct resource *root, struct resource *new,
 			tmp.end = root->end;
 
 		resource_clip(&tmp, min, max);
+		arch_remove_reservations(&tmp);
 		tmp.start = ALIGN(tmp.start, align);
 
 		tmp.start = alignf(alignf_data, &tmp, size, align);
