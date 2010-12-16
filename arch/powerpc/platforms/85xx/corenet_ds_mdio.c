@@ -85,9 +85,7 @@ static int p4080ds_mdio_reset(struct mii_bus *bus)
 {
 	struct p4080ds_mdio *priv = bus->priv;
 
-	mutex_lock(&bus->mdio_lock);
 	priv->real_bus->reset(priv->real_bus);
-	mutex_unlock(&bus->mdio_lock);
 
 	return 0;
 }
