@@ -1359,6 +1359,12 @@ static int __xipram do_write_buffer(struct map_info *map, struct flchip *chip,
 				adr, map_bankwidth(map),
 				chip->word_write_time);
 
+	/* uWriteTimeout is only one experienced time slot. So its necessary
+	 * to add the given chip buffer write time to make sure the actual write
+	 * timeout is enough.
+	 */
+	if (uWriteTimeout < chip->buffer_write_time)
+		uWriteTimeout += chip->buffer_write_time;
 	timeo = jiffies + uWriteTimeout;
 
 	for (;;) {
