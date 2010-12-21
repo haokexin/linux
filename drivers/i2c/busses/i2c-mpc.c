@@ -65,6 +65,7 @@ struct mpc_i2c {
 	int irq;
 #ifdef CONFIG_SUSPEND
 	u32 save_fdr;
+	u32 save_cr;
 #endif
 };
 
@@ -553,6 +554,7 @@ static int fsl_i2c_suspend(struct of_device *op, pm_message_t state)
 	struct mpc_i2c *i2c = dev_get_drvdata(&op->dev);
 
 	i2c->save_fdr = readb(i2c->base + MPC_I2C_FDR);
+	i2c->save_cr = readb(i2c->base + MPC_I2C_CR);
 
 	return 0;
 }
@@ -563,6 +565,7 @@ static int fsl_i2c_resume(struct of_device *op)
 	struct mpc_i2c *i2c = dev_get_drvdata(&op->dev);
 
 	writeb(i2c->save_fdr & 0xff, i2c->base + MPC_I2C_FDR);
+	writeb(i2c->save_cr & (CCR_MEN|CCR_MIEN), i2c->base + MPC_I2C_CR);
 
 	return 0;
 }
