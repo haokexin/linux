@@ -1494,14 +1494,20 @@ static irqreturn_t smsc911x_irqhandler(int irq, void *dev_id)
 	}
 
 	if (likely(intsts & inten & INT_STS_RSFL_)) {
-		if (likely(napi_schedule_prep(&pdata->napi))) {
-			/* Disable Rx interrupts */
-			temp = smsc911x_reg_read(pdata, INT_EN);
-			temp &= (~INT_EN_RSFL_EN_);
-			smsc911x_reg_write(pdata, INT_EN, temp);
+		/* Disable Rx interrupts first, if doesn't meet
+		 * napi_schedule_prep(), we will re-enable Rx interrupts. This
+		 * disable and re-enable pair operation can De-assert interrupt
+		 * line and is more safer to those level triggered platforms. */
+		temp = smsc911x_reg_read(pdata, INT_EN);
+		temp &= (~INT_EN_RSFL_EN_);
+		smsc911x_reg_write(pdata, INT_EN, temp);
+
+		if (likely(napi_schedule_prep(&pdata->napi)))
 			/* Schedule a NAPI poll */
 			__napi_schedule(&pdata->napi);
-		} else {
+		else {
+			temp |= INT_EN_RSFL_EN_;
+			smsc911x_reg_write(pdata, INT_EN, temp);
 			SMSC_WARNING(RX_ERR,
 				"napi_schedule_prep failed");
 		}
