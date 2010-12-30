@@ -691,4 +691,24 @@ static inline void sctp_v4_map_v6(union sctp_addr *addr)
 	addr->v6.sin6_addr.s6_addr32[2] = htonl(0x0000ffff);
 }
 
+/* This is inspired from __sk_dst_check().
+ * The cookie is always 0 since this is how it's used in the
+ * pmtu code.
+ */
+static inline struct dst_entry *sctp_transport_dst_check(struct sctp_transport *t)
+{
+	struct dst_entry *dst = t->dst;
+
+	/* The 'obsolete' field of dst is set to 2 when a dst is freed. */
+	if (dst &&
+	   (dst->obsolete > 1 ||
+	   (dst->obsolete && dst->ops->check(dst, 0) == NULL))) {
+		dst_release(t->dst);
+		t->dst = NULL;
+		return NULL;
+	}
+
+	return dst;
+}
+
 #endif /* __net_sctp_h__ */
