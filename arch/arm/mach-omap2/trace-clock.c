@@ -149,6 +149,7 @@ void save_sync_trace_clock(void)
 	struct pm_save_count *pm_count;
 	unsigned long flags;
 	int cpu;
+	u32 regval;
 
 	raw_local_irq_save(flags);
 	cpu = smp_processor_id();
@@ -174,6 +175,11 @@ end:
 	 * keeping track of time with ext. clock.
 	 */
 	write_ctens(read_ctens() & ~(1 << 31));	/* disable counter */
+
+	regval = read_pmnc();
+	regval &=  ~(1 << 0);	/* Disable all counters */
+	write_pmnc(regval);
+
 	raw_local_irq_restore(flags);
 }
 
