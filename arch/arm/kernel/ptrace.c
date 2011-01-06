@@ -45,6 +45,7 @@
 typedef unsigned int UINT32;
 typedef int INT32;
 
+#undef BIT
 #define BIT(n) ((UINT32)1U << (n))
 #define BITSET(x,n) (((UINT32)(x) & (1U<<(n))) >> (n))
 #define BITS(x,m,n) (((UINT32)((x) & (BIT(n) - BIT(m) + BIT(n)))) >> (m))
@@ -1015,9 +1016,18 @@ static u32 *thumbGetNpc(u16 instr,	/* the current instruction */
 				break;
 			}
 
+			pr_debug("  nextBit: %x\n", (u16)nextBit);
+
+			/* Thumb 2 32 bit instruction */
+			if (BITSET(nextBit, 15) == 0) {
+				nPc = pc + 4;
+				break;
+			}
+
 			if ((nextBit & 0xE800) != 0xE800) {
 				pr_debug("Strange BL\n");
-				/* Something strange going on */
+				/* Something strange going on assume 32 bit arm instruction */
+				nPc = pc + 4;
 				break;
 			}
 
