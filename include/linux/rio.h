@@ -330,5 +330,6 @@ extern int rio_open_inb_mbox(struct rio_mport *, void *, int, int);
 extern void rio_close_inb_mbox(struct rio_mport *, int);
 extern int rio_open_outb_mbox(struct rio_mport *, void *, int, int);
 extern void rio_close_outb_mbox(struct rio_mport *, int);
+extern int fsl_rio_mcheck_exception(struct pt_regs *);
 
 #endif				/* LINUX_RIO_H */

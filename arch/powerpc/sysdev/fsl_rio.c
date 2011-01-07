@@ -216,9 +216,7 @@ struct rio_priv {
 
 static void __iomem *rio_regs_win;
 
-static int (*saved_mcheck_exception)(struct pt_regs *regs);
-
-static int fsl_rio_mcheck_exception(struct pt_regs *regs)
+int fsl_rio_mcheck_exception(struct pt_regs *regs)
 {
 	const struct exception_table_entry *entry = NULL;
 	unsigned long reason = mfspr(SPRN_MCSR);
@@ -240,12 +238,9 @@ static int fsl_rio_mcheck_exception(struct pt_regs *regs)
 			}
 		}
 	}
-
-	if (saved_mcheck_exception)
-		return saved_mcheck_exception(regs);
-	else
-		return cur_cpu_spec->machine_check(regs);
+	return 0;
 }
+EXPORT_SYMBOL_GPL(fsl_rio_mcheck_exception);
 
 /**
  * fsl_rio_doorbell_send - Send a MPC85xx doorbell message
@@ -1255,9 +1250,6 @@ int fsl_rio_setup(struct of_device *dev)
 			(law_start + RIO_MAINT_WIN_SIZE) >> 12);
 	out_be32(&priv->dbell_atmu_regs->rowar, 0x8004200b);	/* 4k */
 	fsl_rio_doorbell_init(port);
-
-	saved_mcheck_exception = ppc_md.machine_check_exception;
-	ppc_md.machine_check_exception = fsl_rio_mcheck_exception;
 
 	return 0;
 err:
