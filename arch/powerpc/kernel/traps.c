@@ -58,6 +58,7 @@
 #endif
 #include <asm/kexec.h>
 #include <asm/ppc-opcode.h>
+#include <linux/rio.h>
 
 #if defined(CONFIG_DEBUGGER) || defined(CONFIG_KEXEC)
 int (*__debugger)(struct pt_regs *regs) __read_mostly;
@@ -476,6 +477,13 @@ int machine_check_e500mc(struct pt_regs *regs)
 		       reason & MCSR_MEA ? "Effective" : "Physical", addr);
 	}
 
+	if (reason & MCSR_BUS_RBERR) {
+		printk("Bus - Read Data Bus Error\n");
+#ifdef CONFIG_RAPIDIO
+		recoverable = fsl_rio_mcheck_exception(regs);
+#endif
+	}
+
 	mtspr(SPRN_MCSR, mcsr);
 	return mfspr(SPRN_MCSR) == 0 && recoverable;
 }
@@ -503,8 +511,12 @@ int machine_check_e500(struct pt_regs *regs)
 		printk("Bus - Write Address Error\n");
 	if (reason & MCSR_BUS_IBERR)
 		printk("Bus - Instruction Data Error\n");
-	if (reason & MCSR_BUS_RBERR)
+	if (reason & MCSR_BUS_RBERR) {
 		printk("Bus - Read Data Bus Error\n");
+#ifdef CONFIG_RAPIDIO
+		fsl_rio_mcheck_exception(regs);
+#endif
+	}
 	if (reason & MCSR_BUS_WBERR)
 		printk("Bus - Read Data Bus Error\n");
 	if (reason & MCSR_BUS_IPERR)
