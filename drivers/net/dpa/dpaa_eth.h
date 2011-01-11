@@ -111,7 +111,17 @@ extern const struct ethtool_ops dpa_ethtool_ops;
 
 static inline int dpaa_eth_napi_schedule(struct dpa_percpu_priv_s *percpu_priv)
 {
+/* in preempt-rt kernel, flag PFE_HARDIRQ is set in hardirq-thread */
+#if defined(CONFIG_PREEMPT_RT)
+	if (unlikely(current->extra_flags & PFE_HARDIRQ)) {
+/* this branch is for cgl kernel, which uses PF_HARDIRQ
+ * as hardirq-thread flag
+ */
+#elif defined(CONFIG_PREEMPT_HARDIRQS)
+	if (unlikely(current->flags & PF_HARDIRQ)) {
+#else
 	if (unlikely(in_irq())) {
+#endif
 		/* Disable QMan IRQ and invoke NAPI */
 		int ret = qman_irqsource_remove(QM_PIRQ_DQRI);
 		if (likely(!ret)) {
