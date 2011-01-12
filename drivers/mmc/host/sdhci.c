@@ -1764,7 +1764,8 @@ int sdhci_add_host(struct sdhci_host *host)
 	caps = sdhci_readl(host, SDHCI_CAPABILITIES);
 
 	 /* Workaround for P4080 ESDHC12 errata */
-	caps &= ~(SDHCI_CAN_VDD_180 | SDHCI_CAN_VDD_330);
+	if (host->quirks & SDHCI_QUIRK_QORIQ_REG_WEIRD)
+		caps &= ~(SDHCI_CAN_VDD_180 | SDHCI_CAN_VDD_300);
 
 	if (host->quirks & SDHCI_QUIRK_FORCE_DMA)
 		host->flags |= SDHCI_USE_SDMA;
