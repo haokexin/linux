@@ -257,7 +257,7 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 	struct ftrace_graph_ent trace;
 	unsigned long return_hooker = (unsigned long)
 	    &return_to_handler;
-	int faulted;
+	int faulted, insns;
 
 	if (unlikely(atomic_read(&current->tracing_graph_pause)))
 		return;
@@ -298,13 +298,20 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 	if (unlikely(faulted))
 		goto out;
 
-	if (ftrace_push_return_trace(old_parent_ra, self_ra, &trace.depth, fp)
+	/*
+	 * Get the recorded ip of the current mcount calling site in the
+	 * __mcount_loc section, which will be used to filter the function
+	 * entries configured through the tracing/set_graph_function interface.
+	 */
+
+	insns = in_kernel_space(self_ra) ? 2 : MCOUNT_OFFSET_INSNS + 1;
+	trace.func = self_ra - (MCOUNT_INSN_SIZE * insns);
+
+	if (ftrace_push_return_trace(old_parent_ra, trace.func, &trace.depth, fp)
 	    == -EBUSY) {
 		*parent_ra_addr = old_parent_ra;
 		return;
 	}
-
-	trace.func = self_ra;
 
 	/* Only trace if the calling function expects to */
 	if (!ftrace_graph_entry(&trace)) {
