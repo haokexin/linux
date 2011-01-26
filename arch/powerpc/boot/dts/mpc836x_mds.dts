@@ -66,6 +66,38 @@
 			reg = <0 0 0x2000000>;
 			bank-width = <2>;
 			device-width = <1>;
+
+			partition@0 {
+				label = "U-Boot";
+				reg = <0x00000000 0x00100000>;
+				read-only;
+			};
+
+			partition@100000 {
+				label = "JFFS2";
+				reg = <0x00100000 0x00800000>;
+			};
+
+			partition@900000 {
+				label = "Ramdisk";
+				reg = <0x00900000 0x00400000>;
+			};
+
+			partition@d00000 {
+				label = "Reserved";
+				reg = <0x00d00000 0x01000000>;
+				read-only;
+			};
+
+			partition@1d00000 {
+				label = "Kernel";
+				reg = <0x01d00000 0x00200000>;
+			};
+
+			partition@1f00000 {
+				label = "dtb";
+				reg = <0x01f00000 0x00100000>;
+			};
 		};
 
 		bcsr@1,0 {
