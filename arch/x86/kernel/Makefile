@@ -32,7 +32,9 @@ GCOV_PROFILE_hpet.o		:= n
 GCOV_PROFILE_tsc.o		:= n
 GCOV_PROFILE_paravirt.o		:= n
 
-obj-y			:= process_$(BITS).o signal.o entry_$(BITS).o
+obj-y			:= process_$(BITS).o signal.o 
+obj-$(CONFIG_SEC_TRAMPOLINE) += sec_trampoline.o
+obj-y                   += entry_$(BITS).o
 obj-y			+= traps.o irq.o irq_$(BITS).o dumpstack_$(BITS).o
 obj-y			+= time.o ioport.o ldt.o dumpstack.o
 obj-y			+= setup.o x86_init.o i8259.o irqinit.o

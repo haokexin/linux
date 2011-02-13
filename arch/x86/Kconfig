@@ -74,6 +74,9 @@ config ARCH_DEFCONFIG
 	default "arch/x86/configs/i386_defconfig" if X86_32
 	default "arch/x86/configs/x86_64_defconfig" if X86_64
 
+config ARCH_HAS_SEC_TRAMPOLINE
+        def_bool y
+
 config GENERIC_TIME
 	def_bool y
 

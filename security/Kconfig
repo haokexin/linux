@@ -4,6 +4,13 @@
 
 menu "Security options"
 
+config SEC_TRAMPOLINE
+        bool "Enable security trampoline region"
+        default y if ARCH_HAS_SEC_TRAMPOLINE
+        help
+          This option creates a 10 word space in the text segment that
+          can be used for security trampoline purposes.
+
 config KEYS
 	bool "Enable access key retention support"
 	help
