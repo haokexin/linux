@@ -107,6 +107,7 @@ extra-y				+= vmlinux.lds
 obj-y				+= time.o prom.o traps.o setup-common.o \
 				   udbg.o misc.o io.o dma.o \
 				   misc_$(CONFIG_WORD_SIZE).o
+obj-$(CONFIG_SEC_TRAMPOLINE)	+= sec_trampoline.o
 obj-$(CONFIG_PPC32)		+= entry_32.o setup_32.o
 obj-$(CONFIG_PPC64)		+= dma-iommu.o iommu.o
 obj-$(CONFIG_KGDB)		+= kgdb.o

@@ -104,6 +104,10 @@ config ARCH_HAS_ILOG2_U64
 	bool
 	default y if 64BIT
 
+config ARCH_HAS_SEC_TRAMPOLINE
+        bool
+        default y if !64bit
+
 config GENERIC_HWEIGHT
 	bool
 	default y
