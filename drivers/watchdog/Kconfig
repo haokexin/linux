@@ -73,6 +73,13 @@ config WM8350_WATCHDOG
 
 # ARM Architecture
 
+config ARM_CORTEXA9_WATCHDOG
+	tristate "ARM CortexA9 Watchdog"
+	depends on CPU_V7
+	help
+	  Watchdog timer present with ARM Cortex A9 processor. This will reboot
+	  your system when the timeout is reached.
+
 config AT91RM9200_WATCHDOG
 	tristate "AT91RM9200 watchdog"
 	depends on ARCH_AT91RM9200
