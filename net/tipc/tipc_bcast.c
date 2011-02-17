@@ -216,14 +216,38 @@ void tipc_bclink_acknowledge(struct tipc_node *n_ptr, u32 acked)
 	struct sk_buff *next;
 	unsigned int released = 0;
 
-	if (less_eq(acked, n_ptr->bclink.acked))
-		return;
-
 	spin_lock_bh(&bc_lock);
+
+	/*
+	 * Invalid number indicates that all queued messages are acknowledged
+	 * (used when contact with specified node has been lost)
+	 */
+
+	if (acked == INVALID_LINK_SEQ)
+		acked = bcl->fsm_msg_cnt;
+
+	/*
+	 * Bail out if no unacknowledged messages in queue
+	 * (either the node is acknowledging messages it has previously ack'd
+	 * or the ack value is invalid and should be ignored)
+	 */
+
+	crs = bcl->first_out;
+	if (!crs)
+		goto exit;
+
+	/*
+	 * Validate sequence number to ensure it corresponds to a message
+	 * that has been sent and not yet acknowledged
+	 */
+
+	if (less(acked, buf_seqno(crs)) || less(bcl->fsm_msg_cnt, acked) ||
+	    less_eq(acked, n_ptr->bclink.acked)) {
+		goto exit;
+	}
 
 	/* Skip over packets that node has previously acknowledged */
 
-	crs = bcl->first_out;
 	while (crs && less_eq(buf_seqno(crs), n_ptr->bclink.acked)) {
 		crs = crs->next;
 	}
@@ -261,6 +285,7 @@ void tipc_bclink_acknowledge(struct tipc_node *n_ptr, u32 acked)
 	}
 	if (unlikely(released && !list_empty(&bcl->waiting_ports)))
 		tipc_link_wakeup_ports(bcl, 0);
+exit:
 	spin_unlock_bh(&bc_lock);
 }
 
