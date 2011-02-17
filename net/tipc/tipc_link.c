@@ -1932,10 +1932,8 @@ void tipc_recv_msg(struct sk_buff *head, struct tipc_bearer *tb_ptr)
 
 		/* Release acked messages */
 
-		if (less(n_ptr->bclink.acked, msg_bcast_ack(msg)) &&
-		    n_ptr->bclink.supported) {
+		if (n_ptr->bclink.supported)
 			tipc_bclink_acknowledge(n_ptr, msg_bcast_ack(msg));
-		}
 
 		released = 0;
 		crs = l_ptr->first_out;
