@@ -708,6 +708,7 @@ static int __devinit pdc2027x_init_one(struct pci_dev *pdev, const struct pci_de
 	struct ata_host *host;
 	void __iomem *mmio_base;
 	int i, rc;
+	unsigned long irq_flags = IRQF_SHARED;
 
 	if (!printed_version++)
 		dev_printk(KERN_DEBUG, &pdev->dev, "version " DRV_VERSION "\n");
@@ -754,8 +755,11 @@ static int __devinit pdc2027x_init_one(struct pci_dev *pdev, const struct pci_de
 		return -EIO;
 
 	pci_set_master(pdev);
+#if defined(CONFIG_PREEMPT_HARDIRQS) && defined(CONFIG_RMI_PHOENIX)
+	irq_flags |= IRQF_NODELAY;
+#endif
 	return ata_host_activate(host, pdev->irq, ata_sff_interrupt,
-				 IRQF_SHARED, &pdc2027x_sht);
+				 irq_flags, &pdc2027x_sht);
 }
 
 /**
