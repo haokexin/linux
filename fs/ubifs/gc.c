@@ -125,6 +125,9 @@ int data_nodes_cmp(void *priv, struct list_head *a, struct list_head *b)
 	struct ubifs_scan_node *sa, *sb;
 
 	cond_resched();
+	if (a == b)
+		return 0;
+
 	sa = list_entry(a, struct ubifs_scan_node, list);
 	sb = list_entry(b, struct ubifs_scan_node, list);
 	ubifs_assert(key_type(c, &sa->key) == UBIFS_DATA_KEY);
@@ -163,6 +166,9 @@ int nondata_nodes_cmp(void *priv, struct list_head *a, struct list_head *b)
 	struct ubifs_scan_node *sa, *sb;
 
 	cond_resched();
+	if (a == b)
+		return 0;
+
 	sa = list_entry(a, struct ubifs_scan_node, list);
 	sb = list_entry(b, struct ubifs_scan_node, list);
 	typea = key_type(c, &sa->key);
