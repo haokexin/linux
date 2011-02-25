@@ -101,9 +101,9 @@
 #define BREAKPOINT_INS_LEN	1
 #define NR_NOPS			10
 
-static unsigned long target_after_int3;	/* EIP of the target after the int3 */
+unsigned long target_after_int3;	/* EIP of the target after the int3 */
 static unsigned long bypass_eip;	/* EIP of the bypass. */
-static unsigned long bypass_after_int3;	/* EIP after the end-of-bypass int3 */
+unsigned long bypass_after_int3;	/* EIP after the end-of-bypass int3 */
 static unsigned long after_imv;	/*
 					 * EIP where to resume after the
 					 * single-stepping.
@@ -295,6 +295,8 @@ __kprobes int arch_imv_update(const struct __imv *imv, int early)
 		synchronize_sched();
 		unregister_die_notifier(&imv_notify);
 		/* unregister_die_notifier has memory barriers */
+		target_after_int3 = 0;
+		bypass_after_int3 = 0;
 	} else
 		text_poke_early((void *)imv->imv, (void *)imv->var,
 			imv->size);

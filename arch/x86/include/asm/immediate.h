@@ -108,5 +108,7 @@ struct __imv {
 	})
 
 extern int arch_imv_update(const struct __imv *imv, int early);
+extern unsigned long bypass_after_int3;
+extern unsigned long target_after_int3;
 
 #endif /* _ASM_X86_IMMEDIATE_H */
