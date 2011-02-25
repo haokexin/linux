@@ -364,6 +364,9 @@ void show_registers(const struct pt_regs *regs)
 
 static DEFINE_SPINLOCK(die_lock);
 
+#ifdef CONFIG_KEXEC
+extern struct kimage *kexec_crash_image;
+#endif
 void __noreturn die(const char * str, struct pt_regs * regs)
 {
 	static int die_counter;
@@ -393,8 +396,16 @@ void __noreturn die(const char * str, struct pt_regs * regs)
 		panic("Fatal exception in interrupt");
 
 	if (panic_on_oops) {
+		int do_sleep = 1;
 		printk(KERN_EMERG "Fatal exception: panic in 5 seconds\n");
-		ssleep(5);
+
+#ifdef CONFIG_KEXEC
+		if (kexec_crash_image)
+			do_sleep = 0;
+#endif
+		if (do_sleep)
+			ssleep(5);
+
 		panic("Fatal exception");
 	}
 
