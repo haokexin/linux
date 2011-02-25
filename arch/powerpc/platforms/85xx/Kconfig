@@ -24,6 +24,14 @@ config MPC8560_ADS
 	help
 	  This option enables support for the MPC 8560 ADS board
 
+config FLEXCAN
+	bool "Freescale FLexCAN"
+	select HAVE_CAN_FLEXCAN
+	help
+	  This option enables support for the MPC FlexCAN.
+	  Flexcan Module is implementing the CAN Protocol
+	  version 2.0
+
 config MPC85xx_CDS
 	bool "Freescale MPC85xx CDS"
 	select DEFAULT_UIMAGE
