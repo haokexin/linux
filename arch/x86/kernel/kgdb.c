@@ -562,6 +562,13 @@ static int __kgdb_notify(struct die_args *args, unsigned long cmd)
 			return NOTIFY_DONE;
 	}
 
+#ifdef CONFIG_IMMEDIATE
+	if (cmd == DIE_INT3 &&
+		((target_after_int3 && target_after_int3 == regs->ip) ||
+		 (bypass_after_int3 && bypass_after_int3 == regs->ip)))
+		return NOTIFY_DONE;
+#endif /* CONFIG_USE_IMMEDIATE */
+
 	if (kgdb_handle_exception(args->trapnr, args->signr, cmd, regs))
 		return NOTIFY_DONE;
 
