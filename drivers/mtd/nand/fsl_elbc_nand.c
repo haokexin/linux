@@ -829,6 +829,15 @@ static int fsl_elbc_chip_remove(struct fsl_elbc_mtd *priv)
 	return 0;
 }
 
+static int boardflash_is_mlc(void)
+{
+#ifdef CONFIG_P1022_DS
+	return 1;
+#else
+	return 0;
+#endif
+}
+
 static int __devinit fsl_elbc_chip_probe(struct fsl_elbc_ctrl *ctrl,
 					 struct device_node *node)
 {
@@ -901,6 +910,9 @@ static int __devinit fsl_elbc_chip_probe(struct fsl_elbc_ctrl *ctrl,
 	ret = nand_scan_tail(&priv->mtd);
 	if (ret)
 		goto err;
+
+	if (boardflash_is_mlc())
+		priv->mtd.flags &= ~MTD_OOB_WRITEABLE;
 
 #ifdef CONFIG_MTD_PARTITIONS
 	/* First look for RedBoot table or partitions on the command
@@ -1011,7 +1023,6 @@ static irqreturn_t fsl_elbc_ctrl_irq(int irqno, void *data)
  * resources for the NAND banks themselves are allocated
  * in the chip probe function.
 */
-
 static int __devinit fsl_elbc_ctrl_probe(struct of_device *ofdev,
                                          const struct of_device_id *match)
 {
