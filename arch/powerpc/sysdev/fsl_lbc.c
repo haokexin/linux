@@ -392,8 +392,11 @@ static int __devexit fsl_lbc_ctrl_remove(struct of_device *ofdev)
 #ifdef CONFIG_SUSPEND
 #ifdef CONFIG_P1022_DS
 #define COUNT_OF_BANK_P1022	(8)
-#endif
 #define COUNT_OF_BANKS COUNT_OF_BANK_P1022
+#else
+#define COUNT_OF_BANKS (8)
+#endif
+
 
 /* save lbc registers */
 static int fsl_lbc_suspend(struct of_device *ofdev, pm_message_t state)
