@@ -423,4 +423,7 @@ EXPORT(sysn32_call_table)
 	PTR     compat_sys_recvmmsg
 	PTR     sys_getdents64
 	PTR	sys_revokeat
+	PTR     sys_vbi_mem
+	PTR     sys_vbi_activate_vb
+	PTR     sys_vbi_control
 	.size	sysn32_call_table,.-sysn32_call_table
