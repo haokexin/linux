@@ -296,6 +296,9 @@ struct fsl_lbc_ctrl {
 
 	/* status read from LTESR by irq handler */
 	unsigned int			irq_status;
+#ifdef CONFIG_SUSPEND
+	struct fsl_lbc_regs saved_regs;
+#endif
 };
 
 extern int fsl_upm_run_pattern(struct fsl_upm *upm, void __iomem *io_base,
