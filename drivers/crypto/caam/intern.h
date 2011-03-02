@@ -68,7 +68,11 @@ struct caam_drv_private {
 	struct device *dev;
 	struct device **jrdev; /* Alloc'ed array per sub-device */
 	spinlock_t jr_alloc_lock;
-	struct platform_device *pdev;
+#ifdef CONFIG_OF
+	struct of_device *ofdev;
+#else
+	/* Non-OF-specific defs */
+#endif
 
 	/* Physical-presence section */
 	struct caam_ctrl *ctrl; /* controller region */

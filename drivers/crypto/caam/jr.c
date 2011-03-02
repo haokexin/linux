@@ -460,17 +460,17 @@ int caam_jr_shutdown(struct device *dev)
  * Probe routine for each detected JobR subsystem. It assumes that
  * property detection was picked up externally.
  */
-int caam_jr_probe(struct platform_device *pdev, struct device_node *np,
+int caam_jr_probe(struct of_device *ofdev, struct device_node *np,
 		  int ring)
 {
 	struct device *ctrldev, *jrdev;
-	struct platform_device *jr_pdev;
+	struct of_device *jr_ofdev;
 	struct caam_drv_private *ctrlpriv;
 	struct caam_drv_private_jr *jrpriv;
 	u32 *jroffset;
 	int error;
 
-	ctrldev = &pdev->dev;
+	ctrldev = &ofdev->dev;
 	ctrlpriv = dev_get_drvdata(ctrldev);
 
 	jrpriv = kmalloc(sizeof(struct caam_drv_private_jr),
@@ -494,12 +494,12 @@ int caam_jr_probe(struct platform_device *pdev, struct device_node *np,
 							 + *jroffset);
 
 	/* Build a local dev for each detected queue */
-	jr_pdev = of_platform_device_create(np, NULL, ctrldev);
-	if (jr_pdev == NULL) {
+	jr_ofdev = of_platform_device_create(np, NULL, ctrldev);
+	if (jr_ofdev == NULL) {
 		kfree(jrpriv);
 		return -EINVAL;
 	}
-	jrdev = &jr_pdev->dev;
+	jrdev = &jr_ofdev->dev;
 	dev_set_drvdata(jrdev, jrpriv);
 	ctrlpriv->jrdev[ring] = jrdev;
 

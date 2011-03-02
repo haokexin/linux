@@ -10,7 +10,7 @@
 #include "intern.h"
 #include "jr.h"
 
-static int caam_remove(struct platform_device *pdev)
+static int caam_remove(struct of_device *ofdev)
 {
 	struct device *ctrldev;
 	struct caam_drv_private *ctrlpriv;
@@ -18,7 +18,7 @@ static int caam_remove(struct platform_device *pdev)
 	struct caam_full __iomem *topregs;
 	int ring, ret = 0;
 
-	ctrldev = &pdev->dev;
+	ctrldev = &ofdev->dev;
 	ctrlpriv = dev_get_drvdata(ctrldev);
 	topregs = (struct caam_full __iomem *)ctrlpriv->ctrl;
 
@@ -44,7 +44,7 @@ static int caam_remove(struct platform_device *pdev)
 }
 
 /* Probe routine for CAAM top (controller) level */
-static int caam_probe(struct platform_device *pdev,
+static int caam_probe(struct of_device *ofdev,
 		      const struct of_device_id *devmatch)
 {
 	int d, ring, rspec;
@@ -61,10 +61,10 @@ static int caam_probe(struct platform_device *pdev,
 	if (!ctrlpriv)
 		return -ENOMEM;
 
-	dev = &pdev->dev;
+	dev = &ofdev->dev;
 	dev_set_drvdata(dev, ctrlpriv);
-	ctrlpriv->pdev = pdev;
-	nprop = pdev->dev.of_node;
+	ctrlpriv->ofdev = ofdev;
+	nprop = ofdev->node;
 
 	/* Get configuration properties from device tree */
 	/* First, get register page */
@@ -119,7 +119,7 @@ static int caam_probe(struct platform_device *pdev,
 	ring = 0;
 	ctrlpriv->total_jobrs = 0;
 	for_each_compatible_node(np, NULL, "fsl,sec-v4.0-job-ring") {
-		caam_jr_probe(pdev, np, ring);
+		caam_jr_probe(ofdev, np, ring);
 		ctrlpriv->total_jobrs++;
 		ring++;
 	}
@@ -136,7 +136,7 @@ static int caam_probe(struct platform_device *pdev,
 	/* If no QI and no rings specified, quit and go home */
 	if ((!ctrlpriv->qi_present) && (!ctrlpriv->total_jobrs)) {
 		dev_err(dev, "no queues configured, terminating\n");
-		caam_remove(pdev);
+		caam_remove(ofdev);
 		return -ENOMEM;
 	}
 
@@ -243,11 +243,8 @@ static struct of_device_id caam_match[] = {
 MODULE_DEVICE_TABLE(of, caam_match);
 
 static struct of_platform_driver caam_driver = {
-	.driver = {
-		.name = "caam",
-		.owner = THIS_MODULE,
-		.of_match_table = caam_match,
-	},
+	.name        = "caam",
+	.match_table = caam_match,
 	.probe       = caam_probe,
 	.remove      = __devexit_p(caam_remove),
 };

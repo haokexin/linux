@@ -1011,7 +1011,7 @@ static void __exit caam_algapi_exit(void)
 {
 
 	struct device_node *dev_node;
-	struct platform_device *pdev;
+	struct of_device *of_dev;
 	struct device *ctrldev;
 	struct caam_drv_private *priv;
 	struct caam_crypto_alg *t_alg, *n;
@@ -1021,11 +1021,11 @@ static void __exit caam_algapi_exit(void)
 	if (!dev_node)
 		return;
 
-	pdev = of_find_device_by_node(dev_node);
-	if (!pdev)
+	of_dev = of_find_device_by_node(dev_node);
+	if (!of_dev)
 		return;
 
-	ctrldev = &pdev->dev;
+	ctrldev = &of_dev->dev;
 	of_node_put(dev_node);
 	priv = dev_get_drvdata(ctrldev);
 
@@ -1086,7 +1086,7 @@ static struct caam_crypto_alg *caam_alg_alloc(struct device *ctrldev,
 static int __init caam_algapi_init(void)
 {
 	struct device_node *dev_node;
-	struct platform_device *pdev;
+	struct of_device *of_dev;
 	struct device *ctrldev, **jrdev;
 	struct caam_drv_private *priv;
 	int i = 0, err = 0;
@@ -1095,11 +1095,11 @@ static int __init caam_algapi_init(void)
 	if (!dev_node)
 		return -ENODEV;
 
-	pdev = of_find_device_by_node(dev_node);
-	if (!pdev)
+	of_dev = of_find_device_by_node(dev_node);
+	if (!of_dev)
 		return -ENODEV;
 
-	ctrldev = &pdev->dev;
+	ctrldev = &of_dev->dev;
 	priv = dev_get_drvdata(ctrldev);
 	of_node_put(dev_node);
 
