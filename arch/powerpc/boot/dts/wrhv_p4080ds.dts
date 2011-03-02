@@ -913,6 +913,14 @@
 			};
 		};
 
+		gpio0: gpio@130000 {
+			compatible = "fsl,p4080-gpio", "fsl,qoriq-gpio";
+			reg = <0x130000 0x1000>;
+			interrupts = <55 2 0 0>;
+			#gpio-cells = <2>;
+			gpio-controller;
+		};
+
 		usb0: usb@210000 {
 			compatible = "fsl,p4080-usb2-mph",
 					"fsl,mpc85xx-usb2-mph", "fsl-usb2-mph";
@@ -1030,11 +1038,6 @@
 			interrupt-parent = <&mpic>;
 			fsl,sdhci-auto-cmd12;
 			clock-frequency = <0>;
-		};
-
-		gpio: gpio@130008 {
-			compatible = "fsl,qoriq-gpio";
-			reg = <0x130008 0xff8>;
 		};
 
 		crypto: crypto@300000 {
@@ -1297,6 +1300,8 @@
 				compatible = "fsl,fman-mdio";
 				reg = <0xe1120 0xee0>;
 				interrupts = <100 1>;
+				gpios = <&gpio0 0 0
+					 &gpio0 1 0>;
 
 				tbi0: tbi-phy@8 {
 					reg = <0x8>;
@@ -1463,6 +1468,8 @@
 				compatible = "fsl,fman-xmdio";
 				reg = <0xf1000 0x1000>;
 				interrupts = <100 1>;
+				gpios = <&gpio0 2 0
+					 &gpio0 3 0>;
 
 				p4080xmdio1: p4080ds-xmdio1 {
 					#address-cells = <1>;
