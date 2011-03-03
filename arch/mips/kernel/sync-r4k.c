@@ -24,6 +24,9 @@ static atomic_t __cpuinitdata count_start_flag = ATOMIC_INIT(0);
 static atomic_t __cpuinitdata count_count_start = ATOMIC_INIT(0);
 static atomic_t __cpuinitdata count_count_stop = ATOMIC_INIT(0);
 static atomic_t __cpuinitdata count_reference = ATOMIC_INIT(0);
+#ifdef CONFIG_HOTPLUG_CPU
+static atomic_t __cpuinitdata count_finish_flag = ATOMIC_INIT(0);
+#endif
 
 #define COUNTON	100
 #define NR_LOOPS 5
@@ -106,6 +109,11 @@ void __cpuinit synchronise_count_master(void)
 	 * so no point in alarming people
 	 */
 	printk("done.\n");
+
+#ifdef CONFIG_HOTPLUG_CPU
+	/* Safely mark the finish flag here */
+	atomic_set(&count_finish_flag, 1);
+#endif
 }
 
 void __cpuinit synchronise_count_slave(void)
@@ -124,6 +132,14 @@ void __cpuinit synchronise_count_slave(void)
 #endif
 
 	local_irq_save(flags);
+
+#ifdef CONFIG_HOTPLUG_CPU
+	/* No need to re-sync it when up the cpu via cpu hotplug */
+	if (atomic_read(&count_finish_flag)) {
+		local_irq_restore(flags);
+		return;
+	}
+#endif
 
 	/*
 	 * Not every cpu is online at the time this gets called,
