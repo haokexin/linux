@@ -35,7 +35,7 @@ also specify which clock source and divider shall be used for the controller:
 
 Note that the MPC5121 Rev. 1 processor is not supported.
 
-fsl,flexcan2.0 nodes
+fsl,flexcan-v1.0 nodes
 -----------------------
 In addition to the required compatible-, reg- and interrupt-properties, you can
 also specify which clock source shall be used for the controller.
@@ -70,7 +70,7 @@ Examples:
 	};
 
 	can0@1c000 {
-		compatible = "fsl,flexcan2.0";
+		compatible = "fsl,flexcan-v1.0";
 		reg = <0x1c000 0x1000>;
 		interrupts = <48 0x2>;
 		interrupt-parent = <&mpic>;
