@@ -140,7 +140,7 @@ static int flexcan_of_remove(struct of_device *ofdev)
 
 static struct of_device_id flexcan_match[] = {
 	{
-	 .compatible = "fsl,flexcan2.0",
+	 .compatible = "fsl,flexcan-v1.0",
 	 },
 	{},
 };
