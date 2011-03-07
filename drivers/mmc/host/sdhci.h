@@ -258,6 +258,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK_QORIQ_REG_WEIRD			(1<<27)
 /* Controller has time out errata */
 #define SDHCI_QUIRK_QORIQ_TIMEOUT_WEIRD			(1<<28)
+/* Controller has weird bit setting for Protocol Control Register */
+#define SDHCI_QUIRK_QORIQ_PROCTL_WEIRD			(1<<29)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
