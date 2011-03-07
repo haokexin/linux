@@ -1061,7 +1061,7 @@ struct sk_buff *_kc_netdev_alloc_skb_ip_align(struct net_device *dev,
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35) )
 #ifdef HAVE_TX_MQ
 #ifndef CONFIG_NETDEVICES_MULTIQUEUE
-void _kc_netif_set_real_num_tx_queues(struct net_device *dev, unsigned int txq)
+void _kc_netif_set_real_num_tx_queues_ixgbe(struct net_device *dev, unsigned int txq)
 {
 	unsigned int real_num = dev->real_num_tx_queues;
 	struct Qdisc *qdisc;
@@ -1089,7 +1089,7 @@ void _kc_netif_set_real_num_tx_queues(struct net_device *dev, unsigned int txq)
 
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36) )
-int _kc_ethtool_op_set_flags(struct net_device *dev, u32 data, u32 supported)
+int _kc_ethtool_op_set_flags_ixgbe(struct net_device *dev, u32 data, u32 supported)
 {
 	unsigned long features = dev->features;
 

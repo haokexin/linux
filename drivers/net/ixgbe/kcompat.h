@@ -2437,8 +2437,8 @@ do {								\
 #ifdef HAVE_TX_MQ
 #include <net/sch_generic.h>
 #ifndef CONFIG_NETDEVICES_MULTIQUEUE
-void _kc_netif_set_real_num_tx_queues(struct net_device *, unsigned int);
-#define netif_set_real_num_tx_queues  _kc_netif_set_real_num_tx_queues
+void _kc_netif_set_real_num_tx_queues_ixgbe(struct net_device *, unsigned int);
+#define netif_set_real_num_tx_queues  _kc_netif_set_real_num_tx_queues_ixgbe
 #else /* CONFIG_NETDEVICES_MULTI_QUEUE */
 #define netif_set_real_num_tx_queues(_netdev, _count) \
 	do { \
@@ -2455,8 +2455,8 @@ void _kc_netif_set_real_num_tx_queues(struct net_device *, unsigned int);
 
 /*****************************************************************************/
 #if ( LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36) )
-extern int _kc_ethtool_op_set_flags(struct net_device *, u32, u32);
-#define ethtool_op_set_flags _kc_ethtool_op_set_flags
+extern int _kc_ethtool_op_set_flags_ixgbe(struct net_device *, u32, u32);
+#define ethtool_op_set_flags _kc_ethtool_op_set_flags_ixgbe
 #else /* < 2.6.36 */
 #define HAVE_PM_QOS_REQUEST_ACTIVE
 #define HAVE_8021P_SUPPORT
