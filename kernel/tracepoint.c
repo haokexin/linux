@@ -244,9 +244,9 @@ static void set_tracepoint(struct tracepoint_entry **entry,
 {
 	WARN_ON(strcmp((*entry)->name, elem->name) != 0);
 
-	if (elem->regfunc && !_imv_read(&elem->state) && active)
+	if (elem->regfunc && !_imv_read(elem->state) && active)
 		elem->regfunc();
-	else if (elem->unregfunc && _imv_read(&elem->state) && !active)
+	else if (elem->unregfunc && _imv_read(elem->state) && !active)
 		elem->unregfunc();
 
 	/*
@@ -257,7 +257,7 @@ static void set_tracepoint(struct tracepoint_entry **entry,
 	 * is used.
 	 */
 	rcu_assign_pointer(elem->funcs, (*entry)->funcs);
-	elem->state__imv = active;
+	imv_set(elem->state, active);
 }
 
 /*
@@ -268,10 +268,10 @@ static void set_tracepoint(struct tracepoint_entry **entry,
  */
 static void disable_tracepoint(struct tracepoint *elem)
 {
-	if (elem->unregfunc && _imv_read(&elem->state))
+	if (elem->unregfunc && _imv_read(elem->state))
 		elem->unregfunc();
 
-	elem->state__imv = 0;
+	imv_set(elem->state, 0);
 	rcu_assign_pointer(elem->funcs, NULL);
 }
 
