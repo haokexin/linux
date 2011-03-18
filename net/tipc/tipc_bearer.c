@@ -627,6 +627,7 @@ int tipc_block_bearer(const char *name)
 	info("Blocking bearer <%s>\n", name);
 	spin_lock_bh(&b_ptr->publ.lock);
 	b_ptr->publ.blocked = 1;
+	list_splice_init(&b_ptr->cong_links, &b_ptr->links);
 	list_for_each_entry_safe(l_ptr, temp_l_ptr, &b_ptr->links, link_list) {
 		struct tipc_node *n_ptr = l_ptr->owner;
 
@@ -653,6 +654,7 @@ static void bearer_disable(struct bearer *b_ptr)
 	spin_lock_bh(&b_ptr->publ.lock);
 	b_ptr->publ.blocked = 1;
 	b_ptr->media->disable_bearer(&b_ptr->publ);
+	list_splice_init(&b_ptr->cong_links, &b_ptr->links);
 	list_for_each_entry_safe(l_ptr, temp_l_ptr, &b_ptr->links, link_list) {
 		tipc_link_delete(l_ptr);
 	}
