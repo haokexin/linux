@@ -532,7 +532,7 @@ else
 endif
 else
 	BASIC_CFLAGS += -I=$(LIBPERL_DIR)/CORE
-	ALL_LDFLAGS += -L=$(LIBPERL_DIR)/CORE -lperl
+	ALL_LDFLAGS += -L=$(LIBPERL_DIR)/CORE -lperl -Wl,-rpath=$(LIBPERL_DIR)/CORE
 	LIB_OBJS += util/scripting-engines/trace-event-perl.o
 	LIB_OBJS += scripts/perl/Perf-Trace-Util/Context.o
 endif
