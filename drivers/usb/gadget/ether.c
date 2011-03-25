@@ -80,6 +80,9 @@
 #define PREFIX			""
 #endif
 
+static char manufacturer[50];
+static u32 vendorID;
+
 /*
  * This driver aims for interoperability by using CDC ECM unless
  *
@@ -210,8 +213,6 @@ static const struct usb_descriptor_header *otg_desc[] = {
 #define STRING_MANUFACTURER_IDX		0
 #define STRING_PRODUCT_IDX		1
 
-static char manufacturer[50];
-
 static struct usb_string strings_dev[] = {
 	[STRING_MANUFACTURER_IDX].s = manufacturer,
 	[STRING_PRODUCT_IDX].s = PREFIX DRIVER_DESC,
@@ -333,6 +334,8 @@ static int __init eth_bind(struct usb_composite_dev *cdev)
 		device_desc.idProduct = cpu_to_le16(RNDIS_PRODUCT_NUM);
 		device_desc.bNumConfigurations = 2;
 	}
+
+	vendorID = device_desc.idVendor;
 
 	gcnum = usb_gadget_controller_number(gadget);
 	if (gcnum >= 0)
