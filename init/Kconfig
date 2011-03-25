@@ -1081,6 +1081,15 @@ config KALLSYMS_ALL
 
 	   Say N unless you really need all symbols.
 
+config OSCB
+	bool "Enable OS Control Block"
+	default n
+	help
+	   The OS Control Block (OSCB) is a block of memory than an execution
+	   environment (operating system, executive, hypervisor etc) can use to
+	   describe itself to the world. It is particularily useful for tools to
+	   adapt how they interact with a target
+
 config HOTPLUG
 	bool "Support for hot-pluggable devices" if EXPERT
 	default y
