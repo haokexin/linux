@@ -3,6 +3,7 @@
 #
 
 obj-y                          := main.o version.o mounts.o
+obj-$(CONFIG_OSCB)             += oscb.o
 ifneq ($(CONFIG_BLK_DEV_INITRD),y)
 obj-y                          += noinitramfs.o
 else
