@@ -257,7 +257,7 @@ static void set_tracepoint(struct tracepoint_entry **entry,
 	 * is used.
 	 */
 	rcu_assign_pointer(elem->funcs, (*entry)->funcs);
-	imv_set(elem->state, active);
+	elem->state__imv = active;
 }
 
 /*
@@ -271,7 +271,7 @@ static void disable_tracepoint(struct tracepoint *elem)
 	if (elem->unregfunc && _imv_read(elem->state))
 		elem->unregfunc();
 
-	imv_set(elem->state, 0);
+	elem->state__imv = 0;
 	rcu_assign_pointer(elem->funcs, NULL);
 }
 
