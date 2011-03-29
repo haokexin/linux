@@ -204,6 +204,7 @@ config SBCP4080
 	select HAS_FSL_PAMU
 	select HAS_FSL_QBMAN
 	select HAS_FSL_PME
+	select SBCP4080_I2CMDIO if PHYLIB
 	help
 	  This option enables support for the Wind River SBC P4080 board
 
@@ -264,6 +265,11 @@ config FSL_CORENET_DS_MDIO
 config FSL_HYDRA_DS_MDIO
 	bool
 	select VITESSE_PHY
+	depends on PHYLIB
+
+config SBCP4080_I2CMDIO
+	bool
+	select MARVELL_PHY
 	depends on PHYLIB
 
 config TQM85xx
