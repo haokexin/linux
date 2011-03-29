@@ -195,6 +195,18 @@ config P4080_DS
 	help
 	  This option enables support for the P4080 DS board
 
+config SBCP4080
+	bool "Wind River SBC P4080"
+	select DEFAULT_UIMAGE
+	select PPC_E500MC
+	select SWIOTLB
+	select MPC8xxx_GPIO
+	select HAS_FSL_PAMU
+	select HAS_FSL_QBMAN
+	select HAS_FSL_PME
+	help
+	  This option enables support for the Wind River SBC P4080 board
+
 config WRHV_E500
 	bool
 

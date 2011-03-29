@@ -26,4 +26,5 @@ obj-$(CONFIG_SOCRATES)    += socrates.o socrates_fpga_pic.o
 obj-$(CONFIG_KSI8560)	  += ksi8560.o
 obj-$(CONFIG_XES_MPC85xx) += xes_mpc85xx.o
 obj-$(CONFIG_WRHV_P4080DS)    += wrhv_p4080_ds.o corenet_ds_mdio.o
+obj-$(CONFIG_SBCP4080)    += sbcp4080.o corenet_ds.o
 obj-$(CONFIG_FSL_PMC)     += uli8259_suspend.o
