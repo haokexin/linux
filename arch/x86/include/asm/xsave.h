@@ -118,7 +118,7 @@ static inline void xsave(struct task_struct *tsk)
 		".byte " REX_PREFIX "0x0f,0xae,0x27",
 		".byte " REX_PREFIX "0x0f,0xae,0x37",
 		X86_FEATURE_XSAVEOPT,
-		[fx] "D" (&fpu->state->xsave), "a" (-1), "d" (-1) :
+		[fx] "D" (&tsk->thread.xstate->xsave), "a" (-1), "d" (-1) :
 		"memory");
 }
 
