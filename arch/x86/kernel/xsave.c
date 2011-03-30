@@ -37,14 +37,14 @@ void __sanitize_i387_state(struct task_struct *tsk)
 {
 	u64 xstate_bv;
 	int feature_bit = 0x2;
-	struct i387_fxsave_struct *fx = &tsk->thread.fpu.state->fxsave;
+	struct i387_fxsave_struct *fx = &tsk->thread.xstate->fxsave;
 
 	if (!fx)
 		return;
 
 	BUG_ON(task_thread_info(tsk)->status & TS_USEDFPU);
 
-	xstate_bv = tsk->thread.fpu.state->xsave.xsave_hdr.xstate_bv;
+	xstate_bv = tsk->thread.xstate->xsave.xsave_hdr.xstate_bv;
 
 	/*
 	 * None of the feature bits are in init state. So nothing else
