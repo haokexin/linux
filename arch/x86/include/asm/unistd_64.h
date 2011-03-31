@@ -669,6 +669,15 @@ __SYSCALL(__NR_vbi_mem, sys_vbi_mem)
 __SYSCALL(__NR_vbi_activate_vb, sys_vbi_activate_vb)
 #define __NR_vbi_control			302
 __SYSCALL(__NR_vbi_control, sys_vbi_control)
+#define __NR_sched_setscheduler_ex		303
+__SYSCALL(__NR_sched_setscheduler_ex, sys_sched_setscheduler_ex)
+#define __NR_sched_setparam_ex			304
+__SYSCALL(__NR_sched_setparam_ex, sys_sched_setparam_ex)
+#define __NR_sched_getparam_ex			305
+__SYSCALL(__NR_sched_getparam_ex, sys_sched_getparam_ex)
+#define __NR_sched_wait_interval		306
+__SYSCALL(__NR_sched_wait_interval, sys_sched_wait_interval)
+
 #define VBI_MEM_READ           0x0010
 #define VBI_MEM_WRITE          0x0100
 #define SYS_VBI_VB_SUSPEND	0x10001

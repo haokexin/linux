@@ -347,6 +347,11 @@
 #define __NR_vbi_mem		339
 #define __NR_vbi_activate_vb	340
 #define __NR_vbi_control	341
+#define __NR_sched_setscheduler_ex	342
+#define __NR_sched_setparam_ex		343
+#define __NR_sched_getparam_ex		344
+#define __NR_sched_wait_interval	345
+
 #define VBI_MEM_READ		0x0010
 #define VBI_MEM_WRITE		0x0100
 #define SYS_VBI_VB_SUSPEND	0x10001
@@ -355,7 +360,7 @@
 
 #ifdef __KERNEL__
 
-#define NR_syscalls 342
+#define NR_syscalls 346
 
 #define __ARCH_WANT_IPC_PARSE_VERSION
 #define __ARCH_WANT_OLD_READDIR

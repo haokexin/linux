@@ -849,4 +849,8 @@ ia32_sys_call_table:
 	.quad sys_perf_event_open
 	.quad compat_sys_recvmmsg
 	.quad sys_revokeat
+	.quad sys_sched_setscheduler_ex
+	.quad sys_sched_setparam_ex		/* 340 */
+	.quad sys_sched_getparam_ex
+	.quad sys_sched_wait_interval
 ia32_syscall_end:

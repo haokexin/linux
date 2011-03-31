@@ -357,16 +357,20 @@
 #define __NR_accept4			(__NR_Linux + 334)
 #define __NR_recvmmsg			(__NR_Linux + 335)
 #define __NR_revokeat			(__NR_Linux + 336)
+#define __NR_sched_setscheduler_ex	(__NR_Linux + 337)
+#define __NR_sched_setparam_ex		(__NR_Linux + 338)
+#define __NR_sched_getparam_ex		(__NR_Linux + 339)
+#define __NR_sched_wait_interval	(__NR_Linux + 340)
 
 /*
  * Offset of the last Linux o32 flavoured syscall
  */
-#define __NR_Linux_syscalls		336
+#define __NR_Linux_syscalls		340
 
 #endif /* _MIPS_SIM == _MIPS_SIM_ABI32 */
 
 #define __NR_O32_Linux			4000
-#define __NR_O32_Linux_syscalls		336
+#define __NR_O32_Linux_syscalls		340
 
 #if _MIPS_SIM == _MIPS_SIM_ABI64
 
@@ -670,16 +674,20 @@
 #define __NR_accept4			(__NR_Linux + 293)
 #define __NR_recvmmsg			(__NR_Linux + 294)
 #define __NR_revokeat			(__NR_Linux + 295)
+#define __NR_sched_setscheduler_ex	(__NR_Linux + 296)
+#define __NR_sched_setparam_ex		(__NR_Linux + 297)
+#define __NR_sched_getparam_ex		(__NR_Linux + 298)
+#define __NR_sched_wait_interval	(__NR_Linux + 299)
 
 /*
  * Offset of the last Linux 64-bit flavoured syscall
  */
-#define __NR_Linux_syscalls		295
+#define __NR_Linux_syscalls		299
 
 #endif /* _MIPS_SIM == _MIPS_SIM_ABI64 */
 
 #define __NR_64_Linux			5000
-#define __NR_64_Linux_syscalls		295
+#define __NR_64_Linux_syscalls		299
 
 #if _MIPS_SIM == _MIPS_SIM_NABI32
 
@@ -988,16 +996,20 @@
 #define __NR_recvmmsg			(__NR_Linux + 298)
 #define __NR_getdents64			(__NR_Linux + 299)
 #define __NR_revokeat			(__NR_Linux + 300)
+#define __NR_sched_setscheduler_ex	(__NR_Linux + 301)
+#define __NR_sched_setparam_ex		(__NR_Linux + 302)
+#define __NR_sched_getparam_ex		(__NR_Linux + 303)
+#define __NR_sched_wait_interval	(__NR_Linux + 304)
 
 /*
  * Offset of the last N32 flavoured syscall
  */
-#define __NR_Linux_syscalls		300
+#define __NR_Linux_syscalls		304
 
 #endif /* _MIPS_SIM == _MIPS_SIM_NABI32 */
 
 #define __NR_N32_Linux			6000
-#define __NR_N32_Linux_syscalls		300
+#define __NR_N32_Linux_syscalls		304
 
 #ifdef __KERNEL__
 

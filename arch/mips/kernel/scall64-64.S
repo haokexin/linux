@@ -423,4 +423,8 @@ EXPORT(sys_call_table)
 	PTR	sys_accept4
 	PTR     sys_recvmmsg
 	PTR	sys_revokeat
+	PTR     sys_sched_setscheduler_ex
+	PTR     sys_sched_setparam_ex
+	PTR     sys_sched_getparam_ex
+	PTR     sys_sched_wait_interval
 	.size	sys_call_table,.-sys_call_table
