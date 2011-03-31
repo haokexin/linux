@@ -1153,13 +1153,14 @@ static struct of_platform_driver mpc85xx_mc_err_driver = {
 static void __init mpc85xx_mc_clear_rfxe(void *data)
 {
 	orig_hid1[smp_processor_id()] = mfspr(SPRN_HID1);
-	mtspr(SPRN_HID1, (orig_hid1[smp_processor_id()] & ~0x20000));
+	mtspr(SPRN_HID1, (orig_hid1[smp_processor_id()] & ~HID1_RFXE));
 }
 #endif
 
 static int __init mpc85xx_mc_init(void)
 {
 	int res = 0;
+	u32 pvr = 0;
 
 	printk(KERN_INFO "Freescale(R) MPC85xx EDAC driver, "
 	       "(C) 2006 Montavista Software\n");
@@ -1189,12 +1190,17 @@ static int __init mpc85xx_mc_init(void)
 #endif
 
 #ifdef CONFIG_FSL_SOC_BOOKE
-	/*
-	 * need to clear HID1[RFXE] to disable machine check int
-	 * so we can catch it
-	 */
-	if (edac_op_state == EDAC_OPSTATE_INT)
-		on_each_cpu(mpc85xx_mc_clear_rfxe, NULL, 0);
+	pvr = mfspr(SPRN_PVR);
+
+	if ((PVR_VER(pvr) == PVR_VER_E500V1) ||
+	    (PVR_VER(pvr) == PVR_VER_E500V2)) {
+		/*
+		 * need to clear HID1[RFXE] to disable machine check int
+		 * so we can catch it
+		 */
+		if (edac_op_state == EDAC_OPSTATE_INT)
+			on_each_cpu(mpc85xx_mc_clear_rfxe, NULL, 0);
+	}
 #endif
 
 	return 0;
@@ -1212,7 +1218,12 @@ static void __exit mpc85xx_mc_restore_hid1(void *data)
 static void __exit mpc85xx_mc_exit(void)
 {
 #ifdef CONFIG_FSL_SOC_BOOKE
-	on_each_cpu(mpc85xx_mc_restore_hid1, NULL, 0);
+	u32 pvr = mfspr(SPRN_PVR);
+
+	if ((PVR_VER(pvr) == PVR_VER_E500V1) ||
+	    (PVR_VER(pvr) == PVR_VER_E500V2)) {
+		on_each_cpu(mpc85xx_mc_restore_hid1, NULL, 0);
+	}
 #endif
 #ifdef CONFIG_PCI
 	of_unregister_platform_driver(&mpc85xx_pci_err_driver);
