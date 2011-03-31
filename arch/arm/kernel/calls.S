@@ -376,6 +376,10 @@
 		CALL(sys_perf_event_open)
 /* 365 */	CALL(sys_recvmmsg)
 		CALL(sys_accept4)
+		CALL(sys_sched_setscheduler_ex)
+		CALL(sys_sched_setparam_ex)
+		CALL(sys_sched_getparam_ex)
+/* 370 */	CALL(sys_sched_wait_interval)
 #ifndef syscalls_counted
 .equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
 #define syscalls_counted

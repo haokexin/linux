@@ -341,3 +341,7 @@ ENTRY(sys_call_table)
 	.long sys_vbi_mem		/* 339 */
 	.long sys_vbi_activate_vb	/* 340 */
 	.long sys_vbi_control		/* 341 */
+	.long sys_sched_setscheduler_ex
+	.long sys_sched_setparam_ex
+	.long sys_sched_getparam_ex	/* 344 */
+	.long sys_sched_wait_interval	/* 345 */
