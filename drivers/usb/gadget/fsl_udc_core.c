@@ -196,6 +196,11 @@ static int dr_controller_setup(struct fsl_udc *udc)
 		portctrl |= PORTSCX_PTW_16BIT;
 		/* fall through */
 	case FSL_USB2_PHY_UTMI:
+#ifdef CONFIG_FSL_SOC_BOOKE
+		setbits32(&usb_sys_regs->control, USB_CTRL_UTMI_PHY_EN |
+			       USB_CTRL_USB_EN);
+		udelay(10*1000);  /* delay for PHY clk to ready */
+#endif
 		portctrl |= PORTSCX_PTS_UTMI;
 		break;
 	case FSL_USB2_PHY_SERIAL:
