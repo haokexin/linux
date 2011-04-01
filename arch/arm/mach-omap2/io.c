@@ -38,6 +38,7 @@
 #include "clock2xxx.h"
 #include "clock3xxx.h"
 #include "clock44xx.h"
+#include "clock816x.h"
 
 #include <plat/omap-pm.h>
 #include <plat/powerdomain.h>
@@ -222,6 +223,30 @@ static struct map_desc omap44xx_io_desc[] __initdata = {
 };
 #endif
 
+#ifdef CONFIG_ARCH_TI816X
+#define MT_STRONGLY_ORDERED	12
+static struct map_desc ti816x_io_desc[] __initdata = {
+	{
+		.virtual	= L4_SLOW_TI816X_VIRT,
+		.pfn		= __phys_to_pfn(L4_SLOW_TI816X_PHYS),
+		.length		= L4_SLOW_TI816X_SIZE,
+		.type		= MT_DEVICE
+	},
+	{
+		.virtual	= TI816X_GPMC_VIRT,
+		.pfn		= __phys_to_pfn(TI816X_GPMC_PHYS),
+		.length		= TI816X_GPMC_SIZE,
+		.type		= MT_DEVICE
+	},
+	{
+		.virtual	= TI816X_L2_MC_VIRT,
+		.pfn		= __phys_to_pfn(TI816X_L2_MC_PHYS),
+		.length		= TI816X_L2_MC_SIZE,
+		.type		= MT_STRONGLY_ORDERED
+	},
+};
+#endif
+
 static void __init _omap2_map_common_io(void)
 {
 	/* Normally devicemaps_init() would flush caches and tlb after
@@ -267,6 +292,14 @@ void __init omap34xx_map_common_io(void)
 void __init omap44xx_map_common_io(void)
 {
 	iotable_init(omap44xx_io_desc, ARRAY_SIZE(omap44xx_io_desc));
+	_omap2_map_common_io();
+}
+#endif
+
+#ifdef CONFIG_ARCH_TI816X
+void __init ti816x_map_common_io()
+{
+	iotable_init(ti816x_io_desc, ARRAY_SIZE(ti816x_io_desc));
 	_omap2_map_common_io();
 }
 #endif
@@ -330,6 +363,8 @@ void __init omap2_init_common_hw(struct omap_sdrc_params *sdrc_cs0,
 		omap3xxx_clk_init();
 	else if (cpu_is_omap44xx())
 		omap4xxx_clk_init();
+	else if (cpu_is_ti816x())
+		ti816x_clk_init();
 	else
 		pr_err("Could not init clock framework - unknown CPU\n");
 
