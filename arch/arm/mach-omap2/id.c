@@ -311,6 +311,27 @@ void __init omap4_check_revision(void)
 	pr_err("Unknown OMAP4 CPU id\n");
 }
 
+void __init ti816x_check_revision(void)
+{
+	u32 idcode;
+	u16 partnum;
+	u8 rev;
+
+	idcode = read_tap_reg(TI816X_CONTROL_DEVICE_ID);
+	partnum = (idcode >> 12) & 0xffff;
+	rev = (idcode >> 28) & 0xff;
+
+	/* TODO: Add separate id for rev 1 */
+	if ((partnum == 0xb81e) && ((rev == 0x0) || (rev == 0x1))) {
+		omap_revision = TI8168_REV_ES1_0;
+		omap_chip.oc |= CHIP_IS_TI816X;
+		pr_info("OMAP chip is TI8168\n");
+		return;
+	}
+
+	pr_err("Unknown TI816X CPU id\n");
+}
+
 #define OMAP3_SHOW_FEATURE(feat)		\
 	if (omap3_has_ ##feat())		\
 		printk(#feat" ");
@@ -410,6 +431,9 @@ void __init omap2_check_revision(void)
 		return;
 	} else if (cpu_is_omap44xx()) {
 		omap4_check_revision();
+		return;
+	} else if (cpu_is_ti816x()) {
+		ti816x_check_revision();
 		return;
 	} else {
 		pr_err("OMAP revision unknown, please fix!\n");
