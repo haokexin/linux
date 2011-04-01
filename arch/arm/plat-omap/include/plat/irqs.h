@@ -30,6 +30,7 @@
 
 /* All OMAP4 specific defines are moved to irqs-44xx.h */
 #include "irqs-44xx.h"
+#include "irqs-ti816x.h"
 
 /*
  * IRQ numbers for interrupt handler 1
@@ -411,12 +412,27 @@
 #define TWL_IRQ_END		TWL6030_IRQ_END
 #endif
 
+#ifdef CONFIG_ARCH_TI816X
+#define TI816X_MSI_IRQ_BASE	128	/* TODO: Add GPIO, etc IRQs */
+#ifdef CONFIG_PCI_MSI
+#define TI816X_MSI_NR_IRQS	32
+#else
+#define TI816X_MSI_NR_IRQS	0
+#endif
+#define NR_IRQS                (TI816X_MSI_IRQ_BASE + TI816X_MSI_NR_IRQS)
+#else
 #define NR_IRQS			TWL_IRQ_END
+#endif
 
 #define OMAP_IRQ_BIT(irq)	(1 << ((irq) % 32))
 
+#ifdef CONFIG_ARCH_TI816X
+#define INTCPS_NR_MIR_REGS	4
+#define INTCPS_NR_IRQS		128
+#else
 #define INTCPS_NR_MIR_REGS	3
 #define INTCPS_NR_IRQS		96
+#endif
 
 #ifndef __ASSEMBLY__
 extern void omap_init_irq(void);
