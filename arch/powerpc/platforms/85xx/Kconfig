@@ -274,8 +274,12 @@ config P5020_DS
 	select HAS_FSL_QBMAN
 	select HAS_FSL_PME
 	select FSL_HYDRA_DS_MDIO if PHYLIB
+	select WORKAROUND_E5500_MFCR
 	help
 	  This option enables support for the P5020 DS board
+
+config WORKAROUND_E5500_MFCR
+	bool
 
 endif # FSL_SOC_BOOKE
 
