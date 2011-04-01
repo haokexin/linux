@@ -12,7 +12,14 @@
 #define _LINUX_DAVINCI_EMAC_H
 
 #include <linux/if_ether.h>
+#include <linux/phy.h>
 #include <linux/memory.h>
+
+struct emac_mdio_data {
+	u32 regs;
+	u32 size;
+	u32 max_freq;
+};
 
 struct emac_platform_data {
 	char mac_addr[ETH_ALEN];
@@ -28,6 +35,7 @@ struct emac_platform_data {
 	u8 version;
 	void (*interrupt_enable) (void);
 	void (*interrupt_disable) (void);
+	struct emac_mdio_data *mdio_data;
 };
 
 enum {
