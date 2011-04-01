@@ -82,7 +82,11 @@ static u32 _omap2_clksel_get_src_field(struct clk *src_clk, struct clk *clk,
 		return 0;
 
 	for (clkr = clks->rates; clkr->div; clkr++) {
+#if defined(CONFIG_ARCH_TI816X)
+		if (clkr->flags & cpu_mask)
+#else
 		if (clkr->flags & cpu_mask && clkr->flags & DEFAULT_RATE)
+#endif
 			break; /* Found the default rate for this platform */
 	}
 

@@ -27,13 +27,16 @@
 #include <plat/clockdomain.h>
 #include <plat/cpu.h>
 #include <plat/prcm.h>
+#include <plat/common.h>
 
 #include "clock.h"
 #include "prm.h"
 #include "prm-regbits-24xx.h"
+#include "prm-regbits-816x.h"
 #include "cm.h"
 #include "cm-regbits-24xx.h"
 #include "cm-regbits-34xx.h"
+#include "cm-regbits-816x.h"
 
 u8 cpu_mask;
 
@@ -219,6 +222,89 @@ void omap2_dflt_clk_disable(struct clk *clk)
 	/* No OCP barrier needed here since it is a disable operation */
 }
 
+/**
+ * omap2_ti816x_clk_enable() - Enable a ti816x module clock
+ * @clk: Pointer to the clock to be enabled
+ *
+ * This function just wraps omap2_dflt_clk_enable with a check for module idle
+ * status. We loop till module goes to funcitonal state as the immediate access
+ * to module space will not work otherwise.
+ */
+int omap2_ti816x_clk_enable(struct clk *clk)
+{
+	omap2_dflt_clk_enable(clk);
+
+	omap2_cm_wait_idlest(clk->enable_reg, TI816X_IDLEST_MASK,
+			     TI816X_IDLEST_VAL, clk->name);
+
+	return 0;
+}
+
+int omap2_pcie_clk_enable(struct clk *clk)
+{
+#define MAX_MODULE_ENABLE_WAIT		100000
+	int i = 0;
+
+	omap2_dflt_clk_enable(clk);
+
+	/* De-assert local reset after module enable */
+	if (cpu_is_ti816x())
+		prm_clear_mod_reg_bits(TI816X_PCI_LRST_MASK,
+				       TI816X_PRM_DEFAULT_MOD,
+				       TI816X_RM_DEFAULT_RSTCTRL);
+
+	omap_test_timeout(((__raw_readl(clk->enable_reg) & 0x30000) == 0),
+			  MAX_MODULE_ENABLE_WAIT, i);
+
+	/* PCIe module remains in standby till LRST is de-asserted */
+	if (i < MAX_MODULE_ENABLE_WAIT)
+		pr_debug("cm: Module associated with clock %s ready after %d "
+			 "loops\n", clk->name, i);
+	else {
+		pr_err("cm: Module associated with clock %s didn't enable in "
+		       "%d tries\n", clk->name, MAX_MODULE_ENABLE_WAIT);
+	}
+
+	return 0;
+}
+
+void omap2_pcie_clk_disable(struct clk *clk)
+{
+	/* Assert local reset */
+	if (cpu_is_ti816x())
+		prm_set_mod_reg_bits(TI816X_PCI_LRST_MASK,
+				     TI816X_PRM_DEFAULT_MOD,
+				     TI816X_RM_DEFAULT_RSTCTRL);
+
+	omap2_dflt_clk_disable(clk);
+}
+
+int omap2_usb_clk_enable(struct clk *clk)
+{
+	omap2_dflt_clk_enable(clk);
+
+	/* De-assert local reset after module enable */
+	if (cpu_is_ti816x())
+		prm_clear_mod_reg_bits(TI816X_USB1_LRST_MASK
+			| TI816X_USB2_LRST_MASK,
+			TI816X_PRM_DEFAULT_MOD,
+			TI816X_RM_DEFAULT_RSTCTRL);
+
+	return 0;
+}
+
+void omap2_usb_clk_disable(struct clk *clk)
+{
+	/* Assert local reset */
+	if (cpu_is_ti816x())
+		prm_set_mod_reg_bits(TI816X_USB1_LRST_MASK
+		| TI816X_USB2_LRST_MASK,
+		TI816X_PRM_DEFAULT_MOD,
+		TI816X_RM_DEFAULT_RSTCTRL);
+
+	omap2_dflt_clk_disable(clk);
+}
+
 const struct clkops clkops_omap2_dflt_wait = {
 	.enable		= omap2_dflt_clk_enable,
 	.disable	= omap2_dflt_clk_disable,
@@ -229,6 +315,21 @@ const struct clkops clkops_omap2_dflt_wait = {
 const struct clkops clkops_omap2_dflt = {
 	.enable		= omap2_dflt_clk_enable,
 	.disable	= omap2_dflt_clk_disable,
+};
+
+const struct clkops clkops_omap2_ti816x = {
+	.enable		= omap2_ti816x_clk_enable,
+	.disable	= omap2_dflt_clk_disable,
+};
+
+const struct clkops clkops_omap2_pcie = {
+	.enable		= omap2_pcie_clk_enable,
+	.disable	= omap2_pcie_clk_disable,
+};
+
+const struct clkops clkops_omap2_usb = {
+	.enable		= omap2_usb_clk_enable,
+	.disable	= omap2_usb_clk_disable,
 };
 
 /**
