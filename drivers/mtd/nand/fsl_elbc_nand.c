@@ -826,7 +826,6 @@ static int fsl_elbc_chip_remove(struct fsl_elbc_mtd *priv)
 
 	elbc_fcm_ctrl->chips[priv->bank] = NULL;
 	kfree(priv);
-	kfree(elbc_fcm_ctrl);
 	return 0;
 }
 
@@ -979,6 +978,10 @@ static int fsl_elbc_nand_remove(struct of_device *ofdev)
 {
 	int i;
 	struct fsl_elbc_fcm_ctrl *elbc_fcm_ctrl = fsl_lbc_ctrl_dev->nand;
+	
+	if (!elbc_fcm_ctrl)
+		return 0;
+	
 	for (i = 0; i < MAX_BANKS; i++)
 		if (elbc_fcm_ctrl->chips[i])
 			fsl_elbc_chip_remove(elbc_fcm_ctrl->chips[i]);
