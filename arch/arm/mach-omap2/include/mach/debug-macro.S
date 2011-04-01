@@ -45,7 +45,11 @@ omap_uart_lsr:	.word	0
 		tst	\rx, #1			@ MMU enabled?
 		moveq	\rx, #0x48000000	@ physical base address
 		movne	\rx, #0xfa000000	@ virtual base
+#ifdef CONFIG_ARCH_TI816X
+		orr	\rx, \rx, #0x00020000	@ uart1 on ti816x
+#else
 		orr	\rx, \rx, #0x0006a000	@ uart1 on omap2/3/4
+#endif
 		ldrb	\rx, [\rx, #(UART_SCR << OMAP_PORT_SHIFT)] @ scratchpad
 
 		/* Select the UART to use based on the UART1 scratchpad value */
@@ -65,6 +69,12 @@ omap_uart_lsr:	.word	0
 		beq	34f			@ configure OMAP3UART4
 		cmp	\rx, #OMAP4UART4	@ only on 44xx
 		beq	44f			@ configure OMAP4UART4
+		cmp	\rx, #TI816XUART1	@ ti816x UART offsets different
+		beq	81f			@ configure UART1
+		cmp	\rx, #TI816XUART2	@ ti816x UART offsets different
+		beq	82f			@ configure UART2
+		cmp	\rx, #TI816XUART3	@ ti816x UART offsets different
+		beq	83f			@ configure UART3
 		cmp	\rx, #ZOOM_UART		@ only on zoom2/3
 		beq	95f			@ configure ZOOM_UART
 
@@ -86,6 +96,12 @@ omap_uart_lsr:	.word	0
 43:		mov	\rx, #UART_OFFSET(OMAP4_UART3_BASE)
 		b	98f
 44:		mov	\rx, #UART_OFFSET(OMAP4_UART4_BASE)
+		b	98f
+81:		mov	\rx, #UART_OFFSET(TI816X_UART1_BASE)
+		b	98f
+82:		mov	\rx, #UART_OFFSET(TI816X_UART2_BASE)
+		b	98f
+83:		mov	\rx, #UART_OFFSET(TI816X_UART3_BASE)
 		b	98f
 95:		mov	\rx, #ZOOM_UART_BASE
 		ldr	\tmp, =omap_uart_phys
