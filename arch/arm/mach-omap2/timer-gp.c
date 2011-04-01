@@ -41,7 +41,11 @@
 #include <asm/localtimer.h>
 
 /* MAX_GPTIMER_ID: number of GPTIMERs on the chip */
+#ifndef CONFIG_ARCH_TI816X
 #define MAX_GPTIMER_ID		12
+#else
+#define MAX_GPTIMER_ID		8
+#endif
 
 static struct omap_dm_timer *gptimer;
 static struct clock_event_device clockevent_gpt;
