@@ -487,6 +487,10 @@ struct emac_priv {
 	/*platform specific members*/
 	void (*int_enable) (void);
 	void (*int_disable) (void);
+
+	/* snapshot of IRQ numbers */
+	u32 irqs_table[10];
+	u32 num_irqs;
 };
 
 /* clock frequency for EMAC */
@@ -1053,6 +1057,9 @@ static irqreturn_t emac_irq(int irq, void *dev_id)
 {
 	struct net_device *ndev = (struct net_device *)dev_id;
 	struct emac_priv *priv = netdev_priv(ndev);
+#ifdef CONFIG_ARCH_TI816X
+	int i;
+#endif
 
 	++priv->isr_count;
 	if (likely(netif_running(priv->ndev))) {
@@ -1061,6 +1068,12 @@ static irqreturn_t emac_irq(int irq, void *dev_id)
 	} else {
 		/* we are closing down, so dont process anything */
 	}
+
+#ifdef CONFIG_ARCH_TI816X
+	for (i = 0; i < priv->num_irqs; i++)
+		disable_irq_nosync(priv->irqs_table[i]);
+#endif
+
 	return IRQ_HANDLED;
 }
 
@@ -2149,6 +2162,9 @@ static int emac_poll(struct napi_struct *napi, int budget)
 	struct device *emac_dev = &ndev->dev;
 	u32 status = 0;
 	u32 num_pkts = 0;
+#ifdef CONFIG_ARCH_TI816X
+	int i;
+#endif
 
 	/* Check interrupt vectors and call packet processing */
 	status = emac_read(EMAC_MACINVECTOR);
@@ -2178,6 +2194,10 @@ static int emac_poll(struct napi_struct *napi, int budget)
 	if (num_pkts < budget) {
 		napi_complete(napi);
 		emac_int_enable(priv);
+#ifdef CONFIG_ARCH_TI816X
+		for (i = 0; i < priv->num_irqs; i++)
+			enable_irq(priv->irqs_table[i]);
+#endif
 	}
 
 	mask = EMAC_DM644X_MAC_IN_VECTOR_HOST_INT;
@@ -2389,6 +2409,9 @@ static int emac_dev_open(struct net_device *ndev)
 	struct resource *res;
 	int q, m;
 	int i = 0;
+#ifdef CONFIG_ARCH_TI816X
+	int irq_num = 0;
+#endif
 	int k = 0;
 	struct emac_priv *priv = netdev_priv(ndev);
 
@@ -2431,9 +2454,15 @@ static int emac_dev_open(struct net_device *ndev)
 			if (request_irq(i, emac_irq, IRQF_DISABLED,
 					ndev->name, ndev))
 				goto rollback;
+#ifdef CONFIG_ARCH_TI816X
+			priv->irqs_table[irq_num++] = i;
+#endif
 		}
 		k++;
 	}
+#ifdef CONFIG_ARCH_TI816X
+	priv->num_irqs = irq_num;
+#endif
 
 	/* Start/Enable EMAC hardware */
 	emac_hw_enable(priv);
@@ -2637,6 +2666,9 @@ static int __devinit davinci_emac_probe(struct platform_device *pdev)
 	unsigned long size;
 	struct emac_platform_data *pdata;
 	struct device *emac_dev;
+#ifdef CONFIG_ARCH_TI816X
+	struct emac_mdio_data *mdio_data;
+#endif
 
 	/* obtain emac clock from kernel */
 	emac_clk = clk_get(&pdev->dev, NULL);
@@ -2746,6 +2778,9 @@ static int __devinit davinci_emac_probe(struct platform_device *pdev)
 	}
 
 
+#ifdef CONFIG_ARCH_TI816X
+	mdio_data = pdata->mdio_data;
+#endif
 	/* MII/Phy intialisation, mdio bus registration */
 	emac_mii = mdiobus_alloc();
 	if (emac_mii == NULL) {
@@ -2762,7 +2797,11 @@ static int __devinit davinci_emac_probe(struct platform_device *pdev)
 	emac_mii->irq   = mii_irqs,
 	emac_mii->phy_mask = ~(priv->phy_mask);
 	emac_mii->parent = &pdev->dev;
+#ifndef CONFIG_ARCH_TI816X
 	emac_mii->priv = priv->remap_addr + pdata->mdio_reg_offset;
+#else
+	emac_mii->priv = ioremap(mdio_data->regs, mdio_data->size);
+#endif
 	snprintf(priv->mii_bus->id, MII_BUS_ID_SIZE, "%x", priv->pdev->id);
 	mdio_max_freq = pdata->mdio_max_freq;
 	emac_mii->reset(emac_mii);
