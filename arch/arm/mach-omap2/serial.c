@@ -612,9 +612,12 @@ static unsigned int serial_in_override(struct uart_port *up, int offset)
 {
 	if (UART_RX == offset) {
 		unsigned int lsr;
-		lsr = __serial_read_reg(up, UART_LSR);
-		if (!(lsr & UART_LSR_DR))
-			return -EPERM;
+		if (!cpu_is_ti816x() ||
+		    !(__serial_read_reg(up, UART_LCR) & UART_LCR_DLAB)) {
+			lsr = __serial_read_reg(up, UART_LSR);
+			if (!(lsr & UART_LSR_DR))
+				return -EPERM;
+		}
 	}
 
 	return __serial_read_reg(up, offset);
@@ -753,7 +756,7 @@ void __init omap_serial_init_port(int port)
 	 * omap3xxx: Never read empty UART fifo on UARTs
 	 * with IP rev >=0x52
 	 */
-	if (cpu_is_omap44xx()) {
+	if (cpu_is_omap44xx() || cpu_is_ti816x()) {
 		uart->p->serial_in = serial_in_override;
 		uart->p->serial_out = serial_out_override;
 	} else if ((serial_read_reg(uart->p, UART_OMAP_MVER) & 0xFF)
