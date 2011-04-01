@@ -16,10 +16,10 @@ config ARCH_OMAP1
 	  "Systems based on omap7xx, omap15xx or omap16xx"
 
 config ARCH_OMAP2PLUS
-	bool "TI OMAP2/3/4"
+	bool "TI OMAP2/3/4, TI816X"
 	select COMMON_CLKDEV
 	help
-	  "Systems based on omap24xx, omap34xx or omap44xx"
+	  "Systems based on omap24xx, omap34xx, omap44xx or ti816x"
 
 config ARCH_OMAP2
 	bool "TI OMAP2"
@@ -43,6 +43,12 @@ config ARCH_OMAP4
 	depends on ARCH_OMAP2PLUS
 	select CPU_V7
 	select ARM_GIC
+
+config ARCH_TI816X
+	bool "TI816X"
+	depends on ARCH_OMAP2PLUS
+	select CPU_V7
+	select ARCH_SUPPORTS_MSI
 
 endchoice
 
