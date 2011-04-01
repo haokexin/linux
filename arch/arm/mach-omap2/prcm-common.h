@@ -463,5 +463,11 @@
 #define OMAP3430_EN_CORE_SHIFT				0
 #define OMAP3430_EN_CORE_MASK				(1 << 0)
 
+/*
+ * MAX_MODULE_HARDRESET_WAIT: Maximum microseconds to wait for an OMAP
+ * submodule to exit hardreset
+ */
+#define MAX_MODULE_HARDRESET_WAIT               10000
+
 #endif
 
