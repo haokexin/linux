@@ -4667,6 +4667,25 @@ SYSCALL_DEFINE3(sched_setscheduler, pid_t, pid, int, policy,
 }
 
 /**
+ * sys_sched_setscheduler_ex - same as above, but with extended sched_param
+ * @pid: the pid in question.
+ * @policy: new policy (could use extended sched_param).
+ * @len: size of data pointed by param_ex.
+ * @param: structure containg the extended parameters.
+ */
+asmlinkage long compat_sys_sched_setscheduler_ex(pid_t pid, int policy,
+                       unsigned len, struct sched_param_ex __user *param)
+{
+        return -ENOSYS;
+}
+
+SYSCALL_DEFINE4(sched_setscheduler_ex, pid_t, pid, int, policy,
+		unsigned, len, struct sched_param_ex __user *, param_ex)
+{
+	return -ENOSYS;
+}
+
+/**
  * sys_sched_setparam - set/change the RT priority of a thread
  * @pid: the pid in question.
  * @param: structure containing the new RT priority.
@@ -4674,6 +4693,24 @@ SYSCALL_DEFINE3(sched_setscheduler, pid_t, pid, int, policy,
 SYSCALL_DEFINE2(sched_setparam, pid_t, pid, struct sched_param __user *, param)
 {
 	return do_sched_setscheduler(pid, -1, param);
+}
+
+/**
+ * sys_sched_setparam_ex - same as above, but with extended sched_param
+ * @pid: the pid in question.
+ * @len: size of data pointed by param_ex.
+ * @param_ex: structure containing the extended parameters.
+ */
+asmlinkage long compat_sys_sched_setparam_ex(pid_t pid, unsigned len,
+					struct sched_param_ex __user *param)
+{
+        return -ENOSYS;
+}
+
+SYSCALL_DEFINE3(sched_setparam_ex, pid_t, pid, unsigned, len,
+		struct sched_param_ex __user *, param_ex)
+{
+	return -ENOSYS;
 }
 
 /**
@@ -4738,6 +4775,24 @@ SYSCALL_DEFINE2(sched_getparam, pid_t, pid, struct sched_param __user *, param)
 out_unlock:
 	rcu_read_unlock();
 	return retval;
+}
+
+/**
+ * sys_sched_getparam_ex - same as above, but with extended sched_param
+ * @pid: the pid in question.
+ * @len: size of data pointed by param_ex.
+ * @param_ex: structure containing the extended parameters.
+ */
+asmlinkage long compat_sys_sched_getparam_ex(pid_t pid, unsigned len,
+					struct sched_param_ex __user *param)
+{
+        return -ENOSYS;
+}
+
+SYSCALL_DEFINE3(sched_getparam_ex, pid_t, pid, unsigned, len,
+		struct sched_param_ex __user *, param_ex)
+{
+	return -ENOSYS;
 }
 
 long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
@@ -4925,6 +4980,26 @@ SYSCALL_DEFINE0(sched_yield)
 	schedule();
 
 	return 0;
+}
+
+/**
+ * sys_sched_wait_interval - sleep according to the scheduling class rules.
+ *
+ * This function is implemented inside each scheduling class, in case it
+ * wants to provide its tasks a mean of waiting a specific instant in
+ * time, while also honouring some specific rule of itself.
+ */
+asmlinkage long compat_sys_sched_wait_interval(const struct timespec __user *rqtp,
+					struct timespec *rmtp)
+{
+        return -ENOSYS;
+}
+
+SYSCALL_DEFINE2(sched_wait_interval,
+	const struct timespec __user *, rqtp,
+	struct timespec __user *, rmtp)
+{
+	return -ENOSYS;
 }
 
 static inline int should_resched(void)
