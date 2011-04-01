@@ -26,6 +26,8 @@
 		OMAP2_L4_IO_ADDRESS(OMAP4430_PRM_BASE + (module) + (reg))
 #define OMAP44XX_CHIRONSS_REGADDR(module, reg)				\
 		OMAP2_L4_IO_ADDRESS(OMAP4430_CHIRONSS_BASE + (module) + (reg))
+#define TI816X_PRM_REGADDR(module, reg)					\
+		TI816X_L4_SLOW_IO_ADDRESS(TI816X_PRCM_BASE + (module) + (reg))
 
 #include "prm44xx.h"
 
@@ -227,6 +229,12 @@
 #define OMAP4_PM_PWSTCTRL				0x0000
 #define OMAP4_PM_PWSTST					0x0004
 
+/* TI816X specific registers */
+#define TI816X_PRM_DEVICE_RSTCTRL			0x00A0
+#define TI816X_PM_DEFAULT_PWRSTCTRL			0x0000
+#define TI816X_PM_DEFAULT_PWRSTST			0x0004
+#define TI816X_RM_DEFAULT_RSTCTRL			0x0010
+#define TI816X_RM_DEFAULT_RSTST				0x0014
 
 #ifndef __ASSEMBLER__
 
@@ -303,6 +311,8 @@ int omap2_prm_deassert_hardreset(s16 prm_mod, u8 shift);
 #define OMAP_RST_DPLL3					(1 << 2)
 #define OMAP_RST_GS					(1 << 1)
 
+/* TI816X specific bits for PRM_DEVICE module */
+#define TI816X_GLOBAL_RST_COLD				BIT(1)
 
 /*
  * Bits common to module-shared registers
