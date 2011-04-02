@@ -35,7 +35,8 @@ config ARCH_OMAP3
 	select HAVE_TRACE_CLOCK
 	select HAVE_TRACE_CLOCK_32_TO_64
 	select OMAP_32K_TIMER
-
+	select ARCH_HAS_OPP
+	select PM_OPP if PM
 
 config ARCH_OMAP4
 	bool "TI OMAP4"
