@@ -11,6 +11,7 @@
 #ifndef __ARCH_ARM_MACH_OMAP2_PM_H
 #define __ARCH_ARM_MACH_OMAP2_PM_H
 
+#include <linux/err.h>
 #include <plat/powerdomain.h>
 
 extern u32 enable_off_mode;
@@ -101,5 +102,17 @@ extern void enable_omap3630_toggle_l2_on_restore(void);
 #define IS_PM34XX_ERRATUM(id)		0
 static inline void enable_omap3630_toggle_l2_on_restore(void) { }
 #endif		/* defined(CONFIG_PM) && defined(CONFIG_ARCH_OMAP3) */
+
+#ifdef CONFIG_OMAP_SMARTREFLEX
+extern int omap_devinit_smartreflex(void);
+extern void omap_enable_smartreflex_on_init(void);
+#else
+static inline int omap_devinit_smartreflex(void)
+{
+	return -EINVAL;
+}
+
+static inline void omap_enable_smartreflex_on_init(void) {}
+#endif
 
 #endif
