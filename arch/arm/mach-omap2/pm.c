@@ -19,6 +19,8 @@
 #include <plat/common.h>
 #include <plat/voltage.h>
 
+#include "pm.h"
+
 static struct omap_device_pm_latency *pm_lats;
 
 static struct device *mpu_dev;
@@ -86,6 +88,7 @@ device_initcall(omap2_common_pm_init);
 static int __init omap2_common_pm_late_init(void)
 {
 	omap_voltage_late_init();
+	omap_devinit_smartreflex();
 
 	return 0;
 }
