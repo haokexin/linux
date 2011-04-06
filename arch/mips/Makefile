@@ -733,8 +733,10 @@ vmlinux.32: vmlinux
 vmlinux.64: vmlinux
 	$(OBJCOPY) -O $(64bit-bfd) $(OBJCOPYFLAGS) $< $@
 
-makeboot =$(Q)$(MAKE) $(build)=arch/mips/boot VMLINUX=$(vmlinux-32) $(1)
-makezboot =$(Q)$(MAKE) $(build)=arch/mips/boot/compressed \
+boot := arch/$(ARCH)/boot
+
+makeboot =$(Q)$(MAKE) $(build)=$(boot) VMLINUX=$(vmlinux-32) $(1)
+makezboot =$(Q)$(MAKE) $(build)=$(boot)/compressed \
 	   VMLINUX_LOAD_ADDRESS=$(load-y) 32bit-bfd=$(32bit-bfd) $(1)
 
 all:	$(all-y)
@@ -759,6 +761,9 @@ vmlinux.ecoff: $(vmlinux-32)
 
 vmlinux.srec: $(vmlinux-32)
 	+@$(call makeboot,$@)
+
+%.dtb: vmlinux
+	$(Q)$(MAKE) ARCH=mips $(build)=$(boot) $(patsubst %,$(boot)/%,$@)
 
 CLEAN_FILES += vmlinux.ecoff \
 	       vmlinux.srec
