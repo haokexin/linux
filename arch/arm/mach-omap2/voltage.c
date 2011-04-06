@@ -33,6 +33,7 @@
 #include <plat/voltage.h>
 #include <plat/control.h>
 #include <plat/omap_device.h>
+#include <plat/smartreflex.h>
 
 #include "prm-regbits-34xx.h"
 
@@ -1526,6 +1527,9 @@ int omap_voltage_scale(struct voltagedomain *voltdm, unsigned long volt)
 		return -EINVAL;
 	}
 
+	/* Disable smartreflex module across voltage and frequency scaling */
+	omap_sr_disable(voltdm);
+
 	if (curr_volt == volt) {
 		is_volt_scaled = 1;
 	} else if (curr_volt < volt) {
@@ -1559,6 +1563,9 @@ int omap_voltage_scale(struct voltagedomain *voltdm, unsigned long volt)
 		omap_voltage_scale_vdd(voltdm, volt);
 
 	mutex_unlock(&vdd->scaling_mutex);
+
+	/* Enable Smartreflex module */
+	omap_sr_enable(voltdm);
 
 	/* Scale dependent vdds */
 	scale_dep_vdd(vdd);
