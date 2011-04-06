@@ -39,7 +39,16 @@ vmlinux.bin: $(VMLINUX)
 vmlinux.srec: $(VMLINUX)
 	$(OBJCOPY) -S -O srec $(strip-flags) $(VMLINUX) $(obj)/vmlinux.srec
 
+# Rule to build device tree blobs
+DTS_FLAGS ?= -p 1024
+dtstree := $(srctree)/$(src)/dts
+DTC = $(objtree)/scripts/dtc/dtc
+
+$(obj)/%.dtb: $(dtstree)/%.dts
+	$(DTC) -O dtb -o $(obj)/$*.dtb -b 0 $(DTS_FLAGS) $(dtstree)/$*.dts
+
 clean-files += elf2ecoff \
 	       vmlinux.bin \
 	       vmlinux.ecoff \
-	       vmlinux.srec
+	       vmlinux.srec \
+	       *.dtb
