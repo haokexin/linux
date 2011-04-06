@@ -130,6 +130,11 @@ struct omap_vdd_user_list {
 	u32 volt;
 };
 
+struct omap_vdd_dev_list {
+	struct device *dev;
+	struct list_head node;
+};
+
 /**
  * omap_vdd_info - Per Voltage Domain info
  *
@@ -149,6 +154,7 @@ struct omap_vdd_user_list {
  * @user_list		: the list head maintaining the various users.
  * @scaling_mutex	: the dvfs muutex.
  *			  of this vdd with the voltage requested by each user.
+ * @dev_list		: list of devices bwlonging to this voltage domain.
  * @curr_volt		: current voltage for this vdd.
  * @ocp_mod		: The prm module for accessing the prm irqstatus reg.
  * @prm_irqst_reg	: prm irqstatus register.
@@ -166,6 +172,7 @@ struct omap_vdd_info {
 	spinlock_t user_lock;
 	struct plist_head user_list;
 	struct mutex scaling_mutex;
+	struct list_head dev_list;
 	u32 curr_volt;
 	u16 ocp_mod;
 	u8 prm_irqst_reg;
@@ -991,6 +998,40 @@ int omap_voltage_add_request(struct voltagedomain *voltdm, struct device *dev,
 }
 
 
+int omap_voltage_add_dev(struct voltagedomain *voltdm, struct device *dev)
+{
+	struct omap_vdd_info *vdd;
+	struct omap_vdd_dev_list *temp_dev;
+
+	if (!voltdm || IS_ERR(voltdm)) {
+		pr_warning("%s: VDD specified does not exist!\n", __func__);
+		return -EINVAL;
+	}
+
+	vdd = container_of(voltdm, struct omap_vdd_info, voltdm);
+
+	list_for_each_entry(temp_dev, &vdd->dev_list, node) {
+		if (temp_dev->dev == dev) {
+			dev_warn(dev, "%s: Device already added to vdee_%s\n",
+				__func__, voltdm->name);
+			return -EINVAL;
+		}
+	}
+
+	temp_dev = kzalloc(sizeof(struct omap_vdd_dev_list), GFP_KERNEL);
+	if (!temp_dev) {
+		dev_err(dev, "%s: Unable to creat a new device for vdd_%s\n",
+			__func__, voltdm->name);
+		return -ENOMEM;
+	}
+
+	temp_dev->dev = dev;
+
+	list_add(&temp_dev->node, &vdd->dev_list);
+
+	return 0;
+}
+
 /**
  * omap_vp_enable() - API to enable a particular VP
  * @voltdm:	pointer to the VDD whose VP is to be enabled.
@@ -1371,6 +1412,8 @@ int __init omap_voltage_late_init(void)
  */
 static int __init omap_voltage_early_init(void)
 {
+	int i;
+
 	if (cpu_is_omap34xx()) {
 		vdd_info = omap3_vdd_info;
 		nr_scalable_vdd = OMAP3_NR_SCALABLE_VDD;
@@ -1378,7 +1421,12 @@ static int __init omap_voltage_early_init(void)
 		vdd_data_configure = omap3_vdd_data_configure;
 	} else {
 		pr_warning("%s: voltage driver support not added\n", __func__);
+		return -EINVAL;
 	}
+
+	/* Init the device list */
+	for (i = 0; i < nr_scalable_vdd; i++)
+		INIT_LIST_HEAD(&(vdd_info[i].dev_list));
 
 	return 0;
 }
