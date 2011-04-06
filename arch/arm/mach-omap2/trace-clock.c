@@ -707,4 +707,4 @@ static __init int init_trace_clock(void)
 				  CPUFREQ_TRANSITION_NOTIFIER);
 	return 0;
 }
-__initcall(init_trace_clock);
+core_initcall(init_trace_clock);
