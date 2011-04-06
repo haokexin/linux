@@ -2192,6 +2192,11 @@ void tipc_link_send_proto_msg(struct link *l_ptr, u32 msg_typ, int probe_msg,
 	if (link_blocked(l_ptr))
 		return;
 
+	/* Abort non-RESET send if communication with node is prohibited */
+
+	if ((l_ptr->owner->block_setup) && (msg_typ != RESET_MSG))
+		return;
+
 	/* Create protocol message with "out-of-sequence" sequence number */
 
 	msg_set_type(msg, msg_typ);
@@ -2325,6 +2330,14 @@ static void link_recv_proto_msg(struct link *l_ptr, struct sk_buff *buf)
 				break; /* duplicate or old reset: ignore */
 			}
 		}
+
+		if (!msg_redundant_link(msg) &&
+		    (link_working_working(l_ptr) ||
+		     link_working_unknown(l_ptr)))
+			l_ptr->owner->block_setup = WAIT_NODE_DOWN;
+			/* peer has lost contact -- don't allow peer's links
+			   to reactivate before we recognize loss & clean up */
+
 		link_state_event(l_ptr, RESET_MSG);
                 if (msg_stop(msg)) {
                         l_ptr->blocked = 1;
