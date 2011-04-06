@@ -45,6 +45,7 @@
 
 #define WAIT_PEER_DOWN	0x0001	/* wait to see that peer's links are down */
 #define WAIT_NAMES_GONE	0x0002	/* wait for peer's publications to be purged */
+#define WAIT_NODE_DOWN	0x0004	/* wait until peer node is declared down */
 
 /**
  * struct tipc_node - TIPC node structure
