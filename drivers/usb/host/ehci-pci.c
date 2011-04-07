@@ -2,6 +2,7 @@
  * EHCI HCD (Host Controller Driver) PCI Bus Glue.
  *
  * Copyright (c) 2000-2004 by David Brownell
+ * Copyright (c) 2003-2010 Netlogic Microsystems Inc.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -20,6 +21,82 @@
 
 #ifndef CONFIG_PCI
 #error "This file is PCI bus glue.  CONFIG_PCI must be defined."
+#endif
+
+#ifdef CONFIG_NLM_XLP
+
+#include <asm/netlogic/hal/nlm_hal.h>
+#include <asm/netlogic/hal/nlm_hal_pic.h>
+#include <asm/netlogic/xlp.h>
+#include <asm/netlogic/xlp_usb.h>
+
+volatile uint64_t *ehci_regs;
+
+static void xlp_usb_hw_start(int ctrl_no)
+{
+	int val;
+
+	/* enable USB EHCI interrupts(Don't enable ohci interrupt this
+	 * time, otherwise, ohci will fail for no interrupt handler installed
+	 * before enabling the interrupts.
+	 */
+	/* val = USB_CTRL_INTERRUPT_EN  | USB_OHCI_INTERRUPT_EN | USB_OHCI_INTERRUPT1_EN; */
+	val = USB_CTRL_INTERRUPT_EN;
+	usb_reg_write(0, ctrl_no, XLP_USB_INT_EN, val);
+
+	return;
+}
+
+static void xlp_usb_hw_stop(int ctrl_no)
+{
+	int val;
+
+	/* enable USB EHCI interrupts(Don't enable ohci interrupt this
+	 * time, otherwise, ohci will fail for no interrupt handler installed
+	 * before enabling the interrupts.
+	 */
+	/* val = USB_CTRL_INTERRUPT_EN  | USB_OHCI_INTERRUPT_EN | USB_OHCI_INTERRUPT1_EN; */
+	val = ~USB_CTRL_INTERRUPT_EN;
+	usb_reg_write(0, ctrl_no, XLP_USB_INT_EN, val);
+
+	return;
+}
+
+int xlp_ehci_hcd_pci_probe(struct pci_dev *dev, const struct pci_device_id *id)
+{
+	int irq, irt, ctrl_no, ret;
+
+	ctrl_no = dev->devfn & 0xF;
+
+	irt = usb_reg_read(0, ctrl_no, 0x3D) & 0xFFFF;
+	irq = nlm_hal_request_shared_irq(irt);
+
+	if (!irq) {
+		pr_err("Found HC with no IRQ.  Check BIOS/PCI %s setup!\n",
+				pci_name(dev));
+		return -ENODEV;
+	}
+
+	dev->irq = irq;
+	ret = usb_hcd_pci_probe(dev, id);
+	if (ret)
+		pr_err("%s: Fail to probe xlp ehci\n", __func__);
+	else
+		xlp_usb_hw_start(ctrl_no);
+
+	return ret;
+}
+
+void xlp_ehci_hcd_pci_remove(struct pci_dev *dev)
+{
+	int ctrl_no;
+
+	ctrl_no = dev->devfn & 0xF;
+
+	xlp_usb_hw_stop(ctrl_no);
+	usb_hcd_pci_remove(dev);
+}
+
 #endif
 
 /*-------------------------------------------------------------------------*/
@@ -96,6 +173,16 @@ static int ehci_pci_setup(struct usb_hcd *hcd)
 #else
 			ehci_warn(ehci,
 				  "unsupported big endian Toshiba quirk\n");
+#endif
+		}
+		break;
+
+	case PCI_VENDOR_ID_NETLOGIC:
+		if (pdev->device == 0x1007) {
+#ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
+			ehci->big_endian_mmio = 1;
+#else
+			ehci->big_endian_mmio = 0;
 #endif
 		}
 		break;
@@ -449,6 +536,7 @@ static const struct hc_driver ehci_pci_hc_driver = {
 
 /*-------------------------------------------------------------------------*/
 
+#ifndef CONFIG_NLM_XLP
 /* PCI driver selection metadata; PCI hotplugging uses this */
 static const struct pci_device_id pci_ids [] = { {
 	/* handle any USB 2.0 EHCI controller */
@@ -457,15 +545,33 @@ static const struct pci_device_id pci_ids [] = { {
 	},
 	{ /* end: all zeroes */ }
 };
+#else
+/* PCI driver selection metadata; PCI hotplugging uses this */
+static const struct pci_device_id pci_ids[] = { {
+		.vendor		= PCI_VENDOR_ID_NETLOGIC,
+		.device		= XLP_DEVID_EHCI,
+		.subvendor	= 0,
+		.subdevice	= 0,
+		.class		= PCI_CLASS_SERIAL_USB_EHCI,
+		.class_mask	= ~0,
+		.driver_data	= (unsigned long) &ehci_pci_hc_driver,
+	},
+	{ /* end: all zeroes */ }
+};
+#endif
 MODULE_DEVICE_TABLE(pci, pci_ids);
 
 /* pci driver glue; this is a "new style" PCI driver module */
 static struct pci_driver ehci_pci_driver = {
 	.name =		(char *) hcd_name,
 	.id_table =	pci_ids,
-
+#ifndef CONFIG_NLM_XLP
 	.probe =	usb_hcd_pci_probe,
 	.remove =	usb_hcd_pci_remove,
+#else
+	.probe =	xlp_ehci_hcd_pci_probe,
+	.remove =	xlp_ehci_hcd_pci_remove,
+#endif
 	.shutdown = 	usb_hcd_pci_shutdown,
 
 #ifdef CONFIG_PM_SLEEP

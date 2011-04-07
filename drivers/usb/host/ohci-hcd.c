@@ -3,6 +3,7 @@
  *
  * (C) Copyright 1999 Roman Weissgaerber <weissg@vienna.at>
  * (C) Copyright 2000-2004 David Brownell <dbrownell@users.sourceforge.net>
+ * (C) Copyright 2003-2010 Netlogic Microsystems Inc.
  *
  * [ Initialisation is based on Linus'  ]
  * [ uhci code and gregs ohci fragments ]
@@ -888,6 +889,22 @@ static irqreturn_t ohci_irq (struct usb_hcd *hcd)
 		ohci_writel (ohci, ints, &regs->intrstatus);
 		ohci_writel (ohci, OHCI_INTR_MIE, &regs->intrenable);
 		// flush those writes
+		(void) ohci_readl (ohci, &ohci->regs->control);
+	}
+
+	if (ints & OHCI_INTR_FNO) {
+		ohci_err (ohci, "OHCI frame number overflow\n");
+		ohci_writel (ohci, OHCI_INTR_FNO, &regs->intrstatus);
+		ohci_writel (ohci, OHCI_INTR_FNO, &regs->intrdisable);
+		/* flush those writes */
+		(void) ohci_readl (ohci, &ohci->regs->control);
+	}
+
+	if (ints & OHCI_INTR_SO) {
+		ohci_err (ohci, "OHCI scheduling overrun`\n");
+		ohci_writel (ohci, OHCI_INTR_SO, &regs->intrstatus);
+		ohci_writel (ohci, OHCI_INTR_SO, &regs->intrdisable);
+		/* flush those writes */
 		(void) ohci_readl (ohci, &ohci->regs->control);
 	}
 

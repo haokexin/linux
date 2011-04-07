@@ -3,6 +3,7 @@
  *
  * (C) Copyright 1999 Roman Weissgaerber <weissg@vienna.at>
  * (C) Copyright 2000-2002 David Brownell <dbrownell@users.sourceforge.net>
+ * (C) Copyright 2003-2010 Netlogic Microsystems Inc.
  *
  * [ Initialisation is based on Linus'  ]
  * [ uhci code and gregs ohci fragments ]
@@ -39,6 +40,80 @@
 static struct pci_dev *amd_smbus_dev;
 static struct pci_dev *amd_hb_dev;
 static int amd_ohci_iso_count;
+
+#ifdef CONFIG_NLM_XLP
+
+#include <asm/netlogic/hal/nlm_hal.h>
+#include <asm/netlogic/hal/nlm_hal_pic.h>
+#include <asm/netlogic/xlp.h>
+#include <asm/netlogic/xlp_usb.h>
+
+static void xlp_usb_start_ohc(int ctrl_no)
+{
+	/* enable interrupts
+	 */
+	usb_reg_write(0, ctrl_no, XLP_USB_INT_EN,
+			USB_CTRL_INTERRUPT_EN
+			| USB_OHCI_INTERRUPT_EN
+			| USB_OHCI_INTERRUPT12_EN
+			| USB_OHCI_INTERRUPT1_EN);
+	return;
+}
+
+static void xlp_usb_stop_ohc(int ctrl_no)
+{
+	int val;
+
+	val = usb_reg_read(0, ctrl_no, XLP_USB_INT_EN);
+	val &= ~(USB_CTRL_INTERRUPT_EN
+			| USB_OHCI_INTERRUPT_EN
+			| USB_OHCI_INTERRUPT12_EN
+			| USB_OHCI_INTERRUPT1_EN);
+	usb_reg_write(0, ctrl_no, XLP_USB_INT_EN, val);
+
+	return;
+}
+
+int xlp_ohci_hcd_pci_probe(struct pci_dev *dev,
+		const struct pci_device_id *id)
+{
+	int irq, irt, ctrl_no, ret;
+
+	ctrl_no = dev->devfn & 0xF;
+
+	irt = usb_reg_read(0, ctrl_no, 0x3D) & 0xFFFF;
+	irq = nlm_hal_request_shared_irq(irt);
+
+	if (!irq) {
+		pr_err("Found HC with no IRQ.  Check BIOS/PCI %s setup!\n",
+				pci_name(dev));
+		return -ENODEV;
+	}
+
+	dev->irq = irq;
+	pr_info("%s: ohci irq = %d\n", __func__, dev->irq);
+	/* Stop it before probing */
+	xlp_usb_stop_ohc(ctrl_no);
+	ret = usb_hcd_pci_probe(dev, id);
+	if (ret)
+		pr_err("%s: Fail to probe xlp ohci\n", __func__);
+	else
+		xlp_usb_start_ohc(ctrl_no);
+
+	return ret;
+}
+
+void xlp_ohci_hcd_pci_remove(struct pci_dev *dev)
+{
+	int ctrl_no;
+
+	ctrl_no = dev->devfn & 0xF;
+
+	xlp_usb_stop_ohc(ctrl_no);
+	usb_hcd_pci_remove(dev);
+}
+
+#endif
 
 /*-------------------------------------------------------------------------*/
 
@@ -515,22 +590,39 @@ static const struct hc_driver ohci_pci_hc_driver = {
 
 /*-------------------------------------------------------------------------*/
 
-
+#ifndef CONFIG_NLM_XLP
 static const struct pci_device_id pci_ids [] = { {
 	/* handle any USB OHCI controller */
 	PCI_DEVICE_CLASS(PCI_CLASS_SERIAL_USB_OHCI, ~0),
 	.driver_data =	(unsigned long) &ohci_pci_hc_driver,
 	}, { /* end: all zeroes */ }
 };
+#else
+static const struct pci_device_id pci_ids[] = { {
+		.vendor		= PCI_VENDOR_ID_NETLOGIC,
+		.device		= XLP_DEVID_OHCI,
+		.subvendor	= 0,
+		.subdevice	= 0,
+		.class		= PCI_CLASS_SERIAL_USB_OHCI,
+		.class_mask	= ~0,
+		.driver_data	= (unsigned long) &ohci_pci_hc_driver,
+	},
+	{ /* end: all zeroes */ }
+};
+#endif
 MODULE_DEVICE_TABLE (pci, pci_ids);
 
 /* pci driver glue; this is a "new style" PCI driver module */
 static struct pci_driver ohci_pci_driver = {
 	.name =		(char *) hcd_name,
 	.id_table =	pci_ids,
-
+#ifndef CONFIG_NLM_XLP
 	.probe =	usb_hcd_pci_probe,
 	.remove =	usb_hcd_pci_remove,
+#else
+	.probe =	xlp_ohci_hcd_pci_probe,
+	.remove =	xlp_ohci_hcd_pci_remove,
+#endif
 	.shutdown =	usb_hcd_pci_shutdown,
 
 #ifdef CONFIG_PM_SLEEP
