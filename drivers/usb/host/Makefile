@@ -1,6 +1,9 @@
 #
 # Makefile for USB Host Controller Drivers
 #
+ifeq ($(CONFIG_NLM_XLP),y)
+	EXTRA_CFLAGS := $(CFLAGS) -DNLM_HAL_LINUX_KERNEL
+endif
 
 ifeq ($(CONFIG_USB_DEBUG),y)
 	EXTRA_CFLAGS		+= -DDEBUG
