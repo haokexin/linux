@@ -358,7 +358,7 @@ static struct platform_driver omaplfb_driver = {
 	.shutdown	= OMAPLFBDriverShutdown_Entry,
 };
 
-#if defined(MODULE)
+/* #if defined(MODULE), we need it to work as built-in */
 
 static void OMAPLFBDeviceRelease_Entry(struct device unref__ *pDevice)
 {
@@ -375,7 +375,7 @@ static struct platform_device omaplfb_device = {
 	}
 };
 
-#endif  
+/* #endif */
 
 #endif	
 
@@ -399,7 +399,7 @@ static int __init OMAPLFB_Init(void)
 		goto ExitDeinit;
 	}
 
-#if defined(MODULE)
+/* #if defined(MODULE), we need it to work as built-in */
 	if ((error = platform_device_register(&omaplfb_device)) != 0)
 	{
 		platform_driver_unregister(&omaplfb_driver);
@@ -408,7 +408,7 @@ static int __init OMAPLFB_Init(void)
 
 		goto ExitDeinit;
 	}
-#endif
+/* #endif */
 
 #endif 
 
@@ -428,9 +428,9 @@ ExitDeinit:
 static IMG_VOID __exit OMAPLFB_Cleanup(IMG_VOID)
 {    
 #if defined (LDM_PLATFORM)
-#if defined (MODULE)
+/* #if defined (MODULE), we need it to work as built-in */
 	platform_device_unregister(&omaplfb_device);
-#endif
+/* #endif */
 	platform_driver_unregister(&omaplfb_driver);
 #endif
 
@@ -440,6 +440,6 @@ static IMG_VOID __exit OMAPLFB_Cleanup(IMG_VOID)
 	}
 }
 
-module_init(OMAPLFB_Init);
+late_initcall(OMAPLFB_Init);
 module_exit(OMAPLFB_Cleanup);
 

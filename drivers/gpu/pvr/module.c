@@ -201,8 +201,9 @@ static LDM_DRV powervr_driver = {
 
 LDM_DEV *gpsPVRLDMDev;
 
-#if defined(MODULE) && defined(PVR_LDM_PLATFORM_MODULE)
-
+/* #if defined(MODULE) && defined(PVR_LDM_PLATFORM_MODULE),
+   we need it to work as built-in */
+#if defined(PVR_LDM_PLATFORM_MODULE)
 static IMG_VOID PVRSRVDeviceRelease(struct device unref__ *pDevice)
 {
 }
@@ -544,7 +545,7 @@ static int __init PVRCore_Init(IMG_VOID)
 		goto init_failed;
 	}
 
-#if defined(MODULE)
+/* #if defined(MODULE), we need it to work as built-in */
 	if ((error = platform_device_register(&powervr_device)) != 0)
 	{
 		platform_driver_unregister(&powervr_driver);
@@ -553,7 +554,7 @@ static int __init PVRCore_Init(IMG_VOID)
 
 		goto init_failed;
 	}
-#endif
+/* #endif */
 #endif 
 
 #if defined(PVR_LDM_PCI_MODULE)
@@ -636,9 +637,9 @@ sys_deinit:
 #endif
 
 #if defined (PVR_LDM_PLATFORM_MODULE)
-#if defined (MODULE)
+/* #if defined (MODULE), we need it to work as built-in */
 	platform_device_unregister(&powervr_device);
-#endif
+/* #endif */
 	platform_driver_unregister(&powervr_driver);
 #endif
 
@@ -705,9 +706,9 @@ static void __exit PVRCore_Cleanup(void)
 #endif
 
 #if defined (PVR_LDM_PLATFORM_MODULE)
-#if defined (MODULE)
+/* #if defined (MODULE), we need it to work as built-in */
 	platform_device_unregister(&powervr_device);
-#endif
+/* #endif */
 	platform_driver_unregister(&powervr_driver);
 #endif
 

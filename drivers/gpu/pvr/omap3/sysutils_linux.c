@@ -34,7 +34,7 @@
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,26))
 #include <linux/semaphore.h>
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,31))
-#include <plat/resource.h>
+/* #include <plat/resource.h>, kernel doesn't have this file */
 #else 
 #include <mach/resource.h>
 #endif 
