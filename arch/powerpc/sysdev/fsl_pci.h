@@ -91,6 +91,7 @@ struct ccsr_pci {
 extern int fsl_add_bridge(struct device_node *dev, int is_primary);
 extern void fsl_pcibios_fixup_bus(struct pci_bus *bus);
 extern int mpc83xx_add_bridge(struct device_node *dev);
+extern void __devinit pci_devs_phb_init_dynamic(struct pci_controller *phb);
 
 #endif /* __POWERPC_FSL_PCI_H */
 #endif /* __KERNEL__ */
