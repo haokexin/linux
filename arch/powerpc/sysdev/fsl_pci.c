@@ -369,6 +369,10 @@ int __init fsl_add_bridge(struct device_node *dev, int is_primary)
 	hose->first_busno = bus_range ? bus_range[0] : 0x0;
 	hose->last_busno = bus_range ? bus_range[1] : 0xff;
 
+#ifdef CONFIG_PPC64
+	pci_devs_phb_init_dynamic(hose);
+#endif
+
 	setup_indirect_pci(hose, rsrc.start, rsrc.start + 0x4,
 		PPC_INDIRECT_TYPE_BIG_ENDIAN);
 	setup_pci_cmd(hose);

@@ -1664,7 +1664,11 @@ fake_pci_bus(struct pci_controller *hose, int busnr)
 		printk(KERN_ERR "Can't find hose for PCI bus %d!\n", busnr);
 	}
 	bus.number = busnr;
+#ifdef CONFIG_PPC64
+	bus.sysdata = hose->dn;
+#else
 	bus.sysdata = hose;
+#endif
 	bus.ops = hose? hose->ops: &null_pci_ops;
 	return &bus;
 }
