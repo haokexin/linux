@@ -54,6 +54,11 @@
 #define SSP_WRITE_BITS(reg, val, mask, sb) \
  ((reg) = (((reg) & ~(mask)) | (((val)<<(sb)) & (mask))))
 
+#ifdef CONFIG_ACP
+#define writew(b, addr) writel(b, addr)
+#define readw(addr) readl(addr)
+#endif
+
 /*
  * This macro is also used to define some default values.
  * It will just shift val by sb steps to the left and mask
@@ -372,6 +377,9 @@ struct pl022 {
 	resource_size_t			phybase;
 	void __iomem			*virtbase;
 	struct clk			*clk;
+#ifdef CONFIG_ACP
+	u32 clkfreq;
+#endif
 	struct spi_master		*master;
 	struct pl022_ssp_controller	*master_info;
 	/* Message per-transfer pump */
@@ -696,6 +704,11 @@ static void readwriter(struct pl022 *pl022)
 		}
 		pl022->tx += (pl022->cur_chip->n_bytes);
 		pl022->exp_fifo_level++;
+#ifdef CONFIG_ACP
+		/*Some datas will go into receive FIFO when transmiting*/
+		while (!(readw(SSP_SR(pl022->virtbase)) & SSP_SR_MASK_RNE))
+			;
+#endif
 		/*
 		 * This inner reader takes care of things appearing in the RX
 		 * FIFO as we're transmitting. This will happen a lot since the
@@ -1670,7 +1683,11 @@ static int calculate_effective_freq(struct pl022 *pl022, int freq, struct
 	u32 rate, max_tclk, min_tclk, best_freq = 0, best_cpsdvsr = 0,
 		best_scr = 0, tmp, found = 0;
 
+#ifndef CONFIG_ACP
 	rate = clk_get_rate(pl022->clk);
+#else
+	rate = pl022->clkfreq;
+#endif
 	/* cpsdvscr = 2 & scr 0 */
 	max_tclk = spi_rate(rate, CPSDVR_MIN, SCR_MIN);
 	/* cpsdvsr = 254 & scr = 255 */
@@ -2360,6 +2377,10 @@ pl022_of_probe(struct platform_device *ofdev)
 	struct device_node *of_node = ofdev->dev.of_node;
 	const struct of_device_id *id = of_match_node(pl022_match, of_node);
 
+#ifdef CONFIG_ACP
+	u32 clkfreq;
+#endif
+
 	platform_info = kmalloc(sizeof(struct pl022_ssp_controller),
 		GFP_KERNEL);
 	if (!platform_info)
@@ -2384,6 +2405,15 @@ pl022_of_probe(struct platform_device *ofdev)
 		platform_info->enable_dma = 0;
 	platform_info->enable_dma = *prop;
 
+#ifdef CONFIG_ACP
+	prop = of_get_property(of_node, "clock-frequency", &len);
+	if (!prop || len < sizeof(*prop)) {
+		dev_warn(&ofdev->dev, "no 'clock-frequency' property\n");
+		goto err_data;
+	}
+	clkfreq = *prop;
+#endif
+
 	ofdev->dev.platform_data = platform_info;
 
 	ret = of_address_to_resource(of_node, 0, &r_mem);
@@ -2400,6 +2430,9 @@ pl022_of_probe(struct platform_device *ofdev)
 		goto err_data;
 
 	pl022->dev = ofdev;
+#ifdef CONFIG_ACP
+	pl022->clkfreq = clkfreq;
+#endif
 	return 0;
 err_data:
 	kfree(platform_info);
