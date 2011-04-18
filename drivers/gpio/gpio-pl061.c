@@ -19,11 +19,16 @@
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
 #include <linux/device.h>
+#ifdef CONFIG_ARM_AMBA
 #include <linux/amba/bus.h>
+#include <asm/mach/irq.h>
+#else
+#include <linux/of_platform.h>
+#include <linux/of.h>
+#endif
 #include <linux/amba/pl061.h>
 #include <linux/slab.h>
 #include <linux/pm.h>
-#include <asm/mach/irq.h>
 
 #define GPIODIR 0x400
 #define GPIOIS  0x404
@@ -45,6 +50,18 @@ struct pl061_context_save_regs {
 	u8 gpio_iev;
 	u8 gpio_ie;
 };
+#endif
+
+#ifdef CONFIG_PPC
+static inline void chained_irq_enter(struct irq_chip *chip,
+					struct irq_desc *desc) {}
+
+static inline void chained_irq_exit(struct irq_chip *chip,
+					struct irq_desc *desc)
+{
+	if (chip->irq_eoi)
+		chip->irq_eoi(&desc->irq_data);
+}
 #endif
 
 struct pl061_gpio {
@@ -216,21 +233,22 @@ static void __init pl061_init_gc(struct pl061_gpio *chip, int irq_base)
 			       IRQ_GC_INIT_NESTED_LOCK, IRQ_NOREQUEST, 0);
 }
 
-static int pl061_probe(struct amba_device *dev, const struct amba_id *id)
+static int __init pl061_probe(struct device *dev,
+	struct resource *res, int irq, struct pl061_gpio **retchip)
 {
 	struct pl061_platform_data *pdata;
 	struct pl061_gpio *chip;
-	int ret, irq, i;
+	int ret, i;
 
 	chip = kzalloc(sizeof(*chip), GFP_KERNEL);
 	if (chip == NULL)
 		return -ENOMEM;
 
-	pdata = dev->dev.platform_data;
+	pdata = dev->platform_data;
 	if (pdata) {
 		chip->gc.base = pdata->gpio_base;
 		chip->irq_base = pdata->irq_base;
-	} else if (dev->dev.of_node) {
+	} else if (dev->of_node) {
 		chip->gc.base = -1;
 		chip->irq_base = 0;
 	} else {
@@ -238,13 +256,13 @@ static int pl061_probe(struct amba_device *dev, const struct amba_id *id)
 		goto free_mem;
 	}
 
-	if (!request_mem_region(dev->res.start,
-				resource_size(&dev->res), "pl061")) {
+	if (!request_mem_region(res->start,
+				resource_size(res), "pl061")) {
 		ret = -EBUSY;
 		goto free_mem;
 	}
 
-	chip->base = ioremap(dev->res.start, resource_size(&dev->res));
+	chip->base = ioremap(res->start, resource_size(res));
 	if (chip->base == NULL) {
 		ret = -ENOMEM;
 		goto release_region;
@@ -258,13 +276,16 @@ static int pl061_probe(struct amba_device *dev, const struct amba_id *id)
 	chip->gc.set = pl061_set_value;
 	chip->gc.to_irq = pl061_to_irq;
 	chip->gc.ngpio = PL061_GPIO_NR;
-	chip->gc.label = dev_name(&dev->dev);
-	chip->gc.dev = &dev->dev;
+	chip->gc.label = dev_name(dev);
+	chip->gc.dev = dev;
 	chip->gc.owner = THIS_MODULE;
 
 	ret = gpiochip_add(&chip->gc);
 	if (ret)
 		goto iounmap;
+
+	if (retchip)
+		*retchip = chip;
 
 	/*
 	 * irq_chip support
@@ -276,7 +297,6 @@ static int pl061_probe(struct amba_device *dev, const struct amba_id *id)
 	pl061_init_gc(chip, chip->irq_base);
 
 	writeb(0, chip->base + GPIOIE); /* disable irqs */
-	irq = dev->irq[0];
 	if (irq < 0) {
 		ret = -ENODEV;
 		goto iounmap;
@@ -294,17 +314,19 @@ static int pl061_probe(struct amba_device *dev, const struct amba_id *id)
 		}
 	}
 
-	amba_set_drvdata(dev, chip);
+	dev_set_drvdata(dev, chip);
 
 	return 0;
 
 iounmap:
 	iounmap(chip->base);
 release_region:
-	release_mem_region(dev->res.start, resource_size(&dev->res));
+	release_mem_region(res->start, resource_size(res));
 free_mem:
 	kfree(chip);
 
+	if (retchip)
+		*retchip = NULL;
 	return ret;
 }
 
@@ -360,6 +382,12 @@ static const struct dev_pm_ops pl061_dev_pm_ops = {
 };
 #endif
 
+#ifdef CONFIG_ARM_AMBA
+static int __init pl061_amba_probe(struct amba_device *dev, struct amba_id *id)
+{
+	return pl061_probe(&dev->dev, &dev->res, dev->irq[0], NULL);
+}
+
 static struct amba_id pl061_ids[] = {
 	{
 		.id	= 0x00041061,
@@ -378,12 +406,66 @@ static struct amba_driver pl061_gpio_driver = {
 #endif
 	},
 	.id_table	= pl061_ids,
-	.probe		= pl061_probe,
+	.probe		= pl061_amba_probe,
 };
+#else
+static int __init pl061_of_probe(struct platform_device *ofdev)
+{
+	struct resource r_mem;
+	struct pl061_platform_data pl061_data = {0};
+	int irq;
+	const u32 *prop;
+	int len;
+	struct pl061_gpio *chip = NULL;
+	int ret;
+
+	if (of_address_to_resource(ofdev->dev.of_node, 0, &r_mem))
+		return -ENODEV;
+
+	pl061_data.gpio_base = 0;
+	prop = of_get_property(ofdev->dev.of_node, "cell-index", &len);
+	if (!prop || len < sizeof(*prop))
+		dev_warn(&ofdev->dev, "no 'cell-index' property\n");
+	else
+		pl061_data.gpio_base = *prop;
+
+	irq = of_irq_to_resource(ofdev->dev.of_node, 0, NULL);
+	pl061_data.irq_base = irq;
+	if (irq == NO_IRQ)
+		pl061_data.irq_base = (unsigned) -1;
+
+	ofdev->dev.platform_data = &pl061_data;
+
+	ret = pl061_probe(&ofdev->dev, &r_mem, irq, &chip);
+
+	if (ret < 0)
+		return ret;
+	return 0;
+}
+
+static struct of_device_id pl061_match[] = {
+	{
+		.compatible = "amba_pl061",
+	},
+	{ /* end of list */ },
+};
+
+static struct platform_driver pl061_gpio_driver = {
+	.driver = {
+		.name = "gpio-pl061",
+		.of_match_table = pl061_match,
+	},
+	.probe = pl061_of_probe,
+};
+#endif
 
 static int __init pl061_gpio_init(void)
 {
+#ifdef CONFIG_ARM_AMBA
 	return amba_driver_register(&pl061_gpio_driver);
+#else
+	return platform_driver_register(&pl061_gpio_driver);
+#endif
 }
 subsys_initcall(pl061_gpio_init);
 
