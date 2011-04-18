@@ -34,6 +34,8 @@
 #include <asm/mpic.h>
 #include <asm/mmu.h>
 
+#include "acpclock.h"
+
 static __initdata struct of_device_id acpx14xx_of_bus[] = {
 	{ .compatible = "ibm,plb4", },
 	{ .compatible = "ibm,plb6", },
@@ -45,6 +47,8 @@ static __initdata struct of_device_id acpx14xx_of_bus[] = {
 
 static int __init acpx14xx_device_probe(void)
 {
+	acp_clk_init();
+
 	of_platform_bus_probe(NULL, acpx14xx_of_bus, NULL);
 
 	return 0;
