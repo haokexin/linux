@@ -30,6 +30,13 @@
 #include <linux/slab.h>
 #include <linux/pm.h>
 
+#ifdef CONFIG_PPC
+#define readb(addr) ((char)readl(addr))
+#define writeb(b, addr) writel(b, addr)
+
+#define GPIO_AFSEL 0x420
+#endif
+
 #define GPIODIR 0x400
 #define GPIOIS  0x404
 #define GPIOIBE 0x408
@@ -440,6 +447,13 @@ static int __init pl061_of_probe(struct platform_device *ofdev)
 
 	if (ret < 0)
 		return ret;
+
+	prop = of_get_property(ofdev->dev.of_node, "pins-map", &len);
+	if (!prop || len < sizeof(*prop))
+		dev_warn(&ofdev->dev, "no 'pins-map' property\n");
+	else
+		writeb(*prop, chip->base + GPIO_AFSEL);
+
 	return 0;
 }
 
