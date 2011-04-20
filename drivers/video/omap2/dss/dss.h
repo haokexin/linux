@@ -179,6 +179,9 @@ struct regulator *dss_get_vdds_dsi(void);
 struct regulator *dss_get_vdds_sdi(void);
 struct regulator *dss_get_vdda_dac(void);
 
+void dss_clk_enable_parent(enum dss_clock clks);
+void dss_clk_disable_parent(enum dss_clock clks);
+
 /* display */
 int dss_suspend_all_devices(void);
 int dss_resume_all_devices(void);
