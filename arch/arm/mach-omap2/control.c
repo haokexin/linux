@@ -278,7 +278,9 @@ void omap3_save_scratchpad_contents(void)
 	 * of AUTO_CNT = 1 prior to any transition to OFF mode.
 	 */
 	if ((omap_type() != OMAP2_DEVICE_TYPE_GP)
-			&& (omap_rev() >= OMAP3430_REV_ES3_0))
+		&& ((cpu_is_omap34xx() && omap_rev_ge_3_0())
+			|| cpu_is_omap3505() || cpu_is_omap3517()
+			|| cpu_is_omap3630()))
 		sdrc_block_contents.power = (sdrc_read_reg(SDRC_POWER) &
 				~(SDRC_POWER_AUTOCOUNT_MASK|
 				SDRC_POWER_CLKCTRL_MASK)) |
