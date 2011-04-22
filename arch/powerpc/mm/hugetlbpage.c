@@ -19,6 +19,8 @@
 #define PAGE_SHIFT_16M	24
 #define PAGE_SHIFT_16G	34
 
+unsigned int HPAGE_SHIFT;
+
 #define MAX_NUMBER_GPAGES	1024
 
 /* Tracks the 16G pages after the device tree is scanned and before the
@@ -48,25 +50,6 @@ static inline unsigned int mmu_psize_to_shift(unsigned int mmu_psize)
 }
 
 #define hugepd_none(hpd)	((hpd).pd == 0)
-
-static inline pte_t *hugepd_page(hugepd_t hpd)
-{
-	BUG_ON(!hugepd_ok(hpd));
-	return (pte_t *)((hpd.pd & ~HUGEPD_SHIFT_MASK) | 0xc000000000000000);
-}
-
-static inline unsigned int hugepd_shift(hugepd_t hpd)
-{
-	return hpd.pd & HUGEPD_SHIFT_MASK;
-}
-
-static inline pte_t *hugepte_offset(hugepd_t *hpdp, unsigned long addr, unsigned pdshift)
-{
-	unsigned long idx = (addr & ((1UL << pdshift) - 1)) >> hugepd_shift(*hpdp);
-	pte_t *dir = hugepd_page(*hpdp);
-
-	return dir + idx;
-}
 
 pte_t *find_linux_pte_or_hugepte(pgd_t *pgdir, unsigned long ea, unsigned *shift)
 {
