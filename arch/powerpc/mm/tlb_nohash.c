@@ -44,7 +44,40 @@
 
 #include "mmu_decl.h"
 
-#ifdef CONFIG_PPC_BOOK3E
+/*
+ * This struct lists the sw-supported page sizes.  The hardawre MMU may support
+ * other sizes not listed here.   The .ind field is only used on MMUs that have
+ * indirect page table entries.
+ */
+#ifdef CONFIG_PPC_BOOK3E_MMU
+#ifdef CONFIG_FSL_BOOKE
+struct mmu_psize_def mmu_psize_defs[MMU_PAGE_COUNT] = {
+	[MMU_PAGE_4K] = {
+		.shift	= 12,
+		.enc	= BOOK3E_PAGESZ_4K,
+	},
+	[MMU_PAGE_4M] = {
+		.shift	= 22,
+		.enc	= BOOK3E_PAGESZ_4M,
+	},
+	[MMU_PAGE_16M] = {
+		.shift	= 24,
+		.enc	= BOOK3E_PAGESZ_16M,
+	},
+	[MMU_PAGE_64M] = {
+		.shift	= 26,
+		.enc	= BOOK3E_PAGESZ_64M,
+	},
+	[MMU_PAGE_256M] = {
+		.shift	= 28,
+		.enc	= BOOK3E_PAGESZ_256M,
+	},
+	[MMU_PAGE_1G] = {
+		.shift	= 30,
+		.enc	= BOOK3E_PAGESZ_1GB,
+	},
+};
+#else
 struct mmu_psize_def mmu_psize_defs[MMU_PAGE_COUNT] = {
 	[MMU_PAGE_4K] = {
 		.shift	= 12,
@@ -75,6 +108,8 @@ struct mmu_psize_def mmu_psize_defs[MMU_PAGE_COUNT] = {
 		.enc	= BOOK3E_PAGESZ_1GB,
 	},
 };
+#endif /* CONFIG_FSL_BOOKE */
+
 static inline int mmu_get_tsize(int psize)
 {
 	return mmu_psize_defs[psize].enc;
@@ -85,7 +120,7 @@ static inline int mmu_get_tsize(int psize)
 	/* This isn't used on !Book3E for now */
 	return 0;
 }
-#endif
+#endif /* CONFIG_PPC_BOOK3E_MMU */
 
 /* The variables below are currently only used on 64-bit Book3E
  * though this will probably be made common with other nohash
@@ -100,6 +135,12 @@ int book3e_htw_enabled;		/* Is HW tablewalk enabled ? */
 unsigned long linear_map_top;	/* Top of linear mapping */
 
 #endif /* CONFIG_PPC64 */
+
+#ifdef CONFIG_PPC_FSL_BOOK3E
+/* next_tlbcam_idx is used to round-robin tlbcam entry assignment */
+DEFINE_PER_CPU(int, next_tlbcam_idx);
+EXPORT_PER_CPU_SYMBOL(next_tlbcam_idx);
+#endif
 
 /*
  * Base TLB flushing operations:
@@ -258,8 +299,10 @@ void __flush_tlb_page(struct mm_struct *mm, unsigned long vmaddr,
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long vmaddr)
 {
+#ifdef CONFIG_HUGETLB_PAGE
 	if (is_vm_hugetlb_page(vma))
 		flush_hugetlb_page(vma, vmaddr);
+#endif
 
 	__flush_tlb_page(vma ? vma->vm_mm : NULL, vmaddr,
 			 mmu_get_tsize(mmu_virtual_psize), 0);

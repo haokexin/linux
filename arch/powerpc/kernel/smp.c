@@ -238,6 +238,10 @@ struct thread_info *current_set[NR_CPUS];
 static void __devinit smp_store_cpu_info(int id)
 {
 	per_cpu(cpu_pvr, id) = get_pvr();
+#ifdef CONFIG_PPC_FSL_BOOK3E
+	per_cpu(next_tlbcam_idx, id)
+		= (mfspr(SPRN_TLB1CFG) & TLBnCFG_N_ENTRY) - 1;
+#endif
 }
 
 static void __init smp_create_idle(unsigned int cpu)

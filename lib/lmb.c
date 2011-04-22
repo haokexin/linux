@@ -15,8 +15,6 @@
 #include <linux/bitops.h>
 #include <linux/lmb.h>
 
-#define LMB_ALLOC_ANYWHERE	0
-
 struct lmb lmb;
 
 static int lmb_debug;
