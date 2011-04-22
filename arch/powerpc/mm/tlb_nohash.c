@@ -35,10 +35,12 @@
 #include <linux/preempt.h>
 #include <linux/spinlock.h>
 #include <linux/lmb.h>
+#include <linux/hugetlb.h>
 
 #include <asm/tlbflush.h>
 #include <asm/tlb.h>
 #include <asm/code-patching.h>
+#include <asm/hugetlb.h>
 
 #include "mmu_decl.h"
 
@@ -256,6 +258,9 @@ void __flush_tlb_page(struct mm_struct *mm, unsigned long vmaddr,
 
 void flush_tlb_page(struct vm_area_struct *vma, unsigned long vmaddr)
 {
+	if (is_vm_hugetlb_page(vma))
+		flush_hugetlb_page(vma, vmaddr);
+
 	__flush_tlb_page(vma ? vma->vm_mm : NULL, vmaddr,
 			 mmu_get_tsize(mmu_virtual_psize), 0);
 }

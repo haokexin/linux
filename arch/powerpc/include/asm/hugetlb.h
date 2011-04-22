@@ -1,7 +1,29 @@
 #ifndef _ASM_POWERPC_HUGETLB_H
 #define _ASM_POWERPC_HUGETLB_H
 
+#ifdef CONFIG_HUGETLB_PAGE
 #include <asm/page.h>
+
+static inline pte_t *hugepd_page(hugepd_t hpd)
+{
+	BUG_ON(!hugepd_ok(hpd));
+	return (pte_t *)((hpd.pd & ~HUGEPD_SHIFT_MASK) | 0xc000000000000000);
+}
+
+static inline unsigned int hugepd_shift(hugepd_t hpd)
+{
+	return hpd.pd & HUGEPD_SHIFT_MASK;
+}
+
+static inline pte_t *hugepte_offset(hugepd_t *hpdp, unsigned long addr,
+				    unsigned pdshift)
+{
+	unsigned long idx =
+		(addr & ((1UL << pdshift) - 1)) >> hugepd_shift(*hpdp);
+	pte_t *dir = hugepd_page(*hpdp);
+
+	return dir + idx;
+}
 
 pte_t *huge_pte_offset_and_shift(struct mm_struct *mm,
 				 unsigned long addr, unsigned *shift);
@@ -10,6 +32,9 @@ void flush_dcache_icache_hugepage(struct page *page);
 
 int is_hugepage_only_range(struct mm_struct *mm, unsigned long addr,
 			   unsigned long len);
+
+void book3e_hugetlb_preload(struct mm_struct *mm, unsigned long ea, pte_t pte);
+void flush_hugetlb_page(struct vm_area_struct *vma, unsigned long vmaddr);
 
 void hugetlb_free_pgd_range(struct mmu_gather *tlb, unsigned long addr,
 			    unsigned long end, unsigned long floor,
@@ -76,7 +101,12 @@ static inline int huge_ptep_set_access_flags(struct vm_area_struct *vma,
 					     unsigned long addr, pte_t *ptep,
 					     pte_t pte, int dirty)
 {
+#ifdef CONFIG_PPC_MMU_NOHASH
+	ptep_set_access_flags(vma, addr, ptep, pte, dirty);
+	return 1;
+#else
 	return ptep_set_access_flags(vma, addr, ptep, pte, dirty);
+#endif
 }
 
 static inline pte_t huge_ptep_get(pte_t *ptep)
@@ -92,5 +122,12 @@ static inline int arch_prepare_hugepage(struct page *page)
 static inline void arch_release_hugepage(struct page *page)
 {
 }
+
+#else /* ! CONFIG_HUGETLB_PAGE */
+static inline void flush_hugetlb_page(struct vm_area_struct *vma,
+				      unsigned long vmaddr)
+{
+}
+#endif
 
 #endif /* _ASM_POWERPC_HUGETLB_H */

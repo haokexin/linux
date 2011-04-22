@@ -535,4 +535,8 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 		return;
 	hash_preload(vma->vm_mm, address, access, trap);
 #endif /* CONFIG_PPC_STD_MMU */
+#if defined(CONFIG_PPC_BOOK3E_64) && defined(CONFIG_HUGETLB_PAGE)
+	if (is_vm_hugetlb_page(vma))
+		book3e_hugetlb_preload(vma->vm_mm, address, pte);
+#endif /* CONFIG_PPC_BOOK3E_64 && CONFIG_HUGETLB_PAGE */
 }

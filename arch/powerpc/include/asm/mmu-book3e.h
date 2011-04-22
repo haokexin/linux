@@ -200,6 +200,11 @@ typedef struct {
 	unsigned int	asid;
 	unsigned long	vmmu_handle;
 #endif
+#ifdef CONFIG_PPC_MM_SLICES
+	u64 low_slices_psize;   /* SLB page size encodings */
+	u64 high_slices_psize;  /* 4 bits per slice for now */
+	u16 user_psize;         /* page size index */
+#endif
 } mm_context_t;
 
 /* Page size definitions, common between 32 and 64-bit
