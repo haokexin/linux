@@ -364,7 +364,7 @@ void __init mem_init(void)
 		highmem_mapnr = lowmem_end_addr >> PAGE_SHIFT;
 		for (pfn = highmem_mapnr; pfn < max_mapnr; ++pfn) {
 			struct page *page = pfn_to_page(pfn);
-			if (lmb_is_reserved(pfn << PAGE_SHIFT))
+			if (lmb_is_reserved((u64)pfn << PAGE_SHIFT))
 				continue;
 			ClearPageReserved(page);
 			init_page_count(page);
@@ -377,6 +377,15 @@ void __init mem_init(void)
 		       totalhigh_pages << (PAGE_SHIFT-10));
 	}
 #endif /* CONFIG_HIGHMEM */
+
+#if defined(CONFIG_PPC_FSL_BOOK3E) && !defined(CONFIG_SMP)
+	/*
+	 * If smp is enabled, next_tlbcam_idx is initialized in the cpu up
+	 * functions.... do it here for the non-smp case.
+	 */
+	per_cpu(next_tlbcam_idx, smp_processor_id()) =
+		(mfspr(SPRN_TLB1CFG) & TLBnCFG_N_ENTRY) - 1;
+#endif
 
 	printk(KERN_INFO "Memory: %luk/%luk available (%luk kernel code, "
 	       "%luk reserved, %luk data, %luk bss, %luk init)\n",
@@ -535,8 +544,9 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 		return;
 	hash_preload(vma->vm_mm, address, access, trap);
 #endif /* CONFIG_PPC_STD_MMU */
-#if defined(CONFIG_PPC_BOOK3E_64) && defined(CONFIG_HUGETLB_PAGE)
+#if (defined(CONFIG_PPC_BOOK3E_64) || defined(CONFIG_PPC_FSL_BOOK3E)) \
+	&& defined(CONFIG_HUGETLB_PAGE)
 	if (is_vm_hugetlb_page(vma))
-		book3e_hugetlb_preload(vma->vm_mm, address, pte);
-#endif /* CONFIG_PPC_BOOK3E_64 && CONFIG_HUGETLB_PAGE */
+		book3e_hugetlb_preload(vma->vm_mm, address, *ptep);
+#endif
 }

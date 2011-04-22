@@ -4,10 +4,13 @@
 #ifdef CONFIG_HUGETLB_PAGE
 #include <asm/page.h>
 
+extern struct kmem_cache *hugepte_cache;
+extern void __init reserve_hugetlb_gpages(void);
+
 static inline pte_t *hugepd_page(hugepd_t hpd)
 {
 	BUG_ON(!hugepd_ok(hpd));
-	return (pte_t *)((hpd.pd & ~HUGEPD_SHIFT_MASK) | 0xc000000000000000);
+	return (pte_t *)((hpd.pd & ~HUGEPD_SHIFT_MASK) | PD_HUGE);
 }
 
 static inline unsigned int hugepd_shift(hugepd_t hpd)
@@ -18,8 +21,16 @@ static inline unsigned int hugepd_shift(hugepd_t hpd)
 static inline pte_t *hugepte_offset(hugepd_t *hpdp, unsigned long addr,
 				    unsigned pdshift)
 {
-	unsigned long idx =
-		(addr & ((1UL << pdshift) - 1)) >> hugepd_shift(*hpdp);
+	/*
+	 * On 32-bit, we have multiple higher-level table entries that point to
+	 * the same hugepte.  Just use the first one since they're all
+	 * identical.  So for that case, idx=0.
+	 */
+	unsigned long idx = 0;
+
+#ifdef CONFIG_PPC64
+	idx = (addr & ((1UL << pdshift) - 1)) >> hugepd_shift(*hpdp);
+#endif
 	pte_t *dir = hugepd_page(*hpdp);
 
 	return dir + idx;
@@ -30,8 +41,17 @@ pte_t *huge_pte_offset_and_shift(struct mm_struct *mm,
 
 void flush_dcache_icache_hugepage(struct page *page);
 
+#if defined(CONFIG_PPC_MM_SLICES) || defined(CONFIG_PPC_SUBPAGE_PROT)
 int is_hugepage_only_range(struct mm_struct *mm, unsigned long addr,
 			   unsigned long len);
+#else
+static inline int is_hugepage_only_range(struct mm_struct *mm,
+					 unsigned long addr,
+					 unsigned long len)
+{
+	return 0;
+}
+#endif
 
 void book3e_hugetlb_preload(struct mm_struct *mm, unsigned long ea, pte_t pte);
 void flush_hugetlb_page(struct vm_area_struct *vma, unsigned long vmaddr);
@@ -75,7 +95,11 @@ static inline void set_huge_pte_at(struct mm_struct *mm, unsigned long addr,
 static inline pte_t huge_ptep_get_and_clear(struct mm_struct *mm,
 					    unsigned long addr, pte_t *ptep)
 {
+#ifdef CONFIG_PPC64
 	unsigned long old = pte_update(mm, addr, ptep, ~0UL, 1);
+#else
+	pte_t old = pte_update(ptep, ~0UL, 0);
+#endif
 	return __pte(old);
 }
 
@@ -124,6 +148,9 @@ static inline void arch_release_hugepage(struct page *page)
 }
 
 #else /* ! CONFIG_HUGETLB_PAGE */
+static inline void reserve_hugetlb_gpages(void)
+{
+}
 static inline void flush_hugetlb_page(struct vm_area_struct *vma,
 				      unsigned long vmaddr)
 {

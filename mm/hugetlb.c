@@ -1184,8 +1184,14 @@ static void __init gather_bootmem_prealloc(void)
 	struct huge_bootmem_page *m;
 
 	list_for_each_entry(m, &huge_boot_pages, list) {
-		struct page *page = virt_to_page(m);
 		struct hstate *h = m->hstate;
+#ifdef CONFIG_HIGHMEM
+		struct page *page = pfn_to_page(m->phys >> PAGE_SHIFT);
+		free_bootmem_late((unsigned long)m,
+				  sizeof(struct huge_bootmem_page));
+#else
+		struct page *page = virt_to_page(m);
+#endif
 		__ClearPageReserved(page);
 		WARN_ON(page_count(page) != 1);
 		prep_compound_huge_page(page, h->order);
@@ -1898,7 +1904,7 @@ static int __init hugetlb_nrpages_setup(char *s)
 
 	if (mhp == last_mhp) {
 		printk(KERN_WARNING "hugepages= specified twice without "
-			"interleaving hugepagesz=, ignoring\n");
+		       "interleaving hugepagesz=, ignoring\n");
 		return 1;
 	}
 
@@ -2486,7 +2492,6 @@ retry_avoidcopy:
 	spin_lock(&mm->page_table_lock);
 	ptep = huge_pte_offset(mm, address & huge_page_mask(h));
 	if (likely(pte_same(huge_ptep_get(ptep), pte))) {
-		pte_t entry = make_huge_pte(vma, new_page, 1);
 		/* Break COW */
 		huge_ptep_clear_flush(vma, address, ptep);
 		set_huge_pte_at(mm, address, ptep,
@@ -2641,7 +2646,7 @@ retry:
 				&& (vma->vm_flags & VM_SHARED)));
 	set_huge_pte_at(mm, address, ptep, new_pte);
 	new_pte = huge_ptep_get(ptep);
-	update_mmu_cache(vma, address, new_pte);
+	update_mmu_cache(vma, address, ptep);
 
 	if ((flags & FAULT_FLAG_WRITE) && !(vma->vm_flags & VM_SHARED)) {
 		/* Optimization, do the COW without a second fault */
