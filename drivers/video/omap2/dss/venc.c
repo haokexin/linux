@@ -400,10 +400,38 @@ static const struct venc_config *venc_timings_to_config(
 	BUG();
 }
 
+
+#ifdef CONFIG_OMAP2_DSS_USE_DSI_PLL
+static int venc_set_dsi_clk(bool is_tft, unsigned long pck_req)
+{
+	struct dsi_clock_info dsi_cinfo;
+	struct dispc_clock_info dispc_cinfo;
+	int r;
+
+	r = dsi_pll_calc_clock_div_pck(is_tft, pck_req, &dsi_cinfo,
+			&dispc_cinfo);
+	if (r)
+		return r;
+
+	r = dsi_pll_set_clock_div(&dsi_cinfo);
+	if (r)
+		return r;
+
+	dss_select_dispc_clk_source(DSS_SRC_DSS1_ALWON_FCLK);
+	r = dispc_set_clock_div(&dispc_cinfo);
+
+	return r;
+}
+#endif
+
 static int venc_power_on(struct omap_dss_device *dssdev)
 {
 	u32 l;
 	int r = 0;
+#ifdef CONFIG_OMAP2_DSS_USE_DSI_PLL
+	struct omap_video_timings *t = &dssdev->panel.timings;
+	bool is_tft;
+#endif
 
 	venc_enable_clocks(1);
 
@@ -413,6 +441,12 @@ static int venc_power_on(struct omap_dss_device *dssdev)
 	if (r) {
 		DSSERR("failed in dsi_pll_init\n");
 		goto err;
+	}
+	is_tft = (dssdev->panel.config & OMAP_DSS_LCD_TFT) != 0;
+	r = venc_set_dsi_clk(is_tft, t->pixel_clock * 1000);
+	if (r) {
+		DSSERR("failed in venc_set_dsi_clk\n");
+		goto err1;
 	}
 #endif
 	venc_reset();
@@ -442,6 +476,16 @@ static int venc_power_on(struct omap_dss_device *dssdev)
 		dssdev->platform_enable(dssdev);
 
 	dssdev->manager->enable(dssdev->manager);
+
+	return r;
+#ifdef CONFIG_OMAP2_DSS_USE_DSI_PLL
+err1:
+	dsi_pll_uninit();
+	dss_clk_disable(DSS_CLK_FCK2);
+err:
+	venc_enable_clocks(0);
+	return r;
+#endif
 }
 
 static void venc_power_off(struct omap_dss_device *dssdev)
@@ -462,10 +506,6 @@ static void venc_power_off(struct omap_dss_device *dssdev)
 #endif
 	venc_enable_clocks(0);
 }
-
-
-
-
 
 /* driver */
 static int venc_panel_probe(struct omap_dss_device *dssdev)
