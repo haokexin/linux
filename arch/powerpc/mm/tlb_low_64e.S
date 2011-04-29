@@ -244,14 +244,7 @@ finish_normal_tlb_miss:
 	li	r11,MAS3_SW|MAS3_UW
 	andc	r15,r15,r11
 1:
-BEGIN_MMU_FTR_SECTION
-	srdi	r16,r15,32
-	mtspr	SPRN_MAS3,r15
-	mtspr	SPRN_MAS7,r16
-MMU_FTR_SECTION_ELSE
 	mtspr	SPRN_MAS7_MAS3,r15
-ALT_MMU_FTR_SECTION_END_IFCLR(MMU_FTR_USE_PAIRED_MAS)
-
 	tlbwe
 
 normal_tlb_miss_done:
@@ -377,14 +370,7 @@ END_MMU_FTR_SECTION_IFSET(MMU_FTR_USE_TLBRSRV)
 	clrldi	r11,r15,4		/* remove region ID from RPN */
 	ori	r10,r11,1		/* Or-in SR */
 
-BEGIN_MMU_FTR_SECTION
-	srdi	r16,r10,32
-	mtspr	SPRN_MAS3,r10
-	mtspr	SPRN_MAS7,r16
-MMU_FTR_SECTION_ELSE
 	mtspr	SPRN_MAS7_MAS3,r10
-ALT_MMU_FTR_SECTION_END_IFCLR(MMU_FTR_USE_PAIRED_MAS)
-
 	tlbwe
 
 BEGIN_MMU_FTR_SECTION
@@ -644,14 +630,7 @@ htw_tlb_miss:
 	ori	r10,r15,(BOOK3E_PAGESZ_4K << MAS3_SPSIZE_SHIFT)
 #endif
 
-BEGIN_MMU_FTR_SECTION
-	srdi	r16,r10,32
-	mtspr	SPRN_MAS3,r10
-	mtspr	SPRN_MAS7,r16
-MMU_FTR_SECTION_ELSE
 	mtspr	SPRN_MAS7_MAS3,r10
-ALT_MMU_FTR_SECTION_END_IFCLR(MMU_FTR_USE_PAIRED_MAS)
-
 	tlbwe
 
 htw_tlb_miss_done:
@@ -733,14 +712,7 @@ tlb_load_linear:
 	clrldi	r10,r10,4		/* clear region bits */
 	ori	r10,r10,MAS3_SR|MAS3_SW|MAS3_SX
 
-BEGIN_MMU_FTR_SECTION
-	srdi	r16,r10,32
-	mtspr	SPRN_MAS3,r10
-	mtspr	SPRN_MAS7,r16
-MMU_FTR_SECTION_ELSE
 	mtspr	SPRN_MAS7_MAS3,r10
-ALT_MMU_FTR_SECTION_END_IFCLR(MMU_FTR_USE_PAIRED_MAS)
-
 	tlbwe
 
 tlb_load_linear_done:
