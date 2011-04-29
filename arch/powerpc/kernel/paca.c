@@ -103,6 +103,11 @@ void __init initialise_paca(struct paca_struct *new_paca, int cpu)
 #ifdef CONFIG_PPC_STD_MMU_64
 	new_paca->slb_shadow_ptr = &slb_shadow[cpu];
 #endif /* CONFIG_PPC_STD_MMU_64 */
+#ifdef CONFIG_PPC_BOOK3E
+	new_paca->extlb[EX_TLB_PACA / 8] = (u64)new_paca;
+	new_paca->extlb[(EX_TLB_SIZE + EX_TLB_PACA) / 8] = (u64)new_paca;
+	new_paca->extlb[(EX_TLB_SIZE * 2 + EX_TLB_PACA) / 8] = (u64)new_paca;
+#endif
 }
 
 static int __initdata paca_size;
