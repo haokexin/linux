@@ -62,16 +62,14 @@
 #define EX_TLB_ESR	( 9 * 8) /* Level 0 and 2 only */
 #define EX_TLB_SRR0	(10 * 8)
 #define EX_TLB_SRR1	(11 * 8)
-#define EX_TLB_MMUCR0	(12 * 8) /* Level 0 */
-#define EX_TLB_MAS1	(12 * 8) /* Level 0 */
-#define EX_TLB_MAS2	(13 * 8) /* Level 0 */
+#define EX_TLB_PACA	(12 * 8)
 #ifdef CONFIG_BOOK3E_MMU_TLB_STATS
-#define EX_TLB_R8	(14 * 8)
-#define EX_TLB_R9	(15 * 8)
-#define EX_TLB_LR	(16 * 8)
-#define EX_TLB_SIZE	(17 * 8)
+#define EX_TLB_R8	(13 * 8)
+#define EX_TLB_R9	(14 * 8)
+#define EX_TLB_LR	(15 * 8)
+#define EX_TLB_SIZE	(16 * 8)
 #else
-#define EX_TLB_SIZE	(14 * 8)
+#define EX_TLB_SIZE	(13 * 8)
 #endif
 
 #define	START_EXCEPTION(label)						\
@@ -98,7 +96,7 @@ exc_##label##_book3e:
 	std	r11,EX_TLB_R11(r12);					    \
 	mfspr	r11,SPRN_SPRG_TLB_SCRATCH;				    \
 	std	r13,EX_TLB_R13(r12);					    \
-	mfspr	r13,SPRN_SPRG_PACA;					    \
+	ld	r13,EX_TLB_PACA(r12);					    \
 	std	r14,EX_TLB_R14(r12);					    \
 	addi	r14,r12,EX_TLB_SIZE;					    \
 	std	r15,EX_TLB_R15(r12);					    \
