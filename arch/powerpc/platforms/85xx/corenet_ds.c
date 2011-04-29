@@ -18,6 +18,8 @@
 #include <linux/interrupt.h>
 #include <linux/lmb.h>
 
+#include <linux/fsl_usdpaa.h>
+
 #include <asm/system.h>
 #include <asm/time.h>
 #include <asm/machdep.h>
@@ -187,6 +189,9 @@ __init void corenet_ds_init_early(void)
 #endif
 #ifdef CONFIG_FSL_PME2_CTRL
 	pme2_init_early();
+#endif
+#ifdef CONFIG_FSL_USDPAA_SHMEM
+	fsl_usdpaa_shmem_init_early();
 #endif
 }
 
