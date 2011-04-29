@@ -232,19 +232,6 @@ finish_normal_tlb_miss:
 	rlwimi	r11,r14,32-19,27,31	/* Insert WIMGE */
 	mtspr	SPRN_MAS2,r11
 
-	/* Check page size, if not standard, update MAS1 */
-	rldicl	r11,r14,64-8,64-8
-#ifdef CONFIG_PPC_64K_PAGES
-	cmpldi	cr0,r11,BOOK3E_PAGESZ_64K
-#else
-	cmpldi	cr0,r11,BOOK3E_PAGESZ_4K
-#endif
-	beq-	1f
-	mfspr	r11,SPRN_MAS1
-	rlwimi	r11,r14,31,21,24
-	rlwinm	r11,r11,0,21,19
-	mtspr	SPRN_MAS1,r11
-1:
 	/* Move RPN in position */
 	rldicr	r11,r14,64-(PTE_RPN_SHIFT-PAGE_SHIFT),63-PAGE_SHIFT
 	clrldi	r15,r11,12		/* Clear crap at the top */
