@@ -1,14 +1,10 @@
 #ifndef _ASM_POWERPC_PGTABLE_PPC64_4K_H
 #define _ASM_POWERPC_PGTABLE_PPC64_4K_H
-/*
- * Entries per page directory level.  The PTE level must use a 64b record
- * for each page table entry.  The PMD and PGD level use a 32b record for
- * each entry by assuming that each entry is page aligned.
- */
+
 #define PTE_INDEX_SIZE  9
-#define PMD_INDEX_SIZE  7
+#define PMD_INDEX_SIZE  9
 #define PUD_INDEX_SIZE  7
-#define PGD_INDEX_SIZE  9
+#define PGD_INDEX_SIZE  7
 
 #ifndef __ASSEMBLY__
 #define PTE_TABLE_SIZE	(sizeof(pte_t) << PTE_INDEX_SIZE)
@@ -19,7 +15,7 @@
 
 #define PTRS_PER_PTE	(1 << PTE_INDEX_SIZE)
 #define PTRS_PER_PMD	(1 << PMD_INDEX_SIZE)
-#define PTRS_PER_PUD	(1 << PMD_INDEX_SIZE)
+#define PTRS_PER_PUD	(1 << PUD_INDEX_SIZE)
 #define PTRS_PER_PGD	(1 << PGD_INDEX_SIZE)
 
 /* PMD_SHIFT determines what a second-level page table entry can map */
