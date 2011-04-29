@@ -24,7 +24,7 @@
 #ifdef CONFIG_PPC_64K_PAGES
 #define VPTE_PMD_SHIFT	(PTE_INDEX_SIZE+1)
 #else
-#define VPTE_PMD_SHIFT	(PTE_INDEX_SIZE)
+#define VPTE_PMD_SHIFT	0
 #endif
 #define VPTE_PUD_SHIFT	(VPTE_PMD_SHIFT + PMD_INDEX_SIZE)
 #define VPTE_PGD_SHIFT	(VPTE_PUD_SHIFT + PUD_INDEX_SIZE)
@@ -185,7 +185,7 @@ normal_tlb_miss:
 	/* Insert the bottom bits in */
 	rlwimi	r14,r15,0,16,31
 #else
-	rldicl	r14,r16,64-(PAGE_SHIFT-3),PAGE_SHIFT-3+4
+	rldicl	r14,r16,64-(PMD_SHIFT-3),PMD_SHIFT-3+4
 #endif
 	sldi	r15,r10,60
 	clrrdi	r14,r14,3
@@ -201,6 +201,16 @@ BEGIN_MMU_FTR_SECTION
 MMU_FTR_SECTION_ELSE
 	ld	r14,0(r10)
 ALT_MMU_FTR_SECTION_END_IFSET(MMU_FTR_USE_TLBRSRV)
+
+#ifndef CONFIG_PPC_64K_PAGES
+	rldicl	r15,r16,64-PAGE_SHIFT+3,64-PTE_INDEX_SIZE-3
+	clrrdi	r15,r15,3
+
+	cmpdi	cr0,r14,0
+	bge-	normal_tlb_miss_access_fault
+
+	ldx	r14,r14,r15
+#endif
 
 finish_normal_tlb_miss:
 	/* Check if required permissions are met */
@@ -353,14 +363,11 @@ END_MMU_FTR_SECTION_IFSET(MMU_FTR_USE_TLBRSRV)
 #ifndef CONFIG_PPC_64K_PAGES
 	/* Get to PUD entry */
 	rldicl	r11,r16,64-VPTE_PUD_SHIFT,64-PUD_INDEX_SIZE-3
-	clrrdi	r10,r11,3
-	ldx	r15,r10,r15
-	cmpdi	cr0,r15,0
-	bge	virt_page_table_tlb_miss_fault
-#endif /* CONFIG_PPC_64K_PAGES */
-
+#else
 	/* Get to PMD entry */
 	rldicl	r11,r16,64-VPTE_PMD_SHIFT,64-PMD_INDEX_SIZE-3
+#endif
+
 	clrrdi	r10,r11,3
 	ldx	r15,r10,r15
 	cmpdi	cr0,r15,0
