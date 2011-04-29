@@ -80,9 +80,9 @@ exc_##label##_book3e:
  *
  * This prolog handles re-entrancy (up to 3 levels supported in the PACA
  * though we currently don't test for overflow). It provides you with a
- * re-entrancy safe working space of r10...r16 and CR with r12 being used
- * as the exception area pointer in the PACA for that level of re-entrancy
- * and r13 containing the PACA pointer.
+ * re-entrancy safe working space of r10...r16 (except r13) and CR with r12
+ * being used as the exception area pointer in the PACA for that level of
+ * re-entrancy.
  *
  * SRR0 and SRR1 are saved, but DEAR and ESR are not, since they don't apply
  * as-is for instruction exceptions. It's up to the actual exception code
@@ -95,8 +95,6 @@ exc_##label##_book3e:
 	mfcr	r10;							    \
 	std	r11,EX_TLB_R11(r12);					    \
 	mfspr	r11,SPRN_SPRG_TLB_SCRATCH;				    \
-	std	r13,EX_TLB_R13(r12);					    \
-	ld	r13,EX_TLB_PACA(r12);					    \
 	std	r14,EX_TLB_R14(r12);					    \
 	addi	r14,r12,EX_TLB_SIZE;					    \
 	std	r15,EX_TLB_R15(r12);					    \
@@ -135,7 +133,6 @@ exc_##label##_book3e:
 	mtspr	SPRN_SPRG_TLB_EXFRAME,freg;				    \
 	ld	r11,EX_TLB_R11(r12);					    \
 	mtcr	r14;							    \
-	ld	r13,EX_TLB_R13(r12);					    \
 	ld	r14,EX_TLB_R14(r12);					    \
 	mtspr	SPRN_SRR0,r15;						    \
 	ld	r15,EX_TLB_R15(r12);					    \
@@ -148,11 +145,13 @@ exc_##label##_book3e:
 	TLB_MISS_RESTORE(r12)
 
 #define TLB_MISS_EPILOG_ERROR						    \
-	addi	r12,r13,PACA_EXTLB;					    \
+	ld	r10,EX_TLB_PACA(r12);					    \
+	addi	r12,r10,PACA_EXTLB;					    \
 	TLB_MISS_RESTORE(r12)
 
 #define TLB_MISS_EPILOG_ERROR_SPECIAL					    \
-	addi	r11,r13,PACA_EXTLB;					    \
+	ld	r10,EX_TLB_PACA(r12);					    \
+	addi	r11,r10,PACA_EXTLB;					    \
 	TLB_MISS_RESTORE(r11)
 
 #ifdef CONFIG_BOOK3E_MMU_TLB_STATS
@@ -160,25 +159,26 @@ exc_##label##_book3e:
 	mflr	r10;							    \
 	std	r8,EX_TLB_R8(r12);					    \
 	std	r9,EX_TLB_R9(r12);					    \
-	std	r10,EX_TLB_LR(r12);
+	std	r10,EX_TLB_LR(r12);					    \
+	ld	r9,EX_TLB_PACA(r12);
 #define TLB_MISS_RESTORE_STATS					            \
 	ld	r16,EX_TLB_LR(r12);					    \
 	ld	r9,EX_TLB_R9(r12);					    \
 	ld	r8,EX_TLB_R8(r12);					    \
 	mtlr	r16;
 #define TLB_MISS_STATS_D(name)						    \
-	addi	r9,r13,MMSTAT_DSTATS+name;				    \
+	addi	r9,r9,MMSTAT_DSTATS+name;				    \
 	bl	.tlb_stat_inc;
 #define TLB_MISS_STATS_I(name)						    \
-	addi	r9,r13,MMSTAT_ISTATS+name;				    \
+	addi	r9,r9,MMSTAT_ISTATS+name;				    \
 	bl	.tlb_stat_inc;
 #define TLB_MISS_STATS_X(name)						    \
-	ld	r8,PACA_EXTLB+EX_TLB_ESR(r13);				    \
+	ld	r8,PACA_EXTLB+EX_TLB_ESR(r9);				    \
 	cmpdi	cr2,r8,-1;						    \
 	beq	cr2,61f;						    \
-	addi	r9,r13,MMSTAT_DSTATS+name;				    \
+	addi	r9,r9,MMSTAT_DSTATS+name;				    \
 	b	62f;							    \
-61:	addi	r9,r13,MMSTAT_ISTATS+name;				    \
+61:	addi	r9,r9,MMSTAT_ISTATS+name;				    \
 62:	bl	.tlb_stat_inc;
 #define TLB_MISS_STATS_SAVE_INFO					    \
 	std	r14,EX_TLB_ESR(r12);	/* save ESR */			    \
