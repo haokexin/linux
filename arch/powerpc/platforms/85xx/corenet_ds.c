@@ -107,6 +107,9 @@ static const struct of_device_id of_device_ids[] __devinitconst = {
 		.compatible	= "simple-bus"
 	},
 	{
+		.compatible	= "fsl,dpaa"
+	},
+	{
 		.compatible	= "fsl,rapidio-delta",
 	},
 	{
@@ -122,3 +125,60 @@ int __init corenet_ds_publish_devices(void)
 {
 	return of_platform_bus_probe(NULL, of_device_ids, NULL);
 }
+
+int __init declare_of_platform_devices(void)
+{
+	struct device_node *np;
+	struct of_device *dev;
+	int err;
+
+	err = of_platform_bus_probe(NULL, of_device_ids, NULL);
+	if (err)
+		return err;
+
+	/* Now probe the fake MDIO buses */
+	for_each_compatible_node(np, NULL, "fsl,p4080ds-mdio") {
+		dev = of_platform_device_create(np, NULL, NULL);
+		if (!dev) {
+			of_node_put(np);
+			return -ENOMEM;
+		}
+	}
+
+	for_each_compatible_node(np, NULL, "fsl,p4080ds-xmdio") {
+		dev = of_platform_device_create(np, NULL, NULL);
+		if (!dev) {
+			of_node_put(np);
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
+}
+
+/* Early setup is required for large chunks of contiguous (and coarsely-aligned)
+ * memory. The following shoe-horns Qman/Bman "init_early" calls into the
+ * platform setup to let them parse their CCSR nodes early on. */
+#ifdef CONFIG_FSL_QMAN_CONFIG
+void __init qman_init_early(void);
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+void __init bman_init_early(void);
+#endif
+#ifdef CONFIG_FSL_PME2_CTRL
+void __init pme2_init_early(void);
+#endif
+
+__init void corenet_ds_init_early(void)
+{
+#ifdef CONFIG_FSL_QMAN_CONFIG
+	qman_init_early();
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+	bman_init_early();
+#endif
+#ifdef CONFIG_FSL_PME2_CTRL
+	pme2_init_early();
+#endif
+}
+

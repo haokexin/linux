@@ -181,6 +181,7 @@ config P4080_DS
 	select MPC8xxx_GPIO
 	select HAS_RAPIDIO
 	select HAS_FSL_PAMU
+	select FSL_CORENET_DS_MDIO if PHYLIB
 	help
 	  This option enables support for the P4080 DS board
 
@@ -222,6 +223,11 @@ config P5020_DS
 	  This option enables support for the P5020 DS board
 
 endif # FSL_SOC_BOOKE
+
+config FSL_CORENET_DS_MDIO
+	bool
+	select VITESSE_PHY
+	depends on PHYLIB
 
 config TQM85xx
 	bool

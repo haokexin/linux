@@ -16,6 +16,7 @@
 #include <linux/kdev_t.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/phy.h>
 
 #include <asm/system.h>
 #include <asm/time.h>
@@ -42,6 +43,18 @@ static int __init p4080_ds_probe(void)
 	return of_flat_dt_is_compatible(root, "fsl,P4080DS");
 }
 
+#if defined(CONFIG_PHYLIB) && defined(CONFIG_VITESSE_PHY)
+int vsc824x_add_skew(struct phy_device *phydev);
+#define PHY_ID_VSC8244                  0x000fc6c0
+static int __init board_fixups(void)
+{
+	phy_register_fixup_for_uid(PHY_ID_VSC8244, 0xfffff, vsc824x_add_skew);
+
+	return 0;
+}
+machine_device_initcall(p4080_ds, board_fixups);
+#endif
+
 define_machine(p4080_ds) {
 	.name			= "P4080 DS",
 	.probe			= p4080_ds_probe,
@@ -54,9 +67,11 @@ define_machine(p4080_ds) {
 	.restart		= fsl_rstcr_restart,
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
+	.init_early		= corenet_ds_init_early,
 };
 
-machine_device_initcall(p4080_ds, corenet_ds_publish_devices);
+machine_device_initcall(p4080_ds, declare_of_platform_devices);
+
 #ifdef CONFIG_SWIOTLB
 machine_arch_initcall(p4080_ds, swiotlb_setup_bus_notifier);
 #endif
