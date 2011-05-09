@@ -422,6 +422,7 @@ typedef uint32_t t_FmBlockErrIntrEnable;
 #define ERR_INTR_EN_1G_MAC1     0x00002000
 #define ERR_INTR_EN_1G_MAC2     0x00001000
 #define ERR_INTR_EN_1G_MAC3     0x00000800
+#define ERR_INTR_EN_1G_MAC4     0x00000400
 #define ERR_INTR_EN_MACSEC_MAC0 0x00000200
 
 

@@ -3684,6 +3684,13 @@ void FM_ErrorIsr(t_Handle h_Fm)
         else
             p_Fm->intrMng[e_FM_EV_ERR_1G_MAC3].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC3].h_SrcHandle);
     }
+    if(pending & ERR_INTR_EN_1G_MAC4)
+    {
+       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].guestId)
+            SendIpcIsr(p_Fm, e_FM_EV_ERR_1G_MAC4, pending);
+       else
+            p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].h_SrcHandle);
+    }
     if(pending & ERR_INTR_EN_10G_MAC0)
     {
        if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].guestId)
@@ -3708,6 +3715,8 @@ void FM_GuestErrorIsr(t_Handle h_Fm, uint32_t pending)
         p_Fm->intrMng[e_FM_EV_ERR_1G_MAC2].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC2].h_SrcHandle);
     if(pending & ERR_INTR_EN_1G_MAC3)
         p_Fm->intrMng[e_FM_EV_ERR_1G_MAC3].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC3].h_SrcHandle);
+    if(pending & ERR_INTR_EN_1G_MAC4)
+        p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].h_SrcHandle);
     if(pending & ERR_INTR_EN_10G_MAC0)
         p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].h_SrcHandle);
 }
