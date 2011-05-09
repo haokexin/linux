@@ -198,6 +198,7 @@ typedef enum e_FmInterModuleEvent {
     e_FM_EV_ERR_1G_MAC1,            /**< 1G MAC 1 error event */
     e_FM_EV_ERR_1G_MAC2,            /**< 1G MAC 2 error event */
     e_FM_EV_ERR_1G_MAC3,            /**< 1G MAC 3 error event */
+    e_FM_EV_ERR_1G_MAC4,            /**< 1G MAC 4 error event */
     e_FM_EV_ERR_MACSEC_MAC0,        /**< MACSEC MAC 0 error event */
     e_FM_EV_TMR,                    /**< Timer event */
     e_FM_EV_1G_MAC0_TMR,            /**< 1G MAC 0 Timer event */
