@@ -44,6 +44,12 @@
 #define GORESET           0x42
 
 /*
+ * Break register.
+ */
+#define	BRKRES_REG	0x1f000508
+#define	STOP_BRK_SET	0x0
+
+/*
  * Revision register.
  */
 #define MIPS_REVISION_REG                  0x1fc00010

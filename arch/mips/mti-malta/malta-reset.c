@@ -56,3 +56,17 @@ static int __init mips_reboot_setup(void)
 }
 
 arch_initcall(mips_reboot_setup);
+
+#ifdef CONFIG_MAGIC_SYSRQ
+static int __init  mips_break_clear(void)
+{
+	unsigned int __iomem *softres_reg =
+		ioremap(BRKRES_REG, sizeof(unsigned int));
+	
+	__raw_writel(STOP_BRK_SET, softres_reg);
+	
+	return 0;
+}
+
+arch_initcall(mips_break_clear);
+#endif
