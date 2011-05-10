@@ -42,6 +42,7 @@
 
 #include "error_ext.h"	/* GET_ERROR_TYPE, E_OK */
 #include "fm_mac_ext.h"
+#include "fm_rtc_ext.h"
 
 #define MAC_DESCRIPTION "FSL FMan MAC API based driver"
 
@@ -448,6 +449,134 @@ static int __cold uninit(struct mac_device *mac_dev)
 	return _errno;
 }
 
+static int __cold ptp_enable(struct mac_device *mac_dev)
+{
+	int			 _errno;
+	t_Error			 err;
+	const struct mac_priv_s	*priv;
+
+	priv = macdev_priv(mac_dev);
+
+	err = FM_MAC_Enable1588TimeStamp(priv->mac);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_MAC_Enable1588TimeStamp()"
+				"= 0x%08x\n", err);
+	return _errno;
+}
+
+static int __cold ptp_disable(struct mac_device *mac_dev)
+{
+	int			 _errno;
+	t_Error			 err;
+	const struct mac_priv_s	*priv;
+
+	priv = macdev_priv(mac_dev);
+
+	err = FM_MAC_Disable1588TimeStamp(priv->mac);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_MAC_Disable1588TimeStamp()"
+				"= 0x%08x\n", err);
+	return _errno;
+}
+
+static int __cold fm_rtc_enable(struct net_device *net_dev)
+{
+	struct dpa_priv_s *priv = netdev_priv(net_dev);
+	struct mac_device *mac_dev = priv->mac_dev;
+	int			 _errno;
+	t_Error			 err;
+
+	err = FM_RTC_Enable(fm_get_rtc_handle(mac_dev->fm_dev), 0);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_RTC_Enable = 0x%08x\n", err);
+
+	return _errno;
+}
+
+static int __cold fm_rtc_disable(struct net_device *net_dev)
+{
+	struct dpa_priv_s *priv = netdev_priv(net_dev);
+	struct mac_device *mac_dev = priv->mac_dev;
+	int			 _errno;
+	t_Error			 err;
+
+	err = FM_RTC_Disable(fm_get_rtc_handle(mac_dev->fm_dev));
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_RTC_Disable = 0x%08x\n", err);
+
+	return _errno;
+}
+
+static int __cold fm_rtc_get_cnt(struct net_device *net_dev, uint64_t *ts)
+{
+	struct dpa_priv_s *priv = netdev_priv(net_dev);
+	struct mac_device *mac_dev = priv->mac_dev;
+	int _errno;
+	t_Error	err;
+
+	err = FM_RTC_GetCurrentTime(fm_get_rtc_handle(mac_dev->fm_dev), ts);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_RTC_GetCurrentTime = 0x%08x\n",
+				err);
+
+	return _errno;
+}
+
+static int __cold fm_rtc_set_cnt(struct net_device *net_dev, uint64_t ts)
+{
+	struct dpa_priv_s *priv = netdev_priv(net_dev);
+	struct mac_device *mac_dev = priv->mac_dev;
+	int _errno;
+	t_Error	err;
+
+	err = FM_RTC_SetCurrentTime(fm_get_rtc_handle(mac_dev->fm_dev), ts);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_RTC_SetCurrentTime = 0x%08x\n",
+				err);
+
+	return _errno;
+}
+
+static int __cold fm_rtc_get_drift(struct net_device *net_dev, uint32_t *drift)
+{
+	struct dpa_priv_s *priv = netdev_priv(net_dev);
+	struct mac_device *mac_dev = priv->mac_dev;
+	int _errno;
+	t_Error	err;
+
+	err = FM_RTC_GetFreqCompensation(fm_get_rtc_handle(mac_dev->fm_dev),
+			drift);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_RTC_GetFreqCompensation ="
+				"0x%08x\n", err);
+
+	return _errno;
+}
+
+static int __cold fm_rtc_set_drift(struct net_device *net_dev, uint32_t drift)
+{
+	struct dpa_priv_s *priv = netdev_priv(net_dev);
+	struct mac_device *mac_dev = priv->mac_dev;
+	int _errno;
+	t_Error	err;
+
+	err = FM_RTC_SetFreqCompensation(fm_get_rtc_handle(mac_dev->fm_dev),
+			drift);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_RTC_SetFreqCompensation ="
+				"0x%08x\n", err);
+
+	return _errno;
+}
+
 static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 {
 	mac_dev->init_phy	= dtsec_init_phy;
@@ -458,6 +587,14 @@ static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 	mac_dev->change_addr    = change_addr;
 	mac_dev->set_multi      = set_multi;
 	mac_dev->uninit		= uninit;
+	mac_dev->ptp_enable		= ptp_enable;
+	mac_dev->ptp_disable		= ptp_disable;
+	mac_dev->fm_rtc_enable		= fm_rtc_enable;
+	mac_dev->fm_rtc_disable		= fm_rtc_disable;
+	mac_dev->fm_rtc_get_cnt		= fm_rtc_get_cnt;
+	mac_dev->fm_rtc_set_cnt		= fm_rtc_set_cnt;
+	mac_dev->fm_rtc_get_drift	= fm_rtc_get_drift;
+	mac_dev->fm_rtc_set_drift	= fm_rtc_set_drift;
 }
 
 static void __devinit __cold setup_xgmac(struct mac_device *mac_dev)

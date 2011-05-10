@@ -139,14 +139,16 @@ enum {RX, TX};
 #define DPA_PRIV_DATA_SIZE 16
 #define DPA_PARSE_RESULTS_SIZE sizeof(t_FmPrsResult)
 #define DPA_HASH_RESULTS_SIZE 16
+#define DPA_TIME_STAMP_SIZE 8
 
-#define dpaa_eth_init_port(type, port, param, errq_id, defq_id) \
+#define dpaa_eth_init_port(type, port, param, errq_id, defq_id, has_timer) \
 { \
 	param.errq = errq_id; \
 	param.defq = defq_id; \
 	param.priv_data_size = DPA_PRIV_DATA_SIZE; \
 	param.parse_results = true; \
 	param.hash_results = true; \
+	param.time_stamp = has_timer; \
 	fm_set_##type##_port_params(port, &param); \
 }
 

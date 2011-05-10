@@ -246,7 +246,7 @@ oh_port_probe(struct of_device *_of_dev, const struct of_device_id *match)
 
 	/* Set Tx params */
 	dpaa_eth_init_port(tx, oh_config->oh_port, oh_port_tx_params,
-		oh_config->error_fqid, oh_config->default_fqid);
+		oh_config->error_fqid, oh_config->default_fqid, FALSE);
 	/* Set PCD params */
 	oh_port_pcd_params.cb = alloc_oh_pcd_fqids;
 	oh_port_pcd_params.dev = dpa_oh_dev;
