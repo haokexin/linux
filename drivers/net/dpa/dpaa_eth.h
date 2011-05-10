@@ -103,6 +103,7 @@ struct dpa_priv_s {
 #endif
 
 	uint32_t		 msg_enable;	/* net_device message level */
+	struct ptp_tsu		 *tsu;
 };
 
 extern const struct ethtool_ops dpa_ethtool_ops;

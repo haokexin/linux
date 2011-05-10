@@ -59,6 +59,7 @@
 
 #include "mac.h"
 #include "dpaa_eth.h"
+#include "dpaa_1588.h"
 
 #define ARRAY2_SIZE(arr)	(ARRAY_SIZE(arr) * ARRAY_SIZE((arr)[0]))
 
@@ -154,7 +155,7 @@ struct dpa_fq {
 #endif
 
 #define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
-			DPA_HASH_RESULTS_SIZE)
+			DPA_HASH_RESULTS_SIZE + DPA_TIME_STAMP_SIZE)
 #define DPA_BP_SIZE(s)	(DPA_BP_HEAD + (s) + NET_IP_ALIGN)
 
 #define DPAA_ETH_MAX_PAD (L1_CACHE_BYTES * 8)
@@ -848,6 +849,11 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 
 	prefetch(skb_shinfo(skb));
 
+#ifdef CONFIG_FSL_DPA_1588
+	if (priv->tsu && priv->tsu->valid)
+		dpa_ptp_store_rxstamp(net_dev, skb, fd);
+#endif
+
 	skb->protocol = eth_type_trans(skb, net_dev);
 
 	percpu_priv->stats.rx_packets++;
@@ -967,6 +973,11 @@ static void __hot _dpa_tx(struct net_device		*net_dev,
 
 	skbh = (struct sk_buff **)phys_to_virt(addr);
 	skb = *skbh;
+
+#ifdef CONFIG_FSL_DPA_1588
+	if (priv->tsu && priv->tsu->valid && dpa_ptp_do_txstamp(skb))
+		dpa_ptp_store_txstamp(net_dev, skb, fd);
+#endif
 
 	dma_unmap_single(bp->dev, addr, bp->size, DMA_TO_DEVICE);
 
@@ -1203,7 +1214,8 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	queue_mapping = skb_get_queue_mapping(skb);
 
 	needed_headroom = (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE +
-				NET_IP_ALIGN + sizeof(skbh));
+				NET_IP_ALIGN + sizeof(skbh) +
+				DPA_TIME_STAMP_SIZE);
 
 	if (headroom < needed_headroom) {
 		struct sk_buff *skb_new;
@@ -1257,6 +1269,11 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	fd.addr_lo = lower_32_bits(addr);
 	fd.length20 = skb->len;
 	fd.offset = headroom - (NET_IP_ALIGN + cache_fudge);
+
+#ifdef CONFIG_FSL_DPA_1588
+	if (priv->tsu && priv->tsu->valid && dpa_ptp_do_txstamp(skb))
+		fd.cmd |= FM_FD_CMD_UPD;
+#endif
 
 	if (likely(skb_is_recycleable(skb, dpa_bp->skb_size)
 			&& (*countptr + 1 <= dpa_bp->count))) {
@@ -1563,6 +1580,13 @@ static int __cold dpa_start(struct net_device *net_dev)
 	if (!mac_dev)
 		goto no_mac;
 
+	if (priv->tsu && priv->tsu->valid) {
+		if (mac_dev->fm_rtc_enable)
+			mac_dev->fm_rtc_enable(net_dev);
+		if (mac_dev->ptp_enable)
+			mac_dev->ptp_enable(mac_dev);
+	}
+
 	dpaa_eth_napi_enable(priv);
 
 	err = mac_dev->init_phy(net_dev);
@@ -1610,6 +1634,13 @@ static int __cold dpa_stop(struct net_device *net_dev)
 
 	if (!mac_dev)
 		return 0;
+
+	if (priv->tsu && priv->tsu->valid) {
+		if (mac_dev->fm_rtc_disable)
+			mac_dev->fm_rtc_disable(net_dev);
+		if (mac_dev->ptp_disable)
+			mac_dev->ptp_disable(mac_dev);
+	}
 
 	_errno = mac_dev->stop(mac_dev);
 	if (unlikely(_errno < 0))
@@ -1818,6 +1849,11 @@ dpa_mac_probe(struct of_device *_of_dev)
 	const phandle		*phandle_prop;
 	struct of_device	*of_dev;
 	struct mac_device	*mac_dev;
+#ifdef CONFIG_FSL_DPA_1588
+	struct net_device	*net_dev = NULL;
+	struct dpa_priv_s	*priv = NULL;
+	struct device_node	*timer_node;
+#endif
 
 	phandle_prop = of_get_property(_of_dev->node, "fsl,fman-mac", &lenp);
 	if (phandle_prop == NULL)
@@ -1850,6 +1886,24 @@ dpa_mac_probe(struct of_device *_of_dev)
 				dev_name(dev));
 		return ERR_PTR(-EINVAL);
 	}
+
+#ifdef CONFIG_FSL_DPA_1588
+	phandle_prop = of_get_property(mac_node, "ptimer-handle", &lenp);
+	if (phandle_prop) {
+		if ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
+			((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
+			 (mac_dev->speed == SPEED_1000))) {
+			timer_node = of_find_node_by_phandle(*phandle_prop);
+			if (timer_node) {
+				net_dev = dev_get_drvdata(dpa_dev);
+				priv = netdev_priv(net_dev);
+				if (!dpa_ptp_init(priv))
+					dpaa_eth_info(dev, "%s: ptp-timer "
+					    "enabled\n", mac_node->full_name);
+			}
+		}
+	}
+#endif
 
 	return mac_dev;
 }
@@ -2152,16 +2206,17 @@ static void dpa_setup_ingress_queues(struct dpa_priv_s *priv,
 
 static void __devinit
 dpaa_eth_init_tx_port(struct fm_port *port, struct dpa_fq *errq,
-			struct dpa_fq *defq)
+		struct dpa_fq *defq, bool has_timer)
 {
 	struct fm_port_non_rx_params tx_port_param;
 
-	dpaa_eth_init_port(tx, port, tx_port_param, errq->fqid, defq->fqid);
+	dpaa_eth_init_port(tx, port, tx_port_param, errq->fqid, defq->fqid,
+			has_timer);
 }
 
 static void __devinit
 dpaa_eth_init_rx_port(struct fm_port *port, struct dpa_bp *bp, size_t count,
-			struct dpa_fq *errq, struct dpa_fq *defq)
+		struct dpa_fq *errq, struct dpa_fq *defq, bool has_timer)
 {
 	struct fm_port_rx_params rx_port_param;
 	int i;
@@ -2176,7 +2231,8 @@ dpaa_eth_init_rx_port(struct fm_port *port, struct dpa_bp *bp, size_t count,
 		rx_port_param.pool_param[i].size = bp[i].size;
 	}
 
-	dpaa_eth_init_port(rx, port, rx_port_param, errq->fqid, defq->fqid);
+	dpaa_eth_init_port(rx, port, rx_port_param, errq->fqid, defq->fqid,
+			has_timer);
 }
 
 static void dpa_rx_fq_init(struct dpa_priv_s *priv, struct list_head *head,
@@ -2555,10 +2611,14 @@ dpaa_eth_probe(struct of_device *_of_dev, const struct of_device_id *match)
 	/* All real interfaces need their ports initialized */
 	if (mac_dev) {
 		struct fm_port_pcd_param rx_port_pcd_param;
+		bool has_timer = FALSE;
+
+		if (priv->tsu && priv->tsu->valid)
+			has_timer = TRUE;
 
 		dpaa_eth_init_rx_port(rxport, dpa_bp, count, rxerror,
-				rxdefault);
-		dpaa_eth_init_tx_port(txport, txerror, txdefault);
+				rxdefault, has_timer);
+		dpaa_eth_init_tx_port(txport, txerror, txdefault, has_timer);
 
 		rx_port_pcd_param.cb = dpa_alloc_pcd_fqids;
 		rx_port_pcd_param.dev = dev;
@@ -2658,6 +2718,11 @@ static int __devexit __cold dpa_remove(struct of_device *of_dev)
 
 #ifdef CONFIG_DEBUG_FS
 	debugfs_remove(priv->debugfs_file);
+#endif
+
+#ifdef CONFIG_FSL_DPA_1588
+	if (priv->tsu && priv->tsu->valid)
+		dpa_ptp_cleanup(priv);
 #endif
 
 	free_netdev(net_dev);

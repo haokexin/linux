@@ -10,6 +10,7 @@ EXTRA_CFLAGS += -I$(NET_DPA)
 
 #Netcomm SW tree
 obj-$(CONFIG_FSL_FMAN) += NetCommSw/
+obj-$(CONFIG_FSL_DPA_1588) += dpaa_1588.o
 obj-$(CONFIG_DPA) += fsl-mac.o fsl-dpa.o
 obj-$(CONFIG_DPA_OFFLINE_PORTS) += fsl-oh.o
 

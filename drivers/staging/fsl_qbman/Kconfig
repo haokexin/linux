@@ -302,3 +302,8 @@ config FSL_QMAN_FQ_LOOKUP
 endif # FSL_QMAN
 
 endmenu
+
+config FSL_DPA_1588
+	tristate "IEEE 1588-compliant timestamping"
+	depends on FSL_DPA
+	default n
