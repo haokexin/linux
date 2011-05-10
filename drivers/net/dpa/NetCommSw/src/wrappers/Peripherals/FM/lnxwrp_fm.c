@@ -2054,6 +2054,9 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         if(!(p_LnxWrpFmDev->h_RtcDev = FM_RTC_Config(&fmRtcParam)))
             RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("FM-RTC"));
 
+	if (FM_RTC_ConfigPeriod(p_LnxWrpFmDev->h_RtcDev, 10) != E_OK)
+	    RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM-RTC"));
+
         if (FM_RTC_Init(p_LnxWrpFmDev->h_RtcDev) != E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM-RTC"));
     }
@@ -2920,6 +2923,14 @@ void * fm_get_handle(struct fm *fm)
 }
 EXPORT_SYMBOL(fm_get_handle);
 
+void * fm_get_rtc_handle(struct fm *fm)
+{
+    t_LnxWrpFmDev       *p_LnxWrpFmDev = (t_LnxWrpFmDev*)fm;
+
+    return (void *)p_LnxWrpFmDev->h_RtcDev;
+}
+EXPORT_SYMBOL(fm_get_rtc_handle);
+
 struct fm_port * fm_port_bind (struct device *fm_port_dev)
 {
     return (struct fm_port *)(dev_get_drvdata(get_device(fm_port_dev)));
@@ -2969,6 +2980,7 @@ void fm_set_rx_port_params(struct fm_port *port, struct fm_port_rx_params *param
     p_LnxWrpFmPortDev->buffPrefixContent.privDataSize     = params->priv_data_size;
     p_LnxWrpFmPortDev->buffPrefixContent.passPrsResult    = params->parse_results;
     p_LnxWrpFmPortDev->buffPrefixContent.passHashResult   = params->hash_results;
+    p_LnxWrpFmPortDev->buffPrefixContent.passTimeStamp    = params->time_stamp;
 
     ADD_ADV_CONFIG_START(p_LnxWrpFmPortDev->settings.advConfig, FM_MAX_NUM_OF_ADV_SETTINGS)
 
@@ -2999,6 +3011,7 @@ void fm_set_tx_port_params(struct fm_port *port, struct fm_port_non_rx_params *p
     p_LnxWrpFmPortDev->buffPrefixContent.privDataSize     = params->priv_data_size;
     p_LnxWrpFmPortDev->buffPrefixContent.passPrsResult    = params->parse_results;
     p_LnxWrpFmPortDev->buffPrefixContent.passHashResult   = params->hash_results;
+    p_LnxWrpFmPortDev->buffPrefixContent.passTimeStamp    = params->time_stamp;
 
     ADD_ADV_CONFIG_START(p_LnxWrpFmPortDev->settings.advConfig, FM_MAX_NUM_OF_ADV_SETTINGS)
 

@@ -541,6 +541,12 @@ t_Error FM_RTC_GetCurrentTime(t_Handle h_FmRtc, uint64_t *p_Ts);
 *//***************************************************************************/
 t_Error FM_RTC_SetCurrentTime(t_Handle h_FmRtc, uint64_t ts);
 
+/*****************************************************************************/
+t_Error FM_RTC_GetFreqCompensation(t_Handle h_FmRtc, uint32_t *p_Compensation);
+
+/*****************************************************************************/
+t_Error FM_RTC_SetFreqCompensation(t_Handle h_FmRtc, uint32_t freqCompensation);
+
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
 /**************************************************************************//**
  @Function      FM_RTC_DumpRegs

@@ -106,6 +106,7 @@ struct fm_port_rx_params {
     uint16_t                    priv_data_size;     /**< Area that user may save for his own need (E.g. save the SKB) */
     bool                        parse_results;      /**< Whether to have the parser-results in the Received buffer */
     bool                        hash_results;       /**< Whether to have the hash-results in the Received buffer */
+    bool                        time_stamp;         /**< Whether to have the time-stamp in the Received buffer */
 };
 
 /**************************************************************************//**
@@ -119,6 +120,7 @@ struct fm_port_non_rx_params {
     uint16_t                priv_data_size;     /**< Area that user may save for his own need (E.g. save the SKB) */
     bool                    parse_results;      /**< Whether to put the parser-results in the Transmitted buffer */
     bool                    hash_results;       /**< Whether to have the hash-results in the Received buffer */
+    bool                    time_stamp;         /**< Whether to have the time-stamp in the Received buffer */
 };
 
 
@@ -147,6 +149,7 @@ struct fm * fm_bind (struct device *fm_dev);
 void fm_unbind(struct fm *fm);
 
 void * fm_get_handle(struct fm *fm);
+void * fm_get_rtc_handle(struct fm *fm);
 struct resource * fm_get_mem_region(struct fm *fm);
 
 /**************************************************************************//**

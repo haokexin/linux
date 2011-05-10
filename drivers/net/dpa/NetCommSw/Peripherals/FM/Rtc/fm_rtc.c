@@ -316,6 +316,7 @@ t_Error FM_RTC_Init(t_Handle h_FmRtc)
          * (p_Rtc->srcClkFreqMhz*1000000))/ 1/(p_Rtc->clockPeriodNanoSec * 1000000000) */
         freqCompensation = DIV_CEIL(ACCUMULATOR_OVERFLOW * 1000, p_Rtc->clockPeriodNanoSec * p_Rtc->srcClkFreqMhz);
         WRITE_UINT32(p_MemMap->tmr_add, freqCompensation);
+        p_Rtc->freqCompensation = freqCompensation;
     }
     /* check the legality of the relation between source and destination clocks */
     /* should be larger than 1.0001 */
@@ -804,6 +805,33 @@ t_Error FM_RTC_SetCurrentTime(t_Handle h_FmRtc, uint64_t ts)
     /* TMR_CNT_L must be written first to get an accurate value */
     WRITE_UINT32(p_MemMap->tmr_cnt_l, (uint32_t)ts);
     WRITE_UINT32(p_MemMap->tmr_cnt_h, (uint32_t)(ts >> 32));
+
+    return E_OK;
+}
+
+/*****************************************************************************/
+t_Error FM_RTC_GetFreqCompensation(t_Handle h_FmRtc, uint32_t *p_Compensation)
+{
+    t_FmRtc     *p_Rtc = (t_FmRtc *)h_FmRtc;
+
+    SANITY_CHECK_RETURN_ERROR(p_Rtc, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(!p_Rtc->p_RtcDriverParam, E_INVALID_STATE);
+
+    *p_Compensation = p_Rtc->freqCompensation;
+
+    return E_OK;
+}
+
+/*****************************************************************************/
+t_Error FM_RTC_SetFreqCompensation(t_Handle h_FmRtc, uint32_t freqCompensation)
+{
+    t_FmRtc     *p_Rtc = (t_FmRtc *)h_FmRtc;
+    t_FmRtcMemMap *p_MemMap = (t_FmRtcMemMap *)p_Rtc->p_MemMap;
+
+    SANITY_CHECK_RETURN_ERROR(p_Rtc, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(!p_Rtc->p_RtcDriverParam, E_INVALID_STATE);
+
+    WRITE_UINT32(p_MemMap->tmr_add, freqCompensation);
 
     return E_OK;
 }

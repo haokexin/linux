@@ -174,6 +174,7 @@ typedef struct t_FmRtcDriverParam
     uint32_t                eventsMask;
     bool                    bypass; /**< Indicates if frequency compensation is bypassed */
     bool                    pulseRealign;
+    uint32_t                freqCompensation;
     e_FmRtcAlarmPolarity    alarmPolarity[FM_RTC_NUM_OF_ALARMS];
     e_FmRtcTriggerPolarity  triggerPolarity[FM_RTC_NUM_OF_EXT_TRIGGERS];
 } t_FmRtcDriverParam;
@@ -211,6 +212,7 @@ typedef struct t_FmRtc
     t_FmRtcPeriodicPulse    periodicPulseParams[FM_RTC_NUM_OF_PERIODIC_PULSES];
     t_FmRtcExternalTrigger  externalTriggerParams[FM_RTC_NUM_OF_EXT_TRIGGERS];
     t_FmRtcDriverParam      *p_RtcDriverParam;  /**< RTC Driver parameters (for Init phase) */
+    uint32_t                freqCompensation;
 } t_FmRtc;
 
 
