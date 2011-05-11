@@ -2,7 +2,7 @@
  * net/tipc/tipc_core.h: Include file for TIPC global declarations
  *
  * Copyright (c) 2005-2006, Ericsson AB
- * Copyright (c) 2005-2008, 2010, Wind River Systems
+ * Copyright (c) 2005-2008, 2010-2011, Wind River Systems
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -61,7 +61,7 @@
 #include <linux/vmalloc.h>
 
 
-#define TIPC_MOD_VER "1.7.7-rc4"
+#define TIPC_MOD_VER "1.7.7"
 
 /*
  * Spinlock wrappers (lets TIPC common files run unchanged on other OS's)
