@@ -1305,10 +1305,9 @@ static int talitos_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_PPC_MERGE
 static struct of_device_id talitos_match[] = {
-	{
-		.type = "crypto",
-		.compatible = "talitos",
-	},
+	{ .compatible = "fsl,sec4.0", },
+	{ .compatible = "fsl,sec3.0", },
+	{ .compatible = "fsl,sec2.0", },
 	{},
 };
 
