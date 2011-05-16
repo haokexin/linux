@@ -35,11 +35,7 @@
 
 #include <linux/kernel.h>	/* pr_*() */
 #include <linux/device.h>	/* dev_*() */
-#include <linux/smp.h>		/* hard_smp_processor_id() */
-
-#ifndef hard_smp_processor_id
-#define hard_smp_processor_id() smp_processor_id()
-#endif
+#include <linux/smp.h>		/* smp_processor_id() */
 
 /* The basename of the source file is being compiled */
 #define __file__ KBUILD_BASENAME".c"
@@ -47,8 +43,8 @@
 #define __hot
 
 #define cpu_printk(level, format, arg...) \
-	pr_##level("cpu%d/%d: " format, hard_smp_processor_id(), \
-			smp_processor_id(), ##arg)
+	pr_##level("cpu%d: " format, smp_processor_id(), ##arg)
+
 #define cpu_pr_emerg(format, arg...)	\
 	cpu_printk(emerg, format, ##arg)
 #define cpu_pr_alert(format, arg...)	\
