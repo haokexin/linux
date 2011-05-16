@@ -156,7 +156,7 @@ struct dpa_fq {
 
 #define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
 			DPA_HASH_RESULTS_SIZE + DPA_TIME_STAMP_SIZE)
-#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + (s) + NET_IP_ALIGN)
+#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + (s))
 
 #define DPAA_ETH_MAX_PAD (L1_CACHE_BYTES * 8)
 
@@ -216,7 +216,17 @@ static void dpa_bp_add_8(struct dpa_bp *dpa_bp)
 	count_ptr = per_cpu_ptr(dpa_bp->percpu_count, smp_processor_id());
 
 	for (i = 0; i < 8; i++) {
-		int pad = i * L1_CACHE_BYTES;
+		/*
+		 * The buffers tend to be aligned all to the same cache
+		 * index.  A standard dequeue operation pulls in 15 packets.
+		 * This means that when it stashes, it evicts half of the
+		 * packets it's stashing. In order to prevent that, we pad
+		 * by a variable number of cache lines, to reduce collisions.
+		 * We always pad by at least 1 cache line, because we want
+		 * a little extra room at the beginning for IPSec and to
+		 * accommodate NET_IP_ALIGN.
+		 */
+		int pad = (i + 1) * L1_CACHE_BYTES;
 
 		skb = dev_alloc_skb(dpa_bp->skb_size + pad);
 		if (unlikely(!skb)) {
@@ -225,11 +235,10 @@ static void dpa_bp_add_8(struct dpa_bp *dpa_bp)
 			break;
 		}
 
-		skbh = (struct sk_buff **)(skb->head + NET_IP_ALIGN + pad);
+		skbh = (struct sk_buff **)(skb->head + pad);
 		*skbh = skb;
 
-		addr = dma_map_single(dpa_bp->dev,
-				skb->head + NET_IP_ALIGN + pad,
+		addr = dma_map_single(dpa_bp->dev, skb->head + pad,
 				dpa_bp->size, DMA_FROM_DEVICE);
 
 		bm_buffer_set64(&bmb[i], addr);
@@ -1158,7 +1167,7 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 	fd.cmd = FM_FD_CMD_FCO;
 	fd.addr_hi = bmb.hi;
 	fd.addr_lo = bmb.lo;
-	fd.offset = DPA_BP_HEAD + NET_IP_ALIGN;
+	fd.offset = DPA_BP_HEAD;
 
 	dpa_bp_vaddr = dpa_phys2virt(dpa_bp, bm_buf_addr(&bmb));
 
@@ -1214,8 +1223,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	queue_mapping = skb_get_queue_mapping(skb);
 
 	needed_headroom = (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE +
-				NET_IP_ALIGN + sizeof(skbh) +
-				DPA_TIME_STAMP_SIZE);
+				sizeof(skbh) + DPA_TIME_STAMP_SIZE);
 
 	if (headroom < needed_headroom) {
 		struct sk_buff *skb_new;
@@ -1236,7 +1244,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	cache_fudge = round_down(headroom - needed_headroom, L1_CACHE_BYTES);
 
-	skbh = (struct sk_buff **)(skb->head + NET_IP_ALIGN + cache_fudge);
+	skbh = (struct sk_buff **)(skb->head + cache_fudge);
 	*skbh = skb;
 
 	dpa_bp = priv->dpa_bp;
@@ -1268,7 +1276,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	fd.addr_hi = upper_32_bits(addr);
 	fd.addr_lo = lower_32_bits(addr);
 	fd.length20 = skb->len;
-	fd.offset = headroom - (NET_IP_ALIGN + cache_fudge);
+	fd.offset = headroom - cache_fudge;
 
 #ifdef CONFIG_FSL_DPA_1588
 	if (priv->tsu && priv->tsu->valid && dpa_ptp_do_txstamp(skb))
@@ -1374,8 +1382,7 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 
 	size = dpa_fd_length(fd);
 
-	skb = __netdev_alloc_skb(net_dev,
-			DPA_BP_HEAD + NET_IP_ALIGN + size, GFP_ATOMIC);
+	skb = __netdev_alloc_skb(net_dev, DPA_BP_HEAD + size, GFP_ATOMIC);
 	if (unlikely(skb == NULL)) {
 		if (netif_msg_rx_err(priv) && net_ratelimit())
 			cpu_netdev_err(net_dev, "Could not alloc skb\n");
@@ -1385,7 +1392,7 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 		goto out;
 	}
 
-	skb_reserve(skb, NET_IP_ALIGN+DPA_BP_HEAD);
+	skb_reserve(skb, DPA_BP_HEAD);
 
 	/* Fill the SKB */
 	memcpy(skb_put(skb, dpa_fd_length(fd)),
