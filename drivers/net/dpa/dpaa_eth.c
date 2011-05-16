@@ -1811,7 +1811,7 @@ static int dpa_bp_create(struct net_device *net_dev, struct dpa_bp *dpa_bp,
 		priv->shared = 0;
 
 		if (netif_msg_probe(priv))
-			cpu_netdev_info(net_dev,
+			cpu_dev_info(net_dev->dev.parent,
 				"Using private BM buffer pools\n");
 	} else {
 		priv->shared = 1;
