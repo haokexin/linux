@@ -739,6 +739,7 @@ static int vlan_dev_init(struct net_device *dev)
 	} else {
 		dev->header_ops      = &vlan_header_ops;
 		dev->hard_header_len = real_dev->hard_header_len + VLAN_HLEN;
+		dev->needed_headroom = real_dev->needed_headroom;
 		if (real_dev->netdev_ops->ndo_select_queue)
 			dev->netdev_ops = &vlan_netdev_ops_sq;
 		else
