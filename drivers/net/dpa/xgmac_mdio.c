@@ -53,6 +53,7 @@
 #include <linux/crc32.h>
 #include <linux/mii.h>
 #include <linux/phy.h>
+#include <linux/mdio.h>
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/of_mdio.h>
@@ -71,6 +72,9 @@ int xgmac_mdio_write(struct mii_bus *bus, int port_addr,
 {
 	struct tgec_mdio_controller __iomem *regs = bus->priv;
 	u32 mdio_ctl, mdio_stat;
+
+	if (dev_addr == MDIO_DEVAD_NONE)
+		return 0xffff;
 
 	/* Setup the MII Mgmt clock speed */
 	mdio_stat = MDIO_STAT_CLKDIV(100);
@@ -143,6 +147,10 @@ int xgmac_mdio_read(struct mii_bus *bus, int port_addr, int dev_addr,
 	/* Wait till the MDIO write is complete */
 	while ((in_be32(&regs->mdio_data)) & MDIO_DATA_BSY)
 		cpu_relax();
+
+	/* Return all Fs if nothing was there */
+	if (in_be32(&regs->mdio_stat) & MDIO_STAT_RD_ER)
+		return 0xffff;
 
 	return in_be32(&regs->mdio_data) & 0xffff;
 }
