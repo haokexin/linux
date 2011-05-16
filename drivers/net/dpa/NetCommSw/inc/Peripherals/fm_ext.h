@@ -1334,7 +1334,7 @@ t_Handle FM_GetPcdHandle(t_Handle h_Fm);
                 This routine should NOT be called from guest-partition
                 (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
-void FM_ErrorIsr(t_Handle h_Fm);
+t_Error FM_ErrorIsr(t_Handle h_Fm);
 
 /**************************************************************************//**
  @Function      FM_EventIsr

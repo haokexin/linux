@@ -850,6 +850,73 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
     return E_OK;
 }
 
+static void ErrorIsrCB(t_Handle h_Fm)
+{
+#define FM_M_CALL_1G_MAC_ERR_ISR(_id)   \
+    {                                   \
+       if (p_Fm->guestId != p_Fm->intrMng[(e_FmInterModuleEvent)(e_FM_EV_ERR_1G_MAC0+_id)].guestId) \
+            SendIpcIsr(p_Fm, (e_FmInterModuleEvent)(e_FM_EV_ERR_1G_MAC0+_id), pending);             \
+       else                                                                                         \
+            p_Fm->intrMng[(e_FmInterModuleEvent)(e_FM_EV_ERR_1G_MAC0+_id)].f_Isr(p_Fm->intrMng[(e_FmInterModuleEvent)(e_FM_EV_ERR_1G_MAC0+_id)].h_SrcHandle);\
+    }
+    t_Fm                    *p_Fm = (t_Fm*)h_Fm;
+    uint32_t                pending;
+
+    SANITY_CHECK_RETURN(h_Fm, E_INVALID_HANDLE);
+
+    /* error interrupts */
+    pending = GET_UINT32(p_Fm->p_FmFpmRegs->fmepi);
+    if (!pending)
+        return;
+
+    if(pending & ERR_INTR_EN_BMI)
+        BmiErrEvent(p_Fm);
+    if(pending & ERR_INTR_EN_QMI)
+        QmiErrEvent(p_Fm);
+    if(pending & ERR_INTR_EN_FPM)
+        FpmErrEvent(p_Fm);
+    if(pending & ERR_INTR_EN_DMA)
+        DmaErrEvent(p_Fm);
+    if(pending & ERR_INTR_EN_IRAM)
+        IramErrIntr(p_Fm);
+    if(pending & ERR_INTR_EN_MURAM)
+        MuramErrIntr(p_Fm);
+    if(pending & ERR_INTR_EN_PRS)
+        p_Fm->intrMng[e_FM_EV_ERR_PRS].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_PRS].h_SrcHandle);
+    if(pending & ERR_INTR_EN_PLCR)
+        p_Fm->intrMng[e_FM_EV_ERR_PLCR].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_PLCR].h_SrcHandle);
+    if(pending & ERR_INTR_EN_KG)
+        p_Fm->intrMng[e_FM_EV_ERR_KG].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_KG].h_SrcHandle);
+
+    /* MAC events may belong to different partitions */
+    if(pending & ERR_INTR_EN_1G_MAC0)
+        FM_M_CALL_1G_MAC_ERR_ISR(0);
+    if(pending & ERR_INTR_EN_1G_MAC1)
+        FM_M_CALL_1G_MAC_ERR_ISR(1);
+    if(pending & ERR_INTR_EN_1G_MAC2)
+        FM_M_CALL_1G_MAC_ERR_ISR(2);
+    if(pending & ERR_INTR_EN_1G_MAC3)
+        FM_M_CALL_1G_MAC_ERR_ISR(3);
+    if(pending & ERR_INTR_EN_1G_MAC4)
+        FM_M_CALL_1G_MAC_ERR_ISR(4);
+    if(pending & ERR_INTR_EN_10G_MAC0)
+    {
+       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].guestId)
+            SendIpcIsr(p_Fm, e_FM_EV_ERR_10G_MAC0, pending);
+        else
+            p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].h_SrcHandle);
+    }
+#ifdef FM_MACSEC_SUPPORT
+    if(pending & ERR_INTR_EN_MACSEC_MAC0)
+    {
+       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_MACSEC_MAC0].guestId)
+            SendIpcIsr(p_Fm, e_FM_EV_ERR_MACSEC_MAC0, pending);
+        else
+            p_Fm->intrMng[e_FM_EV_ERR_MACSEC_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_MACSEC_MAC0].h_SrcHandle);
+    }
+#endif /* FM_MACSEC_SUPPORT */
+}
+
 
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
 t_Error Fm10GTxEccWorkaround(t_Handle h_Fm, uint8_t macId)
@@ -2965,7 +3032,7 @@ t_Error FM_Init(t_Handle h_Fm)
 
     if (p_Fm->p_FmStateStruct->errIrq != NO_IRQ)
     {
-        XX_SetIntr(p_Fm->p_FmStateStruct->errIrq, FM_ErrorIsr, p_Fm);
+        XX_SetIntr(p_Fm->p_FmStateStruct->errIrq, ErrorIsrCB, p_Fm);
         XX_EnableIntr(p_Fm->p_FmStateStruct->errIrq);
     }
 
@@ -3624,80 +3691,18 @@ void FM_EventIsr(t_Handle h_Fm)
     }
 }
 
-void FM_ErrorIsr(t_Handle h_Fm)
+t_Error FM_ErrorIsr(t_Handle h_Fm)
 {
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
-    uint32_t                pending;
 
-    SANITY_CHECK_RETURN(h_Fm, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(h_Fm, E_INVALID_HANDLE);
 
     /* error interrupts */
-    pending = GET_UINT32(p_Fm->p_FmFpmRegs->fmepi);
-    if (!pending)
-        return;
+    if (GET_UINT32(p_Fm->p_FmFpmRegs->fmepi) == 0)
+        return ERROR_CODE(E_EMPTY);
 
-    if(pending & ERR_INTR_EN_BMI)
-        BmiErrEvent(p_Fm);
-    if(pending & ERR_INTR_EN_QMI)
-        QmiErrEvent(p_Fm);
-    if(pending & ERR_INTR_EN_FPM)
-        FpmErrEvent(p_Fm);
-    if(pending & ERR_INTR_EN_DMA)
-        DmaErrEvent(p_Fm);
-    if(pending & ERR_INTR_EN_IRAM)
-        IramErrIntr(p_Fm);
-    if(pending & ERR_INTR_EN_MURAM)
-        MuramErrIntr(p_Fm);
-    if(pending & ERR_INTR_EN_PRS)
-        p_Fm->intrMng[e_FM_EV_ERR_PRS].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_PRS].h_SrcHandle);
-    if(pending & ERR_INTR_EN_PLCR)
-        p_Fm->intrMng[e_FM_EV_ERR_PLCR].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_PLCR].h_SrcHandle);
-    if(pending & ERR_INTR_EN_KG)
-        p_Fm->intrMng[e_FM_EV_ERR_KG].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_KG].h_SrcHandle);
-
-    /* MAC events may belong to different partitions */
-    if(pending & ERR_INTR_EN_1G_MAC0)
-    {
-       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_1G_MAC0].guestId)
-            SendIpcIsr(p_Fm, e_FM_EV_ERR_1G_MAC0, pending);
-        else
-            p_Fm->intrMng[e_FM_EV_ERR_1G_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC0].h_SrcHandle);
-    }
-    if(pending & ERR_INTR_EN_1G_MAC1)
-    {
-       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_1G_MAC1].guestId)
-            SendIpcIsr(p_Fm, e_FM_EV_ERR_1G_MAC1, pending);
-        else
-            p_Fm->intrMng[e_FM_EV_ERR_1G_MAC1].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC1].h_SrcHandle);
-    }
-    if(pending & ERR_INTR_EN_1G_MAC2)
-    {
-       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_1G_MAC2].guestId)
-            SendIpcIsr(p_Fm, e_FM_EV_ERR_1G_MAC2, pending);
-        else
-            p_Fm->intrMng[e_FM_EV_ERR_1G_MAC2].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC2].h_SrcHandle);
-    }
-    if(pending & ERR_INTR_EN_1G_MAC3)
-    {
-       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_1G_MAC3].guestId)
-            SendIpcIsr(p_Fm, e_FM_EV_ERR_1G_MAC3, pending);
-        else
-            p_Fm->intrMng[e_FM_EV_ERR_1G_MAC3].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC3].h_SrcHandle);
-    }
-    if(pending & ERR_INTR_EN_1G_MAC4)
-    {
-       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].guestId)
-            SendIpcIsr(p_Fm, e_FM_EV_ERR_1G_MAC4, pending);
-       else
-            p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_1G_MAC4].h_SrcHandle);
-    }
-    if(pending & ERR_INTR_EN_10G_MAC0)
-    {
-       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].guestId)
-            SendIpcIsr(p_Fm, e_FM_EV_ERR_10G_MAC0, pending);
-        else
-            p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].h_SrcHandle);
-    }
+    ErrorIsrCB(p_Fm);
+    return E_OK;
 }
 
 void FM_GuestErrorIsr(t_Handle h_Fm, uint32_t pending)

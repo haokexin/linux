@@ -943,9 +943,10 @@ static irqreturn_t fm_err_irq(int irq, void *_dev)
     if (!p_LnxWrpFmDev || !p_LnxWrpFmDev->h_Dev)
         return IRQ_NONE;
 
-    FM_ErrorIsr(p_LnxWrpFmDev->h_Dev);
+    if (FM_ErrorIsr(p_LnxWrpFmDev->h_Dev) == E_OK)
+        return IRQ_HANDLED;
 
-    return IRQ_HANDLED;
+    return IRQ_NONE;
 }
 
 static volatile int   hcFrmRcv = 0;
