@@ -1889,18 +1889,15 @@ dpa_mac_probe(struct of_device *_of_dev)
 
 #ifdef CONFIG_FSL_DPA_1588
 	phandle_prop = of_get_property(mac_node, "ptimer-handle", &lenp);
-	if (phandle_prop) {
-		if ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
+	if (phandle_prop && ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
 			((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
-			 (mac_dev->speed == SPEED_1000))) {
-			timer_node = of_find_node_by_phandle(*phandle_prop);
-			if (timer_node) {
-				net_dev = dev_get_drvdata(dpa_dev);
-				priv = netdev_priv(net_dev);
-				if (!dpa_ptp_init(priv))
-					dpaa_eth_info(dev, "%s: ptp-timer "
-					    "enabled\n", mac_node->full_name);
-			}
+			 (mac_dev->speed == SPEED_1000)))) {
+		timer_node = of_find_node_by_phandle(*phandle_prop);
+		if (timer_node && (net_dev = dev_get_drvdata(dpa_dev))) {
+			priv = netdev_priv(net_dev);
+			if (!dpa_ptp_init(priv))
+				dpaa_eth_info(dev, "%s: ptp-timer enabled\n",
+						mac_node->full_name);
 		}
 	}
 #endif
@@ -2485,6 +2482,7 @@ dpaa_eth_probe(struct of_device *_of_dev, const struct of_device_id *match)
 	struct dpa_fq *txfqs = NULL;
 	struct fm_port *rxport = NULL;
 	struct fm_port *txport = NULL;
+	bool has_timer = FALSE;
 	struct mac_device *mac_dev;
 	int proxy_enet;
 
@@ -2606,15 +2604,13 @@ dpaa_eth_probe(struct of_device *_of_dev, const struct of_device_id *match)
 				goto fq_alloc_failed;
 		}
 
+		if (priv->tsu && priv->tsu->valid)
+			has_timer = TRUE;
 	}
 
 	/* All real interfaces need their ports initialized */
 	if (mac_dev) {
 		struct fm_port_pcd_param rx_port_pcd_param;
-		bool has_timer = FALSE;
-
-		if (priv->tsu && priv->tsu->valid)
-			has_timer = TRUE;
 
 		dpaa_eth_init_rx_port(rxport, dpa_bp, count, rxerror,
 				rxdefault, has_timer);
