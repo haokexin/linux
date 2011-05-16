@@ -189,6 +189,8 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 		host->quirks |= SDHCI_QUIRK_QORIQ_REG_WEIRD |
 			SDHCI_QUIRK_QORIQ_TIMEOUT_WEIRD;
 		host->quirks &= ~SDHCI_QUIRK_INVERTED_WRITE_PROTECT;
+		if ((mfspr(SPRN_SVR) & 0xff) == 0x10)
+			host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
 	}
 
 	if (of_device_is_compatible(np, "fsl,esdhc"))
