@@ -287,11 +287,6 @@ static void dpa_make_private_pool(struct dpa_bp *dpa_bp)
 
 static int dpa_make_shared_pool(struct dpa_bp *bp)
 {
-	if (dpa_bp_array[bp->bpid]) {
-		bp->vaddr = dpa_bp_array[bp->bpid]->vaddr;
-		return 0;
-	}
-
 	devm_request_mem_region(bp->dev, bp->paddr, bp->size * bp->count,
 			KBUILD_MODNAME);
 	bp->vaddr = devm_ioremap_prot(bp->dev, bp->paddr,
@@ -319,9 +314,15 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 	bp_params.cb_ctx = dpa_bp;
 
 	/* We support two options.  Either a global shared pool, or
-	 * a specified pool */
+	 * a specified pool. If the pool is specified, we only
+	 * create one per bpid */
 	if (dpa_bp->kernel_pool && default_pool) {
 		atomic_inc(&default_pool->refs);
+		return 0;
+	}
+
+	if (dpa_bp_array[dpa_bp->bpid]) {
+		atomic_inc(&dpa_bp_array[dpa_bp->bpid]->refs);
 		return 0;
 	}
 
@@ -360,8 +361,7 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 			goto make_shared_pool_failed;
 	}
 
-	if (!dpa_bp_array[dpa_bp->bpid])
-		dpa_bp_array[dpa_bp->bpid] = dpa_bp;
+	dpa_bp_array[dpa_bp->bpid] = dpa_bp;
 
 	atomic_set(&dpa_bp->refs, 1);
 
@@ -379,36 +379,35 @@ pdev_register_failed:
 static void __cold __attribute__((nonnull))
 _dpa_bp_free(struct dpa_bp *dpa_bp)
 {
-	uint8_t	bpid;
+	struct dpa_bp *bp = dpa_bpid2pool(dpa_bp->bpid);
 
-	if (!atomic_dec_and_test(&dpa_bp->refs))
+	if (!atomic_dec_and_test(&bp->refs))
 		return;
 
-	if (dpa_bp->kernel_pool) {
+	if (bp->kernel_pool) {
 		int num;
 
 		do {
 			struct bm_buffer bmb[8];
 			int i;
 
-			num = bman_acquire(dpa_bp->pool, bmb, 8, 0);
+			num = bman_acquire(bp->pool, bmb, 8, 0);
 
 			for (i = 0; i < num; i++) {
 				dma_addr_t addr = bm_buf_addr(&bmb[i]);
 				struct sk_buff **skbh = phys_to_virt(addr);
 				struct sk_buff *skb = *skbh;
 
-				dma_unmap_single(dpa_bp->dev, addr,
-						dpa_bp->size, DMA_FROM_DEVICE);
+				dma_unmap_single(bp->dev, addr, bp->size,
+						DMA_FROM_DEVICE);
 
 				dev_kfree_skb_any(skb);
 			}
 		} while (num == 8);
 	}
 
-	bpid = dpa_bp->bpid;
-	dpa_bp_array[bpid] = 0;
-	bman_free_pool(dpa_bp->pool);
+	dpa_bp_array[bp->bpid] = 0;
+	bman_free_pool(bp->pool);
 }
 
 static void __cold __attribute__((nonnull))
@@ -999,7 +998,7 @@ static struct dpa_bp *dpa_size2pool(struct dpa_priv_s *priv, size_t size)
 
 	for (i = 0; i < priv->bp_count; i++)
 		if (DPA_BP_SIZE(size) <= priv->dpa_bp[i].size)
-			return &priv->dpa_bp[i];
+			return dpa_bpid2pool(priv->dpa_bp[i].bpid);
 	return ERR_PTR(-ENODEV);
 }
 
@@ -1154,8 +1153,6 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	err = bman_acquire(dpa_bp->pool, &bmb, 1, 0);
 	if (unlikely(err <= 0)) {
-		if (netif_msg_tx_err(priv) && net_ratelimit())
-			cpu_netdev_err(net_dev, "bman_acquire() = %d\n", err);
 		percpu_priv->stats.tx_errors++;
 		if (err == 0)
 			err = -ENOMEM;
@@ -1773,11 +1770,7 @@ dpa_bp_probe(struct of_device *_of_dev, size_t *count)
 			dpa_bp[i].paddr	=
 				of_read_number(bpool_cfg + 2 * ns, na);
 
-#warning We are ignoring configuration values, here
-			if (dpa_bp[i].paddr == 0)
-				has_kernel_pool = 1;
-			else
-				has_shared_pool = 1;
+			has_shared_pool = 1;
 		} else {
 			has_kernel_pool = 1;
 		}
