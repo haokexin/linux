@@ -782,8 +782,6 @@ static void _dpa_rx_error(struct net_device *net_dev,
 				fd->status & FM_FD_STAT_ERRORS);
 
 	percpu_priv->stats.rx_errors++;
-	percpu_priv->stats.rx_packets++;
-	percpu_priv->stats.rx_bytes += dpa_fd_length(fd);
 
 	_errno = dpa_fd_release(net_dev, fd);
 	if (unlikely(_errno < 0)) {
@@ -864,9 +862,6 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 
 	skb->protocol = eth_type_trans(skb, net_dev);
 
-	percpu_priv->stats.rx_packets++;
-	percpu_priv->stats.rx_bytes += skb->len;
-
 	if (unlikely(skb->len > net_dev->mtu)) {
 		if ((skb->protocol != ETH_P_8021Q) ||
 				(skb->len > net_dev->mtu + 4)) {
@@ -888,6 +883,10 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 
 	if (unlikely(netif_receive_skb(skb) == NET_RX_DROP))
 		percpu_priv->stats.rx_dropped++;
+	else {
+		percpu_priv->stats.rx_packets++;
+		percpu_priv->stats.rx_bytes += dpa_fd_length(fd);
+	}
 
 	net_dev->last_rx = jiffies;
 
@@ -1362,8 +1361,6 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 		goto out;
 	}
 
-	percpu_priv->stats.rx_packets++;
-	percpu_priv->stats.rx_bytes += dpa_fd_length(fd);
 
 	dpa_bp = dpa_bpid2pool(fd->bpid);
 	BUG_ON(IS_ERR(dpa_bp));
@@ -1409,6 +1406,10 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 
 	if (unlikely(netif_rx(skb) != NET_RX_SUCCESS))
 		percpu_priv->stats.rx_dropped++;
+	else {
+		percpu_priv->stats.rx_packets++;
+		percpu_priv->stats.rx_bytes += dpa_fd_length(fd);
+	}
 
 	net_dev->last_rx = jiffies;
 
