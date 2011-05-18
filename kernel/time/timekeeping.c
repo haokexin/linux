@@ -21,6 +21,12 @@
 #include <linux/tick.h>
 #include <linux/stop_machine.h>
 
+#include <trace/timer.h>
+
+#include <trace/events/timer.h>
+DEFINE_TRACE(timer_update_time);
+
+
 /* Structure holding internal timekeeping values. */
 struct timekeeper {
 	/* Current clocksource used for timekeeping. */
@@ -1274,8 +1280,13 @@ struct timespec get_monotonic_coarse(void)
  */
 void do_timer(unsigned long ticks)
 {
+	struct timespec curtime, wtom;
+
 	jiffies_64 += ticks;
 	update_wall_time();
+	curtime = __current_kernel_time();
+	wtom = wall_to_monotonic;
+	trace_timer_update_time(&curtime, &wtom);
 	calc_global_load(ticks);
 }
 
