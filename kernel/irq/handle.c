@@ -129,11 +129,16 @@ static void irq_wake_thread(struct irq_desc *desc, struct irqaction *action)
 	wake_up_process(action->thread);
 }
 
+DEFINE_TRACE(irq_entry);
+DEFINE_TRACE(irq_exit);
+
 irqreturn_t
 handle_irq_event_percpu(struct irq_desc *desc, struct irqaction *action)
 {
 	irqreturn_t retval = IRQ_NONE;
 	unsigned int flags = 0, irq = desc->irq_data.irq;
+
+	trace_irq_entry(irq, NULL, action);
 
 	do {
 		irqreturn_t res;
@@ -176,6 +181,9 @@ handle_irq_event_percpu(struct irq_desc *desc, struct irqaction *action)
 
 	if (!noirqdebug)
 		note_interrupt(irq, desc, retval);
+
+	trace_irq_exit(retval);
+
 	return retval;
 }
 
