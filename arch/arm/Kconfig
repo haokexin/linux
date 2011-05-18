@@ -311,6 +311,7 @@ config ARCH_CNS3XXX
 	select GENERIC_TIME
 	select GENERIC_CLOCKEVENTS
 	select ARM_GIC
+	select PCI_DOMAINS if PCI	
 	help
 	  Support for Cavium Networks CNS3XXX platform.
 
@@ -1095,12 +1096,16 @@ config ISA_DMA_API
 	bool
 
 config PCI
-	bool "PCI support" if ARCH_INTEGRATOR_AP || ARCH_VERSATILE_PB || ARCH_IXP4XX || ARCH_KS8695 || MACH_ARMCORE
+	bool "PCI support" if ARCH_INTEGRATOR_AP || ARCH_VERSATILE_PB || ARCH_IXP4XX || ARCH_KS8695 || MACH_ARMCORE || ARCH_CNS3XXX
 	help
 	  Find out whether you have a PCI motherboard. PCI is the name of a
 	  bus system, i.e. the way the CPU talks to the other stuff inside
 	  your box. Other bus systems are ISA, EISA, MicroChannel (MCA) or
 	  VESA. If you have PCI, say Y, otherwise N.
+
+config PCI_DOMAINS
+        bool
+        depends on PCI
 
 config PCI_SYSCALL
 	def_bool PCI
@@ -1118,6 +1123,8 @@ config PCI_HOST_ITE8152
 	select DMABOUNCE
 
 source "drivers/pci/Kconfig"
+
+source "drivers/pci/pcie/Kconfig"
 
 source "drivers/pcmcia/Kconfig"
 
