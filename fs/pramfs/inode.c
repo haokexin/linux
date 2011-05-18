@@ -711,7 +711,7 @@ int pram_notify_change(struct dentry *dentry, struct iattr *attr)
 		if (error)
 			return error;
 	}
-	setattr_copy(inode, attr);
+	inode_setattr(inode, attr);
 	if (attr->ia_valid & ATTR_MODE)
 		error = pram_acl_chmod(inode);
 	error = pram_update_inode(inode);
