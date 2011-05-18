@@ -167,7 +167,7 @@ work_notifysig:				# deal with pending signals and
 FEXPORT(syscall_exit_work_partial)
 	SAVE_STATIC
 syscall_exit_work:
-	li	t0, _TIF_WORK_SYSCALL_EXIT
+	li	t0, _TIF_WORK_SYSCALL_EXIT | _TIF_KERNEL_TRACE
 	and	t0, a2			# a2 is preloaded with TI_FLAGS
 	beqz	t0, work_pending	# trace bit set?
 	local_irq_enable		# could let syscall_trace_leave()
