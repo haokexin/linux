@@ -2735,6 +2735,10 @@ static int /*__devinit*/ fm_port_probe(struct of_device *of_dev, const struct of
         return -EIO;
     }
 
+#ifdef FM_TX_INVALID_ECC_ERRATA_10GMAC_A009
+    FM_DisableRamsEcc(p_LnxWrpFmDev->h_Dev);
+#endif /* FM_TX_INVALID_ECC_ERRATA_10GMAC_A009 */
+
     DBG(TRACE, ("%s probed", p_LnxWrpFmPortDev->name));
 
     return 0;
