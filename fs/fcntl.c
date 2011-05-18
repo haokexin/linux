@@ -20,10 +20,13 @@
 #include <linux/signal.h>
 #include <linux/rcupdate.h>
 #include <linux/pid_namespace.h>
+#include <trace/fs.h>
 
 #include <asm/poll.h>
 #include <asm/siginfo.h>
 #include <asm/uaccess.h>
+
+DEFINE_TRACE(fs_dup);
 
 void set_close_on_exec(unsigned int fd, int flag)
 {
@@ -104,6 +107,7 @@ SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 	if (tofree)
 		filp_close(tofree, files);
 
+	trace_fs_dup(oldfd, newfd);
 	return newfd;
 
 Ebadf:
@@ -135,11 +139,14 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 
 	if (file) {
 		ret = get_unused_fd();
-		if (ret >= 0)
+		if (ret >= 0) {
 			fd_install(ret, file);
-		else
+			trace_fs_dup(fildes, (unsigned int) ret);
+		} else {
 			fput(file);
+		}
 	}
+
 	return ret;
 }
 

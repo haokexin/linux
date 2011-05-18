@@ -63,4 +63,7 @@ DECLARE_TRACE(fs_select,
 DECLARE_TRACE(fs_poll,
 	TP_PROTO(int fd),
 	TP_ARGS(fd));
+DECLARE_TRACE(fs_dup,
+	TP_PROTO(unsigned int oldfd, unsigned int newfd),
+	TP_ARGS(oldfd, newfd));
 #endif
