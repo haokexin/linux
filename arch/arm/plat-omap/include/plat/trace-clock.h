@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Mathieu Desnoyers
+ * Copyright (C) 2009, 2010, 2011 Mathieu Desnoyers
  *
  * Trace clock ARM OMAP3 definitions.
  */
@@ -122,12 +122,12 @@ static inline u64 trace_clock_read64(void)
 #ifdef CONFIG_DEBUG_TRACE_CLOCK
 	unsigned long flags;
 
-	local_irq_save(flags);
+	raw_local_irq_save(flags);
 	per_cpu(last_clock_nest, smp_processor_id())++;
 	barrier();
 #endif
 
-	preempt_disable();
+	preempt_disable_notrace();
 	pm_count = &per_cpu(pm_save_count, smp_processor_id());
 	if (likely(pm_count->fast_clock_ready)) {
 		cf = &pm_count->cf[ACCESS_ONCE(pm_count->index)];
@@ -136,12 +136,12 @@ static inline u64 trace_clock_read64(void)
 	} else
 		val = _trace_clock_read_slow();
 	trace_clock_debug(val);
-	preempt_enable();
+	preempt_enable_notrace();
 
 #ifdef CONFIG_DEBUG_TRACE_CLOCK
 	barrier();
 	per_cpu(last_clock_nest, smp_processor_id())--;
-	local_irq_restore(flags);
+	raw_local_irq_restore(flags);
 #endif
 	return val;
 }
