@@ -50,6 +50,8 @@
 
 #include "lockdep_internals.h"
 
+#include <trace/lockdep.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/lock.h>
 
