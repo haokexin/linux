@@ -15,6 +15,8 @@
 #define IRQ_LOCALWDOG		30
 #define IRQ_TC11MP_GIC_START	32
 
+#define IRQ_PMU_CNS3XXX 48
+
 #include <mach/cns3xxx.h>
 
 #ifndef NR_IRQS
