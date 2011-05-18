@@ -292,6 +292,7 @@ static inline void list_splice_init_rcu(struct list_head *list,
 	     &pos->member != (head);	\
 	     pos = list_entry_rcu(pos->member.next, typeof(*pos), member))
 
+
 /**
  * hlist_del_rcu - deletes entry from hash list without re-initialization
  * @n: the element to delete from the hash list.
