@@ -1,5 +1,5 @@
 config PRAMFS
-	tristate "Persistent and Protected RAM file system support"
+	bool "Persistent and Protected RAM file system support"
 	depends on HAS_IOMEM && EXPERIMENTAL
 	select CRC16
 	help

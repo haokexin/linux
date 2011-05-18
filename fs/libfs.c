@@ -841,6 +841,15 @@ int simple_fsync(struct file *file, struct dentry *dentry, int datasync)
 }
 EXPORT_SYMBOL(simple_fsync);
 
+/*
+ * No-op implementation of ->fsync for in-memory filesystems.
+ */
+int noop_fsync(struct file *file, int datasync)
+{
+	return 0;
+}
+EXPORT_SYMBOL(noop_fsync);
+
 EXPORT_SYMBOL(dcache_dir_close);
 EXPORT_SYMBOL(dcache_dir_lseek);
 EXPORT_SYMBOL(dcache_dir_open);

@@ -133,7 +133,7 @@ static inline void pram_memlock_super(struct super_block *sb,
 {
 	pram_sync_super(ps);
 }
-static inline void pram_memunlock_inode(struct super_block *sb {}
+static inline void pram_memunlock_inode(struct super_block *sb,
 					struct pram_inode *pi) {}
 static inline void pram_memlock_inode(struct super_block *sb,
 					struct pram_inode *pi)

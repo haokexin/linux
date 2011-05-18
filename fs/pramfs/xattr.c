@@ -958,7 +958,7 @@ static struct pram_xblock_desc *pram_xattr_cache_find(struct inode *inode, struc
 		return NULL;  /* never share */
 	ea_idebug(inode, "looking for cached blocks [%x]", (int)hash);
 again:
-	ce = mb_cache_entry_find_first(pram_xattr_cache, (struct block_device *)sbi, hash);
+	ce = mb_cache_entry_find_first(pram_xattr_cache, 0, (struct block_device *)sbi, hash);
 	while (ce) {
 		char *bp;
 
@@ -991,7 +991,7 @@ again:
 			}
 			mutex_unlock(&desc->lock);
 		}
-		ce = mb_cache_entry_find_next(ce, (struct block_device *)sbi, hash);
+		ce = mb_cache_entry_find_next(ce, 0, (struct block_device *)sbi, hash);
 	}
 	return NULL;
 }
@@ -1074,7 +1074,11 @@ static void init_xblock_desc_once(void *foo)
 int __init init_pram_xattr(void)
 {
 	int ret = 0;
-	pram_xattr_cache = mb_cache_create("pram_xattr", 6);
+
+	pram_xattr_cache = mb_cache_create("pram_xattr", NULL,
+		sizeof(struct mb_cache_entry) +
+		sizeof(((struct mb_cache_entry *) 0)->e_indexes[0]), 1, 6);
+
 	if (!pram_xattr_cache) {
 		ret = -ENOMEM;
 		goto fail1;
