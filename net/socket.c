@@ -567,6 +567,7 @@ static inline int __sock_sendmsg_nosec(struct kiocb *iocb, struct socket *sock,
 				       struct msghdr *msg, size_t size)
 {
 	struct sock_iocb *si = kiocb_to_siocb(iocb);
+	int err;
 
 	sock_update_classid(sock->sk);
 
@@ -577,7 +578,9 @@ static inline int __sock_sendmsg_nosec(struct kiocb *iocb, struct socket *sock,
 	si->msg = msg;
 	si->size = size;
 
-	return sock->ops->sendmsg(iocb, sock, msg, size);
+	err = sock->ops->sendmsg(iocb, sock, msg, size);
+	trace_socket_sendmsg(sock, msg, size, err);
+	return err;
 }
 
 static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock,
@@ -599,7 +602,6 @@ int sock_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 	ret = __sock_sendmsg(&iocb, sock, msg, size);
 	if (-EIOCBQUEUED == ret)
 		ret = wait_on_sync_kiocb(&iocb);
-	trace_socket_sendmsg(sock, msg, size, ret);
 	return ret;
 }
 EXPORT_SYMBOL(sock_sendmsg);
@@ -734,6 +736,7 @@ static inline int __sock_recvmsg_nosec(struct kiocb *iocb, struct socket *sock,
 				       struct msghdr *msg, size_t size, int flags)
 {
 	struct sock_iocb *si = kiocb_to_siocb(iocb);
+	int err;
 
 	sock_update_classid(sock->sk);
 
@@ -743,7 +746,9 @@ static inline int __sock_recvmsg_nosec(struct kiocb *iocb, struct socket *sock,
 	si->size = size;
 	si->flags = flags;
 
-	return sock->ops->recvmsg(iocb, sock, msg, size, flags);
+	err = sock->ops->recvmsg(iocb, sock, msg, size, flags);
+	trace_socket_recvmsg(sock, msg, size, flags, err);
+	return err;
 }
 
 static inline int __sock_recvmsg(struct kiocb *iocb, struct socket *sock,
@@ -766,7 +771,6 @@ int sock_recvmsg(struct socket *sock, struct msghdr *msg,
 	ret = __sock_recvmsg(&iocb, sock, msg, size, flags);
 	if (-EIOCBQUEUED == ret)
 		ret = wait_on_sync_kiocb(&iocb);
-	trace_socket_recvmsg(sock, msg, size, flags, ret);
 	return ret;
 }
 EXPORT_SYMBOL(sock_recvmsg);
