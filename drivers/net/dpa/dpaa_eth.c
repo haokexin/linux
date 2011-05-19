@@ -1018,16 +1018,17 @@ dpa_phys2virt(const struct dpa_bp *dpa_bp, dma_addr_t addr)
  * Note that this function may modify the fd->cmd field and the skb data buffer
  * (the Parse Results area).
  */
-static inline int dpa_enable_tx_csum(struct dpa_priv_s *dpa_priv,
+static inline int dpa_enable_tx_csum(struct dpa_priv_s *priv,
 	struct sk_buff *skb, struct qm_fd *fd, char *parse_results)
 {
-	t_FmPrsResult *parse_result = NULL;
-	struct iphdr *iph = NULL;
+	t_FmPrsResult *parse_result;
+	struct iphdr *iph;
 	struct ipv6hdr *ipv6h = NULL;
 	int l4_proto;
+	int ethertype = ntohs(skb->protocol);
 	int retval = 0;
 
-	if (!dpa_priv->mac_dev || skb->ip_summed != CHECKSUM_PARTIAL)
+	if (!priv->mac_dev || skb->ip_summed != CHECKSUM_PARTIAL)
 		return 0;
 
 	/* Note: L3 csum seems to be already computed in sw, but we can't choose
@@ -1037,9 +1038,13 @@ static inline int dpa_enable_tx_csum(struct dpa_priv_s *dpa_priv,
 	 * can find them as if they came from the FMan Parser. */
 	parse_result = (t_FmPrsResult *)parse_results;
 
+	/* If we're dealing with VLAN, get the real Ethernet type */
+	if (ethertype == ETH_P_8021Q)
+		ethertype = ntohs(vlan_eth_hdr(skb)->h_vlan_encapsulated_proto);
+
 	/* Fill in the relevant L3 parse result fields
 	 * and read the L4 protocol type */
-	switch (ntohs(skb->protocol)) {
+	switch (ethertype) {
 	case ETH_P_IP:
 		parse_result->l3r = FM_L3_PARSE_RESULT_IPV4;
 		iph = ip_hdr(skb);
@@ -1054,12 +1059,9 @@ static inline int dpa_enable_tx_csum(struct dpa_priv_s *dpa_priv,
 		break;
 	default:
 		/* We shouldn't even be here */
-		if (netif_msg_tx_err(dpa_priv) && net_ratelimit())
-			printk(KERN_ALERT
-				"%s:%hu:%s(): can't compute HW csum "
-				"for L3 proto 0x%x\n",
-				__file__, __LINE__, __func__,
-				ntohs(skb->protocol));
+		if (netif_msg_tx_err(priv) && net_ratelimit())
+			cpu_netdev_alert(priv->net_dev, "Can't compute HW csum "
+				"for L3 proto 0x%x\n", ntohs(skb->protocol));
 		retval = -EIO;
 		goto return_error;
 	}
@@ -1074,24 +1076,16 @@ static inline int dpa_enable_tx_csum(struct dpa_priv_s *dpa_priv,
 		break;
 	default:
 		/* This can as well be a BUG() */
-		if (netif_msg_tx_err(dpa_priv) && net_ratelimit())
-			printk(KERN_ALERT
-				"%s:%hu:%s(): can't compute HW csum "
-				"for L4 proto 0x%x\n",
-				__file__, __LINE__, __func__, l4_proto);
+		if (netif_msg_tx_err(priv) && net_ratelimit())
+			cpu_netdev_alert(priv->net_dev, "Can't compute HW csum "
+				"for L4 proto 0x%x\n", l4_proto);
 		retval = -EIO;
 		goto return_error;
 	}
 
-	/* - Can't assume the MAC header was either set, or zeroed.
-	 * - skb->data always starts with the MAC header. */
-	skb_set_mac_header(skb, 0);
-
 	/* At index 0 is IPOffset_1 as defined in the Parse Results */
-	parse_result->ip_off[0] = skb_network_header(skb) -
-		skb_mac_header(skb);
-	parse_result->l4_off = skb_transport_header(skb) -
-		skb_mac_header(skb);
+	parse_result->ip_off[0] = skb_network_offset(skb);
+	parse_result->l4_off = skb_transport_offset(skb);
 
 	/* Enable L3 (and L4, if TCP or UDP) HW checksum. */
 	fd->cmd |= FM_FD_CMD_RPD | FM_FD_CMD_DTC;
@@ -1485,8 +1479,6 @@ ingress_tx_default_dqrr(struct qman_portal		*portal,
 	priv = netdev_priv(net_dev);
 
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
-
-	percpu_priv->tx_confirm++;
 
 	if (dpaa_eth_napi_schedule(percpu_priv))
 		return qman_cb_dqrr_stop;
@@ -2289,6 +2281,7 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 	struct device *dev = net_dev->dev.parent;
 
 	net_dev->features |= DPA_NETIF_FEATURES;
+	net_dev->vlan_features |= DPA_NETIF_FEATURES;
 
 	if (!priv->mac_dev) {
 		/* Get the MAC address */
@@ -2304,6 +2297,7 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 
 		mac_addr = priv->mac_dev->addr;
 		net_dev->features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
+		net_dev->vlan_features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
 	}
 
 	memcpy(net_dev->perm_addr, mac_addr, net_dev->addr_len);
