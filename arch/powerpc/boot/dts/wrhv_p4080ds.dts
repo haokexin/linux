@@ -1787,6 +1787,7 @@
 		compatible = "fsl,p4080-dpaa", "fsl,dpaa";
 
 		ethernet@0 {
+			status = "disabled";
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet0>;
@@ -1797,16 +1798,19 @@
 			fsl,fman-mac = <&enet1>;
 		};
 		ethernet@2 {
+			status = "disabled";
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet2>;
 		};
 		ethernet@3 {
+			status = "disabled";
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet3>;
 		};
 		ethernet@4 {
+			status = "disabled";
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qportal0>;
 			fsl,fman-mac = <&enet4>;
@@ -1822,11 +1826,13 @@
 			fsl,fman-mac = <&enet6>;
 		};
 		ethernet@7 {
+			status = "disabled";
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet7>;
 		};
 		ethernet@8 {
+			status = "disabled";
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet8>;
