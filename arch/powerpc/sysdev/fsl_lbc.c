@@ -195,7 +195,8 @@ int fsl_upm_run_pattern(struct fsl_upm *upm, void __iomem *io_base, u32 mar)
 }
 EXPORT_SYMBOL(fsl_upm_run_pattern);
 
-static int __devinit fsl_lbc_ctrl_init(struct fsl_lbc_ctrl *ctrl)
+static int __devinit fsl_lbc_ctrl_init(struct fsl_lbc_ctrl *ctrl,
+				       struct device_node *node)
 {
 	struct fsl_lbc_regs __iomem *lbc = ctrl->regs;
 
@@ -208,6 +209,11 @@ static int __devinit fsl_lbc_ctrl_init(struct fsl_lbc_ctrl *ctrl)
 
 	/* Enable interrupts for any detected events */
 	out_be32(&lbc->lteir, LTEIR_ENABLE);
+
+	/* Set the monitor timeout value to the maximum for erratum A001 */
+	if (of_device_is_compatible(node, "fsl,elbc"))
+		clrsetbits_be32(&lbc->lbcr, LBCR_BMT, LBCR_BMTPS);
+
 
 	return 0;
 }
@@ -316,7 +322,7 @@ static int __devinit fsl_lbc_ctrl_probe(struct of_device *ofdev,
 
 	fsl_lbc_ctrl_dev->dev = &ofdev->dev;
 
-	ret = fsl_lbc_ctrl_init(fsl_lbc_ctrl_dev);
+	ret = fsl_lbc_ctrl_init(fsl_lbc_ctrl_dev, ofdev->node);
 	if (ret < 0)
 		goto err;
 
