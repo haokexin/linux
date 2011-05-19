@@ -144,6 +144,7 @@ typedef struct t_FmHc {
     t_Handle                    h_HcPortDev;
     t_FmPcdQmEnqueueCallback    *f_QmEnqueue;     /**< A callback for enqueing frames to the QM */
     t_Handle                    h_QmArg;          /**< A handle to the QM module */
+    uint8_t                     padTill16;
 
     uint32_t                    seqNum;
     volatile bool               wait[32];
@@ -182,7 +183,8 @@ static t_Error CcHcDoDynamicChange(t_FmHc *p_FmHc, t_Handle p_OldPointer, t_Hand
 
     ASSERT_COND(p_FmHc);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
 
@@ -191,7 +193,7 @@ static t_Error CcHcDoDynamicChange(t_FmHc *p_FmHc, t_Handle p_OldPointer, t_Hand
     p_HcFrame->actionReg  = FmPcdCcGetNodeAddrOffsetFromNodeInfo(p_FmHc->h_FmPcd, p_NewPointer);
     if(p_HcFrame->actionReg == ILLEGAL_BASE)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Something wrong with base address"));
     }
 
@@ -199,7 +201,7 @@ static t_Error CcHcDoDynamicChange(t_FmHc *p_FmHc, t_Handle p_OldPointer, t_Hand
         p_HcFrame->extraReg   = FmPcdCcGetNodeAddrOffsetFromNodeInfo(p_FmHc->h_FmPcd, p_OldPointer);
     if(p_HcFrame->extraReg == ILLEGAL_BASE)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Something wrong with base address"));
     }
 
@@ -207,11 +209,11 @@ static t_Error CcHcDoDynamicChange(t_FmHc *p_FmHc, t_Handle p_OldPointer, t_Hand
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -270,6 +272,13 @@ t_Handle    FmHcConfigAndInit(t_FmHcParams *p_FmHcParams)
     if (!FmIsMaster(p_FmHcParams->h_Fm))
         return (t_Handle)p_FmHc;
 
+/*
+TKT056919 - axi12axi0 can hang if read request follows the single byte write on the very next cycle
+TKT038900 - FM dma lockup occur due to AXI slave protocol violation
+*/
+#ifdef FM_LOCKUP_ALIGNMENT_ERRATA_FMAN_SW004
+    p_FmHc->padTill16 = 16 - (sizeof(t_FmHc) % 16);
+#endif
     memset(&fmPortParam, 0, sizeof(fmPortParam));
     fmPortParam.baseAddr    = p_FmHcParams->params.portBaseAddr;
     fmPortParam.portType    = e_FM_PORT_TYPE_OH_HOST_COMMAND;
@@ -364,7 +373,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
     uint32_t                            intFlags;
     uint8_t                             physicalSchemeId, relativeSchemeId;
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
         REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
@@ -377,7 +386,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
         if(p_Scheme->id.relativeSchemeId >= FmPcdKgGetNumOfPartitionSchemes(p_FmHc->h_FmPcd))
         {
             REPORT_ERROR(MAJOR, E_NOT_IN_RANGE, ("Scheme is out of range"));
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
 
@@ -385,7 +394,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
 
         if (FmPcdKgSchemeTryLock(p_FmHc->h_FmPcd, relativeSchemeId, FALSE))
         {
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
 
@@ -402,7 +411,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
         {
             FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
             REPORT_ERROR(MINOR, err, NO_MSG);
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
 
@@ -411,7 +420,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
         {
             FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
             REPORT_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is already used"));
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
     }
@@ -424,14 +433,14 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
         {
             FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
             REPORT_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
         err = FmPcdKgSchemeTryLock(p_FmHc->h_FmPcd, relativeSchemeId, TRUE);
         FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
         if (err)
         {
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
     }
@@ -441,7 +450,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
         REPORT_ERROR(MAJOR, err, NO_MSG);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         return NULL;
     }
 
@@ -461,7 +470,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
         REPORT_ERROR(MINOR, err, NO_MSG);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         return NULL;
     }
 
@@ -469,7 +478,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
 
     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return UINT_TO_PTR((uint64_t)physicalSchemeId+1);
 }
@@ -501,7 +510,7 @@ t_Error FmHcPcdKgDeleteScheme(t_Handle h_FmHc, t_Handle h_Scheme)
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
@@ -518,7 +527,7 @@ t_Error FmHcPcdKgDeleteScheme(t_Handle h_FmHc, t_Handle h_Scheme)
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
@@ -526,7 +535,7 @@ t_Error FmHcPcdKgDeleteScheme(t_Handle h_FmHc, t_Handle h_Scheme)
 
     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -557,7 +566,7 @@ t_Error FmHcPcdKgCcGetSetParams(t_Handle h_FmHc, t_Handle  h_Scheme, uint32_t re
             if((FmPcdKgGetNextEngine(p_FmHc->h_FmPcd, relativeSchemeId) == e_FM_PCD_DONE) && (FmPcdKgGetDoneAction(p_FmHc->h_FmPcd, relativeSchemeId) ==  e_FM_PCD_ENQ_FRAME))
 
             {
-                p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+                p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
                 if (!p_HcFrame)
                     RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
                 memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -568,7 +577,7 @@ t_Error FmHcPcdKgCcGetSetParams(t_Handle h_FmHc, t_Handle  h_Scheme, uint32_t re
                 if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
                 {
                     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-                    XX_Free(p_HcFrame);
+                    XX_FreeSmart(p_HcFrame);
                     RETURN_ERROR(MINOR, err, NO_MSG);
                 }
 
@@ -576,17 +585,15 @@ t_Error FmHcPcdKgCcGetSetParams(t_Handle h_FmHc, t_Handle  h_Scheme, uint32_t re
                 if (!FmPcdKgHwSchemeIsValid(p_HcFrame->hcSpecificData.schemeRegs.kgse_mode))
                 {
                     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-                    XX_Free(p_HcFrame);
+                    XX_FreeSmart(p_HcFrame);
                     RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is already used"));
                 }
-                tmpReg32 = GET_UINT32(p_HcFrame->hcSpecificData.schemeRegs.kgse_mode);
+                tmpReg32 = p_HcFrame->hcSpecificData.schemeRegs.kgse_mode;
 
                 ASSERT_COND(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME));
 
-                WRITE_UINT32(p_HcFrame->hcSpecificData.schemeRegs.kgse_mode, tmpReg32 | NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA);
+                p_HcFrame->hcSpecificData.schemeRegs.kgse_mode =  tmpReg32 | NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
 
-// was this memset really unnecessary?
-//                memset(p_HcFrame, 0, sizeof(t_HcFrame));
                 p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
                 p_HcFrame->actionReg  = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
                 p_HcFrame->extraReg = 0x80000000;
@@ -596,11 +603,11 @@ t_Error FmHcPcdKgCcGetSetParams(t_Handle h_FmHc, t_Handle  h_Scheme, uint32_t re
                 if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
                 {
                     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-                    XX_Free(p_HcFrame);
+                    XX_FreeSmart(p_HcFrame);
                     REPORT_ERROR(MINOR, err, NO_MSG);
                 }
 
-                XX_Free(p_HcFrame);
+                  XX_FreeSmart(p_HcFrame);
             }
             else if (FmPcdKgGetNextEngine(p_FmHc->h_FmPcd, relativeSchemeId) == e_FM_PCD_PLCR)
             {
@@ -652,7 +659,7 @@ uint32_t  FmHcPcdKgGetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme)
     }
 
     /* first read scheme and check that it is valid */
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
         REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
@@ -669,14 +676,14 @@ uint32_t  FmHcPcdKgGetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
         REPORT_ERROR(MINOR, err, NO_MSG);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         return 0;
     }
 
     if (!FmPcdKgHwSchemeIsValid(p_HcFrame->hcSpecificData.schemeRegs.kgse_mode))
     {
         REPORT_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is invalid"));
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         return 0;
     }
 
@@ -684,7 +691,7 @@ uint32_t  FmHcPcdKgGetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme)
 
     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return retVal;
 }
@@ -705,7 +712,7 @@ t_Error  FmHcPcdKgSetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme, uint32_t 
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
     /* first read scheme and check that it is valid */
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -718,7 +725,7 @@ t_Error  FmHcPcdKgSetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme, uint32_t 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
@@ -726,7 +733,7 @@ t_Error  FmHcPcdKgSetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme, uint32_t 
     if (!FmPcdKgHwSchemeIsValid(p_HcFrame->hcSpecificData.schemeRegs.kgse_mode))
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is invalid"));
     }
 
@@ -742,13 +749,13 @@ t_Error  FmHcPcdKgSetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme, uint32_t 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -763,7 +770,7 @@ t_Error FmHcPcdKgSetClsPlan(t_Handle h_FmHc, t_FmPcdKgInterModuleClsPlanSet *p_S
 
     ASSERT_COND(p_FmHc);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
 
@@ -779,11 +786,11 @@ t_Error FmHcPcdKgSetClsPlan(t_Handle h_FmHc, t_FmPcdKgInterModuleClsPlanSet *p_S
 
         if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
         {
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             RETURN_ERROR(MINOR, err, NO_MSG);
         }
     }
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return err;
 }
@@ -822,7 +829,7 @@ t_Error FmHcPcdCcCapwapTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcCapwapReassmTimeo
     SANITY_CHECK_RETURN_VALUE(h_FmHc, E_INVALID_HANDLE,0);
 
     intFlags = FmPcdLock(p_FmHc->h_FmPcd);
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -832,11 +839,11 @@ t_Error FmHcPcdCcCapwapTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcCapwapReassmTimeo
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
     FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
     return E_OK;
 }
@@ -853,7 +860,7 @@ t_Error FmHcPcdCcIpFrag(t_Handle h_FmHc, t_FmPcdCcIpFragInitParams *p_CcIpFragIn
     SANITY_CHECK_RETURN_VALUE(h_FmHc, E_INVALID_HANDLE,0);
 
     intFlags = FmPcdLock(p_FmHc->h_FmPcd);
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
 
@@ -864,13 +871,13 @@ t_Error FmHcPcdCcIpFrag(t_Handle h_FmHc, t_FmPcdCcIpFragInitParams *p_CcIpFragIn
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
     FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
-    
+
     return E_OK;
 }
 
@@ -885,7 +892,7 @@ t_Error FmHcPcdCcIpTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcIpReassmTimeoutParams
     SANITY_CHECK_RETURN_VALUE(h_FmHc, E_INVALID_HANDLE,0);
 
     intFlags = FmPcdLock(p_FmHc->h_FmPcd);
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
 
@@ -896,11 +903,11 @@ t_Error FmHcPcdCcIpTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcIpReassmTimeoutParams
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
     FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
     return E_OK;
 }
@@ -933,7 +940,7 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
         if(requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA)
         {
 
-            p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+            p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
             if (!p_HcFrame)
                 RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
             /* first read scheme and check that it is valid */
@@ -947,7 +954,7 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
             if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
             {
                 FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MINOR, err, NO_MSG);
             }
 
@@ -955,14 +962,14 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
             if (!FmPcdPlcrHwProfileIsValid(p_HcFrame->hcSpecificData.profileRegs.fmpl_pemode))
             {
                 FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Policer is already used"));
             }
 
-            tmpReg32 = GET_UINT32(p_HcFrame->hcSpecificData.profileRegs.fmpl_pegnia);
+            tmpReg32 = p_HcFrame->hcSpecificData.profileRegs.fmpl_pegnia;
             if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
             {
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
             }
             tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
@@ -978,14 +985,14 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
             if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
             {
                 FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MINOR, err, NO_MSG);
             }
 
-            tmpReg32 = GET_UINT32(p_HcFrame->hcSpecificData.profileRegs.fmpl_peynia);
+            tmpReg32 = p_HcFrame->hcSpecificData.profileRegs.fmpl_peynia;
             if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
             {
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
             }
             tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
@@ -1001,14 +1008,14 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
             if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
             {
                 FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MINOR, err, NO_MSG);
             }
 
-            tmpReg32 = GET_UINT32(p_HcFrame->hcSpecificData.profileRegs.fmpl_pernia);
+            tmpReg32 = p_HcFrame->hcSpecificData.profileRegs.fmpl_pernia;
             if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
             {
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
             }
             tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
@@ -1024,10 +1031,10 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
             if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
             {
                 FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-                XX_Free(p_HcFrame);
+                XX_FreeSmart(p_HcFrame);
                 RETURN_ERROR(MINOR, err, NO_MSG);
             }
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
         }
     }
 
@@ -1074,7 +1081,7 @@ t_Handle FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profi
             return NULL;
     }
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
         REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
@@ -1094,7 +1101,7 @@ t_Handle FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profi
         {
             FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, profileIndx);
             REPORT_ERROR(MINOR, err, NO_MSG);
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
 
@@ -1103,7 +1110,7 @@ t_Handle FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profi
         {
             FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, profileIndx);
             REPORT_ERROR(MAJOR, E_ALREADY_EXISTS, ("Policer is already used"));
-            XX_Free(p_HcFrame);
+            XX_FreeSmart(p_HcFrame);
             return NULL;
         }
     }
@@ -1114,7 +1121,7 @@ t_Handle FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profi
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, profileIndx);
         REPORT_ERROR(MAJOR, err, NO_MSG);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         return NULL;
     }
 
@@ -1130,7 +1137,7 @@ t_Handle FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profi
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, profileIndx);
         REPORT_ERROR(MINOR, err, NO_MSG);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         return NULL;
     }
 
@@ -1138,7 +1145,7 @@ t_Handle FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profi
 
     FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, profileIndx);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return UINT_TO_PTR((uint64_t)profileIndx+1);
 }
@@ -1156,7 +1163,7 @@ t_Error FmHcPcdPlcrDeleteProfile(t_Handle h_FmHc, t_Handle h_Profile)
 
     FmPcdPlcrInvalidateProfileSw(p_FmHc->h_FmPcd, absoluteProfileId);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1171,13 +1178,13 @@ t_Error FmHcPcdPlcrDeleteProfile(t_Handle h_FmHc, t_Handle h_Profile)
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
     FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1195,7 +1202,7 @@ t_Error  FmHcPcdPlcrSetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
         return ERROR_CODE(E_BUSY);
 
     /* first read scheme and check that it is valid */
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1208,7 +1215,7 @@ t_Error  FmHcPcdPlcrSetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
@@ -1216,7 +1223,7 @@ t_Error  FmHcPcdPlcrSetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
     if (!FmPcdPlcrHwProfileIsValid(p_HcFrame->hcSpecificData.profileRegs.fmpl_pemode))
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Policer is already used"));
     }
 
@@ -1231,13 +1238,13 @@ t_Error  FmHcPcdPlcrSetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
     FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1257,7 +1264,7 @@ uint32_t FmHcPcdPlcrGetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
         return 0;
 
     /* first read scheme and check that it is valid */
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
         REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
@@ -1274,7 +1281,7 @@ uint32_t FmHcPcdPlcrGetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
         REPORT_ERROR(MINOR, err, NO_MSG);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         return 0;
     }
 
@@ -1282,7 +1289,7 @@ uint32_t FmHcPcdPlcrGetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
     if (!FmPcdPlcrHwProfileIsValid(p_HcFrame->hcSpecificData.profileRegs.fmpl_pemode))
     {
         FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         REPORT_ERROR(MAJOR, E_ALREADY_EXISTS, ("invalid Policer profile"));
         return 0;
     }
@@ -1311,7 +1318,7 @@ uint32_t FmHcPcdPlcrGetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
 
     FmPcdPlcrReleaseProfileLock(p_FmHc->h_FmPcd, absoluteProfileId);
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return retVal;
 }
@@ -1554,6 +1561,10 @@ t_Error FmHcPcdCcModifyKeyAndNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint
     uint32_t    intFlags;
     t_Handle    h_Params;
 
+    INIT_LIST(&h_OldPointersLst);
+    INIT_LIST(&h_NewPointersLst);
+    INIT_LIST(&h_List);
+
     intFlags = FmPcdLock(p_FmHc->h_FmPcd);
 
     if ((err = FmPcdCcNodeTreeTryLock(p_FmHc->h_FmPcd, h_CcNode, &h_List)) != E_OK)
@@ -1564,8 +1575,6 @@ t_Error FmHcPcdCcModifyKeyAndNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint
 
     FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
 
-    INIT_LIST(&h_OldPointersLst);
-    INIT_LIST(&h_NewPointersLst);
 
     err = FmPcdCcModifyKeyAndNextEngine(p_FmHc->h_FmPcd,h_CcNode,keyIndex,keySize, p_KeyParams, &h_OldPointersLst,&h_NewPointersLst, &h_Params);
     if(err)
@@ -1592,7 +1601,7 @@ t_Error FmHcKgWriteSp(t_Handle h_FmHc, uint8_t hardwarePortId, uint32_t spReg, b
 
     ASSERT_COND(p_FmHc);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1605,7 +1614,7 @@ t_Error FmHcKgWriteSp(t_Handle h_FmHc, uint8_t hardwarePortId, uint32_t spReg, b
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
@@ -1621,11 +1630,11 @@ t_Error FmHcKgWriteSp(t_Handle h_FmHc, uint8_t hardwarePortId, uint32_t spReg, b
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1639,7 +1648,7 @@ t_Error FmHcKgWriteCpp(t_Handle h_FmHc, uint8_t hardwarePortId, uint32_t cppReg)
 
     ASSERT_COND(p_FmHc);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1653,11 +1662,11 @@ t_Error FmHcKgWriteCpp(t_Handle h_FmHc, uint8_t hardwarePortId, uint32_t cppReg)
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1673,7 +1682,7 @@ t_Error FmHcRmuDoorbellInitCmd(t_Handle h_FmHc, t_FmRmuDrblInitHcParams *p_DrblI
     ASSERT_COND(p_FmHc);
     ASSERT_COND(p_DrblInitHcParams);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1698,11 +1707,11 @@ t_Error FmHcRmuDoorbellInitCmd(t_Handle h_FmHc, t_FmRmuDrblInitHcParams *p_DrblI
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1717,7 +1726,7 @@ t_Error FmHcRmuDoorbellSetCntsCmd(t_Handle h_FmHc, t_FmRmuDrblSetCntsHcParams *p
     ASSERT_COND(p_FmHc);
     ASSERT_COND(p_DrblSetCntsHcParams);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1733,11 +1742,11 @@ t_Error FmHcRmuDoorbellSetCntsCmd(t_Handle h_FmHc, t_FmRmuDrblSetCntsHcParams *p
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1751,7 +1760,7 @@ t_Error FmHcRmuDoorbellFreeCmd(t_Handle h_FmHc)
 
     ASSERT_COND(p_FmHc);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1765,11 +1774,11 @@ t_Error FmHcRmuDoorbellFreeCmd(t_Handle h_FmHc)
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1785,7 +1794,7 @@ t_Error FmHcRmuMsgInitCmd(t_Handle h_FmHc, t_FmRmuMsgInitHcParams *p_MsgInitHcPa
     ASSERT_COND(p_FmHc);
     ASSERT_COND(p_MsgInitHcParams);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1815,11 +1824,11 @@ t_Error FmHcRmuMsgInitCmd(t_Handle h_FmHc, t_FmRmuMsgInitHcParams *p_MsgInitHcPa
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1837,7 +1846,7 @@ t_Error FmHcRmuBufferProfileChange(t_Handle                              h_FmHc,
     ASSERT_COND(p_FmHc);
     ASSERT_COND(p_HcParams);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1863,11 +1872,11 @@ t_Error FmHcRmuBufferProfileChange(t_Handle                              h_FmHc,
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1884,7 +1893,7 @@ t_Error     FmHcRmuMsgClassChange(t_Handle h_FmHc, t_FmRmuMsgClassChangeHcParams
     ASSERT_COND(p_FmHc);
     ASSERT_COND(p_HcParams);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1908,11 +1917,11 @@ t_Error     FmHcRmuMsgClassChange(t_Handle h_FmHc, t_FmRmuMsgClassChangeHcParams
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }
@@ -1927,7 +1936,7 @@ t_Error FmHcRmuMsgFreeCmd(t_Handle h_FmHc, uint8_t mailboxId)
 
     ASSERT_COND(p_FmHc);
 
-    p_HcFrame = (t_HcFrame *)XX_Malloc(sizeof(t_HcFrame));
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
         RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1945,11 +1954,11 @@ t_Error FmHcRmuMsgFreeCmd(t_Handle h_FmHc, uint8_t mailboxId)
 
     if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
     {
-        XX_Free(p_HcFrame);
+        XX_FreeSmart(p_HcFrame);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
-    XX_Free(p_HcFrame);
+    XX_FreeSmart(p_HcFrame);
 
     return E_OK;
 }

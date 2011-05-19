@@ -173,30 +173,30 @@ physAddress_t XX_VirtToPhys(void * addr)
 /*****************************************************************************/
 void * xx_MallocSmart(uint32_t size, int memPartitionId, uint32_t alignment)
 {
-    void        *returnCode;
-    uint32_t    tmp;
+    uintptr_t	*returnCode, tmp;
 
     switch(memPartitionId) {
        case(0):
        case(e_MEM_1ST_DDR_CACHEABLE):
-            if (alignment < 4)
-                alignment = 4;
-            tmp = (uintptr_t)(xx_Malloc((uint32_t)(size + alignment)));
+            if (alignment < sizeof(uintptr_t))
+                alignment = sizeof(uintptr_t);
+            size += alignment + sizeof(returnCode);
+            tmp = (uintptr_t)xx_Malloc(size);
             if (tmp == 0)
                 return NULL;
-            returnCode = (void*)((uintptr_t)((tmp + alignment) & ~(alignment - 1)));
-            *(uint32_t*)((uintptr_t)returnCode - 4) = tmp;
+            returnCode = (uintptr_t*)((tmp + alignment + sizeof(returnCode)) & ~((uintptr_t)alignment - 1));
+            *(returnCode - 1) = tmp;
             break;
         default:
             XX_Print("XX_MallocSmart:Mem type not supported\r\n");
             return NULL;
     }
-    return returnCode;
+    return (void*)returnCode;
 }
 
 void xx_FreeSmart(void *p)
 {
-    xx_Free((void *)((uintptr_t)(*(uint32_t *)((uintptr_t)(p)-4))));
+    xx_Free((void*)(*((uintptr_t *)(p) - 1)));
 }
 
 
