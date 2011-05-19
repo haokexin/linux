@@ -78,6 +78,8 @@
 #define __ERR_MODULE__      MODULE_FM
 
 #define FMT_FRM_WATERMARK   0xdeadbeefdeadbeeaLL
+/* Define this for KS64b - US32b */
+//#define FMAN_TEST_CONFIG_COMPAT
 
 typedef struct {
     ioc_fmt_buff_desc_t     buff;
@@ -664,7 +666,7 @@ static int fm_test_ioctls(unsigned int minor, struct file *file, unsigned int cm
                 REPORT_ERROR(MINOR, E_INVALID_STATE, ("port is already initialized!!!"));
                 return -EFAULT;
             }
-#if defined(CONFIG_COMPAT)
+#if defined(FMAN_TEST_CONFIG_COMPAT)
             if (compat){
                 if (copy_from_user(&param, (ioc_fmt_port_param_t *)compat_ptr(arg), sizeof(ioc_fmt_port_param_t))) {
                     REPORT_ERROR(MINOR, E_INVALID_STATE, NO_MSG);
@@ -698,7 +700,7 @@ static int fm_test_ioctls(unsigned int minor, struct file *file, unsigned int cm
 
         case FMT_PORT_IOC_SET_DPAECHO_MODE:
         {
-#if defined(CONFIG_COMPAT)
+#if defined(FMAN_TEST_CONFIG_COMPAT)
             if (compat){
                 if (get_user(p_FmTestPort->echo, (int *)compat_ptr(arg))) {
                     REPORT_ERROR(MINOR, E_INVALID_STATE, NO_MSG);
@@ -718,7 +720,7 @@ static int fm_test_ioctls(unsigned int minor, struct file *file, unsigned int cm
 
         case FMT_PORT_IOC_SET_IP_HEADER_MANIP:
         {
-#if defined(CONFIG_COMPAT)
+#if defined(FMAN_TEST_CONFIG_COMPAT)
             if (compat){
                 if (get_user(p_FmTestPort->ip_header_manip, (int *)compat_ptr(arg))) {
                     REPORT_ERROR(MINOR, E_INVALID_STATE, NO_MSG);
@@ -737,14 +739,14 @@ static int fm_test_ioctls(unsigned int minor, struct file *file, unsigned int cm
         }
 
         default:
-            REPORT_ERROR(MINOR, E_NOT_SUPPORTED, ("IOCTL"));
+            REPORT_ERROR(MINOR, E_INVALID_SELECTION, ("IOCTL TEST cmd (0x%08lx):(0x%02lx:0x%02lx)!", cmd, _IOC_TYPE(cmd), _IOC_NR(cmd)));
             return -EFAULT;
     }
 
     return 0;
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
 static long fm_test_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
     unsigned int minor = iminor(file->f_path.dentry->d_inode);
@@ -760,7 +762,7 @@ static int fm_test_ioctl(struct inode *inode, struct file *file, unsigned int cm
     return fm_test_ioctls(minor, file, cmd, arg, false);
 }
 
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
 void copy_compat_test_frame_buffer(ioc_fmt_buff_desc_t *buff, ioc_fmt_compat_buff_desc_t *compat_buff)
 {
     compat_buff->qid = buff->qid;
@@ -789,7 +791,7 @@ ssize_t fm_test_read (struct file *file, char __user *buf, size_t size, loff_t *
         return 0;
 
     if (!p_FmTestPort->echo) {
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
         cnt = sizeof(ioc_fmt_compat_buff_desc_t);
 #else
         cnt = sizeof(ioc_fmt_buff_desc_t);
@@ -802,7 +804,7 @@ ssize_t fm_test_read (struct file *file, char __user *buf, size_t size, loff_t *
         }
 
         /* Copy structure */
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
         {
             ioc_fmt_compat_buff_desc_t compat_buff;
             copy_compat_test_frame_buffer(&p_FmTestFrame->buff, &compat_buff);
@@ -837,7 +839,7 @@ ssize_t fm_test_read (struct file *file, char __user *buf, size_t size, loff_t *
         }
 
         /* copy frame */
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
         if (copy_to_user(buf+sizeof(ioc_fmt_compat_buff_desc_t), p_FmTestFrame->buff.p_data, cnt)) {
             XX_Free(p_FmTestFrame->buff.p_data);
             XX_Free(p_FmTestFrame);
@@ -896,7 +898,7 @@ ssize_t fm_test_write (struct file *file, const char __user *buf, size_t size, l
     t_FmTestPort        *p_FmTestPort;
 
     ioc_fmt_buff_desc_t buffDesc;
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
     ioc_fmt_compat_buff_desc_t compatBuffDesc;
 #endif
     t_DpaaFD            fd;
@@ -911,7 +913,7 @@ ssize_t fm_test_write (struct file *file, const char __user *buf, size_t size, l
     }
 
     /* If Compat (32B UserSpace - 64B KernelSpace)  */
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
     if (copy_from_user(&compatBuffDesc, buf, sizeof(ioc_fmt_compat_buff_desc_t))) {
         REPORT_ERROR(MINOR, E_INVALID_STATE, NO_MSG);
         return -1;
@@ -972,7 +974,7 @@ ssize_t fm_test_write (struct file *file, const char __user *buf, size_t size, l
 static struct file_operations fm_test_fops =
 {
     owner:      THIS_MODULE,
-#ifdef CONFIG_COMPAT
+#ifdef FMAN_TEST_CONFIG_COMPAT
     compat_ioctl:fm_test_compat_ioctl,
 #endif
     ioctl:      fm_test_ioctl,

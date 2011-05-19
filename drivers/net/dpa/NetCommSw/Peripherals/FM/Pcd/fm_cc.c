@@ -47,7 +47,9 @@
 #include "fm_cc.h"
 
 
-#if defined(FM_CAPWAP_SUPPORT) || defined(UNDER_CONSTRUCTION_IPSEC) || defined(UNDER_CONSTRUCTION_FRAG_REASSEMBLY)
+#if defined(FM_CAPWAP_SUPPORT) || \
+    defined(UNDER_CONSTRUCTION_IPSEC) || \
+    defined(UNDER_CONSTRUCTION_FRAG_REASSEMBLY)
 #define FM_PCD_CC_MANIP
 #endif /* defined(FM_CAPWAP_SUPPORT) || ... */
 
@@ -2473,7 +2475,7 @@ t_Error FmPcdCcAddKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint8_t keyIndex
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfKeys with new key can not be larger than 255"));
 
     if(keySize != p_FmPcdCcNode->userSizeOfExtraction)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfKeys with new key can not be larger than 255"));
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("keySize has to be defined as it was defined in initialization step."));
 
     if(p_FmPcdCcNode->h_FmPcd != h_FmPcd)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("handler to FmPcd is diferent from one which was assigned to the node in the Init time"));
@@ -2513,8 +2515,8 @@ t_Error FmPcdCcModifyKeyAndNextEngine(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, 
     if((p_FmPcdCcNode->numOfKeys + 1) > FM_PCD_MAX_NUM_OF_CC_NODES)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfKeys with new key can not be larger than 255"));
 
-    if(keySize != p_FmPcdCcNode->sizeOfExtraction)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfKeys with new key can not be larger than 255"));
+    if(keySize != p_FmPcdCcNode->userSizeOfExtraction)
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("keySize has to be defined as it was defined in initialization step"));
 
     if(p_FmPcdCcNode->h_FmPcd != h_FmPcd)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("handler to FmPcd is diferent from one which was assigned to the node in the Init time"));
@@ -2996,13 +2998,14 @@ t_Handle FM_PCD_CcSetNode(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodeParam)
 
     SANITY_CHECK_RETURN_VALUE(h_FmPcd,E_INVALID_HANDLE,NULL);
 
+    /*
     if (!p_CcNodeParam->keysParams.keySize ||
         !p_CcNodeParam->keysParams.numOfKeys)
     {
         REPORT_ERROR(MAJOR, E_INVALID_STATE, ("At least one key of keySize > 0 must be defined."));
         return NULL;
     }
-
+    */
     p_FmPcdCcNode = (t_FmPcdCcNode*)XX_Malloc(sizeof(t_FmPcdCcNode));
     if(!p_FmPcdCcNode)
     {
