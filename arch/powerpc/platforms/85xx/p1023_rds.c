@@ -21,6 +21,7 @@
 #include <linux/fsl_devices.h>
 #include <linux/of_platform.h>
 #include <linux/of_device.h>
+#include <linux/lmb.h>
 
 #include <asm/system.h>
 #include <asm/time.h>
@@ -95,6 +96,7 @@ static void __init mpc85xx_rds_setup_arch(void)
 static struct of_device_id p1023_ids[] = {
 	{ .type = "soc", },
 	{ .compatible = "soc", },
+	{ .compatible = "fsl,dpaa", },
 	{ .compatible = "simple-bus", },
 	{},
 };
@@ -146,6 +148,26 @@ static int __init p1023_rds_probe(void)
 
 }
 
+/* Early setup is required for large chunks of contiguous (and coarsely-aligned)
+ * memory. The following shoe-horns Qman/Bman "init_early" calls into the
+ * platform setup to let them parse their CCSR nodes early on. */
+#ifdef CONFIG_FSL_QMAN_CONFIG
+void __init qman_init_early(void);
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+void __init bman_init_early(void);
+#endif
+
+__init void p1023_rds_init_early(void)
+{
+#ifdef CONFIG_FSL_QMAN_CONFIG
+	qman_init_early();
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+	bman_init_early();
+#endif
+}
+
 define_machine(p1023_rds) {
 	.name			= "P1023 RDS",
 	.probe			= p1023_rds_probe,
@@ -155,6 +177,7 @@ define_machine(p1023_rds) {
 	.restart		= fsl_rstcr_restart,
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
+	.init_early		= p1023_rds_init_early,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
 #endif
