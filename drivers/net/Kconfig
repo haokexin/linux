@@ -2933,6 +2933,11 @@ config DPA_MAX_FRM_SIZE
               "fsl_fman_phy_max_frm=<YourValue>";
 	    * in non-Hypervisor-based scenarios, via u-boot's env, by modifying the "bootargs" env variable.
 
+config FSL_DPA_1588
+	tristate "IEEE 1588-compliant timestamping"
+	depends on DPA
+	default n
+
 source "drivers/net/sfc/Kconfig"
 
 source "drivers/net/benet/Kconfig"
