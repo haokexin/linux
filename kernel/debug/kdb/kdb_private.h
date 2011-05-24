@@ -259,6 +259,7 @@ extern void kdb_send_sig_info(struct task_struct *p, struct siginfo *info);
 extern void kdb_meminfo_proc_show(void);
 extern const char *kdb_walk_kallsyms(loff_t *pos);
 extern char *kdb_getstr(char *, size_t, char *);
+extern void kdb_gdb_state_pass(char *buf);
 
 /* Defines for kdb_symbol_print */
 #define KDB_SP_SPACEB	0x0001		/* Space before string */

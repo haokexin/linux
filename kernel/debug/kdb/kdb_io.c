@@ -34,12 +34,10 @@ int kdb_trap_printk;
 static void kgdb_transition_check(char *buffer)
 {
 	int slen = strlen(buffer);
+
 	if (strncmp(buffer, "$?#3f", slen) != 0 &&
-	    strncmp(buffer, "$Hc-1#09", slen) != 0 &&
-	    strncmp(buffer, "$qSupported#37", slen) != 0 &&
-	    strncmp(buffer, "+$qSupported#37", slen) != 0 &&
-	    strncmp(buffer, "$qSupported:qRe", slen) != 0 &&
-	    strncmp(buffer, "+$qSupported:qRe", slen) != 0) {
+	    strncmp(buffer, "$qSupported", slen) != 0 &&
+	    strncmp(buffer, "+$qSupported", slen) != 0) {
 		KDB_STATE_SET(KGDB_TRANS);
 		kdb_printf("%s", buffer);
 	}
@@ -393,6 +391,7 @@ poll_again:
 			/* Special escape to kgdb */
 			if (lastchar - buffer >= 5 &&
 			    strcmp(lastchar - 5, "$?#3f") == 0) {
+				kdb_gdb_state_pass(lastchar - 5);
 				strcpy(buffer, "kgdb");
 				KDB_STATE_SET(DOING_KGDB);
 				return buffer;
@@ -403,15 +402,9 @@ poll_again:
 				KDB_STATE_SET(DOING_KGDB2);
 				return buffer;
 			}
-			if (lastchar - buffer >= 14 &&
-			    strcmp(lastchar - 14, "$qSupported#37") == 0) {
-				strcpy(buffer, "kgdb");
-				KDB_STATE_SET(DOING_KGDB2);
-				return buffer;
-			}
-			if (lastchar - buffer >= 15 &&
-				strcmp(lastchar - 15,
-				"$qSupported:qRe") == 0) {
+			if (lastchar - buffer >= 11 &&
+				strcmp(lastchar - 11, "$qSupported") == 0) {
+				kdb_gdb_state_pass(lastchar - 11);
 				strcpy(buffer, "kgdb");
 				KDB_STATE_SET(DOING_KGDB2);
 				return buffer;
