@@ -1115,6 +1115,11 @@ static int pch_gbe_napi_poll(struct napi_struct *napi, int budget)
  if (poll_end_flag == 1) {
   napi_complete(napi);
   pch_gbe_irq_enable(adapter);
+#ifdef CONFIG_NET_POLL_CONTROLLER
+  /* Net poll may break the original principle of irq_sem. */
+  if (atomic_read(&adapter->irq_sem) < 0)
+    atomic_set(&adapter->irq_sem, 0);
+#endif /* CONFIG_NET_POLL_CONTROLLER */
  }
 
  PCH_DEBUG("poll_end_flag : %d  work_done : %d  budget : %d\n",
