@@ -142,13 +142,16 @@
 const char talitos_driver_name[] = "Talitos OCF";
 const char talitos_driver_version[] = "0.2";
 
+/* Make this variable globally so as to use it in talitos_process */
+struct device *device = NULL;
+
 static int talitos_newsession(device_t dev, u_int32_t *sidp,
 								struct cryptoini *cri);
 static int talitos_freesession(device_t dev, u_int64_t tid);
 static int talitos_process(device_t dev, struct cryptop *crp, int hint);
 static void dump_talitos_status(struct talitos_softc *sc);
-static int talitos_submit(struct talitos_softc *sc, struct talitos_desc *td, 
-								int chsel);
+static int talitos_submit(struct device *dev, struct talitos_softc *sc, 
+				struct talitos_desc *td, int chsel);
 static void talitos_doneprocessing(struct talitos_softc *sc);
 static void talitos_init_device(struct talitos_softc *sc);
 static void talitos_reset_device_master(struct talitos_softc *sc);
@@ -483,13 +486,14 @@ talitos_freesession(device_t dev, u_int64_t tid)
  */
 static int 
 talitos_submit(
+	struct device *dev,
 	struct talitos_softc *sc,
 	struct talitos_desc *td,
 	int chsel)
 {
 	u_int32_t v;
 
-	v = dma_map_single(NULL, td, sizeof(*td), DMA_TO_DEVICE);
+	v = dma_map_single(dev, td, sizeof(*td), DMA_TO_DEVICE);
 	talitos_write(sc->sc_base_addr + 
 		chsel*TALITOS_CH_OFFSET + TALITOS_CH_FF, 0);
 	talitos_write(sc->sc_base_addr + 
@@ -672,13 +676,13 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 			err = EINVAL;
 			goto errout;
 		}
-		td->ptr[in_fifo].ptr = dma_map_single(NULL, skb->data, 
+		td->ptr[in_fifo].ptr = dma_map_single(device, skb->data, 
 			skb->len, DMA_TO_DEVICE);
 		td->ptr[in_fifo].len = skb->len;
-		td->ptr[out_fifo].ptr = dma_map_single(NULL, skb->data, 
+		td->ptr[out_fifo].ptr = dma_map_single(device, skb->data, 
 			skb->len, DMA_TO_DEVICE);
 		td->ptr[out_fifo].len = skb->len;
-		td->ptr[hmac_data].ptr = dma_map_single(NULL, skb->data,
+		td->ptr[hmac_data].ptr = dma_map_single(device, skb->data,
 			skb->len, DMA_TO_DEVICE);
 	} else if (crp->crp_flags & CRYPTO_F_IOV) {
 		/* using IOV buffers */
@@ -689,20 +693,20 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 			err = EINVAL;
 			goto errout;
 		}
-		td->ptr[in_fifo].ptr = dma_map_single(NULL,
+		td->ptr[in_fifo].ptr = dma_map_single(device,
 			uiop->uio_iov->iov_base, crp->crp_ilen, DMA_TO_DEVICE);
 		td->ptr[in_fifo].len = crp->crp_ilen;
 		/* crp_olen is never set; always use crp_ilen */
-		td->ptr[out_fifo].ptr = dma_map_single(NULL,
+		td->ptr[out_fifo].ptr = dma_map_single(device,
 			uiop->uio_iov->iov_base,
 			crp->crp_ilen, DMA_TO_DEVICE);
 		td->ptr[out_fifo].len = crp->crp_ilen;
 	} else {
 		/* using contig buffers */
-		td->ptr[in_fifo].ptr = dma_map_single(NULL,
+		td->ptr[in_fifo].ptr = dma_map_single(device,
 			crp->crp_buf, crp->crp_ilen, DMA_TO_DEVICE);
 		td->ptr[in_fifo].len = crp->crp_ilen;
-		td->ptr[out_fifo].ptr = dma_map_single(NULL,
+		td->ptr[out_fifo].ptr = dma_map_single(device,
 			crp->crp_buf, crp->crp_ilen, DMA_TO_DEVICE);
 		td->ptr[out_fifo].len = crp->crp_ilen;
 	}
@@ -768,7 +772,7 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 				    enccrd->crd_inject, ivsize, iv);
 			}
 		}
-		td->ptr[cipher_iv].ptr = dma_map_single(NULL, iv, ivsize, 
+		td->ptr[cipher_iv].ptr = dma_map_single(device, iv, ivsize, 
 			DMA_TO_DEVICE);
 		td->ptr[cipher_iv].len = ivsize;
 		/*
@@ -812,7 +816,7 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 			 * crypt data is the difference in the skips.
 			 */
 			/* ipsec only for now */
-			td->ptr[hmac_key].ptr = dma_map_single(NULL, 
+			td->ptr[hmac_key].ptr = dma_map_single(device, 
 				ses->ses_hmac, ses->ses_hmac_len, DMA_TO_DEVICE);
 			td->ptr[hmac_key].len = ses->ses_hmac_len;
 			td->ptr[in_fifo].ptr  += enccrd->crd_skip;
@@ -865,7 +869,7 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 
 		if ((maccrd->crd_alg == CRYPTO_MD5_HMAC) ||
 		   (maccrd->crd_alg == CRYPTO_SHA1_HMAC)) {
-			td->ptr[hmac_key].ptr = dma_map_single(NULL, 
+			td->ptr[hmac_key].ptr = dma_map_single(device, 
 				ses->ses_hmac, ses->ses_hmac_len, 
 				DMA_TO_DEVICE);
 			td->ptr[hmac_key].len = ses->ses_hmac_len;
@@ -873,13 +877,13 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 	} 
 	else {
 		/* using process key (session data has duplicate) */
-		td->ptr[cipher_key].ptr = dma_map_single(NULL, 
+		td->ptr[cipher_key].ptr = dma_map_single(device, 
 			enccrd->crd_key, (enccrd->crd_klen + 7) / 8, 
 			DMA_TO_DEVICE);
 		td->ptr[cipher_key].len = (enccrd->crd_klen + 7) / 8;
 	}
 	/* descriptor complete - GO! */
-	return talitos_submit(sc, td, chsel);
+	return talitos_submit(device, sc, td, chsel);
 
 errout:
 	if (err != ERESTART) {
@@ -1094,7 +1098,7 @@ static int talitos_probe(struct platform_device *pdev)
 	struct talitos_softc *sc = NULL;
 	struct resource *r;
 #ifdef CONFIG_PPC_MERGE
-	struct device *device = &ofdev->dev;
+	device = &ofdev->dev;
 	struct device_node *np = ofdev->node;
 	const unsigned int *prop;
 	int err;
