@@ -2247,10 +2247,21 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
     {
         t_Error      errCode = E_OK;
         t_FmPortRsrc numOfOpenDmas;
-        numOfOpenDmas.num = FM_PORT_10G_NUM_OF_OPEN_DMA;
+        t_FmPortRsrc numOfTasks;
+
+        numOfOpenDmas.num = (p_LnxWrpFmPortDev->settings.param.portType ==
+                        e_FM_PORT_TYPE_TX_10G) ? 12 : 8; 
         numOfOpenDmas.extra = 0;
+
         if ((errCode = FM_PORT_SetNumOfOpenDmas(p_LnxWrpFmPortDev->h_Dev, &numOfOpenDmas)) != E_OK)
              RETURN_ERROR(MAJOR, errCode, NO_MSG);
+
+        numOfTasks.num = 22;  /* performance requirements impose these values */
+        numOfTasks.extra = 8;
+
+        if ((errCode = FM_PORT_SetNumOfTasks(p_LnxWrpFmPortDev->h_Dev,
+                                &numOfTasks)) != E_OK)
+                RETURN_ERROR(MAJOR, errCode, NO_MSG);
     }
 
     /*Do we still need this one?*/
