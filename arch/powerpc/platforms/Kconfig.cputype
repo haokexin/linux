@@ -1,7 +1,7 @@
 config PPC64
 	bool "64-bit kernel"
 	default n
-	select PPC_HAVE_PMU_SUPPORT
+	select PPC_HAVE_PMU_SUPPORT if !PPC_BOOK3E
 	help
 	  This option selects whether a 32-bit or a 64-bit kernel
 	  will be built.
