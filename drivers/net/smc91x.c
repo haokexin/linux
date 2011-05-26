@@ -80,6 +80,7 @@ static const char version[] =
 #include <linux/ethtool.h>
 #include <linux/mii.h>
 #include <linux/workqueue.h>
+#include <linux/kgdb.h>
 
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
@@ -962,10 +963,13 @@ static int smc_phy_reset(struct net_device *dev, int phy)
 	smc_phy_write(dev, phy, MII_BMCR, BMCR_RESET);
 
 	for (timeout = 2; timeout; timeout--) {
-		spin_unlock_irq(&lp->lock);
-		msleep(50);
-		spin_lock_irq(&lp->lock);
-
+		if (unlikely(in_dbg_master())) {
+			mdelay(50);
+		} else {
+			spin_unlock(&lp->lock);
+			msleep(50);
+			spin_lock_irq(&lp->lock);
+		}
 		bmcr = smc_phy_read(dev, phy, MII_BMCR);
 		if (!(bmcr & BMCR_RESET))
 			break;
@@ -1210,10 +1214,11 @@ static irqreturn_t smc_interrupt(int irq, void *dev_id)
 	void __iomem *ioaddr = lp->base;
 	int status, mask, timeout, card_stats;
 	int saved_pointer;
+	unsigned long flags;
 
 	DBG(3, "%s: %s\n", dev->name, __func__);
 
-	spin_lock(&lp->lock);
+	spin_lock_irqsave(&lp->lock, flags);
 
 	/* A preamble may be used when there is a potential race
 	 * between the interruptible transmit functions and this
@@ -1292,7 +1297,7 @@ static irqreturn_t smc_interrupt(int irq, void *dev_id)
 	/* restore register states */
 	SMC_SET_PTR(lp, saved_pointer);
 	SMC_SET_INT_MASK(lp, mask);
-	spin_unlock(&lp->lock);
+	spin_unlock_irqrestore(&lp->lock, flags);
 
 #ifndef CONFIG_NET_POLL_CONTROLLER
 	if (timeout == MAX_IRQ_LOOPS)
@@ -1323,6 +1328,8 @@ static void smc_poll_controller(struct net_device *dev)
 	disable_irq(dev->irq);
 	smc_interrupt(dev->irq, dev);
 	enable_irq(dev->irq);
+	if (unlikely(in_dbg_master()))
+		mdelay(1);
 }
 #endif
 
