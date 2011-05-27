@@ -46,7 +46,6 @@ EXPORT_SYMBOL(fsl_lbc_ctrl_dev);
 u32 fsl_lbc_addr(phys_addr_t addr_base)
 {
 	void *dev;
-	int compatible;
 	u32 addr = addr_base & 0xffff8000;
 
 	dev = of_find_node_by_name(NULL, "localbus");
@@ -56,12 +55,14 @@ u32 fsl_lbc_addr(phys_addr_t addr_base)
 		return 0;
 	}
 
-	compatible = of_device_is_compatible(dev, "fsl,elbc");
-	of_node_put(dev);
-	if (compatible)
+	if (of_device_is_compatible(dev, "fsl,elbc") ||
+			of_device_is_compatible(dev, "fsl,p3041-rev1.0-elbc")) {
+		of_node_put(dev);
 		return addr;
-	else
+	} else {
+		of_node_put(dev);
 		return addr | ((addr_base & 0x300000000ull) >> 19);
+	}
 }
 EXPORT_SYMBOL(fsl_lbc_addr);
 
@@ -215,7 +216,8 @@ static int __devinit fsl_lbc_ctrl_init(struct fsl_lbc_ctrl *ctrl,
 	out_be32(&lbc->ltedr, LTEDR_ENABLE);
 
 	/* Set the monitor timeout value to the maximum for erratum A001 */
-	if (of_device_is_compatible(node, "fsl,elbc"))
+	if (of_device_is_compatible(node, "fsl,elbc") ||
+			of_device_is_compatible(node, "fsl,p3041-rev1.0-elbc"))
 		clrsetbits_be32(&lbc->lbcr, LBCR_BMT, LBCR_BMTPS);
 
 
@@ -232,10 +234,15 @@ static irqreturn_t fsl_lbc_ctrl_irq(int irqno, void *data)
 	struct fsl_lbc_ctrl *ctrl = data;
 	struct fsl_lbc_regs __iomem *lbc = ctrl->regs;
 	u32 status;
+	unsigned long flags;
+ 
+	spin_lock_irqsave(&fsl_lbc_lock, flags);
 
 	status = in_be32(&lbc->ltesr);
-	if (!status)
+	if (!status) {
+		spin_lock_irqsave(&fsl_lbc_lock, flags);
 		return IRQ_NONE;
+	}
 
 	out_be32(&lbc->ltesr, LTESR_CLEAR);
 	out_be32(&lbc->lteatr, 0);
@@ -278,6 +285,7 @@ static irqreturn_t fsl_lbc_ctrl_irq(int irqno, void *data)
 	if (status & ~LTESR_MASK)
 		dev_err(ctrl->dev, "Unknown error: "
 			"LTESR 0x%08X\n", status);
+	spin_unlock_irqrestore(&fsl_lbc_lock, flags);
 	return IRQ_HANDLED;
 }
 
@@ -317,8 +325,8 @@ static int __devinit fsl_lbc_ctrl_probe(struct of_device *ofdev,
 		goto err;
 	}
 
-	fsl_lbc_ctrl_dev->irq = of_irq_to_resource(ofdev->node, 0, NULL);
-	if (fsl_lbc_ctrl_dev->irq == NO_IRQ) {
+	fsl_lbc_ctrl_dev->irq[0] = of_irq_to_resource(ofdev->node, 0, NULL);
+	if (fsl_lbc_ctrl_dev->irq[0] == NO_IRQ) {
 		dev_err(&ofdev->dev, "failed to get irq resource\n");
 		ret = -ENODEV;
 		goto err;
@@ -330,13 +338,25 @@ static int __devinit fsl_lbc_ctrl_probe(struct of_device *ofdev,
 	if (ret < 0)
 		goto err;
 
-	ret = request_irq(fsl_lbc_ctrl_dev->irq, fsl_lbc_ctrl_irq, 0,
+	ret = request_irq(fsl_lbc_ctrl_dev->irq[0], fsl_lbc_ctrl_irq, 0,
 				"fsl-lbc", fsl_lbc_ctrl_dev);
 	if (ret != 0) {
 		dev_err(&ofdev->dev, "failed to install irq (%d)\n",
-			fsl_lbc_ctrl_dev->irq);
-		ret = fsl_lbc_ctrl_dev->irq;
+			fsl_lbc_ctrl_dev->irq[0]);
+		ret = fsl_lbc_ctrl_dev->irq[0];
 		goto err;
+	}
+
+	fsl_lbc_ctrl_dev->irq[1] = of_irq_to_resource(ofdev->node, 1, NULL);
+	if (fsl_lbc_ctrl_dev->irq[1] != NO_IRQ) {
+		ret = request_irq(fsl_lbc_ctrl_dev->irq[1], fsl_lbc_ctrl_irq,
+				IRQF_SHARED, "fsl-lbc-err", fsl_lbc_ctrl_dev);
+		if (ret != 0) {
+			dev_err(&ofdev->dev, "failed to install irq (%d)\n",
+					fsl_lbc_ctrl_dev->irq[1]);
+			ret = fsl_lbc_ctrl_dev->irq[1];
+			goto err;
+		}
 	}
 
 	/* Enable interrupts for any detected events */
@@ -355,8 +375,11 @@ static int __devexit fsl_lbc_ctrl_remove(struct of_device *ofdev)
 {
 	struct fsl_lbc_ctrl *ctrl = dev_get_drvdata(&ofdev->dev);
 
-	if (ctrl->irq)
-		free_irq(ctrl->irq, ctrl);
+	if (ctrl->irq[0])
+		free_irq(ctrl->irq[0], ctrl);
+
+	if (ctrl->irq[1])
+		free_irq(ctrl->irq[1], ctrl);
 
 	if (ctrl->regs)
 		iounmap(ctrl->regs);
@@ -368,6 +391,7 @@ static int __devexit fsl_lbc_ctrl_remove(struct of_device *ofdev)
 
 static const struct of_device_id fsl_lbc_match[] = {
 	{ .compatible = "fsl,elbc", },
+	{ .compatible = "fsl,p3041-rev1.0-elbc", },
 	{ .compatible = "fsl,pq3-localbus", },
 	{ .compatible = "fsl,pq2-localbus", },
 	{ .compatible = "fsl,pq2pro-localbus", },
