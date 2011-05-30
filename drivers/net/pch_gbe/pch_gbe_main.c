@@ -2343,7 +2343,7 @@ pch_gbe_tx_queue(struct pch_gbe_adapter *adapter,
  if ((skb->len < PCH_GBE_SHORT_PKT) && (adapter->tx_csum == TRUE)) {
   frame_ctrl |=
    PCH_GBE_TXD_CTRL_APAD | PCH_GBE_TXD_CTRL_TCPIP_ACC_OFF;
-  if (skb->protocol == htons(ETH_P_IP)) {
+  if (skb->protocol == htons(ETH_P_IP) && !(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET))) {
    struct iphdr *iph = ip_hdr(skb);
    unsigned int offset;
    iph->check = 0;
@@ -2360,7 +2360,7 @@ pch_gbe_tx_queue(struct pch_gbe_adapter *adapter,
        iph->daddr,
        skb->len - offset,
        IPPROTO_TCP, skb->csum);
-   } else if (iph->protocol == IPPROTO_UDP) {
+   } else if (iph->protocol == IPPROTO_UDP && !(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET))) {
     skb->csum = 0;
     udp_hdr(skb)->check = 0;
     skb->csum =
