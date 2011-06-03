@@ -1310,8 +1310,10 @@ ingress_rx_error_dqrr(struct qman_portal		*portal,
 
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
 
-	if (dpaa_eth_napi_schedule(percpu_priv))
+	if (dpaa_eth_napi_schedule(percpu_priv)) {
+		percpu_priv->in_interrupt++;
 		return qman_cb_dqrr_stop;
+	}
 
 	_dpa_rx_error(net_dev, priv, percpu_priv, &dq->fd);
 
@@ -1449,8 +1451,10 @@ ingress_tx_error_dqrr(struct qman_portal		*portal,
 
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
 
-	if (dpaa_eth_napi_schedule(percpu_priv))
+	if (dpaa_eth_napi_schedule(percpu_priv)) {
+		percpu_priv->in_interrupt++;
 		return qman_cb_dqrr_stop;
+	}
 
 	_dpa_tx_error(net_dev, priv, percpu_priv, &dq->fd);
 
@@ -1471,8 +1475,10 @@ ingress_tx_default_dqrr(struct qman_portal		*portal,
 
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
 
-	if (dpaa_eth_napi_schedule(percpu_priv))
+	if (dpaa_eth_napi_schedule(percpu_priv)) {
+		percpu_priv->in_interrupt++;
 		return qman_cb_dqrr_stop;
+	}
 
 	_dpa_tx(net_dev, priv, percpu_priv, &dq->fd);
 
