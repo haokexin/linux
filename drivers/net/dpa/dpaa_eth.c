@@ -211,7 +211,7 @@ static void dpa_bp_add_8(struct dpa_bp *dpa_bp)
 	int i;
 	struct sk_buff *skb;
 	int err;
-	unsigned int *count_ptr;
+	int *count_ptr;
 
 	count_ptr = per_cpu_ptr(dpa_bp->percpu_count, smp_processor_id());
 
@@ -934,13 +934,16 @@ static int dpaa_eth_poll(struct napi_struct *napi, int budget)
 {
 	struct dpa_percpu_priv_s *percpu_priv;
 	int cleaned = qman_poll_dqrr(budget);
+	int count;
 
 	percpu_priv = container_of(napi, struct dpa_percpu_priv_s, napi);
 
-	if (*percpu_priv->dpa_bp_count < DEFAULT_COUNT / 4) {
+	count = *percpu_priv->dpa_bp_count;
+
+	if (count < DEFAULT_COUNT / 4) {
 		int i;
 
-		for (i = 0; i < percpu_priv->dpa_bp->count; i += 8)
+		for (i = count; i < DEFAULT_COUNT; i += 8)
 			dpa_bp_add_8(percpu_priv->dpa_bp);
 	}
 
