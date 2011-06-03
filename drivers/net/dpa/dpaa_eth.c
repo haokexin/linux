@@ -1517,15 +1517,33 @@ static void egress_ern(struct qman_portal	*portal,
 	bp = priv->dpa_bp;
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
 
+	percpu_priv->stats.tx_dropped++;
+	percpu_priv->stats.tx_fifo_errors++;
+
+	/*
+	 * If we intended this buffer to go into the pool
+	 * when the FM was done, we need to try to put it in
+	 * manually. If that fails, increment the percpu counter
+	 */
+	if (msg->ern.fd.cmd & FM_FD_CMD_FCO) {
+		struct bm_buffer bmb;
+		int err;
+
+		bm_buffer_set64(&bmb, addr);
+		err = bman_release(bp->pool, &bmb, 1, 0);
+
+		if (!err)
+			return;
+
+		(*percpu_priv->dpa_bp_count)--;
+	}
+
 	skbh = (struct sk_buff **)phys_to_virt(addr);
 	skb = *skbh;
 
 	dma_unmap_single(bp->dev, addr, bp->size, DMA_TO_DEVICE);
 
 	dev_kfree_skb_any(skb);
-
-	percpu_priv->stats.tx_dropped++;
-	percpu_priv->stats.tx_fifo_errors++;
 }
 
 static const struct qman_fq rx_shared_fq __devinitconst = {
