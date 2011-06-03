@@ -749,8 +749,11 @@ static void dpa_set_multicast_list(struct net_device *net_dev)
 static int dpa_process_one(struct dpa_percpu_priv_s *percpu_priv,
 		struct sk_buff *skb, struct dpa_bp *bp, const struct qm_fd *fd)
 {
-	int cache_fudge = (fd->addr_lo - (u32)skb->head) & (PAGE_SIZE - 1);
-	int data_start;
+	dma_addr_t addr = qm_fd_addr(fd);
+	u32 addrlo = lower_32_bits(addr);
+	u32 skblo = lower_32_bits((unsigned long)skb->head);
+	u32 cache_fudge = (addrlo - skblo) & (PAGE_SIZE - 1);
+	unsigned int data_start;
 
 	(*percpu_priv->dpa_bp_count)--;
 
@@ -762,7 +765,7 @@ static int dpa_process_one(struct dpa_percpu_priv_s *percpu_priv,
 	skb_put(skb, dpa_fd_length(fd) + data_start);
 	skb_pull(skb, data_start);
 
-	dma_unmap_single(bp->dev, qm_fd_addr(fd), bp->size, DMA_FROM_DEVICE);
+	dma_unmap_single(bp->dev, addr, bp->size, DMA_FROM_DEVICE);
 
 	return 0;
 }
