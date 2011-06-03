@@ -257,6 +257,7 @@ static int __init fsl_usb_of_init(void)
 		usb_dev_mph->dev.coherent_dma_mask = 0xffffffffUL;
 		usb_dev_mph->dev.dma_mask = &usb_dev_mph->dev.coherent_dma_mask;
 
+		usb_data.have_sysif_regs = 1;
 		usb_data.operating_mode = FSL_USB2_MPH_HOST;
 
 		prop = of_get_property(np, "port0", NULL);
@@ -299,6 +300,7 @@ static int __init fsl_usb_of_init(void)
 
 		prop = of_get_property(np, "dr_mode", NULL);
 
+		usb_data.have_sysif_regs = 1;
 		if (!prop || !strcmp(prop, "host")) {
 			usb_data.operating_mode = FSL_USB2_DR_HOST;
 			usb_dev_dr_host = platform_device_register_simple(
