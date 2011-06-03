@@ -749,13 +749,10 @@ static void dpa_set_multicast_list(struct net_device *net_dev)
 static int dpa_process_one(struct dpa_percpu_priv_s *percpu_priv,
 		struct sk_buff *skb, struct dpa_bp *bp, const struct qm_fd *fd)
 {
-	int *countptr;
 	int cache_fudge = (fd->addr_lo - (u32)skb->head) & (PAGE_SIZE - 1);
 	int data_start;
 
-	countptr = per_cpu_ptr(bp->percpu_count, smp_processor_id());
-
-	(*countptr)--;
+	(*percpu_priv->dpa_bp_count)--;
 
 	/*
 	 * The skb is currently pointed at head + NET_SKB_PAD. The packet
@@ -820,7 +817,6 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 		const struct qm_fd *fd)
 {
 	int _errno;
-	int *countptr;
 	struct dpa_bp *dpa_bp;
 	struct sk_buff *skb;
 	struct sk_buff **skbh;
@@ -893,8 +889,7 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 	return;
 
 drop_large_frame:
-	countptr = per_cpu_ptr(dpa_bp->percpu_count, smp_processor_id());
-	(*countptr)++;
+	(*percpu_priv->dpa_bp_count)++;
 	skb_recycle(skb);
 _return_dpa_fd_release:
 	_errno = dpa_fd_release(net_dev, fd);
@@ -936,14 +931,10 @@ static int dpaa_eth_poll(struct napi_struct *napi, int budget)
 {
 	struct dpa_percpu_priv_s *percpu_priv;
 	int cleaned = qman_poll_dqrr(budget);
-	int *countptr;
 
 	percpu_priv = container_of(napi, struct dpa_percpu_priv_s, napi);
 
-	countptr = per_cpu_ptr(percpu_priv->dpa_bp->percpu_count,
-				smp_processor_id());
-
-	if (*countptr < DEFAULT_COUNT / 4) {
+	if (*percpu_priv->dpa_bp_count < DEFAULT_COUNT / 4) {
 		int i;
 
 		for (i = 0; i < percpu_priv->dpa_bp->count; i += 8)
@@ -1197,7 +1188,6 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	dma_addr_t addr;
 	struct dpa_bp *dpa_bp;
 	int queue_mapping;
-	int *countptr;
 	int err;
 	int cache_fudge;
 	int needed_headroom;
@@ -1239,8 +1229,6 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	dpa_bp = priv->dpa_bp;
 
-	countptr = per_cpu_ptr(dpa_bp->percpu_count, smp_processor_id());
-
 	/* Enable L3/L4 hardware checksum computation.
 	 *
 	 * We must do this before dma_map_single(DMA_TO_DEVICE), because we may
@@ -1274,12 +1262,12 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 #endif
 
 	if (likely(skb_is_recycleable(skb, dpa_bp->skb_size)
-			&& (*countptr + 1 <= dpa_bp->count))) {
+			&& (*percpu_priv->dpa_bp_count + 1 <= dpa_bp->count))) {
 		fd.cmd |= FM_FD_CMD_FCO;
 		fd.bpid = dpa_bp->bpid;
 		skb_recycle(skb);
 		skb = NULL;
-		(*countptr)++;
+		(*percpu_priv->dpa_bp_count)++;
 		percpu_priv->tx_returned++;
 	}
 
@@ -1287,7 +1275,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	if (unlikely(err < 0)) {
 		if (fd.cmd & FM_FD_CMD_FCO)
-			(*countptr)--;
+			(*percpu_priv->dpa_bp_count)--;
 		goto xmit_failed;
 	}
 
@@ -1910,7 +1898,6 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 	struct dpa_priv_s		*priv;
 	struct dpa_percpu_priv_s	*percpu_priv, total;
 	struct dpa_bp *dpa_bp;
-	int *countptr;
 	unsigned int count_total = 0;
 
 	BUG_ON(offset == NULL);
@@ -1924,13 +1911,12 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 	seq_printf(file, "\tirqs\trx\trecycle\tconfirm\tbp count\tneed\n");
 	for_each_online_cpu(i) {
 		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
-		countptr = per_cpu_ptr(dpa_bp->percpu_count, i);
 
 		total.in_interrupt += percpu_priv->in_interrupt;
 		total.ingress_calls += percpu_priv->stats.rx_packets;
 		total.tx_returned += percpu_priv->tx_returned;
 		total.tx_confirm += percpu_priv->tx_confirm;
-		count_total += *countptr;
+		count_total += *percpu_priv->dpa_bp_count;
 
 		seq_printf(file, "%hu/%hu\t%u\t%lu\t%u\t%u\t%d\n",
 				get_hard_smp_processor_id(i), i,
@@ -1938,7 +1924,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 				percpu_priv->stats.rx_packets,
 				percpu_priv->tx_returned,
 				percpu_priv->tx_confirm,
-				*countptr);
+				*percpu_priv->dpa_bp_count);
 	}
 	seq_printf(file, "Total\t%u\t%u\t%u\t%u\t%d\n",
 			total.in_interrupt,
@@ -2351,6 +2337,8 @@ static int dpa_private_netdev_init(struct device_node *dpa_node,
 		percpu_priv->net_dev = net_dev;
 
 		percpu_priv->dpa_bp = priv->dpa_bp;
+		percpu_priv->dpa_bp_count =
+			per_cpu_ptr(priv->dpa_bp->percpu_count, i);
 		netif_napi_add(net_dev, &percpu_priv->napi, dpaa_eth_poll,
 			       DPA_NAPI_WEIGHT);
 	}

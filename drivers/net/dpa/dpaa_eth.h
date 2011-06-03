@@ -67,7 +67,7 @@ struct dpa_bp {
 	dma_addr_t			paddr;
 	void				*vaddr;
 	int kernel_pool;
-	int *percpu_count;
+	unsigned int *percpu_count;
 	int *needs_refill;
 	unsigned int skb_size;
 	atomic_t refs;
@@ -75,6 +75,7 @@ struct dpa_bp {
 
 struct dpa_percpu_priv_s {
 	struct net_device	*net_dev;
+	unsigned int *dpa_bp_count;
 	u32			start_tx;
 	u32			in_interrupt;
 	u32			ingress_calls;
