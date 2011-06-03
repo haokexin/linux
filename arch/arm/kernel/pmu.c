@@ -27,7 +27,7 @@
  * second goes to cpu 1 etc.
  */
 static const int irqs[] = {
-#if defined(CONFIG_ARCH_OMAP2)
+#if defined(CONFIG_ARCH_OMAP2) || defined(CONFIG_ARCH_OMAP2PLUS)
 	3,
 #elif defined(CONFIG_ARCH_BCMRING)
 	IRQ_PMUIRQ,
