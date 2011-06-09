@@ -1133,6 +1133,7 @@ int gdbstub_state(struct kgdb_state *ks, char *cmd)
 	case 'c':
 		strcpy(remcom_in_buffer, cmd);
 		return 0;
+	case '+':
 	case '$':
 		strcpy(remcom_in_buffer, cmd);
 		gdbstub_use_prev_in_buf = strlen(remcom_in_buffer);
