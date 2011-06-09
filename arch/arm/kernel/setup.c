@@ -52,6 +52,11 @@
 #define MEM_SIZE	(16*1024*1024)
 #endif
 
+#ifndef CONFIG_CC_OPTIMIZE_FOR_SIZE
+#warning Compiling ARM without -Os can lead to unpredictable results.
+#error Please select CONFIG_CC_OPTIMIZE_FOR_SIZE in your .config
+#endif
+
 #if defined(CONFIG_FPE_NWFPE) || defined(CONFIG_FPE_FASTFPE)
 char fpe_type[8];
 
