@@ -23,6 +23,10 @@
 #include <linux/mtd/mtd.h>
 #include <linux/mtd/physmap.h>
 #include <linux/mtd/partitions.h>
+
+#include <linux/spi/spi.h>
+#include <linux/spi/flash.h>
+
 #include <asm/setup.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -106,22 +110,67 @@ static void __init cns3420_early_serial_setup(void)
 #endif
 }
 
+
+/* SPI */
+static struct mtd_partition cns3xxx_spi_partitions[] = {
+	{
+		.name		= "SPI-UBoot",
+		.offset		= 0,
+		.size		= 0x40000,
+		.mask_flags	= MTD_WRITEABLE,
+	},
+	{
+		.name		= "SPI-FileSystem",
+		.offset		= 0x40000,
+		.size		= MTDPART_SIZ_FULL,
+		.mask_flags	= 0
+	},
+};
+
+static struct flash_platform_data cns3xxx_spi_flash_data = {
+	.parts		= cns3xxx_spi_partitions,
+	.nr_parts	= ARRAY_SIZE(cns3xxx_spi_partitions),
+};
+
+static struct spi_board_info __initdata cns3xxx_spi_devices[] = {
+	[0] = {
+		.modalias		= "m25p128",
+		.bus_num		= 1,
+		.chip_select		= 0,
+		.max_speed_hz		= 25 * 1000 * 1000,
+		.platform_data		= &cns3xxx_spi_flash_data,
+	}
+};
+
+static struct platform_device cns3xxx_spi_controller_device = {
+	.name		= "cns3xxx_spi",
+};
+
 /*
  * Initialization
  */
 static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3420_nor_pdev,
+	&cns3xxx_spi_controller_device,
 };
 
 static void __init cns3420_init(void)
 {
 	platform_add_devices(cns3420_pdevs, ARRAY_SIZE(cns3420_pdevs));
 
+	spi_register_board_info(cns3xxx_spi_devices,
+		ARRAY_SIZE(cns3xxx_spi_devices));
+
 	pm_power_off = cns3xxx_power_off;
 }
 
 static struct map_desc cns3420_io_desc[] __initdata = {
 	{
+		.virtual	= CNS3XXX_SSP_BASE_VIRT,
+		.pfn		= __phys_to_pfn(CNS3XXX_SSP_BASE),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
 		.virtual	= CNS3XXX_UART0_BASE_VIRT,
 		.pfn		= __phys_to_pfn(CNS3XXX_UART0_BASE),
 		.length		= SZ_4K,

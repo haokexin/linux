@@ -90,6 +90,14 @@ config SPI_BITBANG
 	  need it.  You only need to select this explicitly to support driver
 	  modules that aren't part of this kernel tree.
 
+config SPI_HW_REQUIRE_LAST_MESSAGE_NOTIFICATION
+	boolean "Hardware required last message notification"
+	depends on SPI_BITBANG
+	help
+	  Few SPI controller needs to do specificial handling for last
+	  message, this option is used to notify such hardware for the
+	  last message in the transfer queue.
+
 config SPI_BUTTERFLY
 	tristate "Parallel port adapter for AVR Butterfly (DEVELOPMENT)"
 	depends on PARPORT
@@ -325,6 +333,40 @@ config SPI_NUC900
 	select SPI_BITBANG
 	help
 	  SPI driver for Nuvoton NUC900 series ARM SoCs
+
+config SPI_CNS3XXX
+	tristate "CNS3XXX SPI controller"
+	depends on ARCH_CNS3XXX && SPI_MASTER && EXPERIMENTAL
+	select SPI_BITBANG
+	select SPI_HW_REQUIRE_LAST_MESSAGE_NOTIFICATION
+	help
+	  This enables using the CNS3XXX SPI controller in master
+	  mode.
+
+config SPI_CNS3XXX_DEBUG
+	boolean "Debug support for CNS3XXX SPI drivers"
+	depends on SPI_CNS3XXX
+	help
+	  Say "yes" to enable debug messaging
+
+config SPI_CNS3XXX_2IOREAD
+	bool "CNS3XXX SPI 2 IO Read Mode"
+	depends on SPI_CNS3XXX
+	help
+	  This enables 2 IO Read Mode
+
+config SPI_CNS3XXX_USEDMA
+	bool "CNS3XXX SPI DMA Mode"
+	depends on SPI_CNS3XXX
+	select CNS3XXX_DMAC
+	help
+	  This enables DMA Mode
+
+config SPI_CNS3XXX_USEDMA_DEBUG
+	boolean "Debug support for CNS3XXX SPI DMA drivers"
+	depends on SPI_CNS3XXX_USEDMA
+	help
+	  Say "yes" to enable debug messaging
 
 #
 # Add new SPI master controllers in alphabetical order above this line

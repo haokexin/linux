@@ -432,6 +432,9 @@ struct spi_transfer {
 	u16		delay_usecs;
 	u32		speed_hz;
 
+#ifdef CONFIG_SPI_HW_REQUIRE_LAST_MESSAGE_NOTIFICATION
+    unsigned    last_in_message_list;
+#endif
 	struct list_head transfer_list;
 };
 

@@ -51,6 +51,7 @@ obj-$(CONFIG_FSL_ESPI)			+= fsl_espi.o
 spi_s3c24xx_hw-y			:= spi_s3c24xx.o
 spi_s3c24xx_hw-$(CONFIG_SPI_S3C24XX_FIQ) += spi_s3c24xx_fiq.o
 
+obj-$(CONFIG_SPI_CNS3XXX)		+= spi_cns3xxx.o
 # 	... add above this line ...
 
 # SPI protocol drivers (device/link on bus)
