@@ -35,6 +35,10 @@
 #include <mach/hardware.h>
 #include <mach/cns3xxx.h>
 #include <mach/irqs.h>
+#ifdef CONFIG_CNS3XXX_DMAC
+#include <asm/dma.h>
+#include <mach/dmac.h>
+#endif
 #include "core.h"
 
 /*
@@ -156,6 +160,10 @@ static struct platform_device *cns3420_pdevs[] __initdata = {
 
 static void __init cns3420_init(void)
 {
+#ifdef CONFIG_CNS3XXX_DMAC
+	dmac_init();
+#endif
+
 	platform_add_devices(cns3420_pdevs, ARRAY_SIZE(cns3420_pdevs));
 
 	spi_register_board_info(cns3xxx_spi_devices,
@@ -173,6 +181,11 @@ static struct map_desc cns3420_io_desc[] __initdata = {
 	}, {
 		.virtual	= CNS3XXX_UART0_BASE_VIRT,
 		.pfn		= __phys_to_pfn(CNS3XXX_UART0_BASE),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= CNS3XXX_DMAC_BASE_VIRT,
+		.pfn		= __phys_to_pfn(CNS3XXX_DMAC_BASE),
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
 	},

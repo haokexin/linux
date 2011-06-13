@@ -9,4 +9,10 @@ config MACH_CNS3420VB
 	  This is a platform with an on-board ARM11 MPCore and has support
 	  for USB, USB-OTG, MMC/SD/SDIO, SATA, PCI-E, etc.
 
+config CNS3XXX_DMAC
+	bool "Support for CNS3XXX DMAC"
+	depends on ARCH_CNS3XXX
+	help
+	  Enable support for the CNS3XXX DMA controllers.
+
 endmenu
