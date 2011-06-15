@@ -180,6 +180,31 @@ static struct platform_device cns3xxx_spi_controller_device = {
 	.name		= "cns3xxx_spi",
 };
 
+/* USB */
+static struct resource cns3xxx_usb_ehci_resource[] = {
+	[0] = {
+		.start = CNS3XXX_USB_BASE,
+		.end   = CNS3XXX_USB_BASE + SZ_16M - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_CNS3XXX_USB_EHCI,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static u64 cns3xxx_usb_dma_mask = 0xffffffffULL;
+
+static struct platform_device cns3xxx_usb_ehci_device = {
+	.name		= "cns3xxx-ehci",
+	.num_resources	= ARRAY_SIZE(cns3xxx_usb_ehci_resource),
+	.resource	= cns3xxx_usb_ehci_resource,
+	.dev		= {
+		.dma_mask		= &cns3xxx_usb_dma_mask,
+		.coherent_dma_mask	= 0xffffffffULL,
+	},
+};
+
 /*
  * Initialization
  */
@@ -187,6 +212,7 @@ static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3420_nor_pdev,
 	&cns3xxx_gpio_device,
 	&cns3xxx_spi_controller_device,
+	&cns3xxx_usb_ehci_device,
 };
 
 static void __init cns3420_init(void)
@@ -222,6 +248,11 @@ static struct map_desc cns3420_io_desc[] __initdata = {
 	}, {
 		.virtual	= CNS3XXX_DMAC_BASE_VIRT,
 		.pfn		= __phys_to_pfn(CNS3XXX_DMAC_BASE),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
+		.virtual	= CNS3XXX_USB_BASE_VIRT,
+		.pfn		= __phys_to_pfn(CNS3XXX_USB_BASE),
 		.length		= SZ_4K,
 		.type		= MT_DEVICE,
 	},
