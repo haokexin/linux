@@ -114,6 +114,36 @@ static void __init cns3420_early_serial_setup(void)
 #endif
 }
 
+/* GPIO */
+static struct resource cns3xxx_gpio_resources[] = {
+	[0] = {
+		.start = CNS3XXX_GPIOA_BASE,
+		.end   = CNS3XXX_GPIOA_BASE + 0x44,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = CNS3XXX_GPIOB_BASE,
+		.end   = CNS3XXX_GPIOB_BASE + 0x44,
+		.flags = IORESOURCE_MEM,
+	},
+	[2] = {
+		.start = IRQ_CNS3XXX_GPIOA,
+		.end   = IRQ_CNS3XXX_GPIOA,
+		.flags = IORESOURCE_IRQ,
+	},
+	[3] = {
+		.start = IRQ_CNS3XXX_GPIOB,
+		.end   = IRQ_CNS3XXX_GPIOB,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device cns3xxx_gpio_device = {
+	.name		= "cns3xxx-gpio",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(cns3xxx_gpio_resources),
+	.resource	= cns3xxx_gpio_resources,
+};
 
 /* SPI */
 static struct mtd_partition cns3xxx_spi_partitions[] = {
@@ -155,6 +185,7 @@ static struct platform_device cns3xxx_spi_controller_device = {
  */
 static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3420_nor_pdev,
+	&cns3xxx_gpio_device,
 	&cns3xxx_spi_controller_device,
 };
 
