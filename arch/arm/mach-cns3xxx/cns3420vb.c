@@ -62,7 +62,11 @@ static struct mtd_partition cns3420_nor_partitions[] = {
 		.offset		= MTDPART_OFS_APPEND,
 	}, {
 		.name		= "filesystem2",
-		.size		= 0x0AE0000,
+		.size		= 0x0AC0000,
+		.offset		= MTDPART_OFS_APPEND,
+	}, {
+		.name		= "RTC Parameter",
+		.size		= 0x20000,
 		.offset		= MTDPART_OFS_APPEND,
 	}, {
 		.name		= "ubootenv",
@@ -299,11 +303,34 @@ static struct platform_device cns3xxx_watchdog_device = {
 	.resource	= cns3xxx_watchdog_resources,
 };
 
+
+/* RTC */
+static struct resource cns3xxx_rtc_resources[] = {
+	[0] = {
+		.start = CNS3XXX_RTC_BASE,
+		.end   = CNS3XXX_RTC_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_CNS3XXX_RTC,
+		.end   = IRQ_CNS3XXX_RTC,
+		.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device cns3xxx_rtc_device = {
+	.name		= "cns3xxx-rtc",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(cns3xxx_rtc_resources),
+	.resource	= cns3xxx_rtc_resources,
+};
+
 /*
  * Initialization
  */
 static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3420_nor_pdev,
+	&cns3xxx_rtc_device,
 	&cns3xxx_gpio_device,
 	&cns3xxx_watchdog_device,
 	&cns3xxx_spi_controller_device,
