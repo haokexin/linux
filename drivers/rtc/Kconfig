@@ -916,4 +916,13 @@ config RTC_DRV_MPC5121
 	  This driver can also be built as a module. If so, the module
 	  will be called rtc-mpc5121.
 
+config RTC_DRV_CNS3XXX
+	tristate "Cavium Networks CNS3XXX RTC"
+	depends on (ARCH_CNS3XXX && MTD)
+	help
+	  If you say Y here you will get access to RTC found on CNS3XXX SOCs.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called rtc-cns3xxx.
+
 endif # RTC_CLASS
