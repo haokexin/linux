@@ -278,12 +278,34 @@ static struct platform_device cns3xxx_sdhci_device = {
 	.resource	= cns3xxx_sdhci_resources,
 };
 
+/* Watchdog */
+static struct resource cns3xxx_watchdog_resources[] = {
+	[0] = {
+		.start = CNS3XXX_TC11MP_TWD_BASE,
+		.end   = CNS3XXX_TC11MP_TWD_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+	.start = IRQ_LOCALWDOG,
+	.end   = IRQ_LOCALWDOG,
+	.flags = IORESOURCE_IRQ,
+	}
+};
+
+static struct platform_device cns3xxx_watchdog_device = {
+	.name		= "cns3xxx-wdt",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(cns3xxx_watchdog_resources),
+	.resource	= cns3xxx_watchdog_resources,
+};
+
 /*
  * Initialization
  */
 static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3420_nor_pdev,
 	&cns3xxx_gpio_device,
+	&cns3xxx_watchdog_device,
 	&cns3xxx_spi_controller_device,
 	&cns3xxx_i2c_controller_device,
 	&cns3xxx_usb_ehci_device,
