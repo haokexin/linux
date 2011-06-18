@@ -29,6 +29,7 @@
 
 #include "cns3xxx.h"
 #include <linux/kernel.h>
+#include <linux/irq.h>
 
 #define SHOW_DEBUG_MESSAGE
 #ifdef SHOW_DEBUG_MESSAGE
@@ -537,6 +538,10 @@ static inline void cns3xxx_disable_irq(u32 irq)
 
 static inline void cns3xxx_enable_irq(u32 irq)
 {
+	struct irq_desc *desc = irq_to_desc(irq);
+	if (desc->depth == 0)
+		return ;
+
 	enable_irq(irq);
 }
 
