@@ -550,6 +550,7 @@
 
 void cns3xxx_pwr_soft_rst(unsigned int block);
 void cns3xxx_pwr_clk_en(unsigned int block);
+void cns3xxx_pwr_clk_dis(unsigned int block);
 int cns3xxx_cpu_clock(void);
 
 void cns3xxx_pwr_power_up(unsigned int block);

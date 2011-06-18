@@ -27,6 +27,8 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
 
+#include <linux/i2c.h>
+
 #include <asm/setup.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -180,6 +182,31 @@ static struct platform_device cns3xxx_spi_controller_device = {
 	.name		= "cns3xxx_spi",
 };
 
+/* I2C */
+static struct i2c_board_info __initdata cns3xxx_i2c_devices[] = {
+	{
+		I2C_BOARD_INFO("24c16", 0x50),
+	},
+};
+
+static struct resource cns3xxx_i2c_resource[] = {
+	[0] = {
+		.start		= CNS3XXX_SSP_BASE + 0x20,
+		.end		= 0x7100003f,
+		.flags		= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start		= IRQ_CNS3XXX_I2C,
+		.flags		= IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device cns3xxx_i2c_controller_device = {
+	.name = "cns3xxx-i2c",
+	.num_resources = 2,
+	.resource	= cns3xxx_i2c_resource,
+};
+
 /* USB */
 static struct resource cns3xxx_usb_ehci_resource[] = {
 	[0] = {
@@ -212,6 +239,7 @@ static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3420_nor_pdev,
 	&cns3xxx_gpio_device,
 	&cns3xxx_spi_controller_device,
+	&cns3xxx_i2c_controller_device,
 	&cns3xxx_usb_ehci_device,
 };
 
@@ -225,6 +253,9 @@ static void __init cns3420_init(void)
 
 	spi_register_board_info(cns3xxx_spi_devices,
 		ARRAY_SIZE(cns3xxx_spi_devices));
+
+	i2c_register_board_info(0, cns3xxx_i2c_devices,
+		ARRAY_SIZE(cns3xxx_i2c_devices));
 
 	pm_power_off = cns3xxx_power_off;
 }
