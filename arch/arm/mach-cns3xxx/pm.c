@@ -19,6 +19,14 @@ void cns3xxx_pwr_clk_en(unsigned int block)
 	__raw_writel(reg, PM_CLK_GATE_REG);
 }
 
+void cns3xxx_pwr_clk_dis(unsigned int block)
+{
+	u32 reg = __raw_readl(PM_CLK_GATE_REG);
+
+	reg &= ~(block&PM_CLK_GATE_REG_MASK);
+	__raw_writel(reg, PM_CLK_GATE_REG);
+}
+
 void cns3xxx_pwr_power_up(unsigned int block)
 {
 	u32 reg = __raw_readl(PM_PLL_HM_PD_CTRL_REG);
