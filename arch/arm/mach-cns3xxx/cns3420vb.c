@@ -205,6 +205,11 @@ static void __init cns3420_init(void)
 
 static struct map_desc cns3420_io_desc[] __initdata = {
 	{
+		.virtual	= CNS3XXX_SWITCH_BASE_VIRT,
+		.pfn		= __phys_to_pfn(CNS3XXX_SWITCH_BASE),
+		.length		= SZ_4K,
+		.type		= MT_DEVICE,
+	}, {
 		.virtual	= CNS3XXX_SSP_BASE_VIRT,
 		.pfn		= __phys_to_pfn(CNS3XXX_SSP_BASE),
 		.length		= SZ_4K,
