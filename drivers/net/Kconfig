@@ -2010,6 +2010,7 @@ menuconfig NETDEV_1000
 	  If you say N, all options in this submenu will be skipped and disabled.
 
 if NETDEV_1000
+source "drivers/net/cns3xxx/Kconfig"
 
 config ACENIC
 	tristate "Alteon AceNIC/3Com 3C985/NetGear GA620 Gigabit support"

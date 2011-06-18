@@ -10,6 +10,9 @@ obj-$(CONFIG_TI_DAVINCI_EMAC) += davinci_emac.o
 
 obj-$(CONFIG_E1000) += e1000/
 obj-$(CONFIG_E1000E) += e1000e/
+
+obj-$(CONFIG_CNS3XXX_GSW) += cns3xxx/
+
 obj-$(CONFIG_IBM_NEW_EMAC) += ibm_newemac/
 obj-$(CONFIG_IGB) += igb/
 obj-$(CONFIG_IGBVF) += igbvf/
