@@ -256,6 +256,29 @@ static struct platform_device cns3xxx_usb_otg_device = {
 };
 
 /*
+ * SDHCI
+ */
+static struct resource cns3xxx_sdhci_resources[] = {
+	[0] = {
+		.start = CNS3XXX_SDIO_BASE,
+		.end   = CNS3XXX_SDIO_BASE + SZ_4K - 1,
+		.flags = IORESOURCE_MEM,
+	},
+	[1] = {
+		.start = IRQ_CNS3XXX_SDIO,
+		.end   = IRQ_CNS3XXX_SDIO,
+		.flags = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device cns3xxx_sdhci_device = {
+	.name		= "sdhci-cns3xxx",
+	.id		= 0,
+	.num_resources	= ARRAY_SIZE(cns3xxx_sdhci_resources),
+	.resource	= cns3xxx_sdhci_resources,
+};
+
+/*
  * Initialization
  */
 static struct platform_device *cns3420_pdevs[] __initdata = {
@@ -265,6 +288,7 @@ static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3xxx_i2c_controller_device,
 	&cns3xxx_usb_ehci_device,
 	&cns3xxx_usb_otg_device,
+	&cns3xxx_sdhci_device,
 };
 
 static void __init cns3420_init(void)

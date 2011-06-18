@@ -293,6 +293,10 @@ static void sdhci_read_block_pio(struct sdhci_host *host)
 		}
 	}
 
+#ifdef CONFIG_MMC_SDHCI_CNS3XXX
+	flush_dcache_page(host->sg_miter.page);
+#endif
+
 	sg_miter_stop(&host->sg_miter);
 
 	local_irq_restore(flags);
