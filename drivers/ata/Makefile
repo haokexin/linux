@@ -20,6 +20,8 @@ obj-$(CONFIG_PDC_ADMA)		+= pdc_adma.o
 obj-$(CONFIG_SATA_FSL)		+= sata_fsl.o
 obj-$(CONFIG_PATA_MACIO)	+= pata_macio.o
 
+obj-$(CONFIG_SATA_CNS3XXX_AHCI) += cns3xxx_ahci.o
+
 obj-$(CONFIG_PATA_ALI)		+= pata_ali.o
 obj-$(CONFIG_PATA_AMD)		+= pata_amd.o
 obj-$(CONFIG_PATA_ARTOP)	+= pata_artop.o
