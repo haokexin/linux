@@ -325,6 +325,33 @@ static struct platform_device cns3xxx_rtc_device = {
 	.resource	= cns3xxx_rtc_resources,
 };
 
+/* SATA */
+static struct resource cns3xxx_ahci_resource[] = {
+	[0] = {
+		.start		= CNS3XXX_SATA2_BASE,
+		.end		= CNS3XXX_SATA2_BASE + CNS3XXX_SATA2_SIZE - 1,
+		.flags		= IORESOURCE_MEM,
+	},
+	[1] = {
+		.start		= IRQ_CNS3XXX_SATA,
+		.end		= IRQ_CNS3XXX_SATA,
+		.flags		= IORESOURCE_IRQ,
+	},
+};
+
+static u64 cns3xxx_device_ahci_dmamask = 0xffffffffUL;
+
+static struct platform_device cns3xxx_ahci_device = {
+	.name		= "cns3xxx_ahci",
+	.id		= -1,
+	.dev		= {
+		.dma_mask		= &cns3xxx_device_ahci_dmamask,
+		.coherent_dma_mask	= 0xffffffffUL,
+	},
+	.resource	= cns3xxx_ahci_resource,
+	.num_resources	= ARRAY_SIZE(cns3xxx_ahci_resource),
+};
+
 /*
  * Initialization
  */
@@ -338,6 +365,7 @@ static struct platform_device *cns3420_pdevs[] __initdata = {
 	&cns3xxx_usb_ehci_device,
 	&cns3xxx_usb_otg_device,
 	&cns3xxx_sdhci_device,
+	&cns3xxx_ahci_device,
 };
 
 static void __init cns3420_init(void)

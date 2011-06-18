@@ -219,6 +219,20 @@ config SATA_INIC162X
 	help
 	  This option enables support for Initio 162x Serial ATA.
 
+config SATA_CNS3XXX_AHCI
+        tristate "Cavium CNS3XXX AHCI SATA support"
+        help
+          This option enables support for AHCI Serial ATA support for Cavium CNS3XXX.
+
+          If unsure, say N.
+
+config SATA_CNS3XXX_SPREAD_SPECTRUM
+        bool "Enable Cavium CNS3XXX Spread Spectrum Support"
+        depends on SATA_CNS3XXX_AHCI
+        default n
+        help
+          This option enables Spread Spectrum support for Cavium CNS3XXX AHCI Block
+
 config PATA_ACPI
 	tristate "ACPI firmware driver for PATA"
 	depends on ATA_ACPI
