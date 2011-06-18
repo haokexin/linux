@@ -3125,23 +3125,10 @@ static int cns3xxx_notify_reboot(
 }
 
 #ifdef CONFIG_CNS3XXX_NAPI
-static struct net_device *init_napi_dev(
-	struct net_device *ndev, const struct RingInfo *ring_info)
+static struct net_device *init_napi_dev(struct net_device *ndev)
 {
 	struct CNS3XXXPrivate *priv;
-
-	ndev = alloc_etherdev(sizeof(struct CNS3XXXPrivate));
-	if (!ndev) {
-		printk(KERN_ERR "Cannot allocate NAPI virtual device\n");
-		BUG();
-	}
 	priv = netdev_priv(ndev);
-	memset(priv, 0, sizeof(struct CNS3XXXPrivate));
-
-	priv->num_rx_queues = ring_info->num_rx_queues;
-	priv->num_tx_queues = ring_info->num_tx_queues;
-	priv->rx_ring = ring_info->rx_ring;
-	priv->tx_ring = ring_info->tx_ring;
 
 	netif_napi_add(ndev, &priv->napi , cns3xxx_poll, CNS3XXX_NAPI_WEIGHT);
 	dev_hold(ndev);
@@ -3286,9 +3273,9 @@ static int __init cns3xxx_init_module(void)
 	spin_lock_init(&rx_lock);
 
 #ifdef CONFIG_CNS3XXX_NAPI
-	napi_dev = init_napi_dev(napi_dev, &ring_info);
+	napi_dev = init_napi_dev(intr_netdev);
 #ifdef CNS3XXX_DOUBLE_RX_RING
-	r1_napi_dev = init_napi_dev(r1_napi_dev, &ring_info);
+	r1_napi_dev = init_napi_dev(intr_netdev);
 #endif
 #endif
 	register_reboot_notifier(&cns3xxx_notifier_reboot);
