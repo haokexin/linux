@@ -1170,7 +1170,8 @@ static inline int wait_for_mdio(struct greth_private *greth)
 	return 1;
 }
 
-static int greth_mdio_read(struct mii_bus *bus, int phy, int reg)
+static int greth_mdio_read(struct mii_bus *bus, int phy,
+				int devad, int reg)
 {
 	struct greth_private *greth = bus->priv;
 	int data;
@@ -1192,7 +1193,8 @@ static int greth_mdio_read(struct mii_bus *bus, int phy, int reg)
 	}
 }
 
-static int greth_mdio_write(struct mii_bus *bus, int phy, int reg, u16 val)
+static int greth_mdio_write(struct mii_bus *bus, int phy,
+				int devad, int reg, u16 val)
 {
 	struct greth_private *greth = bus->priv;
 

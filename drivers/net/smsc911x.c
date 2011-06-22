@@ -314,7 +314,8 @@ static void smsc911x_mac_write(struct smsc911x_data *pdata,
 }
 
 /* Get a phy register */
-static int smsc911x_mii_read(struct mii_bus *bus, int phyaddr, int regidx)
+static int smsc911x_mii_read(struct mii_bus *bus, int phyaddr,
+				int devad, int regidx)
 {
 	struct smsc911x_data *pdata = (struct smsc911x_data *)bus->priv;
 	unsigned long flags;
@@ -351,8 +352,8 @@ out:
 }
 
 /* Set a phy register */
-static int smsc911x_mii_write(struct mii_bus *bus, int phyaddr, int regidx,
-			   u16 val)
+static int smsc911x_mii_write(struct mii_bus *bus, int phyaddr, int devad,
+				int regidx, u16 val)
 {
 	struct smsc911x_data *pdata = (struct smsc911x_data *)bus->priv;
 	unsigned long flags;
@@ -582,10 +583,11 @@ static int smsc911x_phy_reset(struct smsc911x_data *pdata)
 	BUG_ON(!phy_dev->bus);
 
 	SMSC_TRACE(HW, "Performing PHY BCR Reset");
-	smsc911x_mii_write(phy_dev->bus, phy_dev->addr, MII_BMCR, BMCR_RESET);
+	smsc911x_mii_write(phy_dev->bus, phy_dev->addr, 0,
+				MII_BMCR, BMCR_RESET);
 	do {
 		msleep(1);
-		temp = smsc911x_mii_read(phy_dev->bus, phy_dev->addr,
+		temp = smsc911x_mii_read(phy_dev->bus, phy_dev->addr, 0,
 			MII_BMCR);
 	} while ((i--) && (temp & BMCR_RESET));
 
@@ -634,7 +636,7 @@ static int smsc911x_phy_loopbacktest(struct net_device *dev)
 
 	for (i = 0; i < 10; i++) {
 		/* Set PHY to 10/FD, no ANEG, and loopback mode */
-		smsc911x_mii_write(phy_dev->bus, phy_dev->addr,	MII_BMCR,
+		smsc911x_mii_write(phy_dev->bus, phy_dev->addr,	0, MII_BMCR,
 			BMCR_LOOPBACK | BMCR_FULLDPLX);
 
 		/* Enable MAC tx/rx, FD */
@@ -663,7 +665,7 @@ static int smsc911x_phy_loopbacktest(struct net_device *dev)
 	spin_unlock_irqrestore(&pdata->mac_lock, flags);
 
 	/* Cancel PHY loopback mode */
-	smsc911x_mii_write(phy_dev->bus, phy_dev->addr, MII_BMCR, 0);
+	smsc911x_mii_write(phy_dev->bus, phy_dev->addr, 0, MII_BMCR, 0);
 
 	smsc911x_reg_write(pdata, TX_CFG, 0);
 	smsc911x_reg_write(pdata, RX_CFG, 0);
@@ -1628,7 +1630,8 @@ smsc911x_ethtool_getregs(struct net_device *dev, struct ethtool_regs *regs,
 	}
 
 	for (i = 0; i <= 31; i++)
-		data[j++] = smsc911x_mii_read(phy_dev->bus, phy_dev->addr, i);
+		data[j++] = smsc911x_mii_read(phy_dev->bus, phy_dev->addr,
+						0, i);
 }
 
 static void smsc911x_eeprom_enable_access(struct smsc911x_data *pdata)

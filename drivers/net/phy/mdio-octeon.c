@@ -24,7 +24,8 @@ struct octeon_mdiobus {
 	int phy_irq[PHY_MAX_ADDR];
 };
 
-static int octeon_mdiobus_read(struct mii_bus *bus, int phy_id, int regnum)
+static int octeon_mdiobus_read(struct mii_bus *bus, int phy_id,
+				int devad, int regnum)
 {
 	struct octeon_mdiobus *p = bus->priv;
 	union cvmx_smix_cmd smi_cmd;
@@ -53,7 +54,7 @@ static int octeon_mdiobus_read(struct mii_bus *bus, int phy_id, int regnum)
 }
 
 static int octeon_mdiobus_write(struct mii_bus *bus, int phy_id,
-				int regnum, u16 val)
+				int devad, int regnum, u16 val)
 {
 	struct octeon_mdiobus *p = bus->priv;
 	union cvmx_smix_cmd smi_cmd;

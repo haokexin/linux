@@ -115,7 +115,8 @@ static int fixed_phy_update_regs(struct fixed_phy *fp)
 	return 0;
 }
 
-static int fixed_mdio_read(struct mii_bus *bus, int phy_id, int reg_num)
+static int fixed_mdio_read(struct mii_bus *bus, int phy_id, int devad,
+				int reg_num)
 {
 	struct fixed_mdio_bus *fmb = bus->priv;
 	struct fixed_phy *fp;
@@ -138,8 +139,8 @@ static int fixed_mdio_read(struct mii_bus *bus, int phy_id, int reg_num)
 	return 0xFFFF;
 }
 
-static int fixed_mdio_write(struct mii_bus *bus, int phy_id, int reg_num,
-			    u16 val)
+static int fixed_mdio_write(struct mii_bus *bus, int phy_id, int devad,
+			    int reg_num, u16 val)
 {
 	return 0;
 }

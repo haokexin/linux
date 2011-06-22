@@ -500,7 +500,8 @@ static void	panic_queues(struct net_device *dev);
 
 static void tc35815_restart_work(struct work_struct *work);
 
-static int tc_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+static int tc_mdio_read(struct mii_bus *bus, int mii_id,
+				int devad, int regnum)
 {
 	struct net_device *dev = bus->priv;
 	struct tc35815_regs __iomem *tr =
@@ -517,7 +518,8 @@ static int tc_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 	return tc_readl(&tr->MD_Data) & 0xffff;
 }
 
-static int tc_mdio_write(struct mii_bus *bus, int mii_id, int regnum, u16 val)
+static int tc_mdio_write(struct mii_bus *bus, int mii_id,
+				int devad, int regnum, u16 val)
 {
 	struct net_device *dev = bus->priv;
 	struct tc35815_regs __iomem *tr =

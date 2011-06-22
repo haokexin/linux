@@ -18,7 +18,8 @@
 /* ---------------------------------------------------------------------
  * MDIO Bus functions
  */
-static int temac_mdio_read(struct mii_bus *bus, int phy_id, int reg)
+static int temac_mdio_read(struct mii_bus *bus, int phy_id,
+				int devad, int reg)
 {
 	struct temac_local *lp = bus->priv;
 	u32 rc;
@@ -37,7 +38,8 @@ static int temac_mdio_read(struct mii_bus *bus, int phy_id, int reg)
 	return rc;
 }
 
-static int temac_mdio_write(struct mii_bus *bus, int phy_id, int reg, u16 val)
+static int temac_mdio_write(struct mii_bus *bus, int phy_id,
+				int devad, int reg, u16 val)
 {
 	struct temac_local *lp = bus->priv;
 

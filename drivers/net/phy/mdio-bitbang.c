@@ -119,7 +119,7 @@ static void mdiobb_cmd(struct mdiobb_ctrl *ctrl, int read, u8 phy, u8 reg)
 }
 
 
-static int mdiobb_read(struct mii_bus *bus, int phy, int reg)
+static int mdiobb_read(struct mii_bus *bus, int phy, int devad, int reg)
 {
 	struct mdiobb_ctrl *ctrl = bus->priv;
 	int ret, i;
@@ -143,7 +143,8 @@ static int mdiobb_read(struct mii_bus *bus, int phy, int reg)
 	return ret;
 }
 
-static int mdiobb_write(struct mii_bus *bus, int phy, int reg, u16 val)
+static int mdiobb_write(struct mii_bus *bus, int phy, int devad, int reg,
+				u16 val)
 {
 	struct mdiobb_ctrl *ctrl = bus->priv;
 

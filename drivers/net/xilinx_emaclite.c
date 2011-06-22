@@ -747,7 +747,8 @@ static int xemaclite_mdio_wait(struct net_local *lp)
  *
  * Return:	Value read from the MII management register
  */
-static int xemaclite_mdio_read(struct mii_bus *bus, int phy_id, int reg)
+static int xemaclite_mdio_read(struct mii_bus *bus, int phy_id,
+				int devad, int reg)
 {
 	struct net_local *lp = bus->priv;
 	u32 ctrl_reg;
@@ -789,8 +790,8 @@ static int xemaclite_mdio_read(struct mii_bus *bus, int phy_id, int reg)
  * This fucntion waits till the device is ready to accept a new MDIO
  * request and then writes the val to the MDIO Write Data register.
  */
-static int xemaclite_mdio_write(struct mii_bus *bus, int phy_id, int reg,
-				u16 val)
+static int xemaclite_mdio_write(struct mii_bus *bus, int phy_id, int devad,
+					int reg, u16 val)
 {
 	struct net_local *lp = bus->priv;
 	u32 ctrl_reg;

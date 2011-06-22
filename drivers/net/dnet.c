@@ -99,7 +99,8 @@ static void __devinit dnet_get_hwaddr(struct dnet *bp)
 		memcpy(bp->dev->dev_addr, addr, sizeof(addr));
 }
 
-static int dnet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+static int dnet_mdio_read(struct mii_bus *bus, int mii_id,
+				int devad, int regnum)
 {
 	struct dnet *bp = bus->priv;
 	u16 value;
@@ -131,8 +132,8 @@ static int dnet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 	return value;
 }
 
-static int dnet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
-			   u16 value)
+static int dnet_mdio_write(struct mii_bus *bus, int mii_id, int devad,
+				int regnum, u16 value)
 {
 	struct dnet *bp = bus->priv;
 	u16 tmp;

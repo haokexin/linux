@@ -208,14 +208,14 @@ EXPORT_SYMBOL(mdiobus_scan);
  * because the bus read/write functions may wait for an interrupt
  * to conclude the operation.
  */
-int mdiobus_read(struct mii_bus *bus, int addr, u16 regnum)
+int mdiobus_read(struct mii_bus *bus, int addr, int devad, u16 regnum)
 {
 	int retval;
 
 	BUG_ON(in_interrupt());
 
 	mutex_lock(&bus->mdio_lock);
-	retval = bus->read(bus, addr, regnum);
+	retval = bus->read(bus, addr, devad, regnum);
 	mutex_unlock(&bus->mdio_lock);
 
 	return retval;
@@ -233,14 +233,14 @@ EXPORT_SYMBOL(mdiobus_read);
  * because the bus read/write functions may wait for an interrupt
  * to conclude the operation.
  */
-int mdiobus_write(struct mii_bus *bus, int addr, u16 regnum, u16 val)
+int mdiobus_write(struct mii_bus *bus, int addr, int devad, u16 regnum, u16 val)
 {
 	int err;
 
 	BUG_ON(in_interrupt());
 
 	mutex_lock(&bus->mdio_lock);
-	err = bus->write(bus, addr, regnum, val);
+	err = bus->write(bus, addr, devad, regnum, val);
 	mutex_unlock(&bus->mdio_lock);
 
 	return err;

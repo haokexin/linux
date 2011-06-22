@@ -912,7 +912,8 @@ static int tg3_bmcr_reset(struct tg3 *tp)
 	return 0;
 }
 
-static int tg3_mdio_read(struct mii_bus *bp, int mii_id, int reg)
+static int tg3_mdio_read(struct mii_bus *bp, int mii_id,
+				int devad, int reg)
 {
 	struct tg3 *tp = bp->priv;
 	u32 val;
@@ -927,7 +928,8 @@ static int tg3_mdio_read(struct mii_bus *bp, int mii_id, int reg)
 	return val;
 }
 
-static int tg3_mdio_write(struct mii_bus *bp, int mii_id, int reg, u16 val)
+static int tg3_mdio_write(struct mii_bus *bp, int mii_id,
+				int devad, int reg, u16 val)
 {
 	struct tg3 *tp = bp->priv;
 	u32 ret = 0;

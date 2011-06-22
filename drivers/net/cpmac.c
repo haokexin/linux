@@ -271,7 +271,8 @@ static void cpmac_dump_skb(struct net_device *dev, struct sk_buff *skb)
 	printk("\n");
 }
 
-static int cpmac_mdio_read(struct mii_bus *bus, int phy_id, int reg)
+static int cpmac_mdio_read(struct mii_bus *bus, int phy_id,
+				int devad, int reg)
 {
 	u32 val;
 
@@ -285,7 +286,7 @@ static int cpmac_mdio_read(struct mii_bus *bus, int phy_id, int reg)
 }
 
 static int cpmac_mdio_write(struct mii_bus *bus, int phy_id,
-			    int reg, u16 val)
+			    int devad, int reg, u16 val)
 {
 	while (cpmac_read(bus->priv, CPMAC_MDIO_ACCESS(0)) & MDIO_BUSY)
 		cpu_relax();

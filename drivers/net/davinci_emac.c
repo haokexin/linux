@@ -2240,7 +2240,8 @@ void emac_poll_controller(struct net_device *ndev)
 		while ((emac_mdio_read((MDIO_USERACCESS(0))) &\
 			MDIO_USERACCESS_GO) != 0)
 
-static int emac_mii_read(struct mii_bus *bus, int phy_id, int phy_reg)
+static int emac_mii_read(struct mii_bus *bus, int phy_id, int devad,
+				int phy_reg)
 {
 	unsigned int phy_data = 0;
 	unsigned int phy_control;
@@ -2262,7 +2263,7 @@ static int emac_mii_read(struct mii_bus *bus, int phy_id, int phy_reg)
 
 }
 
-static int emac_mii_write(struct mii_bus *bus, int phy_id,
+static int emac_mii_write(struct mii_bus *bus, int phy_id, int devad,
 			  int phy_reg, u16 phy_data)
 {
 

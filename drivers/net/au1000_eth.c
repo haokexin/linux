@@ -230,7 +230,8 @@ static void au1000_mdio_write(struct net_device *dev, int phy_addr,
 	*mii_control_reg = mii_control;
 }
 
-static int au1000_mdiobus_read(struct mii_bus *bus, int phy_addr, int regnum)
+static int au1000_mdiobus_read(struct mii_bus *bus, int phy_addr, int devad,
+				int regnum)
 {
 	/* WARNING: bus->phy_map[phy_addr].attached_dev == dev does
 	 * _NOT_ hold (e.g. when PHY is accessed through other MAC's MII bus) */
@@ -241,8 +242,8 @@ static int au1000_mdiobus_read(struct mii_bus *bus, int phy_addr, int regnum)
 	return au1000_mdio_read(dev, phy_addr, regnum);
 }
 
-static int au1000_mdiobus_write(struct mii_bus *bus, int phy_addr, int regnum,
-				u16 value)
+static int au1000_mdiobus_write(struct mii_bus *bus, int phy_addr, int devad,
+				int regnum, u16 value)
 {
 	struct net_device *const dev = bus->priv;
 

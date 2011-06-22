@@ -6,7 +6,7 @@
  *
  * Author: Andy Fleming
  *
- * Copyright (c) 2004 Freescale Semiconductor, Inc.
+ * Copyright (c) 2004-2006, 2008-2009 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -29,6 +29,7 @@
 #include <linux/module.h>
 #include <linux/mii.h>
 #include <linux/ethtool.h>
+#include <linux/mdio.h>
 #include <linux/phy.h>
 
 #include <asm/io.h>
@@ -51,6 +52,7 @@ static void phy_device_release(struct device *dev)
 }
 
 static struct phy_driver genphy_driver;
+static struct phy_driver gen10g_driver;
 extern int mdio_bus_init(void);
 extern void mdio_bus_exit(void);
 
@@ -195,23 +197,29 @@ EXPORT_SYMBOL(phy_device_create);
 int get_phy_id(struct mii_bus *bus, int addr, u32 *phy_id)
 {
 	int phy_reg;
+	int i;
 
-	/* Grab the bits from PHYIR1, and put them
-	 * in the upper half */
-	phy_reg = bus->read(bus, addr, MII_PHYSID1);
+	for (i = 1; i < 5; i++) {
+		/* Grab the bits from PHYIR1, and put them
+		 * in the upper half */
+		phy_reg = bus->read(bus, addr, i, MII_PHYSID1);
 
-	if (phy_reg < 0)
-		return -EIO;
+		if (phy_reg < 0)
+			return -EIO;
 
-	*phy_id = (phy_reg & 0xffff) << 16;
+		*phy_id = (phy_reg & 0xffff) << 16;
 
-	/* Grab the bits from PHYIR2, and put them in the lower half */
-	phy_reg = bus->read(bus, addr, MII_PHYSID2);
+		/* Grab the bits from PHYIR2, and put them in the lower half */
+		phy_reg = bus->read(bus, addr, i, MII_PHYSID2);
 
-	if (phy_reg < 0)
-		return -EIO;
+		if (phy_reg < 0)
+			return -EIO;
 
-	*phy_id |= (phy_reg & 0xffff);
+		*phy_id |= (phy_reg & 0xffff);
+
+		if (*phy_id != 0xffffffff)
+			break;
+	}
 
 	return 0;
 }
@@ -418,21 +426,24 @@ int phy_init_hw(struct phy_device *phydev)
  *
  * Description: Called by drivers to attach to a particular PHY
  *     device. The phy_device is found, and properly hooked up
- *     to the phy_driver.  If no driver is attached, then the
- *     genphy_driver is used.  The phy_device is given a ptr to
+ *     to the phy_driver.  If no driver is attached, then a
+ *     generic driver is used.  The phy_device is given a ptr to
  *     the attaching device, and given a callback for link status
  *     change.  The phy_device is returned to the attaching driver.
  */
 int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
 		      u32 flags, phy_interface_t interface)
 {
+	int err = 0;
 	struct device *d = &phydev->dev;
 
 	/* Assume that if there is no driver, that it doesn't
 	 * exist, and we should use the genphy driver. */
 	if (NULL == d->driver) {
-		int err;
-		d->driver = &genphy_driver.driver;
+		if (interface == PHY_INTERFACE_MODE_XGMII)
+			d->driver = &gen10g_driver.driver;
+		else
+			d->driver = &genphy_driver.driver;
 
 		err = d->driver->probe(d);
 		if (err >= 0)
@@ -444,7 +455,8 @@ int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
 
 	if (phydev->attached_dev) {
 		dev_err(&dev->dev, "PHY already attached\n");
-		return -EBUSY;
+		err = -EBUSY;
+		goto err_already_attached;
 	}
 
 	phydev->attached_dev = dev;
@@ -456,7 +468,26 @@ int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
 	/* Do initial configuration here, now that
 	 * we have certain key parameters
 	 * (dev_flags and interface) */
-	return phy_init_hw(phydev);
+ 	if (phydev->drv->config_init) {
+ 		err = phy_scan_fixups(phydev);
+ 
+ 		if (err < 0)
+			goto err_fixups_failed;
+ 
+ 		err = phydev->drv->config_init(phydev);
+ 
+ 		if (err < 0)
+			goto err_config_failed;
+ 	}
+ 
+ 	return 0;
+
+err_config_failed:
+err_fixups_failed:
+err_already_attached:
+	phy_detach(phydev);
+
+	return err;
 }
 EXPORT_SYMBOL(phy_attach_direct);
 
@@ -508,6 +539,8 @@ void phy_detach(struct phy_device *phydev)
 	 * from the generic driver so that there's a chance a
 	 * real driver could be loaded */
 	if (phydev->dev.driver == &genphy_driver.driver)
+		device_release_driver(&phydev->dev);
+	else if (phydev->dev.driver == &gen10g_driver.driver)
 		device_release_driver(&phydev->dev);
 }
 EXPORT_SYMBOL(phy_detach);
@@ -591,6 +624,12 @@ int genphy_config_advert(struct phy_device *phydev)
 }
 EXPORT_SYMBOL(genphy_config_advert);
 
+int gen10g_config_advert(struct phy_device *dev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(gen10g_config_advert);
+
 /**
  * genphy_setup_forced - configures/forces speed/duplex from @phydev
  * @phydev: target phy_device struct
@@ -619,6 +658,10 @@ int genphy_setup_forced(struct phy_device *phydev)
 	return err;
 }
 
+int gen10g_setup_forced(struct phy_device *phydev)
+{
+	return 0;
+}
 
 /**
  * genphy_restart_aneg - Enable and Restart Autonegotiation
@@ -643,6 +686,12 @@ int genphy_restart_aneg(struct phy_device *phydev)
 	return ctl;
 }
 EXPORT_SYMBOL(genphy_restart_aneg);
+
+int gen10g_restart_aneg(struct phy_device *phydev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(gen10g_restart_aneg);
 
 
 /**
@@ -685,6 +734,12 @@ int genphy_config_aneg(struct phy_device *phydev)
 	return result;
 }
 EXPORT_SYMBOL(genphy_config_aneg);
+
+int gen10g_config_aneg(struct phy_device *phydev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(gen10g_config_aneg);
 
 /**
  * genphy_update_link - update link status in @phydev
@@ -815,6 +870,33 @@ int genphy_read_status(struct phy_device *phydev)
 }
 EXPORT_SYMBOL(genphy_read_status);
 
+int gen10g_read_status(struct phy_device *phydev)
+{
+	int devad, reg;
+	u32 mmd_mask = phydev->mmds;
+
+	phydev->link = 1;
+
+	/* For now just lie and say it's 10G all the time */
+	phydev->speed = 10000;
+	phydev->duplex = DUPLEX_FULL;
+
+	for (devad = 0; mmd_mask; devad++, mmd_mask = mmd_mask >> 1) {
+		if (!mmd_mask & 1)
+			continue;
+
+		/* Read twice because link state is latched and a
+		 * read moves the current state into the register */
+		phy45_read(phydev, devad, MDIO_STAT1);
+		reg = phy45_read(phydev, devad, MDIO_STAT1);
+		if (reg < 0 || !(reg & MDIO_STAT1_LSTATUS))
+			phydev->link = 0;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(gen10g_read_status);
+
 static int genphy_config_init(struct phy_device *phydev)
 {
 	int val;
@@ -861,6 +943,36 @@ static int genphy_config_init(struct phy_device *phydev)
 
 	return 0;
 }
+
+/* Replicate mdio45_probe */
+int gen10g_config_init(struct phy_device *phydev)
+{
+	int mmd, stat2, devs1, devs2;
+
+	phydev->supported = phydev->advertising = SUPPORTED_10000baseT_Full;
+
+	/* Assume PHY must have at least one of PMA/PMD, WIS, PCS, PHY
+	 * XS or DTE XS; give up if none is present. */
+	for (mmd = 1; mmd <= 5; mmd++) {
+		/* Is this MMD present? */
+		stat2 = phy45_read(phydev, mmd, MDIO_STAT2);
+		if (stat2 < 0 ||
+			(stat2 & MDIO_STAT2_DEVPRST) != MDIO_STAT2_DEVPRST_VAL)
+			continue;
+
+		/* It should tell us about all the other MMDs */
+		devs1 = phy45_read(phydev, mmd, MDIO_DEVS1);
+		devs2 = phy45_read(phydev, mmd, MDIO_DEVS2);
+		if (devs1 < 0 || devs2 < 0)
+			continue;
+
+		phydev->mmds = devs1 | (devs2 << 16);
+		return 0;
+	}
+
+	return -ENODEV;
+}
+
 int genphy_suspend(struct phy_device *phydev)
 {
 	int value;
@@ -876,6 +988,12 @@ int genphy_suspend(struct phy_device *phydev)
 }
 EXPORT_SYMBOL(genphy_suspend);
 
+int gen10g_suspend(struct phy_device *phydev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(gen10g_suspend);
+
 int genphy_resume(struct phy_device *phydev)
 {
 	int value;
@@ -890,6 +1008,13 @@ int genphy_resume(struct phy_device *phydev)
 	return 0;
 }
 EXPORT_SYMBOL(genphy_resume);
+
+int gen10g_resume(struct phy_device *phydev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(gen10g_resume);
+
 
 /**
  * phy_probe - probe and init a PHY device
@@ -1001,7 +1126,20 @@ static struct phy_driver genphy_driver = {
 	.read_status	= genphy_read_status,
 	.suspend	= genphy_suspend,
 	.resume		= genphy_resume,
-	.driver		= {.owner= THIS_MODULE, },
+	.driver		= {.owner = THIS_MODULE, },
+};
+
+static struct phy_driver gen10g_driver = {
+	.phy_id		= 0xffffffff,
+	.phy_id_mask	= 0xffffffff,
+	.name		= "Generic 10G PHY",
+	.config_init	= gen10g_config_init,
+	.features	= 0,
+	.config_aneg	= gen10g_config_aneg,
+	.read_status	= gen10g_read_status,
+	.suspend	= gen10g_suspend,
+	.resume		= gen10g_resume,
+	.driver		= {.owner = THIS_MODULE, },
 };
 
 static int __init phy_init(void)
@@ -1014,13 +1152,25 @@ static int __init phy_init(void)
 
 	rc = phy_driver_register(&genphy_driver);
 	if (rc)
-		mdio_bus_exit();
+		goto genphy_register_failed;
+
+	rc = phy_driver_register(&gen10g_driver);
+	if (rc)
+		goto gen10g_register_failed;
+
+	return rc;
+
+gen10g_register_failed:
+	phy_driver_unregister(&genphy_driver);
+genphy_register_failed:
+	mdio_bus_exit();
 
 	return rc;
 }
 
 static void __exit phy_exit(void)
 {
+	phy_driver_unregister(&gen10g_driver);
 	phy_driver_unregister(&genphy_driver);
 	mdio_bus_exit();
 }

@@ -339,9 +339,10 @@ static int sbmac_mii_probe(struct net_device *dev);
 static void sbmac_mii_sync(void __iomem *sbm_mdio);
 static void sbmac_mii_senddata(void __iomem *sbm_mdio, unsigned int data,
 			       int bitcnt);
-static int sbmac_mii_read(struct mii_bus *bus, int phyaddr, int regidx);
-static int sbmac_mii_write(struct mii_bus *bus, int phyaddr, int regidx,
-			   u16 val);
+static int sbmac_mii_read(struct mii_bus *bus, int phyaddr,
+				int devad, int regidx);
+static int sbmac_mii_write(struct mii_bus *bus, int phyaddr, int devad,
+				int regidx, u16 val);
 
 
 /**********************************************************************
@@ -452,7 +453,8 @@ static void sbmac_mii_senddata(void __iomem *sbm_mdio, unsigned int data,
  *  	   value read, or 0xffff if an error occurred.
  ********************************************************************* */
 
-static int sbmac_mii_read(struct mii_bus *bus, int phyaddr, int regidx)
+static int sbmac_mii_read(struct mii_bus *bus, int phyaddr,
+				int devad, int regidx)
 {
 	struct sbmac_softc *sc = (struct sbmac_softc *)bus->priv;
 	void __iomem *sbm_mdio = sc->sbm_mdio;
@@ -545,8 +547,8 @@ static int sbmac_mii_read(struct mii_bus *bus, int phyaddr, int regidx)
  *  	   0 for success
  ********************************************************************* */
 
-static int sbmac_mii_write(struct mii_bus *bus, int phyaddr, int regidx,
-			   u16 regval)
+static int sbmac_mii_write(struct mii_bus *bus, int phyaddr, int devad,
+				int regidx, u16 regval)
 {
 	struct sbmac_softc *sc = (struct sbmac_softc *)bus->priv;
 	void __iomem *sbm_mdio = sc->sbm_mdio;

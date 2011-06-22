@@ -88,7 +88,8 @@ static void __init macb_get_hwaddr(struct macb *bp)
 	}
 }
 
-static int macb_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
+static int macb_mdio_read(struct mii_bus *bus, int mii_id, int devad,
+				int regnum)
 {
 	struct macb *bp = bus->priv;
 	int value;
@@ -108,8 +109,8 @@ static int macb_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 	return value;
 }
 
-static int macb_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
-			   u16 value)
+static int macb_mdio_write(struct mii_bus *bus, int mii_id, int devad,
+				int regnum, u16 value)
 {
 	struct macb *bp = bus->priv;
 

@@ -139,7 +139,7 @@ static int bcm_enet_mdio_write(struct bcm_enet_priv *priv, int mii_id,
  * MII read callback from phylib
  */
 static int bcm_enet_mdio_read_phylib(struct mii_bus *bus, int mii_id,
-				     int regnum)
+				     int devad, int regnum)
 {
 	return bcm_enet_mdio_read(bus->priv, mii_id, regnum);
 }
@@ -148,7 +148,7 @@ static int bcm_enet_mdio_read_phylib(struct mii_bus *bus, int mii_id,
  * MII write callback from phylib
  */
 static int bcm_enet_mdio_write_phylib(struct mii_bus *bus, int mii_id,
-				      int regnum, u16 value)
+				      int devad, int regnum, u16 value)
 {
 	return bcm_enet_mdio_write(bus->priv, mii_id, regnum, value);
 }
