@@ -662,7 +662,8 @@ static int s6mii_busy(struct s6gmac *pd, int tmo)
 	return 0;
 }
 
-static int s6mii_read(struct mii_bus *bus, int phy_addr, int regnum)
+static int s6mii_read(struct mii_bus *bus, int phy_addr,
+				int devad, int regnum)
 {
 	struct s6gmac *pd = bus->priv;
 	s6mii_enable(pd);
@@ -678,7 +679,8 @@ static int s6mii_read(struct mii_bus *bus, int phy_addr, int regnum)
 	return (u16)readl(pd->reg + S6_GMAC_MACMIISTAT);
 }
 
-static int s6mii_write(struct mii_bus *bus, int phy_addr, int regnum, u16 value)
+static int s6mii_write(struct mii_bus *bus, int phy_addr,
+			int devad, int regnum, u16 value)
 {
 	struct s6gmac *pd = bus->priv;
 	s6mii_enable(pd);

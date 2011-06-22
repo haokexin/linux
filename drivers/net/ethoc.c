@@ -564,7 +564,8 @@ static int ethoc_poll(struct napi_struct *napi, int budget)
 	return work_done;
 }
 
-static int ethoc_mdio_read(struct mii_bus *bus, int phy, int reg)
+static int ethoc_mdio_read(struct mii_bus *bus, int phy,
+				int devad, int reg)
 {
 	unsigned long timeout = jiffies + ETHOC_MII_TIMEOUT;
 	struct ethoc *priv = bus->priv;
@@ -587,7 +588,8 @@ static int ethoc_mdio_read(struct mii_bus *bus, int phy, int reg)
 	return -EBUSY;
 }
 
-static int ethoc_mdio_write(struct mii_bus *bus, int phy, int reg, u16 val)
+static int ethoc_mdio_write(struct mii_bus *bus, int phy,
+				int devad, int reg, u16 val)
 {
 	unsigned long timeout = jiffies + ETHOC_MII_TIMEOUT;
 	struct ethoc *priv = bus->priv;

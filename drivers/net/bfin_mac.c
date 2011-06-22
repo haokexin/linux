@@ -270,7 +270,8 @@ static void bfin_mdio_poll(void)
 }
 
 /* Read an off-chip register in a PHY through the MDC/MDIO port */
-static int bfin_mdiobus_read(struct mii_bus *bus, int phy_addr, int regnum)
+static int bfin_mdiobus_read(struct mii_bus *bus, int phy_addr,
+				int devad, int regnum)
 {
 	bfin_mdio_poll();
 
@@ -285,8 +286,8 @@ static int bfin_mdiobus_read(struct mii_bus *bus, int phy_addr, int regnum)
 }
 
 /* Write an off-chip register in a PHY through the MDC/MDIO port */
-static int bfin_mdiobus_write(struct mii_bus *bus, int phy_addr, int regnum,
-			      u16 value)
+static int bfin_mdiobus_write(struct mii_bus *bus, int phy_addr, int devad,
+				int regnum, u16 value)
 {
 	bfin_mdio_poll();
 

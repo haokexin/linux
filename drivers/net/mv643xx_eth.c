@@ -1112,7 +1112,7 @@ static int smi_wait_ready(struct mv643xx_eth_shared_private *msp)
 	return 0;
 }
 
-static int smi_bus_read(struct mii_bus *bus, int addr, int reg)
+static int smi_bus_read(struct mii_bus *bus, int addr, int devad, int reg)
 {
 	struct mv643xx_eth_shared_private *msp = bus->priv;
 	void __iomem *smi_reg = msp->base + SMI_REG;
@@ -1139,7 +1139,8 @@ static int smi_bus_read(struct mii_bus *bus, int addr, int reg)
 	return ret & 0xffff;
 }
 
-static int smi_bus_write(struct mii_bus *bus, int addr, int reg, u16 val)
+static int smi_bus_write(struct mii_bus *bus, int addr, int devad,
+				int reg, u16 val)
 {
 	struct mv643xx_eth_shared_private *msp = bus->priv;
 	void __iomem *smi_reg = msp->base + SMI_REG;

@@ -124,7 +124,8 @@ static void bitbang_pre(struct mii_bus *bus, int read, u8 addr, u8 reg)
 	}
 }
 
-static int gpio_mdio_read(struct mii_bus *bus, int phy_id, int location)
+static int gpio_mdio_read(struct mii_bus *bus, int phy_id, int dev_ad,
+				int location)
 {
 	u16 rdreg;
 	int ret, i;
@@ -163,7 +164,8 @@ static int gpio_mdio_read(struct mii_bus *bus, int phy_id, int location)
 	return ret;
 }
 
-static int gpio_mdio_write(struct mii_bus *bus, int phy_id, int location, u16 val)
+static int gpio_mdio_write(struct mii_bus *bus, int phy_id, int devad,
+				int location, u16 val)
 {
 	int i;
 

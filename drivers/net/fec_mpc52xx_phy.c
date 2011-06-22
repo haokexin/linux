@@ -50,13 +50,14 @@ static int mpc52xx_fec_mdio_transfer(struct mii_bus *bus, int phy_id,
 		in_be32(&priv->regs->mii_data) & FEC_MII_DATA_DATAMSK : 0;
 }
 
-static int mpc52xx_fec_mdio_read(struct mii_bus *bus, int phy_id, int reg)
+static int mpc52xx_fec_mdio_read(struct mii_bus *bus, int phy_id,
+					int devad, int reg)
 {
 	return mpc52xx_fec_mdio_transfer(bus, phy_id, reg, FEC_MII_READ_FRAME);
 }
 
-static int mpc52xx_fec_mdio_write(struct mii_bus *bus, int phy_id, int reg,
-		u16 data)
+static int mpc52xx_fec_mdio_write(struct mii_bus *bus, int phy_id, int devad,
+					int reg, u16 data)
 {
 	return mpc52xx_fec_mdio_transfer(bus, phy_id, reg,
 		data | FEC_MII_WRITE_FRAME);
