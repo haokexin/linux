@@ -36,6 +36,7 @@
 #define OMAP2_I2C_BASE2		0x48072000
 #define OMAP2_I2C_BASE3		0x48060000
 #define TI816x_I2C_BASE0	0x48028000
+#define TI816x_I2C_BASE1	0x4802A000
 
 static const char name[] = "i2c_omap";
 
@@ -52,6 +53,9 @@ static const char name[] = "i2c_omap";
 
 static struct resource i2c_resources[][2] = {
 	{ I2C_RESOURCE_BUILDER(0, 0) },
+#if	defined(CONFIG_ARCH_TI816X)
+	{ I2C_RESOURCE_BUILDER(TI816x_I2C_BASE1, 0) },
+#endif
 #if	defined(CONFIG_ARCH_OMAP2) || defined(CONFIG_ARCH_OMAP3)
 	{ I2C_RESOURCE_BUILDER(OMAP2_I2C_BASE2, INT_24XX_I2C2_IRQ) },
 #endif
@@ -96,7 +100,7 @@ static int __init omap_i2c_nr_ports(void)
 	else if (cpu_is_omap34xx())
 		ports = 3;
 	else if (cpu_is_ti816x())
-		ports = 1;
+		ports = 2;
 
 	return ports;
 }
