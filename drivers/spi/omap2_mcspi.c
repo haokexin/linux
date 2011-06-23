@@ -113,8 +113,11 @@ struct omap2_mcspi_dma {
 /* use PIO for small transfers, avoiding DMA setup/teardown overhead and
  * cache operations; better heuristics consider wordsize and bitrate.
  */
+#if defined(CONFIG_ARCH_TI816X) /* TI816x works only in PIO */
+#define DMA_MIN_BYTES			(4 * 1024 * 1024)
+#else
 #define DMA_MIN_BYTES			8
-
+#endif
 
 struct omap2_mcspi {
 	struct work_struct	work;
@@ -571,8 +574,10 @@ omap2_mcspi_txrx_pio(struct spi_device *spi, struct spi_transfer *xfer)
 		 * otherwise these rx datas will affect the direct following
 		 * RX_ONLY transfer.
 		 */
+#ifndef CONFIG_ARCH_TI816X
 		omap2_mcspi_set_enable(spi, 0);
 		omap2_mcspi_set_enable(spi, 1);
+#endif
 	}
 out:
 	return count - c;
