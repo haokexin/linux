@@ -104,10 +104,17 @@
 #define DAVINCI_MCASP_RXBUF_REG		0x280
 
 /* McASP FIFO Registers */
+#ifndef CONFIG_ARCH_TI816X
 #define DAVINCI_MCASP_WFIFOCTL		(0x1010)
 #define DAVINCI_MCASP_WFIFOSTS		(0x1014)
 #define DAVINCI_MCASP_RFIFOCTL		(0x1018)
 #define DAVINCI_MCASP_RFIFOSTS		(0x101C)
+#else
+#define DAVINCI_MCASP_WFIFOCTL		(0x1000)
+#define DAVINCI_MCASP_WFIFOSTS		(0x1004)
+#define DAVINCI_MCASP_RFIFOCTL		(0x1008)
+#define DAVINCI_MCASP_RFIFOSTS		(0x100C)
+#endif
 
 /*
  * DAVINCI_MCASP_PWREMUMGT_REG - Power Down and Emulation Management
@@ -881,7 +888,11 @@ static int davinci_mcasp_probe(struct platform_device *pdev)
 	clk_enable(dev->clk);
 	dev->clk_active = 1;
 
+#ifdef CONFIG_MACH_TI8168EVM
+	dev->base = ioremap(mem->start, (mem->end - mem->start) + 1);
+#else
 	dev->base = (void __iomem *)IO_ADDRESS(mem->start);
+#endif
 	dev->op_mode = pdata->op_mode;
 	dev->tdm_slots = pdata->tdm_slots;
 	dev->num_serializer = pdata->num_serializer;
@@ -893,8 +904,12 @@ static int davinci_mcasp_probe(struct platform_device *pdev)
 
 	dma_data = &dev->dma_params[SNDRV_PCM_STREAM_PLAYBACK];
 	dma_data->eventq_no = pdata->eventq_no;
+#ifdef CONFIG_MACH_TI8168EVM
+	dma_data->dma_addr = (dma_addr_t) (pdata->tx_dma_offset);
+#else
 	dma_data->dma_addr = (dma_addr_t) (pdata->tx_dma_offset +
 							io_v2p(dev->base));
+#endif
 
 	/* first TX, then RX */
 	res = platform_get_resource(pdev, IORESOURCE_DMA, 0);
@@ -907,8 +922,12 @@ static int davinci_mcasp_probe(struct platform_device *pdev)
 
 	dma_data = &dev->dma_params[SNDRV_PCM_STREAM_CAPTURE];
 	dma_data->eventq_no = pdata->eventq_no;
+#ifdef CONFIG_MACH_TI8168EVM
+	dma_data->dma_addr = (dma_addr_t) (pdata->rx_dma_offset);
+#else
 	dma_data->dma_addr = (dma_addr_t)(pdata->rx_dma_offset +
 							io_v2p(dev->base));
+#endif
 
 	res = platform_get_resource(pdev, IORESOURCE_DMA, 1);
 	if (!res) {
