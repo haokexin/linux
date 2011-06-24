@@ -322,7 +322,7 @@ static inline bool printk_timed_ratelimit(unsigned long *caller_jiffies, \
 					  unsigned int interval_msec)	\
 		{ return false; }
 static inline void register_emit_crash_char(void (*fn)(char c)) {}
-static inline void unregister_emit_crash_char() {}
+static inline void unregister_emit_crash_char(void) {}
 
 /* No effect, but we still get type checking even in the !PRINTK case: */
 #define printk_once(x...) printk(x)
