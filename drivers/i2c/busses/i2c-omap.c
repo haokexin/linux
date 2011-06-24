@@ -983,6 +983,8 @@ omap_i2c_probe(struct platform_device *pdev)
 
 	if (cpu_is_omap7xx())
 		dev->reg_shift = 1;
+	else if (cpu_is_ti816x())
+		dev->reg_shift = 0;
 	else
 		dev->reg_shift = 2;
 
