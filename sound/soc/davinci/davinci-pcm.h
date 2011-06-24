@@ -13,7 +13,11 @@
 #define _DAVINCI_PCM_H
 
 #include <mach/edma.h>
+#ifndef CONFIG_ARCH_TI816X
 #include <mach/asp.h>
+#else
+#include <plat/asp.h>
+#endif
 
 
 struct davinci_pcm_dma_params {
