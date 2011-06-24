@@ -232,7 +232,13 @@ static inline void omap_init_mcpdm(void) {}
 #if defined(CONFIG_MMC_OMAP) || defined(CONFIG_MMC_OMAP_MODULE) || \
 	defined(CONFIG_MMC_OMAP_HS) || defined(CONFIG_MMC_OMAP_HS_MODULE)
 
+#ifndef CONFIG_ARCH_TI816X
 #define OMAP_MMC_NR_RES		2
+#else
+#define OMAP_MMC_NR_RES		4
+#define TI816X_DMA_MMC1_RX      25
+#define TI816X_DMA_MMC1_TX      24
+#endif
 
 /*
  * Register MMC devices. Called from mach-omap1 and mach-omap2 device init.
@@ -255,6 +261,17 @@ int __init omap_mmc_add(const char *name, int id, unsigned long base,
 	res[0].flags = IORESOURCE_MEM;
 	res[1].start = res[1].end = irq;
 	res[1].flags = IORESOURCE_IRQ;
+
+#ifdef CONFIG_ARCH_TI816X
+	if (id == 0) {
+		res[2].start = TI816X_DMA_MMC1_RX;
+		res[2].end = TI816X_DMA_MMC1_RX;
+		res[2].flags = IORESOURCE_DMA;
+		res[3].start = TI816X_DMA_MMC1_TX;
+		res[3].end = TI816X_DMA_MMC1_TX;
+		res[3].flags = IORESOURCE_DMA;
+	}
+#endif
 
 	ret = platform_device_add_resources(pdev, res, ARRAY_SIZE(res));
 	if (ret == 0)

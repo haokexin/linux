@@ -139,7 +139,17 @@ static void hsmmc23_before_set_reg(struct device *dev, int slot,
 	}
 }
 
+static int nop_mmc_set_power(struct device *dev, int slot,
+			     int power_on, int vdd)
+{
+		return 0;
+}
+
+#ifndef CONFIG_ARCH_TI816X
 static struct omap_mmc_platform_data *hsmmc_data[OMAP34XX_NR_MMC] __initdata;
+#else
+static struct omap_mmc_platform_data *hsmmc_data[TI816X_NR_MMC] __initdata;
+#endif
 
 void __init omap2_hsmmc_init(struct omap2_hsmmc_info *controllers)
 {
@@ -174,6 +184,9 @@ void __init omap2_hsmmc_init(struct omap2_hsmmc_info *controllers)
 			pr_err("Cannot allocate memory for mmc device!\n");
 			goto done;
 		}
+
+		if (cpu_is_ti816x())
+			mmc->version = MMC_CTRL_VERSION_2;
 
 		if (c->name)
 			strncpy(hc->name, c->name, HSMMC_NAME_LEN);
@@ -216,6 +229,9 @@ void __init omap2_hsmmc_init(struct omap2_hsmmc_info *controllers)
 		 */
 		mmc->slots[0].ocr_mask = c->ocr_mask;
 
+		if (cpu_is_ti816x())
+			mmc->slots[0].set_power = nop_mmc_set_power;
+
 		switch (c->mmc) {
 		case 1:
 			/* on-chip level shifting via PBIAS0/PBIAS1 */
@@ -235,9 +251,11 @@ void __init omap2_hsmmc_init(struct omap2_hsmmc_info *controllers)
 				c->wires = 4;
 			/* FALLTHROUGH */
 		case 3:
+#ifndef CONFIG_ARCH_TI816X
 			/* off-chip level shifting, or none */
 			mmc->slots[0].before_set_reg = hsmmc23_before_set_reg;
 			mmc->slots[0].after_set_reg = NULL;
+#endif
 			break;
 		default:
 			pr_err("MMC%d configuration not supported!\n", c->mmc);
@@ -247,7 +265,10 @@ void __init omap2_hsmmc_init(struct omap2_hsmmc_info *controllers)
 		hsmmc_data[c->mmc - 1] = mmc;
 	}
 
-	omap2_init_mmc(hsmmc_data, OMAP34XX_NR_MMC);
+	if (!cpu_is_ti816x())
+		omap2_init_mmc(hsmmc_data, OMAP34XX_NR_MMC);
+	else
+		omap2_init_mmc(hsmmc_data, TI816X_NR_MMC);
 
 	/* pass the device nodes back to board setup code */
 	for (c = controllers; c->mmc; c++) {

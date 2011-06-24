@@ -41,7 +41,17 @@
 #define HSMMC2			(1 << 1)
 #define HSMMC1			(1 << 0)
 
+#define TI816X_NR_MMC           1
+#define TI816X_HSMMC_SIZE       0x10000
+#define TI816X_MMC1_BASE        0x48060100 /* TI816X MMC/SD config base */
+#define TI816X_MMC1_HL_BASE     0x48060000 /* TI816X HL configuration*/
+
 #define OMAP_MMC_MAX_SLOTS	2
+
+enum {
+	MMC_CTRL_VERSION_1 = 0, /* OMAP class devicess */
+	MMC_CTRL_VERSION_2      /* TI816X class devicess */
+};
 
 struct omap_mmc_platform_data {
 	/* back-link to device */
@@ -137,6 +147,8 @@ struct omap_mmc_platform_data {
 		unsigned int ban_openended:1;
 
 	} slots[OMAP_MMC_MAX_SLOTS];
+
+	u8 version;
 };
 
 /* called from board-specific card detection service routine */
