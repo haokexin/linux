@@ -1,9 +1,10 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc.
  *
  * QorIQ (P1/P2) L2 controller init for Cache-SRAM instantiation
  *
  * Author: Vivek Mahajan <vivek.mahajan@freescale.com>
+ * Modifier: Harninder Rai <harninder.rai@freescale.com>
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -26,29 +27,50 @@
 
 #include "fsl_85xx_cache_ctlr.h"
 
-static char *param;
+static char *sram_size;
+static char *sram_offset;
 struct mpc85xx_l2ctlr __iomem *l2ctlr;
 
 static long get_cache_sram_size(void)
 {
 	unsigned long val;
 
-	if (!param || (strict_strtoul(param, 0, &val) < 0))
+	if (!sram_size || (strict_strtoul(sram_size, 0, &val) < 0))
 		return -EINVAL;
 
 	return val;
 }
 
-static int __init get_cmdline_param(char *str)
+static long get_cache_sram_offset(void)
+{
+	unsigned long val;
+
+	if (!sram_offset || (strict_strtoul(sram_offset, 0, &val) < 0))
+		return -EINVAL;
+
+	return val;
+}
+
+static int __init get_size_from_cmdline(char *str)
 {
 	if (!str)
 		return 0;
 
-	param = str;
+	sram_size = str;
 	return 1;
 }
 
-__setup("cache-sram-size=", get_cmdline_param);
+static int __init get_offset_from_cmdline(char *str)
+{
+	if (!str)
+		return 0;
+
+	sram_offset = str;
+	return 1;
+}
+
+__setup("cache-sram-size=", get_size_from_cmdline);
+__setup("cache-sram-offset=", get_offset_from_cmdline);
 
 static int __devinit mpc85xx_l2ctlr_of_probe(struct of_device *dev,
 					  const struct of_device_id *match)
@@ -58,17 +80,7 @@ static int __devinit mpc85xx_l2ctlr_of_probe(struct of_device *dev,
 	unsigned char ways;
 	const unsigned int *prop;
 	unsigned int l2cache_size;
-	unsigned int sram_size;
-	struct device_node *np;
-	int rc = 1;
-	struct resource rsrc;
-	int i = 0;
-	bool amp = 0;
-	static char *compatible_list[] = {
-					"fsl,MPC85XXRDB-CAMP",
-					"fsl,P2020DS-CAMP",
-					NULL
-				};
+	struct sram_parameters sram_params;
 
 	if (!dev->node) {
 		dev_err(&dev->dev, "Device's OF-node is NULL\n");
@@ -82,21 +94,27 @@ static int __devinit mpc85xx_l2ctlr_of_probe(struct of_device *dev,
 	}
 	l2cache_size = *prop;
 
-	rval = get_cache_sram_size();
-	if (rval <= 0) {
+	sram_params.sram_size  = get_cache_sram_size();
+	if (sram_params.sram_size <= 0) {
 		dev_err(&dev->dev,
 			"Entire L2 as cache, Aborting Cache-SRAM stuff\n");
 		return -EINVAL;
 	}
 
-	rem = l2cache_size % (unsigned int)rval;
-	ways = LOCK_WAYS_FULL * (unsigned int)rval / l2cache_size;
+	sram_params.sram_offset  = get_cache_sram_offset();
+	if (sram_params.sram_offset <= 0) {
+		dev_err(&dev->dev,
+			"Entire L2 as cache, provide a valid sram offset\n");
+		return -EINVAL;
+	}
+
+
+	rem = l2cache_size % sram_params.sram_size;
+	ways = LOCK_WAYS_FULL * sram_params.sram_size / l2cache_size;
 	if (rem || (ways & (ways - 1))) {
 		dev_err(&dev->dev, "Illegal cache-sram-size in command line\n");
 		return -EINVAL;
 	}
-
-	sram_size = (unsigned int)rval;
 
 	l2ctlr = of_iomap(dev->node, 0);
 	if (!l2ctlr) {
@@ -104,30 +122,19 @@ static int __devinit mpc85xx_l2ctlr_of_probe(struct of_device *dev,
 		return -EINVAL;
 	}
 
-	for_each_compatible_node(np, NULL, "fsl,l2sram")
-			rc = of_address_to_resource(np, 0, &rsrc);
-
-	if (rc) {
-		dev_err(&dev->dev, "l2sram node not found\n");
-		iounmap(l2ctlr);
-		return -EFAULT;
-	}
-
 	/*
 	 * Write bits[0-17] to srbar0
 	 */
 	out_be32(&l2ctlr->srbar0,
-		rsrc.start & L2SRAM_BAR_MSK_LO18);
+		sram_params.sram_offset & L2SRAM_BAR_MSK_LO18);
 
 	/*
 	 * Write bits[18-21] to srbare0
 	 */
 #ifdef CONFIG_PHYS_64BIT
 	out_be32(&l2ctlr->srbarea0,
-		(rsrc.start >> 32) & L2SRAM_BARE_MSK_HI4);
+		(sram_params.sram_offset >> 32) & L2SRAM_BARE_MSK_HI4);
 #endif
-
-	rsrc.end = rsrc.start + sram_size - 1;
 
 	clrsetbits_be32(&l2ctlr->ctl, L2CR_L2E, L2CR_L2FI);
 
@@ -155,15 +162,7 @@ static int __devinit mpc85xx_l2ctlr_of_probe(struct of_device *dev,
 	}
 	eieio();
 
-	for (i = 0; compatible_list[i] != NULL; i++) {
-		np = of_find_compatible_node(NULL, NULL, compatible_list[i]);
-		if (np) {
-			amp = 1;
-			break;
-		}
-	}
-
-	rval = instantiate_cache_sram(dev, &rsrc, amp);
+	rval = instantiate_cache_sram(dev, sram_params);
 	if (rval < 0) {
 		dev_err(&dev->dev, "Can't instantiate Cache-SRAM\n");
 		iounmap(l2ctlr);
@@ -193,6 +192,9 @@ static struct of_device_id mpc85xx_l2ctlr_of_match[] = {
 	},
 	{
 		.compatible = "fsl,p1020-l2-cache-controller",
+	},
+	{
+		.compatible = "fsl,p1010-l2-cache-controller",
 	},
 	{
 		.compatible = "fsl,p1011-l2-cache-controller",
