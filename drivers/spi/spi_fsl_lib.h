@@ -20,6 +20,29 @@
 
 #include <asm/io.h>
 
+/* SPI Controller registers */
+struct fsl_spi_reg {
+	u8 res1[0x20];
+	__be32 mode;
+	__be32 event;
+	__be32 mask;
+	__be32 command;
+	__be32 transmit;
+	__be32 receive;
+};
+
+/* eSPI Controller registers */
+struct fsl_espi_reg {
+	__be32 mode;		/* 0x000 - eSPI mode register */
+	__be32 event;		/* 0x004 - eSPI event register */
+	__be32 mask;		/* 0x008 - eSPI mask register */
+	__be32 command;		/* 0x00c - eSPI command register */
+	__be32 transmit;	/* 0x010 - eSPI transmit FIFO access register*/
+	__be32 receive;		/* 0x014 - eSPI receive FIFO access register*/
+	u8 res[8];		/* 0x018 - 0x01c reserved */
+	__be32 csmode[4];	/* 0x020 - 0x02c eSPI cs mode register */
+};
+
 /* SPI/eSPI Controller driver's private data. */
 struct mpc8xxx_spi {
 	struct device *dev;
@@ -73,6 +96,9 @@ struct mpc8xxx_spi {
 	spinlock_t lock;
 
 	struct completion done;
+#ifdef CONFIG_SUSPEND
+	struct fsl_espi_reg	espi_save_regs;
+#endif
 };
 
 struct spi_mpc8xxx_cs {

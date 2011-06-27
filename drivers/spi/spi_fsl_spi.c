@@ -41,17 +41,6 @@
 
 #include "spi_fsl_lib.h"
 
-/* SPI Controller registers */
-struct fsl_spi_reg {
-	u8 res1[0x20];
-	__be32 mode;
-	__be32 event;
-	__be32 mask;
-	__be32 command;
-	__be32 transmit;
-	__be32 receive;
-};
-
 /* CPM1 and CPM2 are mutually exclusive. */
 #ifdef CONFIG_CPM1
 #include <asm/cpm1.h>
