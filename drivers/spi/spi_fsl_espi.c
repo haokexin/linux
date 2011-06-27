@@ -23,18 +23,6 @@
 
 #include "spi_fsl_lib.h"
 
-/* eSPI Controller registers */
-struct fsl_espi_reg {
-	__be32 mode;		/* 0x000 - eSPI mode register */
-	__be32 event;		/* 0x004 - eSPI event register */
-	__be32 mask;		/* 0x008 - eSPI mask register */
-	__be32 command;		/* 0x00c - eSPI command register */
-	__be32 transmit;	/* 0x010 - eSPI transmit FIFO access register*/
-	__be32 receive;		/* 0x014 - eSPI receive FIFO access register*/
-	u8 res[8];		/* 0x018 - 0x01c reserved */
-	__be32 csmode[4];	/* 0x020 - 0x02c eSPI cs mode register */
-};
-
 /* eSPI Controller mode register definitions */
 #define SPMODE_ENABLE		(1 << 31)
 #define SPMODE_LOOP		(1 << 30)
@@ -616,6 +604,46 @@ static int __devexit of_fsl_espi_remove(struct of_device *ofdev)
 	return 0;
 }
 
+#ifdef CONFIG_SUSPEND
+/* save espi registers */
+static int fsl_espi_suspend(struct of_device *ofdev, pm_message_t state)
+{
+	struct mpc8xxx_spi *fsl_espi;
+	struct spi_master *master;
+	int i;
+	master = platform_get_drvdata(ofdev);
+	fsl_espi = spi_master_get_devdata(master);
+
+	fsl_espi->espi_save_regs.mode = in_be32(&fsl_espi->espi_base->mode);
+	fsl_espi->espi_save_regs.event = in_be32(&fsl_espi->espi_base->event);
+	fsl_espi->espi_save_regs.mask = in_be32(&fsl_espi->espi_base->mask);
+	for (i = 0; i < 4; i++)
+		fsl_espi->espi_save_regs.csmode[i] =
+			in_be32(&fsl_espi->espi_base->csmode[i]);
+
+	return 0;
+}
+
+/* restore espi registers */
+static int fsl_espi_resume(struct of_device *ofdev)
+{
+	struct mpc8xxx_spi *fsl_espi;
+	struct spi_master *master;
+	int i;
+	master = platform_get_drvdata(ofdev);
+	fsl_espi = spi_master_get_devdata(master);
+
+	out_be32(&fsl_espi->espi_base->mode, fsl_espi->espi_save_regs.mode);
+	out_be32(&fsl_espi->espi_base->event, fsl_espi->espi_save_regs.event);
+	out_be32(&fsl_espi->espi_base->mask, fsl_espi->espi_save_regs.mask);
+	for (i = 0; i < 4; i++)
+		out_be32(&fsl_espi->espi_base->csmode[i],
+			fsl_espi->espi_save_regs.csmode[i]);
+
+	return 0;
+}
+#endif
+
 static const struct of_device_id of_fsl_espi_match[] = {
 	{ .compatible = "fsl,mpc8536-espi" },
 	{}
@@ -627,6 +655,10 @@ static struct of_platform_driver of_fsl_espi_driver = {
 	.match_table	= of_fsl_espi_match,
 	.probe		= of_fsl_espi_probe,
 	.remove		= __devexit_p(of_fsl_espi_remove),
+#ifdef CONFIG_SUSPEND
+	.suspend     = fsl_espi_suspend,
+	.resume      = fsl_espi_resume,
+#endif
 };
 
 static int __init fsl_espi_init(void)
