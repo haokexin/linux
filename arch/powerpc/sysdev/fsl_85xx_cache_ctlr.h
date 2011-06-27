@@ -1,9 +1,10 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc
+ * Copyright 2009-2011 Freescale Semiconductor, Inc
  *
  * QorIQ based Cache Controller Memory Mapped Registers
  *
  * Author: Vivek Mahajan <vivek.mahajan@freescale.com>
+ * Modifier: Harninder Rai <harninder.rai@freescale.com>
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -89,8 +90,13 @@ struct mpc85xx_l2ctlr {
 	u8	res9[0x1A4];
 };
 
-extern int instantiate_cache_sram(struct of_device *dev, struct resource *res,
-		bool amp);
+struct sram_parameters {
+	unsigned int sram_size;
+	uint64_t sram_offset;
+};
+
+extern int instantiate_cache_sram(struct of_device *dev,
+		struct sram_parameters sram_params);
 extern void remove_cache_sram(struct of_device *dev);
 
 #endif /* __FSL_85XX_CACHE_CTLR_H__ */

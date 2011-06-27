@@ -1,9 +1,10 @@
 /*
- * Copyright 2009-2010 Freescale Semiconductor, Inc.
+ * Copyright 2009-2011 Freescale Semiconductor, Inc.
  *
  * Simple memory allocator abstraction for QorIQ (P1/P2) based Cache-SRAM
  *
  * Author: Vivek Mahajan <vivek.mahajan@freescale.com>
+ * Modifier: Harninder Rai <harninder.rai@freescale.com>
  *
  * This file is derived from the original work done
  * by Sylvain Munaut for the Bestcomm SRAM allocator.
@@ -24,14 +25,18 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/err.h>
 #include <linux/of_platform.h>
 #include <asm/pgtable.h>
 #include <asm/fsl_85xx_cache_sram.h>
 
+#include "fsl_85xx_cache_ctlr.h"
+
 struct mpc85xx_cache_sram *cache_sram;
 
 void *mpc85xx_cache_sram_alloc(unsigned int size,
-			   phys_addr_t *phys, unsigned int align)
+				phys_addr_t *phys, unsigned int align)
 {
 	unsigned long offset;
 	unsigned long flags;
@@ -75,9 +80,11 @@ void mpc85xx_cache_sram_free(void *ptr)
 }
 EXPORT_SYMBOL(mpc85xx_cache_sram_free);
 
-int __init instantiate_cache_sram(struct of_device *dev, struct resource *res,
-		bool amp)
+int __init instantiate_cache_sram(struct of_device *dev,
+		struct sram_parameters sram_params)
 {
+	int ret = 0;
+
 	if (cache_sram) {
 		dev_err(&dev->dev, "Already initialized cache-sram\n");
 		return -EBUSY;
@@ -89,59 +96,32 @@ int __init instantiate_cache_sram(struct of_device *dev, struct resource *res,
 		return -ENOMEM;
 	}
 
-	cache_sram->base_phys = res->start;
-	cache_sram->size = res->end - res->start + 1;
-
-	if (amp) {
-		cache_sram->size /= 2;
-		if (mfspr(SPRN_PIR))
-			cache_sram->base_phys += cache_sram->size;
-	}
+	cache_sram->base_phys = sram_params.sram_offset;
+	cache_sram->size = sram_params.sram_size;
 
 	if (!request_mem_region(cache_sram->base_phys, cache_sram->size,
 						"fsl_85xx_cache_sram")) {
 		dev_err(&dev->dev, "%s: request memory failed\n",
 				dev->node->full_name);
-		kfree(cache_sram);
-		return -ENXIO;
+		ret = -ENXIO;
+		goto out_free;
 	}
-
-	/* P10x/P20x L2 when configured as sram, needs to be zeroized
-	* before using it as a cachable region, else there would be false
-	* ECC errors.
-	*/
-
-	cache_sram->base_virt = ioremap(cache_sram->base_phys,
-				cache_sram->size);
-	if (!cache_sram->base_virt) {
-		dev_err(&dev->dev, "%s: ioremap failed\n",
-				dev->node->full_name);
-		release_mem_region(cache_sram->base_phys, cache_sram->size);
-		kfree(cache_sram);
-		return -ENOMEM;
-	}
-
-	memset(cache_sram->base_virt, 0, cache_sram->size);
-	iounmap(cache_sram->base_virt);
 
 	cache_sram->base_virt = ioremap_flags(cache_sram->base_phys,
 				cache_sram->size, _PAGE_COHERENT | PAGE_KERNEL);
 	if (!cache_sram->base_virt) {
 		dev_err(&dev->dev, "%s: ioremap_flags failed\n",
 				dev->node->full_name);
-		release_mem_region(cache_sram->base_phys, cache_sram->size);
-		kfree(cache_sram);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto out_release;
 	}
 
 	cache_sram->rh = rh_create(sizeof(unsigned int));
 	if (IS_ERR(cache_sram->rh)) {
 		dev_err(&dev->dev, "%s: Unable to create remote heap\n",
 				dev->node->full_name);
-		iounmap(cache_sram->base_virt);
-		release_mem_region(cache_sram->base_phys, cache_sram->size);
-		kfree(cache_sram);
-		return PTR_ERR(cache_sram->rh);
+		ret = PTR_ERR(cache_sram->rh);
+		goto out_unmap;
 	}
 
 	rh_attach_region(cache_sram->rh, 0, cache_sram->size);
@@ -149,7 +129,18 @@ int __init instantiate_cache_sram(struct of_device *dev, struct resource *res,
 
 	dev_info(&dev->dev, "[base:0x%llx, size:0x%x] configured and loaded\n",
 		(unsigned long long)cache_sram->base_phys, cache_sram->size);
+
 	return 0;
+
+out_unmap:
+	iounmap(cache_sram->base_virt);
+
+out_release:
+	release_mem_region(cache_sram->base_phys, cache_sram->size);
+
+out_free:
+	kfree(cache_sram);
+	return ret;
 }
 
 void remove_cache_sram(struct of_device *dev)
