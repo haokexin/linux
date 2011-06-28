@@ -33,29 +33,32 @@
  */
 
 /* global register offset addresses */
-#define TALITOS_MCR			0x1030  /* master control register */
-#define TALITOS_MCR_LO			0x1038
-#define   TALITOS_MCR_SWR		0x1     /* s/w reset */
-#define TALITOS_IMR			0x1008  /* interrupt mask register */
+#define   TALITOS_MCR			0x1030  /* master control register */
+#define   TALITOS_MCR_LO		0x1034
+#define   TALITOS_MCR_SWR		0x1	/* s/w reset */
+#define   TALITOS_IMR			0x1008  /* interrupt mask register */
 #define   TALITOS_IMR_INIT		0x100ff /* enable channel IRQs */
 #define   TALITOS_IMR_DONE		0x00055 /* done IRQs */
-#define TALITOS_IMR_LO			0x100C
+#define   TALITOS_IMR_LO		0x100C
 #define   TALITOS_IMR_LO_INIT		0x20000 /* allow RNGU error IRQs */
-#define TALITOS_ISR			0x1010  /* interrupt status register */
+#define   TALITOS_ISR			0x1010  /* interrupt status register */
 #define   TALITOS_ISR_CHERR		0xaa    /* channel errors mask */
 #define   TALITOS_ISR_CHDONE		0x55    /* channel done mask */
-#define TALITOS_ISR_LO			0x1014
-#define TALITOS_ICR			0x1018  /* interrupt clear register */
-#define TALITOS_ICR_LO			0x101C
+#define   TALITOS_ISR_LO		0x1014
+#define   TALITOS_ICR			0x1018  /* interrupt clear register */
+#define   TALITOS_ICR_LO		0x101C
 
 /* channel register address stride */
 #define TALITOS_CH_STRIDE		0x100
+#define CHAN_BASE(ch, priv) ((((1 << (3 - ch)) \
+			& get_chan_remap(priv)) ? 0x0000 : 0x1000) \
+			+ (ch * TALITOS_CH_STRIDE))
 
 /* channel configuration register  */
-#define TALITOS_CCCR(ch)		(ch * TALITOS_CH_STRIDE + 0x1108)
+#define	  TALITOS_CCCR(ch, priv)	(CHAN_BASE(ch, priv) + 0x0108)
 #define   TALITOS_CCCR_CONT		0x2    /* channel continue */
 #define   TALITOS_CCCR_RESET		0x1    /* channel reset */
-#define TALITOS_CCCR_LO(ch)		(ch * TALITOS_CH_STRIDE + 0x110c)
+#define   TALITOS_CCCR_LO(ch, priv)	(CHAN_BASE(ch, priv) + 0x010c)
 #define   TALITOS_CCCR_LO_IWSE		0x80   /* chan. ICCR writeback enab. */
 #define   TALITOS_CCCR_LO_EAE		0x20   /* extended address enable */
 #define   TALITOS_CCCR_LO_CDWE		0x10   /* chan. done writeback enab. */
@@ -63,8 +66,8 @@
 #define   TALITOS_CCCR_LO_CDIE		0x2    /* channel done IRQ enable */
 
 /* CCPSR: channel pointer status register */
-#define TALITOS_CCPSR(ch)		(ch * TALITOS_CH_STRIDE + 0x1110)
-#define TALITOS_CCPSR_LO(ch)		(ch * TALITOS_CH_STRIDE + 0x1114)
+#define   TALITOS_CCPSR(ch, priv)	(CHAN_BASE(ch, priv) + 0x0110)
+#define   TALITOS_CCPSR_LO(ch, priv)	(CHAN_BASE(ch, priv) + 0x0114)
 #define   TALITOS_CCPSR_LO_DOF		0x8000 /* double FF write oflow error */
 #define   TALITOS_CCPSR_LO_SOF		0x4000 /* single FF write oflow error */
 #define   TALITOS_CCPSR_LO_MDTE		0x2000 /* master data transfer error */
@@ -79,24 +82,24 @@
 #define   TALITOS_CCPSR_LO_SRL		0x0010 /* scatter return/length error */
 
 /* channel fetch fifo register */
-#define TALITOS_FF(ch)			(ch * TALITOS_CH_STRIDE + 0x1148)
-#define TALITOS_FF_LO(ch)		(ch * TALITOS_CH_STRIDE + 0x114c)
+#define TALITOS_FF(ch, priv)		(CHAN_BASE(ch, priv) +  0x0148)
+#define TALITOS_FF_LO(ch, priv)		(CHAN_BASE(ch, priv) +  0x014c)
 
 /* current descriptor pointer register */
-#define TALITOS_CDPR(ch)		(ch * TALITOS_CH_STRIDE + 0x1140)
-#define TALITOS_CDPR_LO(ch)		(ch * TALITOS_CH_STRIDE + 0x1144)
+#define TALITOS_CDPR(ch, priv)		(CHAN_BASE(ch, priv) +  0x0140)
+#define TALITOS_CDPR_LO(ch, priv)	(CHAN_BASE(ch, priv) +  0x0144)
 
 /* descriptor buffer register */
-#define TALITOS_DESCBUF(ch)		(ch * TALITOS_CH_STRIDE + 0x1180)
-#define TALITOS_DESCBUF_LO(ch)		(ch * TALITOS_CH_STRIDE + 0x1184)
+#define TALITOS_DESCBUF(ch, priv)	(CHAN_BASE(ch, priv) +  0x0180)
+#define TALITOS_DESCBUF_LO(ch, priv)	(CHAN_BASE(ch, priv) +  0x0184)
 
 /* gather link table */
-#define TALITOS_GATHER(ch)		(ch * TALITOS_CH_STRIDE + 0x11c0)
-#define TALITOS_GATHER_LO(ch)		(ch * TALITOS_CH_STRIDE + 0x11c4)
+#define TALITOS_GATHER(ch, priv)	(CHAN_BASE(ch, priv) +  0x01c0)
+#define TALITOS_GATHER_LO(ch, priv)	(CHAN_BASE(ch, priv) +  0x01c4)
 
 /* scatter link table */
-#define TALITOS_SCATTER(ch)		(ch * TALITOS_CH_STRIDE + 0x11e0)
-#define TALITOS_SCATTER_LO(ch)		(ch * TALITOS_CH_STRIDE + 0x11e4)
+#define TALITOS_SCATTER(ch, priv)	(CHAN_BASE(ch, priv) +  0x01e0)
+#define TALITOS_SCATTER_LO(ch, priv)	(CHAN_BASE(ch, priv) + 0x01e4)
 
 /* execution unit interrupt status registers */
 #define TALITOS_DEUISR			0x2030 /* DES unit */
@@ -107,7 +110,7 @@
 #define TALITOS_MDEUISR_LO		0x6034
 #define TALITOS_MDEUICR			0x6038 /* interrupt control */
 #define TALITOS_MDEUICR_LO		0x603c
-#define   TALITOS_MDEUICR_LO_ICE	0x4000 /* integrity check IRQ enable */
+#define TALITOS_MDEUICR_LO_ICE		0x4000 /* integrity check IRQ enable */
 #define TALITOS_AFEUISR			0x8030 /* arc4 unit */
 #define TALITOS_AFEUISR_LO		0x8034
 #define TALITOS_RNGUISR			0xa030 /* random number unit */
