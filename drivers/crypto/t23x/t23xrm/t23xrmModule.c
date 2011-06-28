@@ -8,7 +8,7 @@
  * tree entry for each core, it does not auto-detect
  * hardware capability
  *
- * Copyright (c) 2007-2009 Freescale Semiconductor, Inc.
+ * Copyright (c) 2007-2010 Freescale Semiconductor, Inc.
  * All Rights Reserved
  *
  *
@@ -95,6 +95,7 @@ static int t23x_probe(struct of_device *ofdev,
     uint32_t   *fifod    = NULL;
     uint32_t   *eu_mask  = NULL;
     uint32_t   *typ_mask = NULL;
+    const char* mode = NULL;
     T2CoreInstance *devinst;
     struct device_node *dn;
     struct device *dev;
@@ -112,6 +113,12 @@ static int t23x_probe(struct of_device *ofdev,
     if (devinst->regs == NULL) {
         dev_err(dev, "t23x: can't map device register space\n");
 	return -ENOMEM;
+    }
+
+    mode = of_get_property(dn, "fsl,multi-host-mode", NULL);
+    if (mode && !strcmp(mode, "secondary")) {
+	printk("t23x: can't work on CAMP secondary mode\n");
+	return -EINVAL;
     }
 
     devinst->doneIRQid = of_irq_to_resource(dn, 0, NULL);
