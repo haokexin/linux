@@ -180,12 +180,6 @@ config SPI_MPC8xxx
 	  This enables using the Freescale MPC8xxx SPI controllers in master
 	  mode.
 
-config FSL_ESPI
-	tristate "Freescale eSPI controller"
-	depends on SPI_MASTER && FSL_SOC && EXPERIMENTAL
-	help
-	  This enables using the Freescale eSPI controllers in master mode.
-
 config SPI_OMAP_UWIRE
 	tristate "OMAP1 MicroWire"
 	depends on ARCH_OMAP1
