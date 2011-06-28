@@ -2390,6 +2390,7 @@ static int talitos_probe(struct of_device *ofdev,
 	const char *name;
 	int i, err;
 	int grp_id;
+	struct cpumask cpumask_irq;
 
 	priv = kzalloc(sizeof(struct talitos_private), GFP_KERNEL);
 	if (!priv)
@@ -2519,6 +2520,15 @@ static int talitos_probe(struct of_device *ofdev,
 				priv->irq[1] = NO_IRQ;
 				goto err_out;
 			}
+
+			 /* set correct interrupt affinity */
+			cpumask_clear(&cpumask_irq);
+			cpumask_set_cpu(0, &cpumask_irq);
+			irq_set_affinity(priv->irq[0], &cpumask_irq);
+
+			cpumask_clear(&cpumask_irq);
+			cpumask_set_cpu(1, &cpumask_irq);
+			irq_set_affinity(priv->irq[1], &cpumask_irq);
 		}
 	}
 	for (grp_id = 0; grp_id < MAX_GROUPS; grp_id++) {
