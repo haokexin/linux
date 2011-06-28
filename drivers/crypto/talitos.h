@@ -31,6 +31,7 @@
 /*
  * TALITOS_xxx_LO addresses point to the low data bits (32-63) of the register
  */
+#define TALITOS_NAPI_WEIGHT     12
 
 /* global register offset addresses */
 #define   TALITOS_MCR			0x1030  /* master control register */
