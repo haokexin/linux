@@ -2587,6 +2587,16 @@ static int talitos_probe(struct of_device *ofdev,
 			dev_info(dev, "hwrng\n");
 	}
 
+	priv->netcrypto_cache = kmem_cache_create("netcrypto_cache",
+						MAX_DESC_LEN, 0,
+					SLAB_HWCACHE_ALIGN, NULL);
+	if (!priv->netcrypto_cache) {
+		printk(KERN_ERR "%s: failed to create block cache\n",
+				__func__);
+		err = -ENOMEM;
+		goto err_out;
+	}
+
 	/*
 	 * register with async_tx xor, if capable
 	 * SEC 2.x support up to 3 RAID sources,
@@ -2629,9 +2639,6 @@ static int talitos_probe(struct of_device *ofdev,
 			}
 		}
 	}
-	priv->netcrypto_cache = kmem_cache_create("netcrypto_cache",
-						MAX_DESC_LEN, 0,
-					SLAB_HWCACHE_ALIGN, NULL);
 
 	return 0;
 
