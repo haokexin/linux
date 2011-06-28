@@ -6,7 +6,7 @@
  * interfaces
  *
  *
- * Copyright (c) 2007-2009 Freescale Semiconductor, Inc.
+ * Copyright (c) 2007-2010 Freescale Semiconductor, Inc.
  *
  * All rights reserved.
  *
@@ -62,6 +62,7 @@
 #include <asm/page.h>
 #include <asm/io.h>
 #include <asm/scatterlist.h>
+#include <linux/slab.h>
 
 #include "../common/xwcRMinterface.h"
 #include "t23xrmInternal.h"

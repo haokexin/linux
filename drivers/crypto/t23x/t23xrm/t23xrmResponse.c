@@ -5,7 +5,7 @@
  * t23x resource manager response processing module. This module
  * handles post-request processing on behalf of an interface
  *
- * Copyright (c) 2007-2009 Freescale Semiconductor, Inc.
+ * Copyright (c) 2007-2010 Freescale Semiconductor, Inc.
  *
  * All rights reserved.
  *
@@ -342,7 +342,7 @@ void t23RMdeferredInterruptResponder(int inst)
                 burstsize--;
             }
         }
-        spin_unlock_irqrestore(thisDev->execQlock, irqflags);
+        spin_unlock_irqrestore(&thisDev->execQlock, irqflags);
 
     } while (thisDev->isrQlevel);
 }
