@@ -1974,14 +1974,20 @@ static int talitos_probe(struct of_device *ofdev,
 		priv->dual = 0;
 		priv->secondary = 1;
 	} else if (!strcmp(name, "dual")) {
-		if (nr_cpu_ids != 2) {
+		if (nr_cpu_ids < 2) {
+			/* add one cpu support to P1/P2 for both SMP and Non-SMP,
+			 * use primary as the default mode. */
+			priv->dual = 0;
+			priv->secondary = 0;
+		} else if (nr_cpu_ids == 2) {
+			priv->dual = 1;
+			priv->secondary = 0;
+		} else {
 			dev_err(dev, "can't work in dual host mode with CPU "
-					"number not equal to 2\n");
+					"number not equal to 2 or 1\n");
 			err = -EINVAL;
 			goto err_out;
 		}
-		priv->dual = 1;
-		priv->secondary = 0;
 	} else {
 		dev_err(dev, "invalid multi-host-mode in device tree node\n");
 		err = -EINVAL;
