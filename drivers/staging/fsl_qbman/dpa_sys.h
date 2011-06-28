@@ -54,7 +54,6 @@
 #include <linux/uio_driver.h>
 #include <asm/smp.h>
 #include <sysdev/fsl_soc.h>
-#include <linux/fsl_hypervisor.h>
 #include <linux/vmalloc.h>
 #ifdef CONFIG_WRHV
 #include <vbi/vbi.h>
