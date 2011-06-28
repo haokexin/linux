@@ -1173,13 +1173,15 @@ static void talitos_unregister_async_xor(struct device *dev)
 {
 	struct talitos_private *priv = dev_get_drvdata(dev);
 	struct talitos_xor_chan *xor_chan;
-	struct dma_chan *chan;
+	struct dma_chan *chan, *_chan;
 
 	if (priv->dma_dev_common.chancnt)
 		dma_async_device_unregister(&priv->dma_dev_common);
 
-	list_for_each_entry(chan, &priv->dma_dev_common.channels, device_node) {
-		xor_chan = container_of(chan, struct talitos_xor_chan, common);
+	list_for_each_entry_safe(chan, _chan, &priv->dma_dev_common.channels,
+				device_node) {
+		xor_chan = container_of(chan, struct talitos_xor_chan,
+					common);
 		list_del(&chan->device_node);
 		priv->dma_dev_common.chancnt--;
 		kfree(xor_chan);
@@ -2308,12 +2310,12 @@ static int talitos_remove(struct of_device *ofdev)
 	kfree(priv->chan);
 
 	if (priv->irq[1] != NO_IRQ) {
-		free_irq(priv->irq[1], dev);
+		free_irq(priv->irq[1], priv);
 		irq_dispose_mapping(priv->irq[1]);
 	}
 
 	if (priv->irq[0] != NO_IRQ) {
-		free_irq(priv->irq[0], dev);
+		free_irq(priv->irq[0], priv);
 		irq_dispose_mapping(priv->irq[0]);
 	}
 
