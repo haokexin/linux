@@ -2331,7 +2331,8 @@ static int talitos_remove(struct of_device *ofdev)
 
 	dev_set_drvdata(dev, NULL);
 
-	kmem_cache_destroy(priv->netcrypto_cache);
+	if (priv->netcrypto_cache != NULL)
+		kmem_cache_destroy(priv->netcrypto_cache);
 	kfree(priv);
 
 	return 0;
