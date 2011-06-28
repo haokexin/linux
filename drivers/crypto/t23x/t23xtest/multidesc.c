@@ -3,7 +3,7 @@
  *
  * t23x RM testing module - multi-descriptor requests
  *
- * Copyright (c) 2007-2009 Freescale Semiconductor, Inc.
+ * Copyright (c) 2007-2010 Freescale Semiconductor, Inc.
  *
  * All rights reserved.
  *
@@ -48,6 +48,7 @@
 
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
+#include <linux/semaphore.h>
 
 #include "../common/t23.h"
 #include "../common/xwcRMinterface.h"
