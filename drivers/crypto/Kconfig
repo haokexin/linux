@@ -226,7 +226,7 @@ config CRYPTO_DEV_PPC4XX
 
 config CRYPTO_DEV_EXTENS_T23X
 	tristate "Extensible Driver (t23x) for Talitos 2.x/3.x (EXPERIMENTAL)"
-	depends on PPC_83xx || PPC_85xx || PPC_86xx
+	depends on (PPC_83xx || PPC_85xx || PPC_86xx) && !CRYPTO_DEV_TALITOS
 	default m
 	help
 	  Extensible Crypto Driver for PowerQUICC devices containing the
