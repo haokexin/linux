@@ -2371,15 +2371,11 @@ static void FreeFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     {
         SYS_UnregisterIoMap(p_LnxWrpFmDev->fmRtcBaseAddr);
         devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmDev->fmRtcBaseAddr));
-        __devm_release_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmRtcBaseAddr, p_LnxWrpFmDev->fmRtcMemSize);
     }
     SYS_UnregisterIoMap(p_LnxWrpFmDev->fmMuramBaseAddr);
     devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmDev->fmMuramBaseAddr));
-    __devm_release_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmMuramBaseAddr, p_LnxWrpFmDev->fmMuramMemSize);
     SYS_UnregisterIoMap(p_LnxWrpFmDev->fmBaseAddr);
     devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmDev->fmBaseAddr));
-    release_mem_region(p_LnxWrpFmDev->fmBaseAddr, p_LnxWrpFmDev->fmMemSize);
-//    devm_release_mem_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->fmBaseAddr, p_LnxWrpFmDev->fmMemSize);
 }
 
 static void FreeFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
@@ -2392,7 +2388,6 @@ static void FreeFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
     if (p_LnxWrpFmPortDev->h_Dev)
         FM_PORT_Free(p_LnxWrpFmPortDev->h_Dev);
     devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmPortDev->baseAddr));
-    __devm_release_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmPortDev->baseAddr, p_LnxWrpFmPortDev->memSize);
 }
 
 
