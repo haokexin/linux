@@ -1309,11 +1309,15 @@ __setup("fman_ucode=", FmanUcodeAddrParam);
  * If we have an older U-Boot, then we assume that the firmware is located in
  * flash at physical address 'P4080_UCAddr'
  */
+#ifdef	CONFIG_PPC85xx_VT_MODE
+extern struct qe_firmware p4080_fman_firmware;
+#endif
 static const struct qe_firmware *FindFmanMicrocode(void)
 {
     static const struct qe_firmware *P4080_UCPatch;
     struct device_node *np;
-#ifdef FMAN_READ_MICROCODE_FROM_NOR_FLASH
+#if defined(FMAN_READ_MICROCODE_FROM_NOR_FLASH)\
+	|| defined(CONFIG_PPC85xx_VT_MODE)
     unsigned long P4080_UCSize;
     const struct qe_header *hdr;
 #endif
@@ -1331,6 +1335,19 @@ static const struct qe_firmware *FindFmanMicrocode(void)
 		    REPORT_ERROR(WARNING, E_NOT_FOUND, ("firmware node is incomplete"));
     }
 
+#ifdef CONFIG_PPC85xx_VT_MODE
+    P4080_UCPatch = &p4080_fman_firmware;
+    /* Make sure it really is a QE Firmware blob */
+    hdr = &P4080_UCPatch->header;
+    if (!hdr ||
+        (hdr->magic[0] != 'Q') || (hdr->magic[1] != 'E') ||
+        (hdr->magic[2] != 'F')) {
+        REPORT_ERROR(MAJOR, E_NOT_FOUND, ("data at %llx is not a Fman microcode", (u64) P4080_UCAddr));
+        return NULL;
+    }
+
+    P4080_UCSize = sizeof(u32) * P4080_UCPatch->microcode[0].count;
+#else
 #ifdef FMAN_READ_MICROCODE_FROM_NOR_FLASH
     /* If not, then we have a legacy U-Boot.  The firmware is in flash. */
     /* Only map enough to the get the core structure */
@@ -1363,6 +1380,7 @@ static const struct qe_firmware *FindFmanMicrocode(void)
     /* Returning NULL here forces the reuse of the IRAM content */
     P4080_UCPatch = NULL;
 #endif /* FMAN_READ_MICROCODE_FROM_NOR_FLASH */
+#endif /* CONFIG_PPC85xx_VT_MODE */
     return P4080_UCPatch;
 }
 
