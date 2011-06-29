@@ -982,7 +982,10 @@ static void qm_err_cb(struct qman_portal       *portal,
                        struct qman_fq           *fq,
                        const struct qm_mr_entry *msg)
 {
+    /* In guest OS, we maybe get a ISR when retiring a FQ */
+#ifndef CONFIG_PPC85xx_VT_MODE
     BUG();
+#endif
 }
 
 static struct qman_fq * FqAlloc(t_LnxWrpFmDev   *p_LnxWrpFmDev,
@@ -2670,6 +2673,21 @@ static int __devexit fm_remove(struct of_device *of_dev)
     return 0;
 }
 
+#ifdef CONFIG_PPC85xx_VT_MODE
+static int fm_shutdown(struct of_device *of_dev)
+{
+    t_LnxWrpFmDev   *p_LnxWrpFmDev;
+    struct device   *dev;
+
+    dev = &of_dev->dev;
+    p_LnxWrpFmDev = dev_get_drvdata(dev);
+    FreeFmDev(p_LnxWrpFmDev);
+    return 0;
+}
+#else
+static int fm_shutdown(struct of_device *of_dev) { return 0; }
+#endif
+
 static const struct of_device_id fm_match[] __devinitconst = {
     {
         .compatible    = "fsl,fman"
@@ -2685,6 +2703,7 @@ static struct of_platform_driver fm_driver = {
     .match_table    = fm_match,
     .owner          = THIS_MODULE,
     .probe          = fm_probe,
+    .shutdown	    = fm_shutdown,
     .remove         = __devexit_p(fm_remove)
 };
 
@@ -2790,6 +2809,55 @@ static int __devexit fm_port_remove(struct of_device *of_dev)
     return 0;
 }
 
+#ifdef CONFIG_PPC85xx_VT_MODE
+static int DestroyFmFQ(struct qman_fq *fq)
+{
+	int r = 0;
+
+	r = qman_retire_fq(fq, NULL);
+	if (r < 0) {
+		REPORT_ERROR(MAJOR, E_BUSY, ("Retire fq %d error\n", fq->fqid));
+		return -1;
+	}
+
+	r = qman_oos_fq(fq);
+	if (r < 0) {
+		REPORT_ERROR(MAJOR, E_BUSY, ("OOO fq %d error\n", fq->fqid));
+		return -1;
+	}
+
+	qman_destroy_fq(fq, 0);
+
+	return 0;
+}
+
+static void DestroyFmPcdDevFQ(t_LnxWrpFmDev  *p_LnxWrpFmDev)
+{
+	t_LnxWrpFmDev *p = p_LnxWrpFmDev;
+
+	DestroyFmFQ(p->hc_tx_fq);
+	DestroyFmFQ(p->hc_tx_conf_fq);
+	DestroyFmFQ(p->hc_tx_err_fq);
+}
+
+static int fm_port_shutdown(struct of_device *of_dev)
+{
+    t_LnxWrpFmPortDev   *p_LnxWrpFmPortDev;
+    struct device       *dev;
+
+    dev = &of_dev->dev;
+    p_LnxWrpFmPortDev = dev_get_drvdata(dev);
+
+    if (p_LnxWrpFmPortDev->settings.param.portType ==
+				e_FM_PORT_TYPE_OH_HOST_COMMAND)
+	DestroyFmPcdDevFQ((t_LnxWrpFmDev *)p_LnxWrpFmPortDev->h_LnxWrpFmDev);
+
+    return 0;
+}
+#else
+static int fm_port_shutdown(struct of_device *of_dev) { return 0; }
+#endif
+
 static const struct of_device_id fm_port_match[] __devinitconst = {
     {
         .compatible    = "fsl,fman-port-oh"
@@ -2817,6 +2885,7 @@ static struct of_platform_driver fm_port_driver = {
     .match_table    = fm_port_match,
     .owner          = THIS_MODULE,
     .probe          = fm_port_probe,
+    .shutdown	    = fm_port_shutdown,
     .remove         = __devexit_p(fm_port_remove)
 };
 #endif /* !NO_OF_SUPPORT */
