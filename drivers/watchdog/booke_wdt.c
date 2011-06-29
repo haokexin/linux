@@ -4,7 +4,7 @@
  * Author: Matthew McClintock
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
- * Copyright 2005, 2008 Freescale Semiconductor Inc.
+ * Copyright 2005, 2008, 2010 Freescale Semiconductor Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -114,6 +114,26 @@ static void __booke_wdt_enable(void *data)
 	mtspr(SPRN_TCR, val);
 }
 
+static void __booke_wdt_disable(void *data)
+{
+	u32 val;
+
+	val = mfspr(SPRN_TCR);
+	val &= ~(TCR_WIE | TCR_WRC_MASK | WDTP_MASK);
+	mtspr(SPRN_TCR, val);
+}
+
+static int booke_wdt_release(struct inode *inode, struct file *file)
+{
+	spin_lock(&booke_wdt_lock);
+	if (booke_wdt_enabled == 1) {
+		booke_wdt_enabled = 0;
+		on_each_cpu(__booke_wdt_disable, NULL, 0);
+		printk(KERN_INFO "PowerPC Book-E Watchdog Timer Disabled\n");
+	}
+	spin_unlock(&booke_wdt_lock);
+}
+
 static ssize_t booke_wdt_write(struct file *file, const char __user *buf,
 				size_t count, loff_t *ppos)
 {
@@ -199,6 +219,7 @@ static const struct file_operations booke_wdt_fops = {
 	.write = booke_wdt_write,
 	.unlocked_ioctl = booke_wdt_ioctl,
 	.open = booke_wdt_open,
+	.release = booke_wdt_release,
 };
 
 static struct miscdevice booke_wdt_miscdev = {
