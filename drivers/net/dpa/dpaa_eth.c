@@ -172,10 +172,10 @@ struct dpa_fq {
 	 FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT | FM_PORT_FRM_ERR_PRS_HDR_ERR)
 
 #ifdef	CONFIG_PPC85xx_VT_MODE
-static u64 guest_phy_offset;
+static u64 guest_dma_offset;
 
 #define dpa_phys_to_virt(addr) 	\
-	__va(addr - guest_phy_offset)
+	__va(addr - guest_dma_offset)
 #else
 #define	dpa_phys_to_virt(addr)	\
 	phys_to_virt(addr)
@@ -2789,7 +2789,8 @@ static int __init __cold dpa_load(void)
 #endif
 
 #ifdef	CONFIG_PPC85xx_VT_MODE
-	vbi_guest_phys_to_phys((void *)virt_to_phys((void *)PAGE_OFFSET), &guest_phy_offset);
+	vbi_get_guest_dma_addr((void *)virt_to_phys((void *)PAGE_OFFSET),
+				&guest_dma_offset);
 #endif
 	_errno = of_register_platform_driver(&dpa_driver);
 	if (unlikely(_errno < 0)) {
