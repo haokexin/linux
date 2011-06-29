@@ -63,6 +63,7 @@
 #include <asm/qe.h>        /* For struct qe_firmware */
 #include <sysdev/fsl_soc.h>
 #include <linux/stat.h>	   /* For file access mask */
+#include <asm/kexec.h>
 
 /* NetCommSw Headers --------------- */
 #include "std_ext.h"
@@ -3072,3 +3073,37 @@ void fm_mutex_unlock(void)
 }
 EXPORT_SYMBOL(fm_mutex_unlock);
 
+#ifdef CONFIG_KEXEC
+static int fm_crash_shutdown(struct device *dev, void *data)
+{
+	struct of_platform_driver *drv = data;
+	struct of_device *of_dev = to_of_device(dev);
+	t_LnxWrpFmDev   *p;
+
+	if (dev->driver != &drv->driver)
+		return 0;
+
+	p = dev_get_drvdata(&of_dev->dev);
+
+	if (!p->active)
+		return 0;
+
+	if (p->h_Dev)
+		FM_Free(p->h_Dev);
+
+	return 0;
+}
+
+static void fm_crash_shutdown_all(void)
+{
+	bus_for_each_dev(&of_platform_bus_type, NULL,
+			&fm_driver, fm_crash_shutdown);
+}
+
+void __init fman_init_early(void)
+{
+	crash_shutdown_register(&fm_crash_shutdown_all);
+}
+#else
+void __init fman_init_early(void) {}
+#endif
