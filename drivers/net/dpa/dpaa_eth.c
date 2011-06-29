@@ -2763,6 +2763,9 @@ static struct of_platform_driver dpa_driver = {
 	.match_table	= dpa_match,
 	.owner		= THIS_MODULE,
 	.probe		= dpaa_eth_probe,
+#ifdef CONFIG_PPC85xx_VT_MODE
+	.shutdown	= dpa_remove,
+#endif
 	.remove		= __devexit_p(dpa_remove)
 };
 
