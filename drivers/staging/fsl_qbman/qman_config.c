@@ -634,6 +634,72 @@ int qman_have_ccsr(void)
 	return qm ? 1 : 0;
 }
 
+#ifdef CONFIG_KEXEC
+static void qman_free_all_fq(void)
+{
+	int i, ret;
+	struct device_node *dn;
+	u32 *bpid = NULL, *cfg;
+	u64 count, incr, base;
+
+	for_each_compatible_node(dn, NULL, "fsl,bpool") {
+		bpid = (u32 *)of_get_property(dn, "fsl,bpid", &ret);
+		if (!bpid || (ret != 4)) {
+			pr_err("Can't get %s property 'fsl,bpid'\n",
+				dn->full_name);
+			continue;
+		}
+
+		if (*bpid == 0)
+			break;
+	}
+
+	if (!bpid || *bpid) {
+		pr_err("Can't get the pool for fqid\n");
+		return;
+	}
+
+	cfg = (u32 *)of_get_property(dn, "fsl,bpool-cfg", &ret);
+	if (cfg && (!ret || (ret % 24))) {
+		pr_err("Invalid 'fsl,bpool-cfg' property %s\n", dn->full_name);
+		return;
+	}
+
+	count = ((u64)cfg[0] << 32) | cfg[1];
+	incr  = ((u64)cfg[2] << 32) | cfg[3];
+	base  = ((u64)cfg[4] << 32) | cfg[5];
+
+	for (i = 0; i < count; i++) {
+		struct qman_fq fq;
+
+		memset(&fq, 0, sizeof(fq));
+		ret = qman_create_fq((u32)base, QMAN_FQ_FLAG_AS_IS, &fq);
+		if (ret)
+			pr_err("Create fq %d error\n", i);
+
+		base += incr;
+
+		if (fq.state != qman_fq_state_parked &&
+			fq.state != qman_fq_state_sched)
+			continue;
+
+		ret = qman_retire_fq(&fq, NULL);
+		if (ret) {
+			pr_err("Retire fq %d error\n", fq.fqid);
+			continue;
+		}
+
+		ret = qman_oos_fq(&fq);
+		if (ret) {
+			pr_err("OOS fq %d error\n", fq.fqid);
+			continue;
+		}
+
+		qman_destroy_fq(&fq, 0);
+	}
+}
+#endif
+
 __init void qman_init_early(void)
 {
 	struct device_node *dn;
@@ -646,6 +712,10 @@ __init void qman_init_early(void)
 			BUG_ON(ret);
 		}
 	}
+
+#ifdef CONFIG_KEXEC
+	crash_shutdown_register(&qman_free_all_fq);
+#endif
 }
 
 static void log_edata_bits(u32 bit_count)
