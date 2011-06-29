@@ -242,9 +242,14 @@ static void bm_set_memory(struct bman *bm, u64 ba, int prio, u32 size)
 			is_power_of_2(size));
 	/* choke if '[e]ba' has lower-alignment than 'size' */
 	DPA_ASSERT(!(ba & (size - 1)));
-	bm_out(FBPR_BARE, upper_32_bits(ba));
-	bm_out(FBPR_BAR, lower_32_bits(ba));
-	bm_out(FBPR_AR, (prio ? 0x40000000 : 0) | (exp - 1));
+	/* We assume FBPR BAR is already configured correctly
+	 * if that value is nonzero.
+	 */
+	if ((bm_in(FBPR_BAR)) == 0) {
+		bm_out(FBPR_BARE, upper_32_bits(ba));
+		bm_out(FBPR_BAR, lower_32_bits(ba));
+		bm_out(FBPR_AR, (prio ? 0x40000000 : 0) | (exp - 1));
+	}
 }
 
 /*****************/
