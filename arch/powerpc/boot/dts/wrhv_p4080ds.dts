@@ -1146,7 +1146,7 @@
 			compatible = "fsl,p4080-fman", "fsl,fman", "simple-bus";
 			ranges = <0 0x400000 0x100000>;
 			reg = <0x400000 0x100000>;
-			clock-frequency = <0>;
+			clock-frequency = <0xee6a8be>;
 			interrupts = <96 2>;
 			interrupt-parent = <&mpic>;
 
@@ -1289,6 +1289,7 @@
 				compatible = "fsl,p4080-fman-1g-mac", "fsl,fman-1g-mac";
 				reg = <0xe0000 0x1000>;
 				fsl,port-handles = <&fman0_rx0 &fman0_tx0>;
+				local-mac-address = [ 00 01 02 03 04 05 ];
 				tbi-handle = <&tbi0>;
 				phy-handle = <&phy0>;
 				phy-connection-type = "sgmii";
@@ -1390,6 +1391,7 @@
 				compatible = "fsl,p4080-fman-1g-mac", "fsl,fman-1g-mac";
 				reg = <0xe2000 0x1000>;
 				fsl,port-handles = <&fman0_rx1 &fman0_tx1>;
+				local-mac-address = [ 00 01 02 03 04 06 ];
 				tbi-handle = <&tbi1>;
 				phy-handle = <&phy1>;
 				phy-connection-type = "sgmii";
@@ -1413,6 +1415,7 @@
 				compatible = "fsl,p4080-fman-1g-mac", "fsl,fman-1g-mac";
 				reg = <0xe4000 0x1000>;
 				fsl,port-handles = <&fman0_rx2 &fman0_tx2>;
+				local-mac-address = [ 00 01 02 03 04 07 ];
 				tbi-handle = <&tbi2>;
 				phy-handle = <&phy2>;
 				phy-connection-type = "sgmii";
@@ -1436,6 +1439,7 @@
 				compatible = "fsl,p4080-fman-1g-mac", "fsl,fman-1g-mac";
 				reg = <0xe6000 0x1000>;
 				fsl,port-handles = <&fman0_rx3 &fman0_tx3>;
+				local-mac-address = [ 00 01 02 03 04 08 ];
 				tbi-handle = <&tbi3>;
 				phy-handle = <&phy3>;
 				phy-connection-type = "sgmii";
@@ -1458,6 +1462,7 @@
 				compatible = "fsl,p4080-fman-10g-mac", "fsl,fman-10g-mac";
 				reg = <0xf0000 0x1000>;
 				fsl,port-handles = <&fman0_rx4 &fman0_tx4>;
+				local-mac-address = [ 00 01 02 03 04 09 ];
 				phy-handle = <&phy10>;
 				phy-connection-type = "xgmii";
 			};
@@ -1504,7 +1509,7 @@
 			compatible = "fsl,p4080-fman", "fsl,fman", "simple-bus";
 			ranges = <0 0x500000 0x100000>;
 			reg = <0x500000 0x100000>;
-			clock-frequency = <0>;
+			clock-frequency = <0xee6a8be>;
 			interrupts = <97 2>;
 			interrupt-parent = <&mpic>;
 
@@ -1647,9 +1652,10 @@
 				compatible = "fsl,p4080-fman-1g-mac", "fsl,fman-1g-mac";
 				reg = <0xe0000 0x1000>;
 				fsl,port-handles = <&fman1_rx0 &fman1_tx0>;
+				local-mac-address = [ 00 01 02 03 04 0a ];
 				tbi-handle = <&tbi5>;
-				phy-handle = <&phy5>;
-				phy-connection-type = "sgmii";
+				phy-handle = <&phyrgmii>;
+				phy-connection-type = "rgmii";
 			};
 			mdio@e1120 {
 				#address-cells = <1>;
