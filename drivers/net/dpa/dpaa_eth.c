@@ -108,7 +108,7 @@ MODULE_AUTHOR("Andy Fleming <afleming@freescale.com>");
 
 MODULE_DESCRIPTION(DPA_DESCRIPTION);
 
-static uint8_t debug = -1;
+static uint8_t debug = 0;
 module_param(debug, byte, S_IRUGO);
 MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 
