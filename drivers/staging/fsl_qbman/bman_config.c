@@ -368,6 +368,30 @@ int bm_pool_set(u32 bpid, const u32 *thresholds)
 }
 EXPORT_SYMBOL(bm_pool_set);
 
+#ifdef CONFIG_KEXEC
+static void bman_drain_all_pool(void)
+{
+	int i;
+
+	for (i = 0; i < 64; i++) {
+		int ret;
+		struct bman_pool *p;
+		struct bman_pool_params tmp;
+		struct bm_buffer buf;
+
+		memset(&tmp, 0, sizeof(tmp));
+		tmp.bpid = i;
+		p = bman_new_pool(&tmp);
+
+		do {
+			ret = bman_acquire(p, &buf, 1, 0);
+		} while (ret > 0);
+
+		bman_free_pool(p);
+	}
+}
+#endif
+
 __init void bman_init_early(void)
 {
 	struct device_node *dn;
@@ -380,6 +404,10 @@ __init void bman_init_early(void)
 			BUG_ON(ret);
 		}
 	}
+
+#ifdef CONFIG_KEXEC
+	crash_shutdown_register(&bman_drain_all_pool);
+#endif
 }
 
 static void log_edata_bits(u32 bit_count)

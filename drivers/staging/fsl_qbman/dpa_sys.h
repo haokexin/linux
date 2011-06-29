@@ -55,6 +55,7 @@
 #include <asm/smp.h>
 #include <sysdev/fsl_soc.h>
 #include <linux/vmalloc.h>
+#include <asm/kexec.h>
 #ifdef CONFIG_WRHV
 #include <vbi/vbi.h>
 #endif
