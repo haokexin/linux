@@ -234,6 +234,23 @@ static void bm_set_pool(struct bman *bm, u8 pool, u32 swdet, u32 swdxt,
 	bm_out(POOL_HWDXT(pool), __generate_thresh(hwdxt, 1));
 }
 
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+/* we're coming from a kexec reboot, of course the register will have a
+ * non-zero value in it, but we want to reallocate the memory from the
+ * new kernel, not use the old memory, which might be used for something
+ * else in the new kernel. */
+static u32 bm_get_fbpr_bar(struct bman* bm)
+{
+	return 0;
+}
+#else
+/* regular case */
+static u32 bm_get_fbpr_bar(struct bman* bm)
+{
+	return bm_in(FBPR_BAR);
+}
+#endif
+
 static void bm_set_memory(struct bman *bm, u64 ba, int prio, u32 size)
 {
 	u32 exp = ilog2(size);
@@ -245,7 +262,7 @@ static void bm_set_memory(struct bman *bm, u64 ba, int prio, u32 size)
 	/* We assume FBPR BAR is already configured correctly
 	 * if that value is nonzero.
 	 */
-	if ((bm_in(FBPR_BAR)) == 0) {
+	if (bm_get_fbpr_bar(bm) == 0) {
 		bm_out(FBPR_BARE, upper_32_bits(ba));
 		bm_out(FBPR_BAR, lower_32_bits(ba));
 		bm_out(FBPR_AR, (prio ? 0x40000000 : 0) | (exp - 1));
