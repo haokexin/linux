@@ -90,14 +90,16 @@ static inline int do_flags(struct pme_ctx *ctx,
 			u32 to_set, u32 to_unset)
 {
 	int err = -EBUSY;
-	spin_lock_irq(&ctx->lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&ctx->lock, flags);
 	if (((ctx->flags & must_be_set) == must_be_set) &&
 			!(ctx->flags & must_not_be_set)) {
 		ctx->flags |= to_set;
 		ctx->flags &= ~to_unset;
 		err = 0;
 	}
-	spin_unlock_irq(&ctx->lock);
+	spin_unlock_irqrestore(&ctx->lock, flags);
 	return err;
 }
 
@@ -483,15 +485,17 @@ EXPORT_SYMBOL(pme_ctx_reconfigure_rx);
  * is EXCLUSIVE. */
 static inline void release_exclusive(__maybe_unused struct pme_ctx *ctx)
 {
+	unsigned long flags;
+
 	BUG_ON(exclusive_ctx != ctx);
 	BUG_ON(!exclusive_refs);
-	spin_lock_irq(&exclusive_lock);
+	spin_lock_irqsave(&exclusive_lock, flags);
 	if (!(--exclusive_refs)) {
 		exclusive_ctx = NULL;
 		pme2_exclusive_unset();
 		wake_up(&exclusive_queue);
 	}
-	spin_unlock_irq(&exclusive_lock);
+	spin_unlock_irqrestore(&exclusive_lock, flags);
 }
 static int __try_exclusive(struct pme_ctx *ctx)
 {
@@ -781,7 +785,7 @@ static inline struct pme_ctx_token *pop_matching_token(struct pme_ctx *ctx,
 	 * The penalty of the slow-path case is the for() loop plus the fact
 	 * we're optimising for a "likely" match first time, which might hurt
 	 * when that assumption is wrong a few times in succession. */
-	spin_lock_irq(&ctx->lock);
+	spin_lock(&ctx->lock);
 	list_for_each_entry(token, &ctx->tokens, node) {
 		t_fd = (const struct qm_fd *)&token->blob[0];
 		if (likely(MATCH(t_fd, fd))) {
@@ -793,7 +797,7 @@ static inline struct pme_ctx_token *pop_matching_token(struct pme_ctx *ctx,
 	pr_err("PME2 Could not find matching token!\n");
 	BUG();
 found:
-	spin_unlock_irq(&ctx->lock);
+	spin_unlock(&ctx->lock);
 	return token;
 }
 
