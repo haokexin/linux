@@ -983,7 +983,7 @@ static void qm_err_cb(struct qman_portal       *portal,
                        const struct qm_mr_entry *msg)
 {
     /* In guest OS, we maybe get a ISR when retiring a FQ */
-#ifndef CONFIG_PPC85xx_VT_MODE
+#if !defined(CONFIG_PPC85xx_VT_MODE) && !defined(CONFIG_KEXEC)
     BUG();
 #endif
 }
@@ -2673,7 +2673,7 @@ static int __devexit fm_remove(struct of_device *of_dev)
     return 0;
 }
 
-#ifdef CONFIG_PPC85xx_VT_MODE
+#if defined(CONFIG_PPC85xx_VT_MODE) || defined(CONFIG_KEXEC)
 static int fm_shutdown(struct of_device *of_dev)
 {
     t_LnxWrpFmDev   *p_LnxWrpFmDev;
@@ -2809,7 +2809,7 @@ static int __devexit fm_port_remove(struct of_device *of_dev)
     return 0;
 }
 
-#ifdef CONFIG_PPC85xx_VT_MODE
+#if defined(CONFIG_PPC85xx_VT_MODE) || defined(CONFIG_KEXEC)
 static int DestroyFmFQ(struct qman_fq *fq)
 {
 	int r = 0;
