@@ -1034,6 +1034,19 @@ static const struct attribute_group qman_dev_ecr_grp = {
 	.attrs = qman_dev_ecr_attributes
 };
 
+#if defined(CONFIG_PPC85xx_VT_MODE) || defined(CONFIG_KEXEC)
+static int of_fsl_qman_shutdown(struct of_device *ofdev)
+{
+	int cpu;
+	struct qman_portal *p;
+	for_each_online_cpu(cpu) {
+		p = per_cpu_affine_portal(cpu);
+		qman_static_dequeue_del_ex(p, ~0);
+	}
+	return 0;
+};
+#endif
+
 static int of_fsl_qman_remove(struct of_device *ofdev)
 {
 	sysfs_remove_group(&ofdev->dev.kobj, &qman_dev_attr_grp);
@@ -1082,6 +1095,9 @@ static struct of_platform_driver of_fsl_qman_driver = {
 	.name = DRV_NAME,
 	.match_table = of_fsl_qman_ids,
 	.probe = of_fsl_qman_probe,
+#if defined(CONFIG_PPC85xx_VT_MODE) || defined(CONFIG_KEXEC)
+	.shutdown = of_fsl_qman_shutdown,
+#endif
 	.remove      = __devexit_p(of_fsl_qman_remove),
 };
 
