@@ -310,6 +310,36 @@ static void __init fsl_bman_portal_destroy(struct bm_portal_config *pcfg)
 	kfree(pcfg);
 }
 
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+static void bman_drain_bpool(void)
+{
+	struct device_node *dn;
+
+	for_each_compatible_node(dn, NULL, "fsl,bpool") {
+		u32 *bpid;
+		int ret;
+		struct bman_pool *p;
+		struct bman_pool_params tmp;
+		struct bm_buffer buf;
+
+		bpid = (u32 *)of_get_property(dn, "fsl,bpid", &ret);
+		if (!bpid || (ret != 4))
+			continue;
+
+		memset(&tmp, 0, sizeof(tmp));
+		tmp.bpid = *bpid;
+
+		p = bman_new_pool(&tmp);
+
+		do {
+			ret = bman_acquire(p, &buf, 1, 0);
+		} while (ret > 0);
+
+		bman_free_pool(p);
+	}
+}
+#endif
+
 static int __init fsl_bpool_init(struct device_node *node)
 {
 	int ret;
@@ -344,6 +374,11 @@ static int __init fsl_bpool_init(struct device_node *node)
 			"fsl,bpool-cfg");
 		return -ENODEV;
 	}
+
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+	bman_drain_bpool();
+#endif
+
 	if (cfg)
 		ret = __bm_pool_add(*bpid, cfg, ret / 24);
 	else
