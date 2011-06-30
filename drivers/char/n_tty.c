@@ -109,7 +109,7 @@ static void n_tty_set_room(struct tty_struct *tty)
 
 static void put_tty_queue_nolock(unsigned char c, struct tty_struct *tty)
 {
-	if (tty->read_cnt < N_TTY_BUF_SIZE) {
+	if (tty->read_cnt < N_TTY_BUF_SIZE && tty->read_buf != NULL) {
 		tty->read_buf[tty->read_head] = c;
 		tty->read_head = (tty->read_head + 1) & (N_TTY_BUF_SIZE-1);
 		tty->read_cnt++;
@@ -1536,14 +1536,21 @@ static void n_tty_set_termios(struct tty_struct *tty, struct ktermios *old)
 
 static void n_tty_close(struct tty_struct *tty)
 {
+	char *tmpbuf;
+	unsigned long flags;
+
 	n_tty_flush_buffer(tty);
 	if (tty->read_buf) {
-		kfree(tty->read_buf);
+		tmpbuf = tty->read_buf;
+		spin_lock_irqsave(&tty->read_lock, flags);
 		tty->read_buf = NULL;
+		spin_unlock_irqrestore(&tty->read_lock, flags);
+		kfree(tmpbuf);
 	}
 	if (tty->echo_buf) {
-		kfree(tty->echo_buf);
+		tmpbuf = tty->echo_buf;
 		tty->echo_buf = NULL;
+		kfree(tmpbuf);
 	}
 }
 
