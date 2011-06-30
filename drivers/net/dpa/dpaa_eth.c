@@ -1745,7 +1745,7 @@ dpa_bp_probe(struct of_device *_of_dev, size_t *count)
 	phandle_prop = of_get_property(_of_dev->node,
 					"fsl,bman-buffer-pools", &lenp);
 
-	if (phandle_prop)
+	if (phandle_prop && !default_pool)
 		*count = lenp / sizeof(phandle);
 	else {
 		if (default_pool)
