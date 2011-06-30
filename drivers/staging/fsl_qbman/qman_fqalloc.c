@@ -43,12 +43,13 @@
 static int use_bman;
 
 static struct bman_pool *fq_pool;
-static const struct bman_pool_params fq_pool_params;
+static struct bman_pool_params fq_pool_params;
 
-__init int fqalloc_init(int __use_bman)
+__init int fqalloc_init(int __use_bman, u32 bpid)
 {
 	use_bman = __use_bman;
 	if (use_bman) {
+		fq_pool_params.bpid = bpid;
 		fq_pool = bman_new_pool(&fq_pool_params);
 		if (!fq_pool)
 			return -ENOMEM;

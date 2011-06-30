@@ -484,7 +484,7 @@ static __init int qman_init(void)
 	struct device_node *dn;
 	struct qm_portal_config *pcfg;
 	struct qman_portal *sharing_portal = NULL;
-	int loop, ret, use_bpid0 = 1, recovery_mode = 0, sharing_cpu = -1;
+	int loop, ret, bpid = 0, use_bpid0 = 1, recovery_mode = 0, sharing_cpu = -1;
 	LIST_HEAD(cfg_list);
 
 	for_each_compatible_node(dn, NULL, "fsl,qman") {
@@ -574,7 +574,16 @@ static __init int qman_init(void)
 		qman_modify_cgr(&cgr, QMAN_CGR_FLAG_USE_INIT, NULL);
 	}
 #ifdef CONFIG_FSL_QMAN_FQALLOCATOR
-	ret = fqalloc_init(use_bpid0);
+	dn = of_find_compatible_node(NULL, NULL, "fsl,qman");
+	if (dn) {
+		const uint32_t *prop;
+		int len;
+
+		prop = of_get_property(dn, "fsl,qman-fqalloc-bpid", &len);
+		if (prop)
+			bpid = *prop;
+	}
+	ret = fqalloc_init(use_bpid0, bpid);
 	if (ret)
 		return ret;
 #endif
