@@ -152,6 +152,13 @@ struct qman_portal {
 static cpumask_t affine_mask;
 static DEFINE_SPINLOCK(affine_mask_lock);
 static DEFINE_PER_CPU(struct qman_portal, qman_affine_portal);
+
+struct qman_portal *per_cpu_affine_portal(int cpu)
+{
+	return &per_cpu(qman_affine_portal, cpu);
+}
+EXPORT_SYMBOL(per_cpu_affine_portal);
+
 /* "raw" gets the cpu-local struct whether it's a redirect or not. */
 static inline struct qman_portal *get_raw_affine_portal(void)
 {
@@ -1373,6 +1380,19 @@ void qman_static_dequeue_del(u32 pools)
 	put_affine_portal();
 }
 EXPORT_SYMBOL(qman_static_dequeue_del);
+
+void qman_static_dequeue_del_ex(struct qman_portal *p, u32 pools)
+{
+	__maybe_unused unsigned long irqflags;
+	if (p->config != NULL) {
+		local_irq_save(irqflags);
+		pools &= p->config->pools;
+		p->sdqcr &= ~pools;
+		qm_dqrr_sdqcr_set(&p->p, p->sdqcr);
+		local_irq_restore(irqflags);
+	}
+}
+EXPORT_SYMBOL(qman_static_dequeue_del_ex);
 
 u32 qman_static_dequeue_get(void)
 {
