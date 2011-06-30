@@ -11,7 +11,7 @@
  * core capability for operating systems that don't support an fdt
  * construct in the future.
  *
- * Copyright (c) 2007-2009 Freescale Semiconductor, Inc.
+ * Copyright (c) 2007-2010 Freescale Semiconductor, Inc.
  *
  * All rights reserved.
  *
@@ -83,6 +83,7 @@ static const uint8_t devname_3_0_1[]   = { "3.0.1" }; /* 8536 */
 static const uint8_t devname_3_1_0[]   = { "3.1.0" }; /* 8569/8526 */
 static const uint8_t devname_3_3_0[]   = { "3.3.0" }; /* 8315 */
 static const uint8_t devname_3_3_1[]   = { "3.3.1" }; /* 8315 */
+static const uint8_t devname_3_3_2[]   = { "3.3.2" }; /* p1021/p1022 */
 
 /*
  * Device capability mode bits for both Talitos 2 and 3
@@ -630,6 +631,30 @@ void t23xrmCoreID(T2CoreInstance *inst, uint8_t fdt)
     }
 
 
+    /* 3.3.2 - p1021, p1022 */
+    if ((thisInst->regs->ctrl.ID == 0x0030030300020000ull) &&
+        (thisInst->regs->ipID.id == 0x0030030300020000ull))
+    {
+        thisInst->devMajor = 3;
+        thisInst->devMinor = 3;
+        thisInst->devRev   = 2;
+        thisInst->devName  = devname_3_3_2;
+        if (fdt == NO_FDT)
+        {
+            thisInst->totalChannels = 4;
+            thisInst->fifoDepth     = 24;
+            thisInst->euPresent     = HAS_NULL | HAS_DEU | HAS_MDEU | HAS_RNG |
+                                      HAS_PKEU | HAS_AESU | HAS_CRCU | HAS_MDEU_B;
+            thisInst->validTypes    = HAS_AESU_CTR_NONSNOOP | HAS_IPSEC_ESP |
+                                      HAS_COMMON_NONSNOOP | HAS_COMMON_80211_AES_CCMP |
+                                      HAS_HMAC_SNOOP_NO_AFEU | HAS_SRTP |
+                                      HAS_NON_HMAC_SNOOP_NO_AFEU |
+                                      HAS_AESU_KEY_EXPAND_OUT | HAS_PKEU_PTMUL |
+                                      HAS_PKEU_PTADD_DBL | HAS_PKEU_MM | HAS_TLS_SSL_BLOCK |
+                                      HAS_RAID_XOR | HAS_IPSEC_AES_GCM |
+                                      HAS_DBL_CRC;
+        }
+    }
     /* Last, init the number of free channels from the total */
     thisInst->freeChannels = thisInst->totalChannels;
 }
