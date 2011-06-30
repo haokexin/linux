@@ -234,7 +234,7 @@ static void bm_set_pool(struct bman *bm, u8 pool, u32 swdet, u32 swdxt,
 	bm_out(POOL_HWDXT(pool), __generate_thresh(hwdxt, 1));
 }
 
-#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+#if defined(CONFIG_KEXEC_POWERPC_SMP_BOOTABLE) && !defined(CONFIG_CRASH_DUMP)
 /* we're coming from a kexec reboot, of course the register will have a
  * non-zero value in it, but we want to reallocate the memory from the
  * new kernel, not use the old memory, which might be used for something
