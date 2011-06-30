@@ -241,6 +241,12 @@ struct bman_portal *bman_create_affine_portal(
 	const struct bman_depletion *pools = &config->mask;
 	int ret;
 
+	/* A criteria for calling this function is that we're already affine
+	 * to the cpu and won't schedule onto another cpu. This means we can
+	 * put_affine_portal() and yet continue to use "portal", which in turn
+	 * means aspects of this routine can sleep. */
+	put_affine_portal();
+
 	BUG_ON(flags & BMAN_PORTAL_FLAG_SHARE_SLAVE);
 	/* prep the low-level portal struct with the mapped addresses from the
 	 * config, everything that follows depends on it and "config" is more
@@ -325,7 +331,6 @@ struct bman_portal *bman_create_affine_portal(
 	cpumask_set_cpu(config->cpu, &affine_mask);
 	spin_unlock(&affine_mask_lock);
 	bm_isr_disable_write(__p, 0);
-	put_affine_portal();
 	return portal;
 fail_rcr_empty:
 #ifdef CONFIG_FSL_DPA_HAVE_IRQ
@@ -342,7 +347,6 @@ fail_isr:
 fail_mc:
 	bm_rcr_finish(__p);
 fail_rcr:
-	put_affine_portal();
 	return NULL;
 }
 

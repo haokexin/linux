@@ -650,7 +650,6 @@ fail_mr:
 fail_dqrr:
 	qm_eqcr_finish(__p);
 fail_eqcr:
-	put_affine_portal();
 	return NULL;
 }
 
