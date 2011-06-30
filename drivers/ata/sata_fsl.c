@@ -283,7 +283,14 @@ struct sata_fsl_host_priv {
 	int irq;
 	int data_snoop;
 	struct device_attribute intr_coalescing;
+	u32 quirks;
+#define SATA_FSL_QUIRK_P3P5_ERRATA	(1 << 0)
 };
+
+static void sata_fsl_dev_config(struct ata_device *dev)
+{
+		dev->max_sectors = 16;
+}
 
 static void fsl_sata_set_irq_coalescing(struct ata_host *host,
 		unsigned int count, unsigned int ticks)
@@ -1039,8 +1046,34 @@ static void sata_fsl_error_handler(struct ata_port *ap)
 
 static void sata_fsl_post_internal_cmd(struct ata_queued_cmd *qc)
 {
+	struct sata_fsl_host_priv *host_priv = qc->ap->host->private_data;
+	void __iomem *hcr_base = host_priv->hcr_base;
+	u32 temp;
+
 	if (qc->flags & ATA_QCFLAG_FAILED)
 		qc->err_mask |= AC_ERR_OTHER;
+
+	/* For P3P5 errata, it needs to bring controller offline/online to
+	 * clear the command queue  after running ATA_CMD_ID_ATA command
+	 * in some hard disk, otherwise it will get error and fail. */
+	if ((host_priv->quirks & SATA_FSL_QUIRK_P3P5_ERRATA)
+			&& (qc->tf.command == ATA_CMD_ID_ATA)) {
+		/* Bring controller offline firstly. */
+		temp = ioread32(hcr_base + HCONTROL);
+		temp &= ~HCONTROL_ONLINE_PHY_RST;
+		temp |= HCONTROL_FORCE_OFFLINE;
+		iowrite32(temp, hcr_base + HCONTROL);
+
+		/* Poll for controller to go offline, should happen
+		 * immediately */
+		ata_wait_register(qc->ap, hcr_base + HSTATUS,
+					ONLINE, ONLINE, 1, 1);
+
+		/* Bring controller online. */
+		temp = ioread32(hcr_base + HCONTROL);
+		iowrite32((temp | HCONTROL_ONLINE_PHY_RST),
+					hcr_base + HCONTROL);
+	}
 
 	if (qc->err_mask) {
 		/* make DMA engine forget about the failed command */
@@ -1181,24 +1214,48 @@ static void sata_fsl_host_intr(struct ata_port *ap)
 	u32 hstatus, done_mask = 0;
 	struct ata_queued_cmd *qc;
 	u32 SError;
+	u32 serror_mask = 0xFFFF0000;
+	u32 status_mask = INT_ON_ERROR;
 
 	hstatus = ioread32(hcr_base + HSTATUS);
 
 	sata_fsl_scr_read(&ap->link, SCR_ERROR, &SError);
 
-	if (unlikely(SError & 0xFFFF0000)) {
+	/* Workaround for P3041/P5020 SATA errata */
+	if (host_priv->quirks & SATA_FSL_QUIRK_P3P5_ERRATA) {
+		u32 Hcontrol;
+#define HCONTROL_CLEAR_ERROR	(1 << 27)
+		/* Set HControl[27] to clear error registers */
+		Hcontrol = ioread32(hcr_base + HCONTROL);
+		iowrite32(Hcontrol | HCONTROL_CLEAR_ERROR, hcr_base + HCONTROL);
+
+		/* Clear HControl[27] */
+		iowrite32(Hcontrol & (~HCONTROL_CLEAR_ERROR),
+						hcr_base + HCONTROL);
+
+		/* Ignore CRC error and fatal error */
+#define SERROR_CRC_ERROR	(1 << 21)
+		serror_mask &= ~SERROR_CRC_ERROR;
+		status_mask &= ~(INT_ON_FATAL_ERR | INT_ON_SINGL_DEVICE_ERR);
+
+		/* Set CCR register to indicate that command has completed */
+		done_mask = 1;
+	} else {
+		/* Read command completed register */
+		done_mask = ioread32(hcr_base + CC);
+	}
+
+	if (unlikely(SError & serror_mask)) {
 		DPRINTK("serror @host_intr : 0x%x\n", SError);
 		sata_fsl_error_intr(ap);
 	}
 
-	if (unlikely(hstatus & INT_ON_ERROR)) {
+	if (unlikely(hstatus & status_mask)) {
 		DPRINTK("error interrupt!!\n");
 		sata_fsl_error_intr(ap);
 		return;
 	}
 
-	/* Read command completed register */
-	done_mask = ioread32(hcr_base + CC);
 
 	VPRINTK("Status of all queues :\n");
 	VPRINTK("done_mask/CC = 0x%x, CA = 0x%x, CE=0x%x,CQ=0x%x,apqa=0x%x\n",
@@ -1436,6 +1493,20 @@ static int sata_fsl_probe(struct platform_device *ofdev)
 		host_priv->data_snoop = DATA_SNOOP_ENABLE_V2;
 	else
 		host_priv->data_snoop = DATA_SNOOP_ENABLE_V1;
+
+	if (of_device_is_compatible(ofdev->dev.of_node, "fsl,p5020-sata") ||
+		of_device_is_compatible(ofdev->dev.of_node, "fsl,p5010-sata") ||
+		of_device_is_compatible(ofdev->dev.of_node, "fsl,p2041-sata") ||
+		of_device_is_compatible(ofdev->dev.of_node, "fsl,p2040-sata") ||
+		of_device_is_compatible(ofdev->dev.of_node, "fsl,p3041-sata")) {
+		if ((mfspr(SPRN_SVR) & 0xff) == 0x10) {
+			/* Workaround for P3041/P5020 SATA */
+			sata_fsl_ops.dev_config = &sata_fsl_dev_config;
+			sata_fsl_sht.can_queue = 1;
+			pi.flags &= ~ATA_FLAG_NCQ;
+			host_priv->quirks |= SATA_FSL_QUIRK_P3P5_ERRATA;
+		}
+	}
 
 	/* allocate host structure */
 	host = ata_host_alloc_pinfo(&ofdev->dev, ppi, SATA_FSL_MAX_PORTS);
