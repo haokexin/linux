@@ -210,6 +210,7 @@ static __init struct qman_portal *init_affine_portal(
 					int cpu, struct qman_portal *redirect,
 					int recovery_mode, int is_shared)
 {
+	struct task_struct *k = NULL;
 	struct affine_portal_data data = {
 		.done = COMPLETION_INITIALIZER_ONSTACK(data.done),
 		.pconfig = pconfig,
@@ -219,7 +220,8 @@ static __init struct qman_portal *init_affine_portal(
 		.is_shared = is_shared,
 		.portal = NULL
 	};
-	struct task_struct *k = kthread_create(thread_init_affine_portal, &data,
+	init_waitqueue_head(&data.done.wait);
+	k = kthread_create(thread_init_affine_portal, &data,
 		"qman_affine%d", cpu);
 	int ret;
 	if (IS_ERR(k)) {
