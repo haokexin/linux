@@ -300,7 +300,7 @@ struct bman_portal *bman_create_affine_portal(
 	bm_isr_status_clear(__p, 0xffffffff);
 #ifdef CONFIG_FSL_DPA_HAVE_IRQ
 	snprintf(portal->irqname, MAX_IRQNAME, IRQNAME, config->cpu);
-	if (request_irq(config->irq, portal_isr, 0, portal->irqname, portal)) {
+	if (request_irq(config->irq, portal_isr, IRQF_NOBALANCING, portal->irqname, portal)) {
 		pr_err("request_irq() failed\n");
 		goto fail_irq;
 	}
