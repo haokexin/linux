@@ -500,7 +500,9 @@ static inline void release_exclusive(__maybe_unused struct pme_ctx *ctx)
 static int __try_exclusive(struct pme_ctx *ctx)
 {
 	int ret = 0;
-	spin_lock_irq(&exclusive_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&exclusive_lock, flags);
 	if (exclusive_refs) {
 		/* exclusivity already held, continue if we're the owner */
 		if (exclusive_ctx != ctx)
@@ -513,7 +515,7 @@ static int __try_exclusive(struct pme_ctx *ctx)
 	}
 	if (!ret)
 		exclusive_refs++;
-	spin_unlock_irq(&exclusive_lock);
+	spin_unlock_irqrestore(&exclusive_lock, flags);
 	return ret;
 }
 /* Use this macro as the wait expression because we don't want to continue
@@ -777,6 +779,7 @@ static inline struct pme_ctx_token *pop_matching_token(struct pme_ctx *ctx,
 {
 	struct pme_ctx_token *token;
 	const struct qm_fd *t_fd;
+	unsigned long flags;
 
 	/* The fast-path case is that the for() loop actually degenerates into;
 	 *     token = list_first_entry();
@@ -785,7 +788,7 @@ static inline struct pme_ctx_token *pop_matching_token(struct pme_ctx *ctx,
 	 * The penalty of the slow-path case is the for() loop plus the fact
 	 * we're optimising for a "likely" match first time, which might hurt
 	 * when that assumption is wrong a few times in succession. */
-	spin_lock(&ctx->lock);
+	spin_lock_irqsave(&ctx->lock, flags);
 	list_for_each_entry(token, &ctx->tokens, node) {
 		t_fd = (const struct qm_fd *)&token->blob[0];
 		if (likely(MATCH(t_fd, fd))) {
@@ -797,7 +800,7 @@ static inline struct pme_ctx_token *pop_matching_token(struct pme_ctx *ctx,
 	pr_err("PME2 Could not find matching token!\n");
 	BUG();
 found:
-	spin_unlock(&ctx->lock);
+	spin_unlock_irqrestore(&ctx->lock, flags);
 	return token;
 }
 
