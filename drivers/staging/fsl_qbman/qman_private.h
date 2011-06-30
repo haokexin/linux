@@ -143,7 +143,7 @@ struct qm_portal_config {
 
 /* Hooks for driver initialisation */
 #ifdef CONFIG_FSL_QMAN_FQALLOCATOR
-__init int fqalloc_init(int use_bman);
+__init int fqalloc_init(int use_bman, u32 bpid);
 #endif
 
 /* Revision info (for errata and feature handling) */
