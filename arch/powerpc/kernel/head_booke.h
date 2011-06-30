@@ -1,6 +1,8 @@
 #ifndef __HEAD_BOOKE_H__
 #define __HEAD_BOOKE_H__
 
+#include <asm/ptrace.h>        /* for STACK_FRAME_REGS_MARKER */
+
 /*
  * Macros used for common Book-e exception handling
  */
@@ -51,6 +53,9 @@
 	lwz	r13, THREAD_NORMSAVE(2)(r10); /* restore r13 */		     \
 	mflr	r10;							     \
 	stw	r10,_LINK(r11);						     \
+	lis     r10, STACK_FRAME_REGS_MARKER@ha;/* exception frame marker */ \
+	addi    r10, r10, STACK_FRAME_REGS_MARKER@l;                         \
+	stw     r10, 8(r11);                                                 \
 	mfspr	r12,SPRN_SRR0;						     \
 	stw	r1, GPR1(r11);						     \
 	mfspr	r9,SPRN_SRR1;						     \
