@@ -549,6 +549,23 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 	return 0;
 }
 
+#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+/* we're coming from a kexec reboot, of course the register will have a
+ * non-zero value in it, but we want to reallocate the memory from the
+ * new kernel, not use the old memory, which might be used for something
+ * else in the new kernel. */
+static u32 qm_get_fqd_bar(void)
+{
+	return 0;
+}
+#else
+/* regular case */
+static u32 qm_get_fqd_bar(void)
+{
+	return __qm_in(qm, REG_FQD_BARE + REG_offset_BAR);
+}
+#endif
+
 /* TODO:
  * - there is obviously no handling of errors,
  * - the calls to qm_set_memory() hard-code the priority and CPC-stashing for
@@ -601,7 +618,7 @@ static int __init fsl_qman_init(struct device_node *node)
 	/* We assume FQD BAR is already configured correctly
 	 * if that value is nonzero.
 	 */
-	if((__qm_in(qm, REG_FQD_BARE + REG_offset_BAR)) == 0) {
+	if(qm_get_fqd_bar() == 0) {
 		if (!standby) {
 			ret = parse_mem_property(node, "fsl,qman-fqd",
 						&fqd_a, &fqd_sz, 1);
