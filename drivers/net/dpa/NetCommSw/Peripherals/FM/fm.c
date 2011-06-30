@@ -1371,6 +1371,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     t_FmIpcMsg              msg;
     t_FmIpcReply            reply;
     uint32_t                replyLength;
+    uint32_t                intFlags;
 
     if(p_Fm->guestId != NCSW_MASTER_ID)
     {
@@ -1413,7 +1414,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
         return (t_Error)(reply.error);
     }
 
-    XX_LockSpinlock(p_Fm->h_Spinlock);
+    intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
 
     if(p_PortParams->independentMode)
     {
@@ -1435,7 +1436,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     {
         if(p_Fm->hcPortInitialized)
         {
-            XX_UnlockSpinlock(p_Fm->h_Spinlock);
+	    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Only one host command port is allowed."));
         }
         else
@@ -1446,7 +1447,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     err = FmSetNumOfTasks(p_Fm, p_PortParams->hardwarePortId, p_PortParams->numOfTasks, p_PortParams->numOfExtraTasks, TRUE);
     if(err)
     {
-        XX_UnlockSpinlock(p_Fm->h_Spinlock);
+	XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
@@ -1491,7 +1492,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     {
         if(p_Fm->p_FmStateStruct->lowEndRestriction)
         {
-            XX_UnlockSpinlock(p_Fm->h_Spinlock);
+	    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
             RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("OP #0 cannot work with Tx Port #1."));
         }
         else
@@ -1510,14 +1511,14 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
                             TRUE);
     if(err)
     {
-        XX_UnlockSpinlock(p_Fm->h_Spinlock);
+	XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
     err = FmSetNumOfOpenDmas(p_Fm, p_PortParams->hardwarePortId, p_PortParams->numOfOpenDmas, p_PortParams->numOfExtraOpenDmas, TRUE);
     if(err)
     {
-        XX_UnlockSpinlock(p_Fm->h_Spinlock);
+	XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
@@ -1568,7 +1569,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     }
 
     FmGetPhysicalMuramBase(p_Fm, &p_PortParams->fmMuramPhysBaseAddr);
-    XX_UnlockSpinlock(p_Fm->h_Spinlock);
+    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
 
     return E_OK;
 }
