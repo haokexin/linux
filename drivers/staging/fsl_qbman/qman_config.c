@@ -549,7 +549,7 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 	return 0;
 }
 
-#ifdef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+#if defined(CONFIG_KEXEC_POWERPC_SMP_BOOTABLE) && !defined(CONFIG_CRASH_DUMP)
 /* we're coming from a kexec reboot, of course the register will have a
  * non-zero value in it, but we want to reallocate the memory from the
  * new kernel, not use the old memory, which might be used for something
