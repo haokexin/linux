@@ -52,6 +52,9 @@ u32 booke_wdt_period = WDT_PERIOD_DEFAULT;
 
 static DEFINE_SPINLOCK(booke_wdt_lock);
 
+/* wdt_is_active stores wether or not the /dev/watchdog device is opened */
+static unsigned long wdt_is_active;
+
 /* For the specified period, determine the number of seconds
  * corresponding to the reset time.  There will be a watchdog
  * exception at approximately 3/5 of this time.
@@ -127,9 +130,18 @@ static int booke_wdt_release(struct inode *inode, struct file *file)
 {
 	spin_lock(&booke_wdt_lock);
 	if (booke_wdt_enabled == 1) {
+#ifndef CONFIG_WATCHDOG_NOWAYOUT
+		/* Normally, the watchdog is disabled when /dev/watchdog is closed, but
+		 * if CONFIG_WATCHDOG_NOWAYOUT is defined, then it means that the
+		 * watchdog should remain enabled.  So we disable it only if
+		 * CONFIG_WATCHDOG_NOWAYOUT is not defined.
+		 */
 		booke_wdt_enabled = 0;
 		on_each_cpu(__booke_wdt_disable, NULL, 0);
 		printk(KERN_INFO "PowerPC Book-E Watchdog Timer Disabled\n");
+#endif
+
+		clear_bit(0, &wdt_is_active);
 	}
 	spin_unlock(&booke_wdt_lock);
 }
@@ -200,6 +212,10 @@ static long booke_wdt_ioctl(struct file *file,
 
 static int booke_wdt_open(struct inode *inode, struct file *file)
 {
+	/* /dev/watchdog can only be opened once */
+	if (test_and_set_bit(0, &wdt_is_active))
+		return -EBUSY;
+
 	spin_lock(&booke_wdt_lock);
 	if (booke_wdt_enabled == 0) {
 		booke_wdt_enabled = 1;
