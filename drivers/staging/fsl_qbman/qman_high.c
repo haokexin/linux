@@ -1098,7 +1098,13 @@ int qman_poll_dqrr(unsigned int limit)
 #endif
 	{
 		BUG_ON(p->irq_sources & QM_PIRQ_DQRI);
+#ifdef CONFIG_PREEMPT_RT
+		put_cpu();
+#endif
 		ret = __poll_portal_fast(p, limit);
+#ifdef CONFIG_PREEMPT_RT
+		get_cpu();
+#endif
 	}
 	put_affine_portal();
 	return ret;
