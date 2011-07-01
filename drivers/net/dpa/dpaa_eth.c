@@ -69,8 +69,8 @@
 #define DPA_MAX_TX_BACKLOG	512
 #define DPA_NAPI_WEIGHT		64
 
-#define DPA_BP_REFILL (1 | (smp_processor_id() << 16))
-#define DPA_BP_FINE ((smp_processor_id() << 16))
+#define DPA_BP_REFILL (1 | (raw_smp_processor_id() << 16))
+#define DPA_BP_FINE ((raw_smp_processor_id() << 16))
 #define DPA_BP_REFILL_NEEDED 1
 
 /* Bootarg used to override the Kconfig DPA_MAX_FRM_SIZE value */
@@ -213,7 +213,7 @@ static void dpa_bp_add_8(struct dpa_bp *dpa_bp)
 	int err;
 	int *count_ptr;
 
-	count_ptr = per_cpu_ptr(dpa_bp->percpu_count, smp_processor_id());
+	count_ptr = per_cpu_ptr(dpa_bp->percpu_count, raw_smp_processor_id());
 
 	for (i = 0; i < 8; i++) {
 		/*
@@ -271,7 +271,7 @@ static void dpa_make_private_pool(struct dpa_bp *dpa_bp)
 		int *countptr;
 		int j;
 		thiscount = per_cpu_ptr(dpa_bp->percpu_count,
-				smp_processor_id());
+				raw_smp_processor_id());
 		countptr = per_cpu_ptr(dpa_bp->percpu_count, i);
 
 		for (j = 0; j < dpa_bp->count; j += 8)
@@ -1132,7 +1132,7 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 	void *dpa_bp_vaddr;
 
 	priv = netdev_priv(net_dev);
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 	dev = net_dev->dev.parent;
 
 	memset(&fd, 0, sizeof(fd));
@@ -1204,7 +1204,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	int needed_headroom;
 
 	priv = netdev_priv(net_dev);
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 	dev = net_dev->dev.parent;
 
 	memset(&fd, 0, sizeof(fd));
@@ -1316,7 +1316,7 @@ ingress_rx_error_dqrr(struct qman_portal		*portal,
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
 
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	if (dpaa_eth_napi_schedule(percpu_priv)) {
 		percpu_priv->in_interrupt++;
@@ -1344,7 +1344,7 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
 
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	if (unlikely(fd->status & FM_FD_STAT_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
@@ -1431,7 +1431,7 @@ ingress_rx_default_dqrr(struct qman_portal		*portal,
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
 
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	if (unlikely(dpaa_eth_napi_schedule(percpu_priv))) {
 		percpu_priv->in_interrupt++;
@@ -1457,7 +1457,7 @@ ingress_tx_error_dqrr(struct qman_portal		*portal,
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
 
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	if (dpaa_eth_napi_schedule(percpu_priv)) {
 		percpu_priv->in_interrupt++;
@@ -1481,7 +1481,7 @@ ingress_tx_default_dqrr(struct qman_portal		*portal,
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
 
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	if (dpaa_eth_napi_schedule(percpu_priv)) {
 		percpu_priv->in_interrupt++;
@@ -1505,7 +1505,7 @@ static void shared_ern(struct qman_portal	*portal,
 
 	net_dev = dpa_fq->net_dev;
 	priv = netdev_priv(net_dev);
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	err = dpa_fd_release(net_dev, &msg->ern.fd);
 	if (unlikely(err < 0)) {
@@ -1532,7 +1532,7 @@ static void egress_ern(struct qman_portal	*portal,
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
 	bp = priv->dpa_bp;
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	percpu_priv->stats.tx_dropped++;
 	percpu_priv->stats.tx_fifo_errors++;
@@ -1686,7 +1686,7 @@ static void __cold dpa_timeout(struct net_device *net_dev)
 	struct dpa_percpu_priv_s *percpu_priv;
 
 	priv = netdev_priv(net_dev);
-	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+	percpu_priv = per_cpu_ptr(priv->percpu_priv, raw_smp_processor_id());
 
 	if (netif_msg_timer(priv))
 		cpu_netdev_crit(net_dev, "Transmit timeout latency: %lu ms\n",
@@ -1996,7 +1996,7 @@ static const struct file_operations dpa_debugfs_fops = {
 
 static u16 dpa_select_queue(struct net_device *net_dev, struct sk_buff *skb)
 {
-	return smp_processor_id();
+	return raw_smp_processor_id();
 }
 
 static const struct net_device_ops dpa_private_ops = {
