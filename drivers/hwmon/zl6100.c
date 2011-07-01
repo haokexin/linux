@@ -51,6 +51,7 @@
 #include <linux/mutex.h>
 #include <linux/device.h>
 #include <linux/delay.h>
+#include <asm/fsl_pixis.h>
 
 #include <linux/slab.h>
 
@@ -67,53 +68,7 @@
  */
 #define LEN_BYTE		0x01	/* read one byte data */
 #define LEN_WORD		0x02	/* read two bytes data */
-#define SCALE_FACTOR	122		/* 2^(-13)*1000,000 */
-#define DIVIDE_FACTOR	1000	/* support the calculation */
 #define ZL6100_ID		"\x10ZL6100-002-FE03"	/* chip id */
-
-/* table for positive exponent */
-int pmbus_2power_pos[] = {
-	1,					/* 0000_0 => 0 */
-	2,					/* 0000_1 => 1 */
-	4,					/* 0001_0 => 2 */
-	8,					/* 0001_1 => 3 */
-	16,					/* 0010_0 => 4 */
-	32,					/* 0010_1 => 5 */
-	64,					/* 0011_0 => 6 */
-	128,				/* 0011_1 => 7 */
-	256,				/* 0100_0 => 8 */
-	512,				/* 0100_1 => 9 */
-	1024,				/* 0101_0 => 10 */
-	2048,				/* 0101_1 => 11 */
-	4096,				/* 0110_0 => 12 */
-	8192,				/* 0110_1 => 13 */
-	16384,				/* 0111_0 => 14 */
-	32678				/* 0111_1 => 15 */
-};
-
-/*
- * table for negative exponent.
- * amplified by 1000,000 times,
- * since Kernel does not support double data type
- */
-int pmbus_2power_neg[] = {
-	15,		/* 1000_0 => 16 (-16) */
-	30,		/* 1000_1 => 17 (-15) */
-	61,		/* 1001_0 => 18 (-14) */
-	122,	/* 1001_1 => 19 (-13) */
-	244,	/* 1010_0 => 20 (-12) */
-	488,	/* 1010_1 => 21 (-11) */
-	976,	/* 1011_0 => 22 (-10) */
-	1953,	/* 1011_1 => 23 (-9) */
-	3906,	/* 1100_0 => 24 (-8) */
-	7812,	/* 1100_1 => 25 (-7) */
-	15625,	/* 1101_0 => 26 (-6) */
-	31250,	/* 1101_1 => 27 (-5) */
-	62500,	/* 1110_0 => 28 (-4) */
-	125000,	/* 1110_1 => 29 (-3) */
-	250000,	/* 1111_0 => 30 (-2) */
-	500000	/* 1111_1 => 31 (-1) */
-};
 
 /**
  * Client data (each client gets its own)
@@ -122,49 +77,6 @@ struct zl6100_data {
 	struct device *hwmon_dev;
 	s32 val;
 };
-
-/*
- * 1. send VOUT_MODE to get data mode and exponent.
- *	 for zl6100: VOUT is LINEAR mode with exponent value -13.
- * 2. send READ_VOUT to get mantissa.
- */
-int pmbus_2volt(int v)
-{
-	int d;
-
-	d =  v * pmbus_2power_neg[3];
-
-	return d;
-}
-
-/*
- * IOUT is Literal data format.
- * 0x1111 1111 1111 1111
- *   ||   |||		   |
- *   | -+- | ----+-----
- *	 |  |  |	 +--> Mantissa X
- *	 |	|  +--------> Mantissa sign
- *	 |  +-----------> Exponent
- *	 +--------------> Exponent sign
- */
-int pmbus_2cur(int v)
-{
-	int d;
-	int n, y;
-
-	n = (v >> 11) & 0xF;
-	y = v & 0x3FF;
-
-	if (v & 0x400)
-		y = -(~(y-1) & 0x3FF);
-
-	if (v & 0x8000)
-		d = y * pmbus_2power_neg[n];
-	else
-		d = y * pmbus_2power_pos[n];
-
-	return d;
-}
 
 /**
  * read zl6100 register
@@ -258,7 +170,7 @@ static int show_volt(struct device *dev, struct device_attribute *attr,
 	if (volt < 0)
 		return sprintf(buf, "%d\n", 0);
 
-	volt = (pmbus_2volt(volt) / DIVIDE_FACTOR) & 0xFFFF;
+	volt = pmbus_2volt(volt);
 
 	return sprintf(buf, "%d\n", volt);
 }
@@ -277,7 +189,7 @@ static int show_curr(struct device *dev, struct device_attribute *attr,
 
 	cur = read_register(client, READ_IOUT, LEN_WORD);
 
-	cur = (pmbus_2cur(cur) / DIVIDE_FACTOR) & 0xFFFF;
+	cur = pmbus_2cur(cur);
 
 	return sprintf(buf, "%d\n", cur);
 }
