@@ -623,6 +623,7 @@ static int __devinit of_fsl_bman_probe(struct of_device *ofdev,
 			(name_attrs_pool_count + i * 3);
 		dev_attr_buffer_pool_count[i].attr.mode = S_IRUSR;
 		dev_attr_buffer_pool_count[i].show = show_pool_count;
+		sysfs_attr_init(&dev_attr_buffer_pool_count[i].attr);
 		bman_dev_pool_count_attributes[i] =
 			&dev_attr_buffer_pool_count[i].attr;
 	}
