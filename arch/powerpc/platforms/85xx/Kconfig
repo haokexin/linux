@@ -211,6 +211,7 @@ config WRHV_P4080DS
 	select MPC8xxx_GPIO
 	select HAS_RAPIDIO
 	select HAS_FSL_PAMU
+	select HAS_FSL_QBMAN
 	select PPC85xx_VT_MODE
 	help
 	  This option enables support for the P4080 DS board on Wind River Hypervisor.
