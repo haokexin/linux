@@ -740,9 +740,6 @@ t_Error FM_PCD_Free(t_Handle h_FmPcd)
     if(p_FmPcd->enabled)
         FM_PCD_Disable(p_FmPcd);
 
-    if (p_FmPcd->h_Spinlock)
-        XX_FreeSpinlock(p_FmPcd->h_Spinlock);
-
     if(p_FmPcd->p_FmPcdDriverParam)
     {
         XX_Free(p_FmPcd->p_FmPcdDriverParam);
@@ -781,6 +778,9 @@ t_Error FM_PCD_Free(t_Handle h_FmPcd)
     XX_IpcUnregisterMsgHandler(p_FmPcd->fmPcdModuleName);
 
     FmUnregisterPcd(p_FmPcd->h_Fm);
+
+    if (p_FmPcd->h_Spinlock)
+        XX_FreeSpinlock(p_FmPcd->h_Spinlock);
 
     XX_Free(p_FmPcd);
     return E_OK;
