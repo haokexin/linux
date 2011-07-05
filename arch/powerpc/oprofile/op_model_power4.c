@@ -130,7 +130,11 @@ static int power4_start(struct op_counter_config *ctr)
 	unsigned int mmcr0;
 
 	/* set the PMM bit (see comment below) */
+#ifdef CONFIG_PPC_BOOK3S_64
 	mtmsrd(mfmsr() | MSR_PMM);
+#else
+	mtmsr(mfmsr() | MSR_PMM);
+#endif
 
 	for (i = 0; i < cur_cpu_spec->num_pmcs; ++i) {
 		if (ctr[i].enabled) {
@@ -299,7 +303,11 @@ static void power4_handle_interrupt(struct pt_regs *regs,
 	is_kernel = get_kernel(pc, mmcra);
 
 	/* set the PMM bit (see comment below) */
+#ifdef CONFIG_PPC_BOOK3S_64
 	mtmsrd(mfmsr() | MSR_PMM);
+#else
+	mtmsr(mfmsr() | MSR_PMM);
+#endif
 
 	for (i = 0; i < cur_cpu_spec->num_pmcs; ++i) {
 		val = classic_ctr_read(i);

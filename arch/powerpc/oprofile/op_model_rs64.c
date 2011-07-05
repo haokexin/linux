@@ -15,6 +15,7 @@
 #include <asm/processor.h>
 #include <asm/cputable.h>
 #include <asm/oprofile_impl.h>
+#include <asm/reg.h>
 
 #define dbg(args...)
 
@@ -136,7 +137,11 @@ static int rs64_start(struct op_counter_config *ctr)
 	unsigned int mmcr0;
 
 	/* set the PMM bit (see comment below) */
+#ifdef CONFIG_PPC_BOOK3S_64
 	mtmsrd(mfmsr() | MSR_PMM);
+#else
+	mtmsr(mfmsr() | MSR_PMM);
+#endif
 
 	for (i = 0; i < num_counters; ++i) {
 		if (ctr[i].enabled) {
@@ -187,7 +192,11 @@ static void rs64_handle_interrupt(struct pt_regs *regs,
 	is_kernel = is_kernel_addr(pc);
 
 	/* set the PMM bit (see comment below) */
+#ifdef CONFIG_PPC_BOOK3S_64
 	mtmsrd(mfmsr() | MSR_PMM);
+#else
+	mtmsr(mfmsr() | MSR_PMM);
+#endif
 
 	for (i = 0; i < num_counters; ++i) {
 		val = classic_ctr_read(i);
