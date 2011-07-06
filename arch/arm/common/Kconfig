@@ -18,6 +18,9 @@ config ICST525
 config ICST307
 	bool
 
+config ICST
+	bool
+
 config SA1111
 	bool
 	select DMABOUNCE if !ARCH_PXA
