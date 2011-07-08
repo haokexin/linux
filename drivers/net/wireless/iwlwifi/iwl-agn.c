@@ -1613,6 +1613,12 @@ static int iwlagn_load_firmware(struct iwl_priv *priv,
 			capa->max_probe_length =
 				le32_to_cpup((__le32 *)tlv_data);
 			break;
+		case IWL_UCODE_TLV_ENHANCE_SENS_TBL:
+			if (tlv_len)
+				return -EINVAL;
+			else
+				priv->enhance_sensitivity_table = true;
+			break;
 		default:
 			break;
 		}
