@@ -721,11 +721,11 @@ int iwl5000_hw_set_hw_params(struct iwl_priv *priv)
 	case CSR_HW_REV_TYPE_5150:
 		priv->hw_params.sens = &iwl5150_sensitivity;
 		priv->hw_params.calib_init_cfg =
-			BIT(IWL_CALIB_DC)		|
 			BIT(IWL_CALIB_LO)		|
 			BIT(IWL_CALIB_TX_IQ) 		|
 			BIT(IWL_CALIB_BASE_BAND);
-
+		if (priv->cfg->need_dc_calib)
+			priv->hw_params.calib_init_cfg |= BIT(IWL_CALIB_DC);
 		break;
 	default:
 		priv->hw_params.sens = &iwl5000_sensitivity;
@@ -1738,6 +1738,7 @@ struct iwl_cfg iwl5150_agn_cfg = {
 	.chain_noise_num_beacons = IWL_CAL_NUM_BEACONS,
 	.plcp_delta_threshold = IWL_MAX_PLCP_ERR_LONG_THRESHOLD_DEF,
 	.chain_noise_scale = 1000,
+	.need_dc_calib = true,
 	.monitor_recover_period = IWL_MONITORING_PERIOD,
 };
 
@@ -1763,6 +1764,7 @@ struct iwl_cfg iwl5150_abg_cfg = {
 	.chain_noise_num_beacons = IWL_CAL_NUM_BEACONS,
 	.plcp_delta_threshold = IWL_MAX_PLCP_ERR_LONG_THRESHOLD_DEF,
 	.chain_noise_scale = 1000,
+	.need_dc_calib = true,
 	.monitor_recover_period = IWL_MONITORING_PERIOD,
 };
 

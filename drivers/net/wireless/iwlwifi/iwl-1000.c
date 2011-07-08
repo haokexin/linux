@@ -156,6 +156,8 @@ static int iwl1000_hw_set_hw_params(struct iwl_priv *priv)
 			BIT(IWL_CALIB_TX_IQ_PERD)	|
 			BIT(IWL_CALIB_BASE_BAND);
 
+	if (priv->cfg->need_dc_calib)
+		priv->hw_params.calib_init_cfg |= BIT(IWL_CALIB_DC);
 	return 0;
 }
 
