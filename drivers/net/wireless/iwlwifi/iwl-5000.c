@@ -208,7 +208,7 @@ static void iwl5000_gain_computation(struct iwl_priv *priv,
 
 		memset(&cmd, 0, sizeof(cmd));
 
-		cmd.hdr.op_code = IWL_PHY_CALIBRATE_CHAIN_NOISE_GAIN_CMD;
+		cmd.hdr.op_code = priv->phy_calib_chain_noise_gain_cmd;
 		cmd.hdr.first_group = 0;
 		cmd.hdr.groups_num = 1;
 		cmd.hdr.data_valid = 1;
@@ -239,7 +239,7 @@ static void iwl5000_chain_noise_reset(struct iwl_priv *priv)
 		struct iwl_calib_chain_noise_reset_cmd cmd;
 		memset(&cmd, 0, sizeof(cmd));
 
-		cmd.hdr.op_code = IWL_PHY_CALIBRATE_CHAIN_NOISE_RESET_CMD;
+		cmd.hdr.op_code = priv->phy_calib_chain_noise_reset_cmd;
 		cmd.hdr.first_group = 0;
 		cmd.hdr.groups_num = 1;
 		cmd.hdr.data_valid = 1;

@@ -628,6 +628,7 @@ enum iwl_ucode_tlv_type {
 	IWL_UCODE_TLV_BOOT              = 5,
 	IWL_UCODE_TLV_PROBE_MAX_LEN     = 6, /* a u32 value */
 	IWL_UCODE_TLV_ENHANCE_SENS_TBL	= 14,
+	IWL_UCODE_TLV_PHY_CALIBRATION_SIZE = 15,
 };
 
 struct iwl_ucode_tlv {
@@ -1278,6 +1279,14 @@ struct iwl_priv {
 
 	struct iwl_power_mgr power_data;
 	struct iwl_tt_mgmt thermal_throttle;
+
+	/*
+	 * chain noise reset and gain commands are the
+	 * two extra calibration commands follows the standard
+	 * phy calibration commands
+	 */
+	u8 phy_calib_chain_noise_reset_cmd;
+	u8 phy_calib_chain_noise_gain_cmd;
 
 	struct iwl_notif_statistics statistics;
 #ifdef CONFIG_IWLWIFI_DEBUG
