@@ -1043,8 +1043,9 @@ static void sata_fsl_error_intr(struct ata_port *ap)
 			iowrite32(dereg, hcr_base + DE);
 			iowrite32(cereg, hcr_base + CE);
 
-			if (dereg < ap->nr_pmp_links) {
-				link = &ap->pmp_link[dereg];
+			if ((ffs(dereg)-1) < ap->nr_pmp_links) {
+				/* array start from 0 */
+				link = &ap->pmp_link[ffs(dereg)-1];
 				ehi = &link->eh_info;
 				qc = ata_qc_from_tag(ap, link->active_tag);
 				/*
