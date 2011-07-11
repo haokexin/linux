@@ -1,7 +1,7 @@
 /*
  * Freescale SEC (talitos) device register and descriptor header defines
  *
- * Copyright (c) 2006-2008 Freescale Semiconductor, Inc.
+ * Copyright (c) 2006-2011 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +32,21 @@
  * TALITOS_xxx_LO addresses point to the low data bits (32-63) of the register
  */
 #define TALITOS_NAPI_WEIGHT     12
+#define MAX_IPSEC_RECYCLE_DESC 64
+/* descriptor pointer entry */
+struct talitos_ptr {
+	__be16 len;	/* length */
+	u8 j_extent;	/* jump to sg link table and/or extent */
+	u8 eptr;	/* extended address */
+	__be32 ptr;	/* address */
+};
+
+/* descriptor */
+struct talitos_desc {
+	__be32 hdr;			/* header high bits */
+	__be32 hdr_lo;			/* header low bits */
+	struct talitos_ptr ptr[7];	/* ptr/len pair array */
+};
 
 /* global register offset addresses */
 #define   TALITOS_MCR			0x1030  /* master control register */
@@ -107,6 +122,9 @@
 #define TALITOS_DEUISR_LO		0x2034
 #define TALITOS_AESUISR			0x4030 /* AES unit */
 #define TALITOS_AESUISR_LO		0x4034
+#define TALITOS_AESUICR			0x4038 /* AES unit */
+#define TALITOS_AESUICR_LO		0x403c
+#define TALITOS_AESUICR_LO_ICE	0x4000
 #define TALITOS_MDEUISR			0x6030 /* message digest unit */
 #define TALITOS_MDEUISR_LO		0x6034
 #define TALITOS_MDEUICR			0x6038 /* interrupt control */
@@ -143,6 +161,9 @@
 #define DESC_HDR_LO_ICCR1_MASK		cpu_to_be32(0x00180000)
 #define DESC_HDR_LO_ICCR1_PASS		cpu_to_be32(0x00080000)
 #define DESC_HDR_LO_ICCR1_FAIL		cpu_to_be32(0x00100000)
+#define DESC_HDR_LO_ICCR0_MASK		cpu_to_be32(0x18000000)
+#define DESC_HDR_LO_ICCR0_PASS		cpu_to_be32(0x08000000)
+#define DESC_HDR_LO_ICCR0_FAIL		cpu_to_be32(0x10000000)
 
 /* primary execution unit select */
 #define	DESC_HDR_SEL0_MASK		cpu_to_be32(0xf0000000)
@@ -175,6 +196,10 @@
 #define	DESC_HDR_MODE0_MDEU_SHA1_HMAC	(DESC_HDR_MODE0_MDEU_SHA1 | \
 					 DESC_HDR_MODE0_MDEU_HMAC)
 
+#define DESC_HDR_MODE0_AES_XCBS_MAC		cpu_to_be32(0x08400000)
+#define DESC_HDR_MODE0_AES_XCBS_CICV	cpu_to_be32(0x02000000)
+#define	DESC_HDR_MODE0_AES_CTR			cpu_to_be32(0x00600000)
+
 /* secondary execution unit select (SEL1) */
 #define	DESC_HDR_SEL1_MASK		cpu_to_be32(0x000f0000)
 #define	DESC_HDR_SEL1_MDEUA		cpu_to_be32(0x00030000)
@@ -182,6 +207,7 @@
 #define	DESC_HDR_SEL1_CRCU		cpu_to_be32(0x00080000)
 
 /* secondary execution unit mode (MODE1) and derivatives */
+#define	DESC_HDR_MODE0_MDEU_CICV	cpu_to_be32(0x04000000)
 #define	DESC_HDR_MODE1_MDEU_CICV	cpu_to_be32(0x00004000)
 #define	DESC_HDR_MODE1_MDEU_INIT	cpu_to_be32(0x00001000)
 #define	DESC_HDR_MODE1_MDEU_HMAC	cpu_to_be32(0x00000800)
@@ -207,6 +233,7 @@
 #define DESC_HDR_TYPE_IPSEC_ESP			cpu_to_be32(1 << 3)
 #define DESC_HDR_TYPE_COMMON_NONSNOOP_NO_AFEU	cpu_to_be32(2 << 3)
 #define DESC_HDR_TYPE_HMAC_SNOOP_NO_AFEU	cpu_to_be32(4 << 3)
+#define DESC_HDR_TYPE_AESU_CTR_HMAC		cpu_to_be32(3 << 6)
 #define DESC_HDR_TYPE_RAID_XOR			cpu_to_be32(21 << 3)
 
 /* link table extent field bits */
