@@ -1320,7 +1320,13 @@ static int __devinit fsldma_of_probe(struct of_device *op,
 	fdev->irq = irq_of_parse_and_map(op->node, 0);
 
 	dma_cap_set(DMA_MEMCPY, fdev->common.cap_mask);
+#ifndef CONFIG_ASYNC_CORE
+	/*
+	 * The DMA_INTERRUPT async_tx is a NULL transfer, which will
+	 * triger a PE interrupt.
+	 */
 	dma_cap_set(DMA_INTERRUPT, fdev->common.cap_mask);
+#endif
 	dma_cap_set(DMA_SLAVE, fdev->common.cap_mask);
 	fdev->common.device_alloc_chan_resources = fsl_dma_alloc_chan_resources;
 	fdev->common.device_free_chan_resources = fsl_dma_free_chan_resources;
