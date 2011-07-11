@@ -201,21 +201,39 @@ struct talitos_edesc {
 struct talitos_edesc *crypto_edesc_alloc(int len, int flags,
 					struct talitos_private *priv)
 {
+	int check;
+	struct talitos_edesc *ret;
 	u32 smp_processor_id = smp_processor_id();
+	check = in_softirq();
+
+	if (!check)
+		local_bh_disable();
+
 	u32 current_edesc = priv->curr_edesc[smp_processor_id];
 	if (unlikely(current_edesc == 0)) {
-		return kmem_cache_alloc(priv->netcrypto_cache,
+		ret = kmem_cache_alloc(priv->netcrypto_cache,
 					GFP_KERNEL | flags);
 	} else {
 		priv->curr_edesc[smp_processor_id] = current_edesc - 1;
-		return priv->edesc_rec_queue[smp_processor_id]
+		ret = priv->edesc_rec_queue[smp_processor_id]
 					[current_edesc - 1];
 	}
+
+	if (!check)
+		local_bh_enable();
+
+	return ret;
 }
 void crypto_edesc_free(struct talitos_edesc *edesc,
 			struct talitos_private *priv)
 {
+	int check;
 	u32 smp_processor_id = smp_processor_id();
+	check = in_softirq();
+
+	if (!check)
+		local_bh_disable();
+
 	u32 current_edesc = priv->curr_edesc[smp_processor_id];
 	if (unlikely(current_edesc == (MAX_IPSEC_RECYCLE_DESC - 1))) {
 		kmem_cache_free(priv->netcrypto_cache, edesc);
@@ -224,6 +242,9 @@ void crypto_edesc_free(struct talitos_edesc *edesc,
 								edesc;
 		priv->curr_edesc[smp_processor_id] = current_edesc + 1;
 	}
+
+	if (!check)
+		local_bh_enable();
 }
 
 static inline unsigned int get_chan_remap(struct talitos_private *priv)
