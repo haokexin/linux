@@ -53,6 +53,18 @@
 #include <linux/ip.h>
 
 #include "talitos.h"
+#ifdef CONFIG_AS_FASTPATH
+struct secfp_ivInfo_s {
+	dma_addr_t paddr;
+	unsigned long *vaddr;
+	unsigned long ulIVIndex;
+	bool bUpdatePending;
+	unsigned int ulNumAvail;
+	unsigned int ulUpdateIndex;
+} secfp_ivInfo_s;
+#define SECFP_NUM_IV_DATA_GET_AT_ONE_TRY 1
+#define SECFP_NUM_IV_ENTRIES 8
+#endif
 
 #define TALITOS_TIMEOUT 100000
 #define TALITOS_MAX_DATA_LEN 65535
@@ -65,24 +77,12 @@
 
 #define MAP_ARRAY(chan_no)     (3 << (chan_no * 2))
 #define MAP_ARRAY_DONE(chan_no)        (1 << (chan_no * 2))
-
-#define MAX_IPSEC_RECYCLE_DESC 64
 #define MAX_DESC_LEN   160
 
-/* descriptor pointer entry */
-struct talitos_ptr {
-	__be16 len;	/* length */
-	u8 j_extent;	/* jump to sg link table and/or extent */
-	u8 eptr;	/* extended address */
-	__be32 ptr;	/* address */
-};
-
-/* descriptor */
-struct talitos_desc {
-	__be32 hdr;			/* header high bits */
-	__be32 hdr_lo;			/* header low bits */
-	struct talitos_ptr ptr[7];	/* ptr/len pair array */
-};
+#ifdef CONFIG_AS_FASTPATH
+static struct device *pg_talitos_dev;
+static struct talitos_private *pg_talitos_privdata;
+#endif
 
 /**
  * talitos_request - descriptor submission request
@@ -165,7 +165,10 @@ struct talitos_private {
 
 	/* hwrng device */
 	struct hwrng rng;
-	
+	bool bRngInit;
+#ifdef CONFIG_AS_FASTPATH
+	atomic_t ulRngInUse;
+#endif
 	/* XOR Device */
 	struct dma_device dma_dev_common;
 };
@@ -393,9 +396,17 @@ static int init_device(struct device *dev)
 	setbits32(priv->reg + TALITOS_IMR_LO, TALITOS_IMR_LO_INIT);
 
 	/* disable integrity check error interrupts (use writeback instead) */
-	if (priv->features & TALITOS_FTR_HW_AUTH_CHECK)
+	if (priv->features & TALITOS_FTR_HW_AUTH_CHECK) {
 		setbits32(priv->reg + TALITOS_MDEUICR_LO,
-		          TALITOS_MDEUICR_LO_ICE);
+			  TALITOS_MDEUICR_LO_ICE);
+#ifdef CONFIG_AS_FASTPATH
+		printk(KERN_INFO "Masking ICV Error interrupt\r\n");
+		setbits32(priv->reg + TALITOS_AESUICR_LO,
+			  TALITOS_AESUICR_LO_ICE);
+#endif
+	} else {
+		printk(KERN_INFO "Not setting ICE\r\n");
+	}
 
 	return 0;
 }
@@ -469,6 +480,16 @@ static int talitos_submit(struct device *dev, struct talitos_desc *desc,
 		return -EAGAIN;
 	}
 }
+
+#ifdef CONFIG_AS_FASTPATH
+int secfp_talitos_submit(struct device *dev, struct talitos_desc *desc,
+	void (*callback) (struct device *dev, struct talitos_desc *desc,
+	void *context, int err), void *context)
+{
+	return talitos_submit(dev, desc, callback, context);
+}
+EXPORT_SYMBOL(secfp_talitos_submit);
+#endif /* CONFIG_AS_FASTPATH */
 
 /*
  * process what was done, notify callback of error if not
@@ -794,6 +815,44 @@ static irqreturn_t talitos_interrupt(int irq, void *data)
 /*
  * hwrng
  */
+#ifdef CONFIG_AS_FASTPATH
+/* nr_entries = number of 32 bit entries */
+#define SECFP_IV_DATA_LO_THRESH 2
+int secfp_rng_read_data(struct secfp_ivInfo_s *ptr)
+{
+	struct device *dev = pg_talitos_dev;
+	struct talitos_private *priv = dev_get_drvdata(dev);
+	u32 ii, ofl;
+
+	if (ptr && ptr->ulNumAvail < SECFP_IV_DATA_LO_THRESH) {
+		while (!atomic_add_unless(&priv->ulRngInUse, 1, 1))
+			;
+
+		ofl = in_be32(priv->reg + TALITOS_RNGUSR_LO) &
+		TALITOS_RNGUSR_LO_OFL;
+		ofl = ((ofl - 1) * 2) < SECFP_NUM_IV_DATA_GET_AT_ONE_TRY ?
+			(ofl-1*2) : SECFP_NUM_IV_DATA_GET_AT_ONE_TRY;
+
+		if (ofl) {
+			for (ii = 0; ii < ofl; ii += 2) {
+				ptr->vaddr[ptr->ulUpdateIndex] =
+					in_be32(priv->reg + TALITOS_RNGU_FIFO);
+				ptr->ulUpdateIndex = (ptr->ulUpdateIndex + 1)
+					& (SECFP_NUM_IV_ENTRIES - 1);
+				ptr->vaddr[ptr->ulUpdateIndex] = in_be32(
+					priv->reg + TALITOS_RNGU_FIFO_LO);
+				ptr->ulUpdateIndex = (ptr->ulUpdateIndex + 1) &
+					(SECFP_NUM_IV_ENTRIES - 1);
+			}
+			ptr->ulNumAvail += (ofl*2);
+		}
+	}
+	atomic_set(&priv->ulRngInUse, 0);
+	return 0;
+}
+EXPORT_SYMBOL(secfp_rng_read_data);
+#endif
+
 static int talitos_rng_data_present(struct hwrng *rng, int wait)
 {
 	struct device *dev = (struct device *)rng->priv;
@@ -816,11 +875,18 @@ static int talitos_rng_data_read(struct hwrng *rng, u32 *data)
 {
 	struct device *dev = (struct device *)rng->priv;
 	struct talitos_private *priv = dev_get_drvdata(dev);
-
+#ifdef CONFIG_AS_FASTPATH
+	do {
+		if (!atomic_add_unless(&priv->ulRngInUse, 1, 1))
+			break;
+	} while (1);
+#endif
 	/* rng fifo requires 64-bit accesses */
 	*data = in_be32(priv->reg + TALITOS_RNGU_FIFO);
 	*data = in_be32(priv->reg + TALITOS_RNGU_FIFO_LO);
-
+#ifdef CONFIG_AS_FASTPATH
+	atomic_set(&priv->ulRngInUse, 0);
+#endif
 	return sizeof(u32);
 }
 
@@ -829,6 +895,8 @@ static int talitos_rng_init(struct hwrng *rng)
 	struct device *dev = (struct device *)rng->priv;
 	struct talitos_private *priv = dev_get_drvdata(dev);
 	unsigned int timeout = TALITOS_TIMEOUT;
+	if (priv->bRngInit)
+		return 0;
 
 	setbits32(priv->reg + TALITOS_RNGURCR_LO, TALITOS_RNGURCR_LO_SR);
 	while (!(in_be32(priv->reg + TALITOS_RNGUSR_LO) & TALITOS_RNGUSR_LO_RD)
@@ -841,6 +909,8 @@ static int talitos_rng_init(struct hwrng *rng)
 
 	/* start generating */
 	setbits32(priv->reg + TALITOS_RNGUDSR_LO, 0);
+
+	priv->bRngInit = 1;
 
 	return 0;
 }
@@ -2355,7 +2425,10 @@ static int talitos_remove(struct of_device *ofdev)
 	if (priv->netcrypto_cache != NULL)
 		kmem_cache_destroy(priv->netcrypto_cache);
 	kfree(priv);
-
+#ifdef CONFIG_AS_FASTPATH
+	pg_talitos_dev = NULL;
+	pg_talitos_privdata = NULL;
+#endif
 	return 0;
 }
 
@@ -2670,7 +2743,10 @@ static int talitos_probe(struct of_device *ofdev,
 			}
 		}
 	}
-
+#ifdef CONFIG_AS_FASTPATH
+	pg_talitos_dev = dev;
+	pg_talitos_privdata =  priv;
+#endif
 	return 0;
 
 err_out:
@@ -2678,6 +2754,26 @@ err_out:
 
 	return err;
 }
+
+#ifdef CONFIG_AS_FASTPATH
+struct device *talitos_getdevice(void)
+{
+	return pg_talitos_dev;
+}
+EXPORT_SYMBOL(talitos_getdevice);
+
+dma_addr_t talitos_dma_map_single(void *data, unsigned int len, int dir)
+{
+	return dma_map_single(pg_talitos_dev, data, len, dir);
+}
+EXPORT_SYMBOL(talitos_dma_map_single);
+
+void talitos_dma_unmap_single(void *data, unsigned int len, int dir)
+{
+	dma_unmap_single(pg_talitos_dev, data, len, dir);
+}
+EXPORT_SYMBOL(talitos_dma_unmap_single);
+#endif
 
 static const struct of_device_id talitos_match[] = {
 	{
@@ -2699,6 +2795,9 @@ static struct of_platform_driver talitos_driver = {
 
 static int __init talitos_init(void)
 {
+#ifdef CONFIG_AS_FASTPATH
+	printk(KERN_INFO "SEC FASTPATH Enabled\r\n");
+#endif
 	return of_register_platform_driver(&talitos_driver);
 }
 module_init(talitos_init);
