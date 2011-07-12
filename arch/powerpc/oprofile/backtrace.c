@@ -13,6 +13,10 @@
 #include <asm/processor.h>
 #include <asm/compat.h>
 #include <asm/syscalls.h>
+#include <asm/vdso.h>
+
+#define ROOT_STACK_SP		0
+#define ROOT_STACK_LR		0
 
 #define STACK_SP(STACK)		*(STACK)
 
@@ -48,8 +52,20 @@ static unsigned int user_getsp32(unsigned int sp, int is_first)
 	if (probe_kernel_read(stack_frame, p, sizeof(stack_frame)))
 		return 0;
 
-	if (!is_first)
-		oprofile_add_trace(STACK_LR32(stack_frame));
+	if (!is_first) {
+		unsigned long stack_lr = STACK_LR32(stack_frame);
+		unsigned long vdso_base = current->mm->context.vdso_base;
+
+		if ( vdso_base && 
+		    ((stack_lr == vdso_base + vdso32_sigtramp) ||
+		     (stack_lr == vdso_base + vdso32_rt_sigtramp))) {
+			/* Deal the signal frame as an root one. */
+			oprofile_add_trace(ROOT_STACK_LR);
+			return ROOT_STACK_SP;
+		} else {
+			oprofile_add_trace(stack_lr);
+		}
+	}
 
 	/*
 	 * We do not enforce increasing stack addresses here because
@@ -70,8 +86,21 @@ static unsigned long user_getsp64(unsigned long sp, int is_first)
 					sizeof(stack_frame)))
 		return 0;
 
-	if (!is_first)
-		oprofile_add_trace(STACK_LR64(stack_frame));
+	if (!is_first) {
+		unsigned long stack_lr = STACK_LR64(stack_frame);
+		unsigned long vdso_base = current->mm->context.vdso_base;
+
+		if ( vdso_base &&
+		    ((stack_lr == vdso_base + vdso32_sigtramp) ||
+		     (stack_lr == vdso_base + vdso32_rt_sigtramp) ||
+		     (stack_lr == vdso_base + vdso64_rt_sigtramp)) ) {
+			/* Deal the signal frame as an root one. */
+			oprofile_add_trace(ROOT_STACK_LR);
+			return ROOT_STACK_SP;
+		} else {
+			oprofile_add_trace(stack_lr);
+		}
+	}
 
 	return STACK_SP(stack_frame);
 }
