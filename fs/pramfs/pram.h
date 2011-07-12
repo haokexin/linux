@@ -53,7 +53,6 @@ extern int pram_mmap(struct file *file, struct vm_area_struct *vma);
 
 #define pram_set_bit			ext2_set_bit
 #define pram_clear_bit			ext2_clear_bit
-#define pram_find_next_zero_bit		ext2_find_next_zero_bit
 
 #define clear_opt(o, opt)	(o &= ~PRAM_MOUNT_##opt)
 #define set_opt(o, opt)		(o |= PRAM_MOUNT_##opt)

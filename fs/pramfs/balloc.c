@@ -88,7 +88,7 @@ int pram_new_block(struct super_block *sb, unsigned long *blocknr, int zero)
 
 	if (ps->s_free_blocks_count) {
 		/* find the oldest unused block */
-		bnr = pram_find_next_zero_bit(bitmap,
+		bnr = find_next_zero_bit(bitmap,
 					 be32_to_cpu(ps->s_blocks_count),
 					 be32_to_cpu(ps->s_free_blocknr_hint));
 
