@@ -2660,7 +2660,8 @@ dpaa_eth_probe(struct of_device *_of_dev, const struct of_device_id *match)
 	 * memory freed
 	 */
 	if (!net_dev) {
-		devm_kfree(&_of_dev->dev, dpa_bp);
+		if (!default_pool)
+			devm_kfree(&_of_dev->dev, dpa_bp);
 		devm_kfree(&_of_dev->dev, rxdefault);
 		devm_kfree(&_of_dev->dev, rxerror);
 		devm_kfree(&_of_dev->dev, txdefault);
