@@ -60,9 +60,10 @@ config OPTIMIZE_SD_PERFORMANCE
 	depends on EXT2_FS || EXT4_FS
 	default n
 	help
-	  This option allows you to improve I/O storage performance, optimized
-	  writeback via avoiding to write the metadata of device node, required
-	  filesystems like ext2 and ext4 call. Other filesystems are not validated.
+	  This option allows you to improve EXT filesystem I/O performance,
+	  optimized writeback via postpone the time of updating metadata,
+	  required filesystems like EXT call. Other filesystems are not
+	  validated.
 
 source "fs/notify/Kconfig"
 

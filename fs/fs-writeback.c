@@ -26,6 +26,7 @@
 #include <linux/blkdev.h>
 #include <linux/backing-dev.h>
 #include <linux/buffer_head.h>
+#include <linux/magic.h>
 #include "internal.h"
 
 #define inode_to_bdi(inode)	((inode)->i_mapping->backing_dev_info)
@@ -676,6 +677,7 @@ static void writeback_inodes_wb(struct bdi_writeback *wb,
 		queue_io(wb, wbc->older_than_this);
 
 	while (!list_empty(&wb->b_io)) {
+		struct inode *inode_tmp;
 		struct inode *inode = list_entry(wb->b_io.prev,
 						 struct inode, i_list);
 		struct super_block *sb = inode->i_sb;
@@ -693,6 +695,31 @@ static void writeback_inodes_wb(struct bdi_writeback *wb,
 			requeue_io(inode);
 			continue;
 		}
+
+#ifdef CONFIG_OPTIMIZE_SD_PERFORMANCE
+		if (!strcmp(inode->i_sb->s_id, "bdev") &&
+				!inode->used_for_format &&
+				(wbc->sync_mode == WB_SYNC_NONE)) {
+			list_for_each_entry(inode_tmp, &wb->b_io, i_list)
+				if (!imajor(inode_tmp) &&
+					(inode_tmp->i_data.backing_dev_info ==
+					 inode->i_data.backing_dev_info) &&
+					(inode_tmp->i_sb->s_magic ==
+						EXT2_SUPER_MAGIC)) {
+					list_move(&inode->i_list, &wb->b_dirty);
+					continue;
+				}
+			list_for_each_entry(inode_tmp, &wb->b_more_io, i_list)
+				if (!imajor(inode_tmp) &&
+					(inode_tmp->i_data.backing_dev_info ==
+					 inode->i_data.backing_dev_info) &&
+					(inode_tmp->i_sb->s_magic ==
+						EXT2_SUPER_MAGIC)) {
+					list_move(&inode->i_list, &wb->b_dirty);
+					continue;
+				}
+		}
+#endif
 		ret = writeback_sb_inodes(sb, wb, wbc);
 
 		if (state == SB_PINNED)
