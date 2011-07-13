@@ -182,6 +182,9 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 	if (of_get_property(np, "fsl,sdhci-ahb2mag-irq-bypass", NULL))
 		host->quirks |= SDHCI_QUIRK_SET_AHB2MAG_IRQ_BYPASS;
 
+	if (of_get_property(np, "fsl,sdhci-adjust-timeout", NULL))
+		host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
+
 	clk = of_get_property(np, "clock-frequency", &size);
 	if (clk && size == sizeof(*clk) && *clk)
 		of_host->clock = *clk;
