@@ -20,7 +20,11 @@
 #include <linux/mmc/host.h>
 #include "queue.h"
 
+#ifdef CONFIG_OPTIMIZE_SD_PERFORMANCE
+#define MMC_QUEUE_BOUNCESZ	262144
+#else
 #define MMC_QUEUE_BOUNCESZ	65536
+#endif
 
 #define MMC_QUEUE_SUSPENDED	(1 << 0)
 
