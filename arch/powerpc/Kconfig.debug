@@ -245,6 +245,13 @@ config PPC_EARLY_DEBUG_40x
 	  inbuilt serial port. This works on chips with a 16550 compatible
 	  UART. Xilinx chips with uartlite cannot use this option.
 
+config PPC_EARLY_DEBUG_WRHV_DUART
+	bool "Early serial debugging using wrhv duart"
+	depends on WRHV
+	help
+	  Select this to enable early debugging via the wrhv duart
+	  device driver.
+
 config PPC_EARLY_DEBUG_CPM
 	bool "Early serial debugging for Freescale CPM-based serial ports"
 	depends on SERIAL_CPM

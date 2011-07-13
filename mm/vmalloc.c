@@ -170,6 +170,11 @@ static int vmap_page_range_noflush(unsigned long start, unsigned long end,
 		err = vmap_pud_range(pgd, addr, next, prot, pages, &nr);
 		if (err)
 			return err;
+#if defined(CONFIG_WRHV_E500) && !defined(CONFIG_PHYS_64BIT) \
+			      && !defined(CONFIG_PPC85xx_VT_MODE)
+		if (current->active_mm != &init_mm)
+			*pgd_offset(current->active_mm, addr) = *pgd;
+#endif
 	} while (pgd++, addr = next, addr != end);
 
 	return nr;

@@ -219,6 +219,7 @@ __do_get_xsec:
 	lwz	r5,CFG_TB_ORIG_STAMP(r9)
 	lwz	r6,(CFG_TB_ORIG_STAMP+4)(r9)
 
+#ifndef CONFIG_WRHV
 	/* Get a stable TB value */
 2:	mftbu	r3
 	mftbl	r4
@@ -232,6 +233,16 @@ __do_get_xsec:
 	 */
 	subfc	r7,r6,r4
 	subfe.	r0,r5,r3
+#else
+	/* Here we should use our paravirtualized get_tb() to get
+	 * proper tb, but its difficult to call C program in this
+	 * pure assemble codes section, so we substract tb orig stamp
+	 * in update_gtod() directly.
+	 */
+	mr	r7,r6
+	mr	r0,r5
+	cmpwi	0,r0,0
+#endif
 	bne-	3f
 
 	/* Load scale factor & do multiplication */
@@ -293,6 +304,7 @@ __do_get_tspec:
 	lwz	r5,CFG_TB_ORIG_STAMP(r9)
 	lwz	r6,(CFG_TB_ORIG_STAMP+4)(r9)
 
+#ifndef CONFIG_WRHV
 	/* Get a stable TB value */
 2:	mftbu	r3
 	mftbl	r4
@@ -304,6 +316,15 @@ __do_get_tspec:
 	 */
 	subfc	r7,r6,r4
 	subfe	r0,r5,r3
+#else
+	/* Here we should use our paravirtualized get_tb() to get
+	 * proper tb, but its difficult to call C program in this
+	 * pure assemble codes section, so we substract tb orig stamp
+	 * in update_gtod() directly.
+	 */
+	mr	r7,r6
+	mr	r0,r5
+#endif
 	slwi	r0,r0,12
 	rlwimi.	r0,r7,12,20,31
 	slwi	r7,r7,12

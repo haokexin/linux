@@ -42,6 +42,12 @@
 
 #if defined(__KERNEL__) && defined(CONFIG_PPC32)
 
+#ifdef CONFIG_PARAVIRT
+extern int paravirt_enabled(void);
+#else
+#define paravirt_enabled()      0
+#endif
+
 extern int _chrp_type;
 
 #ifdef CONFIG_PPC_PREP

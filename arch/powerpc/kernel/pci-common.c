@@ -206,12 +206,14 @@ char __devinit *pcibios_setup(char *str)
 	return str;
 }
 
+int paravirt_pci_read_irq_line(struct pci_dev *pci_dev) 
+	__attribute__((weak, alias("native_pci_read_irq_line")));
 /*
  * Reads the interrupt pin to determine if interrupt is use by card.
  * If the interrupt is used, then gets the interrupt line from the
  * openfirmware and sets it in the pci_dev and pci_config line.
  */
-int pci_read_irq_line(struct pci_dev *pci_dev)
+int native_pci_read_irq_line(struct pci_dev *pci_dev)
 {
 	struct of_irq oirq;
 	unsigned int virq;
@@ -279,6 +281,11 @@ int pci_read_irq_line(struct pci_dev *pci_dev)
 	pci_dev->irq = virq;
 
 	return 0;
+}
+
+int pci_read_irq_line(struct pci_dev *pci_dev)
+{
+	return paravirt_pci_read_irq_line(pci_dev);
 }
 EXPORT_SYMBOL(pci_read_irq_line);
 

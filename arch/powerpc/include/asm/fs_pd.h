@@ -42,9 +42,21 @@ static inline int uart_baudrate(void)
         return get_baudrate();
 }
 
+#ifdef CONFIG_PARAVIRT
+extern int paravirt_ppc_proc_freq(void);
+static inline int native_ppc_proc_freq(void)
+{
+	return ppc_proc_freq;
+}
+#endif
+
 static inline int uart_clock(void)
 {
+#ifdef CONFIG_PARAVIRT
+	return paravirt_ppc_proc_freq();
+#else
         return ppc_proc_freq;
+#endif
 }
 
 #endif

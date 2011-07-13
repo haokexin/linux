@@ -181,6 +181,10 @@ typedef struct {
 	unsigned int	id;
 	unsigned int	active;
 	unsigned long	vdso_base;
+#ifdef CONFIG_WRHV_ASID_OPTIMIZATION
+	unsigned int	asid;
+	unsigned long	vmmu_handle;
+#endif
 } mm_context_t;
 
 /* Page size definitions, common between 32 and 64-bit

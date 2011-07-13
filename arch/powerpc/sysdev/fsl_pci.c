@@ -34,6 +34,10 @@
 #include <sysdev/fsl_soc.h>
 #include <sysdev/fsl_pci.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
+
 static int fsl_pcie_bus_fixup;
 
 static void __init quirk_fsl_pcie_header(struct pci_dev *dev)
@@ -207,8 +211,20 @@ static void __init setup_pci_atmu(struct pci_controller *hose,
 		piwar |= (mem_log - 1);
 
 		/* Setup inbound memory window */
+#ifdef CONFIG_WRHV
+		{
+		u64 paddr;
+			if (vbi_get_guest_dma_addr(0, &paddr) == 0) {
+				out_be32(&pci->piw[win_idx].pitar,  paddr >> 12);
+				out_be32(&pci->piw[win_idx].piwbar, paddr >> 12);
+				printk ("Real Memory Start @%llx.\n", paddr);
+			} else
+				printk ("%s: it's failed when calling dma VBI.\n", __func__);
+		}
+#else
 		out_be32(&pci->piw[win_idx].pitar,  0x00000000);
 		out_be32(&pci->piw[win_idx].piwbar, 0x00000000);
+#endif
 		out_be32(&pci->piw[win_idx].piwar,  piwar);
 		win_idx--;
 

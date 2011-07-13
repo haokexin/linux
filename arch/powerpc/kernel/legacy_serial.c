@@ -23,6 +23,9 @@
 
 #define MAX_LEGACY_SERIAL_PORTS	8
 
+#ifdef CONFIG_WRHV
+extern int wrhv_earlycon;
+#endif
 static struct plat_serial8250_port
 legacy_serial_ports[MAX_LEGACY_SERIAL_PORTS+1];
 static struct legacy_serial_info {
@@ -379,6 +382,10 @@ void __init find_legacy_serial_ports(void)
 	}
 #endif
 
+#ifdef CONFIG_WRHV
+	if(wrhv_earlycon != -1 && wrhv_earlycon < MAX_LEGACY_SERIAL_PORTS)
+		legacy_serial_console = wrhv_earlycon;
+#endif
 	DBG("legacy_serial_console = %d\n", legacy_serial_console);
 	if (legacy_serial_console >= 0)
 		setup_legacy_serial_console(legacy_serial_console);

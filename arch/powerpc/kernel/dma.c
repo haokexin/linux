@@ -13,6 +13,10 @@
 #include <asm/bug.h>
 #include <asm/abs_addr.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
+
 /*
  * Generic direct DMA implementation
  *
@@ -27,6 +31,9 @@ void *dma_direct_alloc_coherent(struct device *dev, size_t size,
 				dma_addr_t *dma_handle, gfp_t flag)
 {
 	void *ret;
+#ifdef CONFIG_WRHV
+	u64 paddr;
+#endif
 #ifdef CONFIG_NOT_COHERENT_CACHE
 	ret = __dma_alloc_coherent(dev, size, dma_handle, flag);
 	if (ret == NULL)
@@ -45,7 +52,16 @@ void *dma_direct_alloc_coherent(struct device *dev, size_t size,
 		return NULL;
 	ret = page_address(page);
 	memset(ret, 0, size);
+#ifdef CONFIG_WRHV
+	if (vbi_get_guest_dma_addr((ret + get_dma_offset(dev)), &paddr) == 0) {
+		*dma_handle = (dma_addr_t)paddr;
+	} else {
+		free_pages((unsigned long)ret, get_order(size));
+		ret = NULL;
+	}
+#else
 	*dma_handle = virt_to_abs(ret) + get_dma_offset(dev);
+#endif
 
 	return ret;
 #endif
@@ -67,9 +83,19 @@ static int dma_direct_map_sg(struct device *dev, struct scatterlist *sgl,
 {
 	struct scatterlist *sg;
 	int i;
+#ifdef CONFIG_WRHV
+	u64 paddr;
+	u32 ptr;
+#endif
 
 	for_each_sg(sgl, sg, nents, i) {
+#ifdef CONFIG_WRHV
+		ptr = sg_phys(sg) + get_dma_offset(dev);
+		vbi_get_guest_dma_addr((void *)ptr, &paddr);
+		sg->dma_address = (dma_addr_t)paddr;
+#else
 		sg->dma_address = sg_phys(sg) + get_dma_offset(dev);
+#endif
 		sg->dma_length = sg->length;
 		__dma_sync_page(sg_page(sg), sg->offset, sg->length, direction);
 	}
@@ -102,9 +128,19 @@ static inline dma_addr_t dma_direct_map_page(struct device *dev,
 					     enum dma_data_direction dir,
 					     struct dma_attrs *attrs)
 {
+#ifdef CONFIG_WRHV
+	u64 paddr;
+	u32 ptr;
+#endif
 	BUG_ON(dir == DMA_NONE);
 	__dma_sync_page(page, offset, size, dir);
+#ifdef CONFIG_WRHV
+	ptr = (u32)page_to_phys(page) + offset + get_dma_offset(dev);
+	vbi_get_guest_dma_addr((void *)ptr, &paddr);
+	return (dma_addr_t)paddr;
+#else
 	return page_to_phys(page) + offset + get_dma_offset(dev);
+#endif
 }
 
 static inline void dma_direct_unmap_page(struct device *dev,

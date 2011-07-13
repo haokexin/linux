@@ -192,6 +192,26 @@ void flush_vsx_to_thread(struct task_struct *tsk)
 
 #ifdef CONFIG_SPE
 
+#if defined(CONFIG_PARAVIRT) && !defined(CONFIG_WRHV)
+/* refer to native implementation in
+ * linux/arch/powerpc/kernel/head_fsl_booke.S
+ */
+void giveup_spe(struct task_struct *tsk)
+{
+	/* if no previous owner, done */
+	if (!tsk){
+                return;
+        }
+
+        /* disable SPE for previous task */
+        tsk->thread.regs->msr &= ~MSR_SPE;
+
+#ifndef CONFIG_SMP
+        last_task_used_spe = 0;
+#endif /* CONFIG_SMP */
+}
+#endif
+
 void enable_kernel_spe(void)
 {
 	WARN_ON(preemptible());
@@ -322,8 +342,10 @@ static void set_debug_reg_defaults(struct thread_struct *thread)
 	thread->dbcr1 = 0;
 #endif
 }
+void paravirt_prime_debug_regs(struct thread_struct *thread)
+	__attribute__((weak, alias("native_prime_debug_regs")));
 
-static void prime_debug_regs(struct thread_struct *thread)
+void native_prime_debug_regs(struct thread_struct *thread)
 {
 	mtspr(SPRN_IAC1, thread->iac1);
 	mtspr(SPRN_IAC2, thread->iac2);
@@ -352,6 +374,11 @@ static void prime_debug_regs(struct thread_struct *thread)
 #ifdef CONFIG_BOOKE
 	mtspr(SPRN_DBCR2, thread->dbcr2);
 #endif
+}
+
+static void prime_debug_regs(struct thread_struct *thread)
+{
+	paravirt_prime_debug_regs(thread);
 }
 /*
  * Unless neither the old or new thread are making use of the

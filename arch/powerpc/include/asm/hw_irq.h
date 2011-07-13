@@ -13,6 +13,7 @@
 
 extern void timer_interrupt(struct pt_regs *);
 
+#ifndef CONFIG_PARAVIRT
 #ifdef CONFIG_PPC64
 #include <asm/paca.h>
 
@@ -123,6 +124,82 @@ static inline int irqs_disabled_flags(unsigned long flags)
 }
 
 #endif /* CONFIG_PPC64 */
+
+#else /* !CONFIG_PARAVIRT */
+
+/* native implementation taken from !CONFIG_PPC64 */
+#if defined(CONFIG_BOOKE)
+#define SET_MSR_EE(x)	mtmsr(x)
+#define native_raw_local_irq_restore(flags)	__asm__ __volatile__("wrtee %0" : : "r" (flags) : "memory")
+#else
+#define SET_MSR_EE(x)	mtmsr(x)
+#define native_raw_local_irq_restore(flags)	mtmsr(flags)
+#endif
+
+static inline void native_raw_local_irq_disable(void)
+{
+#ifdef CONFIG_BOOKE
+#ifdef CONFIG_KVM_GUEST
+	__asm__ __volatile__("wrtee %0": : "r"(0) :"memory");
+#else
+	__asm__ __volatile__("wrteei 0": : :"memory");
+#endif
+#else
+	unsigned long msr;
+	__asm__ __volatile__("": : :"memory");
+	msr = mfmsr();
+	SET_MSR_EE(msr & ~MSR_EE);
+#endif
+}
+
+static inline void native_raw_local_irq_enable(void)
+{
+#ifdef CONFIG_BOOKE
+#ifdef CONFIG_KVM_GUEST
+	__asm__ __volatile__("wrtee %0": : "r"(MSR_EE) :"memory");
+#else
+	__asm__ __volatile__("wrteei 1": : :"memory");
+#endif
+#else
+	unsigned long msr;
+	__asm__ __volatile__("": : :"memory");
+	msr = mfmsr();
+	SET_MSR_EE(msr | MSR_EE);
+#endif
+}
+
+static inline void native_raw_local_irq_save_ptr(unsigned long *flags)
+{
+	unsigned long msr;
+	msr = mfmsr();
+	*flags = msr;
+#ifdef CONFIG_BOOKE
+#ifdef CONFIG_KVM_GUEST
+	__asm__ __volatile__("wrtee %0": : "r"(0) :"memory");
+#else
+	__asm__ __volatile__("wrteei 0": : :"memory");
+#endif
+#else
+	SET_MSR_EE(msr & ~MSR_EE);
+#endif
+	__asm__ __volatile__("": : :"memory");
+}
+
+#define native_raw_local_save_flags(flags)	((flags) = mfmsr())
+#define native_raw_local_irq_save(flags)	native_raw_local_irq_save_ptr(&flags)
+#define native_raw_irqs_disabled()		((mfmsr() & MSR_EE) == 0)
+#define native_raw_irqs_disabled_flags(flags)	(((flags) & MSR_EE) == 0)
+
+#define native_hard_irq_disable()	native_raw_local_irq_disable()
+
+static inline int native_irqs_disabled_flags(unsigned long flags)
+{
+	return (flags & MSR_EE) == 0;
+}
+
+/* Hypervior specific implementation */
+#include <asm/pv_hw_irq.h>
+#endif /* CONFIG_PARAVIRT */
 
 /*
  * interrupt-retrigger: should we handle this via lost interrupts and IPIs

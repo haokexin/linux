@@ -13,7 +13,7 @@
 #define ARCH_KMALLOC_MINALIGN	L1_CACHE_BYTES
 #endif
 
-#ifdef CONFIG_PTE_64BIT
+#if defined(CONFIG_PTE_64BIT) || defined(CONFIG_PARAVIRT_PTE)
 #define PTE_FLAGS_OFFSET	4	/* offset of PTE flags, in bytes */
 #else
 #define PTE_FLAGS_OFFSET	0
@@ -30,7 +30,7 @@
  * The basic type of a PTE - 64 bits for those CPUs with > 32 bit
  * physical addressing.
  */
-#ifdef CONFIG_PTE_64BIT
+#if defined(CONFIG_PTE_64BIT) || defined(CONFIG_PARAVIRT_PTE)
 typedef unsigned long long pte_basic_t;
 #else
 typedef unsigned long pte_basic_t;

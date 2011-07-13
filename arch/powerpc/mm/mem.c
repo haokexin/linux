@@ -413,13 +413,22 @@ void __init mem_init(void)
  * It just marks the page as not i-cache clean.  We do the i-cache
  * flush later when the page is given to a user process, if necessary.
  */
-void flush_dcache_page(struct page *page)
+
+void paravirt_flush_dcache_page(struct page *page) 
+               __attribute__((weak, alias("native_flush_dcache_page")));
+
+void native_flush_dcache_page(struct page *page)
 {
 	if (cpu_has_feature(CPU_FTR_COHERENT_ICACHE))
 		return;
 	/* avoid an atomic op if possible */
 	if (test_bit(PG_arch_1, &page->flags))
 		clear_bit(PG_arch_1, &page->flags);
+}
+
+void flush_dcache_page(struct page *page)
+{
+	paravirt_flush_dcache_page(page);
 }
 EXPORT_SYMBOL(flush_dcache_page);
 

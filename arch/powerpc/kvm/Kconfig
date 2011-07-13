@@ -16,6 +16,34 @@ menuconfig VIRTUALIZATION
 
 if VIRTUALIZATION
 
+config PARAVIRT
+        bool "Enable paravirtualization code"
+        default y
+        help
+          This changes the kernel so it can modify itself when it is run
+          under a hypervisor, potentially improving performance significantly
+          over full virtualization.  However, when run without a hypervisor
+          the kernel is theoretically slower and slightly larger.
+
+          CONFIG_PARAVIRT assume a E500 like core.
+
+config PARAVIRT_PTE
+        bool "Enable 64 Bit PTE to support VMMU"
+        default n
+        help
+          CONFIG_PARAVIRT will use 64 bit PTE for VMMU.
+
+config PARAVIRT_CLOCK
+        bool
+        default n
+
+config PARAVIRT_DEBUG
+       bool "paravirt-ops debugging"
+       depends on PARAVIRT && DEBUG_KERNEL
+       help
+         Enable to debug paravirt_ops internals.  Specifically, BUG if
+         a paravirt_op is missing when it is called.
+
 config KVM
 	bool
 	select PREEMPT_NOTIFIERS

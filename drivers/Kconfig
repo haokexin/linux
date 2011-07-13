@@ -114,4 +114,5 @@ source "drivers/platform/Kconfig"
 
 source "drivers/tdm/Kconfig"
 
+source "drivers/wrhv/Kconfig"
 endmenu

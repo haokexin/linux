@@ -479,7 +479,11 @@ static int __init early_init_dt_scan_drconf_memory(unsigned long node)
 #define early_init_dt_scan_drconf_memory(node)	0
 #endif /* CONFIG_PPC_PSERIES */
 
-static int __init early_init_dt_scan_memory_ppc(unsigned long node,
+int paravirt_early_init_dt_scan_memory_ppc(unsigned long node,
+			const char *uname, int depth, void *data)
+	__attribute__((weak, alias("native_early_init_dt_scan_memory_ppc")));
+
+int __init native_early_init_dt_scan_memory_ppc(unsigned long node,
 						const char *uname,
 						int depth, void *data)
 {
@@ -488,6 +492,13 @@ static int __init early_init_dt_scan_memory_ppc(unsigned long node,
 		return early_init_dt_scan_drconf_memory(node);
 	
 	return early_init_dt_scan_memory(node, uname, depth, data);
+}
+
+static int __init early_init_dt_scan_memory_ppc(unsigned long node,
+						const char *uname,
+						int depth, void *data)
+{
+	return  paravirt_early_init_dt_scan_memory_ppc(node, uname, depth, data);
 }
 
 void __init early_init_dt_add_memory_arch(u64 base, u64 size)

@@ -26,6 +26,7 @@
 #include <asm/uaccess.h>
 #include <asm/firmware.h>
 #include <linux/sort.h>
+#include <linux/slab.h>
 
 #include "setup.h"
 
@@ -36,13 +37,21 @@ void *module_alloc(unsigned long size)
 	if (size == 0)
 		return NULL;
 
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC)
+	return kmalloc(size, GFP_KERNEL);
+#else
 	return vmalloc_exec(size);
+#endif
 }
 
 /* Free memory returned from module_alloc */
 void module_free(struct module *mod, void *module_region)
 {
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC)
+	kfree(module_region);
+#else
 	vfree(module_region);
+#endif
 }
 
 static const Elf_Shdr *find_section(const Elf_Ehdr *hdr,

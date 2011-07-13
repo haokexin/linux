@@ -307,7 +307,12 @@ void kgdb_arch_set_pc(struct pt_regs *regs, unsigned long pc)
 /*
  * This function does PowerPC specific procesing for interfacing to gdb.
  */
-int kgdb_arch_handle_exception(int vector, int signo, int err_code,
+int paravirt_kgdb_arch_handle_exception(int vector, int signo, int err_code,
+                               char *remcom_in_buffer, char *remcom_out_buffer,
+                               struct pt_regs *linux_regs) __attribute__
+			((weak, alias("native_kgdb_arch_handle_exception")));
+
+int native_kgdb_arch_handle_exception(int vector, int signo, int err_code,
 			       char *remcom_in_buffer, char *remcom_out_buffer,
 			       struct pt_regs *linux_regs)
 {
@@ -342,6 +347,15 @@ int kgdb_arch_handle_exception(int vector, int signo, int err_code,
 	}
 
 	return -1;
+}
+
+int kgdb_arch_handle_exception(int vector, int signo, int err_code,
+			       char *remcom_in_buffer, char *remcom_out_buffer,
+			       struct pt_regs *linux_regs)
+{
+	return paravirt_kgdb_arch_handle_exception(vector, signo, err_code,
+					remcom_in_buffer, remcom_out_buffer,
+					linux_regs);	
 }
 
 /*

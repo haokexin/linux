@@ -69,6 +69,24 @@ static inline int notify_page_fault(struct pt_regs *regs)
 #endif
 
 /*
+ * this function restore mmu for paravirt operations,
+ * default native operation is noop
+ */
+void paravirt_vmmu_restore(void) __attribute__((weak, alias("native_vmmu_restore")));
+
+void native_vmmu_restore(void)
+{
+	/* default is noop */
+	return;
+}
+
+void vmmu_restore (void)
+{
+	paravirt_vmmu_restore();
+	return;
+}
+
+/*
  * Check whether the instruction at regs->nip is a store using
  * an update addressing form which will update r1.
  */
@@ -348,6 +366,7 @@ bad_area_nosemaphore:
 	/* User mode accesses cause a SIGSEGV */
 	if (user_mode(regs)) {
 		_exception(SIGSEGV, regs, code, address);
+		vmmu_restore ();
 		return 0;
 	}
 
@@ -383,6 +402,7 @@ do_sigbus:
 		info.si_code = BUS_ADRERR;
 		info.si_addr = (void __user *)address;
 		force_sig_info(SIGBUS, &info, current);
+		vmmu_restore ();
 		return 0;
 	}
 	return SIGBUS;

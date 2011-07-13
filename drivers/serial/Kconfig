@@ -70,6 +70,13 @@ config SERIAL_8250_CONSOLE
 
 	  If unsure, say N.
 
+config WRHV_DUART
+	bool "WRHV duart serial support"
+	depends on SERIAL_8250=y && WRHV && PPC32
+	---help---
+	  This selects whether you want to include the driver for the wrhv
+	  duart driver.
+
 config SERIAL_8250_PPC_BUG
 	bool "Fix 8250/16550 to handle IRQ storm after receipt of a break"
 	depends on SERIAL_8250 && PPC

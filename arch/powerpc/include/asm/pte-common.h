@@ -78,7 +78,7 @@ extern unsigned long bad_call_to_PMD_PAGE_SIZE(void);
 /* The mask convered by the RPN must be a ULL on 32-bit platforms with
  * 64-bit PTEs
  */
-#if defined(CONFIG_PPC32) && defined(CONFIG_PTE_64BIT)
+#if defined(CONFIG_PPC32) && defined(CONFIG_PTE_64BIT) || (defined(CONFIG_PARAVIRT) && !defined(CONFIG_PPC85xx_VT_MODE))
 #define PTE_RPN_MAX	(1ULL << (64 - PTE_RPN_SHIFT))
 #define PTE_RPN_MASK	(~((1ULL<<PTE_RPN_SHIFT)-1))
 #else
@@ -104,9 +104,14 @@ extern unsigned long bad_call_to_PMD_PAGE_SIZE(void);
  * pages. We always set _PAGE_COHERENT when SMP is enabled or
  * the processor might need it for DMA coherency.
  */
+
+#if defined(CONFIG_WRHV_E500)
+#define _PAGE_BASE_NC	(_PAGE_PRESENT | _PAGE_ACCESSED | VMMU_PROT_USER_READ)
+#else
 #define _PAGE_BASE_NC	(_PAGE_PRESENT | _PAGE_ACCESSED | _PAGE_PSIZE)
-#if defined(CONFIG_SMP) || defined(CONFIG_PPC_STD_MMU)
-#define _PAGE_BASE	(_PAGE_BASE_NC | _PAGE_COHERENT)
+#endif
+#if defined(CONFIG_SMP)
+#define _PAGE_BASE (_PAGE_BASE_NC | _PAGE_COHERENT)
 #else
 #define _PAGE_BASE	(_PAGE_BASE_NC)
 #endif
@@ -148,14 +153,20 @@ extern unsigned long bad_call_to_PMD_PAGE_SIZE(void);
 #define __S111	PAGE_SHARED_X
 
 /* Permission masks used for kernel mappings */
+#ifdef CONFIG_WRHV_E500
+#define PAGE_KERNEL	__pgprot(_PAGE_BASE | _PAGE_KERNEL_RW | _PAGE_HWEXEC)
+#define PAGE_KERNEL_X	__pgprot(_PAGE_BASE | _PAGE_KERNEL_RWX | _PAGE_HWEXEC)
+#define PAGE_KERNEL_ROX	__pgprot(_PAGE_BASE | _PAGE_KERNEL_ROX | _PAGE_HWEXEC)
+#else
 #define PAGE_KERNEL	__pgprot(_PAGE_BASE | _PAGE_KERNEL_RW)
+#define PAGE_KERNEL_X	__pgprot(_PAGE_BASE | _PAGE_KERNEL_RWX)
+#define PAGE_KERNEL_ROX	__pgprot(_PAGE_BASE | _PAGE_KERNEL_ROX)
+#endif
 #define PAGE_KERNEL_NC	__pgprot(_PAGE_BASE_NC | _PAGE_KERNEL_RW | \
 				 _PAGE_NO_CACHE)
 #define PAGE_KERNEL_NCG	__pgprot(_PAGE_BASE_NC | _PAGE_KERNEL_RW | \
 				 _PAGE_NO_CACHE | _PAGE_GUARDED)
-#define PAGE_KERNEL_X	__pgprot(_PAGE_BASE | _PAGE_KERNEL_RWX)
 #define PAGE_KERNEL_RO	__pgprot(_PAGE_BASE | _PAGE_KERNEL_RO)
-#define PAGE_KERNEL_ROX	__pgprot(_PAGE_BASE | _PAGE_KERNEL_ROX)
 
 /* Protection used for kernel text. We want the debuggers to be able to
  * set breakpoints anywhere, so don't write protect the kernel text
@@ -182,6 +193,7 @@ extern unsigned long bad_call_to_PMD_PAGE_SIZE(void);
 #define PAGE_AGP		(PAGE_KERNEL_NC)
 #define HAVE_PAGE_AGP
 
+#ifndef CONFIG_WRHV_E500
 /* Advertise support for _PAGE_SPECIAL */
 #define __HAVE_ARCH_PTE_SPECIAL
-
+#endif

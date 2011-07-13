@@ -1,0 +1,34 @@
+menuconfig WRHV_VIRTIO
+	bool "Virtual devices support for WindRiver Hypervisor Guest OS"
+	depends on WRHV
+	select VIRTIO
+	---help---
+	  This provides support for the virtio based paravirtual device on
+	  the WindRiver Hypervisor Guest OS.
+
+if WRHV_VIRTIO
+
+config WRHV_FRAME_TRANSITION_INTERRUPT_TEST
+	bool "Frame transition interrupt test"
+	depends on WRHV_CERT
+	default n
+	---help---
+	  Enable testing the start frame and end frame transition interrupt
+	  for Certifiable Hypervisor.
+
+config WRHV_VIRTIO_SERIAL
+	bool "Virtual serial device support for WindRiver Hypervisor Guest OS"
+	depends on !WRHV_DUART && !SERIAL_8250
+	select VIRTIO_CONSOLE
+	---help---
+	  This provides support for the virtual serial device support for
+	  WindRiver Hypervisor Guest OS.
+
+config WRHV_VIRTIO_SERIAL_CONSOLE
+	bool "Virtual serial console support for WindRiver Hypervisor Guest OS"
+	depends on WRHV_VIRTIO_SERIAL
+	---help---
+	  If you say Y here, it will be possible to user the virtual
+	  serial as a system console.
+
+endif  # WRHV_VIRTIO

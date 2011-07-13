@@ -29,6 +29,13 @@ ifdef CONFIG_DEBUG_INFO
 BOOTCFLAGS	+= -g
 endif
 
+ifdef CONFIG_WRHV
+BOOTCFLAGS	+= -DCONFIG_WRHV
+ifdef	CONFIG_WRHV_P4080DS
+BOOTCFLAGS	+= -DCONFIG_WRHV_P4080DS
+endif
+endif
+
 ifeq ($(call cc-option-yn, -fstack-protector),y)
 BOOTCFLAGS	+= -fno-stack-protector
 endif
@@ -275,7 +282,8 @@ initrd-  := $(patsubst zImage%, zImage.initrd%, $(image-n) $(image-))
 initrd-y := $(patsubst zImage%, zImage.initrd%, \
 		$(patsubst dtbImage%, dtbImage.initrd%, \
 		$(patsubst simpleImage%, simpleImage.initrd%, \
-		$(patsubst treeImage%, treeImage.initrd%, $(image-y)))))
+		$(patsubst wrhvImage%, wrhvImage.initrd%, \
+		$(patsubst treeImage%, treeImage.initrd%, $(image-y))))))
 initrd-y := $(filter-out $(image-y), $(initrd-y))
 targets	+= $(image-y) $(initrd-y)
 
@@ -322,6 +330,12 @@ $(obj)/simpleImage.initrd.%: vmlinux $(obj)/%.dtb $(wrapperbits)
 
 $(obj)/simpleImage.%: vmlinux $(obj)/%.dtb $(wrapperbits)
 	$(call if_changed,wrap,simpleboot-$*,,$(obj)/$*.dtb)
+
+$(obj)/wrhvImage.initrd.%: vmlinux $(obj)/%.dtb $(wrapperbits)
+	$(call if_changed,wrap,wrhvboot-$*,,$(obj)/$*.dtb,$(obj)/ramdisk.image.gz)
+
+$(obj)/wrhvImage.%: vmlinux $(obj)/%.dtb $(wrapperbits)
+	$(call if_changed,wrap,wrhvboot-$*,,$(obj)/$*.dtb)
 
 $(obj)/treeImage.initrd.%: vmlinux $(obj)/%.dtb $(wrapperbits)
 	$(call if_changed,wrap,treeboot-$*,,$(obj)/$*.dtb,$(obj)/ramdisk.image.gz)

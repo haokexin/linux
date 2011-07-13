@@ -44,7 +44,7 @@ EXPORT_SYMBOL(ioremap_bot);	/* aka VMALLOC_END */
 #define HAVE_BATS	1
 #endif
 
-#if defined(CONFIG_FSL_BOOKE)
+#if defined(CONFIG_FSL_BOOKE) && !defined(CONFIG_PARAVIRT)
 #define HAVE_TLBCAM	1
 #endif
 
@@ -158,10 +158,22 @@ ioremap_flags(phys_addr_t addr, unsigned long size, unsigned long flags)
 }
 EXPORT_SYMBOL(ioremap_flags);
 
-void __iomem *
-__ioremap(phys_addr_t addr, unsigned long size, unsigned long flags)
+void __iomem * paravirt___ioremap(phys_addr_t addr, unsigned long size, unsigned long flags)
+               __attribute__((weak, alias("native___ioremap")));
+
+/* Native __ioremap implementation. For paravirt version please 
+ * refer to arch/powerpc/kernel/vbi/wrhv.c 
+ */
+void __iomem * 
+native___ioremap(phys_addr_t addr, unsigned long size, unsigned long flags)
 {
 	return __ioremap_caller(addr, size, flags, __builtin_return_address(0));
+}
+
+void __iomem * 
+__ioremap(phys_addr_t addr, unsigned long size, unsigned long flags) 
+{
+	return paravirt___ioremap(addr, size, flags);
 }
 
 void __iomem *
@@ -270,7 +282,10 @@ void iounmap(volatile void __iomem *addr)
 }
 EXPORT_SYMBOL(iounmap);
 
-int map_page(unsigned long va, phys_addr_t pa, int flags)
+int paravirt_map_page(unsigned long, phys_addr_t, int) 
+	__attribute__((weak, alias("native_map_page")));
+
+int native_map_page(unsigned long va, phys_addr_t pa, int flags)
 {
 	pmd_t *pd;
 	pte_t *pg;
@@ -292,6 +307,15 @@ int map_page(unsigned long va, phys_addr_t pa, int flags)
 	}
 	return err;
 }
+
+int map_page(unsigned long va, phys_addr_t pa, int flags)
+{
+	return paravirt_map_page(va, pa, flags);
+}
+
+#ifdef CONFIG_PARAVIRT
+EXPORT_SYMBOL(map_page);
+#endif
 
 /*
  * Map in a chunk of physical memory starting at start.

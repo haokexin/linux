@@ -140,7 +140,16 @@ head-y				:= arch/powerpc/kernel/head_$(CONFIG_WORD_SIZE).o
 head-$(CONFIG_8xx)		:= arch/powerpc/kernel/head_8xx.o
 head-$(CONFIG_40x)		:= arch/powerpc/kernel/head_40x.o
 head-$(CONFIG_44x)		:= arch/powerpc/kernel/head_44x.o
-head-$(CONFIG_FSL_BOOKE)	:= arch/powerpc/kernel/head_fsl_booke.o
+
+ifeq ($(CONFIG_WRHV),y)
+ifeq ($(CONFIG_WRHV_P4080DS),y)
+head-$(CONFIG_FSL_BOOKE)        := arch/powerpc/kernel/head_wrhv_p4080.o
+else
+head-$(CONFIG_FSL_BOOKE)        := arch/powerpc/kernel/head_wrhv.o
+endif
+else
+head-$(CONFIG_FSL_BOOKE)        := arch/powerpc/kernel/head_fsl_booke.o
+endif
 
 head-$(CONFIG_PPC64)		+= arch/powerpc/kernel/entry_64.o
 head-$(CONFIG_PPC_FPU)		+= arch/powerpc/kernel/fpu.o
@@ -162,7 +171,7 @@ all: zImage
 
 # With make 3.82 we cannot mix normal and wildcard targets
 BOOT_TARGETS1 := zImage zImage.initrd uImage
-BOOT_TARGETS2 := zImage% dtbImage% treeImage.% cuImage.% simpleImage.%
+BOOT_TARGETS2 := zImage% dtbImage% treeImage.% cuImage.% simpleImage.% wrhvImage.%
 
 PHONY += $(BOOT_TARGETS1) $(BOOT_TARGETS2)
 
@@ -202,6 +211,7 @@ define archhelp
   @echo '                    versions which do not support device trees'
   @echo '  dtbImage.<dt>   - zImage with an embedded device tree blob'
   @echo '  simpleImage.<dt> - Firmware independent image.'
+  @echo '  wrhvImage.<dt> - Wind River Hypervisor image.'
   @echo '  treeImage.<dt>  - Support for older IBM 4xx firmware (not U-Boot)'
   @echo '  install         - Install kernel using'
   @echo '                    (your) ~/bin/$(INSTALLKERNEL) or'

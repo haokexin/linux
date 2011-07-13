@@ -110,13 +110,16 @@ static inline u64 get_rtc(void)
 	return (u64)hi * 1000000000 + lo;
 }
 
+long long wrhv_gettb_diff(void);
+void wrhv_settb_diff(long long diff);
+
 #ifdef CONFIG_PPC64
 static inline u64 get_tb(void)
 {
 	return mftb();
 }
 #else /* CONFIG_PPC64 */
-static inline u64 get_tb(void)
+static inline u64 get_hardware_tb(void)
 {
 	unsigned int tbhi, tblo, tbhi2;
 
@@ -128,6 +131,16 @@ static inline u64 get_tb(void)
 
 	return ((u64)tbhi << 32) | tblo;
 }
+
+static inline u64 get_tb(void)
+{
+#ifndef CONFIG_WRHV
+	return get_hardware_tb();
+#else
+	return (u64)((long long)get_hardware_tb() + wrhv_gettb_diff());
+#endif
+}
+
 #endif /* !CONFIG_PPC64 */
 
 static inline u64 get_tb_or_rtc(void)
@@ -137,9 +150,14 @@ static inline u64 get_tb_or_rtc(void)
 
 static inline void set_tb(unsigned int upper, unsigned int lower)
 {
+#ifndef CONFIG_WRHV
 	mtspr(SPRN_TBWL, 0);
 	mtspr(SPRN_TBWU, upper);
 	mtspr(SPRN_TBWL, lower);
+#else
+	unsigned long long tb = ((u64)upper<<32) | lower;
+	wrhv_settb_diff((long long)tb - (long long)get_hardware_tb());
+#endif
 }
 
 /* Accessor functions for the decrementer register.
@@ -181,7 +199,9 @@ static inline void set_dec(int val)
 		return;
 	}
 #endif
+#ifndef CONFIG_WRHV
 	mtspr(SPRN_DEC, val);
+#endif
 #endif /* not 40x or 8xx_CPU6 */
 }
 

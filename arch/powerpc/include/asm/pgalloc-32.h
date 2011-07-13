@@ -20,7 +20,7 @@ extern void pgd_free(struct mm_struct *mm, pgd_t *pgd);
 #define __pmd_free_tlb(tlb,x,a)		do { } while (0)
 /* #define pgd_populate(mm, pmd, pte)      BUG() */
 
-#ifndef CONFIG_BOOKE
+#if !defined(CONFIG_BOOKE) || defined(CONFIG_PARAVIRT_PTE)
 #define pmd_populate_kernel(mm, pmd, pte)	\
 		(pmd_val(*(pmd)) = __pa(pte) | _PMD_PRESENT)
 #define pmd_populate(mm, pmd, pte)	\

@@ -62,7 +62,6 @@ static DEFINE_RAW_SPINLOCK(context_lock);
 #define CTX_MAP_SIZE	\
 	(sizeof(unsigned long) * (last_context / BITS_PER_LONG + 1))
 
-
 /* Steal a context from a task that has one at the moment.
  *
  * This is used when we are running out of available PID numbers
@@ -136,7 +135,7 @@ static unsigned int steal_context_smp(unsigned int id)
  * this to work, we somewhat assume that CPUs that are onlined
  * come up with a fully clean TLB (or are cleaned when offlined)
  */
-static unsigned int steal_context_up(unsigned int id)
+unsigned int steal_context_up(unsigned int id)
 {
 	struct mm_struct *mm;
 	int cpu = smp_processor_id();
@@ -157,6 +156,7 @@ static unsigned int steal_context_up(unsigned int id)
 
 	return id;
 }
+EXPORT_SYMBOL(steal_context_up);
 
 #ifdef DEBUG_MAP_CONSISTENCY
 static void context_check_map(void)
@@ -189,7 +189,14 @@ static void context_check_map(void)
 static void context_check_map(void) { }
 #endif
 
+void paravirt_switch_mmu_context(struct mm_struct *prev, struct mm_struct *next)
+	__attribute__((weak, alias("native_switch_mmu_context")));
 void switch_mmu_context(struct mm_struct *prev, struct mm_struct *next)
+{
+	paravirt_switch_mmu_context(prev, next);
+}
+
+void native_switch_mmu_context(struct mm_struct *prev, struct mm_struct *next)
 {
 	unsigned int i, id, cpu = smp_processor_id();
 	unsigned long *map;
@@ -279,13 +286,21 @@ void switch_mmu_context(struct mm_struct *prev, struct mm_struct *next)
 	/* Flick the MMU and release lock */
 	pr_hardcont(" -> %d\n", id);
 	set_context(id, next->pgd);
+
 	raw_spin_unlock(&context_lock);
 }
 
 /*
  * Set up the context for a new address space.
  */
+int paravirt_init_new_context(struct task_struct *t, struct mm_struct *mm)
+	__attribute__((weak, alias("native_init_new_context")));
 int init_new_context(struct task_struct *t, struct mm_struct *mm)
+{
+	return paravirt_init_new_context(t, mm);
+}
+
+int native_init_new_context(struct task_struct *t, struct mm_struct *mm)
 {
 	pr_hard("initing context for mm @%p\n", mm);
 
@@ -298,7 +313,14 @@ int init_new_context(struct task_struct *t, struct mm_struct *mm)
 /*
  * We're finished using the context for an address space.
  */
+void paravirt_destroy_context(struct mm_struct *mm)
+	__attribute__((weak, alias("native_destroy_context")));
 void destroy_context(struct mm_struct *mm)
+{
+	paravirt_destroy_context(mm);
+}
+
+void native_destroy_context(struct mm_struct *mm)
 {
 	unsigned long flags;
 	unsigned int id;
@@ -372,7 +394,14 @@ static struct notifier_block __cpuinitdata mmu_context_cpu_nb = {
 /*
  * Initialize the context management stuff.
  */
+void paravirt_mmu_context_init(void)
+	__attribute__((weak, alias("native_mmu_context_init")));
 void __init mmu_context_init(void)
+{
+	paravirt_mmu_context_init();
+}
+
+void __init native_mmu_context_init(void)
 {
 	/* Mark init_mm as being active on all possible CPUs since
 	 * we'll get called with prev == init_mm the first time

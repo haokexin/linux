@@ -77,7 +77,7 @@ typedef union {
 		uint32_t destination:8;	/* destination field */
 	} field;
 	uint32_t value;
-} VIOAPIC_REDIR_HIGH;
+} ioapic_redir_high;
 
 typedef union {
 	struct {
@@ -96,6 +96,6 @@ typedef union {
 	} field;
 
 	uint32_t value;
-} VIOAPIC_REDIR_LOW;
+} vioapic_redir_low;
 
 #endif	/* __LINUX_WRHV_H */

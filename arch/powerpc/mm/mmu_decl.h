@@ -134,22 +134,7 @@ extern unsigned long wii_mmu_mapin_mem2(unsigned long top);
 extern void wii_memory_fixups(void);
 #endif
 
-/* ...and now those things that may be slightly different between processor
- * architectures.  -- Dan
- */
-#if defined(CONFIG_8xx)
-#define MMU_init_hw()		do { } while(0)
-#define mmu_mapin_ram(top)	(0UL)
-
-#elif defined(CONFIG_4xx)
-extern void MMU_init_hw(void);
-extern unsigned long mmu_mapin_ram(unsigned long top);
-
-#elif defined(CONFIG_FSL_BOOKE)
-extern void MMU_init_hw(void);
-extern unsigned long mmu_mapin_ram(unsigned long top);
-extern void adjust_total_lowmem(void);
-extern void loadcam_entry(unsigned int index);
+#if defined(CONFIG_FSL_BOOKE)
 
 struct tlbcam {
 	u32	MAS0;
@@ -158,6 +143,32 @@ struct tlbcam {
 	u32	MAS3;
 	u32	MAS7;
 };
+extern void loadcam_entry(unsigned int index);
+
+#endif
+
+/* ...and now those things that may be slightly different between processor
+ * architectures.  -- Dan
+ */
+#if defined(CONFIG_PARAVIRT)
+
+extern void MMU_init_hw(void);
+extern unsigned long mmu_mapin_ram(unsigned long top);
+
+#elif defined(CONFIG_8xx)
+#define MMU_init_hw()		do { } while(0)
+#define mmu_mapin_ram(top)	(0UL)
+
+#elif defined(CONFIG_4xx)
+extern void MMU_init_hw(void);
+extern unsigned long mmu_mapin_ram(unsigned long top);
+
+#elif defined(CONFIG_FSL_BOOKE) && !defined(CONFIG_PARAVIRT)
+extern void MMU_init_hw(void);
+extern unsigned long mmu_mapin_ram(unsigned long top);
+extern void adjust_total_lowmem(void);
+
+
 #elif defined(CONFIG_PPC32)
 /* anything 32-bit except 4xx or 8xx */
 extern void MMU_init_hw(void);

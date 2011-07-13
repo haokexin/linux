@@ -339,7 +339,8 @@ END_FTR_SECTION_NESTED(CPU_FTR_CELL_TB_BUG, CPU_FTR_CELL_TB_BUG, 96)
 #define MFTB(dest)			mftb dest
 #endif
 
-#ifndef CONFIG_SMP
+#if !defined(CONFIG_SMP) || defined(CONFIG_WRHV)
+/* The hypervisor will do that. */
 #define TLBSYNC
 #else /* CONFIG_SMP */
 /* tlbsync is not implemented on 601 */

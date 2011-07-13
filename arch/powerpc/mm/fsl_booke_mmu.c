@@ -184,17 +184,34 @@ unsigned long map_mem_in_cams(unsigned long ram, int max_cam_idx)
 	return amount_mapped;
 }
 
-unsigned long __init mmu_mapin_ram(unsigned long top)
+unsigned long paravirt_mmu_mapin_ram(unsigned long top) 
+	__attribute__((weak, alias("native_mmu_mapin_ram")));
+
+unsigned long native_mmu_mapin_ram(unsigned long top)
 {
 	return tlbcam_addrs[tlbcam_index - 1].limit - PAGE_OFFSET + 1;
+}
+
+unsigned long __init mmu_mapin_ram(unsigned long top)
+{
+	return paravirt_mmu_mapin_ram(top);
 }
 
 /*
  * MMU_init_hw does the chip-specific initialization of the MMU hardware.
  */
-void __init MMU_init_hw(void)
+
+void paravirt_MMU_init_hw(void) 
+	__attribute__((weak, alias("native_MMU_init_hw")));
+
+void __init native_MMU_init_hw(void)
 {
 	flush_instruction_cache();
+}
+
+void __init MMU_init_hw(void)
+{
+	paravirt_MMU_init_hw();
 }
 
 void __init adjust_total_lowmem(void)

@@ -19,6 +19,10 @@
 #include "io.h"
 #include "ops.h"
 
+#ifdef CONFIG_WRHV
+#include "wrhv_boot.h"
+#endif
+
 static int serial_open(void)
 {
 	struct serial_console_data *scdp = console_ops.data;
@@ -82,6 +86,56 @@ static void serial_close(void)
 		scdp->close();
 }
 
+#ifdef CONFIG_WRHV
+static inline const char * wrhv_serial(int port_index)
+{
+	switch(port_index) {
+		case  0:
+			return "serial0";
+		case  1:
+			return "serial1";
+		case  2:
+			return "serial2";
+		case  3:
+			return "serial3";
+		default:
+			return NULL;
+	}
+}
+
+static void * wrhv_serial_get_stdout_devp(void)
+{
+	void *devp;
+	char *cmdline_p = (char *)(WRHV_CMDLINE_ADDR);
+	char wrhv_path[256];
+	int i = 0, serial_index = -1;
+
+	do{
+		if(!strncmp(&cmdline_p[i],"wrhv_earlycon=",WRHV_EARLYCON_SIZE)){
+			serial_index = cmdline_p[i+WRHV_EARLYCON_SIZE];
+			break;
+		}
+		/* Try to find next space  */
+		while((i < 242) && (cmdline_p[i] != 0x20))
+			i++;
+		/*skip the space */
+		i++;
+	}while(i < WRHV_CMDLINE_SIZE);
+
+	devp = finddevice("/aliases");
+	if (devp == NULL)
+		goto null_out;
+
+	if (getprop(devp,wrhv_serial((serial_index - 0x30)),wrhv_path,256) > 0){
+		devp =  finddevice(wrhv_path);
+		return devp;
+	}
+
+null_out:
+	return NULL;
+}
+#endif
+
 static void *serial_get_stdout_devp(void)
 {
 	void *devp;
@@ -113,6 +167,11 @@ int serial_console_init(void)
 	void *devp;
 	int rc = -1;
 
+#ifdef CONFIG_WRHV
+	devp = wrhv_serial_get_stdout_devp();
+	if(devp == NULL)
+#endif
+
 	devp = serial_get_stdout_devp();
 	if (devp == NULL)
 		goto err_out;
@@ -142,7 +201,11 @@ int serial_console_init(void)
 		console_ops.data = &serial_cd;
 
 		if (serial_cd.getc)
+#ifdef CONFIG_WRHV
+			console_ops.edit_cmdline = NULL;
+#else	
 			console_ops.edit_cmdline = serial_edit_cmdline;
+#endif
 
 		return 0;
 	}
