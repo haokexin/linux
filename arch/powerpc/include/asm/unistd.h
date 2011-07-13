@@ -346,10 +346,18 @@
 #define __NR_pwritev		321
 #define __NR_rt_tgsigqueueinfo	322
 #define __NR_revokeat		323
+#define __NR_vbi_mem		324
+#define __NR_vbi_activate_vb	325
+#define __NR_vbi_control	326
+#define VBI_MEM_READ		0x0010
+#define VBI_MEM_WRITE		0x0100
+#define SYS_VBI_VB_SUSPEND	0x10001
+#define SYS_VBI_VB_RESUME	0x20002
+#define SYS_VBI_VB_RESTART	0x40004
 
 #ifdef __KERNEL__
 
-#define __NR_syscalls		324
+#define __NR_syscalls		327
 
 #define __NR__exit __NR_exit
 #define NR_syscalls	__NR_syscalls
