@@ -17,6 +17,7 @@
 #include <asm/cputable.h>
 #include <asm/ppc_asm.h>
 
+#ifndef CONFIG_WRHV
 _GLOBAL(__e500_icache_setup)
 	mfspr	r0, SPRN_L1CSR1
 	andi.	r3, r0, L1CSR1_ICE
@@ -50,6 +51,32 @@ _GLOBAL(__e500_dcache_setup)
 	mtspr	SPRN_L1CSR0, r0		/* Enable */
 	isync
 	blr
+
+#else
+/* Only weak for WRHV. */
+	.globl	__e500_icache_setup
+__e500_icache_setup:
+	blr
+
+	.globl	__e500_dcache_setup
+__e500_dcache_setup:
+	blr
+
+	.weak	__setup_e200_ivors
+	.globl	__setup_e200_ivors
+__setup_e200_ivors:
+	blr
+
+	.weak	__setup_e500_ivors
+	.globl	__setup_e500_ivors
+__setup_e500_ivors:
+	blr
+
+	.weak	__setup_e500mc_ivors
+	.globl	__setup_e500mc_ivors
+__setup_e500mc_ivors:
+	blr
+#endif
 
 _GLOBAL(__setup_cpu_e200)
 	/* enable dedicated debug exception handling resources (Debug APU) */

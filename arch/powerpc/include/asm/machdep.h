@@ -12,6 +12,7 @@
 #include <linux/seq_file.h>
 #include <linux/init.h>
 #include <linux/dma-mapping.h>
+#include <linux/phy.h>
 
 #include <asm/setup.h>
 
@@ -275,6 +276,17 @@ struct machdep_calls {
 	ssize_t (*cpu_probe)(const char *, size_t);
 	ssize_t (*cpu_release)(const char *, size_t);
 #endif
+
+#ifdef CONFIG_VIRTUALIZATION
+	int (*earlycon_setup)(void);
+	int (*enable_pci_law)(void);
+	int (*set_law_base)(int index, unsigned long long addr);
+	unsigned long long (*get_law_base)(int index);
+	int (*set_law_attr)(int index, unsigned int attr);
+	int (*get_law_attr)(int index);
+	uint32_t (*get_mdio_bus)(struct mii_bus *bus, int mii_id);
+	unsigned int (*get_direct_irq)(void);
+#endif
 };
 
 extern void e500_idle(void);
@@ -372,6 +384,8 @@ static inline void log_error(char *buf, unsigned int err_type, int fatal)
 
 void generic_suspend_disable_irqs(void);
 void generic_suspend_enable_irqs(void);
+
+extern unsigned int get_pvr(void);
 
 #endif /* __KERNEL__ */
 #endif /* _ASM_POWERPC_MACHDEP_H */

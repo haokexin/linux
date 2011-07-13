@@ -18,6 +18,10 @@
 #include "gunzip_util.h"
 #include "reg.h"
 
+#ifdef CONFIG_WRHV
+#include "wrhv_boot.h"
+#endif
+
 static struct gunzip_state gzstate;
 
 struct addr_range {
@@ -192,6 +196,9 @@ void start(void)
 	vmlinux = prep_kernel();
 	initrd = prep_initrd(vmlinux, chosen,
 			     loader_info.initrd_addr, loader_info.initrd_size);
+#ifdef CONFIG_WRHV
+	strncpy(cmdline,(char *)(WRHV_CMDLINE_ADDR),WRHV_CMDLINE_SIZE);
+#endif
 	prep_cmdline(chosen);
 
 	printf("Finalizing device tree...");
@@ -205,9 +212,15 @@ void start(void)
 	if (console_ops.close)
 		console_ops.close();
 
-	kentry = (kernel_entry_t) vmlinux.addr;
+	/* For Hypervisor, kernel entry should be at 0xC0000000 */
+#ifdef CONFIG_WRHV
+#define ENT_OFFSET 0xC0000000
+#else
+#define ENT_OFFSET 0
+#endif
+	kentry = (kernel_entry_t) (vmlinux.addr + ENT_OFFSET);
 	if (ft_addr)
-		kentry(ft_addr, 0, NULL);
+		kentry(ft_addr, ENT_OFFSET, NULL);
 	else
 		kentry((unsigned long)initrd.addr, initrd.size,
 		       loader_info.promptr);

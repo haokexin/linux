@@ -65,6 +65,20 @@ obj-$(CONFIG_HIBERNATION)	+= swsusp_$(CONFIG_WORD_SIZE).o
 endif
 obj64-$(CONFIG_HIBERNATION)	+= swsusp_asm64.o
 obj-$(CONFIG_MODULES)		+= module.o module_$(CONFIG_WORD_SIZE).o
+
+ifeq ($(CONFIG_WRHV),y)
+entry = wrhv_entry_32.o
+endif
+ifeq ($(CONFIG_PPC85xx_VT_MODE),y)
+entry = entry_32.o
+endif
+
+obj-$(CONFIG_WRHV)		+= $(entry) wrhv_misc_32.o
+
+ifeq ($(CONFIG_PARAVIRT),y)
+obj-$(CONFIG_PARAVIRT)          += paravirt_entry_32.o paravirt_misc_32.o
+endif
+
 obj-$(CONFIG_44x)		+= cpu_setup_44x.o
 obj-$(CONFIG_FSL_BOOKE)		+= cpu_setup_fsl_booke.o dbell.o
 obj-$(USE_IMMEDIATE)		+= immediate.o
@@ -73,7 +87,17 @@ extra-y				:= head_$(CONFIG_WORD_SIZE).o
 extra-$(CONFIG_PPC_BOOK3E_32)	:= head_new_booke.o
 extra-$(CONFIG_40x)		:= head_40x.o
 extra-$(CONFIG_44x)		:= head_44x.o
-extra-$(CONFIG_FSL_BOOKE)	:= head_fsl_booke.o
+
+ifeq ($(CONFIG_WRHV),y)
+ifeq ($(CONFIG_WRHV_P4080DS),y)
+extra-$(CONFIG_WRHV)		:= head_wrhv_p4080.o
+else
+extra-$(CONFIG_WRHV)		:= head_wrhv.o
+endif
+else
+extra-$(CONFIG_FSL_BOOKE)		:= head_fsl_booke.o
+endif
+
 extra-$(CONFIG_8xx)		:= head_8xx.o
 extra-y				+= vmlinux.lds
 
@@ -114,6 +138,9 @@ obj-$(CONFIG_FSL_EMB_PERF_EVENT) += perf_event_fsl_emb.o
 obj-$(CONFIG_FSL_EMB_PERF_EVENT_E500) += e500-pmu.o
 
 obj-$(CONFIG_8XX_MINIMAL_FPEMU) += softemu8xx.o
+
+obj-$(CONFIG_WRHV)		+= vbi/
+obj-$(CONFIG_PARAVIRT)         += paravirt.o
 
 ifneq ($(CONFIG_PPC_INDIRECT_IO),y)
 obj-y				+= iomap.o

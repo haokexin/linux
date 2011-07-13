@@ -88,7 +88,7 @@ extern void set_pte_at(struct mm_struct *mm, unsigned long addr, pte_t *ptep,
  * an horrible mess that I'm not going to try to clean up now but
  * I'm keeping it in one place rather than spread around
  */
-static inline void __set_pte_at(struct mm_struct *mm, unsigned long addr,
+static inline void native__set_pte_at(struct mm_struct *mm, unsigned long addr,
 				pte_t *ptep, pte_t pte, int percpu)
 {
 #if defined(CONFIG_PPC_STD_MMU_32) && defined(CONFIG_SMP) && !defined(CONFIG_PTE_64BIT)
@@ -146,6 +146,18 @@ static inline void __set_pte_at(struct mm_struct *mm, unsigned long addr,
 #endif
 }
 
+
+static inline void __set_pte_at(struct mm_struct *mm, unsigned long addr, 
+				pte_t *ptep, pte_t pte, int percpu)
+{
+#ifdef CONFIG_PARAVIRT
+	extern void paravirt__set_pte_at(struct mm_struct *,
+			unsigned long, pte_t *, pte_t, int);
+	paravirt__set_pte_at(mm, addr, ptep, pte, percpu);
+#else
+	native__set_pte_at(mm, addr, ptep, pte, percpu);
+#endif
+}
 
 #define __HAVE_ARCH_PTEP_SET_ACCESS_FLAGS
 extern int ptep_set_access_flags(struct vm_area_struct *vma, unsigned long address,

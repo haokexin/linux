@@ -438,7 +438,14 @@ static inline void update_gtod(u64 new_tb_stamp, u64 new_stamp_xsec,
 	 * We expect the caller to have done the first increment of
 	 * vdso_data->tb_update_count already.
 	 */
+#ifndef CONFIG_WRHV
 	vdso_data->tb_orig_stamp = new_tb_stamp;
+#else
+	/* We substract tb orig stamp with our paravirtualized get_tb() in
+	 * advance to make vdso easy for guest OS.
+	 */
+	vdso_data->tb_orig_stamp = get_tb() - new_tb_stamp;
+#endif
 	vdso_data->stamp_xsec = new_stamp_xsec;
 	vdso_data->tb_to_xs = new_tb_to_xs;
 	vdso_data->wtom_clock_sec = wall_to_monotonic.tv_sec;
@@ -602,7 +609,15 @@ void set_perf_event_pending(void)
  * timer_interrupt - gets called when the decrementer overflows,
  * with interrupts disabled.
  */
-void timer_interrupt(struct pt_regs * regs)
+void paravirt_timer_interrupt(struct pt_regs *regs)
+	__attribute__((weak, alias("native_timer_interrupt")));
+
+void timer_interrupt(struct pt_regs *regs)
+{
+	paravirt_timer_interrupt(regs);
+}
+
+void native_timer_interrupt(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs;
 	struct decrementer_clock *decrementer =  &__get_cpu_var(decrementers);
@@ -783,7 +798,7 @@ static int __init get_freq(char *name, int cells, unsigned long *val)
 /* should become __cpuinit when secondary_cpu_time_init also is */
 void start_cpu_decrementer(void)
 {
-#if defined(CONFIG_BOOKE) || defined(CONFIG_40x)
+#if (defined(CONFIG_BOOKE) || defined(CONFIG_40x)) && !defined(CONFIG_WRHV)
 	/* Clear any pending timer interrupts */
 	mtspr(SPRN_TSR, TSR_ENW | TSR_WIS | TSR_DIS | TSR_FIS);
 
@@ -910,7 +925,15 @@ void update_vsyscall_tz(void)
 	++vdso_data->tb_update_count;
 }
 
-static void __init clocksource_init(void)
+void paravirt_clocksource_init(void)
+	__attribute__((weak, alias("native_clocksource_init")));
+
+void __init clocksource_init(void)
+{
+	paravirt_clocksource_init();
+}
+
+void __init native_clocksource_init(void)
 {
 	struct clocksource *clock;
 
@@ -1007,6 +1030,23 @@ void secondary_cpu_time_init(void)
 	/* FIME: Should make unrelatred change to move snapshot_timebase
 	 * call here ! */
 	register_decrementer_clockevent(smp_processor_id());
+}
+
+/* time_init() is seperate into two parts, the first part is common to
+ * native and paravirtual target. The 2nd part, time_init_cont is target
+ * specific init
+ */
+void paravirt_time_init_cont(void)
+	__attribute__((weak, alias("native_time_init_cont")));
+
+void __init time_init_cont(void)
+{
+	paravirt_time_init_cont();
+}
+
+void __init native_time_init_cont(void)
+{
+	init_decrementer_clockevent();
 }
 
 /* This function is only called on the boot processor */
@@ -1117,7 +1157,8 @@ void __init time_init(void)
 	if (!firmware_has_feature(FW_FEATURE_ISERIES))
 		clocksource_init();
 
-	init_decrementer_clockevent();
+	/* continue with native or paravirtual specific time_init */
+	time_init_cont();
 }
 
 

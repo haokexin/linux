@@ -78,6 +78,10 @@ int ucache_bsize;
  * from the address that it was linked at, so we must use RELOC/PTRRELOC
  * to access static data (including strings).  -- paulus
  */
+#ifdef CONFIG_PARAVIRT
+extern void paravirt_init(void);
+#endif
+
 notrace unsigned long __init early_init(unsigned long dt_ptr)
 {
 	unsigned long offset = reloc_offset();
@@ -87,12 +91,19 @@ notrace unsigned long __init early_init(unsigned long dt_ptr)
 	 * caches on yet */
 	memset_io((void __iomem *)PTRRELOC(&__bss_start), 0,
 			__bss_stop - __bss_start);
+	
+	/* 
+	 * initialize paravirtual operations 
+	 */
+#ifdef CONFIG_PARAVIRT
+	paravirt_init();
+#endif
 
 	/*
 	 * Identify the CPU type and fix up code sections
 	 * that depend on which cpu we have.
 	 */
-	spec = identify_cpu(offset, mfspr(SPRN_PVR));
+	spec = identify_cpu(offset, get_pvr());
 
 	do_feature_fixups(spec->cpu_features,
 			  PTRRELOC(&__start___ftr_fixup),
@@ -136,7 +147,7 @@ notrace void __init machine_init(unsigned long dt_ptr)
 		ppc_md.power_save = ppc6xx_idle;
 #endif
 
-#ifdef CONFIG_E500
+#if defined(CONFIG_E500) && !defined(CONFIG_PARAVIRT)
 	if (cpu_has_feature(CPU_FTR_CAN_DOZE) ||
 	    cpu_has_feature(CPU_FTR_CAN_NAP))
 		ppc_md.power_save = e500_idle;
@@ -294,6 +305,18 @@ void __init setup_arch(char **cmdline_p)
 
 	if (ppc_md.init_early)
 		ppc_md.init_early();
+
+#ifdef CONFIG_WRHV
+	/* give an opporunity for special legacy serial or
+	   other setup to be run */
+	if (ppc_md.earlycon_setup)
+		ppc_md.earlycon_setup();
+#endif
+
+#if defined(CONFIG_PCI) && defined(CONFIG_WRHV)
+	if (ppc_md.enable_pci_law)
+		ppc_md.enable_pci_law();
+#endif
 
 	find_legacy_serial_ports();
 

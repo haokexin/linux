@@ -318,7 +318,7 @@ void fixup_irqs(cpumask_t map)
 #endif
 
 #ifdef CONFIG_IRQSTACKS
-static inline void handle_one_irq(unsigned int irq)
+inline void handle_one_irq(unsigned int irq)
 {
 	struct thread_info *curtp, *irqtp;
 	unsigned long saved_sp_limit;
@@ -359,13 +359,13 @@ static inline void handle_one_irq(unsigned int irq)
 		set_bits(irqtp->flags, &curtp->flags);
 }
 #else
-static inline void handle_one_irq(unsigned int irq)
+inline void handle_one_irq(unsigned int irq)
 {
 	generic_handle_irq(irq);
 }
 #endif
 
-static inline void check_stack_overflow(void)
+inline void check_stack_overflow(void)
 {
 #ifdef CONFIG_DEBUG_STACKOVERFLOW
 	long sp;
@@ -381,7 +381,19 @@ static inline void check_stack_overflow(void)
 #endif
 }
 
+#ifdef CONFIG_WRHV
+EXPORT_SYMBOL(handle_one_irq);
+EXPORT_SYMBOL(check_stack_overflow);
+#endif
+
+void paravirt_do_IRQ(struct pt_regs *regs) __attribute__((weak, alias("native_do_IRQ")));
+
 void do_IRQ(struct pt_regs *regs)
+{
+	paravirt_do_IRQ(regs);  
+}
+
+void native_do_IRQ(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 	unsigned int irq;
@@ -809,7 +821,10 @@ unsigned int irq_create_of_mapping(struct device_node *controller,
 }
 EXPORT_SYMBOL_GPL(irq_create_of_mapping);
 
-unsigned int irq_of_parse_and_map(struct device_node *dev, int index)
+unsigned int paravirt_irq_of_parse_and_map(struct device_node *dev, int index)
+        __attribute__((weak, alias("native_irq_of_parse_and_map")));
+
+unsigned int native_irq_of_parse_and_map(struct device_node *dev, int index)
 {
 	struct of_irq oirq;
 
@@ -818,6 +833,11 @@ unsigned int irq_of_parse_and_map(struct device_node *dev, int index)
 
 	return irq_create_of_mapping(oirq.controller, oirq.specifier,
 				     oirq.size);
+}
+
+unsigned int irq_of_parse_and_map(struct device_node *dev, int index)
+{
+	return paravirt_irq_of_parse_and_map(dev, index);
 }
 EXPORT_SYMBOL_GPL(irq_of_parse_and_map);
 

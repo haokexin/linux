@@ -32,8 +32,10 @@
 #include <asm/unistd.h>
 #include <asm/ftrace.h>
 
+#ifndef CONFIG_PARAVIRT
 #undef SHOW_SYSCALLS
 #undef SHOW_SYSCALLS_TASK
+#endif
 
 /*
  * MSR_KERNEL is > 0x10000 on 4xx/Book-E since it include MSR_CE.
@@ -42,6 +44,25 @@
 #define LOAD_MSR_KERNEL(r, x)	lis r,(x)@h; ori r,r,(x)@l
 #else
 #define LOAD_MSR_KERNEL(r, x)	li r,(x)
+#endif
+
+/* native macros */
+#define ENABLE_MSR_EE  ori r10,r10,MSR_EE; SYNC; MTMSRD(r10);
+#define DISABLE_MSR_EE LOAD_MSR_KERNEL(r10,MSR_KERNEL); SYNC; MTMSRD(r10);
+
+/* paravirt overrides */
+#ifdef CONFIG_PARAVIRT
+#ifdef PARAVIRT_ENABLE_MSR_EE
+#undef ENABLE_MSR_EE
+#define ENABLE_MSR_EE PARAVIRT_ENABLE_MSR_EE
+#endif
+#endif
+
+#ifdef CONFIG_PARAVIRT
+#ifdef PARAVIRT_DISABLE_MSR_EE
+#undef DISABLE_MSR_EE
+#define DISABLE_MSR_EE PARAVIRT_DISABLE_MSR_EE
+#endif
 #endif
 
 #ifdef CONFIG_BOOKE
@@ -130,6 +151,13 @@ transfer_to_handler_full:
 
 	.globl	transfer_to_handler
 transfer_to_handler:
+#ifndef CONFIG_PARAVIRT
+	b       native_transfer_to_handler
+#else
+	b       paravirt_transfer_to_handler
+#endif
+	.globl  native_transfer_to_handler
+native_transfer_to_handler:
 	stw	r2,GPR2(r11)
 	stw	r12,_NIP(r11)
 	stw	r9,_MSR(r11)
@@ -144,7 +172,7 @@ transfer_to_handler:
 	beq	2f			/* if from user, fix up THREAD.regs */
 	addi	r11,r1,STACK_FRAME_OVERHEAD
 	stw	r11,PT_REGS(r12)
-#if defined(CONFIG_40x) || defined(CONFIG_BOOKE)
+#if defined(CONFIG_40x) || defined(CONFIG_BOOKE) && !defined(CONFIG_PARAVIRT)
 	/* Check to see if the dbcr0 register is set up to debug.  Use the
 	   internal debug mode bit to do this. */
 	lwz	r12,THREAD_DBCR0(r12)
@@ -347,6 +375,13 @@ syscall_dotrace_cont:
 	blrl			/* Call handler */
 	.globl	ret_from_syscall
 ret_from_syscall:
+#ifndef CONFIG_PARAVIRT
+	b       native_ret_from_syscall
+#else
+	b       paravirt_ret_from_syscall
+#endif 
+	.globl  native_ret_from_syscall
+native_ret_from_syscall:
 #ifdef SHOW_SYSCALLS
 	bl	do_show_syscall_exit
 #endif
@@ -381,7 +416,7 @@ syscall_exit_cont:
 	lwz	r3,GPR3(r1)
 1:
 #endif /* CONFIG_TRACE_IRQFLAGS */
-#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE)
+#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE) && !(CONFIG_PARAVIRT)
 	/* If the process has its own DBCR0 value, load it up.  The internal
 	   debug mode bit tells us that dbcr0 should be loaded. */
 	lwz	r0,THREAD+THREAD_DBCR0(r2)
@@ -450,7 +485,15 @@ syscall_dotrace:
 	REST_NVGPRS(r1)
 	b	syscall_dotrace_cont
 
+	.globl  syscall_exit_work
 syscall_exit_work:
+#ifndef CONFIG_PARAVIRT
+	b       native_syscall_exit_work
+#else
+	b       paravirt_syscall_exit_work
+#endif
+	.globl  native_syscall_exit_work
+native_syscall_exit_work:
 	andi.	r0,r9,_TIF_RESTOREALL
 	beq+	0f
 	REST_NVGPRS(r1)
@@ -654,6 +697,13 @@ handle_page_fault:
  * in arch/ppc/kernel/process.c
  */
 _GLOBAL(_switch)
+#ifndef CONFIG_PARAVIRT
+	b	native_switch
+#else
+	b	paravirt_switch
+#endif
+
+_GLOBAL(native_switch)
 	stwu	r1,-INT_FRAME_SIZE(r1)
 	mflr	r0
 	stw	r0,INT_FRAME_SIZE+4(r1)
@@ -800,9 +850,7 @@ ret_from_except:
 	 * can't change between when we test it and when we return
 	 * from the interrupt. */
 	/* Note: We don't bother telling lockdep about it */
-	LOAD_MSR_KERNEL(r10,MSR_KERNEL)
-	SYNC			/* Some chip revs have problems here... */
-	MTMSRD(r10)		/* disable interrupts */
+	DISABLE_MSR_EE
 
 	lwz	r3,_MSR(r1)	/* Returning to user mode? */
 	andi.	r0,r3,MSR_PR
@@ -816,7 +864,7 @@ user_exc_return:		/* r10 contains MSR_KERNEL here */
 	bne	do_work
 
 restore_user:
-#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE)
+#if defined(CONFIG_4xx) || defined(CONFIG_BOOKE) && !defined(CONFIG_PARAVIRT)
 	/* Check whether this process has its own DBCR0 value.  The internal
 	   debug mode bit tells us that dbcr0 should be loaded. */
 	lwz	r0,THREAD+THREAD_DBCR0(r2)
@@ -892,6 +940,13 @@ resume_kernel:
 
 	/* interrupts are hard-disabled at this point */
 restore:
+#ifndef CONFIG_PARAVIRT
+	b       native_restore
+#else
+	b       paravirt_restore
+#endif
+
+_GLOBAL(native_restore)
 #ifdef CONFIG_44x
 	lis	r4,icache_44x_need_flush@ha
 	lwz	r5,icache_44x_need_flush@l(r4)
@@ -1161,7 +1216,16 @@ ret_from_mcheck_exc:
  * having first saved away the global DBCR0.  Note that r0
  * has the dbcr0 value to set upon entry to this.
  */
+	.globl  load_dbcr0
 load_dbcr0:
+#ifndef CONFIG_PARAVIRT
+	b	native_load_dbcr0
+#else
+	b	paravirt_load_dbcr0
+#endif
+
+	.globl native_load_dbcr0
+native_load_dbcr0:
 	mfmsr	r10		/* first disable debug exceptions */
 	rlwinm	r10,r10,0,~MSR_DE
 	mtmsr	r10
@@ -1186,6 +1250,7 @@ load_dbcr0:
 
 	.section .bss
 	.align	4
+	.globl	global_dbcr0
 global_dbcr0:
 	.space	8*NR_CPUS
 	.previous
@@ -1199,18 +1264,14 @@ do_resched:			/* r10 contains MSR_KERNEL here */
 	/* Note: We don't need to inform lockdep that we are enabling
 	 * interrupts here. As far as it knows, they are already enabled
 	 */
-	ori	r10,r10,MSR_EE
-	SYNC
-	MTMSRD(r10)		/* hard-enable interrupts */
+	ENABLE_MSR_EE
 	bl	schedule
 recheck:
 	/* Note: And we don't tell it we are disabling them again
 	 * neither. Those disable/enable cycles used to peek at
 	 * TI_FLAGS aren't advertised.
 	 */
-	LOAD_MSR_KERNEL(r10,MSR_KERNEL)
-	SYNC
-	MTMSRD(r10)		/* disable interrupts */
+	DISABLE_MSR_EE
 	rlwinm	r9,r1,0,0,(31-THREAD_SHIFT)
 	lwz	r9,TI_FLAGS(r9)
 	andi.	r0,r9,_TIF_NEED_RESCHED
@@ -1218,9 +1279,7 @@ recheck:
 	andi.	r0,r9,_TIF_USER_WORK_MASK
 	beq	restore_user
 do_user_signal:			/* r10 contains MSR_KERNEL here */
-	ori	r10,r10,MSR_EE
-	SYNC
-	MTMSRD(r10)		/* hard-enable interrupts */
+	ENABLE_MSR_EE
 	/* save r13-r31 in the exception frame, if not already done */
 	lwz	r3,_TRAP(r1)
 	andi.	r0,r3,1

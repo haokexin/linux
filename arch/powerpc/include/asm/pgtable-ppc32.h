@@ -27,6 +27,11 @@ extern int icache_44x_need_flush;
  * are an index to the second level table.  The combined pgdir/pmd first
  * level has 2048 entries and the second level has 512 64-bit PTE entries.
  * -Matt
+ *
+ * For WRHV, the combined pgdir/pmd first level has 2 page 2048 entries
+ * and the second level has 9bit indexing into 512 elements with each element
+ * contains an 8-byte PTE
+ * -Yiming
  */
 /* PGDIR_SHIFT determines what a top-level page table entry can map */
 #define PGDIR_SHIFT	(PAGE_SHIFT + PTE_SHIFT)
@@ -107,13 +112,15 @@ extern int icache_44x_need_flush;
  * (hardware-defined) PowerPC PTE as closely as possible.
  */
 
-#if defined(CONFIG_40x)
+#if defined(CONFIG_PARAVIRT_PTE)
+#include <asm/pv_pgtable-ppc32.h>
+#elif defined(CONFIG_40x)
 #include <asm/pte-40x.h>
 #elif defined(CONFIG_44x)
 #include <asm/pte-44x.h>
 #elif defined(CONFIG_FSL_BOOKE) && defined(CONFIG_PTE_64BIT)
 #include <asm/pte-book3e.h>
-#elif defined(CONFIG_FSL_BOOKE)
+#elif defined(CONFIG_FSL_BOOKE) && !defined(CONFIG_PARAVIRT_PTE)
 #include <asm/pte-fsl-booke.h>
 #elif defined(CONFIG_8xx)
 #include <asm/pte-8xx.h>
@@ -164,7 +171,7 @@ extern void flush_hash_entry(struct mm_struct *mm, pte_t *ptep,
  * to properly flush the virtually tagged instruction cache of
  * those implementations.
  */
-#ifndef CONFIG_PTE_64BIT
+#if !defined(CONFIG_PTE_64BIT) && !defined(CONFIG_PARAVIRT_PTE)
 static inline unsigned long pte_update(pte_t *p,
 				       unsigned long clr,
 				       unsigned long set)
@@ -193,7 +200,7 @@ static inline unsigned long pte_update(pte_t *p,
 #endif
 	return old;
 }
-#else /* CONFIG_PTE_64BIT */
+#else /* CONFIG_PTE_64BIT && CONFIG_PARAVIRT_PTE */
 static inline unsigned long long pte_update(pte_t *p,
 					    unsigned long clr,
 					    unsigned long set)
@@ -224,13 +231,14 @@ static inline unsigned long long pte_update(pte_t *p,
 #endif
 	return old;
 }
-#endif /* CONFIG_PTE_64BIT */
+#endif /* CONFIG_PTE_64BIT && CONFIG_PARAVIRT_PTE */
 
 /*
  * 2.6 calls this without flushing the TLB entry; this is wrong
  * for our hash-based implementation, we fix that up here.
  */
 #define __HAVE_ARCH_PTEP_TEST_AND_CLEAR_YOUNG
+#ifndef CONFIG_PARAVIRT
 static inline int __ptep_test_and_clear_young(unsigned int context, unsigned long addr, pte_t *ptep)
 {
 	unsigned long old;
@@ -243,8 +251,28 @@ static inline int __ptep_test_and_clear_young(unsigned int context, unsigned lon
 #endif
 	return (old & _PAGE_ACCESSED) != 0;
 }
+#else /* CONFIG_PARAVIRT */
+static inline int __ptep_test_and_clear_young(mm_context_t * ctx,
+                                              unsigned long addr, pte_t *ptep)
+{
+	unsigned long old;
+	old = pte_update(ptep, _PAGE_ACCESSED, 0);
+#if _PAGE_HASHPTE != 0
+	if (old & _PAGE_HASHPTE) {
+		unsigned long ptephys = __pa(ptep) & PAGE_MASK;
+		flush_hash_pages(context, addr, ptephys, 1);
+	}
+#endif
+#if 0 
+        vbi_tlb_flush_vmmu (&vmmu_cfg, &addr, 1);
+#endif
+	return (old & _PAGE_ACCESSED) != 0;
+}
+#endif   /* CONFIG_PARAVIRT */
+
 #define ptep_test_and_clear_young(__vma, __addr, __ptep) \
 	__ptep_test_and_clear_young((__vma)->vm_mm->context.id, __addr, __ptep)
+
 
 #define __HAVE_ARCH_PTEP_GET_AND_CLEAR
 static inline pte_t ptep_get_and_clear(struct mm_struct *mm, unsigned long addr,
@@ -283,7 +311,7 @@ static inline void __ptep_set_access_flags(pte_t *ptep, pte_t entry)
  * handler).  On everything else the pmd contains the physical address
  * of the pte page.  -- paulus
  */
-#ifndef CONFIG_BOOKE
+#if !defined(CONFIG_BOOKE) || defined(CONFIG_PARAVIRT_PTE)
 #define pmd_page_vaddr(pmd)	\
 	((unsigned long) __va(pmd_val(pmd) & PAGE_MASK))
 #define pmd_page(pmd)		\
@@ -315,6 +343,10 @@ static inline void __ptep_set_access_flags(pte_t *ptep, pte_t entry)
 #define pte_unmap(pte)		kunmap_atomic(pte, KM_PTE0)
 #define pte_unmap_nested(pte)	kunmap_atomic(pte, KM_PTE1)
 
+/* We will re-define that on file, arch/powerpc/include/asm/pv_pgtable-ppc32.h,
+ * since e500 guest OS should match VMMU. 
+ */
+#if !defined(CONFIG_WRHV) || defined(CONFIG_PPC85xx_VT_MODE)
 /*
  * Encode and decode a swap entry.
  * Note that the bits we use in a PTE for representing a swap entry
@@ -331,6 +363,7 @@ static inline void __ptep_set_access_flags(pte_t *ptep, pte_t entry)
 #define PTE_FILE_MAX_BITS	29
 #define pte_to_pgoff(pte)	(pte_val(pte) >> 3)
 #define pgoff_to_pte(off)	((pte_t) { ((off) << 3) | _PAGE_FILE })
+#endif
 
 /*
  * No page table caches to initialise

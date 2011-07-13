@@ -100,7 +100,10 @@ phys_addr_t __initial_memory_limit_addr = (phys_addr_t)0x10000000;
 /*
  * Check for command-line options that affect what MMU_init will do.
  */
-void MMU_setup(void)
+void paravirt_MMU_setup(void) 
+	__attribute__((weak, alias("native_MMU_setup")));
+
+void native_MMU_setup(void)
 {
 	/* Check for nobats option (used in mapin_ram). */
 	if (strstr(cmd_line, "nobats")) {
@@ -116,12 +119,20 @@ void MMU_setup(void)
 #endif
 }
 
+void MMU_setup(void)
+{
+	paravirt_MMU_setup();
+}
+
 /*
  * MMU_init sets up the basic memory mappings for the kernel,
  * including both RAM and possibly some I/O regions,
  * and sets up the page tables and the MMU hardware ready to go.
  */
-void __init MMU_init(void)
+void paravirt_MMU_init(void) 
+	__attribute__((weak, alias("native_MMU_init")));
+
+void __init native_MMU_init(void)
 {
 	if (ppc_md.progress)
 		ppc_md.progress("MMU:enter", 0x111);
@@ -149,12 +160,12 @@ void __init MMU_init(void)
 	total_lowmem = total_memory = lmb_end_of_DRAM() - memstart_addr;
 	lowmem_end_addr = memstart_addr + total_lowmem;
 
-#ifdef CONFIG_FSL_BOOKE
+#if defined(CONFIG_FSL_BOOKE) && !defined(CONFIG_PARAVIRT)
 	/* Freescale Book-E parts expect lowmem to be mapped by fixed TLB
 	 * entries, so we need to adjust lowmem to match the amount we can map
 	 * in the fixed entries */
 	adjust_total_lowmem();
-#endif /* CONFIG_FSL_BOOKE */
+#endif /* CONFIG_FSL_BOOKE && !defined(CONFIG_PARAVIRT) */
 
 	if (total_lowmem > __max_low_memory) {
 		total_lowmem = __max_low_memory;
@@ -190,6 +201,11 @@ void __init MMU_init(void)
 #ifdef CONFIG_BOOTX_TEXT
 	btext_unmap();
 #endif
+}
+
+void __init MMU_init(void)
+{
+	paravirt_MMU_init();
 }
 
 /* This is only called until mem_init is done. */

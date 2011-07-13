@@ -43,6 +43,13 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#include <vbi/vbi.h>
+#include <vbi/pdc.h>
+#include <vbi/duart.h>
+#endif
+
 #include "8250.h"
 
 #ifdef CONFIG_SPARC
@@ -108,6 +115,9 @@ static unsigned int skip_txen_test; /* force skip of txen test at init time */
 #define CONFIG_HUB6 1
 
 #include <asm/serial.h>
+#if defined(CONFIG_WRHV) && defined(CONFIG_X86)
+#include <asm/wrhv_serial.h>
+#endif
 /*
  * SERIAL_PORT_DFNS tells us about built-in ports that have no
  * standard enumeration mechanism.   Platforms that can find all
@@ -386,6 +396,144 @@ static inline int map_8250_out_reg(struct uart_port *p, int offset)
 
 #endif
 
+#ifdef CONFIG_WRHV_DUART
+
+/* handle to access hypervisor serial device driver */
+extern vbi_pdc_handle duart_pdc;
+
+/* stub registers */
+static unsigned int wrhv_uart_scr;
+static unsigned int wrhv_uart_ier;
+static unsigned int wrhv_uart_iir;
+static unsigned int wrhv_is_opened = 0;
+
+/* stub function to read register */
+static unsigned int wrhv_serial_in(struct uart_port *p, int offset)
+{
+	unsigned int value;
+	switch (offset) {
+
+	case UART_IER: /* interrupt enable register */
+		return wrhv_uart_ier;
+
+	case UART_LSR: /* line status register */
+		value = BOTH_EMPTY;
+		/* check receiver data ready */
+		if (wrhv_duart_tstc()) {
+			value |= UART_LSR_DR;
+		}
+		return value;
+
+	case UART_MSR: /* modem status register */
+		return UART_MSR_CTS;
+
+	case UART_SCR: /* scratch register */
+		return wrhv_uart_scr;
+
+	case UART_IIR: /* interrupt id register */
+		/* always return FIFO enabled bits */
+		return wrhv_uart_iir | 0xc0;
+
+	case UART_RX: /* receive buffer */
+		/* return received character */
+		return wrhv_duart_getc();
+
+	}
+
+	return 0;
+}
+
+/* stub function to write register */
+static void wrhv_serial_out(struct uart_port *p, int offset, int value)
+{
+	unsigned int mode;
+	switch (offset) {
+
+	case UART_IER: /* interrupt enable register */
+		wrhv_uart_ier = (unsigned int)value;
+		/* set wrhv duart to interrupt mode */
+		if (wrhv_uart_ier) {
+			if (!wrhv_is_opened) {
+				wrhv_is_opened = 1;
+				value = vbi_pdc_op(duart_pdc, PDC_REQUEST_IOCTL,
+					PDC_IOCTL_SIO_OPEN,
+					0, 0,
+				0);
+			}
+			/* set driver to interrupt mode */
+			mode = SIO_MODE_INT;
+			value = vbi_pdc_op(duart_pdc, PDC_REQUEST_IOCTL,
+				PDC_IOCTL_SIO_MODE_SET,
+				(void *)mode, SIO_HW_OPTS_CLOCAL,
+				0);
+		}
+		break;
+
+	case UART_TX: /* transmit register */
+		wrhv_duart_putc(value);
+		break;
+
+	case UART_SCR: /* scratch register */
+		wrhv_uart_scr = (unsigned int)value;
+		break;
+
+	case UART_IIR: /* interrupt id register */
+		wrhv_uart_iir = (unsigned int)value;
+		break;
+
+	}
+}
+
+/* function to set terminal options */
+static void wrhv_set_termios(struct uart_port *port, struct ktermios *termios,
+		       struct ktermios *old)
+{
+	struct uart_8250_port *up = (struct uart_8250_port *)port;
+	unsigned int cval;
+	unsigned long flags;
+
+	switch (termios->c_cflag & CSIZE) {
+	case CS5:
+		cval = SIO_HW_OPTS_CS5;
+		break;
+	case CS6:
+		cval = SIO_HW_OPTS_CS6;
+		break;
+	case CS7:
+		cval = SIO_HW_OPTS_CS7;
+		break;
+	default:
+	case CS8:
+		cval = SIO_HW_OPTS_CS8;
+		break;
+	}
+
+	if (termios->c_cflag & CSTOPB)
+		cval |= SIO_HW_OPTS_STOPB;
+	if (termios->c_cflag & PARENB)
+		cval |= SIO_HW_OPTS_PARENB;
+	if (!(termios->c_cflag & PARODD))
+		cval |= SIO_HW_OPTS_PARODD;
+
+	/*
+	 * ignore all characters if CREAD is not set
+	 */
+	if ((termios->c_cflag & CREAD) == 0)
+		up->port.ignore_status_mask |= UART_LSR_DR;
+	else
+		cval |= CREAD;
+
+	/*
+	 * Ok, we're now changing the port state.  Do it with
+	 * interrupts disabled.
+	 */
+	spin_lock_irqsave(&up->port.lock, flags);
+	vbi_pdc_op(duart_pdc, PDC_REQUEST_IOCTL, PDC_IOCTL_SIO_HW_OPTS_SET,
+			(void *)cval, 0, 0);
+	spin_unlock_irqrestore(&up->port.lock, flags);
+}
+#endif
+
 static unsigned int hub6_serial_in(struct uart_port *p, int offset)
 {
 	offset = map_8250_in_reg(p, offset) << p->regshift;
@@ -526,6 +674,13 @@ static void set_io_from_upio(struct uart_port *p)
 		p->serial_out = io_serial_out;
 		break;
 	}
+
+#ifdef CONFIG_WRHV_DUART
+	/* use stub functions to access register */
+	p->serial_in = wrhv_serial_in;
+	p->serial_out = wrhv_serial_out;
+#endif
+
 	/* Remember loaded iotype */
 	up->cur_iotype = p->iotype;
 }
@@ -1052,6 +1207,7 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 	 * already a 1 and maybe locked there before we even start start.
 	 */
 	iersave = serial_in(up, UART_IER);
+#ifndef CONFIG_WRHV_DUART
 	serial_outp(up, UART_IER, iersave & ~UART_IER_UUE);
 	if (!(serial_in(up, UART_IER) & UART_IER_UUE)) {
 		/*
@@ -1076,6 +1232,7 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 		 */
 		DEBUG_AUTOCONF("Couldn't force IER_UUE to 0 ");
 	}
+#endif
 	serial_outp(up, UART_IER, iersave);
 }
 
@@ -1334,6 +1491,16 @@ static void serial8250_start_tx(struct uart_port *port)
 {
 	struct uart_8250_port *up = (struct uart_8250_port *)port;
 
+#ifdef CONFIG_WRHV_DUART
+	/* wrhv duart does not support tx interrupt, so need to
+	 * check uart circ_buf and transmit all characters
+	 */
+	do {
+		transmit_chars(up);
+	} while (!uart_circ_empty(&up->port.state->xmit));
+	return;
+#endif
+
 	if (!(up->ier & UART_IER_THRI)) {
 		up->ier |= UART_IER_THRI;
 		serial_out(up, UART_IER, up->ier);
@@ -1530,12 +1697,14 @@ static void serial8250_handle_port(struct uart_8250_port *up)
 
 	spin_lock_irqsave(&up->port.lock, flags);
 
+#ifndef CONFIG_WRHV_DUART
 	if (unlikely(up->lsr_last & UART_LSR_BI && up->bugs & UART_BUG_PPC)) {
 		up->lsr_last &= ~UART_LSR_BI;
 		serial_inp(up, UART_RX);
 		spin_unlock_irqrestore(&up->port.lock, flags);
 		return;
 	}
+#endif
 
 	status = up->lsr_last = serial_inp(up, UART_LSR);
 
@@ -1543,9 +1712,15 @@ static void serial8250_handle_port(struct uart_8250_port *up)
 
 	if (status & (UART_LSR_DR | UART_LSR_BI))
 		receive_chars(up, &status);
+
+/* wrhv duart does not support tx interrupt, we always handle
+ * transmit buffer in start_tx()
+ */
+#ifndef CONFIG_WRHV_DUART
 	check_modem_status(up);
 	if (status & UART_LSR_THRE)
 		transmit_chars(up);
+#endif
 
 	spin_unlock_irqrestore(&up->port.lock, flags);
 }
@@ -1581,6 +1756,15 @@ static irqreturn_t serial8250_interrupt(int irq, void *dev_id)
 
 		up = list_entry(l, struct uart_8250_port, list);
 
+#ifdef CONFIG_WRHV_DUART
+		/* for wrhv duart, we check rx interrupt in
+		 * serial8250_handl_port()
+		 */
+		serial8250_handle_port(up);
+		handled = 1;
+		end = NULL;
+		break;
+#endif
 		iir = serial_in(up, UART_IIR);
 		if (!(iir & UART_IIR_NO_INT)) {
 			serial8250_handle_port(up);
@@ -2394,7 +2578,10 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 		/* Switch to bank 2 not bank 1, to avoid resetting EXCR2 */
 		serial_outp(up, UART_LCR, 0xe0);
 	} else {
+		/* skip DLAB on WRHV + PPC */
+#if !defined(CONFIG_WRHV) || !defined(CONFIG_PPC)
 		serial_outp(up, UART_LCR, cval | UART_LCR_DLAB);/* set DLAB */
+#endif
 	}
 
 	serial_dl_write(up, quot);
@@ -2657,7 +2844,11 @@ static struct uart_ops serial8250_pops = {
 	.break_ctl	= serial8250_break_ctl,
 	.startup	= serial8250_startup,
 	.shutdown	= serial8250_shutdown,
+#ifdef CONFIG_WRHV_DUART
+	.set_termios	= wrhv_set_termios,
+#else
 	.set_termios	= serial8250_set_termios,
+#endif
 	.set_ldisc	= serial8250_set_ldisc,
 	.pm		= serial8250_pm,
 	.type		= serial8250_type,
@@ -2866,6 +3057,9 @@ static struct console serial8250_console = {
 
 static int __init serial8250_console_init(void)
 {
+#ifdef CONFIG_WRHV_DUART
+	wrhv_duart_init();
+#endif
 	if (nr_uarts > UART_NR)
 		nr_uarts = UART_NR;
 
@@ -3240,6 +3434,10 @@ EXPORT_SYMBOL_GPL(serial8250_get_port_def);
 static int __init serial8250_init(void)
 {
 	int ret;
+
+#ifdef CONFIG_WRHV_DUART
+	wrhv_duart_init();
+#endif
 
 	if (nr_uarts > UART_NR)
 		nr_uarts = UART_NR;

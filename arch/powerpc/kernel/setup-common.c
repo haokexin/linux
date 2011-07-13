@@ -161,6 +161,30 @@ extern u32 cpu_temp_both(unsigned long cpu);
 DEFINE_PER_CPU(unsigned int, cpu_pvr);
 #endif
 
+unsigned paravirt_get_pvr(void) __attribute__((weak, alias("native_get_pvr")));
+unsigned int native_get_pvr(void)
+{
+	return mfspr(SPRN_PVR);
+}
+
+unsigned int get_pvr(void)
+{
+	return paravirt_get_pvr();
+}
+EXPORT_SYMBOL(get_pvr);
+
+unsigned paravirt_get_svr(void) __attribute__((weak, alias("native_get_svr")));
+unsigned int native_get_svr(void)
+{
+	return mfspr(SPRN_SVR);
+}
+
+unsigned int get_svr(void)
+{
+	return paravirt_get_svr();
+}
+EXPORT_SYMBOL(get_svr);
+
 static int show_cpuinfo(struct seq_file *m, void *v)
 {
 	unsigned long cpu_id = (unsigned long)v - 1;
@@ -209,11 +233,15 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 		return 0;
 	}
 
+#ifdef CONFIG_PARAVIRT
+	pvr = get_pvr();
+#else
 #ifdef CONFIG_SMP
 	pvr = per_cpu(cpu_pvr, cpu_id);
 #else
 	pvr = mfspr(SPRN_PVR);
 #endif
+#endif /* CONFIG_PARAVIRT */
 	maj = (pvr >> 8) & 0xFF;
 	min = pvr & 0xFF;
 

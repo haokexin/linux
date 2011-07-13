@@ -13,6 +13,11 @@
 #include <linux/stringify.h>
 #include <asm/cputable.h>
 
+/* Pickup paravirt specific registers */
+#if defined (CONFIG_PARAVIRT)
+#include <asm/reg_paravirt.h>
+#endif
+
 /* Pickup Book E specific registers. */
 #if defined(CONFIG_BOOKE) || defined(CONFIG_40x)
 #include <asm/reg_booke.h>
@@ -873,6 +878,36 @@
 #define PV_BE		0x0070
 #define PV_PA6T		0x0090
 
+/* machine code for accessing SPRN_DBSR and SPRN_DBCR0 */
+#define SPRN_DBSR_W 0x7c904ba6  /* mtspr SPRN_DBSR,r4 */
+#define SPRN_DBSR_R 0x7c904aa6  /* mfspr r4,SPRN_DBSR */
+#define SPRN_DBCR0_W 0x7c944ba6 /* mtspr SPRN_DBCR0,r4 */
+#define SPRN_DBCR0_R 0x7c944aa6 /* mfspr r4,SPRN_DBCR0 */
+
+/* machine code for acessing IAC1, IAC2 */
+#define SPRN_IAC1_W 0x7c984ba6 /* mtspr SPRN_IAC1,r4 */
+#define SPRN_IAC1_R 0x7c984aa6 /* mfspr r4,SPRN_IAC1 */
+#define SPRN_IAC2_W 0x7c994ba6 /* mtspr SPRN_IAC2,r4 */
+#define SPRN_IAC2_R 0x7c994aa6 /* mfspr r4,SPRN_IAC2 */
+
+/* machine code for accessing DAC1, DAC2 */
+#define SPRN_DAC1_W 0x7c9c4ba6 /* mtspr SPRN_DAC1,r4 */
+#define SPRN_DAC1_R 0x7c9c4aa6 /* mfspr r4,SPRN_DAC1 */
+#define SPRN_DAC2_W 0x7c9d4ba6 /* mtspr SPRN_DAC2,r4 */
+#define SPRN_DAC2_R 0x7c9d4aa6 /* mfspr r4,SPRN_DAC2 */
+
+/* machine code for accessing DBCR1 and DBCR2 */
+#define SPRN_DBCR1_W 0x7c954ba6 /* mtspr SPRN_DBCR1,r4 */
+#define SPRN_DBCR1_R 0x7c954aa6 /* mfspr r4,SPRN_DBCR1 */
+#define SPRN_DBCR2_W 0x7c964ba6 /* mtspr SPRN_DBCR2,r4 */
+#define SPRN_DBCR2_R 0x7c964aa6 /* mfspr r4,SPRN_DBCR2 */
+
+/* macros to encode register number into the machine code */
+#define SPRN_DBSR_W_RN(rn) (SPRN_DBSR_W & ~(0x1F<<21) | (rn<<21))
+#define SPRN_DBSR_R_RN(rn) (SPRN_DBSR_R & ~(0x1F<<21) | (rn<<21))
+#define SPRN_DBCR0_W_RN(rn) (SPRN_DBCR0_W & ~(0x1F<<21) | (rn<<21))
+#define SPRN_DBCR0_R_RN(rn) (SPRN_DBCR0_R & ~(0x1F<<21) | (rn<<21))
+
 /* Macros for setting and retrieving special purpose registers */
 #ifndef __ASSEMBLY__
 #define mfmsr()		({unsigned long rval; \
@@ -889,9 +924,9 @@
 #define mfspr(rn)	({unsigned long rval; \
 			asm volatile("mfspr %0," __stringify(rn) \
 				: "=r" (rval)); rval;})
+
 #define mtspr(rn, v)	asm volatile("mtspr " __stringify(rn) ",%0" : : "r" (v)\
 				     : "memory")
-
 #ifdef __powerpc64__
 #ifdef CONFIG_PPC_CELL
 #define mftb()		({unsigned long rval;				\

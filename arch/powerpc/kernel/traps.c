@@ -771,7 +771,15 @@ static int emulate_instruction(struct pt_regs *regs)
 	if ((instword & PPC_INST_MFSPR_PVR_MASK) == PPC_INST_MFSPR_PVR) {
 		PPC_WARN_EMULATED(mfpvr, regs);
 		rd = (instword >> 21) & 0x1f;
+#ifndef CONFIG_WRHV
 		regs->gpr[rd] = mfspr(SPRN_PVR);
+#else
+		/* 
+		 * PVR for wrhv hypervisor should be 0x80200000,
+		 * why is it 0x80200010?
+		 */
+		regs->gpr[rd] = 0x80200010;
+#endif
 		return 0;
 	}
 
@@ -1110,7 +1118,10 @@ static void handle_debug(struct pt_regs *regs, unsigned long debug_status)
 		mtspr(SPRN_DBCR0, current->thread.dbcr0);
 }
 
-void __kprobes DebugException(struct pt_regs *regs, unsigned long debug_status)
+void paravirt_DebugException(struct pt_regs *regs, unsigned long debug_status)
+	 __attribute__((weak, alias("native_DebugException")));
+
+void __kprobes native_DebugException(struct pt_regs *regs, unsigned long debug_status)
 {
 	current->thread.dbsr = debug_status;
 
@@ -1172,6 +1183,11 @@ void __kprobes DebugException(struct pt_regs *regs, unsigned long debug_status)
 		_exception(SIGTRAP, regs, TRAP_TRACE, regs->nip);
 	} else
 		handle_debug(regs, debug_status);
+}
+
+void __kprobes DebugException(struct pt_regs *regs, unsigned long debug_status)
+{
+	paravirt_DebugException(regs, debug_status);
 }
 #endif /* CONFIG_PPC_ADV_DEBUG_REGS */
 

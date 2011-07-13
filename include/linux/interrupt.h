@@ -185,7 +185,7 @@ extern void devm_free_irq(struct device *dev, unsigned int irq, void *dev_id);
  * places left. So the only effect should be slightly increased
  * irqs-off latencies.
  */
-#ifdef CONFIG_LOCKDEP
+#if defined(CONFIG_LOCKDEP) || defined(CONFIG_PARAVIRT)
 # define local_irq_enable_in_hardirq()	do { } while (0)
 #else
 # define local_irq_enable_in_hardirq()	local_irq_enable()

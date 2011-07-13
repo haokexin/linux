@@ -115,6 +115,14 @@ EXPORT_SYMBOL(devfp_tx_hook);
 #undef BRIEF_GFAR_ERRORS
 #undef VERBOSE_GFAR_ERRORS
 
+#ifdef CONFIG_WRHV
+#define NIC_STR_LEN	15
+extern char wrhv_macaddr[MAC_ADDR_LEN];
+extern char wrhv_net_name[NIC_STR_LEN]; /* eth0, eth1, eth2... */
+extern int wrhv_nic_num;
+extern int wrhv_nic_start; /* which index should we start at */
+#endif
+
 const char gfar_driver_name[] = "Gianfar Ethernet";
 const char gfar_driver_version[] = "1.3";
 
@@ -1109,11 +1117,13 @@ out:
 	priv->ftp_rqfpr = priv->ftp_rqfcr = NULL;
 }
 
+extern unsigned int get_pvr(void);
+extern unsigned int get_svr(void);
 static void gfar_detect_errata(struct gfar_private *priv)
 {
 	struct device *dev = &priv->ofdev->dev;
-	unsigned int pvr = mfspr(SPRN_PVR);
-	unsigned int svr = mfspr(SPRN_SVR);
+	unsigned int pvr = get_pvr();
+	unsigned int svr = get_svr();
 	unsigned int mod = (svr >> 16) & 0xfff6; /* w/o E suffix */
 	unsigned int rev = svr & 0xffff;
 
@@ -1224,6 +1234,7 @@ static int gfar_probe(struct of_device *ofdev,
 	u32 rstat = 0, tstat = 0, rqueue = 0, tqueue = 0;
 	u32 isrg = 0;
 	u32 __iomem *baddr;
+	int j;
 
 	err = gfar_of_init(ofdev, &dev);
 
@@ -1443,6 +1454,50 @@ static int gfar_probe(struct of_device *ofdev,
 	netif_carrier_off(dev);
 
 	err = register_netdev(dev);
+
+#ifdef CONFIG_WRHV
+	if (wrhv_nic_start > wrhv_nic_num) {
+		printk(KERN_ERR " WRHV: bootline NIC setup error\n");
+		return -ENODEV;
+	}
+
+	for (j = wrhv_nic_start; j <= wrhv_nic_num; j++) {
+		char nic_num[NIC_STR_LEN] = "";
+		char net_sub_name[NIC_STR_LEN]; /* eth on most platforms except
+		on cavium they call there network devices mgmtX */
+
+		if (!is_valid_ether_addr(wrhv_macaddr))
+				break;
+		else if (!wrhv_net_name[0])
+			strcpy(wrhv_net_name, "eth0");
+
+		/* eth0 --> we only want the eth part so we
+		   Simply append to the ifname the nic number */
+
+		/* Clear out the buffer for the next iteration */
+		memset(net_sub_name, '\0', NIC_STR_LEN);
+
+		/* get rid of the number on the end 'ethX' */
+		strncpy(net_sub_name, wrhv_net_name, strlen(wrhv_net_name) - 1);
+		sprintf(nic_num, "%d", j);
+		strcat(net_sub_name, nic_num);
+
+		if (strcmp(dev->name, net_sub_name) == 0) {
+			char local_mac[MAC_ADDR_LEN];
+			char last_byte = wrhv_macaddr[MAC_ADDR_LEN - 1];
+
+			memcpy(local_mac, wrhv_macaddr, MAC_ADDR_LEN);
+			/* Extract the last byte of the MAC address */
+			/* One limitation is that we do not check to see if
+			the last byte needs to wrap around.  We expect sane
+			values are being passed in.  This limitation has been
+			documented in the README.bootline */
+
+			local_mac[MAC_ADDR_LEN - 1] = (last_byte + j) & 0xff;
+			memcpy(dev->dev_addr, local_mac, MAC_ADDR_LEN);
+		}
+	}
+#endif
 
 	if (err) {
 		printk(KERN_ERR "%s: Cannot register net device, aborting.\n",

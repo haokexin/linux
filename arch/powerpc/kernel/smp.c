@@ -50,6 +50,8 @@
 #include <asm/paca.h>
 #endif
 
+#include <asm/wrhv.h>
+
 #ifdef DEBUG
 #include <asm/udbg.h>
 #define DBG(fmt...) udbg_printf(fmt)
@@ -235,7 +237,7 @@ struct thread_info *current_set[NR_CPUS];
 
 static void __devinit smp_store_cpu_info(int id)
 {
-	per_cpu(cpu_pvr, id) = mfspr(SPRN_PVR);
+	per_cpu(cpu_pvr, id) = get_pvr();
 }
 
 static void __init smp_create_idle(unsigned int cpu)
@@ -280,6 +282,10 @@ void __init smp_prepare_cpus(unsigned int max_cpus)
 		max_cpus = 1;
  
 	smp_space_timers(max_cpus);
+
+#ifdef CONFIG_WRHV
+	wrhv_umask_IPIs_for_vcore();
+#endif
 
 	for_each_possible_cpu(cpu)
 		if (cpu != boot_cpuid)

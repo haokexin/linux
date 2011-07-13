@@ -2059,7 +2059,12 @@ static noinline struct module *load_module(void __user *umod,
 
 	/* Suck in entire file: we'll want most of it. */
 	/* vmalloc barfs on "unusual" numbers.  Check here */
+
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC)
+	if (len > 64 * 1024 * 1024 || (hdr = kmalloc(len, GFP_KERNEL)) == NULL)
+#else
 	if (len > 64 * 1024 * 1024 || (hdr = vmalloc(len)) == NULL)
+#endif
 		return ERR_PTR(-ENOMEM);
 
 	/*
@@ -2452,12 +2457,19 @@ static noinline struct module *load_module(void __user *umod,
 	 * Do it before processing of module parameters, so the module
 	 * can provide parameter accessor functions of its own.
 	 */
-	if (mod->module_init)
+	if (mod->module_init) {
 		flush_icache_range((unsigned long)mod->module_init,
 				   (unsigned long)mod->module_init
 				   + mod->init_size);
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC)
+		flush_dcache_page(virt_to_page(mod->module_init));
+#endif
+	}
 	flush_icache_range((unsigned long)mod->module_core,
 			   (unsigned long)mod->module_core + mod->core_size);
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC)
+	flush_dcache_page(virt_to_page(mod->module_core));
+#endif
 
 	set_fs(old_fs);
 
@@ -2501,7 +2513,11 @@ module_added:
 	add_notes_attrs(mod, hdr->e_shnum, secstrings, sechdrs);
 
 	/* Get rid of temporary copy */
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC)
+	kfree(hdr);
+#else
 	vfree(hdr);
+#endif
 
 	trace_module_load(mod);
 
@@ -2535,7 +2551,11 @@ module_added:
 	kfree(args);
 	kfree(strmap);
  free_hdr:
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC)
+	kfree(hdr);
+#else
 	vfree(hdr);
+#endif
 	return ERR_PTR(err);
 
  truncated:

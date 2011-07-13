@@ -251,14 +251,6 @@ int wrhv_irq_set_affinity(unsigned int irq,
 	int cpu;
 	struct wrhv_irq_head *head = &wrhv_irq_head;
 
-	/* Currently we don't support set affinity in direct irq mode */
-	if (wrhv_dir_irq) {
-		printk(KERN_WARNING "Currently we don't support set affinity"
-			" in direct irq mode on e500mc.\n");
-
-		return -1;
-	}
-
 	if (cpumask_equal(desc->affinity, dest))
 		return 0;
 
@@ -367,18 +359,24 @@ unsigned long wrhv_calculate_cpu_khz(void)
 
 irqreturn_t __weak wrhv_timer_interrupt(int irq, void *dev_id)
 {
-	static long long mark_offset;
+	static DEFINE_PER_CPU(long long, mark_offset);
+	int cpu;
 	long long ticks;
 	int lost_jiffies = 0;
 	struct pt_regs *regs = get_irq_regs();
 
+	cpu = smp_processor_id();
 	ticks = wr_vb_status->tick_count;
-	ticks -= mark_offset;
+	ticks -= per_cpu(mark_offset,cpu);
 	lost_jiffies = ticks - 1;
-	mark_offset = wr_vb_status->tick_count;
+	per_cpu(mark_offset,cpu) = wr_vb_status->tick_count;
 
 	do {
-		do_timer(1);
+		if (!smp_processor_id()) {
+			write_seqlock(&xtime_lock);
+			do_timer(1);
+			write_sequnlock(&xtime_lock);
+		}
 		update_process_times(user_mode(regs));
 		profile_tick(CPU_PROFILING);
 		if (lost_jiffies > (2*HZ)) {

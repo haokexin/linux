@@ -327,6 +327,12 @@ END_FTR_SECTION_IFSET(CPU_FTR_UNIFIED_ID_CACHE)
  * flush_icache_range(unsigned long start, unsigned long stop)
  */
 _KPROBE(__flush_icache_range)
+#ifndef CONFIG_PARAVIRT
+	b	native__flush_icache_range
+#else
+	b	paravirt__flush_icache_range
+#endif
+_KPROBE(native__flush_icache_range)
 BEGIN_FTR_SECTION
 	blr				/* for 601, do nothing */
 END_FTR_SECTION_IFSET(CPU_FTR_COHERENT_ICACHE)
@@ -364,6 +370,12 @@ END_FTR_SECTION_IFSET(CPU_FTR_COHERENT_ICACHE)
  * clean_dcache_range(unsigned long start, unsigned long stop)
  */
 _GLOBAL(clean_dcache_range)
+#ifndef CONFIG_PARAVIRT
+        b       native_clean_dcache_range
+#else
+        b       paravirt_clean_dcache_range
+#endif
+_GLOBAL(native_clean_dcache_range)
 	li	r5,L1_CACHE_BYTES-1
 	andc	r3,r3,r5
 	subf	r4,r3,r4
@@ -385,6 +397,12 @@ _GLOBAL(clean_dcache_range)
  * flush_dcache_range(unsigned long start, unsigned long stop)
  */
 _GLOBAL(flush_dcache_range)
+#ifndef CONFIG_PARAVIRT
+	b	native_flush_dcache_range
+#else
+	b	paravirt_flush_dcache_range
+#endif
+_GLOBAL(native_flush_dcache_range)
 	li	r5,L1_CACHE_BYTES-1
 	andc	r3,r3,r5
 	subf	r4,r3,r4
@@ -430,6 +448,12 @@ _GLOBAL(invalidate_dcache_range)
  *	void __flush_dcache_icache(void *page)
  */
 _GLOBAL(__flush_dcache_icache)
+#ifndef CONFIG_PARAVIRT
+	b	native__flush_dcache_icache
+#else
+	b	paravirt__flush_dcache_icache
+#endif
+_GLOBAL(native__flush_dcache_icache)
 BEGIN_FTR_SECTION
 	blr
 END_FTR_SECTION_IFSET(CPU_FTR_COHERENT_ICACHE)
@@ -467,6 +491,12 @@ END_FTR_SECTION_IFSET(CPU_FTR_COHERENT_ICACHE)
  *	void __flush_dcache_icache_phys(unsigned long physaddr)
  */
 _GLOBAL(__flush_dcache_icache_phys)
+#ifndef CONFIG_PARAVIRT
+	b	native__flush_dcache_icache_phys
+#else
+	b	paravirt__flush_dcache_icache_phys
+#endif
+_GLOBAL(native__flush_dcache_icache_phys)
 BEGIN_FTR_SECTION
 	blr					/* for 601, do nothing */
 END_FTR_SECTION_IFSET(CPU_FTR_COHERENT_ICACHE)

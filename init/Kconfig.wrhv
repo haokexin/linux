@@ -28,3 +28,24 @@ config DEBUG_VIRTUAL_IRQS
 	bool "Debug VIOAPIC with software IRQ"
 	default n
 	depends on WRHV
+
+config WRHV_ASID_OPTIMIZATION
+	bool "ASID performance optimization"
+	default n
+	depends on WRHV && E500
+	help
+	  ASID performance optimization.  The cost of invalidating and
+	  re-filling TLB cache's on behalf of the guest is an extremely
+	  expensive operation which results in a performance degradation.
+	  ASIDs enable TLB entries to remain resident during context switches,
+	  avoiding the penalty
+
+
+config WRHV_NUM_ASID
+	int "Number of ASID handles"
+	range 1 63
+	default "62"
+	depends on WRHV_ASID_OPTIMIZATION
+	help
+	   This defines the number of ASID handles used by this specific
+	   virtual board.
