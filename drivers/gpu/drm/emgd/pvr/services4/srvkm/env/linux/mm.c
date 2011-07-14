@@ -124,6 +124,9 @@ static off_t printMemoryRecords(IMG_CHAR * buffer, size_t size, off_t off);
 
 #endif
 
+#if defined(DEBUG_LINUX_MEM_AREAS) || defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
+static struct mutex g_sDebugMutex;
+#endif
 
 #if defined(DEBUG_LINUX_MEM_AREAS)
 typedef struct _DEBUG_LINUX_MEM_AREA_REC
@@ -142,11 +145,6 @@ static IMPLEMENT_LIST_FOR_EACH(DEBUG_LINUX_MEM_AREA_REC)
 static IMPLEMENT_LIST_INSERT(DEBUG_LINUX_MEM_AREA_REC)
 static IMPLEMENT_LIST_REMOVE(DEBUG_LINUX_MEM_AREA_REC)
 
-
-
-#if defined(DEBUG_LINUX_MEM_AREAS) || defined(DEBUG_LINUX_MEMORY_ALLOCATIONS)
-static struct mutex g_sDebugMutex;
-#endif
 
 static DEBUG_LINUX_MEM_AREA_REC *g_LinuxMemAreaRecords;
 static IMG_UINT32 g_LinuxMemAreaCount;
