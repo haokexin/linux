@@ -353,6 +353,9 @@ struct pt_regs;
 extern struct thread_info *critirq_ctx[NR_CPUS];
 extern struct thread_info *dbgirq_ctx[NR_CPUS];
 extern struct thread_info *mcheckirq_ctx[NR_CPUS];
+#if defined(CONFIG_KPROBES) && defined(CONFIG_BOOKE)
+extern struct thread_info *pgirq_ctx[NR_CPUS];
+#endif
 extern void exc_lvl_ctx_init(void);
 #else
 #define exc_lvl_ctx_init()

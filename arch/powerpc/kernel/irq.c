@@ -425,6 +425,10 @@ struct thread_info   *critirq_ctx[NR_CPUS] __read_mostly;
 struct thread_info    *dbgirq_ctx[NR_CPUS] __read_mostly;
 struct thread_info *mcheckirq_ctx[NR_CPUS] __read_mostly;
 
+#if defined(CONFIG_KPROBES) && defined(CONFIG_BOOKE)
+struct thread_info *pgirq_ctx[NR_CPUS] __read_mostly;
+#endif
+
 void exc_lvl_ctx_init(void)
 {
 	struct thread_info *tp;
@@ -446,6 +450,13 @@ void exc_lvl_ctx_init(void)
 		tp = mcheckirq_ctx[i];
 		tp->cpu = i;
 		tp->preempt_count = HARDIRQ_OFFSET;
+
+#if defined(CONFIG_KPROBES)
+		memset((void *)pgirq_ctx[i], 0, THREAD_SIZE);
+		tp = pgirq_ctx[i];
+		tp->cpu = i;
+		tp->preempt_count = 0;
+#endif
 #endif
 	}
 }

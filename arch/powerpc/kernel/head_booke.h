@@ -75,6 +75,10 @@
 /* only on e500mc/e200 */
 #define DBG_STACK_BASE		dbgirq_ctx
 
+#if defined(CONFIG_KPROBES)
+#define	PG_STACK_BASE	pgirq_ctx
+#endif
+
 #define EXC_LVL_FRAME_OVERHEAD	(THREAD_SIZE - INT_FRAME_SIZE - EXC_LVL_SIZE)
 
 #ifdef CONFIG_SMP
@@ -154,6 +158,12 @@
 		EXC_LEVEL_EXCEPTION_PROLOG(DBG, SPRN_DSRR0, SPRN_DSRR1)
 #define MCHECK_EXCEPTION_PROLOG \
 		EXC_LEVEL_EXCEPTION_PROLOG(MC, SPRN_MCSRR0, SPRN_MCSRR1)
+#if defined(CONFIG_KPROBES)
+#define	PROGRAM_EXCEPTION_PROLOG \
+		EXC_LEVEL_EXCEPTION_PROLOG(PG, SPRN_SRR0, SPRN_SRR1)
+#else
+#define	PROGRAM_EXCEPTION_PROLOG	NORMAL_EXCEPTION_PROLOG
+#endif
 
 /*
  * Exception vectors.
@@ -366,11 +376,12 @@ label:
 
 #define PROGRAM_EXCEPTION						      \
 	START_EXCEPTION(Program)					      \
-	NORMAL_EXCEPTION_PROLOG;					      \
+	PROGRAM_EXCEPTION_PROLOG;					      \
 	mfspr	r4,SPRN_ESR;		/* Grab the ESR and save it */	      \
 	stw	r4,_ESR(r11);						      \
 	addi	r3,r1,STACK_FRAME_OVERHEAD;				      \
-	EXC_XFER_STD(0x0700, program_check_exception)
+	EXC_XFER_TEMPLATE(program_check_exception, 0x0700, MSR_KERNEL, NOCOPY,\
+		transfer_to_handler_full, ret_from_prog_exc)
 
 #define DECREMENTER_EXCEPTION						      \
 	START_EXCEPTION(Decrementer)					      \

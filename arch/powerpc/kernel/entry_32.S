@@ -1105,6 +1105,19 @@ ret_from_mcheck_exc:
 	RESTORE_xSRR(DSRR0,DSRR1);
 	RESTORE_MMU_REGS;
 	RET_FROM_EXC_LEVEL(SPRN_MCSRR0, SPRN_MCSRR1, PPC_RFMCI)
+
+	.globl  ret_from_prog_exc
+ret_from_prog_exc:
+#ifdef	CONFIG_KPROBES
+	mfspr	r9,SPRN_SPRG_THREAD
+	lwz	r9,THREAD_INFO-THREAD(r9)
+	rlwinm  r10,r1,0,0,(31-THREAD_SHIFT)
+	lwz     r10,TI_PREEMPT(r10)
+	stw     r10,TI_PREEMPT(r9)
+	RET_FROM_EXC_LEVEL(SPRN_SRR0, SPRN_SRR1, rfi)
+#else
+	b	ret_from_except_full
+#endif
 #endif /* CONFIG_BOOKE */
 
 /*
