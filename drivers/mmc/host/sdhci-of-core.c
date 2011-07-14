@@ -29,6 +29,9 @@
 
 #ifdef CONFIG_MMC_SDHCI_BIG_ENDIAN_32BIT_BYTE_SWAPPER
 
+static int sdhc_pmsaveproctlreg = 0;
+static u32 esdhc_proctl;
+
 /*
  * These accessors are designed for big endian hosts doing I/O to
  * little endian controllers incorporating a 32-bit hardware byte swapper.
@@ -90,13 +93,21 @@ void sdhci_be32bs_writeb(struct sdhci_host *host, u8 val, int reg)
 static int sdhci_of_suspend(struct of_device *ofdev, pm_message_t state)
 {
 	struct sdhci_host *host = dev_get_drvdata(&ofdev->dev);
+	if (sdhc_pmsaveproctlreg == 1)
+		esdhc_proctl = sdhci_readl(host, SDHCI_HOST_CONTROL);
+
 	return sdhci_suspend_host(host, state);
 }
 
 static int sdhci_of_resume(struct of_device *ofdev)
 {
+	int ret;
 	struct sdhci_host *host = dev_get_drvdata(&ofdev->dev);
-	return sdhci_resume_host(host);
+	ret = sdhci_resume_host(host);
+	if (sdhc_pmsaveproctlreg == 1)
+		sdhci_writel(host, esdhc_proctl, SDHCI_HOST_CONTROL);
+
+	return ret;
 }
 
 #else
@@ -122,7 +133,7 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 	struct sdhci_of_data *sdhci_of_data = match->data;
 	struct sdhci_host *host;
 	struct sdhci_of_host *of_host;
-	const u32 *clk;
+	const u32 *clk, *sdhc_proctl;
 	int size;
 	int ret;
 
@@ -213,6 +224,10 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 				of_host->clock /= sdhccm;
 		}
 	}
+
+	sdhc_proctl = of_get_property(np, "pmsaveproctlreg", NULL);
+	if (sdhc_proctl && (*sdhc_proctl == 1))
+		sdhc_pmsaveproctlreg = 1;
 
 	ret = sdhci_add_host(host);
 	if (ret)
