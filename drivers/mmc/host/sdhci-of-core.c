@@ -1,7 +1,7 @@
 /*
  * OpenFirmware bindings for Secure Digital Host Controller Interface.
  *
- * Copyright (c) 2007 Freescale Semiconductor, Inc.
+ * Copyright (c) 2007-2011 Freescale Semiconductor, Inc.
  * Copyright (c) 2009 MontaVista Software, Inc.
  *
  * Authors: Xiaobo Xie <X.Xie@freescale.com>
@@ -28,9 +28,6 @@
 #include <sysdev/fsl_soc.h>
 
 #ifdef CONFIG_MMC_SDHCI_BIG_ENDIAN_32BIT_BYTE_SWAPPER
-
-static int sdhc_pmsaveproctlreg = 0;
-static u32 esdhc_proctl;
 
 /*
  * These accessors are designed for big endian hosts doing I/O to
@@ -90,6 +87,8 @@ void sdhci_be32bs_writeb(struct sdhci_host *host, u8 val, int reg)
 
 #ifdef CONFIG_PM
 
+static int sdhc_pmsaveproctlreg = 0;
+static u32 esdhc_proctl;
 static int sdhci_of_suspend(struct of_device *ofdev, pm_message_t state)
 {
 	struct sdhci_host *host = dev_get_drvdata(&ofdev->dev);
@@ -225,9 +224,11 @@ static int __devinit sdhci_of_probe(struct of_device *ofdev,
 		}
 	}
 
+#ifdef CONFIG_PM
 	sdhc_proctl = of_get_property(np, "pmsaveproctlreg", NULL);
 	if (sdhc_proctl && (*sdhc_proctl == 1))
 		sdhc_pmsaveproctlreg = 1;
+#endif
 
 	ret = sdhci_add_host(host);
 	if (ret)
