@@ -164,6 +164,7 @@ config DRM_SAVAGE
 config DRM_EMGD
        tristate "Intel EMGD"
        depends on DRM
+		select DRM_KMS_HELPER
        help
          Choose this option if you have a system that has support for Intel
          GMA500 CPU based on the PowerVR SGX535 core.  This includes the
