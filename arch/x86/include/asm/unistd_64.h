@@ -677,6 +677,8 @@ __SYSCALL(__NR_sched_setparam_ex, sys_sched_setparam_ex)
 __SYSCALL(__NR_sched_getparam_ex, sys_sched_getparam_ex)
 #define __NR_sched_wait_interval		306
 __SYSCALL(__NR_sched_wait_interval, sys_sched_wait_interval)
+#define __NR_setns				307
+__SYSCALL(__NR_setns, sys_setns)
 
 #define VBI_MEM_READ           0x0010
 #define VBI_MEM_WRITE          0x0100

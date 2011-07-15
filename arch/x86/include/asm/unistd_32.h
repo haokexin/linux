@@ -351,6 +351,7 @@
 #define __NR_sched_setparam_ex		343
 #define __NR_sched_getparam_ex		344
 #define __NR_sched_wait_interval	345
+#define __NR_setns		346
 
 #define VBI_MEM_READ		0x0010
 #define VBI_MEM_WRITE		0x0100
@@ -360,7 +361,7 @@
 
 #ifdef __KERNEL__
 
-#define NR_syscalls 346
+#define NR_syscalls 347
 
 #define __ARCH_WANT_IPC_PARSE_VERSION
 #define __ARCH_WANT_OLD_READDIR

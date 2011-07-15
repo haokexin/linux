@@ -372,3 +372,4 @@ ENTRY(sys_call_table)
 	.long sys_rt_tgsigqueueinfo	/* 365 */
 	.long sys_perf_event_open
 	.long sys_recvmmsg
+	.long sys_setns
