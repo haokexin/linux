@@ -14,6 +14,7 @@
 #include <linux/utsname.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/proc_fs.h>
 
 static struct uts_namespace *create_uts_ns(void)
 {
@@ -73,3 +74,34 @@ void free_uts_ns(struct kref *kref)
 	ns = container_of(kref, struct uts_namespace, kref);
 	kfree(ns);
 }
+
+static void *utsns_get(struct task_struct *task)
+{
+	struct uts_namespace *ns;
+	rcu_read_lock();
+	ns = task->nsproxy->uts_ns;
+	get_uts_ns(ns);
+	rcu_read_unlock();
+	return ns;
+}
+
+static void utsns_put(void *ns)
+{
+	put_uts_ns(ns);
+}
+
+static int utsns_install(struct nsproxy *nsproxy, void *ns)
+{
+	get_uts_ns(ns);
+	put_uts_ns(nsproxy->uts_ns);
+	nsproxy->uts_ns = ns;
+	return 0;
+}
+
+const struct proc_ns_operations utsns_operations = {
+	.name		= PROC_NSNAME("uts"),
+	.get		= utsns_get,
+	.put		= utsns_put,
+	.install	= utsns_install,
+};
+

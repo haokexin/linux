@@ -1853,3 +1853,10 @@ sys32_execve_wrapper:
 	llgtr	%r3,%r3			# compat_uptr_t *
 	llgtr	%r4,%r4			# compat_uptr_t *
 	jg	sys32_execve		# branch to system call
+
+	.globl sys_setns_wrapper
+sys_setns_wrapper:
+	llgfr 	%r2,%r2			# unsigned int
+	llgtr 	%r3,%r3			# int
+	jg 	sys_setns
+
