@@ -250,6 +250,25 @@ kclist_add(struct kcore_list *new, void *addr, size_t size, int type)
 extern void kclist_add(struct kcore_list *, void *, size_t, int type);
 #endif
 
+struct nsproxy;
+struct proc_ns_operations {
+	struct {
+		unsigned int len;
+		const char *name;
+	} name;
+	unsigned int name_len;
+	void *(*get)(struct task_struct *task);
+	void (*put)(void *ns);
+	int (*install)(struct nsproxy *nsproxy, void *ns);
+};
+#define PROC_NSNAME(NAME) { .name = (NAME), .len = (sizeof(NAME) - 1), }
+extern const struct proc_ns_operations netns_operations;
+extern const struct proc_ns_operations pidns_operations;
+extern const struct proc_ns_operations utsns_operations;
+extern const struct proc_ns_operations ipcns_operations;
+extern const struct proc_ns_operations mntns_operations;
+extern struct file *proc_ns_fget(int fd);
+
 union proc_op {
 	int (*proc_get_link)(struct inode *, struct path *);
 	int (*proc_read)(struct task_struct *task, char *page);
@@ -268,6 +287,8 @@ struct proc_inode {
 	struct proc_dir_entry *pde;
 	struct ctl_table_header *sysctl;
 	struct ctl_table *sysctl_entry;
+	void *ns;
+	const struct proc_ns_operations *ns_ops;
 	struct inode vfs_inode;
 };
 

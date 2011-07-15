@@ -14,6 +14,7 @@
 #include <linux/err.h>
 #include <linux/acct.h>
 #include <linux/slab.h>
+#include <linux/proc_fs.h>
 
 #define BITS_PER_PAGE		(PAGE_SIZE*8)
 
@@ -89,12 +90,16 @@ static struct pid_namespace *create_pid_namespace(struct pid_namespace *parent_p
 	kref_init(&ns->kref);
 	ns->level = level;
 	ns->parent = get_pid_ns(parent_pid_ns);
+	atomic_set(&ns->dead, 0);
 
 	set_bit(0, ns->pidmap[0].page);
 	atomic_set(&ns->pidmap[0].nr_free, BITS_PER_PAGE - 1);
 
 	for (i = 1; i < PIDMAP_ENTRIES; i++)
 		atomic_set(&ns->pidmap[i].nr_free, BITS_PER_PAGE);
+
+	if (pid_ns_prepare_proc(ns))
+		goto out_free_map;
 
 	return ns;
 
@@ -115,13 +120,14 @@ static void destroy_pid_namespace(struct pid_namespace *ns)
 	kmem_cache_free(pid_ns_cachep, ns);
 }
 
-struct pid_namespace *copy_pid_ns(unsigned long flags, struct pid_namespace *old_ns)
+struct pid_namespace *copy_pid_ns(unsigned long flags,
+	struct pid_namespace *default_ns, struct pid_namespace *active_ns)
 {
 	if (!(flags & CLONE_NEWPID))
-		return get_pid_ns(old_ns);
+		return get_pid_ns(default_ns);
 	if (flags & (CLONE_THREAD|CLONE_PARENT))
 		return ERR_PTR(-EINVAL);
-	return create_pid_namespace(old_ns);
+	return create_pid_namespace(active_ns);
 }
 
 void free_pid_ns(struct kref *kref)
@@ -157,6 +163,7 @@ void zap_pid_ns_processes(struct pid_namespace *pid_ns)
 	 *
 	 */
 	read_lock(&tasklist_lock);
+	atomic_set(&pid_ns->dead, 1);
 	nr = next_pidmap(pid_ns, 1);
 	while (nr > 0) {
 		rcu_read_lock();
@@ -183,6 +190,34 @@ void zap_pid_ns_processes(struct pid_namespace *pid_ns)
 	acct_exit_ns(pid_ns);
 	return;
 }
+
+static void *pidns_get(struct task_struct *task)
+{
+	struct pid_namespace *ns;
+	rcu_read_lock();
+	ns = get_pid_ns(task->nsproxy->pid_ns);
+	rcu_read_unlock();
+	return ns;
+}
+
+static void pidns_put(void *ns)
+{
+	put_pid_ns(ns);
+}
+
+static int pidns_install(struct nsproxy *nsproxy, void *ns)
+{
+	put_pid_ns(nsproxy->pid_ns);
+	nsproxy->pid_ns = get_pid_ns(ns);
+	return 0;
+}
+
+const struct proc_ns_operations pidns_operations = {
+	.name		= PROC_NSNAME("pid"),
+	.get		= pidns_get,
+	.put		= pidns_put,
+	.install	= pidns_install,
+};
 
 static __init int pid_namespaces_init(void)
 {
