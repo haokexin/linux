@@ -592,6 +592,7 @@ einval:	li	v0, -ENOSYS
 	sys     sys_sched_setparam_ex	3
 	sys     sys_sched_getparam_ex	3
 	sys     sys_sched_wait_interval	2
+	sys     sys_setns               2
 	.endm
 
 	/* We pre-compute the number of _instruction_ bytes needed to

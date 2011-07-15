@@ -430,4 +430,5 @@ EXPORT(sysn32_call_table)
 	PTR     sys_sched_setparam_ex
 	PTR     sys_sched_getparam_ex
 	PTR     sys_sched_wait_interval
+	PTR     sys_setns
 	.size	sysn32_call_table,.-sysn32_call_table

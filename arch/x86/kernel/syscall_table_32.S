@@ -345,3 +345,4 @@ ENTRY(sys_call_table)
 	.long sys_sched_setparam_ex
 	.long sys_sched_getparam_ex	/* 344 */
 	.long sys_sched_wait_interval	/* 345 */
+	.long sys_setns

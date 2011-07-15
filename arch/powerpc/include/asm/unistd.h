@@ -353,6 +353,7 @@
 #define __NR_sched_setparam_ex		328
 #define __NR_sched_getparam_ex		329
 #define __NR_sched_wait_interval	330
+#define __NR_setns              331
 
 #define VBI_MEM_READ		0x0010
 #define VBI_MEM_WRITE		0x0100
@@ -362,7 +363,7 @@
 
 #ifdef __KERNEL__
 
-#define __NR_syscalls		331
+#define __NR_syscalls		332
 
 #define __NR__exit __NR_exit
 #define NR_syscalls	__NR_syscalls
