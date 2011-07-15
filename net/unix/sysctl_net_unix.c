@@ -23,6 +23,13 @@ static ctl_table unix_table[] = {
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec
 	},
+	{
+		.procname	= "share_via_fs",
+		.data		= &init_net.unx.sysctl_share_via_fs,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec
+	},
 	{ }
 };
 
@@ -41,6 +48,7 @@ int __net_init unix_sysctl_register(struct net *net)
 		goto err_alloc;
 
 	table[0].data = &net->unx.sysctl_max_dgram_qlen;
+	table[1].data = &net->unx.sysctl_share_via_fs;
 	net->unx.ctl = register_net_sysctl_table(net, unix_path, table);
 	if (net->unx.ctl == NULL)
 		goto err_reg;

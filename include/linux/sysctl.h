@@ -288,6 +288,7 @@ enum
 	NET_UNIX_DESTROY_DELAY=1,
 	NET_UNIX_DELETE_DELAY=2,
 	NET_UNIX_MAX_DGRAM_QLEN=3,
+	NET_UNIX_SHARE_VIA_FS=4,
 };
 
 /* /proc/sys/net/netfilter */

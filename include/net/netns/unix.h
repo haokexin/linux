@@ -7,6 +7,7 @@
 struct ctl_table_header;
 struct netns_unix {
 	int			sysctl_max_dgram_qlen;
+	bool                    sysctl_share_via_fs;
 	struct ctl_table_header	*ctl;
 };
 

@@ -292,7 +292,8 @@ static struct sock *unix_find_socket_byinode(struct net *net, struct inode *i)
 		    &unix_socket_table[i->i_ino & (UNIX_HASH_SIZE - 1)]) {
 		struct dentry *dentry = unix_sk(s)->dentry;
 
-		if (!net_eq(sock_net(s), net))
+		if (!sock_net(s)->unx.sysctl_share_via_fs &&
+		    !net_eq(sock_net(s), net))
 			continue;
 
 		if (dentry && dentry->d_inode == i) {
@@ -2279,6 +2280,7 @@ static int __net_init unix_net_init(struct net *net)
 	int error = -ENOMEM;
 
 	net->unx.sysctl_max_dgram_qlen = 10;
+	net->unx.sysctl_share_via_fs = false;
 	if (unix_sysctl_register(net))
 		goto out;
 
