@@ -15,6 +15,7 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/irq.h>
+#include <linux/slab.h>
 #include <linux/profile.h>
 #include <linux/kernel_stat.h>
 #include <linux/wrhv.h>
@@ -388,7 +389,7 @@ irqreturn_t __weak wrhv_timer_interrupt(int irq, void *dev_id)
 	} while (--ticks > 0);
 
 	if (lost_jiffies)
-		account_steal_time(NULL, jiffies_to_cputime(lost_jiffies));
+		account_steal_time(jiffies_to_cputime(lost_jiffies));
 	return IRQ_HANDLED;
 }
 

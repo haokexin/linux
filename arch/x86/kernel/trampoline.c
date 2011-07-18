@@ -17,8 +17,13 @@ unsigned char *__trampinitdata trampoline_base;
 
 void __init reserve_trampoline_memory(void)
 {
-	unsigned long mem;
 
+#if defined(CONFIG_X86_64) && defined(CONFIG_WRHV)
+	trampoline_base = __va(TRAMPOLINE_BASE);
+	reserve_early(TRAMPOLINE_BASE, TRAMPOLINE_BASE + TRAMPOLINE_SIZE,
+		      "TRAMPOLINE");
+#else
+	unsigned long mem;
 	/* Has to be in very low memory so we can execute real-mode AP code. */
 	mem = find_e820_area(0, 1<<20, TRAMPOLINE_SIZE, PAGE_SIZE);
 	if (mem == -1L)
@@ -26,6 +31,7 @@ void __init reserve_trampoline_memory(void)
 
 	trampoline_base = __va(mem);
 	reserve_early(mem, mem + TRAMPOLINE_SIZE, "TRAMPOLINE");
+#endif
 }
 
 /*

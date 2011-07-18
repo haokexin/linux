@@ -400,14 +400,18 @@ struct legacy_pic *legacy_pic = &default_legacy_pic;
 
 static int __init i8259A_init_sysfs(void)
 {
-	int error;
+	int error = 0;
 
 	if (legacy_pic != &default_legacy_pic)
 		return 0;
 
+	if (paravirt_enabled())
+		goto done;
+
 	error = sysdev_class_register(&i8259_sysdev_class);
 	if (!error)
 		error = sysdev_register(&device_i8259A);
+done:
 	return error;
 }
 

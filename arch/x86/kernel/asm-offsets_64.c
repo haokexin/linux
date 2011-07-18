@@ -23,6 +23,10 @@
 
 #include <asm/sigframe.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
+
 #define __NO_STUBS 1
 #undef __SYSCALL
 #undef _ASM_X86_UNISTD_64_H
@@ -131,6 +135,13 @@ int main(void)
 
 	BLANK();
 	DEFINE(PAGE_SIZE_asm, PAGE_SIZE);
+#ifdef CONFIG_WRHV
+	BLANK();
+	DEFINE(WRHV_VB_CONFIG_SIZE, sizeof(struct vb_config));
+	DEFINE(VB_MAX_BOOTLINE_LENGTH, VB_MAX_BOOTLINE_LENGTH);
+	OFFSET(WRHV_COREID_OFFSET, vb_config, coreId);
+	OFFSET(WRHV_BOOTLINE_OFFSET, vb_config, bootLine);
+#endif
 #ifdef CONFIG_XEN
 	BLANK();
 	OFFSET(XEN_vcpu_info_mask, vcpu_info, evtchn_upcall_mask);

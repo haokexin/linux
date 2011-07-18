@@ -26,7 +26,9 @@ void __init reserve_ebda_region(void)
 	/* that area is absent. We'll just have to assume */
 	/* that the paravirt case can handle memory setup */
 	/* correctly, without our help. */
+#ifndef CONFIG_WRHV /* too early in wrhv for paravirt test */
 	if (paravirt_enabled())
+#endif
 		return;
 
 	/* end of low (conventional) memory */

@@ -83,10 +83,13 @@ RESERVE_BRK(pagetables, INIT_MAP_SIZE)
  */
 __HEAD
 ENTRY(startup_32)
+
+#ifndef CONFIG_WRHV
 	/* test KEEP_SEGMENTS flag to see if the bootloader is asking
 		us to not reload segments */
 	testb $(1<<6), BP_loadflags(%esi)
 	jnz 2f
+#endif
 
 /*
  * Set segments to known values.
@@ -98,6 +101,13 @@ ENTRY(startup_32)
 	movl %eax,%fs
 	movl %eax,%gs
 2:
+#if defined(CONFIG_WRHV) && defined(CONFIG_SMP)
+	movl 0x4(%esp), %esi
+	movl WRHV_COREID_OFFSET(%esi), %eax
+	cmpl $0,%eax
+	jne startup_32_smp
+#endif
+
 
 /*
  * Clear BSS first so that there are no surprises...
@@ -117,6 +127,7 @@ ENTRY(startup_32)
  * (kexec on panic case). Hence copy out the parameters before initializing
  * page tables.
  */
+#ifndef CONFIG_WRHV
 	movl $pa(boot_params),%edi
 	movl $(PARAM_SIZE/4),%ecx
 	cld
@@ -163,6 +174,25 @@ subarch_entries:
 num_subarch_entries = (. - subarch_entries) / 4
 .previous
 #endif /* CONFIG_PARAVIRT */
+#else  /* CONFIG_WRHV */
+	/* Copy over the wrhv config, it's assumed the stack hasn't been fiddled with yet */
+	movl 0x4(%esp), %esi
+	/* Store the address of wrhv config so we can map it in later */
+	movl %esi, pa(_wr_config)
+	movl $pa(__wr_config), %edi
+	movl $(WRHV_VB_CONFIG_SIZE/4),%ecx
+	cld
+	rep
+	movsl
+
+	/* Fill in the boot command line */
+	movl $pa(__wr_config + WRHV_BOOTLINE_OFFSET), %esi
+	movl $pa(boot_command_line),%edi
+	movl $(VB_MAX_BOOTLINE_LENGTH/4),%ecx
+	rep
+	movsl
+#endif
+
 
 /*
  * Initialize page tables.  This creates a PDE and a set of page

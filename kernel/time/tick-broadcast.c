@@ -443,6 +443,13 @@ again:
 		if (tick_broadcast_set_event(next_event, 0))
 			goto again;
 	}
+#ifdef CONFIG_WRHV_X86_HRTIMERS
+	else {
+		now = ktime_get();
+		next_event = ktime_add_ns(now, dev->min_delta_ns);
+		tick_broadcast_set_event(next_event, 1);
+	}
+#endif
 	raw_spin_unlock(&tick_broadcast_lock);
 }
 
@@ -542,7 +549,9 @@ void tick_broadcast_setup_oneshot(struct clock_event_device *bc)
 		 * broadcast device to fire.
 		 */
 		cpumask_copy(to_cpumask(tmpmask), tick_get_broadcast_mask());
+#ifndef CONFIG_WRHV_X86_HRTIMERS
 		cpumask_clear_cpu(cpu, to_cpumask(tmpmask));
+#endif
 		cpumask_or(tick_get_broadcast_oneshot_mask(),
 			   tick_get_broadcast_oneshot_mask(),
 			   to_cpumask(tmpmask));
@@ -577,7 +586,12 @@ void tick_broadcast_switch_to_oneshot(void)
 
 	tick_broadcast_device.mode = TICKDEV_MODE_ONESHOT;
 	bc = tick_broadcast_device.evtdev;
+
+#ifdef CONFIG_WRHV_X86_HRTIMERS
+	if (bc && !smp_processor_id())
+#else
 	if (bc)
+#endif
 		tick_broadcast_setup_oneshot(bc);
 	raw_spin_unlock_irqrestore(&tick_broadcast_lock, flags);
 }

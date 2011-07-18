@@ -31,6 +31,7 @@
 #include <asm/msr.h>
 #include <asm/segment.h>
 #include <asm/processor-flags.h>
+#include <asm/trampoline.h>
 
 #ifdef CONFIG_ACPI_SLEEP
 .section .rodata, "a", @progbits
@@ -38,6 +39,8 @@
 /* We can free up the trampoline after bootup if cpu hotplug is not supported. */
 __CPUINITRODATA
 #endif
+
+#ifndef CONFIG_WRHV
 .code16
 
 ENTRY(trampoline_data)
@@ -85,11 +88,28 @@ r_base = .
 	# flush prefetch and jump to startup_32
 	ljmpl	*(startup_32_vector - r_base)
 
+#else
+ENTRY(trampoline_data)
+#endif
 	.code32
 	.balign 4
 startup_32:
+#ifdef CONFIG_WRHV
+r_base = .
+	movl $(TRAMPOLINE_BASE), %esi
+	/* setup a stack */
+	leal	(trampoline_stack_end - r_base)(%esi), %esp
+	/* fix 64 vector */
+	addl    %esi, (startup_64_vector - r_base)(%esi)
+
+	/* Load new gdt */
+	leal	(tgdt - r_base)(%esi), %eax
+	movl	%eax, (tgdt -r_base + 2)(%esi)
+	lgdt	(tgdt - r_base)(%esi)
+#else
 	movl	$__KERNEL_DS, %eax	# Initialize the %ds segment register
 	movl	%eax, %ds
+#endif
 
 	movl	$X86_CR4_PAE, %eax
 	movl	%eax, %cr4		# Enable PAE mode

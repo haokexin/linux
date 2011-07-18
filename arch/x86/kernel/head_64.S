@@ -45,6 +45,17 @@ L3_START_KERNEL = pud_index(__START_KERNEL_map)
 	.globl startup_64
 startup_64:
 
+#ifdef CONFIG_WRHV
+	movq (%rsi), %rdi
+	movq %rdi, _wr_config(%rip)
+	addq $8, %rsi
+	leaq __wr_config(%rip), %rdi
+	movq $(WRHV_VB_CONFIG_SIZE/4),%rcx
+	cld
+	rep
+	movsl
+#endif
+
 	/*
 	 * At this point the CPU runs in 64bit mode CS.L = 1 CS.D = 1,
 	 * and someone has loaded an identity mapped page table

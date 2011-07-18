@@ -22,7 +22,9 @@
 #endif
 
 #include "cpu.h"
-
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#endif
 #ifdef CONFIG_X86_LOCAL_APIC
 #include <asm/mpspec.h>
 #include <asm/apic.h>
@@ -30,6 +32,7 @@
 
 static void __cpuinit early_init_intel(struct cpuinfo_x86 *c)
 {
+#ifndef CONFIG_WRHV
 	/* Unmask CPUID levels if masked: */
 	if (c->x86 > 6 || (c->x86 == 6 && c->x86_model >= 0xd)) {
 		u64 misc_enable;
@@ -43,6 +46,7 @@ static void __cpuinit early_init_intel(struct cpuinfo_x86 *c)
 			get_cpu_cap(c);
 		}
 	}
+#endif
 
 	if ((c->x86 == 0xf && c->x86_model >= 0x03) ||
 		(c->x86 == 0x6 && c->x86_model >= 0x0e))
@@ -191,6 +195,7 @@ static void __cpuinit intel_smp_check(struct cpuinfo_x86 *c)
 
 static void __cpuinit intel_workarounds(struct cpuinfo_x86 *c)
 {
+#ifndef CONFIG_WRHV
 	unsigned long lo, hi;
 
 #ifdef CONFIG_X86_F00F_BUG
@@ -268,6 +273,9 @@ static void __cpuinit intel_workarounds(struct cpuinfo_x86 *c)
 #endif
 
 	intel_smp_check(c);
+#else
+	wrhv_cpu_workarounds(c);
+#endif
 }
 #else
 static void __cpuinit intel_workarounds(struct cpuinfo_x86 *c)

@@ -184,4 +184,9 @@ extern void arch_disable_smp_support(void);
 
 void smp_setup_processor_id(void);
 
+enum {
+	CSD_FLAG_WAIT		= 0x01,
+	CSD_FLAG_ALLOC		= 0x02,
+};
+
 #endif /* __LINUX_SMP_H */

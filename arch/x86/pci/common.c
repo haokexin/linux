@@ -473,6 +473,12 @@ char * __devinit  pcibios_setup(char *str)
 		return NULL;
 	}
 #endif
+#ifdef CONFIG_WRHV
+	else if (!strcmp(str, "wrhv")) {
+		pci_probe = PCI_PROBE_CONF1 | PCI_NO_CHECKS | PCI_HAS_IO_ECS;
+		return NULL;
+	}
+#endif
 #ifdef CONFIG_PCI_MMCONFIG
 	else if (!strcmp(str, "nommconf")) {
 		pci_probe &= ~PCI_PROBE_MMCONF;

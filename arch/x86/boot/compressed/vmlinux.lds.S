@@ -9,7 +9,14 @@ OUTPUT_FORMAT(CONFIG_OUTPUT_FORMAT, CONFIG_OUTPUT_FORMAT, CONFIG_OUTPUT_FORMAT)
 
 #ifdef CONFIG_X86_64
 OUTPUT_ARCH(i386:x86-64)
+#ifdef CONFIG_WRHV
+/* VB initial status is 32-bit mode, so take use of 32-bit start
+ * up code to do 32-bit to 64-bit transition in x86-64 guest os
+ */
+ENTRY(startup_32)
+#else
 ENTRY(startup_64)
+#endif
 #else
 OUTPUT_ARCH(i386)
 ENTRY(startup_32)
@@ -20,7 +27,12 @@ SECTIONS
 	/* Be careful parts of head_64.S assume startup_32 is at
 	 * address 0.
 	 */
+#if defined(CONFIG_WRHV) && defined(CONFIG_X86_64)
+	/* The address must equal to TRAMPOLINE_BASE for AP boot */
+	. = 0x6000;
+#else
 	. = 0;
+#endif
 	.head.text : {
 		_head = . ;
 		HEAD_TEXT

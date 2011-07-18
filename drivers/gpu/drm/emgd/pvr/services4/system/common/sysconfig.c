@@ -50,6 +50,12 @@
 #include "sysconfig.h"
 #include "pvr_debug.h"
 #include "msvdx_pvr.h"
+#if defined(CONFIG_WRHV)
+extern u64 wrhv_phys_offset;
+#define phys_offset wrhv_phys_offset
+#else
+static u64 phys_offset = 0;
+#endif
 
 /* --------------------------------------------------------------------------*/
 /**
@@ -1154,6 +1160,7 @@ IMG_DEV_PHYADDR SysCpuPAddrToDevPAddr (PVRSRV_DEVICE_TYPE eDeviceType,
 
 
 	DevPAddr.uiAddr = CpuPAddr.uiAddr;
+	DevPAddr.uiAddr += phys_offset;
 
 	return DevPAddr;
 }
@@ -1165,6 +1172,9 @@ IMG_CPU_PHYADDR SysSysPAddrToCpuPAddr (IMG_SYS_PHYADDR sys_paddr)
 
 
 	cpu_paddr.uiAddr = sys_paddr.uiAddr;
+	if (cpu_paddr.uiAddr < ((num_physpages << PAGE_SHIFT) + phys_offset))
+			cpu_paddr.uiAddr -= phys_offset;
+
 	return cpu_paddr;
 }
 

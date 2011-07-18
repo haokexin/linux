@@ -13,6 +13,11 @@
 #include <asm/apic.h>
 #include <asm/uv/uv.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#include <asm/wrhv.h>
+#endif
+
 DEFINE_PER_CPU_SHARED_ALIGNED(struct tlb_state, cpu_tlbstate)
 			= { &init_mm, 0, };
 
@@ -61,6 +66,12 @@ void leave_mm(int cpu)
 {
 	if (percpu_read(cpu_tlbstate.state) == TLBSTATE_OK)
 		BUG();
+
+#ifdef CONFIG_WRHV
+	wrhv_vtlb_op(VBI_VTLB_OP_DELETE_PMD,
+			__pa(per_cpu(cpu_tlbstate, cpu).active_mm->pgd), 0, 0);
+#endif
+
 	cpumask_clear_cpu(cpu,
 			  mm_cpumask(percpu_read(cpu_tlbstate.active_mm)));
 	load_cr3(swapper_pg_dir);

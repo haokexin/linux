@@ -22,6 +22,10 @@
 
 #include <xen/interface/xen.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
+
 #include <linux/lguest.h>
 #include "../../../drivers/lguest/lg.h"
 
@@ -116,6 +120,14 @@ void foo(void)
 	OFFSET(PV_CPU_nmi_return, pv_cpu_ops, nmi_return);
 	OFFSET(PV_CPU_irq_enable_sysexit, pv_cpu_ops, irq_enable_sysexit);
 	OFFSET(PV_CPU_read_cr0, pv_cpu_ops, read_cr0);
+#endif
+
+#ifdef CONFIG_WRHV
+	BLANK();
+	DEFINE(WRHV_VB_CONFIG_SIZE, sizeof(struct vb_config));
+	DEFINE(VB_MAX_BOOTLINE_LENGTH, VB_MAX_BOOTLINE_LENGTH);
+	OFFSET(WRHV_COREID_OFFSET, vb_config, coreId);
+	OFFSET(WRHV_BOOTLINE_OFFSET, vb_config, bootLine);
 #endif
 
 #ifdef CONFIG_XEN

@@ -6,6 +6,10 @@
 #include <linux/kernel.h>
 #include <linux/dma-mapping.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
+
 struct dma_coherent_mem {
 	void		*virt_base;
 	u32		device_base;
@@ -133,6 +137,22 @@ int dma_alloc_from_coherent(struct device *dev, ssize_t size,
 	 * Memory was found in the per-device area.
 	 */
 	*dma_handle = mem->device_base + (pageno << PAGE_SHIFT);
+#ifdef CONFIG_WRHV
+	{
+		u64 paddr;
+		dma_addr_t addr = mem->device_base + (pageno << PAGE_SHIFT);
+
+		if (vbi_get_guest_dma_addr((void *)addr,
+					&paddr) == 0)
+			*dma_handle = (dma_addr_t)paddr;
+		else {
+			bitmap_release_region(mem->bitmap,
+					mem->size, order);
+			return 0;
+		}
+	}
+#endif
+
 	*ret = mem->virt_base + (pageno << PAGE_SHIFT);
 	memset(*ret, 0, size);
 

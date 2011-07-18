@@ -5,7 +5,6 @@
 #include <linux/gfp.h>
 #include <linux/pci.h>
 #include <linux/kmemleak.h>
-
 #include <asm/proto.h>
 #include <asm/dma.h>
 #include <asm/iommu.h>
@@ -13,6 +12,9 @@
 #include <asm/calgary.h>
 #include <asm/amd_iommu.h>
 #include <asm/x86_init.h>
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
 
 static int forbid_dac __read_mostly;
 
@@ -175,6 +177,21 @@ again:
 	}
 
 	*dma_addr = addr;
+
+#ifdef CONFIG_WRHV
+	{
+		u64 paddr;
+		if (vbi_get_guest_dma_addr((void *)addr,
+					&paddr) == 0)
+			*dma_addr = (dma_addr_t)paddr;
+		else {
+			free_pages((unsigned long)page,
+					get_order(size));
+			return NULL;
+		}
+	}
+#endif
+
 	return page_address(page);
 }
 

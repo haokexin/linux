@@ -132,9 +132,12 @@ int tick_switch_to_oneshot(void (*handler)(struct clock_event_device *))
 	struct tick_device *td = &__get_cpu_var(tick_cpu_device);
 	struct clock_event_device *dev = td->evtdev;
 
+#ifndef CONFIG_WRHV_X86_HRTIMERS
 	if (!dev || !(dev->features & CLOCK_EVT_FEAT_ONESHOT) ||
 		    !tick_device_is_functional(dev)) {
-
+#else
+	if (!dev || !(dev->features & CLOCK_EVT_FEAT_ONESHOT)) {
+#endif
 		printk(KERN_INFO "Clockevents: "
 		       "could not switch to one-shot mode:");
 		if (!dev) {

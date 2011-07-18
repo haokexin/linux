@@ -26,6 +26,10 @@
 #include <asm/vsyscall.h>
 #endif
 
+#if defined(CONFIG_WRHV) && defined(CONFIG_X86_64)
+#include <asm/wrhv.h>
+#endif
+
 /*
  * We can't declare FIXADDR_TOP as variable for x86_64 because vsyscall
  * uses fixmaps that relies on FIXADDR_TOP for proper address calculation.
@@ -116,6 +120,13 @@ enum fixed_addresses {
 #endif
 	FIX_TEXT_POKE1,	/* reserve 2 pages for text_poke() */
 	FIX_TEXT_POKE0, /* first page is last, because allocation is backward */
+
+#if defined(CONFIG_WRHV) && defined(CONFIG_X86_64)
+	FIX_WRHV_RESERVED_BEGIN,
+	FIX_WRHV_RESERVED_END = FIX_WRHV_RESERVED_BEGIN
+				+ WRHV_RESERVED_PAGES - 1,
+#endif
+
 	__end_of_permanent_fixed_addresses,
 	/*
 	 * 256 temporary boot-time mappings, used by early_ioremap(),
