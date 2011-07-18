@@ -663,6 +663,17 @@ __SYSCALL(__NR_rt_tgsigqueueinfo, sys_rt_tgsigqueueinfo)
 __SYSCALL(__NR_perf_event_open, sys_perf_event_open)
 #define __NR_recvmmsg				299
 __SYSCALL(__NR_recvmmsg, sys_recvmmsg)
+#define __NR_vbi_mem				300
+__SYSCALL(__NR_vbi_mem, sys_vbi_mem)
+#define __NR_vbi_activate_vb			301
+__SYSCALL(__NR_vbi_activate_vb, sys_vbi_activate_vb)
+#define __NR_vbi_control			302
+__SYSCALL(__NR_vbi_control, sys_vbi_control)
+#define VBI_MEM_READ           0x0010
+#define VBI_MEM_WRITE          0x0100
+#define SYS_VBI_VB_SUSPEND	0x10001
+#define SYS_VBI_VB_RESUME	0x20002
+#define SYS_VBI_VB_RESTART	0x40004
 
 #ifndef __NO_STUBS
 #define __ARCH_WANT_OLD_READDIR
