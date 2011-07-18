@@ -338,3 +338,6 @@ ENTRY(sys_call_table)
 	.long sys_perf_event_open
 	.long sys_recvmmsg
 	.long sys_revokeat
+	.long sys_vbi_mem		/* 339 */
+	.long sys_vbi_activate_vb	/* 340 */
+	.long sys_vbi_control		/* 341 */

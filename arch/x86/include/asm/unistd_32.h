@@ -344,10 +344,18 @@
 #define __NR_perf_event_open	336
 #define __NR_recvmmsg		337
 #define __NR_revokeat		338
+#define __NR_vbi_mem		339
+#define __NR_vbi_activate_vb	340
+#define __NR_vbi_control	341
+#define VBI_MEM_READ		0x0010
+#define VBI_MEM_WRITE		0x0100
+#define SYS_VBI_VB_SUSPEND	0x10001
+#define SYS_VBI_VB_RESUME	0x20002
+#define SYS_VBI_VB_RESTART	0x40004
 
 #ifdef __KERNEL__
 
-#define NR_syscalls 339
+#define NR_syscalls 342
 
 #define __ARCH_WANT_IPC_PARSE_VERSION
 #define __ARCH_WANT_OLD_READDIR
