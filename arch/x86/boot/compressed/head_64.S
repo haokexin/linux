@@ -38,6 +38,10 @@
 	.code32
 ENTRY(startup_32)
 	cld
+
+#ifdef CONFIG_WRHV
+	jmp 1f
+#endif
 	/*
 	 * Test KEEP_SEGMENTS flag to see if the bootloader is asking
 	 * us to not reload segments
@@ -51,6 +55,21 @@ ENTRY(startup_32)
 	movl	%eax, %es
 	movl	%eax, %ss
 1:
+#ifdef CONFIG_WRHV
+	/*Copy wrhv config */
+	movl %esi, %eax
+	movl 0x4(%esp), %esi
+	/* Store the address of wrhv config so we can map it later */
+	movl $wrhv_config, %edi
+	movl %esi, (%edi)
+	movl $0, 0x4(%edi)
+	addl $8, %edi
+	movl $1024,%ecx
+	cld
+	rep
+	movsl
+	movl %eax, %esi
+#endif
 
 /*
  * Calculate the delta between where we were compiled to run
@@ -60,7 +79,9 @@ ENTRY(startup_32)
  * data at 0x1e4 (defined as a scratch field) are used as the stack
  * for this calculation. Only 4 bytes are needed.
  */
+#ifndef CONFIG_WRHV
 	leal	(BP_scratch+4)(%esi), %esp
+#endif
 	call	1f
 1:	popl	%ebp
 	subl	$1b, %ebp
@@ -83,7 +104,7 @@ ENTRY(startup_32)
  * for safe in-place decompression.
  */
 
-#ifdef CONFIG_RELOCATABLE
+#if defined(CONFIG_RELOCATABLE) && !defined(CONFIG_WRHV)
 	movl	%ebp, %ebx
 	movl	BP_kernel_alignment(%esi), %eax
 	decl	%eax
@@ -225,7 +246,7 @@ ENTRY(startup_64)
 	 */
 
 	/* Start with the delta to where the kernel will run at. */
-#ifdef CONFIG_RELOCATABLE
+#if defined(CONFIG_RELOCATABLE) && !defined(CONFIG_WRHV)
 	leaq	startup_32(%rip) /* - $startup_32 */, %rbp
 	movl	BP_kernel_alignment(%rsi), %eax
 	decl	%eax
@@ -282,6 +303,9 @@ relocated:
 /*
  * Do the decompression, and jump to the new kernel..
  */
+#ifdef CONFIG_WRHV
+	pushq   %rbx
+#endif
 	pushq	%rsi			/* Save the real mode argument */
 	movq	%rsi, %rdi		/* real mode address */
 	leaq	boot_heap(%rip), %rsi	/* malloc area for uncompression */
@@ -290,6 +314,11 @@ relocated:
 	movq	%rbp, %r8		/* output target address */
 	call	decompress_kernel
 	popq	%rsi
+
+#ifdef CONFIG_WRHV
+	popq   %rbx
+	leaq wrhv_config(%rbx), %rsi
+#endif
 
 /*
  * Jump to the decompressed kernel.
@@ -307,6 +336,12 @@ gdt:
 	.quad	0x0080890000000000	/* TS descriptor */
 	.quad   0x0000000000000000	/* TS continued */
 gdt_end:
+
+#ifdef CONFIG_WRHV
+.balign 8
+wrhv_config:
+	.fill 0x1008, 1, 0
+#endif
 
 /*
  * Stack and heap for uncompression

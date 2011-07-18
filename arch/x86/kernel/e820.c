@@ -244,9 +244,11 @@ int __init sanitize_e820_map(struct e820entry *biosmap, int max_nr_map,
 	int old_nr, new_nr, chg_nr;
 	int i;
 
+#ifndef CONFIG_WRHV
 	/* if there's only one memory region, don't bother */
 	if (*pnr_map < 2)
 		return -1;
+#endif
 
 	old_nr = *pnr_map;
 	BUG_ON(old_nr > max_nr_map);
@@ -1109,6 +1111,9 @@ void __init e820_reserve_resources(void)
 
 	for (i = 0; i < e820_saved.nr_map; i++) {
 		struct e820entry *entry = &e820_saved.map[i];
+#ifdef CONFIG_WRHV
+		if (entry->size > 0)
+#endif
 		firmware_map_add_early(entry->addr,
 			entry->addr + entry->size - 1,
 			e820_type_to_string(entry->type));

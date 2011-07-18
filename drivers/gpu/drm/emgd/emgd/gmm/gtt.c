@@ -36,6 +36,13 @@
 #include <asm/cacheflush.h>
 #include <linux/version.h>
 
+#if defined(CONFIG_WRHV)
+extern u64 wrhv_phys_offset;
+#define phys_offset wrhv_phys_offset
+#else
+static u64 phys_offset = 0;
+#endif
+
 #define PFX "EMGD: "
 
 #define SCR1	0x71410 /* scratch register set by vbios indicating status*/
@@ -294,7 +301,7 @@ gmm_mem_buffer_t *emgd_alloc_pages(unsigned long num_pages, int type) {
 					mem->pages[i] = mem->pages[i-1] + 1;
 				}
 			}
-			mem->physical = page_to_phys(mem->pages[0]);
+			mem->physical = page_to_phys(mem->pages[0]) + phys_offset;
 			mem->page_count = num_pages;
 		}
 	}
@@ -363,7 +370,7 @@ void emgd_gtt_insert(igd_context_t *context,
 		page = mem->pages[i];
 
 		/* Mark the page as valid */
-		pte = page_to_phys(page) | PSB_PTE_VALID;
+		pte = (page_to_phys(page) + phys_offset) | PSB_PTE_VALID;
 		writel(pte, (context->device_context.virt_gttadr + j));
 		readl(context->device_context.virt_gttadr + j);
 
@@ -407,7 +414,7 @@ void emgd_gtt_remove(igd_context_t *context,
 	mutex_lock(&gtt_sem);
 
 	page = context->device_context.scratch_page;
-	pte = page_to_phys(page) | PSB_PTE_VALID;
+	pte = (page_to_phys(page) + phys_offset) | PSB_PTE_VALID;
 
 	/* Insert the scratch page into the GTT */
 	for (i = pg_start; i < (mem->page_count + pg_start); i++) {

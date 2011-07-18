@@ -39,6 +39,13 @@
 
 #include <asm/agp.h>
 
+#if defined(CONFIG_WRHV)
+extern u64 wrhv_phys_offset;
+#define phys_offset wrhv_phys_offset
+#else
+static u64 phys_offset = 0;
+#endif
+
 #define AGP_PHYS_MEMORY 2 /* Physical contigous memory */
 
 
@@ -358,6 +365,13 @@ static int gmm_virt_to_phys(unsigned long offset,
 	while (chunk) {
 		if (chunk->offset == offset) {
 			*physical = chunk->gtt_mem->physical;
+
+			/*
+			 * below change is paired with the change to
+			 * emgd_alloc_pages in gtt.c
+			 */
+			*physical -= phys_offset;
+
 			EMGD_DEBUG("Physical address = 0x%08lx", *physical);
 			EMGD_TRACE_EXIT;
 			return 0;
@@ -818,6 +832,7 @@ static int gmm_alloc_chunk_space(gmm_context_t *gmm_context,
 	 */
 	if (chunk->gtt_mem->physical == 0x0) {
 		chunk->gtt_mem->physical = page_to_phys(chunk->gtt_mem->pages[0]);
+		chunk->gtt_mem->physical += phys_offset;
 	}
 
 	*offset = chunk->offset;
@@ -995,6 +1010,7 @@ static int gmm_get_page_list(unsigned long offset,
 	/* Populate the array with the starting addresses of the pages: */
 	for (i = 0; i < *page_cnt; i++) {
 		chunk->page_addresses[i] = page_to_phys(chunk->gtt_mem->pages[i]);
+		chunk->page_addresses[i] += phys_offset;
 	}
 
 	*pages = chunk->page_addresses;

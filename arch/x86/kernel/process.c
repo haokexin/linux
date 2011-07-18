@@ -24,6 +24,10 @@
 #include <asm/ds.h>
 #include <asm/debugreg.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
+
 unsigned long idle_halt;
 EXPORT_SYMBOL(idle_halt);
 unsigned long idle_nomwait;
@@ -478,6 +482,19 @@ static void mwait_idle(void)
 		local_irq_enable();
 }
 
+#ifdef CONFIG_WRHV
+static void wrhv_idle(void)
+{
+	if (!need_resched()) {
+		current_thread_info()->status &= ~TS_POLLING;
+		smp_mb__after_clear_bit();
+		local_irq_enable();
+		vbi_idle(1);
+		current_thread_info()->status |= TS_POLLING;
+	}
+}
+#endif
+
 /*
  * On SMP it's slightly faster (but much more power-consuming!)
  * to poll the ->work.need_resched flag instead of waiting for the
@@ -654,6 +671,11 @@ static int __init idle_setup(char *str)
 		 */
 		idle_nomwait = 1;
 		return 0;
+#ifdef CONFIG_WRHV
+	} else if (!strncmp(str, "wrhv", 5)) {
+		printk("using hypercall in idle threads\n");
+		pm_idle = wrhv_idle;
+#endif
 	} else
 		return -1;
 

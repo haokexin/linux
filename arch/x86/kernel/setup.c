@@ -107,6 +107,11 @@
 #include <asm/topology.h>
 #include <asm/apicdef.h>
 #include <asm/k8.h>
+
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#endif
+
 #ifdef CONFIG_X86_64
 #include <asm/numa_64.h>
 #endif
@@ -410,7 +415,14 @@ static void __init reserve_initrd(void)
 		return;
 	}
 
+#ifdef CONFIG_X86_32
 	relocate_initrd();
+#else
+	printk(KERN_ERR "initrd extends beyond end of memory "
+              "(0x%08llx > 0x%08llx)\ndisabling initrd\n",
+              ramdisk_end, end_of_lowmem);
+	initrd_start = 0;
+#endif
 
 	free_early(ramdisk_image, ramdisk_end);
 }
@@ -726,6 +738,10 @@ void __init setup_arch(char **cmdline_p)
 	int acpi = 0;
 	int k8 = 0;
 
+#ifdef CONFIG_WRHV
+	wrhv_boot_config();
+#endif
+
 #ifdef CONFIG_X86_32
 	memcpy(&boot_cpu_data, &new_cpu_data, sizeof(new_cpu_data));
 	visws_early_detect();
@@ -831,6 +847,10 @@ void __init setup_arch(char **cmdline_p)
 	parse_early_param();
 
 	x86_report_nx();
+
+#ifdef CONFIG_WRHV
+	wrhv_init();
+#endif
 
 	/* Must be before kernel pagetables are setup */
 	vmi_activate();
@@ -1053,6 +1073,15 @@ void __init setup_arch(char **cmdline_p)
 	x86_init.resources.reserve_resources();
 
 	e820_setup_gap();
+
+#ifdef CONFIG_WRHV
+#ifdef CONFIG_SMP
+	wrhv_calibrate_smp_cpus();
+#endif
+#ifdef CONFIG_PCI
+	wrhv_init_pci();
+#endif
+#endif
 
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)

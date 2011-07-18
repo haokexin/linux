@@ -272,6 +272,15 @@ SECTIONS
 		EXIT_DATA
 	}
 
+#if defined(CONFIG_WRHV)
+	. = ALIGN(4096);
+	.initrd : {
+		__initrd_start = .;
+		*(.initrd)
+		__initrd_end = .;
+	}
+#endif
+
 #if !defined(CONFIG_X86_64) || !defined(CONFIG_SMP)
 	PERCPU(PAGE_SIZE)
 #endif

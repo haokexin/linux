@@ -1044,6 +1044,7 @@ static int __init smp_sanity_check(unsigned max_cpus)
 	}
 	preempt_enable();
 
+#ifndef CONFIG_WRHV
 	/*
 	 * If we couldn't find a local APIC, then get out of here now!
 	 */
@@ -1059,6 +1060,7 @@ static int __init smp_sanity_check(unsigned max_cpus)
 		arch_disable_smp_support();
 		return -1;
 	}
+#endif
 
 	verify_local_APIC();
 

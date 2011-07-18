@@ -63,9 +63,15 @@ static struct sys_device device_i8237A = {
 
 static int __init i8237A_init_sysfs(void)
 {
-	int error = sysdev_class_register(&i8237_sysdev_class);
+	int error = -ENOSYS;
+
+	if (paravirt_enabled())
+		goto done;
+
+	error = sysdev_class_register(&i8237_sysdev_class);
 	if (!error)
 		error = sysdev_register(&device_i8237A);
+done:
 	return error;
 }
 device_initcall(i8237A_init_sysfs);

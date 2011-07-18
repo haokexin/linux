@@ -46,7 +46,9 @@ static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 		load_cr3(next->pgd);
 
 		/* stop flush ipis for the previous mm */
+#if !defined(CONFIG_WRHV)
 		cpumask_clear_cpu(cpu, mm_cpumask(prev));
+#endif
 
 		/*
 		 * load the LDT, if the LDT is different:

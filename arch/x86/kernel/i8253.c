@@ -194,6 +194,9 @@ static struct clocksource pit_cs = {
 
 static int __init init_pit_clocksource(void)
 {
+	if (paravirt_enabled())
+		return 0;
+
 	 /*
 	  * Several reasons not to register PIT as a clocksource:
 	  *

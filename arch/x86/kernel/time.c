@@ -22,6 +22,10 @@
 #include <asm/hpet.h>
 #include <asm/time.h>
 
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#endif
+
 #if defined(CONFIG_X86_32) && defined(CONFIG_X86_IO_APIC)
 int timer_ack;
 #endif
@@ -94,7 +98,11 @@ static struct irqaction irq0  = {
 
 void __init setup_default_timer_irq(void)
 {
+#ifdef CONFIG_WRHV
+	setup_irq(TIMER_INT_NUM, &irq0);
+#else
 	setup_irq(0, &irq0);
+#endif
 }
 
 /* Default timer init function */

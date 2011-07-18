@@ -96,7 +96,9 @@ void __init x86_64_start_kernel(char * real_mode_data)
 
 void __init x86_64_start_reservations(char *real_mode_data)
 {
+#ifndef CONFIG_WRHV /* real mode data is not provided by wrhv */
 	copy_bootdata(__va(real_mode_data));
+#endif
 
 	reserve_early(__pa_symbol(&_text), __pa_symbol(&__bss_stop), "TEXT DATA BSS");
 

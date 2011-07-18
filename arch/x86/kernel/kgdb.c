@@ -412,6 +412,15 @@ static void kgdb_disable_hw_debug(struct pt_regs *regs)
 }
 
 #ifdef CONFIG_SMP
+
+#ifdef CONFIG_WRHV
+static int kgdb_call_nmi_hook(struct pt_regs *regs)
+{
+       kgdb_nmicallback(raw_smp_processor_id(), regs);
+       return 0;
+}
+#endif
+
 /**
  *	kgdb_roundup_cpus - Get other CPUs into a holding pattern
  *	@flags: Current IRQ state
@@ -430,7 +439,13 @@ static void kgdb_disable_hw_debug(struct pt_regs *regs)
  */
 void kgdb_roundup_cpus(unsigned long flags)
 {
+#ifdef CONFIG_WRHV
+	local_irq_enable();
+	smp_call_function(kgdb_call_nmi_hook, NULL, 0);
+	local_irq_disable();
+#else
 	apic->send_IPI_allbutself(APIC_DM_NMI);
+#endif
 }
 #endif
 

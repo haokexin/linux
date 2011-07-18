@@ -103,6 +103,55 @@ int pci_claim_resource(struct pci_dev *dev, int resource)
 	}
 
 	conflict = request_resource_conflict(root, res);
+#if  defined(CONFIG_WRHV) && defined(CONFIG_X86)
+/* memory space in PCI bridge is larger than in the end devices which are
+ * under it, but only the end device memory space can be searched from vb config
+ * and then reserved from phy mem at early boot time, So there is a chance that
+ * pci bridge memory space is conflicted with unreserved phy mem, and it needs to
+ * be fixed here
+ */
+	if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
+	    dev->hdr_type == PCI_HEADER_TYPE_CARDBUS) {
+		int i = 0;
+/* the worst case is:
+|phy memory|                  |phy memory|
+------------                  ------------
+     |       pci bridge space       |
+     --------------------------------
+Which need us handle twice, and after conflict is fixed:
+|phy memory|                  |phy memory|
+------------                  ------------
+           |pci bridge space  |
+           --------------------
+ */
+		while (conflict && (i < 2)) {
+			i ++;
+/* if pci bridge mem space is totally included by phy mem,
+ * we can do nothing
+ */
+			if (conflict->start <= res->start
+			     && conflict->end >= res->end)
+				break;
+/* for the case:
+            |phy memory
+            ------------
+ |pci bridge space|
+ ------------------
+*/
+			if (conflict->start > res->start)
+				res->end = conflict->start - 1;
+/* for the case:
+ phy memory|
+------------
+       |pci bridge space|
+       ------------------
+*/
+			if (conflict->end < res->end)
+				res->start = conflict->end + 1;
+			conflict = request_resource_conflict(root, res);
+		}
+	}
+#endif
 	if (conflict) {
 		dev_err(&dev->dev,
 			"address space collision: %pR conflicts with %s %pR\n",

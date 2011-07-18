@@ -1,6 +1,8 @@
 #ifndef _ASM_X86_TRAMPOLINE_H
 #define _ASM_X86_TRAMPOLINE_H
 
+#define TRAMPOLINE_BASE 0x6000
+
 #ifndef __ASSEMBLY__
 
 #ifdef CONFIG_X86_TRAMPOLINE

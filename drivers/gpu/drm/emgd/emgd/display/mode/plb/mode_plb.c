@@ -60,6 +60,12 @@
 #include <linux/spinlock.h>
 #include <drm/drmP.h>
 
+#if defined(CONFIG_WRHV)
+extern u64 wrhv_phys_offset;
+#define phys_offset wrhv_phys_offset
+#else
+static u64 phys_offset = 0;
+#endif
 
 /* Registered VBlank interrupt callbacks (one-per-pipe): */
 static emgd_vblank_callback_t interrupt_callbacks_plb[IGD_MAX_PORTS] =
@@ -687,6 +693,9 @@ static void program_cursor_plb(igd_display_context_t *display,
 
 	WRITE_MMIO_REG(display, cursor_reg,
 		cursor_control | (PIPE(display)->pipe_num<<28));
+
+	cursor_base += phys_offset;
+
 	WRITE_MMIO_REG(display, cursor_reg + CUR_BASE_OFFSET, cursor_base);
 }
 

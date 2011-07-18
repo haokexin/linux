@@ -8,6 +8,10 @@
 #include <linux/pci.h>
 #include <linux/mm.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
+
 #include <asm/processor.h>
 #include <asm/iommu.h>
 #include <asm/dma.h>
@@ -32,6 +36,17 @@ static dma_addr_t nommu_map_page(struct device *dev, struct page *page,
 				 struct dma_attrs *attrs)
 {
 	dma_addr_t bus = page_to_phys(page) + offset;
+
+#ifdef CONFIG_WRHV
+	{
+		u64 paddr;
+		if (vbi_get_guest_dma_addr((void *)bus - offset, &paddr) == 0)
+			bus = paddr + offset;
+		else
+			return -1;
+	}
+#endif
+
 	WARN_ON(size == 0);
 	if (!check_addr("map_single", dev, bus, size))
 		return DMA_ERROR_CODE;
@@ -66,6 +81,17 @@ static int nommu_map_sg(struct device *hwdev, struct scatterlist *sg,
 	for_each_sg(sg, s, nents, i) {
 		BUG_ON(!sg_page(s));
 		s->dma_address = sg_phys(s);
+#ifdef CONFIG_WRHV
+		{
+			u64 paddr;
+			dma_addr_t addr = sg_phys(s);
+
+			if (vbi_get_guest_dma_addr((void *)addr, &paddr) == 0)
+				s->dma_address = (dma_addr_t)paddr;
+			else
+				s->dma_address = -1;
+		}
+#endif
 		if (!check_addr("map_sg", hwdev, s->dma_address, s->length))
 			return 0;
 		s->dma_length = s->length;
