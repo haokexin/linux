@@ -57,11 +57,12 @@ int32_t vbi_find_irq(char *irq_name, int32_t irq_dir)
 		if (!strncmp((char *)irq_name, (char *)info->irq_name,
 					VB_NAMELEN)) {
 			/* Found */
-			return (int32_t)info->irq_num;
+			if ((int32_t)info->irq_num < 0)
+				return VBI_INVALID_IRQ;
+			else
+				return (int32_t)info->irq_num;
 		}
 	}
 	return VBI_INVALID_IRQ; /* no match */
 }
-
-EXPORT_SYMBOL(vbi_find_irq);
 

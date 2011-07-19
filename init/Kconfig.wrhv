@@ -1,0 +1,30 @@
+config WRHV
+	bool "Wind River Hypervisor Virtualization"
+	default y
+	depends on PARAVIRT
+	help
+	  This option is provided to enable the Wind River virtualization in the
+	  Linux Kernel.
+	select SERIAL_CORE
+	select SERIAL_CORE_CONSOLE
+
+config WRHV_CERT
+	bool "Certifiable Hypervisor"
+	default n
+	depends on WRHV
+	help
+	  This options select certifiable hypervisor virtualization extensions
+	  in the Linux Kernel
+	select WRHV_COREVBI_ONLY
+
+config WRHV_COREVBI_ONLY
+	bool "Allow core VBI only"
+	default n
+	depends on WRHV
+	help
+	  Only allow use of the core virtual board interface, not the optional parts
+
+config DEBUG_VIRTUAL_IRQS
+	bool "Debug VIOAPIC with software IRQ"
+	default n
+	depends on WRHV

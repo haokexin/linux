@@ -188,6 +188,11 @@ cat << EOF
 /* revokeat has limited scope */
 #define __IGNORE_revokeat
 
+/* the WR VBI sys for the guest OS are largely uninteresting to audit */
+#define __IGNORE_vbi_mem
+#define __IGNORE_vbi_activate_vb
+#define __IGNORE_vbi_control
+
 /* sync_file_range had a stupid ABI. Allow sync_file_range2 instead */
 #ifdef __NR_sync_file_range2
 #define __IGNORE_sync_file_range

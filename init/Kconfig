@@ -23,6 +23,8 @@ config CONSTRUCTORS
 
 menu "General setup"
 
+source init/Kconfig.wrhv
+
 config EXPERIMENTAL
 	bool "Prompt for development and/or incomplete code/drivers"
 	---help---

@@ -76,7 +76,6 @@ int32_t vbi_find_shmem(int8_t *smName, void **addr,
 	*addr = 0;
 	return VBI_INVALID_SHMEM;
 }
-EXPORT_SYMBOL(vbi_find_shmem);
 
 /*
  * vbi_find_mem - locate the memory parameters for a given region
