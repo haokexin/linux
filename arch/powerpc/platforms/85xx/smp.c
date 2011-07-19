@@ -142,6 +142,8 @@ struct smp_ops_t smp_85xx_ops = {
 	.kick_cpu = smp_85xx_kick_cpu,
 #ifdef CONFIG_KEXEC
 	.kexec_stop_cpus = default_kexec_stop_cpus,
+	.give_timebase = smp_generic_give_timebase,
+	.take_timebase = smp_generic_take_timebase,
 #endif
 #if defined(CONFIG_HOTPLUG_CPU)
 	.cpu_enable = generic_cpu_enable,
