@@ -1000,6 +1000,12 @@ void free_irq(unsigned int irq, void *dev_id)
 }
 EXPORT_SYMBOL(free_irq);
 
+#if defined(CONFIG_WRHV)
+__weak struct irq_desc *wrhv_irq_to_desc(unsigned int irq)
+{
+	return NULL;
+}
+#endif
 /**
  *	request_threaded_irq - allocate an interrupt line
  *	@irq: Interrupt line to allocate
@@ -1081,8 +1087,13 @@ int request_threaded_irq(unsigned int irq, irq_handler_t handler,
 		return -EINVAL;
 
 	desc = irq_to_desc(irq);
-	if (!desc)
-		return -EINVAL;
+	if (!desc) {
+#if defined(CONFIG_WRHV)
+		desc = wrhv_irq_to_desc(irq);
+#endif
+		if (!desc)
+			return -EINVAL;
+	}
 
 	if (desc->status & IRQ_NOREQUEST)
 		return -EINVAL;

@@ -33,7 +33,11 @@ static inline int current_is_kswapd(void)
  * on 32-bit-pgoff_t architectures.  And that assumes that the architecture packs
  * the type/offset into the pte as 5/27 as well.
  */
+#if defined(CONFIG_WRHV) && defined(CONFIG_PPC32)
+#define MAX_SWAPFILES_SHIFT	2
+#else
 #define MAX_SWAPFILES_SHIFT	5
+#endif
 
 /*
  * Use some of the swap files numbers for other purposes. This

@@ -160,7 +160,6 @@ int32_t vbi_unmask_vioapic_irq(int32_t irq)
 
 	return vbi_io_apic_op(VBI_IOAPICIOCTL_UNMASK, irq, 0, 0);
 }
-EXPORT_SYMBOL(vbi_unmask_vioapic_irq);
 
 /*
  * vbi_mask_vioapic_irq - Mask an irq
@@ -252,7 +251,6 @@ int32_t vbi_send_vioapic_irq(int32_t irq, uint32_t filter, uint32_t target)
 {
 	return vbi_io_apic_op(VBI_IOAPICIOCTL_SEND, irq, filter, target);
 }
-EXPORT_SYMBOL(vbi_send_vioapic_irq);
 
 /*
  * vbi_send_vcore_vioapic_irq - Send an IRQ to a set of virtual cores within a VB
