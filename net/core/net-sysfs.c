@@ -14,7 +14,9 @@
 #include <linux/netdevice.h>
 #include <linux/if_arp.h>
 #include <linux/slab.h>
+#include <linux/nsproxy.h>
 #include <net/sock.h>
+#include <net/net_namespace.h>
 #include <linux/rtnetlink.h>
 #include <linux/wireless.h>
 #include <net/wext.h>
@@ -467,6 +469,37 @@ static struct attribute_group wireless_group = {
 };
 #endif
 
+static const void *net_current_ns(void)
+{
+       return current->nsproxy->net_ns;
+}
+
+static const void *net_initial_ns(void)
+{
+       return &init_net;
+}
+
+static const void *net_netlink_ns(struct sock *sk)
+{
+       return sock_net(sk);
+}
+
+static struct kobj_ns_type_operations net_ns_type_operations = {
+       .type = KOBJ_NS_TYPE_NET,
+       .current_ns = net_current_ns,
+       .netlink_ns = net_netlink_ns,
+       .initial_ns = net_initial_ns,
+};
+
+static void net_kobj_ns_exit(struct net *net)
+{
+       kobj_ns_exit(KOBJ_NS_TYPE_NET, net);
+}
+
+static struct pernet_operations sysfs_net_ops = {
+       .exit = net_kobj_ns_exit,
+};
+
 #endif /* CONFIG_SYSFS */
 
 #ifdef CONFIG_HOTPLUG
@@ -507,6 +540,13 @@ static void netdev_release(struct device *d)
 	kfree((char *)dev - dev->padded);
 }
 
+static const void *net_namespace(struct device *d)
+{
+	struct net_device *dev;
+	dev = container_of(d, struct net_device, dev);
+	return dev_net(dev);
+}
+
 static struct class net_class = {
 	.name = "net",
 	.dev_release = netdev_release,
@@ -516,6 +556,8 @@ static struct class net_class = {
 #ifdef CONFIG_HOTPLUG
 	.dev_uevent = netdev_uevent,
 #endif
+	.ns_type = &net_ns_type_operations,
+	.namespace = net_namespace,
 };
 
 /* Delete sysfs entries but hold kobject reference until after all
@@ -588,5 +630,9 @@ void netdev_initialize_kobject(struct net_device *net)
 
 int netdev_kobject_init(void)
 {
+	kobj_ns_type_register(&net_ns_type_operations);
+#ifdef CONFIG_SYSFS
+	register_pernet_subsys(&sysfs_net_ops);
+#endif
 	return class_register(&net_class);
 }
