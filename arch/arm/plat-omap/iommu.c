@@ -31,6 +31,11 @@ static const struct iommu_functions *arch_iommu;
 static struct platform_driver omap_iommu_driver;
 static struct kmem_cache *iopte_cachep;
 
+/* Allow iommu to be turned off via kernel boot param */
+static int off;
+module_param(off, int, 0444);
+MODULE_PARM_DESC(off, "off=1");
+
 /**
  * install_iommu_arch - Install archtecure specific iommu functions
  * @ops:	a pointer to architecture specific iommu functions
@@ -788,6 +793,9 @@ struct iommu *iommu_get(const char *name)
 	struct device *dev;
 	struct iommu *obj;
 
+	if (off)
+		return ERR_PTR(err);
+
 	dev = driver_find_device(&omap_iommu_driver.driver, NULL, (void *)name,
 				 device_match_by_alias);
 	if (!dev)
@@ -974,6 +982,9 @@ static int __init omap_iommu_init(void)
 	const unsigned long flags = SLAB_HWCACHE_ALIGN;
 	size_t align = 1 << 10; /* L2 pagetable alignement */
 
+	if (off)
+		return 0;
+
 	p = kmem_cache_create("iopte_cache", IOPTE_TABLE_SIZE, align, flags,
 			      iopte_cachep_ctor);
 	if (!p)
@@ -986,6 +997,8 @@ module_init(omap_iommu_init);
 
 static void __exit omap_iommu_exit(void)
 {
+	if (off)
+		return;
 	kmem_cache_destroy(iopte_cachep);
 
 	platform_driver_unregister(&omap_iommu_driver);
