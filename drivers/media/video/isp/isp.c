@@ -53,6 +53,11 @@ static void isp_restore_ctx(struct device *dev);
 
 static void isp_buf_init(struct device *dev);
 
+/* Allow iommu to be turned off via kernel boot param */
+static int off;
+module_param(off, int, 0444);
+MODULE_PARM_DESC(off, "off=1");
+
 #define omap_rev_is_1_0() (GET_OMAP_REVISION() == 0x00)
 
 /* List of image formats supported via OMAP ISP */
@@ -2777,6 +2782,8 @@ static struct platform_driver omap3isp_driver = {
  **/
 static int __init isp_init(void)
 {
+	if (off)
+		return 0;
 	return platform_driver_register(&omap3isp_driver);
 }
 
@@ -2785,6 +2792,8 @@ static int __init isp_init(void)
  **/
 static void __exit isp_cleanup(void)
 {
+	if (off)
+		return;
 	platform_driver_unregister(&omap3isp_driver);
 }
 
