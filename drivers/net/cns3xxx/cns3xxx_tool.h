@@ -519,6 +519,10 @@ static inline int enable_tx_dma(u8 which, u8 enable)
  */
 static inline void clear_fs_dma_state(u8 clear)
 {
+	if (clear == 0)
+		DMA_RING_CTRL_REG &= ~(1 << DMA_RING_CTRL_CLR_FS_DMA);
+	else
+		DMA_RING_CTRL_REG |= (1 << DMA_RING_CTRL_CLR_FS_DMA);
 }
 
 /* enable: 1 -> IVL

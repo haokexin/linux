@@ -443,6 +443,7 @@ static int cns3xxx_free_rx_tx_res(struct CNS3XXXPrivate *priv)
 
 	--rc_setup_rx_tx;
 	if (rc_setup_rx_tx == 0) {
+		clear_fs_dma_state(1);
 		printk(KERN_INFO "free tx/rx resource\n");
 		enable_port(3, 0); /* disable cpu port */
 
