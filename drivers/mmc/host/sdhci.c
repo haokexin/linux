@@ -174,6 +174,7 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 	if (host->quirks & SDHCI_QUIRK_RESTORE_IRQS_AFTER_RESET)
 		sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK, ier);
 
+#ifdef CONFIG_PPC
 	/* Add P4080 ESDHC9 errata workaround.
 	 * Reset value of WML register should be 0x02100210
 	 * Only need on Rev1 silicon
@@ -182,6 +183,7 @@ static void sdhci_reset(struct sdhci_host *host, u8 mask)
 	if (host->quirks & SDHCI_QUIRK_QORIQ_REG_WEIRD)
 		if ((mfspr(SPRN_SVR) & 0xff) == 0x10)
 			sdhci_writel(host, 0x02100210, ESDHC_WML);
+#endif
 
 }
 
@@ -643,6 +645,7 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_data *data)
 		count = 0xE;
 	}
 
+#ifdef CONFIG_PPC
 	/* Add p4080 ESDHC11 workaround. Only need on Rev1 silicon */
 	if (host->quirks & SDHCI_QUIRK_QORIQ_TIMEOUT_WEIRD)
 		if ((mfspr(SPRN_SVR) & 0xff) == 0x10) {
@@ -653,6 +656,7 @@ static u8 sdhci_calc_timeout(struct sdhci_host *host, struct mmc_data *data)
 			if (count == 12)
 				count = 13;
 		}
+#endif
 
 	return count;
 }
