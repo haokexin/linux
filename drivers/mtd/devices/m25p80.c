@@ -828,6 +828,7 @@ static const struct spi_device_id *__devinit jedec_probe(struct spi_device *spi)
 	return NULL;
 }
 
+#ifdef CONFIG_SPI_FSL_LIB
 /*
  * parse_flash_partition - Parse the flash partition on the SPI bus
  * @spi: Pointer to spi_device device
@@ -853,6 +854,7 @@ void parse_flash_partition(struct spi_device *spi)
 
 	return;
 }
+#endif
 
 /*
  * board specific setup should have ensured the SPI clock used here
@@ -873,8 +875,10 @@ static int __devinit m25p_probe(struct spi_device *spi)
 	 * newer chips, even if we don't recognize the particular chip.
 	 */
 
+#ifdef CONFIG_SPI_FSL_LIB
 	/* Parse the flash partition */
 	parse_flash_partition(spi);
+#endif
 
 	data = spi->dev.platform_data;
 	if (data && data->type) {
