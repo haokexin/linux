@@ -47,7 +47,11 @@
 
 #define SYS_OMAP3430_SGX_REGS_SYS_PHYS_BASE  0x50000000
 
+#if SGX_CORE_REV == 121
 #define SYS_OMAP3430_SGX_REGS_SIZE           0x4000
+#else
+#define SYS_OMAP3430_SGX_REGS_SIZE           0x10000
+#endif
 
 #define SYS_OMAP3430_SGX_IRQ				 21
 
