@@ -208,6 +208,18 @@ static struct of_device_id t23x_match[] = {
 	{
 		.compatible = "fsl,sec3.1",
 	},
+	{
+		.compatible = "fsl,sec3.0",
+	},
+	{
+		.compatible = "fsl,sec2.2",
+	},
+	{
+		.compatible = "fsl,sec2.1",
+	},
+	{
+		.compatible = "fsl,sec2.0",
+	},
 	{},
 };
 MODULE_DEVICE_TABLE(of, t23x_match);
