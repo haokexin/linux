@@ -397,8 +397,9 @@
 #define __NR_sched_setparam_ex		(__NR_SYSCALL_BASE+368)
 #define __NR_sched_getparam_ex		(__NR_SYSCALL_BASE+369)
 #define __NR_sched_wait_interval	(__NR_SYSCALL_BASE+370)
+#define __NR_setns			(__NR_SYSCALL_BASE+371)
 
-#define __NR_syscall_max 371
+#define __NR_syscall_max 372
 
 /*
  * The following SWIs are ARM private.
