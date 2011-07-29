@@ -639,10 +639,10 @@ void __init omap_serial_early_init(void)
 	int i, nr_ports;
 	char name[16];
 
-	if (!(cpu_is_omap3630() || cpu_is_omap4430()))
-		nr_ports = 3;
-	else
+	if (cpu_is_omap4430())
 		nr_ports = ARRAY_SIZE(omap_uart);
+	else
+		nr_ports = 3;
 
 	/*
 	 * Make sure the serial ports are muxed on at this point.
@@ -774,10 +774,10 @@ void __init omap_serial_init(void)
 {
 	int i, nr_ports;
 
-	if (!(cpu_is_omap3630() || cpu_is_omap4430()))
-		nr_ports = 3;
-	else
+	if (cpu_is_omap4430())
 		nr_ports = ARRAY_SIZE(omap_uart);
+	else
+		nr_ports = 3;
 
 	for (i = 0; i < nr_ports; i++)
 		omap_serial_init_port(i);
