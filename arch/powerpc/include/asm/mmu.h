@@ -69,9 +69,11 @@
 
 #ifndef __ASSEMBLY__
 #include <asm/cputable.h>
+#ifdef CONFIG_PPC_FSL_BOOK3E
 #include <asm/percpu.h>
 
 DECLARE_PER_CPU(int, next_tlbcam_idx);
+#endif
 
 static inline int mmu_has_feature(unsigned long feature)
 {
