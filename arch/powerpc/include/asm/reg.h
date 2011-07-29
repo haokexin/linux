@@ -925,9 +925,11 @@
 #define mtmsr(v)	asm volatile("mtmsr %0" : : "r" (v) : "memory")
 #endif
 
+#ifndef mfspr
 #define mfspr(rn)	({unsigned long rval; \
 			asm volatile("mfspr %0," __stringify(rn) \
 				: "=r" (rval)); rval;})
+#endif
 
 #define mtspr(rn, v)	asm volatile("mtspr " __stringify(rn) ",%0" : : "r" (v)\
 				     : "memory")

@@ -1759,6 +1759,7 @@ unsigned int wrhv_mfspr(unsigned int sprn)
 	return value;
 }
 #endif
+EXPORT_SYMBOL(wrhv_mfspr);
 
 /* arch/powerpc/kernel/traps.c */
 void __kprobes wrhv_DebugException(struct pt_regs *regs, unsigned long debug_status)
