@@ -28,6 +28,8 @@
 /* Shared Peripheral Interrupt (SHPI) */
 #define IRQ_SHPI_START		32
 
+#define IRQ_PMU_CPU0		(IRQ_SHPI_START + 6)
+#define IRQ_PMU_CPU1		(IRQ_SHPI_START + 7)
 #define IRQ_PLAY_I2S0		(IRQ_SHPI_START + 10)
 #define IRQ_REC_I2S0		(IRQ_SHPI_START + 11)
 #define IRQ_ADC			(IRQ_SHPI_START + 12)

@@ -48,6 +48,9 @@ static const int irqs[] = {
 	IRQ_PMU_MXC,
 #elif defined(CONFIG_ARCH_CNS3XXX)
 	IRQ_PMU_CNS3XXX,
+#elif defined(CONFIG_MACH_SPEAR1310)
+	IRQ_PMU_CPU0,
+	IRQ_PMU_CPU1,
 #endif
 };
 
