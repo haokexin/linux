@@ -1712,6 +1712,14 @@ unsigned int wrhv_mfspr(unsigned int sprn)
 	return value;
 }
 #else
+#define WRHV_READ_SPRN(sprn, value)		\
+do {						\
+	__asm__ __volatile__(			\
+	"mfspr	%0," __stringify(sprn)		\
+	: "=r" (value)				\
+	);					\
+} while (0)
+
 unsigned int wrhv_mfspr(unsigned int sprn)
 {
 	unsigned int value = 0;
@@ -1723,6 +1731,26 @@ unsigned int wrhv_mfspr(unsigned int sprn)
 		case SPRN_DBSR:
 			value = wr_control->vb_control_regs.dbsr;
 			break;
+
+		case SPRN_PVR:
+			value = VB_STATUS_REGS_ACCESS(wr_status, pvr);
+			break;
+
+		case SPRN_SVR:
+			value = VB_STATUS_REGS_ACCESS(wr_status, svr);
+			break;
+
+		/*
+		 * We have the read/write permission to SPEFSCR in GOS,
+		 * so we should get its value directly.
+		 */
+		case SPRN_SPEFSCR:
+			WRHV_READ_SPRN(SPRN_SPEFSCR, value);
+			break;
+
+		default:
+			panic("Unsupported read for spr 0x%x in %pF\n",
+				sprn, __builtin_return_address(0));
 	}
 
 	return value;
