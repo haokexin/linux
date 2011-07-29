@@ -201,6 +201,11 @@
 	lis	rd,wrhv_supervisor@ha;                          \
 	lwz	rd,wrhv_supervisor@l(rd)
 #endif
+#else	/* __ASSEMBLY__ */
+#ifndef CONFIG_PPC85xx_VT_MODE
+extern unsigned int wrhv_mfspr(unsigned int sprn);
+#define mfspr(rn)	wrhv_mfspr(rn)
+#endif
 #endif /* __ASSEMBLY__ */
 
 #endif /* __KERNEL__ */
