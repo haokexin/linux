@@ -3,7 +3,7 @@ menu "Frame Manager support"
 menuconfig FSL_FMAN
 	bool "Freescale Frame Manager (datapath) support"
 	# depends on PPC_E500MC
-	default y
+	default n
 	---help---
 	  If unsure, say Y.
 
