@@ -189,8 +189,8 @@ void cns3xxx_gsw_hw_init(void)
 	reg |= (1 << 21); /*enable MDIO*/
 	__raw_writel(reg, MISC_GPIOB_PIN_ENABLE_REG);
 
-	cns3xxx_pwr_clk_en(0x1 << PM_CLK_GATE_REG_OFFSET_SWITCH);
-	cns3xxx_pwr_soft_rst(0x1 << PM_CLK_GATE_REG_OFFSET_SWITCH);
+	cns3xxx_gsw_power_enable();
+	cns3xxx_gsw_software_reset();
 
 	/* RGMII0 high speed drive strength */
 	reg = __raw_readl(MISC_IO_PAD_DRIVE_STRENGTH_CTRL_A);
