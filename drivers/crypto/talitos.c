@@ -2699,7 +2699,7 @@ static int talitos_probe(struct of_device *ofdev,
 
 	priv->netcrypto_cache = kmem_cache_create("netcrypto_cache",
 						MAX_DESC_LEN, 0,
-					SLAB_HWCACHE_ALIGN, NULL);
+					SLAB_HWCACHE_ALIGN | SLAB_CACHE_DMA, NULL);
 	if (!priv->netcrypto_cache) {
 		printk(KERN_ERR "%s: failed to create block cache\n",
 				__func__);
