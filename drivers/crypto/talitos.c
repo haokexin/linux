@@ -206,7 +206,9 @@ struct talitos_edesc *crypto_edesc_alloc(int len, int flags,
 {
 	int check;
 	struct talitos_edesc *ret;
+	preempt_disable();
 	u32 smp_processor_id = smp_processor_id();
+	preempt_enable();
 	check = in_softirq();
 
 	if (!check)
@@ -231,7 +233,9 @@ void crypto_edesc_free(struct talitos_edesc *edesc,
 			struct talitos_private *priv)
 {
 	int check;
+	preempt_disable();
 	u32 smp_processor_id = smp_processor_id();
+	preempt_enable();
 	check = in_softirq();
 
 	if (!check)
@@ -431,7 +435,9 @@ static int talitos_submit(struct device *dev, struct talitos_desc *desc,
 	struct talitos_private *priv = dev_get_drvdata(dev);
 	struct talitos_request *request;
 	u8 ch;
+	preempt_disable();
 	int grp_id = get_grp_id(priv);
+	preempt_enable();
 
 	u8 head, last_chan, total_chan;
 	if (priv->core_num_chan[grp_id] > 0) {
