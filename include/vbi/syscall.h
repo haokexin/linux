@@ -145,6 +145,7 @@ extern asmlinkage int32_t vbi_vb_reset(uint32_t id, int32_t core, uint32_t optio
 
 /* standard hypervisor and safety hypervisor stub functions */
 #if !defined(CONFIG_WRHV_SAFETY_PROFILE)
+extern int32_t vbi_flush_tlb(uint32_t asid, void *addr, size_t len);
 extern asmlinkage int vbi_ctx_ctl(unsigned operation, unsigned arg1,
 				unsigned arg2);
 extern asmlinkage int32_t vbi_kputs(const char *s);

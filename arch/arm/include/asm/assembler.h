@@ -76,15 +76,28 @@
  */
 #if __LINUX_ARM_ARCH__ >= 6
 	.macro	disable_irq_notrace
+#ifndef CONFIG_WRHV
 	cpsid	i
+#else
+	cpsid	if
+#endif
 	.endm
 
 	.macro	enable_irq_notrace
+#ifndef CONFIG_WRHV
 	cpsie	i
+#else
+	cpsie	if
+#endif
 	.endm
 #else
 	.macro	disable_irq_notrace
+#ifndef CONFIG_WRHV
 	msr	cpsr_c, #PSR_I_BIT | SVC_MODE
+#else
+	msr	cpsr_c, #PSR_I_BIT | PSR_F_BIT | SVC_MODE
+#endif
+
 	.endm
 
 	.macro	enable_irq_notrace

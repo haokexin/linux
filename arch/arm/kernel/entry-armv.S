@@ -23,6 +23,10 @@
 #include <asm/unwind.h>
 #include <asm/unistd.h>
 
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#endif
+
 #include "entry-header.S"
 
 /*
@@ -176,6 +180,10 @@ __dabt_svc:
 	mrs	r9, cpsr
 	tst	r3, #PSR_I_BIT
 	biceq	r9, r9, #PSR_I_BIT
+#ifdef CONFIG_WRHV
+	tst	r3, #PSR_F_BIT
+	biceq	r9, r9, #PSR_F_BIT
+#endif
 
 	@
 	@ Call the processor-specific abort handler:
@@ -245,6 +253,43 @@ ENDPROC(__irq_svc)
 
 	.ltorg
 
+#ifdef CONFIG_WRHV
+	.align	5
+@ A clone of __irq_svc but with a different handler call out
+__fiq_svc:
+	svc_entry
+
+#ifdef CONFIG_PREEMPT
+	get_thread_info tsk
+	ldr	r8, [tsk, #TI_PREEMPT]		@ get preempt count
+	add	r7, r8, #1			@ increment it
+	str	r7, [tsk, #TI_PREEMPT]
+#endif
+	mov	r0, sp				@ pass parm *pt_regs
+	stmfd	sp!, {r7-r9, lr}
+	bl	paravirt_do_IRQ
+	ldmfd	sp!, {r7-r9, lr}
+
+#ifdef CONFIG_PREEMPT
+	str	r8, [tsk, #TI_PREEMPT]		@ restore preempt count
+	ldr	r0, [tsk, #TI_FLAGS]		@ get flags
+	teq	r8, #0				@ if preempt count != 0
+	movne	r0, #0				@ force flags to 0
+	tst	r0, #_TIF_NEED_RESCHED
+	blne	svc_preempt
+#endif
+	ldr	r4, [sp, #S_PSR]		@ irqs are already disabled
+#ifdef CONFIG_TRACE_IRQFLAGS
+	tst	r4, #PSR_I_BIT
+	bleq	trace_hardirqs_on
+#endif
+	svc_exit r4				@ return from exception
+ UNWIND(.fnend		)
+ENDPROC(__fiq_svc)
+
+	.ltorg
+#endif /* CONFIG_WRHV */
+
 #ifdef CONFIG_PREEMPT
 svc_preempt:
 	mov	r8, lr
@@ -311,7 +356,10 @@ __pabt_svc:
 	mrs	r9, cpsr
 	tst	r3, #PSR_I_BIT
 	biceq	r9, r9, #PSR_I_BIT
-
+#ifdef CONFIG_WRHV
+	tst	r3, #PSR_F_BIT
+	biceq	r9, r9, #PSR_F_BIT
+#endif
 	mov	r0, r2			@ pass address of aborted instruction.
 #ifdef MULTI_PABORT
 	ldr	r4, .LCprocfns
@@ -387,7 +435,11 @@ ENDPROC(__pabt_svc)
 	@
 	@ Enable the alignment trap while in kernel mode
 	@
+#ifndef CONFIG_WRHV
 	alignment_trap r0
+#else
+	@ Alignment is controlled by the hypervisor
+#endif
 
 	@
 	@ Clear FP to mark the first stack frame
@@ -475,6 +527,43 @@ __irq_usr:
 ENDPROC(__irq_usr)
 
 	.ltorg
+
+#ifdef CONFIG_WRHV
+	.align	5
+__fiq_usr:
+	usr_entry
+	kuser_cmpxchg_check
+
+	get_thread_info tsk
+#ifdef CONFIG_PREEMPT
+	ldr	r8, [tsk, #TI_PREEMPT]		@ get preempt count
+	add	r7, r8, #1			@ increment it
+	str	r7, [tsk, #TI_PREEMPT]
+#endif
+	mov	r0, sp				@ pass parm *pt_regs
+	stmfd	sp!, {r7-r9, lr}
+	bl	paravirt_do_IRQ
+	ldmfd	sp!, {r7-r9, lr}
+
+#ifdef CONFIG_PREEMPT
+	ldr	r0, [tsk, #TI_PREEMPT]
+	str	r8, [tsk, #TI_PREEMPT]
+	teq	r0, r7
+ ARM(	strne	r0, [r0, -r0]	)
+ THUMB(	movne	r0, #0		)
+ THUMB(	strne	r0, [r0]	)
+#endif
+#ifdef CONFIG_TRACE_IRQFLAGS
+	bl	trace_hardirqs_on
+#endif
+
+	mov	why, #0
+	b	ret_to_user
+ UNWIND(.fnend		)
+ENDPROC(__irq_usr)
+
+	.ltorg
+#endif /* CONFIG_WRHV */
 
 	.align	5
 __und_usr:
@@ -742,7 +831,11 @@ ENTRY(__switch_to)
 #if defined(CONFIG_HAS_TLS_REG)
 	mcr	p15, 0, r3, c13, c0, 3		@ set TLS register
 #elif !defined(CONFIG_TLS_REG_EMUL)
+#ifdef CONFIG_WRHV
+	ldr	r4, =CONFIG_VECTORS_BASE+0xfff
+#else
 	mov	r4, #0xffff0fff
+#endif
 	str	r3, [r4, #-15]			@ TLS val at 0xffff0ff0
 #endif
 #ifdef CONFIG_CPU_USE_DOMAINS
@@ -1013,7 +1106,14 @@ __kuser_get_tls:				@ 0xffff0fe0
 #if !defined(CONFIG_HAS_TLS_REG) && !defined(CONFIG_TLS_REG_EMUL)
 	ldr	r0, [pc, #(16 - 8)]		@ TLS stored at 0xffff0ff0
 #else
+#ifdef CONFIG_WRHV
+	/* fake an undefined instruction, and let arm_mrc_hook in
+	 * arch/arm/kernel/traps.c handle it
+	 */
+	.word	FAKE_READ_TLS_REG_UNDEF_INSTR
+#else
 	mrc	p15, 0, r0, c13, c0, 3		@ read TLS register
+#endif
 #endif
 	usr_ret	lr
 
@@ -1094,6 +1194,56 @@ ENDPROC(vector_\name)
 1:
 	.endm
 
+#ifdef CONFIG_WRHV
+	.macro	wrhv_vector_abt_stub, name, mode, correction=0
+	.align	5
+
+vector_\name:
+
+	@
+	@ Save r0, lr_<exception> (parent PC) and spsr_<exception>
+	@ (parent CPSR)
+	@
+	str	r0, [sp, #0]
+	ldr	r0, LCstatptr		@ keep this var close as we can't
+					@ afford another trap here
+	ldr	r0, [r0, #STAT_SPACE_ABT_LR]
+	.if \correction
+	sub	r0, r0, #\correction
+	.endif
+	str	r0, [sp, #4]		@ save corrected lr
+
+	@
+	@ Prepare for SVC32 mode.  IRQs remain disabled.
+	@
+	mrs	r0, cpsr
+	eor	r0, r0, #(\mode ^ SVC_MODE | PSR_ISETSTATE)
+	msr	spsr_cxsf, r0
+
+	@ Save spsr
+	ldr	r0, LCstatptr
+	ldr	r0, [r0, #STAT_SPACE_ABT_SPSR]
+	str	r0, [sp, #8]		@ save spsr
+
+	@
+	@ the branch table must immediately follow this code
+	@
+	@ be careful how lr is used here, as a data or prefetch vtlb miss
+	@ in the hypervisor may trample it
+	and	lr, r0, #0x0f
+	mov	r0, sp
+ THUMB(	adr	r0, 1f			)
+ THUMB(	ldr	lr, [r0, lr, lsl #2]	)
+ ARM(	ldr	lr, [pc, lr, lsl #2]	)
+	movs	pc, lr			@ branch to handler in SVC mode
+ENDPROC(vector_\name)
+
+	.align	2
+	@ handler addresses follow this label
+1:
+	.endm
+#endif
+
 	.globl	__stubs_start
 __stubs_start:
 /*
@@ -1118,11 +1268,39 @@ __stubs_start:
 	.long	__irq_invalid			@  e
 	.long	__irq_invalid			@  f
 
+#ifdef CONFIG_WRHV
+/*
+ * FIQ Interrupt dispatcher
+ */
+	vector_stub	fiq, FIQ_MODE, 4
+
+	.long	__fiq_usr			@  0  (USR_26 / USR_32)
+	.long	__irq_invalid			@  1  (FIQ_26 / FIQ_32)
+	.long	__irq_invalid			@  1  (IRQ_26 / IRQ_32)
+	.long	__fiq_svc			@  3  (SVC_26 / SVC_32)
+	.long	__irq_invalid			@  4
+	.long	__irq_invalid			@  5
+	.long	__irq_invalid			@  6
+	.long	__irq_invalid			@  7
+	.long	__irq_invalid			@  8
+	.long	__irq_invalid			@  9
+	.long	__irq_invalid			@  a
+	.long	__irq_invalid			@  b
+	.long	__irq_invalid			@  c
+	.long	__irq_invalid			@  d
+	.long	__irq_invalid			@  e
+	.long	__irq_invalid			@  f
+#endif
+
 /*
  * Data abort dispatcher
  * Enter in ABT mode, spsr = USR CPSR, lr = USR PC
  */
-	vector_stub	dabt, ABT_MODE, 8
+#ifdef CONFIG_WRHV
+	wrhv_vector_abt_stub	dabt, ABT_MODE, 8
+#else
+	vector_stub		dabt, ABT_MODE, 8
+#endif
 
 	.long	__dabt_usr			@  0  (USR_26 / USR_32)
 	.long	__dabt_invalid			@  1  (FIQ_26 / FIQ_32)
@@ -1145,7 +1323,11 @@ __stubs_start:
  * Prefetch abort dispatcher
  * Enter in ABT mode, spsr = USR CPSR, lr = USR PC
  */
-	vector_stub	pabt, ABT_MODE, 4
+#ifdef CONFIG_WRHV
+	wrhv_vector_abt_stub	pabt, ABT_MODE, 4
+#else
+	vector_stub		pabt, ABT_MODE, 4
+#endif
 
 	.long	__pabt_usr			@  0 (USR_26 / USR_32)
 	.long	__pabt_invalid			@  1 (FIQ_26 / FIQ_32)
@@ -1189,6 +1371,7 @@ __stubs_start:
 
 	.align	5
 
+#ifndef CONFIG_WRHV
 /*=============================================================================
  * Undefined FIQs
  *-----------------------------------------------------------------------------
@@ -1202,6 +1385,7 @@ __stubs_start:
 vector_fiq:
 	disable_fiq
 	subs	pc, lr, #4
+#endif /* WRHV */
 
 /*=============================================================================
  * Address exception handler
@@ -1221,6 +1405,12 @@ vector_addrexcptn:
 
 .LCvswi:
 	.word	vector_swi
+
+#ifdef CONFIG_WRHV
+	.globl	LCstatptr
+LCstatptr:
+	.word	0x00000000	@ to be filled in from wr_status content
+#endif
 
 	.globl	__stubs_end
 __stubs_end:

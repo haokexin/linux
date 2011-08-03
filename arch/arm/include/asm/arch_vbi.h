@@ -25,6 +25,14 @@
 
 #define __VBI_BYTE_ORDER __VBI_LITTLE_ENDIAN
 
+#define	VBI_MAX_CORES			    8
+
+/* exception defines */
+
+#define ARCH_MAX_INTERRUPT		    32
+#define VBI_ARCH_EXC_TABLE_SIZE		    32
+#define VBI_ARCH_IRQ_TABLE_SIZE		    256
+
 /* VIOAPIC number of entries */
 
 #define VB_VIOAPIC_ENTRIES_SIZE		    64 
@@ -295,6 +303,8 @@ typedef struct
 	uint32_t   status;			/* request completion status */
 	uint32_t   dataVal;
 } VBI_BSP_MSG_REPLY;
+
+extern int32_t vbi_load_ctx(void);
 
 #else /*_ASMLANGUAGE */
 

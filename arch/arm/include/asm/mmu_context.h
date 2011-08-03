@@ -20,6 +20,10 @@
 #include <asm/proc-fns.h>
 #include <asm-generic/mm_hooks.h>
 
+#ifdef CONFIG_SMP
+DECLARE_PER_CPU(struct mm_struct *, current_mm);
+#endif
+
 void __check_kvm_seq(struct mm_struct *mm);
 
 #ifdef CONFIG_CPU_HAS_ASID
@@ -43,10 +47,6 @@ void __check_kvm_seq(struct mm_struct *mm);
 #define ASID_FIRST_VERSION	(1 << ASID_BITS)
 
 extern unsigned int cpu_last_asid;
-#ifdef CONFIG_SMP
-DECLARE_PER_CPU(struct mm_struct *, current_mm);
-#endif
-
 void __init_new_context(struct task_struct *tsk, struct mm_struct *mm);
 void __new_context(struct mm_struct *mm);
 

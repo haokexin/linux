@@ -19,6 +19,13 @@
 #include <asm/procinfo.h>
 #include <linux/kbuild.h>
 
+#ifdef CONFIG_WRHV
+#include <vbi/types.h>
+#include <asm/arch_vbi.h>
+#include <vbi/interface.h>
+#include <vbi/vmmu.h>
+#endif
+
 /*
  * Make sure that the compiler and target are compatible.
  */
@@ -117,5 +124,26 @@ int main(void)
   DEFINE(DMA_BIDIRECTIONAL,	DMA_BIDIRECTIONAL);
   DEFINE(DMA_TO_DEVICE,		DMA_TO_DEVICE);
   DEFINE(DMA_FROM_DEVICE,	DMA_FROM_DEVICE);
+#ifdef CONFIG_WRHV
+  DEFINE(MM_VMMU_HANDLE,	offsetof(struct mm_struct,
+					context.vmmu_handle));
+  DEFINE(CTRL_SPACE_ASID,	offsetof(struct vb_arch_ctrl_regs, asid));
+  DEFINE(CTRL_SPACE_VMMUHANDLE,	offsetof(struct vb_arch_ctrl_regs,
+					vmmu_handle));
+  DEFINE(STAT_SPACE_IFAR,	offsetof(struct vb_arch_stat_regs, ifar));
+  DEFINE(STAT_SPACE_IFSR,	offsetof(struct vb_arch_stat_regs, ifsr));
+  DEFINE(STAT_SPACE_DFAR,	offsetof(struct vb_arch_stat_regs, dfar));
+  DEFINE(STAT_SPACE_DFSR,	offsetof(struct vb_arch_stat_regs, dfsr));
+  DEFINE(STAT_SPACE_ABT_LR,	offsetof(struct vb_arch_stat_regs,
+					modeSpecificReg[ABT_MODE & 0xf].lr));
+  DEFINE(STAT_SPACE_ABT_SPSR,	offsetof(struct vb_arch_stat_regs,
+					modeSpecificReg[ABT_MODE & 0xf].spsr));
+  DEFINE(CTRL_SPACE_PTR,	offsetof(struct vb_config, vb_control));
+  DEFINE(WRHV_COREID,		offsetof(struct vb_config, coreId));
+  DEFINE(VMMU_CFG_ADDR,		offsetof(VMMU_CONFIG, addr));
+  DEFINE(VMMU_CFG_FLUSH_TYPE,	offsetof(VMMU_CONFIG, flush_type));
+  DEFINE(VMMU_CFG_ASID,		offsetof(VMMU_CONFIG, asid));
+  DEFINE(VMMU_CFG_VMMU_HANDLE,	offsetof(VMMU_CONFIG, vmmu_handle));
+#endif
   return 0; 
 }

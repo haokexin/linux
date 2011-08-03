@@ -259,11 +259,13 @@
 
 #include <asm/memory.h>
 
+extern pgd_t *paravirt_cpu_get_pgd(void);
+
 #ifdef CONFIG_MMU
 
 #define cpu_switch_mm(pgd,mm) cpu_do_switch_mm(virt_to_phys(pgd),mm)
 
-#define cpu_get_pgd()	\
+#define native_cpu_get_pgd()	\
 	({						\
 		unsigned long pg;			\
 		__asm__("mrc	p15, 0, %0, c2, c0, 0"	\
@@ -271,6 +273,15 @@
 		pg &= ~0x3fff;				\
 		(pgd_t *)phys_to_virt(pg);		\
 	})
+
+static inline pgd_t *cpu_get_pgd(void)
+{
+#ifdef CONFIG_PARAVIRT
+	return paravirt_cpu_get_pgd();
+#else
+	return native_cpu_get_pgd();
+#endif
+}
 
 #endif
 

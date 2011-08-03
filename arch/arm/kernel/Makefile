@@ -2,7 +2,7 @@
 # Makefile for the linux kernel.
 #
 
-CPPFLAGS_vmlinux.lds := -DTEXT_OFFSET=$(TEXT_OFFSET)
+CPPFLAGS_vmlinux$(lds-filename-suffix).lds := -DTEXT_OFFSET=$(TEXT_OFFSET)
 AFLAGS_head.o        := -DTEXT_OFFSET=$(TEXT_OFFSET)
 
 ifdef CONFIG_DYNAMIC_FTRACE
@@ -17,6 +17,8 @@ obj-y		:= compat.o elf.o entry-armv.o entry-common.o irq.o \
 		   process.o ptrace.o return_address.o setup.o signal.o \
 		   sys_arm.o stacktrace.o time.o traps.o
 
+obj-$(CONFIG_WRHV)		+= vbi/
+obj-$(CONFIG_PARAVIRT)		+= paravirt.o
 obj-$(CONFIG_LEDS)		+= leds.o
 obj-$(CONFIG_OC_ETM)		+= etm.o
 
@@ -60,7 +62,7 @@ head-y			:= head$(MMUEXT).o
 obj-$(CONFIG_DEBUG_LL)	+= debug.o
 obj-$(CONFIG_EARLY_PRINTK)	+= early_printk.o
 
-extra-y := $(head-y) init_task.o vmlinux.lds
+extra-y := $(head-y) init_task.o vmlinux$(lds-filename-suffix).lds
 
 obj-$(CONFIG_AUDIT)		+= audit.o
 compat-obj-$(CONFIG_AUDIT)	+= compat_audit.o

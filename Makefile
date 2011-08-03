@@ -523,6 +523,13 @@ else
 include/config/auto.conf: ;
 endif # $(dot-config)
 
+# Additional ARCH settings for arm
+ifeq ($(ARCH),arm)
+ifdef CONFIG_WRHV
+       export lds-filename-suffix := -wrhv
+endif
+endif
+
 # The all: target is the default when no target is given on the
 # command line.
 # This allow a user to issue only 'make' to build a kernel including modules
@@ -710,7 +717,7 @@ libs-y		:= $(libs-y1) $(libs-y2)
 vmlinux-init := $(head-y) $(init-y)
 vmlinux-main := $(core-y) $(libs-y) $(drivers-y) $(net-y)
 vmlinux-all  := $(vmlinux-init) $(vmlinux-main)
-vmlinux-lds  := arch/$(SRCARCH)/kernel/vmlinux.lds
+vmlinux-lds  := arch/$(SRCARCH)/kernel/vmlinux$(lds-filename-suffix).lds
 export KBUILD_VMLINUX_OBJS := $(vmlinux-all)
 
 # Rule to link vmlinux - also used during CONFIG_KALLSYMS

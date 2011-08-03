@@ -39,9 +39,15 @@
 /*
  * mmid - get context id from mm pointer (mm->context.id)
  */
+#ifdef CONFIG_CPU_HAS_ASID
 	.macro	mmid, rd, rn
 	ldr	\rd, [\rn, #MM_CONTEXT_ID]
 	.endm
+#else
+	.macro	mmid, rd, rn
+	mov	\rd, #0
+	.endm
+#endif
 
 /*
  * mask_asid - mask the ASID from the context ID

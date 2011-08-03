@@ -107,7 +107,11 @@ ENDPROC(cpu_v7_dcache_clean_area)
 ENTRY(cpu_v7_switch_mm)
 #ifdef CONFIG_MMU
 	mov	r2, #0
+#ifdef CONFIG_CPU_HAS_ASID
 	ldr	r1, [r1, #MM_CONTEXT_ID]	@ get mm->context.id
+#else
+	mov	r1, #0
+#endif
 	orr	r0, r0, #TTB_FLAGS
 #ifdef CONFIG_ARM_ERRATA_430973
 	mcr	p15, 0, r2, c7, c5, 6		@ flush BTAC/BTB
@@ -193,6 +197,13 @@ cpu_v7_name:
  *	- cache type register is implemented
  */
 __v7_setup:
+#ifdef CONFIG_WRHV
+	@ The hypervisor controls most of processor initialization, so not
+	@ much to do here.
+	@ This routine needs the control register content returned.
+	mrc	p15, 0, r0, c1, c0, 0		@ read control register
+	mov	pc, lr				@ return to head.S:__ret
+#endif
 #ifdef CONFIG_SMP
 	mrc	p15, 0, r0, c1, c0, 1
 	tst	r0, #(1 << 6)			@ SMP/nAMP mode enabled?

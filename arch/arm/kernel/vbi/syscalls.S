@@ -530,7 +530,7 @@ FUNC_END(vbiVbMgmt)
 *
 */
 
-FUNC_LABEL(vbiKputs)
+FUNC_LABEL(vbi_kputs)
         /*
          * r0 - char * s
          */
@@ -539,7 +539,7 @@ FUNC_LABEL(vbiKputs)
         HCALL
         RESTOREREGS
         mov     pc, lr
-FUNC_END(vbiKputs)
+FUNC_END(vbi_kputs)
 
 /******************************************************************************
 *
@@ -1035,7 +1035,7 @@ FUNC_LABEL(vbi_flush_tlb)
         SAVEREGS
         ldr     r8, =VBI_SYS_tlb_flush
         HCALL
-	INVALIDATE_CURR_ASID(r8)
+        TLBIALL(r0)
         RESTOREREGS
         mov     pc, lr
 FUNC_END(vbi_flush_tlb)
@@ -1341,7 +1341,7 @@ FUNC_END(vbi_create_vmmu)
 *
 * vbi_delete_vmmu - delete the virtual MMU handle
 *
-* This system call enables a context's virtual MMU.
+* This system call deletes a context's virtual MMU.
 *
 */
 
@@ -1374,6 +1374,9 @@ FUNC_LABEL(vbi_tlb_load_vmmu)
         SAVEREGS
         ldr     r8, =VBI_SYS_vmmu_tlbload
         HCALL
+
+        INVALIDATE_CURR_ASID(r8)
+
         RESTOREREGS
         mov     pc, lr
 FUNC_END(vbi_tlb_load_vmmu)
@@ -1396,6 +1399,9 @@ FUNC_LABEL(vbi_tlb_flush_vmmu)
         SAVEREGS
         ldr     r8, =VBI_SYS_vmmu_tlbflush
         HCALL
+
+        INVALIDATE_CURR_ASID(r8)
+
         RESTOREREGS
         mov     pc, lr
 FUNC_END(vbi_tlb_flush_vmmu)

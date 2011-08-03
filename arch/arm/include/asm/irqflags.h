@@ -10,6 +10,24 @@
  */
 #if __LINUX_ARM_ARCH__ >= 6
 
+#ifdef CONFIG_WRHV
+/* Fiq interrupts are used in wrhv for indirect interrupt delivery.
+ * Treat fiqs the same as regular direct interrupts with respect to
+ * enable/disable.
+ */
+#define raw_local_irq_save(x)					\
+	({							\
+	__asm__ __volatile__(					\
+	"mrs	%0, cpsr		@ local_irq_save\n"	\
+	"cpsid	if"						\
+	: "=r" (x) : : "memory", "cc");				\
+	})
+
+#define raw_local_irq_enable()  __asm__("cpsie if @ __sti" : : : "memory", "cc")
+#define raw_local_irq_disable() __asm__("cpsid if @ __cli" : : : "memory", "cc")
+#define local_fiq_enable()
+#define local_fiq_disable()
+#else
 #define raw_local_irq_save(x)					\
 	({							\
 	__asm__ __volatile__(					\
@@ -22,6 +40,7 @@
 #define raw_local_irq_disable() __asm__("cpsid i	@ __cli" : : : "memory", "cc")
 #define local_fiq_enable()  __asm__("cpsie f	@ __stf" : : : "memory", "cc")
 #define local_fiq_disable() __asm__("cpsid f	@ __clf" : : : "memory", "cc")
+#endif /* WRHV */
 
 #else
 
