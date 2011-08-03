@@ -1013,12 +1013,24 @@ int do_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	int ret;
 
+#ifdef CONFIG_OPTIMIZE_SD_PERFORMANCE
+	/* no need to write device if the operation is not used to format device */
+	if (imajor(mapping->host) &&
+			(wbc->sync_mode == WB_SYNC_NONE) &&
+			!mapping->host->used_for_format)
+		return 0;
+#endif
 	if (wbc->nr_to_write <= 0)
 		return 0;
 	if (mapping->a_ops->writepages)
 		ret = mapping->a_ops->writepages(mapping, wbc);
 	else
 		ret = generic_writepages(mapping, wbc);
+#ifdef CONFIG_OPTIMIZE_SD_PERFORMANCE
+	/* recover initial state of this inode */
+	if (mapping->host->used_for_format && (wbc->sync_mode == WB_SYNC_ALL))
+		mapping->host->used_for_format = 0;
+#endif
 	return ret;
 }
 
