@@ -184,6 +184,10 @@ static void sdhci_init(struct sdhci_host *host, int soft)
 	else
 		sdhci_reset(host, SDHCI_RESET_ALL);
 
+	/* Enable cache snooping, if DMA is not broken */
+	if (!(host->quirks & SDHCI_QUIRK_BROKEN_DMA))
+		sdhci_writel(host, SDHCI_CACHE_SNOOP, SDHCI_HOST_DMA_CONTROL);
+
 	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK,
 		SDHCI_INT_BUS_POWER | SDHCI_INT_DATA_END_BIT |
 		SDHCI_INT_DATA_CRC | SDHCI_INT_DATA_TIMEOUT | SDHCI_INT_INDEX |

@@ -188,6 +188,10 @@
 #define   SDHCI_SPEC_100	0
 #define   SDHCI_SPEC_200	1
 
+/* 40C DMA control register */
+#define SDHCI_HOST_DMA_CONTROL	0x40C
+#define SDHCI_CACHE_SNOOP	0x40
+
 struct sdhci_ops;
 
 struct sdhci_host {
