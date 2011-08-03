@@ -531,7 +531,7 @@ static inline void hook_usdpaa_tlb1(struct vm_area_struct *vma,
 		flush_tlb_mm(vma->vm_mm);
 		settlbcam(usdpaa_tlbcam_index, va,
 			usdpaa_phys_start, usdpaa_phys_size,
-			pte_val(*ptep), mfspr(SPRN_PID));
+			pte_val(*ptep) | _PAGE_USER, mfspr(SPRN_PID));
 	}
 }
 #else
