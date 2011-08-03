@@ -791,6 +791,9 @@ struct inode {
 	struct posix_acl	*i_default_acl;
 #endif
 	void			*i_private; /* fs or device private pointer */
+#ifdef CONFIG_OPTIMIZE_SD_PERFORMANCE
+	unsigned int            used_for_format;/* usage of the inode */
+#endif
 };
 
 /*
