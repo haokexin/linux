@@ -31,6 +31,10 @@
 
 #include "mm.h"
 
+#ifdef CONFIG_WRHV
+#include <vbi/interface.h>
+#endif
+
 DEFINE_PER_CPU(struct mmu_gather, mmu_gathers);
 
 /*
@@ -923,6 +927,92 @@ void __init reserve_node_zero(pg_data_t *pgdat)
 				BOOTMEM_DEFAULT);
 }
 
+#ifdef CONFIG_WRHV
+extern struct vb_config *wr_config;
+
+void __init wrhv_mapping(void)
+{
+	/*
+	 * Chicken and egg problem.  We need the config region to be
+	 * mapped in, just to see what we should map in.
+	 * Note also that the mapping will look like a cacheable device.
+	 */
+
+	uint32_t index, i;
+	unsigned long addr;
+	unsigned long end, pfn;
+	pmd_t *pmd;
+	struct config_page_map *pConfigPageMap;
+	pte_t *pte, *pte_start;
+
+	addr = (unsigned long)wr_config;
+	pmd = pmd_offset(pgd_offset_k(addr), addr);
+	alloc_init_pte(pmd, addr, addr + PAGE_SIZE, __phys_to_pfn(addr),
+		&mem_types[MT_DEVICE_CACHED]);
+	local_flush_tlb_all();
+	flush_cache_all();
+
+	/* In theory, we can now read config space.  Set up the rest. */
+	pConfigPageMap = &wr_config->configPageMap[0];
+	index = wr_config->configPageNum;
+	/* The zeroth would be the config page we just mapped so skip it */
+	for (i = 1; i < index; i++) {
+		addr = (unsigned long)pConfigPageMap[i].address;
+		pmd = pmd_offset(pgd_offset_k(addr), addr);
+		alloc_init_pte(pmd, addr, addr + PAGE_SIZE, __phys_to_pfn(addr),
+			&mem_types[MT_DEVICE_CACHED]);
+	}
+
+	/* Our architecture here relies upon our vector table being
+	 * placed right at the start of kernel space.  If you want to change
+	 * this for whatever reason, you'll have to work out your system
+	 * memory mappings carefully.
+	 */
+
+	if (CONFIG_PAGE_OFFSET != CONFIG_VECTORS_BASE) {
+		BUG();
+		/* no sense in continuing */
+		return;
+	}
+
+	/* Map in the first chunk of kernel space using conventional ptes
+	 * instead of just using a single l1 entry as is there already.
+	 */
+
+	pte = alloc_bootmem_low_pages(2 * PTRS_PER_PTE * sizeof(pte_t));
+	pte_start = pte;
+	addr = CONFIG_PAGE_OFFSET;
+	end = addr + PMD_SIZE;
+	pmd = pmd_offset(pgd_offset_k(addr), addr);
+	pfn = __phys_to_pfn(addr);
+
+	/* The first entry is our vector table, map it as user accessible.
+	 * Why?  Because the kernel user helper code resides at the far end
+	 * of it.  The hypervisor bounces code prefetches to 0xffff0fxx in
+	 * user mode to the same offset inside our vector table.
+	 */
+
+	set_pte_ext(pte, pfn_pte(pfn, PAGE_KERNEL_EXEC | L_PTE_MT_WRITEALLOC
+					| L_PTE_USER), 0);
+	pfn++;
+
+	/* Fill in the rest of the table */
+	while (pte++, addr += PAGE_SIZE, addr != end) {
+		set_pte_ext(pte, pfn_pte(pfn, PAGE_KERNEL_EXEC |
+						L_PTE_MT_WRITEALLOC), 0);
+		pfn++;
+	};
+
+	/* Overwrite the l1 entry in our live mm with an entry which references
+	 * the table we just built.
+	 */
+
+	pmd_populate_kernel(&init_mm, pmd, pte_start);
+	local_flush_tlb_all();
+	flush_cache_all();
+}
+#endif /* WRHV */
+
 /*
  * Set up device the mappings.  Since we clear out the page tables for all
  * mappings above VMALLOC_END, we will remove any debug device mappings.
@@ -932,7 +1022,9 @@ void __init reserve_node_zero(pg_data_t *pgdat)
  */
 static void __init devicemaps_init(struct machine_desc *mdesc)
 {
+#ifndef CONFIG_WRHV
 	struct map_desc map;
+#endif
 	unsigned long addr;
 
 	/*
@@ -973,6 +1065,7 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 	create_mapping(&map);
 #endif
 
+#ifndef CONFIG_WRHV
 	/*
 	 * Create a mapping for the machine vectors at the high-vectors
 	 * location (0xffff0000).  If we aren't using high-vectors, also
@@ -989,6 +1082,9 @@ static void __init devicemaps_init(struct machine_desc *mdesc)
 		map.type = MT_LOW_VECTORS;
 		create_mapping(&map);
 	}
+#else
+	wrhv_mapping();
+#endif
 
 	/*
 	 * Ask the machine support to map in the statically mapped devices.

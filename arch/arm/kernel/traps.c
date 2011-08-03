@@ -32,6 +32,10 @@
 #include <asm/traps.h>
 #include <asm/unwind.h>
 
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#endif
+
 #include "ptrace.h"
 #include "signal.h"
 
@@ -539,7 +543,11 @@ asmlinkage int arm_syscall(int no, struct pt_regs *regs)
 		 * The user helper at 0xffff0fe0 must be used instead.
 		 * (see entry-armv.S for details)
 		 */
+#ifdef CONFIG_WRHV
+		*((unsigned int *)(CONFIG_VECTORS_BASE + 0xff0)) = regs->ARM_r0;
+#else
 		*((unsigned int *)0xffff0ff0) = regs->ARM_r0;
+#endif
 #endif
 		return 0;
 
@@ -650,8 +658,13 @@ static int get_tp_trap(struct pt_regs *regs, unsigned int instr)
 }
 
 static struct undef_hook arm_mrc_hook = {
+#ifdef CONFIG_WRHV
+	.instr_mask	= 0xffffffff,
+	.instr_val	= FAKE_READ_TLS_REG_UNDEF_INSTR,
+#else
 	.instr_mask	= 0x0fff0fff,
 	.instr_val	= 0x0e1d0f70,
+#endif
 	.cpsr_mask	= PSR_T_BIT,
 	.cpsr_val	= 0,
 	.fn		= get_tp_trap,
@@ -757,7 +770,7 @@ void __init trap_init(void)
 
 void __init early_trap_init(void)
 {
-#if defined(CONFIG_CPU_USE_DOMAINS)
+#if defined(CONFIG_CPU_USE_DOMAINS) || defined(CONFIG_WRHV)
 	unsigned long vectors = CONFIG_VECTORS_BASE;
 #else
 	unsigned long vectors = (unsigned long)vectors_page;

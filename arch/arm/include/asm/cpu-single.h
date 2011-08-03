@@ -22,13 +22,49 @@
  * function pointers for this lot.  Otherwise, we can optimise the
  * table away.
  */
-#define cpu_proc_init			__cpu_fn(CPU_NAME,_proc_init)
-#define cpu_proc_fin			__cpu_fn(CPU_NAME,_proc_fin)
-#define cpu_reset			__cpu_fn(CPU_NAME,_reset)
-#define cpu_do_idle			__cpu_fn(CPU_NAME,_do_idle)
-#define cpu_dcache_clean_area		__cpu_fn(CPU_NAME,_dcache_clean_area)
-#define cpu_do_switch_mm		__cpu_fn(CPU_NAME,_switch_mm)
-#define cpu_set_pte_ext			__cpu_fn(CPU_NAME,_set_pte_ext)
+#define cpu_proc_init			__cpu_fn(CPU_NAME, _proc_init)
+#define cpu_proc_fin			__cpu_fn(CPU_NAME, _proc_fin)
+#define cpu_reset			__cpu_fn(CPU_NAME, _reset)
+#define native_cpu_do_idle		__cpu_fn(CPU_NAME, _do_idle)
+#define cpu_dcache_clean_area		__cpu_fn(CPU_NAME, _dcache_clean_area)
+#define native_cpu_do_switch_mm		__cpu_fn(CPU_NAME, _switch_mm)
+#define native_cpu_set_pte_ext		__cpu_fn(CPU_NAME, _set_pte_ext)
+
+extern void native_cpu_do_idle(void);
+extern void native_cpu_do_switch_mm(unsigned long pgd_phys,
+				struct mm_struct *mm);
+extern void native_cpu_set_pte_ext(pte_t *ptep, pte_t pte, unsigned int ext);
+extern void paravirt_do_idle(void);
+extern void paravirt_do_switch_mm(unsigned long pgd_phys, struct mm_struct *mm);
+extern void paravirt_set_pte_ext(pte_t *ptep, pte_t pte, unsigned int ext);
+
+static inline void cpu_do_idle(void)
+{
+#ifdef CONFIG_PARAVIRT
+	paravirt_do_idle();
+#else
+	native_cpu_do_idle();
+#endif
+}
+
+static inline void cpu_do_switch_mm(unsigned long pgd_phys,
+				struct mm_struct *mm)
+{
+#ifdef CONFIG_PARAVIRT
+	paravirt_do_switch_mm(pgd_phys, mm);
+#else
+	native_cpu_do_switch_mm(pgd_phys, mm);
+#endif
+}
+
+static inline void cpu_set_pte_ext(pte_t *ptep, pte_t pte, unsigned int ext)
+{
+#ifdef CONFIG_PARAVIRT
+	paravirt_set_pte_ext(ptep, pte, ext);
+#else
+	native_cpu_set_pte_ext(ptep, pte, ext);
+#endif
+}
 
 #include <asm/page.h>
 
@@ -37,8 +73,5 @@ struct mm_struct;
 /* declare all the functions as extern */
 extern void cpu_proc_init(void);
 extern void cpu_proc_fin(void);
-extern int cpu_do_idle(void);
 extern void cpu_dcache_clean_area(void *, int);
-extern void cpu_do_switch_mm(unsigned long pgd_phys, struct mm_struct *mm);
-extern void cpu_set_pte_ext(pte_t *ptep, pte_t pte, unsigned int ext);
 extern void cpu_reset(unsigned long addr) __attribute__((noreturn));

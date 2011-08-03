@@ -185,11 +185,46 @@ config ARM_L1_CACHE_SHIFT_6
 
 config VECTORS_BASE
 	hex
+	default 0xc0000000 if WRHV
 	default 0xffff0000 if MMU || CPU_HIGH_VECTOR
 	default DRAM_BASE if REMAP_VECTORS_TO_RAM
 	default 0x00000000
 	help
 	  The base address of exception vectors.
+
+menuconfig VIRTUALIZATION
+	bool "Virtualization"
+	---help---
+	  Say Y here to get to see options for enabling the kernel
+	  to run as a virtual machine (guest).
+	  This option alone does not add any kernel code.
+
+	  If you say N, all options in this submenu will be skipped and
+	  disabled.
+
+if VIRTUALIZATION
+
+config PARAVIRT
+        bool "Enable paravirtualization code"
+        default y
+        help
+          This changes the kernel so it can modify itself when it is run
+          under a hypervisor, potentially improving performance significantly
+          over full virtualization.  However, when run without a hypervisor
+          the kernel is theoretically slower and slightly larger.
+
+config PARAVIRT_CLOCK
+        bool
+        default n
+
+config PARAVIRT_DEBUG
+       bool "paravirt-ops debugging"
+       depends on PARAVIRT && DEBUG_KERNEL
+       help
+         Enable to debug paravirt_ops internals.  Specifically, BUG if
+         a paravirt_op is missing when it is called.
+
+endif # VIRTUALIZATION
 
 source "init/Kconfig"
 

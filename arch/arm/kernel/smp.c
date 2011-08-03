@@ -39,6 +39,8 @@
 #include <asm/localtimer.h>
 #include <asm/smp_plat.h>
 
+extern void paravirt_percpu_timer_setup(void);
+
 /*
  * as from 2.5, kernels no longer have an init_tasks structure
  * so we need some other way of telling a new secondary core
@@ -72,8 +74,10 @@ int __cpuinit __cpu_up(unsigned int cpu)
 {
 	struct cpuinfo_arm *ci = &per_cpu(cpu_data, cpu);
 	struct task_struct *idle = ci->idle;
+#ifndef CONFIG_WRHV
 	pgd_t *pgd;
 	pmd_t *pmd;
+#endif
 	int ret;
 
 	/*
@@ -95,6 +99,7 @@ int __cpuinit __cpu_up(unsigned int cpu)
 		init_idle(idle, cpu);
 	}
 
+#ifndef CONFIG_WRHV
 	/*
 	 * Allocate initial page tables to allow the new CPU to
 	 * enable the MMU safely.  This essentially means a set
@@ -107,13 +112,18 @@ int __cpuinit __cpu_up(unsigned int cpu)
 		     PMD_TYPE_SECT | PMD_SECT_AP_WRITE);
 	flush_pmd_entry(pmd);
 	outer_clean_range(__pa(pmd), __pa(pmd + 1));
+#endif
 
 	/*
 	 * We need to tell the secondary core where to find
 	 * its stack and the page tables.
 	 */
 	secondary_data.stack = task_stack_page(idle) + THREAD_START_SP;
+#ifdef CONFIG_WRHV
+	secondary_data.pgdir = init_mm.context.vmmu_handle;
+#else
 	secondary_data.pgdir = virt_to_phys(pgd);
+#endif
 	__cpuc_flush_dcache_area(&secondary_data, sizeof(secondary_data));
 	outer_clean_range(__pa(&secondary_data), __pa(&secondary_data + 1));
 
@@ -144,9 +154,11 @@ int __cpuinit __cpu_up(unsigned int cpu)
 	secondary_data.stack = NULL;
 	secondary_data.pgdir = 0;
 
+#ifndef CONFIG_WRHV
 	*pmd = __pmd(0);
 	clean_pmd_entry(pmd);
 	pgd_free(&init_mm, pgd);
+#endif
 
 	if (ret) {
 		printk(KERN_CRIT "CPU%u: processor failed to boot\n", cpu);
@@ -464,7 +476,7 @@ static void local_timer_setup(struct clock_event_device *evt)
 }
 #endif
 
-void __cpuinit percpu_timer_setup(void)
+void __cpuinit native_percpu_timer_setup(void)
 {
 	unsigned int cpu = smp_processor_id();
 	struct clock_event_device *evt = &per_cpu(percpu_clockevent, cpu);
@@ -472,6 +484,15 @@ void __cpuinit percpu_timer_setup(void)
 	evt->cpumask = cpumask_of(cpu);
 
 	local_timer_setup(evt);
+}
+
+void __cpuinit percpu_timer_setup(void)
+{
+#ifdef CONFIG_PARAVIRT
+	paravirt_percpu_timer_setup();
+#else
+	native_percpu_timer_setup();
+#endif
 }
 
 static DEFINE_SPINLOCK(stop_lock);

@@ -9,6 +9,9 @@ typedef struct {
 	spinlock_t id_lock;
 #endif
 	unsigned int kvm_seq;
+#ifdef CONFIG_WRHV
+	unsigned long vmmu_handle;
+#endif
 } mm_context_t;
 
 #ifdef CONFIG_CPU_HAS_ASID

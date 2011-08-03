@@ -16,11 +16,13 @@
 #include <asm/mmu_context.h>
 #include <asm/tlbflush.h>
 
-static DEFINE_SPINLOCK(cpu_asid_lock);
-unsigned int cpu_last_asid = ASID_FIRST_VERSION;
 #ifdef CONFIG_SMP
 DEFINE_PER_CPU(struct mm_struct *, current_mm);
 #endif
+
+#ifdef CONFIG_CPU_HAS_ASID
+static DEFINE_SPINLOCK(cpu_asid_lock);
+unsigned int cpu_last_asid = ASID_FIRST_VERSION;
 
 /*
  * We fork()ed a process, and we need a new context for the child
@@ -155,3 +157,4 @@ void __new_context(struct mm_struct *mm)
 	set_mm_context(mm, asid);
 	spin_unlock(&cpu_asid_lock);
 }
+#endif

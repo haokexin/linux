@@ -256,7 +256,7 @@ ENTRY(vector_swi)
 
 #endif
 
-#ifdef CONFIG_ALIGNMENT_TRAP
+#if defined(CONFIG_ALIGNMENT_TRAP) && !defined(CONFIG_WRHV)
 	ldr	ip, __cr_alignment
 	ldr	ip, [ip]
 	mcr	p15, 0, ip, c1, c0		@ update control register

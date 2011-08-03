@@ -23,6 +23,10 @@
 #include <asm/system.h>
 #include <asm/unwind.h>
 
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#endif
+
 #if (PHYS_OFFSET & 0x001fffff)
 #error "PHYS_OFFSET must be at an even 2MiB boundary!"
 #endif
@@ -80,6 +84,22 @@ ENTRY(stext)
 	setmode	PSR_F_BIT | PSR_I_BIT | SVC_MODE, r9 @ ensure svc mode
 						@ and irqs disabled
 	mrc	p15, 0, r9, c0, c0		@ get processor id
+#ifdef CONFIG_WRHV
+#ifdef CONFIG_SMP
+	ldr	r1, [r0, #WRHV_COREID]		@ if we're core 0 then keep
+	cmp	r1, #0				@   doing bootup, else we are a
+	bne	secondary_startup		@   secondary processor
+#endif
+	ldr	r1, =wr_config
+	str	r0, [r1]			@ save pointer to config info
+
+	@ Force machine type until we find a better way to be told what
+	@ platform we are running on.  No U-boot here to tell us.  So just
+	@ assume we are running on the first (and likely only) platform that
+	@ has been linked in to our load.
+	ldr	r0, =__arch_info_begin
+	ldr	r1, [r0]
+#endif
 	bl	__lookup_processor_type		@ r5=procinfo r9=cpuid
 	movs	r10, r5				@ invalid processor (r5=0)?
 	beq	__error_p			@ yes, error 'p'
@@ -150,8 +170,12 @@ __secondary_data:
 	.long	secondary_data
 	.long	__secondary_switched
 #endif /* defined(CONFIG_SMP) */
-
-
+#ifdef CONFIG_WRHV
+        .align  2
+        .type   __wrhv_data, %object
+__wrhv_data:
+	.long   BSYM(wrhv_super_early_stack) + WRHV_SUPER_EARLY_STACK_SIZE @ sp
+#endif
 
 /*
  * Setup common bits before finally enabling the MMU.  Essentially
@@ -180,8 +204,22 @@ __enable_mmu:
 		      domain_val(DOMAIN_TABLE, DOMAIN_MANAGER) | \
 		      domain_val(DOMAIN_IO, DOMAIN_CLIENT))
 	mcr	p15, 0, r5, c3, c0, 0		@ load domain access register
+#ifndef CONFIG_WRHV
 	mcr	p15, 0, r4, c2, c0, 0		@ load page table pointer
 	b	__turn_mmu_on
+#else  /* WRHV - turn on the vmmu */
+	@ Must preserve registers r0, r1, r13
+	@ On entry, r4 contains the pointer to the page tables
+	@ r7 must be preserved for secondary processor startup
+	mov	r12, r13			@ r13 = sp, preserve it in reg
+	adr	r3, BSYM(__wrhv_data)
+	ldmia	r3, {sp}
+	stmfd	sp!, {r0, r1, r7, r12}
+	mov	r0, r4
+	bl	wrhv_load_initial_vmmu
+	ldmfd	sp!, {r0, r1, r7, r12}
+	mov	pc, r12
+#endif
  UNWIND(.fnend          )
 ENDPROC(__enable_mmu)
 
@@ -332,6 +370,18 @@ __create_page_tables:
 	orr	r3, r7, #0x02000000
 	str	r3, [r0]
 	add	r0, r4, #0xd8000000 >> 18
+	str	r3, [r0]
+#endif
+#ifdef CONFIG_WRHV
+	/*
+	 * Map in the config/control/status pages for early startup.
+	 * This should get overwritten in paging_init for proper size
+	 * and protection.
+	 */
+	ldr	r6, =wr_config
+	ldr	r6, [r6]			@ r6 now points to config
+	add	r0, r4, r6, lsr #18
+	orr	r3, r7, r6
 	str	r3, [r0]
 #endif
 #endif

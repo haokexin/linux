@@ -1,5 +1,9 @@
 #include <linux/linkage.h>
 #include <asm/assembler.h>
+#ifdef CONFIG_WRHV
+#include <asm/asm-offsets.h>
+#endif
+
 /*
  * Function: v7_early_abort
  *
@@ -22,8 +26,15 @@ ENTRY(v7_early_abort)
 	 */
 	clrex
 
+#ifdef CONFIG_WRHV
+	ldr	r1, =wr_status			@ ptr to hv status region
+	ldr	r1, [r1]
+	ldr	r0, [r1, #STAT_SPACE_DFAR]	@ get dfar
+	ldr	r1, [r1, #STAT_SPACE_DFSR]	@ get dfsr
+#else
 	mrc	p15, 0, r1, c5, c0, 0		@ get FSR
 	mrc	p15, 0, r0, c6, c0, 0		@ get FAR
+#endif
 
 	/*
 	 * V6 code adjusts the returned DFSR.

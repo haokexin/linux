@@ -10,6 +10,9 @@
 #ifndef _ASMARM_TLBFLUSH_H
 #define _ASMARM_TLBFLUSH_H
 
+#ifdef CONFIG_WRHV
+#include <vbi/syscall.h>
+#endif
 
 #ifndef CONFIG_MMU
 
@@ -322,6 +325,10 @@ static inline void local_flush_tlb_all(void)
 	const int zero = 0;
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
 
+#ifdef CONFIG_WRHV
+	vbi_flush_tlb(0, 0, -1); /* Flush everything */
+#endif
+
 	if (tlb_flag(TLB_WB))
 		dsb();
 
@@ -355,6 +362,10 @@ static inline void local_flush_tlb_mm(struct mm_struct *mm)
 	const int zero = 0;
 	const int asid = ASID(mm);
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
+
+#ifdef CONFIG_WRHV
+	vbi_flush_tlb(0, 0, -1); /* Flush everything */
+#endif
 
 	if (tlb_flag(TLB_WB))
 		dsb();
@@ -402,6 +413,10 @@ local_flush_tlb_page(struct vm_area_struct *vma, unsigned long uaddr)
 {
 	const int zero = 0;
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
+
+#ifdef CONFIG_WRHV
+	vbi_flush_tlb(0, 0, -1); /* Flush everything */
+#endif
 
 	uaddr = (uaddr & PAGE_MASK) | ASID(vma->vm_mm);
 
@@ -451,6 +466,10 @@ static inline void local_flush_tlb_kernel_page(unsigned long kaddr)
 {
 	const int zero = 0;
 	const unsigned int __tlb_flag = __cpu_tlb_flags;
+
+#ifdef CONFIG_WRHV
+	vbi_flush_tlb(0, 0, -1); /* Flush everything */
+#endif
 
 	kaddr &= PAGE_MASK;
 

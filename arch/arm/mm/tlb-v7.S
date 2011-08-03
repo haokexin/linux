@@ -56,6 +56,14 @@ ENTRY(v7wbi_flush_user_tlb_range)
 	mcr	p15, 0, ip, c7, c5, 6		@ flush BTAC/BTB
 #endif
 	dsb
+#ifdef CONFIG_WRHV
+	stmfd	sp!, {r0-r2, lr}
+	mov	r0, #0
+	mov	r1, #0
+	mov	r2, #-1
+	bl	vbi_flush_tlb
+	ldmfd	sp!, {r0-r2, lr}
+#endif
 	mov	pc, lr
 ENDPROC(v7wbi_flush_user_tlb_range)
 
@@ -90,6 +98,14 @@ ENTRY(v7wbi_flush_kern_tlb_range)
 #endif
 	dsb
 	isb
+#ifdef CONFIG_WRHV
+	stmfd	sp!, {r0-r2, lr}
+	mov	r0, #0
+	mov	r1, #0
+	mov	r2, #-1
+	bl	vbi_flush_tlb
+	ldmfd	sp!, {r0-r2, lr}
+#endif
 	mov	pc, lr
 ENDPROC(v7wbi_flush_kern_tlb_range)
 

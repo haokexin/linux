@@ -48,6 +48,12 @@
 #include "atags.h"
 #include "tcm.h"
 
+#ifdef CONFIG_WRHV
+#include <vbi/syscall.h>
+#include <vbi/vmmu.h>
+#include <asm/wrhv.h>
+#endif
+
 #ifndef MEM_SIZE
 #define MEM_SIZE	(16*1024*1024)
 #endif
@@ -115,6 +121,9 @@ struct stack {
 	u32 irq[3];
 	u32 abt[3];
 	u32 und[3];
+#ifdef CONFIG_WRHV
+	u32 fiq[3];
+#endif
 } ____cacheline_aligned;
 
 static struct stack stacks[NR_CPUS];
@@ -358,7 +367,14 @@ void cpu_init(void)
 	"msr	cpsr_c, %5\n\t"
 	"add	r14, %0, %6\n\t"
 	"mov	sp, r14\n\t"
+#ifndef CONFIG_WRHV
 	"msr	cpsr_c, %7"
+#else
+	"msr	cpsr_c, %7\n\t"
+	"add	r14, %0, %8\n\t"
+	"mov	sp, r14\n\t"
+	"msr	cpsr_c, %9"
+#endif
 	    :
 	    : "r" (stk),
 	      PLC (PSR_F_BIT | PSR_I_BIT | IRQ_MODE),
@@ -367,6 +383,10 @@ void cpu_init(void)
 	      "I" (offsetof(struct stack, abt[0])),
 	      PLC (PSR_F_BIT | PSR_I_BIT | UND_MODE),
 	      "I" (offsetof(struct stack, und[0])),
+#ifdef CONFIG_WRHV
+	      PLC (PSR_F_BIT | PSR_I_BIT | FIQ_MODE),
+	      "I" (offsetof(struct stack, fiq[0])),
+#endif
 	      PLC (PSR_F_BIT | PSR_I_BIT | SVC_MODE)
 	    : "r14");
 }
@@ -390,7 +410,11 @@ static struct machine_desc * __init setup_machine(unsigned int nr)
 	return list;
 }
 
+#ifndef CONFIG_WRHV
 static int __init arm_add_memory(unsigned long start, unsigned long size)
+#else
+int __init arm_add_memory(unsigned long start, unsigned long size)
+#endif
 {
 	struct membank *bank = &meminfo.bank[meminfo.nr_banks];
 
@@ -606,6 +630,7 @@ static int __init parse_tag_cmdline(const struct tag *tag)
 
 __tagtable(ATAG_CMDLINE, parse_tag_cmdline);
 
+#ifndef CONFIG_WRHV
 /*
  * Scan the tag table for this tag, and call its parse function.
  * The tag table is built by the linker from all the __tagtable
@@ -654,6 +679,7 @@ static struct init_tags {
 	{ MEM_SIZE, PHYS_OFFSET },
 	{ 0, ATAG_NONE }
 };
+#endif
 
 static void (*init_machine)(void) __initdata;
 
@@ -666,11 +692,25 @@ static int __init customize_machine(void)
 }
 arch_initcall(customize_machine);
 
+#ifdef CONFIG_PARAVIRT
+extern void paravirt_init(void);
+extern void paravirt_MMU_init(void);
+#endif
+
 void __init setup_arch(char **cmdline_p)
 {
+#ifndef CONFIG_WRHV
 	struct tag *tags = (struct tag *)&init_tags;
-	struct machine_desc *mdesc;
 	char *from = default_command_line;
+#endif
+	struct machine_desc *mdesc;
+
+	/*
+	 * initialize paravirtual operations
+	 */
+#ifdef CONFIG_PARAVIRT
+	paravirt_init();
+#endif
 
 	unwind_init();
 
@@ -681,6 +721,7 @@ void __init setup_arch(char **cmdline_p)
 	if (mdesc->soft_reboot)
 		reboot_setup("s");
 
+#ifndef CONFIG_WRHV
 	if (__atags_pointer)
 		tags = phys_to_virt(__atags_pointer);
 	else if (mdesc->boot_params)
@@ -704,14 +745,24 @@ void __init setup_arch(char **cmdline_p)
 		save_atags(tags);
 		parse_tags(tags);
 	}
+#else
+	wrhv_machine_init_timer = mdesc->timer->init;
+	mdesc->timer->init = wrhv_time_init;
+	mdesc->init_machine = NULL;
+	if (mdesc->fixup)
+		mdesc->fixup(mdesc, NULL, NULL, &meminfo);
+	paravirt_MMU_init();
+#endif
 
 	init_mm.start_code = (unsigned long) _text;
 	init_mm.end_code   = (unsigned long) _etext;
 	init_mm.end_data   = (unsigned long) _edata;
 	init_mm.brk	   = (unsigned long) _end;
 
+#ifndef CONFIG_WRHV
 	/* parse_early_param needs a boot_command_line */
 	strlcpy(boot_command_line, from, COMMAND_LINE_SIZE);
+#endif
 
 	/* populate cmd_line too for later use, preserving boot_command_line */
 	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);
@@ -732,7 +783,12 @@ void __init setup_arch(char **cmdline_p)
 	/*
 	 * Set up various architecture-specific pointers
 	 */
+#ifdef CONFIG_WRHV
+	wrhv_machine_init_irq = mdesc->init_irq;
+	init_arch_irq = wrhv_init_irq;
+#else
 	init_arch_irq = mdesc->init_irq;
+#endif
 	system_timer = mdesc->timer;
 	init_machine = mdesc->init_machine;
 
@@ -744,6 +800,10 @@ void __init setup_arch(char **cmdline_p)
 #endif
 #endif
 	early_trap_init();
+#ifdef CONFIG_WRHV
+	vbi_set_exc_base((void *)CONFIG_VECTORS_BASE);
+#endif
+
 }
 
 

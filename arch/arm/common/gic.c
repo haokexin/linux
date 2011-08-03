@@ -175,6 +175,10 @@ void __init gic_cascade_irq(unsigned int gic_nr, unsigned int irq)
 	set_irq_chained_handler(irq, gic_handle_cascade_irq);
 }
 
+#ifdef CONFIG_WRHV
+extern int wrhv_find_direct_interrupt(int);
+#endif
+
 void __init gic_dist_init(unsigned int gic_nr, void __iomem *base,
 			  unsigned int irq_start)
 {
@@ -234,6 +238,10 @@ void __init gic_dist_init(unsigned int gic_nr, void __iomem *base,
 	 * Setup the Linux IRQ subsystem.
 	 */
 	for (i = irq_start; i < gic_data[gic_nr].irq_offset + max_irq; i++) {
+#ifdef CONFIG_WRHV
+		if (wrhv_find_direct_interrupt(i))
+			continue;
+#endif
 		set_irq_chip(i, &gic_chip);
 		set_irq_chip_data(i, &gic_data[gic_nr]);
 		set_irq_handler(i, handle_level_irq);

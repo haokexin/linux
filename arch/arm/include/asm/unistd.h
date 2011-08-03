@@ -405,6 +405,12 @@
 
 #define __NR_syscall_max 375
 
+#define VBI_MEM_READ			0x0010
+#define VBI_MEM_WRITE			0x0100
+#define SYS_VBI_VB_SUSPEND		0x10001
+#define SYS_VBI_VB_RESUME		0x20002
+#define SYS_VBI_VB_RESTART		0x40004
+
 /*
  * The following SWIs are ARM private.
  */

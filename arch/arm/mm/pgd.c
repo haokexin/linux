@@ -17,6 +17,12 @@
 
 #include "mm.h"
 
+#ifdef CONFIG_WRHV
+#include <asm/wrhv.h>
+#include <vbi/vmmu.h>
+#include <vbi/syscall.h>
+#endif
+
 #define FIRST_KERNEL_PGD_NR	(FIRST_USER_PGD_NR + USER_PTRS_PER_PGD)
 
 /*
@@ -25,8 +31,10 @@
 pgd_t *get_pgd_slow(struct mm_struct *mm)
 {
 	pgd_t *new_pgd, *init_pgd;
+#ifndef CONFIG_WRHV
 	pmd_t *new_pmd, *init_pmd;
 	pte_t *new_pte, *init_pte;
+#endif
 
 	new_pgd = (pgd_t *)__get_free_pages(GFP_KERNEL, 2);
 	if (!new_pgd)
@@ -43,6 +51,7 @@ pgd_t *get_pgd_slow(struct mm_struct *mm)
 
 	clean_dcache_area(new_pgd, PTRS_PER_PGD * sizeof(pgd_t));
 
+#ifndef CONFIG_WRHV
 	if (!vectors_high()) {
 		/*
 		 * On ARM, first page must always be allocated since it
@@ -62,11 +71,31 @@ pgd_t *get_pgd_slow(struct mm_struct *mm)
 		pte_unmap_nested(init_pte);
 		pte_unmap(new_pte);
 	}
+#endif
+
+#ifdef CONFIG_WRHV
+	{
+		VMMU_CONFIG vmmu_cfg;
+
+		vmmu_cfg.addr = (uint32_t)new_pgd;
+		vmmu_cfg.asid = 0;
+		vmmu_cfg.flush_type = 0;
+		spin_lock(&vmmu_handle_lock);
+		if (vbi_create_vmmu(&vmmu_cfg) != 0) {
+			printk(KERN_ERR "WRHV: Error creating vmmu!\n");
+			goto no_pmd;
+		} else
+			mm->context.vmmu_handle = vmmu_cfg.vmmu_handle;
+		spin_unlock(&vmmu_handle_lock);
+	}
+#endif
 
 	return new_pgd;
 
+#ifndef CONFIG_WRHV
 no_pte:
 	pmd_free(mm, new_pmd);
+#endif
 no_pmd:
 	free_pages((unsigned long)new_pgd, 2);
 no_pgd:
@@ -97,4 +126,15 @@ void free_pgd_slow(struct mm_struct *mm, pgd_t *pgd)
 	pmd_free(mm, pmd);
 free:
 	free_pages((unsigned long) pgd, 2);
+#ifdef CONFIG_WRHV
+	{
+		VMMU_CONFIG vmmu_cfg;
+
+		vmmu_cfg.vmmu_handle = mm->context.vmmu_handle;
+		spin_lock(&vmmu_handle_lock);
+		if (vbi_delete_vmmu(&vmmu_cfg) != 0)
+			printk(KERN_ERR "WRHV: Error deleting vmmu!\n");
+		spin_unlock(&vmmu_handle_lock);
+	}
+#endif
 }
