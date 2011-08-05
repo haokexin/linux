@@ -489,7 +489,7 @@ _dpa_fq_alloc(struct list_head *list, struct dpa_fq *dpa_fq)
 		};
 
 		_errno = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &initfq);
-#ifndef CONFIG_CRASH_DUMP
+#if !defined(CONFIG_CRASH_DUMP) && !defined(CONFIG_WRHV)
 		if (_errno < 0) {
 			dpaa_eth_err(dev, "qman_init_fq(%u) = %d\n",
 					qman_fq_fqid(fq), _errno);
