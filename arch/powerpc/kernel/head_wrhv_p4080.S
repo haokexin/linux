@@ -136,6 +136,10 @@ _ENTRY(__early_start)
 	lwz	r24, WRHV_COREID_OFFSET(r24)
 	cmpwi	r24,0
 	bne	__secondary_start
+	li	r4, 0
+	lis	r3, boot_cpuid@h
+	ori	r3, r3, boot_cpuid@l
+	stw	r4, 0(r3)
 #endif
 
 	/*
