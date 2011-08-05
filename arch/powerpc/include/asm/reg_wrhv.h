@@ -202,10 +202,63 @@
 	lwz	rd,wrhv_supervisor@l(rd)
 #endif
 #else	/* __ASSEMBLY__ */
-#ifndef CONFIG_PPC85xx_VT_MODE
+#define	__PPC_SPR(spr)	(((spr >> 5) & 0x1f) | ((spr & 0x1f) << 5))
+#ifdef CONFIG_PPC85xx_VT_MODE
+#define WRHV_MFSPR_NO_PERMISSION(rn)					\
+({									\
+	unsigned long code = 0x7c0002a6 |				\
+		(__PPC_SPR(rn) << 11) | __PPC_RS(4);  			\
+	unsigned long value;						\
+	asm volatile (							\
+		"mr 3, %1\n"						\
+		"mfspr 4," __stringify(rn) "\n"				\
+		"mr %0, 4\n"						\
+		:"=r" (value)						\
+		:"r" (code)						\
+		:"r3", "r4"						\
+	);								\
+	value;								\
+})
+
+#define WRHV_MFSPR(rn)					\
+({							\
+	unsigned long value;				\
+	asm volatile (					\
+		"mfspr %0," __stringify(rn)		\
+		:"=r" (value)				\
+	);						\
+	value;						\
+})
+
+#define wrhv_mfspr(rn)					\
+({							\
+	unsigned long value;				\
+	switch (rn) {					\
+	case SPRN_DBCR0:				\
+	case SPRN_DBSR:					\
+	case SPRN_IAC1:					\
+	case SPRN_IAC2:					\
+	case SPRN_DAC1:					\
+	case SPRN_DAC2:					\
+	case SPRN_DBCR1:				\
+	case SPRN_DBCR2:				\
+		value = WRHV_MFSPR_NO_PERMISSION(rn);	\
+		break;					\
+	case SPRN_TLB1CFG:				\
+		/* FIXME: dump this fixed value per datasheet since
+		 * currently the hypervisor doesn't emulate this register.
+		 */					\
+		value = 0x401bc040;			\
+		break;					\
+	default:					\
+		value = WRHV_MFSPR(rn);			\
+	}						\
+	value;						\
+})
+#else
 extern unsigned int wrhv_mfspr(unsigned int sprn);
-#define mfspr(rn)	wrhv_mfspr(rn)
 #endif
+#define mfspr(rn)	wrhv_mfspr(rn)
 #endif /* __ASSEMBLY__ */
 
 #endif /* __KERNEL__ */
