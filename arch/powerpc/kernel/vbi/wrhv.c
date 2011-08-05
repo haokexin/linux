@@ -1615,103 +1615,7 @@ void wrhv_prime_debug_regs(struct thread_struct *thread)
 #endif
 }
 
-#ifdef CONFIG_PPC85xx_VT_MODE
-unsigned int wrhv_mfspr(unsigned int sprn)
-{
-	unsigned int value = 0;
-	switch(sprn){
-		case SPRN_DBCR0:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x134\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_DBCR0_R)
-			);
-			break;
-
-		case SPRN_DBSR:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x130\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_DBSR_R)
-			);
-			break;
-
-		case SPRN_IAC1:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x138\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_IAC1_R)
-			);
-			break;
-
-		case SPRN_IAC2:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x139\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_IAC2_R)
-			);
-			break;
-
-		case SPRN_DAC1:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x13C\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_DAC1_R)
-			);
-			break;
-
-		case SPRN_DAC2:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x13D\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_DAC2_R)
-			);
-			break;
-
-		case SPRN_DBCR1:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x135\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_DBCR1_R)
-			);
-			break;
-
-		case SPRN_DBCR2:
-			__asm__ __volatile__(
-			"lis    3,%1@h\n"
-			"ori    3,3,%1@l\n"
-			"mfspr	4,0x136\n"
-			"mr	%0,4\n"
-			:"=r" (value)
-			:"i" (SPRN_DBCR2_R)
-			);
-			break;
-	}
-
-	return value;
-}
-#else
+#ifndef CONFIG_PPC85xx_VT_MODE
 #define WRHV_READ_SPRN(sprn, value)		\
 do {						\
 	__asm__ __volatile__(			\
@@ -1758,8 +1662,8 @@ unsigned int wrhv_mfspr(unsigned int sprn)
 
 	return value;
 }
-#endif
 EXPORT_SYMBOL(wrhv_mfspr);
+#endif
 
 /* arch/powerpc/kernel/traps.c */
 void __kprobes wrhv_DebugException(struct pt_regs *regs, unsigned long debug_status)
