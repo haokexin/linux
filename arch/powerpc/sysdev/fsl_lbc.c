@@ -200,6 +200,13 @@ static int __devinit fsl_lbc_ctrl_init(struct fsl_lbc_ctrl *ctrl,
 {
 	struct fsl_lbc_regs __iomem *lbc = ctrl->regs;
 
+	/*
+	 * NAND transactions can tie up the bus for a long time, so set the
+	 * bus timeout to max by clearing LBCR[BMT] (highest base counter
+	 * value) and setting LBCR[BMTPS] to the highest prescaler value.
+	 */
+	clrsetbits_be32(&lbc->lbcr, LBCR_BMT, 15);
+
 	/* clear event registers */
 	setbits32(&lbc->ltesr, LTESR_CLEAR);
 	out_be32(&lbc->lteatr, 0);
