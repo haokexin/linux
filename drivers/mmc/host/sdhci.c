@@ -179,10 +179,18 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios);
 
 static void sdhci_init(struct sdhci_host *host, int soft)
 {
+	u32 ctrl;
+
 	if (soft)
 		sdhci_reset(host, SDHCI_RESET_CMD|SDHCI_RESET_DATA);
 	else
 		sdhci_reset(host, SDHCI_RESET_ALL);
+
+	if (host->quirks & SDHCI_QUIRK_SET_AHB2MAG_IRQ_BYPASS) {
+		ctrl = sdhci_readl(host, SDHCI_HOST_DMA_CONTROL);
+		ctrl |= SDHCI_AHB2MAG_IRQ_BYPASS;
+		sdhci_writel(host, ctrl, SDHCI_HOST_DMA_CONTROL);
+	}
 
 	sdhci_clear_set_irqs(host, SDHCI_INT_ALL_MASK,
 		SDHCI_INT_BUS_POWER | SDHCI_INT_DATA_END_BIT |

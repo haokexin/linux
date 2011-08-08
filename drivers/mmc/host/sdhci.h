@@ -188,6 +188,10 @@
 #define   SDHCI_SPEC_100	0
 #define   SDHCI_SPEC_200	1
 
+/* 40C DMA control register */
+#define SDHCI_HOST_DMA_CONTROL	0x40C
+#define SDHCI_AHB2MAG_IRQ_BYPASS       0x20
+
 struct sdhci_ops;
 
 struct sdhci_host {
@@ -248,6 +252,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK		(1<<24)
 /* Controller uses Auto CMD12 command to stop the transfer */
 #define SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12		(1<<25)
+/* Controller cannot set DCR[DMA__AHB2MAG_IRQ_BYPASS] automatically*/
+#define SDHCI_QUIRK_SET_AHB2MAG_IRQ_BYPASS             (1<<26)
 
 	int			irq;		/* Device IRQ */
 	void __iomem *		ioaddr;		/* Mapped address */
