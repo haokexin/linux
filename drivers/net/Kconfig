@@ -2406,6 +2406,13 @@ config GIANFAR
 	  This driver supports the Gigabit TSEC on the MPC83xx, MPC85xx,
 	  and MPC86xx family of chips, and the FEC on the 8540.
 
+config GFAR_TX_NONAPI
+	default n
+	bool "TX non-NAPI mode"
+	depends on GIANFAR && EXPERIMENTAL && !GIANFAR_TXNAPI
+	help
+	  TX non-NAPI mode for Ethernet load balance on multi-core.
+
 config GIANFAR_TXNAPI
 	default n
 	bool "Introduce seperate tx_napi for cleaning the tx ring(V 0.0.1) (EXPERIMENTAL)"

@@ -3083,7 +3083,31 @@ static irqreturn_t gfar_transmit(int irq, void *grp_id)
 #ifdef CONFIG_GIANFAR_TXNAPI
 	gfar_schedule_cleanup_tx((struct gfar_priv_grp *)grp_id);
 #else
+#ifdef CONFIG_GFAR_TX_NONAPI
+	struct gfar_priv_grp *grp = (struct gfar_priv_grp *)grp_id;
+	struct gfar_private *priv = priv = grp->priv;
+	unsigned int mask = TSTAT_TXF0_MASK;
+	unsigned int tstat  = gfar_read(&grp->regs->tstat);
+	int i;
+	struct gfar_priv_tx_q *tx_queue = NULL;
+
+	tstat = gfar_read(&grp->regs->tstat);
+	tstat = tstat & TSTAT_TXF_MASK_ALL;
+	/* Clear IEVENT */
+	gfar_write(&grp->regs->ievent, IEVENT_TX_MASK);
+
+	for (i = 0; i < priv->num_tx_queues; i++) {
+		if (tstat & mask) {
+			tx_queue = priv->tx_queue[i];
+			gfar_clean_tx_ring(tx_queue);
+		}
+		mask = mask >> 0x1;
+	}
+
+	gfar_configure_tx_coalescing(priv, grp->tx_bit_map);
+#else
 	gfar_schedule_cleanup((struct gfar_priv_grp *)grp_id);
+#endif
 #endif
 	return IRQ_HANDLED;
 }
@@ -3259,7 +3283,31 @@ irqreturn_t gfar_receive(int irq, void *grp_id)
 #ifdef CONFIG_GIANFAR_TXNAPI
 	gfar_schedule_cleanup_rx((struct gfar_priv_grp *)grp_id);
 #else
+#ifdef CONFIG_GFAR_TX_NONAPI
+	struct gfar_priv_grp *grp = (struct gfar_priv_grp *)grp_id;
+	u32 tempval;
+
+	/*
+	 * Clear IEVENT, so interrupts aren't called again
+	 * because of the packets that have already arrived.
+	 */
+	gfar_write(&grp->regs->ievent, IEVENT_RX_MASK);
+
+	if (napi_schedule_prep(&grp->napi)) {
+		tempval = gfar_read(&grp->regs->imask);
+		tempval &= IMASK_RX_DISABLED;
+		gfar_write(&grp->regs->imask, tempval);
+		__napi_schedule(&grp->napi);
+	} else {
+		if (netif_msg_rx_err(grp->priv))
+			printk(KERN_DEBUG "%s: receive called twice (%x)[%x]\n",
+				dev->name, gfar_read(&grp->regs->ievent),
+				gfar_read(&grp->regs->imask));
+	}
+
+#else
 	gfar_schedule_cleanup((struct gfar_priv_grp *)grp_id);
+#endif
 #endif
 	return IRQ_HANDLED;
 }
@@ -3544,7 +3592,11 @@ static int gfar_poll(struct napi_struct *napi, int budget)
 
 	/* Clear IEVENT, so interrupts aren't called again
 	 * because of the packets that have already arrived */
+#ifdef CONFIG_GFAR_TX_NONAPI
+	gfar_write(&gfargrp->regs->ievent, IEVENT_RX_MASK);
+#else
 	gfar_write(&regs->ievent, IEVENT_RTX_MASK);
+#endif
 
 	while (num_queues && left_over_budget) {
 
@@ -3555,9 +3607,12 @@ static int gfar_poll(struct napi_struct *napi, int budget)
 			if (test_bit(i, &serviced_queues))
 				continue;
 			rx_queue = priv->rx_queue[i];
+
+#ifndef CONFIG_GFAR_TX_NONAPI
 			tx_queue = priv->tx_queue[rx_queue->qindex];
 
 			tx_cleaned += gfar_clean_tx_ring(tx_queue);
+#endif
 			rx_cleaned_per_queue = gfar_clean_rx_ring(rx_queue,
 							budget_per_queue);
 			rx_cleaned += rx_cleaned_per_queue;
@@ -3570,8 +3625,10 @@ static int gfar_poll(struct napi_struct *napi, int budget)
 		}
 	}
 
+#ifndef CONFIG_GFAR_TX_NONAPI
 	if (tx_cleaned)
 		return budget;
+#endif
 
 	if (rx_cleaned < budget) {
 		napi_complete(napi);
@@ -3584,7 +3641,9 @@ static int gfar_poll(struct napi_struct *napi, int budget)
 		/* If we are coalescing interrupts, update the timer */
 		/* Otherwise, clear it */
 		gfar_configure_rx_coalescing(priv, gfargrp->rx_bit_map);
+#ifndef CONFIG_GFAR_TX_NONAPI
 		gfar_configure_tx_coalescing(priv, gfargrp->tx_bit_map);
+#endif
 	}
 
 	return rx_cleaned;
