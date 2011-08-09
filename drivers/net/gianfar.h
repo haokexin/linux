@@ -93,6 +93,32 @@ extern const char gfar_driver_version[];
 #define DEFAULT_RX_RING_SIZE	256
 #define DEFAULT_WK_RING_SIZE	16
 
+#ifdef CONFIG_AS_FASTPATH
+#define AS_FP_PROCEED	1
+#define AS_FP_STOLEN	2
+
+typedef	int (*devfp_hook_t)(struct sk_buff *skb, struct net_device *dev);
+extern devfp_hook_t	devfp_rx_hook;
+extern devfp_hook_t	devfp_tx_hook;
+
+/* Overwrite the Rx/Tx Hooks pointers
+ * if already configured. */
+static inline int devfp_register_rx_hook(devfp_hook_t hook)
+{
+	local_bh_disable();
+	devfp_rx_hook = hook;
+	local_bh_enable();
+	return 0;
+}
+
+static inline int devfp_register_tx_hook(devfp_hook_t hook)
+{
+	local_bh_disable();
+	devfp_tx_hook = hook;
+	local_bh_enable();
+	return 0;
+}
+#endif
 
 #define GFAR_TX_MAX_RING_SIZE   65536
 #define GFAR_MIN_RING_SIZE	4
