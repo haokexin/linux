@@ -1078,6 +1078,9 @@ static void gfar_init_filer_table(struct gfar_private *priv)
 	/* cur_filer_idx indicated the fisrt non-masked rule */
 	priv->cur_filer_idx = rqfar;
 
+	/* Program the RIR0 reg with the required distribution */
+	priv->gfargrp[0].regs->rir0 = DEFAULT_RIR0;
+
 	/* Rest are masked rules */
 	rqfcr = RQFCR_CMP_NOMATCH;
 	for (i = 0; i < rqfar; i++) {
@@ -1085,13 +1088,11 @@ static void gfar_init_filer_table(struct gfar_private *priv)
 		priv->ftp_rqfpr[i] = rqfpr;
 		gfar_write_filer(priv, i, rqfcr, rqfpr);
 	}
-
-	/* Program the RIR0 reg with the required distribution */
-	priv->gfargrp[0].regs->rir0 = DEFAULT_RIR0;
-
+	return;
 out:
 	kfree(priv->ftp_rqfcr);
 	kfree(priv->ftp_rqfpr);
+	priv->ftp_rqfpr = priv->ftp_rqfcr = NULL;
 }
 
 static void gfar_detect_errata(struct gfar_private *priv)
