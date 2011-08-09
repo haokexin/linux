@@ -428,7 +428,14 @@ static void gfar_init_tx_rx_base(struct gfar_private *priv)
 	struct gfar __iomem *regs = priv->gfargrp[0].regs;
 	u32 __iomem *baddr;
 	int i;
+#ifdef CONFIG_PHYS_64BIT
+	dma_addr_t addr;
 
+	addr = priv->tx_queue[0]->tx_bd_dma_base;
+	gfar_write(&regs->tbaseh, ((addr >> 32) & GFAR_TX_BASE_H));
+	addr = priv->rx_queue[0]->rx_bd_dma_base;
+	gfar_write(&regs->rbaseh, ((addr >> 32) & GFAR_RX_BASE_H));
+#endif
 	baddr = &regs->tbase0;
 	for(i = 0; i < priv->num_tx_queues; i++) {
 		gfar_write(baddr, priv->tx_queue[i]->tx_bd_dma_base);
