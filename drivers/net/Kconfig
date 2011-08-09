@@ -2406,6 +2406,13 @@ config GIANFAR
 	  This driver supports the Gigabit TSEC on the MPC83xx, MPC85xx,
 	  and MPC86xx family of chips, and the FEC on the 8540.
 
+config GIANFAR_L2SRAM
+	bool "Selecting L2sram bd allocation"
+	depends on (GIANFAR && FSL_SOC_BOOKE)
+	select FSL_85XX_CACHE_SRAM
+	help
+	  This option supports BD alloc in L2SRAM.
+
 config UCC_GETH
 	tristate "Freescale QE Gigabit Ethernet"
 	depends on QUICC_ENGINE
