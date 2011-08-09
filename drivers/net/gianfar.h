@@ -47,6 +47,11 @@
 #include <linux/workqueue.h>
 #include <linux/ethtool.h>
 
+#ifdef CONFIG_GIANFAR_L2SRAM
+#include <asm/fsl_85xx_cache_sram.h>
+#define ALIGNMENT 0x20
+#endif
+
 /* The maximum number of packets to be handled in one call of gfar_poll */
 #define GFAR_DEV_WEIGHT 64
 
