@@ -709,11 +709,11 @@ static int gfar_parse_group(struct device_node *np,
 	spin_lock_init(&priv->gfargrp[priv->num_grps].grplock);
 	if(priv->mode == MQ_MG_MODE) {
 		queue_mask = (u32 *)of_get_property(np,
-					"fsl,rx-bit-map", NULL);
+					"rx-bit-map", NULL);
 		priv->gfargrp[priv->num_grps].rx_bit_map =
 			queue_mask ?  *queue_mask :(DEFAULT_MAPPING >> priv->num_grps);
 		queue_mask = (u32 *)of_get_property(np,
-					"fsl,tx-bit-map", NULL);
+					"tx-bit-map", NULL);
 		priv->gfargrp[priv->num_grps].tx_bit_map =
 			queue_mask ? *queue_mask : (DEFAULT_MAPPING >> priv->num_grps);
 	} else {
