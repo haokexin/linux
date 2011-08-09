@@ -501,7 +501,7 @@ static void gfar_init_mac(struct net_device *ndev)
 		/* Set Filer Table */
 		gfar_1588_start(ndev);
 		if (priv->device_flags & FSL_GIANFAR_DEV_HAS_PADDING)
-			rctrl &= RCTRL_PAL_MASK;
+			rctrl &= ~RCTRL_PAL_MASK;
 		/* Enable Filer for Rx Queue */
 		rctrl |= RCTRL_PRSDEP_INIT |
 			RCTRL_TS_ENABLE | RCTRL_PADDING(8);
