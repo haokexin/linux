@@ -3728,6 +3728,12 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
 	if (devfp_rx_hook) {
 		int drop = 0;
 
+		/* Drop the packet silently if IP Checksum is not correct */
+		if ((fcb->flags & RXFCB_CIP) && (fcb->flags & RXFCB_EIP)) {
+			drop = 1;
+			goto drop_pkt;
+		}
+
 		if (priv->vlgrp && (fcb->flags & RXFCB_VLN)) {
 			struct net_device *vlan_dev = NULL;
 
@@ -3744,6 +3750,7 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
 			skb->dev = dev;
 		}
 
+drop_pkt:
 		if (drop) {
 			dev_kfree_skb_any(skb);
 			return 0;
