@@ -239,6 +239,9 @@ extern const char gfar_driver_version[];
 #define TR47WT_WT6_MASK		0x0000FF00
 #define TR47WT_WT7_MASK		0x000000FF
 
+#define WRRS_TR03WT		0xFFFFFFFF
+#define WRRS_TR47WT		0xFFFFFFFF
+
 /* Rqueue control */
 #define RQUEUE_EX0		0x00800000
 #define RQUEUE_EX1		0x00400000
