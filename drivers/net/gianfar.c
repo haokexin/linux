@@ -2943,11 +2943,7 @@ static int gfar_clean_tx_ring(struct gfar_priv_tx_q *tx_queue)
 	bdp = tx_queue->dirty_tx;
 	skb_dirtytx = tx_queue->skb_dirtytx;
 
-#ifdef CONFIG_GIANFAR_TXNAPI
-	while ((skb = tx_queue->tx_skbuff[skb_dirtytx]) && !(--tx_work_limit < 0)) {
-#else
 	while ((skb = tx_queue->tx_skbuff[skb_dirtytx])) {
-#endif
 		unsigned long flags;
 
 		frags = skb_shinfo(skb)->nr_frags;
@@ -3448,6 +3444,7 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 		}
 	}
 
+	budget = (num_act_qs * DEFAULT_TX_RING_SIZE) + 1;
 	if (tx_cleaned < budget) {
 		napi_complete(napi);
 		spin_lock_irq(&gfargrp->grplock);
@@ -3457,6 +3454,7 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 		gfar_write(&regs->imask, imask);
 		spin_unlock_irq(&gfargrp->grplock);
 		gfar_configure_tx_coalescing(priv, gfargrp->tx_bit_map);
+		return 1;
 	}
 
 	return tx_cleaned;
