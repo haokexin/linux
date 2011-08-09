@@ -749,6 +749,9 @@ static int gfar_of_init(struct of_device *ofdev, struct net_device **pdev)
 	const u32 *stash_idx;
 	unsigned int num_tx_qs, num_rx_qs;
 	u32 *tx_queues, *rx_queues;
+	u32 *busFreq;
+	u32 etsec_clk;
+	u32 max_filer_rules;
 
 	if (!np || !of_device_is_available(np))
 		return -ENODEV;
@@ -783,6 +786,33 @@ static int gfar_of_init(struct of_device *ofdev, struct net_device **pdev)
 	priv->node = ofdev->node;
 	priv->ndev = dev;
 
+	busFreq = (u32 *)of_get_property
+			(of_get_parent(np), "bus-frequency", NULL);
+	if (busFreq) {
+		/* etsec_clk is CCB/2 */
+		etsec_clk = *busFreq/2;
+		/* Divide by 1000000 to get freq in MHz */
+		etsec_clk /= 1000000;
+		/*
+		 * eTSEC searches the table at a rate of two entries every
+		 * eTSEC clock cycle, so for the worst case all 256 entries
+		 * can be searched in the time taken to receive a 64-byte
+		 * Ethernet frame which comes out to be 672 ns at 1Gbps rate
+		 * including inter frame gap and preamble.
+		 * Hence max_filer_rules = etsec_clk * reception time for one
+		 * packet * 2. Divide by 1000 to match the units.
+		 */
+		max_filer_rules = etsec_clk * 672 * 2 / 1000;
+		if (max_filer_rules > MAX_FILER_IDX)
+			priv->max_filer_rules = MAX_FILER_IDX;
+		else
+			priv->max_filer_rules = max_filer_rules;
+	} else {
+		printk(KERN_INFO "Bus Frequency not found in DTS, "
+				"setting max_filer_rules to %d\n",
+				MAX_FILER_IDX);
+		priv->max_filer_rules = MAX_FILER_IDX;
+	}
 	dev->num_tx_queues = num_tx_qs;
 	dev->real_num_tx_queues = num_tx_qs;
 	priv->num_tx_queues = num_tx_qs;
@@ -1008,10 +1038,26 @@ static u32 cluster_entry_per_class(struct gfar_private *priv, u32 rqfar,
 static void gfar_init_filer_table(struct gfar_private *priv)
 {
 	int i = 0x0;
-	u32 rqfar = MAX_FILER_IDX;
+	u32 rqfar = priv->max_filer_rules;
 	u32 rqfcr = 0x0;
 	u32 rqfpr = FPR_FILER_MASK;
 
+	if (!priv->ftp_rqfpr) {
+		priv->ftp_rqfpr = kmalloc((priv->max_filer_rules + 1)*sizeof
+					(u32), GFP_KERNEL);
+		if (!priv->ftp_rqfpr) {
+			pr_err("Could not allocate ftp_rqfpr\n");
+			goto out;
+		}
+	}
+	if (!priv->ftp_rqfcr) {
+		priv->ftp_rqfcr = kmalloc((priv->max_filer_rules + 1)*sizeof
+					(u32), GFP_KERNEL);
+		if (!priv->ftp_rqfcr) {
+			pr_err("Could not allocate ftp_rqfcr\n");
+			goto out;
+		}
+	}
 	/* Default rule */
 	rqfcr = RQFCR_CMP_MATCH;
 	priv->ftp_rqfcr[rqfar] = rqfcr;
@@ -1038,6 +1084,10 @@ static void gfar_init_filer_table(struct gfar_private *priv)
 
 	/* Program the RIR0 reg with the required distribution */
 	priv->gfargrp[0].regs->rir0 = DEFAULT_RIR0;
+
+out:
+	kfree(priv->ftp_rqfcr);
+	kfree(priv->ftp_rqfpr);
 }
 
 static void gfar_detect_errata(struct gfar_private *priv)
@@ -1462,8 +1512,10 @@ static int gfar_remove(struct of_device *ofdev)
 
 	unregister_netdev(priv->ndev);
 	unmap_group_regs(priv);
-	free_netdev(priv->ndev);
 
+	kfree(priv->ftp_rqfpr);
+	kfree(priv->ftp_rqfcr);
+	free_netdev(priv->ndev);
 	return 0;
 }
 
@@ -1526,7 +1578,7 @@ static void gfar_config_filer_table(struct net_device *dev)
 
 	lock_rx_qs(priv);
 
-	for(i = 0; i <= MAX_FILER_IDX; i++)
+	for (i = 0; i <= priv->max_filer_rules; i++)
 		gfar_write_filer(priv, i, rqfcr, rqfpr);
 
 	/* ARP request filer, filling the packet to queue #1 */
