@@ -439,9 +439,9 @@ static void gfar_gringparam(struct net_device *dev, struct ethtool_ringparam *rv
 	tx_queue = priv->tx_queue[0];
 	rx_queue = priv->rx_queue[0];
 
-	rvals->rx_max_pending = GFAR_RX_MAX_RING_SIZE;
-	rvals->rx_mini_max_pending = GFAR_RX_MAX_RING_SIZE;
-	rvals->rx_jumbo_max_pending = GFAR_RX_MAX_RING_SIZE;
+	rvals->rx_max_pending = 0;
+	rvals->rx_mini_max_pending = 0;
+	rvals->rx_jumbo_max_pending = 0;
 	rvals->tx_max_pending = GFAR_TX_MAX_RING_SIZE;
 
 	/* Values changeable by the user.  The valid values are
@@ -460,9 +460,11 @@ static void gfar_gringparam(struct net_device *dev, struct ethtool_ringparam *rv
 static int gfar_sringparam(struct net_device *dev, struct ethtool_ringparam *rvals)
 {
 	struct gfar_private *priv = netdev_priv(dev);
+	unsigned int old_tx_ringparam[MAX_TX_QS];
+	unsigned int old_rx_ringparam[MAX_RX_QS];
 	int err = 0, i = 0;
 
-	if (rvals->rx_pending > GFAR_RX_MAX_RING_SIZE)
+	if (rvals->rx_pending < GFAR_MIN_RING_SIZE)
 		return -EINVAL;
 
 	if (!is_power_of_2(rvals->rx_pending)) {
@@ -471,6 +473,8 @@ static int gfar_sringparam(struct net_device *dev, struct ethtool_ringparam *rva
 		return -EINVAL;
 	}
 
+	if (rvals->rx_pending < GFAR_MIN_RING_SIZE)
+		return -EINVAL;
 	if (rvals->tx_pending > GFAR_TX_MAX_RING_SIZE)
 		return -EINVAL;
 
@@ -506,9 +510,12 @@ static int gfar_sringparam(struct net_device *dev, struct ethtool_ringparam *rva
 
 	/* Change the size */
 	for (i = 0; i < priv->num_rx_queues; i++) {
+		old_rx_ringparam[i] = priv->rx_queue[i]->rx_ring_size;
+		old_tx_ringparam[i] = priv->tx_queue[i]->tx_ring_size;
 		priv->rx_queue[i]->rx_ring_size = rvals->rx_pending;
 		priv->tx_queue[i]->tx_ring_size = rvals->tx_pending;
-		priv->tx_queue[i]->num_txbdfree = priv->tx_queue[i]->tx_ring_size;
+		priv->tx_queue[i]->num_txbdfree = priv->tx_queue[i]->
+							tx_ring_size;
 	}
 
 	/* Rebuild the rings with the new size */
@@ -516,6 +523,18 @@ static int gfar_sringparam(struct net_device *dev, struct ethtool_ringparam *rva
 		err = startup_gfar(dev);
 		netif_tx_wake_all_queues(dev);
 	}
+	/* fallback to original setting */
+	if (err) {
+		for (i = 0; i < priv->num_rx_queues; i++) {
+			priv->rx_queue[i]->rx_ring_size = old_rx_ringparam[i];
+			priv->tx_queue[i]->tx_ring_size = old_tx_ringparam[i];
+			priv->tx_queue[i]->num_txbdfree =
+				priv->tx_queue[i]->tx_ring_size;
+		}
+		BUG_ON(startup_gfar(dev));
+		netif_tx_wake_all_queues(dev);
+	}
+
 	return err;
 }
 

@@ -93,8 +93,8 @@ extern const char gfar_driver_version[];
 #define DEFAULT_WK_RING_SIZE	16
 
 
-#define GFAR_RX_MAX_RING_SIZE   256
-#define GFAR_TX_MAX_RING_SIZE   256
+#define GFAR_TX_MAX_RING_SIZE   65536
+#define GFAR_MIN_RING_SIZE	4
 
 #define GFAR_MAX_FIFO_THRESHOLD 511
 #define GFAR_MAX_FIFO_STARVE	511
