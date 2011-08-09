@@ -1012,6 +1012,9 @@ static void gfar_init_filer_table(struct gfar_private *priv)
 		ftp_rqfpr[i] = rqfpr;
 		gfar_write_filer(priv, i, rqfcr, rqfpr);
 	}
+
+	/* Program the RIR0 reg with the required distribution */
+	priv->gfargrp[0].regs->rir0 = DEFAULT_RIR0;
 }
 
 static void gfar_detect_errata(struct gfar_private *priv)
@@ -1074,6 +1077,7 @@ static int gfar_probe(struct of_device *ofdev,
 			priv->ptimer_present = 0;
 			printk(KERN_ERR "IEEE1588: ptp-timer init failed\n");
 		}
+		priv->rx_filer_enable = 1;
 		pmuxcr_guts_write();
 		printk(KERN_INFO "IEEE1588: ptp-timer initialized\n");
 	}
