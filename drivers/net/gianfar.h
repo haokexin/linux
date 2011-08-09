@@ -114,6 +114,37 @@ extern const char gfar_driver_version[];
 #define DEFAULT_STASH_LENGTH	96
 #define DEFAULT_STASH_INDEX	0
 
+#define PTP_GET_RX_TIMESTAMP_SYNC	SIOCDEVPRIVATE
+#define PTP_GET_RX_TIMESTAMP_DEL_REQ	(SIOCDEVPRIVATE + 1)
+#define PTP_GET_RX_TIMESTAMP_FOLLOWUP	(SIOCDEVPRIVATE + 2)
+#define PTP_GET_RX_TIMESTAMP_DEL_RESP	(SIOCDEVPRIVATE + 3)
+#define PTP_GET_TX_TIMESTAMP		(SIOCDEVPRIVATE + 4)
+#define PTP_SET_CNT			(SIOCDEVPRIVATE + 5)
+#define PTP_GET_CNT			(SIOCDEVPRIVATE + 6)
+#define PTP_SET_FIPER_ALARM		(SIOCDEVPRIVATE + 7)
+#define PTP_ADJ_ADDEND			(SIOCDEVPRIVATE + 9)
+#define PTP_GET_ADDEND			(SIOCDEVPRIVATE + 10)
+#define PTP_GET_RX_TIMESTAMP_PDELAY_REQ	(SIOCDEVPRIVATE + 11)
+#define PTP_GET_RX_TIMESTAMP_PDELAY_RESP	(SIOCDEVPRIVATE + 12)
+#define PTP_CLEANUP_TIMESTAMP_BUFFERS	(SIOCDEVPRIVATE + 13)
+#define DEFAULT_PTP_RX_BUF_SZ		2000
+#define GFAR_PTP_CTRL_SYNC		0x0
+#define GFAR_PTP_CTRL_DEL_REQ		0x1
+#define GFAR_PTP_CTRL_FOLLOWUP		0x2
+#define GFAR_PTP_CTRL_DEL_RESP		0x3
+#define GFAR_PTP_CTRL_ALL_OTHER		0x5
+#define GFAR_PTP_MSG_TYPE_PDREQ		0x02
+#define GFAR_PTP_MSG_TYPE_PDRESP	0x03
+#define GFAR_PTP_DOMAIN_DLFT		0xe0000181
+#define GFAR_PTP_PKT_TYPE_OFFS		0x1f
+#define GFAR_PTP_PROTOCOL_OFFS		0x20
+#define GFAR_PTP_MULTI_ADDR_OFFS	0x26
+#define GFAR_PTP_PORT_OFFS		0x2A
+#define GFAR_PTP_MSG_TYPE_OFFS		0x32
+#define GFAR_PTP_SEQ_ID_OFFS		0x50
+#define GFAR_PTP_CTRL_OFFS		0x52
+#define GFAR_PACKET_TYPE_UDP		0x11
+
 /* The number of Exact Match registers */
 #define GFAR_EM_NUM	15
 
@@ -278,6 +309,8 @@ extern const char gfar_driver_version[];
 
 #define next_bd(bdp, base, ring_size) skip_bd(bdp, 1, base, ring_size)
 
+#define RCTRL_TS_ENABLE		0x01000000
+#define RCTRL_PADB_SIZE		(0x8 << 16)
 #define RCTRL_PAL_MASK		0x001f0000
 #define RCTRL_VLEX		0x00002000
 #define RCTRL_FILREN		0x00001000
@@ -547,6 +580,24 @@ extern const char gfar_driver_version[];
 #define RXFCB_PERR_MASK		0x000c
 #define RXFCB_PERR_BADL3	0x0008
 
+/* 1588 Module Registers bits */
+#define TMR_CTRL_ENABLE		0x00000004
+#define TMR_CTRL_RTC_CLK	0x00000003
+#define TMR_CTRL_EXT_CLK	0x00000000
+#define TMR_CTRL_SYS_CLK	0x00000001
+#define TMR_CTRL_TCLK_PRD	0x000A0000
+#define TMR_OSC_FREQ		166000000
+#define TMR_ADD_VAL		CONFIG_GFAR_PTP_TMR_ADD
+#define TMR_CTRL_TCLK_MASK	0x03ff0000
+#define TMR_PTPD_MAX_FREQ	0x80000
+#define TMR_CTRL_FIPER_START	0x10000000
+#define TMR_FIPER1		1000000000
+/*Alarm to traigger at 15sec boundary */
+#define TMR_ALARM1_L	0xD964B800
+#define TMR_ALARM1_H	0x00000045
+#define TMR_PRSC	0x2
+#define TMR_SEC		1000000000
+
 #define GFAR_INT_NAME_MAX	IFNAMSIZ + 4
 
 #define GIANFAR_WOL_MAGIC       (1 << 5)
@@ -565,7 +616,7 @@ struct txbd8
 
 struct txfcb {
 	u8	flags;
-	u8	reserved;
+	u8	ptp;	/* Least significant bit for enabling Tx Timestamping */
 	u8	l4os;	/* Level 4 Header Offset */
 	u8	l3os; 	/* Level 3 Header Offset */
 	u16	phcs;	/* Pseudo-header Checksum */
@@ -680,6 +731,41 @@ struct gfar_stats {
 	u64 rmon[GFAR_RMON_LEN];
 };
 
+/* IEEE-1588 Timer Controller Registers */
+struct gfar_regs_1588 {
+	u32	tmr_ctrl;	/* 0x.e00 - Timer Control Register */
+	u32	tmr_tevent;	/* 0x.e04 - Timer stamp event register */
+	u32	tmr_temask;	/* 0x.e08 - Timer event mask register */
+	u32	tmr_pevent;	/* 0x.e0c - Timer stamp event register */
+	u32	tmr_pemask;	/* 0x.e10 - Timer event mask register */
+	u32	tmr_stat;	/* 0x.e14 - Timer stamp status register */
+	u32	tmr_cnt_h;	/* 0x.e18 - Timer counter high register */
+	u32	tmr_cnt_l;	/* 0x.e1c - Timer counter low register */
+	u32	tmr_add;	/* 0x.e20 - Timer dirft compensation*/
+					/*addend register */
+	u32	tmr_acc;	/* 0x.e24 - Timer accumulator register */
+	u32	tmr_prsc;	/* 0x.e28 - Timer prescale register */
+	u8	res24a[4];	/* 0x.e2c - 0x.e2f reserved */
+	u32	tmr_off_h;	/* 0x.e30 - Timer offset high register */
+	u32	tmr_off_l;	/* 0x.e34 - Timer offset low register */
+	u8	res24b[8];	/* 0x.e38 - 0x.e3f reserved */
+	u32	tmr_alarm1_h;	/* 0x.e40 - Timer alarm 1 high register */
+	u32	tmr_alarm1_l;	/* 0x.e44 - Timer alarm 1 low register */
+	u32	tmr_alarm2_h;	/* 0x.e48 - Timer alarm 2 high register */
+	u32	tmr_alarm2_l;	/* 0x.e4c - Timer alarm 2 low register */
+	u8	res24c[48];	/* 0x.e50 - 0x.e7f reserved */
+	u32	tmr_fiper1;	/* 0x.e80 - Timer fixed period register 1 */
+	u32	tmr_fiper2;	/* 0x.e84 - Timer fixed period register 2 */
+	u32	tmr_fiper3;	/* 0x.e88 - Timer fixed period register 3 */
+	u8	res24d[20];	/* 0x.e8c - 0x.ebf reserved */
+	u32	tmr_etts1_h;	/* 0x.ea0 - Timer stamp high of*/
+					/*general purpose external trigger 1*/
+	u32	tmr_etts1_l;	/* 0x.ea4 - Timer stamp low of*/
+					/*general purpose external trigger 1*/
+	u32	tmr_etts2_h;	/* 0x.ea8 - Timer stamp high of*/
+					/*general purpose external trigger 2 */
+	u32	tmr_etts2_l;	/* 0x.eac - Timer stamp low of*/
+};
 
 struct gfar {
 	u32	tsec_id;	/* 0x.000 - Controller ID register */
@@ -753,7 +839,15 @@ struct gfar {
 	u32	tbase6;		/* 0x.234 - TxBD Base Address of ring 6 */
 	u8	res10g[4];
 	u32	tbase7;		/* 0x.23c - TxBD Base Address of ring 7 */
-	u8	res10[192];
+	u8	res10h[64];
+	u32	tmr_txts1_id;	/* 0x.280 Tx time stamp identification*/
+	u32	tmr_txts2_id;	/* 0x.284 Tx time stamp Identification*/
+	u8	res10i[56];
+	u32	tmr_txts1_h;	/* 0x.2c0 Tx time stamp high*/
+	u32	tmr_txts1_l;	/* 0x.2c4 Tx Time Stamp low*/
+	u32	tmr_txts2_h;	/* 0x.2c8 Tx time stamp high*/
+	u32	tmr_txts2_l;	/*0x.2cc  Tx Time Stamp low */
+	u8	res10j[48];
 	u32	rctrl;		/* 0x.300 - Receive Control Register */
 	u32	rstat;		/* 0x.304 - Receive Status Register */
 	u8	res12[8];
@@ -804,7 +898,10 @@ struct gfar {
 	u32	rbase6;		/* 0x.434 - RxBD base address of ring 6 */
 	u8	res17g[4];
 	u32	rbase7;		/* 0x.43c - RxBD base address of ring 7 */
-	u8	res17[192];
+	u8	res17h[128];
+	u32	tmr_rxts_h;	/* 0x.4c0 Rx Time Stamp high*/
+	u32	tmr_rxts_l;	/* 0x.4c4 Rx Time Stamp low */
+	u8	res17i[56];
 	u32	maccfg1;	/* 0x.500 - MAC Configuration 1 Register */
 	u32	maccfg2;	/* 0x.504 - MAC Configuration 2 Register */
 	u32	ipgifg;		/* 0x.508 - Inter Packet Gap/Inter Frame Gap Register */
@@ -873,7 +970,8 @@ struct gfar {
 	u8	res23c[248];
 	u32	attr;		/* 0x.bf8 - Attributes Register */
 	u32	attreli;	/* 0x.bfc - Attributes Extract Length and Extract Index Register */
-	u8	res24[688];
+	u8	res24[512];
+	struct gfar_regs_1588 regs_1588;
 	u32	isrg0;		/* 0x.eb0 - Interrupt steering group 0 register */
 	u32	isrg1;		/* 0x.eb4 - Interrupt steering group 1 register */
 	u32	isrg2;		/* 0x.eb8 - Interrupt steering group 2 register */
@@ -897,6 +995,24 @@ struct gfar {
 	u32	txic6;		/* 0x.f28 - Ring 6 Tx interrupt coalescing */
 	u32	txic7;		/* 0x.f2c - Ring 7 Tx interrupt coalescing */
 	u8	res27[208];
+};
+
+/* Structure for PTP Time Stamp */
+struct gfar_ptp_time {
+	u32	high;
+	u32	low;
+};
+
+struct gfar_ptp_data_t {
+	int	key;
+	struct	gfar_ptp_time	item;
+};
+
+struct gfar_ptp_circular_t {
+	int	front;
+	int	end;
+	int	size;
+	struct	gfar_ptp_data_t *data_buf;
 };
 
 /* Flags related to gianfar device features */
@@ -1151,6 +1267,15 @@ struct gfar_private {
 
 	/* Network Statistics */
 	struct gfar_extra_stats extra_stats;
+	struct gfar_ptp_circular_t rx_time_sync;
+	struct gfar_ptp_circular_t rx_time_del_req;
+
+	/* 1588 stuff */
+	struct gfar_ptp_circular_t rx_time_pdel_req;
+	struct gfar_ptp_circular_t rx_time_pdel_resp;
+	struct gfar_regs_1588 __iomem *ptimer;
+	struct resource timer_resource;
+	uint32_t ptimer_present;
 };
 
 extern unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
@@ -1202,6 +1327,14 @@ extern irqreturn_t gfar_receive(int irq, void *dev_id);
 extern int startup_gfar(struct net_device *dev);
 extern void stop_gfar(struct net_device *dev);
 extern void gfar_halt(struct net_device *dev);
+extern void gfar_1588_start(struct net_device *dev);
+extern void gfar_1588_stop(struct net_device *dev);
+extern int gfar_ptp_init(struct gfar_private *priv);
+extern void gfar_ptp_cleanup(struct gfar_private *priv);
+extern int gfar_ptp_do_txstamp(struct sk_buff *skb);
+extern void pmuxcr_guts_write(void);
+extern void gfar_ptp_store_rxstamp(struct net_device *dev, struct sk_buff *skb);
+extern int gfar_ioctl_1588(struct net_device *dev, struct ifreq *ifr, int cmd);
 extern void gfar_phy_test(struct mii_bus *bus, struct phy_device *phydev,
 		int enable, u32 regnum, u32 read);
 extern void gfar_configure_coalescing(struct gfar_private *priv,

@@ -468,6 +468,19 @@ static void gfar_init_mac(struct net_device *ndev)
 		rctrl |= RCTRL_PADDING(priv->padding);
 	}
 
+	if (priv->ptimer_present) {
+
+		/* Enable Filer and Rx Packet Parsing capability of eTSEC */
+		/* Set Filer Table */
+		gfar_1588_start(ndev);
+		if (priv->device_flags & FSL_GIANFAR_DEV_HAS_PADDING)
+			rctrl &= RCTRL_PAL_MASK;
+		/* Enable Filer for Rx Queue */
+		rctrl |= RCTRL_PRSDEP_INIT |
+			RCTRL_TS_ENABLE | RCTRL_PADDING(8);
+		priv->padding = 0x8;
+	}
+
 	/* keep vlan related bits if it's enabled */
 	if (priv->vlgrp) {
 		rctrl |= RCTRL_VLEX | RCTRL_PRSDEP_INIT;
@@ -687,11 +700,13 @@ static int gfar_of_init(struct of_device *ofdev, struct net_device **pdev)
 	const char *model;
 	const char *ctype;
 	const void *mac_addr;
-	int err = 0, i;
+	int err = 0, i, ret = 0;
 	struct net_device *dev = NULL;
 	struct gfar_private *priv = NULL;
 	struct device_node *np = ofdev->node;
 	struct device_node *child = NULL;
+	struct device_node *timer_node;
+	const phandle *timer_handle;
 	const u32 *stash;
 	const u32 *stash_len;
 	const u32 *stash_idx;
@@ -809,6 +824,22 @@ static int gfar_of_init(struct of_device *ofdev, struct net_device **pdev)
 	if (stash_len || stash_idx)
 		priv->device_flags |= FSL_GIANFAR_DEV_HAS_BUF_STASHING;
 
+	/* Handle IEEE1588 node */
+	timer_handle = of_get_property(np, "ptimer-handle", NULL);
+	if (timer_handle) {
+		timer_node = of_find_node_by_phandle(*timer_handle);
+		if (timer_node) {
+			ret = of_address_to_resource(timer_node, 0,
+					&priv->timer_resource);
+			if (!ret) {
+				priv->ptimer_present = 1;
+				printk(KERN_INFO "IEEE1588: ptp-timer device"
+						"present in the system\n");
+			}
+		}
+	} else
+		printk(KERN_INFO "IEEE1588: disable on the system.\n");
+
 	mac_addr = of_get_mac_address(np);
 	if (mac_addr)
 		memcpy(dev->dev_addr, mac_addr, MAC_ADDR_LEN);
@@ -865,6 +896,7 @@ err_grp_init:
 static int gfar_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
 	struct gfar_private *priv = netdev_priv(dev);
+	int retVal = 0;
 
 	if (!netif_running(dev))
 		return -EINVAL;
@@ -872,7 +904,13 @@ static int gfar_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 	if (!priv->phydev)
 		return -ENODEV;
 
-	return phy_mii_ioctl(priv->phydev, if_mii(rq), cmd);
+	if ((cmd >= PTP_GET_RX_TIMESTAMP_SYNC) &&
+			(cmd <= PTP_CLEANUP_TIMESTAMP_BUFFERS))
+		retVal = gfar_ioctl_1588(dev, rq, cmd);
+	else
+		retVal = phy_mii_ioctl(priv->phydev, if_mii(rq), cmd);
+
+	return retVal;
 }
 
 static unsigned int reverse_bitmap(unsigned int bit_map, unsigned int max_qs)
@@ -1008,6 +1046,16 @@ static int gfar_probe(struct of_device *ofdev,
 	priv->node = ofdev->node;
 	SET_NETDEV_DEV(dev, &ofdev->dev);
 
+	if (priv->ptimer_present) {
+		err = gfar_ptp_init(priv);
+		if (err) {
+			priv->ptimer_present = 0;
+			printk(KERN_ERR "IEEE1588: ptp-timer init failed\n");
+		}
+		pmuxcr_guts_write();
+		printk(KERN_INFO "IEEE1588: ptp-timer initialized\n");
+	}
+
 	spin_lock_init(&priv->bflock);
 	INIT_WORK(&priv->reset_task, gfar_reset_task);
 
@@ -1104,7 +1152,7 @@ static int gfar_probe(struct of_device *ofdev,
 	else
 		priv->padding = 0;
 
-	if (dev->features & NETIF_F_IP_CSUM)
+	if (dev->features & NETIF_F_IP_CSUM  || priv->ptimer_present)
 		dev->hard_header_len += GMAC_FCB_LEN;
 
 	/* Program the isrg regs only if number of grps > 1 */
@@ -1258,6 +1306,8 @@ static int gfar_probe(struct of_device *ofdev,
 	return 0;
 
 register_fail:
+	if (priv->ptimer_present)
+		gfar_ptp_cleanup(priv);
 	unmap_group_regs(priv);
 	free_tx_pointers(priv);
 	free_rx_pointers(priv);
@@ -1975,6 +2025,9 @@ void stop_gfar(struct net_device *dev)
 	unlock_tx_qs(priv);
 	local_irq_restore(flags);
 
+	if (priv->ptimer_present)
+		gfar_1588_stop(dev);
+
 	/* Free the IRQs */
 	if (priv->device_flags & FSL_GIANFAR_DEV_HAS_MULTI_INTR) {
 		for (i = 0; i < priv->num_grps; i++)
@@ -2495,6 +2548,16 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		}
 
 		gfar_tx_vlan(skb, fcb);
+	}
+
+	if (priv->ptimer_present) {
+		/* Enable ptp flag so that Tx time stamping happens */
+		if (gfar_ptp_do_txstamp(skb)) {
+			if (fcb == NULL)
+				fcb = gfar_add_fcb(skb);
+			fcb->ptp = 0x01;
+			lstatus |= BD_LFLAG(TXBD_TOE);
+		}
 	}
 
 	/* setup the TxBD length and buffer pointer for the first BD */
@@ -3040,6 +3103,11 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
 		skb_pull(skb, amount_pull);
 	}
 
+	if (priv->ptimer_present) {
+		gfar_ptp_store_rxstamp(dev, skb);
+		skb_pull(skb, 8);
+	}
+
 	if (priv->rx_csum_enable)
 		gfar_rx_checksum(skb, fcb);
 
@@ -3076,8 +3144,11 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
 	bdp = rx_queue->cur_rx;
 	base = rx_queue->rx_bd_base;
 
-	amount_pull = (gfar_uses_fcb(priv) ? GMAC_FCB_LEN : 0) +
-		priv->padding;
+	if (priv->ptimer_present)
+		amount_pull = (gfar_uses_fcb(priv) ? GMAC_FCB_LEN : 0);
+	else
+		amount_pull = (gfar_uses_fcb(priv) ? GMAC_FCB_LEN : 0) +
+				priv->padding;
 
 	while (!((bdp->status & RXBD_EMPTY) || (--rx_work_limit < 0))) {
 		struct sk_buff *newskb;
