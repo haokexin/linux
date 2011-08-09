@@ -19,6 +19,7 @@
 #include <linux/vmalloc.h>
 #include <linux/of.h>
 #include "gianfar.h"
+#include <linux/of_platform.h>
 
 #if defined(CONFIG_1588_MUX_eTSEC1) || defined(CONFIG_1588_MUX_eTSEC2)
 #define MPC85XX_PMUXCR_OFFS 0x60
@@ -45,6 +46,10 @@ static DECLARE_WAIT_QUEUE_HEAD(ptp_rx_ts_wait);
 #define PTP_GET_RX_TIMEOUT	(HZ/10)
 
 static u32 freq_compensation;
+
+static struct proc_dir_entry *gfar_1588_proc_file;
+static struct gfar_node_info_t gfar_node;
+static struct gfar_1588_data_t gfar_1588_data;
 
 /*64 bites add and return the result*/
 static u64 add64_oper(u64 addend, u64 augend)
@@ -698,4 +703,106 @@ int gfar_ptp_cal_attr(struct gfar_ptp_attr_t *ptp_attr)
 	ptp_attr->freq_div_ratio = (ptp_attr->sysclock_freq *
 					100) / ptp_attr->nominal_freq;
 	return 0;
+}
+
+static int gfar_1588_proc_read(char *buffer,
+		char **buffer_location,
+		off_t offset, int buffer_length, int *eof, void *data)
+{
+	int len;
+	struct gfar_1588_data_t *gfar_1588_info = \
+				(struct gfar_1588_data_t *)data;
+
+	len = sprintf(buffer, "%s = '%s'\n",
+			gfar_1588_info->name, gfar_1588_info->value);
+	return len;
+}
+
+static int gfar_1588_proc_write(struct file *file, const char *buffer,
+			unsigned long count, void *data)
+{
+	int i, cnt;
+	struct gfar_private *priv;
+	struct device_node *np = NULL;
+	struct of_device *ofdev;
+	struct gfar_1588_data_t *gfar_1588_info = \
+				(struct gfar_1588_data_t *)data;
+
+	if (count > GFAR_1588_PROCFS_MAX_SIZE)
+		count = GFAR_1588_PROCFS_MAX_SIZE;
+
+	if (copy_from_user(gfar_1588_info->value, buffer, count))
+		return -EFAULT;
+	gfar_1588_info->value[count - 1] = '\0';
+	printk(KERN_DEBUG "\r\n  buffer (%s) \r\n", gfar_1588_info->value);
+	cnt = gfar_node.match_cnt / sizeof(struct of_device_id);
+
+	/*
+	 * Here we are getting the valid index ie "i" for which we have
+	 * valid compatible string in the dts file.
+	 */
+	for (i = 0; i < (cnt - 1); i++) {
+		printk(KERN_DEBUG "\r\n gfar-node is (%s)\r\n", \
+				gfar_node.gfar_node_match[i].compatible);
+		if (!of_find_compatible_node(NULL, NULL, \
+				gfar_node.gfar_node_match[i].compatible))
+			continue;
+		else
+			break;
+	}
+
+	/*
+	 * After getting the valid index "i" from above for loop
+	 * we are Enabling/Disabling the 1588 functionality on the
+	 * eTSEC controllers.
+	 */
+	while (1) {
+		np = of_find_compatible_node(np, NULL, \
+				gfar_node.gfar_node_match[i].compatible);
+		if (np == NULL) {
+			printk(KERN_DEBUG "\r\nUnale to find gfar-node\n");
+			break;
+		} else {
+			ofdev = of_find_device_by_node(np);
+			priv = dev_get_drvdata(&ofdev->dev);
+			if (!strcmp(gfar_1588_info->value, "0")) {
+				printk(KERN_DEBUG "\r\n PTPD OFF \r\n");
+				priv->ptimer_present = 0;
+			} else if (!strcmp(gfar_1588_info->value, "1")) {
+				printk(KERN_DEBUG "\r\n PTPD ON \r\n");
+				priv->ptimer_present = 1;
+			}
+		}
+	}
+	return count;
+}
+
+void gfar_1588_proc_init(struct of_device_id *dev_id, int cnt)
+{
+	gfar_1588_proc_file = create_proc_entry(GFAR_1588_PROCFS_NAME,\
+							 0644, NULL);
+
+	if (gfar_1588_proc_file == NULL) {
+		remove_proc_entry(GFAR_1588_PROCFS_NAME, NULL);
+		printk(KERN_ALERT "Error: Could not initialize /proc/%s\n",
+			GFAR_1588_PROCFS_NAME);
+		return;
+	}
+	strcpy(gfar_1588_data.name, GFAR_1588_PROCFS_NAME);
+	strcpy(gfar_1588_data.value, "1");
+	gfar_1588_proc_file->read_proc  = gfar_1588_proc_read;
+	gfar_1588_proc_file->write_proc = gfar_1588_proc_write;
+	gfar_1588_proc_file->mode	= S_IFREG | S_IRUGO;
+	gfar_1588_proc_file->uid	= 0;
+	gfar_1588_proc_file->gid	= 0;
+	gfar_1588_proc_file->data	= &gfar_1588_data;
+	gfar_node.gfar_node_match = dev_id;
+	gfar_node.match_cnt = cnt;
+	printk(KERN_INFO "/proc/%s created \r\n", GFAR_1588_PROCFS_NAME);
+}
+
+void gfar_1588_proc_exit()
+{
+	remove_proc_entry(GFAR_1588_PROCFS_NAME, NULL);
+	printk(KERN_INFO "/proc/%s removed \r\n", GFAR_1588_PROCFS_NAME);
 }
