@@ -510,7 +510,10 @@ static void gfar_init_mac(struct net_device *ndev)
 	if (ndev->features & NETIF_F_IP_CSUM)
 		tctrl |= TCTRL_INIT_CSUM;
 
-	tctrl |= TCTRL_TXSCHED_PRIO;
+	tctrl |= TCTRL_TXSCHED_WRRS;
+
+	gfar_write(&regs->tr03wt, WRRS_TR03WT);
+	gfar_write(&regs->tr47wt, WRRS_TR47WT);
 
 	gfar_write(&regs->tctrl, tctrl);
 
@@ -3495,7 +3498,8 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 
 	gfar_write(&regs->ievent, IEVENT_TX_MASK);
 
-	for (i = 0; i < priv->num_tx_queues; i++) {
+	for_each_set_bit(i, &gfargrp->tx_bit_map, priv->num_tx_queues) {
+		mask = mask >> i;
 		if (tstat & mask) {
 			tx_queue = priv->tx_queue[i];
 			if (spin_trylock_irqsave(&tx_queue->txlock, flags)) {
@@ -3508,13 +3512,14 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 			tx_cleaned += tx_cleaned_per_queue;
 			tx_cleaned_per_queue = 0;
 		}
-		mask = mask >> 0x1;
+		mask = TSTAT_TXF0_MASK;
 	}
 
 	budget = (num_act_qs * DEFAULT_TX_RING_SIZE) + 1;
 	if (tx_cleaned < budget) {
 		napi_complete(napi);
 		spin_lock_irq(&gfargrp->grplock);
+		gfar_write(&regs->tstat, tstat);
 		imask = gfar_read(&regs->imask);
 		imask |= IMASK_DEFAULT_TX;
 		gfar_write(&regs->ievent, IEVENT_TX_MASK);
@@ -3551,7 +3556,8 @@ static int gfar_poll_rx(struct napi_struct *napi, int budget)
 
 	gfar_write(&regs->ievent, IEVENT_RX_MASK);
 
-	for (i = 0; i < priv->num_rx_queues; i++) {
+	for_each_set_bit(i, &gfargrp->rx_bit_map, priv->num_rx_queues) {
+		mask = mask >> i;
 		if (rstat & mask) {
 			rstat_rhalt |= (RSTAT_CLEAR_RHALT >> i);
 			rx_queue = priv->rx_queue[i];
@@ -3559,7 +3565,7 @@ static int gfar_poll_rx(struct napi_struct *napi, int budget)
 							budget_per_queue);
 			rx_cleaned += rx_cleaned_per_queue;
 		}
-		mask = mask >> 0x1;
+		mask = RSTAT_RXF0_MASK;
 	}
 
 	if (rx_cleaned < budget) {
@@ -3568,7 +3574,7 @@ static int gfar_poll_rx(struct napi_struct *napi, int budget)
 		/* Clear the halt bit in RSTAT */
 		spin_lock_irq(&gfargrp->grplock);
 		gfar_write(&regs->rstat, rstat_rhalt);
-
+		gfar_write(&regs->rstat, rstat);
 		imask = gfar_read(&regs->imask);
 		gfar_write(&regs->ievent, IEVENT_RX_MASK);
 		imask |= IMASK_DEFAULT_RX;
