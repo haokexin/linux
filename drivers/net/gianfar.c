@@ -3506,7 +3506,9 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 							flags);
 			}
 			tx_cleaned += tx_cleaned_per_queue;
+			tx_cleaned_per_queue = 0;
 		}
+		mask = mask >> 0x1;
 	}
 
 	budget = (num_act_qs * DEFAULT_TX_RING_SIZE) + 1;
