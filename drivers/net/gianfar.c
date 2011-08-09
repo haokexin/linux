@@ -937,12 +937,12 @@ static int gfar_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 		return -ENODEV;
 
 	if ((cmd >= PTP_GET_RX_TIMESTAMP_SYNC) &&
-			(cmd <= PTP_CLEANUP_TIMESTAMP_BUFFERS))
+			(cmd <= PTP_CLEANUP_TIMESTAMP_BUFFERS)) {
 		if (priv->ptimer_present)
 			retVal = gfar_ioctl_1588(dev, rq, cmd);
 		else
 			retVal = -ENODEV;
-	else
+	} else
 		retVal = phy_mii_ioctl(priv->phydev, if_mii(rq), cmd);
 
 	return retVal;
@@ -2449,6 +2449,7 @@ int startup_gfar(struct net_device *ndev)
 	struct gfar_private *priv = netdev_priv(ndev);
 	struct gfar __iomem *regs = NULL;
 	int err, i, j;
+	u32 rctrl = 0;
 
 	for (i = 0; i < priv->num_grps; i++) {
 		regs= priv->gfargrp[i].regs;
@@ -2469,6 +2470,18 @@ int startup_gfar(struct net_device *ndev)
 				free_grp_irqs(&priv->gfargrp[j]);
 				goto irq_fail;
 		}
+	}
+
+	if (priv->ptimer_present) {
+		/* Enable Filer and Rx Packet Parsing capability of eTSEC */
+		/* Set Filer Table */
+		gfar_1588_start(ndev);
+		if (priv->device_flags & FSL_GIANFAR_DEV_HAS_PADDING)
+			rctrl &= RCTRL_PAL_MASK;
+		/* Enable Filer for Rx Queue */
+		rctrl |= RCTRL_PRSDEP_INIT |
+			RCTRL_TS_ENABLE | RCTRL_PADDING(8);
+		priv->padding = 0x8;
 	}
 
 	/* Start the controller */
