@@ -38,6 +38,7 @@
 #include <linux/mii.h>
 #include <linux/phy.h>
 #include <asm/of_device.h>
+#include <linux/in.h>
 
 #include "gianfar.h"
 
@@ -713,9 +714,14 @@ static int gfar_ethflow_to_class(int flow_type, u64 *class)
 	return 1;
 }
 
-static void ethflow_to_filer_rules (struct gfar_private *priv, u64 ethflow)
+static void ethflow_to_filer_rules(struct gfar_private *priv, u64 ethflow,
+		u64 class)
 {
 	u32 fcr = 0x0, fpr = FPR_FILER_MASK;
+	u32 rbifx_val = 0;
+	int i;
+	u8 byte_ctl, byte_ctl_base;
+	struct gfar __iomem *regs = priv->gfargrp[0].regs;
 
 	if (ethflow & RXH_L2DA) {
 		fcr = RQFCR_PID_DAH |RQFCR_CMP_NOMATCH |
@@ -786,6 +792,78 @@ static void ethflow_to_filer_rules (struct gfar_private *priv, u64 ethflow)
 		gfar_write_filer(priv, priv->cur_filer_idx, fcr, fpr);
 		priv->cur_filer_idx = priv->cur_filer_idx - 1;
 	}
+
+	if ((class == AH_V4_FLOW) && (ethflow & RXH_AH_ESP_SPI)) {
+
+		fcr = RQFCR_PID_ARB | RQFCR_HASH | RQFCR_HASHTBL_0 |
+			RQFCR_CMP_NOMATCH | RQFCR_AND;
+		fpr = FPR_FILER_MASK;
+		priv->ftp_rqfpr[priv->cur_filer_idx] = fpr;
+		priv->ftp_rqfcr[priv->cur_filer_idx] = fcr;
+		gfar_write_filer(priv, priv->cur_filer_idx, fcr, fpr);
+		priv->cur_filer_idx = priv->cur_filer_idx - 1;
+
+		fcr = RQFCR_PID_L4P | RQFCR_CMP_EXACT | RQFCR_AND;
+		fpr = IPPROTO_AH;
+		priv->ftp_rqfpr[priv->cur_filer_idx] = fpr;
+		priv->ftp_rqfcr[priv->cur_filer_idx] = fcr;
+		gfar_write_filer(priv, priv->cur_filer_idx, fcr, fpr);
+		priv->cur_filer_idx = priv->cur_filer_idx - 1;
+
+
+		/* Byte 0 to be extracted at offset 4 from end of L3 header
+		 * i.e SPI field in AH header
+		 */
+		byte_ctl_base = 4;
+		byte_ctl_base |= EXTRACT_BYTE_AFTER_L3 << 6;
+		for (i = 0; i < 4; i++) {
+			byte_ctl = byte_ctl_base + i;
+			rbifx_val |= byte_ctl << (24 - (i*8));
+		}
+		gfar_write(&regs->rbifx, rbifx_val);
+	}
+
+	if ((class == ESP_V4_FLOW) && (ethflow & RXH_AH_ESP_SPI)) {
+
+		fcr = RQFCR_PID_ARB | RQFCR_HASH | RQFCR_HASHTBL_0 |
+			RQFCR_CMP_NOMATCH | RQFCR_AND;
+		fpr = FPR_FILER_MASK;
+		priv->ftp_rqfpr[priv->cur_filer_idx] = fpr;
+		priv->ftp_rqfcr[priv->cur_filer_idx] = fcr;
+		gfar_write_filer(priv, priv->cur_filer_idx, fcr, fpr);
+		priv->cur_filer_idx = priv->cur_filer_idx - 1;
+
+		fcr = RQFCR_PID_L4P | RQFCR_CMP_EXACT | RQFCR_AND;
+		fpr = IPPROTO_ESP;
+		priv->ftp_rqfpr[priv->cur_filer_idx] = fpr;
+		priv->ftp_rqfcr[priv->cur_filer_idx] = fcr;
+		gfar_write_filer(priv, priv->cur_filer_idx, fcr, fpr);
+		priv->cur_filer_idx = priv->cur_filer_idx - 1;
+
+		regs = priv->gfargrp[0].regs;
+
+		/* Byte 0 to be extracted at offset 0 from end of L3 header
+		 * i.e SPI field in ESP header
+		 */
+		byte_ctl_base = 0;
+		byte_ctl_base |= EXTRACT_BYTE_AFTER_L3 << 6;
+		for (i = 0; i < 4; i++) {
+			byte_ctl = byte_ctl_base + i;
+			rbifx_val |= byte_ctl << (24 - (i*8));
+		}
+		gfar_write(&regs->rbifx, rbifx_val);
+	}
+
+}
+
+static void gfar_dump_filer_table(struct gfar_private *priv)
+{
+	u32 fcr, fpr, far;
+	for (far = 0; far <= MAX_FILER_IDX; far++) {
+		gfar_read_filer(priv, far, &fcr, &fpr);
+		if (fcr != RQFCR_CMP_NOMATCH)
+			printk(KERN_INFO"[%d] fcr %x, fpr %x\n", far, fcr, fpr);
+	}
 }
 
 static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u64 class)
@@ -811,7 +889,10 @@ static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u
 		cmp_rqfpr = RQFPR_IPV6 |RQFPR_UDP;
 		break;
 	case IPV4_FLOW:
+	case AH_V4_FLOW:
+	case ESP_V4_FLOW:
 		cmp_rqfpr = RQFPR_IPV4;
+		break;
 	case IPV6_FLOW:
 		cmp_rqfpr = RQFPR_IPV6;
 		break;
@@ -862,8 +943,8 @@ static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u
 	last_rule_idx = l;
 
 	/* hash rules */
-	ethflow_to_filer_rules(priv, ethflow);
 
+	ethflow_to_filer_rules(priv, ethflow, class);
 	/* Write back the popped out rules again */
 	for (k = j+1; k < MAX_FILER_IDX; k++) {
 		priv->ftp_rqfpr[priv->cur_filer_idx] = local_rqfpr[k];
