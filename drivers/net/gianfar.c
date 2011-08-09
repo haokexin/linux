@@ -922,7 +922,7 @@ static int gfar_of_init(struct of_device *ofdev, struct net_device **pdev)
 			FSL_GIANFAR_DEV_HAS_COALESCE |
 			FSL_GIANFAR_DEV_HAS_RMON |
 			FSL_GIANFAR_DEV_HAS_MULTI_INTR;
-	if (model && !strcasecmp(model, "eTSEC"))
+	if (model && !strcasecmp(model, "eTSEC")) {
 		priv->device_flags =
 			FSL_GIANFAR_DEV_HAS_GIGABIT |
 			FSL_GIANFAR_DEV_HAS_COALESCE |
@@ -930,8 +930,12 @@ static int gfar_of_init(struct of_device *ofdev, struct net_device **pdev)
 			FSL_GIANFAR_DEV_HAS_MULTI_INTR |
 			FSL_GIANFAR_DEV_HAS_PADDING |
 			FSL_GIANFAR_DEV_HAS_CSUM |
-			FSL_GIANFAR_DEV_HAS_VLAN |
 			FSL_GIANFAR_DEV_HAS_EXTENDED_HASH;
+#ifndef CONFIG_GFAR_SW_VLAN
+		priv->device_flags |=
+			FSL_GIANFAR_DEV_HAS_VLAN;
+#endif
+	}
 
 	ctype = of_get_property(np, "phy-connection-type", NULL);
 
