@@ -2316,7 +2316,7 @@ void gfar_configure_tx_coalescing(struct gfar_private *priv,
 {
 	struct gfar __iomem *regs = priv->gfargrp[0].regs;
 	u32 __iomem *baddr;
-	int i = 0;
+	int i = 0, mask = 0x1;
 
 	/* Backward compatible case ---- even if we enable
 	 * multiple queues, there's only single reg to program
@@ -2327,11 +2327,15 @@ void gfar_configure_tx_coalescing(struct gfar_private *priv,
 
 	if (priv->mode == MQ_MG_MODE) {
 		baddr = &regs->txic0;
-		for_each_set_bit(i, &tx_mask, priv->num_tx_queues) {
-			if (likely(priv->tx_queue[i]->txcoalescing)) {
-				gfar_write(baddr + i, 0);
-				gfar_write(baddr + i, priv->tx_queue[i]->txic);
+		for (i = 0; i < priv->num_tx_queues; i++) {
+			if (tx_mask & mask) {
+				if (likely(priv->tx_queue[i]->txcoalescing)) {
+					gfar_write(baddr + i, 0);
+					gfar_write(baddr + i,
+						 priv->tx_queue[i]->txic);
+				}
 			}
+			mask = mask << 0x1;
 		}
 
 	}
@@ -2341,8 +2345,8 @@ void gfar_configure_rx_coalescing(struct gfar_private *priv,
 				long unsigned int rx_mask)
 {
 	struct gfar __iomem *regs = priv->gfargrp[0].regs;
-	u32 *baddr;
-	int i = 0;
+	u32 __iomem *baddr;
+	int i = 0, mask = 0x1;
 
 	/* Backward compatible case ---- even if we enable
 	 * multiple queues, there's only single reg to program
@@ -2353,11 +2357,15 @@ void gfar_configure_rx_coalescing(struct gfar_private *priv,
 
 	if (priv->mode == MQ_MG_MODE) {
 		baddr = &regs->rxic0;
-		for_each_set_bit(i, &rx_mask, priv->num_rx_queues) {
-			if (likely(priv->rx_queue[i]->rxcoalescing)) {
-				gfar_write(baddr + i, 0);
-				gfar_write(baddr + i, priv->rx_queue[i]->rxic);
+		for (i = 0; i < priv->num_rx_queues; i++) {
+			if (rx_mask & mask) {
+				if (likely(priv->rx_queue[i]->rxcoalescing)) {
+					gfar_write(baddr + i, 0);
+					gfar_write(baddr + i,
+						priv->rx_queue[i]->rxic);
+				}
 			}
+			mask = mask << 0x1;
 		}
 	}
 }
@@ -3010,10 +3018,13 @@ static int gfar_clean_tx_ring(struct gfar_priv_tx_q *tx_queue)
 static void gfar_schedule_cleanup_rx(struct gfar_priv_grp *gfargrp)
 {
 	unsigned long flags;
+	u32 imask = 0;
 
 	spin_lock_irqsave(&gfargrp->grplock, flags);
 	if (napi_schedule_prep(&gfargrp->napi_rx)) {
-		gfar_write(&gfargrp->regs->imask, IMASK_RX_DISABLED);
+		imask = gfar_read(&gfargrp->regs->imask);
+		imask = imask & IMASK_RX_DISABLED;
+		gfar_write(&gfargrp->regs->imask, imask);
 		__napi_schedule(&gfargrp->napi_rx);
 	} else {
 		gfar_write(&gfargrp->regs->ievent, IEVENT_RX_MASK);
@@ -3024,10 +3035,13 @@ static void gfar_schedule_cleanup_rx(struct gfar_priv_grp *gfargrp)
 static void gfar_schedule_cleanup_tx(struct gfar_priv_grp *gfargrp)
 {
 	unsigned long flags;
+	u32 imask = 0;
 
 	spin_lock_irqsave(&gfargrp->grplock, flags);
 	if (napi_schedule_prep(&gfargrp->napi_tx)) {
-		gfar_write(&gfargrp->regs->imask, IMASK_TX_DISABLED);
+		imask = gfar_read(&gfargrp->regs->imask);
+		imask = imask & IMASK_TX_DISABLED;
+		gfar_write(&gfargrp->regs->imask, imask);
 		__napi_schedule(&gfargrp->napi_tx);
 	} else {
 		gfar_write(&gfargrp->regs->ievent, IEVENT_TX_MASK);
@@ -3402,25 +3416,26 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 	struct gfar_private *priv = gfargrp->priv;
 	struct gfar __iomem *regs = gfargrp->regs;
 	struct gfar_priv_tx_q *tx_queue = NULL;
-	int budget_per_queue = 0, tx_cleaned = 0, i = 0;
-	int left_over_budget = budget, num_queues = 0;
-	int tx_cleaned_per_queue = 0;
-	unsigned long serviced_queues = 0;
+	int budget_per_queue = 0, tx_cleaned = 0, i = 0, num_act_qs = 0;
+	int tx_cleaned_per_queue = 0, mask = TSTAT_TXF0_MASK;
 	unsigned long flags;
-	u32 imask;
+	u32 imask, tstat, tstat_local;
 
-	num_queues = gfargrp->num_tx_queues;
-	budget_per_queue = budget/num_queues;
+	tstat = gfar_read(&regs->tstat);
+	tstat = tstat & TSTAT_TXF_MASK_ALL;
+	tstat_local = tstat;
+
+	while (tstat_local) {
+		num_act_qs++;
+		tstat_local &= (tstat_local - 1);
+	}
+
+	budget_per_queue = budget / num_act_qs;
 
 	gfar_write(&regs->ievent, IEVENT_TX_MASK);
 
-	while (num_queues && left_over_budget) {
-		budget_per_queue = left_over_budget/num_queues;
-		left_over_budget = 0;
-
-		for_each_set_bit(i, &gfargrp->tx_bit_map, priv->num_tx_queues) {
-			if (test_bit(i, &serviced_queues))
-				continue;
+	for (i = 0; i < priv->num_tx_queues; i++) {
+		if (tstat & mask) {
 			tx_queue = priv->tx_queue[i];
 			if (spin_trylock_irqsave(&tx_queue->txlock, flags)) {
 				tx_cleaned_per_queue =
@@ -3430,20 +3445,17 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 							flags);
 			}
 			tx_cleaned += tx_cleaned_per_queue;
-			if (tx_cleaned_per_queue < budget_per_queue) {
-				left_over_budget = left_over_budget +
-					(budget_per_queue - tx_cleaned_per_queue);
-				set_bit(i, &serviced_queues);
-				num_queues--;
-			}
 		}
 	}
 
 	if (tx_cleaned < budget) {
 		napi_complete(napi);
+		spin_lock_irq(&gfargrp->grplock);
 		imask = gfar_read(&regs->imask);
 		imask |= IMASK_DEFAULT_TX;
+		gfar_write(&regs->ievent, IEVENT_TX_MASK);
 		gfar_write(&regs->imask, imask);
+		spin_unlock_irq(&gfargrp->grplock);
 		gfar_configure_tx_coalescing(priv, gfargrp->tx_bit_map);
 	}
 
@@ -3458,43 +3470,45 @@ static int gfar_poll_rx(struct napi_struct *napi, int budget)
 	struct gfar __iomem *regs = gfargrp->regs;
 	struct gfar_priv_rx_q *rx_queue = NULL;
 	int rx_cleaned = 0, budget_per_queue = 0, rx_cleaned_per_queue = 0;
-	int i, left_over_budget = budget, num_queues = 0;
-	unsigned long serviced_queues = 0;
-	u32 imask;
+	int num_act_qs = 0, mask = RSTAT_RXF0_MASK, i;
+	u32 imask, rstat, rstat_local, rstat_rhalt = 0;
 
-	num_queues = gfargrp->num_rx_queues;
-	budget_per_queue = budget/num_queues;
+	rstat = gfar_read(&regs->rstat);
+	rstat = rstat & RSTAT_RXF_ALL_MASK;
+	rstat_local = rstat;
+
+	while (rstat_local) {
+		num_act_qs++;
+		rstat_local &= (rstat_local - 1);
+	}
+
+	budget_per_queue = budget / num_act_qs;
 
 	gfar_write(&regs->ievent, IEVENT_RX_MASK);
 
-	while (num_queues && left_over_budget) {
-		budget_per_queue = left_over_budget/num_queues;
-		left_over_budget = 0;
-		for_each_set_bit(i, &gfargrp->rx_bit_map, priv->num_rx_queues) {
-			if (test_bit(i, &serviced_queues))
-				continue;
+	for (i = 0; i < priv->num_rx_queues; i++) {
+		if (rstat & mask) {
+			rstat_rhalt |= (RSTAT_CLEAR_RHALT >> i);
 			rx_queue = priv->rx_queue[i];
 			rx_cleaned_per_queue = gfar_clean_rx_ring(rx_queue,
 							budget_per_queue);
 			rx_cleaned += rx_cleaned_per_queue;
-			if (rx_cleaned_per_queue < budget_per_queue) {
-				left_over_budget = left_over_budget +
-					(budget_per_queue - rx_cleaned_per_queue);
-				set_bit(i, &serviced_queues);
-				num_queues--;
-			}
 		}
+		mask = mask >> 0x1;
 	}
 
 	if (rx_cleaned < budget) {
 		napi_complete(napi);
 
 		/* Clear the halt bit in RSTAT */
-		gfar_write(&regs->rstat, gfargrp->rstat);
+		spin_lock_irq(&gfargrp->grplock);
+		gfar_write(&regs->rstat, rstat_rhalt);
 
 		imask = gfar_read(&regs->imask);
+		gfar_write(&regs->ievent, IEVENT_RX_MASK);
 		imask |= IMASK_DEFAULT_RX;
 		gfar_write(&regs->imask, imask);
+		spin_unlock_irq(&gfargrp->grplock);
 
 		gfar_configure_rx_coalescing(priv, gfargrp->rx_bit_map);
 	}
