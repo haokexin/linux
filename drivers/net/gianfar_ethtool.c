@@ -9,7 +9,7 @@
  *  Maintainer: Kumar Gala
  *  Modifier: Sandeep Gopalpet <sandeep.kumar@freescale.com>
  *
- *  Copyright 2003-2006, 2008-2009 Freescale Semiconductor, Inc.
+ *  Copyright 2003-2006, 2008-2010 Freescale Semiconductor, Inc.
  *
  *  This software may be used and distributed according to
  *  the terms of the GNU Public License, Version 2, incorporated herein
@@ -37,6 +37,7 @@
 #include <linux/ethtool.h>
 #include <linux/mii.h>
 #include <linux/phy.h>
+#include <asm/of_device.h>
 
 #include "gianfar.h"
 
@@ -615,11 +616,17 @@ static void gfar_get_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
 {
 	struct gfar_private *priv = netdev_priv(dev);
 
+	wol->supported = 0;
+	wol->wolopts = 0;
+
 	if (priv->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET) {
-		wol->supported = WAKE_MAGIC;
-		wol->wolopts = priv->wol_en ? WAKE_MAGIC : 0;
-	} else {
 		wol->supported = wol->wolopts = 0;
+		wol->supported |= WAKE_MAGIC;
+		wol->wolopts |= priv->wol_en ? WAKE_MAGIC : 0;
+	}
+	if (priv->device_flags & FSL_GIANFAR_DEV_HAS_ARP_PACKET) {
+		wol->supported |= WAKE_ARP;
+		wol->wolopts |= priv->wol_en ? WAKE_ARP : 0;
 	}
 }
 
@@ -629,15 +636,21 @@ static int gfar_set_wol(struct net_device *dev, struct ethtool_wolinfo *wol)
 	unsigned long flags;
 
 	if (!(priv->device_flags & FSL_GIANFAR_DEV_HAS_MAGIC_PACKET) &&
-	    wol->wolopts != 0)
-		return -EINVAL;
-
-	if (wol->wolopts & ~WAKE_MAGIC)
+	    !(priv->device_flags & FSL_GIANFAR_DEV_HAS_ARP_PACKET))
 		return -EINVAL;
 
 	spin_lock_irqsave(&priv->bflock, flags);
-	priv->wol_en = wol->wolopts & WAKE_MAGIC ? 1 : 0;
-	device_set_wakeup_enable(&dev->dev, priv->wol_en);
+	if (wol->wolopts & WAKE_MAGIC) {
+		priv->wol_en = 1;
+		priv->wol_opts = GIANFAR_WOL_MAGIC;
+	} else if (wol->wolopts & WAKE_ARP) {
+		priv->wol_en = 1;
+		priv->wol_opts = GIANFAR_WOL_ARP;
+	} else {
+		priv->wol_en = 0;
+		priv->wol_opts = 0;
+	}
+	device_set_wakeup_enable(&priv->ofdev->dev, priv->wol_en);
 	spin_unlock_irqrestore(&priv->bflock, flags);
 
 	return 0;
