@@ -1336,6 +1336,9 @@ struct gfar_private {
 	struct gfar_regs_1588 __iomem *ptimer;
 	struct resource timer_resource;
 	uint32_t ptimer_present;
+#ifdef CONFIG_GIANFAR_L2SRAM
+	int bd_in_ram;
+#endif
 };
 
 struct gfar_ptp_attr_t {
