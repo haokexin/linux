@@ -454,7 +454,8 @@ static void gfar_init_mac(struct net_device *ndev)
 	gfar_init_tx_rx_base(priv);
 
 	/* Configure the coalescing support */
-	gfar_configure_coalescing(priv, 0xFF, 0xFF);
+	gfar_configure_tx_coalescing(priv, 0xFF);
+	gfar_configure_rx_coalescing(priv, 0xFF);
 
 	if (priv->rx_filer_enable) {
 		rctrl |= RCTRL_FILREN;
@@ -2310,8 +2311,8 @@ void gfar_tx_start(struct net_device *dev)
 }
 #endif
 
-void gfar_configure_coalescing(struct gfar_private *priv,
-	unsigned long tx_mask, unsigned long rx_mask)
+void gfar_configure_tx_coalescing(struct gfar_private *priv,
+				long unsigned int tx_mask)
 {
 	struct gfar __iomem *regs = priv->gfargrp[0].regs;
 	u32 __iomem *baddr;
@@ -2324,10 +2325,6 @@ void gfar_configure_coalescing(struct gfar_private *priv,
 	if(likely(priv->tx_queue[0]->txcoalescing))
 		gfar_write(&regs->txic, priv->tx_queue[0]->txic);
 
-	gfar_write(&regs->rxic, 0);
-	if(unlikely(priv->rx_queue[0]->rxcoalescing))
-		gfar_write(&regs->rxic, priv->rx_queue[0]->rxic);
-
 	if (priv->mode == MQ_MG_MODE) {
 		baddr = &regs->txic0;
 		for_each_set_bit(i, &tx_mask, priv->num_tx_queues) {
@@ -2337,6 +2334,24 @@ void gfar_configure_coalescing(struct gfar_private *priv,
 			}
 		}
 
+	}
+}
+
+void gfar_configure_rx_coalescing(struct gfar_private *priv,
+				long unsigned int rx_mask)
+{
+	struct gfar __iomem *regs = priv->gfargrp[0].regs;
+	u32 *baddr;
+	int i = 0;
+
+	/* Backward compatible case ---- even if we enable
+	 * multiple queues, there's only single reg to program
+	 */
+	gfar_write(&regs->rxic, 0);
+	if (unlikely(priv->rx_queue[0]->rxcoalescing))
+		gfar_write(&regs->rxic, priv->rx_queue[0]->rxic);
+
+	if (priv->mode == MQ_MG_MODE) {
 		baddr = &regs->rxic0;
 		for_each_set_bit(i, &rx_mask, priv->num_rx_queues) {
 			if (likely(priv->rx_queue[i]->rxcoalescing)) {
@@ -2436,7 +2451,8 @@ int startup_gfar(struct net_device *ndev)
 
 	phy_start(priv->phydev);
 
-	gfar_configure_coalescing(priv, 0xFF, 0xFF);
+	gfar_configure_tx_coalescing(priv, 0xFF);
+	gfar_configure_rx_coalescing(priv, 0xFF);
 
 	return 0;
 
@@ -3543,8 +3559,8 @@ static int gfar_poll(struct napi_struct *napi, int budget)
 
 		/* If we are coalescing interrupts, update the timer */
 		/* Otherwise, clear it */
-		gfar_configure_coalescing(priv,
-				gfargrp->rx_bit_map, gfargrp->tx_bit_map);
+		gfar_configure_rx_coalescing(priv, gfargrp->rx_bit_map);
+		gfar_configure_tx_coalescing(priv, gfargrp->tx_bit_map);
 	}
 
 	return rx_cleaned;

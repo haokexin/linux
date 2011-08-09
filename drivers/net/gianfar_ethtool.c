@@ -421,7 +421,8 @@ static int gfar_scoalesce(struct net_device *dev, struct ethtool_coalesce *cvals
 			gfar_usecs2ticks(priv, cvals->tx_coalesce_usecs));
 	}
 
-	gfar_configure_coalescing(priv, 0xFF, 0xFF);
+	gfar_configure_tx_coalescing(priv, 0xFF);
+	gfar_configure_rx_coalescing(priv, 0xFF);
 
 	return 0;
 }
@@ -913,6 +914,7 @@ const struct ethtool_ops gfar_ethtool_ops = {
 	.set_sg = ethtool_op_set_sg,
 	.get_msglevel = gfar_get_msglevel,
 	.set_msglevel = gfar_set_msglevel,
+	.set_tso = ethtool_op_set_tso,
 #ifdef CONFIG_PM
 	.get_wol = gfar_get_wol,
 	.set_wol = gfar_set_wol,
