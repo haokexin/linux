@@ -3525,6 +3525,7 @@ struct sk_buff * gfar_new_skb(struct net_device *dev)
 
 	return skb;
 }
+EXPORT_SYMBOL(gfar_new_skb);
 
 static inline void count_errors(unsigned short status, struct net_device *dev)
 {
