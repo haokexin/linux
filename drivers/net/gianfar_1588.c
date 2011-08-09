@@ -1,7 +1,7 @@
 /*
  * drivers/net/gianfar_1588.c
  *
- * Copyright 2008-2010 Freescale Semiconductor, Inc.
+ * Copyright 2008-2011 Freescale Semiconductor, Inc.
  * Copyright 2009 IXXAT Automation, GmbH
  *
  * Author: Anup Gangwar <anup.gangwar@freescale.com>
@@ -39,7 +39,7 @@ static int gfar_ptp_insert(struct gfar_ptp_circular_t *buf,
 static int gfar_ptp_find_and_remove(struct gfar_ptp_circular_t *buf,
 			int key, struct gfar_ptp_data_t *data);
 static u32 nominal_frequency(u32 sysclock_freq);
-static void gfar_ptp_cal_attr(struct gfar_ptp_attr_t *ptp_attr);
+static int gfar_ptp_cal_attr(struct gfar_ptp_attr_t *ptp_attr);
 
 static DECLARE_WAIT_QUEUE_HEAD(ptp_rx_ts_wait);
 #define PTP_GET_RX_TIMEOUT	(HZ/10)
@@ -317,17 +317,11 @@ static void gfar_set_1588cnt(struct net_device *dev,
 			struct gfar_ptp_time *gfar_time)
 {
 	struct gfar_private *priv = netdev_priv(dev);
-	u32 tempval, *tmr_fiper1 = 0;
+	u32 tempval;
 	u64 alarm_value = 0, temp_alarm_val;
 	struct gfar_ptp_attr_t ptp_attr;
-	struct device_node *np;
 
 	memset(&ptp_attr, 0, sizeof(struct gfar_ptp_attr_t));
-	np = of_find_compatible_node(NULL, NULL, "fsl,gianfar-ptp-timer");
-	if (np == NULL)	{
-		printk(KERN_ERR "1588: Cannot find gianfar-ptp-timer node \r\n");
-		return;
-	}
 	temp_alarm_val = add64_oper((u64)gfar_time->low,
 		((u64)gfar_time->high)<<32);
 	div64_oper(temp_alarm_val, TMR_SEC, &tempval);
@@ -344,15 +338,9 @@ static void gfar_set_1588cnt(struct net_device *dev,
 	gfar_write(&(priv->ptimer->tmr_alarm1_l), tempval);
 	tempval = (u32)(alarm_value>>32);
 	gfar_write(&(priv->ptimer->tmr_alarm1_h), tempval);
-	gfar_ptp_cal_attr(&ptp_attr);
-	tmr_fiper1 = (u32 *)of_get_property(np, "tmr-fiper1", NULL);
-	if (tmr_fiper1 == NULL)	{
-		printk(KERN_ERR "1588: Cannot find tmr-fiper1 property \r\n");
+	if (gfar_ptp_cal_attr(&ptp_attr))
 		return;
-	}
-	gfar_write(&(priv->ptimer->tmr_fiper1),
-		(*tmr_fiper1 - (ptp_attr.tclk_period>>16)));
-
+	gfar_write(&(priv->ptimer->tmr_fiper1), ptp_attr.tmr_fiper1);
 }
 
 /* Get both the time-stamps and use the larger one */
@@ -467,25 +455,13 @@ void gfar_set_fiper_alarm(struct net_device *dev, struct gfar_ptp_time *alarm)
 {
 	struct gfar_private *priv = netdev_priv(dev);
 	struct gfar_ptp_attr_t ptp_attr;
-	u32 *tmr_fiper1 = 0;
-	struct device_node *np;
 
 	memset(&ptp_attr, 0, sizeof(struct gfar_ptp_attr_t));
-	np = of_find_compatible_node(NULL, NULL, "fsl,gianfar-ptp-timer");
-	if (np == NULL)	{
-		printk(KERN_ERR "1588: Cannot find gianfar-ptp-timer node \r\n");
-		return;
-	}
 	gfar_write(&(priv->ptimer->tmr_alarm1_l), alarm->low);
 	gfar_write(&(priv->ptimer->tmr_alarm1_h), alarm->high);
-	gfar_ptp_cal_attr(&ptp_attr);
-	tmr_fiper1 = (u32 *)of_get_property(np, "tmr-fiper1", NULL);
-	if (tmr_fiper1 == NULL)	{
-		printk(KERN_ERR "1588: Cannot find tmr_fiper1 property \r\n");
+	if (gfar_ptp_cal_attr(&ptp_attr))
 		return;
-	}
-	gfar_write(&(priv->ptimer->tmr_fiper1), *tmr_fiper1
-		- (ptp_attr.tclk_period>>16));
+	gfar_write(&(priv->ptimer->tmr_fiper1), ptp_attr.tmr_fiper1);
 }
 
 int gfar_ioctl_1588(struct net_device *dev, struct ifreq *ifr, int cmd)
@@ -562,16 +538,18 @@ void gfar_1588_start(struct net_device *dev)
 {
 	struct gfar_private *priv = netdev_priv(dev);
 	struct gfar_ptp_attr_t ptp_attr;
-	u32 *tmr_fiper1 = 0, *tmr_prsc = 0, *cksel = 0;
+	u32 *tmr_prsc, *cksel;
 	struct device_node *np;
 
 	memset(&ptp_attr, 0, sizeof(struct gfar_ptp_attr_t));
-	gfar_ptp_cal_attr(&ptp_attr);
 	np = of_find_compatible_node(NULL, NULL, "fsl,gianfar-ptp-timer");
 	if (np == NULL)	{
 		printk(KERN_ERR "1588: Cannot find gianfar-ptp-timer node \r\n");
 		return;
 	}
+
+	if (gfar_ptp_cal_attr(&ptp_attr))
+		return;
 
 	tmr_prsc = (u32 *)of_get_property(np, "tmr-prsc", NULL);
 	if (tmr_prsc == NULL)	{
@@ -580,16 +558,7 @@ void gfar_1588_start(struct net_device *dev)
 	}
 
 	gfar_write(&(priv->ptimer->tmr_prsc), *tmr_prsc);
-
-	tmr_fiper1 = (u32 *)of_get_property(np, "tmr-fiper1", NULL);
-	if (tmr_fiper1 == NULL)	{
-		printk(KERN_ERR "1588: Cannot find tmr_fiper1 property \r\n");
-		return;
-	}
-
-	gfar_write(&(priv->ptimer->tmr_fiper1), *tmr_fiper1
-		 - (ptp_attr.tclk_period>>16));
-
+	gfar_write(&(priv->ptimer->tmr_fiper1), ptp_attr.tmr_fiper1);
 	gfar_write(&(priv->ptimer->tmr_alarm1_l), TMR_ALARM1_L);
 	gfar_write(&(priv->ptimer->tmr_alarm1_h), TMR_ALARM1_H);
 
@@ -602,7 +571,7 @@ void gfar_1588_start(struct net_device *dev)
 	 * freq_compensation = (2^32 / frequency ratio)
 	 */
 	div64_oper((((u64)2 << 31)*100),
-		ptp_attr.freq_div_ratioo, &freq_compensation);
+		ptp_attr.freq_div_ratio, &freq_compensation);
 	gfar_write(&(priv->ptimer->tmr_add), freq_compensation);
 
 	cksel = (u32 *)of_get_property(np, "cksel", NULL);
@@ -614,7 +583,6 @@ void gfar_1588_start(struct net_device *dev)
 	gfar_write(&(priv->ptimer->tmr_ctrl),
 		gfar_read(&(priv->ptimer->tmr_ctrl)) |
 		TMR_CTRL_ENABLE | *cksel | TMR_CTRL_FIPER_START);
-
 }
 
 /* Cleanup routine for 1588 module.
@@ -668,13 +636,13 @@ void pmuxcr_guts_write(void)
  *  nominal frequency should be a factor of 1000.
  *
  *  Eg If Timer Oscillator frequency is 400.
- *     then nominal frequency can be 250 or 200.
+ *     then nominal frequency can be 250.
  *
  *     If Timer Oscillator frequency is 600.
- *     then nominal frequency can be 500 or 250.
+ *     then nominal frequency can be 500.
  *
  *     If Timer Oscillator frequency is 333.
- *     then nominal frequency can be 250 or 200.
+ *     then nominal frequency can be 250.
  */
 u32 nominal_frequency(u32 sysclock_freq)
 {
@@ -691,38 +659,43 @@ u32 nominal_frequency(u32 sysclock_freq)
 	return sysclock_freq;
 }
 
-void gfar_ptp_cal_attr(struct gfar_ptp_attr_t *ptp_attr)
+int gfar_ptp_cal_attr(struct gfar_ptp_attr_t *ptp_attr)
 {
-	u32 *sysclock_freq = 0, nominal_freq = 0, tclk_period = 0;
+	u32 *sysclock_freq, nominal_freq, tclk_period;
 	struct device_node *np;
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,gianfar-ptp-timer");
 	if (np == NULL)	{
 		printk(KERN_ERR "1588: Cannot find gianfar-ptp-timer node \r\n");
-		return;
+		return 1;
 	}
 	sysclock_freq = (u32 *)of_get_property(np, "timer-frequency", NULL);
 	if (sysclock_freq == NULL) {
 		printk(KERN_ERR "1588: Cannot find timer-frequency property \r\n");
-		return;
+		return 1;
 	}
-	printk(KERN_INFO "1588 is running at system-clock"
+	printk(KERN_DEBUG "1588 is running at system-clock"
 			" frequency (%u) \r\n", *sysclock_freq);
 
-	nominal_freq = nominal_frequency(*sysclock_freq / 1000000);
+	nominal_freq = nominal_frequency(DIV_ROUND(*sysclock_freq, 1000) \
+							/ 1000);
 
 	/* TCLK_PERIOD = 10^9/Nominal_Frequency in MHZ */
 	tclk_period = 1000/nominal_freq;
+
+	/* FIPER = (10^9 / (Required PPS * TCLK_PERIOD)) - TCLK_PERIOD*/
+	ptp_attr->tmr_fiper1 = (ONE_GIGA / (PPS_1588 * tclk_period)) \
+						- tclk_period;
 	tclk_period <<= 16;
 	ptp_attr->tclk_period = tclk_period;
 	ptp_attr->nominal_freq = nominal_freq;
-	ptp_attr->sysclock_freq = *sysclock_freq / 1000000;
+	ptp_attr->sysclock_freq = DIV_ROUND(*sysclock_freq, 1000) / 1000;
 
 	/*
-	 * FreqDivRatioo = Timer Oscillator Freq / Nominal Freq
+	 * FreqDivRatio = Timer Oscillator Freq / Nominal Freq
 	 * and Timer Oscillator Freq = System Clock Freq
 	 */
-	ptp_attr->freq_div_ratioo = (ptp_attr->sysclock_freq *
-			100) / ptp_attr->nominal_freq;
-	return;
+	ptp_attr->freq_div_ratio = (ptp_attr->sysclock_freq *
+					100) / ptp_attr->nominal_freq;
+	return 0;
 }

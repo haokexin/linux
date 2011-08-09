@@ -55,6 +55,7 @@
 /* The maximum number of packets to be handled in one call of gfar_poll */
 #define GFAR_DEV_WEIGHT 64
 
+#define DIV_ROUND(n, d)		(((n) + ((d)/2)) / (d))
 /* Length for FCB */
 #define GMAC_FCB_LEN 8
 
@@ -605,6 +606,8 @@ extern const char gfar_driver_version[];
 #define TMR_CTRL_TCLK_MASK	0x03ff0000
 #define TMR_PTPD_MAX_FREQ	0x80000
 #define TMR_CTRL_FIPER_START	0x10000000
+#define PPS_1588	1
+#define ONE_GIGA	1000000000
 /*Alarm to traigger at 15sec boundary */
 #define TMR_ALARM1_L	0xD964B800
 #define TMR_ALARM1_H	0x00000045
@@ -1304,7 +1307,10 @@ struct gfar_ptp_attr_t {
 	u32 tclk_period;
 	u32 nominal_freq;
 	u32 sysclock_freq;
-	u32 freq_div_ratioo;
+	u32 freq_div_ratio;
+	u32 tmr_fiper1;
+	u32 tmr_fiper2;
+	u32 max_adj;
 };
 
 extern unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
