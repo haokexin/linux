@@ -1270,8 +1270,10 @@ static int gfar_probe(struct of_device *ofdev,
 	else
 		priv->padding = 0;
 
-	if (dev->features & NETIF_F_IP_CSUM  || priv->ptimer_present)
+	if (dev->features & NETIF_F_IP_CSUM  || priv->ptimer_present) {
+		priv->padding = 0x8;
 		dev->hard_header_len += GMAC_FCB_LEN;
+	}
 
 	/* Program the isrg regs only if number of grps > 1 */
 	if (priv->num_grps > 1) {
