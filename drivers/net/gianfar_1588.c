@@ -607,8 +607,23 @@ void pmuxcr_guts_write(void)
 	struct device_node *np = NULL;
 	void __iomem *immap = NULL;
 	u32 pmuxcr;
+	int i;
+	static char *compatible_list[] = {
+					"fsl,p1021-guts",
+					"fsl,p2020-guts",
+					"fsl,p1020-guts",
+					"fsl,p1022-guts",
+					"fsl,mpc8572-guts",
+					"fsl,mpc8548-guts",
+					NULL
+				};
 
-	np =  of_find_compatible_node(NULL, NULL, "fsl,p2020-guts");
+	for (i = 0; compatible_list[i] != NULL; i++) {
+		np = of_find_compatible_node(NULL, NULL, compatible_list[i]);
+		if (np)
+			break;
+	}
+
 	immap = of_iomap(np, 0);
 	if (immap) {
 		pmuxcr = in_be32(immap + MPC85XX_PMUXCR_OFFS);
