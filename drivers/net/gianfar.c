@@ -938,7 +938,10 @@ static int gfar_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 
 	if ((cmd >= PTP_GET_RX_TIMESTAMP_SYNC) &&
 			(cmd <= PTP_CLEANUP_TIMESTAMP_BUFFERS))
-		retVal = gfar_ioctl_1588(dev, rq, cmd);
+		if (priv->ptimer_present)
+			retVal = gfar_ioctl_1588(dev, rq, cmd);
+		else
+			retVal = -ENODEV;
 	else
 		retVal = phy_mii_ioctl(priv->phydev, if_mii(rq), cmd);
 
