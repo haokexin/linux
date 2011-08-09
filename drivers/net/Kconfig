@@ -2413,6 +2413,24 @@ config GIANFAR_L2SRAM
 	help
 	  This option supports BD alloc in L2SRAM.
 
+config 1588_MUX_eTSEC1
+	bool "Selecting 1588 signals over eTSEC1 signals"
+	depends on GIANFAR
+	default n
+	help
+	  This option switches ON 1588 signals over eth1.
+	  Eth1 will not work if this is selected.
+	  This is needed when user want to use external clock, PPn signals etc
+
+config 1588_MUX_eTSEC2
+	bool "Selecting 1588 signals over eTSEC2 signals"
+	depends on GIANFAR
+	default n
+	help
+	  This option switches ON 1588 signals over eth1.
+	  Eth2 will not work if this is selected.
+	  This is needed when user want to use external clock, PPn signals etc
+
 config UCC_GETH
 	tristate "Freescale QE Gigabit Ethernet"
 	depends on QUICC_ENGINE
