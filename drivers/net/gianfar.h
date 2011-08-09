@@ -616,6 +616,8 @@ extern const char gfar_driver_version[];
 
 #define GFAR_INT_NAME_MAX	IFNAMSIZ + 4
 
+#define GFAR_TX_BASE_H	0xf
+#define GFAR_RX_BASE_H	0xf
 #define GIANFAR_WOL_MAGIC       (1 << 5)
 
 struct txbd8
