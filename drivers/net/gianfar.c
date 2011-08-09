@@ -791,6 +791,11 @@ static int gfar_of_init(struct of_device *ofdev, struct net_device **pdev)
 	if (of_device_is_compatible(np, "fsl,etsec2")) {
 		priv->mode = MQ_MG_MODE;
 		for_each_child_of_node(np, child) {
+			if (of_device_is_compatible
+				(child, "fsl,etsec2-mdio") ||
+				of_device_is_compatible
+				(child, "fsl,etsec2-tbi"))
+				continue;
 			err = gfar_parse_group(child, priv, model);
 			if (err)
 				goto err_grp_init;
