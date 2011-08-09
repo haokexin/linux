@@ -82,6 +82,7 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/in.h>
+#include <net/ip.h>
 #include <linux/inetdevice.h>
 #include <sysdev/fsl_soc.h>
 
@@ -3401,7 +3402,7 @@ static int gfar_clean_tx_ring(struct gfar_priv_tx_q *tx_queue)
 		tx_queue->num_txbdfree += frags + 1;
 		spin_unlock_irqrestore(&tx_queue->txlock, flags);
 #else
-		tx_queue->num_txbdfree += nr_txbds;
+		tx_queue->num_txbdfree += frags + 1;
 #endif
 	}
 
