@@ -2605,11 +2605,22 @@ static inline void gfar_tx_checksum(struct sk_buff *skb, struct txfcb *fcb)
 
 	/* Tell the controller what the protocol is */
 	/* And provide the already calculated phcs */
-	if (ip_hdr(skb)->protocol == IPPROTO_UDP) {
-		flags |= TXFCB_UDP;
-		fcb->phcs = udp_hdr(skb)->check;
-	} else
-		fcb->phcs = tcp_hdr(skb)->check;
+	if (!((ip_hdr(skb)->frag_off) & htons(IP_MF|IP_OFFSET))) {
+		/* If not fragmented packet */
+		if (ip_hdr(skb)->protocol == IPPROTO_UDP) {
+			if (udp_hdr(skb)->check) {
+				fcb->phcs = udp_hdr(skb)->check;
+				flags |= TXFCB_NPH;
+			}
+			flags |= TXFCB_UDP | TXFCB_TUP | TXFCB_CTU;
+		} else if (ip_hdr(skb)->protocol == IPPROTO_TCP) {
+			if (tcp_hdr(skb)->check) {
+				flags |= TXFCB_NPH;
+				fcb->phcs = tcp_hdr(skb)->check;
+			}
+			flags |= TXFCB_TUP | TXFCB_CTU;
+		}
+	}
 
 	/* l3os is the distance between the start of the
 	 * frame (skb->data) and the start of the IP hdr.
