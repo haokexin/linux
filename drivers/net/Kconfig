@@ -2406,6 +2406,14 @@ config GIANFAR
 	  This driver supports the Gigabit TSEC on the MPC83xx, MPC85xx,
 	  and MPC86xx family of chips, and the FEC on the 8540.
 
+config GIANFAR_TXNAPI
+	default n
+	bool "Introduce seperate tx_napi for cleaning the tx ring(V 0.0.1) (EXPERIMENTAL)"
+	depends on GIANFAR && EXPERIMENTAL
+	help
+	  Selecting this option introduces a seperate TX NAPI for cleaning the
+	  tx ring(s).
+
 config GIANFAR_L2SRAM
 	bool "Selecting L2sram bd allocation"
 	depends on (GIANFAR && FSL_SOC_BOOKE)

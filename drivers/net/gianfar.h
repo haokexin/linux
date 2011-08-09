@@ -413,6 +413,14 @@ extern const char gfar_driver_version[];
 #define IMASK_RTX_DISABLED ((~(IMASK_RXFEN0 | IMASK_TXFEN | IMASK_BSY)) \
 			   & IMASK_DEFAULT)
 
+#ifdef CONFIG_GIANFAR_TXNAPI
+#define IMASK_DEFAULT_TX	(IMASK_TXFEN | IMASK_TXBEN)
+#define IMASK_DEFAULT_RX	(IMASK_RXFEN0 | IMASK_BSY)
+#define IMASK_RX_DISABLED	((~IMASK_DEFAULT_RX) \
+				& IMASK_DEFAULT)
+#define IMASK_TX_DISABLED	((~IMASK_DEFAULT_TX) \
+				& IMASK_DEFAULT)
+#endif
 /* Fifo management */
 #define FIFO_TX_THR_MASK	0x01ff
 #define FIFO_TX_STARVE_MASK	0x01ff
@@ -1145,7 +1153,12 @@ struct gfar_priv_rx_q {
 
 struct gfar_priv_grp {
 	spinlock_t grplock __attribute__ ((aligned (SMP_CACHE_BYTES)));
+#ifdef CONFIG_GIANFAR_TXNAPI
+	struct napi_struct napi_tx;
+	struct napi_struct napi_rx;
+#else
 	struct	napi_struct napi;
+#endif
 	struct gfar_private *priv;
 	struct gfar __iomem *regs;
 	unsigned int grp_id;
