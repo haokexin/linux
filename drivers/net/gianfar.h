@@ -608,6 +608,9 @@ extern const char gfar_driver_version[];
 #define TMR_CTRL_FIPER_START	0x10000000
 #define PPS_1588	1
 #define ONE_GIGA	1000000000
+#define GFAR_1588_PROCFS_MAX_SIZE         12
+#define GFAR_1588_PROCFS_NAME           "ptp_1588"
+
 /*Alarm to traigger at 15sec boundary */
 #define TMR_ALARM1_L	0xD964B800
 #define TMR_ALARM1_H	0x00000045
@@ -1313,6 +1316,16 @@ struct gfar_ptp_attr_t {
 	u32 max_adj;
 };
 
+struct gfar_1588_data_t {
+	char name[GFAR_1588_PROCFS_MAX_SIZE + 1];
+	char value[GFAR_1588_PROCFS_MAX_SIZE + 1];
+};
+
+struct gfar_node_info_t {
+	struct of_device_id *gfar_node_match;
+	int match_cnt;
+};
+
 extern unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
 extern unsigned int ftp_rqfcr[MAX_FILER_IDX + 1];
 
@@ -1378,6 +1391,8 @@ extern void gfar_configure_rx_coalescing(struct gfar_private *priv,
 					long unsigned int rx_mask);
 void gfar_init_sysfs(struct net_device *dev);
 
+extern void gfar_1588_proc_init(struct of_device_id *dev_id, int cnt);
+extern void gfar_1588_proc_exit(void);
 extern const struct ethtool_ops gfar_ethtool_ops;
 
 #endif /* __GIANFAR_H */

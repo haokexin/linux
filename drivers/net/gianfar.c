@@ -4375,11 +4375,13 @@ static struct of_platform_driver gfar_driver = {
 
 static int __init gfar_init(void)
 {
+	gfar_1588_proc_init(gfar_match, sizeof(gfar_match));
 	return of_register_platform_driver(&gfar_driver);
 }
 
 static void __exit gfar_exit(void)
 {
+	gfar_1588_proc_exit();
 	of_unregister_platform_driver(&gfar_driver);
 }
 
