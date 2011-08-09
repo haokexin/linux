@@ -3517,8 +3517,10 @@ struct sk_buff * gfar_new_skb(struct net_device *dev)
 
 	/* We need the data buffer to be aligned properly.  We will reserve
 	 * as many bytes as needed to align the data properly
+	 * Do only if not already aligned
 	 */
-	skb_reserve(skb, alignamount);
+	if (alignamount != RXBUF_ALIGNMENT)
+		skb_reserve(skb, alignamount);
 	GFAR_CB(skb)->alignamount = alignamount;
 
 	return skb;
