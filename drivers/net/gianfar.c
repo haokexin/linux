@@ -280,6 +280,14 @@ unsigned long alloc_bds(struct gfar_private *priv, dma_addr_t *addr)
 			priv->total_rx_ring_size;
 	vaddr =  (unsigned long) mpc85xx_cache_sram_alloc(region_size,
 					(phys_addr_t *)addr, ALIGNMENT);
+	if (vaddr == NULL) {
+		/* fallback to normal memory rather than stop working */
+		vaddr = (unsigned long) dma_alloc_coherent(&priv->ofdev->dev,
+				region_size, addr, GFP_KERNEL);
+		priv->bd_in_ram = 1;
+	} else {
+		priv->bd_in_ram = 0;
+	}
 #else
 	region_size = sizeof(struct txbd8) * priv->total_tx_ring_size +
 			sizeof(struct rxbd8) * priv->total_rx_ring_size;
@@ -2182,7 +2190,15 @@ static void free_grp_irqs(struct gfar_priv_grp *grp)
 void free_bds(struct gfar_private *priv)
 {
 #ifdef CONFIG_GIANFAR_L2SRAM
-	mpc85xx_cache_sram_free(priv->tx_queue[0]->tx_bd_base);
+	if (priv->bd_in_ram) {
+		dma_free_coherent(&priv->ofdev->dev,
+			sizeof(struct txbd8) * priv->total_tx_ring_size +
+			sizeof(struct rxbd8) * priv->total_rx_ring_size,
+			priv->tx_queue[0]->tx_bd_base,
+			priv->tx_queue[0]->tx_bd_dma_base);
+	} else {
+		mpc85xx_cache_sram_free(priv->tx_queue[0]->tx_bd_base);
+	}
 #else
 	dma_free_coherent(&priv->ofdev->dev,
 			sizeof(struct txbd8) * priv->total_tx_ring_size +
