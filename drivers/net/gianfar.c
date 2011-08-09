@@ -3792,13 +3792,12 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 		mask = mask >> i;
 		if (tstat & mask) {
 			tx_queue = priv->tx_queue[i];
-			if (spin_trylock_irqsave(&tx_queue->txlock, flags)) {
-				tx_cleaned_per_queue =
+			spin_lock_irqsave(&tx_queue->txlock, flags);
+			tx_cleaned_per_queue =
 					gfar_clean_tx_ring(tx_queue,
 							budget_per_queue);
-				spin_unlock_irqrestore(&tx_queue->txlock,
+			spin_unlock_irqrestore(&tx_queue->txlock,
 							flags);
-			}
 			tx_cleaned += tx_cleaned_per_queue;
 			tx_cleaned_per_queue = 0;
 		}
