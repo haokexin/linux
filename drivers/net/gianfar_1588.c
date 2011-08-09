@@ -727,6 +727,7 @@ static int gfar_1588_proc_write(struct file *file, const char *buffer,
 	struct of_device *ofdev;
 	struct gfar_1588_data_t *gfar_1588_info = \
 				(struct gfar_1588_data_t *)data;
+	struct gfar __iomem *regs;
 
 	if (count > GFAR_1588_PROCFS_MAX_SIZE)
 		count = GFAR_1588_PROCFS_MAX_SIZE;
@@ -765,12 +766,25 @@ static int gfar_1588_proc_write(struct file *file, const char *buffer,
 		} else {
 			ofdev = of_find_device_by_node(np);
 			priv = dev_get_drvdata(&ofdev->dev);
+			regs = priv->gfargrp[0].regs;
 			if (!strcmp(gfar_1588_info->value, "0")) {
 				printk(KERN_DEBUG "\r\n PTPD OFF \r\n");
 				priv->ptimer_present = 0;
+				gfar_write(&priv->ptimer->tmr_ctrl,
+					gfar_read(&priv->ptimer->tmr_ctrl)
+							& ~TMR_CTRL_ENABLE);
+				gfar_write(&regs->rctrl,
+					gfar_read(&regs->rctrl)
+							& ~RCTRL_TS_ENABLE);
 			} else if (!strcmp(gfar_1588_info->value, "1")) {
 				printk(KERN_DEBUG "\r\n PTPD ON \r\n");
 				priv->ptimer_present = 1;
+				gfar_write(&priv->ptimer->tmr_ctrl,
+					gfar_read(&priv->ptimer->tmr_ctrl)
+							| TMR_CTRL_ENABLE);
+				gfar_write(&regs->rctrl,
+					gfar_read(&regs->rctrl)
+							| RCTRL_TS_ENABLE);
 			}
 		}
 	}
