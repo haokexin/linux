@@ -10,7 +10,7 @@
  * Maintainer: Kumar Gala (galak@kernel.crashing.org)
  * Modifier: Sandeep Gopalpet <sandeep.kumar@freescale.com>
  *
- * Copyright 2002-2009 Freescale Semiconductor, Inc.
+ * Copyright 2002-2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -319,6 +319,18 @@ static ssize_t gfar_set_fifo_starve_off(struct device *dev,
 static DEVICE_ATTR(fifo_starve_off, 0644, gfar_show_fifo_starve_off,
 		   gfar_set_fifo_starve_off);
 
+static ssize_t gfar_show_max_filer_rules(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	struct gfar_private *priv = netdev_priv(to_net_dev(dev));
+
+	return sprintf(buf, "%d\n", priv->max_filer_rules);
+}
+
+static DEVICE_ATTR(max_filer_rules, 0444, gfar_show_max_filer_rules,
+				NULL);
+
 void gfar_init_sysfs(struct net_device *dev)
 {
 	struct gfar_private *priv = netdev_priv(dev);
@@ -336,6 +348,7 @@ void gfar_init_sysfs(struct net_device *dev)
 	rc |= device_create_file(&dev->dev, &dev_attr_fifo_threshold);
 	rc |= device_create_file(&dev->dev, &dev_attr_fifo_starve);
 	rc |= device_create_file(&dev->dev, &dev_attr_fifo_starve_off);
+	rc |= device_create_file(&dev->dev, &dev_attr_max_filer_rules);
 	if (rc)
 		dev_err(&dev->dev, "Error creating gianfar sysfs files.\n");
 }

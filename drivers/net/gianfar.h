@@ -1321,9 +1321,9 @@ struct gfar_private {
 
 	u8 ip_addr[4];
 	int wol_opts;
-
-	unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
-	unsigned int ftp_rqfcr[MAX_FILER_IDX + 1];
+	u32 max_filer_rules;
+	u32 *ftp_rqfpr;
+	u32 *ftp_rqfcr;
 
 	/* Network Statistics */
 	struct gfar_extra_stats extra_stats;

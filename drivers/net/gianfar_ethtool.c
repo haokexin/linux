@@ -859,7 +859,7 @@ static void ethflow_to_filer_rules(struct gfar_private *priv, u64 ethflow,
 static void gfar_dump_filer_table(struct gfar_private *priv)
 {
 	u32 fcr, fpr, far;
-	for (far = 0; far <= MAX_FILER_IDX; far++) {
+	for (far = 0; far <= priv->max_filer_rules; far++) {
 		gfar_read_filer(priv, far, &fcr, &fpr);
 		if (fcr != RQFCR_CMP_NOMATCH)
 			printk(KERN_INFO"[%d] fcr %x, fpr %x\n", far, fcr, fpr);
@@ -870,10 +870,22 @@ static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u
 {
 	unsigned int last_rule_idx = priv->cur_filer_idx;
 	unsigned int cmp_rqfpr;
-	unsigned int local_rqfpr[MAX_FILER_IDX + 1];
-	unsigned int local_rqfcr[MAX_FILER_IDX + 1];
+	u32 *local_rqfpr = NULL, *local_rqfcr = NULL;
 	int i = 0x0, k = 0x0;
-	int j = MAX_FILER_IDX, l = 0x0;
+	int j = priv->max_filer_rules, l = 0x0;
+
+	local_rqfpr = kmalloc((priv->max_filer_rules + 1)*sizeof
+				(u32), GFP_KERNEL);
+	if (!local_rqfpr) {
+		pr_err("Could not allocate local_rqfpr\n");
+		goto out;
+	}
+	local_rqfcr = kmalloc((priv->max_filer_rules + 1)*sizeof
+				(u32), GFP_KERNEL);
+	if (!local_rqfcr) {
+		pr_err("Could not allocate local_rqfcr\n");
+		goto out;
+	}
 
 	switch (class) {
 	case TCP_V4_FLOW:
@@ -898,10 +910,10 @@ static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u
 		break;
 	default:
 		printk(KERN_ERR "Right now this class is not supported\n");
-		return 0;
+		goto out;
 	}
 
-	for (i = 0; i < MAX_FILER_IDX + 1; i++) {
+	for (i = 0; i < priv->max_filer_rules + 1; i++) {
 		local_rqfpr[j] = priv->ftp_rqfpr[i];
 		local_rqfcr[j] = priv->ftp_rqfcr[i];
 		j--;
@@ -911,16 +923,16 @@ static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u
 			break;
 	}
 
-	if (i == MAX_FILER_IDX + 1) {
+	if (i == priv->max_filer_rules + 1) {
 		printk(KERN_ERR "No parse rule found, ");
 		printk(KERN_ERR "can't create hash rules\n");
-		return 0;
+		goto out;
 	}
 
 	/* If a match was found, then it begins the starting of a cluster rule
 	 * if it was already programmed, we need to overwrite these rules
 	 */
-	for (l = i+1; l < MAX_FILER_IDX; l++) {
+	for (l = i+1; l < priv->max_filer_rules; l++) {
 		if ((priv->ftp_rqfcr[l] & RQFCR_CLE) &&
 			!(priv->ftp_rqfcr[l] & RQFCR_AND)) {
 			priv->ftp_rqfcr[l] = RQFCR_CLE | RQFCR_CMP_EXACT |
@@ -946,7 +958,7 @@ static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u
 
 	ethflow_to_filer_rules(priv, ethflow, class);
 	/* Write back the popped out rules again */
-	for (k = j+1; k < MAX_FILER_IDX; k++) {
+	for (k = j+1; k < priv->max_filer_rules; k++) {
 		priv->ftp_rqfpr[priv->cur_filer_idx] = local_rqfpr[k];
 		priv->ftp_rqfcr[priv->cur_filer_idx] = local_rqfcr[k];
 		gfar_write_filer(priv, priv->cur_filer_idx,
@@ -955,8 +967,15 @@ static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u
 			break;
 		priv->cur_filer_idx = priv->cur_filer_idx - 1;
 	}
+	kfree(local_rqfpr);
+	kfree(local_rqfcr);
 
 	return 1;
+
+out:
+	kfree(local_rqfpr);
+	kfree(local_rqfcr);
+	return 0;
 }
 
 static int gfar_set_hash_opts(struct gfar_private *priv, struct ethtool_rxnfc *cmd)
