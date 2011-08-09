@@ -535,9 +535,6 @@ static void gfar_init_mac(struct net_device *ndev)
 
 	gfar_write(&regs->attr, attrs);
 
-	gfar_write(&regs->fifo_tx_thr, priv->fifo_threshold);
-	gfar_write(&regs->fifo_tx_starve, priv->fifo_starve);
-	gfar_write(&regs->fifo_tx_starve_shutoff, priv->fifo_starve_off);
 }
 
 static struct net_device_stats *gfar_get_stats(struct net_device *dev)
