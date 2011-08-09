@@ -9,7 +9,7 @@
  * Maintainer: Kumar Gala
  * Modifier: Sandeep Gopalpet <sandeep.kumar@freescale.com>
  *
- * Copyright 2002-2009 Freescale Semiconductor, Inc.
+ * Copyright 2002-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -85,6 +85,8 @@ extern const char gfar_driver_version[];
 /* These need to be powers of 2 for this driver */
 #define DEFAULT_TX_RING_SIZE	256
 #define DEFAULT_RX_RING_SIZE	256
+#define DEFAULT_WK_RING_SIZE	16
+
 
 #define GFAR_RX_MAX_RING_SIZE   256
 #define GFAR_TX_MAX_RING_SIZE   256
@@ -94,6 +96,7 @@ extern const char gfar_driver_version[];
 #define GFAR_MAX_FIFO_STARVE_OFF 511
 
 #define DEFAULT_RX_BUFFER_SIZE  1536
+#define DEFAULT_WK_BUFFER_SIZE	2048
 #define TX_RING_MOD_MASK(size) (size-1)
 #define RX_RING_MOD_MASK(size) (size-1)
 #define JUMBO_BUFFER_SIZE 9728
@@ -221,6 +224,14 @@ extern const char gfar_driver_version[];
 #define RQUEUE_EN7		0x00000001
 #define RQUEUE_EN_ALL		0x000000FF
 
+/* Wake-On-Lan options */
+#define GIANFAR_WOL_PHY		(1 << 0)
+#define GIANFAR_WOL_UCAST	(1 << 1)
+#define GIANFAR_WOL_MCAST	(1 << 2)
+#define GIANFAR_WOL_BCAST	(1 << 3)
+#define GIANFAR_WOL_ARP		(1 << 4)
+#define GIANFAR_WOL_MAGIC	(1 << 5)
+
 /* Init to do tx snooping for buffers and descriptors */
 #define DMACTRL_INIT_SETTINGS   0x000000c3
 #define DMACTRL_GRS             0x00000010
@@ -265,11 +276,15 @@ extern const char gfar_driver_version[];
 #define RCTRL_PAL_MASK		0x001f0000
 #define RCTRL_VLEX		0x00002000
 #define RCTRL_FILREN		0x00001000
+#define RCTRL_FSQEN		0x00000800
 #define RCTRL_GHTX		0x00000400
 #define RCTRL_IPCSEN		0x00000200
 #define RCTRL_TUCSEN		0x00000100
 #define RCTRL_PRSDEP_MASK	0x000000c0
 #define RCTRL_PRSDEP_INIT	0x000000c0
+#define RCTRL_PRSDEP_L2	0x00000040
+#define RCTRL_PRSDEP_L2L3	0x00000080
+#define RCTRL_PRSDEP_L2L3L4	0x000000c0
 #define RCTRL_PROM		0x00000008
 #define RCTRL_EMEN		0x00000002
 #define RCTRL_REQ_PARSER	(RCTRL_VLEX | RCTRL_IPCSEN | \
@@ -314,18 +329,20 @@ extern const char gfar_driver_version[];
 #define IEVENT_MAG		0x00000800
 #define IEVENT_GRSC		0x00000100
 #define IEVENT_RXF0		0x00000080
+#define IEVENT_FGPI		0x00000010
 #define IEVENT_FIR		0x00000008
 #define IEVENT_FIQ		0x00000004
 #define IEVENT_DPE		0x00000002
 #define IEVENT_PERR		0x00000001
-#define IEVENT_RX_MASK          (IEVENT_RXB0 | IEVENT_RXF0 | IEVENT_BSY)
+#define IEVENT_RX_MASK          (IEVENT_RXB0 | IEVENT_RXF0 | \
+					IEVENT_FGPI | IEVENT_BSY)
 #define IEVENT_TX_MASK          (IEVENT_TXB | IEVENT_TXF)
 #define IEVENT_RTX_MASK         (IEVENT_RX_MASK | IEVENT_TX_MASK)
 #define IEVENT_ERR_MASK         \
 (IEVENT_RXC | IEVENT_BSY | IEVENT_EBERR | IEVENT_MSRO | \
  IEVENT_BABT | IEVENT_TXC | IEVENT_TXE | IEVENT_LC \
- | IEVENT_CRL | IEVENT_XFUN | IEVENT_DPE | IEVENT_PERR \
- | IEVENT_MAG | IEVENT_BABR)
+ | IEVENT_CRL | IEVENT_XFUN | IEVENT_FIR | IEVENT_FIQ \
+ | IEVENT_DPE | IEVENT_PERR | IEVENT_MAG | IEVENT_BABR)
 
 #define IMASK_INIT_CLEAR	0x00000000
 #define IMASK_BABR              0x80000000
@@ -346,14 +363,15 @@ extern const char gfar_driver_version[];
 #define IMASK_MAG		0x00000800
 #define IMASK_GRSC              0x00000100
 #define IMASK_RXFEN0		0x00000080
+#define IMASK_FGPI		0x00000010
 #define IMASK_FIR		0x00000008
 #define IMASK_FIQ		0x00000004
 #define IMASK_DPE		0x00000002
 #define IMASK_PERR		0x00000001
 #define IMASK_DEFAULT  (IMASK_TXEEN | IMASK_TXFEN | IMASK_TXBEN | \
 		IMASK_RXFEN0 | IMASK_BSY | IMASK_EBERR | IMASK_BABR | \
-		IMASK_XFUN | IMASK_RXC | IMASK_BABT | IMASK_DPE \
-		| IMASK_PERR)
+		IMASK_XFUN | IMASK_RXC | IMASK_BABT | IMASK_FGPI | \
+		IMASK_FIR | IMASK_FIQ | IMASK_DPE | IMASK_PERR)
 #define IMASK_RTX_DISABLED ((~(IMASK_RXFEN0 | IMASK_TXFEN | IMASK_BSY)) \
 			   & IMASK_DEFAULT)
 
@@ -506,6 +524,7 @@ extern const char gfar_driver_version[];
 #define RXBD_OVERRUN		0x0002
 #define RXBD_TRUNCATED		0x0001
 #define RXBD_STATS		0x01ff
+#define RXBD_CLEAN              0x3000
 #define RXBD_ERR		(RXBD_LARGE | RXBD_SHORT | RXBD_NONOCTET 	\
 				| RXBD_CRCERR | RXBD_OVERRUN			\
 				| RXBD_TRUNCATED)
@@ -524,6 +543,8 @@ extern const char gfar_driver_version[];
 #define RXFCB_PERR_BADL3	0x0008
 
 #define GFAR_INT_NAME_MAX	IFNAMSIZ + 4
+
+#define GIANFAR_WOL_MAGIC       (1 << 5)
 
 struct txbd8
 {
@@ -885,6 +906,7 @@ struct gfar {
 #define FSL_GIANFAR_DEV_HAS_MAGIC_PACKET	0x00000100
 #define FSL_GIANFAR_DEV_HAS_BD_STASHING		0x00000200
 #define FSL_GIANFAR_DEV_HAS_BUF_STASHING	0x00000400
+#define FSL_GIANFAR_DEV_HAS_ARP_PACKET		0x00001000
 
 #if (MAXGROUPS == 2)
 #define DEFAULT_MAPPING 	0xAA
@@ -1066,6 +1088,20 @@ struct gfar_private {
 
 	u32 cur_filer_idx;
 
+	/* wake up ring */
+	struct rxbd8 *wk_bd_base;
+	struct rxbd8 *cur_wk;
+
+	/* wake up ring parameters */
+	unsigned int wk_ring_size;
+	unsigned int wk_buffer_size;
+
+	/* wake up buffer */
+	unsigned long wk_buf_vaddr;
+	unsigned long wk_buf_paddr;
+	unsigned long wk_buf_align_vaddr;
+	unsigned long wk_buf_align_paddr;
+
 	struct sk_buff_head rx_recycle;
 
 	struct vlan_group *vlgrp;
@@ -1105,6 +1141,9 @@ struct gfar_private {
 
 	struct work_struct reset_task;
 
+	u8 ip_addr[4];
+	int wol_opts;
+
 	/* Network Statistics */
 	struct gfar_extra_stats extra_stats;
 };
@@ -1128,6 +1167,16 @@ static inline u32 gfar_read(volatile unsigned __iomem *addr)
 static inline void gfar_write(volatile unsigned __iomem *addr, u32 val)
 {
 	out_be32(addr, val);
+}
+
+static inline void gfar_read_filer(struct gfar_private *priv,
+		unsigned int far, u32 *fcr, u32 *fpr)
+{
+	struct gfar __iomem *regs = priv->gfargrp[0].regs;
+
+	gfar_write(&regs->rqfar, far);
+	*fcr = gfar_read(&regs->rqfcr);
+	*fpr = gfar_read(&regs->rqfpr);
 }
 
 static inline void gfar_write_filer(struct gfar_private *priv,
