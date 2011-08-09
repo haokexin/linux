@@ -139,7 +139,7 @@ extern const char gfar_driver_version[];
 #define GFAR_PTP_PKT_TYPE_OFFS		0x1f
 #define GFAR_PTP_PROTOCOL_OFFS		0x20
 #define GFAR_PTP_MULTI_ADDR_OFFS	0x26
-#define GFAR_PTP_PORT_OFFS		0x2A
+#define GFAR_PTP_PORT_OFFS		0x2C
 #define GFAR_PTP_MSG_TYPE_OFFS		0x32
 #define GFAR_PTP_SEQ_ID_OFFS		0x50
 #define GFAR_PTP_CTRL_OFFS		0x52
@@ -601,20 +601,13 @@ extern const char gfar_driver_version[];
 
 /* 1588 Module Registers bits */
 #define TMR_CTRL_ENABLE		0x00000004
-#define TMR_CTRL_RTC_CLK	0x00000003
-#define TMR_CTRL_EXT_CLK	0x00000000
-#define TMR_CTRL_SYS_CLK	0x00000001
-#define TMR_CTRL_TCLK_PRD	0x000A0000
-#define TMR_OSC_FREQ		300000000
 #define TMR_ADD_VAL		CONFIG_GFAR_PTP_TMR_ADD
 #define TMR_CTRL_TCLK_MASK	0x03ff0000
 #define TMR_PTPD_MAX_FREQ	0x80000
 #define TMR_CTRL_FIPER_START	0x10000000
-#define TMR_FIPER1		1000000000
 /*Alarm to traigger at 15sec boundary */
 #define TMR_ALARM1_L	0xD964B800
 #define TMR_ALARM1_H	0x00000045
-#define TMR_PRSC	0x2
 #define TMR_SEC		1000000000
 
 #define GFAR_INT_NAME_MAX	IFNAMSIZ + 4
@@ -1305,6 +1298,13 @@ struct gfar_private {
 	struct gfar_regs_1588 __iomem *ptimer;
 	struct resource timer_resource;
 	uint32_t ptimer_present;
+};
+
+struct gfar_ptp_attr_t {
+	u32 tclk_period;
+	u32 nominal_freq;
+	u32 sysclock_freq;
+	u32 freq_div_ratioo;
 };
 
 extern unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
