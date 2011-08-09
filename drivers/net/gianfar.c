@@ -3648,7 +3648,17 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
 	/* Remove the FCB from the skb */
 	/* Remove the padded bytes, if there are any */
 	if (amount_pull) {
-		skb_record_rx_queue(skb, fcb->rq);
+		int queue_map;
+
+		/* If FCB->QT field contains a value > num_rx_queues then
+		   a direct mapping to virtual queues using QT as index will
+		   result in a CRASH, when we are going to free the SKB.
+		   So, need to map the QT value to existing virtual queues only.
+		   using modulo by num_rx_queues.
+		 */
+		queue_map = fcb->rq - (priv->num_rx_queues *
+				(fcb->rq/priv->num_rx_queues));
+		skb_record_rx_queue(skb, queue_map);
 		skb_pull(skb, amount_pull);
 	}
 
