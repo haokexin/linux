@@ -67,6 +67,7 @@ define_machine(p4080_ds) {
 	.restart		= fsl_rstcr_restart,
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
+	.power_save		= e500_idle,
 	.init_early		= corenet_ds_init_early,
 };
 
