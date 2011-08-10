@@ -72,8 +72,11 @@ define_machine(p5020_ds) {
 	.restart		= fsl_rstcr_restart,
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
-	.idle_loop		= cpu_idle_simple,
-	.power_save		= ppc_wait,
+#ifdef CONFIG_PPC64
+	.power_save		= book3e_idle,
+#else
+	.power_save		= e500_idle,
+#endif
 	.init_early		= corenet_ds_init_early,
 };
 

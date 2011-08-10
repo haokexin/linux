@@ -67,8 +67,7 @@ define_machine(p3041_ds) {
 	.restart		= fsl_rstcr_restart,
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
-	.idle_loop		= cpu_idle_simple,
-	.power_save		= ppc_wait,
+	.power_save		= e500_idle,
 	.init_early		= corenet_ds_init_early,
 };
 
