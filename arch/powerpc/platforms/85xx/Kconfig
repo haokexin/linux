@@ -157,6 +157,10 @@ config P4080_DS
 	help
 	  This option enables support for the P4080 DS board
 
+config FSL_85XX_CACHE_SRAM
+	bool
+	select PPC_LIB_RHEAP
+
 endif # FSL_SOC_BOOKE
 
 config TQM85xx
