@@ -300,6 +300,15 @@
 			gpio-controller;
 		};
 
+		tdm@16000 {
+			device_type = "tdm";
+			compatible = "fsl,starlite-tdm";
+			reg = <0x16000 0x200 0x2c000 0x2000>;
+			clock-frequency = <0>;
+			interrupts = <63 8 62 8>;
+			interrupt-parent = < &mpic >;
+		};
+
 		L2: l2-cache-controller@20000 {
 			compatible = "fsl,p1020-l2-cache-controller";
 			reg = <0x20000 0x1000>;
