@@ -225,6 +225,8 @@ static struct pci_device_id radeonfb_pci_table[] = {
 	CHIP_DEF(PCI_CHIP_R423_UR,	R420,	CHIP_HAS_CRTC2),
 	CHIP_DEF(PCI_CHIP_R423_UT,	R420,	CHIP_HAS_CRTC2),
 	CHIP_DEF(PCI_CHIP_R423_5D57,	R420,	CHIP_HAS_CRTC2),
+	CHIP_DEF(PCI_CHIP_R423_554d,	R420,	CHIP_HAS_CRTC2),
+	CHIP_DEF(PCI_CHIP_R423_5657,	R420,	CHIP_HAS_CRTC2),
 	/* Original Radeon/7200 */
 	CHIP_DEF(PCI_CHIP_RADEON_QD,	RADEON,	0),
 	CHIP_DEF(PCI_CHIP_RADEON_QE,	RADEON,	0),
@@ -270,7 +272,7 @@ static int ignore_edid = 0;
 static int mirror = 0;
 static int panel_yres = 0;
 static int force_dfp = 0;
-static int force_measure_pll = 0;
+static int force_measure_pll = 1;
 #ifdef CONFIG_MTRR
 static int nomtrr = 0;
 #endif
@@ -559,7 +561,7 @@ static int __devinit radeon_probe_pll_params(struct radeonfb_info *rinfo)
 	do_div(vclk, 1000 * num);
 	xtal = vclk;
 
-	if ((xtal > 26900) && (xtal < 27100))
+	if ((xtal > 26700) && (xtal < 27100))
 		xtal = 2700;
 	else if ((xtal > 14200) && (xtal < 14400))
 		xtal = 1432;
