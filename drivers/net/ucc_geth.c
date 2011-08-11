@@ -2029,11 +2029,6 @@ static void ucc_geth_set_multi(struct net_device *dev)
 			out_be32(&p_82xx_addr_filt->gaddr_l, 0x0);
 
 			netdev_for_each_mc_addr(dmi, dev) {
-				/* Only support group multicast for now.
-				 */
-				if (!(dmi->dmi_addr[0] & 1))
-					continue;
-
 				/* Ask CPM to run CRC and set bit in
 				 * filter mask.
 				 */
