@@ -13,6 +13,8 @@
 
 #include <linux/errno.h>
 
+#include <linux/errno.h>
+
 #ifdef CONFIG_SMP
 
 #include <linux/cpumask.h>
