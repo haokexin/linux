@@ -1000,6 +1000,7 @@ void set_task_comm(struct task_struct *tsk, char *buf)
 	strlcpy(tsk->comm, buf, sizeof(tsk->comm));
 	task_unlock(tsk);
 	perf_event_comm(tsk);
+	trace_fs_exec(tsk->comm); 
 }
 
 int flush_old_exec(struct linux_binprm * bprm)
