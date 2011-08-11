@@ -307,18 +307,18 @@ void prepare_ftrace_return(unsigned long *parent_ra_addr, unsigned long self_ra,
 
 	insns = in_kernel_space(self_ra) ? 2 : MCOUNT_OFFSET_INSNS + 1;
 	trace.func = self_ra - (MCOUNT_INSN_SIZE * insns);
+	trace.depth = current->curr_ret_stack + 1;
 
-	if (ftrace_push_return_trace(old_parent_ra, trace.func, &trace.depth, fp)
-	    == -EBUSY) {
+	/* Only trace if the calling function expects to */
+	if (!ftrace_graph_entry(&trace)) {
 		*parent_ra_addr = old_parent_ra;
 		return;
 	}
 
-	/* Only trace if the calling function expects to */
-	if (!ftrace_graph_entry(&trace)) {
-		current->curr_ret_stack--;
+	if (ftrace_push_return_trace(old_parent_ra, trace.func, &trace.depth, fp)
+		== -EBUSY)
 		*parent_ra_addr = old_parent_ra;
-	}
+
 	return;
 out:
 	ftrace_graph_stop();
