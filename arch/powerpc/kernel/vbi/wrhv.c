@@ -1740,6 +1740,9 @@ unsigned int wrhv_mfspr(unsigned int sprn)
 			value = VB_STATUS_REGS_ACCESS(wr_status, svr);
 			break;
 
+		case SPRN_TLB1CFG:
+			break;
+
 		/*
 		 * We have the read/write permission to SPEFSCR in GOS,
 		 * so we should get its value directly.
