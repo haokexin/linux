@@ -65,7 +65,7 @@ static int evm_hw_params(struct snd_pcm_substream *substream,
 				machine_is_davinci_da850_evm())
 		sysclk = 24576000;
 
-	else if (cpu_is_ti816x())
+	else if (machine_is_ti8168evm())
 		sysclk = 24576000;
 
 	else
@@ -289,7 +289,7 @@ static int __init evm_init(void)
 	} else if (machine_is_davinci_da850_evm()) {
 		evm_snd_dev_data = &da850_evm_snd_devdata;
 		index = 0;
-	} else if (cpu_is_ti816x()) {
+	} else if (machine_is_ti8168evm()) {
 		evm_snd_dev_data = &ti816x_evm_snd_devdata;
 		index = 0;
 	} else
