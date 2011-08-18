@@ -111,6 +111,7 @@
 	bl	set_exec_table
 
 #undef DEBUG_DEBUG_EXCEPTION
+#ifndef CONFIG_PPC85xx_VT_MODE
 #define DEBUG_DEBUG_EXCEPTION						      \
 	START_EXCEPTION(DebugDebug);						\
 	NORMAL_EXCEPTION_PROLOG;					\
@@ -121,7 +122,6 @@
 	/* EXC_XFER_STD(0x1000, DebugException)	*/		\
 	EXC_XFER_TEMPLATE(DebugException, 0x2008, (MSR_KERNEL & ~(MSR_ME|MSR_DE|MSR_CE)), NOCOPY, transfer_to_handler_full, ret_from_except_full)
 
-#ifndef CONFIG_PPC85xx_VT_MODE
 #undef INSTRUCTION_STORAGE_EXCEPTION
 #define INSTRUCTION_STORAGE_EXCEPTION					      \
 	START_EXCEPTION(InstructionStorage)				      \
@@ -150,6 +150,15 @@
 	stw	r5,_ESR(r11);						      \
 	addi	r3,r1,STACK_FRAME_OVERHEAD;				      \
 	EXC_XFER_STD(0x0700, program_check_exception)
+#else
+#define DEBUG_DEBUG_EXCEPTION						      \
+	START_EXCEPTION(DebugDebug);						\
+	NORMAL_EXCEPTION_PROLOG;					\
+	mfspr	r5,SPRN_ESR;					\
+	stw	r5,_ESR(r11);					\
+	addi    r3,r1,STACK_FRAME_OVERHEAD;				\
+	/* EXC_XFER_STD(0x1000, DebugException)	*/		\
+	EXC_XFER_TEMPLATE(DebugException, 0x2008, (MSR_KERNEL & ~(MSR_ME|MSR_DE|MSR_CE)), NOCOPY, transfer_to_handler_full, ret_from_except_full)
 #endif
 
 #undef DECREMENTER_EXCEPTION
