@@ -346,4 +346,10 @@ config XILINX_PCI
 	bool "Xilinx PCI host bridge support"
 	depends on PCI && XILINX_VIRTEX
 
+config FSL_PIXIS
+	tristate "Freescale board control FPGA"
+	depends on FSL_SOC
+	help
+	  Say Y here to support board control FPGA.
+
 endmenu

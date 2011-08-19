@@ -21,6 +21,7 @@
 #include <linux/of_platform.h>
 #include <linux/pm.h>
 #include <linux/interrupt.h>
+#include <asm/fsl_pixis.h>
 #include <sysdev/fsl_soc.h>
 
 struct pmc_regs {
@@ -125,6 +126,9 @@ static int pmc_suspend_enter(suspend_state_t state)
 	case PM_SUSPEND_STANDBY:
 		local_irq_disable();
 
+		/* Start the power monitor using FPGA */
+		pixis_start_pm_sleep();
+
 		setbits32(&pmc_regs->pmcsr, PMCSR_SLP);
 		asm volatile ("msync" ::: "memory");
 
@@ -135,6 +139,9 @@ static int pmc_suspend_enter(suspend_state_t state)
 		if (ret)
 			dev_err(pmc_dev,
 				"timeout waiting for SLP bit to be cleared\n");
+
+		/* Stop the power monitor using FPGA */
+		pixis_stop_pm_sleep();
 
 		return 0;
 
