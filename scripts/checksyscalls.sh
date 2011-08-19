@@ -185,6 +185,9 @@ cat << EOF
 #define __IGNORE_vfork		/* clone */
 #define __IGNORE_wait4		/* waitid */
 
+/* revokeat has limited scope */
+#define __IGNORE_revokeat
+
 /* sync_file_range had a stupid ABI. Allow sync_file_range2 instead */
 #ifdef __NR_sync_file_range2
 #define __IGNORE_sync_file_range
