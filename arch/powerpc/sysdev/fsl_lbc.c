@@ -239,58 +239,58 @@ static irqreturn_t fsl_lbc_ctrl_irq(int irqno, void *data)
 	spin_lock_irqsave(&fsl_lbc_lock, flags);
 
 	status = in_be32(&lbc->ltesr);
-	if (!status) {
-		spin_lock_irqsave(&fsl_lbc_lock, flags);
-		return IRQ_NONE;
+
+	if (status) {
+		out_be32(&lbc->ltesr, LTESR_CLEAR);
+		out_be32(&lbc->lteatr, 0);
+		out_be32(&lbc->ltear, 0);
+		ctrl->irq_status = status;
+
+		if (status & LTESR_BM)
+			dev_err(ctrl->dev, "Local bus monitor time-out: "
+				"LTESR 0x%08X\n", status);
+		if (status & LTESR_WP)
+			dev_err(ctrl->dev, "Write protect error: "
+				"LTESR 0x%08X\n", status);
+		if (status & LTESR_ATMW)
+			dev_err(ctrl->dev, "Atomic write error: "
+				"LTESR 0x%08X\n", status);
+		if (status & LTESR_ATMR)
+			dev_err(ctrl->dev, "Atomic read error: "
+				"LTESR 0x%08X\n", status);
+		if (status & LTESR_CS)
+			dev_err(ctrl->dev, "Chip select error: "
+				"LTESR 0x%08X\n", status);
+		if (status & LTESR_UPM)
+				;
+		if (status & LTESR_FCT) {
+			dev_err(ctrl->dev, "FCM command time-out: "
+				"LTESR 0x%08X\n", status);
+			smp_wmb();
+			wake_up(&ctrl->irq_wait);
+		}
+		if (status & LTESR_PAR) {
+			dev_err(ctrl->dev, "Parity or Uncorrectable ECC error: "
+			"LTESR 0x%08X\n", status);
+			smp_wmb();
+			wake_up(&ctrl->irq_wait);
+		}
+		if (status & LTESR_CC) {
+			smp_wmb();
+			wake_up(&ctrl->irq_wait);
+		}
+		if (status & ~LTESR_MASK)
+			dev_err(ctrl->dev, "Unknown error: "
+				"LTESR 0x%08X\n", status);
+		spin_unlock_irqrestore(&fsl_lbc_lock, flags);
+		return IRQ_HANDLED;
 	}
 
-	out_be32(&lbc->ltesr, LTESR_CLEAR);
-	out_be32(&lbc->lteatr, 0);
-	out_be32(&lbc->ltear, 0);
-	ctrl->irq_status = status;
-
-	if (status & LTESR_BM)
-		dev_err(ctrl->dev, "Local bus monitor time-out: "
-			"LTESR 0x%08X\n", status);
-	if (status & LTESR_WP)
-		dev_err(ctrl->dev, "Write protect error: "
-			"LTESR 0x%08X\n", status);
-	if (status & LTESR_ATMW)
-		dev_err(ctrl->dev, "Atomic write error: "
-			"LTESR 0x%08X\n", status);
-	if (status & LTESR_ATMR)
-		dev_err(ctrl->dev, "Atomic read error: "
-			"LTESR 0x%08X\n", status);
-	if (status & LTESR_CS)
-		dev_err(ctrl->dev, "Chip select error: "
-			"LTESR 0x%08X\n", status);
-	if (status & LTESR_UPM)
-		;
-	if (status & LTESR_FCT) {
-		dev_err(ctrl->dev, "FCM command time-out: "
-			"LTESR 0x%08X\n", status);
-		smp_wmb();
-		wake_up(&ctrl->irq_wait);
-	}
-	if (status & LTESR_PAR) {
-		dev_err(ctrl->dev, "Parity or Uncorrectable ECC error: "
-			"LTESR 0x%08X\n", status);
-		smp_wmb();
-		wake_up(&ctrl->irq_wait);
-	}
-	if (status & LTESR_CC) {
-		smp_wmb();
-		wake_up(&ctrl->irq_wait);
-	}
-	if (status & ~LTESR_MASK)
-		dev_err(ctrl->dev, "Unknown error: "
-			"LTESR 0x%08X\n", status);
 	spin_unlock_irqrestore(&fsl_lbc_lock, flags);
-	return IRQ_HANDLED;
+	return IRQ_NONE;
 }
 
-/*
- * fsl_lbc_ctrl_probe
+/* fsl_lbc_ctrl_probe
  *
  * called by device layer when it finds a device matching
  * one our driver can handled. This code allocates all of
