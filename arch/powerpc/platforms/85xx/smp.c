@@ -27,7 +27,7 @@
 #include <sysdev/fsl_soc.h>
 
 extern void __early_start(void);
-#ifndef CONFIG_P1022_DS
+#if !defined CONFIG_E500 || !defined CONFIG_SUSPEND
 
 #define BOOT_ENTRY_ADDR_UPPER	0
 #define BOOT_ENTRY_ADDR_LOWER	1
@@ -40,7 +40,7 @@ extern void __early_start(void);
 #define NUM_BOOT_ENTRY		8
 #define SIZE_BOOT_ENTRY		(NUM_BOOT_ENTRY * sizeof(u32))
 
-#else /* #ifndef CONFIG_P1022_DS */
+#else /* !defined CONFIG_E500 || !defined CONFIG_SUSPEND */
 #define MPC85xx_BPTR_OFF		0x00020
 #define MPC85xx_ECM_EEBPCR_OFF		0x01010
 #define MPC85xx_PIC_PIR_OFF		0x41090
@@ -148,7 +148,7 @@ smp_85xx_unmap_bootpg(void)
 	iounmap(bootpg_ptr);
 	return 0;
 }
-#endif	/* #ifndef CONFIG_P1022_DS */
+#endif	/* #if !defined CONFIG_E500 || !defined CONFIG_SUSPEND */
 
 #ifndef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
 static void __cpuinit
@@ -156,7 +156,7 @@ smp_85xx_kick_cpu(int nr)
 {
 	unsigned long flags;
 	const u64 *cpu_rel_addr;
-#ifdef CONFIG_P1022_DS
+#if defined CONFIG_E500 && defined CONFIG_SUSPEND
 	__iomem struct epapr_entry *epapr;
 #else
 	__iomem u32 *bptr_vaddr;
@@ -177,7 +177,7 @@ smp_85xx_kick_cpu(int nr)
 		return;
 	}
 
-#ifdef CONFIG_P1022_DS
+#if defined CONFIG_E500 && defined CONFIG_SUSPEND
 	if (epapr_tbl[nr] == 0)
 		epapr_tbl[nr] = PAGE_MASK | (u32)*cpu_rel_addr;
 	else {
@@ -248,11 +248,11 @@ smp_85xx_kick_cpu(int nr)
 		flush_dcache_range((ulong)bptr_vaddr,
 				(ulong)(bptr_vaddr + SIZE_BOOT_ENTRY));
 #endif
-#endif /* #ifdef CONFIG_P1022_DS */
+#endif /*#if defined CONFIG_E500 && defined CONFIG_SUSPEND */
 
 	local_irq_restore(flags);
 
-#ifdef CONFIG_P1022_DS
+#if defined CONFIG_E500 && defined CONFIG_SUSPEND
 	smp_85xx_unmap_bootpg();
 	/* require dcache flush for cpu-release-addr ? */
 
@@ -302,7 +302,7 @@ static void __init smp_85xx_kick_cpu(int nr)
 
 extern void default_kexec_stop_cpus(void *arg);
 struct smp_ops_t smp_85xx_ops = {
-#ifndef CONFIG_P1022_DS
+#if !defined CONFIG_E500 || !defined CONFIG_SUSPEND
 	.kick_cpu = smp_85xx_kick_cpu,
 #endif
 #ifdef CONFIG_KEXEC
@@ -320,7 +320,7 @@ struct smp_ops_t smp_85xx_ops = {
 #if defined(CONFIG_HOTPLUG_CPU) && !defined(CONFIG_WRHV)
 void cpu_die(void)
 {
-#ifdef CONFIG_P1022_DS
+#if defined CONFIG_E500 && defined CONFIG_SUSPEND
 	if (ppc_md.cpu_die)
 		ppc_md.cpu_die();
 #else
@@ -330,7 +330,7 @@ void cpu_die(void)
 }
 #endif
 
-#ifndef CONFIG_P1022_DS
+#if !defined CONFIG_E500 || !defined CONFIG_SUSPEND
 static void __init
 smp_85xx_setup_cpu(int cpu_nr)
 {
@@ -345,14 +345,14 @@ smp_85xx_setup_cpu(int cpu_nr)
 void __init mpc85xx_smp_init(void)
 {
 	struct device_node *np;
-#ifdef CONFIG_P1022_DS
+#if defined CONFIG_E500 && defined CONFIG_SUSPEND
 	int i;
 
 	for (i = 0; i < NR_CPUS; i++)
 		epapr_tbl[i] = 0;
 #endif
 
-#ifdef CONFIG_P1022_DS
+#if defined CONFIG_E500 && defined CONFIG_SUSPEND
 	smp_85xx_ops.setup_cpu = smp_mpic_setup_cpu;
 #else
 	smp_85xx_ops.setup_cpu = smp_85xx_setup_cpu;
@@ -362,7 +362,7 @@ void __init mpc85xx_smp_init(void)
 	if (np) {
 		smp_85xx_ops.probe = smp_mpic_probe;
 		smp_85xx_ops.message_pass = smp_mpic_message_pass;
-#ifdef CONFIG_P1022_DS
+#if defined CONFIG_E500 && defined CONFIG_SUSPEND
 		smp_85xx_ops.kick_cpu = smp_85xx_kick_cpu;
 #if defined(CONFIG_HOTPLUG_CPU)
 		smp_85xx_ops.give_timebase = smp_generic_give_timebase;
@@ -371,7 +371,7 @@ void __init mpc85xx_smp_init(void)
 		smp_85xx_ops.cpu_die	= generic_cpu_die;
 		ppc_md.cpu_die		= smp_85xx_mach_cpu_die;
 #endif
-#endif	/* #ifdef CONFIG_P1022_DS */
+#endif	/* #if defined CONFIG_E500 && defined CONFIG_SUSPEND */
 	}
 
 	if (cpu_has_feature(CPU_FTR_DBELL))
