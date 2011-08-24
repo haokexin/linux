@@ -1,7 +1,7 @@
 /*
  * MPC85xx RDB Board Setup
  *
- * Copyright 2009 Freescale Semiconductor Inc.
+ * Copyright 2009-2010 Freescale Semiconductor Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -17,6 +17,7 @@
 #include <linux/seq_file.h>
 #include <linux/interrupt.h>
 #include <linux/of_platform.h>
+#include <linux/lmb.h>
 
 #include <asm/system.h>
 #include <asm/time.h>
@@ -26,6 +27,7 @@
 #include <asm/prom.h>
 #include <asm/udbg.h>
 #include <asm/mpic.h>
+#include <asm/swiotlb.h>
 
 #include <sysdev/fsl_soc.h>
 #include <sysdev/fsl_pci.h>
@@ -88,21 +90,35 @@ static void __init mpc85xx_rdb_setup_arch(void)
 {
 #ifdef CONFIG_PCI
 	struct device_node *np;
+	struct pci_controller *hose;
 #endif
+	dma_addr_t max = 0xffffffff;
 
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_rdb_setup_arch()", 0);
 
 #ifdef CONFIG_PCI
 	for_each_node_by_type(np, "pci") {
-		if (of_device_is_compatible(np, "fsl,mpc8548-pcie"))
+		if (of_device_is_compatible(np, "fsl,mpc8548-pcie")) {
 			fsl_add_bridge(np, 0);
+			hose = pci_find_hose_for_OF_device(np);
+			max = min(max, hose->dma_window_base_cur +
+					hose->dma_window_size);
+		}
 	}
 
 #endif
 
 #ifdef CONFIG_SMP
 	mpc85xx_smp_init();
+#endif
+
+#ifdef CONFIG_SWIOTLB
+	if (lmb_end_of_DRAM() > max) {
+		ppc_swiotlb_enable = 1;
+		set_pci_dma_ops(&swiotlb_dma_ops);
+		ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
+	}
 #endif
 
 	printk(KERN_INFO "MPC85xx RDB board from Freescale Semiconductor\n");
@@ -122,6 +138,7 @@ static int __init mpc85xxrdb_publish_devices(void)
 }
 machine_device_initcall(p2020_rdb, mpc85xxrdb_publish_devices);
 machine_device_initcall(p1020_rdb, mpc85xxrdb_publish_devices);
+machine_arch_initcall(p2020_rdb, swiotlb_setup_bus_notifier);
 
 /*
  * Called very early, device-tree isn't unflattened
