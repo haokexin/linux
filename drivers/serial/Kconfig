@@ -72,7 +72,7 @@ config SERIAL_8250_CONSOLE
 
 config SERIAL_8250_PPC_BUG
 	bool "Fix 8250/16550 to handle IRQ storm after receipt of a break"
-	depends on SERIAL_8250 && PPC32
+	depends on SERIAL_8250 && PPC
 	---help---
 	  If you say Y here, additional checks will be added to handling of
 	  interrupts on the serial ports which will prevent ill effects of
