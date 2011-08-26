@@ -217,6 +217,8 @@ config P2041_RDB
 	select HAS_RAPIDIO
 	select PPC_EPAPR_HV_PIC
 	select HAS_FSL_PAMU
+	select HAS_FSL_QBMAN
+	select HAS_FSL_PME
 	help
 	  This option enables support for the P2041 RDB board
 

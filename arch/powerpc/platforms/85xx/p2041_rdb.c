@@ -78,6 +78,7 @@ define_machine(p2041_rdb) {
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
 	.power_save		= e500_idle,
+	.init_early		= corenet_ds_init_early,
 };
 
 machine_device_initcall(p2041_rdb, corenet_ds_publish_devices);
