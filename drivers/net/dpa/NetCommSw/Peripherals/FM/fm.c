@@ -3130,7 +3130,7 @@ t_Error FM_Free(t_Handle h_Fm)
     FreeInitResources(p_Fm);
 
     if(!p_Fm->recoveryMode)
-        XX_FreeSmart(p_Fm->p_FmStateStruct);
+        XX_Free(p_Fm->p_FmStateStruct);
 
     XX_Free(p_Fm);
 
