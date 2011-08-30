@@ -3246,15 +3246,15 @@ static int gfar_change_mtu(struct net_device *dev, int new_mtu)
 	int oldsize = priv->rx_buffer_size;
 	int frame_size = new_mtu + ETH_HLEN;
 
-	if (priv->vlgrp)
-		frame_size += VLAN_HLEN;
-
-	if ((frame_size < 64) || (frame_size > JUMBO_FRAME_SIZE)) {
+	if ((new_mtu < 68) || (new_mtu > JUMBO_FRAME_SIZE)) {
 		if (netif_msg_drv(priv))
 			printk(KERN_ERR "%s: Invalid MTU setting\n",
 					dev->name);
 		return -EINVAL;
 	}
+
+	if (priv->vlgrp)
+		frame_size += VLAN_HLEN;
 
 	if (gfar_uses_fcb(priv))
 		frame_size += GMAC_FCB_LEN;
@@ -3264,6 +3264,9 @@ static int gfar_change_mtu(struct net_device *dev, int new_mtu)
 	tempsize =
 	    (frame_size & ~(INCREMENTAL_BUFFER_SIZE - 1)) +
 	    INCREMENTAL_BUFFER_SIZE;
+
+	if (tempsize > JUMBO_BUFFER_SIZE)
+		tempsize = JUMBO_BUFFER_SIZE;
 
 	/* Only stop and start the controller if it isn't already
 	 * stopped, and we changed something */

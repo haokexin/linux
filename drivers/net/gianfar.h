@@ -131,8 +131,8 @@ static inline int devfp_register_tx_hook(devfp_hook_t hook)
 #define DEFAULT_WK_BUFFER_SIZE	2048
 #define TX_RING_MOD_MASK(size) (size-1)
 #define RX_RING_MOD_MASK(size) (size-1)
-#define JUMBO_BUFFER_SIZE 9728
-#define JUMBO_FRAME_SIZE 9600
+#define JUMBO_BUFFER_SIZE 9600
+#define JUMBO_FRAME_SIZE 9000
 
 #define DEFAULT_FIFO_TX_THR 0x100
 #define DEFAULT_FIFO_TX_STARVE 0x40
