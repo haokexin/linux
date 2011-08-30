@@ -467,6 +467,11 @@ static void __init exc_lvl_early_init(void)
 			__va(lmb_alloc(THREAD_SIZE, THREAD_SIZE));
 		mcheckirq_ctx[i] = (struct thread_info *)
 			__va(lmb_alloc(THREAD_SIZE, THREAD_SIZE));
+
+#ifdef CONFIG_KPROBES
+		pgirq_ctx[i] = (struct thread_info *)
+			__va(lmb_alloc(THREAD_SIZE, THREAD_SIZE));
+#endif
 	}
 }
 #else
