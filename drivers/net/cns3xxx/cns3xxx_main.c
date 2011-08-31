@@ -151,6 +151,8 @@ int TX_DESC_SIZE = 120;
 module_param(RX_DESC_SIZE, int, 0);
 module_param(TX_DESC_SIZE, int, 0);
 
+#define FREE_TX_DESCRIPTOR_THRESHOLD 5
+
 u8 ring_index; /* 0 or 1*/
 
 #ifdef CNS3XXX_DELAYED_INTERRUPT
@@ -991,6 +993,7 @@ int cns3xxx_send_packet(struct sk_buff *skb, struct net_device *netdev)
 		/* no enough tx descriptor */
 		spin_unlock_irqrestore(&tx_lock, flags);
 		/* re-queue the skb */
+		netif_tx_stop_all_queues(netdev);
 		return NETDEV_TX_BUSY;
 	}
 	tx_buffer = get_cur_tx_buffer(priv->tx_ring + ring_index);
@@ -1034,6 +1037,10 @@ int cns3xxx_send_packet(struct sk_buff *skb, struct net_device *netdev)
 		for (i = 0; i < tx_desc_count ; i++)
 			tx_desc[i]->cown = 0 ;
 	}
+
+	if (cns3xxx_check_enough_tx_descriptor(priv->tx_ring + ring_index,
+			FREE_TX_DESCRIPTOR_THRESHOLD) == 0)
+		netif_tx_stop_all_queues(netdev);
 
 	mb();
 
@@ -1158,6 +1165,16 @@ irqreturn_t cns3xxx_tstc_ring0_isr(int irq, void *dev_id)
 }
 #endif
 
+irqreturn_t cns3xxx_tsqe_ring0_isr(int irq, void *dev_id)
+{
+	int i;
+	for (i = PORT0_NETDEV_INDEX; i <= PORT2_NETDEV_INDEX; i++) {
+		if (net_dev_array[i] && (net_dev_array[i]->flags & IFF_UP))
+			netif_tx_start_all_queues(net_dev_array[i]);
+	}
+	return IRQ_HANDLED;
+}
+
 static int cns3xxx_install_isr(struct net_device *dev)
 {
 	int retval;
@@ -1204,6 +1221,18 @@ static int cns3xxx_install_isr(struct net_device *dev)
 			return 3;
 		}
 #endif
+
+		printk(KERN_INFO "request TSQE_RING0_INTERRUPT_ID %d\n",
+			TSQE_RING0_INTERRUPT_ID);
+		retval = request_irq(TSQE_RING0_INTERRUPT_ID,
+			cns3xxx_tsqe_ring0_isr, IRQF_SHARED,
+			"TSQE_RING0", intr_netdev);
+
+		if (retval) {
+			PRINT_INFO("%s: unable to get IRQ %d (irqval=%d).\n",
+				"TSQE_RING0", TSQE_RING0_INTERRUPT_ID, retval);
+			return 3;
+		}
 
 	if (priv->num_rx_queues == 2) {
 #if defined(CNS3XXX_DOUBLE_RX_RING)
