@@ -544,8 +544,7 @@ static struct omap_hwmod omap34xx_sr1_hwmod = {
 	.slaves		= omap3_sr1_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap3_sr1_slaves),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP3430ES2 |
-			CHIP_IS_OMAP3430ES3_0 |
-			CHIP_IS_OMAP3430ES3_1),
+			CHIP_IS_OMAP3430ES3_0),
 	.flags		= HWMOD_SET_DEFAULT_CLOCKACT,
 };
 
