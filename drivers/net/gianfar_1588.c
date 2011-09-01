@@ -806,7 +806,13 @@ static int gfar_1588_proc_write(struct file *file, const char *buffer,
 	return count;
 }
 
-void gfar_1588_proc_init(struct of_device_id *dev_id, int cnt)
+void gfar_1588_node_init(struct of_device_id *dev_id, int cnt)
+{
+	gfar_node.gfar_node_match = dev_id;
+	gfar_node.match_cnt = cnt;
+}
+
+void gfar_1588_proc_init()
 {
 	gfar_1588_proc_file = create_proc_entry(GFAR_1588_PROCFS_NAME,\
 							 0644, NULL);
@@ -825,8 +831,6 @@ void gfar_1588_proc_init(struct of_device_id *dev_id, int cnt)
 	gfar_1588_proc_file->uid	= 0;
 	gfar_1588_proc_file->gid	= 0;
 	gfar_1588_proc_file->data	= &gfar_1588_data;
-	gfar_node.gfar_node_match = dev_id;
-	gfar_node.match_cnt = cnt;
 	printk(KERN_INFO "/proc/%s created \r\n", GFAR_1588_PROCFS_NAME);
 }
 

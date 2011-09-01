@@ -118,6 +118,9 @@ EXPORT_SYMBOL(devfp_tx_hook);
 const char gfar_driver_name[] = "Gianfar Ethernet";
 const char gfar_driver_version[] = "1.3";
 
+/* Used for determining hardware time stamps support */
+int ptp_1588_present = FALSE;
+
 static int gfar_enet_open(struct net_device *dev);
 static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev);
 static void gfar_reset_task(struct work_struct *work);
@@ -1233,6 +1236,12 @@ static int gfar_probe(struct of_device *ofdev,
 			priv->ptimer_present = 0;
 			printk(KERN_ERR "IEEE1588: ptp-timer init failed\n");
 		}
+
+		if (!ptp_1588_present) {
+			gfar_1588_proc_init();
+			ptp_1588_present = TRUE;
+		}
+
 		priv->rx_filer_enable = 1;
 		pmuxcr_guts_write();
 		printk(KERN_INFO "IEEE1588: ptp-timer initialized\n");
@@ -4518,13 +4527,15 @@ static struct of_platform_driver gfar_driver = {
 
 static int __init gfar_init(void)
 {
-	gfar_1588_proc_init(gfar_match, sizeof(gfar_match));
+	gfar_1588_node_init(gfar_match, sizeof(gfar_match));
 	return of_register_platform_driver(&gfar_driver);
 }
 
 static void __exit gfar_exit(void)
 {
-	gfar_1588_proc_exit();
+	if (ptp_1588_present)
+		gfar_1588_proc_exit();
+
 	of_unregister_platform_driver(&gfar_driver);
 }
 
