@@ -52,6 +52,9 @@
 #define ALIGNMENT 0x20
 #endif
 
+#define TRUE  1
+#define FALSE 0
+
 /* The maximum number of packets to be handled in one call of gfar_poll */
 #define GFAR_DEV_WEIGHT 64
 
@@ -1426,7 +1429,8 @@ extern void gfar_configure_rx_coalescing(struct gfar_private *priv,
 					long unsigned int rx_mask);
 void gfar_init_sysfs(struct net_device *dev);
 
-extern void gfar_1588_proc_init(struct of_device_id *dev_id, int cnt);
+extern void gfar_1588_node_init(struct of_device_id *dev_id, int cnt);
+extern void gfar_1588_proc_init(void);
 extern void gfar_1588_proc_exit(void);
 extern const struct ethtool_ops gfar_ethtool_ops;
 
