@@ -101,6 +101,7 @@ config FSL_DMA
 	depends on FSL_SOC
 	select DMA_ENGINE
 	select ASYNC_TX_ENABLE_CHANNEL_SWITCH
+	select RAID6_PQ
 	---help---
 	  Enable support for the Freescale Elo and Elo Plus DMA controllers.
 	  The Elo is the DMA controller on some 82xx and 83xx parts, and the
@@ -258,6 +259,20 @@ config DMA_SA11X0
 	  Support the DMA engine found on Intel StrongARM SA-1100 and
 	  SA-1110 SoCs.  This DMA engine can only be used with on-chip
 	  devices.
+
+config FSL_RAID
+	tristate "Freescale RAID Engine Device Driver"
+	depends on FSL_SOC
+	select DMA_ENGINE
+	select ASYNC_TX_ENABLE_CHANNEL_SWITCH
+	select ASYNC_MEMCPY
+	select ASYNC_XOR
+	select ASYNC_PQ
+	---help---
+	  Enable support for Freescale RAID Engine. RAID Engine is
+	  available on some QorIQ SoCs (like P5020). It has
+	  the capability to offload RAID5/RAID6 operations from CPU.
+	  RAID5 is XOR and memcpy. RAID6 is P/Q and memcpy
 
 config DMA_ENGINE
 	bool
