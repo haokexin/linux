@@ -48,7 +48,6 @@ void mpc85xx_enter_deep_sleep(u64 ccsrbar, u32 powmgtreq);
 /**
  * pmc_enable_wake - enable OF device as wakeup event source
  * @ofdev: OF device affected
- * @state: PM state from which device will issue wakeup events
  * @enable: True to enable event generation; false to disable
  *
  * This enables the device as a wakeup event source, or disables it.
@@ -59,7 +58,7 @@ void mpc85xx_enter_deep_sleep(u64 ccsrbar, u32 powmgtreq);
  * Error code depending on the platform is returned if both the platform and
  * the native mechanism fail to enable the generation of wake-up events
  */
-int pmc_enable_wake(struct of_device *ofdev, suspend_state_t state, bool enable)
+int pmc_enable_wake(struct of_device *ofdev, bool enable)
 {
 	int ret = 0;
 	struct device_node *clk_np;

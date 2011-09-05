@@ -333,7 +333,7 @@ static int gfar_alloc_skb_resources(struct net_device *ndev)
 		priv->total_rx_ring_size += priv->rx_queue[i]->rx_ring_size;
 
 	/* Allocate memory for the buffer descriptors */
-	vaddr = alloc_bds(priv, &addr);
+	vaddr = (void *) alloc_bds(priv, &addr);
 
 	if (!vaddr) {
 		if (netif_msg_ifup(priv))
@@ -410,7 +410,7 @@ static int gfar_alloc_skb_resources(struct net_device *ndev)
 	/* Alloc wake up rx buffer, wake up buffer need 64 bytes aligned */
 		rx_queue = priv->rx_queue[priv->num_rx_queues - 1];
 		rx_queue->cur_rx = rx_queue->rx_bd_base;
-		vaddr = (unsigned long) dma_alloc_coherent(&priv->ofdev->dev,
+		vaddr = dma_alloc_coherent(&priv->ofdev->dev,
 			priv->wk_buffer_size * rx_queue->rx_ring_size  \
 			+ RXBUF_ALIGNMENT, &addr, GFP_KERNEL);
 		if (vaddr == 0) {
@@ -421,7 +421,7 @@ static int gfar_alloc_skb_resources(struct net_device *ndev)
 			goto wk_buf_fail;
 		}
 
-		priv->wk_buf_vaddr = vaddr;
+		priv->wk_buf_vaddr = (unsigned long) vaddr;
 		priv->wk_buf_paddr = addr;
 		wk_buf_vaddr = (unsigned long)(vaddr + RXBUF_ALIGNMENT) \
 						& ~(RXBUF_ALIGNMENT - 1);
@@ -1151,75 +1151,6 @@ static void gfar_detect_errata(struct gfar_private *priv)
 			 priv->errata);
 }
 
-static int get_cpu_number(unsigned char *eth_pkt, int len)
-{
-	u32 addr1, addr2, ports;
-	struct ipv6hdr *ip6;
-	struct iphdr *ip;
-	u32 hash, ihl;
-	u8 ip_proto;
-	int cpu;
-	struct ethhdr *eth;
-	static u32 simple_hashrnd;
-	static int simple_hashrnd_initialized;
-
-	if (len < ETH_HLEN)
-		return -1;
-	else
-		eth = eth_pkt;
-
-	if (unlikely(!simple_hashrnd_initialized)) {
-		get_random_bytes(&simple_hashrnd, 4);
-		simple_hashrnd_initialized = 1;
-	}
-
-	switch (eth->h_proto) {
-	case __constant_htons(ETH_P_IP):
-		if (len < (ETH_HLEN + sizeof(*ip)))
-			return -1;
-
-		ip = (struct iphdr *) (eth_pkt + ETH_HLEN);
-		ip_proto = ip->protocol;
-		addr1 = ip->saddr;
-		addr2 = ip->daddr;
-		ihl = ip->ihl;
-		break;
-	case __constant_htons(ETH_P_IPV6):
-		if (len < (ETH_HLEN + sizeof(*ip6)))
-			return -1;
-
-		ip6 = (struct ipv6hdr *)(eth_pkt + ETH_HLEN);
-		ip_proto = ip6->nexthdr;
-		addr1 = ip6->saddr.s6_addr32[3];
-		addr2 = ip6->daddr.s6_addr32[3];
-		ihl = (40 >> 2);
-		break;
-	default:
-		return -EINVAL;
-	}
-	ports = 0;
-	switch (ip_proto) {
-	case IPPROTO_TCP:
-	case IPPROTO_UDP:
-	case IPPROTO_DCCP:
-	case IPPROTO_ESP:
-	case IPPROTO_AH:
-	case IPPROTO_SCTP:
-	case IPPROTO_UDPLITE:
-		if (len < (ETH_HLEN + (ihl * 4) + 4))
-			ports = *((u32 *) (eth_pkt + ETH_HLEN + (ihl * 4)));
-		break;
-
-	default:
-		break;
-	}
-
-	hash = jhash_3words(addr1, addr2, ports, simple_hashrnd);
-	cpu = hash & 0x1;
-
-	return cpu_online(cpu) ? cpu : -1;
-}
-
 /* Set up the ethernet device structure, private data,
  * and anything else we need before we start */
 static int gfar_probe(struct of_device *ofdev,
@@ -1234,7 +1165,9 @@ static int gfar_probe(struct of_device *ofdev,
 	u32 rstat = 0, tstat = 0, rqueue = 0, tqueue = 0;
 	u32 isrg = 0;
 	u32 __iomem *baddr;
+#ifdef CONFIG_WRHV
 	int j;
+#endif
 
 	err = gfar_of_init(ofdev, &dev);
 
@@ -1749,7 +1682,7 @@ static int gfar_suspend(struct device *dev)
 		(priv->device_flags & FSL_GIANFAR_DEV_HAS_ARP_PACKET);
 
 	if (arp_packet) {
-		pmc_enable_wake(priv->ofdev, PM_SUSPEND_MEM, 1);
+		pmc_enable_wake(priv->ofdev, 1);
 		pmc_enable_lossless(1);
 		gfar_arp_suspend(ndev);
 		return 0;
@@ -1782,7 +1715,7 @@ static int gfar_suspend(struct device *dev)
 		disable_napi(priv);
 
 		if (magic_packet) {
-			pmc_enable_wake(priv->ofdev, PM_SUSPEND_MEM, 1);
+			pmc_enable_wake(priv->ofdev, 1);
 			/* Enable interrupt on Magic Packet */
 			gfar_write(&regs->imask, IMASK_MAG);
 
@@ -1836,12 +1769,12 @@ static int gfar_resume(struct device *dev)
 		(priv->device_flags & FSL_GIANFAR_DEV_HAS_ARP_PACKET);
 
 	if (arp_packet) {
-		pmc_enable_wake(priv->ofdev, PM_SUSPEND_MEM, 0);
+		pmc_enable_wake(priv->ofdev, 0);
 		pmc_enable_lossless(0);
 		gfar_arp_resume(ndev);
 		return 0;
 	} else if (magic_packet) {
-		pmc_enable_wake(priv->ofdev, PM_SUSPEND_MEM, 0);
+		pmc_enable_wake(priv->ofdev, 0);
 	}
 
 	if (!netif_running(ndev)) {

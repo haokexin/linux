@@ -856,16 +856,6 @@ static void ethflow_to_filer_rules(struct gfar_private *priv, u64 ethflow,
 
 }
 
-static void gfar_dump_filer_table(struct gfar_private *priv)
-{
-	u32 fcr, fpr, far;
-	for (far = 0; far <= priv->max_filer_rules; far++) {
-		gfar_read_filer(priv, far, &fcr, &fpr);
-		if (fcr != RQFCR_CMP_NOMATCH)
-			printk(KERN_INFO"[%d] fcr %x, fpr %x\n", far, fcr, fpr);
-	}
-}
-
 static int gfar_ethflow_to_filer_table(struct gfar_private *priv, u64 ethflow, u64 class)
 {
 	unsigned int last_rule_idx = priv->cur_filer_idx;
