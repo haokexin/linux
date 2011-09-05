@@ -24,11 +24,10 @@ struct device_node;
 extern void fsl_rstcr_restart(char *cmd);
 
 #ifdef CONFIG_FSL_PMC
-int pmc_enable_wake(struct of_device *ofdev, suspend_state_t state,
-		bool enable);
+int pmc_enable_wake(struct of_device *ofdev, bool enable);
 void pmc_enable_lossless(int enable);
 #else
-#define pmc_enable_wake(ofdev, state, enable)	(-EINVAL)
+#define pmc_enable_wake(ofdev, enable)	(-EINVAL)
 #define pmc_enable_lossless(enable) do {} while (0);
 #endif
 

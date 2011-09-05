@@ -485,15 +485,15 @@ int gfar_ioctl_1588(struct net_device *dev, struct ifreq *ifr, int cmd)
 	case PTP_GET_RX_TIMESTAMP_PDELAY_RESP:
 		retval = gfar_get_rx_time(priv, ifr, &rx_time, cmd);
 		if (retval == 0)
-			copy_to_user(ifr->ifr_data, &rx_time, sizeof(rx_time));
+			(void) copy_to_user(ifr->ifr_data, &rx_time, sizeof(rx_time));
 		break;
 	case PTP_GET_TX_TIMESTAMP:
 		gfar_get_tx_timestamp(regs, &tx_time);
-		copy_to_user(ifr->ifr_data, &tx_time, sizeof(tx_time));
+		(void) copy_to_user(ifr->ifr_data, &tx_time, sizeof(tx_time));
 		break;
 	case PTP_GET_CNT:
 		gfar_get_curr_cnt(priv->ptimer, &curr_time);
-		copy_to_user(ifr->ifr_data, &curr_time, sizeof(curr_time));
+		(void) copy_to_user(ifr->ifr_data, &curr_time, sizeof(curr_time));
 		break;
 	case PTP_SET_CNT:
 		cnt = (struct gfar_ptp_time *)ifr->ifr_data;
@@ -511,7 +511,7 @@ int gfar_ioctl_1588(struct net_device *dev, struct ifreq *ifr, int cmd)
 	case PTP_GET_ADDEND:
 		/* return initial timer add value
 		 * to calculate drift correction */
-		copy_to_user(ifr->ifr_data, &freq_compensation,
+		(void) copy_to_user(ifr->ifr_data, &freq_compensation,
 				sizeof(freq_compensation));
 		break;
 	case PTP_CLEANUP_TIMESTAMP_BUFFERS:
