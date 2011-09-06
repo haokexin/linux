@@ -3299,6 +3299,11 @@ static int __init cns3xxx_init_module(void)
 	cns3xxx_probe(ring_info);
 	cns3xxx_config_intr();
 
+#ifdef CNS3XXX_VLAN_8021Q
+	if (is_cns3xxx_nic_mode_8021q())
+		cns3xxx_nic_mode(1);
+#endif
+
 	spin_lock_init(&tx_lock);
 	spin_lock_init(&rx_lock);
 

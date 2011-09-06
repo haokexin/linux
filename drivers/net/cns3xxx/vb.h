@@ -111,6 +111,7 @@ static inline void close_port2(void)
 #define my_vlan2_mac {0x00, 0x11, 0xbb, 0xcc, 0xdd, 0x70}
 #define my_vlan3_mac {0x00, 0x11, 0xbb, 0xcc, 0xdd, 0x80}
 
+#define CNS3XXX_NIC_MODE_8021Q
 
 #if defined(CONFIG_VLAN_8021Q) || defined(CONFIG_VLAN_8021Q_MODULE)
 	#ifndef CNS3XXX_NIC_MODE_8021Q
