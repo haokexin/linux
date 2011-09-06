@@ -535,6 +535,14 @@ static inline void cns3xxx_ivl(u8 enable)
 		MAC_GLOB_CFG_REG |= (0x1 << 7);
 }
 
+static inline void cns3xxx_nic_mode(u8 enable)
+{
+	VLAN_CFG &= (~(1<<15));
+	if (enable == 1)
+		VLAN_CFG |= (1<<15);
+}
+
+
 static inline void cns3xxx_disable_irq(u32 irq)
 {
 	disable_irq_nosync(irq);
