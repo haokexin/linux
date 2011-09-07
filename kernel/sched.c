@@ -3512,7 +3512,11 @@ notrace unsigned long get_parent_ip(unsigned long addr)
 #if defined(CONFIG_PREEMPT) && (defined(CONFIG_DEBUG_PREEMPT) || \
 				defined(CONFIG_PREEMPT_TRACER))
 
+#ifdef CONFIG_PPC64
+notrace void __kprobes add_preempt_count(int val)
+#else
 void __kprobes add_preempt_count(int val)
+#endif
 {
 #ifdef CONFIG_DEBUG_PREEMPT
 	/*
@@ -3534,7 +3538,11 @@ void __kprobes add_preempt_count(int val)
 }
 EXPORT_SYMBOL(add_preempt_count);
 
+#ifdef CONFIG_PPC64
+notrace void __kprobes sub_preempt_count(int val)
+#else
 void __kprobes sub_preempt_count(int val)
+#endif
 {
 #ifdef CONFIG_DEBUG_PREEMPT
 	/*
@@ -3802,7 +3810,11 @@ int mutex_spin_on_owner(struct mutex *lock, struct thread_info *owner)
  * off of preempt_enable. Kernel preemptions off return from interrupt
  * occur there and call schedule directly.
  */
+#ifdef CONFIG_PPC64
+notrace asmlinkage void __sched preempt_schedule(void)
+#else
 asmlinkage void __sched preempt_schedule(void)
+#endif
 {
 	struct thread_info *ti = current_thread_info();
 
