@@ -69,6 +69,13 @@ config NOP_USB_XCEIV
 	 built-in with usb ip or which are autonomous and doesn't require any
 	 phy programming such as ISP1x04 etc.
 
+config USB_CNS3XXX_OTG
+	tristate "Cavium CNS3XXX OTG Module"
+	depends on USB
+	select USB_OTG_UTILS
+	---help---
+	  Cavium CNS3XXX USB OTG Chipset support
+
 config FSL_USB2_OTG
 	bool "Freescale USB OTG Transceiver Driver"
 	depends on USB_EHCI_FSL
@@ -76,5 +83,34 @@ config FSL_USB2_OTG
 	select USB_OTG_UTILS
 	help
 	  Enable this to support Freescale USB OTG transceiver.
+
+choice
+        prompt "OTG function includes"
+        depends on USB_CNS3XXX_OTG
+        default USB_CNS3XXX_OTG_BOTH
+
+config USB_CNS3XXX_OTG_BOTH
+	bool "both HCD and PCD"
+
+config USB_CNS3XXX_OTG_HCD_ONLY
+	bool "HCD only"
+
+config USB_CNS3XXX_OTG_PCD_ONLY
+	bool "PCD only"
+
+endchoice
+config USB_CNS3XXX_OTG_ENABLE_OTG_DRVVBUS
+	bool "Enable OTG_DRVVBUS"
+	depends on USB_CNS3XXX_OTG
+	default y
+	---help---
+	 The Power control IC (FB6862B), which is located around the OTG mini
+	 USB type A/B receptacle, in some early EVB board v1.0/v1.1(#1~#22) is
+	 incorrect(FB6862A), and need to be patched so that VBUS can be applied
+	 properly. In that case, we don't use the OTG_DRVVBUS to control the
+	 VBUS.
+
+	 Check the board that you are using, if the IC is FB6862B, say Y.
+	 Otherwise, say N.
 
 endif # USB || OTG
