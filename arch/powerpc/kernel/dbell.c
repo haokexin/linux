@@ -63,7 +63,11 @@ void doorbell_message_pass(int target, int msg)
 }
 
 extern void (*crash_ipi_function_ptr)(struct pt_regs *);
+#ifdef CONFIG_PPC64
+notrace void doorbell_exception(struct pt_regs *regs)
+#else
 void doorbell_exception(struct pt_regs *regs)
+#endif
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
 	struct doorbell_cpu_info *info = &__get_cpu_var(doorbell_cpu_info);
