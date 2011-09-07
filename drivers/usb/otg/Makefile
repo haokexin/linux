@@ -17,3 +17,18 @@ obj-$(CONFIG_FSL_USB2_OTG)	+= fsl_usb2_otg.o
 ccflags-$(CONFIG_USB_DEBUG)	+= -DDEBUG
 ccflags-$(CONFIG_USB_GADGET_DEBUG) += -DDEBUG
 
+ifneq ($(CONFIG_USB_CNS3XXX_OTG_HCD_ONLY),)
+EXTRA_CFLAGS    += -DDWC_HOST_ONLY
+endif
+
+ifneq ($(CONFIG_USB_CNS3XXX_OTG_PCD_ONLY),)
+EXTRA_CFLAGS    += -DDWC_DEVICE_ONLY
+endif
+
+#obj-$(CONFIG_USB_CNS3XXX_OTG)	+= dwc_otg.o
+
+obj-$(CONFIG_USB_CNS3XXX_OTG)	+= dwc_otg_driver.o
+obj-$(CONFIG_USB_CNS3XXX_OTG)	+= dwc_otg_cil.o dwc_otg_cil_intr.o
+obj-$(CONFIG_USB_CNS3XXX_OTG)	+= dwc_otg_pcd.o dwc_otg_pcd_intr.o
+obj-$(CONFIG_USB_CNS3XXX_OTG)	+= dwc_otg_hcd.o dwc_otg_hcd_intr.o
+obj-$(CONFIG_USB_CNS3XXX_OTG)	+= dwc_otg_hcd_queue.o
