@@ -1068,13 +1068,21 @@ netdev_tx_t usbnet_start_xmit (struct sk_buff *skb,
 	/* don't assume the hardware handles USB_ZERO_PACKET
 	 * NOTE:  strictly conforming cdc-ether devices should expect
 	 * the ZLP here, but ignore the one-byte packet.
+	 * NOTE2: CDC NCM specification is different from CDC ECM when
+	 * handling ZLP/short packets, so cdc_ncm driver will make short
+	 * packet itself if needed.
 	 */
-	if (!(info->flags & FLAG_SEND_ZLP) && (length % dev->maxpacket) == 0) {
-		urb->transfer_buffer_length++;
-		if (skb_tailroom(skb)) {
-			skb->data[skb->len] = 0;
-			__skb_put(skb, 1);
-		}
+	if (length % dev->maxpacket == 0) {
+		if (!(info->flags & FLAG_SEND_ZLP)) {
+			if (!(info->flags & FLAG_MULTI_PACKET)) {
+				urb->transfer_buffer_length++;
+				if (skb_tailroom(skb)) {
+					skb->data[skb->len] = 0;
+					__skb_put(skb, 1);
+				}
+			}
+		} else
+			urb->transfer_flags |= URB_ZERO_PACKET;
 	}
 
 	spin_lock_irqsave(&dev->txq.lock, flags);
