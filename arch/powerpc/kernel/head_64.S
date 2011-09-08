@@ -413,9 +413,12 @@ _STATIC(__after_prom_start)
 #endif
 	mr.	r4,r26			/* In some cases the loader may  */
 	beq	9f			/* have already put us at zero */
+#if defined(CONFIG_PPC_BOOK3E) && defined(CONFIG_KEXEC_POWERPC_SMP_BOOTABLE)
+	tovirt(r4,r4)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	li	r6,0x100		/* Start offset, the first 0x100 */
 					/* bytes were copied earlier.	 */
-#ifdef CONFIG_PPC_BOOK3E
+#if defined(CONFIG_PPC_BOOK3E) && !defined(CONFIG_KEXEC_POWERPC_SMP_BOOTABLE)
 	tovirt(r6,r6)			/* on booke, we already run at PAGE_OFFSET */
 #endif
 
@@ -448,6 +451,9 @@ p_end:	.llong	_end - _stext
 
 4:	/* Now copy the rest of the kernel up to _end */
 	addis	r5,r26,(p_end - _stext)@ha
+#if defined(CONFIG_PPC_BOOK3E) && defined(CONFIG_KEXEC_POWERPC_SMP_BOOTABLE)
+	tovirt(r5,r5)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	ld	r5,(p_end - _stext)@l(r5)	/* get _end */
 5:	bl	.copy_and_flush		/* copy the rest */
 
