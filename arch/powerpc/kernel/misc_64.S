@@ -490,6 +490,47 @@ kexec_flag:
 
 #ifdef CONFIG_KEXEC
 
+#ifdef CONFIG_PPC_BOOK3E
+/* PPC64 Kexec always load Image to so-called real mode that turn
+ * off mmu but its impossible for book3e. So we have to setup the initial
+ * TLB for a core to map v:0 to p:0 as 1:1. This current implementation
+ * assume that 1G is enough for kexec.
+ */
+#include <asm/mmu.h>
+_GLOBAL(kexec_tlb_book3e)
+	/* Invalidate all unnecessary TLBs */
+	PPC_TLBILX_ALL(0,0)
+	sync
+	isync
+
+/* The mapping only needs to be cache-coherent on SMP */
+#ifdef CONFIG_SMP
+#define M_IF_SMP	MAS2_M
+#else
+#define M_IF_SMP	0
+#endif
+	li	r9,0x103f	/* Its safe to use the last entry */
+	rlwimi	r9,r9,16,0,15	/* Setup MAS0 = TLBSEL | ESEL(r9) */
+	mtspr	SPRN_MAS0,r9
+
+	lis	r9,(MAS1_VALID|MAS1_IPROT)@h
+	ori	r9,r9,(MAS1_TSIZE(BOOK3E_PAGESZ_1GB))@l
+	mtspr	SPRN_MAS1,r9
+
+	LOAD_REG_IMMEDIATE(r9, 0x0 | M_IF_SMP)
+	mtspr	SPRN_MAS2,r9
+
+	LOAD_REG_IMMEDIATE(r9, 0x0 | MAS3_SR | MAS3_SW | MAS3_SX)
+	mtspr	SPRN_MAS3,r9
+	li	r9,0
+	mtspr	SPRN_MAS7,r9
+
+	tlbwe
+	isync
+	blr
+#endif
+
+
 /* kexec_smp_wait(void)
  *
  * call with interrupts off
@@ -503,6 +544,9 @@ kexec_flag:
 _GLOBAL(kexec_smp_wait)
 	lhz	r3,PACAHWCPUID(r13)
 	bl	real_mode
+#ifdef CONFIG_PPC_BOOK3E
+	bl	kexec_tlb_book3e
+#endif
 
 	li	r4,KEXEC_STATE_REAL_MODE
 	stb	r4,PACAKEXECSTATE(r13)
@@ -582,6 +626,7 @@ _GLOBAL(kexec_sequence)
 	mtmsrd	r3,1
 #else
 	wrteei	0
+	bl	kexec_tlb_book3e
 #endif
 
 	/* copy dest pages, flush whole dest image */
