@@ -305,7 +305,7 @@ struct smp_ops_t smp_85xx_ops = {
 #if !defined CONFIG_E500 || !defined CONFIG_SUSPEND
 	.kick_cpu = smp_85xx_kick_cpu,
 #endif
-#ifdef CONFIG_KEXEC
+#if defined(CONFIG_KEXEC) && !defined(CONFIG_PPC_BOOK3E)
 	.kexec_stop_cpus = default_kexec_stop_cpus,
 	.give_timebase = smp_generic_give_timebase,
 	.take_timebase = smp_generic_take_timebase,

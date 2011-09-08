@@ -356,7 +356,7 @@ config ARCH_ENABLE_MEMORY_HOTREMOVE
 
 config KEXEC
 	bool "kexec system call (EXPERIMENTAL)"
-	depends on (PPC_BOOK3S || PPC_MULTIPLATFORM || PPC_85xx) && EXPERIMENTAL
+	depends on (PPC_BOOK3S || PPC_BOOK3E || PPC_MULTIPLATFORM || PPC_85xx) && EXPERIMENTAL
 	select PROC_DEVICETREE
 	help
 	  kexec is a system call that implements the ability to shutdown your
