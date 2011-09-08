@@ -150,7 +150,7 @@ smp_85xx_unmap_bootpg(void)
 }
 #endif	/* #if !defined CONFIG_E500 || !defined CONFIG_SUSPEND */
 
-#ifndef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
+#if !defined(CONFIG_KEXEC_POWERPC_SMP_BOOTABLE) || defined(CONFIG_PPC_BOOK3E)
 static void __cpuinit
 smp_85xx_kick_cpu(int nr)
 {

@@ -374,7 +374,7 @@ config KEXEC
 
 config KEXEC_POWERPC_SMP_BOOTABLE
 	bool "Kernel bootable by kexec"
-	depends on SMP && (PPC_MULTIPLATFORM || PPC_85xx) && EXPERIMENTAL
+	depends on ((PPC_BOOK3E) || SMP && (PPC_MULTIPLATFORM || PPC_85xx)) && EXPERIMENTAL
 	help
 	  Some PowerPC kernels need a special treatment to be able to shut
 	  down CPUs and bring them safely to the kernel being kexec'ed into.
