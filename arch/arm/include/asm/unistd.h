@@ -398,8 +398,12 @@
 #define __NR_sched_getparam_ex		(__NR_SYSCALL_BASE+369)
 #define __NR_sched_wait_interval	(__NR_SYSCALL_BASE+370)
 #define __NR_setns			(__NR_SYSCALL_BASE+371)
+/* WRHV VBI syscalls */
+#define __NR_vbi_mem				(__NR_SYSCALL_BASE+372)
+#define __NR_vbi_activate_vb		(__NR_SYSCALL_BASE+373)
+#define __NR_vbi_control			(__NR_SYSCALL_BASE+374)
 
-#define __NR_syscall_max 372
+#define __NR_syscall_max 375
 
 /*
  * The following SWIs are ARM private.
