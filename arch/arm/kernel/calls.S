@@ -381,6 +381,10 @@
 		CALL(sys_sched_getparam_ex)
 /* 370 */	CALL(sys_sched_wait_interval)
 		CALL(sys_setns)
+/* 372 */
+		CALL(sys_vbi_mem)
+		CALL(sys_vbi_activate_vb)
+		CALL(sys_vbi_control)
 #ifndef syscalls_counted
 .equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
 #define syscalls_counted
