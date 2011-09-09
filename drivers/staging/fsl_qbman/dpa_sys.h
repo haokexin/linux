@@ -77,7 +77,7 @@ static inline int check_cpu_phandle(phandle ph)
 		pr_err("Can't get %s property 'reg'\n", tmp_node->full_name);
 		return -ENODEV;
 	}
-	for_each_present_cpu(cpu) {
+	for_each_online_cpu(cpu) {
 		if (*cpu_val == get_hard_smp_processor_id(cpu))
 			goto done;
 	}
