@@ -1,7 +1,7 @@
 /*
  * This file contains low level CPU setup functions.
  * Kumar Gala <galak@kernel.crashing.org>
- * Copyright 2009 Freescale Semiconductor, Inc.
+ * Copyright 2009,2011 Freescale Semiconductor, Inc.
  *
  * Based on cpu_setup_6xx code by
  * Benjamin Herrenschmidt <benh@kernel.crashing.org>
@@ -84,6 +84,7 @@ _GLOBAL(__setup_cpu_e500mc)
 /* Right now, restore and setup are the same thing */
 _GLOBAL(__restore_cpu_e5500)
 _GLOBAL(__setup_cpu_e5500)
+	mr	r5, r4
 	mflr	r4
 	bl	__e500_icache_setup
 	bl	__e500_dcache_setup
