@@ -490,11 +490,15 @@ kernel_dbg_exc:
 	rfdi
 
 	/* Normal debug exception */
+#ifndef CONFIG_PPC_BOOK3E
 	/* XXX We only handle coming from userspace for now since we can't
 	 *     quite save properly an interrupted kernel state yet
 	 */
 1:	andi.	r14,r11,MSR_PR;		/* check for userspace again */
 	beq	kernel_dbg_exc;		/* if from kernel mode */
+#else
+1:
+#endif
 
 	/* Now we mash up things to make it look like we are coming on a
 	 * normal exception

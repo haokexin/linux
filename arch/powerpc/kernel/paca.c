@@ -80,6 +80,12 @@ EXPORT_SYMBOL(paca);
 
 struct paca_struct boot_paca;
 
+void *debug_kstack;
+static void allocate_dbg_kstack(unsigned long limit)
+{
+	debug_kstack = __va(lmb_alloc_base(STACK_INT_FRAME_SIZE, PAGE_SIZE, limit));
+}
+
 void __init initialise_paca(struct paca_struct *new_paca, int cpu)
 {
        /* The TOC register (GPR2) points 32kB into the TOC, so that 64kB
@@ -91,6 +97,7 @@ void __init initialise_paca(struct paca_struct *new_paca, int cpu)
 	new_paca->lppaca_ptr = &lppaca[cpu];
 #else
 	new_paca->kernel_pgd = swapper_pg_dir;
+	new_paca->dbg_kstack = debug_kstack;
 #endif
 	new_paca->lock_token = 0x8000;
 	new_paca->paca_index = cpu;
@@ -138,6 +145,8 @@ void __init allocate_pacas(void)
 
 	printk(KERN_DEBUG "Allocated %u bytes for %d pacas at %p\n",
 		paca_size, nr_cpus, paca);
+
+	allocate_dbg_kstack(limit);
 
 	/* Can't use for_each_*_cpu, as they aren't functional yet */
 	for (cpu = 0; cpu < nr_cpus; cpu++)
