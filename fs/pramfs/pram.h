@@ -51,9 +51,6 @@ extern ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 			  loff_t offset, unsigned long nr_segs);
 extern int pram_mmap(struct file *file, struct vm_area_struct *vma);
 
-#define pram_set_bit			ext2_set_bit
-#define pram_clear_bit			ext2_clear_bit
-
 #define clear_opt(o, opt)	(o &= ~PRAM_MOUNT_##opt)
 #define set_opt(o, opt)		(o |= PRAM_MOUNT_##opt)
 #define test_opt(sb, opt)	(((struct pram_sb_info *)sb->s_fs_info)->s_mount_opt & \
