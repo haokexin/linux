@@ -54,7 +54,7 @@ void pram_free_block(struct super_block *sb, unsigned long blocknr)
 	bp = pram_get_block(sb, bitmap_block);
 
 	pram_memunlock_block(sb, bp);
-	pram_clear_bit(blocknr, bitmap); /* mark the block free */
+	__test_and_clear_bit(blocknr, bitmap); /* mark the block free */
 	pram_memlock_block(sb, bp);
 	
 	ps = pram_get_super(sb);
@@ -122,7 +122,7 @@ int pram_new_block(struct super_block *sb, unsigned long *blocknr, int zero)
 	bp = pram_get_block(sb, bitmap_block);
 
 	pram_memunlock_block(sb, bp);
-	pram_set_bit(bnr, bitmap); /* mark the new block in use */
+	__test_and_set_bit(bnr,bitmap); /* mark the new block in use */
 	pram_memlock_block(sb, bp);
 
 	if (zero) {
