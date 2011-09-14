@@ -895,6 +895,10 @@ static int unionfs_setattr(struct dentry *dentry, struct iattr *ia)
 	struct inode *lower_inode;
 	int bstart, bend, bindex;
 	loff_t size;
+	/* check if user has permission to change inode */
+	err = inode_change_ok(dentry->d_inode, ia);
+	if (err)
+		goto out_err;
 
 	unionfs_read_lock(dentry->d_sb, UNIONFS_SMUTEX_CHILD);
 	parent = unionfs_lock_parent(dentry, UNIONFS_DMUTEX_PARENT);
@@ -921,7 +925,13 @@ static int unionfs_setattr(struct dentry *dentry, struct iattr *ia)
 		err = -EINVAL;
 		goto out;
 	}
-	lower_inode = unionfs_lower_inode(inode);
+
+	/*
+	 * Get the lower inode directly from lower dentry, in case ibstart
+	 * is -1 (which happens when the file is open but unlinked.
+	 */
+	lower_inode = lower_dentry->d_inode;
+
 
 	/* check if user has permission to change lower inode */
 	err = inode_change_ok(lower_inode, ia);
@@ -1012,6 +1022,7 @@ out:
 	unionfs_unlock_parent(dentry, parent);
 	unionfs_read_unlock(dentry->d_sb);
 
+out_err:
 	return err;
 }
 
