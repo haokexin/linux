@@ -41,11 +41,11 @@ static long get_cache_sram_size(void)
 	return val;
 }
 
-static long get_cache_sram_offset(void)
+static phys_addr_t get_cache_sram_offset(void)
 {
-	unsigned long val;
+	unsigned long long val;
 
-	if (!sram_offset || (strict_strtoul(sram_offset, 0, &val) < 0))
+	if (!sram_offset || (strict_strtoull(sram_offset, 0, &val) < 0))
 		return -EINVAL;
 
 	return val;
