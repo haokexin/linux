@@ -40,7 +40,7 @@
 	: "cc", "memory")
 
 static inline int
-futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
+_futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
 			      u32 oldval, u32 newval)
 {
 	int ret;
@@ -85,7 +85,7 @@ futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
 	: "cc", "memory")
 
 static inline int
-futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
+_futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
 			      u32 oldval, u32 newval)
 {
 	int ret = 0;
@@ -109,6 +109,16 @@ futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
 }
 
 #endif /* !SMP */
+
+static inline int
+futex_atomic_cmpxchg_inatomic(int __user *uaddr, int oldval, int newval)
+{
+	u32 uval;
+	int ret;
+
+	ret = _futex_atomic_cmpxchg_inatomic(&uval, uaddr, oldval, newval);
+	return (ret < 0) ? ret : (int)uval;
+}
 
 static inline int
 futex_atomic_op_inuser (int encoded_op, int __user *uaddr)
