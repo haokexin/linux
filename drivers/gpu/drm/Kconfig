@@ -164,6 +164,9 @@ config DRM_SAVAGE
 config DRM_EMGD
        tristate "Intel EMGD"
        depends on DRM
+		select FB_CFB_FILLRECT
+		select FB_CFB_COPYAREA
+		select FB_CFB_IMAGEBLIT
 		select DRM_KMS_HELPER
        help
          Choose this option if you have a system that has support for Intel
