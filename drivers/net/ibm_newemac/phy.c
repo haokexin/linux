@@ -194,7 +194,7 @@ static int genmii_setup_forced(struct mii_phy *phy, int speed, int fd)
 	}
 	if (fd == DUPLEX_FULL)
 		ctl |= BMCR_FULLDPLX;
-	phy_write(phy, MII_BMCR, ctl);
+	phy_write(phy, MII_BMCR, ctl | BMCR_RESET);
 
 	return 0;
 }
