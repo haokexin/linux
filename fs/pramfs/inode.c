@@ -432,7 +432,7 @@ fail:
 	return ERR_PTR(err);
 }
 
-void pram_evict_inode(struct inode *inode)
+void pram_clear_inode(struct inode *inode)
 {
 	int want_delete = 0;
 
