@@ -559,9 +559,7 @@ static __init int qman_init(void)
 		if (ret)
 			return ret;
 	}
-	/* If using private FQ allocation, exit recovery mode automatically (ie.
-	 * after automatic recovery) */
-	if (recovery_mode && !use_bpid0) {
+	if (fsl_dpa_should_recover_exit(recovery_mode, use_bpid0)) {
 		ret = qman_recovery_exit();
 		if (ret)
 			return ret;

@@ -56,6 +56,9 @@
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl_hypervisor.h>
 #include <linux/vmalloc.h>
+#ifdef CONFIG_WRHV
+#include <vbi/vbi.h>
+#endif
 
 /* When copying aligned words or shorts, try to avoid memcpy() */
 #define CONFIG_TRY_BETTER_MEMCPY
@@ -110,8 +113,27 @@ int __init fsl_dpa_uio_portal(struct dpa_uio_class *uio_class,
  * that contain that support. */
 static inline int fsl_dpa_should_recover(void)
 {
+#ifdef CONFIG_WRHV
+	/* Using recovery mode when not the first boot */
+	return VBI_BOOT_COUNT_GET();
+#else
 	return 0;
+#endif
 }
+
+/*
+ * For native we only exit recovery mode when using private FQ allocation.
+ * But for GOS we always exit recovery mode automatically.
+ */
+static inline int fsl_dpa_should_recover_exit(int recovery_mode, int use_bpid0)
+{
+#ifdef CONFIG_WRHV
+	return recovery_mode;
+#else
+	return recovery_mode && !use_bpid0;
+#endif
+}
+
 static inline int pamu_enable_liodn(struct device_node *n, int i)
 {
 	return 0;
