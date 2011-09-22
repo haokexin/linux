@@ -80,7 +80,7 @@ extern u64 pram_find_data_block(struct inode *inode,
 
 extern struct inode *pram_iget(struct super_block *sb, unsigned long ino);
 extern void pram_put_inode(struct inode *inode);
-extern void pram_evict_inode(struct inode *inode);
+extern void pram_clear_inode(struct inode *inode);
 extern struct inode *pram_new_inode(struct inode *dir, int mode);
 extern int pram_update_inode(struct inode *inode);
 extern int pram_write_inode(struct inode *inode, struct writeback_control *wbc);
