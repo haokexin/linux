@@ -385,13 +385,13 @@ _dpa_bp_free(struct dpa_bp *dpa_bp)
 		return;
 
 	if (bp->kernel_pool) {
-		int num;
+		int num = 8;
 
 		do {
 			struct bm_buffer bmb[8];
-			int i;
+			int i, free = num;
 
-			num = bman_acquire(bp->pool, bmb, 8, 0);
+			num = bman_acquire(bp->pool, bmb, free, 0);
 
 			for (i = 0; i < num; i++) {
 				dma_addr_t addr = bm_buf_addr(&bmb[i]);
@@ -403,7 +403,12 @@ _dpa_bp_free(struct dpa_bp *dpa_bp)
 
 				dev_kfree_skb_any(skb);
 			}
-		} while (num == 8);
+
+			/* Acquire is all-or-nothing, so we drain in 8s, then in
+			 * 1s for the remainder. */
+			if (num < 0 && free == 8)
+				num = 1;
+		} while (num > 0);
 	}
 
 	dpa_bp_array[bp->bpid] = 0;
