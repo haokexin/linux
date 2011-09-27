@@ -282,7 +282,7 @@ void vbi_show_config_page_map()
 	for(i=0;i<index;i++)
 		printk("Region No.: %d Address 0x%p Access Privilege 0x%x"
 			" Mapping Size 0x%x\n",i,
-			pConfigPageMap[i].address,
+			(void *)pConfigPageMap[i].address,
 			pConfigPageMap[i].accessPriv,
 			(unsigned int)pConfigPageMap[i].size);
 }

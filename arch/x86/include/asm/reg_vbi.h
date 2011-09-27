@@ -157,6 +157,7 @@ typedef union
 #define CPUID_MODEL_NEHALEM3	46	/* model: Core Architecture	*/
 #define CPUID_MODEL_WESTMERE1	37	/* model: next generation	*/
 #define CPUID_MODEL_WESTMERE2	44	/* model: next generation	*/
+#define CPUID_MODEL_SANDYBRIDGE_XEON 45 /* model: Sandy Bridge, Xeon	*/
 
 
 /* CPUID fields in the EBX register when EAX=1 */
