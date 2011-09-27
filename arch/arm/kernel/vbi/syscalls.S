@@ -30,6 +30,8 @@ For this reason and others, THIS CODE WILL PROBABLY NOT WORK IN THUMB MODE.
 #include <vbi/vbi.h>
 #include <asm/vbi.h>
 
+#define PRIVILEGED_GUEST
+
 #if (CPU == ARMCA9)
 #define USE_TRUSTZONE
 #endif
@@ -223,20 +225,57 @@ For this reason and others, THIS CODE WILL PROBABLY NOT WORK IN THUMB MODE.
 * For unprivileged guests, the following additional values will be
 * taken from the VB control structure and loaded / take effect:
 *
-* ... TBD
+* SP
+* LR
 *
 * Note that all other registers must be context switched by the guest.
 *
+* vbiCtxLoad
+*   (
+*   unsigned int        type,   /@ which regs to load (ignored if priv'd) @/
+*   unsigned int        psr     /@ PSR to be loaded (ignored if priv'd)   @/
+*   )
+*
+*   For an unprivileged guest, the 'type' field carries the meaning:
+*     0 => PSR switch only
+*     1 => PSR + all GPRs
+*     2 => PSR + all GPRs + VM
+*     3 => VM only
+*     >3 => error
+*
+* unprivileged use cases:
+* - write PSR (useful for changing emulated mode to set stacks)
+*             (reading spsr/lr/sp is accomplished directly)
+*
+* - write PSR + load GPR's + PC (thread context switch, VM on or off)
+*
+* - write PSR + load GPR's + PC + VM (process switch or exception return)
+*
+* Returns: OK or ERROR if context could not be loaded.
 */
 
 FUNC_LABEL(vbi_load_ctx)
-        SAVEREGS
+    /* This function is a special exception to the ABI: it will preserve r3,
+     * so that no stack is necessary. Otherwise, the calling function may
+     * choose to save r8 and deal with any change of stack pointer.
+     *
+     * Note that the LR may change with the mode, so if it is used it must
+     * point to the correct return point.
+     *
+     * If the 'type' indicated the GPRs should be loaded, then there may
+     * be no return after the hypercall (the TLB invalidation will happen
+     * in the WRHV guest-side helper code).
+     */
+
+        mov     r3, r8
         ldr     r8, =VBI_SYS_ctx_load
         HCALL
 
-	INVALIDATE_CURR_ASID(r8)
+#ifdef PRIVILEGED_GUEST
+        INVALIDATE_CURR_ASID(r8)
+#endif
 
-        RESTOREREGS
+        mov     r8, r3
         mov     pc, lr
 FUNC_END(vbi_load_ctx)
 
@@ -1012,7 +1051,18 @@ FUNC_END(vbi_flush_tlb)
 */
 
 FUNC_LABEL(vbi_vcore_irq_lock)
+#if defined(USE_TRUSTZONE) && defined(PRIVILEGED_GUEST)
 	VBI_INT_VCORE_LOCK (r0, r1, r2)
+#else
+        /*
+         * r0 - unsigned int enable (0 or 1)
+         */
+        SAVEREGS
+        mov     r0, #0  /* disable */
+        ldr     r8, = VBI_SYS_int_enable
+        HCALL
+        RESTOREREGS
+#endif
 	mov	pc, lr
 FUNC_END(vbi_vcore_irq_lock)
 
@@ -1026,7 +1076,18 @@ FUNC_END(vbi_vcore_irq_lock)
 */
 
 FUNC_LABEL(vbi_vcore_irq_unlock)
+#if defined(USE_TRUSTZONE) && defined(PRIVILEGED_GUEST)
 	VBI_INT_VCORE_UNLOCK (r0, r1)
+#else
+        /*
+         * r0 - unsigned int enable (0 or 1)
+         */
+        SAVEREGS
+        mov     r0, #1  /* enable */
+        ldr     r8, = VBI_SYS_int_enable
+        HCALL
+        RESTOREREGS
+#endif
         mov     pc, lr
 FUNC_END(vbi_vcore_irq_unlock)
 

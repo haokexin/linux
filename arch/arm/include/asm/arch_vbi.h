@@ -309,14 +309,14 @@ typedef struct
  *
  */
 
+#if defined(USE_TRUSTZONE)
+
 #define ARM_IMM	#
 #define CPSR_I	0x80
 #define CPSR_F	0x40
 
-#ifdef USE_TRUSTZONE
-
 /*
- * Trustzone Implementation
+ * Trustzone Privileged Guest Implementation
  *
  * REG0 = CPSR
  * REG0 &= (CPSR_I | CPSR_F)
@@ -333,17 +333,7 @@ typedef struct
 #else /* USE_TRUSTZONE */
 
 /*
- * Non-Trustzone Implementation
- *
- * wrhvVbControl->intDisable = -1; return old value
- *
- * REG1 = -1
- * REG2 = &wrvhVbControl
- * REG2 = wrvhVbControl
- * REG0 = wrhvVbControl->intDisable
- * wrhvVbControl->intDisable = REG1
- *
- * THIS NON-TRUSTZONE VERSION IS NOT TESTED.
+ * Non-Trustzone or Unprivileged Guest Implementation
  */
 
 #define VBI_INT_VCORE_LOCK(REG0, REG1, REG2) \

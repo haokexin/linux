@@ -218,6 +218,10 @@
 #define	VBI_MMU_PROT_SUPV_WRITE		0x00000010  /* supervisor write */
 #define	VBI_MMU_PROT_SUPV_EXECUTE	0x00000020  /* supervisor execute */
 
+/* attributes passed to guest besides protection */
+
+#define VBI_MMU_ATTR_GUEST_MEM		0x80000000  /* accessible by guest  */
+
 /* ETSEC MDIO supported ioctl's */
 #define VBI_BSPIOCTL_DRV_MDIO	1		/* mdio messages */
 

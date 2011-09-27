@@ -528,6 +528,7 @@ struct vb_dev_info {
 	char deviceName[VB_NAMELEN];	/* the name of the GI Thread */
 	char deviceTemplate[VB_NAMELEN];/* the name of the template */
 	uint16_t deviceClass;		/* class: serial, net, block */
+	uint16_t pad;			/* pad to pack */
 	uint32_t deviceType;		/* ADD or Emulated or Passthrough */
 	uint32_t numInterrupts;		/* Number of Interrupts */
 	uint32_t numRegSets;		/* Number of Register Sets */
@@ -555,6 +556,7 @@ struct vb_dev_regset_info
 {
 	uint32_t indexDevice;		/* which device does this belong to */
 	char regSetName[VB_NAMELEN];	/* RegSet Name */
+	uint32_t pad;			/* pad to pack */
 	uint64_t regSetAddress;		/* Guest Physical Address */
 	uint64_t regSetLength;		/* Length */
 	uint64_t regSetAlignment;	/* Alignment of Physical Address */
@@ -614,8 +616,8 @@ struct vb_mem_info
 
 struct config_page_map
 {
-	void *address;
-	size_t size;
+	uint32_t address;
+	uint32_t size;
 	uint32_t accessPriv;
 };
 
@@ -731,11 +733,16 @@ struct vb_config
 	/* OS specific boot line */
 	char bootLine[VB_MAX_BOOTLINE_LENGTH];
 
-	/* spare 32-bit fields for future use */
-	uint32_t spare32[16];
+	/* spare 32-bit fields for future use
+	 * must keep the 64 bit fields after aligned
+	 */
+
+	uint32_t spare32[17];
 
 	/* spare 64-bit fields for future use */
-	uint64_t spare64[16];
+	uint64_t spare64[15];
+
+	uint32_t pad12;
 
 	/* direct function call interface table */
 

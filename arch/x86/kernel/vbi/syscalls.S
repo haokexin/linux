@@ -441,7 +441,7 @@ vbi_hcall(vbi_set_mem_attr, mmu_attr_set, 3)
  * RETURNS: OK or error number in case of failure
  *
  */
-vbi_hcall(vbi_get_mem_attr, mmu_attr_get, 1)
+vbi_hcall(vbi_get_mem_attr, mmu_attr_get, 2)
 
 /*
  * vbi_ns_op - virtua board name service call
