@@ -120,6 +120,8 @@ const char gfar_driver_version[] = "1.3";
 
 /* Used for determining hardware time stamps support */
 int ptp_1588_present = FALSE;
+/* Used for determining when to disable PTP timer */
+static int eth_counter = 0;
 
 static int gfar_enet_open(struct net_device *dev);
 static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev);
@@ -2238,7 +2240,7 @@ void stop_gfar(struct net_device *dev)
 	unlock_tx_qs(priv);
 	local_irq_restore(flags);
 
-	if (priv->ptimer_present)
+	if (priv->ptimer_present && !eth_counter)
 		gfar_1588_stop(dev);
 
 	/* Free the IRQs */
@@ -2607,6 +2609,8 @@ static int gfar_enet_open(struct net_device *dev)
 		disable_napi(priv);
 		return err;
 	}
+
+	eth_counter++;
 
 	netif_tx_start_all_queues(dev);
 
@@ -3174,6 +3178,8 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 static int gfar_close(struct net_device *dev)
 {
 	struct gfar_private *priv = netdev_priv(dev);
+
+	eth_counter--;
 
 	disable_napi(priv);
 
