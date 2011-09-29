@@ -82,7 +82,9 @@ lmb_end_pfn(struct lmb_region *type, unsigned long region_nr)
 	       lmb_size_pages(type, region_nr);
 }
 
+#ifdef CONFIG_HAVE_LMB
 #include <asm/lmb.h>
+#endif
 
 #endif /* __KERNEL__ */
 

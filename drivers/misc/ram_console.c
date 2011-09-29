@@ -20,9 +20,13 @@
 #include <linux/proc_fs.h>
 #include <linux/string.h>
 #include <linux/uaccess.h>
+#ifdef CONFIG_HAVE_LMB
 #include <linux/lmb.h>
+#endif
 #include <asm/io.h>
+#ifdef CONFIG_PPC32
 #include <asm/cacheflush.h>
+#endif
 
 #ifdef CONFIG_RAM_CONSOLE_ERROR_CORRECTION
 #include <linux/rslib.h>
@@ -68,7 +72,9 @@ static void ram_console_encode_rs8(uint8_t *data, size_t len, uint8_t *ecc)
 	encode_rs8(ram_console_rs_decoder, data, len, par, 0);
 	for (i = 0; i < ECC_SIZE; i++)
 		ecc[i] = par[i];
+#ifdef CONFIG_PPC32
 	flush_dcache_range((long)ecc, (long)ecc + ECC_SIZE);
+#endif
 }
 
 static int ram_console_decode_rs8(void *data, size_t len, uint8_t *ecc)
@@ -92,8 +98,10 @@ static void ram_console_update(const char *s, unsigned int count)
 	int size = ECC_BLOCK_SIZE;
 #endif
 	memcpy(buffer->data + buffer->start, s, count);
+#ifdef CONFIG_PPC32
 	flush_dcache_range(((long)buffer->data) + buffer->start,
 		((long)buffer->data) + buffer->start  + count);
+#endif
 #ifdef CONFIG_RAM_CONSOLE_ERROR_CORRECTION
 	block = buffer->data + (buffer->start & ~(ECC_BLOCK_SIZE - 1));
 	par = ram_console_par_buffer +
@@ -117,7 +125,9 @@ static void ram_console_update_header(void)
 	      DIV_ROUND_UP(ram_console_buffer_size, ECC_BLOCK_SIZE) * ECC_SIZE;
 	ram_console_encode_rs8((uint8_t *)buffer, sizeof(*buffer), par);
 #endif
+#ifdef CONFIG_PPC32
 	flush_dcache_range((long)buffer,  ((long)buffer) + sizeof(*buffer));
+#endif
 }
 
 static void
@@ -427,7 +437,6 @@ static int __init early_parse_ramcon(char *p)
 {
 	unsigned long long start;
 	unsigned long long size;
-	long rv;
 
 	if (!p)
 		return 1;
@@ -442,8 +451,9 @@ static int __init early_parse_ramcon(char *p)
 	ram_console_buffer_phys = (phys_addr_t)start;
 	ram_console_buffer_size = (size_t)size;
 
-	rv = lmb_reserve(ram_console_buffer_phys, ram_console_buffer_size);
-	
+#ifdef CONFIG_HAVE_LMB
+	lmb_reserve(ram_console_buffer_phys, ram_console_buffer_size);
+#endif
 	return 0;
 }
 early_param("ramcon", early_parse_ramcon);
