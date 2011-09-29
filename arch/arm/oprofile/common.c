@@ -353,6 +353,9 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 {
 	int cpu, ret = 0;
 
+	/* provide backtrace support also in timer mode: */
+	ops->backtrace		= arm_backtrace;
+
 	memset(&perf_events, 0, sizeof(perf_events));
 
 	num_counters = perf_num_counters();
@@ -387,7 +390,6 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 		}
 	}
 
-	ops->backtrace		= arm_backtrace;
 	ops->create_files	= op_arm_create_files;
 	ops->setup		= op_arm_setup;
 	ops->start		= op_arm_start;
@@ -431,6 +433,8 @@ void __exit oprofile_arch_exit(void)
 #else
 int __init oprofile_arch_init(struct oprofile_operations *ops)
 {
+	/* provide backtrace support also in timer mode: */
+	ops->backtrace		= arm_backtrace;
 	pr_info("oprofile: hardware counters not available\n");
 	return -ENODEV;
 }
