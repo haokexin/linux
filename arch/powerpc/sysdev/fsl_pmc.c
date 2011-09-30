@@ -126,6 +126,7 @@ static int pmc_suspend_enter(suspend_state_t state)
 		local_irq_disable();
 
 		setbits32(&pmc_regs->pmcsr, PMCSR_SLP);
+		asm volatile ("msync" ::: "memory");
 
 		/* At this point, the CPU is asleep. */
 		/* Upon resume, wait for SLP bit to be clear. */
