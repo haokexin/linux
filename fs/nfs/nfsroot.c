@@ -123,7 +123,7 @@ enum {
 	/* Options that take integer arguments */
 	Opt_port, Opt_rsize, Opt_wsize, Opt_timeo, Opt_retrans, Opt_acregmin,
 	Opt_acregmax, Opt_acdirmin, Opt_acdirmax, Opt_mountprog,
-	Opt_nfsprog,
+	Opt_nfsprog, Opt_mountport,
 	/* Options that take no arguments */
 	Opt_soft, Opt_hard, Opt_intr,
 	Opt_nointr, Opt_posix, Opt_noposix, Opt_cto, Opt_nocto, Opt_ac, 
@@ -145,6 +145,7 @@ static const match_table_t tokens __initconst = {
 	{Opt_acdirmax, "acdirmax=%u"},
 	{Opt_mountprog, "mountprog=%u"},
 	{Opt_nfsprog, "nfsprog=%u"},
+	{Opt_mountport, "mountport=%u"},
 	{Opt_soft, "soft"},
 	{Opt_hard, "hard"},
 	{Opt_intr, "intr"},
@@ -202,6 +203,9 @@ static int __init root_nfs_parse(char *name, char *buf)
 		switch (token) {
 			case Opt_port:
 				nfs_port = option;
+				break;
+			case Opt_mountport:
+				mount_port = option;
 				break;
 			case Opt_rsize:
 				nfs_data.rsize = option;
@@ -481,12 +485,15 @@ static int __init root_nfs_ports(void)
 			"as nfsd port\n", port);
 	}
 
+	if (mount_port)
+		goto got_mount_port;
 	if ((port = root_nfs_getport(nfs_data.mount_prog, mountd_ver, proto)) < 0) {
 		printk(KERN_ERR "Root-NFS: Unable to get mountd port "
 				"number from server, using default\n");
 		port = mountd_port;
 	}
 	mount_port = port;
+got_mount_port:
 	dprintk("Root-NFS: mountd port is %d\n", port);
 
 	return 0;
