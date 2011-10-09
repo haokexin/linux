@@ -165,6 +165,8 @@ notrace int __vdso_clock_gettime(clockid_t clock, struct timespec *ts)
 			if (likely(gtod->clock.vread))
 				return do_monotonic(ts);
 			break;
+		case CLOCK_THREAD_CPUTIME_ID:
+			return vdso_fallback_gettime(clock, ts);
 		case CLOCK_REALTIME_COARSE:
 			return do_realtime_coarse(ts);
 		case CLOCK_MONOTONIC_COARSE:
