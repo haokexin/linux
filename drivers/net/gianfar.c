@@ -1132,6 +1132,10 @@ static void gfar_detect_errata(struct gfar_private *priv)
 			(pvr == 0x80861010 && (mod & 0xfff9) == 0x80c0))
 		priv->errata |= GFAR_ERRATA_A002;
 
+	/* P2020 Rev 2.0 */
+	if (priv->ptimer_present && pvr == 0x80211050)
+		priv->errata |= GFAR_ERRATA_A002;
+
 	if (priv->errata)
 		dev_info(dev, "enabled errata workarounds, flags: 0x%x\n",
 			 priv->errata);
