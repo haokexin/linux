@@ -261,8 +261,7 @@ _GLOBAL(set_context)
 	/* Context switch the PTE pointer for the Abatron BDI2000.
 	 * The PGDIR is the second parameter.
 	 */
-	lis	r5, abatron_pteptrs@h
-	ori	r5, r5, abatron_pteptrs@l
+	LOAD_REG_IMMEDIATE(r5, abatron_pteptrs);
 	stw	r4, 0x4(r5)
 #endif
 	mtspr	SPRN_PID,r3
