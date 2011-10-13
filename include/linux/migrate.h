@@ -5,6 +5,8 @@
 #include <linux/mempolicy.h>
 
 typedef struct page *new_page_t(struct page *, unsigned long private, int **);
+static inline int migrate_huge_pages(struct list_head *l, new_page_t x,
+	unsigned long private, int offlining) { return -ENOSYS; }
 
 #ifdef CONFIG_MIGRATION
 #define PAGE_MIGRATION 1
