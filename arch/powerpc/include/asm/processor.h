@@ -113,7 +113,7 @@ extern struct task_struct *last_task_used_spe;
  * 32-bit user address space is 4GB - 1 page 
  * (this 1 page is needed so referencing of 0xFFFFFFFF generates EFAULT
  */
-#define TASK_SIZE_USER32 (0x0000000100000000UL - (1*PAGE_SIZE))
+#define TASK_SIZE_USER32 (0x0000000c0000000UL - (1*PAGE_SIZE))
 
 #define TASK_SIZE_OF(tsk) (test_tsk_thread_flag(tsk, TIF_32BIT) ? \
 		TASK_SIZE_USER32 : TASK_SIZE_USER64)
