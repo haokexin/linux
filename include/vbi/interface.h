@@ -270,28 +270,9 @@ identity mapped.
 #define SCHEDULER_TRANSITION_MINOR 2
 #define SCHEDULER_TRANSITION_TICK  3
 
-/* define port operation definitions */
-#define PORT_SEND 1
-#define PORT_BUF_RELEASE 2
-
 #endif
 
 #ifndef	_ASMLANGUAGE
-
-#ifdef CONFIG_WRHV_CERT
-/* port direction type */
-enum PORT_DIRECTION {
-	SOURCE = 0,
-	DESTINATION
-};
-
-/* queuing port protocol */
-enum PORT_PROTOCOL_MODE {
-	SENDER_BLOCK = 0,
-	RECEIVER_DISCARD,
-	NOT_APPLICABLE
-};
-#endif
 
 /*
  * vb_control - Virtual board cores control structure
@@ -455,17 +436,6 @@ struct vb_control
  *
  */
 
-#ifdef CONFIG_WRHV_CERT
-struct vb_port_status{
-	VB_ALIGN_FIELD_64(uint8_t *s_buf, pad1);         /* SIPC buffer */
-	VB_ALIGN_FIELD_64(uint32_t *msg_len_array, pad2); /* message length */
-	uint32_t    write_index;             	/* write buffer index */
-	uint32_t    read_index;              	/* index of buffer to read */
-	uint32_t    num_msg;                 	/* number of messages */
-	uint32_t    mem_align_msg_size; 	/* max msg size aligned */
-};
-#endif
-
 struct vb_status {
 
 #ifdef _WRHV_ARCH_HAS_STATUS_REGS
@@ -511,11 +481,6 @@ struct vb_status {
 
 	/* The simulatror flag  */
 	uint32_t sim;
-
-#ifdef CONFIG_WRHV_CERT
-	/* port staus information */
-	VB_ALIGN_FIELD_64(struct vb_port_status *port_status, pad3);
-#endif
 
 };
 
@@ -620,22 +585,6 @@ struct config_page_map
 	uint32_t size;
 	uint32_t accessPriv;
 };
-
-#if defined(CONFIG_WRHV_CERT)
-/* Information for the port configuration */
-
-/* Field order in this structure must match the ones in board_q_port_t */
-struct vb_port_config {
-	uint32_t vb_port_id;	/* unique Id starting at 0 */
-	char name[VB_NAMELEN];	/* port name */
-	uint32_t vb_id;		/* vb Id where port reside */
-	uint32_t channel_id;	/* channel id to which the port is connected */
-	uint32_t direction;	/* SOURCE or DESTINATION */
-	uint32_t protocol;	/* SENDER_BLOCK or RECEIVER_DISCARD */
-	uint32_t max_msg_size;	/* max messages size in bytes */
-	uint32_t max_num_msgs;	/* queue length */
-};
-#endif
 
 struct vb_config
 {
@@ -762,13 +711,6 @@ struct vb_config
 	/* provide mappings for all configuration pages */
 	struct config_page_map configPageMap[MAX_VB_CONFIG_REGIONS];
 	uint32_t configPageNum;
-
-#if defined(CONFIG_WRHV_CERT)
-	uint32_t num_ports;
-
-	/* ports configuration information */
-	VB_ALIGN_FIELD_64(struct vb_port_config *port_config, pad12);
-#endif
 
 	/* guest type */
 

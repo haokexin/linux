@@ -9,6 +9,6 @@
 obj-$(CONFIG_WRHV) += shmem.o wrhv.o interrupt.o paddr.o idle.o io_apic.o lib.o \
                       version.o msg.o ns.o show.o pdc.o device.o procfs.o
 
-obj-$(CONFIG_WRHV_CERT) += sched.o port.o
+obj-$(CONFIG_WRHV_CERT) += sched.o
 
 obj-y += syscall_vbi.o
