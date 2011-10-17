@@ -165,15 +165,6 @@ extern asmlinkage void cert_debug_vbi_shell_start_debug(uint32_t  flags);
 extern int32_t vbi_sched_transition(char *name, uint32_t transition_type,
 				uint32_t core_id);
 
-/* port api */
-extern int32_t vbi_port_id_get(char *name,  uint32_t *vb_port_id);
-
-extern int32_t vbi_port_send(uint32_t vb_port_id, const char *message,
-				size_t length);
-
-extern int32_t vbi_port_receive(uint32_t vb_port_id, char *buffer,
-				size_t *length);
-
 /* system call prototypes for use within a context */
 static inline int vbi_ctx_ctl(unsigned operation, unsigned arg1,
 				unsigned arg2)

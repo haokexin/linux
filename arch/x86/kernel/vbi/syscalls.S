@@ -651,12 +651,4 @@ vbi_hcall(vbi_vb_set_priority, vbPrioSet, 3)
  */
 vbi_hcall(vbi_sched_control_op, schedControl, 5)
 
-/*
- * vbi_port_op - port operations
- *
- * This system call executes a port operation.
- *
- * Returns: OK or ERROR if transition setup is not successful
- */
-vbi_hcall(vbi_port_op, port, 3)
 #endif

@@ -42,8 +42,6 @@ extern asmlinkage int32_t vbi_ns_op(uint32_t op, char* name, uint32_t rev,
 extern asmlinkage int32_t vbi_sched_control_op(uint32_t transition,
 			char *sched_name, void *transition_type, void *core_id,
 			void *args);
-extern asmlinkage int32_t vbi_port_op(uint32_t operation_type,
-			uint32_t vb_port_id, uint32_t length);
 #endif
 
 /* Message receive private operator */
