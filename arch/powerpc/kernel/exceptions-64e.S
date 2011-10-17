@@ -903,7 +903,15 @@ skpinv:	addi	r6,r6,1				/* Increment */
  * r4 = MAS0 w/TLBSEL & ESEL for the temp mapping
  */
 	/* Now we branch the new virtual address mapped by this entry */
+#ifdef CONFIG_CRASH_DUMP
+	/* We have to find out address from lr. */
+	bl	1f		/* Find our address */
+1:	mflr	r6
+	addi	r6,r6,(2f - 1b)
+	tovirt(r6,r6)
+#else
 	LOAD_REG_IMMEDIATE(r6,2f)
+#endif
 	lis	r7,MSR_KERNEL@h
 	ori	r7,r7,MSR_KERNEL@l
 	mtspr	SPRN_SRR0,r6
@@ -954,7 +962,15 @@ have_hes:
 	tlbwe
 
 	/* Now we branch the new virtual address mapped by this entry */
+#ifdef CONFIG_CRASH_DUMP
+	/* We have to find out address from lr. */
+	bl	2f		/* Find our address */
+2:	mflr	r3
+	addi	r3,r3,(1f - 2b)
+	tovirt(r3,r3)
+#else
 	LOAD_REG_IMMEDIATE(r3,1f)
+#endif
 	mtctr	r3
 	bctr
 

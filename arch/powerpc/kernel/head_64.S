@@ -391,12 +391,22 @@ _STATIC(__after_prom_start)
 	lis	r25,PAGE_OFFSET@highest	/* compute virtual base of kernel */
 	sldi	r25,r25,32
 #ifdef CONFIG_CRASH_DUMP
+#if defined(CONFIG_PPC_BOOK3E)
+	tovirt(r26,r26)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	lwz	r7,__run_at_load-_stext(r26)
 	cmplwi	cr0,r7,1	/* kdump kernel ? - stay where we are */
 	bne	1f
+#if defined(CONFIG_PPC_BOOK3E)
+	tophys(r26,r26)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	add	r25,r25,r26
 #endif
-1:	mr	r3,r25
+1:
+#if defined(CONFIG_CRASH_DUMP) && defined(CONFIG_PPC_BOOK3E)
+	tophys(r26,r26)
+#endif
+	mr	r3,r25
 	bl	.relocate
 #endif
 
@@ -428,6 +438,9 @@ _STATIC(__after_prom_start)
  * variable __run_at_load, if it is set the kernel is treated as relocatable
  * kernel, otherwise it will be moved to PHYSICAL_START
  */
+#if defined(CONFIG_PPC_BOOK3E)
+	tovirt(r26,r26)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	lwz	r7,__run_at_load-_stext(r26)
 	cmplwi	cr0,r7,1
 	bne	3f
@@ -689,6 +702,10 @@ _INIT_STATIC(start_here_multiplatform)
 	 */
 	LOAD_REG_ADDR(r11,__bss_stop)
 	LOAD_REG_ADDR(r8,__bss_start)
+#if defined(CONFIG_PPC_BOOK3E) && defined(CONFIG_CRASH_DUMP)
+	tovirt(r8,r8)			/* on booke, we already run at PAGE_OFFSET */
+	tovirt(r11,r11)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	sub	r11,r11,r8		/* bss size			*/
 	addi	r11,r11,7		/* round up to an even double word */
 	srdi.	r11,r11,3		/* shift right by 3		*/
@@ -709,6 +726,9 @@ _INIT_STATIC(start_here_multiplatform)
 #ifdef CONFIG_RELOCATABLE
 	/* Save the physical address we're running at in kernstart_addr */
 	LOAD_REG_ADDR(r4, kernstart_addr)
+#if defined(CONFIG_PPC_BOOK3E) && defined(CONFIG_CRASH_DUMP)
+	tovirt(r4,r4)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	clrldi	r0,r25,2
 	std	r0,0(r4)
 #endif
@@ -720,6 +740,9 @@ _INIT_STATIC(start_here_multiplatform)
 	/* kernel but are still running in real mode. */
 
 	LOAD_REG_ADDR(r3,init_thread_union)
+#if defined(CONFIG_PPC_BOOK3E) && defined(CONFIG_CRASH_DUMP)
+	tovirt(r3,r3)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 
 	/* set up a stack pointer */
 	addi	r1,r3,THREAD_SIZE
@@ -734,6 +757,9 @@ _INIT_STATIC(start_here_multiplatform)
 	bl	.early_setup		/* also sets r13 and SPRG_PACA */
 
 	LOAD_REG_ADDR(r3, .start_here_common)
+#if defined(CONFIG_PPC_BOOK3E) && defined(CONFIG_CRASH_DUMP)
+	tovirt(r3,r3)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	ld	r4,PACAKMSR(r13)
 	mtspr	SPRN_SRR0,r3
 	mtspr	SPRN_SRR1,r4
