@@ -72,9 +72,20 @@
 #define EX_TLB_SIZE	(13 * 8)
 #endif
 
+#ifndef CONFIG_CRASH_DUMP
 #define	START_EXCEPTION(label)						\
 	.globl exc_##label##_book3e;					\
 exc_##label##_book3e:
+#else
+#define	START_EXCEPTION(label)						\
+	.globl exc_##label##_book3e;					\
+exc_##label##_book3e:							\
+	mtctr	r10;							\
+	mfspr	r10,SPRN_SPRG3;						\
+	mfspr	r2,SPRN_SPRG4;						\
+	.globl kdump_exc_##label##_book3e;				\
+kdump_exc_##label##_book3e:
+#endif
 
 /* TLB miss exception prolog
  *
@@ -194,10 +205,18 @@ exc_##label##_book3e:
 #define TLB_MISS_STATS_SAVE_INFO
 #endif
 
+#ifndef CONFIG_CRASH_DUMP
 #define SET_IVOR(vector_number, vector_offset)	\
 	li	r3,vector_offset@l; 		\
 	ori	r3,r3,interrupt_base_book3e@l;	\
 	mtspr	SPRN_IVOR##vector_number,r3;
+#else
+#define SET_IVOR(vector_number, vector_offset)	\
+	LOAD_REG_ADDR(r3,interrupt_base_book3e);\
+	andi.	r3,r3,0xFFFF;			\
+	ori	r3,r3,(vector_offset * 2)@l;	\
+	mtspr	SPRN_IVOR##vector_number,r3;
+#endif
 
 #endif /* _ASM_POWERPC_EXCEPTION_64E_H */
 
