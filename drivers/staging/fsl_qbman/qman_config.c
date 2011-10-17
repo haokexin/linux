@@ -450,6 +450,35 @@ static void qm_set_memory(struct qman *qm, enum qm_memory memory, u64 ba,
 		(exp - 1));
 }
 
+#if defined(CONFIG_P5020_DS) && defined(CONFIG_CRASH_DUMP)
+static void qm_reserve_memory(struct qman *qm, enum qm_memory memory)
+{
+	u64 upper_ba = 0;
+	u32 lower_ba = 0;
+	u64 addr = 0;
+	u32 exp = 0;
+	u32 size = 0;
+	u32 unknown_hole_size = 0;
+	u32 offset = (memory == qm_memory_fqd) ? REG_FQD_BARE : REG_PFDR_BARE;
+
+	upper_ba = __qm_in(qm, offset);
+	lower_ba = __qm_in(qm, offset + REG_offset_BAR);
+	exp = (__qm_in(qm, offset + REG_offset_AR) & 0x3f);
+	size = 2 << exp;
+	addr = (u64)((upper_ba << 31) | lower_ba);
+	lmb_reserve(addr, size);
+
+	/* FIXME: I'm really not sure where this hole is. But if we don't
+	 * reserve this hole followed pfdr, udev would not be accessed.
+	 * Hope I can figure out this explicitly in the future. Note this
+	 * hole size, 0x1000000, is only from my experimental value.
+	 */
+	unknown_hole_size = 0x1000000;
+	if (memory == qm_memory_pfdr)
+		lmb_reserve((addr - unknown_hole_size), unknown_hole_size);
+}
+#endif
+
 static void qm_set_pfdr_threshold(struct qman *qm, u32 th, u8 k)
 {
 	qm_out(PFDR_FP_LWIT, th & 0xffffff);
@@ -648,6 +677,17 @@ static int __init fsl_qman_init(struct device_node *node)
 		qm_set_dc(qm, qm_dc_portal_fman0, 1, 0);
 		qm_set_dc(qm, qm_dc_portal_fman1, 1, 0);
 	}
+
+#if defined(CONFIG_P5020_DS) && defined(CONFIG_CRASH_DUMP)
+	/* Unfortunately we have to reserve those memory used for Qman
+	 * since currently we can't clean these usage from boot kernel.
+	 */
+	/* FQD memory */
+	qm_reserve_memory(qm, qm_memory_fqd);
+	/* PFDR memory */
+	qm_reserve_memory(qm, qm_memory_pfdr);
+#endif
+
 	return 0;
 }
 
