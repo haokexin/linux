@@ -227,7 +227,9 @@ smp_85xx_kick_cpu(int nr)
 
 	local_irq_save(flags);
 
+#ifndef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
 	out_be32(bptr_vaddr + BOOT_ENTRY_PIR, nr);
+#endif
 #ifdef CONFIG_PPC32
 	out_be32(bptr_vaddr + BOOT_ENTRY_ADDR_LOWER, __pa(__early_start));
 
@@ -241,12 +243,14 @@ smp_85xx_kick_cpu(int nr)
 #else
 	smp_generic_kick_cpu(nr);
 
+#ifndef CONFIG_KEXEC_POWERPC_SMP_BOOTABLE
 	out_be64((u64 *)(bptr_vaddr + BOOT_ENTRY_ADDR_UPPER),
 		__pa((u64)*((unsigned long long *) generic_secondary_smp_init)));
 
 	if (!ioremappable)
 		flush_dcache_range((ulong)bptr_vaddr,
 				(ulong)(bptr_vaddr + SIZE_BOOT_ENTRY));
+#endif
 #endif
 #endif /*#if defined CONFIG_E500 && defined CONFIG_SUSPEND */
 
