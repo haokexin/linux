@@ -191,10 +191,32 @@ exc_##n##_bad_stack:							    \
 	sth	r1,PACA_TRAP_SAVE(r13);	/* store trap */		    \
 	b	bad_stack_book3e;	/* bad stack error */
 
+#ifndef CONFIG_CRASH_DUMP
 #define	EXCEPTION_STUB(loc, label)					\
 	. = interrupt_base_book3e + loc;				\
 	nop;	/* To make debug interrupts happy */			\
 	b	exc_##label##_book3e;
+#else
+/* We can't just use a direct branch to label because the distance
+ * from here to there depends on where the kernel ends up being put.
+ * So we have to go anywhere via toc. Here use SPRN_SPRG3/4 to save/restore
+ * GPRGs since for 64-bit embedded
+ *	- SPRG3 unused
+ *	- SPRG4 unused
+ * its safe enough.
+*/
+#define	EXCEPTION_STUB(loc, label)					\
+	. = interrupt_base_book3e + loc * 2;				\
+	nop;	/* To make debug interrupts happy */			\
+	mtspr	SPRN_SPRG3,r10;						\
+	mtspr	SPRN_SPRG4,r2;						\
+	mfctr	r10;							\
+	mfspr	r2,SPRN_SPRG_PACA;					\
+	ld	r2,PACATOC(r2);						\
+	LOAD_REG_ADDR(r2, exc_##label##_book3e);			\
+	mtctr	r2;							\
+	bctr;
+#endif
 
 #define ACK_NONE(r)
 #define ACK_DEC(r)							\
@@ -1090,6 +1112,10 @@ _GLOBAL(book3e_secondary_thread_init)
 _STATIC(init_core_book3e)
 	/* Establish the interrupt vector base */
 	LOAD_REG_IMMEDIATE(r3, interrupt_base_book3e)
+#ifdef CONFIG_CRASH_DUMP
+	tovirt(r2,r2)
+	LOAD_REG_ADDR(r3, interrupt_base_book3e)
+#endif
 	mtspr	SPRN_IVPR,r3
 	sync
 	blr

@@ -105,7 +105,11 @@
 	 */
 	TLB_MISS_STATS_D(MMSTAT_TLB_MISS_NORM_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_data_storage_book3e
+#else
+	b	kdump_exc_data_storage_book3e
+#endif
 
 /* Instruction TLB miss */
 	START_EXCEPTION(instruction_tlb_miss)
@@ -151,7 +155,11 @@
 	/* We got a crappy address, just fault */
 	TLB_MISS_STATS_I(MMSTAT_TLB_MISS_NORM_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_instruction_storage_book3e
+#else
+	b	kdump_exc_instruction_storage_book3e
+#endif
 
 /*
  * This is the guts of the first-level TLB miss handler for direct
@@ -261,10 +269,18 @@ normal_tlb_miss_access_fault:
 	mtspr	SPRN_ESR,r15
 	TLB_MISS_STATS_D(MMSTAT_TLB_MISS_NORM_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_data_storage_book3e
+#else
+	b	kdump_exc_data_storage_book3e
+#endif
 1:	TLB_MISS_STATS_I(MMSTAT_TLB_MISS_NORM_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_instruction_storage_book3e
+#else
+	b	kdump_exc_instruction_storage_book3e
+#endif
 
 
 /*
@@ -432,10 +448,18 @@ virt_page_table_tlb_miss_fault:
 	mtspr	SPRN_ESR,r16
 	TLB_MISS_STATS_D(MMSTAT_TLB_MISS_PT_FAULT);
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_data_storage_book3e
+#else
+	b	kdump_exc_data_storage_book3e
+#endif
 1:	TLB_MISS_STATS_I(MMSTAT_TLB_MISS_PT_FAULT);
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_instruction_storage_book3e
+#else
+	b	kdump_exc_instruction_storage_book3e
+#endif
 
 virt_page_table_tlb_miss_whacko_fault:
 	/* The linear fault will restart everything so ESR and DEAR will
@@ -443,7 +467,11 @@ virt_page_table_tlb_miss_whacko_fault:
 	 */
 	TLB_MISS_STATS_X(MMSTAT_TLB_MISS_PT_FAULT);
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_data_storage_book3e
+#else
+	b	kdump_exc_data_storage_book3e
+#endif
 
 
 /**************************************************************
@@ -493,7 +521,11 @@ virt_page_table_tlb_miss_whacko_fault:
 	 */
 	TLB_MISS_STATS_D(MMSTAT_TLB_MISS_NORM_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_data_storage_book3e
+#else
+	b	kdump_exc_data_storage_book3e
+#endif
 
 /* Instruction TLB miss */
 	START_EXCEPTION(instruction_tlb_miss_htw)
@@ -536,7 +568,11 @@ virt_page_table_tlb_miss_whacko_fault:
 	/* We got a crappy address, just fault */
 	TLB_MISS_STATS_I(MMSTAT_TLB_MISS_NORM_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_instruction_storage_book3e
+#else
+	b	kdump_exc_instruction_storage_book3e
+#endif
 
 
 /*
@@ -647,10 +683,18 @@ htw_tlb_miss_fault:
 	mtspr	SPRN_ESR,r14
 	TLB_MISS_STATS_D(MMSTAT_TLB_MISS_PT_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_data_storage_book3e
+#else
+	b	kdump_exc_data_storage_book3e
+#endif
 1:	TLB_MISS_STATS_I(MMSTAT_TLB_MISS_PT_FAULT)
 	TLB_MISS_EPILOG_ERROR
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_instruction_storage_book3e
+#else
+	b	kdump_exc_instruction_storage_book3e
+#endif
 
 /*
  * This is the guts of "any" level TLB miss handler for kernel linear
@@ -725,9 +769,17 @@ tlb_load_linear_fault:
 	cmpdi	cr0,r14,-1
 	beq	1f
 	TLB_MISS_EPILOG_ERROR_SPECIAL
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_data_storage_book3e
+#else
+	b	kdump_exc_data_storage_book3e
+#endif
 1:	TLB_MISS_EPILOG_ERROR_SPECIAL
+#ifndef CONFIG_CRASH_DUMP
 	b	exc_instruction_storage_book3e
+#else
+	b	kdump_exc_instruction_storage_book3e
+#endif
 
 
 #ifdef CONFIG_BOOK3E_MMU_TLB_STATS
