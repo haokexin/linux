@@ -364,6 +364,7 @@ int qman_have_affine_portal(void)
 	return ret;
 }
 
+#ifndef CONFIG_CRASH_DUMP
 static int drain_mr_fqrni(struct qm_portal *p)
 {
 	struct qm_mr_entry *msg;
@@ -397,6 +398,7 @@ loop:
 	qm_mr_cci_consume(p, 1);
 	goto loop;
 }
+#endif
 
 /* this is called from qman_create_affine_portal() if not initialising in
  * recovery mode, otherwise from qman_recovery_exit_local() after recovery is
@@ -617,6 +619,7 @@ drain_loop:
 		goto fail_dqrr_mr_empty;
 	}
 #endif
+#ifndef CONFIG_CRASH_DUMP
 	if (qm_mr_current(__p) != NULL) {
 		/* special handling, drain just in case it's a few FQRNIs */
 		if (drain_mr_fqrni(__p)) {
@@ -624,6 +627,7 @@ drain_loop:
 			goto fail_dqrr_mr_empty;
 		}
 	}
+#endif
 	/* Success */
 	portal->config = config;
 	spin_lock(&affine_mask_lock);
@@ -633,7 +637,9 @@ drain_loop:
 	/* Write a sane SDQCR */
 	qm_dqrr_sdqcr_set(__p, recovery_mode ? 0 : portal->sdqcr);
 	return portal;
+#ifndef CONFIG_CRASH_DUMP
 fail_dqrr_mr_empty:
+#endif
 fail_eqcr_empty:
 #ifdef CONFIG_FSL_DPA_HAVE_IRQ
 fail_affinity:
