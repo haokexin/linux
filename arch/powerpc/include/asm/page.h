@@ -130,8 +130,16 @@ extern phys_addr_t kernstart_addr;
  * the other definitions for __va & __pa.
  */
 #ifdef CONFIG_BOOKE
+#if defined(CONFIG_CRASH_DUMP) && defined(CONFIG_PPC_BOOK3E)
+/* On BOOK3E we should use PAGE_OFFSET and MEMORY_START to guarantee
+ * the relocation offsets are properly computed for RELOCATABLE kernel.
+ */
+#define __va(x) ((void *)(unsigned long)((phys_addr_t)(x) + PAGE_OFFSET - MEMORY_START))
+#define __pa(x) ((unsigned long)(x) - PAGE_OFFSET + MEMORY_START)
+#else
 #define __va(x) ((void *)(unsigned long)((phys_addr_t)(x) - PHYSICAL_START + KERNELBASE))
 #define __pa(x) ((unsigned long)(x) + PHYSICAL_START - KERNELBASE)
+#endif
 #else
 #define __va(x) ((void *)(unsigned long)((phys_addr_t)(x) + PAGE_OFFSET - MEMORY_START))
 #define __pa(x) ((unsigned long)(x) - PAGE_OFFSET + MEMORY_START)
