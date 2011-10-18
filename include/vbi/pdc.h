@@ -80,6 +80,14 @@ struct intr_device_channel_buffer
 	uint32_t intStatus;                 /* intStatus, or what intr */
 };
 
+#ifdef CONFIG_WRHV_CERT
+struct pdc_buf_set
+{
+	uint64_t gpaBufBase;
+	uint64_t gpaBufLen;
+};
+#endif
+
 #define SYS_PDC_REQUEST_OK		0
 #define SYS_PDC_REQUEST_FAILED		-1
 
@@ -88,6 +96,11 @@ struct intr_device_channel_buffer
 #define PDC_IOCTL_SIO_HW_OPTS_SET	3
 #define PDC_IOCTL_SIO_HUP		4
 #define PDC_IOCTL_SIO_OPEN		5
+#ifdef CONFIG_WRHV_CERT
+#define PDC_IOCTL_BUF_GPA_GET		10
+#define PDC_IOCTL_BUF_GPA_SET		11
+#define PDC_IOCTL_BUF_SIZE_GET		12
+#endif
 
 #define PDC_IOCTL_AMIO_CHANNEL_SET	20
 
