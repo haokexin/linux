@@ -137,6 +137,8 @@
 #include "talitos_dev.h"
 #include "talitos_soft.h"
 
+#define MDEU_UPSET_THRESHOLD 32
+
 #define read_random(p,l) get_random_bytes(p,l)
 
 const char talitos_driver_name[] = "Talitos OCF";
@@ -841,6 +843,14 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 		switch (maccrd->crd_alg) {
 			case	CRYPTO_MD5:	
 				td->hdr |= TALITOS_MODE0_MDEU_MD5;
+				/* 
+				 * MDEU is unhappy when the len of out_fifo is bigger
+				 * than 32 bytes, as the output of MD5 is 128 bits, we
+				 * restrict out_fifo len to 32 bytes so as to make MDEU
+				 * don't generate error interrupt.
+				 */ 
+				if (td->ptr[out_fifo].len > MDEU_UPSET_THRESHOLD)
+					td->ptr[out_fifo].len = MDEU_UPSET_THRESHOLD;
 				DPRINTF("MD5  ses %d ch %d len %d\n",
 					(u32)TALITOS_SESSION(crp->crp_sid), 
 					chsel, td->ptr[in_fifo].len);
@@ -850,6 +860,14 @@ talitos_process(device_t dev, struct cryptop *crp, int hint)
 				break;
 			case	CRYPTO_SHA1:	
 				td->hdr |= TALITOS_MODE0_MDEU_SHA1;
+				/* 
+				 * MDEU is unhappy when the len of out_fifo is bigger
+				 * than 32 bytes, as the output of SHA1 is 160 bits, we
+				 * restrict out_fifo len to 32 bytes so as to make MDEU
+				 * don't generate error interrupt.
+				 */
+				if (td->ptr[out_fifo].len > MDEU_UPSET_THRESHOLD)
+					td->ptr[out_fifo].len = MDEU_UPSET_THRESHOLD;
 				DPRINTF("SHA1 ses %d ch %d len %d\n",
 					(u32)TALITOS_SESSION(crp->crp_sid), 
 					chsel, td->ptr[in_fifo].len);
