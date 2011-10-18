@@ -258,4 +258,8 @@
 #define intrDeviceChannelBuffer	intr_device_channel_buffer
 #define vbiPdcInit		vbi_pdc_init               
 
+#ifdef CONFIG_WRHV_CERT
+#define PDC_BUF_SET		pdc_buf_set
+#endif
+
 #endif  /* _VBI_COMPAT_H */
