@@ -768,7 +768,9 @@ __acquires(kernel_lock)
 		current_trace = type;
 		/* the test is responsible for initializing and enabling */
 		pr_info("Testing tracer %s: ", type->name);
+		register_trace_clock();
 		ret = type->selftest(type, tr);
+		unregister_trace_clock();
 		/* the test is responsible for resetting too */
 		current_trace = saved_tracer;
 		if (ret) {
