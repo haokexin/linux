@@ -1319,8 +1319,17 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	fd.length20 = skb->len;
 	fd.offset = DPA_BP_HEAD; /* This is now guaranteed */
 
+	/*
+	 * Check if skb can be recycled / buffer can be readded to the bman pool
+	 * The following conditions must be met:
+	 * - skb not cloned, not shared
+	 * - buffer size is large enough to accomodate a MTU-sized frame
+	 * - there's enough room in the buffer pool
+	 * - address of the recycled buffer is 16 byte aligned (as per DPAA RM)
+	 */
 	if (likely(skb_is_recycleable(skb, dpa_bp->size + pad)
-			&& (*percpu_priv->dpa_bp_count + 1 <= dpa_bp->count))) {
+			&& (*percpu_priv->dpa_bp_count + 1 <= dpa_bp->count)
+			&& (IS_ALIGNED((unsigned long)skbh, 16)))) {
 		fd.cmd |= FM_FD_CMD_FCO;
 		fd.bpid = dpa_bp->bpid;
 		skb_recycle(skb);
