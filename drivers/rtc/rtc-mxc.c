@@ -440,6 +440,9 @@ static int __init mxc_rtc_probe(struct platform_device *pdev)
 
 	clk_enable(pdata->clk);
 
+	if (!device_can_wakeup(&pdev->dev))
+		device_init_wakeup(&pdev->dev, 1);
+
 	rtc = rtc_device_register(pdev->name, &pdev->dev, &mxc_rtc_ops,
 				  THIS_MODULE);
 	if (IS_ERR(rtc)) {
@@ -484,12 +487,38 @@ static int __exit mxc_rtc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int mxc_rtc_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct rtc_plat_data *pdata = platform_get_drvdata(pdev);
+
+	if (device_may_wakeup(&pdev->dev))
+		enable_irq_wake(pdata->irq);
+
+	return 0;
+}
+
+static int mxc_rtc_resume(struct platform_device *pdev)
+{
+	struct rtc_plat_data *pdata = platform_get_drvdata(pdev);
+
+	if (device_may_wakeup(&pdev->dev))
+		disable_irq_wake(pdata->irq);
+
+	return 0;
+}
+#endif
+
 static struct platform_driver mxc_rtc_driver = {
 	.driver = {
 		   .name	= "mxc_rtc",
 		   .owner	= THIS_MODULE,
 	},
 	.remove		= __exit_p(mxc_rtc_remove),
+#ifdef CONFIG_PM
+	.suspend 	= mxc_rtc_suspend,
+	.resume 	= mxc_rtc_resume,
+#endif
 };
 
 static int __init mxc_rtc_init(void)
