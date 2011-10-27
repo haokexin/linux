@@ -49,6 +49,7 @@
 #include <linux/if_ether.h>	/* ETH_P_IP and ETH_P_IPV6 */
 #include <linux/highmem.h>
 #include <linux/percpu.h>
+#include <linux/dma-mapping.h>
 #include <asm/smp.h>		/* get_hard_smp_processor_id() */
 #ifdef CONFIG_DEBUG_FS
 #include <linux/debugfs.h>
