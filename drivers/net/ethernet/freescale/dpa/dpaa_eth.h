@@ -38,6 +38,7 @@
 #include <linux/list.h>		/* struct list_head */
 #include <linux/workqueue.h>	/* struct work_struct */
 #include <linux/skbuff.h>
+#include <linux/hardirq.h>
 #ifdef CONFIG_DEBUG_FS
 #include <linux/dcache.h>	/* struct dentry */
 #endif
