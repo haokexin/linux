@@ -1004,8 +1004,6 @@ struct qman_portal_config {
 	/* A mask of which pool channels this portal has dequeue access to
 	 * (using QM_SDQCR_CHANNELS_POOL(n) for the bitmask) */
 	u32 pools;
-	/* Is stashing available? (Depends on PAMU config) */
-	int has_stashing;
 };
 
 /* This enum, and the callback type that returns it, are used when handling

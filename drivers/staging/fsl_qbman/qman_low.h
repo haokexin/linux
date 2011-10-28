@@ -179,9 +179,6 @@ struct qm_dqrr {
 	const struct qm_dqrr_entry *ring, *cursor;
 	u8 pi, ci, fill, ithresh, vbit;
 #ifdef CONFIG_FSL_DPA_CHECKING
-#define QM_DQRR_FLAG_RE 0x01 /* Stash ring entries */
-#define QM_DQRR_FLAG_SE 0x02 /* Stash data */
-	u8 flags;
 	enum qm_dqrr_dmode dmode;
 	enum qm_dqrr_pmode pmode;
 	enum qm_dqrr_cmode cmode;
@@ -520,14 +517,11 @@ static inline int qm_dqrr_init(struct qm_portal *portal,
 				const struct qm_portal_config *config,
 				enum qm_dqrr_dmode dmode,
 				__maybe_unused enum qm_dqrr_pmode pmode,
-				enum qm_dqrr_cmode cmode, u8 max_fill,
-				int disable_stash)
+				enum qm_dqrr_cmode cmode, u8 max_fill)
 {
 	register struct qm_dqrr *dqrr = &portal->dqrr;
 	u32 cfg;
 
-	if ((config->public_cfg.has_stashing) && (config->public_cfg.cpu == -1))
-		return -EINVAL;
 	/* Make sure the DQRR will be idle when we enable */
 	qm_out(DQRR_SDQCR, 0);
 	qm_out(DQRR_VDQCR, 0);
@@ -544,16 +538,12 @@ static inline int qm_dqrr_init(struct qm_portal *portal,
 	dqrr->dmode = dmode;
 	dqrr->pmode = pmode;
 	dqrr->cmode = cmode;
-	dqrr->flags = 0;
-	if (!disable_stash)
-		dqrr->flags |= QM_DQRR_FLAG_RE | QM_DQRR_FLAG_SE;
 #endif
 	cfg = (qm_in(CFG) & 0xff000f00) |
 		((max_fill & (QM_DQRR_SIZE - 1)) << 20) | /* DQRR_MF */
 		((dmode & 1) << 18) |			/* DP */
 		((cmode & 3) << 16) |			/* DCM */
-		(disable_stash ? 0 :			/* RE+SE */
-			config->public_cfg.has_stashing ? 0xa0 : 0) |
+		0xa0 |					/* RE+SE */
 		(0 ? 0x40 : 0) |			/* Ignore RP */
 		(0 ? 0x10 : 0);				/* Ignore SP */
 	qm_out(CFG, cfg);
@@ -624,7 +614,7 @@ static inline u8 qm_dqrr_pce_update(struct qm_portal *portal)
 	return diff;
 }
 
-static inline void qm_dqrr_pvb_update(struct qm_portal *portal, int coherent)
+static inline void qm_dqrr_pvb_update(struct qm_portal *portal)
 {
 	register struct qm_dqrr *dqrr = &portal->dqrr;
 	const struct qm_dqrr_entry *res = qm_cl(dqrr->ring, dqrr->pi);
@@ -636,13 +626,6 @@ static inline void qm_dqrr_pvb_update(struct qm_portal *portal, int coherent)
 		if (!dqrr->pi)
 			dqrr->vbit ^= QM_DQRR_VERB_VBIT;
 		dqrr->fill++;
-		if (!coherent) {
-			DPA_ASSERT(!(dqrr->flags & QM_DQRR_FLAG_RE));
-			dcbit_ro(DQRR_INC(res));
-		}
-	} else if (!coherent) {
-		DPA_ASSERT(!(dqrr->flags & QM_DQRR_FLAG_RE));
-		dcbit_ro(res);
 	}
 }
 
