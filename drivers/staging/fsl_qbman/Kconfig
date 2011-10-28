@@ -27,34 +27,18 @@ config FSL_DPA_CAN_WAIT_SYNC
 	default y
 
 config FSL_DPA_PIRQ_FAST
-	bool "fast-path processing via IRQ"
+	bool
 	depends on FSL_DPA_HAVE_IRQ
 	default y
-	---help---
-	  By default, configure fast-path handling to be triggered by IRQ.
-	  Drivers can modify this at run-time, but for linux it makes sense
-	  for all handling to be triggered by IRQ, unless a special
-	  run-to-completion application is being built.
 
 config FSL_DPA_PIRQ_SLOW
-	bool "slow-path processing via IRQ"
+	bool
 	depends on FSL_DPA_HAVE_IRQ
 	default y
-	---help---
-	  By default, configure slow-path handling to be triggered by IRQ.
-	  Drivers can modify this at run-time, but for linux it makes sense
-	  for all handling to be triggered by IRQ, unless a special
-	  run-to-completion application is being built.
 
 config FSL_DPA_PORTAL_SHARE
-	bool "allow portals to be affine to multiple CPUs"
+	bool
 	default y
-	---help---
-	  If the kernel, via its device-tree, will be required to use a
-	  single Qman or Bman portal for multiple CPUs, then select this
-	  option. Note however that compiling with this option will result
-	  in a very slight (but non-zero) overhead even when the feature
-	  is not being used.
 
 config FSL_DPA_UIO
 	tristate "Export USDPAA portals via UIO"
