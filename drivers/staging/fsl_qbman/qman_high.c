@@ -72,7 +72,6 @@ static inline int fq_isclear(struct qman_fq *fq, u32 mask)
 	return !(fq->flags & mask);
 }
 
-#define PORTAL_BITS_CI_PREFETCH	0x00020000	/* EQCR::CI prefetched */
 #define PORTAL_BITS_RECOVERY	0x00040000	/* recovery mode */
 
 struct qman_portal {
@@ -390,10 +389,9 @@ struct qman_portal *qman_create_affine_portal(
 #else
 #define QM_DQRR_CMODE qm_dqrr_cdc
 #endif
-	/* for recovery mode, don't enable stashing yet */
 	if (qm_dqrr_init(__p, config, qm_dqrr_dpush, qm_dqrr_pvb,
 			recovery_mode ?  qm_dqrr_cci : QM_DQRR_CMODE,
-			DQRR_MAXFILL, recovery_mode)) {
+			DQRR_MAXFILL)) {
 		pr_err("Qman DQRR initialisation failed\n");
 		goto fail_dqrr;
 	}
@@ -412,7 +410,7 @@ struct qman_portal *qman_create_affine_portal(
 		qm_dqrr_sdqcr_set(__p, 0);
 		qm_dqrr_vdqcr_set(__p, 0);
 drain_loop:
-		qm_dqrr_pvb_update(__p, 0);
+		qm_dqrr_pvb_update(__p);
 		dq = qm_dqrr_current(__p);
 		qm_mr_pvb_update(__p);
 		msg = qm_mr_current(__p);
@@ -851,18 +849,11 @@ static inline unsigned int __poll_portal_fast(struct qman_portal *p,
 	const struct qm_dqrr_entry *dq;
 	struct qman_fq *fq;
 	enum qman_cb_dqrr_result res;
-#ifdef CONFIG_FSL_QMAN_DQRR_PREFETCHING
-	int coherent = (p->config->public_cfg.has_stashing);
-#endif
 	unsigned int limit = 0;
 
 	BUG_ON(p->bits & PORTAL_BITS_RECOVERY);
 loop:
-#ifdef CONFIG_FSL_QMAN_DQRR_PREFETCHING
-	qm_dqrr_pvb_update(&p->p, coherent);
-#else
-	qm_dqrr_pvb_update(&p->p, 1);
-#endif
+	qm_dqrr_pvb_update(&p->p);
 	dq = qm_dqrr_current(&p->p);
 	if (!dq)
 		goto done;
@@ -1128,7 +1119,7 @@ static unsigned int recovery_poll_dqrr(struct qman_portal *p, u32 fqid)
 	u8 empty = 0, num_fds = 0;
 
 loop:
-	qm_dqrr_pvb_update(&p->p, 0);
+	qm_dqrr_pvb_update(&p->p);
 	dq = qm_dqrr_current(&p->p);
 	if (!dq) {
 		cpu_relax();
@@ -1248,7 +1239,7 @@ void qman_recovery_exit_local(void)
 	post_recovery(p, p->config);
 	clear_bits(PORTAL_BITS_RECOVERY, &p->bits);
 	if (qm_dqrr_init(&p->p, p->config, qm_dqrr_dpush, qm_dqrr_pvb,
-			QM_DQRR_CMODE, DQRR_MAXFILL, 0))
+			QM_DQRR_CMODE, DQRR_MAXFILL))
 		panic("Qman DQRR initialisation failed, recovery broken");
 	qm_dqrr_sdqcr_set(&p->p, p->sdqcr);
 	qm_isr_status_clear(&p->p, 0xffffffff);

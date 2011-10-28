@@ -268,16 +268,6 @@ static __init struct qm_portal_config *fsl_qman_portal_init(
 	}
 	pcfg->public_cfg.irq = irq;
 	pcfg->public_cfg.index = *index;
-	if (of_get_property(node, "fsl,hv-dma-handle", &ret))
-		pcfg->public_cfg.has_stashing = 1;
-	else if (qman_ip_rev == QMAN_REV20)
-		pcfg->public_cfg.has_stashing = 1;
-	else
-#ifdef CONFIG_FSL_PAMU
-		pcfg->public_cfg.has_stashing = 1;
-#else
-		pcfg->public_cfg.has_stashing = 0;
-#endif
 	pcfg->public_cfg.pools = 0;
 	pcfg->node = node;
 #ifdef CONFIG_FSL_QMAN_CONFIG

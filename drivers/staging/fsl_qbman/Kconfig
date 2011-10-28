@@ -107,6 +107,7 @@ if FSL_QMAN
 
 config FSL_QMAN_PORTAL
 	bool "Qman portal support"
+	depends on FSL_PAMU
 	default y
 	---help---
 	  Compiles support to detect and support Qman software corenet portals
@@ -149,16 +150,6 @@ config FSL_QMAN_NULL_FQ_DEMUX
 	  portal. If this option is selected, the driver will support this
 	  feature, but it adds a small overhead to the hottest-path in the
 	  driver, so it should be disabled unless needed.
-
-config FSL_QMAN_DQRR_PREFETCHING
-	bool "support prefetching or DQRR (if stashing disabled)"
-	default y
-	---help---
-	  Normally, portals are configured to stash DQRR entries, but if this is
-	  not the case, then s/w needs to invalidate and prefetch ring entries.
-	  Selecting this option supports both cases and chooses the best one at
-	  run-time, but introduces a small overhead in some hot paths of the
-	  driver, so disable it if you know stashing will be configured.
 
 config FSL_QMAN_CONFIG
 	bool "Qman device management"
