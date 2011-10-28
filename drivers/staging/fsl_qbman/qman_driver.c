@@ -206,15 +206,15 @@ static __init struct qm_portal_config *fsl_qman_portal_init(
 		pr_warning("Revision=0x%04x, but portal '%s' has 0x%04x\n",
 			qman_ip_rev, node->full_name, ip_rev);
 
-	ret = of_address_to_resource(node, QM_ADDR_CE,
-				&pcfg->addr_phys[QM_ADDR_CE]);
+	ret = of_address_to_resource(node, DPA_PORTAL_CE,
+				&pcfg->addr_phys[DPA_PORTAL_CE]);
 	if (ret) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,
 			"reg::CE");
 		goto err;
 	}
-	ret = of_address_to_resource(node, QM_ADDR_CI,
-				&pcfg->addr_phys[QM_ADDR_CI]);
+	ret = of_address_to_resource(node, DPA_PORTAL_CI,
+				&pcfg->addr_phys[DPA_PORTAL_CI]);
 	if (ret) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,
 			"reg::CI");
@@ -299,13 +299,13 @@ static __init struct qm_portal_config *fsl_qman_portal_init(
 
 	/* Map the portals now we know they aren't for UIO (the UIO code doesn't
 	 * need the CE mapping, and so will do its own CI-only mapping). */
-	pcfg->addr_virt[QM_ADDR_CE] = ioremap_prot(
-				pcfg->addr_phys[QM_ADDR_CE].start,
-				resource_size(&pcfg->addr_phys[QM_ADDR_CE]),
+	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_prot(
+				pcfg->addr_phys[DPA_PORTAL_CE].start,
+				resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]),
 				0);
-	pcfg->addr_virt[QM_ADDR_CI] = ioremap_prot(
-				pcfg->addr_phys[QM_ADDR_CI].start,
-				resource_size(&pcfg->addr_phys[QM_ADDR_CI]),
+	pcfg->addr_virt[DPA_PORTAL_CI] = ioremap_prot(
+				pcfg->addr_phys[DPA_PORTAL_CI].start,
+				resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]),
 				_PAGE_GUARDED | _PAGE_NO_CACHE);
 
 	while (numpools--) {
@@ -333,8 +333,8 @@ err:
 
 static void __init fsl_qman_portal_destroy(struct qm_portal_config *pcfg)
 {
-	iounmap(pcfg->addr_virt[QM_ADDR_CE]);
-	iounmap(pcfg->addr_virt[QM_ADDR_CI]);
+	iounmap(pcfg->addr_virt[DPA_PORTAL_CE]);
+	iounmap(pcfg->addr_virt[DPA_PORTAL_CI]);
 	kfree(pcfg);
 }
 

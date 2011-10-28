@@ -110,8 +110,6 @@ enum qm_isr_reg {
 	qm_isr_inhibit = 3
 };
 
-#define QM_ADDR_CE 0
-#define QM_ADDR_CI 1
 struct qm_portal_config {
 	/* Corenet portal addresses;
 	 * [0]==cache-enabled, [1]==cache-inhibited. */

@@ -116,6 +116,9 @@ struct dpa_uio_portal {
 };
 const struct dpa_uio_class *dpa_uio_bman(void);
 const struct dpa_uio_class *dpa_uio_qman(void);
+/* For 2-element tables related to cache-inhibited and cache-enabled mappings */
+#define DPA_PORTAL_CE 0
+#define DPA_PORTAL_CI 1
 
 /* These stubs are re-mapped to hypervisor+failover features in kernel trees
  * that contain that support. */

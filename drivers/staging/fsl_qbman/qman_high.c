@@ -370,8 +370,8 @@ struct qman_portal *qman_create_affine_portal(
 	/* prep the low-level portal struct with the mapped addresses from the
 	 * config, everything that follows depends on it and "config" is more
 	 * for (de)reference... */
-	__p->addr.addr_ce = config->addr_virt[QM_ADDR_CE];
-	__p->addr.addr_ci = config->addr_virt[QM_ADDR_CI];
+	__p->addr.addr_ce = config->addr_virt[DPA_PORTAL_CE];
+	__p->addr.addr_ci = config->addr_virt[DPA_PORTAL_CI];
 	if (qm_eqcr_init(__p, qm_eqcr_pvb, qm_eqcr_cce)) {
 		pr_err("Qman EQCR initialisation failed\n");
 		goto fail_eqcr;
