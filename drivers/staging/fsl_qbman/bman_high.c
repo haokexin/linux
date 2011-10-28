@@ -199,8 +199,8 @@ struct bman_portal *bman_create_affine_portal(
 	/* prep the low-level portal struct with the mapped addresses from the
 	 * config, everything that follows depends on it and "config" is more
 	 * for (de)reference... */
-	__p->addr.addr_ce = config->addr_virt[BM_ADDR_CE];
-	__p->addr.addr_ci = config->addr_virt[BM_ADDR_CI];
+	__p->addr.addr_ce = config->addr_virt[DPA_PORTAL_CE];
+	__p->addr.addr_ci = config->addr_virt[DPA_PORTAL_CI];
 	if (bm_rcr_init(__p, bm_rcr_pvb, bm_rcr_cce)) {
 		pr_err("Bman RCR initialisation failed\n");
 		goto fail_rcr;

@@ -143,8 +143,8 @@ static void __init dpa_uio_portal_init(struct dpa_uio_portal *p,
 	}
 	/* We need to map the cache-inhibited region in the kernel for
 	 * interrupt-handling purposes. */
-	info->addr_ci = ioremap_prot(res[BM_ADDR_CI].start,
-				resource_size(&res[BM_ADDR_CI]),
+	info->addr_ci = ioremap_prot(res[DPA_PORTAL_CI].start,
+				resource_size(&res[DPA_PORTAL_CI]),
 				_PAGE_GUARDED | _PAGE_NO_CACHE);
 	/* Name the UIO device according to the cell-index. It's supposed to be
 	 * unique for each device class (Qman/Bman), and is also a convenient
@@ -169,12 +169,14 @@ static void __init dpa_uio_portal_init(struct dpa_uio_portal *p,
 	info->uio.name = info->name;
 	info->uio.version = dpa_uio_version;
 	/* Work around the 36-bit UIO issue by bit-shifting the addresses */
-	info->uio.mem[BM_ADDR_CE].name = "cena";
-	info->uio.mem[BM_ADDR_CE].addr = res[BM_ADDR_CE].start >> PAGE_SHIFT;
-	info->uio.mem[BM_ADDR_CE].size = resource_size(&res[BM_ADDR_CE]);
-	info->uio.mem[BM_ADDR_CI].name = "cinh";
-	info->uio.mem[BM_ADDR_CI].addr = res[BM_ADDR_CI].start >> PAGE_SHIFT;
-	info->uio.mem[BM_ADDR_CI].size = resource_size(&res[BM_ADDR_CI]);
+	info->uio.mem[DPA_PORTAL_CE].name = "cena";
+	info->uio.mem[DPA_PORTAL_CE].addr =
+		res[DPA_PORTAL_CE].start >> PAGE_SHIFT;
+	info->uio.mem[DPA_PORTAL_CE].size = resource_size(&res[DPA_PORTAL_CE]);
+	info->uio.mem[DPA_PORTAL_CI].name = "cinh";
+	info->uio.mem[DPA_PORTAL_CI].addr =
+		res[DPA_PORTAL_CI].start >> PAGE_SHIFT;
+	info->uio.mem[DPA_PORTAL_CI].size = resource_size(&res[DPA_PORTAL_CI]);
 	info->uio.irq = irq;
 	info->uio.handler = dpa_uio_irq_handler;
 	info->uio.mmap = dpa_uio_mmap;
