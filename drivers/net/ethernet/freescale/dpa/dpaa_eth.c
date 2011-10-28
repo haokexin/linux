@@ -2180,6 +2180,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 	struct dpa_priv_s		*priv;
 	struct dpa_percpu_priv_s	*percpu_priv, total;
 	struct dpa_bp *dpa_bp;
+	unsigned int dpa_bp_count = 0;
 	unsigned int count_total = 0;
 
 	BUG_ON(offset == NULL);
@@ -2187,6 +2188,9 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 	priv = netdev_priv((struct net_device *)file->private);
 
 	dpa_bp = priv->dpa_bp;
+	/* Only private interfaces have an associated counter for bp buffers */
+	if (!priv->shared)
+		dpa_bp_count = *percpu_priv->dpa_bp_count;
 
 	memset(&total, 0, sizeof(total));
 
@@ -2202,7 +2206,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 		total.tx_confirm += percpu_priv->tx_confirm;
 		total.stats.tx_errors += percpu_priv->stats.tx_errors;
 		total.stats.rx_errors += percpu_priv->stats.rx_errors;
-		count_total += *percpu_priv->dpa_bp_count;
+		count_total += dpa_bp_count;
 
 		seq_printf(file, "%hu/%hu\t%u\t%lu\t%lu\t%u\t%u\t%lu\t%lu" \
 				"\t%d\n",
@@ -2214,7 +2218,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 				percpu_priv->tx_confirm,
 				percpu_priv->stats.tx_errors,
 				percpu_priv->stats.rx_errors,
-				*percpu_priv->dpa_bp_count);
+				dpa_bp_count);
 	}
 	seq_printf(file, "Total\t%u\t%u\t%lu\t%u\t%u\t%lu\t%lu\t%d\n",
 			total.in_interrupt,
