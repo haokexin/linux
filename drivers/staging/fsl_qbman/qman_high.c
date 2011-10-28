@@ -1538,7 +1538,7 @@ int qman_init_fq(struct qman_fq *fq, u32 flags, struct qm_mcc_initfq *opts)
 		if (!(mcc->initfq.we_mask & QM_INITFQ_WE_CONTEXTA)) {
 			mcc->initfq.we_mask |= QM_INITFQ_WE_CONTEXTA;
 			memset(&mcc->initfq.fqd.context_a, 0,
-				sizeof(&mcc->initfq.fqd.context_a));
+				sizeof(mcc->initfq.fqd.context_a));
 		} else {
 			phys_fq = dma_map_single(&p->pdev->dev, fq, sizeof(*fq),
 						DMA_TO_DEVICE);
