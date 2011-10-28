@@ -33,7 +33,7 @@
  * occur, and the final time the board will reset.
  */
 
-#ifdef	CONFIG_FSL_BOOKE
+#if  defined(CONFIG_FSL_BOOKE) || defined(CONFIG_PPC_FSL_BOOK3E)
 #define WDT_PERIOD_DEFAULT 38	/* Ex. wdt_period=28 bus=333Mhz,reset=~40sec */
 #else
 #define WDT_PERIOD_DEFAULT 3	/* Refer to the PPC40x and PPC4xx manuals */
@@ -42,7 +42,7 @@
 u32 booke_wdt_enabled;
 u32 booke_wdt_period = WDT_PERIOD_DEFAULT;
 
-#ifdef	CONFIG_FSL_BOOKE
+#if  defined(CONFIG_FSL_BOOKE) || defined(CONFIG_PPC_FSL_BOOK3E)
 #define WDTP(x)		((((x)&0x3)<<30)|(((x)&0x3c)<<15))
 #define WDTP_MASK	(WDTP(0x3f))
 #else
@@ -190,7 +190,7 @@ static long booke_wdt_ioctl(struct file *file,
 	case WDIOC_SETTIMEOUT:
 		if (get_user(tmp, p))
 			return -EFAULT;
-#ifdef	CONFIG_FSL_BOOKE
+#if  defined(CONFIG_FSL_BOOKE) || defined(CONFIG_PPC_FSL_BOOK3E)
 		/* period of 1 gives the largest possible timeout */
 		if (tmp > period_to_sec(1))
 			return -EINVAL;
