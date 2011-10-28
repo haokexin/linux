@@ -50,8 +50,6 @@ enum bm_isr_reg {
 	bm_isr_inhibit = 3
 };
 
-#define BM_ADDR_CE 0
-#define BM_ADDR_CI 1
 struct bm_portal_config {
 	/* Corenet portal addresses;
 	 * [0]==cache-enabled, [1]==cache-inhibited. */
