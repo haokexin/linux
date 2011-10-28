@@ -174,7 +174,6 @@ static void depletion_unlink(struct bman_pool *pool)
 #define SLOW_POLL_BUSY 10
 static u32 __poll_portal_slow(struct bman_portal *p, u32 is);
 
-#ifdef CONFIG_FSL_DPA_HAVE_IRQ
 /* Portal interrupt handler */
 static irqreturn_t portal_isr(__always_unused int irq, void *ptr)
 {
@@ -185,7 +184,6 @@ static irqreturn_t portal_isr(__always_unused int irq, void *ptr)
 	bm_isr_status_clear(&p->p, clear);
 	return IRQ_HANDLED;
 }
-#endif
 
 struct bman_portal *bman_create_affine_portal(
 			const struct bm_portal_config *config,
@@ -244,7 +242,6 @@ struct bman_portal *bman_create_affine_portal(
 	portal->irq_sources = 0;
 	bm_isr_enable_write(__p, portal->irq_sources);
 	bm_isr_status_clear(__p, 0xffffffff);
-#ifdef CONFIG_FSL_DPA_HAVE_IRQ
 	snprintf(portal->irqname, MAX_IRQNAME, IRQNAME, config->public_cfg.cpu);
 	if ((config->public_cfg.cpu != -1) &&
 			irq_can_set_affinity(config->public_cfg.irq) &&
@@ -261,7 +258,6 @@ struct bman_portal *bman_create_affine_portal(
 	/* Enable the bits that make sense */
 	if (!recovery_mode)
 		bm_isr_uninhibit(__p);
-#endif
 	/* Need RCR to be empty before continuing */
 	bm_isr_disable_write(__p, ~BM_PIRQ_RCRI);
 	ret = bm_rcr_get_fill(__p);
@@ -278,11 +274,9 @@ struct bman_portal *bman_create_affine_portal(
 	put_affine_portal();
 	return portal;
 fail_rcr_empty:
-#ifdef CONFIG_FSL_DPA_HAVE_IRQ
 fail_affinity:
 	free_irq(config->public_cfg.irq, portal);
 fail_irq:
-#endif
 	if (portal->pools)
 		kfree(portal->pools);
 fail_pools:
@@ -328,9 +322,7 @@ const struct bm_portal_config *bman_destroy_affine_portal(void)
 	pcfg = bm->config;
 	bm_rcr_cce_update(&bm->p);
 	bm_rcr_cce_update(&bm->p);
-#ifdef CONFIG_FSL_DPA_HAVE_IRQ
 	free_irq(pcfg->public_cfg.irq, bm);
-#endif
 	kfree(bm->pools);
 	bm_isr_finish(&bm->p);
 	bm_mc_finish(&bm->p);
@@ -450,7 +442,6 @@ EXPORT_SYMBOL(bman_irqsource_get);
 
 int bman_irqsource_add(__maybe_unused u32 bits)
 {
-#ifdef CONFIG_FSL_DPA_HAVE_IRQ
 	struct bman_portal *p = get_raw_affine_portal();
 	int ret = 0;
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
@@ -467,16 +458,11 @@ int bman_irqsource_add(__maybe_unused u32 bits)
 	}
 	put_affine_portal();
 	return ret;
-#else
-	pr_err("No Bman portal IRQ support, mustn't specify IRQ flags!");
-	return -EINVAL;
-#endif
 }
 EXPORT_SYMBOL(bman_irqsource_add);
 
 int bman_irqsource_remove(u32 bits)
 {
-#ifdef CONFIG_FSL_DPA_HAVE_IRQ
 	struct bman_portal *p = get_raw_affine_portal();
 	__maybe_unused unsigned long irqflags;
 	u32 ier;
@@ -505,10 +491,6 @@ int bman_irqsource_remove(u32 bits)
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	return 0;
-#else
-	pr_err("No Bman portal IRQ support, mustn't specify IRQ flags!");
-	return -EINVAL;
-#endif
 }
 EXPORT_SYMBOL(bman_irqsource_remove);
 

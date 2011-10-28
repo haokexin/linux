@@ -14,10 +14,6 @@ config FSL_DPA_CHECKING
 	  Compiles in additional checks to sanity-check the drivers and any
 	  use of it by other code. Not recommended for performance.
 
-config FSL_DPA_HAVE_IRQ
-	bool
-	default y
-
 config FSL_DPA_CAN_WAIT
 	bool
 	default y
@@ -28,12 +24,10 @@ config FSL_DPA_CAN_WAIT_SYNC
 
 config FSL_DPA_PIRQ_FAST
 	bool
-	depends on FSL_DPA_HAVE_IRQ
 	default y
 
 config FSL_DPA_PIRQ_SLOW
 	bool
-	depends on FSL_DPA_HAVE_IRQ
 	default y
 
 config FSL_DPA_PORTAL_SHARE
