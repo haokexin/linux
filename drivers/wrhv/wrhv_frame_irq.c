@@ -39,7 +39,7 @@ static irqreturn_t end_frame_interrupt(int irq, void *p)
 	return IRQ_HANDLED;
 }
 
-/* certifiable hypervisor support start and end frame transition interrupts.
+/* safety profile hypervisor support start and end frame transition interrupts.
    User can make use of this interrupt to maintain house keeping related tasks.
 */
 static int __init frame_transition_test_init(void)
