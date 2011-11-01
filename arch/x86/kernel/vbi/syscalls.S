@@ -121,7 +121,7 @@ vbi_hcall(vbi_reply, reply, 4)
  *
  */
 vbi_hcall(vbi_kputs, kputs, 1)
-vbi_hcall(cert_debug_vbi_kputs, kputs, 1)
+vbi_hcall(safety_debug_vbi_kputs, kputs, 1)
 
 
 /*
@@ -133,7 +133,7 @@ vbi_hcall(cert_debug_vbi_kputs, kputs, 1)
  *
  */
 vbi_hcall(vbi_kputc, kputc, 1)
-vbi_hcall(cert_debug_vbi_kputc, kputc, 1)
+vbi_hcall(safety_debug_vbi_kputc, kputc, 1)
 
 
 /*
@@ -515,7 +515,7 @@ vbi_hcall(vbi_vb_read_mem, memRead_op, 2)
  *
  */
 vbi_hcall(vbi_shell_start_debug, dbgShStart, 1)
-vbi_hcall(cert_debug_vbi_shell_start_debug, dbgShStart, 1)
+vbi_hcall(safety_debug_vbi_shell_start_debug, dbgShStart, 1)
 
 
 /*
@@ -638,7 +638,7 @@ vbi_hcall(vbi_vb_move, vbMove, 3)
 vbi_hcall(vbi_vb_set_priority, vbPrioSet, 3)
 
 
-#ifdef CONFIG_WRHV_CERT
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
 /*
  * vbi_sched_control_op - do schedule control
  *

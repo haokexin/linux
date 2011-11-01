@@ -46,7 +46,7 @@ for processing.
  */
 int32_t vbi_ns_register(char *name, uint32_t revision)
 {
-	/* Certifiable hypervisor does not support this function */
+	/* Safety Profile hypervisor does not support this function */
 	if (is_corevbi_only()) {
 		VBISTAT_VERBOSE(vbi_ns_register);
 		return -1;
@@ -69,7 +69,7 @@ int32_t vbi_ns_register(char *name, uint32_t revision)
  */
 int32_t vbi_ns_unregister(char *name, uint32_t revision)
 {
-	/* Certifiable hypervisor does not support this function */
+	/* Safety Profile hypervisor does not support this function */
 	if (is_corevbi_only()) {
 		VBISTAT_VERBOSE(vbi_ns_unregister);
 		return -1;
@@ -101,7 +101,7 @@ int32_t vbi_ns_unregister(char *name, uint32_t revision)
  */
 int32_t vbi_ns_lookup_old(char *name, uint32_t revision, VBI_NS_HANDLE *handle)
 {
-	/* Optional VBI, Certifiable hypervisor does not
+	/* Optional VBI, Safety Profile hypervisor does not
 		support this function */
 	if (is_corevbi_only()) {
 		VBISTAT_VERBOSE(vbi_ns_lookup);
@@ -139,7 +139,7 @@ int32_t vbi_ns_lookup_old(char *name, uint32_t revision, VBI_NS_HANDLE *handle)
 int32_t vbi_ns_lookup(char *name, uint32_t revision, VBI_NS_HANDLE *handle,
 			uint32_t timeout, uint32_t options)
 {
-	/* Optional VBI, Certifiable hypervisor does not
+	/* Optional VBI, Safety Profile hypervisor does not
 		support this function */
 	if (is_corevbi_only()) {
 		VBISTAT_VERBOSE(vbi_ns_lookup);

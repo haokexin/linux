@@ -51,8 +51,10 @@ void vbi_show_shmem(void)
 	void *pState = config->sharedMemoryRegionsStateAddress;
 	int i;
 
-	/* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_STD) {
+	/* non-debug safety profile hypervisor does not support
+	 * this function.
+	 */
+	if (safety_hyp_version == SAFETY_HYP_VER_STD) {
 		VBISTAT_VERBOSE(vbi_show_shmem);
 		return;
 	}
@@ -84,8 +86,10 @@ void vbi_show_mem(void)
 	int num_sm = config->num_mem;
 	int i;
 
-	/* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_STD) {
+	/* non-debug safety profile hypervisor does not support
+	 * this function.
+	 */
+	if (safety_hyp_version == SAFETY_HYP_VER_STD) {
 		VBISTAT_VERBOSE(vbi_show_mem);
 		return;
 	}
@@ -215,8 +219,10 @@ void vbi_show_stat(void)
 {
 	struct vb_status *p = VBI_STATUS_ADDR_GET();
 
-	/* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_STD) {
+	/* non-debug safety profile hypervisor does not support
+	 * this function.
+	 */
+	if (safety_hyp_version == SAFETY_HYP_VER_STD) {
 		VBISTAT_VERBOSE(vbi_show_stat);
 		return;
 	}
@@ -239,8 +245,10 @@ void vbi_show_ctrl(void)
 	struct vb_control *p = VBI_CNTRL_ADDR_GET();
 	int i;
 
-	/* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_STD) {
+	/* non-debug safety profile hypervisor does not support
+	 * this function.
+	 */
+	if (safety_hyp_version == SAFETY_HYP_VER_STD) {
 		VBISTAT_VERBOSE(vbi_show_ctrl);
 		return;
 	}
@@ -264,7 +272,7 @@ void vbi_show_ctrl(void)
 #if defined(CONFIG_WRHV_COREVBI_ONLY)
 void vbi_show_config_page_map()
 {
-	/* certifiable hypervisor does not have page map field in the
+	/* safety profile hypervisor does not have page map field in the
 	 * vb_config structure
 	 */
 	VBISTAT_VERBOSE(vbi_show_config_page_map);
@@ -297,8 +305,10 @@ void vbi_show_cfg(void)
 {
 	struct vb_config *p = VBI_CONFIG_ADDR_GET();
 
-	/* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_STD) {
+	/* non-debug safety profile hypervisor does not support
+	 * this function.
+	 */
+	if (safety_hyp_version == SAFETY_HYP_VER_STD) {
 		VBISTAT_VERBOSE(vbi_show_cfg);
 		return;
 	}

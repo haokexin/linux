@@ -141,7 +141,7 @@
 #define vbiVbReset		vbi_vb_reset
 #define vbiVbRemote		vbi_vb_remote
 
-#ifdef CONFIG_WRHV_CERT
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
 #define vbiSchedControlOp	vbi_sched_control_op
 #define vbiPortOp		vbi_port_op
 #endif
@@ -258,7 +258,7 @@
 #define intrDeviceChannelBuffer	intr_device_channel_buffer
 #define vbiPdcInit		vbi_pdc_init               
 
-#ifdef CONFIG_WRHV_CERT
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
 #define PDC_BUF_SET		pdc_buf_set
 #endif
 

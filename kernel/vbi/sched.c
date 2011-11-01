@@ -43,7 +43,7 @@ int32_t vbi_sched_transition(char *name, uint32_t transition_type, uint32_t core
 	struct vb_control *p = VBI_CNTRL_ADDR_GET();
 	char sched_name[VB_NAMELEN];
 	
-	/* only certifiable hypervisor's control structure has the name field */
+	/* only safety profile hypervisor's control structure has the name field */
 	if ((name == NULL) || (p == NULL))
 		return -1;
 

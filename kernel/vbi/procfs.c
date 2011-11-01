@@ -107,13 +107,13 @@ static const struct file_operations procfs_hypinfo_operations = {
 };
 
 /*
- * Certifiable Hypervisor VBI statistic counts
+ * Safety Profile Hypervisor VBI statistic counts
  */
 static char vbistat_name[] = "vbistat";
 int vbistat_verbose;
 
-/* variable to identify difference certifiable hypervisor version */
-int cert_hyp_version = CERT_HYP_VER_NONE;
+/* variable to identify difference safety profile hypervisor version */
+int safety_hyp_version = SAFETY_HYP_VER_NONE;
 
 struct vbi_api_stats vbistat[] = {
 	/* functions implemented in vbi.h */
@@ -189,14 +189,14 @@ static int vbistat_proc_show(struct seq_file *m, void *v)
 {
 	int i;
 
-	switch (cert_hyp_version) {
+	switch (safety_hyp_version) {
 
-	case CERT_HYP_VER_STD:
-		seq_printf(m, "Certifiable ");
+	case SAFETY_HYP_VER_STD:
+		seq_printf(m, "Safety Profile ");
 		break;
 
-	case CERT_HYP_VER_DEBUG:
-		seq_printf(m, "Certifiable Debug Version ");
+	case SAFETY_HYP_VER_DEBUG:
+		seq_printf(m, "Safety Profile Debug Version ");
 		break;
 	}
 	seq_printf(m, "Hypervisor API Call Counts:\n");
@@ -296,7 +296,7 @@ void wrhv_init_procfs(void)
 		       hypinfo_name);
 	}
 
-	/* Certifiable VBI statistic counts */
+	/* Safety Profile VBI statistic counts */
 	vbistat_procfs = proc_create(vbistat_name, 0,
 				wrhv_procfs_root,
 				&procfs_vbistat_operations);

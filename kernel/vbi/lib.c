@@ -210,7 +210,7 @@ void vbi_init(struct vb_config *config)
 int32_t vbi_vb_find_board_config(uint32_t board_id, int32_t core_id,
 					void *paddr)
 {
-	/* Certifiable hypervisor does not support this function */
+	/* Safety Profile hypervisor does not support this function */
 	if (is_corevbi_only()) {
 		VBISTAT_VERBOSE(vbi_vb_find_board_config);
 		return -1;

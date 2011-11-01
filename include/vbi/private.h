@@ -37,7 +37,7 @@ extern asmlinkage int32_t vbi_ns_op(uint32_t op, char* name, uint32_t rev,
 			VBI_NS_HANDLE *handle, uint32_t timeout,
 			uint32_t options);
 
-#ifdef CONFIG_WRHV_CERT
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
 /* Transition to a new schedule */
 extern asmlinkage int32_t vbi_sched_control_op(uint32_t transition,
 			char *sched_name, void *transition_type, void *core_id,

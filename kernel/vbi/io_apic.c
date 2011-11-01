@@ -272,8 +272,8 @@ EXPORT_SYMBOL(vbi_send_vioapic_irq);
 int32_t vbi_send_vcore_vioapic_irq(int32_t irq, uint32_t coreSet,
 			uint32_t options)
 {
-	/* Certifiable hypervisor does not support this function */
-	if (is_cert_hyp()) {
+	/* Safety Profile hypervisor does not support this function */
+	if (is_safety_hyp()) {
 		VBISTAT_VERBOSE(vbi_send_vcore_vioapic_irq);
 		return -1;
 	}
@@ -290,8 +290,8 @@ int32_t vbi_send_vcore_vioapic_irq(int32_t irq, uint32_t coreSet,
  */
 int32_t vbi_redir_vioapic_irq(int32_t irq, int32_t core)
 {
-	/* Certifiable hypervisor does not support this function */
-	if (is_cert_hyp()) {
+	/* Safety Profile hypervisor does not support this function */
+	if (is_safety_hyp()) {
 		VBISTAT_VERBOSE(vbi_redir_vioapic_irq);
 		return -1;
 	}
@@ -346,7 +346,7 @@ void vbi_disp_vioapic(void)
 		"ExtINT"	/* 7 */
 	};
 
-	/* Certifiable hypervisor does not support this function */
+	/* Safety Profile hypervisor does not support this function */
 	if (is_corevbi_only()) {
 		VBISTAT_VERBOSE(vbi_disp_vioapic);
 		return;

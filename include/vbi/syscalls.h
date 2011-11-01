@@ -111,7 +111,7 @@
 #define VBI_SYS_vbSuspend       HY_SYSCALL(24)	/* suspend vcores	*/
 #define VBI_SYS_vbResume        HY_SYSCALL(25)	/* Resume vcores	*/
 #define VBI_SYS_vbRemote        HY_SYSCALL(26)	/* Get info of board	*/
-#ifdef CONFIG_WRHV_CERT
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
 #define VBI_SYS_schedControl	HY_SYSCALL(27)  /* scheduler control    */
 #define VBI_SYS_port		HY_SYSCALL(28)  /* port send and receive */
 #endif
