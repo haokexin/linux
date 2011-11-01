@@ -10,7 +10,7 @@ if WRHV_VIRTIO
 
 config WRHV_FRAME_TRANSITION_INTERRUPT_TEST
 	bool "Frame transition interrupt test"
-	depends on WRHV_CERT
+	depends on WRHV_SAFETY_PROFILE
 	default n
 	---help---
 	  Enable testing the start frame and end frame transition interrupt
