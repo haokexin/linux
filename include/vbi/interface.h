@@ -255,7 +255,7 @@ identity mapped.
 #define VBI_REG_SET_32BIT	0
 #define VBI_REG_SET_64BIT	1
 
-#ifdef CONFIG_WRHV_CERT
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
 /*
  * define schedule control commands that is the
  * first parameter in syscall vbiSchedControlOp() which

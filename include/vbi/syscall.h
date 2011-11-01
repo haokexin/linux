@@ -143,8 +143,8 @@ extern int32_t vbi_set_exc_base(void *excTblBase);
 /* virtual board management API's */
 extern asmlinkage int32_t vbi_vb_reset(uint32_t id, int32_t core, uint32_t options);
 
-/* commerical hypervisor and certifiable hypervisor stub functions */
-#if !defined(CONFIG_WRHV_CERT)
+/* standard hypervisor and safety hypervisor stub functions */
+#if !defined(CONFIG_WRHV_SAFETY_PROFILE)
 extern asmlinkage int vbi_ctx_ctl(unsigned operation, unsigned arg1,
 				unsigned arg2);
 extern asmlinkage int32_t vbi_kputs(const char *s);
@@ -156,10 +156,10 @@ extern asmlinkage int32_t vbi_vb_suspend(uint32_t id, int32_t core);
 extern asmlinkage int32_t vbi_vb_restart(uint32_t id, int32_t core);
 extern asmlinkage int32_t vbi_vb_resume(uint32_t id, int32_t core);
 #else
-/* following functions avaiable to debug version of certifiable hypervisor */
-extern asmlinkage int32_t cert_debug_vbi_kputs(const char *s);
-extern asmlinkage int32_t cert_debug_vbi_kputc(int c);
-extern asmlinkage void cert_debug_vbi_shell_start_debug(uint32_t  flags);
+/* following functions available to debug version of safety profile hypervisor */
+extern asmlinkage int32_t safety_debug_vbi_kputs(const char *s);
+extern asmlinkage int32_t safety_debug_vbi_kputc(int c);
+extern asmlinkage void safety_debug_vbi_shell_start_debug(uint32_t  flags);
 
 /* schedule transition api */
 extern int32_t vbi_sched_transition(char *name, uint32_t transition_type,
@@ -177,22 +177,26 @@ static inline int vbi_ctx_ctl(unsigned operation, unsigned arg1,
 }
 static inline int32_t vbi_kputs(const char *s)
 {
-	 /* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_STD) {
+	/* non-debug safety profile hypervisor does not support
+	 * this function.
+	 */
+	if (safety_hyp_version == SAFETY_HYP_VER_STD) {
 		VBISTAT_VERBOSE(vbi_kputs);
 		return -1;
 	}
-	return cert_debug_vbi_kputs(s);
+	return safety_debug_vbi_kputs(s);
 }
 
 static inline int32_t vbi_kputc(int c)
 {
-	/* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_STD) {
+	/* non-debug safety profile hypervisor does not support
+	 * this function.
+	 */
+	if (safety_hyp_version == SAFETY_HYP_VER_STD) {
 		VBISTAT_VERBOSE(vbi_kputc);
 		return -1;
 	}
-	return cert_debug_vbi_kputc(c);
+	return safety_debug_vbi_kputc(c);
 }
 /* Prior to vbi 2.0 these api were vbi_set_mmu_attr/Get */
 static inline int32_t vbi_set_mem_attr(void *vaddr, size_t len, int32_t attr)
@@ -279,10 +283,10 @@ static inline int32_t vbi_vb_write_mem(struct vbi_mem_ctl *memCtl,
 }
 static inline void vbi_shell_start_debug(uint32_t  flags)
 {
-	/* standard certifiable hypervisor does not support this function */
-	if (cert_hyp_version == CERT_HYP_VER_DEBUG) {
-#ifdef CONFIG_WRHV_CERT
-		cert_debug_vbi_shell_start_debug(flags);
+	/* safety profile hypervisor does not support this function */
+	if (safety_hyp_version == SAFETY_HYP_VER_DEBUG) {
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
+		safety_debug_vbi_shell_start_debug(flags);
 #endif
 		return;
 	}

@@ -90,11 +90,11 @@ struct vbi_api_stats {
 /* declared in linux/kernel/vbi/wrhv.c */
 extern int vbistat_verbose;
 extern struct vbi_api_stats vbistat[];
-extern int cert_hyp_version;
+extern int safety_hyp_version;
 
-#define CERT_HYP_VER_NONE	(0)
-#define CERT_HYP_VER_STD	(1)
-#define CERT_HYP_VER_DEBUG	(2)
+#define SAFETY_HYP_VER_NONE	(0)
+#define SAFETY_HYP_VER_STD	(1)
+#define SAFETY_HYP_VER_DEBUG	(2)
 
 #define VBISTAT_VERBOSE(vbi) \
 do {									\
@@ -112,8 +112,8 @@ do {									\
 	p->count++;							\
 } while (0)
 
-static inline int is_cert_hyp(void){
-	return cert_hyp_version != CERT_HYP_VER_NONE;
+static inline int is_safety_hyp(void){
+	return safety_hyp_version != SAFETY_HYP_VER_NONE;
 }
 
 #ifdef CONFIG_WRHV_COREVBI_ONLY
