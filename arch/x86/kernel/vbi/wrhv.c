@@ -605,10 +605,10 @@ void __init wrhv_boot_config(void)
 
 	reserve_top_address(WRHV_RESERVED_TOP);
 
-#ifdef CONFIG_WRHV_CERT
-	cert_hyp_version = CERT_HYP_VER_STD;
-	if (strstr(boot_command_line, "cert_debug"))
-		cert_hyp_version = CERT_HYP_VER_DEBUG;
+#ifdef CONFIG_WRHV_SAFETY_PROFILE
+	safety_hyp_version = SAFETY_HYP_VER_STD;
+	if (strstr(boot_command_line, "safety_debug"))
+		safety_hyp_version = SAFETY_HYP_VER_DEBUG;
 #endif
 }
 
