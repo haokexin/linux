@@ -21,6 +21,7 @@
 #include <asm/memory.h>
 #include <asm/thread_info.h>
 #include <asm/system.h>
+#include <asm/unwind.h>
 
 #if (PHYS_OFFSET & 0x001fffff)
 #error "PHYS_OFFSET must be at an even 2MiB boundary!"
@@ -158,6 +159,8 @@ __secondary_data:
  * registers.
  */
 __enable_mmu:
+ UNWIND(.fnstart        )
+ UNWIND(.cantunwind     )
 #ifdef CONFIG_ALIGNMENT_TRAP
 	orr	r0, r0, #CR_A
 #else
@@ -179,6 +182,7 @@ __enable_mmu:
 	mcr	p15, 0, r5, c3, c0, 0		@ load domain access register
 	mcr	p15, 0, r4, c2, c0, 0		@ load page table pointer
 	b	__turn_mmu_on
+ UNWIND(.fnend          )
 ENDPROC(__enable_mmu)
 
 /*
