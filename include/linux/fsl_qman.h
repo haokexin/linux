@@ -1037,6 +1037,10 @@ typedef enum qman_cb_dqrr_result (*qman_cb_dqrr)(struct qman_portal *qm,
 typedef void (*qman_cb_mr)(struct qman_portal *qm, struct qman_fq *fq,
 				const struct qm_mr_entry *msg);
 
+/* This callback type is used when handling DCP ERNs */
+typedef void (*qman_cb_dc_ern)(struct qman_portal *qm,
+				const struct qm_mr_entry *msg);
+
 /* s/w-visible states. Ie. tentatively scheduled + truly scheduled + active +
  * held-active + held-suspended are just "sched". Things like "retired" will not
  * be assumed until it is complete (ie. QMAN_FQ_STATE_CHANGING is set until
@@ -1083,7 +1087,6 @@ enum qman_fq_state {
 struct qman_fq_cb {
 	qman_cb_dqrr dqrr;      /* for dequeued frames */
 	qman_cb_mr ern;         /* for s/w ERNs */
-	qman_cb_mr dc_ern;      /* for diverted h/w ERNs */
 	qman_cb_mr fqs;         /* frame-queue state changes*/
 };
 
@@ -1354,6 +1357,23 @@ void qman_dca(struct qm_dqrr_entry *dq, int park_request);
  * non-zero if it is empty.
  */
 int qman_eqcr_is_empty(void);
+
+/**
+ * qman_set_dc_ern - Set the handler for DCP enqueue rejection notifications
+ * @handler: callback for processing DCP ERNs
+ * @affine: whether this handler is specific to the locally affine portal
+ *
+ * If a hardware block's interface to Qman (ie. its direct-connect portal, or
+ * DCP) is configured not to receive enqueue rejections, then any enqueues
+ * through that DCP that are rejected will be sent to a given software portal.
+ * If @affine is non-zero, then this handler will only be used for DCP ERNs
+ * received on the portal affine to the current CPU. If multiple CPUs share a
+ * portal and they all call this function, they will be setting the handler for
+ * the same portal! If @affine is zero, then this handler will be global to all
+ * portals handled by this instance of the driver. Only those portals that do
+ * not have their own affine handler will use the global handler.
+ */
+void qman_set_dc_ern(qman_cb_dc_ern handler, int affine);
 
 	/* FQ management */
 	/* ------------- */
