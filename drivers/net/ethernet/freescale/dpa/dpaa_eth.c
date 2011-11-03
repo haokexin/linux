@@ -1568,28 +1568,26 @@ static void egress_ern(struct qman_portal	*portal,
 }
 
 static const struct qman_fq rx_shared_fq __devinitconst = {
-		.cb = {shared_rx_dqrr, NULL, NULL, NULL}
+	.cb = { .dqrr = shared_rx_dqrr }
 };
 static const struct qman_fq rx_private_defq __devinitconst = {
-		.cb = {ingress_rx_default_dqrr, NULL, NULL, NULL}
+	.cb = { .dqrr = ingress_rx_default_dqrr }
 };
 static const struct qman_fq rx_private_errq __devinitconst = {
-		.cb = {ingress_rx_error_dqrr, NULL, NULL, NULL}
+	.cb = { .dqrr = ingress_rx_error_dqrr }
 };
 static const struct qman_fq tx_private_defq __devinitconst = {
-		.cb = {ingress_tx_default_dqrr, NULL, NULL, NULL}
+	.cb = { .dqrr = ingress_tx_default_dqrr }
 };
 static const struct qman_fq tx_private_errq __devinitconst = {
-		.cb = {ingress_tx_error_dqrr, NULL, NULL, NULL}
+	.cb = { .dqrr = ingress_tx_error_dqrr }
 };
-static const struct qman_fq dummyq __devinitconst = {
-		.cb = {NULL, NULL, NULL, NULL}
-};
+static const struct qman_fq dummyq __devinitconst = { };
 static const struct qman_fq private_egress_fq __devinitconst = {
-	.cb = {NULL, egress_ern, NULL, NULL}
+	.cb = { .ern = egress_ern }
 };
 static const struct qman_fq shared_egress_fq __devinitconst = {
-	.cb = {NULL, shared_ern, NULL, NULL}
+	.cb = { .ern = shared_ern }
 };
 
 #ifdef CONFIG_DPAA_ETH_UNIT_TESTS
@@ -1698,7 +1696,7 @@ out:
 }
 
 static const struct qman_fq tx_unit_test_fq __devinitconst = {
-	.cb = {tx_unit_test_dqrr, tx_unit_test_ern, NULL, NULL}
+	.cb = { .dqrr = tx_unit_test_dqrr, .ern = tx_unit_test_ern }
 };
 
 static struct __devinitdata dpa_fq unit_fq;
