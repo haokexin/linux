@@ -126,7 +126,6 @@ static struct qman_fq *FqAlloc(t_LnxWrpFmDev * p_LnxWrpFmDev,
 		(QMAN_FQ_FLAG_NO_ENQUEUE ? qm_tx_conf_dqrr_cb :
 		 qm_tx_dqrr_cb);
 	p_FmtFq->fq_base.cb.ern = qm_err_cb;
-	p_FmtFq->fq_base.cb.dc_ern = qm_err_cb;
 	/* p_FmtFq->fq_base.cb.fqs = qm_err_cb; */
 	/* qm_err_cb wrongly called when the FQ is parked */
 	p_FmtFq->fq_base.cb.fqs = NULL;
