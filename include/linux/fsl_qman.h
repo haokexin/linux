@@ -1139,7 +1139,6 @@ struct qman_cgr {
 
 /* Flags to qman_init_fq() */
 #define QMAN_INITFQ_FLAG_SCHED       0x00000001 /* schedule rather than park */
-#define QMAN_INITFQ_FLAG_NULL        0x00000002 /* zero 'contextB', no demux */
 #define QMAN_INITFQ_FLAG_LOCAL       0x00000004 /* set dest portal */
 
 /* Flags to qman_volatile_dequeue() */
@@ -1191,23 +1190,6 @@ struct qman_cgr {
  * This returns a read-only view of the current cpu's affine portal settings.
  */
 const struct qman_portal_config *qman_get_portal_config(void);
-
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-/**
- * qman_get_null_cb - get callbacks currently used for "null" frame queues
- *
- * Copies the callbacks used for the affine portal of the current cpu.
- */
-void qman_get_null_cb(struct qman_fq_cb *null_cb);
-
-/**
- * qman_set_null_cb - set callbacks to use for "null" frame queues
- *
- * Sets the callbacks to use for the affine portal of the current cpu, whenever
- * a DQRR or MR entry refers to a "null" FQ object. (Eg. zero-conf messaging.)
- */
-void qman_set_null_cb(const struct qman_fq_cb *null_cb);
-#endif
 
 /**
  * qman_irqsource_get - return the portal work that is interrupt-driven
@@ -1438,11 +1420,7 @@ void qman_fq_state(struct qman_fq *fq, enum qman_fq_state *state, u32 *flags);
  *
  * The @opts parameter comes from the low-level portal API. Select
  * QMAN_INITFQ_FLAG_SCHED in @flags to cause the frame queue to be scheduled
- * rather than parked. Select QMAN_INITFQ_FLAG_NULL in @flags to configure a
- * frame queue that will not demux to a 'struct qman_fq' object when dequeued
- * frames or messages arrive at a software portal, but which will instead
- * trigger the portal's 'null_cb' callbacks (see qman_create_portal()). NB,
- * @opts can be NULL.
+ * rather than parked. NB, @opts can be NULL.
  *
  * Note that some fields and options within @opts may be ignored or overwritten
  * by the driver;
@@ -1450,8 +1428,6 @@ void qman_fq_state(struct qman_fq *fq, enum qman_fq_state *state, u32 *flags);
  * affects one frame queue: @fq).
  * 2. the QM_INITFQ_WE_CONTEXTB option of the 'we_mask' field and the associated
  * 'fqd' structure's 'context_b' field are sometimes overwritten;
- *   - if @flags contains QMAN_INITFQ_FLAG_NULL, then context_b is initialised
- *     to zero by the driver,
  *   - if @fq was not created with QMAN_FQ_FLAG_TO_DCPORTAL, then context_b is
  *     initialised to a value used by the driver for demux.
  *   - if context_b is initialised for demux, so is context_a in case stashing

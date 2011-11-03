@@ -55,30 +55,6 @@ const struct dpa_uio_class *dpa_uio_qman(void)
 }
 EXPORT_SYMBOL(dpa_uio_qman);
 
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-/* Handlers for NULL portal callbacks (ie. where the contextB field, normally
- * pointing to the corresponding FQ object, is NULL). */
-static enum qman_cb_dqrr_result null_cb_dqrr(struct qman_portal *qm,
-					struct qman_fq *fq,
-					const struct qm_dqrr_entry *dqrr)
-{
-	pr_warning("Ignoring unowned DQRR frame on portal %p.\n", qm);
-	return qman_cb_dqrr_consume;
-}
-static void null_cb_mr(struct qman_portal *qm, struct qman_fq *fq,
-			const struct qm_mr_entry *msg)
-{
-	pr_warning("Ignoring unowned MR msg on portal %p, verb 0x%02x.\n",
-			qm, msg->verb);
-}
-static const struct qman_fq_cb null_cb = {
-	.dqrr = null_cb_dqrr,
-	.ern = null_cb_mr,
-	.dc_ern = null_cb_mr,
-	.fqs = null_cb_mr
-};
-#endif
-
 #ifdef CONFIG_FSL_QMAN_PORTAL
 /* This structure carries parameters from the device-tree handling code that
  * wants to set up a portal for use on 1 or more CPUs, and each temporary thread
@@ -105,9 +81,6 @@ static __init int thread_init_affine_portal(void *__data)
 	else {
 		/* TODO: cgrs ?? */
 		data->portal = qman_create_affine_portal(pconfig, NULL,
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-				&null_cb,
-#endif
 				data->recovery_mode);
 		if (data->portal) {
 			u32 irq_sources = 0;

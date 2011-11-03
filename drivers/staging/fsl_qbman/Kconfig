@@ -139,18 +139,6 @@ config FSL_QMAN_PORTAL_DISABLEAUTO_DCA
 	  discrete-consumption acknowledgements, but this may be unimplemented
 	  in the simulation model.
 
-config FSL_QMAN_NULL_FQ_DEMUX
-	bool "support NULL demux handlers"
-	default y
-	---help---
-	  Normally, incoming frame dequeues and messages from Qman to a software
-	  portal provide a direct demux to the owner of the corresponding FQ.
-	  However, exotic "zero-conf" possibilities can be supported if other
-	  cpus (or operating systems) can schedule "NULL" FQs to a receiver's
-	  portal. If this option is selected, the driver will support this
-	  feature, but it adds a small overhead to the hottest-path in the
-	  driver, so it should be disabled unless needed.
-
 config FSL_QMAN_CONFIG
 	bool "Qman device management"
 	default y
