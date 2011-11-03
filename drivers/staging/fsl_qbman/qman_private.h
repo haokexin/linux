@@ -142,7 +142,6 @@ void qman_liodn_fixup(enum qm_channel channel);
 struct qman_portal *qman_create_affine_portal(
 			const struct qm_portal_config *config,
 			const struct qman_cgrs *cgrs,
-			const struct qman_fq_cb *null_cb,
 			int recovery_mode);
 struct qman_portal *qman_create_affine_slave(struct qman_portal *redirect);
 const struct qm_portal_config *qman_destroy_affine_portal(void);
