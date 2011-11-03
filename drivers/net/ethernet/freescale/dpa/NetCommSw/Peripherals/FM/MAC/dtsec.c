@@ -1601,23 +1601,21 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
         uint16_t            tmpReg16;
 
         /* Configure the TBI PHY Control Register */
-        tmpReg16 = PHY_TBICON_SPEED2 | PHY_TBICON_SRESET;
-
+        tmpReg16 = PHY_TBICON_CLK_SEL | PHY_TBICON_SRESET;
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 17, tmpReg16);
 
-        tmpReg16 = PHY_TBICON_SPEED2;
-
+        tmpReg16 = PHY_TBICON_CLK_SEL;
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 17, tmpReg16);
 
+        tmpReg16 = PHY_CR_SPEED1;
         if(!p_DtsecDriverParam->halfDuplex)
-            tmpReg16 |= PHY_CR_FULLDUPLEX | 0x8000 | PHY_CR_ANE;
-
+            tmpReg16 |= PHY_CR_FULLDUPLEX | PHY_CR_PHY_RESET | PHY_CR_ANE;
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 0, tmpReg16);
 
-        tmpReg16 = 0x01a0;
+        tmpReg16 = PHY_TBIANA_SGMII;
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 4, tmpReg16);
 
-        tmpReg16 = 0x1340;
+        tmpReg16 = PHY_CR_ANE | PHY_CR_RESET_AN | PHY_CR_FULLDUPLEX | PHY_CR_SPEED1;
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 0, tmpReg16);
     }
 
