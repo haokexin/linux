@@ -1093,6 +1093,13 @@ static inline int dpa_enable_tx_csum(struct dpa_priv_s *priv,
 	/* Enable L3 (and L4, if TCP or UDP) HW checksum. */
 	fd->cmd |= FM_FD_CMD_RPD | FM_FD_CMD_DTC;
 
+	/*
+	 * On P1023 and similar platforms fd->cmd interpretation could
+	 * be disabled by setting CONTEXT_A bit ICMD; currently this bit
+	 * is not set so we do not need to check; in the future, if/when
+	 * using context_a we need to check this bit
+	 */
+
 return_error:
 	return retval;
 }
