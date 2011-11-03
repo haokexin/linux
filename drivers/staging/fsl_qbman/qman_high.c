@@ -133,6 +133,7 @@ static qman_cb_dc_ern cb_dc_ern;
 
 static cpumask_t affine_mask;
 static DEFINE_SPINLOCK(affine_mask_lock);
+static enum qm_channel affine_channels[NR_CPUS];
 static DEFINE_PER_CPU(struct qman_portal, qman_affine_portal);
 /* "raw" gets the cpu-local struct whether it's a redirect or not. */
 static inline struct qman_portal *get_raw_affine_portal(void)
@@ -531,6 +532,7 @@ drain_loop:
 	portal->config = config;
 	spin_lock(&affine_mask_lock);
 	cpumask_set_cpu(config->public_cfg.cpu, &affine_mask);
+	affine_channels[config->public_cfg.cpu] = config->public_cfg.channel;
 	spin_unlock(&affine_mask_lock);
 	qm_isr_disable_write(__p, 0);
 	/* Write a sane SDQCR */
@@ -976,6 +978,18 @@ const cpumask_t *qman_affine_cpus(void)
 	return &affine_mask;
 }
 EXPORT_SYMBOL(qman_affine_cpus);
+
+enum qm_channel qman_affine_channel(int cpu)
+{
+	if (cpu < 0) {
+		struct qman_portal *portal = get_raw_affine_portal();
+		BUG_ON(portal->sharing_redirect);
+		cpu = portal->config->public_cfg.cpu;
+		put_affine_portal();
+	}
+	BUG_ON(!cpumask_test_cpu(cpu, &affine_mask));
+	return affine_channels[cpu];
+}
 
 int qman_poll_dqrr(unsigned int limit)
 {
