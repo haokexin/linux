@@ -254,7 +254,6 @@ int pme_ctx_init(struct pme_ctx *ctx, u32 flags, u32 bpid, u8 qosin,
 			u8 qosout, enum qm_channel dest,
 			const struct qm_fqd_stashing *stashing)
 {
-	u32 fqid_rx = 0, fqid_tx = 0;
 	int rxinit = 0, ret = -ENOMEM, fqin_inited = 0;
 
 	ctx->fq.cb = pme_fq_base_out;
@@ -273,18 +272,18 @@ int pme_ctx_init(struct pme_ctx *ctx, u32 flags, u32 bpid, u8 qosin,
 	if (!ctx->us_data)
 		goto err;
 	ctx->us_data->parent = ctx;
-	fqid_rx = qm_fq_new();
-	fqid_tx = qm_fq_new();
-	if (!fqid_rx || !fqid_tx || !ctx->us_data)
+	if (!ctx->us_data)
 		goto err;
 	ctx->us_data->fqin.cb = pme_fq_base_in;
-	if (qman_create_fq(fqid_rx, QMAN_FQ_FLAG_TO_DCPORTAL |
+	if (qman_create_fq(0, QMAN_FQ_FLAG_TO_DCPORTAL |
+			QMAN_FQ_FLAG_DYNAMIC_FQID |
 			((flags & PME_CTX_FLAG_LOCKED) ?
 				QMAN_FQ_FLAG_LOCKED : 0),
 				&ctx->us_data->fqin))
 		goto err;
 	fqin_inited = 1;
-	if (qman_create_fq(fqid_tx, QMAN_FQ_FLAG_NO_ENQUEUE |
+	if (qman_create_fq(0, QMAN_FQ_FLAG_NO_ENQUEUE |
+			QMAN_FQ_FLAG_DYNAMIC_FQID |
 			((flags & PME_CTX_FLAG_LOCKED) ?
 				QMAN_FQ_FLAG_LOCKED : 0), &ctx->fq))
 		goto err;
@@ -308,10 +307,6 @@ int pme_ctx_init(struct pme_ctx *ctx, u32 flags, u32 bpid, u8 qosin,
 	}
 	return 0;
 err:
-	if (fqid_rx)
-		qm_fq_free(fqid_rx);
-	if (fqid_tx)
-		qm_fq_free(fqid_tx);
 	if (ctx->hw_flow)
 		pme_hw_flow_free(ctx->hw_flow);
 	if (ctx->us_data) {
@@ -329,7 +324,7 @@ EXPORT_SYMBOL(pme_ctx_init);
  * locked, what does the loser do after we win?) */
 void pme_ctx_finish(struct pme_ctx *ctx)
 {
-	u32 flags, fqid_rx, fqid_tx;
+	u32 flags;
 	int ret;
 
 	ret = do_flags(ctx, PME_CTX_FLAG_DISABLED, PME_CTX_FLAG_RECONFIG, 0, 0);
@@ -347,12 +342,8 @@ void pme_ctx_finish(struct pme_ctx *ctx)
 	BUG_ON(ret);
 	ret = qman_oos_fq(&ctx->fq);
 	BUG_ON(ret);
-	fqid_rx = qman_fq_fqid(&ctx->us_data->fqin);
-	fqid_tx = qman_fq_fqid(&ctx->fq);
 	qman_destroy_fq(&ctx->us_data->fqin, 0);
 	qman_destroy_fq(&ctx->fq, 0);
-	qm_fq_free(fqid_rx);
-	qm_fq_free(fqid_tx);
 	kfree(ctx->us_data);
 	if (ctx->hw_flow)
 		pme_hw_flow_free(ctx->hw_flow);
