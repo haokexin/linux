@@ -90,12 +90,6 @@ struct qman_portal {
 #endif
 	u32 sdqcr;
 	int dqrr_disable_ref;
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-	/* If we receive a DQRR or MR ring entry for a "null" FQ, ie. for which
-	 * FQD::contextB is NULL rather than pointing to a FQ object, we use
-	 * these handlers. (This is not considered a fast-path mechanism.) */
-	struct qman_fq_cb null_cb;
-#endif
 	/* When the cpu-affine portal is activated, this is non-NULL */
 	const struct qm_portal_config *config;
 	/* This is needed for providing a non-NULL device to dma_map_***() */
@@ -355,7 +349,6 @@ static void post_recovery(struct qman_portal *p __always_unused,
 struct qman_portal *qman_create_affine_portal(
 			const struct qm_portal_config *config,
 			const struct qman_cgrs *cgrs,
-			const struct qman_fq_cb *null_cb,
 			int recovery_mode)
 {
 	struct qman_portal *portal = get_raw_affine_portal();
@@ -369,12 +362,6 @@ struct qman_portal *qman_create_affine_portal(
 	 * This means we can put_affine_portal() and yet continue to use
 	 * "portal", which in turn means aspects of this routine can sleep. */
 	put_affine_portal();
-#ifndef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-	if (null_cb) {
-		pr_err("Driver does not support 'NULL FQ' callbacks\n");
-		return NULL;
-	}
-#endif
 	/* prep the low-level portal struct with the mapped addresses from the
 	 * config, everything that follows depends on it and "config" is more
 	 * for (de)reference... */
@@ -477,12 +464,6 @@ drain_loop:
 			QM_SDQCR_DEDICATED_PRECEDENCE | QM_SDQCR_TYPE_PRIO_QOS |
 			QM_SDQCR_TOKEN_SET(0xab) | QM_SDQCR_CHANNELS_DEDICATED;
 	portal->dqrr_disable_ref = 0;
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-	if (null_cb)
-		portal->null_cb = *null_cb;
-	else
-		memset(&portal->null_cb, 0, sizeof(*null_cb));
-#endif
 	sprintf(buf, "qportal-%d", config->public_cfg.channel);
 	portal->pdev = platform_device_alloc(buf, -1);
 	if (!portal->pdev)
@@ -645,24 +626,6 @@ const struct qman_portal_config *qman_get_portal_config(void)
 }
 EXPORT_SYMBOL(qman_get_portal_config);
 
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-void qman_get_null_cb(struct qman_fq_cb *null_cb)
-{
-	struct qman_portal *p = get_affine_portal();
-	*null_cb = p->null_cb;
-	put_affine_portal();
-}
-EXPORT_SYMBOL(qman_get_null_cb);
-
-void qman_set_null_cb(const struct qman_fq_cb *null_cb)
-{
-	struct qman_portal *p = get_affine_portal();
-	p->null_cb = *null_cb;
-	put_affine_portal();
-}
-EXPORT_SYMBOL(qman_set_null_cb);
-#endif
-
 /* Inline helper to reduce nesting in __poll_portal_slow() */
 static inline void fq_state_change(struct qman_portal *p, struct qman_fq *fq,
 				const struct qm_mr_entry *msg, u8 verb)
@@ -784,17 +747,6 @@ mr_loop:
 				else
 					fq->cb.dc_ern(p, fq, msg);
 			}
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-			else {
-				/* use portal default handlers for 'null's */
-				if (likely(!(verb & QM_MR_VERB_DC_ERN)))
-					p->null_cb.ern(p, NULL, msg);
-				else if (verb == QM_MR_VERB_DC_ERN)
-					p->null_cb.dc_ern(p, NULL, msg);
-				else if (p->null_cb.fqs)
-					p->null_cb.fqs(p, NULL, msg);
-			}
-#endif
 			num++;
 			qm_mr_next(&p->p);
 			goto mr_loop;
@@ -883,22 +835,12 @@ loop:
 #else
 		fq = (void *)(uintptr_t)dq->contextB;
 #endif
-#ifdef CONFIG_FSL_QMAN_NULL_FQ_DEMUX
-		if (unlikely(!fq)) {
-			/* use portal default handlers */
-			res = p->null_cb.dqrr(p, NULL, dq);
-			DPA_ASSERT(res == qman_cb_dqrr_consume);
-			res = qman_cb_dqrr_consume;
-		} else
-#endif
-		{
-			/* Now let the callback do its stuff */
-			res = fq->cb.dqrr(p, fq, dq);
-			/* The callback can request that we exit without
-			 * consuming this entry nor advancing; */
-			if (res == qman_cb_dqrr_stop)
-				goto done;
-		}
+		/* Now let the callback do its stuff */
+		res = fq->cb.dqrr(p, fq, dq);
+		/* The callback can request that we exit without consuming this
+		 * entry nor advancing; */
+		if (res == qman_cb_dqrr_stop)
+			goto done;
 	}
 	/* Interpret 'dq' from a driver perspective. */
 	/* Parking isn't possible unless HELDACTIVE was set. NB,
@@ -1500,20 +1442,16 @@ int qman_init_fq(struct qman_fq *fq, u32 flags, struct qm_mcc_initfq *opts)
 		mcc->initfq = *opts;
 	mcc->initfq.fqid = fq->fqid;
 	mcc->initfq.count = 0;
-	/* If INITFQ_FLAG_NULL is passed, contextB is set to zero. Otherwise,
-	 * if the FQ does *not* have the TO_DCPORTAL flag, contextB is set as a
-	 * demux pointer. Otherwise, TO_DCPORTAL is set, so the caller-provided
-	 * value is allowed to stand, don't overwrite it. */
-	if ((flags & QMAN_INITFQ_FLAG_NULL) ||
-			fq_isclear(fq, QMAN_FQ_FLAG_TO_DCPORTAL)) {
+	/* If the FQ does *not* have the TO_DCPORTAL flag, contextB is set as a
+	 * demux pointer. Otherwise, the caller-provided value is allowed to
+	 * stand, don't overwrite it. */
+	if (fq_isclear(fq, QMAN_FQ_FLAG_TO_DCPORTAL)) {
 		dma_addr_t phys_fq;
 		mcc->initfq.we_mask |= QM_INITFQ_WE_CONTEXTB;
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-		mcc->initfq.fqd.context_b = (flags & QMAN_INITFQ_FLAG_NULL) ?
-						0 : fq->key;
+		mcc->initfq.fqd.context_b = fq->key;
 #else
-		mcc->initfq.fqd.context_b = (flags & QMAN_INITFQ_FLAG_NULL) ?
-						0 : (u32)(uintptr_t)fq;
+		mcc->initfq.fqd.context_b = (u32)(uintptr_t)fq;
 #endif
 		/* and the physical address - NB, if the user wasn't trying to
 		 * set CONTEXTA, clear the stashing settings. */
