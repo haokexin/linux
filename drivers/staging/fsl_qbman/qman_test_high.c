@@ -57,8 +57,6 @@ static enum qman_cb_dqrr_result cb_dqrr(struct qman_portal *,
 					const struct qm_dqrr_entry *);
 static void cb_ern(struct qman_portal *, struct qman_fq *,
 			const struct qm_mr_entry *);
-static void cb_dc_ern(struct qman_portal *, struct qman_fq *,
-			const struct qm_mr_entry *);
 static void cb_fqs(struct qman_portal *, struct qman_fq *,
 			const struct qm_mr_entry *);
 
@@ -70,7 +68,6 @@ static struct qm_fd fd, fd_dq;
 static struct qman_fq fq_base = {
 	.cb.dqrr = cb_dqrr,
 	.cb.ern = cb_ern,
-	.cb.dc_ern = cb_dc_ern,
 	.cb.fqs = cb_fqs
 };
 static DECLARE_WAIT_QUEUE_HEAD(waitqueue);
@@ -201,12 +198,6 @@ static void cb_ern(struct qman_portal *p, struct qman_fq *fq,
 			const struct qm_mr_entry *msg)
 {
 	panic("cb_ern() unimplemented");
-}
-
-static void cb_dc_ern(struct qman_portal *p, struct qman_fq *fq,
-			const struct qm_mr_entry *msg)
-{
-	panic("cb_dc_ern() unimplemented");
 }
 
 static void cb_fqs(struct qman_portal *p, struct qman_fq *fq,
