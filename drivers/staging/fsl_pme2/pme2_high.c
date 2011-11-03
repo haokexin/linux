@@ -107,8 +107,6 @@ static enum qman_cb_dqrr_result cb_dqrr(struct qman_portal *, struct qman_fq *,
 				const struct qm_dqrr_entry *);
 static void cb_ern(struct qman_portal *, struct qman_fq *,
 				const struct qm_mr_entry *);
-static void cb_dc_ern(struct qman_portal *, struct qman_fq *,
-				const struct qm_mr_entry *);
 static void cb_fqs(struct qman_portal *, struct qman_fq *,
 				const struct qm_mr_entry *);
 static const struct qman_fq_cb pme_fq_base_in = {
@@ -117,7 +115,6 @@ static const struct qman_fq_cb pme_fq_base_in = {
 };
 static const struct qman_fq_cb pme_fq_base_out = {
 	.dqrr = cb_dqrr,
-	.dc_ern = cb_dc_ern,
 	.fqs = cb_fqs
 };
 
@@ -918,17 +915,6 @@ static void cb_ern(__always_unused struct qman_portal *portal,
 		release_exclusive(ctx);
 	if (atomic_dec_and_test(&ctx->refs))
 		wake_up(&ctx->queue);
-}
-
-static void cb_dc_ern(struct qman_portal *portal, struct qman_fq *fq,
-				const struct qm_mr_entry *mr)
-{
-	struct pme_ctx *ctx = (struct pme_ctx *)fq;
-	/* This, umm, *shouldn't* happen. It's pretty bad. Things are expected
-	 * to fall apart here, but we'll continue long enough to get out of
-	 * interrupt context and let the user unwind whatever they can. */
-	pr_err("PME2 h/w enqueue rejection - expect catastrophe!\n");
-	cb_helper(portal, ctx, &mr->dcern.fd, 1);
 }
 
 static void cb_fqs(__always_unused struct qman_portal *portal,
