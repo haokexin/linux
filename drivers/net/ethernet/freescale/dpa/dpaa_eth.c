@@ -858,7 +858,7 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 	prefetch(skb_shinfo(skb));
 
 #ifdef CONFIG_FSL_DPA_1588
-	if (priv->tsu && priv->tsu->valid)
+	if (priv->tsu && priv->tsu->valid && priv->tsu->hwts_rx_en_ioctl)
 		dpa_ptp_store_rxstamp(net_dev, skb, fd);
 #endif
 
@@ -981,7 +981,7 @@ static void __hot _dpa_tx(struct net_device		*net_dev,
 	skb = *skbh;
 
 #ifdef CONFIG_FSL_DPA_1588
-	if (priv->tsu && priv->tsu->valid)
+	if (priv->tsu && priv->tsu->valid && priv->tsu->hwts_tx_en_ioctl)
 		dpa_ptp_store_txstamp(net_dev, skb, fd);
 #endif
 
@@ -1269,7 +1269,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	}
 
 #ifdef CONFIG_FSL_DPA_1588
-	if (priv->tsu && priv->tsu->valid)
+	if (priv->tsu && priv->tsu->valid && priv->tsu->hwts_tx_en_ioctl)
 		fd.cmd |= FM_FD_CMD_UPD;
 #endif
 
@@ -1847,13 +1847,6 @@ static int __cold dpa_start(struct net_device *net_dev)
 	if (!mac_dev)
 		goto no_mac;
 
-#ifdef CONFIG_FSL_DPA_1588
-	if (priv->tsu && priv->tsu->valid) {
-		if (mac_dev->fm_rtc_enable)
-			mac_dev->fm_rtc_enable(net_dev);
-	}
-#endif
-
 	dpaa_eth_napi_enable(priv);
 
 	err = mac_dev->init_phy(net_dev);
@@ -1901,13 +1894,6 @@ static int __cold dpa_stop(struct net_device *net_dev)
 
 	if (!mac_dev)
 		return 0;
-
-#ifdef CONFIG_FSL_DPA_1588
-	if (priv->tsu && priv->tsu->valid) {
-		if (mac_dev->fm_rtc_disable)
-			mac_dev->fm_rtc_disable(net_dev);
-	}
-#endif
 
 	_errno = mac_dev->stop(mac_dev);
 	if (unlikely(_errno < 0))
