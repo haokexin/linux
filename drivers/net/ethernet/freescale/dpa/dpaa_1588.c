@@ -441,11 +441,15 @@ int dpa_ioctl_1588(struct net_device *dev, struct ifreq *ifr, int cmd)
 	switch (cmd) {
 	case PTP_ENBL_TXTS_IOCTL:
 		tsu->hwts_tx_en_ioctl = 1;
+		if (mac_dev->fm_rtc_enable)
+			mac_dev->fm_rtc_enable(dev);
 		if (mac_dev->ptp_enable)
 			mac_dev->ptp_enable(mac_dev);
 		break;
 	case PTP_DSBL_TXTS_IOCTL:
 		tsu->hwts_tx_en_ioctl = 0;
+		if (mac_dev->fm_rtc_disable)
+			mac_dev->fm_rtc_disable(dev);
 		if (mac_dev->ptp_disable)
 			mac_dev->ptp_disable(mac_dev);
 		break;
