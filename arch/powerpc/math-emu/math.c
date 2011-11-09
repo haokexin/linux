@@ -224,7 +224,7 @@ do_mathemu(struct pt_regs *regs)
 	int eflag, trap;
 #endif
 
-	if (get_user(insn, (u32 *)pc))
+	if (probe_kernel_read((void *)&insn, (void *)pc, sizeof(u32)))
 		return -EFAULT;
 
 #ifndef CONFIG_MATH_EMULATION

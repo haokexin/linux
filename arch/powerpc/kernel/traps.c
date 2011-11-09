@@ -35,6 +35,7 @@
 #include <linux/debugfs.h>
 #include <linux/ltt-core.h>
 #include <trace/trap.h>
+#include <linux/uaccess.h>
 
 #include <asm/emulated_ops.h>
 #include <asm/pgtable.h>
@@ -762,7 +763,8 @@ static int emulate_instruction(struct pt_regs *regs)
 		return -EINVAL;
 	CHECK_FULL_REGS(regs);
 
-	if (get_user(instword, (u32 __user *)(regs->nip)))
+	if (probe_kernel_read((void *)&instword, (void *)(regs->nip),
+				sizeof(u32)))
 		return -EFAULT;
 
 	/* Emulate the mfspr rD, PVR. */
@@ -848,8 +850,6 @@ void __kprobes program_check_exception(struct pt_regs *regs)
 		_exception(SIGTRAP, regs, TRAP_BRKPT, regs->nip);
 		return;
 	}
-
-	local_irq_enable();
 
 #ifdef CONFIG_MATH_EMULATION
 	/* (reason & REASON_ILLEGAL) would be the obvious thing here,
