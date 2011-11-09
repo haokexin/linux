@@ -102,6 +102,12 @@ config FIXED_PHY
 
 	  Currently tested with mpc866ads and mpc8349e-mitx.
 
+config PHY_FOR_CN3XXX_CN58XX
+	tristate "Driver for Marvell 88E1145 PHY on CN3XXX and CN58XX platforms"
+	depends on CPU_CAVIUM_OCTEON && PHYLIB
+	---help---
+	  Currently has a driver for the 88E1145.
+
 config MDIO_BITBANG
 	tristate "Support for bitbanged MDIO buses"
 	help
