@@ -714,13 +714,20 @@ static void ipv6_del_addr(struct inet6_ifaddr *ifp)
 {
 	struct inet6_ifaddr *ifa, **ifap;
 	struct inet6_dev *idev = ifp->idev;
+	int state;
 	int hash;
 	int deleted = 0, onlink = 0;
 	unsigned long expires = jiffies;
 
 	hash = ipv6_addr_hash(&ifp->addr);
 
+	spin_lock_bh(&ifp->state_lock);
+	state = ifp->state;
 	ifp->state = INET6_IFADDR_STATE_DEAD;
+	spin_unlock_bh(&ifp->state_lock);
+
+	if (state == INET6_IFADDR_STATE_DEAD)
+		goto out;
 
 	write_lock_bh(&addrconf_hash_lock);
 	for (ifap = &inet6_addr_lst[hash]; (ifa=*ifap) != NULL;
@@ -834,6 +841,7 @@ static void ipv6_del_addr(struct inet6_ifaddr *ifp)
 		dst_release(&rt->u.dst);
 	}
 
+out:
 	in6_ifa_put(ifp);
 }
 
@@ -2627,6 +2635,7 @@ static int addrconf_ifdown(struct net_device *dev, int how)
 	struct inet6_dev *idev;
 	struct inet6_ifaddr *ifa, *keep_list, **bifa;
 	struct net *net = dev_net(dev);
+	int state;
 	int i;
 
 	ASSERT_RTNL();
@@ -2686,7 +2695,6 @@ static int addrconf_ifdown(struct net_device *dev, int how)
 	while ((ifa = idev->tempaddr_list) != NULL) {
 		idev->tempaddr_list = ifa->tmp_next;
 		ifa->tmp_next = NULL;
-		ifa->state = INET6_IFADDR_STATE_DEAD;
 		write_unlock_bh(&idev->lock);
 		spin_lock_bh(&ifa->lock);
 
@@ -2729,16 +2737,27 @@ static int addrconf_ifdown(struct net_device *dev, int how)
 
 			/* Flag it for later restoration when link comes up */
 			ifa->flags |= IFA_F_TENTATIVE;
+
+			write_unlock_bh(&idev->lock);
+
 			in6_ifa_hold(ifa);
 		} else {
+			write_unlock_bh(&idev->lock);
+			spin_lock_bh(&ifa->state_lock);
+			state = ifa->state;
 			ifa->state = INET6_IFADDR_STATE_DEAD;
+			spin_unlock_bh(&ifa->state_lock);
+
+			if (state == INET6_IFADDR_STATE_DEAD)
+				goto put_ifa;
 		}
-		write_unlock_bh(&idev->lock);
 
 		__ipv6_ifa_notify(RTM_DELADDR, ifa);
 		if (ifa->state == INET6_IFADDR_STATE_DEAD)
 			atomic_notifier_call_chain(&inet6addr_chain,
 						   NETDEV_DOWN, ifa);
+
+put_ifa:
 		in6_ifa_put(ifa);
 
 		write_lock_bh(&idev->lock);
