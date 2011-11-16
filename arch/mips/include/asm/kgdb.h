@@ -30,6 +30,7 @@
 #define NUMREGBYTES		(90*sizeof(u64))
 #define NUMCRITREGBYTES		(12*sizeof(u64))
 #endif
+#define DBG_MAX_REG_NUM		38
 #define BREAK_INSTR_SIZE	4
 #define CACHE_FLUSH_IS_SAFE	0
 
@@ -38,6 +39,8 @@ extern int kgdb_early_setup;
 extern void *saved_vectors[32];
 extern void handle_exception(struct pt_regs *regs);
 extern void breakinst(void);
+extern int kgdb_ll_trap(int cmd, const char *str,
+			struct pt_regs *regs, long err, int trap, int sig);
 
 #endif				/* __KERNEL__ */
 

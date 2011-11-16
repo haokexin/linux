@@ -30,6 +30,8 @@
 #ifndef DRM_FB_HELPER_H
 #define DRM_FB_HELPER_H
 
+#include <linux/kgdb.h>
+
 struct drm_fb_helper_crtc {
 	uint32_t crtc_id;
 	struct drm_mode_set mode_set;
@@ -63,8 +65,10 @@ struct drm_fb_helper_connector {
 
 struct drm_fb_helper {
 	struct drm_framebuffer *fb;
+	struct drm_framebuffer *saved_fb;
 	struct drm_device *dev;
 	struct drm_display_mode *mode;
+	struct dbg_kms_ops kdb_ops;
 	int crtc_count;
 	struct drm_fb_helper_crtc *crtc_info;
 	struct drm_fb_helper_funcs *funcs;

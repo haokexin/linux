@@ -246,6 +246,7 @@ struct uart_ops {
 #endif
 };
 
+#define NO_POLL_CHAR		0x00ff0000
 #define UART_CONFIG_TYPE	(1 << 0)
 #define UART_CONFIG_IRQ		(1 << 1)
 
@@ -340,6 +341,9 @@ struct uart_port {
 	unsigned char		suspended;
 	unsigned char		unused[2];
 	void			*private_data;		/* generic platform data pointer */
+#ifdef CONFIG_CONSOLE_POLL
+	int		(*poll_rx_cb)(u8);
+#endif
 };
 
 /*

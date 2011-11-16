@@ -16,7 +16,7 @@
 #include <linux/usb.h>
 #include <linux/usb/serial.h>
 
-#define URB_DEBUG_MAX_IN_FLIGHT_URBS	4000
+#define URB_DEBUG_MAX_IN_FLIGHT_URBS	42
 #define USB_DEBUG_MAX_PACKET_SIZE	8
 #define USB_DEBUG_BRK_SIZE		8
 static char USB_DEBUG_BRK[USB_DEBUG_BRK_SIZE] = {

@@ -1440,6 +1440,10 @@ receive_chars(struct uart_8250_port *up, unsigned int *status)
 			else if (lsr & UART_LSR_FE)
 				flag = TTY_FRAME;
 		}
+#ifdef CONFIG_CONSOLE_POLL
+		if (up->port.poll_rx_cb && up->port.poll_rx_cb(ch))
+			goto ignore_char;
+#endif
 		if (uart_handle_sysrq_char(&up->port, ch))
 			goto ignore_char;
 
@@ -1892,8 +1896,8 @@ static int serial8250_get_poll_char(struct uart_port *port)
 	struct uart_8250_port *up = (struct uart_8250_port *)port;
 	unsigned char lsr = serial_inp(up, UART_LSR);
 
-	while (!(lsr & UART_LSR_DR))
-		lsr = serial_inp(up, UART_LSR);
+	if (!(lsr & UART_LSR_DR))
+		return NO_POLL_CHAR;
 
 	return serial_inp(up, UART_RX);
 }
@@ -2874,6 +2878,7 @@ int serial8250_find_port(struct uart_port *p)
 	}
 	return -ENODEV;
 }
+EXPORT_SYMBOL_GPL(serial8250_find_port);
 
 #define SERIAL8250_CONSOLE	&serial8250_console
 #else
@@ -3193,6 +3198,35 @@ void serial8250_unregister_port(int line)
 	mutex_unlock(&serial_mutex);
 }
 EXPORT_SYMBOL(serial8250_unregister_port);
+
+/**
+ *  serial8250_get_port_def - Get port definition for a specific line
+ *  @port: generic uart_port output for a specific serial line
+ *  @line: specific serial line index
+ *
+ *  Return 0 if the port existed
+ *  Return -errno on failure
+ */
+int serial8250_get_port_def(struct uart_port *port, int line)
+{
+	struct uart_port *port8250 = &serial8250_ports[line].port;
+
+	if (!port8250->iobase && !port8250->membase)
+		return -ENODEV;
+
+	port->iobase   = port8250->iobase;
+	port->membase  = port8250->membase;
+	port->irq      = port8250->irq;
+	port->uartclk  = port8250->uartclk;
+	port->fifosize = port8250->fifosize;
+	port->regshift = port8250->regshift;
+	port->iotype   = port8250->iotype;
+	port->flags    = port8250->flags;
+	port->mapbase  = port8250->mapbase;
+	port->dev      = port8250->dev;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(serial8250_get_port_def);
 
 static int __init serial8250_init(void)
 {

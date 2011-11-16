@@ -3,7 +3,7 @@ config HAVE_ARCH_KGDB
 	bool
 
 menuconfig KGDB
-	bool "KGDB: kernel debugging with remote gdb"
+	bool "KGDB: kernel debugger"
 	depends on HAVE_ARCH_KGDB
 	depends on DEBUG_KERNEL && EXPERIMENTAL
 	help
@@ -18,6 +18,14 @@ menuconfig KGDB
 
 if KGDB
 
+config KGDB_MODULES
+	bool "KGDB: Debug modules without KALLSYMS"
+	depends on KGDB && !KALLSYMS && SYSFS
+	default y
+	help
+	  This option allows you to debug kernel modules with a
+	  kernel module aware debugger without using KALLSYMS.
+
 config KGDB_SERIAL_CONSOLE
 	tristate "KGDB: use kgdb over the serial console"
 	select CONSOLE_POLL
@@ -26,6 +34,37 @@ config KGDB_SERIAL_CONSOLE
 	help
 	  Share a serial console with kgdb. Sysrq-g must be used
 	  to break in initially.
+
+config KGDB_8250
+	tristate "8250/16550 and compatible serial support"
+	depends on KGDB && SERIAL_8250
+	select SERIAL_8250_CONSOLE
+	help
+	  Uses a 8250/16550 compatible serial ports to communicate with the
+	  host GDB.  This is independent of the normal driver (SERIAL_8250)
+	  for this chipset.  The port is configured via kgdb8250=<config>,
+	  passed as kernel or module parameter, respectively.  The
+	  configuration comes in two flavors:
+
+	  <io|mmio>,<address>[/<regshift>],<baud rate>,<irq>
+	    or
+	  ttyS<n>,<baud rate>
+
+	  When built into the kernel, this driver allows debugging of
+	  the early boot process.  Note that, as long as the debugger is
+	  attached via this driver,  the configured serial port cannot be
+	  used by the standard 8250 driver or serial earlyprintk/earlycon.
+
+config KGDBOE
+	tristate "KGDB: On ethernet"
+	depends on KGDB && NET
+	select NETPOLL
+	select NETPOLL_TRAP
+	help
+	  Uses the NETPOLL API to communicate with the host GDB via UDP.
+	  In order for this to work, the ethernet interface specified must
+	  support the NETPOLL API, and this must be initialized at boot.
+	  See the documentation for syntax.
 
 config KGDB_TESTS
 	bool "KGDB: internal test suite"
@@ -56,5 +95,27 @@ config KGDB_TESTS_BOOT_STRING
 	  boot.  See the drivers/misc/kgdbts.c for detailed
 	  information about other strings you could use beyond the
 	  default of V1F100.
+
+config KGDB_LOW_LEVEL_TRAP
+       bool "KGDB: Allow debugging with traps in notifiers"
+       depends on X86 || MIPS
+       default n
+       help
+         This will add an extra call back to kgdb for the breakpoint
+         exception handler on which will will allow kgdb to step
+         through a notify handler.
+
+config KGDB_KDB
+	bool "KGDB_KDB: include kdb frontend for kgdb"
+	default n
+	help
+	  KDB frontend for kernel
+
+config KDB_KEYBOARD
+	bool "KGDB_KDB: keyboard as input device"
+	depends on VT && KGDB_KDB
+	default n
+	help
+	  KDB can use a PS/2 type keyboard for an input device
 
 endif # KGDB

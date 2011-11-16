@@ -569,6 +569,9 @@ static inline void usb_mark_last_busy(struct usb_device *udev)
 
 /*-------------------------------------------------------------------------*/
 
+/* for polling the hcd device */
+extern void usb_poll_irq(struct usb_device *udev);
+
 /* for drivers using iso endpoints */
 extern int usb_get_current_frame_number(struct usb_device *usb_dev);
 
