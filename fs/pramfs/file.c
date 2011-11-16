@@ -276,6 +276,9 @@ struct file_operations pram_file_operations = {
 	.fsync		= noop_fsync,
 	.check_flags	= pram_check_flags,
 	.unlocked_ioctl	= pram_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= pram_compat_ioctl,
+#endif
 };
 
 #ifdef CONFIG_PRAMFS_XIP
@@ -287,6 +290,9 @@ struct file_operations pram_xip_file_operations = {
 	.open		= generic_file_open,
 	.fsync		= noop_fsync,
 	.unlocked_ioctl	= pram_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= pram_compat_ioctl,
+#endif
 };
 #endif
 
