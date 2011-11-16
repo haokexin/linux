@@ -96,7 +96,8 @@ extern int pram_remove_link(struct inode *inode);
 extern struct dentry *pram_get_parent(struct dentry *child);
 
 /* inode.c */
-extern int pram_alloc_blocks(struct inode *inode, int file_blocknr, int num);
+extern int pram_alloc_blocks(struct inode *inode, int file_blocknr,
+						unsigned int num);
 extern u64 pram_find_data_block(struct inode *inode,
 					 unsigned long file_blocknr);
 

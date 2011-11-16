@@ -185,7 +185,7 @@ static void pram_truncate_blocks(struct inode *inode, loff_t start, loff_t end)
  * Allocate num data blocks for inode, starting at given file-relative
  * block number. All blocks except the last are zeroed out.
  */
-int pram_alloc_blocks(struct inode *inode, int file_blocknr, int num)
+int pram_alloc_blocks(struct inode *inode, int file_blocknr, unsigned int num)
 {
 	struct super_block *sb = inode->i_sb;
 	struct pram_inode *pi = pram_get_inode(sb, inode->i_ino);
