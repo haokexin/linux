@@ -189,6 +189,7 @@ int pram_alloc_blocks(struct inode *inode, int file_blocknr, unsigned int num)
 {
 	struct super_block *sb = inode->i_sb;
 	struct pram_inode *pi = pram_get_inode(sb, inode->i_ino);
+	struct pram_super_block *ps = pram_get_super(sb);
 	int N = sb->s_blocksize >> 3; /* num block ptrs per block */
 	int Nbits = sb->s_blocksize_bits - 3;
 	int first_file_blocknr;
@@ -200,6 +201,11 @@ int pram_alloc_blocks(struct inode *inode, int file_blocknr, unsigned int num)
 	u64 *col;
 
 	if (!pi->i_type.reg.row_block) {
+		if (be32_to_cpu(ps->s_free_blocks_count) < num + ROWCOL) {
+			errval = -EFBIG;
+			goto fail;
+		}
+
 		/* alloc the 2nd order array block */
 		errval = pram_new_block(sb, &blocknr, 1);
 		if (errval) {
@@ -228,6 +234,11 @@ int pram_alloc_blocks(struct inode *inode, int file_blocknr, unsigned int num)
 		 * there is a block allocated for the row.
 		 */
 		if (!row[i]) {
+			if (be32_to_cpu(ps->s_free_blocks_count) < num + ROWNEW) {
+				errval = -EFBIG;
+				goto fail;
+			}
+
 			/* allocate the row block */
 			errval = pram_new_block(sb, &blocknr, 1);
 			if (errval) {
@@ -237,7 +248,12 @@ int pram_alloc_blocks(struct inode *inode, int file_blocknr, unsigned int num)
 			pram_memunlock_block(sb, row);
 			row[i] = cpu_to_be64(pram_get_block_off(sb, blocknr));
 			pram_memlock_block(sb, row);
-		}
+		} else
+			if (be32_to_cpu(ps->s_free_blocks_count) < num) {
+				errval = -EFBIG;
+				goto fail;
+			}
+
 		col = pram_get_block(sb, be64_to_cpu(row[i]));
 
 		first_col_index = (i == first_row_index) ?

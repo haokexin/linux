@@ -61,6 +61,13 @@
 /* Flags that are appropriate for non-directories/regular files. */
 #define PRAM_OTHER_FLMASK (FS_NODUMP_FL | FS_NOATIME_FL)
 
+/* As a new regular file, two blocks needed for row and col
+ * pointers to data block
+ */
+#define ROWCOL	2
+/* we need a block for another new row if a big file*/
+#define ROWNEW	1
+
 /* Function Prototypes */
 extern void pram_error_mng(struct super_block * sb, const char * fmt, ...);
 extern int pram_get_and_update_block(struct inode *inode, sector_t iblock,
