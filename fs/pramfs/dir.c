@@ -202,4 +202,7 @@ struct file_operations pram_dir_operations = {
 	.readdir	= pram_readdir,
 	.fsync		= noop_fsync,
 	.unlocked_ioctl	= pram_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= pram_compat_ioctl,
+#endif
 };

@@ -115,6 +115,10 @@ extern void pram_get_inode_flags(struct inode *inode, struct pram_inode *pi);
 
 /* ioctl.c */
 extern long pram_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
+#ifdef CONFIG_COMPAT
+extern long pram_compat_ioctl(struct file *file, unsigned int cmd,
+			      unsigned long arg);
+#endif
 
 /* super.c */
 #ifdef CONFIG_PRAMFS_TEST
