@@ -108,7 +108,7 @@ static loff_t pram_max_size(int bits)
 	if (res > MAX_LFS_FILESIZE)
 		res = MAX_LFS_FILESIZE;
 
-	pram_info("max file size %llu bytes", res);
+	pram_info("max file size %llu bytes\n", res);
 	return res;
 }
 
@@ -277,7 +277,7 @@ static int pram_parse_options(char *options, struct pram_sb_info *sbi, bool remo
 #else
 		case Opt_user_xattr:
 		case Opt_nouser_xattr:
-			pram_info("(no)user_xattr options not supported");
+			pram_info("(no)user_xattr options not supported\n");
 			break;
 #endif
 #ifdef CONFIG_PRAMFS_POSIX_ACL
@@ -290,7 +290,7 @@ static int pram_parse_options(char *options, struct pram_sb_info *sbi, bool remo
 #else
 		case Opt_acl:
 		case Opt_noacl:
-			pram_info("(no)acl options not supported");
+			pram_info("(no)acl options not supported\n");
 			break;
 #endif
 		case Opt_xip:
@@ -300,7 +300,7 @@ static int pram_parse_options(char *options, struct pram_sb_info *sbi, bool remo
 			set_opt(sbi->s_mount_opt, XIP);
 			break;
 #else
-			pram_info("xip option not supported");
+			pram_info("xip option not supported\n");
 			break;
 #endif
 		default: {
@@ -601,7 +601,6 @@ static int pram_fill_super(struct super_block *sb, void *data, int silent)
 		goto out;
 	}
 	super = pram_get_super(sb);
-	root_i = pram_get_inode(sb, PRAM_ROOT_INO);
 
 #ifdef CONFIG_PRAMFS_TEST
 	if (!first_pram_super)
