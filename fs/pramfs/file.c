@@ -153,10 +153,10 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	struct super_block *sb = inode->i_sb;
-	int progress = 0, hole = 0;
+	int progress = 0, hole = 0, alloc_once = 1;
 	ssize_t retval = 0;
 	void *tmp = NULL;
-	unsigned long blocknr, blockoff;
+	unsigned long blocknr, blockoff, blocknr_start;
 	struct iov_iter iter;
 	int num_blocks, blocksize_mask;
 	size_t length = iov_length(iov, nr_segs);
@@ -170,12 +170,13 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 
 	blocksize_mask = (1 << sb->s_blocksize_bits) - 1;
 	/* find starting block number to access */
-	blocknr = offset >> inode->i_sb->s_blocksize_bits;
+	blocknr = offset >> sb->s_blocksize_bits;
 	/* find starting offset within starting block */
 	blockoff = offset & blocksize_mask;
 	/* find number of blocks to access */
 	num_blocks = (blockoff + length + blocksize_mask) >>
 							sb->s_blocksize_bits;
+	blocknr_start = blocknr;
 
 	if (rw == WRITE) {
 		/* prepare a temporary buffer to hold a user data block
@@ -183,10 +184,6 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 		tmp = kmalloc(sb->s_blocksize, GFP_KERNEL);
 		if (!tmp)
 			return -ENOMEM;
-		/* now allocate the data blocks we'll need */
-		retval = pram_alloc_blocks(inode, blocknr, num_blocks);
-		if (retval)
-			goto fail1;
 	}
 
 	iov_iter_init(&iter, iov, nr_segs, length, 0);
@@ -194,15 +191,35 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	while (length) {
 		int count;
 		u8 *bp = NULL;
-		u64 block = pram_find_data_block(inode, blocknr++);
-		if (unlikely(!block && rw == READ)) {
-			/* We are falling in a hole */
-			hole = 1;
-		} else {
-			bp = (u8 *)pram_get_block(sb, block);
-			if (!bp)
-				goto fail2;
+		u64 block = pram_find_data_block(inode, blocknr);
+		if (!block) {
+			if (alloc_once && rw == WRITE) {
+				/*
+				 * Allocate the data blocks starting from blocknr
+				 * to the end.
+				 */
+				retval = pram_alloc_blocks(inode, blocknr,
+							num_blocks - (blocknr -
+								 blocknr_start));
+				if (retval)
+					goto fail;
+				/* retry....*/
+				block = pram_find_data_block(inode, blocknr);
+				BUG_ON(!block);
+				alloc_once = 0;
+			} else if (unlikely(rw == READ)) {
+				/* We are falling in a hole */
+				hole = 1;
+				goto hole;
+			}
 		}
+		bp = (u8 *)pram_get_block(sb, block);
+		if (!bp) {
+			retval = -EACCES;
+			goto fail;
+		}
+ hole:
+		++blocknr;
 
 		count = blockoff + length > sb->s_blocksize ?
 			sb->s_blocksize - blockoff : length;
@@ -212,21 +229,21 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 				retval = pram_clear_user(&iter, count);
 				if (retval != count) {
 					retval = -EFAULT;
-					goto fail1;
+					goto fail;
 				}
 			} else {
 				retval = pram_iov_copy_to(&bp[blockoff], &iter,
 							  count);
 				if (retval != count) {
 					retval = -EFAULT;
-					goto fail1;
+					goto fail;
 				}
 			}
 		} else {
 			retval = pram_iov_copy_from(tmp, &iter, count);
 			if (retval != count) {
 				retval = -EFAULT;
-				goto fail1;
+				goto fail;
 			}
 
 			pram_memunlock_block(inode->i_sb, bp);
@@ -241,11 +258,10 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 		hole = 0;
 	}
 
-fail2:
 	retval = progress;
-fail1:
+ fail:
 	kfree(tmp);
-out:
+ out:
 	return retval;
 }
 
