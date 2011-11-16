@@ -34,7 +34,8 @@ struct backing_dev_info pram_backing_dev_info __read_mostly = {
  * allocate a data block for inode and return it's absolute blocknr.
  * Zeroes out the block if zero set. Increments inode->i_blocks.
  */
-static int pram_new_data_block(struct inode *inode, unsigned long *blocknr, int zero)
+static int pram_new_data_block(struct inode *inode, unsigned long *blocknr,
+			       int zero)
 {
 	int errval = pram_new_block(inode->i_sb, blocknr, zero);
 
@@ -83,7 +84,8 @@ u64 pram_find_data_block(struct inode *inode, unsigned long file_blocknr)
 /*
  * Free data blocks from inode in the range start <=> end
  */
-static void __pram_truncate_blocks(struct inode *inode, loff_t start, loff_t end)
+static void __pram_truncate_blocks(struct inode *inode, loff_t start,
+				   loff_t end)
 {
 	struct super_block *sb = inode->i_sb;
 	struct pram_inode *pi = pram_get_inode(sb, inode->i_ino);
@@ -195,7 +197,8 @@ int pram_alloc_blocks(struct inode *inode, int file_blocknr, int num)
 			goto fail;
 		}
 		pram_memunlock_inode(sb, pi);
-		pi->i_type.reg.row_block = cpu_to_be64(pram_get_block_off(sb, blocknr));
+		pi->i_type.reg.row_block = cpu_to_be64(pram_get_block_off(sb,
+								      blocknr));
 		pram_memlock_inode(sb, pi);
 	}
 
@@ -234,19 +237,15 @@ int pram_alloc_blocks(struct inode *inode, int file_blocknr, int num)
 			last_file_blocknr & (N-1) : N-1;
 
 		for (j = first_col_index; j <= last_col_index; j++) {
-			int last_block =
-				(i == last_row_index) && (j == last_col_index);
 			if (!col[j]) {
-				errval = pram_new_data_block(inode,
-							      &blocknr,
-							      !last_block);
+				errval = pram_new_data_block(inode, &blocknr, 1);
 				if (errval) {
-					pram_dbg("failed to alloc "
-						  "data block\n");
+					pram_dbg("failed to alloc data block\n");
 					goto fail;
 				}
 				pram_memunlock_block(sb, col);
-				col[j] = cpu_to_be64(pram_get_block_off(sb, blocknr));
+				col[j] = cpu_to_be64(pram_get_block_off(sb,
+								      blocknr));
 				pram_memlock_block(sb, col);
 			}
 		}
