@@ -753,7 +753,7 @@ long pram_fallocate(struct inode *inode, int mode, loff_t offset, loff_t len)
 	mutex_lock(&inode->i_mutex);
 	mutex_lock(&PRAM_I(inode)->truncate_mutex);
 
-	if (IS_IMMUTABLE(inode) || IS_APPEND(inode)) {
+	if (IS_IMMUTABLE(inode)) {
 		ret = -EPERM;
 		goto out;
 	}
