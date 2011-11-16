@@ -50,6 +50,16 @@
  * PRAM_EOFBLOCKS_FL	There are blocks allocated beyond eof
  */
 #define PRAM_EOFBLOCKS_FL	0x20000000
+/* Flags that should be inherited by new inodes from their parent. */
+#define PRAM_FL_INHERITED (FS_SECRM_FL | FS_UNRM_FL | FS_COMPR_FL |\
+			   FS_SYNC_FL | FS_IMMUTABLE_FL | FS_APPEND_FL |\
+			   FS_NODUMP_FL | FS_NOATIME_FL | FS_COMPRBLK_FL|\
+			   FS_NOCOMP_FL | FS_JOURNAL_DATA_FL |\
+			   FS_NOTAIL_FL | FS_DIRSYNC_FL)
+/* Flags that are appropriate for regular files (all but dir-specific ones). */
+#define PRAM_REG_FLMASK (~(FS_DIRSYNC_FL | FS_TOPDIR_FL))
+/* Flags that are appropriate for non-directories/regular files. */
+#define PRAM_OTHER_FLMASK (FS_NODUMP_FL | FS_NOATIME_FL)
 
 /* Function Prototypes */
 extern void pram_error_mng(struct super_block * sb, const char * fmt, ...);
@@ -121,6 +131,18 @@ extern int pram_block_symlink(struct inode *inode,
 			       const char *symname, int len);
 
 /* Inline functions start here */
+
+/* Mask out flags that are inappropriate for the given type of inode. */
+static inline __be32 pram_mask_flags(umode_t mode, __be32 flags)
+{
+	flags &= cpu_to_be32(PRAM_FL_INHERITED);
+	if (S_ISDIR(mode))
+		return flags;
+	else if (S_ISREG(mode))
+		return flags & cpu_to_be32(PRAM_REG_FLMASK);
+	else
+		return flags & cpu_to_be32(PRAM_OTHER_FLMASK);
+}
 
 static inline int pram_calc_checksum(u8 *data, int n)
 {
