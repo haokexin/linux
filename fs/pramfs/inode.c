@@ -295,7 +295,7 @@ static int pram_read_inode(struct inode *inode, struct pram_inode *pi)
 	if (inode->i_nlink == 0 && (inode->i_mode == 0 || be32_to_cpu(pi->i_dtime))) {
 		/* this inode is deleted */
 		pram_dbg("read inode: inode %lu not active", inode->i_ino);
-		ret = -EINVAL;
+		ret = -ESTALE;
 		goto bad_inode;
 	}
 

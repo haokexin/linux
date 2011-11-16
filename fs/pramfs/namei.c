@@ -97,8 +97,15 @@ pram_lookup(struct inode *dir, struct dentry *dentry, struct nameidata *nd)
 	ino = pram_inode_by_name(dir, dentry);
 	if (ino) {
 		inode = pram_iget(dir->i_sb, ino);
-		if (!inode)
-			return ERR_PTR(-EACCES);
+		if (unlikely(IS_ERR(inode))) {
+			if (PTR_ERR(inode) == -ESTALE) {
+				pram_err(dir->i_sb, "deleted inode referenced: %lu",
+						(unsigned long) ino);
+				return ERR_PTR(-EIO);
+			} else {
+				return ERR_CAST(inode);
+			}
+		}
 	}
 
 	d_splice_alias(inode, dentry);
@@ -335,11 +342,9 @@ struct dentry *pram_get_parent(struct dentry *child)
 		return ERR_PTR(-ENOENT);
 
 	ino = pram_get_inodenr(child->d_inode->i_sb, piparent);
-	if (ino) {
+	if (ino)
 		inode = pram_iget(child->d_inode->i_sb, ino);
-		if (!inode)
-			return ERR_PTR(-EACCES);
-	} else
+	else
 		return ERR_PTR(-ENOENT);
 
 	return d_obtain_alias(inode);
