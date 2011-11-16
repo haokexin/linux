@@ -151,17 +151,16 @@ static void __pram_truncate_blocks(struct inode *inode, loff_t start,
 	inode->i_blocks -= freed;
 
 	if (start == 0) {
-		unsigned long flags;
 		blocknr = pram_get_blocknr(sb, be64_to_cpu(pi->i_type.reg.row_block));
 		pram_free_block(sb, blocknr);
 		pram_memunlock_inode(sb, pi);
 		pi->i_type.reg.row_block = 0;
-		flags = be32_to_cpu(pi->i_flags);
-		flags &= ~PRAM_EOFBLOCKS_FL;
-		pi->i_flags = cpu_to_be32(flags);
-		pram_memlock_inode(sb, pi);
+		pi->i_flags &= cpu_to_be32(~PRAM_EOFBLOCKS_FL);
+		goto update_blocks;
 	}
 	pram_memunlock_inode(sb, pi);
+
+ update_blocks:
 	pi->i_blocks = cpu_to_be32(inode->i_blocks);
 	pram_memlock_inode(sb, pi);
 
@@ -532,8 +531,10 @@ struct inode *pram_new_inode(struct inode *dir, int mode)
 	pram_memunlock_inode(sb, pi);
 	pi->i_d.d_next = 0;
 	pi->i_d.d_prev = 0;
-	pi->i_flags = diri->i_flags;
+	pi->i_flags = pram_mask_flags(mode, diri->i_flags);
 	pram_memlock_inode(sb, pi);
+
+	pram_set_inode_flags(inode, pi);
 
 	if (insert_inode_locked(inode) < 0) {
 		errval = -EINVAL;
@@ -741,7 +742,7 @@ int pram_notify_change(struct dentry *dentry, struct iattr *attr)
 long pram_fallocate(struct inode *inode, int mode, loff_t offset, loff_t len)
 {
 	long ret = 0;
-	unsigned long blocknr, blockoff, flags_old;
+	unsigned long blocknr, blockoff;
 	int num_blocks, blocksize_mask;
 	struct pram_inode *pi;
 	loff_t new_size;
@@ -782,9 +783,7 @@ long pram_fallocate(struct inode *inode, int mode, loff_t offset, loff_t len)
 			goto out;
 		}
 		pram_memunlock_inode(inode->i_sb, pi);
-		flags_old = be32_to_cpu(pi->i_flags);
-		flags_old |= PRAM_EOFBLOCKS_FL;
-		pi->i_flags = cpu_to_be32(flags_old);
+		pi->i_flags |= cpu_to_be32(PRAM_EOFBLOCKS_FL);
 		pram_memlock_inode(inode->i_sb, pi);
 
 	}
