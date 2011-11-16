@@ -217,14 +217,6 @@ bad_block:	pram_err(sb, "inode %ld: bad block %llu", inode->i_ino,
 			goto found;
 		entry = next;
 	}
-	/* Check the remaining name entries */
-	while (!IS_LAST_ENTRY(entry)) {
-		struct pram_xattr_entry *next =
-			PRAM_XATTR_NEXT(entry);
-		if ((char *)next >= end)
-			goto bad_block;
-		entry = next;
-	}
 
 	desc = GET_DESC(sbi, blocknr);
 	if (IS_ERR(desc)) {
@@ -382,7 +374,7 @@ ssize_t pram_listxattr(struct dentry *dentry, char *buffer, size_t size)
 /*
  * pram_xattr_set()
  *
- * Create, replace or remove an extended attribute for this inode. Buffer
+ * Create, replace or remove an extended attribute for this inode. Value
  * is NULL to remove an existing extended attribute, and non-NULL to
  * either replace an existing extended attribute, or create a new extended
  * attribute. The flags XATTR_REPLACE and XATTR_CREATE
