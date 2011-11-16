@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/mpage.h>
 #include <linux/backing-dev.h>
+#include <linux/falloc.h>
 #include "pram.h"
 #include "xattr.h"
 #include "xip.h"
@@ -716,6 +717,49 @@ int pram_notify_change(struct dentry *dentry, struct iattr *attr)
 	error = pram_update_inode(inode);
 
 	return error;
+}
+
+long pram_fallocate(struct inode *inode, int mode, loff_t offset, loff_t len)
+{
+	long ret = 0;
+	unsigned long blocknr, blockoff;
+	int num_blocks, blocksize_mask;
+	loff_t new_size;
+
+	/* preallocation to directories is currently not supported */
+	if (S_ISDIR(inode->i_mode))
+		return -ENODEV;
+
+	/* keep size option not supported */
+	if (mode & FALLOC_FL_KEEP_SIZE)
+		return -EOPNOTSUPP;
+
+	mutex_lock(&inode->i_mutex);
+	mutex_lock(&PRAM_I(inode)->truncate_mutex);
+	new_size = len + offset;
+	if (new_size > inode->i_size) {
+		ret = inode_newsize_ok(inode, new_size);
+		if (ret)
+			goto out;
+	}
+
+	blocksize_mask = (1 << inode->i_sb->s_blocksize_bits) - 1;
+	offset += inode->i_size;
+	blocknr = offset >> inode->i_sb->s_blocksize_bits;
+	blockoff = offset & blocksize_mask;
+	num_blocks = (blockoff + len + blocksize_mask) >>
+						inode->i_sb->s_blocksize_bits;
+	ret = pram_alloc_blocks(inode, blocknr, num_blocks);
+	if (ret)
+		goto out;
+	inode->i_mtime = inode->i_ctime = CURRENT_TIME_SEC;
+	if (new_size > inode->i_size)
+		inode->i_size = new_size;
+	ret = pram_update_inode(inode);
+ out:
+	mutex_unlock(&PRAM_I(inode)->truncate_mutex);
+	mutex_unlock(&inode->i_mutex);
+	return ret;
 }
 
 struct address_space_operations pram_aops = {
