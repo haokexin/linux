@@ -276,6 +276,7 @@ struct file_operations pram_file_operations = {
 	.fsync		= noop_fsync,
 	.check_flags	= pram_check_flags,
 	.unlocked_ioctl	= pram_ioctl,
+	.splice_read	= generic_file_splice_read,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= pram_compat_ioctl,
 #endif
