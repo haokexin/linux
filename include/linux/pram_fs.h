@@ -73,6 +73,7 @@ struct pram_inode {
 	__be32	i_dtime;	/* Deletion Time */
 	__be64	i_xattr;	/* Extended attribute block */
 	__be32	i_generation;	/* File version (for NFS) */
+	__be32	i_flags;	/* Inode flags */
 
 	union {
 		struct {

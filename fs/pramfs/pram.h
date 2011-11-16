@@ -35,6 +35,22 @@
 #define pram_warn(s, args...)		pr_warning(s, ## args)
 #define pram_info(s, args...)		pr_info(s, ## args)
 
+#define pram_set_bit			ext2_set_bit
+#define pram_clear_bit			ext2_clear_bit
+#define pram_find_next_zero_bit		ext2_find_next_zero_bit
+
+#define clear_opt(o, opt)	(o &= ~PRAM_MOUNT_##opt)
+#define set_opt(o, opt)		(o |= PRAM_MOUNT_##opt)
+#define test_opt(sb, opt) \
+	(((struct pram_sb_info *)sb->s_fs_info)->s_mount_opt & PRAM_MOUNT_##opt)
+
+/*
+ * Pram inode flags
+ *
+ * PRAM_EOFBLOCKS_FL	There are blocks allocated beyond eof
+ */
+#define PRAM_EOFBLOCKS_FL	0x20000000
+
 /* Function Prototypes */
 extern void pram_error_mng(struct super_block * sb, const char * fmt, ...);
 extern int pram_get_and_update_block(struct inode *inode, sector_t iblock,
@@ -84,7 +100,11 @@ extern void pram_dirty_inode(struct inode *inode);
 extern int pram_notify_change(struct dentry *dentry, struct iattr *attr);
 extern long pram_fallocate(struct inode *inode, int mode, loff_t offset,
 			  loff_t len);
+extern void pram_set_inode_flags(struct inode *inode, struct pram_inode *pi);
+extern void pram_get_inode_flags(struct inode *inode, struct pram_inode *pi);
 
+/* ioctl.c */
+extern long pram_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
 
 /* super.c */
 #ifdef CONFIG_PRAMFS_TEST
