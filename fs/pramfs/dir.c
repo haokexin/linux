@@ -201,4 +201,5 @@ struct file_operations pram_dir_operations = {
 	.read		= generic_read_dir,
 	.readdir	= pram_readdir,
 	.fsync		= noop_fsync,
+	.unlocked_ioctl	= pram_ioctl,
 };
