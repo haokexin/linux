@@ -451,8 +451,9 @@ static inline void set_default_opts(struct pram_sb_info *sbi)
 static int pram_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct pram_super_block *super, *super_redund;
-	struct pram_inode *root_i;
+	struct pram_inode *root_pi;
 	struct pram_sb_info *sbi = NULL;
+	struct inode *root_i = NULL;
 	u64 root_offset;
 	unsigned long blocksize, initsize = 0;
 	u32 random = 0;
@@ -502,9 +503,9 @@ static int pram_fill_super(struct super_block *sb, void *data, int silent)
 
 	/* Init a new pramfs instance */
 	if (initsize) {
-		root_i = pram_init(sb, initsize);
+		root_pi = pram_init(sb, initsize);
 
-		if (IS_ERR(root_i))
+		if (IS_ERR(root_pi))
 			goto out;
 
 		super = pram_get_super(sb);
@@ -565,25 +566,25 @@ static int pram_fill_super(struct super_block *sb, void *data, int silent)
 	pram_info("blocksize %lu\n", blocksize);
 
 	/* Read the root inode */
-	root_i = pram_get_inode(sb, PRAM_ROOT_INO);
+	root_pi = pram_get_inode(sb, PRAM_ROOT_INO);
 
 	/* Check that the root inode is in a sane state */
-	if (pram_calc_checksum((u8 *)root_i, PRAM_INODE_SIZE)) {
+	if (pram_calc_checksum((u8 *)root_pi, PRAM_INODE_SIZE)) {
 		printk(KERN_ERR "checksum error in root inode!\n");
 		goto out;
 	}
 
-	if (be64_to_cpu(root_i->i_d.d_next)) {
+	if (be64_to_cpu(root_pi->i_d.d_next)) {
 		printk(KERN_ERR "root->next not NULL??!!\n");
 		goto out;
 	}
 
-	if (!S_ISDIR(be16_to_cpu(root_i->i_mode))) {
+	if (!S_ISDIR(be16_to_cpu(root_pi->i_mode))) {
 		printk(KERN_ERR "root is not a directory!\n");
 		goto out;
 	}
 
-	root_offset = be64_to_cpu(root_i->i_type.dir.head);
+	root_offset = be64_to_cpu(root_pi->i_type.dir.head);
 	if (root_offset == 0)
 		pram_dbg("empty filesystem\n");
 
@@ -620,7 +621,19 @@ static int pram_fill_super(struct super_block *sb, void *data, int silent)
 		(sbi->s_mount_opt & PRAM_MOUNT_POSIX_ACL) ?
 		 MS_POSIXACL : 0;
 #endif
-	sb->s_root = d_alloc_root(pram_iget(sb, PRAM_ROOT_INO));
+	root_i = pram_iget(sb, PRAM_ROOT_INO);
+	if (IS_ERR(root_i)) {
+		retval = PTR_ERR(root_i);
+		goto out;
+	}
+
+	sb->s_root = d_alloc_root(root_i);
+	if (!sb->s_root) {
+		iput(root_i);
+		printk(KERN_ERR "get pramfs root inode failed\n");
+		retval = -ENOMEM;
+		goto out;
+	}
 
 	retval = 0;
 	return retval;
@@ -852,8 +865,8 @@ static struct inode *pram_nfs_get_inode(struct super_block *sb,
 		return ERR_PTR(-ESTALE);
 
 	inode = pram_iget(sb, ino);
-	if (!inode)
-		return ERR_PTR(-ESTALE);
+	if (IS_ERR(inode))
+		return ERR_CAST(inode);
 	if (generation && inode->i_generation != generation) {
 		/* we didn't find the right inode.. */
 		iput(inode);
