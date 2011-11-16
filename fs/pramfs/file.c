@@ -160,6 +160,10 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	struct iov_iter iter;
 	int num_blocks, blocksize_mask;
 	size_t length = iov_length(iov, nr_segs);
+	struct pram_super_block *ps = pram_get_super(sb);
+	unsigned int size = (length % be32_to_cpu(ps->s_blocksize)) ?\
+			(length/be32_to_cpu(ps->s_blocksize) + 1) :\
+			(length/be32_to_cpu(ps->s_blocksize));
 
 	if (length < 0)
 		return -EINVAL;
@@ -179,6 +183,10 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	blocknr_start = blocknr;
 
 	if (rw == WRITE) {
+		/* check if there is enough space for writing*/
+		if (size > be32_to_cpu(ps->s_free_blocks_count))
+			return -EFBIG;
+
 		/* prepare a temporary buffer to hold a user data block
 		   for writing. */
 		tmp = kmalloc(sb->s_blocksize, GFP_KERNEL);
