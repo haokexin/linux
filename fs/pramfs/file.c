@@ -297,4 +297,5 @@ struct inode_operations pram_file_inode_operations = {
 #endif
 	.setattr	= pram_notify_change,
 	.check_acl	= pram_check_acl,
+	.fallocate	= pram_fallocate,
 };

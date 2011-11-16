@@ -53,8 +53,8 @@ extern int pram_mmap(struct file *file, struct vm_area_struct *vma);
 
 #define clear_opt(o, opt)	(o &= ~PRAM_MOUNT_##opt)
 #define set_opt(o, opt)		(o |= PRAM_MOUNT_##opt)
-#define test_opt(sb, opt)	(((struct pram_sb_info *)sb->s_fs_info)->s_mount_opt & \
-				 PRAM_MOUNT_##opt)
+#define test_opt(sb, opt) \
+	(((struct pram_sb_info *)sb->s_fs_info)->s_mount_opt & PRAM_MOUNT_##opt)
 
 /* balloc.c */
 extern void pram_init_bitmap(struct super_block *sb);
@@ -82,6 +82,8 @@ extern int pram_update_inode(struct inode *inode);
 extern int pram_write_inode(struct inode *inode, struct writeback_control *wbc);
 extern void pram_dirty_inode(struct inode *inode);
 extern int pram_notify_change(struct dentry *dentry, struct iattr *attr);
+extern long pram_fallocate(struct inode *inode, int mode, loff_t offset,
+			  loff_t len);
 
 
 /* super.c */
