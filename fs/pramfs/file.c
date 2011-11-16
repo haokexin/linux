@@ -158,7 +158,7 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	void *tmp = NULL;
 	unsigned long blocknr, blockoff;
 	struct iov_iter iter;
-	int num_blocks, blocksize_mask, blocksize, blocksize_bits;
+	int num_blocks, blocksize_mask;
 	size_t length = iov_length(iov, nr_segs);
 
 	if (length < 0)
@@ -168,21 +168,19 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	if (!length)
 		goto out;
 
-	blocksize_bits = inode->i_sb->s_blocksize_bits;
-	blocksize = 1 << blocksize_bits;
-	blocksize_mask = blocksize - 1;
-
+	blocksize_mask = (1 << sb->s_blocksize_bits) - 1;
 	/* find starting block number to access */
-	blocknr = offset >> blocksize_bits;
+	blocknr = offset >> inode->i_sb->s_blocksize_bits;
 	/* find starting offset within starting block */
 	blockoff = offset & blocksize_mask;
 	/* find number of blocks to access */
-	num_blocks = (blockoff + length + blocksize_mask) >> blocksize_bits;
+	num_blocks = (blockoff + length + blocksize_mask) >>
+							sb->s_blocksize_bits;
 
 	if (rw == WRITE) {
 		/* prepare a temporary buffer to hold a user data block
 		   for writing. */
-		tmp = kmalloc(blocksize, GFP_KERNEL);
+		tmp = kmalloc(sb->s_blocksize, GFP_KERNEL);
 		if (!tmp)
 			return -ENOMEM;
 		/* now allocate the data blocks we'll need */
@@ -206,8 +204,8 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 				goto fail2;
 		}
 
-		count = blockoff + length > blocksize ?
-			blocksize - blockoff : length;
+		count = blockoff + length > sb->s_blocksize ?
+			sb->s_blocksize - blockoff : length;
 
 		if (rw == READ) {
 			if (unlikely(hole)) {
