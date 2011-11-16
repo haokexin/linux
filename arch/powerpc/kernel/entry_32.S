@@ -214,6 +214,7 @@ reenable_mmu:				/* re-enable mmu so we can */
 	stw	r9,8(r1)
 	stw	r11,12(r1)
 	stw	r3,ORIG_GPR3(r1)
+	mtspr	SPRN_SPRG2,r4
 	/*
 	 * The trace_hardirqs_off will use CALLER_ADDR0 and CALLER_ADDR1.
 	 * If from user mode there is only one stack frame on the stack, and
@@ -232,7 +233,7 @@ reenable_mmu:				/* re-enable mmu so we can */
 12:
 	lwz	r0,GPR0(r1)
 	lwz	r3,ORIG_GPR3(r1)
-	lwz	r4,GPR4(r1)
+	mfspr	r4,SPRN_SPRG2
 	lwz	r5,GPR5(r1)
 	lwz	r6,GPR6(r1)
 	lwz	r7,GPR7(r1)
