@@ -38,7 +38,7 @@ static size_t __pram_iov_copy_from(char *vaddr,
 		int copy = min(bytes, iov->iov_len - base);
 
 		base = 0;
-		left = copy_from_user(vaddr, buf, copy);
+		left = __copy_from_user(vaddr, buf, copy);
 		copied += copy;
 		bytes -= copy;
 		vaddr += copy;
@@ -60,7 +60,7 @@ static size_t __pram_iov_copy_to(char *vaddr,
 		int copy = min(bytes, iov->iov_len - base);
 
 		base = 0;
-		left = copy_to_user(buf, vaddr, copy);
+		left = __copy_to_user(buf, vaddr, copy);
 		copied += copy;
 		bytes -= copy;
 		vaddr += copy;
@@ -79,7 +79,7 @@ static size_t pram_iov_copy_from(void *to, struct iov_iter *i, size_t bytes)
 	if (likely(i->nr_segs == 1)) {
 		int left;
 		char __user *buf = i->iov->iov_base + i->iov_offset;
-		left = copy_from_user(to, buf, bytes);
+		left = __copy_from_user(to, buf, bytes);
 		copied = bytes - left;
 	} else {
 		copied = __pram_iov_copy_from(to, i->iov, i->iov_offset, bytes);
@@ -95,7 +95,7 @@ static size_t pram_iov_copy_to(void *from, struct iov_iter *i, size_t bytes)
 	if (likely(i->nr_segs == 1)) {
 		int left;
 		char __user *buf = i->iov->iov_base + i->iov_offset;
-		left = copy_to_user(buf, from, bytes);
+		left = __copy_to_user(buf, from, bytes);
 		copied = bytes - left;
 	} else {
 		copied = __pram_iov_copy_to(from, i->iov, i->iov_offset, bytes);
@@ -113,7 +113,7 @@ static size_t __pram_clear_user(const struct iovec *iov, size_t base, size_t byt
 		int clear = min(bytes, iov->iov_len - base);
 
 		base = 0;
-		left = clear_user(buf, clear);
+		left = __clear_user(buf, clear);
 		claened += clear;
 		bytes -= clear;
 		iov++;
@@ -131,7 +131,7 @@ static size_t pram_clear_user(struct iov_iter *i, size_t bytes)
 	if (likely(i->nr_segs == 1)) {
 		int left;
 		char __user *buf = i->iov->iov_base + i->iov_offset;
-		left = clear_user(buf, bytes);
+		left = __clear_user(buf, bytes);
 		clear = bytes - left;
 	} else {
 		clear = __pram_clear_user(i->iov, i->iov_offset, bytes);
