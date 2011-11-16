@@ -16,7 +16,6 @@
 #include <linux/smp_lock.h>
 #include <linux/sched.h>
 #include <linux/highuid.h>
-#include <linux/quotaops.h>
 #include <linux/module.h>
 #include <linux/mpage.h>
 #include <linux/backing-dev.h>
@@ -98,8 +97,10 @@ static void __pram_truncate_blocks(struct inode *inode, loff_t start,
 	u64 *row; /* ptr to row block */
 	u64 *col; /* ptr to column blocks */
 
-	if (start > end || !inode->i_blocks || !pi->i_type.reg.row_block)
+	if (start > end || !inode->i_blocks || !pi->i_type.reg.row_block) {
+		mutex_unlock(&PRAM_I(inode)->truncate_mutex);
 		return;
+	}
 
 	mutex_lock(&PRAM_I(inode)->truncate_mutex);
 
@@ -540,7 +541,9 @@ struct inode *pram_new_inode(struct inode *dir, int mode)
 		errval = -EINVAL;
 		goto fail2;
 	}
-	pram_write_inode(inode, 0);
+	errval = pram_write_inode(inode, 0);
+	if (errval)
+		goto fail2;
 
 	errval = pram_init_acl(inode, dir);
 	if (errval)
