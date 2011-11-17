@@ -79,6 +79,12 @@
 		raideng_jr1 = &raideng_jr1;
 		raideng_jr2 = &raideng_jr2;
 		raideng_jr3 = &raideng_jr3;
+
+		bman = &bman;
+		qman = &qman;
+		pme = &pme;
+		rman = &rman;
+		fman0 = &fman0;
 	};
 
 	cpus {
