@@ -33,8 +33,11 @@
  */
 
 &lbc {
-	compatible = "fsl,p5020-elbc", "fsl,elbc", "simple-bus";
-	interrupts = <25 2 0 0>;
+	compatible = "fsl,p5020-rev1.0-elbc", "simple-bus";
+	interrupts = <
+		25 2 0 0
+		16 2 1 19
+		>;
 	#address-cells = <2>;
 	#size-cells = <1>;
 };
