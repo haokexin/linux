@@ -353,7 +353,18 @@ static int __kprobes trampoline_probe_handler(struct kprobe *p,
 
 	reset_current_kprobe();
 	kretprobe_hash_unlock(current, &flags);
+#ifdef CONFIG_PREEMPT_RT
+	/*
+	 * For preempt_rt kernel feature we always go here with preempt_count()
+	 * is 1. So the original preempt_enable_no_resched() would check to
+	 * generate a call trace afater preempt_count() is decreased to 0 inside.
+	 * This will make kretprobe failed. So we have to use preempt_enable()
+	 * to avoid this scenario.
+	 */
+	preempt_enable();
+#else
 	preempt_enable_no_resched();
+#endif
 
 	hlist_for_each_entry_safe(ri, node, tmp, &empty_rp, hlist) {
 		hlist_del(&ri->hlist);
