@@ -35,6 +35,39 @@
 #define pram_warn(s, args...)		pr_warning(s, ## args)
 #define pram_info(s, args...)		pr_info(s, ## args)
 
+#define pram_set_bit			ext2_set_bit
+#define pram_clear_bit			ext2_clear_bit
+#define pram_find_next_zero_bit		ext2_find_next_zero_bit
+
+#define clear_opt(o, opt)	(o &= ~PRAM_MOUNT_##opt)
+#define set_opt(o, opt)		(o |= PRAM_MOUNT_##opt)
+#define test_opt(sb, opt) \
+	(((struct pram_sb_info *)sb->s_fs_info)->s_mount_opt & PRAM_MOUNT_##opt)
+
+/*
+ * Pram inode flags
+ *
+ * PRAM_EOFBLOCKS_FL	There are blocks allocated beyond eof
+ */
+#define PRAM_EOFBLOCKS_FL	0x20000000
+/* Flags that should be inherited by new inodes from their parent. */
+#define PRAM_FL_INHERITED (FS_SECRM_FL | FS_UNRM_FL | FS_COMPR_FL |\
+			   FS_SYNC_FL | FS_IMMUTABLE_FL | FS_APPEND_FL |\
+			   FS_NODUMP_FL | FS_NOATIME_FL | FS_COMPRBLK_FL|\
+			   FS_NOCOMP_FL | FS_JOURNAL_DATA_FL |\
+			   FS_NOTAIL_FL | FS_DIRSYNC_FL)
+/* Flags that are appropriate for regular files (all but dir-specific ones). */
+#define PRAM_REG_FLMASK (~(FS_DIRSYNC_FL | FS_TOPDIR_FL))
+/* Flags that are appropriate for non-directories/regular files. */
+#define PRAM_OTHER_FLMASK (FS_NODUMP_FL | FS_NOATIME_FL)
+
+/* As a new regular file, two blocks needed for row and col
+ * pointers to data block
+ */
+#define ROWCOL	2
+/* we need a block for another new row if a big file*/
+#define ROWNEW	1
+
 /* Function Prototypes */
 extern void pram_error_mng(struct super_block * sb, const char * fmt, ...);
 extern int pram_get_and_update_block(struct inode *inode, sector_t iblock,
@@ -53,8 +86,8 @@ extern int pram_mmap(struct file *file, struct vm_area_struct *vma);
 
 #define clear_opt(o, opt)	(o &= ~PRAM_MOUNT_##opt)
 #define set_opt(o, opt)		(o |= PRAM_MOUNT_##opt)
-#define test_opt(sb, opt)	(((struct pram_sb_info *)sb->s_fs_info)->s_mount_opt & \
-				 PRAM_MOUNT_##opt)
+#define test_opt(sb, opt) \
+	(((struct pram_sb_info *)sb->s_fs_info)->s_mount_opt & PRAM_MOUNT_##opt)
 
 /* balloc.c */
 extern void pram_init_bitmap(struct super_block *sb);
@@ -70,7 +103,8 @@ extern int pram_remove_link(struct inode *inode);
 extern struct dentry *pram_get_parent(struct dentry *child);
 
 /* inode.c */
-extern int pram_alloc_blocks(struct inode *inode, int file_blocknr, int num);
+extern int pram_alloc_blocks(struct inode *inode, int file_blocknr,
+						unsigned int num);
 extern u64 pram_find_data_block(struct inode *inode,
 					 unsigned long file_blocknr);
 
@@ -82,7 +116,17 @@ extern int pram_update_inode(struct inode *inode);
 extern int pram_write_inode(struct inode *inode, struct writeback_control *wbc);
 extern void pram_dirty_inode(struct inode *inode);
 extern int pram_notify_change(struct dentry *dentry, struct iattr *attr);
+extern long pram_fallocate(struct inode *inode, int mode, loff_t offset,
+			  loff_t len);
+extern void pram_set_inode_flags(struct inode *inode, struct pram_inode *pi);
+extern void pram_get_inode_flags(struct inode *inode, struct pram_inode *pi);
 
+/* ioctl.c */
+extern long pram_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
+#ifdef CONFIG_COMPAT
+extern long pram_compat_ioctl(struct file *file, unsigned int cmd,
+			      unsigned long arg);
+#endif
 
 /* super.c */
 #ifdef CONFIG_PRAMFS_TEST
@@ -99,6 +143,18 @@ extern int pram_block_symlink(struct inode *inode,
 			       const char *symname, int len);
 
 /* Inline functions start here */
+
+/* Mask out flags that are inappropriate for the given type of inode. */
+static inline __be32 pram_mask_flags(umode_t mode, __be32 flags)
+{
+	flags &= cpu_to_be32(PRAM_FL_INHERITED);
+	if (S_ISDIR(mode))
+		return flags;
+	else if (S_ISREG(mode))
+		return flags & cpu_to_be32(PRAM_REG_FLMASK);
+	else
+		return flags & cpu_to_be32(PRAM_OTHER_FLMASK);
+}
 
 static inline int pram_calc_checksum(u8 *data, int n)
 {

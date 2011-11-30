@@ -23,6 +23,123 @@
 #include "xip.h"
 #include "xattr.h"
 
+/*
+ * The following functions are helper routines to copy to/from
+ * user space and iter over io vectors (mainly for readv/writev).
+ * They are used in the direct IO path.
+ */
+static size_t __pram_iov_copy_from(char *vaddr,
+			const struct iovec *iov, size_t base, size_t bytes)
+{
+	size_t copied = 0, left = 0;
+
+	while (bytes) {
+		char __user *buf = iov->iov_base + base;
+		int copy = min(bytes, iov->iov_len - base);
+
+		base = 0;
+		left = __copy_from_user(vaddr, buf, copy);
+		copied += copy;
+		bytes -= copy;
+		vaddr += copy;
+		iov++;
+
+		if (unlikely(left))
+			break;
+	}
+	return copied - left;
+}
+
+static size_t __pram_iov_copy_to(char *vaddr,
+			const struct iovec *iov, size_t base, size_t bytes)
+{
+	size_t copied = 0, left = 0;
+
+	while (bytes) {
+		char __user *buf = iov->iov_base + base;
+		int copy = min(bytes, iov->iov_len - base);
+
+		base = 0;
+		left = __copy_to_user(buf, vaddr, copy);
+		copied += copy;
+		bytes -= copy;
+		vaddr += copy;
+		iov++;
+
+		if (unlikely(left))
+			break;
+	}
+	return copied - left;
+}
+
+static size_t pram_iov_copy_from(void *to, struct iov_iter *i, size_t bytes)
+{
+	size_t copied;
+
+	if (likely(i->nr_segs == 1)) {
+		int left;
+		char __user *buf = i->iov->iov_base + i->iov_offset;
+		left = __copy_from_user(to, buf, bytes);
+		copied = bytes - left;
+	} else {
+		copied = __pram_iov_copy_from(to, i->iov, i->iov_offset, bytes);
+	}
+
+	return copied;
+}
+
+static size_t pram_iov_copy_to(void *from, struct iov_iter *i, size_t bytes)
+{
+	size_t copied;
+
+	if (likely(i->nr_segs == 1)) {
+		int left;
+		char __user *buf = i->iov->iov_base + i->iov_offset;
+		left = __copy_to_user(buf, from, bytes);
+		copied = bytes - left;
+	} else {
+		copied = __pram_iov_copy_to(from, i->iov, i->iov_offset, bytes);
+	}
+
+	return copied;
+}
+
+static size_t __pram_clear_user(const struct iovec *iov, size_t base, size_t bytes)
+{
+	size_t claened = 0, left = 0;
+
+	while (bytes) {
+		char __user *buf = iov->iov_base + base;
+		int clear = min(bytes, iov->iov_len - base);
+
+		base = 0;
+		left = __clear_user(buf, clear);
+		claened += clear;
+		bytes -= clear;
+		iov++;
+
+		if (unlikely(left))
+			break;
+	}
+	return claened - left;
+}
+
+static size_t pram_clear_user(struct iov_iter *i, size_t bytes)
+{
+	size_t clear;
+
+	if (likely(i->nr_segs == 1)) {
+		int left;
+		char __user *buf = i->iov->iov_base + i->iov_offset;
+		left = __clear_user(buf, bytes);
+		clear = bytes - left;
+	} else {
+		clear = __pram_clear_user(i->iov, i->iov_offset, bytes);
+	}
+
+	return clear;
+}
+
 static int pram_open_file(struct inode *inode, struct file *filp)
 {
 	filp->f_flags |= O_DIRECT;
@@ -36,13 +153,17 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	struct file *file = iocb->ki_filp;
 	struct inode *inode = file->f_mapping->host;
 	struct super_block *sb = inode->i_sb;
-	int progress = 0, hole = 0;
+	int progress = 0, hole = 0, alloc_once = 1;
 	ssize_t retval = 0;
 	void *tmp = NULL;
-	unsigned long blocknr, blockoff;
-	int num_blocks, blocksize_mask, blocksize, blocksize_bits;
-	char __user *buf = iov->iov_base;
+	unsigned long blocknr, blockoff, blocknr_start;
+	struct iov_iter iter;
+	int num_blocks, blocksize_mask;
 	size_t length = iov_length(iov, nr_segs);
+	struct pram_super_block *ps = pram_get_super(sb);
+	unsigned int size = (length % be32_to_cpu(ps->s_blocksize)) ?\
+			(length/be32_to_cpu(ps->s_blocksize) + 1) :\
+			(length/be32_to_cpu(ps->s_blocksize));
 
 	if (length < 0)
 		return -EINVAL;
@@ -51,64 +172,86 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 	if (!length)
 		goto out;
 
-	blocksize_bits = inode->i_sb->s_blocksize_bits;
-	blocksize = 1 << blocksize_bits;
-	blocksize_mask = blocksize - 1;
-
+	blocksize_mask = (1 << sb->s_blocksize_bits) - 1;
 	/* find starting block number to access */
-	blocknr = offset >> blocksize_bits;
+	blocknr = offset >> sb->s_blocksize_bits;
 	/* find starting offset within starting block */
 	blockoff = offset & blocksize_mask;
 	/* find number of blocks to access */
-	num_blocks = (blockoff + length + blocksize_mask) >> blocksize_bits;
+	num_blocks = (blockoff + length + blocksize_mask) >>
+							sb->s_blocksize_bits;
+	blocknr_start = blocknr;
 
 	if (rw == WRITE) {
+		/* check if there is enough space for writing*/
+		if (size > be32_to_cpu(ps->s_free_blocks_count))
+			return -EFBIG;
+
 		/* prepare a temporary buffer to hold a user data block
 		   for writing. */
-		tmp = kmalloc(blocksize, GFP_KERNEL);
+		tmp = kmalloc(sb->s_blocksize, GFP_KERNEL);
 		if (!tmp)
 			return -ENOMEM;
-		/* now allocate the data blocks we'll need */
-		retval = pram_alloc_blocks(inode, blocknr, num_blocks);
-		if (retval)
-			goto fail1;
 	}
+
+	iov_iter_init(&iter, iov, nr_segs, length, 0);
 
 	while (length) {
 		int count;
 		u8 *bp = NULL;
-		u64 block = pram_find_data_block(inode, blocknr++);
-		if (unlikely(!block && rw == READ)) {
-			/* We are falling in a hole */
-			hole = 1;
-		} else {
-			bp = (u8 *)pram_get_block(sb, block);
-			if (!bp)
-				goto fail2;
+		u64 block = pram_find_data_block(inode, blocknr);
+		if (!block) {
+			if (alloc_once && rw == WRITE) {
+				/*
+				 * Allocate the data blocks starting from blocknr
+				 * to the end.
+				 */
+				retval = pram_alloc_blocks(inode, blocknr,
+							num_blocks - (blocknr -
+								 blocknr_start));
+				if (retval)
+					goto fail;
+				/* retry....*/
+				block = pram_find_data_block(inode, blocknr);
+				BUG_ON(!block);
+				alloc_once = 0;
+			} else if (unlikely(rw == READ)) {
+				/* We are falling in a hole */
+				hole = 1;
+				goto hole;
+			}
 		}
+		bp = (u8 *)pram_get_block(sb, block);
+		if (!bp) {
+			retval = -EACCES;
+			goto fail;
+		}
+ hole:
+		++blocknr;
 
-		count = blockoff + length > blocksize ?
-			blocksize - blockoff : length;
+		count = blockoff + length > sb->s_blocksize ?
+			sb->s_blocksize - blockoff : length;
 
 		if (rw == READ) {
 			if (unlikely(hole)) {
-				retval = clear_user(buf, count);
-				if (retval) {
+				retval = pram_clear_user(&iter, count);
+				if (retval != count) {
 					retval = -EFAULT;
-					goto fail1;
+					goto fail;
 				}
 			} else {
-				retval = copy_to_user(buf, &bp[blockoff], count);
-				if (retval) {
+				retval = pram_iov_copy_to(&bp[blockoff], &iter,
+							  count);
+				if (retval != count) {
 					retval = -EFAULT;
-					goto fail1;
+					goto fail;
 				}
 			}
 		} else {
-			retval = copy_from_user(tmp, buf, count);
-			if (retval) {
+			retval = pram_iov_copy_from(tmp, &iter, count);
+			if (retval != count) {
 				retval = -EFAULT;
-				goto fail1;
+				goto fail;
 			}
 
 			pram_memunlock_block(inode->i_sb, bp);
@@ -117,17 +260,16 @@ ssize_t pram_direct_IO(int rw, struct kiocb *iocb,
 		}
 
 		progress += count;
-		buf += count;
+		iov_iter_advance(&iter, count);
 		length -= count;
 		blockoff = 0;
 		hole = 0;
 	}
 
-fail2:
 	retval = progress;
-fail1:
+ fail:
 	kfree(tmp);
-out:
+ out:
 	return retval;
 }
 
@@ -157,6 +299,11 @@ struct file_operations pram_file_operations = {
 	.open		= pram_open_file,
 	.fsync		= noop_fsync,
 	.check_flags	= pram_check_flags,
+	.unlocked_ioctl	= pram_ioctl,
+	.splice_read	= generic_file_splice_read,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= pram_compat_ioctl,
+#endif
 };
 
 #ifdef CONFIG_PRAMFS_XIP
@@ -167,6 +314,10 @@ struct file_operations pram_xip_file_operations = {
 	.mmap		= xip_file_mmap,
 	.open		= generic_file_open,
 	.fsync		= noop_fsync,
+	.unlocked_ioctl	= pram_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= pram_compat_ioctl,
+#endif
 };
 #endif
 
@@ -179,4 +330,5 @@ struct inode_operations pram_file_inode_operations = {
 #endif
 	.setattr	= pram_notify_change,
 	.check_acl	= pram_check_acl,
+	.fallocate	= pram_fallocate,
 };
