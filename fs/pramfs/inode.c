@@ -320,7 +320,6 @@ static int pram_read_inode(struct inode *inode, struct pram_inode *pi)
 	inode->i_mapping->a_ops = &pram_aops;
 	inode->i_mapping->backing_dev_info = &pram_backing_dev_info;
 
-	insert_inode_hash(inode);
 	switch (inode->i_mode & S_IFMT) {
 	case S_IFREG:
 		if (pram_use_xip(inode->i_sb)) {
