@@ -193,7 +193,7 @@ cryptodev_op(struct csession *cse, struct crypt_op *cop)
 	cse->uio.uio_iov[0].iov_len = cop->len;
 	if (cse->info.authsize)
 		cse->uio.uio_iov[0].iov_len += cse->info.authsize;
-	cse->uio.uio_iov[0].iov_base = kmalloc(cse->uio.uio_iov[0].iov_len,
+	cse->uio.uio_iov[0].iov_base = kzalloc(cse->uio.uio_iov[0].iov_len,
 			GFP_KERNEL);
 
 	if (cse->uio.uio_iov[0].iov_base == NULL) {
