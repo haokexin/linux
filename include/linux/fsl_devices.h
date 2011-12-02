@@ -67,6 +67,7 @@ enum fsl_usb2_phy_modes {
 	FSL_USB2_PHY_SERIAL,
 };
 
+struct clk;
 struct platform_device;
 struct fsl_usb2_platform_data {
 	/* board specific information */
@@ -74,7 +75,14 @@ struct fsl_usb2_platform_data {
 	enum fsl_usb2_phy_modes		phy_mode;
 	unsigned int			port_enables;
 
+
+	struct clk	*clk;
+
+
+
 	char *name;		/* pretty print */
+	int		(*init)(struct platform_device *);
+	void		(*exit)(struct platform_device *);
 	int (*platform_init) (struct platform_device *);
 	void (*platform_uninit) (struct fsl_usb2_platform_data *);
 	void __iomem *regs;	/* ioremap'd register base */
@@ -99,7 +107,8 @@ struct fsl_usb2_platform_data {
 	unsigned ahb_burst_mode:3;
 	unsigned			suspended:1;
 	unsigned			already_suspended:1;
-
+	unsigned	invert_drvvbus:1;
+	unsigned	invert_pwr_fault:1;
 	/* register save area for suspend/resume */
 	u32				pm_command;
 	u32				pm_status;
