@@ -165,6 +165,17 @@ config P4080_ERRATUM_CPU8
 	bool "Work around P4080 rev 1 erratum CPU8"
 	default y if P4080_DS || P4080_HV
 
+config P2040_RDB
+	bool "Freescale P2040 RDB"
+	select DEFAULT_UIMAGE
+	select PPC_E500MC
+	select PHYS_64BIT
+	select SWIOTLB
+	select MPC8xxx_GPIO
+	select HAS_RAPIDIO
+	help
+	  This option enables support for the P2040 RDB board
+
 config P3041_DS
 	bool "Freescale P3041 DS"
 	select DEFAULT_UIMAGE
