@@ -714,7 +714,7 @@
 			compatible = "fsl,p2040-esdhc", "fsl,esdhc";
 			reg = <0x114000 0x1000>;
 			interrupts = <48 2 0 0>;
-			sdhci,auto-cmd12;
+			fsl,sdhci-auto-cmd12;
 			clock-frequency = <0>;
 		};
 
