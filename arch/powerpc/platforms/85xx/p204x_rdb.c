@@ -1,5 +1,5 @@
 /*
- * P2040 RDB Setup
+ * P204x RDB Setup
  *
  * Copyright 2011 Freescale Semiconductor Inc.
  *
@@ -41,6 +41,13 @@ static int __init p2040_rdb_probe(void)
 	return of_flat_dt_is_compatible(root, "fsl,P2040RDB");
 }
 
+static int __init p2041_rdb_probe(void)
+{
+	unsigned long root = of_get_flat_dt_root();
+
+	return of_flat_dt_is_compatible(root, "fsl,P2041RDB");
+}
+
 define_machine(p2040_rdb) {
 	.name			= "P2040 RDB",
 	.probe			= p2040_rdb_probe,
@@ -57,8 +64,26 @@ define_machine(p2040_rdb) {
 	.init_early		= corenet_ds_init_early,
 };
 
+define_machine(p2041_rdb) {
+	.name			= "P2041 RDB",
+	.probe			= p2041_rdb_probe,
+	.setup_arch		= corenet_ds_setup_arch,
+	.init_IRQ		= corenet_ds_pic_init,
+#ifdef CONFIG_PCI
+	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+#endif
+	.get_irq		= mpic_get_coreint_irq,
+	.restart		= fsl_rstcr_restart,
+	.calibrate_decr		= generic_calibrate_decr,
+	.progress		= udbg_progress,
+	.power_save		= e500_idle,
+	.init_early		= corenet_ds_init_early,
+};
+
 machine_device_initcall(p2040_rdb, declare_of_platform_devices);
+machine_device_initcall(p2041_rdb, declare_of_platform_devices);
 
 #ifdef CONFIG_SWIOTLB
 machine_arch_initcall(p2040_rdb, swiotlb_setup_bus_notifier);
+machine_arch_initcall(p2041_rdb, swiotlb_setup_bus_notifier);
 #endif
