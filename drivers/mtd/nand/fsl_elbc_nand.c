@@ -831,7 +831,8 @@ static int fsl_elbc_chip_remove(struct fsl_elbc_mtd *priv)
 
 static int boardflash_is_mlc(void)
 {
-#ifdef CONFIG_P1022_DS
+#if (defined(CONFIG_P1022_DS) ||\
+	defined(CONFIG_P3041_DS) || defined(CONFIG_P5020_DS))
 	return 1;
 #else
 	return 0;
