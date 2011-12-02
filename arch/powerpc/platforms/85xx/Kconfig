@@ -173,6 +173,9 @@ config P2040_RDB
 	select SWIOTLB
 	select MPC8xxx_GPIO
 	select HAS_RAPIDIO
+	select HAS_FSL_PAMU
+	select HAS_FSL_QBMAN
+	select HAS_FSL_PME
 	help
 	  This option enables support for the P2040 RDB board
 
