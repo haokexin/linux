@@ -191,7 +191,6 @@
 /* 40C DMA control register */
 #define SDHCI_HOST_DMA_CONTROL	0x40C
 #define SDHCI_AHB2MAG_IRQ_BYPASS       0x20
-#define SDHCI_CACHE_SNOOP	0x40
 
 struct sdhci_ops;
 
