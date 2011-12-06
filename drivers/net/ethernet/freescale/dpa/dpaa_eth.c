@@ -2806,11 +2806,14 @@ static ssize_t dpaa_eth_show_fqids(struct device *dev,
 		i++;
 	}
 
-	if (last_fqid == first_fqid)
-		bytes += sprintf(buf + bytes, "%s: %d\n", prevstr, prev->fqid);
-	else
-		bytes += sprintf(buf + bytes, "%s: %d - %d\n", prevstr,
-				first_fqid, last_fqid);
+	if (prev) {
+		if (last_fqid == first_fqid)
+			bytes += sprintf(buf + bytes, "%s: %d\n", prevstr,
+					prev->fqid);
+		else
+			bytes += sprintf(buf + bytes, "%s: %d - %d\n", prevstr,
+					first_fqid, last_fqid);
+	}
 
 	return bytes;
 }
