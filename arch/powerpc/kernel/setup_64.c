@@ -421,7 +421,7 @@ void __init setup_system(void)
 	smp_setup_cpu_maps();
 	check_smt_enabled();
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) && !defined(CONFIG_FSL_THREADS)
 	/* Release secondary cpus out of their spinloops at 0x60 now that
 	 * we can map physical -> logical CPU ids
 	 */

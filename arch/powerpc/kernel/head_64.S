@@ -167,6 +167,12 @@ exception_marker:
 #include "exceptions-64s.S"
 #endif
 
+#ifdef CONFIG_FSL_THREADS
+_GLOBAL(fsl_secondary_thread_init)
+	mfspr	r3, SPRN_PIR
+	rlwimi	r3, r3, 30, 2, 30
+#endif
+
 _GLOBAL(generic_secondary_thread_init)
 	mr	r24,r3
 
@@ -301,7 +307,7 @@ _STATIC(__mmu_off)
  *
  *   r5 != NULL -> OF entry, we go to prom_init, "legacy" parameter content
  *                 in r3...r7
- *   
+ *
  *   r5 == NULL -> kexec style entry. r3 is a physical pointer to the
  *                 DT block, r4 is a physical pointer to the kernel itself
  *
@@ -551,7 +557,7 @@ __secondary_start_pmac_0:
 	b	1f
 	li	r24,3
 1:
-	
+
 _GLOBAL(pmac_secondary_start)
 	/* turn on 64-bit mode */
 	bl	.enable_64b_mode
@@ -656,7 +662,7 @@ __secondary_start:
 	RFI
 	b	.	/* prevent speculative execution */
 
-/* 
+/*
  * Running with relocation on at this point.  All we want to do is
  * zero the stack back-chain pointer and get the TOC virtual address
  * before going into C code.
@@ -783,7 +789,7 @@ _INIT_STATIC(start_here_multiplatform)
 	mtspr	SPRN_SRR1,r4
 	RFI
 	b	.	/* prevent speculative execution */
-	
+
 	/* This is where all platforms converge execution */
 _INIT_GLOBAL(start_here_common)
 	/* relocation is on at this point */
@@ -794,6 +800,10 @@ _INIT_GLOBAL(start_here_common)
 
 	/* Do more system initializations in virtual mode */
 	bl	.setup_system
+
+#ifdef CONFIG_FSL_THREADS
+	bl	.fsl_enable_threads
+#endif
 
 	/* Mark interrupts soft and hard disabled (they might be enabled
 	 * in the PACA when doing hotplug)

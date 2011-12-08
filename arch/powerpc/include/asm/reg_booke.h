@@ -707,5 +707,28 @@
 #define MMUBE1_VBE4		0x00000002
 #define MMUBE1_VBE5		0x00000001
 
+#ifdef CONFIG_FSL_THREADS
+#define TMRN_TPRI0	0x0C0	/* Thread Priority Register 0 */
+#define TMRN_TPRI1	0x0C1	/* Thread Priority Register 1 */
+#define TMRN_TPRI2	0x0C2	/* Thread Priority Register 2 */
+#define TMRN_INIA0	0x140	/* Next Instruction Address Register 0 */
+#define TMRN_INIA1	0x141	/* Next Instruction Address Register 1 */
+#define TMRN_INIA2	0x142	/* Next Instruction Address Register 2 */
+#define TMRN_IMSR0	0x120	/* Initial MSR Register 0 */
+#define TMRN_IMSR1	0x121	/* Initial MSR Register 1 */
+#define SPRN_TENSR	0x1b5	/* Thread Enable Status Register */
+#define SPRN_TENS	0x1b6	/* Thread Enable Set Register */
+#define SPRN_TENC	0x1b7	/* Thread Enable Clear Register */
+
+#define TEN_THREAD(x)	(1 << x)
+
+#define SPRN_PPR32	0x382	/* Processor Priority Register */
+
+#define TMRN(x)		(((x & 0x1f) << 16) | ((x & 0x3e0) << 6))
+#define MTTMR(tmr, reg)	.long (0x7c0003dc | TMRN(tmr) | (reg << 21))
+#define MFTMR(tmr, reg)	.long (0x7c0002dc | TMRN(tmr) | (reg << 21))
+
+#endif
+
 #endif /* __ASM_POWERPC_REG_BOOKE_H__ */
 #endif /* __KERNEL__ */

@@ -1284,6 +1284,11 @@ _GLOBAL(book3e_secondary_core_init)
 	/* Init global core bits */
 2:	bl	.init_core_book3e
 
+#ifdef CONFIG_FSL_THREADS
+	/* Start threads */
+	bl      .fsl_enable_threads
+#endif
+
 	/* Init per-thread bits */
 3:	bl	.init_thread_book3e
 
@@ -1324,6 +1329,27 @@ _GLOBAL(init_core_book3e)
 	sync
 	blr
 
+#ifdef CONFIG_FSL_THREADS
+_GLOBAL(fsl_enable_threads)
+	/* Configure the MSR per the default */
+	LOAD_REG_IMMEDIATE(r3, MSR_KERNEL);
+	MTTMR(TMRN_IMSR1, 3);
+
+	/*
+	 * Set the NIA for the secondary thread to
+	 * generic_secondary_thread_init
+	 */
+	LOAD_REG_IMMEDIATE(r3, .fsl_secondary_thread_init);
+	MTTMR(TMRN_INIA1, 3);
+
+	/* Release the other thread. It will spin until kick_cpu is called */
+	li	r3, 2
+	mtspr	SPRN_TENS, r3
+
+	blr
+#endif
+
+
 _STATIC(init_thread_book3e)
 	lis	r3,(SPRN_EPCR_ICM | SPRN_EPCR_GICM)@h
 	mtspr	SPRN_EPCR,r3
@@ -1342,18 +1368,18 @@ _STATIC(init_thread_book3e)
 _GLOBAL(__setup_base_ivors)
 	SET_IVOR(0, 0x020) /* Critical Input */
 	SET_IVOR(1, 0x000) /* Machine Check */
-	SET_IVOR(2, 0x060) /* Data Storage */ 
+	SET_IVOR(2, 0x060) /* Data Storage */
 	SET_IVOR(3, 0x080) /* Instruction Storage */
-	SET_IVOR(4, 0x0a0) /* External Input */ 
-	SET_IVOR(5, 0x0c0) /* Alignment */ 
-	SET_IVOR(6, 0x0e0) /* Program */ 
-	SET_IVOR(7, 0x100) /* FP Unavailable */ 
-	SET_IVOR(8, 0x120) /* System Call */ 
-	SET_IVOR(9, 0x140) /* Auxiliary Processor Unavailable */ 
-	SET_IVOR(10, 0x160) /* Decrementer */ 
-	SET_IVOR(11, 0x180) /* Fixed Interval Timer */ 
-	SET_IVOR(12, 0x1a0) /* Watchdog Timer */ 
-	SET_IVOR(13, 0x1c0) /* Data TLB Error */ 
+	SET_IVOR(4, 0x0a0) /* External Input */
+	SET_IVOR(5, 0x0c0) /* Alignment */
+	SET_IVOR(6, 0x0e0) /* Program */
+	SET_IVOR(7, 0x100) /* FP Unavailable */
+	SET_IVOR(8, 0x120) /* System Call */
+	SET_IVOR(9, 0x140) /* Auxiliary Processor Unavailable */
+	SET_IVOR(10, 0x160) /* Decrementer */
+	SET_IVOR(11, 0x180) /* Fixed Interval Timer */
+	SET_IVOR(12, 0x1a0) /* Watchdog Timer */
+	SET_IVOR(13, 0x1c0) /* Data TLB Error */
 	SET_IVOR(14, 0x1e0) /* Instruction TLB Error */
 	SET_IVOR(15, 0x040) /* Debug */
 
