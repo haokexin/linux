@@ -1433,7 +1433,7 @@ static PVRSRV_ERROR SysUnmapRegisters(IMG_VOID)
 		psDeviceNodeList = psDeviceNodeList->psNext;
 	}
 
-#if !(defined(NO_HARDWARE) || defined(__linux__))
+#if !defined(NO_HARDWARE)
 
 	OSUnMapPhysToLin(gsPoulsboRegsCPUVaddr,
 				REG_SIZE,
