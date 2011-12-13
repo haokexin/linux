@@ -202,7 +202,11 @@ static long booke_wdt_ioctl(struct file *file,
 						WDTP(booke_wdt_period));
 		return 0;
 	case WDIOC_GETTIMEOUT:
+#if  defined(CONFIG_FSL_BOOKE) || defined(CONFIG_PPC_FSL_BOOK3E)
+		return put_user(period_to_sec(booke_wdt_period), p);
+#else
 		return put_user(booke_wdt_period, p);
+#endif
 	default:
 		return -ENOTTY;
 	}
