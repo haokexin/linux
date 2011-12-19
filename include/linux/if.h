@@ -72,6 +72,9 @@
 					 */
 #define IFF_DONT_BRIDGE 0x800		/* disallow bridging this ether dev */
 
+#define IFF_TX_SKB_SHARING     0x1000 /* The interface supports sharing
+					* skbs on transmit */
+
 #define IF_GET_IFACE	0x0001		/* for querying only */
 #define IF_GET_PROTO	0x0002
 
