@@ -200,6 +200,8 @@ static void allocate_frame_data(void)
 	struct platform_device *pdev = platform_device_alloc("foobar", -1);
 	if (!pdev)
 		panic("platform_device_alloc() failed");
+	if (dma_set_mask(&pdev->dev, DMA_BIT_MASK(36)) < 0)
+		panic("set_dma_mask() failed");
 	if (platform_device_add(pdev))
 		panic("platform_device_add() failed");
 	__frame_ptr = kmalloc(4 * HP_NUM_WORDS, GFP_KERNEL);
