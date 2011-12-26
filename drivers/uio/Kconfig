@@ -94,4 +94,9 @@ config UIO_NETX
 	  To compile this driver as a module, choose M here; the module
 	  will be called uio_netx.
 
+config UIO_FSL_SRIO
+	tristate "Freescale Serial RapidIO support"
+	depends on RAPIDIO=n
+	default n
+
 endif
