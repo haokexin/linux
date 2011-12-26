@@ -342,12 +342,17 @@ static void __init mpc85xx_mds_setup_arch(void)
 		    of_device_is_compatible(np, "fsl,mpc8548-pcie")) {
 			struct resource rsrc;
 			of_address_to_resource(np, 0, &rsrc);
-			if ((rsrc.start & 0xfffff) == 0x8000)
-				fsl_add_bridge(np, 1);
-			else
-				fsl_add_bridge(np, 0);
+			if ((rsrc.start & 0xfffff) == 0x8000) {
+				if (fsl_add_bridge(np, 1) < 0)
+					continue;
+			} else {
+				if (fsl_add_bridge(np, 0) < 0)
+					continue;
+			}
 
 			hose = pci_find_hose_for_OF_device(np);
+			if (!hose)
+				continue;
 			max = min(max, hose->dma_window_base_cur +
 					hose->dma_window_size);
 		}

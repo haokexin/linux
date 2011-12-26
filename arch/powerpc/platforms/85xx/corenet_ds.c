@@ -67,8 +67,11 @@ void __init corenet_ds_setup_arch(void)
 	for_each_node_by_type(np, "pci") {
 		if (of_device_is_compatible(np, "fsl,p4080-pcie") ||
 		    of_device_is_compatible(np, "fsl,qoriq-pcie-v2.2")) {
-			fsl_add_bridge(np, 0);
+			if (fsl_add_bridge(np, 0) < 0)
+				continue;
 			hose = pci_find_hose_for_OF_device(np);
+			if (!hose)
+				continue;
 			max = min(max, hose->dma_window_base_cur +
 					hose->dma_window_size);
 		}
