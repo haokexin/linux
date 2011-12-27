@@ -1259,7 +1259,7 @@ static t_Error DtsecAdjustLink(t_Handle h_Dtsec, e_EnetSpeed speed, bool fullDup
     SANITY_CHECK_RETURN_ERROR(p_DtsecMemMap, E_INVALID_HANDLE);
 
     if (!fullDuplex &&
-        ((speed >= e_ENET_SPEED_1000) ||
+        ((speed >= e_ENET_SPEED_1000) &&
          (ENET_INTERFACE_FROM_MODE(p_Dtsec->enetMode) == e_ENET_IF_SGMII)))
         RETURN_ERROR(MAJOR, E_CONFLICT, ("Ethernet interface does not support Half Duplex mode"));
 
