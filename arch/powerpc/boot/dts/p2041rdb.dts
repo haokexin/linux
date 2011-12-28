@@ -1273,6 +1273,29 @@
 		};
 	};
 
+	rapidio@ffe0c0000 {
+		compatible = "fsl,srio";
+		interrupts = <16 2 1 11>;
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+		reg = <0xf 0xfe0c0000 0 0x11000>;
+
+		port1 {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			cell-index = <1>;
+			ranges = <0 0 0xc 0x20000000 0 0x10000000>;
+		};
+
+		port2 {
+			#address-cells = <2>;
+			#size-cells = <2>;
+			cell-index = <2>;
+			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
+		};
+	};
+
 	localbus@ffe124000 {
 		compatible = "fsl,p2041-elbc", "fsl,elbc", "simple-bus";
 		reg = <0xf 0xfe124000 0 0x1000>;
