@@ -175,7 +175,7 @@ config ENCLOSURE_SERVICES
 
 config FSL_USDPAA_SHMEM
 	bool "Freescale USDPAA shared memory driver"
-	depends on PPC_85xx
+	depends on PPC_85xx || PPC_E500MC
 	help
 	  This driver provides user-space access to a large contiguous
 	  memory allocation, reserved for use by Freescale USDPAA (User

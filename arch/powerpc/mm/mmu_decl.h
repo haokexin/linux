@@ -96,14 +96,15 @@ extern void _tlbia(void);
 
 #endif /* CONFIG_PPC_MMU_NOHASH */
 
+void settlbcam(int index, unsigned long virt, phys_addr_t phys,
+	unsigned long size, unsigned long flags, unsigned int pid);
+
 #ifdef CONFIG_PPC32
 
 extern void mapin_ram(void);
 extern int map_page(unsigned long va, phys_addr_t pa, int flags);
 extern void setbat(int index, unsigned long virt, phys_addr_t phys,
 		   unsigned int size, int flags);
-void settlbcam(int index, unsigned long virt, phys_addr_t phys,
-		unsigned long size, unsigned long flags, unsigned int pid);
 
 extern int __map_without_bats;
 extern int __allow_ioremap_reserved;
