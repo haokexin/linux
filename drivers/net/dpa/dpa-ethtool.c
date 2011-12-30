@@ -152,6 +152,8 @@ void __cold dpa_get_ringparam(struct net_device *net_dev, struct ethtool_ringpar
 void __cold dpa_get_pauseparam(struct net_device *net_dev, struct ethtool_pauseparam *et_pauseparam)
 {
 	struct dpa_priv_s	*priv;
+	int                     _errno;
+	bool   tx, rx;
 
 	priv = netdev_priv(net_dev);
 
@@ -165,11 +167,25 @@ void __cold dpa_get_pauseparam(struct net_device *net_dev, struct ethtool_pausep
 	}
 
 	et_pauseparam->autoneg	= priv->mac_dev->phy_dev->autoneg;
+
+	_errno = priv->mac_dev->get_pause_frame(priv->mac_dev, &tx, &rx);
+	if (_errno < 0) {
+		if (netif_msg_drv(priv))
+			cpu_netdev_err(net_dev,
+				"mac_dev->get_pause_frame() = %d\n",
+				_errno);
+	} else {
+		if (tx)
+			et_pauseparam->tx_pause = 1;
+		if (rx)
+			et_pauseparam->rx_pause = 1;
+	}
 }
 
 int __cold dpa_set_pauseparam(struct net_device *net_dev, struct ethtool_pauseparam *et_pauseparam)
 {
 	struct dpa_priv_s	*priv;
+	int			_errno;
 
 	priv = netdev_priv(net_dev);
 
@@ -183,6 +199,15 @@ int __cold dpa_set_pauseparam(struct net_device *net_dev, struct ethtool_pausepa
 	}
 
 	priv->mac_dev->phy_dev->autoneg = et_pauseparam->autoneg;
+
+	_errno = priv->mac_dev->set_pause_frame(priv->mac_dev, et_pauseparam);
+	if (_errno < 0) {
+		if (netif_msg_drv(priv))
+			cpu_netdev_err(net_dev,
+				"mac_dev->set_pause_frame() = %d\n",
+				_errno);
+		return _errno;
+	}
 
 	return 0;
 }

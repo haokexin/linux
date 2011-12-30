@@ -88,6 +88,9 @@ typedef struct {
     t_Error (*f_FM_MAC_SetTxAutoPauseFrames)   (t_Handle h_FmMac, uint16_t pauseTime);
     t_Error (*f_FM_MAC_SetRxIgnorePauseFrames) (t_Handle h_FmMac, bool en);
 
+    t_Error (*f_FM_MAC_GetTxPauseFrames) (t_Handle h_FmMac, bool *tx);
+    t_Error (*f_FM_MAC_GetRxPauseFrames) (t_Handle h_FmMac, bool *rx);
+
     t_Error (*f_FM_MAC_ResetCounters) (t_Handle h_FmMac);
     t_Error (*f_FM_MAC_GetStatistics) (t_Handle h_FmMac, t_FmMacStatistics *p_Statistics);
 

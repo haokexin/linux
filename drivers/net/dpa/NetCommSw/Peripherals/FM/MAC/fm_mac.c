@@ -322,6 +322,34 @@ t_Error FM_MAC_SetRxIgnorePauseFrames (t_Handle h_FmMac, bool en)
 
 /* ........................................................................... */
 
+t_Error FM_MAC_GetTxPauseFrames (t_Handle h_FmMac, bool *tx)
+{
+    t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmMacControllerDriver, E_INVALID_HANDLE);
+
+    if (p_FmMacControllerDriver->f_FM_MAC_GetTxPauseFrames)
+        return p_FmMacControllerDriver->f_FM_MAC_GetTxPauseFrames(h_FmMac, tx);
+
+    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
+}
+
+/* ........................................................................... */
+
+t_Error FM_MAC_GetRxPauseFrames (t_Handle h_FmMac, bool *rx)
+{
+    t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmMacControllerDriver, E_INVALID_HANDLE);
+
+    if (p_FmMacControllerDriver->f_FM_MAC_GetRxPauseFrames)
+        return p_FmMacControllerDriver->f_FM_MAC_GetRxPauseFrames(h_FmMac, rx);
+
+    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
+}
+
+/* ........................................................................... */
+
 t_Error FM_MAC_ResetCounters (t_Handle h_FmMac)
 {
     t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;

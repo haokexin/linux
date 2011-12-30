@@ -466,6 +466,34 @@ t_Error FM_MAC_SetTxAutoPauseFrames (t_Handle h_FmMac, uint16_t pauseTime);
 t_Error FM_MAC_SetRxIgnorePauseFrames (t_Handle h_FmMac, bool en);
 
 /**************************************************************************//**
+ @Function      FM_MAC_GetTxPauseFrames
+
+ @Description   Get the status of transmition of Pause-Frames.
+
+ @Param[in]     h_FmMac     A handle to a FM MAC Module.
+ @Param[in]     tx          The status of MACCFG1_TX_FLOW bit from MACCFG1. 
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Init().
+*//***************************************************************************/
+t_Error FM_MAC_GetTxPauseFrames (t_Handle h_FmMac, bool *tx);
+
+/**************************************************************************//**
+ @Function      FM_MAC_GetRxPauseFrames
+
+ @Description   Get the status of ignoring of Pause-Frames.
+
+ @Param[in]     h_FmMac     A handle to a FM MAC Module.
+ @Param[in]     rx          The status of MACCFG1_RX_FLOW bit from MACCFG1.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Init().
+*//***************************************************************************/
+t_Error FM_MAC_GetRxPauseFrames (t_Handle h_FmMac, bool *rx);
+
+/**************************************************************************//**
  @Function      FM_MAC_ResetCounters
 
  @Description   reset all statistics counters

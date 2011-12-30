@@ -803,6 +803,47 @@ static t_Error DtsecRxIgnoreMacPause(t_Handle h_Dtsec, bool en)
     return E_OK;
 }
 
+/* .............................................................................. */
+
+static t_Error DtsecGetTxMacPause(t_Handle h_Dtsec, bool *tx)
+{
+    t_Dtsec         *p_Dtsec = (t_Dtsec *)h_Dtsec;
+    t_DtsecMemMap   *p_MemMap;
+
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_STATE);
+    SANITY_CHECK_RETURN_ERROR(!p_Dtsec->p_DtsecDriverParam, E_INVALID_STATE);
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_MemMap, E_INVALID_STATE);
+
+    p_MemMap = (t_DtsecMemMap*)(p_Dtsec->p_MemMap);
+
+    if (GET_UINT32(p_MemMap->maccfg1) & MACCFG1_TX_FLOW)
+	*tx = TRUE;
+    else 
+	*tx = FALSE;
+
+    return E_OK;
+}
+
+/* .............................................................................. */
+
+static t_Error DtsecGetRxMacPause(t_Handle h_Dtsec, bool *rx)
+{
+    t_Dtsec         *p_Dtsec = (t_Dtsec *)h_Dtsec;
+    t_DtsecMemMap   *p_MemMap;
+
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_STATE);
+    SANITY_CHECK_RETURN_ERROR(!p_Dtsec->p_DtsecDriverParam, E_INVALID_STATE);
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_MemMap, E_INVALID_STATE);
+
+    p_MemMap = (t_DtsecMemMap*)(p_Dtsec->p_MemMap);
+
+    if (GET_UINT32(p_MemMap->maccfg1) & MACCFG1_RX_FLOW)
+        *rx = TRUE;
+    else
+        *rx = FALSE;
+
+    return E_OK;
+}
 
 /* .............................................................................. */
 
@@ -1846,6 +1887,9 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
 
     p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = DtsecTxMacPause;
     p_FmMacControllerDriver->f_FM_MAC_SetRxIgnorePauseFrames    = DtsecRxIgnoreMacPause;
+
+    p_FmMacControllerDriver->f_FM_MAC_GetTxPauseFrames		= DtsecGetTxMacPause;
+    p_FmMacControllerDriver->f_FM_MAC_GetRxPauseFrames		= DtsecGetRxMacPause;
 
     p_FmMacControllerDriver->f_FM_MAC_ResetCounters             = DtsecResetCounters;
     p_FmMacControllerDriver->f_FM_MAC_GetStatistics             = DtsecGetStatistics;

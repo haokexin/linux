@@ -43,6 +43,7 @@
 #include "error_ext.h"	/* GET_ERROR_TYPE, E_OK */
 #include "fm_mac_ext.h"
 #include "fm_rtc_ext.h"
+#include "NetCommSw/Peripherals/FM/MAC/dtsec.h"
 
 #define MAC_DESCRIPTION "FSL FMan MAC API based driver"
 
@@ -577,6 +578,59 @@ static int __cold fm_rtc_set_drift(struct net_device *net_dev, uint32_t drift)
 	return _errno;
 }
 
+static int __cold set_pause_frame(struct mac_device *mac_dev, struct ethtool_pauseparam *pause)
+{
+	int     _errno_get, _errno = 0;
+	t_Error err;
+
+	uint16_t tx_pausetime = pause->tx_pause ? DEFAULT_pauseTime : 0;
+	err = FM_MAC_SetTxAutoPauseFrames(
+		((struct mac_priv_s *)macdev_priv(mac_dev))->mac, tx_pausetime);
+	_errno_get = -GET_ERROR_TYPE(err);
+	if (_errno_get < 0) {
+		dpaa_eth_err(mac_dev->dev,
+			"FM_MAC_SetTxAutoPauseFrames() = 0x%08x\n", err);
+		_errno = _errno_get;
+	}
+
+	err = FM_MAC_SetRxIgnorePauseFrames(
+		((struct mac_priv_s *)macdev_priv(mac_dev))->mac, !pause->rx_pause);
+	_errno_get = -GET_ERROR_TYPE(err);
+	if (_errno_get < 0) {
+		dpaa_eth_err(mac_dev->dev,
+			"FM_MAC_SetRxIgnorePauseFrames() = 0x%08x\n", err);
+		_errno = _errno_get;
+	}
+						 
+	return _errno;
+}
+
+static int __cold get_pause_frame(struct mac_device *mac_dev, bool *tx, bool *rx)
+{
+	int    _errno_get, _errno = 0;
+	t_Error err;
+
+	err = FM_MAC_GetTxPauseFrames(
+		((struct mac_priv_s *)macdev_priv(mac_dev))->mac, tx);
+	 _errno_get = -GET_ERROR_TYPE(err);
+	if (_errno_get < 0) {
+		dpaa_eth_err(mac_dev->dev,
+			"FM_MAC_GetTxPauseFrames() = 0x%08x\n", err);
+		_errno = _errno_get;
+	}
+
+	err = FM_MAC_GetRxPauseFrames(
+		((struct mac_priv_s *)macdev_priv(mac_dev))->mac, rx);
+	_errno_get = -GET_ERROR_TYPE(err);
+	if (_errno_get < 0) {
+		dpaa_eth_err(mac_dev->dev,
+			"FM_MAC_GetRxPauseFrames() = 0x%08x\n", err);
+		_errno = _errno_get;
+	}
+		
+	return _errno;			
+}
+
 static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 {
 	mac_dev->init_phy	= dtsec_init_phy;
@@ -595,6 +649,8 @@ static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 	mac_dev->fm_rtc_set_cnt		= fm_rtc_set_cnt;
 	mac_dev->fm_rtc_get_drift	= fm_rtc_get_drift;
 	mac_dev->fm_rtc_set_drift	= fm_rtc_set_drift;
+	mac_dev->set_pause_frame 	= set_pause_frame;
+	mac_dev->get_pause_frame	= get_pause_frame;
 }
 
 static void __devinit __cold setup_xgmac(struct mac_device *mac_dev)
