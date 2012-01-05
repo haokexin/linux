@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -491,6 +491,8 @@ static __init int bman_init(void)
 	if (fsl_dpa_should_recover())
 		recovery_mode = 1;
 	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
+		if (!of_device_is_available(dn))
+			continue;
 		pcfg = fsl_bman_portal_init(dn);
 		if (pcfg) {
 			if (pcfg->public_cfg.cpu >= 0) {
@@ -549,6 +551,8 @@ static __init int bman_init(void)
 	}
 #else
 	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
+		if (!of_device_is_available(dn))
+			continue;
 		pcfg = fsl_bman_portal_init(dn);
 		if (pcfg)
 			/* No kernel portal support, so if USDPAA didn't consume
