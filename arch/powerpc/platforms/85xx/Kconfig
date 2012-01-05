@@ -311,6 +311,19 @@ config P5040_DS
 	  This option enables support for the Freescale P5040 DS
 	  ("Super Hydra") reference board.
 
+config T4240_QDS
+	bool "Freescale T4240 QDS"
+	select DEFAULT_UIMAGE
+	select E500
+	select PPC_E500MC
+	select PHYS_64BIT
+	select SWIOTLB
+	select MPC8xxx_GPIO
+	select HAS_RAPIDIO
+	select PPC_EPAPR_HV_PIC
+	help
+	  This option enables support for the T4240 QDS board
+
 endif # FSL_SOC_BOOKE
 
 config FSL_P4080_DS_MDIO
