@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2009-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -371,12 +371,17 @@ EXPORT_SYMBOL(bm_pool_set);
 __init void bman_init_early(void)
 {
 	struct device_node *dn;
+	int ret;
+
 	for_each_compatible_node(dn, NULL, "fsl,bman") {
 		if (bm)
 			pr_err("%s: only one 'fsl,bman' allowed\n",
 				dn->full_name);
 		else {
-			int ret = fsl_bman_init(dn);
+			if (!of_device_is_available(dn))
+				continue;
+
+			ret = fsl_bman_init(dn);
 			BUG_ON(ret);
 		}
 	}

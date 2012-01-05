@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -637,12 +637,17 @@ int qman_have_ccsr(void)
 __init void qman_init_early(void)
 {
 	struct device_node *dn;
+	int ret;
+
 	for_each_compatible_node(dn, NULL, "fsl,qman") {
 		if (qm)
 			pr_err("%s: only one 'fsl,qman' allowed\n",
 				dn->full_name);
 		else {
-			int ret = fsl_qman_init(dn);
+			if (!of_device_is_available(dn))
+				continue;
+
+			ret = fsl_qman_init(dn);
 			BUG_ON(ret);
 		}
 	}
