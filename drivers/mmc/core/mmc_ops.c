@@ -110,7 +110,7 @@ int mmc_go_idle(struct mmc_host *host)
 	 */
 	if (!mmc_host_is_spi(host)) {
 		mmc_set_chip_select(host, MMC_CS_HIGH);
-		mmc_delay(1);
+		msleep(1);
 	}
 
 	memset(&cmd, 0, sizeof(struct mmc_command));
@@ -121,11 +121,11 @@ int mmc_go_idle(struct mmc_host *host)
 
 	err = mmc_wait_for_cmd(host, &cmd, 0);
 
-	mmc_delay(1);
+	msleep(1);
 
 	if (!mmc_host_is_spi(host)) {
 		mmc_set_chip_select(host, MMC_CS_DONTCARE);
-		mmc_delay(1);
+		msleep(1);
 	}
 
 	host->use_spi_crc = 0;
