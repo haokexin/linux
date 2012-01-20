@@ -94,7 +94,6 @@ static void esdhc_set_clock(struct sdhci_host *host, unsigned int clock)
 	setbits32(host->ioaddr + ESDHC_SYSTEM_CONTROL, ESDHC_CLOCK_IPGEN |
 		  ESDHC_CLOCK_HCKEN | ESDHC_CLOCK_PEREN |
 		  div << ESDHC_DIVIDER_SHIFT | pre_div << ESDHC_PREDIV_SHIFT);
-	mdelay(100);
 out:
 	host->clock = clock;
 }

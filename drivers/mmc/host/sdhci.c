@@ -1172,6 +1172,18 @@ static void sdhci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 out:
 	mmiowb();
 	spin_unlock_irqrestore(&host->lock, flags);
+#ifdef CONFIG_MMC_SDHCI_OF_ESDHC
+	/*
+	 * For esdhc MMC controller, in sdhci_set_clock(), the driver
+	 * needs to wait 100ms for hardward clock working. As sdhci_set_clock()
+	 * is invoked with a spin lock holded, so it uses mdelay() to delay,
+	 * this causes the high cpu usage. We remove the mdelay() out of sleep-not-allowed
+	 * area and use msleep() to delay for a low cpu usage.
+         */
+	if (!(host->flags & SDHCI_DEVICE_DEAD) && ios->clock) {
+		msleep(100);
+	}
+#endif
 }
 
 static int sdhci_get_ro(struct mmc_host *mmc)
