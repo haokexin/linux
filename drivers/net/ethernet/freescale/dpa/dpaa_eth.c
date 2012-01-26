@@ -102,6 +102,9 @@
  */
 #define FM_FD_STAT_L4CV		0x00000004
 
+/* Valid checksum indication */
+#define DPA_CSUM_VALID		0xFFFF
+
 #define DPA_DESCRIPTION "FSL DPAA Ethernet driver"
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -783,16 +786,52 @@ static int dpa_process_one(struct dpa_percpu_priv_s *percpu_priv,
 	return 0;
 }
 
+/*
+ * Checks whether the checksum field in Parse Results array is valid
+ * (equals 0xFFFF) and increments the .cse counter otherwise
+ */
+static inline void
+dpa_csum_validation(const struct dpa_priv_s	*priv,
+		struct dpa_percpu_priv_s *percpu_priv,
+		const struct qm_fd *fd)
+{
+	dma_addr_t addr = qm_fd_addr(fd);
+	struct dpa_bp *dpa_bp = priv->dpa_bp;
+	void *frm = phys_to_virt(addr);
+	t_FmPrsResult *parse_result;
+
+	if (unlikely(!frm))
+		return;
+
+	dma_unmap_single(dpa_bp->dev, addr, dpa_bp->size, DMA_FROM_DEVICE);
+
+	parse_result = (t_FmPrsResult *)(frm + DPA_PRIV_DATA_SIZE);
+
+	if (parse_result->cksum != DPA_CSUM_VALID)
+		percpu_priv->rx_errors.cse++;
+}
+
 static void _dpa_rx_error(struct net_device *net_dev,
 		const struct dpa_priv_s	*priv,
 		struct dpa_percpu_priv_s *percpu_priv,
 		const struct qm_fd *fd)
 {
 	if (netif_msg_hw(priv) && net_ratelimit())
-		cpu_netdev_warn(net_dev, "FD status = 0x%08x\n",
+		cpu_netdev_dbg(net_dev, "FD status = 0x%08x\n",
 				fd->status & FM_FD_STAT_ERRORS);
 
 	percpu_priv->stats.rx_errors++;
+
+	if (fd->status & FM_PORT_FRM_ERR_DMA)
+		percpu_priv->rx_errors.dme++;
+	if (fd->status & FM_PORT_FRM_ERR_PHYSICAL)
+		percpu_priv->rx_errors.fpe++;
+	if (fd->status & FM_PORT_FRM_ERR_SIZE)
+		percpu_priv->rx_errors.fse++;
+	if (fd->status & FM_PORT_FRM_ERR_PRS_HDR_ERR)
+		percpu_priv->rx_errors.phe++;
+	if (fd->status & FM_FD_STAT_L4CV)
+		dpa_csum_validation(priv, percpu_priv, fd);
 
 	dpa_fd_release(net_dev, fd);
 }
@@ -2229,6 +2268,32 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 			total.stats.tx_errors,
 			total.stats.rx_errors,
 			count_total);
+
+	seq_printf(file, "\nDPA RX Errors:\n\tdma err\tphy err\tsiz err" \
+				"\thdr err\tcsum err\n");
+		for_each_online_cpu(i) {
+			percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
+
+			total.rx_errors.dme += percpu_priv->rx_errors.dme;
+			total.rx_errors.fpe += percpu_priv->rx_errors.fpe;
+			total.rx_errors.fse += percpu_priv->rx_errors.fse;
+			total.rx_errors.phe += percpu_priv->rx_errors.phe;
+			total.rx_errors.cse += percpu_priv->rx_errors.cse;
+
+			seq_printf(file, "%hu/%hu\t%u\t%u\t%u\t%u\t%u\n",
+					get_hard_smp_processor_id(i), i,
+					percpu_priv->rx_errors.dme,
+					percpu_priv->rx_errors.fpe,
+					percpu_priv->rx_errors.fse,
+					percpu_priv->rx_errors.phe,
+					percpu_priv->rx_errors.cse);
+		}
+		seq_printf(file, "Total\t%u\t%u\t%u\t%u\t%u\n",
+				total.rx_errors.dme,
+				total.rx_errors.fpe,
+				total.rx_errors.fse,
+				total.rx_errors.phe,
+				total.rx_errors.cse);
 
 	return 0;
 }

@@ -74,6 +74,14 @@ struct dpa_bp {
 	atomic_t refs;
 };
 
+struct dpa_rx_errors {
+	u32 dme;		/* DMA Error */
+	u32 fpe;		/* Frame Physical Error */
+	u32 fse;		/* Frame Size Error */
+	u32 phe;		/* Header Error */
+	u32 cse;		/* Checksum Validation Error */
+};
+
 struct dpa_percpu_priv_s {
 	struct net_device *net_dev;
 	int *dpa_bp_count;
@@ -85,6 +93,7 @@ struct dpa_percpu_priv_s {
 	u32 tx_returned;
 	u32 tx_confirm;
 	struct net_device_stats	 stats;
+	struct dpa_rx_errors rx_errors;
 };
 
 struct dpa_priv_s {
