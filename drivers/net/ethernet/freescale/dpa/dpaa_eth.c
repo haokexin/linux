@@ -3091,7 +3091,7 @@ dpaa_eth_probe(struct platform_device *_of_dev)
 	if (!priv->shared && !tx_unit_test_ran) {
 		err = dpa_tx_unit_test(net_dev);
 
-		BUG_ON(err);
+		WARN_ON(err);
 	}
 #endif
 
