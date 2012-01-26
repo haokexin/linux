@@ -697,7 +697,7 @@ static int dpa_set_mac_address(struct net_device *net_dev, void *addr)
 	return 0;
 }
 
-static void __cold dpa_change_rx_flags(struct net_device *net_dev, int flags)
+static void dpa_set_rx_mode(struct net_device *net_dev)
 {
 	int			 _errno;
 	const struct dpa_priv_s	*priv;
@@ -707,32 +707,16 @@ static void __cold dpa_change_rx_flags(struct net_device *net_dev, int flags)
 	if (!priv->mac_dev)
 		return;
 
-	if ((flags & IFF_PROMISC) != 0) {
+	if (!!(net_dev->flags & IFF_PROMISC) != priv->mac_dev->promisc) {
 		_errno = priv->mac_dev->change_promisc(priv->mac_dev);
 		if (unlikely(_errno < 0) && netif_msg_drv(priv))
 			cpu_netdev_err(net_dev,
-				       "mac_dev->change_promisc() = %d\n",
-				       _errno);
-	}
-}
-
-static void dpa_set_multicast_list(struct net_device *net_dev)
-{
-	int _errno;
-	struct dpa_priv_s *priv;
-
-	priv = netdev_priv(net_dev);
-
-	if (!priv->mac_dev) {
-		if (netif_msg_drv(priv))
-			cpu_netdev_warn(net_dev,
-					"%s() called on MAC-less interface\n",
-					__func__);
-		return;
+					   "mac_dev->change_promisc() = %d\n",
+					   _errno);
 	}
 
 	_errno = priv->mac_dev->set_multi(net_dev);
-	if ((_errno < 0) && netif_msg_drv(priv))
+	if (unlikely(_errno < 0) && netif_msg_drv(priv))
 		cpu_netdev_err(net_dev, "mac_dev->set_multi() = %d\n", _errno);
 }
 
@@ -2331,15 +2315,13 @@ static const struct net_device_ops dpa_private_ops = {
 	.ndo_open = dpa_start,
 	.ndo_start_xmit = dpa_tx,
 	.ndo_stop = dpa_stop,
-	.ndo_change_rx_flags = dpa_change_rx_flags,
 	.ndo_tx_timeout = dpa_timeout,
 	.ndo_get_stats = dpa_get_stats,
 	.ndo_set_mac_address = dpa_set_mac_address,
 	.ndo_validate_addr = eth_validate_addr,
 	.ndo_select_queue = dpa_select_queue,
 	.ndo_change_mtu = dpa_change_mtu,
-/* Legacy hook function */
-//	.ndo_set_multicast_list = dpa_set_multicast_list,
+	.ndo_set_rx_mode = dpa_set_rx_mode,
 #ifdef CONFIG_FSL_DPA_1588
 	.ndo_do_ioctl = dpa_ioctl,
 #endif
@@ -2349,13 +2331,11 @@ static const struct net_device_ops dpa_shared_ops = {
 	.ndo_open = dpa_start,
 	.ndo_start_xmit = dpa_shared_tx,
 	.ndo_stop = dpa_stop,
-	.ndo_change_rx_flags = dpa_change_rx_flags,
 	.ndo_tx_timeout = dpa_timeout,
 	.ndo_get_stats = dpa_get_stats,
 	.ndo_set_mac_address = dpa_set_mac_address,
 	.ndo_validate_addr = eth_validate_addr,
-/* Legacy hook function */
-//	.ndo_set_multicast_list = dpa_set_multicast_list,
+	.ndo_set_rx_mode = dpa_set_rx_mode,
 #ifdef CONFIG_FSL_DPA_1588
 	.ndo_do_ioctl = dpa_ioctl,
 #endif
