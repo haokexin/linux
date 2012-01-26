@@ -1835,6 +1835,9 @@ fq_create_fail:
 	if (tests_failed)
 		err = -EINVAL;
 
+	/* Reset counters */
+	memset(&percpu_priv->stats, 0, sizeof(percpu_priv->stats));
+
 	return err;
 }
 #endif
