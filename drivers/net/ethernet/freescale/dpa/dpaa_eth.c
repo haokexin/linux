@@ -1753,13 +1753,18 @@ static int __devinit dpa_tx_unit_test(struct net_device *net_dev)
 	struct qman_fq *oldq;
 	int size, headroom;
 	struct dpa_percpu_priv_s *percpu_priv;
-	cpumask_t *oldcpus;
+	cpumask_var_t old_cpumask;
 	int test_count = 0;
 	int err = 0;
 	int tests_failed = 0;
 	const cpumask_t *cpus = qman_affine_cpus();
 
-	oldcpus = tsk_cpus_allowed(current);
+	if (!alloc_cpumask_var(&old_cpumask, GFP_KERNEL)) {
+		pr_err("UNIT test cpumask allocation failed\n");
+		return -ENOMEM;
+	}
+
+	cpumask_copy(old_cpumask, tsk_cpus_allowed(current));
 	set_cpus_allowed_ptr(current, cpus);
 	/* disable bottom halves */
 	local_bh_disable();
@@ -1864,7 +1869,8 @@ fq_create_fail:
 	local_bh_enable();
 	qman_irqsource_add(QM_PIRQ_DQRI);
 	tx_unit_test_ran = true;
-	set_cpus_allowed_ptr(current, oldcpus);
+	set_cpus_allowed_ptr(current, old_cpumask);
+	free_cpumask_var(old_cpumask);
 
 	pr_err("Tested %d/%d packets. %d failed\n", test_count, tx_unit_tested,
 		tests_failed);
