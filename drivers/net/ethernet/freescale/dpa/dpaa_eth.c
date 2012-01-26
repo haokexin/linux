@@ -1229,6 +1229,14 @@ buf_acquire_failed:
 	return err;
 }
 
+/* Equivalent to a memset(0), but works faster */
+static inline void clear_fd(struct qm_fd *fd)
+{
+	fd->opaque_addr = 0;
+	fd->opaque = 0;
+	fd->cmd = 0;
+}
+
 static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 {
 	struct dpa_priv_s	*priv;
@@ -1247,7 +1255,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
 	dev = net_dev->dev.parent;
 
-	memset(&fd, 0, sizeof(fd));
+	clear_fd(&fd);
 	fd.format = qm_fd_contig;
 
 	headroom = skb_headroom(skb);
