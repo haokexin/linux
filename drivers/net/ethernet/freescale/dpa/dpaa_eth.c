@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor Inc.
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -231,9 +231,13 @@ static void dpa_bp_add_8(struct dpa_bp *dpa_bp)
 	/* Avoid releasing a completely null buffer; bman_release() requires
 	 * at least one buf. */
 	if (likely(i)) {
-		/* Using the WAIT flag, bman_release() is guaranteed to succeed
-		 * in a reasonable amount of time*/
-		bman_release(dpa_bp->pool, bmb, i, BMAN_RELEASE_FLAG_WAIT);
+		/*
+		 * Release the buffers. In case bman is busy, keep trying
+		 * until successful. bman_release() is guaranteed to succeed
+		 * in a reasonable amount of time
+		 */
+		while (bman_release(dpa_bp->pool, bmb, i, 0))
+			cpu_relax();
 
 		*count_ptr += i;
 	}
@@ -284,7 +288,8 @@ static void dpaa_eth_seed_pool(struct dpa_bp *bp)
 
 		} while (--count && (num_bufs < 8));
 
-		bman_release(bp->pool, bufs, num_bufs, BMAN_RELEASE_FLAG_WAIT);
+		while (bman_release(bp->pool, bufs, num_bufs, 0))
+			cpu_relax();
 	}
 }
 
@@ -588,12 +593,13 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 					!sgt[i-1].final &&
 					sgt[i-1].bpid == sgt[i].bpid);
 
-			bman_release(dpa_bp->pool, bmb, j,
-				     BMAN_RELEASE_FLAG_WAIT);
+			while (bman_release(dpa_bp->pool, bmb, j, 0))
+				cpu_relax();
 		} while (!sgt[i-1].final);
 	}
 
-	bman_release(_dpa_bp->pool, &_bmb, 1, BMAN_RELEASE_FLAG_WAIT);
+	while (bman_release(_dpa_bp->pool, &_bmb, 1, 0))
+		cpu_relax();
 }
 
 /* net_device */
