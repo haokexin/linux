@@ -1349,8 +1349,10 @@ xmit_failed:
 	dma_unmap_single(dev, addr, dpa_bp->size, DMA_TO_DEVICE);
 
 dma_map_failed:
-	if (fd.cmd & FM_FD_CMD_FCO)
+	if (fd.cmd & FM_FD_CMD_FCO) {
 		(*percpu_priv->dpa_bp_count)--;
+		percpu_priv->tx_returned--;
+	}
 
 l3_l4_csum_failed:
 	dev_kfree_skb(skb);
