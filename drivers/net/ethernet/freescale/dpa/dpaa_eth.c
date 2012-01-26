@@ -765,10 +765,10 @@ static int dpa_process_one(struct dpa_percpu_priv_s *percpu_priv,
 	(*percpu_priv->dpa_bp_count)--;
 
 	/*
-	 * The skb is currently pointed at head + NET_SKB_PAD. The packet
+	 * The skb is currently pointed at head + headroom. The packet
 	 * starts at skb->head + pad + fd offset.
 	 */
-	data_start = pad + dpa_fd_offset(fd) - NET_SKB_PAD;
+	data_start = pad + dpa_fd_offset(fd) - skb_headroom(skb);
 	skb_put(skb, dpa_fd_length(fd) + data_start);
 	skb_pull(skb, data_start);
 
