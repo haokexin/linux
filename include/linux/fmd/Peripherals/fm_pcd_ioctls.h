@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -104,6 +104,9 @@
 #define IOC_FM_PCD_KG_NUM_OF_DEFAULT_GROUPS             16                  /**< Number of default value logical groups */
 
 #define IOC_FM_PCD_PRS_NUM_OF_LABELS                    32                  /**< Max number of SW parser label */
+#define IOC_FM_PCD_MAX_MANIP_INSRT_TEMPLATE_SIZE        128                 /**< Max possible size of insertion template for
+                                                                             insert manipulation*/
+
 /* @} */
 
 /**************************************************************************//**
@@ -122,12 +125,12 @@
                 In order to explain the programming model of the PCD driver interface
                 a few terms should be explained, and will be used below.
                   * Distinction Header - One of the 16 protocols supported by the FM parser,
-                    or one of the shim headers (1-3). May be a header with a special
+                    or one of the shim headers (1 or 2). May be a header with a special
                     option (see below).
                   * Interchangeable Headers Group- This is a group of Headers recognized
                     by either one of them. For example, if in a specific context the user
                     chooses to treat IPv4 and IPV6 in the same way, they may create an
-                    Interchangable Headers Unit consisting of these 2 headers.
+                    interchangeable Headers Unit consisting of these 2 headers.
                   * A Distinction Unit - a Distinction Header or an Interchangeable Headers
                     Group.
                   * Header with special option - applies to ethernet, mpls, vlan, ipv4 and
@@ -145,6 +148,7 @@
                 Definition. The application may choose to establish one or more such environments.
                 Later, when needed, the application will have to state, for some of its modules,
                 to which single environment it belongs.
+
 
  @{
 *//***************************************************************************/
@@ -427,11 +431,29 @@ typedef ioc_protocol_opt_t  ioc_ipv4_protocol_opt_t; /**< IPv4 protocol options.
 #define IOC_IPV4_UNICAST_2              0x02000000   /**< Tunneled IPv4 - Unicast. */
 #define IOC_IPV4_MULTICAST_BROADCAST_2  0x01000000   /**< Tunneled IPv4 - Broadcast/Multicast. */
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+#define IOC_IPV4_FRAG_1                 0x00000008
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+
 typedef ioc_protocol_opt_t  ioc_ipv6_protocol_opt_t; /**< IPv6 protocol options. */
 #define IOC_IPV6_MULTICAST_1            0x00800000   /**< IPv6 Multicast. */
 #define IOC_IPV6_UNICAST_2              0x00400000   /**< Tunneled IPv6 - Unicast. */
 #define IOC_IPV6_MULTICAST_2            0x00200000   /**< Tunneled IPv6 - Multicast. */
+
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+#define IOC_IPV6_FRAG_1                 0x00000004
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+
 /* @} */
+
+/**************************************************************************//**
+ @Description   A type used for returning the order of the key extraction.
+                each value in this array represents the index of the extraction
+                command as defined by the user in the initialization extraction array.
+                The valid size of this array is the user define number of extractions
+                required (also marked by the second '0' in this array).
+*//***************************************************************************/
+typedef    uint8_t    ioc_fm_pcd_kg_key_order_t [IOC_FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY];
 
 /**************************************************************************//**
  @Description   All PCD engines
@@ -622,14 +644,56 @@ typedef enum ioc_fm_pcd_action {
     e_IOC_FM_PCD_ACTION_INDEXED_LOOKUP                  /**< Indexed lookup on the selected extraction*/
 } ioc_fm_pcd_action;
 
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 /**************************************************************************//**
- @Description   A type used for returning the order of the key extraction.
-                each value in this array represents the index of the extraction
-                command as defined by the user in the initialization extraction array.
-                The valid size of this array is the user define number of extractions
-                required (also marked by the second '0' in this array).
+ @Description   enums sinchronized w/ the enums from fm_pcd_ext.h
 *//***************************************************************************/
-typedef    uint8_t    ioc_fm_pcd_kg_key_order_t [IOC_FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY];
+typedef enum ioc_fm_pcd_manip_insrt {
+    e_IOC_FM_PCD_MANIP_INSRT_NONE = 0,
+    e_IOC_FM_PCD_MANIP_INSRT_TO_START_OF_FRAME_INT_FRAME_HDR,
+    e_IOC_FM_PCD_MANIP_INSRT_TO_START_OF_FRAME_TEMPLATE
+} ioc_fm_pcd_manip_insrt;
+
+typedef enum ioc_fm_pcd_manip_rmv {
+    e_IOC_FM_PCD_MANIP_RMV_NONE = 0,
+    e_IOC_FM_PCD_MANIP_RMV_FROM_START_OF_FRAME_TILL_SPECIFIC_LOCATION,
+    e_IOC_FM_PCD_MANIP_RMV_FROM_START_OF_FRAME_INCLUDE_SPECIFIC_LOCATION,
+    e_IOC_FM_PCD_MANIP_RMV_INT_FRAME_HDR
+} ioc_fm_pcd_manip_rmv;
+
+typedef enum ioc_fm_pcd_manip_locate {
+    e_IOC_FM_PCD_MANIP_LOC_BY_HDR = 0,
+    e_IOC_FM_PCD_MANIP_LOC_NON_HDR
+} ioc_fm_pcd_manip_locate;
+
+typedef enum ioc_fm_pcd_manip_reassem_time_out_mode {
+    e_IOC_FM_PCD_MANIP_TIME_OUT_BETWEEN_FRAMES,
+    e_IOC_FM_PCD_MANIP_TIME_OUT_BETWEEN_FRAG
+} ioc_fm_pcd_manip_reassem_time_out_mode;
+
+typedef enum ioc_fm_pcd_manip_reassem_ways_number {
+    e_IOC_FM_PCD_MANIP_ONE_WAY_HASH = 1,
+    e_IOC_FM_PCD_MANIP_TWO_WAYS_HASH,
+    e_IOC_FM_PCD_MANIP_THREE_WAYS_HASH,
+    e_IOC_FM_PCD_MANIP_FOUR_WAYS_HASH,
+    e_IOC_FM_PCD_MANIP_FIVE_WAYS_HASH,
+    e_IOC_FM_PCD_MANIP_SIX_WAYS_HASH,
+    e_IOC_FM_PCD_MANIP_SEVEN_WAYS_HASH,
+    e_IOC_FM_PCD_MANIP_EIGHT_WAYS_HASH
+} ioc_fm_pcd_manip_reassem_ways_number;
+
+typedef enum ioc_fm_pcd_stats {
+    e_IOC_FM_PCD_STATS_PER_FLOWID = 0
+} ioc_fm_pcd_stats;
+
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+typedef enum ioc_fm_pcd_manip_dont_frag_action {
+    e_IOC_FM_PCD_MANIP_ENQ_TO_ERR_Q_OR_DISCARD_PACKET = 0,
+    e_IOC_FM_PCD_MANIP_FRAGMENT_PACKECT,
+    e_IOC_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG
+} ioc_fm_pcd_manip_dont_frag_action;
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
 
 /**************************************************************************//**
  @Description   A Union of protocol dependent special options
@@ -646,21 +710,22 @@ typedef union ioc_fm_pcd_hdr_protocol_opt_u {
  @Description   A union holding all known protocol fields
 *//***************************************************************************/
 typedef union ioc_fm_pcd_fields_u {
-    ioc_header_field_eth_t        eth;        /**< eth      */
-    ioc_header_field_vlan_t       vlan;       /**< vlan     */
-    ioc_header_field_llc_snap_t   llc_snap;   /**< llcSnap  */
-    ioc_header_field_pppoe_t      pppoe;      /**< pppoe    */
-    ioc_header_field_mpls_t       mpls;       /**< mpls     */
-    ioc_header_field_ipv4_t       ipv4;       /**< ipv4     */
-    ioc_header_field_ipv6_t       ipv6;       /**< ipv6     */
-    ioc_header_field_udp_t        udp;        /**< udp      */
-    ioc_header_field_tcp_t        tcp;        /**< tcp      */
-    ioc_header_field_sctp_t       sctp;       /**< sctp     */
-    ioc_header_field_dccp_t       dccp;       /**< dccp     */
-    ioc_header_field_gre_t        gre;        /**< gre      */
-    ioc_header_field_minencap_t   minencap;   /**< minencap */
-    ioc_header_field_ipsec_ah_t   ipsec_ah;   /**< ipsecAh  */
-    ioc_header_field_ipsec_esp_t  ipsec_esp;  /**< ipsecEsp */
+    ioc_header_field_eth_t              eth;        /**< eth      */
+    ioc_header_field_vlan_t             vlan;       /**< vlan     */
+    ioc_header_field_llc_snap_t         llc_snap;   /**< llcSnap  */
+    ioc_header_field_pppoe_t            pppoe;      /**< pppoe    */
+    ioc_header_field_mpls_t             mpls;       /**< mpls     */
+    ioc_header_field_ipv4_t             ipv4;       /**< ipv4     */
+    ioc_header_field_ipv6_t             ipv6;       /**< ipv6     */
+    ioc_header_field_udp_t              udp;        /**< udp      */
+    ioc_header_field_tcp_t              tcp;        /**< tcp      */
+    ioc_header_field_sctp_t             sctp;       /**< sctp     */
+    ioc_header_field_dccp_t             dccp;       /**< dccp     */
+    ioc_header_field_gre_t              gre;        /**< gre      */
+    ioc_header_field_minencap_t         minencap;   /**< minencap */
+    ioc_header_field_ipsec_ah_t         ipsec_ah;   /**< ipsecAh  */
+    ioc_header_field_ipsec_esp_t        ipsec_esp;  /**< ipsecEsp */
+    ioc_header_field_udp_encap_esp_t    udp_encap_esp;    /**< udpEncapEsp */
 } ioc_fm_pcd_fields_u;
 
 /**************************************************************************//**
@@ -733,7 +798,7 @@ typedef struct ioc_fm_pcd_extract_entry_t {
             ioc_fm_pcd_extract_from         src;            /**< Non-header extraction source */
             ioc_fm_pcd_action               action;         /**< Relevant for CC Only */
             uint16_t                        ic_indx_mask;   /**< Relevant only for CC where
-                                                                 action=e_FM_PCD_ACTION_INDEXED_LOOKUP */
+                                                                 action=e_IOC_FM_PCD_ACTION_INDEXED_LOOKUP */
             uint8_t                         offset;         /**< Byte offset */
             uint8_t                         size;           /**< Size in byte */
         } extract_non_hdr;
@@ -794,6 +859,7 @@ typedef struct ioc_fm_pcd_kg_extracted_or_params_t {
             ioc_fm_pcd_hdr_index            hdr_index;          /**< Relevant only for MPLS, VLAN and tunneled
                                                                      IP. Otherwise should be cleared.*/
             bool                            ignore_protocol_validation;
+
         } extract_by_hdr;
         ioc_fm_pcd_extract_from             src;                /**< used when type = e_IOC_FM_PCD_KG_EXTRACT_NON_HDR */
     } extract_params;
@@ -801,7 +867,29 @@ typedef struct ioc_fm_pcd_kg_extracted_or_params_t {
     ioc_fm_pcd_kg_extract_dflt_select       dflt_value;         /**< Select register from which extraction is taken if
                                                                      field not found */
     uint8_t                                 mask;               /**< Mask LSB byte of extraction (specified bits are ignored) */
-    uint8_t                                 bit_offset_in_fqid; /**< out of 24 bits Qid  (max offset = 16) */
+    uint8_t                         bit_offset_in_fqid;    /**< 0-31, Selects which bits of the 24 FQID bits to effect using
+                                                             the extracted byte; Assume byte is placed as the 8 MSB's in
+                                                             a 32 bit word where the lower bits
+                                                             are the FQID; i.e if bitOffsetInFqid=1 than its LSB
+                                                             will effect the FQID MSB, if bitOffsetInFqid=24 than the
+                                                             extracted byte will effect the 8 LSB's of the FQID,
+                                                             if bitOffsetInFqid=31 than the byte's MSB will effect
+                                                             the FQID's LSB; 0 means - no effect on FQID;
+                                                             Note that one, and only one of
+                                                             bitOffsetInFqid or bitOffsetInPlcrProfile must be set (i.e,
+                                                             extracted byte must effect either FQID or Policer profile).*/
+    uint8_t                         bit_offset_in_plcr_profile;
+                                                        /**< 0-15, Selects which bits of the 8 policer profile id bits to
+                                                             effect using the extracted byte; Assume byte is placed
+                                                             as the 8 MSB's in a 16 bit word where the lower bits
+                                                             are the policer profile id; i.e if bitOffsetInPlcrProfile=1
+                                                             than its LSB will effect the profile MSB, if bitOffsetInFqid=8
+                                                             than the extracted byte will effect the whole policer profile id,
+                                                             if bitOffsetInFqid=15 than the byte's MSB will effect
+                                                             the Policer Profile id's LSB;
+                                                             0 means - no effect on policer profile; Note that one, and only one of
+                                                             bitOffsetInFqid or bitOffsetInPlcrProfile must be set (i.e,
+                                                             extracted byte must effect either FQID or Policer profile).*/
 } ioc_fm_pcd_kg_extracted_or_params_t;
 
 /**************************************************************************//**
@@ -876,8 +964,7 @@ typedef struct ioc_fm_pcd_kg_scheme_params_t {
     bool                                always_direct;   /**< This scheme is reached only directly, i.e.
                                                               no need for match vector. Keygen will ignore
                                                               it when matching   */
-    struct                                               /**< HL Relevant only if alwaysDirect = FALSE */
-    {
+    struct {                                             /**< HL Relevant only if alwaysDirect = FALSE */
         void                            *net_env_id;     /**< Network environment id  */
         uint8_t                         num_of_distinction_units;
                                                          /**< Number of netenv units listed in unit_ids array */
@@ -952,10 +1039,10 @@ typedef struct ioc_fm_pcd_cc_next_plcr_params_t {
 typedef struct ioc_fm_pcd_cc_next_enqueue_params_t {
     ioc_fm_pcd_done_action  action;         /**< Action - when next engine is BMI (done) */
     bool                    override_fqid;  /**< TRUE if CC override previously decided Fqid(by Keygen),
-                                                 relevant if action = e_FM_PCD_ENQ_FRAME*/
+                                                 relevant if action = e_IOC_FM_PCD_ENQ_FRAME*/
     uint32_t                new_fqid;       /**< Valid if overrideFqid=TRUE, FQID for enquing the frame
                                                  (otherwise FQID is taken from keygen),
-                                                 relevant if action = e_FM_PCD_ENQ_FRAME*/
+                                                 relevant if action = e_IOC_FM_PCD_ENQ_FRAME*/
     bool                    statistics_en;   /**< In the case of TRUE Statistic counter is
                                                  incremented for each received frame passed through
                                                  this Coarse Classification entry.*/
@@ -990,10 +1077,8 @@ typedef struct ioc_fm_pcd_cc_next_engine_params_t {
             ioc_fm_pcd_cc_next_enqueue_params_t enqueue_params; /**< Parameters in case next engine is BMI */
             ioc_fm_pcd_cc_next_kg_params_t      kg_params;      /**< Parameters in case next engine is KG */
     } params;
-#if defined(FM_CAPWAP_SUPPORT)
-    void                                        *p_manip;       /**< Handler to headerManip.
-                                                                     Relevant if next engine of the type result
-                                                                     (e_FM_PCD_PLCR, e_FM_PCD_KG, e_FM_PCD_DONE) */
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+    void                                        *manip;
 #endif /* defined(FM_CAPWAP_SUPPORT) */
 } ioc_fm_pcd_cc_next_engine_params_t;
 
@@ -1075,6 +1160,9 @@ typedef struct ioc_fm_pcd_cc_tree_params_t {
         uint8_t                         num_of_groups;  /**< Number of CC groups within the CC tree */
         ioc_fm_pcd_cc_grp_params_t      fm_pcd_cc_group_params [IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS];
                                                         /**< Parameters for each group. */
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+        void *                          *ip_reassembly_manip;
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
         void                            *id;            /**< output parameter; Returns the tree Id to be used */
 } ioc_fm_pcd_cc_tree_params_t;
 
@@ -1214,6 +1302,127 @@ typedef struct ioc_fm_pcd_cc_node_modify_key_params_t {
                                                                  of the same size defined in the keySize */
 } ioc_fm_pcd_cc_node_modify_key_params_t;
 
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+/**************************************************************************//**
+ @Description  must match the struct defined in fm_pcd_ext.h
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_location_params_t {
+    ioc_fm_pcd_manip_locate             type;
+    struct {
+        ioc_net_header_type             hdr;
+        ioc_fm_pcd_hdr_index            hdr_index;
+        bool                            by_field;
+        ioc_fm_pcd_fields_u             full_field;
+    } manip_by_hdr;
+} ioc_fm_pcd_manip_location_params_t;
+
+typedef struct ioc_fm_pcd_manip_insrt_by_template_params_t {
+    uint8_t         size;
+    uint8_t         hdr_template[IOC_FM_PCD_MAX_MANIP_INSRT_TEMPLATE_SIZE];
+    bool            modify_outer_ip;
+    struct {
+        uint16_t    ip_outer_offset;
+        uint16_t    dscp_ecn;
+        bool        udp_present;
+        uint8_t     udp_offset;
+        uint8_t     ip_ident_genId;
+        bool        recalculate_length;
+        struct {
+            uint8_t block_size;
+            uint8_t extra_bytes_added_aligned_to_block_size;
+            uint8_t extra_bytes_added_not_aligned_to_block_size;
+        } recalculate_length_params;
+    } modify_outer_ip_params;
+    bool            modify_outer_vlan;
+    struct {
+        uint8_t     vpri;
+    } modify_outer_vlan_params;
+} ioc_fm_pcd_manip_insrt_by_template_params_t;
+#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
+
+#ifdef FM_CAPWAP_SUPPORT
+typedef struct ioc_capwap_fragmentation_params_t {
+    uint16_t         size_for_fragmentation;
+    bool             header_options_compr;
+} ioc_capwap_fragmentation_params_t;
+
+typedef struct ioc_capwap_reassembly_params_t {
+    uint16_t                         max_numFrames_in_process;
+    bool                             halt_on_duplication_frag;
+    ioc_fm_pcd_manip_reassem_time_out_mode  time_out_mode;
+    uint32_t                        fqid_for_time_out_frames;
+    uint32_t                        timeout_routine_request_time;
+    uint32_t                        timeout_threshold_for_reassm_process;
+    ioc_fm_pcd_manip_reassem_ways_number   num_of_frames_per_hash_entry;
+} ioc_capwap_reassembly_params_t;
+#endif /* FM_CAPWAP_SUPPORT */
+
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+typedef struct ioc_ip_fragmentation_params_t {
+    uint16_t                    size_for_fragmentation;
+    uint8_t                     scratch_bpid;
+    ioc_fm_pcd_manip_dont_frag_action  dont_frag_action;
+} ioc_ip_fragmentation_params_t;
+
+typedef struct ioc_ip_reassembly_params_t {
+    uint8_t                         relative_schemeId[2];
+    uint16_t                        liodn_offset;
+    uint8_t                         data_mem_id;
+    uint16_t                        min_frag_size[2];
+    uint16_t                        max_num_frames_in_process;
+    ioc_fm_pcd_manip_reassem_time_out_mode  time_out_mode;
+
+    uint32_t                        fqid_for_time_out_frames;
+    ioc_fm_pcd_manip_reassem_ways_number   num_of_frames_per_hash_entry;
+
+    uint32_t                        timeout_threshold_for_reassm_process;
+} ioc_ip_reassembly_params_t;
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+typedef struct ioc_fm_pcd_manip_frag_or_reasm_params_t {
+    bool                                frag;
+    uint8_t                             ext_buf_pool_indx;
+    ioc_net_header_type                 hdr;
+    union {
+#ifdef FM_CAPWAP_SUPPORT
+        ioc_capwap_fragmentation_params_t capwap_frag_params;
+        ioc_capwap_reassembly_params      capwapReasmParams;
+#endif /* FM_CAPWAP_SUPPORT */
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+        ioc_ip_fragmentation_params_t     ip_frag_params;
+        ioc_ip_reassembly_params_t        ip_reasm_params;
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+    };
+} ioc_fm_pcd_manip_frag_or_reasm_params_t;
+
+typedef struct ioc_fm_pcd_manip_insrt_params_t {
+    ioc_fm_pcd_manip_insrt                           type;
+    union {
+        ioc_fm_pcd_manip_insrt_by_template_params_t  insrt_by_template_params;
+    };
+} ioc_fm_pcd_manip_insrt_params_t;
+
+typedef struct ioc_fm_pcd_manip_rmv_params_t {
+    ioc_fm_pcd_manip_rmv                type ;
+    ioc_fm_pcd_manip_location_params_t  rmv_specific_location_params;
+} ioc_fm_pcd_manip_rmv_params_t;
+
+typedef struct ioc_fm_pcd_manip_params_t {
+    bool                                        rmv;
+    ioc_fm_pcd_manip_rmv_params_t               rmv_params;
+    bool                                        insrt;
+    ioc_fm_pcd_manip_insrt_params_t             insrt_params;
+    bool                                        frag_or_reasm;
+    ioc_fm_pcd_manip_frag_or_reasm_params_t     frag_or_reasm_params;
+    bool                                        treat_fd_status_fields_as_errors;
+    void                                        *id;
+} ioc_fm_pcd_manip_params_t;
+
+typedef struct ioc_fm_pcd_stats_params_t {
+    ioc_fm_pcd_stats  type;
+} ioc_fm_pcd_stats_params_t;
+#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
 
 /**************************************************************************//**
  @Function      FM_PCD_IOC_SET_NET_ENV_CHARACTERISTICS
@@ -1531,6 +1740,31 @@ typedef struct ioc_fm_pcd_cc_node_modify_key_params_t {
 #define FM_PCD_IOC_PLCR_DEL_PROFILE_COMPAT  _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_compat_fm_obj_t)
 #endif
 #define FM_PCD_IOC_PLCR_DEL_PROFILE     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_fm_obj_t)
+
+
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_MANIP_SET_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_compat_fm_pcd_manip_params_t)
+#endif
+#define FM_PCD_IOC_MANIP_SET_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_fm_pcd_manip_params_t)
+
+
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_MANIP_DELETE_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_compat_fm_obj_t)
+#endif
+#define FM_PCD_IOC_MANIP_DELETE_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_fm_obj_t)
+
+#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
+
+#ifdef FM_CAPWAP_SUPPORT
+#warning "CAPWAP IOCTL not implemented"
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_STATISTICS_SET_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), void *)
+#endif
+#define FM_PCD_IOC_STATISTICS_SET_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), void *)
+
+#endif /* FM_CAPWAP_SUPPORT */
 
 #endif /* __FM_PCD_IOCTLS_H */
 /** @} */ /* end of lnx_ioctl_FM_PCD_Runtime_grp group */

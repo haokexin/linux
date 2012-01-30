@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 
 /**************************************************************************//**
  @File          net_ioctls.h
@@ -239,6 +240,10 @@ typedef uint8_t ioc_header_field_vlan_t;
 #define IOC_NET_HEADER_FIELD_VLAN_TYPE                      (IOC_NET_HEADER_FIELD_VLAN_VPRI << 4)
 #define IOC_NET_HEADER_FIELD_VLAN_ALL_FIELDS                ((IOC_NET_HEADER_FIELD_VLAN_VPRI << 5) - 1)
 
+#define IOC_NET_HEADER_FIELD_VLAN_TCI                       (IOC_NET_HEADER_FIELD_VLAN_VPRI | \
+                                                             IOC_NET_HEADER_FIELD_VLAN_CFI | \
+                                                             IOC_NET_HEADER_FIELD_VLAN_VID)
+
 
 typedef uint8_t ioc_header_field_llc_t;
 
@@ -361,15 +366,15 @@ typedef enum {
     e_IOC_NET_HEADER_TYPE_IPSEC_AH,
     e_IOC_NET_HEADER_TYPE_IPSEC_ESP,
     e_IOC_NET_HEADER_TYPE_UDP_ENCAP_ESP, /* RFC 3948 */
-    e_IOC_NET_HEADER_TYPE_MACSEC,        /* moved */
+    e_IOC_NET_HEADER_TYPE_MACSEC,
     e_IOC_NET_HEADER_TYPE_GRE,
     e_IOC_NET_HEADER_TYPE_MINENCAP,
     e_IOC_NET_HEADER_TYPE_DCCP,
     e_IOC_NET_HEADER_TYPE_ICMP,
     e_IOC_NET_HEADER_TYPE_IGMP,
     e_IOC_NET_HEADER_TYPE_ARP,
-    e_IOC_NET_HEADER_TYPE_CAPWAP,         /* new */
-    e_IOC_NET_HEADER_TYPE_CAPWAP_DTLS,    /* new */
+    e_IOC_NET_HEADER_TYPE_CAPWAP,
+    e_IOC_NET_HEADER_TYPE_CAPWAP_DTLS,
     e_IOC_NET_HEADER_TYPE_RFC2684,
     e_IOC_NET_HEADER_TYPE_USER_DEFINED_L2,
     e_IOC_NET_HEADER_TYPE_USER_DEFINED_L3,

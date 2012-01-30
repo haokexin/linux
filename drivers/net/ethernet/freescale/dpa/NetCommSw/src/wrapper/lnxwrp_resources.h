@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -80,7 +80,7 @@ int fm_set_active_fman_ports(struct platform_device *of_dev,
 int fm_precalculate_fifosizes(t_LnxWrpFmDev *p_LnxWrpFmDev,
 			   int muram_fifo_size);
 
-int fm_set_precalculate_fifosize(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev);
+int fm_config_precalculate_fifosize(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev);
 
 /* Compute FMan open DMA based on total number of open DMAs and
  * number of available fman ports.
@@ -100,12 +100,12 @@ int fm_precalculate_open_dma(t_LnxWrpFmDev *p_LnxWrpFmDev,
 			  int default_rx_10g_dmas,
 			  int min_tx_10g_treshold, int min_rx_10g_treshold);
 
-int fm_set_precalculate_open_dma(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev);
+int fm_config_precalculate_open_dma(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev);
 
 /* Compute FMan tnums based on available tnums and number of ports.
  * Set defaults (minim tresholds) and then distribute leftovers.*/
 int fm_precalculate_tnums(t_LnxWrpFmDev *p_LnxWrpFmDev, int max_fm_tnums);
 
-int fm_set_precalculate_tnums(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev);
+int fm_config_precalculate_tnums(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev);
 
 #endif /* LNXWRP_RESOURCES_H_ */

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -123,9 +123,7 @@
                                             FM_EX_BMI_DISPATCH_RAM_ECC      |\
                                             FM_EX_IRAM_ECC                  |\
                                             FM_EX_NURAM_ECC                 )
-#define DEFAULT_totalNumOfTasks             (BMI_MAX_NUM_OF_TASKS*3/4)
 #define DEFAULT_totalFifoSize               (BMI_MAX_FIFO_SIZE*3/4)
-#define DEFAULT_maxNumOfOpenDmas            (BMI_MAX_NUM_OF_DMAS*3/4)
 #define DEFAULT_eccEnable                   FALSE
 #define DEFAULT_dispLimit                   0
 #define DEFAULT_prsDispTh                   16
@@ -451,8 +449,6 @@ typedef _Packed struct
 #define FPM_TS_FRACTION_MASK            0x0000FFFF
 #define FPM_TS_CTL_EN                   0x80000000
 
-#define FPM_PORT_FM_CTL1                0x00000001
-#define FPM_PORT_FM_CTL2                0x00000002
 #define FPM_PRC_REALSE_STALLED          0x00800000
 
 #define FPM_PS_STALLED                  0x00800000

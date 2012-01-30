@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,6 +56,11 @@ void        FmHcTxConf(t_Handle h_FmHc, t_DpaaFD *p_Fd);
 t_Handle    FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme);
 t_Error     FmHcPcdKgDeleteScheme(t_Handle h_FmHc, t_Handle h_Scheme);
 t_Error     FmHcPcdCcCapwapTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcCapwapReassmTimeoutParams *p_CcCapwapReassmTimeoutParams );
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+t_Error     FmHcPcdCcIpFragScratchPollCmd(t_Handle h_FmHc, bool fill, t_FmPcdCcFragScratchPoolCmdParams *p_FmPcdCcFragScratchPoolCmdParams);
+t_Error     FmHcPcdCcIpTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcIpReassmTimeoutParams *p_CcIpReassmTimeoutParams, uint8_t *p_Result);
+uint32_t    FmHcPcdCcIpFrag(t_Handle h_FmHc, bool fill, t_FmPcdCcFragScratchPoolCmdParams *p_FmPcdCcFragCmdParams);
+#endif /*FM_IP_FRAG_N_REASSEM_SUPPORT*/
 t_Error     FmHcPcdKgSetClsPlan(t_Handle h_FmHc, t_FmPcdKgInterModuleClsPlanSet *p_Set);
 t_Error     FmHcPcdKgDeleteClsPlan(t_Handle h_FmHc, uint8_t clsPlanGrpId);
 
@@ -63,12 +68,12 @@ t_Error     FmHcPcdKgSetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme, uint32
 uint32_t    FmHcPcdKgGetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme);
 
 t_Error     FmHcPcdCcModifyTreeNextEngine(t_Handle h_FmHc, t_Handle h_CcTree, uint8_t grpId, uint8_t index, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
-t_Error     FmHcPcdCcModifyNodeNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+t_Error     FmHcPcdCcModifyNodeNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
 t_Error     FmHcPcdCcModifyNodeMissNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
-t_Error     FmHcPcdCcRemoveKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex);
-t_Error     FmHcPcdCcAddKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams);
-t_Error     FmHcPcdCcModifyKeyAndNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams);
-t_Error     FmHcPcdCcModifyKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, uint8_t  *p_Key, uint8_t *p_Mask);
+t_Error     FmHcPcdCcRemoveKey(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex);
+t_Error     FmHcPcdCcAddKey(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams);
+t_Error     FmHcPcdCcModifyKeyAndNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams);
+t_Error     FmHcPcdCcModifyKey(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, uint8_t  *p_Key, uint8_t *p_Mask);
 
 t_Handle    FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profile);
 t_Error     FmHcPcdPlcrDeleteProfile(t_Handle h_FmHc, t_Handle h_Profile);

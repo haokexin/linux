@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -540,7 +540,7 @@ t_Error FM_RTC_GetCurrentTime(t_Handle h_FmRtc, uint64_t *p_Ts);
  @Cautions      h_FmRtc must have been previously initialized using FM_RTC_Init().
 *//***************************************************************************/
 t_Error FM_RTC_SetCurrentTime(t_Handle h_FmRtc, uint64_t ts);
- 
+
 /**************************************************************************//**
  @Function      FM_RTC_GetFreqCompensation
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -66,6 +66,12 @@ t_Handle FM_MAC_Config (t_FmMacParams *p_FmMacParam)
     p_FmMacControllerDriver->macId          = p_FmMacParam->macId;
     p_FmMacControllerDriver->resetOnInit    = DEFAULT_resetOnInit;
 
+    if ((p_FmMacControllerDriver->clkFreq = FmGetClockFreq(p_FmMacControllerDriver->h_Fm)) == 0)
+    {
+        REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Can't get clock for MAC!"));
+        return NULL;
+    }
+
     return (t_Handle)p_FmMacControllerDriver;
 }
 
@@ -82,9 +88,6 @@ t_Error FM_MAC_Init (t_Handle h_FmMac)
                     ((ENET_INTERFACE_FROM_MODE(p_FmMacControllerDriver->enetMode) == e_ENET_IF_XGMII) ? e_FM_MAC_10G : e_FM_MAC_1G),
                      p_FmMacControllerDriver->macId) != E_OK))
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Can't reset MAC!"));
-
-    if ((p_FmMacControllerDriver->clkFreq = FmGetClockFreq(p_FmMacControllerDriver->h_Fm)) == 0)
-        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Can't get clock for MAC!"));
 
     if (p_FmMacControllerDriver->f_FM_MAC_Init)
         return p_FmMacControllerDriver->f_FM_MAC_Init(h_FmMac);

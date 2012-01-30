@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -262,7 +262,7 @@ static struct qman_fq * FqAlloc(t_FmTestPort    *p_FmTestPort,
     }
 
     p_FmtFq->fq_base.cb.dqrr = egress_dqrr;
-    p_FmtFq->fq_base.cb.ern = p_FmtFq->fq_base.cb.dc_ern = p_FmtFq->fq_base.cb.fqs = egress_ern;
+    p_FmtFq->fq_base.cb.ern = p_FmtFq->fq_base.cb.fqs = egress_ern;
     p_FmtFq->port = (void *)p_FmTestPort;
     if (fqid == 0) {
         flags |= QMAN_FQ_FLAG_DYNAMIC_FQID;

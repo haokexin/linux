@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -143,7 +143,7 @@ typedef _Packed struct t_DpaaSGTE {
 *//***************************************************************************/
 typedef _Packed struct t_DpaaSGT {
     t_DpaaSGTE    tableEntry[DPAA_NUM_OF_SG_TABLE_ENTRY];
-                                    /**< structure that hold the information about
+                                    /**< Structure that holds information about
                                          a single S/G entry. */
 } _PackedType t_DpaaSGT;
 
@@ -151,10 +151,10 @@ typedef _Packed struct t_DpaaSGT {
  @Description   Compound Frame Table
 *//***************************************************************************/
 typedef _Packed struct t_DpaaCompTbl {
-    t_DpaaSGTE    outputBuffInfo;   /**< structure that holds the information about
+    t_DpaaSGTE    outputBuffInfo;   /**< Structure that holds information about
                                          the compound-frame output buffer;
                                          NOTE: this may point to a S/G table */
-    t_DpaaSGTE    inputBuffInfo;    /**< structure that holds the information about
+    t_DpaaSGTE    inputBuffInfo;    /**< Structure that holds information about
                                          the compound-frame input buffer;
                                          NOTE: this may point to a S/G table */
 } _PackedType t_DpaaCompTbl;

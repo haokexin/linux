@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@
 #include "fm_pcd.h"
 #include "fm_pcd_ipc.h"
 #include "fm_hc.h"
-
+#include "fm_muram_ext.h"
 
 static t_Error CheckFmPcdParameters(t_FmPcd *p_FmPcd)
 {
@@ -416,6 +416,12 @@ t_Error PcdGetVectorForOpt(t_FmPcd *p_FmPcd, uint8_t netEnvId, protocolOpt_t opt
         return E_OK;
 }
 
+uint8_t FmPcdGetNetEnvId(t_FmPcd *p_FmPcd, t_Handle h_NetEnv)
+{
+    UNUSED(p_FmPcd);
+    return (uint8_t)(PTR_TO_UINT(h_NetEnv)-1);
+}
+
 t_Error PcdGetUnitsVector(t_FmPcd *p_FmPcd, t_NetEnvParams *p_Params)
 {
     int                     i;
@@ -472,7 +478,7 @@ bool  FmPcdNetEnvIsHdrExist(t_Handle h_FmPcd, uint8_t netEnvId, e_NetHeaderType 
             if (p_FmPcd->netEnvs[netEnvId].units[i].hdrs[k].hdr == hdr)
                 return TRUE;
     }
-    for (i=0; ((i < FM_PCD_MAX_NUM_OF_PRIVATE_HDRS) &&
+    for (i=0; ((i < FM_PCD_MAX_NUM_OF_ALIAS_HDRS) &&
               (p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].hdr != HEADER_TYPE_NONE)); i++)
     {
         if (p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].hdr == hdr)
@@ -482,13 +488,136 @@ bool  FmPcdNetEnvIsHdrExist(t_Handle h_FmPcd, uint8_t netEnvId, e_NetHeaderType 
     return FALSE;
 }
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+uint8_t  FmPcdNetEnvGetUnitId(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr, bool interchangable, protocolOpt_t opt)
+{
+    int         i, k;
+
+    ASSERT_COND(p_FmPcd);
+
+    if (interchangable)
+    {
+        for(i=0; (i < FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS) &&
+                 (p_FmPcd->netEnvs[netEnvId].units[i].hdrs[0].hdr != HEADER_TYPE_NONE); i++)
+        {
+            for(k=0; (k < FM_PCD_MAX_NUM_OF_INTERCHANGEABLE_HDRS) &&
+                     (p_FmPcd->netEnvs[netEnvId].units[i].hdrs[k].hdr != HEADER_TYPE_NONE); k++)
+            {
+                if((p_FmPcd->netEnvs[netEnvId].units[i].hdrs[k].hdr == hdr) &&
+                    (p_FmPcd->netEnvs[netEnvId].units[i].hdrs[k].opt == opt))
+
+                return i;
+            }
+        }
+    }
+    else
+    {
+        for(i=0; (i < FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS) &&
+                 (p_FmPcd->netEnvs[netEnvId].units[i].hdrs[0].hdr != HEADER_TYPE_NONE); i++)
+            if ((p_FmPcd->netEnvs[netEnvId].units[i].hdrs[0].hdr == hdr) &&
+                (p_FmPcd->netEnvs[netEnvId].units[i].hdrs[0].opt == opt) &&
+                (p_FmPcd->netEnvs[netEnvId].units[i].hdrs[1].hdr == HEADER_TYPE_NONE))
+                    return i;
+
+        for(i=0; (i < FM_PCD_MAX_NUM_OF_ALIAS_HDRS) &&
+                 (p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].hdr != HEADER_TYPE_NONE); i++)
+            if ((p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].hdr == hdr) &&
+                (p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].opt == opt))
+                return p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].aliasHdr;
+    }
+
+    return FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS;
+}
+
+bool  FmPcdIsIpFrag(t_Handle h_FmPcd, uint8_t netEnvId)
+{
+    if(FmPcdNetEnvGetUnitId(h_FmPcd, netEnvId, HEADER_TYPE_USER_DEFINED_SHIM2, FALSE, 0) == FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
+        return FALSE;
+    else
+        return TRUE;
+}
+
+t_Error FmPcdRegisterReassmPort(t_Handle h_FmPcd, t_Handle h_IpReasmCommonPramTbl)
+{
+    t_FmPcd                         *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcdCcIpReassmTimeoutParams  ccIpReassmTimeoutParams = {0};
+    t_Error                         err = E_OK;
+    uint8_t                         result;
+    uint32_t                        bitFor1Micro, tsbs;
+
+    ASSERT_COND(p_FmPcd);
+    ASSERT_COND(h_IpReasmCommonPramTbl);
+
+    bitFor1Micro = FmGetTimeStampScale(p_FmPcd->h_Fm);
+    tsbs = 31 - bitFor1Micro + 1;
+
+    ccIpReassmTimeoutParams.iprcpt      = (XX_VirtToPhys(h_IpReasmCommonPramTbl) - p_FmPcd->physicalMuramBase);
+    ccIpReassmTimeoutParams.tsbs        = tsbs;
+    ccIpReassmTimeoutParams.activate    = TRUE;
+    if ((err = FmHcPcdCcIpTimeoutReassm(p_FmPcd->h_Hc, &ccIpReassmTimeoutParams, &result)) != E_OK)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
+
+    switch (result)
+    {
+        case (0):
+            return E_OK;
+        case (1):
+            RETURN_ERROR(MAJOR, E_NO_MEMORY, ("failed to allocate TNUM"));
+        case (2):
+            RETURN_ERROR(MAJOR, E_NO_MEMORY, ("failed to allocate internal buffer"));
+        case (3):
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("\"Disable Timeout Task\" with invalid IPRCPT"));
+        case (4):
+            RETURN_ERROR(MAJOR, E_FULL, ("too many timeout tasks"));
+        case (5):
+            RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("invalid sub command"));
+        default:
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);
+    }
+    return E_OK;
+}
+
+t_Error FmPcdUnregisterReassmPort(t_Handle h_FmPcd, t_Handle h_IpReasmCommonPramTbl)
+{
+    t_FmPcd                         *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcdCcIpReassmTimeoutParams  ccIpReassmTimeoutParams = {0};
+    uint8_t                         result;
+    t_Error                         err = E_OK;
+
+    ASSERT_COND(p_FmPcd);
+    ASSERT_COND(h_IpReasmCommonPramTbl);
+
+    ccIpReassmTimeoutParams.iprcpt   = (XX_VirtToPhys(h_IpReasmCommonPramTbl) - p_FmPcd->physicalMuramBase);
+    ccIpReassmTimeoutParams.activate = FALSE; /*Disable Timeout Task*/
+
+    if ((err = FmHcPcdCcIpTimeoutReassm(p_FmPcd->h_Hc, &ccIpReassmTimeoutParams, &result)) != E_OK)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
+
+    switch (result)
+    {
+        case (0):
+            return E_OK;
+        case (1):
+            RETURN_ERROR(MAJOR, E_INVALID_STATE, (""));
+        case (2):
+            RETURN_ERROR(MAJOR, E_INVALID_STATE, (""));
+        case (3):
+            RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("Disable Timeout Task with invalid IPRCPT"));
+        default:
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);
+    }
+
+    return E_OK;
+}
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+
 e_NetHeaderType FmPcdGetAliasHdr(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr)
 {
     int         i;
 
     ASSERT_COND(p_FmPcd);
 
-    for (i=0; (i < FM_PCD_MAX_NUM_OF_PRIVATE_HDRS)
+    for (i=0; (i < FM_PCD_MAX_NUM_OF_ALIAS_HDRS)
         && (p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].hdr != HEADER_TYPE_NONE); i++)
     {
         if (p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].hdr == hdr)
@@ -654,6 +783,17 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
     p_FmPcd->f_FmPcdIndexedException    = p_FmPcdParams->f_ExceptionId;
     p_FmPcd->h_App                      = p_FmPcdParams->h_App;
 
+    /*p_ReassmFrmDescrPoolTbl*/
+    p_FmPcd->h_FragIdPtr = (t_Handle)FM_MURAM_AllocMem(p_FmPcd->h_FmMuram, (uint32_t)4, (uint32_t)4);
+    if(!p_FmPcd->h_FragIdPtr)
+    {
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("Memory allocation in MURAM FAILED"));
+        FM_PCD_Free(p_FmPcd);
+        return NULL;
+    }
+
+    IOMemSet32(p_FmPcd->h_FragIdPtr, 0,  4);
+
     return p_FmPcd;
 }
 
@@ -757,9 +897,6 @@ t_Error FM_PCD_Free(t_Handle h_FmPcd)
     if(p_FmPcd->enabled)
         FM_PCD_Disable(p_FmPcd);
 
-    if (p_FmPcd->h_Spinlock)
-        XX_FreeSpinlock(p_FmPcd->h_Spinlock);
-
     if(p_FmPcd->p_FmPcdDriverParam)
     {
         XX_Free(p_FmPcd->p_FmPcdDriverParam);
@@ -794,6 +931,9 @@ t_Error FM_PCD_Free(t_Handle h_FmPcd)
         FmHcFree(p_FmPcd->h_Hc);
         p_FmPcd->h_Hc = NULL;
     }
+
+    if (p_FmPcd->h_Spinlock)
+        XX_FreeSpinlock(p_FmPcd->h_Spinlock);
 
     XX_IpcUnregisterMsgHandler(p_FmPcd->fmPcdModuleName);
 
@@ -940,7 +1080,7 @@ t_Handle FM_PCD_SetNetEnvCharacteristics(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
 
     /* clear from previous use */
     memset(&p_FmPcd->netEnvs[netEnvCurrId].units, 0, FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS * sizeof(t_FmPcdIntDistinctionUnit));
-    memset(&p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs, 0, FM_PCD_MAX_NUM_OF_PRIVATE_HDRS * sizeof(t_FmPcdNetEnvAliases));
+    memset(&p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs, 0, FM_PCD_MAX_NUM_OF_ALIAS_HDRS * sizeof(t_FmPcdNetEnvAliases));
     memcpy(&p_FmPcd->netEnvs[netEnvCurrId].units, p_NetEnvParams->units, p_NetEnvParams->numOfDistinctionUnits*sizeof(t_FmPcdIntDistinctionUnit));
     p_FmPcd->netEnvs[netEnvCurrId].clsPlanGrpId = ILLEGAL_CLS_PLAN;
 
@@ -957,6 +1097,7 @@ t_Handle FM_PCD_SetNetEnvCharacteristics(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
             {
                 for (j=0; (j < FM_PCD_MAX_NUM_OF_INTERCHANGEABLE_HDRS)
                         && (p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[j].hdr != HEADER_TYPE_NONE); j++)
+                {
                     if((p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[j].hdr == p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr) &&
                         !p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[j].opt)
                     {
@@ -964,12 +1105,12 @@ t_Handle FM_PCD_SetNetEnvCharacteristics(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                         RELEASE_LOCK(p_FmPcd->netEnvs[netEnvCurrId].lock);
                         return NULL;
                     }
+                }
             }
         }
     }
 
-    /* IPSEC_AH and IPSEC_SPI can't be 2 units,  */
-    /* check that header with opt is not interchanged with the same header */
+    /* Specific headers checking  */
     for(i=0; (i < FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
         && (p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[0].hdr != HEADER_TYPE_NONE); i++)
     {
@@ -978,6 +1119,8 @@ t_Handle FM_PCD_SetNetEnvCharacteristics(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
         {
             /* Some headers pairs may not be defined on different units as the parser
             doesn't distinguish */
+            /* IPSEC_AH and IPSEC_SPI can't be 2 units,  */
+            /* check that header with opt is not interchanged with the same header */
             if(p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr == HEADER_TYPE_IPSEC_AH)
             {
                 if (ipsecEspExists && (ipsecEspUnit != i))
@@ -1006,6 +1149,7 @@ t_Handle FM_PCD_SetNetEnvCharacteristics(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                     ipsecEspExists = TRUE;
                 }
             }
+            /* ENCAP_ESP  */
             if(p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr == HEADER_TYPE_UDP_ENCAP_ESP)
             {
                 /* TODO - general coding. choose the free shim header */
@@ -1014,6 +1158,68 @@ t_Handle FM_PCD_SetNetEnvCharacteristics(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                 p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr = HEADER_TYPE_USER_DEFINED_SHIM1;
                 p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].opt = 0;
             }
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+            /* IP FRAG  */
+            if(k==0)
+                if((p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr == HEADER_TYPE_IPv4) &&
+                    (p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].opt == IPV4_FRAG_1))
+                {
+                    /* If IPv4+Frag, we need to set 2 units - SHIM 2 and IPv4. We first set SHIM2, and than check if
+                     * IPv4 exists. If so we don't need to set an extra unit
+                     * We consider as "having IPv4" any IPv4 without interchangable headers
+                     * but including any options.  */
+                    p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs[specialUnits].hdr = HEADER_TYPE_IPv4;
+                    p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs[specialUnits].opt = IPV4_FRAG_1;
+                    p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs[specialUnits++].aliasHdr = HEADER_TYPE_USER_DEFINED_SHIM2;
+                    p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr = HEADER_TYPE_USER_DEFINED_SHIM2;
+                    p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].opt = 0;
+
+                    /* check if IPv4 header exists by itself */
+                    if (FmPcdNetEnvGetUnitId(p_FmPcd, netEnvCurrId, HEADER_TYPE_IPv4, FALSE, 0) == FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
+                    {
+                        p_FmPcd->netEnvs[netEnvCurrId].units[p_NetEnvParams->numOfDistinctionUnits].hdrs[0].hdr = HEADER_TYPE_IPv4;
+                        p_FmPcd->netEnvs[netEnvCurrId].units[p_NetEnvParams->numOfDistinctionUnits++].hdrs[0].opt = 0;
+                    }
+                }
+                if((p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr == HEADER_TYPE_IPv6) &&
+                        (p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].opt == IPV6_FRAG_1))
+                {
+                    /* If IPv6+Frag, we need to set 2 units - SHIM 2 and IPv6. We first set SHIM2, and than check if
+                     * IPv4 exists. If so we don't need to set an extra unit
+                     * We consider as "having IPv6" any IPv6 without interchangable headers
+                     * but including any options.  */
+                    p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs[specialUnits].hdr = HEADER_TYPE_IPv6;
+                    p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs[specialUnits].opt = IPV6_FRAG_1;
+                    p_FmPcd->netEnvs[netEnvCurrId].aliasHdrs[specialUnits++].aliasHdr = HEADER_TYPE_USER_DEFINED_SHIM2;
+
+                    for(j=0; (j < FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS) &&
+                             (p_FmPcd->netEnvs[netEnvCurrId].units[j].hdrs[0].hdr != HEADER_TYPE_USER_DEFINED_SHIM2); j++);
+                    if (j == FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
+                    {
+                        p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].hdr = HEADER_TYPE_USER_DEFINED_SHIM2;
+                        p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[k].opt = 0;
+                        /* check if IPv6 header exists by itself */
+                        if (FmPcdNetEnvGetUnitId(p_FmPcd, netEnvCurrId, HEADER_TYPE_IPv6, FALSE, 0) == FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
+                        {
+                            p_FmPcd->netEnvs[netEnvCurrId].units[p_NetEnvParams->numOfDistinctionUnits].hdrs[0].hdr = HEADER_TYPE_IPv6;
+                            p_FmPcd->netEnvs[netEnvCurrId].units[p_NetEnvParams->numOfDistinctionUnits++].hdrs[0].opt = 0;
+                        }
+                    }
+                    else
+                    {
+                        if (FmPcdNetEnvGetUnitId(p_FmPcd, netEnvCurrId, HEADER_TYPE_IPv6, FALSE, 0) == FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
+                        {
+                            p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[0].hdr = HEADER_TYPE_IPv6;
+                            p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[0].opt = 0;
+                        }
+                        else
+                        {
+                            p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[0].hdr = p_FmPcd->netEnvs[netEnvCurrId].units[p_NetEnvParams->numOfDistinctionUnits-1].hdrs[0].hdr;
+                            p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[0].opt = p_FmPcd->netEnvs[netEnvCurrId].units[p_NetEnvParams->numOfDistinctionUnits-1].hdrs[0].opt;
+                        }
+                    }
+                }
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
         }
     }
 

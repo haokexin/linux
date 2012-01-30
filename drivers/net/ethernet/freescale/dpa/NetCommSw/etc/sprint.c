@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,7 +38,6 @@
 /*------------------------------------------------------*/
 #include "string_ext.h"
 #include "stdlib_ext.h"
-#include "ctype_ext.h"
 #include "stdarg_ext.h"
 #include "sprint_ext.h"
 #include "std_ext.h"

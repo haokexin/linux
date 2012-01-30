@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -105,16 +105,6 @@ static t_Error CheckInitParameters(t_FmRtc *p_Rtc)
             RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Trigger %d signal polarity", i));
         }
     }
-
-#ifdef FM_1588_SRC_CLK_ERRATA_FMAN1
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_Rtc->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0)&&
-           ((p_RtcDriverParam->srcClk==e_FM_RTC_SOURCE_CLOCK_SYSTEM) && p_RtcDriverParam->invertInputClkPhase))
-            RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("Can not use invertInputClkPhase when source clock is e_FM_RTC_SOURCE_CLOCK_SYSTEM"));
-    }
-#endif /* FM_1588_SRC_CLK_ERRATA_FMAN1 */
 
     return E_OK;
 }
@@ -642,7 +632,7 @@ t_Error FM_RTC_SetPeriodicPulse(t_Handle h_FmRtc, t_FmRtcPeriodicPulseParams *p_
     if (p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback)
     {
         p_Rtc->periodicPulseParams[p_FmRtcPeriodicPulseParams->periodicPulseId].f_PeriodicPulseCallback =
-                                                           p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback;
+            p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback;
 
         if(p_FmRtcPeriodicPulseParams->periodicPulseId == 0)
             tmpReg = TMR_TEVENT_PP1;
@@ -820,9 +810,7 @@ t_Error FM_RTC_GetFreqCompensation(t_Handle h_FmRtc, uint32_t *p_Compensation)
     SANITY_CHECK_RETURN_ERROR(p_Rtc, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_Rtc->p_RtcDriverParam, E_INVALID_STATE);
 
-    *p_Compensation = (uint32_t)
-        DIV_CEIL(ACCUMULATOR_OVERFLOW * 1000,
-                 p_Rtc->clockPeriodNanoSec * p_Rtc->srcClkFreqMhz);
+    *p_Compensation = GET_UINT32(p_Rtc->p_MemMap->tmr_add);
 
     return E_OK;
 }
