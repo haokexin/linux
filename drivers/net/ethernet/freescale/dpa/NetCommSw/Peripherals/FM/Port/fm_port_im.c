@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -282,7 +282,7 @@ void FmPortConfigIM (t_FmPort *p_FmPort, t_FmPortParams *p_FmPortParams)
         if (p_FmPort->im.mrblr != p_FmPort->im.rxPool.bufferSize)
             DBG(WARNING, ("Max-Rx-Buffer-Length set to %d", p_FmPort->im.mrblr));
         p_FmPort->im.bdRingSize             = DEFAULT_PORT_rxBdRingLength;
-        p_FmPort->exceptions                = DEFAULT_exception;
+        p_FmPort->exceptions                = DEFAULT_PORT_exception;
         if (FmIsMaster(p_FmPort->h_Fm))
             p_FmPort->polling               = FALSE;
         else

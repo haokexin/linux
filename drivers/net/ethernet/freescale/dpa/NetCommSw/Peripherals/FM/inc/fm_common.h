@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -109,6 +109,29 @@ typedef _Packed struct t_FmPcdCcCapwapReassmTimeoutParams {
 #endif /* defined(__MWERKS__) && ... */
 
 
+/*for UNDER_CONSTRUCTION_FM_RMU_USE_SEC its defined in fm_ext.h*/
+typedef uint32_t t_FmFmanCtrl;
+
+#define FPM_PORT_FM_CTL1                0x00000001
+#define FPM_PORT_FM_CTL2                0x00000002
+
+
+
+
+
+#define NUM_OF_SCRATCH_POOL_BUFFERS     1000 /*TODO - Change it!!*/
+
+typedef struct t_FmPcdCcFragScratchPoolCmdParams {
+    uint32_t    numOfBuffers;
+    uint8_t     bufferPoolId;
+}t_FmPcdCcFragScratchPoolCmdParams;
+
+typedef struct t_FmPcdCcIpReassmTimeoutParams {
+    bool        activate;
+    uint8_t     tsbs;
+    uint32_t    iprcpt;
+}t_FmPcdCcIpReassmTimeoutParams;
+
 typedef struct {
     uint8_t             baseEntry;
     uint16_t            numOfClsPlanEntries;
@@ -161,10 +184,10 @@ typedef struct {
 } t_GetCcParams;
 
 typedef struct {
-    uint32_t type;
-    int      psoSize;
-    uint32_t nia;
-
+    uint32_t        type;
+    int             psoSize;
+    uint32_t        nia;
+    t_FmFmanCtrl    orFmanCtrl;
 } t_SetCcParams;
 
 typedef struct {
@@ -214,6 +237,10 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define UPDATE_PSO                              0x40000000
 #define UPDATE_NIA_PNDN                         0x20000000
 #define UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY      0x10000000
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+#define UPDATE_IPR_EN                           0x08000000
+#define UPDATE_NIA_RFENE                        0x04000000
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 /* @} */
 
 /**************************************************************************//**
@@ -223,6 +250,7 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define UPDATE_NIA_ENQ_WITHOUT_DMA              0x80000000
 #define UPDATE_CC_WITH_TREE                     0x40000000
 #define UPDATE_CC_WITH_DELETE_TREE              0x20000000
+#define UPDATE_KG_NIA_CC_WA                     0x10000000
 /* @} */
 
 /**************************************************************************//**
@@ -304,7 +332,8 @@ typedef uint32_t t_FmBlockIntrEnable;
 #define NIA_FM_CTL_AC_POST_FETCH_PCD_UDP_LEN    0x00000018
 #define NIA_FM_CTL_AC_POST_FETCH_NO_PCD         0x00000012
 #define NIA_FM_CTL_AC_FRAG_CHECK                0x00000014
-#define NIA_FM_CTL_AC_MASK                      0x0000001f
+#define NIA_FM_CTL_AC_PRE_CC                    0x00000020
+
 
 #define NIA_BMI_AC_ENQ_FRAME        0x00000002
 #define NIA_BMI_AC_TX_RELEASE       0x000002C0
@@ -707,13 +736,6 @@ typedef struct t_FmPcdKgInterModuleClsPlanGrpParams {
                                /* OUT in FmPcdGetSetClsPlanGrpParams IN in FmPcdKgBuildClsPlanGrp*/
 } t_FmPcdKgInterModuleClsPlanGrpParams;
 
-typedef struct t_FmInterModulePortRxPoolsParams
-{
-    uint8_t     numOfPools;
-    uint16_t    secondLargestBufSize;
-    uint16_t    largestBufSize;
-} t_FmInterModulePortRxPoolsParams;
-
 
 typedef t_Error (t_FmPortGetSetCcParamsCallback) (t_Handle                  h_FmPort,
                                                   t_FmPortGetSetCcParams    *p_FmPortGetSetCcParams);
@@ -730,16 +752,18 @@ uint32_t    FmPcdLock(t_Handle h_FmPcd);
 void        FmPcdUnlock(t_Handle h_FmPcd, uint32_t  intFlags);
 bool        FmPcdNetEnvIsHdrExist(t_Handle h_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr);
 bool        FmPcdIsIpFrag(t_Handle h_FmPcd, uint8_t netEnvId);
-
+t_Error     FmPcdFragHcScratchPoolInit(t_Handle h_FmPcd, uint8_t scratchBpid);
+t_Error     FmPcdRegisterReassmPort(t_Handle h_FmPcd, t_Handle h_IpReasmCommonPramTbl);
+t_Error     FmPcdUnregisterReassmPort(t_Handle h_FmPcd, t_Handle h_IpReasmCommonPramTbl);
 t_Error     FmPcdCcReleaseModifiedDataStructure(t_Handle h_FmPcd, t_List *h_FmPcdOldPointersLst, t_List *h_FmPcdNewPointersLst, uint16_t numOfGoodChanges, t_Handle *h_Params);
 uint32_t    FmPcdCcGetNodeAddrOffset(t_Handle h_FmPcd, t_Handle h_Pointer);
-t_Error     FmPcdCcRemoveKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint8_t keyIndex, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcAddKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPCdCcKeyParams,  t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_Params);
-t_Error     FmPcdCcModifyKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, uint8_t *p_Key, uint8_t *p_Mask, t_List *h_OldLst,  t_List *h_NewLst, t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcModifyKeyAndNextEngine(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPcdCcKeyParams, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
+t_Error     FmPcdCcRemoveKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint16_t keyIndex, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
+t_Error     FmPcdCcAddKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPCdCcKeyParams,  t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_Params);
+t_Error     FmPcdCcModifyKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, uint8_t *p_Key, uint8_t *p_Mask, t_List *h_OldLst,  t_List *h_NewLst, t_Handle *h_AdditionalParams);
+t_Error     FmPcdCcModifyKeyAndNextEngine(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPcdCcKeyParams, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
 t_Error     FmPcdCcModifyMissNextEngineParamNode(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams,t_List *h_OldPointer, t_List *h_NewPointer,t_Handle *h_AdditionalParams);
 t_Error     FmPcdCcModifyNextEngineParamTree(t_Handle h_FmPcd, t_Handle h_FmPcdCcTree, uint8_t grpId, uint8_t index, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcModiyNextEngineParamNode(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, uint8_t keyIndex,t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams,t_List *h_OldPointer, t_List *h_NewPointer,t_Handle *h_AdditionalParams);
+t_Error     FmPcdCcModiyNextEngineParamNode(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, uint16_t keyIndex,t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams,t_List *h_OldPointer, t_List *h_NewPointer,t_Handle *h_AdditionalParams);
 uint32_t    FmPcdCcGetNodeAddrOffsetFromNodeInfo(t_Handle h_FmPcd, t_Handle h_Pointer);
 t_Error     FmPcdCcTreeTryLock(t_Handle h_FmPcdCcTree);
 t_Error     FmPcdCcNodeTreeTryLock(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_List *p_List);
@@ -824,10 +848,10 @@ void        FmPcdPlcrUpdateRequiredAction(t_Handle h_FmPcd, uint16_t absolutePro
 uint8_t     FmPcdCcGetParseCode(t_Handle h_CcNode);
 uint8_t     FmPcdCcGetOffset(t_Handle h_CcNode);
 
-t_Error     FmPcdManipUpdate(t_Handle h_FmPcd, t_Handle h_FmPort, t_Handle h_Manip, t_Handle h_Ad, bool validate, int level, t_Handle h_FmTree, bool modify);
+t_Error     FmPcdManipUpdate(t_Handle h_FmPcd, t_Handle h_PcdParams, t_Handle h_FmPort, t_Handle h_Manip, t_Handle h_Ad, bool validate, int level, t_Handle h_FmTree, bool modify);
 t_Error     FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_FmPortGetSetCcParams);
 uint32_t    FmPcdManipGetRequiredAction (t_Handle h_Manip);
-t_Error     FmPcdCcBindTree(t_Handle h_FmPcd, t_Handle h_CcTree,  uint32_t  *p_Offset,t_Handle h_FmPort);
+t_Error     FmPcdCcBindTree(t_Handle h_FmPcd, t_Handle h_PcdParams, t_Handle h_CcTree,  uint32_t  *p_Offset,t_Handle h_FmPort);
 t_Error     FmPcdCcUnbindTree(t_Handle h_FmPcd, t_Handle h_CcTree);
 
 t_Error     FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx,uint32_t requiredAction);
@@ -1113,19 +1137,21 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
 void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams);
 
 /**************************************************************************//**
- @Function      FmSetPortToWorkWithOneRiscOnly
+ @Function      FmSetNumOfRiscsPerPort
 
  @Description   Used by FM-PORT driver to pass parameter between
                 PORT and FM modules for working with number of RISC..
 
  @Param[in]     h_Fm            A handle to an FM Module.
- @Param[in,out] p_PortParams    A structure of FM Port parameters.
+ @Param[in]     hardwarePortId    hardware port Id.
+ @Param[in]     numOfFmanCtrls    number of Fman Controllers.
+ @Param[in]     orFmanCtrl        Fman Controller for order restoration.
 
  @Return        None.
 
  @Cautions      Allowed only following FM_Init().
 *//***************************************************************************/
-t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t numOfFmanCtrls);
+t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t numOfFmanCtrls, t_FmFmanCtrl orFmanCtrl);
 
 
 void        FmRegisterPcd(t_Handle h_Fm, t_Handle h_FmPcd);
@@ -1159,15 +1185,11 @@ t_Error     FmSetNumOfTasks(t_Handle    h_Fm,
                                 uint8_t     numOfTasks,
                                 uint8_t     numOfExtraTasks,
                                 bool        initialConfig);
-t_Error     FmSetSizeOfFifo(t_Handle            h_Fm,
-                            uint8_t             hardwarePortId,
-                            e_FmPortType        portType,
-                            bool                independentMode,
-                            uint32_t            *p_SizeOfFifo,
-                            uint32_t            extraSizeOfFifo,
-                            uint8_t             deqPipelineDepth,
-                            t_FmInterModulePortRxPoolsParams    *p_RxPoolsParams,
-                            bool                initialConfig);
+t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
+                        uint8_t     hardwarePortId,
+                        uint32_t     sizeOfFifo,
+                        uint32_t     extraSizeOfFifo,
+                        bool        initialConfig);
 
 
 #endif /* __FM_COMMON_H */

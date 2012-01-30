@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -190,6 +190,7 @@ typedef _Packed struct t_FmIpcRevisionInfo {
 typedef _Packed struct t_FmIpcPortNumOfFmanCtrls {
     uint8_t             hardwarePortId;         /**< IN. port Id */
     uint8_t             numOfFmanCtrls;         /**< IN. Port type */
+    t_FmFmanCtrl        orFmanCtrl;             /**< IN. fman controller for order restoration*/
 } t_FmIpcPortNumOfFmanCtrls;
 
 /**************************************************************************//**

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -252,7 +252,12 @@ static void    DmaErrEvent(t_Fm *p_Fm)
         tnum = (uint8_t)((tmpReg & DMA_TRANSFER_TNUM_MASK) >> DMA_TRANSFER_TNUM_SHIFT);
         liodn = (uint16_t)(tmpReg & DMA_TRANSFER_LIODN_MASK);
         ASSERT_COND(p_Fm->p_FmStateStruct->portsTypes[hardwarePortId] != e_FM_PORT_TYPE_DUMMY);
-        p_Fm->f_BusError(p_Fm->h_App, p_Fm->p_FmStateStruct->portsTypes[hardwarePortId], relativePortId, addr, tnum, liodn);
+        p_Fm->f_BusError(p_Fm->h_App,
+                         p_Fm->p_FmStateStruct->portsTypes[hardwarePortId],
+                         relativePortId,
+                         addr,
+                         tnum,
+                         liodn);
     }
     if(mask & DMA_MODE_ECC)
     {
@@ -610,23 +615,13 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
         }
         case (FM_SET_SIZE_OF_FIFO):
         {
-            t_FmIpcPortFifoParams               ipcPortFifoParams;
-            t_FmInterModulePortRxPoolsParams    rxPoolsParams;
+            t_FmIpcPortRsrcParams   ipcPortRsrcParams;
 
-            memcpy((uint8_t*)&ipcPortFifoParams, p_IpcMsg->msgBody, sizeof(t_FmIpcPortFifoParams));
-            rxPoolsParams.numOfPools = ipcPortFifoParams.numOfPools;
-            rxPoolsParams.secondLargestBufSize = ipcPortFifoParams.secondLargestBufSize;
-            rxPoolsParams.largestBufSize = ipcPortFifoParams.largestBufSize;
-
-            p_IpcReply->error = (uint32_t)FmSetSizeOfFifo(h_Fm, ipcPortFifoParams.rsrcParams.hardwarePortId,
-                                                (e_FmPortType)ipcPortFifoParams.enumPortType,
-                                                (bool)ipcPortFifoParams.boolIndependentMode,
-                                                &ipcPortFifoParams.rsrcParams.val,
-                                                ipcPortFifoParams.rsrcParams.extra,
-                                                ipcPortFifoParams.deqPipelineDepth,
-                                                &rxPoolsParams,
-                                                (bool)ipcPortFifoParams.boolInitialConfig);
-            memcpy(p_IpcReply->replyBody, (uint8_t*)&ipcPortFifoParams.rsrcParams.val, sizeof(uint32_t));
+            memcpy((uint8_t*)&ipcPortRsrcParams, p_IpcMsg->msgBody, sizeof(t_FmIpcPortRsrcParams));
+            p_IpcReply->error = (uint32_t)FmSetSizeOfFifo(h_Fm, ipcPortRsrcParams.hardwarePortId,
+                                                                ipcPortRsrcParams.val,
+                                                                ipcPortRsrcParams.extra,
+                                                               (bool)ipcPortRsrcParams.boolInitialConfig);
             *p_ReplyLength = sizeof(uint32_t) + sizeof(uint32_t);
             break;
         }
@@ -859,7 +854,8 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
             memcpy((uint8_t*)&ipcPortNumOfFmanCtrls, p_IpcMsg->msgBody, sizeof(t_FmIpcPortNumOfFmanCtrls));
             if ((err = FmSetNumOfRiscsPerPort(h_Fm,
                                               ipcPortNumOfFmanCtrls.hardwarePortId,
-                                              ipcPortNumOfFmanCtrls.numOfFmanCtrls)) != E_OK)
+                                              ipcPortNumOfFmanCtrls.numOfFmanCtrls,
+                                              ipcPortNumOfFmanCtrls.orFmanCtrl)) != E_OK)
                 REPORT_ERROR(MINOR, err, NO_MSG);
             break;
         }
@@ -932,6 +928,15 @@ static void ErrorIsrCB(t_Handle h_Fm)
         else
             p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_10G_MAC0].h_SrcHandle);
     }
+#ifdef FM_MACSEC_SUPPORT
+    if(pending & ERR_INTR_EN_MACSEC_MAC0)
+    {
+       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_ERR_MACSEC_MAC0].guestId)
+            SendIpcIsr(p_Fm, e_FM_EV_ERR_MACSEC_MAC0, pending);
+        else
+            p_Fm->intrMng[e_FM_EV_ERR_MACSEC_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_ERR_MACSEC_MAC0].h_SrcHandle);
+    }
+#endif /* FM_MACSEC_SUPPORT */
 }
 
 
@@ -1095,6 +1100,7 @@ t_Error FmAllocFmanCtrlEventReg(t_Handle h_Fm, uint8_t *p_EventId)
                                      NULL,
                                      NULL)) != E_OK)
             RETURN_ERROR(MAJOR, err, NO_MSG);
+
         if (replyLength != (sizeof(uint32_t) + sizeof(uint8_t)))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
 
@@ -1343,7 +1349,7 @@ uint8_t FmGetId(t_Handle h_Fm)
     return p_Fm->p_FmStateStruct->fmId;
 }
 
-t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t numOfFmanCtrls)
+t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t numOfFmanCtrls, t_FmFmanCtrl orFmanCtrl)
 {
 
     t_Fm                        *p_Fm = (t_Fm*)h_Fm;
@@ -1360,6 +1366,7 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t nu
         memset(&msg, 0, sizeof(msg));
         params.hardwarePortId = hardwarePortId;
         params.numOfFmanCtrls = numOfFmanCtrls;
+        params.orFmanCtrl = orFmanCtrl;
         msg.msgId = FM_SET_NUM_OF_FMAN_CTRL;
         memcpy(msg.msgBody, &params, sizeof(params));
         if ((err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
@@ -1384,11 +1391,15 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t nu
         tmpReg = FPM_PORT_FM_CTL2 | FPM_PORT_FM_CTL1;
 
     /* order restoration */
+
+    tmpReg |= (orFmanCtrl << FPM_PRC_ORA_FM_CTL_SEL_SHIFT) | orFmanCtrl;
+
+    /*
     if(hardwarePortId%2)
         tmpReg |= (FPM_PORT_FM_CTL1 << FPM_PRC_ORA_FM_CTL_SEL_SHIFT) | FPM_PORT_FM_CTL1;
     else
         tmpReg |= (FPM_PORT_FM_CTL2 << FPM_PRC_ORA_FM_CTL_SEL_SHIFT) | FPM_PORT_FM_CTL2;
-
+    */
     WRITE_UINT32(p_Fm->p_FmFpmRegs->fpmpr, tmpReg);
     XX_UnlockSpinlock(p_Fm->h_Spinlock);
 
@@ -1524,12 +1535,8 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
 
     err = FmSetSizeOfFifo(p_Fm,
                             p_PortParams->hardwarePortId,
-                            p_PortParams->portType,
-                            p_PortParams->independentMode,
-                            &p_PortParams->sizeOfFifo,
+                            p_PortParams->sizeOfFifo,
                             p_PortParams->extraSizeOfFifo,
-                            p_PortParams->deqPipelineDepth,
-                            NULL,
                             TRUE);
     if(err)
     {
@@ -1606,7 +1613,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     t_FmIpcPortFreeParams   portParams;
     t_FmIpcMsg              msg;
 
-    if(p_Fm->guestId != NCSW_MASTER_ID)
+    if (p_Fm->guestId != NCSW_MASTER_ID)
     {
         portParams.hardwarePortId = p_PortParams->hardwarePortId;
         portParams.enumPortType = (uint32_t)p_PortParams->portType;
@@ -1631,7 +1638,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     XX_LockSpinlock(p_Fm->h_Spinlock);
 
 
-    if(p_PortParams->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND)
+    if (p_PortParams->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND)
     {
         ASSERT_COND(p_Fm->hcPortInitialized);
         p_Fm->hcPortInitialized = FALSE;
@@ -1646,8 +1653,10 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     p_Fm->p_FmStateStruct->accumulatedNumOfTasks -= numOfTasks;
 
     /* free numOfOpenDmas */
-    ASSERT_COND(p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas >= ((tmpReg & BMI_NUM_OF_DMAS_MASK) >> BMI_NUM_OF_DMAS_SHIFT) + 1);
-    p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas -= (((tmpReg & BMI_NUM_OF_DMAS_MASK) >> BMI_NUM_OF_DMAS_SHIFT) + 1);
+    ASSERT_COND(p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas >=
+        ((tmpReg & BMI_NUM_OF_DMAS_MASK) >> BMI_NUM_OF_DMAS_SHIFT) + 1);
+    p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas -=
+        (((tmpReg & BMI_NUM_OF_DMAS_MASK) >> BMI_NUM_OF_DMAS_SHIFT) + 1);
 
     /* update total num of DMA's with committed number of open DMAS, and max uncommitted pool. */
     tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_cfg2) & ~BMI_CFG2_DMAS_MASK;
@@ -1666,20 +1675,9 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pfs[hardwarePortId-1], 0);
     /* WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_ppid[hardwarePortId-1], 0); */
 
-#ifdef FM_PORT_DISABLED_ERRATA_FMANx9
-    /* this errata means that when a port is taken down, other port may not use its
-     * resources for a while as it may still be using it (in case of reject).
-     */
-        {
-            t_FmRevisionInfo revInfo;
-            FM_GetRevision(p_Fm, &revInfo);
-            if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-                XX_UDelay(100000);
-        }
-#endif /* FM_PORT_DISABLED_ERRATA_FMANx9 */
-
 #ifdef FM_QMI_DEQ_OPTIONS_SUPPORT
-    if((p_PortParams->portType != e_FM_PORT_TYPE_RX) && (p_PortParams->portType != e_FM_PORT_TYPE_RX_10G))
+    if ((p_PortParams->portType != e_FM_PORT_TYPE_RX) &&
+        (p_PortParams->portType != e_FM_PORT_TYPE_RX_10G))
     /* for transmit & O/H ports */
     {
         uint8_t     enqTh;
@@ -1696,7 +1694,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
         tmpReg |= ((uint32_t)enqTh << QMI_CFG_ENQ_SHIFT);
 
          /* p_Fm->p_FmStateStruct->accumulatedNumOfDeqTnums is now smaller,
-           so we can reduce deqTh */
+            so we can reduce deqTh */
         deqTh = (uint8_t)(p_Fm->p_FmStateStruct->accumulatedNumOfDeqTnums + 1);
         tmpReg &= ~QMI_CFG_DEQ_MASK;
         tmpReg |= (uint32_t)deqTh;
@@ -1706,7 +1704,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
 #endif /* FM_QMI_DEQ_OPTIONS_SUPPORT */
 
 #ifdef FM_LOW_END_RESTRICTION
-    if((hardwarePortId==0x1) || (hardwarePortId==0x29))
+    if ((hardwarePortId==0x1) || (hardwarePortId==0x29))
         p_Fm->p_FmStateStruct->lowEndRestriction = FALSE;
 #endif /* FM_LOW_END_RESTRICTION */
     XX_UnlockSpinlock(p_Fm->h_Spinlock);
@@ -2012,25 +2010,19 @@ bool FmIsMaster(t_Handle h_Fm)
     return (p_Fm->guestId == NCSW_MASTER_ID);
 }
 
-t_Error FmSetSizeOfFifo(t_Handle                            h_Fm,
-                        uint8_t                             hardwarePortId,
-                        e_FmPortType                        portType,
-                        bool                                independentMode,
-                        uint32_t                            *p_SizeOfFifo,
-                        uint32_t                            extraSizeOfFifo,
-                        uint8_t                             deqPipelineDepth,
-                        t_FmInterModulePortRxPoolsParams    *p_RxPoolsParams,
-                        bool                                initialConfig)
+t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
+                        uint8_t     hardwarePortId,
+                        uint32_t    sizeOfFifo,
+                        uint32_t    extraSizeOfFifo,
+                        bool        initialConfig)
 {
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
-    uint8_t                 relativePortId;
-    uint16_t                macMaxFrameLength = 0, oldVal;
-    uint32_t                minFifoSizeRequired = 0, sizeOfFifo, tmpReg = 0;
-    t_FmIpcPortFifoParams   fifoParams;
+    uint16_t                oldVal;
+    t_FmIpcPortRsrcParams   rsrcParams;
     t_Error                 err;
+    uint32_t                tmpReg = 0;
 
     ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
-    ASSERT_COND(initialConfig || p_RxPoolsParams);
 
     if(p_Fm->guestId != NCSW_MASTER_ID)
     {
@@ -2038,141 +2030,30 @@ t_Error FmSetSizeOfFifo(t_Handle                            h_Fm,
         t_FmIpcReply        reply;
         uint32_t            replyLength;
 
-        ASSERT_COND(p_RxPoolsParams);
-
-        memset(&fifoParams, 0, sizeof(fifoParams));
-        fifoParams.rsrcParams.hardwarePortId = hardwarePortId;
-        fifoParams.rsrcParams.val = *p_SizeOfFifo;
-        fifoParams.rsrcParams.extra = extraSizeOfFifo;
-        fifoParams.enumPortType = (uint32_t)portType;
-        fifoParams.boolIndependentMode = (uint8_t)independentMode;
-        fifoParams.deqPipelineDepth = deqPipelineDepth;
-        fifoParams.numOfPools = p_RxPoolsParams->numOfPools;
-        fifoParams.secondLargestBufSize = p_RxPoolsParams->secondLargestBufSize;
-        fifoParams.largestBufSize = p_RxPoolsParams->largestBufSize;
-        fifoParams.boolInitialConfig = (uint8_t)initialConfig;
+        rsrcParams.hardwarePortId = hardwarePortId;
+        rsrcParams.val = sizeOfFifo;
+        rsrcParams.extra = extraSizeOfFifo;
+        rsrcParams.boolInitialConfig = (uint8_t)initialConfig;
 
         memset(&msg, 0, sizeof(msg));
         memset(&reply, 0, sizeof(reply));
         msg.msgId = FM_SET_SIZE_OF_FIFO;
-        memcpy(msg.msgBody, &fifoParams, sizeof(fifoParams));
-        replyLength = sizeof(uint32_t) + sizeof(uint32_t);
+        memcpy(msg.msgBody, &rsrcParams, sizeof(rsrcParams));
+        replyLength = sizeof(uint32_t);
         if ((err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
                                      (uint8_t*)&msg,
-                                     sizeof(msg.msgId) + sizeof(fifoParams),
+                                     sizeof(msg.msgId) + sizeof(rsrcParams),
                                      (uint8_t*)&reply,
                                      &replyLength,
                                      NULL,
                                      NULL)) != E_OK)
             RETURN_ERROR(MINOR, err, NO_MSG);
-        if (replyLength != (sizeof(uint32_t) + sizeof(uint32_t)))
+        if (replyLength != sizeof(uint32_t))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
-        memcpy((uint8_t*)p_SizeOfFifo, reply.replyBody, sizeof(uint32_t));
-
         return (t_Error)(reply.error);
     }
-    sizeOfFifo = *p_SizeOfFifo;
-    /* if neseccary (cases where frame length is relevant), update sizeOfFifo field. */
-    if((portType == e_FM_PORT_TYPE_TX) || ((portType == e_FM_PORT_TYPE_RX) && independentMode))
-    {
-        HW_PORT_ID_TO_SW_PORT_ID(relativePortId, hardwarePortId);
-        ASSERT_COND(relativePortId < FM_MAX_NUM_OF_1G_MACS);
-        macMaxFrameLength = p_Fm->p_FmStateStruct->macMaxFrameLengths1G[relativePortId];
-    }
 
-#if (defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS))
-    if((portType == e_FM_PORT_TYPE_TX_10G) || ((portType == e_FM_PORT_TYPE_RX_10G)  && independentMode))
-    {
-        HW_PORT_ID_TO_SW_PORT_ID(relativePortId, hardwarePortId);
-        ASSERT_COND(relativePortId < FM_MAX_NUM_OF_10G_MACS);
-        macMaxFrameLength = p_Fm->p_FmStateStruct->macMaxFrameLengths10G[relativePortId];
-    }
-#endif /* (defined(FM_MAX_NUM_OF_10G_MACS) && ... */
-
-    /*************************/
-    /*    TX PORTS           */
-    /*************************/
-    if((portType == e_FM_PORT_TYPE_TX) || (portType == e_FM_PORT_TYPE_TX_10G))
-    {
-        if(independentMode)
-            minFifoSizeRequired = (uint32_t)((macMaxFrameLength % BMI_FIFO_UNITS ?
-                                (macMaxFrameLength/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS :
-                                macMaxFrameLength) +
-                                (3*BMI_FIFO_UNITS));
-        else
-            minFifoSizeRequired = (uint32_t)((macMaxFrameLength % BMI_FIFO_UNITS ?
-                                   (macMaxFrameLength/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS :
-                                   macMaxFrameLength) +
-                                   (deqPipelineDepth+3)*BMI_FIFO_UNITS);
-    }
-    /*************************/
-    /*    RX IM PORTS        */
-    /*************************/
-    else if(((portType == e_FM_PORT_TYPE_RX) || (portType == e_FM_PORT_TYPE_RX_10G)) && independentMode)
-        minFifoSizeRequired = (uint32_t)(((macMaxFrameLength % BMI_FIFO_UNITS) ?
-                                         ((macMaxFrameLength/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
-                                         macMaxFrameLength) +
-                                         (4*BMI_FIFO_UNITS));
-
-    /* for Rx (non-Im) ports or OP, buffer pools are relevant for fifo size.
-       If this routine is called as part of the "GetSet" routine, initialConfig is TRUE
-       and these checks where done in the port routine.
-       If it is called by an explicit user request ("SetSizeOfFifo"), than these parameters
-       should be checked/updated */
-    if(!initialConfig &&
-      ((portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING) ||
-      (((portType == e_FM_PORT_TYPE_RX) || (portType == e_FM_PORT_TYPE_RX_10G)) && !independentMode)))
-    {
-        if((portType == e_FM_PORT_TYPE_RX) || (portType == e_FM_PORT_TYPE_RX_10G))
-        {
-            /*************************/
-            /*    RX non-IM PORTS    */
-            /*************************/
-#ifdef FM_FIFO_ALLOCATION_OLD_ALG
-            t_FmRevisionInfo revInfo;
-
-            FM_GetRevision(p_Fm, &revInfo);
-            if(revInfo.majorRev != 4)
-                minFifoSizeRequired = (uint32_t)(((p_RxPoolsParams->largestBufSize % BMI_FIFO_UNITS) ?
-                                        ((p_RxPoolsParams->largestBufSize/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
-                                        p_RxPoolsParams->largestBufSize) +
-                                        (7*BMI_FIFO_UNITS));
-            else
-#endif /* FM_FIFO_ALLOCATION_OLD_ALG */
-            {
-                if(p_RxPoolsParams->numOfPools == 1)
-                    minFifoSizeRequired = 8*BMI_FIFO_UNITS;
-                else
-                {
-                    minFifoSizeRequired = (uint32_t)(((p_RxPoolsParams->secondLargestBufSize % BMI_FIFO_UNITS) ?
-                                        ((p_RxPoolsParams->secondLargestBufSize/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
-                                        p_RxPoolsParams->secondLargestBufSize) +
-                                        (7*BMI_FIFO_UNITS));
-                    if((sizeOfFifo < minFifoSizeRequired))
-                    {
-                        DBG(WARNING, ("User set FIFO size for Rx port is not optimized. (not modified by driver)"));
-                        minFifoSizeRequired = 8*BMI_FIFO_UNITS;
-                    }
-                }
-            }
-        }
-        else
-        {
-            /*************************/
-            /*    OP PORTS           */
-            /*************************/
-            /* check if pool size is not too big */
-            if(p_RxPoolsParams->largestBufSize > sizeOfFifo )
-                RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Largest pool size is bigger than ports committed fifo size"));
-        }
-    }
-
-
-    if (minFifoSizeRequired && (sizeOfFifo < minFifoSizeRequired))
-    {
-        sizeOfFifo = minFifoSizeRequired;
-        DBG(WARNING, ("FIFO size enlarged to %d for port %#x", minFifoSizeRequired, hardwarePortId));
-    }
+    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
 
     if(initialConfig)
         oldVal = 0;
@@ -2205,7 +2086,6 @@ t_Error FmSetSizeOfFifo(t_Handle                            h_Fm,
                             ((extraSizeOfFifo/BMI_FIFO_UNITS) << BMI_EXTRA_FIFO_SIZE_SHIFT));
         WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pfs[hardwarePortId-1], tmpReg);
     }
-    *p_SizeOfFifo = sizeOfFifo;
 
     return E_OK;
 }
@@ -2488,9 +2368,9 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
     p_Fm->hcPortInitialized = FALSE;
     p_Fm->independentMode   = FALSE;
     p_Fm->p_FmStateStruct->ramsEccEnable     = FALSE;
-    p_Fm->p_FmStateStruct->totalNumOfTasks   = DEFAULT_totalNumOfTasks;
+    p_Fm->p_FmStateStruct->totalNumOfTasks   = BMI_MAX_NUM_OF_TASKS;
     p_Fm->p_FmStateStruct->totalFifoSize     = DEFAULT_totalFifoSize;
-    p_Fm->p_FmStateStruct->maxNumOfOpenDmas  = DEFAULT_maxNumOfOpenDmas;
+    p_Fm->p_FmStateStruct->maxNumOfOpenDmas  = BMI_MAX_NUM_OF_DMAS;
     p_Fm->p_FmStateStruct->extraFifoPoolSize = FM_MAX_NUM_OF_RX_PORTS*BMI_FIFO_UNITS;
     p_Fm->p_FmStateStruct->exceptions        = DEFAULT_exceptions;
     for(i = 0;i<FM_MAX_NUM_OF_1G_MACS;i++)
@@ -2697,16 +2577,6 @@ t_Error FM_Init(t_Handle h_Fm)
         p_Fm->p_FmStateStruct->exceptions &= ~FM_EX_BMI_DISPATCH_RAM_ECC;
 #endif /* FM_NO_DISPATCH_RAM_ECC */
 
-#ifdef FM_RAM_LIST_ERR_IRQ_ERRATA_FMAN8
-    if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-        p_Fm->p_FmStateStruct->exceptions  &= ~FM_EX_BMI_LIST_RAM_ECC;
-#endif   /* FM_RAM_LIST_ERR_IRQ_ERRATA_FMAN8 */
-
-#ifdef FM_BMI_PIPELINE_ERR_IRQ_ERRATA_FMAN9
-    if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-        p_Fm->p_FmStateStruct->exceptions  &= ~FM_EX_BMI_PIPELINE_ECC;
-#endif /* FM_BMI_PIPELINE_ERR_IRQ_ERRATA_FMAN9 */
-
 #ifdef FM_QMI_NO_ECC_EXCEPTIONS
     if (revInfo.majorRev == 4)
         p_Fm->p_FmStateStruct->exceptions  &= ~(FM_EX_QMI_SINGLE_ECC | FM_EX_QMI_DOUBLE_ECC);
@@ -2743,13 +2613,9 @@ t_Error FM_Init(t_Handle h_Fm)
 
         /* verify breakpoint debug status register */
         debug_reg = GET_UINT32(*(uint32_t *)UINT_TO_PTR(p_Fm->baseAddr + FM_DEBUG_STATUS_REGISTER_OFFSET));
-#ifndef NCSW_LINUX
         if(!debug_reg)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Invalid debug status register value = 0"));
-#else
-        if(!debug_reg)
-            DBG(INFO,("Invalid debug status register value = 0"));
-#endif
+
         /*************************************/
         /* Load FMan-Controller code to Iram */
         /*************************************/
@@ -2867,6 +2733,47 @@ t_Error FM_Init(t_Handle h_Fm)
 
     WRITE_BLOCK(UINT_TO_PTR(p_Fm->camBaseAddr), 0, (uint32_t)(p_FmDriverParam->dmaCamNumOfEntries*DMA_CAM_SIZEOF_ENTRY));
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    {
+        t_FmRevisionInfo revInfo;
+
+        FM_GetRevision(p_Fm, &revInfo);
+        if (revInfo.majorRev == 2)
+        {
+            FM_MURAM_FreeMem(p_Fm->h_FmMuram, UINT_TO_PTR(p_Fm->camBaseAddr));
+
+            p_Fm->camBaseAddr = PTR_TO_UINT(FM_MURAM_AllocMem(p_Fm->h_FmMuram,
+                                                              (uint32_t)(p_FmDriverParam->dmaCamNumOfEntries*72 + 128),
+                                                              64));
+            if (!p_Fm->camBaseAddr)
+                RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for DMA CAM failed"));
+
+            WRITE_BLOCK(UINT_TO_PTR(p_Fm->camBaseAddr), 0, (uint32_t)(p_FmDriverParam->dmaCamNumOfEntries*72 + 128));
+
+            switch(p_FmDriverParam->dmaCamNumOfEntries)
+            {
+                case(8):
+                    *(volatile uint32_t*)p_Fm->camBaseAddr = 0xff000000;
+                    break;
+                case(16):
+                    *(volatile uint32_t*)p_Fm->camBaseAddr = 0xffff0000;
+/*                    WRITE_UINT32(p_Fm->camBaseAddr, 0xffff0000); */
+                    break;
+                case(24):
+                    *(volatile uint32_t*)p_Fm->camBaseAddr = 0xffffff00;
+/*                    WRITE_UINT32(p_Fm->camBaseAddr, 0xffffff00); */
+                    break;
+                case(32):
+                    *(volatile uint32_t*)p_Fm->camBaseAddr = 0xffffffff;
+/*                    WRITE_UINT32(p_Fm->camBaseAddr, 0xffffffff); */
+                    break;
+                default:
+                    RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("wrong dmaCamNumOfEntries"));
+            }
+        }
+    }
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+
     /* VirtToPhys */
     WRITE_UINT32(p_Fm->p_FmDmaRegs->fmdmebcr,
                  (uint32_t)(XX_VirtToPhys(UINT_TO_PTR(p_Fm->camBaseAddr)) - p_Fm->fmMuramPhysBaseAddr));
@@ -2967,10 +2874,7 @@ t_Error FM_Init(t_Handle h_Fm)
                                                        p_Fm->p_FmStateStruct->totalFifoSize,
                                                        BMI_FIFO_ALIGN));
     if (!p_Fm->fifoBaseAddr)
-    {
-        FreeInitResources(p_Fm);
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for FIFO failed"));
-    }
 
     tmpReg = (uint32_t)(XX_VirtToPhys(UINT_TO_PTR(p_Fm->fifoBaseAddr)) - p_Fm->fmMuramPhysBaseAddr);
     tmpReg = tmpReg / BMI_FIFO_ALIGN;
@@ -3179,18 +3083,6 @@ t_Error FM_ConfigResetOnInit(t_Handle h_Fm, bool enable)
 }
 
 
-t_Error FM_ConfigTotalNumOfTasks(t_Handle h_Fm, uint8_t totalNumOfTasks)
-{
-    t_Fm *p_Fm = (t_Fm*)h_Fm;
-
-    SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(p_Fm->p_FmDriverParam, E_INVALID_HANDLE);
-
-    p_Fm->p_FmStateStruct->totalNumOfTasks = totalNumOfTasks;
-
-    return E_OK;
-}
-
 t_Error FM_ConfigTotalFifoSize(t_Handle h_Fm, uint32_t totalFifoSize)
 {
     t_Fm *p_Fm = (t_Fm*)h_Fm;
@@ -3203,17 +3095,6 @@ t_Error FM_ConfigTotalFifoSize(t_Handle h_Fm, uint32_t totalFifoSize)
     return E_OK;
 }
 
-t_Error FM_ConfigMaxNumOfOpenDmas(t_Handle h_Fm, uint8_t maxNumOfOpenDmas)
-{
-    t_Fm *p_Fm = (t_Fm*)h_Fm;
-
-    SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(p_Fm->p_FmDriverParam, E_INVALID_HANDLE);
-
-    p_Fm->p_FmStateStruct->maxNumOfOpenDmas = maxNumOfOpenDmas;
-
-    return E_OK;
-}
 
 t_Error FM_ConfigThresholds(t_Handle h_Fm, t_FmThresholds *p_FmThresholds)
 {
@@ -3477,15 +3358,6 @@ t_Error FM_ConfigHaltOnExternalActivation(t_Handle h_Fm, bool enable)
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Fm->p_FmDriverParam, E_INVALID_HANDLE);
 
-#ifdef FM_HALT_SIG_ERRATA_GEN12
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-            RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("HaltOnExternalActivation!"));
-    }
-#endif /* FM_HALT_SIG_ERRATA_GEN12 */
-
     p_Fm->p_FmDriverParam->haltOnExternalActivation = enable;
 
     return E_OK;
@@ -3493,18 +3365,18 @@ t_Error FM_ConfigHaltOnExternalActivation(t_Handle h_Fm, bool enable)
 
 t_Error FM_ConfigHaltOnUnrecoverableEccError(t_Handle h_Fm, bool enable)
 {
+#ifdef FM_ECC_HALT_NO_SYNC_ERRATA_10GMAC_A008
+    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("HaltOnEccError!"));
+#else  /* not FM_ECC_HALT_NO_SYNC_ERRATA_10GMAC_A008 */
     t_Fm *p_Fm = (t_Fm*)h_Fm;
 
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Fm->p_FmDriverParam, E_INVALID_HANDLE);
 
-#ifdef FM_ECC_HALT_NO_SYNC_ERRATA_10GMAC_A008
-    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("HaltOnEccError!"));
-#endif /* FM_ECC_HALT_NO_SYNC_ERRATA_10GMAC_A008 */
-
     p_Fm->p_FmDriverParam->haltOnUnrecoverableEccError = enable;
 
     return E_OK;
+#endif /* not FM_ECC_HALT_NO_SYNC_ERRATA_10GMAC_A008 */
 }
 
 t_Error FM_ConfigException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
@@ -3516,26 +3388,6 @@ t_Error FM_ConfigException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
 
     FM_GetRevision(p_Fm, &revInfo);
-#ifdef FM_BMI_PIPELINE_ERR_IRQ_ERRATA_FMAN9
-    if((exception == e_FM_EX_BMI_PIPELINE_ECC) && (enable))
-    {
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-        {
-            REPORT_ERROR(MINOR, E_NOT_SUPPORTED, ("e_FM_EX_BMI_PIPELINE_ECC!"));
-            return E_OK;
-        }
-    }
-#endif /* FM_BMI_PIPELINE_ERR_IRQ_ERRATA_FMAN9 */
-#ifdef FM_RAM_LIST_ERR_IRQ_ERRATA_FMAN8
-    if((exception == e_FM_EX_BMI_LIST_RAM_ECC) && (enable))
-    {
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-        {
-            REPORT_ERROR(MINOR, E_NOT_SUPPORTED, ("e_FM_EX_BMI_LIST_RAM_ECC!"));
-            return E_OK;
-        }
-    }
-#endif   /* FM_RAM_LIST_ERR_IRQ_ERRATA_FMAN8 */
 #ifdef FM_QMI_NO_ECC_EXCEPTIONS
     if(((exception == e_FM_EX_QMI_SINGLE_ECC) || (exception == e_FM_EX_QMI_DOUBLE_ECC)) &&
             enable)
@@ -3704,6 +3556,15 @@ void FM_EventIsr(t_Handle h_Fm)
         else
             p_Fm->fmanCtrlIntr[3].f_Isr(p_Fm->fmanCtrlIntr[3].h_SrcHandle, event);
     }
+#ifdef FM_MACSEC_SUPPORT
+    if (pending & INTR_EN_MACSEC_MAC0)
+    {
+       if (p_Fm->guestId != p_Fm->intrMng[e_FM_EV_MACSEC_MAC0].guestId)
+            SendIpcIsr(p_Fm, e_FM_EV_MACSEC_MAC0, pending);
+        else
+            p_Fm->intrMng[e_FM_EV_MACSEC_MAC0].f_Isr(p_Fm->intrMng[e_FM_EV_MACSEC_MAC0].h_SrcHandle);
+    }
+#endif /* FM_MACSEC_SUPPORT */
 }
 
 t_Error FM_ErrorIsr(t_Handle h_Fm)
@@ -3995,18 +3856,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
              case(e_FM_EX_BMI_LIST_RAM_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier);
                 if(enable)
-                {
-#ifdef FM_RAM_LIST_ERR_IRQ_ERRATA_FMAN8
-                    t_FmRevisionInfo revInfo;
-                    FM_GetRevision(p_Fm, &revInfo);
-                    if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-                    {
-                       REPORT_ERROR(MINOR, E_NOT_SUPPORTED, ("e_FM_EX_BMI_LIST_RAM_ECC"));
-                       return E_OK;
-                    }
-#endif   /* FM_RAM_LIST_ERR_IRQ_ERRATA_FMAN8 */
                     tmpReg |= BMI_ERR_INTR_EN_LIST_RAM_ECC;
-                }
                 else
                     tmpReg &= ~BMI_ERR_INTR_EN_LIST_RAM_ECC;
                 WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier, tmpReg);
@@ -4014,18 +3864,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
              case(e_FM_EX_BMI_PIPELINE_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier);
                 if(enable)
-                {
-#ifdef FM_BMI_PIPELINE_ERR_IRQ_ERRATA_FMAN9
-                    t_FmRevisionInfo revInfo;
-                    FM_GetRevision(p_Fm, &revInfo);
-                    if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-                    {
-                       REPORT_ERROR(MINOR, E_NOT_SUPPORTED, ("e_FM_EX_BMI_PIPELINE_ECCBMI_LIST_RAM_ECC"));
-                       return E_OK;
-                    }
-#endif /* FM_BMI_PIPELINE_ERR_IRQ_ERRATA_FMAN9 */
                     tmpReg |= BMI_ERR_INTR_EN_PIPELINE_ECC;
-                }
                 else
                     tmpReg &= ~BMI_ERR_INTR_EN_PIPELINE_ECC;
                 WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier, tmpReg);
@@ -4141,6 +3980,25 @@ t_Error FM_GetRevision(t_Handle h_Fm, t_FmRevisionInfo *p_FmRevisionInfo)
     tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fm_ip_rev_1);
     p_FmRevisionInfo->majorRev = (uint8_t)((tmpReg & FPM_REV1_MAJOR_MASK) >> FPM_REV1_MAJOR_SHIFT);
     p_FmRevisionInfo->minorRev = (uint8_t)((tmpReg & FPM_REV1_MINOR_MASK) >> FPM_REV1_MINOR_SHIFT);
+
+    return E_OK;
+}
+
+t_Error FM_GetFmanCtrlCodeRevision(t_Handle h_Fm, t_FmRevisionInfo *p_RevisionInfo)
+{
+    t_Fm                *p_Fm = (t_Fm*)h_Fm;
+    t_FMIramRegs    	*p_Iram;
+
+    SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_RevisionInfo, E_NULL_POINTER);
+
+    if (p_Fm->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("IPC"));
+
+    p_Iram = (t_FMIramRegs *)UINT_TO_PTR(p_Fm->baseAddr + FM_MM_IMEM);
+    WRITE_UINT32(p_Iram->iadd, 0x4);
+    p_RevisionInfo->majorRev = ((uint8_t *)&p_Iram->idata)[1];
+    p_RevisionInfo->minorRev = ((uint8_t *)&p_Iram->idata)[3];
 
     return E_OK;
 }
@@ -4544,6 +4402,7 @@ t_Error FM_DumpRegs(t_Handle h_Fm)
 
     DUMP_TITLE(p_Fm->p_FmDmaRegs, ("p_FmDmaRegs Regs"));
     DUMP_VAR(p_Fm->p_FmDmaRegs,fmdmsr);
+    DUMP_VAR(p_Fm->p_FmDmaRegs,fmdmemsr);
     DUMP_VAR(p_Fm->p_FmDmaRegs,fmdmmr);
     DUMP_VAR(p_Fm->p_FmDmaRegs,fmdmtr);
     DUMP_VAR(p_Fm->p_FmDmaRegs,fmdmhy);

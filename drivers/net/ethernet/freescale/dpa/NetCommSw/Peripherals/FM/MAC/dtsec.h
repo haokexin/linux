@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -148,13 +148,8 @@ typedef  uint32_t t_ErrorDisable;
 #define DTSEC_TO_MII_OFFSET             0x1120  /* number of pattern match registers (entries) */
 
 #define DEFAULT_errorDisabled           0
-#define DEFAULT_promiscuousEnable       FALSE
 #define DEFAULT_pauseExtended           0x0
-#define DEFAULT_pauseTime               0xf000
-#define DEFAULT_halfDuplex              FALSE
 #define DEFAULT_halfDulexFlowControlEn  FALSE
-#define DEFAULT_txTimeStampEn           FALSE
-#define DEFAULT_rxTimeStampEn           FALSE
 #define DEFAULT_packetAlignment         0
 #define DEFAULT_controlFrameAccept      FALSE
 #define DEFAULT_groupHashExtend         FALSE
@@ -162,22 +157,16 @@ typedef  uint32_t t_ErrorDisable;
 #define DEFAULT_rxShortFrame            TRUE
 #define DEFAULT_exactMatch              FALSE
 #define DEFAULT_debugMode               FALSE
-#define DEFAULT_loopback                FALSE
-#define DEFAULT_actOnRxPauseFrame       TRUE
+#define DEFAULT_tbiPhyAddr              5
 #define DEFAULT_actOnTxPauseFrame       TRUE
-
 #define DEFAULT_PreAmLength             0x7
 #define DEFAULT_PreAmRxEn               FALSE
 #define DEFAULT_PreAmTxEn               FALSE
-#define DEFAULT_lengthCheckEnable       FALSE
-#define DEFAULT_padAndCrcEnable         TRUE
 #define DEFAULT_crcEnable               FALSE
-
 #define DEFAULT_nonBackToBackIpg1       0x40
 #define DEFAULT_nonBackToBackIpg2       0x60
 #define DEFAULT_minIfgEnforcement       0x50
 #define DEFAULT_backToBackIpg           0x60
-
 #define DEFAULT_altBackoffVal           0x0A
 #define DEFAULT_altBackoffEnable        FALSE
 #define DEFAULT_backPressureNoBackoff   FALSE
@@ -185,15 +174,10 @@ typedef  uint32_t t_ErrorDisable;
 #define DEFAULT_excessDefer             TRUE
 #define DEFAULT_maxRetransmission       0x0F
 #define DEFAULT_collisionWindow         0x37
-
-#define DEFAULT_maxFrameLength          0x600
-
-#define DEFAULT_collisionWindow         0x37
-
 #define DEFAULT_fifoTxThr               0x10
 #define DEFAULT_fifoTxWatermarkH        0x7e
 #define DEFAULT_fifoRxWatermarkL        0x08
-#define DEFAULT_tbiPhyAddr              5
+#define DEFAULT_timeStampEnable         FALSE
 
 #define DEFAULT_exceptions              ((uint32_t)(IMASK_BREN    | \
                                                     IMASK_RXCEN   | \
@@ -455,9 +439,7 @@ typedef _Packed struct
     volatile uint32_t ipgifg;               /* 0x108 IPG/IFG */
     volatile uint32_t hafdup;               /* 0x10C Half-duplex */
     volatile uint32_t maxfrm;               /* 0x110 Maximum frame */
-    volatile uint32_t DTSEC_RESERVED7[3];   /* 0x114-0x11C register */
-    t_MiiAccessMemMap miiMemMap;
-    volatile uint32_t ifctrl;               /* 0x138 MII Mgmt:interface control */
+    volatile uint32_t DTSEC_RESERVED7[10];  /* 0x114-0x138 register */
     volatile uint32_t ifstat;               /* 0x13C Interface status */
     volatile uint32_t macstnaddr1;          /* 0x140 Station Address,part 1 */
     volatile uint32_t macstnaddr2;          /* 0x144 Station Address,part 2  */

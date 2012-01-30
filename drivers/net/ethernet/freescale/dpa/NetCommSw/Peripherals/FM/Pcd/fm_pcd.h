@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,6 +67,9 @@
 /****************************/
 #define ILLEGAL_CLS_PLAN    0xff
 #define ILLEGAL_NETENV      0xff
+
+#define FM_PCD_MAX_NUM_OF_ALIAS_HDRS    3
+
 /****************************/
 /* Error defines           */
 /****************************/
@@ -101,29 +104,56 @@ switch(exception){                                                  \
         bitMask = FM_PCD_EX_PRS_SINGLE_ECC; break;                  \
     default: bitMask = 0;break;}
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
 /***********************************************************************/
-/*          SW parser L4 shells patch                                  */
+/*          SW parser IP_FRAG patch                                    */
 /***********************************************************************/
-#ifdef FM_PRS_L4_SHELL_ERRATA_FMANb
-#define SW_PRS_L4_PATCH                         \
-{   0x31,0x92,0x02,0x1f,0x00,0x32,0x00,0x78,    \
-    0x00,0x34,0x32,0xf0,0x00,0x50,0x00,0x0c,    \
-    0x28,0x5e,0x83,0x8e,0x29,0x32,0xaf,0x8e,    \
-    0x31,0xb2,0x9f,0xff,0x00,0x06,0xaf,0xbf,    \
-    0x00,0x06,0x29,0x36,0x00,0x01,0x1b,0xff,    \
-    0x32,0xf0,0x00,0x50,0x00,0x08,0x28,0x5e,    \
-    0x08,0x99,0x00,0x00,0x9f,0x8e,0x31,0xb2,    \
-    0x9f,0xff,0x00,0x06,0x29,0x36,0x00,0x01,    \
-    0x1b,0xff,0x32,0xf0,0x00,0x50,0x00,0x04,    \
-    0x28,0x5e,0x8f,0x9e,0x29,0x32,0x31,0xb2,    \
-    0x8f,0xbf,0x00,0x06,0x29,0x36,0x00,0x01,    \
-    0x1b,0xff,0x32,0xf0,0x00,0x50,0x00,0x04,    \
-    0x28,0x5e,0x8f,0x9e,0x29,0x32,0x31,0xb2,    \
-    0x8f,0xbf,0x00,0x06,0x29,0x36,0x00,0x01,    \
-    0x1b,0xff,0x00,0x00,0x00,0x00,0x00,0x00};
-
-#define SW_PRS_L4_PATCH_SIZE                120
-#endif /* FM_PRS_L4_SHELL_ERRATA_FMANb */
+#define SW_PRS_IP_FRAG_PATCH                           \
+{                                                      \
+    0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
+    0x00,0x00,0x43,0x0A,0x00,0x00,0x00,0x01,0x1B,0xFE, \
+    0x00,0x00,0x99,0x00,0x53,0x13,0x00,0x00,0x00,0x00, \
+    0x9F,0x98,0x53,0x13,0x00,0x00,0x1B,0x1C,0x00,0x03, \
+    0x00,0x02,0x00,0x00,0x00,0x01,0x32,0xF1,0x32,0xC0, \
+    0x00,0x4F,0x00,0x81,0x1F,0xFF,0x00,0x01,0x1B,0xFE, \
+    0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
+    0x00,0x00,0x53,0x2F,0x00,0x00,0x31,0x52,0x00,0xDA, \
+    0x00,0x44,0x00,0x00,0x00,0x00,0x00,0x00,0x43,0x2F, \
+    0x00,0x00,0x1B,0x31,0x00,0x01,0x1B,0xFE,0x32,0xC1, \
+    0x00,0x55,0x00,0x06,0x28,0x41,0x00,0x00,0x9B,0x8F, \
+    0x2F,0x0F,0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x43, \
+    0x30,0x7E,0x43,0x59,0x00,0x2C,0x32,0x11,0x28,0x41, \
+    0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x81,0x00,0x00, \
+    0x83,0x8F,0x2F,0x0F,0x06,0x00,0x32,0x11,0x32,0xC0, \
+    0x00,0x4F,0x00,0x55,0x00,0x01,0x00,0x81,0x32,0x11, \
+    0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01,0x01,0x04, \
+    0x00,0x4D,0x28,0x43,0x06,0x00,0x1B,0x3C,0x00,0x03, \
+    0x00,0x02,0x00,0x00,0x00,0x01,0x32,0xF1,0x32,0xC0, \
+    0x00,0x4F,0x00,0x81,0x1F,0xFF,0x00,0x01,0x1B,0xFE, \
+    0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
+    0x00,0x00,0x43,0x6E,0x00,0x00,0x00,0x01,0x1B,0xFE, \
+    0x32,0xC1,0x00,0x55,0x00,0x06,0x28,0x41,0x00,0x00, \
+    0x9B,0x8F,0x2F,0x0F,0x32,0xC1,0x00,0x55,0x00,0x28, \
+    0x28,0x43,0x30,0x7E,0x43,0x80,0x00,0x00,0x30,0x7E, \
+    0x43,0x80,0x00,0x3C,0x1B,0x9A,0x32,0x11,0x28,0x41, \
+    0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x81,0x00,0x00, \
+    0x83,0x8F,0x2F,0x0F,0x06,0x00,0x32,0x11,0x32,0xC0, \
+    0x00,0x4F,0x00,0x55,0x00,0x01,0x00,0x81,0x32,0x11, \
+    0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01,0x01,0x04, \
+    0x00,0x4D,0x28,0x43,0x06,0x00,0x1B,0x79,0x30,0x7E, \
+    0x53,0xB0,0x00,0x2B,0x32,0x11,0x28,0x41,0x32,0x11, \
+    0x32,0xC0,0x00,0x4F,0x00,0x55,0x00,0x01,0x00,0x81, \
+    0x32,0x11,0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01, \
+    0x01,0x04,0x00,0x4D,0x28,0x43,0x06,0x00,0x00,0x01, \
+    0x1B,0xFE,0x00,0x00,0x9B,0x8E,0x53,0xC4,0x00,0x00, \
+    0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x41,0x06,0x29, \
+    0x32,0x01,0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01, \
+    0x01,0x04,0x00,0x4D,0x28,0x43,0x06,0x00,0x00,0x01, \
+    0x1B,0xFE,0x32,0xC1,0x00,0x55,0x00,0x06,0x28,0x41, \
+    0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x43,0x00,0x01, \
+    0x1B,0xFE                                          \
+};
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
 /****************************/
 /* Parser defines           */
@@ -174,15 +204,6 @@ switch(exception){                                                  \
 #define KG_ACTION_REG_TO                        1024
 #define KG_MAX_PROFILE                          255
 #define SCHEME_ALWAYS_DIRECT                    0xFFFFFFFF
-
-typedef struct {
-    bool        known;
-    uint8_t     id;
-} t_FmPcdKgSchemesExtractsEntry;
-
-typedef struct {
-    t_FmPcdKgSchemesExtractsEntry extractsArray[FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY];
-} t_FmPcdKgSchemesExtracts;
 
 /***********************************************************************/
 /*          Policer defines                                            */
@@ -461,6 +482,15 @@ typedef _Packed struct {
 /***********************************************************************/
 
 typedef struct {
+    bool        known;
+    uint8_t     id;
+} t_FmPcdKgSchemesExtractsEntry;
+
+typedef struct {
+    t_FmPcdKgSchemesExtractsEntry extractsArray[FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY];
+} t_FmPcdKgSchemesExtracts;
+
+typedef struct {
     t_Handle        h_Manip;
     bool            keepRes;
     e_FmPcdEngine   nextEngine;
@@ -472,10 +502,10 @@ typedef struct {
                 between the port and PCD regarding the KG scheme.
 *//***************************************************************************/
 typedef struct {
-    uint8_t                     netEnvId;    /* in */
-    uint8_t                     numOfDistinctionUnits; /* in */
-    uint8_t                     unitIds[FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS]; /* in */
-    uint32_t                    vector; /* out */
+    uint8_t             netEnvId;    /* in */
+    uint8_t             numOfDistinctionUnits; /* in */
+    uint8_t             unitIds[FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS]; /* in */
+    uint32_t            vector; /* out */
 } t_NetEnvParams;
 
 typedef struct {
@@ -510,21 +540,21 @@ typedef struct {
 } t_FmPcdKgScheme;
 
 typedef struct {
-    bool    allocated;
-    uint8_t ownerId;    /* guestId for KG in multi-partition only,
-                           portId for PLCR in any environment */
+    bool            allocated;
+    uint8_t         ownerId; /* guestId for KG in multi-partition only,
+                                portId for PLCR in any environment */
 } t_FmPcdAllocMng;
 
 typedef struct {
-    t_FmPcdKgRegs                   *p_FmPcdKgRegs;
-    uint32_t                        schemeExceptionsBitMask;
-    uint8_t                         numOfSchemes;
-    uint8_t                         schemesIds[FM_PCD_KG_NUM_OF_SCHEMES];
-    t_FmPcdKgScheme                 schemes[FM_PCD_KG_NUM_OF_SCHEMES];
-    t_FmPcdKgClsPlanGrp             clsPlanGrps[FM_MAX_NUM_OF_PORTS];
-    uint8_t                         emptyClsPlanGrpId;
-    t_FmPcdAllocMng                 schemesMng[FM_PCD_KG_NUM_OF_SCHEMES]; /* only for MASTER ! */
-    t_FmPcdAllocMng                 clsPlanBlocksMng[FM_PCD_MAX_NUM_OF_CLS_PLANS/CLS_PLAN_NUM_PER_GRP];
+    t_FmPcdKgRegs       *p_FmPcdKgRegs;
+    uint32_t            schemeExceptionsBitMask;
+    uint8_t             numOfSchemes;
+    uint8_t             schemesIds[FM_PCD_KG_NUM_OF_SCHEMES];
+    t_FmPcdKgScheme     schemes[FM_PCD_KG_NUM_OF_SCHEMES];
+    t_FmPcdKgClsPlanGrp clsPlanGrps[FM_MAX_NUM_OF_PORTS];
+    uint8_t             emptyClsPlanGrpId;
+    t_FmPcdAllocMng     schemesMng[FM_PCD_KG_NUM_OF_SCHEMES]; /* only for MASTER ! */
+    t_FmPcdAllocMng     clsPlanBlocksMng[FM_PCD_MAX_NUM_OF_CLS_PLANS/CLS_PLAN_NUM_PER_GRP];
 } t_FmPcdKg;
 
 typedef struct {
@@ -575,6 +605,7 @@ typedef struct {
 
 typedef struct {
     e_NetHeaderType             hdr;
+    protocolOpt_t               opt; /* only one option !! */
     e_NetHeaderType             aliasHdr;
 } t_FmPcdNetEnvAliases;
 
@@ -587,12 +618,11 @@ typedef struct {
     uint32_t                    unitsVectors[FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS];
     uint32_t                    lcvs[FM_PCD_PRS_NUM_OF_HDRS];
     uint32_t                    macsecVector;
-    t_FmPcdNetEnvAliases        aliasHdrs[FM_PCD_MAX_NUM_OF_PRIVATE_HDRS];
+    t_FmPcdNetEnvAliases        aliasHdrs[FM_PCD_MAX_NUM_OF_ALIAS_HDRS];
 } t_FmPcdNetEnv;
 
 typedef struct {
     bool                        plcrAutoRefresh;
-
     uint16_t                    prsMaxParseCycleLimit;
 } t_FmPcdDriverParam;
 
@@ -619,6 +649,7 @@ typedef struct {
     t_FmPcdExceptionCallback    *f_Exception;
     t_FmPcdIdExceptionCallback  *f_FmPcdIndexedException;
     t_Handle                    h_App;
+    t_Handle                    h_FragIdPtr;
 
     t_FmPcdDriverParam          *p_FmPcdDriverParam;
 } t_FmPcd;
@@ -628,27 +659,21 @@ typedef struct {
 /*  PCD internal routines                                              */
 /***********************************************************************/
 
-/**************************************************************************//**
-
- @Group         FM_PCD_InterModule_grp FM PCD Inter-Module Unit
-
- @Description   FM PCD Inter Module functions -
-                These are not User API routines but routines that may be called
-                from other modules. This will be the case in a single core environment,
-                where instead of useing the XX messeging mechanism, the routines may be
-                called from other modules. In a multicore environment, the other modules may
-                be run by other cores and therefor these routines may not be called directly.
-
- @{
-*//***************************************************************************/
-
 t_Error     PcdGetVectorForOpt(t_FmPcd *p_FmPcd, uint8_t netEnvId, protocolOpt_t opt, uint32_t *p_Vector);
 t_Error     PcdGetUnitsVector(t_FmPcd *p_FmPcd, t_NetEnvParams *p_Params);
 bool        PcdNetEnvIsUnitWithoutOpts(t_FmPcd *p_FmPcd, uint8_t netEnvId, uint32_t unitVector);
 t_Error     PcdGetClsPlanGrpParams(t_FmPcd *p_FmPcd, t_FmPcdKgInterModuleClsPlanGrpParams *p_GrpParams);
 void        FmPcdSetClsPlanGrpId(t_FmPcd *p_FmPcd, uint8_t netEnvId, uint8_t clsPlanGrpId);
 e_NetHeaderType FmPcdGetAliasHdr(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr);
-uint8_t     FmPcdNetEnvGetUnitIdForSingleHdr(t_Handle h_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr);
+uint8_t     FmPcdNetEnvGetUnitIdForSingleHdr(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr);
+uint8_t     FmPcdNetEnvGetUnitId(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr, bool interchangable, protocolOpt_t opt);
+uint8_t     FmPcdGetNetEnvId(t_FmPcd *p_FmPcd, t_Handle h_NetEnv);
+
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+t_Error     FmPcdManipBuildIpReassmScheme(t_FmPcd *p_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsParam, t_Handle h_CcTree, t_Handle h_Manip, bool isIpv4, uint32_t groupId);
+bool        FmPcdManipIsIpv4Present(t_FmPcd *p_FmPcd, uint8_t netEnvId);
+bool        FmPcdManipIsIpv6Present(t_FmPcd *p_FmPcd, uint8_t netEnvId);
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
 t_Handle    KgConfig( t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams);
 t_Error     KgInit(t_FmPcd *p_FmPcd);
