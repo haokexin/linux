@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -195,7 +195,7 @@ static t_Error CheckInitParameters(t_FmPort *p_FmPort)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("bufMargins.endMargins can't be larger than %d", MAX_EXT_BUFFER_OFFSET));
 
         /* extra FIFO size (allowed only to Rx ports) */
-        if(p_FmPort->fifoBufs.extra % BMI_FIFO_UNITS)
+        if(p_FmPort->explicitUserSizeOfFifo && (p_FmPort->fifoBufs.extra % BMI_FIFO_UNITS))
              RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("fifoBufs.extra has to be divisible by %d", BMI_FIFO_UNITS));
 
         if(p_Params->bufPoolDepletion.numberOfPoolsModeEnable &&
@@ -214,22 +214,22 @@ static t_Error CheckInitParameters(t_FmPort *p_FmPort)
             }
         }
 #endif /* FM_CSI_CFED_LIMIT */
-
     }
 
     /****************************************/
     /*   Non Rx ports                       */
     /****************************************/
-    else
-        /* extra FIFO size (allowed only to Rx ports) */
-        if(p_FmPort->fifoBufs.extra)
-             RETURN_ERROR(MAJOR, E_INVALID_VALUE, (" No fifoBufs.extra for non Rx ports"));
+    /* extra FIFO size (allowed only to Rx ports) */
+    else if (p_FmPort->fifoBufs.extra)
+         RETURN_ERROR(MAJOR, E_INVALID_VALUE, (" No fifoBufs.extra for non Rx ports"));
 
     /****************************************/
     /*   Rx & Tx                            */
     /****************************************/
-    if((p_FmPort->portType == e_FM_PORT_TYPE_TX) || (p_FmPort->portType == e_FM_PORT_TYPE_TX_10G) ||
-        (p_FmPort->portType == e_FM_PORT_TYPE_RX) || (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G))
+    if ((p_FmPort->portType == e_FM_PORT_TYPE_TX) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_TX_10G) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_RX) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G))
     {
         /* Check that not larger than 16 */
         if(p_Params->cheksumLastBytesIgnore > FRAME_END_DATA_SIZE)
@@ -239,7 +239,8 @@ static t_Error CheckInitParameters(t_FmPort *p_FmPort)
     /****************************************/
     /*   Tx only                            */
     /****************************************/
-    if((p_FmPort->portType == e_FM_PORT_TYPE_TX) || (p_FmPort->portType == e_FM_PORT_TYPE_TX_10G))
+    if ((p_FmPort->portType == e_FM_PORT_TYPE_TX) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_TX_10G))
     {
         /* Check that divisible by 256 and not larger than 256 */
         if(p_Params->txFifoMinFillLevel % BMI_FIFO_UNITS)
@@ -258,29 +259,28 @@ static t_Error CheckInitParameters(t_FmPort *p_FmPort)
             if(p_FmPort->txFifoDeqPipelineDepth > 2)
                 RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("txFifoDeqPipelineDepth for !G can't be larger than 2"));
     }
-    else
     /****************************************/
     /*   Non Tx Ports                       */
     /****************************************/
-    {
-        /* If discard override was selected , no frames may be discarded. */
-        if(p_Params->frmDiscardOverride && p_Params->errorsToDiscard)
-            RETURN_ERROR(MAJOR, E_CONFLICT, ("errorsToDiscard is not empty, but frmDiscardOverride selected (all discarded frames to be enqueued to error queue)."));
-    }
+    /* If discard override was selected , no frames may be discarded. */
+    else if (p_Params->frmDiscardOverride && p_Params->errorsToDiscard)
+        RETURN_ERROR(MAJOR, E_CONFLICT,
+                     ("errorsToDiscard is not empty, but frmDiscardOverride selected (all discarded frames to be enqueued to error queue)."));
 
     /****************************************/
     /*   Rx and Offline parsing             */
     /****************************************/
-    if((p_FmPort->portType == e_FM_PORT_TYPE_RX) || (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G)
-        || (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING))
+    if ((p_FmPort->portType == e_FM_PORT_TYPE_RX) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING))
     {
-        if(p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
+        if (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
             unusedMask = BMI_STATUS_OP_MASK_UNUSED;
         else
             unusedMask = BMI_STATUS_RX_MASK_UNUSED;
 
         /* Check that no common bits with BMI_STATUS_MASK_UNUSED */
-        if(p_Params->errorsToDiscard & unusedMask)
+        if (p_Params->errorsToDiscard & unusedMask)
             RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("errorsToDiscard contains undefined bits"));
     }
 
@@ -288,10 +288,10 @@ static t_Error CheckInitParameters(t_FmPort *p_FmPort)
     /*   All ports                          */
     /****************************************/
 
-   /* Check that divisible by 16 and not larger than 240 */
-    if(p_Params->intContext.intContextOffset >MAX_INT_OFFSET)
+    /* Check that divisible by 16 and not larger than 240 */
+    if (p_Params->intContext.intContextOffset >MAX_INT_OFFSET)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("intContext.intContextOffset can't be larger than %d", MAX_INT_OFFSET));
-    if(p_Params->intContext.intContextOffset % OFFSET_UNITS)
+    if (p_Params->intContext.intContextOffset % OFFSET_UNITS)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("intContext.intContextOffset has to be divisible by %d", OFFSET_UNITS));
 
     /* check that ic size+ic internal offset, does not exceed ic block size */
@@ -316,12 +316,117 @@ static t_Error CheckInitParameters(t_FmPort *p_FmPort)
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("openDmas.num can't be larger than %d", MAX_NUM_OF_DMAS));
     if(p_FmPort->openDmas.extra > MAX_NUM_OF_EXTRA_DMAS)
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("openDmas.extra can't be larger than %d", MAX_NUM_OF_EXTRA_DMAS));
-    if(!p_FmPort->fifoBufs.num || (p_FmPort->fifoBufs.num > BMI_MAX_FIFO_SIZE))
+    if(p_FmPort->explicitUserSizeOfFifo && (!p_FmPort->fifoBufs.num || (p_FmPort->fifoBufs.num > BMI_MAX_FIFO_SIZE)))
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("fifoBufs.num has to be in the range of 256 - %d", BMI_MAX_FIFO_SIZE));
-    if(p_FmPort->fifoBufs.num % BMI_FIFO_UNITS)
+    if(p_FmPort->explicitUserSizeOfFifo && (p_FmPort->fifoBufs.num % BMI_FIFO_UNITS))
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("fifoBufs.num has to be divisible by %d", BMI_FIFO_UNITS));
 
     return E_OK;
+}
+
+static uint32_t VerifyAndUpdateSizeOfFifo(t_FmPort *p_FmPort)
+{
+    uint32_t                minFifoSizeRequired = 0;
+
+    /*************************/
+    /*    TX PORTS           */
+    /*************************/
+    if ((p_FmPort->portType == e_FM_PORT_TYPE_TX) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_TX_10G))
+    {
+
+        if (p_FmPort->imEn)
+            minFifoSizeRequired = (uint32_t)((p_FmPort->maxFrameLength % BMI_FIFO_UNITS ?
+                                              (p_FmPort->maxFrameLength/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS :
+                                              p_FmPort->maxFrameLength) +
+                                                (3*BMI_FIFO_UNITS));
+        else
+            minFifoSizeRequired = (uint32_t)((p_FmPort->maxFrameLength % BMI_FIFO_UNITS ?
+                                   (p_FmPort->maxFrameLength/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS :
+                                   p_FmPort->maxFrameLength) +
+                                   (p_FmPort->txFifoDeqPipelineDepth+3)*BMI_FIFO_UNITS);
+        /* add some margin for back to back capability to improve performance
+         * allows the hardware to pipeline new frame dma while the previous
+         * frame not yet transmitted). */
+        if (p_FmPort->portType == e_FM_PORT_TYPE_TX_10G)
+            minFifoSizeRequired += 3*BMI_FIFO_UNITS;
+        else
+            minFifoSizeRequired += 2*BMI_FIFO_UNITS;
+    }
+
+    /*************************/
+    /*    RX IM PORTS        */
+    /*************************/
+    else if (((p_FmPort->portType == e_FM_PORT_TYPE_RX) ||
+              (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G)) &&
+             p_FmPort->imEn)
+        minFifoSizeRequired = (uint32_t)(((p_FmPort->maxFrameLength % BMI_FIFO_UNITS) ?
+                                         ((p_FmPort->maxFrameLength/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
+                                         p_FmPort->maxFrameLength) +
+                                         (4*BMI_FIFO_UNITS));
+
+    /*************************/
+    /*    RX non-IM PORTS    */
+    /*************************/
+    else if (((p_FmPort->portType == e_FM_PORT_TYPE_RX) ||
+              (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G)) &&
+             !p_FmPort->imEn)
+    {
+#ifdef FM_FIFO_ALLOCATION_OLD_ALG
+        t_FmRevisionInfo revInfo;
+
+        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
+        if(revInfo.majorRev != 4)
+            minFifoSizeRequired = (uint32_t)(((p_FmPort->rxPoolsParams.largestBufSize % BMI_FIFO_UNITS) ?
+                                    ((p_FmPort->rxPoolsParams.largestBufSize/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
+                                    p_FmPort->rxPoolsParams.largestBufSize) + (7*BMI_FIFO_UNITS));
+        else
+#endif /* FM_FIFO_ALLOCATION_OLD_ALG */
+        {
+            if(p_FmPort->rxPoolsParams.numOfPools == 1)
+                minFifoSizeRequired = 8*BMI_FIFO_UNITS;
+            else
+                minFifoSizeRequired = (uint32_t)(((p_FmPort->rxPoolsParams.secondLargestBufSize % BMI_FIFO_UNITS) ?
+                                    ((p_FmPort->rxPoolsParams.secondLargestBufSize/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
+                                    p_FmPort->rxPoolsParams.secondLargestBufSize) +
+                                    (7*BMI_FIFO_UNITS));
+        }
+        if (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G)
+            minFifoSizeRequired += 12*BMI_FIFO_UNITS;
+        else
+            minFifoSizeRequired += 3*BMI_FIFO_UNITS;
+    }
+
+    /* For O/H ports, check fifo size and update if necessary */
+    else if ((p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING) ||
+             (p_FmPort->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND))
+        minFifoSizeRequired = (uint32_t)((p_FmPort->txFifoDeqPipelineDepth+4)*BMI_FIFO_UNITS);
+
+    /* for all ports - update if necassary */
+    if (minFifoSizeRequired && (p_FmPort->fifoBufs.num < minFifoSizeRequired))
+    {
+        if(!p_FmPort->explicitUserSizeOfFifo)
+            p_FmPort->fifoBufs.num = minFifoSizeRequired;
+        else
+            DBG(INFO, ("User defined FIFO size should be enlarged to %d",minFifoSizeRequired));
+
+    }
+
+    /* check if pool size is not too big */
+    /* This is a definition problem in which if the fifo for the RX port
+       is lower than the largest pool size the hardware will allocate scatter gather
+       buffers even though the frame size can fit in a single buffer. */
+    if (((p_FmPort->portType == e_FM_PORT_TYPE_RX) ||
+         (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G))
+        && !p_FmPort->imEn)
+    {
+        if (p_FmPort->rxPoolsParams.largestBufSize > p_FmPort->fifoBufs.num)
+            DBG(WARNING, ("Frame larger than port Fifo size (%u) will be split to more than a single buffer (S/G) even if shorter than largest buffer size (%u)",
+                    p_FmPort->fifoBufs.num, p_FmPort->rxPoolsParams.largestBufSize));
+
+    }
+
+    return p_FmPort->fifoBufs.num;
 }
 
 static void FmPortDriverParamFree(t_FmPort *p_FmPort)
@@ -347,7 +452,7 @@ static t_Error SetExtBufferPools(t_FmPort *p_FmPort)
     uint8_t                     numOfPools;
     uint16_t                    bufSize = 0, largestBufSize = 0;
     int                         i=0, j=0, k=0;
-    uint32_t                    tmpReg, vector, minFifoSizeRequired=0;
+    uint32_t                    tmpReg, vector;
 
     memset(&orderedArray, 0, sizeof(uint8_t) * FM_PORT_MAX_NUM_OF_EXT_POOLS);
     memset(&sizesArray, 0, sizeof(uint16_t) * BM_MAX_NUM_OF_POOLS);
@@ -429,50 +534,10 @@ static t_Error SetExtBufferPools(t_FmPort *p_FmPort)
     for(i=p_ExtBufPools->numOfPoolsUsed;i<numOfPools;i++)
         WRITE_UINT32(*(p_ExtBufRegs+i), 0);
 
+    /* save pools parameters for later use */
+    p_FmPort->rxPoolsParams.numOfPools = p_ExtBufPools->numOfPoolsUsed;
     p_FmPort->rxPoolsParams.largestBufSize = largestBufSize = sizesArray[orderedArray[p_ExtBufPools->numOfPoolsUsed-1]];
-    if((p_FmPort->portType == e_FM_PORT_TYPE_RX) || (p_FmPort->portType == e_FM_PORT_TYPE_RX_10G))
-    {
-#ifdef FM_FIFO_ALLOCATION_OLD_ALG
-        t_FmRevisionInfo        revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-
-        if(revInfo.majorRev != 4)
-        {
-            minFifoSizeRequired = (uint32_t)(((largestBufSize % BMI_FIFO_UNITS) ?
-                                    ((largestBufSize/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
-                                    largestBufSize) +
-                                    (7*BMI_FIFO_UNITS));
-        }
-        else
-#endif /* FM_FIFO_ALLOCATION_OLD_ALG */
-        {
-            p_FmPort->rxPoolsParams.numOfPools = p_ExtBufPools->numOfPoolsUsed;
-            if(p_ExtBufPools->numOfPoolsUsed == 1)
-                minFifoSizeRequired = 8*BMI_FIFO_UNITS;
-            else
-            {
-                uint16_t secondLargestBufSize = sizesArray[orderedArray[p_ExtBufPools->numOfPoolsUsed-2]];
-                p_FmPort->rxPoolsParams.secondLargestBufSize = secondLargestBufSize;
-                minFifoSizeRequired = (uint32_t)(((secondLargestBufSize % BMI_FIFO_UNITS) ?
-                                    ((secondLargestBufSize/BMI_FIFO_UNITS + 1) * BMI_FIFO_UNITS) :
-                                    secondLargestBufSize) +
-                                    (7*BMI_FIFO_UNITS));
-            }
-        }
-        if(p_FmPort->fifoBufs.num < minFifoSizeRequired)
-        {
-            p_FmPort->fifoBufs.num = minFifoSizeRequired;
-            DBG(INFO, ("FIFO size for Rx port enlarged to %d",minFifoSizeRequired));
-        }
-    }
-
-    /* check if pool size is not too big */
-    /* This is a definition problem in which if the fifo for the RX port
-       is lower than the largest pool size the hardware will allocate scatter gather
-       buffers even though the frame size can fit in a single buffer. */
-    if (largestBufSize > p_FmPort->fifoBufs.num)
-        DBG(WARNING, ("Frame larger than port Fifo size (%u) will be split to more than a single buffer (S/G) even if shorter than largest buffer size (%u)",
-                p_FmPort->fifoBufs.num, largestBufSize));
+    p_FmPort->rxPoolsParams.secondLargestBufSize = sizesArray[orderedArray[p_ExtBufPools->numOfPoolsUsed-2]];
 
     /* pool depletion */
     tmpReg = 0;
@@ -702,11 +767,6 @@ static t_Error BmiRxPortInit(t_FmPort *p_FmPort)
     errorsToEnq = (RX_ERRS_TO_ENQ & ~p_Params->errorsToDiscard);
     WRITE_UINT32(p_Regs->fmbm_rfsem, errorsToEnq);
 
-#ifdef FM_BMI_TO_RISC_ENQ_ERRATA_FMANc
-    if((GET_UINT32(p_Regs->fmbm_rfene) && NIA_ENG_MASK)== NIA_ENG_FM_CTL)
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("NIA not supported at this stage"));
-#endif /* FM_BMI_TO_RISC_ENQ_ERRATA_FMANc */
-
     return E_OK;
 }
 
@@ -792,9 +852,6 @@ static t_Error BmiTxPortInit(t_FmPort *p_FmPort)
     else
     {
         tmpReg |= BMI_CMD_ATTR_ORDER;
-        /* if we set syncReq, we may get stuck when HC command is running */
-        /*if(p_Params->syncReq)
-            tmpReg |= BMI_CMD_ATTR_SYNC;*/
         tmpReg |= ((uint32_t)p_Params->color << BMI_CMD_ATTR_COLOR_SHIFT);
     }
 
@@ -966,6 +1023,18 @@ static t_Error QmiInit(t_FmPort *p_FmPort)
             WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->nonRxQmiRegs.fmqm_pndn, NIA_ENG_BMI | NIA_BMI_AC_FETCH);
             /* define enqueue NIA */
             WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnen, NIA_ENG_BMI | NIA_BMI_AC_RELEASE);
+
+            if (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
+            {
+                t_FmRevisionInfo fmRevInfo, fmanCtrlCodeRevInfo;
+
+                FM_GetRevision(p_FmPort->h_Fm, &fmRevInfo);
+				FM_GetFmanCtrlCodeRevision(p_FmPort->h_Fm, &fmanCtrlCodeRevInfo);
+				if ((fmanCtrlCodeRevInfo.majorRev == 106) &&
+					(fmRevInfo.majorRev < 4))
+					/* Set pop to next step nia for QMI Enqueue Frame*/
+					WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnen, NIA_FM_CTL_AC_FRAG | NIA_ENG_FM_CTL);
+            }
         }
 
         /* configure dequeue */
@@ -1084,14 +1153,6 @@ static t_Error BmiRxPortCheckAndGetCounterPtr(t_FmPort *p_FmPort, e_FmPortCounte
             *p_Ptr = &p_BmiRegs->fmbm_rffc;
             break;
         case(e_FM_PORT_COUNTERS_RX_LIST_DMA_ERR):
-#ifdef FM_PORT_COUNTERS_ERRATA_FMANg
-            {
-                t_FmRevisionInfo revInfo;
-                FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-                if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-                    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("Requested counter is not available in rev1"));
-            }
-#endif /* FM_PORT_COUNTERS_ERRATA_FMANg */
             *p_Ptr = &p_BmiRegs->fmbm_rfldec;
             break;
         case(e_FM_PORT_COUNTERS_RX_OUT_OF_BUFFERS_DISCARD):
@@ -1231,14 +1292,6 @@ static t_Error BmiOhPortCheckAndGetCounterPtr(t_FmPort *p_FmPort, e_FmPortCounte
            *p_Ptr = &p_BmiRegs->fmbm_offc;
             break;
         case(e_FM_PORT_COUNTERS_RX_LIST_DMA_ERR):
-#ifdef FM_PORT_COUNTERS_ERRATA_FMANg
-        {
-            t_FmRevisionInfo revInfo;
-            FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-            if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-                RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("Requested counter is not available in rev1"));
-        }
-#endif /* FM_PORT_COUNTERS_ERRATA_FMANg */
           *p_Ptr = &p_BmiRegs->fmbm_ofldec;
             break;
         case(e_FM_PORT_COUNTERS_WRED_DISCARD):
@@ -1375,60 +1428,21 @@ static t_Error BuildBufferStructure(t_FmPort *p_FmPort)
              p_FmPort->p_FmPortDriverParam->bufferPrefixContent.privDataSize);
 
     /* Translate margin and intContext params to FM parameters */
-#ifdef FM_INCORRECT_CS_ERRATA_FMAN18
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-        {
-            uint8_t mod = p_FmPort->p_FmPortDriverParam->bufferPrefixContent.dataAlign % 256;
-            if(mod)
-            {
-                p_FmPort->p_FmPortDriverParam->bufferPrefixContent.dataAlign += (256-mod);
-                DBG(WARNING,("dataAlign modified to next 256 to conform with FMAN18 errata\n"));
-            }
-        }
-    }
-#endif /* FM_INCORRECT_CS_ERRATA_FMAN18 */
-
     /* Initialize with illegal value. Later we'll set legal values. */
     p_FmPort->bufferOffsets.prsResultOffset = (uint32_t)ILLEGAL_BASE;
     p_FmPort->bufferOffsets.timeStampOffset = (uint32_t)ILLEGAL_BASE;
     p_FmPort->bufferOffsets.hashResultOffset= (uint32_t)ILLEGAL_BASE;
     p_FmPort->bufferOffsets.pcdInfoOffset   = (uint32_t)ILLEGAL_BASE;
-#ifdef DEBUG
-    p_FmPort->bufferOffsets.debugOffset     = (uint32_t)ILLEGAL_BASE;
-#endif /* DEBUG */
 
     /* Internally the driver supports 4 options
        1. prsResult/timestamp/hashResult selection (in fact 8 options, but for simplicity we'll
           relate to it as 1).
-       2. All IC context (from AD) except debug.
-       3. Debug information only.
-       4. All IC context (from AD) including debug.
-       Note, that if user asks for prsResult/timestamp/hashResult and Debug, we give them (4) */
+       2. All IC context (from AD) not including debug.*/
 
-    /* This 'if' covers options  2 & 4. We copy from beginning of context with or without debug. */
-    /* If passAllOtherPCDInfo explicitly requested, or passDebugInfo+prs/ts --> we also take passAllOtherPCDInfo */
-    if ((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passAllOtherPCDInfo)
-#ifdef DEBUG
-        || (p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passDebugInfo &&
-         (p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ||
-          p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp ||
-          p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passHashResult))
-#endif /* DEBUG */
-       )
+    /* This 'if' covers option 2. We copy from beginning of context. */
+    if (p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passAllOtherPCDInfo)
     {
-#ifdef DEBUG
-        if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passDebugInfo)
-        {
-            p_FmPort->p_FmPortDriverParam->intContext.size = 240;
-            p_FmPort->bufferOffsets.debugOffset =
-                (uint32_t)(p_FmPort->p_FmPortDriverParam->intContext.extBufOffset + 128);
-        }
-        else
-#endif /* DEBUG */
-            p_FmPort->p_FmPortDriverParam->intContext.size = 128; /* must be aligned to 16 */
+        p_FmPort->p_FmPortDriverParam->intContext.size = 128; /* must be aligned to 16 */
         /* Start copying data after 16 bytes (FD) from the beginning of the internal context */
         p_FmPort->p_FmPortDriverParam->intContext.intContextOffset = 16;
 
@@ -1446,59 +1460,52 @@ static t_Error BuildBufferStructure(t_FmPort *p_FmPort)
     }
     else
     {
-#ifdef DEBUG
-        if (p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passDebugInfo)
-        {
-            /* This case covers option 3 */
-            p_FmPort->p_FmPortDriverParam->intContext.size = 112;
-            p_FmPort->p_FmPortDriverParam->intContext.intContextOffset = 144;
-            p_FmPort->bufferOffsets.debugOffset = p_FmPort->p_FmPortDriverParam->intContext.extBufOffset;
-        }
-        else
-#endif /* DEBUG */
-        {
-            /* This case covers the options under 1 */
-            /* Copy size must be in 16-byte granularity. */
-            p_FmPort->p_FmPortDriverParam->intContext.size =
-                (uint16_t)((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ? 32 : 0) +
-                          ((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp ||
-                          p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passHashResult) ? 16 : 0));
+        /* This case covers the options under 1 */
+        /* Copy size must be in 16-byte granularity. */
+        p_FmPort->p_FmPortDriverParam->intContext.size =
+            (uint16_t)((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ? 32 : 0) +
+                      ((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp ||
+                      p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passHashResult) ? 16 : 0));
 
-            /* Align start of internal context data to 16 byte */
-            p_FmPort->p_FmPortDriverParam->intContext.intContextOffset =
-                (uint8_t)(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ? 32 :
-                          ((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp  ||
-                           p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passHashResult) ? 64 : 0));
+        /* Align start of internal context data to 16 byte */
+        p_FmPort->p_FmPortDriverParam->intContext.intContextOffset =
+            (uint8_t)(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ? 32 :
+                      ((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp  ||
+                       p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passHashResult) ? 64 : 0));
 
-            if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult)
-                p_FmPort->bufferOffsets.prsResultOffset = p_FmPort->p_FmPortDriverParam->intContext.extBufOffset;
-            if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp)
-                p_FmPort->bufferOffsets.timeStampOffset =  p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ?
-                                            (p_FmPort->p_FmPortDriverParam->intContext.extBufOffset + sizeof(t_FmPrsResult)) :
-                                            p_FmPort->p_FmPortDriverParam->intContext.extBufOffset;
-            if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passHashResult)
-                /* If PR is not requested, whether TS is requested or not, IC will be copied from TS */
-                p_FmPort->bufferOffsets.hashResultOffset = p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ?
-                                              (p_FmPort->p_FmPortDriverParam->intContext.extBufOffset + sizeof(t_FmPrsResult) + 8) :
-                                              p_FmPort->p_FmPortDriverParam->intContext.extBufOffset + 8;
-        }
+        if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult)
+            p_FmPort->bufferOffsets.prsResultOffset = p_FmPort->p_FmPortDriverParam->intContext.extBufOffset;
+        if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp)
+            p_FmPort->bufferOffsets.timeStampOffset =  p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ?
+                                        (p_FmPort->p_FmPortDriverParam->intContext.extBufOffset + sizeof(t_FmPrsResult)) :
+                                        p_FmPort->p_FmPortDriverParam->intContext.extBufOffset;
+        if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passHashResult)
+            /* If PR is not requested, whether TS is requested or not, IC will be copied from TS */
+            p_FmPort->bufferOffsets.hashResultOffset = p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passPrsResult ?
+                                          (p_FmPort->p_FmPortDriverParam->intContext.extBufOffset + sizeof(t_FmPrsResult) + 8) :
+                                          p_FmPort->p_FmPortDriverParam->intContext.extBufOffset + 8;
     }
 
     p_FmPort->p_FmPortDriverParam->bufMargins.startMargins =
         (uint16_t)(p_FmPort->p_FmPortDriverParam->intContext.extBufOffset +
                    p_FmPort->p_FmPortDriverParam->intContext.size);
-#ifdef FM_CAPWAP_SUPPORT
+#if (defined(FM_IP_FRAG_N_REASSEM_SUPPORT) || defined(FM_CAPWAP_SUPPORT))
     /* save extra space for manip in both external and internal buffers */
     if(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace)
     {
-        if((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace + FRAG_EXTRA_SPACE) >= 256)
+        uint8_t extraSpace;
+#ifdef FM_CAPWAP_SUPPORT
+        if((p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace + CAPWAP_FRAG_EXTRA_SPACE) >= 256)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace + 32 can not be equal or larger to 256"));
-        p_FmPort->bufferOffsets.manipOffset = p_FmPort->p_FmPortDriverParam->bufMargins.startMargins;
-        p_FmPort->p_FmPortDriverParam->bufMargins.startMargins += (p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace + FRAG_EXTRA_SPACE);
-        p_FmPort->p_FmPortDriverParam->internalBufferOffset =
-            (uint8_t)(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace + FRAG_EXTRA_SPACE);
-    }
+        extraSpace = (uint8_t)(p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace + CAPWAP_FRAG_EXTRA_SPACE);
+#else
+        extraSpace = p_FmPort->p_FmPortDriverParam->bufferPrefixContent.manipExtraSpace;
 #endif /* FM_CAPWAP_SUPPORT */
+        p_FmPort->bufferOffsets.manipOffset = p_FmPort->p_FmPortDriverParam->bufMargins.startMargins;
+        p_FmPort->p_FmPortDriverParam->bufMargins.startMargins += extraSpace;
+        p_FmPort->p_FmPortDriverParam->internalBufferOffset = extraSpace;
+    }
+#endif /* (defined(FM_IP_FRAG_N_REASSEM_SUPPORT) || defined(FM_CAPWAP_SUPPORT)) */
 
     /* align data start */
     tmp = (uint32_t)(p_FmPort->p_FmPortDriverParam->bufMargins.startMargins %
@@ -1575,6 +1582,12 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
             p_FmPort->pcdEngines |= FM_PCD_CC;
             p_FmPort->pcdEngines |= FM_PCD_PLCR;
             break;
+#if (defined(FM_IP_FRAG_N_REASSEM_SUPPORT) || defined(FM_IPSEC_SUPPORT))
+        case(e_FM_PORT_PCD_SUPPORT_PRS_AND_CC):
+            p_FmPort->pcdEngines |= FM_PCD_PRS;
+            p_FmPort->pcdEngines |= FM_PCD_CC;
+            break;
+#endif /* (defined(FM_IP_FRAG_N_REASSEM_SUPPORT) || ... */
         case(e_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR):
             p_FmPort->pcdEngines |= FM_PCD_PRS;
             p_FmPort->pcdEngines |= FM_PCD_KG;
@@ -1640,7 +1653,7 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
     {
 
         if(p_PcdParams->p_KgParams->numOfSchemes == 0)
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For ports using Keygen, at lease one scheme must be bound. "));
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For ports using Keygen, at least one scheme must be bound. "));
         /* for each scheme */
         for(i = 0; i<p_PcdParams->p_KgParams->numOfSchemes; i++)
         {
@@ -1659,12 +1672,26 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
              RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("FmPcdKgSetOrBindToClsPlanGrp failed. "));
 
          p_FmPort->useClsPlan = !isEmptyClsPlanGrp;
+#ifdef FM_KG_ERASE_FLOW_ID_ERRATA_FMAN_SW004
+        {
+            t_FmRevisionInfo revInfo;
+
+            FM_GetRevision(p_FmPort->h_Fm, &revInfo);
+            if ((p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING) &&
+                (CHECK_FM_CTL_AC_POST_FETCH_PCD(p_FmPort->savedBmiNia)) &&
+                (revInfo.majorRev <= 3))
+            {
+                for(i = 0; i<p_PcdParams->p_KgParams->numOfSchemes; i++)
+                    FmPcdKgCcGetSetParams(p_FmPort->h_FmPcd, p_PcdParams->p_KgParams->h_Schemes[i], UPDATE_KG_NIA_CC_WA);
+            }
+        }
+#endif /* FM_KG_ERASE_FLOW_ID_ERRATA_FMAN_SW004 */
     }
 
     /* set PCD port parameter */
     if(p_FmPort->pcdEngines & FM_PCD_CC)
     {
-        err = FmPcdCcBindTree(p_FmPort->h_FmPcd, p_PcdParams->p_CcParams->h_CcTree, &ccTreePhysOffset, h_FmPort);
+        err = FmPcdCcBindTree(p_FmPort->h_FmPcd, p_PcdParams, p_PcdParams->p_CcParams->h_CcTree, &ccTreePhysOffset, h_FmPort);
         if(err)
             RETURN_ERROR(MINOR, err, NO_MSG);
 
@@ -1748,6 +1775,11 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
                 }
                 WRITE_UINT32(*p_BmiPrsNia, NIA_ENG_KG | tmpReg);
                 break;
+#if (defined(FM_IP_FRAG_N_REASSEM_SUPPORT) || defined(FM_IPSEC_SUPPORT))
+            case(e_FM_PORT_PCD_SUPPORT_PRS_AND_CC):
+                WRITE_UINT32(*p_BmiPrsNia, (uint32_t)(NIA_ENG_FM_CTL | NIA_FM_CTL_AC_CC));
+                break;
+#endif /* (defined(FM_IP_FRAG_N_REASSEM_SUPPORT) || ... */
             case(e_FM_PORT_PCD_SUPPORT_PRS_AND_PLCR):
                 break;
             default:
@@ -1852,25 +1884,26 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
 
             tmpHxs[hdrNum] |= tmpReg;
         }
-#ifdef FM_PRS_L4_SHELL_ERRATA_FMANb
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+        /* check if reassembly port */
+        if(FmPcdIsIpFrag(p_FmPort->h_FmPcd, p_FmPort->netEnvId))
         {
-            t_FmRevisionInfo revInfo;
-            FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-            if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-            {
-               /* link to sw parser code for L4 shells - only if no other code is applied. */
-                GET_PRS_HDR_NUM(hdrNum, HEADER_TYPE_SCTP)
-                if(!(tmpHxs[hdrNum] & PRS_HDR_SW_PRS_EN))
-                    tmpHxs[hdrNum] |= (PRS_HDR_SW_PRS_EN | SCTP_SW_PATCH_START);
-                GET_PRS_HDR_NUM(hdrNum, HEADER_TYPE_DCCP)
-                if(!(tmpHxs[hdrNum] & PRS_HDR_SW_PRS_EN))
-                    tmpHxs[hdrNum] |= (PRS_HDR_SW_PRS_EN | DCCP_SW_PATCH_START);
-                GET_PRS_HDR_NUM(hdrNum, HEADER_TYPE_IPSEC_AH)
-                if(!(tmpHxs[hdrNum] & PRS_HDR_SW_PRS_EN))
-                    tmpHxs[hdrNum] |= (PRS_HDR_SW_PRS_EN | IPSEC_SW_PATCH_START);
-            }
+           /* link to sw parser code for IP Frag - only if no other code is applied. */
+            GET_PRS_HDR_NUM(hdrNum, HEADER_TYPE_IPv4)
+            if(!(tmpHxs[hdrNum] & PRS_HDR_SW_PRS_EN))
+                tmpHxs[hdrNum] |= (PRS_HDR_SW_PRS_EN | IP_FRAG_SW_PATCH_IPv4);
+            GET_PRS_HDR_NUM(hdrNum, HEADER_TYPE_IPv6)
+            if(!(tmpHxs[hdrNum] & PRS_HDR_SW_PRS_EN))
+                tmpHxs[hdrNum] |= (PRS_HDR_SW_PRS_EN | IP_FRAG_SW_PATCH_IPv6_0);
         }
-#endif /* FM_PRS_L4_SHELL_ERRATA_FMANb */
+        if (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
+        {
+            /* link to sw parser code for IP Frag - only if no other code is applied. */
+            GET_PRS_HDR_NUM(hdrNum, HEADER_TYPE_IPv6)
+            if(!(tmpHxs[hdrNum] & PRS_HDR_SW_PRS_EN))
+                tmpHxs[hdrNum] |= (PRS_HDR_SW_PRS_EN | IP_FRAG_SW_PATCH_IPv6_1);
+        }
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
         for(i=0 ; i<FM_PCD_PRS_NUM_OF_HDRS ; i++)
         {
@@ -2088,8 +2121,8 @@ pndn, pnen ... maybe were changed because of the Tree requirement*/
             RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("available for Rx and offline parsing ports only"));
     }
 
-    if(p_FmPort->requiredAction  & UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY)
-        if(FmSetNumOfRiscsPerPort(p_FmPort->h_Fm, p_FmPort->hardwarePortId, 1)!= E_OK)
+    if(p_FmPort->requiredAction & UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY)
+        if(FmSetNumOfRiscsPerPort(p_FmPort->h_Fm, p_FmPort->hardwarePortId, 1, p_FmPort->orFmanCtrl)!= E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
 
     /* check that current NIA is BMI to BMI */
@@ -2098,12 +2131,30 @@ pndn, pnen ... maybe were changed because of the Tree requirement*/
 
     WRITE_UINT32(*p_BmiNia, p_FmPort->savedBmiNia);
 
-    if(p_FmPort->requiredAction  & UPDATE_NIA_PNEN)
+    if(p_FmPort->requiredAction & UPDATE_NIA_PNEN)
         WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnen, p_FmPort->savedQmiPnen);
 
-    if(p_FmPort->requiredAction  & UPDATE_NIA_PNDN)
+    if(p_FmPort->requiredAction & UPDATE_NIA_PNDN)
         WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->nonRxQmiRegs.fmqm_pndn, p_FmPort->savedNonRxQmiRegsPndn);
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    if(p_FmPort->requiredAction & UPDATE_IPR_EN)
+    {
+        t_Error     err;
+
+        if(!p_FmPort->explicitUserSizeOfFifo)
+            p_FmPort->fifoBufs.num += (p_FmPort->tasks.num + p_FmPort->tasks.extra) * BMI_FIFO_UNITS;
+        else
+            p_FmPort->fifoBufs.num = MAX(p_FmPort->fifoBufs.num,
+                                         (p_FmPort->txFifoDeqPipelineDepth +
+                                          (p_FmPort->tasks.num + p_FmPort->tasks.extra) + 4) * BMI_FIFO_UNITS);
+        err = FmSetSizeOfFifo(p_FmPort->h_Fm, p_FmPort->hardwarePortId, p_FmPort->fifoBufs.num, p_FmPort->fifoBufs.extra, FALSE);
+        if(err)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+    }
+    if(p_FmPort->requiredAction & UPDATE_NIA_RFENE)
+        WRITE_UINT32(p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs.fmbm_rfene, p_FmPort->savedBmiRfene);
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
     return E_OK;
 }
@@ -2133,7 +2184,7 @@ t_Error FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_CcPara
     }
     if(p_CcParams->getCcParams.type & NUM_OF_TASKS)
     {
-        p_CcParams->getCcParams.numOfTasks = p_FmPort->numOfTasks;
+        p_CcParams->getCcParams.numOfTasks = (uint8_t)p_FmPort->tasks.num;
         p_CcParams->getCcParams.type &= ~NUM_OF_TASKS;
     }
     if(p_CcParams->getCcParams.type & BUFFER_POOL_ID_FOR_MANIP)
@@ -2148,6 +2199,7 @@ t_Error FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_CcPara
     if((p_CcParams->setCcParams.type & UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY) && !(p_FmPort->requiredAction & UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY))
     {
         p_FmPort->requiredAction |= UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY;
+        p_FmPort->orFmanCtrl = p_CcParams->setCcParams.orFmanCtrl;
     }
 
     if((p_CcParams->setCcParams.type & UPDATE_NIA_PNEN) && !(p_FmPort->requiredAction & UPDATE_NIA_PNEN))
@@ -2172,6 +2224,22 @@ t_Error FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_CcPara
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("pndn was defined previously different"));
     }
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    if(p_CcParams->setCcParams.type & UPDATE_IPR_EN)
+    {
+        p_FmPort->requiredAction |= UPDATE_IPR_EN;
+    }
+    else if((p_CcParams->setCcParams.type & UPDATE_NIA_RFENE) && !(p_FmPort->requiredAction & UPDATE_NIA_RFENE))
+    {
+        p_FmPort->savedBmiRfene = p_CcParams->setCcParams.nia;
+        p_FmPort->requiredAction |= UPDATE_NIA_RFENE;
+    }
+    else if (p_CcParams->setCcParams.type & UPDATE_NIA_RFENE)
+    {
+       if(p_FmPort->savedBmiRfene != p_CcParams->setCcParams.nia)
+            RETURN_ERROR(MAJOR, E_INVALID_STATE, ("rfene was defined previously different"));
+    }
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
     if((p_CcParams->setCcParams.type & UPDATE_PSO) && !(p_FmPort->requiredAction & UPDATE_PSO))
     {
@@ -2251,9 +2319,6 @@ t_Handle FM_PORT_Config(t_FmPortParams *p_FmPortParams)
     p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passTimeStamp= DEFAULT_PORT_bufferPrefixContent_passTimeStamp;
     p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passAllOtherPCDInfo
                                                                     = DEFAULT_PORT_bufferPrefixContent_passTimeStamp;
-#ifdef DEBUG
-    p_FmPort->p_FmPortDriverParam->bufferPrefixContent.passDebugInfo= DEFAULT_PORT_bufferPrefixContent_debugInfo;
-#endif /* DEBUG */
     p_FmPort->p_FmPortDriverParam->bufferPrefixContent.dataAlign    = DEFAULT_PORT_bufferPrefixContent_dataAlign;
     p_FmPort->p_FmPortDriverParam->dmaSwapData                      = DEFAULT_PORT_dmaSwapData;
     p_FmPort->p_FmPortDriverParam->dmaIntContextCacheAttr           = DEFAULT_PORT_dmaIntContextCacheAttr;
@@ -2262,52 +2327,20 @@ t_Handle FM_PORT_Config(t_FmPortParams *p_FmPortParams)
     p_FmPort->p_FmPortDriverParam->dmaWriteOptimize                 = DEFAULT_PORT_dmaWriteOptimize;
     p_FmPort->p_FmPortDriverParam->liodnBase                        = p_FmPortParams->liodnBase;
 
+    p_FmPort->maxFrameLength                                        = DEFAULT_PORT_maxFrameLength;
     /* resource distribution. */
-    p_FmPort->fifoBufs.num                     = DEFAULT_PORT_sizeOfFifo(p_FmPort->portType);
-    p_FmPort->fifoBufs.extra                   = DEFAULT_PORT_extraSizeOfFifo(p_FmPort->portType);
-    p_FmPort->openDmas.num                     = DEFAULT_PORT_numOfOpenDmas(p_FmPort->portType);
-    p_FmPort->openDmas.extra                   = DEFAULT_PORT_extraNumOfOpenDmas(p_FmPort->portType);
-    p_FmPort->tasks.num                        = DEFAULT_PORT_numOfTasks(p_FmPort->portType);
-    p_FmPort->tasks.extra                      = DEFAULT_PORT_extraNumOfTasks(p_FmPort->portType);
-    p_FmPort->numOfTasks = (uint8_t)p_FmPort->tasks.num;
-#ifdef FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-        {
-            p_FmPort->fifoBufs.extra           = 0;
-            p_FmPort->openDmas.extra           = 0;
-            p_FmPort->tasks.extra              = 0;
-        }
-    }
-#endif /* FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16 */
+    p_FmPort->fifoBufs.num                                          = 0;
+    p_FmPort->fifoBufs.extra                                        = 0;
+    p_FmPort->openDmas.num                                          = DEFAULT_PORT_numOfOpenDmas(p_FmPort->portType);
+    p_FmPort->openDmas.extra                                        = DEFAULT_PORT_extraNumOfOpenDmas(p_FmPort->portType);
+    p_FmPort->tasks.num                                             = DEFAULT_PORT_numOfTasks(p_FmPort->portType);
+    p_FmPort->tasks.extra                                           = DEFAULT_PORT_extraNumOfTasks(p_FmPort->portType);
 
     p_FmPort->p_FmPortDriverParam->color                            = DEFAULT_PORT_color;
-#ifdef FM_OP_PORT_QMAN_REJECT_ERRATA_FMAN21
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0) &&
-            (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING))
-                p_FmPort->p_FmPortDriverParam->color              = e_FM_PORT_COLOR_OVERRIDE;
-    }
-#endif /* FM_OP_PORT_QMAN_REJECT_ERRATA_FMAN21 */
-
     if (p_FmPort->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND)
-        p_FmPort->p_FmPortDriverParam->syncReq          = DEFAULT_PORT_syncReqForHc;
+        p_FmPort->p_FmPortDriverParam->syncReq                      = DEFAULT_PORT_syncReqForHc;
     else
-        p_FmPort->p_FmPortDriverParam->syncReq          = DEFAULT_PORT_syncReq;
-
-#ifdef FM_PORT_SYNC_ERRATA_FMAN6
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0) &&
-            (p_FmPort->portType != e_FM_PORT_TYPE_OH_OFFLINE_PARSING))
-                p_FmPort->p_FmPortDriverParam->syncReq              = FALSE;
-    }
-#endif /* FM_PORT_SYNC_ERRATA_FMAN6 */
+        p_FmPort->p_FmPortDriverParam->syncReq                      = DEFAULT_PORT_syncReq;
 
     /* Port type specific initialization: */
     if ((p_FmPort->portType != e_FM_PORT_TYPE_TX) &&
@@ -2334,22 +2367,27 @@ t_Handle FM_PORT_Config(t_FmPortParams *p_FmPortParams)
         p_FmPort->txFifoDeqPipelineDepth                            = DEFAULT_PORT_txFifoDeqPipelineDepth_1G;
         p_FmPort->p_FmPortDriverParam->dontReleaseBuf               = FALSE;
     case(e_FM_PORT_TYPE_TX_10G):
-        if(p_FmPort->portType == e_FM_PORT_TYPE_TX_10G)
-            p_FmPort->txFifoDeqPipelineDepth                        = DEFAULT_PORT_txFifoDeqPipelineDepth_10G;
         p_FmPort->p_FmPortDriverParam->cheksumLastBytesIgnore       = DEFAULT_PORT_cheksumLastBytesIgnore;
         p_FmPort->p_FmPortDriverParam->txFifoMinFillLevel           = DEFAULT_PORT_txFifoMinFillLevel;
         p_FmPort->p_FmPortDriverParam->txFifoLowComfLevel           = DEFAULT_PORT_txFifoLowComfLevel;
     case(e_FM_PORT_TYPE_OH_OFFLINE_PARSING):
     case(e_FM_PORT_TYPE_OH_HOST_COMMAND):
-        p_FmPort->p_FmPortDriverParam->deqHighPriority              = DEFAULT_PORT_deqHighPriority;
+        p_FmPort->p_FmPortDriverParam->deqHighPriority              = DEFAULT_PORT_deqHighPriority_1G;
         p_FmPort->p_FmPortDriverParam->deqType                      = DEFAULT_PORT_deqType;
 #ifdef FM_QMI_DEQ_OPTIONS_SUPPORT
         p_FmPort->p_FmPortDriverParam->deqPrefetchOption            = DEFAULT_PORT_deqPrefetchOption;
 #endif /* FM_QMI_DEQ_OPTIONS_SUPPORT */
-        p_FmPort->p_FmPortDriverParam->deqByteCnt                   = DEFAULT_PORT_deqByteCnt;
+        p_FmPort->p_FmPortDriverParam->deqByteCnt                   = DEFAULT_PORT_deqByteCnt_1G;
 
         if (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
             p_FmPort->p_FmPortDriverParam->errorsToDiscard          = DEFAULT_PORT_errorsToDiscard;
+
+        if(p_FmPort->portType == e_FM_PORT_TYPE_TX_10G)
+        {
+            p_FmPort->txFifoDeqPipelineDepth                        = DEFAULT_PORT_txFifoDeqPipelineDepth_10G;
+            p_FmPort->p_FmPortDriverParam->deqHighPriority          = DEFAULT_PORT_deqHighPriority_10G;
+            p_FmPort->p_FmPortDriverParam->deqByteCnt               = DEFAULT_PORT_deqByteCnt_10G;
+        }
         break;
 
     default:
@@ -2391,14 +2429,6 @@ t_Handle FM_PORT_Config(t_FmPortParams *p_FmPortParams)
             p_FmPort->p_FmPortDriverParam->liodnOffset                  = p_FmPortParams->specificParams.rxParams.liodnOffset;
             break;
         case(e_FM_PORT_TYPE_OH_OFFLINE_PARSING):
-#ifdef FM_OP_PARTITION_ERRATA_FMANx8
-        {
-            t_FmRevisionInfo revInfo;
-            FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-            if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-                p_FmPort->p_FmPortDriverParam->liodnOffset              = p_FmPortParams->specificParams.nonRxParams.opLiodnOffset;
-        }
-#endif /* FM_OP_PARTITION_ERRATA_FMANx8 */
         case(e_FM_PORT_TYPE_TX):
         case(e_FM_PORT_TYPE_TX_10G):
         case(e_FM_PORT_TYPE_OH_HOST_COMMAND):
@@ -2459,7 +2489,6 @@ t_Error FM_PORT_Init(t_Handle h_FmPort)
     t_FmPortDriverParam             *p_Params;
     t_Error                         err = E_OK;
     t_FmInterModulePortInitParams   fmParams;
-    uint32_t                        minFifoSizeRequired = 0;
 
     SANITY_CHECK_RETURN_ERROR(h_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
@@ -2475,17 +2504,6 @@ t_Error FM_PORT_Init(t_Handle h_FmPort)
     p_FmPort->p_FmPortQmiRegs     = (t_FmPortQmiRegs *)UINT_TO_PTR(p_Params->baseAddr + QMI_PORT_REGS_OFFSET);
     p_FmPort->p_FmPortBmiRegs     = (u_FmPortBmiRegs *)UINT_TO_PTR(p_Params->baseAddr + BMI_PORT_REGS_OFFSET);
     p_FmPort->p_FmPortPrsRegs     = (t_FmPortPrsRegs *)UINT_TO_PTR(p_Params->baseAddr + PRS_PORT_REGS_OFFSET);
-
-    /* For O/H ports, check fifo size and update if necessary */
-    if ((p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING) || (p_FmPort->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND))
-    {
-        minFifoSizeRequired = (uint32_t)((p_FmPort->txFifoDeqPipelineDepth+4)*BMI_FIFO_UNITS);
-        if (p_FmPort->fifoBufs.num < minFifoSizeRequired)
-        {
-            p_FmPort->fifoBufs.num = minFifoSizeRequired;
-            DBG(WARNING, ("FIFO size enlarged to %d due to txFifoDeqPipelineDepth size", minFifoSizeRequired));
-        }
-    }
 
     /* For Rx Ports, call the external Buffer routine which also checks fifo
        size and updates it if necessary */
@@ -2508,7 +2526,7 @@ t_Error FM_PORT_Init(t_Handle h_FmPort)
     fmParams.numOfExtraTasks    = (uint8_t)p_FmPort->tasks.extra;
     fmParams.numOfOpenDmas      = (uint8_t)p_FmPort->openDmas.num;
     fmParams.numOfExtraOpenDmas = (uint8_t)p_FmPort->openDmas.extra;
-    fmParams.sizeOfFifo         = p_FmPort->fifoBufs.num;
+    fmParams.sizeOfFifo         = VerifyAndUpdateSizeOfFifo(p_FmPort); /* will not make a change if configured by user */
     fmParams.extraSizeOfFifo    = p_FmPort->fifoBufs.extra;
     fmParams.independentMode    = p_FmPort->imEn;
     fmParams.liodnOffset        = p_Params->liodnOffset;
@@ -2532,13 +2550,6 @@ t_Error FM_PORT_Init(t_Handle h_FmPort)
     err = FmGetSetPortParams(p_FmPort->h_Fm, &fmParams);
     if(err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
-
-    p_FmPort->tasks.num        = fmParams.numOfTasks;
-    p_FmPort->tasks.extra      = fmParams.numOfExtraTasks;
-    p_FmPort->openDmas.num     = fmParams.numOfOpenDmas;
-    p_FmPort->openDmas.extra   = fmParams.numOfExtraOpenDmas;
-    p_FmPort->fifoBufs.num     = fmParams.sizeOfFifo;
-    p_FmPort->fifoBufs.extra   = fmParams.extraSizeOfFifo;
 
     /* get params for use in init */
     p_Params->fmMuramPhysBaseAddr =
@@ -2613,13 +2624,13 @@ t_Error FM_PORT_Free(t_Handle h_FmPort)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM_PORT_Disable FAILED"));
     }
 
+    if (p_FmPort->imEn)
+        FmPortImFree(p_FmPort);
+
     if (p_FmPort->h_Spinlock)
         XX_FreeSpinlock(p_FmPort->h_Spinlock);
 
     FmPortDriverParamFree(p_FmPort);
-
-    if (p_FmPort->imEn)
-        FmPortImFree(p_FmPort);
 
     fmParams.hardwarePortId = p_FmPort->hardwarePortId;
     fmParams.portType = (e_FmPortType)p_FmPort->portType;
@@ -2638,6 +2649,43 @@ t_Error FM_PORT_Free(t_Handle h_FmPort)
 /*************************************************/
 /*       API Advanced Init unit functions        */
 /*************************************************/
+
+t_Error FM_PORT_ConfigNumOfOpenDmas(t_Handle h_FmPort, t_FmPortRsrc *p_OpenDmas)
+{
+    t_FmPort *p_FmPort = (t_FmPort*)h_FmPort;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
+
+    memcpy(&p_FmPort->openDmas, p_OpenDmas, sizeof(t_FmPortRsrc));
+
+    return E_OK;
+}
+
+t_Error FM_PORT_ConfigNumOfTasks(t_Handle h_FmPort, t_FmPortRsrc *p_NumOfTasks)
+{
+    t_FmPort *p_FmPort = (t_FmPort*)h_FmPort;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
+
+    memcpy(&p_FmPort->tasks, p_NumOfTasks, sizeof(t_FmPortRsrc));
+
+    return E_OK;
+}
+
+t_Error FM_PORT_ConfigSizeOfFifo(t_Handle h_FmPort, t_FmPortRsrc *p_SizeOfFifo)
+{
+    t_FmPort *p_FmPort = (t_FmPort*)h_FmPort;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
+
+    p_FmPort->explicitUserSizeOfFifo = TRUE;
+    memcpy(&p_FmPort->fifoBufs, p_SizeOfFifo, sizeof(t_FmPortRsrc));
+
+    return E_OK;
+}
 
 t_Error FM_PORT_ConfigDeqHighPriority(t_Handle h_FmPort, bool highPri)
 {
@@ -2801,6 +2849,7 @@ t_Error FM_PORT_ConfigExtBufPools(t_Handle h_FmPort, t_FmPortExtPools *p_FmPortE
 
     SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
+
     if(p_FmPort->portType != e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
         RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("available for OP ports only"));
 
@@ -2902,14 +2951,6 @@ t_Error FM_PORT_ConfigDfltColor(t_Handle h_FmPort, e_FmPortColor color)
 
     SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
-#ifdef FM_OP_PORT_QMAN_REJECT_ERRATA_FMAN21
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-            RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("FM_PORT_ConfigDfltColor!"));
-    }
-#endif /* FM_OP_PORT_QMAN_REJECT_ERRATA_FMAN21 */
     p_FmPort->p_FmPortDriverParam->color = color;
 
     return E_OK;
@@ -2921,14 +2962,9 @@ t_Error FM_PORT_ConfigSyncReq(t_Handle h_FmPort, bool syncReq)
 
     SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
-#ifdef FM_PORT_SYNC_ERRATA_FMAN6
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-            RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("port-sync!"));
-    }
-#endif /* FM_PORT_SYNC_ERRATA_FMAN6 */
+
+    if((p_FmPort->portType == e_FM_PORT_TYPE_TX_10G) && (p_FmPort->portType == e_FM_PORT_TYPE_TX))
+        RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("Not available for Tx ports"));
 
     p_FmPort->p_FmPortDriverParam->syncReq = syncReq;
 
@@ -3043,6 +3079,18 @@ t_Error FM_PORT_ConfigForwardReuseIntContext(t_Handle h_FmPort, bool forwardReus
     return E_OK;
 }
 
+t_Error FM_PORT_ConfigMaxFrameLength(t_Handle h_FmPort, uint16_t length)
+{
+    t_FmPort *p_FmPort = (t_FmPort*)h_FmPort;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
+
+    p_FmPort->maxFrameLength = length;
+
+    return E_OK;
+}
+
 
 /****************************************************/
 /*       PCD Advaced config API                     */
@@ -3059,16 +3107,6 @@ t_Error FM_PORT_SetNumOfOpenDmas(t_Handle h_FmPort, t_FmPortRsrc *p_NumOfOpenDma
 
     SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
-
-#ifdef FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0) &&
-            (p_NumOfOpenDmas->extra))
-            RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("excessive resources"));
-    }
-#endif /* FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16 */
 
     if((!p_NumOfOpenDmas->num) || (p_NumOfOpenDmas->num > MAX_NUM_OF_DMAS))
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("openDmas-num can't be larger than %d", MAX_NUM_OF_DMAS));
@@ -3094,16 +3132,6 @@ t_Error FM_PORT_SetNumOfTasks(t_Handle h_FmPort, t_FmPortRsrc *p_NumOfTasks)
     if (p_FmPort->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("not available for host command port where number is always 1"));
 
-#ifdef FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0) &&
-            (p_NumOfTasks->extra))
-            RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("excessive resources"));
-    }
-#endif /* FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16 */
-
     if((!p_NumOfTasks->num) || (p_NumOfTasks->num > MAX_NUM_OF_TASKS))
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("NumOfTasks-num can't be larger than %d", MAX_NUM_OF_TASKS));
     if(p_NumOfTasks->extra > MAX_NUM_OF_EXTRA_TASKS)
@@ -3122,21 +3150,10 @@ t_Error FM_PORT_SetSizeOfFifo(t_Handle h_FmPort, t_FmPortRsrc *p_SizeOfFifo)
 {
     t_FmPort                            *p_FmPort = (t_FmPort*)h_FmPort;
     t_Error                             err;
-    t_FmInterModulePortRxPoolsParams    rxPoolsParams;
-    uint32_t                            minFifoSizeRequired;
 
     SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
 
-#ifdef FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0) &&
-            (p_SizeOfFifo->extra))
-            RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("excessive resources"));
-    }
-#endif /* FM_PORT_EXCESSIVE_BUDGET_ERRATA_FMANx16 */
     if(!p_SizeOfFifo->num || (p_SizeOfFifo->num > BMI_MAX_FIFO_SIZE))
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("SizeOfFifo-num has to be in the range of 256 - %d", BMI_MAX_FIFO_SIZE));
     if(p_SizeOfFifo->num % BMI_FIFO_UNITS)
@@ -3151,31 +3168,15 @@ t_Error FM_PORT_SetSizeOfFifo(t_Handle h_FmPort, t_FmPortRsrc *p_SizeOfFifo)
         if(p_SizeOfFifo->extra)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, (" No SizeOfFifo-extra for non Rx ports"));
 
-    /* For O/H ports, check fifo size and update if necessary */
-    if((p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING) || (p_FmPort->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND))
-    {
-        minFifoSizeRequired = (uint32_t)((p_FmPort->txFifoDeqPipelineDepth+4)*BMI_FIFO_UNITS);
-        if (p_FmPort->fifoBufs.num < minFifoSizeRequired)
-        {
-            p_FmPort->fifoBufs.num = minFifoSizeRequired;
-            DBG(INFO, ("FIFO size enlarged to %d", minFifoSizeRequired));
-        }
-    }
-    memcpy(&rxPoolsParams, &p_FmPort->rxPoolsParams, sizeof(rxPoolsParams));
-    err = FmSetSizeOfFifo(p_FmPort->h_Fm,
-                            p_FmPort->hardwarePortId,
-                            p_FmPort->portType,
-                            p_FmPort->imEn,
-                            &p_SizeOfFifo->num,
-                            p_SizeOfFifo->extra,
-                            p_FmPort->txFifoDeqPipelineDepth,
-                            &rxPoolsParams,
-                            FALSE);
+    memcpy(&p_FmPort->fifoBufs, p_SizeOfFifo, sizeof(t_FmPortRsrc));
+
+    p_FmPort->explicitUserSizeOfFifo = TRUE;
+    /* we do not change user's parameter */
+    VerifyAndUpdateSizeOfFifo(p_FmPort);
+
+    err = FmSetSizeOfFifo(p_FmPort->h_Fm, p_FmPort->hardwarePortId, p_SizeOfFifo->num, p_SizeOfFifo->extra, FALSE);
     if(err)
         RETURN_ERROR(MINOR, err, NO_MSG);
-
-    /* update driver's structure AFTER the FM routine, as it may change by the FM. */
-    memcpy(&p_FmPort->fifoBufs, p_SizeOfFifo, sizeof(t_FmPortRsrc));
 
     return E_OK;
 }
@@ -3202,21 +3203,6 @@ uint8_t * FM_PORT_GetBufferICInfo(t_Handle h_FmPort, char *p_Data)
 
     return (uint8_t *)PTR_MOVE(p_Data, p_FmPort->bufferOffsets.pcdInfoOffset);
 }
-
-#ifdef DEBUG
-uint8_t * FM_PORT_GetBufferDebugInfo(t_Handle h_FmPort, char *p_Data)
-{
-    t_FmPort                    *p_FmPort = (t_FmPort*)h_FmPort;
-
-    SANITY_CHECK_RETURN_VALUE(p_FmPort, E_INVALID_HANDLE, 0);
-    SANITY_CHECK_RETURN_VALUE(!p_FmPort->p_FmPortDriverParam, E_INVALID_STATE, 0);
-
-    if(p_FmPort->bufferOffsets.debugOffset == ILLEGAL_BASE)
-        return NULL;
-
-    return (uint8_t *)PTR_MOVE(p_Data, p_FmPort->bufferOffsets.debugOffset);
-}
-#endif /* DEBUG */
 
 t_FmPrsResult * FM_PORT_GetBufferPrsResult(t_Handle h_FmPort, char *p_Data)
 {
@@ -3315,7 +3301,11 @@ t_Error FM_PORT_Disable(t_Handle h_FmPort)
                 --tries)
             XX_UDelay(1);
         if (!tries)
+        {
+            WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc,
+                         GET_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc) | QMI_PORT_CFG_EN);
             RETURN_ERROR(MINOR, E_BUSY, ("%s: can't disable!", p_FmPort->name));
+        }
     }
 
     /* Disable BMI */
@@ -3330,7 +3320,14 @@ t_Error FM_PORT_Disable(t_Handle h_FmPort)
         XX_UDelay(1);
 
     if (!tries)
+    {
+        if (!rxPort && !p_FmPort->imEn)
+			WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc,
+						 GET_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc) | QMI_PORT_CFG_EN);
+        WRITE_UINT32(*p_BmiCfgReg, GET_UINT32(*p_BmiCfgReg) | BMI_PORT_CFG_EN);
+
         RETURN_ERROR(MINOR, E_BUSY, ("%s: can't disable!", p_FmPort->name));
+    }
 
     p_FmPort->enabled = 0;
 
@@ -4173,6 +4170,7 @@ t_Error FM_PORT_PcdPlcrAllocProfiles(t_Handle h_FmPort, uint16_t numOfProfiles)
         if(err)
             RETURN_ERROR(MAJOR, err,NO_MSG);
     }
+    /* set the port handle within the PCD policer, even if no profiles defined */
     FmPcdPortRegister(p_FmPort->h_FmPcd, h_FmPort, p_FmPort->hardwarePortId);
 
     return E_OK;
@@ -4311,7 +4309,6 @@ t_Error     FM_PORT_PcdPlcrModifyInitialProfile (t_Handle h_FmPort, t_Handle h_P
     return E_OK;
 }
 
-
 t_Error FM_PORT_PcdCcModifyTree (t_Handle h_FmPort, t_Handle h_CcTree)
 {
     t_FmPort                            *p_FmPort = (t_FmPort*)h_FmPort;
@@ -4343,8 +4340,8 @@ t_Error FM_PORT_PcdCcModifyTree (t_Handle h_FmPort, t_Handle h_CcTree)
     if((GET_UINT32(*p_BmiNia) & ~BMI_RFNE_FDCS_MASK) != (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME))
             RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("may be called only for ports in BMI-to-BMI state."));
 
-/*TODO - to take care of changes due to previous tree. Maybe in the previous tree where chnged pndn, pnen ...
-         it has to be returned to the default state - initially*/
+    /*TODO - to take care of changes due to previous tree. Maybe in the previous tree where chnged pndn, pnen ...
+             it has to be returned to the default state - initially*/
 
     p_FmPort->requiredAction = 0;
 
@@ -4365,7 +4362,7 @@ t_Error FM_PORT_PcdCcModifyTree (t_Handle h_FmPort, t_Handle h_CcTree)
 
         if (!TRY_LOCK(p_FmPort->h_Spinlock, &p_FmPort->lock))
             return ERROR_CODE(E_BUSY);
-        err = FmPcdCcBindTree(p_FmPort->h_FmPcd, h_CcTree, &ccTreePhysOffset, h_FmPort);
+        err = FmPcdCcBindTree(p_FmPort->h_FmPcd, NULL, h_CcTree, &ccTreePhysOffset, h_FmPort);
         if(err)
         {
             RELEASE_LOCK(p_FmPort->lock);
@@ -4475,9 +4472,16 @@ t_Error FM_PORT_DetachPCD(t_Handle h_FmPort)
         }
     }
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    if(p_FmPort->requiredAction & UPDATE_NIA_RFENE)
+    {
+        /*TODO - check!!*/
+        WRITE_UINT32(p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs.fmbm_rfene, NIA_ENG_QMI_ENQ | NIA_ORDER_RESTOR);
+    }
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
     if(p_FmPort->requiredAction  & UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY)
-        if(FmSetNumOfRiscsPerPort(p_FmPort->h_Fm, p_FmPort->hardwarePortId, 2)!= E_OK)
+        if(FmSetNumOfRiscsPerPort(p_FmPort->h_Fm, p_FmPort->hardwarePortId, 2, p_FmPort->orFmanCtrl)!= E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
     return E_OK;
 }
@@ -4531,6 +4535,9 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
     FmPcdIncNetEnvOwners(p_FmPort->h_FmPcd, p_FmPort->netEnvId);
 
     err = FmPortAttachPCD(h_FmPort);
+    if(err)
+        DeletePcd(p_FmPort);
+
     RELEASE_LOCK(p_FmPort->lock);
 
     return err;
@@ -5062,3 +5069,61 @@ t_Error FM_PORT_RemoveCongestionGrps(t_Handle h_FmPort, t_FmPortCongestionGrps *
     return  E_OK;
 }
 
+#if defined(FM_IPSEC_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+t_Error FM_PORT_SetOpWorkarounds(t_Handle h_FmPort, fmOpPortWorkaroundsSelect_t workarounds)
+{
+    t_FmPort                *p_FmPort = (t_FmPort*)h_FmPort;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
+
+    if (p_FmPort->portType != e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
+        RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("The routine is relevant for OP ports only"));
+
+#ifdef FM_DISABLE_SEC_ERRORS
+    if (workarounds & FM_OP_PORT_WA_SEC_ERR)
+    {
+        t_Error                 err;
+        t_FmPortGetSetCcParams  fmPortGetSetCcParams;
+
+        p_FmPort->savedBmiNia &= BMI_RFNE_FDCS_MASK;
+        p_FmPort->savedBmiNia |= (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_POST_FETCH_NO_PCD);
+
+        memset(&fmPortGetSetCcParams, 0, sizeof(t_FmPortGetSetCcParams));
+        fmPortGetSetCcParams.setCcParams.type = UPDATE_NIA_PNDN;
+        fmPortGetSetCcParams.setCcParams.nia = (NIA_FM_CTL_AC_PRE_FETCH | NIA_ENG_FM_CTL);
+        if ((err = FmPortGetSetCcParams(h_FmPort, &fmPortGetSetCcParams)) != E_OK)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+    }
+#endif /* FM_DISABLE_SEC_ERRORS */
+#ifdef FM_DISABLE_UDP_CHECKSUM_AFTER_SEC
+    if (workarounds & FM_OP_PORT_WA_DISABLE_UDP_CKSM)
+    {
+        p_FmPort->savedBmiNia &= BMI_RFNE_FDCS_MASK;
+        p_FmPort->savedBmiNia |= (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_POST_FETCH_PCD);
+    }
+#endif /* FM_DISABLE_UDP_CHECKSUM_AFTER_SEC */
+#ifdef FM_ETH_TYPE_FIX
+    if (workarounds & FM_OP_PORT_WA_ETH_TYPE)
+    {
+        p_FmPort->savedBmiNia &= BMI_RFNE_FDCS_MASK;
+        p_FmPort->savedBmiNia |= (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_POST_FETCH_PCD);
+    }
+#endif /* FM_ETH_TYPE_FIX */
+#ifdef FM_NO_CTXA_COPY_ERRATA_FMAN_SW001
+    if (workarounds & FM_OP_PORT_WA_COPY_CTXB)
+    {
+        p_FmPort->savedBmiNia &= BMI_RFNE_FDCS_MASK;
+        p_FmPort->savedBmiNia |= (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_POST_FETCH_PCD);
+    }
+#endif /* FM_NO_CTXA_COPY_ERRATA_FMAN_SW001 */
+#ifdef FM_UPDATE_UDP_LENGTH_AFTER_SEC
+    if (workarounds & FM_OP_PORT_WA_UPDATE_UDP_LEN)
+    {
+        p_FmPort->savedBmiNia &= BMI_RFNE_FDCS_MASK;
+        p_FmPort->savedBmiNia |= (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_POST_FETCH_PCD_UDP_LEN);
+    }
+#endif /* FM_UPDATE_UDP_LENGTH_AFTER_SEC */
+
+    return E_OK;
+}
+#endif /* FM_IPSEC_SUPPORT  || FM_IP_FRAG_N_REASSEM_SUPPORT*/

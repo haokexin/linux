@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -115,8 +115,11 @@ typedef _Packed struct t_FmPrsResult {
     volatile uint8_t     cplan;              /**< Classification plan id */
     volatile uint16_t    nxthdr;             /**< Next Header  */
     volatile uint16_t    cksum;              /**< Checksum */
-    volatile uint32_t    lcv;                /**< LCV */
-    volatile uint8_t     shim_off[3];        /**< Shim offset */
+    volatile uint16_t    flags_frag_off;     /**< Flags & fragment-offset field of the last IP-header */
+    volatile uint8_t     route_type;         /**< Routing type field of a IPv6 routing extension header */
+    volatile uint8_t     rhp_ip_valid;       /**< Routing Extension Header Present; last bit is IP valid */
+    volatile uint8_t     shim_off[2];        /**< Shim offset */
+    volatile uint8_t     ip_pid_off;         /**< IP PID (last IP-proto) offset */
     volatile uint8_t     eth_off;            /**< ETH offset */
     volatile uint8_t     llc_snap_off;       /**< LLC_SNAP offset */
     volatile uint8_t     vlan_off[2];        /**< VLAN offset */
@@ -151,7 +154,8 @@ typedef _Packed struct t_FmPrsResult {
 #define FM_FD_CMD_CFQ               0x00ffffff  /**< Confirmation Frame Queue */
 
 #define FM_FD_TX_STATUS_ERR_MASK    0x07000000  /**< TX Error FD bits */
-#define FM_FD_RX_STATUS_ERR_MASK    0x070ee3f8  /**< RX Error FD bits */
+#define FM_FD_RX_STATUS_ERR_MASK    0x073ee3f8  /**< RX Error FD bits */
+#define FM_FD_RX_STATUS_ERR_NON_FM  0x00400000  /**< non Frame-Manager error */
 /* @} */
 
 /**************************************************************************//**
@@ -259,8 +263,9 @@ typedef enum e_FmExceptions {
  @Param[in]     h_App      - User's application descriptor.
  @Param[in]     exception  - The exception.
 *//***************************************************************************/
-typedef void (t_FmExceptionsCallback) (t_Handle              h_App,
-                                       e_FmExceptions        exception);
+typedef void (t_FmExceptionsCallback)(t_Handle          h_App,
+                                      e_FmExceptions    exception);
+
 
 /**************************************************************************//**
  @Function      t_FmBusErrorCallback
@@ -492,7 +497,6 @@ typedef struct t_FmThresholds {
                                                                  queued in fmCtl2 dispatch queue*/
 } t_FmThresholds;
 
-
 /**************************************************************************//**
  @Description   structure for defining DMA thresholds
 *//***************************************************************************/
@@ -520,21 +524,6 @@ typedef struct t_FmDmaThresholds {
 t_Error FM_ConfigResetOnInit(t_Handle h_Fm, bool enable);
 
 /**************************************************************************//**
- @Function      FM_ConfigTotalNumOfTasks
-
- @Description   Change the total number of tasks from its default
-                configuration [BMI_MAX_NUM_OF_TASKS]
-
- @Param[in]     h_Fm                A handle to an FM Module.
- @Param[in]     totalNumOfTasks     The selected new value.
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_Config() and before FM_Init().
-*//***************************************************************************/
-t_Error FM_ConfigTotalNumOfTasks(t_Handle h_Fm, uint8_t totalNumOfTasks);
-
-/**************************************************************************//**
  @Function      FM_ConfigTotalFifoSize
 
  @Description   Change the total Fifo size from its default
@@ -550,34 +539,19 @@ t_Error FM_ConfigTotalNumOfTasks(t_Handle h_Fm, uint8_t totalNumOfTasks);
 t_Error FM_ConfigTotalFifoSize(t_Handle h_Fm, uint32_t totalFifoSize);
 
 /**************************************************************************//**
- @Function      FM_ConfigMaxNumOfOpenDmas
-
- @Description   Change the maximum allowed open DMA's for this FM from its default
-                configuration [BMI_MAX_NUM_OF_DMAS]
-
- @Param[in]     h_Fm                A handle to an FM Module.
- @Param[in]     maxNumOfOpenDmas    The selected new value.
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_Config() and before FM_Init().
-*//***************************************************************************/
-t_Error FM_ConfigMaxNumOfOpenDmas(t_Handle h_Fm, uint8_t maxNumOfOpenDmas);
-
-/**************************************************************************//**
  @Function      FM_ConfigThresholds
 
  @Description   Calling this routine changes the internal driver data base
                 from its default FM threshold configuration:
-                                          dispLimit:    [0]
-                                          prsDispTh:    [16]
-                                          plcrDispTh:   [16]
-                                          kgDispTh:     [16]
-                                          bmiDispTh:    [16]
-                                          qmiEnqDispTh: [16]
-                                          qmiDeqDispTh: [16]
-                                          fmCtl1DispTh:  [16]
-                                          fmCtl2DispTh:  [16]
+                    dispLimit:    [0]
+                    prsDispTh:    [16]
+                    plcrDispTh:   [16]
+                    kgDispTh:     [16]
+                    bmiDispTh:    [16]
+                    qmiEnqDispTh: [16]
+                    qmiDeqDispTh: [16]
+                    fmCtl1DispTh: [16]
+                    fmCtl2DispTh: [16]
 
  @Param[in]     h_Fm            A handle to an FM Module.
  @Param[in]     p_FmThresholds  A structure of threshold parameters.
@@ -1172,6 +1146,20 @@ t_Error FM_DisableRamsEcc(t_Handle h_Fm);
  @Cautions      Allowed only following FM_Init().
 *//***************************************************************************/
 t_Error  FM_GetRevision(t_Handle h_Fm, t_FmRevisionInfo *p_FmRevisionInfo);
+
+/**************************************************************************//**
+ @Function      FM_GetFmanCtrlCodeRevision
+
+ @Description   Returns the Fman controller code revision
+
+ @Param[in]     h_Fm                A handle to an FM Module.
+ @Param[out]    p_RevisionInfo      A structure of revision information parameters.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Init().
+*//***************************************************************************/
+t_Error FM_GetFmanCtrlCodeRevision(t_Handle h_Fm, t_FmRevisionInfo *p_RevisionInfo);
 
 /**************************************************************************//**
  @Function      FM_GetCounter

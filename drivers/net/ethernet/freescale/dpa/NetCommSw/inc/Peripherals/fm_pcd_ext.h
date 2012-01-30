@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -472,7 +472,6 @@ t_Error FM_PCD_Enable(t_Handle h_FmPcd);
 *//***************************************************************************/
 t_Error FM_PCD_Disable(t_Handle h_FmPcd);
 
-
 /**************************************************************************//**
  @Function      FM_PCD_GetCounter
 
@@ -741,6 +740,7 @@ t_Error     FM_PCD_HcDumpRegs(t_Handle h_FmPcd);
 #define FM_PCD_MAX_NUM_OF_KEYS              256
 #define FM_PCD_MAX_SIZE_OF_KEY              56
 #define FM_PCD_MAX_NUM_OF_CC_ENTRIES_IN_GRP 16
+#define FM_PCD_LAST_KEY_INDEX               0xffff
 /* @} */
 
 /**************************************************************************//**
@@ -764,11 +764,22 @@ typedef protocolOpt_t   ipv4ProtocolOpt_t;      /**< IPv4 protocol options. */
 #define IPV4_MULTICAST_1            0x04000000  /**< IPv4 Multicast. */
 #define IPV4_UNICAST_2              0x02000000  /**< Tunneled IPv4 - Unicast. */
 #define IPV4_MULTICAST_BROADCAST_2  0x01000000  /**< Tunneled IPv4 - Broadcast/Multicast. */
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+#define IPV4_FRAG_1                 0x00000008  /**< IPV4 reassembly option.
+                                                     IPV4 Reassembly manipulation requires network
+                                                     environment with IPV4 header and IPV4_FRAG_1 option  */
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
 typedef protocolOpt_t   ipv6ProtocolOpt_t;      /**< IPv6 protocol options. */
 #define IPV6_MULTICAST_1            0x00800000  /**< IPv6 Multicast. */
 #define IPV6_UNICAST_2              0x00400000  /**< Tunneled IPv6 - Unicast. */
 #define IPV6_MULTICAST_2            0x00200000  /**< Tunneled IPv6 - Multicast. */
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+#define IPV6_FRAG_1                 0x00000004  /**< IPV6 reassembly option.
+                                                     IPV6 Reassembly manipulation requires an IPV4 network
+                                                     environment unit with IPV4_FRAG_1 option  */
+
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 /* @} */
 
 /**************************************************************************//**
@@ -966,7 +977,7 @@ typedef enum e_FmPcdAction {
     e_FM_PCD_ACTION_INDEXED_LOOKUP                  /**< Indexed lookup on the selected extraction*/
 } e_FmPcdAction;
 
-#if defined(FM_CAPWAP_SUPPORT)
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 /**************************************************************************//**
  @Description   An enum for selecting type of insert manipulation
 *//***************************************************************************/
@@ -1006,13 +1017,13 @@ typedef enum e_FmPcdManipReassemTimeOutMode {
  @Description   An enum for selecting type of WaysNumber mode
 *//***************************************************************************/
 typedef enum e_FmPcdManipReassemWaysNumber {
-    e_FM_PCD_MANIP_ONE_WAY_HASH = 1,    /**< -------------- */
-    e_FM_PCD_MANIP_TWO_WAYS_HASH,       /**< -------------- */
-    e_FM_PCD_MANIP_THREE_WAYS_HASH,     /**< -------------- */
-    e_FM_PCD_MANIP_FOUR_WAYS_HASH,      /**< four ways hash */
-    e_FM_PCD_MANIP_FIVE_WAYS_HASH,      /**< -------------- */
-    e_FM_PCD_MANIP_SIX_WAYS_HASH,       /**< -------------- */
-    e_FM_PCD_MANIP_SEVEN_WAYS_HASH,     /**< -------------- */
+    e_FM_PCD_MANIP_ONE_WAY_HASH = 1,    /**< one way hash */
+    e_FM_PCD_MANIP_TWO_WAYS_HASH,       /**< two ways hash*/
+    e_FM_PCD_MANIP_THREE_WAYS_HASH,     /**< three ways hash */
+    e_FM_PCD_MANIP_FOUR_WAYS_HASH,      /**< four ways hash*/
+    e_FM_PCD_MANIP_FIVE_WAYS_HASH,      /**< five ways hash */
+    e_FM_PCD_MANIP_SIX_WAYS_HASH,       /**< six ways hash*/
+    e_FM_PCD_MANIP_SEVEN_WAYS_HASH,     /**< seven ways hash */
     e_FM_PCD_MANIP_EIGHT_WAYS_HASH      /**< eight ways hash*/
 } e_FmPcdManipReassemWaysNumber;
 
@@ -1023,7 +1034,19 @@ typedef enum e_FmPcdStatsType {
     e_FM_PCD_STATS_PER_FLOWID = 0   /**< type where flowId used as index for getting statistics */
 } e_FmPcdStatsType;
 
-#endif /* FM_CAPWAP_SUPPORT */
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+/**************************************************************************//**
+ @Description   An enum for Don't Fragment Action. If an IP packet is larger
+                than MTU and its DF bit is set, then this enum determine
+                the action to be taken.
+*//***************************************************************************/
+typedef enum e_FmPcdManipDontFragAction {
+    e_FM_PCD_MANIP_ENQ_TO_ERR_Q_OR_DISCARD_PACKET = 0,      /**< Discard packet */
+    e_FM_PCD_MANIP_FRAGMENT_PACKECT,        /**< Fragment packet and continue normal processing */
+    e_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG    /**< Continue normal processing without fragmenting the packet */
+} e_FmPcdManipDontFragAction;
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
 
 
 /**************************************************************************//**
@@ -1125,8 +1148,11 @@ typedef struct t_FmPcdExtractEntry {
         struct {
             e_FmPcdExtractFrom          src;            /**< Non-header extraction source */
             e_FmPcdAction               action;         /**< Relevant for CC Only */
-            uint16_t                    icIndxMask;     /**< Relevant only for CC where
-                                                             action=e_FM_PCD_ACTION_INDEXED_LOOKUP */
+            uint16_t                    icIndxMask;     /**< Relevant only for CC when
+                                                             action = e_FM_PCD_ACTION_INDEXED_LOOKUP;
+                                                             Note that the number of bits that are set whithin
+                                                             this mask must be log2 of the CC-node 'numOfKeys'.
+                                                             Note that the mask cannot be set on the lower bits. */
             uint8_t                     offset;         /**< Byte offset */
             uint8_t                     size;           /**< Size in byte */
         } extractNonHdr;                                /**< used when type = e_FM_PCD_KG_EXTRACT_NON_HDR */
@@ -1138,9 +1164,9 @@ typedef struct t_FmPcdExtractEntry {
                 field in the key.
 *//***************************************************************************/
 typedef struct t_FmPcdKgExtractMask {
-    uint8_t                         extractArrayIndex;   /**< Index in the extraction array, as initialized by user */
-    uint8_t                         offset;              /**< Byte offset */
-    uint8_t                         mask;                /**< A byte mask (selected bits will be used) */
+    uint8_t                             extractArrayIndex;  /**< Index in the extraction array, as initialized by user */
+    uint8_t                             offset;             /**< Byte offset */
+    uint8_t                             mask;               /**< A byte mask (selected bits will be used) */
 } t_FmPcdKgExtractMask;
 
 /**************************************************************************//**
@@ -1193,7 +1219,7 @@ typedef struct t_FmPcdKgExtractedOrParams {
                                                              IP. Otherwise should be cleared.*/
             bool                    ignoreProtocolValidation;
                                                         /**< continue extraction even if protocol is not recognized */
-        } extractByHdr;
+        } extractByHdr;                                 /**< Header to extract by */
         e_FmPcdExtractFrom          src;                /**< used when type = e_FM_PCD_KG_EXTRACT_NON_HDR */
     };
     uint8_t                         extractionOffset;   /**< Offset for extraction (in bytes).  */
@@ -1264,8 +1290,8 @@ typedef struct t_FmPcdKgPlcrProfile {
                                                          offset within the port's policer profiles window or
                                                          SHARED window depends on sharedProfile */
             uint8_t     numOfProfiles;              /**< Range of profiles starting at base */
-        } indirectProfile;
-    } profileSelect;
+        } indirectProfile;                          /**< Indirect profile parameters */
+    } profileSelect;                                /**< Direct/indirect profile selection and parameters */
 } t_FmPcdKgPlcrProfile;
 
 /**************************************************************************//**
@@ -1407,7 +1433,7 @@ typedef struct t_FmPcdCcNextEngineParams {
         t_FmPcdCcNextEnqueueParams      enqueueParams; /**< Parameters in case next engine is BMI */
         t_FmPcdCcNextKgParams           kgParams;      /**< Parameters in case next engine is KG */
     } params;
-#if defined(FM_CAPWAP_SUPPORT)
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
     t_Handle                            h_Manip;       /**< Handler to headerManip.
                                                             Relevant if next engine of the type result
                                                             (e_FM_PCD_PLCR, e_FM_PCD_KG, e_FM_PCD_DONE) */
@@ -1418,7 +1444,7 @@ typedef struct t_FmPcdCcNextEngineParams {
  @Description   A structure for defining a single CC Key parameters
 *//***************************************************************************/
 typedef struct t_FmPcdCcKeyParams {
-    uint8_t                     *p_Key;     /**< pointer to the key of the size defined in keySize*/
+    uint8_t                     *p_Key;     /**< pointer to the key of the size defined in keySize */
     uint8_t                     *p_Mask;    /**< pointer to the Mask per key  of the size defined
                                                  in keySize. p_Key and p_Mask (if defined) has to be
                                                  of the same size defined in the keySize */
@@ -1431,13 +1457,16 @@ typedef struct t_FmPcdCcKeyParams {
  @Description   A structure for defining CC Keys parameters
 *//***************************************************************************/
 typedef struct t_KeysParams {
-    uint8_t                     numOfKeys;      /**< Number Of relevant Keys  */
+    uint8_t                     numOfKeys;      /**< Number Of relevant Keys;
+                                                     Note that in case of action = e_FM_PCD_ACTION_INDEXED_LOOKUP,
+                                                     this field should be power-of-2 of the number of bits that are
+                                                     set in 'icIndxMask'. */
     uint8_t                     keySize;        /**< size of the key - in the case of the extraction of
                                                      the type FULL_FIELD keySize has to be as standard size of the relevant
                                                      key. In the another type of extraction keySize has to be as size of extraction.
                                                      In the case of action = e_FM_PCD_ACTION_INDEXED_LOOKUP the size of keySize has to be 2*/
     t_FmPcdCcKeyParams          keyParams[FM_PCD_MAX_NUM_OF_KEYS];
-                                                /**< it's array with numOfKeys entries each entry in
+                                                /**< it's array with 'numOfKeys' entries each entry in
                                                      the array of the type t_FmPcdCcKeyParams */
     t_FmPcdCcNextEngineParams   ccNextEngineParamsForMiss;
                                                 /**< parameters for the next step of
@@ -1490,6 +1519,10 @@ typedef struct t_FmPcdCcTreeParams {
                                                                              by FM_PCD_SetNetEnvCharacteristics() */
     uint8_t                 numOfGrps;                                  /**< Number of CC groups within the CC tree */
     t_FmPcdCcGrpParams      ccGrpParams[FM_PCD_MAX_NUM_OF_CC_GROUPS];   /**< Parameters for each group. */
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    t_Handle                h_IpReassemblyManip;                        /**< IP Reassembly manipulation handle should be given
+                                                                             as a parameter to the tree */
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 } t_FmPcdCcTreeParams;
 
 /**************************************************************************//**
@@ -1563,7 +1596,7 @@ typedef struct t_FmPcdPlcrProfileParams {
     bool                                trapProfileOnFlowC;         /**< Trap on flow C */
 } t_FmPcdPlcrProfileParams;
 
-#if defined(FM_CAPWAP_SUPPORT)
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 /**************************************************************************//**
  @Description   A structure for selecting the location of manipulation
 *//***************************************************************************/
@@ -1650,8 +1683,54 @@ typedef struct t_CapwapReassemblyParams {
 } t_CapwapReassemblyParams;
 #endif /* FM_CAPWAP_SUPPORT */
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+/**************************************************************************//**
+ @Description   structure for defining IP fragmentation
+*//***************************************************************************/
+typedef struct t_IpFragmentationParams {
+    uint16_t                    sizeForFragmentation;   /**< if length of the frame is greater than this value,
+                                                             IP fragmentation will be executed.*/
+    uint8_t                     scratchBpid;            /**< Absolute buffer pool id according to BM configuration.*/
+    e_FmPcdManipDontFragAction  dontFragAction;         /**< Don't Fragment Action - If an IP packet is larger
+                                                             than MTU and its DF bit is set, then this field will
+                                                             determine the action to be taken.*/
+} t_IpFragmentationParams;
 
-#if defined(FM_CAPWAP_SUPPORT)
+/**************************************************************************//**
+ @Description   structure for defining IP Re-assembly
+                This structure is a common structure for IPv4 and Ipv6 reassembly manipulation
+                together or separately. for using reassembly manipulation
+                for both IPv4 and IPv6, fill "HEADER_TYPE_IPv6" value in the hdr
+                filed at t_FmPcdManipFragOrReasmParams structure.
+*//***************************************************************************/
+typedef struct t_IpReassemblyParams {
+    uint8_t                         relativeSchemeId[2];    /**< Partition relative scheme id -
+                                                                 relativeSchemeId[0] -  Relative scheme ID for IPV4 Reassembly manipulation.
+                                                                 relativeSchemeId[1] -  Relative scheme ID for IPV6 Reassembly manipulation.
+                                                                 Relative scheme ID for IPv4/IPv6 Reassembly manipulation must be smaller than
+                                                                 the user schemes id to ensure that the reassembly's schemes will be first match.
+                                                                 Rest schemes, if defined, should have higher relative scheme ID */
+    uint16_t                        liodnOffset;            /**< LIODN offset. */
+    uint8_t                         dataMemId;              /**< Memory partition ID for data buffers */
+    uint16_t                        minFragSize[2];         /**< Minimum frag size.
+                                                                 minFragSize[0] - for ipv4
+                                                                 minFragSize[1] - for ipv6 */
+    uint16_t                        maxNumFramesInProcess;  /**< Number of frames which can be processed by Reassembly in the same time.
+                                                                 It has to be power of 2.
+                                                                 In the case numOfFramesPerHashEntry == e_FM_PCD_MANIP_FOUR_WAYS_HASH,
+                                                                 maxNumFramesInProcess has to be in the range of 4 - 512,
+                                                                 In the case numOfFramesPerHashEntry == e_FM_PCD_MANIP_EIGHT_WAYS_HASH,
+                                                                 maxNumFramesInProcess has to be in the range of 8 - 2048 */
+    e_FmPcdManipReassemTimeOutMode  timeOutMode;            /**< Expiration delay initialized by Reassembly process */
+    uint32_t                        fqidForTimeOutFrames;   /**< Fqid in which time out frames will enqueue during Time Out Process  */
+    e_FmPcdManipReassemWaysNumber   numOfFramesPerHashEntry;/**< Number of frames per hash entry needed for reassembly process */
+    uint32_t                        timeoutThresholdForReassmProcess;
+                                                            /**< Represents the time interval in microseconds which defines
+                                                                 if opened frame (at least one fragment was processed but not all the fragments)is found as too old*/
+} t_IpReassemblyParams;
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 /**************************************************************************//**
  @Description   structure for defining fragmentation/reassembly
 *//***************************************************************************/
@@ -1668,6 +1747,10 @@ typedef struct t_FmPcdManipFragOrReasmParams {
         t_CapwapFragmentationParams     capwapFragParams;   /**< Structure for CAPWAP fragmentation, relevant if frag = TRUE, hdr = HEADER_TYPE_CAPWAP */
         t_CapwapReassemblyParams        capwapReasmParams;  /**< Structure for CAPWAP reassembly, relevant if frag = FALSE, hdr = HEADER_TYPE_CAPWAP */
 #endif /* FM_CAPWAP_SUPPORT */
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+        t_IpFragmentationParams         ipFragParams;       /**< Structure for IP-fragmentation, relevant if frag = TRUE, hdr = HEADER_TYPE_Ipv4 or HEADER_TYPE_Ipv6 */
+        t_IpReassemblyParams            ipReasmParams;      /**< Structure for IP-reassembly, relevant if frag = FALSE, hdr = HEADER_TYPE_Ipv4 or HEADER_TYPE_Ipv6 */
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
     };
 } t_FmPcdManipFragOrReasmParams;
 
@@ -1808,6 +1891,7 @@ t_Handle FM_PCD_KgSetScheme (t_Handle                h_FmPcd,
  @Param[in]     h_Scheme        scheme handle as returned by FM_PCD_KgSetScheme
 
  @Return        E_OK on success; Error code otherwise.
+
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
 t_Error     FM_PCD_KgDeleteScheme(t_Handle h_FmPcd, t_Handle h_Scheme);
@@ -1835,6 +1919,7 @@ uint32_t  FM_PCD_KgGetSchemeCounter(t_Handle h_FmPcd, t_Handle h_Scheme);
  @Param[in]     h_Scheme        scheme handle as returned by FM_PCD_KgSetScheme.
  @Param[in]     value           New scheme counter value - typically '0' for
                                 resetting the counter.
+
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
@@ -1867,6 +1952,8 @@ t_Handle FM_PCD_CcBuildTree (t_Handle             h_FmPcd,
  @Param[in]     h_FmPcd         A handle to an FM PCD Module.
  @Param[in]     h_CcTree        A handle to a CC tree.
 
+ @Return        E_OK on success; Error code otherwise.
+
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
 t_Error FM_PCD_CcDeleteTree(t_Handle h_FmPcd, t_Handle h_CcTree);
@@ -1896,6 +1983,8 @@ t_Handle   FM_PCD_CcSetNode(t_Handle             h_FmPcd,
  @Param[in]     h_FmPcd         A handle to an FM PCD Module.
  @Param[in]     h_CcNode        A handle to a CC node.
 
+ @Return        E_OK on success; Error code otherwise.
+
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
 t_Error FM_PCD_CcDeleteNode(t_Handle h_FmPcd, t_Handle h_CcNode);
@@ -1915,7 +2004,11 @@ t_Error FM_PCD_CcDeleteNode(t_Handle h_FmPcd, t_Handle h_CcNode);
 
  @Cautions      Allowed only following FM_PCD_CcBuildTree().
 *//***************************************************************************/
-t_Error FM_PCD_CcTreeModifyNextEngine(t_Handle h_FmPcd, t_Handle h_CcTree, uint8_t grpId, uint8_t index, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+t_Error FM_PCD_CcTreeModifyNextEngine(t_Handle                  h_FmPcd,
+                                      t_Handle                  h_CcTree,
+                                      uint8_t                   grpId,
+                                      uint8_t                   index,
+                                      t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcNodeModifyNextEngine
@@ -1931,7 +2024,10 @@ t_Error FM_PCD_CcTreeModifyNextEngine(t_Handle h_FmPcd, t_Handle h_CcTree, uint8
 
  @Cautions      Allowed only following FM_PCD_CcSetNode().
 *//***************************************************************************/
-t_Error FM_PCD_CcNodeModifyNextEngine(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+t_Error FM_PCD_CcNodeModifyNextEngine(t_Handle                  h_FmPcd,
+                                      t_Handle                  h_CcNode,
+                                      uint16_t                   keyIndex,
+                                      t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcNodeModifyMissNextEngine
@@ -1946,7 +2042,9 @@ t_Error FM_PCD_CcNodeModifyNextEngine(t_Handle h_FmPcd, t_Handle h_CcNode, uint8
 
  @Cautions      Allowed only following FM_PCD_CcSetNode().
 *//***************************************************************************/
-t_Error FM_PCD_CcNodeModifyMissNextEngine(t_Handle h_FmPcd, t_Handle h_CcNode, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+t_Error FM_PCD_CcNodeModifyMissNextEngine(t_Handle                  h_FmPcd,
+                                          t_Handle                  h_CcNode,
+                                          t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcNodeRemoveKey
@@ -1959,65 +2057,136 @@ t_Error FM_PCD_CcNodeModifyMissNextEngine(t_Handle h_FmPcd, t_Handle h_CcNode, t
 
  @Return        E_OK on success; Error code otherwise.
 
- @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the relevant node but also
-                the node that points to this node
+ @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the
+                relevant node but also the node that points to this node
 *//***************************************************************************/
-t_Error FM_PCD_CcNodeRemoveKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex);
+t_Error FM_PCD_CcNodeRemoveKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcNodeAddKey
 
- @Description   Add the key(include Next Engine Parameters of this key)in the index defined by the keyIndex .
+ @Description   Add the key(include Next Engine Parameters of this key in the
+                index defined by the keyIndex.
 
  @Param[in]     h_FmPcd                     A handle to an FM PCD Module.
  @Param[in]     h_CcNode                    A handle to the node
  @Param[in]     keyIndex                    Key index for adding
  @Param[in]     keySize                     Key size of added key
- @Param[in]     p_KeyParams                 A pointer to the parameters includes new key with Next Engine Parameters
+ @Param[in]     p_KeyParams                 A pointer to the parameters includes
+                                            new key with Next Engine Parameters
 
  @Return        E_OK on success; Error code otherwise.
 
- @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the relevant node but also
-                the node that points to this node
+ @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the
+                relevant node but also the node that points to this node
 *//***************************************************************************/
-t_Error FM_PCD_CcNodeAddKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams);
+t_Error FM_PCD_CcNodeAddKey(t_Handle            h_FmPcd,
+                            t_Handle            h_CcNode,
+                            uint16_t             keyIndex,
+                            uint8_t             keySize,
+                            t_FmPcdCcKeyParams  *p_KeyParams);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcNodeModifyKeyAndNextEngine
 
- @Description   Modify the key and Next Engine Parameters of this key in the index defined by the keyIndex .
+ @Description   Modify the key and Next Engine Parameters of this key in the
+                index defined by the keyIndex.
 
  @Param[in]     h_FmPcd                     A handle to an FM PCD Module.
  @Param[in]     h_CcNode                    A handle to the node
  @Param[in]     keyIndex                    Key index for adding
  @Param[in]     keySize                     Key size of added key
- @Param[in]     p_KeyParams                 A pointer to the parameters includes modified key and modified Next Engine Parameters
+ @Param[in]     p_KeyParams                 A pointer to the parameters includes
+                                            modified key and modified Next Engine Parameters
 
  @Return        E_OK on success; Error code otherwise.
 
- @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the relevant node but also
-                the node that points to this node
+ @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the
+                relevant node but also the node that points to this node
 *//***************************************************************************/
-t_Error FM_PCD_CcNodeModifyKeyAndNextEngine(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams);
+t_Error FM_PCD_CcNodeModifyKeyAndNextEngine(t_Handle            h_FmPcd,
+                                            t_Handle            h_CcNode,
+                                            uint16_t             keyIndex,
+                                            uint8_t             keySize,
+                                            t_FmPcdCcKeyParams  *p_KeyParams);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcNodeModifyKey
 
- @Description   Modify the key  in the index defined by the keyIndex .
+ @Description   Modify the key  in the index defined by the keyIndex.
 
  @Param[in]     h_FmPcd                     A handle to an FM PCD Module.
  @Param[in]     h_CcNode                    A handle to the node
  @Param[in]     keyIndex                    Key index for adding
  @Param[in]     keySize                     Key size of added key
  @Param[in]     p_Key                       A pointer to the new key
- @Param[in]     p_Mask                      A pointer to the new mask if relevant, otherwise pointer to NULL
+ @Param[in]     p_Mask                      A pointer to the new mask if relevant,
+                                            otherwise pointer to NULL
 
  @Return        E_OK on success; Error code otherwise.
 
- @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the relevant node but also
-                the node that points to this node
+ @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the
+                relevant node but also the node that points to this node
 *//***************************************************************************/
-t_Error FM_PCD_CcNodeModifyKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, uint8_t  *p_Key, uint8_t *p_Mask);
+t_Error FM_PCD_CcNodeModifyKey(t_Handle h_FmPcd,
+                               t_Handle h_CcNode,
+                               uint16_t  keyIndex,
+                               uint8_t  keySize,
+                               uint8_t  *p_Key,
+                               uint8_t  *p_Mask);
+
+/**************************************************************************//**
+ @Function      FM_PCD_CcIndexedHashNodeGetBucket
+
+ @Description   TODO
+
+ @Param[in]     h_FmPcd                 A handle to an FM PCD Module.
+ @Param[in]     h_CcNode                A handle to the node
+ @Param[in]     kgKeySize               Key size as it was configured in the KG
+                                        scheme that leads to this hash.
+ @Param[in]     p_KgKey                 Pointer to the key; must be like the key
+                                        that the KG is generated, i.e. the same
+                                        extraction and with mask if exist.
+ @Param[in]     kgHashShift             hash-shift as it was configured in the KG
+                                        scheme that leads to this hash.
+ @Param[out]    p_CcNodeBucketHandle    Pointer to retrieve the bucket.
+ @Param[out]    p_BucketIndex           TODO
+ @Param[out]    p_LastIndex             Pointer to retrieve the last index in the bucket.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the
+                relevant node but also the node that points to this node
+*//***************************************************************************/
+t_Error FM_PCD_CcIndexedHashNodeGetBucket(t_Handle    h_FmPcd,
+                                          t_Handle    h_CcNode,
+                                          uint8_t     kgKeySize,
+                                          uint8_t     *p_KgKey,
+                                          uint8_t     kgHashShift,
+                                          t_Handle    *p_CcNodeBucketHandle,
+                                          uint8_t     *p_BucketIndex,
+                                          uint16_t    *p_LastIndex);
+
+/**************************************************************************//**
+ @Function      FM_PCD_CcNodeGetNextEngine
+
+ @Description   Gets NextEngine of the relevant keyIndex.
+
+ @Param[in]     h_FmPcd                     A handle to an FM PCD Module.
+ @Param[in]     h_CcNode                    Cc Node.
+ @Param[in]     keyIndex                    keyIndex in the releavnt node.
+ @Param[out]    p_FmPcdCcNextEngineParams   here updated nextEngine parameters for
+                                            the relevant keyIndex of the Cc Node
+                                            received as parameter to this function
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_Init().
+*//***************************************************************************/
+t_Error FM_PCD_CcNodeGetNextEngine(t_Handle                     h_FmPcd,
+                                   t_Handle                     h_CcNode,
+                                   uint16_t                      keyIndex,
+                                   t_FmPcdCcNextEngineParams    *p_FmPcdCcNextEngineParams);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcNodeGetKeyCounter
@@ -2032,8 +2201,8 @@ t_Error FM_PCD_CcNodeModifyKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyI
 
  @Return        The specific key counter.
 
- @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the relevant node but also
-                the node that points to this node
+ @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the
+                relevant node but also the node that points to this node
 *//***************************************************************************/
 uint32_t FM_PCD_CcNodeGetKeyCounter(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex);
 
@@ -2075,15 +2244,17 @@ t_Error FM_PCD_PlcrDeleteProfile(t_Handle h_FmPcd, t_Handle h_Profile);
  @Description   Sets an entry in the classification plan.
                 The routine overrides any existing value.
 
- @Param[in]     h_FmPcd             A handle to an FM PCD Module.
+ @Param[in]     h_FmPcd         A handle to an FM PCD Module.
  @Param[in]     h_Profile       A handle to the profile.
- @Param[in]     counter             Counter selector.
+ @Param[in]     counter         Counter selector.
 
  @Return        specific counter value.
 
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
-uint32_t FM_PCD_PlcrGetProfileCounter(t_Handle h_FmPcd, t_Handle h_Profile, e_FmPcdPlcrProfileCounters counter);
+uint32_t FM_PCD_PlcrGetProfileCounter(t_Handle                      h_FmPcd,
+                                      t_Handle                      h_Profile,
+                                      e_FmPcdPlcrProfileCounters    counter);
 
 /**************************************************************************//**
  @Function      FM_PCD_PlcrSetProfileCounter
@@ -2100,9 +2271,12 @@ uint32_t FM_PCD_PlcrGetProfileCounter(t_Handle h_FmPcd, t_Handle h_Profile, e_Fm
 
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
-t_Error FM_PCD_PlcrSetProfileCounter(t_Handle h_FmPcd, t_Handle h_Profile, e_FmPcdPlcrProfileCounters counter, uint32_t value);
+t_Error FM_PCD_PlcrSetProfileCounter(t_Handle                   h_FmPcd,
+                                     t_Handle                   h_Profile,
+                                     e_FmPcdPlcrProfileCounters counter,
+                                     uint32_t                   value);
 
-#if defined(FM_CAPWAP_SUPPORT)
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 /**************************************************************************//**
  @Function      FM_PCD_ManipSetNode
 
@@ -2127,11 +2301,12 @@ t_Handle FM_PCD_ManipSetNode(t_Handle h_FmPcd, t_FmPcdManipParams *p_FmPcdManipP
  @Param[in]     h_FmPcd         A handle to an FM PCD Module.
  @Param[in]     h_HdrManipNode  A handle to a Manip node.
 
+ @Return        E_OK on success; Error code otherwise.
+
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
 t_Error  FM_PCD_ManipDeleteNode(t_Handle h_FmPcd, t_Handle h_HdrManipNode);
 #endif /* defined(FM_CAPWAP_SUPPORT) || ... */
-
 
 #ifdef FM_CAPWAP_SUPPORT
 /**************************************************************************//**
@@ -2154,7 +2329,5 @@ t_Handle FM_PCD_StatisticsSetNode(t_Handle h_FmPcd, t_FmPcdStatsParams *p_FmPcds
 /** @} */ /* end of FM_PCD_Runtime_grp group */
 /** @} */ /* end of FM_PCD_grp group */
 /** @} */ /* end of FM_grp group */
-
-
 
 #endif /* __FM_PCD_EXT */

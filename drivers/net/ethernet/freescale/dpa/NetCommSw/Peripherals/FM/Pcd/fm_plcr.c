@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -65,7 +65,7 @@ static t_Error SetProfileNia(t_FmPcd *p_FmPcd, e_FmPcdEngine nextEngine, u_FmPcd
 {
     uint32_t    nia;
     uint16_t    absoluteProfileId = (uint16_t)(PTR_TO_UINT(p_NextEngineParams->h_Profile)-1);
-    uint8_t     relativeSchemeId, physicatSchemeId;
+    uint8_t     relativeSchemeId, physicalSchemeId;
 
     nia = FM_PCD_PLCR_NIA_VALID;
 
@@ -85,15 +85,15 @@ static t_Error SetProfileNia(t_FmPcd *p_FmPcd, e_FmPcdEngine nextEngine, u_FmPcd
             }
             break;
         case e_FM_PCD_KG:
-            physicatSchemeId = (uint8_t)(PTR_TO_UINT(p_NextEngineParams->h_DirectScheme)-1);
-            relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, physicatSchemeId);
-            if(relativeSchemeId == FM_PCD_KG_NUM_OF_SCHEMES)
+            physicalSchemeId = (uint8_t)(PTR_TO_UINT(p_NextEngineParams->h_DirectScheme)-1);
+            relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId);
+            if(relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
                 RETURN_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
             if (!FmPcdKgIsSchemeValidSw(p_FmPcd, relativeSchemeId))
-                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid direct scheme."));
+                RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid direct scheme."));
             if(!KgIsSchemeAlwaysDirect(p_FmPcd, relativeSchemeId))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Policer Profile may point only to a scheme that is always direct."));
-            nia |= NIA_ENG_KG | NIA_KG_DIRECT | physicatSchemeId;
+            nia |= NIA_ENG_KG | NIA_KG_DIRECT | physicalSchemeId;
             break;
         case e_FM_PCD_PLCR:
              if(!FmPcdPlcrIsProfileShared(p_FmPcd, absoluteProfileId))
@@ -251,7 +251,6 @@ static void WritePar(t_FmPcd *p_FmPcd, uint32_t par)
     WRITE_UINT32(p_FmPcdPlcrRegs->fmpl_par, par);
 
     while(GET_UINT32(p_FmPcdPlcrRegs->fmpl_par) & FM_PCD_PLCR_PAR_GO) ;
-
 }
 
 /*********************************************/
@@ -280,7 +279,6 @@ static void PcdPlcrException(t_Handle h_FmPcd)
         p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_PRAM_SELF_INIT_COMPLETE);
     if(event & FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE)
         p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_ATOMIC_ACTION_COMPLETE);
-
 }
 
 /* ..... */

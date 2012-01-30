@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -282,7 +282,7 @@ t_Error FM_MAC_ConfigLoopback (t_Handle h_FmMac, bool enable);
 /**************************************************************************//**
  @Function      FM_MAC_ConfigMaxFrameLength
 
- @Description   Setup maximum Frame Length
+ @Description   Setup maximum Rx Frame Length (in 1G MAC, effects also Tx)
 
  @Param[in]     h_FmMac    A handle to a FM MAC Module.
  @Param[in]     newVal     MAX Frame length
@@ -338,7 +338,7 @@ t_Error FM_MAC_ConfigHalfDuplex (t_Handle h_FmMac, bool enable);
 /**************************************************************************//**
  @Function      FM_MAC_ConfigLengthCheck
 
- @Description   Configure thef frame length checking.
+ @Description   Configure the frame length checking.
 
  @Param[in]     h_FmMac    A handle to a FM MAC Module.
  @Param[in]     enable     TRUE to enable or FALSE to disable.
@@ -357,7 +357,6 @@ t_Error FM_MAC_ConfigLengthCheck (t_Handle h_FmMac, bool enable);
  @Param[in]     h_FmMac         A handle to a FM MAC Module.
  @Param[in]     ex              Type of the desired exceptions
  @Param[in]     enable          TRUE to enable the specified exception, FALSE to disable it.
-
 
  @Return        E_OK on success; Error code otherwise.
 
@@ -499,9 +498,9 @@ t_Error FM_MAC_SetException(t_Handle h_FmMac, e_FmMacExceptions ex, bool enable)
  @Function      FM_MAC_SetStatistics
 
  @Description   Define Statistics level.
-                                Where applicable, the routine also enables the MIB counters
-                                overflow interrupt in order to keep counters accurate
-                                and account for overflows.
+                Where applicable, the routine also enables the MIB counters
+                overflow interrupt in order to keep counters accurate
+                and account for overflows.
 
  @Param[in]     h_FmMac         A handle to a FM MAC Module.
  @Param[in]     statisticsLevel Full statistics level provides all standard counters but may
@@ -707,7 +706,5 @@ t_Error FM_MAC_DumpRegs(t_Handle h_FmMac);
 /** @} */ /* end of FM_mac_runtime_control_grp group */
 /** @} */ /* end of FM_mac_grp group */
 /** @} */ /* end of FM_grp group */
-
-
 
 #endif /* __FM_MAC_EXT_H */

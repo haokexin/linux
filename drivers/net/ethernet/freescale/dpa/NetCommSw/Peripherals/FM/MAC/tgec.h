@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -171,36 +171,19 @@
     default: bitMask = 0;break;}
 
 
-/* Default Config Params */
-#define DEFAULT_wanModeEnable               FALSE
-#define DEFAULT_promiscuousModeEnable       FALSE
-
-
 #define DEFAULT_pauseForwardEnable          FALSE
-#define DEFAULT_pauseIgnore                 FALSE
 #define DEFAULT_txAddrInsEnable             FALSE
-
-#define DEFAULT_loopbackEnable              FALSE
 #define DEFAULT_cmdFrameEnable              FALSE
 #define DEFAULT_rxErrorDiscard              FALSE
 #define DEFAULT_phyTxenaOn                  FALSE
 #define DEFAULT_sendIdleEnable              FALSE
-#define DEFAULT_noLengthCheckEnable         TRUE
 #define DEFAULT_lgthCheckNostdr             FALSE
-#define DEFAULT_timeStampEnable             FALSE
 #define DEFAULT_rxSfdAny                    FALSE
 #define DEFAULT_rxPblFwd                    FALSE
 #define DEFAULT_txPblFwd                    FALSE
 #define DEFAULT_txIpgLength                 12
-
-#define DEFAULT_maxFrameLength              0x600
-
 #define DEFAULT_debugMode                   FALSE
-#define DEFAULT_pauseTime                   0xf000
-#define DEFAULT_imask                       0xf000
-#ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
-#define DEFAULT_skipFman11Workaround        FALSE
-#endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
+#define DEFAULT_timeStampEnable             FALSE
 
 #define DEFAULT_exceptions          ((uint32_t)(IMASK_MDIO_SCAN_EVENTMDIO |  \
                                                 IMASK_REM_FAULT           |  \

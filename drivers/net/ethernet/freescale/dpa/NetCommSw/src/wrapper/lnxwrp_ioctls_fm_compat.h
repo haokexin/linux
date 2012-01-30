@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -156,7 +156,7 @@ typedef struct ioc_compat_fm_pcd_cc_next_engine_params_t {
             ioc_fm_pcd_cc_next_enqueue_params_t        enqueue_params; /**< same structure*/
             ioc_compat_fm_pcd_cc_next_kg_params_t      kg_params;      /**< compat structure*/
     } params;
-#ifdef FM_PCD_CC_MANIP
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
     compat_uptr_t                                      p_manip;
 #endif
 } ioc_compat_fm_pcd_cc_next_engine_params_t;
@@ -175,6 +175,9 @@ typedef struct ioc_compat_fm_pcd_cc_tree_params_t {
     compat_uptr_t                   net_env_id;
     uint8_t                         num_of_groups;
     ioc_compat_fm_pcd_cc_grp_params_t      fm_pcd_cc_group_params [IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS];
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    compat_uptr_t                   ip_reassembly_manip;
+#endif
     compat_uptr_t                   id;
 } ioc_compat_fm_pcd_cc_tree_params_t;
 
@@ -287,6 +290,20 @@ typedef struct ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t {
     uint8_t                             key_size;
     ioc_compat_fm_pcd_cc_next_engine_params_t  cc_next_engine_params;
 } ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t;
+
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+typedef struct ioc_compat_fm_pcd_manip_params_t{
+    bool                                        rmv;
+    ioc_fm_pcd_manip_rmv_params_t               rmv_params;
+    bool                                        insrt;
+    ioc_fm_pcd_manip_insrt_params_t             insrt_params;
+    bool                                        frag_or_reasm;
+    ioc_fm_pcd_manip_frag_or_reasm_params_t     frag_or_reasm_params;
+    bool                                        treat_fd_status_fields_as_errors;
+    compat_uptr_t                               id;
+}ioc_compat_fm_pcd_manip_params_t;
+#endif
+
 /* } pcd compat structures */
 
 /* pcd compat functions { */
@@ -374,6 +391,11 @@ void compat_copy_fm_pcd_cc_node(
         ioc_compat_fm_pcd_cc_node_params_t *compat_param,
         ioc_fm_pcd_cc_node_params_t *param,
         uint8_t compat);
-
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+void compat_fm_pcd_manip_set_node(
+        ioc_compat_fm_pcd_manip_params_t *compat_param,
+        ioc_fm_pcd_manip_params_t *param,
+        uint8_t compat);
+#endif
 /* } pcd compat functions */
 #endif

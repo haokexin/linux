@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -172,14 +172,14 @@ static uint8_t GetGenHdrCode(e_NetHeaderType hdr, e_FmPcdHdrIndex hdrIndex, bool
             case(HEADER_TYPE_IPv4):
                 if((hdrIndex == e_FM_PCD_HDR_INDEX_NONE) || (hdrIndex == e_FM_PCD_HDR_INDEX_1))
                     return KG_SCH_GEN_IPV4;
-                if(hdrIndex == e_FM_PCD_HDR_INDEX_2)
+                if((hdrIndex == e_FM_PCD_HDR_INDEX_2) || (hdrIndex == e_FM_PCD_HDR_INDEX_LAST))
                     return KG_SCH_GEN_IPV4_TUNNELED;
                 REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv4 header index"));
                 return 0;
             case(HEADER_TYPE_IPv6):
                 if((hdrIndex == e_FM_PCD_HDR_INDEX_NONE) || (hdrIndex == e_FM_PCD_HDR_INDEX_1))
                     return KG_SCH_GEN_IPV6;
-                if(hdrIndex == e_FM_PCD_HDR_INDEX_2)
+                if((hdrIndex == e_FM_PCD_HDR_INDEX_2) || (hdrIndex == e_FM_PCD_HDR_INDEX_LAST))
                     return KG_SCH_GEN_IPV6_TUNNELED;
                 REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 header index"));
                 return 0;
@@ -224,9 +224,9 @@ static uint8_t GetGenHdrCode(e_NetHeaderType hdr, e_FmPcdHdrIndex hdrIndex, bool
                 return 0;
             case(HEADER_TYPE_IPv4):
             case(HEADER_TYPE_IPv6):
-              if((hdrIndex == e_FM_PCD_HDR_INDEX_NONE) || (hdrIndex == e_FM_PCD_HDR_INDEX_1))
+                if((hdrIndex == e_FM_PCD_HDR_INDEX_NONE) || (hdrIndex == e_FM_PCD_HDR_INDEX_1))
                     return KG_SCH_GEN_L3_NO_V;
-                if(hdrIndex == e_FM_PCD_HDR_INDEX_2)
+                if((hdrIndex == e_FM_PCD_HDR_INDEX_2) || (hdrIndex == e_FM_PCD_HDR_INDEX_LAST))
                     return KG_SCH_GEN_IP2_NO_V;
                 REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IP header index"));
             case(HEADER_TYPE_MINENCAP):
@@ -429,28 +429,28 @@ static t_KnownFieldsMasks GetKnownProtMask(e_NetHeaderType hdr, e_FmPcdHdrIndex 
                 case(NET_HEADER_FIELD_IPv4_SRC_IP):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_IPSRC1;
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return KG_SCH_KN_IPSRC2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv4 index"));
                     return 0;
                 case(NET_HEADER_FIELD_IPv4_DST_IP):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_IPDST1;
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return KG_SCH_KN_IPDST2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv4 index"));
                     return 0;
                 case(NET_HEADER_FIELD_IPv4_PROTO):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_PTYPE1;
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return KG_SCH_KN_PTYPE2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv4 index"));
                     return 0;
                 case(NET_HEADER_FIELD_IPv4_TOS):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_IPTOS_TC1;
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return KG_SCH_KN_IPTOS_TC2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv4 index"));
                     return 0;
@@ -464,28 +464,28 @@ static t_KnownFieldsMasks GetKnownProtMask(e_NetHeaderType hdr, e_FmPcdHdrIndex 
                 case(NET_HEADER_FIELD_IPv6_SRC_IP):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_IPSRC1;
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return KG_SCH_KN_IPSRC2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 index"));
                     return 0;
                 case(NET_HEADER_FIELD_IPv6_DST_IP):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_IPDST1;
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return KG_SCH_KN_IPDST2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 index"));
                     return 0;
                 case(NET_HEADER_FIELD_IPv6_NEXT_HDR):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_PTYPE1;
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return KG_SCH_KN_PTYPE2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 index"));
                     return 0;
                 case(NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC):
                     if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return (KG_SCH_KN_IPV6FL1 | KG_SCH_KN_IPTOS_TC1);
-                    if(index == e_FM_PCD_HDR_INDEX_2)
+                    if((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
                         return (KG_SCH_KN_IPV6FL2 | KG_SCH_KN_IPTOS_TC2);
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 index"));
                     return 0;
@@ -1255,7 +1255,7 @@ void KgEnable(t_FmPcd *p_FmPcd)
     t_FmPcdKgRegs               *p_Regs = p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs;
 
     ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-    WRITE_UINT32(p_Regs->kggcr,GET_UINT32(p_Regs->kggcr) | FM_PCD_KG_KGGCR_EN);
+    WRITE_UINT32(p_Regs->kggcr, GET_UINT32(p_Regs->kggcr) | FM_PCD_KG_KGGCR_EN);
 }
 
 void KgDisable(t_FmPcd *p_FmPcd)
@@ -1263,7 +1263,7 @@ void KgDisable(t_FmPcd *p_FmPcd)
     t_FmPcdKgRegs               *p_Regs = p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs;
 
     ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-    WRITE_UINT32(p_Regs->kggcr,GET_UINT32(p_Regs->kggcr) & ~FM_PCD_KG_KGGCR_EN);
+    WRITE_UINT32(p_Regs->kggcr, GET_UINT32(p_Regs->kggcr) & ~FM_PCD_KG_KGGCR_EN);
 }
 
 void KgSetClsPlan(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanSet *p_Set)
@@ -1724,13 +1724,13 @@ t_Error FmPcdKgSetOrBindToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, u
     {
         p_ClsPlanSet = (t_FmPcdKgInterModuleClsPlanSet *)XX_Malloc(sizeof(t_FmPcdKgInterModuleClsPlanSet));
         if (!p_ClsPlanSet)
-            RETURN_ERROR(MAJOR, E_NO_MEMORY, ("memory allocation failed for p_ClsPlanSet"));
+            RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Classification plan set"));
         memset(p_ClsPlanSet, 0, sizeof(t_FmPcdKgInterModuleClsPlanSet));
         err = FmPcdKgBuildClsPlanGrp(h_FmPcd, p_GrpParams, p_ClsPlanSet);
         if (err)
         {
             XX_Free(p_ClsPlanSet);
-            RETURN_ERROR(MINOR,err,NO_MSG);
+            RETURN_ERROR(MINOR, err, NO_MSG);
         }
         *p_ClsPlanGrpId = p_GrpParams->clsPlanGrpId;
 
@@ -1794,8 +1794,9 @@ t_Error FmPcdKgDeleteOrUnbindPortToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardware
             /* clear clsPlan entries in memory */
             p_ClsPlanSet = (t_FmPcdKgInterModuleClsPlanSet *)XX_Malloc(sizeof(t_FmPcdKgInterModuleClsPlanSet));
             if (!p_ClsPlanSet)
-                RETURN_ERROR(MAJOR, E_NO_MEMORY, ("memory allocation failed for p_ClsPlanSet"));
+                RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Classification plan set"));
             memset(p_ClsPlanSet, 0, sizeof(t_FmPcdKgInterModuleClsPlanSet));
+
             p_ClsPlanSet->baseEntry = p_FmPcd->p_FmPcdKg->clsPlanGrps[clsPlanGrpId].baseEntry;
             p_ClsPlanSet->numOfClsPlanEntries = p_FmPcd->p_FmPcdKg->clsPlanGrps[clsPlanGrpId].sizeOfGrp;
             KgSetClsPlan(p_FmPcd, p_ClsPlanSet);
@@ -2900,6 +2901,7 @@ t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t req
                         WriteKgarWait(p_FmPcd, tmpKgarReg);
                         if (!(GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode) & KG_SCH_MODE_EN))
                         {
+                            FmPcdUnlock(p_FmPcd, intFlags);
                             RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
                             RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is Invalid"));
                         }
@@ -2931,6 +2933,29 @@ t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t req
                default:
                     RETURN_ERROR(MAJOR, E_INVALID_VALUE,("in this situation the next engine after scheme can be or PLCR or ENQ_FRAME"));
             }
+        }
+        if(requiredAction & UPDATE_KG_NIA_CC_WA)
+        {
+            if (p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].nextEngine == e_FM_PCD_CC)
+            {
+                tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
+                intFlags = FmPcdLock(p_FmPcd);
+                WriteKgarWait(p_FmPcd, tmpKgarReg);
+                if (!(GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode) & KG_SCH_MODE_EN))
+                {
+                    FmPcdUnlock(p_FmPcd, intFlags);
+                    RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+                    RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is Invalid"));
+                }
+                tmpReg32 = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode);
+                ASSERT_COND(tmpReg32 & (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_CC));
+                tmpReg32 &= ~NIA_FM_CTL_AC_CC;
+                WRITE_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode, tmpReg32 | NIA_FM_CTL_AC_PRE_CC);
+                /* call indirect command for scheme write */
+                tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
+                WriteKgarWait(p_FmPcd, tmpKgarReg);
+                FmPcdUnlock(p_FmPcd, intFlags);
+           }
         }
     }
     p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].pointedOwners += 1;

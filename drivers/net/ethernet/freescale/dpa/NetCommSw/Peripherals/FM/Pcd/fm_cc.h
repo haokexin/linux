@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -169,7 +169,7 @@ typedef _Packed struct {
     volatile uint32_t fqid;
     volatile uint32_t plcrProfile;
     volatile uint32_t nia;
-    volatile uint32_t  res;
+    volatile uint32_t res;
 } _PackedType t_AdOfTypeResult;
 
 typedef _Packed struct {
@@ -266,6 +266,7 @@ typedef struct {
     uint32_t    shadowAction;
     bool        modifiedState;
     uint8_t     userSizeOfExtraction;
+    uint8_t     userOffset;
 
     t_FmPcdCcNextEngineAndRequiredActionParams nextEngineAndRequiredAction[256];
 } t_FmPcdCcNode;
@@ -296,6 +297,7 @@ typedef struct {
     bool                modifiedState;
     uint32_t            requiredAction;
     t_FmPcdCcNextEngineAndRequiredActionParams nextEngineAndRequiredAction[FM_PCD_MAX_NUM_OF_KEYS];
+    t_Handle            h_IpReassemblyManip;
 } t_FmPcdCcTree;
 
 typedef struct {

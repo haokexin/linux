@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -185,19 +185,20 @@
 *//***************************************************************************/
 #define DUMP_VAR(st, phrase) \
     do { \
-        void *addr = (void *)&((st)->phrase); \
+        void            *addr = (void *)&((st)->phrase); \
+        physAddress_t   physAddr = XX_VirtToPhys(addr); \
         _CREATE_DUMP_SUBSTR(phrase); \
         dumpVarSize = sizeof((st)->phrase); \
         switch (dumpVarSize) \
         { \
-            case 1:  DUMP_Print("0x%08X: 0x%02x%14s\t%s\r\n", \
-                                addr, GET_UINT8(*(uint8_t*)addr), "", dumpSubStr); break; \
-            case 2:  DUMP_Print("0x%08X: 0x%04x%12s\t%s\r\n", \
-                                addr, GET_UINT16(*(uint16_t*)addr), "", dumpSubStr); break; \
-            case 4:  DUMP_Print("0x%08X: 0x%08x%8s\t%s\r\n", \
-                                addr, GET_UINT32(*(uint32_t*)addr), "", dumpSubStr); break; \
-            case 8:  DUMP_Print("0x%08X: 0x%016llx\t%s\r\n", \
-                                addr, GET_UINT64(*(uint64_t*)addr), dumpSubStr); break; \
+            case 1:  DUMP_Print("0x%010llX: 0x%02x%14s\t%s\r\n", \
+                                physAddr, GET_UINT8(*(uint8_t*)addr), "", dumpSubStr); break; \
+            case 2:  DUMP_Print("0x%010llX: 0x%04x%12s\t%s\r\n", \
+                                physAddr, GET_UINT16(*(uint16_t*)addr), "", dumpSubStr); break; \
+            case 4:  DUMP_Print("0x%010llX: 0x%08x%8s\t%s\r\n", \
+                                physAddr, GET_UINT32(*(uint32_t*)addr), "", dumpSubStr); break; \
+            case 8:  DUMP_Print("0x%010llX: 0x%016llx\t%s\r\n", \
+                                physAddr, GET_UINT64(*(uint64_t*)addr), dumpSubStr); break; \
             default: DUMP_Print("Bad size %d (" #st "->" #phrase ")\r\n", dumpVarSize); \
         } \
     } while (0)
@@ -218,6 +219,7 @@
 *//***************************************************************************/
 #define DUMP_ARR(st, phrase) \
     do { \
+        physAddress_t physAddr = XX_VirtToPhys((void *)&((st)->phrase[dumpArrIdx])); \
         _CREATE_DUMP_SUBSTR(phrase); \
         dumpArrSize = ARRAY_SIZE((st)->phrase); \
         dumpVarSize = sizeof((st)->phrase[0]); \
@@ -225,23 +227,23 @@
         { \
             case 1: \
                 for (dumpArrIdx=0; dumpArrIdx < dumpArrSize; dumpArrIdx++) { \
-                    DUMP_Print("0x%08X: 0x%02x%14s\t%s[%d]\r\n", \
-                               &((st)->phrase[dumpArrIdx]), GET_UINT8((st)->phrase[dumpArrIdx]), "", dumpSubStr, dumpArrIdx); \
+                    DUMP_Print("0x%010llX: 0x%02x%14s\t%s[%d]\r\n", \
+                               physAddr, GET_UINT8((st)->phrase[dumpArrIdx]), "", dumpSubStr, dumpArrIdx); \
                 } break; \
             case 2: \
                 for (dumpArrIdx=0; dumpArrIdx < dumpArrSize; dumpArrIdx++) { \
-                    DUMP_Print("0x%08X: 0x%04x%12s\t%s[%d]\r\n", \
-                               &((st)->phrase[dumpArrIdx]), GET_UINT16((st)->phrase[dumpArrIdx]), "", dumpSubStr, dumpArrIdx); \
+                    DUMP_Print("0x%010llX: 0x%04x%12s\t%s[%d]\r\n", \
+                               physAddr, GET_UINT16((st)->phrase[dumpArrIdx]), "", dumpSubStr, dumpArrIdx); \
                 } break; \
             case 4: \
                 for (dumpArrIdx=0; dumpArrIdx < dumpArrSize; dumpArrIdx++) { \
-                    DUMP_Print("0x%08X: 0x%08x%8s\t%s[%d]\r\n", \
-                               &((st)->phrase[dumpArrIdx]), GET_UINT32((st)->phrase[dumpArrIdx]), "", dumpSubStr, dumpArrIdx); \
+                    DUMP_Print("0x%010llX: 0x%08x%8s\t%s[%d]\r\n", \
+                               physAddr, GET_UINT32((st)->phrase[dumpArrIdx]), "", dumpSubStr, dumpArrIdx); \
                 } break; \
             case 8: \
                 for (dumpArrIdx=0; dumpArrIdx < dumpArrSize; dumpArrIdx++) { \
-                    DUMP_Print("0x%08X: 0x%016llx\t%s[%d]\r\n", \
-                               &((st)->phrase[dumpArrIdx]), GET_UINT64((st)->phrase[dumpArrIdx]), dumpSubStr, dumpArrIdx); \
+                    DUMP_Print("0x%010llX: 0x%016llx\t%s[%d]\r\n", \
+                               physAddr, GET_UINT64((st)->phrase[dumpArrIdx]), dumpSubStr, dumpArrIdx); \
                 } break; \
             default: DUMP_Print("Bad size %d (" #st "->" #phrase "[0])\r\n", dumpVarSize); \
         } \
