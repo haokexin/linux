@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,10 +49,10 @@
 #elif defined(NCSW_VXWORKS)
 #include "types_vxworks.h"
 
-#elif defined(__MWERKS__) && defined(__GNUC__) && defined(__cplusplus)
+#elif defined(__GNUC__) && defined(__cplusplus)
 #include "types_bb_gpp.h"
 
-#elif defined(__MWERKS__) && defined(__GNUC__)
+#elif defined(__GNUC__)
 #include "types_bb_gcc.h"
 
 #elif defined(__ghs__)
@@ -61,7 +61,6 @@
 #else
 #include "types_dflt.h"
 #endif /* defined (__ROCOO__) */
-
 
 static __inline__ void TypesChecker(void)
 {
@@ -106,6 +105,5 @@ static __inline__ void TypesChecker(void)
     WRITE_UINT64(*((uint64_t*)((size_t)(INT64_MAX))),
                  GET_UINT64(*((uint64_t*)((size_t)(INT64_MIN)))));
 }
-
 
 #endif /* __TYPES_EXT_H */

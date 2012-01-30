@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -67,10 +67,10 @@ static t_Error CheckInitParameters(t_Dtsec *p_Dtsec)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Ethernet MAC 1G can't work in half duplex"));
     if(p_Dtsec->p_DtsecDriverParam->halfDuplex && (p_Dtsec->p_DtsecDriverParam)->loopback)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("LoopBack is not supported in halfDuplex mode"));
-#ifdef FM_NO_RX_PREAM_ERRATA_DTSECx1
+#ifdef FM_RX_PREAM_4_ERRATA_DTSEC_A001
     if(p_Dtsec->p_DtsecDriverParam->preambleRxEn)
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("preambleRxEn"));
-#endif /* FM_NO_RX_PREAM_ERRATA_DTSECx1 */
+#endif /* FM_RX_PREAM_4_ERRATA_DTSEC_A001 */
     if(((p_Dtsec->p_DtsecDriverParam)->preambleTxEn || (p_Dtsec->p_DtsecDriverParam)->preambleRxEn) &&( (p_Dtsec->p_DtsecDriverParam)->preambleLength != 0x7))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Preamble length should be 0x7 bytes"));
     if((p_Dtsec->p_DtsecDriverParam)->fifoTxWatermarkH<((p_Dtsec->p_DtsecDriverParam)->fifoTxThr+8))
@@ -97,59 +97,12 @@ static t_Error CheckInitParameters(t_Dtsec *p_Dtsec)
     /*  Set up the PHY using the MII Management Interface */
     if (p_Dtsec->p_DtsecDriverParam->tbiPhyAddr > MAX_PHYS)
         RETURN_ERROR(MAJOR, E_NOT_IN_RANGE, ("PHY address (should be 0-%d)", MAX_PHYS));
-    if(!p_Dtsec->f_Exception)
+    if (!p_Dtsec->f_Exception)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("uninitialized f_Exception"));
-    if(!p_Dtsec->f_Event)
+    if (!p_Dtsec->f_Event)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("uninitialized f_Event"));
+
     return E_OK;
-}
-
-static uint8_t GetMiiDiv(int32_t refClk)
-{
-    uint32_t    div,tmpClk;
-    int         minRange;
-
-    div = 1;
-    minRange = (int)(refClk/40 - 1);
-
-    tmpClk = (uint32_t)ABS(refClk/60 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 2;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/60 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 3;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/80 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 4;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/100 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 5;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/140 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 6;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/280 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 7;
-        minRange = (int)tmpClk;
-    }
-
-    return (uint8_t)div;
 }
 
 /* ........................................................................... */
@@ -165,8 +118,8 @@ static void SetDefaultParam(t_DtsecDriverParam *p_DtsecDriverParam)
 
     p_DtsecDriverParam->halfDuplex              = DEFAULT_halfDuplex;
     p_DtsecDriverParam->halfDulexFlowControlEn  = DEFAULT_halfDulexFlowControlEn;
-    p_DtsecDriverParam->txTimeStampEn           = DEFAULT_txTimeStampEn;
-    p_DtsecDriverParam->rxTimeStampEn           = DEFAULT_rxTimeStampEn;
+    p_DtsecDriverParam->txTimeStampEn           = DEFAULT_timeStampEnable;
+    p_DtsecDriverParam->rxTimeStampEn           = DEFAULT_timeStampEnable;
 
     p_DtsecDriverParam->packetAlignmentPadding = DEFAULT_packetAlignment;
     p_DtsecDriverParam->controlFrameAccept     = DEFAULT_controlFrameAccept;
@@ -178,7 +131,7 @@ static void SetDefaultParam(t_DtsecDriverParam *p_DtsecDriverParam)
 
     p_DtsecDriverParam->loopback               = DEFAULT_loopback;
     p_DtsecDriverParam->tbiPhyAddr             = DEFAULT_tbiPhyAddr;
-    p_DtsecDriverParam->actOnRxPauseFrame      = DEFAULT_actOnRxPauseFrame;
+    p_DtsecDriverParam->actOnRxPauseFrame      = !DEFAULT_rxIgnorePause;
     p_DtsecDriverParam->actOnTxPauseFrame      = DEFAULT_actOnTxPauseFrame;
 
     p_DtsecDriverParam->preambleLength         = DEFAULT_PreAmLength;
@@ -524,13 +477,13 @@ static t_Error GracefulStop(t_Dtsec *p_Dtsec, e_CommMode mode)
     XX_UDelay(100);
 #endif /* FM_GRS_ERRATA_DTSEC_A002 */
 
-#ifdef FM_GTS_ERRATA_DTSEC_A004
+#if defined(FM_GTS_ERRATA_DTSEC_A004) || defined(FM_GTS_AFTER_MAC_ABORTED_FRAME_ERRATA_DTSEC_A0012) || defined(FM_GTS_UNDERRUN_ERRATA_DTSEC_A0014)
     DBG(INFO, ("GTS not supported due to DTSEC_A004 errata."));
-#else  /* not FM_GTS_ERRATA_DTSEC_A004 */
+#else  /* not defined(FM_GTS_ERRATA_DTSEC_A004) ||... */
     if (mode & e_COMM_MODE_TX)
         WRITE_UINT32(p_MemMap->tctrl,
                      GET_UINT32(p_MemMap->tctrl) | TCTRL_GTS);
-#endif /* not FM_GTS_ERRATA_DTSEC_A004 */
+#endif /* defined(FM_GTS_ERRATA_DTSEC_A004) ||...  */
 
     return E_OK;
 }
@@ -757,15 +710,6 @@ static t_Error DtsecTxMacPause(t_Handle h_Dtsec, uint16_t pauseTime)
                               " value should be greater than 320."));
         }
 #endif /* FM_BAD_TX_TS_IN_B_2_B_ERRATA_DTSEC_A003 */
-
-#ifdef FM_SHORT_PAUSE_TIME_ERRATA_DTSEC1
-        {
-            t_FmRevisionInfo revInfo;
-            FM_GetRevision(p_Dtsec->fmMacControllerDriver.h_Fm, &revInfo);
-            if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-                pauseTime += 2;
-        }
-#endif /* FM_SHORT_PAUSE_TIME_ERRATA_DTSEC1 */
 
         ptv = GET_UINT32(p_MemMap->ptv);
         ptv |= pauseTime;
@@ -1370,10 +1314,9 @@ static t_Error DtsecSetException(t_Handle h_Dtsec, e_FmMacExceptions exception, 
 
         /* warn if MIB OVFL is disabled and statistic gathering is enabled */
         if((exception == e_FM_MAC_EX_1G_RX_MIB_CNT_OVFL) &&
-                !enable &&
-                (p_Dtsec->statisticsLevel != e_FM_MAC_NONE_STATISTICS))
-            DBG(WARNING, ("Disabled MIB counters overflow exceptions. Counters value may be inaccurate due to unregistered overflow"));
-
+            !enable &&
+            (p_Dtsec->statisticsLevel != e_FM_MAC_NONE_STATISTICS))
+            DBG(INFO, ("Disabled MIB counters overflow exceptions. Counters value may be inaccurate due to unregistered overflow"));
     }
     else
     {
@@ -1531,14 +1474,6 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
 
     /***************PTV************************/
     tmpReg32 = 0;
-#ifdef FM_SHORT_PAUSE_TIME_ERRATA_DTSEC1
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_Dtsec->fmMacControllerDriver.h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-            p_DtsecDriverParam->pauseTime += 2;
-    }
-#endif /* FM_SHORT_PAUSE_TIME_ERRATA_DTSEC1 */
     if (p_DtsecDriverParam->pauseTime)
         tmpReg32 |= (uint32_t)p_DtsecDriverParam->pauseTime;
 
@@ -1589,13 +1524,6 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
     /* conflict with the external PHY’s Physical address   */
     WRITE_UINT32(p_DtsecMemMap->tbipa, p_DtsecDriverParam->tbiPhyAddr);
 
-    /* Reset the management interface */
-    WRITE_UINT32(p_Dtsec->p_MiiMemMap->miimcfg, MIIMCFG_RESET_MGMT);
-    WRITE_UINT32(p_Dtsec->p_MiiMemMap->miimcfg, ~MIIMCFG_RESET_MGMT);
-    /* Setup the MII Mgmt clock speed */
-    WRITE_UINT32(p_Dtsec->p_MiiMemMap->miimcfg,
-                 (uint32_t)GetMiiDiv((int32_t)(((p_Dtsec->fmMacControllerDriver.clkFreq*10)/2)/8)));
-
     if(p_Dtsec->enetMode == e_ENET_MODE_SGMII_1000)
     {
         uint16_t            tmpReg16;
@@ -1607,9 +1535,8 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
         tmpReg16 = PHY_TBICON_CLK_SEL;
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 17, tmpReg16);
 
-        tmpReg16 = PHY_CR_SPEED1;
-        if(!p_DtsecDriverParam->halfDuplex)
-            tmpReg16 |= PHY_CR_FULLDUPLEX | PHY_CR_PHY_RESET | PHY_CR_ANE;
+        tmpReg16 = (PHY_CR_PHY_RESET | PHY_CR_ANE | PHY_CR_FULLDUPLEX | PHY_CR_SPEED1);
+
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 0, tmpReg16);
 
         tmpReg16 = PHY_TBIANA_SGMII;

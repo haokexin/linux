@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -122,9 +122,9 @@ static struct qman_fq *FqAlloc(t_LnxWrpFmDev * p_LnxWrpFmDev,
 		return NULL;
 	}
 
-	p_FmtFq->fq_base.cb.dqrr =
-		(QMAN_FQ_FLAG_NO_ENQUEUE ? qm_tx_conf_dqrr_cb :
-		 qm_tx_dqrr_cb);
+	p_FmtFq->fq_base.cb.dqrr = ((flags & QMAN_FQ_FLAG_NO_ENQUEUE)
+			? qm_tx_conf_dqrr_cb
+			: qm_tx_dqrr_cb);
 	p_FmtFq->fq_base.cb.ern = qm_err_cb;
 	/* p_FmtFq->fq_base.cb.fqs = qm_err_cb; */
 	/* qm_err_cb wrongly called when the FQ is parked */
@@ -309,41 +309,53 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 
 		p_LnxWrpFmPortDev->settings.param.specificParams.nonRxParams.
 			qmChannel = p_LnxWrpFmPortDev->txCh;
-	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-tx") ||
-		 of_device_is_compatible(port_node, "fsl,fman-port-10g-tx")) {
-		if (unlikely(*uint32_prop >= FM_MAX_NUM_OF_TX_PORTS)) {
+	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-tx")) {
+		if (unlikely(*uint32_prop >= FM_MAX_NUM_OF_1G_TX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
-				     ("of_get_property(%s, cell-index) failed",
-				      port_node->full_name));
+					("of_get_property(%s, cell-index) failed",
+					 port_node->full_name));
 			return NULL;
 		}
-		if (of_device_is_compatible
-		    (port_node, "fsl,fman-port-10g-tx"))
-			p_LnxWrpFmPortDev =
-				&p_LnxWrpFmDev->txPorts[*uint32_prop +
-						FM_MAX_NUM_OF_1G_TX_PORTS];
-		else
-			p_LnxWrpFmPortDev =
-				&p_LnxWrpFmDev->txPorts[*uint32_prop];
+		p_LnxWrpFmPortDev = &p_LnxWrpFmDev->txPorts[*uint32_prop];
 
 		p_LnxWrpFmPortDev->id = *uint32_prop;
 		p_LnxWrpFmPortDev->settings.param.portId =
 			p_LnxWrpFmPortDev->id;
-		if (of_device_is_compatible
-		    (port_node, "fsl,fman-port-10g-tx"))
-			p_LnxWrpFmPortDev->settings.param.portType =
-				e_FM_PORT_TYPE_TX_10G;
-		else
-			p_LnxWrpFmPortDev->settings.param.portType =
-				e_FM_PORT_TYPE_TX;
+		p_LnxWrpFmPortDev->settings.param.portType = e_FM_PORT_TYPE_TX;
 
-		uint32_prop =
-			(uint32_t *) of_get_property(port_node,
-						     "fsl,qman-channel-id",
-						     &lenp);
+		uint32_prop = (uint32_t *) of_get_property(port_node,
+				"fsl,qman-channel-id", &lenp);
 		if (uint32_prop == NULL) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
-				     ("missing fsl,qman-channel-id"));
+					("missing fsl,qman-channel-id"));
+			return NULL;
+		}
+		if (WARN_ON(lenp != sizeof(uint32_t)))
+			return NULL;
+		p_LnxWrpFmPortDev->txCh = *uint32_prop;
+		p_LnxWrpFmPortDev->
+			settings.param.specificParams.nonRxParams.qmChannel =
+			p_LnxWrpFmPortDev->txCh;
+	} else if (of_device_is_compatible(port_node, "fsl,fman-port-10g-tx")) {
+		if (unlikely(*uint32_prop >= FM_MAX_NUM_OF_10G_TX_PORTS)) {
+			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
+					("of_get_property(%s, cell-index) failed",
+					 port_node->full_name));
+			return NULL;
+		}
+		p_LnxWrpFmPortDev = &p_LnxWrpFmDev->txPorts[*uint32_prop +
+			FM_MAX_NUM_OF_1G_TX_PORTS];
+
+		p_LnxWrpFmPortDev->id = *uint32_prop;
+		p_LnxWrpFmPortDev->settings.param.portId =
+			p_LnxWrpFmPortDev->id;
+		p_LnxWrpFmPortDev->settings.param.portType =
+			e_FM_PORT_TYPE_TX_10G;
+		uint32_prop = (uint32_t *) of_get_property(port_node,
+				"fsl,qman-channel-id", &lenp);
+		if (uint32_prop == NULL) {
+			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
+					("missing fsl,qman-channel-id"));
 			return NULL;
 		}
 		if (WARN_ON(lenp != sizeof(uint32_t)))
@@ -351,34 +363,36 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 		p_LnxWrpFmPortDev->txCh = *uint32_prop;
 		p_LnxWrpFmPortDev->settings.param.specificParams.nonRxParams.
 			qmChannel = p_LnxWrpFmPortDev->txCh;
-	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-rx") ||
-		 of_device_is_compatible(port_node, "fsl,fman-port-10g-rx")) {
-		if (unlikely(*uint32_prop >= FM_MAX_NUM_OF_RX_PORTS)) {
+	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-rx")) {
+		if (unlikely(*uint32_prop >= FM_MAX_NUM_OF_1G_RX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
-				     ("of_get_property(%s, cell-index) failed",
-				      port_node->full_name));
+					("of_get_property(%s, cell-index) failed",
+					 port_node->full_name));
 			return NULL;
 		}
-		if (of_device_is_compatible
-		    (port_node, "fsl,fman-port-10g-rx"))
-			p_LnxWrpFmPortDev =
-				&p_LnxWrpFmDev->rxPorts[*uint32_prop +
-						FM_MAX_NUM_OF_1G_RX_PORTS];
-		else
-			p_LnxWrpFmPortDev =
-				&p_LnxWrpFmDev->rxPorts[*uint32_prop];
+		p_LnxWrpFmPortDev = &p_LnxWrpFmDev->rxPorts[*uint32_prop];
 
 		p_LnxWrpFmPortDev->id = *uint32_prop;
 		p_LnxWrpFmPortDev->settings.param.portId =
 			p_LnxWrpFmPortDev->id;
-		if (of_device_is_compatible
-		    (port_node, "fsl,fman-port-10g-rx"))
-			p_LnxWrpFmPortDev->settings.param.portType =
-				e_FM_PORT_TYPE_RX_10G;
-		else
-			p_LnxWrpFmPortDev->settings.param.portType =
-				e_FM_PORT_TYPE_RX;
+		p_LnxWrpFmPortDev->settings.param.portType = e_FM_PORT_TYPE_RX;
+		if (p_LnxWrpFmDev->pcdActive)
+			p_LnxWrpFmPortDev->defPcd = p_LnxWrpFmDev->defPcd;
+	} else if (of_device_is_compatible(port_node, "fsl,fman-port-10g-rx")) {
+		if (unlikely(*uint32_prop >= FM_MAX_NUM_OF_10G_RX_PORTS)) {
+			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
+					("of_get_property(%s, cell-index) failed",
+					 port_node->full_name));
+			return NULL;
+		}
+		p_LnxWrpFmPortDev = &p_LnxWrpFmDev->rxPorts[*uint32_prop +
+			FM_MAX_NUM_OF_1G_RX_PORTS];
 
+		p_LnxWrpFmPortDev->id = *uint32_prop;
+		p_LnxWrpFmPortDev->settings.param.portId =
+			p_LnxWrpFmPortDev->id;
+		p_LnxWrpFmPortDev->settings.param.portType =
+			e_FM_PORT_TYPE_RX_10G;
 		if (p_LnxWrpFmDev->pcdActive)
 			p_LnxWrpFmPortDev->defPcd = p_LnxWrpFmDev->defPcd;
 	} else {
@@ -682,16 +696,17 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 			i++;
 	}
 
-	if (FM_PORT_Init(p_LnxWrpFmPortDev->h_Dev) != E_OK)
-		RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
 #if defined(CONFIG_FMAN_RESOURCE_ALLOCATION_ALGORITHM)
 	/* even if these functions return w/ error, do not crash kernel.
 	   Do not return anything because the container function is not
 	   linux complient (it should return -EIO). */
-	fm_set_precalculate_fifosize(p_LnxWrpFmPortDev);
-	fm_set_precalculate_open_dma(p_LnxWrpFmPortDev);
-	fm_set_precalculate_tnums(p_LnxWrpFmPortDev);
+	fm_config_precalculate_fifosize(p_LnxWrpFmPortDev);
+	fm_config_precalculate_open_dma(p_LnxWrpFmPortDev);
+	fm_config_precalculate_tnums(p_LnxWrpFmPortDev);
 #endif
+
+	if (FM_PORT_Init(p_LnxWrpFmPortDev->h_Dev) != E_OK)
+		RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
 
 /* FMan Fifo sizes behind the scene":
  * Using the following formulae (*), under a set of simplifying assumptions (.):

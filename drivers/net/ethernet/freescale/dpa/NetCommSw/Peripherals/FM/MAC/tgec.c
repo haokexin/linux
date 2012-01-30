@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -74,17 +74,19 @@ static t_Error CheckInitParameters(t_Tgec    *p_Tgec)
 static void SetDefaultParam(t_TgecDriverParam *p_TgecDriverParam)
 {
     p_TgecDriverParam->wanModeEnable            = DEFAULT_wanModeEnable;
-    p_TgecDriverParam->promiscuousModeEnable    = DEFAULT_promiscuousModeEnable;
+    p_TgecDriverParam->promiscuousModeEnable    = DEFAULT_promiscuousEnable;
     p_TgecDriverParam->pauseForwardEnable       = DEFAULT_pauseForwardEnable;
-    p_TgecDriverParam->pauseIgnore              = DEFAULT_pauseIgnore;
+    p_TgecDriverParam->pauseIgnore              = DEFAULT_rxIgnorePause;
     p_TgecDriverParam->txAddrInsEnable          = DEFAULT_txAddrInsEnable;
 
-    p_TgecDriverParam->loopbackEnable           = DEFAULT_loopbackEnable;
+    p_TgecDriverParam->loopbackEnable           = DEFAULT_loopback;
     p_TgecDriverParam->cmdFrameEnable           = DEFAULT_cmdFrameEnable;
     p_TgecDriverParam->rxErrorDiscard           = DEFAULT_rxErrorDiscard;
     p_TgecDriverParam->phyTxenaOn               = DEFAULT_phyTxenaOn;
     p_TgecDriverParam->sendIdleEnable           = DEFAULT_sendIdleEnable;
-    p_TgecDriverParam->noLengthCheckEnable      = DEFAULT_noLengthCheckEnable;
+
+    p_TgecDriverParam->noLengthCheckEnable      = !DEFAULT_lengthCheckEnable;
+
     p_TgecDriverParam->lgthCheckNostdr          = DEFAULT_lgthCheckNostdr;
     p_TgecDriverParam->timeStampEnable          = DEFAULT_timeStampEnable;
     p_TgecDriverParam->rxSfdAny                 = DEFAULT_rxSfdAny;
@@ -381,7 +383,7 @@ static t_Error TgecConfigMaxFrameLength(t_Handle h_Tgec, uint16_t newVal)
 
 static t_Error TgecConfigLengthCheck(t_Handle h_Tgec, bool newVal)
 {
-#ifdef FM_LEN_CHECK_ERRATA_FMAN_SW002
+#if defined(FM_BAD_VLAN_DETECT_ERRATA_10GMAC_A010) || defined(FM_LEN_CHECK_ERRATA_FMAN_SW002)
 UNUSED(h_Tgec);
     RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("LengthCheck!"));
 
@@ -396,7 +398,7 @@ UNUSED(h_Tgec);
     p_Tgec->p_TgecDriverParam->noLengthCheckEnable = !newVal;
 
     return E_OK;
-#endif /* FM_LEN_CHECK_ERRATA_FMAN_SW002 */
+#endif /* FM_BAD_VLAN_DETECT_ERRATA_10GMAC_A010 */
 }
 
 /* .............................................................................. */
@@ -408,16 +410,6 @@ static t_Error TgecConfigException(t_Handle h_Tgec, e_FmMacExceptions exception,
 
     SANITY_CHECK_RETURN_ERROR(p_Tgec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Tgec->p_TgecDriverParam, E_INVALID_STATE);
-#ifdef FM_10G_REM_N_LCL_FLT_EX_ERRATA_10GMAC001
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_Tgec->fmMacControllerDriver.h_Fm, &revInfo);
-        if((revInfo.majorRev <=2) &&
-            enable &&
-            ((exception == e_FM_MAC_EX_10G_LOC_FAULT) || (exception == e_FM_MAC_EX_10G_REM_FAULT)))
-                RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("e_FM_MAC_EX_10G_LOC_FAULT and e_FM_MAC_EX_10G_REM_FAULT !"));
-    }
-#endif   /* FM_10G_REM_N_LCL_FLT_EX_ERRATA_10GMAC001 */
 
     GET_EXCEPTION_FLAG(bitMask, exception);
     if(bitMask)
@@ -532,7 +524,6 @@ static t_Error TgecGetStatistics(t_Handle h_Tgec, t_FmMacStatistics *p_Statistic
     p_Statistics->reStatPause           = GET_UINT64(p_TgecMemMap->RXPF);
     p_Statistics->teStatPause           = GET_UINT64(p_TgecMemMap->TXPF);
 
-
 /* MIB II */
     p_Statistics->ifInOctets            = GET_UINT64(p_TgecMemMap->ROCT);
     p_Statistics->ifInMcastPkts         = GET_UINT64(p_TgecMemMap->RMCA);
@@ -546,7 +537,9 @@ static t_Error TgecGetStatistics(t_Handle h_Tgec, t_FmMacStatistics *p_Statistic
     p_Statistics->ifOutOctets           = GET_UINT64(p_TgecMemMap->TOCT);
     p_Statistics->ifOutMcastPkts        = GET_UINT64(p_TgecMemMap->TMCA);
     p_Statistics->ifOutBcastPkts        = GET_UINT64(p_TgecMemMap->TBCA);
-    p_Statistics->ifOutPkts             = GET_UINT64(p_TgecMemMap->TUCA);
+    p_Statistics->ifOutPkts             = GET_UINT64(p_TgecMemMap->TUCA)
+                                            + p_Statistics->ifOutMcastPkts
+                                            + p_Statistics->ifOutBcastPkts;
     p_Statistics->ifOutDiscards         = 0;
     p_Statistics->ifOutErrors           = GET_UINT64(p_TgecMemMap->TERR);
 
@@ -859,16 +852,6 @@ static t_Error TgecSetExcpetion(t_Handle h_Tgec, e_FmMacExceptions exception, bo
     SANITY_CHECK_RETURN_ERROR(p_Tgec->p_MemMap, E_NULL_POINTER);
 
     p_TgecMemMap = p_Tgec->p_MemMap;
-#ifdef FM_10G_REM_N_LCL_FLT_EX_ERRATA_10GMAC001
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_Tgec->fmMacControllerDriver.h_Fm, &revInfo);
-        if((revInfo.majorRev <=2) &&
-            enable &&
-            ((exception == e_FM_MAC_EX_10G_LOC_FAULT) || (exception == e_FM_MAC_EX_10G_REM_FAULT)))
-                RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("e_FM_MAC_EX_10G_LOC_FAULT and e_FM_MAC_EX_10G_REM_FAULT !"));
-    }
-#endif   /* FM_10G_REM_N_LCL_FLT_EX_ERRATA_10GMAC001 */
 
     GET_EXCEPTION_FLAG(bitMask, exception);
     if(bitMask)
@@ -908,16 +891,20 @@ static t_Error TgecTxEccWorkaround(t_Tgec *p_Tgec)
 {
     t_Error err;
 
+#if defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0)
     XX_Print("Applying 10G tx-ecc error workaround (10GMAC-A004) ...");
+#endif /* (DEBUG_ERRORS > 0) */
     /* enable and set promiscuous */
     WRITE_UINT32(p_Tgec->p_MemMap->cmd_conf_ctrl, CMD_CFG_PROMIS_EN | CMD_CFG_TX_EN | CMD_CFG_RX_EN);
     err = Fm10GTxEccWorkaround(p_Tgec->fmMacControllerDriver.h_Fm, p_Tgec->macId);
     /* disable */
     WRITE_UINT32(p_Tgec->p_MemMap->cmd_conf_ctrl, 0);
+#if defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0)
     if (err)
         XX_Print("FAILED!\n");
     else
         XX_Print("done.\n");
+#endif /* (DEBUG_ERRORS > 0) */
     TgecResetCounters (p_Tgec);
 
     return err;
@@ -993,17 +980,10 @@ static t_Error TgecInit(t_Handle h_Tgec)
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
     if (!p_Tgec->p_TgecDriverParam->skipFman11Workaround &&
         ((err = TgecTxEccWorkaround(p_Tgec)) != E_OK))
-#ifdef NCSW_LINUX
-    {
-        /* the workaround fails in simics, just report and continue initialization */
-        REPORT_ERROR(MAJOR, err, ("TgecTxEccWorkaround FAILED, skipping workaround"));
-    }
-#else
     {
         FreeInitResources(p_Tgec);
         RETURN_ERROR(MAJOR, err, ("TgecTxEccWorkaround FAILED"));
     }
-#endif
 #endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
 
     CHECK_INIT_PARAMETERS(p_Tgec, CheckInitParameters);
@@ -1076,21 +1056,6 @@ static t_Error TgecInit(t_Handle h_Tgec)
         (GET_UINT32(p_Tgec->p_MemMap->tx_ipg_len) & ~TX_IPG_LENGTH_MASK) | DEFAULT_txIpgLength);
 #endif /* FM_TX_FIFO_CORRUPTION_ERRATA_10GMAC_A007 */
 
-    /* Configure MII */
-    tmpReg32  = GET_UINT32(p_Tgec->p_MiiMemMap->mdio_cfg_status);
-#ifdef FM_10G_MDIO_HOLD_ERRATA_XAUI3
-    {
-        t_FmRevisionInfo revInfo;
-        FM_GetRevision(p_Tgec->fmMacControllerDriver.h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-            tmpReg32 |= (MIIMCOM_MDIO_HOLD_4_REG_CLK << 2);
-    }
-#endif /* FM_10G_MDIO_HOLD_ERRATA_XAUI3 */
-    tmpReg32 &= ~MIIMCOM_DIV_MASK;
-     /* (one half of fm clock => 2.5Mhz) */
-    tmpReg32 |=((((p_Tgec->fmMacControllerDriver.clkFreq*10)/2)/25) << MIIMCOM_DIV_SHIFT);
-    WRITE_UINT32(p_Tgec->p_MiiMemMap->mdio_cfg_status, tmpReg32);
-
     p_Tgec->p_MulticastAddrHash = AllocHashTable(HASH_TABLE_SIZE);
     if(!p_Tgec->p_MulticastAddrHash)
     {
@@ -1106,14 +1071,14 @@ static t_Error TgecInit(t_Handle h_Tgec)
     }
 
     /* interrupts */
-#ifdef FM_10G_REM_N_LCL_FLT_EX_ERRATA_10GMAC001
+#ifdef FM_10G_REM_N_LCL_FLT_EX_10GMAC_ERRATA_SW005
     {
         t_FmRevisionInfo revInfo;
         FM_GetRevision(p_Tgec->fmMacControllerDriver.h_Fm, &revInfo);
         if (revInfo.majorRev <=2)
             p_Tgec->exceptions &= ~(IMASK_REM_FAULT | IMASK_LOC_FAULT);
     }
-#endif /* FM_10G_REM_N_LCL_FLT_EX_ERRATA_10GMAC001 */
+#endif /* FM_10G_REM_N_LCL_FLT_EX_10GMAC_ERRATA_SW005 */
     WRITE_UINT32(p_MemMap->ievent, EVENTS_MASK);
     WRITE_UINT32(p_MemMap->imask, p_Tgec->exceptions);
 

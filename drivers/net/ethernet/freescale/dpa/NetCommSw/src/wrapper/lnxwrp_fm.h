@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -253,5 +253,7 @@ static __inline__ t_Error AllocSchemesForPort(t_LnxWrpFmDev *p_LnxWrpFmDev, uint
     return E_OK;
 }
 
+void LnxWrpPCDIOCTLTypeChecking(void);
+void LnxWrpPCDIOCTLEnumChecking(void);
 
 #endif /* __LNXWRP_FM_H__ */

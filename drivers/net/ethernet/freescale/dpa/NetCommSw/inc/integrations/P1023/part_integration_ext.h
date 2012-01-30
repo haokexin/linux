@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,7 +54,7 @@
  @{
 *//***************************************************************************/
 
-#define INTG_MAX_NUM_OF_CORES   1
+#define INTG_MAX_NUM_OF_CORES   2
 
 
 /**************************************************************************//**
@@ -275,8 +275,10 @@ typedef enum e_P1023DeviceName
     e_SC1023_REV_1_1        = (int)0x80FC0011,  /**< SC1023 rev 1.1 */
     e_P1023_REV_1_0         = (int)0x80FE0010,  /**< P1023 rev 1.0 with security */
     e_P1023_REV_1_1         = (int)0x80FE0011,  /**< P1023 rev 1.1 with security */
+    e_P1017_REV_1_1         = (int)0x80FF0011,  /**< P1017 rev 1.1 with security */
     e_P1023_REV_1_0_NO_SEC  = (int)0x80F60010,  /**< P1023 rev 1.0 without security */
-    e_P1023_REV_1_1_NO_SEC  = (int)0x80F60011   /**< P1023 rev 1.1 without security */
+    e_P1023_REV_1_1_NO_SEC  = (int)0x80F60011,  /**< P1023 rev 1.1 without security */
+    e_P1017_REV_1_1_NO_SEC  = (int)0x80F70011   /**< P1017 rev 1.1 without security */
 } e_P1023DeviceName;
 
 /**************************************************************************//**
@@ -437,7 +439,7 @@ t_Error P1023_GetDdrType(uintptr_t gutilBase, e_DdrType *p_DdrType );
 #define MODULE_I2C              0x001d0000
 #define MODULE_ESPI             0x001e0000
 #define MODULE_PCI              0x001f0000
-#define MODULE_DPA              0x00200000
+#define MODULE_DPA_PORT         0x00200000
 #define MODULE_USB              0x00210000
 
 /*****************************************************************************
@@ -532,7 +534,7 @@ typedef enum e_PciTargetInterface
 /*****************************************************************************
  DMA INTEGRATION-SPECIFIC DEFINITIONS
 ******************************************************************************/
-#define DMA_NUM_OF_CONTROLLERS      1
+#define DMA_NUM_OF_CONTROLLERS      2
 
 
 
@@ -566,29 +568,6 @@ uint32_t P1023_GetMuxControlReg(uintptr_t gutilBase);
  @Return        None
 *//***************************************************************************/
 void P1023_SetMuxControlReg(uintptr_t gutilBase, uint32_t val);
-
-/**************************************************************************//**
- @Function      P1023_GetPowerMngClkDisableReg
-
- @Description   Returns the value of PMCDR (Power Management Clock Disable Register)
-
- @Param[in]     gutilBase   - Base address of P1023 GUTIL registers.
-
- @Return        Value of PMCDR
-*//***************************************************************************/
-uint32_t P1023_GetPowerMngClkDisableReg(uintptr_t gutilBase);
-
-/**************************************************************************//**
- @Function      P1023_SetPowerMngClkDisableReg
-
- @Description   Sets the value of PMCDR ((Power Management Clock Disable Register))
-
- @Param[in]     gutilBase   - Base address of P1023 GUTIL registers.
- @Param[in]     val         - the new value for PMCDR.
-
- @Return        None
-*//***************************************************************************/
-void P1023_SetPowerMngClkDisableReg(uintptr_t gutilBase, uint32_t val);
 
 /**************************************************************************//**
  @Function      P1023_GetDeviceDisableStatusRegister

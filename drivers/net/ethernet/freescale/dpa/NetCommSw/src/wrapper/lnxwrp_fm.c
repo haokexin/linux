@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -802,8 +802,6 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if ((p_LnxWrpFmDev->h_Dev = FM_Config(&p_LnxWrpFmDev->fmDevSettings.param)) == NULL)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("FM"));
 
-    if (FM_ConfigMaxNumOfOpenDmas(p_LnxWrpFmDev->h_Dev,BMI_MAX_NUM_OF_DMAS) != E_OK)
-         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
 
     if (FM_ConfigResetOnInit(p_LnxWrpFmDev->h_Dev, TRUE) != E_OK)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
@@ -813,10 +811,6 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
 #endif
 
-    /* Use the entire amount of TNUMS, maybe performance will improve...
-    for OPEN DMAs - are all by default = 32 and fifosize = MURAM*3/4 and
-    the rest of it is for PCD */
-    FM_ConfigTotalNumOfTasks(p_LnxWrpFmDev->h_Dev, BMI_MAX_NUM_OF_TASKS);
 
 #if defined(CONFIG_FMAN_RESOURCE_ALLOCATION_ALGORITHM) && defined(CONFIG_FMAN_P3040_P4080_P5020)
     /* Enable 14g w/ jumbo frames following HW suggestion. */
@@ -918,6 +912,10 @@ static int /*__devinit*/ fm_probe(struct platform_device *of_dev)
         return -EIO;
     if (InitFmDev(p_LnxWrpFmDev) != E_OK)
         return -EIO;
+
+    /* IOCTL ABI checking */
+    LnxWrpPCDIOCTLEnumChecking();
+    LnxWrpPCDIOCTLTypeChecking();
 
     Sprint (p_LnxWrpFmDev->name, "%s%d", DEV_FM_NAME, p_LnxWrpFmDev->id);
 

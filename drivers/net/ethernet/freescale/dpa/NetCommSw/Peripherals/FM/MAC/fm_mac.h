@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,6 +45,27 @@
 
 
 #define __ERR_MODULE__  MODULE_FM_MAC
+
+/**************************************************************************//**
+ @Description       defaults
+*//***************************************************************************/
+
+
+#define DEFAULT_wanModeEnable               FALSE
+#define DEFAULT_promiscuousEnable           FALSE
+#define DEFAULT_rxIgnorePause               FALSE
+#define DEFAULT_maxFrameLength              0x600
+#define DEFAULT_pauseTime                   0xf000
+#define DEFAULT_halfDuplex                  FALSE
+#define DEFAULT_loopback                    FALSE
+#define DEFAULT_lengthCheckEnable           FALSE
+#define DEFAULT_padAndCrcEnable             TRUE
+
+
+
+#ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
+#define DEFAULT_skipFman11Workaround        FALSE
+#endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
 
 
 #define DEFAULT_resetOnInit                 FALSE
@@ -146,21 +167,25 @@ static __inline__ void FreeHashTable(t_EthHash *p_Hash)
     t_EthHashEntry  *p_HashEntry;
     int             i = 0;
 
-    if (!p_Hash || !p_Hash->p_Lsts)
-        return;
-
-    for(i=0; i<p_Hash->size; i++)
+    if (p_Hash)
     {
-        p_HashEntry = DequeueAddrFromHashEntry(&p_Hash->p_Lsts[i]);
-        while (p_HashEntry)
+        if  (p_Hash->p_Lsts)
         {
-            XX_Free(p_HashEntry);
-            p_HashEntry = DequeueAddrFromHashEntry(&p_Hash->p_Lsts[i]);
-        }
-    }
+            for(i=0; i<p_Hash->size; i++)
+            {
+                p_HashEntry = DequeueAddrFromHashEntry(&p_Hash->p_Lsts[i]);
+                while (p_HashEntry)
+                {
+                    XX_Free(p_HashEntry);
+                    p_HashEntry = DequeueAddrFromHashEntry(&p_Hash->p_Lsts[i]);
+                }
+            }
 
-    XX_Free(p_Hash->p_Lsts);
-    XX_Free(p_Hash);
+            XX_Free(p_Hash->p_Lsts);
+        }
+
+        XX_Free(p_Hash);
+    }
 }
 
 /* ........................................................................... */

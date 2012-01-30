@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,16 @@
 #define HC_HCOR_OPCODE_SYNC                                     0x2
 #define HC_HCOR_OPCODE_CC                                       0x3
 #define HC_HCOR_OPCODE_CC_CAPWAP_REASSM_TIMEOUT                 0x5
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+#define HC_HCOR_OPCODE_CC_IP_REASSM_TIMEOUT                     0x10
+#define HC_HCOR_OPCODE_CC_IP_FRAG_INITIALIZATION                0x11
+#define HC_HCOR_ACTION_REG_IP_REASSM_TIMEOUT_ACTIVE_SHIFT       24
+#define HC_HCOR_EXTRA_REG_IP_REASSM_TIMEOUT_TSBS_SHIFT          24
+#define HC_HCOR_ACTION_REG_IP_REASSM_TIMEOUT_RES_SHIFT          16
+#define HC_HCOR_ACTION_REG_IP_REASSM_TIMEOUT_RES_MASK           0xF
+#define HC_HCOR_ACTION_REG_IP_FRAG_SCRATCH_POOL_CMD_SHIFT       24
+#define HC_HCOR_ACTION_REG_IP_FRAG_SCRATCH_POOL_BPID            16
+#endif /*FM_IP_FRAG_N_REASSEM_SUPPORT*/
 
 #define HC_HCOR_GBL                         0x20000000
 
@@ -105,6 +115,9 @@ typedef _Packed struct t_HcFrame {
         t_FmPcdKgPortRegs                       portRegsForRead;
         volatile uint32_t                       clsPlanEntries[CLS_PLAN_NUM_PER_GRP];
         t_FmPcdCcCapwapReassmTimeoutParams      ccCapwapReassmTimeout;
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+        t_FmPcdCcIpReassmTimeoutParams          ccIpReassmTimeout;
+#endif /*FM_IP_FRAG_N_REASSEM_SUPPORT*/
     } hcSpecificData;
 } _PackedType t_HcFrame;
 
@@ -165,7 +178,7 @@ static t_Error CcHcDoDynamicChange(t_FmHc *p_FmHc, t_Handle p_OldPointer, t_Hand
 
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
 
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_CC);
@@ -355,7 +368,7 @@ t_Handle FmHcPcdKgSetScheme(t_Handle h_FmHc, t_FmPcdKgSchemeParams *p_Scheme)
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
-        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
         return NULL;
     }
 
@@ -496,7 +509,7 @@ t_Error FmHcPcdKgDeleteScheme(t_Handle h_FmHc, t_Handle h_Scheme)
     if (!p_HcFrame)
     {
         FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
     }
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
@@ -552,7 +565,7 @@ t_Error FmHcPcdKgCcGetSetParams(t_Handle h_FmHc, t_Handle  h_Scheme, uint32_t re
                 if (!p_HcFrame)
                 {
                     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
-                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
                 }
                 memset(p_HcFrame, 0, sizeof(t_HcFrame));
                 p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
@@ -609,8 +622,59 @@ t_Error FmHcPcdKgCcGetSetParams(t_Handle h_FmHc, t_Handle  h_Scheme, uint32_t re
                     FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
                     RETURN_ERROR(MAJOR, err, NO_MSG);
                 }
+            }
         }
-      }
+        if(requiredAction & UPDATE_KG_NIA_CC_WA)
+        {
+            if (FmPcdKgGetNextEngine(p_FmHc->h_FmPcd, relativeSchemeId) == e_FM_PCD_CC)
+            {
+                p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
+                if (!p_HcFrame)
+                {
+                    FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
+                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
+                }
+                memset(p_HcFrame, 0, sizeof(t_HcFrame));
+                p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
+                p_HcFrame->actionReg  = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
+                p_HcFrame->extraReg = 0xFFFFF800;
+                BUILD_FD(SIZE_OF_HC_FRAME_READ_OR_CC_DYNAMIC);
+                if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
+                {
+                    FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
+                    XX_FreeSmart(p_HcFrame);
+                    RETURN_ERROR(MINOR, err, NO_MSG);
+                }
+
+                /* check if this scheme is already used */
+                if (!FmPcdKgHwSchemeIsValid(p_HcFrame->hcSpecificData.schemeRegs.kgse_mode))
+                {
+                    FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
+                    XX_FreeSmart(p_HcFrame);
+                    RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is already used"));
+                }
+                tmpReg32 = p_HcFrame->hcSpecificData.schemeRegs.kgse_mode;
+
+                ASSERT_COND(tmpReg32 & (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_CC));
+                tmpReg32 &= ~NIA_FM_CTL_AC_CC;
+                p_HcFrame->hcSpecificData.schemeRegs.kgse_mode =  tmpReg32 | NIA_FM_CTL_AC_PRE_CC;
+
+                p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
+                p_HcFrame->actionReg  = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
+                p_HcFrame->extraReg = 0x80000000;
+
+                BUILD_FD(sizeof(t_HcFrame));
+
+                if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
+                {
+                    FmPcdKgReleaseSchemeLock(p_FmHc->h_FmPcd, relativeSchemeId);
+                    XX_FreeSmart(p_HcFrame);
+                    RETURN_ERROR(MINOR, err, NO_MSG);
+                }
+
+                XX_FreeSmart(p_HcFrame);
+           }
+        }
     }
 
     FmPcdKgUpatePointedOwner(p_FmHc->h_FmPcd, relativeSchemeId,TRUE);
@@ -647,7 +711,7 @@ uint32_t  FmHcPcdKgGetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme)
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
-        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
         return 0;
     }
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -699,7 +763,7 @@ t_Error  FmHcPcdKgSetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme, uint32_t 
     /* first read scheme and check that it is valid */
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
     p_HcFrame->actionReg  = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
@@ -751,7 +815,7 @@ t_Error FmHcPcdKgSetClsPlan(t_Handle h_FmHc, t_FmPcdKgInterModuleClsPlanSet *p_S
 
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
 
     for(i=p_Set->baseEntry;i<p_Set->baseEntry+p_Set->numOfClsPlanEntries;i+=8)
     {
@@ -779,10 +843,10 @@ t_Error FmHcPcdKgDeleteClsPlan(t_Handle h_FmHc, uint8_t  grpId)
     t_FmHc                              *p_FmHc = (t_FmHc*)h_FmHc;
     t_FmPcdKgInterModuleClsPlanSet      *p_ClsPlanSet;
 
-    /* clear clsPlan entries in memory */
     p_ClsPlanSet = (t_FmPcdKgInterModuleClsPlanSet *)XX_Malloc(sizeof(t_FmPcdKgInterModuleClsPlanSet));
     if (!p_ClsPlanSet)
-        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("memory allocation failed for p_ClsPlanSetd"));
+        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Classification plan set"));
+
     memset(p_ClsPlanSet, 0, sizeof(t_FmPcdKgInterModuleClsPlanSet));
 
     p_ClsPlanSet->baseEntry = FmPcdKgGetClsPlanGrpBase(p_FmHc->h_FmPcd, grpId);
@@ -811,7 +875,7 @@ t_Error FmHcPcdCcCapwapTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcCapwapReassmTimeo
     intFlags = FmPcdLock(p_FmHc->h_FmPcd);
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_CC_CAPWAP_REASSM_TIMEOUT);
     memcpy(&p_HcFrame->hcSpecificData.ccCapwapReassmTimeout, p_CcCapwapReassmTimeoutParams, sizeof(t_FmPcdCcCapwapReassmTimeoutParams));
@@ -824,6 +888,76 @@ t_Error FmHcPcdCcCapwapTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcCapwapReassmTimeo
     return err;
 }
 
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+t_Error FmHcPcdCcIpFragScratchPollCmd(t_Handle h_FmHc, bool fill, t_FmPcdCcFragScratchPoolCmdParams *p_FmPcdCcFragScratchPoolCmdParams)
+{
+    t_FmHc                              *p_FmHc = (t_FmHc*)h_FmHc;
+    t_HcFrame                           *p_HcFrame;
+    t_DpaaFD                            fmFd;
+    t_Error                             err;
+
+    SANITY_CHECK_RETURN_VALUE(h_FmHc, E_INVALID_HANDLE,0);
+
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
+    if (!p_HcFrame)
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
+
+    memset(p_HcFrame, 0, sizeof(t_HcFrame));
+
+    p_HcFrame->opcode     = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_CC_IP_FRAG_INITIALIZATION);
+    p_HcFrame->actionReg  = ((fill == TRUE) ? 0 : 1) << HC_HCOR_ACTION_REG_IP_FRAG_SCRATCH_POOL_CMD_SHIFT;
+    p_HcFrame->actionReg |= p_FmPcdCcFragScratchPoolCmdParams->bufferPoolId << HC_HCOR_ACTION_REG_IP_FRAG_SCRATCH_POOL_BPID;
+    if (fill == TRUE)
+    {
+        p_HcFrame->extraReg   = p_FmPcdCcFragScratchPoolCmdParams->numOfBuffers;
+    }
+    p_HcFrame->commandSequence = 0;
+
+    BUILD_FD(sizeof(t_HcFrame));
+    if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
+    {
+        XX_FreeSmart(p_HcFrame);
+        RETURN_ERROR(MINOR, err, NO_MSG);
+    }
+    p_FmPcdCcFragScratchPoolCmdParams->numOfBuffers = p_HcFrame->extraReg;
+
+    XX_FreeSmart(p_HcFrame);
+
+    return E_OK;
+}
+
+t_Error FmHcPcdCcIpTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcIpReassmTimeoutParams *p_CcIpReassmTimeoutParams, uint8_t *p_Result)
+{
+    t_FmHc                              *p_FmHc = (t_FmHc*)h_FmHc;
+    t_HcFrame                           *p_HcFrame;
+    t_DpaaFD                            fmFd;
+    t_Error                             err;
+
+    SANITY_CHECK_RETURN_VALUE(h_FmHc, E_INVALID_HANDLE,0);
+
+    p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
+    if (!p_HcFrame)
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
+
+    memset(p_HcFrame, 0, sizeof(t_HcFrame));
+    p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_CC_IP_REASSM_TIMEOUT);
+    p_HcFrame->actionReg = (p_CcIpReassmTimeoutParams->activate ? 0 : 1) << HC_HCOR_ACTION_REG_IP_REASSM_TIMEOUT_ACTIVE_SHIFT;
+    p_HcFrame->extraReg = (p_CcIpReassmTimeoutParams->tsbs << HC_HCOR_EXTRA_REG_IP_REASSM_TIMEOUT_TSBS_SHIFT) | p_CcIpReassmTimeoutParams->iprcpt;
+    p_HcFrame->commandSequence = 0;
+
+    BUILD_FD(sizeof(t_HcFrame));
+    if ((err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence)) != E_OK)
+    {
+        XX_FreeSmart(p_HcFrame);
+        RETURN_ERROR(MINOR, err, NO_MSG);
+    }
+
+    *p_Result = (p_HcFrame->actionReg >> HC_HCOR_ACTION_REG_IP_REASSM_TIMEOUT_RES_SHIFT) & HC_HCOR_ACTION_REG_IP_REASSM_TIMEOUT_RES_MASK;
+    XX_FreeSmart(p_HcFrame);
+
+   return E_OK;
+}
+#endif /*FM_IP_FRAG_N_REASSEM_SUPPORT*/
 
 t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, uint32_t requiredAction)
 {
@@ -854,7 +988,7 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
 
             p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
             if (!p_HcFrame)
-                RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+                RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
             /* first read scheme and check that it is valid */
             memset(p_HcFrame, 0, sizeof(t_HcFrame));
             p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_PLCR_PRFL);
@@ -996,7 +1130,7 @@ t_Handle FmHcPcdPlcrSetProfile(t_Handle h_FmHc,t_FmPcdPlcrProfileParams *p_Profi
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
-        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
         return NULL;
     }
 
@@ -1077,7 +1211,7 @@ t_Error FmHcPcdPlcrDeleteProfile(t_Handle h_FmHc, t_Handle h_Profile)
 
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_PLCR_PRFL);
     p_HcFrame->actionReg  = FmPcdPlcrBuildWritePlcrActionReg(absoluteProfileId);
@@ -1116,7 +1250,7 @@ t_Error  FmHcPcdPlcrSetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
     /* first read scheme and check that it is valid */
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_PLCR_PRFL);
     p_HcFrame->actionReg  = FmPcdPlcrBuildReadPlcrActionReg(absoluteProfileId);
@@ -1179,7 +1313,7 @@ uint32_t FmHcPcdPlcrGetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
     {
-        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        REPORT_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
         return 0;
     }
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
@@ -1306,7 +1440,7 @@ t_Error FmHcPcdCcModifyNodeMissNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, t_
     return E_OK;
 }
 
-t_Error FmHcPcdCcRemoveKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex)
+t_Error FmHcPcdCcRemoveKey(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex)
 {
     t_FmHc      *p_FmHc = (t_FmHc*)h_FmHc;
     t_Handle    h_Params;
@@ -1346,7 +1480,7 @@ t_Error FmHcPcdCcRemoveKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex)
 
 }
 
-t_Error FmHcPcdCcAddKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams)
+t_Error FmHcPcdCcAddKey(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams)
 {
     t_FmHc      *p_FmHc = (t_FmHc*)h_FmHc;
     t_Handle    h_Params;
@@ -1386,7 +1520,7 @@ t_Error FmHcPcdCcAddKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, ui
 }
 
 
-t_Error FmHcPcdCcModifyKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, uint8_t  *p_Key, uint8_t *p_Mask)
+t_Error FmHcPcdCcModifyKey(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, uint8_t  *p_Key, uint8_t *p_Mask)
 {
     t_FmHc      *p_FmHc = (t_FmHc*)h_FmHc;
     t_List      h_OldPointersLst, h_NewPointersLst;
@@ -1426,7 +1560,7 @@ t_Error FmHcPcdCcModifyKey(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex,
     return err;
 }
 
-t_Error FmHcPcdCcModifyNodeNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams)
+t_Error FmHcPcdCcModifyNodeNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams)
 {
     t_FmHc      *p_FmHc = (t_FmHc*)h_FmHc;
     t_Error     err = E_OK;
@@ -1463,7 +1597,7 @@ t_Error FmHcPcdCcModifyNodeNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint8_
 }
 
 
-t_Error FmHcPcdCcModifyKeyAndNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint8_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams)
+t_Error FmHcPcdCcModifyKeyAndNextEngine(t_Handle h_FmHc, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams  *p_KeyParams)
 {
     t_FmHc      *p_FmHc = (t_FmHc*)h_FmHc;
     t_List      h_OldPointersLst, h_NewPointersLst;
@@ -1514,7 +1648,7 @@ t_Error FmHcKgWriteSp(t_Handle h_FmHc, uint8_t hardwarePortId, uint32_t spReg, b
 
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     /* first read SP register */
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
@@ -1561,7 +1695,7 @@ t_Error FmHcKgWriteCpp(t_Handle h_FmHc, uint8_t hardwarePortId, uint32_t cppReg)
 
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), 0, 16);
     if (!p_HcFrame)
-        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame obj"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     /* first read SP register */
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);

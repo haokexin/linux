@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,6 +42,55 @@
 #include "dtsec.h"
 
 
+static uint8_t GetMiiDiv(int32_t refClk)
+{
+    uint32_t    div,tmpClk;
+    int         minRange;
+
+    div = 1;
+    minRange = (int)(refClk/40 - 1);
+
+    tmpClk = (uint32_t)ABS(refClk/60 - 1);
+    if (tmpClk < minRange)
+    {
+        div = 2;
+        minRange = (int)tmpClk;
+    }
+    tmpClk = (uint32_t)ABS(refClk/60 - 1);
+    if (tmpClk < minRange)
+    {
+        div = 3;
+        minRange = (int)tmpClk;
+    }
+    tmpClk = (uint32_t)ABS(refClk/80 - 1);
+    if (tmpClk < minRange)
+    {
+        div = 4;
+        minRange = (int)tmpClk;
+    }
+    tmpClk = (uint32_t)ABS(refClk/100 - 1);
+    if (tmpClk < minRange)
+    {
+        div = 5;
+        minRange = (int)tmpClk;
+    }
+    tmpClk = (uint32_t)ABS(refClk/140 - 1);
+    if (tmpClk < minRange)
+    {
+        div = 6;
+        minRange = (int)tmpClk;
+    }
+    tmpClk = (uint32_t)ABS(refClk/280 - 1);
+    if (tmpClk < minRange)
+    {
+        div = 7;
+        minRange = (int)tmpClk;
+    }
+
+    return (uint8_t)div;
+}
+
+
 /*****************************************************************************/
 t_Error DTSEC_MII_WritePhyReg(t_Handle    h_Dtsec,
                               uint8_t     phyAddr,
@@ -57,6 +106,11 @@ t_Error DTSEC_MII_WritePhyReg(t_Handle    h_Dtsec,
 
     p_MiiAccess = p_Dtsec->p_MiiMemMap;
 
+    WRITE_UINT32(p_Dtsec->p_MiiMemMap->miimcfg,
+                 (uint32_t)GetMiiDiv((int32_t)(((p_Dtsec->fmMacControllerDriver.clkFreq*10)/2)/8)));
+
+    CORE_MemoryBarrier();
+
     /* Stop the MII management read cycle */
     WRITE_UINT32(p_MiiAccess->miimcom, 0);
     /* Dummy read to make sure MIIMCOM is written */
@@ -70,6 +124,8 @@ t_Error DTSEC_MII_WritePhyReg(t_Handle    h_Dtsec,
     WRITE_UINT32(p_MiiAccess->miimcon, (uint32_t)data);
     /* Dummy read to make sure MIIMCON is written */
     tmpReg = GET_UINT32(p_MiiAccess->miimcon);
+
+    CORE_MemoryBarrier();
 
     /* Wait till MII management write is complete */
     while ((GET_UINT32(p_MiiAccess->miimind)) & MIIMIND_BUSY) ;
@@ -92,6 +148,11 @@ t_Error DTSEC_MII_ReadPhyReg(t_Handle h_Dtsec,
 
     p_MiiAccess = p_Dtsec->p_MiiMemMap;
 
+    WRITE_UINT32(p_Dtsec->p_MiiMemMap->miimcfg,
+                 (uint32_t)GetMiiDiv((int32_t)(((p_Dtsec->fmMacControllerDriver.clkFreq*10)/2)/8)));
+
+    CORE_MemoryBarrier();
+
     /* Setting up the MII Management Address Register */
     tmpReg = (uint32_t)((phyAddr << MIIMADD_PHY_ADDR_SHIFT) | reg);
     WRITE_UINT32(p_MiiAccess->miimadd, tmpReg);
@@ -100,6 +161,8 @@ t_Error DTSEC_MII_ReadPhyReg(t_Handle h_Dtsec,
     WRITE_UINT32(p_MiiAccess->miimcom, MIIMCOM_READ_CYCLE);
     /* Dummy read to make sure MIIMCOM is written */
     tmpReg = GET_UINT32(p_MiiAccess->miimcom);
+
+    CORE_MemoryBarrier();
 
     /* Wait till MII management read is complete */
     while ((GET_UINT32(p_MiiAccess->miimind)) & MIIMIND_BUSY) ;

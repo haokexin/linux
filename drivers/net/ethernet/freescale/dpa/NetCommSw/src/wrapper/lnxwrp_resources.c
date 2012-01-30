@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -569,7 +569,7 @@ precalculated_fifosize_out:
 	return err;
 }
 
-int fm_set_precalculate_fifosize(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
+int fm_config_precalculate_fifosize(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
 	t_LnxWrpFmDev *p_LnxWrpFmDev =
 		(t_LnxWrpFmDev *) p_LnxWrpFmPortDev->h_LnxWrpFmDev;
@@ -622,7 +622,7 @@ int fm_set_precalculate_fifosize(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 		portRsrc.extra = 0;
 	}
 
-	errCode = FM_PORT_SetSizeOfFifo(p_LnxWrpFmPortDev->h_Dev, &portRsrc);
+	errCode = FM_PORT_ConfigSizeOfFifo(p_LnxWrpFmPortDev->h_Dev, &portRsrc);
 	if (errCode != E_OK) {
 		printk(KERN_WARNING
 		       "FM_PORT_SetSizeOfFifo failed (errCode:0x%2x)",
@@ -881,7 +881,7 @@ precalculated_open_dma_out:
 	return err;
 }
 
-int fm_set_precalculate_open_dma(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
+int fm_config_precalculate_open_dma(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
 	t_LnxWrpFmDev *p_LnxWrpFmDev =
 		(t_LnxWrpFmDev *) p_LnxWrpFmPortDev->h_LnxWrpFmDev;
@@ -916,7 +916,7 @@ int fm_set_precalculate_open_dma(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 
 	numOfOpenDmas.extra = fm_resource_settings_info->shared_ext_open_dma;
 
-	errCode = FM_PORT_SetNumOfOpenDmas(p_LnxWrpFmPortDev->h_Dev,
+	errCode = FM_PORT_ConfigNumOfOpenDmas(p_LnxWrpFmPortDev->h_Dev,
 					      &numOfOpenDmas);
 	if (errCode != E_OK) {
 		printk(KERN_WARNING
@@ -1125,7 +1125,7 @@ precalculated_tnums_out:
 	return err;
 }
 
-int fm_set_precalculate_tnums(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
+int fm_config_precalculate_tnums(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
 	t_LnxWrpFmDev *p_LnxWrpFmDev =
 		(t_LnxWrpFmDev *) p_LnxWrpFmPortDev->h_LnxWrpFmDev;
@@ -1160,7 +1160,7 @@ int fm_set_precalculate_tnums(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 
 	numOfTask.extra = fm_resource_settings_info->shared_ext_tnums;
 
-	errCode = FM_PORT_SetNumOfTasks(p_LnxWrpFmPortDev->h_Dev, &numOfTask);
+	errCode = FM_PORT_ConfigNumOfTasks(p_LnxWrpFmPortDev->h_Dev, &numOfTask);
 	if (errCode != E_OK) {
 		printk(KERN_WARNING
 		       "FM_PORT_SetNumOfTasks failed (errCode:0x%2x)",

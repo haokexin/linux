@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -66,6 +66,6 @@ const char *moduleStrings[] =
     ,"I2C"                      /* MODULE_I2C */
     ,"ESPI"                     /* MODULE_ESPI */
     ,"PCI"                      /* MODULE_PCI */
-    ,"DPA"                      /* MODULE_DPA */
+    ,"DPA-Port"                 /* MODULE_DPA_PORT */
     ,"USB"                      /* MODULE_USB */
 };

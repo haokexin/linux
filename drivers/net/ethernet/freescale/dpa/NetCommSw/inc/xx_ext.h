@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,9 +43,6 @@
 #include "std_ext.h"
 #include "part_ext.h"
 
-#if defined(__MWERKS__) && defined(OPTIMIZED_FOR_SPEED)
-#include "xx_integration_ext.h"
-#endif /* defined(__MWERKS__) && defined(OPTIMIZED_FOR_SPEED) */
 
 
 /**************************************************************************//**
@@ -144,7 +141,6 @@ void XX_FreeSmart(void *p_Memory);
 *//***************************************************************************/
 void XX_Free(void *p_Memory);
 
-#ifndef NCSW_LINUX
 /**************************************************************************//**
  @Function      XX_GetMemPartitionBase
 
@@ -157,7 +153,6 @@ void XX_Free(void *p_Memory);
  @Return        The address of the required memory type.
 *//***************************************************************************/
 void * XX_GetMemPartitionBase(int memPartitionId);
-#endif
 
 /**************************************************************************//**
  @Function      XX_Print
@@ -225,7 +220,6 @@ t_Error XX_EnableIntr(int irq);
 *//***************************************************************************/
 t_Error XX_DisableIntr(int irq);
 
-#if !(defined(__MWERKS__) && defined(OPTIMIZED_FOR_SPEED))
 /**************************************************************************//**
  @Function      XX_DisableAllIntr
 
@@ -248,7 +242,6 @@ uint32_t XX_DisableAllIntr(void);
  @Return        None.
 *//***************************************************************************/
 void XX_RestoreAllIntr(uint32_t flags);
-#endif /* !(defined(__MWERKS__) && defined(OPTIMIZED_FOR_SPEED)) */
 
 /**************************************************************************//**
  @Function      XX_Call

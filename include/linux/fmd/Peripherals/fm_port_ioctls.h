@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -673,6 +673,20 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
  @Cautions      Allowed only following FM_PORT_Init().
 *//***************************************************************************/
 #define      FM_PORT_IOC_PCD_PRS_MODIFY_START_OFFSET _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(32), ioc_fm_pcd_prs_start_t)
+
+/**************************************************************************//**
+ @Function      FM_PORT_SET_OP_WORKAROUNDS
+
+ @Description   Calling this routine sets the required offline port workaround.
+
+ @Param[in]     h_FmPort        FM PORT module descriptor.
+ @Param[in]     workarounds)    Reuired workaround.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PORT_Init().
+*//***************************************************************************/
+#define      FM_PORT_SET_OP_WORKAROUNDS _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(33), uint32_t)
 
 /** @} */ /* end of lnx_ioctl_FM_PORT_pcd_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_PORT_runtime_control_grp group */

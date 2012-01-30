@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -222,36 +222,36 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
     WRITE_UINT32(p_Regs->ppsc, p_FmPcd->p_FmPcdPrs->fmPcdPrsPortIdStatistics);
     /**********************PPCS******************/
 
-#ifdef FM_PRS_L4_SHELL_ERRATA_FMANb
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
     {
         uint32_t            i, j;
         t_FmRevisionInfo    revInfo;
-        uint8_t             swPrsL4Patch[] = SW_PRS_L4_PATCH;
+        uint32_t            *p_SwPrsCode = (uint32_t *)PTR_MOVE(p_FmPcd->p_FmPcdPrs->p_SwPrsCode, FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE);
+        uint8_t             swPrsPatch[] = SW_PRS_IP_FRAG_PATCH;
 
+        ASSERT_COND(sizeof(swPrsPatch)<= (FM_PCD_PRS_SW_PATCHES_SIZE-FM_PCD_PRS_SW_TAIL_SIZE));
+        /* load sw parser Ip-Frag patch */
         FM_GetRevision(p_FmPcd->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
+        if ((revInfo.majorRev == 2) || (revInfo.majorRev == 3))
         {
-            /* load sw parser L4 patch */
-            for(i=0;i<sizeof(swPrsL4Patch)/4;i++)
+            for(i=0;i<sizeof(swPrsPatch)/4;i++)
             {
                tmpReg = 0;
                for(j =0;j<4;j++)
                {
                   tmpReg <<= 8;
-                  tmpReg |= swPrsL4Patch[i*4+j];
-
+                  tmpReg |= swPrsPatch[i*4+j];
                }
-                WRITE_UINT32(*(p_FmPcd->p_FmPcdPrs->p_SwPrsCode+ FM_PCD_PRS_SW_OFFSET/4 + i), tmpReg);
+               WRITE_UINT32(*(p_SwPrsCode + i), tmpReg);
             }
-            p_FmPcd->p_FmPcdPrs->p_CurrSwPrs = FM_PCD_PRS_SW_OFFSET/4 + p_FmPcd->p_FmPcdPrs->p_SwPrsCode+sizeof(swPrsL4Patch)/4;
         }
     }
-#endif /* FM_PRS_L4_SHELL_ERRATA_FMANb */
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
     return E_OK;
 }
 
-void PrsFree(t_FmPcd *p_FmPcd )
+void PrsFree(t_FmPcd *p_FmPcd)
 {
     ASSERT_COND(p_FmPcd->guestId == NCSW_MASTER_ID);
     FmUnregisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PRS, 0, e_FM_INTR_TYPE_ERR);
@@ -259,7 +259,7 @@ void PrsFree(t_FmPcd *p_FmPcd )
     FmUnregisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PRS, 0, e_FM_INTR_TYPE_NORMAL);
 }
 
-void PrsEnable(t_FmPcd *p_FmPcd )
+void PrsEnable(t_FmPcd *p_FmPcd)
 {
     t_FmPcdPrsRegs      *p_Regs = p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs;
 
@@ -267,7 +267,7 @@ void PrsEnable(t_FmPcd *p_FmPcd )
     WRITE_UINT32(p_Regs->rpimac, GET_UINT32(p_Regs->rpimac) | FM_PCD_PRS_RPIMAC_EN);
 }
 
-void PrsDisable(t_FmPcd *p_FmPcd )
+void PrsDisable(t_FmPcd *p_FmPcd)
 {
     t_FmPcdPrsRegs      *p_Regs = p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs;
 
@@ -325,6 +325,7 @@ t_Error FmPcdPrsIncludePortInStatistics(t_Handle h_FmPcd, uint8_t hardwarePortId
             RETURN_ERROR(MAJOR, err, NO_MSG);
         return E_OK;
     }
+
     return PrsIncludePortInStatistics(p_FmPcd, hardwarePortId, include);
 }
 
@@ -381,7 +382,6 @@ void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable)
         WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->ppsc, FM_PCD_PRS_PPSC_ALL_PORTS);
     else
         WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->ppsc, 0);
-
 }
 
 t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)

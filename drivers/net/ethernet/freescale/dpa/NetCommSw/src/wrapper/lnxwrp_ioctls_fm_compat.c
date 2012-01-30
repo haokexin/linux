@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -319,8 +319,8 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
                 memcpy(&param->params, &compat_param->params, sizeof(param->params));
             break;
         }
-#ifdef FM_PCD_CC_MANIP
-        param->p_manip = compat_ptr(compat_param->p_manip);
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+        param->manip = compat_ptr(compat_param->p_manip);
 #endif
     }
     else
@@ -339,9 +339,8 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
                 memcpy(&compat_param->params, &param->params, sizeof(compat_param->params));
             break;
         }
-
-#ifdef FM_PCD_CC_MANIP
-        compat_param->p_manip = ptr_to_compat(param->p_manip);
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+        compat_param->p_manip = ptr_to_compat(param->manip);
 #endif
     }
 }
@@ -485,6 +484,9 @@ void compat_copy_fm_pcd_cc_tree(
                     &compat_param->fm_pcd_cc_group_params[k],
                     &param->fm_pcd_cc_group_params[k],
                     compat);
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+        param->ip_reassembly_manip = compat_ptr(compat_param->ip_reassembly_manip);
+#endif
         param->id = compat_ptr(compat_param->id);
     }
     else
@@ -496,6 +498,9 @@ void compat_copy_fm_pcd_cc_tree(
                     &compat_param->fm_pcd_cc_group_params[k],
                     &param->fm_pcd_cc_group_params[k],
                     compat);
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+        compat_param->ip_reassembly_manip = ptr_to_compat(param->ip_reassembly_manip);
+#endif
         compat_param->id = ptr_to_compat(param->id);
     }
 }
@@ -787,3 +792,39 @@ void compat_copy_fm_pcd_cc_node(
     }
 }
 
+#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+void compat_fm_pcd_manip_set_node(
+        ioc_compat_fm_pcd_manip_params_t *compat_param,
+        ioc_fm_pcd_manip_params_t *param,
+        uint8_t compat)
+{
+    if (compat) {
+	param->rmv = compat_param->rmv;
+	memcpy(&param->rmv_params, &compat_param->rmv_params, sizeof(ioc_fm_pcd_manip_rmv_params_t));
+
+	param->insrt = compat_param->insrt;
+	memcpy(&param->insrt_params, &compat_param->insrt_params, sizeof(ioc_fm_pcd_manip_insrt_params_t));
+
+	param->frag_or_reasm = compat_param->frag_or_reasm;
+	memcpy(&param->frag_or_reasm_params, &compat_param->frag_or_reasm_params, sizeof(ioc_fm_pcd_manip_frag_or_reasm_params_t));
+
+	param->treat_fd_status_fields_as_errors = compat_param->treat_fd_status_fields_as_errors;
+
+	param->id = compat_get_id2ptr(compat_param->id);
+    }
+    else {
+	compat_param->rmv = param->rmv;
+	memcpy(&compat_param->rmv_params, &param->rmv_params, sizeof(ioc_fm_pcd_manip_rmv_params_t));
+
+	compat_param->insrt = param->insrt;
+	memcpy(&compat_param->insrt_params, &param->insrt_params, sizeof(ioc_fm_pcd_manip_insrt_params_t));
+
+	compat_param->frag_or_reasm = param->frag_or_reasm;
+	memcpy(&compat_param->frag_or_reasm_params, &param->frag_or_reasm_params, sizeof(ioc_fm_pcd_manip_frag_or_reasm_params_t));
+
+	compat_param->treat_fd_status_fields_as_errors = param->treat_fd_status_fields_as_errors;
+
+	compat_param->id = ptr_to_compat(param->id);
+    }
+}
+#endif
