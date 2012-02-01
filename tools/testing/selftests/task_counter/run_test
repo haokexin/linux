@@ -1,0 +1,198 @@
+#!/bin/bash
+# Copyright (C) 2012 Red Hat, Inc., Frederic Weisbecker <fweisbec@redhat.com>
+#
+# Licensed under the terms of the GNU GPL License version 2
+#
+# Validation tests for the cgroup task counter subsystem
+
+BASE=/dev/cgroup
+
+if [ $UID != 0 ]
+then
+	echo "Must be root to run task counter selftest"
+	exit 0
+fi
+
+if [ -e $BASE ]
+then
+	echo "Directory $BASE already exist"
+	echo "Can't run task counter selftest"
+	exit 0
+fi
+
+mkdir $BASE
+mount -t cgroup -o tasks cgroup $BASE
+if [ $? != 0 ]
+then
+    echo "Unable to mount cgroup filesystem"
+    echo "Can't run task counter selftest."
+    rmdir $BASE
+    exit 0
+fi
+
+sleep 1d &
+PID1=$!
+
+sleep 1d &
+PID2=$!
+
+echo 1 > $BASE/cgroup.clone_children
+mkdir $BASE/cgroup0
+
+function test_result
+{
+    # Result of the test
+    res=$1
+    # Expected result
+    expected=$2
+    # Invert test against expected result
+    # 0 = equal
+    # 1 = non equal
+    inv=$3
+    # String message
+    test_str=$4
+    passed=0
+
+    echo -n $test_str
+
+    if [ $res = $expected ]
+    then
+	passed=1
+    fi
+
+    passed=$[$passed ^ $inv]
+
+    if [ $passed = 1 ]
+    then
+	echo " [OK]"
+    else
+	echo " [FAILED]"
+    fi
+
+}
+
+# simple test limit
+echo 1 > $BASE/cgroup0/tasks.limit
+echo $PID1 >  $BASE/cgroup0/cgroup.procs
+test_result $? 0 0 "Allow 1 task on limit 1"
+
+echo $PID2 >  $BASE/cgroup0/cgroup.procs
+test_result $? 0 1 "Don't allow 2 tasks on limit 1"
+
+# simple test usage
+USAGE=$(cat $BASE/cgroup0/tasks.usage)
+test_result $USAGE 1 0 "Correct usage "
+
+# simple test exit
+kill $PID1
+USAGE=$(cat $BASE/cgroup0/tasks.usage)
+test_result $USAGE 0 0 "Correct usage after exit "
+
+
+sleep 1d &
+PID1=$!
+
+echo 1 > $BASE/cgroup0/tasks.limit
+echo $PID1 >  $BASE/cgroup0/cgroup.procs
+test_result $? 0 0 "Correct reuse after exit "
+
+# simple move to root
+
+echo $PID1 > $BASE/cgroup.procs
+test_result $? 0 0 "Correct move to root "
+
+# propagation tests
+
+mkdir $BASE/cgroup0/cgroup1
+mkdir $BASE/cgroup0/cgroup2
+
+echo 1 > $BASE/cgroup0/cgroup1/tasks.limit
+echo $PID1 > $BASE/cgroup0/cgroup1/cgroup.procs
+USAGE=$(cat $BASE/cgroup0/tasks.usage)
+test_result $USAGE 1 0 "Correct propagated usage "
+
+echo $PID1 > $BASE/cgroup0/cgroup.procs
+test_result $? 0 0 "Correct move on parent "
+
+
+# move
+
+echo $PID1 > $BASE/cgroup0/cgroup1/cgroup.procs
+test_result $? 0 0 "Correct move on child "
+
+echo $PID1 > $BASE/cgroup0/cgroup2/cgroup.procs
+test_result $? 0 0 "Correct move on sibling "
+
+echo $PID2 > $BASE/cgroup0/cgroup1/cgroup.procs
+test_result $? 0 1 "Correct propagation limit "
+
+kill $PID1
+kill $PID2
+
+# test limit on thread group
+echo 1024 > $BASE/cgroup0/tasks.limit
+echo 0 > $BASE/cgroup0/cgroup1/tasks.limit
+
+./multithread $BASE/cgroup0/cgroup1/cgroup.procs
+test_result $? 0 1 "Correct limit on multithreaded"
+
+# test move of a thread group
+echo 2 > $BASE/cgroup0/cgroup1/tasks.limit
+
+./multithread $BASE/cgroup0/cgroup1/cgroup.procs
+test_result $? 0 0 "Correct move of multithreaded"
+
+rmdir $BASE/cgroup0/cgroup1
+rmdir $BASE/cgroup0/cgroup2
+
+# test bug on common ancestor logic
+# as described in https://lkml.org/lkml/2011/11/8/218
+
+./spread_thread_group $BASE/cgroup0/cgroup.procs $BASE/tasks
+test_result $? 0 0 "Test bug on common ancestor logic"
+
+# test fork
+
+echo 1 > $BASE/cgroup0/tasks.limit
+./fork $BASE/cgroup0/cgroup.procs
+test_result $? 0 0 "Correct fork limit "
+
+# test forkbomb
+
+echo 128 > $BASE/cgroup0/tasks.limit
+echo -n "Trying to stop forkbomb propagation..."
+./forkbomb $BASE/cgroup0/cgroup.procs &
+sleep 1
+RES=$(cat $BASE/cgroup0/tasks.usage)
+test_result $RES 128 0 ""
+
+# kill forkbomb
+
+echo -n "Trying to kill forkbomb "
+echo 0 > $BASE/cgroup0/tasks.limit
+END=false
+
+while [ $END = false ]
+do
+	NR_TASKS=$(cat $BASE/cgroup0/tasks.usage)
+	NR_KILLED=0
+
+	for TASK in $(cat $BASE/cgroup0/cgroup.procs)
+	do
+		NR_KILLED=$(($NR_KILLED+1))
+		kill -KILL $TASK
+	done
+
+	if [ "$NR_TASKS" = "$NR_KILLED" ]
+	then
+		END=true
+	fi
+done
+
+echo "[OK]"
+
+# Wait a bit for killed tasks to exit the cgroup
+sleep 1
+rmdir $BASE/cgroup0
+umount $BASE
+rmdir $BASE
