@@ -706,6 +706,15 @@ config CGROUP_MEM_RES_CTLR_KMEM
 	  the kmem extension can use it to guarantee that no group of processes
 	  will ever exhaust kernel resources alone.
 
+config CGROUP_TASK_COUNTER
+	bool "Control number of tasks in a cgroup"
+	depends on RESOURCE_COUNTERS
+	help
+	  Let the user set up an upper boundary of the allowed number of tasks
+	  running in a cgroup. When a task forks or is migrated to a cgroup that
+	  has this subsystem binded, the limit is checked to either accept or
+	  reject the fork/migration.
+
 config CGROUP_PERF
 	bool "Enable perf_event per-cpu per-container group (cgroup) monitoring"
 	depends on PERF_EVENTS && CGROUPS
