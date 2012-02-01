@@ -1,4 +1,4 @@
-TARGETS = breakpoints vm
+TARGETS = breakpoints vm task_counter
 
 all:
 	for TARGET in $(TARGETS); do \
