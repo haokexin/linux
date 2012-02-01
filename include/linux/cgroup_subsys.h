@@ -72,3 +72,8 @@ SUBSYS(net_prio)
 #endif
 
 /* */
+#ifdef CONFIG_CGROUP_TASK_COUNTER
+SUBSYS(tasks)
+#endif
+
+/* */
