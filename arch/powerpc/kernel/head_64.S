@@ -169,6 +169,12 @@ exception_marker:
 
 #ifdef CONFIG_FSL_THREADS
 _GLOBAL(fsl_secondary_thread_init)
+	/* Enable branch prediction */
+	lis     r3,BUCSR_INIT@h
+	ori     r3,r3,BUCSR_INIT@l
+	mtspr   SPRN_BUCSR,r3
+	isync
+
 	mfspr	r3, SPRN_PIR
 	rlwimi	r3, r3, 30, 2, 30
 #endif

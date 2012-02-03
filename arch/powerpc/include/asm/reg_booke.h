@@ -584,6 +584,13 @@
 /* Bit definitions for L1CSR2. */
 #define L1CSR2_DCWS	0x40000000	/* Data Cache write shadow */
 
+/* Bit definitions for BUCSR. */
+#define BUCSR_STAC_EN	0x01000000	/* Segment Target Address Cache */
+#define BUCSR_LS_EN	0x00400000	/* Link Stack */
+#define BUCSR_BBFI	0x00000200	/* Branch Buffer flash invalidate */
+#define BUCSR_BPEN	0x00000001	/* Branch prediction enable */
+#define BUCSR_INIT	(BUCSR_STAC_EN | BUCSR_LS_EN | BUCSR_BBFI | BUCSR_BPEN)
+
 /* Bit definitions for L2CSR0. */
 #define L2CSR0_L2E	0x80000000	/* L2 Cache Enable */
 #define L2CSR0_L2PE	0x40000000	/* L2 Cache Parity/ECC Enable */
