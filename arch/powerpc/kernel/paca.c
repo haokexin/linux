@@ -80,7 +80,7 @@ EXPORT_SYMBOL(paca);
 
 struct paca_struct boot_paca;
 
-void *debug_kstack;
+static void *debug_kstack;
 static void allocate_dbg_kstack(unsigned long limit)
 {
 	debug_kstack = __va(lmb_alloc_base(STACK_INT_FRAME_SIZE, PAGE_SIZE, limit));
@@ -146,11 +146,11 @@ void __init allocate_pacas(void)
 	printk(KERN_DEBUG "Allocated %u bytes for %d pacas at %p\n",
 		paca_size, nr_cpus, paca);
 
-	allocate_dbg_kstack(limit);
-
 	/* Can't use for_each_*_cpu, as they aren't functional yet */
-	for (cpu = 0; cpu < nr_cpus; cpu++)
+	for (cpu = 0; cpu < nr_cpus; cpu++) {
+		allocate_dbg_kstack(limit);
 		initialise_paca(&paca[cpu], cpu);
+	}
 }
 
 void __init free_unused_pacas(void)
