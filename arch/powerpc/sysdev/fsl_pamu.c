@@ -38,6 +38,7 @@
 #include <linux/device.h>
 #include <linux/of_platform.h>
 #include <linux/io.h>
+#include <linux/export.h>
 #include <asm/fsl_guts.h>
 
 /* PAMU CCSR space */
@@ -326,6 +327,15 @@ struct ome {
 	u8 moe[NUM_MOE];
 } __packed ome;
 
+/*
+ * The Primary Peripheral Access Authorization and Control Table
+ *
+ * To keep things simple, we use one shared PPAACT for all PAMUs.  This means
+ * that LIODNs must be unique across all PAMUs.
+ */
+static struct ppaace *ppaact;
+static phys_addr_t ppaact_phys;
+
 #define PAACT_SIZE              (sizeof(struct ppaace) * PAACE_NUMBER_ENTRIES)
 #define OMT_SIZE                (sizeof(struct ome) * OME_NUMBER_ENTRIES)
 
@@ -382,6 +392,60 @@ struct ome {
 #define OMI_FMAN        0x01
 #define OMI_QMAN_PRIV   0x02
 #define OMI_CAAM        0x03
+
+/**
+ * pamu_set_stash_dest() - set the stash target for a given LIODN
+ * @liodn: LIODN to set
+ * @cache_level: target cache level (1, 2, or 3)
+ * @cpu: target CPU (0, 1, 2, etc)
+ *
+ * This function sets the stash target for a given LIODN, assuming that the
+ * PAACE entry for that LIODN is already configured.
+ *
+ * The function returns 0 on success, or a negative error code on failure.
+ */
+int pamu_set_stash_dest(unsigned int liodn, unsigned int cpu,
+	unsigned int cache_level)
+{
+	struct device_node *node;
+	const u32 *prop;
+	unsigned int i;
+
+	for_each_node_by_type(node, "cpu") {
+		prop = of_get_property(node, "reg", NULL);
+		if (prop && (be32_to_cpup(prop) == cpu))
+			goto found_cpu;
+	}
+
+	pr_err("fsl-pamu: could not find 'cpu' node %u\n", cpu);
+	return -EINVAL;
+
+found_cpu:
+	/*
+	 * Traverse the list of caches until we find the one we want.  The CPU
+	 * node is also the L1 cache node
+	 */
+	for (i = 1; i < cache_level; i++) {
+		node = of_parse_phandle(node, "next-level-cache", 0);
+		if (!node) {
+			pr_err("fsl-pamu: cache level %u invalid for cpu %u\n",
+			       i, cpu);
+			return -EINVAL;
+		}
+	}
+
+	prop = of_get_property(node, "cache-stash-id", NULL);
+	if (!prop) {
+		pr_err("fsl-pamu: missing 'cache-stash-id' in %s\n",
+		       node->full_name);
+		return -EINVAL;
+	}
+
+	ppaact[liodn].impl_attr.cid = be32_to_cpup(prop);
+
+	return 0;
+}
+EXPORT_SYMBOL(pamu_set_stash_dest);
 
 static void setup_omt(struct ome *omt)
 {
@@ -503,7 +567,7 @@ static u32 get_stash_id(unsigned int stash_dest_hint,
 	return ~(u32)0;
 }
 
-static void setup_liodns(struct ppaace *ppaact)
+static void setup_liodns(void)
 {
 	int i, len;
 	struct ppaace *ppaace;
@@ -577,19 +641,18 @@ static void setup_liodns(struct ppaace *ppaact)
 	}
 }
 
-static int setup_one_pamu(void *pamu_reg_base, struct ppaace *ppaact,
-	struct ome *omt)
+static int setup_one_pamu(void *pamu_reg_base, struct ome *omt)
 {
 	struct pamu_mmap_regs *pamu_regs = pamu_reg_base + PAMU_MMAP_REGS_BASE;
 	phys_addr_t phys;
 
 	/* set up pointers to corenet control blocks */
 
-	phys = virt_to_phys(ppaact);
+	phys = ppaact_phys;
 	out_be32(&pamu_regs->ppbah, upper_32_bits(phys));
 	out_be32(&pamu_regs->ppbal, lower_32_bits(phys));
 
-	phys = virt_to_phys(ppaact + PAACE_NUMBER_ENTRIES);
+	phys = ppaact_phys + PAACE_NUMBER_ENTRIES * sizeof(struct ppaace);
 	out_be32(&pamu_regs->pplah, upper_32_bits(phys));
 	out_be32(&pamu_regs->pplal, lower_32_bits(phys));
 
@@ -623,7 +686,7 @@ static irqreturn_t pamu_av_isr(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static int __devinit fsl_pamu_probe(struct platform_device *pdev)
+static int __init fsl_pamu_probe(struct platform_device *pdev)
 {
 	void __iomem *pamu_regs = NULL;
 	struct ccsr_guts __iomem *guts_regs = NULL;
@@ -633,7 +696,6 @@ static int __devinit fsl_pamu_probe(struct platform_device *pdev)
 	u64 size;
 	struct page *p;
 	int ret = 0;
-	struct ppaace *ppaact = NULL;
 	struct ome *omt = NULL;
 	int irq;
 
@@ -687,9 +749,10 @@ static int __devinit fsl_pamu_probe(struct platform_device *pdev)
 		goto error;
 	}
 	ppaact = page_address(p);
+	ppaact_phys = page_to_phys(p);
 
 	dev_dbg(&pdev->dev, "ppaact virt=%p phys=0x%llx\n", ppaact,
-		(unsigned long long) page_to_phys(p));
+		(unsigned long long) ppaact_phys);
 
 	p = alloc_pages(GFP_KERNEL | __GFP_ZERO, get_order(OMT_SIZE));
 	if (!p) {
@@ -706,7 +769,7 @@ static int __devinit fsl_pamu_probe(struct platform_device *pdev)
 
 	for (pamu_reg_off = 0, pamu_counter = 0x80000000; pamu_reg_off < size;
 	     pamu_reg_off += PAMU_OFFSET, pamu_counter >>= 1) {
-		setup_one_pamu(pamu_regs + pamu_reg_off, ppaact, omt);
+		setup_one_pamu(pamu_regs + pamu_reg_off, omt);
 
 		/* Disable PAMU bypass for this PAMU */
 		pamubypenr &= ~pamu_counter;
@@ -718,7 +781,7 @@ static int __devinit fsl_pamu_probe(struct platform_device *pdev)
 	 * setup all LIODNS(s) to define a 1:1 mapping for the entire
 	 * 36-bit physical address space
 	 */
-	setup_liodns(ppaact);
+	setup_liodns();
 	mb();
 
 	/* Enable all relevant PAMU(s) */
@@ -740,6 +803,9 @@ error:
 		iounmap(guts_regs);
 
 	free_pages((unsigned long)ppaact, get_order(PAACT_SIZE));
+	ppaact = NULL;
+	ppaact_phys = 0;
+
 	free_pages((unsigned long)omt, get_order(OMT_SIZE));
 
 	return ret;
