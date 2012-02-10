@@ -87,6 +87,16 @@ config GIANFAR
 	  This driver supports the Gigabit TSEC on the MPC83xx, MPC85xx,
 	  and MPC86xx family of chips, and the FEC on the 8540.
 
+config GIANFAR_L2SRAM
+	bool "BDs in L2SRAM allocation"
+	depends on (GIANFAR && FSL_SOC_BOOKE)
+	select FSL_85XX_CACHE_SRAM
+	help
+	  This option supports the allocation of Buffer Descriptors in L2 SRAM.
+	  cache-sram-size and cache-sram-offset command line parameters should
+	  be passed accordingly, otherwise the driver will fall back to normal
+	  memory operation.
+
 config DPA
 	bool "Freescale Data Path Frame Manager Ethernet"
 	depends on FSL_SOC && FSL_BMAN_PORTAL && FSL_QMAN_PORTAL && FSL_FMAN

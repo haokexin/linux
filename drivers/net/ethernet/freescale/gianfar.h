@@ -1098,7 +1098,8 @@ struct gfar_private {
 		extended_hash:1,
 		bd_stash_en:1,
 		rx_filer_enable:1,
-		wol_en:1; /* Wake-on-LAN enabled */
+		wol_en:1, /* Wake-on-LAN enabled */
+		l2sram_bds_en:1; /* BDs in L2SRAM enabled */
 	unsigned short padding;
 
 	/* PHY stuff */
@@ -1124,6 +1125,9 @@ struct gfar_private {
 	unsigned int ftp_rqfcr[MAX_FILER_IDX + 1];
 };
 
+#define BDS_REGION_SIZE(priv) ( \
+	sizeof(struct txbd8) * (priv)->total_tx_ring_size + \
+	sizeof(struct rxbd8) * (priv)->total_rx_ring_size)
 
 static inline int gfar_has_errata(struct gfar_private *priv,
 				  enum gfar_errata err)
