@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -43,6 +43,8 @@
 #include "error_ext.h"	/* GET_ERROR_TYPE, E_OK */
 #include "fm_mac_ext.h"
 #include "fm_rtc_ext.h"
+
+#include "fsl_pq_mdio.h"
 
 #define MAC_DESCRIPTION "FSL FMan MAC API based driver"
 
@@ -359,11 +361,21 @@ static void adjust_link(struct net_device *net_dev)
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
 	struct mac_device *mac_dev = priv->mac_dev;
 	struct phy_device *phy_dev = mac_dev->phy_dev;
+	struct mac_priv_s *mac_priv;
 	int	 _errno;
 	t_Error	 err;
 
-	if (!phy_dev->link)
+	if (!phy_dev->link) {
+
+		fsl_pq_mdio_lock(NULL);
+
+		mac_priv = (struct mac_priv_s *)macdev_priv(mac_dev);
+		DtsecRestartTbiAN(mac_priv->mac);
+
+		fsl_pq_mdio_unlock(NULL);
+
 		return;
+	}
 
 	err = FM_MAC_AdjustLink(
 			((struct mac_priv_s *)macdev_priv(mac_dev))->mac,
