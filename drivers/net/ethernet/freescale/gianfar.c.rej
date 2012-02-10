@@ -1,0 +1,18 @@
+--- gianfar.c
++++ gianfar.c
+@@ -3458,11 +3596,15 @@
+ 
+ static int __init gfar_init(void)
+ {
++	gfar_global_recycle_cntxt = gfar_init_recycle_cntxt();
++	if (!gfar_global_recycle_cntxt)
++		return -ENOMEM;
+ 	return platform_driver_register(&gfar_driver);
+ }
+ 
+ static void __exit gfar_exit(void)
+ {
++	gfar_free_recycle_cntxt(gfar_global_recycle_cntxt);
+ 	platform_driver_unregister(&gfar_driver);
+ }
+ 
