@@ -1123,6 +1123,16 @@ static t_Error DtsecDelHashMacAddress(t_Handle h_Dtsec, t_EnetAddr *p_EthAddr)
     return E_OK;
 }
 
+void DtsecRestartTbiAN(t_Handle h_Dtsec)
+{
+    t_Dtsec         *p_Dtsec = (t_Dtsec *)h_Dtsec;
+
+    if (!p_Dtsec)
+	return;
+
+    DTSEC_MII_WritePhyReg(p_Dtsec, DEFAULT_tbiPhyAddr, 0,
+		PHY_CR_ANE | PHY_CR_RESET_AN | PHY_CR_FULLDUPLEX | PHY_CR_SPEED1);
+}
 
 /* .............................................................................. */
 
