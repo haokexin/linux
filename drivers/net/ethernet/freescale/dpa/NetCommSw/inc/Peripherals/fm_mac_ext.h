@@ -703,6 +703,15 @@ t_Error FM_MAC_MII_ReadPhyReg(t_Handle h_FmMac,  uint8_t phyAddr, uint8_t reg, u
 t_Error FM_MAC_DumpRegs(t_Handle h_FmMac);
 #endif /* (defined(DEBUG_ERRORS) && ... */
 
+/**************************************************************************//**
+ @Function      DtsecRestartTbiAN
+
+ @Description   Restart TBI autonegotiation for a given Dtsec TBI interface.
+
+ @Param[in]     h_Dtsec     -   A handle to the Dtsec.
+*//***************************************************************************/
+void DtsecRestartTbiAN(t_Handle h_Dtsec);
+
 /** @} */ /* end of FM_mac_runtime_control_grp group */
 /** @} */ /* end of FM_mac_grp group */
 /** @} */ /* end of FM_grp group */
