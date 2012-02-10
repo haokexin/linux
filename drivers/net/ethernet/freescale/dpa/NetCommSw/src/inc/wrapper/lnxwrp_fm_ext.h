@@ -91,6 +91,7 @@ typedef struct t_WrpFmPcdDevSettings
 
 typedef struct t_WrpFmPortDevSettings
 {
+    bool                        frag_enabled;
     t_FmPortParams              param;
     t_SysObjectAdvConfigEntry   *advConfig;
 } t_WrpFmPortDevSettings;
