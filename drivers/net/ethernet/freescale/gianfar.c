@@ -109,6 +109,7 @@
 #define TX_TIMEOUT      (1*HZ)
 
 const char gfar_driver_version[] = "1.3";
+static struct gfar_recycle_cntxt *gfar_global_recycle_cntxt;
 
 static int gfar_enet_open(struct net_device *dev);
 static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev);
@@ -116,6 +117,7 @@ static void gfar_reset_task(struct work_struct *work);
 static void gfar_timeout(struct net_device *dev);
 static int gfar_close(struct net_device *dev);
 struct sk_buff *gfar_new_skb(struct net_device *dev);
+static void gfar_free_skb(struct sk_buff *skb);
 static void gfar_new_rxbdp(struct gfar_priv_rx_q *rx_queue, struct rxbd8 *bdp,
 		struct sk_buff *skb);
 static int gfar_set_mac_address(struct net_device *dev);
@@ -1774,7 +1776,6 @@ static void free_skb_resources(struct gfar_private *priv)
 			free_skb_rx_queue(rx_queue);
 	}
 	gfar_free_bds(priv);
-	skb_queue_purge(&priv->rx_recycle);
 }
 
 void gfar_start(struct net_device *dev)
@@ -1942,6 +1943,67 @@ irq_fail:
 	return err;
 }
 
+void __exit gfar_free_recycle_cntxt(struct gfar_recycle_cntxt *recycle_cntxt)
+{
+	struct gfar_recycle_cntxt_percpu *local;
+	int cpu;
+
+	if (!recycle_cntxt)
+		return;
+	if (!recycle_cntxt->global_recycle_q)
+		return;
+	skb_queue_purge(recycle_cntxt->global_recycle_q);
+	kfree(recycle_cntxt->global_recycle_q);
+	if (!recycle_cntxt->local)
+		return;
+	for_each_possible_cpu(cpu) {
+		local = per_cpu_ptr(recycle_cntxt->local, cpu);
+		if (!local->recycle_q)
+			continue;
+		skb_queue_purge(local->recycle_q);
+		kfree(local->recycle_q);
+	}
+	free_percpu(recycle_cntxt->local);
+	kfree(recycle_cntxt);
+}
+
+struct gfar_recycle_cntxt *__init gfar_init_recycle_cntxt(void)
+{
+	struct gfar_recycle_cntxt *recycle_cntxt;
+	struct gfar_recycle_cntxt_percpu *local;
+	int cpu;
+
+	recycle_cntxt = kzalloc(sizeof(struct gfar_recycle_cntxt),
+							GFP_KERNEL);
+	if (!recycle_cntxt)
+		goto err;
+
+	recycle_cntxt->recycle_max = GFAR_RX_RECYCLE_MAX;
+	spin_lock_init(&recycle_cntxt->recycle_lock);
+	recycle_cntxt->global_recycle_q = kmalloc(sizeof(struct sk_buff_head),
+							GFP_KERNEL);
+	if (!recycle_cntxt->global_recycle_q)
+		goto err;
+	skb_queue_head_init(recycle_cntxt->global_recycle_q);
+
+	recycle_cntxt->local = alloc_percpu(struct gfar_recycle_cntxt_percpu);
+	if (!recycle_cntxt->local)
+		goto err;
+	for_each_possible_cpu(cpu) {
+		local = per_cpu_ptr(recycle_cntxt->local, cpu);
+		local->recycle_q = kmalloc(sizeof(struct sk_buff_head),
+							GFP_KERNEL);
+		if (!local->recycle_q)
+			goto err;
+		skb_queue_head_init(local->recycle_q);
+	}
+
+	return recycle_cntxt;
+err:
+	gfar_free_recycle_cntxt(recycle_cntxt);
+	return NULL;
+}
+
 /* Called when something needs to use the ethernet device */
 /* Returns 0 for success. */
 static int gfar_enet_open(struct net_device *dev)
@@ -1951,7 +2013,7 @@ static int gfar_enet_open(struct net_device *dev)
 
 	enable_napi(priv);
 
-	skb_queue_head_init(&priv->rx_recycle);
+	priv->recycle = gfar_global_recycle_cntxt;
 
 	/* Initialize a bunch of registers */
 	init_registers(dev);
@@ -2543,18 +2605,7 @@ static int gfar_clean_tx_ring(struct gfar_priv_tx_q *tx_queue)
 
 		bytes_sent += skb->len;
 
-		/*
-		 * If there's room in the queue (limit it to rx_buffer_size)
-		 * we add this skb back into the pool, if it's the right size
-		 */
-		if (skb_queue_len(&priv->rx_recycle) < rx_queue->rx_ring_size &&
-				skb_recycle_check(skb, priv->rx_buffer_size +
-					RXBUF_ALIGNMENT)) {
-			gfar_align_skb(skb);
-			skb_queue_head(&priv->rx_recycle, skb);
-		} else
-			dev_kfree_skb_any(skb);
-
+		gfar_free_skb(skb);
 		tx_queue->tx_skbuff[skb_dirtytx] = NULL;
 
 		skb_dirtytx = (skb_dirtytx + 1) &
@@ -2631,14 +2682,99 @@ static struct sk_buff * gfar_alloc_skb(struct net_device *dev)
 	return skb;
 }
 
+static void gfar_free_skb(struct sk_buff *skb)
+{
+	struct net_device *dev = skb->dev;
+	struct gfar_private *priv = netdev_priv(dev);
+	struct sk_buff_head *recycle_q, *temp_recycle_q;
+	struct gfar_recycle_cntxt *recycle_cntxt;
+	struct gfar_recycle_cntxt_percpu *local;
+	unsigned long flags;
+	int cpu;
+
+	recycle_cntxt = priv->recycle;
+
+	if (!skb_recycle_check(skb, priv->rx_buffer_size + RXBUF_ALIGNMENT)) {
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
+	cpu = get_cpu();
+	local = per_cpu_ptr(recycle_cntxt->local, cpu);
+	recycle_q = local->recycle_q;
+
+	if (skb_queue_len(recycle_q) < recycle_cntxt->recycle_max) {
+		local->free_count++;
+		__skb_queue_head(recycle_q, skb);
+		put_cpu();
+		return;
+	}
+
+	/* Local per CPU queue is full. Now swap this full recycle queue
+	 * with global device recycle queue if it is empty otherwise
+	 * kfree the skb
+	 */
+	spin_lock_irqsave(&recycle_cntxt->recycle_lock, flags);
+	if (recycle_cntxt->global_recycle_q &&
+		!skb_queue_len(recycle_cntxt->global_recycle_q)) {
+
+		temp_recycle_q  = recycle_cntxt->global_recycle_q;
+		recycle_cntxt->global_recycle_q = recycle_q;
+		recycle_cntxt->free_swap_count++;
+		spin_unlock_irqrestore(&recycle_cntxt->recycle_lock, flags);
+		local->recycle_q = temp_recycle_q;
+		local->free_count++;
+		__skb_queue_head(temp_recycle_q, skb);
+		put_cpu();
+	} else {
+		spin_unlock_irqrestore(&recycle_cntxt->recycle_lock, flags);
+		put_cpu();
+		dev_kfree_skb_any(skb);
+	}
+}
+
 struct sk_buff * gfar_new_skb(struct net_device *dev)
 {
 	struct gfar_private *priv = netdev_priv(dev);
 	struct sk_buff *skb = NULL;
+	struct sk_buff_head *recycle_q, *temp_recycle_q;
+	struct gfar_recycle_cntxt *recycle_cntxt;
+	struct gfar_recycle_cntxt_percpu *local;
+	unsigned long flags;
+	int cpu;
 
-	skb = skb_dequeue(&priv->rx_recycle);
-	if (!skb)
+	recycle_cntxt = priv->recycle;
+
+	cpu = get_cpu();
+	local = per_cpu_ptr(recycle_cntxt->local, cpu);
+	recycle_q = local->recycle_q;
+	skb = __skb_dequeue(recycle_q);
+	if (skb) {
+		local->alloc_count++;
+		put_cpu();
+		return skb;
+	}
+
+	/* Local per cpu queue is empty. Now swap global recycle
+	 * queue (if it is full) with this empty local queue.
+	 */
+	spin_lock_irqsave(&recycle_cntxt->recycle_lock, flags);
+	if (recycle_cntxt->global_recycle_q &&
+		skb_queue_len(recycle_cntxt->global_recycle_q)) {
+
+		temp_recycle_q = recycle_cntxt->global_recycle_q;
+		recycle_cntxt->global_recycle_q = recycle_q;
+		recycle_cntxt->alloc_swap_count++;
+		spin_unlock_irqrestore(&recycle_cntxt->recycle_lock, flags);
+		local->recycle_q = temp_recycle_q;
+		local->alloc_count++;
+		skb = __skb_dequeue(temp_recycle_q);
+		put_cpu();
+	} else {
+		spin_unlock_irqrestore(&recycle_cntxt->recycle_lock, flags);
+		put_cpu();
 		skb = gfar_alloc_skb(dev);
+	}
 
 	return skb;
 }
@@ -2797,8 +2933,10 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
 
 			if (unlikely(!newskb))
 				newskb = skb;
-			else if (skb)
-				skb_queue_head(&priv->rx_recycle, skb);
+			else if (skb) {
+				skb->dev = dev;
+				gfar_free_skb(skb);
+			}
 		} else {
 			/* Increment the number of packets */
 			rx_queue->stats.rx_packets++;
@@ -3307,4 +3445,19 @@ static struct platform_driver gfar_driver = {
 	.remove = gfar_remove,
 };
 
-module_platform_driver(gfar_driver);
+static int __init gfar_init(void)
+{
+	gfar_global_recycle_cntxt = gfar_init_recycle_cntxt();
+	if (!gfar_global_recycle_cntxt)
+		return -ENOMEM;
+	return platform_driver_register(&gfar_driver);
+}
+
+static void __exit gfar_exit(void)
+{
+	gfar_free_recycle_cntxt(gfar_global_recycle_cntxt);
+	platform_driver_unregister(&gfar_driver);
+}
+
+module_init(gfar_init);
+module_exit(gfar_exit);
