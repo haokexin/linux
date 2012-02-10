@@ -102,6 +102,9 @@
 
 #include "gianfar.h"
 #include "fsl_pq_mdio.h"
+#ifdef CONFIG_GIANFAR_L2SRAM
+#include <asm/fsl_85xx_cache_sram.h>
+#endif
 
 #define TX_TIMEOUT      (1*HZ)
 
@@ -231,13 +234,32 @@ err_rxalloc_fail:
 	return -ENOMEM;
 }
 
+static void *gfar_alloc_bds(struct gfar_private *priv, dma_addr_t *addr)
+{
+	void *vaddr = NULL;
+#ifdef CONFIG_GIANFAR_L2SRAM
+	phys_addr_t paddr;
+	vaddr = mpc85xx_cache_sram_alloc(BDS_REGION_SIZE(priv), &paddr,
+			L1_CACHE_BYTES);
+	if (vaddr) {
+		priv->l2sram_bds_en = 1;
+		*addr = phys_to_dma(&priv->ofdev->dev, paddr);
+		return vaddr;
+	}
+	/* fallback to normal memory rather than stop working */
+#endif
+	vaddr = dma_alloc_coherent(&priv->ofdev->dev,
+			BDS_REGION_SIZE(priv), addr, GFP_KERNEL);
+
+	return vaddr;
+}
+
 static int gfar_alloc_skb_resources(struct net_device *ndev)
 {
 	void *vaddr;
 	dma_addr_t addr;
 	int i, j, k;
 	struct gfar_private *priv = netdev_priv(ndev);
-	struct device *dev = &priv->ofdev->dev;
 	struct gfar_priv_tx_q *tx_queue = NULL;
 	struct gfar_priv_rx_q *rx_queue = NULL;
 
@@ -250,10 +272,7 @@ static int gfar_alloc_skb_resources(struct net_device *ndev)
 		priv->total_rx_ring_size += priv->rx_queue[i]->rx_ring_size;
 
 	/* Allocate memory for the buffer descriptors */
-	vaddr = dma_alloc_coherent(dev,
-			sizeof(struct txbd8) * priv->total_tx_ring_size +
-			sizeof(struct rxbd8) * priv->total_rx_ring_size,
-			&addr, GFP_KERNEL);
+	vaddr = gfar_alloc_bds(priv, &addr);
 	if (!vaddr) {
 		netif_err(priv, ifup, ndev,
 			  "Could not allocate buffer descriptors!\n");
@@ -1717,6 +1736,20 @@ static void free_skb_rx_queue(struct gfar_priv_rx_q *rx_queue)
 	kfree(rx_queue->rx_skbuff);
 }
 
+static void gfar_free_bds(struct gfar_private *priv)
+{
+#ifdef CONFIG_GIANFAR_L2SRAM
+	if (priv->l2sram_bds_en) {
+		mpc85xx_cache_sram_free(priv->tx_queue[0]->tx_bd_base);
+		return;
+	}
+#endif
+	dma_free_coherent(&priv->ofdev->dev,
+			BDS_REGION_SIZE(priv),
+			priv->tx_queue[0]->tx_bd_base,
+			priv->tx_queue[0]->tx_bd_dma_base);
+}
+
 /* If there are any tx skbs or rx skbs still around, free them.
  * Then free tx_skbuff and rx_skbuff */
 static void free_skb_resources(struct gfar_private *priv)
@@ -1740,12 +1773,7 @@ static void free_skb_resources(struct gfar_private *priv)
 		if(rx_queue->rx_skbuff)
 			free_skb_rx_queue(rx_queue);
 	}
-
-	dma_free_coherent(&priv->ofdev->dev,
-			sizeof(struct txbd8) * priv->total_tx_ring_size +
-			sizeof(struct rxbd8) * priv->total_rx_ring_size,
-			priv->tx_queue[0]->tx_bd_base,
-			priv->tx_queue[0]->tx_bd_dma_base);
+	gfar_free_bds(priv);
 	skb_queue_purge(&priv->rx_recycle);
 }
 
