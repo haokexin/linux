@@ -5,7 +5,7 @@
  * Author: Andy Fleming <afleming@freescale.com>
  * Modifier: Sandeep Gopalpet <sandeep.kumar@freescale.com>
  *
- * Copyright 2002-2004, 2008-2009 Freescale Semiconductor, Inc.
+ * Copyright 2002-2004, 2008-2009, 2012 Freescale Semiconductor, Inc.
  *
  * Based on gianfar_mii.c and ucc_geth_mii.c (Li Yang, Kim Phillips)
  *
@@ -50,6 +50,7 @@
 struct fsl_pq_mdio_priv {
 	void __iomem *map;
 	struct fsl_pq_mdio __iomem *regs;
+	struct mutex mdio_lock;
 };
 
 /*
@@ -116,6 +117,24 @@ static struct fsl_pq_mdio __iomem *fsl_pq_mdio_get_regs(struct mii_bus *bus)
 	return priv->regs;
 }
 
+void fsl_pq_mdio_lock(struct mii_bus *bus)
+{
+	struct fsl_pq_mdio_priv *priv;
+
+	priv = bus->priv;
+
+	mutex_lock(&priv->mdio_lock);
+}
+
+void fsl_pq_mdio_unlock(struct mii_bus *bus)
+{
+	struct fsl_pq_mdio_priv *priv;
+
+	priv = bus->priv;
+
+	mutex_unlock(&priv->mdio_lock);
+}
+
 /*
  * Write value to the PHY at mii_id at register regnum,
  * on the bus, waiting until the write is done before returning.
@@ -124,9 +143,16 @@ int fsl_pq_mdio_write(struct mii_bus *bus, int mii_id, int devad, int regnum,
 			u16 value)
 {
 	struct fsl_pq_mdio __iomem *regs = fsl_pq_mdio_get_regs(bus);
+	int result;
+
+	fsl_pq_mdio_lock(bus);
 
 	/* Write to the local MII regs */
-	return fsl_pq_local_mdio_write(regs, mii_id, regnum, value);
+	result = fsl_pq_local_mdio_write(regs, mii_id, regnum, value);
+
+	fsl_pq_mdio_unlock(bus);
+
+	return result;
 }
 
 /*
@@ -136,9 +162,16 @@ int fsl_pq_mdio_write(struct mii_bus *bus, int mii_id, int devad, int regnum,
 int fsl_pq_mdio_read(struct mii_bus *bus, int mii_id, int devad, int regnum)
 {
 	struct fsl_pq_mdio __iomem *regs = fsl_pq_mdio_get_regs(bus);
+	int result;
+
+	fsl_pq_mdio_lock(bus);
 
 	/* Read the local MII regs */
-	return fsl_pq_local_mdio_read(regs, mii_id, regnum);
+	result =  fsl_pq_local_mdio_read(regs, mii_id, regnum);
+
+	fsl_pq_mdio_unlock(bus);
+
+	return result;
 }
 
 /* Reset the MIIM registers, and wait for the bus to free */
@@ -266,6 +299,8 @@ static int fsl_pq_mdio_probe(struct platform_device *ofdev)
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
+
+	mutex_init(&priv->mdio_lock);
 
 	new_bus = mdiobus_alloc();
 	if (!new_bus) {
