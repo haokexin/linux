@@ -52,4 +52,6 @@ int fsl_pq_local_mdio_read(struct fsl_pq_mdio __iomem *regs, int mii_id,
 int __init fsl_pq_mdio_init(void);
 void fsl_pq_mdio_exit(void);
 void fsl_pq_mdio_bus_name(char *name, struct device_node *np);
+void fsl_pq_mdio_lock(struct mii_bus *bus);
+void fsl_pq_mdio_unlock(struct mii_bus *bus);
 #endif /* FSL_PQ_MDIO_H */

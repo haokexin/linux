@@ -53,6 +53,10 @@ struct fsl_pq_mdio_priv {
 	struct mutex mdio_lock;
 };
 
+/* pointer to bus, to be used by the fsl_pq_mdio locking functions when called
+ * with a null parameter */
+struct mii_bus *fsl_pq_mdio_bus;
+
 /*
  * Write value to the PHY at mii_id at register regnum,
  * on the bus attached to the local interface, which may be different from the
@@ -121,19 +125,21 @@ void fsl_pq_mdio_lock(struct mii_bus *bus)
 {
 	struct fsl_pq_mdio_priv *priv;
 
-	priv = bus->priv;
+	priv = (bus) ? bus->priv : fsl_pq_mdio_bus->priv;
 
 	mutex_lock(&priv->mdio_lock);
 }
+EXPORT_SYMBOL(fsl_pq_mdio_lock);
 
 void fsl_pq_mdio_unlock(struct mii_bus *bus)
 {
 	struct fsl_pq_mdio_priv *priv;
 
-	priv = bus->priv;
+	priv = (bus) ? bus->priv : fsl_pq_mdio_bus->priv;
 
 	mutex_unlock(&priv->mdio_lock);
 }
+EXPORT_SYMBOL(fsl_pq_mdio_unlock);
 
 /*
  * Write value to the PHY at mii_id at register regnum,
@@ -410,6 +416,8 @@ static int fsl_pq_mdio_probe(struct platform_device *ofdev)
 #endif
 		}
 	}
+
+	fsl_pq_mdio_bus = new_bus;
 
 	err = of_mdiobus_register(new_bus, np);
 	if (err) {
