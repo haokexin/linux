@@ -96,6 +96,12 @@ extern const char gfar_driver_version[];
 #define GFAR_RX_MAX_RING_SIZE   256
 #define GFAR_TX_MAX_RING_SIZE   256
 
+/* RECYCLE_MAX should be more than the size of the Tx ring,
+ * otherwise there will be unnecessary swapping of local
+ * and global recycle queues.
+ */
+#define GFAR_RX_RECYCLE_MAX	(2 * DEFAULT_TX_RING_SIZE)
+
 #define GFAR_MAX_FIFO_THRESHOLD 511
 #define GFAR_MAX_FIFO_STARVE	511
 #define GFAR_MAX_FIFO_STARVE_OFF 511
@@ -1035,6 +1041,40 @@ enum gfar_errata {
 	GFAR_ERRATA_12		= 0x08, /* a.k.a errata eTSEC49 */
 };
 
+/**
+ *	struct gfar_recycle_cntxt - Global recycle "context"
+ *		shared among gfar devices
+ *	@global_recycle_q: points to the recycle queue held in the global
+ *		context (may be swapped with queues from local contexts)
+ *	@recycle_max: max size of a recycle queue
+ *	@alloc_swap_count: #of queue swaps b/w local and global contexts
+ *		while skb's were being allocated form a recycle queue
+ *	@free_swap_count: #of queue swaps b/w local and global contexts
+ *		while skb's were being returned to a recycle queue
+ */
+struct gfar_recycle_cntxt {
+	spinlock_t recycle_lock;
+	struct sk_buff_head *global_recycle_q;
+	unsigned int recycle_max;
+	unsigned int alloc_swap_count;
+	unsigned int free_swap_count;
+	struct gfar_recycle_cntxt_percpu __percpu *local;
+};
+
+/**
+ *	struct gfar_recycle_cntxt_percpu - Local (percpu) recycle "context"
+ *		shared among gfar devices
+ *	@recycle_q: points to the recycle queue held in this local context
+ *		(may be swapped w/ the queue held in the global context)
+ *	@alloc_count: total #of skbs alloc'd from this local context
+ *	@free_count: total #of skbs freed to this local context
+ */
+struct gfar_recycle_cntxt_percpu {
+	struct sk_buff_head *recycle_q;
+	unsigned int alloc_count;
+	unsigned int free_count;
+};
+
 /* Struct stolen almost completely (and shamelessly) from the FCC enet source
  * (Ok, that's not so true anymore, but there is a family resemblance)
  * The GFAR buffer descriptors track the ring buffers.  The rx_bd_base
@@ -1072,7 +1112,7 @@ struct gfar_private {
 
 	u32 cur_filer_idx;
 
-	struct sk_buff_head rx_recycle;
+	struct gfar_recycle_cntxt *recycle;
 
 	/* RX queue filer rule set*/
 	struct ethtool_rx_list rx_list;

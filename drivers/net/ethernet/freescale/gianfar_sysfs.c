@@ -319,6 +319,36 @@ static ssize_t gfar_set_fifo_starve_off(struct device *dev,
 static DEVICE_ATTR(fifo_starve_off, 0644, gfar_show_fifo_starve_off,
 		   gfar_set_fifo_starve_off);
 
+static ssize_t gfar_show_recycle_cntxt(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	struct gfar_private *priv = netdev_priv(to_net_dev(dev));
+	struct gfar_recycle_cntxt *recycle_cntxt;
+	struct gfar_recycle_cntxt_percpu *local;
+	unsigned int recycled_free_count, recycled_alloc_count;
+	int cpu;
+
+	recycle_cntxt = priv->recycle;
+	recycled_alloc_count = recycled_free_count = 0;
+
+	printk(KERN_NOTICE "recycle max %d\n", recycle_cntxt->recycle_max);
+	printk(KERN_NOTICE "queue swap during: free - %d, alloc - %d\n",
+		recycle_cntxt->free_swap_count,
+		recycle_cntxt->alloc_swap_count);
+	for_each_possible_cpu(cpu) {
+		local = per_cpu_ptr(recycle_cntxt->local, cpu);
+		recycled_alloc_count += local->alloc_count;
+		recycled_free_count += local->free_count;
+	}
+	printk(KERN_NOTICE \
+		"total recycle free count: %d, and recycle alloc count: %d\n",
+		recycled_free_count, recycled_alloc_count);
+	return sprintf(buf, "%d\n", recycle_cntxt->recycle_max);
+}
+
+static DEVICE_ATTR(recycle_cntxt, 0444, gfar_show_recycle_cntxt, NULL);
+
 void gfar_init_sysfs(struct net_device *dev)
 {
 	struct gfar_private *priv = netdev_priv(dev);
@@ -336,6 +366,7 @@ void gfar_init_sysfs(struct net_device *dev)
 	rc |= device_create_file(&dev->dev, &dev_attr_fifo_threshold);
 	rc |= device_create_file(&dev->dev, &dev_attr_fifo_starve);
 	rc |= device_create_file(&dev->dev, &dev_attr_fifo_starve_off);
+	rc |= device_create_file(&dev->dev, &dev_attr_recycle_cntxt);
 	if (rc)
 		dev_err(&dev->dev, "Error creating gianfar sysfs files.\n");
 }
