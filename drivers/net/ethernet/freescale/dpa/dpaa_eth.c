@@ -1226,7 +1226,7 @@ buf_acquire_failed:
 	/* We're done with the skb */
 	dev_kfree_skb(skb);
 
-	return err;
+	return NETDEV_TX_OK;
 }
 
 /* Equivalent to a memset(0), but works faster */
