@@ -259,15 +259,11 @@ int caam_jr_enqueue(struct device *dev, u32 *desc,
 
 	jrp->inpring[jrp->inp_ring_write_index] = desc_dma;
 
-	smp_wmb();
+	wr_reg32(&jrp->rregs->inpring_jobadd, 1);
 
 	jrp->inp_ring_write_index = (jrp->inp_ring_write_index + 1) &
 				    (JOBR_DEPTH - 1);
 	jrp->head = (head + 1) & (JOBR_DEPTH - 1);
-
-	wmb();
-
-	wr_reg32(&jrp->rregs->inpring_jobadd, 1);
 
 	spin_unlock(&jrp->inplock);
 
