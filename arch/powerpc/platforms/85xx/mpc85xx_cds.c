@@ -221,7 +221,7 @@ static struct irqaction mpc85xxcds_8259_irqaction = {
 static void __init mpc85xx_cds_pic_init(void)
 {
 	struct mpic *mpic;
-	mpic = mpic_alloc(NULL, 0, MPIC_BIG_ENDIAN,
+	mpic = mpic_alloc(NULL, 0, MPIC_BIG_ENDIAN | MPIC_BROKEN_FRR_NIRQS,
 			0, 256, " OpenPIC  ");
 	BUG_ON(mpic == NULL);
 	mpic_init(mpic);
