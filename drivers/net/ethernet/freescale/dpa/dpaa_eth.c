@@ -36,6 +36,7 @@
 #include <linux/of_mdio.h>
 #include <linux/of_platform.h>
 #include <linux/of_net.h>
+#include <linux/kthread.h>
 #include <linux/io.h>
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>	/* arp_hdr_len() */
@@ -2824,6 +2825,18 @@ static void __devinit dpaa_eth_sysfs_init(struct device *dev)
 	if (device_create_file(dev, &dev_attr_fqids))
 		dev_err(dev, "Error creating dpaa_eth fqids file\n");
 }
+static int dpaa_eth_add_channel(void *__arg)
+{
+	const cpumask_t *cpus = qman_affine_cpus();
+	u32 pool = QM_SDQCR_CHANNELS_POOL_CONV((u32)(unsigned long)__arg);
+	int cpu;
+
+	for_each_cpu(cpu, cpus) {
+		set_cpus_allowed_ptr(current, get_cpu_mask(cpu));
+		qman_static_dequeue_add(pool);
+	}
+	return 0;
+}
 static const struct of_device_id dpa_match[] __devinitconst ;
 static int __devinit
 dpaa_eth_probe(struct platform_device *_of_dev)
@@ -2940,6 +2953,8 @@ dpaa_eth_probe(struct platform_device *_of_dev)
 
 	/* bp init */
 	if (net_dev) {
+		struct task_struct *kth;
+
 		err = dpa_bp_create(net_dev, dpa_bp, count);
 
 		if (err < 0)
@@ -2952,6 +2967,16 @@ dpaa_eth_probe(struct platform_device *_of_dev)
 		if (priv->channel < 0) {
 			err = priv->channel;
 			goto get_channel_failed;
+		}
+
+		/* Start a thread that will walk the cpus with affine portals
+		 * and add this pool channel to each's dequeue mask. */
+		kth = kthread_run(dpaa_eth_add_channel,
+				  (void *)(unsigned long)priv->channel,
+				  "dpaa_%p:%d", net_dev, priv->channel);
+		if (!kth) {
+			err = -ENOMEM;
+			goto add_channel_failed;
 		}
 
 		dpa_rx_fq_init(priv, &rxfqlist, rxdefault, rxerror, rxextra);
@@ -3049,6 +3074,7 @@ alloc_percpu_failed:
 fq_alloc_failed:
 	if (net_dev)
 		dpa_fq_free(dev, &priv->dpa_fq_list);
+add_channel_failed:
 get_channel_failed:
 	if (net_dev)
 		dpa_bp_free(priv, priv->dpa_bp);
