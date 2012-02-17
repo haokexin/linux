@@ -2516,69 +2516,14 @@ static void dpa_setup_ingress_queues(struct dpa_priv_s *priv,
 	struct list_head *ptr = &fq->list;
 	u32 fqid;
 	int portals[NR_CPUS];
-	int num_portals;
-	int i;
-	struct device_node  *qm_node;
-	struct device_node  *cpu_node;
-	const uint32_t      *uint32_prop;
-	const phandle       *ph;
-	int                 lenp;
-	int		    cpu;
-	bool		    found;
+	int i, cpu, num_portals = 0;
 	const cpumask_t *affine_cpus = qman_affine_cpus();
 
-	/*
-	 * Make a list of the available portals.
-	 * We're only interested in those portals which have an affine core
-	 * and moreover that core is included in the cpumask provided by QMan
-	 */
-	num_portals = 0;
-	for_each_compatible_node(qm_node, NULL, "fsl,qman-portal") {
-		/* Check if portal has an affine core */
-		ph = of_get_property(qm_node, "cpu-handle", &lenp);
-		if (!ph || (lenp != sizeof(phandle)))
-			continue;
-
-		/* Get the hardware id of the affine core */
-		cpu_node = of_find_node_by_phandle(*ph);
-		if (!cpu_node)
-			continue;
-		uint32_prop = of_get_property(cpu_node, "reg", &lenp);
-		if (!uint32_prop || (lenp != sizeof(uint32_t))) {
-			dpaa_eth_err(fq->net_dev->dev.parent,
-				     "failed to get property %s for node %s",
-				     "reg", cpu_node->full_name);
-			continue;
-		}
-
-		/* If it's not included in the cpumask we got from QMan,
-		 * skip portal */
-		found = false;
-		for_each_cpu(cpu, affine_cpus) {
-			if (*uint32_prop == get_hard_smp_processor_id(cpu)
-					&& !of_get_property(qm_node,
-						"fsl,usdpaa-portal", NULL)) {
-				found = true;
-				break;
-			}
-		}
-		if (!found)
-			continue;
-
-		/* This portal is good, store its sw channel */
-		uint32_prop = of_get_property(qm_node,
-					      "fsl,qman-channel-id", &lenp);
-		if (!uint32_prop || (lenp != sizeof(uint32_t))) {
-			dpaa_eth_err(fq->net_dev->dev.parent,
-				     "Failed to get property %s for node %s",
-				     "fsl,qman-channel-id", qm_node->full_name);
-			continue;
-		}
-		portals[num_portals++] = *uint32_prop;
-	}
+	for_each_cpu(cpu, affine_cpus)
+		portals[num_portals++] = qman_affine_channel(cpu);
 	if (num_portals == 0) {
 		dpaa_eth_err(fq->net_dev->dev.parent,
-			     "No adequate Qman portals found");
+			     "No Qman software (affine) channels found");
 		return;
 	}
 
