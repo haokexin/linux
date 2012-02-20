@@ -19,6 +19,7 @@
 #include <linux/tick.h>
 
 #include <asm/uaccess.h>
+#include <asm/sections.h>
 
 typedef void (*print_fn_t)(struct seq_file *m, unsigned int *classes);
 
@@ -39,6 +40,8 @@ DECLARE_PER_CPU(struct hrtimer_cpu_base, hrtimer_bases);
 static void print_name_offset(struct seq_file *m, void *sym)
 {
 	char symname[KSYM_NAME_LEN];
+
+	sym = dereference_function_descriptor(sym);
 
 	if (lookup_symbol_name((unsigned long)sym, symname) < 0)
 		SEQ_printf(m, "<%p>", sym);
