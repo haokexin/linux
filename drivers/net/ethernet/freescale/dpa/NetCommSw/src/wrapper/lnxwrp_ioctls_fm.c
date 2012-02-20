@@ -1805,7 +1805,7 @@ invalid_port_id:
             }
 
             param->id = FM_PCD_ManipSetNode(p_LnxWrpFmDev->h_PcdDev,
-                            (t_FmPcdManipParams *)&param);
+                            (t_FmPcdManipParams *)param);
 
 #if defined(CONFIG_COMPAT)
             if (compat)
