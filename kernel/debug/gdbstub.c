@@ -43,6 +43,8 @@
 /* Our I/O buffers. */
 static char			remcom_in_buffer[BUFMAX];
 static char			remcom_out_buffer[BUFMAX];
+static int 			gdbstub_use_prev_in_buf;
+static int 			gdbstub_prev_in_buf_pos;
 
 /* Storage for the registers, in GDB format. */
 static unsigned long		gdb_regs[(NUMREGBYTES +
@@ -65,9 +67,6 @@ static int hex(char ch)
 }
 
 #ifdef CONFIG_KGDB_KDB
-static int gdbstub_use_prev_in_buf;
-static int gdbstub_prev_in_buf_pos;
-
 static int gdbstub_read_wait(void)
 {
 	int ret = -1;
