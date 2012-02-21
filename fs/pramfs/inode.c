@@ -652,7 +652,18 @@ int pram_get_and_update_block(struct inode *inode, sector_t iblock,
 		pram_memlock_block(sb, bp);
 		memset(bh->b_data, 0, blocksize);
 	} else {
-		memcpy(bh->b_data, bp, blocksize);
+		/*
+		 * For pram mapped in high memory pages, bh->b_data is set
+		 * to the bh offset from the page in set_bh_page(). So we
+		 * map its virtual address here for copying the data
+		 */
+		if (PageHighMem(bh->b_page)) {
+			void *page_addr = kmap_atomic(bh->b_page, KM_USER0);
+			void *to = page_addr + (unsigned long)bh->b_data;
+			memcpy(to, bp, blocksize);
+			kunmap_atomic(page_addr, KM_USER0);
+		} else
+			memcpy(bh->b_data, bp, blocksize);
 	}
 
 	set_buffer_uptodate(bh);
