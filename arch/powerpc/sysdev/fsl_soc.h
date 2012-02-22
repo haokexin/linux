@@ -3,6 +3,7 @@
 #ifdef __KERNEL__
 
 #include <asm/mmu.h>
+#include <linux/platform_device.h>
 
 struct spi_device;
 
@@ -20,6 +21,14 @@ struct spi_board_info;
 struct device_node;
 
 extern void fsl_rstcr_restart(char *cmd);
+
+#ifdef CONFIG_FSL_PMC
+int mpc85xx_pmc_set_wake(struct platform_device *pdev, bool enable);
+void mpc85xx_pmc_set_lossless_ethernet(int enable);
+#else
+#define mpc85xx_pmc_set_wake(pdev, enable)
+#define mpc85xx_pmc_set_lossless_ethernet(enable)
+#endif
 
 #if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 
