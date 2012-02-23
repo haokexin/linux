@@ -424,8 +424,9 @@ static int gfar_scoalesce(struct net_device *dev, struct ethtool_coalesce *cvals
 			gfar_usecs2ticks(priv, cvals->tx_coalesce_usecs));
 	}
 
-	gfar_configure_coalescing(priv, 0xFF, 0xFF);
 
+	gfar_configure_tx_coalescing(priv, 0xFF);
+	gfar_configure_rx_coalescing(priv, 0xFF);
 	return 0;
 }
 
