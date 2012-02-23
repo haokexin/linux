@@ -3905,6 +3905,7 @@ static void ixgbe_napi_disable_all(struct ixgbe_adapter *adapter)
 #endif
 }
 
+#ifdef CONFIG_IXGBE_DCB
 /*
  * ixgbe_configure_dcb - Configure DCB hardware
  * @adapter: ixgbe adapter struct
@@ -3943,6 +3944,7 @@ static void ixgbe_configure_dcb(struct ixgbe_adapter *adapter)
 	/* reconfigure the hardware */
 	ixgbe_dcb_hw_config(hw, &adapter->dcb_cfg);
 }
+#endif /* CONFIG_IXGBE_DCB */
 
 #ifndef IXGBE_NO_LLI
 static void ixgbe_configure_lli_82599(struct ixgbe_adapter *adapter)
@@ -4069,7 +4071,10 @@ static void ixgbe_configure(struct ixgbe_adapter *adapter)
 #ifdef NETIF_F_HW_VLAN_TX
 	ixgbe_restore_vlan(adapter);
 #endif
+
+#ifdef CONFIG_IXGBE_DCB
 	ixgbe_configure_dcb(adapter);
+#endif
 
 #ifdef IXGBE_FCOE
 	if (adapter->flags & IXGBE_FLAG_FCOE_ENABLED)
@@ -4605,7 +4610,7 @@ void ixgbe_down(struct ixgbe_adapter *adapter)
 	ixgbe_setup_dca(adapter);
 }
 
-
+#ifdef CONFIG_IXGBE_DCB
 /**
  * ixgbe_set_dcb_queues: Allocate queues for a DCB-enabled device
  * @adapter: board private structure to initialize
@@ -4636,6 +4641,7 @@ static inline bool ixgbe_set_dcb_queues(struct ixgbe_adapter *adapter)
 
 	return ret;
 }
+#endif /* CONFIG_IXGBE_DCB */
 
 /**
  * ixgbe_set_vmdq_queues: Allocate queues for VMDq devices
@@ -4870,8 +4876,11 @@ static void ixgbe_set_num_queues(struct ixgbe_adapter *adapter)
 		return;
 
 #endif /* IXGBE_FCOE */
+
+#ifdef CONFIG_IXGBE_DCB
 	if (ixgbe_set_dcb_queues(adapter))
 		return;
+#endif /* CONFIG_IXGBE_DCB */
 
 	if (ixgbe_set_fdir_queues(adapter))
 		return;
@@ -4952,6 +4961,7 @@ static inline bool ixgbe_cache_ring_rss(struct ixgbe_adapter *adapter)
 	return true;
 }
 
+#ifdef CONFIG_IXGBE_DCB
 /**
  * ixgbe_cache_ring_dcb - Descriptor ring to register mapping for DCB
  * @adapter: board private structure to initialize
@@ -5028,6 +5038,7 @@ static inline bool ixgbe_cache_ring_dcb(struct ixgbe_adapter *adapter)
 	}
 	return ret;
 }
+#endif /* CONFIG_IXGBE_DCB */
 
 /**
  * ixgbe_cache_ring_vmdq - Descriptor ring to register mapping for VMDq
@@ -5251,8 +5262,11 @@ static void ixgbe_cache_ring_register(struct ixgbe_adapter *adapter)
 		return;
 
 #endif /* IXGBE_FCOE */
+
+#ifdef CONFIG_IXGBE_DCB
 	if (ixgbe_cache_ring_dcb(adapter))
 		return;
+#endif /* CONFIG_IXGBE_DCB */
 
 	if (ixgbe_cache_ring_fdir(adapter))
 		return;
@@ -5732,11 +5746,11 @@ static int __devinit ixgbe_sw_init(struct ixgbe_adapter *adapter)
 			adapter->flags |= IXGBE_FLAG_FCOE_CAPABLE;
 			adapter->flags &= ~IXGBE_FLAG_FCOE_ENABLED;
 			adapter->ring_feature[RING_F_FCOE].indices = 0;
-#ifdef CONFIG_DCB
+#ifdef CONFIG_IXGBE_DCB
 			/* Default traffic class to use for FCoE */
 			adapter->fcoe.tc = IXGBE_FCOE_DEFTC;
 			adapter->fcoe.up = IXGBE_FCOE_DEFTC;
-#endif
+#endif /* CONFIG_IXGBE_DCB */
 		}
 #endif
 		if (adapter->flags & IXGBE_FLAG_MQ_CAPABLE)
@@ -5756,6 +5770,7 @@ static int __devinit ixgbe_sw_init(struct ixgbe_adapter *adapter)
 	/* Default DCB settings, if applicable */
 	adapter->ring_feature[RING_F_DCB].indices = 8;
 
+#ifdef CONFIG_IXGBE_DCB
 	if (adapter->flags & IXGBE_FLAG_DCB_CAPABLE) {
 		int j, dcb_i;
 		struct tc_configuration *tc;
@@ -5787,6 +5802,7 @@ static int __devinit ixgbe_sw_init(struct ixgbe_adapter *adapter)
 	/* XXX does this need to be initialized even w/o DCB? */
 	ixgbe_copy_dcb_cfg(&adapter->dcb_cfg, &adapter->temp_dcb_cfg,
 			   adapter->ring_feature[RING_F_DCB].indices);
+#endif /* CONFIG_IXGBE_DCB */
 
 	if (hw->mac.type == ixgbe_mac_82599EB ||
 	    hw->mac.type == ixgbe_mac_X540)
@@ -5795,8 +5811,9 @@ static int __devinit ixgbe_sw_init(struct ixgbe_adapter *adapter)
 	/* default flow control settings */
 	hw->fc.requested_mode = ixgbe_fc_full;
 	hw->fc.current_mode = ixgbe_fc_full;	/* init for ethtool output */
-
+#ifdef CONFIG_DCB
 	adapter->last_lfc_mode = hw->fc.current_mode;
+#endif
 	hw->fc.high_water = FC_HIGH_WATER(max_frame);
 	hw->fc.low_water = FC_LOW_WATER(max_frame);
 	hw->fc.pause_time = IXGBE_DEFAULT_FCPAUSE;
@@ -8215,7 +8232,7 @@ static int __devinit ixgbe_probe(struct pci_dev *pdev,
 #endif
 		adapter->flags2 &= ~IXGBE_FLAG2_RSC_ENABLED;
 	}
-#ifdef CONFIG_DCB
+#ifdef CONFIG_IXGBE_DCB
 	netdev->dcbnl_ops = &dcbnl_ops;
 #endif
 
@@ -8662,9 +8679,6 @@ static int __init ixgbe_init_module(void)
 	pr_info("%s - version %s\n", ixgbe_driver_string, ixgbe_driver_version);
 	pr_info("%s\n", ixgbe_copyright);
 
-#ifndef CONFIG_DCB
-	ixgbe_dcb_netlink_register();
-#endif
 #if defined(CONFIG_DCA) || defined(CONFIG_DCA_MODULE)
 	dca_register_notify(&dca_notifier);
 
@@ -8685,9 +8699,6 @@ static void __exit ixgbe_exit_module(void)
 {
 #if defined(CONFIG_DCA) || defined(CONFIG_DCA_MODULE)
 	dca_unregister_notify(&dca_notifier);
-#endif
-#ifndef CONFIG_DCB
-	ixgbe_dcb_netlink_unregister();
 #endif
 	pci_unregister_driver(&ixgbe_driver);
 }

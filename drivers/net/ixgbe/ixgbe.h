@@ -655,9 +655,11 @@ struct ixgbe_rsc_cb {
 };
 #define IXGBE_RSC_CB(skb) ((struct ixgbe_rsc_cb *)(skb)->cb)
 
+#ifdef CONFIG_IXGBE_DCB
 extern struct dcbnl_rtnl_ops dcbnl_ops;
 extern int ixgbe_copy_dcb_cfg(struct ixgbe_dcb_config *src_dcb_cfg,
 			      struct ixgbe_dcb_config *dst_dcb_cfg, int tc_max);
+#endif
 
 extern u8 ixgbe_dcb_txq_to_tc(struct ixgbe_adapter *adapter, u8 index);
 
@@ -721,12 +723,12 @@ extern int ixgbe_fcoe_ddp_put(struct net_device *netdev, u16 xid);
 extern int ixgbe_fcoe_enable(struct net_device *netdev);
 extern int ixgbe_fcoe_disable(struct net_device *netdev);
 #endif /* HAVE_NETDEV_OPS_FCOE_ENABLE */
-#ifdef CONFIG_DCB
+#ifdef CONFIG_IXGBE_DCB
 #ifdef HAVE_DCBNL_OPS_GETAPP
 extern u8 ixgbe_fcoe_getapp(struct ixgbe_adapter *adapter);
 extern u8 ixgbe_fcoe_setapp(struct ixgbe_adapter *adapter, u8 up);
 #endif /* HAVE_DCBNL_OPS_GETAPP */
-#endif /* CONFIG_DCB */
+#endif /* CONFIG_IXGBE_DCB */
 #ifdef HAVE_NETDEV_OPS_FCOE_GETWWN
 extern int ixgbe_fcoe_get_wwn(struct net_device *netdev, u64 *wwn, int type);
 #endif
