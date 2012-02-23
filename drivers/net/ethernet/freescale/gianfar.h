@@ -57,8 +57,10 @@ struct ethtool_rx_list {
 	unsigned int count;
 };
 
-/* The maximum number of packets to be handled in one call of gfar_poll */
-#define GFAR_DEV_WEIGHT 64
+/* The maximum number of packets to be handled in one call of gfar_poll_rx */
+#define GFAR_DEV_RX_WEIGHT 64
+/* The maximum number of packets to be handled in one call of gfar_poll_tx */
+#define GFAR_DEV_TX_WEIGHT 64
 
 /* Length for FCB */
 #define GMAC_FCB_LEN 8
@@ -140,10 +142,10 @@ extern const char gfar_driver_version[];
 #define DEFAULT_TXCOUNT	16
 #define DEFAULT_TXTIME	21
 
-#define DEFAULT_RXTIME	21
 
 #define DEFAULT_RX_COALESCE 0
 #define DEFAULT_RXCOUNT	0
+#define DEFAULT_RXTIME	21
 
 #define GFAR_SUPPORTED (SUPPORTED_10baseT_Half \
 		| SUPPORTED_10baseT_Full \
@@ -240,6 +242,9 @@ extern const char gfar_driver_version[];
 #define DMACTRL_GRS             0x00000010
 #define DMACTRL_GTS             0x00000008
 
+#define TSTAT_TXF_MASK_ALL	0x0000FF00
+#define TSTAT_TXF0_MASK		0x00008000
+
 #define TSTAT_CLEAR_THALT_ALL	0xFF000000
 #define TSTAT_CLEAR_THALT	0x80000000
 #define TSTAT_CLEAR_THALT0	0x80000000
@@ -298,6 +303,9 @@ extern const char gfar_driver_version[];
 
 
 #define RSTAT_CLEAR_RHALT       0x00800000
+#define RSTAT_RXF_ALL_MASK		0x000000FF
+#define RSTAT_RHALT_ALL_MASK	0x00FF0000
+#define RSTAT_RXF0_MASK			0x00000080
 
 #define TCTRL_IPCSEN		0x00004000
 #define TCTRL_TUCSEN		0x00002000
@@ -372,6 +380,12 @@ extern const char gfar_driver_version[];
 		| IMASK_PERR)
 #define IMASK_RTX_DISABLED ((~(IMASK_RXFEN0 | IMASK_TXFEN | IMASK_BSY)) \
 			   & IMASK_DEFAULT)
+
+#define IMASK_DEFAULT_TX	(IMASK_TXFEN | IMASK_TXBEN)
+#define IMASK_DEFAULT_RX	(IMASK_RXFEN0 | IMASK_RXB0 | IMASK_BSY)
+
+#define IMASK_RX_DISABLED	((~IMASK_DEFAULT_RX) & IMASK_DEFAULT)
+#define IMASK_TX_DISABLED	((~IMASK_DEFAULT_TX) & IMASK_DEFAULT)
 
 /* Fifo management */
 #define FIFO_TX_THR_MASK	0x01ff
@@ -999,7 +1013,8 @@ struct gfar_priv_rx_q {
 
 /**
  *	struct gfar_priv_grp - per group structure
- *	@napi: the napi poll function
+ *	@napi_rx: the RX napi poll function
+ *	@napi_tx: the TX napi poll function
  *	@priv: back pointer to the priv structure
  *	@regs: the ioremapped register space for this group
  *	@grp_id: group id for this group
@@ -1013,7 +1028,8 @@ struct gfar_priv_rx_q {
 
 struct gfar_priv_grp {
 	spinlock_t grplock __attribute__ ((aligned (SMP_CACHE_BYTES)));
-	struct	napi_struct napi;
+	struct	napi_struct napi_rx;
+	struct	napi_struct napi_tx;
 	struct gfar_private *priv;
 	struct gfar __iomem *regs;
 	unsigned int grp_id;
