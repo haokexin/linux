@@ -1048,6 +1048,7 @@ struct gfar_priv_grp {
 	char int_name_tx[GFAR_INT_NAME_MAX];
 	char int_name_rx[GFAR_INT_NAME_MAX];
 	char int_name_er[GFAR_INT_NAME_MAX];
+	u32 rstat_prev;
 };
 
 enum gfar_errata {
