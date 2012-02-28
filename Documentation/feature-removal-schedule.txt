@@ -549,3 +549,10 @@ Why:	The V4L2_CID_VCENTER, V4L2_CID_HCENTER controls have been deprecated
 	There are newer controls (V4L2_CID_PAN*, V4L2_CID_TILT*) that provide
 	similar	functionality.
 Who:	Sylwester Nawrocki <sylvester.nawrocki@gmail.com>
+
+----------------------------
+
+What:	KVM debugfs statistics
+When:	2013
+Why:	KVM tracepoints provide mostly equivalent information in a much more
+        flexible fashion.
