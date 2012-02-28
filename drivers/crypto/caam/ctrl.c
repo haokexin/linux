@@ -47,15 +47,13 @@ static int caam_remove(struct of_device *ofdev)
 static int caam_probe(struct of_device *ofdev,
 		      const struct of_device_id *devmatch)
 {
-	int d, ring, rspec;
+	int ring, rspec;
 	struct device *dev;
 	struct device_node *nprop, *np;
 	struct caam_ctrl __iomem *ctrl;
 	struct caam_full __iomem *topregs;
 	struct caam_drv_private *ctrlpriv;
 	struct caam_perfmon *perfmon;
-	struct caam_deco **deco;
-	u32 deconum;
 
 	ctrlpriv = kzalloc(sizeof(struct caam_drv_private), GFP_KERNEL);
 	if (!ctrlpriv)
@@ -90,17 +88,6 @@ static int caam_probe(struct of_device *ofdev,
 
 	if (sizeof(dma_addr_t) == sizeof(u64))
 		dma_set_mask(dev, DMA_BIT_MASK(36));
-
-	/* Find out how many DECOs are present */
-	deconum = (rd_reg64(&topregs->ctrl.perfmon.cha_num) &
-		   CHA_NUM_DECONUM_MASK) >> CHA_NUM_DECONUM_SHIFT;
-
-	ctrlpriv->deco = kmalloc(deconum * sizeof(struct caam_deco *),
-				 GFP_KERNEL);
-
-	deco = (struct caam_deco __force **)&topregs->deco;
-	for (d = 0; d < deconum; d++)
-		ctrlpriv->deco[d] = deco[d];
 
 	/*
 	 * Detect and enable JobRs
