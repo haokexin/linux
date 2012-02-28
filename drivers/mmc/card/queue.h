@@ -45,5 +45,10 @@ extern unsigned int mmc_queue_map_sg(struct mmc_queue *,
 				     struct mmc_queue_req *);
 extern void mmc_queue_bounce_pre(struct mmc_queue_req *);
 extern void mmc_queue_bounce_post(struct mmc_queue_req *);
+#ifdef CONFIG_MMC_BLOCK_BOUNCE
+extern int mmc_reinit_bounce_queue(struct mmc_queue *, struct mmc_card *,
+		unsigned int);
+extern unsigned mmc_queue_bouncesz;
+#endif
 
 #endif
