@@ -156,6 +156,17 @@ static inline void put_affine_portal(void)
 {
 	put_cpu_var(qman_affine_portal);
 }
+/* Exception: poll functions assume the caller is cpu-affine and in no risk of
+ * re-entrance, which are the two reasons we usually use the get/put_cpu_var()
+ * semantic - ie. to disable pre-emption. Some use-cases expect the execution
+ * context to remain as non-atomic during poll-triggered callbacks as it was
+ * when the poll API was first called (eg. NAPI), so we go out of our way in
+ * this case to not disable pre-emption. */
+static inline struct qman_portal *get_poll_portal(void)
+{
+	return &__get_cpu_var(qman_affine_portal);
+}
+#define put_poll_portal() do { ; } while (0)
 
 /* This gives a FQID->FQ lookup to cover the fact that we can't directly demux
  * retirement notifications (the fact they are sometimes h/w-consumed means that
@@ -1002,8 +1013,7 @@ EXPORT_SYMBOL(qman_affine_cpus);
 
 int qman_poll_dqrr(unsigned int limit)
 {
-	/* We need to fail when called for a "slave", so use "raw" */
-	struct qman_portal *p = get_raw_affine_portal();
+	struct qman_portal *p = get_poll_portal();
 	int ret;
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 	if (unlikely(p->sharing_redirect))
@@ -1014,15 +1024,14 @@ int qman_poll_dqrr(unsigned int limit)
 		BUG_ON(p->irq_sources & QM_PIRQ_DQRI);
 		ret = __poll_portal_fast(p, limit);
 	}
-	put_affine_portal();
+	put_poll_portal();
 	return ret;
 }
 EXPORT_SYMBOL(qman_poll_dqrr);
 
 u32 qman_poll_slow(void)
 {
-	/* We need to fail when called for a "slave", so use "raw" */
-	struct qman_portal *p = get_raw_affine_portal();
+	struct qman_portal *p = get_poll_portal();
 	u32 ret;
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 	if (unlikely(p->sharing_redirect))
@@ -1034,7 +1043,7 @@ u32 qman_poll_slow(void)
 		ret = __poll_portal_slow(p, is);
 		qm_isr_status_clear(&p->p, ret);
 	}
-	put_affine_portal();
+	put_poll_portal();
 	return ret;
 }
 EXPORT_SYMBOL(qman_poll_slow);
@@ -1042,7 +1051,7 @@ EXPORT_SYMBOL(qman_poll_slow);
 /* Legacy wrapper */
 void qman_poll(void)
 {
-	struct qman_portal *p = get_raw_affine_portal();
+	struct qman_portal *p = get_poll_portal();
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 	if (unlikely(p->sharing_redirect))
 		goto done;
@@ -1063,7 +1072,7 @@ void qman_poll(void)
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 done:
 #endif
-	put_affine_portal();
+	put_poll_portal();
 }
 EXPORT_SYMBOL(qman_poll);
 
