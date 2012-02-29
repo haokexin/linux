@@ -108,6 +108,11 @@ static inline void put_affine_portal(void)
 {
 	put_cpu_var(bman_affine_portal);
 }
+static inline struct bman_portal *get_poll_portal(void)
+{
+	return &__get_cpu_var(bman_affine_portal);
+}
+#define put_poll_portal() do { ; } while (0)
 
 /* GOTCHA: this object type refers to a pool, it isn't *the* pool. There may be
  * more than one such object per Bman buffer pool, eg. if different users of the
@@ -502,7 +507,7 @@ EXPORT_SYMBOL(bman_affine_cpus);
 
 u32 bman_poll_slow(void)
 {
-	struct bman_portal *p = get_raw_affine_portal();
+	struct bman_portal *p = get_poll_portal();
 	u32 ret;
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 	if (unlikely(p->sharing_redirect))
@@ -514,7 +519,7 @@ u32 bman_poll_slow(void)
 		ret = __poll_portal_slow(p, is);
 		bm_isr_status_clear(&p->p, ret);
 	}
-	put_affine_portal();
+	put_poll_portal();
 	return ret;
 }
 EXPORT_SYMBOL(bman_poll_slow);
@@ -522,7 +527,7 @@ EXPORT_SYMBOL(bman_poll_slow);
 /* Legacy wrapper */
 void bman_poll(void)
 {
-	struct bman_portal *p = get_raw_affine_portal();
+	struct bman_portal *p = get_poll_portal();
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 	if (unlikely(p->sharing_redirect))
 		goto done;
@@ -538,7 +543,7 @@ void bman_poll(void)
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 done:
 #endif
-	put_affine_portal();
+	put_poll_portal();
 }
 EXPORT_SYMBOL(bman_poll);
 
