@@ -65,6 +65,7 @@ int generic_cpu_disable(void);
 void generic_cpu_die(unsigned int cpu);
 void generic_mach_cpu_die(void);
 void generic_set_cpu_dead(unsigned int cpu);
+void generic_set_cpu_up(unsigned int cpu);
 int generic_check_cpu_restart(unsigned int cpu);
 #endif
 
@@ -193,6 +194,7 @@ extern char __secondary_hold;
 extern unsigned long __run_at_kexec;
 #endif
 
+extern void __early_start(void);
 #endif /* __ASSEMBLY__ */
 
 #endif /* __KERNEL__ */
