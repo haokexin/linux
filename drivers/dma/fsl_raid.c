@@ -7,7 +7,7 @@
  *	Harninder Rai <harninder.rai@freescale.com>
  *	Naveen Burmi <naveenburmi@freescale.com>
  *
- * Copyright (c) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (c) 2010-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -130,6 +130,7 @@ static void re_jr_dequeue(unsigned long data)
 	void *callback_param;
 	unsigned int count = 0;
 	unsigned int i = 0;
+	struct fsl_re_dma_async_tx_desc *ack_desc = NULL, *_ack_desc = NULL;
 
 	spin_lock_bh(&jr->desc_lock);
 
@@ -157,9 +158,14 @@ static void re_jr_dequeue(unsigned long data)
 			out_be32(&jr->jrregs->oubring_job_rmvd,
 					RE_JR_OUB_JOB_REMOVE);
 
-			if ((desc->async_tx.flags & DMA_CTRL_ACK)) {
-				kfree(desc->cf_addr);
-				kfree(desc->cdb_addr);
+			/* Free the cf/cdb address stored in descs
+			 * unconditionally. These pointers are only
+			 * required for RE driver's housekeeping
+			 */
+			kfree(desc->cf_addr);
+			kfree(desc->cdb_addr);
+
+			if (async_tx_test_ack(&desc->async_tx)) {
 				if (jr->soft_desc->desc_cnt <
 							MAX_INITIAL_DESCS) {
 					list_add(&desc->node,
@@ -169,12 +175,27 @@ static void re_jr_dequeue(unsigned long data)
 					kfree(desc);
 				}
 			}
+			/* Add descs which has DMA_CTRL_ACK bit cleared to
+			 * ack_q list.
+			 */
+			else {
+				list_add_tail(&desc->node, &jr->ack_q);
+			}
 
 			/* Call callback of upper layer */
 			if (callback) {
 				spin_unlock_bh(&jr->desc_lock);
 				callback(callback_param);
 				spin_lock_bh(&jr->desc_lock);
+			}
+		}
+
+		/* To save memory, parse the ack_q and free up descs */
+		list_for_each_entry_safe(ack_desc, _ack_desc, &jr->ack_q,
+					node) {
+			if (async_tx_test_ack(&ack_desc->async_tx)) {
+				list_del(&ack_desc->node);
+				kfree(ack_desc);
 			}
 		}
 	}
@@ -868,6 +889,7 @@ int re_jr_probe(struct platform_device *ofdev,
 	jr->chan.private = jr;
 
 	INIT_LIST_HEAD(&jr->submit_q);
+	INIT_LIST_HEAD(&jr->ack_q);
 	spin_lock_init(&jr->desc_lock);
 	spin_lock_init(&jr->submit_lock);
 
