@@ -7,7 +7,7 @@
  *	Harninder Rai <harninder.rai@freescale.com>
  *	Naveen Burmi <naveenburmi@freescale.com>
  *
- * Copyright (c) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (c) 2010-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -243,6 +243,7 @@ struct re_jr {
 	spinlock_t desc_lock;
 	spinlock_t submit_lock;
 	struct list_head submit_q;
+	struct list_head ack_q;
 	struct device *dev;
 	struct dma_chan chan;
 	struct jr_config_regs *jrregs;
