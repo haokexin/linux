@@ -98,8 +98,23 @@ static int fsl_msi_init_allocator(struct fsl_msi *msi_data)
 
 static int fsl_msi_check_device(struct pci_dev *pdev, int nvec, int type)
 {
+	struct fsl_msi *msi;
+
 	if (type == PCI_CAP_ID_MSIX)
 		pr_debug("fslmsi: MSI-X untested, trying anyway.\n");
+	else if (type == PCI_CAP_ID_MSI) {
+		/*
+		 * MPIC chip with 2.0 version has erratum PIC1. It
+		 * causes that neither MSI nor MSI-X can work fine.
+		 * There is a workaround to allow MSI-X to function
+		 * properly.
+		 */
+		list_for_each_entry(msi, &msi_head, list) {
+			if ((msi->feature & MSI_HW_ERRATA_MASK)
+						== MSI_HW_ERRATA_ENDIAN)
+				return -EINVAL;
+		}
+	}
 
 	return 0;
 }
@@ -142,7 +157,11 @@ static void fsl_compose_msi_msg(struct pci_dev *pdev, int hwirq,
 	msg->address_lo = lower_32_bits(address);
 	msg->address_hi = upper_32_bits(address);
 
-	msg->data = hwirq;
+	/* See the comment in fsl_msi_check_device() */
+	if ((msi_data->feature & MSI_HW_ERRATA_MASK) == MSI_HW_ERRATA_ENDIAN)
+		msg->data = __swab32(hwirq);
+	else
+		msg->data = hwirq;
 
 	pr_debug("%s: allocated srs: %d, ibs: %d\n",
 		__func__, hwirq / IRQS_PER_MSI_REG, hwirq % IRQS_PER_MSI_REG);
@@ -359,13 +378,43 @@ static int __devinit fsl_msi_setup_hwirq(struct fsl_msi *msi,
 	return 0;
 }
 
+/* MPIC chip with 2.0 version has erratum PIC1 */
+static int mpic_has_errata(struct platform_device *dev)
+{
+	struct device_node *mpic_node;
+
+	mpic_node = of_irq_find_parent(dev->dev.of_node);
+	if (mpic_node) {
+		u32 *reg_base, brr1 = 0;
+		/* Get the PIC reg base */
+		reg_base = of_iomap(mpic_node, 0);
+		of_node_put(mpic_node);
+		if (!reg_base) {
+			dev_err(&dev->dev, "ioremap problem failed.\n");
+			return -EIO;
+		}
+
+		/* Get the mpic chip version from block revision register 1 */
+		brr1 = in_be32(reg_base + MPIC_FSL_BRR1);
+		iounmap(reg_base);
+		if ((brr1 & MPIC_FSL_BRR1_VER) == 0x0200)
+			return 1;
+	} else {
+		dev_err(&dev->dev, "MSI can't find his parent mpic node.\n");
+		of_node_put(mpic_node);
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
 static const struct of_device_id fsl_of_msi_ids[];
 static int __devinit fsl_of_msi_probe(struct platform_device *dev)
 {
 	const struct of_device_id *match;
 	struct fsl_msi *msi;
 	struct resource res;
-	int err, i, j, irq_index, count;
+	int err, i, j, irq_index, count, errata;
 	int rc;
 	const u32 *p;
 	struct fsl_msi_feature *features;
@@ -420,6 +469,16 @@ static int __devinit fsl_of_msi_probe(struct platform_device *dev)
 	}
 
 	msi->feature = features->fsl_pic_ip;
+
+	if ((features->fsl_pic_ip & FSL_PIC_IP_MASK) == FSL_PIC_IP_MPIC) {
+		errata = mpic_has_errata(dev);
+		if (errata > 0) {
+			msi->feature |= MSI_HW_ERRATA_ENDIAN;
+		} else if (errata < 0) {
+			err = errata;
+			goto error_out;
+		}
+	}
 
 	/*
 	 * Remember the phandle, so that we can match with any PCI nodes
