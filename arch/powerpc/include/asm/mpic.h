@@ -118,6 +118,9 @@
 #define MPIC_MAX_CPUS		32
 #define MPIC_MAX_ISU		32
 
+#define MPIC_MAX_TIMER    8
+#define MPIC_MAX_IPI      4
+
 /*
  * Tsi108 implementation of MPIC has many differences from the original one
  */
@@ -279,8 +282,8 @@ struct mpic
 	unsigned int		num_sources;
 
 	/* vector numbers used for internal sources (ipi/timers) */
-	unsigned int		ipi_vecs[4];
-	unsigned int		timer_vecs[8];
+	unsigned int		ipi_vecs[MPIC_MAX_IPI];
+	unsigned int		timer_vecs[MPIC_MAX_TIMER];
 
 	/* Spurious vector to program into unused sources */
 	unsigned int		spurious_vec;

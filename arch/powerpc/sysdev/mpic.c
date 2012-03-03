@@ -1023,7 +1023,8 @@ static int mpic_host_map(struct irq_domain *h, unsigned int virq,
 		return 0;
 	}
 
-	if (hw >= mpic->timer_vecs[0] && hw <= mpic->timer_vecs[7]) {
+	if (hw >= mpic->timer_vecs[0] &&
+	    hw <= mpic->timer_vecs[MPIC_MAX_TIMER - 1]) {
 		WARN_ON(mpic->flags & MPIC_SECONDARY);
 
 		DBG("mpic: mapping as timer\n");
@@ -1160,6 +1161,20 @@ static struct irq_domain_ops mpic_host_ops = {
 	.xlate = mpic_host_xlate,
 };
 
+static void mpic_alloc_int_sources(struct mpic *mpic, int intvec_top)
+{
+	int		i;
+	int		intvec;
+
+	intvec = intvec_top;
+
+	for (i = MPIC_MAX_IPI - 1; i >= 0; i--)
+		mpic->ipi_vecs[i] = --intvec;
+
+	for (i = MPIC_MAX_TIMER - 1; i >= 0; i--)
+		mpic->timer_vecs[i] = --intvec;
+}
+
 /*
  * Exported functions
  */
@@ -1253,18 +1268,6 @@ struct mpic * __init mpic_alloc(struct device_node *node,
 	else
 		intvec_top = 255;
 
-	mpic->timer_vecs[0] = intvec_top - 12;
-	mpic->timer_vecs[1] = intvec_top - 11;
-	mpic->timer_vecs[2] = intvec_top - 10;
-	mpic->timer_vecs[3] = intvec_top - 9;
-	mpic->timer_vecs[4] = intvec_top - 8;
-	mpic->timer_vecs[5] = intvec_top - 7;
-	mpic->timer_vecs[6] = intvec_top - 6;
-	mpic->timer_vecs[7] = intvec_top - 5;
-	mpic->ipi_vecs[0]   = intvec_top - 4;
-	mpic->ipi_vecs[1]   = intvec_top - 3;
-	mpic->ipi_vecs[2]   = intvec_top - 2;
-	mpic->ipi_vecs[3]   = intvec_top - 1;
 	mpic->spurious_vec  = intvec_top;
 
 	/* Look for protected sources */
@@ -1389,6 +1392,8 @@ struct mpic * __init mpic_alloc(struct device_node *node,
 	mpic->isu_size = isu_size;
 	mpic->isu_shift = 1 + __ilog2(mpic->isu_size - 1);
 	mpic->isu_mask = (1 << mpic->isu_shift) - 1;
+
+	mpic_alloc_int_sources(mpic, intvec_top);
 
 	mpic->irqhost = irq_domain_add_linear(mpic->node,
 				       last_irq + 1,
