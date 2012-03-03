@@ -114,12 +114,21 @@
 #define MPIC_FSL_BRR1			0x00000
 #define 	MPIC_FSL_BRR1_VER			0x0000ffff
 
+/*
+ * Error interrupt registers
+ */
+
+#define MPIC_ERR_INT_BASE	0x3900
+#define MPIC_ERR_INT_EISR	0x0000
+#define MPIC_ERR_INT_EIMR	0x0010
+
 #define MPIC_MAX_IRQ_SOURCES	2048
 #define MPIC_MAX_CPUS		32
 #define MPIC_MAX_ISU		32
 
 #define MPIC_MAX_TIMER    8
 #define MPIC_MAX_IPI      4
+#define MPIC_MAX_ERR      32
 
 /*
  * Tsi108 implementation of MPIC has many differences from the original one
@@ -271,6 +280,7 @@ struct mpic
 #endif
 	struct irq_chip		hc_ipi;
 	struct irq_chip		hc_tm;
+	struct irq_chip		hc_err;
 	const char		*name;
 	/* Flags */
 	unsigned int		flags;
@@ -284,6 +294,8 @@ struct mpic
 	/* vector numbers used for internal sources (ipi/timers) */
 	unsigned int		ipi_vecs[MPIC_MAX_IPI];
 	unsigned int		timer_vecs[MPIC_MAX_TIMER];
+	/* vector numbers used for FSL MPIC error interrupts */
+	unsigned int		err_int_vecs[MPIC_MAX_ERR];
 
 	/* Spurious vector to program into unused sources */
 	unsigned int		spurious_vec;
@@ -306,6 +318,10 @@ struct mpic
 	struct mpic_reg_bank	tmregs;
 	struct mpic_reg_bank	cpuregs[MPIC_MAX_CPUS];
 	struct mpic_reg_bank	isus[MPIC_MAX_ISU];
+	struct mpic_reg_bank	err_regs;
+
+	/* error interrupt config */
+	u32			err_int_config_done;
 
 	/* Protected sources */
 	unsigned long		*protected;
@@ -371,6 +387,8 @@ struct mpic
 #define MPIC_NO_RESET			0x00004000
 /* Freescale MPIC (compatible includes "fsl,mpic") */
 #define MPIC_FSL			0x00008000
+/* Freescale MPIC supports EIMR (error interrupt mask register)*/
+#define MPIC_FSL_HAS_EIMR		0x00010000
 
 /* MPIC HW modification ID */
 #define MPIC_REGSET_MASK		0xf0000000
