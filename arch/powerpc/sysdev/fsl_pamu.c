@@ -393,6 +393,34 @@ static phys_addr_t ppaact_phys;
 #define OMI_QMAN_PRIV   0x02
 #define OMI_CAAM        0x03
 
+/*
+ * Return the Nth integer of a given property in a given node
+ *
+ * 'index' is the index into the property (e.g. 'N').
+ * 'property' is the name of the property.
+ *
+ * This function assumes the value of the property is <= INT_MAX.  A negative
+ * return value indicates an error.
+ */
+static int of_read_indexed_number(struct device_node *node,
+	const char *property, unsigned int index)
+{
+	const u32 *prop;
+	int value;
+	int len;
+
+	prop = of_get_property(node, property, &len);
+	if (!prop || (len % sizeof(uint32_t)))
+		return -ENODEV;
+
+	if (index >= (len / sizeof(uint32_t)))
+		return -EINVAL;
+
+	value = be32_to_cpu(prop[index]);
+
+	return value;
+}
+
 /**
  * pamu_set_stash_dest() - set the stash target for a given LIODN
  * @liodn: LIODN to set
@@ -404,12 +432,16 @@ static phys_addr_t ppaact_phys;
  *
  * The function returns 0 on success, or a negative error code on failure.
  */
-int pamu_set_stash_dest(unsigned int liodn, unsigned int cpu,
-	unsigned int cache_level)
+int pamu_set_stash_dest(struct device_node *node, unsigned int index,
+	unsigned int cpu, unsigned int cache_level)
 {
-	struct device_node *node;
+	int liodn;
 	const u32 *prop;
 	unsigned int i;
+
+	liodn = of_read_indexed_number(node, "fsl,liodn", index);
+	if (liodn < 0)
+		return liodn;
 
 	for_each_node_by_type(node, "cpu") {
 		prop = of_get_property(node, "reg", NULL);
