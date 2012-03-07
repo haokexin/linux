@@ -447,7 +447,7 @@ found_cpu:
 }
 EXPORT_SYMBOL(pamu_set_stash_dest);
 
-static void setup_omt(struct ome *omt)
+static void __init setup_omt(struct ome *omt)
 {
 	struct ome *ome;
 
@@ -493,7 +493,7 @@ static void setup_omt(struct ome *omt)
 	ome->moe[IOE_WRITE_IDX] = EOE_VALID | EOE_WRITE;
 }
 
-static u32 get_stash_id(unsigned int stash_dest_hint,
+static u32 __init get_stash_id(unsigned int stash_dest_hint,
 	struct device_node *portal_dn)
 {
 	const u32 *prop;
@@ -567,7 +567,7 @@ static u32 get_stash_id(unsigned int stash_dest_hint,
 	return ~(u32)0;
 }
 
-static void setup_liodns(void)
+static void __init setup_liodns(void)
 {
 	int i, len;
 	struct ppaace *ppaace;
@@ -641,7 +641,7 @@ static void setup_liodns(void)
 	}
 }
 
-static int setup_one_pamu(void *pamu_reg_base, struct ome *omt)
+static int __init setup_one_pamu(void *pamu_reg_base, struct ome *omt)
 {
 	struct pamu_mmap_regs *pamu_regs = pamu_reg_base + PAMU_MMAP_REGS_BASE;
 	phys_addr_t phys;
