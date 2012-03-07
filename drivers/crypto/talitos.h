@@ -1,7 +1,7 @@
 /*
  * Freescale SEC (talitos) device register and descriptor header defines
  *
- * Copyright (c) 2006-2011 Freescale Semiconductor, Inc.
+ * Copyright (c) 2006-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,6 +27,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
+
+#define TALITOS_NAPI_WEIGHT     12
 
 /*
  * TALITOS_xxx_LO addresses point to the low data bits (32-63) of the register
