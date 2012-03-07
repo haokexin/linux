@@ -33,7 +33,7 @@
 #define FSL_PAMU_H
 
 /* Set the stash target for a given LIODN */
-int pamu_set_stash_dest(unsigned int liodn, unsigned int cpu,
-	unsigned int cache_level);
+int pamu_set_stash_dest(struct device_node *node, unsigned int index,
+	unsigned int cpu, unsigned int cache_level);
 
 #endif
