@@ -2406,7 +2406,7 @@ static struct pci_driver pch_dma_controller_driver = {
 	.id_table = pch_dma_pcidev_id,
 	.probe = pch_dma_probe,
 	.remove = __devexit_p(pch_dma_remove),
-	.suspend = pch_dma_suspend,
+	.suspend_late = pch_dma_suspend,
 	.resume = pch_dma_resume
 };
 MODULE_DEVICE_TABLE(pci, pch_dma_pcidev_id);
