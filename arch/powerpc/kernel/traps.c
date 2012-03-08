@@ -61,6 +61,7 @@
 #include <asm/fadump.h>
 #include <asm/switch_to.h>
 #include <asm/debug.h>
+#include <sysdev/fsl_pci.h>
 
 #if defined(CONFIG_DEBUGGER) || defined(CONFIG_KEXEC)
 int (*__debugger)(struct pt_regs *regs) __read_mostly;
@@ -570,6 +571,8 @@ int machine_check_e500(struct pt_regs *regs)
 
 	if (reason & MCSR_BUS_RBERR) {
 		if (fsl_rio_mcheck_exception(regs))
+			return 1;
+		if (fsl_pci_mcheck_exception(regs))
 			return 1;
 	}
 
