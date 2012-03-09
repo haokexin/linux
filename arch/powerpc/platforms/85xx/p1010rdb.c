@@ -46,23 +46,24 @@ void __init p1010_rdb_pic_init(void)
  */
 static void __init p1010_rdb_setup_arch(void)
 {
-#ifdef CONFIG_PCI
-	struct device_node *np;
-#endif
-
 	if (ppc_md.progress)
 		ppc_md.progress("p1010_rdb_setup_arch()", 0);
 
-#ifdef CONFIG_PCI
-	for_each_node_by_type(np, "pci") {
-		if (of_device_is_compatible(np, "fsl,p1010-pcie"))
-			fsl_add_bridge(np, 0);
-	}
-
-#endif
-
 	printk(KERN_INFO "P1010 RDB board from Freescale Semiconductor\n");
 }
+
+static struct of_device_id __initdata p1010_pci_ids[] = {
+	{ .compatible = "fsl,p1010-pcie", },
+	{ .compatible = "fsl,qoriq-pcie-v2.3", },
+	{ .compatible = "fsl,qoriq-pcie-v2.2", },
+	{},
+};
+
+static int __init p1010_rdb_publish_pci_device(void)
+{
+	return of_platform_bus_probe(NULL, p1010_pci_ids, NULL);
+}
+machine_arch_initcall(p1010_rdb, p1010_rdb_publish_pci_device);
 
 machine_device_initcall(p1010_rdb, mpc85xx_common_publish_devices);
 machine_arch_initcall(p1010_rdb, swiotlb_setup_bus_notifier);
