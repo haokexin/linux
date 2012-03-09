@@ -527,36 +527,8 @@ early_param("video", early_video_setup);
  */
 static void __init p1022_ds_setup_arch(void)
 {
-#ifdef CONFIG_PCI
-	struct device_node *np;
-#endif
-	dma_addr_t max = 0xffffffff;
-
 	if (ppc_md.progress)
 		ppc_md.progress("p1022_ds_setup_arch()", 0);
-
-#ifdef CONFIG_PCI
-	for_each_compatible_node(np, "pci", "fsl,p1022-pcie") {
-		struct resource rsrc;
-		struct pci_controller *hose;
-
-		of_address_to_resource(np, 0, &rsrc);
-
-		if ((rsrc.start & 0xfffff) == 0x8000) {
-			if (fsl_add_bridge(np, 1) < 0)
-				continue;
-		} else {
-			if (fsl_add_bridge(np, 0) < 0)
-				continue;
-		}
-
-		hose = pci_find_hose_for_OF_device(np);
-		if (!hose)
-			continue;
-		max = min(max, hose->dma_window_base_cur +
-			  hose->dma_window_size);
-	}
-#endif
 
 #if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 	diu_ops.get_pixel_format	= p1022ds_get_pixel_format;
@@ -615,17 +587,25 @@ static void __init p1022_ds_setup_arch(void)
 	mpc85xx_smp_init();
 
 #ifdef CONFIG_SWIOTLB
-	if (memblock_end_of_DRAM() > max) {
+	if (memblock_end_of_DRAM() > 0xffffffff)
 		ppc_swiotlb_enable = 1;
-		set_pci_dma_ops(&swiotlb_dma_ops);
-		ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
-	}
 #endif
 
 	pr_info("Freescale P1022 DS reference board\n");
 }
 
 machine_device_initcall(p1022_ds, mpc85xx_common_publish_devices);
+
+static struct of_device_id __initdata p1022_pci_ids[] = {
+	{ .compatible = "fsl,p1022-pcie", },
+	{},
+};
+
+static int __init p1022_ds_publish_pci_device(void)
+{
+	return of_platform_bus_probe(NULL, p1022_pci_ids, NULL);
+}
+machine_arch_initcall(p1022_ds, p1022_ds_publish_pci_device);
 
 machine_arch_initcall(p1022_ds, swiotlb_setup_bus_notifier);
 
@@ -636,7 +616,14 @@ static int __init p1022_ds_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
 
-	return of_flat_dt_is_compatible(root, "fsl,p1022ds");
+	if (of_flat_dt_is_compatible(root, "fsl,p1022ds")) {
+#ifdef CONFIG_PCI
+		primary_phb_addr = 0x8000;
+#endif
+		return 1;
+	}
+
+	return 0;
 }
 
 define_machine(p1022_ds) {

@@ -309,18 +309,6 @@ static void __init mpc85xx_cds_setup_arch(void)
 	}
 
 #ifdef CONFIG_PCI
-	for_each_node_by_type(np, "pci") {
-		if (of_device_is_compatible(np, "fsl,mpc8540-pci") ||
-		    of_device_is_compatible(np, "fsl,mpc8548-pcie")) {
-			struct resource rsrc;
-			of_address_to_resource(np, 0, &rsrc);
-			if ((rsrc.start & 0xfffff) == 0x8000)
-				fsl_add_bridge(np, 1);
-			else
-				fsl_add_bridge(np, 0);
-		}
-	}
-
 	ppc_md.pci_irq_fixup = mpc85xx_cds_pci_irq_fixup;
 	ppc_md.pci_exclude_device = mpc85xx_exclude_device;
 #endif
@@ -352,8 +340,27 @@ static int __init mpc85xx_cds_probe(void)
 {
         unsigned long root = of_get_flat_dt_root();
 
-        return of_flat_dt_is_compatible(root, "MPC85xxCDS");
+	if (of_flat_dt_is_compatible(root, "MPC85xxCDS")) {
+#ifdef CONFIG_PCI
+		primary_phb_addr = 0x8000;
+#endif
+		return 1;
+	}
+
+	return 0;
 }
+
+static struct of_device_id __initdata mpc85xxcds_pci_ids[] = {
+	{ .compatible = "fsl,mpc8540-pci", },
+	{ .compatible = "fsl,mpc8548-pcie", },
+	{},
+};
+
+static int __init mpc85xxcds_publish_pci_device(void)
+{
+	return of_platform_bus_probe(NULL, mpc85xxcds_pci_ids, NULL);
+}
+machine_arch_initcall(mpc85xx_cds, mpc85xxcds_publish_pci_device);
 
 machine_device_initcall(mpc85xx_cds, mpc85xx_common_publish_devices);
 

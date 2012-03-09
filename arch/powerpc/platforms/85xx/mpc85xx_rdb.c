@@ -86,20 +86,12 @@ void __init mpc85xx_rdb_pic_init(void)
  */
 static void __init mpc85xx_rdb_setup_arch(void)
 {
-#if defined(CONFIG_PCI) || defined(CONFIG_QUICC_ENGINE)
+#if defined(CONFIG_QUICC_ENGINE)
 	struct device_node *np;
 #endif
 
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_rdb_setup_arch()", 0);
-
-#ifdef CONFIG_PCI
-	for_each_node_by_type(np, "pci") {
-		if (of_device_is_compatible(np, "fsl,mpc8548-pcie"))
-			fsl_add_bridge(np, 0);
-	}
-
-#endif
 
 	mpc85xx_smp_init();
 
@@ -160,6 +152,23 @@ qe_fail:
 
 	printk(KERN_INFO "MPC85xx RDB board from Freescale Semiconductor\n");
 }
+
+static struct of_device_id __initdata mpc85xxrdb_pci_ids[] = {
+	{ .compatible = "fsl,mpc8548-pcie", },
+	{},
+};
+
+static int __init mpc85xxrdb_publish_pci_device(void)
+{
+	return of_platform_bus_probe(NULL, mpc85xxrdb_pci_ids, NULL);
+}
+machine_arch_initcall(p2020_rdb, mpc85xxrdb_publish_pci_device);
+machine_arch_initcall(p1020_rdb, mpc85xxrdb_publish_pci_device);
+machine_arch_initcall(p1020_rdb_pc, mpc85xxrdb_publish_pci_device);
+machine_arch_initcall(p2020_rdb_pc, mpc85xxrdb_publish_pci_device);
+machine_arch_initcall(p1024_rdb, mpc85xxrdb_publish_pci_device);
+machine_arch_initcall(p1021_rdb_pc, mpc85xxrdb_publish_pci_device);
+machine_arch_initcall(p1025_rdb, mpc85xxrdb_publish_pci_device);
 
 machine_device_initcall(p2020_rdb, mpc85xx_common_publish_devices);
 machine_device_initcall(p2020_rdb_pc, mpc85xx_common_publish_devices);
