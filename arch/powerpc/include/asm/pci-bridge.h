@@ -92,6 +92,13 @@ struct pci_controller {
 
 	void *private_data;
 #endif	/* CONFIG_PPC64 */
+
+#ifdef CONFIG_SUSPEND
+	int inbound_num;
+	struct pci_outbound_window_regs __iomem *pci_pow;
+	struct pci_inbound_window_regs __iomem *pci_piw;
+	void *saved_regs;
+#endif
 };
 
 /* These are used for config access before all the PCI probing
