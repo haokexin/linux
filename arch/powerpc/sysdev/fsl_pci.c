@@ -891,12 +891,116 @@ static int __devinit fsl_pci_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#ifdef CONFIG_SUSPEND
+
+#define PCI_POW_PIW_OFFSET	0xc00
+#define PCI_POW_PIW_SIZE	0x200
+#define PCI_POW_NUMBER		5
+
+static int fsl_pci_suspend(struct platform_device *pdev, pm_message_t state)
+{
+	struct pci_controller *hose;
+	struct pci_outbound_window_regs *pci_saved_pow;
+	struct pci_inbound_window_regs *pci_saved_piw, *temp_piw;
+	struct resource pci_rsrc;
+	unsigned int i;
+
+	hose = pci_find_hose_for_OF_device(pdev->dev.of_node);
+	of_address_to_resource(pdev->dev.of_node, 0, &pci_rsrc);
+
+	hose->pci_pow = ioremap(pci_rsrc.start + PCI_POW_PIW_OFFSET,
+			PCI_POW_PIW_SIZE);
+	if (!hose->pci_pow) {
+		dev_err(&pdev->dev, "pci outbound/inbound windows ioremap error!\n");
+		return -ENOMEM;
+	}
+
+	hose->pci_piw = (struct pci_inbound_window_regs *)
+		((void *)hose->pci_pow + PCI_POW_PIW_SIZE) - 1;
+
+	if (of_device_is_compatible(pdev->dev.of_node, "fsl,qoriq-pcie-v2.2"))
+		hose->inbound_num = 4;
+	else
+		hose->inbound_num = 3;
+
+	hose->saved_regs = kmalloc(
+		sizeof(struct pci_outbound_window_regs) * PCI_POW_NUMBER +
+		sizeof(struct pci_inbound_window_regs) * hose->inbound_num,
+		GFP_KERNEL);
+	if (!hose->saved_regs)
+		goto err;
+
+	pci_saved_pow = hose->saved_regs;
+	for (i = 0; i < PCI_POW_NUMBER; i++) {
+		pci_saved_pow[i].potar = in_be32(&hose->pci_pow[i].potar);
+		pci_saved_pow[i].potear = in_be32(&hose->pci_pow[i].potear);
+		pci_saved_pow[i].powbar = in_be32(&hose->pci_pow[i].powbar);
+		pci_saved_pow[i].powar = in_be32(&hose->pci_pow[i].powar);
+	}
+
+	pci_saved_piw = (struct pci_inbound_window_regs *)
+		(pci_saved_pow + PCI_POW_NUMBER);
+	temp_piw = hose->pci_piw;
+	for (i = 0; i < hose->inbound_num; i++, temp_piw--) {
+		pci_saved_piw[i].pitar = in_be32(&temp_piw->pitar);
+		pci_saved_piw[i].piwbar = in_be32(&temp_piw->piwbar);
+		pci_saved_piw[i].piwbear = in_be32(&temp_piw->piwbear);
+		pci_saved_piw[i].piwar = in_be32(&temp_piw->piwar);
+	}
+
+	return 0;
+
+err:
+	iounmap(hose->pci_pow);
+	return -ENOMEM;
+}
+
+static int fsl_pci_resume(struct platform_device *pdev)
+{
+	struct pci_controller *hose;
+	struct pci_outbound_window_regs *pci_saved_pow;
+	struct pci_inbound_window_regs *pci_saved_piw, *temp_piw;
+	unsigned int i;
+
+	hose = pci_find_hose_for_OF_device(pdev->dev.of_node);
+	if (!hose->pci_pow || !hose->pci_piw || !hose->saved_regs)
+		return 0;
+
+	pci_saved_pow = hose->saved_regs;
+	for (i = 0; i < PCI_POW_NUMBER; i++) {
+		out_be32(&hose->pci_pow[i].potar, pci_saved_pow[i].potar);
+		out_be32(&hose->pci_pow[i].potear, pci_saved_pow[i].potear);
+		out_be32(&hose->pci_pow[i].powbar, pci_saved_pow[i].powbar);
+		out_be32(&hose->pci_pow[i].powar, pci_saved_pow[i].powar);
+	}
+
+	pci_saved_piw = (struct pci_inbound_window_regs *)
+		(pci_saved_pow + PCI_POW_NUMBER);
+	temp_piw = hose->pci_piw;
+	for (i = 0; i < hose->inbound_num; i++, temp_piw--) {
+		out_be32(&temp_piw->pitar, pci_saved_piw[i].pitar);
+		out_be32(&temp_piw->piwbar, pci_saved_piw[i].piwbar);
+		out_be32(&temp_piw->piwbear, pci_saved_piw[i].piwbear);
+		out_be32(&temp_piw->piwar, pci_saved_piw[i].piwar);
+	}
+	iounmap(hose->pci_pow);
+	kfree(hose->saved_regs);
+	hose->saved_regs = NULL;
+
+	return 0;
+}
+#endif
+
 static struct platform_driver fsl_pci_driver = {
 	.driver = {
 		.name = "fsl-pci",
 		.of_match_table = pci_ids,
 	},
 	.probe = fsl_pci_probe,
+#ifdef CONFIG_SUSPEND
+	.suspend	= fsl_pci_suspend,
+	.resume		= fsl_pci_resume,
+#endif
 };
 
 static int __init fsl_pci_init(void)
