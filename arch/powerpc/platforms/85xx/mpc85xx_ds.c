@@ -114,7 +114,6 @@ void __init mpc85xx_ds_pic_init(void)
 }
 
 #ifdef CONFIG_PCI
-static int primary_phb_addr;
 extern int uli_exclude_device(struct pci_controller *hose,
 				u_char bus, u_char devfn);
 
@@ -140,49 +139,18 @@ static int mpc85xx_exclude_device(struct pci_controller *hose,
  */
 static void __init mpc85xx_ds_setup_arch(void)
 {
-#ifdef CONFIG_PCI
-	struct device_node *np;
-	struct pci_controller *hose;
-#endif
-	dma_addr_t max = 0xffffffff;
-
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_ds_setup_arch()", 0);
 
 #ifdef CONFIG_PCI
-	for_each_node_by_type(np, "pci") {
-		if (of_device_is_compatible(np, "fsl,mpc8540-pci") ||
-		    of_device_is_compatible(np, "fsl,mpc8548-pcie") ||
-		    of_device_is_compatible(np, "fsl,p2020-pcie")) {
-			struct resource rsrc;
-			of_address_to_resource(np, 0, &rsrc);
-			if ((rsrc.start & 0xfffff) == primary_phb_addr) {
-				if (fsl_add_bridge(np, 1) < 0)
-					continue;
-			} else {
-				if (fsl_add_bridge(np, 0) < 0)
-					continue;
-			}
-
-			hose = pci_find_hose_for_OF_device(np);
-			if (!hose)
-				continue;
-			max = min(max, hose->dma_window_base_cur +
-					hose->dma_window_size);
-		}
-	}
-
 	ppc_md.pci_exclude_device = mpc85xx_exclude_device;
 #endif
 
 	mpc85xx_smp_init();
 
 #ifdef CONFIG_SWIOTLB
-	if (memblock_end_of_DRAM() > max) {
+	if (memblock_end_of_DRAM() > 0xffffffff)
 		ppc_swiotlb_enable = 1;
-		set_pci_dma_ops(&swiotlb_dma_ops);
-		ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
-	}
 #endif
 
 	printk("MPC85xx DS board from Freescale Semiconductor\n");
@@ -204,6 +172,20 @@ static int __init mpc8544_ds_probe(void)
 
 	return 0;
 }
+
+static struct of_device_id __initdata mpc85xxds_pci_ids[] = {
+	{ .compatible = "fsl,mpc8540-pci", },
+	{ .compatible = "fsl,mpc8548-pcie", },
+	{},
+};
+
+static int __init mpc85xxds_publish_pci_device(void)
+{
+	return of_platform_bus_probe(NULL, mpc85xxds_pci_ids, NULL);
+}
+machine_arch_initcall(mpc8544_ds, mpc85xxds_publish_pci_device);
+machine_arch_initcall(mpc8572_ds, mpc85xxds_publish_pci_device);
+machine_arch_initcall(p2020_ds, mpc85xxds_publish_pci_device);
 
 machine_device_initcall(mpc8544_ds, mpc85xx_common_publish_devices);
 machine_device_initcall(mpc8572_ds, mpc85xx_common_publish_devices);
