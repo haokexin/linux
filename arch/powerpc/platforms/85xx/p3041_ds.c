@@ -82,6 +82,7 @@ define_machine(p3041_ds) {
 	.power_save		= e500_idle,
 };
 
+machine_arch_initcall(p3041_ds, corenet_ds_publish_pci_device);
 machine_device_initcall(p3041_ds, corenet_ds_publish_devices);
 
 #ifdef CONFIG_SWIOTLB

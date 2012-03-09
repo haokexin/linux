@@ -80,13 +80,19 @@ static void __init mpc85xx_rds_setup_arch(void)
 		}
 	}
 
-#ifdef CONFIG_PCI
-	for_each_compatible_node(np, "pci", "fsl,p1023-pcie")
-		fsl_add_bridge(np, 0);
-#endif
-
 	mpc85xx_smp_init();
 }
+
+static struct of_device_id __initdata p1023_pci_ids[] = {
+	{ .compatible = "fsl,p1023-pcie", },
+	{},
+};
+
+static int __init p1023_rds_publish_pci_device(void)
+{
+	return of_platform_bus_probe(NULL, p1023_pci_ids, NULL);
+}
+machine_arch_initcall(p1023_rds, p1023_rds_publish_pci_device);
 
 machine_device_initcall(p1023_rds, mpc85xx_common_publish_devices);
 

@@ -69,34 +69,10 @@ static int mpc86xx_exclude_device(struct pci_controller *hose,
 static void __init
 mpc86xx_hpcn_setup_arch(void)
 {
-#ifdef CONFIG_PCI
-	struct device_node *np;
-	struct pci_controller *hose;
-#endif
-	dma_addr_t max = 0xffffffff;
-
 	if (ppc_md.progress)
 		ppc_md.progress("mpc86xx_hpcn_setup_arch()", 0);
 
 #ifdef CONFIG_PCI
-	for_each_compatible_node(np, "pci", "fsl,mpc8641-pcie") {
-		struct resource rsrc;
-		of_address_to_resource(np, 0, &rsrc);
-		if ((rsrc.start & 0xfffff) == 0x8000) {
-			if (fsl_add_bridge(np, 1) < 0)
-				continue;
-		} else {
-			if (fsl_add_bridge(np, 0) < 0)
-				continue;
-		}
-
-		hose = pci_find_hose_for_OF_device(np);
-		if (!hose)
-			continue;
-		max = min(max, hose->dma_window_base_cur +
-			  hose->dma_window_size);
-	}
-
 	ppc_md.pci_exclude_device = mpc86xx_exclude_device;
 
 #endif
@@ -108,11 +84,8 @@ mpc86xx_hpcn_setup_arch(void)
 #endif
 
 #ifdef CONFIG_SWIOTLB
-	if (memblock_end_of_DRAM() > max) {
+	if (memblock_end_of_DRAM() > 0xffffffff)
 		ppc_swiotlb_enable = 1;
-		set_pci_dma_ops(&swiotlb_dma_ops);
-		ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
-	}
 #endif
 }
 
@@ -163,6 +136,17 @@ mpc86xx_time_init(void)
 
 	return 0;
 }
+
+static struct of_device_id __initdata mpc86xx_hpcn_pci_ids[] = {
+	{ .compatible = "fsl,mpc8641-pcie", },
+	{},
+};
+
+static int __init mpc86xx_hpcn_publish_pci_device(void)
+{
+	return of_platform_bus_probe(NULL, mpc86xx_hpcn_pci_ids, NULL);
+}
+machine_arch_initcall(mpc86xx_hpcn, mpc86xx_hpcn_publish_pci_device);
 
 static __initdata struct of_device_id of_bus_ids[] = {
 	{ .compatible = "simple-bus", },

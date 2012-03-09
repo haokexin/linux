@@ -104,6 +104,7 @@ define_machine(p5020_ds) {
 	.init_early		= corenet_ds_init_early,
 };
 
+machine_arch_initcall(p5020_ds, corenet_ds_publish_pci_device);
 machine_device_initcall(p5020_ds, declare_of_platform_devices);
 
 #ifdef CONFIG_SWIOTLB
