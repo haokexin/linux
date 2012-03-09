@@ -69,12 +69,7 @@
 
 #define DEFAULT_COUNT		64
 #define DEFAULT_BUF_SIZE DPA_BP_SIZE(fsl_fman_phy_maxfrm);
-#define DPA_MAX_TX_BACKLOG	512
 #define DPA_NAPI_WEIGHT		64
-
-#define DPA_BP_REFILL (1 | (smp_processor_id() << 16))
-#define DPA_BP_FINE ((smp_processor_id() << 16))
-#define DPA_BP_REFILL_NEEDED 1
 
 /* S/G table requires at least 256 bytes */
 #define SGT_BUFFER_SIZE		DPA_BP_SIZE(256)
@@ -163,12 +158,6 @@ struct dpa_fq {
 };
 
 /* BM */
-
-#ifdef DEBUG
-#define GFP_DPA_BP	(GFP_DMA | __GFP_ZERO | GFP_ATOMIC)
-#else
-#define GFP_DPA_BP	(GFP_DMA | GFP_ATOMIC)
-#endif
 
 #define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
 			DPA_HASH_RESULTS_SIZE)
@@ -664,18 +653,6 @@ static void _dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 }
 
 /* net_device */
-
-#define NN_ALLOCATED_SPACE(net_dev) \
-		max((size_t)arp_hdr_len(net_dev),  sizeof(struct iphdr))
-#define NN_RESERVED_SPACE(net_dev) \
-		min((size_t)arp_hdr_len(net_dev),  sizeof(struct iphdr))
-
-#define TT_ALLOCATED_SPACE(net_dev) \
-	max(sizeof(struct icmphdr), max(sizeof(struct udphdr), \
-		sizeof(struct tcphdr)))
-#define TT_RESERVED_SPACE(net_dev) \
-	min(sizeof(struct icmphdr), min(sizeof(struct udphdr), \
-		sizeof(struct tcphdr)))
 
 static struct net_device_stats * __cold
 dpa_get_stats(struct net_device *net_dev)
@@ -1216,7 +1193,6 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct bm_buffer bmb;
 	struct dpa_percpu_priv_s *percpu_priv;
 	struct dpa_priv_s *priv;
-	struct device *dev;
 	struct qm_fd fd;
 	int queue_mapping;
 	int err;
@@ -1224,7 +1200,6 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	priv = netdev_priv(net_dev);
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
-	dev = net_dev->dev.parent;
 
 	memset(&fd, 0, sizeof(fd));
 	fd.format = qm_fd_contig;

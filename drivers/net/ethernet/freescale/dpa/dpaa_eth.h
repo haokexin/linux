@@ -70,7 +70,6 @@ struct dpa_bp {
 	void				*vaddr;
 	int kernel_pool;
 	int *percpu_count;
-	int *needs_refill;
 	atomic_t refs;
 };
 
