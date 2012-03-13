@@ -91,12 +91,6 @@ static const struct of_device_id of_device_ids[] __devinitconst = {
 	{
 		.compatible	= "fsl,srio",
 	},
-	{
-		.compatible	= "fsl,p4080-pcie",
-	},
-	{
-		.compatible	= "fsl,qoriq-pcie-v2.2",
-	},
 	/* The following two are for the Freescale hypervisor */
 	{
 		.name		= "hypervisor",
