@@ -58,16 +58,6 @@ static u8 num_pools;
 static DEFINE_SPINLOCK(pools_lock);
 static int explicit_allocator;
 
-static struct dpa_uio_class bman_uio = {
-	.list = LIST_HEAD_INIT(bman_uio.list),
-	.dev_prefix = "bman-uio-"
-};
-const struct dpa_uio_class *dpa_uio_bman(void)
-{
-	return &bman_uio;
-}
-EXPORT_SYMBOL(dpa_uio_bman);
-
 static int __bm_pool_add(u32 bpid, u32 *cfg, int triplets)
 {
 	u64 total = 0;
@@ -241,20 +231,6 @@ static struct bm_portal_config * __init fsl_bman_portal_init(
 	pcfg->public_cfg.index = *index;
 	bman_depletion_fill(&pcfg->public_cfg.mask);
 
-	if (of_get_property(node, "fsl,usdpaa-portal", &ret)) {
-		struct dpa_uio_portal *u = kmalloc(sizeof(*u), GFP_KERNEL);
-		if (!u)
-			goto err;
-		u->type = dpa_uio_portal_bman;
-		u->bm_cfg = pcfg;
-		list_add_tail(&u->node, &bman_uio.list);
-		/* Return NULL, otherwise the kernel may share it on CPUs that
-		 * don't have their own portals, which would be ... *bad*. */
-		return NULL;
-	}
-
-	/* Map the portals now we know they aren't for UIO (the UIO code doesn't
-	 * need the CE mapping, and so will do its own CI-only mapping). */
 	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_prot(
 				pcfg->addr_phys[DPA_PORTAL_CE].start,
 				resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]),
@@ -457,8 +433,6 @@ static __init int bman_init(void)
 			continue;
 		pcfg = fsl_bman_portal_init(dn);
 		if (pcfg)
-			/* No kernel portal support, so if USDPAA didn't consume
-			 * the portal, we've no other use for it. */
 			fsl_bman_portal_destroy(pcfg);
 	}
 #endif
