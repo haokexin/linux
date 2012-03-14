@@ -525,27 +525,26 @@ EXPORT_SYMBOL(flush_icache_user_range);
 
 #ifdef CONFIG_FSL_USDPAA
 /*
- * NB: this 'usdpaa' check+hack is to create a single TLB1 entry to cover the
- * buffer memory used by run-to-completion UIO-based apps ("User-Space DataPath
+ * NB: this 'usdpaa' check+hack is to create TLB1 entries to cover the buffer
+ * memory used by run-to-completion UIO-based apps ("User-Space DataPath
  * Acceleration Architecture"). It is expected to be phased out once HugeTLB
- * support is hooked up. The other half of this hack is in
- * drivers/misc/fsl_shmem.c.
+ * support is hooked up with support for physical address conversion. The other
+ * half of this hack is in drivers/misc/fsl_usdpaa.c.
  */
 static inline void hook_usdpaa_tlb1(struct vm_area_struct *vma,
-				unsigned long address, pte_t *ptep)
+				    unsigned long address, pte_t *ptep)
 {
 	unsigned long pfn = pte_pfn(*ptep);
-	if ((pfn < (usdpaa_pfn_start + usdpaa_pfn_len)) &&
-	    (pfn >= usdpaa_pfn_start)) {
-		unsigned long va = address & ~(usdpaa_phys_size - 1);
+	u64 phys_addr;
+	u64 size;
+	int tlb_idx = usdpaa_test_fault(pfn, &phys_addr, &size);
+	if (tlb_idx != -1) {
+		unsigned long va = address & ~(size - 1);
 		flush_tlb_mm(vma->vm_mm);
-		settlbcam(usdpaa_tlbcam_index, va,
-			usdpaa_phys_start, usdpaa_phys_size,
-			pte_val(*ptep), mfspr(SPRN_PID));
+		settlbcam(tlb_idx, va, phys_addr, size, pte_val(*ptep),
+			  mfspr(SPRN_PID));
 	}
 }
-#else
-#define hook_usdpaa_tlb1(a, b, c) do { ; } while (0)
 #endif
 
 /*
@@ -581,8 +580,7 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 	else if (trap != 0x300)
 		return;
 	hash_preload(vma->vm_mm, address, access, trap);
-#else
-
+#elif defined(CONFIG_FSL_USDPAA)
 	hook_usdpaa_tlb1(vma, address, ptep);
 
 #endif /* CONFIG_PPC_STD_MMU */
