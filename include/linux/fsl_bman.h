@@ -365,7 +365,7 @@ int bman_recovery_cleanup_bpid(u32 bpid);
 /**
  * bman_recovery_exit - leave recovery mode
  */
-int bman_recovery_exit(void);
+void bman_recovery_exit(void);
 
 /**
  * bman_rcr_is_empty - Determine if portal's RCR is empty

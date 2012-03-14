@@ -41,10 +41,6 @@ EXPORT_SYMBOL(qman_ip_rev);
 static u32 fqd_size = (PAGE_SIZE << CONFIG_FSL_QMAN_FQD_SZ);
 #endif
 
-/*****************/
-/* Portal driver */
-/*****************/
-
 static struct dpa_uio_class qman_uio = {
 	.list = LIST_HEAD_INIT(qman_uio.list),
 	.dev_prefix = "qman-uio-"
@@ -56,33 +52,23 @@ const struct dpa_uio_class *dpa_uio_qman(void)
 EXPORT_SYMBOL(dpa_uio_qman);
 
 #ifdef CONFIG_FSL_QMAN_PORTAL
-/* This structure carries parameters from the device-tree handling code that
- * wants to set up a portal for use on 1 or more CPUs, and each temporary thread
- * created to run on those CPUs. The 'portal' member is the return value. */
-struct affine_portal_data {
-	struct completion done;
-	const struct qm_portal_config *pconfig;
-	struct qman_portal *redirect;
-	int recovery_mode;
-	struct qman_portal *portal;
-};
-
-/* This function is called in a temporary thread for each CPU, to initialise the
- * "affine" portal that the CPU should use. The thread is created and run from
- * the init_affine_portal() bootstrapper. If the CPU has not been assigned its
- * own portal, "redirect" will be non-NULL indicating it should share another
- * CPU's portal (it becomes a "slave"). */
-static __init int thread_init_affine_portal(void *__data)
+static __init struct qman_portal *init_affine_portal(
+					struct qm_portal_config *pconfig,
+					int cpu, struct qman_portal *redirect,
+					int recovery_mode)
 {
-	struct affine_portal_data *data = __data;
-	const struct qm_portal_config *pconfig = data->pconfig;
-	if (data->redirect)
-		data->portal = qman_create_affine_slave(data->redirect);
+	struct qman_portal *portal;
+	struct cpumask oldmask = *tsk_cpus_allowed(current);
+	const struct cpumask *newmask = get_cpu_mask(cpu);
+
+	set_cpus_allowed_ptr(current, newmask);
+
+	if (redirect)
+		portal = qman_create_affine_slave(redirect);
 	else {
-		/* TODO: cgrs ?? */
-		data->portal = qman_create_affine_portal(pconfig, NULL,
-				data->recovery_mode);
-		if (data->portal) {
+		portal = qman_create_affine_portal(pconfig, NULL,
+				recovery_mode);
+		if (portal) {
 			u32 irq_sources = 0;
 			/* default: enable all (available) pool channels */
 			qman_static_dequeue_add(~0);
@@ -97,47 +83,13 @@ static __init int thread_init_affine_portal(void *__data)
 			qman_irqsource_add(irq_sources);
 		}
 	}
-	complete(&data->done);
-	return 0;
-}
 
-/* This function is just a bootstrap for running thread_init_affine_portal() on
- * a given CPU. The parameters are passed in via the (void*) thread-arg (and
- * results are received back) using the affine_portal_data struct. */
-static __init struct qman_portal *init_affine_portal(
-					const struct qm_portal_config *pconfig,
-					int cpu, struct qman_portal *redirect,
-					int recovery_mode)
-{
-	struct affine_portal_data data = {
-		.done = COMPLETION_INITIALIZER_ONSTACK(data.done),
-		.pconfig = pconfig,
-		.redirect = redirect,
-		.recovery_mode = recovery_mode,
-		.portal = NULL
-	};
-	struct task_struct *k = kthread_create(thread_init_affine_portal, &data,
-		"qman_affine%d", cpu);
-	int ret;
-	if (IS_ERR(k)) {
-		pr_err("Failed to init %sQman affine portal for cpu %d\n",
-			redirect ? "(slave) " : "", cpu);
-		return NULL;
-	}
-	kthread_bind(k, cpu);
-	wake_up_process(k);
-	wait_for_completion(&data.done);
-	ret = kthread_stop(k);
-	if (ret) {
-		pr_err("Qman portal initialisation failed, cpu %d, code %d\n",
-			cpu, ret);
-		return NULL;
-	}
-	if (data.portal)
+	set_cpus_allowed_ptr(current, &oldmask);
+	if (portal)
 		pr_info("Qman portal %sinitialised, cpu %d\n",
 			redirect ? "(slave) " :
 			pconfig->public_cfg.is_shared ? "(shared) " : "", cpu);
-	return data.portal;
+	return portal;
 }
 #endif
 
@@ -340,38 +292,18 @@ static __init int fsl_fqid_range_init(struct device_node *node,
 }
 
 #ifdef CONFIG_FSL_QMAN_PORTAL
-static __init int __leave_recovery(void *__data)
+void qman_recovery_exit(void)
 {
-	struct completion *done = __data;
-	qman_recovery_exit_local();
-	complete(done);
-	return 0;
-}
-
-int qman_recovery_exit(void)
-{
-	struct completion done = COMPLETION_INITIALIZER_ONSTACK(done);
 	unsigned int cpu;
 
 	for_each_cpu(cpu, qman_affine_cpus()) {
-		struct task_struct *k = kthread_create(__leave_recovery, &done,
-						"qman_recovery");
-		int ret;
-		if (IS_ERR(k)) {
-			pr_err("Thread failure (recovery) on cpu %d\n", cpu);
-			return -ENOMEM;
-		}
-		kthread_bind(k, cpu);
-		wake_up_process(k);
-		wait_for_completion(&done);
-		ret = kthread_stop(k);
-		if (ret) {
-			pr_err("Failed to exit recovery on cpu %d\n", cpu);
-			return ret;
-		}
+		struct cpumask oldmask = *tsk_cpus_allowed(current);
+		const struct cpumask *newmask = get_cpu_mask(cpu);
+		set_cpus_allowed_ptr(current, newmask);
+		qman_recovery_exit_local();
+		set_cpus_allowed_ptr(current, &oldmask);
 		pr_info("Qman portal exited recovery, cpu %d\n", cpu);
 	}
-	return 0;
 }
 EXPORT_SYMBOL(qman_recovery_exit);
 #endif
@@ -486,11 +418,8 @@ static __init int qman_init(void)
 #ifdef CONFIG_FSL_QMAN_PORTAL
 	/* If using private FQ allocation, exit recovery mode automatically (ie.
 	 * after automatic recovery) */
-	if (recovery_mode && !use_bpid0) {
-		ret = qman_recovery_exit();
-		if (ret)
-			return ret;
-	}
+	if (recovery_mode && !use_bpid0)
+		qman_recovery_exit();
 	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++) {
 		/* This is to ensure h/w-internal CGR memory is zeroed out. Note
 		 * that we do this for all conceivable CGRIDs, not all of which
