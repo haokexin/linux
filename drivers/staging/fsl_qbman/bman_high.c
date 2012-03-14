@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -551,7 +551,7 @@ struct bman_pool *bman_new_pool(const struct bman_pool_params *params)
 	u32 bpid;
 
 	if (params->flags & BMAN_POOL_FLAG_DYNAMIC_BPID) {
-		int ret = bm_pool_new(&bpid);
+		int ret = bman_alloc_bpid(&bpid);
 		if (ret)
 			return NULL;
 	} else {
@@ -602,7 +602,7 @@ err:
 		bm_pool_set(bpid, zero_thresholds);
 #endif
 	if (params->flags & BMAN_POOL_FLAG_DYNAMIC_BPID)
-		bm_pool_free(bpid);
+		bman_release_bpid(bpid);
 	if (pool) {
 		if (pool->sp)
 			kfree(pool->sp);
@@ -644,7 +644,7 @@ void bman_free_pool(struct bman_pool *pool)
 			if (ret < 8)
 				ret = bman_acquire(pool, bufs, 1, 0);
 		} while (ret > 0);
-		bm_pool_free(pool->params.bpid);
+		bman_release_bpid(pool->params.bpid);
 	}
 	kfree(pool);
 }

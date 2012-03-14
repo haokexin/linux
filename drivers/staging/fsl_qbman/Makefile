@@ -1,3 +1,6 @@
+# Common
+obj-$(CONFIG_FSL_DPA)		+= dpa_alloc.o
+
 # Bman
 obj-$(CONFIG_FSL_BMAN)		+= bman_high.o
 obj-$(CONFIG_FSL_BMAN_CONFIG)	+= bman_config.o bman_driver.o
@@ -9,7 +12,7 @@ bman_tester-$(CONFIG_FSL_BMAN_TEST_THRESH) += bman_test_thresh.o
 bman_debugfs_interface-y	 = bman_debugfs.o
 
 # Qman
-obj-$(CONFIG_FSL_QMAN)		+= qman_high.o qman_utility.o qman_fqalloc.o
+obj-$(CONFIG_FSL_QMAN)		+= qman_high.o qman_utility.o
 obj-$(CONFIG_FSL_QMAN_CONFIG)	+= qman_config.o qman_driver.o
 obj-$(CONFIG_FSL_QMAN_TEST)	+= qman_tester.o
 qman_tester-y			 = qman_test.o qman_test_hotpotato.o \

@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -77,33 +77,6 @@ enum qm_dc_portal {
  * ie. that if present should trigger slow-path processing. */
 #define QM_PIRQ_SLOW	(QM_PIRQ_CSCI | QM_PIRQ_EQCI | QM_PIRQ_EQRI | \
 			QM_PIRQ_MRI)
-
-
-/* ------------------------ */
-/* --- FQ allocator API --- */
-
-/* Flags to qm_fq_free_flags() */
-#ifdef CONFIG_FSL_DPA_CAN_WAIT
-#define QM_FQ_FREE_WAIT       0x00000001 /* wait if RCR is full */
-#define QM_FQ_FREE_WAIT_INT   0x00000002 /* if wait, interruptible? */
-#ifdef CONFIG_FSL_DPA_CAN_WAIT_SYNC
-#define QM_FQ_FREE_WAIT_SYNC  0x00000004 /* if wait, until consumed? */
-#endif
-#endif
-
-/* Allocate an unused FQID from the FQ allocator, returns zero for failure */
-u32 qm_fq_new(void);
-/* Release a FQID back to the FQ allocator */
-int qm_fq_free_flags(u32 fqid, u32 flags);
-#ifdef CONFIG_FSL_DPA_CAN_WAIT
-static inline void qm_fq_free(u32 fqid)
-{
-	if (qm_fq_free_flags(fqid, QM_FQ_FREE_WAIT))
-		BUG();
-}
-#else
-#define qm_fq_free(fqid) qm_fq_free_flags(fqid, 0)
-#endif
 
 /* For qman_static_dequeue_*** APIs */
 #define QM_SDQCR_CHANNELS_POOL_MASK	0x00007fff
@@ -1632,7 +1605,7 @@ int qman_enqueue_orp(struct qman_fq *fq, const struct qm_fd *fd, u32 flags,
  * @count: the number of FQIDs required
  * @align: required alignment of the allocated range
  * @partial: non-zero if the API can return fewer than @count FQIDs
-
+ *
  * Returns the number of frame queues allocated, or a negative error code. If
  * @partial is non zero, the allocation request may return a smaller range of
  * FQs than requested (though alignment will be as requested). If @partial is
@@ -1641,7 +1614,8 @@ int qman_enqueue_orp(struct qman_fq *fq, const struct qm_fd *fd, u32 flags,
 int qman_alloc_fqid_range(u32 *result, u32 count, u32 align, int partial);
 static inline int qman_alloc_fqid(u32 *result)
 {
-	return qman_alloc_fqid_range(result, 1, 0, 0);
+	int ret = qman_alloc_fqid_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
 }
 
 /**
@@ -1650,7 +1624,7 @@ static inline int qman_alloc_fqid(u32 *result)
  * @count: the number of FQIDs in the range
  *
  * This function can also be used to seed the allocator with ranges of FQIDs
- * that it can subsequently use. Returns zero for success.
+ * that it can subsequently allocate from. Returns zero for success.
  */
 void qman_release_fqid_range(u32 fqid, unsigned int count);
 static inline void qman_release_fqid(u32 fqid)

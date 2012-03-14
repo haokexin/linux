@@ -3,13 +3,13 @@
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
- *       notice, this list of conditions and the following disclaimer.
+ *	 notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above copyright
- *       notice, this list of conditions and the following disclaimer in the
- *       documentation and/or other materials provided with the distribution.
+ *	 notice, this list of conditions and the following disclaimer in the
+ *	 documentation and/or other materials provided with the distribution.
  *     * Neither the name of Freescale Semiconductor nor the
- *       names of its contributors may be used to endorse or promote products
- *       derived from this software without specific prior written permission.
+ *	 names of its contributors may be used to endorse or promote products
+ *	 derived from this software without specific prior written permission.
  *
  *
  * ALTERNATIVELY, this software may be distributed under the terms of the
@@ -30,6 +30,7 @@
  */
 
 #include "qman_private.h"
+#include <sysdev/fsl_pamu.h>
 
 /* Global variable containing revision id (even on non-control plane systems
  * where CCSR isn't available) */
@@ -41,16 +42,40 @@ EXPORT_SYMBOL(qman_ip_rev);
 static u32 fqd_size = (PAGE_SIZE << CONFIG_FSL_QMAN_FQD_SZ);
 #endif
 
-/* Parses the device-tree node, extracts the configuration, and if appropriate
- * initialises the portal for use on one or more CPUs. */
-static __init struct qm_portal_config *fsl_qman_portal_init(
-					struct device_node *node)
+/* For these variables, and the portal-initialisation logic, the
+ * comments in bman_driver.c apply here so won't be repeated. */
+static struct qman_portal *shared_portals[NR_CPUS];
+static int num_shared_portals;
+static int shared_portals_idx;
+
+/* A SDQCR mask comprising all the available/visible pool channels */
+static u32 pools_sdqcr;
+
+static __init int fsl_fqid_range_init(struct device_node *node)
+{
+	int ret;
+	u32 *range = (u32 *)of_get_property(node, "fsl,fqid-range", &ret);
+	if (!range) {
+		pr_err("No 'fsl,fqid-range' property in node %s\n",
+			node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err("'fsl,fqid-range' is not a 2-cell range in node %s\n",
+			node->full_name);
+		return -EINVAL;
+	}
+	qman_release_fqid_range(range[0], range[1]);
+	pr_info("Qman: FQID allocator includes range %d:%d\n",
+		range[0], range[1]);
+	return 0;
+}
+
+static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 {
 	struct qm_portal_config *pcfg;
 	const u32 *index, *channel;
-	const phandle *ph;
-	struct device_node *tmp_node;
-	int irq, ret, numpools;
+	int irq, ret;
 	u16 ip_rev = 0;
 
 	pcfg = kmalloc(sizeof(*pcfg), GFP_KERNEL);
@@ -109,30 +134,7 @@ static __init struct qm_portal_config *fsl_qman_portal_init(
 		pr_err("Warning: node %s has mismatched %s and %s\n",
 			node->full_name, "cell-index", "fsl,qman-channel-id");
 	pcfg->public_cfg.channel = *channel;
-	/* Parse cpu associations for this portal. This involves dereferencing
-	 * to the cpu device-tree nodes, but it also ensures we only try to work
-	 * with CPUs that exist. (Eg. under a hypervisor.) */
-	ph = of_get_property(node, "cpu-handle", &ret);
-	if (ph) {
-		if (ret != sizeof(phandle)) {
-			pr_err("Malformed %s property '%s'\n", node->full_name,
-				"cpu-handle");
-			return NULL;
-		}
-		ret = check_cpu_phandle(*ph);
-		if (ret < 0)
-			return NULL;
-		pcfg->public_cfg.cpu = ret;
-	} else
-		pcfg->public_cfg.cpu = -1;
-
-	ph = of_get_property(node, "fsl,qman-pool-channels", &ret);
-	if (ph && (ret % sizeof(phandle))) {
-		pr_err("Malformed %s property '%s'\n", node->full_name,
-			"fsl,qman-pool-channels");
-		goto err;
-	}
-	numpools = ph ? (ret / sizeof(phandle)) : 0;
+	pcfg->public_cfg.cpu = -1;
 	irq = irq_of_parse_and_map(node, 0);
 	if (irq == NO_IRQ) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,
@@ -141,7 +143,6 @@ static __init struct qm_portal_config *fsl_qman_portal_init(
 	}
 	pcfg->public_cfg.irq = irq;
 	pcfg->public_cfg.index = *index;
-	pcfg->public_cfg.pools = 0;
 	pcfg->node = node;
 #ifdef CONFIG_FSL_QMAN_CONFIG
 	/* We need the same LIODN offset for all portals */
@@ -157,180 +158,206 @@ static __init struct qm_portal_config *fsl_qman_portal_init(
 				resource_size(&pcfg->addr_phys[DPA_PORTAL_CI]),
 				_PAGE_GUARDED | _PAGE_NO_CACHE);
 
-	while (numpools--) {
-		for_each_compatible_node(tmp_node, NULL,
-					 "fsl,qman-pool-channel") {
-			phandle *lph = (phandle *)of_get_property(tmp_node,
-				 "linux,phandle", &ret);
-			if (*lph == *ph) {
-				u32 *index = (u32 *)of_get_property(tmp_node,
-					"cell-index", &ret);
-				pcfg->public_cfg.pools |=
-					QM_SDQCR_CHANNELS_POOL(*index);
-			}
-		}
-		ph++;
-	}
-	if (pcfg->public_cfg.pools == 0)
-		panic("Unrecoverable error linking pool channels");
-
 	return pcfg;
 err:
 	kfree(pcfg);
 	return NULL;
 }
 
-static void __init fsl_qman_portal_destroy(struct qm_portal_config *pcfg)
+static struct qm_portal_config *get_pcfg(struct list_head *list)
 {
-	iounmap(pcfg->addr_virt[DPA_PORTAL_CE]);
-	iounmap(pcfg->addr_virt[DPA_PORTAL_CI]);
-	kfree(pcfg);
+	struct qm_portal_config *pcfg;
+	if (list_empty(list))
+		return NULL;
+	pcfg = list_entry(list->prev, struct qm_portal_config, list);
+	list_del(&pcfg->list);
+	return pcfg;
 }
 
-static __init int fsl_fqid_range_init(struct device_node *node)
+#ifdef CONFIG_FSL_PAMU
+static void set_liodns(const struct qm_portal_config *pcfg, int cpu)
 {
+	unsigned int index = 0;
 	int ret;
-	u32 *range = (u32 *)of_get_property(node, "fsl,fqid-range", &ret);
-	if (!range) {
-		pr_err("No 'fsl,fqid-range' property in node %s\n",
-			node->full_name);
-		return -EINVAL;
-	}
-	if (ret != 8) {
-		pr_err("'fsl,fqid-range' is not a 2-cell range in node %s\n",
-			node->full_name);
-		return -EINVAL;
-	}
-	qman_release_fqid_range(range[0], range[1]);
-	pr_info("Qman: FQID allocator includes range %d:%d\n",
-		range[0], range[1]);
-	return 0;
+	do {
+		ret = pamu_set_stash_dest(pcfg->node, index++, cpu, 1);
+	} while (ret >= 0);
+}
+#else
+#define set_liodns(pcfg, cpu) do { } while (0)
+#endif
+
+static struct qman_portal *init_pcfg(struct qm_portal_config *pcfg)
+{
+	struct qman_portal *p;
+	struct cpumask oldmask = *tsk_cpus_allowed(current);
+
+	set_liodns(pcfg, pcfg->public_cfg.cpu);
+	set_cpus_allowed_ptr(current, get_cpu_mask(pcfg->public_cfg.cpu));
+	p = qman_create_affine_portal(pcfg, NULL);
+	if (p) {
+		u32 irq_sources = 0;
+		/* Determine what should be interrupt-vs-poll driven */
+#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
+		irq_sources |= QM_PIRQ_EQCI | QM_PIRQ_EQRI | QM_PIRQ_MRI |
+			       QM_PIRQ_CSCI;
+#endif
+#ifdef CONFIG_FSL_DPA_PIRQ_FAST
+		irq_sources |= QM_PIRQ_DQRI;
+#endif
+		qman_irqsource_add(irq_sources);
+		pr_info("Qman portal %sinitialised, cpu %d\n",
+			pcfg->public_cfg.is_shared ? "(shared) " : "",
+			pcfg->public_cfg.cpu);
+	} else
+		pr_crit("Qman portal failure on cpu %d\n",
+			pcfg->public_cfg.cpu);
+	set_cpus_allowed_ptr(current, &oldmask);
+	return p;
 }
 
-/***************/
-/* Driver load */
-/***************/
+static void init_slave(int cpu)
+{
+	struct qman_portal *p;
+	struct cpumask oldmask = *tsk_cpus_allowed(current);
+	set_cpus_allowed_ptr(current, get_cpu_mask(cpu));
+	p = qman_create_affine_slave(shared_portals[shared_portals_idx++]);
+	if (!p)
+		pr_err("Qman slave portal failure on cpu %d\n", cpu);
+	else
+		pr_info("Qman portal %sinitialised, cpu %d\n", "(slave) ", cpu);
+	set_cpus_allowed_ptr(current, &oldmask);
+	if (shared_portals_idx >= num_shared_portals)
+		shared_portals_idx = 0;
+}
+
+static struct cpumask want_unshared __initdata;
+static struct cpumask want_shared __initdata;
+
+static int __init parse_qportals(char *str)
+{
+	return parse_portals_bootarg(str, &want_shared, &want_unshared,
+				     "qportals");
+}
+__setup("qportals=", parse_qportals);
 
 static __init int qman_init(void)
 {
 	struct qman_cgr cgr;
-	struct cpumask primary_cpus = *cpu_none_mask;
-	struct cpumask slave_cpus = *cpu_online_mask;
-	struct cpumask oldmask;
-	struct qman_portal *sharing_portal = NULL;
-	int sharing_cpu = -1;
+	struct cpumask slave_cpus;
+	struct cpumask unshared_cpus = *cpu_none_mask;
+	struct cpumask shared_cpus = *cpu_none_mask;
+	LIST_HEAD(unused_pcfgs);
+	LIST_HEAD(unshared_pcfgs);
+	LIST_HEAD(shared_pcfgs);
 	struct device_node *dn;
 	struct qm_portal_config *pcfg;
 	struct qman_portal *p;
-	int ret, use_bpid0 = 1;
-	LIST_HEAD(cfg_list);
+	int cpu, ret;
 
+	/* Initialise the Qman (CCSR) device */
 	for_each_compatible_node(dn, NULL, "fsl,qman") {
 		if (!qman_init_error_int(dn))
 			pr_info("Qman err interrupt handler present\n");
 		else
 			pr_err("Qman err interrupt handler missing\n");
 	}
-#ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
-	ret = qman_setup_fq_lookup_table(fqd_size/64);
-	if (ret)
-		return ret;
-#endif
-	for_each_compatible_node(dn, NULL, "fsl,qman-portal") {
-		if (!of_device_is_available(dn))
-			continue;
-		pcfg = fsl_qman_portal_init(dn);
-		if (pcfg) {
-			if (pcfg->public_cfg.cpu >= 0) {
-				cpumask_set_cpu(pcfg->public_cfg.cpu,
-						&primary_cpus);
-				list_add(&pcfg->list, &cfg_list);
-			} else
-				fsl_qman_portal_destroy(pcfg);
-		}
-	}
-	/* only consider "online" CPUs */
-	cpumask_and(&primary_cpus, &primary_cpus, cpu_online_mask);
-	if (cpumask_empty(&primary_cpus))
-		/* No portals, we're done */
-		return 0;
-	if (!cpumask_subset(cpu_online_mask, &primary_cpus)) {
-		/* Need to do some sharing. In lieu of anything more scientific
-		 * (or configurable), we pick the last-most CPU that has a
-		 * portal and share that one. */
-		int next = cpumask_first(&primary_cpus);
-		while (next < nr_cpu_ids) {
-			sharing_cpu = next;
-			next = cpumask_next(next, &primary_cpus);
-		}
-	}
-	/* Parsing is done and sharing decisions are made, now initialise the
-	 * portals and determine which "slave" CPUs are left over. */
-	list_for_each_entry(pcfg, &cfg_list, list) {
-		int is_shared = (!sharing_portal && (sharing_cpu >= 0) &&
-				(pcfg->public_cfg.cpu == sharing_cpu));
-		pcfg->public_cfg.is_shared = is_shared;
-		/* If it's not mapped to a CPU, or another portal is already
-		 * initialised to the same CPU, skip this portal. */
-		if (pcfg->public_cfg.cpu < 0 || !cpumask_test_cpu(
-					pcfg->public_cfg.cpu, &slave_cpus))
-			continue;
-		oldmask = *tsk_cpus_allowed(current);
-		set_cpus_allowed_ptr(current,
-				     get_cpu_mask(pcfg->public_cfg.cpu));
-		p = qman_create_affine_portal(pcfg, NULL);
-		if (p) {
-			u32 irq_sources = 0;
-			/* Determine what should be interrupt-vs-poll driven */
-#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
-			irq_sources |= QM_PIRQ_EQCI | QM_PIRQ_EQRI |
-				QM_PIRQ_MRI | QM_PIRQ_CSCI;
-#endif
-#ifdef CONFIG_FSL_DPA_PIRQ_FAST
-			irq_sources |= QM_PIRQ_DQRI;
-#endif
-			qman_irqsource_add(irq_sources);
-			pr_info("Qman portal %sinitialised, cpu %d\n",
-				is_shared ? "(shared) " : "",
-				pcfg->public_cfg.cpu);
-			if (is_shared)
-				sharing_portal = p;
-			cpumask_clear_cpu(pcfg->public_cfg.cpu, &slave_cpus);
-		}
-		set_cpus_allowed_ptr(current, &oldmask);
-	}
-	if (sharing_portal) {
-		int loop;
-		for_each_cpu(loop, &slave_cpus) {
-			oldmask = *tsk_cpus_allowed(current);
-			set_cpus_allowed_ptr(current, get_cpu_mask(loop));
-			p = qman_create_affine_slave(sharing_portal);
-			set_cpus_allowed_ptr(current, &oldmask);
-			if (!p)
-				pr_err("Failed slave Qman portal for cpu %d\n",
-					loop);
-			else
-				pr_info("Qman portal %sinitialised, cpu %d\n",
-					"(slave) ", loop);
-		}
-	}
+	/* Initialise FQID allocation ranges */
 	for_each_compatible_node(dn, NULL, "fsl,fqid-range") {
-		use_bpid0 = 0;
 		ret = fsl_fqid_range_init(dn);
 		if (ret)
 			return ret;
 	}
-	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++) {
-		/* This is to ensure h/w-internal CGR memory is zeroed out. Note
-		 * that we do this for all conceivable CGRIDs, not all of which
-		 * are necessarily available on the underlying hardware version.
-		 * We ignore any errors for this reason. */
-		qman_modify_cgr(&cgr, QMAN_CGR_FLAG_USE_INIT, NULL);
+	/* Parse pool channels */
+	for_each_compatible_node(dn, NULL, "fsl,qman-pool-channel") {
+		const u32 *index = of_get_property(dn, "cell-index", NULL);
+		pools_sdqcr |= QM_SDQCR_CHANNELS_POOL(*index);
 	}
-	ret = fqalloc_init(use_bpid0);
+#ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
+	/* Setup lookup table for FQ demux */
+	ret = qman_setup_fq_lookup_table(fqd_size/64);
 	if (ret)
 		return ret;
+#endif
+	/* Initialise portals. See bman_driver.c for comments */
+	for_each_compatible_node(dn, NULL, "fsl,qman-portal") {
+		pcfg = parse_pcfg(dn);
+		if (pcfg) {
+			pcfg->public_cfg.pools = pools_sdqcr;
+			list_add_tail(&pcfg->list, &unused_pcfgs);
+		}
+	}
+	for_each_cpu(cpu, &want_shared) {
+		pcfg = get_pcfg(&unused_pcfgs);
+		if (!pcfg)
+			break;
+		pcfg->public_cfg.cpu = cpu;
+		list_add_tail(&pcfg->list, &shared_pcfgs);
+		cpumask_set_cpu(cpu, &shared_cpus);
+	}
+	for_each_cpu(cpu, &want_unshared) {
+		if (cpumask_test_cpu(cpu, &shared_cpus))
+			continue;
+		pcfg = get_pcfg(&unused_pcfgs);
+		if (!pcfg)
+			break;
+		pcfg->public_cfg.cpu = cpu;
+		list_add_tail(&pcfg->list, &unshared_pcfgs);
+		cpumask_set_cpu(cpu, &unshared_cpus);
+	}
+	if (list_empty(&shared_pcfgs) && list_empty(&unshared_pcfgs)) {
+		for_each_online_cpu(cpu) {
+			pcfg = get_pcfg(&unused_pcfgs);
+			if (!pcfg)
+				break;
+			pcfg->public_cfg.cpu = cpu;
+			list_add_tail(&pcfg->list, &unshared_pcfgs);
+			cpumask_set_cpu(cpu, &unshared_cpus);
+		}
+	}
+	cpumask_andnot(&slave_cpus, cpu_online_mask, &shared_cpus);
+	cpumask_andnot(&slave_cpus, &slave_cpus, &unshared_cpus);
+	if (cpumask_empty(&slave_cpus)) {
+		if (!list_empty(&shared_pcfgs)) {
+			cpumask_or(&unshared_cpus, &unshared_cpus,
+				   &shared_cpus);
+			cpumask_clear(&shared_cpus);
+			list_splice_tail(&shared_pcfgs, &unshared_pcfgs);
+			INIT_LIST_HEAD(&shared_pcfgs);
+		}
+	} else {
+		if (list_empty(&shared_pcfgs)) {
+			pcfg = get_pcfg(&unshared_pcfgs);
+			if (!pcfg) {
+				pr_crit("No QMan portals available!\n");
+				return 0;
+			}
+			cpumask_clear_cpu(pcfg->public_cfg.cpu, &unshared_cpus);
+			cpumask_set_cpu(pcfg->public_cfg.cpu, &shared_cpus);
+			list_add_tail(&pcfg->list, &shared_pcfgs);
+		}
+	}
+	list_for_each_entry(pcfg, &unshared_pcfgs, list) {
+		pcfg->public_cfg.is_shared = 0;
+		p = init_pcfg(pcfg);
+	}
+	list_for_each_entry(pcfg, &shared_pcfgs, list) {
+		pcfg->public_cfg.is_shared = 1;
+		p = init_pcfg(pcfg);
+		if (p)
+			shared_portals[num_shared_portals++] = p;
+	}
+	if (!cpumask_empty(&slave_cpus))
+		for_each_cpu(cpu, &slave_cpus)
+			init_slave(cpu);
 	pr_info("Qman portals initialised\n");
+
+	/* This is to ensure h/w-internal CGR memory is zeroed out. Note that we
+	 * do this for all conceivable CGRIDs, not all of which are necessarily
+	 * available on the underlying hardware version. We ignore any errors
+	 * for this reason. */
+	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++)
+		qman_modify_cgr(&cgr, QMAN_CGR_FLAG_USE_INIT, NULL);
 	return 0;
 }
 subsys_initcall(qman_init);
