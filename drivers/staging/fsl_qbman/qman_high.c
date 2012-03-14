@@ -72,8 +72,6 @@ static inline int fq_isclear(struct qman_fq *fq, u32 mask)
 	return !(fq->flags & mask);
 }
 
-#define PORTAL_BITS_RECOVERY	0x00040000	/* recovery mode */
-
 struct qman_portal {
 	struct qm_portal p;
 	unsigned long bits; /* PORTAL_BITS_*** - dynamic, strictly internal */
@@ -332,32 +330,9 @@ loop:
 	goto loop;
 }
 
-/* this is called from qman_create_affine_portal() if not initialising in
- * recovery mode, otherwise from qman_recovery_exit_local() after recovery is
- * done. */
-static void post_recovery(struct qman_portal *p __always_unused,
-			const struct qm_portal_config *config)
-{
-	struct device_node *tmp_node, *node = config->node;
-	/* Enable DMA on portal LIODNs (stashing) and those of its sub-nodes
-	 * (Fman TX and SEC/PME accelerators, where available). */
-	if (pamu_enable_liodn(node, -1))
-		/* If there's a PAMU problem, best to continue anyway and let
-		 * the corresponding traffic hit whatever problems it will hit,
-		 * than to fail portal initialisation and trigger a crash in
-		 * dependent code that has no relationship to the PAMU issue. */
-		pr_err("Failed to enable portal LIODN %s\n",
-			node->full_name);
-	for_each_child_of_node(node, tmp_node)
-		if (pamu_enable_liodn(tmp_node, -1))
-			pr_err("Failed to enable portal LIODN %s\n",
-				tmp_node->full_name);
-}
-
 struct qman_portal *qman_create_affine_portal(
 			const struct qm_portal_config *config,
-			const struct qman_cgrs *cgrs,
-			int recovery_mode)
+			const struct qman_cgrs *cgrs)
 {
 	struct qman_portal *portal = get_raw_affine_portal();
 	struct qm_portal *__p = &portal->p;
@@ -385,53 +360,13 @@ struct qman_portal *qman_create_affine_portal(
 #define QM_DQRR_CMODE qm_dqrr_cdc
 #endif
 	if (qm_dqrr_init(__p, config, qm_dqrr_dpush, qm_dqrr_pvb,
-			recovery_mode ?  qm_dqrr_cci : QM_DQRR_CMODE,
-			DQRR_MAXFILL)) {
+			QM_DQRR_CMODE, DQRR_MAXFILL)) {
 		pr_err("Qman DQRR initialisation failed\n");
 		goto fail_dqrr;
 	}
 	if (qm_mr_init(__p, qm_mr_pvb, qm_mr_cci)) {
 		pr_err("Qman MR initialisation failed\n");
 		goto fail_mr;
-	}
-	/* for recovery mode, quiesce SDQCR/VDQCR and drain DQRR+MR until h/w
-	 * wraps up anything it was doing (5ms is ample idle time). */
-	if (recovery_mode) {
-		const struct qm_dqrr_entry *dq;
-		const struct qm_mr_entry *msg;
-		int idle = 0;
-		/* quiesce SDQCR/VDQCR, then drain till h/w wraps up anything it
-		 * was doing (5ms is more than enough to ensure it's done). */
-		qm_dqrr_sdqcr_set(__p, 0);
-		qm_dqrr_vdqcr_set(__p, 0);
-drain_loop:
-		qm_dqrr_pvb_update(__p);
-		dq = qm_dqrr_current(__p);
-		qm_mr_pvb_update(__p);
-		msg = qm_mr_current(__p);
-		if (dq) {
-			pr_warning("DQRR recovery: dumping dqrr %02x:%02x for "
-				"FQID %d\n", dq->verb & QM_DQRR_VERB_MASK,
-				dq->stat, dq->fqid);
-			qm_dqrr_next(__p);
-			qm_dqrr_cci_consume(__p, 1);
-		}
-		if (msg) {
-			pr_warning("MR recovery: dumping msg 0x%02x for "
-				"FQID %d\n", msg->verb & QM_MR_VERB_TYPE_MASK,
-				msg->fq.fqid);
-			qm_mr_next(__p);
-			qm_mr_cci_consume(__p, 1);
-		}
-		if (!dq && !msg) {
-			if (++idle < 5) {
-				msleep(1);
-				goto drain_loop;
-			}
-		} else {
-			idle = 0;
-			goto drain_loop;
-		}
 	}
 	if (qm_mc_init(__p)) {
 		pr_err("Qman MC initialisation failed\n");
@@ -458,7 +393,7 @@ drain_loop:
 	for (ret = 0; ret < __CGR_NUM; ret++)
 		INIT_LIST_HEAD(&portal->cgr_cbs[ret]);
 	spin_lock_init(&portal->cgr_lock);
-	portal->bits = recovery_mode ? PORTAL_BITS_RECOVERY : 0;
+	portal->bits = 0;
 	portal->slowpoll = 0;
 #ifdef CONFIG_FSL_DPA_CAN_WAIT_SYNC
 	portal->eqci_owned = NULL;
@@ -501,30 +436,24 @@ drain_loop:
 		pr_err("request_irq() failed\n");
 		goto fail_irq;
 	}
-	if (recovery_mode) {
-		qm_isr_inhibit(__p);
-	} else {
-		post_recovery(portal, config);
-		qm_isr_uninhibit(__p);
-	}
 	/* Need EQCR to be empty before continuing */
 	isdr ^= QM_PIRQ_EQCI;
 	qm_isr_disable_write(__p, isdr);
 	ret = qm_eqcr_get_fill(__p);
 	if (ret) {
-		pr_err("Qman EQCR unclean, need recovery\n");
+		pr_err("Qman EQCR unclean\n");
 		goto fail_eqcr_empty;
 	}
 	isdr ^= (QM_PIRQ_DQRI | QM_PIRQ_MRI);
 	qm_isr_disable_write(__p, isdr);
 	if (qm_dqrr_current(__p) != NULL) {
-		pr_err("Qman DQRR unclean, need recovery\n");
+		pr_err("Qman DQRR unclean\n");
 		goto fail_dqrr_mr_empty;
 	}
 	if (qm_mr_current(__p) != NULL) {
 		/* special handling, drain just in case it's a few FQRNIs */
 		if (drain_mr_fqrni(__p)) {
-			pr_err("Qman MR unclean, need recovery\n");
+			pr_err("Qman MR unclean\n");
 			goto fail_dqrr_mr_empty;
 		}
 	}
@@ -535,8 +464,9 @@ drain_loop:
 	affine_channels[config->public_cfg.cpu] = config->public_cfg.channel;
 	spin_unlock(&affine_mask_lock);
 	qm_isr_disable_write(__p, 0);
+	qm_isr_uninhibit(__p);
 	/* Write a sane SDQCR */
-	qm_dqrr_sdqcr_set(__p, recovery_mode ? 0 : portal->sdqcr);
+	qm_dqrr_sdqcr_set(__p, portal->sdqcr);
 	return portal;
 fail_dqrr_mr_empty:
 fail_eqcr_empty:
@@ -560,7 +490,6 @@ fail_mr:
 fail_dqrr:
 	qm_eqcr_finish(__p);
 fail_eqcr:
-	put_affine_portal();
 	return NULL;
 }
 
@@ -671,8 +600,6 @@ static inline void fq_state_change(struct qman_portal *p, struct qman_fq *fq,
 static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 {
 	const struct qm_mr_entry *msg;
-
-	BUG_ON(p->bits & PORTAL_BITS_RECOVERY);
 
 	if (is & QM_PIRQ_CSCI) {
 		struct qman_cgrs rr, c;
@@ -838,7 +765,6 @@ static inline unsigned int __poll_portal_fast(struct qman_portal *p,
 	enum qman_cb_dqrr_result res;
 	unsigned int limit = 0;
 
-	BUG_ON(p->bits & PORTAL_BITS_RECOVERY);
 loop:
 	qm_dqrr_pvb_update(&p->p);
 	dq = qm_dqrr_current(&p->p);
@@ -1055,186 +981,6 @@ done:
 	put_poll_portal();
 }
 EXPORT_SYMBOL(qman_poll);
-
-/* Recovery processing. */
-static int recovery_poll_mr(struct qman_portal *p, u32 fqid)
-{
-	const struct qm_mr_entry *msg;
-	enum {
-		wait_for_fqrn,
-		wait_for_fqrl,
-		done
-	} state = wait_for_fqrn;
-	u8 v, fqs = 0;
-
-loop:
-	qm_mr_pvb_update(&p->p);
-	msg = qm_mr_current(&p->p);
-	if (!msg) {
-		cpu_relax();
-		goto loop;
-	}
-	v = msg->verb & QM_MR_VERB_TYPE_MASK;
-	/* all MR messages have "fqid" in the same place */
-	if (msg->fq.fqid != fqid) {
-ignore_msg:
-		pr_warning("recovery_poll_mr(), ignoring msg 0x%02x for "
-			"FQID %d\n", v, msg->fq.fqid);
-		goto next_msg;
-	}
-	if (state == wait_for_fqrn) {
-		if ((v != QM_MR_VERB_FQRN) && (v != QM_MR_VERB_FQRNI))
-			goto ignore_msg;
-		fqs = msg->fq.fqs;
-		if (!(fqs & QM_MR_FQS_ORLPRESENT))
-			state = done;
-		else
-			state = wait_for_fqrl;
-	} else {
-		if (v != QM_MR_VERB_FQRL)
-			goto ignore_msg;
-		state = done;
-	}
-next_msg:
-	qm_mr_next(&p->p);
-	qm_mr_cci_consume(&p->p, 1);
-	if (state != done)
-		goto loop;
-	return (fqs & QM_MR_FQS_NOTEMPTY) ? 1 : 0;
-}
-static unsigned int recovery_poll_dqrr(struct qman_portal *p, u32 fqid)
-{
-	const struct qm_dqrr_entry *dq;
-	u8 empty = 0, num_fds = 0;
-
-loop:
-	qm_dqrr_pvb_update(&p->p);
-	dq = qm_dqrr_current(&p->p);
-	if (!dq) {
-		cpu_relax();
-		goto loop;
-	}
-	if (!(dq->stat & QM_DQRR_STAT_UNSCHEDULED)) {
-ignore_dqrr:
-		pr_warning("recovery_poll_dqrr(), ignoring dqrr %02x:%02x "
-			"for FQID %d\n",
-			dq->verb & QM_DQRR_VERB_MASK, dq->stat, dq->fqid);
-		goto next_dqrr;
-	}
-	if (dq->fqid != fqid)
-		goto ignore_dqrr;
-	if (dq->stat & QM_DQRR_STAT_FD_VALID)
-		num_fds++;
-	if (dq->stat & QM_DQRR_STAT_FQ_EMPTY)
-		empty = 1;
-next_dqrr:
-	qm_dqrr_next(&p->p);
-	qm_dqrr_cci_consume(&p->p, 1);
-	if (!empty)
-		goto loop;
-	return num_fds;
-}
-int qman_recovery_cleanup_fq(u32 fqid)
-{
-	struct qm_mc_command *mcc;
-	struct qm_mc_result *mcr;
-	struct qman_portal *p = get_affine_portal();
-	unsigned long irqflags __maybe_unused;
-	int ret = 0;
-	unsigned int num_fds = 0;
-	const char *s;
-	u8 state;
-
-	/* Lock this whole flow down via the portal's "vdqcr" */
-	PORTAL_IRQ_LOCK(p, irqflags);
-	BUG_ON(!(p->bits & PORTAL_BITS_RECOVERY));
-	if (p->vdqcr_owned)
-		ret = -EBUSY;
-	else
-		p->vdqcr_owned = (void *)1;
-	PORTAL_IRQ_UNLOCK(p, irqflags);
-	if (ret)
-		goto out;
-
-	/* Query the FQ's state */
-	mcc = qm_mc_start(&p->p);
-	mcc->queryfq.fqid = fqid;
-	qm_mc_commit(&p->p, QM_MCC_VERB_QUERYFQ_NP);
-	while (!(mcr = qm_mc_result(&p->p)))
-		cpu_relax();
-	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_QUERYFQ_NP);
-	if (mcr->result != QM_MCR_RESULT_OK) {
-		ret = -EIO;
-		goto out;
-	}
-	state = mcr->queryfq_np.state & QM_MCR_NP_STATE_MASK;
-
-	/* OOS: nothing to do */
-	if (state == QM_MCR_NP_STATE_OOS)
-		goto out;
-	/* Otherwise: must be retired */
-	if (state != QM_MCR_NP_STATE_RETIRED) {
-		mcc = qm_mc_start(&p->p);
-		mcc->alterfq.fqid = fqid;
-		qm_mc_commit(&p->p, QM_MCC_VERB_ALTER_RETIRE);
-		while (!(mcr = qm_mc_result(&p->p)))
-			cpu_relax();
-		DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
-				QM_MCR_VERB_ALTER_RETIRE);
-		if ((mcr->result != QM_MCR_RESULT_OK) &&
-				(mcr->result != QM_MCR_RESULT_PENDING)) {
-			ret = -EIO;
-			goto out;
-		}
-		ret = recovery_poll_mr(p, fqid);
-		if (!ret)
-			/* FQ empty */
-			goto oos;
-	}
-	/* Drain till empty */
-	qm_dqrr_vdqcr_set(&p->p, fqid & 0x00ffffff);
-	num_fds = recovery_poll_dqrr(p, fqid);
-
-oos:
-	mcc = qm_mc_start(&p->p);
-	mcc->alterfq.fqid = fqid;
-	qm_mc_commit(&p->p, QM_MCC_VERB_ALTER_OOS);
-	while (!(mcr = qm_mc_result(&p->p)))
-		cpu_relax();
-	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_MCR_VERB_ALTER_OOS);
-	if (mcr->result != QM_MCR_RESULT_OK)
-		ret = -EIO;
-	/* done */
-	s = (state == QM_MCR_NP_STATE_RETIRED) ? "retired" :
-		(state == QM_MCR_NP_STATE_PARKED) ? "parked" : "scheduled";
-	pr_info("Qman: %s FQID %d recovered (%d frames)\n", s, fqid, num_fds);
-out:
-	PORTAL_IRQ_LOCK(p, irqflags);
-	p->vdqcr_owned = NULL;
-	PORTAL_IRQ_UNLOCK(p, irqflags);
-	put_affine_portal();
-	return ret;
-}
-EXPORT_SYMBOL(qman_recovery_cleanup_fq);
-
-/* called from qman_driver.c::qman_recovery_exit() only (if exporting, use
- * get_raw_affine_portal() and check for the "SLAVE" bit). */
-void qman_recovery_exit_local(void)
-{
-	struct qman_portal *p = get_affine_portal();
-	BUG_ON(!(p->bits & PORTAL_BITS_RECOVERY));
-	/* Reinitialise DQRR using expected settings */
-	qm_dqrr_finish(&p->p);
-	post_recovery(p, p->config);
-	clear_bits(PORTAL_BITS_RECOVERY, &p->bits);
-	if (qm_dqrr_init(&p->p, p->config, qm_dqrr_dpush, qm_dqrr_pvb,
-			QM_DQRR_CMODE, DQRR_MAXFILL))
-		panic("Qman DQRR initialisation failed, recovery broken");
-	qm_dqrr_sdqcr_set(&p->p, p->sdqcr);
-	qm_isr_status_clear(&p->p, 0xffffffff);
-	qm_isr_uninhibit(&p->p);
-	put_affine_portal();
-}
 
 void qman_stop_dequeues(void)
 {

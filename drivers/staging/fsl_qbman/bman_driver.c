@@ -151,8 +151,7 @@ EXPORT_SYMBOL(bm_pool_free);
 #ifdef CONFIG_FSL_BMAN_PORTAL
 static __init struct bman_portal *init_affine_portal(
 					struct bm_portal_config *pconfig,
-					int cpu, struct bman_portal *redirect,
-					int recovery_mode)
+					int cpu, struct bman_portal *redirect)
 {
 	struct bman_portal *portal;
 	struct cpumask oldmask = *tsk_cpus_allowed(current);
@@ -163,7 +162,7 @@ static __init struct bman_portal *init_affine_portal(
 	if (redirect)
 		portal = bman_create_affine_slave(redirect);
 	else {
-		portal = bman_create_affine_portal(pconfig, recovery_mode);
+		portal = bman_create_affine_portal(pconfig);
 #ifdef CONFIG_FSL_DPA_PIRQ_SLOW
 		if (portal)
 			bman_irqsource_add(BM_PIRQ_RCRI | BM_PIRQ_BSCN);
@@ -331,8 +330,7 @@ static int __init fsl_bpool_init(struct device_node *node)
 	return ret;
 }
 
-static int __init fsl_bpool_range_init(struct device_node *node,
-					int recovery_mode)
+static int __init fsl_bpool_range_init(struct device_node *node)
 {
 	int ret, warned = 0;
 	u32 bpid;
@@ -364,43 +362,10 @@ static int __init fsl_bpool_range_init(struct device_node *node,
 			num_pools--;
 		}
 	}
-#ifdef CONFIG_FSL_BMAN_PORTAL
-	/* If in recovery mode *and* we are using a private BPID allocation
-	 * range, then automatically clean up all BPIDs in that range so we can
-	 * automatically exit recovery mode too. */
-	if (recovery_mode) {
-		for (bpid = range[0]; bpid < (range[0] + range[1]); bpid++) {
-			ret = bman_recovery_cleanup_bpid(bpid);
-			if (ret) {
-				pr_err("Failed to recovery BPID %d\n", bpid);
-				return ret;
-			}
-		}
-	}
-#else
-	BUG_ON(recovery_mode);
-#endif
-	pr_info("Bman: BPID allocator includes range %d:%d%s\n",
-		range[0], range[1], recovery_mode ? " (recovered)" : "");
+	pr_info("Bman: BPID allocator includes range %d:%d\n",
+		range[0], range[1]);
 	return 0;
 }
-
-#ifdef CONFIG_FSL_BMAN_PORTAL
-void bman_recovery_exit(void)
-{
-	unsigned int cpu;
-
-	for_each_cpu(cpu, bman_affine_cpus()) {
-		struct cpumask oldmask = *tsk_cpus_allowed(current);
-		const struct cpumask *newmask = get_cpu_mask(cpu);
-		set_cpus_allowed_ptr(current, newmask);
-		bman_recovery_exit_local();
-		set_cpus_allowed_ptr(current, &oldmask);
-		pr_info("Bman portal exited recovery, cpu %d\n", cpu);
-	}
-}
-EXPORT_SYMBOL(bman_recovery_exit);
-#endif
 
 static __init int bman_init(void)
 {
@@ -412,7 +377,7 @@ static __init int bman_init(void)
 #endif
 	struct device_node *dn;
 	struct bm_portal_config *pcfg;
-	int ret, recovery_mode = 0;
+	int ret;
 	LIST_HEAD(cfg_list);
 
 	for_each_compatible_node(dn, NULL, "fsl,bman") {
@@ -428,8 +393,6 @@ static __init int bman_init(void)
 		num_pools = bman_pool_max;
 	}
 #ifdef CONFIG_FSL_BMAN_PORTAL
-	if (fsl_dpa_should_recover())
-		recovery_mode = 1;
 	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
 		if (!of_device_is_available(dn))
 			continue;
@@ -470,8 +433,7 @@ static __init int bman_init(void)
 		if (pcfg->public_cfg.cpu < 0 || !cpumask_test_cpu(
 					pcfg->public_cfg.cpu, &slave_cpus))
 			continue;
-		p = init_affine_portal(pcfg, pcfg->public_cfg.cpu, NULL,
-					recovery_mode);
+		p = init_affine_portal(pcfg, pcfg->public_cfg.cpu, NULL);
 		if (p) {
 			if (is_shared)
 				sharing_portal = p;
@@ -483,7 +445,7 @@ static __init int bman_init(void)
 		int loop;
 		for_each_cpu(loop, &slave_cpus) {
 			struct bman_portal *p = init_affine_portal(NULL, loop,
-					sharing_portal, recovery_mode);
+					sharing_portal);
 			if (!p)
 				pr_err("Failed slave Bman portal for cpu %d\n",
 					loop);
@@ -506,16 +468,10 @@ static __init int bman_init(void)
 			bman_depletion_fill(&pools);
 			num_pools = 64;
 		}
-		ret = fsl_bpool_range_init(dn, recovery_mode);
+		ret = fsl_bpool_range_init(dn);
 		if (ret)
 			return ret;
 	}
-#ifdef CONFIG_FSL_BMAN_PORTAL
-	/* If using private BPID allocation, exit recovery mode automatically
-	 * (ie. after automatic recovery) */
-	if (recovery_mode && explicit_allocator)
-		bman_recovery_exit();
-#endif
 	for_each_compatible_node(dn, NULL, "fsl,bpool") {
 		ret = fsl_bpool_init(dn);
 		if (ret)

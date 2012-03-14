@@ -68,11 +68,9 @@ int bman_init_error_int(struct device_node *node);
 
 /* Hooks from bman_driver.c in to bman_high.c */
 struct bman_portal *bman_create_affine_portal(
-			const struct bm_portal_config *config,
-			int recovery_mode);
+			const struct bm_portal_config *config);
 struct bman_portal *bman_create_affine_slave(struct bman_portal *redirect);
 const struct bm_portal_config *bman_destroy_affine_portal(void);
-void bman_recovery_exit_local(void);
 
 /* Pool logic in the portal driver, during initialisation, needs to know if
  * there's access to CCSR or not (if not, it'll cripple the pool allocator). */

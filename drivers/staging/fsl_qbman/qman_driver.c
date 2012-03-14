@@ -54,8 +54,7 @@ EXPORT_SYMBOL(dpa_uio_qman);
 #ifdef CONFIG_FSL_QMAN_PORTAL
 static __init struct qman_portal *init_affine_portal(
 					struct qm_portal_config *pconfig,
-					int cpu, struct qman_portal *redirect,
-					int recovery_mode)
+					int cpu, struct qman_portal *redirect)
 {
 	struct qman_portal *portal;
 	struct cpumask oldmask = *tsk_cpus_allowed(current);
@@ -66,8 +65,7 @@ static __init struct qman_portal *init_affine_portal(
 	if (redirect)
 		portal = qman_create_affine_slave(redirect);
 	else {
-		portal = qman_create_affine_portal(pconfig, NULL,
-				recovery_mode);
+		portal = qman_create_affine_portal(pconfig, NULL);
 		if (portal) {
 			u32 irq_sources = 0;
 			/* default: enable all (available) pool channels */
@@ -253,8 +251,7 @@ static void __init fsl_qman_portal_destroy(struct qm_portal_config *pcfg)
 	kfree(pcfg);
 }
 
-static __init int fsl_fqid_range_init(struct device_node *node,
-					int recovery_mode)
+static __init int fsl_fqid_range_init(struct device_node *node)
 {
 	int ret;
 	u32 *range = (u32 *)of_get_property(node, "fsl,fqid-range", &ret);
@@ -269,44 +266,10 @@ static __init int fsl_fqid_range_init(struct device_node *node,
 		return -EINVAL;
 	}
 	qman_release_fqid_range(range[0], range[1]);
-#ifdef CONFIG_FSL_QMAN_PORTAL
-	/* If in recovery mode *and* we are using a private FQ allocation range,
-	 * then automatically clean up all FQs in that range so we can
-	 * automatically exit recovery mode too. */
-	if (recovery_mode) {
-		u32 fqid;
-		for (fqid = range[0]; fqid < (range[0] + range[1]); fqid++) {
-			ret = qman_recovery_cleanup_fq(fqid);
-			if (ret) {
-				pr_err("Failed to recovery FQID %d\n", fqid);
-				return ret;
-			}
-		}
-	}
-#else
-	BUG_ON(recovery_mode);
-#endif
-	pr_info("Qman: FQID allocator includes range %d:%d%s\n",
-		range[0], range[1], recovery_mode ? " (recovered)" : "");
+	pr_info("Qman: FQID allocator includes range %d:%d\n",
+		range[0], range[1]);
 	return 0;
 }
-
-#ifdef CONFIG_FSL_QMAN_PORTAL
-void qman_recovery_exit(void)
-{
-	unsigned int cpu;
-
-	for_each_cpu(cpu, qman_affine_cpus()) {
-		struct cpumask oldmask = *tsk_cpus_allowed(current);
-		const struct cpumask *newmask = get_cpu_mask(cpu);
-		set_cpus_allowed_ptr(current, newmask);
-		qman_recovery_exit_local();
-		set_cpus_allowed_ptr(current, &oldmask);
-		pr_info("Qman portal exited recovery, cpu %d\n", cpu);
-	}
-}
-EXPORT_SYMBOL(qman_recovery_exit);
-#endif
 
 /***************/
 /* Driver load */
@@ -323,7 +286,7 @@ static __init int qman_init(void)
 #endif
 	struct device_node *dn;
 	struct qm_portal_config *pcfg;
-	int ret, use_bpid0 = 1, recovery_mode = 0;
+	int ret, use_bpid0 = 1;
 	LIST_HEAD(cfg_list);
 
 	for_each_compatible_node(dn, NULL, "fsl,qman") {
@@ -338,8 +301,6 @@ static __init int qman_init(void)
 		return ret;
 #endif
 #ifdef CONFIG_FSL_QMAN_PORTAL
-	if (fsl_dpa_should_recover())
-		recovery_mode = 1;
 	for_each_compatible_node(dn, NULL, "fsl,qman-portal") {
 		if (!of_device_is_available(dn))
 			continue;
@@ -380,8 +341,7 @@ static __init int qman_init(void)
 		if (pcfg->public_cfg.cpu < 0 || !cpumask_test_cpu(
 					pcfg->public_cfg.cpu, &slave_cpus))
 			continue;
-		p = init_affine_portal(pcfg, pcfg->public_cfg.cpu, NULL,
-					recovery_mode);
+		p = init_affine_portal(pcfg, pcfg->public_cfg.cpu, NULL);
 		if (p) {
 			if (is_shared)
 				sharing_portal = p;
@@ -392,7 +352,7 @@ static __init int qman_init(void)
 		int loop;
 		for_each_cpu(loop, &slave_cpus) {
 			struct qman_portal *p = init_affine_portal(NULL, loop,
-					sharing_portal, recovery_mode);
+					sharing_portal);
 			if (!p)
 				pr_err("Failed slave Qman portal for cpu %d\n",
 					loop);
@@ -411,15 +371,11 @@ static __init int qman_init(void)
 #endif
 	for_each_compatible_node(dn, NULL, "fsl,fqid-range") {
 		use_bpid0 = 0;
-		ret = fsl_fqid_range_init(dn, recovery_mode);
+		ret = fsl_fqid_range_init(dn);
 		if (ret)
 			return ret;
 	}
 #ifdef CONFIG_FSL_QMAN_PORTAL
-	/* If using private FQ allocation, exit recovery mode automatically (ie.
-	 * after automatic recovery) */
-	if (recovery_mode && !use_bpid0)
-		qman_recovery_exit();
 	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++) {
 		/* This is to ensure h/w-internal CGR memory is zeroed out. Note
 		 * that we do this for all conceivable CGRIDs, not all of which
