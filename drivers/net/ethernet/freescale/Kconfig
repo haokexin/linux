@@ -98,7 +98,7 @@ config GIANFAR_L2SRAM
 
 config DPA
 	bool "Freescale Data Path Frame Manager Ethernet"
-	depends on FSL_SOC && FSL_BMAN_PORTAL && FSL_QMAN_PORTAL && FSL_FMAN
+	depends on FSL_SOC && FSL_BMAN && FSL_QMAN && FSL_FMAN
 	select PHYLIB
 
 config DPA_OFFLINE_PORTS

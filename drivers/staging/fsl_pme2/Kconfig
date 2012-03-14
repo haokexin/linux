@@ -1,6 +1,6 @@
 config FSL_PME2
 	bool "Freescale Datapath Pattern Matcher support"
-	depends on HAS_FSL_PME && FSL_QMAN_PORTAL
+	depends on HAS_FSL_PME && FSL_QMAN
 	default y
 
 menu "Freescale Datapath PME options"
@@ -148,7 +148,7 @@ config FSL_PME2_TEST_SCAN
 
 config FSL_PME2_TEST_SCAN_WITH_BPID
 	bool "PME2 scan self-test with buffer pool"
-	depends on FSL_PME2_TEST_SCAN && FSL_BMAN_PORTAL
+	depends on FSL_PME2_TEST_SCAN && FSL_BMAN
 	default y
 	---help---
 	  This uses a buffer pool id for scan test

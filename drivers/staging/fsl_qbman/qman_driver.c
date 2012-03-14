@@ -41,46 +41,6 @@ EXPORT_SYMBOL(qman_ip_rev);
 static u32 fqd_size = (PAGE_SIZE << CONFIG_FSL_QMAN_FQD_SZ);
 #endif
 
-#ifdef CONFIG_FSL_QMAN_PORTAL
-static __init struct qman_portal *init_affine_portal(
-					struct qm_portal_config *pconfig,
-					int cpu, struct qman_portal *redirect)
-{
-	struct qman_portal *portal;
-	struct cpumask oldmask = *tsk_cpus_allowed(current);
-	const struct cpumask *newmask = get_cpu_mask(cpu);
-
-	set_cpus_allowed_ptr(current, newmask);
-
-	if (redirect)
-		portal = qman_create_affine_slave(redirect);
-	else {
-		portal = qman_create_affine_portal(pconfig, NULL);
-		if (portal) {
-			u32 irq_sources = 0;
-			/* default: enable all (available) pool channels */
-			qman_static_dequeue_add(~0);
-			/* Determine what should be interrupt-vs-poll driven */
-#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
-			irq_sources |= QM_PIRQ_EQCI | QM_PIRQ_EQRI |
-				QM_PIRQ_MRI | QM_PIRQ_CSCI;
-#endif
-#ifdef CONFIG_FSL_DPA_PIRQ_FAST
-			irq_sources |= QM_PIRQ_DQRI;
-#endif
-			qman_irqsource_add(irq_sources);
-		}
-	}
-
-	set_cpus_allowed_ptr(current, &oldmask);
-	if (portal)
-		pr_info("Qman portal %sinitialised, cpu %d\n",
-			redirect ? "(slave) " :
-			pconfig->public_cfg.is_shared ? "(shared) " : "", cpu);
-	return portal;
-}
-#endif
-
 /* Parses the device-tree node, extracts the configuration, and if appropriate
  * initialises the portal for use on one or more CPUs. */
 static __init struct qm_portal_config *fsl_qman_portal_init(
@@ -253,15 +213,15 @@ static __init int fsl_fqid_range_init(struct device_node *node)
 
 static __init int qman_init(void)
 {
-#ifdef CONFIG_FSL_QMAN_PORTAL
 	struct qman_cgr cgr;
 	struct cpumask primary_cpus = *cpu_none_mask;
 	struct cpumask slave_cpus = *cpu_online_mask;
+	struct cpumask oldmask;
 	struct qman_portal *sharing_portal = NULL;
 	int sharing_cpu = -1;
-#endif
 	struct device_node *dn;
 	struct qm_portal_config *pcfg;
+	struct qman_portal *p;
 	int ret, use_bpid0 = 1;
 	LIST_HEAD(cfg_list);
 
@@ -276,7 +236,6 @@ static __init int qman_init(void)
 	if (ret)
 		return ret;
 #endif
-#ifdef CONFIG_FSL_QMAN_PORTAL
 	for_each_compatible_node(dn, NULL, "fsl,qman-portal") {
 		if (!of_device_is_available(dn))
 			continue;
@@ -308,7 +267,6 @@ static __init int qman_init(void)
 	/* Parsing is done and sharing decisions are made, now initialise the
 	 * portals and determine which "slave" CPUs are left over. */
 	list_for_each_entry(pcfg, &cfg_list, list) {
-		struct qman_portal *p;
 		int is_shared = (!sharing_portal && (sharing_cpu >= 0) &&
 				(pcfg->public_cfg.cpu == sharing_cpu));
 		pcfg->public_cfg.is_shared = is_shared;
@@ -317,41 +275,53 @@ static __init int qman_init(void)
 		if (pcfg->public_cfg.cpu < 0 || !cpumask_test_cpu(
 					pcfg->public_cfg.cpu, &slave_cpus))
 			continue;
-		p = init_affine_portal(pcfg, pcfg->public_cfg.cpu, NULL);
+		oldmask = *tsk_cpus_allowed(current);
+		set_cpus_allowed_ptr(current,
+				     get_cpu_mask(pcfg->public_cfg.cpu));
+		p = qman_create_affine_portal(pcfg, NULL);
 		if (p) {
+			u32 irq_sources = 0;
+			/* default: enable all (available) pool channels */
+			qman_static_dequeue_add(~0);
+			/* Determine what should be interrupt-vs-poll driven */
+#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
+			irq_sources |= QM_PIRQ_EQCI | QM_PIRQ_EQRI |
+				QM_PIRQ_MRI | QM_PIRQ_CSCI;
+#endif
+#ifdef CONFIG_FSL_DPA_PIRQ_FAST
+			irq_sources |= QM_PIRQ_DQRI;
+#endif
+			qman_irqsource_add(irq_sources);
+			pr_info("Qman portal %sinitialised, cpu %d\n",
+				is_shared ? "(shared) " : "",
+				pcfg->public_cfg.cpu);
 			if (is_shared)
 				sharing_portal = p;
 			cpumask_clear_cpu(pcfg->public_cfg.cpu, &slave_cpus);
 		}
+		set_cpus_allowed_ptr(current, &oldmask);
 	}
 	if (sharing_portal) {
 		int loop;
 		for_each_cpu(loop, &slave_cpus) {
-			struct qman_portal *p = init_affine_portal(NULL, loop,
-					sharing_portal);
+			oldmask = *tsk_cpus_allowed(current);
+			set_cpus_allowed_ptr(current, get_cpu_mask(loop));
+			p = qman_create_affine_slave(sharing_portal);
+			set_cpus_allowed_ptr(current, &oldmask);
 			if (!p)
 				pr_err("Failed slave Qman portal for cpu %d\n",
 					loop);
+			else
+				pr_info("Qman portal %sinitialised, cpu %d\n",
+					"(slave) ", loop);
 		}
 	}
-#else
-	for_each_compatible_node(dn, NULL, "fsl,qman-portal") {
-		if (!of_device_is_available(dn))
-			continue;
-		pcfg = fsl_qman_portal_init(dn);
-		if (pcfg)
-			/* No kernel portal support, so if USDPAA didn't consume
-			 * the portal, we've no other use for it. */
-			fsl_qman_portal_destroy(pcfg);
-	}
-#endif
 	for_each_compatible_node(dn, NULL, "fsl,fqid-range") {
 		use_bpid0 = 0;
 		ret = fsl_fqid_range_init(dn);
 		if (ret)
 			return ret;
 	}
-#ifdef CONFIG_FSL_QMAN_PORTAL
 	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++) {
 		/* This is to ensure h/w-internal CGR memory is zeroed out. Note
 		 * that we do this for all conceivable CGRIDs, not all of which
@@ -359,7 +329,6 @@ static __init int qman_init(void)
 		 * We ignore any errors for this reason. */
 		qman_modify_cgr(&cgr, QMAN_CGR_FLAG_USE_INIT, NULL);
 	}
-#endif
 	ret = fqalloc_init(use_bpid0);
 	if (ret)
 		return ret;

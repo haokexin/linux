@@ -62,7 +62,6 @@ static int __bm_pool_add(u32 bpid, u32 *cfg, int triplets)
 {
 	u64 total = 0;
 	BUG_ON(bpid >= bman_pool_max);
-#ifdef CONFIG_FSL_BMAN_PORTAL
 	while (triplets--) {
 		struct bman_pool_params params = {
 			.bpid = bpid,
@@ -92,7 +91,6 @@ static int __bm_pool_add(u32 bpid, u32 *cfg, int triplets)
 		bman_free_pool(pobj);
 		cfg += 6;
 	}
-#endif
 	/* Remove this pool from the allocator (by treating its declaration as
 	 * an implicit "reservation") iff the allocator is *not* being set up
 	 * explicitly defined via "bpool-range" nodes. */
@@ -137,36 +135,6 @@ void bm_pool_free(u32 bpid)
 	spin_unlock(&pools_lock);
 }
 EXPORT_SYMBOL(bm_pool_free);
-
-#ifdef CONFIG_FSL_BMAN_PORTAL
-static __init struct bman_portal *init_affine_portal(
-					struct bm_portal_config *pconfig,
-					int cpu, struct bman_portal *redirect)
-{
-	struct bman_portal *portal;
-	struct cpumask oldmask = *tsk_cpus_allowed(current);
-	const struct cpumask *newmask = get_cpu_mask(cpu);
-
-	set_cpus_allowed_ptr(current, newmask);
-
-	if (redirect)
-		portal = bman_create_affine_slave(redirect);
-	else {
-		portal = bman_create_affine_portal(pconfig);
-#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
-		if (portal)
-			bman_irqsource_add(BM_PIRQ_RCRI | BM_PIRQ_BSCN);
-#endif
-	}
-
-	set_cpus_allowed_ptr(current, &oldmask);
-	if (portal)
-		pr_info("Bman portal %sinitialised, cpu %d\n",
-			redirect ? "(slave) " :
-			pconfig->public_cfg.is_shared ? "(shared) " : "", cpu);
-	return portal;
-}
-#endif
 
 static struct bm_portal_config * __init fsl_bman_portal_init(
 						struct device_node *node)
@@ -345,14 +313,14 @@ static int __init fsl_bpool_range_init(struct device_node *node)
 
 static __init int bman_init(void)
 {
-#ifdef CONFIG_FSL_BMAN_PORTAL
 	struct cpumask primary_cpus = *cpu_none_mask;
 	struct cpumask slave_cpus = *cpu_online_mask;
+	struct cpumask oldmask;
 	struct bman_portal *sharing_portal = NULL;
 	int sharing_cpu = -1;
-#endif
 	struct device_node *dn;
 	struct bm_portal_config *pcfg;
+	struct bman_portal *p;
 	int ret;
 	LIST_HEAD(cfg_list);
 
@@ -368,7 +336,6 @@ static __init int bman_init(void)
 		bman_depletion_fill(&pools);
 		num_pools = bman_pool_max;
 	}
-#ifdef CONFIG_FSL_BMAN_PORTAL
 	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
 		if (!of_device_is_available(dn))
 			continue;
@@ -400,7 +367,6 @@ static __init int bman_init(void)
 	/* Parsing is done and sharing decisions are made, now initialise the
 	 * portals and determine which "slave" CPUs are left over. */
 	list_for_each_entry(pcfg, &cfg_list, list) {
-		struct bman_portal *p;
 		int is_shared = (!sharing_portal && (sharing_cpu >= 0) &&
 				(pcfg->public_cfg.cpu == sharing_cpu));
 		pcfg->public_cfg.is_shared = is_shared;
@@ -409,33 +375,39 @@ static __init int bman_init(void)
 		if (pcfg->public_cfg.cpu < 0 || !cpumask_test_cpu(
 					pcfg->public_cfg.cpu, &slave_cpus))
 			continue;
-		p = init_affine_portal(pcfg, pcfg->public_cfg.cpu, NULL);
+		oldmask = *tsk_cpus_allowed(current);
+		set_cpus_allowed_ptr(current,
+				     get_cpu_mask(pcfg->public_cfg.cpu));
+		p = bman_create_affine_portal(pcfg);
 		if (p) {
+#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
+			bman_irqsource_add(BM_PIRQ_RCRI | BM_PIRQ_BSCN);
+#endif
+			pr_info("Bman portal %sinitialised, cpu %d\n",
+				is_shared ? "(shared) " : "",
+				pcfg->public_cfg.cpu);
 			if (is_shared)
 				sharing_portal = p;
 			cpumask_clear_cpu(pcfg->public_cfg.cpu, &slave_cpus);
 		}
+		set_cpus_allowed_ptr(current, &oldmask);
 	}
 
 	if (sharing_portal) {
 		int loop;
 		for_each_cpu(loop, &slave_cpus) {
-			struct bman_portal *p = init_affine_portal(NULL, loop,
-					sharing_portal);
+			oldmask = *tsk_cpus_allowed(current);
+			set_cpus_allowed_ptr(current, get_cpu_mask(loop));
+			p = bman_create_affine_slave(sharing_portal);
+			set_cpus_allowed_ptr(current, &oldmask);
 			if (!p)
 				pr_err("Failed slave Bman portal for cpu %d\n",
 					loop);
+			else
+				pr_info("Bman portal %sinitialised, cpu %d\n",
+					"(slave) ", loop);
 		}
 	}
-#else
-	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
-		if (!of_device_is_available(dn))
-			continue;
-		pcfg = fsl_bman_portal_init(dn);
-		if (pcfg)
-			fsl_bman_portal_destroy(pcfg);
-	}
-#endif
 	for_each_compatible_node(dn, NULL, "fsl,bpool-range") {
 		if (!explicit_allocator) {
 			explicit_allocator = 1;
