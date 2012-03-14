@@ -354,13 +354,8 @@ struct qman_portal *qman_create_affine_portal(
 		pr_err("Qman EQCR initialisation failed\n");
 		goto fail_eqcr;
 	}
-#ifdef CONFIG_FSL_QMAN_PORTAL_DISABLEAUTO_DCA
-#define QM_DQRR_CMODE qm_dqrr_cci
-#else
-#define QM_DQRR_CMODE qm_dqrr_cdc
-#endif
 	if (qm_dqrr_init(__p, config, qm_dqrr_dpush, qm_dqrr_pvb,
-			QM_DQRR_CMODE, DQRR_MAXFILL)) {
+			qm_dqrr_cdc, DQRR_MAXFILL)) {
 		pr_err("Qman DQRR initialisation failed\n");
 		goto fail_dqrr;
 	}
@@ -809,20 +804,11 @@ loop:
 	 * check for HELDACTIVE to cover both. */
 	DPA_ASSERT((dq->stat & QM_DQRR_STAT_FQ_HELDACTIVE) ||
 		(res != qman_cb_dqrr_park));
-#ifdef CONFIG_FSL_QMAN_PORTAL_DISABLEAUTO_DCA
-	if (res == qman_cb_dqrr_park)
-		/* The only thing to do for non-DCA is the park-request */
-		qm_dqrr_park_current(&p->p);
-	/* Move forward */
-	qm_dqrr_next(&p->p);
-	qm_dqrr_cci_consume(&p->p, 1);
-#else
 	/* Defer just means "skip it, I'll consume it myself later on" */
 	if (res != qman_cb_dqrr_defer)
 		qm_dqrr_cdc_consume_1ptr(&p->p, dq, (res == qman_cb_dqrr_park));
 	/* Move forward */
 	qm_dqrr_next(&p->p);
-#endif
 	/* Entry processed and consumed, increment our counter. The callback can
 	 * request that we exit after consuming the entry, and we also exit if
 	 * we reach our processing limit, so loop back only if neither of these
