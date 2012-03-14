@@ -523,7 +523,7 @@ void flush_icache_user_range(struct vm_area_struct *vma, struct page *page,
 }
 EXPORT_SYMBOL(flush_icache_user_range);
 
-#ifdef CONFIG_FSL_USDPAA_SHMEM
+#ifdef CONFIG_FSL_USDPAA
 /*
  * NB: this 'usdpaa' check+hack is to create a single TLB1 entry to cover the
  * buffer memory used by run-to-completion UIO-based apps ("User-Space DataPath
