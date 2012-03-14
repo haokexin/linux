@@ -2771,28 +2771,23 @@ static const struct net_device_ops dpa_shared_ops = {
 #endif
 };
 
+static u32 rx_pool_channel;
+static DEFINE_SPINLOCK(rx_pool_channel_init);
+
 static int __devinit dpa_get_channel(struct device *dev,
 					struct device_node *dpa_node)
 {
-	struct device_node *dev_node;
-	const uint32_t *channel_id;
-	int lenp;
-
-	dev_node = of_parse_phandle(dpa_node, "fsl,qman-channel", 0);
-	if (dev_node == NULL) {
-		dpaa_eth_err(dev, "Could not find fsl,qman-channel property\n");
-		return -EFAULT;
+	spin_lock(&rx_pool_channel_init);
+	if (!rx_pool_channel) {
+		u32 pool;
+		int ret = qman_alloc_pool(&pool);
+		if (!ret)
+			rx_pool_channel = pool;
 	}
-
-	channel_id = of_get_property(dev_node, "fsl,qman-channel-id", &lenp);
-	if ((channel_id == NULL) || (lenp < sizeof(*channel_id))) {
-		dpaa_eth_err(dev, "Could not get fsl,qman-channel-id in %s\n",
-				dev_node->full_name);
-		of_node_put(dev_node);
-		return -EINVAL;
-	}
-	of_node_put(dev_node);
-	return *channel_id;
+	spin_unlock(&rx_pool_channel_init);
+	if (!rx_pool_channel)
+		return -ENOMEM;
+	return rx_pool_channel;
 }
 
 struct fqid_cell {

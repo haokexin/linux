@@ -82,42 +82,36 @@
 		ethernet@0 {
 			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-channel = <&qpool4>;
 			fsl,qman-frame-queues-rx = <0x50 1 0x51 1>;
 			fsl,qman-frame-queues-tx = <0x70 1 0x71 1>;
 		};
 		ethernet@1 {
 			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-channel = <&qpool4>;
 			fsl,qman-frame-queues-rx = <0x52 1 0x53 1>;
 			fsl,qman-frame-queues-tx = <0x72 1 0x73 1>;
 		};
 		ethernet@2 {
 			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-channel = <&qpool4>;
 			fsl,qman-frame-queues-rx = <0x54 1 0x55 1>;
 			fsl,qman-frame-queues-tx = <0x74 1 0x75 1>;
 		};
 		ethernet@3 {
 			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-channel = <&qpool4>;
 			fsl,qman-frame-queues-rx = <0x56 1 0x57 1>;
 			fsl,qman-frame-queues-tx = <0x76 1 0x77 1>;
 		};
 		ethernet@4 {
 			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-channel = <&qpool4>;
 			fsl,qman-frame-queues-rx = <0x58 1 0x59 1>;
 			fsl,qman-frame-queues-tx = <0x78 1 0x79 1>;
 		};
 		ethernet@5 {
 			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
 			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-channel = <&qpool4>;
 			fsl,qman-frame-queues-rx = <0x5a 1 0x5b 1>;
 			fsl,qman-frame-queues-tx = <0x7a 1 0x7b 1>;
 		};

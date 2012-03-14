@@ -1,7 +1,7 @@
 /*
  * QorIQ QMan Portal device tree stub for 10 portals & 15 pool channels
  *
- * Copyright 2011 Freescale Semiconductor Inc.
+ * Copyright 2011-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -113,94 +113,4 @@ qportal9: qman-portal@24000 {
 	reg = <0x24000 0x4000 0x109000 0x1000>;
 	interrupts = <122 0x2 0 0>;
 	fsl,qman-channel-id = <0x9>;
-};
-
-qpool1: qman-pool@1 {
-	cell-index = <1>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x21>;
-};
-
-qpool2: qman-pool@2 {
-	cell-index = <2>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x22>;
-};
-
-qpool3: qman-pool@3 {
-	cell-index = <3>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x23>;
-};
-
-qpool4: qman-pool@4 {
-	cell-index = <4>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x24>;
-};
-
-qpool5: qman-pool@5 {
-	cell-index = <5>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x25>;
-};
-
-qpool6: qman-pool@6 {
-	cell-index = <6>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x26>;
-};
-
-qpool7: qman-pool@7 {
-	cell-index = <7>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x27>;
-};
-
-qpool8: qman-pool@8 {
-	cell-index = <8>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x28>;
-};
-
-qpool9: qman-pool@9 {
-	cell-index = <9>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x29>;
-};
-
-qpool10: qman-pool@10 {
-	cell-index = <10>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x2a>;
-};
-
-qpool11: qman-pool@11 {
-	cell-index = <11>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x2b>;
-};
-
-qpool12: qman-pool@12 {
-	cell-index = <12>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x2c>;
-};
-
-qpool13: qman-pool@13 {
-	cell-index = <13>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x2d>;
-};
-
-qpool14: qman-pool@14 {
-	cell-index = <14>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x2e>;
-};
-
-qpool15: qman-pool@15 {
-	cell-index = <15>;
-	compatible = "fsl,qman-pool-channel";
-	fsl,qman-channel-id = <0x2f>;
 };

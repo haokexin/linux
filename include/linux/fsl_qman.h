@@ -1632,6 +1632,41 @@ static inline void qman_release_fqid(u32 fqid)
 	qman_release_fqid_range(fqid, 1);
 }
 
+	/* Pool-channel management */
+	/* ----------------------- */
+/**
+ * qman_alloc_pool_range - Allocate a contiguous range of pool-channel IDs
+ * @result: is set by the API to the base pool-channel ID of the allocated range
+ * @count: the number of pool-channel IDs required
+ * @align: required alignment of the allocated range
+ * @partial: non-zero if the API can return fewer than @count
+ *
+ * Returns the number of pool-channel IDs allocated, or a negative error code.
+ * If @partial is non zero, the allocation request may return a smaller range of
+ * than requested (though alignment will be as requested). If @partial is zero,
+ * the return value will either be 'count' or negative.
+ */
+int qman_alloc_pool_range(u32 *result, u32 count, u32 align, int partial);
+static inline int qman_alloc_pool(u32 *result)
+{
+	int ret = qman_alloc_pool_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
+}
+
+/**
+ * qman_release_pool_range - Release the specified range of pool-channel IDs
+ * @id: the base pool-channel ID of the range to deallocate
+ * @count: the number of pool-channel IDs in the range
+ *
+ * Returns zero for success.
+ */
+void qman_release_pool_range(u32 id, unsigned int count);
+static inline void qman_release_pool(u32 id)
+{
+	qman_release_pool_range(id, 1);
+}
+
+
 	/* CGR management */
 	/* -------------- */
 /**
@@ -1689,6 +1724,38 @@ int qman_query_cgr(struct qman_cgr *cgr, struct qm_mcr_querycgr *result);
  * @congestion: storage for the queried state of all congestion groups
  */
 int qman_query_congestion(struct qm_mcr_querycongestion *congestion);
+
+/**
+ * qman_alloc_cgrid_range - Allocate a contiguous range of CGR IDs
+ * @result: is set by the API to the base CGR ID of the allocated range
+ * @count: the number of CGR IDs required
+ * @align: required alignment of the allocated range
+ * @partial: non-zero if the API can return fewer than @count
+ *
+ * Returns the number of CGR IDs allocated, or a negative error code.
+ * If @partial is non zero, the allocation request may return a smaller range of
+ * than requested (though alignment will be as requested). If @partial is zero,
+ * the return value will either be 'count' or negative.
+ */
+int qman_alloc_cgrid_range(u32 *result, u32 count, u32 align, int partial);
+static inline int qman_alloc_cgrid(u32 *result)
+{
+	int ret = qman_alloc_cgrid_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
+}
+
+/**
+ * qman_release_cgrid_range - Release the specified range of CGR IDs
+ * @id: the base CGR ID of the range to deallocate
+ * @count: the number of CGR IDs in the range
+ *
+ * Returns zero for success.
+ */
+void qman_release_cgrid_range(u32 id, unsigned int count);
+static inline void qman_release_cgrid(u32 id)
+{
+	qman_release_cgrid_range(id, 1);
+}
 
 	/* Helpers */
 	/* ------- */

@@ -69,4 +69,12 @@
 		compatible = "fsl,fqid-range";
 		fsl,fqid-range = <256 256>;
 	};
+	qman-pools@0 {
+		compatible = "fsl,pool-channel-range";
+		fsl,pool-channel-range = <0x21 0xf>;
+	};
+	qman-cgrids@0 {
+		compatible = "fsl,cgrid-range";
+		fsl,cgrid-range = <0 256>;
+	};
 };
