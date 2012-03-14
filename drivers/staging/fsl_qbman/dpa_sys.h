@@ -75,9 +75,20 @@ struct dpa_alloc {
 		}, \
 		.lock = __SPIN_LOCK_UNLOCKED(name.lock) \
 	}
+static inline void dpa_alloc_init(struct dpa_alloc *alloc)
+{
+	INIT_LIST_HEAD(&alloc->list);
+	spin_lock_init(&alloc->lock);
+}
 int dpa_alloc_new(struct dpa_alloc *alloc, u32 *result, u32 count, u32 align,
 		  int partial);
-void dpa_alloc_free(struct dpa_alloc *alloc, u32 fqid, u32 count);
+void dpa_alloc_free(struct dpa_alloc *alloc, u32 base_id, u32 count);
+/* Like 'new' but specifies the desired range, returns -ENOMEM if the entire
+ * desired range is not available, or 0 for success. */
+int dpa_alloc_reserve(struct dpa_alloc *alloc, u32 base_id, u32 count);
+/* Pops and returns contiguous ranges from the allocator. Returns -ENOMEM when
+ * 'alloc' is empty. */
+int dpa_alloc_pop(struct dpa_alloc *alloc, u32 *result, u32 *count);
 
 /* When copying aligned words or shorts, try to avoid memcpy() */
 #define CONFIG_TRY_BETTER_MEMCPY

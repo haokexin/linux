@@ -341,12 +341,6 @@ static __init int qman_init(void)
 		else
 			pr_err("Qman err interrupt handler missing\n");
 	}
-	/* Initialise FQID allocation ranges */
-	for_each_compatible_node(dn, NULL, "fsl,fqid-range") {
-		ret = fsl_fqid_range_init(dn);
-		if (ret)
-			return ret;
-	}
 	/* Parse pool channels */
 	for_each_compatible_node(dn, NULL, "fsl,qman-pool-channel") {
 		const u32 *index = of_get_property(dn, "cell-index", NULL);
@@ -443,6 +437,13 @@ static __init int qman_init(void)
 		}
 	} while (1);
 #endif
+	/* Initialise FQID allocation ranges */
+	for_each_compatible_node(dn, NULL, "fsl,fqid-range") {
+		ret = fsl_fqid_range_init(dn);
+		if (ret)
+			return ret;
+	}
+
 	/* This is to ensure h/w-internal CGR memory is zeroed out. Note that we
 	 * do this for all conceivable CGRIDs, not all of which are necessarily
 	 * available on the underlying hardware version. We ignore any errors
