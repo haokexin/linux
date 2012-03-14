@@ -86,20 +86,40 @@ static struct miscdevice usdpaa_shmem_miscdev = {
 	.minor = MISC_DYNAMIC_MINOR,
 };
 
+/* Early-boot memory allocation. The boot-arg "usdpaa_mem=<x>" is used to
+ * indicate how much memory (if any) to allocate during early boot. */
+static __init int usdpaa_mem(char *arg)
+{
+	usdpaa_phys_size = memparse(arg, &arg);
+	return 0;
+}
+early_param("usdpaa_mem", usdpaa_mem);
+
 __init void fsl_usdpaa_shmem_init_early(void)
 {
-	u64 sz = (u64)PAGE_SIZE << (2 * CONFIG_FSL_USDPAA_SHMEM_LOG4);
-	u64 addr = memblock_alloc(sz, sz);
-	if (addr) {
-		usdpaa_phys_start = addr;
-		usdpaa_phys_size = sz;
-		usdpaa_pfn_start = (addr >> PAGE_SHIFT);
-		usdpaa_pfn_len = (sz >> PAGE_SHIFT);
+	int log;
+	if (!usdpaa_phys_size) {
+		pr_info("No USDPAA memory, no 'usdpaa_mem' bootarg\n");
+		return;
+	}
+	/* Size must be 4^x * 4096, for some x */
+	log = ilog2(usdpaa_phys_size);
+	if ((usdpaa_phys_size & (usdpaa_phys_size - 1)) || (log < 12) ||
+			(log & 1)) {
+		pr_err("'usdpaa_mem' bootarg must be 4096*4^x\n");
+		usdpaa_phys_size = 0;
+		return;
+	}
+	usdpaa_phys_start = memblock_alloc(usdpaa_phys_size, usdpaa_phys_size);
+	if (usdpaa_phys_start) {
+		usdpaa_pfn_start = (usdpaa_phys_start >> PAGE_SHIFT);
+		usdpaa_pfn_len = (usdpaa_phys_size >> PAGE_SHIFT);
 		usdpaa_tlbcam_index = tlbcam_index++;
 		pr_info("USDPAA region at %llx:%llx\n",
 			usdpaa_phys_start, usdpaa_phys_size);
 	} else
-		pr_err("Failed to reserve USDPAA region (sz:%llx)\n", sz);
+		pr_err("Failed to reserve USDPAA region (sz:%llx)\n",
+		       usdpaa_phys_size);
 }
 
 static int __init usdpaa_shmem_init(void)
