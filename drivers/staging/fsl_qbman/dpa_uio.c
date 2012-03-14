@@ -62,50 +62,18 @@ static int dpa_uio_release(struct uio_info *info, struct inode *inode)
 	return 0;
 }
 
-static int dpa_uio_mmap(struct uio_info *info, struct vm_area_struct *vma)
+static pgprot_t dpa_uio_pgprot(struct uio_info *info, unsigned int mem_idx,
+				   pgprot_t prot)
 {
-	struct uio_mem *mem;
-	struct dpa_uio_info *i = container_of(info, struct dpa_uio_info, uio);
-
-	if (vma->vm_pgoff == 0) {
-		/* CENA */
-		mem = &i->uio.mem[0];
-		vma->vm_page_prot &=
-			~(_PAGE_GUARDED | _PAGE_NO_CACHE | _PAGE_COHERENT);
-	} else if (vma->vm_pgoff == 1) {
-		/* CINH */
-		mem = &i->uio.mem[1];
-		vma->vm_page_prot |= _PAGE_GUARDED | _PAGE_NO_CACHE;
-	} else {
-		pr_err("%s: unknown mmap offset %d, rejecting\n",
-			i->name, (int)vma->vm_pgoff);
-		return -EINVAL;
-	}
-	if ((vma->vm_end - vma->vm_start) != mem->size) {
-		pr_err("%s: invalid mmap() size %d, expect %d\n",
-			i->name, (int)(vma->vm_end - vma->vm_start),
-			(int)mem->size);
-		return -EINVAL;
-	}
-	/* FIXME: UIO appears not to support sizeof(phys_addr_t) > sizeof(void*)
-	 * as mem->addr is 32-bit. Also, it would have been more natural (and in
-	 * keeping with UIO's design intent) to have used the UIO_MEM_PHYS type
-	 * for our two memory regions, and to rely on UIO's own mmap() handler
-	 * (by not declaring our own). Unfortunately UIO does not allow any
-	 * specification of pgprots and assumes cache-inhibited mappings for
-	 * anything physical (see drivers/uio/uio.c, eg. uio_mmap_physical()).
-	 * So UIO could use a couple of improvements as it is not saving us much
-	 * on the kernel nor the user side. The first would be to use PFN
-	 * instead of a raw base address in the uio_mem structs (same reason as
-	 * everywhere else, this covers 4096 times as much address space, and
-	 * why waste lower bits given it has to be page-aligned anyway?). The
-	 * second is to add a pgprot field to uio_mem to be used with _PHYS
-	 * mappings. (Or use a new _PHYS_PGPROT type, for backwards
-	 * compatibility?) */
-	/* Normally, we'd ">>PAGE_SHIFT" the mem->addr value here, but due to
-	 * the 36-bit issue, it is already stored as a PFN. */
-	return io_remap_pfn_range(vma, vma->vm_start, mem->addr, mem->size,
-				vma->vm_page_prot);
+	if (mem_idx == DPA_PORTAL_CE)
+		/* It's the cache-enabled portal region. NB, we shouldn't use
+		 * pgprot_cached() here because it includes _PAGE_COHERENT. The
+		 * region is cachable but *not* coherent - stashing (if enabled)
+		 * leads to "coherent-like" behaviour, otherwise the driver
+		 * explicitly invalidates/prefetches. */
+		return pgprot_cached_noncoherent(prot);
+	/* Otherwise it's the cache-inhibited portal region */
+	return pgprot_noncached(prot);
 }
 
 static irqreturn_t dpa_uio_irq_handler(int irq, struct uio_info *info)
@@ -168,18 +136,17 @@ static void __init dpa_uio_portal_init(struct dpa_uio_portal *p,
 	}
 	info->uio.name = info->name;
 	info->uio.version = dpa_uio_version;
-	/* Work around the 36-bit UIO issue by bit-shifting the addresses */
 	info->uio.mem[DPA_PORTAL_CE].name = "cena";
-	info->uio.mem[DPA_PORTAL_CE].addr =
-		res[DPA_PORTAL_CE].start >> PAGE_SHIFT;
+	info->uio.mem[DPA_PORTAL_CE].addr = res[DPA_PORTAL_CE].start;
 	info->uio.mem[DPA_PORTAL_CE].size = resource_size(&res[DPA_PORTAL_CE]);
+	info->uio.mem[DPA_PORTAL_CE].memtype = UIO_MEM_PHYS;
 	info->uio.mem[DPA_PORTAL_CI].name = "cinh";
-	info->uio.mem[DPA_PORTAL_CI].addr =
-		res[DPA_PORTAL_CI].start >> PAGE_SHIFT;
+	info->uio.mem[DPA_PORTAL_CI].addr = res[DPA_PORTAL_CI].start;
 	info->uio.mem[DPA_PORTAL_CI].size = resource_size(&res[DPA_PORTAL_CI]);
+	info->uio.mem[DPA_PORTAL_CI].memtype = UIO_MEM_PHYS;
 	info->uio.irq = irq;
 	info->uio.handler = dpa_uio_irq_handler;
-	info->uio.mmap = dpa_uio_mmap;
+	info->uio.set_pgprot = dpa_uio_pgprot;
 	info->uio.open = dpa_uio_open;
 	info->uio.release = dpa_uio_release;
 	ret = uio_register_device(&info->pdev->dev, &info->uio);
