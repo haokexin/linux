@@ -40,32 +40,24 @@
 /* Global flag: use BPID==0 (fq_pool), or use the range-allocator? */
 static int use_bman;
 
-#ifdef CONFIG_FSL_BMAN_PORTAL
 static struct bman_pool *fq_pool;
 static const struct bman_pool_params fq_pool_params;
-#endif
 
 __init int fqalloc_init(int __use_bman)
 {
 	use_bman = __use_bman;
-#ifdef CONFIG_FSL_BMAN_PORTAL
 	if (use_bman) {
 		fq_pool = bman_new_pool(&fq_pool_params);
 		if (!fq_pool)
 			return -ENOMEM;
 	}
-#else
-	BUG_ON(use_bman);
-#endif
 	return 0;
 }
 
 u32 qm_fq_new(void)
 {
-#ifdef CONFIG_FSL_BMAN_PORTAL
 	struct bm_buffer buf;
 	int ret;
-#endif
 
 	if (!use_bman) {
 		u32 result;
@@ -73,32 +65,25 @@ u32 qm_fq_new(void)
 			return 0;
 		return result;
 	}
-#ifdef CONFIG_FSL_BMAN_PORTAL
 	BUG_ON(!fq_pool);
 	ret = bman_acquire(fq_pool, &buf, 1, 0);
 	if (ret != 1)
 		return 0;
 	return (u32)bm_buffer_get64(&buf);
-#else
-	BUG();
-#endif
 }
 EXPORT_SYMBOL(qm_fq_new);
 
 int qm_fq_free_flags(u32 fqid, __maybe_unused u32 flags)
 {
-#ifdef CONFIG_FSL_BMAN_PORTAL
 	struct bm_buffer buf;
 	u32 bflags = 0;
 	int ret;
 	bm_buffer_set64(&buf, fqid);
-#endif
 
 	if (!use_bman) {
 		qman_release_fqid(fqid);
 		return 0;
 	}
-#ifdef CONFIG_FSL_BMAN_PORTAL
 #ifdef CONFIG_FSL_DPA_CAN_WAIT
 	if (flags & QM_FQ_FREE_WAIT) {
 		bflags |= BMAN_RELEASE_FLAG_WAIT;
@@ -110,9 +95,6 @@ int qm_fq_free_flags(u32 fqid, __maybe_unused u32 flags)
 #endif
 	ret = bman_release(fq_pool, &buf, 1, bflags);
 	return ret;
-#else
-	BUG();
-#endif
 }
 EXPORT_SYMBOL(qm_fq_free_flags);
 
