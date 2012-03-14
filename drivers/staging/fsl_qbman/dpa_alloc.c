@@ -35,8 +35,10 @@
 
 /* Qman and Bman APIs are front-ends to the common code; */
 
-static DECLARE_DPA_ALLOC(bpalloc);
-static DECLARE_DPA_ALLOC(fqalloc);
+static DECLARE_DPA_ALLOC(bpalloc); /* BPID allocator */
+static DECLARE_DPA_ALLOC(fqalloc); /* FQID allocator */
+static DECLARE_DPA_ALLOC(qpalloc); /* pool-channel allocator */
+static DECLARE_DPA_ALLOC(cgralloc); /* CGR ID allocator */
 
 /* This is a sort-of-conditional dpa_alloc_free() routine. Eg. when releasing
  * FQIDs (probably from user-space), it can filter out those that aren't in the
@@ -48,7 +50,7 @@ static u32 release_id_range(struct dpa_alloc *alloc, u32 id, u32 count,
 	int valid_mode = 0;
 	u32 loop = id, total_invalid = 0;
 	while (loop < (id + count)) {
-		int isvalid = is_valid(loop);
+		int isvalid = is_valid ? is_valid(loop) : 1;
 		if (!valid_mode) {
 			/* We're looking for a valid ID to terminate an invalid
 			 * range */
@@ -79,6 +81,8 @@ static u32 release_id_range(struct dpa_alloc *alloc, u32 id, u32 count,
 	return total_invalid;
 }
 
+/* BPID allocator front-end */
+
 int bman_alloc_bpid_range(u32 *result, u32 count, u32 align, int partial)
 {
 	return dpa_alloc_new(&bpalloc, result, count, align, partial);
@@ -106,6 +110,8 @@ void bman_release_bpid_range(u32 bpid, u32 count)
 }
 EXPORT_SYMBOL(bman_release_bpid_range);
 
+/* FQID allocator front-end */
+
 int qman_alloc_fqid_range(u32 *result, u32 count, u32 align, int partial)
 {
 	return dpa_alloc_new(&fqalloc, result, count, align, partial);
@@ -131,7 +137,75 @@ void qman_release_fqid_range(u32 fqid, u32 count)
 }
 EXPORT_SYMBOL(qman_release_fqid_range);
 
-/* The rest is the common backend to the Qman and Bman allocators */
+/* Pool-channel allocator front-end */
+
+int qman_alloc_pool_range(u32 *result, u32 count, u32 align, int partial)
+{
+	return dpa_alloc_new(&qpalloc, result, count, align, partial);
+}
+EXPORT_SYMBOL(qman_alloc_pool_range);
+
+static int qp_valid(u32 qp)
+{
+	/* TBD: when resource-management improves, we may be able to find
+	 * something better than this. Currently we query all FQDs starting from
+	 * FQID 1 until we get an "invalid FQID" error, looking for non-OOS FQDs
+	 * whose destination channel is the pool-channel being released. */
+	struct qman_fq fq = {
+		.fqid = 1
+	};
+	int err;
+	do {
+		struct qm_mcr_queryfq_np np;
+		err = qman_query_fq_np(&fq, &np);
+		if (err)
+			/* FQID range exceeded, found no problems */
+			return 1;
+		if ((np.state & QM_MCR_NP_STATE_MASK) != QM_MCR_NP_STATE_OOS) {
+			struct qm_fqd fqd;
+			err = qman_query_fq(&fq, &fqd);
+			BUG_ON(err);
+			if (fqd.dest.channel == qp)
+				/* The channel is the FQ's target, can't free */
+				return 0;
+		}
+		/* Move to the next FQID */
+		fq.fqid++;
+	} while (1);
+}
+void qman_release_pool_range(u32 qp, u32 count)
+{
+	u32 total_invalid = release_id_range(&qpalloc, qp, count, qp_valid);
+	if (total_invalid) {
+		/* Pool channels are almost always used individually */
+		if (count == 1)
+			pr_err("Pool channel 0x%x had %d leaks\n",
+				qp, total_invalid);
+		else
+			pr_err("Pool channels [%d..%d] (%d) had %d leaks\n",
+				qp, qp + count - 1, count, total_invalid);
+	}
+}
+EXPORT_SYMBOL(qman_release_pool_range);
+
+/* CGR ID allocator front-end */
+
+int qman_alloc_cgrid_range(u32 *result, u32 count, u32 align, int partial)
+{
+	return dpa_alloc_new(&cgralloc, result, count, align, partial);
+}
+EXPORT_SYMBOL(qman_alloc_cgrid_range);
+
+void qman_release_cgrid_range(u32 cgrid, u32 count)
+{
+	u32 total_invalid = release_id_range(&cgralloc, cgrid, count, NULL);
+	if (total_invalid)
+		pr_err("CGRID range [%d..%d] (%d) had %d leaks\n",
+			cgrid, cgrid + count - 1, count, total_invalid);
+}
+EXPORT_SYMBOL(qman_release_cgrid_range);
+
+/* Everything else is the common backend to all the allocators */
 
 /* The allocator is a (possibly-empty) list of these; */
 struct alloc_node {

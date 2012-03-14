@@ -51,18 +51,23 @@ static int shared_portals_idx;
 /* A SDQCR mask comprising all the available/visible pool channels */
 static u32 pools_sdqcr;
 
+#define STR_ERR_NOPROP      "No '%s' property in node %s\n"
+#define STR_ERR_CELL        "'%s' is not a %d-cell range in node %s\n"
+#define STR_FQID_RANGE      "fsl,fqid-range"
+#define STR_POOL_CHAN_RANGE "fsl,pool-channel-range"
+#define STR_CGRID_RANGE      "fsl,cgrid-range"
+
+/* A "fsl,fqid-range" node; release the given range to the allocator */
 static __init int fsl_fqid_range_init(struct device_node *node)
 {
 	int ret;
-	u32 *range = (u32 *)of_get_property(node, "fsl,fqid-range", &ret);
+	const u32 *range = of_get_property(node, STR_FQID_RANGE, &ret);
 	if (!range) {
-		pr_err("No 'fsl,fqid-range' property in node %s\n",
-			node->full_name);
+		pr_err(STR_ERR_NOPROP, STR_FQID_RANGE, node->full_name);
 		return -EINVAL;
 	}
 	if (ret != 8) {
-		pr_err("'fsl,fqid-range' is not a 2-cell range in node %s\n",
-			node->full_name);
+		pr_err(STR_ERR_CELL, STR_FQID_RANGE, 2, node->full_name);
 		return -EINVAL;
 	}
 	qman_release_fqid_range(range[0], range[1]);
@@ -71,6 +76,74 @@ static __init int fsl_fqid_range_init(struct device_node *node)
 	return 0;
 }
 
+/* A "fsl,pool-channel-range" node; add to the SDQCR mask only */
+static __init int fsl_pool_channel_range_sdqcr(struct device_node *node)
+{
+	int ret;
+	const u32 *chanid = of_get_property(node, STR_POOL_CHAN_RANGE, &ret);
+	if (!chanid) {
+		pr_err(STR_ERR_NOPROP, STR_POOL_CHAN_RANGE, node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err(STR_ERR_CELL, STR_POOL_CHAN_RANGE, 1, node->full_name);
+		return -EINVAL;
+	}
+	for (ret = 0; ret < chanid[1]; ret++)
+		pools_sdqcr |= QM_SDQCR_CHANNELS_POOL_CONV(chanid[0] + ret);
+	return 0;
+}
+
+/* A "fsl,pool-channel-range" node; release the given range to the allocator */
+static __init int fsl_pool_channel_range_init(struct device_node *node)
+{
+	int ret;
+	const u32 *chanid = of_get_property(node, STR_POOL_CHAN_RANGE, &ret);
+	if (!chanid) {
+		pr_err(STR_ERR_NOPROP, STR_POOL_CHAN_RANGE, node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err(STR_ERR_CELL, STR_POOL_CHAN_RANGE, 1, node->full_name);
+		return -EINVAL;
+	}
+	qman_release_pool_range(chanid[0], chanid[1]);
+	pr_info("Qman: pool channel allocator includes range %d:%d\n",
+		chanid[0], chanid[1]);
+	return 0;
+}
+
+/* A "fsl,cgrid-range" node; release the given range to the allocator */
+static __init int fsl_cgrid_range_init(struct device_node *node)
+{
+	struct qman_cgr cgr;
+	int ret, errors = 0;
+	const u32 *range = of_get_property(node, STR_CGRID_RANGE, &ret);
+	if (!range) {
+		pr_err(STR_ERR_NOPROP, STR_CGRID_RANGE, node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err(STR_ERR_CELL, STR_CGRID_RANGE, 2, node->full_name);
+		return -EINVAL;
+	}
+	qman_release_cgrid_range(range[0], range[1]);
+	pr_info("Qman: CGRID allocator includes range %d:%d\n",
+		range[0], range[1]);
+	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++) {
+		ret = qman_modify_cgr(&cgr, QMAN_CGR_FLAG_USE_INIT, NULL);
+		if (ret)
+			errors++;
+	}
+	if (errors)
+		pr_err("Warning: %d error%s while initialising CGRs %d:%d\n",
+			errors, (errors > 1) ? "s" : "", range[0], range[1]);
+	return 0;
+}
+
+/* Parse a portal node, perform generic mapping duties and return the config. It
+ * is not known at this stage for what purpose (or even if) the portal will be
+ * used. */
 static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 {
 	struct qm_portal_config *pcfg;
@@ -164,6 +237,7 @@ err:
 	return NULL;
 }
 
+/* Destroy a previously-parsed portal config. */
 static void destroy_pcfg(struct qm_portal_config *pcfg)
 {
 	iounmap(pcfg->addr_virt[DPA_PORTAL_CI]);
@@ -243,10 +317,6 @@ static int qman_uio_cb_open(const struct list_head *__p)
 	set_liodns(pcfg, hard_smp_processor_id());
 	return 0;
 }
-static void qman_uio_cb_close(const struct list_head *__p)
-{
-	QMAN_UIO_PREAMBLE();
-}
 static void qman_uio_cb_interrupt(const struct list_head *__p)
 {
 	QMAN_UIO_PREAMBLE();
@@ -262,7 +332,6 @@ static const struct dpa_uio_vtable qman_uio = {
 	.init_uio = qman_uio_cb_init,
 	.destroy = qman_uio_cb_destroy,
 	.on_open = qman_uio_cb_open,
-	.on_close = qman_uio_cb_close,
 	.on_interrupt = qman_uio_cb_interrupt
 };
 
@@ -322,7 +391,6 @@ __setup("qportals=", parse_qportals);
 
 static __init int qman_init(void)
 {
-	struct qman_cgr cgr;
 	struct cpumask slave_cpus;
 	struct cpumask unshared_cpus = *cpu_none_mask;
 	struct cpumask shared_cpus = *cpu_none_mask;
@@ -341,17 +409,19 @@ static __init int qman_init(void)
 		else
 			pr_err("Qman err interrupt handler missing\n");
 	}
-	/* Parse pool channels */
-	for_each_compatible_node(dn, NULL, "fsl,qman-pool-channel") {
-		const u32 *index = of_get_property(dn, "cell-index", NULL);
-		pools_sdqcr |= QM_SDQCR_CHANNELS_POOL(*index);
-	}
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
 	/* Setup lookup table for FQ demux */
 	ret = qman_setup_fq_lookup_table(fqd_size/64);
 	if (ret)
 		return ret;
 #endif
+	/* Parse pool channels into the SDQCR mask. (Must happen before portals
+	 * are initialised.) */
+	for_each_compatible_node(dn, NULL, "fsl,pool-channel-range") {
+		ret = fsl_pool_channel_range_sdqcr(dn);
+		if (ret)
+			return ret;
+	}
 	/* Initialise portals. See bman_driver.c for comments */
 	for_each_compatible_node(dn, NULL, "fsl,qman-portal") {
 		pcfg = parse_pcfg(dn);
@@ -443,13 +513,19 @@ static __init int qman_init(void)
 		if (ret)
 			return ret;
 	}
-
-	/* This is to ensure h/w-internal CGR memory is zeroed out. Note that we
-	 * do this for all conceivable CGRIDs, not all of which are necessarily
-	 * available on the underlying hardware version. We ignore any errors
-	 * for this reason. */
-	for (cgr.cgrid = 0; cgr.cgrid < __CGR_NUM; cgr.cgrid++)
-		qman_modify_cgr(&cgr, QMAN_CGR_FLAG_USE_INIT, NULL);
+	/* Initialise CGRID allocation ranges */
+	for_each_compatible_node(dn, NULL, "fsl,cgrid-range") {
+		ret = fsl_cgrid_range_init(dn);
+		if (ret)
+			return ret;
+	}
+	/* Parse pool channels into the allocator. (Must happen after portals
+	 * are initialised.) */
+	for_each_compatible_node(dn, NULL, "fsl,pool-channel-range") {
+		ret = fsl_pool_channel_range_init(dn);
+		if (ret)
+			return ret;
+	}
 	return 0;
 }
 subsys_initcall(qman_init);
