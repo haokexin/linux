@@ -107,6 +107,7 @@ if FSL_QMAN
 
 config FSL_QMAN_PORTAL
 	bool "Qman portal support"
+	depends on FSL_PAMU
 	default y
 	---help---
 	  Compiles support to detect and support Qman software corenet portals
