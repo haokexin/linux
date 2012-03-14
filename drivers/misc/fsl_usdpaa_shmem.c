@@ -89,31 +89,17 @@ static struct miscdevice usdpaa_shmem_miscdev = {
 __init void fsl_usdpaa_shmem_init_early(void)
 {
 	u64 sz = (u64)PAGE_SIZE << (2 * CONFIG_FSL_USDPAA_SHMEM_LOG4);
-	u64 addr = (memblock_end_of_DRAM() - sz) & ~(sz - 1);
-	/* FIXME: if booting with 8GB of RAM, the upper memory region seems to
-	 * be unavailable because of some conflict with the ramdisk. Ensure that
-	 * we don't search above 6GB. */
-	if (addr >= 0x180000000ULL)
-		addr = (0x180000000ULL - sz) & ~(sz - 1);
-	/* Search downwards, looking for an appropriately-aligned region that
-	 * isn't already reserved. */
-	do {
-		if (!memblock_is_region_reserved(addr, sz))
-			goto found;
-		addr -= sz;
-		/* If we reach the lower 1GB, call off the search. */
-	} while (addr >= 0x40000000);
-	pr_err("Failed to reserve USDPAA region (sz:%llx)\n", sz);
-	return;
-found:
-	memblock_reserve(addr, sz);
-	usdpaa_phys_start = addr;
-	usdpaa_phys_size = sz;
-	usdpaa_pfn_start = (addr >> PAGE_SHIFT);
-	usdpaa_pfn_len = (sz >> PAGE_SHIFT);
-	usdpaa_tlbcam_index = tlbcam_index++;
-	pr_info("USDPAA region at %llx:%llx\n",
-		usdpaa_phys_start, usdpaa_phys_size);
+	u64 addr = memblock_alloc(sz, sz);
+	if (addr) {
+		usdpaa_phys_start = addr;
+		usdpaa_phys_size = sz;
+		usdpaa_pfn_start = (addr >> PAGE_SHIFT);
+		usdpaa_pfn_len = (sz >> PAGE_SHIFT);
+		usdpaa_tlbcam_index = tlbcam_index++;
+		pr_info("USDPAA region at %llx:%llx\n",
+			usdpaa_phys_start, usdpaa_phys_size);
+	} else
+		pr_err("Failed to reserve USDPAA region (sz:%llx)\n", sz);
 }
 
 static int __init usdpaa_shmem_init(void)
