@@ -197,6 +197,7 @@ struct bman_portal *bman_create_affine_portal(
 	struct bm_portal *__p = &portal->p;
 	const struct bman_depletion *pools = &config->public_cfg.mask;
 	int ret;
+	u8 bpid = 0;
 
 	/* prep the low-level portal struct with the mapped addresses from the
 	 * config, everything that follows depends on it and "config" is more
@@ -215,21 +216,16 @@ struct bman_portal *bman_create_affine_portal(
 		pr_err("Bman ISR initialisation failed\n");
 		goto fail_isr;
 	}
-	if (!pools)
-		portal->pools = NULL;
-	else {
-		u8 bpid = 0;
-		portal->pools = kmalloc(2 * sizeof(*pools), GFP_KERNEL);
-		if (!portal->pools)
-			goto fail_pools;
-		portal->pools[0] = *pools;
-		bman_depletion_init(portal->pools + 1);
-		while (bpid < bman_pool_max) {
-			/* Default to all BPIDs disabled, we enable as required
-			 * at run-time. */
-			bm_isr_bscn_mask(__p, bpid, 0);
-			bpid++;
-		}
+	portal->pools = kmalloc(2 * sizeof(*pools), GFP_KERNEL);
+	if (!portal->pools)
+		goto fail_pools;
+	portal->pools[0] = *pools;
+	bman_depletion_init(portal->pools + 1);
+	while (bpid < bman_pool_max) {
+		/* Default to all BPIDs disabled, we enable as required at
+		 * run-time. */
+		bm_isr_bscn_mask(__p, bpid, 0);
+		bpid++;
 	}
 	portal->slowpoll = 0;
 #ifdef CONFIG_FSL_DPA_CAN_WAIT_SYNC
