@@ -443,52 +443,42 @@
 
 		ethernet@0 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet0>;
 		};
 		ethernet@1 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet1>;
 		};
 		ethernet@2 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet2>;
 		};
 		ethernet@3 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet3>;
 		};
 		ethernet@4 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet4>;
 		};
 		ethernet@5 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet5>;
 		};
 		ethernet@6 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet6>;
 		};
 		ethernet@7 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet7>;
 		};
 		ethernet@8 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet8>;
 		};
 		ethernet@9 {
 			compatible = "fsl,p4080-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet9>;
 		};
 	};

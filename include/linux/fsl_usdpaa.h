@@ -1,4 +1,4 @@
-/* Copyright 2011 Freescale Semiconductor, Inc.
+/* Copyright 2011-2012 Freescale Semiconductor, Inc.
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program is licensed "as is" without any warranty of any
@@ -22,6 +22,8 @@ extern "C" {
 enum usdpaa_id_type {
 	usdpaa_id_fqid,
 	usdpaa_id_bpid,
+	usdpaa_id_qpool,
+	usdpaa_id_cgrid,
 	usdpaa_id_max /* <-- not a valid type, represents the number of types */
 };
 #define USDPAA_IOCTL_MAGIC 'u'

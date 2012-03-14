@@ -57,6 +57,18 @@ static const struct alloc_backend {
 		.acronym = "BPID"
 	},
 	{
+		.id_type = usdpaa_id_qpool,
+		.alloc = qman_alloc_pool_range,
+		.release = qman_release_pool_range,
+		.acronym = "QPOOL"
+	},
+	{
+		.id_type = usdpaa_id_cgrid,
+		.alloc = qman_alloc_cgrid_range,
+		.release = qman_release_cgrid_range,
+		.acronym = "CGRID"
+	},
+	{
 		/* This terminates the array */
 		.id_type = usdpaa_id_max
 	}
