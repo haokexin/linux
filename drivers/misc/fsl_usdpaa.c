@@ -38,27 +38,53 @@ static int usdpaa_open(struct inode *inode, struct file *filp)
 
 static int usdpaa_mmap(struct file *file, struct vm_area_struct *vma)
 {
-	size_t size = vma->vm_end - vma->vm_start;
-	if (vma->vm_pgoff) {
-		pr_err("%s: non-zero mmap page-offset 0x%lx is invalid\n",
-			__func__, vma->vm_pgoff);
-		return -EINVAL;
-	}
-	if (size != usdpaa_phys_size) {
-		pr_err("%s: mmap size 0x%llx doesn't match region (0x%llx)\n",
-			__func__, (unsigned long long)size, usdpaa_phys_size);
-		return -EINVAL;
-	}
-	if (vma->vm_start & (usdpaa_phys_size - 1)) {
-		pr_err("%s: un-aligned mapping %llx:%llx -> %lx\n",
-			__func__, usdpaa_phys_start, usdpaa_phys_size,
-			vma->vm_start);
-		return -EINVAL;
-	}
-	if (remap_pfn_range(vma, vma->vm_start,	usdpaa_pfn_start, size,
-				vma->vm_page_prot))
+	if (remap_pfn_range(vma, vma->vm_start,	usdpaa_pfn_start,
+			    vma->vm_end - vma->vm_start, vma->vm_page_prot))
 		return -EAGAIN;
 	return 0;
+}
+
+/* Return the nearest rounded-up address >= 'addr' that is 'sz'-aligned. 'sz'
+ * must be a power of 2, but both 'addr' and 'sz' can be expressions. */
+#define USDPAA_MEM_ROUNDUP(addr, sz) \
+	({ \
+		unsigned long foo_align = (sz) - 1; \
+		((addr) + foo_align) & ~foo_align; \
+	})
+/* Searching for a size-aligned virtual address range starting from 'addr' */
+static unsigned long usdpaa_get_unmapped_area(struct file *file,
+					      unsigned long addr,
+					      unsigned long len,
+					      unsigned long pgoff,
+					      unsigned long flags)
+{
+	struct mm_struct *mm = current->mm;
+	struct vm_area_struct *vma;
+
+	if (pgoff) {
+		pr_err("%s: non-zero mmap page-offset 0x%lx is invalid\n",
+			__func__, pgoff);
+		return -EINVAL;
+	}
+	/* Only support mappings of the right size */
+	if (len != usdpaa_phys_size) {
+		pr_err("%s: mmap size 0x%lx doesn't match region (0x%llx)\n",
+			__func__, len, usdpaa_phys_size);
+		return -EINVAL;
+	}
+	addr = USDPAA_MEM_ROUNDUP(addr, len);
+	vma = find_vma(mm, addr);
+	/* Keep searching until we reach the end of currently-used virtual
+	 * address-space or we find a big enough gap. */
+	while (vma) {
+		if ((addr + len) < vma->vm_start)
+			return addr;
+		addr = USDPAA_MEM_ROUNDUP(vma->vm_end, len);
+		vma = vma->vm_next;
+	}
+	if ((TASK_SIZE - len) < addr)
+		return -ENOMEM;
+	return addr;
 }
 
 static long usdpaa_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
@@ -73,10 +99,11 @@ static long usdpaa_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 }
 
 static const struct file_operations usdpaa_fops = {
-	.open		= usdpaa_open,
-	.mmap		= usdpaa_mmap,
-	.unlocked_ioctl = usdpaa_ioctl,
-	.compat_ioctl = usdpaa_ioctl
+	.open		   = usdpaa_open,
+	.mmap		   = usdpaa_mmap,
+	.get_unmapped_area = usdpaa_get_unmapped_area,
+	.unlocked_ioctl    = usdpaa_ioctl,
+	.compat_ioctl      = usdpaa_ioctl
 };
 
 static struct miscdevice usdpaa_miscdev = {
