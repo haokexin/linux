@@ -1,7 +1,7 @@
-/* Copyright (C) 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
  * Authors: Andy Fleming <afleming@freescale.com>
- *          Timur Tabi <timur@freescale.com>
- *          Geoff Thorpe <Geoff.Thorpe@freescale.com>
+ *	    Timur Tabi <timur@freescale.com>
+ *	    Geoff Thorpe <Geoff.Thorpe@freescale.com>
  *
  * This file is licensed under the terms of the GNU General Public License
  * version 2.  This program is licensed "as is" without any warranty of any
@@ -9,6 +9,8 @@
  */
 
 #include <linux/fsl_usdpaa.h>
+#include <linux/fsl_qman.h>
+#include <linux/fsl_bman.h>
 
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
@@ -17,6 +19,7 @@
 #include <linux/of.h>
 #include <linux/memblock.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 
 /* Physical address range */
 u64 usdpaa_phys_start;
@@ -29,10 +32,75 @@ unsigned long usdpaa_pfn_len;
 /* TLB1 index */
 unsigned int usdpaa_tlbcam_index;
 
+/* Per-FD state (which should also be per-process but we don't enforce that) */
+struct ctx {
+	struct dpa_alloc ids[usdpaa_id_max];
+};
+
+/* Different resource classes */
+static const struct alloc_backend {
+	enum usdpaa_id_type id_type;
+	int (*alloc)(u32 *, u32, u32, int);
+	void (*release)(u32 base, unsigned int count);
+	const char *acronym;
+} alloc_backends[] = {
+	{
+		.id_type = usdpaa_id_fqid,
+		.alloc = qman_alloc_fqid_range,
+		.release = qman_release_fqid_range,
+		.acronym = "FQID"
+	},
+	{
+		.id_type = usdpaa_id_bpid,
+		.alloc = bman_alloc_bpid_range,
+		.release = bman_release_bpid_range,
+		.acronym = "BPID"
+	},
+	{
+		/* This terminates the array */
+		.id_type = usdpaa_id_max
+	}
+};
+
 static int usdpaa_open(struct inode *inode, struct file *filp)
 {
+	const struct alloc_backend *backend = &alloc_backends[0];
+	struct ctx *ctx = kmalloc(sizeof(struct ctx), GFP_KERNEL);
+	if (!ctx)
+		return -ENOMEM;
+	filp->private_data = ctx;
+
+	while (backend->id_type != usdpaa_id_max) {
+		dpa_alloc_init(&ctx->ids[backend->id_type]);
+		backend++;
+	}
+
 	filp->f_mapping->backing_dev_info = &directly_mappable_cdev_bdi;
 
+	return 0;
+}
+
+static int usdpaa_release(struct inode *inode, struct file *filp)
+{
+	struct ctx *ctx = filp->private_data;
+	const struct alloc_backend *backend = &alloc_backends[0];
+	while (backend->id_type != usdpaa_id_max) {
+		int ret, leaks = 0;
+		do {
+			u32 id, num;
+			ret = dpa_alloc_pop(&ctx->ids[backend->id_type],
+					    &id, &num);
+			if (!ret) {
+				leaks += num;
+				backend->release(id, num);
+			}
+		} while (ret == 1);
+		if (leaks)
+			pr_crit("USDPAA process leaking %d %s%s\n", leaks,
+				backend->acronym, (leaks > 1) ? "s" : "");
+		backend++;
+	}
+	kfree(ctx);
 	return 0;
 }
 
@@ -87,23 +155,83 @@ static unsigned long usdpaa_get_unmapped_area(struct file *file,
 	return addr;
 }
 
-static long usdpaa_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
+static long ioctl_get_region(void __user *arg)
 {
-	struct usdpaa_ioctl_get_region ret = {
+	struct usdpaa_ioctl_get_region i = {
 		.phys_start = usdpaa_phys_start,
 		.phys_len = usdpaa_phys_size
 	};
-	if (cmd != USDPAA_IOCTL_GET_PHYS_BASE)
+	return copy_to_user(arg, &i, sizeof(i));
+}
+
+static long ioctl_id_alloc(struct file *fp, void __user *arg)
+{
+	struct usdpaa_ioctl_id_alloc i;
+	struct ctx *ctx = fp->private_data;
+	const struct alloc_backend *backend;
+	int ret = copy_from_user(&i, arg, sizeof(i));
+	if (ret)
+		return ret;
+	if ((i.id_type >= usdpaa_id_max) || !i.num)
 		return -EINVAL;
-	return copy_to_user((void __user *)arg, &ret, sizeof(ret));
+	backend = &alloc_backends[i.id_type];
+	/* Allocate the required resource type */
+	ret = backend->alloc(&i.base, i.num, i.align, i.partial);
+	if (ret < 0)
+		return ret;
+	i.num = ret;
+	/* Copy the result to user-space */
+	ret = copy_to_user(arg, &i, sizeof(i));
+	if (ret) {
+		backend->release(i.base, i.num);
+		return ret;
+	}
+	/* Assign the allocated range to the FD accounting */
+	dpa_alloc_free(&ctx->ids[i.id_type], i.base, i.num);
+	return 0;
+}
+
+static long ioctl_id_release(struct file *fp, void __user *arg)
+{
+	struct usdpaa_ioctl_id_release i;
+	struct ctx *ctx = fp->private_data;
+	const struct alloc_backend *backend;
+	int ret = copy_from_user(&i, arg, sizeof(i));
+	if (ret)
+		return ret;
+	if ((i.id_type >= usdpaa_id_max) || !i.num)
+		return -EINVAL;
+	backend = &alloc_backends[i.id_type];
+	/* Pull the range out of the FD accounting - the range is valid iff this
+	 * succeeds. */
+	ret = dpa_alloc_reserve(&ctx->ids[i.id_type], i.base, i.num);
+	if (ret)
+		return ret;
+	/* Release the resource to the backend */
+	backend->release(i.base, i.num);
+	return 0;
+}
+static long usdpaa_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
+{
+	void __user *a = (void __user *)arg;
+	switch (cmd) {
+	case USDPAA_IOCTL_GET_PHYS_BASE:
+		return ioctl_get_region(a);
+	case USDPAA_IOCTL_ID_ALLOC:
+		return ioctl_id_alloc(fp, a);
+	case USDPAA_IOCTL_ID_RELEASE:
+		return ioctl_id_release(fp, a);
+	}
+	return -EINVAL;
 }
 
 static const struct file_operations usdpaa_fops = {
 	.open		   = usdpaa_open,
+	.release	   = usdpaa_release,
 	.mmap		   = usdpaa_mmap,
 	.get_unmapped_area = usdpaa_get_unmapped_area,
-	.unlocked_ioctl    = usdpaa_ioctl,
-	.compat_ioctl      = usdpaa_ioctl
+	.unlocked_ioctl	   = usdpaa_ioctl,
+	.compat_ioctl	   = usdpaa_ioctl
 };
 
 static struct miscdevice usdpaa_miscdev = {
