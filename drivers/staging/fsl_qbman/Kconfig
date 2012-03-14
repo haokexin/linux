@@ -40,13 +40,6 @@ config FSL_BMAN
 
 if FSL_BMAN
 
-config FSL_BMAN_PORTAL
-	bool "Bman portal support"
-	default y
-	---help---
-	  Compiles support to detect and support Bman software corenet portals
-	  (as provided by the device-tree).
-
 config FSL_BMAN_CONFIG
 	bool "Bman device management"
 	default y
@@ -57,7 +50,6 @@ config FSL_BMAN_CONFIG
 
 config FSL_BMAN_TEST
 	tristate "Bman self-tests"
-	depends on FSL_BMAN_PORTAL
 	default n
 	---help---
 	  This option compiles self-test code for Bman.
@@ -84,7 +76,7 @@ config FSL_BMAN_TEST_THRESH
 
 config FSL_BMAN_DEBUGFS
 	tristate "Bman debugfs interface"
-	depends on FSL_BMAN_PORTAL && DEBUG_FS
+	depends on DEBUG_FS
 	default y
 	---help---
 	This option compiles bman debugfs code for Bman.
@@ -97,17 +89,8 @@ config FSL_QMAN
 
 if FSL_QMAN
 
-config FSL_QMAN_PORTAL
-	bool "Qman portal support"
-	depends on FSL_PAMU
-	default y
-	---help---
-	  Compiles support to detect and support Qman software corenet portals
-	  (as provided by the device-tree).
-
 config FSL_QMAN_BUG_AND_FEATURE_REV1
 	bool "workarounds for errata and missing features in p4080 rev1"
-	depends on FSL_QMAN_PORTAL
 	default y
 	---help---
 	  If this option is selected, the driver will be compiled with
@@ -123,14 +106,6 @@ config FSL_QMAN_POLL_LIMIT
 	int
 	default 32
 
-config FSL_QMAN_PORTAL_DISABLEAUTO_DCA
-	bool "disable discrete-consumption support on cpu-affine portals"
-	default n
-	---help---
-	  By default, auto-initialised cpu-affine portals support
-	  discrete-consumption acknowledgements, but this may be unimplemented
-	  in the simulation model.
-
 config FSL_QMAN_CONFIG
 	bool "Qman device management"
 	default y
@@ -141,7 +116,6 @@ config FSL_QMAN_CONFIG
 
 config FSL_QMAN_TEST
 	tristate "Qman self-tests"
-	depends on FSL_QMAN_PORTAL
 	default n
 	---help---
 	  This option compiles self-test code for Qman.
@@ -174,7 +148,7 @@ config FSL_QMAN_TEST_ERRATA
 
 config FSL_QMAN_DEBUGFS
 	tristate "Qman debugfs interface"
-	depends on FSL_QMAN_PORTAL
+	depends on DEBUG_FS
 	default y
 	---help---
 	This option compiles qman debugfs code for Qman.
