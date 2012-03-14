@@ -122,10 +122,6 @@ const struct dpa_uio_class *dpa_uio_qman(void);
 
 /* These stubs are re-mapped to hypervisor+failover features in kernel trees
  * that contain that support. */
-static inline int fsl_dpa_should_recover(void)
-{
-	return 0;
-}
 static inline int pamu_enable_liodn(struct device_node *n, int i)
 {
 	return 0;

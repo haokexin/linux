@@ -191,8 +191,7 @@ static irqreturn_t portal_isr(__always_unused int irq, void *ptr)
 }
 
 struct bman_portal *bman_create_affine_portal(
-			const struct bm_portal_config *config,
-			int recovery_mode __maybe_unused)
+			const struct bm_portal_config *config)
 {
 	struct bman_portal *portal = get_raw_affine_portal();
 	struct bm_portal *__p = &portal->p;
@@ -260,14 +259,10 @@ struct bman_portal *bman_create_affine_portal(
 		pr_err("request_irq() failed\n");
 		goto fail_irq;
 	}
-	/* Enable the bits that make sense */
-	if (!recovery_mode)
-		bm_isr_uninhibit(__p);
 	/* Need RCR to be empty before continuing */
-	bm_isr_disable_write(__p, ~BM_PIRQ_RCRI);
 	ret = bm_rcr_get_fill(__p);
 	if (ret) {
-		pr_err("Bman RCR unclean, need recovery\n");
+		pr_err("Bman RCR unclean\n");
 		goto fail_rcr_empty;
 	}
 	/* Success */
@@ -276,6 +271,7 @@ struct bman_portal *bman_create_affine_portal(
 	cpumask_set_cpu(config->public_cfg.cpu, &affine_mask);
 	spin_unlock(&affine_mask_lock);
 	bm_isr_disable_write(__p, 0);
+	bm_isr_uninhibit(__p);
 	put_affine_portal();
 	return portal;
 fail_rcr_empty:
@@ -546,42 +542,6 @@ done:
 	put_poll_portal();
 }
 EXPORT_SYMBOL(bman_poll);
-
-int bman_recovery_cleanup_bpid(u32 bpid)
-{
-	struct bman_pool pool = {
-		.params = {
-			.bpid = bpid
-		}
-	};
-	struct bm_buffer bufs[8];
-	int ret = 0;
-	unsigned int num_bufs = 0;
-	do {
-		/* Acquire is all-or-nothing, so we drain in 8s, then in
-		 * 1s for the remainder. */
-		if (ret != 1)
-			ret = bman_acquire(&pool, bufs, 8, 0);
-		if (ret < 8)
-			ret = bman_acquire(&pool, bufs, 1, 0);
-		if (ret > 0)
-			num_bufs += ret;
-	} while (ret > 0);
-	if (num_bufs)
-		pr_info("Bman: BPID %d recovered (%d bufs)\n", bpid, num_bufs);
-	return 0;
-}
-EXPORT_SYMBOL(bman_recovery_cleanup_bpid);
-
-/* called from bman_driver.c::bman_recovery_exit() only (if exporting, use
- * get_raw_affine_portal() and check for the "SLAVE" bit). */
-void bman_recovery_exit_local(void)
-{
-	struct bman_portal *p = get_affine_portal();
-	bm_isr_status_clear(&p->p, 0xffffffff);
-	bm_isr_uninhibit(&p->p);
-	put_affine_portal();
-}
 
 static const u32 zero_thresholds[4] = {0, 0, 0, 0};
 

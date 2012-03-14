@@ -358,16 +358,6 @@ u32 bman_poll_slow(void);
 void bman_poll(void);
 
 /**
- * bman_recovery_cleanup_bpid  - in recovery mode, cleanup a buffer pool
- */
-int bman_recovery_cleanup_bpid(u32 bpid);
-
-/**
- * bman_recovery_exit - leave recovery mode
- */
-void bman_recovery_exit(void);
-
-/**
  * bman_rcr_is_empty - Determine if portal's RCR is empty
  *
  * For use in situations where a cpu-affine caller needs to determine when all

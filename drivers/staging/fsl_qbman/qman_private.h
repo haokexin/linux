@@ -141,11 +141,9 @@ void qman_liodn_fixup(enum qm_channel channel);
 /* Hooks from qman_driver.c in to qman_high.c */
 struct qman_portal *qman_create_affine_portal(
 			const struct qm_portal_config *config,
-			const struct qman_cgrs *cgrs,
-			int recovery_mode);
+			const struct qman_cgrs *cgrs);
 struct qman_portal *qman_create_affine_slave(struct qman_portal *redirect);
 const struct qm_portal_config *qman_destroy_affine_portal(void);
-void qman_recovery_exit_local(void);
 
 /* This CGR feature is supported by h/w and required by unit-tests and the
  * debugfs hooks, so is implemented in the driver. However it allows an explicit
