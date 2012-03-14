@@ -281,8 +281,6 @@ static __init int qman_init(void)
 		p = qman_create_affine_portal(pcfg, NULL);
 		if (p) {
 			u32 irq_sources = 0;
-			/* default: enable all (available) pool channels */
-			qman_static_dequeue_add(~0);
 			/* Determine what should be interrupt-vs-poll driven */
 #ifdef CONFIG_FSL_DPA_PIRQ_SLOW
 			irq_sources |= QM_PIRQ_EQCI | QM_PIRQ_EQRI |
