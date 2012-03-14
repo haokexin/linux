@@ -168,8 +168,8 @@ __init void corenet_ds_init_early(void)
 #ifdef CONFIG_FSL_PME2_CTRL
 	pme2_init_early();
 #endif
-#ifdef CONFIG_FSL_USDPAA_SHMEM
-	fsl_usdpaa_shmem_init_early();
+#ifdef CONFIG_FSL_USDPAA
+	fsl_usdpaa_init_early();
 #endif
 }
 

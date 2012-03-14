@@ -15,7 +15,7 @@ extern "C" {
 #include <linux/uaccess.h>
 #include <linux/ioctl.h>
 
-#ifdef CONFIG_FSL_USDPAA_SHMEM
+#ifdef CONFIG_FSL_USDPAA
 
 /* Character-device interface. NB: these definitions need to be duplicated in
  * user-space. It is all temporary until being replaced by HugeTLB. */
@@ -41,11 +41,11 @@ extern unsigned long usdpaa_pfn_len;
 extern unsigned int usdpaa_tlbcam_index;
 
 /* Early-boot hook */
-void __init fsl_usdpaa_shmem_init_early(void);
+void __init fsl_usdpaa_init_early(void);
 
 #endif /* __KERNEL__ */
 
-#endif /* CONFIG_FSL_USDPAA_SHMEM */
+#endif /* CONFIG_FSL_USDPAA */
 
 #ifdef __cplusplus
 }
