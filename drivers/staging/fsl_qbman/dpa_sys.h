@@ -61,34 +61,7 @@
 #include <linux/vmalloc.h>
 #include <linux/ctype.h>
 
-/* Kernel FQID/BPID allocation uses the common logic in dpa_alloc.c via the
- * following interface. */
-struct dpa_alloc {
-	struct list_head list;
-	spinlock_t lock;
-};
-#define DECLARE_DPA_ALLOC(name) \
-	struct dpa_alloc name = { \
-		.list = { \
-			.prev = &name.list, \
-			.next = &name.list \
-		}, \
-		.lock = __SPIN_LOCK_UNLOCKED(name.lock) \
-	}
-static inline void dpa_alloc_init(struct dpa_alloc *alloc)
-{
-	INIT_LIST_HEAD(&alloc->list);
-	spin_lock_init(&alloc->lock);
-}
-int dpa_alloc_new(struct dpa_alloc *alloc, u32 *result, u32 count, u32 align,
-		  int partial);
-void dpa_alloc_free(struct dpa_alloc *alloc, u32 base_id, u32 count);
-/* Like 'new' but specifies the desired range, returns -ENOMEM if the entire
- * desired range is not available, or 0 for success. */
-int dpa_alloc_reserve(struct dpa_alloc *alloc, u32 base_id, u32 count);
-/* Pops and returns contiguous ranges from the allocator. Returns -ENOMEM when
- * 'alloc' is empty. */
-int dpa_alloc_pop(struct dpa_alloc *alloc, u32 *result, u32 *count);
+#include <linux/fsl_usdpaa.h>
 
 /* When copying aligned words or shorts, try to avoid memcpy() */
 #define CONFIG_TRY_BETTER_MEMCPY
