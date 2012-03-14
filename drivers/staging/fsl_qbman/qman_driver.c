@@ -41,16 +41,6 @@ EXPORT_SYMBOL(qman_ip_rev);
 static u32 fqd_size = (PAGE_SIZE << CONFIG_FSL_QMAN_FQD_SZ);
 #endif
 
-static struct dpa_uio_class qman_uio = {
-	.list = LIST_HEAD_INIT(qman_uio.list),
-	.dev_prefix = "qman-uio-"
-};
-const struct dpa_uio_class *dpa_uio_qman(void)
-{
-	return &qman_uio;
-}
-EXPORT_SYMBOL(dpa_uio_qman);
-
 #ifdef CONFIG_FSL_QMAN_PORTAL
 static __init struct qman_portal *init_affine_portal(
 					struct qm_portal_config *pconfig,
@@ -198,20 +188,6 @@ static __init struct qm_portal_config *fsl_qman_portal_init(
 	qman_liodn_fixup(pcfg->public_cfg.channel);
 #endif
 
-	if (of_get_property(node, "fsl,usdpaa-portal", &ret)) {
-		struct dpa_uio_portal *u = kmalloc(sizeof(*u), GFP_KERNEL);
-		if (!u)
-			goto err;
-		u->type = dpa_uio_portal_qman;
-		u->qm_cfg = pcfg;
-		list_add_tail(&u->node, &qman_uio.list);
-		/* Return NULL, otherwise the kernel may share it on CPUs that
-		 * don't have their own portals, which would be ... *bad*. */
-		 return NULL;
-	}
-
-	/* Map the portals now we know they aren't for UIO (the UIO code doesn't
-	 * need the CE mapping, and so will do its own CI-only mapping). */
 	pcfg->addr_virt[DPA_PORTAL_CE] = ioremap_prot(
 				pcfg->addr_phys[DPA_PORTAL_CE].start,
 				resource_size(&pcfg->addr_phys[DPA_PORTAL_CE]),

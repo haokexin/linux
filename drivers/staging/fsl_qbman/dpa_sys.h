@@ -54,7 +54,6 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/device.h>
-#include <linux/uio_driver.h>
 #include <asm/smp.h>
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl_hypervisor.h>
@@ -91,31 +90,6 @@ done:
 	return cpu;
 }
 
-/* Handle portals destined for USDPAA (user-space).
- *
- * The UIO layer is mostly Qman/Bman-agnostic, however the rest of the driver is
- * separated along interface and implementation lines. So each Qman/Bman driver
- * instantiates a dpa_uio_class and links dpa_uio_portal objects into it. If
- * the dpa_uio driver module is built, it queries these two classes and creates
- * the UIO devices accordingly.
- */
-struct dpa_uio_class {
-	struct list_head list;
-	const char *dev_prefix;
-};
-struct dpa_uio_portal {
-	enum {
-		dpa_uio_portal_bman,
-		dpa_uio_portal_qman,
-	} type;
-	union {
-		const struct bm_portal_config *bm_cfg;
-		const struct qm_portal_config *qm_cfg;
-	};
-	struct list_head node;
-};
-const struct dpa_uio_class *dpa_uio_bman(void);
-const struct dpa_uio_class *dpa_uio_qman(void);
 /* For 2-element tables related to cache-inhibited and cache-enabled mappings */
 #define DPA_PORTAL_CE 0
 #define DPA_PORTAL_CI 1
