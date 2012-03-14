@@ -1285,16 +1285,6 @@ u32 qman_poll_slow(void);
 void qman_poll(void);
 
 /**
- * qman_recovery_cleanup_fq - in recovery mode, cleanup a FQ of unknown state
- */
-int qman_recovery_cleanup_fq(u32 fqid);
-
-/**
- * qman_recovery_exit - leave recovery mode
- */
-void qman_recovery_exit(void);
-
-/**
  * qman_stop_dequeues - Stop h/w dequeuing to the s/w portal
  *
  * Disables DQRR processing of the portal. This is reference-counted, so
