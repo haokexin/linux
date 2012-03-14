@@ -39,109 +39,68 @@ EXPORT_SYMBOL(bman_ip_rev);
 u16 bman_pool_max;
 EXPORT_SYMBOL(bman_pool_max);
 
-/* Compatibility behaviour (when no bpool-range is present) is that;
- * (a) on a control plane, all pools that aren't explicitly mentioned in the dtb
- *     are available for allocation,
- * (b) on a non-control plane, there is never any allocation possible at all.
- *
- * New behaviour is that if any "fsl,bpool-range" nodes are declared, they
- * declare what is available for allocation, and this is independent of which
- * pools are/aren't mentioned in the dtb. Eg. to stipulate that no allocation is
- * possible, a fsl,bpool-range should be specified with zero items in it.
- *
- * This "pools" struct contains the allocator, and "explicit allocator"
- * indicates whether the range is seeded explicitly (via at least one range) or
- * implicitly (by being the set of pools that aren't declared).
- */
-static struct bman_depletion pools;
-static u8 num_pools;
-static DEFINE_SPINLOCK(pools_lock);
-static int explicit_allocator;
+/* After initialising cpus that own shared portal configs, we cache the
+ * resulting portals (ie. not just the configs) in this array. Then we
+ * initialise slave cpus that don't have their own portals, redirecting them to
+ * portals from this cache in a round-robin assignment. */
+static struct bman_portal *shared_portals[NR_CPUS];
+static int num_shared_portals;
+static int shared_portals_idx;
 
-static int __bm_pool_add(u32 bpid, u32 *cfg, int triplets)
+static int __init fsl_bpool_init(struct device_node *node)
 {
-	u64 total = 0;
-	BUG_ON(bpid >= bman_pool_max);
-	while (triplets--) {
-		struct bman_pool_params params = {
-			.bpid = bpid,
-			.flags = BMAN_POOL_FLAG_ONLY_RELEASE
-		};
-		u64 c = ((u64)cfg[0] << 32) | cfg[1];
-		u64 d = ((u64)cfg[2] << 32) | cfg[3];
-		u64 b = ((u64)cfg[4] << 32) | cfg[5];
-		struct bman_pool *pobj = bman_new_pool(&params);
-		if (!pobj)
-			return -ENOMEM;
-		while (c) {
-			struct bm_buffer bufs[8];
-			int ret, num_bufs = 0;
-			do {
-				BUG_ON(b > 0xffffffffffffull);
-				bufs[num_bufs].bpid = bpid;
-				bm_buffer_set64(&bufs[num_bufs++], b);
-				b += d;
-			} while (--c && (num_bufs < 8));
-			ret = bman_release(pobj, bufs, num_bufs,
-					BMAN_RELEASE_FLAG_WAIT);
-			if (ret)
-				panic("Seeding reserved buffer pool failed\n");
-			total += num_bufs;
+	int ret;
+	u32 *thresh, *bpid = (u32 *)of_get_property(node, "fsl,bpid", &ret);
+	if (!bpid || (ret != 4)) {
+		pr_err("Can't get %s property 'fsl,bpid'\n", node->full_name);
+		return -ENODEV;
+	}
+	thresh = (u32 *)of_get_property(node, "fsl,bpool-thresholds", &ret);
+	if (thresh) {
+		if (ret != 16) {
+			pr_err("Invalid %s property '%s'\n",
+				node->full_name, "fsl,bpool-thresholds");
+			return -ENODEV;
 		}
-		bman_free_pool(pobj);
-		cfg += 6;
 	}
-	/* Remove this pool from the allocator (by treating its declaration as
-	 * an implicit "reservation") iff the allocator is *not* being set up
-	 * explicitly defined via "bpool-range" nodes. */
-	if (!explicit_allocator && !bman_depletion_get(&pools, bpid)) {
-		bman_depletion_set(&pools, bpid);
-		num_pools++;
+	if (thresh) {
+#ifdef CONFIG_FSL_BMAN_CONFIG
+		ret = bm_pool_set(*bpid, thresh);
+		if (ret)
+			pr_err("No CCSR node for %s property '%s'\n",
+				node->full_name, "fsl,bpool-thresholds");
+#else
+		pr_err("Ignoring %s property '%s', no CCSR support\n",
+			node->full_name, "fsl,bpool-thresholds");
+#endif
 	}
-	if (total)
-		pr_info("Bman: reserved bpid %d, seeded %lld items\n", bpid,
-			total);
-	else
-		pr_info("Bman: reserved bpid %d\n", bpid);
+	return ret;
+}
+
+static int __init fsl_bpid_range_init(struct device_node *node)
+{
+	int ret;
+	u32 *range = (u32 *)of_get_property(node, "fsl,bpid-range", &ret);
+	if (!range) {
+		pr_err("No 'fsl,bpid-range' property in node %s\n",
+			node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err("'fsl,bpid-range' is not a 2-cell range in node %s\n",
+			node->full_name);
+		return -EINVAL;
+	}
+	bman_release_bpid_range(range[0], range[1]);
+	pr_info("Bman: BPID allocator includes range %d:%d\n",
+		range[0], range[1]);
 	return 0;
 }
 
-int bm_pool_new(u32 *bpid)
-{
-	int ret = 0, b = bman_pool_max;
-	spin_lock(&pools_lock);
-	if (num_pools >= bman_pool_max)
-		ret = -ENOMEM;
-	else {
-		while (b-- && bman_depletion_get(&pools, b))
-			;
-		BUG_ON(b < 0);
-		bman_depletion_set(&pools, b);
-		*bpid = b;
-		num_pools++;
-	}
-	spin_unlock(&pools_lock);
-	return ret;
-}
-EXPORT_SYMBOL(bm_pool_new);
-
-void bm_pool_free(u32 bpid)
-{
-	spin_lock(&pools_lock);
-	BUG_ON(bpid >= bman_pool_max);
-	BUG_ON(!bman_depletion_get(&pools, bpid));
-	bman_depletion_unset(&pools, bpid);
-	num_pools--;
-	spin_unlock(&pools_lock);
-}
-EXPORT_SYMBOL(bm_pool_free);
-
-static struct bm_portal_config * __init fsl_bman_portal_init(
-						struct device_node *node)
+static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 {
 	struct bm_portal_config *pcfg;
 	const u32 *index;
-	const phandle *ph = NULL;
 	int irq, ret;
 
 	pcfg = kmalloc(sizeof(*pcfg), GFP_KERNEL);
@@ -176,19 +135,7 @@ static struct bm_portal_config * __init fsl_bman_portal_init(
 			"cell-index");
 		goto err;
 	}
-	ph = of_get_property(node, "cpu-handle", &ret);
-	if (ph) {
-		if (ret != sizeof(phandle)) {
-			pr_err("Malformed %s property '%s'\n", node->full_name,
-				"cpu-handle");
-			goto err;
-		}
-		ret = check_cpu_phandle(*ph);
-		if (ret < 0)
-			goto err;
-		pcfg->public_cfg.cpu = ret;
-	} else
-		pcfg->public_cfg.cpu = -1;
+	pcfg->public_cfg.cpu = -1;
 
 	irq = irq_of_parse_and_map(node, 0);
 	if (irq == NO_IRQ) {
@@ -213,216 +160,209 @@ err:
 	return NULL;
 }
 
-static void __init fsl_bman_portal_destroy(struct bm_portal_config *pcfg)
+static struct bm_portal_config *get_pcfg(struct list_head *list)
 {
-	iounmap(pcfg->addr_virt[DPA_PORTAL_CE]);
-	iounmap(pcfg->addr_virt[DPA_PORTAL_CI]);
-	kfree(pcfg);
+	struct bm_portal_config *pcfg;
+	if (list_empty(list))
+		return NULL;
+	pcfg = list_entry(list->prev, struct bm_portal_config, list);
+	list_del(&pcfg->list);
+	return pcfg;
 }
 
-static int __init fsl_bpool_init(struct device_node *node)
+static struct bman_portal *init_pcfg(struct bm_portal_config *pcfg)
 {
-	int ret;
-	u32 *cfg = NULL, *thresh;
-	struct device_node *tmp_node;
-	u32 *bpid = (u32 *)of_get_property(node, "fsl,bpid", &ret);
-	if (!bpid || (ret!= 4)) {
-		pr_err("Can't get %s property 'fsl,bpid'\n", node->full_name);
-		return -ENODEV;
-	}
-	thresh = (u32 *)of_get_property(node, "fsl,bpool-thresholds", &ret);
-	if (thresh) {
-		if (ret != 16) {
-			pr_err("Invalid %s property '%s'\n",
-				node->full_name, "fsl,bpool-thresholds");
-			return -ENODEV;
-		}
-#ifndef CONFIG_FSL_BMAN_CONFIG
-		pr_err("Ignoring %s property '%s', no CCSR support\n",
-			node->full_name, "fsl,bpool-thresholds");
+	struct bman_portal *p;
+	struct cpumask oldmask = *tsk_cpus_allowed(current);
+	set_cpus_allowed_ptr(current, get_cpu_mask(pcfg->public_cfg.cpu));
+	p = bman_create_affine_portal(pcfg);
+	if (p) {
+#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
+		bman_irqsource_add(BM_PIRQ_RCRI | BM_PIRQ_BSCN);
 #endif
-	}
-	/* If rebooted, we should not re-seed any pools via bpool-cfg. */
-	/* TODO: parsing hypervisor fields to determine qualitative things like
-	 * "was I rebooted" should probably be wrapped in fsl_hypervisor.h. */
-	tmp_node = of_find_node_by_name(NULL, "hypervisor");
-	if (!tmp_node || !of_find_property(tmp_node, "fsl,hv-stopped-by",
-						&ret))
-		cfg = (u32 *)of_get_property(node, "fsl,bpool-cfg", &ret);
-	if (cfg && (!ret || (ret % 24))) {
-		pr_err("Invalid %s property '%s'\n", node->full_name,
-			"fsl,bpool-cfg");
-		return -ENODEV;
-	}
-	if (cfg)
-		ret = __bm_pool_add(*bpid, cfg, ret / 24);
+		pr_info("Bman portal %sinitialised, cpu %d\n",
+			pcfg->public_cfg.is_shared ? "(shared) " : "",
+			pcfg->public_cfg.cpu);
+	} else
+		pr_crit("Bman portal failure on cpu %d\n",
+			pcfg->public_cfg.cpu);
+	set_cpus_allowed_ptr(current, &oldmask);
+	return p;
+}
+
+static void init_slave(int cpu)
+{
+	struct bman_portal *p;
+	struct cpumask oldmask = *tsk_cpus_allowed(current);
+	set_cpus_allowed_ptr(current, get_cpu_mask(cpu));
+	p = bman_create_affine_slave(shared_portals[shared_portals_idx++]);
+	if (!p)
+		pr_err("Bman slave portal failure on cpu %d\n", cpu);
 	else
-		ret = __bm_pool_add(*bpid, NULL, 0);
-	if (ret) {
-		pr_err("Can't reserve bpid %d from node %s\n", *bpid,
-			node->full_name);
-		return ret;
-	}
-#ifdef CONFIG_FSL_BMAN_CONFIG
-	if (thresh) {
-		ret = bm_pool_set(*bpid, thresh);
-		if (ret)
-			pr_err("No CCSR node for %s property '%s'\n",
-				node->full_name, "fsl,bpool-thresholds");
-	}
-#endif
-	return ret;
+		pr_info("Bman portal %sinitialised, cpu %d\n", "(slave) ", cpu);
+	set_cpus_allowed_ptr(current, &oldmask);
+	if (shared_portals_idx >= num_shared_portals)
+		shared_portals_idx = 0;
 }
 
-static int __init fsl_bpool_range_init(struct device_node *node)
+/* Bootarg "bportals=[...]" has the same syntax as "qportals=", and so the
+ * parsing is in dpa_sys.h. The syntax is a comma-separated list of indexes
+ * and/or ranges of indexes, with each being optionally prefixed by "s" to
+ * explicitly mark it or them for sharing.
+ *    Eg;
+ *        bportals=s0,1-3,s4
+ * means that cpus 1,2,3 get "unshared" portals, cpus 0 and 4 get "shared"
+ * portals, and any remaining cpus share the portals that are assigned to cpus 0
+ * or 4, selected in a round-robin fashion. (In this example, cpu 5 would share
+ * cpu 0's portal, cpu 6 would share cpu4's portal, and cpu 7 would share cpu
+ * 0's portal.) */
+static struct cpumask want_unshared __initdata; /* cpus requested without "s" */
+static struct cpumask want_shared __initdata; /* cpus requested with "s" */
+
+static int __init parse_bportals(char *str)
 {
-	int ret, warned = 0;
-	u32 bpid;
-	u32 *range = (u32 *)of_get_property(node, "fsl,bpool-range", &ret);
-	if (!range) {
-		pr_err("No 'fsl,bpool-range' property in node %s\n",
-			node->full_name);
-		return -EINVAL;
-	}
-	if (ret != 8) {
-		pr_err("'fsl,bpool-range' is not a 2-cell range in node %s\n",
-			node->full_name);
-		return -EINVAL;
-	}
-	for (bpid = range[0]; bpid < (range[0] + range[1]); bpid++) {
-		if (bpid >= bman_pool_max) {
-			pr_err("BPIDs out of range in node %s\n",
-				node->full_name);
-			return -EINVAL;
-		}
-		if (!bman_depletion_get(&pools, bpid)) {
-			if (!warned) {
-				warned = 1;
-				pr_err("BPID overlap in node %s, ignoring\n",
-					node->full_name);
-			}
-		} else {
-			bman_depletion_unset(&pools, bpid);
-			num_pools--;
-		}
-	}
-	pr_info("Bman: BPID allocator includes range %d:%d\n",
-		range[0], range[1]);
-	return 0;
+	return parse_portals_bootarg(str, &want_shared, &want_unshared,
+				     "bportals");
 }
+__setup("bportals=", parse_bportals);
 
+/* Initialise the Bman driver. The meat of this function deals with portals. The
+ * following describes the flow of portal-handling, the code "steps" refer to
+ * this description;
+ * 1. Portal configs are parsed from the device-tree into 'unused_pcfgs', with
+ *    ::cpu==-1. Regions and interrupts are mapped (but interrupts are not
+ *    bound).
+ * 2. The "want_shared" and "want_unshared" lists (as filled by the
+ *    "bportals=[...]" bootarg) are processed, allocating portals and assigning
+ *    them to cpus, placing them in the relevant list and setting ::cpu as
+ *    appropriate. If no "bportals" bootarg was present, the defaut is to try to
+ *    assign portals to all online cpus at the time of driver initialisation.
+ *    Any failure to allocate portals (when parsing the "want" lists or when
+ *    using default behaviour) will be silently tolerated (the "fixup" logic in
+ *    step 3 will determine what happens in this case).
+ * 3. Do fixups relative to cpu_online_mask(). If no portals are marked for
+ *    sharing and sharing is required (because not all cpus have been assigned
+ *    portals), then one portal will marked for sharing. Conversely if no
+ *    sharing is required, any portals marked for sharing will not be shared. It
+ *    may be that sharing occurs when it wasn't expected, if portal allocation
+ *    failed to honour all the requested assignments (including the default
+ *    assignments if no bootarg is present).
+ * 4. Unshared portals are initialised on their respective cpus.
+ * 5. Shared portals are initialised on their respective cpus.
+ * 6. Each remaining cpu is initialised to slave to one of the shared portals,
+ *    which are selected in a round-robin fashion.
+ */
 static __init int bman_init(void)
 {
-	struct cpumask primary_cpus = *cpu_none_mask;
-	struct cpumask slave_cpus = *cpu_online_mask;
-	struct cpumask oldmask;
-	struct bman_portal *sharing_portal = NULL;
-	int sharing_cpu = -1;
+	struct cpumask slave_cpus;
+	struct cpumask unshared_cpus = *cpu_none_mask;
+	struct cpumask shared_cpus = *cpu_none_mask;
+	LIST_HEAD(unused_pcfgs);
+	LIST_HEAD(unshared_pcfgs);
+	LIST_HEAD(shared_pcfgs);
 	struct device_node *dn;
 	struct bm_portal_config *pcfg;
 	struct bman_portal *p;
-	int ret;
-	LIST_HEAD(cfg_list);
+	int cpu, ret;
 
+	/* Initialise the Bman (CCSR) device */
 	for_each_compatible_node(dn, NULL, "fsl,bman") {
 		if (!bman_init_error_int(dn))
 			pr_info("Bman err interrupt handler present\n");
 		else
 			pr_err("Bman err interrupt handler missing\n");
 	}
-	if (!bman_have_ccsr()) {
-		/* If there's no CCSR, our bpid allocator is empty unless
-		 * fsl,bpool-range nodes are used. */
-		bman_depletion_fill(&pools);
-		num_pools = bman_pool_max;
-	}
-	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
-		if (!of_device_is_available(dn))
-			continue;
-		pcfg = fsl_bman_portal_init(dn);
-		if (pcfg) {
-			if (pcfg->public_cfg.cpu >= 0) {
-				cpumask_set_cpu(pcfg->public_cfg.cpu,
-						&primary_cpus);
-				list_add(&pcfg->list, &cfg_list);
-			} else
-				fsl_bman_portal_destroy(pcfg);
-		}
-	}
-	/* only consider "online" CPUs */
-	cpumask_and(&primary_cpus, &primary_cpus, cpu_online_mask);
-	if (cpumask_empty(&primary_cpus))
-		/* No portals, we're done */
-		return 0;
-	if (!cpumask_subset(cpu_online_mask, &primary_cpus)) {
-		/* Need to do some sharing. In lieu of anything more scientific
-		 * (or configurable), we pick the last-most CPU that has a
-		 * portal and share that one. */
-		int next = cpumask_first(&primary_cpus);
-		while (next < nr_cpu_ids) {
-			sharing_cpu = next;
-			next = cpumask_next(next, &primary_cpus);
-		}
-	}
-	/* Parsing is done and sharing decisions are made, now initialise the
-	 * portals and determine which "slave" CPUs are left over. */
-	list_for_each_entry(pcfg, &cfg_list, list) {
-		int is_shared = (!sharing_portal && (sharing_cpu >= 0) &&
-				(pcfg->public_cfg.cpu == sharing_cpu));
-		pcfg->public_cfg.is_shared = is_shared;
-		/* If it's not mapped to a CPU, or another portal is already
-		 * initialised to the same CPU, skip this portal. */
-		if (pcfg->public_cfg.cpu < 0 || !cpumask_test_cpu(
-					pcfg->public_cfg.cpu, &slave_cpus))
-			continue;
-		oldmask = *tsk_cpus_allowed(current);
-		set_cpus_allowed_ptr(current,
-				     get_cpu_mask(pcfg->public_cfg.cpu));
-		p = bman_create_affine_portal(pcfg);
-		if (p) {
-#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
-			bman_irqsource_add(BM_PIRQ_RCRI | BM_PIRQ_BSCN);
-#endif
-			pr_info("Bman portal %sinitialised, cpu %d\n",
-				is_shared ? "(shared) " : "",
-				pcfg->public_cfg.cpu);
-			if (is_shared)
-				sharing_portal = p;
-			cpumask_clear_cpu(pcfg->public_cfg.cpu, &slave_cpus);
-		}
-		set_cpus_allowed_ptr(current, &oldmask);
-	}
-
-	if (sharing_portal) {
-		int loop;
-		for_each_cpu(loop, &slave_cpus) {
-			oldmask = *tsk_cpus_allowed(current);
-			set_cpus_allowed_ptr(current, get_cpu_mask(loop));
-			p = bman_create_affine_slave(sharing_portal);
-			set_cpus_allowed_ptr(current, &oldmask);
-			if (!p)
-				pr_err("Failed slave Bman portal for cpu %d\n",
-					loop);
-			else
-				pr_info("Bman portal %sinitialised, cpu %d\n",
-					"(slave) ", loop);
-		}
-	}
-	for_each_compatible_node(dn, NULL, "fsl,bpool-range") {
-		if (!explicit_allocator) {
-			explicit_allocator = 1;
-			bman_depletion_fill(&pools);
-			num_pools = 64;
-		}
-		ret = fsl_bpool_range_init(dn);
+	/* Initialise BPID allocation ranges */
+	for_each_compatible_node(dn, NULL, "fsl,bpid-range") {
+		ret = fsl_bpid_range_init(dn);
 		if (ret)
 			return ret;
 	}
+	/* Initialise any declared buffer pools */
 	for_each_compatible_node(dn, NULL, "fsl,bpool") {
 		ret = fsl_bpool_init(dn);
 		if (ret)
 			return ret;
 	}
+	/* Step 1. See comments at the beginning of the file. */
+	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
+		pcfg = parse_pcfg(dn);
+		if (pcfg)
+			list_add_tail(&pcfg->list, &unused_pcfgs);
+	}
+	/* Step 2. */
+	for_each_cpu(cpu, &want_shared) {
+		pcfg = get_pcfg(&unused_pcfgs);
+		if (!pcfg)
+			break;
+		pcfg->public_cfg.cpu = cpu;
+		list_add_tail(&pcfg->list, &shared_pcfgs);
+		cpumask_set_cpu(cpu, &shared_cpus);
+	}
+	for_each_cpu(cpu, &want_unshared) {
+		if (cpumask_test_cpu(cpu, &shared_cpus))
+			continue;
+		pcfg = get_pcfg(&unused_pcfgs);
+		if (!pcfg)
+			break;
+		pcfg->public_cfg.cpu = cpu;
+		list_add_tail(&pcfg->list, &unshared_pcfgs);
+		cpumask_set_cpu(cpu, &unshared_cpus);
+	}
+	if (list_empty(&shared_pcfgs) && list_empty(&unshared_pcfgs)) {
+		/* Default, give an unshared portal to each online cpu */
+		for_each_online_cpu(cpu) {
+			pcfg = get_pcfg(&unused_pcfgs);
+			if (!pcfg)
+				break;
+			pcfg->public_cfg.cpu = cpu;
+			list_add_tail(&pcfg->list, &unshared_pcfgs);
+			cpumask_set_cpu(cpu, &unshared_cpus);
+		}
+	}
+	/* Step 3. */
+	cpumask_andnot(&slave_cpus, cpu_online_mask, &shared_cpus);
+	cpumask_andnot(&slave_cpus, &slave_cpus, &unshared_cpus);
+	if (cpumask_empty(&slave_cpus)) {
+		/* No sharing required */
+		if (!list_empty(&shared_pcfgs)) {
+			/* Migrate "shared" to "unshared" */
+			cpumask_or(&unshared_cpus, &unshared_cpus,
+				   &shared_cpus);
+			cpumask_clear(&shared_cpus);
+			list_splice_tail(&shared_pcfgs, &unshared_pcfgs);
+			INIT_LIST_HEAD(&shared_pcfgs);
+		}
+	} else {
+		/* Sharing required */
+		if (list_empty(&shared_pcfgs)) {
+			/* Migrate one "unshared" to "shared" */
+			pcfg = get_pcfg(&unshared_pcfgs);
+			if (!pcfg) {
+				pr_crit("No BMan portals available!\n");
+				return 0;
+			}
+			cpumask_clear_cpu(pcfg->public_cfg.cpu, &unshared_cpus);
+			cpumask_set_cpu(pcfg->public_cfg.cpu, &shared_cpus);
+			list_add_tail(&pcfg->list, &shared_pcfgs);
+		}
+	}
+	/* Step 4. */
+	list_for_each_entry(pcfg, &unshared_pcfgs, list) {
+		pcfg->public_cfg.is_shared = 0;
+		p = init_pcfg(pcfg);
+	}
+	/* Step 5. */
+	list_for_each_entry(pcfg, &shared_pcfgs, list) {
+		pcfg->public_cfg.is_shared = 1;
+		p = init_pcfg(pcfg);
+		if (p)
+			shared_portals[num_shared_portals++] = p;
+	}
+	/* Step 6. */
+	if (!cpumask_empty(&slave_cpus))
+		for_each_cpu(cpu, &slave_cpus)
+			init_slave(cpu);
 	pr_info("Bman portals initialised\n");
 	return 0;
 }

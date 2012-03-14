@@ -1,7 +1,7 @@
 /*
  * P5020DS Device Tree Source
  *
- * Copyright 2010-2011 Freescale Semiconductor Inc.
+ * Copyright 2010-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -71,119 +71,10 @@
 
 	bportals: bman-portals@ff4000000 {
 		ranges = <0x0 0xf 0xf4000000 0x200000>;
-		bman-portal@0 {
-			cpu-handle = <&cpu0>;
-		};
-		bman-portal@4000 {
-			cpu-handle = <&cpu1>;
-		};
-		bman-portal@8000 {
-		};
-		bman-portal@c000 {
-		};
-		bman-portal@10000 {
-		};
-		bman-portal@14000 {
-		};
-		bman-portal@18000 {
-		};
-		bman-portal@1c000 {
-		};
-		bman-portal@20000 {
-		};
-		bman-portal@24000 {
-		};
-
-		buffer-pool@0 {
-			compatible = "fsl,p5020-bpool", "fsl,bpool";
-			fsl,bpid = <0>;
-			fsl,bpool-cfg = <0 0x100 0 1 0 0x100>;
-		};
 	};
 
 	qportals: qman-portals@ff4200000 {
 		ranges = <0x0 0xf 0xf4200000 0x200000>;
-		qportal0: qman-portal@0 {
-			cpu-handle = <&cpu0>;
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal1: qman-portal@4000 {
-			cpu-handle = <&cpu1>;
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal2: qman-portal@8000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal3: qman-portal@c000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal4: qman-portal@10000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal5: qman-portal@14000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal6: qman-portal@18000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal7: qman-portal@1c000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal8: qman-portal@20000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
-
-		qportal9: qman-portal@24000 {
-			fsl,qman-pool-channels = <&qpool1 &qpool2 &qpool3
-						  &qpool4 &qpool5 &qpool6
-						  &qpool7 &qpool8 &qpool9
-						  &qpool10 &qpool11 &qpool12
-						  &qpool13 &qpool14 &qpool15>;
-		};
 	};
 
 	soc: soc@ffe000000 {
@@ -562,3 +453,5 @@
 };
 
 /include/ "fsl/p5020si-post.dtsi"
+
+/include/ "fsl/qoriq-dpaa-res1.dtsi"

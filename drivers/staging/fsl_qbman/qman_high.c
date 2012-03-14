@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -1067,9 +1067,9 @@ int qman_create_fq(u32 fqid, u32 flags, struct qman_fq *fq)
 	unsigned long irqflags __maybe_unused;
 
 	if (flags & QMAN_FQ_FLAG_DYNAMIC_FQID) {
-		fqid = qm_fq_new();
-		if (!fqid)
-			return -ENOMEM;
+		int ret = qman_alloc_fqid(&fqid);
+		if (ret)
+			return ret;
 	}
 	spin_lock_init(&fq->fqlock);
 	fq->fqid = fqid;
@@ -1140,7 +1140,7 @@ err:
 	PORTAL_IRQ_UNLOCK(p, irqflags);
 	put_affine_portal();
 	if (flags & QMAN_FQ_FLAG_DYNAMIC_FQID)
-		qm_fq_free(fqid);
+		qman_release_fqid(fqid);
 	return -EIO;
 }
 EXPORT_SYMBOL(qman_create_fq);
@@ -1154,7 +1154,7 @@ void qman_destroy_fq(struct qman_fq *fq, u32 flags __maybe_unused)
 		DPA_ASSERT(flags & QMAN_FQ_DESTROY_PARKED);
 	case qman_fq_state_oos:
 		if (fq_isset(fq, QMAN_FQ_FLAG_DYNAMIC_FQID))
-			qm_fq_free(fq->fqid);
+			qman_release_fqid(fq->fqid);
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
 		clear_fq_table_entry(fq->key);
 #endif
@@ -2070,4 +2070,3 @@ put_portal:
 	return ret;
 }
 EXPORT_SYMBOL(qman_delete_cgr);
-

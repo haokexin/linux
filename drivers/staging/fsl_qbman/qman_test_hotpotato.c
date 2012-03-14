@@ -1,4 +1,4 @@
-/* Copyright 2009-2011 Freescale Semiconductor, Inc.
+/* Copyright 2009-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -311,7 +311,7 @@ static void destroy_per_cpu_handlers(void)
 			panic("qman_oos_fq(rx) failed");
 		qman_destroy_fq(&handler->rx, 0);
 		qman_destroy_fq(&handler->tx, 0);
-		qm_fq_free(handler->fqid_rx);
+		qman_release_fqid(handler->fqid_rx);
 		list_del(&handler->node);
 		kmem_cache_free(hp_handler_slab, handler);
 	}
@@ -368,6 +368,7 @@ static void init_phase2(void)
 
 	for (loop = 0; loop < HP_PER_CPU; loop++) {
 		list_for_each_entry(hp_cpu, &hp_cpu_list, node) {
+			int ret;
 			if (!loop)
 				hp_cpu->iterator = list_first_entry(
 						&hp_cpu->handlers,
@@ -379,9 +380,9 @@ static void init_phase2(void)
 			/* Rx FQID is the previous handler's Tx FQID */
 			hp_cpu->iterator->fqid_rx = fqid;
 			/* Allocate new FQID for Tx */
-			fqid = qm_fq_new();
-			if (!fqid)
-				panic("qm_fq_new() failed");
+			ret = qman_alloc_fqid(&fqid);
+			if (ret)
+				panic("qman_alloc_fqid() failed");
 			hp_cpu->iterator->fqid_tx = fqid;
 			/* Rx mixer is the previous handler's Tx mixer */
 			hp_cpu->iterator->rx_mixer = lfsr;
