@@ -39,10 +39,6 @@ EXPORT_SYMBOL(bman_ip_rev);
 u16 bman_pool_max;
 EXPORT_SYMBOL(bman_pool_max);
 
-/*****************/
-/* Portal driver */
-/*****************/
-
 /* Compatibility behaviour (when no bpool-range is present) is that;
  * (a) on a control plane, all pools that aren't explicitly mentioned in the dtb
  *     are available for allocation,
@@ -153,69 +149,33 @@ void bm_pool_free(u32 bpid)
 EXPORT_SYMBOL(bm_pool_free);
 
 #ifdef CONFIG_FSL_BMAN_PORTAL
-/* To understand the use of this structure and the flow of operation for all
- * this portal-setup code, please see qman_driver.c. The Bman case is much the
- * same, but simpler (no Qman-specific fiddly bits). */
-struct affine_portal_data {
-	struct completion done;
-	const struct bm_portal_config *pconfig;
-	struct bman_portal *redirect;
-	int recovery_mode;
-	struct bman_portal *portal;
-};
-
-static __init int thread_init_affine_portal(void *__data)
-{
-	struct affine_portal_data *data = __data;
-	const struct bm_portal_config *pconfig = data->pconfig;
-	if (data->redirect)
-		data->portal = bman_create_affine_slave(data->redirect);
-	else {
-		data->portal = bman_create_affine_portal(pconfig,
-					data->recovery_mode);
-#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
-		if (data->portal)
-			bman_irqsource_add(BM_PIRQ_RCRI | BM_PIRQ_BSCN);
-#endif
-	}
-	complete(&data->done);
-	return 0;
-}
-
 static __init struct bman_portal *init_affine_portal(
 					struct bm_portal_config *pconfig,
 					int cpu, struct bman_portal *redirect,
 					int recovery_mode)
 {
-	struct affine_portal_data data = {
-		.done = COMPLETION_INITIALIZER_ONSTACK(data.done),
-		.pconfig = pconfig,
-		.redirect = redirect,
-		.recovery_mode = recovery_mode,
-		.portal = NULL
-	};
-	struct task_struct *k = kthread_create(thread_init_affine_portal, &data,
-		"bman_affine%d", cpu);
-	int ret;
-	if (IS_ERR(k)) {
-		pr_err("Failed to init %sBman affine portal for cpu %d\n",
-			redirect ? "(slave) " : "", cpu);
-		return NULL;
+	struct bman_portal *portal;
+	struct cpumask oldmask = *tsk_cpus_allowed(current);
+	const struct cpumask *newmask = get_cpu_mask(cpu);
+
+	set_cpus_allowed_ptr(current, newmask);
+
+	if (redirect)
+		portal = bman_create_affine_slave(redirect);
+	else {
+		portal = bman_create_affine_portal(pconfig, recovery_mode);
+#ifdef CONFIG_FSL_DPA_PIRQ_SLOW
+		if (portal)
+			bman_irqsource_add(BM_PIRQ_RCRI | BM_PIRQ_BSCN);
+#endif
 	}
-	kthread_bind(k, cpu);
-	wake_up_process(k);
-	wait_for_completion(&data.done);
-	ret = kthread_stop(k);
-	if (ret) {
-		pr_err("Bman portal initialisation failed, cpu %d, code %d\n",
-			cpu, ret);
-		return NULL;
-	}
-	if (data.portal)
+
+	set_cpus_allowed_ptr(current, &oldmask);
+	if (portal)
 		pr_info("Bman portal %sinitialised, cpu %d\n",
 			redirect ? "(slave) " :
 			pconfig->public_cfg.is_shared ? "(shared) " : "", cpu);
-	return data.portal;
+	return portal;
 }
 #endif
 
@@ -426,38 +386,18 @@ static int __init fsl_bpool_range_init(struct device_node *node,
 }
 
 #ifdef CONFIG_FSL_BMAN_PORTAL
-static __init int __leave_recovery(void *__data)
+void bman_recovery_exit(void)
 {
-	struct completion *done = __data;
-	bman_recovery_exit_local();
-	complete(done);
-	return 0;
-}
-
-int bman_recovery_exit(void)
-{
-	struct completion done = COMPLETION_INITIALIZER_ONSTACK(done);
 	unsigned int cpu;
 
 	for_each_cpu(cpu, bman_affine_cpus()) {
-		struct task_struct *k = kthread_create(__leave_recovery, &done,
-						"bman_recovery");
-		int ret;
-		if (IS_ERR(k)) {
-			pr_err("Thread failure (recovery) on cpu %d\n", cpu);
-			return -ENOMEM;
-		}
-		kthread_bind(k, cpu);
-		wake_up_process(k);
-		wait_for_completion(&done);
-		ret = kthread_stop(k);
-		if (ret) {
-			pr_err("Failed to exit recovery on cpu %d\n", cpu);
-			return ret;
-		}
+		struct cpumask oldmask = *tsk_cpus_allowed(current);
+		const struct cpumask *newmask = get_cpu_mask(cpu);
+		set_cpus_allowed_ptr(current, newmask);
+		bman_recovery_exit_local();
+		set_cpus_allowed_ptr(current, &oldmask);
 		pr_info("Bman portal exited recovery, cpu %d\n", cpu);
 	}
-	return 0;
 }
 EXPORT_SYMBOL(bman_recovery_exit);
 #endif
@@ -573,11 +513,8 @@ static __init int bman_init(void)
 #ifdef CONFIG_FSL_BMAN_PORTAL
 	/* If using private BPID allocation, exit recovery mode automatically
 	 * (ie. after automatic recovery) */
-	if (recovery_mode && explicit_allocator) {
-		ret = bman_recovery_exit();
-		if (ret)
-			return ret;
-	}
+	if (recovery_mode && explicit_allocator)
+		bman_recovery_exit();
 #endif
 	for_each_compatible_node(dn, NULL, "fsl,bpool") {
 		ret = fsl_bpool_init(dn);

@@ -1292,7 +1292,7 @@ int qman_recovery_cleanup_fq(u32 fqid);
 /**
  * qman_recovery_exit - leave recovery mode
  */
-int qman_recovery_exit(void);
+void qman_recovery_exit(void);
 
 /**
  * qman_stop_dequeues - Stop h/w dequeuing to the s/w portal
