@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -369,6 +369,39 @@ void bman_poll(void);
  * non-zero if it is empty.
  */
 int bman_rcr_is_empty(void);
+
+/**
+ * bman_alloc_bpid_range - Allocate a contiguous range of BPIDs
+ * @result: is set by the API to the base BPID of the allocated range
+ * @count: the number of BPIDs required
+ * @align: required alignment of the allocated range
+ * @partial: non-zero if the API can return fewer than @count BPIDs
+ *
+ * Returns the number of buffer pools allocated, or a negative error code. If
+ * @partial is non zero, the allocation request may return a smaller range of
+ * BPs than requested (though alignment will be as requested). If @partial is
+ * zero, the return value will either be 'count' or negative.
+ */
+int bman_alloc_bpid_range(u32 *result, u32 count, u32 align, int partial);
+static inline int bman_alloc_bpid(u32 *result)
+{
+	int ret = bman_alloc_bpid_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
+}
+
+/**
+ * bman_release_bpid_range - Release the specified range of buffer pool IDs
+ * @bpid: the base BPID of the range to deallocate
+ * @count: the number of BPIDs in the range
+ *
+ * This function can also be used to seed the allocator with ranges of BPIDs
+ * that it can subsequently allocate from. Returns zero for success.
+ */
+void bman_release_bpid_range(u32 bpid, unsigned int count);
+static inline void bman_release_bpid(u32 bpid)
+{
+	bman_release_bpid_range(bpid, 1);
+}
 
 
 	/* Pool management */

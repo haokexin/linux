@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -54,41 +54,32 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/device.h>
-#include <asm/smp.h>
+#include <linux/smp.h>
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl_hypervisor.h>
 #include <linux/vmalloc.h>
+#include <linux/ctype.h>
+
+/* Kernel FQID/BPID allocation uses the common logic in dpa_alloc.c via the
+ * following interface. */
+struct dpa_alloc {
+	struct list_head list;
+	spinlock_t lock;
+};
+#define DECLARE_DPA_ALLOC(name) \
+	struct dpa_alloc name = { \
+		.list = { \
+			.prev = &name.list, \
+			.next = &name.list \
+		}, \
+		.lock = __SPIN_LOCK_UNLOCKED(name.lock) \
+	}
+int dpa_alloc_new(struct dpa_alloc *alloc, u32 *result, u32 count, u32 align,
+		  int partial);
+void dpa_alloc_free(struct dpa_alloc *alloc, u32 fqid, u32 count);
 
 /* When copying aligned words or shorts, try to avoid memcpy() */
 #define CONFIG_TRY_BETTER_MEMCPY
-
-/* This takes a "phandle" and dereferences to the cpu device-tree node,
- * returning the cpu index. Returns negative error codes. */
-static inline int check_cpu_phandle(phandle ph)
-{
-	const u32 *cpu_val;
-	struct device_node *tmp_node = of_find_node_by_phandle(ph);
-	int cpu, ret;
-
-	if (!tmp_node) {
-		pr_err("Bad 'cpu-handle'\n");
-		return -EINVAL;
-	}
-	cpu_val = of_get_property(tmp_node, "reg", &ret);
-	if (!cpu_val || (ret != sizeof(*cpu_val))) {
-		pr_err("Can't get %s property 'reg'\n", tmp_node->full_name);
-		return -ENODEV;
-	}
-	for_each_present_cpu(cpu) {
-		if (*cpu_val == get_hard_smp_processor_id(cpu))
-			goto done;
-	}
-	pr_err("Invalid cpu index %d in %s\n", *cpu_val, tmp_node->full_name);
-	return -ENODEV;
-done:
-	of_node_put(tmp_node);
-	return cpu;
-}
 
 /* For 2-element tables related to cache-inhibited and cache-enabled mappings */
 #define DPA_PORTAL_CE 0
@@ -291,6 +282,60 @@ static inline type *name##_find(struct dpa_rbtree *tree, u32 val) \
 			return ret; \
 	} \
 	return NULL; \
+}
+
+/************/
+/* Bootargs */
+/************/
+
+/* Qman has "qportals=" and Bman has "bportals=", they use the same syntax
+ * though; a comma-separated list of items, each item being a cpu index and/or a
+ * range of cpu indices, and each item optionally be prefixed by "s" to indicate
+ * that the portal associated with that cpu should be shared. See bman_driver.c
+ * for more specifics. */
+static int __parse_portals_cpu(const char **s, int *cpu)
+{
+	*cpu = 0;
+	if (!isdigit(**s))
+		return -EINVAL;
+	while (isdigit(**s))
+		*cpu = *cpu * 10 + (*((*s)++) - '0');
+	return 0;
+}
+static inline int parse_portals_bootarg(char *str, struct cpumask *want_shared,
+					struct cpumask *want_unshared,
+					const char *argname)
+{
+	const char *s = str;
+	unsigned int shared, cpu1, cpu2, loop;
+
+keep_going:
+	if (*s == 's') {
+		shared = 1;
+		s++;
+	} else
+		shared = 0;
+	if (__parse_portals_cpu(&s, &cpu1))
+		goto err;
+	if (*s == '-') {
+		s++;
+		if (__parse_portals_cpu(&s, &cpu2))
+			goto err;
+		if (cpu2 < cpu1)
+			goto err;
+	} else
+		cpu2 = cpu1;
+	for (loop = cpu1; loop <= cpu2; loop++)
+		cpumask_set_cpu(loop, shared ? want_shared : want_unshared);
+	if (*s == ',') {
+		s++;
+		goto keep_going;
+	} else if ((*s == '\0') || isspace(*s))
+		return 0;
+err:
+	pr_crit("Malformed %s argument: %s, offset: %lu\n", argname, str,
+		(unsigned long)s - (unsigned long)str);
+	return -EINVAL;
 }
 
 #endif /* DPA_SYS_H */

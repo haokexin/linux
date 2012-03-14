@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Freescale Semiconductor, Inc.
+/* Copyright 2008-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -126,10 +126,6 @@ int bman_have_ccsr(void);
 #define bm_isr_disable_write(bm, v)	__bm_isr_write(bm, bm_isr_disable, v)
 #define bm_isr_inhibit(bm)		__bm_isr_write(bm, bm_isr_inhibit, 1)
 #define bm_isr_uninhibit(bm)		__bm_isr_write(bm, bm_isr_inhibit, 0)
-
-/* Allocate/release an unreserved buffer pool id */
-int bm_pool_new(u32 *bpid);
-void bm_pool_free(u32 bpid);
 
 #ifdef CONFIG_FSL_BMAN_CONFIG
 /* Set depletion thresholds associated with a buffer pool. Requires that the

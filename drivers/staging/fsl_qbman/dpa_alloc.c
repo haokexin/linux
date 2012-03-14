@@ -1,4 +1,4 @@
-/* Copyright 2009-2011 Freescale Semiconductor, Inc.
+/* Copyright 2009-2012 Freescale Semiconductor, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,78 +29,38 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "qman_private.h"
+#include "dpa_sys.h"
 
-#include <linux/fsl_bman.h>
+/* Qman and Bman APIs are front-ends to the common code; */
 
-/****************/
-/* FQ allocator */
-/****************/
+static DECLARE_DPA_ALLOC(bpalloc);
+static DECLARE_DPA_ALLOC(fqalloc);
 
-/* Global flag: use BPID==0 (fq_pool), or use the range-allocator? */
-static int use_bman;
-
-static struct bman_pool *fq_pool;
-static const struct bman_pool_params fq_pool_params;
-
-__init int fqalloc_init(int __use_bman)
+int bman_alloc_bpid_range(u32 *result, u32 count, u32 align, int partial)
 {
-	use_bman = __use_bman;
-	if (use_bman) {
-		fq_pool = bman_new_pool(&fq_pool_params);
-		if (!fq_pool)
-			return -ENOMEM;
-	}
-	return 0;
+	return dpa_alloc_new(&bpalloc, result, count, align, partial);
 }
+EXPORT_SYMBOL(bman_alloc_bpid_range);
 
-u32 qm_fq_new(void)
+void bman_release_bpid_range(u32 bpid, u32 count)
 {
-	struct bm_buffer buf;
-	int ret;
-
-	if (!use_bman) {
-		u32 result;
-		if (qman_alloc_fqid(&result) < 0)
-			return 0;
-		return result;
-	}
-	BUG_ON(!fq_pool);
-	ret = bman_acquire(fq_pool, &buf, 1, 0);
-	if (ret != 1)
-		return 0;
-	return (u32)bm_buffer_get64(&buf);
+	dpa_alloc_free(&bpalloc, bpid, count);
 }
-EXPORT_SYMBOL(qm_fq_new);
+EXPORT_SYMBOL(bman_release_bpid_range);
 
-int qm_fq_free_flags(u32 fqid, __maybe_unused u32 flags)
+int qman_alloc_fqid_range(u32 *result, u32 count, u32 align, int partial)
 {
-	struct bm_buffer buf;
-	u32 bflags = 0;
-	int ret;
-	bm_buffer_set64(&buf, fqid);
-
-	if (!use_bman) {
-		qman_release_fqid(fqid);
-		return 0;
-	}
-#ifdef CONFIG_FSL_DPA_CAN_WAIT
-	if (flags & QM_FQ_FREE_WAIT) {
-		bflags |= BMAN_RELEASE_FLAG_WAIT;
-		if (flags & BMAN_RELEASE_FLAG_WAIT_INT)
-			bflags |= BMAN_RELEASE_FLAG_WAIT_INT;
-		if (flags & BMAN_RELEASE_FLAG_WAIT_SYNC)
-			bflags |= BMAN_RELEASE_FLAG_WAIT_SYNC;
-	}
-#endif
-	ret = bman_release(fq_pool, &buf, 1, bflags);
-	return ret;
+	return dpa_alloc_new(&fqalloc, result, count, align, partial);
 }
-EXPORT_SYMBOL(qm_fq_free_flags);
+EXPORT_SYMBOL(qman_alloc_fqid_range);
 
-/* Global state for the allocator */
-static DEFINE_SPINLOCK(alloc_lock);
-static LIST_HEAD(alloc_list);
+void qman_release_fqid_range(u32 fqid, u32 count)
+{
+	dpa_alloc_free(&fqalloc, fqid, count);
+}
+EXPORT_SYMBOL(qman_release_fqid_range);
+
+/* The rest is the common backend to the Qman and Bman allocators */
 
 /* The allocator is a (possibly-empty) list of these; */
 struct alloc_node {
@@ -109,16 +69,16 @@ struct alloc_node {
 	u32 num;
 };
 
-/* #define FQRANGE_DEBUG */
+/* #define DPA_ALLOC_DEBUG */
 
-#ifdef FQRANGE_DEBUG
-#define DPRINT		pr_info
-static void DUMP(void)
+#ifdef DPA_ALLOC_DEBUG
+#define DPRINT pr_info
+static void DUMP(struct dpa_alloc *alloc)
 {
 	int off = 0;
 	char buf[256];
 	struct alloc_node *p;
-	list_for_each_entry(p, &alloc_list, list) {
+	list_for_each_entry(p, &alloc->list, list) {
 		if (off < 255)
 			off += snprintf(buf + off, 255-off, "{%d,%d}",
 				p->base, p->base + p->num - 1);
@@ -126,11 +86,12 @@ static void DUMP(void)
 	pr_info("%s\n", buf);
 }
 #else
-#define DPRINT(x...)	do { ; } while(0)
-#define DUMP()		do { ; } while(0)
+#define DPRINT(x...)	do { ; } while (0)
+#define DUMP(a)		do { ; } while (0)
 #endif
 
-int qman_alloc_fqid_range(u32 *result, u32 count, u32 align, int partial)
+int dpa_alloc_new(struct dpa_alloc *alloc, u32 *result, u32 count, u32 align,
+		  int partial)
 {
 	struct alloc_node *i = NULL, *next_best = NULL;
 	u32 base, next_best_base = 0, num = 0, next_best_num = 0;
@@ -138,7 +99,7 @@ int qman_alloc_fqid_range(u32 *result, u32 count, u32 align, int partial)
 
 	*result = (u32)-1;
 	DPRINT("alloc_range(%d,%d,%d)\n", count, align, partial);
-	DUMP();
+	DUMP(alloc);
 	/* If 'align' is 0, it should behave as though it was 1 */
 	if (!align)
 		align = 1;
@@ -150,8 +111,8 @@ int qman_alloc_fqid_range(u32 *result, u32 count, u32 align, int partial)
 		kfree(margin_left);
 		goto err;
 	}
-	spin_lock_irq(&alloc_lock);
-	list_for_each_entry(i, &alloc_list, list) {
+	spin_lock_irq(&alloc->lock);
+	list_for_each_entry(i, &alloc->list, list) {
 		base = (i->base + align - 1) / align;
 		base *= align;
 		if ((base - i->base) >= i->num)
@@ -194,33 +155,38 @@ done:
 		kfree(i);
 		*result = base;
 	}
-	spin_unlock_irq(&alloc_lock);
+	spin_unlock_irq(&alloc->lock);
 err:
 	DPRINT("returning %d\n", i ? num : -ENOMEM);
-	DUMP();
+	DUMP(alloc);
 	return i ? (int)num : -ENOMEM;
 }
-EXPORT_SYMBOL(qman_alloc_fqid_range);
 
-void qman_release_fqid_range(u32 fqid, u32 count)
+/* Allocate the list node using GFP_ATOMIC, because we *really* want to avoid
+ * forcing error-handling on to users in the deallocation path. */
+void dpa_alloc_free(struct dpa_alloc *alloc, u32 fqid, u32 count)
 {
-	struct alloc_node *i, *node = kmalloc(sizeof(*node), GFP_KERNEL);
+	struct alloc_node *i, *node = kmalloc(sizeof(*node), GFP_ATOMIC);
+	BUG_ON(!node);
 	DPRINT("release_range(%d,%d)\n", fqid, count);
-	DUMP();
-	spin_lock_irq(&alloc_lock);
+	DUMP(alloc);
+	BUG_ON(!count);
+	spin_lock_irq(&alloc->lock);
 	node->base = fqid;
 	node->num = count;
-	list_for_each_entry(i, &alloc_list, list) {
+	list_for_each_entry(i, &alloc->list, list) {
 		if (i->base >= node->base) {
+			/* BUG_ON(any overlapping) */
+			BUG_ON(i->base < (node->base + node->num));
 			list_add_tail(&node->list, &i->list);
 			goto done;
 		}
 	}
-	list_add_tail(&node->list, &alloc_list);
+	list_add_tail(&node->list, &alloc->list);
 done:
 	/* Merge to the left */
 	i = list_entry(node->list.prev, struct alloc_node, list);
-	if (node->list.prev != &alloc_list) {
+	if (node->list.prev != &alloc->list) {
 		BUG_ON((i->base + i->num) > node->base);
 		if ((i->base + i->num) == node->base) {
 			node->base = i->base;
@@ -231,7 +197,7 @@ done:
 	}
 	/* Merge to the right */
 	i = list_entry(node->list.next, struct alloc_node, list);
-	if (node->list.next != &alloc_list) {
+	if (node->list.next != &alloc->list) {
 		BUG_ON((node->base + node->num) > i->base);
 		if ((node->base + node->num) == i->base) {
 			node->num += i->num;
@@ -239,8 +205,6 @@ done:
 			kfree(i);
 		}
 	}
-	spin_unlock_irq(&alloc_lock);
-	DUMP();
+	spin_unlock_irq(&alloc->lock);
+	DUMP(alloc);
 }
-EXPORT_SYMBOL(qman_release_fqid_range);
-
