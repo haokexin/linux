@@ -691,7 +691,7 @@ static void __init setup_liodns(void)
 				ppaace = &ppaact[*prop++];
 				ppaace->otm = PAACE_OTM_INDEXED;
 				ppaace->op_encode.index_ot.omi = OMI_QMAN;
-				cache_id = get_stash_id(1, qman_portal_dn);
+				cache_id = get_stash_id(3, qman_portal_dn);
 				pr_debug("cache_stash_id = %d\n", cache_id);
 				if (~cache_id != 0)
 					ppaace->impl_attr.cid = cache_id;
