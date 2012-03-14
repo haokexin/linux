@@ -29,14 +29,14 @@ unsigned long usdpaa_pfn_len;
 /* TLB1 index */
 unsigned int usdpaa_tlbcam_index;
 
-static int usdpaa_shmem_open(struct inode *inode, struct file *filp)
+static int usdpaa_open(struct inode *inode, struct file *filp)
 {
 	filp->f_mapping->backing_dev_info = &directly_mappable_cdev_bdi;
 
 	return 0;
 }
 
-static int usdpaa_shmem_mmap(struct file *file, struct vm_area_struct *vma)
+static int usdpaa_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	size_t size = vma->vm_end - vma->vm_start;
 	if (vma->vm_pgoff) {
@@ -61,8 +61,7 @@ static int usdpaa_shmem_mmap(struct file *file, struct vm_area_struct *vma)
 	return 0;
 }
 
-static long usdpaa_shmem_ioctl(struct file *fp, unsigned int cmd,
-				unsigned long arg)
+static long usdpaa_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	struct usdpaa_ioctl_get_region ret = {
 		.phys_start = usdpaa_phys_start,
@@ -73,16 +72,16 @@ static long usdpaa_shmem_ioctl(struct file *fp, unsigned int cmd,
 	return copy_to_user((void __user *)arg, &ret, sizeof(ret));
 }
 
-static const struct file_operations shmem_fops = {
-	.open		= usdpaa_shmem_open,
-	.mmap		= usdpaa_shmem_mmap,
-	.unlocked_ioctl = usdpaa_shmem_ioctl,
-	.compat_ioctl = usdpaa_shmem_ioctl
+static const struct file_operations usdpaa_fops = {
+	.open		= usdpaa_open,
+	.mmap		= usdpaa_mmap,
+	.unlocked_ioctl = usdpaa_ioctl,
+	.compat_ioctl = usdpaa_ioctl
 };
 
-static struct miscdevice usdpaa_shmem_miscdev = {
-	.name = "fsl-usdpaa-shmem",
-	.fops = &shmem_fops,
+static struct miscdevice usdpaa_miscdev = {
+	.name = "fsl-usdpaa",
+	.fops = &usdpaa_fops,
 	.minor = MISC_DYNAMIC_MINOR,
 };
 
@@ -95,7 +94,7 @@ static __init int usdpaa_mem(char *arg)
 }
 early_param("usdpaa_mem", usdpaa_mem);
 
-__init void fsl_usdpaa_shmem_init_early(void)
+__init void fsl_usdpaa_init_early(void)
 {
 	int log;
 	if (!usdpaa_phys_size) {
@@ -122,30 +121,30 @@ __init void fsl_usdpaa_shmem_init_early(void)
 		       usdpaa_phys_size);
 }
 
-static int __init usdpaa_shmem_init(void)
+static int __init usdpaa_init(void)
 {
 	int ret;
 
-	pr_info("Freescale USDPAA shared memory driver\n");
+	pr_info("Freescale USDPAA process driver\n");
 
 	if (!usdpaa_phys_size) {
-		pr_warning("fsl-usdpaa-shmem: no region found\n");
+		pr_warning("fsl-usdpaa: no region found\n");
 		return 0;
 	}
-	ret = misc_register(&usdpaa_shmem_miscdev);
+	ret = misc_register(&usdpaa_miscdev);
 	if (ret)
-		pr_err("fsl-usdpaa-shmem: failed to register misc device\n");
+		pr_err("fsl-usdpaa: failed to register misc device\n");
 	return ret;
 }
 
-static void __exit usdpaa_shmem_exit(void)
+static void __exit usdpaa_exit(void)
 {
-	misc_deregister(&usdpaa_shmem_miscdev);
+	misc_deregister(&usdpaa_miscdev);
 }
 
-module_init(usdpaa_shmem_init);
-module_exit(usdpaa_shmem_exit);
+module_init(usdpaa_init);
+module_exit(usdpaa_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Freescale Semiconductor");
-MODULE_DESCRIPTION("Freescale USDPAA shared memory driver");
+MODULE_DESCRIPTION("Freescale USDPAA process driver");
