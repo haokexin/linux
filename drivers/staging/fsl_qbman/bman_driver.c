@@ -333,12 +333,6 @@ static __init int bman_init(void)
 		else
 			pr_err("Bman err interrupt handler missing\n");
 	}
-	/* Initialise BPID allocation ranges */
-	for_each_compatible_node(dn, NULL, "fsl,bpid-range") {
-		ret = fsl_bpid_range_init(dn);
-		if (ret)
-			return ret;
-	}
 	/* Initialise any declared buffer pools */
 	for_each_compatible_node(dn, NULL, "fsl,bpool") {
 		ret = fsl_bpool_init(dn);
@@ -438,6 +432,12 @@ static __init int bman_init(void)
 		}
 	} while (1);
 #endif
+	/* Initialise BPID allocation ranges */
+	for_each_compatible_node(dn, NULL, "fsl,bpid-range") {
+		ret = fsl_bpid_range_init(dn);
+		if (ret)
+			return ret;
+	}
 	return 0;
 }
 subsys_initcall(bman_init);
