@@ -155,7 +155,7 @@ static int FNAME(walk_addr_generic)(struct guest_walker *walker,
 	u16 errcode = 0;
 
 	trace_kvm_mmu_pagetable_walk(addr, write_fault, user_fault,
-				     fetch_fault);
+	                            fetch_fault);
 retry_walk:
 	eperm = false;
 	walker->level = mmu->root_level;

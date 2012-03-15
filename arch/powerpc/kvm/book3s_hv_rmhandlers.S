@@ -1420,13 +1420,13 @@ _GLOBAL(kvmppc_h_cede)
 	sync			/* order setting ceded vs. testing prodded */
 	lbz	r5,VCPU_PRODDED(r3)
 	cmpwi	r5,0
-	bne	1f
+	bne	kvm_cede_prodded
 	li	r0,0		/* set trap to 0 to say hcall is handled */
 	stw	r0,VCPU_TRAP(r3)
 	li	r0,H_SUCCESS
 	std	r0,VCPU_GPR(r3)(r3)
 BEGIN_FTR_SECTION
-	b	2f		/* just send it up to host on 970 */
+	b	kvm_cede_exit	/* just send it up to host on 970 */
 END_FTR_SECTION_IFCLR(CPU_FTR_ARCH_206)
 
 	/*
@@ -1445,7 +1445,7 @@ END_FTR_SECTION_IFCLR(CPU_FTR_ARCH_206)
 	or	r4,r4,r0
 	PPC_POPCNTW(r7,r4)
 	cmpw	r7,r8
-	bge	2f
+	bge	kvm_cede_exit
 	stwcx.	r4,0,r6
 	bne	31b
 	li	r0,1
@@ -1554,7 +1554,8 @@ kvm_end_cede:
 	b	hcall_real_fallback
 
 	/* cede when already previously prodded case */
-1:	li	r0,0
+kvm_cede_prodded:
+	li	r0,0
 	stb	r0,VCPU_PRODDED(r3)
 	sync			/* order testing prodded vs. clearing ceded */
 	stb	r0,VCPU_CEDED(r3)
@@ -1562,7 +1563,8 @@ kvm_end_cede:
 	blr
 
 	/* we've ceded but we want to give control to the host */
-2:	li	r3,H_TOO_HARD
+kvm_cede_exit:
+	li	r3,H_TOO_HARD
 	blr
 
 secondary_too_late:
