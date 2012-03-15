@@ -657,6 +657,7 @@ static void __init setup_liodns(void)
 	struct ppaace *ppaace;
 	struct device_node *qman_portal_dn = NULL;
 	struct device_node *qman_dn = NULL;
+	struct device_node *bman_dn;
 	const u32 *prop;
 	u32 cache_id, prop_cnt;
 
@@ -712,6 +713,7 @@ static void __init setup_liodns(void)
 		if (prop) {
 			ppaace = &ppaact[*prop];
 			ppaace->otm = PAACE_OTM_INDEXED;
+			ppaace->domain_attr.to_host.coherency_required = 0;
 			ppaace->op_encode.index_ot.omi = OMI_QMAN_PRIV;
 			cache_id = get_stash_id(3, qman_dn);
 			pr_debug("cache_stash_id = %d\n", cache_id);
@@ -722,6 +724,24 @@ static void __init setup_liodns(void)
 			       qman_dn->full_name);
 		}
 		of_node_put(qman_dn);
+	}
+
+	/*
+	 * For liodn used by BMAN for its private memory accesses,
+	 * turn the 'coherency required' off. This saves snoops to cores.
+	 */
+
+	bman_dn = of_find_compatible_node(NULL, NULL, "fsl,bman");
+	if (bman_dn) {
+		prop = of_get_property(bman_dn, "fsl,liodn", NULL);
+		if (prop) {
+			ppaace = &ppaact[*prop];
+			ppaace->domain_attr.to_host.coherency_required = 0;
+		} else {
+			pr_err("fsl-pamu: missing fsl,liodn property in %s\n",
+			       bman_dn->full_name);
+		}
+		of_node_put(bman_dn);
 	}
 }
 
