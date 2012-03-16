@@ -126,9 +126,10 @@
 #define CC_SIZE_ILLEGAL                     0
 
 #define FM_PCD_CC_KEYS_MATCH_TABLE_ALIGN    16
-#define FM_PCD_CC_AD_TABLE_ALIGN            256
+#define FM_PCD_CC_AD_TABLE_ALIGN            16
 #define FM_PCD_CC_AD_ENTRY_SIZE             16
 #define FM_PCD_CC_NUM_OF_KEYS               255
+#define FM_PCD_CC_TREE_ADDR_ALIGN           256
 
 #define FM_PCD_AD_RESULT_CONTRL_FLOW_TYPE   0x00000000
 #define FM_PCD_AD_RESULT_DATA_FLOW_TYPE     0x80000000

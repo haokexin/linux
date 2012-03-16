@@ -398,12 +398,11 @@ static uint32_t VerifyAndUpdateSizeOfFifo(t_FmPort *p_FmPort)
     }
 
     /* For O/H ports, check fifo size and update if necessary */
-    else if ((p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING) ||
-             (p_FmPort->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND))
+    else if((p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING) || (p_FmPort->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND))
         minFifoSizeRequired = (uint32_t)((p_FmPort->txFifoDeqPipelineDepth+4)*BMI_FIFO_UNITS);
 
     /* for all ports - update if necassary */
-    if (minFifoSizeRequired && (p_FmPort->fifoBufs.num < minFifoSizeRequired))
+    if(minFifoSizeRequired && (p_FmPort->fifoBufs.num < minFifoSizeRequired))
     {
         if(!p_FmPort->explicitUserSizeOfFifo)
             p_FmPort->fifoBufs.num = minFifoSizeRequired;
@@ -1026,14 +1025,15 @@ static t_Error QmiInit(t_FmPort *p_FmPort)
 
             if (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
             {
-                t_FmRevisionInfo fmRevInfo, fmanCtrlCodeRevInfo;
+                t_FmRevisionInfo            fmRevInfo;
+                t_FmCtrlCodeRevisionInfo    fmanCtrlCodeRevInfo;
 
                 FM_GetRevision(p_FmPort->h_Fm, &fmRevInfo);
-				FM_GetFmanCtrlCodeRevision(p_FmPort->h_Fm, &fmanCtrlCodeRevInfo);
-				if ((fmanCtrlCodeRevInfo.majorRev == 106) &&
-					(fmRevInfo.majorRev < 4))
-					/* Set pop to next step nia for QMI Enqueue Frame*/
-					WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnen, NIA_FM_CTL_AC_FRAG | NIA_ENG_FM_CTL);
+                FM_GetFmanCtrlCodeRevision(p_FmPort->h_Fm, &fmanCtrlCodeRevInfo);
+                if ((fmanCtrlCodeRevInfo.packageRev == 106) &&
+                    (fmRevInfo.majorRev < 4))
+                    /* Set pop to next step nia for QMI Enqueue Frame*/
+                    WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnen, NIA_FM_CTL_AC_FRAG | NIA_ENG_FM_CTL);
             }
         }
 
@@ -1535,6 +1535,8 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
     uint16_t                            absoluteProfileId;
     uint8_t                             physicalSchemeId;
     uint32_t                            ccTreePhysOffset;
+    t_FmPcdKgInterModuleBindPortToSchemes   schemeBind;
+
     SANITY_CHECK_RETURN_ERROR(h_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_STATE);
 
@@ -1649,26 +1651,29 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid port type"));
     }
 
+    /* set PCD port parameter */
+    if(p_FmPort->pcdEngines & FM_PCD_CC)
+    {
+        err = FmPcdCcBindTree(p_FmPort->h_FmPcd, p_PcdParams, p_PcdParams->p_CcParams->h_CcTree, &ccTreePhysOffset, h_FmPort);
+        if(err)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+
+        WRITE_UINT32(*p_BmiCcBase, ccTreePhysOffset);
+        p_FmPort->ccTreeId = p_PcdParams->p_CcParams->h_CcTree;
+    }
+
     if(p_FmPort->pcdEngines & FM_PCD_KG)
     {
-
         if(p_PcdParams->p_KgParams->numOfSchemes == 0)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For ports using Keygen, at least one scheme must be bound. "));
-        /* for each scheme */
-        for(i = 0; i<p_PcdParams->p_KgParams->numOfSchemes; i++)
-        {
-            physicalSchemeId = (uint8_t)(PTR_TO_UINT(p_PcdParams->p_KgParams->h_Schemes[i])-1);
-            /* build vector */
-            p_FmPort->schemesPerPortVector |= 1 << (31 - (uint32_t)physicalSchemeId);
-        }
 
         err = FmPcdKgSetOrBindToClsPlanGrp(p_FmPort->h_FmPcd,
-                                            p_FmPort->hardwarePortId,
-                                            p_FmPort->netEnvId,
-                                            p_FmPort->optArray,
-                                            &p_FmPort->clsPlanGrpId,
-                                            &isEmptyClsPlanGrp);
-         if(err)
+                                           p_FmPort->hardwarePortId,
+                                           p_FmPort->netEnvId,
+                                           p_FmPort->optArray,
+                                           &p_FmPort->clsPlanGrpId,
+                                           &isEmptyClsPlanGrp);
+         if (err)
              RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("FmPcdKgSetOrBindToClsPlanGrp failed. "));
 
          p_FmPort->useClsPlan = !isEmptyClsPlanGrp;
@@ -1686,17 +1691,24 @@ static t_Error SetPcd(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
             }
         }
 #endif /* FM_KG_ERASE_FLOW_ID_ERRATA_FMAN_SW004 */
-    }
 
-    /* set PCD port parameter */
-    if(p_FmPort->pcdEngines & FM_PCD_CC)
-    {
-        err = FmPcdCcBindTree(p_FmPort->h_FmPcd, p_PcdParams, p_PcdParams->p_CcParams->h_CcTree, &ccTreePhysOffset, h_FmPort);
-        if(err)
-            RETURN_ERROR(MINOR, err, NO_MSG);
+        schemeBind.netEnvId = p_FmPort->netEnvId;
+        schemeBind.hardwarePortId = p_FmPort->hardwarePortId;
+        schemeBind.numOfSchemes = p_PcdParams->p_KgParams->numOfSchemes;
+        schemeBind.useClsPlan = p_FmPort->useClsPlan;
 
-        WRITE_UINT32(*p_BmiCcBase, ccTreePhysOffset);
-        p_FmPort->ccTreeId = p_PcdParams->p_CcParams->h_CcTree;
+        /* for each scheme */
+        for(i=0; i<p_PcdParams->p_KgParams->numOfSchemes; i++)
+        {
+            physicalSchemeId = (uint8_t)(PTR_TO_UINT(p_PcdParams->p_KgParams->h_Schemes[i])-1);
+            schemeBind.schemesIds[i] = physicalSchemeId;
+            /* build vector */
+            p_FmPort->schemesPerPortVector |= 1 << (31 - (uint32_t)physicalSchemeId);
+        }
+
+        err = FmPcdKgBindPortToSchemes(p_FmPort->h_FmPcd, &schemeBind);
+        if (err)
+            RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
     /***************************/
@@ -2138,20 +2150,6 @@ pndn, pnen ... maybe were changed because of the Tree requirement*/
         WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->nonRxQmiRegs.fmqm_pndn, p_FmPort->savedNonRxQmiRegsPndn);
 
 #ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-    if(p_FmPort->requiredAction & UPDATE_IPR_EN)
-    {
-        t_Error     err;
-
-        if(!p_FmPort->explicitUserSizeOfFifo)
-            p_FmPort->fifoBufs.num += (p_FmPort->tasks.num + p_FmPort->tasks.extra) * BMI_FIFO_UNITS;
-        else
-            p_FmPort->fifoBufs.num = MAX(p_FmPort->fifoBufs.num,
-                                         (p_FmPort->txFifoDeqPipelineDepth +
-                                          (p_FmPort->tasks.num + p_FmPort->tasks.extra) + 4) * BMI_FIFO_UNITS);
-        err = FmSetSizeOfFifo(p_FmPort->h_Fm, p_FmPort->hardwarePortId, p_FmPort->fifoBufs.num, p_FmPort->fifoBufs.extra, FALSE);
-        if(err)
-            RETURN_ERROR(MINOR, err, NO_MSG);
-    }
     if(p_FmPort->requiredAction & UPDATE_NIA_RFENE)
         WRITE_UINT32(p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs.fmbm_rfene, p_FmPort->savedBmiRfene);
 #endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
@@ -2186,6 +2184,11 @@ t_Error FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_CcPara
     {
         p_CcParams->getCcParams.numOfTasks = (uint8_t)p_FmPort->tasks.num;
         p_CcParams->getCcParams.type &= ~NUM_OF_TASKS;
+    }
+    if(p_CcParams->getCcParams.type & NUM_OF_EXTRA_TASKS)
+    {
+        p_CcParams->getCcParams.numOfExtraTasks = (uint8_t)p_FmPort->tasks.extra;
+        p_CcParams->getCcParams.type &= ~NUM_OF_EXTRA_TASKS;
     }
     if(p_CcParams->getCcParams.type & BUFFER_POOL_ID_FOR_MANIP)
     {
@@ -2225,11 +2228,7 @@ t_Error FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_CcPara
     }
 
 #ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-    if(p_CcParams->setCcParams.type & UPDATE_IPR_EN)
-    {
-        p_FmPort->requiredAction |= UPDATE_IPR_EN;
-    }
-    else if((p_CcParams->setCcParams.type & UPDATE_NIA_RFENE) && !(p_FmPort->requiredAction & UPDATE_NIA_RFENE))
+    if((p_CcParams->setCcParams.type & UPDATE_NIA_RFENE) && !(p_FmPort->requiredAction & UPDATE_NIA_RFENE))
     {
         p_FmPort->savedBmiRfene = p_CcParams->setCcParams.nia;
         p_FmPort->requiredAction |= UPDATE_NIA_RFENE;
@@ -2515,6 +2514,8 @@ t_Error FM_PORT_Init(t_Handle h_FmPort)
         if(err)
             RETURN_ERROR(MAJOR, err, NO_MSG);
     }
+
+
 
     /************************************************************/
     /* Call FM module routine for communicating parameters      */
@@ -2849,7 +2850,6 @@ t_Error FM_PORT_ConfigExtBufPools(t_Handle h_FmPort, t_FmPortExtPools *p_FmPortE
 
     SANITY_CHECK_RETURN_ERROR(p_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
-
     if(p_FmPort->portType != e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
         RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("available for OP ports only"));
 
@@ -3301,11 +3301,7 @@ t_Error FM_PORT_Disable(t_Handle h_FmPort)
                 --tries)
             XX_UDelay(1);
         if (!tries)
-        {
-            WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc,
-                         GET_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc) | QMI_PORT_CFG_EN);
             RETURN_ERROR(MINOR, E_BUSY, ("%s: can't disable!", p_FmPort->name));
-        }
     }
 
     /* Disable BMI */
@@ -3320,14 +3316,7 @@ t_Error FM_PORT_Disable(t_Handle h_FmPort)
         XX_UDelay(1);
 
     if (!tries)
-    {
-        if (!rxPort && !p_FmPort->imEn)
-			WRITE_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc,
-						 GET_UINT32(p_FmPort->p_FmPortQmiRegs->fmqm_pnc) | QMI_PORT_CFG_EN);
-        WRITE_UINT32(*p_BmiCfgReg, GET_UINT32(*p_BmiCfgReg) | BMI_PORT_CFG_EN);
-
         RETURN_ERROR(MINOR, E_BUSY, ("%s: can't disable!", p_FmPort->name));
-    }
 
     p_FmPort->enabled = 0;
 
@@ -4170,7 +4159,6 @@ t_Error FM_PORT_PcdPlcrAllocProfiles(t_Handle h_FmPort, uint16_t numOfProfiles)
         if(err)
             RETURN_ERROR(MAJOR, err,NO_MSG);
     }
-    /* set the port handle within the PCD policer, even if no profiles defined */
     FmPcdPortRegister(p_FmPort->h_FmPcd, h_FmPort, p_FmPort->hardwarePortId);
 
     return E_OK;
@@ -4340,8 +4328,8 @@ t_Error FM_PORT_PcdCcModifyTree (t_Handle h_FmPort, t_Handle h_CcTree)
     if((GET_UINT32(*p_BmiNia) & ~BMI_RFNE_FDCS_MASK) != (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME))
             RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("may be called only for ports in BMI-to-BMI state."));
 
-    /*TODO - to take care of changes due to previous tree. Maybe in the previous tree where chnged pndn, pnen ...
-             it has to be returned to the default state - initially*/
+/*TODO - to take care of changes due to previous tree. Maybe in the previous tree where chnged pndn, pnen ...
+         it has to be returned to the default state - initially*/
 
     p_FmPort->requiredAction = 0;
 
@@ -4489,9 +4477,7 @@ t_Error FM_PORT_DetachPCD(t_Handle h_FmPort)
 t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
 {
     t_FmPort                                *p_FmPort = (t_FmPort*)h_FmPort;
-    t_FmPcdKgInterModuleBindPortToSchemes   schemeBind;
     t_Error                                 err = E_OK;
-    uint8_t                                 i;
 
     SANITY_CHECK_RETURN_ERROR(h_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_STATE);
@@ -4511,33 +4497,12 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
-    if(p_FmPort->pcdEngines & FM_PCD_KG)
-    {
-        schemeBind.netEnvId = p_FmPort->netEnvId;
-        schemeBind.hardwarePortId = p_FmPort->hardwarePortId;
-        schemeBind.numOfSchemes = p_PcdParams->p_KgParams->numOfSchemes;
-        schemeBind.useClsPlan = p_FmPort->useClsPlan;
-        for(i = 0;i<schemeBind.numOfSchemes;i++)
-            schemeBind.schemesIds[i] = (uint8_t)(PTR_TO_UINT(p_PcdParams->p_KgParams->h_Schemes[i])-1);
-
-        err = FmPcdKgBindPortToSchemes(p_FmPort->h_FmPcd, &schemeBind);
-        if(err)
-        {
-            DeletePcd(p_FmPort);
-            RELEASE_LOCK(p_FmPort->lock);
-            RETURN_ERROR(MAJOR, err, NO_MSG);
-        }
-    }
-
     if ((p_FmPort->pcdEngines & FM_PCD_PRS) && (p_PcdParams->p_PrsParams->includeInPrsStatistics))
         FmPcdPrsIncludePortInStatistics(p_FmPort->h_FmPcd, p_FmPort->hardwarePortId, TRUE);
 
     FmPcdIncNetEnvOwners(p_FmPort->h_FmPcd, p_FmPort->netEnvId);
 
     err = FmPortAttachPCD(h_FmPort);
-    if(err)
-        DeletePcd(p_FmPort);
-
     RELEASE_LOCK(p_FmPort->lock);
 
     return err;

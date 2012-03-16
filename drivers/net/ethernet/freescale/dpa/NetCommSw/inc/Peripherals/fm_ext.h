@@ -1026,12 +1026,21 @@ typedef enum e_FmCounters {
 } e_FmCounters;
 
 /**************************************************************************//**
- @Description   structure for returning revision information
+ @Description   structure for returning FM revision information
 *//***************************************************************************/
 typedef struct t_FmRevisionInfo {
     uint8_t         majorRev;               /**< Major revision */
     uint8_t         minorRev;               /**< Minor revision */
 } t_FmRevisionInfo;
+
+/**************************************************************************//**
+ @Description   structure for returning FM ctrl code revision information
+*//***************************************************************************/
+typedef struct t_FmCtrlCodeRevisionInfo {
+    uint16_t        packageRev;             /**< Package revision */
+    uint8_t         majorRev;               /**< Major revision */
+    uint8_t         minorRev;               /**< Minor revision */
+} t_FmCtrlCodeRevisionInfo;
 
 /**************************************************************************//**
  @Description   struct for defining DMA status
@@ -1159,7 +1168,7 @@ t_Error  FM_GetRevision(t_Handle h_Fm, t_FmRevisionInfo *p_FmRevisionInfo);
 
  @Cautions      Allowed only following FM_Init().
 *//***************************************************************************/
-t_Error FM_GetFmanCtrlCodeRevision(t_Handle h_Fm, t_FmRevisionInfo *p_RevisionInfo);
+t_Error FM_GetFmanCtrlCodeRevision(t_Handle h_Fm, t_FmCtrlCodeRevisionInfo *p_RevisionInfo);
 
 /**************************************************************************//**
  @Function      FM_GetCounter
@@ -1331,5 +1340,6 @@ t_Error FmDumpPortRegs(t_Handle h_Fm,uint8_t hardwarePortId);
 /** @} */ /* end of FM_runtime_control_grp group */
 /** @} */ /* end of FM_lib_grp group */
 /** @} */ /* end of FM_grp group */
+
 
 #endif /* __FM_EXT */

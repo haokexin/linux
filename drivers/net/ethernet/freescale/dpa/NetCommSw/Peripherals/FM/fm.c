@@ -463,8 +463,9 @@ static t_Error LoadFmanCtrlCode(t_Fm *p_Fm)
     WRITE_UINT32(p_Iram->iready, IRAM_READY);
     XX_UDelay(1000);
 
-    DBG(INFO, ("FMan-Controller code (ver %d.%d) loaded to IRAM.",
-               ((uint8_t *)p_Fm->p_FmDriverParam->firmware.p_Code)[5],
+    DBG(INFO, ("FMan-Controller code (ver %d.%d.%d) loaded to IRAM.",
+               ((uint16_t *)p_Fm->p_FmDriverParam->firmware.p_Code)[2],
+               ((uint8_t *)p_Fm->p_FmDriverParam->firmware.p_Code)[6],
                ((uint8_t *)p_Fm->p_FmDriverParam->firmware.p_Code)[7]));
 
     return E_OK;
@@ -1377,7 +1378,6 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t nu
                                      NULL,
                                      NULL)) != E_OK)
             RETURN_ERROR(MINOR, err, NO_MSG);
-
         return E_OK;
     }
 
@@ -2453,7 +2453,7 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
             REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM firmware code"));
             return NULL;
         }
-        memcpy(p_Fm->p_FmDriverParam->firmware.p_Code, p_FmParam->firmware.p_Code, p_Fm->p_FmDriverParam->firmware.size);
+        memcpy(p_Fm->p_FmDriverParam->firmware.p_Code, p_FmParam->firmware.p_Code ,p_Fm->p_FmDriverParam->firmware.size);
     }
 
     return p_Fm;
@@ -2708,14 +2708,14 @@ t_Error FM_Init(t_Handle h_Fm)
 
     /* configure thresholds register */
     tmpReg = ((uint32_t)p_FmDriverParam->dmaCommQThresholds.assertEmergency << DMA_THRESH_COMMQ_SHIFT) |
-                ((uint32_t)p_FmDriverParam->dmaReadBufThresholds.assertEmergency << DMA_THRESH_READ_INT_BUF_SHIFT) |
-                ((uint32_t)p_FmDriverParam->dmaWriteBufThresholds.assertEmergency);
+              ((uint32_t)p_FmDriverParam->dmaReadBufThresholds.assertEmergency << DMA_THRESH_READ_INT_BUF_SHIFT) |
+              ((uint32_t)p_FmDriverParam->dmaWriteBufThresholds.assertEmergency);
     WRITE_UINT32(p_Fm->p_FmDmaRegs->fmdmtr, tmpReg);
 
     /* configure hysteresis register */
     tmpReg = ((uint32_t)p_FmDriverParam->dmaCommQThresholds.clearEmergency << DMA_THRESH_COMMQ_SHIFT) |
-                ((uint32_t)p_FmDriverParam->dmaReadBufThresholds.clearEmergency << DMA_THRESH_READ_INT_BUF_SHIFT) |
-                ((uint32_t)p_FmDriverParam->dmaWriteBufThresholds.clearEmergency);
+              ((uint32_t)p_FmDriverParam->dmaReadBufThresholds.clearEmergency << DMA_THRESH_READ_INT_BUF_SHIFT) |
+              ((uint32_t)p_FmDriverParam->dmaWriteBufThresholds.clearEmergency);
     WRITE_UINT32(p_Fm->p_FmDmaRegs->fmdmhy, tmpReg);
 
     /* configure emergency threshold */
@@ -3953,6 +3953,7 @@ t_Error FM_GetRevision(t_Handle h_Fm, t_FmRevisionInfo *p_FmRevisionInfo)
     t_FmIpcRevisionInfo ipcRevInfo;
 
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_FmRevisionInfo, E_NULL_POINTER);
 
     if (p_Fm->guestId != NCSW_MASTER_ID)
     {
@@ -3984,10 +3985,10 @@ t_Error FM_GetRevision(t_Handle h_Fm, t_FmRevisionInfo *p_FmRevisionInfo)
     return E_OK;
 }
 
-t_Error FM_GetFmanCtrlCodeRevision(t_Handle h_Fm, t_FmRevisionInfo *p_RevisionInfo)
+t_Error FM_GetFmanCtrlCodeRevision(t_Handle h_Fm, t_FmCtrlCodeRevisionInfo *p_RevisionInfo)
 {
     t_Fm                *p_Fm = (t_Fm*)h_Fm;
-    t_FMIramRegs    	*p_Iram;
+    t_FMIramRegs        *p_Iram;
 
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_RevisionInfo, E_NULL_POINTER);
@@ -3997,7 +3998,9 @@ t_Error FM_GetFmanCtrlCodeRevision(t_Handle h_Fm, t_FmRevisionInfo *p_RevisionIn
 
     p_Iram = (t_FMIramRegs *)UINT_TO_PTR(p_Fm->baseAddr + FM_MM_IMEM);
     WRITE_UINT32(p_Iram->iadd, 0x4);
-    p_RevisionInfo->majorRev = ((uint8_t *)&p_Iram->idata)[1];
+    while (GET_UINT32(p_Iram->iadd) != 0x4) ;
+    p_RevisionInfo->packageRev = ((uint16_t *)&p_Iram->idata)[0];
+    p_RevisionInfo->majorRev = ((uint8_t *)&p_Iram->idata)[2];
     p_RevisionInfo->minorRev = ((uint8_t *)&p_Iram->idata)[3];
 
     return E_OK;
