@@ -395,7 +395,7 @@ static inline int bman_alloc_bpid(u32 *result)
  * @count: the number of BPIDs in the range
  *
  * This function can also be used to seed the allocator with ranges of BPIDs
- * that it can subsequently allocate from. Returns zero for success.
+ * that it can subsequently allocate from.
  */
 void bman_release_bpid_range(u32 bpid, unsigned int count);
 static inline void bman_release_bpid(u32 bpid)

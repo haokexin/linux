@@ -1624,7 +1624,7 @@ static inline int qman_alloc_fqid(u32 *result)
  * @count: the number of FQIDs in the range
  *
  * This function can also be used to seed the allocator with ranges of FQIDs
- * that it can subsequently allocate from. Returns zero for success.
+ * that it can subsequently allocate from.
  */
 void qman_release_fqid_range(u32 fqid, unsigned int count);
 static inline void qman_release_fqid(u32 fqid)
@@ -1657,8 +1657,6 @@ static inline int qman_alloc_pool(u32 *result)
  * qman_release_pool_range - Release the specified range of pool-channel IDs
  * @id: the base pool-channel ID of the range to deallocate
  * @count: the number of pool-channel IDs in the range
- *
- * Returns zero for success.
  */
 void qman_release_pool_range(u32 id, unsigned int count);
 static inline void qman_release_pool(u32 id)
@@ -1748,8 +1746,6 @@ static inline int qman_alloc_cgrid(u32 *result)
  * qman_release_cgrid_range - Release the specified range of CGR IDs
  * @id: the base CGR ID of the range to deallocate
  * @count: the number of CGR IDs in the range
- *
- * Returns zero for success.
  */
 void qman_release_cgrid_range(u32 id, unsigned int count);
 static inline void qman_release_cgrid(u32 id)
