@@ -1100,7 +1100,7 @@ typedef struct ioc_fm_pcd_cc_key_params_t {
  @Description   A structure for defining CC Keys parameters
 *//***************************************************************************/
 typedef struct ioc_keys_params_t {
-    uint8_t                             num_of_keys;    /**< num Of relevant Keys  */
+    uint16_t                            num_of_keys;    /**< num Of relevant Keys  */
     uint8_t                             key_size;       /**< size of the key - in the case of the extraction of
                                                              the type FULL_FIELD keySize has to be as standard size of the relevant
                                                              key. In the another type of extraction keySize has to be as size of extraction. */
@@ -1260,7 +1260,7 @@ typedef struct ioc_fm_pcd_cc_tree_modify_next_engine_params_t {
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_cc_node_modify_next_engine_params_t {
     void                                *id;                /**< CC node Id to be used */
-    uint8_t                             key_indx;           /**< Key index for Next Engine Params modifications;
+    uint16_t                            key_indx;           /**< Key index for Next Engine Params modifications;
                                                                  NOTE: This parameter is IGNORED for miss-key!  */
     uint8_t                             key_size;           /**< Key size of added key */
     ioc_fm_pcd_cc_next_engine_params_t  cc_next_engine_params;
@@ -1272,7 +1272,7 @@ typedef struct ioc_fm_pcd_cc_node_modify_next_engine_params_t {
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t {
     void                                *id;                /**< CC node Id to be used */
-    uint8_t                             key_indx;           /**< Key index for Next Engine Params modifications;
+    uint16_t                            key_indx;           /**< Key index for Next Engine Params modifications;
                                                                  NOTE: This parameter is IGNORED for miss-key!  */
     uint8_t                             key_size;           /**< Key size of added key */
     ioc_fm_pcd_cc_key_params_t          key_params;         /**< it's array with numOfKeys entries each entry in
@@ -1284,7 +1284,7 @@ typedef struct ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t {
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_cc_node_remove_key_params_t {
     void                                *id;                /**< CC node Id to be used */
-    uint8_t                             key_indx;           /**< Key index for Next Engine Params modifications;
+    uint16_t                            key_indx;           /**< Key index for Next Engine Params modifications;
                                                                  NOTE: This parameter is IGNORED for miss-key!  */
 } ioc_fm_pcd_cc_node_remove_key_params_t;
 
@@ -1293,7 +1293,7 @@ typedef struct ioc_fm_pcd_cc_node_remove_key_params_t {
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_cc_node_modify_key_params_t {
     void                                *id;                /**< CC node Id to be used */
-    uint8_t                             key_indx;           /**< Key index for Next Engine Params modifications;
+    uint16_t                            key_indx;           /**< Key index for Next Engine Params modifications;
                                                                  NOTE: This parameter is IGNORED for miss-key!  */
     uint8_t                             key_size;           /**< Key size of added key */
     uint8_t                             *p_key;             /**< pointer to the key of the size defined in keySize */
@@ -1366,8 +1366,9 @@ typedef struct ioc_ip_fragmentation_params_t {
 
 typedef struct ioc_ip_reassembly_params_t {
     uint8_t                         relative_schemeId[2];
-    uint16_t                        liodn_offset;
+    uint8_t                         sg_bpid;
     uint8_t                         data_mem_id;
+    uint16_t                        data_liodn_offset;
     uint16_t                        min_frag_size[2];
     uint16_t                        max_num_frames_in_process;
     ioc_fm_pcd_manip_reassem_time_out_mode  time_out_mode;

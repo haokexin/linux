@@ -101,6 +101,8 @@
 #define FM_PCD_MANIP_IP_REASM_COMMON_PARAM_TABLE_SIZE       64
 #define FM_PCD_MANIP_IP_REASM_COMMON_PARAM_TABLE_ALIGN      8
 #define FM_PCD_MANIP_IP_REASM_TIME_OUT_BETWEEN_FRAMES              0x80000000
+#define FM_PCD_MANIP_IP_REASM_COMMON_INT_BUFFER_IDX_MASK    0x000000FF
+#define FM_PCD_MANIP_IP_REASM_COMMON_INT_BUFFER_IDX_SHIFT   24
 
 #define FM_PCD_MANIP_IP_FRAG_DF_OFFSET                      28
 #define FM_PCD_MANIP_IP_FRAG_SCRATCH_BPID                   24
@@ -173,8 +175,8 @@ typedef _Packed struct t_IpReasmCommonTbl{
     volatile uint32_t reassFrmDescPoolPtrLow;
     volatile uint32_t timeOutTblPtr;
     volatile uint32_t expirationDelay;
+    volatile uint32_t internalBufferManagement;
     volatile uint32_t reseervd1;
-    volatile uint32_t reseervd2;
     volatile uint32_t totalTimeOutCounter;
     volatile uint32_t totalRfdPoolBusyCounter;
     volatile uint32_t totalInternalBufferBusy;
@@ -237,11 +239,13 @@ typedef struct t_IpReassmParams
     t_Handle            h_ReassmFrmDescrIndxPoolTbl;
     t_Handle            h_ReassmFrmDescrPoolTbl;
     t_Handle            h_TimeOutTbl;
+    uintptr_t           internalBufferPoolManagementIndexAddr;
+    uintptr_t           internalBufferPoolAddr;
     uint32_t            maxNumFramesInProcess;
-    uint32_t            liodnOffset;
+    uint32_t            dataLiodnOffset;
     uint32_t            minFragSize[2];
     uint8_t             dataMemId;              /**< Memory partition ID for data buffers */
-    uint32_t            bpid;
+    uint32_t            sgBpid;
     e_FmPcdManipReassemTimeOutMode  timeOutMode;
     e_FmPcdManipReassemWaysNumber   numOfFramesPerHashEntry;
     uint32_t                        timeoutThresholdForReassmProcess;

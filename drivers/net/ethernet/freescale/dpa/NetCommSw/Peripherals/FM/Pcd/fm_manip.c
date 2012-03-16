@@ -701,8 +701,8 @@ static t_Error CreateIpReassCommonParamTable(t_FmPcdManip *p_Manip,
 
     /* Sets the Reassembly Frame Descriptors Pool and liodn offset*/
     tmpReg64 = (uint64_t)(XX_VirtToPhys(p_Manip->ipReassmParams.h_ReassmFrmDescrPoolTbl));
-    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_LIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_LIODN_SHIFT);
-    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_ELIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_ELIODN_SHIFT);
+    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.dataLiodnOffset & FM_PCD_MANIP_IP_REASM_LIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_LIODN_SHIFT);
+    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.dataLiodnOffset & FM_PCD_MANIP_IP_REASM_ELIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_ELIODN_SHIFT);
     WRITE_UINT32(p_IpReasmCommonPramTbl->liodnAndReassFrmDescPoolPtrHi, (uint32_t)(tmpReg64 >> 32));
     WRITE_UINT32(p_IpReasmCommonPramTbl->reassFrmDescPoolPtrLow, (uint32_t)tmpReg64);
 
@@ -835,8 +835,8 @@ static t_Handle CreateIpReassParamTable(t_FmPcdManip *p_Manip,  bool ipv4)
     IOMemSet32(*h_AutoLearnHashTbl, 0,  autoLearnHashTblSize);
 
     /* Sets the IP Reassembly Automatic Learning Hash Table and liodn offset */
-    tmpReg64 = ((uint64_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_LIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_LIODN_SHIFT);
-    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_ELIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_ELIODN_SHIFT);
+    tmpReg64 = ((uint64_t)(p_Manip->ipReassmParams.dataLiodnOffset & FM_PCD_MANIP_IP_REASM_LIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_LIODN_SHIFT);
+    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.dataLiodnOffset & FM_PCD_MANIP_IP_REASM_ELIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_ELIODN_SHIFT);
     tmpReg64 |= XX_VirtToPhys(*h_AutoLearnHashTbl);
     WRITE_UINT32(p_IpReassParamsTblPtr->liodnAlAndAutoLearnHashTblPtrHi, (uint32_t)(tmpReg64 >> 32));
     WRITE_UINT32(p_IpReassParamsTblPtr->autoLearnHashTblPtrLow, (uint32_t)tmpReg64);
@@ -860,8 +860,8 @@ static t_Handle CreateIpReassParamTable(t_FmPcdManip *p_Manip,  bool ipv4)
     IOMemSet32(*h_AutoLearnSetLockTblPtr, 0,  (numOfSets * 4));
 
     /* sets Set Lock table pointer and liodn offset*/
-    tmpReg64 = ((uint64_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_LIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_LIODN_SHIFT);
-    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_ELIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_ELIODN_SHIFT);
+    tmpReg64 = ((uint64_t)(p_Manip->ipReassmParams.dataLiodnOffset & FM_PCD_MANIP_IP_REASM_LIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_LIODN_SHIFT);
+    tmpReg64 |= ((uint64_t)(p_Manip->ipReassmParams.dataLiodnOffset & FM_PCD_MANIP_IP_REASM_ELIODN_MASK) << (uint64_t)FM_PCD_MANIP_IP_REASM_ELIODN_SHIFT);
     tmpReg64 |= XX_VirtToPhys(*h_AutoLearnSetLockTblPtr);
     WRITE_UINT32(p_IpReassParamsTblPtr->liodnSlAndAutoLearnSetLockTblPtrHi, (uint32_t)(tmpReg64 >> 32));
     WRITE_UINT32(p_IpReassParamsTblPtr->autoLearnSetLockTblPtrLow, (uint32_t)tmpReg64);
@@ -922,10 +922,6 @@ static t_Error UpdateInitIpReasm(t_Handle       h_FmPcd,
            (p_Manip->shadowUpdateParams & OFFSET_OF_DATA) ||(p_Manip->shadowUpdateParams & HW_PORT_ID)))
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("in this stage parameters from Port has not be updated"));
 
-        fmPortGetSetCcParams.setCcParams.type = UPDATE_IPR_EN;
-        err = FmPortGetSetCcParams(h_FmPort, &fmPortGetSetCcParams);
-        if(err)
-            RETURN_ERROR(MAJOR, err, NO_MSG);
         fmPortGetSetCcParams.setCcParams.type = UPDATE_NIA_PNEN;
         fmPortGetSetCcParams.setCcParams.nia = NIA_FM_CTL_AC_FRAG | NIA_ENG_FM_CTL;
         err = FmPortGetSetCcParams(h_FmPort, &fmPortGetSetCcParams);
@@ -1007,9 +1003,47 @@ static t_Error UpdateInitIpReasm(t_Handle       h_FmPcd,
             p_Manip->updateParams &= ~OFFSET_OF_DATA;
             p_Manip->shadowUpdateParams |= OFFSET_OF_DATA;
         }
+        if(p_Manip->updateParams & (NUM_OF_TASKS | NUM_OF_EXTRA_TASKS))
+        {
+            t_FmPcd             *p_FmPcd = (t_FmPcd *)h_FmPcd;
+            t_IpReasmCommonTbl  *p_IpReasmCommonPramTbl;
+            uint8_t             *p_Ptr, i, totalNumOfTnums;
+            uint32_t            tmpReg32;
 
-        p_Manip->updateParams &= ~HW_PORT_ID;
-        p_Manip->shadowUpdateParams |= HW_PORT_ID;
+            totalNumOfTnums = (fmPortGetSetCcParams.getCcParams.numOfTasks +
+                               fmPortGetSetCcParams.getCcParams.numOfExtraTasks);
+
+            p_Manip->ipReassmParams.internalBufferPoolAddr =
+                    PTR_TO_UINT(FM_MURAM_AllocMem(p_FmPcd->h_FmMuram,
+                                                  totalNumOfTnums * BMI_FIFO_UNITS,
+                                                  BMI_FIFO_UNITS));
+            if (!p_Manip->ipReassmParams.internalBufferPoolAddr)
+                RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for Reassembly internal buffers pool"));
+            IOMemSet32(UINT_TO_PTR(p_Manip->ipReassmParams.internalBufferPoolAddr),
+                       0,
+                       totalNumOfTnums * BMI_FIFO_UNITS);
+
+            p_Manip->ipReassmParams.internalBufferPoolManagementIndexAddr =
+                    PTR_TO_UINT(FM_MURAM_AllocMem(p_FmPcd->h_FmMuram,
+                                                  5 + totalNumOfTnums,
+                                                  4));
+            if (!p_Manip->ipReassmParams.internalBufferPoolManagementIndexAddr)
+                RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM alloc for Reassembly internal buffers management"));
+
+            p_Ptr = (uint8_t*)UINT_TO_PTR(p_Manip->ipReassmParams.internalBufferPoolManagementIndexAddr);
+            WRITE_UINT32(*(uint32_t*)p_Ptr, (uint32_t)XX_VirtToPhys(UINT_TO_PTR(p_Manip->ipReassmParams.internalBufferPoolAddr)) - p_FmPcd->physicalMuramBase);
+            for (i=0,p_Ptr+=4;i<totalNumOfTnums;i++,p_Ptr++)
+                WRITE_UINT8(*p_Ptr, i);
+            WRITE_UINT8(*p_Ptr, 0xFF);
+
+            tmpReg32 = (4 << FM_PCD_MANIP_IP_REASM_COMMON_INT_BUFFER_IDX_SHIFT) |
+                       ((uint32_t)XX_VirtToPhys(UINT_TO_PTR(p_Manip->ipReassmParams.internalBufferPoolManagementIndexAddr)) - p_FmPcd->physicalMuramBase);
+            p_IpReasmCommonPramTbl = (t_IpReasmCommonTbl *)(p_Manip->ipReassmParams.h_IpReassCommonParamsTbl);
+            WRITE_UINT32(p_IpReasmCommonPramTbl->internalBufferManagement, tmpReg32);
+
+            p_Manip->updateParams &= ~(NUM_OF_TASKS | NUM_OF_EXTRA_TASKS);
+            p_Manip->shadowUpdateParams |= (NUM_OF_TASKS | NUM_OF_EXTRA_TASKS);
+        }
     }
     else
     {
@@ -1134,6 +1168,8 @@ static void ReleaseManipHandler(t_FmPcdManip *p_Manip, t_FmPcd *p_FmPcd)
             XX_Free(p_Manip->ipReassmParams.h_Ipv4AutoLearnSetLockTblPtr);
         if(p_Manip->ipReassmParams.h_Ipv6AutoLearnSetLockTblPtr)
             XX_Free(p_Manip->ipReassmParams.h_Ipv6AutoLearnSetLockTblPtr);
+        if(p_Manip->ipReassmParams.h_TimeOutTbl)
+            FM_MURAM_FreeMem(p_FmPcd->h_FmMuram, p_Manip->ipReassmParams.h_TimeOutTbl);
         if(p_Manip->ipReassmParams.h_Ipv4ReassParamsTblPtr)
             FM_MURAM_FreeMem(p_FmPcd->h_FmMuram, p_Manip->ipReassmParams.h_Ipv4ReassParamsTblPtr);
         if(p_Manip->ipReassmParams.h_Ipv6ReassParamsTblPtr)
@@ -1144,12 +1180,10 @@ static void ReleaseManipHandler(t_FmPcdManip *p_Manip, t_FmPcd *p_FmPcd)
             FM_MURAM_FreeMem(p_FmPcd->h_FmMuram, p_Manip->ipReassmParams.h_ReassmFrmDescrIndxPoolTbl);
         if(p_Manip->ipReassmParams.h_ReassmFrmDescrPoolTbl)
             XX_Free(p_Manip->ipReassmParams.h_ReassmFrmDescrPoolTbl);
-
-        if (p_Manip->ipReassmParams.h_Ipv4Scheme)
-            FM_PCD_KgDeleteScheme(p_FmPcd, p_Manip->ipReassmParams.h_Ipv4Scheme);
-
-        if (p_Manip->ipReassmParams.h_Ipv6Scheme)
-            FM_PCD_KgDeleteScheme(p_FmPcd, p_Manip->ipReassmParams.h_Ipv4Scheme);
+        if(p_Manip->ipReassmParams.internalBufferPoolManagementIndexAddr)
+            FM_MURAM_FreeMem(p_FmPcd->h_FmMuram, UINT_TO_PTR(p_Manip->ipReassmParams.internalBufferPoolManagementIndexAddr));
+        if(p_Manip->ipReassmParams.internalBufferPoolAddr)
+            FM_MURAM_FreeMem(p_FmPcd->h_FmMuram, UINT_TO_PTR(p_Manip->ipReassmParams.internalBufferPoolAddr));
     }
 #endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
     if(p_Manip->p_StatsTbl)
@@ -1898,16 +1932,14 @@ static t_Error FillReassmManipParams(t_FmPcdManip *p_Manip, t_Handle h_Ad, bool 
 
     /* Sets the second Ad register (matchTblPtr) - Buffer pool ID (BPID) and Scatter/Gather table offset*/
     /* mark the Scatter/Gather table offset to be set later on when the port will be known */
-    p_Manip->updateParams = OFFSET_OF_DATA;
+    p_Manip->updateParams = (OFFSET_OF_DATA | NUM_OF_TASKS | NUM_OF_EXTRA_TASKS);
 
-    tmpReg32 = (uint32_t)(p_Manip->ipReassmParams.bpid << 8);
+    tmpReg32 = (uint32_t)(p_Manip->ipReassmParams.sgBpid << 8);
     WRITE_UINT32(p_Ad->matchTblPtr, tmpReg32);
 
     /* Sets the third Ad register (pcAndOffsets)- liodn offset and IP Reassembly Operation Code*/
     tmpReg32 = 0;
     tmpReg32 |= (uint32_t)HMAN_OC_IP_REASSEMBLY;
-    tmpReg32 |= (uint32_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_LIODN_MASK) << ((uint32_t)FM_PCD_MANIP_IP_REASM_LIODN_SHIFT-32);
-    tmpReg32 |= (uint32_t)(p_Manip->ipReassmParams.liodnOffset & FM_PCD_MANIP_IP_REASM_ELIODN_MASK) << ((uint32_t)FM_PCD_MANIP_IP_REASM_ELIODN_SHIFT-32);
     WRITE_UINT32(p_Ad->pcAndOffsets, tmpReg32);
 
     p_Manip->reassm = TRUE;
@@ -2017,11 +2049,11 @@ static t_Error IpReassembly(t_FmPcdManipFragOrReasmParams *p_ManipParams,t_FmPcd
     p_Manip->ipReassmParams.fqidForTimeOutFrames = reassmManipParams.fqidForTimeOutFrames;
     p_Manip->ipReassmParams.numOfFramesPerHashEntry = reassmManipParams.numOfFramesPerHashEntry;
     p_Manip->ipReassmParams.timeoutThresholdForReassmProcess = reassmManipParams.timeoutThresholdForReassmProcess;
-    p_Manip->ipReassmParams.liodnOffset = reassmManipParams.liodnOffset;
     p_Manip->ipReassmParams.minFragSize[0] = reassmManipParams.minFragSize[0];
     p_Manip->ipReassmParams.minFragSize[1] = reassmManipParams.minFragSize[1];
     p_Manip->ipReassmParams.dataMemId = reassmManipParams.dataMemId;
-    p_Manip->ipReassmParams.bpid = p_ManipParams->extBufPoolIndx;
+    p_Manip->ipReassmParams.dataLiodnOffset = reassmManipParams.dataLiodnOffset;
+    p_Manip->ipReassmParams.sgBpid = reassmManipParams.sgBpid;
 
     /* Creates and initializes the IP Reassembly common parameter table */
     CreateIpReassCommonParamTable(p_Manip, p_FmPcd, p_IpReasmCommonPramTbl);
@@ -2709,7 +2741,7 @@ void setReassmSchemeParams(t_FmPcd* p_FmPcd, t_FmPcdKgSchemeParams *p_Scheme, t_
 t_Error FmPcdManipBuildIpReassmScheme(t_FmPcd *p_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsParam, t_Handle h_CcTree, t_Handle h_Manip, bool isIpv4, uint32_t groupId)
 {
     t_FmPcdManip            *p_Manip = (t_FmPcdManip *)h_Manip;
-    t_FmPcdKgSchemeParams   *p_scheme;
+    t_FmPcdKgSchemeParams   *p_scheme = NULL;
 
     ASSERT_COND(p_FmPcd);
     ASSERT_COND(p_PcdGroupsParam);
@@ -2737,6 +2769,22 @@ t_Error FmPcdManipBuildIpReassmScheme(t_FmPcd *p_FmPcd, t_FmPcdCcTreeParams *p_P
         p_Manip->ipReassmParams.h_Ipv6Scheme = FM_PCD_KgSetScheme(p_FmPcd, p_scheme);
 
     XX_Free(p_scheme);
+
+    return E_OK;
+}
+
+t_Error FmPcdManipDeleteIpReassmSchemes(t_FmPcd *p_FmPcd, t_Handle h_Manip)
+{
+    t_FmPcdManip            *p_Manip = (t_FmPcdManip *)h_Manip;
+
+    ASSERT_COND(p_FmPcd);
+    ASSERT_COND(p_Manip);
+
+    if (p_Manip->ipReassmParams.h_Ipv4Scheme)
+        FM_PCD_KgDeleteScheme(p_FmPcd, p_Manip->ipReassmParams.h_Ipv4Scheme);
+
+    if (p_Manip->ipReassmParams.h_Ipv6Scheme)
+        FM_PCD_KgDeleteScheme(p_FmPcd, p_Manip->ipReassmParams.h_Ipv6Scheme);
 
     return E_OK;
 }

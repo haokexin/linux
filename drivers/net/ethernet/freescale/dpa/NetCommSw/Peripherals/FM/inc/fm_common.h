@@ -178,7 +178,7 @@ typedef struct {
 
     uint8_t     poolIdForManip;
     uint8_t     numOfTasks;
-
+    uint8_t     numOfExtraTasks;
     uint8_t     hardwarePortId;
 
 } t_GetCcParams;
@@ -231,6 +231,7 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define NUM_OF_TASKS                            0x10000000
 #define OFFSET_OF_DATA                          0x08000000
 #define HW_PORT_ID                              0x04000000
+#define NUM_OF_EXTRA_TASKS                      0x02000000
 
 
 #define UPDATE_NIA_PNEN                         0x80000000
@@ -238,7 +239,6 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define UPDATE_NIA_PNDN                         0x20000000
 #define UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY      0x10000000
 #ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-#define UPDATE_IPR_EN                           0x08000000
 #define UPDATE_NIA_RFENE                        0x04000000
 #endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 /* @} */

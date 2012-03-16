@@ -550,6 +550,7 @@ t_Error FmPcdRegisterReassmPort(t_Handle h_FmPcd, t_Handle h_IpReasmCommonPramTb
 
     bitFor1Micro = FmGetTimeStampScale(p_FmPcd->h_Fm);
     tsbs = 31 - bitFor1Micro + 1;
+    tsbs = 17;//(for TimeOut check will be triggered every 1/8ms)
 
     ccIpReassmTimeoutParams.iprcpt      = (XX_VirtToPhys(h_IpReasmCommonPramTbl) - p_FmPcd->physicalMuramBase);
     ccIpReassmTimeoutParams.tsbs        = tsbs;

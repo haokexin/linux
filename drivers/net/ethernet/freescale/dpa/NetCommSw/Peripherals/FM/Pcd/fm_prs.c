@@ -226,8 +226,11 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
     {
         uint32_t            i, j;
         t_FmRevisionInfo    revInfo;
-        uint32_t            *p_SwPrsCode = (uint32_t *)PTR_MOVE(p_FmPcd->p_FmPcdPrs->p_SwPrsCode, FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE);
+        uint32_t            *p_SwPrsCode;
         uint8_t             swPrsPatch[] = SW_PRS_IP_FRAG_PATCH;
+
+        /* To keep the compiler happy, we're initializing this here rather than at declaration! */
+        p_SwPrsCode = (uint32_t *)PTR_MOVE(p_FmPcd->p_FmPcdPrs->p_SwPrsCode, FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE);
 
         ASSERT_COND(sizeof(swPrsPatch)<= (FM_PCD_PRS_SW_PATCHES_SIZE-FM_PCD_PRS_SW_TAIL_SIZE));
         /* load sw parser Ip-Frag patch */
@@ -406,8 +409,6 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
     }
     if(p_SwPrs->size > FM_PCD_SW_PRS_SIZE - FM_PCD_PRS_SW_TAIL_SIZE - p_SwPrs->base*2)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("p_SwPrs->size may not be larger than MAX_SW_PRS_CODE_SIZE"));
-    if(p_SwPrs->size % 4)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("p_SwPrs->size must be divisible by 4"));
 
     /* save sw parser labels */
     if(p_SwPrs->override)

@@ -182,8 +182,6 @@ static t_Error FmPcdCcSetRequiredAction(t_Handle h_FmPcd, uint32_t requiredActio
         else
             h_AdTmp = PTR_MOVE(h_AdTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
-        if(p_CcNextEngineParamsTmp[i].shadowAction & requiredAction)
-            continue;
         switch(p_CcNextEngineParamsTmp[i].nextEngineParams.nextEngine)
         {
             case(e_FM_PCD_CC):
@@ -1948,15 +1946,12 @@ static t_Error ModifyKeyCommonPart1(t_Handle h_FmPcdCcNodeOrTree,  uint16_t keyI
     t_FmPcdCcNode                               *p_FmPcdCcNode = NULL;
     t_FmPcdCcTree                               *p_FmPcdCcTree;
     uint16_t                                    numOfKeys;
-    t_FmPcdCcNextEngineAndRequiredActionParams  *p_nextEngineAndRequiredAction = NULL;
+    t_FmPcdCcNextEngineAndRequiredActionParams  *p_NextEngineAndRequiredAction;
 
     SANITY_CHECK_RETURN_ERROR(h_FmPcdCcNodeOrTree,E_INVALID_HANDLE);
 
-    p_nextEngineAndRequiredAction = XX_Malloc(FM_PCD_MAX_NUM_OF_KEYS * sizeof(*p_nextEngineAndRequiredAction));
-    if(!p_nextEngineAndRequiredAction)
-        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("failed to allocate memory for p_nextEngineAndRequiredAction"));
-
-    memset(p_nextEngineAndRequiredAction, 0, FM_PCD_MAX_NUM_OF_KEYS * sizeof(*p_nextEngineAndRequiredAction));
+    p_NextEngineAndRequiredAction = (t_FmPcdCcNextEngineAndRequiredActionParams  *)XX_Malloc(sizeof(t_FmPcdCcNextEngineAndRequiredActionParams)*256);
+    memset(p_NextEngineAndRequiredAction, 0, sizeof(t_FmPcdCcNextEngineAndRequiredActionParams) * 256);
 
     if(!tree)
     {
@@ -1967,20 +1962,18 @@ static t_Error ModifyKeyCommonPart1(t_Handle h_FmPcdCcNodeOrTree,  uint16_t keyI
         if (!LIST_NumOfObjs(&p_FmPcdCcNode->ccPrevNodesLst) &&
             !LIST_NumOfObjs(&p_FmPcdCcNode->ccTreeIdLst))
         {
-            XX_Free(p_nextEngineAndRequiredAction);
+            XX_Free(p_NextEngineAndRequiredAction);
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("node has to be pointed by node or tree"));
         }
-
         if(!LIST_NumOfObjs(&p_FmPcdCcNode->ccTreesLst) ||
             (LIST_NumOfObjs(&p_FmPcdCcNode->ccTreesLst) != 1))
         {
-            XX_Free(p_nextEngineAndRequiredAction);
+            XX_Free(p_NextEngineAndRequiredAction);
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("node has to be belonging to some tree and only to one tree"));
         }
-
-        memcpy(p_nextEngineAndRequiredAction,
+        memcpy(p_NextEngineAndRequiredAction,
                p_FmPcdCcNode->nextEngineAndRequiredAction,
-               FM_PCD_MAX_NUM_OF_KEYS * sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
+               256 * sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
 
         if(check)
         {
@@ -1988,7 +1981,7 @@ static t_Error ModifyKeyCommonPart1(t_Handle h_FmPcdCcNodeOrTree,  uint16_t keyI
                (p_FmPcdCcNode->parseCode == CC_PC_FF_IPV6HOP_LIMIT) ||
                (p_FmPcdCcNode->parseCode == CC_PC_GENERIC_IC_HASH_INDEXED))
             {
-                XX_Free(p_nextEngineAndRequiredAction);
+                XX_Free(p_NextEngineAndRequiredAction);
                 RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("nodeId of CC_PC_FF_IPV4TTL or CC_PC_FF_IPV6HOP_LIMIT can not be used for addKey, removeKey, modifyKey"));
             }
         }
@@ -1997,16 +1990,16 @@ static t_Error ModifyKeyCommonPart1(t_Handle h_FmPcdCcNodeOrTree,  uint16_t keyI
     {
         p_FmPcdCcTree = (t_FmPcdCcTree *)h_FmPcdCcNodeOrTree;
         numOfKeys = p_FmPcdCcTree->numOfEntries;
-        memcpy(p_nextEngineAndRequiredAction,
+        memcpy(p_NextEngineAndRequiredAction,
                p_FmPcdCcTree->nextEngineAndRequiredAction,
-               FM_PCD_MAX_NUM_OF_KEYS * sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
+               256 * sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
     }
 
     p_FmPcdModifyCcKeyAdditionalParams =
         (t_FmPcdModifyCcKeyAdditionalParams *)XX_Malloc(sizeof(t_FmPcdModifyCcKeyAdditionalParams));
     if(!p_FmPcdModifyCcKeyAdditionalParams)
     {
-        XX_Free(p_nextEngineAndRequiredAction);
+        XX_Free(p_NextEngineAndRequiredAction);
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Allocation of internal data structure FAILED"));
     }
     memset(p_FmPcdModifyCcKeyAdditionalParams, 0, sizeof(t_FmPcdModifyCcKeyAdditionalParams));
@@ -2026,7 +2019,7 @@ static t_Error ModifyKeyCommonPart1(t_Handle h_FmPcdCcNodeOrTree,  uint16_t keyI
         }
         else
         {
-            memcpy(&p_FmPcdModifyCcKeyAdditionalParams->nextEngineAndRequiredAction[j], &p_nextEngineAndRequiredAction[i], sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
+            memcpy(&p_FmPcdModifyCcKeyAdditionalParams->nextEngineAndRequiredAction[j],p_NextEngineAndRequiredAction+i, sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
             i++;
             j++;
         }
@@ -2040,11 +2033,11 @@ static t_Error ModifyKeyCommonPart1(t_Handle h_FmPcdCcNodeOrTree,  uint16_t keyI
             i++;
     }
 
-    memcpy(&p_FmPcdModifyCcKeyAdditionalParams->nextEngineAndRequiredAction[j], &p_nextEngineAndRequiredAction[numOfKeys], sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
+    memcpy(&p_FmPcdModifyCcKeyAdditionalParams->nextEngineAndRequiredAction[j],p_NextEngineAndRequiredAction+numOfKeys, sizeof(t_FmPcdCcNextEngineAndRequiredActionParams));
 
-    XX_Free(p_nextEngineAndRequiredAction);
     *h_Params = p_FmPcdModifyCcKeyAdditionalParams;
 
+    XX_Free(p_NextEngineAndRequiredAction);
     return E_OK;
 }
 
@@ -2673,7 +2666,7 @@ t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle h_FmPcd, t_List *h_FmPcdOld
             ((t_FmPcdCcNode *)(p_CcNewModifyAdditionalParams->h_CurrentNode))->numOfKeys    = p_CcNewModifyAdditionalParams->numOfKeys;
         if(p_CcNewModifyAdditionalParams->p_KeysMatchTableNew)
             ((t_FmPcdCcNode *)(p_CcNewModifyAdditionalParams->h_CurrentNode))->h_KeysMatchTable    = p_CcNewModifyAdditionalParams->p_KeysMatchTableNew;
-        memcpy(((t_FmPcdCcNode *)(p_CcNewModifyAdditionalParams->h_CurrentNode))->nextEngineAndRequiredAction, &p_CcNewModifyAdditionalParams->nextEngineAndRequiredAction, sizeof(t_FmPcdCcNextEngineAndRequiredActionParams) * (FM_PCD_MAX_NUM_OF_KEYS));
+        memcpy(((t_FmPcdCcNode *)(p_CcNewModifyAdditionalParams->h_CurrentNode))->nextEngineAndRequiredAction, &p_CcNewModifyAdditionalParams->nextEngineAndRequiredAction, sizeof(t_FmPcdCcNextEngineAndRequiredActionParams) * (256));
     }
     else
         memcpy(&((t_FmPcdCcTree *)(p_CcNewModifyAdditionalParams->h_CurrentNode))->nextEngineAndRequiredAction, &p_CcNewModifyAdditionalParams->nextEngineAndRequiredAction, sizeof(t_FmPcdCcNextEngineAndRequiredActionParams) * (((t_FmPcdCcTree *)(p_CcNewModifyAdditionalParams->h_CurrentNode))->numOfEntries));
@@ -2951,7 +2944,7 @@ t_Handle FM_PCD_CcBuildTree(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
     p_FmPcdCcTree->ccTreeBaseAddr =
         PTR_TO_UINT(FM_MURAM_AllocMem(FmPcdGetMuramHandle(h_FmPcd),
                                       (uint32_t)( k * FM_PCD_CC_AD_ENTRY_SIZE),
-                                      FM_PCD_CC_AD_TABLE_ALIGN));
+                                      FM_PCD_CC_TREE_ADDR_ALIGN));
 
     if(!p_FmPcdCcTree->ccTreeBaseAddr)
     {
@@ -3046,6 +3039,12 @@ t_Error FM_PCD_CcDeleteTree(t_Handle h_FmPcd, t_Handle h_CcTree)
 
     if(p_CcTree->owners)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("the tree with this ID can not be removed because this tree is occupied, first - unbind this tree"));
+
+#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    /* Delete reassembly schemes if exist */
+    if (p_CcTree->h_IpReassemblyManip)
+        FmPcdManipDeleteIpReassmSchemes(p_FmPcd, p_CcTree->h_IpReassemblyManip);
+#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
     for(i = 0; i <p_CcTree->numOfEntries; i++)
     {
@@ -3216,9 +3215,9 @@ t_Handle FM_PCD_CcSetNode(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodeParam)
             p_FmPcdCcNode->userOffset = p_CcNodeParam->extractCcParams.extractNonHdr.offset;
             p_FmPcdCcNode->parseCode = GetGenParseCode(h_FmPcd, p_CcNodeParam->extractCcParams.extractNonHdr.src, p_FmPcdCcNode->offset, glblMask, &p_FmPcdCcNode->prsArrayOffset, fromIc,icCode);
 
-            if (p_FmPcdCcNode->parseCode == CC_PC_GENERIC_IC_HASH_INDEXED)
+            if(p_FmPcdCcNode->parseCode == CC_PC_GENERIC_IC_HASH_INDEXED)
             {
-                if ((p_FmPcdCcNode->offset + p_FmPcdCcNode->sizeOfExtraction) > 8)
+                if((p_FmPcdCcNode->offset + p_FmPcdCcNode->sizeOfExtraction) > 8)
                 {
                      DeleteNode(p_FmPcdCcNode);
                      REPORT_ERROR(MAJOR, E_INVALID_SELECTION,("when node of the type CC_PC_GENERIC_IC_HASH_INDEXED offset + size can not be bigger then size of HASH 64 bits (8 bytes)"));
@@ -3553,7 +3552,7 @@ t_Error FM_PCD_CcNodeGetNextEngine(t_Handle                     h_FmPcd,
     return E_OK;
 }
 
-uint32_t FM_PCD_CcNodeGetKeyCounter(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex)
+uint32_t FM_PCD_CcNodeGetKeyCounter(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex)
 {
     t_FmPcdCcNode       *p_FmPcdCcNode = (t_FmPcdCcNode *)h_CcNode;
     t_AdOfTypeResult    *p_AdResult = NULL;

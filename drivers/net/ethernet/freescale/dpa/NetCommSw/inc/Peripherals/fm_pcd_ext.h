@@ -1457,7 +1457,7 @@ typedef struct t_FmPcdCcKeyParams {
  @Description   A structure for defining CC Keys parameters
 *//***************************************************************************/
 typedef struct t_KeysParams {
-    uint8_t                     numOfKeys;      /**< Number Of relevant Keys;
+    uint16_t                    numOfKeys;      /**< Number Of relevant Keys;
                                                      Note that in case of action = e_FM_PCD_ACTION_INDEXED_LOOKUP,
                                                      this field should be power-of-2 of the number of bits that are
                                                      set in 'icIndxMask'. */
@@ -1660,7 +1660,7 @@ typedef struct t_CapwapFragmentationParams {
  @Description   structure for defining CAPWAP Re-assembly
 *//***************************************************************************/
 typedef struct t_CapwapReassemblyParams {
-    uint16_t                        maxNumFramesInProcess;  /**< Number of frames which can be processed by Reassembly in the same time.
+    uint16_t                         maxNumFramesInProcess; /**< Number of frames which can be processed by Reassembly in the same time.
                                                                  It has to be power of 2.
                                                                  In the case numOfFramesPerHashEntry == e_FM_PCD_MANIP_FOUR_WAYS_HASH,
                                                                  maxNumFramesInProcess has to be in the range of 4 - 512,
@@ -1710,8 +1710,9 @@ typedef struct t_IpReassemblyParams {
                                                                  Relative scheme ID for IPv4/IPv6 Reassembly manipulation must be smaller than
                                                                  the user schemes id to ensure that the reassembly's schemes will be first match.
                                                                  Rest schemes, if defined, should have higher relative scheme ID */
-    uint16_t                        liodnOffset;            /**< LIODN offset. */
+    uint8_t                         sgBpid;                 /**< Buffer pool id for the S/G frame created by the reassembly process */
     uint8_t                         dataMemId;              /**< Memory partition ID for data buffers */
+    uint16_t                        dataLiodnOffset;        /**< LIODN offset for access the IPR's external tables structure. */
     uint16_t                        minFragSize[2];         /**< Minimum frag size.
                                                                  minFragSize[0] - for ipv4
                                                                  minFragSize[1] - for ipv6 */
@@ -2026,7 +2027,7 @@ t_Error FM_PCD_CcTreeModifyNextEngine(t_Handle                  h_FmPcd,
 *//***************************************************************************/
 t_Error FM_PCD_CcNodeModifyNextEngine(t_Handle                  h_FmPcd,
                                       t_Handle                  h_CcNode,
-                                      uint16_t                   keyIndex,
+                                      uint16_t                  keyIndex,
                                       t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
 
 /**************************************************************************//**
@@ -2082,7 +2083,7 @@ t_Error FM_PCD_CcNodeRemoveKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t key
 *//***************************************************************************/
 t_Error FM_PCD_CcNodeAddKey(t_Handle            h_FmPcd,
                             t_Handle            h_CcNode,
-                            uint16_t             keyIndex,
+                            uint16_t            keyIndex,
                             uint8_t             keySize,
                             t_FmPcdCcKeyParams  *p_KeyParams);
 
@@ -2106,7 +2107,7 @@ t_Error FM_PCD_CcNodeAddKey(t_Handle            h_FmPcd,
 *//***************************************************************************/
 t_Error FM_PCD_CcNodeModifyKeyAndNextEngine(t_Handle            h_FmPcd,
                                             t_Handle            h_CcNode,
-                                            uint16_t             keyIndex,
+                                            uint16_t            keyIndex,
                                             uint8_t             keySize,
                                             t_FmPcdCcKeyParams  *p_KeyParams);
 
@@ -2130,7 +2131,7 @@ t_Error FM_PCD_CcNodeModifyKeyAndNextEngine(t_Handle            h_FmPcd,
 *//***************************************************************************/
 t_Error FM_PCD_CcNodeModifyKey(t_Handle h_FmPcd,
                                t_Handle h_CcNode,
-                               uint16_t  keyIndex,
+                               uint16_t keyIndex,
                                uint8_t  keySize,
                                uint8_t  *p_Key,
                                uint8_t  *p_Mask);
@@ -2185,7 +2186,7 @@ t_Error FM_PCD_CcIndexedHashNodeGetBucket(t_Handle    h_FmPcd,
 *//***************************************************************************/
 t_Error FM_PCD_CcNodeGetNextEngine(t_Handle                     h_FmPcd,
                                    t_Handle                     h_CcNode,
-                                   uint16_t                      keyIndex,
+                                   uint16_t                     keyIndex,
                                    t_FmPcdCcNextEngineParams    *p_FmPcdCcNextEngineParams);
 
 /**************************************************************************//**
@@ -2204,7 +2205,7 @@ t_Error FM_PCD_CcNodeGetNextEngine(t_Handle                     h_FmPcd,
  @Cautions      Allowed only following FM_PCD_CcSetNode() not only of the
                 relevant node but also the node that points to this node
 *//***************************************************************************/
-uint32_t FM_PCD_CcNodeGetKeyCounter(t_Handle h_FmPcd, t_Handle h_CcNode, uint8_t keyIndex);
+uint32_t FM_PCD_CcNodeGetKeyCounter(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex);
 
 /**************************************************************************//**
  @Function      FM_PCD_PlcrSetProfile
@@ -2329,5 +2330,7 @@ t_Handle FM_PCD_StatisticsSetNode(t_Handle h_FmPcd, t_FmPcdStatsParams *p_FmPcds
 /** @} */ /* end of FM_PCD_Runtime_grp group */
 /** @} */ /* end of FM_PCD_grp group */
 /** @} */ /* end of FM_grp group */
+
+
 
 #endif /* __FM_PCD_EXT */
