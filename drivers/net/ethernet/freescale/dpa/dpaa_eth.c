@@ -2950,6 +2950,22 @@ static ssize_t dpaa_eth_show_fqids(struct device *dev,
 
 static DEVICE_ATTR(fqids, S_IRUGO, dpaa_eth_show_fqids, NULL);
 
+static ssize_t dpaa_eth_show_dflt_bpid(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	ssize_t bytes = 0;
+	struct dpa_priv_s *priv = netdev_priv(to_net_dev(dev));
+	struct dpa_bp *dpa_bp = priv->dpa_bp;
+
+	if (priv->bp_count != 1)
+		bytes += snprintf(buf, PAGE_SIZE, "-1\n");
+	else
+		bytes += snprintf(buf, PAGE_SIZE, "%u\n", dpa_bp->bpid);
+
+	return bytes;
+}
+
+static DEVICE_ATTR(dflt_bpid, S_IRUGO, dpaa_eth_show_dflt_bpid, NULL);
 
 static void __devinit dpaa_eth_sysfs_init(struct device *dev)
 {
@@ -2957,7 +2973,10 @@ static void __devinit dpaa_eth_sysfs_init(struct device *dev)
 		dev_err(dev, "Error creating dpaa_eth addr file\n");
 	if (device_create_file(dev, &dev_attr_fqids))
 		dev_err(dev, "Error creating dpaa_eth fqids file\n");
+	if (device_create_file(dev, &dev_attr_dflt_bpid))
+		dev_err(dev, "Error creating dpaa_eth dflt_bpid file\n");
 }
+
 static int dpaa_eth_add_channel(void *__arg)
 {
 	const cpumask_t *cpus = qman_affine_cpus();
