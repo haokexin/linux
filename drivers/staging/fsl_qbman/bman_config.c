@@ -33,6 +33,7 @@
 #include <linux/smp.h>	/* get_hard_smp_processor_id() */
 #endif
 
+#include <asm/cacheflush.h>
 #include "bman_private.h"
 
 /* Last updated for v00.79 of the BG */
@@ -259,20 +260,26 @@ static struct device_node *bm_node;
 #define DEFAULT_FBPR_SZ	(PAGE_SIZE << 12)
 
 /* Parse the <name> property to extract the memory location and size and
- * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default size. */
+ * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
+ * size. Also flush this memory range from data cache so that BMAN originated
+ * transactions for this memory region could be marked non-coherent.
+ */
 static __init int parse_mem_property(struct device_node *node, const char *name,
 				dma_addr_t *addr, size_t *sz, int zero)
 {
 	const u32 *pint;
 	int ret;
+	unsigned long vaddr;
 
 	pint = of_get_property(node, name, &ret);
 	if (!pint || (ret != 16)) {
 		pr_info("No %s property '%s', using memblock_alloc(%016zx)\n",
 				node->full_name, name, *sz);
 		*addr = memblock_alloc(*sz, *sz);
+		vaddr = (unsigned long)phys_to_virt(*addr);
 		if (zero)
-			memset(phys_to_virt(*addr), 0, *sz);
+			memset((void *)vaddr, 0, *sz);
+		flush_dcache_range(vaddr, vaddr + *sz);
 		return 0;
 	}
 	pr_info("Using %s property '%s'\n", node->full_name, name);
@@ -291,12 +298,16 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 			pr_err("Failed to reserve %s\n", name);
 			return -ENOMEM;
 		}
+		vaddr = (unsigned long)phys_to_virt(*addr);
 		if (zero)
-			memset(phys_to_virt(*addr), 0, *sz);
+			memset((void *)vaddr, 0, *sz);
+		flush_dcache_range(vaddr, vaddr + *sz);
 	} else if (zero) {
 		/* map as cacheable, non-guarded */
 		void *tmpp = ioremap_prot(*addr, *sz, 0);
 		memset(tmpp, 0, *sz);
+		vaddr = (unsigned long)tmpp;
+		flush_dcache_range(vaddr, vaddr + *sz);
 		iounmap(tmpp);
 	}
 	return 0;
