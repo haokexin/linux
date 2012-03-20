@@ -1,4 +1,4 @@
-/* Copyright (C) 2005-2010 Freescale Semiconductor, Inc.
+/* Copyright (C) 2005-2010,2012 Freescale Semiconductor, Inc.
  * Copyright (c) 2005 MontaVista Software
  *
  * This program is free software; you can redistribute  it and/or modify it
@@ -60,4 +60,5 @@
 #define OTG_PORT		(1<<5)
 #define PLL_RESET		(1<<8)
 #define UTMI_PHY_EN		(1<<9)
+#define ULPI_PHY_CLK_SEL        (1<<10)
 #endif				/* _EHCI_FSL_H */
