@@ -2119,11 +2119,6 @@ int dev_queue_xmit(struct sk_buff *skb)
 			goto out_kfree_skb;
 	}
 
-	if (dev->features & NETIF_F_HW_QDISC) {
-		txq = dev_pick_tx(dev, skb);
-		return dev_hard_start_xmit(skb, dev, txq);
-	}
-
 gso:
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.

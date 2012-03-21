@@ -67,7 +67,6 @@
 
 #define ARRAY2_SIZE(arr)	(ARRAY_SIZE(arr) * ARRAY_SIZE((arr)[0]))
 
-#define DPA_NETIF_FEATURES	(NETIF_F_HW_QDISC)
 #define DEFAULT_COUNT		64
 #define DEFAULT_BUF_SIZE DPA_BP_SIZE(FSL_FMAN_PHY_MAXFRM);
 #define DPA_MAX_TX_BACKLOG	512
@@ -2316,9 +2315,6 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 	const uint8_t *mac_addr;
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
 	struct device *dev = net_dev->dev.parent;
-
-	net_dev->features |= DPA_NETIF_FEATURES;
-	net_dev->vlan_features |= DPA_NETIF_FEATURES;
 
 	if (!priv->mac_dev) {
 		/* Get the MAC address */
