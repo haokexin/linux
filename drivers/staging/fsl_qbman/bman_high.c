@@ -131,6 +131,7 @@ static struct bman_portal *set_affine_slave(struct bman_portal *redirect,
  * more than one such object per Bman buffer pool, eg. if different users of the
  * pool are operating via different portals. */
 struct bman_pool {
+	spinlock_t lock;
 	struct bman_pool_params params;
 	/* Used for hash-table admin when using depletion notifications. */
 	struct bman_portal *portal;
@@ -138,9 +139,6 @@ struct bman_pool {
 	/* stockpile state - NULL unless BMAN_POOL_FLAG_STOCKPILE is set */
 	struct bm_buffer *sp;
 	unsigned int sp_fill;
-#ifdef CONFIG_FSL_DPA_CHECKING
-	atomic_t in_use;
-#endif
 };
 
 /* (De)Registration of depletion notification callbacks */
@@ -670,9 +668,9 @@ struct bman_pool *bman_new_pool(const struct bman_pool_params *params)
 	pool->sp = NULL;
 	pool->sp_fill = 0;
 	pool->params = *params;
-#ifdef CONFIG_FSL_DPA_CHECKING
-	atomic_set(&pool->in_use, 1);
-#endif
+
+	spin_lock_init(&pool->lock);
+
 	if (params->flags & BMAN_POOL_FLAG_DYNAMIC_BPID)
 		pool->params.bpid = bpid;
 	if (params->flags & BMAN_POOL_FLAG_STOCKPILE) {
@@ -911,15 +909,13 @@ int bman_release(struct bman_pool *pool, const struct bm_buffer *bufs, u8 num,
 			u32 flags)
 {
 	int ret = 0;
+	unsigned long iflags;
+
 #ifdef CONFIG_FSL_DPA_CHECKING
 	if (!num || (num > 8))
 		return -EINVAL;
 	if (pool->params.flags & BMAN_POOL_FLAG_NO_RELEASE)
 		return -EINVAL;
-	if (!atomic_dec_and_test(&pool->in_use)) {
-		pr_crit("Parallel attempts to enter bman_released() detected.");
-		panic("only one instance of bman_released/acquired allowed");
-	}
 #endif
 	/* Without stockpile, this API is a pass-through to the h/w operation */
 	if (!(pool->params.flags & BMAN_POOL_FLAG_STOCKPILE)) {
@@ -939,6 +935,7 @@ int bman_release(struct bman_pool *pool, const struct bm_buffer *bufs, u8 num,
 	 * are for 8 bufs. Despite all this, the API must indicate whether the
 	 * given buffers were taken off the caller's hands, irrespective of
 	 * whether a release-to-hw was attempted. */
+	spin_lock_irqsave(&pool->lock, iflags);
 	while (num) {
 		/* Add buffers to stockpile if they fit */
 		if ((pool->sp_fill + num) < BMAN_STOCKPILE_SZ) {
@@ -958,10 +955,9 @@ int bman_release(struct bman_pool *pool, const struct bm_buffer *bufs, u8 num,
 			pool->sp_fill -= 8;
 		}
 	}
+	spin_unlock_irqrestore(&pool->lock, iflags);
+
 release_done:
-#ifdef CONFIG_FSL_DPA_CHECKING
-	atomic_inc(&pool->in_use);
-#endif
 	return ret;
 }
 EXPORT_SYMBOL(bman_release);
@@ -997,15 +993,13 @@ int bman_acquire(struct bman_pool *pool, struct bm_buffer *bufs, u8 num,
 			u32 flags)
 {
 	int ret = 0;
+	unsigned long iflags;
+
 #ifdef CONFIG_FSL_DPA_CHECKING
 	if (!num || (num > 8))
 		return -EINVAL;
 	if (pool->params.flags & BMAN_POOL_FLAG_ONLY_RELEASE)
 		return -EINVAL;
-	if (!atomic_dec_and_test(&pool->in_use)) {
-		pr_crit("Parallel attempts to enter bman_acquire() detected.");
-		panic("only one instance of bman_released/acquired allowed");
-	}
 #endif
 	/* Without stockpile, this API is a pass-through to the h/w operation */
 	if (!(pool->params.flags & BMAN_POOL_FLAG_STOCKPILE)) {
@@ -1013,6 +1007,7 @@ int bman_acquire(struct bman_pool *pool, struct bm_buffer *bufs, u8 num,
 		goto acquire_done;
 	}
 	/* Only need a h/w op if we'll hit the low-water thresh */
+	spin_lock_irqsave(&pool->lock, iflags);
 	if (!(flags & BMAN_ACQUIRE_FLAG_STOCKPILE) &&
 			(pool->sp_fill <= (BMAN_STOCKPILE_LOW + num))) {
 		/* refill stockpile with max amount, but if max amount
@@ -1040,10 +1035,9 @@ hw_starved:
 		sizeof(struct bm_buffer) * num);
 	pool->sp_fill -= num;
 	ret = num;
+	spin_unlock_irqrestore(&pool->lock, iflags);
+
 acquire_done:
-#ifdef CONFIG_FSL_DPA_CHECKING
-	atomic_inc(&pool->in_use);
-#endif
 	return ret;
 }
 EXPORT_SYMBOL(bman_acquire);
