@@ -77,6 +77,7 @@ static void sctp_packet_reset(struct sctp_packet *packet)
 	packet->has_sack = 0;
 	packet->has_data = 0;
 	packet->has_auth = 0;
+	packet->has_inv_strm_error = 0;
 	packet->ipfragok = 0;
 	packet->auth = NULL;
 }
@@ -266,6 +267,7 @@ sctp_xmit_t sctp_packet_append_chunk(struct sctp_packet *packet,
 				     struct sctp_chunk *chunk)
 {
 	sctp_xmit_t retval = SCTP_XMIT_OK;
+	struct sctp_chunk *lchunk;
 	__u16 chunk_len = WORD_ROUND(ntohs(chunk->chunk_hdr->length));
 
 	SCTP_DEBUG_PRINTK("%s: packet:%p chunk:%p\n", __func__, packet,
@@ -314,7 +316,31 @@ sctp_xmit_t sctp_packet_append_chunk(struct sctp_packet *packet,
 		packet->has_cookie_echo = 1;
 		break;
 
+	    case SCTP_CID_ERROR:
+		if (chunk->subh.err_hdr->cause & SCTP_ERROR_INV_STRM)
+			packet->has_inv_strm_error = 1;
+		break;
+
 	    case SCTP_CID_SACK:
+		/* RFC 4960
+		 * 6.5 Stream Identifier and Stream Sequence Number
+		 * The endpoint may bundle the ERROR chunk in the same
+		 * packet as the SACK as long as the ERROR follows the SACK.
+		 */
+		if (packet->has_inv_strm_error) {
+			if (list_is_singular(&packet->chunk_list))
+				list_add(&chunk->list, &packet->chunk_list);
+			else {
+				lchunk = list_first_entry(&packet->chunk_list,
+						struct sctp_chunk, list);
+				list_add(&chunk->list, &lchunk->list);
+			}
+			packet->size += chunk_len;
+			chunk->transport = packet->transport;
+			packet->has_sack = 1;
+			goto finish;
+		}
+
 		packet->has_sack = 1;
 		break;
 
