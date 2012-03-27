@@ -107,7 +107,7 @@
 /*Forced to introduce due to PRINT_FMT_PARAMS define*/
 uint32_t E500_GetId(void)
 {
-    return smp_processor_id();
+    return raw_smp_processor_id();
 }
 
 void * XX_GetMemPartitionBase(int memPartitionId)
