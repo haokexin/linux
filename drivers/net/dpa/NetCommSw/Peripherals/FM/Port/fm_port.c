@@ -4549,6 +4549,9 @@ t_Error FM_PORT_DeletePCD(t_Handle h_FmPort)
     if (p_FmPort->imEn)
         RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("available for non-independant mode ports only"));
 
+    if (!p_FmPort->pcdEngines)
+        RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("called for non PCD port"));
+
     if(p_FmPort->pcdEngines & FM_PCD_KG)
     {
         /* unbind all schemes */
