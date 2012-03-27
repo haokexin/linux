@@ -1449,11 +1449,8 @@
 		compatible = "fsl,p2041-dpaa", "fsl,dpaa";
 
 		ethernet@0 {
-			compatible = "fsl,p2041-dpa-ethernet-init", "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-channel = <&qpool4>;
-			fsl,qman-frame-queues-rx = <0x50 1 0x51 1>;
-			fsl,qman-frame-queues-tx = <0x70 1 0x71 1>;
+			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet0>;
 		};
 		ethernet@1 {
