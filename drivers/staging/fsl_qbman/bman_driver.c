@@ -342,6 +342,8 @@ static __init int bman_init(void)
 	}
 	/* Step 1. See comments at the beginning of the file. */
 	for_each_compatible_node(dn, NULL, "fsl,bman-portal") {
+		if (!of_device_is_available(dn))
+			continue;
 		pcfg = parse_pcfg(dn);
 		if (pcfg)
 			list_add_tail(&pcfg->list, &unused_pcfgs);
