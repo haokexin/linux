@@ -63,6 +63,10 @@
 
 #ifdef CONFIG_PPC85xx_VT_MODE
 #include <vbi/vbi.h>
+
+static inline int is_guest_os() { return 1;}
+#else
+static inline int is_guest_os() { return 0;}
 #endif
 
 #define ARRAY2_SIZE(arr)	(ARRAY_SIZE(arr) * ARRAY_SIZE((arr)[0]))
@@ -1747,7 +1751,7 @@ dpa_bp_probe(struct of_device *_of_dev, size_t *count)
 	phandle_prop = of_get_property(_of_dev->node,
 					"fsl,bman-buffer-pools", &lenp);
 
-	if (phandle_prop && !default_pool)
+	if (phandle_prop && (!default_pool || !is_guest_os()))
 		*count = lenp / sizeof(phandle);
 	else {
 		if (default_pool)
