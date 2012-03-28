@@ -69,12 +69,13 @@ static int __init fsl_bpool_init(struct device_node *node)
 		if (ret)
 			pr_err("No CCSR node for %s property '%s'\n",
 				node->full_name, "fsl,bpool-thresholds");
+		return ret;
 #else
 		pr_err("Ignoring %s property '%s', no CCSR support\n",
 			node->full_name, "fsl,bpool-thresholds");
 #endif
 	}
-	return ret;
+	return 0;
 }
 
 static int __init fsl_bpid_range_init(struct device_node *node)
