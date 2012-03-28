@@ -91,6 +91,7 @@ struct mac_device {
 	int (*fm_rtc_set_cnt)(struct net_device *net_dev, uint64_t ts);
 	int (*fm_rtc_get_drift)(struct net_device *net_dev, uint32_t *drift);
 	int (*fm_rtc_set_drift)(struct net_device *net_dev, uint32_t drift);
+	int (*adjust_link)(struct mac_device *mac_dev);
 };
 
 struct mac_address {

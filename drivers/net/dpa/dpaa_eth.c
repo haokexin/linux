@@ -2670,6 +2670,9 @@ dpaa_eth_probe(struct of_device *_of_dev, const struct of_device_id *match)
 		for_each_port_device(i, mac_dev->port_dev)
 			fm_port_enable(mac_dev->port_dev[i]);
 
+		if (mac_dev->adjust_link)
+			mac_dev->adjust_link(mac_dev);
+
 		return 0;
 	}
 
