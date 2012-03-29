@@ -36,4 +36,6 @@
 int pamu_set_stash_dest(struct device_node *node, unsigned int index,
 	unsigned int cpu, unsigned int cache_level);
 
+int pamu_get_liodn_count(struct device_node *node);
+
 #endif
