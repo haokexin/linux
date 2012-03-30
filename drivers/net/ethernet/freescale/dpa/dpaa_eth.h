@@ -59,6 +59,18 @@ struct pcd_range {
 	uint32_t			 count;
 };
 
+struct dpa_fq {
+	struct qman_fq		 fq_base;
+	struct list_head	 list;
+	struct net_device	*net_dev;
+	bool			 init;
+	uint32_t fqid;
+	uint32_t flags;
+	uint16_t channel;
+	uint8_t wq;
+	enum dpa_fq_type fq_type;
+};
+
 struct dpa_bp {
 	struct bman_pool		*pool;
 	uint8_t				bpid;
@@ -131,5 +143,57 @@ static inline int dpaa_eth_napi_schedule(struct dpa_percpu_priv_s *percpu_priv)
 	}
 	return 0;
 }
+
+#if defined CONFIG_DPA_ETH_WQ_LEGACY
+#define DPA_NUM_WQS 8
+/*
+ * Older WQ assignment: statically-defined FQIDs (such as PCDs) are assigned
+ * round-robin to all WQs available. Dynamically-allocated FQIDs go to WQ7.
+ *
+ * Not necessarily the best scheme, but worked fine so far, so we might want
+ * to keep it around for a while.
+ */
+static inline void _dpa_assign_wq(struct dpa_fq *fq)
+{
+	fq->wq = fq->fqid ? fq->fqid % DPA_NUM_WQS : DPA_NUM_WQS - 1;
+}
+#elif defined CONFIG_DPA_ETH_WQ_MULTI
+/*
+ * Use multiple WQs for FQ assignment:
+ *	- Tx Confirmation queues go to WQ1.
+ *	- Rx Default, Tx and PCD queues go to WQ3 (no differentiation between
+ *	  Rx and Tx traffic, or between Rx Default and Rx PCD frames).
+ *	- Rx Error and Tx Error queues go to WQ2 (giving them a better chance
+ *	  to be scheduled, in case there are many more FQs in WQ3).
+ * This ensures that Tx-confirmed buffers are timely released. In particular,
+ * it avoids congestion on the Tx Confirm FQs, which can pile up PFDRs if they
+ * are greatly outnumbered by other FQs in the system (usually PCDs), while
+ * dequeue scheduling is round-robin.
+ */
+static inline void _dpa_assign_wq(struct dpa_fq *fq)
+{
+	switch (fq->fq_type) {
+	case FQ_TYPE_TX_CONFIRM:
+		fq->wq = 1;
+		break;
+	case FQ_TYPE_RX_DEFAULT:
+	case FQ_TYPE_TX:
+	case FQ_TYPE_RX_PCD:
+		fq->wq = 3;
+		break;
+	case FQ_TYPE_RX_ERROR:
+	case FQ_TYPE_TX_ERROR:
+		fq->wq = 2;
+		break;
+	default:
+		WARN(1, "Invalid FQ type %d for FQID %d!\n",
+		       fq->fq_type, fq->fqid);
+	}
+}
+#else
+/* This shouldn't happen, since we've made a "default" choice in the Kconfig. */
+#error "No WQ assignment scheme chosen; Kconfig out-of-sync?"
+#endif /* CONFIG_DPA_ETH_WQ_ASSIGN_* */
+
 
 #endif	/* __DPA_H */
