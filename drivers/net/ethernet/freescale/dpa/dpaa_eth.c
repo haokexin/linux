@@ -146,17 +146,6 @@ static const char rtx[][3] = {
 	[TX] = "TX"
 };
 
-struct dpa_fq {
-	struct qman_fq		 fq_base;
-	struct list_head	 list;
-	struct net_device	*net_dev;
-	bool			 init;
-	uint32_t fqid;
-	uint32_t flags;
-	uint16_t channel;
-	uint8_t wq;
-};
-
 /* BM */
 
 #define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
@@ -2580,6 +2569,9 @@ dpa_fq_probe(struct platform_device *_of_dev, struct list_head *list,
 				err = -EINVAL;
 				goto invalid_error_queues;
 			}
+
+			dpa_fq[0].fq_type = (ptype == RX ?
+				FQ_TYPE_RX_ERROR : FQ_TYPE_TX_ERROR);
 		}
 
 		/* The second queue is the the Default queue */
@@ -2591,6 +2583,9 @@ dpa_fq_probe(struct platform_device *_of_dev, struct list_head *list,
 				err = -EINVAL;
 				goto invalid_default_queues;
 			}
+
+			dpa_fq[0].fq_type = (ptype == RX ?
+				FQ_TYPE_RX_DEFAULT : FQ_TYPE_TX_CONFIRM);
 		}
 
 		/*
@@ -2598,17 +2593,20 @@ dpa_fq_probe(struct platform_device *_of_dev, struct list_head *list,
 		 * The first 8 will be used by the private linux interface
 		 * if these are TX queues
 		 */
-		if (i == 2 || (!errq && i == 0 && fqs))
+		if (i == 2 || (!errq && i == 0 && fqs)) {
 			*fqs = dpa_fq;
+
+			for (j = 0; j < fqids[i].count; j++)
+				dpa_fq[j].fq_type = (ptype == RX ?
+					FQ_TYPE_RX_PCD : FQ_TYPE_TX);
+		}
 
 #warning We lost the 8-queue enforcement
 
-#define DPA_NUM_WQS 8
 		for (j = 0; j < fqids[i].count; j++) {
 			dpa_fq[j].fqid = fqids[i].start ?
 				fqids[i].start + j : 0;
-			dpa_fq[j].wq = dpa_fq[j].fqid ?
-				dpa_fq[j].fqid % DPA_NUM_WQS : DPA_NUM_WQS - 1;
+			_dpa_assign_wq(dpa_fq + j);
 			list_add_tail(&dpa_fq[j].list, list);
 		}
 	}
