@@ -146,6 +146,14 @@ static const char rtx[][3] = {
 	[TX] = "TX"
 };
 
+#if defined(CONFIG_FSL_FMAN_TEST)
+/* Defined as weak, to be implemented by fman pcd tester. */
+int dpa_alloc_pcd_fqids(struct device *, uint32_t, uint8_t, uint32_t *)
+__attribute__((weak));
+
+int dpa_free_pcd_fqids(struct device *, uint32_t) __attribute__((weak));
+#endif /* CONFIG_DPAA_FMAN_UNIT_TESTS */
+
 /* BM */
 
 #define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
@@ -164,6 +172,22 @@ static const char rtx[][3] = {
 static struct dpa_bp *dpa_bp_array[64];
 
 static struct dpa_bp *default_pool;
+
+/* A set of callbacks for hooking into the fastpath at different points. */
+static struct dpaa_eth_hooks_s dpaa_eth_hooks;
+/*
+ * This function should only be called on the probe paths, since it makes no
+ * effort to guarantee consistency of the destination hooks structure.
+ */
+void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks)
+{
+	if (hooks)
+		dpaa_eth_hooks = *hooks;
+	else
+		pr_err("NULL pointer to hooks!\n");
+}
+EXPORT_SYMBOL(fsl_dpaa_eth_set_hooks);
+
 
 static struct dpa_bp *dpa_bpid2pool(int bpid)
 {
@@ -850,11 +874,17 @@ dpa_csum_validation(const struct dpa_priv_s	*priv,
 static void _dpa_rx_error(struct net_device *net_dev,
 		const struct dpa_priv_s	*priv,
 		struct dpa_percpu_priv_s *percpu_priv,
-		const struct qm_fd *fd)
+		const struct qm_fd *fd,
+		u32 fqid)
 {
 	if (netif_msg_hw(priv) && net_ratelimit())
 		cpu_netdev_dbg(net_dev, "FD status = 0x%08x\n",
 				fd->status & FM_FD_STAT_ERRORS);
+
+	if (dpaa_eth_hooks.rx_error &&
+		dpaa_eth_hooks.rx_error(net_dev, fd, fqid) == DPAA_ETH_STOLEN)
+		/* it's up to the hook to perform resource cleanup */
+		return;
 
 	percpu_priv->stats.rx_errors++;
 
@@ -875,13 +905,19 @@ static void _dpa_rx_error(struct net_device *net_dev,
 static void _dpa_tx_error(struct net_device		*net_dev,
 			  const struct dpa_priv_s	*priv,
 			  struct dpa_percpu_priv_s	*percpu_priv,
-			  const struct qm_fd		*fd)
+			  const struct qm_fd		*fd,
+			  u32				 fqid)
 {
 	struct sk_buff *skb;
 
 	if (netif_msg_hw(priv) && net_ratelimit())
 		cpu_netdev_warn(net_dev, "FD status = 0x%08x\n",
 				fd->status & FM_FD_STAT_ERRORS);
+
+	if (dpaa_eth_hooks.tx_error &&
+		dpaa_eth_hooks.tx_error(net_dev, fd, fqid) == DPAA_ETH_STOLEN)
+		/* now the hook must ensure proper cleanup */
+		return;
 
 	percpu_priv->stats.tx_errors++;
 
@@ -892,7 +928,8 @@ static void _dpa_tx_error(struct net_device		*net_dev,
 static void __hot _dpa_rx(struct net_device *net_dev,
 		const struct dpa_priv_s *priv,
 		struct dpa_percpu_priv_s *percpu_priv,
-		const struct qm_fd *fd)
+		const struct qm_fd *fd,
+		u32 fqid)
 {
 	struct dpa_bp *dpa_bp;
 	struct sk_buff *skb;
@@ -954,6 +991,12 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 	} else
 		skb->ip_summed = CHECKSUM_NONE;
 
+	/* Execute the Rx processing hook, if it exists. */
+	if (dpaa_eth_hooks.rx_default && dpaa_eth_hooks.rx_default(skb,
+		net_dev, fqid) == DPAA_ETH_STOLEN)
+		/* won't count the rx bytes in */
+		goto skb_stolen;
+
 	if (unlikely(netif_receive_skb(skb) == NET_RX_DROP))
 		percpu_priv->stats.rx_dropped++;
 	else {
@@ -961,6 +1004,7 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 		percpu_priv->stats.rx_bytes += dpa_fd_length(fd);
 	}
 
+skb_stolen:
 	net_dev->last_rx = jiffies;
 
 	return;
@@ -1030,14 +1074,10 @@ static int dpaa_eth_poll(struct napi_struct *napi, int budget)
 static void __hot _dpa_tx(struct net_device		*net_dev,
 			  const struct dpa_priv_s	*priv,
 			  struct dpa_percpu_priv_s	*percpu_priv,
-			  const struct qm_fd		*fd)
+			  const struct qm_fd		*fd,
+			  u32				 fqid)
 {
 	struct sk_buff	*skb;
-
-	/* This might not perfectly reflect the reality, if the core dequeueing
-	 * the Tx confirmation is different from the one that did the enqueue,
-	 * but at least it'll show up in the total count. */
-	percpu_priv->tx_confirm++;
 
 	if (unlikely(fd->status & FM_FD_STAT_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
@@ -1046,6 +1086,16 @@ static void __hot _dpa_tx(struct net_device		*net_dev,
 
 		percpu_priv->stats.tx_errors++;
 	}
+
+	if (dpaa_eth_hooks.tx_confirm && dpaa_eth_hooks.tx_confirm(net_dev,
+		fd, fqid) == DPAA_ETH_STOLEN)
+		/* it's the hook that must now perform cleanup */
+		return;
+
+	/* This might not perfectly reflect the reality, if the core dequeueing
+	 * the Tx confirmation is different from the one that did the enqueue,
+	 * but at least it'll show up in the total count. */
+	percpu_priv->tx_confirm++;
 
 	skb = _dpa_cleanup_tx_fd(priv, fd);
 
@@ -1428,6 +1478,12 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	int queue_mapping;
 	int err;
 
+	/* If there is a Tx hook, run it. */
+	if (dpaa_eth_hooks.tx &&
+		dpaa_eth_hooks.tx(skb, net_dev) == DPAA_ETH_STOLEN)
+		/* won't update any Tx stats */
+		return NETDEV_TX_OK;
+
 	priv = netdev_priv(net_dev);
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
 
@@ -1532,7 +1588,7 @@ ingress_rx_error_dqrr(struct qman_portal		*portal,
 		return qman_cb_dqrr_stop;
 	}
 
-	_dpa_rx_error(net_dev, priv, percpu_priv, &dq->fd);
+	_dpa_rx_error(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
 }
@@ -1644,7 +1700,7 @@ ingress_rx_default_dqrr(struct qman_portal		*portal,
 
 	prefetchw(&percpu_priv->ingress_calls);
 
-	_dpa_rx(net_dev, priv, percpu_priv, &dq->fd);
+	_dpa_rx(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
 }
@@ -1668,7 +1724,7 @@ ingress_tx_error_dqrr(struct qman_portal		*portal,
 		return qman_cb_dqrr_stop;
 	}
 
-	_dpa_tx_error(net_dev, priv, percpu_priv, &dq->fd);
+	_dpa_tx_error(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
 }
@@ -1692,7 +1748,7 @@ ingress_tx_default_dqrr(struct qman_portal		*portal,
 		return qman_cb_dqrr_stop;
 	}
 
-	_dpa_tx(net_dev, priv, percpu_priv, &dq->fd);
+	_dpa_tx(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
 }
@@ -2865,7 +2921,7 @@ static int dpa_private_netdev_init(struct device_node *dpa_node,
 	return dpa_netdev_init(dpa_node, net_dev);
 }
 
-static int dpa_alloc_pcd_fqids(struct device *dev, uint32_t num,
+int dpa_alloc_pcd_fqids(struct device *dev, uint32_t num,
 				uint8_t alignment, uint32_t *base_fqid)
 {
 	dpaa_eth_crit(dev, "callback not implemented!\n");
@@ -2874,7 +2930,7 @@ static int dpa_alloc_pcd_fqids(struct device *dev, uint32_t num,
 	return 0;
 }
 
-static int dpa_free_pcd_fqids(struct device *dev, uint32_t base_fqid)
+int dpa_free_pcd_fqids(struct device *dev, uint32_t base_fqid)
 {
 
 	dpaa_eth_crit(dev, "callback not implemented!\n");
