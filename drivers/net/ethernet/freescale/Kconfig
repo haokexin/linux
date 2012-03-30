@@ -133,6 +133,27 @@ config FSL_DPA_1588
 	depends on DPA
 	default n
 
+choice DPA_ETH_WQ_ASSIGN
+	prompt "WorkQueue assignment scheme for FrameQueues"
+	default DPA_ETH_WQ_MULTI
+	help
+	  Selects the FrameQueue to WorkQueue assignment scheme.
+
+	config DPA_ETH_WQ_LEGACY
+		bool "Legacy WQ assignment"
+		help
+		  Statically-defined FQIDs are round-robin assigned to all WQs (0..7). PCD queues are always
+		  in this category. Other frame queues may be those used for "MAC-less" or "shared MAC" configurations
+		  of the driver.
+		  Dynamically-defined FQIDs all go to WQ7.
+	config DPA_ETH_WQ_MULTI
+		bool "Multi-WQ assignment"
+		help
+		  Tx Confirmation FQs go to WQ1.
+		  Rx Default, Tx and PCD FQs go to WQ3.
+		  Rx Error and Tx Error FQs go to WQ2.
+endchoice
+
 config DPAA_ETH_UNIT_TESTS
 	bool "Run Unit Tests for DPAA Ethernet"
 	depends on DPA
