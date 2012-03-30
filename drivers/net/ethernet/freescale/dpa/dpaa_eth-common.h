@@ -130,7 +130,19 @@
 	dpaa_eth_debug((net_dev)->dev.parent, "%s: " format, \
 			(net_dev)->name , ##arg)
 
+/* Simple enum of FQ types - used for array indexing */
 enum {RX, TX};
+
+/* More detailed FQ types - used for fine-grained WQ assignments */
+enum dpa_fq_type {
+	FQ_TYPE_RX_DEFAULT = 1, /* Rx Default FQs */
+	FQ_TYPE_RX_ERROR,       /* Rx Error FQs */
+	FQ_TYPE_RX_PCD,         /* User-defined PCDs */
+	FQ_TYPE_TX,             /* "Real" Tx FQs */
+	FQ_TYPE_TX_CONFIRM,     /* Tx Confirmation FQs (actually Rx FQs) */
+	FQ_TYPE_TX_ERROR,       /* Tx Error FQs (these are actually Rx FQs) */
+};
+
 
 #define DPA_PRIV_DATA_SIZE 16
 #define DPA_PARSE_RESULTS_SIZE sizeof(t_FmPrsResult)
