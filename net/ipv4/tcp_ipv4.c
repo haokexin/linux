@@ -1733,6 +1733,11 @@ int tcp_v4_rcv(struct sk_buff *skb)
 	if (!sk)
 		goto no_tcp_socket;
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+	if (th->syn)
+		sk->init_seq = ntohl(th->seq);
+#endif
+
 process:
 	if (sk->sk_state == TCP_TIME_WAIT)
 		goto do_time_wait;
