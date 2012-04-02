@@ -1195,7 +1195,7 @@ static t_Error LnxwrpFmPcdIOCTL(t_LnxWrpFmDev *p_LnxWrpFmDev, unsigned int cmd, 
                         goto invalid_port_id;
 
                     case (e_IOC_FM_PORT_TYPE_OFFLINE_PARSING):
-                        if (port_params->port_id && port_params->port_id <= FM_MAX_NUM_OF_OH_PORTS) {
+                        if (port_params->port_id && port_params->port_id < FM_MAX_NUM_OF_OH_PORTS) {
                             h_Port = p_LnxWrpFmDev->opPorts[port_params->port_id - 1].h_Dev;
                             break;
                         }
