@@ -585,7 +585,11 @@ int tcp_v4_gso_send_check(struct sk_buff *skb)
  *	Exception: precedence violation. We do not implement it in any case.
  */
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+void tcp_v4_send_reset(struct sock *sk, struct sk_buff *skb)
+#else
 static void tcp_v4_send_reset(struct sock *sk, struct sk_buff *skb)
+#endif
 {
 	const struct tcphdr *th = tcp_hdr(skb);
 	struct {
@@ -1588,6 +1592,16 @@ static __sum16 tcp_v4_checksum_init(struct sk_buff *skb)
 }
 
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+#define GFAR_TCP_HWACCEL_THR	(1024*1024) /*1M*/
+extern void gfar_setup_hwaccel_tcp4_receive(struct sock *sk,
+					    struct sk_buff *skb);
+static inline bool gfar_tcp_hwaccel_thr(struct sock *sk, struct sk_buff *skb)
+{
+	return (TCP_SKB_CB(skb)->seq > (sk->init_seq + GFAR_TCP_HWACCEL_THR));
+}
+EXPORT_SYMBOL(tcp_v4_send_reset);
+#endif
 /* The socket must have it's spinlock held when we get
  * here.
  *
@@ -1615,6 +1629,12 @@ int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 
 	if (sk->sk_state == TCP_ESTABLISHED) { /* Fast path */
 		sock_rps_save_rxhash(sk, skb);
+
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+		if (skb->gfar_dev && !sk->hw_tcp_chan_ref && !sk->sk_filter &&
+			gfar_tcp_hwaccel_thr(sk, skb))
+			gfar_setup_hwaccel_tcp4_receive(sk, skb);
+#endif
 		if (tcp_rcv_established(sk, skb, tcp_hdr(skb), skb->len)) {
 			rsk = sk;
 			goto reset;
