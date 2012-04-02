@@ -2328,7 +2328,10 @@ t_Handle FM_PORT_Config(t_FmPortParams *p_FmPortParams)
 
     p_FmPort->maxFrameLength                                        = DEFAULT_PORT_maxFrameLength;
     /* resource distribution. */
-    p_FmPort->fifoBufs.num                                          = 0;
+
+    /* Patch for getting GA4.3 defaults */
+    p_FmPort->fifoBufs.num                                          = DEFAULT_PORT_sizeOfFifo(p_FmPort->portType);
+
     p_FmPort->fifoBufs.extra                                        = 0;
     p_FmPort->openDmas.num                                          = DEFAULT_PORT_numOfOpenDmas(p_FmPort->portType);
     p_FmPort->openDmas.extra                                        = DEFAULT_PORT_extraNumOfOpenDmas(p_FmPort->portType);
