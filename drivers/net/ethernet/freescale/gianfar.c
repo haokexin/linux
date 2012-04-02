@@ -107,6 +107,9 @@
 #ifdef CONFIG_GIANFAR_L2SRAM
 #include <asm/fsl_85xx_cache_sram.h>
 #endif
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+#include <net/tcp.h>
+#endif
 
 #define TX_TIMEOUT      (1*HZ)
 
@@ -398,6 +401,11 @@ static void gfar_init_mac(struct net_device *ndev)
 	if (priv->rx_filer_enable) {
 		rctrl |= RCTRL_FILREN;
 		/* Program the RIR0 reg with the required distribution */
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+		if (priv->hw_tcp.en)
+			gfar_write(&regs->rir0, TWO_QUEUE_RIR0);
+		else
+#endif
 		gfar_write(&regs->rir0, DEFAULT_RIR0);
 	}
 
@@ -918,6 +926,155 @@ static unsigned int reverse_bitmap(unsigned int bit_map, unsigned int max_qs)
 	return new_bit_map;
 }
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+void gfar_setup_hwaccel_tcp4_receive(struct sock *sk, struct sk_buff *skb)
+{
+	u32 rqfcr, rqfpr, rqidx;
+	int i;
+	struct tcphdr *th;
+	struct iphdr *iph;
+	struct gfar_private *priv = netdev_priv(skb->gfar_dev);
+	struct gfar_hw_tcp_rcv_handle *hw_tcp = &priv->hw_tcp;
+
+	if (!hw_tcp->en)
+		return;
+
+	i = hw_tcp->empty_chan_idx;
+	hw_tcp->chan[i] = sk;
+	/* keep the reference to this "channel" for sk_free() */
+	sk->hw_tcp_chan_ref = &(hw_tcp->chan[i]);
+
+	/* convert channel index to filer table index (4 entries per chan) */
+	i = hw_tcp->filer_idx + (hw_tcp->empty_chan_idx * 4);
+
+	/* setup the hw tcp channel */
+	th = tcp_hdr(skb);
+	iph = ip_hdr(skb);
+	/* setup IPv4 source address */
+	rqfcr = RQFCR_CMP_EXACT | RQFCR_PID_SIA | RQFCR_AND;
+	rqfpr = ntohl(iph->saddr);
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+	i++;
+	/* setup IPv4 destination address */
+	rqfcr = RQFCR_CMP_EXACT | RQFCR_PID_DIA | RQFCR_AND;
+	rqfpr = ntohl(iph->daddr);
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+	i++;
+	/* setup TCP source port */
+	rqfcr = RQFCR_CMP_EXACT | RQFCR_PID_SPT | RQFCR_AND;
+	rqfpr = ntohs(th->source);
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+	i++;
+	/* setup TCP destination port */
+	rqidx = (GFAR_TCP_START_Q_IDX + hw_tcp->empty_chan_idx); /* set Q */
+	rqfcr = RQFCR_CMP_EXACT | RQFCR_PID_DPT | (rqidx << 10);
+	rqfpr = ntohs(th->dest);
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+
+	/* "round-robin" to the next empty hw tcp channel */
+	i = (hw_tcp->empty_chan_idx + 1) % hw_tcp->chan_cnt;
+	while (hw_tcp->chan[i] && (i != hw_tcp->empty_chan_idx))
+		i = (i + 1) % hw_tcp->chan_cnt;
+	/* if none found then take the next in line (and empty it) */
+	if (i == hw_tcp->empty_chan_idx)
+		i = (i + 1) % hw_tcp->chan_cnt;
+
+	/* update the empty chan idx for the next hwaccel setup call */
+	hw_tcp->empty_chan_idx = i;
+
+	/* clean up the next in line tcp channel, if necessary */
+	if (hw_tcp->chan[i]) {
+		/* remove referece from corresp. sk to this "channel" */
+		hw_tcp->chan[i]->hw_tcp_chan_ref = NULL;
+		hw_tcp->chan[i] = NULL;
+
+		/* convert channel index to filer table index */
+		i = hw_tcp->filer_idx + (i * 4);
+
+		/* clear the corresp. table entries */
+		rqfcr = RQFCR_CMP_NOMATCH;
+		rqfpr = FPR_FILER_MASK;
+		priv->ftp_rqfcr[i] = rqfcr;
+		priv->ftp_rqfpr[i] = rqfpr;
+		gfar_write_filer(priv, i, rqfcr, rqfpr);
+		i++;
+		priv->ftp_rqfcr[i] = rqfcr;
+		priv->ftp_rqfpr[i] = rqfpr;
+		gfar_write_filer(priv, i, rqfcr, rqfpr);
+		i++;
+		priv->ftp_rqfcr[i] = rqfcr;
+		priv->ftp_rqfpr[i] = rqfpr;
+		gfar_write_filer(priv, i, rqfcr, rqfpr);
+		i++;
+		priv->ftp_rqfcr[i] = rqfcr;
+		priv->ftp_rqfpr[i] = rqfpr;
+		gfar_write_filer(priv, i, rqfcr, rqfpr);
+	}
+}
+
+static u32 gfar_init_hw_tcp_cluster(struct gfar_private *priv, u32 rqfar)
+{
+	u32 rqfcr, rqfpr;
+	int i, j;
+
+	if (!priv->hw_tcp.en)
+		return rqfar;
+	/* 4 entries per channel, plus extra 4 for guard rule and clustering */
+	i = rqfar - 4 * (priv->hw_tcp.chan_cnt + 1);
+	if (i < 0)
+		BUG();
+
+	printk(KERN_INFO "%s: enabled hardware TCP receive offload\n",
+			priv->ndev->name);
+
+	rqfcr = RQFCR_CMP_EXACT | RQFCR_PID_MASK | RQFCR_AND;
+	rqfpr = RQFPR_IPV4 | RQFPR_TCP;
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+	i++;
+	rqfcr = RQFCR_CMP_EXACT | RQFCR_PID_PARSE | RQFCR_AND;
+	rqfpr = RQFPR_IPV4 | RQFPR_TCP;
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+	i++;
+	rqfcr = RQFCR_CMP_EXACT | RQFCR_PID_MASK | RQFCR_CLE | RQFCR_AND;
+	rqfpr = FPR_FILER_MASK;
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+	i++;
+	/* hold idx of the first channel's 1st entry */
+	priv->hw_tcp.filer_idx = i;
+
+	rqfcr = RQFCR_CMP_NOMATCH;
+	rqfpr = FPR_FILER_MASK;
+	for (j = 0; j < (priv->hw_tcp.chan_cnt * 4); j++) {
+		priv->ftp_rqfcr[i] = rqfcr;
+		priv->ftp_rqfpr[i] = rqfpr;
+		gfar_write_filer(priv, i, rqfcr, rqfpr);
+		i++;
+	}
+
+	rqfpr = FPR_FILER_MASK;
+	rqfcr = RQFCR_CMP_NOMATCH | RQFCR_CLE;
+	priv->ftp_rqfcr[i] = rqfcr;
+	priv->ftp_rqfpr[i] = rqfpr;
+	gfar_write_filer(priv, i, rqfcr, rqfpr);
+
+	return rqfar - 4 * (priv->hw_tcp.chan_cnt + 1);
+}
+#endif
+
 static u32 cluster_entry_per_class(struct gfar_private *priv, u32 rqfar,
 				   u32 class)
 {
@@ -973,6 +1130,9 @@ static void gfar_init_filer_table(struct gfar_private *priv)
 	rqfar = cluster_entry_per_class(priv, rqfar, RQFPR_IPV4 | RQFPR_UDP);
 	rqfar = cluster_entry_per_class(priv, rqfar, RQFPR_IPV4 | RQFPR_TCP);
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+	rqfar = gfar_init_hw_tcp_cluster(priv, rqfar);
+#endif
 	/* cur_filer_idx indicated the first non-masked rule */
 	priv->cur_filer_idx = rqfar;
 
@@ -1246,6 +1406,21 @@ static int gfar_probe(struct platform_device *ofdev)
 		} else
 			strcpy(priv->gfargrp[i].int_name_tx, dev->name);
 	}
+
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+	/* set the number of hw_tcp channels */
+	priv->hw_tcp.chan_cnt = (priv->num_rx_queues > GFAR_TCP_START_Q_IDX) \
+				? (priv->num_rx_queues - GFAR_TCP_START_Q_IDX) \
+				: 0;
+	priv->hw_tcp.en = 1;
+	/* we need at least 2 hw tcp channels for this feature */
+	if (priv->hw_tcp.chan_cnt < 2 ||
+		!(priv->ndev->features & NETIF_F_RXCSUM))
+		priv->hw_tcp.en = 0;
+	/* not a good idea to activate this feature if this gfar instance
+	 * does not support it */
+	WARN_ON(!priv->hw_tcp.en);
+#endif
 
 	/* Initialize the filer table */
 	gfar_init_filer_table(priv);
@@ -3291,6 +3466,78 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
 	return 0;
 }
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+static inline void gfar_hwaccel_tcp4_receive(struct gfar_private *priv,
+					     struct gfar_priv_rx_q *rx_queue,
+					     struct sk_buff *skb)
+{
+	const struct tcphdr *th;
+	const struct iphdr *iph;
+	int p_len;
+	int ph_len;
+	struct rxfcb *fcb;
+	struct sock *gfar_sk;
+	int tcp_chan_idx = rx_queue->qindex - GFAR_TCP_START_Q_IDX;
+
+	/*
+	 * mark this skb to be checked by the gfar hw tcp rcv setup code
+	 * "hooked" inside tcp_v4_do_rcv()
+	 */
+	skb->gfar_dev = priv->ndev;
+	if ((tcp_chan_idx < 0) || !priv->hw_tcp.chan[tcp_chan_idx]) {
+		gfar_process_frame(priv->ndev, skb, GMAC_FCB_LEN);
+		return;
+	}
+
+	gfar_sk = priv->hw_tcp.chan[tcp_chan_idx];
+
+	fcb = (struct rxfcb *)skb->data;
+	gfar_rx_checksum(skb, fcb);
+
+	skb->pkt_type = PACKET_HOST;
+	/* set IPv4 header */
+	skb->network_header = skb->data + GMAC_FCB_LEN \
+				+ ETH_HLEN + priv->padding;
+	iph = ip_hdr(skb);
+
+	if (iph->ihl > 5 || (iph->frag_off & htons(IP_MF | IP_OFFSET)) ||
+		(gfar_sk->sk_state != TCP_ESTABLISHED)) {
+		gfar_process_frame(priv->ndev, skb, GMAC_FCB_LEN);
+		return;
+	}
+
+	ph_len = iph->ihl * 4; /* IPv4 header length, in bytes */
+	p_len = ntohs(iph->tot_len); /* total length, in bytes */
+
+	if (p_len <  (skb->len - GMAC_FCB_LEN - ETH_HLEN)) {
+		skb->tail -= (skb->len - GMAC_FCB_LEN - ETH_HLEN - p_len);
+		skb->len = p_len - ph_len;
+	} else
+		skb->len = skb->len - (GMAC_FCB_LEN + ETH_HLEN + ph_len);
+
+	/*set TCP header*/
+	skb->transport_header = skb->network_header + ph_len;
+	skb->data = skb->transport_header;
+	th = tcp_hdr(skb);
+	TCP_SKB_CB(skb)->seq = ntohl(th->seq);
+	TCP_SKB_CB(skb)->end_seq = (TCP_SKB_CB(skb)->seq + th->syn + th->fin +
+					skb->len - (th->doff * 4));
+	TCP_SKB_CB(skb)->ack_seq = ntohl(th->ack_seq);
+	TCP_SKB_CB(skb)->when	 = 0;
+	TCP_SKB_CB(skb)->sacked	 = 0;
+
+	bh_lock_sock(gfar_sk);
+	if (!sock_owned_by_user(gfar_sk)) {
+		if (tcp_rcv_established(gfar_sk, skb, tcp_hdr(skb), skb->len)) {
+			tcp_v4_send_reset(gfar_sk, skb);
+			kfree_skb(skb);
+		}
+	} else
+		sk_add_backlog(gfar_sk, skb);
+	bh_unlock_sock(gfar_sk);
+}
+#endif
+
 /* gfar_clean_rx_ring() -- Processes each frame in the rx ring
  *   until the budget/quota has been reached. Returns the number
  *   of frames handled
@@ -3349,6 +3596,12 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
 				skb_put(skb, pkt_len);
 				rx_queue->stats.rx_bytes += pkt_len;
 				skb_record_rx_queue(skb, rx_queue->qindex);
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+				if (likely(priv->hw_tcp.en))
+					gfar_hwaccel_tcp4_receive
+							(priv, rx_queue, skb);
+				else
+#endif
 				gfar_process_frame(dev, skb, amount_pull);
 
 			} else {

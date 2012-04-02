@@ -316,6 +316,10 @@ struct sock {
 #ifdef CONFIG_XFRM
 	struct xfrm_policy	*sk_policy[2];
 #endif
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+	struct sock		**hw_tcp_chan_ref;
+	u32			init_seq;
+#endif
 	unsigned long 		sk_flags;
 	struct dst_entry	*sk_dst_cache;
 	spinlock_t		sk_dst_lock;

@@ -431,6 +431,8 @@ extern const char gfar_driver_version[];
 /* This default RIR value directly corresponds
  * to the 3-bit hash value generated */
 #define DEFAULT_RIR0	0x05397700
+/* Map even hash values to Q0, and odd ones to Q1 */
+#define TWO_QUEUE_RIR0	0x04104100
 
 /* RQFCR register bits */
 #define RQFCR_GPI		0x80000000
@@ -552,6 +554,12 @@ extern const char gfar_driver_version[];
 #define RXFCB_PERR_BADL3	0x0008
 
 #define GFAR_INT_NAME_MAX	(IFNAMSIZ + 6)	/* '_g#_xx' */
+
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+#define GFAR_TCP_START_Q_IDX	2 /* First RXQ to host a HW TCP channel */
+/* MAX #of HW TCP channels */
+#define GFAR_TCP_CHAN_MAXCNT	(MAX_RX_QS - GFAR_TCP_START_Q_IDX)
+#endif
 
 struct txbd8
 {
@@ -1107,6 +1115,18 @@ struct gfar_recycle_cntxt_percpu {
 	unsigned int free_count;
 };
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+struct gfar_hw_tcp_rcv_handle {
+	bool en; /* enable feature on the current interface or not */
+	u8 chan_cnt; /* num_rx_qs-TCP_START_Q_IDX or 0 */
+	u8 filer_idx; /* filer table index to the 1st entry/1st tcp channel */
+	u8 empty_chan_idx; /* index of the next empty channel */
+	struct sock *chan[GFAR_TCP_CHAN_MAXCNT]; /* channel <-> sk mapping */
+};
+
+extern void tcp_v4_send_reset(struct sock *sk, struct sk_buff *skb);
+#endif
+
 /* Struct stolen almost completely (and shamelessly) from the FCC enet source
  * (Ok, that's not so true anymore, but there is a family resemblance)
  * The GFAR buffer descriptors track the ring buffers.  The rx_bd_base
@@ -1196,6 +1216,9 @@ struct gfar_private {
 	int hwts_rx_en;
 	int hwts_tx_en;
 
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+	struct gfar_hw_tcp_rcv_handle hw_tcp;
+#endif
 	/*Filer table*/
 	unsigned int ftp_rqfpr[MAX_FILER_IDX + 1];
 	unsigned int ftp_rqfcr[MAX_FILER_IDX + 1];
