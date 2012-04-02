@@ -129,6 +129,13 @@
                  ((type) == e_FM_PORT_TYPE_TX) ||           \
                  ((type) == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) ? 1 : 0))
 
+#define DEFAULT_PORT_sizeOfFifo(type)                                   \
+    (uint32_t)((((type) == e_FM_PORT_TYPE_RX_10G) ||                    \
+                ((type) == e_FM_PORT_TYPE_TX_10G)) ? (16*KILOBYTE) :    \
+               ((((type) == e_FM_PORT_TYPE_RX) ||                       \
+                 ((type) == e_FM_PORT_TYPE_TX) ||                       \
+                 ((type) == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) ? (4*KILOBYTE) : (1536)))
+
 #define DEFAULT_PORT_txBdRingLength                 16
 #define DEFAULT_PORT_rxBdRingLength                 128
 #define DEFAULT_PORT_ImfwExtStructsMemId            0
