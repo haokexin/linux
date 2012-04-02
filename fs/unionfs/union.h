@@ -48,8 +48,6 @@
 #include <linux/splice.h>
 #include <linux/sched.h>
 
-#include <asm/system.h>
-
 #include <linux/union_fs.h>
 
 /* the file system name */
@@ -677,5 +675,25 @@ extern void __show_inode_counts(const struct inode *inode,
 #define UDBG				do { } while (0)
 
 #endif /* not CONFIG_UNION_FS_DEBUG */
+
+static inline void __FD_SET(unsigned long __fd, __kernel_fd_set *__fdsetp)
+{
+       __set_bit(__fd, __fdsetp->fds_bits);
+}
+
+static inline void __FD_CLR(unsigned long __fd, __kernel_fd_set *__fdsetp)
+{
+       __clear_bit(__fd, __fdsetp->fds_bits);
+}
+
+static inline int __FD_ISSET(unsigned long __fd, const __kernel_fd_set *__fdsetp)
+{
+       return test_bit(__fd, __fdsetp->fds_bits);
+}
+
+static inline void __FD_ZERO(__kernel_fd_set *__fdsetp)
+{
+       memset(__fdsetp->fds_bits, 0, sizeof __fdsetp->fds_bits);
+}
 
 #endif	/* not _UNION_H_ */
