@@ -394,6 +394,9 @@ struct sk_buff {
 
 	struct sock		*sk;
 	struct net_device	*dev;
+#ifdef CONFIG_GFAR_HW_TCP_RECEIVE_OFFLOAD
+	struct net_device	*gfar_dev;
+#endif
 
 	/*
 	 * This is the control buffer. It is free to use for every
