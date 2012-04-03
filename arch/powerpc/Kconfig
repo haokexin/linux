@@ -723,6 +723,19 @@ config FSL_PAMU
 	help
 	  Freescale PAMU/IOMMU support
 
+config FSL_PAMU_ERRATUM_A_004510
+	bool "Enable PAMU work-around for erratum A-004510"
+	depends on FSL_PAMU
+	# For now, enable this by default, so that we don't have to update
+	# defconfigs.  All current PAMU-enabled SOCs have the erratum.
+	default y
+	help
+	  Select this option to enable a work-around for erratum A-004510
+	  in the Freescale PAMU device driver.  Erratum A-004510 says that
+	  under certain load conditions, modified cache lines can be discarded,
+	  causing data corruption.  This option enables the PAMU portion of
+	  the work-around.
+
 config HAS_FSL_QBMAN
 	bool "Datapath Acceleration Queue and Buffer management"
 	help
