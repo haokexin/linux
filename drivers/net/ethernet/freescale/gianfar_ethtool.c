@@ -1774,6 +1774,7 @@ const struct ethtool_ops gfar_ethtool_ops = {
 	.get_ethtool_stats = gfar_fill_stats,
 	.get_msglevel = gfar_get_msglevel,
 	.set_msglevel = gfar_set_msglevel,
+	.set_tso = ethtool_op_set_tso,
 #ifdef CONFIG_PM
 	.get_wol = gfar_get_wol,
 	.set_wol = gfar_set_wol,

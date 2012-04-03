@@ -2401,6 +2401,155 @@ static inline struct txbd8 *next_txbd(struct txbd8 *bdp, struct txbd8 *base,
 	return skip_txbd(bdp, 1, base, ring_size);
 }
 
+/*software TCP segmentation offload*/
+static int gfar_tso(struct sk_buff *skb, struct net_device *dev, int rq)
+{
+	int i = 0;
+	struct iphdr *iph;
+	int ihl;
+	int id;
+	unsigned int offset;
+	struct tcphdr *th;
+	unsigned thlen;
+	unsigned int seq;
+	u32 delta;
+	u16 oldlen;
+	unsigned int mss;
+	unsigned int doffset;
+	unsigned int headroom;
+	unsigned int len;
+	int nfrags;
+	int pos;
+	int hsize;
+	int ret;
+
+	/*processing mac header*/
+	skb_reset_mac_header(skb);
+	skb->mac_len = skb->network_header - skb->mac_header;
+	__skb_pull(skb, skb->mac_len);
+
+	/*processing IP header*/
+	iph = ip_hdr(skb);
+	ihl = iph->ihl * 4;
+	id = ntohs(iph->id);
+	__skb_pull(skb, ihl);
+
+	/*processing TCP header*/
+	skb_reset_transport_header(skb);
+	th = tcp_hdr(skb);
+	thlen = th->doff * 4;
+	oldlen = ~skb->len;
+	__skb_pull(skb, thlen);
+
+	mss = skb_shinfo(skb)->gso_size;
+	seq = ntohl(th->seq);
+	delta = oldlen + (thlen + mss);
+
+	/*processing SKB*/
+	doffset = skb->data - skb_mac_header(skb);
+	offset = doffset;
+	nfrags = skb_shinfo(skb)->nr_frags;
+	__skb_push(skb, doffset);
+	headroom = skb_headroom(skb);
+	pos = skb_headlen(skb);
+
+	/*segmenting SKB*/
+	hsize = skb_headlen(skb) - offset;
+	if (hsize < 0)
+		hsize = 0;
+
+	do {
+		struct sk_buff *nskb;
+		skb_frag_t *frag;
+		int size;
+
+		len = skb->len - offset;
+		if (len > mss)
+			len = mss;
+
+		nskb = gfar_new_skb(dev);
+		nskb->dev = dev;
+		skb_reserve(nskb, headroom);
+		__skb_put(nskb, doffset+hsize);
+
+		nskb->ip_summed = skb->ip_summed;
+		nskb->vlan_tci = skb->vlan_tci;
+		nskb->mac_len = skb->mac_len;
+
+		skb_reset_mac_header(nskb);
+		skb_set_network_header(nskb, skb->mac_len);
+		nskb->transport_header = (nskb->network_header +
+				skb_network_header_len(skb));
+
+		/* Copy contiguous data which includes only the protocol
+		 * headers.This is true when TSO is enabled,
+		 * as data is carried by page */
+		skb_copy_from_linear_data(skb, nskb->data, doffset+hsize);
+		frag = skb_shinfo(nskb)->frags;
+
+		/*move skb data from skb fragments to new skb*/
+		while (pos < offset + len && i < nfrags) {
+			*frag = skb_shinfo(skb)->frags[i];
+			get_page(frag->page);
+			size = frag->size;
+
+			if (pos < offset) {
+				frag->page_offset += offset - pos;
+				frag->size -= offset - pos;
+			}
+
+			skb_shinfo(nskb)->nr_frags++;
+
+			if (pos + size <= offset + len) {
+				i++;
+				pos += size;
+			} else {
+				frag->size -= pos + size - (offset + len);
+				goto skip_fraglist;
+			}
+
+			frag++;
+		}
+
+skip_fraglist:
+		nskb->data_len = len - hsize;
+		/* Do not update nskb->truesize with size of fragments.
+		 * Original value of truesize will be used on TX cleanup
+		 * to identify this nskb as recyclable */
+		nskb->len += nskb->data_len;
+
+		/*update TCP header*/
+		if ((offset + len) >= skb->len)
+			delta = oldlen + (nskb->tail - nskb->transport_header) +
+					nskb->data_len;
+
+		th = tcp_hdr(nskb);
+		th->fin = th->psh = 0;
+		th->seq = htonl(seq);
+		th->cwr = 0;
+		seq += mss;
+		th->check = ~csum_fold((__force __wsum)((__force u32)th->check
+					+ delta));
+
+		/*update IP header*/
+		iph = ip_hdr(nskb);
+		iph->id = htons(id++);
+		iph->tot_len = htons(nskb->len - nskb->mac_len);
+		iph->check = 0;
+		iph->check = ip_fast_csum(skb_network_header(nskb), iph->ihl);
+
+		ret = gfar_start_xmit(nskb, dev);
+		if (unlikely(ret != NETDEV_TX_OK)) {
+			skb = nskb;
+			goto out_tso;
+		}
+	} while ((offset += len) < skb->len);
+
+out_tso:
+	gfar_free_skb(skb);
+	return ret;
+}
+
 /* This is called by the kernel when a frame is ready for transmission. */
 /* It is pointed to by the dev->hard_start_xmit function pointer */
 static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
@@ -2464,6 +2613,9 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		kfree_skb(skb);
 		skb = skb_new;
 	}
+
+	if (skb_is_gso(skb) && !do_tstamp)
+		return gfar_tso(skb, dev, rq);
 
 	/* total number of fragments in the SKB */
 	nr_frags = skb_shinfo(skb)->nr_frags;
