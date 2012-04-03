@@ -3032,6 +3032,20 @@ static struct sk_buff * gfar_alloc_skb(struct net_device *dev)
 	return skb;
 }
 
+static inline bool gfar_skb_nonlinear_recycleable(struct sk_buff *skb,
+		int skb_size)
+{
+	if (!skb_is_nonlinear(skb))
+		return false;
+
+	/* True size allocated for an skb */
+	if (skb->truesize != SKB_DATA_ALIGN(skb_size + NET_SKB_PAD)
+				+ sizeof(struct sk_buff))
+		return false;
+
+	return true;
+}
+
 static void gfar_free_skb(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
@@ -3040,14 +3054,40 @@ static void gfar_free_skb(struct sk_buff *skb)
 	struct gfar_recycle_cntxt *recycle_cntxt;
 	struct gfar_recycle_cntxt_percpu *local;
 	unsigned long flags;
-	int cpu;
+	int cpu, skb_size;
 
+	skb_size = priv->rx_buffer_size + RXBUF_ALIGNMENT;
 	recycle_cntxt = priv->recycle;
 
-	if (!skb_recycle_check(skb, priv->rx_buffer_size + RXBUF_ALIGNMENT)) {
-		dev_kfree_skb_any(skb);
-		return;
+	if (!skb_is_recycleable(skb, skb_size)) {
+		if (!gfar_skb_nonlinear_recycleable(skb, skb_size)) {
+			dev_kfree_skb_any(skb);
+			return;
+		}
+
+		/*
+		 * skb was alocated in driver, hence the size of
+		 * contiguous buffer in skb is big enough to recycle it for rx.
+		 * Clean first the SKB fragments and test again.
+		 * Possible usecase is TSO, when driver allocates new skb and
+		 * then it can add fragments to new skb. In this case,
+		 * skb_is_recycleable() returns false because skb is not linear.
+		 */
+		if (skb_shinfo(skb)->nr_frags) {
+			int i;
+			for (i = 0; i < skb_shinfo(skb)->nr_frags; i++)
+				put_page(&skb_shinfo(skb)->frags[i].page);
+			skb_shinfo(skb)->nr_frags = 0;
+			skb->data_len = 0;
+		}
+
+		if (!skb_is_recycleable(skb, skb_size)) {
+			dev_kfree_skb_any(skb);
+			return;
+		}
 	}
+
+	skb_recycle(skb);
 
 	cpu = get_cpu();
 	local = per_cpu_ptr(recycle_cntxt->local, cpu);
