@@ -259,10 +259,12 @@ static struct qm_portal_config *get_pcfg(struct list_head *list)
 static void set_liodns(const struct qm_portal_config *pcfg, int cpu)
 {
 	unsigned int index = 0;
-	int ret;
-	do {
-		ret = pamu_set_stash_dest(pcfg->node, index++, cpu, 1);
-	} while (ret >= 0);
+	unsigned int liodn_cnt = pamu_get_liodn_count(pcfg->node);
+	while (index < liodn_cnt) {
+		int ret = pamu_set_stash_dest(pcfg->node, index++, cpu, 1);
+		if (ret < 0)
+			pr_warning("Failed to set QMan stashing LIODN\n");
+	}
 }
 #else
 #define set_liodns(pcfg, cpu) do { } while (0)
