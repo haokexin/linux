@@ -283,7 +283,7 @@ static void dpa_make_private_pool(struct dpa_bp *dpa_bp)
 				smp_processor_id());
 		countptr = per_cpu_ptr(dpa_bp->percpu_count, i);
 
-		for (j = 0; j < dpa_bp->count; j += 8)
+		for (j = 0; j < dpa_bp->target_count; j += 8)
 			dpa_bp_add_8(dpa_bp);
 
 		/* Adjust the counts */
@@ -297,7 +297,7 @@ static void dpa_make_private_pool(struct dpa_bp *dpa_bp)
 
 static void dpaa_eth_seed_pool(struct dpa_bp *bp)
 {
-	size_t count = bp->count;
+	int count = bp->target_count;
 	size_t addr = bp->paddr;
 
 	while (count) {
@@ -317,7 +317,7 @@ static void dpaa_eth_seed_pool(struct dpa_bp *bp)
 	}
 }
 
-static int dpa_make_shared_pool(struct dpa_bp *bp)
+static int dpa_make_shared_port_pool(struct dpa_bp *bp)
 {
 	/*
 	 * In MAC-less and Shared-MAC scenarios the physical
@@ -328,10 +328,10 @@ static int dpa_make_shared_pool(struct dpa_bp *bp)
 	if (!bp->paddr)
 		return 0;
 
-	devm_request_mem_region(bp->dev, bp->paddr, bp->size * bp->count,
-			KBUILD_MODNAME);
+	devm_request_mem_region(bp->dev, bp->paddr,
+			bp->size * bp->config_count, KBUILD_MODNAME);
 	bp->vaddr = devm_ioremap_prot(bp->dev, bp->paddr,
-			bp->size * bp->count, 0);
+			bp->size * bp->config_count, 0);
 	if (bp->vaddr == NULL) {
 		cpu_pr_err("Could not map memory for pool %d\n", bp->bpid);
 		return -EIO;
@@ -351,7 +351,7 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 	struct platform_device *pdev;
 
 	BUG_ON(dpa_bp->size == 0);
-	BUG_ON(dpa_bp->count == 0);
+	BUG_ON(dpa_bp->config_count == 0);
 
 	bp_params.flags = BMAN_POOL_FLAG_DEPLETION;
 	bp_params.cb = dpa_bp_depletion;
@@ -623,6 +623,7 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 
 				bmb[j].hi	= sgt[i].addr_hi;
 				bmb[j].lo	= sgt[i].addr_lo;
+
 				j++; i++;
 			} while (j < ARRAY_SIZE(bmb) &&
 					!sgt[i-1].final &&
@@ -944,10 +945,11 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 	struct sk_buff *skb;
 	struct sk_buff **skbh;
 	dma_addr_t addr = qm_fd_addr(fd);
+	u32 fd_status = fd->status;
 
 	skbh = (struct sk_buff **)phys_to_virt(addr);
 
-	if (unlikely(fd->status & FM_FD_STAT_ERRORS) != 0) {
+	if (unlikely(fd_status & FM_FD_STAT_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
 			cpu_netdev_warn(net_dev, "FD status = 0x%08x\n",
 					fd->status & FM_FD_STAT_ERRORS);
@@ -992,7 +994,7 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 	}
 
 	/* Check if the FMan Parser has already validated the L4 csum. */
-	if (fd->status & FM_FD_STAT_L4CV) {
+	if (fd_status & FM_FD_STAT_L4CV) {
 		/* If we're here, the csum must be valid (if it hadn't,
 		 * the frame would have been received on the Error FQ,
 		 * respectively on the _dpa_rx_error() path). */
@@ -1010,7 +1012,7 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 		percpu_priv->stats.rx_dropped++;
 	else {
 		percpu_priv->stats.rx_packets++;
-		percpu_priv->stats.rx_bytes += dpa_fd_length(fd);
+		percpu_priv->stats.rx_bytes += skb->len;
 	}
 
 skb_stolen:
@@ -1080,7 +1082,7 @@ static int dpaa_eth_poll(struct napi_struct *napi, int budget)
 	return cleaned;
 }
 
-static void __hot _dpa_tx(struct net_device		*net_dev,
+static void __hot _dpa_tx_conf(struct net_device	*net_dev,
 			  const struct dpa_priv_s	*priv,
 			  struct dpa_percpu_priv_s	*percpu_priv,
 			  const struct qm_fd		*fd,
@@ -1508,7 +1510,8 @@ static int skb_to_contig_fd(struct dpa_priv_s *priv,
 	 * - address of the recycled buffer is 16 byte aligned (as per DPAA RM)
 	 */
 	if (likely(skb_is_recycleable(skb, dpa_bp->size + pad)
-			&& (*percpu_priv->dpa_bp_count + 1 <= dpa_bp->count)
+			&& (*percpu_priv->dpa_bp_count + 1 <=
+					dpa_bp->target_count)
 			&& (IS_ALIGNED((unsigned long)skbh, 16)))) {
 		fd->cmd |= FM_FD_CMD_FCO;
 		fd->bpid = dpa_bp->bpid;
@@ -1850,7 +1853,7 @@ ingress_tx_default_dqrr(struct qman_portal		*portal,
 		return qman_cb_dqrr_stop;
 	}
 
-	_dpa_tx(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
+	_dpa_tx_conf(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
 }
@@ -2362,7 +2365,8 @@ dpa_bp_probe(struct platform_device *_of_dev, size_t *count)
 		if (bpool_cfg && (lenp == (2 * ns + na) * sizeof(*bpool_cfg))) {
 			const uint32_t *seed_pool;
 
-			dpa_bp[i].count	= of_read_number(bpool_cfg, ns);
+			dpa_bp[i].config_count =
+				(int)of_read_number(bpool_cfg, ns);
 			dpa_bp[i].size	= of_read_number(bpool_cfg + ns, ns);
 			dpa_bp[i].paddr	=
 				of_read_number(bpool_cfg + 2 * ns, na);
@@ -2386,7 +2390,7 @@ dpa_bp_probe(struct platform_device *_of_dev, size_t *count)
 		dpa_bp = ERR_PTR(-EINVAL);
 		goto _return_of_node_put;
 	} else if (has_kernel_pool) {
-		dpa_bp->count = DEFAULT_COUNT;
+		dpa_bp->target_count = DEFAULT_COUNT;
 		dpa_bp->size = DEFAULT_BUF_SIZE;
 		dpa_bp->kernel_pool = 1;
 	}
@@ -2456,7 +2460,8 @@ dpa_mac_probe(struct platform_device *_of_dev)
 	struct device_node	*timer_node;
 #endif
 
-	phandle_prop = of_get_property(_of_dev->dev.of_node, "fsl,fman-mac", &lenp);
+	phandle_prop = of_get_property(_of_dev->dev.of_node,
+					"fsl,fman-mac", &lenp);
 	if (phandle_prop == NULL)
 		return NULL;
 
@@ -3013,6 +3018,8 @@ static int dpa_private_netdev_init(struct device_node *dpa_node,
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
 	struct dpa_percpu_priv_s *percpu_priv;
 
+	/* although we access another CPU's private data here
+	 * we do it at initialization so it is safe */
 	for_each_online_cpu(i) {
 		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
 		percpu_priv->net_dev = net_dev;

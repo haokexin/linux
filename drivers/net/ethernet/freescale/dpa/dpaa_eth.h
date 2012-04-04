@@ -145,12 +145,26 @@ struct dpa_bp {
 	struct bman_pool		*pool;
 	uint8_t				bpid;
 	struct device			*dev;
-	size_t				count;
+	union {
+		/*
+		 * The buffer pools used for the private ports are initialized
+		 * with target_count buffers for each CPU; at runtime the
+		 * number of buffers per CPU is constantly brought back to this
+		 * level
+		 */
+		int target_count;
+		/*
+		 * The configured value for the number of buffers in the pool,
+		 * used for shared port buffer pools
+		 */
+		int config_count;
+	};
 	size_t				size;
 	bool				seed_pool;
 	dma_addr_t			paddr;
 	void				*vaddr;
 	int kernel_pool;
+	/* current number of buffers in the bpool alloted to this CPU */
 	int *percpu_count;
 	atomic_t refs;
 };
@@ -165,6 +179,11 @@ struct dpa_rx_errors {
 
 struct dpa_percpu_priv_s {
 	struct net_device *net_dev;
+	/*
+	 * Pointer to the percpu_count of the shared buffer pool
+	 * used for the private ports; this assumes there is only
+	 * one bpool used
+	 */
 	int *dpa_bp_count;
 	struct dpa_bp *dpa_bp;
 	struct napi_struct napi;
