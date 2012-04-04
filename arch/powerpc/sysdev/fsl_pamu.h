@@ -32,10 +32,27 @@
 #ifndef FSL_PAMU_H
 #define FSL_PAMU_H
 
+#ifdef CONFIG_FSL_PAMU
+
 /* Set the stash target for a given LIODN */
 int pamu_set_stash_dest(struct device_node *node, unsigned int index,
 	unsigned int cpu, unsigned int cache_level);
 
 int pamu_get_liodn_count(struct device_node *node);
+
+#else
+
+static inline int pamu_set_stash_dest(struct device_node *node, unsigned int index,
+	unsigned int cpu, unsigned int cache_level)
+{
+	return -ENOSYS;
+}
+
+static inline int pamu_get_liodn_count(struct device_node *node)
+{
+	return 0;
+}
+
+#endif
 
 #endif
