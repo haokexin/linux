@@ -68,7 +68,7 @@
 #define ARRAY2_SIZE(arr)	(ARRAY_SIZE(arr) * ARRAY_SIZE((arr)[0]))
 
 #define DEFAULT_COUNT		64
-#define DEFAULT_BUF_SIZE DPA_BP_SIZE(fsl_fman_phy_maxfrm);
+
 #define DPA_NAPI_WEIGHT		64
 
 /* S/G table requires at least 256 bytes */
@@ -80,30 +80,6 @@
 
 /* Bootarg used to override the Kconfig DPA_MAX_FRM_SIZE value */
 #define FSL_FMAN_PHY_MAXFRM_BOOTARG	"fsl_fman_phy_max_frm"
-
-/*
- * Values for the L3R field of the FM Parse Results
- */
-/* L3 Type field: First IP Present IPv4 */
-#define FM_L3_PARSE_RESULT_IPV4	0x8000
-/* L3 Type field: First IP Present IPv6 */
-#define FM_L3_PARSE_RESULT_IPV6	0x4000
-
-/*
- * Values for the L4R field of the FM Parse Results
- */
-/* L4 Type field: UDP */
-#define FM_L4_PARSE_RESULT_UDP	0x40
-/* L4 Type field: TCP */
-#define FM_L4_PARSE_RESULT_TCP	0x20
-
-/*
- * FD status field indicating whether the FM Parser has attempted to validate
- * the L4 csum of the frame.
- * Note that having this bit set doesn't necessarily imply that the checksum
- * is valid. One would have to check the parse results to find that out.
- */
-#define FM_FD_STAT_L4CV		0x00000004
 
 /* Valid checksum indication */
 #define DPA_CSUM_VALID		0xFFFF
@@ -156,18 +132,7 @@ int dpa_free_pcd_fqids(struct device *, uint32_t) __attribute__((weak));
 
 /* BM */
 
-#define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
-			DPA_HASH_RESULTS_SIZE)
-#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + (s))
-
 #define DPAA_ETH_MAX_PAD (L1_CACHE_BYTES * 8)
-
-#define FM_FD_STAT_ERRORS						\
-	(FM_PORT_FRM_ERR_DMA | FM_PORT_FRM_ERR_PHYSICAL	| \
-	 FM_PORT_FRM_ERR_SIZE | FM_PORT_FRM_ERR_CLS_DISCARD | \
-	 FM_PORT_FRM_ERR_EXTRACTION | FM_PORT_FRM_ERR_NO_SCHEME	| \
-	 FM_PORT_FRM_ERR_ILL_PLCR | FM_PORT_FRM_ERR_PRS_TIMEOUT	| \
-	 FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT | FM_PORT_FRM_ERR_PRS_HDR_ERR)
 
 static struct dpa_bp *dpa_bp_array[64];
 
@@ -189,7 +154,7 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks)
 EXPORT_SYMBOL(fsl_dpaa_eth_set_hooks);
 
 
-static struct dpa_bp *dpa_bpid2pool(int bpid)
+struct dpa_bp *dpa_bpid2pool(int bpid)
 {
 	return dpa_bp_array[bpid];
 }
@@ -201,6 +166,7 @@ static void dpa_bp_depletion(struct bman_portal	*portal,
 		pr_err("Invalid Pool depleted notification!\n");
 }
 
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
 static void dpa_bp_add_8(struct dpa_bp *dpa_bp)
 {
 	struct bm_buffer bmb[8];
@@ -267,7 +233,7 @@ static void dpa_bp_add_8(struct dpa_bp *dpa_bp)
 	}
 }
 
-static void dpa_make_private_pool(struct dpa_bp *dpa_bp)
+void dpa_make_private_pool(struct dpa_bp *dpa_bp)
 {
 	int i;
 
@@ -293,7 +259,7 @@ static void dpa_make_private_pool(struct dpa_bp *dpa_bp)
 			*thiscount = *thiscount - j;
 	}
 }
-
+#endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
 
 static void dpaa_eth_seed_pool(struct dpa_bp *bp)
 {
@@ -421,6 +387,22 @@ pdev_register_failed:
 	return err;
 }
 
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
+static inline void _dpa_bp_free_buf(void *addr)
+{
+	struct sk_buff **skbh = addr;
+	struct sk_buff *skb;
+
+	skb = *skbh;
+	dev_kfree_skb_any(skb);
+}
+#else
+static inline void _dpa_bp_free_buf(void *addr)
+{
+	free_page((unsigned long)addr);
+}
+#endif
+
 static void __cold __attribute__((nonnull))
 _dpa_bp_free(struct dpa_bp *dpa_bp)
 {
@@ -440,14 +422,11 @@ _dpa_bp_free(struct dpa_bp *dpa_bp)
 
 			for (i = 0; i < num; i++) {
 				dma_addr_t addr = bm_buf_addr(&bmb[i]);
-				struct sk_buff **skbh = phys_to_virt(addr);
-				struct sk_buff *skb;
 
 				dma_unmap_single(bp->dev, addr, bp->size,
 						DMA_BIDIRECTIONAL);
 
-				skb = *skbh;
-				dev_kfree_skb_any(skb);
+				_dpa_bp_free_buf(phys_to_virt(addr));
 			}
 		} while (num == 8);
 	}
@@ -580,19 +559,7 @@ dpa_fq_free(struct device *dev, struct list_head *list)
 }
 
 
-static inline ssize_t __const __must_check __attribute__((nonnull))
-dpa_fd_length(const struct qm_fd *fd)
-{
-	return fd->length20;
-}
-
-static inline ssize_t __const __must_check __attribute__((nonnull))
-dpa_fd_offset(const struct qm_fd *fd)
-{
-	return fd->offset;
-}
-
-static void __attribute__((nonnull))
+void __attribute__((nonnull))
 dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 {
 	int				 i, j;
@@ -638,6 +605,7 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 		cpu_relax();
 }
 
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
 /*
  * Cleanup function for outgoing frame descriptors that were built on Tx path,
  * either contiguous frames or scatter/gather ones with a single data buffer.
@@ -649,7 +617,7 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
  * Return the skb backpointer, since for S/G frames the buffer containing it
  * gets freed here.
  */
-static struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
+struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 			       const struct qm_fd *fd)
 {
 	dma_addr_t addr = qm_fd_addr(fd);
@@ -702,6 +670,7 @@ static struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 
 	return skb;
 }
+#endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
 
 /* net_device */
 
@@ -826,6 +795,7 @@ static int dpa_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 }
 #endif
 
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
 /*
  * When we put the buffer into the pool, we purposefully added
  * some padding to the address so that the buffers wouldn't all
@@ -855,6 +825,7 @@ static int dpa_process_one(struct dpa_percpu_priv_s *percpu_priv,
 
 	return 0;
 }
+#endif
 
 /*
  * Checks whether the checksum field in Parse Results array is valid
@@ -935,7 +906,8 @@ static void _dpa_tx_error(struct net_device		*net_dev,
 	dev_kfree_skb(skb);
 }
 
-static void __hot _dpa_rx(struct net_device *net_dev,
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
+void __hot _dpa_rx(struct net_device *net_dev,
 		const struct dpa_priv_s *priv,
 		struct dpa_percpu_priv_s *percpu_priv,
 		const struct qm_fd *fd,
@@ -985,12 +957,9 @@ static void __hot _dpa_rx(struct net_device *net_dev,
 
 	skb->protocol = eth_type_trans(skb, net_dev);
 
-	if (unlikely(skb->len > net_dev->mtu)) {
-		if ((skb->protocol != ETH_P_8021Q) ||
-				(skb->len > net_dev->mtu + 4)) {
-			percpu_priv->stats.rx_dropped++;
-			goto drop_large_frame;
-		}
+	if (unlikely(dpa_check_rx_mtu(skb, net_dev->mtu))) {
+		percpu_priv->stats.rx_dropped++;
+		goto drop_large_frame;
 	}
 
 	/* Check if the FMan Parser has already validated the L4 csum. */
@@ -1026,6 +995,7 @@ drop_large_frame:
 _return_dpa_fd_release:
 	dpa_fd_release(net_dev, fd);
 }
+#endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
 
 static void dpaa_eth_napi_disable(struct dpa_priv_s *priv)
 {
@@ -1065,12 +1035,31 @@ static int dpaa_eth_poll(struct napi_struct *napi, int budget)
 
 	count = *percpu_priv->dpa_bp_count;
 
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
 	if (count < DEFAULT_COUNT / 4) {
 		int i;
 
 		for (i = count; i < DEFAULT_COUNT; i += 8)
 			dpa_bp_add_8(percpu_priv->dpa_bp);
 	}
+#else
+	if (count < DEFAULT_COUNT / 4) {
+		int i;
+
+		/* Add pages to the buffer pool */
+		for (i = count; i < DEFAULT_COUNT; i += 8)
+			dpa_bp_add_8_pages(percpu_priv->dpa_bp,
+					   smp_processor_id());
+	}
+
+	/* Add skbs to the percpu skb list, reuse var count */
+	count = percpu_priv->skb_count;
+
+	if (count < DEFAULT_SKB_COUNT / 4)
+		dpa_list_add_skbs(percpu_priv,
+				  DEFAULT_SKB_COUNT - count);
+#endif
+
 
 	if (cleaned < budget) {
 		int tmp;
@@ -1144,7 +1133,7 @@ dpa_phys2virt(const struct dpa_bp *dpa_bp, dma_addr_t addr)
  * Note that this function may modify the fd->cmd field and the skb data buffer
  * (the Parse Results area).
  */
-static inline int dpa_enable_tx_csum(struct dpa_priv_s *priv,
+int dpa_enable_tx_csum(struct dpa_priv_s *priv,
 	struct sk_buff *skb, struct qm_fd *fd, char *parse_results)
 {
 	t_FmPrsResult *parse_result;
@@ -1229,29 +1218,6 @@ static inline int dpa_enable_tx_csum(struct dpa_priv_s *priv,
 
 return_error:
 	return retval;
-}
-
-static inline int __hot dpa_xmit(struct dpa_priv_s *priv,
-			struct dpa_percpu_priv_s *percpu, int queue,
-			struct qm_fd *fd)
-{
-	int err;
-
-	prefetchw(&percpu->start_tx);
-	err = qman_enqueue(priv->egress_fqs[queue], fd, 0);
-	if (unlikely(err < 0)) {
-		if (netif_msg_tx_err(priv) && net_ratelimit())
-			cpu_netdev_err(priv->net_dev, "qman_enqueue() = %d\n",
-					err);
-		percpu->stats.tx_errors++;
-		percpu->stats.tx_fifo_errors++;
-		return err;
-	}
-
-	percpu->stats.tx_packets++;
-	percpu->stats.tx_bytes += dpa_fd_length(fd);
-
-	return NETDEV_TX_OK;
 }
 
 static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
@@ -1372,14 +1338,7 @@ buf_acquire_failed:
 	return NETDEV_TX_OK;
 }
 
-/* Equivalent to a memset(0), but works faster */
-static inline void clear_fd(struct qm_fd *fd)
-{
-	fd->opaque_addr = 0;
-	fd->opaque = 0;
-	fd->cmd = 0;
-}
-
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
 static int skb_to_sg_fd(struct dpa_priv_s *priv,
 		struct sk_buff *skb, struct qm_fd *fd)
 {
@@ -1533,7 +1492,7 @@ static int skb_to_contig_fd(struct dpa_priv_s *priv,
 	return 0;
 }
 
-static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
+int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 {
 	struct dpa_priv_s	*priv;
 	struct qm_fd		 fd;
@@ -1613,6 +1572,7 @@ static int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 		(*percpu_priv->dpa_bp_count)++;
 		percpu_priv->tx_returned++;
 	}
+
 	if (unlikely(dpa_xmit(priv, percpu_priv, queue_mapping, &fd) < 0))
 		goto xmit_failed;
 
@@ -1631,6 +1591,7 @@ fd_create_failed:
 
 	return NETDEV_TX_OK;
 }
+#endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
 
 static enum qman_cb_dqrr_result
 ingress_rx_error_dqrr(struct qman_portal		*portal,
@@ -1759,13 +1720,10 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 static_map:
 	skb->protocol = eth_type_trans(skb, net_dev);
 
-	if (unlikely(skb->len > net_dev->mtu)) {
-		if ((skb->protocol != ETH_P_8021Q) ||
-				(skb->len > net_dev->mtu + 4)) {
-			percpu_priv->stats.rx_dropped++;
-			dev_kfree_skb_any(skb);
-			goto out;
-		}
+	if (unlikely(dpa_check_rx_mtu(skb, net_dev->mtu))) {
+		percpu_priv->stats.rx_dropped++;
+		dev_kfree_skb_any(skb);
+		goto out;
 	}
 
 	if (unlikely(netif_rx(skb) != NET_RX_SUCCESS))
@@ -2392,6 +2350,13 @@ dpa_bp_probe(struct platform_device *_of_dev, size_t *count)
 	} else if (has_kernel_pool) {
 		dpa_bp->target_count = DEFAULT_COUNT;
 		dpa_bp->size = DEFAULT_BUF_SIZE;
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+		if (dpa_bp->size > PAGE_SIZE) {
+			dpaa_eth_warning(dev, "Default buffer size too large. "
+				     "Round down to PAGE_SIZE\n");
+			dpa_bp->size = PAGE_SIZE;
+		}
+#endif
 		dpa_bp->kernel_pool = 1;
 	}
 
@@ -2970,6 +2935,13 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 		mac_addr = priv->mac_dev->addr;
 		net_dev->features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
 		net_dev->vlan_features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+		/* Advertise S/G support for MAC-ful, private interfaces */
+		if (!priv->shared) {
+			net_dev->features |= NETIF_F_SG;
+			net_dev->vlan_features |= NETIF_F_SG;
+		}
+#endif
 	}
 
 	memcpy(net_dev->perm_addr, mac_addr, net_dev->addr_len);
@@ -3018,8 +2990,10 @@ static int dpa_private_netdev_init(struct device_node *dpa_node,
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
 	struct dpa_percpu_priv_s *percpu_priv;
 
-	/* although we access another CPU's private data here
-	 * we do it at initialization so it is safe */
+	/*
+	 * Although we access another CPU's private data here
+	 * we do it at initialization so it is safe
+	 */
 	for_each_online_cpu(i) {
 		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
 		percpu_priv->net_dev = net_dev;
@@ -3027,6 +3001,12 @@ static int dpa_private_netdev_init(struct device_node *dpa_node,
 		percpu_priv->dpa_bp = priv->dpa_bp;
 		percpu_priv->dpa_bp_count =
 			per_cpu_ptr(priv->dpa_bp->percpu_count, i);
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+		/* init the percpu list and add some skbs */
+		skb_queue_head_init(&percpu_priv->skb_list);
+
+		dpa_list_add_skbs(percpu_priv, DEFAULT_SKB_COUNT);
+#endif
 		netif_napi_add(net_dev, &percpu_priv->napi, dpaa_eth_poll,
 			       DPA_NAPI_WEIGHT);
 	}

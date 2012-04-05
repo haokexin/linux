@@ -39,6 +39,9 @@
 #include <linux/workqueue.h>	/* struct work_struct */
 #include <linux/skbuff.h>
 #include <linux/hardirq.h>
+#include <linux/if_vlan.h>	/* vlan_eth_hdr */
+#include <linux/ip.h>		/* ip_hdr */
+#include <linux/ipv6.h>		/* ipv6_hdr */
 #ifdef CONFIG_DEBUG_FS
 #include <linux/dcache.h>	/* struct dentry */
 #endif
@@ -46,6 +49,10 @@
 #include <linux/fsl_qman.h>	/* struct qman_fq */
 
 #include "dpaa_eth-common.h"
+
+#include "fsl_fman.h"
+#include "fm_ext.h"
+#include "fm_port_ext.h" /* FM_PORT_FRM_ERR_* */
 
 #include "mac.h"		/* struct mac_device */
 
@@ -123,6 +130,51 @@ struct dpaa_eth_hooks_s {
 
 void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 
+#define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
+			DPA_HASH_RESULTS_SIZE)
+#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + (s))
+
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+#define DEFAULT_SKB_COUNT 64 /* maximum number of SKBs in each percpu list */
+/*
+ * We may want this value configurable. Must be <= PAGE_SIZE
+ * A lower value may help with recycling rates, at least on forwarding
+ */
+#define DEFAULT_BUF_SIZE	PAGE_SIZE
+#else
+#define DEFAULT_BUF_SIZE DPA_BP_SIZE(fsl_fman_phy_maxfrm);
+#endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
+
+/*
+ * Values for the L3R field of the FM Parse Results
+ */
+/* L3 Type field: First IP Present IPv4 */
+#define FM_L3_PARSE_RESULT_IPV4	0x8000
+/* L3 Type field: First IP Present IPv6 */
+#define FM_L3_PARSE_RESULT_IPV6	0x4000
+
+/*
+ * Values for the L4R field of the FM Parse Results
+ */
+/* L4 Type field: UDP */
+#define FM_L4_PARSE_RESULT_UDP	0x40
+/* L4 Type field: TCP */
+#define FM_L4_PARSE_RESULT_TCP	0x20
+
+/*
+ * FD status field indicating whether the FM Parser has attempted to validate
+ * the L4 csum of the frame.
+ * Note that having this bit set doesn't necessarily imply that the checksum
+ * is valid. One would have to check the parse results to find that out.
+ */
+#define FM_FD_STAT_L4CV		0x00000004
+
+#define FM_FD_STAT_ERRORS						\
+	(FM_PORT_FRM_ERR_DMA | FM_PORT_FRM_ERR_PHYSICAL	| \
+	 FM_PORT_FRM_ERR_SIZE | FM_PORT_FRM_ERR_CLS_DISCARD | \
+	 FM_PORT_FRM_ERR_EXTRACTION | FM_PORT_FRM_ERR_NO_SCHEME	| \
+	 FM_PORT_FRM_ERR_ILL_PLCR | FM_PORT_FRM_ERR_PRS_TIMEOUT	| \
+	 FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT | FM_PORT_FRM_ERR_PRS_HDR_ERR)
 
 struct pcd_range {
 	uint32_t			 base;
@@ -187,6 +239,12 @@ struct dpa_percpu_priv_s {
 	int *dpa_bp_count;
 	struct dpa_bp *dpa_bp;
 	struct napi_struct napi;
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+	/* a list of preallocated SKBs for this CPU */
+	struct sk_buff_head skb_list;
+	/* current number of skbs in the CPU's list */
+	int skb_count;
+#endif
 	u32 start_tx;
 	u32 in_interrupt;
 	u32 ingress_calls;
@@ -226,6 +284,44 @@ struct dpa_priv_s {
 extern const struct ethtool_ops dpa_ethtool_ops;
 extern int fsl_fman_phy_maxfrm;
 
+void __attribute__((nonnull))
+dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd);
+
+void dpa_make_private_pool(struct dpa_bp *dpa_bp);
+
+struct dpa_bp *dpa_bpid2pool(int bpid);
+
+void __hot _dpa_rx(struct net_device *net_dev,
+		const struct dpa_priv_s *priv,
+		struct dpa_percpu_priv_s *percpu_priv,
+		const struct qm_fd *fd,
+		u32 fqid);
+
+int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev);
+
+struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
+				   const struct qm_fd *fd);
+
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+void dpa_bp_add_8_pages(struct dpa_bp *dpa_bp, int cpu_id);
+
+void dpa_list_add_skbs(struct dpa_percpu_priv_s *cpu_priv, int count);
+#endif
+
+/*
+ * Turn on HW checksum computation for this outgoing frame.
+ * If the current protocol is not something we support in this regard
+ * (or if the stack has already computed the SW checksum), we do nothing.
+ *
+ * Returns 0 if all goes well (or HW csum doesn't apply), and a negative value
+ * otherwise.
+ *
+ * Note that this function may modify the fd->cmd field and the skb data buffer
+ * (the Parse Results area).
+ */
+int dpa_enable_tx_csum(struct dpa_priv_s *priv,
+	struct sk_buff *skb, struct qm_fd *fd, char *parse_results);
+
 static inline int dpaa_eth_napi_schedule(struct dpa_percpu_priv_s *percpu_priv)
 {
 	if (unlikely(in_irq())) {
@@ -237,6 +333,60 @@ static inline int dpaa_eth_napi_schedule(struct dpa_percpu_priv_s *percpu_priv)
 		}
 	}
 	return 0;
+}
+
+static inline ssize_t __const __must_check __attribute__((nonnull))
+dpa_fd_length(const struct qm_fd *fd)
+{
+	return fd->length20;
+}
+
+static inline ssize_t __const __must_check __attribute__((nonnull))
+dpa_fd_offset(const struct qm_fd *fd)
+{
+	return fd->offset;
+}
+
+/* Verifies if the skb length is below the interface MTU */
+static inline int dpa_check_rx_mtu(struct sk_buff *skb, int mtu)
+{
+	if (unlikely(skb->len > mtu))
+		if ((skb->protocol != ETH_P_8021Q) || (skb->len > mtu + 4))
+			return -1;
+
+	return 0;
+}
+
+/* Equivalent to a memset(0), but works faster */
+static inline void clear_fd(struct qm_fd *fd)
+{
+	fd->opaque_addr = 0;
+	fd->opaque = 0;
+	fd->cmd = 0;
+}
+
+static inline int __hot dpa_xmit(struct dpa_priv_s *priv,
+			struct dpa_percpu_priv_s *percpu, int queue,
+			struct qm_fd *fd)
+{
+	int err, i;
+
+	prefetchw(&percpu->start_tx);
+	for (i = 0; i < 100000; i++) {
+		err = qman_enqueue(priv->egress_fqs[queue], fd, 0);
+		if (err != -EBUSY)
+			break;
+	}
+	if (unlikely(err < 0)) {
+		percpu->stats.tx_errors++;
+		percpu->stats.tx_fifo_errors++;
+		return err;
+	}
+
+	percpu->stats.tx_packets++;
+	percpu->stats.tx_bytes += dpa_fd_length(fd);
+
+	return NETDEV_TX_OK;
 }
 
 #if defined CONFIG_DPA_ETH_WQ_LEGACY
