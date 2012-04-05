@@ -128,6 +128,14 @@ config DPA_MAX_FRM_SIZE
               "fsl_fman_phy_max_frm=<YourValue>";
 	    * in non-Hypervisor-based scenarios, via u-boot's env, by modifying the "bootargs" env variable.
 
+config DPAA_ETH_SG_SUPPORT
+	bool "Add support for S/G frames in the DPAA Ethernet driver"
+	depends on DPA
+	default n
+	help
+	  Configure this to add S/G frames support in the DPAA Ethernet driver.
+	  Please note this replaces the optimal processing code also for non S/G frames.
+
 config FSL_DPA_1588
 	tristate "IEEE 1588-compliant timestamping"
 	depends on DPA
