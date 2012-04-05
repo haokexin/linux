@@ -825,7 +825,9 @@ ifdef CONFIG_KALLSYMS
 #   temporary bypass to allow the kernel to be built while the
 #   maintainers work out what went wrong with kallsyms.
 
+ifndef last_kallsyms
 last_kallsyms := 2
+endif
 
 ifdef KALLSYMS_EXTRA_PASS
 ifneq ($(KALLSYMS_EXTRA_PASS),0)
