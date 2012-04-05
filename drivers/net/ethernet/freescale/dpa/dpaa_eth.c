@@ -878,7 +878,7 @@ static void _dpa_rx_error(struct net_device *net_dev,
 		u32 fqid)
 {
 	if (netif_msg_hw(priv) && net_ratelimit())
-		cpu_netdev_dbg(net_dev, "FD status = 0x%08x\n",
+		cpu_netdev_err(net_dev, "FD status = 0x%08x\n",
 				fd->status & FM_FD_STAT_ERRORS);
 
 	if (dpaa_eth_hooks.rx_error &&
