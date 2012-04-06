@@ -329,10 +329,10 @@ static __init int bman_init(void)
 
 	/* Initialise the Bman (CCSR) device */
 	for_each_compatible_node(dn, NULL, "fsl,bman") {
-		if (!bman_init_error_int(dn))
+		if (!bman_init_ccsr(dn))
 			pr_info("Bman err interrupt handler present\n");
 		else
-			pr_err("Bman err interrupt handler missing\n");
+			pr_err("Bman CCSR setup failed\n");
 	}
 	/* Initialise any declared buffer pools */
 	for_each_compatible_node(dn, NULL, "fsl,bpool") {
