@@ -252,12 +252,17 @@ static void bm_set_memory(struct bman *bm, u64 ba, int prio, u32 size)
 /* Config driver */
 /*****************/
 
+/* TODO: Kconfig these? */
+#define DEFAULT_FBPR_SZ	(PAGE_SIZE << 12)
+
 /* We support only one of these. */
 static struct bman *bm;
 static struct device_node *bm_node;
 
-/* TODO: Kconfig these? */
-#define DEFAULT_FBPR_SZ	(PAGE_SIZE << 12)
+/* And this state belongs to 'bm'. It is set during fsl_bman_init(), but used
+ * during bman_init_ccsr(). */
+static dma_addr_t fbpr_a;
+static size_t fbpr_sz = DEFAULT_FBPR_SZ;
 
 /* Parse the <name> property to extract the memory location and size and
  * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
@@ -318,8 +323,6 @@ static int __init fsl_bman_init(struct device_node *node)
 	struct resource res;
 	u32 __iomem *regs;
 	const char *s;
-	dma_addr_t fbpr_a = 0; /* gcc doesn't know this is unnecessary */
-	size_t fbpr_sz = DEFAULT_FBPR_SZ;
 	int ret, standby = 0;
 	u16 id;
 	u8 major, minor;
@@ -359,8 +362,6 @@ static int __init fsl_bman_init(struct device_node *node)
 		pr_info("  -> in standby mode\n");
 		return 0;
 	}
-	/* FBPR memory */
-	bm_set_memory(bm, fbpr_a, 0, fbpr_sz);
 	return 0;
 }
 
@@ -495,14 +496,19 @@ static int __bind_irq(void)
 	return 0;
 }
 
-/* Initialise Error Interrupt Handler */
-int bman_init_error_int(struct device_node *node)
+int bman_init_ccsr(struct device_node *node)
 {
+	int ret;
 	if (!bman_have_ccsr())
 		return 0;
 	if (node != bm_node)
 		return -EINVAL;
-	return __bind_irq();
+	ret = __bind_irq();
+	if (ret)
+		return ret;
+	/* FBPR memory */
+	bm_set_memory(bm, fbpr_a, 0, fbpr_sz);
+	return 0;
 }
 
 #ifdef CONFIG_SYSFS

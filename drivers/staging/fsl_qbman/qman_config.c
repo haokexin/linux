@@ -506,6 +506,11 @@ static int qm_init_pfdr(struct qman *qm, u32 pfdr_start, u32 num)
 static struct qman *qm;
 static struct device_node *qm_node;
 
+/* And this state belongs to 'qm'. It is set during fsl_qman_init(), but used
+ * during qman_init_ccsr(). */
+static dma_addr_t fqd_a, pfdr_a;
+static size_t fqd_sz = DEFAULT_FQD_SZ, pfdr_sz = DEFAULT_PFDR_SZ;
+
 /* Parse the <name> property to extract the memory location and size and
  * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
  * size. Also flush this memory range from data cache so that QMAN originated
@@ -570,8 +575,6 @@ static int __init fsl_qman_init(struct device_node *node)
 	struct resource res;
 	u32 __iomem *regs;
 	const char *s;
-	dma_addr_t fqd_a = 0, pfdr_a = 0;
-	size_t fqd_sz = DEFAULT_FQD_SZ, pfdr_sz = DEFAULT_PFDR_SZ;
 	int ret, standby = 0;
 	u16 id;
 	u8 major, minor;
@@ -617,26 +620,6 @@ static int __init fsl_qman_init(struct device_node *node)
 		pr_info("  -> in standby mode\n");
 		return 0;
 	}
-	/* FQD memory */
-	qm_set_memory(qm, qm_memory_fqd, fqd_a, 1, 0, 0, fqd_sz);
-	/* PFDR memory */
-	qm_set_memory(qm, qm_memory_pfdr, pfdr_a, 1, 0, 0, pfdr_sz);
-	qm_init_pfdr(qm, 8, pfdr_sz / 64 - 8);
-	/* thresholds */
-	qm_set_pfdr_threshold(qm, 512, 64);
-	qm_set_sfdr_threshold(qm, 128);
-	/* clear stale PEBI bit from interrupt status register */
-	qm_err_isr_status_clear(qm, QM_EIRQ_PEBI);
-	/* corenet initiator settings */
-	qm_set_corenet_initiator(qm);
-	/* HID settings */
-	qm_set_hid(qm);
-	/* Set scheduling weights to defaults */
-	for (ret = qm_wq_first; ret <= qm_wq_last; ret++)
-		qm_set_wq_scheduling(qm, ret, 0, 0, 0, 0, 0, 0, 0);
-	/* We are not prepared to accept ERNs for hardware enqueues */
-	qm_set_dc(qm, qm_dc_portal_fman0, 1, 0);
-	qm_set_dc(qm, qm_dc_portal_fman1, 1, 0);
 	return 0;
 }
 
@@ -763,14 +746,38 @@ static int __bind_irq(void)
 	return 0;
 }
 
-/* Initialise Error Interrupt Handler */
-int qman_init_error_int(struct device_node *node)
+int qman_init_ccsr(struct device_node *node)
 {
+	int ret;
+	/* Initialise Error Interrupt Handler */
 	if (!qman_have_ccsr())
 		return 0;
 	if (node != qm_node)
 		return -EINVAL;
-	return __bind_irq();
+	ret = __bind_irq();
+	if (ret)
+		return ret;
+	/* FQD memory */
+	qm_set_memory(qm, qm_memory_fqd, fqd_a, 1, 0, 0, fqd_sz);
+	/* PFDR memory */
+	qm_set_memory(qm, qm_memory_pfdr, pfdr_a, 1, 0, 0, pfdr_sz);
+	qm_init_pfdr(qm, 8, pfdr_sz / 64 - 8);
+	/* thresholds */
+	qm_set_pfdr_threshold(qm, 512, 64);
+	qm_set_sfdr_threshold(qm, 128);
+	/* clear stale PEBI bit from interrupt status register */
+	qm_err_isr_status_clear(qm, QM_EIRQ_PEBI);
+	/* corenet initiator settings */
+	qm_set_corenet_initiator(qm);
+	/* HID settings */
+	qm_set_hid(qm);
+	/* Set scheduling weights to defaults */
+	for (ret = qm_wq_first; ret <= qm_wq_last; ret++)
+		qm_set_wq_scheduling(qm, ret, 0, 0, 0, 0, 0, 0, 0);
+	/* We are not prepared to accept ERNs for hardware enqueues */
+	qm_set_dc(qm, qm_dc_portal_fman0, 1, 0);
+	qm_set_dc(qm, qm_dc_portal_fman1, 1, 0);
+	return 0;
 }
 
 #define PID_CFG_LIODN_MASK 0x0fff0000
