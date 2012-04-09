@@ -14,6 +14,7 @@ endif
 ifdef CONFIG_TRACING_BRANCHES
 KBUILD_CFLAGS += -DDISABLE_BRANCH_PROFILING
 endif
+obj-$(CONFIG_PROBE_EVENTS) += trace_probe.o
 
 CFLAGS_trace_events_filter.o := -I$(src)
 
