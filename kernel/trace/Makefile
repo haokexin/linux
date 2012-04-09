@@ -63,5 +63,6 @@ obj-$(CONFIG_KGDB_KDB) += trace_kdb.o
 endif
 obj-$(CONFIG_HAVE_TRACE_CLOCK_32_TO_64) += trace-clock-32-to-64.o
 obj-$(CONFIG_HAVE_TRACE_CLOCK_GENERIC) += trace-clock.o
+obj-$(CONFIG_PROBE_EVENTS) += trace_probe.o
 
 libftrace-y := ftrace.o
