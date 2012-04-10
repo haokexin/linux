@@ -82,7 +82,7 @@ struct qman_portal {
 	struct qman_fq *eqci_owned; /* only 1 enqueue WAIT_SYNC at a time */
 #endif
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
-	spinlock_t sharing_lock; /* only used if is_shared */
+	raw_spinlock_t sharing_lock; /* only used if is_shared */
 	int is_shared;
 	struct qman_portal *sharing_redirect;
 #endif
@@ -109,14 +109,15 @@ struct qman_portal {
 #define PORTAL_IRQ_LOCK(p, irqflags) \
 	do { \
 		if ((p)->is_shared) \
-			spin_lock_irqsave(&(p)->sharing_lock, irqflags); \
+			raw_spin_lock_irqsave(&(p)->sharing_lock, irqflags); \
 		else \
 			local_irq_save(irqflags); \
 	} while (0)
 #define PORTAL_IRQ_UNLOCK(p, irqflags) \
 	do { \
 		if ((p)->is_shared) \
-			spin_unlock_irqrestore(&(p)->sharing_lock, irqflags); \
+			raw_spin_unlock_irqrestore(&(p)->sharing_lock, \
+						   irqflags); \
 		else \
 			local_irq_restore(irqflags); \
 	} while (0)
@@ -394,7 +395,7 @@ struct qman_portal *qman_create_affine_portal(
 	portal->eqci_owned = NULL;
 #endif
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
-	spin_lock_init(&portal->sharing_lock);
+	raw_spin_lock_init(&portal->sharing_lock);
 	portal->is_shared = config->public_cfg.is_shared;
 	portal->sharing_redirect = NULL;
 #endif
