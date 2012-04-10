@@ -186,9 +186,9 @@ void    XX_Print(char *str, ...);
 #undef UPGCR_DIAG
 #endif /* UPGCR_DIAG */
 
-#ifdef PARAMS
-#undef PARAMS
-#endif /* PARAMS */
+#ifdef NCSW_PARAMS
+#undef NCSW_PARAMS
+#endif /* NCSW_PARAMS */
 
 #ifdef NO_IRQ
 #undef NO_IRQ
