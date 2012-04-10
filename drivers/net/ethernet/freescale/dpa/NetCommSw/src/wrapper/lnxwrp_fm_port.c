@@ -687,7 +687,7 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 
 			ADV_CONFIG_CHECK(p_LnxWrpFmPortDev->h_Dev,
 					 FM_PORT_ConfigBufferPrefixContent,
-					 PARAMS(1,
+					 NCSW_PARAMS(1,
 						(t_FmPortBufferPrefixContent
 						 *)))
 
