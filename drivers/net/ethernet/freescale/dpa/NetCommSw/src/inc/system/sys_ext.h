@@ -85,7 +85,7 @@ typedef struct t_SysObjectAdvConfigEntry
 /** @} */ /* end of sys_gen_grp */
 /** @} */ /* end of sys_grp */
 
-#define PARAMS(_num, _params)   ADV_CONFIG_PARAMS_##_num _params
+#define NCSW_PARAMS(_num, _params)   ADV_CONFIG_PARAMS_##_num _params
 
 #define ADV_CONFIG_PARAMS_1(_type) \
     , (_type)p_Entry->args[0]
