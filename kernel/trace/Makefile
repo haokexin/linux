@@ -64,5 +64,6 @@ endif
 obj-$(CONFIG_HAVE_TRACE_CLOCK_32_TO_64) += trace-clock-32-to-64.o
 obj-$(CONFIG_HAVE_TRACE_CLOCK_GENERIC) += trace-clock.o
 obj-$(CONFIG_PROBE_EVENTS) += trace_probe.o
+obj-$(CONFIG_UPROBE_EVENT) += trace_uprobe.o
 
 libftrace-y := ftrace.o
