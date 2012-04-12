@@ -1506,7 +1506,7 @@ int qman_query_wq(u8 query_dedicated, struct qm_mcr_querywq *wq);
 
 /**
  * qman_volatile_dequeue - Issue a volatile dequeue command
- * @fq: the frame queue object to dequeue from (or NULL)
+ * @fq: the frame queue object to dequeue from
  * @flags: a bit-mask of QMAN_VOLATILE_FLAG_*** options
  * @vdqcr: bit mask of QM_VDQCR_*** options, as per qm_dqrr_vdqcr_set()
  *
@@ -1520,9 +1520,7 @@ int qman_query_wq(u8 query_dedicated, struct qm_mcr_querywq *wq);
  * presence of the QM_DQRR_STAT_UNSCHEDULED and QM_DQRR_STAT_DQCR_EXPIRED bits
  * in the "stat" field of the "struct qm_dqrr_entry" passed to the FQ's dequeue
  * callback, or by waiting for the QMAN_FQ_STATE_VDQCR bit to disappear from the
- * "flags" retrieved from qman_fq_state(). If @fq is non-NULL, the corresponding
- * FQID will be substituted in to the VDQCR command, otherwise it is assumed
- * that @vdqcr already contains the FQID to dequeue from.
+ * "flags" retrieved from qman_fq_state().
  */
 int qman_volatile_dequeue(struct qman_fq *fq, u32 flags, u32 vdqcr);
 
