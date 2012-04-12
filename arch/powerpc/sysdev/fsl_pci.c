@@ -929,6 +929,9 @@ static int __devinit fsl_pci_probe(struct platform_device *pdev)
 		}
 #endif
 	}
+#ifdef CONFIG_PPC64
+	pci_devs_phb_init();
+#endif
 
 	return 0;
 }
