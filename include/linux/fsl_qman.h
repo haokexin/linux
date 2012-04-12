@@ -358,6 +358,7 @@ struct qm_mr_entry {
 #define QM_MR_RC_ORPWINDOW_LATE		0x40
 #define QM_MR_RC_FQ_TAILDROP		0x50
 #define QM_MR_RC_ORPWINDOW_RETIRED	0x60
+#define QM_MR_RC_ORP_ZERO		0x70
 #define QM_MR_FQS_ORLPRESENT		0x02	/* ORL fragments to come */
 #define QM_MR_FQS_NOTEMPTY		0x01	/* FQ has enqueued frames */
 #define QM_MR_DCERN_COLOUR_GREEN	0x00
