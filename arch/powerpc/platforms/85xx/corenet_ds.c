@@ -57,12 +57,6 @@ void __init corenet_ds_setup_arch(void)
 {
 	mpc85xx_smp_init();
 
-#ifdef CONFIG_PCI
-#ifdef CONFIG_PPC64
-	pci_devs_phb_init();
-#endif
-#endif
-
 #ifdef CONFIG_SWIOTLB
 	if (memblock_end_of_DRAM() > 0xffffffff)
 		ppc_swiotlb_enable = 1;
