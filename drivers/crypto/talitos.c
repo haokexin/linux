@@ -586,10 +586,19 @@ static int talitos_rng_data_read(struct hwrng *rng, u32 *data)
 	struct device *dev = (struct device *)rng->priv;
 	struct talitos_private *priv = dev_get_drvdata(dev);
 
+#ifdef CONFIG_AS_FASTPATH
+	do {
+		if (!atomic_add_unless(&priv->ul_rng_in_use, 1, 1))
+			break;
+	} while (1);
+#endif
 	/* rng fifo requires 64-bit accesses */
 	*data = in_be32(priv->reg + TALITOS_RNGU_FIFO);
 	*data = in_be32(priv->reg + TALITOS_RNGU_FIFO_LO);
 
+#ifdef CONFIG_AS_FASTPATH
+	atomic_set(&priv->ul_rng_in_use, 0);
+#endif
 	return sizeof(u32);
 }
 
@@ -598,6 +607,11 @@ static int talitos_rng_init(struct hwrng *rng)
 	struct device *dev = (struct device *)rng->priv;
 	struct talitos_private *priv = dev_get_drvdata(dev);
 	unsigned int timeout = TALITOS_TIMEOUT;
+
+#ifdef CONFIG_AS_FASTPATH
+	if (priv->b_rng_init)
+		return 0;
+#endif
 
 	setbits32(priv->reg + TALITOS_RNGURCR_LO, TALITOS_RNGURCR_LO_SR);
 	while (!(in_be32(priv->reg + TALITOS_RNGUSR_LO) & TALITOS_RNGUSR_LO_RD)
@@ -611,6 +625,9 @@ static int talitos_rng_init(struct hwrng *rng)
 	/* start generating */
 	setbits32(priv->reg + TALITOS_RNGUDSR_LO, 0);
 
+#ifdef CONFIG_AS_FASTPATH
+	priv->b_rng_init = 1;
+#endif
 	return 0;
 }
 
