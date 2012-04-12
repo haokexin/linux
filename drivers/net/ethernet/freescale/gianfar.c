@@ -111,6 +111,15 @@
 #include <net/tcp.h>
 #endif
 
+#ifdef CONFIG_AS_FASTPATH
+#include <linux/sched.h>
+devfp_hook_t	devfp_rx_hook;
+EXPORT_SYMBOL(devfp_rx_hook);
+
+devfp_hook_t	devfp_tx_hook;
+EXPORT_SYMBOL(devfp_tx_hook);
+
+#endif
 #define TX_TIMEOUT      (1*HZ)
 
 const char gfar_driver_version[] = "1.3";
@@ -125,7 +134,7 @@ static void gfar_reset_task(struct work_struct *work);
 static void gfar_timeout(struct net_device *dev);
 static int gfar_close(struct net_device *dev);
 struct sk_buff *gfar_new_skb(struct net_device *dev);
-static void gfar_free_skb(struct sk_buff *skb);
+void gfar_free_skb(struct sk_buff *skb);
 static void gfar_new_rxbdp(struct gfar_priv_rx_q *rx_queue, struct rxbd8 *bdp,
 		struct sk_buff *skb);
 static int gfar_set_mac_address(struct net_device *dev);
@@ -2741,6 +2750,11 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	unsigned long flags;
 	unsigned int nr_frags, nr_txbds, length, fcb_length = GMAC_FCB_LEN;
 
+#ifdef CONFIG_AS_FASTPATH
+	if (devfp_tx_hook && (skb->pkt_type != PACKET_FASTROUTE))
+		if (devfp_tx_hook(skb, dev) == AS_FP_STOLEN)
+			return 0;
+#endif
 	/*
 	 * TOE=1 frames larger than 2500 bytes may see excess delays
 	 * before start of transmission.
@@ -3374,7 +3388,7 @@ static inline bool gfar_skb_nonlinear_recycleable(struct sk_buff *skb,
 	return true;
 }
 
-static void gfar_free_skb(struct sk_buff *skb)
+void gfar_free_skb(struct sk_buff *skb)
 {
 	struct net_device *dev = skb->dev;
 	struct gfar_private *priv = netdev_priv(dev);
@@ -3450,6 +3464,7 @@ static void gfar_free_skb(struct sk_buff *skb)
 		dev_kfree_skb_any(skb);
 	}
 }
+EXPORT_SYMBOL(gfar_free_skb);
 
 struct sk_buff * gfar_new_skb(struct net_device *dev)
 {
@@ -3496,6 +3511,7 @@ struct sk_buff * gfar_new_skb(struct net_device *dev)
 
 	return skb;
 }
+EXPORT_SYMBOL(gfar_new_skb);
 
 static inline void count_errors(unsigned short status, struct net_device *dev)
 {
@@ -3598,6 +3614,36 @@ static int gfar_process_frame(struct net_device *dev, struct sk_buff *skb,
 	if (dev->features & NETIF_F_RXCSUM)
 		gfar_rx_checksum(skb, fcb);
 
+#ifdef CONFIG_AS_FASTPATH
+	if (devfp_rx_hook) {
+
+		/* Drop the packet silently if IP Checksum is not correct */
+		if ((fcb->flags & RXFCB_CIP) && (fcb->flags & RXFCB_EIP)) {
+			gfar_free_skb(skb);
+			return 0;
+		}
+
+		if (priv->vlgrp && (fcb->flags & RXFCB_VLN)) {
+			struct net_device *vlan_dev = NULL;
+
+			vlan_dev = vlan_group_get_device(priv->vlgrp,
+					fcb->vlctl & VLAN_VID_MASK);
+
+			if (vlan_dev) {
+				skb->vlan_tci = fcb->vlctl;
+				skb->dev = vlan_dev;
+			} else {
+				gfar_free_skb(skb);
+				return 0;
+			}
+		} else {
+			skb->dev = dev;
+		}
+
+		if (devfp_rx_hook(skb, dev) == AS_FP_STOLEN)
+			return 0;
+	}
+#endif
 	/* Tell the skb what kind of packet this is */
 	skb->protocol = eth_type_trans(skb, dev);
 
