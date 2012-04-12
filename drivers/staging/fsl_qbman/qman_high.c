@@ -1666,12 +1666,11 @@ int qman_volatile_dequeue(struct qman_fq *fq, u32 flags __maybe_unused,
 	struct qman_portal *p;
 	int ret;
 
-	DPA_ASSERT(!fq || (fq->state == qman_fq_state_parked) ||
+	DPA_ASSERT((fq->state == qman_fq_state_parked) ||
 			(fq->state == qman_fq_state_retired));
-	DPA_ASSERT(!fq || !(vdqcr & QM_VDQCR_FQID_MASK));
-	DPA_ASSERT(!fq || !fq_isset(fq, QMAN_FQ_STATE_VDQCR));
-	if (fq)
-		vdqcr = (vdqcr & ~QM_VDQCR_FQID_MASK) | fq->fqid;
+	DPA_ASSERT(!(vdqcr & QM_VDQCR_FQID_MASK));
+	DPA_ASSERT(!fq_isset(fq, QMAN_FQ_STATE_VDQCR));
+	vdqcr = (vdqcr & ~QM_VDQCR_FQID_MASK) | fq->fqid;
 #ifdef CONFIG_FSL_DPA_CAN_WAIT
 	if (flags & QMAN_VOLATILE_FLAG_WAIT)
 		ret = wait_vdqcr_start(&p, fq, vdqcr, flags);
