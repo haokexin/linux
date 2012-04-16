@@ -82,6 +82,7 @@
 		bman = &bman;
 		qman = &qman;
 		fman0 = &fman0;
+		fman1 = &fman1;
 	};
 
 	cpus {
