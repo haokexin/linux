@@ -186,16 +186,26 @@ static int __devinit hydra_mdio_probe(struct of_device *ofdev,
 		goto err_pixis_iomap;
 	}
 
-	iprop = of_get_property(np, "fsl,hydra-mdio-muxval", NULL);
+	/* Get the MDIO MUX mask and value */
+	iprop = of_get_property(np, "fsl,hydra-mdio-mux-val", NULL);
+	if (!iprop)
+		/* Older device trees used -muxval instead of -mux-val */
+		iprop = of_get_property(np, "fsl,hydra-mdio-muxval", NULL);
 	if (!iprop) {
 		dev_err(&ofdev->dev, "no MUX value found for %s\n",
 			np->full_name);
 		ret = -ENODEV;
 		goto err_get_muxval;
 	}
-
-	priv->mask = BRDCFG1_EMI1_SEL_MASK;
+	/* Note: some trees already have BRDCFG1_EMI1_EN in the value */
 	priv->value = BRDCFG1_EMI1_EN | be32_to_cpup(iprop);
+
+	iprop = of_get_property(np, "fsl,hydra-mdio-mux-mask", NULL);
+	if (iprop)
+		priv->mask = be32_to_cpup(iprop);
+	else
+		/* Older device trees assumed a hard-coded constant mask */
+		priv->mask = BRDCFG1_EMI1_SEL_MASK;
 
 	/* Finally, register our new bus */
 	ret = of_mdiobus_register(new_bus, np);
@@ -246,6 +256,10 @@ static struct of_device_id hydra_mdio_match[] = {
 	{
 		.compatible = "fsl,hydra-mdio",
 	},
+	{
+		.compatible = "fsl,hydra-xmdio",
+	},
+	{}
 };
 MODULE_DEVICE_TABLE(of, mdio_match);
 
