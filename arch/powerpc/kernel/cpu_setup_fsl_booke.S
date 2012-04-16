@@ -16,6 +16,8 @@
 #include <asm/processor.h>
 #include <asm/cputable.h>
 #include <asm/ppc_asm.h>
+#include <asm/mmu-book3e.h>
+#include <asm/asm-offsets.h>
 
 _GLOBAL(__e500_icache_setup)
 	mfspr	r0, SPRN_L1CSR1
@@ -81,8 +83,26 @@ _GLOBAL(__setup_cpu_e500mc)
 	mtlr	r4
 	blr
 #endif
-/* Right now, restore and setup are the same thing */
+
 _GLOBAL(__restore_cpu_e5500)
+	mflr	r4
+	bl	__e500_icache_setup
+	bl	__e500_dcache_setup
+#ifdef CONFIG_PPC_BOOK3E_64
+	bl	.__setup_base_ivors
+	bl	.setup_perfmon_ivor
+	bl	.setup_doorbell_ivors
+	mfspr	r10,SPRN_MMUCFG
+	rlwinm.	r10,r10,0,MMUCFG_LPIDSIZE
+	beq	1f
+	bl	.setup_ehv_ivors
+1:
+#else
+	bl	__setup_e500mc_ivors
+#endif
+	mtlr	r4
+	blr
+
 _GLOBAL(__setup_cpu_e5500)
 	mr	r5, r4
 	mflr	r4
@@ -92,7 +112,20 @@ _GLOBAL(__setup_cpu_e5500)
 	bl	.__setup_base_ivors
 	bl	.setup_perfmon_ivor
 	bl	.setup_doorbell_ivors
+	/*
+	 * We may be running as a guest and lack E.HV even on a chip
+	 * that normally has it.
+	 */
+	mfspr	r10,SPRN_MMUCFG
+	rlwinm.	r10,r10,0,MMUCFG_LPIDSIZE
+	beq	1f
 	bl	.setup_ehv_ivors
+	b	2f
+1:	ld	r10,CPU_SPEC_FEATURES(r5)
+	LOAD_REG_IMMEDIATE(r9,CPU_FTR_EMB_HV)
+	andc	r10,r10,r9
+	std	r10,CPU_SPEC_FEATURES(r5)
+2:
 #else
 	bl	__setup_e500mc_ivors
 #endif
