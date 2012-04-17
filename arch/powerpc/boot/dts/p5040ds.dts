@@ -228,6 +228,16 @@
 			cpu-handle = <&cpu1>;
 			reg = <0x41000 0x1000>;
 		};
+		dcsr-cpu-sb-proxy@42000 {
+			compatible = "fsl,dcsr-e5500-sb-proxy", "fsl,dcsr-cpu-sb-proxy";
+			cpu-handle = <&cpu2>;
+			reg = <0x42000 0x1000>;
+		};
+		dcsr-cpu-sb-proxy@43000 {
+			compatible = "fsl,dcsr-e5500-sb-proxy", "fsl,dcsr-cpu-sb-proxy";
+			cpu-handle = <&cpu3>;
+			reg = <0x43000 0x1000>;
+		};
 	};
 
 	bportals: bman-portals@ff4000000 {
