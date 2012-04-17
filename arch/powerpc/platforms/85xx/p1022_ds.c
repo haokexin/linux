@@ -605,6 +605,17 @@ static void __init p1022_ds_setup_arch(void)
 
 machine_device_initcall(p1022_ds, mpc85xx_common_publish_devices);
 
+static struct of_device_id __initdata p1022_elbc_ids[] = {
+	{ .compatible = "fsl,p1022-elbc", },
+	{},
+}
+
+static int __init p1022_ds_publish_elbc_device(void)
+{
+	return of_platform_bus_probe(NULL, p1022_elbc_ids, NULL);
+}
+machine_arch_initcall(p1022_ds, p1022_ds_publish_elbc_device);
+
 static struct of_device_id __initdata p1022_pci_ids[] = {
 	{ .compatible = "fsl,p1022-pcie", },
 	{},
