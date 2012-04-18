@@ -2328,13 +2328,11 @@ void gfar_configure_tx_coalescing(struct gfar_private *priv,
 	if (priv->mode == MQ_MG_MODE) {
 		baddr = &regs->txic0;
 		for (i = 0; i < priv->num_tx_queues; i++) {
-			if (tx_mask & mask) {
-				if (likely(priv->tx_queue[i]->txcoalescing)) {
-					gfar_write(baddr + i, 0);
+			gfar_write(baddr + i, 0);
+			if (tx_mask & mask)
+				if (likely(priv->tx_queue[i]->txcoalescing))
 					gfar_write(baddr + i,
 						 priv->tx_queue[i]->txic);
-				}
-			}
 			mask = mask << 0x1;
 		}
 	}
@@ -2359,13 +2357,11 @@ void gfar_configure_rx_coalescing(struct gfar_private *priv,
 	if (priv->mode == MQ_MG_MODE) {
 		baddr = &regs->rxic0;
 		for (i = 0; i < priv->num_rx_queues; i++) {
-			if (rx_mask & mask) {
-				if (likely(priv->rx_queue[i]->rxcoalescing)) {
-					gfar_write(baddr + i, 0);
+			gfar_write(baddr + i, 0);
+			if (rx_mask & mask)
+				if (likely(priv->rx_queue[i]->rxcoalescing))
 					gfar_write(baddr + i,
 						priv->rx_queue[i]->rxic);
-				}
-			}
 			mask = mask << 0x1;
 		}
 	}
