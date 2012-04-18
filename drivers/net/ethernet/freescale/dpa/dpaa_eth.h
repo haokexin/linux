@@ -1,5 +1,5 @@
 /* 
- * Copyright 2008-2011 Freescale Semiconductor Inc.
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -233,6 +233,18 @@ struct dpa_rx_errors {
 	u32 cse;		/* Checksum Validation Error */
 };
 
+/* Counters for QMan ERN frames - one counter per rejection code */
+struct dpa_ern_cnt {
+	u32 cg_tdrop;		/* Congestion group taildrop */
+	u32 wred;		/* WRED congestion */
+	u32 err_cond;		/* Error condition */
+	u32 early_window;	/* Order restoration, frame too early */
+	u32 late_window;	/* Order restoration, frame too late */
+	u32 fq_tdrop;		/* FQ taildrop */
+	u32 fq_retired;		/* FQ is retired */
+	u32 orp_zero;		/* ORP disabled */
+};
+
 struct dpa_percpu_priv_s {
 	struct net_device *net_dev;
 	/*
@@ -256,6 +268,7 @@ struct dpa_percpu_priv_s {
 	u32 tx_confirm;
 	struct net_device_stats	 stats;
 	struct dpa_rx_errors rx_errors;
+	struct dpa_ern_cnt ern_cnt;
 };
 
 struct dpa_priv_s {
