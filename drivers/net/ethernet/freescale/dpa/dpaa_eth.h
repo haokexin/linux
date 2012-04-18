@@ -142,7 +142,11 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
  */
 #define DEFAULT_BUF_SIZE	PAGE_SIZE
 #else
-#define DEFAULT_BUF_SIZE DPA_BP_SIZE(fsl_fman_phy_maxfrm);
+/*
+ * Default buffer size is based on L2 MAXFRM value, minus the FCS which is
+ * stripped down by hardware.
+ */
+#define DEFAULT_BUF_SIZE DPA_BP_SIZE(fsl_fman_phy_maxfrm - ETH_FCS_LEN)
 #endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
 
 /*
