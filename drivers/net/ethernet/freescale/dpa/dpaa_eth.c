@@ -1862,6 +1862,37 @@ ingress_tx_default_dqrr(struct qman_portal		*portal,
 	return qman_cb_dqrr_consume;
 }
 
+static void count_ern(struct dpa_percpu_priv_s *percpu_priv,
+		      const struct qm_mr_entry *msg)
+{
+	switch (msg->ern.rc & QM_MR_RC_MASK) {
+	case QM_MR_RC_CGR_TAILDROP:
+		percpu_priv->ern_cnt.cg_tdrop++;
+		break;
+	case QM_MR_RC_WRED:
+		percpu_priv->ern_cnt.wred++;
+		break;
+	case QM_MR_RC_ERROR:
+		percpu_priv->ern_cnt.err_cond++;
+		break;
+	case QM_MR_RC_ORPWINDOW_EARLY:
+		percpu_priv->ern_cnt.early_window++;
+		break;
+	case QM_MR_RC_ORPWINDOW_LATE:
+		percpu_priv->ern_cnt.late_window++;
+		break;
+	case QM_MR_RC_FQ_TAILDROP:
+		percpu_priv->ern_cnt.fq_tdrop++;
+		break;
+	case QM_MR_RC_ORPWINDOW_RETIRED:
+		percpu_priv->ern_cnt.fq_retired++;
+		break;
+	case QM_MR_RC_ORP_ZERO:
+		percpu_priv->ern_cnt.orp_zero++;
+		break;
+	}
+}
+
 static void shared_ern(struct qman_portal	*portal,
 		       struct qman_fq		*fq,
 		       const struct qm_mr_entry	*msg)
@@ -1879,6 +1910,7 @@ static void shared_ern(struct qman_portal	*portal,
 
 	percpu_priv->stats.tx_dropped++;
 	percpu_priv->stats.tx_fifo_errors++;
+	count_ern(percpu_priv, msg);
 }
 
 static void egress_ern(struct qman_portal	*portal,
@@ -1897,6 +1929,7 @@ static void egress_ern(struct qman_portal	*portal,
 
 	percpu_priv->stats.tx_dropped++;
 	percpu_priv->stats.tx_fifo_errors++;
+	count_ern(percpu_priv, msg);
 
 	/*
 	 * If we intended this buffer to go into the pool
@@ -2615,6 +2648,43 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 				total.rx_errors.fse,
 				total.rx_errors.phe,
 				total.rx_errors.cse);
+
+	seq_printf(file, "\nDPA ERN counters:\n  CPU     cg_td      wred  " \
+			"err_cond   early_w    late_w     fq_td    fq_ret" \
+			"     orp_z\n");
+	for_each_online_cpu(i) {
+		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
+
+		total.ern_cnt.cg_tdrop += percpu_priv->ern_cnt.cg_tdrop;
+		total.ern_cnt.wred += percpu_priv->ern_cnt.wred;
+		total.ern_cnt.err_cond += percpu_priv->ern_cnt.err_cond;
+		total.ern_cnt.early_window += percpu_priv->ern_cnt.early_window;
+		total.ern_cnt.late_window += percpu_priv->ern_cnt.late_window;
+		total.ern_cnt.fq_tdrop += percpu_priv->ern_cnt.fq_tdrop;
+		total.ern_cnt.fq_retired += percpu_priv->ern_cnt.fq_retired;
+		total.ern_cnt.orp_zero += percpu_priv->ern_cnt.orp_zero;
+
+		seq_printf(file, "  %hu/%hu  %8u  %8u  %8u  %8u  %8u  %8u" \
+			"  %8u  %8u\n",
+			get_hard_smp_processor_id(i), i,
+			percpu_priv->ern_cnt.cg_tdrop,
+			percpu_priv->ern_cnt.wred,
+			percpu_priv->ern_cnt.err_cond,
+			percpu_priv->ern_cnt.early_window,
+			percpu_priv->ern_cnt.late_window,
+			percpu_priv->ern_cnt.fq_tdrop,
+			percpu_priv->ern_cnt.fq_retired,
+			percpu_priv->ern_cnt.orp_zero);
+	}
+	seq_printf(file, "Total  %8u  %8u  %8u  %8u  %8u  %8u  %8u  %8u\n",
+		total.ern_cnt.cg_tdrop,
+		total.ern_cnt.wred,
+		total.ern_cnt.err_cond,
+		total.ern_cnt.early_window,
+		total.ern_cnt.late_window,
+		total.ern_cnt.fq_tdrop,
+		total.ern_cnt.fq_retired,
+		total.ern_cnt.orp_zero);
 
 	return 0;
 }
