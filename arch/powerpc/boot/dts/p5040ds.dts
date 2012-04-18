@@ -921,7 +921,7 @@
 		};
 
 		usb0: usb@210000 {
-			compatible = "fsl,mpc85xx-usb2-mph", "fsl-usb2-mph";
+			compatible = "fsl-usb2-mph-v1.6", "fsl,mpc85xx-usb2-mph", "fsl-usb2-mph";
 			reg = <0x210000 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -931,7 +931,7 @@
 		};
 
 		usb1: usb@211000 {
-			compatible = "fsl,mpc85xx-usb2-dr", "fsl-usb2-dr";
+			compatible = "fsl-usb2-dr-v1.6", "fsl,mpc85xx-usb2-dr", "fsl-usb2-dr";
 			reg = <0x211000 0x1000>;
 			#address-cells = <1>;
 			#size-cells = <0>;
