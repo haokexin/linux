@@ -1248,6 +1248,7 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 	dpa_bp = dpa_size2pool(priv, skb_headlen(skb));
 	if (unlikely(IS_ERR(dpa_bp))) {
+		percpu_priv->stats.tx_errors++;
 		err = PTR_ERR(dpa_bp);
 		goto bpools_too_small_error;
 	}
