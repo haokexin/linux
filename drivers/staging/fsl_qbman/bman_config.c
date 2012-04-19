@@ -503,11 +503,11 @@ int bman_init_ccsr(struct device_node *node)
 		return 0;
 	if (node != bm_node)
 		return -EINVAL;
+	/* FBPR memory */
+	bm_set_memory(bm, fbpr_a, 0, fbpr_sz);
 	ret = __bind_irq();
 	if (ret)
 		return ret;
-	/* FBPR memory */
-	bm_set_memory(bm, fbpr_a, 0, fbpr_sz);
 	return 0;
 }
 

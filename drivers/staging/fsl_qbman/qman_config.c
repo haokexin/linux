@@ -749,14 +749,10 @@ static int __bind_irq(void)
 int qman_init_ccsr(struct device_node *node)
 {
 	int ret;
-	/* Initialise Error Interrupt Handler */
 	if (!qman_have_ccsr())
 		return 0;
 	if (node != qm_node)
 		return -EINVAL;
-	ret = __bind_irq();
-	if (ret)
-		return ret;
 	/* FQD memory */
 	qm_set_memory(qm, qm_memory_fqd, fqd_a, 1, 0, 0, fqd_sz);
 	/* PFDR memory */
@@ -777,6 +773,10 @@ int qman_init_ccsr(struct device_node *node)
 	/* We are not prepared to accept ERNs for hardware enqueues */
 	qm_set_dc(qm, qm_dc_portal_fman0, 1, 0);
 	qm_set_dc(qm, qm_dc_portal_fman1, 1, 0);
+	/* Initialise Error Interrupt Handler */
+	ret = __bind_irq();
+	if (ret)
+		return ret;
 	return 0;
 }
 
