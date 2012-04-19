@@ -402,6 +402,14 @@ int machine_check_e500mc(struct pt_regs *regs)
 	unsigned long reason = mcsr;
 	int recoverable = 1;
 
+	if (reason & MCSR_LD) {
+#ifdef CONFIG_RAPIDIO
+		recoverable = fsl_rio_mcheck_exception(regs);
+#endif
+		if (recoverable == 1)
+			goto silent_out;
+        }
+
 	printk("Machine check in kernel mode.\n");
 	printk("Caused by (from MCSR=%lx): ", reason);
 
@@ -444,10 +452,8 @@ int machine_check_e500mc(struct pt_regs *regs)
 		recoverable = 0;
 	}
 
-	if (reason & MCSR_LD) {
+	if (reason & MCSR_LD)
 		printk("Load Error Report\n");
-		recoverable = 0;
-	}
 
 	if (reason & MCSR_ST) {
 		printk("Store Error Report\n");
@@ -477,13 +483,7 @@ int machine_check_e500mc(struct pt_regs *regs)
 		       reason & MCSR_MEA ? "Effective" : "Physical", addr);
 	}
 
-	if (reason & MCSR_BUS_RBERR) {
-		printk("Bus - Read Data Bus Error\n");
-#ifdef CONFIG_RAPIDIO
-		recoverable = fsl_rio_mcheck_exception(regs);
-#endif
-	}
-
+silent_out:
 	mtspr(SPRN_MCSR, mcsr);
 	return mfspr(SPRN_MCSR) == 0 && recoverable;
 }
