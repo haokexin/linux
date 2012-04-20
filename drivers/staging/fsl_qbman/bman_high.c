@@ -200,6 +200,12 @@ struct bman_portal *bman_create_affine_portal(
 	int ret;
 	u8 bpid = 0;
 
+	/* A criteria for calling this function (from bman_driver.c) is that
+	 * we're already affine to the cpu and won't schedule onto another cpu.
+	 * This means we can put_affine_portal() and yet continue to use
+	 * "portal", which in turn means aspects of this routine can sleep. */
+	put_affine_portal();
+
 	/* prep the low-level portal struct with the mapped addresses from the
 	 * config, everything that follows depends on it and "config" is more
 	 * for (de)reference... */
@@ -269,7 +275,6 @@ struct bman_portal *bman_create_affine_portal(
 	spin_unlock(&affine_mask_lock);
 	bm_isr_disable_write(__p, 0);
 	bm_isr_uninhibit(__p);
-	put_affine_portal();
 	return portal;
 fail_rcr_empty:
 fail_affinity:
