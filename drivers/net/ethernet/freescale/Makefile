@@ -13,7 +13,8 @@ obj-$(CONFIG_GIANFAR) += gianfar_driver.o
 obj-$(CONFIG_PTP_1588_CLOCK_GIANFAR) += gianfar_ptp.o
 gianfar_driver-objs := gianfar.o \
 		gianfar_ethtool.o \
-		gianfar_sysfs.o
+		gianfar_sysfs.o \
+		gianfar_1588.o
 obj-$(CONFIG_UCC_GETH) += ucc_geth_driver.o
 ucc_geth_driver-objs := ucc_geth.o ucc_geth_ethtool.o
 obj-$(if $(CONFIG_DPA),y) += dpa/
