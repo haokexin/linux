@@ -59,4 +59,5 @@ obj-$(CONFIG_RAMSTER)		+= ramster/
 obj-$(CONFIG_USB_WPAN_HCD)	+= ozwpan/
 obj-$(CONFIG_FSL_DPA)		+= fsl_qbman/
 obj-$(CONFIG_FSL_PME2)		+= fsl_pme2/
+obj-$(CONFIG_FSL_RMAN_UIO)	+= fsl_rman/
 obj-$(CONFIG_LTTNG2)		+= lttng2/
