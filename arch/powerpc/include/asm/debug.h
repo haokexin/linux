@@ -45,10 +45,7 @@ static inline int debugger_fault_handler(struct pt_regs *regs) { return 0; }
 #endif
 
 extern int set_dabr(unsigned long dabr);
-#ifdef CONFIG_PPC_ADV_DEBUG_REGS
-extern void do_send_trap(struct pt_regs *regs, unsigned long address,
-			 unsigned long error_code, int signal_code, int brkpt);
-#else
+#ifndef CONFIG_PPC_ADV_DEBUG_REGS
 extern void do_dabr(struct pt_regs *regs, unsigned long address,
 		    unsigned long error_code);
 #endif
