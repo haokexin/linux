@@ -89,7 +89,7 @@ enum {
 #define DPA_VLAN_TAG_LEN		4
 
 #define DPA_PTP_TIMESTAMP_OFFSET	0x30
-#define DPA_PTP_NOMINAL_FREQ_PERIOD	0xa /* 10ns -> 100M */
+#define DPA_PTP_NOMINAL_FREQ_PERIOD	5  /* 5ns -> 200M */
 #define NANOSEC_PER_SECOND		1000000000
 
 /* Struct needed to identify a timestamp */
