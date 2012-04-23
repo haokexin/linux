@@ -89,6 +89,10 @@ struct sdhci_host {
 #define SDHCI_QUIRK_UNSTABLE_RO_DETECT			(1U<<31)
 /* Controller has weird bit setting for Protocol Control Register */
 #define SDHCI_QUIRK_QORIQ_PROCTL_WEIRD			(0x100000000U)
+/* Controller can only supports 3.3V, but the capabilities register
+ * has incorrect set 1.8V and 3.0V
+ */
+#define SDHCI_QUIRK_QORIQ_HOSTCAPBLT_ONLY_VS33		(0x200000000U)
 
 	unsigned int quirks2;	/* More deviations from spec. */
 

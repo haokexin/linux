@@ -77,6 +77,9 @@ void sdhci_get_of_property(struct platform_device *pdev)
 		if (of_device_is_compatible(np, "fsl,esdhc"))
 			host->quirks |= SDHCI_QUIRK_QORIQ_PROCTL_WEIRD;
 
+		if (of_device_is_compatible(np, "fsl,p4080-esdhc"))
+			host->quirks |= SDHCI_QUIRK_QORIQ_HOSTCAPBLT_ONLY_VS33;
+
 		if (of_device_is_compatible(np, "fsl,p2020-esdhc") ||
 		    of_device_is_compatible(np, "fsl,p1010-esdhc") ||
 		    of_device_is_compatible(np, "fsl,mpc8536-esdhc"))
