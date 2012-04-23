@@ -785,20 +785,12 @@ static void mpic_mask_ipi(struct irq_data *d)
 	 * you need to be careful to only use one CPU per IPI, as the
 	 * mask bit is not per-CPU.
 	 */
-#ifdef CONFIG_SMP
-	/*
-	 * FIXME if the kernel's normal IPI use is reduced to the point
-	 * where some IPIs could be spared for other use
-	 */
-	WARN_ON_ONCE(1);
-#else
 	struct mpic *mpic = mpic_from_irq_data(d);
 	unsigned int src = virq_to_hw(d->irq) - mpic->ipi_vecs[0];
 
 	DBG("%s: disable_ipi: %d (ipi %d)\n", mpic->name, d->irq, src);
 	mpic_ipi_write(src, mpic_ipi_read(src) | MPIC_VECPRI_MASK);
 	mpic_ipi_read(src);
-#endif
 }
 
 static void mpic_end_ipi(struct irq_data *d)
