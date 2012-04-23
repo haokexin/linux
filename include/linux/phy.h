@@ -6,7 +6,7 @@
  *
  * Author: Andy Fleming
  *
- * Copyright (c) 2004 Freescale Semiconductor, Inc.
+ * Copyright (c) 2004-2010 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -64,6 +64,7 @@ typedef enum {
 	PHY_INTERFACE_MODE_RGMII_TXID,
 	PHY_INTERFACE_MODE_RTBI,
 	PHY_INTERFACE_MODE_SMII,
+	PHY_INTERFACE_MODE_XGMII
 } phy_interface_t;
 
 
@@ -98,8 +99,10 @@ struct mii_bus {
 	const char *name;
 	char id[MII_BUS_ID_SIZE];
 	void *priv;
-	int (*read)(struct mii_bus *bus, int phy_id, int regnum);
-	int (*write)(struct mii_bus *bus, int phy_id, int regnum, u16 val);
+	int (*read)(struct mii_bus *bus, int port_addr, int dev_addr,
+			int regnum);
+	int (*write)(struct mii_bus *bus, int port_addr, int dev_addr,
+			int regnum, u16 val);
 	int (*reset)(struct mii_bus *bus);
 
 	/*
@@ -141,9 +144,9 @@ int mdiobus_register(struct mii_bus *bus);
 void mdiobus_unregister(struct mii_bus *bus);
 void mdiobus_free(struct mii_bus *bus);
 struct phy_device *mdiobus_scan(struct mii_bus *bus, int addr);
-int mdiobus_read(struct mii_bus *bus, int addr, u32 regnum);
-int mdiobus_write(struct mii_bus *bus, int addr, u32 regnum, u16 val);
-
+int mdiobus_read(struct mii_bus *bus, int addr, int devad, u16 regnum);
+int mdiobus_write(struct mii_bus *bus, int addr, int devad,
+			u16 regnum, u16 val);
 
 #define PHY_INTERRUPT_DISABLED	0x0
 #define PHY_INTERRUPT_ENABLED	0x80000000
@@ -313,6 +316,7 @@ struct phy_device {
 	/* See mii.h for more info */
 	u32 supported;
 	u32 advertising;
+	u32 mmds;
 
 	int autoneg;
 
@@ -459,7 +463,22 @@ struct phy_fixup {
  */
 static inline int phy_read(struct phy_device *phydev, u32 regnum)
 {
-	return mdiobus_read(phydev->bus, phydev->addr, regnum);
+	return mdiobus_read(phydev->bus, phydev->addr, 0, regnum);
+}
+
+/**
+ * phy45_read - Convenience function for reading a given port/dev/reg address
+ * @phydev: The phy_device struct
+ * @devad: The device address to read
+ * @regnum: The register number to read
+ *
+ * NOTE: MUST NOT be called from interrupt context,
+ * because the bus read/write functions may wait for an interrupt
+ * to conclude the operation.
+ */
+static inline int phy45_read(struct phy_device *phydev, int devad, u16 regnum)
+{
+	return mdiobus_read(phydev->bus, phydev->addr, devad, regnum);
 }
 
 /**
@@ -474,12 +493,31 @@ static inline int phy_read(struct phy_device *phydev, u32 regnum)
  */
 static inline int phy_write(struct phy_device *phydev, u32 regnum, u16 val)
 {
-	return mdiobus_write(phydev->bus, phydev->addr, regnum, val);
+	return mdiobus_write(phydev->bus, phydev->addr, 0, regnum, val);
+}
+
+/**
+ * phy45_write - Convenience function for writing a given port/dev/reg
+ * @phydev: the phy_device struct
+ * @devad: the device addr
+ * @regnum: register number to write
+ * @val: value to write to @regnum
+ *
+ * NOTE: MUST NOT be called from interrupt context,
+ * because the bus read/write functions may wait for an interrupt
+ * to conclude the operation.
+ */
+static inline int phy45_write(struct phy_device *phydev, u16 regnum,
+				int devad, u16 val)
+{
+	return mdiobus_write(phydev->bus, phydev->addr, devad, regnum, val);
 }
 
 int get_phy_id(struct mii_bus *bus, int addr, u32 *phy_id);
 struct phy_device* get_phy_device(struct mii_bus *bus, int addr);
 int phy_device_register(struct phy_device *phy);
+int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
+		u32 flags, phy_interface_t interface);
 int phy_init_hw(struct phy_device *phydev);
 struct phy_device * phy_attach(struct net_device *dev,
 		const char *bus_id, u32 flags, phy_interface_t interface);
