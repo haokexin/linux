@@ -220,6 +220,41 @@ config ENCLOSURE_SERVICES
 	  driver (SCSI/ATA) which supports enclosures
 	  or a SCSI enclosure device (SES) to use these services.
 
+config FSL_USDPAA_SHMEM
+	bool "Freescale USDPAA shared memory driver"
+	depends on PPC_85xx || PPC_E500MC
+	help
+	  This driver provides user-space access to a large contiguous
+	  memory allocation, reserved for use by Freescale USDPAA (User
+	  Space DataPath Acceleration Architecture) applications. This
+	  driver includes a private ioctl() interface for conveying the
+	  size and (DMA-)base-address of the memory region. It is also
+	  hooked by the MMU code, such that a single TLB1 mapping is
+	  created for the entire region when the first fault occurs.
+	  The intention is for this driver to be replaced by HugeTLB
+	  facilities, once they are available for USDPAA platforms.
+
+config FSL_USDPAA_SHMEM_LOG4
+	int "Log4 page-order of USDPAA memory reservation"
+	depends on FSL_USDPAA_SHMEM
+	range 7 9
+	default 8
+	help
+	  This configures the size of contiguous memory reserved for
+	  the USDPAA DMA memory map. It is carved out of the physical
+	  address-space early during boot, and cannot be released or
+	  resized thereafter. Some of this memory is used for seeding
+	  Bman buffer pools, and the remainder is for ad-hoc DMA buffer
+	  allocation (eg. Qman-stashable FQ contexts). Current USDPAA
+	  defaults require ~24MB for buffers.
+
+	  This region must be a power-of-four multiple of the page
+	  size (4KB), so the minimal usable value with the current
+	  USPAA (and the default) is 256MB (setting=8).
+
+	  For memory size 'x', the required setting is 'log4(x/4096)'.
+	  Or for setting 'x', the memory size will be '4096*(4^x)'.
+
 config SGI_XP
 	tristate "Support communication between SGI SSIs"
 	depends on NET
