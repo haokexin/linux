@@ -711,6 +711,16 @@ config FSL_GTM
 	help
 	  Freescale General-purpose Timers support
 
+config HAS_FSL_PAMU
+	bool
+	default n
+
+config FSL_PAMU
+	bool "PAMU/IOMMU support"
+	depends on HAS_FSL_PAMU
+	help
+	  Freescale PAMU/IOMMU support
+
 # Yes MCA RS/6000s exist but Linux-PPC does not currently support any
 config MCA
 	bool
