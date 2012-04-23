@@ -626,13 +626,11 @@ static inline u32 mpic_physmask(u32 cpumask)
 	return mask;
 }
 
-#ifdef CONFIG_SMP
 /* Get the mpic structure from the IPI number */
 static inline struct mpic * mpic_from_ipi(struct irq_data *d)
 {
 	return irq_data_get_irq_chip_data(d);
 }
-#endif
 
 /* Get the mpic structure from the irq number */
 static inline struct mpic * mpic_from_irq(unsigned int irq)
@@ -768,8 +766,6 @@ static void mpic_end_ht_irq(struct irq_data *d)
 }
 #endif /* !CONFIG_MPIC_U3_HT_IRQS */
 
-#ifdef CONFIG_SMP
-
 static void mpic_unmask_ipi(struct irq_data *d)
 {
 	struct mpic *mpic = mpic_from_ipi(d);
@@ -781,7 +777,29 @@ static void mpic_unmask_ipi(struct irq_data *d)
 
 static void mpic_mask_ipi(struct irq_data *d)
 {
-	/* NEVER disable an IPI... that's just plain wrong! */
+	/*
+	 * Ordinarily, IPIs should never be masked.
+	 *
+	 * The exception is when the interrupt is not being used
+	 * as a normal IPI by this instance of Linux -- and is
+	 * threaded/reflected by something like KVM.  In such cases
+	 * you need to be careful to only use one CPU per IPI, as the
+	 * mask bit is not per-CPU.
+	 */
+#ifdef CONFIG_SMP
+	/*
+	 * FIXME if the kernel's normal IPI use is reduced to the point
+	 * where some IPIs could be spared for other use
+	 */
+	WARN_ON_ONCE(1);
+#else
+	struct mpic *mpic = mpic_from_irq_data(d);
+	unsigned int src = virq_to_hw(d->irq) - mpic->ipi_vecs[0];
+
+	DBG("%s: disable_ipi: %d (ipi %d)\n", mpic->name, d->irq, src);
+	mpic_ipi_write(src, mpic_ipi_read(src) | MPIC_VECPRI_MASK);
+	mpic_ipi_read(src);
+#endif
 }
 
 static void mpic_end_ipi(struct irq_data *d)
@@ -795,8 +813,6 @@ static void mpic_end_ipi(struct irq_data *d)
 	 */
 	mpic_eoi(mpic);
 }
-
-#endif /* CONFIG_SMP */
 
 static void mpic_unmask_tm(struct irq_data *d)
 {
@@ -959,13 +975,11 @@ static struct irq_chip mpic_irq_chip = {
 	.irq_set_type	= mpic_set_irq_type,
 };
 
-#ifdef CONFIG_SMP
 static struct irq_chip mpic_ipi_chip = {
 	.irq_mask	= mpic_mask_ipi,
 	.irq_unmask	= mpic_unmask_ipi,
 	.irq_eoi	= mpic_end_ipi,
 };
-#endif /* CONFIG_SMP */
 
 static struct irq_chip mpic_tm_chip = {
 	.irq_mask	= mpic_mask_tm,
@@ -1004,8 +1018,7 @@ static int mpic_host_map(struct irq_domain *h, unsigned int virq,
 	if (mpic->protected && test_bit(hw, mpic->protected))
 		return -EINVAL;
 
-#ifdef CONFIG_SMP
-	else if (hw >= mpic->ipi_vecs[0]) {
+	if (hw >= mpic->ipi_vecs[0]) {
 		WARN_ON(mpic->flags & MPIC_SECONDARY);
 
 		DBG("mpic: mapping as IPI\n");
@@ -1014,7 +1027,6 @@ static int mpic_host_map(struct irq_domain *h, unsigned int virq,
 					 handle_percpu_irq);
 		return 0;
 	}
-#endif /* CONFIG_SMP */
 
 	if (hw >= mpic->timer_vecs[0] && hw <= mpic->timer_vecs[7]) {
 		WARN_ON(mpic->flags & MPIC_SECONDARY);
@@ -1233,10 +1245,8 @@ struct mpic * __init mpic_alloc(struct device_node *node,
 		mpic->hc_ht_irq.irq_set_affinity = mpic_set_affinity;
 #endif /* CONFIG_MPIC_U3_HT_IRQS */
 
-#ifdef CONFIG_SMP
 	mpic->hc_ipi = mpic_ipi_chip;
 	mpic->hc_ipi.name = name;
-#endif /* CONFIG_SMP */
 
 	mpic->hc_tm = mpic_tm_chip;
 	mpic->hc_tm.name = name;

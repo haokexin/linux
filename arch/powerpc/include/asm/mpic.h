@@ -262,9 +262,7 @@ struct mpic
 #ifdef CONFIG_MPIC_U3_HT_IRQS
 	struct irq_chip		hc_ht_irq;
 #endif
-#ifdef CONFIG_SMP
 	struct irq_chip		hc_ipi;
-#endif
 	struct irq_chip		hc_tm;
 	const char		*name;
 	/* Flags */
