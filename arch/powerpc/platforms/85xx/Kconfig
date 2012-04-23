@@ -252,6 +252,7 @@ config P4080_DS
 	select HAS_FSL_PAMU
 	select HAS_FSL_QBMAN
 	select HAS_FSL_PME
+	select FSL_P4080_DS_MDIO if PHYLIB
 	help
 	  This option enables support for the P4080 DS board
 
@@ -275,6 +276,11 @@ config P5020_DS
 	  This option enables support for the P5020 DS board
 
 endif # FSL_SOC_BOOKE
+
+config FSL_P4080_DS_MDIO
+	bool
+	select VITESSE_PHY
+	depends on PHYLIB
 
 config TQM85xx
 	bool
