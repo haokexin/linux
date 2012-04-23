@@ -40,6 +40,8 @@
 #include <asm/ppc-pci.h>
 #include <asm/eeh.h>
 
+#include <mm/mmu_decl.h>
+
 static DEFINE_SPINLOCK(hose_spinlock);
 LIST_HEAD(hose_list);
 
@@ -381,7 +383,8 @@ pgprot_t pci_phys_mem_access_prot(struct file *file,
 	resource_size_t offset = ((resource_size_t)pfn) << PAGE_SHIFT;
 	int i;
 
-	if (page_is_ram(pfn))
+	if (pfn >= (memstart_addr >> PAGE_SHIFT) &&
+	    pfn <= (memend_addr >> PAGE_SHIFT))
 		return prot;
 
 	prot = pgprot_noncached(prot);
