@@ -1,7 +1,7 @@
 /*
  *  linux/drivers/mmc/host/sdhci.c - Secure Digital Host Controller Interface driver
  *
- *  Copyright (C) 2005-2008 Pierre Ossman, All Rights Reserved.
+ *  Copyright (C) 2011 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,6 +42,13 @@
 #endif
 
 #define MAX_TUNING_LOOP 40
+
+#define ESDHCI_PROCTL_DMAS_MASK	0x00000300
+#define ESDHCI_PROCTL_ADMA32	0x00000200
+#define ESDHCI_PROCTL_SDMA	0x00000000
+#define	ESDHCI_FSL_POWER_MASK	0x40
+#define	ESDHCI_FSL_POWER_180	0x00
+#define	ESDHCI_FSL_POWER_300	0x40
 
 static unsigned int debug_quirks = 0;
 static unsigned int debug_quirks2;
@@ -705,7 +712,7 @@ static void sdhci_set_transfer_irqs(struct sdhci_host *host)
 static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_command *cmd)
 {
 	u8 count;
-	u8 ctrl;
+	u32 ctrl;
 	struct mmc_data *data = cmd->data;
 	int ret;
 
@@ -838,14 +845,25 @@ static void sdhci_prepare_data(struct sdhci_host *host, struct mmc_command *cmd)
 	 * is ADMA.
 	 */
 	if (host->version >= SDHCI_SPEC_200) {
-		ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL);
-		ctrl &= ~SDHCI_CTRL_DMA_MASK;
-		if ((host->flags & SDHCI_REQ_USE_DMA) &&
-			(host->flags & SDHCI_USE_ADMA))
-			ctrl |= SDHCI_CTRL_ADMA32;
-		else
-			ctrl |= SDHCI_CTRL_SDMA;
-		sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
+		if (host->quirks & SDHCI_QUIRK_QORIQ_PROCTL_WEIRD) {
+			ctrl = sdhci_readl(host, SDHCI_HOST_CONTROL);
+			ctrl &= ~ESDHCI_PROCTL_DMAS_MASK;
+			if ((host->flags & SDHCI_REQ_USE_DMA) &&
+				(host->flags & SDHCI_USE_ADMA))
+				ctrl |= ESDHCI_PROCTL_ADMA32;
+			else
+				ctrl |= ESDHCI_PROCTL_SDMA;
+			sdhci_writel(host, ctrl, SDHCI_HOST_CONTROL);
+		} else {
+			ctrl = sdhci_readb(host, SDHCI_HOST_CONTROL);
+			ctrl &= ~SDHCI_CTRL_DMA_MASK;
+			if ((host->flags & SDHCI_REQ_USE_DMA) &&
+				(host->flags & SDHCI_USE_ADMA))
+				ctrl |= SDHCI_CTRL_ADMA32;
+			else
+				ctrl |= SDHCI_CTRL_SDMA;
+			sdhci_writeb(host, ctrl, SDHCI_HOST_CONTROL);
+		}
 	}
 
 	if (!(host->flags & SDHCI_REQ_USE_DMA)) {
@@ -1180,19 +1198,29 @@ out:
 static int sdhci_set_power(struct sdhci_host *host, unsigned short power)
 {
 	u8 pwr = 0;
+	u8 volt = 0;
 
 	if (power != (unsigned short)-1) {
 		switch (1 << power) {
 		case MMC_VDD_165_195:
-			pwr = SDHCI_POWER_180;
+			if (host->quirks & SDHCI_QUIRK_QORIQ_PROCTL_WEIRD)
+				pwr = ESDHCI_FSL_POWER_180;
+			else
+				pwr = SDHCI_POWER_180;
 			break;
 		case MMC_VDD_29_30:
 		case MMC_VDD_30_31:
-			pwr = SDHCI_POWER_300;
+			if (host->quirks & SDHCI_QUIRK_QORIQ_PROCTL_WEIRD)
+				pwr = ESDHCI_FSL_POWER_300;
+			else
+				pwr = SDHCI_POWER_300;
 			break;
 		case MMC_VDD_32_33:
 		case MMC_VDD_33_34:
-			pwr = SDHCI_POWER_330;
+			if (host->quirks & SDHCI_QUIRK_QORIQ_PROCTL_WEIRD)
+				pwr = ESDHCI_FSL_POWER_300;
+			else
+				pwr = SDHCI_POWER_330;
 			break;
 		default:
 			BUG();
@@ -1203,6 +1231,17 @@ static int sdhci_set_power(struct sdhci_host *host, unsigned short power)
 		return -1;
 
 	host->pwr = pwr;
+
+	/* Now FSL ESDHC Controller has no Bus Power bit,
+	 * and PROCTL[21] bit is for voltage selection */
+	if (host->quirks & SDHCI_QUIRK_QORIQ_PROCTL_WEIRD) {
+		volt = sdhci_readb(host, SDHCI_POWER_CONTROL);
+		volt &= ~ESDHCI_FSL_POWER_MASK;
+		volt |= pwr;
+		sdhci_writeb(host, volt, SDHCI_POWER_CONTROL);
+
+		return 0;
+	}
 
 	if (pwr == 0) {
 		sdhci_writeb(host, 0, SDHCI_POWER_CONTROL);
