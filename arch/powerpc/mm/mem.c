@@ -9,6 +9,8 @@
  *
  *  Derived from "arch/i386/mm/init.c"
  *    Copyright (C) 1991, 1992, 1993, 1994  Linus Torvalds
+ *  Copyright (C) 2011 Freescale Semiconductor, Inc.
+ *
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -35,6 +37,9 @@
 #include <linux/memblock.h>
 #include <linux/hugetlb.h>
 #include <linux/slab.h>
+
+/* See hook_usdpaa_tlb1() */
+#include <linux/fsl_usdpaa.h>
 
 #include <asm/pgalloc.h>
 #include <asm/prom.h>
@@ -518,6 +523,31 @@ void flush_icache_user_range(struct vm_area_struct *vma, struct page *page,
 }
 EXPORT_SYMBOL(flush_icache_user_range);
 
+#ifdef CONFIG_FSL_USDPAA_SHMEM
+/*
+ * NB: this 'usdpaa' check+hack is to create a single TLB1 entry to cover the
+ * buffer memory used by run-to-completion UIO-based apps ("User-Space DataPath
+ * Acceleration Architecture"). It is expected to be phased out once HugeTLB
+ * support is hooked up. The other half of this hack is in
+ * drivers/misc/fsl_shmem.c.
+ */
+static inline void hook_usdpaa_tlb1(struct vm_area_struct *vma,
+				unsigned long address, pte_t *ptep)
+{
+	unsigned long pfn = pte_pfn(*ptep);
+	if ((pfn < (usdpaa_pfn_start + usdpaa_pfn_len)) &&
+	    (pfn >= usdpaa_pfn_start)) {
+		unsigned long va = address & ~(usdpaa_phys_size - 1);
+		flush_tlb_mm(vma->vm_mm);
+		settlbcam(usdpaa_tlbcam_index, va,
+			usdpaa_phys_start, usdpaa_phys_size,
+			pte_val(*ptep), mfspr(SPRN_PID));
+	}
+}
+#else
+#define hook_usdpaa_tlb1(a, b, c) do { ; } while (0)
+#endif
+
 /*
  * This is called at the end of handling a user page fault, when the
  * fault has been handled by updating a PTE in the linux page tables.
@@ -551,6 +581,10 @@ void update_mmu_cache(struct vm_area_struct *vma, unsigned long address,
 	else if (trap != 0x300)
 		return;
 	hash_preload(vma->vm_mm, address, access, trap);
+#else
+
+	hook_usdpaa_tlb1(vma, address, ptep);
+
 #endif /* CONFIG_PPC_STD_MMU */
 #if (defined(CONFIG_PPC_BOOK3E_64) || defined(CONFIG_PPC_FSL_BOOK3E)) \
 	&& defined(CONFIG_HUGETLB_PAGE)
