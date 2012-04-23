@@ -62,6 +62,8 @@ config FSL_PQ_MDIO
 	---help---
 	  This driver supports the MDIO bus used by the gianfar and UCC drivers.
 
+source "drivers/net/ethernet/freescale/dpa/NetCommSw/Kconfig"
+
 config UCC_GETH
 	tristate "Freescale QE Gigabit Ethernet"
 	depends on QUICC_ENGINE
