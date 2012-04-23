@@ -17,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/memblock.h>
+#include <linux/of_platform.h>
 
 #include <asm/time.h>
 #include <asm/machdep.h>
@@ -131,6 +132,9 @@ int __init declare_of_platform_devices(void)
 		of_platform_device_create(np, NULL, NULL);
 
 	for_each_compatible_node(np, NULL, "fsl,p4080ds-xmdio")
+		of_platform_device_create(np, NULL, NULL);
+
+	for_each_compatible_node(np, NULL, "fsl,hydra-mdio")
 		of_platform_device_create(np, NULL, NULL);
 
 	return 0;
