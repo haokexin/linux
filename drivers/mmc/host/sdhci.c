@@ -2664,6 +2664,12 @@ int sdhci_add_host(struct sdhci_host *host)
 	caps[1] = (host->version >= SDHCI_SPEC_300) ?
 		sdhci_readl(host, SDHCI_CAPABILITIES_1) : 0;
 
+	 /* Make sure clean the VS18 and VS30 bit. P4080 incorrectly
+	  * set the voltage capability bits
+	  */
+	if (host->quirks & SDHCI_QUIRK_QORIQ_HOSTCAPBLT_ONLY_VS33)
+		caps[0] &= ~(SDHCI_CAN_VDD_180 | SDHCI_CAN_VDD_300);
+
 	if (host->quirks & SDHCI_QUIRK_FORCE_DMA)
 		host->flags |= SDHCI_USE_SDMA;
 	else if (!(caps[0] & SDHCI_CAN_DO_SDMA))
