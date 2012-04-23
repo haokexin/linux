@@ -43,6 +43,16 @@
 		ccsr = &soc;
 		dcsr = &dcsr;
 
+		ethernet0 = &enet0;
+		ethernet1 = &enet1;
+		ethernet2 = &enet2;
+		ethernet3 = &enet3;
+		ethernet4 = &enet4;
+		ethernet5 = &enet5;
+		ethernet6 = &enet6;
+		ethernet7 = &enet7;
+		ethernet8 = &enet8;
+		ethernet9 = &enet9;
 		serial0 = &serial0;
 		serial1 = &serial1;
 		serial2 = &serial2;
@@ -54,6 +64,9 @@
 		usb1 = &usb1;
 		dma0 = &dma0;
 		dma1 = &dma1;
+		bman = &bman;
+		qman = &qman;
+		pme = &pme;
 		sdhc = &sdhc;
 		msi0 = &msi0;
 		msi1 = &msi1;
@@ -69,6 +82,34 @@
 		rtic_c = &rtic_c;
 		rtic_d = &rtic_d;
 		sec_mon = &sec_mon;
+
+		fman0 = &fman0;
+		fman0_oh0 = &fman0_oh0;
+		fman0_oh1 = &fman0_oh1;
+		fman0_oh2 = &fman0_oh2;
+		fman0_oh3 = &fman0_oh3;
+		fman0_oh4 = &fman0_oh4;
+		fman0_oh5 = &fman0_oh5;
+		fman0_oh6 = &fman0_oh6;
+		fman0_rx0 = &fman0_rx0;
+		fman0_rx1 = &fman0_rx1;
+		fman0_rx2 = &fman0_rx2;
+		fman0_rx3 = &fman0_rx3;
+		fman0_rx4 = &fman0_rx4;
+
+		fman1 = &fman1;
+		fman1_oh0 = &fman1_oh0;
+		fman1_oh1 = &fman1_oh1;
+		fman1_oh2 = &fman1_oh2;
+		fman1_oh3 = &fman1_oh3;
+		fman1_oh4 = &fman1_oh4;
+		fman1_oh5 = &fman1_oh5;
+		fman1_oh6 = &fman1_oh6;
+		fman1_rx0 = &fman1_rx0;
+		fman1_rx1 = &fman1_rx1;
+		fman1_rx2 = &fman1_rx2;
+		fman1_rx3 = &fman1_rx3;
+		fman1_rx4 = &fman1_rx4;
 	};
 
 	cpus {
@@ -138,6 +179,249 @@
 			L2_7: l2-cache {
 				next-level-cache = <&cpc>;
 			};
+		};
+	};
+
+	bman-portals@ff4000000 {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0xf 0xf4000000 0x200000>;
+		bman-portal@0 {
+			cell-index = <0x0>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x0 0x4000 0x100000 0x1000>;
+			interrupts = <105 2 0 0>;
+		};
+		bman-portal@4000 {
+			cell-index = <0x1>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x4000 0x4000 0x101000 0x1000>;
+			interrupts = <107 2 0 0>;
+		};
+		bman-portal@8000 {
+			cell-index = <2>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x8000 0x4000 0x102000 0x1000>;
+			interrupts = <109 2 0 0>;
+		};
+		bman-portal@c000 {
+			cell-index = <0x3>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0xc000 0x4000 0x103000 0x1000>;
+			interrupts = <111 2 0 0>;
+		};
+		bman-portal@10000 {
+			cell-index = <0x4>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x10000 0x4000 0x104000 0x1000>;
+			interrupts = <113 2 0 0>;
+		};
+		bman-portal@14000 {
+			cell-index = <0x5>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x14000 0x4000 0x105000 0x1000>;
+			interrupts = <115 2 0 0>;
+		};
+		bman-portal@18000 {
+			cell-index = <0x6>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x18000 0x4000 0x106000 0x1000>;
+			interrupts = <117 2 0 0>;
+		};
+		bman-portal@1c000 {
+			cell-index = <0x7>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x1c000 0x4000 0x107000 0x1000>;
+			interrupts = <119 2 0 0>;
+		};
+		bman-portal@20000 {
+			cell-index = <0x8>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x20000 0x4000 0x108000 0x1000>;
+			interrupts = <121 2 0 0>;
+		};
+		bman-portal@24000 {
+			cell-index = <0x9>;
+			compatible = "fsl,p4080-bman-portal", "fsl,bman-portal";
+			reg = <0x24000 0x4000 0x109000 0x1000>;
+			interrupts = <123 2 0 0>;
+		};
+	};
+
+	qman-portals@ff4200000 {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		compatible = "simple-bus";
+		ranges = <0x0 0xf 0xf4200000 0x200000>;
+		qportal0: qman-portal@0 {
+			cell-index = <0x0>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x0 0x4000 0x100000 0x1000>;
+			interrupts = <104 0x2 0 0>;
+			fsl,qman-channel-id = <0x0>;
+		};
+
+		qportal1: qman-portal@4000 {
+			cell-index = <0x1>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x4000 0x4000 0x101000 0x1000>;
+			interrupts = <106 0x2 0 0>;
+			fsl,qman-channel-id = <0x1>;
+		};
+
+		qportal2: qman-portal@8000 {
+			cell-index = <0x2>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x8000 0x4000 0x102000 0x1000>;
+			interrupts = <108 0x2 0 0>;
+			fsl,qman-channel-id = <0x2>;
+		};
+
+		qportal3: qman-portal@c000 {
+			cell-index = <0x3>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0xc000 0x4000 0x103000 0x1000>;
+			interrupts = <110 0x2 0 0>;
+			fsl,qman-channel-id = <0x3>;
+		};
+
+		qportal4: qman-portal@10000 {
+			cell-index = <0x4>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x10000 0x4000 0x104000 0x1000>;
+			interrupts = <112 0x2 0 0>;
+			fsl,qman-channel-id = <0x4>;
+		};
+
+		qportal5: qman-portal@14000 {
+			cell-index = <0x5>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x14000 0x4000 0x105000 0x1000>;
+			interrupts = <114 0x2 0 0>;
+			fsl,qman-channel-id = <0x5>;
+		};
+
+		qportal6: qman-portal@18000 {
+			cell-index = <0x6>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x18000 0x4000 0x106000 0x1000>;
+			interrupts = <116 0x2 0 0>;
+			fsl,qman-channel-id = <0x6>;
+		};
+
+		qportal7: qman-portal@1c000 {
+			cell-index = <0x7>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x1c000 0x4000 0x107000 0x1000>;
+			interrupts = <118 0x2 0 0>;
+			fsl,qman-channel-id = <0x7>;
+		};
+
+		qportal8: qman-portal@20000 {
+			cell-index = <0x8>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x20000 0x4000 0x108000 0x1000>;
+			interrupts = <120 0x2 0 0>;
+			fsl,qman-channel-id = <0x8>;
+		};
+
+		qportal9: qman-portal@24000 {
+			cell-index = <0x9>;
+			compatible = "fsl,p4080-qman-portal", "fsl,qman-portal";
+			reg = <0x24000 0x4000 0x109000 0x1000>;
+			interrupts = <122 0x2 0 0>;
+			fsl,qman-channel-id = <0x9>;
+		};
+
+		qpool1: qman-pool@1 {
+			cell-index = <1>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x21>;
+		};
+
+		qpool2: qman-pool@2 {
+			cell-index = <2>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x22>;
+		};
+
+		qpool3: qman-pool@3 {
+			cell-index = <3>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x23>;
+		};
+
+		qpool4: qman-pool@4 {
+			cell-index = <4>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x24>;
+		};
+
+		qpool5: qman-pool@5 {
+			cell-index = <5>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x25>;
+		};
+
+		qpool6: qman-pool@6 {
+			cell-index = <6>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x26>;
+		};
+
+		qpool7: qman-pool@7 {
+			cell-index = <7>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x27>;
+		};
+
+		qpool8: qman-pool@8 {
+			cell-index = <8>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x28>;
+		};
+
+		qpool9: qman-pool@9 {
+			cell-index = <9>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x29>;
+		};
+
+		qpool10: qman-pool@10 {
+			cell-index = <10>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x2a>;
+		};
+
+		qpool11: qman-pool@11 {
+			cell-index = <11>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x2b>;
+		};
+
+		qpool12: qman-pool@12 {
+			cell-index = <12>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x2c>;
+		};
+
+		qpool13: qman-pool@13 {
+			cell-index = <13>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x2d>;
+		};
+
+		qpool14: qman-pool@14 {
+			cell-index = <14>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x2e>;
+		};
+
+		qpool15: qman-pool@15 {
+			cell-index = <15>;
+			compatible = "fsl,p4080-qman-pool-channel", "fsl,qman-pool-channel";
+			fsl,qman-channel-id = <0x2f>;
 		};
 	};
 };
