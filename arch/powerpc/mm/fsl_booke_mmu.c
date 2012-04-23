@@ -2,7 +2,7 @@
  * Modifications by Kumar Gala (galak@kernel.crashing.org) to support
  * E500 Book E processors.
  *
- * Copyright 2004,2010 Freescale Semiconductor, Inc.
+ * Copyright 2004-2011 Freescale Semiconductor, Inc.
  *
  * This file contains the routines for initializing the MMU
  * on the 4xx series of chips.
@@ -106,7 +106,7 @@ unsigned long p_mapped_by_tlbcam(phys_addr_t pa)
  * an unsigned long (for example, 32-bit implementations cannot support a 4GB
  * size).
  */
-static void settlbcam(int index, unsigned long virt, phys_addr_t phys,
+void settlbcam(int index, unsigned long virt, phys_addr_t phys,
 		unsigned long size, unsigned long flags, unsigned int pid)
 {
 	unsigned int tsize;
