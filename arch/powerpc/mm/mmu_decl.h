@@ -119,6 +119,7 @@ extern phys_addr_t __initial_memory_limit_addr;
 extern phys_addr_t total_memory;
 extern phys_addr_t total_lowmem;
 extern phys_addr_t memstart_addr;
+extern phys_addr_t memend_addr;
 extern phys_addr_t lowmem_end_addr;
 
 #ifdef CONFIG_WII
