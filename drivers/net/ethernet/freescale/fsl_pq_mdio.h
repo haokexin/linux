@@ -41,11 +41,14 @@ struct fsl_pq_mdio {
 	u8 res4[2728];
 } __packed;
 
-int fsl_pq_mdio_read(struct mii_bus *bus, int mii_id, int regnum);
-int fsl_pq_mdio_write(struct mii_bus *bus, int mii_id, int regnum, u16 value);
+
+int fsl_pq_mdio_read(struct mii_bus *bus, int mii_id, int devad, int regnum);
+int fsl_pq_mdio_write(struct mii_bus *bus, int mii_id, int devad, int regnum,
+			u16 value);
 int fsl_pq_local_mdio_write(struct fsl_pq_mdio __iomem *regs, int mii_id,
-			  int regnum, u16 value);
-int fsl_pq_local_mdio_read(struct fsl_pq_mdio __iomem *regs, int mii_id, int regnum);
+			int regnum, u16 value);
+int fsl_pq_local_mdio_read(struct fsl_pq_mdio __iomem *regs, int mii_id,
+			int regnum);
 int __init fsl_pq_mdio_init(void);
 void fsl_pq_mdio_exit(void);
 void fsl_pq_mdio_bus_name(char *name, struct device_node *np);
