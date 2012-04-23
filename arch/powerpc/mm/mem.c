@@ -99,7 +99,8 @@ pgprot_t phys_mem_access_prot(struct file *file, unsigned long pfn,
 	if (ppc_md.phys_mem_access_prot)
 		return ppc_md.phys_mem_access_prot(file, pfn, size, vma_prot);
 
-	if (!page_is_ram(pfn))
+	if (pfn < (memstart_addr >> PAGE_SHIFT) ||
+	    pfn > (memend_addr >> PAGE_SHIFT))
 		vma_prot = pgprot_noncached(vma_prot);
 
 	return vma_prot;

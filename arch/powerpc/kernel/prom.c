@@ -63,6 +63,8 @@
 #define DBG(fmt...)
 #endif
 
+phys_addr_t memend_addr;
+
 #ifdef CONFIG_PPC64
 int __initdata iommu_is_off;
 int __initdata iommu_force_on;
@@ -538,6 +540,8 @@ void __init early_init_dt_add_memory_arch(u64 base, u64 size)
 		memstart_addr = base;
 		first_memblock_size = size;
 	}
+
+	memend_addr = max((u64)memend_addr, base + size - 1);
 
 	/* Add the chunk to the MEMBLOCK list */
 	memblock_add(base, size);
