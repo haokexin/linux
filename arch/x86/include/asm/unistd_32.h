@@ -344,14 +344,14 @@
 #define __NR_perf_event_open	336
 #define __NR_recvmmsg		337
 #define __NR_revokeat		338
-#define __NR_vbi_mem		339
-#define __NR_vbi_activate_vb	340
-#define __NR_vbi_control	341
-#define __NR_sched_setscheduler_ex	342
-#define __NR_sched_setparam_ex		343
-#define __NR_sched_getparam_ex		344
-#define __NR_sched_wait_interval	345
-#define __NR_setns		346
+#define __NR_sched_setscheduler_ex	339
+#define __NR_sched_setparam_ex		340
+#define __NR_sched_getparam_ex		341
+#define __NR_sched_wait_interval	342
+#define __NR_setns		343
+#define __NR_vbi_mem		334
+#define __NR_vbi_activate_vb	345
+#define __NR_vbi_control	346
 
 #define VBI_MEM_READ		0x0010
 #define VBI_MEM_WRITE		0x0100

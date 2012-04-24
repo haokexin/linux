@@ -663,22 +663,22 @@ __SYSCALL(__NR_rt_tgsigqueueinfo, sys_rt_tgsigqueueinfo)
 __SYSCALL(__NR_perf_event_open, sys_perf_event_open)
 #define __NR_recvmmsg				299
 __SYSCALL(__NR_recvmmsg, sys_recvmmsg)
-#define __NR_vbi_mem				300
-__SYSCALL(__NR_vbi_mem, sys_vbi_mem)
-#define __NR_vbi_activate_vb			301
-__SYSCALL(__NR_vbi_activate_vb, sys_vbi_activate_vb)
-#define __NR_vbi_control			302
-__SYSCALL(__NR_vbi_control, sys_vbi_control)
-#define __NR_sched_setscheduler_ex		303
+#define __NR_sched_setscheduler_ex		300
 __SYSCALL(__NR_sched_setscheduler_ex, sys_sched_setscheduler_ex)
-#define __NR_sched_setparam_ex			304
+#define __NR_sched_setparam_ex			301
 __SYSCALL(__NR_sched_setparam_ex, sys_sched_setparam_ex)
-#define __NR_sched_getparam_ex			305
+#define __NR_sched_getparam_ex			302
 __SYSCALL(__NR_sched_getparam_ex, sys_sched_getparam_ex)
-#define __NR_sched_wait_interval		306
+#define __NR_sched_wait_interval		303
 __SYSCALL(__NR_sched_wait_interval, sys_sched_wait_interval)
-#define __NR_setns				307
+#define __NR_setns				304
 __SYSCALL(__NR_setns, sys_setns)
+#define __NR_vbi_mem				305
+__SYSCALL(__NR_vbi_mem, sys_vbi_mem)
+#define __NR_vbi_activate_vb			306
+__SYSCALL(__NR_vbi_activate_vb, sys_vbi_activate_vb)
+#define __NR_vbi_control			307
+__SYSCALL(__NR_vbi_control, sys_vbi_control)
 
 #define VBI_MEM_READ           0x0010
 #define VBI_MEM_WRITE          0x0100

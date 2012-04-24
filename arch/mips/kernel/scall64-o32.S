@@ -540,12 +540,12 @@ EXPORT(syso32_call_table)
 	PTR	sys_accept4
 	PTR     compat_sys_recvmmsg
 	PTR	sys_revokeat
-	PTR     sys_vbi_mem
-	PTR     sys_vbi_activate_vb
-	PTR     sys_vbi_control
 	PTR     sys_sched_setscheduler_ex
 	PTR     sys_sched_setparam_ex
 	PTR     sys_sched_getparam_ex
 	PTR     sys_sched_wait_interval
 	PTR     sys_setns
+	PTR     sys_vbi_mem
+	PTR     sys_vbi_activate_vb
+	PTR     sys_vbi_control
 	.size	sys_call_table,.-sys_call_table

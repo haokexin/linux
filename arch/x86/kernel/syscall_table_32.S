@@ -338,11 +338,11 @@ ENTRY(sys_call_table)
 	.long sys_perf_event_open
 	.long sys_recvmmsg
 	.long sys_revokeat
-	.long sys_vbi_mem		/* 339 */
-	.long sys_vbi_activate_vb	/* 340 */
-	.long sys_vbi_control		/* 341 */
-	.long sys_sched_setscheduler_ex
-	.long sys_sched_setparam_ex
-	.long sys_sched_getparam_ex	/* 344 */
-	.long sys_sched_wait_interval	/* 345 */
+	.long sys_sched_setscheduler_ex	/* 339 */
+	.long sys_sched_setparam_ex	/* 340 */
+	.long sys_sched_getparam_ex	/* 341 */
+	.long sys_sched_wait_interval	/* 342 */
 	.long sys_setns
+	.long sys_vbi_mem		/* 344 */
+	.long sys_vbi_activate_vb	/* 345 */
+	.long sys_vbi_control		/* 346 */

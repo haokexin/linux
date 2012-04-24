@@ -585,14 +585,14 @@ einval:	li	v0, -ENOSYS
 	sys	sys_accept4		4
 	sys     sys_recvmmsg            5
 	sys	sys_revokeat		2
-	sys	sys_vbi_mem		5
-	sys 	sys_vbi_activate_vb	2
-	sys 	sys_vbi_control		3
 	sys     sys_sched_setscheduler_ex 4
 	sys     sys_sched_setparam_ex	3
 	sys     sys_sched_getparam_ex	3
 	sys     sys_sched_wait_interval	2
 	sys     sys_setns               2
+	sys	sys_vbi_mem		5
+	sys 	sys_vbi_activate_vb	2
+	sys 	sys_vbi_control		3
 	.endm
 
 	/* We pre-compute the number of _instruction_ bytes needed to
