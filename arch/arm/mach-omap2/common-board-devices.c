@@ -94,7 +94,7 @@ void __init omap_ads7846_init(int bus_num, int gpio_pendown, int gpio_debounce,
 }
 #endif
 
-#if defined(CONFIG_MTD_NAND_OMAP2) || defined(CONFIG_MTD_NAND_OMAP2_MODULE)
+#if defined(CONFIG_MTD_NAND_OMAP2)
 static struct omap_nand_platform_data nand_data;
 
 void __init omap_nand_flash_init(int options, struct mtd_partition *parts,
