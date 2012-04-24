@@ -140,4 +140,5 @@ source "drivers/virt/Kconfig"
 
 source "drivers/devfreq/Kconfig"
 
+source "drivers/tdm/Kconfig"
 endmenu
