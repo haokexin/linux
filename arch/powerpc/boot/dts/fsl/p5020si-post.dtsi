@@ -337,6 +337,37 @@
 /include/ "qoriq-duart-0.dtsi"
 /include/ "qoriq-duart-1.dtsi"
 /include/ "qoriq-gpio-0.dtsi"
+		rman: rman@1e0000 {
+			compatible = "fsl,rman";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x1e0000 0x20000>;
+			reg = <0x1e0000 0x20000>;
+			interrupts = <16 2 1 11>; /* err_irq */
+			fsl,qman-channels-id = <0x62 0x63>;
+
+			inbound-block@0 {
+				compatible = "fsl,rman-inbound-block";
+				reg = <0x0 0x800>;
+			};
+			global-cfg@b00 {
+				compatible = "fsl,rman-global-cfg";
+				reg = <0xb00 0x500>;
+			};
+			inbound-block@1000 {
+				compatible = "fsl,rman-inbound-block";
+				reg = <0x1000 0x800>;
+			};
+			inbound-block@2000 {
+				compatible = "fsl,rman-inbound-block";
+				reg = <0x2000 0x800>;
+			};
+			inbound-block@3000 {
+				compatible = "fsl,rman-inbound-block";
+				reg = <0x3000 0x800>;
+			};
+		};
+
 /include/ "qoriq-usb2-mph-0.dtsi"
 		usb0: usb@210000 {
 			compatible = "fsl-usb2-mph-v1.6", "fsl,mpc85xx-usb2-mph", "fsl-usb2-mph";
@@ -354,4 +385,5 @@
 /include/ "qoriq-sata2-0.dtsi"
 /include/ "qoriq-sata2-1.dtsi"
 /include/ "qoriq-sec4.2-0.dtsi"
+/include/ "pq5-dpaa.dtsi"
 };
