@@ -116,7 +116,14 @@ static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.0")) {
 		bman_ip_rev = BMAN_REV20;
 		bman_pool_max = 8;
-	}
+	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1-0") ||
+		of_device_is_compatible(node, "fsl,bman-portal-2.1-1")) {
+		bman_ip_rev = BMAN_REV21;
+		bman_pool_max = 64;
+	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1-2")) {
+		bman_ip_rev = BMAN_REV21;
+		bman_pool_max = 32;
+        }
 
 	ret = of_address_to_resource(node, DPA_PORTAL_CE,
 				&pcfg->addr_phys[DPA_PORTAL_CE]);
