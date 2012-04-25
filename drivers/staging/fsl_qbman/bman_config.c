@@ -210,6 +210,12 @@ static void bm_get_version(struct bman *bm, u16 *id, u8 *major, u8 *minor)
 	*minor = v & 0xff;
 }
 
+static void bm_get_version_2(struct bman *bm, u8 *ip_cfg)
+{
+	u32 v = bm_in(IP_REV_2);
+	*ip_cfg = v & 0xff;
+}
+
 static u32 __generate_thresh(u32 val, int roundup)
 {
 	u32 e = 0;	/* co-efficient, exponent */
@@ -358,6 +364,7 @@ static int __init fsl_bman_init(struct device_node *node)
 	int ret, standby = 0;
 	u16 id;
 	u8 major, minor;
+	u8 ip_cfg;
 
 	ret = of_address_to_resource(node, 0, &res);
 	if (ret) {
@@ -388,6 +395,19 @@ static int __init fsl_bman_init(struct device_node *node)
 	} else if ((major == 2) && (minor == 0)) {
 		bman_ip_rev = BMAN_REV20;
 		bman_pool_max = 8;
+	} else if ((major == 2) && (minor == 1)) {
+		bman_ip_rev = BMAN_REV21;
+		bm_get_version_2(bm, &ip_cfg);
+		switch (ip_cfg) {
+			case 0:
+			case 1:
+				bman_pool_max = 64;
+				break;
+			case 2:
+				bman_pool_max = 32;
+			default:
+				break;
+		}
 	} else {
 		pr_warning("unknown Bman version, default to rev1.0\n");
 	}

@@ -69,7 +69,8 @@ static void bufs_init(void)
 
 static inline int bufs_cmp(const struct bm_buffer *a, const struct bm_buffer *b)
 {
-	if (bman_ip_rev == BMAN_REV20) {
+	if ((bman_ip_rev == BMAN_REV20) || (bman_ip_rev == BMAN_REV21)) {
+
 		/* On SoCs with Bman revison 2.0, Bman only respects the 40
 		 * LS-bits of buffer addresses, masking off the upper 8-bits on
 		 * release commands. The API provides for 48-bit addresses
