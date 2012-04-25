@@ -165,6 +165,8 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 		ip_rev = QMAN_REV12;
 	else if (of_device_is_compatible(node, "fsl,qman-portal-2.0"))
 		ip_rev = QMAN_REV20;
+	else if (of_device_is_compatible(node, "fsl,qman-portal-3.0"))
+		ip_rev = QMAN_REV30;
 
 	if (!qman_ip_rev) {
 		if (ip_rev)
