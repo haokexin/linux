@@ -35,6 +35,7 @@
 /* Revision info (for errata and feature handling) */
 #define BMAN_REV10 0x0100
 #define BMAN_REV20 0x0200
+#define BMAN_REV21 0x0201
 extern u16 bman_ip_rev; /* 0 if uninitialised, otherwise QMAN_REVx */
 
 /*
