@@ -514,7 +514,6 @@ static int qm_init_pfdr(struct qman *qm, u32 pfdr_start, u32 num)
 	qm_out(MCP(1), (pfdr_start + num - 16));
 	lwsync();
 	qm_out(MCR, MCR_INIT_PFDR);
-
 	/* Poll for the result */
 	do {
 		rslt = MCR_get_rslt(qm_in(MCR));
@@ -613,7 +612,6 @@ static int __init fsl_qman_init(struct device_node *node)
 	int ret, standby = 0;
 	u16 id;
 	u8 major, minor;
-
 	ret = of_address_to_resource(node, 0, &res);
 	if (ret) {
 		pr_err("Can't get %s property '%s'\n", node->full_name, "reg");
@@ -649,6 +647,8 @@ static int __init fsl_qman_init(struct device_node *node)
 			qman_ip_rev = QMAN_REV12;
 		else if ((major == 2) && (minor == 0))
 			qman_ip_rev = QMAN_REV20;
+		else if ((major == 3) && (minor == 0))
+			qman_ip_rev = QMAN_REV30;
 		else {
 			pr_warning("unknown Qman version, default to rev1.1\n");
 			qman_ip_rev = QMAN_REV11;

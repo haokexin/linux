@@ -127,6 +127,7 @@ struct qm_portal_config {
 #define QMAN_REV11 0x0101
 #define QMAN_REV12 0x0102
 #define QMAN_REV20 0x0200
+#define QMAN_REV30 0x0300
 extern u16 qman_ip_rev; /* 0 if uninitialised, otherwise QMAN_REVx */
 
 #ifdef CONFIG_FSL_QMAN_CONFIG
