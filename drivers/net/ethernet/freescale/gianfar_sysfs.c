@@ -323,27 +323,37 @@ static ssize_t gfar_show_recycle_cntxt(struct device *dev,
 					 struct device_attribute *attr,
 					 char *buf)
 {
-	struct gfar_private *priv = netdev_priv(to_net_dev(dev));
+	struct net_device *ndev = to_net_dev(dev);
+	struct gfar_private *priv = netdev_priv(ndev);
 	struct gfar_recycle_cntxt *recycle_cntxt;
 	struct gfar_recycle_cntxt_percpu *local;
 	unsigned int recycled_free_count, recycled_alloc_count;
 	int cpu;
 
+	if (!priv->recycle)
+		return 0;
+
 	recycle_cntxt = priv->recycle;
 	recycled_alloc_count = recycled_free_count = 0;
 
-	printk(KERN_NOTICE "recycle max %d\n", recycle_cntxt->recycle_max);
-	printk(KERN_NOTICE "queue swap during: free - %d, alloc - %d\n",
-		recycle_cntxt->free_swap_count,
-		recycle_cntxt->alloc_swap_count);
+	if (netif_msg_ifup(priv)) {
+		pr_notice("recycle max %d\n", recycle_cntxt->recycle_max);
+		pr_notice("queue swap during: free - %d, alloc - %d\n",
+					recycle_cntxt->free_swap_count,
+					recycle_cntxt->alloc_swap_count);
+	}
+
 	for_each_possible_cpu(cpu) {
 		local = per_cpu_ptr(recycle_cntxt->local, cpu);
 		recycled_alloc_count += local->alloc_count;
 		recycled_free_count += local->free_count;
 	}
-	printk(KERN_NOTICE \
-		"total recycle free count: %d, and recycle alloc count: %d\n",
-		recycled_free_count, recycled_alloc_count);
+
+	if (netif_msg_ifup(priv))
+		pr_notice("total recycle free count: %d"
+				", and recycle alloc count: %d\n",
+				recycled_free_count, recycled_alloc_count);
+
 	return sprintf(buf, "%d\n", recycle_cntxt->recycle_max);
 }
 
