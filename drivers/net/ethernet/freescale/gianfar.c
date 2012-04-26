@@ -2781,6 +2781,30 @@ out_tso:
 	return ret;
 }
 
+#ifdef CONFIG_AS_FASTPATH
+static inline void gfar_asf_reclaim_skb(struct sk_buff *skb)
+{
+	/* Just reset the fields used in software DPA */
+	skb->next = skb->prev = NULL;
+	skb->dev = NULL;
+	skb->len = 0;
+	skb->ip_summed = 0;
+	skb->transport_header = NULL;
+	skb->mac_header = NULL;
+	skb->network_header = NULL;
+	skb->pkt_type = 0;
+	skb->mac_len = 0;
+	skb->protocol = 0;
+	skb->vlan_tci = 0;
+	skb->data = 0;
+
+	/* reset data and tail pointers */
+	skb->data = skb->head + NET_SKB_PAD;
+	skb_reset_tail_pointer(skb);
+
+}
+#endif
+
 /* This is called by the kernel when a frame is ready for transmission. */
 /* It is pointed to by the dev->hard_start_xmit function pointer */
 static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
@@ -3106,10 +3130,18 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	struct net_device *dev = skb->dev;
 	struct gfar_private *priv = netdev_priv(dev);
 
-	if (!skb_recycle_check(skb, priv->rx_buffer_size + RXBUF_ALIGNMENT))
+	if (!skb_is_recycleable(skb, priv->rx_buffer_size + RXBUF_ALIGNMENT))
 		skb->owner = KER_PKT_ID;
-}
+	else {
+#ifdef CONFIG_AS_FASTPATH
+		if (skb->pkt_type == PACKET_FASTROUTE)
+			gfar_asf_reclaim_skb(skb);
+		else
+#endif
+			skb_recycle(skb);
+	}
 	skb->new_skb = new_skb;
+}
 #endif
 
 	return NETDEV_TX_OK;
