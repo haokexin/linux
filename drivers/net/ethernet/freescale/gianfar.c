@@ -122,8 +122,15 @@
 const char gfar_driver_version[] = "1.3";
 static struct gfar_recycle_cntxt *gfar_global_recycle_cntxt;
 static int tx_napi_enabled = 1;
+static int tx_napi_weight = GFAR_DEV_TX_WEIGHT;
+static int rx_napi_weight = GFAR_DEV_RX_WEIGHT;
 module_param(tx_napi_enabled, bool, S_IRUGO);
+module_param(tx_napi_weight, int, S_IRUGO);
+module_param(rx_napi_weight, int, S_IRUGO);
+
 MODULE_PARM_DESC(tx_napi_enabled, "Flag to control TX IRQ handling method: NAPI or No-NAPI(hw polling)");
+MODULE_PARM_DESC(tx_napi_weight, "TX NAPI weight");
+MODULE_PARM_DESC(rx_napi_weight, "RX NAPI weight");
 
 static int gfar_enet_open(struct net_device *dev);
 static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev);
@@ -1282,13 +1289,21 @@ static int gfar_probe(struct platform_device *ofdev)
 	dev->ethtool_ops = &gfar_ethtool_ops;
 
 	/* Register for napi ...We are registering NAPI for each grp */
+	if (rx_napi_weight != GFAR_DEV_RX_WEIGHT)
+		if (rx_napi_weight < 0 || rx_napi_weight > GFAR_DEV_RX_WEIGHT)
+			rx_napi_weight =  GFAR_DEV_RX_WEIGHT;
+
+	if (tx_napi_enabled && tx_napi_weight != GFAR_DEV_TX_WEIGHT)
+		if (tx_napi_weight < 0 || tx_napi_weight > GFAR_DEV_TX_WEIGHT)
+			tx_napi_weight =  GFAR_DEV_TX_WEIGHT;
+
 	for (i = 0; i < priv->num_grps; i++) {
 		netif_napi_add(dev, &priv->gfargrp[i].napi_rx, gfar_poll_rx,
-					GFAR_DEV_RX_WEIGHT);
+					rx_napi_weight);
 		if (likely(tx_napi_enabled))
 			netif_napi_add(dev, &priv->gfargrp[i].napi_tx,
 					gfar_poll_tx,
-					GFAR_DEV_TX_WEIGHT);
+					tx_napi_weight);
 	}
 
 	if (priv->device_flags & FSL_GIANFAR_DEV_HAS_CSUM) {
