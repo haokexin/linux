@@ -26,7 +26,7 @@
 #define JOBR_INTC_COUNT_THLD 0
 #endif
 
-#define CAAM_NAPI_WEIGHT	12
+#define CAAM_NAPI_WEIGHT	63
 
 /*
  * Storage for tracking each in-process entry moving across a ring
