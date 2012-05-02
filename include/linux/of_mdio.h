@@ -25,4 +25,6 @@ extern struct phy_device *of_phy_attach(struct net_device *dev,
 				struct device_node *phy_np, u32 flags,
 				phy_interface_t iface);
 
+extern struct mii_bus *of_mdio_find_bus(struct device_node *mdio_np);
+
 #endif /* __LINUX_OF_MDIO_H */
