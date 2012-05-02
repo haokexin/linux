@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * Author: Minghuan Lian <Minghuan.Lian@freescale.com>
  *
@@ -29,6 +29,7 @@
 static const char rman_uio_version[] = "Rman UIO driver v1.0";
 
 #define IB_INDEX_OFFSET 12
+#define MMIER 0x0420 /* Message manage Interrupt Enable Register*/
 #define MMEDR 0x0424 /* Message manager error detect register */
 #define MMEDR_CLEAR 0x800000FF
 
@@ -82,7 +83,8 @@ static irqreturn_t rman_uio_irq_handler(int irq, struct uio_info *dev_info)
 	status = in_be32(rmdev->global_regs + MMEDR);
 
 	if (status) {
-		out_be32(rmdev->global_regs + MMEDR, MMEDR_CLEAR);
+		/* disable interrupt */
+		out_be32(rmdev->global_regs + MMIER, 0);
 		return IRQ_HANDLED;
 	} else
 		return IRQ_NONE;
