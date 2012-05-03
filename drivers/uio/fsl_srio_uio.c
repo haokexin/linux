@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2011-2012 Freescale Semiconductor, Inc.
  *
  * Author: Kai Jiang <Kai.Jiang@freescale.com>
  *
@@ -30,6 +30,9 @@
 #define ESCSR	 0x00158 /* Port Error and Status Cmd & Status */
 #define EDCSR	 0x00640 /* Port Error Detect Cmd & Status */
 #define LTLEDCSR 0x00608 /* Logical/Transport Layer Err Detect Cmd & Status */
+#define LTLEECSR 0x0060c /* Logical/Transport Layer Err Enable Cmd & Status */
+#define SRIO_ESCSR_CLEAR 0x07120204
+#define SRIO_IECSR_CLEAR 0x80000000
 
 struct srio_uio_info {
 	atomic_t ref;
@@ -93,26 +96,30 @@ static irqreturn_t srio_uio_irq_handler(int irq, struct uio_info *dev_info)
 {
 	struct srio_dev *sriodev = dev_info->priv;
 	int i;
-	unsigned int port_bits;
+	unsigned int port_bits, ltledcsr;
 
-	if (!(in_be32(sriodev->regs.regs_win + LTLEDCSR) ||
-		in_be32(sriodev->regs.regs_win + EPWISR)))
+	ltledcsr = in_be32(sriodev->regs.regs_win + LTLEDCSR);
+	port_bits = in_be32(sriodev->regs.regs_win + EPWISR);
+
+	if (!port_bits && !ltledcsr)
 		return IRQ_NONE;
 
-	out_be32(sriodev->regs.regs_win + LTLEDCSR, 0x0);
+	if (ltledcsr)
+		/* Disable logical/transport layer error interrupt */
+		out_be32(sriodev->regs.regs_win + LTLEECSR, 0);
 
-	port_bits = in_be32(sriodev->regs.regs_win + EPWISR) >> 28;
 	for (i = 0; i < sriodev->port_num; i++) {
-		if (port_bits & (0x8 >> i)) {
+		if (port_bits & (1 << (31 - i))) {
+			/* Clear retry error threshold exceeded */
 			out_be32(sriodev->regs.regs_win + IECSR + 0x80 * i,
-				0x80000000);
+				 SRIO_IECSR_CLEAR);
+			/* Clear ESCSR */
 			out_be32(sriodev->regs.regs_win + ESCSR + 0x20 * i,
-				~0x0);
+				 SRIO_ESCSR_CLEAR);
+			/* Clear EDCSR */
 			out_be32(sriodev->regs.regs_win + EDCSR + 0x40 * i,
-				0x0);
-			out_be32(sriodev->regs.regs_win + LTLEDCSR, 0x0);
-		} else
-			continue;
+				 0);
+		}
 	}
 
 	return IRQ_HANDLED;
