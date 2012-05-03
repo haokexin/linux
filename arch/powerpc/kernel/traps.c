@@ -903,6 +903,19 @@ static int emulate_isel(struct pt_regs *regs, u32 instword)
 	return 0;
 }
 
+#ifdef CONFIG_PPC_47x
+extern int __icbi(unsigned long ea);
+
+static int emulate_icbi(struct pt_regs *regs, u32 instword)
+{
+	u8 rA = (instword >> 16) & 0x1f;
+	u8 rB = (instword >> 11) & 0x1f;
+	unsigned long ea = regs->gpr[rB] + ((rA == 0) ? 0 : regs->gpr[rA]);
+
+	return __icbi(ea);
+}
+#endif /* CONFIG_PPC_47x */
+
 static int emulate_instruction(struct pt_regs *regs)
 {
 	u32 instword;
@@ -978,6 +991,12 @@ static int emulate_instruction(struct pt_regs *regs)
 	}
 #endif
 
+#ifdef CONFIG_PPC_47x
+	/* Emulate icbi instruction */
+	if ((instword & PPC_INST_ICBI_MASK) == PPC_INST_ICBI)
+		return emulate_icbi(regs, instword);
+#endif
+
 	return -EINVAL;
 }
 
@@ -990,6 +1009,15 @@ void __kprobes program_check_exception(struct pt_regs *regs)
 {
 	unsigned int reason = get_reason(regs);
 	extern int do_mathemu(struct pt_regs *regs);
+
+#ifdef CONFIG_PPC_47x
+	/* Make IOC instruction traps look like illegal instructions
+	 * so we hit the proper emulation code path
+	 */
+	if (mmu_has_feature(MMU_FTR_TYPE_47x) &&
+	    (reason & (ESR_POT1 | ESR_POT2)))
+		reason |= ESR_PIL;
+#endif /* CONFIG_PPC_47x */
 
 	/* We can now get here via a FP Unavailable exception if the core
 	 * has no FPU, in that case the reason flags will be 0 */
