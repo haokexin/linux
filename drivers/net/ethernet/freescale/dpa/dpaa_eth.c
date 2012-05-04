@@ -867,10 +867,6 @@ static void _dpa_rx_error(struct net_device *net_dev,
 		const struct qm_fd *fd,
 		u32 fqid)
 {
-	if (netif_msg_hw(priv) && net_ratelimit())
-		cpu_netdev_err(net_dev, "FD status = 0x%08x\n",
-				fd->status & FM_FD_STAT_ERRORS);
-
 	if (dpaa_eth_hooks.rx_error &&
 		dpaa_eth_hooks.rx_error(net_dev, fd, fqid) == DPAA_ETH_STOLEN)
 		/* it's up to the hook to perform resource cleanup */
@@ -2622,7 +2618,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 			total.stats.rx_errors,
 			count_total);
 
-	seq_printf(file, "\nDPA RX Errors:\nCPU        dma err   phy err" \
+	seq_printf(file, "\nDPA RX Errors:\nCPU        dma err  phys err" \
 				"  size err   hdr err  csum err\n");
 		for_each_online_cpu(i) {
 			percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
