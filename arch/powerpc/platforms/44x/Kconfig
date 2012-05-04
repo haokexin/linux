@@ -250,6 +250,15 @@ config PPC4xx_GPIO
 	help
 	  Enable gpiolib support for ppc440 based boards
 
+config ACP
+	bool "Support for LSI's ACP Platform"
+	depends on PPC_47x
+	select PPC4xx_PCI_EXPRESS
+	default n
+	select PPC_FPU
+	select HAS_RAPIDIO
+	select PPC_CLOCK
+
 # 44x specific CPU modules, selected based on the board above.
 config 440EP
 	bool
