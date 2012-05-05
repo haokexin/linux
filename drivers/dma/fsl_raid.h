@@ -155,17 +155,17 @@ struct dpi_related {
  * done through this command
  */
 struct xor_cdb {
-	u16 opcode:5;
-	u16 rsvd1:11;
-	u16 blk_size:2;
-	u16 cache_attrib:2;
-	u16 buffer_attrib:1;
-	u16 error_attrib:1;
-	u16 nrcs:4;
-	u16 rsvd2:2;
-	u16 data_depend:1;
-	u16 dpi:1;
-	u16 rsvd3:2;
+	u32 opcode:5;
+	u32 rsvd1:11;
+	u32 blk_size:2;
+	u32 cache_attrib:2;
+	u32 buffer_attrib:1;
+	u32 error_attrib:1;
+	u32 nrcs:4;
+	u32 rsvd2:2;
+	u32 data_depend:1;
+	u32 dpi:1;
+	u32 rsvd3:2;
 	u8 gfm[16];
 	struct dpi_related dpi_dest_spec;
 	struct dpi_related dpi_src_spec[16];
@@ -173,10 +173,10 @@ struct xor_cdb {
 
 /* CDB for no-op command */
 struct noop_cdb {
-	uint8_t opcode:5;
-	uint32_t rsvd1:23;
-	uint8_t dependency:1;
-	uint8_t rsvd2:3;
+	u32 opcode:5;
+	u32 rsvd1:23;
+	u32 dependency:1;
+	u32 rsvd2:3;
 };
 
 /*
@@ -184,20 +184,20 @@ struct noop_cdb {
  * done through this command
  */
 struct pq_cdb {
-	u8 opcode:5;
-	u8 rsvd1:1;
-	u8 excl_enable:2;
-	u8 excl_q1:4;
-	u8 excl_q2:4;
-	u8 blk_size:2;
-	u8 cache_attrib:2;
-	u8 buffer_attrib:1;
-	u8 error_attrib:1;
-	u8 nrcs:4;
-	u8 rsvd2:2;
-	u8 data_depend:1;
-	u8 dpi:1;
-	u8 rsvd3:2;
+	u32 opcode:5;
+	u32 rsvd1:1;
+	u32 excl_enable:2;
+	u32 excl_q1:4;
+	u32 excl_q2:4;
+	u32 blk_size:2;
+	u32 cache_attrib:2;
+	u32 buffer_attrib:1;
+	u32 error_attrib:1;
+	u32 nrcs:4;
+	u32 rsvd2:2;
+	u32 data_depend:1;
+	u32 dpi:1;
+	u32 rsvd3:2;
 	u8 gfm_q1[16];
 	u8 gfm_q2[16];
 	struct dpi_related dpi_dest_spec[2];
