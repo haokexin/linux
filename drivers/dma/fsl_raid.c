@@ -550,9 +550,8 @@ static struct dma_async_tx_descriptor *re_jr_prep_pq(
 	struct pq_cdb *pq = NULL;
 	u8 cfs_reqd = src_cnt + 3; /* CDB+P+Q+src_cnt */
 	struct cmpnd_frame *cf;
-	u8 i = 0;
-	u8 j = 0;
-	int ret = 0;
+	u8 *p;
+	int ret = 0, gfmq_len, i, j;
 
 	if (len > MAX_DATA_LENGTH) {
 		pr_err("%s: Length greater than %d not supported\n",
@@ -625,28 +624,22 @@ static struct dma_async_tx_descriptor *re_jr_prep_pq(
 	pq->dpi = ENABLE_DPI;
 	pq->nrcs = (src_cnt - 1);
 
-	for (i = 0; i < src_cnt; i++) {
-		pq->gfm_q1[i] = 1;
-		pq->gfm_q2[i] = scf[i];
-		pq->dpi_src_spec[i].apps_mthd = 0x0;
-		pq->dpi_src_spec[i].ref_mthd = 0x0;
-		pq->dpi_src_spec[i].guard_mthd = 0x0;
-		pq->dpi_src_spec[i].dpi_attr = 0x0;
-		pq->dpi_src_spec[i].meta_tag = 0x0;
-		pq->dpi_src_spec[i].ref_tag = 0x0;
-	}
+	p = pq->gfm_q1;
+	/* Init gfm_q1[] */
+	for (i = 0; i < src_cnt; i++)
+		p[i] = 1;
 
-	for (j = 0; j < 2; j++) {
-		pq->dpi_dest_spec[j].apps_mthd = 0x0;
-		pq->dpi_dest_spec[j].ref_mthd = 0x0;
-		pq->dpi_dest_spec[j].guard_mthd = 0x0;
-		pq->dpi_dest_spec[j].dpi_attr = 0x0;
-		pq->dpi_dest_spec[j].meta_tag = 0x0;
-		pq->dpi_dest_spec[j].ref_tag = 0x0;
-	}
+	/* Align gfm[] to 32bit */
+	gfmq_len = ((src_cnt+3)/4)*4;
+
+	/* Init gfm_q2[] */
+	p += gfmq_len;
+	for (i = 0; i < src_cnt; i++)
+		p[i] = scf[i];
 
 	/* Filling frame 0 of compound frame descriptor with CDB */
-	ret = fill_cfd_frame_with_cdb(cf, jr, pq, sizeof(struct pq_cdb));
+	ret = fill_cfd_frame_with_cdb(cf, jr, pq,
+			sizeof(struct pq_cdb)-32+2*gfmq_len);
 	if (ret < 0) {
 		pr_err("%s: Can't map pq_cdb\n", __func__);
 		ret = -EIO;
@@ -1034,6 +1027,11 @@ static int __devinit raide_probe(struct platform_device *ofdev)
 	out_be32(&repriv->re_regs->global_config, RE_NON_DPAA_MODE);
 	dev_info(dev, "%s:RE mode is %x\n", __func__,
 			in_be32(&repriv->re_regs->global_config));
+
+	/* Program Galois Field polymomial */
+	out_be32(&repriv->re_regs->galois_field_config, RE_GFM_POLY);
+	dev_info(dev, "%s:Galois Field Polymomial is %x\n", __func__,
+			in_be32(&repriv->re_regs->galois_field_config));
 
 	dma_dev = &repriv->dma_dev;
 	dma_dev->dev = dev;
