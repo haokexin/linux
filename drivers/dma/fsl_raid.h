@@ -40,6 +40,7 @@
 
 #define RE_DPAA_MODE		(1 << 30)
 #define RE_NON_DPAA_MODE	(1 << 31)
+#define RE_GFM_POLY		(0x1d000000)
 #define RE_JR_INB_JOB_ADD	(1 << 16)
 #define RE_JR_OUB_JOB_REMOVE	(1 << 16)
 #define RE_JR_CFG1_CBSI		0x08000000
