@@ -278,10 +278,8 @@ static enum dma_status re_jr_tx_status(struct dma_chan *chan,
 
 	jr = container_of(chan, struct re_jr, chan);
 	last_used = chan->cookie;
-
-	spin_lock_bh(&jr->desc_lock);
+	smp_mb();
 	last_complete = jr->completed_cookie;
-	spin_unlock_bh(&jr->desc_lock);
 
 	dma_set_tx_state(txstate, last_complete, last_used, 0);
 
