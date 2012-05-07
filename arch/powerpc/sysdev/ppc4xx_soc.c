@@ -24,6 +24,7 @@
 #include <asm/dcr.h>
 #include <asm/dcr-regs.h>
 #include <asm/reg.h>
+#include <asm/mpic.h>
 
 static u32 dcrbase_l2c;
 
@@ -190,6 +191,45 @@ static int __init ppc4xx_l2c_probe(void)
 }
 arch_initcall(ppc4xx_l2c_probe);
 
+#ifdef CONFIG_ACP
+
+/*
+ * Issue a "core" reset.
+ */
+
+void
+acp_jump_to_boot_loader(void *input)
+{
+	mpic_teardown_this_cpu(0);
+	/* This is only valid in the "core" reset case, so 0x10000000. */
+	mtspr(SPRN_DBCR0, mfspr(SPRN_DBCR0) | 0x10000000);
+
+	while (1)
+		;		/* Just in case the jump fails. */
+}
+
+/*
+ * Get all other cores to run "acp_jump_to_boot_loader()" then go
+ * there as well.
+ */
+
+void
+acp_reset_cores(void)
+{
+	int cpu;
+
+	for_each_possible_cpu(cpu) {
+		if (cpu != smp_processor_id())
+			smp_call_function_single(cpu, acp_jump_to_boot_loader,
+						 NULL, 0);
+	}
+
+	acp_jump_to_boot_loader(NULL);
+}
+
+
+#endif
+
 /*
  * Apply a system reset. Alternatively a board specific value may be
  * provided via the "reset-type" property in the cpu node.
@@ -214,7 +254,15 @@ void ppc4xx_reset_system(char *cmd)
 			reset_type = prop[0] << 28;
 	}
 
+#ifdef CONFIG_ACP
+	if (DBCR0_RST_CORE == reset_type) {
+		acp_reset_cores();
+	} else {
+		mtspr(SPRN_DBCR0, mfspr(SPRN_DBCR0) | reset_type);
+	}
+#else
 	mtspr(SPRN_DBCR0, mfspr(SPRN_DBCR0) | reset_type);
+#endif
 
 	while (1)
 		;	/* Just in case the reset doesn't work */
