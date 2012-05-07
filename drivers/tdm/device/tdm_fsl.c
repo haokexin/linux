@@ -436,8 +436,8 @@ static int tdm_fsl_reg_init(struct tdm_priv *priv)
 		 RIR_RSL | RIR_RSO | RIR_RCOE | RIR_RRDO |
 		 RIR_RFSD(RIR_RFSD_VAL));
 	out_be32(&priv->tdm_regs->tir,
-		 TIR_TFWM(TIR_RFWM_VAL) | TIR_TWEN | TIR_TDMA | TIR_TSL |
-		 TIR_TSO | TIR_TRDO | TIR_TFSD(TIR_RFSD_VAL));
+		 TIR_TFWM(TIR_RFWM_VAL) | TIR_TFEN | TIR_TWEN | TIR_TDMA |
+		 TIR_TSL | TIR_TSO | TIR_TRDO | TIR_TFSD(TIR_RFSD_VAL));
 
 	/* no of channels ,Channel size-coading */
 	switch (adap->adapt_cfg.ch_size_type) {
