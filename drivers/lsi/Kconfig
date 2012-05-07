@@ -62,4 +62,38 @@ config SERIAL_ACP_CONSOLE_POLL
 		This is only intended to be used for debugging.
 
 		If unsure, say N.
+
+config LSI_NET
+	bool "Network interface for LSI's APP and ACP"
+	help
+	  Network interface driver for LSI's APP and ACP series boards.
+
+config LSI_NET_NUM_RX_DESC
+	int "NIC driver: Number of receive descriptors"
+	depends on LSI_NET
+	default "4"
+	help
+          The number of receive descriptors to allocate.
+
+config LSI_NET_RX_BUF_SZ
+    int "NIC driver: Size of the receive buffer"
+    depends on LSI_NET
+    default "32768"
+    help
+        The size of the receive buffer.
+
+config LSI_NET_NUM_TX_DESC
+    int "NIC driver: Number of transmit descriptors"
+    depends on LSI_NET
+    default "4"
+    help
+        The number of transmit descriptors to allocate.
+
+config LSI_NET_TX_BUF_SZ
+    int "NIC driver: Size of the transmit buffer"
+    depends on LSI_NET
+    default "32768"
+    help
+        The size of the transmit buffer.
+
 endmenu
