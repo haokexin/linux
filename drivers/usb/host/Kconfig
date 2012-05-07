@@ -286,6 +286,19 @@ config USB_ISP1362_HCD
 	  To compile this driver as a module, choose M here: the
 	  module will be called isp1362-hcd.
 
+config USB_CI13612_HCD
+	tristate "CI13612A HCD support"
+	depends on USB
+	---help---
+	  The CI13612A is an USB host/OTG/device controller. Enable this
+	  option if your board has this chip. If unsure, say N.
+
+	  This driver does not support isochronous transfers and doesn't
+	  implement OTG nor USB device controllers.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called CI13612-hcd.
+
 config USB_OHCI_HCD
 	tristate "OHCI HCD support"
 	depends on USB && USB_ARCH_HAS_OHCI
