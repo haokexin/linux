@@ -1,0 +1,10 @@
+menu "LSI Drivers (APP3, APP3K, and ACP)"
+
+config LSI_NAND
+	bool "NAND Driver for LSI's APP and ACP"
+	depends on ACP
+	select MTD_NAND
+	help
+		Add NAND support to LSI's APP/ACP boards.
+
+endmenu
