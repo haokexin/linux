@@ -7,4 +7,10 @@ config LSI_NAND
 	help
 		Add NAND support to LSI's APP/ACP boards.
 
+config LSI_UBOOTENV
+	bool "U-Boot Environment Access for LSI's APP and ACP"
+	depends on ( ACP && LSI_NAND && CRC32 )
+	help
+		Add U-Boot environment access on LSI's APP/ACP boards.
+
 endmenu
