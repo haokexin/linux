@@ -72,7 +72,17 @@ static struct of_device_id __initdata corenetds_pci_ids[] = {
 
 int __init corenet_ds_publish_pci_device(void)
 {
-	return of_platform_bus_probe(NULL, corenetds_pci_ids, NULL);
+	struct device_node *np;
+	int rc = 0;
+
+	for_each_matching_node(np, corenetds_pci_ids) {
+		rc = of_platform_bus_create(np, corenetds_pci_ids, NULL,
+						NULL, false);
+		if (rc)
+			break;
+	}
+
+	return rc;
 }
 
 static const struct of_device_id of_device_ids[] __devinitconst = {
