@@ -3161,6 +3161,7 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 			skb_recycle(skb);
 	}
 	skb->new_skb = new_skb;
+	txq->trans_start = jiffies;
 }
 #endif
 
@@ -3312,8 +3313,6 @@ int gfar_fast_xmit(struct sk_buff *skb, struct net_device *dev)
 	/* reduce TxBD free count */
 	tx_queue->num_txbdfree -= 1;
 
-	txq->trans_start = jiffies;
-
 	/* If the next BD still needs to be cleaned up, then the bds
 	   are full.  We need to tell the kernel to stop sending us stuff. */
 	if (unlikely(!tx_queue->num_txbdfree)) {
@@ -3339,6 +3338,7 @@ int gfar_fast_xmit(struct sk_buff *skb, struct net_device *dev)
 	else
 		gfar_asf_reclaim_skb(skb);
 	skb->new_skb = new_skb;
+	txq->trans_start = jiffies;
 }
 #endif
 	return NETDEV_TX_OK;
