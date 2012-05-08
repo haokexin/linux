@@ -972,7 +972,7 @@ skpinv:	addi	r4,r4,1				/* Increment */
 
 	/* pageid fields */
 	lis	r3,PPC44x_EARLY_DEBUG_VIRTADDR@h
-	ori	r3,r3,PPC44x_TLB_VALID|PPC44x_TLB_TS|PPC44x_TLB_64K
+	ori	r3,r3,PPC44x_TLB_VALID|PPC44x_TLB_64K
 
 	/* xlat fields */
 	lis	r4,CONFIG_PPC_EARLY_DEBUG_44x_PHYSLOW@h
@@ -1206,7 +1206,7 @@ clear_utlb_entry:
 
 	/* Word 0 */
 	lis	r3,PPC44x_EARLY_DEBUG_VIRTADDR@h
-	ori	r3,r3,PPC47x_TLB0_VALID | PPC47x_TLB0_TS | PPC47x_TLB0_1M
+	ori	r3,r3,PPC47x_TLB0_VALID |  PPC47x_TLB0_1M
 
 	/* Word 1 */
 	lis	r4,CONFIG_PPC_EARLY_DEBUG_44x_PHYSLOW@h
