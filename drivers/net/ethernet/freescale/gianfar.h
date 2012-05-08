@@ -810,13 +810,13 @@ struct gfar_ptp_data {
 struct gfar_ptp_circular {
 	struct circ_buf circ_buf;
 	u32 size;
+	spinlock_t ptp_lock;
 };
 
 struct gfar_ptp_attr_t {
 	u32 tclk_period;
 	u32 nominal_freq;
 	u32 sysclock_freq;
-	u32 freq_div_ratio;
 	u32 tmr_fiper1;
 	u32 freq_comp;
 };
