@@ -39,6 +39,7 @@ static bool gfar_ptp_init_circ(struct gfar_ptp_circular *buf, int size)
 	circ_buf->head = 0;
 	circ_buf->tail = 0;
 	buf->size = size;
+	spin_lock_init(&buf->ptp_lock);
 
 	return 0;
 }
@@ -65,14 +66,19 @@ static bool gfar_ptp_insert(struct gfar_ptp_circular *buf,
 	struct gfar_ptp_data *tmp;
 	struct circ_buf *circ_buf = &buf->circ_buf;
 	unsigned int head;
+	unsigned long flags;
 
-	if (gfar_ptp_is_full(buf))
+	spin_lock_irqsave(&buf->ptp_lock, flags);
+	if (gfar_ptp_is_full(buf)) {
+		spin_unlock_irqrestore(&buf->ptp_lock, flags);
 		return 1;
+	}
 
 	head = circ_buf->head;
 	tmp = (struct gfar_ptp_data *)circ_buf->buf + head;
 	memcpy(tmp, data, sizeof(struct gfar_ptp_data));
 	circ_buf->head = (head + 1) & (buf->size - 1);
+	spin_unlock_irqrestore(&buf->ptp_lock, flags);
 
 	return 0;
 }
@@ -111,9 +117,13 @@ static bool gfar_ptp_find_and_remove(struct gfar_ptp_circular *buf,
 	unsigned int head, idx;
 	struct gfar_ptp_data *tmp;
 	struct gfar_ptp_ident *tmp_ident;
+	unsigned long flags;
 
-	if (gfar_ptp_is_empty(buf))
+	spin_lock_irqsave(&buf->ptp_lock, flags);
+	if (gfar_ptp_is_empty(buf)) {
+		spin_unlock_irqrestore(&buf->ptp_lock, flags);
 		return 1;
+	}
 
 	head = circ_buf->head;
 	idx = circ_buf->tail;
@@ -131,6 +141,7 @@ static bool gfar_ptp_find_and_remove(struct gfar_ptp_circular *buf,
 	/* not found ? */
 	if (idx == head) {
 		circ_buf->tail = head;
+		spin_unlock_irqrestore(&buf->ptp_lock, flags);
 		return 1;
 	}
 
@@ -138,6 +149,8 @@ static bool gfar_ptp_find_and_remove(struct gfar_ptp_circular *buf,
 
 	/* set tail pointer to postion after found */
 	circ_buf->tail = (idx + 1) & (size - 1);
+
+	spin_unlock_irqrestore(&buf->ptp_lock, flags);
 
 	return 0;
 }
@@ -340,49 +353,42 @@ void gfar_ptp_store_rxstamp(struct net_device *dev, struct sk_buff *skb,
  *  nominal frequency should be a factor of 1000.
  *
  *  Eg If Timer Oscillator frequency is 400.
- *     then nominal frequency can be 250.
+ *     then nominal frequency can be 200.
  *
  *     If Timer Oscillator frequency is 600.
  *     then nominal frequency can be 500.
  *
  *     If Timer Oscillator frequency is 333.
- *     then nominal frequency can be 250.
+ *     then nominal frequency can be 200.
  */
 static u32 nominal_frequency(u32 sysclock_freq)
 {
 	u32 remainder = 0;
 
-	remainder = sysclock_freq % 50;
+	sysclock_freq /= 1000000;
+	remainder = sysclock_freq % 100;
 	if (remainder) {
 		sysclock_freq = sysclock_freq - remainder;
-		sysclock_freq += 50;
+		sysclock_freq += 100;
 	}
 
-	while ((1000 % (sysclock_freq -= 50)))
+	while ((1000 % (sysclock_freq -= 100)))
 		continue;
 
-	return sysclock_freq;
+	return sysclock_freq * 1000000;
 }
 
 static int gfar_ptp_cal_attr(u32 sysclk_freq)
 {
-	ptp_attr.sysclock_freq =
-		DIV_ROUND_CLOSEST(sysclk_freq, 1000) / 1000;
+	ptp_attr.sysclock_freq = sysclk_freq;
 
 	ptp_attr.nominal_freq =
 		nominal_frequency(ptp_attr.sysclock_freq);
 	ptp_attr.tmr_fiper1 = ONE_GIGA;
 
-	/* TCLK_PERIOD = 10^9/Nominal_Frequency in MHZ */
+	/* TCLK_PERIOD = 10^9/Nominal_Frequency in HZ */
 	ptp_attr.tclk_period =
-		1000 / ptp_attr.nominal_freq;
-
-	/*
-	 * FreqDivRatio = Timer Oscillator Freq / Nominal Freq
-	 * and Timer Oscillator Freq = System Clock Freq
-	 */
-	ptp_attr.freq_div_ratio = (ptp_attr.sysclock_freq *
-					100) / ptp_attr.nominal_freq;
+		1000000000 / ptp_attr.nominal_freq;
 
 	return 0;
 }
@@ -473,6 +479,7 @@ int gfar_ioctl_1588(struct net_device *dev, struct ifreq *ifr, int cmd)
 	struct gfar_ptp_data ptp_ts_data;
 	struct gfar_ptp_data *ptp_dat_user;
 	struct gfar __iomem *regs = priv->gfargrp[0].regs;
+	u32 adj;
 
 	if (!(priv->device_flags & FSL_GIANFAR_DEV_HAS_TIMER))
 		return -ERANGE;
@@ -552,12 +559,11 @@ int gfar_ioctl_1588(struct net_device *dev, struct ifreq *ifr, int cmd)
 		gfar_set_fiper_alarm(dev, &act_time);
 		break;
 	case PTP_SET_ADJ:
-		if (copy_from_user(&ptp_attr.freq_comp, ifr->ifr_data,
-					sizeof(ptp_attr.freq_comp)))
+		if (copy_from_user(&adj, ifr->ifr_data, sizeof(adj)))
 			return -EINVAL;
 
 		/* assign new value directly */
-		gfar_write(&priv->ptimer->tmr_add, ptp_attr.freq_comp);
+		gfar_write(&priv->ptimer->tmr_add, adj);
 		break;
 	case PTP_GET_ADJ:
 		/*
@@ -646,10 +652,12 @@ int gfar_ptp_init(struct device_node *np, struct gfar_private *priv)
 
 	/*
 	 * initialize TMR_ADD with the initial frequency compensation value:
-	 * freq_compensation = (2^32 / frequency ratio)
+	 * freq_compensation = ceil(2^32 / frequency ratio)
+	 * frequency ratio = sysclock frequency / nominal frequency
 	 */
-	freq_comp = ((u64)2 << 31) * 100;
-	do_div(freq_comp, ptp_attr.freq_div_ratio);
+	freq_comp = ((u64)2 << 31) * ptp_attr.nominal_freq;
+	if (do_div(freq_comp, ptp_attr.sysclock_freq))
+		freq_comp++;
 	ptp_attr.freq_comp = lower_32_bits(freq_comp);
 	gfar_write(&(priv->ptimer->tmr_add), ptp_attr.freq_comp);
 
