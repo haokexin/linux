@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          dtsec.h
 
@@ -146,6 +147,8 @@ typedef  uint32_t t_ErrorDisable;
 #define HASH_TABLE_SIZE                 256 /* Hash table size (= 32 bits * 8 regs) */
 
 #define DTSEC_TO_MII_OFFSET             0x1120  /* number of pattern match registers (entries) */
+
+
 
 #define DEFAULT_errorDisabled           0
 #define DEFAULT_pauseExtended           0x0
@@ -319,6 +322,7 @@ typedef  uint32_t t_ErrorDisable;
 
 #define PHY_TBIANA_SGMII    0x4001
 #define PHY_TBIANA_1000X    0x01a0
+
 
 /* CAR1/2 bits */
 #define CAR1_TR64   0x80000000

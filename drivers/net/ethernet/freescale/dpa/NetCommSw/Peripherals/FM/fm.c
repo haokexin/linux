@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm.c
 
@@ -113,10 +114,10 @@ static t_Error CheckFmParameters(t_Fm *p_Fm)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE,
                      ("dmaWatchdog depends on FM clock. dmaWatchdog(in microseconds) * clk (in Mhz), may not exceed 0x08x", DMA_MAX_WATCHDOG));
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     if ((p_Fm->partVSPBase + p_Fm->partNumOfVSPs) > FM_VSP_MAX_NUM_OF_ENTRIES)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("partVSPBase+partNumOfVSPs out of range!!!"));
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
     if(p_Fm->p_FmStateStruct->totalFifoSize % BMI_FIFO_UNITS)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("totalFifoSize number has to be divisible by %d", BMI_FIFO_UNITS));
@@ -647,7 +648,7 @@ t_Error FmSetCongestionGroupPFCpriority(t_Handle     h_Fm,
     return E_OK;
 }
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 t_Error FmVSPSetWindow(t_Handle  h_Fm,
                                   uint8_t   hardwarePortId,
                                   uint8_t   baseStorageProfile,
@@ -700,13 +701,17 @@ static uint8_t FmVSPsAlloc(t_Handle  h_Fm, uint8_t base, uint8_t numOfStoragePro
     t_Fm    *p_Fm = (t_Fm *)h_Fm;
     uint8_t  profilesFound = 0;
     int     i     = 0;
+    uint32_t    intFlags;
 
     if (!numOfStorageProfiles)
         return E_OK;
-    if (numOfStorageProfiles>FM_VSP_MAX_NUM_OF_ENTRIES)
+
+    if ((numOfStorageProfiles>FM_VSP_MAX_NUM_OF_ENTRIES) ||
+        (base + numOfStorageProfiles > FM_VSP_MAX_NUM_OF_ENTRIES))
         return (uint8_t)ILLEGAL_BASE;
 
-    XX_LockSpinlock(p_Fm->h_Spinlock);
+    intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
+
     for (i = base; i < base + numOfStorageProfiles; i++)
         if (p_Fm->p_FmSp->profiles[i].profilesMng.ownerId == (uint8_t)ILLEGAL_BASE)
             profilesFound++;
@@ -718,10 +723,10 @@ static uint8_t FmVSPsAlloc(t_Handle  h_Fm, uint8_t base, uint8_t numOfStoragePro
             p_Fm->p_FmSp->profiles[i].profilesMng.ownerId = guestId;
     else
     {
-        XX_UnlockSpinlock(p_Fm->h_Spinlock);
+        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         return (uint8_t)ILLEGAL_BASE;
     }
-    XX_UnlockSpinlock(p_Fm->h_Spinlock);
+    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
 
     return base;
 }
@@ -742,7 +747,7 @@ static void FmVSPsFree(t_Handle  h_Fm, uint8_t base, uint8_t numOfStorageProfile
             DBG(WARNING, ("Request for freeing storage profile window which wasn't allocated to this partition"));
     }
 }
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
 
 static t_Error FmGuestHandleIpcMsgCB(t_Handle  h_Fm,
@@ -925,7 +930,7 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
                 REPORT_ERROR(MINOR, err, NO_MSG);
             break;
         }
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
         case (FM_VSP_ALLOC) :
         {
             t_FmIpcVspAllocParams   ipcVspAllocParams;
@@ -962,7 +967,7 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
                                                   FmIpcSetCongestionGroupPfcPriority.priorityBitMap);
             return err;
         }
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
         case (FM_FREE_PORT):
         {
             t_FmInterModulePortFreeParams   portParams;
@@ -1333,7 +1338,7 @@ uintptr_t FmGetPcdPlcrBaseAddr(t_Handle h_Fm)
     return (p_Fm->baseAddr + FM_MM_PLCR);
 }
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 uintptr_t FmGetVSPBaseAddr(t_Handle h_Fm)
 {
     t_Fm        *p_Fm = (t_Fm*)h_Fm;
@@ -1342,7 +1347,7 @@ uintptr_t FmGetVSPBaseAddr(t_Handle h_Fm)
 
     return p_Fm->vspBaseAddr;
 }
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
 t_Handle FmGetMuramHandle(t_Handle h_Fm)
 {
@@ -1396,13 +1401,14 @@ void FmGetPhysicalMuramBase(t_Handle h_Fm, t_FmPhysAddr *p_FmPhysAddr)
     p_FmPhysAddr->high = (uint8_t)((p_Fm->fmMuramPhysBaseAddr & 0x000000ff00000000LL) >> 32);
 }
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 t_Error FmVSPFree(  t_Handle        h_Fm,
                     e_FmPortType    portType,
                     uint8_t         portId)
 {
     t_Fm           *p_Fm = (t_Fm *)h_Fm;
     uint8_t        swPortIndex, hardwarePortId, first, numOfVSPs, i;
+    uint32_t        intFlags;
 
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
 
@@ -1412,12 +1418,12 @@ t_Error FmVSPFree(  t_Handle        h_Fm,
     numOfVSPs = p_Fm->p_FmSp->portsMapping[swPortIndex].numOfProfiles;
     first = p_Fm->p_FmSp->portsMapping[swPortIndex].profilesBase;
 
-    XX_LockSpinlock(p_Fm->h_Spinlock);
+    intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
 
     for(i = first; i < first + numOfVSPs; i++)
            p_Fm->p_FmSp->profiles[i].profilesMng.allocated = FALSE;
 
-    XX_UnlockSpinlock(p_Fm->h_Spinlock);
+    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
 
     p_Fm->p_FmSp->portsMapping[swPortIndex].numOfProfiles = 0;
     p_Fm->p_FmSp->portsMapping[swPortIndex].profilesBase = 0;
@@ -1432,7 +1438,7 @@ t_Error FmVSPAlloc          (t_Handle  h_Fm,
 {
     t_Fm           *p_Fm = (t_Fm *)h_Fm;
     t_Error        err = E_OK;
-    uint32_t       profilesFound;
+    uint32_t       profilesFound, intFlags;
     uint8_t        first, i;
     uint8_t        log2Num;
     uint8_t        swPortIndex, hardwarePortId;
@@ -1448,30 +1454,27 @@ t_Error FmVSPAlloc          (t_Handle  h_Fm,
     if (!POWER_OF_2(numOfVSPs))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numProfiles must be a power of 2."));
 
-    XX_LockSpinlock(p_Fm->h_Spinlock);
+    LOG2((uint64_t)numOfVSPs, log2Num);
 
-    if (p_Fm->partVSPBase == 0)
+    if ((log2Num == 0) || (p_Fm->partVSPBase == 0))
         first = 0;
-    else if (p_Fm->partVSPBase <= numOfVSPs)
-      first = numOfVSPs ;
     else
-    {
-        for (i = p_Fm->partVSPBase; i < p_Fm->partNumOfVSPs; i++)
-        {
-            if (POWER_OF_2(i))
-            {
-                first = i;
-                break;
-            }
-        }
-    }
-    if (first>= (p_Fm->partVSPBase + p_Fm->partNumOfVSPs))
-    {
-        XX_UnlockSpinlock(p_Fm->h_Spinlock);
+        first = 1<<log2Num;
+
+    if (first > (p_Fm->partVSPBase + p_Fm->partNumOfVSPs))
         RETURN_ERROR(MINOR, E_INVALID_VALUE, ("can not allocate storage profile port window"));
-    }
+
+    if (first<p_Fm->partVSPBase)
+        while(first < p_Fm->partVSPBase)
+            first = first + numOfVSPs;
+
+    if ((first + numOfVSPs ) > (p_Fm->partVSPBase + p_Fm->partNumOfVSPs))
+        RETURN_ERROR(MINOR, E_INVALID_VALUE, ("can not allocate storage profile port window"));
+
+    intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
+
     profilesFound = 0;
-    for (i=first;i<p_Fm->partNumOfVSPs;)
+    for (i=first; i < p_Fm->partVSPBase + p_Fm->partNumOfVSPs;)
     {
         if (!p_Fm->p_FmSp->profiles[i].profilesMng.allocated)
         {
@@ -1492,11 +1495,9 @@ t_Error FmVSPAlloc          (t_Handle  h_Fm,
             p_Fm->p_FmSp->profiles[i].profilesMng.allocated = TRUE;
     else
     {
-        XX_UnlockSpinlock(p_Fm->h_Spinlock);
+        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MINOR, E_FULL, ("No profiles."));
     }
-
-    LOG2((uint64_t)numOfVSPs, log2Num);
 
     SW_PORT_ID_TO_HW_PORT_ID(hardwarePortId, portType, portId)
     HW_PORT_ID_TO_SW_PORT_INDX(swPortIndex, hardwarePortId);
@@ -1507,7 +1508,9 @@ t_Error FmVSPAlloc          (t_Handle  h_Fm,
     if ((err = FmVSPSetWindow(h_Fm,hardwarePortId, first,log2Num)) != E_OK)
         for(i = first; i < first + numOfVSPs; i++)
             p_Fm->p_FmSp->profiles[i].profilesMng.allocated = FALSE;
-    XX_UnlockSpinlock(p_Fm->h_Spinlock);
+
+    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
+
     return err;
 }
 
@@ -1794,11 +1797,10 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t nu
 {
 
     t_Fm                        *p_Fm = (t_Fm*)h_Fm;
-    uint32_t                    tmpReg = 0;
+    uint32_t                    tmpReg = 0, intFlags;
     t_Error                     err;
     t_FmIpcPortNumOfFmanCtrls   params;
     t_FmIpcMsg                  msg;
-    unsigned long               flags;
 
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(((numOfFmanCtrls > 0) && (numOfFmanCtrls < 3)) , E_INVALID_HANDLE);
@@ -1822,7 +1824,7 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t nu
         return E_OK;
     }
 
-    flags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
+    intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
 
     tmpReg = (uint32_t)(hardwarePortId << FPM_PORT_FM_CTL_PORTID_SHIFT);
 
@@ -1832,12 +1834,10 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t nu
         tmpReg = FPM_PORT_FM_CTL2 | FPM_PORT_FM_CTL1;
 
     /* order restoration */
-
-
     tmpReg |= (orFmanCtrl << FPM_PRC_ORA_FM_CTL_SEL_SHIFT) | orFmanCtrl;
 
     WRITE_UINT32(p_Fm->p_FmFpmRegs->fpmpr, tmpReg);
-    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
 
     return E_OK;
 }
@@ -1845,7 +1845,7 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t nu
 t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortParams)
 {
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
-    uint32_t                tmpReg;
+    uint32_t                tmpReg, intFlags;
     uint8_t                 hardwarePortId = p_PortParams->hardwarePortId;
     t_FmIpcPortInInitParams portInParams;
     t_FmIpcPhysAddr         ipcPhysAddr;
@@ -1853,7 +1853,6 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     t_FmIpcMsg              msg;
     t_FmIpcReply            reply;
     uint32_t                replyLength;
-    unsigned long           flags;
 
     if(p_Fm->guestId != NCSW_MASTER_ID)
     {
@@ -1892,7 +1891,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     }
 
     ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
-    flags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
+    intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
 
     if(p_PortParams->independentMode)
     {
@@ -1906,7 +1905,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     {
         if(p_Fm->hcPortInitialized)
         {
-            XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+            XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Only one host command port is allowed."));
         }
         else
@@ -1917,7 +1916,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     err = FmSetNumOfTasks(p_Fm, p_PortParams->hardwarePortId, p_PortParams->numOfTasks, p_PortParams->numOfExtraTasks, TRUE);
     if(err)
     {
-        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
@@ -1963,7 +1962,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     {
         if(p_Fm->p_FmStateStruct->lowEndRestriction)
         {
-            XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+            XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
             RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("OP #0 cannot work with Tx Port #1."));
         }
         else
@@ -1978,14 +1977,14 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
                             TRUE);
     if(err)
     {
-        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
     err = FmSetNumOfOpenDmas(p_Fm, p_PortParams->hardwarePortId, p_PortParams->numOfOpenDmas, p_PortParams->numOfExtraOpenDmas, TRUE);
     if(err)
     {
-        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+        XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
@@ -2031,7 +2030,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
         }
 
     FmGetPhysicalMuramBase(p_Fm, &p_PortParams->fmMuramPhysBaseAddr);
-    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
 
     return E_OK;
 }
@@ -2039,13 +2038,12 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
 void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
 {
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
-    uint32_t                tmpReg;
+    uint32_t                tmpReg, intFlags;
     uint8_t                 hardwarePortId = p_PortParams->hardwarePortId;
     uint8_t                 numOfTasks;
     t_Error                 err;
     t_FmIpcPortFreeParams   portParams;
     t_FmIpcMsg              msg;
-    unsigned long           flags;
 
     if (p_Fm->guestId != NCSW_MASTER_ID)
     {
@@ -2068,7 +2066,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     }
 
     ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
-    flags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
+    intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
 
     if (p_PortParams->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND)
     {
@@ -2140,7 +2138,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     if ((hardwarePortId==0x1) || (hardwarePortId==0x29))
         p_Fm->p_FmStateStruct->lowEndRestriction = FALSE;
 #endif /* FM_LOW_END_RESTRICTION */
-    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, flags);
+    XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
 }
 
 t_Error FmIsPortStalled(t_Handle h_Fm, uint8_t hardwarePortId, bool *p_IsStalled)
@@ -2710,7 +2708,7 @@ t_Error FmSetNumOfOpenDmas(t_Handle h_Fm,
     return E_OK;
 }
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 
 t_Error FmVSPGetAbsoluteProfileId(t_Handle        h_Fm,
                                   e_FmPortType    portType,
@@ -2756,7 +2754,7 @@ void VspValidateProfileSw(t_Handle h_Fm, uint16_t absoluteProfileId)
     ASSERT_COND(!p_Fm->p_FmSp->profiles[absoluteProfileId].valid);
     p_Fm->p_FmSp->profiles[absoluteProfileId].valid = TRUE;
 }
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
 t_Error FmDumpPortRegs (t_Handle h_Fm,uint8_t hardwarePortId)
@@ -2953,11 +2951,11 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
         memcpy(p_Fm->p_FmDriverParam->firmware.p_Code, p_FmParam->firmware.p_Code ,p_Fm->p_FmDriverParam->firmware.size);
     }
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     p_Fm->partVSPBase   = p_FmParam->partVSPBase;
     p_Fm->partNumOfVSPs = p_FmParam->partNumOfVSPs;
     p_Fm->vspBaseAddr = p_FmParam->vspBaseAddr;
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
     return p_Fm;
 }
@@ -2983,7 +2981,7 @@ t_Error FM_Init(t_Handle h_Fm)
 
     SANITY_CHECK_RETURN_ERROR(h_Fm, E_INVALID_HANDLE);
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     p_Fm->p_FmSp = (t_FmSp*)XX_Malloc(sizeof(t_FmSp));
     if (!p_Fm->p_FmSp)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, ("allocation for internal data structure failed"));
@@ -2991,7 +2989,7 @@ t_Error FM_Init(t_Handle h_Fm)
     memset(p_Fm->p_FmSp, 0, sizeof(t_FmSp));
     for (i = 0; i < FM_VSP_MAX_NUM_OF_ENTRIES; i++)
         p_Fm->p_FmSp->profiles[i].profilesMng.ownerId = (uint8_t)ILLEGAL_BASE;
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
     if(p_Fm->guestId != NCSW_MASTER_ID)
     {
@@ -3073,7 +3071,7 @@ t_Error FM_Init(t_Handle h_Fm)
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("No baseAddr configured for guest without IPC"));
         }
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
         if (p_Fm->h_IpcSessions[p_Fm->guestId])
         {
             t_FmIpcVspAllocParams   fmIpcVspAllocParams;
@@ -3106,7 +3104,7 @@ t_Error FM_Init(t_Handle h_Fm)
         }
         else
             DBG(WARNING, ("FM Guest mode, without IPC - can't validate VSP range!"));
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
         XX_Free(p_Fm->p_FmDriverParam);
         p_Fm->p_FmDriverParam = NULL;
@@ -3236,11 +3234,11 @@ t_Error FM_Init(t_Handle h_Fm)
     WRITE_BLOCK(UINT_TO_PTR(p_Fm->resAddr), 0, 256);
 #endif /* FM_CAPWAP_SUPPORT */
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     p_Fm->partVSPBase = FmVSPsAlloc(h_Fm, p_Fm->partVSPBase, p_Fm->partNumOfVSPs, p_Fm->guestId);
     if (p_Fm->partVSPBase == ILLEGAL_BASE)
         DBG(WARNING, ("partition VSPs allocation is FAILED"));
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
     /* General FM driver initialization */
     p_Fm->fmMuramPhysBaseAddr = (uint64_t)(XX_VirtToPhys(UINT_TO_PTR(p_Fm->baseAddr + FM_MM_MURAM)));
@@ -3593,7 +3591,7 @@ t_Error FM_Free(t_Handle h_Fm)
 
     if (p_Fm->guestId != NCSW_MASTER_ID)
     {
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
         if (p_Fm->h_IpcSessions[0])
         {
             t_FmIpcMsg          msg;
@@ -3623,7 +3621,7 @@ t_Error FM_Free(t_Handle h_Fm)
             if (err != E_OK)
                 RETURN_ERROR(MAJOR, err, NO_MSG);
         }
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
         XX_IpcUnregisterMsgHandler(p_Fm->fmModuleName);
 
@@ -3663,7 +3661,7 @@ t_Error FM_Free(t_Handle h_Fm)
         }
     }
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     FmVSPsFree(h_Fm, p_Fm->partVSPBase, p_Fm->partNumOfVSPs, p_Fm->guestId);
 
     if (p_Fm->p_FmSp)
@@ -3671,7 +3669,7 @@ t_Error FM_Free(t_Handle h_Fm)
         XX_Free(p_Fm->p_FmSp);
         p_Fm->p_FmSp = NULL;
     }
-#endif /* DPAA_VERSION >= 3 */
+#endif /*(DPAA_VERSION >= 11)*/
 
     if (p_Fm->h_Spinlock)
         XX_FreeSpinlock(p_Fm->h_Spinlock);

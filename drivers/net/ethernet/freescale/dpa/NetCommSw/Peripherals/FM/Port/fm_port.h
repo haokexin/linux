@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm_port.h
 
@@ -147,6 +148,8 @@
 #define DEFAULT_PORT_rxBdRingLength                 128
 #define DEFAULT_PORT_ImfwExtStructsMemId            0
 #define DEFAULT_PORT_ImfwExtStructsMemAttr          MEMORY_ATTR_CACHEABLE
+
+#define FM_PORT_CG_REG_NUM(_cgId) (((FM_PORT_NUM_OF_CONGESTION_GRPS/32)-1)-_cgId/32)
 
 /**************************************************************************//**
  @Collection    PCD Engines
@@ -423,11 +426,11 @@ typedef _Packed struct
 /**************************************************************************//**
  @Description       BMI defines
 *//***************************************************************************/
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 #define BMI_SP_ID_MASK                          0xff000000
 #define BMI_SP_ID_SHIFT                         24
 #define BMI_SP_EN                               0x01000000
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 #define BMI_PORT_CFG_EN                         0x80000000
 #define BMI_PORT_CFG_EN_MACSEC                  0x00800000
@@ -562,10 +565,10 @@ typedef _Packed struct
 
 #define BMI_EXT_BUF_POOL_ID_SHIFT               FM_SP_EXT_BUF_POOL_ID_SHIFT
 #define BMI_TX_FIFO_MIN_FILL_SHIFT              16
-#define BMI_FIFO_PIPELINE_DEPTH_SHIFT        	12
+#define BMI_FIFO_PIPELINE_DEPTH_SHIFT           12
 #define BMI_TX_LOW_COMF_SHIFT                   0
 
-#define BMI_FRAME_END_CS_IGNORE_SHIFT        	24
+#define BMI_FRAME_END_CS_IGNORE_SHIFT           24
 
 #define BMI_PERFORMANCE_TASK_COMP_SHIFT         24
 #define BMI_PERFORMANCE_PORT_COMP_SHIFT         16
@@ -626,7 +629,7 @@ typedef _Packed struct
 #define PRS_TPID_DFLT                           0x91009100
 
 #define PRS_HDR_MPLS_LBL_INTER_EN               0x00200000
-#define PRS_HDR_IPV6_ROUTE_HDR_EN              	0x00008000
+#define PRS_HDR_IPV6_ROUTE_HDR_EN               0x00008000
 #define PRS_HDR_PPPOE_MTU_CHECK_EN              0x80000000
 #define PRS_HDR_UDP_PAD_REMOVAL                 0x80000000
 #define PRS_HDR_TCP_PAD_REMOVAL                 0x80000000
@@ -782,9 +785,9 @@ typedef struct {
     t_FmBufferPrefixContent             bufferPrefixContent;
      t_FmBackupBmPools                   *p_BackupBmPools;
     bool                                dontReleaseBuf;
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     bool                                noScatherGather;
-#endif /*DPAA_VERSION*/
+#endif /* (DPAA_VERSION >= 11) */
 
 } t_FmPortDriverParam;
 
@@ -842,6 +845,7 @@ typedef struct {
     uint32_t                    savedBmiCmne;
     uint32_t                    savedNonRxQmiRegsPndn;
     int                         savedPrsStartOffset;
+    bool                        includeInPrsStatistics;
     uint16_t                    maxFrameLength;
     t_FmFmanCtrl                orFmanCtrl;
     t_FmPortRsrc                openDmas;
@@ -851,9 +855,10 @@ typedef struct {
     bool                        explicitUserSizeOfFifo;
     t_Handle                    h_IpReassemblyManip;
     t_Handle                    h_IpReassemblyTree;
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     bool                        vspe;
-#endif
+#endif /* (DPAA_VERSION >= 11) */
+
     t_FmPortDriverParam         *p_FmPortDriverParam;
 } t_FmPort;
 

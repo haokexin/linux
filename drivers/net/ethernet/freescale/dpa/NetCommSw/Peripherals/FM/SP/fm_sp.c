@@ -48,29 +48,7 @@
 #include "fm_common.h"
 
 
-#if DPAA_VERSION >= 3
-#ifdef UNDER_CONSTRUCTION_FM_GEN
-static uint32_t fm_vsp_get_statistics(fm_pcd_storage_profile_regs   *regs,
-                                      uint16_t                      index)
-{
-    fm_pcd_storage_profile_regs *sp_regs;
-    ASSERT_COND(regs);
-
-    sp_regs = &regs[index];
-    return GET_UINT32(sp_regs->fm_sp_acnt);
-}
-
-static void fm_vsp_set_statistics(  fm_pcd_storage_profile_regs *regs,
-                                    uint16_t                index,
-                                    uint32_t                value)
-{
-    fm_pcd_storage_profile_regs *sp_regs;
-    ASSERT_COND(regs);
-
-    sp_regs = &regs[index];
-    WRITE_UINT32(sp_regs->fm_sp_acnt, value);
-}
-#endif /* UNDER_CONSTRUCTION_FM_GEN */
+#if (DPAA_VERSION >= 11)
 
 static void fm_vsp_fill_entry(fm_pcd_storage_profile_regs   *regs,
                               uint16_t                      index,
@@ -166,7 +144,7 @@ static void fm_vsp_fill_entry(fm_pcd_storage_profile_regs   *regs,
     }
     WRITE_UINT32(sp_regs->fm_sp_mpd, tmp_reg);
 
-    /* fill dma attrubutes register */
+    /* fill dma attributes register */
     tmp_reg = 0;
     tmp_reg |= (uint32_t)fm_vsp_params->dma_swap_data << FM_SP_DMA_ATTR_SWP_SHIFT;
     tmp_reg |= (uint32_t)fm_vsp_params->int_context_cache_attr << FM_SP_DMA_ATTR_IC_CACHE_SHIFT;
@@ -219,7 +197,7 @@ static t_Error CheckParams(t_FmVspEntry *p_FmVspEntry)
 
     return err;
 }
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 
 /*****************************************************************************/
@@ -265,7 +243,6 @@ void FmSpSetBufPoolsInAscOrderOfBufSizes(t_FmExtPools   *p_FmExtPools,
     }
 }
 
-// TODO - ask Ganit - SetExtBufferPools called for Rx and Op but parameters check only for Rx
 t_Error FmSpCheckBufPoolsParams(t_FmExtPools            *p_FmExtPools,
                                 t_FmBackupBmPools       *p_FmBackupBmPools,
                                 t_FmBufPoolDepletion    *p_FmBufPoolDepletion)
@@ -291,7 +268,7 @@ t_Error FmSpCheckBufPoolsParams(t_FmExtPools            *p_FmExtPools,
     if(!p_FmExtPools && (p_FmBackupBmPools || p_FmBufPoolDepletion))
           RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("backupBmPools ot bufPoolDepletion can not be defined without external pools"));
 
-    /* backup BM pools indication is valid only for some chip deriviatives
+    /* backup BM pools indication is valid only for some chip derivatives
        (limited by the config routine) */
     if(p_FmBackupBmPools)
     {
@@ -308,7 +285,6 @@ t_Error FmSpCheckBufPoolsParams(t_FmExtPools            *p_FmExtPools,
                     found = TRUE;
                     break;
                 }
-
             }
             if (!found)
                 RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("All p_BackupBmPools.poolIds must be included in extBufPools.extBufPool[n].id"));
@@ -500,12 +476,12 @@ t_Error FmSpBuildBufferStructure(t_FmSpIntContextDataCopy   *p_FmSpIntContextDat
     }
 
     if (p_FmSpIntContextDataCopy->size)
-		p_FmSpBufMargins->startMargins =
-			(uint16_t)(p_FmSpIntContextDataCopy->extBufOffset +
-					   p_FmSpIntContextDataCopy->size);
+        p_FmSpBufMargins->startMargins =
+            (uint16_t)(p_FmSpIntContextDataCopy->extBufOffset +
+                       p_FmSpIntContextDataCopy->size);
     else
-	/* No Internal Context passing, STartMargin is immediately after privateInfo */
-	p_FmSpBufMargins->startMargins = p_BufferPrefixContent->privDataSize;
+        /* No Internal Context passing, STartMargin is immediately after privateInfo */
+        p_FmSpBufMargins->startMargins = p_BufferPrefixContent->privDataSize;
 
     /* save extra space for manip in both external and internal buffers */
     if (p_BufferPrefixContent->manipExtraSpace)
@@ -536,7 +512,7 @@ t_Error FmSpBuildBufferStructure(t_FmSpIntContextDataCopy   *p_FmSpIntContextDat
 /*********************** End of inter-module routines ************************/
 
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 /*****************************************************************************/
 /*              API routines                                                 */
 /*****************************************************************************/
@@ -805,28 +781,66 @@ t_Error FM_VSP_ConfigBackupPools(t_Handle h_FmVsp, t_FmBackupBmPools *p_BackupBm
     return E_OK;
 }
 
-#ifdef UNDER_CONSTRUCTION_FM_GEN
-uint32_t FM_VSP_GetStatistics(t_Handle h_FmVsp)
+uint32_t FM_VSP_GetBufferDataOffset(t_Handle h_FmVsp)
 {
     t_FmVspEntry *p_FmVspEntry = (t_FmVspEntry*)h_FmVsp;
 
-    SANITY_CHECK_RETURN_ERROR(h_FmVsp, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(!p_FmVspEntry->p_FmVspEntryDriverParams, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(p_FmVspEntry->p_FmSpRegsBase, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_VALUE(p_FmVspEntry, E_INVALID_HANDLE, 0);
+    SANITY_CHECK_RETURN_VALUE(!p_FmVspEntry->p_FmVspEntryDriverParams, E_INVALID_STATE, 0);
 
-    return fm_vsp_get_statistics(p_FmVspEntry->p_FmSpRegsBase, p_FmVspEntry->absoluteSpId);
+    return p_FmVspEntry->bufferOffsets.dataOffset;
 }
-t_Error FM_VSP_ModifyCounter(t_Handle h_FmVsp, uint32_t value)
+
+uint8_t * FM_VSP_GetBufferICInfo(t_Handle h_FmVsp, char *p_Data)
 {
     t_FmVspEntry *p_FmVspEntry = (t_FmVspEntry*)h_FmVsp;
 
-    SANITY_CHECK_RETURN_ERROR(h_FmVsp, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(!p_FmVspEntry->p_FmVspEntryDriverParams, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(p_FmVspEntry->p_FmSpRegsBase, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_VALUE(p_FmVspEntry, E_INVALID_HANDLE, NULL);
+    SANITY_CHECK_RETURN_VALUE(!p_FmVspEntry->p_FmVspEntryDriverParams, E_INVALID_STATE, NULL);
 
-    fm_vsp_set_statistics(p_FmVspEntry->p_FmSpRegsBase, p_FmVspEntry->absoluteSpId, value);
+    if (p_FmVspEntry->bufferOffsets.pcdInfoOffset == ILLEGAL_BASE)
+        return NULL;
 
-    return E_OK;
+    return (uint8_t *)PTR_MOVE(p_Data, p_FmVspEntry->bufferOffsets.pcdInfoOffset);
 }
-#endif /* UNDER_CONSTRUCTION_FM_GEN */
-#endif /* DPAA_VERSION >= 3 */
+
+t_FmPrsResult * FM_VSP_GetBufferPrsResult(t_Handle h_FmVsp, char *p_Data)
+{
+    t_FmVspEntry *p_FmVspEntry = (t_FmVspEntry*)h_FmVsp;
+
+    SANITY_CHECK_RETURN_VALUE(p_FmVspEntry, E_INVALID_HANDLE, NULL);
+    SANITY_CHECK_RETURN_VALUE(!p_FmVspEntry->p_FmVspEntryDriverParams, E_INVALID_STATE, NULL);
+
+    if (p_FmVspEntry->bufferOffsets.prsResultOffset == ILLEGAL_BASE)
+        return NULL;
+
+    return (t_FmPrsResult *)PTR_MOVE(p_Data, p_FmVspEntry->bufferOffsets.prsResultOffset);
+}
+
+uint64_t * FM_VSP_GetBufferTimeStamp(t_Handle h_FmVsp, char *p_Data)
+{
+    t_FmVspEntry *p_FmVspEntry = (t_FmVspEntry*)h_FmVsp;
+
+    SANITY_CHECK_RETURN_VALUE(p_FmVspEntry, E_INVALID_HANDLE, NULL);
+    SANITY_CHECK_RETURN_VALUE(!p_FmVspEntry->p_FmVspEntryDriverParams, E_INVALID_STATE, NULL);
+
+    if (p_FmVspEntry->bufferOffsets.timeStampOffset == ILLEGAL_BASE)
+        return NULL;
+
+    return (uint64_t *)PTR_MOVE(p_Data, p_FmVspEntry->bufferOffsets.timeStampOffset);
+}
+
+uint8_t * FM_VSP_GetBufferHashResult(t_Handle h_FmVsp, char *p_Data)
+{
+    t_FmVspEntry *p_FmVspEntry = (t_FmVspEntry*)h_FmVsp;
+
+    SANITY_CHECK_RETURN_VALUE(p_FmVspEntry, E_INVALID_HANDLE, NULL);
+    SANITY_CHECK_RETURN_VALUE(!p_FmVspEntry->p_FmVspEntryDriverParams, E_INVALID_STATE, NULL);
+
+    if (p_FmVspEntry->bufferOffsets.hashResultOffset == ILLEGAL_BASE)
+        return NULL;
+
+    return (uint8_t *)PTR_MOVE(p_Data, p_FmVspEntry->bufferOffsets.hashResultOffset);
+}
+
+#endif /* (DPAA_VERSION >= 11) */

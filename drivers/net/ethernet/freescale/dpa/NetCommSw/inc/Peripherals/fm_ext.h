@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /**************************************************************************//**
  @File          fm_ext.h
 
@@ -335,13 +336,14 @@ typedef struct t_FmBufferPrefixContent {
                                          get the parser-result from a buffer. */
     bool        passAllOtherPCDInfo;/**< Add all other Internal-Context information:
                                          AD, hash-result, key, etc. */
-    uint16_t    dataAlign;          /**< 0 to use driver's default alignment, other value
+    uint16_t    dataAlign;          /**< 0 to use driver's default alignment
+									 [DEFAULT_PORT_bufferPrefixContent_dataAlign], other value
                                          for selecting a data alignment (must be a
-                                         power of 2) */
+                                         power of 2); if write optimization is used, must be >= 16. */
     uint8_t     manipExtraSpace;    /**< Maximum extra size needed (insertion-size minus removal-size);
                                          Note that this field impacts the size of the buffer-prefix
-                                         (i.e. it pushes the data offset); in addition, in some cases
-                                         (like DPAA_VERSION>2 and it is related to Rx FM-Port) */
+                                         (i.e. it pushes the data offset);
+                                         This field is irrelevant if DPAA_VERSION==10 */
 } t_FmBufferPrefixContent;
 
 /**************************************************************************//**
@@ -394,10 +396,10 @@ typedef struct t_FmBufPoolDepletion {
     bool        poolsToConsiderForSingleMode[BM_MAX_NUM_OF_POOLS];
                                                     /**< For each pool, TRUE if it should be considered for
                                                          depletion (Note - this pool must be used by this port!) */
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     bool        pfcPrioritiesEn[FM_MAX_NUM_OF_PFC_PRIORITIES];
                                                     /**< This field is used by the MAC as the Priority Enable Vector in the PFC frame which is transmitted */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 } t_FmBufPoolDepletion;
 
 /**************************************************************************//**
@@ -439,14 +441,14 @@ typedef struct t_FmParams {
     t_FmFirmwareParams      firmware;               /**< The firmware parameters structure;
                                                          Relevant when guestId = NCSW_MASTER_ID only. */
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     uintptr_t               vspBaseAddr;            /**< A pointer to base of memory mapped FM VSP registers (virtual);
                                                          i.e. up to 24KB, depending on the specific chip. */
     uint8_t                 partVSPBase;            /**< The first Virtual-Storage-Profile-id dedicated to this partition.
                                                          NOTE: this parameter relevant only when working with multiple partitions. */
     uint8_t                 partNumOfVSPs;          /**< Number of VSPs dedicated to this partition.
                                                          NOTE: this parameter relevant only when working with multiple partitions. */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 } t_FmParams;
 
 
@@ -1600,6 +1602,7 @@ t_Error FM_ForceIntr (t_Handle h_Fm, e_FmExceptions exception);
 /** @} */ /* end of FM_runtime_control_grp group */
 /** @} */ /* end of FM_lib_grp group */
 /** @} */ /* end of FM_grp group */
+
 
 #ifdef NCSW_BACKWARD_COMPATIBLE_API
 typedef t_FmBufferPrefixContent     t_FmPortBufferPrefixContent;

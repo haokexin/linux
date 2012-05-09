@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          tgec.c
 
@@ -67,9 +68,10 @@ static t_Error CheckInitParameters(t_Tgec    *p_Tgec)
     if(!p_Tgec->f_Event)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("uninitialized f_Event"));
 #ifdef FM_LEN_CHECK_ERRATA_FMAN_SW002
-	if(!p_Tgec->p_TgecDriverParam->noLengthCheckEnable)
-	   RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("LengthCheck!"));
+    if(!p_Tgec->p_TgecDriverParam->noLengthCheckEnable)
+       RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("LengthCheck!"));
 #endif /* FM_LEN_CHECK_ERRATA_FMAN_SW002 */
+
     return E_OK;
 }
 
@@ -245,7 +247,7 @@ static t_Error TgecEnable(t_Handle h_Tgec,  e_CommMode mode)
 
     p_MemMap= (t_TgecMemMap*)(p_Tgec->p_MemMap);
 
-    tmpReg32 = GET_UINT32(p_MemMap->cmd_conf_ctrl);
+    tmpReg32 = GET_UINT32(p_MemMap->command_config);
 
     switch (mode)
     {
@@ -263,7 +265,7 @@ static t_Error TgecEnable(t_Handle h_Tgec,  e_CommMode mode)
             break;
     }
 
-    WRITE_UINT32(p_MemMap->cmd_conf_ctrl, tmpReg32);
+    WRITE_UINT32(p_MemMap->command_config, tmpReg32);
 
     return E_OK;
 }
@@ -281,7 +283,7 @@ static t_Error TgecDisable (t_Handle h_Tgec, e_CommMode mode)
 
     p_MemMap= (t_TgecMemMap*)(p_Tgec->p_MemMap);
 
-    tmpReg32 = GET_UINT32(p_MemMap->cmd_conf_ctrl);
+    tmpReg32 = GET_UINT32(p_MemMap->command_config);
     switch (mode)
     {
         case e_COMM_MODE_RX:
@@ -296,7 +298,7 @@ static t_Error TgecDisable (t_Handle h_Tgec, e_CommMode mode)
         default:
             RETURN_ERROR(MINOR, E_INVALID_SELECTION, NO_MSG);
     }
-    WRITE_UINT32(p_MemMap->cmd_conf_ctrl, tmpReg32);
+    WRITE_UINT32(p_MemMap->command_config, tmpReg32);
 
     return E_OK;
 }
@@ -315,14 +317,14 @@ static t_Error TgecSetPromiscuous(t_Handle h_Tgec, bool newVal)
 
     p_TgecMemMap = p_Tgec->p_MemMap;
 
-    tmpReg32 = GET_UINT32(p_TgecMemMap->cmd_conf_ctrl);
+    tmpReg32 = GET_UINT32(p_TgecMemMap->command_config);
 
     if (newVal)
         tmpReg32 |= CMD_CFG_PROMIS_EN;
     else
         tmpReg32 &= ~CMD_CFG_PROMIS_EN;
 
-    WRITE_UINT32(p_TgecMemMap->cmd_conf_ctrl, tmpReg32);
+    WRITE_UINT32(p_TgecMemMap->command_config, tmpReg32);
 
     return E_OK;
 }
@@ -474,12 +476,12 @@ static t_Error TgecRxIgnoreMacPause(t_Handle h_Tgec, bool en)
     SANITY_CHECK_RETURN_ERROR(p_Tgec->p_MemMap, E_INVALID_STATE);
 
     p_MemMap = (t_TgecMemMap*)(p_Tgec->p_MemMap);
-    tmpReg32 = GET_UINT32(p_MemMap->cmd_conf_ctrl);
+    tmpReg32 = GET_UINT32(p_MemMap->command_config);
     if (en)
         tmpReg32 |= CMD_CFG_PAUSE_IGNORE;
     else
         tmpReg32 &= ~CMD_CFG_PAUSE_IGNORE;
-    WRITE_UINT32(p_MemMap->cmd_conf_ctrl, tmpReg32);
+    WRITE_UINT32(p_MemMap->command_config, tmpReg32);
 
     return E_OK;
 }
@@ -553,7 +555,7 @@ static t_Error TgecEnable1588TimeStamp(t_Handle h_Tgec)
     p_TgecMemMap = p_Tgec->p_MemMap;
     SANITY_CHECK_RETURN_ERROR(p_TgecMemMap, E_INVALID_HANDLE);
 
-    WRITE_UINT32(p_TgecMemMap->cmd_conf_ctrl, GET_UINT32(p_TgecMemMap->cmd_conf_ctrl) | CMD_CFG_EN_TIMESTAMP);
+    WRITE_UINT32(p_TgecMemMap->command_config, GET_UINT32(p_TgecMemMap->command_config) | CMD_CFG_EN_TIMESTAMP);
 
     return E_OK;
 }
@@ -571,7 +573,7 @@ static t_Error TgecDisable1588TimeStamp(t_Handle h_Tgec)
     p_TgecMemMap = p_Tgec->p_MemMap;
     SANITY_CHECK_RETURN_ERROR(p_TgecMemMap, E_INVALID_HANDLE);
 
-    WRITE_UINT32(p_TgecMemMap->cmd_conf_ctrl, GET_UINT32(p_TgecMemMap->cmd_conf_ctrl) & ~CMD_CFG_EN_TIMESTAMP);
+    WRITE_UINT32(p_TgecMemMap->command_config, GET_UINT32(p_TgecMemMap->command_config) & ~CMD_CFG_EN_TIMESTAMP);
 
     return E_OK;
 }
@@ -622,21 +624,21 @@ static t_Error TgecResetCounters (t_Handle h_Tgec)
 
     p_MemMap= (t_TgecMemMap*)(p_Tgec->p_MemMap);
 
-    cmdConfCtrl = GET_UINT32(p_MemMap->cmd_conf_ctrl);
+    cmdConfCtrl = GET_UINT32(p_MemMap->command_config);
 
     cmdConfCtrl |= CMD_CFG_STAT_CLR;
 
-    WRITE_UINT32(p_MemMap->cmd_conf_ctrl, cmdConfCtrl);
+    WRITE_UINT32(p_MemMap->command_config, cmdConfCtrl);
 
     for (i=0; i<1000; i++)
     {
-        tmpReg32 = GET_UINT32(p_MemMap->cmd_conf_ctrl);
+        tmpReg32 = GET_UINT32(p_MemMap->command_config);
         if (!(tmpReg32 & CMD_CFG_STAT_CLR))
             break;
     }
 
     cmdConfCtrl &= ~CMD_CFG_STAT_CLR;
-    WRITE_UINT32(p_MemMap->cmd_conf_ctrl, cmdConfCtrl);
+    WRITE_UINT32(p_MemMap->command_config, cmdConfCtrl);
 
     return E_OK;
 }
@@ -881,10 +883,10 @@ static t_Error TgecTxEccWorkaround(t_Tgec *p_Tgec)
     XX_Print("Applying 10G tx-ecc error workaround (10GMAC-A004) ...");
 #endif /* (DEBUG_ERRORS > 0) */
     /* enable and set promiscuous */
-    WRITE_UINT32(p_Tgec->p_MemMap->cmd_conf_ctrl, CMD_CFG_PROMIS_EN | CMD_CFG_TX_EN | CMD_CFG_RX_EN);
+    WRITE_UINT32(p_Tgec->p_MemMap->command_config, CMD_CFG_PROMIS_EN | CMD_CFG_TX_EN | CMD_CFG_RX_EN);
     err = Fm10GTxEccWorkaround(p_Tgec->fmMacControllerDriver.h_Fm, p_Tgec->macId);
     /* disable */
-    WRITE_UINT32(p_Tgec->p_MemMap->cmd_conf_ctrl, 0);
+    WRITE_UINT32(p_Tgec->p_MemMap->command_config, 0);
 #if defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0)
     if (err)
         XX_Print("FAILED!\n");
@@ -911,7 +913,7 @@ static t_Error TgecDumpRegs(t_Handle h_Tgec)
         DUMP_TITLE(p_Tgec->p_MemMap, ("10G MAC %d: ", p_Tgec->macId));
         DUMP_VAR(p_Tgec->p_MemMap, tgec_id);
         DUMP_VAR(p_Tgec->p_MemMap, scratch);
-        DUMP_VAR(p_Tgec->p_MemMap, cmd_conf_ctrl);
+        DUMP_VAR(p_Tgec->p_MemMap, command_config);
         DUMP_VAR(p_Tgec->p_MemMap, mac_addr_0);
         DUMP_VAR(p_Tgec->p_MemMap, mac_addr_1);
         DUMP_VAR(p_Tgec->p_MemMap, maxfrm);
@@ -966,7 +968,7 @@ static t_Error TgecInit(t_Handle h_Tgec)
     FM_GetRevision(p_Tgec->fmMacControllerDriver.h_Fm, &p_Tgec->fmMacControllerDriver.fmRevInfo);
 
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
-    if (p_Tgec->fmMacControllerDriver.fmRevInfo.majorRev != 8 /*tmp */)
+    if (p_Tgec->fmMacControllerDriver.fmRevInfo.majorRev <= 6 /*fixed for rev3 */)
     {
         if (!p_Tgec->p_TgecDriverParam->skipFman11Workaround &&
             ((err = TgecTxEccWorkaround(p_Tgec)) != E_OK))
@@ -1028,7 +1030,7 @@ static t_Error TgecInit(t_Handle h_Tgec)
     if (p_TgecDriverParam->txPblFwd)
         tmpReg32 |= CMD_CFG_TX_PBL_FWD;
     tmpReg32 |= 0x40;
-    WRITE_UINT32(p_MemMap->cmd_conf_ctrl, tmpReg32);
+    WRITE_UINT32(p_MemMap->command_config, tmpReg32);
 
     /* Max Frame Length */
     WRITE_UINT32(p_MemMap->maxfrm, (uint32_t)p_TgecDriverParam->maxFrameLength);
@@ -1075,7 +1077,12 @@ static t_Error TgecInit(t_Handle h_Tgec)
     WRITE_UINT32(p_MemMap->ievent, EVENTS_MASK);
     WRITE_UINT32(p_MemMap->imask, p_Tgec->exceptions);
 
-    FmRegisterIntr(p_Tgec->fmMacControllerDriver.h_Fm, e_FM_MOD_10G_MAC, p_Tgec->macId, e_FM_INTR_TYPE_ERR, TgecErrException , p_Tgec);
+    FmRegisterIntr(p_Tgec->fmMacControllerDriver.h_Fm,
+                   e_FM_MOD_10G_MAC,
+                   p_Tgec->macId,
+                   e_FM_INTR_TYPE_ERR,
+                   TgecErrException,
+                   p_Tgec);
     if ((p_Tgec->mdioIrq != 0) && (p_Tgec->mdioIrq != NO_IRQ))
     {
         XX_SetIntr(p_Tgec->mdioIrq, TgecException, p_Tgec);
@@ -1127,6 +1134,7 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
     p_FmMacControllerDriver->f_FM_MAC_ConfigHalfDuplex          = NULL; /* half-duplex is not supported in xgec */
     p_FmMacControllerDriver->f_FM_MAC_ConfigLengthCheck         = TgecConfigLengthCheck;
     p_FmMacControllerDriver->f_FM_MAC_ConfigException           = TgecConfigException;
+    p_FmMacControllerDriver->f_FM_MAC_ConfigResetOnInit         = NULL;
 
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
     p_FmMacControllerDriver->f_FM_MAC_ConfigSkipFman11Workaround= TgecConfigSkipFman11Workaround;
@@ -1139,6 +1147,7 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
 
     p_FmMacControllerDriver->f_FM_MAC_SetPromiscuous            = TgecSetPromiscuous;
     p_FmMacControllerDriver->f_FM_MAC_AdjustLink                = NULL;
+    p_FmMacControllerDriver->f_FM_MAC_RestartAutoneg            = NULL;
 
     p_FmMacControllerDriver->f_FM_MAC_Enable                    = TgecEnable;
     p_FmMacControllerDriver->f_FM_MAC_Disable                   = TgecDisable;

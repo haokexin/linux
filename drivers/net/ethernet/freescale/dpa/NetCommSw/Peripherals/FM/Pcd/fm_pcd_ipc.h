@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /**************************************************************************//**
  @File          fm_pcd_ipc.h
 
@@ -112,14 +113,14 @@ typedef _Packed struct t_FmPcdIpcPrsIncludePort
     bool        include;
 } _PackedType t_FmPcdIpcPrsIncludePort;
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 typedef _Packed struct t_FmPcdIpcSpAllocParams
 {
     uint16_t    num;
     uint8_t     hardwarePortId;
     uint16_t    spProfilesBase;
 } _PackedType t_FmPcdIpcSpAllocParams;
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 
 #define FM_PCD_MAX_REPLY_SIZE           16
@@ -238,15 +239,6 @@ typedef _Packed struct t_FmPcdIpcReply
 #define FM_PCD_GUEST_DISABLE                    16
 
 /**************************************************************************//**
- @Function      FM_PCD_DUMP_REGS
-
- @Description   Used by FM front-end to dump all PCD registers
-
- @Param[in]     None
-*//***************************************************************************/
-#define FM_PCD_DUMP_REGS                        17
-
-/**************************************************************************//**
  @Function      FM_PCD_KG_DUMP_REGS
 
  @Description   Used by FM front-end to dump KG registers
@@ -327,10 +319,10 @@ typedef _Packed struct t_FmPcdIpcReply
 *//***************************************************************************/
 #define FM_PCD_PRS_INC_PORT_STATS               26
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 /* TODO - doc */
 #define FM_PCD_ALLOC_SP                         27
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 
 /** @} */ /* end of FM_PCD_IPC_grp group */

@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          tgec.h
 
@@ -323,7 +324,7 @@ typedef _Packed struct {
 /* 10Ge General Control and Status */
     volatile uint32_t   tgec_id;            /* 0x000 10GEC_ID - Controller ID register */
     volatile uint32_t   scratch;            /* 0x004  */
-    volatile uint32_t   cmd_conf_ctrl;      /* 0x008 COMMAND_CONFIG - Control and configuration register */
+    volatile uint32_t   command_config;     /* 0x008 COMMAND_CONFIG - Control and configuration register */
     volatile uint32_t   mac_addr_0;         /* 0x00C MAC_ADDR_0 - Lower 32 bits of the first 48-bit MAC address */
     volatile uint32_t   mac_addr_1;         /* 0x010 MAC_ADDR_1 - Upper 16 bits of the first 48-bit MAC address */
     volatile uint32_t   maxfrm;             /* 0x014 MAXFRM - Maximum frame length register */

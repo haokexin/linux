@@ -103,9 +103,9 @@
 #define IOC_FM_PCD_MAX_MANIP_INSRT_TEMPLATE_SIZE        128                 /**< Maximum size of insertion template for
                                                                              insert manipulation */
 
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
 #define IOC_FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES        64                  /**< Maximum possible entries for frame replicator group */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 
 /* @} */
 
@@ -972,7 +972,7 @@ typedef struct ioc_fm_pcd_kg_plcr_profile_t {
     } profile_select;
 } ioc_fm_pcd_kg_plcr_profile_t;
 
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
 /**************************************************************************//**
  @Description   Parameters for configuring a storage profile for a KeyGen scheme.
 *//***************************************************************************/
@@ -998,7 +998,7 @@ typedef struct ioc_fm_pcd_kg_storage_profile_t {
         } indirect_profile;                          /**< Indirect profile parameters. */
     } profile_select;                                /**< Direct/indirect profile selection and parameters. */
 } ioc_fm_pcd_kg_storage_profile_t;
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 
 /**************************************************************************//**
  @Description   A structure for CC parameters if CC is the next engine after KG
@@ -1055,10 +1055,10 @@ typedef struct ioc_fm_pcd_kg_scheme_params_t {
                                                               actions; Normally only some will be used
                                                               for qidMask. Driver will return error if
                                                               resource is full at initialization time. */
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
     bool                                override_storage_profile; /**< TRUE if KeyGen override previously decided storage profile */
     ioc_fm_pcd_kg_storage_profile       storage_profile;        /**< Used when overrideStorageProfile TRUE */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 
     ioc_fm_pcd_engine                   next_engine;     /**< may be BMI, PLCR or CC */
     union{                                               /**< depends on nextEngine */
@@ -1098,12 +1098,12 @@ typedef struct ioc_fm_pcd_cc_next_plcr_params_t {
                                                 In earlier chips  if policer next engine is KEYGEN,
                                                 this parameter can be 0, because the KEYGEN always decides
                                                 the enqueue FQID.*/
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
     uint8_t     new_relative_storage_profileId;
                                         /**< Indicates the relative storage profile offset within
                                              the port's storage profiles window;
                                              Relevant only if the port was configured with VSP. */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 
 } ioc_fm_pcd_cc_next_plcr_params_t;
 
@@ -1118,12 +1118,12 @@ typedef struct ioc_fm_pcd_cc_next_enqueue_params_t {
     uint32_t                new_fqid;       /**< Valid if overrideFqid=TRUE, FQID for enquing the frame
                                                  (otherwise FQID is taken from keygen),
                                                  relevant if action = e_IOC_FM_PCD_ENQ_FRAME*/
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
     uint8_t              new_relative_storage_profile_id;
                                         /**< Indicates the relative storage profile offset within
                                              the port's storage profiles window;
                                              Relevant only if the port was configured with VSP. */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 
 } ioc_fm_pcd_cc_next_enqueue_params_t;
 
@@ -1138,12 +1138,12 @@ typedef struct ioc_fm_pcd_cc_next_kg_params_t {
                                          (otherwise FQID is taken from keygen),
                                           Note - this parameters unrelevant for earlier chips*/
     void       *p_direct_scheme;        /**< Direct scheme handle to go to. */
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
     uint8_t              new_relative_storage_profile_id;
                                         /**< Indicates the relative storage profile offset within
                                              the port's storage profiles window;
                                              Relevant only if the port was configured with VSP. */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 } ioc_fm_pcd_cc_next_kg_params_t;
 
 /**************************************************************************//**
@@ -1159,10 +1159,10 @@ typedef struct ioc_fm_pcd_cc_next_engine_params_t {
             ioc_fm_pcd_cc_next_enqueue_params_t enqueue_params; /**< Parameters in case next engine is BMI */
             ioc_fm_pcd_cc_next_kg_params_t      kg_params;      /**< Parameters in case next engine is KG */
     } params;
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
     void                                        *p_frm_replic_id; /**< Handle to frame replicator group;
                                                                        Relevant if next engine is e_FM_PCD_INVALID) */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 
     void                                        *manip_id;      /**< Handle to Manipulation object.
                                                                      Relevant if next engine is of type result
@@ -1455,9 +1455,9 @@ typedef struct ioc_fm_pcd_hash_table_remove_key_params_t {
 typedef struct ioc_fm_pcd_manip_frag_ip_params_t {
     uint16_t                    size_for_fragmentation;   /**< If length of the frame is greater than this value,
                                                              IP fragmentation will be executed.*/
-#if (DPAA_VERSION == 2)
+#if (DPAA_VERSION == 10)
     uint8_t                     scratch_bpid;            /**< Absolute buffer pool id according to BM configuration.*/
-#endif /* (DPAA_VERSION == 2) */
+#endif /* (DPAA_VERSION == 10) */
     bool                        sg_bpid_en;               /**< Enable a dedicated buffer pool id for the Scatter/Gather buffer allocation;
                                                              If disabled, the Scatter/Gather buffer will be allocated from the same pool as the
                                                              received frame's buffer. */
@@ -1702,7 +1702,7 @@ typedef struct ioc_fm_pcd_manip_stats_t {
     } u;
 } ioc_fm_pcd_manip_stats_t;
 
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
 /**************************************************************************//**
  @Description   Parameters for defining frame replicator group and its members
 *//***************************************************************************/
@@ -1712,7 +1712,7 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
     ioc_fm_pcd_cc_next_engine_params_t   next_engine_params[FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES];
                                                     /**< Array of members' parameters */
 } ioc_fm_pcd_frm_replic_group_params_t;
-#endif /* DPAA_VERSION >= 3 */
+#endif /* DPAA_VERSION >= 11 */
 
 /**************************************************************************//**
  @Function      FM_PCD_IOC_SET_NET_ENV_CHARACTERISTICS

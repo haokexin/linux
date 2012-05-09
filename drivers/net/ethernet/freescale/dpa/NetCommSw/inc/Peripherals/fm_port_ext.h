@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /**************************************************************************//**
  @File          fm_port_ext.h
 
@@ -280,7 +281,7 @@ typedef struct t_FmPortParams {
     u_FmPortSpecificParams      specificParams;     /**< Additional parameters depending on port
                                                          type. */
 
-    t_FmPortExceptionCallback   *f_Exception;       /**< Callback routine to be called of PCD exception */
+    t_FmPortExceptionCallback   *f_Exception;       /**< Relevant for IM only Callback routine to be called on BUSY exception */
     t_Handle                    h_App;              /**< A handle to an application layer object; This handle will
                                                          be passed by the driver upon calling the above callbacks */
 } t_FmPortParams;
@@ -829,9 +830,17 @@ t_Error FM_PORT_ConfigDmaScatterGatherAttr(t_Handle h_FmPort, e_FmDmaCacheOption
 
  @Description   Calling this routine changes the write optimization
                 parameter in the internal driver data base
-                from its default configuration:  optimize = [DEFAULT_FM_SP_dmaWriteOptimize]
+                from its default configuration:  By default optimize = [DEFAULT_FM_SP_dmaWriteOptimize].
+                Note:
 
-                May be used for non-Tx port types
+                1. For head optimization, data alignment must be >= 16 (supported by default).
+
+                3. For tail optimization, note that the optimization is performed by extending the write transaction
+				of the frame payload at the tail as needed to achieve optimal bus transfers, so that the last write
+				is extended to be on 16/64 bytes aligned block (chip dependent).
+
+
+                Relevant for non-Tx port types
 
  @Param[in]     h_FmPort    A handle to a FM Port module.
  @Param[in]     optimize    TRUE to enable optimization, FALSE for normal operation
@@ -1148,6 +1157,23 @@ t_Error FM_PORT_ConfigRxFifoThreshold(t_Handle h_FmPort, uint32_t fifoThreshold)
 *//***************************************************************************/
 t_Error FM_PORT_ConfigRxFifoPriElevationLevel(t_Handle h_FmPort, uint32_t priElevationLevel);
 
+#if (DPAA_VERSION >= 11)
+/**************************************************************************//*
+ @Function      FM_PORT_ConfigInternalBuffOffset
+
+ @Description   TODO
+                May be used for Rx and OP ports only
+
+ @Param[in]     h_FmPort            A handle to a FM Port module.
+ @Param[in]     val                 New value
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PORT_Config() and before FM_PORT_Init().
+*//***************************************************************************/
+t_Error FM_PORT_ConfigInternalBuffOffset(t_Handle h_FmPort, uint8_t val);
+#endif /* (DPAA_VERSION >= 11) */
+
 /** @} */ /* end of FM_PORT_advanced_init_grp group */
 /** @} */ /* end of FM_PORT_init_grp group */
 
@@ -1202,12 +1228,12 @@ typedef struct t_FmPortCongestionGrps {
                                                         /**< An array of CG indexes;
                                                              Note that the size of the array should be
                                                              'numOfCongestionGrpsToConsider'. */
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     bool        pfcPrioritiesEn[FM_PORT_NUM_OF_CONGESTION_GRPS][FM_MAX_NUM_OF_PFC_PRIORITIES];
                                                         /**< a matrix that represents the map between the CG ids
                                                              defined in 'congestionGrpsToConsider' to the priorties
                                                              mapping array. */
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 } t_FmPortCongestionGrps;
 
 
@@ -1852,7 +1878,7 @@ typedef struct t_FmPcdPrsStart {
                                              'parsingOffset' */
 } t_FmPcdPrsStart;
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 /**************************************************************************//**
  @Description   struct for defining external buffer margins
 *//***************************************************************************/
@@ -1861,9 +1887,9 @@ typedef struct t_FmPortVSPAllocParams {
     uint8_t     dfltRelativeId;         /**< The default Virtual-Storage-Profile-id dedicated to Rx/OP port
                                              The same default Virtual-Storage-Profile-id will be for coupled Tx port
                                              if relevant function called for Rx port */
-    t_Handle    h_FmTxPort;             /**< Handle to coupled Tx Port */
+    t_Handle    h_FmTxPort;             /**< Handle to coupled Tx Port; not relevant for OP port. */
 } t_FmPortVSPAllocParams;
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 
 /**************************************************************************//**
@@ -1970,7 +1996,7 @@ t_Error FM_PORT_PcdPlcrAllocProfiles(t_Handle h_FmPort, uint16_t numOfProfiles);
 *//***************************************************************************/
 t_Error FM_PORT_PcdPlcrFreeProfiles(t_Handle h_FmPort);
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 /**************************************************************************//**
  @Function      FM_PORT_VSPAlloc
 
@@ -1987,7 +2013,7 @@ t_Error FM_PORT_PcdPlcrFreeProfiles(t_Handle h_FmPort);
                 and also before FM_PORT_Enable() (i.e. the port should be disabled).
 *//***************************************************************************/
 t_Error FM_PORT_VSPAlloc(t_Handle h_FmPort, t_FmPortVSPAllocParams *p_Params);
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 /**************************************************************************//**
  @Function      FM_PORT_PcdKgModifyInitialScheme

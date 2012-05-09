@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm_pcd.c
 
@@ -44,6 +45,7 @@
 #include "fm_common.h"
 #include "fm_pcd.h"
 #include "fm_pcd_ipc.h"
+#include "fm_prs.h"
 
 
 t_Handle PrsConfig(t_FmPcd *p_FmPcd,t_FmPcdParams *p_FmPcdParams)
@@ -259,7 +261,7 @@ t_Error PrsIncludePortInStatistics(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, boo
     GET_FM_PCD_PRS_PORT_ID(prsPortId, hardwarePortId);
     GET_FM_PCD_INDEX_FLAG(bitMask, prsPortId);
 
-    if(include)
+    if (include)
         p_FmPcd->p_FmPcdPrs->fmPcdPrsPortIdStatistics |= bitMask;
     else
         p_FmPcd->p_FmPcdPrs->fmPcdPrsPortIdStatistics &= ~bitMask;
@@ -272,16 +274,18 @@ t_Error PrsIncludePortInStatistics(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, boo
 t_Error FmPcdPrsIncludePortInStatistics(t_Handle h_FmPcd, uint8_t hardwarePortId, bool include)
 {
     t_FmPcd                     *p_FmPcd = (t_FmPcd *)h_FmPcd;
-    t_FmPcdIpcPrsIncludePort    prsIncludePortParams;
-    t_FmPcdIpcMsg               msg;
     t_Error                     err;
 
     SANITY_CHECK_RETURN_ERROR((hardwarePortId >=1 && hardwarePortId <= 16), E_INVALID_VALUE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPrs, E_INVALID_HANDLE);
 
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
+    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
+        p_FmPcd->h_IpcSession)
     {
+        t_FmPcdIpcPrsIncludePort    prsIncludePortParams;
+        t_FmPcdIpcMsg               msg;
+
         prsIncludePortParams.hardwarePortId = hardwarePortId;
         prsIncludePortParams.include = include;
         memset(&msg, 0, sizeof(msg));
@@ -297,6 +301,9 @@ t_Error FmPcdPrsIncludePortInStatistics(t_Handle h_FmPcd, uint8_t hardwarePortId
             RETURN_ERROR(MAJOR, err, NO_MSG);
         return E_OK;
     }
+    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
+                     ("running in \"guest-mode\" without IPC!"));
 
     return PrsIncludePortInStatistics(p_FmPcd, hardwarePortId, include);
 }
@@ -306,13 +313,14 @@ uint32_t FmPcdGetSwPrsOffset(t_Handle h_FmPcd, e_NetHeaderType hdr, uint8_t inde
     t_FmPcd                 *p_FmPcd = (t_FmPcd *)h_FmPcd;
     t_Error                 err = E_OK;
     t_FmPcdIpcSwPrsLable    labelParams;
-    t_FmPcdIpcMsg           msg;
-    uint32_t                prsOffset = 0;
-    t_FmPcdIpcReply         reply;
-    uint32_t                replyLength;
 
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
+    if (p_FmPcd->guestId != NCSW_MASTER_ID)
     {
+        t_FmPcdIpcMsg           msg;
+        uint32_t                prsOffset = 0;
+        t_FmPcdIpcReply         reply;
+        uint32_t                replyLength;
+
         memset(&reply, 0, sizeof(reply));
         memset(&msg, 0, sizeof(msg));
         labelParams.enumHdr = (uint32_t)hdr;
@@ -328,7 +336,7 @@ uint32_t FmPcdGetSwPrsOffset(t_Handle h_FmPcd, e_NetHeaderType hdr, uint8_t inde
                                      NULL,
                                      NULL)) != E_OK)
             RETURN_ERROR(MAJOR, err, NO_MSG);
-        if(replyLength != sizeof(uint32_t) + sizeof(uint32_t))
+        if (replyLength != sizeof(uint32_t) + sizeof(uint32_t))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
 
         memcpy((uint8_t*)&prsOffset, reply.replyBody, sizeof(uint32_t));
@@ -350,7 +358,8 @@ void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable)
         REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_SetPrsStatistics - guest mode!"));
         return;
     }
-    if(enable)
+
+    if (enable)
         WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->ppsc, FM_PCD_PRS_PPSC_ALL_PORTS);
     else
         WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->ppsc, 0);
@@ -445,7 +454,6 @@ t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd,uint16_t value)
 t_Error FM_PCD_PrsDumpRegs(t_Handle h_FmPcd)
 {
     t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    t_FmPcdIpcMsg       msg;
 
     DECLARE_DUMP;
 
@@ -453,18 +461,25 @@ t_Error FM_PCD_PrsDumpRegs(t_Handle h_FmPcd)
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPrs, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
 
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
+    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
+        !p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs &&
+        p_FmPcd->h_IpcSession)
     {
+        t_FmPcdIpcMsg       msg;
         memset(&msg, 0, sizeof(msg));
         msg.msgId = FM_PCD_PRS_DUMP_REGS;
         return XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                    (uint8_t*)&msg,
-                                    sizeof(msg.msgId),
-                                    NULL,
-                                    NULL,
-                                    NULL,
-                                    NULL);
+                                 (uint8_t*)&msg,
+                                 sizeof(msg.msgId),
+                                 NULL,
+                                 NULL,
+                                 NULL,
+                                 NULL);
     }
+    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
+                     ("running in \"guest-mode\" without neither IPC nor mapped register!"));
+
     DUMP_SUBTITLE(("\n"));
     DUMP_TITLE(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs, ("FmPcdPrsRegs Regs"));
 

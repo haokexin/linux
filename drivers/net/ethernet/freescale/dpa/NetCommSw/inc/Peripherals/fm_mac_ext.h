@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /**************************************************************************//**
  @File          fm_mac_ext.h
 
@@ -112,7 +113,7 @@ typedef enum e_FmMacStatisticsLevel {
 } e_FmMacStatisticsLevel;
 
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 /**************************************************************************//**
  @Description   Priority Flow Control Parameters
 *//***************************************************************************/
@@ -125,7 +126,7 @@ typedef struct t_FmMacPfcParams {
 
 
 } t_FmMacPfcParams;
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 /**************************************************************************//**
  @Function      t_FmMacExceptionCallback
@@ -542,6 +543,7 @@ t_Error FM_MAC_SetException(t_Handle h_FmMac, e_FmMacExceptions ex, bool enable)
                 Where applicable, the routine also enables the MIB counters
                 overflow interrupt in order to keep counters accurate
                 and account for overflows.
+                This routine is relevant only for dTSEC.
 
  @Param[in]     h_FmMac         - A handle to a FM MAC Module.
  @Param[in]     statisticsLevel - Full statistics level provides all standard counters but may
@@ -561,7 +563,7 @@ t_Error FM_MAC_SetStatistics(t_Handle h_FmMac, e_FmMacStatisticsLevel statistics
  @Description   get all statistics counters
 
  @Param[in]     h_FmMac       -  A handle to a FM MAC Module.
- @Param[in]     p_Statistics  -  Staructure with statistics
+ @Param[in]     p_Statistics  -  Structure with statistics
 
  @Return        E_OK on success; Error code otherwise.
 
@@ -659,6 +661,7 @@ t_Error FM_MAC_SetPromiscuous(t_Handle h_FmMac, bool enable);
  @Function      FM_MAC_AdjustLink
 
  @Description   Adjusts the Ethernet link with new speed/duplex setup.
+                This routine is relevant only for dTSEC.
 
  @Param[in]     h_FmMac     - A handle to a FM Module.
  @Param[in]     speed       - Ethernet speed.
@@ -668,6 +671,24 @@ t_Error FM_MAC_SetPromiscuous(t_Handle h_FmMac, bool enable);
  @Return        E_OK on success; Error code otherwise.
 *//***************************************************************************/
 t_Error FM_MAC_AdjustLink(t_Handle h_FmMac, e_EnetSpeed speed, bool fullDuplex);
+
+/**************************************************************************//**
+ @Function      FM_MAC_RestartAutoneg
+
+ @Description   Restarts the autonegotiation process.
+                When autonegegotiation process is invoked under traffic the
+                autonegotiation process between the internal TBI PHY and the
+                external PHY does not always complete succesfuly. Calling this
+                function will restart the autonegotiation process that will end
+                succesfuly. It is recomended to call this function after issuing
+                autoneg restart command to the Eth Phy.
+                This routine is relevant only for dTSEC.
+
+ @Param[in]     h_FmMac     - A handle to a FM Module.
+
+ @Return        E_OK on success; Error code otherwise.
+*//***************************************************************************/
+t_Error FM_MAC_RestartAutoneg(t_Handle h_FmMac);
 
 /**************************************************************************//**
  @Function      FM_MAC_GetId
