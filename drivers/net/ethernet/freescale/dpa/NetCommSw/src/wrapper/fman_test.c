@@ -835,7 +835,7 @@ int dpa_alloc_pcd_fqids(
 		goto _pcd_alloc_fqs_err;
 	}
 
-	_fmt_dbg("wanted %d fqs(align %d), got %d fqids@%.\n",
+	_fmt_dbg("wanted %d fqs(align %d), got %d fqids@%u.\n",
 				num, alignment, num_allocated, *base_fqid);
 
 	/* alloc pcd queues */
@@ -918,14 +918,14 @@ int dpa_free_pcd_fqids(
 
 	/* debugging stuff */
 #if defined(FMT_K_DBG) || defined(FMT_K_DBG_RUNTIME)
-	_fmt_dbg(" portid: %.\n", fmt_port->id);
-	_fmt_dbg(" frames enqueue to qman: %.\n",
+	_fmt_dbg(" portid: %u.\n", fmt_port->id);
+	_fmt_dbg(" frames enqueue to qman: %u.\n",
 			atomic_read(&fmt_port->enqueue_to_qman_frm));
-	_fmt_dbg(" frames enqueue to rxq: %.\n",
+	_fmt_dbg(" frames enqueue to rxq: %u.\n",
 			atomic_read(&fmt_port->enqueue_to_rxq));
-	_fmt_dbg(" frames dequeue from rxq: %.\n",
+	_fmt_dbg(" frames dequeue from rxq: %u.\n",
 			atomic_read(&fmt_port->dequeue_from_rxq));
-	_fmt_dbg(" frames not enqueue to rxq - wrong frm: %.\n",
+	_fmt_dbg(" frames not enqueue to rxq - wrong frm: %u.\n",
 			atomic_read(&fmt_port->not_enqueue_to_rxq_wrong_frm));
 	atomic_set(&fmt_port->enqueue_to_qman_frm, 0);
 	atomic_set(&fmt_port->enqueue_to_rxq, 0);
@@ -1192,8 +1192,10 @@ static int fmt_close(struct inode *inode, struct file *file)
 
 	/* clean the fmt port queue */
 	while ((fmt_frame = dequeue_fmt_frame(fmt_port)) != NULL) {
+		if (fmt_frame && fmt_frame->buff.p_data){
 		kfree(fmt_frame->buff.p_data);
 		kfree(fmt_frame);
+	}
 	}
 
 	/* !!! the qman queues are cleaning from fm_ioctl...
