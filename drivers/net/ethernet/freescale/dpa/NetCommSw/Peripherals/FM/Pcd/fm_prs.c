@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -151,33 +151,15 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
 {
     t_FmPcdDriverParam  *p_Param = p_FmPcd->p_FmPcdDriverParam;
     t_FmPcdPrsRegs      *p_Regs = p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs;
-    uint32_t            tmpReg;
+    uint32_t            tmpReg, i, j;
+    uint32_t            *p_SwPrsCode = (uint32_t *)PTR_MOVE(p_FmPcd->p_FmPcdPrs->p_SwPrsCode,
+                                                            FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE);
+    uint8_t             swPrsPatch[] = SW_PRS_IP_FRAG_PATCH;
 
     if(p_FmPcd->guestId != NCSW_MASTER_ID)
         return E_OK;
 
     ASSERT_COND(p_FmPcd->guestId == NCSW_MASTER_ID);
-
-#ifdef FM_PRS_MEM_ERRATA_FMAN_SW003
-    {
-        uint32_t            i;
-        uint32_t            regsToGlobalOffset = 0x840;
-        uint32_t            firstPortToGlobalOffset = 0x45800;
-        uint64_t            globalAddr = PTR_TO_UINT(p_Regs) - regsToGlobalOffset;
-        uint32_t            firstPortAddr = (uint32_t)(globalAddr - (uint64_t)firstPortToGlobalOffset);
-        uint32_t            portSize = 0x1000;
-        t_FmRevisionInfo    revInfo;
-
-        FM_GetRevision(p_FmPcd->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-        {
-            /* clear all parser memory */
-            IOMemSet32(UINT_TO_PTR(globalAddr), 0x00000000, 0x800);
-            for(i = 0;i<16;i++)
-                IOMemSet32(UINT_TO_PTR(firstPortAddr+i*portSize), (uint8_t)0x00000000, (uint32_t)0x80);
-        }
-    }
-#endif /* FM_PRS_MEM_ERRATA_FMAN_SW003 */
 
     /**********************RPCLIM******************/
     WRITE_UINT32(p_Regs->rpclim, (uint32_t)p_Param->prsMaxParseCycleLimit);
@@ -222,34 +204,21 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
     WRITE_UINT32(p_Regs->ppsc, p_FmPcd->p_FmPcdPrs->fmPcdPrsPortIdStatistics);
     /**********************PPCS******************/
 
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+    ASSERT_COND(sizeof(swPrsPatch)<= (FM_PCD_PRS_SW_PATCHES_SIZE-FM_PCD_PRS_SW_TAIL_SIZE));
+    /* load sw parser Ip-Frag patch */
+    if (p_FmPcd->fmRevInfo.majorRev >= 2)
     {
-        uint32_t            i, j;
-        t_FmRevisionInfo    revInfo;
-        uint32_t            *p_SwPrsCode;
-        uint8_t             swPrsPatch[] = SW_PRS_IP_FRAG_PATCH;
-
-        /* To keep the compiler happy, we're initializing this here rather than at declaration! */
-        p_SwPrsCode = (uint32_t *)PTR_MOVE(p_FmPcd->p_FmPcdPrs->p_SwPrsCode, FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE);
-
-        ASSERT_COND(sizeof(swPrsPatch)<= (FM_PCD_PRS_SW_PATCHES_SIZE-FM_PCD_PRS_SW_TAIL_SIZE));
-        /* load sw parser Ip-Frag patch */
-        FM_GetRevision(p_FmPcd->h_Fm, &revInfo);
-        if ((revInfo.majorRev == 2) || (revInfo.majorRev == 3))
+        for(i=0; i < (sizeof(swPrsPatch) / 4);i++)
         {
-            for(i=0;i<sizeof(swPrsPatch)/4;i++)
-            {
-               tmpReg = 0;
-               for(j =0;j<4;j++)
-               {
-                  tmpReg <<= 8;
-                  tmpReg |= swPrsPatch[i*4+j];
-               }
-               WRITE_UINT32(*(p_SwPrsCode + i), tmpReg);
-            }
+           tmpReg = 0;
+           for (j=0; j < 4; j++)
+           {
+              tmpReg <<= 8;
+              tmpReg |= swPrsPatch[i*4+j];
+           }
+           WRITE_UINT32(*(p_SwPrsCode + i), tmpReg);
         }
     }
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
     return E_OK;
 }
@@ -391,6 +360,7 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
 {
     t_FmPcd                 *p_FmPcd = (t_FmPcd*)h_FmPcd;
     uint32_t                *p_LoadTarget, tmpReg;
+    uint8_t                 *p_TmpCode;
     int                     i, j;
 
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
@@ -410,6 +380,16 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
     if(p_SwPrs->size > FM_PCD_SW_PRS_SIZE - FM_PCD_PRS_SW_TAIL_SIZE - p_SwPrs->base*2)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("p_SwPrs->size may not be larger than MAX_SW_PRS_CODE_SIZE"));
 
+    p_TmpCode = p_SwPrs->p_Code;
+    if(p_SwPrs->size % 4)
+    {
+        p_TmpCode = (uint8_t *)XX_Malloc(p_SwPrs->size + 2);
+        if (!p_TmpCode)
+            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
+        memset(p_TmpCode, 0, p_SwPrs->size + 2);
+        memcpy(p_TmpCode, p_SwPrs->p_Code, p_SwPrs->size);
+    }
+
     /* save sw parser labels */
     if(p_SwPrs->override)
         p_FmPcd->p_FmPcdPrs->currLabel = 0;
@@ -419,17 +399,17 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
     p_FmPcd->p_FmPcdPrs->currLabel += p_SwPrs->numOfLabels;
     /* load sw parser code */
     p_LoadTarget = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4;
-    for(i=0;i<p_SwPrs->size/4;i++)
+    for(i=0;i<DIV_CEIL(p_SwPrs->size,4);i++)
     {
         tmpReg = 0;
         for(j =0;j<4;j++)
         {
             tmpReg <<= 8;
-            tmpReg |= *(p_SwPrs->p_Code+i*4+j);
+            tmpReg |= *(p_TmpCode+i*4+j);
         }
         WRITE_UINT32(*(p_LoadTarget + i), tmpReg);
     }
-    p_FmPcd->p_FmPcdPrs->p_CurrSwPrs = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + p_SwPrs->size/4;
+    p_FmPcd->p_FmPcdPrs->p_CurrSwPrs = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + DIV_CEIL(p_SwPrs->size,4);
 
     /* copy data parameters */
     for(i=0;i<FM_PCD_PRS_NUM_OF_HDRS;i++)
@@ -438,6 +418,9 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
 
     /* Clear last 4 bytes */
     WRITE_UINT32(*(p_FmPcd->p_FmPcdPrs->p_SwPrsCode+(PRS_SW_DATA-FM_PCD_PRS_SW_TAIL_SIZE)/4), 0);
+
+    if(p_SwPrs->size % 4)
+        XX_Free(p_TmpCode);
 
     return E_OK;
 }

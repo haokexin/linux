@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -39,12 +39,8 @@
 #ifndef __TYPES_EXT_H
 #define __TYPES_EXT_H
 
-
 #if defined(NCSW_LINUX)
 #include "types_linux.h"
-
-#elif defined(NCSW_LINUX_USD)
-#include "types_linux_usd.h"
 
 #elif defined(NCSW_VXWORKS)
 #include "types_vxworks.h"

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -585,7 +585,7 @@ t_Error FM_RTC_SetAlarm(t_Handle h_FmRtc, t_FmRtcAlarmParams *p_FmRtcAlarmParams
     WRITE_UINT32(p_MemMap->tmr_alarm[p_FmRtcAlarmParams->alarmId].tmr_alarm_h,
                  (uint32_t)(tmpAlarm >> 32));
 
-    if (p_FmRtcAlarmParams->f_AlarmCallback)
+    if(p_FmRtcAlarmParams->f_AlarmCallback)
     {
         p_Rtc->alarmParams[p_FmRtcAlarmParams->alarmId].f_AlarmCallback = p_FmRtcAlarmParams->f_AlarmCallback;
         p_Rtc->alarmParams[p_FmRtcAlarmParams->alarmId].clearOnExpiration = p_FmRtcAlarmParams->clearOnExpiration;
@@ -629,10 +629,10 @@ t_Error FM_RTC_SetPeriodicPulse(t_Handle h_FmRtc, t_FmRtcPeriodicPulseParams *p_
 
     WRITE_UINT32(p_MemMap->tmr_fiper[p_FmRtcPeriodicPulseParams->periodicPulseId], (uint32_t)tmpFiper);
 
-    if (p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback)
+    if(p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback)
     {
         p_Rtc->periodicPulseParams[p_FmRtcPeriodicPulseParams->periodicPulseId].f_PeriodicPulseCallback =
-            p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback;
+                                                                p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback;
 
         if(p_FmRtcPeriodicPulseParams->periodicPulseId == 0)
             tmpReg = TMR_TEVENT_PP1;

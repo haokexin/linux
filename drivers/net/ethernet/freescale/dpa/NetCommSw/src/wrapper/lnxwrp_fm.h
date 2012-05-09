@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,8 +29,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/*
 
+/*
  @File          lnxwrp_fm.h
 
  @Author        Shlomi Gridish
@@ -66,8 +66,8 @@
 #define FM_DEFAULT_TX10G_OPENDMA 8 /* default TX 10g open dmas */
 #define FM_DEFAULT_RX10G_OPENDMA 8 /* default RX 10g open dmas */
 
-#define FRAG_DATA_ALIGN 64
 #define FRAG_MANIP_SPACE 128
+#define FRAG_DATA_ALIGN 64
 
 #ifndef CONFIG_FSL_FM_MAX_FRAME_SIZE
 #define CONFIG_FSL_FM_MAX_FRAME_SIZE 0
@@ -106,7 +106,7 @@ typedef struct {
     e_LnxWrpFmPortPcdDefUseCase defPcd;
     t_Handle                    h_DefNetEnv;
     t_Handle                    h_Schemes[FM_PCD_KG_NUM_OF_SCHEMES];
-    t_FmPortBufferPrefixContent buffPrefixContent;
+    t_FmBufferPrefixContent     buffPrefixContent;
     t_Handle                    h_Dev;
     t_Handle                    h_LnxWrpFmDev;
     uint16_t                    txCh;

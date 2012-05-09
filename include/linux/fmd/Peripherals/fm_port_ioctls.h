@@ -98,19 +98,21 @@
                 (must match enum e_FmPortPcdSupport defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef enum ioc_fm_port_pcd_support {
-    e_IOC_FM_PORT_PCD_SUPPORT_NONE = 0,             /**< BMI to BMI, PCD is not used */
-    e_IOC_FM_PORT_PCD_SUPPORT_PRS_ONLY,             /**< Use only Parser */
-    e_IOC_FM_PORT_PCD_SUPPORT_PLCR_ONLY,            /**< Use only Policer */
-    e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_PLCR,         /**< Use Parser and Policer */
-    e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG,           /**< Use Parser and Keygen */
-    e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC,    /**< Use Parser, Keygen and Coarse Classification */
-    e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC_AND_PLCR, /**< Use all PCD engines */
-    e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR,  /**< Use Parser, Keygen and Policer */
+      e_IOC_FM_PORT_PCD_SUPPORT_NONE = 0                /**< BMI to BMI, PCD is not used */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_ONLY                /**< Use only Parser */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PLCR_ONLY               /**< Use only Policer */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_PLCR            /**< Use Parser and Policer */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG              /**< Use Parser and Keygen */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC       /**< Use Parser, Keygen and Coarse Classification */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC_AND_PLCR
+                                                    /**< Use all PCD engines */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR     /**< Use Parser, Keygen and Policer */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_CC              /**< Use Parser and Coarse Classification */
 #ifdef FM_CAPWAP_SUPPORT
-    e_IOC_FM_PORT_PCD_SUPPORT_CC_ONLY,              /**< Use only Coarse Classification */
-    e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG,            /**< Use Coarse Classification,and Keygen */
-    e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG_AND_PLCR    /**< Use Coarse Classification, Keygen and Policer */
-#endif
+    , e_IOC_FM_PORT_PCD_SUPPORT_CC_ONLY                 /**< Use only Coarse Classification */
+    , e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG               /**< Use Coarse Classification,and Keygen */
+    , e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG_AND_PLCR      /**< Use Coarse Classification, Keygen and Policer */
+#endif /* FM_CAPWAP_SUPPORT */
 } ioc_fm_port_pcd_support;
 
 /**************************************************************************//**
@@ -129,14 +131,15 @@ typedef enum fm_port_counters {
     e_IOC_FM_PORT_COUNTERS_DEALLOC_BUF,                 /**< BMI deallocate buffer statistics counter */
     e_IOC_FM_PORT_COUNTERS_RX_BAD_FRAME,                /**< BMI Rx only statistics counter */
     e_IOC_FM_PORT_COUNTERS_RX_LARGE_FRAME,              /**< BMI Rx only statistics counter */
-    e_IOC_FM_PORT_COUNTERS_RX_OUT_OF_BUFFERS_DISCARD,   /**< BMI Rx only statistics counter */
     e_IOC_FM_PORT_COUNTERS_RX_FILTER_FRAME,             /**< BMI Rx & OP only statistics counter */
     e_IOC_FM_PORT_COUNTERS_RX_LIST_DMA_ERR,             /**< BMI Rx, OP & HC only statistics counter */
+    e_IOC_FM_PORT_COUNTERS_RX_OUT_OF_BUFFERS_DISCARD,   /**< BMI Rx, OP & HC statistics counter */
+    e_IOC_FM_PORT_COUNTERS_PREPARE_TO_ENQUEUE_COUNTER,  /**< BMI Rx, OP & HC only statistics counter */
     e_IOC_FM_PORT_COUNTERS_WRED_DISCARD,                /**< BMI OP & HC only statistics counter */
     e_IOC_FM_PORT_COUNTERS_LENGTH_ERR,                  /**< BMI non-Rx statistics counter */
     e_IOC_FM_PORT_COUNTERS_UNSUPPRTED_FORMAT,           /**< BMI non-Rx statistics counter */
-    e_IOC_FM_PORT_COUNTERS_DEQ_TOTAL,                   /**< QMI counter */
-    e_IOC_FM_PORT_COUNTERS_ENQ_TOTAL,                   /**< QMI counter */
+    e_IOC_FM_PORT_COUNTERS_DEQ_TOTAL,                   /**< QMI total QM dequeues counter */
+    e_IOC_FM_PORT_COUNTERS_ENQ_TOTAL,                   /**< QMI total QM enqueues counter */
     e_IOC_FM_PORT_COUNTERS_DEQ_FROM_DEFAULT,            /**< QMI counter */
     e_IOC_FM_PORT_COUNTERS_DEQ_CONFIRM                  /**< QMI counter */
 } fm_port_counters;
@@ -295,7 +298,7 @@ typedef struct ioc_fm_pcd_prs_start_t {
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_port_schemes_params_t {
     uint8_t     num_of_schemes;                         /**< Number of schemes for port to be bound to. */
-    void        *scheme_ids [IOC_FM_PCD_KG_NUM_OF_SCHEMES];
+    void        *scheme_ids [FM_PCD_KG_NUM_OF_SCHEMES];
                                                         /**< Array of 'num_of_schemes' schemes for the
                                                              port to be bound to */
 } ioc_fm_pcd_port_schemes_params_t;
@@ -401,7 +404,7 @@ typedef struct ioc_fm_port_pcd_cc_params_t {
 *//***************************************************************************/
 typedef struct ioc_fm_port_pcd_kg_params_t {
     uint8_t             num_of_schemes;                 /**< Number of schemes for port to be bound to. */
-    void                *schemes_ids[IOC_FM_PCD_KG_NUM_OF_SCHEMES];
+    void                *schemes_ids[FM_PCD_KG_NUM_OF_SCHEMES];
                                                         /**< Array of 'numOfSchemes' schemes for the
                                                              port to be bound to */
     bool                direct_scheme;                  /**< TRUE for going from parser to a specific scheme,
@@ -431,6 +434,7 @@ typedef struct ioc_fm_port_pcd_params_t {
     ioc_fm_port_pcd_cc_params_t     *p_cc_params;   /**< Coarse classification parameters for this port */
     ioc_fm_port_pcd_kg_params_t     *p_kg_params;   /**< Keygen parameters for this port */
     ioc_fm_port_pcd_plcr_params_t   *p_plcr_params; /**< Policer parameters for this port */
+    void                            *p_ip_reassembly_manip;
 } ioc_fm_port_pcd_params_t;
 
 /**************************************************************************//**

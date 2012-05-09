@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -53,27 +53,6 @@
 
  @{
 *//***************************************************************************/
-
-#if (defined(REPORT_EVENTS) && (REPORT_EVENTS > 0))
-/**************************************************************************//**
- @Function      XX_EventById
-
- @Description   Event reporting routine - executed only when REPORT_EVENTS=1.
-
- @Param[in]     event - Event code (e_Event).
- @Param[in]     appId - Application identifier.
- @Param[in]     flags - Event flags.
- @Param[in]     msg   - Event message.
-
- @Return        None
-*//***************************************************************************/
-void XX_EventById(uint32_t event, t_Handle appId, uint16_t flags, char *msg);
-
-#else  /* not REPORT_EVENTS */
-#define XX_EventById(event, appId, flags, msg)
-#endif /* REPORT_EVENTS */
-
-
 
 #ifdef DEBUG_XX_MALLOC
 void * XX_MallocDebug(uint32_t size, char *fname, int line);
@@ -142,19 +121,6 @@ void XX_FreeSmart(void *p_Memory);
 void XX_Free(void *p_Memory);
 
 /**************************************************************************//**
- @Function      XX_GetMemPartitionBase
-
- @Description   This routine gets the address of a memory segment according to
-                the memory type.
-
- @Param[in]     memPartitionId  - Memory partition ID; The value zero must
-                                  be mapped to the default heap partition.
-
- @Return        The address of the required memory type.
-*//***************************************************************************/
-void * XX_GetMemPartitionBase(int memPartitionId);
-
-/**************************************************************************//**
  @Function      XX_Print
 
  @Description   print a string.
@@ -163,16 +129,7 @@ void * XX_GetMemPartitionBase(int memPartitionId);
 
  @Return        None.
 *//***************************************************************************/
-void    XX_Print(char *str, ...);
-
-/**************************************************************************//**
- @Function      XX_GetChar
-
- @Description   Get character from console.
-
- @Return        Character is returned on success. Zero is returned otherwise.
-*//***************************************************************************/
-char    XX_GetChar(void);
+void XX_Print(char *str, ...);
 
 /**************************************************************************//**
  @Function      XX_SetIntr
@@ -243,27 +200,6 @@ uint32_t XX_DisableAllIntr(void);
 *//***************************************************************************/
 void XX_RestoreAllIntr(uint32_t flags);
 
-/**************************************************************************//**
- @Function      XX_Call
-
- @Description   Call a service in another task.
-
-                Activate the routine "f" via the queue identified by "IntrManagerId". The
-                parameter to "f" is Id - the handle of the destination object
-
- @Param[in]     intrManagerId   - Queue ID.
- @Param[in]     f               - routine pointer.
- @Param[in]     Id              - the parameter to be passed to f().
- @Param[in]     h_App           - Application handle.
- @Param[in]     flags           - Unused,
-
- @Return        E_OK is returned on success. E_FAIL is returned otherwise (usually an operating system level failure).
-*//***************************************************************************/
-t_Error XX_Call( uint32_t intrManagerId,
-                 t_Error (* f)(t_Handle),
-                 t_Handle Id,
-                 t_Handle h_App,
-                 uint16_t flags );
 
 /**************************************************************************//**
  @Function      XX_Exit
@@ -273,6 +209,7 @@ t_Error XX_Call( uint32_t intrManagerId,
  @Param[in]     status - exit status
 *//***************************************************************************/
 void    XX_Exit(int status);
+
 
 /*****************************************************************************/
 /*                        Tasklet Service Routines                           */
@@ -515,18 +452,6 @@ void XX_StartTimer(t_Handle h_Timer,
 void XX_StopTimer(t_Handle h_Timer);
 
 /**************************************************************************//**
- @Function      XX_GetExpirationTime
-
- @Description   Returns the time (in milliseconds) remaining until the
-                expiration of a timer.
-
- @Param[in]     h_Timer - A handle to a timer.
-
- @Return        The time left until the timer expires.
-*//***************************************************************************/
-uint32_t XX_GetExpirationTime(t_Handle h_Timer);
-
-/**************************************************************************//**
  @Function      XX_ModTimer
 
  @Description   Updates the expiration time of a timer.
@@ -543,17 +468,6 @@ uint32_t XX_GetExpirationTime(t_Handle h_Timer);
 void XX_ModTimer(t_Handle h_Timer, uint32_t msecs);
 
 /**************************************************************************//**
- @Function      XX_TimerIsActive
-
- @Description   Checks whether a timer is active (pending) or not.
-
- @Param[in]     h_Timer - A handle to a timer.
-
- @Return        0 - the timer is inactive; Non-zero value - the timer is active;
-*//***************************************************************************/
-int XX_TimerIsActive(t_Handle h_Timer);
-
-/**************************************************************************//**
  @Function      XX_Sleep
 
  @Description   Non-busy wait until the desired time (in milliseconds) has passed.
@@ -564,7 +478,7 @@ int XX_TimerIsActive(t_Handle h_Timer);
 
  @Cautions      This routine enables interrupts during its wait time.
 *//***************************************************************************/
-uint32_t XX_Sleep(uint32_t msecs);
+void XX_Sleep(uint32_t msecs);
 
 /**************************************************************************//**
  @Function      XX_UDelay

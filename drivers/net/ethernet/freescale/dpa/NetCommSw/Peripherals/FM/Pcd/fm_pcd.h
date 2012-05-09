@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -103,57 +103,6 @@ switch(exception){                                                  \
     case e_FM_PCD_PRS_EXCEPTION_SINGLE_ECC:                         \
         bitMask = FM_PCD_EX_PRS_SINGLE_ECC; break;                  \
     default: bitMask = 0;break;}
-
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-/***********************************************************************/
-/*          SW parser IP_FRAG patch                                    */
-/***********************************************************************/
-#define SW_PRS_IP_FRAG_PATCH                           \
-{                                                      \
-        0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
-        0x00,0x00,0x43,0x0A,0x00,0x00,0x00,0x01,0x1B,0xFE, \
-        0x00,0x00,0x99,0x00,0x53,0x13,0x00,0x00,0x00,0x00, \
-        0x9F,0x98,0x53,0x13,0x00,0x00,0x1B,0x1C,0x00,0x03, \
-        0x00,0x02,0x00,0x00,0x00,0x01,0x32,0xF1,0x32,0xC0, \
-        0x00,0x4F,0x00,0x81,0x1F,0xFF,0x00,0x01,0x1B,0xFE, \
-        0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
-        0x00,0x00,0x53,0x2F,0x00,0x00,0x31,0x52,0x00,0xDA, \
-        0x00,0x44,0x00,0x00,0x00,0x00,0x00,0x00,0x43,0x2F, \
-        0x00,0x00,0x1B,0x31,0x00,0x01,0x1B,0xFE,0x32,0xC1, \
-        0x00,0x55,0x00,0x06,0x28,0x41,0x00,0x00,0x9B,0x8F, \
-        0x2F,0x0F,0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x43, \
-        0x30,0x7E,0x43,0x59,0x00,0x2C,0x32,0x11,0x28,0x41, \
-        0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x81,0x00,0x00, \
-        0x83,0x8F,0x2F,0x0F,0x06,0x00,0x32,0x11,0x32,0xC0, \
-        0x00,0x4F,0x00,0x55,0x00,0x01,0x00,0x81,0x32,0x11, \
-        0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01,0x01,0x04, \
-        0x00,0x4D,0x28,0x43,0x06,0x00,0x1B,0x3C,0x00,0x03, \
-        0x00,0x02,0x00,0x00,0x00,0x01,0x32,0xF1,0x32,0xC0, \
-        0x00,0x4F,0x00,0x81,0x1F,0xFF,0x00,0x01,0x1B,0xFE, \
-        0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
-        0x00,0x00,0x43,0x6E,0x00,0x00,0x00,0x01,0x1B,0xFE, \
-        0x32,0xC1,0x00,0x55,0x00,0x06,0x28,0x41,0x00,0x00, \
-        0x9B,0x8F,0x2F,0x0F,0x32,0xC1,0x00,0x55,0x00,0x28, \
-        0x28,0x43,0x30,0x7E,0x43,0x80,0x00,0x00,0x30,0x7E, \
-        0x43,0x80,0x00,0x3C,0x1B,0x9A,0x32,0x11,0x28,0x41, \
-        0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x81,0x00,0x00, \
-        0x83,0x8F,0x2F,0x0F,0x06,0x00,0x32,0x11,0x32,0xC0, \
-        0x00,0x4F,0x00,0x55,0x00,0x01,0x00,0x81,0x32,0x11, \
-        0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01,0x01,0x04, \
-        0x00,0x4D,0x28,0x43,0x06,0x00,0x1B,0x79,0x30,0x7E, \
-        0x53,0xB0,0x00,0x2B,0x32,0x11,0x28,0x41,0x32,0x11, \
-        0x32,0xC0,0x00,0x4F,0x00,0x55,0x00,0x01,0x00,0x81, \
-        0x32,0x11,0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01, \
-        0x01,0x04,0x00,0x4D,0x28,0x43,0x06,0x00,0x00,0x01, \
-        0x1B,0xFE,0x00,0x00,0x9B,0x8E,0x53,0xC4,0x00,0x00, \
-        0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x41,0x06,0x29, \
-        0x32,0x01,0x00,0x00,0x83,0x8E,0x00,0x50,0x00,0x01, \
-        0x01,0x04,0x00,0x4D,0x28,0x43,0x06,0x00,0x00,0x01, \
-        0x1B,0xFE,0x32,0xC1,0x00,0x55,0x00,0x06,0x28,0x41, \
-        0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x43,0x00,0x01, \
-        0x1B,0xFE,                                         \
-};
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
 
 /****************************/
 /* Parser defines           */
@@ -362,7 +311,6 @@ switch(exception){                                                  \
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 typedef _Packed struct {
    volatile uint32_t kgoe_sp;
@@ -401,7 +349,7 @@ typedef _Packed struct {
     volatile uint32_t kgfeer;
     volatile uint32_t res6[38];
     u_FmPcdKgIndirectAccessRegs   indirectAccessRegs;
-    volatile uint32_t res[42];                  /*(0xfc-sizeof(u_FmPcdKgIndirectAccessRegs))/4 */
+    volatile uint32_t res[40];                  /*(0xfc-sizeof(u_FmPcdKgIndirectAccessRegs))/4 */
     volatile uint32_t kgar;
 } _PackedType t_FmPcdKgRegs;
 
@@ -471,7 +419,6 @@ typedef _Packed struct {
     volatile uint32_t fcscs;
 } _PackedType t_FmPcdPrsRegs;
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
@@ -520,7 +467,10 @@ typedef struct {
 } t_FmPcdKgClsPlanGrp;
 
 typedef struct {
-    volatile bool       lock;
+	t_Handle			h_FmPcd;
+	uint8_t				schemeId;
+	volatile bool       lock;
+    t_Handle            h_Spinlock;
     bool                valid;
     uint8_t             netEnvId;
     uint8_t             owners;
@@ -537,6 +487,9 @@ typedef struct {
     bool                extractedOrs;
     uint8_t             bitOffsetInPlcrProfile;
     bool                directPlcr;
+#if DPAA_VERSION >= 3
+    bool                vspe;
+#endif
 } t_FmPcdKgScheme;
 
 typedef struct {
@@ -549,6 +502,8 @@ typedef struct {
     t_FmPcdKgRegs       *p_FmPcdKgRegs;
     uint32_t            schemeExceptionsBitMask;
     uint8_t             numOfSchemes;
+    t_Handle            h_HwSpinlock;
+    t_Handle            h_SwSpinlock;
     uint8_t             schemesIds[FM_PCD_KG_NUM_OF_SCHEMES];
     t_FmPcdKgScheme     schemes[FM_PCD_KG_NUM_OF_SCHEMES];
     t_FmPcdKgClsPlanGrp clsPlanGrps[FM_MAX_NUM_OF_PORTS];
@@ -564,11 +519,14 @@ typedef struct {
 } t_FmPcdPlcrMapParam;
 
 typedef struct {
-    bool                valid;
-    volatile bool       lock;
-    t_FmPcdAllocMng     profilesMng;
-    uint8_t             pointedOwners;
-    uint32_t            requiredAction;
+	uint16_t							absoluteProfileId;
+	t_Handle							h_FmPcd;
+    bool                                valid;
+    /*volatile bool                       lock;*/
+    t_Handle                            h_Spinlock;
+    t_FmPcdAllocMng                     profilesMng;
+    uint8_t                             pointedOwners;
+    uint32_t                            requiredAction;
     e_FmPcdEngine                       nextEngineOnGreen;          /**< Green next engine type */
     u_FmPcdPlcrNextEngineParams         paramsOnGreen;              /**< Green next engine params */
 
@@ -585,6 +543,9 @@ typedef struct {
     uint16_t                        numOfSharedProfiles;
     uint16_t                        sharedProfilesIds[FM_PCD_PLCR_NUM_ENTRIES];
     t_FmPcdPlcrMapParam             portsMapping[FM_MAX_NUM_OF_PORTS];
+    t_Handle                        h_HwSpinlock;
+    t_Handle                        h_SwSpinlock;
+
 } t_FmPcdPlcr;
 
 typedef struct {
@@ -610,7 +571,10 @@ typedef struct {
 } t_FmPcdNetEnvAliases;
 
 typedef struct {
+	uint8_t						netEnvId;
+	t_Handle					h_FmPcd;
     volatile bool               lock;
+    t_Handle                    h_Spinlock;
     bool                        used;
     uint8_t                     owners;
     uint8_t                     clsPlanGrpId;
@@ -626,9 +590,11 @@ typedef struct {
     uint16_t                    prsMaxParseCycleLimit;
 } t_FmPcdDriverParam;
 
+
 typedef struct {
     t_Handle                    h_Fm;
     t_Handle                    h_FmMuram;
+    t_FmRevisionInfo            fmRevInfo;
     uint64_t                    physicalMuramBase;
     volatile bool               lock;
     t_Handle                    h_Spinlock;
@@ -643,13 +609,20 @@ typedef struct {
     t_FmPcdPlcr                 *p_FmPcdPlcr;
     t_FmPcdPrs                  *p_FmPcdPrs;
 
+    void                        *p_CcShadow;     /**< CC MURAM shadow */
+    uint32_t                    ccShadowSize;
+    uint32_t                    ccShadowAlign;
+    volatile bool               shadowLock;
+    t_Handle                    h_ShadowSpinlock;
+
     t_Handle                    h_Hc;
 
     uint32_t                    exceptions;
     t_FmPcdExceptionCallback    *f_Exception;
     t_FmPcdIdExceptionCallback  *f_FmPcdIndexedException;
     t_Handle                    h_App;
-    t_Handle                    h_FragIdPtr;
+    uintptr_t                   ipv6FrameIdAddr;
+    bool                        advancedOffloadSupport;
 
     t_FmPcdDriverParam          *p_FmPcdDriverParam;
 } t_FmPcd;
@@ -667,14 +640,10 @@ void        FmPcdSetClsPlanGrpId(t_FmPcd *p_FmPcd, uint8_t netEnvId, uint8_t cls
 e_NetHeaderType FmPcdGetAliasHdr(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr);
 uint8_t     FmPcdNetEnvGetUnitIdForSingleHdr(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr);
 uint8_t     FmPcdNetEnvGetUnitId(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr, bool interchangable, protocolOpt_t opt);
-uint8_t     FmPcdGetNetEnvId(t_FmPcd *p_FmPcd, t_Handle h_NetEnv);
 
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-t_Error     FmPcdManipBuildIpReassmScheme(t_FmPcd *p_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsParam, t_Handle h_CcTree, t_Handle h_Manip, bool isIpv4, uint32_t groupId);
-t_Error     FmPcdManipDeleteIpReassmSchemes(t_FmPcd *p_FmPcd, t_Handle h_Manip);
-bool        FmPcdManipIsIpv4Present(t_FmPcd *p_FmPcd, uint8_t netEnvId);
-bool        FmPcdManipIsIpv6Present(t_FmPcd *p_FmPcd, uint8_t netEnvId);
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+t_Error     FmPcdManipBuildIpReassmScheme(t_FmPcd *p_FmPcd, t_Handle h_NetEnv, t_Handle h_CcTree, t_Handle h_Manip, bool isIpv4, uint8_t groupId);
+t_Error     FmPcdManipDeleteIpReassmSchemes(t_Handle h_Manip);
+bool        FmPcdManipIsIpPresent(t_FmPcd *p_FmPcd, uint8_t netEnvId, bool ipv6);
 
 t_Handle    KgConfig( t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams);
 t_Error     KgInit(t_FmPcd *p_FmPcd);
@@ -709,20 +678,40 @@ void        PrsDisable(t_FmPcd *p_FmPcd);
 void        PrsFree(t_FmPcd *p_FmPcd );
 t_Error     PrsIncludePortInStatistics(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, bool include);
 
-t_Handle    FmPcdCcConfig(t_Handle h_FmPcd, t_FmPcdParams *p_FmPcdParams);
 t_Error     FmPcdCcGetGrpParams(t_Handle treeId, uint8_t grpId, uint32_t *p_GrpBits, uint8_t *p_GrpBase);
 uint8_t     FmPcdCcGetOffset(t_Handle h_CcNode);
 uint8_t     FmPcdCcGetParseCode(t_Handle h_CcNode);
 uint16_t    FmPcdCcGetNumOfKeys(t_Handle h_CcNode);
+t_Error     ValidateNextEngineParams(t_Handle h_FmPcd, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
 
 void        FmPcdManipUpdateOwner(t_Handle h_Manip, bool add);
 t_Error     FmPcdManipCheckParamsForCcNextEgine(t_FmPcdCcNextEngineParams *p_InfoForManip, uint32_t *requiredAction);
 void        FmPcdManipUpdateAdResultForCc(t_Handle h_Manip, t_Handle p_Ad, t_Handle *p_AdNew);
 void        FmPcdManipUpdateAdContLookupForCc(t_Handle h_Manip, t_Handle p_Ad, t_Handle *p_AdNew, uint32_t adTableOffset);
-uint32_t    FmPcdManipCheckNia(t_Handle h_FmPcd, t_Handle h_Ad);
 void        FmPcdManipUpdateOwner(t_Handle h_Manip, bool add);
 t_Error     FmPcdManipCheckParamsWithCcNodeParams(t_Handle h_Manip, t_Handle h_FmPcdCcNode);
+#ifdef FM_CAPWAP_SUPPORT
+t_Handle    FmPcdManipApplSpecificBuild(void);
+bool        FmPcdManipIsCapwapApplSpecific(t_Handle h_Manip);
+#endif /* FM_CAPWAP_SUPPORT */
+#if DPAA_VERSION >= 3
+void *      FrmReplicGetSourceTableDescriptor(t_Handle h_ReplicGroup);
+void        FrmReplicUpdateGroupOwner(t_Handle h_ReplicGroup, bool add, bool fullUpdate, t_Handle h_FmPcdCcNode);
+void        FrmReplicUpdateAdContLookupForCc(t_Handle h_ReplicGroup, t_Handle p_Ad, t_Handle *h_AdNew);
 
+void        FmPcdCcGetAdTablesThatPointOnReplicGroup(t_Handle   h_Node,
+                                                     t_Handle   h_ReplicGroup,
+                                                     t_List     *p_AdTables,
+                                                     uint32_t   *p_NumOfAdTables);
+#endif /* DPAA_VERSION >= 3 */
+
+void EnqueueNodeInfoToRelevantLst(t_List *p_List, t_CcNodeInformation *p_CcInfo);
+t_CcNodeInformation* FmPcdCcFindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info);
+void FmPcdCcDequeueNodeInfoFromRelevantLst(t_List *p_List, t_Handle h_Info);
+
+void NextStepAd(t_Handle p_Ad, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams, t_FmPcd *p_FmPcd);
+void FillAdOfTypeResult(t_Handle p_Ad, t_FmPcd *p_FmPcd, t_FmPcdCcNextEngineParams *p_CcNextEngineParams);
+void ReleaseLst(t_List *p_List);
 
 static __inline__ t_Handle FmPcdGetMuramHandle(t_Handle h_FmPcd)
 {

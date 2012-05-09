@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -42,6 +42,8 @@
 #include "std_ext.h"
 #include "xx_ext.h"
 #include "core_ext.h"
+
+
 
 /**************************************************************************//**
  @Group         gen_id  General Drivers Utilities
@@ -119,10 +121,6 @@ typedef enum e_ErrorType    /*   Comments / Associated Message Strings          
                             /*   String: none, unless the function takes in more than one
                                  communication mode indications (in this case add
                                  parameter description).                                    */
-    ,E_INVALID_BYTE_ORDER   /**< Invalid byte order.                                        */
-                            /*   String: none, unless the function takes in more than one
-                                 byte order indications (in this case add parameter
-                                 description).                                              */
     ,E_INVALID_MEMORY_TYPE  /**< Invalid memory type.                                       */
                             /*   String: none, unless the function takes in more than one
                                  memory types (in this case add memory description,
@@ -363,30 +361,12 @@ int ERROR_DYNAMIC_LEVEL = ERROR_GLOBAL_LEVEL;
 #define RETURN_ERROR(_level, _err, _vmsg) \
         return ERROR_CODE(_err)
 
-#if (REPORT_EVENTS > 0)
-
-#define REPORT_EVENT(_ev, _appId, _flg, _vmsg) \
-    do { \
-        if (_ev##_LEVEL <= EVENT_DYNAMIC_LEVEL) { \
-            XX_EventById((uint32_t)(_ev), (t_Handle)(_appId), (uint16_t)(_flg), NO_MSG); \
-        } \
-    } while (0)
-
-#else
-
-#define REPORT_EVENT(_ev, _appId, _flg, _vmsg)
-
-#endif /* (REPORT_EVENTS > 0) */
-
 
 #else /* DEBUG_ERRORS > 0 */
 
 extern const char *dbgLevelStrings[];
 extern const char *errTypeStrings[];
 extern const char *moduleStrings[];
-#if (REPORT_EVENTS > 0)
-extern const char *eventStrings[];
-#endif /* (REPORT_EVENTS > 0) */
 
 
 #if ((defined(DEBUG_USING_STATIC_LEVEL)) && (DEBUG_DYNAMIC_LEVEL < REPORT_LEVEL_WARNING))
@@ -427,29 +407,6 @@ extern const char *eventStrings[];
         return ERROR_CODE(_err); \
     } while (0)
 
-
-#if (REPORT_EVENTS > 0)
-
-#define REPORT_EVENT(_ev, _appId, _flg, _vmsg) \
-    do { \
-        if (_ev##_LEVEL <= EVENT_DYNAMIC_LEVEL) { \
-            XX_Print("~ %s %s Event " PRINT_FORMAT ": %s (flags: 0x%04x); ", \
-                     dbgLevelStrings[_ev##_LEVEL - 1], \
-                     moduleStrings[__ERR_MODULE__ >> 16], \
-                     PRINT_FMT_PARAMS, \
-                     eventStrings[((_ev) - EV_NO_EVENT - 1)], \
-                     (uint16_t)(_flg)); \
-            XX_Print _vmsg; \
-            XX_Print("\r\n"); \
-            XX_EventById((uint32_t)(_ev), (t_Handle)(_appId), (uint16_t)(_flg), NO_MSG); \
-        } \
-    } while (0)
-
-#else /* not REPORT_EVENTS */
-
-#define REPORT_EVENT(_ev, _appId, _flg, _vmsg)
-
-#endif /* (REPORT_EVENTS > 0) */
 
 #endif /* (DEBUG_ERRORS > 0) */
 

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -58,6 +58,7 @@ const char *moduleStrings[] =
     ,"FM-Port"                  /* MODULE_FM_PORT */
     ,"FM-MACSEC"                /* MODULE_FM_MACSEC */
     ,"FM-MACSEC-SecY"           /* MODULE_FM_MACSEC_SECY */
+    ,"FM-SP"                    /* MODULE_FM_SP */
     ,"ECM"                      /* MODULE_ECM */
     ,"DMA"                      /* MODULE_DMA */
     ,"DDR"                      /* MODULE_DDR */

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -45,6 +45,14 @@
 
 
 #define CORE_IS_BIG_ENDIAN
+
+#if defined(CORE_E300) || defined(CORE_E500V2)
+#define CORE_CACHELINE_SIZE     32
+#elif defined(CORE_E500MC) || defined(CORE_E5500) || defined(CORE_E6500)
+#define CORE_CACHELINE_SIZE     64
+#else
+#error "Core not defined!"
+#endif /* defined(CORE_E300) || ... */
 
 
 /**************************************************************************//**
@@ -117,11 +125,13 @@ void CORE_ICacheDisable(void);
 
 
 
-
 #if defined(CORE_E300)
 #include "e300_ext.h"
-#elif defined(CORE_E500V2) || defined(CORE_E500MC)
+#elif defined(CORE_E500V2) || defined(CORE_E500MC) || defined(CORE_E5500) || defined(CORE_E6500)
 #include "e500v2_ext.h"
+#if !defined(NCSW_LINUX)
+#include "e500v2_asm_ext.h"
+#endif
 #else
 #error "Core not defined!"
 #endif

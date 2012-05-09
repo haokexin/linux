@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -248,9 +248,14 @@ typedef enum e_ModuleId
 #define MODULE_FM_RTC           0x00160000
 #define MODULE_FM_MAC           0x00170000
 #define MODULE_FM_PORT          0x00180000
-#define MODULE_DPA              0x00190000
-#define MODULE_SRIO             0x00200000
-#define MODULE_DMA              0x00100000
+#define MODULE_FM_SP            0x00190000
+#define MODULE_DPA_PORT         0x001a0000
+#define MODULE_MII              0x001b0000
+#define MODULE_I2C              0x001c0000
+#define MODULE_DMA              0x001d0000
+#define MODULE_DDR              0x001e0000
+#define MODULE_ESPI             0x001f0000
+#define MODULE_DPAA_IPSEC       0x00200000
 
 /*****************************************************************************
  PAMU INTEGRATION-SPECIFIC DEFINITIONS

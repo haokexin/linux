@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -293,17 +293,17 @@ typedef  uint32_t t_ErrorDisable;
 #define DEBUG_GET_FIFO_READ_INDEX       0x007f0000
 #define DEBUG_GET_FIFO_WRITE_INDEX      0x0000007f
 /* Pause Time Value Register  */
-#define PTV_PTE_SHIFT    16
+#define PTV_PTE_SHIFT       16
 
-#define     MASK22BIT   0x003FFFFF
-#define     MASK16BIT   0x0000FFFF
-#define     MASK12BIT   0x00000FFF
-#define     MASK8BIT    0x000000FF
+#define MASK22BIT           0x003FFFFF
+#define MASK16BIT           0x0000FFFF
+#define MASK12BIT           0x00000FFF
+#define MASK8BIT            0x000000FF
 
-#define     VAL32BIT    0x100000000LL
-#define     VAL22BIT    0x00400000
-#define     VAL16BIT    0x00010000
-#define     VAL12BIT    0x00001000
+#define VAL32BIT            0x100000000LL
+#define VAL22BIT            0x00400000
+#define VAL16BIT            0x00010000
+#define VAL12BIT            0x00001000
 
 /* PHY Control Register */
 #define PHY_CR_PHY_RESET    0x8000
@@ -365,51 +365,17 @@ typedef  uint32_t t_ErrorDisable;
 
 #define CAM2_ERRORS_ONLY (CAR2_TFCS | CAR2_TXPF | CAR2_TDRP)
 
-typedef struct t_InternalStatistics
-{
-    uint64_t    tr64;
-    uint64_t    tr127;
-    uint64_t    tr255;
-    uint64_t    tr511;
-    uint64_t    tr1k;
-    uint64_t    trmax;
-    uint64_t    trmgv;
-    uint64_t    rfrg;
-    uint64_t    rjbr;
-    uint64_t    rdrp;
-    uint64_t    raln;
-    uint64_t    rund;
-    uint64_t    rovr;
-    uint64_t    rxpf;
-    uint64_t    txpf;
-    uint64_t    rbyt;
-    uint64_t    rpkt;
-    uint64_t    rmca;
-    uint64_t    rbca;
-    uint64_t    rflr;
-    uint64_t    rcde;
-    uint64_t    rcse;
-    uint64_t    tbyt;
-    uint64_t    tpkt;
-    uint64_t    tmca;
-    uint64_t    tbca;
-    uint64_t    tdrp;
-    uint64_t    tfcs;
-} t_InternalStatistics;
 
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
-typedef _Packed struct
-{
-    uint32_t exact_match1; /* octets 1-4 */
-    uint32_t exact_match2; /* octets 5-6 */
-} _PackedType macRegs;
+typedef struct {
+    volatile uint32_t exact_match1; /* octets 1-4 */
+    volatile uint32_t exact_match2; /* octets 5-6 */
+} macRegs;
 
-typedef _Packed struct
-{
+typedef struct {
     volatile uint32_t tsec_id1;             /* 0x000 ETSEC_ID register */
     volatile uint32_t tsec_id2;             /* 0x004 ETSEC_ID2 register */
     volatile uint32_t ievent;               /* 0x008 Interrupt event register */
@@ -523,13 +489,43 @@ typedef _Packed struct
     volatile uint32_t tx_threshold;     /* 0x340 Transmit threshold; Number of entries (4 bytes units) before starting to transmit to the MAC */
     volatile uint32_t tx_watermark_high;/* 0x344 Transmit watermark high; Number of entries (4 byte units) before de-asserting Ready to packet Interface */
     volatile uint32_t rx_watermark_low; /* 0x348 Receive watermark low; Number of entries (4 byte units) before unloading to packet Interface */
-} _PackedType t_DtsecMemMap;
+} t_DtsecMemMap;
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
 
+
+typedef struct {
+    uint64_t    tr64;
+    uint64_t    tr127;
+    uint64_t    tr255;
+    uint64_t    tr511;
+    uint64_t    tr1k;
+    uint64_t    trmax;
+    uint64_t    trmgv;
+    uint64_t    rfrg;
+    uint64_t    rjbr;
+    uint64_t    rdrp;
+    uint64_t    raln;
+    uint64_t    rund;
+    uint64_t    rovr;
+    uint64_t    rxpf;
+    uint64_t    txpf;
+    uint64_t    rbyt;
+    uint64_t    rpkt;
+    uint64_t    rmca;
+    uint64_t    rbca;
+    uint64_t    rflr;
+    uint64_t    rcde;
+    uint64_t    rcse;
+    uint64_t    tbyt;
+    uint64_t    tpkt;
+    uint64_t    tmca;
+    uint64_t    tbca;
+    uint64_t    tdrp;
+    uint64_t    tfcs;
+} t_InternalStatistics;
 
 typedef struct {
     uint32_t    errorDisabled;

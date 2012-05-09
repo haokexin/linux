@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -49,7 +49,6 @@
 #define UINT_TO_PTR(_val)           ((void*)(uintptr_t)(_val))
 
 #define PTR_MOVE(_ptr, _offset)     (void*)((uint8_t*)(_ptr) + (_offset))
-#define PTR_MOVE_16(_ptr, _offset)  (void*)((uint16_t*)(_ptr) + (_offset))
 
 
 #define WRITE_UINT8_UINT24(arg, data08, data24) WRITE_UINT32(arg,((uint32_t)(data08)<<24)|((uint32_t)(data24)&0x00FFFFFF))

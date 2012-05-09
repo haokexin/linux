@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -53,7 +53,6 @@
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 /**************************************************************************//**
  @Description   Frame descriptor
@@ -195,7 +194,6 @@ do {                                                            \
 #define DPAA_SGTE_SET_OFFSET(sgte,val)    (((t_DpaaSGTE *)sgte)->offset = ((((t_DpaaSGTE *)sgte)->offset & ~DPAA_SGTE_OFFSET_MASK) | (((val) << (31-31))& DPAA_SGTE_OFFSET_MASK) )) /**< Macro to set SGTE OFFSET field */
 /* @} */
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */

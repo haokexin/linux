@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -74,7 +74,8 @@ typedef enum e_EnetInterface
     e_ENET_IF_RTBI  = 0x00070000,   /**< RTBI interface */
     e_ENET_IF_SGMII = 0x00080000,   /**< SGMII interface */
     e_ENET_IF_XGMII = 0x00090000,   /**< XGMII interface */
-    e_ENET_IF_QSGMII= 0x000a0000    /**< QSGMII interface */
+    e_ENET_IF_QSGMII= 0x000a0000,   /**< QSGMII interface */
+    e_ENET_IF_XFI	= 0x000b0000    /**< XFI interface */
 } e_EnetInterface;
 
 /**************************************************************************//**
@@ -118,8 +119,9 @@ typedef enum e_EnetMode
     e_ENET_MODE_SGMII_10    = (e_ENET_IF_SGMII | e_ENET_SPEED_10),      /**<    10 Mbps SGMII */
     e_ENET_MODE_SGMII_100   = (e_ENET_IF_SGMII | e_ENET_SPEED_100),     /**<   100 Mbps SGMII */
     e_ENET_MODE_SGMII_1000  = (e_ENET_IF_SGMII | e_ENET_SPEED_1000),    /**<  1000 Mbps SGMII */
-    e_ENET_MODE_XGMII_10000 = (e_ENET_IF_XGMII | e_ENET_SPEED_10000),    /**< 10000 Mbps XGMII */
-    e_ENET_MODE_QSGMII_1000 = (e_ENET_IF_QSGMII| e_ENET_SPEED_1000)    /**<  1000 Mbps QSGMII */
+    e_ENET_MODE_XGMII_10000 = (e_ENET_IF_XGMII | e_ENET_SPEED_10000),   /**< 10000 Mbps XGMII */
+    e_ENET_MODE_QSGMII_1000 = (e_ENET_IF_QSGMII| e_ENET_SPEED_1000),    /**<  1000 Mbps QSGMII */
+    e_ENET_MODE_XFI_10000 	= (e_ENET_IF_XFI   | e_ENET_SPEED_10000)    /**< 10000 Mbps XFI */
 } e_EnetMode;
 
 
@@ -140,7 +142,8 @@ typedef enum e_EnetMode
          ((mode) == e_ENET_MODE_SGMII_100  ) || \
          ((mode) == e_ENET_MODE_SGMII_1000 ) || \
          ((mode) == e_ENET_MODE_XGMII_10000) || \
-         ((mode) == e_ENET_MODE_QSGMII_1000))
+         ((mode) == e_ENET_MODE_QSGMII_1000) || \
+         ((mode) == e_ENET_MODE_XFI_10000))
 
 
 #define MAKE_ENET_MODE(_interface, _speed)     (e_EnetMode)((_interface) | (_speed))

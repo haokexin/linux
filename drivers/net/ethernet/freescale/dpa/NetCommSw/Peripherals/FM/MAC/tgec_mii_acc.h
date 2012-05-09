@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -59,7 +59,6 @@
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 /*----------------------------------------------------*/
 /* MII Configuration Control Memory Map Registers     */
@@ -72,7 +71,6 @@ typedef _Packed struct t_TgecMiiAccessMemMap
     volatile uint32_t   mdio_regaddr;       /* 0x03c  */
 } _PackedType t_TgecMiiAccessMemMap ;
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -314,21 +314,6 @@ t_Error FmPortImCheckInitParameters(t_FmPort *p_FmPort)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("max Rx buffer length must at least 256!!!"));
         if(p_FmPort->p_FmPortDriverParam->liodnOffset & ~FM_LIODN_OFFSET_MASK)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("liodnOffset is larger than %d", FM_LIODN_OFFSET_MASK+1));
-#ifdef FM_PARTITION_ARRAY
-        {
-            t_FmRevisionInfo revInfo;
-            FM_GetRevision(p_FmPort->h_Fm, &revInfo);
-            if ((revInfo.majorRev == 1) && (revInfo.minorRev == 0))
-            {
-                if(p_FmPort->p_FmPortDriverParam->liodnOffset >= MAX_LIODN_OFFSET)
-                {
-                    p_FmPort->p_FmPortDriverParam->liodnOffset =
-                        (uint16_t)(p_FmPort->p_FmPortDriverParam->liodnOffset & (MAX_LIODN_OFFSET-1));
-                    DBG(WARNING, ("liodnOffset number is out of rev1 range - MSB bits cleard."));
-                }
-            }
-        }
-#endif /* FM_PARTITION_ARRAY */
 /* TODO - add checks */
     }
     else

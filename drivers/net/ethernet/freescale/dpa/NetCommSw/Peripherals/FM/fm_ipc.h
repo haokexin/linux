@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -61,7 +61,6 @@
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 /**************************************************************************//**
  @Description   enum for defining MAC types
@@ -148,9 +147,7 @@ typedef _Packed struct t_FmIpcPortFifoParams {
 typedef _Packed struct t_FmIpcPortFreeParams {
     uint8_t             hardwarePortId;         /**< IN. port Id */
     uint32_t            enumPortType;           /**< IN. Port type */
-#ifdef FM_QMI_DEQ_OPTIONS_SUPPORT
     uint8_t             deqPipelineDepth;       /**< IN. Port's requested resource */
-#endif /* FM_QMI_DEQ_OPTIONS_SUPPORT */
 } _PackedType t_FmIpcPortFreeParams;
 
 /**************************************************************************//**
@@ -162,6 +159,7 @@ typedef _Packed struct t_FmIpcDmaStatus {
     uint8_t    boolReadBufEccError;        /**< Double ECC error on buffer Read */
     uint8_t    boolWriteBufEccSysError;    /**< Double ECC error on buffer write from system side */
     uint8_t    boolWriteBufEccFmError;     /**< Double ECC error on buffer write from FM side */
+    uint8_t    boolSinglePortEccError;     /**< Single port ECC error from FM side */
 } _PackedType t_FmIpcDmaStatus;
 
 typedef _Packed struct t_FmIpcRegisterIntr
@@ -177,12 +175,23 @@ typedef _Packed struct t_FmIpcIsr
 } _PackedType t_FmIpcIsr;
 
 /**************************************************************************//**
- @Description   structure for returning revision information
+ @Description   structure for returning FM parameters
 *//***************************************************************************/
-typedef _Packed struct t_FmIpcRevisionInfo {
+typedef _Packed struct t_FmIpcParams {
+    uint16_t        fmClkFreq;              /**< OUT: FM Clock frequency */
+    uint8_t         majorRev;               /**< OUT: FM Major revision */
+    uint8_t         minorRev;               /**< OUT: FM Minor revision */
+} _PackedType t_FmIpcParams;
+
+
+/**************************************************************************//**
+ @Description   structure for returning Fman Ctrl Code revision information
+*//***************************************************************************/
+typedef _Packed struct t_FmIpcFmanCtrlCodeRevisionInfo {
+    uint16_t        packageRev;             /**< OUT: Package revision */
     uint8_t         majorRev;               /**< OUT: Major revision */
     uint8_t         minorRev;               /**< OUT: Minor revision */
-} _PackedType t_FmIpcRevisionInfo;
+} _PackedType t_FmIpcFmanCtrlCodeRevisionInfo;
 
 /**************************************************************************//**
  @Description   Structure for defining Fm number of Fman controlers
@@ -201,9 +210,27 @@ typedef _Packed struct t_FmIpcFmanEvents {
     uint32_t        enableEvents;             /**< IN/OUT: required enabled events mask */
 } _PackedType t_FmIpcFmanEvents;
 
+typedef _Packed struct t_FmIpcVspAllocParams {
+    uint8_t guestId;
+    uint8_t numOfProfiles;
+    uint8_t base;
+}_PackedType t_FmIpcVspAllocParams;
+
+typedef _Packed struct t_FmIpcVspSetPortWindow {
+    uint8_t hardwarePortId;
+    uint8_t baseStorageProfile;
+    uint8_t log2NumOfProfiles;
+}_PackedType t_FmIpcVspSetPortWindow;
+
+typedef _Packed struct t_FmIpcSetCongestionGroupPfcPriority {
+        uint32_t     congestionGroupId;
+        uint8_t      priorityBitMap;
+}_PackedType t_FmIpcSetCongestionGroupPfcPriority;
+
 #define FM_IPC_MAX_REPLY_BODY_SIZE  16
 #define FM_IPC_MAX_REPLY_SIZE       (FM_IPC_MAX_REPLY_BODY_SIZE + sizeof(uint32_t))
 #define FM_IPC_MAX_MSG_SIZE         30
+
 typedef _Packed struct t_FmIpcMsg
 {
     uint32_t    msgId;
@@ -216,7 +243,6 @@ typedef _Packed struct t_FmIpcReply
     uint8_t     replyBody[FM_IPC_MAX_REPLY_BODY_SIZE];
 } _PackedType t_FmIpcReply;
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
@@ -314,14 +340,14 @@ typedef _Packed struct t_FmIpcReply
 #define FM_DUMP_PORT_REGS           9
 
 /**************************************************************************//**
- @Function      FM_GET_REV
+ @Function      FM_GET_PARAMS
 
  @Description   Used by FM front-end for the PORT module in order to dump
-                all port registers.
+                return FM parameters.
 
  @Param[in]     uint8_t Pointer
 *//***************************************************************************/
-#define FM_GET_REV                  10
+#define FM_GET_PARAMS                  10
 
 /**************************************************************************//**
  @Function      FM_REGISTER_INTR
@@ -332,15 +358,6 @@ typedef _Packed struct t_FmIpcReply
  @Param[out]    t_FmIpcRegisterIntr Pointer
 *//***************************************************************************/
 #define FM_REGISTER_INTR            11
-
-/**************************************************************************//**
- @Function      FM_GET_CLK_FREQ
-
- @Description   Used by FM Front-end to read the FM clock frequency.
-
- @Param[out]    uint32_t Pointer
-*//***************************************************************************/
-#define FM_GET_CLK_FREQ             12
 
 /**************************************************************************//**
  @Function      FM_DMA_STAT
@@ -423,7 +440,11 @@ typedef _Packed struct t_FmIpcReply
 #define FM_SET_SIZE_OF_FIFO         24
 #define FM_SET_NUM_OF_TASKS         25
 #define FM_SET_NUM_OF_OPEN_DMAS     26
-
+#define FM_VSP_ALLOC                27
+#define FM_VSP_FREE                 28
+#define FM_VSP_SET_PORT_WINDOW      29
+#define FM_GET_FMAN_CTRL_CODE_REV   30
+#define FM_SET_CONG_GRP_PFC_PRIO    31
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
 #define FM_10G_TX_ECC_WA            100
 #endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
