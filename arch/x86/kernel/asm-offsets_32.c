@@ -78,6 +78,7 @@ void foo(void)
 	OFFSET(LGUEST_PAGES_guest_idt_desc, lguest_pages,state.guest_idt_desc);
 	OFFSET(LGUEST_PAGES_guest_gdt, lguest_pages, state.guest_gdt);
 	OFFSET(LGUEST_PAGES_regs_trapnum, lguest_pages, regs.trapnum);
+	OFFSET(PV_CPU_nmi_return, pv_cpu_ops, nmi_return);
 	OFFSET(LGUEST_PAGES_regs_errcode, lguest_pages, regs.errcode);
 	OFFSET(LGUEST_PAGES_regs, lguest_pages, regs);
 #endif
