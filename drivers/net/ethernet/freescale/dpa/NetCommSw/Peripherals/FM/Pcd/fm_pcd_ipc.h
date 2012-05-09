@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -53,7 +53,6 @@
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 /**************************************************************************//**
  @Description   Structure for getting a sw parser address according to a label
@@ -79,39 +78,48 @@ typedef _Packed struct t_FmPcdIpcSwPrsLable
                 Some fields are optional (depending on configuration) and
                 will be analized by the port and FM modules accordingly.
 *//***************************************************************************/
+
 typedef  struct t_FmPcdIpcKgSchemesParams
 {
-    uint8_t     guestId;                                    /**< IN */
-    uint8_t     numOfSchemes;                               /**< IN */
-    uint8_t     schemesIds[FM_PCD_KG_NUM_OF_SCHEMES];       /**< OUT */
+    uint8_t     guestId;
+    uint8_t     numOfSchemes;
+    uint8_t     schemesIds[FM_PCD_KG_NUM_OF_SCHEMES];
 } _PackedType t_FmPcdIpcKgSchemesParams;
 
 typedef  struct t_FmPcdIpcKgClsPlanParams
 {
-    uint8_t     guestId;                                    /**< IN */
-    uint16_t    numOfClsPlanEntries;                        /**< IN */
-    uint8_t     clsPlanBase;                                /**< IN in alloc only */
+    uint8_t     guestId;
+    uint16_t    numOfClsPlanEntries;
+    uint8_t     clsPlanBase;
 } _PackedType t_FmPcdIpcKgClsPlanParams;
 
 typedef _Packed struct t_FmPcdIpcPlcrAllocParams
 {
-    uint16_t num;
-    uint8_t  hardwarePortId;
-    uint16_t plcrProfilesBase;
+    uint16_t    num;
+    uint8_t     hardwarePortId;
+    uint16_t    plcrProfilesBase;
 } _PackedType t_FmPcdIpcPlcrAllocParams;
 
 typedef _Packed struct t_FmPcdIpcSharedPlcrAllocParams
 {
-    uint16_t  num;                                    /**< IN */
-    //uint16_t  profilesIds[FM_PCD_PLCR_NUM_ENTRIES];   /**< OUT */
+    uint16_t    num;
     uint32_t    sharedProfilesMask[8];
 } _PackedType t_FmPcdIpcSharedPlcrAllocParams;
 
 typedef _Packed struct t_FmPcdIpcPrsIncludePort
 {
-    uint8_t hardwarePortId;     /* IN */
-    bool    include;            /* IN */
+    uint8_t     hardwarePortId;
+    bool        include;
 } _PackedType t_FmPcdIpcPrsIncludePort;
+
+#if DPAA_VERSION >= 3
+typedef _Packed struct t_FmPcdIpcSpAllocParams
+{
+    uint16_t    num;
+    uint8_t     hardwarePortId;
+    uint16_t    spProfilesBase;
+} _PackedType t_FmPcdIpcSpAllocParams;
+#endif /* DPAA_VERSION >= 3 */
 
 
 #define FM_PCD_MAX_REPLY_SIZE           16
@@ -130,7 +138,6 @@ typedef _Packed struct t_FmPcdIpcReply
     uint8_t     replyBody[FM_PCD_MAX_REPLY_BODY_SIZE];
 } _PackedType t_FmPcdIpcReply;
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
@@ -282,7 +289,7 @@ typedef _Packed struct t_FmPcdIpcReply
 
  @Param[in/out] t_FmPcdIpcKgClsPlanParams Pointer
 *//***************************************************************************/
-#define FM_PCD_FREE_KG_CLSPLAN                     22
+#define FM_PCD_FREE_KG_CLSPLAN                  22
 
 /**************************************************************************//**
  @Function      FM_PCD_ALLOC_KG_CLSPLAN
@@ -291,7 +298,7 @@ typedef _Packed struct t_FmPcdIpcReply
 
  @Param[in/out] t_FmPcdIpcKgClsPlanParams Pointer
 *//***************************************************************************/
-#define FM_PCD_ALLOC_KG_CLSPLAN                    23
+#define FM_PCD_ALLOC_KG_CLSPLAN                 23
 
 /**************************************************************************//**
  @Function      FM_PCD_MASTER_IS_ALIVE
@@ -319,6 +326,13 @@ typedef _Packed struct t_FmPcdIpcReply
  @Param[in/out] t_FmPcdIpcPrsIncludePort Pointer
 *//***************************************************************************/
 #define FM_PCD_PRS_INC_PORT_STATS               26
+
+#if DPAA_VERSION >= 3
+/* TODO - doc */
+#define FM_PCD_ALLOC_SP                         27
+#endif /* DPAA_VERSION >= 3 */
+
+
 /** @} */ /* end of FM_PCD_IPC_grp group */
 /** @} */ /* end of FM_grp group */
 

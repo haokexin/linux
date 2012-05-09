@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -40,9 +40,7 @@
 #define __PART_INTEGRATION_EXT_H
 
 #include "std_ext.h"
-#ifndef NCSW_LINUX
 #include "ddr_std_ext.h"
-#endif
 #include "dpaa_integration_ext.h"
 
 
@@ -394,9 +392,7 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
 
  @Return        E_OK on success; Other value otherwise.
 *//***************************************************************************/
-#ifndef NCSW_LINUX
 t_Error P1023_GetDdrType(uintptr_t gutilBase, e_DdrType *p_DdrType );
-#endif
 
 
 /** @} */ /* end of 1023_init_grp group */
@@ -431,16 +427,17 @@ t_Error P1023_GetDdrType(uintptr_t gutilBase, e_DdrType *p_DdrType );
 #define MODULE_FM_PORT          0x00150000
 #define MODULE_FM_MACSEC        0x00160000
 #define MODULE_FM_MACSEC_SECY   0x00170000
-#define MODULE_ECM              0x00180000
-#define MODULE_DMA              0x00190000
-#define MODULE_DDR              0x001a0000
-#define MODULE_LAW              0x001b0000
-#define MODULE_LBC              0x001c0000
-#define MODULE_I2C              0x001d0000
-#define MODULE_ESPI             0x001e0000
-#define MODULE_PCI              0x001f0000
-#define MODULE_DPA_PORT         0x00200000
-#define MODULE_USB              0x00210000
+#define MODULE_FM_SP            0x00280000
+#define MODULE_ECM              0x00190000
+#define MODULE_DMA              0x001a0000
+#define MODULE_DDR              0x001b0000
+#define MODULE_LAW              0x001c0000
+#define MODULE_LBC              0x001d0000
+#define MODULE_I2C              0x001e0000
+#define MODULE_ESPI             0x001f0000
+#define MODULE_PCI              0x00200000
+#define MODULE_DPA_PORT         0x00210000
+#define MODULE_USB              0x00220000
 
 /*****************************************************************************
  LBC INTEGRATION-SPECIFIC DEFINITIONS

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -37,8 +37,8 @@
  @Description   General errors and events reporting utilities.
 *//***************************************************************************/
 
-#if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
 
+#if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
 const char *dbgLevelStrings[] =
 {
      "CRITICAL"
@@ -61,7 +61,6 @@ const char *errTypeStrings[] =
     ,"Invalid Value"                        /* E_INVALID_VALUE */
     ,"Invalid Selection"                    /* E_INVALID_SELECTION */
     ,"Invalid Communication Mode"           /* E_INVALID_COMM_MODE */
-    ,"Invalid Byte Order"                   /* E_INVALID_BYTE_ORDER */
     ,"Invalid Memory Type"                  /* E_INVALID_MEMORY_TYPE */
     ,"Invalid Interrupt Queue"              /* E_INVALID_INTR_QUEUE */
     ,"Invalid Priority"                     /* E_INVALID_PRIORITY */
@@ -90,29 +89,4 @@ const char *errTypeStrings[] =
     ,"Receive Operation Failed"             /* E_RECEIVE_FAILED */
     ,"Operation Timed Out"                  /* E_TIMEOUT */
 };
-
-
-#if (defined(REPORT_EVENTS) && (REPORT_EVENTS > 0))
-
-const char *eventStrings[] =
-{
-     "Rx Discard"                           /* EV_RX_DISCARD */
-    ,"Rx Error"                             /* EV_RX_ERROR */
-    ,"Tx Error"                             /* EV_TX_ERROR */
-    ,"No Buffer Objects"                    /* EV_NO_BUFFERS */
-    ,"No MB-Frame Objects"                  /* EV_NO_MB_FRAMES */
-    ,"No SB-Frame Objects"                  /* EV_NO_SB_FRAMES */
-    ,"Tx Queue Is Full"                     /* EV_TX_QUEUE_FULL */
-    ,"Rx Queue Is Full"                     /* EV_RX_QUEUE_FULL */
-    ,"Interrupts Queue Is Full"             /* EV_INTR_QUEUE_FULL */
-    ,"Data Buffer Is Unavailable"           /* EV_NO_DATA_BUFFER */
-    ,"Objects Pool Is Empty"                /* EV_OBJ_POOL_EMPTY */
-    ,"Illegal bus access"                   /* EV_BUS_ERROR */
-    ,"PTP Tx Timestamps Queue Is Full"      /* EV_PTP_TXTS_QUEUE_FULL */
-    ,"PTP Rx Timestamps Queue Is Full"      /* EV_PTP_RXTS_QUEUE_FULL */
-};
-
-#endif /* (defined(REPORT_EVENTS) && (REPORT_EVENTS > 0)) */
-
 #endif /* (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0)) */
-

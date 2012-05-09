@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -229,7 +229,7 @@ static __inline__ void LIST_Add(t_List *p_New, t_List *p_Head)
                 This is useful for implementing queues.
 
  @Param[in]     p_New  - A pointer to a new list entry to be added.
- @Param[in]     p_Head - A pointer to a list head to add it after.
+ @Param[in]     p_Head - A pointer to a list head to add it before.
 
  @Return        none.
 *//***************************************************************************/

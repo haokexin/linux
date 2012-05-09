@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -42,6 +42,7 @@
 #include "error_ext.h"
 #include "list_ext.h"
 #include "fm_mac_ext.h"
+#include "fm_common.h"
 
 
 #define __ERR_MODULE__  MODULE_FM_MAC
@@ -93,6 +94,7 @@ typedef struct {
     t_Error (*f_FM_MAC_ConfigPadAndCrc) (t_Handle h_FmMac, bool newVal);
     t_Error (*f_FM_MAC_ConfigHalfDuplex) (t_Handle h_FmMac, bool newVal);
     t_Error (*f_FM_MAC_ConfigLengthCheck) (t_Handle h_FmMac, bool newVal);
+    t_Error (*f_FM_MAC_ConfigTbiPhyAddr) (t_Handle h_FmMac, uint8_t newVal);
     t_Error (*f_FM_MAC_ConfigException) (t_Handle h_FmMac, e_FmMacExceptions, bool enable);
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
     t_Error (*f_FM_MAC_ConfigSkipFman11Workaround) (t_Handle h_FmMac);
@@ -106,7 +108,10 @@ typedef struct {
     t_Error (*f_FM_MAC_Disable1588TimeStamp) (t_Handle h_FmMac);
     t_Error (*f_FM_MAC_Reset)   (t_Handle h_FmMac, bool wait);
 
-    t_Error (*f_FM_MAC_SetTxAutoPauseFrames)   (t_Handle h_FmMac, uint16_t pauseTime);
+    t_Error (*f_FM_MAC_SetTxAutoPauseFrames) (t_Handle h_FmMac,
+                                              uint8_t  priority,
+                                              uint16_t pauseTime,
+                                              uint16_t threshTime);
     t_Error (*f_FM_MAC_SetRxIgnorePauseFrames) (t_Handle h_FmMac, bool en);
 
     t_Error (*f_FM_MAC_ResetCounters) (t_Handle h_FmMac);
@@ -134,16 +139,21 @@ typedef struct {
     t_Error (*f_FM_MAC_DumpRegs) (t_Handle h_FmMac);
 #endif /* (defined(DEBUG_ERRORS) && ... */
 
-    t_Handle        h_Fm;
-    e_EnetMode      enetMode;
-    uint8_t         macId;
-    bool            resetOnInit;
-    uint16_t        clkFreq;
+    t_Handle            h_Fm;
+    t_FmRevisionInfo    fmRevInfo;
+    e_EnetMode          enetMode;
+    uint8_t             macId;
+    bool                resetOnInit;
+    uint16_t            clkFreq;
 } t_FmMacControllerDriver;
 
 
+#if (DPAA_VERSION == 2)
 t_Handle    DTSEC_Config(t_FmMacParams *p_FmMacParam);
 t_Handle    TGEC_Config(t_FmMacParams *p_FmMacParams);
+#else
+t_Handle    MEMAC_Config(t_FmMacParams *p_FmMacParam);
+#endif /* (DPAA_VERSION == 2) */
 uint16_t    FM_MAC_GetMaxFrameLength(t_Handle FmMac);
 
 

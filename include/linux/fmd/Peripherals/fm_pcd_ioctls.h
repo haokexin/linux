@@ -75,37 +75,37 @@
 #define IOC_FM_PCD_MAX_NUM_OF_PRIVATE_HDRS              2                   /**< Number of units/headers saved for user */
 
 #define IOC_FM_PCD_PRS_NUM_OF_HDRS                      16                  /**< Number of headers supported by HW parser */
-
-#ifdef CONFIG_FMAN_P1023
-#define IOC_FM_PCD_KG_NUM_OF_SCHEMES                    16                  /**< Total number of KG schemes */
-#else
-#define IOC_FM_PCD_KG_NUM_OF_SCHEMES                    32                  /**< Total number of KG schemes */
-#endif
 #define IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS         (32 - IOC_FM_PCD_MAX_NUM_OF_PRIVATE_HDRS)
-                                                                            /**< Maximum number of netenv distinction units */
-#ifdef CONFIG_FMAN_P1023
-#define IOC_FM_PCD_MAX_NUM_OF_OPTIONS                   7                   /**< Maximum number of netenv distinction units options */
-#else
-#define IOC_FM_PCD_MAX_NUM_OF_OPTIONS                   8                   /**< Maximum number of netenv distinction units options */
-#endif
-#define IOC_FM_PCD_MAX_NUM_OF_INTERCHANGEABLE_HDRS      4                   /**< Maximum number of interchangeable headers in a distinction unit */
-#define IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS               8                   /**< Total number of generic KG registers */
-#define IOC_FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY       35                  /**< Max number allowed on any configuration.
-                                                                                 For reason of HW implemetation, in most
-                                                                                 cases less than this will be allowed. The
-                                                                                 driver will return error in initialization
-                                                                                 time if resource is overused. */
-#ifdef CONFIG_FMAN_P1023
-#define IOC_FM_PCD_MAX_NUM_OF_CLS_PLANS                 128                 /**< Number of classification plan entries. */
-#else
-#define IOC_FM_PCD_MAX_NUM_OF_CLS_PLANS                 256                 /**< Number of classification plan entries. */
-#endif
-#define IOC_FM_PCD_KG_NUM_OF_EXTRACT_MASKS              4                   /**< Total number of masks allowed on KG extractions. */
+                                                                        /**< Number of distinction units is limited by
+                                                                             register size (32 bits) minus reserved bits
+                                                                             for private headers. */
+#define IOC_FM_PCD_MAX_NUM_OF_INTERCHANGEABLE_HDRS      4                   /**< Maximum number of interchangeable headers
+                                                                             in a distinction unit */
+#define IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS               8                   /**< Total number of generic KeyGen registers */
+#define IOC_FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY       35                  /**< Max number allowed on any configuration;
+                                                                             For HW implementation reasons, in most
+                                                                             cases less than this will be allowed; The
+                                                                             driver will return an initialization error
+                                                                             if resource is unavailable. */
+#define IOC_FM_PCD_KG_NUM_OF_EXTRACT_MASKS              4                   /**< Total number of masks allowed on KeyGen extractions. */
 #define IOC_FM_PCD_KG_NUM_OF_DEFAULT_GROUPS             16                  /**< Number of default value logical groups */
 
-#define IOC_FM_PCD_PRS_NUM_OF_LABELS                    32                  /**< Max number of SW parser label */
-#define IOC_FM_PCD_MAX_MANIP_INSRT_TEMPLATE_SIZE        128                 /**< Max possible size of insertion template for
-                                                                             insert manipulation*/
+#define IOC_FM_PCD_PRS_NUM_OF_LABELS                    32                  /**< Maximum number of SW parser labels */
+#define IOC_FM_PCD_SW_PRS_SIZE                          0x00000800          /**< Total size of SW parser area */
+#define IOC_FM_PCD_PRS_SW_OFFSET                        0x00000040          /**< Size of illegal addresses at the beginning
+                                                                             of the SW parser area */
+#define IOC_FM_PCD_PRS_SW_PATCHES_SIZE                  0x00000200          /**< Number of bytes saved for patches */
+#define IOC_FM_PCD_PRS_SW_TAIL_SIZE                     4                   /**< Number of bytes that must be cleared at
+                                                                             the end of the SW parser area */
+#define IOC_FM_SW_PRS_MAX_IMAGE_SIZE                    (IOC_FM_PCD_SW_PRS_SIZE-IOC_FM_PCD_PRS_SW_OFFSET-IOC_FM_PCD_PRS_SW_TAIL_SIZE-IOC_FM_PCD_PRS_SW_PATCHES_SIZE)
+                                                                        /**< Maximum size of SW parser code */
+
+#define IOC_FM_PCD_MAX_MANIP_INSRT_TEMPLATE_SIZE        128                 /**< Maximum size of insertion template for
+                                                                             insert manipulation */
+
+#if DPAA_VERSION >= 3
+#define IOC_FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES        64                  /**< Maximum possible entries for frame replicator group */
+#endif /* DPAA_VERSION >= 3 */
 
 /* @} */
 
@@ -368,6 +368,8 @@ typedef struct ioc_fm_pcd_kg_dflt_value_params_t {
 *//***************************************************************************/
 #define FM_PCD_IOC_GET_COUNTER  _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(9), ioc_fm_pcd_counters_params_t)
 
+#if 0
+TODO: unused IOCTL
 /**************************************************************************//**
  @Function      FM_PCD_IOC_SET_COUNTER
 
@@ -380,6 +382,7 @@ typedef struct ioc_fm_pcd_kg_dflt_value_params_t {
  @Cautions      Allowed only following PCD_Init().
 *//***************************************************************************/
 #define FM_PCD_IOC_SET_COUNTER  _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(10), ioc_fm_pcd_counters_params_t)
+#endif
 
 /**************************************************************************//**
  @Function      FM_PCD_IOC_FORCE_INTR
@@ -400,13 +403,15 @@ typedef struct ioc_fm_pcd_kg_dflt_value_params_t {
                 parameters as required by keygen (when coarse classification
                 is the next engine after this scheme).
 *//***************************************************************************/
-#define IOC_FM_PCD_MAX_NUM_OF_CC_NODES          255
-#define IOC_FM_PCD_MAX_NUM_OF_CC_TREES            8
-#define IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS          16
-#define IOC_FM_PCD_MAX_NUM_OF_CC_UNITS            4
-#define IOC_FM_PCD_MAX_NUM_OF_KEYS              256
-#define IOC_FM_PCD_MAX_SIZE_OF_KEY               56
-#define IOC_FM_PCD_MAX_NUM_OF_CC_ENTRIES_IN_GRP  16
+#define IOC_FM_PCD_MAX_NUM_OF_CC_NODES              255
+#define IOC_FM_PCD_MAX_NUM_OF_CC_TREES              8
+#define IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS             16
+#define IOC_FM_PCD_MAX_NUM_OF_CC_UNITS              4
+#define IOC_FM_PCD_MAX_NUM_OF_KEYS                  256
+#define IOC_FM_PCD_MAX_SIZE_OF_KEY                  56
+#define IOC_FM_PCD_MAX_NUM_OF_CC_ENTRIES_IN_GRP     16
+#define IOC_FM_PCD_LAST_KEY_INDEX                   0xffff
+
 /* @} */
 
 /**************************************************************************//**
@@ -644,27 +649,32 @@ typedef enum ioc_fm_pcd_action {
     e_IOC_FM_PCD_ACTION_INDEXED_LOOKUP                  /**< Indexed lookup on the selected extraction*/
 } ioc_fm_pcd_action;
 
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 /**************************************************************************//**
- @Description   enums sinchronized w/ the enums from fm_pcd_ext.h
+ @Description   Enumeration type for selecting type of insert manipulation
 *//***************************************************************************/
-typedef enum ioc_fm_pcd_manip_insrt {
-    e_IOC_FM_PCD_MANIP_INSRT_NONE = 0,
-    e_IOC_FM_PCD_MANIP_INSRT_TO_START_OF_FRAME_INT_FRAME_HDR,
-    e_IOC_FM_PCD_MANIP_INSRT_TO_START_OF_FRAME_TEMPLATE
-} ioc_fm_pcd_manip_insrt;
+typedef enum ioc_fm_pcd_manip_hdr_insrt_type {
+    e_IOC_FM_PCD_MANIP_INSRT_GENERIC,                   /**< Insert according to offset & size */
+#ifdef FM_CAPWAP_SUPPORT
+    e_IOC_FM_PCD_MANIP_INSRT_BY_HDR,                    /**< Insert according to protocol */
+    e_IOC_FM_PCD_MANIP_INSRT_BY_TEMPLATE                /**< Insert template to start of frame */
+#endif /* FM_CAPWAP_SUPPORT */
+} ioc_fm_pcd_manip_hdr_insrt_type;
 
-typedef enum ioc_fm_pcd_manip_rmv {
-    e_IOC_FM_PCD_MANIP_RMV_NONE = 0,
-    e_IOC_FM_PCD_MANIP_RMV_FROM_START_OF_FRAME_TILL_SPECIFIC_LOCATION,
-    e_IOC_FM_PCD_MANIP_RMV_FROM_START_OF_FRAME_INCLUDE_SPECIFIC_LOCATION,
-    e_IOC_FM_PCD_MANIP_RMV_INT_FRAME_HDR
-} ioc_fm_pcd_manip_rmv;
+typedef enum ioc_fm_pcd_manip_hdr_rmv_type {
+    e_IOC_FM_PCD_MANIP_RMV_GENERIC,                     /**< Remove according to offset & size */
+#ifdef FM_CAPWAP_SUPPORT
+    e_IOC_FM_PCD_MANIP_RMV_BY_HDR                       /**< Remove according to offset & size */
+#endif /* FM_CAPWAP_SUPPORT */
+} ioc_fm_pcd_manip_hdr_rmv_type;
 
-typedef enum ioc_fm_pcd_manip_locate {
-    e_IOC_FM_PCD_MANIP_LOC_BY_HDR = 0,
-    e_IOC_FM_PCD_MANIP_LOC_NON_HDR
-} ioc_fm_pcd_manip_locate;
+#ifdef FM_CAPWAP_SUPPORT
+/**************************************************************************//**
+ @Description   Enumeration type for selecting type of header removal
+*//***************************************************************************/
+typedef enum ioc_fm_pcd_manip_hdr_rmv_by_hdr_type {
+    e_IOC_FM_PCD_MANIP_RMV_BY_HDR_FROM_START            /**< Locate from data that is not the header */
+} ioc_fm_pcd_manip_hdr_rmv_by_hdr_type;
+#endif /* FM_CAPWAP_SUPPORT */
 
 typedef enum ioc_fm_pcd_manip_reassem_time_out_mode {
     e_IOC_FM_PCD_MANIP_TIME_OUT_BETWEEN_FRAMES,
@@ -682,18 +692,46 @@ typedef enum ioc_fm_pcd_manip_reassem_ways_number {
     e_IOC_FM_PCD_MANIP_EIGHT_WAYS_HASH
 } ioc_fm_pcd_manip_reassem_ways_number;
 
+#ifdef FM_CAPWAP_SUPPORT
 typedef enum ioc_fm_pcd_stats {
     e_IOC_FM_PCD_STATS_PER_FLOWID = 0
 } ioc_fm_pcd_stats;
+#endif
 
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
+/**************************************************************************//**
+ @Description   Enumeration type for selecting manipulation type
+*//***************************************************************************/
+typedef enum ioc_fm_pcd_manip_type {
+    e_IOC_FM_PCD_MANIP_HDR = 0,             /**< Header manipulation */
+    e_IOC_FM_PCD_MANIP_REASSEM,             /**< Reassembly */
+    e_IOC_FM_PCD_MANIP_FRAG,                /**< Fragmentation */
+    e_IOC_FM_PCD_MANIP_SPECIAL_OFFLOAD      /**< Special Offloading */
+} ioc_fm_pcd_manip_type;
+
+/**************************************************************************//**
+ @Description   Enumeration type for selecting type of statistics mode
+*//***************************************************************************/
+typedef enum ioc_fm_pcd_cc_stats_mode {
+    e_IOC_FM_PCD_CC_STATS_MODE_NONE = 0,    /**< No statistics support */
+    e_IOC_FM_PCD_CC_STATS_MODE_FRAME        /**< Frame count statistics */
+} ioc_fm_pcd_cc_stats_mode;
+
+/**************************************************************************//**
+ @Description   Enumeration type for determining the action in case an IP packet
+                is larger than MTU but its DF (Don't Fragment) bit is set.
+*//***************************************************************************/
 typedef enum ioc_fm_pcd_manip_dont_frag_action {
-    e_IOC_FM_PCD_MANIP_ENQ_TO_ERR_Q_OR_DISCARD_PACKET = 0,
-    e_IOC_FM_PCD_MANIP_FRAGMENT_PACKECT,
-    e_IOC_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG
+    e_IOC_FM_PCD_MANIP_ENQ_TO_ERR_Q_OR_DISCARD_PACKET = 0,  /**< Discard packet */
+    e_IOC_FM_PCD_MANIP_FRAGMENT_PACKECT,                    /**< Fragment packet and continue normal processing */
+    e_IOC_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG                /**< Continue normal processing without fragmenting the packet */
 } ioc_fm_pcd_manip_dont_frag_action;
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
-#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
+
+/**************************************************************************//**
+ @Description   Enumeration type for selecting type of special offload manipulation
+*//***************************************************************************/
+typedef enum ioc_fm_pcd_manip_special_offload_type {
+    e_IOC_FM_PCD_MANIP_SPECIAL_OFFLOAD_IPSEC    /**< IPSec offload manipulation */
+} ioc_fm_pcd_manip_special_offload_type;
 
 /**************************************************************************//**
  @Description   A Union of protocol dependent special options
@@ -934,6 +972,34 @@ typedef struct ioc_fm_pcd_kg_plcr_profile_t {
     } profile_select;
 } ioc_fm_pcd_kg_plcr_profile_t;
 
+#if DPAA_VERSION >= 3
+/**************************************************************************//**
+ @Description   Parameters for configuring a storage profile for a KeyGen scheme.
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_kg_storage_profile_t {
+    bool                direct;                     /**< If TRUE, directRelativeProfileId only selects the
+                                                         profile id;
+                                                         If FALSE, fqidOffsetRelativeProfileIdBase is used
+                                                         together with fqidOffsetShift and numOfProfiles
+                                                         parameters to define a range of profiles from which
+                                                         the KeyGen result will determine the destination
+                                                         storage profile. */
+    union {
+        uint16_t        direct_relative_profileId;    /**< Used when 'direct' is TRUE, to select a storage profile;
+                                                         should indicate the storage profile offset within the
+                                                         port's storage profiles window. */
+        struct {
+            uint8_t     fqid_offset_shift;            /**< Shift of KeyGen results without the FQID base */
+            uint8_t     fqid_offset_relative_profile_id_base;
+                                                    /**< OR of KeyGen results without the FQID base;
+                                                         should indicate the policer profile offset within the
+                                                         port's storage profiles window. */
+            uint8_t     num_of_profiles;              /**< Range of profiles starting at base. */
+        } indirect_profile;                          /**< Indirect profile parameters. */
+    } profile_select;                                /**< Direct/indirect profile selection and parameters. */
+} ioc_fm_pcd_kg_storage_profile_t;
+#endif /* DPAA_VERSION >= 3 */
+
 /**************************************************************************//**
  @Description   A structure for CC parameters if CC is the next engine after KG
 *//***************************************************************************/
@@ -989,6 +1055,11 @@ typedef struct ioc_fm_pcd_kg_scheme_params_t {
                                                               actions; Normally only some will be used
                                                               for qidMask. Driver will return error if
                                                               resource is full at initialization time. */
+#if DPAA_VERSION >= 3
+    bool                                override_storage_profile; /**< TRUE if KeyGen override previously decided storage profile */
+    ioc_fm_pcd_kg_storage_profile       storage_profile;        /**< Used when overrideStorageProfile TRUE */
+#endif /* DPAA_VERSION >= 3 */
+
     ioc_fm_pcd_engine                   next_engine;     /**< may be BMI, PLCR or CC */
     union{                                               /**< depends on nextEngine */
         ioc_fm_pcd_done_action          done_action;     /**< Used when next engine is BMI (done) */
@@ -1027,9 +1098,13 @@ typedef struct ioc_fm_pcd_cc_next_plcr_params_t {
                                                 In earlier chips  if policer next engine is KEYGEN,
                                                 this parameter can be 0, because the KEYGEN always decides
                                                 the enqueue FQID.*/
-    bool        statistics_en;               /**< In the case of TRUE Statistic counter is
-                                                incremented for each received frame passed through
-                                                this Coarse Classification entry.*/
+#if DPAA_VERSION >= 3
+    uint8_t     new_relative_storage_profileId;
+                                        /**< Indicates the relative storage profile offset within
+                                             the port's storage profiles window;
+                                             Relevant only if the port was configured with VSP. */
+#endif /* DPAA_VERSION >= 3 */
+
 } ioc_fm_pcd_cc_next_plcr_params_t;
 
 /**************************************************************************//**
@@ -1043,9 +1118,13 @@ typedef struct ioc_fm_pcd_cc_next_enqueue_params_t {
     uint32_t                new_fqid;       /**< Valid if overrideFqid=TRUE, FQID for enquing the frame
                                                  (otherwise FQID is taken from keygen),
                                                  relevant if action = e_IOC_FM_PCD_ENQ_FRAME*/
-    bool                    statistics_en;   /**< In the case of TRUE Statistic counter is
-                                                 incremented for each received frame passed through
-                                                 this Coarse Classification entry.*/
+#if DPAA_VERSION >= 3
+    uint8_t              new_relative_storage_profile_id;
+                                        /**< Indicates the relative storage profile offset within
+                                             the port's storage profiles window;
+                                             Relevant only if the port was configured with VSP. */
+#endif /* DPAA_VERSION >= 3 */
+
 } ioc_fm_pcd_cc_next_enqueue_params_t;
 
 /**************************************************************************//**
@@ -1059,9 +1138,12 @@ typedef struct ioc_fm_pcd_cc_next_kg_params_t {
                                          (otherwise FQID is taken from keygen),
                                           Note - this parameters unrelevant for earlier chips*/
     void       *p_direct_scheme;        /**< Direct scheme handle to go to. */
-    bool       statistics_en;           /**< In the case of TRUE Statistic counter is
-                                             incremented for each received frame passed through
-                                             this Coarse Classification entry.*/
+#if DPAA_VERSION >= 3
+    uint8_t              new_relative_storage_profile_id;
+                                        /**< Indicates the relative storage profile offset within
+                                             the port's storage profiles window;
+                                             Relevant only if the port was configured with VSP. */
+#endif /* DPAA_VERSION >= 3 */
 } ioc_fm_pcd_cc_next_kg_params_t;
 
 /**************************************************************************//**
@@ -1077,9 +1159,18 @@ typedef struct ioc_fm_pcd_cc_next_engine_params_t {
             ioc_fm_pcd_cc_next_enqueue_params_t enqueue_params; /**< Parameters in case next engine is BMI */
             ioc_fm_pcd_cc_next_kg_params_t      kg_params;      /**< Parameters in case next engine is KG */
     } params;
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-    void                                        *manip;
-#endif /* defined(FM_CAPWAP_SUPPORT) */
+#if DPAA_VERSION >= 3
+    void                                        *p_frm_replic_id; /**< Handle to frame replicator group;
+                                                                       Relevant if next engine is e_FM_PCD_INVALID) */
+#endif /* DPAA_VERSION >= 3 */
+
+    void                                        *manip_id;      /**< Handle to Manipulation object.
+                                                                     Relevant if next engine is of type result
+                                                                     (e_FM_PCD_PLCR, e_FM_PCD_KG, e_FM_PCD_DONE) */
+
+    bool                                        statistics_en;   /**< If TRUE, statistics counters are incremented
+                                                                      for each frame passing through this
+                                                                      Coarse Classification entry. */
 } ioc_fm_pcd_cc_next_engine_params_t;
 
 /**************************************************************************//**
@@ -1100,7 +1191,19 @@ typedef struct ioc_fm_pcd_cc_key_params_t {
  @Description   A structure for defining CC Keys parameters
 *//***************************************************************************/
 typedef struct ioc_keys_params_t {
-    uint16_t                            num_of_keys;    /**< num Of relevant Keys  */
+    uint16_t                            max_num_of_keys;
+    bool                                mask_support;   /**< This parameter is relevant only if a node is initialized with
+                                                             action = e_FM_PCD_ACTION_EXACT_MATCH and maxNumOfKeys > 0;
+                                                             Should be TRUE if the node was initialized 'empty' (no keys)
+                                                             or with keys without masks, and user wants to be able to add
+                                                             a mask to a key later on in run-time. */
+    ioc_fm_pcd_cc_stats_mode            statistics_mode;/**< If enabled, the required structures for the requested statistics
+                                                             mode will be allocated according to 'maxNumOfKeys'. */
+    uint16_t                            num_of_keys;      /**< Number of initial keys;
+                                                               Note that in case of 'action' = e_FM_PCD_ACTION_INDEXED_LOOKUP
+                                                              (but the 'src' is not e_FM_PCD_EXTRACT_FROM_HASH; in this case,
+                                                              'numOfKeys' should be zero), this field should be power-of-2
+                                                              of the number of bits that are set in 'icIndxMask'. */
     uint8_t                             key_size;       /**< size of the key - in the case of the extraction of
                                                              the type FULL_FIELD keySize has to be as standard size of the relevant
                                                              key. In the another type of extraction keySize has to be as size of extraction. */
@@ -1121,6 +1224,33 @@ typedef struct ioc_fm_pcd_cc_node_params_t {
                                                                  extraction defined in  extractParams */
     void                                *id;                /**< output parameter; Returns the CC node Id to be used */
 } ioc_fm_pcd_cc_node_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for defining a hash table
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_hash_table_params_t {
+    uint16_t                    max_num_of_keys;               /**< Maximum Number Of Keys that will (ever) be used in this Hash-table */
+    ioc_fm_pcd_cc_stats_mode    statistics_mode;             /**< If enabled, the required structures for the requested statistics
+                                                                 mode will be allocated according to maxNumOfKeys. */
+    uint16_t                    hash_res_mask;                /**< Mask that will be used on the hash-result;
+                                                                 The number-of-sets for this hash will be calculated
+                                                                 as (2^(number of bits set in 'hashResMask'));
+                                                                 The 4 lower bits must be cleared. */
+    uint8_t                     hash_shift;                  /**< Byte offset from the beginning of the KeyGen hash result to the
+                                                                 2-bytes to be used as hash index. */
+    uint8_t                     match_key_size;               /**< Size of the exact match keys held by the hash buckets */
+
+    ioc_fm_pcd_cc_next_engine_params_t   cc_next_engine_params_for_miss;  /**< Parameters for defining the next engine when a key is not matched */
+
+    void                        *id;
+
+} ioc_fm_pcd_hash_table_params_t;
+
+typedef struct ioc_fm_pcd_hash_table_add_key_params_t {
+    void                        *p_hash_tbl;
+    uint8_t                     key_size;
+    ioc_fm_pcd_cc_key_params_t  *p_key_params;
+} ioc_fm_pcd_hash_table_add_key_params_t;
 
 /**************************************************************************//**
  @Description   A structure for defining each CC tree group in term of
@@ -1160,9 +1290,6 @@ typedef struct ioc_fm_pcd_cc_tree_params_t {
         uint8_t                         num_of_groups;  /**< Number of CC groups within the CC tree */
         ioc_fm_pcd_cc_grp_params_t      fm_pcd_cc_group_params [IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS];
                                                         /**< Parameters for each group. */
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-        void *                          *ip_reassembly_manip;
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
         void                            *id;            /**< output parameter; Returns the tree Id to be used */
 } ioc_fm_pcd_cc_tree_params_t;
 
@@ -1268,6 +1395,15 @@ typedef struct ioc_fm_pcd_cc_node_modify_next_engine_params_t {
 } ioc_fm_pcd_cc_node_modify_next_engine_params_t;
 
 /**************************************************************************//**
+ @Description   A structure for remove CC node key
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_cc_node_remove_key_params_t {
+    void                                *id;                /**< CC node Id to be used */
+    uint16_t                            key_indx;           /**< Key index for Next Engine Params modifications;
+                                                                 NOTE: This parameter is IGNORED for miss-key!  */
+} ioc_fm_pcd_cc_node_remove_key_params_t;
+
+/**************************************************************************//**
  @Description   A structure for modifying CC node key and next engine
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t {
@@ -1278,15 +1414,6 @@ typedef struct ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t {
     ioc_fm_pcd_cc_key_params_t          key_params;         /**< it's array with numOfKeys entries each entry in
                                                                  the array of the type ioc_fm_pcd_cc_key_params_t */
 } ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t;
-
-/**************************************************************************//**
- @Description   A structure for remove CC node key
-*//***************************************************************************/
-typedef struct ioc_fm_pcd_cc_node_remove_key_params_t {
-    void                                *id;                /**< CC node Id to be used */
-    uint16_t                            key_indx;           /**< Key index for Next Engine Params modifications;
-                                                                 NOTE: This parameter is IGNORED for miss-key!  */
-} ioc_fm_pcd_cc_node_remove_key_params_t;
 
 /**************************************************************************//**
  @Description   A structure for modifying CC node key
@@ -1302,128 +1429,290 @@ typedef struct ioc_fm_pcd_cc_node_modify_key_params_t {
                                                                  of the same size defined in the keySize */
 } ioc_fm_pcd_cc_node_modify_key_params_t;
 
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 /**************************************************************************//**
- @Description  must match the struct defined in fm_pcd_ext.h
+ @Description   Parameters for selecting a location for requested manipulation
 *//***************************************************************************/
-typedef struct ioc_fm_pcd_manip_location_params_t {
-    ioc_fm_pcd_manip_locate             type;
-    struct {
-        ioc_net_header_type             hdr;
-        ioc_fm_pcd_hdr_index            hdr_index;
-        bool                            by_field;
-        ioc_fm_pcd_fields_u             full_field;
-    } manip_by_hdr;
-} ioc_fm_pcd_manip_location_params_t;
-
-typedef struct ioc_fm_pcd_manip_insrt_by_template_params_t {
-    uint8_t         size;
-    uint8_t         hdr_template[IOC_FM_PCD_MAX_MANIP_INSRT_TEMPLATE_SIZE];
-    bool            modify_outer_ip;
-    struct {
-        uint16_t    ip_outer_offset;
-        uint16_t    dscp_ecn;
-        bool        udp_present;
-        uint8_t     udp_offset;
-        uint8_t     ip_ident_genId;
-        bool        recalculate_length;
-        struct {
-            uint8_t block_size;
-            uint8_t extra_bytes_added_aligned_to_block_size;
-            uint8_t extra_bytes_added_not_aligned_to_block_size;
-        } recalculate_length_params;
-    } modify_outer_ip_params;
-    bool            modify_outer_vlan;
-    struct {
-        uint8_t     vpri;
-    } modify_outer_vlan_params;
-} ioc_fm_pcd_manip_insrt_by_template_params_t;
-#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
+typedef struct ioc_fm_manip_hdr_info_t {
+    ioc_net_header_type                 hdr;            /**< Header selection */
+    ioc_fm_pcd_hdr_index                hdr_index;      /**< Relevant only for MPLS, VLAN and tunneled IP. Otherwise should be cleared. */
+    bool                                by_field;       /**< TRUE if the location of manipulation is according to some field in the specific header*/
+    ioc_fm_pcd_fields_u                 full_field;      /**< Relevant only when byField = TRUE: Extract field */
+} ioc_fm_manip_hdr_info_t;
 
 #ifdef FM_CAPWAP_SUPPORT
-typedef struct ioc_capwap_fragmentation_params_t {
-    uint16_t         size_for_fragmentation;
-    bool             header_options_compr;
-} ioc_capwap_fragmentation_params_t;
+TODO: missing code
+#endif
 
-typedef struct ioc_capwap_reassembly_params_t {
-    uint16_t                         max_numFrames_in_process;
-    bool                             halt_on_duplication_frag;
-    ioc_fm_pcd_manip_reassem_time_out_mode  time_out_mode;
-    uint32_t                        fqid_for_time_out_frames;
-    uint32_t                        timeout_routine_request_time;
+typedef struct ioc_fm_pcd_hash_table_remove_key_params_t {
+    void    *p_hash_tbl;
+    uint8_t key_size;
+    uint8_t *p_key;
+} ioc_fm_pcd_hash_table_remove_key_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for configuring IP fragmentation manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_frag_ip_params_t {
+    uint16_t                    size_for_fragmentation;   /**< If length of the frame is greater than this value,
+                                                             IP fragmentation will be executed.*/
+#if (DPAA_VERSION == 2)
+    uint8_t                     scratch_bpid;            /**< Absolute buffer pool id according to BM configuration.*/
+#endif /* (DPAA_VERSION == 2) */
+    bool                        sg_bpid_en;               /**< Enable a dedicated buffer pool id for the Scatter/Gather buffer allocation;
+                                                             If disabled, the Scatter/Gather buffer will be allocated from the same pool as the
+                                                             received frame's buffer. */
+    uint8_t                     sg_bpid;                 /**< Scatter/Gather buffer pool id;
+                                                             Same LIODN number is used for these buffers as for the received frames buffers, so buffers
+                                                             of this pool need to be allocated in the same memory area as the received buffers.
+                                                             If the received buffers arrive from different sources, the Scatter/Gather BP id should be
+                                                             mutual to all these sources. */
+    ioc_fm_pcd_manip_dont_frag_action  dont_frag_action;  /**< Dont Fragment Action - If an IP packet is larger
+                                                             than MTU and its DF bit is set, then this field will
+                                                             determine the action to be taken.*/
+} ioc_fm_pcd_manip_frag_ip_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for configuring IP reassembly manipulation.
+
+                This is a common structure for both IPv4 and IPv6 reassembly
+                manipulation. For reassembly of both IPv4 and IPv6, make sure to
+                set the 'hdr' field in t_FmPcdManipReassemParams to HEADER_TYPE_IPv6.
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_reassem_ip_params_t {
+    uint8_t                         relative_scheme_id[2];    /**< Partition relative scheme id:
+                                                                 relativeSchemeId[0] -  Relative scheme ID for IPV4 Reassembly manipulation;
+                                                                 relativeSchemeId[1] -  Relative scheme ID for IPV6 Reassembly manipulation;
+                                                                 Relative scheme ID for IPv4/IPv6 Reassembly manipulation must be smaller than
+                                                                 the user schemes id to ensure that the reassemblys schemes will be first match.
+                                                                 Rest schemes, if defined, should have higher relative scheme ID. */
+    uint8_t                         sg_bpid;                  /**< Buffer pool id for the S/G frame created by the reassembly process */
+    uint8_t                         data_mem_id;              /**< Memory partition ID for the IPR's external tables structure */
+    uint16_t                        data_liodn_offset;        /**< LIODN offset for access the IPR's external tables structure. */
+    uint16_t                        min_frag_size[2];         /**< Minimum fragment size:
+                                                                 minFragSize[0] - for ipv4, minFragSize[1] - for ipv6 */
+    ioc_fm_pcd_manip_reassem_ways_number   num_of_frames_per_hash_entry[2];
+                                                            /**< Number of frames per hash entry needed for reassembly process:
+                                                                 numOfFramesPerHashEntry[0] - for ipv4 (max value is e_FM_PCD_MANIP_EIGHT_WAYS_HASH);
+                                                                 numOfFramesPerHashEntry[1] - for ipv6 (max value is e_FM_PCD_MANIP_SIX_WAYS_HASH). */
+    uint16_t                        max_num_frames_in_process;  /**< Number of frames which can be processed by Reassembly in the same time;
+                                                                 Must be power of 2;
+                                                                 In the case numOfFramesPerHashEntry == e_FM_PCD_MANIP_FOUR_WAYS_HASH,
+                                                                 maxNumFramesInProcess has to be in the range of 4 - 512;
+                                                                 In the case numOfFramesPerHashEntry == e_FM_PCD_MANIP_EIGHT_WAYS_HASH,
+                                                                 maxNumFramesInProcess has to be in the range of 8 - 2048. */
+    ioc_fm_pcd_manip_reassem_time_out_mode  time_out_mode;            /**< Expiration delay initialized by Reassembly process */
+    uint32_t                        fqid_for_time_out_frames;   /**< FQID in which time out frames will enqueue during Time Out Process  */
     uint32_t                        timeout_threshold_for_reassm_process;
-    ioc_fm_pcd_manip_reassem_ways_number   num_of_frames_per_hash_entry;
-} ioc_capwap_reassembly_params_t;
+                                                            /**< Represents the time interval in microseconds which defines
+                                                                 if opened frame (at least one fragment was processed but not all the fragments)is found as too old*/
+} ioc_fm_pcd_manip_reassem_ip_params_t;
+
+/**************************************************************************//**
+ @Description   structure for defining IPSEC manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_special_offload_ipsec_params_t {
+    bool    decryption;                     /**< TRUE if being used in decryption direction;
+                                                 FALSE if being used in encryption direction. */
+    bool    ecn_copy;                        /**< TRUE to copy the ECN bits from inner/outer to outer/inner
+                                                 (direction depends on the 'decryption' field). */
+    bool    dscp_copy;                       /**< TRUE to copy the DSCP bits from inner/outer to outer/inner
+                                                 (direction depends on the 'decryption' field). */
+    bool    variable_ip_hdr_len;               /**< TRUE for supporting variable IP header length in decryption. */
+} ioc_fm_pcd_manip_special_offload_ipsec_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for defining special offload manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_special_offload_params_t {
+    ioc_fm_pcd_manip_special_offload_type              type;       /**< Type of special offload manipulation */
+    union
+    {
+        ioc_fm_pcd_manip_special_offload_ipsec_params_t   ipsec;
+    } u;
+} ioc_fm_pcd_manip_special_offload_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for defining generic removal manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_hdr_rmv_generic_params_t {
+    uint8_t                         offset;         /**< Offset from beginning of header to the start
+                                                         location of the removal */
+    uint8_t                         size;           /**< Size of removed section */
+} ioc_fm_pcd_manip_hdr_rmv_generic_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for defining generic insertion manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_hdr_insrt_generic_params_t {
+    uint8_t                         offset;         /**< Offset from beginning of header to the start
+                                                         location of the insertion */
+    uint8_t                         size;           /**< Size of inserted section */
+    bool                            replace;        /**< TRUE to override (replace) existing data at
+                                                         'offset', FALSE to insert */
+    uint8_t                         *p_Data;        /**< Pointer to data to be inserted */
+} ioc_fm_pcd_manip_hdr_insrt_generic_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for defining header insertion manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_hdr_insrt_params_t {
+    ioc_fm_pcd_manip_hdr_insrt_type                     type;   /**< Type of insertion manipulation */
+    union {
+        ioc_fm_pcd_manip_hdr_insrt_generic_params_t       generic;
+                                                        /**< Parameters for defining generic header insertion manipulation,
+                                                             relevant if type = e_FM_PCD_MANIP_INSRT_GENERIC */
+#ifdef FM_CAPWAP_SUPPORT
+TODO:
 #endif /* FM_CAPWAP_SUPPORT */
+    } u;
+} ioc_fm_pcd_manip_hdr_insrt_params_t;
 
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-typedef struct ioc_ip_fragmentation_params_t {
-    uint16_t                    size_for_fragmentation;
-    uint8_t                     scratch_bpid;
-    ioc_fm_pcd_manip_dont_frag_action  dont_frag_action;
-} ioc_ip_fragmentation_params_t;
-
-typedef struct ioc_ip_reassembly_params_t {
-    uint8_t                         relative_schemeId[2];
-    uint8_t                         sg_bpid;
-    uint8_t                         data_mem_id;
-    uint16_t                        data_liodn_offset;
-    uint16_t                        min_frag_size[2];
-    uint16_t                        max_num_frames_in_process;
-    ioc_fm_pcd_manip_reassem_time_out_mode  time_out_mode;
-
-    uint32_t                        fqid_for_time_out_frames;
-    ioc_fm_pcd_manip_reassem_ways_number   num_of_frames_per_hash_entry;
-
-    uint32_t                        timeout_threshold_for_reassm_process;
-} ioc_ip_reassembly_params_t;
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
-
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-typedef struct ioc_fm_pcd_manip_frag_or_reasm_params_t {
-    bool                                frag;
-    uint8_t                             ext_buf_pool_indx;
-    ioc_net_header_type                 hdr;
+/**************************************************************************//**
+ @Description   Parameters for defining header removal manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_hdr_rmv_params_t {
+    ioc_fm_pcd_manip_hdr_rmv_type                  type;       /**< Type of header removal manipulation */
     union {
 #ifdef FM_CAPWAP_SUPPORT
-        ioc_capwap_fragmentation_params_t capwap_frag_params;
-        ioc_capwap_reassembly_params      capwapReasmParams;
+TODO:
 #endif /* FM_CAPWAP_SUPPORT */
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-        ioc_ip_fragmentation_params_t     ip_frag_params;
-        ioc_ip_reassembly_params_t        ip_reasm_params;
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
-    };
-} ioc_fm_pcd_manip_frag_or_reasm_params_t;
+        ioc_fm_pcd_manip_hdr_rmv_generic_params_t     generic;    /**< Parameters for defining generic header removal manipulation,
+                                                             relevant if type = e_FM_PCD_MANIP_RMV_GENERIC */
+    } u;
+} ioc_fm_pcd_manip_hdr_rmv_params_t;
 
-typedef struct ioc_fm_pcd_manip_insrt_params_t {
-    ioc_fm_pcd_manip_insrt                           type;
+/**************************************************************************//**
+ @Description   Parameters for defining header manipulation node
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_hdr_params_t {
+    bool                                        rmv;                /**< TRUE, to define removal manipulation */
+    ioc_fm_pcd_manip_hdr_rmv_params_t           rmv_params;          /**< Parameters for removal manipulation, relevant if rmv = TRUE */
+
+    bool                                        insrt;              /**< TRUE, to define insertion manipulation */
+    ioc_fm_pcd_manip_hdr_insrt_params_t         insrt_params;        /**< Parameters for insertion manipulation, relevant if insrt = TRUE */
+
+
+    bool                                        dont_parse_after_manip;/**< FALSE to activate the parser a second time after
+                                                                         completing the manipulation on the frame */
+} ioc_fm_pcd_manip_hdr_params_t;
+
+
+/**************************************************************************//**
+ @Description   structure for defining fragmentation manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_frag_params_t {
+    ioc_net_header_type                 hdr;          /**< Header selection */
     union {
-        ioc_fm_pcd_manip_insrt_by_template_params_t  insrt_by_template_params;
-    };
-} ioc_fm_pcd_manip_insrt_params_t;
+        ioc_fm_pcd_manip_frag_ip_params_t ip_frag;       /**< Parameters for defining IP fragmentation,
+                                                            relevant if 'hdr' = HEADER_TYPE_Ipv4 or HEADER_TYPE_Ipv6 */
+    } u;
+} ioc_fm_pcd_manip_frag_params_t;
 
-typedef struct ioc_fm_pcd_manip_rmv_params_t {
-    ioc_fm_pcd_manip_rmv                type ;
-    ioc_fm_pcd_manip_location_params_t  rmv_specific_location_params;
-} ioc_fm_pcd_manip_rmv_params_t;
+/**************************************************************************//**
+ @Description   structure for defining reassemble manipulation
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_reassem_params_t {
+    ioc_net_header_type                 hdr;          /**< Header selection */
+    union {
+        ioc_fm_pcd_manip_reassem_ip_params_t ip_reassem;    /**< Parameters for defining IP reassembly,
+                                                           relevant if 'hdr' = HEADER_TYPE_Ipv4 or HEADER_TYPE_Ipv6 */
+    } u;
+} ioc_fm_pcd_manip_reassem_params_t;
 
+/**************************************************************************//**
+ @Description   Parameters for defining a manipulation node
+*//***************************************************************************/
 typedef struct ioc_fm_pcd_manip_params_t {
-    bool                                        rmv;
-    ioc_fm_pcd_manip_rmv_params_t               rmv_params;
-    bool                                        insrt;
-    ioc_fm_pcd_manip_insrt_params_t             insrt_params;
-    bool                                        frag_or_reasm;
-    ioc_fm_pcd_manip_frag_or_reasm_params_t     frag_or_reasm_params;
-    bool                                        treat_fd_status_fields_as_errors;
-    void                                        *id;
+    ioc_net_header_type                           type;               /**< Selects type of manipulation node */
+    union{
+        ioc_fm_pcd_manip_hdr_params_t             hdr;                /**< Parameters for defining header manipulation node */
+        ioc_fm_pcd_manip_reassem_params_t         reassem;            /**< Parameters for defining reassembly manipulation node */
+        ioc_fm_pcd_manip_frag_params_t            frag;               /**< Parameters for defining fragmentation manipulation node */
+        ioc_fm_pcd_manip_special_offload_params_t special_offload;     /**< Parameters for defining special offload manipulation node */
+    } u;
+     void*                                        p_next_manip;        /**< Handle to another (previously defined) manipulation node;
+                                                                            Allows concatenation of manipulation actions */
+#ifdef FM_CAPWAP_SUPPORT
+TODO:
+#endif
+	void                                      *id;
 } ioc_fm_pcd_manip_params_t;
 
-typedef struct ioc_fm_pcd_stats_params_t {
-    ioc_fm_pcd_stats  type;
-} ioc_fm_pcd_stats_params_t;
-#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
+/**************************************************************************//**
+ @Description   Structure for retrieving IP reassembly statistics
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_reassem_ip_stats_t {
+    /* common counters for both IPv4 and IPv6 */
+    uint32_t    timeout;                        /**< Counts the number of TimeOut occurrences */
+    uint32_t    rfd_pool_busy;                    /**< Counts the number of failed attempts to allocate
+                                                     a Reassembly Frame Descriptor */
+    uint32_t    internal_buffer_busy;             /**< Counts the number of times an internal buffer busy occurred */
+    uint32_t    external_buffer_busy;             /**< Counts the number of times external buffer busy occurred */
+    uint32_t    sg_fragments;                    /**< Counts the number of Scatter/Gather fragments */
+    uint32_t    dma_semaphore_depletion;          /**< Counts the number of failed attempts to allocate a DMA semaphore */
+    struct {
+        uint32_t    successfully_reassembled;    /**< Counts the number of successfully reassembled frames */
+        uint32_t    valid_fragments;             /**< Counts the total number of valid fragments that
+                                                     have been processed for all frames */
+        uint32_t    processed_fragments;         /**< Counts the number of processed fragments
+                                                     (valid and error fragments) for all frames */
+        uint32_t    malformed_fragments;         /**< Counts the number of malformed fragments processed for all frames */
+        uint32_t    discarded_fragments;         /**< Counts the number of fragments discarded by the reassembly process */
+        uint32_t    auto_learn_busy;              /**< Counts the number of times a busy condition occurs when attempting
+                                                     to access an IP-Reassembly Automatic Learning Hash set */
+        uint32_t    more_than16fragments;        /**< Counts the fragment occurrences in which the number of fragments-per-frame
+                                                     exceeds 16 */
+    } specific_hdr_statistics[2];                 /**< slot '0' is for IPv4, slot '1' is for IPv6 */
+} ioc_fm_pcd_manip_reassem_ip_stats_t;
+
+/**************************************************************************//**
+ @Description   Structure for retrieving IP fragmentation statistics
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_frag_ip_stats_t {
+    uint32_t    total_frames;            /**< Number of frames that passed through the manipulation node */
+    uint32_t    fragmented_frames;       /**< Number of frames that were fragmented */
+    uint32_t    generated_fragments;     /**< Number of fragments that were generated */
+} ioc_fm_pcd_manip_frag_ip_stats_t;
+
+/**************************************************************************//**
+ @Description   Structure for retrieving reassembly statistics
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_reassem_stats_t {
+    union {
+        ioc_fm_pcd_manip_reassem_ip_stats_t  ip_reassem;  /**< Structure for IP reassembly statistics */
+    } u;
+} ioc_fm_pcd_manip_reassem_stats_t;
+
+/**************************************************************************//**
+ @Description   structure for retrieving fragmentation statistics
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_frag_stats_t {
+    union {
+        ioc_fm_pcd_manip_frag_ip_stats_t     ip_frag;     /**< Structure for IP fragmentation statistics */
+    } u;
+} ioc_fm_pcd_manip_frag_stats_t;
+
+/**************************************************************************//**
+ @Description   structure for defining manipulation statistics
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_manip_stats_t {
+    union{
+        ioc_fm_pcd_manip_reassem_stats_t  reassem;    /**< Structure for reassembly statistics */
+        ioc_fm_pcd_manip_frag_stats_t     frag;       /**< Structure for fragmentation statistics */
+    } u;
+} ioc_fm_pcd_manip_stats_t;
+
+#if DPAA_VERSION >= 3
+/**************************************************************************//**
+ @Description   Parameters for defining frame replicator group and its members
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_frm_replic_group_params_t {
+    uint8_t                     max_num_of_entries;    /**< Maximal number of members in the group  - must be at least two */
+    uint8_t                     num_of_entries;       /**< Number of members in the group - must be at least 1 */
+    ioc_fm_pcd_cc_next_engine_params_t   next_engine_params[FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES];
+                                                    /**< Array of members' parameters */
+} ioc_fm_pcd_frm_replic_group_params_t;
+#endif /* DPAA_VERSION >= 3 */
 
 /**************************************************************************//**
  @Function      FM_PCD_IOC_SET_NET_ENV_CHARACTERISTICS
@@ -1707,6 +1996,81 @@ typedef struct ioc_fm_pcd_stats_params_t {
 #endif
 #define FM_PCD_IOC_CC_NODE_MODIFY_KEY   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(36), ioc_fm_pcd_cc_node_modify_key_params_t)
 
+/**************************************************************************//*
+ @Function      FM_PCD_IOC_HASH_TABLE_SET
+
+ @Description   This routine simulates KeyGen operation on the provided key and
+                calculates to which hash bucket it will be mapped.
+
+ @Param[in]     TODO  A pointer to a structure with the relevant parameters
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_HashTableSet()
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#error TODO: compat ioctl call not implemented!
+#define FM_PCD_IOC_HASH_TABLE_SET_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(37), ioc_compat_fm_pcd_hash_table_params_t)
+#endif
+#define FM_PCD_IOC_HASH_TABLE_SET _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(37), ioc_fm_pcd_hash_table_params_t)
+
+
+/**************************************************************************//**
+ @Function      FM_PCD_IOC_HASH_TABLE_DELETE
+
+ @Description   This routine deletes the provided hash table and released all
+                its allocated resources.
+
+ @Param[in]     p_hash_tbl A handle to a hash table
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_HashTableSet().
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#error TODO: compat ioctl call not implemented!
+#define FM_PCD_IOC_HASH_TABLE_DELETE_COMPAT _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_compat_fm_obj_t)
+#endif
+#define FM_PCD_IOC_HASH_TABLE_DELETE _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_fm_obj_t)
+
+/**************************************************************************//**
+ @Function      FM_PCD_IOC_HASH_TABLE_ADD_KEY
+
+ @Description   This routine adds the provided key (including next engine
+                parameters of this key) to the hash table.
+                The key is added as the last key of the bucket that it is
+                mapped to.
+
+ @Param[in]     TODO  A pointer to a structure with the relevant parameters
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_HashTableSet().
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#error TODO: compat ioctl call not implemented!
+#define FM_PCD_IOC_HASH_TABLE_ADD_KEY_COMPAT _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_compat_fm_pcd_hash_table_add_key_params_t)
+#endif
+#define FM_PCD_IOC_HASH_TABLE_ADD_KEY _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_fm_pcd_hash_table_add_key_params_t)
+
+/**************************************************************************//**
+ @Function      FM_PCD_IOC_HASH_TABLE_REMOVE_KEY
+
+ @Description   This routine removes the requested key (including next engine
+                parameters of this key) from the hash table.
+
+ @Param[in]     TODO  A pointer to a structure with the relevant parameters
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_HashTableSet().
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#error TODO: compat ioctl call not implemented!
+#define FM_PCD_IOC_HASH_TABLE_REMOVE_KEY_COMPAT _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_compat_fm_pcd_hash_table_remove_key_params_t)
+#endif
+#define FM_PCD_IOC_HASH_TABLE_REMOVE_KEY _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_fm_pcd_hash_table_remove_key_params_t)
+
 /**************************************************************************//**
  @Function      FM_PCD_IOC_PLCR_SET_PROFILE
 
@@ -1721,9 +2085,9 @@ typedef struct ioc_fm_pcd_stats_params_t {
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
-#define FM_PCD_IOC_PLCR_SET_PROFILE_COMPAT     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(37), ioc_compat_fm_pcd_plcr_profile_params_t)
+#define FM_PCD_IOC_PLCR_SET_PROFILE_COMPAT     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(41), ioc_compat_fm_pcd_plcr_profile_params_t)
 #endif
-#define FM_PCD_IOC_PLCR_SET_PROFILE     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(37), ioc_fm_pcd_plcr_profile_params_t)
+#define FM_PCD_IOC_PLCR_SET_PROFILE     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(41), ioc_fm_pcd_plcr_profile_params_t)
 
 /**************************************************************************//**
  @Function      FM_PCD_IOC_PLCR_DEL_PROFILE
@@ -1738,32 +2102,29 @@ typedef struct ioc_fm_pcd_stats_params_t {
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
-#define FM_PCD_IOC_PLCR_DEL_PROFILE_COMPAT  _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_compat_fm_obj_t)
+#define FM_PCD_IOC_PLCR_DEL_PROFILE_COMPAT  _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(42), ioc_compat_fm_obj_t)
 #endif
-#define FM_PCD_IOC_PLCR_DEL_PROFILE     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_fm_obj_t)
-
-
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+#define FM_PCD_IOC_PLCR_DEL_PROFILE     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(42), ioc_fm_obj_t)
 
 #if defined(CONFIG_COMPAT)
-#define FM_PCD_IOC_MANIP_SET_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_compat_fm_pcd_manip_params_t)
+#define FM_PCD_IOC_MANIP_SET_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(43), ioc_compat_fm_pcd_manip_params_t)
 #endif
-#define FM_PCD_IOC_MANIP_SET_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_fm_pcd_manip_params_t)
+#define FM_PCD_IOC_MANIP_SET_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(43), ioc_fm_pcd_manip_params_t)
 
 
 #if defined(CONFIG_COMPAT)
-#define FM_PCD_IOC_MANIP_DELETE_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_compat_fm_obj_t)
+#define FM_PCD_IOC_MANIP_DELETE_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(44), ioc_compat_fm_obj_t)
 #endif
-#define FM_PCD_IOC_MANIP_DELETE_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_fm_obj_t)
+#define FM_PCD_IOC_MANIP_DELETE_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(44), ioc_fm_obj_t)
 
-#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
+#define FM_PCD_IOC_SET_ADVANCED_OFFLOAD_SUPPORT _IO(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(45))
 
 #ifdef FM_CAPWAP_SUPPORT
 #warning "CAPWAP IOCTL not implemented"
 #if defined(CONFIG_COMPAT)
-#define FM_PCD_IOC_STATISTICS_SET_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), void *)
+#define FM_PCD_IOC_STATISTICS_SET_NODE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(45), void *)
 #endif
-#define FM_PCD_IOC_STATISTICS_SET_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), void *)
+#define FM_PCD_IOC_STATISTICS_SET_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(45), void *)
 
 #endif /* FM_CAPWAP_SUPPORT */
 

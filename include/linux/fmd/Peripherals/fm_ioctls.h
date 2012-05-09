@@ -103,14 +103,11 @@ typedef uint32_t    ioc_fm_port_frame_err_select_t;                     /**< typ
                 (must match enum e_FmPortType defined in fm_ext.h)
 *//***************************************************************************/
 typedef enum ioc_fm_port_type {
-    e_IOC_FM_PORT_TYPE_OFFLINE_PARSING, /**< Offline parsing port (id's: 0-6, share id's with
-                                             host command, so must have exclusive id) */
-    e_IOC_FM_PORT_TYPE_HOST_COMMAND,    /**< Host command port (id's: 0-6, share id's with
-                                             offline parsing ports, so must have exclusive id) */
-    e_IOC_FM_PORT_TYPE_RX,              /**< 1G Rx port (id's: 0-3) */
-    e_IOC_FM_PORT_TYPE_RX_10G,          /**< 10G Rx port (id's: 0) */
-    e_IOC_FM_PORT_TYPE_TX,              /**< 1G Tx port (id's: 0-3) */
-    e_IOC_FM_PORT_TYPE_TX_10G,          /**< 10G Tx port (id's: 0) */
+    e_IOC_FM_PORT_TYPE_OH_OFFLINE_PARSING = 0,  /**< Offline parsing port */
+    e_IOC_FM_PORT_TYPE_RX,                      /**< 1G Rx port */
+    e_IOC_FM_PORT_TYPE_RX_10G,                  /**< 10G Rx port */
+    e_IOC_FM_PORT_TYPE_TX,                      /**< 1G Tx port */
+    e_IOC_FM_PORT_TYPE_TX_10G,                  /**< 10G Tx port */
     e_IOC_FM_PORT_TYPE_DUMMY
 } ioc_fm_port_type;
 
@@ -136,23 +133,23 @@ typedef enum ioc_fm_port_type {
 *//***************************************************************************/
 typedef enum ioc_fm_exceptions {
     e_IOC_FM_EX_DMA_BUS_ERROR,              /**< DMA bus error. */
-    e_IOC_FM_EX_DMA_READ_ECC,               /**< Read Buffer ECC error */
-    e_IOC_FM_EX_DMA_SYSTEM_WRITE_ECC,       /**< Write Buffer ECC error on system side */
-    e_IOC_FM_EX_DMA_FM_WRITE_ECC,           /**< Write Buffer ECC error on FM side */
-    e_IOC_FM_EX_FPM_STALL_ON_TASKS ,        /**< Stall of tasks on FPM */
-    e_IOC_FM_EX_FPM_SINGLE_ECC,             /**< Single ECC on FPM. */
-    e_IOC_FM_EX_FPM_DOUBLE_ECC,             /**< Double ECC error on FPM ram access */
-    e_IOC_FM_EX_QMI_SINGLE_ECC,             /**< Single ECC on QMI. */
-    e_IOC_FM_EX_QMI_DOUBLE_ECC,             /**< Double bit ECC occured on QMI */
-    e_IOC_FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID,/**< Dequeu from unknown port id */
-    e_IOC_FM_EX_BMI_LIST_RAM_ECC,           /**< Linked List RAM ECC error */
-    e_IOC_FM_EX_BMI_PIPELINE_ECC,           /**< Pipeline Table ECC Error */
-    e_IOC_FM_EX_BMI_STATISTICS_RAM_ECC,     /**< Statistics Count RAM ECC Error Enable */
-    e_IOC_FM_EX_BMI_DISPATCH_RAM_ECC,       /**< Dispatch RAM ECC Error Enable */
-    e_IOC_FM_EX_IRAM_ECC,                   /**< Double bit ECC occured on IRAM*/
-    e_IOC_FM_EX_MURAM_ECC                   /**< Double bit ECC occured on MURAM*/
+    e_IOC_EX_DMA_READ_ECC,               /**< Read Buffer ECC error (Valid for FM rev < 6)*/
+    e_IOC_EX_DMA_SYSTEM_WRITE_ECC,       /**< Write Buffer ECC error on system side (Valid for FM rev < 6)*/
+    e_IOC_EX_DMA_FM_WRITE_ECC,           /**< Write Buffer ECC error on FM side (Valid for FM rev < 6)*/
+    e_IOC_EX_DMA_SINGLE_PORT_ECC,        /**< Single Port ECC error on FM side (Valid for FM rev > 6)*/
+    e_IOC_EX_FPM_STALL_ON_TASKS,         /**< Stall of tasks on FPM */
+    e_IOC_EX_FPM_SINGLE_ECC,             /**< Single ECC on FPM. */
+    e_IOC_EX_FPM_DOUBLE_ECC,             /**< Double ECC error on FPM ram access */
+    e_IOC_EX_QMI_SINGLE_ECC,             /**< Single ECC on QMI. */
+    e_IOC_EX_QMI_DOUBLE_ECC,             /**< Double bit ECC occurred on QMI */
+    e_IOC_EX_QMI_DEQ_FROM_UNKNOWN_PORTID,/**< Dequeue from unknown port id */
+    e_IOC_EX_BMI_LIST_RAM_ECC,           /**< Linked List RAM ECC error */
+    e_IOC_EX_BMI_STORAGE_PROFILE_ECC,    /**< Storage Profile ECC Error */
+    e_IOC_EX_BMI_STATISTICS_RAM_ECC,     /**< Statistics Count RAM ECC Error Enable */
+    e_IOC_EX_BMI_DISPATCH_RAM_ECC,       /**< Dispatch RAM ECC Error Enable */
+    e_IOC_EX_IRAM_ECC,                   /**< Double bit ECC occurred on IRAM*/
+    e_IOC_EX_MURAM_ECC                   /**< Double bit ECC occurred on MURAM*/
 } ioc_fm_exceptions;
-
 
 /**************************************************************************//**
  @Group         lnx_ioctl_FM_runtime_control_grp FM Runtime Control Unit
@@ -171,11 +168,11 @@ typedef enum ioc_fm_exceptions {
 /**************************************************************************//**
  @Collection   General FM defines.
  *//***************************************************************************/
-#define IOC_FM_MAX_NUM_OF_VALID_PORTS (FM_MAX_NUM_OF_OH_PORTS + \
-        FM_MAX_NUM_OF_1G_RX_PORTS +  \
-        FM_MAX_NUM_OF_10G_RX_PORTS + \
-        FM_MAX_NUM_OF_1G_TX_PORTS +  \
-        FM_MAX_NUM_OF_10G_TX_PORTS)
+#define IOC_FM_MAX_NUM_OF_VALID_PORTS  (FM_MAX_NUM_OF_OH_PORTS + \
+                                        FM_MAX_NUM_OF_1G_RX_PORTS +  \
+                                        FM_MAX_NUM_OF_10G_RX_PORTS + \
+                                        FM_MAX_NUM_OF_1G_TX_PORTS +  \
+                                        FM_MAX_NUM_OF_10G_TX_PORTS)
 /* @} */
 
 /**************************************************************************//**
@@ -185,7 +182,7 @@ typedef enum ioc_fm_exceptions {
 *//***************************************************************************/
 typedef struct ioc_fm_port_bandwidth_t {
     ioc_fm_port_type    type;           /**< FM port type */
-    uint8_t             relativePortId; /**< Type relative port id */
+    uint8_t             relative_port_id; /**< Type relative port id */
     uint8_t             bandwidth;      /**< bandwidth - (in term of percents) */
 } ioc_fm_port_bandwidth_t;
 
@@ -197,10 +194,9 @@ typedef struct ioc_fm_port_bandwidth_t {
                 (must be identical to t_FmPortsBandwidthParams defined in fm_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_port_bandwidth_params {
-    uint8_t                     numOfPorts;
+    uint8_t                     num_of_ports;
                                 /**< num of ports listed in the array below */
-/*TODO:Andy64 BUG*/
-    ioc_fm_port_bandwidth_t     portsBandwidths[IOC_FM_MAX_NUM_OF_VALID_PORTS];
+    ioc_fm_port_bandwidth_t     ports_bandwidths[IOC_FM_MAX_NUM_OF_VALID_PORTS];
                                 /**< for each port, it's bandwidth (all port's
                                   bandwidths must add up to 100.*/
 } ioc_fm_port_bandwidth_params;
@@ -219,9 +215,6 @@ typedef enum ioc_fm_counters {
     e_IOC_FM_COUNTERS_DEQ_FROM_CONTEXT,             /**< QMI dequeue from FQ context counter */
     e_IOC_FM_COUNTERS_DEQ_FROM_FD,                  /**< QMI dequeue from FD command field counter */
     e_IOC_FM_COUNTERS_DEQ_CONFIRM,                  /**< QMI dequeue confirm counter */
-    e_IOC_FM_COUNTERS_SEMAPHOR_ENTRY_FULL_REJECT,   /**< DMA semaphor reject due to full entry counter */
-    e_IOC_FM_COUNTERS_SEMAPHOR_QUEUE_FULL_REJECT,   /**< DMA semaphor reject due to full CAM queue counter */
-    e_IOC_FM_COUNTERS_SEMAPHOR_SYNC_REJECT          /**< DMA semaphor reject due to sync counter */
 } ioc_fm_counters;
 
 typedef struct ioc_fm_obj_t {

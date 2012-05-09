@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -127,7 +127,7 @@ struct fm_port_non_rx_params {
     bool                    hash_results;       /**< Whether to have the hash-results in the Received buffer */
     bool                    time_stamp;         /**< Whether to have the time-stamp in the Received buffer */
     bool                    frag_enable;        /**< Whether to call extra config functions for OH, to enable fragmentation */
-    t_FmPortExtPools        op_ext_pools;       /**< External Buffer Pool params for OH port only */
+    t_FmExtPools            op_ext_pools;       /**< External Buffer Pool params for OH port only */
 };
 
 

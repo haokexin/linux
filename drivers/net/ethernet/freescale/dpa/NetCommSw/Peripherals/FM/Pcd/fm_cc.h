@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -129,7 +129,7 @@
 #define FM_PCD_CC_AD_TABLE_ALIGN            16
 #define FM_PCD_CC_AD_ENTRY_SIZE             16
 #define FM_PCD_CC_NUM_OF_KEYS               255
-#define FM_PCD_CC_TREE_ADDR_ALIGN           256
+#define FM_PCD_CC_TREE_ADDR_ALIGN			256
 
 #define FM_PCD_AD_RESULT_CONTRL_FLOW_TYPE   0x00000000
 #define FM_PCD_AD_RESULT_DATA_FLOW_TYPE     0x80000000
@@ -164,84 +164,102 @@ typedef uint32_t ccPrivateInfo_t; /**< private info of CC: */
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
-typedef _Packed struct {
+typedef _Packed struct
+{
     volatile uint32_t fqid;
     volatile uint32_t plcrProfile;
     volatile uint32_t nia;
     volatile uint32_t res;
 } _PackedType t_AdOfTypeResult;
 
-typedef _Packed struct {
+typedef _Packed struct
+{
     volatile uint32_t ccAdBase;
     volatile uint32_t matchTblPtr;
     volatile uint32_t pcAndOffsets;
     volatile uint32_t gmask;
 } _PackedType t_AdOfTypeContLookup;
 
-typedef _Packed union {
+typedef _Packed union
+{
     volatile t_AdOfTypeResult        adResult;
     volatile t_AdOfTypeContLookup    adContLookup;
 } _PackedType t_Ad;
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
 
 
 /***********************************************************************/
-/*  Driver's internal structures                                        */
+/*  Driver's internal structures                                       */
 /***********************************************************************/
 
-typedef enum e_ModifyState {
+typedef enum e_ModifyState
+{
     e_MODIFY_STATE_ADD = 0,
     e_MODIFY_STATE_REMOVE,
     e_MODIFY_STATE_CHANGE
 } e_ModifyState;
 
-typedef struct {
+typedef struct
+{
+    uint8_t                     key[FM_PCD_MAX_SIZE_OF_KEY];
+    uint8_t                     mask[FM_PCD_MAX_SIZE_OF_KEY];
+
     t_FmPcdCcNextEngineParams   nextEngineParams;
     uint32_t                    requiredAction;
     uint32_t                    shadowAction;
-} t_FmPcdCcNextEngineAndRequiredActionParams;
+} t_FmPcdCcKeyAndNextEngineParams;
 
-typedef struct {
-    t_Handle         p_Ad;
-    e_FmPcdEngine    fmPcdEngine;
-    bool             adAllocated;
-    bool             isTree;
+typedef struct
+{
+    t_Handle        p_Ad;
+    e_FmPcdEngine   fmPcdEngine;
+    bool            adAllocated;
+    bool            isTree;
 
-    uint32_t    myInfo;
-    t_List      *h_CcNextNodesLst;
-    t_Handle    h_AdditionalInfo;
-    t_Handle    h_Node;
+    uint32_t        myInfo;
+    t_List          *h_CcNextNodesLst;
+    t_Handle        h_AdditionalInfo;
+    t_Handle        h_Node;
 } t_FmPcdModifyCcAdditionalParams;
 
-typedef struct {
-    t_Handle p_AdTableNew;
-    t_Handle p_KeysMatchTableNew;
-    t_Handle p_AdTableOld;
-    t_Handle p_KeysMatchTableOld;
-    uint16_t numOfKeys;
-    t_Handle h_CurrentNode;
-    uint16_t keyIndex;
-    t_Handle h_NodeForAdd;
-    t_Handle h_NodeForRmv;
-    t_Handle h_ManipForRmv;
-    bool     tree;
+typedef struct
+{
+    t_Handle    p_AdTableNew;
+    t_Handle    p_KeysMatchTableNew;
+    t_Handle    p_AdTableOld;
+    t_Handle    p_KeysMatchTableOld;
+    uint16_t    numOfKeys;
+    t_Handle    h_CurrentNode;
+    uint16_t    savedKeyIndex;
+    t_Handle    h_NodeForAdd;
+    t_Handle    h_NodeForRmv;
+    t_Handle    h_ManipForRmv;
+#if DPAA_VERSION >= 3
+    t_Handle    h_FrmReplicForRmv;
+#endif /* DPAA_VERSION >= 3 */
+    bool        tree;
 
-    t_FmPcdCcNextEngineAndRequiredActionParams nextEngineAndRequiredAction[256];
+    t_FmPcdCcKeyAndNextEngineParams  keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
 } t_FmPcdModifyCcKeyAdditionalParams;
 
-typedef struct {
-    t_Handle h_Manip;
-    t_Handle h_CcNode;
+typedef struct
+{
+    t_Handle    h_Manip;
+    t_Handle    h_CcNode;
 } t_CcNextEngineInfo;
 
-typedef struct {
+typedef struct
+{
     uint16_t    numOfKeys;
+    uint16_t    maxNumOfKeys;
+
+    bool        maskSupport;
+    uint32_t    keysMatchTableMaxSize;
+
     bool        glblMaskUpdated;
     t_Handle    p_GlblMask;
     bool        lclMask;
@@ -257,6 +275,7 @@ typedef struct {
 
     t_Handle    h_KeysMatchTable;
     t_Handle    h_AdTable;
+    t_Handle    h_Ad;
 
     t_List      ccPrevNodesLst;
 
@@ -269,47 +288,49 @@ typedef struct {
     uint8_t     userSizeOfExtraction;
     uint8_t     userOffset;
 
-    t_FmPcdCcNextEngineAndRequiredActionParams nextEngineAndRequiredAction[256];
+    t_FmPcdCcKeyAndNextEngineParams keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
 } t_FmPcdCcNode;
 
-typedef struct {
+typedef struct
+{
     t_FmPcdCcNode       *p_FmPcdCcNode;
     bool                occupied;
     uint8_t             owners;
     volatile bool       lock;
 } t_FmPcdCcNodeArray;
 
-typedef struct {
+typedef struct
+{
     uint8_t             numOfEntriesInGroup;
     uint32_t            totalBitsMask;
     uint8_t             baseGroupEntry;
 } t_FmPcdCcGroupParam;
 
-typedef struct {
+typedef struct
+{
+    t_Handle            h_FmPcd;
     uint8_t             netEnvId;
     uintptr_t           ccTreeBaseAddr;
     uint8_t             numOfGrps;
     t_FmPcdCcGroupParam fmPcdGroupParam[FM_PCD_MAX_NUM_OF_CC_GROUPS];
     t_List              fmPortsLst;
     volatile bool       lock;
+    t_Handle            h_Spinlock;
     uint8_t             numOfEntries;
     uint8_t             owners;
-    t_Handle            *fmPcdCcSavedManipParams[256];
+    t_Handle            h_FmPcdCcSavedManipParams;
     bool                modifiedState;
     uint32_t            requiredAction;
-    t_FmPcdCcNextEngineAndRequiredActionParams nextEngineAndRequiredAction[FM_PCD_MAX_NUM_OF_KEYS];
     t_Handle            h_IpReassemblyManip;
+
+    t_FmPcdCcKeyAndNextEngineParams keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
 } t_FmPcdCcTree;
 
-typedef struct {
-    t_FmPcdCcTree       *p_FmPcdCcTree;
-    bool                occupied;
-    uint8_t             owners;
-    volatile bool       lock;
-} t_FmPcdCcTreeArray;
 
-
-bool FmPcdManipIsManipNode(t_Handle h_Ad);
+bool        FmPcdManipIsManipNode(t_Handle h_Ad);
+t_Error     FmPcdCcNodeTreeTryLock(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_List *p_List);
+void        FmPcdCcNodeTreeReleaseLock(t_List *p_List);
+t_Error     FmPcdUpdateCcShadow (t_FmPcd *p_FmPcd, uint32_t size, uint32_t align);
 
 
 #endif /* __FM_CC_H */

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -59,6 +59,8 @@
  @{
 *//***************************************************************************/
 
+#define FM_MAC_NO_PFC   0xffff
+
 
 /**************************************************************************//**
  @Description   FM MAC Exceptions
@@ -105,10 +107,25 @@ typedef enum e_FmMacExceptions {
 *//***************************************************************************/
 typedef enum e_FmMacStatisticsLevel {
     e_FM_MAC_NONE_STATISTICS = 0,       /**< No statistics */
-    e_FM_MAC_PARTIAL_STATISTICS,        /**< Only error counters are available. Optimized for performance */
-    e_FM_MAC_FULL_STATISTICS            /**< All counters available. Not optimized for performance */
+    e_FM_MAC_PARTIAL_STATISTICS,        /**< Only error counters are available; Optimized for performance */
+    e_FM_MAC_FULL_STATISTICS            /**< All counters available; Not optimized for performance */
 } e_FmMacStatisticsLevel;
 
+
+#if DPAA_VERSION >= 3
+/**************************************************************************//**
+ @Description   Priority Flow Control Parameters
+*//***************************************************************************/
+typedef struct t_FmMacPfcParams {
+    bool        pfcEnable;                                      /**< Enable/Disable PFC */
+
+    uint16_t    pauseQuanta[FM_MAX_NUM_OF_PFC_PRIORITIES];      /**< Pause Quanta per priority to be sent in a pause frame. Each quanta represents a 512 bit-times*/
+
+    uint16_t    pauseThresholdQuanta[FM_MAX_NUM_OF_PFC_PRIORITIES];/**< Pause threshold per priority, when timer passes this threshold time a PFC frames is sent again if the port is still congested or BM pool in depletion*/
+
+
+} t_FmMacPfcParams;
+#endif /* DPAA_VERSION >= 3 */
 
 /**************************************************************************//**
  @Function      t_FmMacExceptionCallback
@@ -118,7 +135,6 @@ typedef enum e_FmMacStatisticsLevel {
  @Param[in]     h_App             - Handle to the upper layer handler
 
  @Param[in]     exceptions        - The exception that occurred
-
 
  @Return        void.
 *//***************************************************************************/
@@ -140,14 +156,15 @@ typedef struct t_FmMacStatistics {
 /* */
     uint64_t  eStatFragments;          /**< Total number of packets that were less than 64 octets long with a wrong CRC.*/
     uint64_t  eStatJabbers;            /**< Total number of packets longer than valid maximum length octets */
-    uint64_t  eStatsDropEvents;        /**< number of dropped packets due to internal errors of the MAC Client. */
+    uint64_t  eStatsDropEvents;        /**< number of dropped packets due to internal errors of the MAC Client (during recieve). */
     uint64_t  eStatCRCAlignErrors;     /**< Incremented when frames of correct length but with CRC error are received.*/
-    uint64_t  eStatUndersizePkts;      /**< Total number of packets that were less than 64 octets long with a good CRC.*/
-    uint64_t  eStatOversizePkts;       /**< T,B.D*/
+    uint64_t  eStatUndersizePkts;      /**< Incremented for frames under 64 bytes with a valid FCS and otherwise well formed;
+                                            This count does not include range length errors */
+    uint64_t  eStatOversizePkts;       /**< Incremented for frames which exceed 1518 (non VLAN) or 1522 (VLAN) and contains
+                                            a valid FCS and otherwise well formed */
 /* Pause */
     uint64_t  teStatPause;             /**< Pause MAC Control received */
     uint64_t  reStatPause;             /**< Pause MAC Control sent */
-
 /* MIB II */
     uint64_t  ifInOctets;              /**< Total number of byte received. */
     uint64_t  ifInPkts;                /**< Total number of packets received.*/
@@ -173,7 +190,7 @@ typedef struct t_FmMacStatistics {
 
 
 /**************************************************************************//**
- @Group         FM_mac_init_grp Initialization Unit
+ @Group         FM_mac_init_grp FM MAC Initialization Unit
 
  @Description   FM MAC Initialization Unit
 
@@ -215,7 +232,7 @@ typedef struct t_FmMacParams {
 
  @Retval        Handle to FM MAC object, or NULL for Failure.
 *//***************************************************************************/
-t_Handle FM_MAC_Config (t_FmMacParams *p_FmMacParam);
+t_Handle FM_MAC_Config(t_FmMacParams *p_FmMacParam);
 
 /**************************************************************************//**
  @Function      FM_MAC_Init
@@ -226,7 +243,7 @@ t_Handle FM_MAC_Config (t_FmMacParams *p_FmMacParam);
 
  @Return        E_OK on success; Error code otherwise.
 *//***************************************************************************/
-t_Error  FM_MAC_Init (t_Handle h_FmMac);
+t_Error  FM_MAC_Init(t_Handle h_FmMac);
 
 /**************************************************************************//**
  @Function      FM_Free
@@ -239,11 +256,11 @@ t_Error  FM_MAC_Init (t_Handle h_FmMac);
 
  @Return        E_OK on success; Error code otherwise.
 *//***************************************************************************/
-t_Error  FM_MAC_Free (t_Handle h_FmMac);
+t_Error  FM_MAC_Free(t_Handle h_FmMac);
 
 
 /**************************************************************************//**
- @Group         FM_mac_advanced_init_grp    Advanced Configuration Unit
+ @Group         FM_mac_advanced_init_grp    FM MAC Advanced Configuration Unit
 
  @Description   Configuration functions used to change default values.
 
@@ -263,7 +280,7 @@ t_Error  FM_MAC_Free (t_Handle h_FmMac);
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ConfigResetOnInit (t_Handle h_FmMac, bool enable);
+t_Error FM_MAC_ConfigResetOnInit(t_Handle h_FmMac, bool enable);
 
 /**************************************************************************//**
  @Function      FM_MAC_ConfigLoopback
@@ -277,7 +294,7 @@ t_Error FM_MAC_ConfigResetOnInit (t_Handle h_FmMac, bool enable);
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ConfigLoopback (t_Handle h_FmMac, bool enable);
+t_Error FM_MAC_ConfigLoopback(t_Handle h_FmMac, bool enable);
 
 /**************************************************************************//**
  @Function      FM_MAC_ConfigMaxFrameLength
@@ -291,7 +308,7 @@ t_Error FM_MAC_ConfigLoopback (t_Handle h_FmMac, bool enable);
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ConfigMaxFrameLength (t_Handle h_FmMac, uint16_t newVal);
+t_Error FM_MAC_ConfigMaxFrameLength(t_Handle h_FmMac, uint16_t newVal);
 
 /**************************************************************************//**
  @Function      FM_MAC_ConfigWan
@@ -305,7 +322,7 @@ t_Error FM_MAC_ConfigMaxFrameLength (t_Handle h_FmMac, uint16_t newVal);
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ConfigWan (t_Handle h_FmMac, bool enable);
+t_Error FM_MAC_ConfigWan(t_Handle h_FmMac, bool enable);
 
 /**************************************************************************//**
  @Function      FM_MAC_ConfigPadAndCrc
@@ -319,7 +336,7 @@ t_Error FM_MAC_ConfigWan (t_Handle h_FmMac, bool enable);
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ConfigPadAndCrc (t_Handle h_FmMac, bool enable);
+t_Error FM_MAC_ConfigPadAndCrc(t_Handle h_FmMac, bool enable);
 
 /**************************************************************************//**
  @Function      FM_MAC_ConfigHalfDuplex
@@ -333,7 +350,21 @@ t_Error FM_MAC_ConfigPadAndCrc (t_Handle h_FmMac, bool enable);
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ConfigHalfDuplex (t_Handle h_FmMac, bool enable);
+t_Error FM_MAC_ConfigHalfDuplex(t_Handle h_FmMac, bool enable);
+
+/**************************************************************************//**
+ @Function      FM_MAC_ConfigTbiPhyAddr
+
+ @Description   Configures the address of internal TBI PHY.
+
+ @Param[in]     h_FmMac    A handle to a FM MAC Module.
+ @Param[in]     newVal     TBI PHY address (1-31).
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
+*//***************************************************************************/
+t_Error FM_MAC_ConfigTbiPhyAddr(t_Handle h_FmMac, uint8_t newVal);
 
 /**************************************************************************//**
  @Function      FM_MAC_ConfigLengthCheck
@@ -347,7 +378,7 @@ t_Error FM_MAC_ConfigHalfDuplex (t_Handle h_FmMac, bool enable);
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ConfigLengthCheck (t_Handle h_FmMac, bool enable);
+t_Error FM_MAC_ConfigLengthCheck(t_Handle h_FmMac, bool enable);
 
 /**************************************************************************//**
  @Function      FM_MAC_ConfigException
@@ -372,7 +403,7 @@ t_Error FM_MAC_ConfigSkipFman11Workaround (t_Handle h_FmMac);
 
 
 /**************************************************************************//**
- @Group         FM_mac_runtime_control_grp Runtime Control Unit
+ @Group         FM_mac_runtime_control_grp FM MAC Runtime Control Unit
 
  @Description   FM MAC Runtime control unit API functions, definitions and enums.
 
@@ -391,7 +422,7 @@ t_Error FM_MAC_ConfigSkipFman11Workaround (t_Handle h_FmMac);
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_Enable  (t_Handle h_FmMac,  e_CommMode mode);
+t_Error FM_MAC_Enable(t_Handle h_FmMac,  e_CommMode mode);
 
 /**************************************************************************//**
  @Function      FM_MAC_Disable
@@ -405,7 +436,7 @@ t_Error FM_MAC_Enable  (t_Handle h_FmMac,  e_CommMode mode);
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_Disable (t_Handle h_FmMac, e_CommMode mode);
+t_Error FM_MAC_Disable(t_Handle h_FmMac, e_CommMode mode);
 
 /**************************************************************************//**
  @Function      FM_MAC_Enable1588TimeStamp
@@ -436,56 +467,66 @@ t_Error FM_MAC_Disable1588TimeStamp(t_Handle h_Fm);
 /**************************************************************************//**
  @Function      FM_MAC_SetTxAutoPauseFrames
 
- @Description   Enable/Disable transmition of Pause-Frames.
+ @Description   Enable/Disable transmission of Pause-Frames.
+                The routine will ct changes the default configuration [0xf000].
 
- @Param[in]     h_FmMac     A handle to a FM MAC Module.
- @Param[in]     pauseTime   Pause quanta value used with transmitted pause frames.
-                            Each quanta represents a 512 bit-times; Note that '0'
-                            as an input here will be used as disabling the
-                            transmission of the pause-frames.
+ @Param[in]     h_FmMac       -  A handle to a FM MAC Module.
+ @Param[in]     priority      -  the PFC class of service; use 'FM_MAC_NO_PFC'
+                                 to indicate legacy pause support (i.e. no PFC).
+ @Param[in]     pauseTime     -  Pause quanta value used with transmitted pause frames.
+                                 Each quanta represents a 512 bit-times;
+                                 Note that '0' as an input here will be used as disabling the
+                                 transmission of the pause-frames.
+ @Param[in]     threshTime    -  Pause Threshold equanta value used by the MAC to retransmit pause frame.
+                                 if the situation causing a pause frame to be sent didn't finish when the timer
+                                 reached the threshold quanta, the MAC will retransmit the pause frame.
+                                 Each quanta represents a 512 bit-times.
 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_SetTxAutoPauseFrames (t_Handle h_FmMac, uint16_t pauseTime);
+t_Error FM_MAC_SetTxAutoPauseFrames(t_Handle h_FmMac,
+                                    uint8_t  priority,
+                                    uint16_t pauseTime,
+                                    uint16_t threshTime);
 
 /**************************************************************************//**
  @Function      FM_MAC_SetRxIgnorePauseFrames
 
  @Description   Enable/Disable ignoring of Pause-Frames.
 
- @Param[in]     h_FmMac     A handle to a FM MAC Module.
- @Param[in]     en          boolean indicates whether to ignore the incoming pause
-                            frames or not.
+ @Param[in]     h_FmMac    - A handle to a FM MAC Module.
+ @Param[in]     en         - boolean indicates whether to ignore the incoming pause
+                             frames or not.
 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_SetRxIgnorePauseFrames (t_Handle h_FmMac, bool en);
+t_Error FM_MAC_SetRxIgnorePauseFrames(t_Handle h_FmMac, bool en);
 
 /**************************************************************************//**
  @Function      FM_MAC_ResetCounters
 
  @Description   reset all statistics counters
 
- @Param[in]     h_FmMac     A handle to a FM MAC Module.
+ @Param[in]     h_FmMac    - A handle to a FM MAC Module.
 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ResetCounters (t_Handle h_FmMac);
+t_Error FM_MAC_ResetCounters(t_Handle h_FmMac);
 
 /**************************************************************************//**
  @Function      FM_MAC_SetException
 
  @Description   Enable/Disable a specific Exception
 
- @Param[in]     h_FmMac         A handle to a FM MAC Module.
- @Param[in]     ex              Type of the desired exceptions
- @Param[in]     enable          TRUE to enable the specified exception, FALSE to disable it.
+ @Param[in]     h_FmMac        - A handle to a FM MAC Module.
+ @Param[in]     ex             - Type of the desired exceptions
+ @Param[in]     enable         - TRUE to enable the specified exception, FALSE to disable it.
 
 
  @Return        E_OK on success; Error code otherwise.
@@ -502,31 +543,31 @@ t_Error FM_MAC_SetException(t_Handle h_FmMac, e_FmMacExceptions ex, bool enable)
                 overflow interrupt in order to keep counters accurate
                 and account for overflows.
 
- @Param[in]     h_FmMac         A handle to a FM MAC Module.
- @Param[in]     statisticsLevel Full statistics level provides all standard counters but may
-                                reduce performance. Partial statistics provides only special
-                                event counters (errors etc.). If selected, regular counters (such as
-                                byte/packet) will be invalid and will return -1.
+ @Param[in]     h_FmMac         - A handle to a FM MAC Module.
+ @Param[in]     statisticsLevel - Full statistics level provides all standard counters but may
+                                  reduce performance. Partial statistics provides only special
+                                  event counters (errors etc.). If selected, regular counters (such as
+                                  byte/packet) will be invalid and will return -1.
 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_SetStatistics (t_Handle h_FmMac, e_FmMacStatisticsLevel statisticsLevel);
+t_Error FM_MAC_SetStatistics(t_Handle h_FmMac, e_FmMacStatisticsLevel statisticsLevel);
 
 /**************************************************************************//**
  @Function      FM_MAC_GetStatistics
 
  @Description   get all statistics counters
 
- @Param[in]     h_FmMac         A handle to a FM MAC Module.
- @Param[in]     p_Statistics    Staructure with statistics
+ @Param[in]     h_FmMac       -  A handle to a FM MAC Module.
+ @Param[in]     p_Statistics  -  Staructure with statistics
 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Init().
 *//***************************************************************************/
-t_Error FM_MAC_GetStatistics (t_Handle h_FmMac, t_FmMacStatistics *p_Statistics);
+t_Error FM_MAC_GetStatistics(t_Handle h_FmMac, t_FmMacStatistics *p_Statistics);
 
 /**************************************************************************//**
  @Function      FM_MAC_ModifyMacAddr
@@ -540,7 +581,7 @@ t_Error FM_MAC_GetStatistics (t_Handle h_FmMac, t_FmMacStatistics *p_Statistics)
 
  @Cautions      Allowed only after FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_ModifyMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
+t_Error FM_MAC_ModifyMacAddr(t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
 /**************************************************************************//**
  @Function      FM_MAC_AddHashMacAddr
@@ -555,7 +596,7 @@ t_Error FM_MAC_ModifyMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
  @Cautions      Allowed only following FM_MAC_Init(). It is a filter only address.
  @Cautions      Some address need to be filterd out in upper FM blocks.
 *//***************************************************************************/
-t_Error FM_MAC_AddHashMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
+t_Error FM_MAC_AddHashMacAddr(t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
 /**************************************************************************//**
  @Function      FM_MAC_RemoveHashMacAddr
@@ -569,7 +610,7 @@ t_Error FM_MAC_AddHashMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_RemoveHashMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
+t_Error FM_MAC_RemoveHashMacAddr(t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
 /**************************************************************************//**
  @Function      FM_MAC_AddExactMatchMacAddr
@@ -584,7 +625,7 @@ t_Error FM_MAC_RemoveHashMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
  @Cautions      Allowed only after FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_AddExactMatchMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
+t_Error FM_MAC_AddExactMatchMacAddr(t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
 /**************************************************************************//**
  @Function      FM_MAC_RemovelExactMatchMacAddr
@@ -598,7 +639,7 @@ t_Error FM_MAC_AddExactMatchMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
  @Cautions      Allowed only after FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_RemovelExactMatchMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
+t_Error FM_MAC_RemovelExactMatchMacAddr(t_Handle h_FmMac, t_EnetAddr *p_EnetAddr);
 
 /**************************************************************************//**
  @Function      FM_MAC_SetPromiscuous
@@ -612,7 +653,7 @@ t_Error FM_MAC_RemovelExactMatchMacAddr (t_Handle h_FmMac, t_EnetAddr *p_EnetAdd
 
  @Cautions      Allowed only after FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_SetPromiscuous (t_Handle h_FmMac, bool enable);
+t_Error FM_MAC_SetPromiscuous(t_Handle h_FmMac, bool enable);
 
 /**************************************************************************//**
  @Function      FM_MAC_AdjustLink
@@ -640,7 +681,7 @@ t_Error FM_MAC_AdjustLink(t_Handle h_FmMac, e_EnetSpeed speed, bool fullDuplex);
 
  @Cautions      Allowed only after FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_GetId (t_Handle h_FmMac, uint32_t *p_MacId);
+t_Error FM_MAC_GetId(t_Handle h_FmMac, uint32_t *p_MacId);
 
 /**************************************************************************//**
  @Function      FM_MAC_GetVesrion
@@ -654,7 +695,7 @@ t_Error FM_MAC_GetId (t_Handle h_FmMac, uint32_t *p_MacId);
 
  @Cautions      Allowed only after FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_GetVesrion (t_Handle h_FmMac, uint32_t *p_MacVresion);
+t_Error FM_MAC_GetVesrion(t_Handle h_FmMac, uint32_t *p_MacVresion);
 
 /**************************************************************************//**
  @Function      FM_MAC_MII_WritePhyReg
@@ -670,7 +711,7 @@ t_Error FM_MAC_GetVesrion (t_Handle h_FmMac, uint32_t *p_MacVresion);
 
  @Cautions      Allowed only after FM_MAC_Init().
 *//***************************************************************************/
-t_Error FM_MAC_MII_WritePhyReg (t_Handle h_FmMac, uint8_t phyAddr, uint8_t reg, uint16_t data);
+t_Error FM_MAC_MII_WritePhyReg(t_Handle h_FmMac, uint8_t phyAddr, uint8_t reg, uint16_t data);
 
 /**************************************************************************//**
  @Function      FM_MAC_MII_ReadPhyReg
@@ -715,5 +756,6 @@ void DtsecRestartTbiAN(t_Handle h_Dtsec);
 /** @} */ /* end of FM_mac_runtime_control_grp group */
 /** @} */ /* end of FM_mac_grp group */
 /** @} */ /* end of FM_grp group */
+
 
 #endif /* __FM_MAC_EXT_H */

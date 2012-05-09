@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,8 +29,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/*
 
+/*
  @File          lnxwrp_sysfs_fm_port.c
 
  @Description   FM port sysfs related functions.
@@ -309,13 +309,14 @@ int fm_port_sysfs_create(struct device *dev)
 		    (&dev->kobj, &fm_rx_port_dev_stats_attr_grp) != 0)
 			return -EIO;
 		break;
+	/* TODO:FMD16 e_FM_PORT_TYPE_DUMMY is accutally a HC port.
+	 * NetCommSw defined this way... no idea why!!! */
+	case e_FM_PORT_TYPE_DUMMY:
 	case e_FM_PORT_TYPE_OH_OFFLINE_PARSING:
-	case e_FM_PORT_TYPE_OH_HOST_COMMAND:
 		if (sysfs_create_group
 		    (&dev->kobj, &fm_oh_port_dev_stats_attr_grp) != 0)
 			return -EIO;
 		break;
-	case e_FM_PORT_TYPE_DUMMY:
 	default:
 		WARN(1, "FMD: failure at %s:%d/%s()!\n", __FILE__, __LINE__,
 		     __func__);
@@ -349,11 +350,12 @@ void fm_port_sysfs_destroy(struct device *dev)
 	case e_FM_PORT_TYPE_RX_10G:
 		sysfs_remove_group(&dev->kobj, &fm_rx_port_dev_stats_attr_grp);
 		break;
+	/* TODO:FMD16 e_FM_PORT_TYPE_DUMMY is accutally a HC port.
+	 * NetCommSw defined this way... no idea why!!! */
+	case e_FM_PORT_TYPE_DUMMY:
 	case e_FM_PORT_TYPE_OH_OFFLINE_PARSING:
-	case e_FM_PORT_TYPE_OH_HOST_COMMAND:
 		sysfs_remove_group(&dev->kobj, &fm_oh_port_dev_stats_attr_grp);
 		break;
-	case e_FM_PORT_TYPE_DUMMY:
 	default:
 		WARN(1, "FMD: failure at %s:%d/%s()!\n", __FILE__, __LINE__,
 		     __func__);

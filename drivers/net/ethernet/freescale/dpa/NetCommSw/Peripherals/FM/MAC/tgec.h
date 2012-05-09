@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -207,7 +207,6 @@
 #define MAX_RETRANSMISSION          0x0f
 #define MAX_COLLISION_WINDOW        0x03ff
 
-
 #define TGEC_NUM_OF_PADDRS          1                   /* number of pattern match registers (entries) */
 
 #define GROUP_ADDRESS               0x0000010000000000LL /* Group address bit indication */
@@ -313,11 +312,9 @@
 #define TX_IPG_LENGTH_MASK          0x000003ff
 
 
-
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 /*
  * 10G memory map
@@ -352,46 +349,80 @@ typedef _Packed struct {
     volatile uint32_t   ievent;             /* 0x064 IEVENT - Interrupt event register */
     volatile uint32_t   udp_port;           /* 0x068 Defines a UDP Port number. When an UDP/IP frame is received with a matching UDP destination port, the receive status indication pin ff_rx_ts_frm will be asserted.*/
     volatile uint32_t   type_1588v2;        /* 0x06c Type field for 1588v2 layer 2 frames. IEEE1588 defines the type 0x88f7 for 1588 frames. */
-    volatile uint32_t   TENGEC_RESERVED4[4];
-/*10Ge Statistics Counter */
-    volatile uint64_t   TFRM;        /* 80 aFramesTransmittedOK */
-    volatile uint64_t   RFRM;        /* 88 aFramesReceivedOK */
-    volatile uint64_t   RFCS;        /* 90 aFrameCheckSequenceErrors */
-    volatile uint64_t   RALN;        /* 98 aAlignmentErrors */
-    volatile uint64_t   TXPF;        /* A0 aPAUSEMACCtrlFramesTransmitted */
-    volatile uint64_t   RXPF;        /* A8 aPAUSEMACCtrlFramesReceived */
-    volatile uint64_t   RLONG;       /* B0 aFrameTooLongErrors */
-    volatile uint64_t   RFLR;        /* B8 aInRangeLengthErrors */
-    volatile uint64_t   TVLAN;       /* C0 VLANTransmittedOK */
-    volatile uint64_t   RVLAN;       /* C8 VLANReceivedOK */
-    volatile uint64_t   TOCT;        /* D0 ifOutOctets */
-    volatile uint64_t   ROCT;        /* D8 ifInOctets */
-    volatile uint64_t   RUCA;        /* E0 ifInUcastPkts */
-    volatile uint64_t   RMCA;        /* E8 ifInMulticastPkts */
-    volatile uint64_t   RBCA;        /* F0 ifInBroadcastPkts */
-    volatile uint64_t   TERR;        /* F8 ifOutErrors */
-    volatile uint32_t   TENGEC_RESERVED6[2];
-    volatile uint64_t   TUCA;        /* 108 ifOutUcastPkts */
-    volatile uint64_t   TMCA;        /* 110 ifOutMulticastPkts */
-    volatile uint64_t   TBCA;        /* 118 ifOutBroadcastPkts */
-    volatile uint64_t   RDRP;        /* 120 etherStatsDropEvents */
-    volatile uint64_t   REOCT;       /* 128 etherStatsOctets */
-    volatile uint64_t   RPKT;        /* 130 etherStatsPkts */
-    volatile uint64_t   TRUND;       /* 138 etherStatsUndersizePkts */
-    volatile uint64_t   R64;         /* 140 etherStatsPkts64Octets */
-    volatile uint64_t   R127;        /* 148 etherStatsPkts65to127Octets */
-    volatile uint64_t   R255;        /* 150 etherStatsPkts128to255Octets */
-    volatile uint64_t   R511;        /* 158 etherStatsPkts256to511Octets */
-    volatile uint64_t   R1023;       /* 160 etherStatsPkts512to1023Octets */
-    volatile uint64_t   R1518;       /* 168 etherStatsPkts1024to1518Octets */
-    volatile uint64_t   R1519X;      /* 170 etherStatsPkts1519toX */
-    volatile uint64_t   TROVR;       /* 178 etherStatsOversizePkts */
-    volatile uint64_t   TRJBR;       /* 180 etherStatsJabbers */
-    volatile uint64_t   TRFRG;       /* 188 etherStatsFragments */
-    volatile uint64_t   RERR;        /* 190 ifInErrors */
+    volatile uint32_t   reserved1[4];       /* */
+
+    /*10Ge Statistics Counter */
+    volatile uint32_t   tfrm_u;      /* 80 aFramesTransmittedOK */
+    volatile uint32_t   tfrm_l;      /* 84 aFramesTransmittedOK */
+    volatile uint32_t   rfrm_u;      /* 88 aFramesReceivedOK */
+    volatile uint32_t   rfrm_l;      /* 8c aFramesReceivedOK */
+    volatile uint32_t   rfcs_u;      /* 90 aFrameCheckSequenceErrors */
+    volatile uint32_t   rfcs_l;      /* 94 aFrameCheckSequenceErrors */
+    volatile uint32_t   raln_u;      /* 98 aAlignmentErrors */
+    volatile uint32_t   raln_l;      /* 9c aAlignmentErrors */
+    volatile uint32_t   txpf_u;      /* A0 aPAUSEMACCtrlFramesTransmitted */
+    volatile uint32_t   txpf_l;      /* A4 aPAUSEMACCtrlFramesTransmitted */
+    volatile uint32_t   rxpf_u;      /* A8 aPAUSEMACCtrlFramesReceived */
+    volatile uint32_t   rxpf_l;      /* Ac aPAUSEMACCtrlFramesReceived */
+    volatile uint32_t   rlong_u;     /* B0 aFrameTooLongErrors */
+    volatile uint32_t   rlong_l;     /* B4 aFrameTooLongErrors */
+    volatile uint32_t   rflr_u;      /* B8 aInRangeLengthErrors */
+    volatile uint32_t   rflr_l;      /* Bc aInRangeLengthErrors */
+    volatile uint32_t   tvlan_u;     /* C0 VLANTransmittedOK */
+    volatile uint32_t   tvlan_l;     /* C4 VLANTransmittedOK */
+    volatile uint32_t   rvlan_u;     /* C8 VLANReceivedOK */
+    volatile uint32_t   rvlan_l;     /* Cc VLANReceivedOK */
+    volatile uint32_t   toct_u;      /* D0 ifOutOctets */
+    volatile uint32_t   toct_l;      /* D4 ifOutOctets */
+    volatile uint32_t   roct_u;      /* D8 ifInOctets */
+    volatile uint32_t   roct_l;      /* Dc ifInOctets */
+    volatile uint32_t   ruca_u;      /* E0 ifInUcastPkts */
+    volatile uint32_t   ruca_l;      /* E4 ifInUcastPkts */
+    volatile uint32_t   rmca_u;      /* E8 ifInMulticastPkts */
+    volatile uint32_t   rmca_l;      /* Ec ifInMulticastPkts */
+    volatile uint32_t   rbca_u;      /* F0 ifInBroadcastPkts */
+    volatile uint32_t   rbca_l;      /* F4 ifInBroadcastPkts */
+    volatile uint32_t   terr_u;      /* F8 ifOutErrors */
+    volatile uint32_t   terr_l;      /* Fc ifOutErrors */
+    volatile uint32_t   reserved2[2];/* 100-108*/
+    volatile uint32_t   tuca_u;      /* 108 ifOutUcastPkts */
+    volatile uint32_t   tuca_l;      /* 10c ifOutUcastPkts */
+    volatile uint32_t   tmca_u;      /* 110 ifOutMulticastPkts */
+    volatile uint32_t   tmca_l;      /* 114 ifOutMulticastPkts */
+    volatile uint32_t   tbca_u;      /* 118 ifOutBroadcastPkts */
+    volatile uint32_t   tbca_l;      /* 11c ifOutBroadcastPkts */
+    volatile uint32_t   rdrp_u;      /* 120 etherStatsDropEvents */
+    volatile uint32_t   rdrp_l;      /* 124 etherStatsDropEvents */
+    volatile uint32_t   reoct_u;     /* 128 etherStatsOctets */
+    volatile uint32_t   reoct_l;     /* 12c etherStatsOctets */
+    volatile uint32_t   rpkt_u;      /* 130 etherStatsPkts */
+    volatile uint32_t   rpkt_l;      /* 134 etherStatsPkts */
+    volatile uint32_t   trund_u;     /* 138 etherStatsUndersizePkts */
+    volatile uint32_t   trund_l;     /* 13c etherStatsUndersizePkts */
+    volatile uint32_t   r64_u;       /* 140 etherStatsPkts64Octets */
+    volatile uint32_t   r64_l;       /* 144 etherStatsPkts64Octets */
+    volatile uint32_t   r127_u;      /* 148 etherStatsPkts65to127Octets */
+    volatile uint32_t   r127_l;      /* 14c etherStatsPkts65to127Octets */
+    volatile uint32_t   r255_u;      /* 150 etherStatsPkts128to255Octets */
+    volatile uint32_t   r255_l;      /* 154 etherStatsPkts128to255Octets */
+    volatile uint32_t   r511_u;      /* 158 etherStatsPkts256to511Octets */
+    volatile uint32_t   r511_l;      /* 15c etherStatsPkts256to511Octets */
+    volatile uint32_t   r1023_u;     /* 160 etherStatsPkts512to1023Octets */
+    volatile uint32_t   r1023_l;     /* 164 etherStatsPkts512to1023Octets */
+    volatile uint32_t   r1518_u;     /* 168 etherStatsPkts1024to1518Octets */
+    volatile uint32_t   r1518_l;     /* 16c etherStatsPkts1024to1518Octets */
+    volatile uint32_t   r1519x_u;    /* 170 etherStatsPkts1519toX */
+    volatile uint32_t   r1519x_l;    /* 174 etherStatsPkts1519toX */
+    volatile uint32_t   trovr_u;     /* 178 etherStatsOversizePkts */
+    volatile uint32_t   trovr_l;     /* 17c etherStatsOversizePkts */
+    volatile uint32_t   trjbr_u;     /* 180 etherStatsJabbers */
+    volatile uint32_t   trjbr_l;     /* 184 etherStatsJabbers */
+    volatile uint32_t   trfrg_u;     /* 188 etherStatsFragments */
+    volatile uint32_t   trfrg_l;     /* 18C etherStatsFragments */
+    volatile uint32_t   rerr_u;      /* 190 ifInErrors */
+    volatile uint32_t   rerr_l;      /* 194 ifInErrors */
 } _PackedType t_TgecMemMap;
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */

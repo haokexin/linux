@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -63,67 +63,76 @@
 #define FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID   0x00800000      /**< Dequeu from default queue id */
 #define FM_EX_QMI_DOUBLE_ECC                0x00400000
 #define FM_EX_BMI_LIST_RAM_ECC              0x00200000
-#define FM_EX_BMI_PIPELINE_ECC              0x00100000
+#define FM_EX_BMI_STORAGE_PROFILE_ECC       0x00100000
 #define FM_EX_BMI_STATISTICS_RAM_ECC        0x00080000
 #define FM_EX_IRAM_ECC                      0x00040000
-#define FM_EX_NURAM_ECC                     0x00020000
+#define FM_EX_MURAM_ECC                     0x00020000
 #define FM_EX_BMI_DISPATCH_RAM_ECC          0x00010000
+#define FM_EX_DMA_SINGLE_PORT_ECC           0x00008000
 
-#define GET_EXCEPTION_FLAG(bitMask, exception)       switch(exception){ \
-    case e_FM_EX_DMA_BUS_ERROR:                                         \
-        bitMask = FM_EX_DMA_BUS_ERROR; break;                           \
-    case e_FM_EX_DMA_READ_ECC:                                          \
-        bitMask = FM_EX_DMA_READ_ECC; break;                            \
-    case e_FM_EX_DMA_SYSTEM_WRITE_ECC:                                  \
-        bitMask = FM_EX_DMA_SYSTEM_WRITE_ECC; break;                    \
-    case e_FM_EX_DMA_FM_WRITE_ECC:                                      \
-        bitMask = FM_EX_DMA_FM_WRITE_ECC; break;                        \
-    case e_FM_EX_FPM_STALL_ON_TASKS:                                    \
-        bitMask = FM_EX_FPM_STALL_ON_TASKS; break;                      \
-    case e_FM_EX_FPM_SINGLE_ECC:                                        \
-        bitMask = FM_EX_FPM_SINGLE_ECC; break;                          \
-    case e_FM_EX_FPM_DOUBLE_ECC:                                        \
-        bitMask = FM_EX_FPM_DOUBLE_ECC; break;                          \
-    case e_FM_EX_QMI_SINGLE_ECC:                                        \
-        bitMask = FM_EX_QMI_SINGLE_ECC; break;                          \
-    case e_FM_EX_QMI_DOUBLE_ECC:                                        \
-        bitMask = FM_EX_QMI_DOUBLE_ECC; break;                          \
-    case e_FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID:                           \
-        bitMask = FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID; break;             \
-    case e_FM_EX_BMI_LIST_RAM_ECC:                                      \
-        bitMask = FM_EX_BMI_LIST_RAM_ECC; break;                        \
-    case e_FM_EX_BMI_PIPELINE_ECC:                                      \
-        bitMask = FM_EX_BMI_PIPELINE_ECC; break;                        \
-    case e_FM_EX_BMI_STATISTICS_RAM_ECC:                                \
-        bitMask = FM_EX_BMI_STATISTICS_RAM_ECC; break;                  \
-    case e_FM_EX_BMI_DISPATCH_RAM_ECC:                                  \
-        bitMask = FM_EX_BMI_DISPATCH_RAM_ECC; break;                    \
-    case e_FM_EX_IRAM_ECC:                                              \
-        bitMask = FM_EX_IRAM_ECC; break;                                \
-    case e_FM_EX_MURAM_ECC:                                             \
-        bitMask = FM_EX_NURAM_ECC; break;                               \
-    default: bitMask = 0;break;}
+#define GET_EXCEPTION_FLAG(bitMask, exception)              \
+switch(exception){                                          \
+    case e_FM_EX_DMA_BUS_ERROR:                             \
+        bitMask = FM_EX_DMA_BUS_ERROR; break;               \
+    case e_FM_EX_DMA_SINGLE_PORT_ECC:                       \
+        bitMask = FM_EX_DMA_SINGLE_PORT_ECC; break;         \
+    case e_FM_EX_DMA_READ_ECC:                              \
+        bitMask = FM_EX_DMA_READ_ECC; break;                \
+    case e_FM_EX_DMA_SYSTEM_WRITE_ECC:                      \
+        bitMask = FM_EX_DMA_SYSTEM_WRITE_ECC; break;        \
+    case e_FM_EX_DMA_FM_WRITE_ECC:                          \
+        bitMask = FM_EX_DMA_FM_WRITE_ECC; break;            \
+    case e_FM_EX_FPM_STALL_ON_TASKS:                        \
+        bitMask = FM_EX_FPM_STALL_ON_TASKS; break;          \
+    case e_FM_EX_FPM_SINGLE_ECC:                            \
+        bitMask = FM_EX_FPM_SINGLE_ECC; break;              \
+    case e_FM_EX_FPM_DOUBLE_ECC:                            \
+        bitMask = FM_EX_FPM_DOUBLE_ECC; break;              \
+    case e_FM_EX_QMI_SINGLE_ECC:                            \
+        bitMask = FM_EX_QMI_SINGLE_ECC; break;              \
+    case e_FM_EX_QMI_DOUBLE_ECC:                            \
+        bitMask = FM_EX_QMI_DOUBLE_ECC; break;              \
+    case e_FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID:               \
+        bitMask = FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID; break; \
+    case e_FM_EX_BMI_LIST_RAM_ECC:                          \
+        bitMask = FM_EX_BMI_LIST_RAM_ECC; break;            \
+    case e_FM_EX_BMI_STORAGE_PROFILE_ECC:                   \
+        bitMask = FM_EX_BMI_STORAGE_PROFILE_ECC; break;     \
+    case e_FM_EX_BMI_STATISTICS_RAM_ECC:                    \
+        bitMask = FM_EX_BMI_STATISTICS_RAM_ECC; break;      \
+    case e_FM_EX_BMI_DISPATCH_RAM_ECC:                      \
+        bitMask = FM_EX_BMI_DISPATCH_RAM_ECC; break;        \
+    case e_FM_EX_IRAM_ECC:                                  \
+        bitMask = FM_EX_IRAM_ECC; break;                    \
+    case e_FM_EX_MURAM_ECC:                                 \
+        bitMask = FM_EX_MURAM_ECC; break;                   \
+    default: bitMask = 0;break;                             \
+}
 
 /**************************************************************************//**
  @Description       defaults
 *//***************************************************************************/
-#define DEFAULT_exceptions                  (FM_EX_DMA_BUS_ERROR            |\
+#define DEFAULT_exceptions                 (FM_EX_DMA_BUS_ERROR            |\
                                             FM_EX_DMA_READ_ECC              |\
                                             FM_EX_DMA_SYSTEM_WRITE_ECC      |\
                                             FM_EX_DMA_FM_WRITE_ECC          |\
                                             FM_EX_FPM_STALL_ON_TASKS        |\
                                             FM_EX_FPM_SINGLE_ECC            |\
                                             FM_EX_FPM_DOUBLE_ECC            |\
-                                            FM_EX_QMI_SINGLE_ECC            |\
                                             FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID|\
-                                            FM_EX_QMI_DOUBLE_ECC            |\
                                             FM_EX_BMI_LIST_RAM_ECC          |\
-                                            FM_EX_BMI_PIPELINE_ECC          |\
+                                            FM_EX_BMI_STORAGE_PROFILE_ECC   |\
                                             FM_EX_BMI_STATISTICS_RAM_ECC    |\
-                                            FM_EX_BMI_DISPATCH_RAM_ECC      |\
                                             FM_EX_IRAM_ECC                  |\
-                                            FM_EX_NURAM_ECC                 )
-#define DEFAULT_totalFifoSize               (BMI_MAX_FIFO_SIZE*3/4)
+                                            FM_EX_MURAM_ECC 				|\
+                                            FM_EX_BMI_DISPATCH_RAM_ECC      |\
+                                            FM_EX_QMI_DOUBLE_ECC            |\
+                                            FM_EX_QMI_SINGLE_ECC)
+
+
+#define DEFAULT_totalFifoSize(major)       ((major != 0) ?  (BMI_MAX_FIFO_SIZE*3/4):0)
+
+
 #define DEFAULT_eccEnable                   FALSE
 #define DEFAULT_dispLimit                   0
 #define DEFAULT_prsDispTh                   16
@@ -176,10 +185,12 @@
 #define FM_MM_FPM               0x000C3000
 #define FM_MM_PLCR              0x000C0000
 #define FM_MM_IMEM              0x000C4000
+#define FM_MM_CGP               0x000DB000
+#define FM_MM_TRB(i)            (0x000D0200 + 0x400 * (i))
+#if DPAA_VERSION >= 3
+#define FM_MM_SP                0x000dc000
+#endif /* DPAA_VERSION >= 3 */
 
-/**************************************************************************//**
- @Description       Interrupt Enable/Mask
-*//***************************************************************************/
 
 /**************************************************************************//**
  @Description       Memory Mapped Registers
@@ -188,7 +199,6 @@
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 typedef _Packed struct
 {
@@ -299,44 +309,74 @@ typedef _Packed struct
 
 typedef _Packed struct
 {
-    volatile uint32_t   fmdmsr;         /**<    FM DMA status register 0x04 */
-    volatile uint32_t   fmdmmr;         /**<    FM DMA mode register 0x08 */
-    volatile uint32_t   fmdmtr;         /**<    FM DMA bus threshold register 0x0c */
-    volatile uint32_t   fmdmhy;         /**<    FM DMA bus hysteresis register 0x10 */
-    volatile uint32_t   fmdmsetr;       /**<    FM DMA SOS emergency Threshold Register 0x14 */
-    volatile uint32_t   fmdmtah;        /**<    FM DMA transfer bus address high register 0x18  */
-    volatile uint32_t   fmdmtal;        /**<    FM DMA transfer bus address low register 0x1C  */
-    volatile uint32_t   fmdmtcid;       /**<    FM DMA transfer bus communication ID register 0x20  */
-    volatile uint32_t   fmdmra;         /**<    FM DMA bus internal ram address register 0x24  */
-    volatile uint32_t   fmdmrd;         /**<    FM DMA bus internal ram data register 0x28  */
-    volatile uint32_t   fmdmwcr;        /**<    FM DMA CAM watchdog counter value 0x2C  */
-    volatile uint32_t   fmdmebcr;       /**<    FM DMA CAM base in MURAM register 0x30  */
-    volatile uint32_t   fmdmccqdr;      /**<    FM DMA CAM and CMD Queue Debug register 0x34  */
-    volatile uint32_t   fmdmccqvr1;     /**<    FM DMA CAM and CMD Queue Value register #1 0x38  */
-    volatile uint32_t   fmdmccqvr2;     /**<    FM DMA CAM and CMD Queue Value register #2 0x3C  */
-    volatile uint32_t   fmdmcqvr3;      /**<    FM DMA CMD Queue Value register #3 0x40  */
-    volatile uint32_t   fmdmcqvr4;      /**<    FM DMA CMD Queue Value register #4 0x44  */
-    volatile uint32_t   fmdmcqvr5;      /**<    FM DMA CMD Queue Value register #5 0x48  */
-    volatile uint32_t   fmdmsefrc;      /**<    FM DMA Semaphore Entry Full Reject Counter 0x50  */
-    volatile uint32_t   fmdmsqfrc;      /**<    FM DMA Semaphore Queue Full Reject Counter 0x54  */
-    volatile uint32_t   fmdmssrc;       /**<    FM DMA Semaphore SYNC Reject Counter 0x54  */
-    volatile uint32_t   fmdmdcr;        /**<    FM DMA Debug Counter */
-    volatile uint32_t   fmdmemsr;       /**<    FM DMA Emrgency Smoother Register */
+    volatile uint32_t   fmdmsr;         /**< FM DMA status register 0x04 */
+    volatile uint32_t   fmdmmr;         /**< FM DMA mode register 0x08 */
+    volatile uint32_t   fmdmtr;         /**< FM DMA bus threshold register 0x0c */
+    volatile uint32_t   fmdmhy;         /**< FM DMA bus hysteresis register 0x10 */
+    volatile uint32_t   fmdmsetr;       /**< FM DMA SOS emergency Threshold Register 0x14 */
+    volatile uint32_t   fmdmtah;        /**< FM DMA transfer bus address high register 0x18  */
+    volatile uint32_t   fmdmtal;        /**< FM DMA transfer bus address low register 0x1C  */
+    volatile uint32_t   fmdmtcid;       /**< FM DMA transfer bus communication ID register 0x20  */
+    volatile uint32_t   fmdmra;         /**< FM DMA bus internal ram address register 0x24  */
+    volatile uint32_t   fmdmrd;         /**< FM DMA bus internal ram data register 0x28  */
+    volatile uint32_t   fmdmwcr;        /**< FM DMA CAM watchdog counter value 0x2C  */
+    volatile uint32_t   fmdmebcr;       /**< FM DMA CAM base in MURAM register 0x30  */
+    volatile uint32_t   fmdmccqdr;      /**< FM DMA CAM and CMD Queue Debug register 0x34  */
+    volatile uint32_t   fmdmccqvr1;     /**< FM DMA CAM and CMD Queue Value register #1 0x38  */
+    volatile uint32_t   fmdmccqvr2;     /**< FM DMA CAM and CMD Queue Value register #2 0x3C  */
+    volatile uint32_t   fmdmcqvr3;      /**< FM DMA CMD Queue Value register #3 0x40  */
+    volatile uint32_t   fmdmcqvr4;      /**< FM DMA CMD Queue Value register #4 0x44  */
+    volatile uint32_t   fmdmcqvr5;      /**< FM DMA CMD Queue Value register #5 0x48  */
+    volatile uint32_t   fmdmsefrc;      /**< FM DMA Semaphore Entry Full Reject Counter 0x50  */
+    volatile uint32_t   fmdmsqfrc;      /**< FM DMA Semaphore Queue Full Reject Counter 0x54  */
+    volatile uint32_t   fmdmssrc;       /**< FM DMA Semaphore SYNC Reject Counter 0x54  */
+    volatile uint32_t   fmdmdcr;        /**< FM DMA Debug Counter */
+    volatile uint32_t   fmdmemsr;       /**< FM DMA Emrgency Smoother Register */
     volatile uint32_t   reserved;
-    volatile uint32_t   fmdmplr[FM_SIZE_OF_LIODN_TABLE/2];
-                                        /**<    FM DMA PID-LIODN # register  */
+    volatile uint32_t   fmdmplr[FM_MAX_NUM_OF_HW_PORT_IDS/2];
+                                        /**< FM DMA PID-LIODN # register  */
 } _PackedType t_FmDmaRegs;
 
 typedef _Packed struct
 {
-    volatile uint32_t   iadd;           /**<    FM IRAM instruction address register */
-    volatile uint32_t   idata;          /**<    FM IRAM instruction data register */
-    volatile uint32_t   itcfg;          /**<    FM IRAM timing config register */
-    volatile uint32_t   iready;         /**<    FM IRAM ready register */
+    volatile uint32_t   iadd;           /**< FM IRAM instruction address register */
+    volatile uint32_t   idata;          /**< FM IRAM instruction data register */
+    volatile uint32_t   itcfg;          /**< FM IRAM timing config register */
+    volatile uint32_t   iready;         /**< FM IRAM ready register */
     volatile uint8_t    res[0x80000-0x10];
 } _PackedType t_FMIramRegs;
 
-#define MEM_MAP_END
+/* Trace buffer registers -
+   each FM Controller has its own trace buffer residing at FM_MM_TRB(fmCtrlIndex) offset */
+typedef _Packed struct t_FmTrbRegs
+{
+    volatile uint32_t   tcrh;
+    volatile uint32_t   tcrl;
+    volatile uint32_t   tesr;
+    volatile uint32_t   tecr0h;
+    volatile uint32_t   tecr0l;
+    volatile uint32_t   terf0h;
+    volatile uint32_t   terf0l;
+    volatile uint32_t   tecr1h;
+    volatile uint32_t   tecr1l;
+    volatile uint32_t   terf1h;
+    volatile uint32_t   terf1l;
+    volatile uint32_t   tpcch;
+    volatile uint32_t   tpccl;
+    volatile uint32_t   tpc1h;
+    volatile uint32_t   tpc1l;
+    volatile uint32_t   tpc2h;
+    volatile uint32_t   tpc2l;
+    volatile uint32_t   twdimr;
+    volatile uint32_t   twicvr;
+    volatile uint32_t   tar;
+    volatile uint32_t   tdr;
+    volatile uint32_t   tsnum1;
+    volatile uint32_t   tsnum2;
+    volatile uint32_t   tsnum3;
+    volatile uint32_t   tsnum4;
+} _PackedType t_FmTrbRegs;
+
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
@@ -345,15 +385,12 @@ typedef _Packed struct
 /**************************************************************************//**
  @Description       General defines
 *//***************************************************************************/
-
 #define FM_DEBUG_STATUS_REGISTER_OFFSET     0x000d1084UL
 #define FM_UCODE_DEBUG_INSTRUCTION          0x6ffff805UL
-
 
 /**************************************************************************//**
  @Description       DMA definitions
 *//***************************************************************************/
-
 /* masks */
 #define DMA_MODE_AID_OR                     0x20000000
 #define DMA_MODE_SBER                       0x10000000
@@ -381,6 +418,17 @@ typedef _Packed struct
 #define DMA_STATUS_SYSTEM_DPDAT_ECC         0x00200000
 #define DMA_STATUS_FM_DPDAT_ECC             0x00100000
 #define DMA_STATUS_FM_SPDAT_ECC             0x00080000
+
+#define DMA_STATUS_FM_ECC                   (DMA_STATUS_READ_ECC |          \
+                                            DMA_STATUS_SYSTEM_WRITE_ECC |   \
+                                            DMA_STATUS_FM_WRITE_ECC |       \
+                                            DMA_STATUS_SYSTEM_DPEXT_ECC |   \
+                                            DMA_STATUS_FM_DPEXT_ECC |       \
+                                            DMA_STATUS_SYSTEM_DPDAT_ECC |   \
+                                            DMA_STATUS_FM_DPDAT_ECC |       \
+                                            DMA_STATUS_FM_SPDAT_ECC)
+
+
 
 #define FM_LIODN_BASE_MASK                  0x00000FFF
 
@@ -416,7 +464,6 @@ typedef _Packed struct
 /**************************************************************************//**
  @Description       FPM defines
 *//***************************************************************************/
-
 /* masks */
 #define FPM_EV_MASK_DOUBLE_ECC          0x80000000
 #define FPM_EV_MASK_STALL               0x40000000
@@ -508,7 +555,7 @@ typedef _Packed struct
 *//***************************************************************************/
 /* masks */
 #define BMI_INIT_START                      0x80000000
-#define BMI_ERR_INTR_EN_PIPELINE_ECC        0x80000000
+#define BMI_ERR_INTR_EN_STORAGE_PROFILE_ECC 0x80000000
 #define BMI_ERR_INTR_EN_LIST_RAM_ECC        0x40000000
 #define BMI_ERR_INTR_EN_STATISTICS_RAM_ECC  0x20000000
 #define BMI_ERR_INTR_EN_DISPATCH_RAM_ECC    0x10000000
@@ -534,7 +581,6 @@ typedef _Packed struct
 /* others */
 #define BMI_FIFO_ALIGN                  0x100
 
-
 /**************************************************************************//**
  @Description       QMI defines
 *//***************************************************************************/
@@ -554,7 +600,6 @@ typedef _Packed struct
 #define QMI_CFG_ENQ_SHIFT               8
 #define QMI_TAPC_TAP                    22
 
-
 /**************************************************************************//**
  @Description       IRAM defines
 *//***************************************************************************/
@@ -562,19 +607,25 @@ typedef _Packed struct
 #define IRAM_IADD_AIE                   0x80000000
 #define IRAM_READY                      0x80000000
 
+/**************************************************************************//**
+ @Description       TRB defines
+*//***************************************************************************/
+/* masks */
+#define TRB_TCRH_RESET              0x04000000
+#define TRB_TCRH_ENABLE_COUNTERS    0x84008000
+#define TRB_TCRH_DISABLE_COUNTERS   0x8400C000
+#define TRB_TCRL_RESET              0x20000000
+#define TRB_TCRL_UTIL               0x00000800
+
 typedef struct {
     void        (*f_Isr) (t_Handle h_Arg, uint32_t event);
     t_Handle    h_SrcHandle;
 } t_FmanCtrlIntrSrc;
 
-
 typedef struct
 {
  /*   uint8_t                     numOfPartitions; */
     bool                        resetOnInit;
-#ifdef FM_PARTITION_ARRAY
-    uint16_t                    liodnBasePerPort[FM_SIZE_OF_LIODN_TABLE];
-#endif
     bool                        enCounters;
     t_FmThresholds              thresholds;
     e_FmDmaCacheOverride        dmaCacheOverride;
@@ -601,8 +652,9 @@ typedef struct
     bool                        enIramTestMode;
     bool                        externalEccRamsEnable;
     uint16_t                    tnumAgingPeriod;
-    t_FmPcdFirmwareParams       firmware;
+    t_FmFirmwareParams          firmware;
     bool                        fwVerify;
+    uint32_t                    userSetExceptions;
 } t_FmDriverParam;
 
 typedef void (t_FmanCtrlIsr)( t_Handle h_Fm, uint32_t event);
@@ -611,10 +663,10 @@ typedef struct
 {
 /***************************/
 /* Master/Guest parameters */
-/***************************/
     uint8_t                     fmId;
     e_FmPortType                portsTypes[FM_MAX_NUM_OF_HW_PORT_IDS];
     uint16_t                    fmClkFreq;
+    t_FmRevisionInfo            revInfo;
 /**************************/
 /* Master Only parameters */
 /**************************/
@@ -626,9 +678,7 @@ typedef struct
     uint8_t                     accumulatedNumOfTasks;
     uint32_t                    accumulatedFifoSize;
     uint8_t                     accumulatedNumOfOpenDmas;
-#ifdef FM_QMI_DEQ_OPTIONS_SUPPORT
     uint8_t                     accumulatedNumOfDeqTnums;
-#endif /* FM_QMI_DEQ_OPTIONS_SUPPORT */
 #ifdef FM_LOW_END_RESTRICTION
     bool                        lowEndRestriction;
 #endif /* FM_LOW_END_RESTRICTION */
@@ -648,7 +698,34 @@ typedef struct
     uint16_t                    macMaxFrameLengths1G[FM_MAX_NUM_OF_1G_MACS];
 } t_FmStateStruct;
 
-typedef struct
+#if DPAA_VERSION >= 3
+typedef struct t_FmMapParam {
+    uint16_t        profilesBase;
+    uint16_t        numOfProfiles;
+    t_Handle        h_FmPort;
+} t_FmMapParam;
+
+typedef struct t_FmAllocMng {
+    bool            allocated;
+    uint8_t         ownerId; /* guestId for KG in multi-partition only,
+                                portId for PLCR in any environment */
+} t_FmAllocMng;
+
+typedef struct t_FmPcdSpEntry {
+    bool            valid;
+    t_FmAllocMng    profilesMng;
+} t_FmPcdSpEntry;
+
+typedef struct t_FmSp {
+    void            *p_FmPcdStoragePrflRegs;
+    t_FmPcdSpEntry  profiles[FM_VSP_MAX_NUM_OF_ENTRIES];
+    t_FmMapParam    portsMapping[FM_MAX_NUM_OF_PORTS];
+} t_FmSp;
+
+#endif /* DPAA_VERSION >= 3 */
+
+
+typedef struct t_Fm
 {
 /***************************/
 /* Master/Guest parameters */
@@ -677,6 +754,12 @@ typedef struct
     t_Handle                    h_Spinlock;
     bool                        recoveryMode;
     t_FmStateStruct             *p_FmStateStruct;
+#if DPAA_VERSION >= 3
+    t_FmSp                      *p_FmSp;
+    uint8_t                     partNumOfVSPs;
+    uint8_t                     partVSPBase;
+    uintptr_t                   vspBaseAddr;
+#endif /* DPAA_VERSION >= 3 */
 
 /* un-needed for recovery */
     t_FmDriverParam             *p_FmDriverParam;

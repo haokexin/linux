@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -41,15 +41,125 @@
 #include "error_ext.h"
 #include "std_ext.h"
 #include "fm_pcd_ext.h"
+#include "fm_ext.h"
 #include "fm_port_ext.h"
 
+#define e_FM_PORT_TYPE_OH_HOST_COMMAND      e_FM_PORT_TYPE_DUMMY
+
 #define CLS_PLAN_NUM_PER_GRP                        8
+
+#define IP_OFFLOAD_PACKAGE_NUMBER                   106
+
+
+/**************************************************************************//**
+ @Description   Enum for inter-module interrupts registration
+*//***************************************************************************/
+typedef enum e_FmEventModules{
+    e_FM_MOD_PRS,                   /**< Parser event */
+    e_FM_MOD_KG,                    /**< Keygen event */
+    e_FM_MOD_PLCR,                  /**< Policer event */
+    e_FM_MOD_10G_MAC,               /**< 10G MAC event */
+    e_FM_MOD_1G_MAC,                /**< 1G MAC event */
+    e_FM_MOD_TMR,                   /**< Timer event */
+    e_FM_MOD_FMAN_CTRL,             /**< FMAN Controller  Timer event */
+    e_FM_MOD_MACSEC,
+    e_FM_MOD_DUMMY_LAST
+} e_FmEventModules;
+
+/**************************************************************************//**
+ @Description   Enum for interrupts types
+*//***************************************************************************/
+typedef enum e_FmIntrType {
+    e_FM_INTR_TYPE_ERR,
+    e_FM_INTR_TYPE_NORMAL
+} e_FmIntrType;
+
+/**************************************************************************//**
+ @Description   Enum for inter-module interrupts registration
+*//***************************************************************************/
+typedef enum e_FmInterModuleEvent
+{
+    e_FM_EV_PRS = 0,                /**< Parser event */
+    e_FM_EV_ERR_PRS,                /**< Parser error event */
+    e_FM_EV_KG,                     /**< Keygen event */
+    e_FM_EV_ERR_KG,                 /**< Keygen error event */
+    e_FM_EV_PLCR,                   /**< Policer event */
+    e_FM_EV_ERR_PLCR,               /**< Policer error event */
+    e_FM_EV_ERR_10G_MAC0,           /**< 10G MAC 0 error event */
+    e_FM_EV_ERR_10G_MAC1,           /**< 10G MAC 1 error event */
+    e_FM_EV_ERR_1G_MAC0,            /**< 1G MAC 0 error event */
+    e_FM_EV_ERR_1G_MAC1,            /**< 1G MAC 1 error event */
+    e_FM_EV_ERR_1G_MAC2,            /**< 1G MAC 2 error event */
+    e_FM_EV_ERR_1G_MAC3,            /**< 1G MAC 3 error event */
+    e_FM_EV_ERR_1G_MAC4,            /**< 1G MAC 4 error event */
+    e_FM_EV_ERR_1G_MAC5,            /**< 1G MAC 5 error event */
+    e_FM_EV_ERR_1G_MAC6,            /**< 1G MAC 6 error event */
+    e_FM_EV_ERR_1G_MAC7,            /**< 1G MAC 7 error event */
+    e_FM_EV_ERR_MACSEC_MAC0,
+    e_FM_EV_TMR,                    /**< Timer event */
+    e_FM_EV_10G_MAC0,               /**< 10G MAC 0 event (Magic packet detection)*/
+    e_FM_EV_10G_MAC1,               /**< 10G MAC 1 event (Magic packet detection)*/
+    e_FM_EV_1G_MAC0,                /**< 1G MAC 0 event (Magic packet detection)*/
+    e_FM_EV_1G_MAC1,                /**< 1G MAC 1 event (Magic packet detection)*/
+    e_FM_EV_1G_MAC2,                /**< 1G MAC 2 (Magic packet detection)*/
+    e_FM_EV_1G_MAC3,                /**< 1G MAC 3 (Magic packet detection)*/
+    e_FM_EV_1G_MAC4,                /**< 1G MAC 4 (Magic packet detection)*/
+    e_FM_EV_1G_MAC5,                /**< 1G MAC 5 (Magic packet detection)*/
+    e_FM_EV_1G_MAC6,                /**< 1G MAC 6 (Magic packet detection)*/
+    e_FM_EV_1G_MAC7,                /**< 1G MAC 7 (Magic packet detection)*/
+    e_FM_EV_MACSEC_MAC0,            /**< MACSEC MAC 0 event */
+    e_FM_EV_FMAN_CTRL_0,            /**< Fman controller event 0 */
+    e_FM_EV_FMAN_CTRL_1,            /**< Fman controller event 1 */
+    e_FM_EV_FMAN_CTRL_2,            /**< Fman controller event 2 */
+    e_FM_EV_FMAN_CTRL_3,            /**< Fman controller event 3 */
+    e_FM_EV_DUMMY_LAST
+} e_FmInterModuleEvent;
+
+
+#define GET_FM_MODULE_EVENT(_mod, _id, _intrType, _event)                                           \
+    switch(_mod) {                                                                                  \
+        case e_FM_MOD_PRS:                                                                          \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_PRS : e_FM_EV_PRS;        \
+            break;                                                                                  \
+        case e_FM_MOD_KG:                                                                           \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_KG : e_FM_EV_DUMMY_LAST;  \
+            break;                                                                                  \
+        case e_FM_MOD_PLCR:                                                                         \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_PLCR : e_FM_EV_PLCR;      \
+            break;                                                                                  \
+        case e_FM_MOD_TMR:                                                                          \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_DUMMY_LAST : e_FM_EV_TMR;     \
+            break;                                                                                  \
+        case e_FM_MOD_10G_MAC:                                                                      \
+            if (_id >= FM_MAX_NUM_OF_10G_MACS) _event = e_FM_EV_DUMMY_LAST;                         \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? (e_FM_EV_ERR_10G_MAC0 + _id) : (e_FM_EV_10G_MAC0 + _id); \
+            break;                                                                                  \
+        case e_FM_MOD_1G_MAC:                                                                       \
+            if (_id >= FM_MAX_NUM_OF_1G_MACS) _event = e_FM_EV_DUMMY_LAST;                          \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? (e_FM_EV_ERR_1G_MAC0 + _id) : (e_FM_EV_1G_MAC0 + _id); \
+            break;                                                                                  \
+        case e_FM_MOD_MACSEC:                                                                       \
+            switch(_id){                                                                            \
+                 case(0): _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_MACSEC_MAC0:e_FM_EV_MACSEC_MAC0; \
+                 break;                                                                             \
+                 }                                                                                  \
+            break;                                                                                  \
+        case e_FM_MOD_FMAN_CTRL:                                                                    \
+            if (_intrType == e_FM_INTR_TYPE_ERR) _event = e_FM_EV_DUMMY_LAST;                       \
+            else _event = (e_FM_EV_FMAN_CTRL_0 + _id);                                              \
+            break;                                                                                  \
+        default: _event = e_FM_EV_DUMMY_LAST;                                                       \
+        break;                                                                                      \
+    }
 
 
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
 
 /**************************************************************************//**
  @Description   PCD KG scheme registers
@@ -93,6 +203,8 @@ typedef _Packed struct t_FmPcdKgInterModuleSchemeRegs {
     volatile uint32_t kgse_dv1;     /**< KeyGen Scheme Entry Default Value 1 */
     volatile uint32_t kgse_ccbs;    /**< KeyGen Scheme Entry Coarse Classification Bit*/
     volatile uint32_t kgse_mv;      /**< KeyGen Scheme Entry Match vector */
+    volatile uint32_t kgse_om;      /**< KeyGen Scheme Entry Operation Mode bits */
+    volatile uint32_t kgse_vsp;     /**< KeyGen Scheme Entry Virtual Storage Profile */
 } _PackedType t_FmPcdKgInterModuleSchemeRegs;
 
 typedef _Packed struct t_FmPcdCcCapwapReassmTimeoutParams {
@@ -103,7 +215,6 @@ typedef _Packed struct t_FmPcdCcCapwapReassmTimeoutParams {
 
 
 
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
@@ -114,7 +225,6 @@ typedef uint32_t t_FmFmanCtrl;
 
 #define FPM_PORT_FM_CTL1                0x00000001
 #define FPM_PORT_FM_CTL2                0x00000002
-
 
 
 
@@ -170,23 +280,23 @@ typedef struct
 #define CC_NEXT_NODE_F_OBJECT(ptr)  LIST_OBJECT(ptr, t_CcNodeInfo, node)
 
 typedef struct {
-    uint32_t    type;
-    uint8_t     prOffset;
-
-    uint16_t    dataOffset;
-    uint8_t     poolIndex;
-
-    uint8_t     poolIdForManip;
-    uint8_t     numOfTasks;
-    uint8_t     numOfExtraTasks;
-    uint8_t     hardwarePortId;
-
+    uint32_t            type;
+    uint8_t             prOffset;
+    uint16_t            dataOffset;
+  //  uint8_t             poolIndex;
+  //  uint8_t             poolIdForManip;
+    uint8_t             numOfTasks;
+    uint8_t             numOfExtraTasks;
+    uint8_t             hardwarePortId;
+    t_FmRevisionInfo    revInfo;
+    uint32_t            nia;
 } t_GetCcParams;
 
 typedef struct {
     uint32_t        type;
     int             psoSize;
     uint32_t        nia;
+    bool            immediateWrite;
     t_FmFmanCtrl    orFmanCtrl;
 } t_SetCcParams;
 
@@ -203,6 +313,7 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
         intFlags = XX_LockIntrSpinlock(h_Spinlock);
     else
         intFlags = XX_DisableAllIntr();
+
     if (*p_Flag)
     {
         if (h_Spinlock)
@@ -212,10 +323,12 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
         return FALSE;
     }
     *p_Flag = TRUE;
+
     if (h_Spinlock)
         XX_UnlockIntrSpinlock(h_Spinlock, intFlags);
     else
         XX_RestoreAllIntr(intFlags);
+
     return TRUE;
 }
 
@@ -227,20 +340,22 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 *//***************************************************************************/
 #define INTERNAL_CONTEXT_OFFSET                 0x80000000
 #define OFFSET_OF_PR                            0x40000000
-#define BUFFER_POOL_ID_FOR_MANIP                0x20000000
+//#define BUFFER_POOL_ID_FOR_MANIP                0x20000000
 #define NUM_OF_TASKS                            0x10000000
 #define OFFSET_OF_DATA                          0x08000000
 #define HW_PORT_ID                              0x04000000
-#define NUM_OF_EXTRA_TASKS                      0x02000000
-
+#define FM_REV                                  0x02000000
+#define GET_NIA_FPNE                            0x01000000
+#define NUM_OF_EXTRA_TASKS                      0x00800000
 
 #define UPDATE_NIA_PNEN                         0x80000000
 #define UPDATE_PSO                              0x40000000
 #define UPDATE_NIA_PNDN                         0x20000000
 #define UPDATE_FMFP_PRC_WITH_ONE_RISC_ONLY      0x10000000
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-#define UPDATE_NIA_RFENE                        0x04000000
-#endif /* FM_IP_FRAG_N_REASSEM_SUPPORT */
+#define UPDATE_NIA_FENE                         0x04000000
+#define UPDATE_NIA_CMNE                         0x02000000
+#define UPDATE_NIA_FPNE                         0x01000000
+#define UPDATE_NIA_FNE                          0x00800000
 /* @} */
 
 /**************************************************************************//**
@@ -251,6 +366,8 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define UPDATE_CC_WITH_TREE                     0x40000000
 #define UPDATE_CC_WITH_DELETE_TREE              0x20000000
 #define UPDATE_KG_NIA_CC_WA                     0x10000000
+#define UPDATE_KG_OPT_MODE                      0x08000000
+#define UPDATE_KG_NIA                           0x04000000
 /* @} */
 
 /**************************************************************************//**
@@ -269,26 +386,33 @@ typedef uint32_t t_FmBlockErrIntrEnable;
 #define ERR_INTR_EN_MURAM       0x00040000
 #define ERR_INTR_EN_IRAM        0x00020000
 #define ERR_INTR_EN_10G_MAC0    0x00008000
+#define ERR_INTR_EN_10G_MAC1    0x00000040
 #define ERR_INTR_EN_1G_MAC0     0x00004000
 #define ERR_INTR_EN_1G_MAC1     0x00002000
 #define ERR_INTR_EN_1G_MAC2     0x00001000
 #define ERR_INTR_EN_1G_MAC3     0x00000800
 #define ERR_INTR_EN_1G_MAC4     0x00000400
-#define ERR_INTR_EN_MACSEC_MAC0 0x00000200
+#define ERR_INTR_EN_1G_MAC5     0x00000200
+#define ERR_INTR_EN_1G_MAC6     0x00000100
+#define ERR_INTR_EN_1G_MAC7     0x00000080
+#define ERR_INTR_EN_MACSEC_MAC0 0x00000001
 
 
 typedef uint32_t t_FmBlockIntrEnable;
 
-#define INTR_EN_BMI             0x80000000
 #define INTR_EN_QMI             0x40000000
 #define INTR_EN_PRS             0x20000000
-#define INTR_EN_KG              0x10000000
 #define INTR_EN_PLCR            0x08000000
-#define INTR_EN_1G_MAC0_TMR     0x00080000
-#define INTR_EN_1G_MAC1_TMR     0x00040000
-#define INTR_EN_1G_MAC2_TMR     0x00020000
-#define INTR_EN_1G_MAC3_TMR     0x00010000
-#define INTR_EN_1G_MAC4_TMR     0x00000040
+#define INTR_EN_1G_MAC0         0x00080000
+#define INTR_EN_1G_MAC1         0x00040000
+#define INTR_EN_1G_MAC2         0x00020000
+#define INTR_EN_1G_MAC3         0x00010000
+#define INTR_EN_1G_MAC4         0x00000040
+#define INTR_EN_1G_MAC5         0x00000020
+#define INTR_EN_1G_MAC6         0x00000008
+#define INTR_EN_1G_MAC7         0x00000002
+#define INTR_EN_10G_MAC0        0x00200000
+#define INTR_EN_10G_MAC1        0x00100000
 #define INTR_EN_REV0            0x00008000
 #define INTR_EN_REV1            0x00004000
 #define INTR_EN_REV2            0x00002000
@@ -312,6 +436,9 @@ typedef uint32_t t_FmBlockIntrEnable;
 /**************************************************************************//**
   @Description       NIA Description
 *//***************************************************************************/
+#define NIA_ENG_MASK                0x007C0000
+#define NIA_AC_MASK                 0x0003ffff
+
 #define NIA_ORDER_RESTOR            0x00800000
 #define NIA_ENG_FM_CTL              0x00000000
 #define NIA_ENG_PRS                 0x00440000
@@ -320,19 +447,20 @@ typedef uint32_t t_FmBlockIntrEnable;
 #define NIA_ENG_BMI                 0x00500000
 #define NIA_ENG_QMI_ENQ             0x00540000
 #define NIA_ENG_QMI_DEQ             0x00580000
-#define NIA_ENG_MASK                0x007C0000
 
 #define NIA_FM_CTL_AC_CC                        0x00000006
 #define NIA_FM_CTL_AC_HC                        0x0000000C
 #define NIA_FM_CTL_AC_IND_MODE_TX               0x00000008
 #define NIA_FM_CTL_AC_IND_MODE_RX               0x0000000A
 #define NIA_FM_CTL_AC_FRAG                      0x0000000e
-#define NIA_FM_CTL_AC_PRE_FETCH                 0x00000010
-#define NIA_FM_CTL_AC_POST_FETCH_PCD            0x00000012
-#define NIA_FM_CTL_AC_POST_FETCH_PCD_UDP_LEN    0x00000018
-#define NIA_FM_CTL_AC_POST_FETCH_NO_PCD         0x00000012
+#define NIA_FM_CTL_AC_PRE_BMI_FETCH_HEADER      0x00000010
+#define NIA_FM_CTL_AC_PRE_BMI_FETCH_FULL_FRAME  0x00000018
+#define NIA_FM_CTL_AC_POST_BMI_FETCH            0x00000012
+#define NIA_FM_CTL_AC_PRE_BMI_ENQ_FRAME         0x0000001A
+#define NIA_FM_CTL_AC_PRE_BMI_DISCARD_FRAME     0x0000001E
 #define NIA_FM_CTL_AC_FRAG_CHECK                0x00000014
 #define NIA_FM_CTL_AC_PRE_CC                    0x00000020
+#define NIA_FM_CTL_AC_SWITCH_PORT               0x00000020
 
 
 #define NIA_BMI_AC_ENQ_FRAME        0x00000002
@@ -349,10 +477,21 @@ typedef uint32_t t_FmBlockIntrEnable;
 
 #define NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA    0x00000202
 
+#define GET_NIA_BMI_AC_ENQ_FRAME(h_FmPcd)   \
+    (uint32_t)((FmPcdIsAdvancedOffloadSupported(h_FmPcd))?(NIA_ENG_FM_CTL | NIA_FM_CTL_AC_PRE_BMI_ENQ_FRAME): \
+                                                          (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME))
+#define GET_NIA_BMI_AC_DISCARD_FRAME(h_FmPcd)   \
+    (uint32_t)((FmPcdIsAdvancedOffloadSupported(h_FmPcd))?(NIA_ENG_FM_CTL | NIA_FM_CTL_AC_PRE_BMI_DISCARD_FRAME): \
+                                                          (NIA_ENG_BMI | NIA_BMI_AC_DISCARD))
+
 /**************************************************************************//**
  @Description       Port Id defines
 *//***************************************************************************/
+#if (DPAA_VERSION == 2)
 #define BASE_OH_PORTID              1
+#else
+#define BASE_OH_PORTID              2
+#endif /* (DPAA_VERSION == 2) */
 #define BASE_1G_RX_PORTID           8
 #define BASE_10G_RX_PORTID          0x10
 #define BASE_1G_TX_PORTID           0x28
@@ -535,6 +674,109 @@ switch(hdr)                                                 \
 }
 
 /***********************************************************************/
+/*          SW parser IP_FRAG patch                                    */
+/***********************************************************************/
+#if (DPAA_VERSION == 2)
+/* Version: 106.5 */
+#define SW_PRS_IP_FRAG_PATCH                           \
+{                                                      \
+    0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
+    0x00,0x00,0x43,0x0A,0x00,0x00,0x00,0x01,0x1B,0xFE, \
+    0x00,0x00,0x99,0x00,0x53,0x13,0x00,0x00,0x00,0x00, \
+    0x9F,0x98,0x53,0x13,0x00,0x00,0x1B,0x1C,0x00,0x03, \
+    0x00,0x02,0x00,0x00,0x00,0x01,0x32,0xC1,0x32,0xF0, \
+    0x00,0x4A,0x00,0x80,0x1F,0xFF,0x00,0x01,0x1B,0xFE, \
+    0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
+    0x00,0x00,0x43,0x28,0x00,0x00,0x00,0x01,0x1B,0xFE, \
+    0x31,0x52,0x00,0xDA,0x00,0x44,0x00,0x00,0x00,0x00, \
+    0x00,0x00,0x53,0x8F,0x00,0x00,0x32,0xC1,0x00,0x55, \
+    0x00,0x06,0x28,0x41,0x00,0x00,0x9B,0x8F,0x2F,0x0F, \
+    0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x43,0x30,0x7E, \
+    0x43,0x42,0x00,0x00,0x30,0x7E,0x43,0x42,0x00,0x3C, \
+    0x1B,0x5C,0x32,0x11,0x28,0x41,0x32,0x11,0x32,0xC0, \
+    0x00,0x4F,0x00,0x81,0x00,0x00,0x83,0x8F,0x2F,0x0F, \
+    0x06,0x00,0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x55, \
+    0x00,0x01,0x00,0x81,0x32,0x11,0x00,0x00,0x83,0x8E, \
+    0x00,0x50,0x00,0x01,0x01,0x04,0x00,0x4D,0x28,0x43, \
+    0x06,0x00,0x1B,0x3B,0x30,0x7E,0x53,0x72,0x00,0x2B, \
+    0x32,0x11,0x28,0x41,0x32,0x11,0x32,0xC0,0x00,0x4F, \
+    0x00,0x55,0x00,0x01,0x00,0x81,0x32,0x11,0x00,0x00, \
+    0x83,0x8E,0x00,0x50,0x00,0x01,0x01,0x04,0x00,0x4D, \
+    0x28,0x43,0x06,0x00,0x00,0x01,0x1B,0xFE,0x00,0x00, \
+    0x9B,0x8E,0x53,0x86,0x00,0x00,0x32,0xC1,0x00,0x55, \
+    0x00,0x28,0x28,0x41,0x06,0x29,0x32,0x01,0x00,0x00, \
+    0x83,0x8E,0x00,0x50,0x00,0x01,0x01,0x04,0x00,0x4D, \
+    0x28,0x43,0x06,0x00,0x00,0x01,0x1B,0xFE,0x32,0xC1, \
+    0x00,0x55,0x00,0x06,0x28,0x41,0x32,0xC1,0x00,0x55, \
+    0x00,0x28,0x28,0x43,0x1B,0xC0,0x32,0xC1,0x00,0x55, \
+    0x00,0x06,0x28,0x41,0x00,0x00,0x9B,0x8F,0x2F,0x0F, \
+    0x32,0xC1,0x00,0x55,0x00,0x28,0x28,0x43,0x30,0x7E, \
+    0x43,0xB7,0x00,0x2C,0x32,0x11,0x28,0x41,0x32,0x11, \
+    0x32,0xC0,0x00,0x4F,0x00,0x81,0x00,0x00,0x83,0x8F, \
+    0x2F,0x0F,0x06,0x00,0x32,0x11,0x32,0xC0,0x00,0x4F, \
+    0x00,0x55,0x00,0x01,0x00,0x81,0x32,0x11,0x00,0x00, \
+    0x83,0x8E,0x00,0x50,0x00,0x01,0x01,0x04,0x00,0x4D, \
+    0x28,0x43,0x06,0x00,0x1B,0x9A,0x00,0x03,0x00,0x02, \
+    0x00,0x00,0x00,0x01,0x32,0xC1,0x32,0xF0,0x00,0x4A, \
+    0x00,0x80,0x1F,0xFF,0x00,0x01,0x1B,0xFE,           \
+};
+#define IP_FRAG_SW_PATCH_IPv4                   0x300
+#define IP_FRAG_SW_PATCH_IPv6                   0x31E
+#else
+/* version: 106.5 */
+#define SW_PRS_IP_FRAG_PATCH                           \
+{                                                      \
+    0x31,0x52,0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00, \
+    0x00,0x00,0x43,0x0A,0x00,0x00,0x00,0x01,0x1B,0xFE, \
+    0x00,0x00,0x99,0x00,0x53,0x13,0x00,0x00,0x00,0x00, \
+    0x9F,0x98,0x53,0x13,0x00,0x00,0x1B,0x2A,0x34,0xF5, \
+    0x00,0xFB,0xFF,0xFF,0x00,0x7F,0x00,0x00,0x00,0x00, \
+    0x2A,0x9F,0x34,0xB7,0x00,0xF9,0x00,0x00,0x01,0x00, \
+    0x00,0x00,0x00,0x00,0x2B,0x97,0x00,0x03,0x00,0x02, \
+    0x00,0x00,0x00,0x01,0x32,0xF1,0x32,0xC0,0x00,0x4F, \
+    0x00,0x81,0x1F,0xFF,0x00,0x01,0x1B,0xFE,0x31,0x52, \
+    0x00,0xDA,0x02,0x08,0x00,0x00,0x00,0x00,0x00,0x00, \
+    0x43,0x36,0x00,0x00,0x00,0x01,0x1B,0xFE,0x31,0x52, \
+    0x00,0xDA,0x00,0x44,0x00,0x00,0x00,0x00,0x00,0x00, \
+    0x53,0x9D,0x00,0x00,0x32,0xC1,0x00,0x55,0x00,0x06, \
+    0x28,0x41,0x00,0x00,0x9B,0x8F,0x2F,0x0F,0x32,0xC1, \
+    0x00,0x55,0x00,0x28,0x28,0x43,0x30,0x7E,0x43,0x50, \
+    0x00,0x00,0x30,0x7E,0x43,0x50,0x00,0x3C,0x1B,0x6A, \
+    0x32,0x11,0x28,0x41,0x32,0x11,0x32,0xC0,0x00,0x4F, \
+    0x00,0x81,0x00,0x00,0x83,0x8F,0x2F,0x0F,0x06,0x00, \
+    0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x55,0x00,0x01, \
+    0x00,0x81,0x32,0x11,0x00,0x00,0x83,0x8E,0x00,0x50, \
+    0x00,0x01,0x01,0x04,0x00,0x4D,0x28,0x43,0x06,0x00, \
+    0x1B,0x49,0x30,0x7E,0x53,0x80,0x00,0x2B,0x32,0x11, \
+    0x28,0x41,0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x55, \
+    0x00,0x01,0x00,0x81,0x32,0x11,0x00,0x00,0x83,0x8E, \
+    0x00,0x50,0x00,0x01,0x01,0x04,0x00,0x4D,0x28,0x43, \
+    0x06,0x00,0x00,0x01,0x1B,0xFE,0x00,0x00,0x9B,0x8E, \
+    0x53,0x94,0x00,0x00,0x32,0xC1,0x00,0x55,0x00,0x28, \
+    0x28,0x41,0x06,0x29,0x32,0x01,0x00,0x00,0x83,0x8E, \
+    0x00,0x50,0x00,0x01,0x01,0x04,0x00,0x4D,0x28,0x43, \
+    0x06,0x00,0x00,0x01,0x1B,0xFE,0x32,0xC1,0x00,0x55, \
+    0x00,0x06,0x28,0x41,0x32,0xC1,0x00,0x55,0x00,0x28, \
+    0x28,0x43,0x1B,0xDC,0x32,0xC1,0x00,0x55,0x00,0x06, \
+    0x28,0x41,0x00,0x00,0x9B,0x8F,0x2F,0x0F,0x32,0xC1, \
+    0x00,0x55,0x00,0x28,0x28,0x43,0x30,0x7E,0x43,0xC5, \
+    0x00,0x2C,0x32,0x11,0x28,0x41,0x32,0x11,0x32,0xC0, \
+    0x00,0x4F,0x00,0x81,0x00,0x00,0x83,0x8F,0x2F,0x0F, \
+    0x06,0x00,0x32,0x11,0x32,0xC0,0x00,0x4F,0x00,0x55, \
+    0x00,0x01,0x00,0x81,0x32,0x11,0x00,0x00,0x83,0x8E, \
+    0x00,0x50,0x00,0x01,0x01,0x04,0x00,0x4D,0x28,0x43, \
+    0x06,0x00,0x1B,0xA8,0x34,0xF5,0x00,0xFB,0xFF,0xFF, \
+    0x00,0x7F,0x00,0x00,0x00,0x00,0x2A,0x9F,0x34,0xB7, \
+    0x00,0xF9,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00, \
+    0x2B,0x97,0x00,0x03,0x00,0x02,0x00,0x00,0x00,0x01, \
+    0x32,0xC1,0x32,0xF0,0x00,0x4A,0x00,0x80,0x1F,0xFF, \
+    0x00,0x01,0x1B,0xFE,                               \
+};
+#define IP_FRAG_SW_PATCH_IPv4                   0x300
+#define IP_FRAG_SW_PATCH_IPv6                   0x32C
+#endif /* (DPAA_VERSION == 2) */
+
+/***********************************************************************/
 /*          Policer defines                                            */
 /***********************************************************************/
 #define FM_PCD_PLCR_PAR_GO                    0x80000000
@@ -549,6 +791,16 @@ switch(hdr)                                                 \
 /*          Keygen defines                                             */
 /***********************************************************************/
 /* maskes */
+#if DPAA_VERSION >= 3
+#define KG_SCH_VSP_SHIFT_MASK                   0x0003f000
+#define KG_SCH_OM_VSPE                          0x00000001
+#define KG_SCH_VSP_NO_KSP_EN                    0x80000000
+
+#define MAX_SP_SHIFT                            23
+#define KG_SCH_VSP_MASK_SHIFT                   12
+#define KG_SCH_VSP_SHIFT                        24
+#endif /* DPAA_VERSION >= 3 */
+
 #define KG_SCH_PP_SHIFT_HIGH                    0x80000000
 #define KG_SCH_PP_NO_GEN                        0x10000000
 #define KG_SCH_PP_SHIFT_LOW                     0x0000F000
@@ -675,7 +927,7 @@ typedef uint8_t t_GenericCodes;
 
 /* others */
 #define NUM_OF_SW_DEFAULTS                  3
-#define MAX_PP_SHIFT                        15
+#define MAX_PP_SHIFT                        23
 #define MAX_KG_SCH_SIZE                     16
 #define MASK_FOR_GENERIC_BASE_ID            0x20
 #define MAX_HASH_SHIFT                      40
@@ -747,44 +999,29 @@ uint32_t    FmPcdGetLcv(t_Handle h_FmPcd, uint32_t netEnvId, uint8_t hdrNum);
 uint32_t    FmPcdGetMacsecLcv(t_Handle h_FmPcd, uint32_t netEnvId);
 void        FmPcdIncNetEnvOwners(t_Handle h_FmPcd, uint8_t netEnvId);
 void        FmPcdDecNetEnvOwners(t_Handle h_FmPcd, uint8_t netEnvId);
+uint8_t		FmPcdGetNetEnvId(t_Handle h_NetEnv);
 void        FmPcdPortRegister(t_Handle h_FmPcd, t_Handle h_FmPort, uint8_t hardwarePortId);
 uint32_t    FmPcdLock(t_Handle h_FmPcd);
 void        FmPcdUnlock(t_Handle h_FmPcd, uint32_t  intFlags);
 bool        FmPcdNetEnvIsHdrExist(t_Handle h_FmPcd, uint8_t netEnvId, e_NetHeaderType hdr);
-bool        FmPcdIsIpFrag(t_Handle h_FmPcd, uint8_t netEnvId);
 t_Error     FmPcdFragHcScratchPoolInit(t_Handle h_FmPcd, uint8_t scratchBpid);
 t_Error     FmPcdRegisterReassmPort(t_Handle h_FmPcd, t_Handle h_IpReasmCommonPramTbl);
 t_Error     FmPcdUnregisterReassmPort(t_Handle h_FmPcd, t_Handle h_IpReasmCommonPramTbl);
-t_Error     FmPcdCcReleaseModifiedDataStructure(t_Handle h_FmPcd, t_List *h_FmPcdOldPointersLst, t_List *h_FmPcdNewPointersLst, uint16_t numOfGoodChanges, t_Handle *h_Params);
-uint32_t    FmPcdCcGetNodeAddrOffset(t_Handle h_FmPcd, t_Handle h_Pointer);
-t_Error     FmPcdCcRemoveKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint16_t keyIndex, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcAddKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPCdCcKeyParams,  t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_Params);
-t_Error     FmPcdCcModifyKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, uint8_t *p_Key, uint8_t *p_Mask, t_List *h_OldLst,  t_List *h_NewLst, t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcModifyKeyAndNextEngine(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPcdCcKeyParams, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcModifyMissNextEngineParamNode(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams,t_List *h_OldPointer, t_List *h_NewPointer,t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcModifyNextEngineParamTree(t_Handle h_FmPcd, t_Handle h_FmPcdCcTree, uint8_t grpId, uint8_t index, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams, t_List *h_OldLst, t_List *h_NewLst, t_Handle *h_AdditionalParams);
-t_Error     FmPcdCcModiyNextEngineParamNode(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, uint16_t keyIndex,t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams,t_List *h_OldPointer, t_List *h_NewPointer,t_Handle *h_AdditionalParams);
-uint32_t    FmPcdCcGetNodeAddrOffsetFromNodeInfo(t_Handle h_FmPcd, t_Handle h_Pointer);
-t_Error     FmPcdCcTreeTryLock(t_Handle h_FmPcdCcTree);
-t_Error     FmPcdCcNodeTreeTryLock(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_List *p_List);
-void        FmPcdCcTreeReleaseLock(t_Handle h_FmPcdCcTree);
-void        FmPcdCcNodeTreeReleaseLock(t_List *p_List);
-t_Handle    FmPcdCcTreeGetSavedManipParams(t_Handle h_FmTree, uint8_t   manipIndx);
-void        FmPcdCcTreeSetSavedManipParams(t_Handle h_FmTree, t_Handle h_SavedManipParams, uint8_t   manipIndx);
+bool        FmPcdIsAdvancedOffloadSupported(t_Handle h_FmPcd);
 
-bool        FmPcdKgIsSchemeValidSw(t_Handle h_FmPcd, uint8_t schemeId);
 uint8_t     FmPcdKgGetClsPlanGrpBase(t_Handle h_FmPcd, uint8_t clsPlanGrp);
 uint16_t    FmPcdKgGetClsPlanGrpSize(t_Handle h_FmPcd, uint8_t clsPlanGrp);
-
-t_Error     FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t_FmPcdKgInterModuleSchemeRegs *p_SchemeRegs);
+t_Error 	FmPcdKgBuildScheme(t_Handle h_Scheme,  t_FmPcdKgSchemeParams *p_SchemeParams, t_FmPcdKgInterModuleSchemeRegs *p_SchemeRegs);
 t_Error     FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpParams *p_Grp, t_FmPcdKgInterModuleClsPlanSet *p_ClsPlanSet);
-uint8_t     FmPcdKgGetNumOfPartitionSchemes(t_Handle h_FmPcd);
-uint8_t     FmPcdKgGetPhysicalSchemeId(t_Handle h_FmPcd, uint8_t schemeId);
+uint8_t     FmPcdKgGetSchemeId(t_Handle h_Scheme);
+#if DPAA_VERSION >= 3
+bool        FmPcdKgGetVspe(t_Handle h_Scheme);
+#endif
 uint8_t     FmPcdKgGetRelativeSchemeId(t_Handle h_FmPcd, uint8_t schemeId);
 void        FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId);
-void        FmPcdKgValidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId);
-void        FmPcdKgInvalidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId);
-t_Error     FmPcdKgCheckInvalidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId);
+//void        FmPcdKgValidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId);
+//void        FmPcdKgInvalidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId);
+t_Error     FmPcdKgCheckInvalidateSchemeSw(t_Handle h_Scheme);
 t_Error     FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_BindPortToSchemes, uint32_t *p_SpReg, bool add);
 void        FmPcdKgIncSchemeOwners(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_BindPort);
 void        FmPcdKgDecSchemeOwners(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_BindPort);
@@ -799,9 +1036,10 @@ uint32_t    FmPcdKgBuildWritePortSchemeBindActionReg(uint8_t hardwarePortId);
 uint32_t    FmPcdKgBuildReadPortSchemeBindActionReg(uint8_t hardwarePortId);
 uint32_t    FmPcdKgBuildWritePortClsPlanBindActionReg(uint8_t hardwarePortId);
 uint8_t     FmPcdKgGetSchemeSwId(t_Handle h_FmPcd, uint8_t schemeHwId);
-t_Error     FmPcdKgSchemeTryLock(t_Handle h_FmPcd, uint8_t schemeId, bool intr);
-void        FmPcdKgReleaseSchemeLock(t_Handle h_FmPcd, uint8_t schemeId);
-void        FmPcdKgUpatePointedOwner(t_Handle h_FmPcd, uint8_t schemeId, bool add);
+/*t_Error     FmPcdKgSchemeTryLock(t_Handle h_FmPcd, t_Handle h_Scheme);*/
+/*void        FmPcdKgReleaseSchemeLock(t_Handle h_Scheme);*/
+void        FmPcdKgUpatePointedOwner(t_Handle h_Scheme, bool add);
+bool        FmPcdKgIsSchemeValidSw(t_Handle h_Scheme);
 
 t_Error     FmPcdKgBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes  *p_SchemeBind);
 t_Error     FmPcdKgUnbindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_SchemeBind);
@@ -809,10 +1047,13 @@ uint32_t    FmPcdKgGetRequiredAction(t_Handle h_FmPcd, uint8_t schemeId);
 uint32_t    FmPcdKgGetPointedOwners(t_Handle h_FmPcd, uint8_t schemeId);
 e_FmPcdDoneAction FmPcdKgGetDoneAction(t_Handle h_FmPcd, uint8_t schemeId);
 e_FmPcdEngine FmPcdKgGetNextEngine(t_Handle h_FmPcd, uint8_t schemeId);
-void        FmPcdKgUpdateRequiredAction(t_Handle h_FmPcd, uint8_t schemeId, uint32_t requiredAction);
+void        FmPcdKgUpdateRequiredAction(t_Handle h_Scheme, uint32_t requiredAction);
 bool        FmPcdKgIsDirectPlcr(t_Handle h_FmPcd, uint8_t schemeId);
 bool        FmPcdKgIsDistrOnPlcrProfile(t_Handle h_FmPcd, uint8_t schemeId);
 uint16_t    FmPcdKgGetRelativeProfileId(t_Handle h_FmPcd, uint8_t schemeId);
+t_Error     FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t requiredAction, uint32_t value);
+t_Error     FmPcdKgSetOrBindToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, uint8_t netEnvId, protocolOpt_t *p_OptArray, uint8_t *p_ClsPlanGrpId, bool *p_IsEmptyClsPlanGrp);
+t_Error     FmPcdKgDeleteOrUnbindPortToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, uint8_t clsPlanGrpId);
 
 /* FM-PCD parser API routines */
 t_Error     FmPcdPrsIncludePortInStatistics(t_Handle p_FmPcd, uint8_t hardwarePortId,  bool include);
@@ -828,7 +1069,8 @@ uint32_t    FmPcdPlcrBuildCounterProfileReg(e_FmPcdPlcrProfileCounters counter);
 uint32_t    FmPcdPlcrBuildWritePlcrActionReg(uint16_t absoluteProfileId);
 uint32_t    FmPcdPlcrBuildReadPlcrActionReg(uint16_t absoluteProfileId);
 t_Error     FmPcdPlcrBuildProfile(t_Handle h_FmPcd, t_FmPcdPlcrProfileParams *p_Profile, t_FmPcdPlcrInterModuleProfileRegs *p_PlcrRegs);
-t_Error     FmPcdPlcrGetAbsoluteProfileId(t_Handle                      h_FmPcd,
+uint16_t    FmPcdPlcrProfileGetAbsoluteId(t_Handle h_Profile);
+t_Error     FmPcdPlcrGetAbsoluteIdByProfileParams(t_Handle                      h_FmPcd,
                                           e_FmPcdProfileTypeSelection   profileType,
                                           t_Handle                      h_FmPort,
                                           uint16_t                      relativeProfile,
@@ -836,35 +1078,49 @@ t_Error     FmPcdPlcrGetAbsoluteProfileId(t_Handle                      h_FmPcd,
 void        FmPcdPlcrInvalidateProfileSw(t_Handle h_FmPcd, uint16_t absoluteProfileId);
 void        FmPcdPlcrValidateProfileSw(t_Handle h_FmPcd, uint16_t absoluteProfileId);
 bool        FmPcdPlcrHwProfileIsValid(uint32_t profileModeReg);
-t_Error     FmPcdPlcrProfileTryLock(t_Handle h_FmPcd, uint16_t profileId, bool intr);
-void        FmPcdPlcrReleaseProfileLock(t_Handle h_FmPcd, uint16_t profileId);
+/*t_Error     FmPcdPlcrProfileTryLock(t_Handle h_FmPcd, uint16_t profileId, bool intr);
+void        FmPcdPlcrReleaseProfileLock(t_Handle h_FmPcd, uint16_t profileId);*/
 uint32_t    FmPcdPlcrGetRequiredAction(t_Handle h_FmPcd, uint16_t absoluteProfileId);
 uint32_t    FmPcdPlcrGetPointedOwners(t_Handle h_FmPcd, uint16_t absoluteProfileId);
 void        FmPcdPlcrUpatePointedOwner(t_Handle h_FmPcd, uint16_t absoluteProfileId, bool add);
 uint32_t    FmPcdPlcrBuildNiaProfileReg(bool green, bool yellow, bool red);
 void        FmPcdPlcrUpdateRequiredAction(t_Handle h_FmPcd, uint16_t absoluteProfileId, uint32_t requiredAction);
+t_Error     FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx,uint32_t requiredAction);
 
 /* FM-PCD Coarse-Classification API routines */
 uint8_t     FmPcdCcGetParseCode(t_Handle h_CcNode);
 uint8_t     FmPcdCcGetOffset(t_Handle h_CcNode);
-
-t_Error     FmPcdManipUpdate(t_Handle h_FmPcd, t_Handle h_PcdParams, t_Handle h_FmPort, t_Handle h_Manip, t_Handle h_Ad, bool validate, int level, t_Handle h_FmTree, bool modify);
-t_Error     FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_FmPortGetSetCcParams);
-uint32_t    FmPcdManipGetRequiredAction (t_Handle h_Manip);
+uint32_t    FmPcdCcGetNodeAddrOffset(t_Handle h_FmPcd, t_Handle h_Pointer);
+t_Error     FmPcdCcRemoveKey(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint16_t keyIndex);
+t_Error     FmPcdCcAddKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPCdCcKeyParams);
+t_Error     FmPcdCcModifyKey(t_Handle h_FmPcd, t_Handle h_CcNode, uint16_t keyIndex, uint8_t keySize, uint8_t *p_Key, uint8_t *p_Mask);
+t_Error     FmPcdCcModifyKeyAndNextEngine(t_Handle h_FmPcd, t_Handle h_FmPcdCcNode, uint16_t keyIndex, uint8_t keySize, t_FmPcdCcKeyParams *p_FmPcdCcKeyParams);
+t_Error     FmPcdCcModifyMissNextEngineParamNode(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+t_Error     FmPcdCcModifyNextEngineParamTree(t_Handle h_FmPcd, t_Handle h_FmPcdCcTree, uint8_t grpId, uint8_t index, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+t_Error     FmPcdCcModiyNextEngineParamNode(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, uint16_t keyIndex,t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+uint32_t    FmPcdCcGetNodeAddrOffsetFromNodeInfo(t_Handle h_FmPcd, t_Handle h_Pointer);
+t_Error     FmPcdCcTreeTryLock(t_Handle h_FmPcdCcTree);
+void        FmPcdCcTreeReleaseLock(t_Handle h_FmPcdCcTree);
+t_Handle    FmPcdCcTreeGetSavedManipParams(t_Handle h_FmTree);
+void        FmPcdCcTreeSetSavedManipParams(t_Handle h_FmTree, t_Handle h_SavedManipParams);
+t_Error     FmPcdCcTreeAddIPR(t_Handle h_FmPcd, t_Handle h_FmTree, t_Handle h_NetEnv, t_Handle h_IpReassemblyManip, bool schemes);
 t_Error     FmPcdCcBindTree(t_Handle h_FmPcd, t_Handle h_PcdParams, t_Handle h_CcTree,  uint32_t  *p_Offset,t_Handle h_FmPort);
 t_Error     FmPcdCcUnbindTree(t_Handle h_FmPcd, t_Handle h_CcTree);
 
-t_Error     FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx,uint32_t requiredAction);
-t_Error     FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t requiredAction);
+t_Error     FmPcdManipUpdate(t_Handle h_FmPcd, t_Handle h_PcdParams, t_Handle h_FmPort, t_Handle h_Manip, t_Handle h_Ad, bool validate, int level, t_Handle h_FmTree, bool modify);
+uint32_t    FmPcdManipGetRequiredAction (t_Handle h_Manip);
 
+t_Error     FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_FmPortGetSetCcParams);
 uint8_t     FmPortGetNetEnvId(t_Handle h_FmPort);
 uint8_t     FmPortGetHardwarePortId(t_Handle h_FmPort);
 uint32_t    FmPortGetPcdEngines(t_Handle h_FmPort);
 void        FmPortPcdKgSwUnbindClsPlanGrp (t_Handle h_FmPort);
 t_Error     FmPortAttachPCD(t_Handle h_FmPort);
-t_Error     FmPcdKgSetOrBindToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, uint8_t netEnvId, protocolOpt_t *p_OptArray, uint8_t *p_ClsPlanGrpId, bool *p_IsEmptyClsPlanGrp);
-t_Error     FmPcdKgDeleteOrUnbindPortToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, uint8_t clsPlanGrpId);
 
+
+#if DPAA_VERSION >= 3
+t_Error     FmPcdFrmReplicUpdate(t_Handle h_FmPcd, t_Handle h_FmPort, t_Handle h_FrmReplic);
+#endif /* DPAA_VERSION >= 3 */
 
 /**************************************************************************//**
  @Function      FmRegisterIntr
@@ -881,7 +1137,7 @@ t_Error     FmPcdKgDeleteOrUnbindPortToClsPlanGrp(t_Handle h_FmPcd, uint8_t hard
 
  @Return        None.
 *//***************************************************************************/
-void FmRegisterIntr(t_Handle                h_Fm,
+void FmRegisterIntr(t_Handle               h_Fm,
                     e_FmEventModules       mod,
                     uint8_t                modId,
                     e_FmIntrType           intrType,
@@ -962,9 +1218,7 @@ typedef struct t_FmInterModulePortInitParams {
 typedef struct t_FmInterModulePortFreeParams {
     uint8_t             hardwarePortId;     /**< IN. port Id */
     e_FmPortType        portType;           /**< IN. Port type */
-#ifdef FM_QMI_DEQ_OPTIONS_SUPPORT
     uint8_t             deqPipelineDepth;   /**< IN. Port's requested resource */
-#endif /* FM_QMI_DEQ_OPTIONS_SUPPORT */
 } t_FmInterModulePortFreeParams;
 
 /**************************************************************************//**
@@ -1035,7 +1289,7 @@ void FmGetPhysicalMuramBase(t_Handle h_Fm, t_FmPhysAddr *fmPhysAddr);
 
  @Cautions      Allowed only following FM_Init().
 *//***************************************************************************/
-uint32_t    FmGetTimeStampScale(t_Handle h_Fm);
+uint32_t FmGetTimeStampScale(t_Handle h_Fm);
 
 /**************************************************************************//**
  @Function      FmResumeStalledPort
@@ -1154,6 +1408,24 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
 t_Error FmSetNumOfRiscsPerPort(t_Handle h_Fm, uint8_t hardwarePortId, uint8_t numOfFmanCtrls, t_FmFmanCtrl orFmanCtrl);
 
 
+#if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+/**************************************************************************//*
+ @Function      FmDumpPortRegs
+
+ @Description   Dumps FM port registers which are part of FM common registers
+
+ @Param[in]     h_Fm            A handle to an FM Module.
+ @Param[in]     hardwarePortId    HW port id.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only FM_Init().
+*//***************************************************************************/
+t_Error FmDumpPortRegs(t_Handle h_Fm,uint8_t hardwarePortId);
+#endif /* (defined(DEBUG_ERRORS) && ... */
+
+
+
 void        FmRegisterPcd(t_Handle h_Fm, t_Handle h_FmPcd);
 void        FmUnregisterPcd(t_Handle h_Fm);
 t_Handle    FmGetPcdHandle(t_Handle h_Fm);
@@ -1176,20 +1448,44 @@ t_Error     Fm10GTxEccWorkaround(t_Handle h_Fm, uint8_t macId);
 
 void        FmMuramClear(t_Handle h_FmMuram);
 t_Error     FmSetNumOfOpenDmas(t_Handle h_Fm,
-                                uint8_t hardwarePortId,
-                                uint8_t numOfOpenDmas,
-                                uint8_t numOfExtraOpenDmas,
-                                bool    initialConfig);
+                               uint8_t  hardwarePortId,
+                               uint8_t  numOfOpenDmas,
+                               uint8_t  numOfExtraOpenDmas,
+                               bool     initialConfig);
 t_Error     FmSetNumOfTasks(t_Handle    h_Fm,
-                                uint8_t     hardwarePortId,
-                                uint8_t     numOfTasks,
-                                uint8_t     numOfExtraTasks,
-                                bool        initialConfig);
-t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
-                        uint8_t     hardwarePortId,
-                        uint32_t     sizeOfFifo,
-                        uint32_t     extraSizeOfFifo,
-                        bool        initialConfig);
+                            uint8_t     hardwarePortId,
+                            uint8_t     numOfTasks,
+                            uint8_t     numOfExtraTasks,
+                            bool        initialConfig);
+t_Error     FmSetSizeOfFifo(t_Handle    h_Fm,
+                            uint8_t     hardwarePortId,
+                            uint32_t    sizeOfFifo,
+                            uint32_t    extraSizeOfFifo,
+                            bool        initialConfig);
+
+t_Error     FmSetCongestionGroupPFCpriority(t_Handle    h_Fm,
+                                            uint32_t    congestionGroupId,
+                                            uint8_t     priorityBitMap);
+
+#if DPAA_VERSION >= 3
+t_Error     FmVSPAlloc(t_Handle         h_Fm,
+                               e_FmPortType     portType,
+                               uint8_t          portId,
+                               uint8_t          numOfStorageProfiles);
+
+t_Error     FmVSPFree(  t_Handle        h_Fm,
+                        e_FmPortType    portType,
+                        uint8_t         portId);
+
+t_Error     FmVSPGetAbsoluteProfileId(t_Handle      h_Fm,
+                                      e_FmPortType  portType,
+                                      uint8_t       portId,
+                                      uint16_t      relativeProfile,
+                                      uint16_t      *p_AbsoluteId);
+
+uintptr_t   FmGetVSPBaseAddr(t_Handle h_Fm);
+
+#endif /* DPAA_VERSION >= 3 */
 
 
 #endif /* __FM_COMMON_H */

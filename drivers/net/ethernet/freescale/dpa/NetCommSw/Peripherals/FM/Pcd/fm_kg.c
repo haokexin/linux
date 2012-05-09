@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -45,9 +45,50 @@
 #include "fm_common.h"
 #include "fm_pcd.h"
 #include "fm_hc.h"
-
 #include "fm_pcd_ipc.h"
 
+
+/****************************************/
+/*       static functions               */
+/****************************************/
+
+static uint32_t KgHwLock(t_Handle h_FmPcdKg)
+{
+    ASSERT_COND(h_FmPcdKg);
+    return XX_LockIntrSpinlock(((t_FmPcdKg*)h_FmPcdKg)->h_HwSpinlock);
+}
+
+static void KgHwUnlock(t_Handle h_FmPcdKg, uint32_t intFlags)
+{
+    ASSERT_COND(h_FmPcdKg);
+    XX_UnlockIntrSpinlock(((t_FmPcdKg*)h_FmPcdKg)->h_HwSpinlock, intFlags);
+}
+
+static uint32_t KgSwLock(t_Handle h_FmPcdKg)
+{
+    ASSERT_COND(h_FmPcdKg);
+    return XX_LockIntrSpinlock(((t_FmPcdKg*)h_FmPcdKg)->h_SwSpinlock);
+}
+
+static void KgSwUnlock(t_Handle h_FmPcdKg, uint32_t intFlags)
+{
+    ASSERT_COND(h_FmPcdKg);
+    XX_UnlockIntrSpinlock(((t_FmPcdKg*)h_FmPcdKg)->h_SwSpinlock, intFlags);
+}
+
+static uint32_t KgSchemeLock(t_Handle h_Scheme)
+{
+    ASSERT_COND(h_Scheme);
+
+    return XX_LockIntrSpinlock(((t_FmPcdKgScheme*)h_Scheme)->h_Spinlock);
+}
+
+static void KgSchemeUnlock(t_Handle h_Scheme, uint32_t intFlags)
+{
+    ASSERT_COND(h_Scheme);
+
+    XX_UnlockIntrSpinlock(((t_FmPcdKgScheme*)h_Scheme)->h_Spinlock, intFlags);
+}
 
 static t_Error WriteKgarWait(t_FmPcd *p_FmPcd, uint32_t kgar)
 {
@@ -652,35 +693,25 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
     t_FmPcdIpcKgClsPlanParams       kgAlloc;
     t_Error                         err = E_OK;
     uint32_t                        oredVectors = 0;
-    uint32_t                        intFlags;
     int                             i, j;
 
+    /* this routine is protected by the calling routine ! */
     if (p_Grp->numOfOptions >= FM_PCD_MAX_NUM_OF_OPTIONS(FM_PCD_MAX_NUM_OF_CLS_PLANS))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE,("Too many classification plan basic options selected."));
-
-    intFlags = FmPcdLock(p_FmPcd);
 
     /* find a new clsPlan group */
     for(i = 0;i<FM_MAX_NUM_OF_PORTS;i++)
         if(!p_FmPcd->p_FmPcdKg->clsPlanGrps[i].used)
             break;
     if(i== FM_MAX_NUM_OF_PORTS)
-    {
-        FmPcdUnlock(p_FmPcd, intFlags);
         RETURN_ERROR(MAJOR, E_FULL,("No classification plan groups available."));
-    }
+
     p_FmPcd->p_FmPcdKg->clsPlanGrps[i].used = TRUE;
+
     p_Grp->clsPlanGrpId = (uint8_t)i;
 
     if(p_Grp->numOfOptions == 0)
         p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId = (uint8_t)i;
-
-    if (!TRY_LOCK(NULL, &p_FmPcd->p_FmPcdKg->clsPlanGrps[p_Grp->clsPlanGrpId].lock))
-    {
-        FmPcdUnlock(p_FmPcd, intFlags);
-        return ERROR_CODE(E_BUSY);
-    }
-    FmPcdUnlock(p_FmPcd, intFlags);
 
     p_ClsPlanGrp = &p_FmPcd->p_FmPcdKg->clsPlanGrps[i];
     p_ClsPlanGrp->netEnvId = p_Grp->netEnvId;
@@ -697,11 +728,7 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
         err = KgAllocClsPlanEntries(h_FmPcd, p_ClsPlanGrp->sizeOfGrp, p_FmPcd->guestId, &p_ClsPlanGrp->baseEntry);
 
         if(err)
-        {
-            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->clsPlanGrps[p_Grp->clsPlanGrpId].lock);
             RETURN_ERROR(MINOR, E_INVALID_STATE, NO_MSG);
-        }
-
     }
     else
     {
@@ -725,21 +752,12 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
                                      &replyLength,
                                      NULL,
                                      NULL)) != E_OK)
-        {
-            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->clsPlanGrps[p_Grp->clsPlanGrpId].lock);
             RETURN_ERROR(MAJOR, err, NO_MSG);
-        }
 
         if (replyLength != (sizeof(uint32_t) + sizeof(p_ClsPlanGrp->baseEntry)))
-        {
-            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->clsPlanGrps[p_Grp->clsPlanGrpId].lock);
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
-        }
         if ((t_Error)reply.error != E_OK)
-        {
-            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->clsPlanGrps[p_Grp->clsPlanGrpId].lock);
             RETURN_ERROR(MINOR, (t_Error)reply.error, NO_MSG);
-        }
 
         p_ClsPlanGrp->baseEntry = *(uint8_t*)(reply.replyBody);
     }
@@ -792,8 +810,6 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
         }
     }
 
-    RELEASE_LOCK(p_FmPcd->p_FmPcdKg->clsPlanGrps[p_Grp->clsPlanGrpId].lock);
-
     return E_OK;
 }
 
@@ -803,8 +819,10 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
     t_FmPcdIpcKgClsPlanParams       kgAlloc;
     t_Error                         err;
     t_FmPcdIpcMsg                   msg;
-    uint32_t                        replyLength;
+    uint32_t                        replyLength,intFlags ;
     t_FmPcdIpcReply                 reply;
+
+    intFlags = KgSwLock(p_FmPcd->p_FmPcdKg);
 
     /* check that no port is bound to this clsPlan */
     if(p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].owners)
@@ -813,7 +831,15 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
         return;
     }
 
+    FmPcdSetClsPlanGrpId(p_FmPcd, p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].netEnvId, ILLEGAL_CLS_PLAN);
+
     FmPcdDecNetEnvOwners(p_FmPcd, p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].netEnvId);
+
+    if(grpId == p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId)
+        p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId = ILLEGAL_CLS_PLAN;
+
+    /* clear clsPlan driver structure */
+    memset(&p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId], 0, sizeof(t_FmPcdKgClsPlanGrp));
 
     /* free blocks */
     if(p_FmPcd->guestId == NCSW_MASTER_ID)
@@ -822,9 +848,12 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
                              p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].sizeOfGrp,
                              p_FmPcd->guestId,
                              p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].baseEntry);
+
+        KgSwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
     }
     else    /* in GUEST_PARTITION, we use the IPC, to also set a private driver group if required */
     {
+        KgSwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
         memset(&reply, 0, sizeof(reply));
         memset(&msg, 0, sizeof(msg));
         kgAlloc.guestId = p_FmPcd->guestId;
@@ -833,13 +862,14 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
         msg.msgId = FM_PCD_FREE_KG_CLSPLAN;
         memcpy(msg.msgBody, &kgAlloc, sizeof(kgAlloc));
         replyLength = sizeof(uint32_t);
-        if ((err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                     (uint8_t*)&msg,
-                                     sizeof(msg.msgId) + sizeof(kgAlloc),
-                                     (uint8_t*)&reply,
-                                     &replyLength,
-                                     NULL,
-                                     NULL)) != E_OK)
+        err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
+                                (uint8_t*)&msg,
+                                sizeof(msg.msgId) + sizeof(kgAlloc),
+                                (uint8_t*)&reply,
+                                &replyLength,
+                                NULL,
+                                NULL);
+        if (err != E_OK)
         {
             REPORT_ERROR(MINOR, err, NO_MSG);
             return;
@@ -855,11 +885,6 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
             return;
         }
     }
-
-    if(grpId == p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId)
-        p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId = ILLEGAL_CLS_PLAN;
-    /* clear clsPlan driver structure */
-    memset(&p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId], 0, sizeof(t_FmPcdKgClsPlanGrp));
 }
 
 t_Error FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_BindPort, uint32_t *p_SpReg, bool add)
@@ -884,10 +909,9 @@ t_Error FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBin
 
         if(add)
         {
-            if (!FmPcdKgIsSchemeValidSw(h_FmPcd, relativeSchemeId))
-                RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Requested scheme is invalid."));
-
             p_Scheme = &p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId];
+            if (!FmPcdKgIsSchemeValidSw(p_Scheme))
+                RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Requested scheme is invalid."));
             /* check netEnvId  of the port against the scheme netEnvId */
             if((p_Scheme->netEnvId != p_BindPort->netEnvId) && (p_Scheme->netEnvId != ILLEGAL_NETENV))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Port may not be bound to requested scheme - differ in netEnvId"));
@@ -907,6 +931,8 @@ t_Error FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBin
             }
             if(!p_BindPort->useClsPlan)
             {
+                /* This check may be redundant as port is a assigned to the whole NetEnv */
+
                 /* if this port does not use clsPlan, it may not be bound to schemes with units that contain
                 cls plan options. Schemes that are used only directly, should not be checked.
                 it also may not be bound to schemes that go to CC with units that are options  - so we OR
@@ -941,8 +967,9 @@ t_Error FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBin
 void FmPcdKgIncSchemeOwners(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_BindPort)
 {
     t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    int             i;
-    t_FmPcdKgScheme *p_Scheme;
+    int                 i;
+    t_FmPcdKgScheme     *p_Scheme;
+    uint32_t            intFlags;
 
     /* for each scheme - update owners counters */
     for(i = 0; i<p_BindPort->numOfSchemes; i++)
@@ -950,15 +977,18 @@ void FmPcdKgIncSchemeOwners(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSch
         p_Scheme = &p_FmPcd->p_FmPcdKg->schemes[p_BindPort->schemesIds[i]];
 
         /* increment owners number */
+        intFlags = KgSchemeLock(p_Scheme);
         p_Scheme->owners++;
+        KgSchemeUnlock(p_Scheme, intFlags);
     }
 }
 
 void FmPcdKgDecSchemeOwners(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_BindPort)
 {
     t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    int             i;
-    t_FmPcdKgScheme *p_Scheme;
+    int                 i;
+    t_FmPcdKgScheme     *p_Scheme;
+    uint32_t            intFlags;
 
     /* for each scheme - update owners counters */
     for(i = 0; i<p_BindPort->numOfSchemes; i++)
@@ -967,7 +997,9 @@ void FmPcdKgDecSchemeOwners(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSch
 
         /* increment owners number */
         ASSERT_COND(p_Scheme->owners);
+        intFlags = KgSchemeLock(p_Scheme);
         p_Scheme->owners--;
+        KgSchemeUnlock(p_Scheme, intFlags);
     }
 }
 
@@ -977,17 +1009,20 @@ static t_Error KgWriteSp(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint32_t spRe
     uint32_t                tmpKgarReg = 0, tmpKgpeSp, intFlags;
     t_Error                 err = E_OK;
 
+    /* The calling routine had locked the port, so for each port only one core can access
+     * (so we don't need a lock here) */
     if (p_FmPcd->h_Hc)
         return FmHcKgWriteSp(p_FmPcd->h_Hc, hardwarePortId, spReg, add);
 
     p_FmPcdKgPortRegs = &p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs;
 
     tmpKgarReg = FmPcdKgBuildReadPortSchemeBindActionReg(hardwarePortId);
-    intFlags = FmPcdLock(p_FmPcd);
+    /* lock a common KG reg */
+    intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
     err = WriteKgarWait(p_FmPcd, tmpKgarReg);
     if(err)
     {
-        FmPcdUnlock(p_FmPcd, intFlags);
+        KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
         RETURN_ERROR(MINOR, err, NO_MSG);
     }
 
@@ -1003,7 +1038,7 @@ static t_Error KgWriteSp(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint32_t spRe
     tmpKgarReg = FmPcdKgBuildWritePortSchemeBindActionReg(hardwarePortId);
 
     err = WriteKgarWait(p_FmPcd, tmpKgarReg);
-    FmPcdUnlock(p_FmPcd, intFlags);
+    KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
     return err;
 }
 
@@ -1014,15 +1049,17 @@ static t_Error KgWriteCpp(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint32_t cpp
     t_Error                 err;
 
     if (p_FmPcd->h_Hc)
-        return FmHcKgWriteCpp(p_FmPcd->h_Hc, hardwarePortId, cppReg);
+    {
+        err = FmHcKgWriteCpp(p_FmPcd->h_Hc, hardwarePortId, cppReg);
+        return err;
+    }
 
+    intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
     p_FmPcdKgPortRegs = &p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs;
-    intFlags = FmPcdLock(p_FmPcd);
     WRITE_UINT32(p_FmPcdKgPortRegs->kgoe_cpp, cppReg);
-
     tmpKgarReg = FmPcdKgBuildWritePortClsPlanBindActionReg(hardwarePortId);
     err = WriteKgarWait(p_FmPcd, tmpKgarReg);
-    FmPcdUnlock(p_FmPcd, intFlags);
+    KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
 
     return err;
 }
@@ -1040,6 +1077,10 @@ static t_Error KgBindPortToClsPlanGrp(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, 
     return KgWriteCpp(p_FmPcd, hardwarePortId, tmpKgpeCpp);
 }
 
+
+/*****************************************************************************/
+/*              Inter-module API routines                                    */
+/*****************************************************************************/
 t_Error FmPcdKgBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes  *p_SchemeBind)
 {
     t_FmPcd                 *p_FmPcd = (t_FmPcd*)h_FmPcd;
@@ -1078,11 +1119,11 @@ t_Error FmPcdKgUnbindPortToSchemes(t_Handle h_FmPcd ,  t_FmPcdKgInterModuleBindP
     return E_OK;
 }
 
-bool     FmPcdKgIsSchemeValidSw(t_Handle h_FmPcd, uint8_t schemeId)
+bool     FmPcdKgIsSchemeValidSw(t_Handle h_Scheme)
 {
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcdKgScheme     *p_Scheme = (t_FmPcdKgScheme*)h_Scheme;
 
-    return p_FmPcd->p_FmPcdKg->schemes[schemeId].valid;
+    return p_Scheme->valid;
 }
 
 bool     KgIsSchemeAlwaysDirect(t_Handle h_FmPcd, uint8_t schemeId)
@@ -1091,20 +1132,21 @@ bool     KgIsSchemeAlwaysDirect(t_Handle h_FmPcd, uint8_t schemeId)
 
     if(p_FmPcd->p_FmPcdKg->schemes[schemeId].matchVector == SCHEME_ALWAYS_DIRECT)
         return TRUE;
-    else
-        return FALSE;
+    else{
+	XX_Print("\n\n p_FmPcd->p_FmPcdKg->schemes[schemeId].matchVector = 0x%X \n", p_FmPcd->p_FmPcdKg->schemes[schemeId].matchVector);
+	XX_Print(" schemeId = %u \n\n", schemeId);
+	dump_stack();
+        return FALSE;}
 }
 
 t_Error  FmPcdKgAllocSchemes(t_Handle h_FmPcd, uint8_t numOfSchemes, uint8_t guestId, uint8_t *p_SchemesIds)
 {
     t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    uint32_t            intFlags;
     uint8_t             i,j;
 
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE);
 
-    intFlags = FmPcdLock(p_FmPcd);
     for(j=0,i=0;i<FM_PCD_KG_NUM_OF_SCHEMES && j<numOfSchemes;i++)
     {
         if(!p_FmPcd->p_FmPcdKg->schemesMng[i].allocated)
@@ -1125,10 +1167,8 @@ t_Error  FmPcdKgAllocSchemes(t_Handle h_FmPcd, uint8_t numOfSchemes, uint8_t gue
             p_FmPcd->p_FmPcdKg->schemesMng[p_SchemesIds[j]].ownerId = 0;
             p_SchemesIds[j] = 0;
         }
-        FmPcdUnlock(p_FmPcd, intFlags);
         RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("No schemes found"));
     }
-    FmPcdUnlock(p_FmPcd, intFlags);
 
     return E_OK;
 }
@@ -1136,54 +1176,38 @@ t_Error  FmPcdKgAllocSchemes(t_Handle h_FmPcd, uint8_t numOfSchemes, uint8_t gue
 t_Error  FmPcdKgFreeSchemes(t_Handle h_FmPcd, uint8_t numOfSchemes, uint8_t guestId, uint8_t *p_SchemesIds)
 {
     t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    uint32_t            intFlags;
     uint8_t             i;
 
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE);
 
-    intFlags = FmPcdLock(p_FmPcd);
-
     for(i=0;i<numOfSchemes;i++)
     {
         if(!p_FmPcd->p_FmPcdKg->schemesMng[p_SchemesIds[i]].allocated)
-        {
-            FmPcdUnlock(p_FmPcd, intFlags);
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Scheme was not previously allocated"));
-        }
         if(p_FmPcd->p_FmPcdKg->schemesMng[p_SchemesIds[i]].ownerId != guestId)
-        {
-            FmPcdUnlock(p_FmPcd, intFlags);
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Scheme is not owned by caller. "));
-        }
         p_FmPcd->p_FmPcdKg->schemesMng[p_SchemesIds[i]].allocated = FALSE;
         p_FmPcd->p_FmPcdKg->schemesMng[p_SchemesIds[i]].ownerId = 0;
     }
 
-    FmPcdUnlock(p_FmPcd, intFlags);
     return E_OK;
 }
 
 t_Error  KgAllocClsPlanEntries(t_Handle h_FmPcd, uint16_t numOfClsPlanEntries, uint8_t guestId, uint8_t *p_First)
 {
     t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    uint32_t    intFlags;
     uint8_t     numOfBlocks, blocksFound=0, first=0;
     uint8_t     i, j;
 
-    intFlags = FmPcdLock(p_FmPcd);
+
+    /* This routine is protected by the calling routine ! */
 
     if(!numOfClsPlanEntries)
-    {
-        FmPcdUnlock(p_FmPcd, intFlags);
         return E_OK;
-    }
 
     if ((numOfClsPlanEntries % CLS_PLAN_NUM_PER_GRP) || (!POWER_OF_2(numOfClsPlanEntries)))
-    {
-        FmPcdUnlock(p_FmPcd, intFlags);
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfClsPlanEntries must be a power of 2 and divisible by 8"));
-    }
+         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfClsPlanEntries must be a power of 2 and divisible by 8"));
 
     numOfBlocks =  (uint8_t)(numOfClsPlanEntries/CLS_PLAN_NUM_PER_GRP);
 
@@ -1214,27 +1238,22 @@ t_Error  KgAllocClsPlanEntries(t_Handle h_FmPcd, uint16_t numOfClsPlanEntries, u
             p_FmPcd->p_FmPcdKg->clsPlanBlocksMng[j].allocated = TRUE;
             p_FmPcd->p_FmPcdKg->clsPlanBlocksMng[j].ownerId = guestId;
         }
-        FmPcdUnlock(p_FmPcd, intFlags);
 
         return E_OK;
     }
     else
-    {
-        FmPcdUnlock(p_FmPcd, intFlags);
         RETURN_ERROR(MINOR, E_FULL, ("No recources for clsPlan"));
-    }
 }
 
 void  KgFreeClsPlanEntries(t_Handle h_FmPcd, uint16_t numOfClsPlanEntries, uint8_t guestId, uint8_t base)
 {
     t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    uint32_t    intFlags;
     uint8_t     numOfBlocks;
     uint8_t     i, baseBlock;
 
     UNUSED( guestId);
 
-    intFlags = FmPcdLock(p_FmPcd);
+    /* This routine is protected by the calling routine ! */
 
     numOfBlocks =  (uint8_t)(numOfClsPlanEntries/CLS_PLAN_NUM_PER_GRP);
     ASSERT_COND(!(base%CLS_PLAN_NUM_PER_GRP));
@@ -1247,7 +1266,6 @@ void  KgFreeClsPlanEntries(t_Handle h_FmPcd, uint16_t numOfClsPlanEntries, uint8
         p_FmPcd->p_FmPcdKg->clsPlanBlocksMng[i].allocated = FALSE;
         p_FmPcd->p_FmPcdKg->clsPlanBlocksMng[i].ownerId = 0;
     }
-    FmPcdUnlock(p_FmPcd, intFlags);
 }
 
 void KgEnable(t_FmPcd *p_FmPcd)
@@ -1270,16 +1288,14 @@ void KgSetClsPlan(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanSet *p_Set)
 {
     t_FmPcd                 *p_FmPcd = (t_FmPcd*)h_FmPcd;
     t_FmPcdKgClsPlanRegs    *p_FmPcdKgPortRegs;
-    uint32_t                tmpKgarReg=0, intFlags;
+    uint32_t                tmpKgarReg=0;
     uint16_t                i, j;
 
-    SANITY_CHECK_RETURN(p_FmPcd, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE);
+    /* This routine is protected by the calling routine ! */
 
     ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
     p_FmPcdKgPortRegs = &p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs;
 
-    intFlags = FmPcdLock(p_FmPcd);
     for(i=p_Set->baseEntry;i<p_Set->baseEntry+p_Set->numOfClsPlanEntries;i+=8)
     {
         tmpKgarReg = FmPcdKgBuildWriteClsPlanBlockActionReg((uint8_t)(i / CLS_PLAN_NUM_PER_GRP));
@@ -1296,7 +1312,6 @@ void KgSetClsPlan(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanSet *p_Set)
             return;
         }
     }
-    FmPcdUnlock(p_FmPcd, intFlags);
 }
 
 static void PcdKgErrorException(t_Handle h_FmPcd)
@@ -1413,7 +1428,7 @@ static t_Error KgInitMaster(t_FmPcd *p_FmPcd)
     /**********************KGGDV1R******************/
 
     /**********************KGGCR******************/
-    WRITE_UINT32(p_Regs->kggcr, NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME);
+    WRITE_UINT32(p_Regs->kggcr, GET_NIA_BMI_AC_ENQ_FRAME(p_FmPcd));
     /**********************KGGCR******************/
 
     /* register even if no interrupts enabled, to allow future enablement */
@@ -1437,6 +1452,7 @@ static t_Error KgInitMaster(t_FmPcd *p_FmPcd)
     WRITE_UINT32(p_Regs->kgseer, 0xFFFFFFFF);
     WRITE_UINT32(p_Regs->kgseeer, 0xFFFFFFFF);
 
+
     if(p_FmPcd->p_FmPcdKg->numOfSchemes)
     {
         err = FmPcdKgAllocSchemes(p_FmPcd,
@@ -1449,171 +1465,6 @@ static t_Error KgInitMaster(t_FmPcd *p_FmPcd)
 
     return E_OK;
 }
-
-
-/****************************************/
-/*  API routines                        */
-/****************************************/
-t_Error FM_PCD_KgSetAdditionalDataAfterParsing(t_Handle h_FmPcd, uint8_t payloadOffset)
-{
-   t_FmPcd              *p_FmPcd = (t_FmPcd*)h_FmPcd;
-   t_FmPcdKgRegs        *p_Regs;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_NULL_POINTER);
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_NULL_POINTER);
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs, E_NULL_POINTER);
-
-    p_Regs = p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs;
-    if(!FmIsMaster(p_FmPcd->h_Fm))
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_KgSetAdditionalDataAfterParsing - guest mode!"));
-
-/* not needed
-    if(payloadOffset > 256)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("data exatraction offset from parseing end can not be more than 256"));
-*/
-
-    WRITE_UINT32(p_Regs->kgfdor,payloadOffset);
-
-    return E_OK;
-}
-
-t_Error FM_PCD_KgSetDfltValue(t_Handle h_FmPcd, uint8_t valueId, uint32_t value)
-{
-   t_FmPcd              *p_FmPcd = (t_FmPcd*)h_FmPcd;
-   t_FmPcdKgRegs        *p_Regs;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(((valueId == 0) || (valueId == 1)), E_INVALID_VALUE);
-    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_NULL_POINTER);
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_NULL_POINTER);
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs, E_NULL_POINTER);
-
-    p_Regs = p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs;
-
-    if(!FmIsMaster(p_FmPcd->h_Fm))
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_KgSetDfltValue - guest mode!"));
-
-    if(valueId == 0)
-        WRITE_UINT32(p_Regs->kggdv0r,value);
-    else
-        WRITE_UINT32(p_Regs->kggdv1r,value);
-    return E_OK;
-}
-
-#if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
-t_Error FM_PCD_KgDumpRegs(t_Handle h_FmPcd)
-{
-    t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    int                 i = 0, j = 0;
-    uint8_t             hardwarePortId = 0;
-    uint32_t            tmpKgarReg, intFlags;
-    t_Error             err = E_OK;
-    t_FmPcdIpcMsg       msg;
-
-    DECLARE_DUMP;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
-
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
-    {
-        memset(&msg, 0, sizeof(msg));
-        msg.msgId = FM_PCD_KG_DUMP_REGS;
-        return XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                 (uint8_t*)&msg,
-                                 sizeof(msg.msgId),
-                                 NULL,
-                                 NULL,
-                                 NULL,
-                                 NULL);
-    }
-    DUMP_SUBTITLE(("\n"));
-    DUMP_TITLE(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs, ("FmPcdKgRegs Regs"));
-
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggcr);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgeer);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgeeer);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgseer);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgseeer);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggsr);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgtpc);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgserc);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgfdor);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggdv0r);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggdv1r);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgfer);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgfeer);
-    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgar);
-
-    DUMP_SUBTITLE(("\n"));
-    intFlags = FmPcdLock(p_FmPcd);
-    for(j = 0;j<FM_PCD_KG_NUM_OF_SCHEMES;j++)
-    {
-        tmpKgarReg = FmPcdKgBuildReadSchemeActionReg((uint8_t)j);
-        if(WriteKgarWait(p_FmPcd, tmpKgarReg) != E_OK)
-            RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
-
-        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs, ("FmPcdKgIndirectAccessSchemeRegs Scheme %d Regs", j));
-
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_mode);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ekfc);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ekdv);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_bmch);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_bmcl);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_fqb);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_hc);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ppc);
-
-        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_gec, ("kgse_gec"));
-        DUMP_SUBSTRUCT_ARRAY(i, FM_PCD_KG_NUM_OF_GENERIC_REGS)
-        {
-            DUMP_MEMORY(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_gec[i], sizeof(uint32_t));
-        }
-
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_spc);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_dv0);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_dv1);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ccbs);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_mv);
-    }
-    DUMP_SUBTITLE(("\n"));
-
-    for (i=0;i<FM_MAX_NUM_OF_PORTS;i++)
-    {
-        SW_PORT_INDX_TO_HW_PORT_ID(hardwarePortId, i);
-
-        tmpKgarReg = FmPcdKgBuildReadPortSchemeBindActionReg(hardwarePortId);
-
-        err = WriteKgarWait(p_FmPcd, tmpKgarReg);
-        if(err)
-            RETURN_ERROR(MINOR, err, NO_MSG);
-
-        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs, ("FmPcdKgIndirectAccessPortRegs PCD Port %d regs", hardwarePortId));
-
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs, kgoe_sp);
-        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs, kgoe_cpp);
-    }
-
-    DUMP_SUBTITLE(("\n"));
-    for(j=0;j<FM_PCD_MAX_NUM_OF_CLS_PLANS/CLS_PLAN_NUM_PER_GRP;j++)
-    {
-        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs, ("FmPcdKgIndirectAccessClsPlanRegs Regs group %d", j));
-        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs.kgcpe, ("kgcpe"));
-
-        tmpKgarReg = FmPcdKgBuildReadClsPlanBlockActionReg((uint8_t)j);
-        err = WriteKgarWait(p_FmPcd, tmpKgarReg);
-        if(err)
-            RETURN_ERROR(MINOR, err, NO_MSG);
-        DUMP_SUBSTRUCT_ARRAY(i, 8)
-            DUMP_MEMORY(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs.kgcpe[i], sizeof(uint32_t));
-    }
-    FmPcdUnlock(p_FmPcd, intFlags);
-
-    return E_OK;
-}
-#endif /* (defined(DEBUG_ERRORS) && ... */
 
 t_Handle KgConfig( t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams)
 {
@@ -1656,10 +1507,31 @@ t_Handle KgConfig( t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams)
 
 t_Error KgInit(t_FmPcd *p_FmPcd)
 {
+    t_Error err = E_OK;
+
+    p_FmPcd->p_FmPcdKg->h_HwSpinlock = XX_InitSpinlock();
+    if (!p_FmPcd->p_FmPcdKg->h_HwSpinlock)
+        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("FM KG HW spinlock"));
+
+    p_FmPcd->p_FmPcdKg->h_SwSpinlock = XX_InitSpinlock();
+    if (!p_FmPcd->p_FmPcdKg->h_SwSpinlock)
+        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("FM KG SW spinlock"));
+
+
     if (p_FmPcd->guestId == NCSW_MASTER_ID)
-        return KgInitMaster(p_FmPcd);
+        err =  KgInitMaster(p_FmPcd);
     else
-        return KgInitGuest(p_FmPcd);
+        err =  KgInitGuest(p_FmPcd);
+
+    if(err != E_OK)
+    {
+        if (p_FmPcd->p_FmPcdKg->h_HwSpinlock)
+            XX_FreeSpinlock(p_FmPcd->p_FmPcdKg->h_HwSpinlock);
+        if (p_FmPcd->p_FmPcdKg->h_SwSpinlock)
+            XX_FreeSpinlock(p_FmPcd->p_FmPcdKg->h_SwSpinlock);
+    }
+
+    return err;
 }
 
 t_Error KgFree(t_FmPcd *p_FmPcd)
@@ -1673,10 +1545,22 @@ t_Error KgFree(t_FmPcd *p_FmPcd)
     FmUnregisterIntr(p_FmPcd->h_Fm, e_FM_MOD_KG, 0, e_FM_INTR_TYPE_ERR);
 
     if(p_FmPcd->guestId == NCSW_MASTER_ID)
-        return FmPcdKgFreeSchemes(p_FmPcd,
+    {
+        err = FmPcdKgFreeSchemes(p_FmPcd,
                                     p_FmPcd->p_FmPcdKg->numOfSchemes,
                                     p_FmPcd->guestId,
                                     p_FmPcd->p_FmPcdKg->schemesIds);
+        if(err)
+            RETURN_ERROR(MAJOR, err, NO_MSG);
+
+        if (p_FmPcd->p_FmPcdKg->h_HwSpinlock)
+            XX_FreeSpinlock(p_FmPcd->p_FmPcdKg->h_HwSpinlock);
+        if (p_FmPcd->p_FmPcdKg->h_SwSpinlock)
+            XX_FreeSpinlock(p_FmPcd->p_FmPcdKg->h_SwSpinlock);
+
+
+        return E_OK;
+    }
 
     /* guest */
     memset(&reply, 0, sizeof(reply));
@@ -1684,7 +1568,7 @@ t_Error KgFree(t_FmPcd *p_FmPcd)
     kgAlloc.numOfSchemes = p_FmPcd->p_FmPcdKg->numOfSchemes;
     kgAlloc.guestId = p_FmPcd->guestId;
     ASSERT_COND(kgAlloc.numOfSchemes < FM_PCD_KG_NUM_OF_SCHEMES);
-    memcpy(kgAlloc.schemesIds, p_FmPcd->p_FmPcdKg->schemesIds , (sizeof(uint8_t))*kgAlloc.numOfSchemes);
+    memcpy(kgAlloc.schemesIds, p_FmPcd->p_FmPcdKg->schemesIds, (sizeof(uint8_t))*kgAlloc.numOfSchemes);
     msg.msgId = FM_PCD_FREE_KG_SCHEMES;
     memcpy(msg.msgBody, &kgAlloc, sizeof(kgAlloc));
     replyLength = sizeof(uint32_t);
@@ -1699,6 +1583,11 @@ t_Error KgFree(t_FmPcd *p_FmPcd)
     if (replyLength != sizeof(uint32_t))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
 
+    if (p_FmPcd->p_FmPcdKg->h_HwSpinlock)
+        XX_FreeSpinlock(p_FmPcd->p_FmPcdKg->h_HwSpinlock);
+    if (p_FmPcd->p_FmPcdKg->h_SwSpinlock)
+        XX_FreeSpinlock(p_FmPcd->p_FmPcdKg->h_SwSpinlock);
+
     return (t_Error)reply.error;
 }
 
@@ -1709,24 +1598,37 @@ t_Error FmPcdKgSetOrBindToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, u
     t_FmPcdKgClsPlanGrp                     *p_ClsPlanGrp;
     t_FmPcdKgInterModuleClsPlanSet          *p_ClsPlanSet;
     t_Error                                 err;
+    uint32_t                                intFlags;
 
     memset(&grpParams, 0, sizeof(grpParams));
     grpParams.clsPlanGrpId = ILLEGAL_CLS_PLAN;
     p_GrpParams = &grpParams;
 
     p_GrpParams->netEnvId = netEnvId;
+
+    intFlags = KgSwLock(p_FmPcd->p_FmPcdKg);
+
+    /* Get from the NetEnv the information of the clsPlan (can be already created,
+     * or needs to build) */
     err = PcdGetClsPlanGrpParams(h_FmPcd, p_GrpParams);
     if(err)
         RETURN_ERROR(MINOR,err,NO_MSG);
+
     if(p_GrpParams->grpExists)
+    {
+        /* this group was already updated (at least) in SW */
+        KgSwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
         *p_ClsPlanGrpId = p_GrpParams->clsPlanGrpId;
+    }
     else
     {
         p_ClsPlanSet = (t_FmPcdKgInterModuleClsPlanSet *)XX_Malloc(sizeof(t_FmPcdKgInterModuleClsPlanSet));
         if (!p_ClsPlanSet)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Classification plan set"));
         memset(p_ClsPlanSet, 0, sizeof(t_FmPcdKgInterModuleClsPlanSet));
+        /* Build (in SW) the clsPlan parameters, including the vectors to be written to HW */
         err = FmPcdKgBuildClsPlanGrp(h_FmPcd, p_GrpParams, p_ClsPlanSet);
+        KgSwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
         if (err)
         {
             XX_Free(p_ClsPlanSet);
@@ -1734,12 +1636,15 @@ t_Error FmPcdKgSetOrBindToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, u
         }
         *p_ClsPlanGrpId = p_GrpParams->clsPlanGrpId;
 
+        intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
+
         if (p_FmPcd->h_Hc)
         {
             /* write clsPlan entries to memory */
             err = FmHcPcdKgSetClsPlan(p_FmPcd->h_Hc, p_ClsPlanSet);
             if (err)
             {
+                KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
                 XX_Free(p_ClsPlanSet);
                 RETURN_ERROR(MAJOR, err, NO_MSG);
             }
@@ -1748,8 +1653,12 @@ t_Error FmPcdKgSetOrBindToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, u
             /* write clsPlan entries to memory */
             KgSetClsPlan(p_FmPcd, p_ClsPlanSet);
 
+        KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
+
         XX_Free(p_ClsPlanSet);
     }
+
+    /* Set caller parameters     */
 
     /* mark if this is an empty classification group */
     if(*p_ClsPlanGrpId == p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId)
@@ -1759,8 +1668,12 @@ t_Error FmPcdKgSetOrBindToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardwarePortId, u
 
     p_ClsPlanGrp = &p_FmPcd->p_FmPcdKg->clsPlanGrps[*p_ClsPlanGrpId];
 
-    /* increment owners number */
+
+    intFlags = KgSwLock(p_FmPcd->p_FmPcdKg);
+   /* increment owners number */
     p_ClsPlanGrp->owners++;
+    KgSwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
+
 
     /* copy options array for port */
     memcpy(p_OptArray, &p_FmPcd->p_FmPcdKg->clsPlanGrps[*p_ClsPlanGrpId].optArray, FM_PCD_MAX_NUM_OF_OPTIONS(FM_PCD_MAX_NUM_OF_CLS_PLANS)*sizeof(protocolOpt_t));
@@ -1778,38 +1691,56 @@ t_Error FmPcdKgDeleteOrUnbindPortToClsPlanGrp(t_Handle h_FmPcd, uint8_t hardware
     t_FmPcd                         *p_FmPcd = (t_FmPcd *)h_FmPcd;
     t_FmPcdKgClsPlanGrp             *p_ClsPlanGrp = &p_FmPcd->p_FmPcdKg->clsPlanGrps[clsPlanGrpId];
     t_FmPcdKgInterModuleClsPlanSet  *p_ClsPlanSet;
+    uint32_t                        intFlags;
+    t_Error                         err;
 
     FmPcdKgUnbindPortToClsPlanGrp(p_FmPcd, hardwarePortId);
 
+    intFlags = KgSwLock(p_FmPcd->p_FmPcdKg);
     /* decrement owners number */
     ASSERT_COND(p_ClsPlanGrp->owners);
     p_ClsPlanGrp->owners--;
+    KgSwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
+
 
     if(!p_ClsPlanGrp->owners)
     {
+        intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
+
         if (p_FmPcd->h_Hc)
-            return FmHcPcdKgDeleteClsPlan(p_FmPcd->h_Hc, clsPlanGrpId);
+        {
+            err = FmHcPcdKgDeleteClsPlan(p_FmPcd->h_Hc, clsPlanGrpId);
+            KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
+            return err;
+        }
         else
         {
             /* clear clsPlan entries in memory */
             p_ClsPlanSet = (t_FmPcdKgInterModuleClsPlanSet *)XX_Malloc(sizeof(t_FmPcdKgInterModuleClsPlanSet));
             if (!p_ClsPlanSet)
+            {
+                KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
                 RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Classification plan set"));
+            }
             memset(p_ClsPlanSet, 0, sizeof(t_FmPcdKgInterModuleClsPlanSet));
 
             p_ClsPlanSet->baseEntry = p_FmPcd->p_FmPcdKg->clsPlanGrps[clsPlanGrpId].baseEntry;
             p_ClsPlanSet->numOfClsPlanEntries = p_FmPcd->p_FmPcdKg->clsPlanGrps[clsPlanGrpId].sizeOfGrp;
             KgSetClsPlan(p_FmPcd, p_ClsPlanSet);
+            KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
             XX_Free(p_ClsPlanSet);
+
+            /* protection for this routine is inside it */
             FmPcdKgDestroyClsPlanGrp(h_FmPcd, clsPlanGrpId);
-        }
+       }
     }
     return E_OK;
 }
 
-t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t_FmPcdKgInterModuleSchemeRegs *p_SchemeRegs)
+t_Error FmPcdKgBuildScheme(t_Handle h_Scheme,  t_FmPcdKgSchemeParams *p_SchemeParams, t_FmPcdKgInterModuleSchemeRegs *p_SchemeRegs)
 {
-    t_FmPcd                             *p_FmPcd = (t_FmPcd *)h_FmPcd;
+	t_FmPcdKgScheme 					*p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
+    t_FmPcd                             *p_FmPcd = (t_FmPcd *)(p_Scheme->h_FmPcd);
     uint32_t                            grpBits = 0;
     uint8_t                             grpBase;
     bool                                direct=TRUE, absolute=FALSE;
@@ -1829,173 +1760,158 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
     t_FmPcdKgSchemesExtracts            *p_LocalExtractsArray;
     uint8_t                             numOfSwDefaults = 0;
     t_FmPcdKgExtractDflt                swDefaults[NUM_OF_SW_DEFAULTS];
-    uint8_t                             currGenId = 0, relativeSchemeId;
+    uint8_t                             currGenId = 0;
 
-    if(!p_Scheme->modify)
-        relativeSchemeId = p_Scheme->id.relativeSchemeId;
-    else
-        relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, (uint8_t)(PTR_TO_UINT(p_Scheme->id.h_Scheme)-1));
-
-    memset(&p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId], 0, sizeof(t_FmPcdKgScheme));
     memset(swDefaults, 0, NUM_OF_SW_DEFAULTS*sizeof(t_FmPcdKgExtractDflt));
     memset(p_SchemeRegs, 0, sizeof(t_FmPcdKgInterModuleSchemeRegs));
 
-    if (p_Scheme->netEnvParams.numOfDistinctionUnits > FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
+    if (p_SchemeParams->netEnvParams.numOfDistinctionUnits > FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE,
                      ("numOfDistinctionUnits should not exceed %d", FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS));
 
     /* by netEnv parameters, get match vector */
-    if(!p_Scheme->alwaysDirect)
+    if(!p_SchemeParams->alwaysDirect)
     {
-        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId =
-            (uint8_t)(PTR_TO_UINT(p_Scheme->netEnvParams.h_NetEnv)-1);
-        netEnvParams.netEnvId = p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId;
-        netEnvParams.numOfDistinctionUnits = p_Scheme->netEnvParams.numOfDistinctionUnits;
-        memcpy(netEnvParams.unitIds, p_Scheme->netEnvParams.unitIds, (sizeof(uint8_t))*p_Scheme->netEnvParams.numOfDistinctionUnits);
+        p_Scheme->netEnvId = FmPcdGetNetEnvId(p_SchemeParams->netEnvParams.h_NetEnv);
+        netEnvParams.netEnvId = p_Scheme->netEnvId;
+        netEnvParams.numOfDistinctionUnits = p_SchemeParams->netEnvParams.numOfDistinctionUnits;
+        memcpy(netEnvParams.unitIds, p_SchemeParams->netEnvParams.unitIds, (sizeof(uint8_t))*p_SchemeParams->netEnvParams.numOfDistinctionUnits);
         err = PcdGetUnitsVector(p_FmPcd, &netEnvParams);
         if(err)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
-        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].matchVector = netEnvParams.vector;
+        p_Scheme->matchVector = netEnvParams.vector;
     }
     else
     {
-        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].matchVector = SCHEME_ALWAYS_DIRECT;
-        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId = ILLEGAL_NETENV;
+        p_Scheme->matchVector = SCHEME_ALWAYS_DIRECT;
+        p_Scheme->netEnvId = ILLEGAL_NETENV;
     }
 
-    if(p_Scheme->nextEngine == e_FM_PCD_INVALID)
+    if(p_SchemeParams->nextEngine == e_FM_PCD_INVALID)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next Engine of the scheme is not Valid"));
 
-    if(p_Scheme->bypassFqidGeneration)
+    if(p_SchemeParams->bypassFqidGeneration)
     {
 #ifdef FM_KG_NO_BYPASS_FQID_GEN
-        {
-            t_FmRevisionInfo    revInfo;
-
-            FM_GetRevision(p_FmPcd->h_Fm, &revInfo);
-            if (revInfo.majorRev != 4)
-                RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("bypassFqidGeneration."));
-        }
+        if ((p_FmPcd->fmRevInfo.majorRev != 4) && (p_FmPcd->fmRevInfo.majorRev < 6))
+            RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("bypassFqidGeneration."));
 #endif /* FM_KG_NO_BYPASS_FQID_GEN */
-        if(p_Scheme->baseFqid)
+        if(p_SchemeParams->baseFqid)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("baseFqid set for a scheme that does not generate an FQID"));
     }
     else
-        if(!p_Scheme->baseFqid)
+        if(!p_SchemeParams->baseFqid)
             DBG(WARNING, ("baseFqid is 0."));
 
-    if(p_Scheme->nextEngine == e_FM_PCD_PLCR)
+    if(p_SchemeParams->nextEngine == e_FM_PCD_PLCR)
     {
-        direct = p_Scheme->kgNextEngineParams.plcrProfile.direct;
-        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].directPlcr = direct;
-        absolute = (bool)(p_Scheme->kgNextEngineParams.plcrProfile.sharedProfile ? TRUE : FALSE);
+        direct = p_SchemeParams->kgNextEngineParams.plcrProfile.direct;
+        p_Scheme->directPlcr = direct;
+        absolute = (bool)(p_SchemeParams->kgNextEngineParams.plcrProfile.sharedProfile ? TRUE : FALSE);
         if(!direct && absolute)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Indirect policing is not available when profile is shared."));
 
         if(direct)
         {
-            profileId = p_Scheme->kgNextEngineParams.plcrProfile.profileSelect.directRelativeProfileId;
+            profileId = p_SchemeParams->kgNextEngineParams.plcrProfile.profileSelect.directRelativeProfileId;
             numOfProfiles = 1;
         }
         else
         {
-            profileId = p_Scheme->kgNextEngineParams.plcrProfile.profileSelect.indirectProfile.fqidOffsetRelativeProfileIdBase;
-            shift = p_Scheme->kgNextEngineParams.plcrProfile.profileSelect.indirectProfile.fqidOffsetShift;
-            numOfProfiles = p_Scheme->kgNextEngineParams.plcrProfile.profileSelect.indirectProfile.numOfProfiles;
+            profileId = p_SchemeParams->kgNextEngineParams.plcrProfile.profileSelect.indirectProfile.fqidOffsetRelativeProfileIdBase;
+            shift = p_SchemeParams->kgNextEngineParams.plcrProfile.profileSelect.indirectProfile.fqidOffsetShift;
+            numOfProfiles = p_SchemeParams->kgNextEngineParams.plcrProfile.profileSelect.indirectProfile.numOfProfiles;
         }
     }
 
-    if(p_Scheme->nextEngine == e_FM_PCD_CC)
+    if(p_SchemeParams->nextEngine == e_FM_PCD_CC)
     {
 #ifdef FM_KG_NO_BYPASS_PLCR_PROFILE_GEN
-        if((p_Scheme->kgNextEngineParams.cc.plcrNext) && (p_Scheme->kgNextEngineParams.cc.bypassPlcrProfileGeneration))
+        if((p_SchemeParams->kgNextEngineParams.cc.plcrNext) && (p_SchemeParams->kgNextEngineParams.cc.bypassPlcrProfileGeneration))
         {
-            t_FmRevisionInfo    revInfo;
-
-            FM_GetRevision(p_FmPcd->h_Fm, &revInfo);
-            if (revInfo.majorRev != 4)
+            if ((p_FmPcd->fmRevInfo.majorRev != 4) && (p_FmPcd->fmRevInfo.majorRev < 6))
                 RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("bypassPlcrProfileGeneration."));
         }
 #endif /* FM_KG_NO_BYPASS_PLCR_PROFILE_GEN */
 
-        err = FmPcdCcGetGrpParams(p_Scheme->kgNextEngineParams.cc.h_CcTree,
-                             p_Scheme->kgNextEngineParams.cc.grpId,
+        err = FmPcdCcGetGrpParams(p_SchemeParams->kgNextEngineParams.cc.h_CcTree,
+                             p_SchemeParams->kgNextEngineParams.cc.grpId,
                              &grpBits,
                              &grpBase);
         if(err)
             RETURN_ERROR(MAJOR, err, NO_MSG);
-        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].ccUnits = grpBits;
+        p_Scheme->ccUnits = grpBits;
 
-        if((p_Scheme->kgNextEngineParams.cc.plcrNext) &&
-           (!p_Scheme->kgNextEngineParams.cc.bypassPlcrProfileGeneration))
+        if((p_SchemeParams->kgNextEngineParams.cc.plcrNext) &&
+           (!p_SchemeParams->kgNextEngineParams.cc.bypassPlcrProfileGeneration))
         {
-                if(p_Scheme->kgNextEngineParams.cc.plcrProfile.sharedProfile)
+                if(p_SchemeParams->kgNextEngineParams.cc.plcrProfile.sharedProfile)
                     RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Shared profile may not be used after Coarse classification."));
                 absolute = FALSE;
-                direct = p_Scheme->kgNextEngineParams.cc.plcrProfile.direct;
+                direct = p_SchemeParams->kgNextEngineParams.cc.plcrProfile.direct;
                 if(direct)
                 {
-                    profileId = p_Scheme->kgNextEngineParams.cc.plcrProfile.profileSelect.directRelativeProfileId;
+                    profileId = p_SchemeParams->kgNextEngineParams.cc.plcrProfile.profileSelect.directRelativeProfileId;
                     numOfProfiles = 1;
                 }
                 else
                 {
-                    profileId = p_Scheme->kgNextEngineParams.cc.plcrProfile.profileSelect.indirectProfile.fqidOffsetRelativeProfileIdBase;
-                    shift = p_Scheme->kgNextEngineParams.cc.plcrProfile.profileSelect.indirectProfile.fqidOffsetShift;
-                    numOfProfiles = p_Scheme->kgNextEngineParams.cc.plcrProfile.profileSelect.indirectProfile.numOfProfiles;
+                    profileId = p_SchemeParams->kgNextEngineParams.cc.plcrProfile.profileSelect.indirectProfile.fqidOffsetRelativeProfileIdBase;
+                    shift = p_SchemeParams->kgNextEngineParams.cc.plcrProfile.profileSelect.indirectProfile.fqidOffsetShift;
+                    numOfProfiles = p_SchemeParams->kgNextEngineParams.cc.plcrProfile.profileSelect.indirectProfile.numOfProfiles;
                 }
         }
     }
 
     /* if policer is used directly after KG, or after CC */
-    if((p_Scheme->nextEngine == e_FM_PCD_PLCR)  ||
-       ((p_Scheme->nextEngine == e_FM_PCD_CC) &&
-        (p_Scheme->kgNextEngineParams.cc.plcrNext) &&
-        (!p_Scheme->kgNextEngineParams.cc.bypassPlcrProfileGeneration)))
+    if((p_SchemeParams->nextEngine == e_FM_PCD_PLCR)  ||
+       ((p_SchemeParams->nextEngine == e_FM_PCD_CC) &&
+        (p_SchemeParams->kgNextEngineParams.cc.plcrNext) &&
+        (!p_SchemeParams->kgNextEngineParams.cc.bypassPlcrProfileGeneration)))
     {
         /* if private policer profile, it may be uninitialized yet, therefore no checks are done at this stage */
         if(absolute)
         {
             /* for absolute direct policy only, */
             relativeProfileId = profileId;
-            err = FmPcdPlcrGetAbsoluteProfileId(h_FmPcd,e_FM_PCD_PLCR_SHARED,NULL, relativeProfileId, &profileId);
+            err = FmPcdPlcrGetAbsoluteIdByProfileParams((t_Handle)p_FmPcd,e_FM_PCD_PLCR_SHARED,NULL, relativeProfileId, &profileId);
             if(err)
                 RETURN_ERROR(MAJOR, err, ("Shared profile not valid offset"));
             if(!FmPcdPlcrIsProfileValid(p_FmPcd, profileId))
                 RETURN_ERROR(MINOR, E_INVALID_STATE, ("Shared profile not valid."));
-            p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].relativeProfileId = profileId;
+            p_Scheme->relativeProfileId = profileId;
         }
         else
         {
             /* save relative profile id's for later check */
-            p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].nextRelativePlcrProfile = TRUE;
-            p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].relativeProfileId = profileId;
-            p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].numOfProfiles = numOfProfiles;
+            p_Scheme->nextRelativePlcrProfile = TRUE;
+            p_Scheme->relativeProfileId = profileId;
+            p_Scheme->numOfProfiles = numOfProfiles;
         }
     }
     else
     {
         /* if policer is NOT going to be used after KG at all than if bypassFqidGeneration
         is set, we do not need numOfUsedExtractedOrs and hashDistributionNumOfFqids */
-        if(p_Scheme->bypassFqidGeneration && p_Scheme->numOfUsedExtractedOrs)
+        if(p_SchemeParams->bypassFqidGeneration && p_SchemeParams->numOfUsedExtractedOrs)
             RETURN_ERROR(MAJOR, E_INVALID_STATE,
                     ("numOfUsedExtractedOrs is set in a scheme that does not generate FQID or policer profile ID"));
-        if(p_Scheme->bypassFqidGeneration &&
-                p_Scheme->useHash &&
-                p_Scheme->keyExtractAndHashParams.hashDistributionNumOfFqids)
+        if(p_SchemeParams->bypassFqidGeneration &&
+                p_SchemeParams->useHash &&
+                p_SchemeParams->keyExtractAndHashParams.hashDistributionNumOfFqids)
             RETURN_ERROR(MAJOR, E_INVALID_STATE,
                     ("hashDistributionNumOfFqids is set in a scheme that does not generate FQID or policer profile ID"));
     }
 
     /* configure all 21 scheme registers */
     tmpReg =  KG_SCH_MODE_EN;
-    switch(p_Scheme->nextEngine)
+    switch(p_SchemeParams->nextEngine)
     {
         case(e_FM_PCD_PLCR):
             /* add to mode register - NIA */
             tmpReg |= KG_SCH_MODE_NIA_PLCR;
             tmpReg |= NIA_ENG_PLCR;
-            tmpReg |= (uint32_t)(p_Scheme->kgNextEngineParams.plcrProfile.sharedProfile ? NIA_PLCR_ABSOLUTE:0);
+            tmpReg |= (uint32_t)(p_SchemeParams->kgNextEngineParams.plcrProfile.sharedProfile ? NIA_PLCR_ABSOLUTE:0);
             /* initialize policer profile command - */
             /*  configure kgse_ppc  */
             if(direct)
@@ -2024,9 +1940,9 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
             p_SchemeRegs->kgse_ccbs = grpBits;
             tmpReg |= (uint32_t)(grpBase << KG_SCH_MODE_CCOBASE_SHIFT);
 
-            if(p_Scheme->kgNextEngineParams.cc.plcrNext)
+            if(p_SchemeParams->kgNextEngineParams.cc.plcrNext)
             {
-                if(!p_Scheme->kgNextEngineParams.cc.bypassPlcrProfileGeneration)
+                if(!p_SchemeParams->kgNextEngineParams.cc.bypassPlcrProfileGeneration)
                 {
                     /* find out if absolute or relative */
                     if(absolute)
@@ -2056,21 +1972,59 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
             }
             break;
         case(e_FM_PCD_DONE):
-            if(p_Scheme->kgNextEngineParams.doneAction == e_FM_PCD_DROP_FRAME)
-                tmpReg |= (NIA_ENG_BMI | NIA_BMI_AC_DISCARD);
+            if(p_SchemeParams->kgNextEngineParams.doneAction == e_FM_PCD_DROP_FRAME)
+                tmpReg |= GET_NIA_BMI_AC_DISCARD_FRAME(p_FmPcd);
             else
-                tmpReg |= (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME);
+                tmpReg |= GET_NIA_BMI_AC_ENQ_FRAME(p_FmPcd);
             break;
         default:
              RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("Next engine not supported"));
     }
     p_SchemeRegs->kgse_mode = tmpReg;
 
-    p_SchemeRegs->kgse_mv = p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].matchVector;
+    p_SchemeRegs->kgse_mv = p_Scheme->matchVector;
 
-    if(p_Scheme->useHash)
+#if DPAA_VERSION >= 3
+    if (p_SchemeParams->overrideStorageProfile)
     {
-        p_KeyAndHash = &p_Scheme->keyExtractAndHashParams;
+        p_SchemeRegs->kgse_om |= KG_SCH_OM_VSPE;
+
+        tmpReg = 0;
+        if (p_SchemeParams->storageProfile.direct)
+        {
+            profileId = p_SchemeParams->storageProfile.profileSelect.directRelativeProfileId;
+            shift = 0;
+            numOfProfiles = 1;
+        }
+        else
+        {
+            profileId = p_SchemeParams->storageProfile.profileSelect.indirectProfile.fqidOffsetRelativeProfileIdBase;
+            shift = p_SchemeParams->storageProfile.profileSelect.indirectProfile.fqidOffsetShift;
+            numOfProfiles = p_SchemeParams->storageProfile.profileSelect.indirectProfile.numOfProfiles;
+        }
+        if (shift > MAX_SP_SHIFT)
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("fqidOffsetShift may not be larger than %d", MAX_SP_SHIFT));
+
+        if (!numOfProfiles || !POWER_OF_2(numOfProfiles))
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfProfiles must not be 0 and must be a power of 2"));
+
+        tmpReg = (uint32_t)shift << KG_SCH_VSP_SHIFT;
+        tmpReg |= ((uint32_t)(numOfProfiles-1) << KG_SCH_VSP_MASK_SHIFT);
+        tmpReg |= (uint32_t)profileId;
+
+
+        p_SchemeRegs->kgse_vsp = tmpReg;
+
+        p_Scheme->vspe = TRUE;
+
+    }
+    else
+        p_SchemeRegs->kgse_vsp = KG_SCH_VSP_NO_KSP_EN;
+#endif /* DPAA_VERSION >= 3 */
+
+    if(p_SchemeParams->useHash)
+    {
+        p_KeyAndHash = &p_SchemeParams->keyExtractAndHashParams;
 
         if (p_KeyAndHash->numOfUsedExtracts >= FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY)
              RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfUsedExtracts out of range"));
@@ -2081,11 +2035,11 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
         /*  configure kgse_dv1  */
         p_SchemeRegs->kgse_dv1 = p_KeyAndHash->privateDflt1;
 
-        if(!p_Scheme->bypassFqidGeneration)
+        if(!p_SchemeParams->bypassFqidGeneration)
         {
             if(!p_KeyAndHash->hashDistributionNumOfFqids || !POWER_OF_2(p_KeyAndHash->hashDistributionNumOfFqids))
                 RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("hashDistributionNumOfFqids must not be 0 and must be a power of 2"));
-            if((p_KeyAndHash->hashDistributionNumOfFqids-1) & p_Scheme->baseFqid)
+            if((p_KeyAndHash->hashDistributionNumOfFqids-1) & p_SchemeParams->baseFqid)
                 DBG(WARNING, ("baseFqid unaligned. Distribution may result in less than hashDistributionNumOfFqids queues."));
         }
 
@@ -2182,7 +2136,7 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
                                     /* case where extraction from ESP only */
                                     if (p_Extract->extractByHdr.extractByHdrType.fromHdr.offset >= UDP_HEADER_SIZE)
                                     {
-                                        p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
+                                        p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_Scheme->netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
                                         p_Extract->extractByHdr.extractByHdrType.fromHdr.offset -= UDP_HEADER_SIZE;
                                         p_Extract->extractByHdr.ignoreProtocolValidation = TRUE;
                                     }
@@ -2203,14 +2157,14 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
                                             break;
                                         case(NET_HEADER_FIELD_UDP_ENCAP_ESP_SPI):
                                             p_Extract->extractByHdr.type = e_FM_PCD_EXTRACT_FROM_HDR;
-                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
+                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_Scheme->netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
                                             p_Extract->extractByHdr.extractByHdrType.fromField.size = p_Extract->extractByHdr.extractByHdrType.fromField.size;
                                             /*p_Extract->extractByHdr.extractByHdrType.fromField.offset += ESP_SPI_OFFSET;*/
                                             p_Extract->extractByHdr.ignoreProtocolValidation = TRUE;
                                             break;
                                         case(NET_HEADER_FIELD_UDP_ENCAP_ESP_SEQUENCE_NUM):
                                             p_Extract->extractByHdr.type = e_FM_PCD_EXTRACT_FROM_HDR;
-                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
+                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_Scheme->netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
                                             p_Extract->extractByHdr.extractByHdrType.fromField.size = p_Extract->extractByHdr.extractByHdrType.fromField.size;
                                             p_Extract->extractByHdr.extractByHdrType.fromField.offset += ESP_SEQ_NUM_OFFSET;
                                             p_Extract->extractByHdr.ignoreProtocolValidation = TRUE;
@@ -2228,14 +2182,14 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
                                             break;
                                         case(NET_HEADER_FIELD_UDP_ENCAP_ESP_SPI):
                                             p_Extract->extractByHdr.type = e_FM_PCD_EXTRACT_FROM_HDR;
-                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
+                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_Scheme->netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
                                             p_Extract->extractByHdr.extractByHdrType.fromHdr.size = ESP_SPI_SIZE;
                                             p_Extract->extractByHdr.extractByHdrType.fromHdr.offset = ESP_SPI_OFFSET;
                                             p_Extract->extractByHdr.ignoreProtocolValidation = TRUE;
                                             break;
                                         case(NET_HEADER_FIELD_UDP_ENCAP_ESP_SEQUENCE_NUM):
                                             p_Extract->extractByHdr.type = e_FM_PCD_EXTRACT_FROM_HDR;
-                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
+                                            p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_Scheme->netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
                                             p_Extract->extractByHdr.extractByHdrType.fromHdr.size = ESP_SEQ_NUM_SIZE;
                                             p_Extract->extractByHdr.extractByHdrType.fromHdr.offset = ESP_SEQ_NUM_OFFSET;
                                             p_Extract->extractByHdr.ignoreProtocolValidation = TRUE;
@@ -2419,13 +2373,13 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
                 /* we compare the id of the current extract with the id of the extract in the orderedArray[j-1]
                 location */
                 while((j > 0) && (p_LocalExtractsArray->extractsArray[i].id <
-                      p_LocalExtractsArray->extractsArray[p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].orderedArray[j-1]].id))
+                      p_LocalExtractsArray->extractsArray[p_Scheme->orderedArray[j-1]].id))
                 {
-                    p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].orderedArray[j] =
-                        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].orderedArray[j-1];
+                    p_Scheme->orderedArray[j] =
+                        p_Scheme->orderedArray[j-1];
                     j--;
                 }
-                p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].orderedArray[j] = (uint8_t)i;
+                p_Scheme->orderedArray[j] = (uint8_t)i;
                 curr++;
             }
             else
@@ -2433,7 +2387,7 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
                 /* index is first_generic_index + generic index (id) */
                 idx = (uint8_t)(p_KeyAndHash->numOfUsedExtracts - currGenId + p_LocalExtractsArray->extractsArray[i].id);
                 ASSERT_COND(idx < FM_PCD_KG_MAX_NUM_OF_EXTRACTS_PER_KEY);
-                p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].orderedArray[idx]= (uint8_t)i;
+                p_Scheme->orderedArray[idx]= (uint8_t)i;
             }
         }
         XX_Free(p_LocalExtractsArray);
@@ -2452,25 +2406,25 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
         p_SchemeRegs->kgse_dv1 = 0;
     }
 
-    if(p_Scheme->bypassFqidGeneration)
+    if(p_SchemeParams->bypassFqidGeneration)
         p_SchemeRegs->kgse_hc |= KG_SCH_HASH_CONFIG_NO_FQID;
 
     /*  configure kgse_spc  */
-    if( p_Scheme->schemeCounter.update)
-        p_SchemeRegs->kgse_spc = p_Scheme->schemeCounter.value;
+    if( p_SchemeParams->schemeCounter.update)
+        p_SchemeRegs->kgse_spc = p_SchemeParams->schemeCounter.value;
 
 
     /* check that are enough generic registers */
-    if(p_Scheme->numOfUsedExtractedOrs + currGenId > FM_PCD_KG_NUM_OF_GENERIC_REGS)
+    if(p_SchemeParams->numOfUsedExtractedOrs + currGenId > FM_PCD_KG_NUM_OF_GENERIC_REGS)
         RETURN_ERROR(MAJOR, E_FULL, ("Generic registers are fully used"));
 
     /* extracted OR mask on Qid */
-    for( i=0 ;i<p_Scheme->numOfUsedExtractedOrs ; i++)
+    for( i=0 ;i<p_SchemeParams->numOfUsedExtractedOrs ; i++)
     {
 
-        p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].extractedOrs = TRUE;
+        p_Scheme->extractedOrs = TRUE;
         /*  configure kgse_gec[i]  */
-        p_ExtractOr = &p_Scheme->extractedOrs[i];
+        p_ExtractOr = &p_SchemeParams->extractedOrs[i];
         switch(p_ExtractOr->type)
         {
             case(e_FM_PCD_KG_EXTRACT_PORT_PRIVATE_INFO):
@@ -2557,7 +2511,7 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
         {
             if(p_ExtractOr->bitOffsetInPlcrProfile > MAX_KG_SCH_PP_BIT_OFFSET )
               RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Illegal extraction (bitOffsetInPlcrProfile out of range)"));
-            p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].bitOffsetInPlcrProfile = p_ExtractOr->bitOffsetInPlcrProfile;
+            p_Scheme->bitOffsetInPlcrProfile = p_ExtractOr->bitOffsetInPlcrProfile;
             genTmp |= (uint32_t)((p_ExtractOr->bitOffsetInPlcrProfile+16) << KG_SCH_GEN_SIZE_SHIFT);
             p_ExtractOr->mask &= GetExtractedOrMask(p_ExtractOr->bitOffsetInPlcrProfile, FALSE);
         }
@@ -2576,36 +2530,41 @@ t_Error FmPcdKgBuildScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme, t
 
     /* add base Qid for this scheme */
     /* add configuration for kgse_fqb */
-    if(p_Scheme->baseFqid & ~0x00FFFFFF)
+    if(p_SchemeParams->baseFqid & ~0x00FFFFFF)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("baseFqid must be between 1 and 2^24-1"));
 
-    fqbTmp |= p_Scheme->baseFqid;
+    fqbTmp |= p_SchemeParams->baseFqid;
     p_SchemeRegs->kgse_fqb = fqbTmp;
 
-    p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].nextEngine = p_Scheme->nextEngine;
-    p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].doneAction = p_Scheme->kgNextEngineParams.doneAction;
+    p_Scheme->nextEngine = p_SchemeParams->nextEngine;
+    p_Scheme->doneAction = p_SchemeParams->kgNextEngineParams.doneAction;
+
     return E_OK;
 }
 
-void  FmPcdKgValidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId)
+static void  FmPcdKgValidateSchemeSw(t_Handle h_Scheme)
 {
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcdKgScheme *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
+    uint32_t        intFlags;
 
-    ASSERT_COND(!p_FmPcd->p_FmPcdKg->schemes[schemeId].valid);
-
-    if(p_FmPcd->p_FmPcdKg->schemes[schemeId].netEnvId != ILLEGAL_NETENV)
-        FmPcdIncNetEnvOwners(p_FmPcd, p_FmPcd->p_FmPcdKg->schemes[schemeId].netEnvId);
-    p_FmPcd->p_FmPcdKg->schemes[schemeId].valid = TRUE;
+    ASSERT_COND(!p_Scheme->valid);
+    if(p_Scheme->netEnvId != ILLEGAL_NETENV)
+        FmPcdIncNetEnvOwners(p_Scheme->h_FmPcd, p_Scheme->netEnvId);
+    intFlags = KgSchemeLock(p_Scheme);
+    p_Scheme->valid = TRUE;
+    KgSchemeUnlock(p_Scheme, intFlags);
 }
 
-void  FmPcdKgInvalidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId)
+static void  FmPcdKgInvalidateSchemeSw(t_Handle h_Scheme)
 {
+    t_FmPcdKgScheme *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
+    uint32_t        intFlags;
 
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-
-    if(p_FmPcd->p_FmPcdKg->schemes[schemeId].netEnvId != ILLEGAL_NETENV)
-        FmPcdDecNetEnvOwners(h_FmPcd, p_FmPcd->p_FmPcdKg->schemes[schemeId].netEnvId);
-    p_FmPcd->p_FmPcdKg->schemes[schemeId].valid = FALSE;
+    if(p_Scheme->netEnvId != ILLEGAL_NETENV)
+        FmPcdDecNetEnvOwners(p_Scheme->h_FmPcd, p_Scheme->netEnvId);
+    intFlags = KgSchemeLock(p_Scheme);
+    p_Scheme->valid = FALSE;
+    KgSchemeUnlock(p_Scheme, intFlags);
 }
 
 uint32_t FmPcdKgGetRequiredAction(t_Handle h_FmPcd, uint8_t schemeId)
@@ -2659,25 +2618,26 @@ bool FmPcdKgIsDistrOnPlcrProfile(t_Handle h_FmPcd, uint8_t schemeId)
         return FALSE;
 
 }
-void FmPcdKgUpatePointedOwner(t_Handle h_FmPcd, uint8_t schemeId, bool add)
+void FmPcdKgUpatePointedOwner(t_Handle h_Scheme, bool add)
 {
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcdKgScheme *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
 
-   ASSERT_COND(p_FmPcd->p_FmPcdKg->schemes[schemeId].valid);
+    /* this routine is locked by the calling routine */
+   ASSERT_COND(p_Scheme->valid);
 
     if(add)
-        p_FmPcd->p_FmPcdKg->schemes[schemeId].pointedOwners++;
+        p_Scheme->pointedOwners++;
     else
-        p_FmPcd->p_FmPcdKg->schemes[schemeId].pointedOwners--;
+        p_Scheme->pointedOwners--;
 }
 
-e_FmPcdEngine FmPcdKgGetNextEngine(t_Handle h_FmPcd, uint8_t schemeId)
+e_FmPcdEngine FmPcdKgGetNextEngine(t_Handle h_FmPcd, uint8_t relativeSchemeId)
 {
     t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
 
-    ASSERT_COND(p_FmPcd->p_FmPcdKg->schemes[schemeId].valid);
+    ASSERT_COND(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].valid);
 
-    return p_FmPcd->p_FmPcdKg->schemes[schemeId].nextEngine;
+    return p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].nextEngine;
 }
 
 e_FmPcdDoneAction FmPcdKgGetDoneAction(t_Handle h_FmPcd, uint8_t schemeId)
@@ -2689,27 +2649,31 @@ e_FmPcdDoneAction FmPcdKgGetDoneAction(t_Handle h_FmPcd, uint8_t schemeId)
     return p_FmPcd->p_FmPcdKg->schemes[schemeId].doneAction;
 }
 
-void FmPcdKgUpdateRequiredAction(t_Handle h_FmPcd, uint8_t schemeId, uint32_t requiredAction)
+void FmPcdKgUpdateRequiredAction(t_Handle h_Scheme, uint32_t requiredAction)
 {
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcdKgScheme *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
 
-    ASSERT_COND(p_FmPcd->p_FmPcdKg->schemes[schemeId].valid);
+	/* this routine is protected by calling routine */
 
-    p_FmPcd->p_FmPcdKg->schemes[schemeId].requiredAction = requiredAction;
+    ASSERT_COND(p_Scheme->valid);
+
+    p_Scheme->requiredAction |= requiredAction;
 }
 
-t_Error FmPcdKgCheckInvalidateSchemeSw(t_Handle h_FmPcd, uint8_t schemeId)
+t_Error FmPcdKgCheckInvalidateSchemeSw(t_Handle h_Scheme)
 {
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcdKgScheme *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
+    uint32_t        intFlags;
 
-    if(schemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
-        REPORT_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
-
+    intFlags = KgSchemeLock(p_Scheme);
    /* check that no port is bound to this scheme */
-    if(p_FmPcd->p_FmPcdKg->schemes[schemeId].owners)
+    if (p_Scheme->owners)
        RETURN_ERROR(MINOR, E_INVALID_STATE, ("Trying to delete a scheme that has ports bound to"));
-    if(!p_FmPcd->p_FmPcdKg->schemes[schemeId].valid)
+    if (!p_Scheme->valid){dump_stack();
        RETURN_ERROR(MINOR, E_INVALID_STATE, ("Trying to delete an invalid scheme"));
+    }
+    KgSchemeUnlock(p_Scheme, intFlags);
+
     return E_OK;
 }
 
@@ -2723,93 +2687,89 @@ uint32_t FmPcdKgBuildCppReg(t_Handle h_FmPcd, uint8_t clsPlanGrpId)
     return tmpKgpeCpp;
 }
 
-bool    FmPcdKgHwSchemeIsValid(uint32_t schemeModeReg)
+bool FmPcdKgHwSchemeIsValid(uint32_t schemeModeReg)
 {
-
-    if(schemeModeReg & KG_SCH_MODE_EN)
-        return TRUE;
-    else
-        return FALSE;
+    return (bool)!!(schemeModeReg & KG_SCH_MODE_EN);
 }
 
-uint32_t    FmPcdKgBuildWriteSchemeActionReg(uint8_t schemeId, bool updateCounter)
+uint32_t FmPcdKgBuildWriteSchemeActionReg(uint8_t schemeId, bool updateCounter)
 {
-    return     (uint32_t)(((uint32_t)schemeId << FM_PCD_KG_KGAR_NUM_SHIFT)|
-                            FM_PCD_KG_KGAR_GO |
-                            FM_PCD_KG_KGAR_WRITE |
-                            FM_PCD_KG_KGAR_SEL_SCHEME_ENTRY |
-                            DUMMY_PORT_ID |
-                            (updateCounter ? FM_PCD_KG_KGAR_SCHEME_WSEL_UPDATE_CNT:0));
-
+    return (uint32_t)(((uint32_t)schemeId << FM_PCD_KG_KGAR_NUM_SHIFT) |
+                      FM_PCD_KG_KGAR_GO |
+                      FM_PCD_KG_KGAR_WRITE |
+                      FM_PCD_KG_KGAR_SEL_SCHEME_ENTRY |
+                      DUMMY_PORT_ID |
+                      (updateCounter ? FM_PCD_KG_KGAR_SCHEME_WSEL_UPDATE_CNT:0));
 }
 
-uint32_t    FmPcdKgBuildReadSchemeActionReg(uint8_t schemeId)
+uint32_t FmPcdKgBuildReadSchemeActionReg(uint8_t schemeId)
 {
-    return     (uint32_t)(((uint32_t)schemeId << FM_PCD_KG_KGAR_NUM_SHIFT)|
-                            FM_PCD_KG_KGAR_GO |
-                            FM_PCD_KG_KGAR_READ |
-                            FM_PCD_KG_KGAR_SEL_SCHEME_ENTRY |
-                            DUMMY_PORT_ID |
-                            FM_PCD_KG_KGAR_SCHEME_WSEL_UPDATE_CNT);
+    return (uint32_t)(((uint32_t)schemeId << FM_PCD_KG_KGAR_NUM_SHIFT) |
+                      FM_PCD_KG_KGAR_GO |
+                      FM_PCD_KG_KGAR_READ |
+                      FM_PCD_KG_KGAR_SEL_SCHEME_ENTRY |
+                      DUMMY_PORT_ID |
+                      FM_PCD_KG_KGAR_SCHEME_WSEL_UPDATE_CNT);
 
 }
 
-
-uint32_t    FmPcdKgBuildWriteClsPlanBlockActionReg(uint8_t grpId)
+uint32_t FmPcdKgBuildWriteClsPlanBlockActionReg(uint8_t grpId)
 {
     return (uint32_t)(FM_PCD_KG_KGAR_GO |
-                        FM_PCD_KG_KGAR_WRITE |
-                        FM_PCD_KG_KGAR_SEL_CLS_PLAN_ENTRY |
-                        DUMMY_PORT_ID |
-                        ((uint32_t)grpId << FM_PCD_KG_KGAR_NUM_SHIFT) |
-                        FM_PCD_KG_KGAR_WSEL_MASK);
+                      FM_PCD_KG_KGAR_WRITE |
+                      FM_PCD_KG_KGAR_SEL_CLS_PLAN_ENTRY |
+                      DUMMY_PORT_ID |
+                      ((uint32_t)grpId << FM_PCD_KG_KGAR_NUM_SHIFT) |
+                      FM_PCD_KG_KGAR_WSEL_MASK);
 
-
-        /* if we ever want to write 1 by 1, use:
-        sel = (uint8_t)(0x01 << (7- (entryId % CLS_PLAN_NUM_PER_GRP)));*/
+    /* if we ever want to write 1 by 1, use:
+       sel = (uint8_t)(0x01 << (7- (entryId % CLS_PLAN_NUM_PER_GRP)));
+     */
 }
 
-uint32_t    FmPcdKgBuildReadClsPlanBlockActionReg(uint8_t grpId)
+uint32_t FmPcdKgBuildReadClsPlanBlockActionReg(uint8_t grpId)
 {
     return (uint32_t)(FM_PCD_KG_KGAR_GO |
-                        FM_PCD_KG_KGAR_READ |
-                        FM_PCD_KG_KGAR_SEL_CLS_PLAN_ENTRY |
-                        DUMMY_PORT_ID |
-                        ((uint32_t)grpId << FM_PCD_KG_KGAR_NUM_SHIFT) |
-                        FM_PCD_KG_KGAR_WSEL_MASK);
+                      FM_PCD_KG_KGAR_READ |
+                      FM_PCD_KG_KGAR_SEL_CLS_PLAN_ENTRY |
+                      DUMMY_PORT_ID |
+                      ((uint32_t)grpId << FM_PCD_KG_KGAR_NUM_SHIFT) |
+                      FM_PCD_KG_KGAR_WSEL_MASK);
 
 
-        /* if we ever want to write 1 by 1, use:
-        sel = (uint8_t)(0x01 << (7- (entryId % CLS_PLAN_NUM_PER_GRP)));*/
+    /* if we ever want to write 1 by 1, use:
+       sel = (uint8_t)(0x01 << (7- (entryId % CLS_PLAN_NUM_PER_GRP)));
+     */
 }
 
-uint32_t        FmPcdKgBuildWritePortSchemeBindActionReg(uint8_t hardwarePortId)
+uint32_t FmPcdKgBuildWritePortSchemeBindActionReg(uint8_t hardwarePortId)
 {
 
     return (uint32_t)(FM_PCD_KG_KGAR_GO |
-                        FM_PCD_KG_KGAR_WRITE |
-                        FM_PCD_KG_KGAR_SEL_PORT_ENTRY |
-                        hardwarePortId |
-                        FM_PCD_KG_KGAR_SEL_PORT_WSEL_SP);
+                      FM_PCD_KG_KGAR_WRITE |
+                      FM_PCD_KG_KGAR_SEL_PORT_ENTRY |
+                      hardwarePortId |
+                      FM_PCD_KG_KGAR_SEL_PORT_WSEL_SP);
 }
 
-uint32_t        FmPcdKgBuildReadPortSchemeBindActionReg(uint8_t hardwarePortId)
+uint32_t FmPcdKgBuildReadPortSchemeBindActionReg(uint8_t hardwarePortId)
 {
 
     return (uint32_t)(FM_PCD_KG_KGAR_GO |
-                        FM_PCD_KG_KGAR_READ |
-                        FM_PCD_KG_KGAR_SEL_PORT_ENTRY |
-                        hardwarePortId |
-                        FM_PCD_KG_KGAR_SEL_PORT_WSEL_SP);
+                      FM_PCD_KG_KGAR_READ |
+                      FM_PCD_KG_KGAR_SEL_PORT_ENTRY |
+                      hardwarePortId |
+                      FM_PCD_KG_KGAR_SEL_PORT_WSEL_SP);
 }
-uint32_t        FmPcdKgBuildWritePortClsPlanBindActionReg(uint8_t hardwarePortId)
+
+uint32_t FmPcdKgBuildWritePortClsPlanBindActionReg(uint8_t hardwarePortId)
 {
 
     return (uint32_t)(FM_PCD_KG_KGAR_GO |
-                        FM_PCD_KG_KGAR_WRITE |
-                        FM_PCD_KG_KGAR_SEL_PORT_ENTRY |
-                        hardwarePortId |
-                        FM_PCD_KG_KGAR_SEL_PORT_WSEL_CPP);
+                      FM_PCD_KG_KGAR_WRITE |
+                      FM_PCD_KG_KGAR_SEL_PORT_ENTRY |
+                      hardwarePortId |
+                      FM_PCD_KG_KGAR_SEL_PORT_WSEL_CPP);
 }
 
 uint8_t FmPcdKgGetClsPlanGrpBase(t_Handle h_FmPcd, uint8_t clsPlanGrp)
@@ -2838,15 +2798,19 @@ uint8_t FmPcdKgGetSchemeSwId(t_Handle h_FmPcd, uint8_t schemeHwId)
     return FM_PCD_KG_NUM_OF_SCHEMES;
 }
 
-uint8_t FmPcdKgGetNumOfPartitionSchemes(t_Handle h_FmPcd)
+uint8_t	FmPcdKgGetSchemeId(t_Handle h_Scheme)
 {
-    return ((t_FmPcd*)h_FmPcd)->p_FmPcdKg->numOfSchemes;
+    return ((t_FmPcdKgScheme*)h_Scheme)->schemeId;
+
 }
 
-uint8_t FmPcdKgGetPhysicalSchemeId(t_Handle h_FmPcd, uint8_t relativeSchemeId)
+#if DPAA_VERSION >= 3
+bool FmPcdKgGetVspe(t_Handle h_Scheme)
 {
-    return ((t_FmPcd*)h_FmPcd)->p_FmPcdKg->schemesIds[relativeSchemeId];
+    return ((t_FmPcdKgScheme*)h_Scheme)->vspe;
+
 }
+#endif /* DPAA_VERSION >= 3 */
 
 uint8_t FmPcdKgGetRelativeSchemeId(t_Handle h_FmPcd, uint8_t schemeId)
 {
@@ -2863,31 +2827,45 @@ uint8_t FmPcdKgGetRelativeSchemeId(t_Handle h_FmPcd, uint8_t schemeId)
     return FM_PCD_KG_NUM_OF_SCHEMES;
 }
 
-t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t requiredAction)
+t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle h_Scheme, uint32_t requiredAction, uint32_t value)
 {
     t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
     uint8_t             relativeSchemeId, physicalSchemeId;
     uint32_t            tmpKgarReg, tmpReg32 = 0, intFlags;
     t_Error             err;
+    t_FmPcdKgScheme		*p_Scheme = (t_FmPcdKgScheme*)h_Scheme;
 
     SANITY_CHECK_RETURN_VALUE(h_FmPcd, E_INVALID_HANDLE, 0);
     SANITY_CHECK_RETURN_VALUE(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE, 0);
     SANITY_CHECK_RETURN_VALUE(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE, 0);
 
-    if (p_FmPcd->h_Hc)
-        return FmHcPcdKgCcGetSetParams(p_FmPcd->h_Hc,  h_Scheme,  requiredAction);
+    /* if (FmPcdKgSchemeTryLock(p_FmPcd, &p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId]))
+        RETURN_ERROR(MAJOR, E_BUSY, ("Lock of the scheme FAILED")); */
+    if (!FmPcdKgIsSchemeValidSw(h_Scheme))
+        RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is Invalid"));
 
-    physicalSchemeId = (uint8_t)(PTR_TO_UINT(h_Scheme)-1);
+    intFlags = KgSchemeLock(h_Scheme);
+
+    if (p_FmPcd->h_Hc)
+    {
+        err = FmHcPcdKgCcGetSetParams(p_FmPcd->h_Hc, h_Scheme, requiredAction, value);
+
+        FmPcdKgUpatePointedOwner(h_Scheme,TRUE);
+        FmPcdKgUpdateRequiredAction(h_Scheme,requiredAction);
+
+        KgSchemeUnlock(h_Scheme, intFlags);
+        /* FmPcdKgReleaseSchemeLock(&p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId]); */
+        return err;
+    }
+
+    physicalSchemeId = p_Scheme->schemeId;
 
     relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId);
-    if(relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
+    if (relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
         RETURN_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
 
-    if (FmPcdKgSchemeTryLock(p_FmPcd, relativeSchemeId, FALSE))
-        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Lock of the scheme FAILED"));
-
-    if(!p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].pointedOwners ||
-       !(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].requiredAction & requiredAction))
+    if (!p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].pointedOwners ||
+        !(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].requiredAction & requiredAction))
     {
         if(requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA)
         {
@@ -2897,21 +2875,15 @@ t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t req
                     if(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].doneAction == e_FM_PCD_ENQ_FRAME)
                     {
                         tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
-                        intFlags = FmPcdLock(p_FmPcd);
+                        intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
                         WriteKgarWait(p_FmPcd, tmpKgarReg);
-                        if (!(GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode) & KG_SCH_MODE_EN))
-                        {
-                            FmPcdUnlock(p_FmPcd, intFlags);
-                            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
-                            RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is Invalid"));
-                        }
                         tmpReg32 = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode);
                         ASSERT_COND(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME));
                         WRITE_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode, tmpReg32 | NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA);
                         /* call indirect command for scheme write */
                         tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
                         WriteKgarWait(p_FmPcd, tmpKgarReg);
-                        FmPcdUnlock(p_FmPcd, intFlags);
+                        KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
                     }
                 break;
                 case(e_FM_PCD_PLCR):
@@ -2920,13 +2892,15 @@ t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t req
                         p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].bitOffsetInPlcrProfile) ||
                         p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].nextRelativePlcrProfile)
                         {
-                            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+                            KgSchemeUnlock(h_Scheme, intFlags);
+                            /*FmPcdKgReleaseSchemeLock(&p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId]);*/
                             RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("In this situation PP can not be with distribution and has to be shared"));
                         }
                         err = FmPcdPlcrCcGetSetParams(h_FmPcd, p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].relativeProfileId, requiredAction);
                         if(err)
                         {
-                            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+                            KgSchemeUnlock(h_Scheme, intFlags);
+                            /*FmPcdKgReleaseSchemeLock(&p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId]);*/
                             RETURN_ERROR(MAJOR, err, NO_MSG);
                         }
                break;
@@ -2939,14 +2913,8 @@ t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t req
             if (p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].nextEngine == e_FM_PCD_CC)
             {
                 tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
-                intFlags = FmPcdLock(p_FmPcd);
+                intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
                 WriteKgarWait(p_FmPcd, tmpKgarReg);
-                if (!(GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode) & KG_SCH_MODE_EN))
-                {
-                    FmPcdUnlock(p_FmPcd, intFlags);
-                    RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
-                    RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is Invalid"));
-                }
                 tmpReg32 = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode);
                 ASSERT_COND(tmpReg32 & (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_CC));
                 tmpReg32 &= ~NIA_FM_CTL_AC_CC;
@@ -2954,179 +2922,223 @@ t_Error FmPcdKgCcGetSetParams(t_Handle h_FmPcd, t_Handle  h_Scheme, uint32_t req
                 /* call indirect command for scheme write */
                 tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
                 WriteKgarWait(p_FmPcd, tmpKgarReg);
-                FmPcdUnlock(p_FmPcd, intFlags);
+                KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
            }
         }
+        if(requiredAction & UPDATE_KG_OPT_MODE)
+        {
+            tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
+            intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
+            WriteKgarWait(p_FmPcd, tmpKgarReg);
+            WRITE_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_om, value);
+            /* call indirect command for scheme write */
+            tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
+            WriteKgarWait(p_FmPcd, tmpKgarReg);
+            KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
+        }
+        if(requiredAction & UPDATE_KG_NIA)
+        {
+            tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
+            intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
+            WriteKgarWait(p_FmPcd, tmpKgarReg);
+            tmpReg32 = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode);
+            tmpReg32 &= ~(NIA_ENG_MASK | NIA_AC_MASK);
+            tmpReg32 |= value;
+            WRITE_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode, tmpReg32);
+            /* call indirect command for scheme write */
+            tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
+            WriteKgarWait(p_FmPcd, tmpKgarReg);
+            KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
+        }
     }
-    p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].pointedOwners += 1;
-    p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].requiredAction |= requiredAction;
 
-    RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+    FmPcdKgUpatePointedOwner(h_Scheme, TRUE);
+    FmPcdKgUpdateRequiredAction(h_Scheme, requiredAction);
+
+    /* FmPcdKgReleaseSchemeLock(&p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId]); */
+    KgSchemeUnlock(h_Scheme, intFlags);
+
     return E_OK;
 }
-
-t_Error FmPcdKgSchemeTryLock(t_Handle h_FmPcd, uint8_t schemeId, bool intr)
+/*
+t_Error FmPcdKgSchemeTryLock(t_Handle h_FmPcd, t_Handle h_Scheme)
 {
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    bool        ans;
+    t_FmPcdKgScheme *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
 
-    if (intr)
-        ans = TRY_LOCK(NULL, &p_FmPcd->p_FmPcdKg->schemes[schemeId].lock);
-    else
-        ans = TRY_LOCK(p_FmPcd->h_Spinlock, &p_FmPcd->p_FmPcdKg->schemes[schemeId].lock);
-    if (ans)
+    if (TRY_LOCK(((t_FmPcd *)h_FmPcd)->p_FmPcdKg->h_SwSpinlock, &p_Scheme->lock))
         return E_OK;
     return ERROR_CODE(E_BUSY);
 }
 
-void FmPcdKgReleaseSchemeLock(t_Handle h_FmPcd, uint8_t schemeId)
+void FmPcdKgReleaseSchemeLock(t_Handle h_Scheme)
 {
-    RELEASE_LOCK(((t_FmPcd*)h_FmPcd)->p_FmPcdKg->schemes[schemeId].lock);
-}
+    t_FmPcdKgScheme *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
 
-t_Handle FM_PCD_KgSetScheme(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_Scheme)
+    RELEASE_LOCK(p_Scheme->lock);
+}
+*/
+/*********************** End of inter-module routines ************************/
+
+
+/****************************************/
+/*  API routines                        */
+/****************************************/
+t_Handle FM_PCD_KgSchemeSet(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_SchemeParams)
 {
-    t_FmPcd                             *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    uint32_t                            tmpReg;
+    t_FmPcd                             *p_FmPcd;
     t_FmPcdKgInterModuleSchemeRegs      schemeRegs;
     t_FmPcdKgInterModuleSchemeRegs      *p_MemRegs;
     uint8_t                             i;
     t_Error                             err = E_OK;
     uint32_t                            tmpKgarReg;
     uint32_t                            intFlags;
-    uint8_t                             physicalSchemeId, relativeSchemeId;
+    uint8_t                             physicalSchemeId, relativeSchemeId = 0;
+    t_FmPcdKgScheme						*p_Scheme;
 
-    SANITY_CHECK_RETURN_VALUE(p_FmPcd, E_INVALID_HANDLE, NULL);
-    SANITY_CHECK_RETURN_VALUE(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE, NULL);
-    SANITY_CHECK_RETURN_VALUE(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE, NULL);
-
-    if (p_FmPcd->h_Hc)
-        return FmHcPcdKgSetScheme(p_FmPcd->h_Hc, p_Scheme);
-
-    /* if not called for modification, check first that this scheme is unused */
-    if(!p_Scheme->modify)
+    if(p_SchemeParams->modify)
     {
+	p_Scheme = (t_FmPcdKgScheme *)p_SchemeParams->id.h_Scheme;
+	p_FmPcd = p_Scheme->h_FmPcd;
+
+	SANITY_CHECK_RETURN_VALUE(p_FmPcd, E_INVALID_HANDLE, NULL);
+        SANITY_CHECK_RETURN_VALUE(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE, NULL);
+    }
+    else
+    {
+	p_FmPcd = (t_FmPcd*)h_FmPcd;
+
+	SANITY_CHECK_RETURN_VALUE(p_FmPcd, E_INVALID_HANDLE, NULL);
+        SANITY_CHECK_RETURN_VALUE(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE, NULL);
+        relativeSchemeId = p_SchemeParams->id.relativeSchemeId;
         /* check that schemeId is in range */
-        if(p_Scheme->id.relativeSchemeId >= p_FmPcd->p_FmPcdKg->numOfSchemes)
+        if(relativeSchemeId >= p_FmPcd->p_FmPcdKg->numOfSchemes)
         {
             REPORT_ERROR(MAJOR, E_NOT_IN_RANGE, ("Scheme is out of range"));
             return NULL;
         }
-        relativeSchemeId = p_Scheme->id.relativeSchemeId;
 
-        if (FmPcdKgSchemeTryLock(p_FmPcd, relativeSchemeId, FALSE))
-            return NULL;
-
-        physicalSchemeId = p_FmPcd->p_FmPcdKg->schemesIds[relativeSchemeId];
-
-        /* read specified scheme into scheme registers */
-        tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
-        intFlags = FmPcdLock(p_FmPcd);
-        WriteKgarWait(p_FmPcd, tmpKgarReg);
-        tmpReg = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode);
-        FmPcdUnlock(p_FmPcd, intFlags);
-
-        if (tmpReg & KG_SCH_MODE_EN)
+        p_Scheme = &p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId];
+        if(FmPcdKgIsSchemeValidSw(p_Scheme))
         {
             REPORT_ERROR(MAJOR, E_ALREADY_EXISTS,
-                         ("Scheme %d(phys %d) is already used", relativeSchemeId, physicalSchemeId));
-            RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+                         ("Scheme %d is already used", relativeSchemeId));
             return NULL;
         }
+
+	p_Scheme->schemeId = p_FmPcd->p_FmPcdKg->schemesIds[relativeSchemeId];
+	p_Scheme->h_FmPcd = p_FmPcd;
     }
-    else
+
+/*
+    err = FmPcdKgSchemeTryLock(p_FmPcd, p_Scheme);
+    if (err)
+        return NULL;
+*/
+
+    p_Scheme->h_Spinlock = XX_InitSpinlock();
+    if (!p_Scheme->h_Spinlock)
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM KG Scheme spinlock"));
+
+    if (p_FmPcd->h_Hc)
     {
-        SANITY_CHECK_RETURN_VALUE(p_Scheme->id.h_Scheme, E_INVALID_HANDLE, NULL);
-
-        intFlags = FmPcdLock(p_FmPcd);
-        physicalSchemeId = (uint8_t)(PTR_TO_UINT(p_Scheme->id.h_Scheme)-1);
-        relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId);
-
-        /* check that schemeId is in range */
-        if(relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
-        {
-            REPORT_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
-            FmPcdUnlock(p_FmPcd, intFlags);
-            return NULL;
-        }
-
-        err = FmPcdKgSchemeTryLock(p_FmPcd, relativeSchemeId, TRUE);
-        FmPcdUnlock(p_FmPcd, intFlags);
+        err = FmHcPcdKgSetScheme(p_FmPcd->h_Hc, (t_Handle)p_Scheme, p_SchemeParams);
+        /* FmPcdKgReleaseSchemeLock(h_Scheme); */
         if (err)
-            return NULL;
+        {
+          if (p_Scheme->h_Spinlock)
+              XX_FreeSpinlock(p_Scheme->h_Spinlock);
+          return NULL;
+        }
+		if (!p_SchemeParams->modify)
+			FmPcdKgValidateSchemeSw(p_Scheme);
+        return (t_Handle)p_Scheme;
     }
 
-    err = FmPcdKgBuildScheme(h_FmPcd, p_Scheme, &schemeRegs);
+    physicalSchemeId = p_Scheme->schemeId;
+
+
+    err = FmPcdKgBuildScheme((t_Handle)p_Scheme, p_SchemeParams, &schemeRegs);
     if(err)
     {
         REPORT_ERROR(MAJOR, err, NO_MSG);
-        FmPcdKgInvalidateSchemeSw(h_FmPcd, relativeSchemeId);
-        RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+        /*FmPcdKgReleaseSchemeLock(&p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId]);*/
+        if (p_Scheme->h_Spinlock)
+            XX_FreeSpinlock(p_Scheme->h_Spinlock);
         return NULL;
     }
 
     /* configure all 21 scheme registers */
     p_MemRegs = &p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs;
-    intFlags = FmPcdLock(p_FmPcd);
-    WRITE_UINT32(p_MemRegs->kgse_ppc, schemeRegs.kgse_ppc);
-    WRITE_UINT32(p_MemRegs->kgse_ccbs, schemeRegs.kgse_ccbs);
-    WRITE_UINT32(p_MemRegs->kgse_mode, schemeRegs.kgse_mode);
-    WRITE_UINT32(p_MemRegs->kgse_mv, schemeRegs.kgse_mv);
-    WRITE_UINT32(p_MemRegs->kgse_dv0, schemeRegs.kgse_dv0);
-    WRITE_UINT32(p_MemRegs->kgse_dv1, schemeRegs.kgse_dv1);
-    WRITE_UINT32(p_MemRegs->kgse_ekdv, schemeRegs.kgse_ekdv);
-    WRITE_UINT32(p_MemRegs->kgse_ekfc, schemeRegs.kgse_ekfc);
-    WRITE_UINT32(p_MemRegs->kgse_bmch, schemeRegs.kgse_bmch);
-    WRITE_UINT32(p_MemRegs->kgse_bmcl, schemeRegs.kgse_bmcl);
-    WRITE_UINT32(p_MemRegs->kgse_hc, schemeRegs.kgse_hc);
-    WRITE_UINT32(p_MemRegs->kgse_spc, schemeRegs.kgse_spc);
-    WRITE_UINT32(p_MemRegs->kgse_fqb, schemeRegs.kgse_fqb);
+    intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
+    WRITE_UINT32(p_MemRegs->kgse_ppc,   schemeRegs.kgse_ppc);
+    WRITE_UINT32(p_MemRegs->kgse_ccbs,  schemeRegs.kgse_ccbs);
+    WRITE_UINT32(p_MemRegs->kgse_mode,  schemeRegs.kgse_mode);
+    WRITE_UINT32(p_MemRegs->kgse_mv,    schemeRegs.kgse_mv);
+    WRITE_UINT32(p_MemRegs->kgse_dv0,   schemeRegs.kgse_dv0);
+    WRITE_UINT32(p_MemRegs->kgse_dv1,   schemeRegs.kgse_dv1);
+    WRITE_UINT32(p_MemRegs->kgse_ekdv,  schemeRegs.kgse_ekdv);
+    WRITE_UINT32(p_MemRegs->kgse_ekfc,  schemeRegs.kgse_ekfc);
+    WRITE_UINT32(p_MemRegs->kgse_bmch,  schemeRegs.kgse_bmch);
+    WRITE_UINT32(p_MemRegs->kgse_bmcl,  schemeRegs.kgse_bmcl);
+    WRITE_UINT32(p_MemRegs->kgse_hc,    schemeRegs.kgse_hc);
+    WRITE_UINT32(p_MemRegs->kgse_spc,   schemeRegs.kgse_spc);
+    WRITE_UINT32(p_MemRegs->kgse_fqb,   schemeRegs.kgse_fqb);
+    WRITE_UINT32(p_MemRegs->kgse_om,    schemeRegs.kgse_om);
+    WRITE_UINT32(p_MemRegs->kgse_vsp,   schemeRegs.kgse_vsp);
     for(i=0 ; i<FM_PCD_KG_NUM_OF_GENERIC_REGS ; i++)
         WRITE_UINT32(p_MemRegs->kgse_gec[i], schemeRegs.kgse_gec[i]);
 
     /* call indirect command for scheme write */
-    tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, p_Scheme->schemeCounter.update);
+    tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, p_SchemeParams->schemeCounter.update);
 
     WriteKgarWait(p_FmPcd, tmpKgarReg);
-    FmPcdUnlock(p_FmPcd, intFlags);
+    KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
 
-    FmPcdKgValidateSchemeSw(h_FmPcd, relativeSchemeId);
+    if (!p_SchemeParams->modify)
+		FmPcdKgValidateSchemeSw(p_Scheme);
 
-    RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+    /* FmPcdKgReleaseSchemeLock(&p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId]); */
 
-    return UINT_TO_PTR((uint64_t)physicalSchemeId+1);
+    return (t_Handle)p_Scheme;
 }
 
-t_Error  FM_PCD_KgDeleteScheme(t_Handle h_FmPcd, t_Handle h_Scheme)
+t_Error  FM_PCD_KgSchemeDelete(t_Handle h_Scheme)
 {
-    t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcd             *p_FmPcd = (t_FmPcd*)(((t_FmPcdKgScheme *)h_Scheme)->h_FmPcd);
     uint8_t             physicalSchemeId;
     uint32_t            tmpKgarReg, intFlags;
     t_Error             err = E_OK;
-    uint8_t             relativeSchemeId;
+    t_FmPcdKgScheme     *p_Scheme = (t_FmPcdKgScheme *)h_Scheme;
 
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
+    SANITY_CHECK_RETURN_ERROR(h_Scheme, E_INVALID_HANDLE);
 
-    if (p_FmPcd->h_Hc)
-        return FmHcPcdKgDeleteScheme(p_FmPcd->h_Hc, h_Scheme);
-
-    physicalSchemeId = (uint8_t)(PTR_TO_UINT(h_Scheme)-1);
-    relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId);
-
-    if(relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
-        RETURN_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
-
-    if ((err = FmPcdKgSchemeTryLock(p_FmPcd, relativeSchemeId, FALSE)) != E_OK)
-       RETURN_ERROR(MINOR, err, NO_MSG);
+    /*
+        err = FmPcdKgSchemeTryLock(p_FmPcd, p_Scheme);
+        if (err)
+            return NULL;
+    */
 
     /* check that no port is bound to this scheme */
-    err = FmPcdKgCheckInvalidateSchemeSw(h_FmPcd, relativeSchemeId);
+    err = FmPcdKgCheckInvalidateSchemeSw(h_Scheme);
     if(err)
-       RETURN_ERROR(MINOR, err, NO_MSG);
+    {
+        /* FmPcdKgReleaseSchemeLock(h_Scheme); */
+        RETURN_ERROR(MINOR, err, NO_MSG);
+    }
 
-    intFlags = FmPcdLock(p_FmPcd);
+    if (p_FmPcd->h_Hc)
+    {
+        err = FmHcPcdKgDeleteScheme(p_FmPcd->h_Hc, h_Scheme);
+        /* FmPcdKgReleaseSchemeLock(h_Scheme); */
+        FmPcdKgInvalidateSchemeSw(h_Scheme);
+        if (p_Scheme->h_Spinlock)
+            XX_FreeSpinlock(p_Scheme->h_Spinlock);
+        return err;
+    }
+
+    physicalSchemeId = ((t_FmPcdKgScheme *)h_Scheme)->schemeId;
+
+    intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
     /* clear mode register, including enable bit */
     WRITE_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode, 0);
 
@@ -3134,69 +3146,74 @@ t_Error  FM_PCD_KgDeleteScheme(t_Handle h_FmPcd, t_Handle h_Scheme)
     tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, FALSE);
 
     WriteKgarWait(p_FmPcd, tmpKgarReg);
-    FmPcdUnlock(p_FmPcd, intFlags);
+    KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
 
-    FmPcdKgInvalidateSchemeSw(h_FmPcd, relativeSchemeId);
+    FmPcdKgInvalidateSchemeSw(p_Scheme);
 
-    RELEASE_LOCK(p_FmPcd->p_FmPcdKg->schemes[relativeSchemeId].lock);
+    /* FmPcdKgReleaseSchemeLock(h_Scheme); */
+
+    if (p_Scheme->h_Spinlock)
+        XX_FreeSpinlock(p_Scheme->h_Spinlock);
 
     return E_OK;
 }
 
-uint32_t  FM_PCD_KgGetSchemeCounter(t_Handle h_FmPcd, t_Handle h_Scheme)
+uint32_t  FM_PCD_KgSchemeGetCounter(t_Handle h_Scheme)
 {
-    t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcd             *p_FmPcd;
     uint32_t            tmpKgarReg, spc, intFlags;
     uint8_t             physicalSchemeId;
 
-    SANITY_CHECK_RETURN_VALUE(h_FmPcd, E_INVALID_HANDLE, 0);
-    SANITY_CHECK_RETURN_VALUE(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE, 0);
-    SANITY_CHECK_RETURN_VALUE(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE, 0);
+    SANITY_CHECK_RETURN_VALUE(h_Scheme, E_INVALID_HANDLE, 0);
 
+    p_FmPcd = (t_FmPcd*)(((t_FmPcdKgScheme *)h_Scheme)->h_FmPcd);
     if (p_FmPcd->h_Hc)
         return FmHcPcdKgGetSchemeCounter(p_FmPcd->h_Hc, h_Scheme);
 
-    physicalSchemeId = (uint8_t)(PTR_TO_UINT(h_Scheme)-1);
+    physicalSchemeId = ((t_FmPcdKgScheme *)h_Scheme)->schemeId;
 
     if(FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId) == FM_PCD_KG_NUM_OF_SCHEMES)
         REPORT_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
 
     tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
-    intFlags = FmPcdLock(p_FmPcd);
+    intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
     WriteKgarWait(p_FmPcd, tmpKgarReg);
     if (!(GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode) & KG_SCH_MODE_EN))
        REPORT_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is Invalid"));
     spc = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_spc);
-    FmPcdUnlock(p_FmPcd, intFlags);
+    KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
 
     return spc;
 }
 
-t_Error  FM_PCD_KgSetSchemeCounter(t_Handle h_FmPcd, t_Handle h_Scheme, uint32_t value)
+t_Error  FM_PCD_KgSchemeSetCounter(t_Handle h_Scheme, uint32_t value)
 {
-    t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_FmPcd             *p_FmPcd;
     uint32_t            tmpKgarReg, intFlags;
     uint8_t             physicalSchemeId;
 
-    SANITY_CHECK_RETURN_VALUE(h_FmPcd, E_INVALID_HANDLE, 0);
-    SANITY_CHECK_RETURN_VALUE(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE, 0);
-    SANITY_CHECK_RETURN_VALUE(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE, 0);
+    SANITY_CHECK_RETURN_VALUE(h_Scheme, E_INVALID_HANDLE, 0);
+
+    p_FmPcd = (t_FmPcd*)(((t_FmPcdKgScheme *)h_Scheme)->h_FmPcd);
+
+    if (!FmPcdKgIsSchemeValidSw(h_Scheme))
+        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Requested scheme is invalid."));
 
     if (p_FmPcd->h_Hc)
         return FmHcPcdKgSetSchemeCounter(p_FmPcd->h_Hc, h_Scheme, value);
 
-    physicalSchemeId = (uint8_t)(PTR_TO_UINT(h_Scheme)-1);
+    physicalSchemeId = ((t_FmPcdKgScheme *)h_Scheme)->schemeId;
     /* check that schemeId is in range */
     if(FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId) == FM_PCD_KG_NUM_OF_SCHEMES)
         REPORT_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
 
     /* read specified scheme into scheme registers */
     tmpKgarReg = FmPcdKgBuildReadSchemeActionReg(physicalSchemeId);
-    intFlags = FmPcdLock(p_FmPcd);
+    intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
     WriteKgarWait(p_FmPcd, tmpKgarReg);
     if (!(GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_mode) & KG_SCH_MODE_EN))
     {
-       FmPcdUnlock(p_FmPcd, intFlags);
+       KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
        RETURN_ERROR(MAJOR, E_ALREADY_EXISTS, ("Scheme is Invalid"));
     }
 
@@ -3207,8 +3224,163 @@ t_Error  FM_PCD_KgSetSchemeCounter(t_Handle h_FmPcd, t_Handle h_Scheme, uint32_t
     tmpKgarReg = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, TRUE);
 
     WriteKgarWait(p_FmPcd, tmpKgarReg);
-    FmPcdUnlock(p_FmPcd, intFlags);
+    KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
 
     return E_OK;
 }
 
+t_Error FM_PCD_KgSetAdditionalDataAfterParsing(t_Handle h_FmPcd, uint8_t payloadOffset)
+{
+   t_FmPcd              *p_FmPcd = (t_FmPcd*)h_FmPcd;
+   t_FmPcdKgRegs        *p_Regs;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_NULL_POINTER);
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_NULL_POINTER);
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs, E_NULL_POINTER);
+
+    p_Regs = p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs;
+    if(!FmIsMaster(p_FmPcd->h_Fm))
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_KgSetAdditionalDataAfterParsing - guest mode!"));
+
+    WRITE_UINT32(p_Regs->kgfdor,payloadOffset);
+
+    return E_OK;
+}
+
+t_Error FM_PCD_KgSetDfltValue(t_Handle h_FmPcd, uint8_t valueId, uint32_t value)
+{
+   t_FmPcd              *p_FmPcd = (t_FmPcd*)h_FmPcd;
+   t_FmPcdKgRegs        *p_Regs;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(((valueId == 0) || (valueId == 1)), E_INVALID_VALUE);
+    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_NULL_POINTER);
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_NULL_POINTER);
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs, E_NULL_POINTER);
+
+    p_Regs = p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs;
+
+    if(!FmIsMaster(p_FmPcd->h_Fm))
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_KgSetDfltValue - guest mode!"));
+
+    if(valueId == 0)
+        WRITE_UINT32(p_Regs->kggdv0r,value);
+    else
+        WRITE_UINT32(p_Regs->kggdv1r,value);
+    return E_OK;
+}
+
+#if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+t_Error FM_PCD_KgDumpRegs(t_Handle h_FmPcd)
+{
+    t_FmPcd             *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    int                 i = 0, j = 0;
+    uint8_t             hardwarePortId = 0;
+    uint32_t            tmpKgarReg, intFlags;
+    t_Error             err = E_OK;
+    t_FmPcdIpcMsg       msg;
+
+    DECLARE_DUMP;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdKg, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
+
+    if(p_FmPcd->guestId != NCSW_MASTER_ID)
+    {
+        memset(&msg, 0, sizeof(msg));
+        msg.msgId = FM_PCD_KG_DUMP_REGS;
+        return XX_IpcSendMessage(p_FmPcd->h_IpcSession,
+                                 (uint8_t*)&msg,
+                                 sizeof(msg.msgId),
+                                 NULL,
+                                 NULL,
+                                 NULL,
+                                 NULL);
+    }
+    DUMP_SUBTITLE(("\n"));
+    DUMP_TITLE(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs, ("FmPcdKgRegs Regs"));
+
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggcr);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgeer);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgeeer);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgseer);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgseeer);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggsr);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgtpc);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgserc);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgfdor);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggdv0r);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kggdv1r);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgfer);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgfeer);
+    DUMP_VAR(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs,kgar);
+
+    DUMP_SUBTITLE(("\n"));
+    intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
+    for(j = 0;j<FM_PCD_KG_NUM_OF_SCHEMES;j++)
+    {
+        tmpKgarReg = FmPcdKgBuildReadSchemeActionReg((uint8_t)j);
+        if(WriteKgarWait(p_FmPcd, tmpKgarReg) != E_OK)
+            RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
+
+        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs, ("FmPcdKgIndirectAccessSchemeRegs Scheme %d Regs", j));
+
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_mode);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ekfc);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ekdv);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_bmch);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_bmcl);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_fqb);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_hc);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ppc);
+
+        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_gec, ("kgse_gec"));
+        DUMP_SUBSTRUCT_ARRAY(i, FM_PCD_KG_NUM_OF_GENERIC_REGS)
+        {
+            DUMP_MEMORY(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs.kgse_gec[i], sizeof(uint32_t));
+        }
+
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_spc);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_dv0);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_dv1);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_ccbs);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.schemeRegs,kgse_mv);
+    }
+    DUMP_SUBTITLE(("\n"));
+
+    for (i=0;i<FM_MAX_NUM_OF_PORTS;i++)
+    {
+        SW_PORT_INDX_TO_HW_PORT_ID(hardwarePortId, i);
+
+        tmpKgarReg = FmPcdKgBuildReadPortSchemeBindActionReg(hardwarePortId);
+
+        err = WriteKgarWait(p_FmPcd, tmpKgarReg);
+        if(err)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+
+        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs, ("FmPcdKgIndirectAccessPortRegs PCD Port %d regs", hardwarePortId));
+
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs, kgoe_sp);
+        DUMP_VAR(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.portRegs, kgoe_cpp);
+    }
+
+    DUMP_SUBTITLE(("\n"));
+    for(j=0;j<FM_PCD_MAX_NUM_OF_CLS_PLANS/CLS_PLAN_NUM_PER_GRP;j++)
+    {
+        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs, ("FmPcdKgIndirectAccessClsPlanRegs Regs group %d", j));
+        DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs.kgcpe, ("kgcpe"));
+
+        tmpKgarReg = FmPcdKgBuildReadClsPlanBlockActionReg((uint8_t)j);
+        err = WriteKgarWait(p_FmPcd, tmpKgarReg);
+        if(err)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+        DUMP_SUBSTRUCT_ARRAY(i, 8)
+            DUMP_MEMORY(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs.kgcpe[i], sizeof(uint32_t));
+    }
+    KgHwUnlock(p_FmPcd->p_FmPcdKg, intFlags);
+
+    return E_OK;
+}
+#endif /* (defined(DEBUG_ERRORS) && ... */

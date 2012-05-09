@@ -5,6 +5,7 @@ EXTRA_CFLAGS           += -DVERSION=\"\"
 #
 #Include netcomm SW specific definitions
 include $(srctree)/drivers/net/ethernet/freescale/dpa/NetCommSw/ncsw_config.mk
+NCSW_FM_INC = $(srctree)/drivers/net/ethernet/freescale/dpa/NetCommSw/Peripherals/FM/inc
 
 EXTRA_CFLAGS += -I$(NCSW_FM_INC)
 EXTRA_CFLAGS += -I$(NET_DPA)

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -675,13 +675,15 @@ int XX_TimerIsActive(t_Handle h_Timer)
   return timer_pending((struct timer_list *)h_Timer);
 }
 
-uint32_t XX_Sleep(uint32_t msecs)
+void XX_Sleep(uint32_t msecs)
 {
     int tmp_jiffies = (msecs*HZ)/1000;
 
     if ((msecs*HZ)%1000)
         tmp_jiffies++;
-    return schedule_timeout(tmp_jiffies);
+    schedule_timeout(tmp_jiffies);
+
+    return;
 }
 
 /*BEWARE!!!!! UDelay routine is BUSY WAITTING!!!!!*/
