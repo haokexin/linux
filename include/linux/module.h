@@ -508,6 +508,7 @@ int unregister_module_notifier(struct notifier_block * nb);
 extern void print_modules(void);
 
 extern void module_update_markers(void);
+extern int module_get_iter_markers(struct marker_iter *iter);
 
 #else /* !CONFIG_MODULES... */
 
@@ -624,6 +625,10 @@ static inline void module_update_markers(void)
 {
 }
 
+static inline int module_get_iter_markers(struct marker_iter *iter)
+{
+	return 0;
+}
 #endif /* CONFIG_MODULES */
 
 #ifdef CONFIG_SYSFS
