@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 #include "std_ext.h"
 #include "error_ext.h"
 #include "sprint_ext.h"
@@ -62,11 +63,11 @@
 
 #define HC_HCOR_KG_SCHEME_COUNTER           0x00000400
 
-#if (DPAA_VERSION == 2)
+#if (DPAA_VERSION == 10)
 #define HC_HCOR_KG_SCHEME_REGS_MASK         0xFFFFF800
 #else
 #define HC_HCOR_KG_SCHEME_REGS_MASK         0xFFFFFE00
-#endif /* (DPAA_VERSION == 2) */
+#endif /* (DPAA_VERSION == 10) */
 
 #define SIZE_OF_HC_FRAME_PORT_REGS          (sizeof(t_HcFrame)-sizeof(t_FmPcdKgInterModuleSchemeRegs)+sizeof(t_FmPcdKgPortRegs))
 #define SIZE_OF_HC_FRAME_SCHEME_REGS        sizeof(t_HcFrame)
@@ -212,7 +213,7 @@ t_Handle FmHcConfigAndInit(t_FmHcParams *p_FmHcParams)
         return NULL;
     }
 
-	err = FM_PORT_Enable(p_FmHc->h_HcPortDev);
+    err = FM_PORT_Enable(p_FmHc->h_HcPortDev);
     if (err != E_OK)
     {
         REPORT_ERROR(MAJOR, err, ("FM HC port!"));
@@ -294,7 +295,7 @@ t_Error FmHcPcdKgSetScheme(t_Handle h_FmHc, t_Handle h_Scheme, t_FmPcdKgSchemePa
 
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), p_FmHc->dataMemId, 16);
     if (!p_HcFrame)
-	RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
+        RETURN_ERROR(MINOR, E_NO_MEMORY, ("HC Frame object"));
 
     physicalSchemeId = FmPcdKgGetSchemeId(h_Scheme);
     relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmHc->h_FmPcd, physicalSchemeId);
@@ -488,7 +489,7 @@ uint32_t  FmHcPcdKgGetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme)
 
     BUILD_FD(SIZE_OF_HC_FRAME_READ_OR_CC_DYNAMIC);
 
-	err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence);
+    err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence);
     if (err != E_OK)
     {
         REPORT_ERROR(MINOR, err, NO_MSG);
@@ -943,7 +944,7 @@ uint32_t FmHcPcdPlcrGetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmP
 
     BUILD_FD(SIZE_OF_HC_FRAME_READ_OR_CC_DYNAMIC);
 
-	err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence);
+    err = EnQFrm(p_FmHc, &fmFd, &p_HcFrame->commandSequence);
     if (err != E_OK)
     {
         REPORT_ERROR(MINOR, err, NO_MSG);

@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /****************************************************************
  *
  * File:  mm.h
@@ -90,14 +91,14 @@ typedef struct t_BusyBlock
 /* t_MM data structure defines parameters of the MM object */
 typedef struct t_MM
 {
-	t_Handle        h_Spinlock;
+    t_Handle        h_Spinlock;
 
-	t_MemBlock      *memBlocks;     /* List of memory blocks (Memory list) */
+    t_MemBlock      *memBlocks;     /* List of memory blocks (Memory list) */
     t_BusyBlock     *busyBlocks;    /* List of busy blocks (Busy list) */
     t_FreeBlock     *freeBlocks[MM_MAX_ALIGNMENT + 1];
                                     /* Alignment lists of free blocks (Free lists) */
 
-    uint64_t		freeMemSize;	/* Total size of free memory (in bytes) */
+    uint64_t        freeMemSize;    /* Total size of free memory (in bytes) */
 } t_MM;
 
 

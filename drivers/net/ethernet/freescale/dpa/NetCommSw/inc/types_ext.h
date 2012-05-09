@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
  /**************************************************************************//**
  @File          types_ext.h
 
@@ -63,21 +64,19 @@ static __inline__ void TypesChecker(void)
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
      _Packed struct strct {
         __volatile__ int vi;
     } _PackedType;
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
     size_t          size = 0;
     bool            tr = TRUE, fls = FALSE;
-    struct strct    *p_Strct = NULL;
+    struct strct    *p_Struct = NULL;
     physAddress_t   addr = 0x100;
 
-    tr      = fls;
-    p_Strct = p_Strct;
+    tr          = fls;
+    p_Struct    = p_Struct;
     size++;
     if (tr) size++;
 

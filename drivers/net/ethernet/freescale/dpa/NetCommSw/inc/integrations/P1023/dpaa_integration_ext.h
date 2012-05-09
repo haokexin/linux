@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /**
 
  @File          dpaa_integration_ext.h
@@ -42,7 +43,7 @@
 #include "std_ext.h"
 
 
-#define DPAA_VERSION    2
+#define DPAA_VERSION    10
 
 typedef enum e_DpaaSwPortal {
     e_DPAA_SWPORTAL0 = 0,
@@ -212,7 +213,6 @@ typedef enum e_FmMacsecInterModuleEvent {
 
 #define FM_DEBUG_TRACE_FMAN_A004                        /* No implementation, Out of LLD scope */
 #define FM_INT_BUF_LEAK_FMAN_A005                       /* No implementation, Out of LLD scope. App must avoid S/G */
-//TODO: #define FM___ERRATA_FMAN_A006
 
 /* #define FM_UCODE_NOT_RESET_ERRATA_BUGZILLA6173 */
 

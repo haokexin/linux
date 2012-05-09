@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm_pcd.h
 
@@ -42,15 +43,24 @@
 #include "error_ext.h"
 #include "list_ext.h"
 #include "fm_pcd_ext.h"
-
+#include "fm_common.h"
 
 #define __ERR_MODULE__  MODULE_FM_PCD
 
 
-/**************************************************************************//**
- @Group         FM_PCD_Runtime_grp FM PCD Runtime Unit
- @{
-*//***************************************************************************/
+/****************************/
+/* Defaults                 */
+/****************************/
+#define DEFAULT_plcrAutoRefresh                 FALSE
+#define DEFAULT_prsMaxParseCycleLimit           0
+#define DEFAULT_fmPcdKgErrorExceptions          (FM_PCD_EX_KG_DOUBLE_ECC | FM_PCD_EX_KG_KEYSIZE_OVERFLOW)
+#define DEFAULT_fmPcdPlcrErrorExceptions        (FM_PCD_EX_PLCR_DOUBLE_ECC | FM_PCD_EX_PLCR_INIT_ENTRY_ERROR)
+#define DEFAULT_fmPcdPlcrExceptions             0
+#define DEFAULT_fmPcdPrsErrorExceptions         (FM_PCD_EX_PRS_DOUBLE_ECC)
+
+#define DEFAULT_fmPcdPrsExceptions              FM_PCD_EX_PRS_SINGLE_ECC
+#define DEFAULT_numOfUsedProfilesPerWindow      16
+#define DEFAULT_numOfSharedPlcrProfiles         4
 
 /****************************/
 /* Network defines          */
@@ -107,203 +117,24 @@ switch(exception){                                                  \
 /****************************/
 /* Parser defines           */
 /****************************/
-/* masks */
-#define PRS_ERR_CAP                         0x80000000
-#define PRS_ERR_TYPE_DOUBLE                 0x40000000
-#define PRS_ERR_SINGLE_ECC_CNT_MASK         0x00FF0000
-#define PRS_ERR_ADDR_MASK                   0x000001FF
-#define FM_PCD_PRS_RPIMAC_EN                0x00000001
-#define FM_PCD_PRS_SINGLE_ECC               0x00004000
-#define FM_PCD_PRS_PORT_IDLE_STS            0xffff0000
-#define FM_PCD_PRS_DOUBLE_ECC               0x00004000
-#define FM_PCD_PRS_PPSC_ALL_PORTS           0xffff0000
-
-/* others */
-#define PRS_MAX_CYCLE_LIMIT                 8191
-#define PRS_SW_DATA                         0x00000800
-#define PRS_REGS_OFFSET                     0x00000840
-
-#define GET_FM_PCD_PRS_PORT_ID(prsPortId,hardwarePortId) \
-    prsPortId = (uint8_t)(hardwarePortId & 0x0f)
-
-#define GET_FM_PCD_INDEX_FLAG(bitMask, prsPortId)    \
-    bitMask = 0x80000000>>prsPortId
+#define FM_PCD_PRS_SINGLE_ECC                 0x00004000
+#define FM_PCD_PRS_DOUBLE_ECC                 0x00004000
+#define PRS_MAX_CYCLE_LIMIT                   8191
 
 /***********************************************************************/
 /*          Keygen defines                                             */
 /***********************************************************************/
-/* Masks */
-#define FM_PCD_KG_KGGCR_EN                      0x80000000
-#define KG_SCH_GEN_VALID                        0x80000000
-#define KG_SCH_GEN_EXTRACT_TYPE                 0x00008000
-#define KG_ERR_CAP                              0x80000000
-#define KG_ERR_TYPE_DOUBLE                      0x40000000
-#define KG_ERR_ADDR_MASK                        0x00000FFF
-#define FM_PCD_KG_DOUBLE_ECC                    0x80000000
-#define FM_PCD_KG_KEYSIZE_OVERFLOW              0x40000000
-#define KG_SCH_MODE_EN                          0x80000000
-
-/* shifts */
-#define FM_PCD_KG_PE_CPP_MASK_SHIFT             16
-#define FM_PCD_KG_KGAR_WSEL_SHIFT               8
-
-/* others */
-#define KG_DOUBLE_MEANING_REGS_OFFSET           0x100
-#define NO_VALIDATION                           0x70
-#define KG_ACTION_REG_TO                        1024
-#define KG_MAX_PROFILE                          255
-#define SCHEME_ALWAYS_DIRECT                    0xFFFFFFFF
+#define FM_PCD_KG_DOUBLE_ECC                  0x80000000
+#define FM_PCD_KG_KEYSIZE_OVERFLOW            0x40000000
 
 /***********************************************************************/
 /*          Policer defines                                            */
 /***********************************************************************/
-
-/* masks */
-#define FM_PCD_PLCR_PEMODE_PI                 0x80000000
-#define FM_PCD_PLCR_PEMODE_CBLND              0x40000000
-#define FM_PCD_PLCR_PEMODE_ALG_MASK           0x30000000
-#define FM_PCD_PLCR_PEMODE_ALG_RFC2698        0x10000000
-#define FM_PCD_PLCR_PEMODE_ALG_RFC4115        0x20000000
-#define FM_PCD_PLCR_PEMODE_DEFC_MASK          0x0C000000
-#define FM_PCD_PLCR_PEMODE_DEFC_Y             0x04000000
-#define FM_PCD_PLCR_PEMODE_DEFC_R             0x08000000
-#define FM_PCD_PLCR_PEMODE_DEFC_OVERRIDE      0x0C000000
-#define FM_PCD_PLCR_PEMODE_OVCLR_MASK         0x03000000
-#define FM_PCD_PLCR_PEMODE_OVCLR_Y            0x01000000
-#define FM_PCD_PLCR_PEMODE_OVCLR_R            0x02000000
-#define FM_PCD_PLCR_PEMODE_OVCLR_G_NC         0x03000000
-#define FM_PCD_PLCR_PEMODE_PKT                0x00800000
-#define FM_PCD_PLCR_PEMODE_FPP_MASK           0x001F0000
-#define FM_PCD_PLCR_PEMODE_FPP_SHIFT          16
-#define FM_PCD_PLCR_PEMODE_FLS_MASK           0x0000F000
-#define FM_PCD_PLCR_PEMODE_FLS_L2             0x00003000
-#define FM_PCD_PLCR_PEMODE_FLS_L3             0x0000B000
-#define FM_PCD_PLCR_PEMODE_FLS_L4             0x0000E000
-#define FM_PCD_PLCR_PEMODE_FLS_FULL           0x0000F000
-#define FM_PCD_PLCR_PEMODE_RBFLS              0x00000800
-#define FM_PCD_PLCR_PEMODE_TRA                0x00000004
-#define FM_PCD_PLCR_PEMODE_TRB                0x00000002
-#define FM_PCD_PLCR_PEMODE_TRC                0x00000001
+#define FM_PCD_PLCR_GCR_STEN                  0x40000000
 #define FM_PCD_PLCR_DOUBLE_ECC                0x80000000
 #define FM_PCD_PLCR_INIT_ENTRY_ERROR          0x40000000
 #define FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE   0x80000000
 #define FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE    0x40000000
-
-#define FM_PCD_PLCR_NIA_VALID                 0x80000000
-
-#define FM_PCD_PLCR_GCR_EN                    0x80000000
-#define FM_PCD_PLCR_GCR_STEN                  0x40000000
-#define FM_PCD_PLCR_GCR_DAR                   0x20000000
-#define FM_PCD_PLCR_GCR_DEFNIA                0x00FFFFFF
-#define FM_PCD_PLCR_NIA_ABS                   0x00000100
-
-#define FM_PCD_PLCR_GSR_BSY                   0x80000000
-#define FM_PCD_PLCR_GSR_DQS                   0x60000000
-#define FM_PCD_PLCR_GSR_RPB                   0x20000000
-#define FM_PCD_PLCR_GSR_FQS                   0x0C000000
-#define FM_PCD_PLCR_GSR_LPALG                 0x0000C000
-#define FM_PCD_PLCR_GSR_LPCA                  0x00003000
-#define FM_PCD_PLCR_GSR_LPNUM                 0x000000FF
-
-#define FM_PCD_PLCR_EVR_PSIC                  0x80000000
-#define FM_PCD_PLCR_EVR_AAC                   0x40000000
-
-#define FM_PCD_PLCR_PAR_PSI                   0x20000000
-#define FM_PCD_PLCR_PAR_PNUM                  0x00FF0000
-/* PWSEL Selctive select options */
-#define FM_PCD_PLCR_PAR_PWSEL_PEMODE          0x00008000    /* 0 */
-#define FM_PCD_PLCR_PAR_PWSEL_PEGNIA          0x00004000    /* 1 */
-#define FM_PCD_PLCR_PAR_PWSEL_PEYNIA          0x00002000    /* 2 */
-#define FM_PCD_PLCR_PAR_PWSEL_PERNIA          0x00001000    /* 3 */
-#define FM_PCD_PLCR_PAR_PWSEL_PECIR           0x00000800    /* 4 */
-#define FM_PCD_PLCR_PAR_PWSEL_PECBS           0x00000400    /* 5 */
-#define FM_PCD_PLCR_PAR_PWSEL_PEPIR_EIR       0x00000200    /* 6 */
-#define FM_PCD_PLCR_PAR_PWSEL_PEPBS_EBS       0x00000100    /* 7 */
-#define FM_PCD_PLCR_PAR_PWSEL_PELTS           0x00000080    /* 8 */
-#define FM_PCD_PLCR_PAR_PWSEL_PECTS           0x00000040    /* 9 */
-#define FM_PCD_PLCR_PAR_PWSEL_PEPTS_ETS       0x00000020    /* 10 */
-#define FM_PCD_PLCR_PAR_PWSEL_PEGPC           0x00000010    /* 11 */
-#define FM_PCD_PLCR_PAR_PWSEL_PEYPC           0x00000008    /* 12 */
-#define FM_PCD_PLCR_PAR_PWSEL_PERPC           0x00000004    /* 13 */
-#define FM_PCD_PLCR_PAR_PWSEL_PERYPC          0x00000002    /* 14 */
-#define FM_PCD_PLCR_PAR_PWSEL_PERRPC          0x00000001    /* 15 */
-
-#define FM_PCD_PLCR_PAR_PMR_BRN_1TO1          0x0000   /* - Full bit replacement. {PBNUM[0:N-1]
-                                                           1-> 2^N specific locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_2TO2          0x1      /* - {PBNUM[0:N-2],PNUM[N-1]}.
-                                                           2-> 2^(N-1) base locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_4TO4          0x2      /* - {PBNUM[0:N-3],PNUM[N-2:N-1]}.
-                                                           4-> 2^(N-2) base locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_8TO8          0x3      /* - {PBNUM[0:N-4],PNUM[N-3:N-1]}.
-                                                           8->2^(N-3) base locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_16TO16        0x4      /* - {PBNUM[0:N-5],PNUM[N-4:N-1]}.
-                                                           16-> 2^(N-4) base locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_32TO32        0x5      /* {PBNUM[0:N-6],PNUM[N-5:N-1]}.
-                                                           32-> 2^(N-5) base locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_64TO64        0x6      /* {PBNUM[0:N-7],PNUM[N-6:N-1]}.
-                                                           64-> 2^(N-6) base locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_128TO128      0x7      /* {PBNUM[0:N-8],PNUM[N-7:N-1]}.
-                                                            128-> 2^(N-7) base locations. */
-#define FM_PCD_PLCR_PAR_PMR_BRN_256TO256      0x8      /* - No bit replacement for N=8. {PNUM[N-8:N-1]}.
-                                                            When N=8 this option maps all 256 profiles by the DISPATCH bus into one group. */
-
-#define FM_PCD_PLCR_PMR_V                     0x80000000
-#define PLCR_ERR_ECC_CAP                      0x80000000
-#define PLCR_ERR_ECC_TYPE_DOUBLE              0x40000000
-#define PLCR_ERR_ECC_PNUM_MASK                0x00000FF0
-#define PLCR_ERR_ECC_OFFSET_MASK              0x0000000F
-
-#define PLCR_ERR_UNINIT_CAP                   0x80000000
-#define PLCR_ERR_UNINIT_NUM_MASK              0x000000FF
-#define PLCR_ERR_UNINIT_PID_MASK              0x003f0000
-#define PLCR_ERR_UNINIT_ABSOLUTE_MASK         0x00008000
-
-/* shifts */
-#define PLCR_ERR_ECC_PNUM_SHIFT               4
-#define PLCR_ERR_UNINIT_PID_SHIFT             16
-
-#define FM_PCD_PLCR_PMR_BRN_SHIFT             16
-
-/* others */
-#define WAIT_FOR_PLCR_EVR_AAC \
-{\
-    uint32_t count = 0; \
-    uint32_t tmpReg32; \
-    while (count < FM_PCD_PLCR_POLL) \
-    { \
-        tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->fmpl_evr);\
-        if (!( tmpReg32 & FM_PCD_PLCR_EVR_AAC)) break;\
-        count++;\
-    }\
-}
-
-#define WAIT_FOR_PLCR_PAR_GO \
-{\
-    uint32_t count = 0; \
-    uint32_t tmpReg32; \
-    while (count < FM_PCD_PLCR_POLL) \
-    { \
-        tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->fmpl_par);\
-        if (!( tmpReg32 & FM_PCD_PLCR_PAR_GO)) break;\
-        count++; \
-    }\
-}
-
-#define PLCR_PORT_WINDOW_SIZE(hardwarePortId)
-
-/****************************/
-/* Defaults                 */
-/****************************/
-#define DEFAULT_plcrAutoRefresh                 FALSE
-#define DEFAULT_prsMaxParseCycleLimit           0
-#define DEFAULT_fmPcdKgErrorExceptions          (FM_PCD_EX_KG_DOUBLE_ECC | FM_PCD_EX_KG_KEYSIZE_OVERFLOW)
-#define DEFAULT_fmPcdPlcrErrorExceptions        (FM_PCD_EX_PLCR_DOUBLE_ECC | FM_PCD_EX_PLCR_INIT_ENTRY_ERROR)
-#define DEFAULT_fmPcdPlcrExceptions             0
-#define DEFAULT_fmPcdPrsErrorExceptions         (FM_PCD_EX_PRS_DOUBLE_ECC)
-
-#define DEFAULT_fmPcdPrsExceptions              FM_PCD_EX_PRS_SINGLE_ECC
-#define DEFAULT_numOfUsedProfilesPerWindow      16
-#define DEFAULT_numOfSharedPlcrProfiles         4
 
 /***********************************************************************/
 /*          Memory map                                                 */
@@ -456,6 +287,12 @@ typedef struct {
 } t_NetEnvParams;
 
 typedef struct {
+    bool            allocated;
+    uint8_t         ownerId; /* guestId for KG in multi-partition only,
+                                portId for PLCR in any environment */
+} t_FmPcdAllocMng;
+
+typedef struct {
     volatile bool       lock;
     bool                used;
     uint8_t             owners;
@@ -467,10 +304,9 @@ typedef struct {
 } t_FmPcdKgClsPlanGrp;
 
 typedef struct {
-	t_Handle			h_FmPcd;
-	uint8_t				schemeId;
-	volatile bool       lock;
-    t_Handle            h_Spinlock;
+    t_Handle            h_FmPcd;
+    uint8_t             schemeId;
+    t_FmPcdLock         *p_Lock;
     bool                valid;
     uint8_t             netEnvId;
     uint8_t             owners;
@@ -487,23 +323,16 @@ typedef struct {
     bool                extractedOrs;
     uint8_t             bitOffsetInPlcrProfile;
     bool                directPlcr;
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     bool                vspe;
 #endif
 } t_FmPcdKgScheme;
-
-typedef struct {
-    bool            allocated;
-    uint8_t         ownerId; /* guestId for KG in multi-partition only,
-                                portId for PLCR in any environment */
-} t_FmPcdAllocMng;
 
 typedef struct {
     t_FmPcdKgRegs       *p_FmPcdKgRegs;
     uint32_t            schemeExceptionsBitMask;
     uint8_t             numOfSchemes;
     t_Handle            h_HwSpinlock;
-    t_Handle            h_SwSpinlock;
     uint8_t             schemesIds[FM_PCD_KG_NUM_OF_SCHEMES];
     t_FmPcdKgScheme     schemes[FM_PCD_KG_NUM_OF_SCHEMES];
     t_FmPcdKgClsPlanGrp clsPlanGrps[FM_MAX_NUM_OF_PORTS];
@@ -519,11 +348,10 @@ typedef struct {
 } t_FmPcdPlcrMapParam;
 
 typedef struct {
-	uint16_t							absoluteProfileId;
-	t_Handle							h_FmPcd;
+    uint16_t                            absoluteProfileId;
+    t_Handle                            h_FmPcd;
     bool                                valid;
-    /*volatile bool                       lock;*/
-    t_Handle                            h_Spinlock;
+    t_FmPcdLock                         *p_Lock;
     t_FmPcdAllocMng                     profilesMng;
     uint8_t                             pointedOwners;
     uint32_t                            requiredAction;
@@ -571,9 +399,8 @@ typedef struct {
 } t_FmPcdNetEnvAliases;
 
 typedef struct {
-	uint8_t						netEnvId;
-	t_Handle					h_FmPcd;
-    volatile bool               lock;
+    uint8_t                     netEnvId;
+    t_Handle                    h_FmPcd;
     t_Handle                    h_Spinlock;
     bool                        used;
     uint8_t                     owners;
@@ -590,14 +417,18 @@ typedef struct {
     uint16_t                    prsMaxParseCycleLimit;
 } t_FmPcdDriverParam;
 
-
 typedef struct {
     t_Handle                    h_Fm;
     t_Handle                    h_FmMuram;
     t_FmRevisionInfo            fmRevInfo;
+
     uint64_t                    physicalMuramBase;
+
     volatile bool               lock;
     t_Handle                    h_Spinlock;
+    t_List                      freeLocksLst;
+    t_List                      acquiredLocksLst;
+
     t_Handle                    h_IpcSession; /* relevant for guest only */
     bool                        enabled;
     uint8_t                     guestId;            /**< Guest Partition Id */
@@ -661,6 +492,9 @@ t_Error     FmPcdKgFreeSchemes(t_Handle h_FmPcd, uint8_t numOfSchemes, uint8_t g
 /* only for SINGLE partittion */
 t_Error     KgBindPortToSchemes(t_Handle h_FmPcd , uint8_t hardwarePortId, uint32_t spReg);
 
+t_FmPcdLock *FmPcdAcquireLock(t_Handle h_FmPcd);
+void        FmPcdReleaseLock(t_Handle h_FmPcd, t_FmPcdLock *p_Lock);
+
 t_Handle    PlcrConfig(t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams);
 t_Error     PlcrInit(t_FmPcd *p_FmPcd);
 t_Error     PlcrFree(t_FmPcd *p_FmPcd);
@@ -694,7 +528,7 @@ t_Error     FmPcdManipCheckParamsWithCcNodeParams(t_Handle h_Manip, t_Handle h_F
 t_Handle    FmPcdManipApplSpecificBuild(void);
 bool        FmPcdManipIsCapwapApplSpecific(t_Handle h_Manip);
 #endif /* FM_CAPWAP_SUPPORT */
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 void *      FrmReplicGetSourceTableDescriptor(t_Handle h_ReplicGroup);
 void        FrmReplicUpdateGroupOwner(t_Handle h_ReplicGroup, bool add, bool fullUpdate, t_Handle h_FmPcdCcNode);
 void        FrmReplicUpdateAdContLookupForCc(t_Handle h_ReplicGroup, t_Handle p_Ad, t_Handle *h_AdNew);
@@ -703,7 +537,7 @@ void        FmPcdCcGetAdTablesThatPointOnReplicGroup(t_Handle   h_Node,
                                                      t_Handle   h_ReplicGroup,
                                                      t_List     *p_AdTables,
                                                      uint32_t   *p_NumOfAdTables);
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 void EnqueueNodeInfoToRelevantLst(t_List *p_List, t_CcNodeInformation *p_CcInfo);
 t_CcNodeInformation* FmPcdCcFindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info);
@@ -725,6 +559,40 @@ static __inline__ uint64_t FmPcdGetMuramPhysBase(t_Handle h_FmPcd)
     t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
     ASSERT_COND(p_FmPcd);
     return p_FmPcd->physicalMuramBase;
+}
+
+static __inline__ uint32_t FmPcdLockSpinlock(t_FmPcdLock *p_Lock)
+{
+    ASSERT_COND(p_Lock);
+    return XX_LockIntrSpinlock(p_Lock->h_Spinlock);
+}
+
+static __inline__ void FmPcdUnlockSpinlock(t_FmPcdLock *p_Lock, uint32_t flags)
+{
+    ASSERT_COND(p_Lock);
+    XX_UnlockIntrSpinlock(p_Lock->h_Spinlock, flags);
+}
+
+static __inline__ bool FmPcdLockTryLock(t_FmPcdLock *p_Lock)
+{
+    uint32_t intFlags;
+
+    ASSERT_COND(p_Lock);
+    intFlags = XX_LockIntrSpinlock(p_Lock->h_Spinlock);
+    if (p_Lock->flag)
+    {
+        XX_UnlockIntrSpinlock(p_Lock->h_Spinlock, intFlags);
+        return FALSE;
+    }
+    p_Lock->flag = TRUE;
+    XX_UnlockIntrSpinlock(p_Lock->h_Spinlock, intFlags);
+    return TRUE;
+}
+
+static __inline__ void FmPcdLockUnlock(t_FmPcdLock *p_Lock)
+{
+    ASSERT_COND(p_Lock);
+    p_Lock->flag = FALSE;
 }
 
 

@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm_mac.c
 
@@ -53,7 +54,7 @@ t_Handle FM_MAC_Config (t_FmMacParams *p_FmMacParam)
 
     SANITY_CHECK_RETURN_VALUE(p_FmMacParam, E_INVALID_HANDLE, NULL);
 
-#if (DPAA_VERSION == 2)
+#if (DPAA_VERSION == 10)
     if (ENET_SPEED_FROM_MODE(p_FmMacParam->enetMode) < e_ENET_SPEED_10000)
         p_FmMacControllerDriver = (t_FmMacControllerDriver *)DTSEC_Config(p_FmMacParam);
 #if FM_MAX_NUM_OF_10G_MACS > 0
@@ -62,7 +63,7 @@ t_Handle FM_MAC_Config (t_FmMacParams *p_FmMacParam)
 #endif /* FM_MAX_NUM_OF_10G_MACS > 0 */
 #else
     p_FmMacControllerDriver = (t_FmMacControllerDriver *)MEMAC_Config(p_FmMacParam);
-#endif /* (DPAA_VERSION == 2) */
+#endif /* (DPAA_VERSION == 10) */
 
     if (!p_FmMacControllerDriver)
         return NULL;
@@ -89,13 +90,13 @@ t_Error FM_MAC_Init (t_Handle h_FmMac)
 
     SANITY_CHECK_RETURN_ERROR(p_FmMacControllerDriver, E_INVALID_HANDLE);
 
-#if (DPAA_VERSION == 2)
     if (p_FmMacControllerDriver->resetOnInit &&
+        !p_FmMacControllerDriver->f_FM_MAC_ConfigResetOnInit &&
         (FmResetMac(p_FmMacControllerDriver->h_Fm,
-                    ((ENET_INTERFACE_FROM_MODE(p_FmMacControllerDriver->enetMode) == e_ENET_IF_XGMII) ? e_FM_MAC_10G : e_FM_MAC_1G),
-                     p_FmMacControllerDriver->macId) != E_OK))
+                    ((ENET_INTERFACE_FROM_MODE(p_FmMacControllerDriver->enetMode) == e_ENET_IF_XGMII) ?
+                        e_FM_MAC_10G : e_FM_MAC_1G),
+                    p_FmMacControllerDriver->macId) != E_OK))
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Can't reset MAC!"));
-#endif /* (DPAA_VERSION == 2) */
 
     if (p_FmMacControllerDriver->f_FM_MAC_Init)
         return p_FmMacControllerDriver->f_FM_MAC_Init(h_FmMac);
@@ -123,6 +124,9 @@ t_Error FM_MAC_ConfigResetOnInit (t_Handle h_FmMac, bool enable)
     t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;
 
     SANITY_CHECK_RETURN_ERROR(p_FmMacControllerDriver, E_INVALID_HANDLE);
+
+    if (p_FmMacControllerDriver->f_FM_MAC_ConfigResetOnInit)
+        return p_FmMacControllerDriver->f_FM_MAC_ConfigResetOnInit(h_FmMac, enable);
 
     p_FmMacControllerDriver->resetOnInit = enable;
 
@@ -533,6 +537,22 @@ t_Error FM_MAC_AdjustLink(t_Handle h_FmMac, e_EnetSpeed speed, bool fullDuplex)
 
     RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
 }
+
+/* ........................................................................... */
+
+t_Error FM_MAC_RestartAutoneg(t_Handle h_FmMac)
+{
+    t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmMacControllerDriver, E_INVALID_HANDLE);
+
+    if (p_FmMacControllerDriver->f_FM_MAC_RestartAutoneg)
+        return p_FmMacControllerDriver->f_FM_MAC_RestartAutoneg(h_FmMac);
+
+    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
+}
+
+
 
 /* ........................................................................... */
 

@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm_manip.h
 
@@ -49,6 +50,8 @@
 /*          Header manipulations defines                              */
 /***********************************************************************/
 
+#define NUM_OF_SCRATCH_POOL_BUFFERS             1000 /*TODO - Change it!!*/
+
 #define HMAN_OC_RMV_N_OR_INSRT_INT_FRM_HDR                      0x2e
 #define HMAN_OC_INSRT_HDR_BY_TEMPL_N_OR_FRAG_AFTER              0x31
 #define HMAN_OC_CAPWAP_FRAGMENTATION                            0x33
@@ -60,7 +63,7 @@
 #define HMAN_OC_CAPWAP_RMV_DTLS_IF_EXIST                        0x30
 #define HMAN_OC_CAPWAP_REASSEMBLY                               0x11 /* dummy */
 #define HMAN_OC_CAPWAP_INDEXED_STATS                            0x32 /* dummy */
-#define HMAN_OC													0x35
+#define HMAN_OC                                                 0x35
 
 #define HMAN_RMV_HDR                               0x80000000
 #define HMAN_INSRT_INT_FRM_HDR                     0x40000000
@@ -112,61 +115,97 @@
 #define FM_PCD_MANIP_IP_FRAG_SCRATCH_BPID                   24
 #define FM_PCD_MANIP_IP_FRAG_MTU_OFFSET                     16
 #define FM_PCD_MANIP_IP_FRAG_NO_FRAGMETATION                0xFFFF0000
-#define FM_PCD_MANIP_IP_FRAG_SG_BDID_EN						0x08000000
-#define FM_PCD_MANIP_IP_FRAG_SG_BDID_MASK					0xFF000000
-#define FM_PCD_MANIP_IP_FRAG_SG_BDID_OFFSET					24
+#define FM_PCD_MANIP_IP_FRAG_SG_BDID_EN                     0x08000000
+#define FM_PCD_MANIP_IP_FRAG_SG_BDID_MASK                   0xFF000000
+#define FM_PCD_MANIP_IP_FRAG_SG_BDID_OFFSET                 24
 
 #define FM_PCD_MANIP_IPSEC_DEC                              0x10000000
 #define FM_PCD_MANIP_IPSEC_ECN_EN                           0x04000000
 #define FM_PCD_MANIP_IPSEC_DSCP_EN                          0x02000000
 #define FM_PCD_MANIP_IPSEC_VIPL_EN                          0x01000000
+#define FM_PCD_MANIP_IPSEC_NADEN                            0x20000000
 
 #define e_FM_MANIP_IP_INDX                                  1
 
-#define HMCD_OPCODE_GENERIC_RMV					0x01
+#define HMCD_OPCODE_GENERIC_RMV                 0x01
 #define HMCD_OPCODE_GENERIC_INSRT               0x02
 #define HMCD_OPCODE_GENERIC_REPLACE             0x05
 #define HMCD_OPCODE_L2_RMV                      0x08
 #define HMCD_OPCODE_L2_INSRT                    0x09
-
-#define HMCD_SIZE_RMV 							4
-#define HMCD_SIZE_INSRT 						4
-
-#define HMCD_LAST								0x00800000
-
-#define HMCD_OC_SHIFT							24
-
-#define HMCD_RMV_OFFSET_SHIFT					0
-#define HMCD_RMV_SIZE_SHIFT						8
-
-#define HMCD_INSRT_OFFSET_SHIFT					0
-#define HMCD_INSRT_SIZE_SHIFT					8
-
-#define	HMTD_CFG_TYPE							0x4000
-#define	HMTD_CFG_EXT_HMCT						0x0080
-#define	HMTD_CFG_PRS_AFTER_HM					0x0040
-#define	HMTD_CFG_NEXT_AD_EN						0x0020
+#define HMCD_OPCODE_VLAN_PRI_UPDATE             0x0B
+#define HMCD_OPCODE_IPV4_UPDATE                 0x0C
+#define HMCD_OPCODE_IPV6_UPDATE                 0x10
+#define HMCD_OPCODE_TCP_UDP_UPDATE              0x0E
+#define HMCD_OPCODE_TCP_UDP_CHECKSUM            0x14
+#define HMCD_OPCODE_REPLACE_IP                  0x12
 
 
-#define HMCD_RMV_L2_ETHERNET                   0
-#define HMCD_RMV_L2_STACKED_QTAGS              1
-#define HMCD_RMV_L2_ETHERNET_AND_MPLS          2
-#define HMCD_RMV_L2_MPLS                       3
+#define HMCD_BASIC_SIZE                         4
+#define HMCD_PTR_SIZE                           4
+#define HMCD_PARAM_SIZE                         4
+#define HMCD_IPV4_ADDR_SIZE                     4
+#define HMCD_IPV6_ADDR_SIZE                     0x10
 
-#define HMCD_INSRT_L2_MPLS                     0
-#define HMCD_INSRT_N_UPDATE_L2_MPLS            0
+#define HMCD_LAST                               0x00800000
 
+#define HMCD_OC_SHIFT                           24
 
-#define MANIP_IS_CASCADE(h_Manip)				(((t_FmPcdManip *)h_Manip)->cascadedNext)
-#define MANIP_GET_HMCT_SIZE(h_Manip) 			(((t_FmPcdManip *)h_Manip)->tableSize)
-#define MANIP_GET_HMCT_PTR(h_Manip) 			(((t_FmPcdManip *)h_Manip)->p_HmcdTbl)
-#define MANIP_SET_HMCT_PTR(h_Manip, h_NewPtr) 	(((t_FmPcdManip *)h_Manip)->p_HmcdTbl = h_NewPtr)
-#define MANIP_GET_HMTD_PTR(h_Manip) 			(((t_FmPcdManip *)h_Manip)->h_Ad)
-#define MANIP_DONT_REPARSE(h_Manip) 			(((t_FmPcdManip *)h_Manip)->dontParseAfterManip)
-#define MANIP_SET_PREV(h_Manip, h_Prev) 		(((t_FmPcdManip *)h_Manip)->h_PrevManip = h_Prev)
-#define MANIP_GET_MURAM(h_Manip)				(((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram)
+#define HMCD_RMV_OFFSET_SHIFT                   0
+#define HMCD_RMV_SIZE_SHIFT                     8
 
+#define HMCD_INSRT_OFFSET_SHIFT                 0
+#define HMCD_INSRT_SIZE_SHIFT                   8
 
+#define HMTD_CFG_TYPE                           0x4000
+#define HMTD_CFG_EXT_HMCT                       0x0080
+#define HMTD_CFG_PRS_AFTER_HM                   0x0040
+#define HMTD_CFG_NEXT_AD_EN                     0x0020
+
+#define HMCD_RMV_L2_ETHERNET                    0
+#define HMCD_RMV_L2_STACKED_QTAGS               1
+#define HMCD_RMV_L2_ETHERNET_AND_MPLS           2
+#define HMCD_RMV_L2_MPLS                        3
+
+#define HMCD_INSRT_L2_MPLS                      0
+#define HMCD_INSRT_N_UPDATE_L2_MPLS             1
+#define HMCD_INSRT_L2_SIZE_SHIFT                24
+
+#define HMCD_VLAN_PRI_REP_MODE_SHIFT            16
+#define HMCD_VLAN_PRI_UPDATE                    0
+#define HMCD_VLAN_PRI_UPDATE_DSCP_TO_VPRI       1
+
+#define HMCD_IPV4_UPDATE_TTL                    0x00000001
+#define HMCD_IPV4_UPDATE_TOS                    0x00000002
+#define HMCD_IPV4_UPDATE_DST                    0x00000020
+#define HMCD_IPV4_UPDATE_SRC                    0x00000040
+#define HMCD_IPV4_UPDATE_ID                     0x00000080
+#define HMCD_IPV4_UPDATE_TOS_SHIFT              8
+
+#define HMCD_IPV6_UPDATE_HL                     0x00000001
+#define HMCD_IPV6_UPDATE_TC                     0x00000002
+#define HMCD_IPV6_UPDATE_DST                    0x00000040
+#define HMCD_IPV6_UPDATE_SRC                    0x00000080
+#define HMCD_IPV6_UPDATE_TC_SHIFT               8
+
+#define HMCD_TCP_UDP_UPDATE_DST                 0x00004000
+#define HMCD_TCP_UDP_UPDATE_SRC                 0x00008000
+#define HMCD_TCP_UDP_UPDATE_SRC_SHIFT           16
+
+#define HMCD_IP_REPLACE_REPLACE_IPV4            0x00000000
+#define HMCD_IP_REPLACE_REPLACE_IPV6            0x00010000
+#define HMCD_IP_REPLACE_TTL_HL                  0x00200000
+#define HMCD_IP_REPLACE_ID                      0x00400000
+
+#define MANIP_IS_CASCADE(h_Manip)               (((t_FmPcdManip *)h_Manip)->cascadedNext)
+#define MANIP_GET_HMCT_SIZE(h_Manip)            (((t_FmPcdManip *)h_Manip)->tableSize)
+#define MANIP_GET_HMCT_PTR(h_Manip)             (((t_FmPcdManip *)h_Manip)->p_HmcdTbl)
+#define MANIP_SET_HMCT_PTR(h_Manip, h_NewPtr)   (((t_FmPcdManip *)h_Manip)->p_HmcdTbl = h_NewPtr)
+#define MANIP_GET_HMTD_PTR(h_Manip)             (((t_FmPcdManip *)h_Manip)->h_Ad)
+#define MANIP_DONT_REPARSE(h_Manip)             (((t_FmPcdManip *)h_Manip)->dontParseAfterManip)
+#define MANIP_SET_PREV(h_Manip, h_Prev)         (((t_FmPcdManip *)h_Manip)->h_PrevManip = h_Prev)
+#define MANIP_GET_MURAM(h_Manip)                (((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram)
+
+#define DSCP_TO_VLAN_TABLE_SIZE                 32
 /***********************************************************************/
 /*          Memory map                                                 */
 /***********************************************************************/
@@ -239,14 +278,14 @@ typedef _Packed struct t_IpReassCommonTbl {
 } _PackedType t_IpReassCommonTbl;
 
 typedef _Packed struct t_Hmtd {
-    volatile uint16_t 	cfg;
-    volatile uint8_t 	eliodnOffset;
-    volatile uint8_t 	extHmcdBasePtrHi;
-    volatile uint32_t 	hmcdBasePtr;
-    volatile uint16_t 	nextAdIdx;
-    volatile uint8_t 	res1;
-    volatile uint8_t 	opCode;
-    volatile uint32_t 	res2;
+    volatile uint16_t   cfg;
+    volatile uint8_t    eliodnOffset;
+    volatile uint8_t    extHmcdBasePtrHi;
+    volatile uint32_t   hmcdBasePtr;
+    volatile uint16_t   nextAdIdx;
+    volatile uint8_t    res1;
+    volatile uint8_t    opCode;
+    volatile uint32_t   res2;
 } _PackedType t_Hmtd;
 
 #if defined(__MWERKS__) && !defined(__GNUC__)
@@ -278,9 +317,9 @@ typedef struct
 typedef struct
 {
     t_AdOfTypeContLookup    *p_Frag;
-#if (DPAA_VERSION == 2)
-    uint8_t  	            scratchBpid;
-#endif /* (DPAA_VERSION == 2) */
+#if (DPAA_VERSION == 10)
+    uint8_t                 scratchBpid;
+#endif /* (DPAA_VERSION == 10) */
 } t_IpFragParams;
 
 typedef struct t_IpReassmParams
@@ -320,15 +359,21 @@ typedef struct t_IpReassmParams
 typedef struct{
     bool                    muramAllocate;
     t_Handle                h_Ad;
-    uint32_t			    *p_HmcdTbl;
+    uint32_t                *p_HmcdTbl;
     uint32_t                type;
     bool                    rmv;
     bool                    insrt;
-    bool				    dontParseAfterManip;
+    bool                    dontParseAfterManip;
+    bool                    fieldUpdate;
+    bool                    custom;
+    uint8_t                 *p_InsertData;
+    uint8_t                 *p_UpdateData;
+    uint8_t                 *p_CustomData1;
+    uint8_t                 *p_CustomData2;
     t_Handle                h_NextManip;
     t_Handle                h_PrevManip;
-    uint16_t			    tableSize;
-    bool				    cascadedNext;
+    uint16_t                tableSize;
+    bool                    cascadedNext;
     uint8_t                 *p_Template;
     t_Handle                h_Frag;
     bool                    frag;

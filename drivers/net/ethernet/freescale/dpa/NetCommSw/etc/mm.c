@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 #include "string_ext.h"
 #include "error_ext.h"
 #include "std_ext.h"
@@ -813,7 +814,7 @@ uint64_t MM_GetForce(t_Handle h_MM, uint64_t base, uint64_t size, char* name)
     }
 
     /* Decreasing the allocated memory size from free memory size */
-	p_MM->freeMemSize -= size;
+    p_MM->freeMemSize -= size;
 
     /* insert the new busy block into the list of busy blocks */
     AddBusy ( p_MM, p_NewBusyB );
@@ -901,7 +902,7 @@ uint64_t MM_GetForceMin(t_Handle h_MM, uint64_t size, uint64_t alignment, uint64
     }
 
     /* Decreasing the allocated memory size from free memory size */
-	p_MM->freeMemSize -= size;
+    p_MM->freeMemSize -= size;
 
     /* insert the new busy block into the list of busy blocks */
     AddBusy( p_MM, p_NewBusyB );
@@ -954,7 +955,7 @@ uint64_t MM_Put(t_Handle h_MM, uint64_t base)
     size = p_BusyB->end - p_BusyB->base;
 
     /* Adding the deallocated memory size to free memory size */
-	p_MM->freeMemSize += size;
+    p_MM->freeMemSize += size;
 
     XX_Free(p_BusyB);
     XX_UnlockIntrSpinlock(p_MM->h_Spinlock, intFlags);
@@ -986,7 +987,7 @@ uint64_t MM_PutForce(t_Handle h_MM, uint64_t base, uint64_t size)
     }
 
     /* Adding the deallocated memory size to free memory size */
-	p_MM->freeMemSize += size;
+    p_MM->freeMemSize += size;
 
     XX_UnlockIntrSpinlock(p_MM->h_Spinlock, intFlags);
 
@@ -1046,7 +1047,7 @@ t_Error MM_Add(t_Handle h_MM, uint64_t base, uint64_t size)
     }
 
     /* Adding the new block size to free memory size */
-	p_MM->freeMemSize += size;
+    p_MM->freeMemSize += size;
 
     XX_UnlockIntrSpinlock(p_MM->h_Spinlock, intFlags);
 
@@ -1103,11 +1104,11 @@ bool MM_InRange(t_Handle h_MM, uint64_t addr)
 /*****************************************************************************/
 uint64_t MM_GetFreeMemSize(t_Handle h_MM)
 {
-	t_MM       *p_MM = (t_MM*)h_MM;
+    t_MM       *p_MM = (t_MM*)h_MM;
 
-	ASSERT_COND(p_MM);
+    ASSERT_COND(p_MM);
 
-	return p_MM->freeMemSize;
+    return p_MM->freeMemSize;
 }
 
 /*****************************************************************************/

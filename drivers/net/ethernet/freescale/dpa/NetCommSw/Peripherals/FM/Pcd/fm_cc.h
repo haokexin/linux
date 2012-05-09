@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm_cc.h
 
@@ -129,7 +130,7 @@
 #define FM_PCD_CC_AD_TABLE_ALIGN            16
 #define FM_PCD_CC_AD_ENTRY_SIZE             16
 #define FM_PCD_CC_NUM_OF_KEYS               255
-#define FM_PCD_CC_TREE_ADDR_ALIGN			256
+#define FM_PCD_CC_TREE_ADDR_ALIGN           256
 
 #define FM_PCD_AD_RESULT_CONTRL_FLOW_TYPE   0x00000000
 #define FM_PCD_AD_RESULT_DATA_FLOW_TYPE     0x80000000
@@ -138,7 +139,6 @@
 #define FM_PCD_AD_RESULT_NADEN              0x20000000
 #define FM_PCD_AD_RESULT_STATISTICS_EN      0x40000000
 
-
 #define FM_PCD_AD_CONT_LOOKUP_TYPE          0x40000000
 #define FM_PCD_AD_CONT_LOOKUP_LCL_MASK      0x00800000
 
@@ -146,6 +146,10 @@
 #define FM_PCD_AD_OPCODE_MASK               0x0000000f
 
 #define FM_PCD_AD_PROFILEID_FOR_CNTRL_SHIFT 16
+#if (DPAA_VERSION >= 11)
+#define FM_PCD_AD_RESULT_VSP_SHIFT           24
+#define FM_PCD_AD_RESULT_NO_OM_VSPE          0x02000000
+#endif /* (DPAA_VERSION >= 11) */
 
 #define GLBL_MASK_FOR_HASH_INDEXED          0xfff00000
 #define CC_GLBL_MASK_SIZE                   4
@@ -238,9 +242,10 @@ typedef struct
     t_Handle    h_NodeForAdd;
     t_Handle    h_NodeForRmv;
     t_Handle    h_ManipForRmv;
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
+    t_Handle    h_FrmReplicForAdd;
     t_Handle    h_FrmReplicForRmv;
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
     bool        tree;
 
     t_FmPcdCcKeyAndNextEngineParams  keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
@@ -275,6 +280,7 @@ typedef struct
 
     t_Handle    h_KeysMatchTable;
     t_Handle    h_AdTable;
+    t_Handle    h_StatsAds;
     t_Handle    h_Ad;
 
     t_List      ccPrevNodesLst;
@@ -314,8 +320,7 @@ typedef struct
     uint8_t             numOfGrps;
     t_FmPcdCcGroupParam fmPcdGroupParam[FM_PCD_MAX_NUM_OF_CC_GROUPS];
     t_List              fmPortsLst;
-    volatile bool       lock;
-    t_Handle            h_Spinlock;
+    t_FmPcdLock         *p_Lock;
     uint8_t             numOfEntries;
     uint8_t             owners;
     t_Handle            h_FmPcdCcSavedManipParams;

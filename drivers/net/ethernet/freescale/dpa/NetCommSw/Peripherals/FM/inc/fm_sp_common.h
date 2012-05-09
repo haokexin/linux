@@ -46,6 +46,7 @@
 #include "fm_ext.h"
 #include "fm_pcd_ext.h"
 
+
 /* sizes */
 #define CAPWAP_FRAG_EXTRA_SPACE                 32
 #define OFFSET_UNITS                            16
@@ -57,18 +58,17 @@
 /**************************************************************************//**
  @Description       defaults
 *//***************************************************************************/
-#define DEFAULT_FM_SP_bufferPrefixContent_privDataSize   0
-#define DEFAULT_FM_SP_bufferPrefixContent_passPrsResult  FALSE
-#define DEFAULT_FM_SP_bufferPrefixContent_passTimeStamp  FALSE
-#define DEFAULT_FM_SP_bufferPrefixContent_allOtherPCDInfo    FALSE
-//#define DEFAULT_FM_SP_bufferPrefixContent_dataAlign      DATA_ALIGNMENT - // TODO should be this way
-#define DEFAULT_FM_SP_bufferPrefixContent_dataAlign      64
-#define DEFAULT_FM_SP_dmaSwapData                        e_FM_DMA_NO_SWP
-#define DEFAULT_FM_SP_dmaIntContextCacheAttr             e_FM_DMA_NO_STASH
-#define DEFAULT_FM_SP_dmaHeaderCacheAttr                 e_FM_DMA_NO_STASH
-#define DEFAULT_FM_SP_dmaScatterGatherCacheAttr          e_FM_DMA_NO_STASH
-#define DEFAULT_FM_SP_dmaWriteOptimize                   FALSE
-#define DEFAULT_FM_SP_noScatherGather                   FALSE
+#define DEFAULT_FM_SP_bufferPrefixContent_privDataSize      0
+#define DEFAULT_FM_SP_bufferPrefixContent_passPrsResult     FALSE
+#define DEFAULT_FM_SP_bufferPrefixContent_passTimeStamp     FALSE
+#define DEFAULT_FM_SP_bufferPrefixContent_allOtherPCDInfo   FALSE
+#define DEFAULT_FM_SP_bufferPrefixContent_dataAlign         64
+#define DEFAULT_FM_SP_dmaSwapData                           e_FM_DMA_NO_SWP
+#define DEFAULT_FM_SP_dmaIntContextCacheAttr                e_FM_DMA_NO_STASH
+#define DEFAULT_FM_SP_dmaHeaderCacheAttr                    e_FM_DMA_NO_STASH
+#define DEFAULT_FM_SP_dmaScatterGatherCacheAttr             e_FM_DMA_NO_STASH
+#define DEFAULT_FM_SP_dmaWriteOptimize                      TRUE
+#define DEFAULT_FM_SP_noScatherGather                       FALSE
 
 /**************************************************************************//**
  @Description       Registers bit fields

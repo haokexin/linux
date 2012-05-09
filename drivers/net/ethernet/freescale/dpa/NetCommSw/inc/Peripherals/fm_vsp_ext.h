@@ -308,7 +308,7 @@ t_Error FM_VSP_ConfigBackupPools(t_Handle h_FmVsp, t_FmBackupBmPools *p_BackupBm
 /** @} */ /* end of FM_VSP_adv_config_grp group */
 /** @} */ /* end of FM_VSP_init_grp group */
 
-#ifdef UNDER_CONSTRUCTION_FM_GEN
+
 /**************************************************************************//**
  @Group         FM_VSP_control_grp FM VSP Control Unit
 
@@ -318,35 +318,92 @@ t_Error FM_VSP_ConfigBackupPools(t_Handle h_FmVsp, t_FmBackupBmPools *p_BackupBm
 *//***************************************************************************/
 
 /**************************************************************************//**
- @Function      FM_VSP_GetStatistics
+ @Function      FM_VSP_GetBufferDataOffset
 
- @Description   Reads FM VSP counter.
+ @Description   Relevant for Rx ports.
+                Returns the data offset from the beginning of the data buffer
 
- @Param[in]     h_FmVsp             A handle to a FM VSP module.
+ @Param[in]     h_FmVsp - FM PORT module descriptor
 
- @Return        Counter's current value.
+ @Return        data offset.
 
  @Cautions      Allowed only following FM_VSP_Init().
-                Note that counters in summary of BM pools defined for this VSP
 *//***************************************************************************/
-uint32_t FM_VSP_GetStatistics(t_Handle h_FmVsp);
+uint32_t FM_VSP_GetBufferDataOffset(t_Handle h_FmVsp);
 
 /**************************************************************************//**
- @Function      FM_VSP_ModifyCounter
+ @Function      FM_VSP_GetBufferICInfo
 
- @Description   Sets a value to an enabled counter. Use "0" to reset the counter.
+ @Description   Returns the Internal Context offset from the beginning of the data buffer
 
- @Param[in]     h_FmVsp             A handle to a FM VSP module.
- @Param[in]     value               The requested value to be written into the counter.
+ @Param[in]     h_FmVsp - FM PORT module descriptor
+ @Param[in]     p_Data   - A pointer to the data buffer.
 
- @Return        E_OK on success; Error code otherwise.
+ @Return        Internal context info pointer on success, NULL if 'allOtherInfo' was not
+                configured for this port.
 
  @Cautions      Allowed only following FM_VSP_Init().
 *//***************************************************************************/
-t_Error FM_VSP_ModifyCounter(t_Handle h_FmVsp, uint32_t value);
+uint8_t * FM_VSP_GetBufferICInfo(t_Handle h_FmVsp, char *p_Data);
+
+/**************************************************************************//**
+ @Function      FM_VSP_GetBufferPrsResult
+
+ @Description   Returns the pointer to the parse result in the data buffer.
+                In Rx ports this is relevant after reception, if parse
+                result is configured to be part of the data passed to the
+                application. For non Rx ports it may be used to get the pointer
+                of the area in the buffer where parse result should be
+                initialized - if so configured.
+                See FM_VSP_ConfigBufferPrefixContent for data buffer prefix
+                configuration.
+
+ @Param[in]     h_FmVsp    - FM PORT module descriptor
+ @Param[in]     p_Data      - A pointer to the data buffer.
+
+ @Return        Parse result pointer on success, NULL if parse result was not
+                configured for this port.
+
+ @Cautions      Allowed only following FM_VSP_Init().
+*//***************************************************************************/
+t_FmPrsResult * FM_VSP_GetBufferPrsResult(t_Handle h_FmVsp, char *p_Data);
+
+/**************************************************************************//**
+ @Function      FM_VSP_GetBufferTimeStamp
+
+ @Description   Returns the time stamp in the data buffer.
+                Relevant for Rx ports for getting the buffer time stamp.
+                See FM_VSP_ConfigBufferPrefixContent for data buffer prefix
+                configuration.
+
+ @Param[in]     h_FmVsp    - FM PORT module descriptor
+ @Param[in]     p_Data      - A pointer to the data buffer.
+
+ @Return        A pointer to the hash result on success, NULL otherwise.
+
+ @Cautions      Allowed only following FM_VSP_Init().
+*//***************************************************************************/
+uint64_t * FM_VSP_GetBufferTimeStamp(t_Handle h_FmVsp, char *p_Data);
+
+/**************************************************************************//**
+ @Function      FM_VSP_GetBufferHashResult
+
+ @Description   Given a data buffer, on the condition that hash result was defined
+                as a part of the buffer content (see FM_VSP_ConfigBufferPrefixContent)
+                this routine will return the pointer to the hash result location in the
+                buffer prefix.
+
+ @Param[in]     h_FmVsp    - FM PORT module descriptor
+ @Param[in]     p_Data      - A pointer to the data buffer.
+
+ @Return        A pointer to the hash result on success, NULL otherwise.
+
+ @Cautions      Allowed only following FM_VSP_Init().
+*//***************************************************************************/
+uint8_t * FM_VSP_GetBufferHashResult(t_Handle h_FmVsp, char *p_Data);
+
 
 /** @} */ /* end of FM_VSP_control_grp group */
-#endif /* UNDER_CONSTRUCTION_FM_GEN */
 /** @} */ /* end of FM_VSP_grp group */
 /** @} */ /* end of FM_grp group */
 

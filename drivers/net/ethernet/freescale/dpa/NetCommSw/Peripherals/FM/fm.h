@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /******************************************************************************
  @File          fm.h
 
@@ -124,14 +125,15 @@ switch(exception){                                          \
                                             FM_EX_BMI_STORAGE_PROFILE_ECC   |\
                                             FM_EX_BMI_STATISTICS_RAM_ECC    |\
                                             FM_EX_IRAM_ECC                  |\
-                                            FM_EX_MURAM_ECC 				|\
+                                            FM_EX_MURAM_ECC                 |\
                                             FM_EX_BMI_DISPATCH_RAM_ECC      |\
                                             FM_EX_QMI_DOUBLE_ECC            |\
                                             FM_EX_QMI_SINGLE_ECC)
 
 
-#define DEFAULT_totalFifoSize(major)       ((major != 0) ?  (BMI_MAX_FIFO_SIZE*3/4):0)
-
+#define DEFAULT_totalFifoSize(major)       (((major == 2) || (major == 5))  ?   \
+                                            (100*KILOBYTE):((major == 6) ?      \
+                                            (288*KILOBYTE):((major == 4) ? (44*KILOBYTE):(122*KILOBYTE))))
 
 #define DEFAULT_eccEnable                   FALSE
 #define DEFAULT_dispLimit                   0
@@ -174,6 +176,57 @@ switch(exception){                                          \
 #define DEFAULT_mtu                         9600
 
 /**************************************************************************//**
+ @Collection   Defines used for enabling/disabling FM interrupts
+ @{
+*//***************************************************************************/
+typedef uint32_t t_FmBlockErrIntrEnable;
+
+#define ERR_INTR_EN_DMA         0x00010000
+#define ERR_INTR_EN_FPM         0x80000000
+#define ERR_INTR_EN_BMI         0x00800000
+#define ERR_INTR_EN_QMI         0x00400000
+#define ERR_INTR_EN_PRS         0x00200000
+#define ERR_INTR_EN_KG          0x00100000
+#define ERR_INTR_EN_PLCR        0x00080000
+#define ERR_INTR_EN_MURAM       0x00040000
+#define ERR_INTR_EN_IRAM        0x00020000
+#define ERR_INTR_EN_10G_MAC0    0x00008000
+#define ERR_INTR_EN_10G_MAC1    0x00000040
+#define ERR_INTR_EN_1G_MAC0     0x00004000
+#define ERR_INTR_EN_1G_MAC1     0x00002000
+#define ERR_INTR_EN_1G_MAC2     0x00001000
+#define ERR_INTR_EN_1G_MAC3     0x00000800
+#define ERR_INTR_EN_1G_MAC4     0x00000400
+#define ERR_INTR_EN_1G_MAC5     0x00000200
+#define ERR_INTR_EN_1G_MAC6     0x00000100
+#define ERR_INTR_EN_1G_MAC7     0x00000080
+#define ERR_INTR_EN_MACSEC_MAC0 0x00000001
+
+typedef uint32_t t_FmBlockIntrEnable;
+
+#define INTR_EN_QMI             0x40000000
+#define INTR_EN_PRS             0x20000000
+#define INTR_EN_PLCR            0x08000000
+#define INTR_EN_1G_MAC0         0x00080000
+#define INTR_EN_1G_MAC1         0x00040000
+#define INTR_EN_1G_MAC2         0x00020000
+#define INTR_EN_1G_MAC3         0x00010000
+#define INTR_EN_1G_MAC4         0x00000040
+#define INTR_EN_1G_MAC5         0x00000020
+#define INTR_EN_1G_MAC6         0x00000008
+#define INTR_EN_1G_MAC7         0x00000002
+#define INTR_EN_10G_MAC0        0x00200000
+#define INTR_EN_10G_MAC1        0x00100000
+#define INTR_EN_REV0            0x00008000
+#define INTR_EN_REV1            0x00004000
+#define INTR_EN_REV2            0x00002000
+#define INTR_EN_REV3            0x00001000
+#define INTR_EN_BRK             0x00000080
+#define INTR_EN_TMR             0x01000000
+#define INTR_EN_MACSEC_MAC0     0x00000001
+/* @} */
+
+/**************************************************************************//**
  @Description       Modules registers offsets
 *//***************************************************************************/
 #define FM_MM_MURAM             0x00000000
@@ -187,9 +240,9 @@ switch(exception){                                          \
 #define FM_MM_IMEM              0x000C4000
 #define FM_MM_CGP               0x000DB000
 #define FM_MM_TRB(i)            (0x000D0200 + 0x400 * (i))
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 #define FM_MM_SP                0x000dc000
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 
 /**************************************************************************//**
@@ -615,7 +668,7 @@ typedef _Packed struct t_FmTrbRegs
 #define TRB_TCRH_ENABLE_COUNTERS    0x84008000
 #define TRB_TCRH_DISABLE_COUNTERS   0x8400C000
 #define TRB_TCRL_RESET              0x20000000
-#define TRB_TCRL_UTIL               0x00000800
+#define TRB_TCRL_UTIL               0x00000400
 
 typedef struct {
     void        (*f_Isr) (t_Handle h_Arg, uint32_t event);
@@ -698,7 +751,7 @@ typedef struct
     uint16_t                    macMaxFrameLengths1G[FM_MAX_NUM_OF_1G_MACS];
 } t_FmStateStruct;
 
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
 typedef struct t_FmMapParam {
     uint16_t        profilesBase;
     uint16_t        numOfProfiles;
@@ -722,7 +775,7 @@ typedef struct t_FmSp {
     t_FmMapParam    portsMapping[FM_MAX_NUM_OF_PORTS];
 } t_FmSp;
 
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 
 typedef struct t_Fm
@@ -754,12 +807,12 @@ typedef struct t_Fm
     t_Handle                    h_Spinlock;
     bool                        recoveryMode;
     t_FmStateStruct             *p_FmStateStruct;
-#if DPAA_VERSION >= 3
+#if (DPAA_VERSION >= 11)
     t_FmSp                      *p_FmSp;
     uint8_t                     partNumOfVSPs;
     uint8_t                     partVSPBase;
     uintptr_t                   vspBaseAddr;
-#endif /* DPAA_VERSION >= 3 */
+#endif /* (DPAA_VERSION >= 11) */
 
 /* un-needed for recovery */
     t_FmDriverParam             *p_FmDriverParam;
