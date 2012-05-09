@@ -15,6 +15,7 @@
 #include <linux/bug.h>
 #include <linux/nmi.h>
 #include <linux/sysfs.h>
+#include <linux/ltt-core.h>
 
 #include <asm/stacktrace.h>
 
@@ -269,6 +270,12 @@ int __kprobes __die(const char *str, struct pt_regs *regs, long err)
 	printk("DEBUG_PAGEALLOC");
 #endif
 	printk("\n");
+
+#ifdef CONFIG_LTT
+	printk(KERN_EMERG "LTT NESTING LEVEL : %u", __get_cpu_var(ltt_nesting));
+	printk("\n");
+#endif
+
 	if (notify_die(DIE_OOPS, str, regs, err,
 			current->thread.trap_nr, SIGSEGV) == NOTIFY_STOP)
 		return 1;
