@@ -15,6 +15,7 @@
 #include <linux/stringify.h>
 #include <linux/kobject.h>
 #include <linux/moduleparam.h>
+#include <linux/marker.h>
 #include <linux/tracepoint.h>
 #include <linux/export.h>
 
@@ -320,6 +321,11 @@ struct module
 	   keeping pointers to this stuff */
 	char *args;
 
+#ifdef CONFIG_MARKERS
+	struct marker *markers;
+	unsigned int num_markers;
+#endif
+
 #ifdef CONFIG_SMP
 	/* Per-cpu data. */
 	void __percpu *percpu;
@@ -501,6 +507,8 @@ int unregister_module_notifier(struct notifier_block * nb);
 
 extern void print_modules(void);
 
+extern void module_update_markers(void);
+
 #else /* !CONFIG_MODULES... */
 
 /* Given an address, look for it in the exception tables. */
@@ -611,6 +619,11 @@ static inline int unregister_module_notifier(struct notifier_block * nb)
 static inline void print_modules(void)
 {
 }
+
+static inline void module_update_markers(void)
+{
+}
+
 #endif /* CONFIG_MODULES */
 
 #ifdef CONFIG_SYSFS
