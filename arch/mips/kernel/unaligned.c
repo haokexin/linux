@@ -78,6 +78,7 @@
 #include <linux/sched.h>
 #include <linux/debugfs.h>
 #include <linux/perf_event.h>
+#include <trace/trap.h>
 
 #include <asm/asm.h>
 #include <asm/branch.h>
@@ -515,6 +516,7 @@ asmlinkage void do_ade(struct pt_regs *regs)
 
 	perf_sw_event(PERF_COUNT_SW_ALIGNMENT_FAULTS,
 			1, regs, regs->cp0_badvaddr);
+	trace_trap_entry(regs, CAUSE_EXCCODE(regs->cp0_cause));
 	/*
 	 * Did we catch a fault trying to load an instruction?
 	 * Or are we running in MIPS16 mode?
@@ -540,6 +542,8 @@ asmlinkage void do_ade(struct pt_regs *regs)
 	emulate_load_store_insn(regs, (void __user *)regs->cp0_badvaddr, pc);
 	set_fs(seg);
 
+	trace_trap_exit();
+
 	return;
 
 sigbus:
@@ -549,6 +553,8 @@ sigbus:
 	/*
 	 * XXX On return from the signal handler we should advance the epc
 	 */
+
+	trace_trap_exit();
 }
 
 #ifdef CONFIG_DEBUG_FS
