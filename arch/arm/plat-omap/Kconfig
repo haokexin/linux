@@ -28,6 +28,9 @@ config ARCH_OMAP2PLUS
 	select OMAP_DM_TIMER
 	select USE_OF
 	select PROC_DEVICETREE if PROC_FS
+	select HAVE_TRACE_CLOCK
+	select HAVE_TRACE_CLOCK_32_TO_64
+	select OMAP_32K_TIMER
 	help
 	  "Systems based on OMAP2, OMAP3 or OMAP4"
 
