@@ -27,6 +27,11 @@
 
 #include <plat/clock.h>
 
+struct clocksource *get_clocksource_32k(void)
+{
+	return &clocksource_32k;
+}
+
 /*
  * 32KHz clocksource ... always available, on pretty most chips except
  * OMAP 730 and 1510.  Other timers could be used as clocksources, with
