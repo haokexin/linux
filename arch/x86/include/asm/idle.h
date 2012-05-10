@@ -2,6 +2,7 @@
 #define _ASM_X86_IDLE_H
 
 void enter_idle(void);
+void __exit_idle(void);
 void exit_idle(void);
 
 void amd_e400_remove_cpu(int cpu);
