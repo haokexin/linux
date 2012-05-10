@@ -238,8 +238,16 @@ static void ehci_fsl_setup_phy(struct ehci_hcd *ehci,
 	case FSL_USB2_PHY_UTMI:
 		/* enable UTMI PHY */
 		if (pdata->have_sysif_regs)
+#ifdef CONFIG_FSL_SOC_BOOKE
+		{
+			setbits32(non_ehci + FSL_SOC_USB_CTRL, UTMI_PHY_EN |
+				USB_CTRL_USB_EN);
+			udelay(10*1000);  /* delay for PHY clk to ready */
+		}
+#else
 			setbits32(non_ehci + FSL_SOC_USB_CTRL,
 				  CTRL_UTMI_PHY_EN);
+#endif
 		portsc |= PORT_PTS_UTMI;
 		break;
 	case FSL_USB2_PHY_NONE:
@@ -296,7 +304,7 @@ static void ehci_fsl_usb_setup(struct ehci_hcd *ehci)
 	}
 
 	if (pdata->have_sysif_regs) {
-#ifdef CONFIG_PPC_85xx
+#if defined(CONFIG_PPC_85xx) || defined(CONFIG_FSL_SOC_BOOKE)
 		out_be32(non_ehci + FSL_SOC_USB_PRICTRL, 0x00000008);
 		out_be32(non_ehci + FSL_SOC_USB_AGECNTTHRSH, 0x00000080);
 #else

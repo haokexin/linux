@@ -348,6 +348,8 @@ struct usb_sys_interface {
 /* control Register Bit Masks */
 #define  USB_CTRL_IOENB                       0x00000004
 #define  USB_CTRL_ULPI_INT0EN                 0x00000001
+#define USB_CTRL_UTMI_PHY_EN		      0x00000200
+#define USB_CTRL_USB_EN			      0x00000004
 
 /* Endpoint Queue Head data struct
  * Rem: all the variables of qh are LittleEndian Mode
