@@ -62,6 +62,7 @@
 #include <net/ip_fib.h>
 #include <net/rtnetlink.h>
 #include <net/net_namespace.h>
+#include <trace/ipv4.h>
 
 #include "fib_lookup.h"
 
@@ -172,6 +173,9 @@ struct net_device *__ip_dev_find(struct net *net, __be32 addr, bool devref)
 	return result;
 }
 EXPORT_SYMBOL(__ip_dev_find);
+
+DEFINE_TRACE(ipv4_addr_add);
+DEFINE_TRACE(ipv4_addr_del);
 
 static void rtmsg_ifa(int event, struct in_ifaddr *, struct nlmsghdr *, u32);
 
@@ -333,6 +337,7 @@ static void __inet_del_ifa(struct in_device *in_dev, struct in_ifaddr **ifap,
 		struct in_ifaddr **ifap1 = &ifa1->ifa_next;
 
 		while ((ifa = *ifap1) != NULL) {
+			trace_ipv4_addr_del(ifa);
 			if (!(ifa->ifa_flags & IFA_F_SECONDARY) &&
 			    ifa1->ifa_scope <= ifa->ifa_scope)
 				last_prim = ifa;
@@ -453,6 +458,7 @@ static int __inet_insert_ifa(struct in_ifaddr *ifa, struct nlmsghdr *nlh,
 			}
 			ifa->ifa_flags |= IFA_F_SECONDARY;
 		}
+		trace_ipv4_addr_add(ifa);
 	}
 
 	if (!(ifa->ifa_flags & IFA_F_SECONDARY)) {

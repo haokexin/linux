@@ -44,6 +44,7 @@
 #include <linux/dmaengine.h>
 #include <linux/workqueue.h>
 #include <linux/dynamic_queue_limits.h>
+#include <trace/net.h>
 
 #include <linux/ethtool.h>
 #include <net/net_namespace.h>
