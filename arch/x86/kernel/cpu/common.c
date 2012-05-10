@@ -1090,6 +1090,7 @@ unsigned long kernel_eflags;
  * debugging, no special alignment required.
  */
 DEFINE_PER_CPU(struct orig_ist, orig_ist);
+EXPORT_PER_CPU_SYMBOL_GPL(orig_ist);
 
 static DEFINE_PER_CPU(unsigned long, debug_stack_addr);
 DEFINE_PER_CPU(int, debug_stack_usage);
