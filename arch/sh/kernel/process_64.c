@@ -25,12 +25,15 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/io.h>
+#include <trace/sched.h>
 #include <asm/syscalls.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 #include <asm/fpu.h>
 #include <asm/switch_to.h>
+
+DEFINE_TRACE(sched_kthread_create);
 
 struct task_struct *last_task_used_math = NULL;
 
@@ -301,6 +304,7 @@ __noreturn void kernel_thread_helper(void *arg, int (*fn)(void *))
  */
 int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 {
+	int pid;
 	struct pt_regs regs;
 
 	memset(&regs, 0, sizeof(regs));
@@ -311,8 +315,12 @@ int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags)
 	regs.sr = (1 << 30);
 
 	/* Ok, create the new process.. */
-	return do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0,
+	pid = do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0,
 		      &regs, 0, NULL, NULL);
+
+	trace_sched_kthread_create(fn, pid);
+
+	return pid;
 }
 EXPORT_SYMBOL(kernel_thread);
 
