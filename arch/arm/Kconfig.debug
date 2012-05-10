@@ -354,4 +354,8 @@ config MICROSTATE_ACCT_SCHED_CLOCK_CLOCKSOURCE
 
 endchoice
 
+config DEBUG_TRACE_CLOCK
+	bool "Debug trace clock"
+	depends on HAVE_TRACE_CLOCK
+
 endmenu
