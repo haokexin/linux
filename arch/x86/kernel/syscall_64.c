@@ -1,8 +1,11 @@
 /* System call table for x86-64. */
 
 #include <linux/linkage.h>
+#include <linux/module.h>
 #include <linux/sys.h>
 #include <linux/cache.h>
+#include <linux/marker.h>
+#include <linux/kallsyms.h>
 #include <asm/asm-offsets.h>
 
 #define __SYSCALL_COMMON(nr, sym, compat) __SYSCALL_64(nr, sym, compat)
@@ -31,3 +34,17 @@ const sys_call_ptr_t sys_call_table[__NR_syscall_max+1] = {
 	[0 ... __NR_syscall_max] = &sys_ni_syscall,
 #include <asm/syscalls_64.h>
 };
+
+void ltt_dump_sys_call_table(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+	for (i = 0; i < __NR_syscall_max + 1; i++) {
+		sprint_symbol(namebuf, (unsigned long)sys_call_table[i]);
+		__trace_mark(0, statedump_sys_call_table, call_data,
+			"id %d address %p symbol %s",
+			i, (void*)sys_call_table[i], namebuf);
+	}
+}
+EXPORT_SYMBOL_GPL(ltt_dump_sys_call_table);
