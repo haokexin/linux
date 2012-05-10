@@ -46,6 +46,9 @@ enum s390_regset {
 	REGSET_GENERAL_EXTENDED,
 };
 
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
+
 void update_per_regs(struct task_struct *task)
 {
 	struct pt_regs *regs = task_pt_regs(task);
@@ -721,6 +724,7 @@ asmlinkage long do_syscall_trace_enter(struct pt_regs *regs)
 	/* Do the secure computing check first. */
 	secure_computing(regs->gprs[2]);
 
+	trace_syscall_entry(regs, regs->gprs[2]);
 	/*
 	 * The sysc_tracesys code in entry.S stored the system
 	 * call number to gprs[2].
@@ -750,6 +754,8 @@ asmlinkage long do_syscall_trace_enter(struct pt_regs *regs)
 
 asmlinkage void do_syscall_trace_exit(struct pt_regs *regs)
 {
+	trace_syscall_exit(regs->gprs[2]);
+
 	audit_syscall_exit(regs);
 
 	if (unlikely(test_thread_flag(TIF_SYSCALL_TRACEPOINT)))
