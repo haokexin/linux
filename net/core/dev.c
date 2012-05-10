@@ -135,6 +135,7 @@
 #include <linux/net_tstamp.h>
 #include <linux/static_key.h>
 #include <net/flow_keys.h>
+#include <trace/net.h>
 
 #include "net-sysfs.h"
 
@@ -205,6 +206,13 @@ static inline void dev_base_seq_inc(struct net *net)
 {
 	while (++net->dev_base_seq == 0);
 }
+
+DEFINE_TRACE(net_dev_xmit);
+DEFINE_TRACE(net_dev_receive);
+DEFINE_TRACE(net_napi_schedule);
+DEFINE_TRACE(net_napi_poll);
+DEFINE_TRACE(net_napi_complete);
+EXPORT_TRACEPOINT_SYMBOL_GPL(net_napi_complete);
 
 static inline struct hlist_head *dev_name_hash(struct net *net, const char *name)
 {
@@ -1975,7 +1983,18 @@ struct sk_buff *skb_gso_segment(struct sk_buff *skb,
 		vlan_depth += VLAN_HLEN;
 	}
 
+<<<<<<<
 	skb_reset_mac_header(skb);
+|||||||
+	__this_cpu_inc(softnet_data.processed);
+	skb_reset_network_header(skb);
+	skb_reset_transport_header(skb);
+=======
+	__this_cpu_inc(softnet_data.processed);
+	trace_net_dev_receive(skb);
+	skb_reset_network_header(skb);
+	skb_reset_transport_header(skb);
+>>>>>>>
 	skb->mac_len = skb->network_header - skb->mac_header;
 	__skb_pull(skb, skb->mac_len);
 
@@ -2510,6 +2529,7 @@ int dev_queue_xmit(struct sk_buff *skb)
 	struct Qdisc *q;
 	int rc = -ENOMEM;
 
+	trace_net_dev_xmit(skb);
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.
 	 */
@@ -3749,6 +3769,8 @@ void __napi_schedule(struct napi_struct *n)
 {
 	unsigned long flags;
 
+	trace_net_napi_schedule(n);
+
 	local_irq_save(flags);
 	____napi_schedule(&__get_cpu_var(softnet_data), n);
 	local_irq_restore(flags);
@@ -3763,6 +3785,7 @@ void __napi_complete(struct napi_struct *n)
 	list_del(&n->poll_list);
 	smp_mb__before_clear_bit();
 	clear_bit(NAPI_STATE_SCHED, &n->state);
+	trace_net_napi_complete(n);
 }
 EXPORT_SYMBOL(__napi_complete);
 
@@ -3862,6 +3885,7 @@ static void net_rx_action(struct softirq_action *h)
 		 */
 		work = 0;
 		if (test_bit(NAPI_STATE_SCHED, &n->state)) {
+			trace_net_napi_poll(n);
 			work = n->poll(n, weight);
 			trace_napi_poll(n);
 		}

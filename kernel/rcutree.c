@@ -47,6 +47,8 @@
 #include <linux/mutex.h>
 #include <linux/time.h>
 #include <linux/kernel_stat.h>
+#include <trace/rcu.h>
+
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/prefetch.h>
@@ -215,6 +217,10 @@ int rcu_cpu_stall_timeout __read_mostly = CONFIG_RCU_CPU_STALL_TIMEOUT;
 
 module_param(rcu_cpu_stall_suppress, int, 0644);
 module_param(rcu_cpu_stall_timeout, int, 0644);
+
+DEFINE_TRACE(rcu_tree_call_rcu);
+DEFINE_TRACE(rcu_tree_call_rcu_bh);
+DEFINE_TRACE(rcu_tree_callback);
 
 static void force_quiescent_state(struct rcu_state *rsp, int relaxed);
 static int rcu_pending(int cpu);
@@ -1510,6 +1516,7 @@ static void rcu_do_batch(struct rcu_state *rsp, struct rcu_data *rdp)
 		next = list->next;
 		prefetch(next);
 		debug_rcu_head_unqueue(list);
+		trace_rcu_tree_callback(list);
 		if (__rcu_reclaim(rsp->name, list))
 			count_lazy++;
 		list = next;
@@ -1891,6 +1898,7 @@ EXPORT_SYMBOL_GPL(call_rcu_sched);
  */
 void call_rcu_bh(struct rcu_head *head, void (*func)(struct rcu_head *rcu))
 {
+	trace_rcu_tree_call_rcu_bh(head, _RET_IP_);
 	__call_rcu(head, func, &rcu_bh_state, 0);
 }
 EXPORT_SYMBOL_GPL(call_rcu_bh);
