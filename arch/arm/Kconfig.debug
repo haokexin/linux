@@ -332,4 +332,8 @@ config ARM_KPROBES_TEST
 	help
 	  Perform tests of kprobes API and instruction set simulation.
 
+config DEBUG_TRACE_CLOCK
+	bool "Debug trace clock"
+	depends on HAVE_TRACE_CLOCK
+
 endmenu
