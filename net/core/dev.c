@@ -1983,18 +1983,10 @@ struct sk_buff *skb_gso_segment(struct sk_buff *skb,
 		vlan_depth += VLAN_HLEN;
 	}
 
-<<<<<<<
-	skb_reset_mac_header(skb);
-|||||||
 	__this_cpu_inc(softnet_data.processed);
 	skb_reset_network_header(skb);
 	skb_reset_transport_header(skb);
-=======
-	__this_cpu_inc(softnet_data.processed);
-	trace_net_dev_receive(skb);
-	skb_reset_network_header(skb);
-	skb_reset_transport_header(skb);
->>>>>>>
+
 	skb->mac_len = skb->network_header - skb->mac_header;
 	__skb_pull(skb, skb->mac_len);
 
@@ -2529,7 +2521,6 @@ int dev_queue_xmit(struct sk_buff *skb)
 	struct Qdisc *q;
 	int rc = -ENOMEM;
 
-	trace_net_dev_xmit(skb);
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.
 	 */
@@ -2946,6 +2937,8 @@ int netif_rx(struct sk_buff *skb)
 	if (netpoll_rx(skb))
 		return NET_RX_DROP;
 
+	trace_net_dev_receive(skb);
+
 	net_timestamp_check(netdev_tstamp_prequeue, skb);
 
 	trace_netif_rx(skb);
@@ -3315,6 +3308,8 @@ int netif_receive_skb(struct sk_buff *skb)
 
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
+
+	trace_net_dev_receive(skb);
 
 #ifdef CONFIG_RPS
 	if (static_key_false(&rps_needed)) {
