@@ -88,6 +88,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/export.h>
+#include <trace/ipv6.h>
 
 /* Set to 3 to get tracing... */
 #define ACONF_DEBUG 2
@@ -108,6 +109,9 @@ static inline u32 cstamp_delta(unsigned long cstamp)
 #define ADDRCONF_TIMER_FUZZ_MINUS	(HZ > 50 ? HZ/50 : 1)
 #define ADDRCONF_TIMER_FUZZ		(HZ / 4)
 #define ADDRCONF_TIMER_FUZZ_MAX		(HZ)
+
+DEFINE_TRACE(ipv6_addr_add);
+DEFINE_TRACE(ipv6_addr_del);
 
 #ifdef CONFIG_SYSCTL
 static void addrconf_sysctl_register(struct inet6_dev *idev);
@@ -658,6 +662,8 @@ ipv6_add_addr(struct inet6_dev *idev, const struct in6_addr *addr, int pfxlen,
 	in6_dev_hold(idev);
 	/* For caller */
 	in6_ifa_hold(ifa);
+
+	trace_ipv6_addr_add(ifa);
 
 	/* Add to big hash table */
 	hash = ipv6_addr_hash(addr);
@@ -2273,6 +2279,7 @@ static int inet6_addr_del(struct net *net, int ifindex, const struct in6_addr *p
 			in6_ifa_hold(ifp);
 			read_unlock_bh(&idev->lock);
 
+			trace_ipv6_addr_del(ifp);
 			ipv6_del_addr(ifp);
 
 			/* If the last address is deleted administratively,
