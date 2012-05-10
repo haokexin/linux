@@ -408,6 +408,8 @@
 #define __NR_sched_setparam2		(__NR_SYSCALL_BASE+379)
 #define __NR_sched_getparam2		(__NR_SYSCALL_BASE+380)
 
+#define __NR_syscall_max 380
+
 /*
  * The following SWIs are ARM private.
  */
