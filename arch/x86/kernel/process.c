@@ -384,14 +384,16 @@ void enter_idle(void)
 	trace_pm_idle_entry();
 	notify_idle(IDLE_START);
 }
+EXPORT_SYMBOL_GPL(enter_idle);
 
-static void __exit_idle(void)
+void __exit_idle(void)
 {
 	if (x86_test_and_clear_bit_percpu(0, is_idle) == 0)
 		return;
 	notify_idle(IDLE_END);
 	trace_pm_idle_exit();
 }
+EXPORT_SYMBOL_GPL(__exit_idle);
 
 /* Called from interrupts to signify idle end */
 void exit_idle(void)
@@ -401,6 +403,7 @@ void exit_idle(void)
 		return;
 	__exit_idle();
 }
+EXPORT_SYMBOL_GPL(exit_idle);
 #endif
 
 /*
