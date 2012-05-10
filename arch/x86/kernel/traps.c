@@ -31,6 +31,7 @@
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/io.h>
+#include <trace/trap.h>
 
 #ifdef CONFIG_EISA
 #include <linux/ioport.h>
@@ -81,6 +82,12 @@ gate_desc idt_table[NR_VECTORS] __page_aligned_data = { { { { 0, 0 } } }, };
 DECLARE_BITMAP(used_vectors, NR_VECTORS);
 EXPORT_SYMBOL_GPL(used_vectors);
 
+/*
+ * Also used in arch/x86/mm/fault.c.
+ */
+DEFINE_TRACE(trap_entry);
+DEFINE_TRACE(trap_exit);
+
 static inline void conditional_sti(struct pt_regs *regs)
 {
 	if (regs->flags & X86_EFLAGS_IF)
@@ -112,6 +119,8 @@ do_trap(int trapnr, int signr, char *str, struct pt_regs *regs,
 	long error_code, siginfo_t *info)
 {
 	struct task_struct *tsk = current;
+
+	trace_trap_entry(regs, trapnr);
 
 #ifdef CONFIG_X86_32
 	if (regs->flags & X86_VM_MASK) {
@@ -159,7 +168,7 @@ trap_signal:
 		force_sig_info(signr, info, tsk);
 	else
 		force_sig(signr, tsk);
-	return;
+	goto end;
 
 kernel_trap:
 	if (!fixup_exception(regs)) {
@@ -167,15 +176,17 @@ kernel_trap:
 		tsk->thread.trap_nr = trapnr;
 		die(str, regs, error_code);
 	}
-	return;
+	goto end;
 
 #ifdef CONFIG_X86_32
 vm86_trap:
 	if (handle_vm86_trap((struct kernel_vm86_regs *) regs,
 						error_code, trapnr))
 		goto trap_signal;
-	return;
+	goto end;
 #endif
+end:
+	trace_trap_exit();
 }
 
 #define DO_ERROR(trapnr, signr, str, name)				\
@@ -280,7 +291,9 @@ do_general_protection(struct pt_regs *regs, long error_code)
 		printk("\n");
 	}
 
+	trace_trap_entry(regs, 13);
 	force_sig(SIGSEGV, tsk);
+	trace_trap_exit();
 	return;
 
 #ifdef CONFIG_X86_32
@@ -426,8 +439,10 @@ dotraplinkage void __kprobes do_debug(struct pt_regs *regs, long error_code)
 	preempt_conditional_sti(regs);
 
 	if (regs->flags & X86_VM_MASK) {
+		trace_trap_entry(regs, 1);
 		handle_vm86_trap((struct kernel_vm86_regs *) regs, error_code,
 					X86_TRAP_DB);
+		trace_trap_exit();
 		preempt_conditional_cli(regs);
 		debug_stack_usage_dec();
 		return;
@@ -446,8 +461,11 @@ dotraplinkage void __kprobes do_debug(struct pt_regs *regs, long error_code)
 		regs->flags &= ~X86_EFLAGS_TF;
 	}
 	si_code = get_si_code(tsk->thread.debugreg6);
-	if (tsk->thread.debugreg6 & (DR_STEP | DR_TRAP_BITS) || user_icebp)
+	if (tsk->thread.debugreg6 & (DR_STEP | DR_TRAP_BITS) || user_icebp) {
+		trace_trap_entry(regs, 1);
 		send_sigtrap(tsk, regs, error_code, si_code);
+		trace_trap_exit();
+	}
 	preempt_conditional_cli(regs);
 	debug_stack_usage_dec();
 
@@ -561,11 +579,13 @@ do_simd_coprocessor_error(struct pt_regs *regs, long error_code)
 dotraplinkage void
 do_spurious_interrupt_bug(struct pt_regs *regs, long error_code)
 {
+	trace_trap_entry(regs, 16);
 	conditional_sti(regs);
 #if 0
 	/* No need to warn about this any longer. */
 	printk(KERN_INFO "Ignoring P6 Local APIC Spurious Interrupt Bug...\n");
 #endif
+	trace_trap_exit();
 }
 
 asmlinkage void __attribute__((weak)) smp_thermal_interrupt(void)

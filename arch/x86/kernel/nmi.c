@@ -75,6 +75,12 @@ int unknown_nmi_panic;
  */
 static DEFINE_RAW_SPINLOCK(nmi_reason_lock);
 
+/*
+ * Also used in arch/x86/kernel/traps.c.
+ */
+DEFINE_TRACE(trap_entry);
+DEFINE_TRACE(trap_exit);
+
 static int __init setup_unknown_nmi_panic(char *str)
 {
 	unknown_nmi_panic = 1;
@@ -268,6 +274,8 @@ unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
 {
 	int handled;
 
+	trace_trap_entry(regs, 2);
+
 	/*
 	 * Use 'false' as back-to-back NMIs are dealt with one level up.
 	 * Of course this makes having multiple 'unknown' handlers useless
@@ -277,7 +285,7 @@ unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
 	handled = nmi_handle(NMI_UNKNOWN, regs, false);
 	if (handled) {
 		__this_cpu_add(nmi_stats.unknown, handled);
-		return;
+		goto end;
 	}
 
 	__this_cpu_add(nmi_stats.unknown, 1);
@@ -289,7 +297,7 @@ unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
 	 */
 	if (MCA_bus) {
 		mca_handle_nmi();
-		return;
+		goto end;
 	}
 #endif
 	pr_emerg("Uhhuh. NMI received for unknown reason %02x on CPU %d.\n",
@@ -300,6 +308,9 @@ unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
 		panic("NMI: Not continuing");
 
 	pr_emerg("Dazed and confused, but trying to continue\n");
+
+end:
+	trace_trap_exit();
 }
 
 static DEFINE_PER_CPU(bool, swallow_nmi);
@@ -310,6 +321,8 @@ static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
 	unsigned char reason = 0;
 	int handled;
 	bool b2b = false;
+
+	trace_trap_entry(regs, 2);
 
 	/*
 	 * CPU-specific NMI must be processed before non-CPU-specific
@@ -365,7 +378,7 @@ static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
 #endif
 		__this_cpu_add(nmi_stats.external, 1);
 		raw_spin_unlock(&nmi_reason_lock);
-		return;
+		goto end;
 	}
 	raw_spin_unlock(&nmi_reason_lock);
 
@@ -403,6 +416,9 @@ static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
 		__this_cpu_add(nmi_stats.swallow, 1);
 	else
 		unknown_nmi_error(reason, regs);
+
+end:
+	trace_trap_exit();
 }
 
 /*
