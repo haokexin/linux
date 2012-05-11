@@ -207,8 +207,8 @@ static inline void dev_base_seq_inc(struct net *net)
 	while (++net->dev_base_seq == 0);
 }
 
-DEFINE_TRACE(net_dev_xmit);
-DEFINE_TRACE(net_dev_receive);
+DEFINE_TRACE(lttng_net_dev_xmit);
+DEFINE_TRACE(lttng_net_dev_receive);
 DEFINE_TRACE(net_napi_schedule);
 DEFINE_TRACE(net_napi_poll);
 DEFINE_TRACE(net_napi_complete);
@@ -2242,8 +2242,9 @@ int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 		}
 
 		skb_len = skb->len;
+
 		rc = ops->ndo_start_xmit(skb, dev);
-		trace_net_dev_xmit(skb, rc, dev, skb_len);
+		trace_lttng_net_dev_xmit(skb);
 		if (rc == NETDEV_TX_OK)
 			txq_trans_update(txq);
 		return rc;
@@ -2264,8 +2265,9 @@ gso:
 			skb_dst_drop(nskb);
 
 		skb_len = nskb->len;
+
 		rc = ops->ndo_start_xmit(nskb, dev);
-		trace_net_dev_xmit(nskb, rc, dev, skb_len);
+		trace_lttng_net_dev_xmit(nskb);
 		if (unlikely(rc != NETDEV_TX_OK)) {
 			if (rc & ~NETDEV_TX_MASK)
 				goto out_kfree_gso_skb;
@@ -2937,7 +2939,7 @@ int netif_rx(struct sk_buff *skb)
 	if (netpoll_rx(skb))
 		return NET_RX_DROP;
 
-	trace_net_dev_receive(skb);
+	trace_lttng_net_dev_receive(skb);
 
 	net_timestamp_check(netdev_tstamp_prequeue, skb);
 
@@ -3309,7 +3311,7 @@ int netif_receive_skb(struct sk_buff *skb)
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
 
-	trace_net_dev_receive(skb);
+	trace_lttng_net_dev_receive(skb);
 
 #ifdef CONFIG_RPS
 	if (static_key_false(&rps_needed)) {
