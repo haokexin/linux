@@ -316,6 +316,8 @@ struct itimerval {
 #define CLOCK_BOOTTIME			7
 #define CLOCK_REALTIME_ALARM		8
 #define CLOCK_BOOTTIME_ALARM		9
+#define CLOCK_TRACE_FREQ		14
+#define CLOCK_TRACE				15
 
 /*
  * The IDs of various hardware clocks:
