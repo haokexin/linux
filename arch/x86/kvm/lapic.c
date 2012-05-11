@@ -36,7 +36,7 @@
 #include <linux/atomic.h>
 #include "kvm_cache_regs.h"
 #include "irq.h"
-#include "trace.h"
+#include <asm/kvm-trace.h>
 #include "x86.h"
 #include "cpuid.h"
 
