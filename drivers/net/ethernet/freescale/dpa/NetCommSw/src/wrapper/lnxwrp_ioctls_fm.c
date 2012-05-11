@@ -1832,7 +1832,7 @@ invalid_port_id:
             break;
         }
 #if defined(CONFIG_COMPAT)
-#error TODO: compat ioctl call not implemented!
+#warning TODO: compat ioctl call not implemented!
         case FM_PCD_IOC_HASH_TABLE_SET_COMPAT:
 #endif
         case FM_PCD_IOC_HASH_TABLE_SET:
