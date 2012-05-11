@@ -76,7 +76,7 @@ typedef enum e_EnetInterface
     e_ENET_IF_SGMII = 0x00080000,   /**< SGMII interface */
     e_ENET_IF_XGMII = 0x00090000,   /**< XGMII interface */
     e_ENET_IF_QSGMII= 0x000a0000,   /**< QSGMII interface */
-    e_ENET_IF_XFI	= 0x000b0000    /**< XFI interface */
+    e_ENET_IF_XFI   = 0x000b0000    /**< XFI interface */
 } e_EnetInterface;
 
 /**************************************************************************//**
@@ -122,7 +122,7 @@ typedef enum e_EnetMode
     e_ENET_MODE_SGMII_1000  = (e_ENET_IF_SGMII | e_ENET_SPEED_1000),    /**<  1000 Mbps SGMII */
     e_ENET_MODE_XGMII_10000 = (e_ENET_IF_XGMII | e_ENET_SPEED_10000),   /**< 10000 Mbps XGMII */
     e_ENET_MODE_QSGMII_1000 = (e_ENET_IF_QSGMII| e_ENET_SPEED_1000),    /**<  1000 Mbps QSGMII */
-    e_ENET_MODE_XFI_10000 	= (e_ENET_IF_XFI   | e_ENET_SPEED_10000)    /**< 10000 Mbps XFI */
+    e_ENET_MODE_XFI_10000   = (e_ENET_IF_XFI   | e_ENET_SPEED_10000)    /**< 10000 Mbps XFI */
 } e_EnetMode;
 
 

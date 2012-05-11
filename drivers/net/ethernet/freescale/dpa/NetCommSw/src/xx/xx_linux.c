@@ -675,15 +675,13 @@ int XX_TimerIsActive(t_Handle h_Timer)
   return timer_pending((struct timer_list *)h_Timer);
 }
 
-void XX_Sleep(uint32_t msecs)
+uint32_t XX_Sleep(uint32_t msecs)
 {
     int tmp_jiffies = (msecs*HZ)/1000;
 
     if ((msecs*HZ)%1000)
         tmp_jiffies++;
-    schedule_timeout(tmp_jiffies);
-
-    return;
+    return schedule_timeout(tmp_jiffies);
 }
 
 /*BEWARE!!!!! UDelay routine is BUSY WAITTING!!!!!*/

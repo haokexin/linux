@@ -336,10 +336,9 @@ typedef struct t_FmBufferPrefixContent {
                                          get the parser-result from a buffer. */
     bool        passAllOtherPCDInfo;/**< Add all other Internal-Context information:
                                          AD, hash-result, key, etc. */
-    uint16_t    dataAlign;          /**< 0 to use driver's default alignment
-									 [DEFAULT_PORT_bufferPrefixContent_dataAlign], other value
-                                         for selecting a data alignment (must be a
-                                         power of 2); if write optimization is used, must be >= 16. */
+    uint16_t    dataAlign;          /**< 0 to use driver's default alignment [64],
+                                         other value for selecting a data alignment (must be a power of 2);
+                                         if write optimization is used, must be >= 16. */
     uint8_t     manipExtraSpace;    /**< Maximum extra size needed (insertion-size minus removal-size);
                                          Note that this field impacts the size of the buffer-prefix
                                          (i.e. it pushes the data offset);

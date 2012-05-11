@@ -471,10 +471,11 @@ t_Error FM_PORT_ConfigNumOfTasks(t_Handle h_FmPort, t_FmPortRsrc *p_NumOfTasks);
 /**************************************************************************//**
  @Function      FM_PORT_ConfigSizeOfFifo
 
- @Description   Calling this routine changes the max FIFO size
-                available for this port. It changes this parameter in the
-                internal driver data base from its default configuration
-                [DEFAULT_PORT_sizeOfFifo]
+ @Description   Calling this routine changes the max FIFO size configured for this port.
+
+                This function changes the internal driver data base from its
+                default configuration. Please refer to the driver's User Guide for
+                information on default FIFO sizes in the various devices.
 
  @Param[in]     h_FmPort        A handle to a FM Port module.
  @Param[in]     p_SizeOfFifo    A pointer to a structure of parameters defining
@@ -836,8 +837,8 @@ t_Error FM_PORT_ConfigDmaScatterGatherAttr(t_Handle h_FmPort, e_FmDmaCacheOption
                 1. For head optimization, data alignment must be >= 16 (supported by default).
 
                 3. For tail optimization, note that the optimization is performed by extending the write transaction
-				of the frame payload at the tail as needed to achieve optimal bus transfers, so that the last write
-				is extended to be on 16/64 bytes aligned block (chip dependent).
+                of the frame payload at the tail as needed to achieve optimal bus transfers, so that the last write
+                is extended to be on 16/64 bytes aligned block (chip dependent).
 
 
                 Relevant for non-Tx port types

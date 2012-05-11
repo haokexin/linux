@@ -394,7 +394,7 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
     {
         p_TmpCode = (uint8_t *)XX_Malloc(p_SwPrs->size + 2);
         if (!p_TmpCode)
-            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
+            RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
         memset(p_TmpCode, 0, p_SwPrs->size + 2);
         memcpy(p_TmpCode, p_SwPrs->p_Code, p_SwPrs->size);
     }

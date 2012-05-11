@@ -1135,104 +1135,104 @@ typedef union u_FmPcdHdrProtocolOpt {
  @Description   A union holding protocol fields
 
 
-				Fields supported as "full fields":
+                Fields supported as "full fields":
                     HEADER_TYPE_ETH:
-						NET_HEADER_FIELD_ETH_DA
-						NET_HEADER_FIELD_ETH_SA
-						NET_HEADER_FIELD_ETH_TYPE
+                        NET_HEADER_FIELD_ETH_DA
+                        NET_HEADER_FIELD_ETH_SA
+                        NET_HEADER_FIELD_ETH_TYPE
 
                     HEADER_TYPE_LLC_SNAP:
-					    NET_HEADER_FIELD_LLC_SNAP_TYPE
+                        NET_HEADER_FIELD_LLC_SNAP_TYPE
 
                     HEADER_TYPE_VLAN:
-						NET_HEADER_FIELD_VLAN_TCI
-						        (index may apply:
-								 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
-					             e_FM_PCD_HDR_INDEX_LAST)
+                        NET_HEADER_FIELD_VLAN_TCI
+                                (index may apply:
+                                 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
+                                 e_FM_PCD_HDR_INDEX_LAST)
 
-					HEADER_TYPE_MPLS:
-					    NET_HEADER_FIELD_MPLS_LABEL_STACK
-						        (index may apply:
-								 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
-					             e_FM_PCD_HDR_INDEX_2,
-								 e_FM_PCD_HDR_INDEX_LAST)
+                    HEADER_TYPE_MPLS:
+                        NET_HEADER_FIELD_MPLS_LABEL_STACK
+                                (index may apply:
+                                 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
+                                 e_FM_PCD_HDR_INDEX_2,
+                                 e_FM_PCD_HDR_INDEX_LAST)
 
                     HEADER_TYPE_IPv4:
                         NET_HEADER_FIELD_IPv4_SRC_IP
                         NET_HEADER_FIELD_IPv4_DST_IP
                         NET_HEADER_FIELD_IPv4_PROTO
-						NET_HEADER_FIELD_IPv4_TOS
-						        (index may apply:
-								 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
-					             e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
+                        NET_HEADER_FIELD_IPv4_TOS
+                                (index may apply:
+                                 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
+                                 e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
 
                     HEADER_TYPE_IPv6:
                         NET_HEADER_FIELD_IPv6_SRC_IP
                         NET_HEADER_FIELD_IPv6_DST_IP
                         NET_HEADER_FIELD_IPv6_NEXT_HDR
-						NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC (must come together!)
-						        (index may apply:
-								 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
-					             e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
+                        NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC (must come together!)
+                                (index may apply:
+                                 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
+                                 e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
 
-					HEADER_TYPE_GRE:
+                    HEADER_TYPE_GRE:
                         NET_HEADER_FIELD_GRE_TYPE
 
                     HEADER_TYPE_MINENCAP
-						NET_HEADER_FIELD_MINENCAP_SRC_IP
-						NET_HEADER_FIELD_MINENCAP_DST_IP
-						NET_HEADER_FIELD_MINENCAP_TYPE
+                        NET_HEADER_FIELD_MINENCAP_SRC_IP
+                        NET_HEADER_FIELD_MINENCAP_DST_IP
+                        NET_HEADER_FIELD_MINENCAP_TYPE
 
-					HEADER_TYPE_TCP:
+                    HEADER_TYPE_TCP:
                         NET_HEADER_FIELD_TCP_PORT_SRC
                         NET_HEADER_FIELD_TCP_PORT_DST
-						NET_HEADER_FIELD_TCP_FLAGS
+                        NET_HEADER_FIELD_TCP_FLAGS
 
-					HEADER_TYPE_UDP:
+                    HEADER_TYPE_UDP:
                         NET_HEADER_FIELD_UDP_PORT_SRC
                         NET_HEADER_FIELD_UDP_PORT_DST
 
-					HEADER_TYPE_IPSEC_AH:
+                    HEADER_TYPE_IPSEC_AH:
                         NET_HEADER_FIELD_IPSEC_AH_SPI
                         NET_HEADER_FIELD_IPSEC_AH_NH
 
-					HEADER_TYPE_IPSEC_ESP:
-					    NET_HEADER_FIELD_IPSEC_ESP_SPI
+                    HEADER_TYPE_IPSEC_ESP:
+                        NET_HEADER_FIELD_IPSEC_ESP_SPI
 
-					HEADER_TYPE_SCTP:
-					    NET_HEADER_FIELD_SCTP_PORT_SRC
-						NET_HEADER_FIELD_SCTP_PORT_DST
+                    HEADER_TYPE_SCTP:
+                        NET_HEADER_FIELD_SCTP_PORT_SRC
+                        NET_HEADER_FIELD_SCTP_PORT_DST
 
-					HEADER_TYPE_DCCP:
-					    NET_HEADER_FIELD_DCCP_PORT_SRC
-						NET_HEADER_FIELD_DCCP_PORT_DST
+                    HEADER_TYPE_DCCP:
+                        NET_HEADER_FIELD_DCCP_PORT_SRC
+                        NET_HEADER_FIELD_DCCP_PORT_DST
 
-					HEADER_TYPE_PPPoE:
+                    HEADER_TYPE_PPPoE:
                         NET_HEADER_FIELD_PPPoE_PID
-					    NET_HEADER_FIELD_PPPoE_SID
+                        NET_HEADER_FIELD_PPPoE_SID
 
-		*****************************************************************
-				Fields supported as "from fields":
+        *****************************************************************
+                Fields supported as "from fields":
                     HEADER_TYPE_ETH (with or without validation):
-						NET_HEADER_FIELD_ETH_TYPE
+                        NET_HEADER_FIELD_ETH_TYPE
 
                     HEADER_TYPE_VLAN (with or without validation):
-						NET_HEADER_FIELD_VLAN_TCI
-						        (index may apply:
-								 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
-					             e_FM_PCD_HDR_INDEX_LAST)
+                        NET_HEADER_FIELD_VLAN_TCI
+                                (index may apply:
+                                 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
+                                 e_FM_PCD_HDR_INDEX_LAST)
 
                     HEADER_TYPE_IPv4 (without validation):
                         NET_HEADER_FIELD_IPv4_PROTO
-						        (index may apply:
-								 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
-					             e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
+                                (index may apply:
+                                 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
+                                 e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
 
                     HEADER_TYPE_IPv6 (without validation):
                         NET_HEADER_FIELD_IPv6_NEXT_HDR
-						        (index may apply:
-								 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
-					             e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
+                                (index may apply:
+                                 e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
+                                 e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
 
 *//***************************************************************************/
 typedef union t_FmPcdFields {
@@ -1664,8 +1664,10 @@ typedef struct t_FmPcdCcNextEngineParams {
  @Description   Parameters for defining a single CC key
 *//***************************************************************************/
 typedef struct t_FmPcdCcKeyParams {
-    uint8_t                     *p_Key;     /**< pointer to the key of the size defined in keySize */
-    uint8_t                     *p_Mask;    /**< pointer to the Mask per key  of the size defined
+    uint8_t                     *p_Key;     /**< Relevant only if 'action' = e_FM_PCD_ACTION_EXACT_MATCH;
+                                                 pointer to the key of the size defined in keySize */
+    uint8_t                     *p_Mask;    /**< Relevant only if 'action' = e_FM_PCD_ACTION_EXACT_MATCH;
+                                                 pointer to the Mask per key  of the size defined
                                                  in keySize. p_Key and p_Mask (if defined) has to be
                                                  of the same size defined in the keySize */
     t_FmPcdCcNextEngineParams   ccNextEngineParams;
@@ -1715,7 +1717,10 @@ typedef struct t_KeysParams {
                                                      e_FM_PCD_ACTION_INDEXED_LOOKUP, 'keySize' must be 2. */
     t_FmPcdCcKeyParams          keyParams[FM_PCD_MAX_NUM_OF_KEYS];
                                                 /**< An array with 'numOfKeys' entries, each entry specifies the
-                                                     corresponding key parameters. */
+                                                     corresponding key parameters;
+                                                     When 'action' = e_FM_PCD_ACTION_EXACT_MATCH, this value must not
+                                                     exceed 255 (FM_PCD_MAX_NUM_OF_KEYS-1) as the last entry is saved
+                                                     for the 'miss' entry. */
     t_FmPcdCcNextEngineParams   ccNextEngineParamsForMiss;
                                                 /**< Parameters for defining the next engine when a key is not matched;
                                                      Not relevant if action = e_FM_PCD_ACTION_INDEXED_LOOKUP. */

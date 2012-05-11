@@ -501,6 +501,8 @@ t_Error PcdGetUnitsVector(t_FmPcd *p_FmPcd, t_NetEnvParams *p_Params)
     int                     i;
 
     ASSERT_COND(p_FmPcd);
+    ASSERT_COND(p_Params->netEnvId < FM_MAX_NUM_OF_PORTS);
+
     p_Params->vector = 0;
     for(i=0; i<p_Params->numOfDistinctionUnits ;i++)
     {
@@ -684,6 +686,7 @@ e_NetHeaderType FmPcdGetAliasHdr(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeader
     int         i;
 
     ASSERT_COND(p_FmPcd);
+    ASSERT_COND(netEnvId < FM_MAX_NUM_OF_PORTS);
 
     for (i=0; (i < FM_PCD_MAX_NUM_OF_ALIAS_HDRS)
         && (p_FmPcd->netEnvs[netEnvId].aliasHdrs[i].hdr != HEADER_TYPE_NONE); i++)
@@ -815,8 +818,11 @@ bool FmPcdLockTryLockAll(t_Handle h_FmPcd)
     }
     FmPcdUnlock(h_FmPcd, intFlags);
 
+    CORE_MemoryBarrier();
+
     if (p_SavedPos)
         return FALSE;
+
     return TRUE;
 }
 
@@ -833,6 +839,8 @@ void FmPcdLockUnlockAll(t_Handle h_FmPcd)
         p_Lock->flag = FALSE;
     }
     FmPcdUnlock(h_FmPcd, intFlags);
+
+    CORE_MemoryBarrier();
 }
 
 t_Handle FmPcdGetHcHandle(t_Handle h_FmPcd)
@@ -865,7 +873,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
     p_FmPcd = (t_FmPcd *) XX_Malloc(sizeof(t_FmPcd));
     if (!p_FmPcd)
     {
-        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd"));
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD"));
         return NULL;
     }
     memset(p_FmPcd, 0, sizeof(t_FmPcd));
@@ -874,7 +882,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
     if (!p_FmPcd->p_FmPcdDriverParam)
     {
         XX_Free(p_FmPcd);
-        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd Driver Param"));
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD Driver Param"));
         return NULL;
     }
     memset(p_FmPcd->p_FmPcdDriverParam, 0, sizeof(t_FmPcdDriverParam));
@@ -899,7 +907,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
         p_FmPcd->h_Hc = FmHcConfigAndInit(&hcParams);
         if (!p_FmPcd->h_Hc)
         {
-            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd HC"));
+            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD HC"));
             FM_PCD_Free(p_FmPcd);
             return NULL;
         }
@@ -912,7 +920,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
         p_FmPcd->p_FmPcdKg = (t_FmPcdKg *)KgConfig(p_FmPcd, p_FmPcdParams);
         if(!p_FmPcd->p_FmPcdKg)
         {
-            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd Keygen"));
+            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD Keygen"));
             FM_PCD_Free(p_FmPcd);
             return NULL;
         }
@@ -923,7 +931,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
         p_FmPcd->p_FmPcdPlcr = (t_FmPcdPlcr *)PlcrConfig(p_FmPcd, p_FmPcdParams);
         if(!p_FmPcd->p_FmPcdPlcr)
         {
-            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd Policer"));
+            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD Policer"));
             FM_PCD_Free(p_FmPcd);
             return NULL;
         }
@@ -934,7 +942,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
         p_FmPcd->p_FmPcdPrs = (t_FmPcdPrs *)PrsConfig(p_FmPcd, p_FmPcdParams);
         if(!p_FmPcd->p_FmPcdPrs)
         {
-            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd Parser"));
+            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD Parser"));
             FM_PCD_Free(p_FmPcd);
             return NULL;
         }
@@ -943,7 +951,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
     p_FmPcd->h_Spinlock = XX_InitSpinlock();
     if (!p_FmPcd->h_Spinlock)
     {
-        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd spinlock"));
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD spinlock"));
         FM_PCD_Free(p_FmPcd);
         return NULL;
     }
@@ -963,7 +971,7 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
     p_FmPcd->h_ShadowSpinlock = XX_InitSpinlock();
     if (!p_FmPcd->h_ShadowSpinlock)
     {
-        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Pcd shadow spinlock"));
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM PCD shadow spinlock"));
         FM_PCD_Free(p_FmPcd);
         return NULL;
     }
@@ -1599,15 +1607,15 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
         case(e_FM_PCD_KG_COUNTERS_TOTAL):
             if(!p_FmPcd->p_FmPcdKg)
             {
-                REPORT_ERROR(MINOR, E_INVALID_STATE, ("Can't ask for this counters"));
+                REPORT_ERROR(MAJOR, E_INVALID_STATE, ("KeyGen is not activated"));
                 return 0;
             }
             if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
                 !p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs &&
                 !p_FmPcd->h_IpcSession)
             {
-                REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
-                             ("running in \"guest-mode\" without neither IPC nor mapped register!"));
+                REPORT_ERROR(MAJOR, E_NOT_SUPPORTED,
+                             ("Running in \"guest-mode\" without neither IPC nor mapped registers"));
                 return 0;
             }
             break;
@@ -1620,22 +1628,27 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
         case(e_FM_PCD_PLCR_COUNTERS_LENGTH_MISMATCH):
             if (!p_FmPcd->p_FmPcdPlcr)
             {
-                REPORT_ERROR(MINOR, E_INVALID_STATE, ("Can't ask for this counters"));
+                REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Policer is not activated"));
                 return 0;
             }
-            if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
-                !p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs &&
-                !p_FmPcd->h_IpcSession)
+            if (p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs)
             {
-                REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
-                             ("running in \"guest-mode\" without neither IPC nor mapped register!"));
-                return 0;
+                /* check that counters are enabled */
+                if (!(GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_gcr) & FM_PCD_PLCR_GCR_STEN))
+                {
+                    REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Requested counter was not enabled"));
+                    return 0;
+                }
             }
-            /* check that counters are enabled */
-            if (!(GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_gcr) & FM_PCD_PLCR_GCR_STEN))
+            else
             {
-                REPORT_ERROR(MINOR, E_INVALID_STATE, ("Requested counter was not enabled"));
-                return 0;
+                ASSERT_COND(p_FmPcd->guestId != NCSW_MASTER_ID);
+                if (!p_FmPcd->h_IpcSession)
+                {
+                    REPORT_ERROR(MAJOR, E_NOT_SUPPORTED,
+                                 ("Running in \"guest-mode\" without neither IPC nor mapped registers"));
+                    return 0;
+                }
             }
             break;
 
@@ -1658,24 +1671,24 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
         case(e_FM_PCD_PRS_COUNTERS_FPM_COMMAND_STALL_CYCLES):
             if(!p_FmPcd->p_FmPcdPrs)
             {
-                REPORT_ERROR(MINOR, E_INVALID_STATE, ("Can't ask for this counters"));
+                REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Parser is not activated"));
                 return 0;
             }
             if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
                 !p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs &&
                 !p_FmPcd->h_IpcSession)
             {
-                REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
-                             ("running in \"guest-mode\" without neither IPC nor mapped register!"));
+                REPORT_ERROR(MAJOR, E_NOT_SUPPORTED,
+                             ("Running in \"guest-mode\" without neither IPC nor mapped registers"));
                 return 0;
             }
             break;
         default:
-            REPORT_ERROR(MINOR, E_INVALID_STATE, ("Unsupported type of counter"));
+            REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Unsupported type of counter"));
             return 0;
     }
 
-    if (p_FmPcd->guestId != NCSW_MASTER_ID)
+    if ((p_FmPcd->guestId != NCSW_MASTER_ID) && p_FmPcd->h_IpcSession)
     {
         t_FmPcdIpcMsg           msg;
         t_FmPcdIpcReply         reply;
@@ -1703,6 +1716,7 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
 
     switch(counter)
     {
+        /* Parser statistics */
         case(e_FM_PCD_PRS_COUNTERS_PARSE_DISPATCH):
                return GET_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->pds);
         case(e_FM_PCD_PRS_COUNTERS_L2_PARSE_RESULT_RETURNED):
@@ -1740,7 +1754,7 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
         case(e_FM_PCD_KG_COUNTERS_TOTAL):
                return GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->kgtpc);
 
-        /*Policer statictics*/
+        /* Policer statistics */
         case(e_FM_PCD_PLCR_COUNTERS_YELLOW):
                 return GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ypcnt);
         case(e_FM_PCD_PLCR_COUNTERS_RED):
@@ -2024,7 +2038,7 @@ t_Error FM_PCD_ModifyCounter(t_Handle h_FmPcd, e_FmPcdCounters counter, uint32_t
     {
         case(e_FM_PCD_KG_COUNTERS_TOTAL):
             if(!p_FmPcd->p_FmPcdKg)
-                RETURN_ERROR(MINOR, E_INVALID_STATE, ("Can't ask for this counters - keygen is not working"));
+                RETURN_ERROR(MINOR, E_INVALID_STATE, ("Invalid counters - KeyGen is not working"));
             break;
         case(e_FM_PCD_PLCR_COUNTERS_YELLOW):
         case(e_FM_PCD_PLCR_COUNTERS_RED):
@@ -2033,7 +2047,7 @@ t_Error FM_PCD_ModifyCounter(t_Handle h_FmPcd, e_FmPcdCounters counter, uint32_t
         case(e_FM_PCD_PLCR_COUNTERS_TOTAL):
         case(e_FM_PCD_PLCR_COUNTERS_LENGTH_MISMATCH):
             if(!p_FmPcd->p_FmPcdPlcr)
-                RETURN_ERROR(MINOR, E_INVALID_STATE, ("Can't ask for this counters - Policer is not working"));
+                RETURN_ERROR(MINOR, E_INVALID_STATE, ("Invalid counters - Policer is not working"));
             if(!(GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_gcr) & FM_PCD_PLCR_GCR_STEN))
                 RETURN_ERROR(MINOR, E_INVALID_STATE, ("Requested counter was not enabled"));
             break;

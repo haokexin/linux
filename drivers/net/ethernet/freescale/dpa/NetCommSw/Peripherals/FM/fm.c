@@ -624,6 +624,9 @@ t_Error FmSetCongestionGroupPFCpriority(t_Handle     h_Fm,
         t_Error                              err;
         t_FmIpcMsg                           msg;
         t_FmIpcSetCongestionGroupPfcPriority FmIpcSetCongestionGroupPfcPriority;
+
+        ASSERT_COND(p_Fm->guestId < FM_MAX_NUM_OF_GUESTS);
+
         memset(&msg, 0, sizeof(msg));
         memset(&FmIpcSetCongestionGroupPfcPriority, 0, sizeof(t_FmIpcSetCongestionGroupPfcPriority));
         FmIpcSetCongestionGroupPfcPriority.congestionGroupId = congestionGroupId;
@@ -692,7 +695,7 @@ t_Error FmVSPSetWindow(t_Handle  h_Fm,
             RETURN_ERROR(MINOR, err, NO_MSG);
     }
     else
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("guest without either regs or IPC!"));
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Guest without either registers address or IPC!"));
     return err;
 }
 
@@ -1605,7 +1608,7 @@ void FmRegisterIntr(t_Handle h_Fm,
     ASSERT_COND(h_Fm);
 
     GET_FM_MODULE_EVENT(module, modId,intrType, event);
-    ASSERT_COND(event != e_FM_EV_DUMMY_LAST);
+    ASSERT_COND(event < e_FM_EV_DUMMY_LAST);
 
     /* register in local FM structure */
     p_Fm->intrMng[event].f_Isr = f_Isr;
@@ -1648,7 +1651,7 @@ void FmUnregisterIntr(t_Handle h_Fm,
     ASSERT_COND(h_Fm);
 
     GET_FM_MODULE_EVENT(module, modId,intrType, event);
-    ASSERT_COND(event != e_FM_EV_DUMMY_LAST);
+    ASSERT_COND(event < e_FM_EV_DUMMY_LAST);
 
     p_Fm->intrMng[event].f_Isr = UnimplementedIsr;
     p_Fm->intrMng[event].h_SrcHandle = NULL;

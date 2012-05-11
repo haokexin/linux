@@ -2939,7 +2939,7 @@ t_Handle FM_PCD_KgSchemeSet(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_SchemePa
 
         if (!KgSchemeFlagTryLock(p_Scheme))
         {
-		DBG(TRACE, ("Scheme Try Lock - BUSY"));
+            DBG(TRACE, ("Scheme Try Lock - BUSY"));
             /* Signal to caller BUSY condition */
             p_SchemeParams->id.h_Scheme = NULL;
             return NULL;

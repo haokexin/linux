@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
 /**************************************************************************//**
  @File          xx_ext.h
 
@@ -474,11 +475,12 @@ void XX_ModTimer(t_Handle h_Timer, uint32_t msecs);
 
  @Param[in]     msecs - The requested sleep time (in milliseconds).
 
- @Return        None.
+ @Return        Zero if the requested time has elapsed; Otherwise, the value
+                returned will be the unslept amount) in milliseconds.
 
  @Cautions      This routine enables interrupts during its wait time.
 *//***************************************************************************/
-void XX_Sleep(uint32_t msecs);
+uint32_t XX_Sleep(uint32_t msecs);
 
 /**************************************************************************//**
  @Function      XX_UDelay

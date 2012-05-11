@@ -58,7 +58,7 @@
  */
 struct crc64_t {
     uint64_t initial;                       /**< Initial seed */
-    uint64_t table[CRC64_TABLE_ENTRIES];    /**< crc table entries */
+    uint64_t table[CRC64_TABLE_ENTRIES];    /**< crc table entries*/
 };
 
 
