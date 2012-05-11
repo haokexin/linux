@@ -47,12 +47,17 @@
 #include <asm/topology.h>
 #include <asm/vgtod.h>
 #include <asm/traps.h>
+#include <asm/trace-clock.h>
+#include <asm/timer.h>
 
 #define CREATE_TRACE_POINTS
 #include "vsyscall_trace.h"
 
 DEFINE_VVAR(int, vgetcpu_mode);
-DEFINE_VVAR(struct vsyscall_gtod_data, vsyscall_gtod_data);
+DEFINE_VVAR(struct vsyscall_gtod_data, vsyscall_gtod_data) = 
+{
+	.trace_clock_is_sync = 1,
+};	
 
 static enum { EMULATE, NATIVE, NONE } vsyscall_mode = EMULATE;
 
@@ -80,6 +85,16 @@ void update_vsyscall_tz(void)
 	vsyscall_gtod_data.sys_tz = sys_tz;
 }
 
+void update_trace_clock_is_sync_vdso(void)
+{
+	unsigned long flags;
+
+	write_seqlock_irqsave(&vsyscall_gtod_data.lock, flags);
+	vsyscall_gtod_data.trace_clock_is_sync = _trace_clock_is_sync;
+	write_sequnlock_irqrestore(&vsyscall_gtod_data.lock, flags);
+}
+EXPORT_SYMBOL_GPL(update_trace_clock_is_sync_vdso);
+
 void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 			struct clocksource *clock, u32 mult)
 {
@@ -104,6 +119,7 @@ void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 	vsyscall_gtod_data.wall_time_coarse	= __current_kernel_time();
 	vsyscall_gtod_data.monotonic_time_coarse =
 		timespec_add(vsyscall_gtod_data.wall_time_coarse, *wtm);
+	vsyscall_gtod_data.trace_clock_is_sync = _trace_clock_is_sync;
 
 	write_seqcount_end(&vsyscall_gtod_data.seq);
 }
