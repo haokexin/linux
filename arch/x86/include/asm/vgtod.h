@@ -20,6 +20,7 @@ struct vsyscall_gtod_data {
 	u32		wall_time_nsec;
 	u32		monotonic_time_nsec;
 	time_t		monotonic_time_sec;
+	int		trace_clock_is_sync;
 
 	struct timezone sys_tz;
 	struct timespec wall_time_coarse;
