@@ -783,6 +783,7 @@ static void fmt_pcd_fqs_dqrr(
 }
 
 /* private pcd queue template */
+//static const struct qman_fq pcd_fq __devinitconst = {
 static const struct qman_fq pcd_fq = {
 	.cb = { .dqrr = fmt_pcd_dqrr,
 		.ern = fmt_pcd_err_dqrr,
