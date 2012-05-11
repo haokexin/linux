@@ -640,7 +640,7 @@ void compat_copy_fm_pcd_kg_schemes_params(
 
     if (compat) {
         param->num_of_schemes = compat_param->num_of_schemes;
-        for(k=0; k < IOC_FM_PCD_KG_NUM_OF_SCHEMES; k++)
+        for(k=0; k < FM_PCD_KG_NUM_OF_SCHEMES; k++)
             param->scheme_ids[k] = compat_ptr(compat_param->schemes_ids[k]);
     }
     else {
@@ -656,7 +656,7 @@ void compat_copy_fm_port_pcd_kg(
     if (compat){
         uint8_t k;
         param->num_of_schemes = compat_param->num_of_schemes;
-        for(k=0;k<IOC_FM_PCD_KG_NUM_OF_SCHEMES;k++)
+        for(k=0;k<FM_PCD_KG_NUM_OF_SCHEMES;k++)
             param->schemes_ids[k] = compat_ptr(compat_param->schemes_ids[k]);
         param->direct_scheme = compat_param->direct_scheme;
         param->direct_scheme_id = compat_ptr(compat_param->direct_scheme_id);
@@ -792,12 +792,13 @@ void compat_copy_fm_pcd_cc_node(
     }
 }
 
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
 void compat_fm_pcd_manip_set_node(
         ioc_compat_fm_pcd_manip_params_t *compat_param,
         ioc_fm_pcd_manip_params_t *param,
         uint8_t compat)
 {
+#warning TODO
+#if 0
     if (compat) {
 	param->rmv = compat_param->rmv;
 	memcpy(&param->rmv_params, &compat_param->rmv_params, sizeof(ioc_fm_pcd_manip_rmv_params_t));
@@ -826,5 +827,5 @@ void compat_fm_pcd_manip_set_node(
 
 	compat_param->id = ptr_to_compat(param->id);
     }
-}
 #endif
+}

@@ -2009,7 +2009,7 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
  @Cautions      Allowed only following FM_PCD_HashTableSet()
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
-#error TODO: compat ioctl call not implemented!
+#warning TODO: compat ioctl call not implemented!
 #define FM_PCD_IOC_HASH_TABLE_SET_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(37), ioc_compat_fm_pcd_hash_table_params_t)
 #endif
 #define FM_PCD_IOC_HASH_TABLE_SET _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(37), ioc_fm_pcd_hash_table_params_t)
@@ -2028,7 +2028,7 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
  @Cautions      Allowed only following FM_PCD_HashTableSet().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
-#error TODO: compat ioctl call not implemented!
+#warning TODO: compat ioctl call not implemented!
 #define FM_PCD_IOC_HASH_TABLE_DELETE_COMPAT _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_compat_fm_obj_t)
 #endif
 #define FM_PCD_IOC_HASH_TABLE_DELETE _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(38), ioc_fm_obj_t)
@@ -2048,7 +2048,7 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
  @Cautions      Allowed only following FM_PCD_HashTableSet().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
-#error TODO: compat ioctl call not implemented!
+#warning TODO: compat ioctl call not implemented!
 #define FM_PCD_IOC_HASH_TABLE_ADD_KEY_COMPAT _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_compat_fm_pcd_hash_table_add_key_params_t)
 #endif
 #define FM_PCD_IOC_HASH_TABLE_ADD_KEY _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(39), ioc_fm_pcd_hash_table_add_key_params_t)
@@ -2066,7 +2066,7 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
  @Cautions      Allowed only following FM_PCD_HashTableSet().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
-#error TODO: compat ioctl call not implemented!
+#warning TODO: compat ioctl call not implemented!
 #define FM_PCD_IOC_HASH_TABLE_REMOVE_KEY_COMPAT _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_compat_fm_pcd_hash_table_remove_key_params_t)
 #endif
 #define FM_PCD_IOC_HASH_TABLE_REMOVE_KEY _IOR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(40), ioc_fm_pcd_hash_table_remove_key_params_t)
