@@ -88,6 +88,12 @@ struct timekeeper {
 
 static struct timekeeper timekeeper;
 
+struct timespec __get_wall_to_monotonic(void)
+{
+        return wall_to_monotonic;
+}
+
+
 /*
  * This read-write spinlock protects us from races in SMP while
  * playing with xtime.
