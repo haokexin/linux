@@ -42,7 +42,7 @@
 #include <asm/xcr.h>
 #include <asm/perf_event.h>
 
-#include "trace.h"
+#include <asm/kvm-trace.h>
 
 #define __ex(x) __kvm_handle_fault_on_reboot(x)
 #define __ex_clear(x, reg) \

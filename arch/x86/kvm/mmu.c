@@ -145,7 +145,7 @@ module_param(dbg, bool, 0644);
 #include <trace/events/kvm.h>
 
 #define CREATE_TRACE_POINTS
-#include "mmutrace.h"
+#include <asm/kvm-mmutrace.h>
 
 #define SPTE_HOST_WRITEABLE (1ULL << PT_FIRST_AVAIL_BITS_SHIFT)
 
