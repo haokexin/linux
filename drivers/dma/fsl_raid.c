@@ -137,8 +137,9 @@ static void re_jr_dequeue(unsigned long data)
 	while ((count =
 		RE_JR_OUB_SLOT_FULL(in_be32(&jr->jrregs->oubring_slot_full)))) {
 		for (i = 0; i < count; i++) {
-			if (RING_SIZE == jr->oub_count)
-				jr->oub_count = 0;
+			/* Wrap around index */
+			jr->oub_count &= RING_SIZE-1;
+
 			desc = (struct fsl_re_dma_async_tx_desc *)
 				jr->virt_arry[jr->oub_count].virt_addr;
 
@@ -302,28 +303,22 @@ void re_jr_issue_pending(struct dma_chan *chan)
 	list_for_each_entry_safe(desc, _desc, &jr->submit_q, node) {
 
 		if (!in_be32(&jr->jrregs->inbring_slot_avail)) {
-			pr_err("%s: No slots available\n", __func__);
-			spin_unlock_irq(&jr->submit_lock);
-			return;
+			goto out_unlock;
 		}
 
+		/* Wrap around ring index */
+		jr->inb_count &= RING_SIZE-1;
+
 		if (jr->virt_arry[jr->inb_count].phys_addr != 0) {
-			pr_err("%s: No slots available in virt_arry\n",
-					__func__);
-			spin_unlock_irq(&jr->submit_lock);
-			return;
+			goto out_unlock;
 		}
 
 		jr->virt_arry[jr->inb_count].phys_addr =
 			(phys_addr_t)desc->hwdesc.address;
 		jr->virt_arry[jr->inb_count++].virt_addr = (unsigned long)desc;
-		/* Wrap around index used for virt_arry */
-		if (RING_SIZE == jr->inb_count)
-			jr->inb_count = 0;
 
 		/* Wrap around ring index */
-		if (jr->inb_ring_index == RING_SIZE)
-			jr->inb_ring_index = 0;
+		jr->inb_ring_index &= RING_SIZE-1;
 
 		/* Copy frame descriptor into job ring */
 		memcpy(&jr->inb_ring_virt_addr[jr->inb_ring_index],
@@ -339,7 +334,7 @@ void re_jr_issue_pending(struct dma_chan *chan)
 		/* One job has been added into job ring */
 		out_be32(&jr->jrregs->inbring_add_job, RE_JR_INB_JOB_ADD);
 	}
-
+out_unlock:
 	spin_unlock_irq(&jr->submit_lock);
 }
 
