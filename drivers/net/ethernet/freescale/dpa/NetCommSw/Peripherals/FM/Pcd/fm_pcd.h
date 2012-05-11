@@ -424,7 +424,6 @@ typedef struct {
 
     uint64_t                    physicalMuramBase;
 
-    volatile bool               lock;
     t_Handle                    h_Spinlock;
     t_List                      freeLocksLst;
     t_List                      acquiredLocksLst;
@@ -539,9 +538,10 @@ void        FmPcdCcGetAdTablesThatPointOnReplicGroup(t_Handle   h_Node,
                                                      uint32_t   *p_NumOfAdTables);
 #endif /* (DPAA_VERSION >= 11) */
 
-void EnqueueNodeInfoToRelevantLst(t_List *p_List, t_CcNodeInformation *p_CcInfo);
-t_CcNodeInformation* FmPcdCcFindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info);
-void FmPcdCcDequeueNodeInfoFromRelevantLst(t_List *p_List, t_Handle h_Info);
+void EnqueueNodeInfoToRelevantLst(t_List *p_List, t_CcNodeInformation *p_CcInfo, t_Handle h_Spinlock);
+void DequeueNodeInfoFromRelevantLst(t_List *p_List, t_Handle h_Info, t_Handle h_Spinlock);
+t_CcNodeInformation* FindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info, t_Handle h_Spinlock);
+
 
 void NextStepAd(t_Handle p_Ad, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams, t_FmPcd *p_FmPcd);
 void FillAdOfTypeResult(t_Handle p_Ad, t_FmPcd *p_FmPcd, t_FmPcdCcNextEngineParams *p_CcNextEngineParams);

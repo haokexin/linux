@@ -296,7 +296,7 @@ static t_Error CheckInitParameters(t_FmPort *p_FmPort)
     return E_OK;
 }
 
-static void VerifySizeOfFifo(t_FmPort *p_FmPort)
+static t_Error VerifySizeOfFifo(t_FmPort *p_FmPort)
 {
     uint32_t                minFifoSizeRequired = 0;
 
@@ -375,7 +375,7 @@ static void VerifySizeOfFifo(t_FmPort *p_FmPort)
 
     /* for all ports - verify size  */
     if (minFifoSizeRequired && (p_FmPort->fifoBufs.num < minFifoSizeRequired))
-        DBG(WARNING, ("User defined FIFO size should be enlarged to %d",minFifoSizeRequired));
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE,("User defined FIFO size should be enlarged to %d",minFifoSizeRequired));
 
     /* check if pool size is not too big */
     /* This is a definition problem in which if the fifo for the RX port
@@ -386,10 +386,12 @@ static void VerifySizeOfFifo(t_FmPort *p_FmPort)
         && !p_FmPort->imEn)
     {
         if (p_FmPort->rxPoolsParams.largestBufSize > p_FmPort->fifoBufs.num)
-            DBG(WARNING, ("Frame larger than port Fifo size (%u) will be split to more than a single buffer (S/G) even if shorter than largest buffer size (%u)",
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Frame larger than port Fifo size (%u) will be split to more than a single buffer (S/G) even if shorter than largest buffer size (%u)",
                     p_FmPort->fifoBufs.num, p_FmPort->rxPoolsParams.largestBufSize));
 
     }
+
+    return E_OK;
 }
 
 static void FmPortDriverParamFree(t_FmPort *p_FmPort)
@@ -614,10 +616,6 @@ static t_Error BmiRxPortInit(t_FmPort *p_FmPort)
         /* Call the external Buffer routine which also checks fifo
            size and updates it if necessary */
         /* define external buffer pools and pool depletion*/
-        err = SetExtBufferPools(p_FmPort);
-        if (err)
-            RETURN_ERROR(MAJOR, err, NO_MSG);
-
         /* check if the largest external buffer pool is large enough */
         if ((p_Params->bufMargins.startMargins +
              MIN_EXT_BUF_SIZE +
@@ -2509,6 +2507,19 @@ t_Error FM_PORT_Init(t_Handle h_FmPort)
     p_FmPort->p_FmPortBmiRegs     = (u_FmPortBmiRegs *)UINT_TO_PTR(p_Params->baseAddr + BMI_PORT_REGS_OFFSET);
     p_FmPort->p_FmPortPrsRegs     = (t_FmPortPrsRegs *)UINT_TO_PTR(p_Params->baseAddr + PRS_PORT_REGS_OFFSET);
 
+    if  ((p_FmPort->portType == e_FM_PORT_TYPE_RX_10G) ||
+        (p_FmPort->portType == e_FM_PORT_TYPE_RX))
+        if (!p_FmPort->imEn)
+        {
+            /* Call the external Buffer routine which also checks fifo
+             size and updates it if necessary */
+            /* define external buffer pools and pool depletion*/
+            err = SetExtBufferPools(p_FmPort);
+            if (err)
+                RETURN_ERROR(MAJOR, err, NO_MSG);
+        }
+
+
     /************************************************************/
     /* Call FM module routine for communicating parameters      */
     /************************************************************/
@@ -2519,8 +2530,9 @@ t_Error FM_PORT_Init(t_Handle h_FmPort)
     fmParams.numOfExtraTasks    = (uint8_t)p_FmPort->tasks.extra;
     fmParams.numOfOpenDmas      = (uint8_t)p_FmPort->openDmas.num;
     fmParams.numOfExtraOpenDmas = (uint8_t)p_FmPort->openDmas.extra;
-    if(p_FmPort->explicitUserSizeOfFifo)
-        VerifySizeOfFifo(p_FmPort);
+    err = VerifySizeOfFifo(p_FmPort);
+    if(err)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
     fmParams.sizeOfFifo         = p_FmPort->fifoBufs.num;
     fmParams.extraSizeOfFifo    = p_FmPort->fifoBufs.extra;
     fmParams.independentMode    = p_FmPort->imEn;
@@ -4564,11 +4576,11 @@ t_Error FM_PORT_DetachPCD(t_Handle h_FmPort)
     return E_OK;
 }
 
-t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
+t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
 {
-    t_FmPort                                *p_FmPort = (t_FmPort*)h_FmPort;
-    t_Error                                 err = E_OK;
-    t_FmPortPcdParams                       modifiedPcdParams;
+    t_FmPort            *p_FmPort = (t_FmPort*)h_FmPort;
+    t_Error             err = E_OK;
+    t_FmPortPcdParams   modifiedPcdParams, *p_PcdParams;
 
     SANITY_CHECK_RETURN_ERROR(h_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_STATE);
@@ -4585,7 +4597,7 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
     p_FmPort->h_FmPcd = FmGetPcdHandle(p_FmPort->h_Fm);
     ASSERT_COND(p_FmPort->h_FmPcd);
 
-    memcpy(&modifiedPcdParams, p_PcdParams, sizeof(t_FmPortPcdParams));
+    memcpy(&modifiedPcdParams, p_PcdParam, sizeof(t_FmPortPcdParams));
     p_PcdParams = &modifiedPcdParams;
     if (p_PcdParams->h_IpReassemblyManip)
     {
@@ -4598,13 +4610,18 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("pcdSupport must have KG for supporting IPR"));
         }
         p_FmPort->h_IpReassemblyManip = p_PcdParams->h_IpReassemblyManip;
-        if (((p_PcdParams->pcdSupport == e_FM_PORT_PCD_SUPPORT_PRS_AND_KG) ||
-             (p_PcdParams->pcdSupport == e_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR)) &&
-             !p_PcdParams->p_CcParams)
+        if (!p_PcdParams->p_CcParams)
         {
             /* No user-tree, need to build internal tree */
             t_FmPcdCcTreeParams         *p_FmPcdCcTreeParams;
             t_FmPortPcdCcParams         fmPortPcdCcParams;
+
+            if (!((p_PcdParams->pcdSupport == e_FM_PORT_PCD_SUPPORT_PRS_AND_KG) ||
+                  (p_PcdParams->pcdSupport == e_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR)))
+            {
+                RELEASE_LOCK(p_FmPort->lock);
+                RETURN_ERROR(MAJOR, E_INVALID_STATE, ("PCD initialization structure is not consistent with pcdSupport"));
+            }
 
             p_FmPcdCcTreeParams = (t_FmPcdCcTreeParams*)XX_Malloc(sizeof(t_FmPcdCcTreeParams));
             if(!p_FmPcdCcTreeParams)
@@ -4630,16 +4647,7 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParams)
 
             XX_Free(p_FmPcdCcTreeParams);
         }
-        if (!p_PcdParams->p_CcParams)
-        {
-            if (p_FmPort->h_IpReassemblyTree)
-            {
-                FM_PCD_CcRootDelete(p_FmPort->h_IpReassemblyTree);
-                p_FmPort->h_IpReassemblyTree = NULL;
-            }
-            RELEASE_LOCK(p_FmPort->lock);
-            RETURN_ERROR(MAJOR, E_INVALID_STATE, ("PCD initialization structure is not consistent with pcdSupport"));
-        }
+
         err = FmPcdCcTreeAddIPR(p_FmPort->h_FmPcd,
                                 p_PcdParams->p_CcParams->h_CcTree,
                                 p_PcdParams->h_NetEnv,

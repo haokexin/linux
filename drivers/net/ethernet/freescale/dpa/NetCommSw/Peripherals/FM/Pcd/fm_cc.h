@@ -290,9 +290,10 @@ typedef struct
 
     t_Handle    h_FmPcd;
     uint32_t    shadowAction;
-    bool        modifiedState;
     uint8_t     userSizeOfExtraction;
     uint8_t     userOffset;
+
+    t_Handle    h_Spinlock;
 
     t_FmPcdCcKeyAndNextEngineParams keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
 } t_FmPcdCcNode;
