@@ -195,6 +195,8 @@ extern u64 timekeeping_max_deferment(void);
 extern void timekeeping_leap_insert(int leapsecond);
 extern int timekeeping_inject_offset(struct timespec *ts);
 
+struct timespec __get_wall_to_monotonic(void); /* does not take xtime_lock */
+
 struct tms;
 extern void do_sys_times(struct tms *);
 
