@@ -1377,7 +1377,11 @@ static void run_timer_softirq(struct softirq_action *h)
  */
 void run_local_timers(void)
 {
+	struct timespec curtime, wtom;
+
 	hrtimer_run_queues();
+	curtime = __current_kernel_time();
+	wtom = __get_wall_to_monotonic();
 	raise_softirq(TIMER_SOFTIRQ);
 }
 
