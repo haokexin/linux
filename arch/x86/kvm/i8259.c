@@ -32,7 +32,7 @@
 #include "irq.h"
 
 #include <linux/kvm_host.h>
-#include "trace.h"
+#include <asm/kvm-trace.h>
 
 #define pr_pic_unimpl(fmt, ...)	\
 	pr_err_ratelimited("kvm: pic: " fmt, ## __VA_ARGS__)
