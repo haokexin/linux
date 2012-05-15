@@ -91,6 +91,9 @@
 /* Bootarg used to override the Kconfig DPA_MAX_FRM_SIZE value */
 #define FSL_FMAN_PHY_MAXFRM_BOOTARG	"fsl_fman_phy_max_frm"
 
+/* Bootarg used to override DPA_EXTRA_HEADROOM Kconfig value */
+#define DPA_EXTRA_HEADROOM_BOOTARG	"dpa_extra_headroom"
+
 /* Valid checksum indication */
 #define DPA_CSUM_VALID		0xFFFF
 
@@ -129,6 +132,19 @@ extern struct dentry *powerpc_debugfs_root;
  * fsl_fman_phy_set_max_frm() callback.
  */
 int fsl_fman_phy_maxfrm = CONFIG_DPA_MAX_FRM_SIZE;
+
+/*
+ * Extra headroom for Rx buffers.
+ * FMan is instructed to allocate, on the Rx path, this amount of
+ * space at the beginning of a data buffer, beside the DPA private
+ * data area and the IC fields.
+ * Does not impact Tx buffer layout.
+ *
+ * Configurable from Kconfig or bootargs. Zero by default, it's needed
+ * on particular forwarding scenarios that add extra headers to the
+ * forwarded frame to avoid unbounded increase of recycled buffers.
+ */
+int dpa_rx_extra_headroom = CONFIG_DPA_EXTRA_HEADROOM;
 
 static const char rtx[][3] = {
 	[RX] = "RX",
@@ -855,7 +871,7 @@ dpa_csum_validation(const struct dpa_priv_s	*priv,
 
 	dma_unmap_single(dpa_bp->dev, addr, dpa_bp->size, DMA_BIDIRECTIONAL);
 
-	parse_result = (t_FmPrsResult *)(frm + DPA_PRIV_DATA_SIZE);
+	parse_result = (t_FmPrsResult *)(frm + DPA_RX_PRIV_DATA_SIZE);
 
 	if (parse_result->cksum != DPA_CSUM_VALID)
 		percpu_priv->rx_errors.cse++;
@@ -1285,7 +1301,7 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 		/* Enable L3/L4 hardware checksum computation, if applicable */
 		err = dpa_enable_tx_csum(priv, skb, &fd,
-		                         dpa_bp_vaddr + DPA_PRIV_DATA_SIZE);
+					 dpa_bp_vaddr + DPA_TX_PRIV_DATA_SIZE);
 
 		goto static_map;
 	}
@@ -1317,7 +1333,7 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 			err = dpa_enable_tx_csum(priv, skb, &fd,
 			                         page_vaddr + offset +
-			                         DPA_PRIV_DATA_SIZE);
+						 DPA_TX_PRIV_DATA_SIZE);
 		}
 
 		kunmap_atomic(page_vaddr);
@@ -1374,7 +1390,7 @@ static int skb_to_sg_fd(struct dpa_priv_s *priv,
 
 	/* Enable hardware checksum computation */
 	err = dpa_enable_tx_csum(priv, skb, fd,
-		(char *)vaddr + DPA_PRIV_DATA_SIZE);
+		(char *)vaddr + DPA_TX_PRIV_DATA_SIZE);
 	if (unlikely(err < 0)) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
 			cpu_netdev_err(net_dev, "HW csum error: %d\n", err);
@@ -1510,7 +1526,7 @@ static int skb_to_contig_fd(struct dpa_priv_s *priv,
 	 * We must do this before dma_map_single(), because we may
 	 * need to write into the skb. */
 	err = dpa_enable_tx_csum(priv, skb, fd,
-				 ((char *)skbh) + DPA_PRIV_DATA_SIZE);
+				 ((char *)skbh) + DPA_TX_PRIV_DATA_SIZE);
 	if (unlikely(err < 0)) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
 			cpu_netdev_err(net_dev, "HW csum error: %d\n", err);
@@ -2953,7 +2969,7 @@ dpaa_eth_init_tx_port(struct fm_port *port, struct dpa_fq *errq,
 	struct fm_port_non_rx_params tx_port_param;
 
 	dpaa_eth_init_port(tx, port, tx_port_param, errq->fqid, defq->fqid,
-			has_timer);
+			DPA_TX_PRIV_DATA_SIZE, has_timer);
 }
 
 static void __devinit
@@ -2974,7 +2990,7 @@ dpaa_eth_init_rx_port(struct fm_port *port, struct dpa_bp *bp, size_t count,
 	}
 
 	dpaa_eth_init_port(rx, port, rx_port_param, errq->fqid, defq->fqid,
-			has_timer);
+			DPA_RX_PRIV_DATA_SIZE, has_timer);
 }
 
 static void dpa_rx_fq_init(struct dpa_priv_s *priv, struct list_head *head,
@@ -3664,3 +3680,33 @@ static int __init fsl_fman_phy_set_max_frm(char *str)
 	return 0;
 }
 early_param(FSL_FMAN_PHY_MAXFRM_BOOTARG, fsl_fman_phy_set_max_frm);
+
+static int __init dpa_set_extra_headroom(char *str)
+{
+	int ret;
+
+	ret = get_option(&str, &dpa_rx_extra_headroom);
+	if (ret != 1) {
+		printk(KERN_WARNING "No suitable %s=<int> prop in bootargs; "
+			"will use the default DPA_EXTRA_HEADROOM (%d) "
+			"from Kconfig.\n",
+			DPA_EXTRA_HEADROOM_BOOTARG, CONFIG_DPA_EXTRA_HEADROOM);
+		dpa_rx_extra_headroom = CONFIG_DPA_EXTRA_HEADROOM;
+		return 1;
+	}
+
+	/* Don't allow invalid bootargs; fallback to the Kconfig value */
+	if (dpa_rx_extra_headroom + DPA_BP_HEAD > DPA_MAX_FD_OFFSET) {
+		printk(KERN_WARNING "Invalid %s=%d in bootargs, valid range is "
+			"0-%d. Falling back to the Kconfig value (%d).\n",
+			DPA_EXTRA_HEADROOM_BOOTARG, dpa_rx_extra_headroom,
+			DPA_MAX_FD_OFFSET - DPA_BP_HEAD,
+			CONFIG_DPA_EXTRA_HEADROOM);
+		dpa_rx_extra_headroom = CONFIG_DPA_EXTRA_HEADROOM;
+		return 1;
+	}
+
+	return 0;
+}
+
+early_param(DPA_EXTRA_HEADROOM_BOOTARG, dpa_set_extra_headroom);

@@ -260,7 +260,8 @@ oh_port_probe(struct platform_device *_of_dev)
 
 	/* Set Tx params */
 	dpaa_eth_init_port(tx, oh_config->oh_port, oh_port_tx_params,
-		oh_config->error_fqid, oh_config->default_fqid, FALSE);
+		oh_config->error_fqid, oh_config->default_fqid,
+		DPA_TX_PRIV_DATA_SIZE, FALSE);
 	/* Set PCD params */
 	oh_port_pcd_params.cba = oh_alloc_pcd_fqids;
 	oh_port_pcd_params.cbf = oh_free_pcd_fqids;
