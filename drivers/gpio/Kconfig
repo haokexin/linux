@@ -178,6 +178,13 @@ config GPIO_SCH
 	  The Intel Tunnel Creek processor has 5 GPIOs powered by the
 	  core power rail and 9 from suspend power supply.
 
+config GPIO_NANO_8044
+	tristate "GPIO Support for NANO 8044 ITX board"
+	depends on X86 && PCI
+	help
+	  The driver provides a GPIO interface to supporting input and outputs.
+
+
 config GPIO_VX855
 	tristate "VIA VX855/VX875 GPIO"
 	depends on PCI
