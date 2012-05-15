@@ -335,7 +335,7 @@ typedef struct ioc_compat_fm_pcd_manip_params_t {
 #ifdef FM_CAPWAP_SUPPORT
 TODO:
 #endif
-    compat_uptr_t                                      *id;
+    compat_uptr_t                                 id;
 } ioc_compat_fm_pcd_manip_params_t;
 
 
