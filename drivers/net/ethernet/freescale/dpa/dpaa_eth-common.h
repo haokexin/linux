@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2011 Freescale Semiconductor Inc.
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -144,15 +144,22 @@ enum dpa_fq_type {
 };
 
 
-#define DPA_PRIV_DATA_SIZE 16
 #define DPA_PARSE_RESULTS_SIZE sizeof(t_FmPrsResult)
 #define DPA_HASH_RESULTS_SIZE 16
 
-#define dpaa_eth_init_port(type, port, param, errq_id, defq_id, has_timer) \
+#ifndef CONFIG_DPA_EXTRA_HEADROOM
+#define CONFIG_DPA_EXTRA_HEADROOM	0
+#endif
+
+#define DPA_TX_PRIV_DATA_SIZE	16
+#define DPA_RX_PRIV_DATA_SIZE	(DPA_TX_PRIV_DATA_SIZE + dpa_rx_extra_headroom)
+
+#define dpaa_eth_init_port(type, port, param, errq_id, defq_id, priv_size, \
+			   has_timer) \
 { \
 	param.errq = errq_id; \
 	param.defq = defq_id; \
-	param.priv_data_size = DPA_PRIV_DATA_SIZE; \
+	param.priv_data_size = priv_size; \
 	param.parse_results = true; \
 	param.hash_results = true; \
 	param.time_stamp = has_timer; \
