@@ -797,7 +797,7 @@ void compat_fm_pcd_manip_set_node(
         ioc_fm_pcd_manip_params_t *param,
         uint8_t compat)
 {
-#warning TODO
+#warning TODO compat manip node not implemented
 #if 0
     if (compat) {
 	param->rmv = compat_param->rmv;

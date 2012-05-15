@@ -350,7 +350,10 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_from_hdr_t) == sizeof(t_FmPcdFromHdr));
     ASSERT_COND(sizeof(ioc_fm_pcd_from_field_t) == sizeof(t_FmPcdFromField));
     ASSERT_COND(sizeof(ioc_fm_pcd_distinction_unit_t) == sizeof(t_FmPcdDistinctionUnit));
+#if !defined(CONFIG_COMPAT)
+    /* different alignment */
     ASSERT_COND(sizeof(ioc_fm_pcd_net_env_params_t) == sizeof(t_FmPcdNetEnvParams) + sizeof(void *));
+#endif
     ASSERT_COND(sizeof(ioc_fm_pcd_extract_entry_t) == sizeof(t_FmPcdExtractEntry));
     ASSERT_COND(sizeof(ioc_fm_pcd_kg_extract_mask_t) == sizeof(t_FmPcdKgExtractMask));
     ASSERT_COND(sizeof(ioc_fm_pcd_kg_extract_dflt_t) == sizeof(t_FmPcdKgExtractDflt));
@@ -362,7 +365,10 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_kg_storage_profile_t) == sizeof(t_FmPcdKgStorageProfile));
 #endif
     ASSERT_COND(sizeof(ioc_fm_pcd_kg_cc_t) == sizeof(t_FmPcdKgCc));
+#if !defined(CONFIG_COMPAT)
+    /* different alignment */
     ASSERT_COND(sizeof(ioc_fm_pcd_kg_scheme_params_t) == sizeof(t_FmPcdKgSchemeParams) + sizeof(void *));
+#endif
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_next_cc_params_t) == sizeof(t_FmPcdCcNextCcParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_next_plcr_params_t) == sizeof(t_FmPcdCcNextPlcrParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_next_enqueue_params_t) == sizeof(t_FmPcdCcNextEnqueueParams));
@@ -370,10 +376,16 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_next_engine_params_t) == sizeof(t_FmPcdCcNextEngineParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_key_params_t) == sizeof(t_FmPcdCcKeyParams));
     ASSERT_COND(sizeof(ioc_keys_params_t) == sizeof(t_KeysParams));
+#if !defined(CONFIG_COMPAT)
+    /* different alignment */
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_node_params_t) == sizeof(t_FmPcdCcNodeParams) + sizeof(void *));
     ASSERT_COND(sizeof(ioc_fm_pcd_hash_table_params_t) == sizeof(t_FmPcdHashTableParams) + sizeof(void *));
+#endif
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_grp_params_t) == sizeof(t_FmPcdCcGrpParams));
+#if !defined(CONFIG_COMPAT)
+    /* different alignment */
     ASSERT_COND(sizeof(ioc_fm_pcd_cc_tree_params_t) == sizeof(t_FmPcdCcTreeParams) + sizeof(void *));
+#endif
     ASSERT_COND(sizeof(ioc_fm_pcd_plcr_byte_rate_mode_param_t) == sizeof(t_FmPcdPlcrByteRateModeParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_plcr_non_passthrough_alg_param_t) == sizeof(t_FmPcdPlcrNonPassthroughAlgParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_plcr_next_engine_params_u) == sizeof(u_FmPcdPlcrNextEngineParams));
@@ -409,7 +421,10 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_hdr_params_t) == sizeof(t_FmPcdManipHdrParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_frag_params_t) == sizeof(t_FmPcdManipFragParams));
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_reassem_params_t) == sizeof(t_FmPcdManipReassemParams));
+#if !defined(CONFIG_COMPAT)
+    /* different alignment */
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_params_t) == sizeof(t_FmPcdManipParams) + sizeof(void *));
+#endif
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_reassem_ip_stats_t) == sizeof(t_FmPcdManipReassemIpStats));
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_frag_ip_stats_t) == sizeof(t_FmPcdManipFragIpStats));
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_reassem_stats_t) == sizeof(t_FmPcdManipReassemStats));
