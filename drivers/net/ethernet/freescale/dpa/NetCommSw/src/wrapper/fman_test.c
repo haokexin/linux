@@ -436,7 +436,7 @@ static int fmt_fq_release(const struct qm_fd *fd)
 }
 
 /* sync it w/ dpaa_eth.c: DPA_BP_HEAD */
-#define DPA_BP_HEADROOM (DPA_PRIV_DATA_SIZE + \
+#define DPA_BP_HEADROOM (DPA_RX_PRIV_DATA_SIZE + \
 			DPA_PARSE_RESULTS_SIZE + \
 			DPA_HASH_RESULTS_SIZE)
 #define MAC_HEADER_LENGTH 14

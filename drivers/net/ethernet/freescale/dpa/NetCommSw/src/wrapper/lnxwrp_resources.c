@@ -52,6 +52,7 @@
 #include "lnxwrp_resources.h"
 
 extern int fsl_fman_phy_maxfrm;	/* MAC file */
+extern int dpa_rx_extra_headroom; /* dpaa_eth.c */
 
 static struct device_node *match_mac_to_dpaa_port(struct device_node
 						  *enet_mac_node)
@@ -242,8 +243,11 @@ static uint32_t get_largest_buf_size(uint32_t max_rx_frame_size, uint32_t buf_si
 	uint32_t hash_results_size = 16;	/* DPA_HASH_RESULTS_SIZE */
 	uint32_t parse_results_size =
 		sizeof(t_FmPrsResult);		/* DPA_PARSE_RESULTS_SIZE */
+	uint32_t dpa_extra_headroom = (dpa_rx_extra_headroom != 0) ?
+					dpa_rx_extra_headroom :
+					CONFIG_DPA_EXTRA_HEADROOM;
 	uint32_t bp_head = priv_data_size + hash_results_size
-		+ parse_results_size; 		/* DPA_BP_HEAD */
+		+ parse_results_size + dpa_extra_headroom; /* DPA_BP_HEAD */
 	uint32_t bp_size = bp_head + max_rx_frame_size
 		+ NET_IP_ALIGN;			/* DPA_BP_SIZE */
 

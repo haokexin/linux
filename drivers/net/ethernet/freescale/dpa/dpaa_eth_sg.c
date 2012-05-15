@@ -509,7 +509,7 @@ static int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 	 * need to write into the skb.
 	 */
 	err = dpa_enable_tx_csum(priv, skb, fd,
-				 ((char *)skbh) + DPA_PRIV_DATA_SIZE);
+				 ((char *)skbh) + DPA_TX_PRIV_DATA_SIZE);
 	if (unlikely(err < 0)) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
 			cpu_netdev_err(net_dev, "HW csum error: %d\n", err);
@@ -567,7 +567,7 @@ static int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 	 * need to write into the skb.
 	 */
 	err = dpa_enable_tx_csum(priv, skb, fd,
-				 (void *)sgt_page + DPA_PRIV_DATA_SIZE);
+				 (void *)sgt_page + DPA_TX_PRIV_DATA_SIZE);
 	if (unlikely(err < 0)) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
 			cpu_netdev_err(net_dev, "HW csum error: %d\n", err);
