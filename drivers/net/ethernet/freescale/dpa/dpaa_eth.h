@@ -130,9 +130,9 @@ struct dpaa_eth_hooks_s {
 
 void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 
-#define DPA_BP_HEAD (DPA_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
+#define DPA_BP_HEAD (DPA_TX_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
 			DPA_HASH_RESULTS_SIZE)
-#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + (s))
+#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + dpa_rx_extra_headroom + (s))
 
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
 #define DEFAULT_SKB_COUNT 64 /* maximum number of SKBs in each percpu list */
@@ -300,6 +300,7 @@ struct dpa_priv_s {
 
 extern const struct ethtool_ops dpa_ethtool_ops;
 extern int fsl_fman_phy_maxfrm;
+extern int dpa_rx_extra_headroom;
 
 void __attribute__((nonnull))
 dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd);

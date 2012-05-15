@@ -128,6 +128,22 @@ config DPA_MAX_FRM_SIZE
               "fsl_fman_phy_max_frm=<YourValue>";
 	    * in non-Hypervisor-based scenarios, via u-boot's env, by modifying the "bootargs" env variable.
 
+config DPA_EXTRA_HEADROOM
+	int "Add extra headroom at beginning of data buffers"
+	depends on DPA
+	range 0 447
+	default "0"
+	help
+	  Configure this to tell the Frame Manager to reserve some extra space at the beginning of a
+	  data buffer on the receive path, before Internal Context fields are copied. This is in addition
+	  to the private data area already reserved for driver internal use.
+	  The option does not affect in any way the layout of transmitted buffers.
+
+	  This setting can be overridden by specifying "dpa_extra_headroom" in the kernel bootargs:
+	    * in Hypervisor-based scenarios, by adding a "chosen" node with the "bootargs" property specifying
+              "dpa_extra_headroom=<YourValue>";
+	    * in non-Hypervisor-based scenarios, via u-boot's env, by modifying the "bootargs" env variable.
+
 config DPAA_ETH_SG_SUPPORT
 	bool "Add support for S/G frames in the DPAA Ethernet driver"
 	depends on DPA
