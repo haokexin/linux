@@ -1253,7 +1253,7 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 	void *dpa_bp_vaddr, *page_vaddr;
 	dma_addr_t addr_offset;
 	struct page *page;
-	unsigned int i, offset, no_pages;
+	unsigned int offset;
 	size_t remain, size, total_size;
 
 	priv = netdev_priv(net_dev);
@@ -1307,11 +1307,10 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 	}
 
 	remain = dpa_fd_offset(&fd) + dpa_fd_length(&fd);
-	no_pages = ((remain - 1) >> PAGE_SHIFT) + 1;
 	total_size = remain;
 	addr_offset = bm_buf_addr(&bmb);
 
-	for (i = 0; i < no_pages; i++) {
+	while (remain > 0) {
 		page = pfn_to_page(addr_offset >> PAGE_SHIFT);
 		offset = offset_in_page(addr_offset);
 		size = remain;
@@ -1323,12 +1322,14 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 		page_vaddr = kmap_atomic(page);
 
-		if (i)
-			memcpy(page_vaddr + offset,
-			       skb->data + total_size - remain, size);
+		if (!offset && (total_size != remain))
+			memcpy(page_vaddr,
+				   skb->data + total_size - remain -
+				   dpa_fd_offset(&fd),
+			       size);
 		else {
 			memcpy(page_vaddr + dpa_fd_offset(&fd) + offset,
-			       skb->data + total_size - remain,
+			       skb->data,
 			       size - dpa_fd_offset(&fd));
 
 			err = dpa_enable_tx_csum(priv, skb, &fd,
@@ -1689,9 +1690,8 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 	void *dpa_bp_vaddr;
 	dma_addr_t addr_offset;
 	struct page *page;
-	unsigned int i, offset, no_pages;
+	unsigned int offset;
 	size_t remain, total_size;
-
 
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
@@ -1707,7 +1707,6 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 
 		goto out;
 	}
-
 
 	dpa_bp = dpa_bpid2pool(fd->bpid);
 	BUG_ON(IS_ERR(dpa_bp));
@@ -1744,11 +1743,10 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 	}
 
 	remain = dpa_fd_offset(fd) + dpa_fd_length(fd);
-	no_pages = ((remain - 1) >> PAGE_SHIFT) + 1;
 	total_size = remain;
 	addr_offset = qm_fd_addr(fd);
 
-	for (i = 0; i < no_pages; i++) {
+	while (remain > 0) {
 		page = pfn_to_page(addr_offset >> PAGE_SHIFT);
 		offset = offset_in_page(addr_offset);
 		size = remain;
@@ -1760,12 +1758,10 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 
 		dpa_bp_vaddr = kmap_atomic(page);
 
-		if (i)
-			memcpy(skb_put(skb, size) + total_size - remain,
-			       dpa_bp_vaddr + offset, size);
+		if (!offset && (total_size != remain))
+			memcpy(skb_put(skb, size), dpa_bp_vaddr, size);
 		else
-			memcpy(skb_put(skb, size - dpa_fd_offset(fd)) +
-			       total_size - remain,
+			memcpy(skb_put(skb, size - dpa_fd_offset(fd)),
 			       dpa_bp_vaddr + dpa_fd_offset(fd) +
 			       offset,
 			       size - dpa_fd_offset(fd));
