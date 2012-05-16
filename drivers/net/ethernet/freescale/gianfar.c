@@ -3485,6 +3485,7 @@ static void gfar_free_skb(struct sk_buff *skb)
 	}
 
 	skb_recycle(skb);
+	gfar_align_skb(skb);
 
 	cpu = get_cpu();
 	local = per_cpu_ptr(recycle_cntxt->local, cpu);
