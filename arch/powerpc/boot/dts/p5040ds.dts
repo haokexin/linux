@@ -561,6 +561,7 @@
 		ethernet@0 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&fm1dtsec1>;
+			status = "disabled";
 		};
 		ethernet@1 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";
@@ -585,6 +586,7 @@
 		ethernet@6 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&fm2dtsec1>;
+			status = "disabled";
 		};
 		ethernet@7 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";

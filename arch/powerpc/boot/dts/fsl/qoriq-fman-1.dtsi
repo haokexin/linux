@@ -91,18 +91,21 @@ fman1: fman@500000 {
 		cell-index = <4>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x85000 0x1000>;
+		status = "disabled";
 	};
 
 	fman1_oh5: port@86000 {
 		cell-index = <5>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x86000 0x1000>;
+		status = "disabled";
 	};
 
 	fman1_oh6: port@87000 {
 		cell-index = <6>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x87000 0x1000>;
+		status = "disabled";
 	};
 
 	policer@c0000 {
