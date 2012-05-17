@@ -219,7 +219,7 @@ peripheral access, 0 : may allow peripheral access */
 #define PAACE_TCEF_FORMAT0_8B	0x00
 #define PAACE_TCEF_FORMAT1_RSVD	0x01
 
-#define PAACE_NUMBER_ENTRIES	0xFF
+#define PAACE_NUMBER_ENTRIES	0x500
 
 #define OME_NUMBER_ENTRIES	16   /* based on P4080 2.0 silicon plan */
 
