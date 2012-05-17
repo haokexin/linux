@@ -91,4 +91,19 @@
 /include/ "qoriq-i2c-1.dtsi"
 /include/ "qoriq-duart-0.dtsi"
 /include/ "qoriq-duart-1.dtsi"
+
+	/*
+	 * Temporarily define cluster 1/2/3's L2 cache nodes in order to pass
+	 * next-level-cache info to uboot to do L3 cache fixup. This can be
+	 * removed once u-boot can create cpu node with cache info.
+	 */
+	L2_1: l2-cache-controller@c20000 {
+		next-level-cache = <&cpc>;
+	};
+	L2_2: l2-cache-controller@c60000 {
+		next-level-cache = <&cpc>;
+	};
+	L2_3: l2-cache-controller@ca0000 {
+		next-level-cache = <&cpc>;
+	};
 };

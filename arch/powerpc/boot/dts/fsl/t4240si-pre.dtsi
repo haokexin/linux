@@ -52,55 +52,72 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
+		/*
+		 * Temporarily add next-level-cache info in each cpu node so
+		 * that uboot can do L2 cache fixup. This can be removed once
+		 * u-boot can create cpu node with cache info.
+		 */
 		PowerPC,e6500@0 {
 			device_type = "cpu";
 			reg = <0 1>;
+			next-level-cache = <&L2_1>;
 		};
 		PowerPC,e6500@1 {
 			device_type = "cpu";
 			reg = <2 3>;
+			next-level-cache = <&L2_1>;
 		};
 		PowerPC,e6500@2 {
 			device_type = "cpu";
 			reg = <4 5>;
+			next-level-cache = <&L2_1>;
 		};
 		PowerPC,e6500@3 {
 			device_type = "cpu";
 			reg = <6 7>;
+			next-level-cache = <&L2_1>;
 		};
 
 		PowerPC,e6500@4 {
 			device_type = "cpu";
 			reg = <8 9>;
+			next-level-cache = <&L2_2>;
 		};
 		PowerPC,e6500@5 {
 			device_type = "cpu";
 			reg = <10 11>;
+			next-level-cache = <&L2_2>;
 		};
 		PowerPC,e6500@6 {
 			device_type = "cpu";
 			reg = <12 13>;
+			next-level-cache = <&L2_2>;
 		};
 		PowerPC,e6500@7 {
 			device_type = "cpu";
 			reg = <14 15>;
+			next-level-cache = <&L2_2>;
 		};
 
 		PowerPC,e6500@8 {
 			device_type = "cpu";
 			reg = <16 17>;
+			next-level-cache = <&L2_3>;
 		};
 		PowerPC,e6500@9 {
 			device_type = "cpu";
 			reg = <18 19>;
+			next-level-cache = <&L2_3>;
 		};
 		PowerPC,e6500@10 {
 			device_type = "cpu";
 			reg = <20 21>;
+			next-level-cache = <&L2_3>;
 		};
 		PowerPC,e6500@11 {
 			device_type = "cpu";
 			reg = <22 23>;
+			next-level-cache = <&L2_3>;
 		};
 	};
 };
