@@ -289,6 +289,12 @@ config P5020_DS
 config WORKAROUND_E5500_MFCR
 	bool
 
+config T4_SIMULATOR_WORKAROUND
+	bool "apply the workaround for t4 simulator"
+	default n
+	help
+	  This option enables the workaround on t4 simulator
+
 config T4240_QDS
 	bool "Freescale T4240 QDS"
 	select DEFAULT_UIMAGE
@@ -301,6 +307,7 @@ config T4240_QDS
 	select PPC_EPAPR_HV_PIC
 	select HAS_FSL_PAMU
 	select HAS_FSL_QBMAN
+	select T4_SIMULATOR_WORKAROUND
 	help
 	  This option enables support for the T4240 QDS board
 
