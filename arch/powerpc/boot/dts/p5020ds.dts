@@ -1636,6 +1636,7 @@
 			compatible = "fsl,p5020-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet2>;
+			status = "disabled";
 		};
 		ethernet@3 {
 			compatible = "fsl,p5020-dpa-ethernet", "fsl,dpa-ethernet";

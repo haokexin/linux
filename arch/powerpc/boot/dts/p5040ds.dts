@@ -1113,6 +1113,7 @@
 				compatible = "fsl,fman-port-oh";
 				reg = <0x85000 0x1000>;
 				fsl,qman-channel-id = <0x4a>;
+				status = "disabled";
 			};
 
 			fman0_oh5: port@86000 {
@@ -1120,12 +1121,14 @@
 				compatible = "fsl,fman-port-oh";
 				reg = <0x86000 0x1000>;
 				fsl,qman-channel-id = <0x4b>;
+				status = "disabled";
 			};
 
 			fman0_oh6: port@87000 {
 				cell-index = <6>;
 				compatible = "fsl,fman-port-oh";
 				reg = <0x87000 0x1000>;
+				status = "disabled";
 			};
 
 			policer@c0000 {
@@ -1596,6 +1599,7 @@
 				compatible = "fsl,fman-port-oh";
 				reg = <0x85000 0x1000>;
 				fsl,qman-channel-id = <0x6a>;
+				status = "disabled";
 			};
 
 			fman1_oh5: port@86000 {
@@ -1603,12 +1607,14 @@
 				compatible = "fsl,fman-port-oh";
 				reg = <0x86000 0x1000>;
 				fsl,qman-channel-id = <0x6b>;
+				status = "disabled";
 			};
 
 			fman1_oh6: port@87000 {
 				cell-index = <6>;
 				compatible = "fsl,fman-port-oh";
 				reg = <0x87000 0x1000>;
+				status = "disabled";
 			};
 
 			policer@c0000 {
@@ -2075,6 +2081,7 @@
 		ethernet@0 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&fm1dtsec1>;
+			status = "disabled";
 		};
 		ethernet@1 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";
@@ -2099,6 +2106,7 @@
 		ethernet@6 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&fm2dtsec1>;
+			status = "disabled";
 		};
 		ethernet@7 {
 			compatible = "fsl,p5040-dpa-ethernet", "fsl,dpa-ethernet";
