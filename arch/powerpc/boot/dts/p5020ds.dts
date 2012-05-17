@@ -260,6 +260,7 @@
 					#size-cells = <0>;
 					compatible = "fsl,hydra-mdio";
 					fsl,mdio-handle = <&mdio0>;
+					fsl,hydra-mdio-mux-mask = <0x70>;
 					fsl,hydra-mdio-muxval = <0x00>;
 					status = "disabled";
 
@@ -285,6 +286,7 @@
 					#size-cells = <0>;
 					compatible = "fsl,hydra-mdio";
 					fsl,mdio-handle = <&mdio0>;
+					fsl,hydra-mdio-mux-mask = <0x70>;
 					fsl,hydra-mdio-muxval = <0x00>;
 					status = "disabled";
 
@@ -539,6 +541,7 @@
 			compatible = "fsl,p5020-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet2>;
+			status = "disabled";
 		};
 		ethernet@3 {
 			compatible = "fsl,p5020-dpa-ethernet", "fsl,dpa-ethernet";
