@@ -1468,6 +1468,13 @@ struct mpic * __init mpic_alloc(struct device_node *node,
 			mpic->flags |= MPIC_FSL_HAS_EIMR;
 		}
 
+		if (isu_size == 0) {
+			if (version < 0x403)
+				irq_count = 256;
+			/* MPIC version 4.3 supports more interrupts */
+			else
+				irq_count = 512;
+		}
 	}
 
 	/* Reset */
