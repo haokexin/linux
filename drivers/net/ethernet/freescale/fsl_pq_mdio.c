@@ -386,10 +386,7 @@ static int fsl_pq_mdio_probe(struct platform_device *ofdev)
 		}
 	} else if (of_device_is_compatible(np, "fsl,fman-mdio")) {
 #ifdef CONFIG_FSL_FMAN
-		tbiaddr = 5;
-#else
-		err = -ENODEV;
-		goto err_free_irqs;
+	/* Currently we don't do anything here. */
 #endif
 	} else {
 		err = -ENODEV;
