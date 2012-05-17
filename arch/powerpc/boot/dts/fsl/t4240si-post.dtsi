@@ -32,6 +32,14 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+&bportals {
+/include/ "qoriq-bman2-portals.dtsi"
+};
+
+&qportals {
+/include/ "qoriq-qman2-portals.dtsi"
+};
+
 &soc {
 	#address-cells = <1>;
 	#size-cells = <1>;
@@ -106,4 +114,8 @@
 	L2_3: l2-cache-controller@ca0000 {
 		next-level-cache = <&cpc>;
 	};
+
+/include/ "qoriq-qman1.dtsi"
+/include/ "qoriq-bman1.dtsi"
+
 };

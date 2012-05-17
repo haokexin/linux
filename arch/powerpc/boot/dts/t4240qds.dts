@@ -45,6 +45,15 @@
 		device_type = "memory";
 	};
 
+	bportals: bman-portals@ff4000000 {
+		ranges = <0x0 0xf 0xf4000000 0x2000000>;
+	};
+
+	qportals: qman-portals@ff6000000 {
+		ranges = <0x0 0xf 0xf6000000 0x2000000>;
+	};
+
+
 	soc: soc@ffe000000 {
 		ranges = <0x00000000 0xf 0xfe000000 0x1000000>;
 		reg = <0xf 0xfe000000 0 0x00001000>;
@@ -52,3 +61,4 @@
 };
 
 /include/ "fsl/t4240si-post.dtsi"
+/include/ "fsl/qoriq-dpaa-res3.dtsi"
