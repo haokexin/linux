@@ -439,6 +439,8 @@ int pamu_set_stash_dest(struct device_node *node, unsigned int index,
 	int liodn;
 	const u32 *prop;
 	unsigned int i;
+	int psize;
+
 #ifdef CONFIG_FSL_PAMU_ERRATUM_A_004510
 	/*
 	 * The work-around says that we cannot have multiple writes to the
@@ -456,9 +458,13 @@ int pamu_set_stash_dest(struct device_node *node, unsigned int index,
 		return liodn;
 
 	for_each_node_by_type(node, "cpu") {
-		prop = of_get_property(node, "reg", NULL);
-		if (prop && (be32_to_cpup(prop) == cpu))
-			goto found_cpu;
+		prop = of_get_property(node, "reg", &psize);
+		if (prop) {
+			psize /= 4;
+			for (i = 0; i < psize; i++)
+				if (be32_to_cpup(prop++) == cpu)
+					goto found_cpu;
+		}
 	}
 
 	pr_err("fsl-pamu: could not find 'cpu' node %u\n", cpu);
