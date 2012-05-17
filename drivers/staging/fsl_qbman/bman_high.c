@@ -289,7 +289,6 @@ fail_isr:
 fail_mc:
 	bm_rcr_finish(__p);
 fail_rcr:
-	put_affine_portal();
 	return NULL;
 }
 
