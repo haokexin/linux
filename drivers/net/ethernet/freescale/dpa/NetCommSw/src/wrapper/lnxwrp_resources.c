@@ -187,11 +187,15 @@ int fm_set_active_fman_ports(struct platform_device *of_dev,
 	 * If active, set their parameters. */
 	for_each_child_of_node(fm_node, fm_port_node) {
 
+		if (!of_device_is_available(fm_port_node))
+			continue;
+
 		/* OH FMan ports */
 		if (of_device_is_compatible(fm_port_node,
-						"fsl,fman-port-oh"))
-			/* all oh ports are active */
+					    "fsl,fman-port-oh")) {
 			p_LnxWrpFmDev->fm_active_ports_info.num_oh_ports++;
+			continue;
+		}
 
 		if (!is_fman_port_active(fm_node, fm_port_node))
 			continue;
@@ -1063,14 +1067,14 @@ int fm_precalculate_tnums(t_LnxWrpFmDev *p_LnxWrpFmDev, int max_fm_tnums)
 		}
 	}
 
-	tnums_computed = 
+	tnums_computed =
 		num_1g_ports * tx_1g_tnums +
 		num_1g_ports * rx_1g_tnums +
 		num_2g5_ports * tx_2g5_tnums +
 		num_2g5_ports * rx_2g5_tnums +
 		num_10g_ports * tx_10g_tnums +
 		num_10g_ports * rx_10g_tnums +
-		num_oh_ports * oh_tnums + 
+		num_oh_ports * oh_tnums +
 		shared_ext_tnums;
 
 	if (leftovers > 0)
