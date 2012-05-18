@@ -220,6 +220,7 @@ static void __exit vsc82xx_exit(void)
 {
 	phy_driver_unregister(&vsc8244_driver);
 	phy_driver_unregister(&vsc8221_driver);
+	phy_driver_unregister(&vsc8234_driver);
 }
 
 module_init(vsc82xx_init);
