@@ -1492,7 +1492,9 @@ static int gfar_probe(struct platform_device *ofdev)
 		priv->hw_tcp.en = 0;
 	/* not a good idea to activate this feature if this gfar instance
 	 * does not support it */
-	WARN_ON(!priv->hw_tcp.en);
+	if (!priv->hw_tcp.en)
+		netdev_warn(dev,
+			"H/W TCP receive offload not supported (disabled)!");
 #endif
 
 	/* Initialize the filer table */
