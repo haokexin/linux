@@ -61,8 +61,7 @@
 #include "fm_port_ioctls.h"
 #include "lnxwrp_ioctls_fm_compat.h"
 
-/* debug dump */
-#if 0
+#if defined(FM_COMPAT_DBG)
 static void hex_dump(void * p_addr, unsigned int size)
 {
    int i;
@@ -80,72 +79,90 @@ static void hex_dump(void * p_addr, unsigned int size)
 #endif
 
 /* maping kernel pointers w/ UserSpace id's { */
-static void *compat_ptr2id_array[COMPAT_PTR2ID_ARRAY_MAX] = {0};
-/*  szbs001: we may need one set of these per FM device
-    to avoid using expensive synchronization! */
+const unsigned char map_node_name[][ID_MAP_NAME_SIZE] = {
+    "FM_NODE", /* 0 */
+    "FM_PORT_NODE", /* 1 */
+    "FM_PCD_NODE" /* 2 */
+};
 
-void compat_del_ptr2id(void *p)
+#define FM_NODE map_node_name[0]
+#define PORT_NODE map_node_name[1]
+#define PCD_NODE map_node_name[2]
+
+struct map_node {
+	void *ptr;
+	const unsigned char *name;
+};
+
+static struct map_node compat_ptr2id_array[COMPAT_PTR2ID_ARRAY_MAX];
+
+void compat_del_ptr2id(void *p, const unsigned char *name)
 {
     compat_uptr_t k;
 
-    /*printk("\ncompat_del_ptr2id(%p)\n", p);*/
+    _fm_cpt_dbg(COMPAT_GENERIC, "delete (%p)\n", p);
 
     for(k=1; k < COMPAT_PTR2ID_ARRAY_MAX; k++)
-        if(compat_ptr2id_array[k] == p)
-            compat_ptr2id_array[k] = NULL;
+        if(compat_ptr2id_array[k].ptr == p){
+            compat_ptr2id_array[k].ptr = NULL;
+			compat_ptr2id_array[k].name = NULL;
+		}
 }
 
-compat_uptr_t compat_add_ptr2id(void *p)
+compat_uptr_t compat_add_ptr2id(void *p, const unsigned char *name)
 {
     compat_uptr_t k;
 
-    /*printk("\ncompat_add_ptr2id(%p) -> ", p);*/
+    _fm_cpt_dbg(COMPAT_GENERIC, " (%p) do ->\n", p);
 
     if(!p)
         return 0;
 
     for(k=1; k < COMPAT_PTR2ID_ARRAY_MAX; k++)
-        if(compat_ptr2id_array[k] == NULL)
+        if(compat_ptr2id_array[k].ptr == NULL)
         {
-            compat_ptr2id_array[k] = p;
-            /*printk("0x%08x\n", k | COMPAT_PTR2ID_WATERMARK);*/
+            compat_ptr2id_array[k].ptr = p;
+			compat_ptr2id_array[k].name = name;
+            _fm_cpt_dbg(COMPAT_GENERIC, "0x%08x \n", k | COMPAT_PTR2ID_WATERMARK);
             return k | COMPAT_PTR2ID_WATERMARK;
         }
 
+	printk(KERN_WARNING "FMan map list full! No more PCD space on kernel!\n");
     return 0;
 }
 
-compat_uptr_t compat_get_ptr2id(void *p)
+compat_uptr_t compat_get_ptr2id(void *p, const unsigned char *name)
 {
     compat_uptr_t k;
 
-    /*printk("\ncompat_get_ptr2id(%p) -> ", p);*/
+    _fm_cpt_dbg(COMPAT_GENERIC, " (%p) get -> \n", p);
 
     for(k=1; k < COMPAT_PTR2ID_ARRAY_MAX; k++)
-        if(compat_ptr2id_array[k] == p) {
-            /*printk("0x%08x\n", k | COMPAT_PTR2ID_WATERMARK);*/
+        if(compat_ptr2id_array[k].ptr == p && compat_ptr2id_array[k].name == name) {
+            _fm_cpt_dbg(COMPAT_GENERIC, "0x%08x\n", k | COMPAT_PTR2ID_WATERMARK);
             return k | COMPAT_PTR2ID_WATERMARK;
         }
 
     return 0;
 }
 
-void *compat_get_id2ptr(compat_uptr_t comp)
+void *compat_get_id2ptr(compat_uptr_t comp, const unsigned char *name)
 {
 
-    /*printk("\ncompat_get_id2ptr(0x%08x) -> ", comp);*/
+    _fm_cpt_dbg(COMPAT_GENERIC, " (0x%08x) get -> \n", comp);
 
     if((COMPAT_PTR2ID_WM_MASK & comp) != COMPAT_PTR2ID_WATERMARK) {
-        /*printk("Error, invalid watermark!\n\n");
-        dump_stack();*/
+        _fm_cpt_dbg(COMPAT_GENERIC, "Error, invalid watermark!\n\n");
+        dump_stack();
         return compat_ptr(comp);
     }
 
     comp &= ~COMPAT_PTR2ID_WM_MASK;
 
-    if((0 < comp) && (comp < COMPAT_PTR2ID_ARRAY_MAX) && (compat_ptr2id_array[comp] != NULL)) {
-        /*printk("%p\n", compat_ptr2id_array[comp]);*/
-        return compat_ptr2id_array[comp];
+    if(((0 < comp) && (comp < COMPAT_PTR2ID_ARRAY_MAX) && (compat_ptr2id_array[comp].ptr != NULL)
+		&& compat_ptr2id_array[comp].name == name)) {
+        _fm_cpt_dbg(COMPAT_GENERIC, "%p\n", compat_ptr2id_array[comp].ptr);
+        return compat_ptr2id_array[comp].ptr;
     }
     return NULL;
 }
@@ -157,28 +174,31 @@ static inline void compat_copy_fm_pcd_plcr_next_engine(
         ioc_fm_pcd_engine                           next_engine,
         uint8_t                                     compat)
 {
+    _fm_cpt_dbg (compat, " Calling...\n");
+
     switch (next_engine)
     {
         case e_IOC_FM_PCD_PLCR:
-            if (compat)
-                param->p_profile = compat_ptr(compat_param->p_profile);
+            if (compat == COMPAT_US_TO_K)
+                param->p_profile = compat_get_id2ptr(compat_param->p_profile, PCD_NODE);
             else
-                compat_param->p_profile = ptr_to_compat(param->p_profile);
-            break;
-
+                compat_param->p_profile = compat_get_ptr2id(param->p_profile, PCD_NODE);
+        break;
         case e_IOC_FM_PCD_KG:
-            if (compat)
-                param->p_direct_scheme = compat_ptr(compat_param->p_direct_scheme);
+            if (compat == COMPAT_US_TO_K)
+                param->p_direct_scheme = compat_get_id2ptr(compat_param->p_direct_scheme, PCD_NODE);
             else
-                compat_param->p_direct_scheme = ptr_to_compat(param->p_direct_scheme);
-            break;
-
+                compat_param->p_direct_scheme = compat_get_ptr2id(param->p_direct_scheme, PCD_NODE);
+        break;
         default:
-            if (compat)
+            if (compat == COMPAT_US_TO_K)
                 param->action = compat_param->action;
             else
                 compat_param->action = param->action;
+        break;
     }
+
+    _fm_cpt_dbg (compat, " Called.\n");
 }
 
 void compat_copy_fm_pcd_plcr_profile(
@@ -186,7 +206,9 @@ void compat_copy_fm_pcd_plcr_profile(
         ioc_fm_pcd_plcr_profile_params_t        *param,
         uint8_t                                 compat)
 {
-    if (compat)
+    _fm_cpt_dbg (compat, " Calling...\n");
+
+    if (compat == COMPAT_US_TO_K)
     {
         param->modify = compat_param->modify;
 
@@ -210,7 +232,9 @@ void compat_copy_fm_pcd_plcr_profile(
         /* both parameters in the union has the same size, so memcpy works */
         memcpy(&param->color, &compat_param->color, sizeof(param->color));
 
-        memcpy(&param->non_passthrough_alg_param, &compat_param->non_passthrough_alg_param, sizeof(ioc_fm_pcd_plcr_non_passthrough_alg_param_t));
+        memcpy(&param->non_passthrough_alg_param,
+               &compat_param->non_passthrough_alg_param,
+               sizeof(ioc_fm_pcd_plcr_non_passthrough_alg_param_t));
 
         param->next_engine_on_green = compat_param->next_engine_on_green;
         param->next_engine_on_yellow = compat_param->next_engine_on_yellow;
@@ -219,8 +243,6 @@ void compat_copy_fm_pcd_plcr_profile(
         param->trap_profile_on_flow_A = compat_param->trap_profile_on_flow_A;
         param->trap_profile_on_flow_B = compat_param->trap_profile_on_flow_B;
         param->trap_profile_on_flow_C = compat_param->trap_profile_on_flow_C;
-
-        param->id = compat_ptr(compat_param->id);
     }
     else
     {
@@ -245,7 +267,9 @@ void compat_copy_fm_pcd_plcr_profile(
         /* both parameters in the union has the same size, so memcpy works */
         memcpy(&compat_param->color, &param->color, sizeof(compat_param->color));
 
-        memcpy(&compat_param->non_passthrough_alg_param, &param->non_passthrough_alg_param, sizeof(ioc_fm_pcd_plcr_non_passthrough_alg_param_t));
+        memcpy(&compat_param->non_passthrough_alg_param,
+               &param->non_passthrough_alg_param,
+               sizeof(ioc_fm_pcd_plcr_non_passthrough_alg_param_t));
 
         compat_param->next_engine_on_green = param->next_engine_on_green;
         compat_param->next_engine_on_yellow = param->next_engine_on_yellow;
@@ -255,7 +279,7 @@ void compat_copy_fm_pcd_plcr_profile(
         compat_param->trap_profile_on_flow_B = param->trap_profile_on_flow_B;
         compat_param->trap_profile_on_flow_C = param->trap_profile_on_flow_C;
 
-        compat_param->id = ptr_to_compat(param->id);
+        compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
     }
 
     compat_copy_fm_pcd_plcr_next_engine(&compat_param->params_on_green,
@@ -266,6 +290,20 @@ void compat_copy_fm_pcd_plcr_profile(
 
     compat_copy_fm_pcd_plcr_next_engine(&compat_param->params_on_red,
             &param->params_on_red, param->next_engine_on_red, compat);
+
+    _fm_cpt_dbg (compat, " Called.\n");
+}
+
+void compat_copy_fm_pcd_plcr_del_profile(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        id->obj = compat_get_id2ptr(compat_id->obj, PCD_NODE);
+        compat_del_ptr2id(id->obj, PCD_NODE);
+    }
 }
 
 static inline void compat_copy_fm_pcd_cc_next_kg(
@@ -273,18 +311,22 @@ static inline void compat_copy_fm_pcd_cc_next_kg(
         ioc_fm_pcd_cc_next_kg_params_t          *param,
         uint8_t                                 compat)
 {
-    if (compat)
+    _fm_cpt_dbg (compat, " Calling...\n");
+
+    if (compat == COMPAT_US_TO_K)
     {
         param->new_fqid         = compat_param->new_fqid;
         param->override_fqid    = compat_param->override_fqid;
-        param->p_direct_scheme  = compat_ptr(compat_param->p_direct_scheme);
+        param->p_direct_scheme  = compat_get_id2ptr(compat_param->p_direct_scheme, PCD_NODE);
     }
     else
     {
         compat_param->new_fqid          = param->new_fqid;
         compat_param->override_fqid     = param->override_fqid;
-        compat_param->p_direct_scheme   = ptr_to_compat(param->p_direct_scheme);
+        compat_param->p_direct_scheme   = compat_get_ptr2id(param->p_direct_scheme, PCD_NODE);
     }
+
+    _fm_cpt_dbg (compat, " Called.\n");
 }
 
 static inline void compat_copy_fm_pcd_cc_next_cc(
@@ -292,10 +334,14 @@ static inline void compat_copy_fm_pcd_cc_next_cc(
         ioc_fm_pcd_cc_next_cc_params_t          *param,
         uint8_t                                 compat)
 {
-    if (compat)
-        param->cc_node_id = compat_get_id2ptr(compat_param->cc_node_id);
+    _fm_cpt_dbg (compat, " Calling...\n");
+
+    if (compat == COMPAT_US_TO_K)
+        param->cc_node_id = compat_get_id2ptr(compat_param->cc_node_id, PCD_NODE);
     else
-        compat_param->cc_node_id = compat_get_ptr2id(param->cc_node_id);
+        compat_param->cc_node_id = compat_get_ptr2id(param->cc_node_id, PCD_NODE);
+
+    _fm_cpt_dbg (compat, " Called.\n");
 }
 
 static inline void compat_copy_fm_pcd_cc_next_engine(
@@ -303,25 +349,26 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
         ioc_fm_pcd_cc_next_engine_params_t          *param,
         uint8_t                                     compat)
 {
-    if (compat)
+    /*_fm_cpt_dbg (compat, " Calling...\n");*/
+
+    if (compat == COMPAT_US_TO_K)
     {
         param->next_engine = compat_param->next_engine;
+        if (param->next_engine != e_IOC_FM_PCD_INVALID )
+            _fm_cpt_dbg(compat, " param->next_engine = %i \n", param->next_engine);
 
-        switch (compat_param->next_engine)
+        switch (param->next_engine)
         {
             case e_IOC_FM_PCD_KG:
-                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
-                break;
             case e_IOC_FM_PCD_CC:
-                compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
             default:
                 memcpy(&param->params, &compat_param->params, sizeof(param->params));
             break;
         }
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-        param->manip = compat_ptr(compat_param->p_manip);
-#endif
+        if (compat_param->manip_id)
+            param->manip_id = compat_get_id2ptr(compat_param->manip_id, PCD_NODE);
+        param->statistics_en = compat_param->statistics_en;
     }
     else
     {
@@ -330,19 +377,30 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
         switch (compat_param->next_engine)
         {
             case e_IOC_FM_PCD_KG:
-                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
-                break;
             case e_IOC_FM_PCD_CC:
-                compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
             default:
                 memcpy(&compat_param->params, &param->params, sizeof(compat_param->params));
             break;
         }
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-        compat_param->p_manip = ptr_to_compat(param->manip);
-#endif
+        if (param->manip_id)
+            compat_param->manip_id = compat_get_ptr2id(param->manip_id, PCD_NODE);
+        compat_param->statistics_en = param->statistics_en;
     }
+
+    switch (compat_param->next_engine)
+    {
+        case e_IOC_FM_PCD_KG:
+            compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
+            break;
+        case e_IOC_FM_PCD_CC:
+            compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
+            break;
+        default:
+        break;
+    }
+
+    /*_fm_cpt_dbg (compat, " Called.\n");*/
 }
 
 void compat_copy_fm_pcd_cc_key(
@@ -350,7 +408,7 @@ void compat_copy_fm_pcd_cc_key(
         ioc_fm_pcd_cc_key_params_t          *param,
         uint8_t                             compat)
 {
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
         param->p_key = compat_ptr(compat_param->p_key);
         param->p_mask = compat_ptr(compat_param->p_mask);
@@ -372,7 +430,7 @@ void compat_copy_fm_pcd_cc_node_modify_key_and_next_engine(
         ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t          *param,
         uint8_t                                                         compat)
 {
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
         param->id       = compat_ptr(compat_param->id);
         param->key_indx = compat_param->key_indx;
@@ -399,7 +457,7 @@ void compat_copy_fm_pcd_cc_node_modify_next_engine(
         ioc_fm_pcd_cc_node_modify_next_engine_params_t          *param,
         uint8_t                                                 compat)
 {
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
         param->id = compat_ptr(compat_param->id);
         param->key_indx = compat_param->key_indx;
@@ -423,7 +481,7 @@ void compat_fm_pcd_cc_tree_modify_next_engine(
         ioc_fm_pcd_cc_tree_modify_next_engine_params_t          *param,
         uint8_t                                                 compat)
 {
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
         param->id       = compat_ptr(compat_param->id);
         param->grp_indx = compat_param->grp_indx;
@@ -449,7 +507,9 @@ void compat_copy_fm_pcd_cc_grp(
 {
     int k;
 
-    if (compat)
+    _fm_cpt_dbg (compat, " Calling...\n");
+
+    if (compat == COMPAT_US_TO_K)
     {
         param->num_of_distinction_units = compat_param->num_of_distinction_units;
         memcpy(param->unit_ids, compat_param->unit_ids, IOC_FM_PCD_MAX_NUM_OF_CC_UNITS);
@@ -465,6 +525,8 @@ void compat_copy_fm_pcd_cc_grp(
                 &compat_param->next_engine_per_entries_in_grp[k],
                 &param->next_engine_per_entries_in_grp[k],
                 compat);
+
+    _fm_cpt_dbg (compat, " Called.\n");
 }
 
 void compat_copy_fm_pcd_cc_tree(
@@ -473,35 +535,39 @@ void compat_copy_fm_pcd_cc_tree(
         uint8_t compat)
 {
     int k;
+    _fm_cpt_dbg (compat, " Calling...\n");
 
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
-        param->net_env_id = compat_ptr(compat_param->net_env_id);
+        param->net_env_id = compat_get_id2ptr(compat_param->net_env_id, PCD_NODE);
         param->num_of_groups = compat_param->num_of_groups;
-
-        for (k=0; k < IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS; k++)
-            compat_copy_fm_pcd_cc_grp(
-                    &compat_param->fm_pcd_cc_group_params[k],
-                    &param->fm_pcd_cc_group_params[k],
-                    compat);
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-        param->ip_reassembly_manip = compat_ptr(compat_param->ip_reassembly_manip);
-#endif
-        param->id = compat_ptr(compat_param->id);
     }
     else
     {
-        compat_param->net_env_id = ptr_to_compat(param->net_env_id);
+        compat_param->net_env_id = compat_get_ptr2id(param->net_env_id, PCD_NODE);
         compat_param->num_of_groups = param->num_of_groups;
-        for (k=0; k < IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS; k++)
-            compat_copy_fm_pcd_cc_grp(
-                    &compat_param->fm_pcd_cc_group_params[k],
-                    &param->fm_pcd_cc_group_params[k],
-                    compat);
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-        compat_param->ip_reassembly_manip = ptr_to_compat(param->ip_reassembly_manip);
-#endif
-        compat_param->id = ptr_to_compat(param->id);
+
+        compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
+    }
+
+    for (k=0; k < IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS; k++)
+        compat_copy_fm_pcd_cc_grp(
+                &compat_param->fm_pcd_cc_group_params[k],
+                &param->fm_pcd_cc_group_params[k],
+                compat);
+
+    _fm_cpt_dbg (compat, " Called.\n");
+}
+
+void compat_copy_fm_pcd_cc_delete_tree(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        id->obj = compat_get_id2ptr(compat_id->obj, PCD_NODE);
+        compat_del_ptr2id(id->obj, PCD_NODE);
     }
 }
 
@@ -510,7 +576,7 @@ void compat_fm_pcd_prs_sw(
         ioc_fm_pcd_prs_sw_params_t *param,
         uint8_t compat)
 {
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
         param->override = compat_param->override;
         param->size = compat_param->size;
@@ -519,10 +585,7 @@ void compat_fm_pcd_prs_sw(
         memcpy(param->sw_prs_data_params,compat_param->sw_prs_data_params,IOC_FM_PCD_PRS_NUM_OF_HDRS*sizeof(uint32_t));
         param->num_of_labels = compat_param->num_of_labels;
         memcpy(param->labels_table,compat_param->labels_table,IOC_FM_PCD_PRS_NUM_OF_LABELS*sizeof(ioc_fm_pcd_prs_label_params_t));
-        return;
     }
-
-    WARN(1, "\n\nFMD: fatal error, feature not implemented!\n\n");    
 }
 
 void compat_copy_fm_pcd_kg_scheme(
@@ -530,22 +593,26 @@ void compat_copy_fm_pcd_kg_scheme(
         ioc_fm_pcd_kg_scheme_params_t           *param,
         uint8_t                                 compat)
 {
-    if (compat)
+    _fm_cpt_dbg(compat," Calling...\n");
+
+    if (compat == COMPAT_US_TO_K)
     {
         param->modify = compat_param->modify;
 
         /* scm_id */
-        if(compat_param->modify)
+        if(compat_param->modify){
             param->scm_id.scheme_id = compat_ptr(compat_param->scm_id.scheme_id);
+            _fm_cpt_dbg(compat," param->scm_id.scheme_id = %p \n", param->scm_id.scheme_id);
+        }
         else
             param->scm_id.relative_scheme_id = compat_param->scm_id.relative_scheme_id;
 
         param->always_direct = compat_param->always_direct;
-        /* netEnvParams */
-        param->netEnvParams.net_env_id = compat_ptr(compat_param->netEnvParams.net_env_id);
-        param->netEnvParams.num_of_distinction_units = compat_param->netEnvParams.num_of_distinction_units;
-        memcpy(param->netEnvParams.unit_ids,
-               compat_param->netEnvParams.unit_ids,
+        /* net_env_params */
+        param->net_env_params.net_env_id = compat_get_id2ptr(compat_param->net_env_params.net_env_id, PCD_NODE);
+        param->net_env_params.num_of_distinction_units = compat_param->net_env_params.num_of_distinction_units;
+        memcpy(param->net_env_params.unit_ids,
+               compat_param->net_env_params.unit_ids,
                IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS);
 
         param->use_hash = compat_param->use_hash;
@@ -555,12 +622,15 @@ void compat_copy_fm_pcd_kg_scheme(
         param->bypass_fqid_generation = compat_param->bypass_fqid_generation;
         param->base_fqid = compat_param->base_fqid;
         param->numOfUsedExtractedOrs = compat_param->numOfUsedExtractedOrs;
-		memcpy(param->extracted_ors, compat_param->extracted_ors, IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS * sizeof(ioc_fm_pcd_kg_extracted_or_params_t));
+		memcpy(param->extracted_ors,
+               compat_param->extracted_ors,
+               IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS * sizeof(ioc_fm_pcd_kg_extracted_or_params_t));
         param->next_engine = compat_param->next_engine;
 
     	/* kg_next_engine_params */
         if(param->next_engine == e_IOC_FM_PCD_CC){
-            param->kg_next_engine_params.cc.tree_id = compat_get_id2ptr(compat_param->kg_next_engine_params.cc.tree_id);
+            param->kg_next_engine_params.cc.tree_id = compat_get_id2ptr(compat_param->kg_next_engine_params.cc.tree_id, PCD_NODE);
+
             param->kg_next_engine_params.cc.grp_id = compat_param->kg_next_engine_params.cc.grp_id;
             param->kg_next_engine_params.cc.plcr_next = compat_param->kg_next_engine_params.cc.plcr_next;
             param->kg_next_engine_params.cc.bypass_plcr_profile_generation = compat_param->kg_next_engine_params.cc.bypass_plcr_profile_generation;
@@ -573,8 +643,9 @@ void compat_copy_fm_pcd_kg_scheme(
                    &compat_param->kg_next_engine_params,
                    sizeof(param->kg_next_engine_params));
 
-        memcpy(&param->scheme_counter, &compat_param->scheme_counter, sizeof(ioc_fm_pcd_kg_scheme_counter_t));
-        param->id = compat_ptr(compat_param->id);
+        memcpy(&param->scheme_counter,
+               &compat_param->scheme_counter,
+               sizeof(ioc_fm_pcd_kg_scheme_counter_t));
     }
     else
     {
@@ -588,10 +659,10 @@ void compat_copy_fm_pcd_kg_scheme(
 
         compat_param->always_direct = param->always_direct;
 
-        /* netEnvParams */
-        compat_param->netEnvParams.net_env_id = ptr_to_compat(param->netEnvParams.net_env_id);
-        compat_param->netEnvParams.num_of_distinction_units = param->netEnvParams.num_of_distinction_units;
-        memcpy(compat_param->netEnvParams.unit_ids, param->netEnvParams.unit_ids, IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS);
+        /* net_env_params */
+        compat_param->net_env_params.net_env_id = ptr_to_compat(param->net_env_params.net_env_id);
+        compat_param->net_env_params.num_of_distinction_units = param->net_env_params.num_of_distinction_units;
+        memcpy(compat_param->net_env_params.unit_ids, param->net_env_params.unit_ids, IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS);
 
         compat_param->use_hash = param->use_hash;
         memcpy(&compat_param->key_extract_and_hash_params, &param->key_extract_and_hash_params, sizeof(ioc_fm_pcd_kg_key_extract_and_hash_params_t));
@@ -603,17 +674,35 @@ void compat_copy_fm_pcd_kg_scheme(
 
         /* kg_next_engine_params */
         if(compat_param->next_engine == e_IOC_FM_PCD_CC){
-            compat_param->kg_next_engine_params.cc.tree_id = compat_get_ptr2id(param->kg_next_engine_params.cc.tree_id);
+            compat_param->kg_next_engine_params.cc.tree_id = compat_get_ptr2id(param->kg_next_engine_params.cc.tree_id, PCD_NODE);
+
             compat_param->kg_next_engine_params.cc.grp_id = param->kg_next_engine_params.cc.grp_id;
             compat_param->kg_next_engine_params.cc.plcr_next = param->kg_next_engine_params.cc.plcr_next;
             compat_param->kg_next_engine_params.cc.bypass_plcr_profile_generation = param->kg_next_engine_params.cc.bypass_plcr_profile_generation;
-            memcpy(&compat_param->kg_next_engine_params.cc.plcr_profile, &param->kg_next_engine_params.cc.plcr_profile, sizeof(ioc_fm_pcd_kg_plcr_profile_t));
+            memcpy(&compat_param->kg_next_engine_params.cc.plcr_profile,
+                   &param->kg_next_engine_params.cc.plcr_profile,
+                   sizeof(ioc_fm_pcd_kg_plcr_profile_t));
         }
         else
             memcpy(&param->kg_next_engine_params, &compat_param->kg_next_engine_params, sizeof(compat_param->kg_next_engine_params));
 
         memcpy(&compat_param->scheme_counter, &param->scheme_counter, sizeof(ioc_fm_pcd_kg_scheme_counter_t));
-        compat_param->id = ptr_to_compat(param->id);
+
+        compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
+    }
+
+    _fm_cpt_dbg(compat," Called.\n");
+}
+
+void compat_copy_fm_pcd_scheme_delete(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        id->obj = compat_get_id2ptr(compat_id->obj, PCD_NODE);
+        compat_del_ptr2id(id->obj, PCD_NODE);
     }
 }
 
@@ -622,12 +711,9 @@ void compat_copy_fm_pcd_kg_scheme_select(
         ioc_fm_pcd_kg_scheme_select_t *param,
         uint8_t compat)
 {
-    if (compat){
+    if (compat == COMPAT_US_TO_K){
         param->direct = compat_param->direct;
         param->scheme_id = compat_ptr(compat_param->direct);
-    }
-    else {
-        printk(" %s:%u feature not implemented... \n", __func__, __LINE__);
     }
 }
 
@@ -638,13 +724,20 @@ void compat_copy_fm_pcd_kg_schemes_params(
 {
     int k;
 
-    if (compat) {
+    if (compat == COMPAT_US_TO_K) {
         param->num_of_schemes = compat_param->num_of_schemes;
-        for(k=0; k < FM_PCD_KG_NUM_OF_SCHEMES; k++)
-            param->scheme_ids[k] = compat_ptr(compat_param->schemes_ids[k]);
+        for(k=0; k < compat_param->num_of_schemes; k++)
+            param->scheme_ids[k] = compat_get_id2ptr(compat_param->schemes_ids[k], PCD_NODE);
     }
-    else {
-        printk(" %s:%u feature not implemented... \n", __func__, __LINE__);
+}
+
+void compat_copy_fm_port_pcd_cc(
+    ioc_compat_fm_port_pcd_cc_params_t *compat_cc_params ,
+    ioc_fm_port_pcd_cc_params_t *p_cc_params,
+    uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K){
+        p_cc_params->cc_tree_id = compat_get_id2ptr(compat_cc_params->cc_tree_id, PCD_NODE);
     }
 }
 
@@ -653,16 +746,17 @@ void compat_copy_fm_port_pcd_kg(
         ioc_fm_port_pcd_kg_params_t *param,
         uint8_t compat)
 {
-    if (compat){
+    if (compat == COMPAT_US_TO_K){
         uint8_t k;
+
         param->num_of_schemes = compat_param->num_of_schemes;
-        for(k=0;k<FM_PCD_KG_NUM_OF_SCHEMES;k++)
-            param->schemes_ids[k] = compat_ptr(compat_param->schemes_ids[k]);
+        for(k=0; k<compat_param->num_of_schemes; k++)
+            if (compat_param->schemes_ids[k])
+                param->schemes_ids[k] = compat_get_id2ptr(compat_param->schemes_ids[k], PCD_NODE);
+
         param->direct_scheme = compat_param->direct_scheme;
-        param->direct_scheme_id = compat_ptr(compat_param->direct_scheme_id);
-    }
-    else {
-        printk(" %s:%u feature not implemented... \n", __func__, __LINE__);;
+        if (param->direct_scheme)
+            param->direct_scheme_id = compat_get_id2ptr(compat_param->direct_scheme_id, PCD_NODE);
     }
 }
 
@@ -671,22 +765,43 @@ void compat_copy_fm_port_pcd(
         ioc_fm_port_pcd_params_t *param,
         uint8_t compat)
 {
-    if (compat){
+    if (compat == COMPAT_US_TO_K){
+        ioc_fm_port_pcd_prs_params_t         *same_port_pcd_prs_params;
+        ioc_compat_fm_port_pcd_cc_params_t   *compat_port_pcd_cc_params;
+        ioc_compat_fm_port_pcd_kg_params_t   *compat_port_pcd_kg_params;
+        ioc_compat_fm_port_pcd_plcr_params_t *compat_port_pcd_plcr_params;
+
+        same_port_pcd_prs_params    = (ioc_fm_port_pcd_prs_params_t *) (compat_param + 1);
+        compat_port_pcd_cc_params   = (ioc_compat_fm_port_pcd_cc_params_t *) (same_port_pcd_prs_params + 1);
+        compat_port_pcd_kg_params   = (ioc_compat_fm_port_pcd_kg_params_t *) (compat_port_pcd_cc_params + 1);
+        compat_port_pcd_plcr_params = (ioc_compat_fm_port_pcd_plcr_params_t *) (compat_port_pcd_kg_params + 1);
+
+        _fm_cpt_dbg(compat,"\n param->p_prs_params=%p \n", param->p_prs_params);
+        _fm_cpt_dbg(compat," param->p_cc_params=%p  \n", param->p_cc_params);
+        _fm_cpt_dbg(compat," param->p_kg_params=%p  \n", param->p_kg_params);
+        _fm_cpt_dbg(compat," param->p_plcr_params=%p  \n", param->p_plcr_params);
+
         param->pcd_support = compat_param->pcd_support;
-        param->net_env_id = compat_ptr(compat_param->net_env_id);
-        param->p_prs_params = compat_ptr(compat_param->p_prs_params); /* same structure */
-        param->p_cc_params = compat_ptr(compat_param->p_cc_params);
-        param->p_kg_params = compat_ptr(compat_param->p_kg_params);
-        param->p_plcr_params = compat_ptr(compat_param->p_plcr_params);
+        param->net_env_id = compat_get_id2ptr(compat_param->net_env_id, PCD_NODE);
+
+        if (param->p_cc_params)
+            compat_copy_fm_port_pcd_cc(compat_port_pcd_cc_params, param->p_cc_params, COMPAT_US_TO_K);
+        if (param->p_kg_params)
+            compat_copy_fm_port_pcd_kg(compat_port_pcd_kg_params, param->p_kg_params, COMPAT_US_TO_K);
+        if (param->p_plcr_params)
+            param->p_plcr_params->plcr_profile_id = compat_ptr(compat_port_pcd_plcr_params->plcr_profile_id);
+        if (param->p_ip_reassembly_manip)
+            param->p_ip_reassembly_manip = compat_get_id2ptr(compat_param->p_ip_reassembly_manip, PCD_NODE);
     }
-    else {
-        compat_param->pcd_support = param->pcd_support;
-        compat_param->net_env_id = ptr_to_compat(param->net_env_id);
-        compat_param->p_prs_params = ptr_to_compat(param->p_prs_params); /* same structure */
-        compat_param->p_cc_params = ptr_to_compat(param->p_cc_params);
-        compat_param->p_kg_params = ptr_to_compat(param->p_kg_params);
-        compat_param->p_plcr_params = ptr_to_compat(param->p_plcr_params);
-    }
+}
+
+void compat_copy_fm_port_pcd_modify_tree(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+        id->obj = compat_get_id2ptr(compat_id->obj, PCD_NODE);
 }
 
 void compat_copy_fm_pcd_net_env(
@@ -694,17 +809,29 @@ void compat_copy_fm_pcd_net_env(
         ioc_fm_pcd_net_env_params_t *param,
         uint8_t compat)
 {
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
         param->num_of_distinction_units = compat_param->num_of_distinction_units;
         memcpy(param->units, compat_param->units, sizeof(ioc_fm_pcd_distinction_unit_t)*IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS);
-        param->id = compat_ptr(compat_param->id);
+        param->id = compat_ptr(compat_param->id); /* this should be null */
     }
     else
     {
         compat_param->num_of_distinction_units = param->num_of_distinction_units;
         memcpy(compat_param->units, param->units, sizeof(ioc_fm_pcd_distinction_unit_t)*IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS);
-        compat_param->id = ptr_to_compat(param->id);
+		compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
+    }
+}
+
+void compat_copy_fm_net_env_delete(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        id->obj = compat_get_id2ptr(compat_id->obj, PCD_NODE);
+        compat_del_ptr2id(id->obj, PCD_NODE);
     }
 }
 
@@ -713,21 +840,24 @@ void compat_copy_fm_pcd_cc_node_modify_key(
         ioc_fm_pcd_cc_node_modify_key_params_t          *param,
         uint8_t                                         compat)
 {
-    if (compat)
+    if (compat == COMPAT_US_TO_K)
     {
         param->id       = compat_ptr(compat_param->id);
+        _fm_cpt_dbg(compat," param->id = %p \n", param->id);
         param->key_indx = compat_param->key_indx;
         param->key_size = compat_param->key_size;
         param->p_key    = (uint8_t *)compat_ptr(compat_param->p_key);
+        _fm_cpt_dbg(compat," param->p_key = %p \n", param->p_key);
         param->p_mask   = (uint8_t *)compat_ptr(compat_param->p_mask);
+        _fm_cpt_dbg(compat," param->p_mask = %p\n", param->p_mask);
     }
     else
     {
-        compat_param->id        = ptr_to_compat(param->id);
         compat_param->key_indx  = param->key_indx;
         compat_param->key_size  = param->key_size;
         compat_param->p_key     = ptr_to_compat((void *)param->p_key);
         compat_param->p_mask    = ptr_to_compat((void *)param->p_mask);
+        compat_param->id        = compat_add_ptr2id(param->id, PCD_NODE);
     }
 }
 
@@ -737,34 +867,37 @@ void compat_copy_keys(
         uint8_t compat)
 {
     int k = 0;
-    if (compat){
+
+    _fm_cpt_dbg(compat," Calling...\n");
+
+    if (compat == COMPAT_US_TO_K){
+        param->max_num_of_keys = compat_param->max_num_of_keys;
+        param->mask_support = compat_param->mask_support;
+        param->statistics_mode = compat_param->statistics_mode;
         param->num_of_keys = compat_param->num_of_keys;
         param->key_size = compat_param->key_size;
-
-        for(k=0;k<IOC_FM_PCD_MAX_NUM_OF_KEYS;k++)
-            compat_copy_fm_pcd_cc_key(
-                &compat_param->key_params[k],
-                &param->key_params[k],
-                compat);
-
     }
     else {
 
+        compat_param->max_num_of_keys = param->max_num_of_keys;
+        compat_param->mask_support = param->mask_support;
+        compat_param->statistics_mode = param->statistics_mode;
         compat_param->num_of_keys = param->num_of_keys;
         compat_param->key_size = param->key_size;
-
-        for(k=0;k<IOC_FM_PCD_MAX_NUM_OF_KEYS;k++)
-            compat_copy_fm_pcd_cc_key(
-                &compat_param->key_params[k],
-                &param->key_params[k],
-                compat);
     }
+
+    for(k=0;k<IOC_FM_PCD_MAX_NUM_OF_KEYS;k++)
+        compat_copy_fm_pcd_cc_key(
+            &compat_param->key_params[k],
+            &param->key_params[k],
+             compat);
 
     compat_copy_fm_pcd_cc_next_engine(
             &compat_param->cc_next_engine_params_for_miss,
             &param->cc_next_engine_params_for_miss,
             compat);
 
+    _fm_cpt_dbg(compat," Called.\n");
 }
 
 void compat_copy_fm_pcd_cc_node(
@@ -772,23 +905,33 @@ void compat_copy_fm_pcd_cc_node(
         ioc_fm_pcd_cc_node_params_t         *param,
         uint8_t                             compat)
 {
-    if (compat)
-    {
-        /* no pointer inside, so sizeof US and KS are the same - memcpy is ok */
+    _fm_cpt_dbg(compat," Calling...\n");
+
+    if (compat == COMPAT_US_TO_K)
         memcpy(&param->extract_cc_params, &compat_param->extract_cc_params, sizeof(ioc_fm_pcd_extract_entry_t));
 
-        compat_copy_keys(&compat_param->keys_params, &param->keys_params, compat);
-
-        param->id = compat_get_id2ptr(compat_param->id);
-    }
     else
     {
-        /* no pointer inside, so sizeof US and KS are the same - memcpy is ok */
-        memcpy(&compat_param->extract_cc_params, &param->extract_cc_params, sizeof(ioc_fm_pcd_extract_entry_t));
-
         compat_copy_keys(&compat_param->keys_params, &param->keys_params, compat);
 
-        compat_param->id = ptr_to_compat(param->id);
+        compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
+        _fm_cpt_dbg(compat," param->id = %p \n", param->id);
+    }
+
+    compat_copy_keys(&compat_param->keys_params, &param->keys_params, compat);
+
+    _fm_cpt_dbg(compat," Called.\n");
+}
+
+void compat_copy_fm_pcd_cc_delete_node(
+    ioc_compat_fm_obj_t *compat_id,
+    ioc_fm_obj_t *id,
+    uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        id->obj = compat_get_id2ptr(compat_id->obj, PCD_NODE);
+        compat_del_ptr2id(id->obj, PCD_NODE);
     }
 }
 
@@ -799,7 +942,7 @@ void compat_fm_pcd_manip_set_node(
 {
 #warning TODO compat manip node not implemented
 #if 0
-    if (compat) {
+    if (compat == COMPAT_US_TO_K) {
 	param->rmv = compat_param->rmv;
 	memcpy(&param->rmv_params, &compat_param->rmv_params, sizeof(ioc_fm_pcd_manip_rmv_params_t));
 
@@ -825,7 +968,19 @@ void compat_fm_pcd_manip_set_node(
 
 	compat_param->treat_fd_status_fields_as_errors = param->treat_fd_status_fields_as_errors;
 
-	compat_param->id = ptr_to_compat(param->id);
+    compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
     }
 #endif
+}
+
+void compat_copy_fm_pcd_manip_delete_node(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        id->obj = compat_get_id2ptr(compat_id->obj, PCD_NODE);
+        compat_del_ptr2id(id->obj, PCD_NODE);
+    }
 }
