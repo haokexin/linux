@@ -1396,41 +1396,9 @@ MODULE_LICENSE ("GPL");
 #error "missing bus glue for ehci-hcd"
 #endif
 
-static void ci13612_device_release(struct device *dev)
-{
-}
-
-static struct platform_device ci13612_device = {
-	.name		= "ci13612-ehci",
-	.id		= -1,
-	.dev		= {
-		.release = ci13612_device_release,
-       },
-};
-
 static int __init ehci_hcd_init(void)
 {
 	int retval = 0;
-
-#ifdef CONFIG_ACP
-
-	struct device_node *np = NULL;
-	int *enabled;
-
-	np = of_find_node_by_type(np, "usb");
-
-	while (np && !of_device_is_compatible(np, "acp-usb"))
-		np = of_find_node_by_type(np, "usb");
-
-	if (np)
-		enabled = of_get_property(np, "enabled", NULL);
-	else
-		return -ENODEV;
-
-	if ((NULL == *enabled) || (0 == *enabled))
-		return -ENODEV;
-
-#endif
 
 	if (usb_disabled())
 		return -ENODEV;
@@ -1479,10 +1447,6 @@ static int __init ehci_hcd_init(void)
 		goto clean3;
 #endif
 
-	retval = platform_device_register(&ci13612_device);
-	if (retval < 0)
-	goto err_device_register;
-
 #ifdef XILINX_OF_PLATFORM_DRIVER
 	retval = platform_driver_register(&XILINX_OF_PLATFORM_DRIVER);
 	if (retval < 0)
@@ -1490,7 +1454,6 @@ static int __init ehci_hcd_init(void)
 #endif
 	return retval;
 
-err_device_register:
 #ifdef XILINX_OF_PLATFORM_DRIVER
 	/* platform_driver_unregister(&XILINX_OF_PLATFORM_DRIVER); */
 clean4:
@@ -1523,8 +1486,6 @@ module_init(ehci_hcd_init);
 
 static void __exit ehci_hcd_cleanup(void)
 {
-
-platform_device_unregister(&ci13612_device);
 
 #ifdef XILINX_OF_PLATFORM_DRIVER
 	platform_driver_unregister(&XILINX_OF_PLATFORM_DRIVER);
