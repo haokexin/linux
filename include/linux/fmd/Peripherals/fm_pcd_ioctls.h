@@ -1036,7 +1036,7 @@ typedef struct ioc_fm_pcd_kg_scheme_params_t {
                                                          /**< Number of netenv units listed in unit_ids array */
         uint8_t                         unit_ids[IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS];
                                                          /**< Indexes as passed to SetNetEnvCharacteristics array*/
-    } netEnvParams;
+    } net_env_params;
     bool                                use_hash;        /**< use the KG Hash functionality */
     ioc_fm_pcd_kg_key_extract_and_hash_params_t key_extract_and_hash_params;
                                                          /**< used only if useHash = TRUE */
@@ -1847,7 +1847,7 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 #define FM_PCD_IOC_CC_DELETE_TREE    _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(27), ioc_fm_obj_t)
 
 /**************************************************************************//**
- @Function      FM_PCD_IOC_CC_SET_NODE
+ @Function      FM_PCD_IOC_MATCH_TABLE_SET
 
  @Description   This routine should be called for each CC (coarse classification)
                 node. The whole CC tree should be built bottom up so that each
@@ -1862,9 +1862,9 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
  @Cautions      Allowed only following PCD_Init().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
-#define FM_PCD_IOC_CC_SET_NODE_COMPAT    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(28), compat_uptr_t)
+#define FM_PCD_IOC_MATCH_TABLE_SET_COMPAT    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(28), compat_uptr_t)
 #endif
-#define FM_PCD_IOC_CC_SET_NODE    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(28), void *) /* workaround ...*/
+#define FM_PCD_IOC_MATCH_TABLE_SET    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(28), void *) /* workaround ...*/
 
 /**************************************************************************//**
  @Function      FM_PCD_CcDeleteNode
