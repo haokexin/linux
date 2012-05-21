@@ -23,6 +23,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/irq.h>
+#include <linux/of_platform.h>
 #include "ehci-ci13612.h"
 
 
@@ -145,7 +146,13 @@ static int ci13612_ehci_probe(struct platform_device *pdev)
 	void __iomem *gpreg_base = (void __iomem *) 0xF000C000;
 	int irq;
 	int retval;
+	struct device_node *np = pdev->dev.of_node;
+	const int *enabled;
 
+
+	enabled = of_get_property(np, "enabled", NULL);
+	if (!enabled || !*enabled)
+		return -ENODEV;
 
 	if (usb_disabled())
 		return -ENODEV;
@@ -204,10 +211,19 @@ static int ci13612_ehci_remove(struct platform_device *pdev)
 
 MODULE_ALIAS("platform:ci13612-ehci");
 
+static struct of_device_id ci13612_match[] = {
+	{
+		.type	= "usb",
+		.compatible = "acp-usb",
+	},
+	{},
+};
+
 static struct platform_driver ci13612_ehci_driver = {
 	.probe = ci13612_ehci_probe,
 	.remove = ci13612_ehci_remove,
 	.driver = {
 		.name = "ci13612-ehci",
+		.of_match_table = ci13612_match,
 	},
 };
