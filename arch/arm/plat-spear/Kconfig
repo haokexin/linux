@@ -22,10 +22,26 @@ config ARCH_SPEAR6XX
 	help
 	  Supports for ARM's SPEAR6XX family
 
+config ARCH_SPEAR13XX
+	bool "SPEAr13XX"
+	select ARM_GIC
+	select CPU_V7
+	select ARCH_SUPPORTS_MSI
+	select HAVE_SMP
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARCH_SUPPORTS_MSI
+	select MIGHT_HAVE_PCI
+
+	help
+	  Supports for ARM's SPEAR13XX family
+
 endchoice
 
 # Adding SPEAr machine specific configuration files
 source "arch/arm/mach-spear3xx/Kconfig"
 source "arch/arm/mach-spear6xx/Kconfig"
+
+# Adding SPEAr13xx machine specific configuration files
+source "arch/arm/mach-spear13xx/Kconfig"
 
 endif
