@@ -985,7 +985,10 @@ config PLAT_SPEAR
 	select CLKDEV_LOOKUP
 	select CLKSRC_MMIO
 	select GENERIC_CLOCKEVENTS
+	select GENERIC_GPIO
+	select GENERIC_TIME
 	select HAVE_CLK
+	select ARCH_HAS_CPUFREQ
 	help
 	  Support for ST's SPEAr platform (SPEAr3xx, SPEAr6xx and SPEAr13xx).
 
@@ -1094,6 +1097,7 @@ source "arch/arm/plat-s3c24xx/Kconfig"
 source "arch/arm/plat-s5p/Kconfig"
 
 source "arch/arm/plat-spear/Kconfig"
+source "arch/arm/plat-spear13xx/Kconfig"
 
 source "arch/arm/mach-s3c24xx/Kconfig"
 if ARCH_S3C24XX
