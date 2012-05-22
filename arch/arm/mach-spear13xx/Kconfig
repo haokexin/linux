@@ -1,0 +1,115 @@
+#
+# SPEAr13XX Machine configuration file
+#
+
+if ARCH_SPEAR13XX
+
+menu "SPEAr13xx Implementations"
+config MACH_SPEAR1300_EVB
+	bool "SPEAr1300 Evaluation Board"
+	select CPU_SPEAR1300
+	help
+	  Supports ST SPEAr1300 Evaluation Board
+
+config MACH_SPEAR1310_REVA_EVB
+	bool "SPEAr1310 RevA Evaluation Board"
+	select CPU_SPEAR1310_REVA
+	help
+	  Supports ST SPEAr1310 RevA Evaluation Board
+
+config MACH_R1801E
+	bool "ZT R1801E SOM board, based upon SPEAr1310 RevA Device"
+	select CPU_SPEAR1310_REVA
+	help
+	  Supports ZT's R1801E SOM board based upon ST SPEAr1310 RevA
+	  device
+
+config MACH_SPEAR1310_EVB
+	bool "SPEAr1310 Evaluation Board"
+	select CPU_SPEAR1310
+	help
+	  Supports ST SPEAr1310 Evaluation Board
+
+config MACH_SPEAR1340_EVB
+	bool "SPEAr1340 Evaluation Board"
+	select CPU_SPEAR1340
+	help
+	  Supports ST SPEAr1340 Evaluation Board
+
+config MACH_SPEAR_HURRICANE
+	bool "NComputing SPEAr Hurricane Board"
+	select CPU_SPEAR1340
+	help
+	  Supports NComputing SPEAr Hurricane Board
+
+config MACH_SPEAR1340_LCAD
+	bool "SPEAr1340 Low Cost Access Device (LCAD) Board"
+	select CPU_SPEAR1340
+	help
+	  Supports SPEAr1340 Low Cost Access Device (LCAD) Board
+
+config SPEAR1340_PLUG_BOARDS
+	bool "SPEAr1340 Plug Boards"
+	depends on MACH_SPEAR1340_EVB && SPEAR_PLUG_BOARDS
+	help
+	  Supports ST SPEAr1340 Plug boards
+
+config MACH_SPEAR900_EVB
+	bool "SPEAr900 Evaluation Board"
+	select CPU_SPEAR900
+	help
+	  Supports ST SPEAr900 Evaluation Board
+
+endmenu
+
+config CPU_SPEAR1300
+	bool "SPEAr1300"
+	help
+	  Supports ST SPEAr1300 Machine
+
+config CPU_SPEAR1310_REVA
+	bool "SPEAr1310 RevA"
+	help
+	  Supports ST SPEAr1310 RevA Machine
+
+config CPU_SPEAR1310
+	bool "SPEAr1310"
+	help
+	  Supports ST SPEAr1310 Machine
+
+config CPU_SPEAR1340
+	bool "SPEAr1340"
+	help
+	  Supports ST SPEAr1340 Machine
+
+config CPU_SPEAR900
+	bool "SPEAr900"
+	help
+	  Supports ST SPEAr900 Machine
+
+config DW_PCIE
+	bool "Synopsys Designware PCIe Host Controller"
+	depends on PCIEPORTBUS
+	help
+	  Supports Synopsys Designware PCIe Dual mode controller as a Host
+
+config SPEAR_PCIE_REV341
+	depends on DW_PCIE
+	bool "SPEAr PCIe REV 3.41"
+	help
+	  Supports ST SPEAr PCIe Rev 3.41
+
+config SPEAR_PCIE_REV370
+	depends on DW_PCIE
+	bool "SPEAr PCIe REV 3.70"
+	help
+	  Supports ST SPEAr PCIe Rev 3.70
+
+config USE_PLGPIO
+	bool "Use PLGPIOs for power control on ZT R1801E SOM board"
+	depends on MACH_R1801E
+	help
+	  Enable this to use pl-gpios on ZT's R1801E SOM board for
+	  power control device
+
+endif #ARCH_SPEAR13XX
