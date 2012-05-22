@@ -164,11 +164,18 @@
                                 interrupts = <31>;
                         };
                         I2C: i2c@00403000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
                                 compatible = "acp-i2c";
                                 enabled = <0>;
-                                reg = <0x00403000 0x00001000>;
+				reg = <0x403000 0x1000 0x408020 0x1000>;
                                 interrupt-parent = <&MPIC>;
                                 interrupts = <21>;
+
+				eeprom@50 {
+					compatible = "atmel,24c01";
+					reg = <0x50>;
+				};
                         };
                         SSP: ssp@00402000 {
                                 compatible = "acp-ssp";
