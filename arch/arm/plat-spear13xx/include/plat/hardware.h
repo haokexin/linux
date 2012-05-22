@@ -25,31 +25,6 @@
 
 #ifndef __ASSEMBLY__
 /* cpu related runtime routines */
-static inline bool cpu_is_spear300(void)
-{
-	return machine_is_spear300_evb();
-}
-
-static inline bool cpu_is_spear310(void)
-{
-	return machine_is_spear310_evb();
-}
-
-static inline bool cpu_is_spear320(void)
-{
-	return machine_is_spear320_evb() || machine_is_spear320_hmi();
-}
-
-static inline bool cpu_is_spear600(void)
-{
-	return machine_is_spear600_evb();
-}
-
-static inline bool cpu_is_spear1300(void)
-{
-	return machine_is_spear1300_evb();
-}
-
 static inline bool cpu_is_spear1310(void)
 {
 	return machine_is_spear1310_evb();
@@ -62,30 +37,13 @@ static inline bool cpu_is_spear1310_reva(void)
 
 static inline bool cpu_is_spear1340(void)
 {
-	return machine_is_spear1340_evb() || machine_is_spear_hurricane() ||
-		machine_is_spear1340_lcad();
-}
-
-static inline bool cpu_is_spear900(void)
-{
-	return machine_is_spear900_evb();
-}
-
-/* arch related runtime routines */
-static inline bool arch_is_spear3xx(void)
-{
-	return cpu_is_spear300() || cpu_is_spear310() || cpu_is_spear320();
-}
-
-static inline bool arch_is_spear6xx(void)
-{
-	return cpu_is_spear600();
+	return machine_is_spear1340_evb();
 }
 
 static inline bool arch_is_spear13xx(void)
 {
-	return cpu_is_spear1300() || cpu_is_spear1310_reva() ||
-		cpu_is_spear1310() || cpu_is_spear900() ||
+	return cpu_is_spear1310_reva() ||
+		cpu_is_spear1310() ||
 		cpu_is_spear1340();
 }
 #endif /* __ASSEMBLY__ */

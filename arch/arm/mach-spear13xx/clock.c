@@ -1340,11 +1340,6 @@ static struct clk ras_tx50_clk = {
 	.rate = 50000000,
 };
 
-/* spear1300 machine specific clock structures */
-#ifdef CONFIG_CPU_SPEAR1300
-
-#endif
-
 /* spear1310_reva machine specific clock structures */
 #ifdef CONFIG_CPU_SPEAR1310_REVA
 /* can0 clock */
@@ -1648,12 +1643,6 @@ static struct clk_lookup spear_clk_lookups[] = {
 	{.dev_id = "spear_thermal",	.clk = &thermal_clk},
 };
 
-/* array of all spear 1300 clock lookups */
-static struct clk_lookup spear1300_clk_lookups[] = {
-#ifdef CONFIG_CPU_SPEAR1300
-#endif
-};
-
 /* array of all spear 1310 clock lookups */
 static struct clk_lookup spear1310_reva_clk_lookups[] = {
 #ifdef CONFIG_CPU_SPEAR1310_REVA
@@ -1689,10 +1678,7 @@ void __init spear13xx_clk_init(void)
 	int i, cnt;
 	struct clk_lookup *lookups;
 
-	if (cpu_is_spear1300()) {
-		cnt = ARRAY_SIZE(spear1300_clk_lookups);
-		lookups = spear1300_clk_lookups;
-	} else if (cpu_is_spear1310_reva()) {
+	if (cpu_is_spear1310_reva()) {
 		cnt = ARRAY_SIZE(spear1310_reva_clk_lookups);
 		lookups = spear1310_reva_clk_lookups;
 	} else {
