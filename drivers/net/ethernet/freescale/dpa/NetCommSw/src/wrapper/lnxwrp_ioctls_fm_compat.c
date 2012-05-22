@@ -79,6 +79,8 @@ static void hex_dump(void * p_addr, unsigned int size)
 #endif
 
 /* maping kernel pointers w/ UserSpace id's { */
+/*TODO: per FMan module: Parser:FM_PARSER_NODE,
+ * Kg:FM_KG_NODE, Policer:FM_POLICER_NODE */
 const unsigned char map_node_name[][ID_MAP_NAME_SIZE] = {
     "FM_NODE", /* 0 */
     "FM_PORT_NODE", /* 1 */
@@ -94,7 +96,7 @@ struct map_node {
 	const unsigned char *name;
 };
 
-static struct map_node compat_ptr2id_array[COMPAT_PTR2ID_ARRAY_MAX];
+static struct map_node compat_ptr2id_array[COMPAT_PTR2ID_ARRAY_MAX] = {{0},{0}};
 
 void compat_del_ptr2id(void *p, const unsigned char *name)
 {
@@ -940,37 +942,22 @@ void compat_fm_pcd_manip_set_node(
         ioc_fm_pcd_manip_params_t *param,
         uint8_t compat)
 {
-#warning TODO compat manip node not implemented
-#if 0
     if (compat == COMPAT_US_TO_K) {
-	param->rmv = compat_param->rmv;
-	memcpy(&param->rmv_params, &compat_param->rmv_params, sizeof(ioc_fm_pcd_manip_rmv_params_t));
+        param->type = compat_param->type;
+        memcpy(&param->u, &compat_param->u, sizeof(param->u));
 
-	param->insrt = compat_param->insrt;
-	memcpy(&param->insrt_params, &compat_param->insrt_params, sizeof(ioc_fm_pcd_manip_insrt_params_t));
-
-	param->frag_or_reasm = compat_param->frag_or_reasm;
-	memcpy(&param->frag_or_reasm_params, &compat_param->frag_or_reasm_params, sizeof(ioc_fm_pcd_manip_frag_or_reasm_params_t));
-
-	param->treat_fd_status_fields_as_errors = compat_param->treat_fd_status_fields_as_errors;
-
-	param->id = compat_get_id2ptr(compat_param->id);
+        if (compat_param->p_next_manip)
+            param->p_next_manip = compat_get_id2ptr(compat_param->id, PCD_NODE);
     }
     else {
-	compat_param->rmv = param->rmv;
-	memcpy(&compat_param->rmv_params, &param->rmv_params, sizeof(ioc_fm_pcd_manip_rmv_params_t));
+        compat_param->type = param->type;
+        memcpy(&compat_param->u, &param->u, sizeof(compat_param->u));
 
-	compat_param->insrt = param->insrt;
-	memcpy(&compat_param->insrt_params, &param->insrt_params, sizeof(ioc_fm_pcd_manip_insrt_params_t));
+        if (param->p_next_manip)
+            compat_param->p_next_manip = compat_get_ptr2id(param->id, PCD_NODE);
 
-	compat_param->frag_or_reasm = param->frag_or_reasm;
-	memcpy(&compat_param->frag_or_reasm_params, &param->frag_or_reasm_params, sizeof(ioc_fm_pcd_manip_frag_or_reasm_params_t));
-
-	compat_param->treat_fd_status_fields_as_errors = param->treat_fd_status_fields_as_errors;
-
-    compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
+        compat_param->id = compat_add_ptr2id(param->id, PCD_NODE);
     }
-#endif
 }
 
 void compat_copy_fm_pcd_manip_delete_node(

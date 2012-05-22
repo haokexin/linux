@@ -1633,7 +1633,7 @@ typedef struct ioc_fm_pcd_manip_params_t {
      void*                                        p_next_manip;        /**< Handle to another (previously defined) manipulation node;
                                                                             Allows concatenation of manipulation actions */
 #ifdef FM_CAPWAP_SUPPORT
-TODO:
+#warning "feature not supported!"
 #endif
 	void                                      *id;
 } ioc_fm_pcd_manip_params_t;

@@ -234,8 +234,6 @@ static t_Error FmPcdCcSetRequiredAction(t_Handle                            h_Fm
         else
             h_AdTmp = PTR_MOVE(h_AdTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
-        if(p_CcKeyAndNextEngineParamsTmp[i].shadowAction & requiredAction)
-            continue;
         switch(p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.nextEngine)
         {
             case(e_FM_PCD_CC):
@@ -353,6 +351,7 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
     SANITY_CHECK_RETURN_ERROR((numOfGoodChanges == LIST_NumOfObjs(h_FmPcdOldPointersLst)),E_INVALID_STATE);
     SANITY_CHECK_RETURN_ERROR((1 == LIST_NumOfObjs(h_FmPcdNewPointersLst)),E_INVALID_STATE);
 
+
     /* We don't update subtree of the new node with new tree because it was done in the previous stage */
     if (p_AdditionalParams->h_NodeForAdd)
     {
@@ -463,11 +462,17 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
         h_Muram = FmPcdGetMuramHandle(h_FmPcd);
         ASSERT_COND(h_Muram);
 
-        /* We release new AD which was allocated and updated for copy from to actual AD */
-        p_Pos = LIST_FIRST(h_FmPcdNewPointersLst);
-        p_CcNodeInformation = CC_NODE_F_OBJECT(p_Pos);
-        ASSERT_COND(p_CcNodeInformation->h_CcNode);
-        FM_MURAM_FreeMem(h_Muram, p_CcNodeInformation->h_CcNode);
+        if ((p_AdditionalParams->tree &&
+             !((t_FmPcd *)h_FmPcd)->p_CcShadow) ||
+            (!p_AdditionalParams->tree &&
+             !((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->maxNumOfKeys))
+        {
+            /* We release new AD which was allocated and updated for copy from to actual AD */
+            p_Pos = LIST_FIRST(h_FmPcdNewPointersLst);
+            p_CcNodeInformation = CC_NODE_F_OBJECT(p_Pos);
+            ASSERT_COND(p_CcNodeInformation->h_CcNode);
+            FM_MURAM_FreeMem(h_Muram, p_CcNodeInformation->h_CcNode);
+        }
 
         /* Free Old data structure if it has to be freed - new data structure was allocated*/
         if (p_AdditionalParams->p_AdTableOld)
@@ -1946,25 +1951,18 @@ static void UpdateGblMask(t_FmPcdCcNode *p_CcNode,
 
 static __inline t_Handle GetNewAd(t_Handle  h_FmPcdCcNodeOrTree, bool isTree)
 {
-    t_FmPcdCcNode   *p_CcNode = (t_FmPcdCcNode *)h_FmPcdCcNodeOrTree;
     t_FmPcd         *p_FmPcd;
     t_Handle        h_Ad;
 
-    if ((isTree) || (p_CcNode->maxNumOfKeys == 0))
-    {
-        h_Ad = (t_Handle)FM_MURAM_AllocMem(FmPcdGetMuramHandle(p_CcNode->h_FmPcd),
-                                           FM_PCD_CC_AD_ENTRY_SIZE,
-                                           FM_PCD_CC_AD_TABLE_ALIGN);
-        if (!h_Ad)
-        {
-            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for CC node action descriptor"));
-            return NULL;
-        }
-    }
-    else
-    {
-        p_FmPcd = (t_FmPcd *)p_CcNode->h_FmPcd;
 
+    if(isTree)
+        p_FmPcd = (t_FmPcd *)(((t_FmPcdCcTree *)h_FmPcdCcNodeOrTree)->h_FmPcd);
+    else
+        p_FmPcd = (t_FmPcd *)(((t_FmPcdCcNode *)h_FmPcdCcNodeOrTree)->h_FmPcd);
+
+
+    if((isTree && p_FmPcd->p_CcShadow) || (!isTree && ((t_FmPcdCcNode *)h_FmPcdCcNodeOrTree)->maxNumOfKeys))
+    {
         /* The allocated shadow is divided as follows:
            0 . . .       16 . . .
            ---------------------------------------------------
@@ -1980,6 +1978,17 @@ static __inline t_Handle GetNewAd(t_Handle  h_FmPcdCcNodeOrTree, bool isTree)
         }
 
         h_Ad = p_FmPcd->p_CcShadow;
+    }
+    else
+    {
+        h_Ad = (t_Handle)FM_MURAM_AllocMem(FmPcdGetMuramHandle(p_FmPcd),
+                                           FM_PCD_CC_AD_ENTRY_SIZE,
+                                           FM_PCD_CC_AD_TABLE_ALIGN);
+        if (!h_Ad)
+        {
+            REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for CC node action descriptor"));
+            return NULL;
+        }
     }
 
     return h_Ad;
@@ -3568,6 +3577,10 @@ t_Error FmPcdCcModifyNextEngineParamTree(t_Handle                   h_FmPcd,
 
     p_ModifyKeyParams->tree = TRUE;
 
+    if(p_FmPcd->p_CcShadow)
+        if (!TRY_LOCK(p_FmPcd->h_ShadowSpinlock, &p_FmPcd->shadowLock))
+            return ERROR_CODE(E_BUSY);
+
     err = BuildNewNodeModifyNextEngine(p_FmPcd,
                                        p_FmPcdCcTree,
                                        keyIndex,
@@ -3581,7 +3594,12 @@ t_Error FmPcdCcModifyNextEngineParamTree(t_Handle                   h_FmPcd,
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
-    return DoDynamicChange(p_FmPcd, &h_OldPointersLst, &h_NewPointersLst, p_ModifyKeyParams, FALSE);
+    err = DoDynamicChange(p_FmPcd, &h_OldPointersLst, &h_NewPointersLst, p_ModifyKeyParams, FALSE);
+
+    if (p_FmPcd->p_CcShadow)
+        RELEASE_LOCK(p_FmPcd->shadowLock);
+
+    return err;
 
 }
 
