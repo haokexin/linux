@@ -192,6 +192,7 @@ machine-$(CONFIG_ARCH_VEXPRESS)		:= vexpress
 machine-$(CONFIG_ARCH_VT8500)		:= vt8500
 machine-$(CONFIG_ARCH_W90X900)		:= w90x900
 machine-$(CONFIG_FOOTBRIDGE)		:= footbridge
+machine-$(CONFIG_ARCH_SPEAR13XX)	:= spear13xx
 machine-$(CONFIG_MACH_SPEAR300)		:= spear3xx
 machine-$(CONFIG_MACH_SPEAR310)		:= spear3xx
 machine-$(CONFIG_MACH_SPEAR320)		:= spear3xx
@@ -210,7 +211,11 @@ plat-$(CONFIG_PLAT_ORION)	:= orion
 plat-$(CONFIG_PLAT_PXA)		:= pxa
 plat-$(CONFIG_PLAT_S3C24XX)	:= s3c24xx samsung
 plat-$(CONFIG_PLAT_S5P)		:= s5p samsung
+ifeq ($(CONFIG_ARCH_SPEAR13XX),y)
+plat-$(CONFIG_PLAT_SPEAR)	:= spear13xx
+else
 plat-$(CONFIG_PLAT_SPEAR)	:= spear
+endif
 plat-$(CONFIG_PLAT_VERSATILE)	:= versatile
 
 ifeq ($(CONFIG_ARCH_EBSA110),y)
