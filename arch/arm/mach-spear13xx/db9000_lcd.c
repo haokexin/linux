@@ -159,7 +159,7 @@ void spear13xx_panel_init(struct platform_device *pdev)
 		pr_err("Invalid panel requested:\n");
 		return;
 	}
-	if (machine_is_spear1340_evb() || machine_is_spear900_evb())
+	if (machine_is_spear1340_evb())
 		mach_info->def_mode = "1024x768-32@60";
 	else
 		mach_info->def_mode = "480x272-32@0";
