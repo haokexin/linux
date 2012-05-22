@@ -2803,13 +2803,13 @@ skip_fraglist:
 		iph->check = ip_fast_csum(skb_network_header(nskb), iph->ihl);
 
 		ret = gfar_start_xmit(nskb, dev);
-		if (unlikely(ret != NETDEV_TX_OK)) {
-			skb = nskb;
-			goto out_tso;
+		if (unlikely(ret)) {
+			dev_kfree_skb_any(nskb);
+			dev_kfree_skb_any(skb);
+			return NETDEV_TX_OK;
 		}
 	} while ((offset += len) < skb->len);
 
-out_tso:
 	gfar_free_skb(skb);
 	return ret;
 }
