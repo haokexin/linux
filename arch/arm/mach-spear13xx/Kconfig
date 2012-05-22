@@ -5,12 +5,6 @@
 if ARCH_SPEAR13XX
 
 menu "SPEAr13xx Implementations"
-config MACH_SPEAR1300_EVB
-	bool "SPEAr1300 Evaluation Board"
-	select CPU_SPEAR1300
-	help
-	  Supports ST SPEAr1300 Evaluation Board
-
 config MACH_SPEAR1310_REVA_EVB
 	bool "SPEAr1310 RevA Evaluation Board"
 	select CPU_SPEAR1310_REVA
@@ -36,18 +30,6 @@ config MACH_SPEAR1340_EVB
 	help
 	  Supports ST SPEAr1340 Evaluation Board
 
-config MACH_SPEAR_HURRICANE
-	bool "NComputing SPEAr Hurricane Board"
-	select CPU_SPEAR1340
-	help
-	  Supports NComputing SPEAr Hurricane Board
-
-config MACH_SPEAR1340_LCAD
-	bool "SPEAr1340 Low Cost Access Device (LCAD) Board"
-	select CPU_SPEAR1340
-	help
-	  Supports SPEAr1340 Low Cost Access Device (LCAD) Board
-
 config SPEAR1340_PLUG_BOARDS
 	bool "SPEAr1340 Plug Boards"
 	depends on MACH_SPEAR1340_EVB && SPEAR_PLUG_BOARDS
@@ -61,11 +43,6 @@ config MACH_SPEAR900_EVB
 	  Supports ST SPEAr900 Evaluation Board
 
 endmenu
-
-config CPU_SPEAR1300
-	bool "SPEAr1300"
-	help
-	  Supports ST SPEAr1300 Machine
 
 config CPU_SPEAR1310_REVA
 	bool "SPEAr1310 RevA"
@@ -81,11 +58,6 @@ config CPU_SPEAR1340
 	bool "SPEAr1340"
 	help
 	  Supports ST SPEAr1340 Machine
-
-config CPU_SPEAR900
-	bool "SPEAr900"
-	help
-	  Supports ST SPEAr900 Machine
 
 config DW_PCIE
 	bool "Synopsys Designware PCIe Host Controller"

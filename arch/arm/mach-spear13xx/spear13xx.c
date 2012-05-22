@@ -1340,13 +1340,10 @@ static void i2s_clk_init(void)
 	struct clk *i2s_ref_pad_clk, *i2s_sclk_clk;
 	char *src_pclk_name, *ref_pclk_name;
 
-	if (machine_is_spear1340_lcad() || !cpu_is_spear1340()) {
-		if (machine_is_spear1340_lcad())
-			src_pclk_name = "pll2_clk";
-		else
-			src_pclk_name = "pll3_clk";
+	if (!cpu_is_spear1340()) {
+		src_pclk_name = "pll3_clk";
 
-		 ref_pclk_name = "i2s_prs1_clk";
+		ref_pclk_name = "i2s_prs1_clk";
 
 		/* set pll to 49.15 Mhz */
 		if (clk_set_rate_sys(NULL, src_pclk_name, 49152000)) {
@@ -1370,7 +1367,7 @@ static void i2s_clk_init(void)
 	}
 
 	/* program prescalar if required */
-	if (machine_is_spear1340_lcad() || !cpu_is_spear1340()) {
+	if (!cpu_is_spear1340()) {
 		/* set to 12.288 Mhz */
 		if (clk_set_rate_sys(NULL, ref_pclk_name, 12288000)) {
 			pr_err("%s:set_rate of %s fail\n", __func__,
