@@ -66,11 +66,7 @@
 #define _fm_cpt_wrn(format, arg...) _fm_cpt_prk(KERN_WARNING, format, ##arg)
 #define _fm_cpt_err(format, arg...) _fm_cpt_prk(KERN_ERR, format, ##arg)
 
-/* there are two macros for debugging: for runtime and generic.
- * Helps when the runtime functions are not targeted for debugging,
- * thus all the unnecessary information will be skipped.
- */
-/* used for generic debugging */
+/* used for compat IOCTL debugging */
 #if defined(FM_COMPAT_DBG)
 	#define _fm_cpt_dbg(from, format, arg...) \
 		do{ \
@@ -374,7 +370,7 @@ typedef struct ioc_compat_fm_pcd_manip_params_t {
      compat_uptr_t                                p_next_manip;        /**< Handle to another (previously defined) manipulation node;
                                                                             Allows concatenation of manipulation actions */
 #ifdef FM_CAPWAP_SUPPORT
-TODO:
+#warning "feature not supported!"
 #endif
     compat_uptr_t                                 id;
 } ioc_compat_fm_pcd_manip_params_t;

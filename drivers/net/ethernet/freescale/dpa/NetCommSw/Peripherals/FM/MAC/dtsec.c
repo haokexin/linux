@@ -710,10 +710,10 @@ static t_Error DtsecDisable (t_Handle h_Dtsec, e_CommMode mode)
 
 /* .............................................................................. */
 
-static t_Error DtsecTxMacPause(t_Handle h_Dtsec,
-                               uint8_t  priority,
-                               uint16_t pauseTime,
-                               uint16_t threshTime)
+static t_Error DtsecSetTxPauseFrames(t_Handle h_Dtsec,
+                                     uint8_t  priority,
+                                     uint16_t pauseTime,
+                                     uint16_t threshTime)
 {
     t_Dtsec         *p_Dtsec = (t_Dtsec *)h_Dtsec;
     uint32_t        ptv = 0;
@@ -750,6 +750,14 @@ UNUSED(priority);UNUSED(threshTime);
                      GET_UINT32(p_MemMap->maccfg1) & ~MACCFG1_TX_FLOW);
 
     return E_OK;
+}
+
+/* .............................................................................. */
+
+static t_Error DtsecSetTxAutoPauseFrames(t_Handle h_Dtsec,
+                                         uint16_t pauseTime)
+{
+    return DtsecSetTxPauseFrames(h_Dtsec, 0, pauseTime, 0);
 }
 
 /* .............................................................................. */
@@ -1840,7 +1848,8 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
     p_FmMacControllerDriver->f_FM_MAC_Enable1588TimeStamp       = DtsecEnable1588TimeStamp;
     p_FmMacControllerDriver->f_FM_MAC_Disable1588TimeStamp      = DtsecDisable1588TimeStamp;
 
-    p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = DtsecTxMacPause;
+    p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = DtsecSetTxAutoPauseFrames;
+    p_FmMacControllerDriver->f_FM_MAC_SetTxPauseFrames          = DtsecSetTxPauseFrames;
     p_FmMacControllerDriver->f_FM_MAC_SetRxIgnorePauseFrames    = DtsecRxIgnoreMacPause;
 
     p_FmMacControllerDriver->f_FM_MAC_ResetCounters             = DtsecResetCounters;

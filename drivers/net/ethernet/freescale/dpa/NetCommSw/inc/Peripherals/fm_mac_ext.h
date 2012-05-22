@@ -60,7 +60,7 @@
  @{
 *//***************************************************************************/
 
-#define FM_MAC_NO_PFC   0xffff
+#define FM_MAC_NO_PFC   0xff
 
 
 /**************************************************************************//**
@@ -204,7 +204,7 @@ typedef struct t_FmMacStatistics {
 typedef struct t_FmMacParams {
     uintptr_t                   baseAddr;           /**< Base of memory mapped FM MAC registers */
     t_EnetAddr                  addr;               /**< MAC address of device; First octet is sent first */
-    uint8_t                     macId;              /**< MAC ID <dTSEC 0-3> <10G 0>         */
+    uint8_t                     macId;              /**< MAC ID <dTSEC 0-3> <10G-MAC 0>      */
     e_EnetMode                  enetMode;           /**< Ethernet operation mode (MAC-PHY interface and speed) */
     t_Handle                    h_Fm;               /**< A handle to the FM object this port related to */
     int                         mdioIrq;            /**< MDIO exceptions interrupt source - not valid for all
@@ -314,7 +314,7 @@ t_Error FM_MAC_ConfigMaxFrameLength(t_Handle h_FmMac, uint16_t newVal);
 /**************************************************************************//**
  @Function      FM_MAC_ConfigWan
 
- @Description   ENABLE WAN mode in 10G MAC
+ @Description   ENABLE WAN mode in 10G-MAC
 
  @Param[in]     h_FmMac    A handle to a FM MAC Module.
  @Param[in]     enable     TRUE to enable or FALSE to disable.
@@ -469,7 +469,28 @@ t_Error FM_MAC_Disable1588TimeStamp(t_Handle h_Fm);
  @Function      FM_MAC_SetTxAutoPauseFrames
 
  @Description   Enable/Disable transmission of Pause-Frames.
-                The routine will ct changes the default configuration [0xf000].
+                The routine changes the default configuration [0xf000].
+
+ @Param[in]     h_FmMac       -  A handle to a FM MAC Module.
+ @Param[in]     pauseTime     -  Pause quanta value used with transmitted pause frames.
+                                 Each quanta represents a 512 bit-times; Note that '0'
+                                 as an input here will be used as disabling the
+                                 transmission of the pause-frames.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Init().
+*//***************************************************************************/
+t_Error FM_MAC_SetTxAutoPauseFrames(t_Handle h_FmMac,
+                                    uint16_t pauseTime);
+
+ /**************************************************************************//**
+ @Function      FM_MAC_SetTxPauseFrames
+
+ @Description   Enable/Disable transmission of Pause-Frames.
+                The routine changes the default configuration:
+                pause-time - [0xf000]
+                threshold-time - [0]
 
  @Param[in]     h_FmMac       -  A handle to a FM MAC Module.
  @Param[in]     priority      -  the PFC class of service; use 'FM_MAC_NO_PFC'
@@ -486,11 +507,14 @@ t_Error FM_MAC_Disable1588TimeStamp(t_Handle h_Fm);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_MAC_Init().
+                PFC is supported only on new mEMAC; i.e. in MACs that don't have
+                PFC support (10G-MAC and dTSEC), user should use 'FM_MAC_NO_PFC'
+                in the 'priority' field.
 *//***************************************************************************/
-t_Error FM_MAC_SetTxAutoPauseFrames(t_Handle h_FmMac,
-                                    uint8_t  priority,
-                                    uint16_t pauseTime,
-                                    uint16_t threshTime);
+t_Error FM_MAC_SetTxPauseFrames(t_Handle h_FmMac,
+                                uint8_t  priority,
+                                uint16_t pauseTime,
+                                uint16_t threshTime);
 
 /**************************************************************************//**
  @Function      FM_MAC_SetRxIgnorePauseFrames
@@ -765,6 +789,10 @@ t_Error FM_MAC_MII_ReadPhyReg(t_Handle h_FmMac,  uint8_t phyAddr, uint8_t reg, u
 t_Error FM_MAC_DumpRegs(t_Handle h_FmMac);
 #endif /* (defined(DEBUG_ERRORS) && ... */
 
+/** @} */ /* end of FM_mac_runtime_control_grp group */
+/** @} */ /* end of FM_mac_grp group */
+/** @} */ /* end of FM_grp group */
+
 /**************************************************************************//**
  @Function      DtsecRestartTbiAN
 
@@ -773,10 +801,5 @@ t_Error FM_MAC_DumpRegs(t_Handle h_FmMac);
  @Param[in]     h_Dtsec     -   A handle to the Dtsec.
 *//***************************************************************************/
 void DtsecRestartTbiAN(t_Handle h_Dtsec);
-
-/** @} */ /* end of FM_mac_runtime_control_grp group */
-/** @} */ /* end of FM_mac_grp group */
-/** @} */ /* end of FM_grp group */
-
 
 #endif /* __FM_MAC_EXT_H */

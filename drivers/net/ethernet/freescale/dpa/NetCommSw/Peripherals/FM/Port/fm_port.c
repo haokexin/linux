@@ -3188,7 +3188,9 @@ t_Error FM_PORT_SetSizeOfFifo(t_Handle h_FmPort, t_FmPortRsrc *p_SizeOfFifo)
 
     p_FmPort->explicitUserSizeOfFifo = TRUE;
     /* we do not change user's parameter */
-    VerifySizeOfFifo(p_FmPort);
+    err = VerifySizeOfFifo(p_FmPort);
+    if(err)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
 
     err = FmSetSizeOfFifo(p_FmPort->h_Fm, p_FmPort->hardwarePortId, p_SizeOfFifo->num, p_SizeOfFifo->extra, FALSE);
     if(err)
@@ -4578,9 +4580,12 @@ t_Error FM_PORT_DetachPCD(t_Handle h_FmPort)
 
 t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
 {
-    t_FmPort            *p_FmPort = (t_FmPort*)h_FmPort;
-    t_Error             err = E_OK;
-    t_FmPortPcdParams   modifiedPcdParams, *p_PcdParams;
+    t_FmPort                *p_FmPort = (t_FmPort*)h_FmPort;
+    t_Error                 err = E_OK;
+    t_FmPortPcdParams       modifiedPcdParams, *p_PcdParams;
+    t_FmPcdCcTreeParams     *p_FmPcdCcTreeParams;
+    t_FmPortPcdCcParams     fmPortPcdCcParams;
+    t_FmPortGetSetCcParams  fmPortGetSetCcParams;
 
     SANITY_CHECK_RETURN_ERROR(h_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_STATE);
@@ -4612,10 +4617,6 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
         p_FmPort->h_IpReassemblyManip = p_PcdParams->h_IpReassemblyManip;
         if (!p_PcdParams->p_CcParams)
         {
-            /* No user-tree, need to build internal tree */
-            t_FmPcdCcTreeParams         *p_FmPcdCcTreeParams;
-            t_FmPortPcdCcParams         fmPortPcdCcParams;
-
             if (!((p_PcdParams->pcdSupport == e_FM_PORT_PCD_SUPPORT_PRS_AND_KG) ||
                   (p_PcdParams->pcdSupport == e_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR)))
             {
@@ -4623,6 +4624,7 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("PCD initialization structure is not consistent with pcdSupport"));
             }
 
+            /* No user-tree, need to build internal tree */
             p_FmPcdCcTreeParams = (t_FmPcdCcTreeParams*)XX_Malloc(sizeof(t_FmPcdCcTreeParams));
             if(!p_FmPcdCcTreeParams)
                 RETURN_ERROR(MAJOR, E_NO_MEMORY, ("p_FmPcdCcTreeParams"));
@@ -4713,8 +4715,6 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
 
     if (FmPcdIsAdvancedOffloadSupported(p_FmPort->h_FmPcd))
     {
-        t_FmPortGetSetCcParams      fmPortGetSetCcParams;
-
         memset(&fmPortGetSetCcParams, 0, sizeof(t_FmPortGetSetCcParams));
 
         if (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)

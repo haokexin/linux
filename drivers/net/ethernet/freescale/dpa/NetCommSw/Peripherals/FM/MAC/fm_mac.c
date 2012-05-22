@@ -324,9 +324,7 @@ t_Error FM_MAC_Disable1588TimeStamp (t_Handle h_FmMac)
 /* ........................................................................... */
 
 t_Error FM_MAC_SetTxAutoPauseFrames(t_Handle h_FmMac,
-                                    uint8_t  priority,
-                                    uint16_t pauseTime,
-                                    uint16_t threshTime)
+                                    uint16_t pauseTime)
 {
     t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;
 
@@ -334,9 +332,27 @@ t_Error FM_MAC_SetTxAutoPauseFrames(t_Handle h_FmMac,
 
     if (p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames)
         return p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames(h_FmMac,
-                                                                      priority,
-                                                                      pauseTime,
-                                                                      threshTime);
+                                                                      pauseTime);
+
+    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
+}
+
+/* ........................................................................... */
+
+t_Error FM_MAC_SetTxPauseFrames(t_Handle h_FmMac,
+                                uint8_t  priority,
+                                uint16_t pauseTime,
+                                uint16_t threshTime)
+{
+    t_FmMacControllerDriver *p_FmMacControllerDriver = (t_FmMacControllerDriver *)h_FmMac;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmMacControllerDriver, E_INVALID_HANDLE);
+
+    if (p_FmMacControllerDriver->f_FM_MAC_SetTxPauseFrames)
+        return p_FmMacControllerDriver->f_FM_MAC_SetTxPauseFrames(h_FmMac,
+                                                                  priority,
+                                                                  pauseTime,
+                                                                  threshTime);
 
     RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
 }

@@ -439,10 +439,10 @@ static t_Error TgecConfigSkipFman11Workaround(t_Handle h_Tgec)
 
 /* .............................................................................. */
 
-static t_Error TgecTxMacPause(t_Handle h_Tgec,
-                              uint8_t  priority,
-                              uint16_t pauseTime,
-                              uint16_t threshTime)
+static t_Error TgecSetTxPauseFrames(t_Handle h_Tgec,
+                                    uint8_t  priority,
+                                    uint16_t pauseTime,
+                                    uint16_t threshTime)
 {
     t_Tgec          *p_Tgec = (t_Tgec *)h_Tgec;
     uint32_t        ptv = 0;
@@ -461,6 +461,14 @@ UNUSED(priority);UNUSED(threshTime);
     WRITE_UINT32(p_MemMap->pause_quant, ptv);
 
     return E_OK;
+}
+
+/* .............................................................................. */
+
+static t_Error TgecSetTxAutoPauseFrames(t_Handle h_Tgec,
+                                        uint16_t pauseTime)
+{
+    return TgecSetTxPauseFrames(h_Tgec, 0, pauseTime, 0);
 }
 
 /* .............................................................................. */
@@ -1152,7 +1160,8 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
     p_FmMacControllerDriver->f_FM_MAC_Enable                    = TgecEnable;
     p_FmMacControllerDriver->f_FM_MAC_Disable                   = TgecDisable;
 
-    p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = TgecTxMacPause;
+    p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = TgecSetTxAutoPauseFrames;
+    p_FmMacControllerDriver->f_FM_MAC_SetTxPauseFrames          = TgecSetTxPauseFrames;
     p_FmMacControllerDriver->f_FM_MAC_SetRxIgnorePauseFrames    = TgecRxIgnoreMacPause;
 
     p_FmMacControllerDriver->f_FM_MAC_ResetCounters             = TgecResetCounters;
