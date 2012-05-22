@@ -251,7 +251,7 @@ static ssize_t at24_eeprom_read(struct at24_data *at24, char *buf,
 		default:
 			status = i2c_transfer(client->adapter, msg, 2);
 			if (status == 2)
-				status = count;
+				status = count = msg[1].len;
 		}
 		dev_dbg(&client->dev, "read %zu@%d --> %d (%ld)\n",
 				count, offset, status, jiffies);
