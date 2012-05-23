@@ -118,25 +118,25 @@ static uint8_t GetMiiDiv(int32_t refClk)
         div = 2;
         minRange = (int)tmpClk;
     }
-    tmpClk = (uint32_t)ABS(refClk/60 - 1);
+    tmpClk = (uint32_t)ABS(refClk/80 - 1);
     if (tmpClk < minRange)
     {
         div = 3;
         minRange = (int)tmpClk;
     }
-    tmpClk = (uint32_t)ABS(refClk/80 - 1);
+    tmpClk = (uint32_t)ABS(refClk/100 - 1);
     if (tmpClk < minRange)
     {
         div = 4;
         minRange = (int)tmpClk;
     }
-    tmpClk = (uint32_t)ABS(refClk/100 - 1);
+    tmpClk = (uint32_t)ABS(refClk/140 - 1);
     if (tmpClk < minRange)
     {
         div = 5;
         minRange = (int)tmpClk;
     }
-    tmpClk = (uint32_t)ABS(refClk/140 - 1);
+    tmpClk = (uint32_t)ABS(refClk/200 - 1);
     if (tmpClk < minRange)
     {
         div = 6;
