@@ -285,6 +285,7 @@ struct sata_fsl_host_priv {
 	struct device_attribute intr_coalescing;
 	u32 quirks;
 #define SATA_FSL_QUIRK_P3P5_ERRATA	(1 << 0)
+	struct device_attribute rx_watermark;
 };
 
 static void sata_fsl_dev_config(struct ata_device *dev)
@@ -345,6 +346,48 @@ static ssize_t fsl_sata_intr_coalescing_store(struct device *dev,
 	fsl_sata_set_irq_coalescing(dev_get_drvdata(dev),
 			coalescing_count, coalescing_ticks);
 
+	return strlen(buf);
+}
+
+static ssize_t fsl_sata_rx_watermark_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	unsigned int rx_watermark;
+	unsigned long flags;
+	struct ata_host *host = dev_get_drvdata(dev);
+	struct sata_fsl_host_priv *host_priv = host->private_data;
+	void __iomem *csr_base = host_priv->csr_base;
+
+	spin_lock_irqsave(&host->lock, flags);
+	rx_watermark = ioread32(csr_base + TRANSCFG);
+	rx_watermark &= 0x1f;
+
+	spin_unlock_irqrestore(&host->lock, flags);
+	return sprintf(buf, "%d\n", rx_watermark);
+}
+
+static ssize_t fsl_sata_rx_watermark_store(struct device *dev,
+		struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	unsigned int rx_watermark;
+	unsigned long flags;
+	struct ata_host *host = dev_get_drvdata(dev);
+	struct sata_fsl_host_priv *host_priv = host->private_data;
+	void __iomem *csr_base = host_priv->csr_base;
+	u32 temp;
+
+	if (sscanf(buf, "%d", &rx_watermark) != 1) {
+		printk(KERN_ERR "fsl-sata: wrong parameter format.\n");
+		return -EINVAL;
+	}
+
+	spin_lock_irqsave(&host->lock, flags);
+	temp = ioread32(csr_base + TRANSCFG);
+	temp &= 0xffffffe0;
+	iowrite32(temp | rx_watermark, csr_base + TRANSCFG);
+
+	spin_unlock_irqrestore(&host->lock, flags);
 	return strlen(buf);
 }
 
@@ -1537,6 +1580,14 @@ static int sata_fsl_probe(struct platform_device *ofdev)
 	host_priv->intr_coalescing.attr.name = "intr_coalescing";
 	host_priv->intr_coalescing.attr.mode = S_IRUGO | S_IWUSR;
 	retval = device_create_file(host->dev, &host_priv->intr_coalescing);
+
+	host_priv->rx_watermark.show = fsl_sata_rx_watermark_show;
+	host_priv->rx_watermark.store = fsl_sata_rx_watermark_store;
+	sysfs_attr_init(&host_priv->rx_watermark.attr);
+	host_priv->rx_watermark.attr.name = "rx_watermark";
+	host_priv->rx_watermark.attr.mode = S_IRUGO | S_IWUSR;
+	retval |= device_create_file(host->dev, &host_priv->rx_watermark);
+
 	if (retval)
 		goto error_exit_with_cleanup;
 
@@ -1563,6 +1614,7 @@ static int sata_fsl_remove(struct platform_device *ofdev)
 	struct sata_fsl_host_priv *host_priv = host->private_data;
 
 	device_remove_file(&ofdev->dev, &host_priv->intr_coalescing);
+	device_remove_file(&ofdev->dev, &host_priv->rx_watermark);
 
 	ata_host_detach(host);
 
