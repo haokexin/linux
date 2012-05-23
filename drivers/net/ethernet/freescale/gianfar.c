@@ -4423,6 +4423,9 @@ static int __init gfar_init(void)
 	gfar_global_recycle_cntxt = gfar_init_recycle_cntxt();
 	if (!gfar_global_recycle_cntxt)
 		return -ENOMEM;
+#ifdef CONFIG_RX_TX_BUFF_XCHG
+	tx_napi_enabled = 0;
+#endif
 	return platform_driver_register(&gfar_driver);
 }
 
