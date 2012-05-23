@@ -56,6 +56,18 @@ static void __init quirk_fsl_pcie_header(struct pci_dev *dev)
 	return;
 }
 
+static void __init quirk_p2020ds_pci_header(struct pci_dev *dev)
+{
+
+	/* if we aren't p2020_ds don't bother */
+	if (!machine_is(p2020_ds))
+		return;
+	/* Disable Nvidia M1575 bridge on p2020_ds USB */
+	dev->device = 0xffff; /* be Illegal */
+	dev->class =  PCI_CLASS_OTHERS;
+	return;
+}
+
 static int __init fsl_pcie_check_link(struct pci_controller *hose)
 {
 	u32 val;
@@ -543,6 +555,10 @@ int __init fsl_add_bridge(struct device_node *dev, int is_primary)
 #endif /* CONFIG_FSL_SOC_BOOKE || CONFIG_PPC_86xx */
 
 DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_FREESCALE, PCI_ANY_ID, quirk_fsl_pcie_header);
+/* P2020DS board pull USB clk signal to Ground, we must prevent PCI to acess USB device on the Nvidia M1575 */
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M5237, quirk_p2020ds_pci_header);
+DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M5239, quirk_p2020ds_pci_header);
+
 
 #if defined(CONFIG_PPC_83xx) || defined(CONFIG_PPC_MPC512x)
 struct mpc83xx_pcie_priv {
