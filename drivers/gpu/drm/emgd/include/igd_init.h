@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_init.h
- * $Revision: 1.10 $
+ * $Revision: 1.14 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -502,8 +502,38 @@ typedef struct _igd_param {
 	int                 polling;
 	unsigned long 		ref_freq;
 	int 				tuning_wa;
+	unsigned long 		clip_hw_fix;
+
+
+	/* Async flip flickering workaround enable */
+	unsigned long		async_flip_wa;
+
+	/*
+	 * Enable override of following registers when en_reg_override=1.
+	 * Display Arbitration, FIFO Watermark Control, GVD HP_CONTROL,
+	 * Bunit Chickenbits, Bunit Write Flush, Display Chickenbits
+	 */
+	unsigned long		en_reg_override;
+	unsigned long		disp_arb;
+	unsigned long		fifo_watermark1;
+	unsigned long		fifo_watermark2;
+	unsigned long		fifo_watermark3;
+	unsigned long		fifo_watermark4;
+	unsigned long		fifo_watermark5;
+	unsigned long		fifo_watermark6;
+	unsigned long		gvd_hp_control;
+	unsigned long		bunit_chicken_bits;
+	unsigned long		bunit_write_flush;
+	unsigned long		disp_chicken_bits;
+	int					punt_to_3dblit;
 
 } igd_param_t;
+
+typedef struct {
+	unsigned debug : 1;
+	unsigned ddk_version : 16;
+	unsigned emgd_version : 15;
+} igd_build_config_t;
 
 /*! @} */
 
@@ -790,6 +820,33 @@ void igd_driver_shutdown_hal(igd_driver_h driver_handle);
 
 
 /*!
+ * @ingroup cleanup
+ * @brief Query 2D capability of the hardware.
+ *
+ * This function query the hardware whether given capabilities value
+ * (caps_val) is supported by hardware.
+ *
+ * @param driver_handle The driver handle returned from igd_driver_init().
+ *
+ * @return void
+ */
+void igd_query_2d_caps_hwhint(igd_driver_h driver_handle,
+			unsigned long caps_val,
+			unsigned long *status);
+
+
+
+/* 2D capabilities to query */
+#define IGD_2D_CAPS_BLT                 0
+
+/* Output of 2D capabilities to query */
+#define IGD_2D_HW_DISABLE                       0
+#define IGD_2D_HW_ENABLE                        1
+#define IGD_2D_CAPS_UNKNOWN                     2
+
+
+
+/*!
  * @addtogroup power_group
  * @{
  */
@@ -801,15 +858,19 @@ void igd_driver_shutdown_hal(igd_driver_h driver_handle);
  * Flags for use with dispatch->driver_save()
  * @{
  */
-#define IGD_REG_SAVE_VGA       0x001
-#define IGD_REG_SAVE_DAC       0x002
-#define IGD_REG_SAVE_MMIO      0x004
-#define IGD_REG_SAVE_RB        0x008
-#define IGD_REG_SAVE_VGA_MEM   0x010
-#define IGD_REG_SAVE_MODE      0x020
-#define IGD_REG_SAVE_BACKLIGHT 0x040
-#define IGD_REG_SAVE_3D        0x080
-#define IGD_REG_SAVE_GTT       0x100
+#define IGD_REG_SAVE_VGA       0x00001
+#define IGD_REG_SAVE_DAC       0x00002
+#define IGD_REG_SAVE_MMIO      0x00004
+#define IGD_REG_SAVE_RB        0x00008
+#define IGD_REG_SAVE_VGA_MEM   0x00010
+#define IGD_REG_SAVE_MODE      0x00020
+#define IGD_REG_SAVE_BACKLIGHT 0x00040
+#define IGD_REG_SAVE_3D        0x00080
+#define IGD_REG_SAVE_GTT       0x00100
+#define IGD_REG_SAVE_TYPE_REG  0x10000
+#define IGD_REG_SAVE_TYPE_CON  0x20000
+#define IGD_REG_SAVE_TYPE_MISC 0x40000
+#define IGD_REG_SAVE_TYPE_MASK 0xF0000
 
 #define IGD_REG_SAVE_ALL (IGD_REG_SAVE_VGA | IGD_REG_SAVE_DAC |  \
 		IGD_REG_SAVE_MMIO | IGD_REG_SAVE_RB | IGD_REG_SAVE_VGA_MEM | \
@@ -827,15 +888,5 @@ void igd_driver_shutdown_hal(igd_driver_h driver_handle);
 
 
 /*! @} */
-
-
-
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_init.h,v 1.10 2011/03/02 22:47:07 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/include/igd_init.h,v $
- *----------------------------------------------------------------------------
- */
 
 #endif /* _IGD_INIT_H_ */

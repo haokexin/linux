@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: sdvo_intf.h
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -479,9 +479,3 @@ sdvo_status_t sdvo_execute_command_read(sdvo_device_context_t *p_ctx,
 
 #endif  /*  _SDVO_INTF_H_ */
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: sdvo_intf.h,v 1.7 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/pal/sdvo/sdvo_intf.h,v $
- *----------------------------------------------------------------------------
- */

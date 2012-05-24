@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: i2c_bitbash_tnc.c
- * $Revision: 1.7 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -80,7 +80,8 @@ int i2c_read_regs_gpio(
 	unsigned long dab,
 	unsigned char reg,
 	unsigned char FAR *buffer,
-	unsigned long num_bytes);
+	unsigned long num_bytes,
+	unsigned long flags);
 
 int i2c_write_reg_list_gpio(
 	igd_context_t *context,
@@ -177,7 +178,7 @@ static void i2c_set_data(int data,
 	}
 	WRITE_MMIO_REG_TNC(IGD_PORT_LPC, RGLVL, temp);
 
-	OS_SLEEP(hold_time);
+	OS_DELAY(hold_time);
 
 #if 0
 	/* Implementation using Display GPIO
@@ -192,7 +193,7 @@ static void i2c_set_data(int data,
 	 */
 	EMGD_WRITE32(data ? 0x500 : 0x700, EMGD_MMIO(mmio) + i2c_bus);
 	EMGD_WRITE32(data ? 0x400 : 0x600, EMGD_MMIO(mmio) + i2c_bus);
-	OS_SLEEP(hold_time);
+	OS_DELAY(hold_time);
 #endif
 }
 
@@ -225,7 +226,7 @@ static void i2c_set_clock(int clock,
 	}
 	WRITE_MMIO_REG_TNC(IGD_PORT_LPC, RGLVL, temp);
 
-	OS_SLEEP(hold_time);
+	OS_DELAY(hold_time);
 
 #if 0
 	/*
@@ -238,7 +239,7 @@ static void i2c_set_clock(int clock,
 
 	EMGD_WRITE32(clock ? 0x5 : 0x7, EMGD_MMIO(mmio) + i2c_bus);
 	EMGD_WRITE32(clock ? 0x4 : 0x6, EMGD_MMIO(mmio) + i2c_bus);
-	OS_SLEEP(hold_time);
+	OS_DELAY(hold_time);
 #endif
 }
 
@@ -352,7 +353,7 @@ static int i2c_write_byte_tnc(unsigned char value,
 	/* Set data low. Possible inteference in some lvds panel */
 	i2c_set_data(0, hold_time);
 	i2c_set_clock(1, hold_time);
-	OS_SLEEP(hold_time);
+	OS_DELAY(hold_time);
 
 	i2c_get(&sc, &sd);
 
@@ -388,7 +389,7 @@ static int i2c_read_byte_tnc(unsigned char *value,
 	for(i=7; i>=0; i--) {
 		i2c_set_clock(1, hold_time);
 		i2c_get(&sc, &sd);
-		OS_SLEEP(hold_time);
+		OS_DELAY(hold_time);
 		if(!sc) {
 			EMGD_DEBUG("Clock low on read %d", i);
 			i2c_error_recovery_tnc(hold_time);
@@ -435,7 +436,9 @@ int i2c_read_regs_gpio(igd_context_t *context,
 	unsigned long dab,
 	unsigned char reg,
 	unsigned char FAR *buffer,
-	unsigned long num_bytes)
+	unsigned long num_bytes,
+	unsigned long flags
+	)
 {
 	unsigned long hold_time;
 	unsigned char temp;
@@ -449,7 +452,11 @@ int i2c_read_regs_gpio(igd_context_t *context,
 	 * We are holding the clock LOW for "hold_time" and then HIGH for
 	 * "hold_time". Therefore, we double the clock speed in this calculation.
 	 */
+	if (flags & IGD_I2C_WRITE_FW){
+		hold_time = 1;
+	} else {
 	hold_time = 1000/(i2c_speed * 2);
+	}
 
 	/* enable_gpio_tnc(context); */
 
@@ -538,7 +545,11 @@ int i2c_write_reg_list_gpio(igd_context_t *context,
 	 * We are holding the clock LOW for "hold_time" and then HIGH for
 	 * "hold_time". Therefore, we double the clock speed in this calculation.
 	 */
+	if (flags & IGD_I2C_WRITE_FW){
+		hold_time = 1;
+	} else {
 	hold_time = 1000/(i2c_speed * 2);
+	}
 
 	/* enable_gpio_tnc(context); */
 
@@ -586,9 +597,3 @@ int i2c_write_reg_list_gpio(igd_context_t *context,
 	return 0;
 }
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: i2c_bitbash_tnc.c,v 1.7 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/pi/tnc/i2c_bitbash_tnc.c,v $
- *----------------------------------------------------------------------------
- */

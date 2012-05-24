@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd.h
- * $Revision: 1.14 $
+ * $Revision: 1.21 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -77,7 +77,8 @@ typedef struct _igd_dispatch {
 	 * @param driver_handle The driver handle returned from igd_driver_init().
 	 *
 	 * @param flags Any combination of the @ref driver_save_flags
-	 *  flags which control the types of state to be saved.
+	 *  flags which control the types of state to be saved. Also used to
+	 *  specify where we save the register data.
 	 *
 	 * @return 0 on Success
 	 * @return <0 on Error
@@ -92,10 +93,14 @@ typedef struct _igd_dispatch {
 	 *
 	 * @param driver_handle The driver handle returned from igd_driver_init().
 	 *
+	 * @param flags Used to specify where we are restoring from,
+	 *  @ref driver_save_flags
+	 *
 	 * @return 0 on Success
 	 * @return <0 on Error
 	 */
-	int (*driver_restore)(igd_driver_h driver_handle);
+	int (*driver_restore)(igd_driver_h driver_handle,
+		const unsigned long flags);
 
 	/*!
 	 * Save all driver registers and then restore all
@@ -104,11 +109,12 @@ typedef struct _igd_dispatch {
 	 * is non-null before calling.
 	 *
 	 * @param driver_handle The driver handle returned from igd_driver_init().
+	 * @param flags Flags indicating what registers to save
 	 *
 	 * @return 0 on Success
 	 * @return <0 on Error
 	 */
-	int (*driver_save_restore)(igd_driver_h driver_handle);
+	int (*driver_save_restore)(igd_driver_h driver_handle, unsigned long flags);
 
 	/*!
 	 * Gets the value of a runtime driver parameter. These parameters are
@@ -269,6 +275,41 @@ typedef struct _igd_dispatch {
 		igd_display_info_t *secondary_pt_info,
 		igd_framebuffer_info_t *secondary_fb_info,
 		unsigned long dc,
+		unsigned long flags);
+
+	/*!
+	 * igd_configure_display() Modifies the modes associated with one display
+	 *  pipes according to the dc provided.
+	 *
+	 *  @param driver_handle - required.  This is returned from a call to
+	 *   igd_init_driver().
+	 *
+	 *  @param display A pointer to a display handle that will be used
+	 *   during the call. This handle should be used for all rendering
+	 *   tasks directed to the secondary framebuffer or pipe.
+	 *
+	 *  @param pt_info The display timing information to be used for
+	 *    the display pipe.
+	 *
+	 *  @param fb_info The framebuffer parameters to be used for the
+	 *   display. This data may be larger or smaller than the display
+	 *   timings to allow for centered/panned or scaled modes.
+	 *
+	 *  @param dc A unique identifer to describe the configuration of the
+	 *   displays to be used. This identifier should be one returned from
+	 *   the _igd_dispatch::query_dc() call. See @ref dc_defines.
+	 *
+	 *  @param fb_index What is the 0-based framebuffer index
+	 *
+	 *  @param flags Bitfield to alter the behavior of the call.
+	 */
+	int (*igd_configure_display)(
+	    igd_driver_h driver_handle,
+	    igd_display_h *display,
+	    igd_display_info_t *pt_info,
+	    igd_framebuffer_info_t *fb_info,
+	    unsigned long dc,
+	    int fb_index,
 		unsigned long flags);
 
 	/*!
@@ -702,6 +743,23 @@ typedef struct _igd_dispatch {
 		unsigned int type,
 		unsigned long *flags);
 
+	/*!
+	 * This function maps an existing list of pages into the GTT.
+	 *
+	 * @param pagelist The live list of pages to be mapped.  The GMM
+	 *   should not modify or release this list.
+	 * @param gtt_offset The offset into the Gtt memory space at which the
+	 *   pages begin.  This is an output only.
+	 *
+	 * @param numpages The number of pages to map (i.e., length of pagelist).
+	 *
+	 * @returns 0 on Success
+	 * @returns <0 Error
+	 */
+	int (*gmm_import_pages)(void **pagelist,
+			unsigned long *gtt_offset,
+			unsigned long numpages);
+
 	int (*gmm_get_num_surface)(unsigned long *count);
 	int (*gmm_get_surface_list)(unsigned long allocated_size,
 		unsigned long *list_size,
@@ -767,6 +825,23 @@ typedef struct _igd_dispatch {
 	 * @returns void
 	 */
 	void (*gmm_free)(unsigned long offset);
+
+	/*!
+	 *  This function should be used to release externally-allocated
+	 *  page lists that have been imported into the GMM.  This will
+	 *  simply unmap the pages from the GTT; the pages themselves
+	 *  should subsequently be freed by the external source.
+	 *  Calling with offsets that were not obtained via a
+	 *  prior call to _igd_dispatch::gmm_import_pages() or
+	 *  are invalid and will produce undefined results.
+	 *  Calls to this function are only valid after the igd_module_init()
+	 *  function has been called.
+	 *
+	 * @param offset The offset as provided by the allocation function.
+	 *
+	 * @returns void
+	 */
+	void (*gmm_release_import)(unsigned long offset);
 
 	/*!
 	 * This function returns current memory statistics.
@@ -1320,6 +1395,14 @@ typedef struct _igd_dispatch {
 		igd_ovl_info_t      *ovl_info,
 		unsigned int         flags);
 
+/*	int (*alter_ovl2_dihclone)(igd_display_h display_h,
+		igd_surface_t       *src_surf,
+		igd_rect_t          *src_rect,
+		igd_rect_t          *dest_rect,
+		igd_ovl_info_t      *ovl_info,
+		unsigned int         flags);*/
+
+
 	/* igd_ovl.h */
 	/*!
 	 *  Retrieve the kernel mode initialization parameters for overlay.
@@ -1365,6 +1448,24 @@ typedef struct _igd_dispatch {
 		unsigned long pf,
 		unsigned int *max_width,
 		unsigned int *max_height);
+
+	/*!
+	 * Alter the sprite C plane with the associated osd/subpicture data
+	 */
+    int (*alter_ovl_osd)(igd_display_h display_h,
+        igd_appcontext_h     appcontext_h,
+        igd_surface_t *sub_surface,
+        igd_rect_t *sub_src_rect,
+        igd_rect_t *sub_dest_rect,
+        igd_ovl_info_t      *ovl_info,
+        unsigned int         flags);
+
+	int (*alter_ovl2_osd)(igd_display_h display_h,
+		igd_surface_t *sub_surface,
+		igd_rect_t *sub_src_rect,
+		igd_rect_t *sub_dest_rect,
+		igd_ovl_info_t      *ovl_info,
+		unsigned int         flags);
 
 	/* igd_render.h */
 	_igd_get_surface_fn_t get_surface;
@@ -1474,6 +1575,40 @@ typedef struct _igd_dispatch {
 	 */
 	void (*video_shutdown)(void);
 
+
+	/*!
+	 * Query the hardware on for given 2D Caps.
+	 */
+	void (*query_2d_caps_hwhint)(unsigned long caps_val,
+		unsigned long *status);
+
+	int (*dihclone_set_surface)(
+	unsigned long display_number,
+	unsigned long mode);
+
+	/*!
+	 *  Allows a user mode application to change pixel format of a display
+	 *  plane from XRGB to ARGB and vice versa.
+	 *
+	 * @param enable (IN). Whether to turn on transparency or not with the
+	 *  assumption that XRGB turns off transparency and ARGB turns it on.
+	 *  0 = disable
+	 *  1 = enable
+	 * @param display_plane (IN). Which display plane to change pixel_format of
+	 *  0 = Plane A
+	 *  1 = Plane B
+	 */
+	int (*control_plane_format)(int enable, igd_display_h display_handle);
+
+	/*!
+	 * Overlay Plane assignment override.
+	 */
+	int (*set_ovl_display)(igd_display_h ovl_displays[]);
+
+/*!
+	 * Get MSVDX status.
+	 */
+	int (*msvdx_status)(igd_driver_h driver_handle, unsigned long *queue_status, unsigned long *mtx_msg_status);
 } igd_dispatch_t;
 
 #endif

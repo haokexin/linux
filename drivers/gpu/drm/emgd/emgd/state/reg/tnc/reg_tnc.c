@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: reg_tnc.c
- * $Revision: 1.15 $
+ * $Revision: 1.17 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -72,6 +72,10 @@ static int reg_save_tnc(igd_context_t *context, reg_buffer_t *reg_buffer,
 	void *_platform_context);
 static int reg_restore_tnc(igd_context_t *context, reg_buffer_t *reg_buffer,
 	void *_platform_context);
+static void reg_crtc_lut_get_tnc(igd_context_t *context,
+    emgd_crtc_t *emgd_crtc);
+static void reg_crtc_lut_set_tnc(igd_context_t *context,
+    emgd_crtc_t *emgd_crtc);
 
 /* GR registers being saved */
 static unsigned char gr_regs_tnc[] = {
@@ -175,13 +179,13 @@ static unsigned long mmio_regs_tnc[] = {
 	DPYC_GAMC4, DPYC_GAMC3, DPYC_GAMC2, DPYC_GAMC1, DPYC_GAMC0,
 
 	/* Enable Plane C */
-	DSPCCNTR, DSPCLINOFF,
+	DSPCCNTR, DSPCLINOFF, DSPCSURF,
 
 	/* Enable Plane B */
-	DSPBCNTR, DSPBLINOFF,
+	DSPBCNTR, DSPBLINOFF, DSPBSURF,
 
 	/* Enable Plane A */
-	DSPACNTR, DSPALINOFF,
+	DSPACNTR, DSPALINOFF, DSPASURF,
 
 	/* Enable VGA Plane */
 	VGACNTRL,
@@ -319,6 +323,8 @@ reg_dispatch_t reg_dispatch_tnc = {
 	reg_free_tnc,
 	reg_save_tnc,
 	reg_restore_tnc,
+	reg_crtc_lut_get_tnc,
+	reg_crtc_lut_set_tnc,
 	&reg_platform_context_tnc
 };
 
@@ -634,6 +640,76 @@ static int reg_save_dac_tnc(
 	return 0;
 }
 
+static void reg_crtc_lut_set_tnc(
+	igd_context_t *context,
+	emgd_crtc_t *emgd_crtc)
+{
+	int i;
+	unsigned long pal_reg;
+	unsigned char *mmio;
+
+	EMGD_TRACE_ENTER;
+
+	mmio = context->device_context.virt_mmadr;
+
+    /* Check if the pipe is enabled */
+    if ((emgd_crtc->crtc_id == IGD_KMS_PIPEA &&
+		((EMGD_READ32(mmio + PIPEA_CONF) & PIPE_ENABLE) &&
+        (EMGD_READ32(mmio + PIPEASRC)))) ||
+		(emgd_crtc->crtc_id == IGD_KMS_PIPEB &&
+		((EMGD_READ32(mmio + PIPEB_CONF) & PIPE_ENABLE) &&
+        (EMGD_READ32(mmio + PIPEBSRC))))) {
+
+		pal_reg = (unsigned long)(mmio + DPALETTE_A +
+			(emgd_crtc->crtc_id * (DPALETTE_B - DPALETTE_A)));
+
+        for (i=0; i<DAC_DATA_COUNT; i++)  {
+            EMGD_WRITE32((emgd_crtc->lut_r[i] << 16) |
+				(emgd_crtc->lut_g[i] << 8) |
+				emgd_crtc->lut_b[i],
+				pal_reg + i*4);
+        }
+    }
+
+	EMGD_TRACE_EXIT;
+}
+
+static void reg_crtc_lut_get_tnc(
+	igd_context_t *context,
+	emgd_crtc_t *emgd_crtc)
+{
+	int i;
+	unsigned long pal_reg;
+	unsigned char *mmio;
+	unsigned long lut_value;
+
+	EMGD_TRACE_ENTER;
+
+	mmio = context->device_context.virt_mmadr;
+
+    /* Check if the pipe is enabled, is this necessary? */
+    if ((emgd_crtc->crtc_id == IGD_KMS_PIPEA &&
+		((EMGD_READ32(mmio + PIPEA_CONF) & PIPE_ENABLE) &&
+        (EMGD_READ32(mmio + PIPEASRC)))) ||
+		(emgd_crtc->crtc_id == IGD_KMS_PIPEB &&
+		((EMGD_READ32(mmio + PIPEB_CONF) & PIPE_ENABLE) &&
+        (EMGD_READ32(mmio + PIPEBSRC))))) {
+
+		pal_reg = (unsigned long)(mmio + DPALETTE_A +
+			(emgd_crtc->crtc_id * (DPALETTE_B - DPALETTE_A)));
+
+        for (i=0; i<DAC_DATA_COUNT; i++)  {
+            lut_value = EMGD_READ32(pal_reg + i*4);
+			emgd_crtc->lut_r[i] = (lut_value & 0xFF0000) >> 16;
+			emgd_crtc->lut_g[i] = (lut_value & 0x00FF00) >> 8;
+			emgd_crtc->lut_b[i] = (lut_value & 0x0000FF);
+		}
+    }
+
+	EMGD_TRACE_EXIT;
+}
+
+
 /*!
  * Restore previously saved DAC palette from the specifed state buffer.
  *
@@ -888,7 +964,9 @@ static int reg_save_tnc(igd_context_t *context,
 			*buffer_sdvo++ = EMGD_READ32(mmio_sdvo + platform_context->mmio_regs_sdvo[i]);
 		}
 
+		if (reg_buffer->flags & IGD_REG_SAVE_GTT) {
 			reg_save_gtt_tnc(context, mmio, reg_args);
+		}
 	}
 
 	/* Save DAC registers */
@@ -1008,7 +1086,10 @@ int reg_restore_tnc(igd_context_t *context,
 				EMGD_WRITE32(*buffer_sdvo++, mmio_sdvo + platform_context->mmio_regs_sdvo[i]);
 			}
 		}
-		reg_restore_gtt_tnc(context, reg_args);
+
+		if (reg_buffer->flags & IGD_REG_SAVE_GTT) {
+			reg_restore_gtt_tnc(context, reg_args);
+		}
 	}
 
 #if 0

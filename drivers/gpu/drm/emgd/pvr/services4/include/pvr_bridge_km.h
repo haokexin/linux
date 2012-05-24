@@ -276,6 +276,11 @@ PVRSRVFreeSharedSysMemoryKM(PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo);
 IMG_IMPORT PVRSRV_ERROR
 PVRSRVDissociateMemFromResmanKM(PVRSRV_KERNEL_MEM_INFO *psKernelMemInfo);
 
+IMG_IMPORT PVRSRV_ERROR
+PVRSRVGetPageListKM(PVRSRV_KERNEL_MEM_INFO *psMemInfo, struct page ***pvPageList,
+	unsigned long *numpages,
+	unsigned long *offset);
+
 #if defined (__cplusplus)
 }
 #endif

@@ -58,11 +58,11 @@ typedef struct _SYS_DATA_TAG_
     PVRSRV_DEVICE_NODE		*psDeviceNodeList;
     PVRSRV_POWER_DEV		*psPowerDeviceList;
 	PVRSRV_RESOURCE			sPowerStateChangeResource;
-   	PVRSRV_SYS_POWER_STATE	eCurrentPowerState;
-   	PVRSRV_SYS_POWER_STATE	eFailedPowerState;
-   	IMG_UINT32		 		ui32CurrentOSPowerState;
+	PVRSRV_SYS_POWER_STATE	eCurrentPowerState;
+	PVRSRV_SYS_POWER_STATE	eFailedPowerState;
+	IMG_UINT32		 		ui32CurrentOSPowerState;
     PVRSRV_QUEUE_INFO		*psQueueList;
-   	PVRSRV_KERNEL_SYNC_INFO *psSharedSyncInfoList;
+	PVRSRV_KERNEL_SYNC_INFO *psSharedSyncInfoList;
     IMG_PVOID				pvEnvSpecificData;
     IMG_PVOID				pvSysSpecificData;
 	PVRSRV_RESOURCE			sQProcessResource;
@@ -274,7 +274,7 @@ static INLINE PVRSRV_ERROR SysAcquireData(SYS_DATA **ppsSysData)
 	if (!gpsSysData)
 	{
 		return PVRSRV_ERROR_GENERIC;
-   	}
+	}
 
 	return PVRSRV_OK;
 }

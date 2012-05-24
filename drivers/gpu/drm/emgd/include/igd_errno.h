@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_errno.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -33,13 +33,20 @@
 #define _IGD_ERRNO_H
 
 /* Error values, must be <64kb for vBIOS */
-#define IGD_ERROR_NOMEM      0x0001
-#define IGD_ERROR_INVAL      0x0002
-#define IGD_ERROR_BUSY       0x0003
-#define IGD_ERROR_PWRDOWN    0x0004
-#define IGD_ERROR_NODEV      0x0005
-#define IGD_ERROR_HWERROR    0x0006
-#define IGD_ERROR_EDID       0x0007
+#define IGD_ERROR_NOMEM           0x0001
+#define IGD_ERROR_INVAL           0x0002
+#define IGD_ERROR_BUSY            0x0003
+#define IGD_ERROR_PWRDOWN         0x0004
+#define IGD_ERROR_NODEV           0x0005
+#define IGD_ERROR_HWERROR         0x0006
+#define IGD_ERROR_EDID            0x0007
+#define IGD_ERROR_INVAL_CONTEXT   0x0008
+#define IGD_ERROR_INVAL_PARAM     0x0009
+#define IGD_ERROR_IOCTL           0x000A
+#define IGD_ERROR_GENERIC         0x000B
+#define IGD_ERROR_BLT_NOTCOMPLETE 0x000B
+#define IGD_ERROR_NOT_IMPLEMENTED 0x000C
+#define IGD_ERROR_MAPPING_FAILED  0x000D
 
 #define IGD_NO_MEM           IGD_ERROR_NOMEM
 #define IGD_INVAL            IGD_ERROR_INVAL

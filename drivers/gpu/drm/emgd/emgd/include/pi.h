@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: pi.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -81,11 +81,6 @@ extern int pi_pd_find_attr_and_value(igd_display_port_t *port,
 extern int pi_get_port_init_attr(igd_display_port_t *port,
 		unsigned long id,
 		unsigned long *value);
+extern int pi_save_mode_state(igd_display_port_t *port,
+		reg_state_id_t reg_state_id);
 #endif /* _PI_H_ */
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: pi.h,v 1.5 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/pi.h,v $
- *----------------------------------------------------------------------------
- */

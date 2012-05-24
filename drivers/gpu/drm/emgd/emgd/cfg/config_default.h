@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: config_default.h
- * $Revision: 1.11 $
+ * $Revision: 1.15 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -46,7 +46,7 @@
 #ifndef _HAL_CONFIG_DEFAULT_H
 #define _HAL_CONFIG_DEFAULT_H
 
-#include <personality.h>
+#include <igd_version.h>
 
 #ifndef CONFIG_MICRO
 #define CONFIG_FULL
@@ -101,6 +101,7 @@
 #define CONFIG_PD_HDMI
 #define CONFIG_PD_SDVO
 #define CONFIG_PD_SOFTPD
+#define CONFIG_PD_CH7036
 #endif
 
 #ifdef CONFIG_DEPRECATED

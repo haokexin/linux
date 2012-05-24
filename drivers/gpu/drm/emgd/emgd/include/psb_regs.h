@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: psb_regs.h
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -656,9 +656,3 @@ extern unsigned long _sgx_base;
 
 #endif /* _REGS_H_ */
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: psb_regs.h,v 1.7 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/psb_regs.h,v $
- *----------------------------------------------------------------------------
- */

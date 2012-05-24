@@ -135,7 +135,7 @@ static PVRSRV_ERROR InitDevInfo(PVRSRV_PER_PROCESS_DATA *psPerProc,
 
 	psDevInfo->psKernelSGXTA3DCtlMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelSGXTA3DCtlMemInfo;
 
- 	psDevInfo->psKernelSGXMiscMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelSGXMiscMemInfo;
+	psDevInfo->psKernelSGXMiscMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelSGXMiscMemInfo;
 
 #if defined(SGX_SUPPORT_HWPROFILING)
 	psDevInfo->psKernelHWProfilingMemInfo = (PVRSRV_KERNEL_MEM_INFO *)psInitInfo->hKernelHWProfilingMemInfo;
@@ -184,7 +184,7 @@ static PVRSRV_ERROR InitDevInfo(PVRSRV_PER_PROCESS_DATA *psPerProc,
 	OSMemCopy(psDevInfo->aui32HostKickAddr, psInitInfo->aui32HostKickAddr,
 			  SGXMKIF_CMD_MAX * sizeof(psDevInfo->aui32HostKickAddr[0]));
 
- 	psDevInfo->bForcePTOff = IMG_FALSE;
+	psDevInfo->bForcePTOff = IMG_FALSE;
 
 	psDevInfo->ui32CacheControl = psInitInfo->ui32CacheControl;
 
@@ -1807,8 +1807,8 @@ PVRSRV_ERROR SGXGetMiscInfoUkernel(PVRSRV_SGXDEV_INFO	*psDevInfo,
 IMG_EXPORT
 PVRSRV_ERROR SGXGetMiscInfoKM(PVRSRV_SGXDEV_INFO	*psDevInfo,
 							  SGX_MISC_INFO			*psMiscInfo,
- 							  PVRSRV_DEVICE_NODE 	*psDeviceNode,
- 							  IMG_HANDLE 			 hDevMemContext)
+							  PVRSRV_DEVICE_NODE 	*psDeviceNode,
+							  IMG_HANDLE 			 hDevMemContext)
 {
 	PPVRSRV_KERNEL_MEM_INFO	psMemInfo = psDevInfo->psKernelSGXMiscMemInfo;
 	IMG_UINT32	*pui32MiscInfoFlags = &((PVRSRV_SGX_MISCINFO_INFO*)(psMemInfo->pvLinAddrKM))->ui32MiscInfoFlags;
@@ -2127,7 +2127,7 @@ PVRSRV_ERROR SGXReadDiffCountersKM(IMG_HANDLE				hDevHandle,
 								   IMG_UINT32				ui32CountersReg,
 								   IMG_UINT32				ui32Reg2,
 								   IMG_BOOL					*pbActive,
- 								   PVRSRV_SGXDEV_DIFF_INFO	*psDiffs)
+								   PVRSRV_SGXDEV_DIFF_INFO	*psDiffs)
 {
 	PVRSRV_ERROR    	eError;
 	SYS_DATA			*psSysData;

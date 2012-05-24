@@ -106,7 +106,7 @@ typedef struct _PVRSRV_SGXDEV_INFO_
 #if defined(PDUMP)
 	IMG_UINT32				ui32KernelCCBEventKickerDumpVal;
 #endif
- 	PVRSRV_KERNEL_MEM_INFO	*psKernelSGXMiscMemInfo;
+	PVRSRV_KERNEL_MEM_INFO	*psKernelSGXMiscMemInfo;
 	IMG_UINT32				aui32HostKickAddr[SGXMKIF_CMD_MAX];
 #if defined(SGX_SUPPORT_HWPROFILING)
 	PPVRSRV_KERNEL_MEM_INFO psKernelHWProfilingMemInfo;

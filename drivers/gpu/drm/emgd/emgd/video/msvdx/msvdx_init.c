@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: msvdx_init.c
- * $Revision: 1.25 $
+ * $Revision: 1.29 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -90,6 +90,7 @@ void msvdx_reset_plb(igd_context_t *context);
 static msvdx_fw_t *priv_fw = NULL;
 
 extern unsigned long jiffies_at_last_dequeue;
+extern int mtx_message_complete;
 
 
 int msvdx_query_plb(igd_context_t *context,
@@ -114,11 +115,48 @@ int msvdx_query_plb(igd_context_t *context,
 	return 0;
 }
 
+int msvdx_status(igd_context_t *context, unsigned long *queue_status, unsigned long *mtx_msg_status)
+{
+	platform_context_plb_t *platform = NULL;
+	platform = (platform_context_plb_t *)context->platform_context;
+	if (init_msvdx_first_time) {
+		*queue_status = 1;
+		*mtx_msg_status = 1;
+	} else {
+			*queue_status = list_empty(&platform->msvdx_queue);
+			*mtx_msg_status = mtx_message_complete;
+	}
+	return IGD_SUCCESS;
+}
+int msvdx_pwr_plb(
+	igd_context_t *context,
+	unsigned long power_state)
+{
+	platform_context_plb_t *platform = (platform_context_plb_t *)context->platform_context;
+
+	/* NOTE: The MSVDX need to reset after resume */
+	EMGD_TRACE_ENTER;
+	if(power_state != IGD_POWERSTATE_D0){
+		platform->msvdx_needs_reset = 1;
+	}
+
+	EMGD_TRACE_EXIT;
+	return IGD_SUCCESS;
+}
+
 int msvdx_pre_init_plb(struct drm_device *dev)
 {
+    drm_emgd_priv_t *priv;
+    igd_context_t *context;
+
 	EMGD_TRACE_ENTER;
 
     gpDrmDevice = dev;
+	priv = gpDrmDevice->dev_private;
+	context = priv->context;
+
+	context->mod_dispatch.msvdx_pwr = msvdx_pwr_plb;
+	context->mod_dispatch.msvdx_status = msvdx_status;
 
 	EMGD_TRACE_EXIT;
 	return IGD_SUCCESS;
@@ -127,7 +165,7 @@ int msvdx_pre_init_plb(struct drm_device *dev)
 int msvdx_init_plb(unsigned long base0, unsigned long base1,
 		           void *msvdx_fw, unsigned long msvdx_fw_size)
 {
-    drm_emgd_private *priv;
+    drm_emgd_priv_t *priv;
     igd_context_t *context;
     unsigned char *mmio;
     unsigned long ram_bank;
@@ -252,7 +290,7 @@ int msvdx_init_plb(unsigned long base0, unsigned long base1,
         platform->rendec_base1 = base_addr1;
 
 		init_msvdx_first_time = 0;
-    	INIT_LIST_HEAD(&platform->msvdx_queue);
+	INIT_LIST_HEAD(&platform->msvdx_queue);
 		spin_lock_init(&platform->msvdx_lock);
     } else {
         /* restore offsets. */
@@ -260,7 +298,7 @@ int msvdx_init_plb(unsigned long base0, unsigned long base1,
         base_addr0 = platform->rendec_base0;
         base_addr1 = platform->rendec_base1;
 
-        /* Init link list to fix HSD202831 */
+        /* Init link list */
         if(!context_count) {
 			INIT_LIST_HEAD(&platform->msvdx_queue);
 		}
@@ -524,7 +562,7 @@ int msvdx_uninit_plb(igd_context_t *context)
 
 	if(!context_count) {
 		msvdx_reset_plb(context);
- 	}
+	}
 	EMGD_TRACE_EXIT;
 	return 0;
 }

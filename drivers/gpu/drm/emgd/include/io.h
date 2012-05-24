@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: io.h
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -364,13 +364,13 @@ static __inline const char *os_get_funcname( const char *name )
 #else
 // Linux kernel mode port I/O
 #define EMGD_READ_PORT8(port)          inb(port)
-#define EMGD_WRITE_PORT8(port, value)  outb(port, value)
+#define EMGD_WRITE_PORT8(port, value)  outb(value, port)
 
 #define EMGD_READ_PORT16(port)         inw(port)
-#define EMGD_WRITE_PORT16(port, value) outw(port, value)
+#define EMGD_WRITE_PORT16(port, value) outw(value, port)
 
 #define EMGD_READ_PORT32(port)         inl(port)
-#define EMGD_WRITE_PORT32(port, value) outl(port, value)
+#define EMGD_WRITE_PORT32(port, value) outl(value, port)
 #endif
 
 #ifdef DEBUG_MEM

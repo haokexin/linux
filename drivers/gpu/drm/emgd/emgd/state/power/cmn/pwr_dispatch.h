@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: pwr_dispatch.h
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -50,8 +50,3 @@ extern pwr_dispatch_t pwr_dispatch_plb;
 
 #endif
 
-/*-----------------------------------------------------------------------------
- * $Id: pwr_dispatch.h,v 1.6 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/state/power/cmn/pwr_dispatch.h,v $
- *-----------------------------------------------------------------------------
- */

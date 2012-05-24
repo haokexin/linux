@@ -20,9 +20,6 @@
  THE SOFTWARE.
  ******************************************************************************/
 
-#ifndef AUTOCONF_INCLUDED
-#include <linux/config.h>
-#endif
 #include <linux/version.h>
 
 #include <linux/spinlock.h>

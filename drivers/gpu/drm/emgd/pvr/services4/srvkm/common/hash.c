@@ -446,8 +446,8 @@ HASH_Dump (HASH_TABLE *pHash)
 		if (pHash->ppBucketTable[uIndex] == IMG_NULL)
 			uEmptyCount++;
 		for (pBucket=pHash->ppBucketTable[uIndex];
-             		pBucket != IMG_NULL;
-             		pBucket = pBucket->pNext)
+		pBucket != IMG_NULL;
+		pBucket = pBucket->pNext)
 				uLength++;
 		uMaxLength = PRIVATE_MAX (uMaxLength, uLength);
 	}

@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: emgd_drm.h
- * $Revision: 1.49 $
+ * $Revision: 1.58 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -79,10 +79,15 @@ enum {
 #define CMD_VIDEO_SHUTDOWN        6
 #define CMD_VIDEO_GET_FENCE_ID    7
 #define CMD_VIDOE_GET_FRAME_SKIP  8
+#define CMD_VIDEO_GET_MSVDX_STATUS  	  9
 
 /* Video state */
 #define VIDEO_STATE_FW_LOADED     	0x00000001
 #define VIDEO_STATE_RENDEC_FREED        0x00000002
+
+/* Different command for alter_ovl2 */
+#define CMD_ALTER_OVL2			1
+#define CMD_ALTER_OVL2_OSD		2
 
 typedef enum _kdrm_test_pvrsrv_opcodes {
 	SINGLE_DC_SWAPING        = 0,
@@ -145,7 +150,7 @@ typedef struct _kdrm_alter_ovl {
 	/* NOTE: igd_surface_t contains a pointer to an igd_palette_info_t struct
 	 * (member name "palette_info"), which contains a pointer to an "unsigned
 	 * long" "palette".  Normally, each of these values must be copied from
-	 * user to kernel space.  However, Ian's investigation found that the
+	 * user to kernel space.  However, an investigation found that the
 	 * igd_palette_info_t struct is not used for either alter_ovl() or
 	 * set_surface() (and igd_get_surface_plb() sets the value to 0,
 	 * a.k.a. NULL).  Thus, we're okay not copying this value.
@@ -165,6 +170,7 @@ typedef struct _kdrm_alter_ovl2 {
 	igd_rect_t dst_rect; /* (DOWN) */
 	igd_ovl_info_t ovl_info; /* (DOWN) */
 	unsigned long flags; /* (DOWN) */
+	int cmd; /* (DOWN) */
 } emgd_drm_alter_ovl2_t;
 
 
@@ -241,6 +247,12 @@ typedef struct _kdrm_get_drm_config {
 	igd_param_t params; /* (UP) */
 	/** The display config (e.g. 8 for DIH). */
 	int display_config; /* (UP) */
+	/*
+	 * Build configuration (e.g., DDK version used, debug vs release, etc.);
+	 * if these don't match what userspace was built with, the driver may not
+	 * run properly.  (UP)
+	 */
+	igd_build_config_t build_config;
 } emgd_drm_get_drm_config_t;
 
 
@@ -389,13 +401,27 @@ typedef struct _kdrm_video_get_info {
 	int last_frame;
 	unsigned long fence_id;
 	unsigned long frame_skip;
-	unsigned long sync_done;
+	unsigned long queue_status; /* (UP) - return 1 if msvdx queue empty, else 0 */
+	unsigned long mtx_msg_status; /* (UP) - return 1 if msvdx current message complete, else 0 */
 } emgd_drm_video_get_info_t;
 
 typedef struct _kdrm_video_flush_tlb {
 	int rtn;
 	int engine;
 } emgd_drm_video_flush_tlb_t;
+
+typedef struct _kdrm_get_display_info {
+	int rtn; /* (UP) - return value of HAL procedure */
+	igd_display_info_t primary_pt_info; /* (UP) */
+	igd_display_info_t secondary_pt_info; /* (UP) */
+	igd_framebuffer_info_t primary_fb_info; /* (UP) */
+	igd_framebuffer_info_t secondary_fb_info; /* (UP) */
+	unsigned long dc; /* (UP) */
+	unsigned long flags; /* (UP) */
+
+	igd_display_h primary; /* (UP) Generated "opaque handle" */
+	igd_display_h secondary; /* (UP) Generated "opaque handle" */
+} emgd_drm_get_display_info_t;
 
 typedef struct _kdrm_pan_display {
 	/* Note: the return value is a long this time: */
@@ -505,6 +531,46 @@ typedef struct _kdrm_set_surface {
 	unsigned long flags; /* (DOWN) */
 } emgd_drm_set_surface_t;
 
+#define CLONE_PRIMARY 0
+#define CLONE_SECONDARY 1
+#define CLONE 0
+#define DIH   1
+
+
+typedef struct _kdrm_dihclone_set_surface {
+	int rtn; /* (UP) - return value of HAL procedure */
+	unsigned long dih_clone_display; /* (DOWN) - primary or secondary display to clone */
+	unsigned long mode; /* (DOWN) - dih to clone or back to dih */
+} emgd_drm_dihclone_set_surface_t;
+
+typedef struct _kdrm_control_plane_format {
+	/* Note on modification to the structure to accomodate both
+	 * Use PRIMARY/SECONDARY to indicate which display
+	 * FB blend + overlay to turn ON/OFF. The relationship between
+	 * plane, pipe and port is transparent to the user.
+	 * A qualifier (use_plane) is used to decide which model the user wants.
+	 */
+	int rtn; /* (UP) - return value of HAL procedure */
+	/* 	(DOWN) Turn off transparency by switching to XRGB format = 0
+		Turn on transparency by switching to ARGB format = 1 */
+	int enable;
+	union {
+		/* 	(DOWN) Plane A = 0
+			Plane B = 1 */
+		int display_plane;
+		/* 	(DOWN) Primary/Secondary display handle */
+		igd_display_h primary_secondary_dsp;
+	};
+	/* If set, KMD will use the plane convention */
+	unsigned int use_plane;
+} emgd_drm_control_plane_format_t;
+
+
+typedef struct _kdrm_set_overlay_display{
+	int rtn; /* (UP) - return value of HAL procedure */
+	igd_display_h ovl_display[OVL_MAX_HW]; /* (DOWN) Overlay display handles */
+} emgd_drm_set_overlay_display_t;
+
 
 typedef struct _kdrm_sync {
 	int rtn; /* (UP) - return value of HAL procedure */
@@ -566,6 +632,10 @@ typedef struct _kdrm_test_pvrsrv {
 } emgd_drm_test_pvrsrv_t;
 
 
+typedef struct _kdrm_query_2d_caps_hwhint {
+	unsigned long caps_val; /* (DOWN) */
+	unsigned long *status; /* (UP) */
+} emgd_drm_query_2d_caps_hwhint_t;
 
 /*
  * This is where all the IOCTL's used by the egd DRM interface are
@@ -601,7 +671,12 @@ typedef struct _kdrm_test_pvrsrv {
 #define DRM_IGD_GMM_FLUSH_CACHE      0x11
 #define DRM_IGD_GMM_GET_NUM_SURFACE  0x31
 #define DRM_IGD_GMM_GET_SURFACE_LIST 0x32
-#define DRM_IGD_GET_GOLDEN_HTOTAL	 0x33
+#define DRM_IGD_GET_GOLDEN_HTOTAL    0x33
+#define DRM_IGD_CONTROL_PLANE_FORMAT 0x34
+#define DRM_IGD_QUERY_2D_CAPS_HWHINT 0x35
+#define DRM_IGD_DIHCLONE_SET_SURFACE 0x36
+#define DRM_IGD_SET_OVERLAY_DISPLAY  0x37
+
 /*
  * The EMGD DRM includes the PVR DRM, and as such, includes the following PVR
  * DRM ioctls.  The numbering must be kept in sync with what is defined in
@@ -644,6 +719,7 @@ typedef struct _kdrm_test_pvrsrv {
 #define DRM_IGD_GET_OVL_INIT_PARAMS 0x2e
 #define DRM_IGD_ALTER_OVL2          0x2f
 #define DRM_IGD_GET_CHIPSET_INFO    0x30
+#define DRM_IGD_GET_DISPLAY_INFO    0x38
 
 /*
  * egd IOCTLs.
@@ -718,6 +794,10 @@ typedef struct _kdrm_test_pvrsrv {
 		emgd_drm_query_mode_list_t)
 #define DRM_IOCTL_IGD_GET_GOLDEN_HTOTAL  DRM_IOWR(DRM_IGD_GET_GOLDEN_HTOTAL + BASE,\
 		emgd_drm_get_golden_htotal_t)
+#define DRM_IOCTL_IGD_CONTROL_PLANE_FORMAT DRM_IOWR(DRM_IGD_CONTROL_PLANE_FORMAT + BASE,\
+		emgd_drm_control_plane_format_t)
+#define DRM_IOCTL_IGD_SET_OVERLAY_DISPLAY DRM_IOWR(DRM_IGD_SET_OVERLAY_DISPLAY + BASE,\
+		emgd_drm_set_overlay_display_t)
 #define DRM_IOCTL_IGD_SET_ATTRS        DRM_IOWR(DRM_IGD_SET_ATTRS + BASE,\
 		emgd_drm_set_attrs_t)
 #define DRM_IOCTL_IGD_SET_PALETTE_ENTRY DRM_IOWR(DRM_IGD_SET_PALETTE_ENTRY +\
@@ -740,6 +820,13 @@ typedef struct _kdrm_test_pvrsrv {
 		emgd_drm_get_ovl_init_params_t)
 #define DRM_IOCTL_IGD_GET_CHIPSET_INFO DRM_IOWR(DRM_IGD_GET_CHIPSET_INFO + BASE,\
 		emgd_drm_driver_get_chipset_info_t)
+#define DRM_IOCTL_IGD_QUERY_2D_CAPS_HWHINT DRM_IOWR(DRM_IGD_QUERY_2D_CAPS_HWHINT + BASE,\
+		emgd_drm_query_2d_caps_hwhint_t)
+#define DRM_IOCTL_IGD_GET_DISPLAY_INFO  DRM_IOR(DRM_IGD_GET_DISPLAY_INFO + BASE,\
+		emgd_drm_get_display_info_t)
+
+#define DRM_IOCTL_IGD_DIHCLONE_SET_SURFACE	DRM_IOWR(DRM_IGD_DIHCLONE_SET_SURFACE + BASE,\
+		emgd_drm_dihclone_set_surface_t)
 
 
 /* From pvr_bridge.h */
@@ -765,4 +852,6 @@ typedef struct _kdrm_test_pvrsrv {
 		emgd_drm_video_get_info_t)
 #define DRM_IOCTL_IGD_VIDEO_FLUSH_TLB  DRM_IOR(DRM_IGD_VIDEO_FLUSH_TLB + BASE,\
 		emgd_drm_video_flush_tlb_t)
+#define DRM_IOCTL_IGD_GET_DISPLAY_INFO  DRM_IOR(DRM_IGD_GET_DISPLAY_INFO + BASE,\
+		emgd_drm_get_display_info_t)
 #endif

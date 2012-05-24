@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_pwr.c
- * $Revision: 1.9 $
+ * $Revision: 1.14 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -129,18 +129,14 @@ static int igd_pwr_alter(igd_driver_h driver_handle, unsigned int dwPowerState)
 		/* Officially change the power state after registers are restored */
 		context->device_context.power_state = IGD_POWERSTATE_D0;
 
-		/* restore power to plane, pipe and port */
-		if(context->mod_dispatch.mode_pwr) {
-			retval = context->mod_dispatch.mode_pwr(context,
-				IGD_POWERSTATE_D0);
-			if (retval) {
-				return retval;
-			}
-		}
-
 		/* enable overlay */
 		if(context->mod_dispatch.overlay_pwr) {
 			context->mod_dispatch.overlay_pwr(context, IGD_POWERSTATE_D0);
+		}
+
+		/* enable msvdx */
+		if(context->mod_dispatch.msvdx_pwr) {
+			context->mod_dispatch.msvdx_pwr(context, IGD_POWERSTATE_D0);
 		}
 		break;
 
@@ -150,6 +146,12 @@ static int igd_pwr_alter(igd_driver_h driver_handle, unsigned int dwPowerState)
 
 		if (IGD_POWERSTATE_D2 == dwPowerState) {
 			dwPowerState = IGD_POWERSTATE_D1;
+		}
+
+
+		/* Turn off the msvdx */
+		if(context->mod_dispatch.msvdx_pwr) {
+			context->mod_dispatch.msvdx_pwr(context, dwPowerState);
 		}
 
 		/* Turn off the overlay */
@@ -184,6 +186,11 @@ static int igd_pwr_alter(igd_driver_h driver_handle, unsigned int dwPowerState)
 
 	case IGD_POWERSTATE_D3:
 		/* Suspend to memory - ACPI S3 */
+
+		/* diable msvdx */
+		if(context->mod_dispatch.msvdx_pwr) {
+			context->mod_dispatch.msvdx_pwr(context, dwPowerState);
+		}
 
 		/* disable overlay */
 		if(context->mod_dispatch.overlay_pwr) {
@@ -288,8 +295,3 @@ int _pwr_init(igd_context_t *context)
 	return 0;
 }                                                               /* _pwr_init */
 
-/*-----------------------------------------------------------------------------
- * $Id: igd_pwr.c,v 1.9 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/state/power/cmn/igd_pwr.c,v $
- *-----------------------------------------------------------------------------
- */

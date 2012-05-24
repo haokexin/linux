@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: micro_init_plb.c
- * $Revision: 1.11 $
+ * $Revision: 1.13 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -52,6 +52,7 @@
 #include <plb/regs.h>
 #include <plb/context.h>
 
+#include "user_config.h"
 #include "../cmn/init_dispatch.h"
 
 /*!
@@ -79,6 +80,7 @@
 
 extern unsigned char io_mapped;
 extern unsigned short io_base;
+extern emgd_drm_config_t config_drm;
 
 extern int full_config_plb(igd_context_t *context,
 	init_dispatch_t *dispatch);
@@ -119,7 +121,8 @@ init_dispatch_t init_dispatch_plb = {
 	config_plb,
 	set_param_plb,
 	get_param_plb,
-	shutdown_plb
+	shutdown_plb,
+	NULL
 };
 
 
@@ -417,6 +420,9 @@ static int config_plb(igd_context_t *context,
 	EMGD_TRACE_ENTER;
 
 	OPT_MICRO_CALL(full_config_plb(context, dispatch));
+
+	/* If KMS is set, we need to unset it as KMS is not supported on PLB */
+	config_drm.kms = 0;
 
 	/* Set the Max Dclock */
 	if(OS_PCI_READ_CONFIG_32(platform_context->pcidev0,

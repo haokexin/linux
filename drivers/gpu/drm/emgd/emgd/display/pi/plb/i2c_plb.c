@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: i2c_plb.c
- * $Revision: 1.11 $
+ * $Revision: 1.13 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -938,9 +938,3 @@ static int gmbus_write_reg(unsigned char *mmio,
 	return 1;
 }
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: i2c_plb.c,v 1.11 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/pi/plb/i2c_plb.c,v $
- *----------------------------------------------------------------------------
- */

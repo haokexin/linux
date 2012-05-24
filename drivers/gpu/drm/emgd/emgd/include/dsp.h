@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: dsp.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -44,9 +44,3 @@ int dsp_display_connected(igd_context_t *context, igd_display_port_t *port);
 
 #endif /* _DSP_H_ */
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: dsp.h,v 1.5 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/dsp.h,v $
- *----------------------------------------------------------------------------
- */

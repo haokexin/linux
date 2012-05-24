@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: displayid.h
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -642,9 +642,3 @@ void displayid_dump(unsigned char *buffer, unsigned short size);
 void displayid_print(unsigned char *buffer, displayid_t *displayid);
 
 #endif
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: displayid.h,v 1.7 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/displayid.h,v $
- *----------------------------------------------------------------------------
- */

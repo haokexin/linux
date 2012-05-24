@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: ovl_virt.h
- * $Revision: 1.6 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -59,6 +59,16 @@
 #define OVL_HW_MAX_GAMMA       500L
 #define OVL_HW_MIN_GAMMA       1L
 
+#define OVL_REPROG_OP_NONE            0
+#define OVL_REPROG_OP_TURNON_PRIM     1
+#define OVL_REPROG_OP_TURNON_SECND    2
+#define OVL_REPROG_OP_TURNOFF_PRIM    3
+#define OVL_REPROG_OP_TURNOFF_SECND   4
+#define OVL_REPROG_OP_SWITCH_TO_PRIM  5
+#define OVL_REPROG_OP_SWITCH_TO_SECND 6
+#define OVL_REPROG_OP_REVERT_SECND	  7
+#define OVL_REPROG_OP_REVERT_PRIM	  8
+
 enum {
 	OVL_STATE_OFF = 0,
 	OVL_STATE_ON,
@@ -83,6 +93,13 @@ typedef struct _ovl_context{
 	unsigned int ovl_buff;
 	unsigned int fb_blend_ovl;
 	unsigned short reg_allocated;
+	igd_surface_t  *saved_src_surf;
+	igd_rect_t     *saved_src_rect;
+	igd_rect_t     *saved_dest_rect;
+	igd_ovl_info_t *saved_ovl_info;
+	unsigned int   saved_flags;
+	igd_display_context_t * ovl_display_km[OVL_MAX_HW];
+	unsigned int ovl_display_swapped;
 } ovl_context_t;
 
 extern ovl_context_t ovl_context[];

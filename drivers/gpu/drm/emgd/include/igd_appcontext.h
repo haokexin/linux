@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_appcontext.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -70,10 +70,3 @@ typedef void *igd_appcontext_h;
 
 
 #endif
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_appcontext.h,v 1.5 2011/03/02 22:47:07 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/include/igd_appcontext.h,v $
- *----------------------------------------------------------------------------
- */

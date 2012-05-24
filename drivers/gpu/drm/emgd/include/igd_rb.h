@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_rb.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -88,12 +88,5 @@
 typedef int (*_igd_get_sync_slot_fn_t)(igd_display_h display_handle,
 	unsigned int priority,
 	unsigned int *offset);
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_rb.h,v 1.5 2011/03/02 22:47:07 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/include/igd_rb.h,v $
- *----------------------------------------------------------------------------
- */
 
 #endif /* _IGD_RB_H */

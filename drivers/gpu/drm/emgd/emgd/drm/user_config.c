@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: user_config.c
- * $Revision: 1.19 $
+ * $Revision: 1.23 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -33,23 +33,13 @@
  */
 #include "user_config.h"
 
-
-/*
- * One array of attribute pairs may exist for each configured port.  See the
- * "include/igd_pd.h" file for attributes.
- */
-static igd_param_attr_t attrs_config1_port2[] = {
-	{PD_ATTR_ID_TVFORMAT, PD_TV_STD_NTSC_M}
-};
-
-static igd_param_attr_t attrs_config1_port4[] = {
-	{0x46, 100},	/* PWM Intensity */
-	{0x47, 20300},	/* Inverter Frequency */
-	{0x1b, 0},		/* Boolean - channel type dual/single channel*/
-	{0x1a, 18},		/* Panel depth 24/18 */
-	{0x3c, 1},		/* Fixed timing */
-};
-
+#warning ****
+#warning **** This driver has NOT been configured your your system.  You are
+#warning **** building with a sample user_config.c configuration that may or
+#warning **** may not meet your needs.  It is recommended that you run CED to
+#warning **** generate an appropriate configuration or see the User Guide
+#warning **** for more information about driver configuration.
+#warning ****
 
 
 /*
@@ -58,80 +48,76 @@ static igd_param_attr_t attrs_config1_port4[] = {
  * information for a given resolution/refresh-rate.  This is especially needed
  * for analog/VGA ports.
  */
+
+#define TUNNELCREEK 1
+#define POULSBO 0
+
+#if TUNNELCREEK
 static igd_display_info_t dtd_config1_port4_dtdlist[] = {
 	{
-		1024,		/* Width */
-		768,		/* Height */
-		60,			/* Refresh Rate */
-		65000,		/* Dot Clock (in KHz) */
-		1343,		/* Horizontal Total (horizontal synch end) */
-		1023,		/* Horizontal Blank Start (h_active-1) */
-		1343,		/* Horizontal Blank End (start + h_blank) */
-		1047,		/* Horizontal Sync Start (h_active+h_synch-1) */
-		1183,		/* Horizontal Sync End (start + h_syncp) */
-		805,		/* Vertical Total (Vertical synch end) */
-		767,		/* Vertical Blank Start (v_active-1) */
-		805,		/* Vertical Blank End (start + v_blank) */
-		770,		/* Vertical Sync Start (v_active+v_synch-1) */
-		776,		/* Vertical Sync End (start + v_synchp) */
-		0,			/* Mode Number */
-		0x20000,	/* Flags */
-		0,			/* X Offset */
-		0,			/* Y Offset */
-		NULL,		/* pd extension pointer */
-		0,0		/* mode extension pointer */
+		1366,   /* Width */
+		768,    /* Height */
+		60,     /* Refresh Rate */
+		72300,  /* Dot Clock */
+		1525,   /* Horizontal Total (horizontal synch end) */
+		1365,   /* Horizontal Blank Start (h_active-1) */
+		1525,   /* Horizontal Blank End (start + h_blank) */
+		1413,   /* Horizontal Sync Start (h_active+h_synch-1) */
+		1445,   /* Horizontal Sync End (start + h_syncp) */
+		789,    /* Vertical Total (Vertical synch end) */
+		767,    /* Vertical Blank Start (v_active-1) */
+		789,    /* Vertical Blank End (start + v_blank) */
+		770,    /* Vertical Sync Start (v_active+v_synch-1) */
+		775,    /* Vertical Sync End (start + v_synchp) */
+		0,  /* Mode Number */
+		0x20000,    /* Flags */
+		0,  /* X Offset */
+		0,  /* Y Offset */
+		NULL,   /* pd extension pointer */
+		0, 0   /* mode extension pointer */
 	},
+};
+#endif
 
-#if 0
+#if POULSBO
+static igd_display_info_t dtd_config1_port4_dtdlist[] = {
 	{
-		1366,		/* Width */
-		768,		/* Height */
-		60,			/* Refresh Rate */
-		72300,		/* Dot Clock (in KHz) */
-		1525,		/* Horizontal Total (horizontal synch end) */
-		1365,		/* Horizontal Blank Start (h_active-1) */
-		1525,		/* Horizontal Blank End (start + h_blank) */
-		1413,		/* Horizontal Sync Start (h_active+h_synch-1) */
-		1445,		/* Horizontal Sync End (start + h_syncp) */
-		789,		/* Vertical Total (Vertical synch end) */
-		767,		/* Vertical Blank Start (v_active-1) */
-		789,		/* Vertical Blank End (start + v_blank) */
-		770,		/* Vertical Sync Start (v_active+v_synch-1) */
-		775,		/* Vertical Sync End (start + v_synchp) */
-		0,			/* Mode Number */
-		0x20000,	/* Flags */
-		0,			/* X Offset */
-		0,			/* Y Offset */
-		NULL,		/* pd extension pointer */
-		0,0		/* mode extension pointer */
+		1024,			/* Width */
+		768,				/* Height */
+		60,				/* Refresh Rate */
+		65000,			/* Dot Clock (in KHz) */
+		1343,			/* Horizontal Total (horizontal synch end) */
+		1023,			/* Horizontal Blank Start (h_active-1) */
+		1343,			/* Horizontal Blank End (start + h_blank) */
+		1047,			/* Horizontal Sync Start (h_active+h_synch-1) */
+		1183,			/* Horizontal Sync End (start + h_syncp) */
+		805,				/* Vertical Total (Vertical synch end) */
+		767,				/* Vertical Blank Start (v_active-1) */
+		805,				/* Vertical Blank End (start + v_blank) */
+		770,				/* Vertical Sync Start (v_active+v_synch-1) */
+		776,				/* Vertical Sync End (start + v_synchp) */
+		0,				/* Mode Number */
+		0x20000,			/* Flags */
+		0,				/* X Offset */
+		0,				/* Y Offset */
+		NULL,			/* pd extension pointer */
+		0, 0				/* mode extension pointer */
 	},
-	{
-		1280,		/* Width */
-		800,		/* Height */
-		60,			/* Refresh Rate */
-		68940,		/* Dot Clock (in KHz) */
-		1407,		/* Horizontal Total (horizontal synch end) */
-		1279,		/* Horizontal Blank Start (h_active-1) */
-		1407,		/* Horizontal Blank End (start + h_blank) */
-		1295,		/* Horizontal Sync Start (h_active+h_synch-1) */
-		1343,		/* Horizontal Sync End (start + h_syncp) */
-		815,		/* Vertical Total (Vertical synch end) */
-		799,		/* Vertical Blank Start (v_active-1) */
-		815,		/* Vertical Blank End (start + v_blank) */
-		800,		/* Vertical Sync Start (v_active+v_synch-1) */
-		803,		/* Vertical Sync End (start + v_synchp) */
-		0,			/* Mode Number */
-		0x20000,	/* Flags */
-		0,			/* X Offset */
-		0,			/* Y Offset */
-		NULL,		/* pd extension pointer */
-		NULL,		/* mode extension pointer */
-	},
+};
+#endif
+
+static igd_param_attr_t attrs_config1_port4[] = {
+	{0x46, 100},
+#if POULSBO
+	{0x1a, 24},
+#endif
+#if TUNNELCREEK
+	{0x47, 20300},
 #endif
 };
 
 static emgd_drm_splash_screen_t splash_screen_data = {
-	0,			/* bg_color */
+	0x000000,		/* bg_color */
 	0,			/* x */
 	0,			/* y */
 	0,			/* width */
@@ -150,141 +136,82 @@ static emgd_drm_splash_video_t splash_video_data = {
 	0,			/* dst_height */
 };
 
-/*
- * The igd_param_t structure contains many configuration values used by the
- * EMGD kernel module.
- */
-igd_param_t config_params_config1 = {
-	1*256*1024,	/* Page request */
-	0,			/* Max frame buffer size (0 = no limit) */
-	1,			/* Preserve registers (should be 1, so VT switches work and so
-				 * that the console will be restored after X server exits).
-				 */
-	0x6,		/* Display flags (bitfield, where:
-				 * - 0x2 = DISPLAY_MULTI_DVO
-				 * - 0x4 = Detect the display(s)
-				 * - 0x8 = DISPLAY_FB_BLEND_OVL
-				 */
-	{ 4, 2, 0, 0, 0 },	/* Display port order (corresponds to the "portorder"
-						 * module parameter, which is a comma-separate list)
-						 */
-	{			/* Display Params: */
-	{				/* Port: */
-		4,				/* Display port number (0 if not configured) */
-		0x180,			/* Parameters present (bitfield, where:
-						 * - 0x001 = DDC GPIO
-						 * - 0x002 = DDC SPEED
-						 * - 0x004 = DDC DAB
-						 * - 0x008 = I2C GPIO
-						 * - 0x010 = I2C SPEED
-						 * - 0x020 = DAB
-						 * - 0x040 = FP INFO
-						 * - 0x080 = DTD LIST
-						 * - 0x100 = ATTR LIST
-						 */
-		0x1,			/* EDID flag */
-		0x3,			/* Flags when EDID is available (bitfield, where:
-						 * - 0x1 = Use built-in standard timings
-						 * - 0x2 = Use EDID block and filter modes
-						 * - 0x4 = Use user-provided DTDs
-						 */
-		0x5,			/* Flags when EDID is not available (bitfield, where:
-						 * - 0x1 = Use built-in standard timings
-						 * - 0x2 = Use EDID block and filter modes
-						 * - 0x4 = Use user-provided DTDs
-						 */
-		0,				/* DDC GPIO pins */
-		0,				/* DDC speed */
-		0,				/* DDC DAB */
-		0,				/* I2C GPIO pins */
-		0,				/* I2C speed */
-		0,				/* I2C DAB */
-		{				/* Flat Panel Info: */
-			0,				/* Flat Panel width */
-			0,				/* Flat Panel height */
-			0,				/* Flat Panel power method */
-			0,				/* VDD active & DVO clock/data active */
-			0,				/* DVO clock/data active & backlight enable */
-			0,				/* backlight disable & DVO clock/data inactive */
-			0,				/* DVO clock/data inactive & VDD inactive */
-			0				/* VDD inactive & VDD active */
+static igd_param_t config_params_config1 = {
+	1*256*1024,		/* Page request */
+	0,		/* Max frame buffer size */
+	1,		/* Preserve registers */
+	0x6,		/* Display flags */
+	{ 4, 2, 0, 0, 0 },		/* Display port order */
+	{		/* Display Params */
+		{		/* Port */
+			4,		/* Display port number */
+			0x180,		/* Parameters present */
+			0x0,		/* EDID flag */
+			0x5,		/* Flags when EDID is available */
+			0x5,		/* Flags when EDID is not available */
+			0,		/* DDC GPIO pins */
+			0,		/* DDC speed */
+			0,		/* DDC DAB */
+			0,		/* I2C GPIO pins */
+			0,		/* I2C speed */
+			0,		/* I2C DAB */
+			{		/* Flat Panel Info */
+				0,		/* Flat Panel width */
+				0,		/* Flat Panel height */
+				0,		/* Flat Panel power method */
+				0,		/* VDD active & DVO clock/data active */
+				0,		/* DVO clock/data active & backlight enable */
+				0,		/* backlight disable & DVO clock/data inactive */
+				0,		/* DVO clock/data inactive & VDD inactive */
+				0			/* VDD inactive & VDD active */
+			},
+			{		/* DTD Info */
+				sizeof(dtd_config1_port4_dtdlist)/sizeof(igd_display_info_t),		/* Number of DTDs */
+				dtd_config1_port4_dtdlist		/* DTD name */
+			},
+			{		/* Attribute Info */
+				sizeof(attrs_config1_port4)/sizeof(igd_param_attr_t),		/* Number of attributes */
+				attrs_config1_port4		/* Attr name */
+			}
 		},
-		{				/* DTD Info */
-			sizeof(dtd_config1_port4_dtdlist)/sizeof(igd_display_info_t),
-			/* number */
-			dtd_config1_port4_dtdlist/* DTD name */
+		{		/* Port */
+			2,		/* Display port number */
+			0x0,		/* Parameters present */
+			0x0,		/* EDID flag */
+			0x5,		/* Flags when EDID is available */
+			0x5,		/* Flags when EDID is not available */
+			0,		/* DDC GPIO pins */
+			0,		/* DDC speed */
+			0,		/* DDC DAB */
+			0,		/* I2C GPIO pins */
+			0,		/* I2C speed */
+			0,		/* I2C DAB */
+			{		/* Flat Panel Info */
+				0,		/* Flat Panel width */
+				0,		/* Flat Panel height */
+				0,		/* Flat Panel power method */
+				0,		/* VDD active & DVO clock/data active */
+				0,		/* DVO clock/data active & backlight enable */
+				0,		/* backlight disable & DVO clock/data inactive */
+				0,		/* DVO clock/data inactive & VDD inactive */
+				0			/* VDD inactive & VDD active */
+			},
+			{		/* DTD Info */
+			0, NULL
+			},
+			{		/* Attribute Info */
+			0, NULL
+			}
 		},
-		{				/* Attribute Info */
-			sizeof(attrs_config1_port4)/sizeof(igd_param_attr_t), /* number */
-			attrs_config1_port4	/* Attr name */
-		}
-	},
-	{				/* Port: */
-		2,				/* Display port number (0 if not configured) */
-		0x140,			/* Parameters present (see above) */
-		0x1,			/* EDID flag */
-		0x3,			/* Flags when EDID is available (see above) */
-		0x1,			/* Flags when EDID is not available (see above) */
-		0,				/* DDC GPIO pins */
-		0,				/* DDC speed */
-		0,				/* DDC DAB */
-		0,				/* I2C GPIO pins */
-		0,				/* I2C speed */
-		0,				/* I2C DAB */
-		{				/* Flat Panel Info: */
-			0,				/* Flat Panel width */
-			0,				/* Flat Panel height */
-			1,				/* Flat Panel power method */
-			60,				/* VDD active & DVO clock/data active */
-			200,			/* DVO clock/data active & backlight enable */
-			200,			/* backlight disable & DVO clock/data inactive */
-			50,				/* DVO clock/data inactive & VDD inactive */
-			400				/* VDD inactive & VDD active */
-		},
-		{				/* DTD Info */
-			0,				/* number */
-			NULL,			/* DTD name */
-		},
-		{				/* Attribute Info */
-			sizeof(attrs_config1_port2)/sizeof(igd_param_attr_t), /* number */
-			attrs_config1_port2	/* Attr name */
-		}
-	},
-	{				/* Port: */
-		0,				/* Display port number (0 if not configured) */
-		0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0,
-		{ 0, 0, 0, 0, 0, 0, 0, 0 },
-		{ 0, NULL },
-		{ 0, NULL }
-	},
-	{				/* Port: */
-		0,				/* Display port number (0 if not configured) */
-		0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0,
-		{ 0, 0, 0, 0, 0, 0, 0, 0 },
-		{ 0, NULL },
-		{ 0, NULL }
-	},
-	{				/* Port: */
-		0,				/* Display port number (0 if not configured) */
-		0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0,
-		{ 0, 0, 0, 0, 0, 0, 0, 0 },
-		{ 0, NULL },
-		{ 0, NULL }
-	},
 	},
 	0,			/* 24-bit RGB color that framebuffer is cleared to */
-	0,			/* Quickboot (1 = enabled) */
+	1,			/* Quickboot (1 = enabled) */
 	0,			/* Quickboot seamless (1 = enabled) */
 	0,			/* Quickboot video input (1 = enabled) */
 	0			/* Polling (1 = override interrupt support and use polling) */
 };
 
-
 igd_param_t *config_params = {&config_params_config1};
-
 
 /*
  * The emgd_drm_config_t structure is the main configuration structure
@@ -302,7 +229,7 @@ emgd_drm_config_t config_drm = {
 		 *       Note: Twin is NOT CURRENTLY SUPPORTED
 		 * - 8 = Extended displays (e.g. LVDS + CRT displaying different images)
 		 */
-	1024,/* Display width to use if initializing the display
+	1366,/* Display width to use if initializing the display
 		 * (corresponds to the "width" module parameter)
 		 */
 	768,/* Display height to use if initializing the display
@@ -311,6 +238,7 @@ emgd_drm_config_t config_drm = {
 	60,	/* Display refresh rate to use if initializing the display
 		 * (corresponds to the "refresh" module parameter)
 		 */
+	0,  /* KMS */
 	0,	/* ovl_brightness */
 	0,	/* ovl_contrast */
 	0,	/* ovl_saturation */
@@ -321,3 +249,4 @@ emgd_drm_config_t config_drm = {
 	&splash_video_data,
 	&config_params	/* driver parameters from above */
 };
+

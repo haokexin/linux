@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: dsp_dispatch.h
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -53,6 +53,9 @@ typedef struct _dsp_dispatch {
 	unsigned long *render_pfs;
 	unsigned long *texture_pfs;
 	int (*dsp_init)(igd_context_t *context);
+	void (*dsp_control_plane_format)(igd_context_t *context,
+			int enable, int display_plane,
+			igd_plane_t *plane_override);
 } dsp_dispatch_t;
 
 extern dsp_dispatch_t dsp_dispatch_plb;

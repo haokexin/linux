@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: reg.c
- * $Revision: 1.13 $
+ * $Revision: 1.16 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -62,8 +62,12 @@ typedef struct _reg_context {
 	void *gmm_state;
 } reg_context_t;
 
+extern emgd_drm_config_t config_drm;
 static reg_context_t reg_ctx[1];
-
+static reg_buffer_t *console_state;
+void *console_gmm_state;
+static reg_buffer_t *misc_state;
+void *misc_gmm_state;
 
 static dispatch_table_t reg_dispatch_list[] = {
 
@@ -104,6 +108,18 @@ int reg_restore(igd_context_t *context,
 		reg_ctx->dispatch->platform_context);
 }
 
+void reg_crtc_lut_get(igd_context_t *context,
+	void *emgd_crtc)
+{
+	reg_ctx->dispatch->reg_crtc_lut_get(context, (emgd_crtc_t *)emgd_crtc);
+}
+
+void reg_crtc_lut_set(igd_context_t *context,
+	void *emgd_crtc)
+{
+	reg_ctx->dispatch->reg_crtc_lut_set(context, (emgd_crtc_t *)emgd_crtc);
+}
+
 /*!
  * This function calls reg_save() to save the state of the graphics engine
  * and then reg_restore to restore the previous state.
@@ -113,12 +129,12 @@ int reg_restore(igd_context_t *context,
  * @return 0 on success
  * @return -IGD_INVAL on failure
  */
-static int igd_driver_save_restore(igd_driver_h driver_handle)
+static int igd_driver_save_restore(igd_driver_h driver_handle,
+	unsigned long flags)
 {
 	igd_context_t *context = (igd_context_t *)driver_handle;
 	reg_buffer_t *reg_state;
 	short restored = 0;
-	unsigned long save_flags;
 
 	EMGD_ASSERT(context, "Null driver_handle!\n", -IGD_ERROR_INVAL);
 
@@ -131,15 +147,13 @@ static int igd_driver_save_restore(igd_driver_h driver_handle)
 	 * and appcontext.
 	 */
 	if (reg_ctx->gmm_state) {
-		save_flags = IGD_REG_SAVE_ALL & ~IGD_REG_SAVE_GTT & ~IGD_REG_SAVE_RB;
-	} else {
-		save_flags = IGD_REG_SAVE_ALL;
+		flags = flags & ~IGD_REG_SAVE_GTT & ~IGD_REG_SAVE_RB;
 	}
 
 	/* Save current state. We have to save the current state first before
 	 * restoring the GART bindings. Otherwise we will end up restoring wrong
 	 * pages when return back to the graphic mode console */
-	reg_state = reg_ctx->dispatch->reg_alloc(context, save_flags,
+	reg_state = reg_ctx->dispatch->reg_alloc(context, flags,
 		reg_ctx->dispatch->platform_context);
 	reg_ctx->dispatch->reg_save(context, reg_state,
 		reg_ctx->dispatch->platform_context);
@@ -190,8 +204,29 @@ static int igd_driver_save(igd_driver_h driver_handle,
 {
 	igd_context_t *context = (igd_context_t *)driver_handle;
 	reg_buffer_t *reg_state;
+	reg_buffer_t **reg_location = NULL;
 
 	EMGD_ASSERT(context, "Null driver_handle!\n", -IGD_ERROR_INVAL);
+
+	switch (flags & IGD_REG_SAVE_TYPE_MASK) {
+	case IGD_REG_SAVE_TYPE_REG:
+		reg_location = &reg_ctx->device_state;
+		break;
+	case IGD_REG_SAVE_TYPE_CON:
+		reg_location = &console_state;
+		break;
+	case IGD_REG_SAVE_TYPE_MISC:
+		reg_location = &misc_state;
+		break;
+	default:
+		EMGD_ERROR("Called igd_driver_save without a valid save flag.");
+		return 0;
+	}
+
+	if (*reg_location) {
+		reg_ctx->dispatch->reg_free(context, *reg_location,
+			reg_ctx->dispatch->platform_context);
+	}
 
 	/* Save current state */
 	reg_state = reg_ctx->dispatch->reg_alloc(context, flags,
@@ -199,8 +234,14 @@ static int igd_driver_save(igd_driver_h driver_handle,
 	reg_ctx->dispatch->reg_save(context, reg_state,
 		reg_ctx->dispatch->platform_context);
 
-	reg_ctx->device_state = reg_state;
+	*reg_location = reg_state;
 
+	/* Free GART bindings, if not already saved */
+	if ((flags & IGD_REG_SAVE_TYPE_REG) &&
+		!reg_ctx->gmm_state &&
+		context->mod_dispatch.gmm_save) {
+		context->mod_dispatch.gmm_save(context, &(reg_ctx->gmm_state));
+	}
 	return 0;
 }
 /* igd_driver_save */
@@ -213,25 +254,54 @@ static int igd_driver_save(igd_driver_h driver_handle,
  * @return 0 on success
  * @return -IGD_INVAL on failure
  */
-static int igd_driver_restore(igd_driver_h driver_handle)
+static int igd_driver_restore(igd_driver_h driver_handle,
+	const unsigned long flags)
 {
 	igd_context_t *context;
+	reg_buffer_t *reg_state = NULL;
 
 	EMGD_ASSERT(driver_handle, "Null driver_handle!\n", -IGD_ERROR_INVAL);
 
 	context = (igd_context_t *)driver_handle;
+	switch (flags & IGD_REG_SAVE_TYPE_MASK) {
+	case IGD_REG_SAVE_TYPE_REG:
+		reg_state = reg_ctx->device_state;
+		break;
+	case IGD_REG_SAVE_TYPE_CON:
+		reg_state = console_state;
+		break;
+	case IGD_REG_SAVE_TYPE_MISC:
+		reg_state = misc_state;
+		break;
+	default:
+		EMGD_ERROR("Not a valida restore flag specified.");
+		return 0;
+	}
 
 	/*
 	 * NAPA class seems to work much better all the display stuff is
 	 * turned off prior to restoring the registers.
+	 * context->mod_dispatch.mode_reset_plane_pipe_ports(context);
 	 */
 	context->mod_dispatch.mode_reset_plane_pipe_ports(context);
 
 	/* restore previously saved state */
-	reg_ctx->dispatch->reg_restore(context, reg_ctx->device_state,
-		reg_ctx->dispatch->platform_context);
-	reg_ctx->dispatch->reg_free(context, reg_ctx->device_state,
-		reg_ctx->dispatch->platform_context);
+	if (reg_state) {
+		reg_ctx->dispatch->reg_restore(context, reg_state,
+			reg_ctx->dispatch->platform_context);
+		reg_ctx->dispatch->reg_free(context, reg_state,
+			reg_ctx->dispatch->platform_context);
+
+		/* Restore GART bindings, if saved */
+		if ((flags & IGD_REG_SAVE_TYPE_REG) &&
+			reg_ctx->gmm_state &&
+			context->mod_dispatch.gmm_restore) {
+			context->mod_dispatch.gmm_restore(context, reg_ctx->gmm_state);
+			reg_ctx->gmm_state = NULL;
+		}
+	} else {
+		EMGD_ERROR("Previous state was not saved, so can't restore.");
+	}
 
 	return 0;
 }
@@ -248,18 +318,26 @@ static int igd_driver_restore(igd_driver_h driver_handle)
 static int reg_get_mod_state(reg_state_id_t id, module_state_h **state,
 	unsigned long **flags)
 {
-	if(!reg_ctx->device_state) {
+	if(!reg_ctx->device_state && !console_state) {
 		return 0;
 	}
 
-	*flags = &reg_ctx->device_state->flags;
 	switch(id) {
-	case REG_MODE_STATE:
-		if((**flags & IGD_REG_SAVE_MODE)){
-			*state = &reg_ctx->device_state->mode_buffer;
-		} else {
-			state = NULL;
-		}
+	case REG_MODE_STATE_REG:
+		*flags = &reg_ctx->device_state->flags;
+			if((**flags & IGD_REG_SAVE_MODE)){
+				*state = &reg_ctx->device_state->mode_buffer;
+			} else {
+				state = NULL;
+			}
+		break;
+	case REG_MODE_STATE_CON:
+		*flags = &console_state->flags;
+			if((**flags & IGD_REG_SAVE_MODE)){
+				*state = &console_state->mode_buffer;
+			} else {
+				state = NULL;
+			}
 		break;
 	default:
 		state = NULL;
@@ -278,15 +356,27 @@ static int reg_get_mod_state(reg_state_id_t id, module_state_h **state,
  */
 void _reg_shutdown(igd_context_t *context)
 {
-
+	reg_buffer_t *restore_state;
 	EMGD_TRACE_ENTER;
 
+	if (!config_drm.init) {
+		restore_state = reg_ctx[0].device_state;
+	} else {
+		if (config_drm.kms) {
+			restore_state = console_state;
+		} else {
+			restore_state = console_state;
+			//restore_state = reg_ctx[0].device_state;
+		}
+	}
 
-	if(reg_ctx->device_state) {
+	if(restore_state) {
+		context->mod_dispatch.mode_reset_plane_pipe_ports(context);
+
 		EMGD_DEBUG("Restoring register values prior to exit...");
-		reg_ctx->dispatch->reg_restore(context, reg_ctx->device_state,
+		reg_ctx->dispatch->reg_restore(context, restore_state,
 			reg_ctx->dispatch->platform_context);
-		reg_ctx->dispatch->reg_free(context, reg_ctx->device_state,
+		reg_ctx->dispatch->reg_free(context, restore_state,
 			reg_ctx->dispatch->platform_context);
 
 	}
@@ -323,24 +413,34 @@ int _reg_init(igd_context_t *context, unsigned long flags)
 	/*
 	 * Hook up functions in dispatch table.
 	 */
-	context->dispatch.driver_save_restore = igd_driver_save_restore;
-	context->dispatch.driver_save         = igd_driver_save;
-	context->dispatch.driver_restore      = igd_driver_restore;
+	context->dispatch.driver_save_restore   = igd_driver_save_restore;
+	context->dispatch.driver_save           = igd_driver_save;
+	context->dispatch.driver_restore        = igd_driver_restore;
 	context->mod_dispatch.reg_get_mod_state = reg_get_mod_state;
-	context->mod_dispatch.reg_alloc   = reg_alloc;
-	context->mod_dispatch.reg_free    = reg_free;
-	context->mod_dispatch.reg_save    = reg_save;
-	context->mod_dispatch.reg_restore = reg_restore;
-	context->mod_dispatch.reg_shutdown = _reg_shutdown;
+	context->mod_dispatch.reg_alloc         = reg_alloc;
+	context->mod_dispatch.reg_free          = reg_free;
+	context->mod_dispatch.reg_save          = reg_save;
+	context->mod_dispatch.reg_restore       = reg_restore;
+	context->mod_dispatch.reg_shutdown      = _reg_shutdown;
+	context->mod_dispatch.reg_crtc_lut_get  = reg_crtc_lut_get;
+	context->mod_dispatch.reg_crtc_lut_set  = reg_crtc_lut_set;
 
 	if(flags & IGD_DRIVER_SAVE_RESTORE) {
 		reg_ctx->flags |= IGD_DRIVER_SAVE_RESTORE;
 		EMGD_DEBUG("Saving Device State");
 
 		reg_ctx->device_state = reg_ctx->dispatch->reg_alloc(context,
-			IGD_REG_SAVE_STATE|IGD_REG_SAVE_MODE,
+			IGD_REG_SAVE_STATE|IGD_REG_SAVE_MODE|IGD_REG_SAVE_TYPE_REG,
 			reg_ctx->dispatch->platform_context);
 		reg_ctx->dispatch->reg_save(context, reg_ctx->device_state,
+			reg_ctx->dispatch->platform_context);
+	}
+
+	if (config_drm.init) {
+		console_state = reg_ctx->dispatch->reg_alloc(context,
+			IGD_REG_SAVE_STATE|IGD_REG_SAVE_MODE|IGD_REG_SAVE_TYPE_CON,
+			reg_ctx->dispatch->platform_context);
+		reg_ctx->dispatch->reg_save(context, console_state,
 			reg_ctx->dispatch->platform_context);
 	}
 

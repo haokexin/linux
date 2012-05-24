@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: mode.h
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -44,6 +44,12 @@
 #include <edid.h>
 #include <displayid.h>
 #include <igd_render.h>
+
+/* KMS-related Headers */
+#include <drm/drmP.h>
+#include <drm/drm.h>
+#include <drm/drm_fb_helper.h>
+
 
 #ifndef TRUE
 #define TRUE  1
@@ -163,6 +169,16 @@
 	((((pd_timing_t *)t)->mode_info_flags & IGD_MODE_VESA) &&	\
 		(t->mode_number < 0x1D))
 
+#define IGD_KMS_PIPEA (IGD_PIPE_IS_PIPEA >> IGD_PORT_USE_PIPE_MASK_SHIFT)
+#define IGD_KMS_PIPEB (IGD_PIPE_IS_PIPEB >> IGD_PORT_USE_PIPE_MASK_SHIFT)
+
+#define KMS_PIPE_FEATURES(display) \
+	(((igd_display_pipe_t *)((igd_display_context_t *)display)->pipe)->pipe_features)
+
+#define KMS_PIPE_ID(pipe_features) \
+	((pipe_features & IGD_PORT_USE_PIPE_MASK) >> IGD_PORT_USE_PIPE_MASK_SHIFT)
+
+
 /* #define DC_PORT_NUMBER(dc, i) ((dc >> (i * 4)) & 0x0f) */
 #define DC_PORT_NUMBER IGD_DC_PORT_NUMBER
 
@@ -208,10 +224,10 @@ typedef struct _igd_cursor {
 } igd_cursor_t;
 
 typedef struct _igd_clock {
-	unsigned long dpll_control;       /* DPLL control register */
-	unsigned long mnp;                /* FPx0 register */
-	unsigned long p_shift;            /* Bit location of P within control */
-	unsigned long actual_dclk;		  /* The actual dotclock after calculating dpll */
+	unsigned long dpll_control;     /* DPLL control register */
+	unsigned long mnp;              /* FPx0 register */
+	unsigned long p_shift;          /* Bit location of P within control */
+	unsigned long actual_dclk;		/* Actual dotclock after calculating dpll */
 }igd_clock_t;
 
 typedef struct _igd_display_pipe {
@@ -300,12 +316,129 @@ typedef struct _mode_state_t {
 	mode_pd_state_t pd_state[MAX_PORT_DRIVERS];
 } mode_state_t;
 
+
+/**
+ * This holds information about a framebuffer
+ */
+typedef struct _emgd_framebuffer {
+	struct drm_framebuffer base;
+	enum {
+		GMM_FRAMEBUFFER,
+		PVR_FRAMEBUFFER
+	} type;
+	void *pvr_meminfo;
+	struct page **pagelist;
+	unsigned long gtt_offset;
+	unsigned long handle;
+} emgd_framebuffer_t;
+
+typedef struct _emgdfb_par {
+        struct drm_device  *dev;
+        emgd_framebuffer_t *emgd_fb;
+} emgdfb_par_t;
+
+
+/**
+ * This holds information about a CRTC.
+ */
+typedef struct _emgd_crtc {
+        struct drm_crtc         base;
+
+		/* Spinlock to protect access to this structure */
+		spinlock_t              crtc_lock;
+
+        int                     crtc_id;
+        igd_display_pipe_t     *igd_pipe;
+        emgd_framebuffer_t     *fbdev_fb;
+        struct drm_mode_set     mode_set;
+        struct drm_display_mode saved_mode;
+        struct drm_display_mode saved_adjusted_mode;
+        unsigned char           lut_r[256];
+        unsigned char           lut_g[256];
+        unsigned char           lut_b[256];
+        unsigned char           lut_a[256];
+
+		/* Flip request work task */
+		struct work_struct      flip_work;
+		unsigned char           flip_work_queued;
+
+		/*
+		 * Framebuffer that we're in the process of flipping to (may not
+		 * actually show up until rendering is complete, the actual
+		 * registers are programmed, and a vblank happens).
+		 */
+		emgd_framebuffer_t *newfb;
+
+		/*
+		 * Target for rendering completion to allow flip to proceed.
+		 * Rendering operations may continue to be dispatched against this
+		 * FB after the flip ioctl is called, so we need to track the
+		 * number of pending operations at the point the ioctl was called
+		 * and use that as our target to flip on.
+		 */
+		unsigned long render_complete_at;
+
+		/*
+		 * Are we waiting for the next vblank event to perform flip cleanup
+		 * on this CRTC?  Flip cleanup primarily involves sending a
+		 * notification event back to userspace.
+		 */
+		unsigned char vblank_expected;
+
+		/* Userspace event to send back upon flip completion. */
+		struct drm_pending_vblank_event *flip_event;
+} emgd_crtc_t;
+
+
+/**
+ * This holds information about an individual encoder
+ *  */
+typedef struct _emgd_encoder {
+        struct drm_encoder base;
+
+        unsigned long       crtc_mask;
+        unsigned long       clone_mask;
+        igd_display_port_t *igd_port;
+        mode_pd_state_t     state;
+        /* flags is a bit mask. For information
+         * on the different masks, see ENCODER_FLAG_xx
+         */
+		unsigned long       flags;
+} emgd_encoder_t;
+
+#define ENCODER_FLAG_FIRST_DPMS  0x1
+#define ENCODER_FLAG_FIRST_ALTER 0x2
+#define ENCODER_FLAG_SEAMLESS    0x4
+
+/**
+ *  * This holds information about an individual output
+ *   */
+typedef struct _emgd_connector {
+        struct drm_connector  base;
+
+        emgd_encoder_t       *encoder;
+        unsigned long         type;
+        struct drm_property **properties;
+        unsigned long         num_of_properties;
+
+        struct _drm_emgd_private *priv;
+} emgd_connector_t;
+
+/**
+ *  * This holds information on our framebuffer device.
+ *   */
+typedef struct _emgd_fbdev {
+        struct drm_fb_helper      helper;
+
+        emgd_framebuffer_t       *emgd_fb;
+        u32                       pseudo_palette[17];
+        struct list_head          fbdev_list;
+        struct _drm_emgd_private *priv;
+} emgd_fbdev_t;
+
+
+
+
 #endif // _IGD_MODE_H_
 
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: mode.h,v 1.7 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/mode.h,v $
- *----------------------------------------------------------------------------
- */

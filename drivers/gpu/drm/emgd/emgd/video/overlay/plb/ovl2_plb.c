@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: ovl2_plb.c
- * $Revision: 1.20 $
+ * $Revision: 1.22 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -157,8 +157,9 @@ unsigned int ovl2_check_plb(igd_display_context_t *display,
 		return IGD_SUCCESS;
 	}
 
-	/* DCT-PC99TA ure the framebuffer dotclock does not exceed the board SKU max dotclock
-	 ** This is to address TIBET#1741106 (workaround)
+	/*************************************************************************
+	 * Ensure the framebuffer dotclock does not exceed the board SKU
+	 * max dotclock
 	 **************************************************************************/
         /* Make it chipset-specific */
         /* DCT-PC99TA crashes with dotclock > 300MHz */
@@ -308,7 +309,7 @@ unsigned int ovl2_send_instr_plb(
 
         if(md && md->set_flip_pending){
                 /* For second overlay, Poulsbo has no ISR bit
- 	         * to reflect the flip pending for Display
+	         * to reflect the flip pending for Display
                  * Sprite C. So we use Pipe-B vblank status
                  * as a substitute
                  */

@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: instr.h
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -222,9 +222,3 @@ typedef struct _igd_vertex {
 	CMD_2D_WRITE_PLB(queue, chroma_color);
 
 #endif
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: instr.h,v 1.6 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/plb/instr.h,v $
- *----------------------------------------------------------------------------
- */

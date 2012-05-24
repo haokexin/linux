@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: memlist.h
- * $Revision: 1.15 $
+ * $Revision: 1.16 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -117,16 +117,19 @@ typedef struct _gmm_chunk {
 	struct _gmm_chunk *next;
 	/* Previous chunk in the list */
 	struct _gmm_chunk *previous;
-	/* A boolean flag indicating if the chunk's memory is in use or free */
-	unsigned long used;
+	/* Current chunk usage state */
+	enum {
+		INUSE_ALLOCATED,
+		FREE_ALLOCATED,  /* gmm-allocated pages attached */
+		INUSE_IMPORTED,
+		FREE_IMPORTED    /* address space only; no pages attached */
+	} usage;
 	/* The offset of the allocated memory, after alignment */
 	unsigned long offset;
 	/* The number of bytes of memory requested/allocated for this chunk */
 	unsigned long size;
 	/* The number of pages of memory required for "size" bytes */
 	unsigned long pages;
-	/* A pointer to the agp_memory struct that agp_allocate_memory() returns */
-	struct agp_memory *memory;
 	/* A boolean flag indicating if the chunk's memory has been bound by AGP */
 	unsigned long bound;
 	/* Either AGP_PHYS_MEMORY or AGP_NORMAL_MEMORY */

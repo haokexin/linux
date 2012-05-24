@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: gmm.c
- * $Revision: 1.47 $
+ * $Revision: 1.48 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -62,6 +62,10 @@ static int gmm_alloc_chunk_space(gmm_context_t *gmm_context,
 		unsigned long phys,
 		unsigned long flags);
 
+static int gmm_import_pages(void **pagelist,
+		unsigned long *gtt_offset,
+		unsigned long numpages);
+
 static int gmm_get_page_list(unsigned long offset,
 		unsigned long **pages,
 		unsigned long *page_cnt);
@@ -84,10 +88,80 @@ static void gmm_free(unsigned long offset)
 	chunk = gmm_context.head_chunk;
 	while (chunk) {
 		if (chunk->offset == offset) {
-			if (chunk->used == 0) {
+			switch (chunk->usage) {
+			case FREE_ALLOCATED:
 				EMGD_DEBUG("WARNING: The chunk 0x%lx is already freed", offset);
-			} else {
+				break;
+			case INUSE_IMPORTED:
+			case FREE_IMPORTED:
+				EMGD_DEBUG("WARNING: The chunk 0x%lx was allocated externally", offset);
+				return;
+			case INUSE_ALLOCATED:
 				EMGD_DEBUG("Freeing the chunk 0x%lx", offset);
+				break;
+			default:
+				EMGD_DEBUG("Unknown usage %d for chunk 0x%lx.  Memory manager corrupt?",
+					chunk->usage, offset);
+				break;
+			}
+
+			/*
+			 * What to do if the ref count is > 0?  Unmapping is
+			 * probably the right thing since nothing should try
+			 * to use this. If something does, it should probably
+			 * fail.
+			 */
+			if (chunk->ref_cnt > 0) {
+				EMGD_DEBUG("WARNING: The chunk 0x%lx is mapped", offset);
+				/*
+				 * chunk->ref_cnt = 0;
+				 * vunmap(chunk->addr);
+				 */
+				chunk->addr = NULL;
+			}
+			/* Free the array of page address, if applicable: */
+			if (chunk->page_addresses != NULL) {
+				EMGD_DEBUG("About to free chunk->page_addresses = 0x%p",
+					chunk->page_addresses);
+				OS_FREE(chunk->page_addresses);
+				chunk->page_addresses = NULL;
+			}
+
+			chunk->usage = FREE_ALLOCATED;  /* mark as free */
+			return;
+		}
+		chunk = chunk->next;
+	}
+
+	EMGD_ERROR("gmm_free() did not find the chunk 0x%lx to free", offset);
+	return;
+}
+
+static void gmm_release_import(unsigned long offset)
+{
+	gmm_chunk_t *chunk;
+
+	EMGD_DEBUG("Enter gmm_release_import(0x%lx)", offset);
+
+	/* Walk the chunk list */
+	chunk = gmm_context.head_chunk;
+	while (chunk) {
+		if (chunk->offset == offset) {
+			switch (chunk->usage) {
+			case FREE_ALLOCATED:
+			case INUSE_ALLOCATED:
+				EMGD_DEBUG("WARNING: The chunk 0x%lx was not an imported chunk", offset);
+				break;
+			case INUSE_IMPORTED:
+				EMGD_DEBUG("Releasing the chunk 0x%lx", offset);
+				break;
+			case FREE_IMPORTED:
+				EMGD_DEBUG("WARNING: The chunk 0x%lx has already been released", offset);
+				return;
+			default:
+				EMGD_DEBUG("Unknown usage %d for chunk 0x%lx.  Memory manager corrupt?",
+					chunk->usage, offset);
+				break;
 			}
 
 			/*
@@ -110,7 +184,11 @@ static void gmm_free(unsigned long offset)
 				chunk->page_addresses = NULL;
 			}
 
-			chunk->used = 0;  /* mark as free */
+			/* Zero out the gmm_mem_buffer_t */
+			OS_MEMSET(chunk->gtt_mem, 0, sizeof(gmm_mem_buffer_t));
+
+			/* Mark address space as free */
+			chunk->usage = FREE_IMPORTED;
 			return;
 		}
 		chunk = chunk->next;
@@ -322,7 +400,6 @@ static void *gmm_map(unsigned long offset)
 	int i;
 	void *addr = NULL;
 	unsigned long num_pages;
-	unsigned long size;
 
 	EMGD_TRACE_ENTER;
 	EMGD_DEBUG("Parameter: offset=0x%lx", offset);
@@ -349,19 +426,7 @@ static void *gmm_map(unsigned long offset)
 	 * and convert that to a page list.
 	 */
 
-	size = PAGE_ALIGN(chunk->size);
-	num_pages = size / PAGE_SIZE;
-
-	if (num_pages != chunk->gtt_mem->page_count) {
-		printk(KERN_ERR"[EMGD] gmm_map: Num pages don't match %lu vs. %lu\n",
-				num_pages, (unsigned long)chunk->gtt_mem->page_count);
-		return NULL;
-	}
-
-	/*
-	 * chunk->memory is an agp_memory struct
-	 * This has an elements struct page **pages and page_count
-	 */
+	num_pages = chunk->gtt_mem->page_count;
 	page_map = vmalloc(num_pages * sizeof(struct page *));
 	if (page_map == NULL) {
 		printk(KERN_ERR"[EMGD] gmm_map: vmalloc failed.\n");
@@ -421,8 +486,10 @@ int gmm_init(igd_context_t *context,
 
 	context->dispatch.gmm_alloc_surface = gmm_alloc_surface;
 	context->dispatch.gmm_alloc_region = gmm_alloc_region;
+	context->dispatch.gmm_import_pages = gmm_import_pages;
 	context->dispatch.gmm_virt_to_phys = gmm_virt_to_phys;
 	context->dispatch.gmm_free = gmm_free;
+	context->dispatch.gmm_release_import = gmm_release_import;
 	context->dispatch.gmm_memstat = NULL;
 	context->dispatch.gmm_alloc_cached = NULL;
 	context->dispatch.gmm_free_cached = NULL;
@@ -471,7 +538,7 @@ void gmm_shutdown(igd_context_t *context)
 	chunk = gmm_context.head_chunk;
 	while (chunk) {
 		EMGD_DEBUG("process chunk at 0x%lx", chunk->offset);
-		if (chunk->used == 1) {
+		if (chunk->usage == INUSE_ALLOCATED || chunk->usage == INUSE_IMPORTED) {
 			EMGD_ERROR("Chunk at 0x%lx not properly freed", chunk->offset);
 		}
 
@@ -482,7 +549,10 @@ void gmm_shutdown(igd_context_t *context)
 		if (chunk->bound) {
 			emgd_gtt_remove(context, chunk->gtt_mem, chunk->offset);
 		}
-		emgd_free_pages(chunk->gtt_mem);
+
+		if (chunk->usage == INUSE_ALLOCATED) {
+			emgd_free_pages(chunk->gtt_mem);
+		}
 
 		/* Free the array of page address, if applicable: */
 		if (chunk->page_addresses != NULL) {
@@ -533,7 +603,6 @@ static int gmm_alloc_linear_surface(unsigned long *offset,
 	int ret;
 	unsigned long align;
 	unsigned long min_pitch;
-	unsigned long test = 1;
 
 	EMGD_TRACE_ENTER;
 	EMGD_DEBUG("Parameters: pixel_format=0x%08lx,", pixel_format);
@@ -556,11 +625,8 @@ static int gmm_alloc_linear_surface(unsigned long *offset,
 		min_pitch = *pitch;
 	}
 
-	/* Make sure pitch is power of two */
-	while (test < min_pitch) {
-		test <<= 1;
-	}
-	min_pitch = test;
+	/* Pitch for both PLB and TNC requires 64-byte alignment */
+	min_pitch = ALIGN(min_pitch, 64);
 
 	/*
 	 * Size should be based on pixel format and pitch, not just pitch.
@@ -623,9 +689,9 @@ static int gmm_alloc_chunk_space(gmm_context_t *gmm_context,
 	/* Check for a free chunk of sufficent size */
 	chunk = gmm_context->head_chunk;
 	while (chunk) {
-		if ((chunk->used == 0) && (chunk->size >= size) &&
+		if ((chunk->usage == FREE_ALLOCATED) && (chunk->size >= size) &&
 			(chunk->type == (phys ? AGP_PHYS_MEMORY : AGP_NORMAL_MEMORY))) {
-			chunk->used = 1;
+			chunk->usage = INUSE_ALLOCATED;
 			*offset = chunk->offset;
 			EMGD_DEBUG("Re-using old chunk with offset=0x%lx", chunk->offset);
 			EMGD_DEBUG("EXIT  Returning %d", 0);
@@ -679,7 +745,7 @@ static int gmm_alloc_chunk_space(gmm_context_t *gmm_context,
 	}
 
 
-	chunk->used = 1;
+	chunk->usage = INUSE_ALLOCATED;
 	chunk->ref_cnt = 0;
 	chunk->page_addresses = NULL;
 
@@ -757,6 +823,134 @@ static int gmm_alloc_chunk_space(gmm_context_t *gmm_context,
 	*offset = chunk->offset;
 
 	EMGD_DEBUG("Allocated chunk @ 0x%lx (0x%lx)", chunk->offset,
+		(unsigned long)chunk->gtt_mem->physical);
+	EMGD_TRACE_EXIT;
+	return 0;
+}
+
+
+/*
+ * Imports a list of pages allocated by an external source (i.e., the PVR
+ * services) into the GMM and maps the pages into the GTT.  Note that
+ * this function is as dumb as gmm_alloc_chunk_space about reusing
+ * previous allocations that have been freed; it will happily use a large
+ * hole in the GTT for a tiny allocation if it's the first hole it finds.
+ *
+ * pagelist is a live page list; it should not be modified or freed by
+ *    the GMM.
+ * gtt_offset is an output only; this is the offset of the beginning of
+ *    the first page from the start of the GTT.  If the actual surface
+ *    data starts partway through a page, the caller may need to add an
+ *    addition offset to where the surface data starts.
+ */
+static int gmm_import_pages(void **pagelist,
+		unsigned long *gtt_offset,
+		unsigned long numpages)
+{
+	gmm_chunk_t *chunk;
+
+	EMGD_TRACE_ENTER;
+
+	EMGD_DEBUG("Importing %lu pages into GTT\n", numpages);
+
+	/*
+	 * Check for a free chunk of sufficent size that does not have allocated
+	 * pages attached to it (i.e., a chunk from a previous import region that's
+	 * been freed.
+	 */
+	chunk = gmm_context.head_chunk;
+	while (chunk) {
+		if ((chunk->usage == FREE_IMPORTED) && (chunk->pages >= numpages))
+		{
+			chunk->usage = INUSE_ALLOCATED;
+			EMGD_DEBUG("Re-using old chunk with offset=0x%lx", chunk->offset);
+			break;
+		}
+		chunk = chunk->next;
+	}
+
+	/* Allocate a new chunk if we didn't find any that we could reuse */
+	if (!chunk) {
+		chunk = (gmm_chunk_t *)OS_ALLOC(sizeof(gmm_chunk_t));
+		if (!chunk) {
+			printk(KERN_ALERT "[EMGD] Cannot allocate gmm_chunk_t");
+			EMGD_ERROR_EXIT("Returning %d", -IGD_ERROR_NOMEM);
+			return -IGD_ERROR_NOMEM;
+		}
+		OS_MEMSET(chunk, 0, sizeof(gmm_chunk_t));
+
+		chunk->pages = numpages;
+		chunk->size = numpages * PAGE_SIZE;
+		chunk->next = NULL;
+
+		/* Create a gmm_mem_buffer_t for the imported memory */
+		chunk->gtt_mem = OS_ALLOC(sizeof(gmm_mem_buffer_t));
+		if (chunk->gtt_mem == NULL) {
+			OS_FREE(chunk);
+			return -IGD_ERROR_NOMEM;
+		}
+
+		/* Stick this chunk after all other GTT chunks */
+		if (gmm_context.tail_chunk == NULL) {
+			/* First chunk ever! */
+			gmm_context.head_chunk = chunk;
+			chunk->offset = 0;
+		} else {
+			chunk->offset = gmm_context.tail_chunk->offset +
+				gmm_context.tail_chunk->size;
+			gmm_context.tail_chunk->next = chunk;
+		}
+		gmm_context.tail_chunk = chunk;
+
+		/*
+		 * Since we're making this a displayable surface, we need to make sure
+		 * it's 256k-aligned.
+		 */
+		chunk->offset = (chunk->offset + 0x3ffff) & ~0x3ffff;
+
+		EMGD_DEBUG("Setting up a new GMM chunk for imported pages");
+	}
+
+	*gtt_offset = chunk->offset;
+
+	chunk->usage = INUSE_IMPORTED;
+	chunk->ref_cnt = 0;
+	chunk->page_addresses = NULL;
+
+	/*
+	 * Note that the underlying gmm_mem_buffer may have a smaller size and
+	 * number of pages if we're reusing a larger chunk than we really needed.
+	 */
+	chunk->gtt_mem->size = numpages * PAGE_SIZE;
+	chunk->gtt_mem->pages = (struct page**)pagelist;
+	chunk->gtt_mem->page_count = numpages;
+
+	/*
+	 * These fields should never be needed since responsibility for actually
+	 * freeing these pages and the page list itself lies with the external
+	 * code that allocated the pages.
+	 */
+	chunk->type = AGP_NORMAL_MEMORY;
+	chunk->gtt_mem->type = AGP_NORMAL_MEMORY;
+	chunk->gtt_mem->vmalloc_flag = 0;
+
+	/*
+	 * This updates the GTT table with the actual imported pages
+	 * so the display hardware can access the memory.
+	 */
+	emgd_gtt_insert(gmm_context.context, chunk->gtt_mem, chunk->offset);
+	chunk->bound = 1;
+
+	/*
+	 * Physical is only meaningfull for single page or contiguous pages.
+	 * It represents the physical address of the first allocated page.
+	 */
+	if (chunk->gtt_mem->physical == 0x0) {
+		chunk->gtt_mem->physical = page_to_phys(chunk->gtt_mem->pages[0]);
+                chunk->gtt_mem->physical += phys_offset;
+	}
+
+	EMGD_DEBUG("Imported chunk @ 0x%lx (0x%lx)", chunk->offset,
 		(unsigned long)chunk->gtt_mem->physical);
 	EMGD_TRACE_EXIT;
 	return 0;

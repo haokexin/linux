@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: topaz.h
- * $Revision: 1.14 $
+ * $Revision: 1.16 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -205,6 +205,5 @@ int topaz_init_tnc(unsigned long wb_offset, void *wb_addr, void *firm_addr);
 int topaz_get_fence_id(igd_context_t *context, unsigned long *fence_id);
 int topaz_flush_tnc(igd_context_t *context);
 int topaz_get_frame_skip(igd_context_t *context, unsigned long *frame_skip);
-int topaz_sync_surface(igd_context_t *context, unsigned long *sync_done, int *last_frame);
 
 #endif

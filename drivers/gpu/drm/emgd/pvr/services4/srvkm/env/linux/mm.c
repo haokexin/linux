@@ -20,10 +20,6 @@
  THE SOFTWARE.
  ******************************************************************************/
 
-#ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
-#endif
-
 #include <linux/version.h>
 #include <linux/mm.h>
 #include <linux/vmalloc.h>
@@ -997,7 +993,7 @@ NewAllocPagesLinuxMemArea(IMG_UINT32 ui32Bytes, IMG_UINT32 ui32AreaFlags)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,15))
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0))
-    	SetPageReserved(pvPageList[i]);
+	SetPageReserved(pvPageList[i]);
 #else
         mem_map_reserve(pvPageList[i]);
 #endif
@@ -1420,7 +1416,7 @@ DebugLinuxMemAreaRecordRemove(LinuxMemArea *psLinuxMemArea)
 	else
 	{
 		PVR_DPF((PVR_DBG_ERROR, "%s: couldn't find an entry for psLinuxMemArea=%p\n",
-        	     __FUNCTION__, psLinuxMemArea));
+	     __FUNCTION__, psLinuxMemArea));
 	}
 
     mutex_unlock(&g_sDebugMutex);
@@ -1485,7 +1481,7 @@ LinuxMemAreaToCpuPAddr(LinuxMemArea *psLinuxMemArea, IMG_UINT32 ui32ByteOffset)
 		CpuPAddr = SysSysPAddrToCpuPAddr(SysPAddr);
                 CpuPAddr.uiAddr += ADDR_TO_PAGE_OFFSET(ui32ByteOffset);
 		if (0 == CpuPAddr.uiAddr) {
-			/* FIXME: REPLACE THIS WITH A DIFFERENT FIX SOMEDAY.  Ian Elliott
+			/* FIXME: REPLACE THIS WITH A DIFFERENT FIX SOMEDAY.
 			 * has only seen this code path be triggered when
 			 * DestroyOffsetStruct() calls this as a parameter for a debug
 			 * statement.  The times its been seen has been when the user-mode
@@ -1676,7 +1672,7 @@ static void ProcSeqShowMemArea(struct seq_file *sfile,void* el)
 
 #if !defined(DEBUG_LINUX_XML_PROC_FILES)
         seq_printf( sfile,
-              			  "Number of Linux Memory Areas: %lu\n"
+			  "Number of Linux Memory Areas: %lu\n"
                           "At the current water mark these areas correspond to %lu bytes (excluding SUB areas)\n"
                           "At the highest water mark these areas corresponded to %lu bytes (excluding SUB areas)\n"
                           "\nDetails for all Linux Memory Areas:\n"

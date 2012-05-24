@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: sched.h
- * $Revision: 1.9 $
+ * $Revision: 1.11 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -36,17 +36,18 @@
 #include <config.h>
 
 #include <linux/sched.h>
+#include <linux/delay.h>
 
 typedef unsigned long os_alarm_t;
 
 static __inline os_alarm_t _linux_kernel_set_alarm(unsigned long t)
 {
-  return (msecs_to_jiffies(t) + jiffies);
+	return (msecs_to_jiffies(t) + jiffies);
 }
 
 static __inline int _linux_kernel_test_alarm(os_alarm_t t)
 {
-  return (jiffies >= t) ? 1 : 0;
+	return (jiffies >= t) ? 1 : 0;
 }
 
 #define OS_SET_ALARM(t) _linux_kernel_set_alarm(t)
@@ -81,18 +82,33 @@ static __inline int _linux_kernel_test_alarm(os_alarm_t t)
  *  void OS_SCHEDULE( void );
  *---------------------------------------------------------------------------*/
 
-#define OS_SCHEDULE() schedule_timeout(1)
+#define OS_SCHEDULE() {									\
+	__set_current_state(TASK_INTERRUPTIBLE);					\
+	schedule_timeout(1); }
 
 #if 0
-// Implement _OS_SLEEP at a wait-loop
-#define _OS_SLEEP(usec) {					\
+#define OS_DELAY(usec) {					\
     unsigned long j_timeout = usecs_to_jiffies(usec);		\
     unsigned long j_start = jiffies;				\
     unsigned long j_current;					\
     do {							\
       j_current = jiffies;					\
     }while((j_current - j_start) < j_timeout);			\
-  }
+}
+#else
+#define OS_DELAY(usec)	udelay(usec);
+#endif
+
+#if 0
+// Implement _OS_SLEEP at a wait-loop
+#define _OS_SLEEP(usec) {					\
+	unsigned long j_timeout = usecs_to_jiffies(usec);		\
+	unsigned long j_start = jiffies;				\
+	unsigned long j_current;					\
+	do {							\
+		j_current = jiffies;					\
+	}while((j_current - j_start) < j_timeout);			\
+}
 #else
 // Implement _OS_SLEEP as a true sleep
 
@@ -115,8 +131,8 @@ static __inline int _linux_kernel_test_alarm(os_alarm_t t)
  *---------------------------------------------------------------------------*/
 
 #define OS_SLEEP(usec) {									\
-    __set_current_state(TASK_KILLABLE);						\
-    schedule_timeout(usecs_to_jiffies(usec)); }
+	__set_current_state(TASK_KILLABLE);						\
+	schedule_timeout(usecs_to_jiffies(usec)); }
 #endif
 
 /*----------------------------------------------------------------------------
@@ -139,8 +155,8 @@ static __inline int _linux_kernel_test_alarm(os_alarm_t t)
 
 /* un interuuptable sleep */
 #define OS_UISLEEP(usec) {					\
-    __set_current_state(TASK_UNINTERRUPTIBLE);			\
-    schedule_timeout(usecs_to_jiffies(usec)); 			\
+	__set_current_state(TASK_UNINTERRUPTIBLE);			\
+	schedule_timeout(usecs_to_jiffies(usec)); 			\
 }
 
 #ifndef OS_PTHREAD_CREATE

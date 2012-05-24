@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: msvdx.c
- * $Revision: 1.22 $
+ * $Revision: 1.25 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -106,6 +106,7 @@ unsigned long save_msg_cnt;
  */
 unsigned long jiffies_at_last_dequeue = 0;
 
+int mtx_message_complete = 1;
 int msvdx_dequeue_send(igd_context_t *context)
 {
     platform_context_plb_t *platform;
@@ -117,7 +118,7 @@ int msvdx_dequeue_send(igd_context_t *context)
     platform = (platform_context_plb_t *)context->platform_context;
 
     if (list_empty(&platform->msvdx_queue)) {
-       	//printk(KERN_ERR "MSVDXQUE: msvdx list empty\n");
+	//printk(KERN_ERR "MSVDXQUE: msvdx list empty\n");
         platform->msvdx_busy = 0;
         return -EINVAL;
     }
@@ -252,6 +253,7 @@ int send_to_mtx(igd_context_t *context, unsigned long *msg)
 	int padding_flag = 0;
 
 	EMGD_TRACE_ENTER;
+	mtx_message_complete = 0;
 
 	/* Enable all clocks before touching VEC local ram */
 	EMGD_WRITE32(PSB_CLK_ENABLE_ALL, mmio + PSB_MSVDX_MAN_CLK_ENABLE);
@@ -380,6 +382,13 @@ int send_to_mtx(igd_context_t *context, unsigned long *msg)
 	/* Send an interrupt to the MTX to let it know about the message */
 	EMGD_WRITE32(1, mmio + PSB_MSVDX_MTX_KICK);
 
+	/* Read MSVDX Register several times in case idle signal assert */
+	EMGD_READ32(mmio + PSB_MSVDX_INTERRUPT_STATUS);
+	EMGD_READ32(mmio + PSB_MSVDX_INTERRUPT_STATUS);
+	EMGD_READ32(mmio + PSB_MSVDX_INTERRUPT_STATUS);
+	EMGD_READ32(mmio + PSB_MSVDX_INTERRUPT_STATUS);
+
+
 #if 0
 	DEBUG_DUMP(context); /* For lots of additional debugging info */
 #endif
@@ -419,7 +428,7 @@ void msvdx_mtx_interrupt_plb(igd_context_t *context)
 			/* Read the first waiting message from the buffer */
 			msg_offset = 0;
 			msg[msg_offset] = EMGD_READ32(mmio + (platform->host_buf_offset +
- 						(read_idx << 2)));
+						(read_idx << 2)));
 
 			/* Size of message rounded to nearest number of words */
 			num_words = ((msg[0] & 0x000000ff) + 3) / 4;
@@ -430,7 +439,7 @@ void msvdx_mtx_interrupt_plb(igd_context_t *context)
 
 			for (msg_offset++; msg_offset < num_words; msg_offset++) {
 				msg[msg_offset] = EMGD_READ32(mmio + platform->host_buf_offset +
- 						(read_idx << 2));
+						(read_idx << 2));
 
 				if (++read_idx >= platform->host_buf_size) {
 					read_idx = 0;
@@ -439,6 +448,7 @@ void msvdx_mtx_interrupt_plb(igd_context_t *context)
 
 			EMGD_WRITE32(read_idx, mmio + PSB_MSVDX_COMMS_TO_HOST_RD_INDEX);
 
+			mtx_message_complete = 1;
 			/* Check message ID */
 			switch ((msg[0] & 0x0000ff00) >> 8) {
 			case IGD_MSGID_CMD_FAILED:
@@ -491,7 +501,7 @@ void msvdx_mtx_interrupt_plb(igd_context_t *context)
 	} while (read_idx != write_idx);
 
 done:
-	if (1) { };
+	return;
 }
 
 
@@ -610,7 +620,7 @@ int msvdx_poll_mtx_irq(igd_context_t *context)
 IMG_BOOL msvdx_mtx_isr(IMG_VOID *pvData)
 {
     struct drm_device *dev;
-    drm_emgd_private *priv;
+    drm_emgd_priv_t *priv;
     igd_context_t *context;
 	unsigned char *mmio;
 	platform_context_plb_t *platform;
@@ -797,7 +807,7 @@ static void debug_dump(igd_context_t *context)
 	write_idx = EMGD_READ32(mmio + PSB_MSVDX_COMMS_TO_HOST_WRT_INDEX);
 	EMGD_DEBUG("HOST buffer: RDIDX 0x%08lx   WRIDX 0x%08lx, %lu",
 		read_idx, write_idx, platform->host_buf_size);
- 	for (i = 0; (i < read_idx || i < write_idx); i++) {
+	for (i = 0; (i < read_idx || i < write_idx); i++) {
 		unsigned long value =
 			EMGD_READ32(mmio + platform->host_buf_offset + (i <<2));
 		EMGD_DEBUG("   %02lx: 0x%08lx", i, value);

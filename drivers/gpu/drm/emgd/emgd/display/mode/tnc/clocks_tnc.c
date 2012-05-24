@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: clocks_tnc.c
- * $Revision: 1.15 $
+ * $Revision: 1.17 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -45,6 +45,7 @@
 #include <mode.h>
 #include <pi.h>
 #include <intelpci.h>
+#include "drm_emgd_private.h"
 
 #include <tnc/regs.h>
 
@@ -59,10 +60,11 @@ static int flag_enable_cdvo_reset = 1;
 #define FLAG(a) 1
 #endif
 
-
+extern unsigned long get_port_type(int crtc_id);
 static void wait_dpll(void);
 
 static int program_cdvo(igd_display_context_t *display);
+static int kms_program_cdvo(emgd_crtc_t *emgd_crtc);
 
 static cdvo_regs_t cdvo_reset[] = {
            /*turn off the SDVO port*/
@@ -469,6 +471,158 @@ static int get_clock(unsigned long dclk,
 
 /*!
  *
+ * @param emgd_crtc
+ * @param clock
+ * @param dclk
+ *
+ * @return 0 on success
+ * @return 1 on failure
+ */
+int kms_program_clock_lvds_tnc(emgd_crtc_t *emgd_crtc,
+	igd_clock_t *clock,
+	unsigned long dclk)
+{
+	struct drm_device  *dev = NULL;
+	igd_display_pipe_t *pipe = NULL;
+	igd_context_t      *context = NULL;
+	igd_display_port_t *port = NULL;
+	struct drm_encoder *encoder = NULL;
+	emgd_encoder_t     *emgd_encoder = NULL;
+	unsigned long pt;
+	int ret;
+	unsigned long m, n, p1;
+	unsigned long control;
+	unsigned long ref_freq;
+	tnc_limits_t *l = NULL;
+	unsigned long count;
+
+	EMGD_TRACE_ENTER;
+
+	pipe = emgd_crtc->igd_pipe;
+	dev = ((struct drm_crtc *)(&emgd_crtc->base))->dev;
+	context = ((drm_emgd_priv_t *)dev->dev_private)->context;
+	pt = get_port_type(emgd_crtc->crtc_id);
+
+	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+		if (((struct drm_crtc *)(&emgd_crtc->base)) == encoder->crtc) {
+			emgd_encoder = container_of(encoder, emgd_encoder_t, base);
+			port = emgd_encoder->igd_port;
+			break;
+		}
+	}
+
+
+	/* LNC ref_freq is determined by SKU, convert to KHz */
+#if 0
+	ref_freq = display->context->device_context.gfx_freq * 1000L;
+#else
+	ref_freq = context->device_context.core_freq;
+	ref_freq = ref_freq * 1000;
+#endif
+
+#if 0
+	/* Find m,n,p,vco limits */
+	if (ref_freq == 200000) {
+		l = &tnc_lvds_limits[0];
+	} else if (ref_freq == 100000) {
+		l = &tnc_lvds_limits[1];
+	} else if (ref_freq == 166000) {
+		l = &tnc_lvds_limits[2];
+	}
+#endif
+
+	for(count=0; count<3; count++){
+		if (tnc_lvds_limits[count].ref_freq == ref_freq){
+			l = &tnc_lvds_limits[count];
+			break;
+		}
+	}
+
+/* PO Debug */
+#if 0
+	/* WRITE_PORT80(0xED); */
+
+	if(ref_freq == 166000){
+	WRITE_PORT80(0xEF);
+	}
+
+	if (!l){
+		/* FATAL ERROR */
+		DEAD_LOOP(0xDD);
+	}
+#endif
+
+	/* Per UMG, there is no defined target_error for LVDS, it supposed to
+	 * work for all expected dclks. */
+#if 1
+	if (port) {
+		ret = get_clock(dclk, ref_freq, l, &m, &n, &p1, dclk /* target_error */,
+			port->port_type, &clock->actual_dclk, port->pd_driver->type);
+	} else {
+		ret = 1;
+	}
+	if (ret) {
+		EMGD_ERROR_EXIT("Clock %ld could not be programmed", dclk);
+		/* DEAD_LOOP(0xFF); */
+		return ret;
+	}
+#else
+	/* Hard code the values for now */
+	m = 0x2D;  // ITP uses 0x2E, should change
+	p1 = 2;
+
+#endif
+
+#if 0
+	/* If clocks are already running at required clocks, just return */
+	if (PIPE(display)->dclk == dclk) {
+		return 0;
+	}
+#endif
+
+	/* Disable DPLL */
+#if 0
+	control = BIT28 | (1<<clock->p_shift); //Why are we shifting 1 to P1, GMA carry over???
+#else
+	control = BIT28;
+#endif
+	EMGD_WRITE32(control, context->device_context.virt_mmadr + clock->dpll_control);
+	EMGD_DEBUG("lvds: EMGD_WRITE32: 0x%lx = 0x%lx",
+		clock->dpll_control, control);
+
+	/* Program M */
+	EMGD_WRITE32((m<<8), context->device_context.virt_mmadr + clock->mnp);
+
+	EMGD_WRITE32((m<<8), context->device_context.virt_mmadr + 0xF044); //BUGBUG
+
+	EMGD_DEBUG("lvds: EMGD_WRITE32: 0x%lx = 0x%lx",
+		clock->mnp, (m<<8));
+
+	/* Enable DPLL */
+	control = (BIT31 | BIT28 | BIT27) | (p1<<clock->p_shift);
+
+/* PO Debug..*/
+#if 0
+	/* set VCO select */
+	if (ref_freq == 166000) {
+		control |= BIT16;
+	}
+#endif
+
+
+	EMGD_WRITE32(control, context->device_context.virt_mmadr + clock->dpll_control);
+	EMGD_DEBUG("lvds: EMGD_WRITE32: 0x%lx = 0x%lx",
+		clock->dpll_control, control);
+
+	/* Wait 150us for the DPLL to stabilize */
+	OS_SLEEP(150);
+	pipe->dclk = dclk;
+
+	EMGD_TRACE_EXIT;
+	return 0;
+}
+/*!
+ *
  * @param display
  * @param clock
  * @param dclk
@@ -600,6 +754,135 @@ int program_clock_lvds_tnc(igd_display_context_t *display,
 
 /*!
  *
+ * @param emgd_crtc
+ * @param clock
+ * @param dclk
+ *
+ * @return 0 on success
+ * @return 1 on failure
+ */
+int kms_program_clock_sdvo_tnc(emgd_crtc_t *emgd_crtc,
+	igd_clock_t *clock,
+	unsigned long dclk)
+{
+	struct drm_device  *dev          = NULL;
+	igd_display_pipe_t *pipe         = NULL;
+	igd_context_t      *context      = NULL;
+	igd_display_port_t *port         = NULL;
+	struct drm_encoder *encoder      = NULL;
+	emgd_encoder_t     *emgd_encoder = NULL;
+	unsigned long pt;
+	int ret;
+	unsigned long m, n, p1;
+	unsigned long control;
+	unsigned long ref_freq;
+	unsigned long port_mult, vga_mult;
+	unsigned long target_error, actual_dclk;
+	tnc_limits_t *l;
+
+	EMGD_DEBUG("Enter program_clock");
+
+	pipe = emgd_crtc->igd_pipe;
+	dev = ((struct drm_crtc *)(&emgd_crtc->base))->dev;
+	context = ((drm_emgd_priv_t *)dev->dev_private)->context;
+	pt = get_port_type(emgd_crtc->crtc_id);
+
+	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+		if (((struct drm_crtc *)(&emgd_crtc->base)) == encoder->crtc) {
+			emgd_encoder = container_of(encoder, emgd_encoder_t, base);
+			port = emgd_encoder->igd_port;
+			break;
+		}
+	}
+	if (!port) {
+		EMGD_ERROR_EXIT("No port");
+		return -1;
+	}
+
+	/* FIXME: No info available in EAS and waiting for info. */
+	if (dclk > 100000) {          /* 100-200 MHz */
+		port_mult = 1;
+	} else if (dclk > 50000) {    /* 50-100 Mhz */
+		port_mult = 2;
+	} else {                      /* 25-50 Mhz */
+		port_mult = 4;
+	}
+
+	dclk *= port_mult;
+
+	l = &tnc_sdvo_limits[0];
+	ref_freq = l->ref_freq;
+
+	vga_mult = READ_MMIO_REG_TNC(IGD_PORT_SDVO, clock->dpll_control) & 0x3;
+
+	target_error = TARGET_ERROR;
+
+	/* For external clock sources always use ref_clock == dclk */
+	if(port->pd_flags & PD_FLAG_CLK_SOURCE) {
+		ref_freq = dclk;
+		/* When clock source sdvo device, allowed error is 0. */
+		target_error = 0;
+	}
+
+	if (port) {
+		ret = get_clock(dclk, ref_freq, l, &m, &n, &p1, target_error,
+			IGD_PORT_SDVO, &actual_dclk, port->pd_driver->type);
+	} else {
+		ret = 1;
+	}
+
+	clock->actual_dclk = actual_dclk/port_mult;
+
+	if (ret) {
+		EMGD_ERROR("Clock %ld could not be programmed", dclk);
+		return ret;
+	}
+
+	/* Disable DPLL, Write 2 into P for saftey */
+	control = BIT28 | (2<<clock->p_shift) | vga_mult;
+
+	WRITE_MMIO_REG_TNC(IGD_PORT_SDVO, clock->dpll_control, control);
+	EMGD_DEBUG("sdvo: EMGD_WRITE32: 0x%lx = 0x%lx",
+		clock->dpll_control, control);
+
+	/* Program N, M */
+	WRITE_MMIO_REG_TNC(IGD_PORT_SDVO, clock->mnp, (n<<16) | m);
+	EMGD_DEBUG("sdvo: EMGD_WRITE32: 0x%lx = 0x%lx",
+		clock->mnp, (n<<16)|m);
+
+	/* Enable DPLL, Disable VGA mode and sitck in new P values */
+	control = BIT31 | BIT30 | BIT28 | (p1<<clock->p_shift) | vga_mult;
+
+	/* Set the clock source correctly based on PD settings */
+	if(port->pd_flags & PD_FLAG_CLK_SOURCE) {
+		control |= port->clock_bits;
+	}
+
+	/* sDVO Multiplier bits[7:0] */
+	if (port_mult == 2) {
+		control |= (1 << 4);
+	} else if (port_mult == 3) {
+		control |= (2 << 4);
+	} else if (port_mult == 4) {
+		control |= (3 << 4);
+	}
+
+	/* Double buffered */
+	WRITE_MMIO_REG_TNC(IGD_PORT_SDVO, clock->dpll_control, control);
+	WRITE_MMIO_REG_TNC(IGD_PORT_SDVO, clock->dpll_control, control);
+	EMGD_DEBUG("sdvo: EMGD_WRITE32: 0x%lx = 0x%lx",
+		clock->dpll_control, control);
+
+	/* We must wait for 150 us for the dpll clock to warm up */
+	//OS_SLEEP(150);
+	wait_dpll();
+
+	kms_program_cdvo(emgd_crtc);
+
+	return 0;
+}
+/*!
+ *
  * @param display
  * @param clock
  * @param dclk
@@ -703,6 +986,21 @@ int program_clock_sdvo_tnc(igd_display_context_t *display,
 	return 0;
 }
 
+int kms_program_clock_tnc(emgd_crtc_t *emgd_crtc,
+	igd_clock_t *clock,
+	unsigned long dclk)
+{
+	EMGD_TRACE_ENTER;
+
+	if (get_port_type(emgd_crtc->crtc_id) == IGD_PORT_LVDS) {
+		EMGD_TRACE_EXIT;
+		return kms_program_clock_lvds_tnc(emgd_crtc, clock, dclk);
+	} else {
+		EMGD_TRACE_EXIT;
+		return kms_program_clock_sdvo_tnc(emgd_crtc, clock, dclk);
+	}
+}
+
 int program_clock_tnc(igd_display_context_t *display,
 	igd_clock_t *clock,
 	unsigned long dclk)
@@ -756,6 +1054,68 @@ static void wait_dpll(void)
 }
 
 
+/* This is the initialization code for B0 stepping */
+static int kms_program_cdvo(emgd_crtc_t *emgd_crtc)
+{
+	int counter = 0;
+	igd_display_pipe_t *pipe = NULL;
+
+	EMGD_TRACE_ENTER;
+
+	pipe = emgd_crtc->igd_pipe;
+
+    #ifndef CONFIG_MICRO
+	/*
+	 * CDVO reset has been done. Check that offset 0x7000 has the value 0x50
+	 * and this would mean that reset has been done. We only need to do cdvo
+	 * reset once per warm reset
+	 */
+	if((READ_MMIO_REG_TNC(IGD_PORT_SDVO, 0x7000) == 0x50) ||
+		!FLAG(flag_enable_cdvo_reset)){
+		EMGD_TRACE_EXIT;
+		return TRUE;
+	}
+
+    #endif
+
+	/* pipe_temp = READ_MMIO_REG_TNC(IGD_PORT_SDVO, PIPE(display)->pipe_reg); */
+
+	/* Disable pipe */
+	WRITE_MMIO_REG_TNC(IGD_PORT_LVDS, pipe->pipe_reg, 0);
+	WRITE_MMIO_REG_TNC(IGD_PORT_SDVO, pipe->pipe_reg, 0);
+
+	/* Sleep for a while to wait for the pipe to disable. There are no
+	* status bits to check if pipe B has been enable */
+	OS_SLEEP(25);
+
+    #if 0
+       /* Disable DPLL */
+       vga_mult = READ_MMIO_REG_TNC(IGD_PORT_SDVO,
+           PIPE(display)->clock_reg->dpll_control) & 0x3;
+       control = BIT28 | (2<<PIPE(display)->clock_reg->p_shift) | vga_mult;
+
+       WRITE_MMIO_REG_TNC(IGD_PORT_SDVO,
+           PIPE(display)->clock_reg->dpll_control, control);
+       WRITE_MMIO_REG_TNC(IGD_PORT_SDVO,
+           PIPE(display)->clock_reg->dpll_control, control);
+    #endif
+
+	/* the checking is needed for VBIOS but not needed for driver */
+	do{
+		WRITE_MMIO_REG_TNC(IGD_PORT_SDVO, cdvo_reset[counter].reg,
+			cdvo_reset[counter].value);
+			counter++;
+	}while(cdvo_reset[counter].reg != 0);
+
+	/* Enable sDVOB port */
+	WRITE_MMIO_REG_TNC(IGD_PORT_SDVO, 0x61140,
+	READ_MMIO_REG_TNC(IGD_PORT_SDVO, 0x61140) | 0xC0000018 );
+
+
+	EMGD_TRACE_EXIT;
+
+	return TRUE;
+}
 
 /* This is the initialization code for B0 stepping */
 static int program_cdvo(igd_display_context_t *display)
@@ -766,10 +1126,10 @@ static int program_cdvo(igd_display_context_t *display)
 
     #ifndef CONFIG_MICRO
 	/*
- 	 * CDVO reset has been done. Check that offset 0x7000 has the value 0x50
+	 * CDVO reset has been done. Check that offset 0x7000 has the value 0x50
 	 * and this would mean that reset has been done. We only need to do cdvo
- 	 * reset once per warm reset
- 	 */
+	 * reset once per warm reset
+	 */
 	if((READ_MMIO_REG_TNC(IGD_PORT_SDVO, 0x7000) == 0x50) ||
 		!FLAG(flag_enable_cdvo_reset)){
 		EMGD_TRACE_EXIT;
@@ -818,11 +1178,3 @@ static int program_cdvo(igd_display_context_t *display)
 }
 #endif
 
-
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: clocks_tnc.c,v 1.15 2011/03/11 06:49:32 nanuar Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/mode/tnc/clocks_tnc.c,v $
- *----------------------------------------------------------------------------
- */

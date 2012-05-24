@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: micro_mode_plb.c
- * $Revision: 1.19 $
+ * $Revision: 1.21 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -57,9 +57,11 @@
 #include <plb/regs.h>
 #include <plb/context.h>
 #include <plb/mi.h>
+#include "drm_emgd_private.h"
 
 #include "../cmn/match.h"
 #include "../cmn/mode_dispatch.h"
+#include "mode_plb.h"
 
 /*!
  * @addtogroup display_group
@@ -67,19 +69,6 @@
  */
 
 #ifdef CONFIG_PLB
-
-typedef struct _mode_data_plb {
-	unsigned long plane_a_preserve;
-	unsigned long plane_b_c_preserve;
-	unsigned long pipe_preserve;
-	unsigned long port_preserve;
-	unsigned long fw_blc1;
-	unsigned long fw_blc2;
-	unsigned long fw_blc3;
-	unsigned long fw_self;
-	unsigned long mem_mode;
-	unsigned long dsp_arb;
-}mode_data_plb_t;
 
 /*
  * Exports from the other components of this module.
@@ -99,7 +88,7 @@ static unsigned long gpio_plb[] = {
 	0x5028
 };
 
-static mode_data_plb_t device_data[1] = {
+mode_data_plb_t device_data_plb[1] = {
 	{
 		0x000b0000, /* plane a preservation */
 		0x00000000, /* plane b/c preservation */
@@ -114,14 +103,13 @@ static mode_data_plb_t device_data[1] = {
 	}
 };
 
-
 /*!
  *
  * @param mmio
  *
  * @return void
  */
-static void disable_vga_plb (unsigned char *mmio)
+void disable_vga_plb (unsigned char *mmio)
 {
 	unsigned long temp;
 	unsigned char sr01;
@@ -300,6 +288,7 @@ int wait_for_vblank_plb(unsigned char *mmio,
 	return wait_for_vblank_timeout_plb(mmio, pipe_reg, 100);
 } /* wait_for_vblank_plb */
 
+
 /*!
  * This procedure waits for the next vertical blanking (vertical retrace)
  * period. If the display is already in a vertical blanking period, this
@@ -435,11 +424,6 @@ static void program_pipe_vga_plb(
 		return;
 	}
 
-	/*
-	 * FIXME: For CONFIG_NEW_MATCH this should be replaced with a simple
-	 *  check of fp_native_dtd. Do not query the attribute.
-	 */
-
 	/* Find UPSCALING attr value*/
 	pi_pd_find_attr_and_value(PORT_OWNER(display),
 			PD_ATTR_ID_PANEL_FIT,
@@ -495,7 +479,6 @@ static void program_pipe_vga_plb(
 	return;
 }
 
-
 /*!
  * Program Display Plane Values.
  *
@@ -525,10 +508,10 @@ static void program_plane_plb(igd_display_context_t *display,
 
 	plane_control = EMGD_READ32(MMIO(display) + plane_reg);
 	if(PLANE(display)->plane_reg == DSPACNTR) {
-		plane_control &= device_data->plane_a_preserve;
+		plane_control &= device_data_plb->plane_a_preserve;
 	}
 	else { /* if it's plane b or plane c */
-		plane_control &= device_data->plane_b_c_preserve;
+		plane_control &= device_data_plb->plane_b_c_preserve;
 		start_addr_reg = 0x71184;
 	}
 
@@ -687,7 +670,7 @@ static void program_pipe_plb(igd_display_context_t *display,
 	EMGD_DEBUG("Program Pipe: %s", status?"ENABLE":"DISABLE");
 	EMGD_DEBUG("Device power state: D%ld", GET_DEVICE_POWER_STATE(display));
 
-	pipe_conf = device_data->pipe_preserve &
+	pipe_conf = device_data_plb->pipe_preserve &
 		EMGD_READ32(MMIO(display) + PIPE(display)->pipe_reg);
 
 	/* Reset the plane of this pipe back to NULL, it will be set on the
@@ -831,11 +814,11 @@ static void program_pipe_plb(igd_display_context_t *display,
 
 	/* These values are derived from the Poulsbo B-Spec as
 	 * the suggested values */
-	WRITE_MMIO_REG (display, FW_BLC1, device_data->fw_blc1);
-	WRITE_MMIO_REG (display, FW_BLC2, device_data->fw_blc2);
-	WRITE_MMIO_REG (display, FW_BLC3, device_data->fw_blc3);
-	WRITE_MMIO_REG (display, FW_BLC_SELF, device_data->fw_self);
-	WRITE_MMIO_REG (display, DSP_ARB, device_data->dsp_arb);
+	WRITE_MMIO_REG (display, FW_BLC1, device_data_plb->fw_blc1);
+	WRITE_MMIO_REG (display, FW_BLC2, device_data_plb->fw_blc2);
+	WRITE_MMIO_REG (display, FW_BLC3, device_data_plb->fw_blc3);
+	WRITE_MMIO_REG (display, FW_BLC_SELF, device_data_plb->fw_self);
+	WRITE_MMIO_REG (display, PIPEA_DISP_ARB_CTRL, device_data_plb->dsp_arb);
 
 	/* The SGX 2D engine can saturate the memory bus and starve
 	 * the display engine causing visible screen tearing.
@@ -942,6 +925,13 @@ static void reset_plane_pipe_ports_plb(igd_context_t *context)
 		EMGD_WRITE32((temp & ~BIT31), EMGD_MMIO(mmio) + port->port_reg);
 	}
 
+	/* disable plane C */
+	temp = EMGD_READ32(EMGD_MMIO(mmio) + DSPCCNTR);
+	if(temp & BIT31) {
+		EMGD_WRITE32(0x0, EMGD_MMIO(mmio) + DSPCCNTR);
+		EMGD_WRITE32(0x0, EMGD_MMIO(mmio) + DSPCCNTR + DSP_START_OFFSET);
+	}
+
 	plane = NULL;
 	while ((plane = md->dsp_get_next_plane(context, plane, 1)) != NULL) {
 		/* Only display display planes.
@@ -952,11 +942,11 @@ static void reset_plane_pipe_ports_plb(igd_context_t *context)
 		if ((plane->plane_features & IGD_PLANE_DISPLAY)) {
 			if ( temp & BIT31 ) {
 				if(plane->plane_reg == DSPACNTR) {
-					EMGD_WRITE32((temp & device_data->plane_a_preserve),
+					EMGD_WRITE32((temp & device_data_plb->plane_a_preserve),
 						EMGD_MMIO(mmio) + plane->plane_reg);
 				}
 				else { /* if it's plane b or plane c */
-					EMGD_WRITE32((temp & device_data->plane_b_c_preserve),
+					EMGD_WRITE32((temp & device_data_plb->plane_b_c_preserve),
 						EMGD_MMIO(mmio) + plane->plane_reg);
 				}
 				EMGD_WRITE32(0, EMGD_MMIO(mmio) + plane->plane_reg+4);
@@ -974,7 +964,7 @@ static void reset_plane_pipe_ports_plb(igd_context_t *context)
 		wait_for_vblank_plb(EMGD_MMIO(mmio), pipe->pipe_reg);
 		temp = EMGD_READ32(EMGD_MMIO(mmio) + pipe->pipe_reg);
 		if ( temp & BIT31 ) {
-			EMGD_WRITE32((temp & device_data->pipe_preserve),
+			EMGD_WRITE32((temp & device_data_plb->pipe_preserve),
 				EMGD_MMIO(mmio) + pipe->pipe_reg);
 		}
 	}
@@ -1376,7 +1366,7 @@ mode_dispatch_t mode_dispatch_plb = {
 	NULL,
 	NULL,
 	NULL,
-	OPT_MICRO_VALUE(&mode_full_dispatch_plb, NULL)
+	OPT_MICRO_VALUE(&mode_full_dispatch_plb, NULL),
 };
 
 #endif

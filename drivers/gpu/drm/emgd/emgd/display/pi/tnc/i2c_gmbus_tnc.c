@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: i2c_gmbus_tnc.c
- * $Revision: 1.12 $
+ * $Revision: 1.15 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -62,7 +62,8 @@ static int i2c_read_regs_tnc(
 	unsigned long dab,
 	unsigned char reg,
 	unsigned char FAR *buffer,
-	unsigned long num_bytes);
+	unsigned long num_bytes,
+	unsigned long flags);
 
 static int i2c_write_reg_list_tnc(
 	igd_context_t *context,
@@ -179,7 +180,8 @@ extern int i2c_read_regs_gpio(
 	unsigned long dab,
 	unsigned char reg,
 	unsigned char FAR *buffer,
-	unsigned long num_bytes);
+	unsigned long num_bytes,
+	unsigned long flags);
 
 extern int i2c_write_reg_list_gpio(
 	igd_context_t *context,
@@ -210,7 +212,8 @@ static int i2c_read_regs_tnc(igd_context_t *context,
 	unsigned long dab,
 	unsigned char reg,
 	unsigned char FAR *buffer,
-	unsigned long num_bytes)
+	unsigned long num_bytes,
+	unsigned long flags)
 {
 	unsigned long slave_addr = 0;
 
@@ -221,7 +224,7 @@ static int i2c_read_regs_tnc(igd_context_t *context,
 		 */
 
 		EMGD_DEBUG("i2c_read_regs_tnc : Using GPIO to read DDC");
-		return i2c_read_regs_gpio(context, i2c_bus, i2c_speed,	dab, reg, buffer, num_bytes);
+		return i2c_read_regs_gpio(context, i2c_bus, i2c_speed,	dab, reg, buffer, num_bytes, flags);
 
 	} else {
 
@@ -924,9 +927,3 @@ static int gmbus_write_reg(unsigned long slave_addr,
 	return 1;
 }
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: i2c_gmbus_tnc.c,v 1.12 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/pi/tnc/i2c_gmbus_tnc.c,v $
- *----------------------------------------------------------------------------
- */

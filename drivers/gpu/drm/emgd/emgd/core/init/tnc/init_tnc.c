@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: init_tnc.c
- * $Revision: 1.22 $
+ * $Revision: 1.24 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -50,6 +50,7 @@
 
 #include <tnc/regs.h>
 #include <tnc/context.h>
+#include <tnc/igd_tnc_wa.h>
 
 #include "../cmn/init_dispatch.h"
 
@@ -67,32 +68,6 @@ int full_get_param_tnc(igd_context_t *context,
 	unsigned long id,
 	unsigned long *value);
 
-/*!
- *
- * @param context
- * @param dispatch
- * @param vga_dev
- *
- * @return -IGD_ERROR_NODEV on failure
- * @return 0 on success
- */
-int get_revision_id_tnc(igd_context_t *context,
-	os_pci_dev_t vga_dev)
-{
-	EMGD_TRACE_ENTER;
-
-	/* Read RID */
-	if(OS_PCI_READ_CONFIG_8(vga_dev, PCI_RID,
-			(unsigned char *)&context->device_context.rid)) {
-		EMGD_ERROR_EXIT("Error occured reading RID");
-		return -IGD_ERROR_NODEV;
-	}
-
-	EMGD_DEBUG(" rid = 0x%lx", context->device_context.rid);
-
-	EMGD_TRACE_EXIT;
-	return 0;
-}
 
 /*!
  *
@@ -272,49 +247,50 @@ static int full_config_vga_tnc(igd_context_t *context,
 		context->device_context.virt_mmadr_sdvo);
 
 	/* Map the STMicro SDVO registers. */
-	if(OS_PCI_READ_CONFIG_32(platform_context->stbridgedev,
-			TNC_PCI_MMADR, (void*)&context->device_context.mmadr_sdvo_st)) {
-		EMGD_ERROR_EXIT("Reading MMADR");
-		return -IGD_ERROR_NODEV;
+	if(platform_context->stbridgedev) {
+		if(OS_PCI_READ_CONFIG_32(platform_context->stbridgedev,
+					TNC_PCI_MMADR, (void*)&context->device_context.mmadr_sdvo_st)) {
+			EMGD_ERROR_EXIT("Reading MMADR");
+			return -IGD_ERROR_NODEV;
+		}
+
+		context->device_context.mmadr_sdvo_st &= 0xfffffff9;
+		context->device_context.virt_mmadr_sdvo_st =
+			OS_MAP_IO_TO_MEM_NOCACHE(context->device_context.mmadr_sdvo_st,
+					TNC_ST_SDVO_MMIO_SIZE);
+
+		if (!context->device_context.virt_mmadr_sdvo_st) {
+			EMGD_ERROR_EXIT("Failed to map MMADR");
+			return -IGD_ERROR_NODEV;
+		}
+
+		EMGD_DEBUG("STMicro sdvo mmadr mapped %dKB @ (phys):0x%lx  (virt):%p",
+				TNC_ST_SDVO_MMIO_SIZE/1024,
+				context->device_context.mmadr_sdvo_st,
+				context->device_context.virt_mmadr_sdvo_st);
+
+		/* Map the STMicro GPIO registers. */
+		if(OS_PCI_READ_CONFIG_32(platform_context->stgpiodev,
+					TNC_PCI_MMADR, (void*)&context->device_context.mmadr_sdvo_st_gpio)) {
+			EMGD_ERROR_EXIT("Reading MMADR");
+			return -IGD_ERROR_NODEV;
+		}
+
+		context->device_context.mmadr_sdvo_st_gpio &= 0xfffffff9;
+		context->device_context.virt_mmadr_sdvo_st_gpio =
+			OS_MAP_IO_TO_MEM_NOCACHE(context->device_context.mmadr_sdvo_st_gpio,
+					TNC_ST_SDVO_MMIO_SIZE);
+
+		if (!context->device_context.virt_mmadr_sdvo_st_gpio) {
+			EMGD_ERROR_EXIT("Failed to map MMADR");
+			return -IGD_ERROR_NODEV;
+		}
+
+		EMGD_DEBUG("STMicro sdvo gpio mmadr mapped %dKB @ (phys):0x%lx  (virt):%p",
+				TNC_ST_SDVO_MMIO_SIZE/1024,
+				context->device_context.mmadr_sdvo_st_gpio,
+				context->device_context.virt_mmadr_sdvo_st_gpio);
 	}
-
-	context->device_context.mmadr_sdvo_st &= 0xfffffff9;
-	context->device_context.virt_mmadr_sdvo_st =
-		OS_MAP_IO_TO_MEM_NOCACHE(context->device_context.mmadr_sdvo_st,
-		TNC_ST_SDVO_MMIO_SIZE);
-
-	if (!context->device_context.virt_mmadr_sdvo_st) {
-		EMGD_ERROR_EXIT("Failed to map MMADR");
-		return -IGD_ERROR_NODEV;
-	}
-
-	EMGD_DEBUG("STMicro sdvo mmadr mapped %dKB @ (phys):0x%lx  (virt):%p",
-		TNC_ST_SDVO_MMIO_SIZE/1024,
-		context->device_context.mmadr_sdvo_st,
-		context->device_context.virt_mmadr_sdvo_st);
-
-	/* Map the STMicro SDVO registers. */
-	if(OS_PCI_READ_CONFIG_32(platform_context->stgpiodev,
-			TNC_PCI_MMADR, (void*)&context->device_context.mmadr_sdvo_st_gpio)) {
-		EMGD_ERROR_EXIT("Reading MMADR");
-		return -IGD_ERROR_NODEV;
-	}
-
-	context->device_context.mmadr_sdvo_st_gpio &= 0xfffffff9;
-	context->device_context.virt_mmadr_sdvo_st_gpio =
-		OS_MAP_IO_TO_MEM_NOCACHE(context->device_context.mmadr_sdvo_st_gpio,
-		TNC_ST_SDVO_MMIO_SIZE);
-
-	if (!context->device_context.virt_mmadr_sdvo_st_gpio) {
-		EMGD_ERROR_EXIT("Failed to map MMADR");
-		return -IGD_ERROR_NODEV;
-	}
-
-	EMGD_DEBUG("STMicro sdvo gpio mmadr mapped %dKB @ (phys):0x%lx  (virt):%p",
-		TNC_ST_SDVO_MMIO_SIZE/1024,
-		context->device_context.mmadr_sdvo_st_gpio,
-		context->device_context.virt_mmadr_sdvo_st_gpio);
-
 
 	/* Map the GPIO BAR. Provides the 64 bytes of I/O space for GPIO
 	 * BAR is defined by bits 15:6 */
@@ -600,3 +576,47 @@ void full_shutdown_tnc(igd_context_t *context)
 	}
 	EMGD_TRACE_EXIT;
 }
+
+
+ int query_2d_caps_hwhint_tnc(
+  	         igd_context_t *context,
+  	         unsigned long caps_val,
+  	         unsigned long *status)
+{
+	platform_context_tnc_t *platform_context;
+
+	EMGD_TRACE_ENTER;
+
+
+	platform_context = (platform_context_tnc_t *)context->platform_context;
+
+	/*
+	* Only 2D BLT capability query is currently implemented.
+	* This is required by TNC B0 flickering workaround.
+	* Query for other 2D capability can be implemented
+	* in the future if neeeded.
+	*/
+	switch (caps_val) {
+		case IGD_2D_CAPS_BLT:
+			if((context->device_context.did == PCI_DEVICE_ID_VGA_TNC) &&
+				(context->device_context.rid == TNC_B0_RID) &&
+				(platform_context->tnc_dev3_rid == TNC_B0_DEV3_RID)) {
+					*status = IGD_2D_HW_DISABLE;
+					/* disable 2d blt hardware acceleration for TNC B0 */
+			} else {
+					*status = IGD_2D_HW_ENABLE;
+					/* enable 2d blt hardware acceleration */
+			}
+		break;
+
+		default:
+			*status = IGD_2D_CAPS_UNKNOWN;
+			/* Unknown 2d capability to query */
+			EMGD_ERROR("2D caps to query is unknown!");
+		break;
+	}
+
+	EMGD_TRACE_EXIT;
+	return 0;
+}
+

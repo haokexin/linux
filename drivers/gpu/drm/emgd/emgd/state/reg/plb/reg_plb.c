@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: reg_plb.c
- * $Revision: 1.12 $
+ * $Revision: 1.14 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -72,6 +72,10 @@ static int reg_save_plb(igd_context_t *context, reg_buffer_t *reg_buffer,
 	void *_platform_context);
 static int reg_restore_plb(igd_context_t *context, reg_buffer_t *reg_buffer,
 	void *_platform_context);
+static void reg_crtc_lut_get_plb(igd_context_t *context,
+    emgd_crtc_t *emgd_crtc);
+static void reg_crtc_lut_set_plb(igd_context_t *context,
+    emgd_crtc_t *emgd_crtc);
 
 /* GR registers being saved */
 static unsigned char gr_regs_plb[] = {
@@ -282,6 +286,8 @@ reg_dispatch_t reg_dispatch_plb = {
 	reg_free_plb,
 	reg_save_plb,
 	reg_restore_plb,
+	reg_crtc_lut_get_plb,
+	reg_crtc_lut_set_plb,
 	&reg_platform_context_plb
 };
 
@@ -596,6 +602,82 @@ static int reg_save_dac_plb(
 	return 0;
 }
 
+static void reg_crtc_lut_set_plb(
+    igd_context_t *context,
+    emgd_crtc_t *emgd_crtc)
+{
+    int i;
+	unsigned long pal_reg;
+    unsigned char *mmio;
+
+    EMGD_TRACE_ENTER;
+
+    mmio = context->device_context.virt_mmadr;
+
+    if (emgd_crtc->crtc_id == 0) {
+        /* If Pipe is enabled, restore Palette */
+        if ((emgd_crtc->crtc_id == 0 &&
+            ((EMGD_READ32(mmio + PIPEA_CONF) & PIPE_ENABLE) &&
+            (EMGD_READ32(mmio + PIPEASRC)))) ||
+            (emgd_crtc->crtc_id == 1 &&
+            ((EMGD_READ32(mmio + PIPEB_CONF) & PIPE_ENABLE) &&
+            (EMGD_READ32(mmio + PIPEBSRC))))) {
+
+            pal_reg = (unsigned long)(mmio + DPALETTE_A +
+                (emgd_crtc->crtc_id * (DPALETTE_B - DPALETTE_A)));
+
+            /* Restore Pipe A Palette */
+            for (i=0; i<DAC_DATA_COUNT; i++)  {
+                EMGD_WRITE32((emgd_crtc->lut_r[i] << 16) |
+                    (emgd_crtc->lut_g[i] << 8) |
+                    emgd_crtc->lut_b[i],
+                    pal_reg + i*4);
+            }
+        }
+    }
+
+    EMGD_TRACE_EXIT;
+}
+
+static void reg_crtc_lut_get_plb(
+    igd_context_t *context,
+    emgd_crtc_t *emgd_crtc)
+{
+    int i;
+	unsigned long pal_reg;
+    unsigned char *mmio;
+    unsigned long lut_value;
+
+    EMGD_TRACE_ENTER;
+
+    mmio = context->device_context.virt_mmadr;
+
+    if (emgd_crtc->crtc_id == 0) {
+        /* If Pipe is enabled, restore Palette */
+        if ((emgd_crtc->crtc_id == 0 &&
+            ((EMGD_READ32(mmio + PIPEA_CONF) & PIPE_ENABLE) &&
+            (EMGD_READ32(mmio + PIPEASRC)))) ||
+            (emgd_crtc->crtc_id == 1 &&
+            ((EMGD_READ32(mmio + PIPEB_CONF) & PIPE_ENABLE) &&
+            (EMGD_READ32(mmio + PIPEBSRC))))) {
+
+            pal_reg = (unsigned long)(mmio + DPALETTE_A +
+                (emgd_crtc->crtc_id * (DPALETTE_B - DPALETTE_A)));
+
+            /* Restore Pipe A Palette */
+            for (i=0; i<DAC_DATA_COUNT; i++)  {
+                lut_value = EMGD_READ32(pal_reg + i*4);
+                emgd_crtc->lut_r[i] = (lut_value & 0xFF0000) >> 16;
+                emgd_crtc->lut_g[i] = (lut_value & 0x00FF00) >> 8;
+                emgd_crtc->lut_b[i] = (lut_value & 0x0000FF);
+            }
+        }
+    }
+
+    EMGD_TRACE_EXIT;
+}
+
+
 /*!
  * Restore previously saved DAC palette from the specifed state buffer.
  *
@@ -829,7 +911,9 @@ static int reg_save_plb(igd_context_t *context,
 			*buffer++ = EMGD_READ32(mmio + platform_context->mmio_regs[i]);
 		}
 
+		if (reg_buffer->flags & IGD_REG_SAVE_GTT) {
 			reg_save_gtt_plb(context, mmio, reg_args);
+		}
 	}
 
 	/* Save DAC registers */
@@ -927,7 +1011,10 @@ int reg_restore_plb(igd_context_t *context,
 				EMGD_WRITE32(*buffer++, mmio + platform_context->mmio_regs[i]);
 			}
 		}
-		reg_restore_gtt_plb(context, reg_args);
+
+		if (reg_buffer->flags & IGD_REG_SAVE_GTT) {
+			reg_restore_gtt_plb(context, reg_args);
+		}
 	}
 
 #if 0

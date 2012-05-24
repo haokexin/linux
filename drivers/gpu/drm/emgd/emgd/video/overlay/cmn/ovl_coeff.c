@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: ovl_coeff.c
- * $Revision: 1.7 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -953,7 +953,7 @@ void ovl_update_coeff_regs(
 	int val, sinc, window, sum, x, y;
 	int dCoeff[5*32];
 	int dDiff;
-   	unsigned short wTap2Fix;
+	unsigned short wTap2Fix;
 
 	const int pi = 0x3243f; /* = 3.141586 << 16 */
 				  /*+- 3.1415926535; */

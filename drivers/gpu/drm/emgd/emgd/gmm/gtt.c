@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: gtt.c
- * $Revision: 1.15 $
+ * $Revision: 1.17 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -136,8 +136,9 @@ static void invalidate_vma(unsigned long pg_offset, unsigned long bus_addr) {
 
 
 			if (!page_mapcount(pte_page(*pte))) {
-				printk(KERN_ERR "ERROR No mapcount");
-				printk(KERN_ALERT "ZR %p %08lX %d %d %p", pte_page(*pte),
+				printk(KERN_ERR "[EMGD] ERROR No mapcount\n");
+				printk(KERN_ALERT "[EMGD] ZR %p %08lX %d %d %p\n",
+						pte_page(*pte),
 						pte_page(*pte)->flags, page_count(pte_page(*pte)),
 						page_mapcount(pte_page(*pte)), pte_page(*pte)->mapping);
 			} else {
@@ -146,7 +147,7 @@ static void invalidate_vma(unsigned long pg_offset, unsigned long bus_addr) {
 #if  (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,34))
 				dec_mm_counter(entry->vma->vm_mm, file_rss);
 #else
-			 	dec_mm_counter(entry->vma->vm_mm, MM_FILEPAGES);
+				dec_mm_counter(entry->vma->vm_mm, MM_FILEPAGES);
 #endif
 			}
 
@@ -191,7 +192,7 @@ gmm_mem_buffer_t *emgd_alloc_pages(unsigned long num_pages, int type) {
 	}
 
 	if (mem->pages == NULL) {
-		printk(KERN_ERR "Failed to allocate memory info struct.\n");
+		printk(KERN_ERR "[EMGD] Failed to allocate memory info struct.\n");
 		kfree(mem);
 		return NULL;
 	}
@@ -212,7 +213,7 @@ gmm_mem_buffer_t *emgd_alloc_pages(unsigned long num_pages, int type) {
 			page = alloc_page(GFP_KERNEL | GFP_DMA32 | __GFP_ZERO);
 			if (page == NULL) {
 				/* Error! */
-				printk(KERN_ERR "Memory allocation failure!\n");
+				printk(KERN_ERR "[EMGD] Memory allocation failure!\n");
 				if (mem->vmalloc_flag) {
 					vfree(mem->pages);
 				} else {
@@ -224,8 +225,8 @@ gmm_mem_buffer_t *emgd_alloc_pages(unsigned long num_pages, int type) {
 
 			/* Make sure this page isn't cached */
 			if (set_memory_uc((unsigned long) page_address(page), 1) < 0) {
-				printk(KERN_ERR "Unable to set page attributes for newly "
-					"allocated graphics memory.\n");
+				printk(KERN_ERR "[EMGD] Unable to set page attributes for newly"
+					" allocated graphics memory.\n");
 				/* Rely on the fact that we've kept up the data structures: */
 				emgd_free_pages(mem);
 				/* XXX - THIS IS WHAT SOME OLD IEGD CODE DID--A GOOD IDEA??? */
@@ -246,7 +247,7 @@ gmm_mem_buffer_t *emgd_alloc_pages(unsigned long num_pages, int type) {
 		} else if (num_pages == 8) {
 			order = 3;
 		} else {
-			printk(KERN_ERR "Page count is not valid for physical "
+			printk(KERN_ERR "[EMGD] Page count is not valid for physical "
 				"allocation.\n");
 			if (mem->vmalloc_flag) {
 				vfree(mem->pages);
@@ -260,7 +261,7 @@ gmm_mem_buffer_t *emgd_alloc_pages(unsigned long num_pages, int type) {
 		page = alloc_pages(GFP_KERNEL, order);
 		if (page == NULL) {
 			/* Error! */
-			printk(KERN_ERR "Memory allocation failure!\n");
+			printk(KERN_ERR "[EMGD] Memory allocation failure!\n");
 			if (mem->vmalloc_flag) {
 				vfree(mem->pages);
 			} else {
@@ -272,8 +273,8 @@ gmm_mem_buffer_t *emgd_alloc_pages(unsigned long num_pages, int type) {
 			/* Make sure these pages aren't cached */
 			if (set_memory_uc((unsigned long) page_address(page),
 				num_pages) < 0) {
-				printk(KERN_ERR "Unable to set page attributes for newly "
-					"allocated physical graphics memory.\n");
+				printk(KERN_ERR "[EMGD] Unable to set page attributes for newly"
+					" allocated physical graphics memory.\n");
 				/* XXX - THIS IS WHAT SOME OLD IEGD CODE DID--A GOOD IDEA??? */
 				set_memory_wb((unsigned long) page_address(page), num_pages);
 				__free_pages(page, num_pages);
@@ -347,7 +348,7 @@ void emgd_gtt_insert(igd_context_t *context,
 
 	/* Check that the offset is within the gtt's range */
 	if ((pg_off + mem->page_count) > context->device_context.gatt_pages) {
-		printk(KERN_ERR "emgd_gtt_insert: page offset beyond of GTT range.\n");
+		printk(KERN_ERR "[EMGD] Attempt to insert a offset beyond of GTT range.\n");
 		return;
 	}
 
@@ -360,16 +361,6 @@ void emgd_gtt_insert(igd_context_t *context,
 	mutex_lock(&gtt_sem);
 	for (i = 0, j = pg_off; i < mem->page_count; i++, j++) {
 		page = mem->pages[i];
-		/* FIXME: Apparently we don't really need to copy stolen memory pages.
-		 * If so, can we remove the following code?
-		 */
-		if (j < context->device_context.stolen_pages) {
-			/* Inserting over the top of stolen memory */
-			if (j == pg_off) {
-				printk(KERN_ALERT " Inserting over stolen memory.\n");
-			}
-			/* Copy old page to new page */
-		}
 
 		/* Mark the page as valid */
 		pte = page_to_phys(page) | PSB_PTE_VALID;

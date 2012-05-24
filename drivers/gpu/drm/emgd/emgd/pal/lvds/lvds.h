@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: lvds.h
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -162,9 +162,3 @@ extern int lvds_get_port_status(void *context, pd_port_status_t *port_status);
 
 #endif
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: lvds.h,v 1.6 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/pal/lvds/lvds.h,v $
- *----------------------------------------------------------------------------
- */

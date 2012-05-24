@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_render.h
- * $Revision: 1.12 $
+ * $Revision: 1.17 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -61,11 +61,33 @@
 #define IGD_PRIORITY_BB        0x4
 
 
+typedef struct _igd_yuv_coeffs {
+	char ry;
+	char ru;
+	char rv;
+   	char gy;
+	char gu;
+	char gv;
+	char by;
+	char bu;
+	char bv;
+
+	short r_const;
+	short g_const;
+	short b_const;
+
+	unsigned char r_shift;
+	unsigned char g_shift;
+	unsigned char b_shift;
+} igd_yuv_coeffs, *pigd_yuv_coeffs;
+
 typedef struct _igd_palette_info {
 	unsigned long *palette;
 	int palette_id;
 	int palette_type;
 	int size;
+
+	igd_yuv_coeffs yuv_coeffs;
 } igd_palette_info_t, *pigd_palette_info_t;
 
 /*
@@ -202,6 +224,7 @@ typedef struct _igd_surface_list {
 #define IGD_RENDER_OP_ROT_270    0x000300
 #define IGD_RENDER_OP_FLIP       0x000400
 #define IGD_RENDER_OP_SKIP_ROT	 0x000800
+#define IGD_RENDER_OP_SKIP_FLIP	 0x008000
 
 /*
  * flags for post process - Deinterlacing and ProcAmpControl.
@@ -247,7 +270,8 @@ typedef struct _igd_dma {
 typedef enum _igd_buffertype {
 	IGD_BUFFER_DISPLAY = 0,
 	IGD_BUFFER_COLOR,
-	IGD_BUFFER_DEPTH
+	IGD_BUFFER_DEPTH,
+	IGD_BUFFER_SAVE
 } igd_buffertype_t;
 
 /*----------------------------------------------------------------------
@@ -504,10 +528,3 @@ typedef int (*_igd_rb_update_fn_t)(
 
 
 #endif /* _IGD_RENDER_H */
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_render.h,v 1.12 2011/03/02 22:47:07 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/include/igd_render.h,v $
- *----------------------------------------------------------------------------
- */

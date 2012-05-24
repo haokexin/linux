@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_pi.h
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -128,10 +128,3 @@ int igd_pd_filter_timings(
 void *igd_pd_get_igd_debug( void );
 
 #endif /* _IGD_PI_H */
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_pi.h,v 1.7 2011/03/02 22:47:07 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/include/igd_pi.h,v $
- *----------------------------------------------------------------------------
- */

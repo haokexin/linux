@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: dsp_tnc.c
- * $Revision: 1.8 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -483,6 +483,51 @@ static int dsp_init_tnc(igd_context_t *context)
 	return 0;
 }
 
+void dsp_control_plane_format_tnc(igd_context_t *context,
+		int enable, int plane, igd_plane_t *plane_override)
+{
+	igd_plane_t * pl = NULL;
+	unsigned char *mmio = EMGD_MMIO(context->device_context.virt_mmadr);
+	unsigned long tmp;
+
+	if (plane_override == NULL) {
+		pl = (plane == 0) ? &planea_tnc : &planeb_tnc;
+	} else {
+		pl = plane_override;
+	}
+	tmp = EMGD_READ32(mmio +  pl->plane_reg);
+	/*
+	 * Pixel format bits (29:26) are in plane control register 0x70180 for
+	 * Plane A and 0x71180 for Plane B
+	 * 0110 = XRGB pixel format
+	 * 0111 = ARGB pixel format
+	 * Note that the plane control register is double buffered and will be
+	 * updated on the next VBLANK operation so there is no need to sync with
+	 * an explicit VSYNC.
+	 */
+	if(enable) {
+		if((tmp & DSPxCNTR_SRC_FMT_MASK) == DSPxCNTR_RGB_8888) {
+			tmp = tmp & (~(DSPxCNTR_SRC_FMT_MASK));
+			EMGD_WRITE32(tmp | DSPxCNTR_ARGB_8888, mmio + pl->plane_reg);
+			EMGD_READ32(mmio + pl->plane_reg);
+			tmp = EMGD_READ32(mmio + pl->plane_reg + 0x1c);
+			EMGD_WRITE32(tmp, mmio + pl->plane_reg + 0x1c);
+			EMGD_DEBUG("Changed pixel format from XRGB to ARGB\n");
+		}
+	} else {
+		if((tmp & DSPxCNTR_SRC_FMT_MASK) == DSPxCNTR_ARGB_8888) {
+			tmp = tmp & (~(DSPxCNTR_SRC_FMT_MASK));
+			EMGD_WRITE32(tmp | DSPxCNTR_RGB_8888, mmio +  pl->plane_reg);
+			EMGD_READ32(mmio + pl->plane_reg);
+			tmp = EMGD_READ32(mmio + pl->plane_reg + 0x1c);
+			EMGD_WRITE32(tmp, mmio + pl->plane_reg + 0x1c);
+			OS_SLEEP(100);
+			EMGD_DEBUG("Changed pixel format from ARGB to XRGB\n");
+		}
+	}
+	EMGD_DEBUG("Plane register 0x%lX has value of 0x%X\n", pl->plane_reg,
+			EMGD_READ32(mmio + pl->plane_reg));
+}
 
 dsp_dispatch_t dsp_dispatch_tnc = {
 	plane_table_tnc, pipe_table_tnc, port_table_tnc,
@@ -490,7 +535,8 @@ dsp_dispatch_t dsp_dispatch_tnc = {
 	OPT_MICRO_VALUE(overlay_pixel_formats_tnc, NULL),
 	OPT_MICRO_VALUE(render_pixel_formats_tnc, NULL),
 	OPT_MICRO_VALUE(texture_pixel_formats_tnc, NULL),
-	dsp_init_tnc
+	dsp_init_tnc,
+	dsp_control_plane_format_tnc,
 };
 
 #endif

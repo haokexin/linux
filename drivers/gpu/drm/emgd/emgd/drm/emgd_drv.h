@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: emgd_drv.h
- * $Revision: 1.69 $
+ * $Revision: 1.74 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -33,17 +33,26 @@
 
 #include <linux/io-mapping.h>
 #include <emgd_shared.h>
+#include <igd_version.h>
 #include "user_config.h"
 
 #define DRIVER_AUTHOR     "Intel Corporation."
 #define DRIVER_NAME       EMGD_MODULE_NAME
 #define DRIVER_DESC       "Intel Embedded Media and Grahics Driver"
-#define DRIVER_DATE       "20100723"
-#define DRIVER_MAJOR      1
-#define DRIVER_MINOR      0
-#define DRIVER_PATCHLEVEL 0
+#define DRIVER_DATE       PVR_BUILD_DATE
+#define DRIVER_MAJOR      IGD_MAJOR_NUM
+#define DRIVER_MINOR      IGD_MINOR_NUM
+#define DRIVER_PATCHLEVEL IGD_BUILD_NUM
 
 #define INTELFB_CONN_LIMIT 4
+
+/*
+ *  * Special "handle" that indicates the framebuffer being referred to is the
+ *   * EMGD initial framebuffer (which does not have a PVR meminfo handle that
+ *    * can be passed.
+ *     */
+#define EMGD_INITIAL_FRAMEBUFFER 0
+
 
 /* Function prototypes */
 extern int emgd_driver_load(struct drm_device *dev, unsigned long flags);
@@ -90,6 +99,8 @@ int emgd_alter_cursor(struct drm_device *dev, void *arg,
 int emgd_alter_cursor_pos(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
 int emgd_alter_displays(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv);
+int emgd_get_display_info(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
 int emgd_alter_ovl(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
@@ -151,6 +162,8 @@ int emgd_set_palette_entry(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
 int emgd_set_surface(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
+int emgd_dihclone_set_surface(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv);
 int emgd_sync(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
 int emgd_driver_pre_init(struct drm_device *dev, void *arg,
@@ -176,5 +189,11 @@ int emgd_video_get_info(struct drm_device *dev, void *arg,
 int emgd_video_flush_tlb(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
 int emgd_get_golden_htotal(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv);
+int emgd_control_plane_format(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv);
+int emgd_set_overlay_display(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv);
+int emgd_query_2d_caps_hwhint(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv);
 #endif

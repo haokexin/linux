@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: regs.h
- * $Revision: 1.6 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -402,9 +402,6 @@
 #define P2D_CG_DIS      0x06200  /* Clock Gating Disable */
 #define P3D_CG_DIS      0x06204  /* Clock Gating Disable */
 
-#define DSP_ARB         0x70030
-#define FW_BLC_AB       0x70034
-#define FW_BLC_C        0x70038
 
 /*-----------------------------------------------------------------------------
  * Display Palette Register Definitions (0A000h - 0AFFFh)
@@ -500,6 +497,16 @@
 #define PIPE_STATUS_OFFSET     0x1C
 #define PIPEA_STAT             0x70024  /* Pipe A Display Status */
 #define PIPEA_DISP_ARB_CTRL    0x70030  /* Display Arbitration Control */
+#define FW_BLC_AB              0x70034
+#define FW_BLC_C               0x70038
+#define PIPEA_FRAME_HIGH       0x70040  /* Pipe A Frame Count High */
+#define PIPEA_FRAME_PIXEL      0x70044  /* Pipe A Frame Cnt Low & pixel count */
+
+#define PIPE_PIXEL_MASK        0x00ffffff
+#define PIPE_FRAME_HIGH_MASK   0x0000ffff
+#define PIPE_FRAME_LOW_MASK    0xff000000
+#define PIPE_FRAME_LOW_SHIFT   24
+
 
 /* following bit flag defs can be re-used for Pipe-B */
 #define PIPE_ENABLE       BIT31
@@ -557,7 +564,7 @@
 /*-----------------------------------------------------------------------------
  * VBIOS Software flags  00h - 0Fh
  *---------------------------------------------------------------------------*/
-#define KFC             0x70400  /* Chicken Bit */
+#define DSP_CHICKENBITS 0x70400  /* Chicken Bit */
 #define SWFABASE        0x70410  /* Software flags A Base Addr */
 #define SWF00           0x70410
 #define SWF01           0x70414
@@ -580,10 +587,13 @@
 /*-----------------------------------------------------------------------------
  * Display Pipeline B Register ( 71000h - 71024h )
  *---------------------------------------------------------------------------*/
-#define PIPEB_SCANLINE_COUNT   0x71000 /* Pipe B Disp Scan Line Count Register */
-#define PIPEB_SCANLINE_COMPARE 0x71004 /* Pipe B Disp Scan Line Count Range Compare */
-#define PIPEB_CONF             0x71008 /* Pipe B Pixel Pipeline Config Register */
+#define PIPEB_SCANLINE_COUNT   0x71000 /* Pipe B Disp Scan Line Count Reg */
+#define PIPEB_SCANLINE_COMPARE 0x71004 /* Pipe B Disp Scan Line Cnt Range Cmp */
+#define PIPEB_CONF             0x71008 /* Pipe B Pixel Pipeline Config Reg */
 #define PIPEB_STAT             0x71024 /* Display Status Select Register */
+#define PIPEB_FRAME_HIGH       0x71040 /* Pipe B Frame Count High */
+#define PIPEB_FRAME_PIXEL      0x71044 /* Pipe B Frame Cnt Low and pixel cnt */
+
 
 #define VBLANK_EVN_STS_EN   BIT20
 #define VBLANK_ODD_STS_EN   BIT21
@@ -602,6 +612,18 @@
 #define DSPBSIZE        0x71190  /* Display B Sprite Size */
 #define DSPBKEYVAL      0x71194  /* Sprite color key value */
 #define DSPBKEYMASK     0x71198  /* Sprite color key mask */
+
+
+
+/*-----------------------------------------------------------------------------
+ * Source Format Definition for DSPxCNTR
+ *---------------------------------------------------------------------------*/
+#define DSPxCNTR_ARGB_8888			0x1C000000
+#define DSPxCNTR_RGB_8888			0x18000000
+#define DSPxCNTR_RGB_565			0x14000000
+#define DSPxCNTR_RGB_555			0x10000000
+#define DSPxCNTR_RGB_8				0x08000000
+#define DSPxCNTR_SRC_FMT_MASK			0x3C000000 /*mask for above*/
 
 
 /*-----------------------------------------------------------------------------
@@ -723,10 +745,3 @@
 #define GMBUS_DVOC_DDC      5
 
 #endif /* _REGS_H_ */
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: regs.h,v 1.6 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/plb/regs.h,v $
- *----------------------------------------------------------------------------
- */

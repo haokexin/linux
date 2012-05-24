@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: match.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -46,10 +46,14 @@ int match_mode (
 	igd_display_info_t *pt_info,
 	igd_timing_info_t **timing);
 
+int kms_match_mode (
+	emgd_encoder_t *emgd_encoder,
+	igd_framebuffer_info_t *fb_info,
+	igd_timing_info_t **timing);
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: match.h,v 1.5 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/mode/cmn/match.h,v $
- *----------------------------------------------------------------------------
- */
+igd_timing_info_t *kms_match_resolution(
+	emgd_encoder_t *emgd_encoder,
+	igd_timing_info_t *timing_table,
+	igd_display_info_t *pt_info,
+	int type);
+

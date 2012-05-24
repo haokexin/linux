@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: topaz.c
- * $Revision: 1.11 $
+ * $Revision: 1.13 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -184,6 +184,7 @@ void topaz_sync_tnc(igd_context_t *context)
 	platform = (platform_context_tnc_t *)context->platform_context;
 	topaz_priv = &platform->tpz_private_data;
 	sync_p = (unsigned long *)topaz_priv->topaz_sync_addr;
+	topaz_priv->topaz_sync_id++;
 
 	/* insert a SYNC command here */
 	topaz_priv->topaz_sync_cmd_seq = (1 << 15) |
@@ -191,7 +192,7 @@ void topaz_sync_tnc(igd_context_t *context)
 	sync_cmd[0] = (MTX_CMDID_SYNC << 1) | (3 << 8) |
 		(topaz_priv->topaz_sync_cmd_seq << 16);
 	sync_cmd[1] = topaz_priv->topaz_sync_offset;
-	sync_cmd[2] = topaz_priv->topaz_sync_cmd_seq;
+	sync_cmd[2] = topaz_priv->topaz_sync_id;
 	temp_ret = mtx_send_tnc(context, sync_cmd);
 	if (0 != temp_ret){
 	    EMGD_DEBUG("TOPAZ: sync error: %ld\n", temp_ret);
@@ -203,14 +204,14 @@ void topaz_sync_tnc(igd_context_t *context)
 	/* debug code to make sure SYNC can be done */
 	{
 		int count = 1000;
-		while (count && *sync_p != topaz_priv->topaz_sync_cmd_seq) {
+		while (count && *sync_p != topaz_priv->topaz_sync_id) {
 		OS_SLEEP(1000);
 		--count;
 	}
 	if ((count == 0) && (*sync_p != 0x45)) {
 		EMGD_ERROR("TOPAZ: wait sync timeout (0x%08x),"
 			"actual 0x%08x\n",
-			topaz_priv->topaz_sync_cmd_seq, *sync_p);
+			topaz_priv->topaz_sync_id, *sync_p);
 		}
 		}
 #endif
@@ -235,7 +236,6 @@ int process_encode_mtx_messages(igd_context_t *context,
 	unsigned long codec;
 	tnc_topaz_priv_t *topaz_priv;
 	platform_context_tnc_t *platform;
-	int first_frame = 0;
 
 	platform = (platform_context_tnc_t *)context->platform_context;
 	topaz_priv = &platform->tpz_private_data;
@@ -243,16 +243,6 @@ int process_encode_mtx_messages(igd_context_t *context,
 	cur_cmd_header = (struct topaz_cmd_header *) command;
 	cur_cmd_size = cur_cmd_header->size;
 	cur_cmd_id = cur_cmd_header->id;
-
-	if(cur_cmd_id != MTX_CMDID_SW_NEW_CODEC){
-		if( (topaz_priv->topaz_cur_codec == FW_H264_NO_RC) ||
-            	    (topaz_priv->topaz_cur_codec == FW_MPEG4_NO_RC) ||
-            	    (topaz_priv->topaz_cur_codec == FW_H263_NO_RC) ){
-			topaz_priv->topaz_sync_val = topaz_priv->topaz_sync_cmd_seq;
-		}
-	}else{
-		first_frame=1;
-	}
 
 	while (cur_cmd_id != MTX_CMDID_NULL) {
 
@@ -305,15 +295,6 @@ int process_encode_mtx_messages(igd_context_t *context,
 		cur_cmd_id = cur_cmd_header->id;
 	}
 	topaz_sync_tnc(context);
-
-	if(first_frame){
-		/* For no rate-control, POLL special for first frame */
-                if( (topaz_priv->topaz_cur_codec == FW_H264_NO_RC) ||
-                    (topaz_priv->topaz_cur_codec == FW_MPEG4_NO_RC) ||
-                    (topaz_priv->topaz_cur_codec == FW_H263_NO_RC) ){
-			topaz_priv->topaz_sync_val = topaz_priv->topaz_sync_cmd_seq;
-		}
-	}
 
 	return 0;
 }

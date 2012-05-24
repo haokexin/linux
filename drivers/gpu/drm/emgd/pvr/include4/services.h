@@ -283,7 +283,7 @@ typedef struct _PVRSRV_CLIENT_MEM_INFO_
 	#endif
 #endif
 
- 	IMG_HANDLE							hOSMapInfo;
+	IMG_HANDLE							hOSMapInfo;
 
 	struct _PVRSRV_CLIENT_MEM_INFO_		*psNext;
 

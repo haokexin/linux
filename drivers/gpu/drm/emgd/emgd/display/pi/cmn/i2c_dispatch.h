@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: i2c_dispatch.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -53,6 +53,7 @@
  *  write cycle.
  */
 #define IGD_I2C_SERIAL_WRITE 0x1
+#define IGD_I2C_WRITE_FW 0x2
 
 typedef struct _i2c_dispatch {
 	int (*i2c_read_regs)(
@@ -62,7 +63,8 @@ typedef struct _i2c_dispatch {
 		unsigned long dab,
 		unsigned char reg,
 		unsigned char FAR *buffer,
-		unsigned long num_bytes);
+		unsigned long num_bytes,
+		unsigned long flags);
 	int (*i2c_write_reg_list)(
 		igd_context_t *context,
 		unsigned long i2c_bus,

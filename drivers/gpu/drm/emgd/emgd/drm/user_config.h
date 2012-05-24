@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: user_config.h
- * $Revision: 1.7 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -86,6 +86,8 @@ typedef struct _emgd_drm_config {
 	int height;
 	/** The refresh rate to use if initializing the display. */
 	int refresh;
+	/** Enable Kernel Mode Set */
+	int kms;
 	/** Overlay Brightness */
 	unsigned long ovl_brightness;
 	/** Overlay Contrast */

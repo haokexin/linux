@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: micro_init_tnc.c
- * $Revision: 1.21 $
+ * $Revision: 1.24 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -101,10 +101,15 @@ extern unsigned short io_base_sdvo_st_gpio;
 
 extern int full_config_tnc(igd_context_t *context,
 	init_dispatch_t *dispatch);
-extern int get_revision_id_tnc(igd_context_t *context, os_pci_dev_t vga_dev);
+extern int get_revision_id_tnc(igd_context_t *context, os_pci_dev_t vga_dev, os_pci_dev_t sdvo_dev);
 extern int full_get_param_tnc(igd_context_t *context, unsigned long id,
 	unsigned long *value);
 extern void full_shutdown_tnc(igd_context_t *context);
+
+extern int query_2d_caps_hwhint_tnc(
+  	         igd_context_t *context,
+  	         unsigned long caps_val,
+  	         unsigned long *status);
 
 static int query_tnc(igd_context_t *context,init_dispatch_t *dispatch,
 	os_pci_dev_t vga_dev, unsigned int *bus, unsigned int *slot,
@@ -136,7 +141,8 @@ init_dispatch_t init_dispatch_tnc = {
 	config_tnc,
 	set_param_tnc,
 	get_param_tnc,
-	shutdown_tnc
+	shutdown_tnc,
+	query_2d_caps_hwhint_tnc
 };
 
 /* Array to keep the Bridge ID. Atom E6xx ULP uses a different bridge ID */
@@ -466,11 +472,11 @@ static int query_tnc(
 				(os_pci_dev_t)0);
 		if(platform_context->bridgedev){
 			bridge_dev = platform_context->bridgedev;
-  	        context->device_context.bid = bridge_id[i];
-  	        break;
+	        context->device_context.bid = bridge_id[i];
+	        break;
 		}
-  	 	i++;
-  	 }
+		i++;
+	 }
 	/*
 	 * Current specs indicate that Atom E6xx has only one PCI function.
 	 * If this changes then we need to make sure we have func 0
@@ -493,12 +499,28 @@ static int query_tnc(
 			1,
 			(os_pci_dev_t)0);
 
-	platform_context->stgpiodev = OS_PCI_FIND_DEVICE(PCI_VENDOR_ID_STMICRO,
+	if (platform_context->stbridgedev) {
+		platform_context->stgpiodev = OS_PCI_FIND_DEVICE(PCI_VENDOR_ID_STMICRO,
 			PCI_DEVICE_ID_SDVO_TNC_ST_GPIO,
-			4,
+			3,
 			0,
-			5,
+			0,
 			(os_pci_dev_t)0);
+
+		if (!platform_context->stgpiodev) {
+			platform_context->stgpiodev = OS_PCI_FIND_DEVICE(PCI_VENDOR_ID_STMICRO,
+				PCI_DEVICE_ID_SDVO_TNC_ST_GPIO,
+				4,
+				0,
+				5,
+				(os_pci_dev_t)0);
+			if (!platform_context->stgpiodev) {
+				printk("Using STM device, but is not CUT1 or CUT2\n");
+				EMGD_ERROR_EXIT("Using STM device, but is not Cut1 or Cut2");
+				return -IGD_ERROR_NODEV;
+			}
+		}
+	}
 
 	/* Set to NULL, so full_shutdown_tnc() knows whether it was initialized: */
 	platform_context->lpc_dev = NULL;
@@ -509,7 +531,7 @@ static int query_tnc(
 	 */
 	OS_PCI_GET_SLOT_ADDRESS(vga_dev, bus, slot, func);
 
-	OPT_MICRO_CALL(get_revision_id_tnc(context, vga_dev));
+	get_revision_id_tnc(context, vga_dev, platform_context->pcidev1);
 
 	/*
 	 * Read BSM.
@@ -685,12 +707,12 @@ static int config_tnc(igd_context_t *context,
 	 * GVD.H_HP Control register's BIT1 is set 1.
 	 * TODO: Removed this after this is fix in system BIOS.
 	 */
- 	lp_ctrl_reg = EMGD_READ32(EMGD_MMIO(context->device_context.virt_mmadr) + 0x20f4);
+	lp_ctrl_reg = EMGD_READ32(EMGD_MMIO(context->device_context.virt_mmadr) + 0x20f4);
 	lp_ctrl_reg |= BIT1;
 	lp_ctrl_reg &= ~(BIT2 | BIT3);
     EMGD_WRITE32(lp_ctrl_reg, EMGD_MMIO(context->device_context.virt_mmadr) + 0x20f4);
 
- 	hp_ctrl_reg = EMGD_READ32(EMGD_MMIO(context->device_context.virt_mmadr) + 0x20f8);
+	hp_ctrl_reg = EMGD_READ32(EMGD_MMIO(context->device_context.virt_mmadr) + 0x20f8);
 	hp_ctrl_reg |= BIT1;
     EMGD_WRITE32(hp_ctrl_reg, EMGD_MMIO(context->device_context.virt_mmadr) + 0x20f8);
 
@@ -699,7 +721,7 @@ static int config_tnc(igd_context_t *context,
 	 * Tested with Punit B0_500309_CFG2 and Punit C0_060510_CFG2 in BIOS39 and
 	 * BIOS41 or above.
 	 */
- 	ved_cg_dis_reg = EMGD_READ32(EMGD_MMIO(context->device_context.virt_mmadr) + 0x2064);
+	ved_cg_dis_reg = EMGD_READ32(EMGD_MMIO(context->device_context.virt_mmadr) + 0x2064);
 	ved_cg_dis_reg |= (BIT16 | BIT8 | 0xFF);
     EMGD_WRITE32(ved_cg_dis_reg, EMGD_MMIO(context->device_context.virt_mmadr) + 0x2064);
 
@@ -926,6 +948,45 @@ static void shutdown_tnc(igd_context_t *context)
 	gtt_shutdown_tnc(context);
 
 	OPT_MICRO_VOID_CALL(full_shutdown_tnc(context));
+}
+
+
+/*!
+ *
+ * @param context
+ * @param dispatch
+ * @param vga_dev
+ *
+ * @return -IGD_ERROR_NODEV on failure
+ * @return 0 on success
+ */
+int get_revision_id_tnc(igd_context_t *context,
+	os_pci_dev_t vga_dev,
+	os_pci_dev_t sdvo_dev)
+{
+	platform_context_tnc_t *platform_context;
+
+	EMGD_TRACE_ENTER;
+
+	platform_context = (platform_context_tnc_t *)context->platform_context;
+
+	/* Read RID */
+	if(OS_PCI_READ_CONFIG_8(vga_dev, PCI_RID,
+		(unsigned char *)&context->device_context.rid)) {
+		EMGD_ERROR_EXIT("Error occured reading RID");
+		return -IGD_ERROR_NODEV;
+	}
+
+	if(OS_PCI_READ_CONFIG_8(sdvo_dev, PCI_RID,
+		&platform_context->tnc_dev3_rid)) {
+		EMGD_ERROR_EXIT("Error occured reading TNC SDVO RID");
+		return -IGD_ERROR_NODEV;
+	}
+
+	EMGD_DEBUG(" rid = 0x%lx", context->device_context.rid);
+
+	EMGD_TRACE_EXIT;
+	return 0;
 }
 
 #endif

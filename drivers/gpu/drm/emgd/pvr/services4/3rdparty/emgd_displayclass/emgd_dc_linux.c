@@ -97,7 +97,7 @@ void MAKENAME(_Cleanup)(struct drm_device unref__ *dev)
  */
 void emgddc_flip(emgddc_swapchain_t *swap_chain, emgddc_buffer_t *buffer)
 {
-	drm_emgd_private *priv = buffer->priv;
+	drm_emgd_priv_t *priv = buffer->priv;
 	igd_context_t *context = priv->context;
 	igd_surface_t surf;
 	int ret;

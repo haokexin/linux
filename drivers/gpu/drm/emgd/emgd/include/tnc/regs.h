@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: regs.h
- * $Revision: 1.11 $
+ * $Revision: 1.15 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -178,7 +178,7 @@
 #define GR07           0x07   /* Color Don't Care Register */
 #define GR08           0x08   /* Bit Mask Register */
 #define GR10           0x10   /* Address Mapping */
-#define PAGING_TARGET  BIT2 + BIT1 /* 00 = Local/Stolen, 01 = Memory mapped regs */
+#define PAGING_TARGET  BIT2 + BIT1 /* 00 = Local/Stolen, 01 = Mem mapped regs */
 #define PAGE_MODE      BIT0   /* Page Map allow access to all FB mem */
 #define GR11           0x11   /* Page Selector */
 #define	GR18           0x18   /* Software Flag */
@@ -470,13 +470,6 @@
 /* Not available in Atom E6xx */
 /* #define P3D_CG_DIS      0x06204 */ /* Clock Gating Disable */
 
-#define DSP_ARB         0x70030
-#define FW_1            0x70034
-#define FW_2            0x70038
-#define FW_3            0x7003C
-#define FW_4            0x70050
-#define FW_5            0x70054
-#define FW_6            0x70058
 
 /*-----------------------------------------------------------------------------
  * Display Palette Register Definitions (0A000h - 0AFFFh)
@@ -581,18 +574,35 @@
 #define PIPEAGCMAXBLU          0x70018  /* Pipe A Gamma Correct. Max Blue */
 #define PIPEA_STAT             0x70024  /* Pipe A Display Status */
 #define PIPEA_DISP_ARB_CTRL    0x70030  /* Display Arbitration Control */
+#define FW_1                   0x70034
+#define FW_2                   0x70038
+#define FW_3                   0x7003C
+#define PIPEA_FRAME_HIGH       0x70040  /* Pipe A Frame Count High */
+#define PIPEA_FRAME_PIXEL      0x70044  /* Pipe A Frame Cnt Low & pixel count */
+#define FW_4                   0x70050
+#define FW_5                   0x70054
+#define FW_6                   0x70058
+
+#define PIPE_PIXEL_MASK        0x00ffffff
+#define PIPE_FRAME_HIGH_MASK   0x0000ffff
+#define PIPE_FRAME_LOW_MASK    0xff000000
+#define PIPE_FRAME_LOW_SHIFT   24
+
 
 /*-----------------------------------------------------------------------------
  * Display Pipeline B Register ( 71000h - 71024h )
  *---------------------------------------------------------------------------*/
-#define PIPEB_SCANLINE_COUNT   0x71000 /* Pipe B Disp Scan Line Count Register */
-#define PIPEB_SCANLINE_COMPARE 0x71004 /* Pipe B Disp Scan Line Count Range Compare */
-#define PIPEB_CONF             0x71008 /* Pipe B Pixel Pipeline Config Register */
+#define PIPEB_SCANLINE_COUNT   0x71000 /* Pipe B Disp Scan Line Count Reg */
+#define PIPEB_SCANLINE_COMPARE 0x71004 /* Pipe B Disp Scan Line Cnt Range Cmp */
+#define PIPEB_CONF             0x71008 /* Pipe B Pixel Pipeline Config Reg */
 #define PIPEBGCMAXRED          0x71010 /* Pipe B Gamma Correct. Max Red */
 #define PIPEBGCMAXGRN          0x71014 /* Pipe B Gamma Correct. Max Green */
 #define PIPEBGCMAXBLU          0x71018 /* Pipe B Gamma Correct. Max Blue */
 #define PIPEB_STAT             0x71024 /* Display Status Select Register */
-#define PROG_STALL	       0x6102C /* Programmable cDVO Stall Register */
+#define PROG_STALL             0x6102C /* Programmable cDVO Stall Register */
+#define PIPEB_FRAME_HIGH       0x71040 /* Pipe B Frame Count High */
+#define PIPEB_FRAME_PIXEL      0x71044 /* Pipe B Frame Cnt Low and pixel cnt */
+
 
 #define VBLANK_EVN_STS_EN   BIT20
 #define VBLANK_ODD_STS_EN   BIT21
@@ -642,8 +652,8 @@
 #define DPLL_MISC	  	  0x06304
 #define DPLL_MONITOR	  	  0x06308
 #define DPLL_MONITOR2	  	  0x0630C
-#define DPLL_TEST_COMPARATOR	  0x06310
-#define SDVOB_TX_LSKEW		  0x06314
+#define DPLL_TEST_COMPARATOR      0x06310
+#define SDVOB_TX_LSKEW	          0x06314
 
 /*-----------------------------------------------------------------------------
  * Hardware Cursor Register Definitions (70080h - 7009Ch)
@@ -694,6 +704,16 @@
 #define DSPBKEYMASK     0x71198  /* Sprite color key mask */
 #define DSPBSURF        0x7119C  /* Display B Suface base address */
 #define DSPBTILEOFF     0x711A4  /* Display B Tiled Offset */
+
+/*-----------------------------------------------------------------------------
+ * Source Format Definition for DSPxCNTR
+ *---------------------------------------------------------------------------*/
+#define DSPxCNTR_ARGB_8888			0x1C000000
+#define DSPxCNTR_RGB_8888			0x18000000
+#define DSPxCNTR_RGB_565			0x14000000
+#define DSPxCNTR_RGB_555			0x10000000
+#define DSPxCNTR_RGB_8				0x08000000
+#define DSPxCNTR_SRC_FMT_MASK			0x3C000000 /*mask for above*/
 
 /*-----------------------------------------------------------------------------
  * Display Plane C Register Definitions (72180h - 72188h)
@@ -763,7 +783,7 @@
 /*-----------------------------------------------------------------------------
  * VBIOS Software flags  00h - 0Fh
  *---------------------------------------------------------------------------*/
-#define KFC             0x70400  /* Chicken Bit */
+#define DSP_CHICKENBITS	0x70400  /* Chicken Bit */
 #define SWFABASE        0x70410  /* Software flags A Base Addr */
 #define SWF00           0x70410
 #define SWF01           0x70414
@@ -866,9 +886,3 @@
 
 #endif /* _REGS_H_ */
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: regs.h,v 1.11 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/tnc/regs.h,v $
- *----------------------------------------------------------------------------
- */

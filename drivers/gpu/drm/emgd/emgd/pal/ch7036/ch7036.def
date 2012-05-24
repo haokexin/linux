@@ -1,0 +1,5 @@
+LIBRARY ch7036
+
+EXPORTS
+    get_version
+    dpd_init

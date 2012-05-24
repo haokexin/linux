@@ -20,10 +20,6 @@
  THE SOFTWARE.
  ******************************************************************************/
 
-#ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
-#endif
-
 #include <linux/version.h>
 #include <asm/io.h>
 #include <asm/page.h>
@@ -65,8 +61,8 @@ typedef struct PVRSRV_LINUX_EVENT_OBJECT_LIST_TAG
 
 typedef struct PVRSRV_LINUX_EVENT_OBJECT_TAG
 {
-   	atomic_t	sTimeStamp;
-   	IMG_UINT32  ui32TimeStampPrevious;
+	atomic_t	sTimeStamp;
+	IMG_UINT32  ui32TimeStampPrevious;
 #if defined(DEBUG)
 	IMG_UINT	ui32Stats;
 #endif

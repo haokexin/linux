@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: init_dispatch.h
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -53,6 +53,8 @@ typedef struct _init_dispatch {
 	int (*get_param)(igd_context_t *context, unsigned long id,
 		unsigned long *value);
 	void (*shutdown)(igd_context_t *context);
+	int (*query_2d_caps_hwint) (igd_context_t *context,
+		unsigned long caps_val, unsigned long *status);
 } init_dispatch_t;
 
 extern init_dispatch_t init_dispatch_plb;

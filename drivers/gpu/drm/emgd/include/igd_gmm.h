@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_gmm.h
- * $Revision: 1.10 $
+ * $Revision: 1.12 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -67,6 +67,9 @@
  *   engine. This flag must be set for any render target that may later
  *   be flipped to the front buffer.
  * - IGD_SURFACE_DEPTH The surface may be used as a depth (Z) buffer.
+ * - IGD_SURFACE_DRI2 The surface is a DRI2 allocation (back buffer,
+ *   fake front buffer, etc.).  It should be allocated on the general
+ *   heap rather than the default '2D' heap.
  *
  * - IGD_SURFACE_YMAJOR If the surface is tiled, it is tiled with the
  *     walk in the YMajor direction. This flag is output only unless the
@@ -92,6 +95,7 @@
 #define IGD_SURFACE_DEPTH     0x00000020
 #define IGD_SURFACE_VIDEO     0x00000040
 #define IGD_SURFACE_VIDEO_ENCODE     0x00000080
+#define IGD_SURFACE_DRI2      0x00000100
 
 #define IGD_SURFACE_WALK_MASK 0x00001000
 #define IGD_SURFACE_YMAJOR    0x00001000

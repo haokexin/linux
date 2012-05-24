@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: emgd_test_pvrsrv.c
- * $Revision: 1.22 $
+ * $Revision: 1.23 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -94,7 +94,7 @@
  * class members:
  */
 static emgd_drm_test_pvrsrv_t *drm_data;
-static drm_emgd_private *priv;
+static drm_emgd_priv_t *priv;
 
 static PVRSRV_PER_PROCESS_DATA *pp_data = NULL;
 static void *sgx_cookie = NULL;
@@ -144,11 +144,6 @@ static void init_pvrsrv(void)
 	EMGD_TRACE_ENTER;
 
 
-	if (0 == priv->pvrsrv_started) {
-		TEST_ERROR("[EMGD] cannot call emgd_test_pvrsrv() until the PVR "
-			"services have been started!\n");
-		drm_data->rtn = -1;
-	}
 	if (!drm_data->rtn) {
 		/* This is similar to PVRSRVConnect(): */
 		EMGD_DEBUG("Calling PVRSRVPerProcessDataConnect()");

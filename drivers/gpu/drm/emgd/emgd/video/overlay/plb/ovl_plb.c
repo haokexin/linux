@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: ovl_plb.c
- * $Revision: 1.24 $
+ * $Revision: 1.27 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -1414,10 +1414,19 @@ static unsigned int ovl_update_regs_plb(
 		ovl_cache_plb->command |= OVL_CMD_FIELD_MODE;
 		/* Need to enable FIELD SYNC OVERLAY FLIP in field mode. */
 		ovl_cache_plb->command |= OVL_CMD_FIELD_SYNC_FLIP;
+		/* HSD# 203821 Mplayer outputs single one buffer including both even and odd fields */
 		if (flags & IGD_OVL_ALTER_FLIP_ODD) {
 			ovl_cache_plb->command |= OVL_CMD_ACT_FLD1;
+			/* HSD# 203821 To display odd field, starts from first odd field. */
+			if (0 == src_rect->y1 & 1) {
+				src_rect->y1 += 1;
+			}
 		} else {
 			ovl_cache_plb->command |= OVL_CMD_ACT_FLD0;
+			/* HSD# 203821 To display even field, starts from first even field. */
+			if (0 != src_rect->y1 & 1) {
+				src_rect->y1 += 1;
+			}
 		}
 	} else {
 		ovl_cache_plb->command |= OVL_CMD_FRAME_MODE;
@@ -1433,7 +1442,7 @@ static unsigned int ovl_update_regs_plb(
 
 	/* Src rect and surface information */
 
-       	ret = ovl_update_src_ptr_plb(display, ovl_cache_plb, src_surf, src_rect);
+	ret = ovl_update_src_ptr_plb(display, ovl_cache_plb, src_surf, src_rect);
 	if (ret) {
 		OS_FREE(ovl_cache_plb);
 		EMGD_ERROR_EXIT("Overlay updating src pointers failed");
@@ -1657,10 +1666,19 @@ static unsigned int ovl_update_regs_plb(
 			ovl_cache_regs->command |= OVL_CMD_FIELD_MODE;
 			/* enable FIELD SYNC OVERLAY FLIP in field mode. */
 			ovl_cache_regs->command |= OVL_CMD_FIELD_SYNC_FLIP;
+			/* HSD# 203821 Mplayer outputs single one buffer including both even and odd fields */
 			if (flags & IGD_OVL_ALTER_FLIP_ODD) {
 				ovl_cache_regs->command |= OVL_CMD_ACT_FLD1;
+				/* HSD# 203821 To display odd field, starts from first odd field. */
+				if (0 == (src_rect->y1 & 1)) {
+					src_rect->y1 += 1;
+				}
 			} else {
 				ovl_cache_regs->command |= OVL_CMD_ACT_FLD0;
+				/* HSD# 203821 To display even field, starts from first even field. */
+				if (0 != (src_rect->y1 & 1)) {
+					src_rect->y1 += 1;
+				}
 			}
 		} else {
 			ovl_cache_regs->command |= OVL_CMD_FRAME_MODE;
@@ -2060,7 +2078,7 @@ static int alter_ovl_plb(igd_display_context_t *display,
 	if (ret) {
 		EMGD_ERROR_EXIT("Overlay Update Registers failed");
 		return ret;
-  	}
+	}
 
 	/* Send the instructions to the command queue */
 	ret = ovl_send_instr_plb(display, flags);

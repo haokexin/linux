@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: topaz_init.c
- * $Revision: 1.21 $
+ * $Revision: 1.23 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -395,7 +395,7 @@ static enc_fw_info_t firmware[10] = {
 
 int topaz_init_tnc(unsigned long wb_offset, void *wb_addr, void *firmware_addr)
 {
-	drm_emgd_private *priv;
+	drm_emgd_priv_t *priv;
 	igd_context_t *context;
 	unsigned char *mmio;
 	unsigned long size;
@@ -411,7 +411,7 @@ int topaz_init_tnc(unsigned long wb_offset, void *wb_addr, void *firmware_addr)
 
 	/* Only support Atom E6xx */
 	if ((PCI_DEVICE_ID_VGA_TNC != context->device_context.did)||
-  	   (context->device_context.bid == PCI_DEVICE_ID_BRIDGE_TNC_ULP)) {
+	   (context->device_context.bid == PCI_DEVICE_ID_BRIDGE_TNC_ULP)) {
 		return -1;
 	}
 
@@ -441,7 +441,8 @@ int topaz_init_tnc(unsigned long wb_offset, void *wb_addr, void *firmware_addr)
 	printk(KERN_INFO "Topaz write back sync offset = %lx", topaz_priv->topaz_sync_offset);
 	*/
 
-	*(topaz_priv->topaz_sync_addr) = ~0; /*reset sync seq */
+	*(topaz_priv->topaz_sync_addr) = 0; /*reset sync seq */
+	topaz_priv->topaz_sync_id = 0; /*reset sync id */
 
 	/* firmware part */
 	/* allocate memory for all firmwares */
@@ -612,80 +613,6 @@ int topaz_setup_fw(igd_context_t *context, enum tnc_topaz_encode_fw codec)
 	printk(KERN_INFO "Topaz Core Revision (%lx)", core_rev);
 
 	topaz_flush_tnc(context);
-
-#if 0
- 	unsigned long reg = EMGD_READ32(mmio+TNC_TOPAZ_IMG_TOPAZ_INTSTAT);
-	printk( KERN_INFO "sync: TOPAZ_INTSTAT= 0x%08x ", reg);
-	reg = EMGD_READ32(mmio+TNC_TOPAZ_MMU_STATUS);
-	printk( KERN_INFO "sync: TOPAZ_MMU_STATUS= 0x%08x ", reg);
-#endif
-
-#if 0
-/* DEBUG ONLY */
-/* test sync command */
-{
-		unsigned long value;
-		unsigned long sync_cmd[3];
-		unsigned long *sync_p = (unsigned long *)topaz_priv->topaz_sync_addr;
-		int count = 1000, k=0, r=0;
-
-	for(k=0;k<3;k++){
-
-		/* insert a SYNC command here */
-        	topaz_priv->topaz_sync_cmd_seq = (1 << 15) |
-                                topaz_priv->topaz_cmd_seq++;
-        	sync_cmd[0] = (MTX_CMDID_SYNC << 1) | (3 << 8) |
-                	(topaz_priv->topaz_sync_cmd_seq << 16);
-        	sync_cmd[1] = topaz_priv->topaz_sync_offset;
-        	sync_cmd[2] = topaz_priv->topaz_sync_cmd_seq;
-
-		printk(KERN_INFO "sync test: RI before sync =%ld", CCB_CTRL_RINDEX(context));
-		TOPAZ_BEGIN_CCB(context);
-		TOPAZ_OUT_CCB(context, sync_cmd[0]);
-		TOPAZ_OUT_CCB(context, sync_cmd[1]);
-		TOPAZ_OUT_CCB(context, sync_cmd[2]);
-
-		reg = EMGD_READ32(mmio+TNC_TOPAZ_IMG_TOPAZ_INTSTAT);
-		printk( KERN_INFO "sync: TOPAZ_INTSTAT= 0x%08x ", reg);
-
-		TOPAZ_END_CCB(context, 1);
-		/*
-		for(count_reg=0; count_reg<352; count_reg+=4){
-                        value = EMGD_READ32(mmio+TOPAZ_BASE+count_reg);
-                        printk(KERN_INFO "MTX reg: ofs=0x%04x, value=0x%08x", count_reg, value);
-                }
-         */
-
-
-
-		while (count && *sync_p != topaz_priv->topaz_sync_cmd_seq) {
-			OS_SLEEP(1000);
-			--count;
-		}
-		if ((count == 0) && (*sync_p != topaz_priv->topaz_sync_cmd_seq)) {
-			printk(KERN_INFO "TOPAZ: wait sycn timeout (0x%08x),"
-				"actual 0x%08x\n",
-				topaz_priv->topaz_sync_cmd_seq, *sync_p);
-		}else{
-			printk(KERN_INFO "TOPAZ: SYNC done, seq=0x%08x\n", *sync_p);
-		}
-
-		printk(KERN_INFO "RI after sync =%ld", CCB_CTRL_RINDEX(context));
-
-		reg = EMGD_READ32(mmio+TNC_TOPAZ_IMG_TOPAZ_INTSTAT);
-		printk( KERN_INFO "sync: TOPAZ_INTSTAT= 0x%08x ", reg);
-		reg = EMGD_READ32(mmio+TNC_TOPAZ_MMU_STATUS);
-		printk( KERN_INFO "sync: TOPAZ_MMU_STATUS= 0x%08x ", reg);
-	}
-
-/*
-                for(r=0;r<100;r++){
-                        printk(KERN_INFO "syncp=0x%08x",*sync_p);
-                        sync_p++;
-                }
-*/
-}
-#endif
 
 	return 0;
 }
@@ -969,7 +896,7 @@ void release_mtx_control_from_dash(igd_context_t *context)
 
 int process_video_encode_tnc(igd_context_t *context, unsigned long offset, void *virt_addr, unsigned long *fence_id)
 {
-        unsigned long *mtx_buf;
+    unsigned long *mtx_buf;
 	unsigned long size=0;
 	int ret = 0;
 	platform_context_plb_t *platform;
@@ -981,24 +908,19 @@ int process_video_encode_tnc(igd_context_t *context, unsigned long offset, void 
 	topaz_priv = &platform->tpz_private_data;
 	mtx_buf = (unsigned long *) virt_addr;
 
-        EMGD_DEBUG("process_video_encode_tnc where buf=%p, offset=%lx\n",
-				mtx_buf, offset);
+	EMGD_DEBUG("process_video_encode_tnc where buf=%p, offset=%lx\n",
+		mtx_buf, offset);
 
 	platform->topaz_busy = 1;
 	ret = process_encode_mtx_messages(context, mtx_buf, size);
 	if (ret){
- 		printk(KERN_INFO "Invalid topaz encode cmd");
-               	ret = -EINVAL;
+		printk(KERN_INFO "Invalid topaz encode cmd");
+	ret = -EINVAL;
         }
 
-	*fence_id = topaz_priv->topaz_sync_cmd_seq;
+	*fence_id = topaz_priv->topaz_sync_id;
 	platform->topaz_busy = 0;
 	return ret;
-}
-
-int topaz_get_fence_id(igd_context_t *context, unsigned long *fence_id)
-{
-	return 0;
 }
 
 int topaz_flush_tnc(igd_context_t *context)
@@ -1008,7 +930,7 @@ int topaz_flush_tnc(igd_context_t *context)
 
 	/* Only support Atom E6xx */
 	if ((PCI_DEVICE_ID_VGA_TNC != context->device_context.did)||
-  	   (context->device_context.bid == PCI_DEVICE_ID_BRIDGE_TNC_ULP)) {
+	   (context->device_context.bid == PCI_DEVICE_ID_BRIDGE_TNC_ULP)) {
 		return -1;
 	}
 
@@ -1047,52 +969,17 @@ int topaz_get_frame_skip(igd_context_t *context, unsigned long *frame_skip)
 	return 0;
 }
 
-int topaz_sync_surface(igd_context_t *context, unsigned long *sync_done, int *last_frame)
+int topaz_get_fence_id(igd_context_t *context, unsigned long *fence_id)
 {
 	tnc_topaz_priv_t *topaz_priv;
-	platform_context_tnc_t *platform;
 	unsigned long *sync_p;
+	platform_context_tnc_t *platform;
 
 	platform = (platform_context_tnc_t *)context->platform_context;
 	topaz_priv = &platform->tpz_private_data;
 	sync_p = (unsigned long *)topaz_priv->topaz_sync_addr;
 
-	if(*last_frame){
-		if( CCB_CTRL_SEQ(context) == *sync_p ) {
-			*sync_done = 1;
-		} else {
-			*sync_done = 0;
-		}
-		return 0;
-	}
-
-
-	/* For rate-control, will check the sync by matching the current CCB_CTRL_SEQ
- 	 * with current frame sync value. */
-	/* For NO rate-control, will check the sync by using topaz_sync_val which is the sync
- 	 * value for the previous frame */
-	if( (topaz_priv->topaz_cur_codec != FW_H264_NO_RC) &&
-            (topaz_priv->topaz_cur_codec != FW_MPEG4_NO_RC) &&
-            (topaz_priv->topaz_cur_codec != FW_H263_NO_RC) ){
-		if( CCB_CTRL_SEQ(context) == topaz_priv->topaz_sync_cmd_seq ){
-			*sync_done = 1;
-		}else{
-			*sync_done = 0;
-		}
-	}else{
-		EMGD_DEBUG("\nctrl_c=0x%08lx, sync_p=0x%08lx, s_val=0x%08lx, s_seq=0x%08lx", CCB_CTRL_SEQ(context),
-			*sync_p, topaz_priv->topaz_sync_val, topaz_priv->topaz_sync_cmd_seq);
-		if( CCB_CTRL_SEQ(context) == topaz_priv->topaz_sync_val ){
-			/* If currect CCB_CTRL_SEQ is sync_val, then the previou frame encode already done */
-                       *sync_done = 1;
-                }else if( (CCB_CTRL_SEQ(context) & ~0x8000) > (topaz_priv->topaz_sync_val & ~0x8000) ){
-			/* If the sync_val is smaller than the CTRL_SEQ, then the previous frame encode
- 			 * already done	*/
-			*sync_done = 1;
-		}else{
-			*sync_done = 0;
-		}
-	}
+	*fence_id = *sync_p;
 
 	return 0;
 }

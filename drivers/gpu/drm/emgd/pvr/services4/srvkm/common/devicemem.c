@@ -26,6 +26,7 @@
 #include "buffer_manager.h"
 #include "pdump_km.h"
 #include "pvr_bridge_km.h"
+#include "mm.h"
 
 static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
 									IMG_HANDLE		hDevMemHeap,
@@ -288,7 +289,7 @@ static PVRSRV_ERROR AllocDeviceMem(IMG_HANDLE		hDevCookie,
 									IMG_SIZE_T		ui32Alignment,
 									PVRSRV_KERNEL_MEM_INFO	**ppsMemInfo)
 {
- 	PVRSRV_KERNEL_MEM_INFO	*psMemInfo;
+	PVRSRV_KERNEL_MEM_INFO	*psMemInfo;
 	BM_HANDLE 		hBuffer;
 
 	PVRSRV_MEMBLK	*psMemBlock;
@@ -1450,3 +1451,90 @@ PVRSRV_ERROR IMG_CALLCONV PVRSRVMapDeviceClassMemoryKM(PVRSRV_PER_PROCESS_DATA	*
 	return PVRSRV_OK;
 }
 
+
+/*
+ * PVRSRVGetPageListKM()
+ *
+ * This is an EMGD addition to PVR services.  Given a PowerVR meminfo,
+ * returns a list of pages for that allocation.  This can then be used
+ * by EMGD code for things like mapping into the GTT if the surface
+ * is going to be displayed.
+ *
+ * Note that the page list returned is the live page list and should
+ * not be modified or freed by the caller.
+ */
+IMG_EXPORT
+PVRSRV_ERROR IMG_CALLCONV PVRSRVGetPageListKM(PVRSRV_KERNEL_MEM_INFO *psMemInfo,
+	struct page ***pvPageList,
+	unsigned long *numpages,
+	unsigned long *offset)
+{
+	LinuxMemArea *ma;
+	unsigned long skippages, total_offset;
+
+	/* Sanity check the parameters */
+	if (!psMemInfo || !pvPageList || !numpages) {
+		PVR_DPF((PVR_DBG_ERROR,"PVRSRVMapDeviceMemoryKM: invalid parameters"));
+		return PVRSRV_ERROR_INVALID_PARAMS;
+	}
+
+	ma = (LinuxMemArea*)psMemInfo->sMemBlk.hOSMemHandle;
+
+	/* # of pages isn't stored; needs to be calculated from number of bytes */
+	*numpages = (ma->ui32ByteSize + 4095) / 4096;
+
+	/*
+	 * What type of memarea is this?  We can handle ALLOC_PAGES, or SUB_ALLOC
+	 * areas whose earliest ancestor is an ALLOC_PAGES.
+	 */
+	switch (ma->eAreaType) {
+	case LINUX_MEM_AREA_ALLOC_PAGES:
+		*pvPageList = ma->uData.sPageList.pvPageList;
+		*offset = 0;
+		break;
+	case LINUX_MEM_AREA_SUB_ALLOC:
+		/*
+		 * This allocation may be a subarea of a larger allocation.  We'll need to
+		 * figure out the details of the parent allocation first so that we can
+		 * calculate our subset of the page list and appropriate offset into the
+		 * first page.
+		 */
+		total_offset = 0;
+		while (ma->eAreaType == LINUX_MEM_AREA_SUB_ALLOC) {
+			total_offset += ma->uData.sSubAlloc.ui32ByteOffset;
+			ma = ma->uData.sSubAlloc.psParentLinuxMemArea;
+		}
+
+		/*
+		 * We should now have the original ALLOC_PAGES memarea.  Make sure
+		 * it's actually the type we expect.
+		 */
+		if (ma->eAreaType != LINUX_MEM_AREA_ALLOC_PAGES) {
+			PVR_DPF((PVR_DBG_ERROR,
+				"PVRSRVGetPageListKM: meminfo for suballocation did not "
+				"originate from a a page-based allocation (type=%d)",
+				ma->eAreaType));
+			*numpages = 0;
+			return PVRSRV_ERROR_GENERIC;
+		}
+
+		/*
+		 * After taking all nested suballocations into account, figure out
+		 * where in the page list the allocation we care about really starts.
+		 */
+		skippages = total_offset / 4096;
+		*offset = total_offset % 4096;
+		*pvPageList = &(ma->uData.sPageList.pvPageList)[skippages];
+
+		break;
+
+	default:
+		PVR_DPF((PVR_DBG_ERROR,
+			"PVRSRVGetPageListKM: meminfo not a page-based allocation or sub-allocation (type=%d)",
+			ma->eAreaType));
+		*numpages = 0;
+		return PVRSRV_ERROR_GENERIC;
+	}
+
+	return PVRSRV_OK;
+}

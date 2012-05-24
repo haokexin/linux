@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: context.h
- * $Revision: 1.13 $
+ * $Revision: 1.16 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -146,7 +146,7 @@ typedef struct _tnc_topaz_priv {
 	unsigned long *topaz_sync_addr;
 	unsigned long topaz_sync_offset;
 	unsigned long topaz_sync_cmd_seq;
-	unsigned long topaz_sync_val;
+	unsigned long topaz_sync_id;
 	/**
 	 * Virtual address to writeback memory in the aperture space.
 	 */
@@ -164,6 +164,7 @@ typedef struct _platform_context_plb {
 	os_pci_dev_t pcidev1;
 	os_pci_dev_t lpc_dev;
 	os_pci_dev_t bridgedev;
+	unsigned char tnc_dev3_rid;             /* TNC Device 3 RID*/
 	os_pci_dev_t stbridgedev;
 	os_pci_dev_t stgpiodev;
 	unsigned long rendec_base0;

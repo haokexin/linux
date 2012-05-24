@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: reg_dispatch.h
- * $Revision: 1.6 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -34,6 +34,7 @@
 #define _REG_DISPATCH_H
 
 #include <context.h>
+#include <drm_emgd_private.h>
 
 typedef struct _reg_buffer {
 	unsigned long flags;
@@ -55,6 +56,8 @@ typedef struct _reg_dispatch {
 		void *_platform_context);
 	int (*reg_restore)(igd_context_t *context, reg_buffer_t *reg_set,
 		void *_platform_context);
+	void (*reg_crtc_lut_get)(igd_context_t *context, emgd_crtc_t *emgd_crtc);
+	void (*reg_crtc_lut_set)(igd_context_t *context, emgd_crtc_t *emgd_crtc);
 	void *platform_context;
 } reg_dispatch_t;
 

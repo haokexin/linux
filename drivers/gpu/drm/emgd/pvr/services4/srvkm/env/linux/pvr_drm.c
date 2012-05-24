@@ -22,10 +22,6 @@
 
 #if defined(SUPPORT_DRI_DRM)
 
-#ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
-#endif
-
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>

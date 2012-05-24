@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_mode.h
- * $Revision: 1.10 $
+ * $Revision: 1.14 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -164,6 +164,7 @@ typedef unsigned long igd_pf_t;
 #define IGD_PF_YUV422_PACKED_UYVY (PF_DEPTH_16| PF_TYPE_YUV_PACKED| 0x000e0000)
 #define IGD_PF_YUV422_PACKED_VYUY (PF_DEPTH_16| PF_TYPE_YUV_PACKED| 0x000f0000)
 #define IGD_PF_YUV411_PACKED_Y41P (PF_DEPTH_12| PF_TYPE_YUV_PACKED| 0x00100000)
+#define IGD_PF_YUV444_PACKED_AYUV (PF_DEPTH_32| PF_TYPE_YUV_PACKED| 0x00340000)
 /*! @} */
 
 /*!
@@ -273,7 +274,7 @@ typedef unsigned long igd_pf_t;
  * unsigned long lookup_table[IGD_PF_NEXT] = {...}; and will then generate
  * compile warnings if the pixel format list length changes.
  */
-#define IGD_PF_NEXT 0x34
+#define IGD_PF_NEXT 0x35
 /*!
  * @name Helper Macros
  * @{
@@ -319,6 +320,11 @@ typedef unsigned long igd_pf_t;
  * A display handle is needed for each physical display device.
  */
 typedef void* igd_display_h;
+
+/*!
+ * The opaque timing_info handle.
+ */
+typedef void* igd_timing_info_h;
 
 /*!
  * The maximum number of displays available in the display configurations
@@ -537,6 +543,12 @@ typedef struct _igd_framebuffer_info {
 	 * (e.g. a PVR services swap-chain buffer) and not the frame buffer.
 	 */
 	unsigned long visible_offset;
+
+	/* this is the offset that will be restored when swithcing back to dih mode from
+	 * dihclone mode
+	 */
+
+	unsigned long saved_offset;
 	/*!
 	 * @brief pixel format of the fb. See @ref pixel_formats
 	 *
@@ -892,12 +904,5 @@ typedef struct _igd_port_info {
 typedef int (*_igd_query_modes_fn_t)(igd_display_h display_handle,
 	igd_display_info_t **mode_list);
 /*! @} */
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_mode.h,v 1.10 2011/03/02 22:47:07 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/include/igd_mode.h,v $
- *----------------------------------------------------------------------------
- */
 
 #endif /* _IGD_MODE_H_ */

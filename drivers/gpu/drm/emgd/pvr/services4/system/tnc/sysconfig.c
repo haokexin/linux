@@ -1,9 +1,9 @@
 /* -*- syscommon-c -*-
  *-----------------------------------------------------------------------------
  * Filename: syscommon.c
- * $Revision: 1.3 $
+ * $Revision: 1.4 $
  *-----------------------------------------------------------------------------
- * Copyright © 2002-2010, Intel Corporation.
+ * Copyright (c) 2002-2010, Intel Corporation.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,9 +26,6 @@
  *-----------------------------------------------------------------------------
  * Description: platform detection, and sharing of correct platform interface.
  *
- *-----------------------------------------------------------------------------
- * Authors:
- *  Marcin Tomczyk
  *-----------------------------------------------------------------------------
  */
 

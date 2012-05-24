@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: pd.h
- * $Revision: 1.9 $
+ * $Revision: 1.12 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -359,6 +359,7 @@ typedef struct _cea_extension{
 #define PD_REG_MIO8   0x00000009   /* MMIO 8 bits     */
 #define PD_REG_BRIDGE_OPCODE  0x0000000D /* Host bridge read and write */
 #define PD_REG_DDC            0x0000000E /* Read the ddc */
+#define PD_REG_DDC_FW            0x0000000F /* Read the ddc */
 
 typedef int (*pd_read_regs_p)(void *callback_context, pd_reg_t *list,
 		unsigned long type);
@@ -763,9 +764,3 @@ typedef int        (*pd_filter_timings_p)(void *context, pd_timing_t *inlist,
 */
 #endif /* _PD_H_ */
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: pd.h,v 1.9 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/pd.h,v $
- *----------------------------------------------------------------------------
- */

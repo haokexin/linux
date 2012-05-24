@@ -1,6 +1,6 @@
 #----------------------------------------------------------------------------
 # Filename: Makefile.gnu
-# $Revision: 1.53 $
+# $Revision: 1.57 $
 #----------------------------------------------------------------------------
 # Copyright (c) 2002-2010, Intel Corporation.
 #
@@ -33,6 +33,8 @@ ccflags-y := \
 	   -Idrivers/gpu/drm/emgd/emgd/include \
 	   -Idrivers/gpu/drm/emgd/emgd/cfg \
 	   -Idrivers/gpu/drm/emgd/emgd/pal/lpd \
+	   -Idrivers/gpu/drm/emgd/emgd/pal/lvds \
+	   -Idrivers/gpu/drm/emgd/emgd/pal/ch7036 \
 	   -Idrivers/gpu/drm/emgd/emgd/drm \
 	   -Iinclude/drm \
 	   -Idrivers/gpu/drm/emgd/pvr/include4 \
@@ -51,7 +53,7 @@ ccflags-y := \
 	   -DSUPPORT_DRI_DRM_EXT \
 	   -DLINUX \
 	   -DPVR_BUILD_DIR="\"emgd\"" \
-	   -DPVR_BUILD_DATE="20100408" \
+	   -DPVR_BUILD_DATE="\"20111115\"" \
 	   -DPVR_BUILD_TYPE="\"release\"" \
 	   -DBUILD=release \
 	   -DRELEASE \
@@ -90,14 +92,15 @@ ccflags-y := \
 	   -DSUPPORT_EGL_IMAGE_SYNC_DEPENDENCY \
 
 
-#       -Werror \
-	   -DSUPPORT_MEMINFO_IDS \
-
 
 
 
 EMGD_OBJS := \
 	emgd/drm/emgd_fb.o \
+	emgd/drm/emgd_fbcon.o \
+	emgd/drm/emgd_crtc.o \
+	emgd/drm/emgd_encoder.o \
+	emgd/drm/emgd_connector.o \
 	emgd/drm/emgd_mmap.o \
 	emgd/drm/emgd_drv.o \
 	emgd/drm/emgd_interface.o \
@@ -120,10 +123,12 @@ EMGD_OBJS := \
 	emgd/display/mode/cmn/igd_mode.o \
 	emgd/display/mode/tnc/micro_mode_tnc.o \
 	emgd/display/mode/tnc/mode_tnc.o \
+	emgd/display/mode/tnc/kms_mode_tnc.o \
 	emgd/display/mode/tnc/clocks_tnc.o \
 	emgd/display/mode/plb/micro_mode_plb.o \
 	emgd/display/mode/plb/clocks_plb.o \
 	emgd/display/mode/plb/mode_plb.o \
+	emgd/display/mode/plb/kms_mode_plb.o \
 	emgd/display/dsp/cmn/dsp.o \
 	emgd/display/dsp/tnc/dsp_tnc.o \
 	emgd/display/dsp/plb/dsp_plb.o \
@@ -160,6 +165,15 @@ EMGD_OBJS := \
 	emgd/pal/sdvo/sdvo_hdmi.o \
 	emgd/pal/sdvo/sdvo_port.o \
 	emgd/pal/sdvo/sdvo_intf.o \
+	emgd/pal/ch7036/ch7036_attr.o \
+	emgd/pal/ch7036/ch7036_fw.o \
+	emgd/pal/ch7036/ch7036_intf.o \
+	emgd/pal/ch7036/ch7036_port.o \
+	emgd/pal/ch7036/ch7036.o \
+	emgd/pal/ch7036/ch7036_iic.o \
+	emgd/pal/ch7036/ch7036_pm.o \
+	emgd/pal/ch7036/ch7036_reg_table.o \
+	emgd/pal/ch7036/lvds/lvds.o \
 	emgd/pal/lvds/lvds.o \
 	emgd/pal/lpd/lpd.o \
 	emgd/gmm/gmm.o \

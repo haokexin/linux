@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: mode_table.c
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -1768,7 +1768,6 @@ igd_timing_info_t crt_timing_table[] =
 
 int crt_timing_table_size = sizeof(crt_timing_table);
 
-#ifndef CONFIG_NEW_MATCH
 /*---------------------------------------------------------------------------
  * Timing tables for VGA modes
  *---------------------------------------------------------------------------
@@ -2222,7 +2221,6 @@ igd_timing_info_t vga_timing_table[] =
 
 	PD_TIMING_TABLE_END
 };
-#endif
 
 /* CEA standard timings: Get them from CEA-861. This is following DPG.
    We will replace the mode number to CEA*/
@@ -2545,10 +2543,3 @@ type_std_t cea_std_lookup[] =
 int cea_std_lookup_size = sizeof(cea_std_lookup)/sizeof(type_std_t);
 
 #endif
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: mode_table.c,v 1.6 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/pi/cmn/mode_table.c,v $
- *----------------------------------------------------------------------------
- */
-

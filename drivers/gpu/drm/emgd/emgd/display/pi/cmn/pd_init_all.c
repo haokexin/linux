@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: pd_init_all.c
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -175,6 +175,15 @@ extern int hdmi_init(void *handle);
 #define HDMI_INIT(handle)  0
 #endif
 
+/* Enable Chrontel CH7036  port driver */
+#ifdef CONFIG_LINK_PD_CH7036
+extern int ch7036_init(void *handle);
+#define CH7036_INIT(handle)  ch7036_init(handle)
+#else
+#define CH7036_INIT(handle)  0
+#endif
+
+
 /*!
  *
  * @param handle
@@ -193,11 +202,12 @@ int pi_init_all(void *handle)
 	ret = NS387_INIT(handle);
 	ret = FS454_INIT(handle);
 	ret = CH7017_INIT(handle);
-	ret = LVDS_INIT(handle);
 	ret = SDVO_INIT(handle);
 	ret = TI410_INIT(handle);
 	ret = TV_INIT(handle);
 	ret = HDMI_INIT(handle);
+	ret = CH7036_INIT(handle);
+	ret = LVDS_INIT(handle); /*LVDS need to be initiate only after CH7036.*/
 	/* ret = PD000_INIT(handle); */
 
 	return 0;

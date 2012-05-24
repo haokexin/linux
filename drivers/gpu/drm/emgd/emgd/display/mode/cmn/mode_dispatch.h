@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: mode_dispatch.h
- * $Revision: 1.13 $
+ * $Revision: 1.15 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -35,6 +35,24 @@
 #define _MODE_DISPATCH_H
 
 #include <mode.h>
+
+
+
+typedef struct _mode_kms_dispatch {
+	void (*kms_program_pipe) (emgd_crtc_t *emgd_crtc);
+	void (*kms_set_pipe_pwr) (emgd_crtc_t *emgd_crtc, unsigned long enable);
+	void (*kms_program_plane)(emgd_crtc_t *emgd_crtc, unsigned long status);
+	void (*kms_set_plane_pwr)(emgd_crtc_t *emgd_crtc, unsigned long enable);
+	int  (*kms_program_port) (emgd_encoder_t *emgd_encoder,
+		unsigned long status);
+	int  (*kms_post_program_port)(emgd_encoder_t *emgd_encoder,
+		unsigned long status);
+	u32  (*kms_get_vblank_counter)(emgd_crtc_t *emgd_crtc);
+	int (*kms_match_mode)(emgd_encoder_t *emgd_encoder,
+		igd_framebuffer_info_t *fb_info, igd_timing_info_t **timing);
+} mode_kms_dispatch_t;
+
+
 
 typedef struct _mode_full_dispatch {
 	int (*alter_cursor_pos)(igd_display_h display_handle,
@@ -178,13 +196,16 @@ typedef struct _fw_info {
 
 } fw_info_t;
 
+
+
 typedef struct _mode_context {
 	/*
 	 * All of the below values will be initialized in mode module
 	 * init function mode_init().
 	 */
-	unsigned long  first_alter;
-	mode_dispatch_t *dispatch;
+	unsigned long        first_alter;
+	mode_dispatch_t     *dispatch;
+	mode_kms_dispatch_t *kms_dispatch;
 
 	igd_context_t *context;
 	unsigned long display_color;
@@ -197,6 +218,27 @@ typedef struct _mode_context {
     int splash;
 	unsigned long ref_freq;
 	int tuning_wa;
+	unsigned long clip_hw_fix;
+	unsigned long async_flip_wa;
+
+	/*
+	 * Enable override of following registers when en_reg_override=1.
+	 * Display Arbitration, FIFO Watermark Control, GVD HP_CONTROL,
+	 * Bunit Chickenbits, Bunit Write Flush, Display Chickenbits
+	 */
+	unsigned long en_reg_override;
+	unsigned long disp_arb;
+	unsigned long fifo_watermark1;
+	unsigned long fifo_watermark2;
+	unsigned long fifo_watermark3;
+	unsigned long fifo_watermark4;
+	unsigned long fifo_watermark5;
+	unsigned long fifo_watermark6;
+	unsigned long gvd_hp_control;
+	unsigned long bunit_chicken_bits;
+	unsigned long bunit_write_flush;
+	unsigned long disp_chicken_bits;
+
 } mode_context_t;
 
 extern int full_mode_init(igd_context_t *context,
@@ -231,6 +273,10 @@ extern mode_context_t mode_context[];
 
 extern mode_dispatch_t mode_dispatch_plb;
 extern mode_dispatch_t mode_dispatch_tnc;
+
+extern mode_kms_dispatch_t mode_kms_dispatch_plb;
+extern mode_kms_dispatch_t mode_kms_dispatch_tnc;
+
 
 
 /*******************************************************************************

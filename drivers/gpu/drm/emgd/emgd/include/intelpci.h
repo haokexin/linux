@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: intelpci.h
- * $Revision: 1.9 $
+ * $Revision: 1.11 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -96,9 +96,3 @@
 
 #define INTEL_PTE_ALLIGNMENT                0xFFFFF000
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: intelpci.h,v 1.9 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/intelpci.h,v $
- *----------------------------------------------------------------------------
- */

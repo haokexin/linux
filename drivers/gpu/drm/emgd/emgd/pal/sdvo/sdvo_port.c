@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: sdvo_port.c
- * $Revision: 1.23 $
+ * $Revision: 1.28 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -29,6 +29,9 @@
  *-----------------------------------------------------------------------------
  */
 #include "sdvo_port.h"
+
+
+#include <linux/kernel.h>
 
 /* .......................................................................... */
 
@@ -1829,6 +1832,14 @@ int sdvo_open(pd_callback_t *p_callback, void **pp_context)
 	*pp_context = p_ctx;
 	p_ctx->p_callback = p_callback;
 
+#ifndef CONFIG_MICRO
+	/* reset context to avoid wrong timing list */
+	if ((p_ctx->dev_cap.vendor_id != VENDOR_ID_OKI)
+		&& (p_ctx->dev_cap.device_id != 0x1)){
+		sdvo_reset_encoder(p_ctx);
+	}
+#endif
+
 	status = sdvo_get_device_capabilities(p_ctx, &p_ctx->dev_cap);
 	if (status != SS_SUCCESS) {
 
@@ -1865,7 +1876,20 @@ int sdvo_open(pd_callback_t *p_callback, void **pp_context)
 
 	/* ...................................................................... */
 	p_ctx->out_type = p_ctx->dev_cap.output;
-	status = sdvo_set_target_output(p_ctx, p_ctx->out_type);
+
+	/*Workaround:
+	 * st_sdvo has two potential modes lvds and rgba
+	 * As we dont have the relevant information from xorg (attr/9(
+	 * at this point to correctly identify which one the user wants
+	 * and as set target will fail if sent 2 output types
+	 * This if has been added
+	 */
+	if(!p_ctx->st_sdvo)
+	{
+		status = sdvo_set_target_output(p_ctx, p_ctx->out_type);
+
+	}
+
 	status = sdvo_get_supported_power_states(p_ctx, &p_ctx->supp_pwr_states);
 	if (status == SS_SUCCESS) {
 		PD_DEBUG("sdvo: Supported Power States = %#x",
@@ -1893,12 +1917,24 @@ int sdvo_open(pd_callback_t *p_callback, void **pp_context)
 			return PD_ERR_INTERNAL;
 		}
 
-		status = sdvo_set_target_output(p_ctx, p_ctx->out_type);
+
+
+		/*Workaround:
+			 * st_sdvo has two potential modes lvds and rgba
+			 * As we dont have the relevant information from xorg (attr/9(
+			 * at this point to correctly identify which one the user wants
+			 * and as set target will fail if sent 2 output types
+			 * This if has been added
+			 */
+		if(!p_ctx->st_sdvo)
+			status = sdvo_set_target_output(p_ctx, p_ctx->out_type);
+
 		if (status != SS_SUCCESS) {
 			PD_ERROR("sdvo: Error ! sdvo_set_mode: sdvo_set_target_output()"
 				"failed with status=%d", status);
 			return PD_ERR_INTERNAL;
 		}
+
 
 		/* ...................................................................... */
 		status = sdvo_get_supported_power_states(p_ctx, &p_ctx->supp_pwr_states);
@@ -2080,11 +2116,6 @@ int sdvo_get_timing_list(void *p_context, pd_timing_t *p_in_list,
 
 	PD_DEBUG("sdvo: sdvo_get_timing_list()");
 
-#ifndef CONFIG_MICRO
-	/* reset context to avoid wrong timing list */
-	sdvo_reset_encoder(p_context);
-#endif
-
 	/* ...................................................................... */
 	status = sdvo_set_target_input(p_ctx, p_ctx->inp_dev);
 	if (status != SS_SUCCESS) {
@@ -2251,7 +2282,16 @@ int sdvo_set_mode(void *p_context, pd_timing_t *p_mode, unsigned long flags)
 		return PD_ERR_INTERNAL;
 	}
 
-	status = sdvo_set_target_output(p_ctx, p_ctx->out_type);
+	/*Workaround:
+		 * st_sdvo has two potential modes lvds and rgba
+		 * As we dont have the relevant information from xorg (attr/9(
+		 * at this point to correctly identify which one the user wants
+		 * and as set target will fail if sent 2 output types
+		 * This if has been added
+		 */
+	if(!p_ctx->st_sdvo)
+		status = sdvo_set_target_output(p_ctx, p_ctx->out_type);
+
 	if (status != SS_SUCCESS) {
 		PD_ERROR("sdvo: Error ! sdvo_set_mode: sdvo_set_target_output()"
 				  "failed with status=%d", status);
@@ -2361,7 +2401,7 @@ int sdvo_set_mode(void *p_context, pd_timing_t *p_mode, unsigned long flags)
 	/*We want this in (Windows XP driver) AND
 	(in VBIOS when LVDS is not linked.)*/
 	/* This workaround needed for OKI solution only.
- 	It would probably give problem if the SDVO is connected to
+	It would probably give problem if the SDVO is connected to
 	analog display, but that is not the usage model for OKI.
 	*/
 	if ((p_ctx->dev_cap.vendor_id == VENDOR_ID_OKI)
@@ -2463,17 +2503,8 @@ int sdvo_post_set_mode(void *p_context, pd_timing_t *p_mode,
 						pd_get_attr(p_ctx->p_attr_table, p_ctx->num_attrs,
 						PD_ATTR_ID_RB_SWAP_MODE, 0 );
 
-			/*TODO: FIXME:*/
-			/* RB SWAP: We have more problem with SDVO
- 			* corruption when we write if the value is 1
- 			* on OKI board.However this current code is
- 			* not robust enough to handle if OKI decide
- 			* to change the default value. May need to fix
- 			* this in the future.*/
-
-			if (p_attr_temp->current_value == 0){
-				sdvo_alter_static_attr(p_ctx, p_attr_temp, p_attr_temp->current_value);
-			}
+			/* RB SWAP */
+			sdvo_alter_static_attr(p_ctx, p_attr_temp, p_attr_temp->current_value);
 
 			sdvo_set_mode(p_context, &local_p_mode,0);
 		} else {
@@ -2614,9 +2645,9 @@ int sdvo_get_attributes(void *p_context, unsigned long *p_num_attr,
 		&& p_ctx->dev_cap.device_id == 0x1){
 		/* 	TODO: sdvo_set_target_output return pending when the power state is D3 on
 		* 	ML7213 A0. other sdvo cards don't have this problem and OKI don't see
- 		* 	this problem on their site. verify this on A1 and remove the code if
- 		* 	it return success */
-  		sdvo_set_power(p_ctx, PD_POWER_MODE_D0);
+		* 	this problem on their site. verify this on A1 and remove the code if
+		* 	it return success */
+		sdvo_set_power(p_ctx, PD_POWER_MODE_D0);
 	}
 #endif
 
@@ -2712,8 +2743,10 @@ int sdvo_set_tv_settings(void *p_context, i2c_reg_t tv_format)
 int sdvo_set_attributes(void *p_context, unsigned long num_attrs,
 	pd_attr_t *p_list)
 {
+
 	sdvo_device_context_t *p_ctx = (sdvo_device_context_t *)p_context;
 	sdvo_status_t status;
+	sdvo_output_flags_t out_flags;
 	unsigned long i;
 	static unsigned char set_tvformat = 1;
 	unsigned short tvformat = 1;      /* Index 1 is for NTSC */
@@ -2721,6 +2754,7 @@ int sdvo_set_attributes(void *p_context, unsigned long num_attrs,
 	PD_DEBUG("sdvo: sdvo_set_attributes(): num_attrs=%ld", num_attrs);
 	/* Search for PD_ATTR_ID_DISPLAY in the incoming attribute table, if it   */
 	/* present and if sDVO supports > 1 displays use it to set TargetOutput   */
+	int found_display_setting = 0;
 	for (i = 0; i < num_attrs; i++) {
 		if ((p_list[i].flags & PD_ATTR_FLAG_VALUE_CHANGED) == 0) {
 			continue;
@@ -2736,8 +2770,73 @@ int sdvo_set_attributes(void *p_context, unsigned long num_attrs,
 				p_list[i].current_value);
 			/*	Clear attribute changed flag */
 			p_list[i].flags &= ~PD_ATTR_FLAG_VALUE_CHANGED;
+			found_display_setting = 1;
 			break;
 		}
+	}
+
+
+	/*in the situation where we have 2 potential outputs (e.g. lvds and drgb_
+	 * and a preference has not been set in the xorg
+	 * then we try and set an appropriate default, while outputting an error
+	 * message
+	 */
+	if(!found_display_setting && p_ctx->st_sdvo){
+			int defaultFound = 0;
+			printk("\n[EMGD] SDVO: ERROR !\n"
+					"\n\tALL/1/Port/2/Attr/9 is NOT set!"
+					"\n\tYou may want to set the value to either"
+					"\n\t\t0x40: for lvds "
+					"\n\tor"
+					"\n\t\t0x00: for VGA"
+					"\n\tCurrent Value: %x ",
+					 p_ctx->out_type.flags);
+
+			/*attempt default setting*/
+			out_flags.flags = p_ctx->out_type.flags;
+			if(out_flags.out0.lvds){
+				/*clear*/
+				out_flags.flags = 0x0;
+				/*set just lvds*/
+				out_flags.out0.lvds = 1;
+				defaultFound = 1;
+
+			}
+			else if(out_flags.out0.drgb){
+				/*clear*/
+				out_flags.flags = 0x0;
+				/*set just lvds*/
+				out_flags.out0.drgb = 1;
+				defaultFound = 1;
+			}
+			/*Should out1 be allowed a seperate set up? */
+			else if(out_flags.out1.drgb){
+				/*clear*/
+				out_flags.flags = 0x0;
+				/*set just lvds*/
+				out_flags.out1.drgb = 1;
+				defaultFound = 1;
+
+			}
+			else if(out_flags.out1.drgb){
+				/*clear*/
+				out_flags.flags = 0x0;
+				/*set just lvds*/
+				out_flags.out1.drgb = 1;
+				defaultFound = 1;
+
+			}
+
+			if(defaultFound)
+			{
+				printk("\n[EMGD] SDVO: Defaulting To: %x\n", out_flags.flags);
+				p_ctx->out_type.flags = out_flags.flags;
+			}
+			else
+			{
+				printk("\n[EMGD] SDVO: Error ! no appropriate default for p_ctx->out_type.flags!\n");
+			}
+
 	}
 
 	/* ...................................................................... */
@@ -2747,6 +2846,7 @@ int sdvo_set_attributes(void *p_context, unsigned long num_attrs,
 				  "failed with status=%d", status);
 		return PD_ERR_INTERNAL;
 	}
+
 
 	/* Here will try to get the supported power states again.  For multiple
 	 * displays functionality card, the supported power state will only can get
@@ -3107,6 +3207,12 @@ int sdvo_save(void *p_context, void **pp_state, unsigned long flags)
 	}
 	sdvo_convert_dtd_to_pd_timing(&p_dtd, &(reg_state->timing));
 
+	/* In case someone calls save again without restore, free the previous
+     * state */
+	if (NULL != *pp_state) {
+		pd_free(*pp_state);
+	}
+
 	*pp_state = (void *)reg_state;
 
 	/* restore power state, just in case */
@@ -3229,6 +3335,8 @@ int sdvo_restore(void *p_context, void *p_state, unsigned long flags)
 	}
 
 	pd_free(p_state);
+	p_state = NULL;
+
 	return PD_SUCCESS;
 }
 
@@ -3278,6 +3386,7 @@ int sdvo_close(void *p_context)
 
 	if (p_ctx->p_mode_table) {
 		pd_free(p_ctx->p_mode_table);
+		p_ctx->p_mode_table = NULL;
 	}
 	pd_free(p_ctx);
 #endif
@@ -3732,9 +3841,3 @@ static sdvo_status_t sdvo_reset_encoder(sdvo_device_context_t *p_ctx)
 }
 #endif
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: sdvo_port.c,v 1.23 2011/04/04 03:18:48 nanuar Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/pal/sdvo/sdvo_port.c,v $
- *----------------------------------------------------------------------------
- */

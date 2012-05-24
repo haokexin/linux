@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: micro_ovl_plb.c
- * $Revision: 1.15 $
+ * $Revision: 1.17 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -106,6 +106,8 @@ unsigned int micro_spritec_update_src_plb(igd_display_context_t *display,
 		spritec_regs_plb->control |= OVL2_CMD_YUV_422 | OVL2_CMD_UYVY;
 		break;
 	case IGD_PF_ARGB32_8888:
+		spritec_regs_plb->control |= OVL2_CMD_ARGB_8888;
+		break;
 	case IGD_PF_xRGB32_8888:
 		spritec_regs_plb->control |= OVL2_CMD_RGB_8888;
 		break;
@@ -587,16 +589,18 @@ static unsigned int micro_spritec_update_regs_plb(
 	}
 
 	/* Color control information */
-	ret = micro_spritec_update_video_quality_plb(display, src_surf,
-		&ovl_info->video_quality);
-	if (ret) {
-		EMGD_ERROR_EXIT("Overlay2 video quality failed");
-		return ret;
-	}
-	ret = micro_spritec_update_gamma_plb(display, spritec_regs_plb, &ovl_info->gamma);
-	if (ret) {
-		EMGD_ERROR("Overlay2 gamma failed");
-		return ret;
+	if (!(flags & IGD_OVL_OSD_ON_SPRITEC)) {
+		ret = micro_spritec_update_video_quality_plb(display, src_surf,
+			&ovl_info->video_quality);
+		if (ret) {
+			EMGD_ERROR_EXIT("Overlay2 video quality failed");
+			return ret;
+		}
+		ret = micro_spritec_update_gamma_plb(display, spritec_regs_plb, &ovl_info->gamma);
+		if (ret) {
+			EMGD_ERROR("Overlay2 gamma failed");
+			return ret;
+		}
 	}
 
 	/* Destination color key */
@@ -638,10 +642,14 @@ static unsigned int micro_spritec_update_regs_plb(
 			display->context->dispatch.wait_vblank((igd_display_h)display);
 		}
 
-		/* Sprite C should be on the bottom of the Z order.
-		 * Plane B should be above Sprite C */
-		spritec_regs_plb->control |= 6;
-
+		if (flags & IGD_OVL_OSD_ON_SPRITEC) {
+			/* Sprite C should be below plane and above overlay. */
+			spritec_regs_plb->control |= 1;
+		} else {
+			/* Sprite C should be on the bottom of the Z order.
+			 * Plane B should be above Sprite C */
+			spritec_regs_plb->control |= 6;
+		}
 	} else {
 		EMGD_DEBUG("Overlay Disable Dest Color Key");
 		plane_control =
@@ -761,6 +769,8 @@ unsigned int micro_spritec_update_src_plb(igd_surface_t *src_surf,
 		ovl_cache.ovl2_regs.control |= OVL2_CMD_YUV_422 | OVL2_CMD_UYVY;
 		break;
 	case IGD_PF_ARGB32_8888:
+		ovl_cache.ovl2_regs.control |= OVL2_CMD_ARGB_8888;
+		break;
 	case IGD_PF_xRGB32_8888:
 		ovl_cache.ovl2_regs.control |= OVL2_CMD_RGB_8888;
 		break;
@@ -1510,9 +1520,13 @@ static unsigned int micro_spritec_update_regs_plb(
 	}
 
 	if (ovl_info->color_key.flags & IGD_OVL_DST_COLOR_KEY_ENABLE) {
-		/* Sprite C should be on the bottom of the Z order.
-		 * Plane B should be above Sprite C */
-		ovl_cache.ovl2_regs.control |= 6;
+		if (flags & IGD_OVL_OSD_ON_SPRITEC) {
+			ovl_cache.ovl2_regs.control |= 1;
+		} else {
+			/* Sprite C should be on the bottom of the Z order.
+			 * Plane B should be above Sprite C */
+			ovl_cache.ovl2_regs.control |= 6;
+		}
 	}
 
 	/* General overlay information.  Turn the second overlay on. */

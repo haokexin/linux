@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_mode.c
- * $Revision: 1.26 $
+ * $Revision: 1.32 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -61,6 +61,8 @@
 #include <utils.h>
 #include <general.h>
 
+#include "emgd_drv.h"
+#include "drm_emgd_private.h"
 #include "match.h"
 #include "mode_dispatch.h"
 
@@ -102,8 +104,13 @@ void igd_fb_to_screen(unsigned short rotation,
 					unsigned short *x, unsigned short *y,
 					unsigned short hotx, unsigned short hoty);
 
+int igd_kms_match_mode(void *emgd_encoder,
+	void *fb_info, igd_timing_info_h **timing);
+
 /* Do not malloc the context */
 extern mode_context_t mode_context[];
+
+extern emgd_drm_config_t config_drm;
 
 /* This symbol has to be in this file as it is part of
  *  driver ONLY.
@@ -129,6 +136,7 @@ int set_color_correct(igd_display_context_t *display,
 	mode_dispatch_t       *dispatch = mode_context->dispatch;
 	igd_range_attr_t      *attr     = NULL;
 	unsigned int          i         = 0;
+	int  				  changed_flag_set = 1;
 
 	EMGD_TRACE_ENTER;
 
@@ -141,6 +149,9 @@ int set_color_correct(igd_display_context_t *display,
 		if (attr_to_set->id == hal_attr_list[i].id) {
 			attr = (igd_range_attr_t *) &hal_attr_list[i];
 
+			if (!(attr_to_set->flags & PD_ATTR_FLAG_VALUE_CHANGED)){
+				changed_flag_set = 0;
+			}
 			/* make sure the value is within range */
 			attr->current_value = OS_MAX(attr_to_set->current_value,
 									attr->min);
@@ -165,8 +176,10 @@ int set_color_correct(igd_display_context_t *display,
 	}
 
 	/* Program palette */
-	dispatch = mode_context->dispatch;
-	dispatch->full->set_color_correct(display);
+	if(changed_flag_set){
+		dispatch = mode_context->dispatch;
+		dispatch->full->set_color_correct(display);
+	}
 
 	EMGD_TRACE_EXIT;
 	return 0;
@@ -185,38 +198,27 @@ int set_color_correct(igd_display_context_t *display,
 int mode_pwr(igd_context_t *context,
 	unsigned long powerstate)
 {
+
 	igd_display_context_t *display_list[2];
 	igd_display_context_t *display = NULL;
 	int i,j;
 
 	EMGD_TRACE_ENTER;
 
-	context->mod_dispatch.dsp_get_dc(NULL, &display_list[0],
-		&display_list[1]);
-
-	for(j = 0; j < 2; j++) {
-		display = display_list[j];
-		/* if there is no display or display not allocated, continue */
-		if(!display || !display->allocated) {
-			continue;
-		}
-
-		switch(powerstate) {
-		case IGD_POWERSTATE_D0:
-			if (!PIPE(display)->timing) {
-				/* if there is no pipe timing, cannot enable, continue */
-				EMGD_DEBUG("No pipe timing for port = %lu", display->port_number);
+	switch(powerstate) {
+	case IGD_POWERSTATE_D0:
+		for(j = 0; j < 2; j++) {
+			display = display_list[j];
+			/* if there is no display or display not allocated, continue */
+			if(!display || !display->allocated) {
 				continue;
 			}
-			/* Enable command queues */
-			if(context->mod_dispatch.cmd_control) {
-				for (i = 0; i < IGD_MAX_PIPE_QUEUES; i++) {
-					if (PIPE(display)->queue[i]) {
-						EMGD_DEBUG("Enabling command queue [%d]", i);
-						context->mod_dispatch.cmd_control(
-							PIPE(display)->queue[i], CMD_CONTROL_ON);
-					}
-				}
+
+			if (!PIPE(display)->timing) {
+				/* if there is no pipe timing, cannot enable, continue */
+				EMGD_DEBUG("No pipe timing for port = %lu",
+							display->port_number);
+				continue;
 			}
 
 			/* Set port power state */
@@ -227,8 +229,10 @@ int mode_pwr(igd_context_t *context,
 					mode_context->dispatch->program_port(display, i+1, TRUE);
 				}
 			}
+
 			mode_context->dispatch->program_pipe(display, TRUE);
 			mode_context->dispatch->program_plane(display, TRUE);
+
 			for (i = 0; i < IGD_MAX_PORTS; i++) {
 				if (display->port[i] &&
 					(((igd_display_port_t *)display->port[i])->pt_info->flags &
@@ -236,35 +240,17 @@ int mode_pwr(igd_context_t *context,
 					mode_context->dispatch->post_program_port(display, i+1, 0);
 				}
 			}
-			break;
-		case IGD_POWERSTATE_D1:
-		case IGD_POWERSTATE_D2:
-		case IGD_POWERSTATE_D3:
-			/* Set port power state */
-			for (i = 0; i < IGD_MAX_PORTS; i++) {
-				if (display->port[i] &&
-					(((igd_display_port_t *)display->port[i])->pt_info->flags &
-						IGD_DISPLAY_ENABLE)) {
-					mode_context->dispatch->program_port(display, i+1, TRUE);
-				}
-			}
-			mode_context->dispatch->program_plane(display, TRUE);
-			mode_context->dispatch->program_pipe(display, TRUE);
 
-			/* Disable command queues */
-			if(context->mod_dispatch.cmd_control) {
-				for (i = 0; i < IGD_MAX_PIPE_QUEUES; i++) {
-					if (PIPE(display)->queue[i]) {
-						EMGD_DEBUG("Disabling command queue [%d]", i);
-						context->mod_dispatch.cmd_control(
-							PIPE(display)->queue[i], CMD_CONTROL_OFF);
-					}
-				}
-			}
-			break;
-		default:
-			break;
 		}
+
+		break;
+	case IGD_POWERSTATE_D1:
+	case IGD_POWERSTATE_D2:
+	case IGD_POWERSTATE_D3:
+		mode_context->dispatch->reset_plane_pipe_ports(mode_context->context);
+		break;
+	default:
+		break;
 	}
 
 	EMGD_TRACE_EXIT;
@@ -658,12 +644,14 @@ int igd_alter_cursor(igd_display_h display_handle,
 	unsigned long cursor_state2;
 	unsigned long *cursora = NULL;
 	unsigned char *cursorx = NULL;
+//	unsigned long in_dihclone=0;
 
 	EMGD_TRACE_ENTER;
 
 	EMGD_ASSERT(display, "Null Display Handle", -IGD_ERROR_INVAL);
 	EMGD_ASSERT(cursor_info, "Null cursor info", -IGD_ERROR_INVAL);
 
+//	in_dihclone = display->context->mod_dispatch.in_dih_clone_mode;
 	if(validate_cursor(cursor_info, display)) {
 		EMGD_ERROR_EXIT("pixel_format validation failed.");
 		return -IGD_ERROR_INVAL;
@@ -681,7 +669,8 @@ int igd_alter_cursor(igd_display_h display_handle,
 	display->context->mod_dispatch.dsp_get_dc(NULL, &primary, NULL);
 
 	/* If cursor plane is mirrored, then do the same for the other cursor */
-	if (PIPE(display)->cursor->mirror != NULL) {
+//	if (PIPE(display)->cursor->mirror != NULL || in_dihclone) {
+	if (PIPE(display)->cursor->mirror != NULL ) {
 		if(display == primary) {
 			display->context->mod_dispatch.dsp_get_dc(NULL, NULL,
 				&display2);
@@ -704,15 +693,6 @@ int igd_alter_cursor(igd_display_h display_handle,
 	 */
 
 	if ((image != NULL) && (cursor_info->flags & IGD_CURSOR_LOAD_ARGB_IMAGE)) {
-#ifdef PRE_KOHEO_CODE
-		cursora = (unsigned long *)OS_GART_MAP(0, internal_ci->argb_offset,
-			0, display->context->device_context.virt_fb_adr);
-
-		if(!cursora){
-			cursora = (unsigned long *)(internal_ci->argb_offset +
-			display->context->device_context.virt_fb_adr);
-		}
-#else /* PRE_KOHEO_CODE */
 		unsigned long buffer_phys = 0;
 
 		/* Calculate the cursor's address in kernel-space: */
@@ -733,17 +713,12 @@ int igd_alter_cursor(igd_display_h display_handle,
 			return -IGD_ERROR_INVAL;
 		}
 
-#endif /* PRE_KOHEO_CODE */
 		/* Clear cursor plane */
 		OS_MEMSET(cursora, 0, 64*64*4);
 
 	} else if ((image != NULL) &&
 		(cursor_info->flags & IGD_CURSOR_LOAD_XOR_IMAGE)) {
 
-#ifdef PRE_KOHEO_CODE
-		cursorx = (unsigned char *)(internal_ci->xor_offset +
-			display->context->device_context.virt_fb_adr);
-#else /* PRE_KOHEO_CODE */
 		unsigned long buffer_phys = 0;
 
 		/* Calculate the cursor's address in kernel-space: */
@@ -763,7 +738,6 @@ int igd_alter_cursor(igd_display_h display_handle,
 			EMGD_ERROR_EXIT("Physical to Virtual Address translation failed");
 			return -IGD_ERROR_INVAL;
 		}
-#endif /* PRE_KOHEO_CODE */
 	}
 
 	/* calculate the cursor position adjusting to new hotspot */
@@ -799,7 +773,8 @@ int igd_alter_cursor(igd_display_h display_handle,
 		mode_context->dispatch->full->program_cursor(display, FALSE);
 	}
 
-	if (PIPE(display)->cursor->mirror) {
+//	if (PIPE(display)->cursor->mirror || (in_dihclone && display == primary) ) {
+	if (PIPE(display)->cursor->mirror ) {
 		igd_set_cursor_pos(display2,
 			(unsigned short)cursor_info->x_offset,
 			(unsigned short)cursor_info->y_offset,
@@ -852,15 +827,23 @@ int igd_alter_cursor_pos(igd_display_h display_handle,
 {
 	igd_display_context_t *display = (igd_display_context_t *) display_handle;
 	igd_display_context_t *display2 = NULL;
+//	igd_display_context_t * primary= NULL;
 	igd_cursor_info_t *internal_ci;
 	unsigned long cursor_on_screen;
 	unsigned long cursor_state=0;
+//	unsigned long in_dihclone=0;
 
 	/* If there is no cursor, return immediately */
 	if (!display || !PIPE(display) || !PIPE(display)->cursor) {
 		return -IGD_INVAL;
 	}
 
+//	in_dihclone = display->context->mod_dispatch.in_dih_clone_mode;
+
+//	display->context->mod_dispatch.dsp_get_dc(NULL, &primary, NULL);
+
+
+//	if (PIPE(display)->cursor->mirror != NULL || ( in_dihclone && display == primary )) {
 	if (PIPE(display)->cursor->mirror != NULL) {
 		display->context->mod_dispatch.dsp_get_dc(NULL, NULL, &display2);
 		if (display == display2) {
@@ -870,7 +853,6 @@ int igd_alter_cursor_pos(igd_display_h display_handle,
 			cursor_state = CURSOR_1_STATE;
 		}
 	}
-
 	/* Reset display2 if cursor isn't setup */
 	if (display2) {
 		if (!PIPE(display2) || !PIPE(display2)->cursor) {
@@ -1039,11 +1021,10 @@ long igd_pan_display(igd_display_h hDisplay,
 	}
 
 	/*
-	address HSD 200474  (08/27/2008
-	handle case primary: 1280x720  seconday:1024x768
-	TODO (Chandra idea)
-	"ideally the FB 720 height should center on LVDS 768 height and pan across horizontally that is 1280 FB width pans on LVDS 1024 width."
-	*/
+	 * handle case primary: 1280x720  seconday:1024x768
+	 * TODO:
+	 * "ideally the FB 720 height should center on LVDS 768 height and pan across horizontally that is 1280 FB width pans on LVDS 1024 width."
+	 */
 	if (fb_info->height >= pt_info->height) {
 		if (pt_info->width + x_offset > fb_info->width ||
 			pt_info->height + y_offset > fb_info->height) {
@@ -1701,10 +1682,15 @@ int full_mode_query(igd_driver_h driver_handle,
 	igd_timing_info_t *xt;
 	int timings = 0;
 
+	EMGD_TRACE_ENTER;
+
+	EMGD_DEBUG("Looking up timings for port: %ld", port->port_number);
+
 	/* determine the size of the mode list including the extensions */
 	tt = port->timing_table;
 	if (!tt) {
 		EMGD_ERROR("igd_query_mode_list:  No Timings");
+		EMGD_TRACE_EXIT;
 		return -IGD_ERROR_INVAL;
 	}
 	while (tt->width != IGD_TIMING_TABLE_END) {
@@ -1715,6 +1701,7 @@ int full_mode_query(igd_driver_h driver_handle,
 		 */
 		if (tt->mode_info_flags & PD_MODE_SUPPORTED) {
 			timings++;
+			EMGD_DEBUG("Adding timing: (%dx%d)", tt->width, tt->height);
 		}
 		tt++;
 
@@ -1752,8 +1739,10 @@ int full_mode_query(igd_driver_h driver_handle,
 		OS_MEMCPY(xt, tt, sizeof(igd_timing_info_t));
 	} else {
 		EMGD_ERROR("igd_query_mode_list: Memory allocation failure.");
+		EMGD_TRACE_EXIT;
 		return -IGD_ERROR_INVAL;
 	}
+	EMGD_TRACE_EXIT;
 	return 0;
 }
 
@@ -1771,6 +1760,7 @@ static void mode_shutdown(igd_context_t *context)
 	inter_module_dispatch_t *md;
 	module_state_h *mode_state = NULL;
 	unsigned long *flags = NULL;
+	reg_state_id_t id;
 
 	EMGD_DEBUG("mode_shutdown Entry");
 
@@ -1794,7 +1784,12 @@ static void mode_shutdown(igd_context_t *context)
 
 	/* Restore mode state */
 	md = &context->mod_dispatch;
-	md->reg_get_mod_state(REG_MODE_STATE, &mode_state, &flags);
+	if (config_drm.init) {
+		id = REG_MODE_STATE_CON;
+	} else {
+		id = REG_MODE_STATE_REG;
+	}
+	md->reg_get_mod_state(id, &mode_state, &flags);
 	mode_restore(context, mode_state, flags);
 
 	/* Shutdown PI module */
@@ -1854,6 +1849,7 @@ int full_mode_init(igd_context_t *context,
 		mode_context->dispatch->check_port_supported;
 	context->mod_dispatch.get_refresh_in_border =
 		mode_context->dispatch->get_refresh_in_border;
+
 
 	/* Hook up Core specific IGD dispatch table entries */
 	dispatch->set_palette_entry = mode_context->dispatch->set_palette_entry;
@@ -2194,8 +2190,30 @@ int query_seamless(unsigned long dc,
 	return ret;
 } /* end of query_seamless */
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_mode.c,v 1.26 2011/03/02 23:01:46 astead Exp $
- *----------------------------------------------------------------------------
+
+/*!
+ * Takes inter-module function calls and calls mode-specific
+ * kms_match_mode.
+ *
+ * @param emgd_encoder
+ * @param fb_info
+ * @param timing
+ *
+ * @return -IGD_ERROR_INVAL on failure
+ * @return 0 on success
  */
+int igd_kms_match_mode(void *emgd_encoder,
+    void *fb_info,
+	igd_timing_info_h **timing)
+{
+	int ret;
+
+	EMGD_TRACE_ENTER;
+
+	ret = kms_match_mode((emgd_encoder_t *)emgd_encoder,
+		(igd_framebuffer_info_t *)fb_info,
+		(igd_timing_info_t **)timing);
+
+	EMGD_TRACE_EXIT;
+	return ret;
+}

@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_version.h
- * $Revision: 1.115.2.3 $
+ * $Revision: 1.175 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -34,8 +34,8 @@
 #define _IGD_VERSION_H
 
 #define IGD_MAJOR_NUM  1
-#define IGD_MINOR_NUM  6
-#define IGD_BUILD_NUM  1922
+#define IGD_MINOR_NUM  10
+#define IGD_BUILD_NUM  2209
 
 #define IGD_PCF_VERSION   0x00000400
 #endif

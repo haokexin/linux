@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: state3d_plb.h
- * $Revision: 1.5 $
+ * $Revision: 1.6 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -161,9 +161,9 @@ typedef struct _state3d_chroma_key_plb {
 typedef struct _state3d_clear_parameters_plb {
 	union {
 		struct {
-        		unsigned int stencil_write_en :1;
-        		unsigned int depth_buffer_write_en :1;
-        		unsigned int color_buffer_write_en :1;
+		unsigned int stencil_write_en :1;
+		unsigned int depth_buffer_write_en :1;
+		unsigned int color_buffer_write_en :1;
 			unsigned int :13;
 			unsigned int clear_primitive_type :1;
 			unsigned int :15;
@@ -175,20 +175,20 @@ typedef struct _state3d_clear_parameters_plb {
 		unsigned int dw2;
 	};
 	union {
-        	unsigned int	clear_depth_buffer_val;
+	unsigned int	clear_depth_buffer_val;
 		unsigned int dw3;
 	};
 	union {
-        	unsigned int	clear_color;
+	unsigned int	clear_color;
 		unsigned int dw4;
 	};
 	union {
-        	unsigned int	clear_depth;
+	unsigned int	clear_depth;
 		unsigned int dw5;
 	};
 	union {
 		struct {
-        		unsigned int clear_stencil :8;
+		unsigned int clear_stencil :8;
 			unsigned int :24;
 		};
 		unsigned int dw6;
@@ -325,32 +325,32 @@ typedef struct _state3d_drawing_rectangle_plb {
 	union {
 		struct {
 			unsigned int :24;
-        		unsigned int y_dither_offset :2;
-        		unsigned int x_dither_offset :2;
+		unsigned int y_dither_offset :2;
+		unsigned int x_dither_offset :2;
 			unsigned int :2;
-        		unsigned int depth_buffer_coord_offset_dis :1;
-        		unsigned int fast_scissor_clip_dis :1;
+		unsigned int depth_buffer_coord_offset_dis :1;
+		unsigned int fast_scissor_clip_dis :1;
 		};
 		unsigned int dw1;
 	};
 	union {
 		struct {
-        		unsigned int clip_draw_rect_x_min :16;
-        		unsigned int clip_draw_rect_y_min :16;
+		unsigned int clip_draw_rect_x_min :16;
+		unsigned int clip_draw_rect_y_min :16;
 		};
 		unsigned int dw2;
 	};
 	union {
 		struct {
-        		unsigned int clip_draw_rect_x_max :16;
-        		unsigned int clip_draw_rect_y_max :16;
+		unsigned int clip_draw_rect_x_max :16;
+		unsigned int clip_draw_rect_y_max :16;
 		};
 		unsigned int dw3;
 	};
 	union {
 		struct {
-        		unsigned int draw_rect_origin_x :16;
-        		unsigned int draw_rect_origin_y :16;
+		unsigned int draw_rect_origin_x :16;
+		unsigned int draw_rect_origin_y :16;
 		};
 		unsigned int dw4;
 	};

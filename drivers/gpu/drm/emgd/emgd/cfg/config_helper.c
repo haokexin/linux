@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: config_helper.c
- * $Revision: 1.6 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -170,6 +170,9 @@ int main(int argc, char **argv)
 #ifdef CONFIG_PD_SOFTPD
 		"PD_SOFTPD "
 #endif
+#ifdef CONFIG_PD_CH7036
+		"PD_CH7036 "
+#endif
 		/*
 		 * Port Driver Link Options
 		 */
@@ -227,7 +230,9 @@ int main(int argc, char **argv)
 #ifdef CONFIG_LINK_PD_SOFTPD
 		"LINK_PD_SOFTPD "
 #endif
-
+#ifdef CONFIG_LINK_PD_CH7036
+      "LINK_PD_CH7036 "
+#endif
 
 #ifdef CONFIG_COPP
 		"COPP "

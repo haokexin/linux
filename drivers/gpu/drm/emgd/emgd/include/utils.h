@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: utils.h
- * $Revision: 1.9 $
+ * $Revision: 1.11 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -172,9 +172,3 @@ extern void write_mmio_reg_tnc(unsigned long port_type, unsigned long reg,
 
 #endif // _UTILS_H_
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: utils.h,v 1.9 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/utils.h,v $
- *----------------------------------------------------------------------------
- */

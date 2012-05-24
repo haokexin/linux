@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: ovl2_regs_plb.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -52,6 +52,7 @@ typedef struct _ovl2_reg_plb{
 #define OVL2_CMD_VYUY				0x00030000
 
 /* Source Format */
+#define OVL2_CMD_ARGB_8888          0x1C000000
 #define OVL2_CMD_RGB_8888			0x18000000
 #define OVL2_CMD_RGB_565			0x14000000
 #define OVL2_CMD_RGB_555			0x10000000

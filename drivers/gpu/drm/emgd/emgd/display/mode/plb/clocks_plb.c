@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: clocks_plb.c
- * $Revision: 1.8 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -44,6 +44,7 @@
 #include <pi.h>
 #include <sched.h>
 
+#include "drm_emgd_private.h"
 #include <plb/regs.h>
 
 /*!
@@ -345,6 +346,195 @@ static int get_clock(unsigned long dclk,
 
 /*!
  *
+ * @param emgd_crtc
+ * @param clock
+ * @param dclk
+ *
+ * @return 0 on success
+ * @return 1 on failure
+ */
+int kms_program_clock_plb(emgd_crtc_t *emgd_crtc,
+	igd_clock_t *clock,
+	unsigned long dclk)
+{
+	unsigned long m1, m2, n, p;
+	unsigned long control;
+	unsigned long ref_freq;
+	int ret;
+	unsigned long port_mult, vga_mult;
+	unsigned long dual_channel = 0;
+	unsigned long index;
+	unsigned long pt;
+	struct drm_device  *dev          = NULL;
+	igd_display_pipe_t *pipe         = NULL;
+	igd_context_t      *context      = NULL;
+	igd_display_port_t *port         = NULL;
+	struct drm_encoder *encoder      = NULL;
+	emgd_encoder_t     *emgd_encoder = NULL;
+
+	EMGD_DEBUG("Enter program_clock");
+
+	pipe = emgd_crtc->igd_pipe;
+	dev = ((struct drm_crtc *)(&emgd_crtc->base))->dev;
+	context = ((drm_emgd_priv_t *)dev->dev_private)->context;
+
+	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
+		if (((struct drm_crtc *)(&emgd_crtc->base)) == encoder->crtc) {
+			emgd_encoder = container_of(encoder, emgd_encoder_t, base);
+			port = emgd_encoder->igd_port;
+			pt = port->port_type;
+			break;
+		}
+	}
+	if (!port) {
+		EMGD_ERROR_EXIT("No port");
+		return -1;
+	}
+
+	if (dclk > 100000) {        /*	100-200 MHz	*/
+
+		port_mult = 1;
+	}
+	else if (dclk > 50000) {    /*	50-100 Mhz	*/
+
+		port_mult = 2;
+	}
+	else {                      /*	25-50 Mhz	*/
+
+		port_mult = 4;
+	}
+
+	/*
+	 * Clock Multiplier : sDVO ports on all plb chipsets
+	 */
+	if (pt == IGD_PORT_DIGITAL) {
+
+		dclk *= port_mult;
+	}
+
+	vga_mult = EMGD_READ32(context->device_context.virt_mmadr + clock->dpll_control) & 0x3;
+
+	/* For Int-LVDS need to find out if its dual channel and pass
+	 * that info into caluculating for p2. Apperently halving
+	 * of dot-clock is also required by Ch7017 when operating in
+	 * dual channel
+	 */
+	if (pt == IGD_PORT_LVDS) {
+		/* Find PD_ATTR_ID_2_CHANNEL_PANEL attr value*/
+		pi_pd_find_attr_and_value(port,
+				PD_ATTR_ID_2_CHANNEL_PANEL,
+				0/*no PD_FLAG for 2_channel*/,
+				NULL,
+				&dual_channel);
+	}
+
+	/* For external clock sources always use ref_clock == dclk */
+	if(port->pd_flags & PD_FLAG_CLK_SOURCE) {
+		ref_freq = dclk;
+	} else {
+		ref_freq = 96000;
+	}
+	/* LVDS reference clock can be 96 or 100 MHz. However there
+	 * are no mention in the specification to specify which register
+	 * to select/set this.
+	 */
+
+	/* When the clock source is provided externally by the port driver,
+	 * the allowed error range is 0. */
+	if(port->pd_flags & PD_FLAG_CLK_SOURCE) {
+		ret = get_clock(dclk, ref_freq, &m1, &m2, &n, &p, 0
+				,pt,dual_channel);
+	} else {
+		ret = get_clock(dclk, ref_freq, &m1, &m2, &n, &p, TARGET_ERROR
+				,pt,dual_channel);
+	}
+
+	if(ret) {
+		EMGD_ERROR("Clock %ld could not be programmed", dclk);
+		return ret;
+	}
+
+	/* Disable DPLL, Write an 0x80 into P for saftey */
+	control = 0x10000000 | (0x80<<clock->p_shift) | BIT26 | vga_mult;
+	EMGD_WRITE32(control, context->device_context.virt_mmadr + clock->dpll_control);
+
+	/* Program N, M1,and M2 */
+	EMGD_WRITE32((n<<16) | (m1<<8) | m2, context->device_context.virt_mmadr + clock->mnp);
+
+	/* Enable DPLL, Disable VGAm Mode and sitck in new P values */
+	if(pt == IGD_PORT_LVDS){
+		/* If LVDS set the appropriate bits for mode select */
+		control = (BIT31 | BIT28 | BIT27 )
+			| (p<<clock->p_shift) | vga_mult;
+
+		if(port->attr_list) {
+
+			for(index = 0; index < port->attr_list->num_attrs; index++) {
+
+				/* Set spread spectrum and pulse phase */
+				if(port->attr_list->attr[index].id == PD_ATTR_ID_SSC) {
+
+					/*
+					 * Pulse Phase for Poulsbo only has valid values between
+					 * 3 and 9
+					 */
+					if(port->attr_list->attr[index].value >= 3 &&
+						port->attr_list->attr[index].value <= 9) {
+
+						control |= BIT13 | BIT14;
+						/*
+						 * Set the Pulse Phase to the clock phase specified by
+						 * the user
+						 */
+						control |= (port->attr_list->attr[index].value<<9);
+					}
+					break;
+				}
+			}
+		}
+	} else{
+	/* else DAC/SDVO */
+		control = (BIT31 | BIT28 | BIT26) | (p<<clock->p_shift) | vga_mult;
+	}
+	/*
+	 * Poulsbo has high speed clock on always
+	 */
+	control |= BIT30;
+
+
+
+	/* Set the clock source correctly based on PD settings */
+	if(port->pd_flags & PD_FLAG_CLK_SOURCE) {
+		control |= port->clock_bits;
+	} else {
+		control |= port->clock_bits & ~0x00006000;
+	}
+
+	/* sDVO Multiplier bits[7:0] */
+	if (pt == IGD_PORT_DIGITAL) {
+
+		if (port_mult == 2) {
+
+			control |= (1 << 4);
+
+		} else if (port_mult == 4) {
+
+			control |= (3 << 4);
+		}
+	}
+
+	EMGD_WRITE32(control, context->device_context.virt_mmadr + clock->dpll_control);
+
+	/* We must wait for 150 us for the dpll clock to warm up */
+	OS_SLEEP(150);
+	pipe->dclk = dclk;
+
+	return 0;
+}
+
+
+/*!
+ *
  * @param display
  * @param clock
  * @param dclk
@@ -509,10 +699,3 @@ int program_clock_plb(igd_display_context_t *display,
 
 	return 0;
 }
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: clocks_plb.c,v 1.8 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/mode/plb/clocks_plb.c,v $
- *----------------------------------------------------------------------------
- */

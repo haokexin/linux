@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_pd.h
- * $Revision: 1.8 $
+ * $Revision: 1.11 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -231,7 +231,42 @@
 #define PD_ATTR_ID_INVERTER_FREQ		0x47
 #define PD_ATTR_ID_BLM_LEGACY_MODE		0x48
 #define PD_ATTR_ID_RB_SWAP_MODE			0x49
-#define PD_ATTR_ID_NUM_IDS			0x4A  /* Always make this last */
+//************ port driver attributes defined for ch7036 port driver **************//
+#define PD_ATTR_ID_HFLIP			0x54
+#define PD_ATTR_ID_VFLIP			0x55
+
+//hdmi audio
+#define PD_ATTR_ID_AUDIO_I2S_FORMAT		0x56
+#define PD_ATTR_ID_AUDIO_I2S_POLARITY           0x57
+#define PD_ATTR_ID_AUDIO_I2S_LENGH		0x58
+
+#define PD_ATTR_ID_AUDIO_TYPE			0x59 //1- I2S, 0: SPDIF
+
+//display mode tables supported by ch7036
+#define PD_ATTR_ID_HDMI_OUT_MODE		0x5A
+#define PD_ATTR_ID_DVI_OUT_MODE			0x5B
+#define PD_ATTR_ID_CRT_OUT_MODE			0x5C
+
+
+#define PD_ATTR_ID_DITHER_BYPASS		0x5D //to bypass Dither block - note: PD_ATTR_ID_DITHER is for dither selection: 18-18, 18-24, etc...
+#define PD_ATTR_ID_EDID_BYPASS			0x5E //1: bypass (use fixed built-in table, 0: read panel EDID)
+
+//1:hdmi, 0: dvi- note: PD_ATTR_ID_HDMI_CHANNEL will be  ‘inactive’ after EDID reading is
+//implemented and selected, e.g. PD_ATTR_ID_EDID_BYPASS =0
+#define PD_ATTR_ID_HDMI_CHANNEL			0x5F
+#define PD_ATTR_ID_PLL_REF_DLY			0x60
+#define PD_ATTR_ID_PLL_REF_FBDLY		0x61
+#define PD_ATTR_ID_ROTATE			0x62
+#define PD_ATTR_ID_HSCALE_CRT			0x63
+#define PD_ATTR_ID_VSCALE_CRT			0x64
+
+#define PD_ATTR_ID_LOAD_FIRMWARE		0x65
+#define PD_ATTR_ID_REFRESH			0x66
+
+
+//************ end of ch7036 defined port driver attribute ********** //
+
+#define PD_ATTR_ID_NUM_IDS			0x67  /* Always make this last */
 
 /*! @} */
 
@@ -379,6 +414,10 @@
 #define PD_DISPLAY_HDMI_EXT    0x00000200    /* External HDMI */
 #define PD_DISPLAY_DP_INT      0x00000400    /* Display Port on board */
 #define PD_DISPLAY_DRGB        0x00000800    /* SDVO DRGB display */
+/* new display types introduced by LVDS converter chip, CH7036 */
+#define PD_DISPLAY_LVDS_LHDV   0x00001000  /* lvds converter- converts lvds signals to
+												lvds pass-thru, hdmi, dvi, or vga */
+
 
 #ifdef CONFIG_MICRO
 #define PD_MAKE_ATTR(id, type, name, flags, def, cur, a, b, c) \
@@ -495,12 +534,5 @@ typedef struct _igd_extension_attr {
 
 
 /*! @} */
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_pd.h,v 1.8 2011/03/12 10:56:24 nanuar Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/include/igd_pd.h,v $
- *----------------------------------------------------------------------------
- */
 
 #endif /* _IGD_PD_H_ */

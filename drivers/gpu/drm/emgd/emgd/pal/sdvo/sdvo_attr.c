@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: sdvo_attr.c
- * $Revision: 1.14 $
+ * $Revision: 1.16 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -1087,11 +1087,11 @@ unsigned long sdvo_get_bool_attrs(sdvo_device_context_t *p_ctx,
 		for (i = 0; i < ARRAY_SIZE(g_bool_data); i++) {
 			if((p_ctx->dev_cap.vendor_id == VENDOR_ID_OKI) &&
 				(p_ctx->dev_cap.device_id == 0x1) &&
-  	            ((g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_HSYNC) ||
-  	            (g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_VSYNC))) {
+	            ((g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_HSYNC) ||
+	            (g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_VSYNC))) {
 
-  	            continue;
-  	        }
+	            continue;
+	        }
 			status = sdvo_execute_command(p_ctx, g_bool_data[i].opcode_get,
 						 0, NULL,
 						 1, &ret_value);
@@ -1119,11 +1119,11 @@ unsigned long sdvo_get_bool_attrs(sdvo_device_context_t *p_ctx,
 
 		if((p_ctx->dev_cap.vendor_id == VENDOR_ID_OKI) &&
 			(p_ctx->dev_cap.device_id == 0x1) &&
-  	        ((g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_HSYNC) ||
-  	        (g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_VSYNC))) {
+	        ((g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_HSYNC) ||
+	        (g_bool_data[i].id == PD_ATTR_ID_PANEL_PROTECT_VSYNC))) {
 
-  	        continue;
-  	    }
+	        continue;
+	    }
 
 
 		status = sdvo_query_bool_attr(p_ctx, p_attr_cur);
@@ -1482,9 +1482,3 @@ sdvo_status_t sdvo_alter_list_attr(sdvo_device_context_t *p_ctx,
 #endif
 	return SS_INVALID_ARGUMENT;
 }
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: sdvo_attr.c,v 1.14 2011/03/12 10:56:13 nanuar Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/pal/sdvo/sdvo_attr.c,v $
- *----------------------------------------------------------------------------
- */

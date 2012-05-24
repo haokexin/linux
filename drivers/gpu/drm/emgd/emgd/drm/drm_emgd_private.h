@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: drm_emgd_private.h
- * $Revision: 1.18 $
+ * $Revision: 1.20 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -36,9 +36,16 @@
 
 #include <drm/drmP.h>
 #include <drm/drm.h>
+#include <drm/drm_fb_helper.h>
+#include "mode.h"
 #include "context.h"
+#include "emgd_drv.h"
+
+struct _drm_emgd_private;
 
 
+/* FIXME: This define should not be here.  Find a better place to put it */
+#define PSB_GATT_RESOURCE   2
 
 /**
  * This enum is used to record the currently-saved register state (e.g. for VT
@@ -83,9 +90,6 @@ typedef struct _drm_emgd_private {
 
 	/** Non-zero if the X server is running (i.e. PVR can't do mode changes) */
 	int xserver_running;
-
-	/** Non-zero if emgd_start_pvrsrv() started the PVR services, else zero. */
-	int pvrsrv_started;
 
 	/**
 	 * Function to re-initialize the 3DD's data structures, after calls to
@@ -132,15 +136,32 @@ typedef struct _drm_emgd_private {
 	 */
 	igd_init_info_t *init_info;
 
-
 	/** TODO:  May use this in future.
-	* MSVDX
-	*/
+	 * MSVDX
+	 */
 	void *msvdx_private;
 
-	/* fbdev is removed from drm_framebuffer in 2.6.35 so access it here */
-	struct fb_info *fbdev;
+	/*
+	 * GTT offset of initial framebuffer.  The initial framebuffer is a special
+	 * case in that it is allocated directly by the GMM at system startup
+	 * before the PVR services are initialized.  As such, it has no PVR
+	 * meminfo that can be used as a handle to refer to it; functions that take
+	 * a framebuffer will treat a handle of 0 as referring to the initial
+	 * framebuffer and then pull the GTT offset from here.
+	 */
+	//unsigned long initfb_offset;
+	igd_framebuffer_info_t initfb_info;
 
-} drm_emgd_private;
+	/* fbdev is removed from drm_framebuffer in 2.6.35 so access it here */
+	struct fb_info    *fbdev;
+	emgd_crtc_t       *crtcs[IGD_MAX_PIPES];
+	int                num_crtc;
+	emgd_fbdev_t      *emgd_fbdev;
+	bool               mode_config_initialized;
+	struct drm_device *ddev;
+	bool               kms_enabled;
+	int qb_seamless; /* Store the state of seamless/quickboot */
+} drm_emgd_priv_t;
+
 
 #endif

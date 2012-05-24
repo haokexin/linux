@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_ovl.c
- * $Revision: 1.24 $
+ * $Revision: 1.28 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -81,8 +81,21 @@ ovl_context_t ovl_context[1];
 void igd_reset_fw_ovl(igd_display_context_t *display)
 {
 	ovl_dispatch_t	*ovl_dispatch = (ovl_dispatch_t *)ovl_context->dispatch;
+	if(NULL == ovl_dispatch){
+		EMGD_DEBUG("ovl_dispatch_t	*ovl_dispatch == NULL");
+		return ;
+	}
 	ovl_dispatch[OVL_SECONDARY].alter_ovl(display,
 								NULL, NULL, NULL, NULL, IGD_OVL_ALTER_OFF);
+}
+
+static int igd_ovl_set_display(igd_display_h ovl_display[])
+{
+	ovl_context->ovl_display_km[OVL_PRIMARY] = (igd_display_context_t *)ovl_display[OVL_PRIMARY];
+	ovl_context->ovl_display_km[OVL_SECONDARY] = (igd_display_context_t *)ovl_display[OVL_SECONDARY];
+
+	ovl_context->ovl_display_swapped = 1;
+	return 0;
 }
 
 static int ovl_get_display(igd_display_context_t *display,
@@ -112,16 +125,21 @@ static int ovl_get_display(igd_display_context_t *display,
 		return 0;
 	}
 
-	if (dc & IGD_DISPLAY_CONFIG_CLONE) {
+	if (dc & IGD_DISPLAY_CONFIG_CLONE || display->context->mod_dispatch.in_dih_clone_mode) {
 		/* CLONE or Vertical Extended
 		 * Primary Overlay uses the display from the primary pipe.
 		 * Secondary Overlay uses the display from the secondary pipe. */
-		ovl_displays[OVL_PRIMARY]   = primary;
-		ovl_displays[OVL_SECONDARY] = secondary;
+		/* The above is TRUE on init, but subsequent
+		 * video plane override calls will change the overlay plane assignment.
+		 * Use ovl_um_context->ovl_display_km[OVL_PRIMARY] &
+		 * ovl_um_context->ovl_display_km[OVL_SECONDARY] to retrieve
+		 * HW overlay(PRIMARY) & SpriteC(SECONDARY) plane to display
+		 * handle assignment respectively */
+		ovl_displays[OVL_PRIMARY]   = ovl_context->ovl_display_km[OVL_PRIMARY];
+		ovl_displays[OVL_SECONDARY] = ovl_context->ovl_display_km[OVL_SECONDARY];
 	} else {
 		/* Single, Twin, Extended */
-
-		if (display == primary) {
+		if (ovl_context->ovl_display_km[OVL_PRIMARY] == display) {
 			ovl_displays[OVL_PRIMARY]   = display;
 			ovl_displays[OVL_SECONDARY] = NULL;
 		} else {
@@ -145,10 +163,16 @@ static int igd_alter_ovl2(igd_display_h display_h,
 	ovl_dispatch_t    *ovl_dispatch =
 		(ovl_dispatch_t *)ovl_context->dispatch;
 	int cur_ovl, ret = 0;
-	unsigned long dc;
 	igd_display_context_t *primary, *secondary;
+	unsigned long dc;
+	igd_display_context_t *ovl_displays[OVL_MAX_HW];
 
 	EMGD_TRACE_ENTER;
+
+	if(NULL == ovl_dispatch) {
+		EMGD_DEBUG("ovl_dispatch == NULL");
+		return IGD_SUCCESS;
+	}
 
 	if(flags == IGD_FW_VIDEO_OFF)
 	{
@@ -157,10 +181,27 @@ static int igd_alter_ovl2(igd_display_h display_h,
 	}
 
 	/* Determine which display this overlay belongs to */
+	if(display->context == NULL){
+		EMGD_DEBUG("display->context == NULL");
+		return -IGD_ERROR_INVAL;
+	}
 	display->context->mod_dispatch.dsp_get_dc(&dc, &primary, &secondary);
-	if(display == primary) {
+
+	if ((ovl_context->ovl_display_km[OVL_PRIMARY] == NULL) &&
+		(ovl_context->ovl_display_km[OVL_SECONDARY] == NULL)) {
+		/* One time initialization of ovl_display_km */
+		ovl_displays[OVL_PRIMARY] = primary;
+		ovl_displays[OVL_SECONDARY] = secondary;
+		igd_ovl_set_display((igd_display_h)ovl_displays);
+	}
+
+	/* Determine which overlays belong to which displays */
+	ovl_get_display(display, ovl_displays, flags);
+
+	/* Determine which display this overlay belongs to */
+	if(display == ovl_displays[OVL_PRIMARY]) {
 		cur_ovl = 0;
-	} else if (display == secondary) {
+	} else if (display == ovl_displays[OVL_SECONDARY]) {
 		cur_ovl = 1;
 	} else {
 		/* shouldn't get here. */
@@ -204,6 +245,7 @@ static int igd_alter_ovl2(igd_display_h display_h,
 	EMGD_TRACE_EXIT;
 	return ret;
 }
+
 
 
 static int igd_query_ovl(igd_display_h display_h,
@@ -287,6 +329,36 @@ static int igd_query_max_size_ovl(igd_display_h display_h,
 	return ret;
 }
 
+
+
+/* This is a wrapper function that will call the device specific alter_ovl2_osd
+ * function. Currently this function is used by video driver to map the subpicture
+ * surface to second overlay so that it blends with the video surface on first
+ * overlay. Furthermore, this is only enabled for PLB device only.
+ */
+static int igd_alter_ovl2_osd(igd_display_h display_h,
+	igd_surface_t *sub_surface,
+	igd_rect_t *sub_src_rect,
+	igd_rect_t *sub_dest_rect,
+	igd_ovl_info_t      *ovl_info,
+	unsigned int         flags)
+{
+	ovl_dispatch_t  *ovl_dispatch =
+		(ovl_dispatch_t *)ovl_context->dispatch;
+	igd_display_context_t *display =
+		(igd_display_context_t *)display_h;
+
+	int ret = 0;
+
+	ret = ovl_dispatch[1].alter_ovl(display,
+			sub_surface, sub_src_rect, sub_dest_rect,
+			ovl_info, flags);
+
+	return ret;
+}
+
+
+
 /*----------------------------------------------------------------------
  * Function: igd_get_ovl_init_params(ovl_um_context_t *ovl_um_context)
  * Description:
@@ -346,7 +418,7 @@ int ovl_full_init(igd_context_t *context,
 		return -IGD_ERROR_NOMEM;
 	}
 	ovl_context->reg_allocated = 1;
-
+	ovl_context->ovl_display_swapped = 0;
 
 	/* Get the register update physical address in RAM */
 	if(context->dispatch.gmm_virt_to_phys(
@@ -382,8 +454,11 @@ int ovl_full_init(igd_context_t *context,
 	context->dispatch.get_ovl_init_params = igd_get_ovl_init_params;
 	context->dispatch.alter_ovl = NULL;
 	context->dispatch.alter_ovl2 = igd_alter_ovl2;
+//	context->dispatch.alter_ovl2_dihclone = igd_alter_ovl2_dihclone;
 	context->dispatch.query_ovl = igd_query_ovl;
 	context->dispatch.query_max_size_ovl = igd_query_max_size_ovl;
+	context->dispatch.alter_ovl2_osd = igd_alter_ovl2_osd;
+	context->dispatch.set_ovl_display = igd_ovl_set_display;
 
 	/* Hook up optional inter-module functions */
 	context->mod_dispatch.overlay_shutdown = _overlay_shutdown;
@@ -392,6 +467,14 @@ int ovl_full_init(igd_context_t *context,
 	if(params->display_flags & IGD_DISPLAY_FB_BLEND_OVL){
 		ovl_context->fb_blend_ovl = 1;
 	}
+	ovl_context->saved_src_surf = NULL;
+	ovl_context->saved_src_rect = NULL;
+	ovl_context->saved_dest_rect = NULL;
+	ovl_context->saved_ovl_info = NULL;
+	ovl_context->saved_flags	=  0;
+	ovl_context->ovl_display_km[OVL_PRIMARY] = NULL;
+	ovl_context->ovl_display_km[OVL_SECONDARY] = NULL;
+
 
 	EMGD_TRACE_EXIT;
 	return IGD_SUCCESS;

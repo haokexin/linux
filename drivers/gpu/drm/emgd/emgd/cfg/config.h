@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: config.h
- * $Revision: 1.12 $
+ * $Revision: 1.14 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -35,21 +35,6 @@
 
 #ifndef _HAL_CONFIG_H
 #define _HAL_CONFIG_H
-
-/*
- *  * Select ONE of these to be defined. It controls which OAL port
- *   * is used during the build and where the output goes.
- *    */
-/* #define CONFIG_OAL linux */
-#define CONFIG_OAL linux-user
-/* #define CONFIG_OAL xfree86 */
-/* #define CONFIG_OAL windows */
-/* #define CONFIG_OAL null */
-
-/* #define CONFIG_OAL_WINDOWS_MINIPORT */
-
-
-//#define CONFIG_NEW_MATCH 1
 
 /*
  * Which Cores are supported
@@ -112,9 +97,11 @@
 #define CONFIG_PD_LVDS   1
 #define CONFIG_PD_SDVO   1
 #define CONFIG_PD_TV     0 /* Integrated TV for NAPA */
+#define CONFIG_PD_CH7036  1
 
 #define CONFIG_LINK_PD_LVDS
 #define CONFIG_LINK_PD_SDVO
+#define CONFIG_LINK_PD_CH7036
 
 #define CONFIG_DECODE
 

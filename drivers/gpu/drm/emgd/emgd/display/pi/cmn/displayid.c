@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: displayid.c
- * $Revision: 1.8 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -1056,9 +1056,3 @@ int displayid_parse(
 
 #endif
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: displayid.c,v 1.8 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/pi/cmn/displayid.c,v $
- *----------------------------------------------------------------------------
- */

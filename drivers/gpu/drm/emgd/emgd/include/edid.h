@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: edid.h
- * $Revision: 1.5 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -128,9 +128,3 @@ int edid_ext_parse(
 		int           count,
 		unsigned char upscale);
 #endif
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: edid.h,v 1.5 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/edid.h,v $
- *----------------------------------------------------------------------------
- */

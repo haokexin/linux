@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: pd_print.h
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -63,9 +63,3 @@ extern void pd_trace_exit(const char *funcname);
 
 #endif
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: pd_print.h,v 1.7 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/pal/lpd/pd_print.h,v $
- *----------------------------------------------------------------------------
- */

@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_appcontext.c
- * $Revision: 1.8 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -146,9 +146,3 @@ int appcontext_init(igd_context_t *context)
 	return 0;
 }
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_appcontext.c,v 1.8 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/state/appcontext/cmn/igd_appcontext.c,v $
- *----------------------------------------------------------------------------
- */

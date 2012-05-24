@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: vga.h
- * $Revision: 1.6 $
+ * $Revision: 1.7 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -34,13 +34,22 @@
 
 #include <igd_vga.h>
 #include <io.h>
+#include "drm_emgd_private.h"
 
 extern void program_pipe_vga(
 	igd_display_context_t *display,
 	igd_timing_info_t *timings);
 
+extern void kms_program_pipe_vga(
+	emgd_crtc_t *emgd_crtc,
+	igd_timing_info_t *timings);
+
 extern void program_plane_vga(
 	igd_display_context_t *display,
+	igd_timing_info_t *timings);
+
+extern void kms_program_plane_vga(
+	unsigned char *mmio,
 	igd_timing_info_t *timings);
 
 extern unsigned long get_vga_color(int i);

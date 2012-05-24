@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_init.c
- * $Revision: 1.19 $
+ * $Revision: 1.24 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -708,6 +708,9 @@ int igd_module_init(igd_driver_h driver_handle,
 	context->mod_dispatch.init_params = params;
 	context->dispatch.idle = empty_idle;
 	context->dispatch.sync = empty_sync;
+	context->mod_dispatch.in_dih_clone_mode = 0;
+	context->mod_dispatch.dih_clone_display = 0;
+	context->mod_dispatch.fb_blend_ovl_override = 0;
 
 	/* Intialize IGD Modules */
 	ret = init_modules(params, context);
@@ -878,10 +881,38 @@ void igd_driver_shutdown_hal(igd_driver_h driver_handle)
 	return;
 }
 
+
+/*!
+ * This function is exported directly. It will shutdown an instance
+ * of the HAL that was initialized with igd_driver_init.
+ *
+ * Since the symbol is exported as part of the documented API it must
+ * always exist, however it becomes an empty function when the init
+ * module is not fully included.
+ *
+ * @param driver_handle
+ *
+ * @return void
+ */
+void igd_query_2d_caps_hwhint(igd_driver_h driver_handle,
+		unsigned long caps_val,
+		unsigned long *status)
+{
+	igd_context_t *context = (igd_context_t *)driver_handle;
+
+	EMGD_TRACE_ENTER;
+
+	if (init_dispatch->query_2d_caps_hwint != NULL){
+		init_dispatch->
+			query_2d_caps_hwint(context, caps_val, status);
+	}
+
+	EMGD_TRACE_EXIT;
+	return;
+}
 /*----------------------------------------------------------------------------
  * File Revision History
- * $Id: igd_init.c,v 1.19 2011/03/02 22:47:04 astead Exp $
+ * $Id: igd_init.c,v 1.24 2011/09/30 07:53:25 rlim Exp $
  * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/core/init/cmn/igd_init.c,v $
  *----------------------------------------------------------------------------
  */
-

@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: mode_tnc.c
- * $Revision: 1.28 $
+ * $Revision: 1.32 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -52,6 +52,7 @@
 #include <tnc/instr.h>
 #include <tnc/cmd.h>
 
+#include "drm_emgd_private.h"
 #include "../cmn/match.h"
 #include "../cmn/mode_dispatch.h"
 
@@ -81,15 +82,24 @@ static emgd_vblank_callback_t interrupt_callbacks_tnc[IGD_MAX_PORTS] =
  */
 static unsigned long vblank_interrupt_state = 0;
 
+/* This variables keeps track of the number of clients currently using
+ * the vblank interrupt
+ */
+static int vblank_interrupt_ref_cnt_port2 = 0;
+static int vblank_interrupt_ref_cnt_port4 = 0;
+
 /* Spin lock for synchronization of the vblank_interrupt_state variable,
  * between the VBlank interrupt handler and the non-interrupt handler code:
  */
-static spinlock_t vblank_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(vblank_lock_tnc);
 
 
 
 int set_flip_pending_tnc(unsigned char *mmio, unsigned long pipe_status_reg);
 int check_flip_pending_tnc(unsigned char *mmio, unsigned long pipe_status_reg);
+
+/* KMS callback from emgd_crtc.c */
+int crtc_pageflip_handler(struct drm_device *dev, int port);
 
 /*!
  * @addtogroup display_group
@@ -98,6 +108,8 @@ int check_flip_pending_tnc(unsigned char *mmio, unsigned long pipe_status_reg);
 
 int mode_get_stride_stereo_tnc(igd_display_context_t *display,
 	unsigned long *stride, unsigned long *stereo, unsigned long flags);
+
+
 
 /*!
  *
@@ -370,19 +382,17 @@ static int set_color_correct_tnc(igd_display_context_t *display)
 static int set_display_base_tnc(igd_display_context_t *display,
 	igd_framebuffer_info_t *fb, unsigned long *x, unsigned long *y)
 {
-	unsigned long base;
-
 	EMGD_TRACE_ENTER;
 
-	EMGD_DEBUG ("Pan linear");
+	EMGD_DEBUG ("Pan linear to (%lu,%lu)", *x, *y);
 
-	/* FIXME/TODO: Compare the difference between the plb/tnc versions of this
-	 * function, as the plb code adds-in the offset of the frame buffer.
-	 */
-	base = ((*y * fb->screen_pitch) + (*x * IGD_PF_BYPP(fb->pixel_format)));
+	/* Update framebuffer's visible offset */
+	PLANE(display)->fb_info->visible_offset =
+		((*y * fb->screen_pitch) + (*x * IGD_PF_BYPP(fb->pixel_format)));
 
 	/* Plane registers are always on 0:2:0 */
-	WRITE_MMIO_REG(display, PLANE(display)->plane_reg+DSP_LINEAR_OFFSET, base);
+	WRITE_MMIO_REG(display, PLANE(display)->plane_reg + DSP_LINEAR_OFFSET,
+		PLANE(display)->fb_info->visible_offset);
 
 	EMGD_TRACE_EXIT;
 	return 0;
@@ -805,7 +815,7 @@ static int igd_set_surface_tnc(igd_display_h display_handle,
 	unsigned int dsp_current;
 	unsigned long plane_reg;
 	unsigned long plane_control;
-	unsigned long surface_offset;
+	unsigned long visible_offset;
 
 	EMGD_TRACE_ENTER;
 	if(!surface) {
@@ -835,12 +845,20 @@ static int igd_set_surface_tnc(igd_display_h display_handle,
 		/*
 		 * Async flips only work when the offset is on a 256kb boundary.
 		 */
-		if(PLANE(display)->fb_info->visible_offset & 0x3ffff) {
-			EMGD_ERROR("FB offset must be 256kb aligned in Poulsbo");
+		if(surface->offset & 0x3ffff) {
+			EMGD_ERROR("Display surface offset %lu is not 256kb aligned", surface->offset);
 		}
 
+		/* calculate the visible offset, taking panning into account */
+		visible_offset =
+			(PORT_OWNER(display)->pt_info->y_offset * surface->pitch) +
+			(PORT_OWNER(display)->pt_info->x_offset *
+				IGD_PF_BYPP(surface->pixel_format));
+		EMGD_DEBUG("visible surface_offset = 0x%08lx", visible_offset);
+
 		/* Save new fb_info */
-		PLANE(display)->fb_info->visible_offset = surface->offset;
+		PLANE(display)->fb_info->fb_base_offset = surface->offset;
+		PLANE(display)->fb_info->visible_offset = visible_offset;
 		PLANE(display)->fb_info->screen_pitch = surface->pitch;
 		PLANE(display)->fb_info->width = surface->width;
 		PLANE(display)->fb_info->height = surface->height;
@@ -851,14 +869,6 @@ static int igd_set_surface_tnc(igd_display_h display_handle,
 		/* TODO - Does Atom E6xx flip need to handle stereo mode? */
 		/*mode_get_stride_stereo_tnc(display, &stride, &stereo, 0);*/
 
-		/* calculate the real offset, taking panning into account */
-		surface_offset = surface->offset;
-		surface_offset +=
-			(PORT_OWNER(display)->pt_info->y_offset * surface->pitch) +
-			(PORT_OWNER(display)->pt_info->x_offset *
-				IGD_PF_BYPP(surface->pixel_format));
-		EMGD_DEBUG("surface_offset = 0x%08lx", surface_offset);
-
 		/* plane registers are always on 0:2:0, so no need to use _TNC macros */
 		plane_reg = PLANE(display)->plane_reg;
 		plane_control = EMGD_READ32(MMIO(display) + plane_reg);
@@ -866,12 +876,18 @@ static int igd_set_surface_tnc(igd_display_h display_handle,
 		/* Perform the flip by doing the following:
 		 *
 		 *   Write the current plane_control value to the plane_reg
-		 *   Write the surface offset to either:
+		 *   Write the surface stride to DSP_STRIDE_OFFSET
+		 *   Write the visible from start of plane to DSP_LINEAR_OFFSET
+		 *   Write the base surface offset to either:
 		 *     1) the plane_reg - 4  if async
 		 *     2) plane_reg + DSP_START_OFFSET (+0x1C) if not async
 		 */
 		EMGD_WRITE32(plane_control, MMIO(display) + plane_reg);
-		EMGD_WRITE32(surface_offset,
+		EMGD_WRITE32(surface->pitch,
+				MMIO(display) + plane_reg + DSP_STRIDE_OFFSET);
+		EMGD_WRITE32(visible_offset,
+			MMIO(display) + plane_reg + DSP_LINEAR_OFFSET);
+		EMGD_WRITE32(surface->offset,
 			MMIO(display) + plane_reg + DSP_START_OFFSET);
 
 		EMGD_TRACE_EXIT;
@@ -880,6 +896,11 @@ static int igd_set_surface_tnc(igd_display_h display_handle,
 		EMGD_TRACE_EXIT;
 		return 0;
 	case IGD_BUFFER_DEPTH:
+		EMGD_TRACE_EXIT;
+		return 0;
+	case IGD_BUFFER_SAVE:
+		PLANE(display)->fb_info->saved_offset = surface->offset;
+		EMGD_DEBUG("saving surface_offset = 0x%08lx", surface->offset);
 		EMGD_TRACE_EXIT;
 		return 0;
 	default:
@@ -1210,28 +1231,37 @@ static int get_pipe_info_tnc(igd_display_h *display)
 				 */
 				ref_freq = 200000000;  /* 200 MHz */
 
+				dclk = ref_freq * m / (p1*p2);
+
 				/*  FIXME:  This is a workaround to get dclk.  We are supposed
 				 *  to be calculating this based on the formula, but DPLL
 				 *  is somehow locked and does not return the programmed
 				 *  p1 value.  Once this is fixed, we no longer need to have
 				 *  igd_display_handle in the parameter of get_pipe_info
+				 *
+				 *  Update:
+				 *  Now that we initialize the driver before X starts,
+				 *  we want to do a seamless mode-set from firmware to
+				 *  our kernel mode driver. At this point we do not have
+				 *  the igd_display_context_t setup.
+				 *
+				 *	if (NULL != display) {
+				 *		igd_display_context_t *display_context =
+				 *		(igd_display_context_t *) display;
+				 *
+				 *		dclk = ref_freq * m / (p1 * p2);
+				 *
+				 *		PIPE(display)->dclk is in KHhz
+				 *		dclk = PIPE(display)->dclk * 1000;
+				 *	} else {
+				 *		dclk = 0;
+				 *	}
+				 *
+				 *	if( dclk == 0 ) {
+				 *		EMGD_ERROR_EXIT(" Dot Clock/Ref Frequency is Zero!!!");
+				 *		return -IGD_ERROR_INVAL;
+				 *	}
 				 */
-				if (NULL != display) {
-					/*igd_display_context_t *display_context =
-					  (igd_display_context_t *) display;*/
-
-					/* dclk = ref_freq * m / (p1 * p2); */
-
-					/* PIPE(display)->dclk is in KHhz */
-					dclk = PIPE(display)->dclk * 1000;
-				} else {
-					dclk = 0;
-				}
-
-				if( dclk == 0 ) {
-					EMGD_ERROR_EXIT(" Dot Clock/Ref Frequency is Zero!!!");
-					return -IGD_ERROR_INVAL;
-				}
 
 				EMGD_DEBUG("Ref frequency = %lu", ref_freq);
 				EMGD_DEBUG("Pipe A constructed Dot clock is = %lu", dclk);
@@ -1441,10 +1471,11 @@ static irqreturn_t interrupt_handler_tnc(int irq, void* mmio)
 
 	iir = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
 
+
 	/* Detect whether a vblank interrupt occured, and if so, what type of
 	 * processing is needed (do the simple processing now):
 	 */
-	spin_lock_irqsave(&vblank_lock, lock_flags);
+	spin_lock_irqsave(&vblank_lock_tnc, lock_flags);
 	if ((port2_interrupt = iir & BIT5 /* Port 2/Pipe A/SDVO-B */) != 0) {
 		if ((tmp = vblank_interrupt_state & VBLANK_INT4_PORT2) != 0) {
 			/* Record "answers" for all requestors: */
@@ -1457,17 +1488,51 @@ static irqreturn_t interrupt_handler_tnc(int irq, void* mmio)
 			vblank_interrupt_state |= VBINT_ANSWER4_REQUEST(tmp);
 		}
 	}
-	spin_unlock_irqrestore(&vblank_lock, lock_flags);
+	spin_unlock_irqrestore(&vblank_lock_tnc, lock_flags);
+
+	/*
+	 * Call the KMS 'flip complete' handler if we're waiting for a flip to
+	 * complete on this port.  Note that we should do this before the
+	 * drm_handle_vblank() calls below since we need to clear the
+	 * 'flip pending' bit in the CRTC before the vblank waitqueue gets
+	 * woken up.
+	 */
+	if (port4_interrupt) {
+		crtc_pageflip_handler(mode_context->context->drm_dev,
+			IGD_PORT_TYPE_LVDS);
+	} else if (port2_interrupt) {
+		crtc_pageflip_handler(mode_context->context->drm_dev,
+			IGD_PORT_TYPE_SDVOB);
+	}
+
+	/* Notify KMS Hander:  The assignment of CRTC=0 for PIPE A and
+	 * CRTC=1 for PIPE B is not correct if somehow PIPE A is disabled.
+	 */
+	if (port2_interrupt) {
+		drm_handle_vblank(mode_context->context->drm_dev, 1);
+	}
+
+	if (port4_interrupt) {
+		drm_handle_vblank(mode_context->context->drm_dev ,0);
+	}
 
 	/* Call any registered/enabled callbacks for this interrupt: */
 	cb = &interrupt_callbacks_tnc[2];
-	if (cb->callback &&
+	if (port2_interrupt && cb->callback &&
 		(vblank_interrupt_state & VBINT_ANSWER(VBINT_CB, VBINT_PORT2))) {
+		/* Clear the state to indicate the vblank has occured prior to
+		 * invoking the callback.
+		 */
+		vblank_interrupt_state &= ~VBINT_ANSWER(VBINT_CB, VBINT_PORT2);
 		cb->callback(cb->priv);
 	}
 	cb = &interrupt_callbacks_tnc[4];
-	if (cb->callback &&
+	if (port4_interrupt && cb->callback &&
 		(vblank_interrupt_state & VBINT_ANSWER(VBINT_CB, VBINT_PORT4))) {
+		/* Clear the state to indicate the vblank has occured prior to
+		 * invoking the callback.
+		 */
+		vblank_interrupt_state &= ~VBINT_ANSWER(VBINT_CB, VBINT_PORT4);
 		cb->callback(cb->priv);
 	}
 
@@ -1543,7 +1608,7 @@ int request_vblanks_tnc(unsigned long request_for, unsigned char *mmio)
 	}
 
 	/* Lock here to stop the interrupt handler until after changing bits: */
-	spin_lock_irqsave(&vblank_lock, lock_flags);
+	spin_lock_irqsave(&vblank_lock_tnc, lock_flags);
 
 	/* Enable interrupts for the requested purpose/port, actually touching the
 	 * hardware registers if newly enabling interrupts for the given port/pipe:
@@ -1576,6 +1641,7 @@ int request_vblanks_tnc(unsigned long request_for, unsigned char *mmio)
 			EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IER);
 		}
 		vblank_interrupt_state |= request_for;
+		vblank_interrupt_ref_cnt_port2++;
 	} else /* if (request_for & VBLANK_INT4_PORT4) */ {
 		if (!VBLANK_INTERRUPTS_ENABLED4_PORT4) {
 			/* 1. Change Pipe Display Status Register for this pipe: set the
@@ -1604,14 +1670,18 @@ int request_vblanks_tnc(unsigned long request_for, unsigned char *mmio)
 			EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IER);
 		}
 		vblank_interrupt_state |= request_for;
+		vblank_interrupt_ref_cnt_port4++;
 	}
 
+
 	/* Unlock to allow the interrupt handler to proceed: */
-	spin_unlock_irqrestore(&vblank_lock, lock_flags);
+	spin_unlock_irqrestore(&vblank_lock_tnc, lock_flags);
 
 	EMGD_TRACE_EXIT;
 	return 0;
 }
+
+
 
 /*!
  * Implementation of "protected" function (i.e. for use within the mode
@@ -1644,76 +1714,95 @@ int end_request_tnc(unsigned long request_for, unsigned char *mmio)
 	}
 
 	/* Lock here to stop the interrupt handler until after changing bits: */
-	spin_lock_irqsave(&vblank_lock, lock_flags);
+	spin_lock_irqsave(&vblank_lock_tnc, lock_flags);
 
 	/* Disable interrupts for the requested purpose/port, actually touching the
 	 * hardware registers no software wants interrupts for the given port/pipe:
 	 */
 	if (request_for & VBLANK_INT4_PORT2) {
-		/* Turn off both the request and the answer bits: */
-		tmp = request_for & VBLANK_INT4_PORT2;
-		vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
-		if (!VBLANK_INTERRUPTS_ENABLED4_PORT2) {
-			/* 1. Change Pipe Display Status Register for this pipe: clear the
-			 *    Vertical Blank Interrupt Enable bit & clear (by setting) the
-			 *    Vertical Blank Interrupt Status bit:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
-			/* Clear bits that are written by a 1, so we don't clear them: */
-			tmp = tmp & (~PIPESTAT_STS_BITS);
-			EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
-				EMGD_MMIO(mmio) + PIPEB_STAT);
-			EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
+		/* Decrement reference count */
+		vblank_interrupt_ref_cnt_port2--;
+		if (0 > vblank_interrupt_ref_cnt_port2) {
+			EMGD_DEBUG("WARNING:  Disabled vblank INT too many times.");
+			vblank_interrupt_ref_cnt_port2 = 0;
+		}
 
-			/* 2. Clear the Interrupt Enable Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
-			EMGD_WRITE32((tmp & (~BIT5)), EMGD_MMIO(mmio) + IER);
+		if (0 == vblank_interrupt_ref_cnt_port2) {
+			/* Turn off both the request and the answer bits: */
+			tmp = request_for & VBLANK_INT4_PORT2;
+			vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
+			if (!VBLANK_INTERRUPTS_ENABLED4_PORT2) {
+				/* 1. Change Pipe Display Status Register for this pipe: clear
+				 *    the Vertical Blank Interrupt Enable bit & clear (by
+				 *    setting) the Vertical Blank Interrupt Status bit:
+				 */
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
+				/* Clear bits that are written by a 1, so don't clear them: */
+				tmp = tmp & (~PIPESTAT_STS_BITS);
+				EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
+					EMGD_MMIO(mmio) + PIPEB_STAT);
+				EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
 
-			/* 3. Set the Interrupt Mask Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
-			EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IMR);
+				/* 2. Clear the Interrupt Enable Register bit for this pipe: */
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
+				EMGD_WRITE32((tmp & (~BIT5)), EMGD_MMIO(mmio) + IER);
 
-			/* 4. Just in case, clear (by setting) the Interrupt Identity
-			 *    Register bit for this pipe:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
-			EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IIR);
+				/* 3. Set the Interrupt Mask Register bit for this pipe: */
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
+				EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IMR);
+
+				/* 4. Just in case, clear (by setting) the Interrupt Identity
+				*    Register bit for this pipe:
+				*/
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
+				EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IIR);
+			}
 		}
 	}
+
 	if (request_for & VBLANK_INT4_PORT4) {
-		/* Turn off both the request and the answer bits: */
-		tmp = request_for & VBLANK_INT4_PORT4;
-		vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
-		if (!VBLANK_INTERRUPTS_ENABLED4_PORT4) {
-			/* 1. Change Pipe Display Status Register for this pipe: clear the
-			 *    Vertical Blank Interrupt Enable bit & clear (by setting) the
-			 *    Vertical Blank Interrupt Status bit:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
-			/* Clear bits that are written by a 1, so we don't clear them: */
-			tmp = tmp & (~PIPESTAT_STS_BITS);
-			EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
-				EMGD_MMIO(mmio) + PIPEA_STAT);
-			EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
+		/* Decrement reference count */
+		vblank_interrupt_ref_cnt_port4--;
+		if (0 > vblank_interrupt_ref_cnt_port4) {
+			EMGD_DEBUG("WARNING:  Disabled vblank INT too many times.");
+			vblank_interrupt_ref_cnt_port4 = 0;
+		}
 
-			/* 2. Clear the Interrupt Enable Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
-			EMGD_WRITE32((tmp & (~BIT7)), EMGD_MMIO(mmio) + IER);
+		if (0 == vblank_interrupt_ref_cnt_port4) {
+			/* Turn off both the request and the answer bits: */
+			tmp = request_for & VBLANK_INT4_PORT4;
+			vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
+			if (!VBLANK_INTERRUPTS_ENABLED4_PORT4) {
+				/* 1. Change Pipe Display Status Register for this pipe: clear
+				 *    the Vertical Blank Interrupt Enable bit & clear (by
+				 *    setting the Vertical Blank Interrupt Status bit:
+				 */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
+				 /* Clear bits that are written by a 1, so don't clear them: */
+				 tmp = tmp & (~PIPESTAT_STS_BITS);
+				 EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
+					 EMGD_MMIO(mmio) + PIPEA_STAT);
+				 EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
 
-			/* 3. Set the Interrupt Mask Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
-			EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IMR);
+				 /* 2. Clear the Interrupt Enable Register bit for this pipe: */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
+				 EMGD_WRITE32((tmp & (~BIT7)), EMGD_MMIO(mmio) + IER);
 
-			/* 4. Just in case, clear (by setting) the Interrupt Identity
-			 *    Register bit for this pipe:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
-			EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IIR);
+				 /* 3. Set the Interrupt Mask Register bit for this pipe: */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
+				 EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IMR);
+
+				 /* 4. Just in case, clear (by setting) the Interrupt Identity
+				 *    Register bit for this pipe:
+				 */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
+				 EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IIR);
+			}
 		}
 	}
 
 	/* Unlock to allow the interrupt handler to proceed: */
-	spin_unlock_irqrestore(&vblank_lock, lock_flags);
+	spin_unlock_irqrestore(&vblank_lock_tnc, lock_flags);
 
 	/* If we've completely disabled all causes for interrupts, unregister the
 	 * interrupt handler:
@@ -1848,7 +1937,7 @@ void disable_vblank_callback_tnc(emgd_vblank_callback_h callback_h)
 
 	if (callback_h == ALL_PORT_CALLBACKS) {
 		/* Need to do some push-ups in order to get interrupts disabled: */
-		spin_lock_irqsave(&vblank_lock, lock_flags);
+		spin_lock_irqsave(&vblank_lock_tnc, lock_flags);
 		enable_for = (VBLANK_INT4_PORT2 | VBLANK_INT4_PORT4);
 		if (!VBLANK_INTERRUPTS_ENABLED) {
 			/* Nothing has enabled interrupts, so there's no interrupt handler
@@ -1860,13 +1949,13 @@ void disable_vblank_callback_tnc(emgd_vblank_callback_h callback_h)
 			vblank_interrupt_state = (VBLANK_INT4_PORT2 |
 				VBLANK_INT4_PORT4);
 		}
-		spin_unlock_irqrestore(&vblank_lock, lock_flags);
+		spin_unlock_irqrestore(&vblank_lock_tnc, lock_flags);
 
 		end_request_tnc(enable_for, mmio);
 
-		spin_lock_irqsave(&vblank_lock, lock_flags);
+		spin_lock_irqsave(&vblank_lock_tnc, lock_flags);
 		vblank_interrupt_state = 0;
-		spin_unlock_irqrestore(&vblank_lock, lock_flags);
+		spin_unlock_irqrestore(&vblank_lock_tnc, lock_flags);
 	} else {
 		emgd_vblank_callback_t *cb =
 			(emgd_vblank_callback_t *) callback_h;
@@ -1906,8 +1995,3 @@ mode_full_dispatch_t mode_full_dispatch_tnc = {
 	vblank_occured_tnc,
 };
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: mode_tnc.c,v 1.28 2011/03/02 22:47:05 astead Exp $
- *----------------------------------------------------------------------------
- */

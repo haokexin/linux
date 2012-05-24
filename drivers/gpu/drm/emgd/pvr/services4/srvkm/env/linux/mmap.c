@@ -20,10 +20,6 @@
  THE SOFTWARE.
  ******************************************************************************/
 
-#ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
-#endif
-
 #include <linux/version.h>
 #include <linux/mm.h>
 #include <linux/module.h>
@@ -785,7 +781,7 @@ static void ProcSeqShowMMapRegistrations(struct seq_file *sfile,void* el)
 		return;
 	}
 
-   	psLinuxMemArea = psOffsetStruct->psLinuxMemArea;
+	psLinuxMemArea = psOffsetStruct->psLinuxMemArea;
 
 	DetermineUsersSizeAndByteOffset(psLinuxMemArea,
 									&ui32RealByteSize,
@@ -870,7 +866,7 @@ PrintMMapRegistrations(IMG_CHAR *buffer, size_t size, off_t off)
     {
         PKV_OFFSET_STRUCT psOffsetStruct;
 
- 	list_for_each_entry(psOffsetStruct, &psLinuxMemArea->sMMapOffsetStructList, sAreaItem)
+	list_for_each_entry(psOffsetStruct, &psLinuxMemArea->sMMapOffsetStructList, sAreaItem)
         {
 	    off--;
 	    if (off == 0)
@@ -880,7 +876,7 @@ PrintMMapRegistrations(IMG_CHAR *buffer, size_t size, off_t off)
 
 		PVR_ASSERT(psOffsetStruct->psLinuxMemArea == psLinuxMemArea);
 
-    		DetermineUsersSizeAndByteOffset(psLinuxMemArea,
+		DetermineUsersSizeAndByteOffset(psLinuxMemArea,
                                    &ui32RealByteSize,
                                    &ui32ByteOffset);
 
@@ -1123,7 +1119,7 @@ PVRMMapCleanup(IMG_VOID)
 	PVR_DPF((PVR_DBG_ERROR, "%s: Memory areas are still registered with MMap", __FUNCTION__));
 
 	PVR_TRACE(("%s: Unregistering memory areas", __FUNCTION__));
- 	list_for_each_entry_safe(psLinuxMemArea, psTmpMemArea, &g_sMMapAreaList, sMMapItem)
+	list_for_each_entry_safe(psLinuxMemArea, psTmpMemArea, &g_sMMapAreaList, sMMapItem)
 	{
 		eError = PVRMMapRemoveRegisteredArea(psLinuxMemArea);
 		if (eError != PVRSRV_OK)

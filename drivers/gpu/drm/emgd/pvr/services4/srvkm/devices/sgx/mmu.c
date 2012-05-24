@@ -2741,7 +2741,7 @@ static IMG_VOID PageTest(IMG_VOID* pMem, IMG_DEV_PHYADDR sDevPAddr)
 			PVR_DBG_BREAK;
 			bOK = IMG_FALSE;
 		}
- 	}
+	}
 
 	ui32WriteData = 0;
 
@@ -2757,7 +2757,7 @@ static IMG_VOID PageTest(IMG_VOID* pMem, IMG_DEV_PHYADDR sDevPAddr)
 			PVR_DBG_BREAK;
 			bOK = IMG_FALSE;
 		}
- 	}
+	}
 
 	if (bOK)
 	{

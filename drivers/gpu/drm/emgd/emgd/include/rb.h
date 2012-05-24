@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: rb.h
- * $Revision: 1.9 $
+ * $Revision: 1.11 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -151,7 +151,7 @@ static __inline int rb_update(rb_buffer_t *buffer,
 {
 	unsigned long tail_off;
 /*	tail_off = (addr - buffer->virt); */
-   	tail_off = (unsigned long)((unsigned char *)(addr) - buffer->virt);
+	tail_off = (unsigned long)((unsigned char *)(addr) - buffer->virt);
 
 	buffer->reservation = 0;
 	buffer->tail_off = tail_off;
@@ -184,9 +184,3 @@ static __inline int rb_update(rb_buffer_t *buffer,
 
 #endif /* _RB_H */
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: rb.h,v 1.9 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/include/rb.h,v $
- *----------------------------------------------------------------------------
- */

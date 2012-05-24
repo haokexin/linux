@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: appcontext_plb.c
- * $Revision: 1.8 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -204,11 +204,4 @@ static void appcontext_shutdown_plb(igd_context_t *context)
 {
 	return;
 }
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: appcontext_plb.c,v 1.8 2011/03/02 22:47:06 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/state/appcontext/plb/appcontext_plb.c,v $
- *----------------------------------------------------------------------------
- */
 

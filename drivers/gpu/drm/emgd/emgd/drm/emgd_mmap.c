@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: emgd_mmap.c
- * $Revision: 1.9 $
+ * $Revision: 1.10 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -70,7 +70,7 @@ static struct vm_operations_struct emgd_vm_ops = {
 int emgd_mmap(struct file *filp, struct vm_area_struct *vma)
 {
 	struct drm_file *file_priv;
-	drm_emgd_private *emgd_priv;
+	drm_emgd_priv_t *emgd_priv;
 	gmm_chunk_t *chunk;
 	unsigned long offset;
 
@@ -83,7 +83,7 @@ int emgd_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 
 	file_priv = (struct drm_file *) filp->private_data;
-	emgd_priv = (drm_emgd_private *)file_priv->minor->dev->dev_private;
+	emgd_priv = (drm_emgd_priv_t *)file_priv->minor->dev->dev_private;
 	offset = vma->vm_pgoff << PAGE_SHIFT;
 
 	/*

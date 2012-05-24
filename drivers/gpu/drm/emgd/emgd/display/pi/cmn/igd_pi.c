@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_pi.c
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -258,9 +258,3 @@ igd_debug_t *igd_pd_get_igd_debug( void )
 	return emgd_debug;
 }
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_pi.c,v 1.7 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/pi/cmn/igd_pi.c,v $
- *----------------------------------------------------------------------------
- */

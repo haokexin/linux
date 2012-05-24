@@ -71,7 +71,7 @@ typedef struct _emgddc_pixelformat_translator
 typedef struct _emgddc_buffer
 {
 	/** A copy of the drm_emgd_private associated with this buffer. */
-	drm_emgd_private *priv;
+	drm_emgd_priv_t *priv;
 
 	/** The GMM offset of this buffer's memory. */
 	unsigned long offset;
@@ -255,7 +255,7 @@ struct _emgddc_devinfo
 	int which_devinfo;
 
 	/** A copy of the drm_emgd_private associated with this devinfo. */
-	drm_emgd_private *priv;
+	drm_emgd_priv_t *priv;
 
 	/** Private copy of the drm_device associated with this devinfo. */
 	struct drm_device *drm_device;

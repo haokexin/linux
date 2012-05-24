@@ -1,7 +1,6 @@
-/* -*- pse-c -*-
- *-----------------------------------------------------------------------------
+/*-----------------------------------------------------------------------------
  * Filename: emgd_interface.c
- * $Revision: 1.168 $
+ * $Revision: 1.182 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -60,6 +59,10 @@
 #include "syscommon.h"
 #include "pvr_drm.h"
 
+#include <linkage.h>
+
+#include "pvrversion.h"
+
 /* Turn on tracing for this file only */
 /*
 #undef EMGD_TRACE_ENTER
@@ -69,9 +72,10 @@
 /* The compile-time configuration found in "user_config.c": */
 extern emgd_drm_config_t config_drm;
 /* Module parameters from "emgd_drv.c": */
-extern int drm_emgd_init;
 extern int drm_emgd_dc;
 extern unsigned x_started;
+
+extern void emgd_init_display(int merge_mod_params, drm_emgd_priv_t *priv);
 
 /**
  * The driver handle for talking with the HAL, within the DRM/kernel code.
@@ -118,7 +122,7 @@ extern int pi_pd_init(igd_display_port_t *port, unsigned long port_feature,
 #ifdef DEBUG_BUILD_TYPE
 extern void emgd_print_params(igd_param_t *params);
 #endif
-
+extern void emgd_modeset_destroy(struct drm_device *dev);
 
 
 /*
@@ -136,7 +140,7 @@ int emgd_get_chipset_info(struct drm_device *dev, void *arg,
 		struct drm_file *file_priv)
 {
 	emgd_drm_driver_get_chipset_info_t *drm_data = arg;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 
 	drm_data->device_id = priv->init_info->device_id;
 	drm_data->revision_id = priv->init_info->vendor_id;
@@ -181,7 +185,6 @@ int emgd_alter_cursor(struct drm_device *dev, void *arg,
 
 
 	/*EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);*/
-	/*EMGD_DEBUG("Returning 0");*/
 	/*EMGD_TRACE_EXIT;*/
 	return 0;
 } /* emgd_alter_cursor() */
@@ -204,11 +207,31 @@ int emgd_alter_cursor_pos(struct drm_device *dev, void *arg,
 
 
 	/*EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);*/
-	/*EMGD_DEBUG("Returning 0");*/
 	/*EMGD_TRACE_EXIT;*/
 	return 0;
 } /* emgd_alter_cursor_pos() */
 
+/*!
+ * IOCTL to bridge the IAL to the HAL's emgd_get_display_info() procedure.
+ */
+int emgd_get_display_info(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv)
+{
+  /*
+	emgd_drm_get_display_info_t *drm_data = arg;
+
+	igd_context_t *context = (igd_context_t *) handle;
+	drm_emgd_priv_t *priv = (drm_emgd_priv_t *)dev->dev_private;
+*/
+	EMGD_TRACE_ENTER;
+/*
+	EMGD_DEBUG("drm_data->primary = 0x%lx",  (unsigned long) drm_data->primary);
+	EMGD_DEBUG("drm_data->secondary = 0x%lx",(unsigned long) drm_data->secondary);
+
+	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn); */
+	EMGD_TRACE_EXIT;
+	return 0;
+} /* emgd_get_display_info() */
 
 /*!
  * IOCTL to bridge the IAL to the HAL's alter_displays() procedure.
@@ -217,7 +240,7 @@ int emgd_alter_displays(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv)
 {
 	emgd_drm_alter_displays_t *drm_data = arg;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 
 	EMGD_TRACE_ENTER;
 
@@ -268,7 +291,7 @@ int emgd_alter_displays(struct drm_device *dev, void *arg,
 			priv->must_power_on_ports = 0;
 		}
 
-		if (priv->pvrsrv_started && priv->reinit_3dd) {
+		if (priv->reinit_3dd) {
 			priv->reinit_3dd(dev);
 		}
 	}
@@ -276,7 +299,6 @@ int emgd_alter_displays(struct drm_device *dev, void *arg,
 	EMGD_DEBUG("drm_data->primary = 0x%lx", (unsigned long) drm_data->primary);
 	EMGD_DEBUG("drm_data->secondary = 0x%lx",(unsigned long) drm_data->secondary);
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_alter_displays() */
@@ -302,7 +324,6 @@ int emgd_alter_ovl(struct drm_device *dev, void *arg,
 		drm_data->flags);
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_alter_ovl() */
@@ -369,12 +390,26 @@ int emgd_alter_ovl2(struct drm_device *dev, void *arg,
 		(unsigned int)drm_data->flags
 		);
 	*/
-	drm_data->rtn = dispatch->alter_ovl2(drm_data->display_handle,
-                                         &(drm_data->src_surf),
-                                         &(drm_data->src_rect),
-                                         &(drm_data->dst_rect),
-                                         &(drm_data->ovl_info),
-                                         drm_data->flags);
+	switch (drm_data->cmd) {
+	case CMD_ALTER_OVL2:
+		drm_data->rtn = dispatch->alter_ovl2(drm_data->display_handle,
+											 &(drm_data->src_surf),
+											 &(drm_data->src_rect),
+											 &(drm_data->dst_rect),
+					                         &(drm_data->ovl_info),
+						                     drm_data->flags);
+		break;
+	case CMD_ALTER_OVL2_OSD:
+		drm_data->rtn = dispatch->alter_ovl2_osd(drm_data->display_handle,
+                                             &(drm_data->src_surf),
+                                             &(drm_data->src_rect),
+                                             &(drm_data->dst_rect),
+                                             &(drm_data->ovl_info),
+                                             drm_data->flags);
+   		break;
+	default:
+		break;
+	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
 	EMGD_TRACE_EXIT;
@@ -415,7 +450,6 @@ int emgd_get_ovl_init_params(struct drm_device *dev, void *arg,
 	drm_data->rtn = dispatch->get_ovl_init_params(handle, ovl_um_context);
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_ovl_init_params() */
@@ -441,7 +475,6 @@ int emgd_appcontext_alloc(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->appcontext_h = %p", drm_data->appcontext_h);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_appcontext_alloc() */
@@ -466,7 +499,6 @@ int emgd_appcontext_free(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("This function has no drm_data->rtn value");
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_appcontext_free() */
@@ -478,14 +510,21 @@ int emgd_appcontext_free(struct drm_device *dev, void *arg,
 int emgd_driver_save_restore(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv)
 {
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 	emgd_drm_driver_save_restore_t *drm_data = arg;
+	unsigned long save_flags  = 0;
 
 	EMGD_TRACE_ENTER;
 
+	if (config_drm.init) {
+		save_flags = IGD_REG_SAVE_ALL & ~IGD_REG_SAVE_GTT;
+	}
+	else {
+		save_flags = IGD_REG_SAVE_ALL;
+	}
 
 	/* Call the HAL: */
-	drm_data->rtn = dispatch->driver_save_restore(handle);
+	drm_data->rtn = dispatch->driver_save_restore(handle, save_flags);
 
 	/* Change the state of what's saved: */
 	if (priv->saved_registers == CONSOLE_STATE_SAVED) {
@@ -496,9 +535,13 @@ int emgd_driver_save_restore(struct drm_device *dev, void *arg,
 		EMGD_DEBUG("State of saved registers is CONSOLE_STATE_SAVED");
 	}
 
+	if (priv->saved_registers == X_SERVER_STATE_SAVED &&
+		!priv->qb_seamless && !config_drm.kms && config_drm.init) {
+		emgd_init_display(FALSE, priv);
+	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
+
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_driver_save_restore() */
@@ -523,7 +566,6 @@ int emgd_enable_port(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_enable_port() */
@@ -608,7 +650,6 @@ int emgd_get_attrs(struct drm_device *dev, void *arg,
 	drm_data->extended = extended;
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_attrs() */
@@ -624,7 +665,8 @@ int emgd_get_display(struct drm_device *dev, void *arg,
 	emgd_drm_get_display_t *drm_data = arg;
 	igd_display_context_t *display =
 		(igd_display_context_t *) drm_data->display_handle;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
+	int dc, port_num;
 
 	EMGD_TRACE_ENTER;
 
@@ -642,6 +684,8 @@ int emgd_get_display(struct drm_device *dev, void *arg,
 		return -IGD_ERROR_INVAL;
 	}
 
+	dc = *(context->mod_dispatch.dsp_current_dc);
+	port_num = drm_data->port_number;
 
 	/* Call the HAL: */
 	drm_data->rtn = dispatch->get_display(drm_data->display_handle,
@@ -655,8 +699,15 @@ int emgd_get_display(struct drm_device *dev, void *arg,
 		drm_data->flags);
 
 	/* In seamless mode this gets called instead of alter_displays */
-	if(mode_context->seamless) {
-		if (priv->pvrsrv_started && priv->reinit_3dd) {
+	/* The reason why we do not want to call reinit_3dd() if the clone mode is
+	 * set and if this function was called to get the secondary handle is because
+	 * reinit_3dd() calls init_display() which in turn calls get_display() and passes
+	 * the handle for secondary, and primary port number hence leading to an incorrect
+	 * combination. Also, we may not have to call reinit_3dd() as this is already done
+	 * as a part of configuring the primary.
+	 */
+	if(mode_context->seamless && !(IGD_DC_CLONE(dc) && port_num == priv->secondary_port_number)) {
+		if (priv->reinit_3dd) {
 			priv->dc = *(context->mod_dispatch.dsp_current_dc);
 			priv->primary = drm_data->display_handle;
 			priv->secondary = NULL;
@@ -668,7 +719,6 @@ int emgd_get_display(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_display() */
@@ -699,7 +749,7 @@ int emgd_get_drm_config(struct drm_device *dev, void *arg,
 	} else {
 		params = config_drm.hal_params[drm_emgd_configid-1];
 	}
-	if (drm_emgd_init) {
+	if (config_drm.init) {
 		drm_data->display_config = drm_emgd_dc;
 	} else {
 		drm_data->display_config = config_drm.dc;
@@ -716,6 +766,21 @@ int emgd_get_drm_config(struct drm_device *dev, void *arg,
 	drm_data->params.polling = params->polling;
 	drm_data->params.ref_freq = params->ref_freq;
 	drm_data->params.tuning_wa = params->tuning_wa;
+	drm_data->params.clip_hw_fix = params->clip_hw_fix;
+	drm_data->params.async_flip_wa = params->async_flip_wa;
+	drm_data->params.en_reg_override = params->en_reg_override;
+	drm_data->params.disp_arb = params->disp_arb;
+	drm_data->params.fifo_watermark1 = params->fifo_watermark1;
+	drm_data->params.fifo_watermark2 = params->fifo_watermark2;
+	drm_data->params.fifo_watermark3 = params->fifo_watermark3;
+	drm_data->params.fifo_watermark4 = params->fifo_watermark4;
+	drm_data->params.fifo_watermark5 = params->fifo_watermark5;
+	drm_data->params.fifo_watermark6 = params->fifo_watermark6;
+	drm_data->params.gvd_hp_control = params->gvd_hp_control;
+	drm_data->params.bunit_chicken_bits = params->bunit_chicken_bits;
+	drm_data->params.bunit_write_flush = params->bunit_write_flush;
+	drm_data->params.disp_chicken_bits = params->disp_chicken_bits;
+	drm_data->params.punt_to_3dblit = params->punt_to_3dblit;
 
 	for (i = 0 ; i < IGD_MAX_PORTS ; i++) {
 		drm_data->params.port_order[i] = params->port_order[i];
@@ -774,10 +839,17 @@ int emgd_get_drm_config(struct drm_device *dev, void *arg,
 		}
 	}
 
+	/* Fill in DDK & EMGD version numbers and debug status */
+	drm_data->build_config.ddk_version = PVRVERSION_BUILD;
+	drm_data->build_config.emgd_version = IGD_BUILD_NUM;
+#ifdef DEBUG
+	drm_data->build_config.debug = 1;
+#else
+	drm_data->build_config.debug = 0;
+#endif
 
 	drm_data->rtn = 0;
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_drm_config() */
@@ -806,7 +878,6 @@ int emgd_get_EDID_block(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_EDID_block() */
@@ -836,7 +907,6 @@ int emgd_get_EDID_info(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_EDID_info() */
@@ -917,7 +987,6 @@ int emgd_get_pixelformats(struct drm_device *dev, void *arg,
 	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_pixelformats() */
@@ -945,7 +1014,6 @@ int emgd_get_port_info(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_get_port_info() */
@@ -975,7 +1043,6 @@ int emgd_gmm_alloc_region(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_gmm_alloc_region() */
@@ -1009,7 +1076,6 @@ int emgd_gmm_alloc_surface(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_gmm_alloc_surface() */
@@ -1024,7 +1090,6 @@ int emgd_gmm_get_num_surface(struct drm_device *dev, void *arg,
 		&(drm_data->count));
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 }
@@ -1051,7 +1116,6 @@ int emgd_gmm_get_surface_list(struct drm_device *dev, void *arg,
 	vfree(surface_list);
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 }
@@ -1073,7 +1137,6 @@ int emgd_gmm_free(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("This function has no drm_data->rtn value");
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_gmm_free() */
@@ -1095,7 +1158,6 @@ int emgd_gmm_flush_cache(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_gmm_flush_cache() */
@@ -1120,7 +1182,6 @@ int emgd_pan_display(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %ld", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_pan_display() */
@@ -1155,7 +1216,6 @@ int emgd_power_display(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_power_display() */
@@ -1177,7 +1237,6 @@ int emgd_pwr_alter(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_pwr_alter() */
@@ -1240,7 +1299,6 @@ int emgd_query_dc(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_query_dc() */
@@ -1269,7 +1327,6 @@ int emgd_query_max_size_ovl(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_query_max_size_ovl() */
@@ -1291,7 +1348,6 @@ int emgd_query_ovl(struct drm_device *dev, void *arg,
 		drm_data->flags);
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_query_ovl() */
@@ -1349,7 +1405,6 @@ int emgd_query_mode_list(struct drm_device *dev, void *arg,
 	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_query_mode_list() */
@@ -1379,7 +1434,6 @@ int emgd_set_attrs(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_set_attrs() */
@@ -1403,7 +1457,6 @@ int emgd_set_palette_entry(struct drm_device *dev, void *arg,
 
 
 	/*EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);*/
-	/*EMGD_DEBUG("Returning 0");*/
 	/*EMGD_TRACE_EXIT;*/
 	return 0;
 } /* emgd_set_palette_entry() */
@@ -1430,10 +1483,185 @@ int emgd_set_surface(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_set_surface() */
+
+
+
+/*!
+ * IOCTL to set surface to dih_clone or back to dih.
+ * drm_data->mode = CLONE - sets fake clone clone
+ * drm_data->mode = DIH - reverts back to DIH
+ * drm_data->dih_clone_display = CLONE_PRIMARY, primary cloned
+ * drm_data->dih_clone_display = CLONE_SECONDARY, secondary cloned
+ *
+ */
+int emgd_dihclone_set_surface(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv)
+{
+	emgd_drm_dihclone_set_surface_t *drm_data = arg;
+	igd_context_t *context = (igd_context_t *) handle;
+	igd_plane_t *display_plane1, *display_plane2;
+	igd_display_pipe_t *pipe1, *pipe2;
+	igd_display_context_t *display;
+	igd_surface_t surf;
+	unsigned long dc ;
+
+	EMGD_TRACE_ENTER;
+
+	memset(&surf, 0, sizeof(igd_surface_t));
+	dc = *(context->mod_dispatch.dsp_current_dc);
+
+	context->mod_dispatch.dsp_get_planes_pipes(
+			&display_plane1, &display_plane2,
+			&pipe1, &pipe2);
+
+	/* check if the resolutions match */
+	if((pipe1->plane->fb_info->width != pipe2->plane->fb_info->width) ||
+		(pipe1->plane->fb_info->height != pipe2->plane->fb_info->height)){
+			EMGD_ERROR(" emgd_dihclone_set_surface: resolutions don't match");
+		return -IGD_ERROR_INVAL;
+	}
+
+
+	if( drm_data->dih_clone_display != CLONE_PRIMARY && drm_data->dih_clone_display != CLONE_SECONDARY){
+
+		EMGD_ERROR(" emgd_dihclone_set_surface: Invalid Clone Display number");
+		return -IGD_ERROR_INVAL;
+	}
+
+	surf.pitch = pipe1->plane->fb_info->screen_pitch;
+	surf.width =  pipe1->plane->fb_info->width;
+	surf.height =  pipe1->plane->fb_info->height;
+	surf.pixel_format =  pipe1->plane->fb_info->pixel_format;
+	surf.flags = IGD_SURFACE_RENDER | IGD_SURFACE_DISPLAY;
+
+	display = context->mod_dispatch.dsp_display_list[IGD_DC_PRIMARY(dc)];
+
+	/*reverting back to DIH from fake clone */
+	if( drm_data->mode == DIH){
+		if(context->mod_dispatch.dih_clone_display == CLONE_PRIMARY) {
+
+			EMGD_DEBUG(" emgd_dihclone_set_surface: setting DIH1");
+			surf.offset = pipe1->plane->fb_info->fb_base_offset;
+			/* Call the HAL: */
+			drm_data->rtn = dispatch->set_surface(display,
+				IGD_PRIORITY_NORMAL,
+				IGD_BUFFER_DISPLAY,
+				&surf,
+				NULL,
+				0);
+
+			if(drm_data->rtn) {
+				EMGD_ERROR(" emgd_dihclone_set_surface1: failed");
+				return -IGD_ERROR_INVAL;
+			}
+			display = context->mod_dispatch.dsp_display_list[IGD_DC_SECONDARY(dc)];
+			surf.offset = pipe2->plane->fb_info->saved_offset;
+			/* Call the HAL: */
+			drm_data->rtn = dispatch->set_surface(display,
+					IGD_PRIORITY_NORMAL,
+					IGD_BUFFER_DISPLAY,
+					&surf,
+					NULL,
+					0);
+			if(drm_data->rtn) {
+				EMGD_ERROR(" emgd_dihclone_set_surface2: failed");
+				return -IGD_ERROR_INVAL;
+			}
+
+
+		} else { // if secondary clone
+
+				EMGD_DEBUG(" emgd_dihclone_set_surface: setting DIH2");
+				surf.offset = pipe1->plane->fb_info->saved_offset;
+				/* Call the HAL: */
+				drm_data->rtn = dispatch->set_surface(display,
+						IGD_PRIORITY_NORMAL,
+						IGD_BUFFER_DISPLAY,
+						&surf,
+						NULL,
+						0);
+				display = context->mod_dispatch.dsp_display_list[IGD_DC_SECONDARY(dc)];
+				surf.offset = pipe2->plane->fb_info->fb_base_offset;
+				/* Call the HAL: */
+				drm_data->rtn = dispatch->set_surface(display,
+						IGD_PRIORITY_NORMAL,
+						IGD_BUFFER_DISPLAY,
+				&surf,
+				NULL,
+				0);
+
+		}
+
+		context->mod_dispatch.in_dih_clone_mode = false;
+		return 0;
+
+	}
+
+
+/* setting fake clone (dih clone) mode */
+
+
+	/*first save the display's original offset  */
+	surf.offset = pipe1->plane->fb_info->fb_base_offset;
+	drm_data->rtn = dispatch->set_surface(display,
+			IGD_PRIORITY_NORMAL,
+			IGD_BUFFER_SAVE,
+			&surf,
+			NULL,
+			0);
+
+	display = context->mod_dispatch.dsp_display_list[IGD_DC_SECONDARY(dc)];
+	surf.offset = pipe2->plane->fb_info->fb_base_offset;
+	drm_data->rtn = dispatch->set_surface(display,
+		IGD_PRIORITY_NORMAL,
+		IGD_BUFFER_SAVE,
+		&surf,
+		NULL,
+		0);
+
+	/* primary display */
+
+	if( drm_data->dih_clone_display == CLONE_PRIMARY){
+		surf.offset = pipe1->plane->fb_info->fb_base_offset;
+	} else {
+
+		surf.offset = pipe2->plane->fb_info->fb_base_offset;
+	}
+
+	display = context->mod_dispatch.dsp_display_list[IGD_DC_PRIMARY(dc)];
+	/* Call the HAL: */
+	drm_data->rtn = dispatch->set_surface(display,
+		IGD_PRIORITY_NORMAL,
+		IGD_BUFFER_DISPLAY,
+		&surf,
+		NULL,
+		0);
+
+	/* secondary display */
+
+	display = context->mod_dispatch.dsp_display_list[IGD_DC_SECONDARY(dc)];
+
+	drm_data->rtn = dispatch->set_surface(display,
+		IGD_PRIORITY_NORMAL,
+		IGD_BUFFER_DISPLAY,
+		&surf,
+		NULL,
+		0);
+
+	if(drm_data->rtn == 0){
+		context->mod_dispatch.in_dih_clone_mode = true;
+		context->mod_dispatch.dih_clone_display = drm_data->dih_clone_display;
+	}
+	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
+
+	EMGD_DEBUG("Returning 0");
+	EMGD_TRACE_EXIT;
+	return 0;
+} /* emgd_dihclone_set_surface() */
+
 
 
 /*!
@@ -1459,7 +1687,6 @@ int emgd_sync(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_sync() */
@@ -1471,7 +1698,7 @@ int emgd_sync(struct drm_device *dev, void *arg,
 int emgd_driver_pre_init(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv)
 {
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 	igd_context_t *context = NULL;
 	emgd_drm_driver_pre_init_t *drm_data = (emgd_drm_driver_pre_init_t *) arg;
 	igd_param_t *x_params = NULL;
@@ -1479,11 +1706,12 @@ int emgd_driver_pre_init(struct drm_device *dev, void *arg,
 	igd_fb_caps_t *pf_caps;
 	igd_display_port_t *port = NULL;
 	int i, err = 0, need_to_startup_hal = (!priv->hal_running) ? 1 : 0;
+	unsigned long save_flags;
 
 	EMGD_TRACE_ENTER;
 
 	/* This flag will cause a call to emgd_init_display() in
-	 * emgd_driver_lastclose() if drm_emgd_init is true */
+	 * emgd_driver_lastclose() if config_drm.init is true */
 	x_started = true;
 
 	/*
@@ -1589,6 +1817,18 @@ int emgd_driver_pre_init(struct drm_device *dev, void *arg,
 	context = (igd_context_t *) handle;
 	context->mod_dispatch.init_params = x_params;
 
+	if (config_drm.init) {
+		if (config_drm.kms) {
+			save_flags = (IGD_REG_SAVE_ALL & ~IGD_REG_SAVE_GTT)| IGD_REG_SAVE_TYPE_REG;
+		} else {
+			save_flags = (IGD_REG_SAVE_ALL & ~IGD_REG_SAVE_GTT &
+				~IGD_REG_SAVE_RB) | IGD_REG_SAVE_TYPE_REG;
+		}
+		dispatch->driver_save(handle, save_flags);
+		EMGD_DEBUG("State of saved registers is CONSOLE_STATE_SAVED");
+		priv->saved_registers = CONSOLE_STATE_SAVED;
+	}
+
 	if (!need_to_startup_hal) {
 		/* emgd_driver_load() initialized and configured the driver.
 		 * Therefore, we must now re-initialize and poke x_params values into
@@ -1625,57 +1865,74 @@ int emgd_driver_pre_init(struct drm_device *dev, void *arg,
 		 */
 		if (priv->saved_registers == X_SERVER_STATE_SAVED) {
 			EMGD_DEBUG("Need to restore the X server's saved register state");
-			err = dispatch->driver_save_restore(handle);
+
+			if (config_drm.init) {
+				save_flags = IGD_REG_SAVE_ALL & ~IGD_REG_SAVE_GTT;
+			}
+			else {
+				save_flags = IGD_REG_SAVE_ALL;
+			}
+			err = dispatch->driver_save_restore(handle, save_flags);
 			EMGD_DEBUG("State of saved registers is CONSOLE_STATE_SAVED");
 			priv->saved_registers = CONSOLE_STATE_SAVED;
 		}
 
 		if(!mode_context->seamless) {
-		/* NOTE: In order for some new values to be poked into the port
-		 * drivers' hardware (e.g. the LVDS panel depth), the power must be
-		 * turned off on those devices.  This used to be done during the
-		 * emgd_driver_lastclose() function, but that prevents the console from
-		 * being seen after X quits.
-		 */
-		while ((port = context->mod_dispatch.dsp_get_next_port(context,
-					port, 0)) != NULL) {
-			/* power off LVDS only */
-			if (port->pd_driver &&  (port->port_number == IGD_PORT_TYPE_LVDS) &&
-				!mode_context->seamless) {
-				EMGD_DEBUG("Turning off power for port %lu\n", port->port_number);
-				dispatch->power_display(context, port->port_number,
-					IGD_POWERSTATE_D3);
+			/* NOTE: In order for some new values to be poked into the port
+			 * drivers' hardware (e.g. the LVDS panel depth), the power must be
+			 * turned off on those devices.  This used to be done during the
+			 * emgd_driver_lastclose() function, but that prevents the console from
+			 * being seen after X quits.
+			 */
+			while ((port = context->mod_dispatch.dsp_get_next_port(context,
+						port, 0)) != NULL) {
+				/* power off LVDS only */
+				if (port->pd_driver &&  (port->port_number == IGD_PORT_TYPE_LVDS) &&
+					!mode_context->seamless) {
+					EMGD_DEBUG("Turning off power for port %lu\n", port->port_number);
+					dispatch->power_display(context, port->port_number,
+						IGD_POWERSTATE_D3);
+				}
 			}
-		}
 
-		/* mode_init() calls dsp_init() (in "dsp.c"), which uses the
-		 * display_flags, display_params & port_order params.  In the case of
-		 * display_params, each element of the array contains dtd_list and
-		 * attr_list, both of which point to memory that must be separately
-		 * copied to kernel-space.  The display_flags, display_params &
-		 * port_order params affect the initialization of the DSP module, and
-		 * as such, it may not be easy to simply poke values here.
-		 *
-		 * Thus, it appears that the DSP module must somehow be re-initialized.
-		 *
-		 * Note: dsp_init() also calls full_dsp_init() and the device-specific
-		 * init procedures, none of which uses any params.
-		 */
-		EMGD_DEBUG("Calling dsp_shutdown()");
-		dsp_shutdown(handle);
+			/* mode_init() calls dsp_init() (in "dsp.c"), which uses the
+			 * display_flags, display_params & port_order params.  In the case of
+			 * display_params, each element of the array contains dtd_list and
+			 * attr_list, both of which point to memory that must be separately
+			 * copied to kernel-space.  The display_flags, display_params &
+			 * port_order params affect the initialization of the DSP module, and
+			 * as such, it may not be easy to simply poke values here.
+			 *
+			 * Thus, it appears that the DSP module must somehow be re-initialized.
+			 *
+			 * Note: dsp_init() also calls full_dsp_init() and the device-specific
+			 * init procedures, none of which uses any params.
+			 */
+			EMGD_DEBUG("Calling dsp_shutdown()");
+			dsp_shutdown(handle);
 
-		EMGD_DEBUG("Calling dsp_init()");
-		dsp_init(handle);
+			EMGD_DEBUG("Calling dsp_init()");
+			dsp_init(handle);
 
-		/* Poke any new port attributes & DTDs into the port drivers: */
-		while ((port = context->mod_dispatch.dsp_get_next_port(context,
-					port, 0)) != NULL) {
-				if (port->pd_driver && !mode_context->seamless) {
-					EMGD_DEBUG("Insert new port attrs/DTDs for port %lu",
-					port->port_number);
-				pi_pd_init(port, 0, 0, FALSE);
+
+			/* Poke any new port attributes & DTDs into the port drivers: */
+			while ((port = context->mod_dispatch.dsp_get_next_port(context,
+						port, 0)) != NULL) {
+					if (port->pd_driver && !mode_context->seamless) {
+						EMGD_DEBUG("Insert new port attrs/DTDs for port %lu",
+						port->port_number);
+					pi_pd_init(port, 0, 0, FALSE);
+				}
 			}
-		}
+
+			/*
+			 * Because dsp_init was called above, a lot of the configuration
+			 * performed by the driver at initializat is now invalid.
+			 *
+			 * Setting the dc to 0 makes sure we don't try to use other
+			 * data structures before alter_displays has been called again.
+			 */
+			priv->dc = 0;
 		}
 
 
@@ -1697,7 +1954,7 @@ int emgd_driver_pre_init(struct drm_device *dev, void *arg,
 		}
 	} /* if (!need_to_startup_hal) */
 
-/* NOTE -- Below is Ian Elliott's original analysis of what values/modules need
+/* NOTE -- Below is our original analysis of what values/modules need
  * to be dealt with (above):
  *
  * - mode_init() (in "micro_mode.c") uses display_color.
@@ -1769,7 +2026,7 @@ int emgd_driver_pre_init(struct drm_device *dev, void *arg,
  *       STRUCT OF TYPE igd_param_attr_list_t, AND SOME OF ITS MEMBERS HAVE
  *       POINTERS WITHIN THEM (i.e. HARDER TO GET ACROSS THE IOCTL BOUNDARY).
  *
- *       Based on the above, it seems that Bob's original idea of
+ *       Based on the above, it seems that the idea of
  *       re-initializing the DSP module seems like the correct approach.  I'm
  *       not quite sure how to do that, but it seems like the right direction
  *       to both keep the HAL code unmodified, and do the user/kernel-space
@@ -1806,7 +2063,7 @@ int emgd_driver_pre_init(struct drm_device *dev, void *arg,
  *   is called by both igd_pd_register() (in "igd_pi.c") and pd_register() (in
  *   "emgd_drm/display/pd/pd.c").  igd_pd_register() is called by
  *   load_port_drivers() (in "emgd_drv/emgd_dpdloader.c") which is no longer
- *   called (was called during PreInit(), but Ian just took it out).
+ *   called (was called during PreInit()).
  *   pd_register() is called by lvds_init() and sdvo_init(), both of which are
  *   called by pi_init_all(), which is not being called.
  *
@@ -1862,7 +2119,6 @@ int emgd_driver_pre_init(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_driver_pre_init() */
@@ -1890,7 +2146,6 @@ int emgd_driver_get_ports(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_driver_get_ports() */
@@ -1927,7 +2182,6 @@ int emgd_get_page_list(struct drm_device *dev, void *arg,
 	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_driver_get_page_list() */
@@ -1941,46 +2195,19 @@ int emgd_start_pvrsrv(struct drm_device *dev, void *arg,
 	struct drm_file *file_priv)
 {
 	emgd_drm_start_pvrsrv_t *drm_data = arg;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 
 	EMGD_TRACE_ENTER;
-
 
 	/* Tell the 3DD the status of whether the X server is running: */
 	if (!priv->xserver_running && drm_data->xserver) {
 		priv->xserver_running = 1;
-		if (priv->pvrsrv_started && priv->reinit_3dd) {
+		if (priv->reinit_3dd) {
 			priv->reinit_3dd(dev);
 		}
 	}
 
-
-	if (0 == priv->pvrsrv_started) {
-		/* Start the PVR services DRM code: */
-		EMGD_DEBUG("Calling PVRSRVDrmLoad()");
-		drm_data->rtn = (int) PVRSRVDrmLoad(dev, 0);
-		EMGD_DEBUG("PVRSRVDrmLoad() returned %d", drm_data->rtn);
-
-		if (0 == drm_data->rtn) {
-			/* Must also call PVRSRVOpen() on behalf of this process: */
-			EMGD_DEBUG("Calling PVRSRVOpen()");
-			drm_data->rtn = (int) PVRSRVOpen(dev, file_priv);
-			EMGD_DEBUG("PVRSRVOpen() returned %d", drm_data->rtn);
-		}
-
-		if (0 == drm_data->rtn) {
-			priv->pvrsrv_started = 1;
-		}
-	} else {
-		drm_data->rtn = 0;
-		EMGD_DEBUG("Calling PVRSRVOpen()");
-		drm_data->rtn = (int) PVRSRVOpen(dev, file_priv);
-		EMGD_DEBUG("PVRSRVOpen() returned %d", drm_data->rtn);
-	}
-
-
-	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
+	drm_data->rtn = 0;
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_start_pvrsrv() */
@@ -1993,7 +2220,7 @@ int emgd_video_cmd_buf(struct drm_device *dev, void *arg,
 		struct drm_file *file_priv)
 {
 	emgd_drm_video_cmd_buf_t *drm_data = arg;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 	igd_context_t *context = priv->context;
 
 
@@ -2017,7 +2244,6 @@ int emgd_video_cmd_buf(struct drm_device *dev, void *arg,
 
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_video_cmd_buf() */
@@ -2030,7 +2256,7 @@ int emgd_get_device_info(struct drm_device *dev, void *arg,
     struct drm_file *file_priv)
 {
     emgd_drm_device_info_t *drm_data = arg;
-    drm_emgd_private *priv = dev->dev_private;
+    drm_emgd_priv_t *priv = dev->dev_private;
     igd_context_t *context = priv->context;
 
     EMGD_TRACE_ENTER;
@@ -2050,7 +2276,7 @@ int emgd_init_video(struct drm_device *dev, void *arg,
 		struct drm_file *file_priv)
 {
 	emgd_drm_init_video_t *drm_data = arg;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 	igd_context_t *context = priv->context;
 
 	EMGD_TRACE_ENTER;
@@ -2121,7 +2347,6 @@ int emgd_init_video(struct drm_device *dev, void *arg,
 	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 } /* emgd_init_video() */
@@ -2130,7 +2355,7 @@ int emgd_video_get_info(struct drm_device *dev, void *arg,
 			struct drm_file *file_priv)
 {
 	emgd_drm_video_get_info_t *drm_data = arg;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 	igd_context_t *context = priv->context;
 
 	EMGD_TRACE_ENTER;
@@ -2142,8 +2367,7 @@ int emgd_video_get_info(struct drm_device *dev, void *arg,
 					drm_data->rtn = msvdx_get_fence_id(context, &(drm_data->fence_id));
 					break;
 				case TNC_ENGINE_ENCODE:
-					drm_data->rtn = topaz_sync_surface(context, &(drm_data->sync_done),
-								&(drm_data->last_frame));
+					drm_data->rtn = topaz_get_fence_id(context, &(drm_data->fence_id));
 					break;
 				default:
 					break;
@@ -2160,12 +2384,15 @@ int emgd_video_get_info(struct drm_device *dev, void *arg,
 					break;
 			}
 			break;
+		case CMD_VIDEO_GET_MSVDX_STATUS:
+			if ((&context->mod_dispatch) && context->mod_dispatch.msvdx_status)
+				drm_data->rtn = context->mod_dispatch.msvdx_status(context, &drm_data->queue_status, &drm_data->mtx_msg_status);
+			break;
 		default:
 			break;
 	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 }
@@ -2175,7 +2402,7 @@ int emgd_video_flush_tlb(struct drm_device *dev, void *arg,
 			struct drm_file *file_priv)
 {
 	emgd_drm_video_flush_tlb_t *drm_data = arg;
-	drm_emgd_private *priv = dev->dev_private;
+	drm_emgd_priv_t *priv = dev->dev_private;
 	igd_context_t *context = priv->context;
 
 	EMGD_TRACE_ENTER;
@@ -2192,42 +2419,41 @@ int emgd_video_flush_tlb(struct drm_device *dev, void *arg,
 	}
 
 	EMGD_DEBUG("drm_data->rtn = %d", drm_data->rtn);
-	EMGD_DEBUG("Returning 0");
 	EMGD_TRACE_EXIT;
 	return 0;
 }
 
 int emgd_get_golden_htotal(struct drm_device *dev, void *arg,
-   	struct drm_file *file_priv){
+		struct drm_file *file_priv){
 
 
 	emgd_drm_get_golden_htotal_t *drm_data = arg;
 	igd_context_t *context = (igd_context_t *) handle;
-    igd_display_context_t *display;
-    pd_timing_t igd_mode_table_in[2];
-    pd_timing_t igd_mode_table_out;
+	igd_display_context_t *display;
+	pd_timing_t igd_mode_table_in[2];
+	pd_timing_t igd_mode_table_out;
 
 	igd_display_info_t *out_mode = (igd_display_info_t *) drm_data->out_mode;
 	igd_display_info_t *in_mode = (igd_display_info_t *) drm_data->in_mode;
 
 
-   	EMGD_DEBUG("emgd_get_golden_htotal : Entry");
+	EMGD_DEBUG("emgd_get_golden_htotal : Entry");
 
-    /* parameters sanity check */
-   	if (out_mode == NULL) {
-          EMGD_ERROR("emgd_get_golden_htotal : NO Output Buffer");
-        return -IGD_ERROR_INVAL;
-    }
+	/* parameters sanity check */
+	if (out_mode == NULL) {
+		EMGD_ERROR("emgd_get_golden_htotal : NO Output Buffer");
+		return -IGD_ERROR_INVAL;
+	}
 
-    if (in_mode == NULL) {
-        EMGD_ERROR("emgD_get_golden_htotal : NO Input Buffer");
+	if (in_mode == NULL) {
+		EMGD_ERROR("emgD_get_golden_htotal : NO Input Buffer");
 		return -IGD_ERROR_INVAL;
 
-    }
+	}
 
-    /* Zero out the data structures so that we can check for error later */
-    memset(igd_mode_table_in, 0, 2 * sizeof(pd_timing_t));
-    memset(&igd_mode_table_out, 0, sizeof(pd_timing_t));
+	/* Zero out the data structures so that we can check for error later */
+	memset(igd_mode_table_in, 0, 2 * sizeof(pd_timing_t));
+	memset(&igd_mode_table_out, 0, sizeof(pd_timing_t));
 
 	/* To prevent a kernel OOPS, ensure the following value is non-NULL: */
 	display = context->mod_dispatch.dsp_display_list[2];
@@ -2265,6 +2491,93 @@ int emgd_get_golden_htotal(struct drm_device *dev, void *arg,
 	out_mode->hblank_end = igd_mode_table_in[0].hblank_end;
 	out_mode->vblank_end = igd_mode_table_in[0].vblank_end;
 
+
+    return 0;
+}
+
+int emgd_control_plane_format(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv)
+{
+	emgd_drm_control_plane_format_t *drm_data = arg;
+	igd_context_t *context = (igd_context_t *) handle;
+	igd_plane_t *plane_override;
+
+	EMGD_DEBUG("emgd_control_plane_format : Entry");
+
+	if (drm_data->use_plane == FALSE)
+	{
+		/* Do some error checking first */
+		if((drm_data->enable != 0 && drm_data->enable != 1) ||
+			(drm_data->primary_secondary_dsp == NULL)) {
+			EMGD_ERROR("emgd_control_plane_format: Invalid parameters");
+			return -IGD_ERROR_INVAL;
+		}
+
+		plane_override = ((igd_plane_t *)(PLANE(drm_data->primary_secondary_dsp)));
+	} else {
+		/* Do some error checking first */
+		if((drm_data->enable != 0 && drm_data->enable != 1) ||
+			(drm_data->display_plane != 0 && drm_data->display_plane != 1)) {
+			EMGD_ERROR("emgd_control_plane_format: Invalid parameters");
+			return -IGD_ERROR_INVAL;
+		}
+
+		/* Set plane_override to NULL */
+		plane_override = NULL;
+	}
+
+	/* Call the DSP modules function if no errors */
+	context->mod_dispatch.dsp_control_plane_format(drm_data->enable,
+			drm_data->display_plane, plane_override);
+
+	return 0;
+}
+
+int emgd_set_overlay_display(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv)
+{
+	emgd_drm_set_overlay_display_t *drm_data = arg;
+	igd_context_t *context = (igd_context_t *) handle;
+
+	EMGD_DEBUG("emgd_set_overlay_display : Entry");
+
+	/* Do some error checking first */
+	if((drm_data->ovl_display[OVL_PRIMARY] == 0) ||
+		(drm_data->ovl_display[OVL_SECONDARY] == 0)) {
+		/* Both Ovl displays need to have valid handle
+		 * (i.e. Single mode is not supported) */
+		EMGD_ERROR("emgd_set_overlay_display: Invalid parameters");
+		return -IGD_ERROR_INVAL;
+	}
+
+	/* Call the set_ovl_display if no errors */
+	context->dispatch.set_ovl_display(drm_data->ovl_display);
+
+	return 0;
+}
+
+int emgd_query_2d_caps_hwhint(struct drm_device *dev, void *arg,
+	struct drm_file *file_priv){
+
+
+	emgd_drm_query_2d_caps_hwhint_t *drm_data;
+	unsigned long caps_val;
+	unsigned long *status;
+
+	EMGD_DEBUG("emgd_query_2d_caps_hwhint : Entry");
+
+    /* parameters sanity check */
+	if (arg == NULL) {
+          EMGD_ERROR("emgd_query_2d_caps_hwhint : invalid argument");
+        return -IGD_ERROR_INVAL;
+    }
+
+
+	drm_data = arg;
+	caps_val = (unsigned long) drm_data->caps_val;
+	status = (unsigned long *) drm_data->status;
+
+    igd_query_2d_caps_hwhint(handle, caps_val, status);
 
     return 0;
 }

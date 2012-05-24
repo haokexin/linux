@@ -446,7 +446,7 @@ PVRSRV_BridgeDispatchKM(struct file *pFile, IMG_UINT unref__ ioctlCmd, IMG_UINT3
 
 
 		case PVRSRV_BRIDGE_SERVICES_TEST_POWERMGMT:
-    			{
+			{
 				PVRSRV_ERROR eError = PowerMgmtTest();
 				if (psBridgePackageKM->ui32OutBufferSize == sizeof(PVRSRV_BRIDGE_RETURN))
 				{

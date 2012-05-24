@@ -133,7 +133,7 @@ void PVRSRVDebugPrintf	(
 
 
 
- 		if (!bTrace)
+		if (!bTrace)
 		{
 			sprintf (&szBuffer[strlen(szBuffer)], " [%d, %s]", (int)ui32Line, pszFileName);
 		}

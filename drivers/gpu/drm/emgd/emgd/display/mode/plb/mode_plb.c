@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: mode_plb.c
- * $Revision: 1.29 $
+ * $Revision: 1.33 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -51,6 +51,7 @@
 #include <plb/mi.h>
 #include <plb/cmd.h>
 
+#include "drm_emgd_private.h"
 #include "../cmn/match.h"
 #include "../cmn/mode_dispatch.h"
 
@@ -70,10 +71,16 @@ static emgd_vblank_callback_t interrupt_callbacks_plb[IGD_MAX_PORTS] =
  */
 static unsigned long vblank_interrupt_state = 0;
 
+/* This variables keeps track of the number of clients currently using
+ * the vblank interrupt
+ */
+static int vblank_interrupt_ref_cnt_port2 = 0;
+static int vblank_interrupt_ref_cnt_port4 = 0;
+
 /* Spin lock for synchronization of the vblank_interrupt_state variable,
  * between the VBlank interrupt handler and the non-interrupt handler code:
  */
-static spinlock_t vblank_lock = SPIN_LOCK_UNLOCKED;
+DEFINE_SPINLOCK(vblank_lock_plb);
 
 
 
@@ -85,6 +92,8 @@ int check_flip_pending_plb(unsigned char *mmio, unsigned long pipe_status_reg);
  * @{
  */
 int wait_for_vblank_plb(unsigned char *mmio, unsigned long pipe_reg);
+
+
 
 /*!
  *
@@ -841,6 +850,11 @@ static int igd_set_surface_plb(igd_display_h display_handle,
 	case IGD_BUFFER_DEPTH:
 		EMGD_TRACE_EXIT;
 		return 0;
+	case IGD_BUFFER_SAVE:
+		PLANE(display)->fb_info->saved_offset = surface->offset;
+		EMGD_DEBUG("saving surface_offset = 0x%08lx", surface->offset);
+		EMGD_TRACE_EXIT;
+		return 0;
 	default:
 		EMGD_ERROR("Invalid type in set_surface");
 		break;
@@ -1423,7 +1437,7 @@ static irqreturn_t interrupt_handler_plb(int irq, void* mmio)
 	/* Detect whether a vblank interrupt occured, and if so, what type of
 	 * processing is needed (do the simple processing now):
 	 */
-	spin_lock_irqsave(&vblank_lock, lock_flags);
+	spin_lock_irqsave(&vblank_lock_plb, lock_flags);
 	if ((port2_interrupt = iir & BIT7 /* Port 2/Pipe A/SDVO-B */) != 0) {
 		if ((tmp = vblank_interrupt_state & VBLANK_INT4_PORT2) != 0) {
 			/* Record "answers" for all requestors: */
@@ -1436,17 +1450,25 @@ static irqreturn_t interrupt_handler_plb(int irq, void* mmio)
 			vblank_interrupt_state |= VBINT_ANSWER4_REQUEST(tmp);
 		}
 	}
-	spin_unlock_irqrestore(&vblank_lock, lock_flags);
+	spin_unlock_irqrestore(&vblank_lock_plb, lock_flags);
 
 	/* Call any registered/enabled callbacks for this interrupt: */
 	cb = &interrupt_callbacks_plb[2];
-	if (cb->callback &&
+	if (port2_interrupt && cb->callback &&
 		(vblank_interrupt_state & VBINT_ANSWER(VBINT_CB, VBINT_PORT2))) {
+		/* Clear the state to indicate the vblank has occured prior to
+		 * invoking the callback.
+		 */
+		vblank_interrupt_state &= ~VBINT_ANSWER(VBINT_CB, VBINT_PORT2);
 		cb->callback(cb->priv);
 	}
 	cb = &interrupt_callbacks_plb[4];
-	if (cb->callback &&
+	if (port4_interrupt && cb->callback &&
 		(vblank_interrupt_state & VBINT_ANSWER(VBINT_CB, VBINT_PORT4))) {
+		/* Clear the state to indicate the vblank has occured prior to
+		 * invoking the callback.
+		 */
+		vblank_interrupt_state &= ~VBINT_ANSWER(VBINT_CB, VBINT_PORT4);
 		cb->callback(cb->priv);
 	}
 
@@ -1522,7 +1544,7 @@ int request_vblanks_plb(unsigned long request_for, unsigned char *mmio)
 	}
 
 	/* Lock here to stop the interrupt handler until after changing bits: */
-	spin_lock_irqsave(&vblank_lock, lock_flags);
+	spin_lock_irqsave(&vblank_lock_plb, lock_flags);
 
 	/* Enable interrupts for the requested purpose/port, actually touching the
 	 * hardware registers if newly enabling interrupts for the given port/pipe:
@@ -1555,6 +1577,7 @@ int request_vblanks_plb(unsigned long request_for, unsigned char *mmio)
 			EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IER);
 		}
 		vblank_interrupt_state |= request_for;
+		vblank_interrupt_ref_cnt_port2++;
 	} else /* if (request_for & VBLANK_INT4_PORT4) */ {
 		if (!VBLANK_INTERRUPTS_ENABLED4_PORT4) {
 			/* 1. Change Pipe Display Status Register for this pipe: set the
@@ -1583,14 +1606,17 @@ int request_vblanks_plb(unsigned long request_for, unsigned char *mmio)
 			EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IER);
 		}
 		vblank_interrupt_state |= request_for;
+		vblank_interrupt_ref_cnt_port4++;
 	}
 
 	/* Unlock to allow the interrupt handler to proceed: */
-	spin_unlock_irqrestore(&vblank_lock, lock_flags);
+	spin_unlock_irqrestore(&vblank_lock_plb, lock_flags);
 
 	EMGD_TRACE_EXIT;
 	return 0;
 }
+
+
 
 /*!
  * Implementation of "protected" function (i.e. for use within the mode
@@ -1623,76 +1649,95 @@ int end_request_plb(unsigned long request_for, unsigned char *mmio)
 	}
 
 	/* Lock here to stop the interrupt handler until after changing bits: */
-	spin_lock_irqsave(&vblank_lock, lock_flags);
+	spin_lock_irqsave(&vblank_lock_plb, lock_flags);
 
 	/* Disable interrupts for the requested purpose/port, actually touching the
 	 * hardware registers no software wants interrupts for the given port/pipe:
 	 */
 	if (request_for & VBLANK_INT4_PORT2) {
-		/* Turn off both the request and the answer bits: */
-		tmp = request_for & VBLANK_INT4_PORT2;
-		vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
-		if (!VBLANK_INTERRUPTS_ENABLED4_PORT2) {
-			/* 1. Change Pipe Display Status Register for this pipe: clear the
-			 *    Vertical Blank Interrupt Enable bit & clear (by setting) the
-			 *    Vertical Blank Interrupt Status bit:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
-			/* Clear bits that are written by a 1, so we don't clear them: */
-			tmp = tmp & (~PIPESTAT_STS_BITS);
-			EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
-				EMGD_MMIO(mmio) + PIPEA_STAT);
-			EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
+		/* Decrement reference count */
+		vblank_interrupt_ref_cnt_port2--;
+		if (0 > vblank_interrupt_ref_cnt_port2) {
+			EMGD_DEBUG("WARNING:  Disabled vblank INT too many times.");
+			vblank_interrupt_ref_cnt_port2 = 0;
+		}
 
-			/* 2. Clear the Interrupt Enable Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
-			EMGD_WRITE32((tmp & (~BIT7)), EMGD_MMIO(mmio) + IER);
+		if (0 == vblank_interrupt_ref_cnt_port2) {
+			/* Turn off both the request and the answer bits: */
+			tmp = request_for & VBLANK_INT4_PORT2;
+			vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
+			if (!VBLANK_INTERRUPTS_ENABLED4_PORT2) {
+				/* 1. Change Pipe Display Status Register for this pipe: clear
+				 *    the Vertical Blank Interrupt Enable bit & clear (by
+				 *    setting) the Vertical Blank Interrupt Status bit:
+				 */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
+				 /* Clear bits that are written by a 1, so don't clear them: */
+				 tmp = tmp & (~PIPESTAT_STS_BITS);
+				 EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
+				 	EMGD_MMIO(mmio) + PIPEA_STAT);
+				 EMGD_READ32(EMGD_MMIO(mmio) + PIPEA_STAT);
 
-			/* 3. Set the Interrupt Mask Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
-			EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IMR);
+				 /* 2. Clear the Interrupt Enable Register bit for this pipe: */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
+				 EMGD_WRITE32((tmp & (~BIT7)), EMGD_MMIO(mmio) + IER);
 
-			/* 4. Just in case, clear (by setting) the Interrupt Identity
-			 *    Register bit for this pipe:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
-			EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IIR);
+				 /* 3. Set the Interrupt Mask Register bit for this pipe: */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
+				 EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IMR);
+
+				 /* 4. Just in case, clear (by setting) the Interrupt Identity
+				  *    Register bit for this pipe:
+				  */
+				 tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
+				 EMGD_WRITE32((tmp | BIT7), EMGD_MMIO(mmio) + IIR);
+			}
 		}
 	}
+
 	if (request_for & VBLANK_INT4_PORT4) {
-		/* Turn off both the request and the answer bits: */
-		tmp = request_for & VBLANK_INT4_PORT4;
-		vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
-		if (!VBLANK_INTERRUPTS_ENABLED4_PORT4) {
-			/* 1. Change Pipe Display Status Register for this pipe: clear the
-			 *    Vertical Blank Interrupt Enable bit & clear (by setting) the
-			 *    Vertical Blank Interrupt Status bit:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
-			/* Clear bits that are written by a 1, so we don't clear them: */
-			tmp = tmp & (~PIPESTAT_STS_BITS);
-			EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
-				EMGD_MMIO(mmio) + PIPEB_STAT);
-			EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
+		/* Decrement reference count */
+		vblank_interrupt_ref_cnt_port4--;
+		if (0 > vblank_interrupt_ref_cnt_port4) {
+			EMGD_DEBUG("WARNING:  Disabled vblank INT too many times.");
+			vblank_interrupt_ref_cnt_port4 = 0;
+		}
 
-			/* 2. Clear the Interrupt Enable Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
-			EMGD_WRITE32((tmp & (~BIT5)), EMGD_MMIO(mmio) + IER);
+		if (0 == vblank_interrupt_ref_cnt_port4) {
+			/* Turn off both the request and the answer bits: */
+			tmp = request_for & VBLANK_INT4_PORT4;
+			vblank_interrupt_state &= ~(tmp | VBINT_ANSWER4_REQUEST(tmp));
+			if (!VBLANK_INTERRUPTS_ENABLED4_PORT4) {
+				/* 1. Change Pipe Display Status Register for this pipe: clear
+				 *    the Vertical Blank Interrupt Enable bit & clear (by
+				 *    setting the Vertical Blank Interrupt Status bit:
+				 */
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
+				/* Clear bits that are written by a 1, so don't clear them: */
+				tmp = tmp & (~PIPESTAT_STS_BITS);
+				EMGD_WRITE32(((tmp & (~VBLANK_STS_EN)) | VBLANK_STS),
+					EMGD_MMIO(mmio) + PIPEB_STAT);
+				EMGD_READ32(EMGD_MMIO(mmio) + PIPEB_STAT);
 
-			/* 3. Set the Interrupt Mask Register bit for this pipe: */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
-			EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IMR);
+				/* 2. Clear the Interrupt Enable Register bit for this pipe: */
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + IER);
+				EMGD_WRITE32((tmp & (~BIT5)), EMGD_MMIO(mmio) + IER);
 
-			/* 4. Just in case, clear (by setting) the Interrupt Identity
-			 *    Register bit for this pipe:
-			 */
-			tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
-			EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IIR);
+				/* 3. Set the Interrupt Mask Register bit for this pipe: */
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + IMR);
+				EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IMR);
+
+				/* 4. Just in case, clear (by setting) the Interrupt Identity
+				*    Register bit for this pipe:
+				*/
+				tmp = EMGD_READ32(EMGD_MMIO(mmio) + IIR);
+				EMGD_WRITE32((tmp | BIT5), EMGD_MMIO(mmio) + IIR);
+			}
 		}
 	}
 
 	/* Unlock to allow the interrupt handler to proceed: */
-	spin_unlock_irqrestore(&vblank_lock, lock_flags);
+	spin_unlock_irqrestore(&vblank_lock_plb, lock_flags);
 
 	/* If we've completely disabled all causes for interrupts, unregister the
 	 * interrupt handler:
@@ -1827,7 +1872,7 @@ void disable_vblank_callback_plb(emgd_vblank_callback_h callback_h)
 
 	if (callback_h == ALL_PORT_CALLBACKS) {
 		/* Need to do some push-ups in order to get interrupts disabled: */
-		spin_lock_irqsave(&vblank_lock, lock_flags);
+		spin_lock_irqsave(&vblank_lock_plb, lock_flags);
 		enable_for = (VBLANK_INT4_PORT2 | VBLANK_INT4_PORT4);
 		if (!VBLANK_INTERRUPTS_ENABLED) {
 			/* Nothing has enabled interrupts, so there's no interrupt handler
@@ -1839,13 +1884,13 @@ void disable_vblank_callback_plb(emgd_vblank_callback_h callback_h)
 			vblank_interrupt_state = (VBLANK_INT4_PORT2 |
 				VBLANK_INT4_PORT4);
 		}
-		spin_unlock_irqrestore(&vblank_lock, lock_flags);
+		spin_unlock_irqrestore(&vblank_lock_plb, lock_flags);
 
 		end_request_plb(enable_for, mmio);
 
-		spin_lock_irqsave(&vblank_lock, lock_flags);
+		spin_lock_irqsave(&vblank_lock_plb, lock_flags);
 		vblank_interrupt_state = 0;
-		spin_unlock_irqrestore(&vblank_lock, lock_flags);
+		spin_unlock_irqrestore(&vblank_lock_plb, lock_flags);
 	} else {
 		emgd_vblank_callback_t *cb =
 			(emgd_vblank_callback_t *) callback_h;
@@ -1885,8 +1930,3 @@ mode_full_dispatch_t mode_full_dispatch_plb = {
 	vblank_occured_plb,
 };
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: mode_plb.c,v 1.29 2011/03/02 22:47:05 astead Exp $
- *----------------------------------------------------------------------------
- */

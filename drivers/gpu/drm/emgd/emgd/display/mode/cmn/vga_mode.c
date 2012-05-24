@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: vga_mode.c
- * $Revision: 1.7 $
+ * $Revision: 1.8 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -39,6 +39,8 @@
 #include <sched.h>
 
 #include <igd_vga.h>
+
+#include "drm_emgd_private.h"
 
 #include <mode.h>
 #include <utils.h>
@@ -79,6 +81,29 @@ void write_vga_reg(unsigned char *mmio, unsigned short port,
 	unsigned char index, unsigned char value)
 {
 	WRITE_VGA(mmio, port, index, value);
+}
+
+/*!
+ *
+ * @param display
+ * @param timings
+ *
+ * @return void
+ */
+void kms_program_plane_vga(unsigned char *mmio,
+	igd_timing_info_t *timings)
+{
+
+	EMGD_DEBUG("Enter program_plane_vga");
+
+	/* Set Bit 5 so the plane remains off.  It will be turned on
+	 * in the IAL.  This is necessary, so the clear screen can occur
+	 * before the mode is enabled. */
+	write_vga_reg(mmio, SR_PORT, 0x01,
+		(*vga_mode_data_ptr)[timings->mode_number].sr_regs[0] | 0x20);
+	OS_SLEEP(1000);
+
+	return;
 }
 
 /*!
@@ -270,6 +295,157 @@ void write_next_gr_reg(unsigned char value)
 	write_vga_reg(g_mmio, GR_PORT, next_gr, value);
 	next_gr++;
 }
+
+/*!
+ * This function programs the Timing registers and clock registers and
+ * other control registers for PIPE.
+ *
+ * @param emgd_crtc
+ * @param timings
+ *
+ * @return void
+ */
+void kms_program_pipe_vga(emgd_crtc_t *emgd_crtc,
+	igd_timing_info_t *timings)
+{
+	struct drm_device  *dev = NULL;
+	igd_context_t      *context = NULL;
+	igd_display_pipe_t *pipe = NULL;
+	unsigned char *mmio, i;
+	unsigned char *colors=0;
+	unsigned char palette_hack=0;
+	unsigned char *color_bits = 0;
+	int mode_index;
+	unsigned char msr_temp;
+
+	/* This is a mapping from the HAL mode number to the type of Palette
+	 * being programmed for this mode. */
+	char palette_type[] = {
+	/* 9=Don't care.
+	 *  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f */
+		1, 1, 1, 1, 1, 1, 1, 2,	9, 9, 9, 9, 9, 1, 1, 9,
+		9, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 4 };
+
+	EMGD_TRACE_ENTER;
+
+	pipe = emgd_crtc->igd_pipe;
+	dev = ((struct drm_crtc *)(&emgd_crtc->base))->dev;
+	context = ((drm_emgd_priv_t *)dev->dev_private)->context;
+	mmio = (unsigned char *)context->device_context.virt_mmadr;
+	g_mmio = mmio;
+	mode_index = timings->mode_number;
+
+	EMGD_DEBUG("IGD Mode#:0x%x", mode_index);
+
+	/* Disable Group 0 Protection */
+	write_vga_reg(mmio, CR_PORT, 0x11, 0x00);
+
+	/*
+	 * Note: for monochrome modes this will cause the IO port to change
+	 * for the CRTC and the Status regs.
+	 */
+	 msr_temp = (*vga_mode_data_ptr)[mode_index].misc_reg;
+
+#ifdef CONFIG_GN4
+	/*
+	 * According to Chrontel the VGA By-pass requires the HSYNC and VSYNC to be
+	 * of positive polarity.  In the MSR - Miscellaneous Output register
+	 * Bit 7 is CRT VSYNC polarity (0 = Positive, 1 = Negative)
+	 * Bit 6 is CRT HSYNC polarity (0 = Positive, 1 = Negative)
+	 */
+	{
+		pt = get_port_type(emgd_crtc->crtc_id);
+		if (pt == IGD_PORT_DIGITAL) {
+			msr_temp &= (~(BIT(7)|BIT(6)));
+		}
+	}
+#endif
+	EMGD_WRITE8(msr_temp, EMGD_MMIO(mmio) + 0x3c2);
+
+	if((*vga_mode_data_ptr)[mode_index].misc_reg & 1) {
+		vga_port_offset = 0x20;
+	} else {
+		vga_port_offset = 0;
+	}
+
+	/* Sequencer registers */
+	/*
+	 * Note: Most specs say 0 in SR00 scratch bits but in practice seems
+	 * that everyone uses 3.
+	 */
+	write_vga_reg(mmio, SR_PORT, 0x00, 0x03);
+	/* SR01 is on/off and done in program plane */
+	for (i=2; i<=4; i++) {
+		write_vga_reg(mmio, SR_PORT, i,
+			/* The SR Regs in the table are from SR01-SR04, there is
+			 * no SR00 in the table, so -1. */
+			(*vga_mode_data_ptr)[mode_index].sr_regs[i-1]);
+	}
+
+	/* Graphics control registers 0x0-0x8,0x10 */
+	next_gr = 0;
+	for(i=0; i<=0x8; i++) {
+		write_next_gr_reg((*vga_mode_data_ptr)[mode_index].gr_regs[i]);
+	}
+	/*
+	 * GR10 is a non-standard register that controls the mapping of
+	 * 0xa000 to MMIO or GTT memory.
+	 */
+	next_gr = 0x10;
+	write_next_gr_reg(0x0);
+
+	next_ar = 0;
+	for(i=0; i<=0x13; i++) {
+		write_next_ar_reg((*vga_mode_data_ptr)[mode_index].ar_regs[i]);
+	}
+	/* Spec says 0x8 for text modes, not done in practice */
+	write_next_ar_reg(0x00);
+
+	/* Ensure the Pixel Data Mask Register does not mask the pixel data */
+	EMGD_WRITE8(0xFF, EMGD_MMIO(mmio) + 0x3c6);
+
+	/* set DAC data value */
+	EMGD_WRITE8(0, EMGD_MMIO(mmio) + 0x3c8);
+
+	/* Load RAMDAC*/
+	switch(palette_type[mode_index]){
+	case 0:
+		color_bits = p64_color_bits;
+		colors = normal_colors;
+		palette_hack = 0;
+		break;
+	case 1:
+		color_bits = p16_color_bits;
+		colors = normal_colors;
+		palette_hack = 1;
+		break;
+	case 2:
+		color_bits = mono_color_bits;
+		colors = mono_colors;
+		palette_hack = 0;
+		break;
+	default:
+		break;
+	}
+	/* Program the Palette based on the mode. */
+	if (!vga_disable_default_palette_load) {
+		if (color_bits) {
+			set_palette_vga(mmio, 64, color_bits, colors, palette_hack);
+			set_3f_palette(mmio, 192);
+		} else {
+			set_256_palette(mmio);
+		}
+	}
+
+	/* Timings */
+	next_cr = 0;
+	for(i=0; i<=0x18; i++) {
+		write_next_cr_reg((*vga_mode_data_ptr)[mode_index].crtc_regs[i]);
+	}
+
+	return;
+}
+
 
 /*!
  * This function programs the Timing registers and clock registers and

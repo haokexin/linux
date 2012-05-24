@@ -1,7 +1,7 @@
-﻿/* -*- pse-c -*-
+﻿/*
  *-----------------------------------------------------------------------------
  * Filename: pi.c
- * $Revision: 1.20 $
+ * $Revision: 1.24 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -57,6 +57,7 @@
 #include <mode_access.h>
 #include <edid.h>
 #include <displayid.h>
+#include <emgd_drv.h>
 
 #include "i2c_dispatch.h"
 #include <igd_vga.h>
@@ -89,7 +90,7 @@ pd_timing_t *get_user_timings(igd_param_dtd_list_t *in_list);
 
 extern int pi_init_all(void *handle);
 
-
+extern emgd_drm_config_t config_drm;
 extern i2c_dispatch_t i2c_dispatch_plb;
 extern i2c_dispatch_t i2c_dispatch_tnc;
 
@@ -150,6 +151,7 @@ static void pi_shutdown(igd_context_t *context)
 			port->pd_driver = NULL;
 			/* pd_context is freed by port driver */
 			port->pd_context = NULL;
+			/* timing_table is freed by port driver */
 			port->timing_table = NULL;
 			port->num_timing = 0;
 			if (port->fp_info) {
@@ -460,7 +462,12 @@ int pi_pd_register(pd_driver_t *pd_driver)
 
 			/* Call open() for each DAB */
 			while (pd_driver->dab_list[dab_index] != PD_DAB_LIST_END) {
-				port->dab = pd_driver->dab_list[dab_index];
+				if(pd_driver->type == PD_DISPLAY_LVDS_INT) {
+                	port->ddc_dab = pd_driver->dab_list[dab_index];
+					printk ("NUHAIRI: port->ddc_dab\n" );
+                } else {
+					port->dab = pd_driver->dab_list[dab_index];
+                }
 
 				/* Workaround for not to detect 2 encoders if only 1 encoder
 				 * is present and both DVOB and DVOC are using same I2C bus */
@@ -509,7 +516,7 @@ int pi_pd_register(pd_driver_t *pd_driver)
 
 			/* Initialize our port entry */
 			ret = pi_pd_init(port, port_feature, second_port_feature, TRUE);
- 			if (ret) {
+			if (ret) {
 				port->pd_driver = NULL;
 				port->pd_context = NULL;
 				port->dab = prev_dab;
@@ -717,7 +724,8 @@ int pi_pd_init(igd_display_port_t *port,
 			port->ddc_dab,      /* Data Addr Byte*/
 			0,                  /* Register */
 			firmware_data,      /* Values */
-			128);               /* Num bytes to read */
+			128,               /* Num bytes to read */
+			0);
 
 		/* If EDID is present then use EDID.
 		 * edid_flags will be corrected later if display_params are present */
@@ -871,29 +879,13 @@ int pi_pd_init(igd_display_port_t *port,
 
 
 #ifndef CONFIG_MICRO
-	if(pi_context->igd_context->mod_dispatch.reg_get_mod_state) {
-		module_state_h     *state = NULL;
-		unsigned long *flags = NULL;
-		pi_context->igd_context->mod_dispatch.reg_get_mod_state(
-			REG_MODE_STATE,
-			&state,
-			&flags);
-
-		if (state) {
-			mstate = (mode_state_t *)(*state);
-		}
-	}
-
-	/* If mode state is present in register context,
-	 * then call save() function to save the port driver's state */
-	if (mstate) {
-		ret = port->pd_driver->pd_save(port->pd_context,
-				&(mstate->pd_state[pi_context->num_pi_drivers].state), 0);
-		if (ret) {
-			EMGD_ERROR_EXIT("port driver: reg saving error. ret = %d", ret);
-			return ret;
-		}
-		mstate->pd_state[pi_context->num_pi_drivers].port = port;
+	/*
+	 * There is only two states that need to be saved; one is the regular state
+	 * and the other is for the console.
+	 */
+	ret = pi_save_mode_state(port, REG_MODE_STATE_REG);
+	if (config_drm.init) {
+		ret = pi_save_mode_state(port, REG_MODE_STATE_CON);
 	}
 #endif
 
@@ -978,7 +970,28 @@ int pi_read_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 				port->i2c_speed,
 				port->dab,
 				(unsigned char)list->reg,
-				(unsigned char *)&list->value, 1);
+				(unsigned char *)&list->value, 1, 0);
+			if (ret) {
+				EMGD_DEBUG("i2c_read_reg: 0x%lx failed.", list->reg);
+				break;
+			}
+			list++;
+		}
+		if (ret) {
+			return PD_ERR_I2C_READ;
+		}
+		break;
+	case PD_REG_DDC_FW:
+		ret = 0;
+		while (list->reg != PD_REG_LIST_END) {
+			ret = pi_context->i2c_dispatch->i2c_read_regs(
+				pi_context->igd_context,
+				port->ddc_reg,
+				port->ddc_speed,
+				port->ddc_dab,
+				(unsigned char)list->reg,
+				(unsigned char *)&list->value, 1,
+				IGD_I2C_WRITE_FW);
 			if (ret) {
 				EMGD_DEBUG("i2c_read_reg: 0x%lx failed.", list->reg);
 				break;
@@ -998,7 +1011,8 @@ int pi_read_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 				port->ddc_speed,
 				port->ddc_dab,
 				(unsigned char)list->reg,
-				(unsigned char *)&list->value, 1);
+				(unsigned char *)&list->value, 1,
+				0);
 			if (ret) {
 				EMGD_DEBUG("i2c_read_reg: 0x%lx failed.", list->reg);
 				break;
@@ -1121,7 +1135,7 @@ int pi_write_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 	int           ret;
 	unsigned char *mmio;
 
-	/*EMGD_TRACE_ENTER;*/
+	EMGD_TRACE_ENTER;
 
 	if (!port) {
 		EMGD_ERROR_EXIT("Null callback context passed.");
@@ -1133,10 +1147,41 @@ int pi_write_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 		return PD_ERR_NULL_PTR;
 	}
 
+	EMGD_DEBUG("Getting mmio");
 	mmio = EMGD_MMIO(pi_context->igd_context->device_context.virt_mmadr);
+	EMGD_DEBUG("mmio = 0x%lx", (unsigned long)mmio);
 
 	/* Based on the port type either write GMCH registers or I2C registers */
 	switch (type) {
+	case PD_REG_DDC_FW:
+		/*This will use shorter delay than PD_REG_DDC*/
+		ret = pi_context->i2c_dispatch->i2c_write_reg_list(
+			pi_context->igd_context,
+			port->ddc_reg,
+			port->ddc_speed,
+			port->ddc_dab,
+			list,
+			IGD_I2C_WRITE_FW);
+		if (ret) {
+        	EMGD_DEBUG("i2c_write_reg: 0x%lx = 0x%lx failed.",
+       		list->reg, list->value);
+        	return PD_ERR_I2C_WRITE;
+        }
+    	break;
+	case PD_REG_DDC:
+		ret = pi_context->i2c_dispatch->i2c_write_reg_list(
+			pi_context->igd_context,
+			port->ddc_reg,
+			port->ddc_speed,
+			port->ddc_dab,
+			list,
+			0);
+		if (ret) {
+        	EMGD_DEBUG("i2c_write_reg: 0x%lx = 0x%lx failed.",
+       		list->reg, list->value);
+        	return PD_ERR_I2C_WRITE;
+        }
+    	break;
 	case PD_REG_I2C:
 		ret = pi_context->i2c_dispatch->i2c_write_reg_list(
 			pi_context->igd_context,
@@ -1150,24 +1195,28 @@ int pi_write_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 				list->reg, list->value);
 			return PD_ERR_I2C_WRITE;
 		}
+		EMGD_DEBUG("i2c_write_reg success");
 		break;
 	case PD_REG_PIO8:
 		while (list->reg != PD_REG_LIST_END) {
 			EMGD_WRITE_PORT8(list->reg, list->value);
 			list++;
 		}
+		EMGD_DEBUG("EMGD_WRITE_PORT8 seemed successful");
 		break;
 	case PD_REG_PIO16:
 		while (list->reg != PD_REG_LIST_END) {
 			EMGD_WRITE_PORT16(list->reg, list->value);
 			list++;
 		}
+		EMGD_DEBUG("EMGD_WRITE_PORT16 seemed successful");
 		break;
 	case PD_REG_PIO32:
 		while (list->reg != PD_REG_LIST_END) {
 			EMGD_WRITE_PORT32(list->reg, list->value);
 			list++;
 		}
+		EMGD_DEBUG("EMGD_WRITE_PORT32 seemed successful");
 		break;
 	case PD_REG_MIO :
 	case PD_REG_MIO8 :
@@ -1191,6 +1240,7 @@ int pi_write_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 				}
 				list++;
 			}
+			EMGD_DEBUG("complicated write seemed successful");
 		}
 		break;
 #ifdef CONFIG_TNC
@@ -1200,6 +1250,7 @@ int pi_write_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 				WRITE_MMIO_REG_TNC(IGD_PORT_LPC, list->reg, list->value);
 				list++;
 			}
+			EMGD_DEBUG("Write to IGD_PORT_LPC seemed successful");
 		}
 		break;
 #endif
@@ -1209,7 +1260,7 @@ int pi_write_regs(void *callback_context, pd_reg_t *list, unsigned long type)
 		break;
 	}
 
-	/*EMGD_TRACE_EXIT;*/
+	EMGD_TRACE_EXIT;
 	return 0;
 } /* end pi_write_regs */
 
@@ -1342,7 +1393,8 @@ int get_firmware_timings(igd_display_port_t *port,
 					port->ddc_dab,      /* Data Addr Byte*/
 					0x80,                /* Register */
 					&firmware_data[128], /* Values */
-					128);				 /* next 128 bytes include extension */
+					128,
+					0);				 /* next 128 bytes include extension */
 				ret = edid_ext_parse(&firmware_data[128], edid, timing_table,0,
 					(unsigned char)(port->pd_driver->flags&
 					PD_FLAG_UP_SCALING?1:0));
@@ -1380,7 +1432,8 @@ int get_firmware_timings(igd_display_port_t *port,
 				port->ddc_dab,      /* Data Addr Byte*/
 				0,                  /* Register */
 				firmware_data,      /* Values */
-				displayid_size);    /* Num bytes to read */
+				displayid_size,    /* Num bytes to read */
+				0);
 		}
 
 #ifdef DEBUG_FIRMWARE
@@ -1794,9 +1847,37 @@ int pi_get_port_init_attr(igd_display_port_t *port,
 	return -IGD_ERROR_INVAL;
 }
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: pi.c,v 1.20 2011/03/02 22:47:05 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/pi/cmn/pi.c,v $
- *----------------------------------------------------------------------------
- */
+
+
+int pi_save_mode_state(igd_display_port_t *port, reg_state_id_t reg_state_id)
+{
+	int ret = PD_SUCCESS;
+	mode_state_t  *mstate = NULL;
+	if(pi_context->igd_context->mod_dispatch.reg_get_mod_state) {
+		module_state_h     *state = NULL;
+		unsigned long *flags = NULL;
+		pi_context->igd_context->mod_dispatch.reg_get_mod_state(
+			reg_state_id,
+			&state,
+			&flags);
+
+		if (state) {
+			mstate = (mode_state_t *)(*state);
+		}
+	}
+
+	/* If mode state is present in register context,
+	 * then call save() function to save the port driver's state */
+	if (mstate) {
+		ret = port->pd_driver->pd_save(port->pd_context,
+				&(mstate->pd_state[pi_context->num_pi_drivers].state), 0);
+		if (ret) {
+			EMGD_ERROR_EXIT("port driver: reg saving error. ret = %d", ret);
+			return ret;
+		}
+		mstate->pd_state[pi_context->num_pi_drivers].port = port;
+	}
+
+	return ret;
+}
+

@@ -20,10 +20,6 @@
  THE SOFTWARE.
  ******************************************************************************/
 
-#ifndef AUTOCONF_INCLUDED
- #include <linux/config.h>
-#endif
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/version.h>
@@ -221,7 +217,7 @@ static int pvr_proc_seq_show (struct seq_file *proc_seq_file, void *v)
 static struct proc_dir_entry* CreateProcEntryInDirSeq(
 									   struct proc_dir_entry *pdir,
 									   const IMG_CHAR * name,
-    								   IMG_VOID* data,
+								   IMG_VOID* data,
 									   pvr_next_proc_seq_t next_handler,
 									   pvr_show_proc_seq_t show_handler,
 									   pvr_off2element_proc_seq_t off2element_handler,
@@ -275,7 +271,7 @@ static struct proc_dir_entry* CreateProcEntryInDirSeq(
 			seq_handlers->startstop = startstop_handler;
 			seq_handlers->data = data;
 
-        	return file;
+	return file;
 		}
     }
 
@@ -328,7 +324,7 @@ struct proc_dir_entry* CreateProcEntrySeq (
 
 struct proc_dir_entry* CreatePerProcessProcEntrySeq (
 									  const IMG_CHAR * name,
-    								  IMG_VOID* data,
+								  IMG_VOID* data,
 									  pvr_next_proc_seq_t next_handler,
 									  pvr_show_proc_seq_t show_handler,
 									  pvr_off2element_proc_seq_t off2element_handler,
@@ -760,7 +756,7 @@ static void ProcSeqShowVersion(struct seq_file *sfile,void* el)
 
     if(psSysData->pszVersionString)
 	{
-    	pszSystemVersionString = psSysData->pszVersionString;
+	pszSystemVersionString = psSysData->pszVersionString;
     }
 
 	seq_printf( sfile, "System Version String: %s\n", pszSystemVersionString);

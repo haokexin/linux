@@ -1,9 +1,9 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: lvds.c
- * $Revision: 1.15 $
+ * $Revision: 1.18 $
  *-----------------------------------------------------------------------------
- * Copyright © 2002-2010, Intel Corporation.
+ * Copyright (c) 2002-2010, Intel Corporation.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -466,6 +466,7 @@ int lvds_close(void *device_context)
 	if (device_context) {
 		if ( NULL != pd_context->timing_table) {
 			pd_free(pd_context->timing_table);
+			pd_context->timing_table = NULL;
 		}
 
 		/* Free attribute list, if necessary */
@@ -654,12 +655,17 @@ int lvds_post_set_mode(void *context, pd_timing_t *mode, unsigned long flags)
 		}
 	}
 
+    lvds_write_reg(pd_context, 0x61204, 0xABCD0000, 0xFFFFFFFF, PD_REG_MIO);
+
 	lvds_write_reg(pd_context, 0x61180, port_control, 0xFFFFFFFF, PD_REG_MIO);
 	ret = lvds_set_power(pd_context, PD_POWER_MODE_D0);
 	if (ret) {
 		PD_ERROR("PD set_power (D0) returned: 0x%x", ret);
 		return ret;
 	}
+
+    lvds_write_reg(pd_context, 0x61204, BIT(1), BIT(1), PD_REG_MIO);
+
 
 	PD_TRACE_EXIT;
 	/* Set the mode as per given timings */
@@ -885,6 +891,11 @@ int lvds_set_attrs (void *context, unsigned long num, pd_attr_t *list)
 			}
 		}
 	}
+	/* panel_type 0 (SPWG) isn't available for 18-bit depth */
+	PD_DEBUG("in LVDS_set_attributes()\n");
+	if (pd_context->panel_depth == 18) {
+		pd_context->panel_type = 1;
+	}
 	PD_DEBUG("IntLVDS: dual_channel=%u", pd_context->dual_channel);
 	PD_DEBUG("IntLVDS: panel_type=%u panel_fit=%u panel_dep=%u dither=%u",
 		pd_context->panel_type, pd_context->panel_fit,
@@ -895,13 +906,6 @@ int lvds_set_attrs (void *context, unsigned long num, pd_attr_t *list)
 		pd_context->pwm_intensity, pd_context->inverter_freq,
 		pd_context->blm_legacy_mode);
 	PD_DEBUG("IntLVDS: tc_110MHz_clk = %u", pd_context->tc_110MHz_clk);
-
-	/* panel_type 0 (SPWG) isn't available for 18-bit depth */
-
-	PD_DEBUG("in LVDS_set_attributes()\n");
-	if (pd_context->panel_depth == 18) {
-		pd_context->panel_type = 1;
-	}
 
 	if (pd_context->init_done) {
 		/* When emgd_driver_pre_init() pokes new attrs into this port driver,
@@ -1056,11 +1060,14 @@ int lvds_set_power(void *context, unsigned long state)
 	PD_DEBUG("lvds_set_power() to state = %lu\n",state);
 	/* Basic parameter check */
 	if (!context) {
+		PD_DEBUG("No context");
 		return PD_ERR_NULL_PTR;
 	}
+	PD_DEBUG("pd_context=0x%lx", (unsigned long)pd_context);
 
 	/* Check for invalid state */
 	if (state > PD_POWER_MODE_D3) {
+		PD_DEBUG("Invalid power state");
 		return PD_ERR_INVALID_POWER;
 	}
 
@@ -1070,6 +1077,8 @@ int lvds_set_power(void *context, unsigned long state)
 	} else {
 		i = 1;
 	}
+
+	lvds_write_reg(pd_context, 0x61204, 0xABCD0000, 0xFFFFFFFF, PD_REG_MIO);
 
 	/* Program panel power up/down delays: Either T1/T2 or T3/T4*/
 	tattr = pd_get_attr(pd_context->attr_list,
@@ -1096,9 +1105,7 @@ int lvds_set_power(void *context, unsigned long state)
 	lvds_write_reg(pd_context, 0x61204, table_set_power[i].bit, BIT(0), PD_REG_MIO);
 
 	/* Power down on reset available on crestline onwards */
-	if (pd_context->gn4_plus) {
-		lvds_write_reg(pd_context, 0x61204, BIT(1), BIT(1), PD_REG_MIO);
-	}
+	lvds_write_reg(pd_context, 0x61204, BIT(1), BIT(1), PD_REG_MIO);
 
 /* Make this a compile time so that size of vBIOS doesn't become > 64KB */
 #if defined(CONFIG_PLB) || defined(CONFIG_TNC)
@@ -1334,6 +1341,8 @@ static void lvds_write_reg(lvds_context_t *pd_context, unsigned long reg,
 	pd_reg_t list[2];
 	int ret;
 
+	PD_DEBUG("ENTER");
+
 	list[0].reg = reg;
 	list[0].value = (lvds_read_reg(pd_context, reg, PD_REG_MIO) & ~change_bits) | value;
 	list[1].reg = PD_REG_LIST_END;
@@ -1342,6 +1351,7 @@ static void lvds_write_reg(lvds_context_t *pd_context, unsigned long reg,
 	if (ret) {
 		PD_ERROR("LVDS write regs: Failed.");
 	}
+	PD_DEBUG("EXIT");
 	return;
 }                                                         /* lvds_write_reg */
 
@@ -1543,9 +1553,3 @@ static void lvds_get_dclk(lvds_context_t *pd_context, pd_dvo_info_t *lvds_info )
 	}
 #endif
 }
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: lvds.c,v 1.15 2011/02/16 17:04:49 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/pal/lvds/lvds.c,v $
- *----------------------------------------------------------------------------
- */

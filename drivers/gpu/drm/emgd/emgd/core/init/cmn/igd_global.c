@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: igd_global.c
- * $Revision: 1.7 $
+ * $Revision: 1.9 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -32,11 +32,3 @@
 #include <igd_debug.h>
 
 /* Global debug flag has been moved to egd_drm/emgd/drm/emgd_drv.c */
-
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: igd_global.c,v 1.7 2011/03/02 22:47:04 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/core/init/cmn/igd_global.c,v $
- *----------------------------------------------------------------------------
- */
-

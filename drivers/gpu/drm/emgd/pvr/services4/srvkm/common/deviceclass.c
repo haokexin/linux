@@ -660,7 +660,7 @@ PVRSRV_ERROR PVRSRVOpenDCDeviceKM (PVRSRV_PER_PROCESS_DATA	*psPerProc,
 
 
 		eError = psDCInfo->psFuncTable->pfnOpenDCDevice(ui32DeviceID,
-                                                        	&psDCInfo->hExtDevice,
+	&psDCInfo->hExtDevice,
 								(PVRSRV_SYNC_DATA*)psDCInfo->sSystemBuffer.sDeviceClassBuffer.psKernelSyncInfo->psSyncDataMemInfoKM->pvLinAddrKM);
 		if(eError != PVRSRV_OK)
 		{
@@ -988,7 +988,7 @@ PVRSRV_ERROR PVRSRVCreateDCSwapChainKM (PVRSRV_PER_PROCESS_DATA	*psPerProc,
 		return PVRSRV_ERROR_TOOMANYBUFFERS;
 	}
 
-#if 0 /* BOB: Removing limiation  to allow 1 buffer allocations */
+#if 0 /* Removing limiation  to allow 1 buffer allocations */
 	if (ui32BufferCount < 2)
 	{
 		PVR_DPF((PVR_DBG_ERROR,"PVRSRVCreateDCSwapChainKM: Too few buffers"));
@@ -1004,7 +1004,7 @@ PVRSRV_ERROR PVRSRVCreateDCSwapChainKM (PVRSRV_PER_PROCESS_DATA	*psPerProc,
 		psSwapChain = PVRSRVFindSharedDCSwapChainKM(psDCInfo, *pui32SwapChainID );
 		if( psSwapChain  )
 		{
-			PVR_DPF((PVR_DBG_ERROR,"PVRSRVCreateDCSwapChainKM: found query"));
+			PVR_DPF((PVR_DBG_MESSAGE,"PVRSRVCreateDCSwapChainKM: found query"));
 
 			eError = PVRSRVCreateDCSwapChainRefKM(psPerProc,
 												  psSwapChain,
@@ -1114,7 +1114,7 @@ PVRSRV_ERROR PVRSRVCreateDCSwapChainKM (PVRSRV_PER_PROCESS_DATA	*psPerProc,
 
 	if( ui32Flags & PVRSRV_CREATE_SWAPCHAIN_SHARED )
 	{
-   		if(! psDCInfo->psDCSwapChainShared )
+		if(! psDCInfo->psDCSwapChainShared )
 		{
 			psDCInfo->psDCSwapChainShared = psSwapChain;
 		}

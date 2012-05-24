@@ -1,7 +1,7 @@
-/* -*- pse-c -*-
+/*
  *-----------------------------------------------------------------------------
  * Filename: dsp.c
- * $Revision: 1.19 $
+ * $Revision: 1.25 $
  *-----------------------------------------------------------------------------
  * Copyright (c) 2002-2010, Intel Corporation.
  *
@@ -623,7 +623,7 @@ static void dsp_get_display(unsigned short port_number,
 		}
 	}
 	if(display) {
-		*display = dsp_context.display_ptr_list[port_number];
+	  *display = dsp_context.display_ptr_list[port_number];
 	}
 	return;
 }
@@ -713,6 +713,18 @@ static void dsp_get_planes_pipes(igd_plane_t **primary_display_plane,
 			pipe++;
 		}
 	}
+
+	EMGD_TRACE_EXIT;
+}
+
+static void dsp_control_plane_format(int enable, int display_plane, igd_plane_t *plane_override)
+{
+	EMGD_TRACE_ENTER;
+
+	dsp_context.dispatch->dsp_control_plane_format(dsp_context.context,
+			enable, display_plane, plane_override);
+
+	dsp_context.context->mod_dispatch.fb_blend_ovl_override = 1;
 
 	EMGD_TRACE_EXIT;
 }
@@ -1357,6 +1369,7 @@ int igd_query_dc(igd_driver_h driver_handle,
 				return 0;
 			}
 		}
+
 		/* Find first match of same type */
 		for(d = 0; d < dsp_context.dsp_dc_list.count; d++) {
 			if (dsp_context.dsp_dc_list.dc_list[d] & (request & 0x0f)) {
@@ -1471,6 +1484,8 @@ int dsp_alloc(igd_context_t *context,
 	int ret;
 #endif
 
+	EMGD_TRACE_ENTER;
+
 #ifndef CONFIG_MICRO
 	/*
 	 * Surfaces in the surface cache have a display handle associated with
@@ -1576,15 +1591,6 @@ int dsp_alloc(igd_context_t *context,
 		}
 		pipe->inuse = 0;
 
-#ifndef CONFIG_MICRO
-		if(context->mod_dispatch.alloc_queues) {
-			ret = context->mod_dispatch.alloc_queues(context, pipe, flags);
-			if (ret) {
-				EMGD_ERROR("Error, unable to allocate ring buffers");
-				return -IGD_INVAL;
-			}
-		}
-#endif
 
 		/* set up the display handle */
 		dsp_context.display_list[0].plane = (void *)plane;
@@ -1704,11 +1710,10 @@ int dsp_alloc(igd_context_t *context,
 		cursor2->cursor_info = cursor->cursor_info;
 
 	case IGD_DISPLAY_CONFIG_EXTENDED:
-		if (plane2) {
 
-#ifndef CONFIG_MICRO
-			/* This condition is always true, not sure why this check is
-			 * required */
+		if (plane2) {
+			/* Need to check here because the last case, CLONE, falls
+			 * through to this one */
 			if (!(dc & IGD_DISPLAY_CONFIG_CLONE)) {
 				/* If this is really extended and not clone, break mirrors */
 				plane->mirror = NULL;
@@ -1729,7 +1734,6 @@ int dsp_alloc(igd_context_t *context,
 					cursor2->cursor_info = NULL;
 				}
 			}
-#endif
 
 			port_number = IGD_DC_SECONDARY(dc);
 			dsp_context.display_list[1].plane = (void *)plane2;
@@ -1810,6 +1814,7 @@ int dsp_alloc(igd_context_t *context,
 	}
 
 	dsp_context.current_dc = dc;
+	EMGD_TRACE_EXIT;
 	return 0;
 }
 
@@ -1832,7 +1837,7 @@ int dsp_init(igd_context_t *context)
 	igd_param_t   *params = context->mod_dispatch.init_params;
 	int ret;
 
-	EMGD_DEBUG("Enter dsp_init()");
+	EMGD_TRACE_ENTER;
 
 	OS_MEMSET(&dsp_context, 0, sizeof(dsp_context));
 
@@ -1863,7 +1868,8 @@ int dsp_init(igd_context_t *context)
 	context->mod_dispatch.dsp_get_dc = dsp_get_dc;
 	context->mod_dispatch.dsp_get_display = dsp_get_display;
 	context->mod_dispatch.dsp_get_planes_pipes = dsp_get_planes_pipes;
-
+	context->mod_dispatch.dsp_alloc = dsp_alloc;
+	context->mod_dispatch.dsp_control_plane_format = dsp_control_plane_format;
 
 	/* Dsp data members in inter module dispatch. This is done to make
 	 * these data members available for vBIOS after init when dsp is
@@ -2026,6 +2032,7 @@ int dsp_init(igd_context_t *context)
 	 * Build the list of valid display configurations.
 	 */
 	/* dsp_dc_init(context); */
+	EMGD_TRACE_EXIT;
 
 	return 0;
 } /* end dsp_init() */
@@ -2227,23 +2234,23 @@ int dsp_wait_rb(igd_context_t *context)
 					return (-IGD_INVAL);
 				}
 
-                if(PIPE(&dsp_context.display_list[p])->queue[IGD_PRIORITY_BIN]) {
-                	/* Sync the Binner also. */
-                	sync_val = 0;
-                	timeout = OS_SET_ALARM(wait_time * 1000);
-                	do {
-                		ret = context->dispatch.sync(
-							&dsp_context.display_list[p],
-							IGD_PRIORITY_BIN, &sync_val,
-							IGD_SYNC_BLOCK | IGD_SYNC_NOFLUSH_PIPE);
-                		OS_SCHEDULE();
-                	} while ((ret == -IGD_ERROR_BUSY) && (!OS_TEST_ALARM(timeout)));
+				if(PIPE(&dsp_context.display_list[p])->queue[IGD_PRIORITY_BIN]) {
+					/* Sync the Binner also. */
+					sync_val = 0;
+					timeout = OS_SET_ALARM(wait_time * 1000);
+					do {
+						ret = context->dispatch.sync(
+								&dsp_context.display_list[p],
+								IGD_PRIORITY_BIN, &sync_val,
+								IGD_SYNC_BLOCK | IGD_SYNC_NOFLUSH_PIPE);
+						OS_SCHEDULE();
+					} while ((ret == -IGD_ERROR_BUSY) && (!OS_TEST_ALARM(timeout)));
 
-                	if (ret == -IGD_ERROR_BUSY) {
-                		EMGD_ERROR("Timeout waiting for Binner sync");
-                		return (-IGD_INVAL);
-                	}
-                }
+					if (ret == -IGD_ERROR_BUSY) {
+						EMGD_ERROR("Timeout waiting for Binner sync");
+						return (-IGD_INVAL);
+					}
+				}
 			}
 		}
 	}
@@ -2263,8 +2270,11 @@ void dsp_shutdown(igd_context_t *context)
 	igd_display_port_t *port = NULL;
 	igd_plane_t *plane = NULL;
 	igd_display_pipe_t *temp_pipe = NULL;
+	unsigned int hal_attr_index = 0;
 
 	EMGD_DEBUG("dsp_shutdown Entry");
+
+	context->mod_dispatch.fb_blend_ovl_override = 0;
 
 	/*
 	 * Free all the ports pt_info's. Need to add this here because there
@@ -2286,14 +2296,22 @@ void dsp_shutdown(igd_context_t *context)
 			OS_FREE(port->attr_list);
 			port->attr_list = NULL;
 		}
+
+		/* We should restore the gamma, brightness and contrast attributes
+		 * to their defaults when the HAL is shutting down or else they
+		 * would retain their previous values.
+		 */
+		while (PD_ATTR_LIST_END != port->attributes[hal_attr_index].id) {
+			port->attributes[hal_attr_index].current_value =
+				port->attributes[hal_attr_index].default_value;
+
+			hal_attr_index++;
+		}
 	}
 
 
 	/* Free pipes, cursors, and any allocated command queues */
 	while ((temp_pipe = dsp_get_next_pipe(context, temp_pipe, 0)) != NULL) {
-		if(context->mod_dispatch.free_queues) {
-			context->mod_dispatch.free_queues(context, temp_pipe);
-		}
 
 		/* probably not needed since shutting down */
 		temp_pipe->inuse = 0;
@@ -2348,9 +2366,3 @@ static int dsp_full_init(igd_context_t *context)
 #endif
 
 
-/*----------------------------------------------------------------------------
- * File Revision History
- * $Id: dsp.c,v 1.19 2011/03/02 22:47:04 astead Exp $
- * $Source: /nfs/fm/proj/eia/cvsroot/koheo/linux/egd_drm/emgd/display/dsp/cmn/dsp.c,v $
- *----------------------------------------------------------------------------
- */
