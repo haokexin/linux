@@ -89,9 +89,11 @@ void update_trace_clock_is_sync_vdso(void)
 {
 	unsigned long flags;
 
-	write_seqlock_irqsave(&vsyscall_gtod_data.lock, flags);
+	local_irq_save(flags);
+	write_seqcount_begin(&vsyscall_gtod_data.seq);
 	vsyscall_gtod_data.trace_clock_is_sync = _trace_clock_is_sync;
-	write_sequnlock_irqrestore(&vsyscall_gtod_data.lock, flags);
+	write_seqcount_end(&vsyscall_gtod_data.seq);
+	local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(update_trace_clock_is_sync_vdso);
 
