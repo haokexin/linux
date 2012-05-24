@@ -942,6 +942,10 @@ static int __devinit fsl_pci_probe(struct platform_device *pdev)
 	pci_devs_phb_init();
 #endif
 
+#ifdef CONFIG_EDAC_MPC85XX
+	mpc85xx_pci_err_probe(pdev);
+#endif
+
 	return 0;
 }
 
