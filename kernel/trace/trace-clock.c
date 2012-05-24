@@ -70,7 +70,7 @@ static void disable_trace_clock(void)
 	del_timer_sync(&trace_clock_timer);
 }
 
-void get_trace_clock(void)
+int get_trace_clock(void)
 {
 	get_synthetic_tsc();
 	mutex_lock(&trace_clock_mutex);
@@ -79,6 +79,7 @@ void get_trace_clock(void)
 	enable_trace_clock();
 end:
 	mutex_unlock(&trace_clock_mutex);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
 
