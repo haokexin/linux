@@ -3,6 +3,7 @@
 
 #include <linux/kdebug.h>
 #include <linux/interrupt.h>
+#include <linux/tracepoint.h>
 
 /*
  * action can be NULL if not available.
