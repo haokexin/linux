@@ -67,6 +67,7 @@
 #else
 #include <asm/processor-flags.h>
 #include <asm/setup.h>
+#include <asm/asm-offsets.h>
 
 asmlinkage int system_call(void);
 
