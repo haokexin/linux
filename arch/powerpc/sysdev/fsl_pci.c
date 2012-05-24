@@ -170,9 +170,9 @@ static void __init setup_pci_atmu(struct pci_controller *hose,
 	     fsl_svr_older_than(2, 1)) {
 		if (of_device_is_compatible(hose->dn, "fsl,mpc8540-pci")) {
 			/* disable OWMSV and ORMSV error capture */
-			setbits32(&pci->pcier.pecdr, OWMSV | ORMSV);
+			setbits32(&pci->pex_err_cap_dr, OWMSV | ORMSV);
 			/* disable OWMSV and ORMSV error reporting */
-			clrbits32(&pci->pcier.peer, OWMSV | ORMSV);
+			clrbits32(&pci->pex_err_en, OWMSV | ORMSV);
 		}
 	}
 
