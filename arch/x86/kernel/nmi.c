@@ -18,6 +18,7 @@
 #include <linux/hardirq.h>
 #include <linux/slab.h>
 #include <linux/export.h>
+#include <trace/trap.h>
 
 #include <linux/mca.h>
 
@@ -74,12 +75,6 @@ int unknown_nmi_panic;
  * only be used in NMI handler.
  */
 static DEFINE_RAW_SPINLOCK(nmi_reason_lock);
-
-/*
- * Also used in arch/x86/kernel/traps.c.
- */
-DEFINE_TRACE(trap_entry);
-DEFINE_TRACE(trap_exit);
 
 static int __init setup_unknown_nmi_panic(char *str)
 {

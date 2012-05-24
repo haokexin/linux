@@ -28,6 +28,9 @@
 #include <linux/elf.h>
 #include <linux/ipc.h>
 #include <linux/kallsyms.h>
+#include <linux/module.h>
+#include <linux/marker.h>
+#include <trace/syscall.h>
 
 #include <asm/asm.h>
 #include <asm/branch.h>

@@ -423,7 +423,7 @@ good_area:
 	 */
 	trace_page_fault_entry(regs, regs->trap, mm, vma, address, is_write);
 	fault = handle_mm_fault(mm, vma, address, flags);
-	trace_page_fault_exit(ret);
+	trace_page_fault_exit(fault);
 	if (unlikely(fault & (VM_FAULT_RETRY|VM_FAULT_ERROR))) {
 		int rc = mm_fault_error(regs, address, fault);
 		if (rc >= MM_FAULT_RETURN)
