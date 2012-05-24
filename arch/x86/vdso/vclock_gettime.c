@@ -164,7 +164,7 @@ notrace static noinline int do_trace_clock(struct timespec *ts)
 	union lttng_timespec *lts = (union lttng_timespec *) ts;
 
 	do {
-		seq = read_seqbegin(&gtod->lock);
+		seq = read_seqcount_begin(&gtod->seq);
 		if (unlikely(!gtod->trace_clock_is_sync))
 			return vdso_fallback_gettime(CLOCK_TRACE, ts);
 		/*
@@ -179,7 +179,7 @@ notrace static noinline int do_trace_clock(struct timespec *ts)
 		 * match the TSC read by get_cycles() at the kernel level.
 		 */
 		lts->lttng_ts = vget_cycles();
-	} while (unlikely(read_seqretry(&gtod->lock, seq)));
+	} while (unlikely(read_seqcount_retry(&gtod->seq, seq)));
 
 	return 0;
 }
