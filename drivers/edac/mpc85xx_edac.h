@@ -1,5 +1,7 @@
 /*
  * Freescale MPC85xx Memory Controller kenel module
+ * Copyright (c) 2012 Freescale Semiconductor, Inc.
+ *
  * Author: Dave Jiang <djiang@mvista.com>
  *
  * 2006-2007 (c) MontaVista Software, Inc. This file is licensed under
@@ -131,17 +133,6 @@
 
 #define PCI_EDE_PERR_MASK	(PCI_EDE_TGT_PERR | PCI_EDE_MST_PERR | \
 				PCI_EDE_ADDR_PERR)
-
-#define MPC85XX_PCI_ERR_DR		0x0000
-#define MPC85XX_PCI_ERR_CAP_DR		0x0004
-#define MPC85XX_PCI_ERR_EN		0x0008
-#define MPC85XX_PCI_ERR_ATTRIB		0x000c
-#define MPC85XX_PCI_ERR_ADDR		0x0010
-#define MPC85XX_PCI_ERR_EXT_ADDR	0x0014
-#define MPC85XX_PCI_ERR_DL		0x0018
-#define MPC85XX_PCI_ERR_DH		0x001c
-#define MPC85XX_PCI_GAS_TIMR		0x0020
-#define MPC85XX_PCI_PCIX_TIMR		0x0024
 
 struct mpc85xx_mc_pdata {
 	char *name;

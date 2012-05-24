@@ -1,7 +1,7 @@
 /*
  * MPC85xx/86xx PCI Express structure define
  *
- * Copyright 2007,2011 Freescale Semiconductor, Inc
+ * Copyright 2007,2011,2012 Freescale Semiconductor, Inc
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -13,6 +13,8 @@
 #ifdef __KERNEL__
 #ifndef __POWERPC_FSL_PCI_H
 #define __POWERPC_FSL_PCI_H
+
+#include <asm/pci-bridge.h>
 
 #define PCIE_LTSSM	0x0404		/* PCIE Link Training and Status */
 #define PCIE_LTSSM_L0	0x16		/* L0 state */
@@ -41,45 +43,6 @@ struct pci_inbound_window_regs {
 	__be32	piwbear;	/* 0x.c - Inbound window base extended address register */
 	__be32	piwar;	/* 0x.10 - Inbound window attributes register */
 	u8	res2[12];
-};
-
-/* PCI Error Management Registers */
-struct pci_err_regs {
-	/*   0x.e00 - PCI Error Detect Register */
-	__be32	pedr;
-	/*   0x.e04 - PCI Error Capture Disable Register */
-	__be32	pecdr;
-	/*   0x.e08 - PCI Error Interrupt Enable Register */
-	__be32	peer;
-	/*   0x.e0c - PCI Error Attributes Capture Register */
-	__be32	peattrcr;
-	/*   0x.e10 - PCI Error Address Capture Register */
-	__be32	peaddrcr;
-	/*   0x.e14 - PCI Error Extended Address Capture Register */
-	__be32	peextaddrcr;
-	/*   0x.e18 - PCI Error Data Low Capture Register */
-	__be32	pedlcr;
-	/*   0x.e1c - PCI Error Data High Capture Register */
-	__be32	pedhcr;
-	/*   0x.e20 - PCI Gasket Timer Register */
-	__be32	gas_timr;
-	u8	res21[4];
-};
-
-/* PCI Express Error Management Registers */
-struct pcie_err_regs {
-	/*  0x.e00 - PCI/PCIE error detect register */
-	__be32	pex_err_dr;
-	u8	res21[4];
-	/*  0x.e08 - PCI/PCIE error interrupt enable register */
-	__be32	pex_err_en;
-	u8	res22[4];
-	/*  0x.e10 - PCI/PCIE error disable register */
-	__be32	pex_err_disr;
-	u8	res23[12];
-	/*  0x.e20 - PCI/PCIE error capture status register */
-	__be32	pex_err_cap_stat;
-	u8	res24[4];
 };
 
 /* PCI/PCI Express IO block registers for 85xx/86xx */
@@ -112,11 +75,42 @@ struct ccsr_pci {
  * define an inbound window base extended address register.
  */
 	struct pci_inbound_window_regs piw[4];
-/* PCI/PCI Express Error Management Registers */
-	union {
-		struct pci_err_regs pcier;
-		struct pcie_err_regs pexer;
-	};
+/* Merge PCI/PCI Express error management registers */
+	__be32	pex_err_dr;	  /* 0x.e00
+				   * - PCI/PCIE error detect register
+				   */
+	__be32	pex_err_cap_dr;	  /* 0x.e04
+				   * - PCI error capture disabled register
+				   * - PCIE has no this register
+				   */
+	__be32	pex_err_en;	  /* 0x.e08
+				   * - PCI/PCIE error interrupt enable register
+				   */
+	__be32	pex_err_attrib;	  /* 0x.e0c
+				   * - PCI error attributes capture register
+				   * - PCIE has no this register
+				   */
+	__be32	pex_err_disr;	  /* 0x.e10
+				   * - PCI error address capture register
+				   * - PCIE error disable register
+				   */
+	__be32	pex_err_ext_addr; /* 0x.e14
+				   * - PCI error extended addr capture register
+				   * - PCIE has no this register
+				   */
+	__be32	pex_err_dl;	  /* 0x.e18
+				   * - PCI error data low capture register
+				   * - PCIE has no this register
+				   */
+	__be32	pex_err_dh;	  /* 0x.e1c
+				   * - PCI error data high capture register
+				   * - PCIE has no this register
+				   */
+	__be32	pex_err_cap_stat; /* 0x.e20
+				   * - PCI gasket timer register
+				   * - PCIE error capture status register
+				   */
+	u8	res24[4];
 	__be32	pex_err_cap_r0;		/* 0x.e28 - PCIE error capture register 0 */
 	__be32	pex_err_cap_r1;		/* 0x.e2c - PCIE error capture register 0 */
 	__be32	pex_err_cap_r2;		/* 0x.e30 - PCIE error capture register 0 */
