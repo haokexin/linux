@@ -1058,7 +1058,7 @@ console_initcall(acp_console_init);
 static struct uart_driver acp_serial_driver = {
 	.owner			= THIS_MODULE,
 	.driver_name		= "serial",
-	.dev_name		= "ttyS0",
+	.dev_name		= "ttyS",
 	.major			= TTY_MAJOR,
 	.minor			= 64,
 	.nr			= UART_NR,
