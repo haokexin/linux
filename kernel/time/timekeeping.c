@@ -90,7 +90,7 @@ static struct timekeeper timekeeper;
 
 struct timespec __get_wall_to_monotonic(void)
 {
-        return wall_to_monotonic;
+	return timekeeper.wall_to_monotonic;
 }
 
 
@@ -1291,7 +1291,7 @@ void do_timer(unsigned long ticks)
 	jiffies_64 += ticks;
 	update_wall_time();
 	curtime = __current_kernel_time();
-	wtom = wall_to_monotonic;
+	wtom = timekeeper.wall_to_monotonic;
 	trace_timer_update_time(&curtime, &wtom);
 	calc_global_load(ticks);
 }
