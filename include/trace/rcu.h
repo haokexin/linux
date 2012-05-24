@@ -1,5 +1,5 @@
-#ifndef _TRACE_RCU_H
-#define _TRACE_RCU_H
+#ifndef _LTT_TRACE_RCU_H
+#define _LTT_TRACE_RCU_H
 
 #include <linux/tracepoint.h>
 #include <linux/rcupdate.h>
