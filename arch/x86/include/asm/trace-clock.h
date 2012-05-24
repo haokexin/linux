@@ -12,7 +12,6 @@
 
 #include <linux/timex.h>
 #include <linux/time.h>
-#include <asm/system.h>
 #include <asm/processor.h>
 #include <asm/atomic.h>
 

@@ -31,6 +31,7 @@
 #include <linux/memcontrol.h>
 #include <linux/poll.h>
 #include <linux/oom.h>
+#include <linux/marker.h>
 #include <trace/swap.h>
 
 #include <asm/pgtable.h>
