@@ -1732,7 +1732,11 @@ static void get_markers(struct elf_info *info, struct module *mod)
 		    sym->st_shndx == info->markers_strings_sec &&
 		    !strncmp(info->strtab + sym->st_name,
 			     "__mstrtab_", sizeof "__mstrtab_" - 1)) {
-			const char *name = strings + sym->st_value;
+			const char *name;
+			if (is_vmlinux(mod->name))
+				name = strings;
+			else
+				name = strings + sym->st_value;
 			const char *fmt = strchr(name, '\0') + 1;
 			char *line = NULL;
 			asprintf(&line, "%s\t%s\t%s\n", name, mod->name, fmt);
