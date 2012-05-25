@@ -118,6 +118,16 @@
 				  0 0x00010000>;
 		};
 	};
+	rio: rapidio@ffe0c0000 {
+		reg = <0xf 0xfe0c0000 0 0x11000>;
+
+		port1 {
+			ranges = <0 0 0xc 0x20000000 0 0x10000000>;
+		};
+		port2 {
+			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
+		};
+	};
 };
 
 /include/ "fsl/t4240si-post.dtsi"
