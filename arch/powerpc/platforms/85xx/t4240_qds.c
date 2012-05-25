@@ -93,6 +93,7 @@ define_machine(t4240_qds) {
 	.init_early		= corenet_ds_init_early,
 };
 
+machine_arch_initcall(t4240_qds, corenet_ds_publish_pci_device);
 machine_device_initcall(t4240_qds, declare_of_platform_devices);
 
 #ifdef CONFIG_SWIOTLB
