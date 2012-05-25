@@ -1549,7 +1549,7 @@ typedef struct ioc_fm_pcd_manip_hdr_insrt_generic_params_t {
     uint8_t                         size;           /**< Size of inserted section */
     bool                            replace;        /**< TRUE to override (replace) existing data at
                                                          'offset', FALSE to insert */
-    uint8_t                         *p_Data;        /**< Pointer to data to be inserted */
+    uint8_t                         *p_data;        /**< Pointer to data to be inserted */
 } ioc_fm_pcd_manip_hdr_insrt_generic_params_t;
 
 /**************************************************************************//**
@@ -1623,7 +1623,7 @@ typedef struct ioc_fm_pcd_manip_reassem_params_t {
  @Description   Parameters for defining a manipulation node
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_manip_params_t {
-    ioc_net_header_type                           type;               /**< Selects type of manipulation node */
+    ioc_fm_pcd_manip_type                         type;               /**< Selects type of manipulation node */
     union{
         ioc_fm_pcd_manip_hdr_params_t             hdr;                /**< Parameters for defining header manipulation node */
         ioc_fm_pcd_manip_reassem_params_t         reassem;            /**< Parameters for defining reassembly manipulation node */
