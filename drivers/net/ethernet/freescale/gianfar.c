@@ -2815,6 +2815,15 @@ skip_fraglist:
 	return ret;
 }
 
+static void gfar_align_skb(struct sk_buff *skb)
+{
+	/* We need the data buffer to be aligned properly.  We will reserve
+	 * as many bytes as needed to align the data properly
+	 */
+	skb_reserve(skb, RXBUF_ALIGNMENT -
+		(((unsigned long) skb->data) & (RXBUF_ALIGNMENT - 1)));
+}
+
 #ifdef CONFIG_AS_FASTPATH
 static inline void gfar_asf_reclaim_skb(struct sk_buff *skb)
 {
@@ -3538,15 +3547,6 @@ static void gfar_timeout(struct net_device *dev)
 
 	dev->stats.tx_errors++;
 	schedule_work(&priv->reset_task);
-}
-
-static void gfar_align_skb(struct sk_buff *skb)
-{
-	/* We need the data buffer to be aligned properly.  We will reserve
-	 * as many bytes as needed to align the data properly
-	 */
-	skb_reserve(skb, RXBUF_ALIGNMENT -
-		(((unsigned long) skb->data) & (RXBUF_ALIGNMENT - 1)));
 }
 
 static int gfar_clean_tx_ring(struct gfar_priv_tx_q *tx_queue,
