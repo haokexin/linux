@@ -132,6 +132,19 @@
 };
 
 &board_soc {
+
+	i2c@3000 {
+		eeprom@50 {
+				compatible = "atmel,24c64";
+				reg = <0x50>;
+			};
+
+		eeprom@51 {
+				compatible = "atmel,24c64";
+				reg = <0x51>;
+		};
+	};
+
 	usb@22000 {
 		phy_type = "ulpi";
 		dr_mode = "host";
