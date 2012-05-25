@@ -11,14 +11,14 @@ CFLAGS_REMOVE_trap-trace.o = -pg
 CFLAGS_REMOVE_pm-trace.o = -pg
 endif
 
-obj-m += kernel-trace.o mm-trace.o fs-trace.o ipc-trace.o \
+obj-$(CONFIG_LTT_TRACEPROBES) += kernel-trace.o mm-trace.o fs-trace.o ipc-trace.o \
 	 rcu-trace.o syscall-trace.o trap-trace.o pm-trace.o
 
 ifdef CONFIG_LOCKDEP
 ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_lockdep-trace.o = -pg
 endif
-obj-m += lockdep-trace.o
+obj-$(CONFIG_LTT_TRACEPROBES) += lockdep-trace.o
 endif
 
 ifeq ($(CONFIG_NET),y)
@@ -26,14 +26,14 @@ ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_net-trace.o = -pg
 CFLAGS_REMOVE_net-extended-trace.o = -pg
 endif
-obj-m += net-trace.o net-extended-trace.o
+obj-$(CONFIG_LTT_TRACEPROBES) += net-trace.o net-extended-trace.o
 endif
 
 ifdef CONFIG_JBD2
 ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_jbd2-trace.o = -pg
 endif
-obj-m += jbd2-trace.o
+obj-$(CONFIG_LTT_TRACEPROBES) += jbd2-trace.o
 endif
 
 #ifdef CONFIG_EXT4_FS
@@ -47,13 +47,13 @@ ifdef CONFIG_BLOCK
 ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_block-trace.o = -pg
 endif
-obj-m += block-trace.o
+obj-$(CONFIG_LTT_TRACEPROBES) += block-trace.o
 endif
 
 ifdef CONFIG_KVM
 ifdef CONFIG_FTRACE
 CFLAGS_REMOVE_kvm-trace.o = -pg
 endif
-obj-m += kvm-trace.o
+obj-$(CONFIG_LTT_TRACEPROBES) += kvm-trace.o
 endif
 

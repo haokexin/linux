@@ -2,40 +2,24 @@
 # Makefile for the LTT objects.
 #
 
-ifneq ($(KERNELRELEASE),)
-ifneq ($(CONFIG_MARKERS),)
+obj-$(CONFIG_LTT)			+= ltt-core.o
+obj-$(CONFIG_LTT_TRACER)		+= ltt-tracer.o
+obj-$(CONFIG_LTT_TRACE_CONTROL)		+= ltt-marker-control.o
 
-obj-m += ltt-core.o
-obj-m += ltt-tracer.o
-obj-m += ltt-marker-control.o
-
-obj-m += ltt-relay.o
-ltt-relay-objs := ltt-relay-lockless.o ltt-relay-alloc.o ltt-relay-splice.o \
-		  ltt-relay-vfs.o ltt-event-header.o ltt-ascii.o \
-		  ltt-serialize.o ltt-type-serializer.o
-
-obj-m += ltt-statedump.o
-obj-m += ltt-trace-control.o
-obj-m += ltt-userspace-event.o
-obj-m += ltt-filter.o
-obj-m += ltt-kprobes.o
-obj-m += probes/
-
+ifdef CONFIG_LTT_RELAY_LOCKLESS
+RELAY_LOCKING := ltt-relay-lockless.o
 endif
 
-else
-	KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-	PWD := $(shell pwd)
-	CFLAGS = $(EXTCFLAGS)
+obj-$(CONFIG_LTT_TRACER)		+= ltt-relay.o
+ltt-relay-objs := $(RELAY_LOCKING) ltt-relay-alloc.o ltt-relay-splice.o \
+		  ltt-relay-vfs.o ltt-event-header.o
 
-default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
-
-modules_install:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules_install
-	/sbin/depmod -a
-
-clean:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
-
-endif
+obj-$(CONFIG_LTT_SERIALIZE)		+= ltt-serialize.o
+obj-$(CONFIG_LTT_STATEDUMP)		+= ltt-statedump.o
+obj-$(CONFIG_LTT_FAST_SERIALIZE)	+= ltt-type-serializer.o
+obj-$(CONFIG_LTT_TRACE_CONTROL)		+= ltt-trace-control.o
+obj-$(CONFIG_LTT_USERSPACE_EVENT)	+= ltt-userspace-event.o
+obj-$(CONFIG_LTT_FILTER)		+= ltt-filter.o
+obj-$(CONFIG_LTT_KPROBES)		+= ltt-kprobes.o
+obj-$(CONFIG_LTT_TRACEPROBES)		+= probes/
+obj-$(CONFIG_LTT_ASCII)			+= ltt-ascii.o
