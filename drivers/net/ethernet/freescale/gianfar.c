@@ -3189,6 +3189,7 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		else
 #endif
 			skb_recycle(skb);
+		gfar_align_skb(skb);
 	}
 	skb->new_skb = new_skb;
 	txq->trans_start = jiffies;
@@ -3365,8 +3366,10 @@ int gfar_fast_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (!skb_is_recycleable(skb, priv->rx_buffer_size + RXBUF_ALIGNMENT))
 		skb->owner = KER_PKT_ID;
-	else
+	else {
 		gfar_asf_reclaim_skb(skb);
+		gfar_align_skb(skb);
+	}
 	skb->new_skb = new_skb;
 	txq->trans_start = jiffies;
 }
