@@ -21,6 +21,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #include <linux/init.h>
+#include <linux/export.h>
 #include <linux/ksm.h>
 #include <linux/rmap.h>
 #include <linux/security.h>
