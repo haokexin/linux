@@ -268,7 +268,7 @@ ncr_init( void )
 	return 0;
 }
 
-module_init( ncr_init );
+postcore_initcall( ncr_init );
 
 /*
   ----------------------------------------------------------------------
