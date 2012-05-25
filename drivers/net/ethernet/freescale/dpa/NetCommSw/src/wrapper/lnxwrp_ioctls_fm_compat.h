@@ -356,25 +356,48 @@ typedef struct ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t {
     ioc_compat_fm_pcd_cc_next_engine_params_t  cc_next_engine_params;
 } ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t;
 
+typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t {
+    uint8_t                         offset;
+    uint8_t                         size;
+    bool                            replace;
+    compat_uptr_t                   p_data;
+} ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t;
+
+typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_params_t {
+    ioc_fm_pcd_manip_hdr_insrt_type                     type;
+    union {
+        ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t       generic;
+#ifdef FM_CAPWAP_SUPPORT
+TODO:
+#endif /* FM_CAPWAP_SUPPORT */
+    } u;
+} ioc_compat_fm_pcd_manip_hdr_insrt_params_t;
+
+typedef struct ioc_compat_fm_pcd_manip_hdr_params_t {
+    bool                                        rmv;
+    ioc_fm_pcd_manip_hdr_rmv_params_t           rmv_params;
+    bool                                        insrt;
+    ioc_compat_fm_pcd_manip_hdr_insrt_params_t  insrt_params;
+    bool                                        dont_parse_after_manip;
+} ioc_compat_fm_pcd_manip_hdr_params_t;
+
 /**************************************************************************//**
  @Description   Parameters for defining a manipulation node
 *//***************************************************************************/
 typedef struct ioc_compat_fm_pcd_manip_params_t {
-    ioc_net_header_type                           type;               /**< Selects type of manipulation node */
+    ioc_fm_pcd_manip_type                         type;
     union{
-        ioc_fm_pcd_manip_hdr_params_t             hdr;                /**< Parameters for defining header manipulation node */
-        ioc_fm_pcd_manip_reassem_params_t         reassem;            /**< Parameters for defining reassembly manipulation node */
-        ioc_fm_pcd_manip_frag_params_t            frag;               /**< Parameters for defining fragmentation manipulation node */
-        ioc_fm_pcd_manip_special_offload_params_t special_offload;     /**< Parameters for defining special offload manipulation node */
+        ioc_compat_fm_pcd_manip_hdr_params_t      hdr;
+        ioc_fm_pcd_manip_reassem_params_t         reassem;
+        ioc_fm_pcd_manip_frag_params_t            frag;
+        ioc_fm_pcd_manip_special_offload_params_t special_offload;
     } u;
-     compat_uptr_t                                p_next_manip;        /**< Handle to another (previously defined) manipulation node;
-                                                                            Allows concatenation of manipulation actions */
+     compat_uptr_t                                p_next_manip;
 #ifdef FM_CAPWAP_SUPPORT
 #warning "feature not supported!"
 #endif
     compat_uptr_t                                 id;
 } ioc_compat_fm_pcd_manip_params_t;
-
 
 /* } pcd compat structures */
 

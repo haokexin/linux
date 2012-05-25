@@ -79,8 +79,13 @@ static void hex_dump(void * p_addr, unsigned int size)
 #endif
 
 /* maping kernel pointers w/ UserSpace id's { */
-/*TODO: per FMan module: Parser:FM_PARSER_NODE,
- * Kg:FM_KG_NODE, Policer:FM_POLICER_NODE */
+/*TODO: per FMan module:
+ *
+ *      Parser: FM_PARSER_NODE,
+ *      Kg: FM_KG_NODE,
+ *      Policer: FM_POLICER_NODE
+ *      Manip: FM_MANIP_NODE
+ **/
 const unsigned char map_node_name[][ID_MAP_NAME_SIZE] = {
     "FM_NODE", /* 0 */
     "FM_PORT_NODE", /* 1 */
@@ -110,6 +115,7 @@ void compat_del_ptr2id(void *p, const unsigned char *name)
 			compat_ptr2id_array[k].name = NULL;
 		}
 }
+EXPORT_SYMBOL(compat_del_ptr2id);
 
 compat_uptr_t compat_add_ptr2id(void *p, const unsigned char *name)
 {
@@ -132,6 +138,7 @@ compat_uptr_t compat_add_ptr2id(void *p, const unsigned char *name)
 	printk(KERN_WARNING "FMan map list full! No more PCD space on kernel!\n");
     return 0;
 }
+EXPORT_SYMBOL(compat_add_ptr2id);
 
 compat_uptr_t compat_get_ptr2id(void *p, const unsigned char *name)
 {
@@ -147,6 +154,7 @@ compat_uptr_t compat_get_ptr2id(void *p, const unsigned char *name)
 
     return 0;
 }
+EXPORT_SYMBOL(compat_get_ptr2id);
 
 void *compat_get_id2ptr(compat_uptr_t comp, const unsigned char *name)
 {
@@ -168,6 +176,7 @@ void *compat_get_id2ptr(compat_uptr_t comp, const unsigned char *name)
     }
     return NULL;
 }
+EXPORT_SYMBOL(compat_get_id2ptr);
 /* } maping kernel pointers w/ UserSpace id's  */
 
 static inline void compat_copy_fm_pcd_plcr_next_engine(
@@ -946,12 +955,24 @@ void compat_fm_pcd_manip_set_node(
         param->type = compat_param->type;
         memcpy(&param->u, &compat_param->u, sizeof(param->u));
 
+        /* user garbage - it could break the US application! */
+        if (compat_param->type == e_IOC_FM_PCD_MANIP_HDR &&
+            compat_param->u.hdr.insrt_params.type == e_IOC_FM_PCD_MANIP_INSRT_GENERIC)
+                param->u.hdr.insrt_params.u.generic.p_data =
+                    compat_ptr(compat_param->u.hdr.insrt_params.u.generic.p_data);
+
         if (compat_param->p_next_manip)
             param->p_next_manip = compat_get_id2ptr(compat_param->id, PCD_NODE);
     }
     else {
         compat_param->type = param->type;
         memcpy(&compat_param->u, &param->u, sizeof(compat_param->u));
+
+        /* user garbage - it could break the US application! */
+        if (param->type == e_IOC_FM_PCD_MANIP_HDR &&
+            param->u.hdr.insrt_params.type == e_IOC_FM_PCD_MANIP_INSRT_GENERIC)
+                compat_param->u.hdr.insrt_params.u.generic.p_data =
+                    ptr_to_compat(param->u.hdr.insrt_params.u.generic.p_data);
 
         if (param->p_next_manip)
             compat_param->p_next_manip = compat_get_ptr2id(param->id, PCD_NODE);
