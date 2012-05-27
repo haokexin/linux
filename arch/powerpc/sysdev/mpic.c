@@ -1119,7 +1119,7 @@ static int mpic_host_map(struct irq_domain *h, unsigned int virq,
 		DBG("mpic: mapping as Error Interrupt\n");
 		irq_set_chip_data(virq, mpic);
 		irq_set_chip_and_handler(virq, &mpic->hc_err,
-					 handle_simple_irq);
+					 handle_level_irq);
 		return 0;
 	}
 
