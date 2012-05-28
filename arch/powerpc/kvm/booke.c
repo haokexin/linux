@@ -32,7 +32,7 @@
 #include <asm/kvm_ppc.h>
 #include "timing.h"
 #include <asm/cacheflush.h>
-
+#include <asm/switch_to.h>
 #include "booke.h"
 
 unsigned long kvmppc_booke_handlers;
