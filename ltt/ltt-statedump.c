@@ -303,12 +303,15 @@ static inline void list_interrupts(struct ltt_probe_private_data *call_data)
 	unsigned int irq;
 	unsigned long flags = 0;
 	struct irq_desc *desc;
+	struct irq_chip *chip;
 
 	/* needs irq_desc */
 	for_each_irq_desc(irq, desc) {
 		struct irqaction *action;
+		chip = irq_desc_get_chip(desc);
+
 		const char *irq_chip_name =
-			desc->chip->name ? : "unnamed_irq_chip";
+			chip->name ? : "unnamed_irq_chip";
 
 		local_irq_save(flags);
 		raw_spin_lock(&desc->lock);
