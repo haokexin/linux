@@ -21,9 +21,9 @@
 
   Author: Giuseppe Cavallaro <peppe.cavallaro@st.com>
 *******************************************************************************/
-
+#include <linux/platform_device.h>
+#include <linux/stmmac.h>
 #include "common.h"
-#include "descs_com.h"
 
 static int enh_desc_get_tx_status(void *data, struct stmmac_extra_stats *x,
 				  struct dma_desc *p, void __iomem *ioaddr)
@@ -106,7 +106,10 @@ static int enh_desc_get_tx_len(struct dma_desc *p)
 	return p->des01.etx.buffer1_size;
 }
 
-static int enh_desc_coe_rdes0(int ipc_err, int type, int payload_err)
+#define GMAC_VERSION_35	0x35
+
+static int enh_desc_coe_rdes0(int ipc_err, int type, int payload_err,
+		u32 mac_id)
 {
 	int ret = good_frame;
 	u32 status = (type << 2 | ipc_err << 1 | payload_err) & 0x7;
@@ -141,16 +144,16 @@ static int enh_desc_coe_rdes0(int ipc_err, int type, int payload_err)
 	} else if (status == 0x1) {
 		CHIP_DBG(KERN_ERR
 		    "RX Des0 status: IPv4/6 unsupported IP PAYLOAD.\n");
-		ret = discard_frame;
+		ret = (mac_id >= GMAC_VERSION_35) ? discard_frame : csum_none;
 	} else if (status == 0x3) {
 		CHIP_DBG(KERN_ERR "RX Des0 status: No IPv4, IPv6 frame.\n");
-		ret = discard_frame;
+		ret = (mac_id >= GMAC_VERSION_35) ? discard_frame : csum_none;
 	}
 	return ret;
 }
 
 static int enh_desc_get_rx_status(void *data, struct stmmac_extra_stats *x,
-				  struct dma_desc *p)
+		struct dma_desc *p, int csum_engine, u32 mac_id)
 {
 	int ret = good_frame;
 	struct net_device_stats *stats = (struct net_device_stats *)data;
@@ -196,12 +199,16 @@ static int enh_desc_get_rx_status(void *data, struct stmmac_extra_stats *x,
 	 * It doesn't match with the information reported into the databook.
 	 * At any rate, we need to understand if the CSUM hw computation is ok
 	 * and report this info to the upper layers. */
-	ret = enh_desc_coe_rdes0(p->des01.erx.ipc_csum_error,
-		p->des01.erx.frame_type, p->des01.erx.payload_csum_error);
+	if (csum_engine != STMAC_TYPE_0)
+		ret = enh_desc_coe_rdes0(p->des01.erx.ipc_csum_error,
+			p->des01.erx.frame_type,
+			p->des01.erx.payload_csum_error, mac_id);
+	else
+		ret = csum_none;
 
 	if (unlikely(p->des01.erx.dribbling)) {
 		CHIP_DBG(KERN_ERR "GMAC RX: dribbling error\n");
-		x->dribbling_bit++;
+		ret = discard_frame;
 	}
 	if (unlikely(p->des01.erx.sa_filter_fail)) {
 		CHIP_DBG(KERN_ERR "GMAC RX : Source Address filter fail\n");
@@ -234,9 +241,10 @@ static void enh_desc_init_rx_desc(struct dma_desc *p, unsigned int ring_size,
 	for (i = 0; i < ring_size; i++) {
 		p->des01.erx.own = 1;
 		p->des01.erx.buffer1_size = BUF_SIZE_8KiB - 1;
-
-		ehn_desc_rx_set_on_ring_chain(p, (i == ring_size - 1));
-
+		/* To support jumbo frames */
+		p->des01.erx.buffer2_size = BUF_SIZE_8KiB - 1;
+		if (i == ring_size - 1)
+			p->des01.erx.end_ring = 1;
 		if (disable_rx_ic)
 			p->des01.erx.disable_ic = 1;
 		p++;
@@ -249,7 +257,8 @@ static void enh_desc_init_tx_desc(struct dma_desc *p, unsigned int ring_size)
 
 	for (i = 0; i < ring_size; i++) {
 		p->des01.etx.own = 0;
-		ehn_desc_tx_set_on_ring_chain(p, (i == ring_size - 1));
+		if (i == ring_size - 1)
+			p->des01.etx.end_ring = 1;
 		p++;
 	}
 }
@@ -284,16 +293,19 @@ static void enh_desc_release_tx_desc(struct dma_desc *p)
 	int ter = p->des01.etx.end_ring;
 
 	memset(p, 0, offsetof(struct dma_desc, des2));
-	enh_desc_end_tx_desc(p, ter);
+	p->des01.etx.end_ring = ter;
 }
 
 static void enh_desc_prepare_tx_desc(struct dma_desc *p, int is_fs, int len,
 				     int csum_flag)
 {
 	p->des01.etx.first_segment = is_fs;
-
-	enh_set_tx_desc_len(p, len);
-
+	if (unlikely(len > BUF_SIZE_4KiB)) {
+		p->des01.etx.buffer1_size = BUF_SIZE_4KiB;
+		p->des01.etx.buffer2_size = len - BUF_SIZE_4KiB;
+	} else {
+		p->des01.etx.buffer1_size = len;
+	}
 	if (likely(csum_flag))
 		p->des01.etx.checksum_insertion = cic_full;
 }

@@ -28,7 +28,6 @@
 
 #include <linux/crc32.h>
 #include <linux/slab.h>
-#include <asm/io.h>
 #include "dwmac1000.h"
 
 static void dwmac1000_core_init(void __iomem *ioaddr)
@@ -37,6 +36,11 @@ static void dwmac1000_core_init(void __iomem *ioaddr)
 	value |= GMAC_CORE_INIT;
 	writel(value, ioaddr + GMAC_CONTROL);
 
+	/* STBus Bridge Configuration */
+	/*writel(0xc5608, ioaddr + 0x00007000);*/
+
+	/* Freeze MMC counters */
+	writel(0x8, ioaddr + GMAC_MMC_CTRL);
 	/* Mask GMAC interrupts */
 	writel(0x207, ioaddr + GMAC_INT_MASK);
 
@@ -174,11 +178,10 @@ static void dwmac1000_pmt(void __iomem *ioaddr, unsigned long mode)
 {
 	unsigned int pmt = 0;
 
-	if (mode & WAKE_MAGIC) {
+	if (mode == WAKE_MAGIC) {
 		CHIP_DBG(KERN_DEBUG "GMAC: WOL Magic frame\n");
 		pmt |= power_down | magic_pkt_en;
-	}
-	if (mode & WAKE_UCAST) {
+	} else if (mode == WAKE_UCAST) {
 		CHIP_DBG(KERN_DEBUG "GMAC: WOL on global unicast\n");
 		pmt |= global_unicast;
 	}
@@ -224,11 +227,14 @@ static const struct stmmac_ops dwmac1000_ops = {
 struct mac_device_info *dwmac1000_setup(void __iomem *ioaddr)
 {
 	struct mac_device_info *mac;
-	u32 hwid = readl(ioaddr + GMAC_VERSION);
 
 	mac = kzalloc(sizeof(const struct mac_device_info), GFP_KERNEL);
 	if (!mac)
 		return NULL;
+
+	mac->mac_id = readl(ioaddr + GMAC_VERSION);
+	pr_info("\tDWMAC1000 - user ID: 0x%x, Synopsys ID: 0x%x\n",
+		((mac->mac_id & 0x0000ff00) >> 8), (mac->mac_id & 0x000000ff));
 
 	mac->mac = &dwmac1000_ops;
 	mac->dma = &dwmac1000_dma_ops;
@@ -238,7 +244,6 @@ struct mac_device_info *dwmac1000_setup(void __iomem *ioaddr)
 	mac->link.speed = GMAC_CONTROL_FES;
 	mac->mii.addr = GMAC_MII_ADDR;
 	mac->mii.data = GMAC_MII_DATA;
-	mac->synopsys_uid = hwid;
 
 	return mac;
 }
