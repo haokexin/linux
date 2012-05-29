@@ -675,6 +675,8 @@ int gfar_ptp_init(struct device_node *np, struct gfar_private *priv)
 					DEFAULT_PTP_RX_BUF_SZ))
 		goto rxbuf;
 
+	gfar_1588_start(priv);
+
 	return 0;
 
 rxbuf:
@@ -698,10 +700,8 @@ void gfar_ptp_cleanup(struct gfar_private *priv)
 }
 
 /* 1588 Module intialization */
-void gfar_1588_start(struct net_device *dev)
+void gfar_1588_start(struct gfar_private *priv)
 {
-	struct gfar_private *priv = netdev_priv(dev);
-
 	if (!priv->ptimer)
 		return;
 
@@ -714,10 +714,8 @@ void gfar_1588_start(struct net_device *dev)
 }
 
 /* When PTP is disabled this routing is called */
-void gfar_1588_stop(struct net_device *dev)
+void gfar_1588_stop(struct gfar_private *priv)
 {
-	struct gfar_private *priv = netdev_priv(dev);
-
 	if (!(priv->device_flags & FSL_GIANFAR_DEV_HAS_TIMER))
 		return;
 

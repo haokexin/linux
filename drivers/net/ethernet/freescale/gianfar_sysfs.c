@@ -418,9 +418,9 @@ static ssize_t gfar_set_ptp_1588(struct device *dev,
 	lock_rx_qs(priv);
 
 	if (num)
-		gfar_1588_start(ndev);
+		gfar_1588_start(priv);
 	else
-		gfar_1588_stop(ndev);
+		gfar_1588_stop(priv);
 
 	unlock_rx_qs(priv);
 	unlock_tx_qs(priv);
