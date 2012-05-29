@@ -26,7 +26,6 @@
   Author: Giuseppe Cavallaro <peppe.cavallaro@st.com>
 *******************************************************************************/
 
-#include <asm/io.h>
 #include "dwmac1000.h"
 #include "dwmac_dma.h"
 
@@ -39,16 +38,15 @@ static int dwmac1000_dma_init(void __iomem *ioaddr, int pbl, u32 dma_tx,
 	/* DMA SW reset */
 	value |= DMA_BUS_MODE_SFT_RESET;
 	writel(value, ioaddr + DMA_BUS_MODE);
-	limit = 10;
+	limit = 15000;
 	while (limit--) {
 		if (!(readl(ioaddr + DMA_BUS_MODE) & DMA_BUS_MODE_SFT_RESET))
 			break;
-		mdelay(10);
 	}
 	if (limit < 0)
 		return -EBUSY;
 
-	value = /* DMA_BUS_MODE_FB | */ DMA_BUS_MODE_4PBL |
+	value = DMA_BUS_MODE_FB | DMA_BUS_MODE_4PBL |
 	    ((pbl << DMA_BUS_MODE_PBL_SHIFT) |
 	     (pbl << DMA_BUS_MODE_RPBL_SHIFT));
 
@@ -56,6 +54,19 @@ static int dwmac1000_dma_init(void __iomem *ioaddr, int pbl, u32 dma_tx,
 	value |= DMA_BUS_MODE_DA;	/* Rx has priority over tx */
 #endif
 	writel(value, ioaddr + DMA_BUS_MODE);
+	/*
+	 * We need to program DMA_AXI_BUS_MODE for supported bursts in
+	 * case DMA_BUS_MODE_FB mode is selected
+	 *
+	 * Note: This is applicable only for revision GMACv3.61a. For
+	 * older version this register is reserved and shall have no
+	 * effect.
+	 * Further we directly write 0xFF to this register. This would
+	 * ensure that all bursts supported by platform is set and those
+	 * which are not supported would remain ineffective.
+	 */
+	if (value & DMA_BUS_MODE_FB)
+		writel(0xFF, ioaddr + DMA_AXI_BUS_MODE);
 
 	/* Mask interrupts by writing to CSR7 */
 	writel(DMA_INTR_DEFAULT_MASK, ioaddr + DMA_INTR_ENA);
@@ -119,6 +130,13 @@ static void dwmac1000_dma_operation_mode(void __iomem *ioaddr, int txmode,
 	writel(csr6, ioaddr + DMA_CONTROL);
 }
 
+/* Not yet implemented --- no RMON module */
+static void dwmac1000_dma_diagnostic_fr(void *data,
+		  struct stmmac_extra_stats *x, void __iomem *ioaddr)
+{
+	return;
+}
+
 static void dwmac1000_dump_dma_regs(void __iomem *ioaddr)
 {
 	int i;
@@ -133,15 +151,11 @@ static void dwmac1000_dump_dma_regs(void __iomem *ioaddr)
 	}
 }
 
-static unsigned int dwmac1000_get_hw_feature(void __iomem *ioaddr)
-{
-	return readl(ioaddr + DMA_HW_FEATURE);
-}
-
 const struct stmmac_dma_ops dwmac1000_dma_ops = {
 	.init = dwmac1000_dma_init,
 	.dump_regs = dwmac1000_dump_dma_regs,
 	.dma_mode = dwmac1000_dma_operation_mode,
+	.dma_diagnostic_fr = dwmac1000_dma_diagnostic_fr,
 	.enable_dma_transmission = dwmac_enable_dma_transmission,
 	.enable_dma_irq = dwmac_enable_dma_irq,
 	.disable_dma_irq = dwmac_disable_dma_irq,
@@ -150,5 +164,4 @@ const struct stmmac_dma_ops dwmac1000_dma_ops = {
 	.start_rx = dwmac_dma_start_rx,
 	.stop_rx = dwmac_dma_stop_rx,
 	.dma_interrupt = dwmac_dma_interrupt,
-	.get_hw_feature = dwmac1000_get_hw_feature,
 };
