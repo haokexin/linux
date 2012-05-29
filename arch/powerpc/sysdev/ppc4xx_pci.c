@@ -2374,7 +2374,7 @@ ppc4xx_configure_acp_pciex_PIMs(struct ppc4xx_pciex_port *port,
 		 * For the address field we simply program an incrementing value
 		 * to map consecutive pages
 		 */
-		if (0 == acp_plx) {
+		if (acp_plx) {
 			int i;
 
 			for (i = 0; i < 8; i++) {
