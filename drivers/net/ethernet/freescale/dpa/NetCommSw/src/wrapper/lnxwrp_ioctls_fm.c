@@ -62,6 +62,7 @@
 #include <asm/uaccess.h>
 #include <asm/errno.h>
 #include <sysdev/fsl_soc.h>
+#include <linux/slab.h>
 
 #if defined(CONFIG_COMPAT)
 #include <linux/compat.h>
@@ -1519,6 +1520,7 @@ invalid_port_id:
         case FM_PCD_IOC_CC_NODE_ADD_KEY:
         {
             ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t *param;
+            uint8_t *p_key = NULL, *p_mask = NULL;
 
             param = (ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t *) XX_Malloc(
                     sizeof(ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t));
@@ -1565,6 +1567,27 @@ invalid_port_id:
                 }
             }
 
+            /* copy key & mask: p_mask is optional! */
+            p_key = (uint8_t *) XX_Malloc(2 * param->key_size);
+            if(!p_key)
+                RETURN_ERROR(MINOR, err, NO_MSG);
+
+            p_mask = p_key + param->key_size;
+
+            if (param->key_params.p_key && copy_from_user(p_key, param->key_params.p_key, param->key_size))
+            {
+                XX_Free(p_key);
+                RETURN_ERROR(MINOR, err, NO_MSG);
+            }
+            param->key_params.p_key = p_key;
+
+            if (param->key_params.p_mask && copy_from_user(p_mask, param->key_params.p_mask,param->key_size))
+            {
+                XX_Free(p_mask);
+                RETURN_ERROR(MINOR, err, NO_MSG);
+            }
+            param->key_params.p_mask = p_mask;
+
             err = FM_PCD_CcNodeAddKey(p_LnxWrpFmDev->h_PcdDev,
                     param->id,
                     param->key_indx,
@@ -1572,6 +1595,7 @@ invalid_port_id:
                     (t_FmPcdCcKeyParams*)(&param->key_params));
 
             XX_Free(param);
+            kfree(p_key);
             break;
         }
 
