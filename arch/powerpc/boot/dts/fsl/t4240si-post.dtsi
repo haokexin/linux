@@ -242,4 +242,5 @@
 /include/ "qoriq-qman1.dtsi"
 /include/ "qoriq-bman1.dtsi"
 
+/include/ "qoriq-rman-0.dtsi"
 };
