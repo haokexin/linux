@@ -2351,14 +2351,13 @@ ppc4xx_configure_acp_pciex_PIMs(struct ppc4xx_pciex_port *port,
 			printk(KERN_WARNING "** Unable to get ACP type!\n");
 		
 		/*
-		  HACK!! Since PCI legacy support is disabled
-		  in our config, we reusethe isa_mem_size
-		  field to save the size of our inbound
-		  window.  We use this elsewhere to set up the
-		  dma_base.
+		 * For ACP we need to set the dema_offset to the size of
+		 * inbound window.
 		*/
 
-		hose->isa_mem_size = size;
+		pci_dram_offset = size;
+		hose->dma_window_base_cur = size;
+
 		out_le32(mbase + PCI_BASE_ADDRESS_0, RES_TO_U32_LOW(size));
 		out_le32(mbase + PCI_BASE_ADDRESS_1, RES_TO_U32_HIGH(size));
 
