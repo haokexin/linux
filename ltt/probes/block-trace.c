@@ -8,6 +8,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/marker.h>
 
 #include <trace/events/block.h>
 
@@ -259,20 +260,11 @@ void probe_block_plug(void *data, struct request_queue *q)
 			 MARK_NOARGS);
 }
 
-void probe_block_unplug_io(void *data, struct request_queue *q)
+void probe_block_unplug(void *data, struct request_queue *q)
 {
 	unsigned int pdu = q->rq.count[READ] + q->rq.count[WRITE];
 
-	trace_mark_tp(block, unplug_io, block_unplug_io, probe_block_unplug_io,
-			"pdu %u", pdu);
-}
-
-void probe_block_unplug_timer(void *data, struct request_queue *q)
-{
-	unsigned int pdu = q->rq.count[READ] + q->rq.count[WRITE];
-
-	trace_mark_tp(block, unplug_timer, block_unplug_timer,
-			probe_block_unplug_timer,
+	trace_mark_tp(block, unplug, block_unplug, probe_block_unplug,
 			"pdu %u", pdu);
 }
 
