@@ -50,7 +50,6 @@
 #include <linux/sched.h>
 #include <linux/bitops.h>
 #include <linux/fs.h>
-#include <linux/smp_lock.h>
 #include <linux/debugfs.h>
 #include <linux/stat.h>
 #include <linux/cpu.h>

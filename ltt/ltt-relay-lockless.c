@@ -44,7 +44,6 @@
 #include <linux/timer.h>
 #include <linux/sched.h>
 #include <linux/bitops.h>
-#include <linux/smp_lock.h>
 #include <linux/stat.h>
 #include <linux/cpu.h>
 #include <linux/idle.h>
