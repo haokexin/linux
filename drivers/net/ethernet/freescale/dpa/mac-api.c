@@ -591,6 +591,33 @@ static int __cold fm_rtc_set_drift(struct net_device *net_dev, uint32_t drift)
 	return _errno;
 }
 
+/*
+ * For the dtsec used by usdpaa, we support to set the mac speed by
+ * adding a "fixed-link" property in DTB.
+ */
+static int __cold dtsec_adjust_link(struct mac_device *mac_dev)
+{
+	struct device_node *mac_node = to_platform_device(mac_dev->dev)->dev.of_node;
+	const u32 *phy;
+	int _errno = 0;
+	t_Error	err;
+	int sz;
+
+	phy = of_get_property(mac_node, "fixed-link", &sz);
+	if (!phy || sz < sizeof(*phy) * 5)
+		return _errno;
+
+	err = FM_MAC_AdjustLink(
+			((struct mac_priv_s *)macdev_priv(mac_dev))->mac,
+			phy[2], phy[1]);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_MAC_AdjustLink() = 0x%08x\n",
+				err);
+
+	return _errno;
+}
+
 static int __cold fm_rtc_set_alarm(struct net_device *net_dev, uint32_t id,
 		uint64_t time)
 {
@@ -652,6 +679,7 @@ static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 	mac_dev->fm_rtc_set_cnt		= fm_rtc_set_cnt;
 	mac_dev->fm_rtc_get_drift	= fm_rtc_get_drift;
 	mac_dev->fm_rtc_set_drift	= fm_rtc_set_drift;
+	mac_dev->adjust_link		= dtsec_adjust_link;
 	mac_dev->fm_rtc_set_alarm	= fm_rtc_set_alarm;
 	mac_dev->fm_rtc_set_fiper	= fm_rtc_set_fiper;
 }
