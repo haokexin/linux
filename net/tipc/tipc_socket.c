@@ -1390,10 +1390,8 @@ static u32 dispatch(struct tipc_port *tport, struct sk_buff *buf)
 		res = filter_rcv(sk, buf);
 	} else {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
-		if (sk_add_backlog(sk, buf))
-			res = TIPC_ERR_OVERLOAD;
-		else
-			res = TIPC_OK;
+		__sk_add_backlog(sk, buf);
+		res = TIPC_OK;
 #else
 		sk_add_backlog(sk, buf);
 		res = TIPC_OK;
