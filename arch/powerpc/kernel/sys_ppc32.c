@@ -41,6 +41,7 @@
 #include <linux/elf.h>
 #include <linux/ipc.h>
 #include <linux/slab.h>
+#include <trace/ipc.h>
 
 #include <asm/ptrace.h>
 #include <asm/types.h>
@@ -51,7 +52,6 @@
 #include <asm/ppc-pci.h>
 #include <asm/syscalls.h>
 #include <asm/switch_to.h>
-
 
 asmlinkage long ppc32_select(u32 n, compat_ulong_t __user *inp,
 		compat_ulong_t __user *outp, compat_ulong_t __user *exp,
@@ -79,6 +79,8 @@ long compat_sys_ipc(u32 call, u32 first, u32 second, u32 third, compat_uptr_t pt
 
 	version = call >> 16; /* hack for backward compatibility */
 	call &= 0xffff;
+
+	trace_ipc_call(call, first);
 
 	switch (call) {
 
