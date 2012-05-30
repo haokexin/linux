@@ -168,7 +168,7 @@ void XX_Print(char *str, ...)
 #ifdef CONFIG_SMP
     if (vsnprintf (buf, BUF_SIZE, str, args) >= BUF_SIZE)
         printk(KERN_WARNING "Illegal string to print!\n    more than %d characters.\n\tString was not printed completelly.\n", BUF_SIZE);
-    printk (KERN_CRIT "cpu%d/%d: %s",hard_smp_processor_id(), smp_processor_id(), buf);
+    printk(KERN_CRIT "cpu%d/%d: %s", get_hard_smp_processor_id(raw_smp_processor_id()), raw_smp_processor_id(), buf);
 #else
     vprintk(str, args);
 #endif /* CONFIG_SMP */
@@ -843,7 +843,7 @@ t_Handle XX_IpcInitSession(char destAddr[XX_IPC_MAX_ADDR_NAME_LENGTH],
 /*Forced to introduce due to PRINT_FMT_PARAMS define*/
 uint32_t E500_GetId(void)
 {
-    return smp_processor_id();
+    return raw_smp_processor_id();
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
