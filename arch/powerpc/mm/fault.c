@@ -32,6 +32,7 @@
 #include <linux/perf_event.h>
 #include <linux/magic.h>
 #include <linux/ratelimit.h>
+#include <trace/fault.h>
 
 #include <asm/firmware.h>
 #include <asm/page.h>
@@ -45,6 +46,9 @@
 #include <mm/mmu_decl.h>
 
 #include "icswx.h"
+
+DEFINE_TRACE(page_fault_entry);
+DEFINE_TRACE(page_fault_exit);
 
 #ifdef CONFIG_KPROBES
 static inline int notify_page_fault(struct pt_regs *regs)
@@ -417,7 +421,9 @@ good_area:
 	 * make sure we exit gracefully rather than endlessly redo
 	 * the fault.
 	 */
+	trace_page_fault_entry(regs, regs->trap, mm, vma, address, is_write);
 	fault = handle_mm_fault(mm, vma, address, flags);
+	trace_page_fault_exit(ret);
 	if (unlikely(fault & (VM_FAULT_RETRY|VM_FAULT_ERROR))) {
 		int rc = mm_fault_error(regs, address, fault);
 		if (rc >= MM_FAULT_RETURN)
