@@ -53,6 +53,8 @@
 		pci2 = &pci2;
 		pci3 = &pci3;
 		rman = &rman;
+		dma0 = &dma0;
+		dma1 = &dma1;
 	};
 
 	cpus {
