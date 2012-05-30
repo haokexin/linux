@@ -24,6 +24,7 @@
 #include <linux/hw_breakpoint.h>
 #include <linux/regset.h>
 #include <linux/audit.h>
+#include <trace/syscall.h>
 
 #include <asm/pgtable.h>
 #include <asm/traps.h>
@@ -53,6 +54,9 @@
 #define BREAKINST_ARM	0xe7f001f0
 #define BREAKINST_THUMB	0xde01
 #endif
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 struct pt_regs_offset {
 	const char *name;
@@ -915,6 +919,11 @@ asmlinkage int syscall_trace(int why, struct pt_regs *regs, int scno)
 	else
 		audit_syscall_entry(AUDIT_ARCH_ARM, scno, regs->ARM_r0,
 				    regs->ARM_r1, regs->ARM_r2, regs->ARM_r3);
+
+	if (!why)
+		trace_syscall_entry(regs, scno);
+	else
+		trace_syscall_exit(regs->ARM_r0);
 
 	if (!test_thread_flag(TIF_SYSCALL_TRACE))
 		return scno;
