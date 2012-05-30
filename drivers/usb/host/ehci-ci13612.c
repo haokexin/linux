@@ -142,8 +142,7 @@ static int ci13612_ehci_probe(struct platform_device *pdev)
 {
 	struct usb_hcd *hcd;
 	const struct hc_driver *driver = &ci13612_hc_driver;
-	void __iomem *USB_base = (void __iomem *) 0xF00A0000;
-	void __iomem *gpreg_base = (void __iomem *) 0xF000C000;
+	void __iomem *gpreg_base;
 	int irq;
 	int retval;
 	struct device_node *np = pdev->dev.of_node;
@@ -181,10 +180,24 @@ static int ci13612_ehci_probe(struct platform_device *pdev)
 	hcd->rsrc_start = ci13612_PHY_ADDR;
 	hcd->rsrc_len = 0x20000;
 
-	hcd->regs = USB_base;
+	hcd->regs = of_iomap(np, 0);
+	if (!hcd->regs) {
+		dev_err(&pdev->dev, "of_iomap error\n");
+		retval = -ENOMEM;
+		goto fail_put_hcd;
+	}
+
+	gpreg_base = of_iomap(np, 1);
+	if (!gpreg_base) {
+		dev_err(&pdev->dev, "of_iomap error\n");
+		retval = -ENOMEM;
+		goto fail_unmap;
+	}
 
 	/* Setup GPREG for USB to enable the 6-bit address line */
 	writel(0x0, gpreg_base + 0x8);
+
+	iounmap(gpreg_base);
 
 	retval = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (retval == 0) {
@@ -192,6 +205,9 @@ static int ci13612_ehci_probe(struct platform_device *pdev)
 		return retval;
 	}
 
+fail_unmap:
+	iounmap(hcd->regs);
+fail_put_hcd:
 	usb_put_hcd(hcd);
 fail_create_hcd:
 	dev_err(&pdev->dev, "init %s fail, %d\n", dev_name(&pdev->dev), retval);
@@ -203,6 +219,7 @@ static int ci13612_ehci_remove(struct platform_device *pdev)
 	struct usb_hcd *hcd = platform_get_drvdata(pdev);
 
 	usb_remove_hcd(hcd);
+	iounmap(hcd->regs);
 	usb_put_hcd(hcd);
 	platform_set_drvdata(pdev, NULL);
 
