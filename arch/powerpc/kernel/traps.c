@@ -36,6 +36,7 @@
 #include <linux/debugfs.h>
 #include <linux/ratelimit.h>
 #include <linux/ltt-core.h>
+#include <trace/trap.h>
 
 #include <asm/emulated_ops.h>
 #include <asm/pgtable.h>
@@ -78,6 +79,12 @@ EXPORT_SYMBOL(__debugger_iabr_match);
 EXPORT_SYMBOL(__debugger_dabr_match);
 EXPORT_SYMBOL(__debugger_fault_handler);
 #endif
+
+/*
+ * Also used in time.c and fault.c.
+ */
+DEFINE_TRACE(trap_entry);
+DEFINE_TRACE(trap_exit);
 
 /*
  * Trap & Exception support
@@ -256,11 +263,14 @@ void _exception(int signr, struct pt_regs *regs, int code, unsigned long addr)
 	if (arch_irqs_disabled() && !arch_irq_disabled_regs(regs))
 		local_irq_enable();
 
+	trace_trap_entry(regs, regs->trap);
+
 	memset(&info, 0, sizeof(info));
 	info.si_signo = signr;
 	info.si_code = code;
 	info.si_addr = (void __user *) addr;
 	force_sig_info(signr, &info, current);
+	trace_trap_exit();
 }
 
 #ifdef CONFIG_PPC64
@@ -1168,7 +1178,9 @@ void performance_monitor_exception(struct pt_regs *regs)
 {
 	__get_cpu_var(irq_stat).pmu_irqs++;
 
+	trace_trap_entry(regs, regs->trap);
 	perf_irq(regs);
+	trace_trap_exit();
 }
 
 #ifdef CONFIG_8xx
@@ -1387,11 +1399,13 @@ void altivec_assist_exception(struct pt_regs *regs)
 		/* got an error reading the instruction */
 		_exception(SIGSEGV, regs, SEGV_ACCERR, regs->nip);
 	} else {
+		trace_trap_entry(regs, regs->trap);
 		/* didn't recognize the instruction */
 		/* XXX quick hack for now: set the non-Java bit in the VSCR */
 		printk_ratelimited(KERN_ERR "Unrecognized altivec instruction "
 				   "in %s at %lx\n", current->comm, regs->nip);
 		current->thread.vscr.u[3] |= 0x10000;
+		trace_trap_exit();
 	}
 }
 #endif /* CONFIG_ALTIVEC */
