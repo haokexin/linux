@@ -195,7 +195,7 @@ typedef struct ioc_compat_fm_pcd_cc_key_params_t {
 } ioc_compat_fm_pcd_cc_key_params_t;
 
 typedef struct ioc_compat_keys_params_t {
-    uint8_t                                    num_of_keys;
+    uint16_t                                   num_of_keys;
     uint8_t                                    key_size;
     ioc_compat_fm_pcd_cc_key_params_t          key_params[IOC_FM_PCD_MAX_NUM_OF_KEYS]; /**< compat structure*/
     ioc_compat_fm_pcd_cc_next_engine_params_t  cc_next_engine_params_for_miss;         /**< compat structure*/
@@ -217,7 +217,7 @@ typedef struct ioc_compat_fm_pcd_cc_node_modify_key_params_t {
 
 typedef struct ioc_compat_fm_pcd_cc_node_modify_key_and_next_engine_params_t {
     compat_uptr_t                       id;
-    uint8_t                             key_indx;
+    uint16_t                            key_indx;
     uint8_t                             key_size;
     ioc_compat_fm_pcd_cc_key_params_t   key_params;
 } ioc_compat_fm_pcd_cc_node_modify_key_and_next_engine_params_t;
