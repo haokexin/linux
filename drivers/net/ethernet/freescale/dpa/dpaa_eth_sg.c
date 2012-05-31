@@ -406,6 +406,7 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	struct sk_buff *skb;
 	dma_addr_t addr = qm_fd_addr(fd);
 	u32 fd_status = fd->status;
+	unsigned int skb_len;
 
 	if (unlikely(fd_status & FM_FD_STAT_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
@@ -471,11 +472,13 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	} else
 		skb->ip_summed = CHECKSUM_NONE;
 
+	skb_len = skb->len;
+
 	if (unlikely(netif_receive_skb(skb) == NET_RX_DROP))
 		percpu_priv->stats.rx_dropped++;
 	else {
 		percpu_priv->stats.rx_packets++;
-		percpu_priv->stats.rx_bytes += skb->len;
+		percpu_priv->stats.rx_bytes += skb_len;
 	}
 
 	net_dev->last_rx = jiffies;
