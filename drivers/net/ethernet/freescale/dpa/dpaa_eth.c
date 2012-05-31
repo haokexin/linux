@@ -100,6 +100,14 @@
 /* Maximum offset value for a contig or sg FD (represented on 9bits) */
 #define DPA_MAX_FD_OFFSET	((1 << 9) - 1)
 
+/*
+ * Maximum size of a buffer that is to be recycled back to the buffer pool.
+ * The value is arbitrary, but tries to reach a balance such that originating
+ * frames may get recycled, while forwarded skbs that get reallocated on Tx
+ * aren't allowed to grow unboundedly.
+ */
+#define DPA_BP_MAX_BUF_SIZE	(DEFAULT_BUF_SIZE + 256)
+
 #define DPA_DESCRIPTION "FSL DPAA Ethernet driver"
 
 MODULE_LICENSE("Dual BSD/GPL");
@@ -1466,10 +1474,14 @@ static int skb_to_contig_fd(struct dpa_priv_s *priv,
 	 * First, see if the conditions needed to recycle the skb are met:
 	 * - skb not cloned, not shared
 	 * - buffer size is large enough to accomodate a maximum size Rx frame
+	 * - buffer size does not exceed the maximum size allowed in the pool
+	 *   (to avoid unbounded increase of buffer size in certain forwarding
+	 *   conditions)
 	 * - buffer address is 16 byte aligned, as per DPAARM
 	 * - there's enough room in the buffer pool
 	 */
 	if (likely(skb_is_recycleable(skb, dpa_bp->size) &&
+		   (skb_end_pointer(skb) - skb->head <= DPA_BP_MAX_BUF_SIZE) &&
 		   (*percpu_priv->dpa_bp_count < dpa_bp->target_count))) {
 		/* Compute the minimum necessary fd offset */
 		offset = dpa_bp->size - skb->len - skb_tailroom(skb);
