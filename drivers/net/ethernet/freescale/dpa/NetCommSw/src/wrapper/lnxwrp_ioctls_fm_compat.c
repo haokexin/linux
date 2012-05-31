@@ -376,7 +376,7 @@ void compat_copy_fm_pcd_cc_node_modify_key_and_next_engine(
     {
         param->id       = compat_ptr(compat_param->id);
         param->key_indx = compat_param->key_indx;
-        param->key_size = compat_param->key_indx;
+        param->key_size = compat_param->key_size;
         compat_copy_fm_pcd_cc_key(
             &compat_param->key_params,
             &param->key_params,
@@ -386,7 +386,7 @@ void compat_copy_fm_pcd_cc_node_modify_key_and_next_engine(
     {
         compat_param->id       = ptr_to_compat(param->id);
         compat_param->key_indx = param->key_indx;
-        compat_param->key_size = param->key_indx;
+        compat_param->key_size = param->key_size;
         compat_copy_fm_pcd_cc_key(
             &compat_param->key_params,
             &param->key_params,
