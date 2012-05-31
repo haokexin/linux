@@ -132,12 +132,15 @@ config DPA_EXTRA_HEADROOM
 	int "Add extra headroom at beginning of data buffers"
 	depends on DPA
 	range 0 447
-	default "0"
+	default "64"
 	help
 	  Configure this to tell the Frame Manager to reserve some extra space at the beginning of a
 	  data buffer on the receive path, before Internal Context fields are copied. This is in addition
 	  to the private data area already reserved for driver internal use.
 	  The option does not affect in any way the layout of transmitted buffers.
+
+	  Default value of 64 favours the case when forwarded frames are being encapsulated (e.g. IPSec).
+	  For plain forwarding or termination cases, a value of zero is recommended for optimum performance.
 
 	  This setting can be overridden by specifying "dpa_extra_headroom" in the kernel bootargs:
 	    * in Hypervisor-based scenarios, by adding a "chosen" node with the "bootargs" property specifying
