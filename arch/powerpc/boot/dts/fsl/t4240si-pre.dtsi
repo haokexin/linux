@@ -55,6 +55,7 @@
 		rman = &rman;
 		dma0 = &dma0;
 		dma1 = &dma1;
+		sdhc = &sdhc;
 	};
 
 	cpus {
