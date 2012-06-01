@@ -27,9 +27,16 @@
 
 #include <plat/clock.h>
 
+struct clocksource_mmio {
+	void __iomem *reg;
+	struct clocksource clksrc;
+};
+
+static struct clocksource_mmio *clocksource_32k = NULL;
+
 struct clocksource *get_clocksource_32k(void)
 {
-	return &clocksource_32k;
+	return &clocksource_32k->clksrc;
 }
 
 /*
@@ -119,6 +126,8 @@ int __init omap_init_clocksource_32k(void)
 		if (clocksource_mmio_init(base, "32k_counter", 32768, 250, 32,
 					  clocksource_mmio_readl_up))
 			printk(err, "32k_counter");
+
+		clocksource_32k = (struct clocksource_mmio *)base;
 
 		setup_sched_clock(omap_32k_read_sched_clock, 32, 32768);
 	}
