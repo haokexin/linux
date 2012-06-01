@@ -42,7 +42,7 @@ static int trace_clock_refcount;
 
 static int print_info_done;
 
-static struct platform_device *reserved_pmu;
+static int reserved_pmu;
 
 static u32 get_mul_fact(u64 max_freq, u64 cur_freq)
 {
@@ -546,7 +546,7 @@ int get_trace_clock(void)
 	if (trace_clock_refcount)
 		goto end;
 	reserved_pmu = reserve_pmu(ARM_PMU_DEVICE_CPU);
-	if (IS_ERR_OR_NULL(reserved_pmu) && PTR_ERR(reserved_pmu) != -ENODEV) {
+	if (reserved_pmu) {
 		ret = -EBUSY;
 		goto end;
 	}
@@ -565,8 +565,8 @@ void put_trace_clock(void)
 	if (trace_clock_refcount != 1)
 		goto end;
 	_stop_trace_clock();
-	if (!IS_ERR_OR_NULL(reserved_pmu))
-		release_pmu(reserved_pmu);
+	if (reserved_pmu)
+		release_pmu(ARM_PMU_DEVICE_CPU);
 end:
 	trace_clock_refcount--;
 	spin_unlock(&trace_clock_lock);
@@ -700,8 +700,8 @@ static __init int init_trace_clock(void)
 	int cpu, ret;
 	u64 rem;
 
-	ret = init_pmu(ARM_PMU_DEVICE_CPU);
-	if (ret && ret != -ENODEV)
+	ret = reserve_pmu(ARM_PMU_DEVICE_CPU);
+	if (ret)
 		return ret;
 	clock = get_clocksource_32k();
 	/*
