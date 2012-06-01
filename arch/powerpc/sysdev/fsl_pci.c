@@ -902,7 +902,6 @@ static const struct of_device_id pci_ids[] = {
 int primary_phb_addr;
 static int __devinit fsl_pci_probe(struct platform_device *pdev)
 {
-	struct pci_controller *hose;
 	int ret;
 	bool is_primary;
 
@@ -914,6 +913,8 @@ static int __devinit fsl_pci_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_SWIOTLB
 		if (ret == 0) {
+			struct pci_controller *hose;
+
 			hose = pci_find_hose_for_OF_device(pdev->dev.of_node);
 			/*
 			 * if we couldn't map all of DRAM via the dma windows
