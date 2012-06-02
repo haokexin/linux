@@ -888,6 +888,7 @@ int fsl_pci_mcheck_exception(struct pt_regs *regs)
 }
 #endif
 
+#if defined(CONFIG_FSL_SOC_BOOKE) || defined(CONFIG_PPC_86xx)
 static const struct of_device_id pci_ids[] = {
 	{ .compatible = "fsl,mpc8540-pci", },
 	{ .compatible = "fsl,mpc8548-pcie", },
@@ -1056,3 +1057,4 @@ static int __init fsl_pci_init(void)
 	return platform_driver_register(&fsl_pci_driver);
 }
 arch_initcall(fsl_pci_init);
+#endif /* booke or 86xx */
