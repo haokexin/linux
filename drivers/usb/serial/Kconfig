@@ -678,6 +678,14 @@ config FUSIONSTAGING
           To compile this driver as a module, choose M here: the module will be
           called fusion wireless module.
 
+config GOBISERIAL
+       tristate "Sierra Wireless GobiSerial modem"
+	   ---help---
+    help
+	    Say Y here if you want to use a GobiSerial device.
+
+		To compile this driver as a module, choose M here: the
+		module will be called gobi serial.
 
 config USB_SERIAL_DEBUG
 	tristate "USB Debugging Device"
