@@ -271,6 +271,12 @@ config GPIO_PCA953X_IRQ
 	  Say yes here to enable the pca953x to be used as an interrupt
 	  controller. It requires the driver to be built in the kernel.
 
+config GPIO_PCA9555_FRI2
+	bool "PCA9555 I/O support on Intel FRI 2 carrier board"
+	depends on GPIO_PCA953X
+	help
+	  Say yes here to enable the FRI2 specific initialization of pca9555.
+
 config GPIO_PCF857X
 	tristate "PCF857x, PCA{85,96}7x, and MAX732[89] I2C GPIO expanders"
 	depends on I2C
