@@ -483,5 +483,9 @@ config USB_VL600
 
 	  http://ubuntuforums.org/showpost.php?p=10589647&postcount=17
 
+config GOBINET
+	tristate "SIERRA WIRELESS GOBINET MC8355 CDMA MODEM"
+	depends on USB_USBNET
+	---help---
 
 endmenu
