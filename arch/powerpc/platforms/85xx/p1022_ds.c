@@ -527,8 +527,17 @@ early_param("video", early_video_setup);
  */
 static void __init p1022_ds_setup_arch(void)
 {
+#ifdef CONFIG_PCI
+	struct device_node *np;
+#endif
+
 	if (ppc_md.progress)
 		ppc_md.progress("p1022_ds_setup_arch()", 0);
+
+#ifdef CONFIG_PCI
+	for_each_node_by_type(np, "pci")
+		fsl_pci_setup(np);
+#endif
 
 #if defined(CONFIG_FB_FSL_DIU) || defined(CONFIG_FB_FSL_DIU_MODULE)
 	diu_ops.get_pixel_format	= p1022ds_get_pixel_format;

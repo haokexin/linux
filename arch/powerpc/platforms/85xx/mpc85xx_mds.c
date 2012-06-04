@@ -327,10 +327,19 @@ static void __init mpc85xx_mds_qeic_init(void) { }
 
 static void __init mpc85xx_mds_setup_arch(void)
 {
+#ifdef CONFIG_PCI
+	struct device_node *np;
+#endif
+
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_mds_setup_arch()", 0);
 
 	mpc85xx_smp_init();
+
+#ifdef CONFIG_PCI
+	for_each_node_by_type(np, "pci")
+		fsl_pci_setup(np);
+#endif
 
 	mpc85xx_mds_qe_init();
 

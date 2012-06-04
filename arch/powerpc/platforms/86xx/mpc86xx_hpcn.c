@@ -69,10 +69,17 @@ static int mpc86xx_exclude_device(struct pci_controller *hose,
 static void __init
 mpc86xx_hpcn_setup_arch(void)
 {
+#ifdef CONFIG_PCI
+	struct device_node *np;
+#endif
+
 	if (ppc_md.progress)
 		ppc_md.progress("mpc86xx_hpcn_setup_arch()", 0);
 
 #ifdef CONFIG_PCI
+	for_each_node_by_type(np, "pci")
+		fsl_pci_setup(np);
+
 	ppc_md.pci_exclude_device = mpc86xx_exclude_device;
 
 #endif

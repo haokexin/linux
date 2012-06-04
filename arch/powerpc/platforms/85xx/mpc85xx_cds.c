@@ -309,6 +309,9 @@ static void __init mpc85xx_cds_setup_arch(void)
 	}
 
 #ifdef CONFIG_PCI
+	for_each_node_by_type(np, "pci")
+		fsl_pci_setup(np);
+
 	ppc_md.pci_irq_fixup = mpc85xx_cds_pci_irq_fixup;
 	ppc_md.pci_exclude_device = mpc85xx_exclude_device;
 #endif
