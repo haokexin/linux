@@ -125,6 +125,7 @@ struct ccsr_pci {
 
 extern int primary_phb_addr;
 extern int fsl_add_bridge(struct device_node *dev, int is_primary);
+extern int fsl_pci_setup(struct device_node *np);
 extern void fsl_pcibios_fixup_bus(struct pci_bus *bus);
 extern int mpc83xx_add_bridge(struct device_node *dev);
 u64 fsl_pci_immrbar_base(struct pci_controller *hose);

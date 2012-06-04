@@ -139,14 +139,21 @@ static int mpc85xx_exclude_device(struct pci_controller *hose,
  */
 static void __init mpc85xx_ds_setup_arch(void)
 {
+#ifdef CONFIG_PCI
+	struct device_node *np;
+#endif
+
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_ds_setup_arch()", 0);
 
+	mpc85xx_smp_init();
+
 #ifdef CONFIG_PCI
+	for_each_node_by_type(np, "pci")
+		fsl_pci_setup(np);
+
 	ppc_md.pci_exclude_device = mpc85xx_exclude_device;
 #endif
-
-	mpc85xx_smp_init();
 
 #ifdef CONFIG_SWIOTLB
 	if (memblock_end_of_DRAM() > 0xffffffff)
