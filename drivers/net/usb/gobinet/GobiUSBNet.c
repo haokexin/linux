@@ -985,7 +985,7 @@ int GobiUSBNetStop(struct net_device *pNet)
 /*=========================================================================*/
 static const struct driver_info GobiNetInfo_qmi = {
 	.description = "QmiNet Ethernet Device",
-	.flags = FLAG_ETHER ,
+	.flags = FLAG_ETHER | FLAG_POINTTOPOINT,
 	.bind = GobiNetDriverBind,
 	.unbind = GobiNetDriverUnbind,
 	.data = (unsigned long)&GobiNet_iface_info_qmi,
@@ -993,7 +993,7 @@ static const struct driver_info GobiNetInfo_qmi = {
 
 static const struct driver_info GobiNetInfo_gobi = {
 	.description = "GobiNet Ethernet Device",
-	.flags = FLAG_ETHER ,
+	.flags = FLAG_ETHER | FLAG_POINTTOPOINT,
 	.bind = GobiNetDriverBind,
 	.unbind = GobiNetDriverUnbind,
 	.data = (unsigned long)&GobiNet_iface_info_gobi,
