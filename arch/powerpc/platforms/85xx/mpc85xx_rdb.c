@@ -86,12 +86,17 @@ void __init mpc85xx_rdb_pic_init(void)
  */
 static void __init mpc85xx_rdb_setup_arch(void)
 {
-#if defined(CONFIG_QUICC_ENGINE)
+#if defined(CONFIG_QUICC_ENGINE) || defined(CONFIG_PCI)
 	struct device_node *np;
 #endif
 
 	if (ppc_md.progress)
 		ppc_md.progress("mpc85xx_rdb_setup_arch()", 0);
+
+#ifdef CONFIG_PCI
+	for_each_node_by_type(np, "pci")
+		fsl_pci_setup(np);
+#endif
 
 	mpc85xx_smp_init();
 
