@@ -44,6 +44,7 @@
 #include "fm_mac_ext.h"
 #include "fm_rtc_ext.h"
 #include "NetCommSw/Peripherals/FM/MAC/dtsec.h"
+#include "NetCommSw/inc/Peripherals/fm_mac_ext.h"
 
 #define MAC_DESCRIPTION "FSL FMan MAC API based driver"
 
@@ -631,6 +632,38 @@ static int __cold get_pause_frame(struct mac_device *mac_dev, bool *tx, bool *rx
 	return _errno;			
 }
 
+static int __cold mac_get_statistics(struct mac_device *mac_dev, u64 *data)
+{
+	int	_errno = 0;
+	t_Error err;
+	t_FmMacStatistics *p_Statistics;
+	int i;
+	u64 *buf;
+
+	p_Statistics = kmalloc(sizeof(t_FmMacStatistics), GFP_ATOMIC);
+	if (!p_Statistics) {
+		dpaa_eth_err(mac_dev->dev, "Out of memory\n");
+		return -ENOMEM;
+	}
+
+	err = FM_MAC_GetStatistics(
+		((struct mac_priv_s *)macdev_priv(mac_dev))->mac, p_Statistics);
+	 _errno = -GET_ERROR_TYPE(err);
+	if (_errno < 0) {
+		dpaa_eth_err(mac_dev->dev,
+			"FM_MAC_GetTxPauseFrames() = 0x%08x\n", err);
+		goto out;
+	}
+
+	buf = (u64 *) p_Statistics;
+	for (i = 0; i < sizeof(t_FmMacStatistics)/sizeof(u64); i++)
+		data[i] = buf[i];
+
+out:
+	kfree(p_Statistics);	
+	return _errno;
+}
+
 static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 {
 	mac_dev->init_phy	= dtsec_init_phy;
@@ -651,6 +684,7 @@ static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 	mac_dev->fm_rtc_set_drift	= fm_rtc_set_drift;
 	mac_dev->set_pause_frame 	= set_pause_frame;
 	mac_dev->get_pause_frame	= get_pause_frame;
+	mac_dev->get_stats		= mac_get_statistics;
 }
 
 static void __devinit __cold setup_xgmac(struct mac_device *mac_dev)

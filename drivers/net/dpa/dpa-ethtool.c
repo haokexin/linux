@@ -33,6 +33,38 @@
 
 #include "dpaa_eth.h"
 
+static char stat_gstrings[][ETH_GSTRING_LEN] = {
+	"tx-rx-64-frames",
+	"tx-rx-65-127-frames",
+	"tx-rx-128-255-frames",
+	"tx-rx-256-511-frames",
+	"tx-rx-512-1023-frames",
+	"tx-rx-1024-1518-frames",
+	"tx-rx-1519-1522-good-vlan",
+	"rx-64-invalid-fcs",
+	"rx-jabber-invalid-fcs",
+	"rx-dropped-by-lack-resource",
+	"rx-alignment-error",
+	"rx-undersize-packets",
+	"rx-oversize-packets",
+	"rx-pause-frame-packets",
+	"tx-pause-frame-packets",
+	"rx-bytes",
+	"rx-packets",
+	"receive-multicast-frames",
+	"receive-broadcast-frames",
+	"rx-dropped-frames",
+	"rx-error-frames",
+	"tx-bytes",
+	"tx-packets",
+	"tx-multicast-frames",
+	"tx-broadcast-frames",
+	"tx-dropped-frames",
+	"tx-error-frames",
+};
+
+#define DPA_STATS_LEN ARRAY_SIZE(stat_gstrings)
+
 static int __cold dpa_get_settings(struct net_device *net_dev, struct ethtool_cmd *et_cmd)
 {
 	int			 _errno;
@@ -97,6 +129,7 @@ static void __cold dpa_get_drvinfo(struct net_device *net_dev, struct ethtool_dr
 	}
 	strncpy(drvinfo->bus_info, dev_name(net_dev->dev.parent->parent),
 		sizeof(drvinfo->bus_info) - 1)[sizeof(drvinfo->bus_info)-1] = 0;
+	drvinfo->n_stats = DPA_STATS_LEN;
 }
 
 uint32_t __cold dpa_get_msglevel(struct net_device *net_dev)
@@ -212,6 +245,36 @@ int __cold dpa_set_pauseparam(struct net_device *net_dev, struct ethtool_pausepa
 	return 0;
 }
 
+static void dpa_get_ethtool_stats(struct net_device *netdev,
+				struct ethtool_stats *stats, u64 *data)
+{
+	struct dpa_priv_s       *priv = netdev_priv(netdev);
+	int			_errno;
+
+	_errno = priv->mac_dev->get_stats(priv->mac_dev, data);
+	if (_errno < 0) {
+		if (netif_msg_drv(priv))
+			cpu_netdev_err(netdev,
+				"mac_dev->get_stats = %d\n",
+				_errno);
+	}
+}
+
+static void dpa_get_strings(struct net_device *netdev, u32 stringset, u8 *buf)
+{
+	memcpy(buf, stat_gstrings, DPA_STATS_LEN * ETH_GSTRING_LEN);
+}
+
+static int dpa_sset_count(struct net_device *netdev, int sset)
+{
+	switch (sset) {
+	case ETH_SS_STATS:
+		return DPA_STATS_LEN;
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
 u32 dpa_get_rx_csum(struct net_device *dev)
 {
 	cpu_netdev_info(dev, "Can't automatically tell the status of "
@@ -253,5 +316,8 @@ const struct ethtool_ops dpa_ethtool_ops __devinitconst = {
 	.get_ufo		= ethtool_op_get_ufo,
 	.set_ufo		= ethtool_op_set_ufo,
 	.get_flags		= ethtool_op_get_flags,
-	.set_flags		= ethtool_op_set_flags
+	.set_flags		= ethtool_op_set_flags,
+	.get_strings            = dpa_get_strings,
+	.get_sset_count         = dpa_sset_count,
+	.get_ethtool_stats      = dpa_get_ethtool_stats,
 };

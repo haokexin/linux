@@ -93,6 +93,7 @@ struct mac_device {
 	int (*fm_rtc_set_drift)(struct net_device *net_dev, uint32_t drift);
 	int (*set_pause_frame)(struct mac_device *mac_dev, struct ethtool_pauseparam *pause);
 	int (*get_pause_frame)(struct mac_device *mac_dev, bool *tx, bool *rx);
+	int (*get_stats)(struct mac_device *mac_dev, uint64_t *p_Statistics);
 };
 
 struct mac_address {
