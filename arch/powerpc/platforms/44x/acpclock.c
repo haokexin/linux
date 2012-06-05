@@ -15,15 +15,67 @@
 #include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/export.h>
+#include <linux/list.h>
+#include <linux/mutex.h>
+#include <linux/kref.h>
+#include <linux/slab.h>
+#include <linux/of.h>
 #include <asm/clk_interface.h>
+
+struct clk {
+	struct list_head node;
+	struct device *dev;
+	struct kref kref;
+};
+
+static LIST_HEAD(clocks);
+static DEFINE_MUTEX(clocks_mutex);
 
 struct clk *acp_clk_get(struct device *dev, const char *id)
 {
-	return NULL;
+	struct clk *clk;
+
+	if (!dev)
+		return NULL;
+
+	mutex_lock(&clocks_mutex);
+	list_for_each_entry(clk, &clocks, node) {
+		if (clk->dev == dev) {
+			kref_get(&clk->kref);
+			mutex_unlock(&clocks_mutex);
+			return clk;
+		}
+	}
+
+	clk = kzalloc(sizeof(*clk), GFP_KERNEL);
+	if (!clk) {
+		dev_err(dev, "Create clock error\n");
+		return ERR_PTR(-ENOMEM);
+	}
+
+	INIT_LIST_HEAD(&clk->node);
+	kref_init(&clk->kref);
+	clk->dev = dev;
+	list_add(&clk->node, &clocks);
+	mutex_unlock(&clocks_mutex);
+
+	return clk;
+}
+
+static void acp_clk_release(struct kref *kref)
+{
+	struct clk *clk = container_of(kref, struct clk, kref);
+
+	mutex_lock(&clocks_mutex);
+	list_del(&clk->node);
+	mutex_lock(&clocks_mutex);
+
+	kfree(clk);
 }
 
 void acp_clk_put(struct clk *clk)
 {
+	kref_put(&clk->kref, acp_clk_release);
 	return;
 }
 
@@ -39,7 +91,20 @@ void acp_clk_disable(struct clk *clk)
 
 unsigned long acp_clk_get_rate(struct clk *clk)
 {
-	return 0;
+	struct device_node *np = clk->dev->of_node;
+	const int *prop;
+	int len;
+
+	if (!np)
+		return 0;
+
+	prop = of_get_property(np, "clock-frequency", &len);
+	if (!prop || len != sizeof(*prop)) {
+		dev_err(clk->dev, "Get the clock frequency error\n");
+		return -1;
+	}
+
+	return *prop;
 }
 
 long acp_clk_round_rate(struct clk *clk, unsigned long rate)
