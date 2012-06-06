@@ -9,8 +9,9 @@
  */
 
 #include <linux/module.h>
-#include <asm/vmx.h>
 #include <linux/kvm_host.h>
+#ifdef CONFIG_X86
+#include <asm/vmx.h>
 #include <asm/kvm-trace.h>
 
 void probe_kvm_entry(void *_data, unsigned int vcpu_id)
@@ -208,3 +209,4 @@ void probe_kvm_skinit(void *_data, __u64 rip, __u32 slb)
 MODULE_LICENSE("GPL and additional rights");
 MODULE_AUTHOR("Julien Desfossez");
 MODULE_DESCRIPTION("KVM Tracepoint Probes");
+#endif
