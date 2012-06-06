@@ -1181,7 +1181,8 @@ static void pch_gbe_tx_queue(struct pch_gbe_adapter *adapter,
 			iph->check = 0;
 			iph->check = ip_fast_csum((u8 *) iph, iph->ihl);
 			offset = skb_transport_offset(skb);
-			if (iph->protocol == IPPROTO_TCP) {
+			if (iph->protocol == IPPROTO_TCP &&
+						!(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET))) {
 				skb->csum = 0;
 				tcp_hdr(skb)->check = 0;
 				skb->csum = skb_checksum(skb, offset,
@@ -1192,7 +1193,8 @@ static void pch_gbe_tx_queue(struct pch_gbe_adapter *adapter,
 							  skb->len - offset,
 							  IPPROTO_TCP,
 							  skb->csum);
-			} else if (iph->protocol == IPPROTO_UDP) {
+			} else if (iph->protocol == IPPROTO_UDP &&
+						!(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET))) {
 				skb->csum = 0;
 				udp_hdr(skb)->check = 0;
 				skb->csum =
