@@ -21,7 +21,7 @@
 #include "cpuid.h"
 #include "lapic.h"
 #include "mmu.h"
-#include "trace.h"
+#include <asm/kvm-trace.h>
 
 void kvm_update_cpuid(struct kvm_vcpu *vcpu)
 {
