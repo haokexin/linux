@@ -1173,21 +1173,22 @@ static void pch_gbe_tx_queue(struct pch_gbe_adapter *adapter,
 	 * when the received data size is less than 64 bytes.
 	 */
 	if (skb->len < PCH_GBE_SHORT_PKT && skb->ip_summed != CHECKSUM_NONE) {
+		struct iphdr *iph = ip_hdr(skb);
 		frame_ctrl |= PCH_GBE_TXD_CTRL_APAD |
 			      PCH_GBE_TXD_CTRL_TCPIP_ACC_OFF;
 		if (skb->protocol == htons(ETH_P_IP)) {
-			struct iphdr *iph = ip_hdr(skb);
 			unsigned int offset;
+			offset = (unsigned char *)((u8 *)iph + iph->ihl * 4) - skb->data;
 			iph->check = 0;
 			iph->check = ip_fast_csum((u8 *) iph, iph->ihl);
-			offset = skb_transport_offset(skb);
 			if (iph->protocol == IPPROTO_TCP &&
 						!(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET))) {
+				struct tcphdr *tcphdr_point = (struct tcphdr *)((u8 *)iph + iph->ihl * 4);
 				skb->csum = 0;
-				tcp_hdr(skb)->check = 0;
+				tcphdr_point->check = 0;
 				skb->csum = skb_checksum(skb, offset,
 							 skb->len - offset, 0);
-				tcp_hdr(skb)->check =
+				tcphdr_point->check =
 					csum_tcpudp_magic(iph->saddr,
 							  iph->daddr,
 							  skb->len - offset,
@@ -1195,12 +1196,13 @@ static void pch_gbe_tx_queue(struct pch_gbe_adapter *adapter,
 							  skb->csum);
 			} else if (iph->protocol == IPPROTO_UDP &&
 						!(ip_hdr(skb)->frag_off & htons(IP_MF | IP_OFFSET))) {
+				struct udphdr *udphdr_point = (struct udphdr *)((u8 *)iph + iph->ihl * 4);
 				skb->csum = 0;
-				udp_hdr(skb)->check = 0;
+				udphdr_point->check = 0;
 				skb->csum =
 					skb_checksum(skb, offset,
 						     skb->len - offset, 0);
-				udp_hdr(skb)->check =
+				udphdr_point->check =
 					csum_tcpudp_magic(iph->saddr,
 							  iph->daddr,
 							  skb->len - offset,
