@@ -911,6 +911,8 @@ int dpa_free_pcd_fqids(
 	for (i = 0; i < num_allocated; i++, fmt_fqs++)
 		fmt_fq_free(fmt_fqs);
 
+	qman_release_fqid_range(base_fqid,num_allocated);
+
 	kfree(fmt_port_pcd->fmt_pcd_fqs);
 	memset(fmt_port_pcd, 0, sizeof(*fmt_port_pcd));
 
