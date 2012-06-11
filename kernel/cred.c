@@ -481,6 +481,8 @@ int commit_creds(struct cred *new)
 #endif
 	BUG_ON(atomic_read(&new->usage) < 1);
 
+	security_commit_creds(new, old);
+
 	get_cred(new); /* we will require a ref for the subj creds too */
 
 	/* dumpability changes */
