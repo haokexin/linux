@@ -67,7 +67,8 @@
 
 #define ARRAY2_SIZE(arr)	(ARRAY_SIZE(arr) * ARRAY_SIZE((arr)[0]))
 
-#define DEFAULT_COUNT		64
+#define DEFAULT_COUNT		128
+#define REFILL_THRESHOLD	80
 
 #define DPA_NAPI_WEIGHT		64
 
@@ -79,7 +80,7 @@
  * In the future, we may want to have different values for queues
  * belonging to 1G vs 10G ports.
  */
-#define DPA_TAILDROP_THRESHOLD	0x100000
+#define DPA_TAILDROP_THRESHOLD	0x200000
 
 /* S/G table requires at least 256 bytes */
 #define SGT_BUFFER_SIZE		DPA_BP_SIZE(256)
@@ -1068,14 +1069,14 @@ static int dpaa_eth_poll(struct napi_struct *napi, int budget)
 	count = *percpu_priv->dpa_bp_count;
 
 #ifndef CONFIG_DPAA_ETH_SG_SUPPORT
-	if (count < DEFAULT_COUNT / 4) {
+	if (count < REFILL_THRESHOLD) {
 		int i;
 
 		for (i = count; i < DEFAULT_COUNT; i += 8)
 			dpa_bp_add_8(percpu_priv->dpa_bp);
 	}
 #else
-	if (count < DEFAULT_COUNT / 4) {
+	if (count < REFILL_THRESHOLD) {
 		int i;
 
 		/* Add pages to the buffer pool */
