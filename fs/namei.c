@@ -1789,6 +1789,12 @@ static int do_path_lookup(int dfd, const char *name,
 	return retval;
 }
 
+int path_lookup(const char *name, unsigned int flags,
+			struct nameidata *nd)
+{
+	return do_path_lookup(AT_FDCWD, name, flags, nd);
+}
+
 int kern_path_parent(const char *name, struct nameidata *nd)
 {
 	return do_path_lookup(AT_FDCWD, name, LOOKUP_PARENT, nd);
