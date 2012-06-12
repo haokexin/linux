@@ -104,10 +104,8 @@
 			fsl,qman-frame-queues-tx = <0x76 1 0x77 1>;
 		};
 		ethernet@4 {
-			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
-			fsl,bman-buffer-pools = <&bp7 &bp8 &bp9>;
-			fsl,qman-frame-queues-rx = <0x58 1 0x59 1>;
-			fsl,qman-frame-queues-tx = <0x78 1 0x79 1>;
+			compatible = "fsl,p5020-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet4>;
 		};
 		ethernet@5 {
 			compatible = "fsl,p5020-dpa-ethernet-init", "fsl,dpa-ethernet-init";
