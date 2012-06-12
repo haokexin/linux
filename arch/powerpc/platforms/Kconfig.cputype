@@ -139,6 +139,15 @@ config PPC_E500MC
 	select PPC_FPU
 	depends on E500
 
+config PPC_E6500_REV1_BUGS
+	bool "Work around e6500 rev1 bugs"
+	depends on PPC_E500MC
+	help
+	  Define this if you need to be able to run on rev1 silicon.
+
+          Do not define this if you are running on a simulator or rev2,
+          and want features like hardware tablewalk.
+
 config PPC_FPU
 	bool
 	default y if PPC64
