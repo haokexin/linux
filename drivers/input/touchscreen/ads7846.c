@@ -980,6 +980,10 @@ static int __devinit ads7846_setup_pendown(struct spi_device *spi, struct ads784
 		}
 
 		ts->gpio_pendown = pdata->gpio_pendown;
+#ifdef CONFIG_ARCH_OMAP3
+		/* 310 means about 10 microsecond for omap3 */
+		gpio_set_debounce(pdata->gpio_pendown, 310);
+#endif
 
 	} else {
 		dev_err(&spi->dev, "no get_pendown_state nor gpio_pendown?\n");
