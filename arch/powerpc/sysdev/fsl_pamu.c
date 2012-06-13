@@ -1027,6 +1027,16 @@ static const struct {
 
 #define SVR_SECURITY	0x80000	/* The Security (E) bit */
 
+static struct of_device_id qoriq_device_config[] = {
+	{
+		.compatible = "fsl,qoriq-device-config-1.0",
+	},
+	{
+		.compatible = "fsl,t4240-device-config",
+	},
+	{}
+};
+
 static int __init fsl_pamu_probe(struct platform_device *pdev)
 {
 	void __iomem *pamu_regs = NULL;
@@ -1082,8 +1092,7 @@ static int __init fsl_pamu_probe(struct platform_device *pdev)
 		goto error;
 	}
 
-	guts_node = of_find_compatible_node(NULL, NULL,
-			"fsl,qoriq-device-config-1.0");
+	guts_node = of_find_matching_node(NULL, qoriq_device_config);
 	if (!guts_node) {
 		dev_err(&pdev->dev, "could not find GUTS node %s\n",
 			pdev->dev.of_node->full_name);
