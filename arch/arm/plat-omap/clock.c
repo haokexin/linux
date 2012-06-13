@@ -149,6 +149,10 @@ int clk_set_parent(struct clk *clk, struct clk *parent)
 	if (!arch_clock || !arch_clock->clk_set_parent)
 		return ret;
 
+	/* If the clock is a dummy clock just return */
+	if (clk == &dummy_ck)
+		return 0;
+
 	spin_lock_irqsave(&clockfw_lock, flags);
 	if (clk->usecount == 0) {
 		ret = arch_clock->clk_set_parent(clk, parent);
