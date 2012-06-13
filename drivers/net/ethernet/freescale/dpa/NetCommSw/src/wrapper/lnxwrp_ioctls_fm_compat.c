@@ -791,6 +791,7 @@ void compat_copy_fm_port_pcd(
         _fm_cpt_dbg(compat," param->p_cc_params=%p  \n", param->p_cc_params);
         _fm_cpt_dbg(compat," param->p_kg_params=%p  \n", param->p_kg_params);
         _fm_cpt_dbg(compat," param->p_plcr_params=%p  \n", param->p_plcr_params);
+        _fm_cpt_dbg(compat," param->p_ip_reassembly_manip=%p  \n", param->p_ip_reassembly_manip);
 
         param->pcd_support = compat_param->pcd_support;
         param->net_env_id = compat_get_id2ptr(compat_param->net_env_id, PCD_NODE);
