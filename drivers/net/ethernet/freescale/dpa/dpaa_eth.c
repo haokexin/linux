@@ -1261,11 +1261,11 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 	struct qm_fd fd;
 	int queue_mapping;
 	int err;
-	void *dpa_bp_vaddr, *page_vaddr;
-	dma_addr_t addr_offset;
+	void *dpa_bp_vaddr, *page_vaddr, *virt_start;
+	dma_addr_t phys_start;
 	struct page *page;
-	unsigned int offset;
-	size_t remain, size, total_size;
+	size_t remaining, size, offset;
+	t_FmPrsResult parse_results;
 
 	priv = netdev_priv(net_dev);
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
@@ -1317,40 +1317,48 @@ static int __hot dpa_shared_tx(struct sk_buff *skb, struct net_device *net_dev)
 		goto static_map;
 	}
 
-	remain = dpa_fd_offset(&fd) + dpa_fd_length(&fd);
-	total_size = remain;
-	addr_offset = bm_buf_addr(&bmb);
+	err = dpa_enable_tx_csum(priv, skb, &fd, (char *)&parse_results);
 
-	while (remain > 0) {
-		page = pfn_to_page(addr_offset >> PAGE_SHIFT);
-		offset = offset_in_page(addr_offset);
-		size = remain;
+	phys_start = bm_buf_addr(&bmb) + DPA_TX_PRIV_DATA_SIZE;
+	virt_start = &parse_results;
+	remaining = DPA_PARSE_RESULTS_SIZE;
 
-		if (remain + offset > PAGE_SIZE) {
-			size = PAGE_SIZE - offset;
-			addr_offset += size;
-		}
+	while (remaining > 0) {
+		offset = offset_in_page(phys_start);
+		size = (offset + remaining > PAGE_SIZE) ?
+				PAGE_SIZE - offset : remaining;
 
+		page = pfn_to_page(phys_start >> PAGE_SHIFT);
+		dpa_bp_vaddr = kmap_atomic(page);
+
+		memcpy(dpa_bp_vaddr + offset, virt_start, size);
+
+		kunmap_atomic(dpa_bp_vaddr);
+
+		phys_start += size;
+		virt_start += size;
+		remaining -= size;
+	}
+
+	phys_start = bm_buf_addr(&bmb) + dpa_fd_offset(&fd);
+	virt_start = skb->data;
+	remaining = dpa_fd_length(&fd);
+
+	while (remaining > 0) {
+		offset = offset_in_page(phys_start);
+		size = (offset + remaining > PAGE_SIZE) ?
+			PAGE_SIZE - offset : remaining;
+
+		page = pfn_to_page(phys_start >> PAGE_SHIFT);
 		page_vaddr = kmap_atomic(page);
 
-		if (!offset && (total_size != remain))
-			memcpy(page_vaddr,
-				   skb->data + total_size - remain -
-				   dpa_fd_offset(&fd),
-			       size);
-		else {
-			memcpy(page_vaddr + dpa_fd_offset(&fd) + offset,
-			       skb->data,
-			       size - dpa_fd_offset(&fd));
-
-			err = dpa_enable_tx_csum(priv, skb, &fd,
-			                         page_vaddr + offset +
-						 DPA_TX_PRIV_DATA_SIZE);
-		}
+		memcpy(page_vaddr + offset, virt_start, size);
 
 		kunmap_atomic(page_vaddr);
 
-		remain -= size;
+		phys_start += size;
+		virt_start += size;
+		remaining -= size;
 	}
 
 static_map:
@@ -1701,13 +1709,11 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 	struct dpa_percpu_priv_s	*percpu_priv;
 	const struct qm_fd *fd = &dq->fd;
 	struct dpa_bp *dpa_bp;
-	size_t size;
+	size_t size, remaining, offset;
 	struct sk_buff *skb;
 	void *dpa_bp_vaddr;
-	dma_addr_t addr_offset;
+	dma_addr_t phys_start;
 	struct page *page;
-	unsigned int offset;
-	size_t remain, total_size;
 
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
@@ -1758,33 +1764,23 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 		goto static_map;
 	}
 
-	remain = dpa_fd_offset(fd) + dpa_fd_length(fd);
-	total_size = remain;
-	addr_offset = qm_fd_addr(fd);
+	phys_start = qm_fd_addr(fd) + dpa_fd_offset(fd);
+	remaining = dpa_fd_length(fd);
 
-	while (remain > 0) {
-		page = pfn_to_page(addr_offset >> PAGE_SHIFT);
-		offset = offset_in_page(addr_offset);
-		size = remain;
+	while (remaining > 0) {
+		offset = offset_in_page(phys_start);
+		size = (offset + remaining > PAGE_SIZE) ?
+			PAGE_SIZE - offset : remaining;
 
-		if (remain + offset > PAGE_SIZE) {
-			size = PAGE_SIZE - offset;
-			addr_offset += size;
-		}
-
+		page = pfn_to_page(phys_start >> PAGE_SHIFT);
 		dpa_bp_vaddr = kmap_atomic(page);
 
-		if (!offset && (total_size != remain))
-			memcpy(skb_put(skb, size), dpa_bp_vaddr, size);
-		else
-			memcpy(skb_put(skb, size - dpa_fd_offset(fd)),
-			       dpa_bp_vaddr + dpa_fd_offset(fd) +
-			       offset,
-			       size - dpa_fd_offset(fd));
+		memcpy(skb_put(skb, size), dpa_bp_vaddr + offset, size);
 
 		kunmap_atomic(dpa_bp_vaddr);
 
-		remain -= size;
+		phys_start += size;
+		remaining -= size;
 	}
 
 static_map:
