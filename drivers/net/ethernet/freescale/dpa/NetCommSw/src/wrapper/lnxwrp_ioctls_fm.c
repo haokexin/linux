@@ -2667,6 +2667,7 @@ t_Error LnxwrpFmPortIOCTL(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev, unsigned int cmd
                     port_pcd_params->p_cc_params = compat_ptr(compat_port_pcd_params->p_cc_params);
                     port_pcd_params->p_kg_params = compat_ptr(compat_port_pcd_params->p_kg_params);
                     port_pcd_params->p_plcr_params = compat_ptr(compat_port_pcd_params->p_plcr_params);
+                    port_pcd_params->p_ip_reassembly_manip = compat_ptr(compat_port_pcd_params->p_ip_reassembly_manip);
 
                     /* the prs member is the same, no compat structure...memcpy only */
                     if (port_pcd_params->p_prs_params && !copy_fail)
