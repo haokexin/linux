@@ -2097,6 +2097,8 @@ invalid_port_id:
         case FM_PCD_IOC_MANIP_SET_NODE:
         {
             ioc_fm_pcd_manip_params_t *param;
+            uint8_t *p_data = NULL;
+            uint8_t size;
 
             param = (ioc_fm_pcd_manip_params_t *) XX_Malloc(
                         sizeof(ioc_fm_pcd_manip_params_t));
@@ -2144,6 +2146,22 @@ invalid_port_id:
                 }
             }
 
+            if (param->type == e_IOC_FM_PCD_MANIP_HDR) {
+                size = param->u.hdr.insrt_params.u.generic.size;
+                p_data = (uint8_t *) kmalloc(size, GFP_KERNEL);
+                if (!p_data )
+                    RETURN_ERROR(MINOR, err, NO_MSG);
+
+                if (param->u.hdr.insrt_params.u.generic.p_data &&
+                        copy_from_user(p_data,
+                            param->u.hdr.insrt_params.u.generic.p_data, size)) {
+                    XX_Free(p_data);
+                    RETURN_ERROR(MINOR, err, NO_MSG);
+                }
+
+                param->u.hdr.insrt_params.u.generic.p_data = p_data;
+            }
+
             param->id = FM_PCD_ManipNodeSet(p_LnxWrpFmDev->h_PcdDev,
                             (t_FmPcdManipParams *)param);
 
@@ -2179,6 +2197,8 @@ invalid_port_id:
                     err = E_OK;
             }
 
+            if (p_data)
+                kfree(p_data);
             XX_Free(param);
         }
         break;
