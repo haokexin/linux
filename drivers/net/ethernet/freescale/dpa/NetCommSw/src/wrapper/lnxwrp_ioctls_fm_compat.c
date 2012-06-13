@@ -954,13 +954,39 @@ void compat_fm_pcd_manip_set_node(
 {
     if (compat == COMPAT_US_TO_K) {
         param->type = compat_param->type;
-        memcpy(&param->u, &compat_param->u, sizeof(param->u));
-
-        /* user garbage - it could break the US application! */
-        if (compat_param->type == e_IOC_FM_PCD_MANIP_HDR &&
-            compat_param->u.hdr.insrt_params.type == e_IOC_FM_PCD_MANIP_INSRT_GENERIC)
-                param->u.hdr.insrt_params.u.generic.p_data =
-                    compat_ptr(compat_param->u.hdr.insrt_params.u.generic.p_data);
+        switch (param->type) {
+            case e_IOC_FM_PCD_MANIP_HDR:
+                param->u.hdr.rmv = compat_param->u.hdr.rmv;
+                memcpy(&param->u.hdr.rmv_params,
+                        &compat_param->u.hdr.rmv_params,
+                        sizeof(param->u.hdr.rmv_params));
+                param->u.hdr.insrt =
+                    compat_param->u.hdr.insrt;
+                param->u.hdr.insrt_params.type =
+                    compat_param->u.hdr.insrt_params.type;
+                param->u.hdr.insrt_params.u.generic.offset =
+                    compat_param->u.hdr.insrt_params.u.generic.offset;
+                param->u.hdr.insrt_params.u.generic.replace =
+                    compat_param->u.hdr.insrt_params.u.generic.replace;
+                param->u.hdr.insrt_params.u.generic.size =
+                    compat_param->u.hdr.insrt_params.u.generic.size;
+                /* user garbage - it could break the US application! */
+                if (compat_param->u.hdr.insrt_params.type == e_IOC_FM_PCD_MANIP_INSRT_GENERIC)
+                    param->u.hdr.insrt_params.u.generic.p_data =
+                        compat_ptr(compat_param->u.hdr.insrt_params.u.generic.p_data);
+                param->u.hdr.dont_parse_after_manip =
+                    compat_param->u.hdr.dont_parse_after_manip;
+                break;
+            case e_IOC_FM_PCD_MANIP_REASSEM:
+                memcpy(&param->u.reassem, &compat_param->u.reassem, sizeof(param->u.reassem));
+                break;
+            case e_IOC_FM_PCD_MANIP_FRAG:
+                memcpy(&param->u.frag, &compat_param->u.frag, sizeof(param->u.frag));
+                break;
+            case e_IOC_FM_PCD_MANIP_SPECIAL_OFFLOAD:
+                param->u.special_offload = compat_param->u.special_offload;
+                break;
+        }
 
         if (compat_param->p_next_manip)
             param->p_next_manip = compat_get_id2ptr(compat_param->id, PCD_NODE);
