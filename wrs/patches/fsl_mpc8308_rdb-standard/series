@@ -1,0 +1,5 @@
+links/kernel-cache/bsp/fsl_mpc8308_rdb/fsl_mpc8308_rdb-Import-basic-platform-infrastructure.patch
+links/kernel-cache/bsp/fsl_mpc8308_rdb/fsl_mpc8308_rdb-FSL-PCI-update-to-support-mpc8308_rd.patch
+links/kernel-cache/bsp/fsl_mpc8308_rdb/fsl_mpc8308_rdb-add-USB-support.patch
+links/kernel-cache/bsp/fsl_mpc8308_rdb/fsl_mpc8308_rdb-Add-DTS.patch
+links/kernel-cache/bsp/fsl_mpc8308_rdb/fsl_mpc8308_rdb-update-DTS-to-support-DMA-controller.patch

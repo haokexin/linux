@@ -1,0 +1,245 @@
+#!/bin/bash
+
+# Generate kernel config file from fragments.
+# The idea is that the auditing would be done in kconf_check, however
+# there are some things that it is just easier to check for and collect
+# data on here (i.e. if frag A and frag B both list item X).
+
+KERNEL_CONFIG=$1
+TOP_BUILD_DIR=$2
+LINUX_DIST=$3
+LINUX_BUILD=$4
+BRANCH=$5
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+if [ -d $TOP_BUILD_DIR ]; then
+	# For TARGET_BOARD
+	. $TOP_BUILD_DIR/config.sh
+	WRS_DIR=$TOP_BUILD_DIR/build/$LINUX_BUILD/wrs
+else
+	WRS_DIR=`pwd`/wrs
+fi
+
+KCONF_DIR=$WRS_DIR/cfg/$BRANCH
+
+# On the fly list of all known hardware related Kconfig* files
+KCONF_HDW=$KCONF_DIR/hardware.kcf
+# Same for all known non-hardware related Kconfig* files
+KCONF_NONHDW=$KCONF_DIR/non-hardware.kcf
+
+# On the fly override for hardware CONFIG items that are 
+# in a non-hardware Kconfig.
+CONF_HDW=$KCONF_DIR/always_hardware.cfg
+# Same for non-hardware CONFIG items that are in a hardware Kconfig.
+CONF_NONHDW=$KCONF_DIR/always_nonhardware.cfg
+
+# Log any redefinitions/overrides that take place
+KCONF_OVERRIDE=$KCONF_DIR/redefinition.txt
+# Egads. People are listing the same thing multiple times within a fragment.
+#  An evil sin that deserves its own category (and insults).
+KCONF_FRAG_ERRS=$KCONF_DIR/fragment_errors.txt
+
+NEW_KERNEL_CFG=$KCONF_DIR/$KERNEL_CONFIG-new
+OLD_KERNEL_CFG=$KCONF_DIR/$KERNEL_CONFIG
+
+rm -f $KCONF_OVERRIDE
+rm -f $KCONF_FRAG_ERRS
+
+# Take a fragment and append it to the existing collection of fragments.
+# If CONFIG_FOO is being redefined by the appended fragment, then filter
+# out the definition from the existing collection 1st.
+# Since we end up appending from a scratch file instead of the original
+# possibly messed up fragment, we need to know what the original
+# source of the data was, hence arg #3.  The scratch file has already
+# been sanitized, so no need to grep out just the CONFIG_ lines -- that
+# is all there is in the file now.
+function append_and_filter ()
+{
+	ORIG=$1
+	APPEND=$2
+	SRCFILE=$3
+	echo "#" >> $ORIG
+	echo "# Begin: $SRCFILE" >> $ORIG
+	CFG_LIST=`cat $APPEND | \
+	  sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/'`
+	for i in $CFG_LIST ; do
+		grep -q -w $i $ORIG
+		if [ $? == 0 ] ; then	
+			echo Value of $i is redefined by fragment $SRCFILE:
+			echo Old value: `grep -w $i $ORIG`
+			echo New value: `grep -w $i $APPEND`
+			echo
+			mv -f $ORIG $ORIG~
+			cat $ORIG~ | grep -v -w $i > $ORIG
+			rm -f $ORIG~
+		fi
+	done
+	cat $2 | grep -v '^\.' | sed '/^$/d' >> $ORIG
+}
+
+# This is used to filter out duplicate declarations within a single
+# fragment.  People shouldn't do this, but we must behave predictably
+# if they do...   Also check for lines that start with "# CONFIG_"
+# but don't end with the all so important " is not set" -- as this
+# always seems to surprise people who think the leading hash is all
+# that matters.
+function sanitize_fragment ()
+{
+	DIRTY_FRAG=$1
+	CLEAN_FRAG=$2
+	rm -f $CLEAN_FRAG
+	touch $CLEAN_FRAG
+	CFG_LIST=`grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' \
+	  $DIRTY_FRAG | sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/'`
+	for i in $CFG_LIST ; do
+		LASTVAL=`grep -w $i $DIRTY_FRAG | tail -n1`
+		echo $LASTVAL|grep -q '^# CONFIG_'
+		HEAD_OK=$?
+		echo $LASTVAL|grep -q ' is not set$'
+		TAIL_OK=$?
+
+		grep -q -w $i $CLEAN_FRAG
+		if [ $? == 0 ] ; then	
+			echo Warning: Value of $i is defined multiple times within fragment $DIRTY_FRAG:
+			grep -w $i $DIRTY_FRAG
+			echo
+		elif [ $HEAD_OK -eq 0 ] && [ $TAIL_OK -ne 0 ]; then
+			# Enforce proper "# CONFIG_FOO is not set" syntax.
+			# LKC would ignore it anyway, so let them know.
+			echo Warning: Ignoring \"$LASTVAL\" -- invalid CONFIG syntax.
+		else
+			echo $LASTVAL >> $CLEAN_FRAG
+		fi
+	done
+}
+
+# ****************
+# main()
+# ****************
+
+# First create header that lists all the fragments.
+echo "#" > $NEW_KERNEL_CFG
+echo "# NOTE: This file is for informational purposes only." >> $NEW_KERNEL_CFG
+echo "# Changes made to this file will NOT be processed/used." >> $NEW_KERNEL_CFG
+echo "#" >> $NEW_KERNEL_CFG
+echo "# This file has been automatically generated from " >> $NEW_KERNEL_CFG
+echo "# the following set of configure files: " >> $NEW_KERNEL_CFG
+for f in `cat $KCONF_DIR/config_frag.txt`; do
+	if [ -f $WRS_DIR/cfg/$f ]; then
+		echo "# $f" >> $NEW_KERNEL_CFG
+	fi
+done
+
+echo "#" >> $NEW_KERNEL_CFG
+echo "# Local copies of these fragments are all found in the directory:" >> $NEW_KERNEL_CFG
+echo "# 	$WRS_DIR/cfg/" >> $NEW_KERNEL_CFG
+
+rm -f $KCONF_OVERRIDE $KCONF_FRAG_ERRS $KCONF_NONHDW $KCONF_HDW \
+	$CONF_NONHDW $CONF_HDW
+
+# Assemble fragments and collect lists of new/added Kconfigs
+# 1st pass is to just collect all the state info -- i.e. the
+# categorization of Kconfigs and hardware specific opts.
+# Then we have all the data we need to audit things properly.
+
+for f in `cat $KCONF_DIR/config_frag.txt`; do
+	# The input line is the Host path into the kernel-next cache.
+	frag_subpath=`dirname $f`
+	# This references the wrs dir; we aren't touching the
+	# ones in the kernel-cache at this point.
+	frag_dir=$WRS_DIR/cfg/$frag_subpath
+
+	# Possible fixme -- could check hdw additions against the non-hdw
+	# and vice versa -- it would allow folks to mask things.
+	if [ -f $frag_dir/non-hardware.kcf ]; then
+		cat $frag_dir/non-hardware.kcf | grep -v '^#' | \
+			sed '/^$/d' >> $KCONF_NONHDW
+	fi
+	if [ -f $frag_dir/hardware.kcf ]; then
+		cat $frag_dir/hardware.kcf | grep -v '^#' | \
+			sed '/^$/d' >> $KCONF_HDW
+	fi
+	if [ -f $frag_dir/non-hardware.cfg ]; then
+		cat $frag_dir/non-hardware.cfg | grep -v '^#' | \
+			sed '/^$/d' >> $CONF_NONHDW
+	fi
+	if [ -f $frag_dir/hardware.cfg ]; then
+		cat $frag_dir/hardware.cfg | grep -v '^#' | \
+			sed '/^$/d' >> $CONF_HDW
+	fi
+done
+
+if [ ! -f $KCONF_NONHDW ]; then
+    touch $KCONF_NONHDW
+fi
+if [ ! -f $KCONF_HDW ]; then
+    touch $KCONF_HDW
+fi
+if [ ! -f $CONF_NONHDW ]; then
+    touch $CONF_NONHDW
+fi
+if [ ! -f $CONF_HDW ]; then
+    touch $CONF_HDW
+fi
+
+
+for f in `cat $KCONF_DIR/config_frag.txt`; do
+	# The input line is the Host path into the kernel-next cache.
+	frag_subpath=`dirname $f`
+	frag_dir=$WRS_DIR/cfg/$frag_subpath
+	# This references the frag in the wrs dir; we aren't touching the
+	# ones in the kernel-cache at this point.
+	frag=$WRS_DIR/cfg/$f
+
+#	echo "[INFO] Processing $frag"
+
+	if [ -f $frag ]; then
+		rm -f $KCONF_DIR/.scratch
+		touch $KCONF_DIR/.scratch
+		sanitize_fragment  $frag $KCONF_DIR/.scratch >> $KCONF_FRAG_ERRS
+		append_and_filter $NEW_KERNEL_CFG $KCONF_DIR/.scratch \
+			$frag >> $KCONF_OVERRIDE
+		rm -f $KCONF_DIR/.scratch
+	else
+		echo "[ERROR] Kern frag $frag does not exist"
+		exit 1
+	fi
+
+done
+
+if [ -s $KCONF_FRAG_ERRS ]; then
+	OPT_COUNT=`cat $KCONF_FRAG_ERRS |grep Warning: | wc -l | awk '{print $1}'`
+	echo There were $OPT_COUNT instances of config fragment errors.
+	echo The full list can be found in your workspace at:
+	echo $KCONF_FRAG_ERRS | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo
+fi
+if [ -s $KCONF_OVERRIDE ]; then
+	OPT_COUNT=`cat $KCONF_OVERRIDE |grep Value | wc -l | awk '{print $1}'`
+	echo There were $OPT_COUNT kernel config options redefined during processing this BSP.
+	echo These config options are defined in more than one config fragment.
+	echo The full list can be found in your workspace at:
+	echo $KCONF_OVERRIDE | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo
+fi
+
+# Preserve old file (and associated timestamps) if content is unchanged
+if [ -f $OLD_KERNEL_CFG ]; then
+	cmp -s $NEW_KERNEL_CFG $OLD_KERNEL_CFG
+	if [ $? != 0 ]; then
+		mv -f $OLD_KERNEL_CFG $OLD_KERNEL_CFG.old
+		mv -f $NEW_KERNEL_CFG $OLD_KERNEL_CFG
+	else
+		rm -f $NEW_KERNEL_CFG
+	fi
+else
+	mv -f $NEW_KERNEL_CFG $OLD_KERNEL_CFG
+fi
+
+if [ ! -f $OLD_KERNEL_CFG ]; then
+	echo Error: Problem creating kernel config: $OLD_KERNEL_CFG 
+	exit 1
+fi

@@ -1,0 +1,1906 @@
+#!/bin/bash
+
+#  (scc), (series & configuration compiler)
+
+#  Copyright (c) 2008-2010 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# global/default values
+current_patch_dir=""
+current_feature_dir=""
+
+feature_ext="scc"
+obj_ext="sco"
+
+last_cmd=""
+processed_files=""
+excluded_features=""
+inherit_flag=t
+version=1.1
+scc_strict=t
+
+# ----------------------------------------------------------------------
+# start command line processing support functions
+# ----------------------------------------------------------------------
+
+error_message()
+{
+    echo "------------------------------------------------------------";
+    echo "$1";
+    echo "------------------------------------------------------------";
+}
+
+strlen()
+{
+    for i in "$@"; do
+        echo ${#i}
+    done
+}
+
+dump_and_pad()
+{
+    s="$1";
+    pad=$2;
+    len=`strlen "$s"`;
+
+    echo -n "$s";
+    while [ $len -lt $pad ]; do
+        echo -n " ";
+        let len=$len+1;
+    done
+}
+
+# ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+
+handle_cparm()
+{
+    prev_parm=$1;
+    parm=$2;
+    t=$3; # test(s)
+    d=0;
+    split=0;
+    ret=1;
+
+    #echo "-----[ handle_cparm ]----";
+    #echo "checking: prev parm: \"$prev_parm\" with parm: \"$parm\" and test \"$t\"";
+
+    ## Use tests of this form to look for a particular test
+    ##   Try and pull out the regex in question, if the test is passed
+    ##   the produced string won't match the passed in string
+    ## if [ "${t#*nodash*}" != "$t" ]
+    ## then
+    ##     echo "dash test!";
+    ## fi
+    ## if [ "${t#*options*}" != "$t" ]
+    ## then
+    ##     echo "options test!";
+    ## fi
+
+    ## 1st. Is there a parameter that we are checking ?
+    if [ -n "$parm" ]
+    then
+        ## Look for dashes in the parameter.
+
+        ## Pull anything off that may follow dashes at the end.
+        ## if this is empty, we have a --parm
+        dash=${parm%%--*};
+        if [ "$dash" == "" ]
+        then
+            d=1;
+        fi
+
+        ## Were they testing for "nodash" ?
+        if [ "${t#*nodash*}" != "$t" ] && [ $d -eq 1 ]
+        then
+            usage 1;
+            error_message "Error. Invalid parameter \"$parm\". You must supply a value to \"$prev_parm\"";
+            exit;
+        fi
+    else
+        ## if there wasn't a parameter and a test was specified, one was
+        ## expected ... that means we have an erro.
+        ## old: equal=${parm%%*=*};
+        #equal=${prev_parm#*=};
+
+        equal=${prev_parm%%*=*};
+
+        if [ -n "$t" ]
+        then
+            # no equals sign
+            if [ -n "$equal" ]
+            then
+                usage 1;
+                error_message "Error. Empty value was passed to \"$prev_parm\"";
+                exit;
+            fi
+
+        fi
+    fi
+
+    ## 2nd. We've passed an potential tests. Does the parameter need to
+    ##      be split ? If this regex retuns anything there wasn't a equals
+    ##      sign in the input.
+    equal=${parm%%*=*};
+    if [ "$equal" == "" ]
+    then
+        split=1
+    fi
+
+    ## Remove any leading "--"'s before processing.
+    parm=${parm#--*};
+    prev_parm=${prev_parm#--*};
+    parm=${parm#-*};
+    prev_parm=${prev_parm#-*};
+
+    if [ $split -eq 1 ]
+    then
+        split_parm "$prev_parm" "$t"
+    else
+        activate_parm "$prev_parm" "$parm" "$t"
+    fi
+}
+
+split_parm()
+{
+    p=$1; # the parm
+    t=$2; # test
+
+    #echo "";
+    #echo "-----[ split_parm ]----";
+
+    parm=${p%%=*};
+    parm=${parm#--*};
+    #echo "parm is: $parm";
+
+    value=${p#*=};
+    #echo "value is: $value";
+
+    ## If you came here, we had the syntax "parm=xxx". So
+    ## if we don't find a xxx, that means you were bad
+
+    if [ "${t#*empty_is_fine*}" == "" ]; then
+        if [ "$value" == "" ]; then
+            echo "Error. You must supply a non-zero value to option \"$parm\"";
+            exit;
+        fi
+    fi;
+
+    activate_parm "$parm" "$value" "$t"
+}
+
+activate_parm()
+{
+    p=$1;
+    v=$2;
+    t=$3;
+
+    # echo "handling: \"$p\" \"$v\"";
+    # Let's build a variable name: $parm_options, i.e. arch_options
+    computed=`printf "\$%s_options" $p`;
+    # Use 'eval' to see if that variable was declared and had a value
+    val=`eval echo "$computed"`;
+    good=0;
+    if [ -n "$val" ] && [ "${t#*options*}" != "$t" ]
+    then
+        # If it isn't a special test, we have a list of options
+        for opt in $val
+        do
+            #echo "testing .... $opt";
+            if [ "$opt" == "$v" ]
+            then
+                good=1
+            fi
+        done
+    else
+        good=1;
+    fi
+
+    if [ $good -eq 0 ]
+    then
+        echo "Error. Invalid option \"$v\" for \"$p\" was supplied";
+        exit;
+    fi
+
+    case $p in
+      help)         help=$v  ;;
+      verbose)      verbose=t ;;
+      version)      version_dump=t ;;
+      o)            OUT_FILE="$v" ;;      
+      entry)        entry_point="$v" ;;
+      I)            include_paths="$include_paths $v" ;;
+      sig)          do_signature=t ;;
+      dirs)         do_dirs=t ;;
+      noauto)       noauto=t ;;
+      *)            error_message "Unknown argument \"$1\""
+                    exit ;;
+    esac
+}
+
+## -------------------[ Parse command line options ]-------------------
+
+
+usage()
+{
+    type=$1;
+
+if [ "$type" == "scc" ]; then
+cat  <<'EOF';
+     scc files are actually small sourced shell scripts.
+     Not all shell features should be used in these scripts, in
+     particular no output should be generated, since it is
+     interpreted by the calling framework. Conditionals and any
+     other shell commands can be used, but ensure that only 
+     basic/standard commands are used.
+    
+     A feature script may denote where in the link order it should be
+     located. This is only used by scripts that are not being included
+     by a parent / entry point script and wish to be executed. The
+     available sections are: INIT, MAIN, FINAL and should be denoted in
+     a .scc file as: # scc.section <section name>
+
+     Any variable passed to scc via -D=<macro> is available in individual
+     feature scripts. To see what variables are available, locate the 
+     invokation of scc and search for defines.
+    
+     The following built-in functions are available:
+    
+        o kernel: (optional) Documents the kernel to which a feature is applicable
+        o dir: Changes the current working patch directory, subsequent
+               calls to "patch" use this as their base directory.
+        o patch: Outputs a patch to be included in a feature's patch
+                 set. Only the name of the patch is supplied, the path
+                 is calculated from the currently set patch directory
+        o patch_trigger: indicates that an action should be triggered and performed
+                         on a patch. The syntax is:
+                              patch_trigger <condition> <action> <tgt>
+                         The conditions can be:
+                              o arch:<comma separated arch list or "all">
+                              o plat:<comma separated platform list or "all">
+                         The action can be:
+                              o exclude
+                              o include
+                              o ctx_mod
+                              o transform
+                ctx_mod: Indicates that a base patch has context modifications 
+                         due to different patch stacks using a common feature.
+                         The base patch is almost always the pristine upstream
+                         patch and the ctx_mods are context changes to allow the
+                         patch to apply in multiple stacks. This takes 1 argument
+                         the <base patch> name to modify as it appears in the 
+                         common feature.
+    
+                         The ctx_mod patch is found in the directory of the feature
+                         adding the trigger and must have a name dictated by the 
+                         condition indicated in the trigger.
+   
+                         If platforms or archs have been indicated in the conditional,
+                         the patch takes the form: <base patch>.<archs>. Where <archs>
+                         is an underscore separated list of archictures matching the 
+                         comma separated list used in the conditional
+    
+                         If "all" is the arch or platform trigger, the context patch
+                         takes the form: <base patch>.<feature with the trigger>
+    
+                         A context patch should be version controlled, but not hand 
+                         edited, and regenerated when required
+                exclude: This is used in exceptional situations where a patch
+                         cannot be applied for certain reasons (arch or platform).
+                         When the trigger is satisfied the patch will be removed from
+                         the patch list.
+                include: This is used to include a patch only for a specific trigger.
+                         Like exclude, this should only be used when necessary. 
+                         It takes 1 argument, the patch to include.
+              transform: modifies the patch set based on a
+                         a sed substitution format: /<match>/<replace>/ .
+                         multiple transforms can be applied in a single 
+                         feature or across many features.
+        o include: Indicates that a particular feature should be
+                   included and processed in order. There is an optional
+                   parameter 'after <feat name>' to indicate that the order 
+                   of processing shouldn't be used and a feature must be 
+                   included 'after' feature 'feat name'. Include paths are
+                   relative to the root of the directories passed via -I
+        o exclude: Indicates that a particular feature should *not* be included
+                   even if an 'include' directive is found. The exclude must be
+                   issued before the include is processed.
+        o set_kernel_version: Takes a new kernel version as it's 
+                              argument. This allows a feature to change
+                              the effective kernel version and allows other
+                              features to test this value via the
+                              KERNEL_VERSION variable.
+        o check_board: Tests if a particular board is being patched.
+                       This allows a feature to change the patches
+                       on a board specific basis. Logical actions should
+                       be based on the return value "$?". 1 idicates 
+                       that the current board matches the test value, 0
+                       means that a different board is being patched.
+EOF
+else
+    cat  <<'EOF';
+usage: scc [options] [file ...]
+
+compile a patch series from a set of scc files, patch lists and includes
+
+ -h               print this help. if arguments passed, individual help is 
+                  displayed
+ -o file          create a single output file, "-" outputs to stdout
+ --e[ntry] sym(s) set the entry point function name(s)
+ --s[ig] file     dump the signature for a "compiled" scc runtime file
+ --d[irs] file    dump the directories that were used during compilation of
+                  a particular object or runtime file
+ -I<path>         include path. 
+ -Dmacro[=defn]   Define a macro/variable. visibile inside scc files
+ --noauto         Do not automatically compile the dependency chain
+ --vars           comma separated list of variables to make available to
+                  scc feature scripts. 
+                    eg: WRS_TRIPLET=board-<x>-<y>,PLATFORM=<myplat>
+ -v               run verbosely
+ --version        show the scc version
+
+EOF
+fi;
+
+    exit;
+}
+
+process_command_line()
+{
+   help="";
+   FEATURES="";
+   CMD_TRANSFORMS="";
+
+   if [ "$1" == "" ]; then
+       usage
+       exit
+   fi
+
+   while [ -n "$1" ]; do
+       case $1 in
+          -*) # options that start with '-'
+              case $1 in
+               -D*|--D*)
+                               if [ "$1" == "-D" ] || [ "$1" == "--D" ]; then
+	                          x=$2; shift;
+	                       else
+			          x=`echo $1 | sed s%^-*D%%`
+                               fi
+			       defines="$defines $x" ;;	
+               -*=*)           handle_cparm "$1" "" "nodash options" ;;
+               --noauto)       handle_cparm noauto ;;
+               -d|--d|--dirs)  handle_cparm "dirs" ;;
+               -vars|--vars)   handle_cparm "$1" "$2" "nodash"
+                               shift ;;
+               -o|--o)         handle_cparm "$1" "$2"
+	                       shift ;;
+	       -s|--s|--sig)   handle_cparm "sig" ;;
+	       -e|--e|-entry)  handle_cparm "entry" "$2"
+	                       shift ;;
+	       -I*|--I*)       if [ "$1" == "-I" ] || [ "$1" == "--I" ]; then
+	                          x=$2; shift;
+	                       else
+			          x=`echo $1 | sed s%^\-*I%%`
+                               fi
+			       handle_cparm "I" "$x" ;;
+               -v|--v)         handle_cparm verbose ;;
+               -ver*|--ver*)   handle_cparm version ;;
+               -h|--h|--help)  handle_cparm help ;;
+               *)              error_message "Unknown argument \"$1\""
+                               exit ;;
+            esac ;;
+          *) # options that don't start with a '-' and weren't grabbed
+             # by a dash option handler
+             args="$args $1" ;;
+        esac
+        shift
+    done
+
+    if [ -n "$help" ]; then
+        usage "$help"
+    fi
+}
+
+
+##
+## --------------------------------------------------------------
+## Above this point is command line processing.
+## Below this point is the implementation of the script
+## --------------------------------------------------------------
+##
+
+_strip_ext()
+{
+    # this isn't quite "basename" we want the full
+    # path, just no extension, i.e. without basename's
+    # habit of removing the last element no matter what
+    local name=$1
+    local ext=$2
+
+    if [ -n "$ext" ]; then
+	echo "$name" | sed "s%$ext$%%"
+    else
+	echo $name
+    fi
+}
+
+# arg1: string to make safe to call as a shell function
+_safe_funcname()
+{
+    echo $1 | sed -e 's/\./_/g' -e 's/\-/_/g' -e 's/^\([0-9]\)/xx\1/'
+}
+
+# output to the current script
+_dump()
+{
+    if [ -n "$patch_script" ]; then
+        echo "$@" >> "$patch_script"
+    else
+	echo "$@"
+    fi
+}
+
+## used in the feature scripts
+set_kernel_version()
+{
+    KERNEL_VERSION=$1
+}
+
+## used in the feature scripts
+##    arg1: the board to test
+## return: 0 board is present
+##         1 board is not present
+check_board()
+{
+    echo $WRS_BOARD | grep -q $1
+    return $?
+}
+
+## used in the feature scripts to trigger strict patch checking
+scc_strict()
+{
+    scc_strict=$1
+}
+
+## used in the feature scripts
+## $1 is the patch to override
+override()
+{
+    # takes a patch and puts a transform to wait for another patch of the
+    # same name and replace it with this one.
+    if [ "$current_patch_dir" != "$current_feature_dir" ]; then
+	tmp=$current_feature_dir/$current_patch_dir;
+    else
+	tmp=$current_patch_dir;
+    fi
+
+    # if the passed patch ($1) has a directory, we need to 
+    # pull it out of the one we just constructed to avoid a
+    # a duplicate (and invalid) in the replacement patch name.
+    patch_dir=$(dirname $1);
+    if [ -n "$patch_dir" ] && [ "$patch_dir" != "." ]; then
+	tmp=$(echo $tmp | sed s%$patch_dir%%);
+    fi;
+    tmp=$tmp/$1;    
+
+    if [ "$last_cmd" == "patch" ]; then
+        # there was an open command replacement, let's close it
+        _dump '`'
+    fi
+    _dump "   _cmds=\$(echo \"\$_cmds\" | sed s%^.*$1$%$tmp%);"
+
+    last_cmd=override
+}
+
+# prevent a future include of a feature from doing anything
+# arg1: feature name to exclude
+exclude_feature()
+{
+    excluded_features=`echo "$excluded_features"; echo "$fname"`
+}
+
+# 0: feature is ok
+# 1: feature should be excluded
+check_excluded_feature()
+{
+    feat=$1
+    my_pick=""
+
+    if [ -n "$feat" ]; then
+        if [ -n "$excluded_features" ]; then
+            tgts=$(echo "$excluded_features" | grep -E "^$feat$")
+            # pick the first ...
+            my_pick=$(echo "$tgts" | head -n1)
+            if [ -n "$my_pick" ]; then
+	        # take it out of the pool.
+                excluded_features=$(echo "$excluded_features" | grep -v -E "^$my_pick$")
+                return 1
+            fi
+        fi;
+    fi
+
+    return 0
+}
+
+# used in feature scripts
+#  - sets the current working patch directory
+dir()
+{
+    current_patch_dir=$1
+}
+
+get_dir()
+{
+    echo $current_patch_dir
+}
+
+# used in feature scripts
+#  - associates a kernel config frag with the feature
+kconf()
+{
+    type=$1
+    this_frag=$current_feature_dir/$2
+
+    if [ ! -f "$this_frag" ]; then
+	this_frag=$2
+    fi
+
+    if [ "$last_cmd" == "patch" ]; then
+        _dump " \\"
+	_dump -n "  echo \"# _kconf $type $this_frag\";"
+    else
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"# _kconf $type $this_frag\")"
+    fi
+}
+
+# used in feature scripts
+#  - encodes a generic git command
+git()
+{
+    if [ "$last_cmd" == "patch" ]; then
+        _dump " \\"
+	_dump -n "      echo \"# _git $@\";"
+    else
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"# _git $@\")"
+    fi
+}
+
+# used in feature scripts
+#    arg1: the branch name
+#    arg2: the source branch name
+branch()
+{
+    if [ "$last_cmd" == "patch" ]; then
+        _dump " \\"
+	_dump -n "      echo \"# _branch_begin $1\""
+    else
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"# _branch_begin $1\")"
+    fi
+}
+
+
+# used in feature scripts
+#   arg1: parent branch
+#   arg2: branch name
+scc_leaf()
+{
+    parent_branch=$1
+    branch_name=$2
+
+    # if the parent branch name has a ':', it means we are tracking
+    # a particular end point of that branch. If that ISN'T the end
+    # of the branch and auto-rebase needs to be triggered
+    echo $parent_branch | grep -q ":"
+    if [ $? -eq 0 ]; then
+	tracking_commit=`echo $parent_branch | cut -d: -f2`
+	parent_branch=`echo $parent_branch | cut -d: -f1`
+	potential_rebase="$branch_name:$tracking_commit"
+    fi
+
+    # this is really just a documented include AND branch + branch name
+    include $parent_branch "" ""
+    
+    if [ -z "$branch_name" ]; then
+	branch $current_feature
+    else
+	branch $branch_name
+    fi
+}
+
+# example: scc_stage linux-omap-2.6 +wrs_omap_merge
+# 
+# Stages a tree for a future merge
+#
+# arg1: tree
+# arg2: branch
+#
+scc_stage()
+{
+    src_tree=$1
+    src_branch=$2
+
+    # look for the tree in our search paths
+    for p in "." "$current_feature_dir" $include_paths; do
+	if [ -e $p/$src_tree ]; then
+	    src_tree_dir=`readlink -f "$p/$src_tree"`
+	fi
+    done
+
+    if [ ! -e "$src_tree_dir" ]; then
+	# this block actually runs in the src tree
+	git show-ref --quiet --verify -- "refs/heads/$src_branch-merge";
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"if [ \\\$? -eq 1 ]; then\")"
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"  echo \"WARNING: src tree $src_tree was not found, creating a dummy branch\"\")"
+	git branch $src_branch-merge wrs_base
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"fi\")"
+    else
+	git show-ref --quiet --verify -- "refs/heads/$src_branch-merge";
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"if [ \\\$? -eq 1 ]; then\")"
+	git fetch --no-tags $src_tree_dir +$src_branch:$src_branch-merge
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"fi\")"
+    fi
+}
+
+
+_add_cmd()
+{
+    addition=$1
+
+    _dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"$addition\")"
+}
+
+# used in feature scripts
+# 
+# arg1: the tree to merge
+# arg2: the source branch
+# arg3: the message to commit changes with
+scc_merge()
+{
+    src_tree=$1
+    branch=$2
+    message="$3"
+
+    if [ -z "$message" ]; then
+	message="merge of $src_tree $branch"
+    fi
+    
+    scc_stage $src_tree $branch
+    
+    git branch --no-merged standard \| grep -q $branch-merge
+    _add_cmd "if [ \\\$? -eq 0 ]; then"
+    git merge -m "\\\\'$message\\\\'" $branch-merge
+    _add_cmd "   git ls-files -m | xargs grep -q '<<<'"
+    _add_cmd "   if [ \\\$? -ne 0 ]; then"
+    _add_cmd "      git ls-files -m | xargs git add"
+    git commit --quiet -s -m "\\\\'$message\\\\'" 
+    _add_cmd "    else"
+    _add_cmd "      exit 1"   
+    _add_cmd "   fi" 
+    _add_cmd "fi"
+}
+
+# rebases a series of commits onto a new base
+#
+# arg1: target branch (i.e. the new base)
+# arg2: oldest commit (from mini tree or wherever) on branch
+# arg3: the current branch name (i.e. the last commit)
+# arg4: the final branch name
+#
+# example: scc_rebase standard <my first commit id> my_bsp-standard
+#
+scc_rebase()
+{
+    target_base=$1
+    oldest_commit=$2
+    newest_commit=$3
+    final_name=$4
+
+    # This runs in the source tree. The branch being rebased should
+    # be active and checked out.
+    git rebase --onto $target_base $oldest_commit $newest_commit
+    git branch -f $final_name
+    git checkout $final_name
+}
+
+# used in feature scripts.
+#
+# checks for a commit_id. returns 0 if it matches, 1 if it doesn't
+#
+# arg1: branch
+# arg2: commit id
+#
+scc_check()
+{
+    _add_cmd "revlist=`git rev-list $2..$1`"
+    _add_cmd "if [ -n \"\$revlist\" ]; then"
+    _add_cmd "   return 1"
+    _add_cmd "fi"
+    _add_cmd "return 0"
+}
+
+
+# used in feature scripts
+scc_feat()
+{
+    set_current_feature $1
+}
+
+# used in feature scripts.
+# internal use only, this will dump a block of "whatever"
+# to the output script(s). This is a hidden method to add 
+# functionality and work around issues
+__scc_block_start()
+{
+    section=$1
+
+    if [ "$last_cmd" == "patch" ]; then
+        # there was an open command replacement, let's close it
+        _dump '`';
+	last_cmd=block
+    fi
+
+    _dump ""
+    _dump \# scc block code starts here
+}
+
+__scc_block_end()
+{
+    _dump \# scc block code ends here
+    _dump ""
+}
+
+# used in feature scripts
+# arg1: the tag name
+tag()
+{
+    if [ "$last_cmd" == "patch" ]; then
+        _dump " \\"
+	_dump -n "  echo \"# _git tag $1\";"
+    else
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"# _git tag $1\")"
+    fi
+}
+
+# arg1: phase
+# arg2: script
+scc_hook()
+{
+    phase=$1
+    hook=`search_include_paths $2`
+
+    if [ "$last_cmd" == "patch" ]; then
+        _dump " \\"
+	_dump -n "  echo \"# _hook $phase $hook\";"
+    else
+	_dump "   _cmds=\$(echo \"\$_cmds\" ; echo \"# _hook $phase $hook\")"
+    fi
+}
+
+# used in feature scripts
+patch()
+{
+    this_patch=$1
+    patch_type=$2 # not currently used
+
+    # figure out the prefix for the patch
+    if [ -n "$current_patch_dir" ]; then
+        if [ "$current_patch_dir" != "$current_feature_dir" ]; then
+            tmp=$current_feature_dir/$current_patch_dir/$this_patch
+        else
+            tmp=$current_patch_dir/$this_patch
+        fi
+    else
+        tmp=$this_patch
+    fi
+
+    tmp=$(echo $tmp | tr -s /)
+
+    # check to see if we can find the patch ... unless we
+    # were told to not search at all.
+    if [ -z "$no_patch_search" ]; then
+	if [ ! -e "$tmp" ]; then
+	    name_only=`basename $tmp`
+	    tmp2=`search_include_paths $this_patch`
+	    if [ -z "$tmp2" ]; then
+		if [ "$scc_strict" = "t" ]; then
+		    echo ""
+		    echo "ERROR: patch $tmp is not available"
+		    echo ""
+		    exit 1
+		else
+		    if [ -n "$verbose" ]; then
+			echo "WARNING: could not find patch $tmp"
+		    fi
+		fi
+		return
+	    fi
+	    tmp=$tmp2
+	fi
+    fi
+
+    if [ -n "$verbose" ]; then
+	echo "# patch [$inherit_flag]: $tmp"
+    fi
+
+    if [ -n "$tmp" ]; then
+        if [ "$last_cmd" == "patch" ]; then
+            # last command was patch, so there is already an open command
+            # replacement, let's just continue in it (after a line break)
+            _dump " \\"
+	    _dump -n "      echo \"# _patch $tmp\";"
+	else
+            # this leaves the command replacement string open, in case more
+            # patch commands are detected
+            _dump -n "   _cmds=\`echo \"\$_cmds\"; echo \"# _patch $tmp\";"
+        fi
+    fi
+    last_cmd=patch
+}
+
+add_feature_to_process()
+{
+    to_process="$to_process $1"
+}
+
+# used by feature scripts. call this to set a variable
+# in the preamble of a created executable. subscripts
+# can use these values to make decisions
+define()
+{
+    var=$1
+    value=$2
+
+    eval $var=$value
+
+    # add to the preamble
+    dump_vars=$(echo "$dump_vars"; echo export $var=$value)
+}
+
+# used by feature scripts
+include()
+{
+    fname=$1
+    before_after=$2
+    tgt_feat=$3
+
+    fname=$(_strip_ext "$fname" ".$feature_ext")
+
+    if [ -n "$fname" ]; then
+        # has this feature been explictly blocked?, if 
+        check_excluded_feature $fname
+        if [ $? -eq 0 ]; then
+            if [ -n "$before_after" ]; then
+                # a before or after trigger was passed
+                conditional_after_list=$(echo "$conditional_after_list"; 
+                                         echo "$fname $tgt_feat")
+                return # flee. nothing to do now.
+            else
+                to_call="$fname"
+
+                x=$(echo "$conditional_after_list" | grep $fname)
+                # if x is non-empty then this feature had a conditional
+                # include so special processing is required
+                if [ -n "$x" ]; then
+                    after_func=$(echo "$x" | sed 's/ .*$//')
+                    to_call="$fname $after_func"
+                fi
+            fi
+
+            for f in $to_call; do
+                if [ "`basename $f`" = "$current_feature" ]; then
+                    # if we are calling a feature with our same name, we
+                    # actually want the parent ... which is undefined at the
+                    # moment.
+                    pname="`echo -n $f; echo -n \"_undefined_\"`"
+                
+                    # the function we'd call should not have '.' in it, since
+                    # shell won't allow this
+                    out_name=$(_safe_funcname $pname)
+
+		    # the function we'd all also shouldn't have the path
+		    # in it, if it was included with a partial path
+		    out_name=`basename $pname .$feature_ext`
+
+                    if [ "$last_cmd" == "patch" ]; then
+                        # there was an open command replacement, let's close
+                        # it
+                        _dump '`'
+                    fi
+                    _dump "   output=\"\$_cmds\" # save current work for function call";
+
+		    if [ "$f" == "$after_func" ]; then
+			_dump "    _auto_branch=\"\$_auto_branch $out_name\""
+		    fi     
+
+                    _dump "   $out_name;     # call function";
+		    _last_call=$out_name
+                    _dump '   _cmds="$output";   # restore current work';
+
+                    add_feature_to_process $pname
+                else
+		    # the function we'd call also shouldn't have the path
+		    # in it, if it was included with a partial path
+		    out_name=`basename $f .$feature_ext`
+
+                    full_path=`search_include_paths $f`
+		    path_sum=`echo $full_path | md5sum | cut -d' ' -f1`
+
+                    # the function we'd call should not have '.' in it, since
+                    # shell won't allow this
+                    out_name=$(_safe_funcname $out_name"_$path_sum")
+
+                    if [ "$last_cmd" == "patch" ]; then
+                        # there was an open command replacement, let's close
+                        # it
+                        _dump '`'
+                    fi
+
+		    if [ "$f" == "$after_func" ]; then
+			_dump "    _auto_branch=\"\$_auto_branch $out_name\""
+		    fi     
+
+                    _dump "   output=\"\$_cmds\" # save current work for function call";
+                    _dump "   $out_name;     # call function";
+
+		    _last_call=$out_name
+                    _dump '   _cmds="$output";   # restore current work '
+
+                    add_feature_to_process $f
+                fi
+                last_cmd=include
+            done;
+	else
+	    # the feature was excluded. This is a branch point.
+            if [ "$last_cmd" == "patch" ]; then
+                  # there was an open command replacement, let's close
+                  # it
+                _dump '`'
+            fi
+
+	    force_branch_name="`basename $fname`_excluded-auto"
+            _dump "   _cmds=\$(echo \"\$_cmds\"; echo \"# _force_branch $force_branch_name force\")"
+	    last_cmd=
+        fi
+    fi
+}
+
+exclude()
+{
+    fname=`_strip_ext "$1" ".$feature_ext"`
+
+    ## a global feature exclude
+    exclude_feature $fname
+}
+
+patch_trigger()
+{
+    type=$1
+    action=$2
+    tgt_patch=$3
+    extra=$4
+    archs=""
+
+    #echo "patch_trigger: type $1, action: $2, tgt: $3 feature: $current_feature";
+
+    arch_sub_type=${type##arch:*}
+    plat_sub_type=${type##plat:*}
+    if [ "$arch_sub_type" == "" ] && [ "$plat_sub_type" == "" ]; then
+        # this is an error. you have to have arch: or plat:
+        return
+    fi
+
+    arch_regex=""
+    plat_regex=""
+    if [ "$arch_sub_type" == "" ]; then
+        # we have a arch:blah
+        arch_sub_type=${type#arch:*}
+        archs=$(echo $arch_sub_type | sed 's/,/ /g')
+        if [ "$archs" == "all" ]; then
+            arch_regex=all
+        else
+            arch_regex=$(echo "$archs" | sed 's/ /_/g')
+        fi
+    fi
+    if [ "$plat_sub_type" == "" ]; then
+        # we have a plat:blah
+        plat_sub_type=${type#plat:*};
+        plats=$(echo $plat_sub_type | sed 's/,/ /g')
+        if [ "$plats" == "all" ]; then
+            plat_regex=all
+        else
+            plat_regex=$(echo "$plats" | sed 's/ /_/g')
+        fi
+    fi
+
+    if [ "$action" == "ctx_mod" ]; then
+        ## was it a arch or platform trigger ?
+        if [ -n "$arch_regex" ]; then
+            do_ctx_mod $arch_regex "" $tgt_patch $current_feature
+        else
+            do_ctx_mod "" $plat_regex $tgt_patch $current_feature
+        fi
+    elif [ "$action" == "exclude" ]; then
+        if [ -n "$arch_regex" ]; then
+            do_exclude "$arch_regex" "" "$tgt_patch"
+        else
+            do_exclude "" "$plat_regex" "$tgt_patch"
+        fi
+    elif [ "$action" == "include" ]; then
+        if [ -n "$arch_regex" ]; then
+            do_include "$arch_regex" "" "$tgt_patch"
+        else
+            do_include "" "$plat_regex" "$tgt_patch"
+        fi
+    elif [ "$action" == "transform" ]; then
+        if [ -n "$arch_regex" ]; then
+            do_transform "$arch_regex" "" "$tgt_patch"
+        else
+            do_transform "" "$plat_regex" "$tgt_patch"
+        fi
+    fi
+
+    last_cmd=patch_trigger
+}
+
+do_ctx_mod()
+{
+    archs=$1
+    plats=$2
+    base_patch=$3
+    active_feature=$4
+
+    # echo "#    do_ctx_mod: arch:$archs,plat:$plat,patch:$base_patch,feature:$active_feature";
+
+    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
+        out_name="$base_patch.$active_feature"
+    fi
+    if [ -n "$archs" ]; then
+        if [ "$archs" != "all" ]; then
+            out_name="$base_patch.$archs"
+        fi
+    elif [ -n "$plats" ]; then
+        if [ "$plats" != "all" ]; then
+            out_name="$base_patch.$plats"
+        fi
+    fi
+
+    force_name=`_strip_ext $base_patch .patch`
+
+    # there was an open command replacement, let's close it
+    if [ "$last_cmd" == "patch" ]; then
+        _dump '`;'
+    fi;
+
+    work_dir=$current_patch_dir
+    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
+        _dump "   _cmds=\$(echo \"\$_cmds\" | sed 's%^.*$base_patch$%\# _force_branch $active_feature-$force_name force\n\# _patch $work_dir/$out_name%');";
+	_dump "   _potential_auto_branch=$force_name"
+    else
+        # TODO: these can be lists of plats, or archs ... could loop
+        if [ -n "$plats" ]; then
+            # platform specific test and output
+            _dump "   if [ \"\$WRS_PLATFORM\" == \"$plats\" ]; then "
+            _dump "      _cmds=\$(echo \"\$_cmds\" | sed 's%^.*$base_patch$%\# _force_branch $active_feature-$force_name force\n\# _patch $work_dir/$out_name%');"
+	    _dump "      _potential_auto_branch=$force_name"
+            _dump "   fi"
+        fi;
+        if [ -n "$archs" ]; then
+            _dump "   if [ \"\$KERNEL_ARCH\" == \"$archs\" ]; then ";
+            _dump "      _cmds=\$(echo \"\$_cmds\" | sed 's%^.*$base_patch$%\# _force_branch $active_feature-$force_name force\n\# _patch $work_dir/$out_name%');";
+	    _dump "      _potential_auto_branch=$force_name"
+            _dump "   fi"
+        fi
+    fi;
+}
+
+do_exclude()
+{
+    archs=$1
+    plats=$2
+    tgt_patch=$3
+
+    # echo "#    do_exclude: arch:$archs,plat:$plat,patch:$tgt_patch";
+
+    # there was an open command replacement, let's close it
+    if [ "$last_cmd" == "patch" ]; then
+        _dump '`;'
+    fi;
+
+    force_name=`_strip_ext $tgt_patch .patch`
+
+    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
+        _dump "   _cmds=\$(echo \"\$_cmds\" | sed \"s%^.*$tgt_patch$%\# _force_branch $current_feature-$force_name force\n%\");";
+	_dump "   _potential_auto_branch=$force_name"
+    else
+        if [ -n "$archs" ]; then
+            _dump "   if [ \"\$KERNEL_ARCH\" == \"$archs\" ]; then ";
+            _dump "      _cmds=\$(echo \"\$_cmds\" | sed \"s%^.*$tgt_patch$%\# _force_branch $current_feature-$force_name force\n%\");";
+	    _dump "      _potential_auto_branch=$force_name"
+            _dump "   fi"
+        elif [ -n "$plats" ]; then
+            _dump "   if [ \"\$WRS_PLATFORM\" == \"$plats\" ]; then ";
+            _dump "      _cmds=\$(echo \"\$_cmds\" | sed \"s%^.*$tgt_patch$%\# _force_branch $current_feature-$force_name force\n%\");";
+	    _dump "      _potential_auto_branch=$force_name"
+            _dump "   fi"
+        fi
+    fi
+}
+
+do_include()
+{
+    archs=$1
+    plats=$2
+    tgt_patch=$3
+
+    # echo "#    do_include: arch:$archs,plat:$plat,patch:$tgt_patch";
+
+    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
+        patch "$tgt_patch"
+    else
+        # there was an open command replacement, let's close it
+        if [ "$last_cmd" == "patch" ]; then
+            _dump '`;'
+            last_cmd=patch_trigger
+        fi;
+        if [ -n "$archs" ]; then
+            _dump "   if [ \"\$KERNEL_ARCH\" == \"$archs\" ]; then "
+            _dump -n  "   "
+            patch "$tgt_patch"
+            _dump '`;'
+            _dump "   fi"
+        elif [ -n "$plats" ]; then
+            _dump "   if [ \"\$WRS_PLATFORM\" == \"$plats\" ]; then "
+            _dump -n  "   "
+            patch "$tgt_patch"
+            _dump '`;'
+            _dump "   fi"
+        fi
+    fi
+}
+
+do_transform()
+{
+    archs=$1
+    plats=$2
+    sed_expr=$3
+
+    # echo "#    do_transform: arch:$archs,plat:$plat,patch:$tgt_patch";
+
+    # we need to add something to the transform .. a branch indication
+    # if it suceeds
+
+    # so we are finding out what the input sed-type expression had as the
+    # replacement value, and we are adding our own branch tag + the original
+    # as the new replacement value
+    input_replace=`echo $sed_expr | cut -d/ -f3`
+    new_sed_expr=`echo $sed_expr | sed "s%$input_replace%\\\\\# _force_branch $current_feature\-force force\\\\\n$input_replace%"`
+
+    # there was an open command replacement, let's close it
+    if [ "$last_cmd" == "patch" ]; then
+        _dump '`;'
+    fi;
+    if [ "$archs" == "all" ] || [ "$plats" == "all" ]; then
+        _dump "   _cmds=\$(echo \"\$_cmds\" | sed \"s$new_sed_expr\");"
+        _dump "   _potential_auto_branch=$current_feature-force"
+    else
+        if [ -n "$archs" ]; then
+            _dump "   if [ \"\$KERNEL_ARCH\" == \"$archs\" ]; then "
+            _dump "      _cmds=\$(echo \"\$_cmds\" | sed \"s$new_sed_expr\");"
+            _dump "      _potential_auto_branch=$current_feature-force"
+            _dump "   fi";
+        elif [ -n "$plats" ]; then
+            _dump "   if [ \"\$WRS_PLATFORM\" == \"$plats\" ]; then "
+            _dump "      _cmds=\$(echo \"\$_cmds\" | sed s\"$new_sed_expr\");"
+            _dump "      _potential_auto_branch=$current_feature-force"
+            _dump "   fi"
+        fi
+    fi
+}
+
+# arg1: short name of the active feature
+set_current_feature()
+{
+    current_feature=$1;
+} 
+
+# arg1: feature file to process
+process_feature()
+{
+    pfeat=$1
+    small_feat=$2
+
+    # reset scc_strict per-feature
+    scc_strict=t
+
+    if [ ! -e "$pfeat" ]; then
+        return
+    fi
+    if [ -n "$verbose" ]; then
+        echo "# processing $pfeat"
+    fi
+    processed_files="$processed_files $pfeat"
+
+    _path_sum=`echo $absfile | md5sum | cut -d' ' -f1`
+    small_feat="$small_feat""_""$_path_sum"
+    
+    small_feat=$(_safe_funcname "$small_feat")
+    last_cmd=""
+    _dump "";
+    _dump "# --->--->--->--->--->>--->--->--->--->>--->--->--->--->--->--->";
+    _dump "# Generated from $pfeat";
+    _dump "# Note: this function processes \$_cmds and updates it"; 
+    _dump "# --->--->--->--->--->>--->--->--->--->>--->--->--->--->--->--->";
+
+    if [ -n "$small_feat" ]; then
+	_dump "$small_feat()";
+	_dump "{";
+	if [ "$small_feat" == "$initial_feature" ]; then
+            _dump '   _cmds="";';
+	else
+            _dump '   _cmds="$output";';
+	fi
+	_dump "   _cmds=\$(echo \"\$_cmds\"; echo \"# _mark $small_feat start\")"
+
+	if [ -n "$pfeat" ]; then
+	    current_feature_dir=$(dirname $pfeat);
+
+	    dir $current_feature_dir;
+	    . $pfeat;
+	    if [ $? -ne 0 ]; then
+		echo " feature file $pfeat contains an error ... aborting";
+		exit 1;
+	    fi;
+ 
+            # there was an open command replacement, let's close it
+	    if [ "$last_cmd" == "patch" ]; then
+		_dump '`;';
+	    fi;
+
+	fi
+
+	_dump "   _cmds=\$(echo \"\$_cmds\"; echo \"# _mark $small_feat end\")"
+	_dump "   output=\"\$_cmds\";";
+
+	_dump "   $small_feat""_rc_files";
+
+	_dump "}";
+	_dump "# scc entry_func: $small_feat"
+    fi
+
+    if [ -n "$verbose" ]; then
+        echo "# done processing $pfeat";
+    fi
+}
+
+get_dirs()
+{
+    local files=$@
+    local dirs=""
+
+    for i in $files; do
+	# call the same function as the name of the file
+	if [ -e $i ]; then
+	    grep -q "# scc runtime file" $i	    
+	    if [ $? -ne 0 ]; then
+		grep -q "# scc object file" $i
+		if [ $? -ne 0 ]; then
+		    echo "ERROR. not a scc runtime or object file"
+		    exit 1
+		else
+		    object=t
+		fi
+	    else
+		runtime=t
+	    fi
+
+	    if [ -n "$runtime" ]; then
+		# no dependency check, this should be a standalone file
+		rfiles=`cat $i | grep -E '^\. \`dirname'`
+		IFS='
+'
+		for r in $rfiles; do
+		    file_to_check=`echo $r | sed -e 's%\. \`.*\/%%'`
+		    cfgs=`grep -E _cfg $file_to_check | \
+                            sed -e s'%^ *echo \"\# _cfg '%%g \
+                                -e s'%\";.*$%%g'`
+		    echo "$cfgs"
+		done
+		IFS=' '
+	    else
+		IFS='
+'
+		cfgs=`grep -E _cfg $i | \
+                    sed -e s'%^ *echo \"\# _cfg '%%g \
+                    -e s'%\";.*$%%g'`
+		echo "$cfgs"
+		IFS=' '
+	    fi
+	else
+	    echo "ERROR $i does not exist"
+	    exit 1
+	fi
+    done
+}
+
+get_sig()
+{
+    local files=$@
+
+    for i in $files; do
+	# call the same function as the name of the file
+	if [ -e $i ]; then
+	    grep -q "# scc runtime file" $i	    
+	    if [ $? -ne 0 ]; then
+		grep -q "# scc object file" $i
+		if [ $? -ne 0 ]; then
+		    echo "ERROR. not a scc runtime or object file"
+		    exit 1
+		else
+		    object=t
+		fi
+	    else
+		runtime=t
+	    fi
+
+	    if [ -n "$runtime" ]; then
+		# no dependency check, this should be a standalone file
+		sig=$(sh $i | md5sum | cut -d' ' -f1)
+		echo "$i: $sig"
+	    else
+		grep "depends:" $i -q 
+		if [ $? -eq 0 ]; then
+		    echo "WARNING. $i has dependencies, no signature calculated"
+		    exit 1
+		else
+		    sig=$(sh $i | md5sum | cut -d' ' -f1)
+		    echo "$sig"
+		fi
+	    fi
+	else
+	    echo "ERROR $i does not exist"
+	    exit 1
+	fi
+    done
+}
+
+_dump_extended_info()
+{
+    local name=$1
+
+    name=$(_safe_funcname $name)
+
+    # this dumps all the .scc file directories we processed
+    # someone will find this interesting
+    _dump "";
+    _dump "$name""_rc_files()";
+    _dump "{";
+    _dump '   _cmds="$output"';
+    _dump '   _cmds=`echo "$_cmds"; \';
+    for f in $processed_files; do
+        out=$(dirname $f)
+	_dump "   echo \"# _cfg $out\"; \\"
+    done;
+    _dump '`;';
+    _dump '   output="$_cmds"';
+    _dump "}"; 
+    _dump "";
+}
+
+# arg1: target file
+# arg2: files that are not eligible to match
+search_include_paths()
+{
+    local tgt=$1
+    local exclude_files=$@
+    
+    if [ -z "$exclude_files" ]; then
+	exclude_files="/dev/null"
+    fi
+
+    tgt=$(_strip_ext "$tgt" ".$feature_ext")
+    base=`basename $tgt`
+
+    for p in "." "$current_feature_dir" $include_paths; do
+	# target file + default feature extension
+	if [ -f $p/$tgt.$feature_ext ]; then
+	    possible=`readlink -f "$p/$tgt.$feature_ext"`
+	# raw target file
+	elif [ -f $p/$tgt ]; then
+	    possible=`readlink -f "$p/$tgt"`
+        # special processing test the include directory +
+	# the name of the feature. This saves us doing a massive
+	# set of includes for sub categories includes
+	elif [ -f $p/$tgt/$tgt.$feature_ext ]; then
+	    possible=`readlink -f "$p/$tgt/$tgt.$feature_ext"`
+	elif [ -f $p/$tgt/$tgt ]; then
+	    possible=`readlink -f "$p/$tgt/$tgt"`
+        # more special processing. test if the included
+	# feature is actually just the name of a directory
+	# AND there is not file with the same name present.
+	# if that is true, then test for:
+        #     <tgt>/<tgt>.extension
+	# in that directory
+	elif [ -f $p/$tgt/$base.$feature_ext ]; then
+	    possible=`readlink -f "$p/$tgt/$base.$feature_ext"`
+	elif [ -f $p/$tgt/$base ]; then
+	    possible=`readlink -f "$p/$tgt/$base.$feature_ext"`
+	fi
+
+	if [ -n "$possible" ]; then
+	    echo "$exclude_files" | grep -q "$possible"
+	    if [ $? -ne 0 ]; then
+		echo $possible
+		return
+	    fi
+	    possible=
+	fi
+    done
+}
+
+check_link_section()
+{
+    local file=$1
+
+    section=`cat $file | grep scc.section | awk '{print $3}'`
+
+    if [ -n "$section" ]; then
+	echo "$section"
+    else
+	echo "MAIN"
+    fi
+}
+
+# this compiles the passed scc files into "objects"
+compile_files()
+{
+    local in_files=$@
+    local files
+
+    to_compile="$in_files"
+    to_link=""
+    all_files=
+    in_files=
+
+    # phase1: we do a depth-first search of the files passed on the command
+    #         line. During the search, we record all files are that are
+    #         included by the commmand line files (can be inhibited by
+    #         --noauto). This in order list is the complete set of files to
+    #         compile
+    for f in $to_compile; do
+	if [ ! -e "$f" ]; then
+	    f=`search_include_paths $f`
+	fi
+
+	f=`readlink -f $f`
+
+	# this ensures that everything on the original $in_files
+	# is now absolute
+	in_files="$in_files $f"
+
+	if [ -z "$noauto" ]; then
+            # queue for compilation (if --noauto wasn't passed)
+	    
+            sub_files=$f
+	    all_files="$all_files $f"
+	    while [ -n "$sub_files" ]; do
+		new_sub=
+		for s in $sub_files; do
+		    if [ ! -e $s ]; then
+			s=`search_include_paths $s`
+		    fi
+		    current_feature_dir=$(dirname $s)
+                    # we run a limited shell, with only the functions defined
+                    # that can cause a file to be included. This lets us
+                    # build the list of files to be compiled.
+		    z=$( scc_leaf()
+		         {
+			     files="$files $1"
+			 }
+		   
+			 include()
+			 {
+			     files="$files $1"
+			 } 
+		   
+			 . $s > /dev/null
+		   
+			 echo "$files"
+		    )
+
+		    abs=
+		    for t in $z; do
+                        # remove a feature extenstion (if present)
+			t=$(_strip_ext "$t" ".$feature_ext")
+
+                        # add it again .. :)
+			t="$t"".$feature_ext"
+			 
+                        # this searches the include paths for the missing
+			# feature. But it also passes in all the features
+			# we've processed to ensure that we don't repeat
+			tt=`search_include_paths $t $all_files`
+			if [ -z "$tt" ]; then
+                            # we couldn't find it, is it on an include path?
+			    echo "warning: could not find $t"
+			else
+			    abs="$abs $tt"
+			fi
+		    done
+		    new_sub="$new_sub $abs"
+		done
+
+                all_files="$all_files $new_sub"
+		sub_files="$new_sub"
+	    done
+	else # --noauto
+	    if [ -e $f ]; then
+		all_files="$all_files $f"
+	    else
+		tt=`search_include_paths $f`
+		if [ -z "$tt" ]; then
+                    # we couldn't find it, is it on an inclue path?
+		    echo "warning: could not find $f"
+		else
+		    all_files="$all_files $tt"
+		fi
+	    fi
+	fi
+    done
+
+    # phase2: compile the list of "all_files" that was built in phase1
+    to_compile=$all_files
+    files=$all_files
+    count=0
+    for absfile in $files; do
+	echo $all_processed | grep -q $absfile
+	if [ $? -eq 0 ]; then
+	    continue
+	fi
+
+	if [ -n "$verbose" ]; then
+	    echo "compiling: $absfile"
+	fi	    
+	_section=`check_link_section $absfile`
+
+        # prepare to pick a file for output ...
+	_basename=`basename $absfile .$feature_ext`
+
+        _tmpname=$_basename.$obj_ext.tmp
+	_path_sum=`echo $absfile | md5sum | cut -d' ' -f1`
+	
+	# this redirects all calls to _dump to the file
+	patch_script=$_tmpname
+
+        # dump some information
+	_dump "# scc object file"
+	_dump "# scc version $version"
+	_dump "# scc id $_path_sum"
+
+        # special processing if a nasty patches.list is found
+	if [ "$_basename" = "patches.list" ]; then
+	    _dump "# scc auto generated"
+
+	    fname=`echo $_basename | sed 's%^\.%%' | sed 's%\.scc$%%' | \
+                   sed 's%\.%_%g'`
+	    fname="$fname""_""$_path_sum"
+
+	    _dump "$fname()"
+	    _dump "{"
+
+	    _dump '   output=`echo $output;'
+	    old_school=`cat $absfile`
+	    for old in $old_school; do
+		_dump "       echo \"$old\""
+	    done
+	    _dump '`;'
+	     
+	    _dump "}"
+	    _dump "# scc entry_func: $fname"
+	else
+	    to_process=""
+	    processed_files=""
+
+            # output has been redirected to $patch_script
+	    set_current_feature "$_basename"
+	    process_feature "$absfile" "$_basename"
+
+	    if [ -n "$to_process" ]; then
+                # dump anything that was picked up in 
+                # process_feature as a dependency
+		_dump "# scc depends: $to_process"
+	    fi
+            # this adds extended information to the output file
+            all_processed="`echo \"$all_processed\"; echo \"$processed_files\"`"
+	    _dump_extended_info "$_basename""_""$_path_sum"
+	    _dump "# .section $_section"
+	fi
+
+	objname=$count-$_basename-$_path_sum.$obj_ext
+	mv $_tmpname "$objname"
+	count=`expr $count + 1`
+	to_link="$to_link $objname"
+
+	echo "$in_files" | grep -q "$absfile"
+	if [ $? -eq 0 ]; then
+	    forced_link="$forced_link $objname"
+	fi
+    done
+
+    # call the "link" phase
+    if [ -n "$OUT_FILE" ]; then
+	link_file $in_files
+    fi
+}
+
+link_file()
+{
+    local files=$@
+
+    # this links an "excutable"
+    if [ -z "$OUT_FILE" ]; then
+	return 1
+    fi
+
+    rm -f $OUT_FILE
+    patch_script=$OUT_FILE
+
+    if [ -d "$patch_script" ]; then
+	echo "ERROR. $patch_script is a directory, select a new executable name"
+	exit 1
+    fi
+
+    _dump "# scc runtime file"
+    _dump "# scc version $version"
+	
+    for i in $include_paths; do
+	# add one "horrible" special case. this tool is pretty
+	# generic, but there is one binding from build systems
+	# with templates that can cause strange relocations. In
+	# particular, include paths that go too deep which will
+	# cause a potential name collision, so let's pop one
+	# directory level off each path.
+	
+	# strip a trailing /
+        abs_dir=`readlink -f $i`
+	abs_dir2=`cd $i; pwd`
+	if [ x"$abs_dir" != x"$abs_dir2" ]; then
+	    # there is some sort of symlink trickery going on. 
+	    # add both dirs to the relocation list
+	    abs_dir="$abs_dir $abs_dir2"
+	fi
+
+	for d in $abs_dir; do
+	    one_less_dir=${d%/}
+            # strip last path component
+	    one_less_dir=${one_less_dir%/*}
+
+	    _dump "echo \"# _reloc_dir $one_less_dir\""
+	done
+    done
+
+    dump_header
+    _dump ""
+
+    # this simply sources all the required files. the
+    # only magic involves some "fixups". 
+    #   - if we find an undefined dependency, we have to find an
+    #     object that matches the patter. Remember: Order matters
+    #     when you compile for inheritance. 
+    _sourced=""
+    for i in $to_link; do
+	simple_name=`echo $i | sed 's%^\.%%' | sed 's%\.o$%%' | sed 's%~[0-9]*$%%'`
+	obj=$i
+
+	# find the full object file dependency list ...
+	more_depends=
+	full_depends=
+	if [ -e $obj ]; then
+            more_depends=`grep -E "scc depends:" $obj | cut -d':' -f2`
+	fi
+	while [ -n "$more_depends" ]; do
+	    x=$more_depends
+	    more_depends=""
+	    for req in $x; do
+		req=`basename $req`
+		echo $req | grep -q _undefined_
+		if [ $? -eq 0 ]; then
+		    if [ -n "$verbose" ]; then
+			echo "# resolving unresolved symbol(s) in $i"
+		    fi
+		    search_req=`echo "$req" | sed 's%_undefined_%%g'`
+
+                    options=`ls *-$search_req-*.sco`
+		    my_num=`echo $i | cut -f1 -d-`
+		    next_num=`expr $my_num + 1`
+		    link_tgt=`echo "$options" | grep -E "$next_num-$search_req-*"`
+
+		    if [ -z "$link_tgt" ]; then
+			echo "ERROR. could not find an object to link"
+			exit 1
+		    fi
+		    # rewrite the original object file to call the one we
+		    # just found
+		    path_sum=`echo $link_tgt | cut -f3 -d- | sed 's/.sco//g'`
+		    cat $i | \
+		    sed "s%undefined_%$path_sum%g" \
+		    > $i.tmp
+		    mv -f $i.tmp $i
+		fi
+
+		# check to see if we've already processed this requirement
+		echo "$full_depends" | grep -q -w -E "$link_tgt\$"
+		if [ $? -ne 0 ]; then
+		    if [ -e "$link_tgt" ]; then
+			y=`grep -E "scc depends:" $link_tgt | cut -d':' -f2`
+		    else
+			echo "ERROR. object $link_tgt does not exist. cannot link"
+			exit 1
+		    fi
+
+		    more_depends="$more_depends $y"
+		fi
+		full_depends="$full_depends $link_tgt"
+	    done
+	done
+
+        # loop all the dependencies and output their source lines
+	# parent sources have already been changed to <blah>~1
+        for required in $full_depends; do
+	    required=`_strip_ext $required ".$obj_ext"`
+	    echo "$_sourced" | grep -q -E "^$required\$"
+	    if [ $? -ne 0 ]; then
+		_dump ". \`dirname \$0\`/$required.$obj_ext"
+		_sourced=`echo "$_sourced"; echo $required`
+
+		grep -q "# .section INIT" $required.$obj_ext
+		if [ $? -eq 0 ]; then
+		    __init_funcs="$__init_funcs $required"
+		fi
+		grep -q "# .section FINAL" $required.$obj_ext
+		if [ $? -eq 0 ]; then
+		    __fin_funcs="$__fin_funcs $required"
+		fi
+	    fi
+	done
+
+	# check to make sure that the original file we were
+	# passed wasn't picked up. If it wasn't add a source
+	# of it to the output
+	if [ -e $obj ]; then
+	    echo "$_sourced" | grep -q -E "^`basename $obj .$obj_ext`$"
+	    if [ $? -ne 0 ]; then
+		_dump ". \`dirname \$0\`/$obj"
+		_sourced=`echo "$_sourced"; echo $simple_name`
+		_entry_name=$(_safe_funcname `echo $simple_name | sed 's%^[0-9]*\-%%' | \
+                                              sed 's%^\.%%' | sed 's%\.sco$%%' | sed 's%~[0-9]*$%%'`)
+		grep -q "# .section INIT" $obj
+		if [ $? -eq 0 ]; then
+		    __init_funcs="$__init_funcs $_entry_name"
+		fi
+		grep -q "# .section FINAL" $obj
+		if [ $? -eq 0 ]; then
+		    __fin_funcs="$__fin_funcs $_entry_name"
+		fi
+	    fi
+	fi
+    done
+
+    _dump ''
+    # call the main launch point ..
+
+    # init functions ...
+    for i in $__init_funcs; do
+	_dump "$i"
+    done
+
+    _dump '# scc main entry point. produces "$output"'
+
+    # files compiled on the command line, that haven't already
+    # been called
+    for f in $forced_link; do
+        e_point=$(cat $f | grep "\# scc entry_func" | cut -d' ' -f4)
+	if [ -z "$e_point" ]; then
+	    e_point=$(_safe_funcname  `echo $f | sed 's%^\.%%' | sed 's%\.sco$%%' | sed 's%~[0-9]*$%%'`)
+	fi
+
+	echo "" $__fin_funcs $__init_funcs $entry_point | grep -q $e_point
+	if [ $? -ne 0 ]; then
+	    _dump "$e_point"
+	fi
+    done 
+
+    # final functions ...
+    for i in $__fin_funcs; do
+	_dump "$i"
+    done
+
+    _dump ''
+    _dump 'if [ -n "$1" ] && ([ "$1" = "branch_points" ] || [ "$1" = "branchpoints" ]) ; then'
+    _dump '   if [ -n "$_auto_branch" ]; then'
+    _dump '      echo "$_auto_branch"'
+    _dump '   fi'
+    _dump '   echo "$output" | grep _force_branch'
+    _dump 'else'
+    _dump '   # this replaces the feature markers with branch points'
+    _dump '   for b in $_auto_branch; do'
+    _dump '         output=$(echo "$output" | sed "s/_mark $b start/_branch_begin $b-auto force/" )'
+    _dump '   done'
+    _dump '   echo "$output"'
+    _dump '   echo "# _branches_local: $_auto_branch"'
+    _dump 'fi'
+}
+
+dump_header()
+{
+    _dump -n "# scc date "; _dump `date`
+    _dump ""
+    _dump "output=\"\""
+    _dump "export patch_prefix=patches"
+    _dump "export wrs_dir=wrs"
+
+    _dump "$dump_vars"
+}
+
+### command processing starts here
+process_command_line "$@"
+
+if [ -n "$version_dump" ]; then
+    echo "scc version: $version"
+    exit 0
+fi
+
+##
+## create variables for use in scripts
+##
+if [ -n "$defines" ]; then
+    vars=$(echo $defines | sed 's/,/ /g')
+    for v in "$vars"; do
+        # eval makes it available for this script
+        eval $v
+	# echo makes it available for other scripts
+	dump_vars=$(echo "$dump_vars"; echo export $v)
+    done
+fi
+
+# test for tools used by scc from the command line
+# if they aren't found look for them.
+tools_used_by_scc="patch gzip bzip2"
+for t in $tools_used_by_scc; do
+    caps_t=$(echo $t | tr '[a-z]' '[A-Z]')
+    b="echo \$$caps_t"
+    x=`eval $b`
+    if [ "$x" == "" ]; then
+	cmd=`which $t`
+	#_dump "export $caps_t=$cmd";
+	dump_vars=$(echo "$dump_vars"; echo "export $caps_t=$cmd")
+    fi
+done
+
+# if no args were passed, dump the usage.
+if [ -n "$args" ]; then
+    
+    if [ -n "$do_signature" ]; then
+	get_sig $args
+	exit 0
+    fi
+    if [ -n "$do_dirs" ]; then
+	get_dirs $args
+	exit 0
+    fi
+
+    compile_files $args
+else
+    usage 
+    exit 1
+fi

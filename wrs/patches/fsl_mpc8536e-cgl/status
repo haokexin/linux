@@ -1,0 +1,4 @@
+links/kernel-cache/bsp/fsl_mpc8536e/DTS-add-eSPI-dts-support-for-MPC8536DS.patch
+links/kernel-cache/bsp/fsl_mpc8536e/DTS-add-localbus-node-in-MPC8536ds-dts-file.patch
+links/kernel-cache/bsp/fsl_mpc8536e/DTS-add-NOR-flash-partitions-node-in-MPC8536ds-dts-f.patch
+links/kernel-cache/bsp/fsl_mpc8536e/fsl_mpc8536e-update-espi-dts-node.patch

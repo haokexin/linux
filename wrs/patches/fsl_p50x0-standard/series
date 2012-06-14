@@ -1,0 +1,12 @@
+links/kernel-cache/bsp/fsl_p50x0/powerpc-update-compilation-flags-to-support-e5500-in.patch
+links/kernel-cache/bsp/fsl_p50x0/oprofile-ppc64-build-failure-fixing.patch
+links/kernel-cache/bsp/fsl_p50x0/fsl_p50x0-fix-call-trace-on-preempt-kernel.patch
+links/kernel-cache/bsp/fsl_p50x0/USB-ehci-tdi-let-s-tdi_reset-set-host-mode.patch
+links/kernel-cache/bsp/fsl_p50x0/USB-add-USB-EHCI-support-for-MPC5121-SoC.patch
+links/kernel-cache/bsp/fsl_p50x0/USB-ehci-fsl-Fix-have_sysif_regs-detection.patch
+links/kernel-cache/bsp/fsl_p50x0/USB-Fix-USB-Kconfig-dependency-problem-on-85xx-QoirQ.patch
+links/kernel-cache/bsp/fsl_p50x0/powerpc-85xx-Add-UTMI-PHY-support-for-85xx-platforms.patch
+links/kernel-cache/bsp/fsl_p50x0/PowerPC-P50x0-Fix-compile-error-when-enable-CONFIG_W.patch
+links/kernel-cache/bsp/fsl_p50x0/fsl_p50x0-use-traditional-TASK_SIZE-for-32bit-progra.patch
+links/kernel-cache/bsp/fsl_p50x0/bsp-fsl_p50x0-adjust-SPI-flash-partition.patch
+links/kernel-cache/bsp/fsl_p50x0/crypto-caam-remove-DECO-access-initialization-code.patch

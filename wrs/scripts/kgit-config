@@ -1,0 +1,149 @@
+#!/bin/bash
+
+#  (kgit-config), (save and restore Wind River kernel git configuration)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+usage()
+{
+cat <<EOF
+
+ kgit-config [-h] [-v] [-l] [-t <type>] [-cfg=<dir>] [<var=<value>] [var]
+
+  Gets and sets config values
+
+   -t:   type. 'bare' or 'assignment'. bare dumps the value(s) while
+         assignment outputs a series of <var>=<value> pairs
+   -cfg: directory for fetching and storing config values
+   -l:   list all the currently tracked variables
+
+     <var>: indicates that the value of var should be fetched
+            and displayed via the format of -t
+     <var>=<value>: 'value' should be stored under the config
+                     variable <var>
+
+   -h: help
+   -v: verbose
+
+EOF
+}
+
+if [ ! $# -gt 0 ]; then
+    usage
+    exit
+fi
+
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+                -h|--h)
+                        usage
+                        exit
+                        ;;
+                -v|--v)
+                        verbose=t
+                        ;;
+	        -cfg|--cfg)
+                        cfg_dir=$2
+                        shift
+                        ;;
+	        -t|--t)
+                        type=$2
+                        shift
+                        ;;
+	        -l|--l)
+                        list=t
+                        ;;
+                *=*)    set_values="$set_values $1"
+                        ;;
+                -*)     # a parm we don't recognize
+                        usage
+                        exit
+                        ;;
+		*)      get_values="$get_values $1"
+			;;
+
+   	esac
+	shift
+done
+
+
+# source utility functions
+DO_NOT_CHECK_BRANCH_EXISTENCE=1
+DO_NOT_USE_GITREPO_COMMANDS=1
+. `dirname $0`/kgit
+. `dirname $0`/guilt
+
+if [ -z "$cfg_dir" ]; then
+    cfg_dir="wrs/cfg"
+fi
+
+if [ ! -d "$cfg_dir" ]; then
+    echo "ERROR. '$cfg_dir' does not exist"
+    exit 1
+fi
+
+if [ -z "$type" ]; then
+    type=bare
+fi
+
+if [ -n "$list" ]; then
+    echo ""
+    echo "Currently tracked config variables:"
+    
+    if [ ! -e "$cfg_dir/kgit-cfg" ]; then
+	echo "   No config values are currently tracked"
+	exit
+    fi
+    
+    for i in `ls $cfg_dir/kgit-cfg*`; do
+	var=`echo $i | sed 's%^.*/kgit-cfg-%%'`	
+	value=`cat $i`
+	if [ "$var" != "$cfg_dir/kgit-cfg" ]; then
+	    echo "   $var: $value"
+	fi
+    done
+
+    exit
+fi
+
+for s in $set_values; do
+    var=`echo $s | cut -d'=' -f1`
+    value=`echo $s | cut -d'=' -f2`
+
+    if [ -d "$cfg_dir" ]; then
+	touch $cfg_dir/kgit-cfg
+	echo $value > $cfg_dir/kgit-cfg-$var
+    fi
+done
+
+for g in $get_values; do
+    var=$g
+    if [ -e "$cfg_dir/kgit-cfg-$g" ]; then
+	value=`cat $cfg_dir/kgit-cfg-$g`
+    fi
+    if [ -n "$value" ]; then
+	if [ "$type" = "assignment" ]; then
+	    echo "$var=$value"
+	else
+	    echo "$value"
+	fi
+    fi
+done

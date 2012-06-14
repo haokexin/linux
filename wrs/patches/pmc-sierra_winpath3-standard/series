@@ -1,0 +1,13 @@
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-platform-initialization.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-set-up-interrupt.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-set-up-memory.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-reset-function-of-board.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-set-up-clock.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-create-kernel-command-line.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-nand-driver.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-internal-ethernet-driver.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/WDS3-serial-driver.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/Fix-remove-IRQF_DISABLED-flag-of-serial.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/Fix-high-resolution-timer-failed-to-start.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/Fix-support-kgdboe-in-pmc-sierra_winpath3.patch
+links/kernel-cache/bsp/pmc-sierra_winpath3/Fix-futex-with-type-of-FUTEX_LOCK_PI-can-t-work.patch

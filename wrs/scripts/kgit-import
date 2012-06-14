@@ -1,0 +1,460 @@
+#!/bin/bash
+
+#  (kgit-import), (import patches/commits from various sources)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+DO_NOT_CHECK_BRANCH_EXISTENCE=1
+
+path=`dirname $0`
+. $path/kgit
+
+
+usage()
+{
+cat <<EOF
+
+ kgit-import [-v] [-s] [-m] [-d <depth>] [-r refs]
+             [-f] [-t <import type>] [-p <patch name>] <import source>
+ 
+   -m: After importing, do the commit
+   -d: Depth of the import, this implies objects only and no
+       merge. If the import fails, the fetch will be deepened
+       by <depth> until it suceeds. If -f is passed, the fetch
+       will be forced and not deepened
+   -f: Force the import/commit
+   -p: After import, extract commits as a patch and apply to tree.
+       The named passed via this option represents where the patch
+       will be saved and managed. 
+       Note: do not specify "wrs/patches/<branch>" as part of the 
+             patch path, since this automatically added
+   -r: Refs to import (all will be imported if not specified)
+   -t: Import type. If the type can't be automatically determined,
+       use this flag. 
+          options: mbox, repo, treeish, patch, dir, revlist, scc
+
+       If <import source> is being auto detected:
+       - mbox: file name, must end in .mbox
+       - repository: end in .git or start with git://
+       - treeish: standard commit notation
+       - revlist: git rev-list notation
+       - patch: file that ends in .patch or .diff
+       - dir: a directory containing a series file and patches
+       - scc: a directory containing a scc file and patches
+
+   -h: Help
+   -s: silent
+   -v: verbose (on by default)
+
+EOF
+}
+
+verbose=t
+while [ $# -gt 0 ]; do
+	case "$1" in
+                -d|--d)
+                        objects_only=t
+			depth=$2
+			shift
+                        ;;
+                -p|--p)
+		        output_pname=$2
+			shift
+			;;
+                -m|--m)
+		        merge=t
+			;;
+                -f|--f)
+		        force=t
+			;;
+                -t|--t)
+		        import_type=$2
+			shift
+			;;
+                -v|--v)
+		        verbose=t
+			silent=
+			;;
+                -s|--s)
+		        verbose=
+			silent=t
+			;;
+                -h|--h)
+                        usage
+                        exit
+                        ;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+
+if [ ! $# -gt 0 ]; then
+    usage
+    exit 1
+fi
+
+. $path/guilt
+
+import_source=$@
+
+# we need to determine if the import source is:
+#   - mbox
+#   - repository
+#   - commit(s) (tree-ish)
+#   - patch
+#   - directory
+
+# prefix tests
+if [ -z "$import_type" ]; then
+    prefix=`echo $import_source | cut -d: -f1`
+    if [ -n "$prefix" ] && [ "$prefix" == "git" ]; then
+	import_type=repo
+    fi
+fi
+
+# grab the extension
+if [ -z "$import_type" ]; then
+    extension=${import_source##*.}
+    case $extension in
+	mbox) import_type=mbox
+            ;;
+	git)  import_type=repo
+            ;;
+	patch|diff) import_type=patch
+            ;;
+	rev-list) import_type=revlist
+            ;;
+        scc) import_type=scc
+	    ;;
+	*) base=`basename $import_source`
+           if [ "$base" = "series" ]; then
+	       import_source=`dirname $import_source`
+	   fi
+           if [ -d "$import_source" ]; then
+              import_type=dir
+           else
+              import_type=treeish
+           fi
+           ;;
+    esac
+fi
+
+# take the source + type and and apply any logic that might be required
+case $import_type in
+    mbox)
+        ;;
+    repo)
+        ;;
+    patch|diff)    
+        ;;
+    rev-list)
+        commits=`git rev-list $import_source`
+        ;;
+    *)  commits=`munge_hash_range "$import_source"`
+        ;;
+esac
+
+# echo "import type: $import_type"
+# echo "commits: $commits"
+# exit
+
+# if repository is non zero, then we are supposed to do some
+# sort of fetch operation.
+if [ "$import_type" = "repo" ]; then
+    if [ -n "$objects_only" ]; then
+	echo "[INFO] importing thin object pack from $import_source ..."
+	all=""
+	if [ -z "$depth" ]; then
+	    depth="--depth=10"
+	else
+	    depth="--depth=$depth"
+	fi
+	if [ -n "$verbose" ]; then
+	    verbose="-v"
+	fi
+    fi
+
+    if [ -z "$merge" ]; then
+	cmd="git fetch $depth $opts $import_source $import_refs"
+	echo $cmd
+	$cmd
+    else
+	if [ -z "`git show-ref pre_merge`" ]; then
+	    echo "git tag pre_merge"
+	    git tag pre_merge
+	fi
+	cmd="git pull $import_source $import_refs"
+	echo $cmd
+	$cmd
+    fi
+
+    # this checks the result of one of the merge/pull commands
+    if [ $? -ne 0 ]; then
+	if [ -n "$force" ]; then
+	    mv .git/shallow .git/shallow.ignore
+	    echo "[INFO] forcing fetch";
+	    echo $cmd
+	    $cmd
+	    if [ $? -ne 0 ]; then
+		echo "[ERROR] force fetch failed, exitign ..."
+		mv .git/shallow.ignore .git/shallow
+		exit 1
+	    fi
+	    
+	    # clear the shallow designation again, you forced it
+	    rm -f .git/shallow
+	else
+	    let depth=$depth+$depth
+	    echo "[ERROR] The fetch failed. You may need to deepen this"
+	    echo "        repository by calling this script with a larger"
+	    echo "-d <value>"
+	fi
+    fi
+
+    # if we are merging, lets chain this to series of patches
+    if [ -n "$merge" ]; then
+	import_type=treeish
+	commits="pre_merge..HEAD"
+    fi
+fi
+
+if [ "$import_type" = "patch" ]; then
+    if [ -z "$output_pname" ]; then
+	output_pname=`basename $import_source`
+    fi
+
+    guilt-import -P $output_pname $import_source
+    if [ $? -ne 0 ]; then
+	echo "[ERROR] patch import failed"
+	exit 1
+    fi
+    guilt-push $output_pname
+    if [ $? -ne 0 ]; then
+	echo "[ERROR] patch push failed, fix the content and re-push"
+	exit 1
+    fi
+fi
+
+if [ "$import_type" = "treeish" ] || [ "$import_type" = "revlist" ]; then
+    if [ -z "$commits" ]; then
+	echo "[ERROR] No commit IDs provided"
+	exit 1
+    fi    
+
+    # pull the current branch
+    branch=`get_current_git_branch`
+
+    if [ ! -d "wrs/patches/$branch" ]; then
+	guilt-init
+    fi
+
+    # remove wrs/patches/<branch> from any patch names, we'll tack that on
+    tracked_name=`echo $output_pname | sed "s%wrs/patches/$branch%%"`
+
+    if [ -n "$verbose" ]; then
+	echo ""
+	echo "[INFO] importing commit:"
+	echo "    ids: $commits";
+	if [ -n "$output_pname" ]; then
+	    echo "    destination: $tracked_name"
+	fi
+	echo ""
+    fi
+
+    if [ -n "$output_pname" ]; then
+	temp_name=`basename $output_pname`
+        # todo: should use git format-patch to maintain more info
+	git diff $commits > $temp_name
+	guilt-import -P $tracked_name $temp_name
+	if [ $? -ne 0 ]; then
+	    echo "[ERROR] could not import patch";
+	    exit 1
+	fi
+	rm -f $temp_name
+	guilt-push
+	if [ $? -ne 0 ]; then
+	    echo "[ERROR] patch push failed, fix the content and re-push the patch"
+	    exit 1
+	fi
+    else
+	if [ "$import_type" = "revlist" ]; then
+            # we only want the first rev in the rev-list
+            # the range munching of guilt does the rest
+            c=`echo $commits | cut -d' ' -f 1`
+	    guilt-import-commit $c
+	    guilt push -a 
+	else
+	    guilt-import-commit $commits
+	    if [  $? -ne 0 ]; then
+		echo "[ERROR] commit import failed"
+		exit 1
+	    fi
+	    guilt-push -a
+	fi
+	if [ $? -ne 0 ]; then
+	    echo "[ERROR] patch push failed, fix the content and re-push"
+	    exit 1
+	fi
+    fi
+fi
+
+if [ "$import_type" = "mbox" ]; then
+    git tag mbox_import_base
+    if [ -n "$verbose" ]; then
+	echo "[INFO] importing mbox $import_source"
+    fi
+    git am $import_source > /dev/null
+    if [ $? -ne 0 ]; then
+	echo "[ERROR] could not mbox import $import_source"
+	git tag -d mbox_import_base
+	exit 1
+    fi
+    git tag mbox_import_top
+
+    count=`git rev-list mbox_import_base..HEAD | wc -l`
+
+    if [ -n "$verbose" ]; then
+	echo "[INFO] converting mbox commits to patches"
+    fi
+    guilt-import-commit mbox_import_base..HEAD
+    if [ $? -ne 0 ]; then
+	echo "[ERROR] could not guilt import commits"
+	git tag -d mbox_import_base
+	git tag -d mbox_import_top
+	exit 1
+    fi
+
+    if [ -n "$verbose" ]; then
+	echo "[INFO] pushing $count converted patches onto stack"
+    fi
+    guilt push -n $count
+    if [ $? -ne 0 ]; then
+	echo "[ERROR] could not guilt import commits"
+    fi
+    git tag -d mbox_import_base
+    git tag -d mbox_import_top    
+fi
+
+if [ "$import_type" = "dir" ]; then
+    if [ ! -d "$import_source" ]; then
+	echo "[ERROR] directory $import_source does not exist"
+	exit 1
+    fi
+    if [ ! -e "$import_source/series" ]; then
+	echo "[ERROR] directory $import_source does not have a series file"
+	exit 1
+    fi
+
+    git tag series_import_base
+    if [ -n "$verbose" ]; then
+	echo "[INFO] importing series from directory $import_source"
+    fi
+
+    count=0
+    IFS='
+'
+    for p in `cat $import_source/series`; do
+        p=`echo $p | sed 's%#.*$%%' | sed 's% *$%%'`
+        if [ -z "$p" ]; then
+             continue
+        fi
+
+        guilt-applied | grep -q "$p"
+        if [ $? -eq 0 ]; then
+             continue
+        fi
+
+	if [ -n "$verbose" ]; then
+	    echo " $count) $p"
+	fi
+
+	guilt-import "$import_source/$p"
+	if [ $? -ne 0 ]; then
+	    echo "[ERROR] could not series import $p"
+	    git tag -d series_import_base
+	    exit 1
+	fi
+	guilt push > /dev/null
+	if [ $? -ne 0 ]; then
+	    echo "[ERROR] could not push $p"
+	    git tag -d series_import_base
+	    exit;
+	fi
+	let count=$count+1
+    done
+    IFS=' '
+
+    git tag -d series_import_base
+fi
+
+if [ "$import_type" = "scc" ]; then
+
+    if [ ! -e "$import_source" ]; then
+	echo "[ERROR] file $import_source does not exist"
+	exit 1
+    fi
+
+    import_dir=`dirname $import_source`
+
+    git tag scc_import_base
+    if [ -n "$verbose" ]; then
+	echo "[INFO] importing scc: $import_source"
+    fi
+
+    count=0
+    IFS='
+'
+    for p in `cat $import_source`; do
+        p=`echo $p | sed 's%#.*$%%' | sed 's% *$%%' | grep -E patch | sed 's%patch *%%'`
+        if [ -z "$p" ]; then
+             continue
+        fi
+
+        guilt-applied | grep -q "$p"
+        if [ $? -eq 0 ]; then
+            continue
+        fi
+
+ 	if [ -n "$verbose" ]; then
+ 	    echo " $count) $p"
+ 	fi
+
+ 	guilt-import "$import_dir/$p"
+	if [ $? -ne 0 ]; then
+	    echo "[ERROR] could not scc import $p"
+	    git tag -d scc_import_base
+	    exit 1
+	fi
+	guilt push > /dev/null
+	if [ $? -ne 0 ]; then
+	    echo "[ERROR] could not push $p"
+	    git tag -d scc_import_base
+	    exit;
+	fi
+ 	let count=$count+1
+    done
+    IFS=' '
+
+    git tag -d scc_import_base
+fi

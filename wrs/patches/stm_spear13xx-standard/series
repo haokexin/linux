@@ -1,0 +1,16 @@
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-13xx-Adding-support-for-SPEAr1310.patch
+links/kernel-cache/bsp/stm_spear13xx/Ethernet-support-for-spear1310.patch
+links/kernel-cache/bsp/stm_spear13xx/Add-rtc-support-for-spear13xx.patch
+links/kernel-cache/bsp/stm_spear13xx/Add-SMP-support-for-spear13xx-machine.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr13xx-Adding-CPU-hotplug-support-added-for-SM.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-Adding-machine-support-for-USB-host.patch
+links/kernel-cache/bsp/stm_spear13xx/USB-host-Adding-USB-ehci-ohci-support-for-spear-plat.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-Adding-machine-support-for-nand.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-Adding-support-for-serial-nor-flash-in-all-.patch
+links/kernel-cache/bsp/stm_spear13xx/SPEAr-Power-Management-Added-the-support-for-Standby.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-Added-ARM-PL061-GPIO-Support-on-SPEAr13xx-a.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-Adding-Watchdog-support-for-spear13xx-platf.patch
+links/kernel-cache/bsp/stm_spear13xx/SPEAr-CPU-freq-Adding-support-for-CPU-Freq-framework.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-Added-PCIE-host-controller-base-driver-supp.patch
+links/kernel-cache/bsp/stm_spear13xx/ST-SPEAr-adding-support-for-synopsis-i2c-designware.patch
+links/kernel-cache/bsp/stm_spear13xx/Add-a-NULL-set_awake-function-to-remove-the-Warning-.patch

@@ -1,0 +1,3 @@
+links/kernel-cache/bsp/amcc_kilauea_405ex/amcc_kilauea_405ex-kilauea.dts-add-eeprom-device-nod.patch
+links/kernel-cache/bsp/amcc_kilauea_405ex/amcc_kilauea_405ex-kilauea.dts-update-the-NOR-NAND-f.patch
+links/kernel-cache/bsp/amcc_kilauea_405ex/amcc_kilauea_405ex-kilauea.dts-add-gpio-support.patch

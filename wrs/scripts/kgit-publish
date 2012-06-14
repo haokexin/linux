@@ -1,0 +1,213 @@
+#!/bin/bash
+
+#  (kgit-publish), (prepare a git tree for publication)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+path=`dirname $0`
+. $path/kgit
+PATH=`cd $path; pwd`:$PATH
+
+usage()
+{
+cat <<EOF
+
+ kgit-publish [-d] [-a] [-c] [-f] [-r <remote>] <src> <dest>
+
+   -c: compact. make the exported repository as small as possible 
+   -d: description. put the description of the repository in place
+                    when publishing
+   -f: force. if no checkpoint or other errors are found, publish
+              tree anyway. removes a destination repository if found.
+              removes working copy of source repository.
+   -a: auto checkpoint if required
+   -r: remote destination for the published repository. changes
+       will be pushed to this destination if provided. 
+   --reference: reference repo
+   -h: Help
+   -v: Verbose
+
+EOF
+}
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+                -v|--v)
+		        verbose=t
+			;;
+                -c|--c)
+		        compact=t
+			;;
+                -d|--d)
+		        description="$2"
+			shift
+			;;
+                -r|--r)
+		        remote="$2"
+			shift
+			;;
+                --reference)
+		        ref="--reference $2"
+			shift
+			;;
+	        -f|--f) 
+                        force=t
+			;;
+                -a|--a)
+                        auto=t
+                        ;;
+                -h|--h)
+                        usage
+                        exit
+                        ;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+do_push()
+{
+    if [ -n "$remote" ]; then
+	cd $dest
+	if [ -n "$force" ]; then
+	    flags=-f
+	fi
+
+	echo "git push $flags --all $remote"
+	git push $flags --all $remote
+	if [ ! $? -eq 0 ]; then
+	    echo "ERROR. pushing --all to $remote"
+	    exit 1
+	fi
+	echo "git push $flags --tags $remote"
+	git push $flags --tags $remote
+	if [ $? -ne 0 ]; then
+	    echo "ERROR. pushing --tags to $remote"
+	    exit 1
+	fi
+
+	if [ -n "$description" ]; then
+	    if [ -n "$remote" ]; then
+		echo "$remote" | grep -q ssh
+		if [ $? -eq 0 ]; then
+                    # convert the remote to something that scp can use ..
+		    scp_tgt=`echo $remote | sed 's%ssh://%%'`
+		    scp_tgt=`echo $scp_tgt | sed 's%\(.*@[^/]*\)/%\1:/%'`
+		    scp description $scp_tgt
+		fi
+	    fi
+	fi
+    fi
+}
+
+
+if [ ! $# -gt 1 ]; then
+    usage
+    exit 1
+fi
+
+src=$1
+dest=$2
+
+if [ ! -d "$dest" ] || [ -n "$force" ]; then
+
+    if [ -d "$dest" ]; then
+	echo "[INFO] removing dest repository at $dest"
+	rm -rf "$dest"
+    fi
+
+
+    if [ ! -d "$src.tmp" ]; then
+	echo "[INFO] making working copy of $src as $src.tmp"
+    fi
+    git clone --bare $src $src.tmp
+    (
+       cd $src.tmp
+       git config core.bare false
+       mkdir .git
+       mv * .git
+       git checkout -f standard
+    )
+    cp -r $src/wrs $src.tmp
+
+    # now we only operate on src.tmmp
+    src=$src.tmp
+
+    x=`cd $src; git show-ref checkpoint_start`
+    if [ -z "$x" ]; then
+	x=`cd $src; git show-ref checkpoint`
+    fi
+    if [ -z "$x" ]; then
+	if [ -n "$auto" ]; then
+	    (cd $src; kgit checkpoint -b wrs_meta -c)
+	    auto_checked=t
+	else
+	    if [ -z "$force" ]; then
+		echo ""
+		echo "[ERROR] checkpoint not found, cannot publish this tree"
+		echo ""
+		exit 1
+	    fi
+	fi
+    fi
+    if [ -n "$verbose" ]; then
+	echo "[INFO] git clone --bare $ref $src $dest"
+    fi
+
+    git clone --bare $ref $src $dest
+else
+    if [ -n "$remote" ]; then
+	echo "$dest exists, skipping to push"
+	do_push
+	exit $?
+    else
+	echo "$dest exists, nothing to do"
+	exit 0
+    fi
+fi
+
+if [ -d $dest ]; then
+    old=`pwd`
+    cd $dest
+
+    if [ -n "$description" ]; then
+	echo "$description" > description
+    fi
+
+    if [ ! -z "$compact" ]; then
+	git gc --aggressive --prune
+	git prune
+    fi
+    cd $old
+fi
+
+if [ -n "$auto_checked" ]; then
+    (cd $src; kgit checkpoint -r)
+fi
+
+if [ -n "$force" ]; then
+    echo "[INFO] removing $src"
+    rm -rf $src
+fi
+
+
+do_push

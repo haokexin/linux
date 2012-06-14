@@ -1,0 +1,7 @@
+links/kernel-cache/bsp/fsl_imx31pdk/imx31pdk-add-imx31pdk-machine-files.patch
+links/kernel-cache/bsp/fsl_imx31pdk/mx31pdk-audio-add-pmic-audio-driver-for-imx31pdk.patch
+links/kernel-cache/bsp/fsl_imx31pdk/mx31pdk-backlight-add-backlight-driver-for-imx31pdk.patch
+links/kernel-cache/bsp/fsl_imx31pdk/mx31pdk-lcd-add-epson-lcd-driver-for-imx31pdk.patch
+links/kernel-cache/bsp/fsl_imx31pdk/mx31pdk-tvout-add-ch7024-tvout-driver-for-imx31pdk.patch
+links/kernel-cache/bsp/fsl_imx31pdk/mx31pdk-Camera-add-ov2640-camera-driver-for-imx31pdk.patch
+links/kernel-cache/bsp/fsl_imx31pdk/mx31-don-t-use-same-resource-struct-for-different-de.patch

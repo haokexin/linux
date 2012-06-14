@@ -1,0 +1,8 @@
+links/kernel-cache/bsp/mindspeed_c1000/Comcerto-M83xxx-the-NOR-platform-data-of-C1K-Multifu.patch
+links/kernel-cache/bsp/mindspeed_c1000/Mindspeed-c1k-add-flash-type-check-accordint-to-EXP_.patch
+links/kernel-cache/bsp/mindspeed_c1000/Comcerto-set-pinmux-according-to-the-state-of-the-sw.patch
+links/kernel-cache/bsp/mindspeed_c1000/comcerto-print-WARNINGs-if-kernel-CONFIGs-and-hardwa.patch
+links/kernel-cache/bsp/mindspeed_c1000/Comcerto-add-pmu-interrupt-macro.patch
+links/kernel-cache/bsp/mindspeed_c1000/Oprofile-add-comcerto-platform-pmu-mode-support.patch
+links/kernel-cache/bsp/mindspeed_c1000/Enable-pcie-support-for-mindspeed-c1k.patch
+links/kernel-cache/bsp/mindspeed_c1000/Pass-correct-format-of-frequency-for-comcerto-timer-.patch

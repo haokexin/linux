@@ -1,0 +1,276 @@
+#!/bin/bash
+
+# Basic sanity checks on the kernel fragments, i.e. whether a BSP
+# is setting things it shouldn't, whether things are redefined,
+# and whether what you asked for is what you got.
+
+KERNEL_CONFIG=$1
+TOP_BUILD_DIR=$2
+LINUX_SRC=$3
+LINUX_BUILD=$4
+BRANCH=$5
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+if [ -d $TOP_BUILD_DIR ]; then
+	WRS_DIR=$TOP_BUILD_DIR/build/$LINUX_SRC/wrs
+else
+	TOP_BUILD_DIR=`pwd`
+	WRS_DIR=`pwd`/wrs
+fi
+
+KCONF_DIR=$WRS_DIR/cfg/$BRANCH
+
+# Note: these 4 files below are created by generate_cfg.
+# All known hardware related Kconfig* files
+KCONF_HDW=$KCONF_DIR/hardware.kcf
+# All known non-hardware related Kconfig* files
+KCONF_NONHDW=$KCONF_DIR/non-hardware.kcf
+
+# Override for hardware CONFIG items that are in a non-hardware Kconfig.
+CONF_HDW=$KCONF_DIR/always_hardware.cfg
+# Overrride for non-hardware CONFIG items that are in a hardware Kconfig.
+CONF_NONHDW=$KCONF_DIR/always_nonhardware.cfg
+
+#echo KERNEL_CONFIG: $KERNEL_CONFIG
+#echo TOP_BUILD_DIR: $TOP_BUILD_DIR
+#echo LINUX_SRC: $LINUX_SRC
+#echo LINUX_BUILD: $LINUX_BUILD
+#echo KCONF_DIR: $KCONF_DIR
+#echo BRANCH: $BRANCH
+
+# Actual list of existing config fragments that are hardware.
+HDW_CFGS=$KCONF_DIR/hdw_frags.txt
+
+if [ ! -s $HDW_CFGS ]; then
+	echo WARNING: Can\'t find any BSP hardware configuration fragments for this BSP.
+	echo WARNING: Looked at $HDW_CFGS in directory: `pwd`
+	exit 0
+fi
+
+
+##########################################################################
+# Collect the full list of Kconfig* files from the patched up tree.
+# Need to filter out wrlinux_quilt_* since it will have Kconfig files.
+##########################################################################
+
+# escape grep pattern metacharacters (well, at least '.')
+QUILT_PC_PAT="$(echo "${QUILT_PC:-.pc}" | sed 's/\./\\&/')"
+
+# Whoa.  find's -prune can actually be made to work.  Amazing.
+# Just don't put trailing slashes on exclude dirs.  Ouch.
+# Dropping down to search in the .git dir would take days...
+
+find $LINUX_SRC \
+	   -path $LINUX_SRC/wrlinux_quilt_ -prune		\
+	-o -path $LINUX_SRC/wrs -prune				\
+	-o -path $LINUX_SRC/.git -prune				\
+	-o -path $LINUX_SRC/$QUILT_PC_PAT -prune			\
+	-o -type f -a -name 'Kconfig*' -print |				\
+	sort | sed 's=^'$LINUX_SRC'==' > $KCONF_DIR/all.kcf
+	
+
+##########################################################################
+# Compile a list of Kconfig* files we know about.
+##########################################################################
+
+cat $KCONF_DIR/hardware.kcf $KCONF_DIR/non-hardware.kcf | \
+	sort > $KCONF_DIR/known.kcf
+
+
+##########################################################################
+# Weed out any stale entries from stuff that has been removed (and warn)
+##########################################################################
+rm -f $KCONF_DIR/known_current.kcf
+rm -f $KCONF_DIR/obsolete.kcf
+for i in `cat $KCONF_DIR/known.kcf` ; do
+	if [ -f $LINUX_SRC/$i ]; then
+		echo $i >> $KCONF_DIR/known_current.kcf
+	else
+		echo $i >> $KCONF_DIR/obsolete.kcf
+	fi
+done
+if [ -s $KCONF_DIR/obsolete.kcf ]; then
+	echo The following Kconfig files no longer exist in this tree:
+	cat $KCONF_DIR/obsolete.kcf | sed 's/^/      /'
+	echo
+fi
+
+
+##########################################################################
+# Warn on any new Kconfig files that we don't know about
+##########################################################################
+
+diff -u $KCONF_DIR/known.kcf $KCONF_DIR/all.kcf | \
+	grep ^+[a-zA-Z0-9]|sed 's/^+//'  > $KCONF_DIR/unknown.kcf
+
+if [ -s $KCONF_DIR/unknown.kcf ]; then
+	echo The following new/unknown Kconfig files were found:
+	cat $KCONF_DIR/unknown.kcf | sed 's/^/      /'
+	echo
+fi
+
+
+##########################################################################
+# Collect the list of avail hardware related CONFIG_ options from the
+# known list of hardware Kconfig* files.  We filter out dups since some
+# options, like say "config SMP" appears in about 15 different arch files.
+# Also filter out individual things that are explicitly known to be non
+# hardware, and add things that are explicitly known to be hardware.
+##########################################################################
+
+rm -f $KCONF_DIR/avail_hardware.cfg
+for i in `cat $KCONF_DIR/hardware.kcf` ; do
+	if [ -f $LINUX_SRC/$i ] ; then
+		cat $LINUX_SRC/$i | grep '^\(menu\)*config ' | \
+			awk '{print "CONFIG_"$2}' >> $KCONF_DIR/avail_hardware.cfg
+	fi
+done
+if [ ! -f $KCONF_DIR/avail_hardware.cfg ]; then
+    touch $KCONF_DIR/avail_hardware.cfg
+fi
+mv -f $KCONF_DIR/avail_hardware.cfg $KCONF_DIR/avail_hardware.cfg~
+cat $KCONF_DIR/avail_hardware.cfg~ $KCONF_DIR/always_hardware.cfg \
+	| grep -v -w -f $KCONF_DIR/always_nonhardware.cfg \
+	| sort | uniq > $KCONF_DIR/avail_hardware.cfg
+rm -f $KCONF_DIR/avail_hardware.cfg~
+
+
+##########################################################################
+# Collect the list of all avail related CONFIG_ options from the
+# known list of all Kconfig* files.  Again, must filter dups.
+##########################################################################
+
+rm -f $KCONF_DIR/all.cfg
+for i in `cat $KCONF_DIR/all.kcf` ; do
+	cat $LINUX_SRC/$i | grep '^[ 	]*\(menu\)*config ' | \
+		awk '{print "CONFIG_"$2}' >> $KCONF_DIR/all.cfg
+done
+mv -f $KCONF_DIR/all.cfg $KCONF_DIR/all.cfg~
+cat $KCONF_DIR/all.cfg~ | sort | uniq > $KCONF_DIR/all.cfg
+rm -f $KCONF_DIR/all.cfg~
+
+
+##########################################################################
+# Collect the list of what should be hardware related options as set
+# by the BSP or arch or CPU template(s).
+# We aren't interested in the actual setting at this point, so we can
+# and do strip duplicates (if any).
+##########################################################################
+
+rm -f $KCONF_DIR/specified.cfg~
+for i in `cat $HDW_CFGS` ; do
+	cat $WRS_DIR/cfg/$i | \
+	grep '^\(# \)\{0,1\}CONFIG_[a-zA-Z0-9_]*[=\( is not set\)]' | \
+	sed 's/^\(# \)\{0,1\}\(CONFIG_[a-zA-Z0-9_]*\)[= ].*/\2/' \
+	>> $KCONF_DIR/specified.cfg~
+done
+sort < $KCONF_DIR/specified.cfg~ | uniq > $KCONF_DIR/specified.cfg
+rm -f $KCONF_DIR/specified.cfg~
+
+
+##########################################################################
+# Find the options that are just obsolete trash and don't exist in any
+# file whatsoever (leftovers from kernel uprev, etc etc)
+##########################################################################
+
+rm -f $KCONF_DIR/invalid.cfg
+touch $KCONF_DIR/invalid.cfg
+for i in `cat $KCONF_DIR/specified.cfg` ; do
+	grep -q -x -e $i $KCONF_DIR/all.cfg 
+	if [ $? != 0 ]; then
+		echo $i >> $KCONF_DIR/invalid.cfg
+	fi
+done
+
+if [ -s $KCONF_DIR/invalid.cfg ]; then
+	OPT_COUNT=`wc -l $KCONF_DIR/invalid.cfg | awk '{print $1}'`
+	echo This BSP sets $OPT_COUNT invalid/obsolete kernel options.
+	echo These config options are not offered anywhere within this kernel.
+	echo The full list can be found in your workspace at:
+	echo $KCONF_DIR/invalid.cfg | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo
+fi
+
+##########################################################################
+# Find the options that aren't present in the available hardware
+# option list.  Don't re-list ones we've already flagged invalid.
+##########################################################################
+
+rm -f $KCONF_DIR/specified_non_hdw.cfg
+rm -f $KCONF_DIR/specified_hdw.cfg
+for i in `cat $KCONF_DIR/specified.cfg` ; do
+	grep -x -e $i $KCONF_DIR/avail_hardware.cfg >> $KCONF_DIR/specified_hdw.cfg
+	if [ $? != 0 ]; then
+		grep -q -x -e $i $KCONF_DIR/invalid.cfg
+		if [ $? != 0 ]; then
+			echo $i >> $KCONF_DIR/specified_non_hdw.cfg
+		fi
+	fi
+done
+
+if [ -s $KCONF_DIR/specified_non_hdw.cfg ]; then
+	OPT_COUNT=`wc -l $KCONF_DIR/specified_non_hdw.cfg | awk '{print $1}'`
+	echo This BSP sets $OPT_COUNT kernel options that are possibly non-hardware related.
+	echo The full list can be found in your workspace at:
+	echo $KCONF_DIR/specified_non_hdw.cfg | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo
+fi
+
+
+##########################################################################
+# Check that the list of specified hardware options really made it into
+# the final .config file.  This can be a lifesaver, since if you specified
+# a crucial hardware option, but it didn't end up in the final .config
+# because it failed a specific LKC prerequisite, you will want to know!
+# Since we've already filtered dups from the toplevel, take the requested
+# value from that, and the set value from the final .config file.
+##########################################################################
+
+rm -f $KCONF_DIR/mismatch.cfg
+for i in `cat $KCONF_DIR/specified_hdw.cfg` ; do
+	REQUESTED_VAL=`grep -w -e $i $KCONF_DIR/$KERNEL_CONFIG`
+	ACTUAL_VAL=`grep -w -e $i $LINUX_BUILD/.config`
+	# Skip cases where they ask for it off, but it wasn't even avail.
+	echo $REQUESTED_VAL | grep -q ' is not set$'
+	if [ $? == 0 -a -z "$ACTUAL_VAL" ]; then
+		continue
+	fi
+	if [ "x$REQUESTED_VAL" != "x$ACTUAL_VAL" ] ; then
+		echo Value requested for $i not in final \".config\" >> $KCONF_DIR/mismatch.cfg
+		echo Requested value: \"$REQUESTED_VAL\" >> $KCONF_DIR/mismatch.cfg
+		echo Actual value set: \"$ACTUAL_VAL\" >> $KCONF_DIR/mismatch.cfg
+		echo >> $KCONF_DIR/mismatch.cfg
+	fi
+		
+done
+
+# One could argue that any mismatch is a valid reason to declare failure.
+# If that is what seems appropriate, then replace the sleep with an exit 1
+if [ -s $KCONF_DIR/mismatch.cfg ]; then
+	OPT_COUNT=`grep '^Value' $KCONF_DIR/mismatch.cfg | wc -l | awk '{print $1}'`
+	echo WARNING: There were $OPT_COUNT hardware options requested that do not
+	echo "         "have a corresponding value present in the final \".config\" file.
+	echo "         "This probably means you aren\'t getting the config you wanted.
+	echo The full list can be found in your workspace at:
+	echo $KCONF_DIR/mismatch.cfg | sed 's=^'$TOP_BUILD_DIR'/=   ='
+	echo
+	echo Waiting a second to make sure you get a chance to see this...
+	sleep 1 
+fi
+
+# Clean up any empty autogenerated files; helps the signal to noise ratio
+for i in all.kcf known.kcf known_current.kcf obsolete.kcf unknown.kcf	\
+	avail_hardware.cfg all.cfg specified.cfg invalid.cfg 		\
+	specified_hdw.cfg specified_non_hdw.cfg mismatch.cfg		\
+	fragment_errors.txt
+do
+	if [ ! -s $i ]; then
+		rm -f $i
+	fi
+done
+
+exit 0
+

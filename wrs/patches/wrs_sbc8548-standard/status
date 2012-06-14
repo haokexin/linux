@@ -1,0 +1,7 @@
+links/kernel-cache/bsp/wrs_sbc8548/sbc8548-fix-reboot.patch
+links/kernel-cache/bsp/wrs_sbc8548/sbc8548-Add-EEPROM-device-nodes.patch
+links/kernel-cache/bsp/wrs_sbc8548/WRHV-sbc8548-basic-board-support.patch
+links/kernel-cache/bsp/wrs_sbc8548/WRHV-SBC8548-Add-missing-of_bus-node.patch
+links/kernel-cache/bsp/wrs_sbc8548/ppc-mc-wrs_sbc8548-support-SWIOTLB-and-provide-the-l.patch
+links/kernel-cache/bsp/wrs_sbc8548/ppc-mc-wrs_sbc8548-fix-.show_cpuinfo.patch
+links/kernel-cache/bsp/wrs_sbc8548/ppc-mc-wrs_sbc8548-support-EEPROM.patch

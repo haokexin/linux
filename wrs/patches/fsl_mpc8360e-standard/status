@@ -1,0 +1,4 @@
+links/kernel-cache/bsp/fsl_mpc8360e/SPI-flash-M25PXX-support-for-fsl_mpc8360e.patch
+links/kernel-cache/bsp/fsl_mpc8360e/Fixed-8360-gadget-panic-issue.patch
+links/kernel-cache/bsp/fsl_mpc8360e/mpc8360e-fix-spi-flash-issue.patch
+links/kernel-cache/bsp/fsl_mpc8360e/fsl_mpc8360e-fixed-spinlock-recursion-issue.patch

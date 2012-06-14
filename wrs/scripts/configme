@@ -1,0 +1,256 @@
+#!/bin/bash
+
+# "configme" script.
+
+#  Copyright (c)2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+# Wrapper script to use existing tools to translate kernel
+# config fragments into the pre-processed assembly of frags,
+# and then finally a .config, and optionally an audit of that
+# final .config
+
+# Assumes you have a "default_kernel" clone, non-bare, with
+# all BSPs/branches as local refs (i.e. not origin/*), i.e.
+# 	git clone --bare git://myserver/default_kernel linux-2.6
+# 	cd linux-2.6
+#	mkdir .git ; mv * .git
+#	git config core.bare false
+#	git checkout -f wrs_meta
+# Also assumes that current dir is in this linux git repo.
+
+# Return values: zero if a ".config" was created, one otherwise.
+
+# For testing across groups of BSPs (i.e. standard) use the below
+# script.  Note that there may be a couple false failures due to
+# branches that represent shared content across several BSPs, like
+# the cavium or fsl-imx shared branches.
+# (the cat EOF magic is just so I don't have to comment out lines)
+cat > /dev/null << EOF
+
+rm -rf wrs ../linux-*
+git checkout -f wrs_meta 
+for i in `git branch |grep -- '-standard$\|-cgl\|-preempt_rt\|-ecgl'`; do
+	echo $i ; git checkout -f $i
+	~/configme --audit
+	if [ $? != 0 ]; then
+		echo XXXXXXXXXXXXXXX $i failed XXXXXXXXXXXXXXXX
+	fi
+	rm -rf wrs
+done
+
+EOF
+
+CURRENT=`git branch |grep \*|sed 's/^\* //'`
+SCRIPT_DIR=`pwd`/wrs/scripts
+PATH=$SCRIPT_DIR:$PATH
+QUICK=1
+
+usage()
+{
+	echo `basename $0` \[--audit\]
+	echo \t audit: do an audit of final .config file
+	exit 1
+}
+
+# Steal the wrs data off of the wrs_meta branch, but dont actually
+# change wrs_meta in the process...
+decheckpoint()
+{
+
+# if there is an existing ./wrs we have to get it out of the way...
+rm -rf ./wrs
+
+TBRANCH=wrs_meta-$RANDOM
+git checkout -b $TBRANCH wrs_meta > /dev/null 2>&1
+if [ $? != 0 ]; then
+	echo creation of temporary branch $TBRANCH failed
+	echo check \"git status\" for possible reason why
+	return 1
+fi
+
+merge_base=`git merge-base wrs_meta wrs_base`
+git reset --mixed $merge_base
+if [ $? != 0 ]; then
+	echo Mixed reset on $TBRANCH failed
+	return 1
+fi
+
+git checkout $CURRENT > /dev/null 2>&1
+if [ $? != 0 ]; then
+	echo Switching back to $CURRENT \(with checkpoint data\) failed
+	return 1
+fi
+
+git branch -D $TBRANCH > /dev/null
+
+if [ ! -d $SCRIPT_DIR ]; then
+	echo checkpoint restore failed, no dir $SCRIPT_DIR found
+	return 1
+fi
+
+}
+
+# This is factored out into a function because for a given branch,
+# there may be more than one user (i.e. big endian, little endian,
+# or BSPs that use the same branch but differ only in kernel configs)
+# So for each branch, we loop over all "users" (i.e. scc leaf'ers).
+run_board_config()
+{
+
+# Can't set these until we've unwound the checkpoint and have wrs data.
+KVER=`cat ./wrs/cfg/kernel-*cache/kver|sed 's/^v//'`
+WRS_ARCH=`grep WRS_ARCH $SCC | awk '{print $3}'`
+KPROFILE=`grep WRS_BOARD $SCC | awk '{print $3}'`
+KTYPE=`grep WRS_KERNEL $SCC | awk '{print $3}'`
+KTGT=$KPROFILE-$KTYPE
+META=./wrs/cfg/meta/`basename $SCC .scc`-meta
+
+# Build system uses linux_BUILD=$(linux_SRC)-$(ktgt)-build
+# with ktgt=$(kprofile)-$(ktype)
+# and KERNEL_CONFIG=${kprofile}-${ktype}-config-${LINUX_KERNEL_VERSION}
+BUILD_DIR=../linux-$KTGT-build
+CFGFILE=$KTGT-config-$KVER
+
+if [ "x$WRS_ARCH" == "x" ] ; then
+	echo Couldnt determine architecture from file:
+	echo -e \\t$SCC
+	echo Assuming scc is not a valid BSP endpoint...
+	return 1
+fi
+
+# Fixups to match WRS_ARCH onto kernel.org arch
+if [ $WRS_ARCH == "powerpc_64" ]; then
+	WRS_ARCH=powerpc
+fi
+if [ $WRS_ARCH == "mips64" ]; then
+	WRS_ARCH=mips
+fi
+
+if [ -d $BUILD_DIR ]; then
+	echo Dir $BUILD_DIR already exists, remove/move
+	echo it if you want to re-run this configuration utility.
+	return 1
+fi
+
+mkdir $BUILD_DIR
+if [ $? != 0 ]; then
+	echo Failed to mkdir $BUILD_DIR for final .config file
+	return 1
+fi
+
+mkdir ./wrs/cfg/$KTGT
+if [ $? != 0 ]; then
+	echo Failed to mkdir ./wrs/cfg/$KTGT for config data
+	return 1
+fi
+
+if [ ! -f $META ]; then
+	echo Failed to find meta series $META
+	return 1
+fi
+
+kgit-meta -v -k $META
+if [ $? != 0 ]; then
+	echo Error running the meta series for collecting config data
+	return 1
+fi
+
+generate_cfg $CFGFILE /dev/null `pwd` $BUILD_DIR $KTGT
+
+if [ $? != 0 ]; then
+	echo creation of pre-processed config data failed
+	return 1
+fi
+
+echo "[INFO] Pre-processed cfg file $CFGFILE created."
+
+make ARCH=$WRS_ARCH O=$BUILD_DIR \
+	KBUILD_DEFCONFIG=../../../wrs/cfg/$KTGT/$CFGFILE \
+	defconfig > wrs/cfg/$KTGT/config.log 2>&1
+
+if [ $? != 0 ]; then
+	echo Kernel LKC processing of raw config data failed \($WRS_ARCH\)
+	echo See wrs/cfg/$KTGT/config.log for details.
+	return 1
+fi
+
+echo "[INFO] processing of raw cfg data completed."
+
+if [ $QUICK -ne 1 ]; then
+	kconf_check $CFGFILE /dev/null `pwd` $BUILD_DIR $KTGT
+fi
+
+cat << EOF
+
+********************************************************************************
+  Configuration stored in $BUILD_DIR/.config
+********************************************************************************
+
+  To build with this kernel configuration, ensure a suitable toolchain
+  is in your path for $WRS_ARCH, note its common command prefix, and do:
+
+   make O=$BUILD_DIR ARCH=$WRS_ARCH \\
+        CROSS_COMPILE=<cross-compile-prefix>
+
+  Prefix is usually "<arch>-wrs-linux-gnu-", i.e. powerpc-wrs-linux-gnu-
+  as an ARCH=powerpc specific example.
+
+EOF
+return 0
+
+}
+
+#########################  Start here ##########################
+
+if [ $# -gt 1 ]; then
+	usage
+fi
+
+if [ $# == 1 ]; then
+	if [ "$1" != "--audit" ]; then
+		usage
+		exit 1
+	fi
+	QUICK=0
+fi
+
+echo "[INFO] Finding user(s) of current branch: $CURRENT"
+
+decheckpoint
+if [ $? != 0 ]; then
+	echo Restoring wrs data from wrs_meta branch failed
+	exit 1
+fi
+
+# Note the space and EOL anchor.  We want to find the SCC file where
+# CURRENT is on the far RHS, i.e. the one that created the branch,
+# and NOT some SCC file that uses the branch as a starting point.
+SCC_LIST=`grep -Rl 'scc_leaf.* '$CURRENT'$' ./wrs/cfg/kernel-*cache/bsp/`
+
+if [ -z "$SCC_LIST" ]; then
+	echo Error: No WRS BSPs \(scc\) use branch $CURRENT as their endpoint.
+	exit 1
+fi
+
+for SCC in $SCC_LIST ; do
+	if [ ! -f $SCC ] ; then
+		echo Couldnt find scc file $SCC for $CURRENT
+		exit 1
+	fi
+	echo "[INFO] Branch $CURRENT used by "`basename $SCC`
+	run_board_config
+	if [ $? != 0 ]; then
+		echo config of $CURRENT \(`basename $SCC`\) failed
+		exit 1
+	fi
+done
+exit 0

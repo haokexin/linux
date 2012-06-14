@@ -1,0 +1,15 @@
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-ahci-add-ahci-platform-support.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-usb-add-usb-host-support.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-make-the-lock-in-musb-to-be-raw.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-remove-usb_hcd_link_urb_to_ep-from.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-remove-raw_spin_lock-unlock-from-m.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-make-the-lock-in-usbotg_ss-to-be-r.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-remove-musb_port_reset-from-raw_sp.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-remove-cppi41_completion-from-raw_.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-remove-musb_interrupt-from-raw_spi.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-no-need-to-protect-musb_h_disable-.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-no-need-to-protect-musb_urb_dequeu.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-avoid-potential-calltrace-when-cal.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-no-need-to-protect-musb_hub_contro.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-no-need-to-protect-cppi41dma_Inter.patch
+links/kernel-cache/bsp/ti_sitara_am389x/TI816x-preempt_rt-no-need-to-protect-ti816x_interrup.patch

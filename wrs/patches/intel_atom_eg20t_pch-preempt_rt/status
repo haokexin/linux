@@ -1,0 +1,2 @@
+links/kernel-cache/bsp/intel_atom_eg20t_pch/Add-Topcliff-UART-support.patch
+links/kernel-cache/bsp/intel_atom_eg20t_pch/Fix-SERIAL_8250_PCH-and-SERIAL_8250-drivers-conflict.patch

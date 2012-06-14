@@ -1,0 +1,1232 @@
+#!/bin/bash
+
+#  (kgit-meta), (processes a meta-series to construct a git tree)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+# figure out where we are
+mypath=${0%/*}
+if [ "$mypath" = "$0" ]
+then
+  mypath="."
+fi
+full_path=$(dirname $(readlink -f $0));
+export guilt_dont_check_index=t
+
+usage()
+{
+cat <<EOF
+
+ kgit-meta [--init] [--kconf] [--apply|--patch] [--continue]
+           [--update] [--rc=<file>] [--stop_at=<patch>] [--skip=<patch>] 
+           [--dump] [--interactive] [-v] [-h] <meta-series>
+
+   <meta-series>: required if --apply or --kconf or --patch is used
+
+     --init: initialize the repository for application of the meta 
+             series
+     --kconf: run the kernel configuration portion of the meta series         
+     --apply: apply patches found in the meta series. This also runs
+              any git commands found in the series.
+     --continue: continue applying patches from the meta series. Used
+                 after a failure. Note: this also prevents skipping of
+                 patches simply because a branch exist
+
+     --stop_at: during application stop at a particular patch
+     --interactive: not implemented
+     --update: depending on the action, this triggers additional 
+               processing. --kconf --update will trigger an update
+               of all the fragments in the repo AND setup the 
+               fragment processing.
+     --skip: during application, skip a particular patch
+   -h: help
+   -v: verbose
+
+EOF
+}
+
+# command line processing
+vlevel=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+	-a|--apply|-p|--patch)
+		_patch_apply=t
+		;;
+	-i|--init)
+		_init=t
+		;;
+	-d|--dump)
+		_dump=t
+		;;
+	-u|--update)
+		_update=t
+		;;
+	-c|--continue)
+		_continue=t
+		_single_step=t
+		;;
+	-stop_at|--stop_at)
+		_stop_at=$2
+		shift
+		;;
+	--skip)
+		_skip=$2
+		shift
+		;;
+	--interactive)
+	        _interactive=t
+		;;
+	-f|--force)
+		_force=t
+		;;
+	-k|--kconf)
+		_kconf=t
+		;;
+	-rc|--rc)
+		_rc_file=$2
+                shift
+		;;
+	-v|--v)
+		verbose=t
+		vlevel=`expr $vlevel + 1`
+		;;
+	-h|--h|--help) 
+	        usage
+                exit;
+                ;;
+	*)
+	        break
+		;;
+    esac
+    shift
+done
+
+if [ ! $# -gt 0 ]; then
+    usage
+    exit
+fi
+
+path=`dirname $0`
+. $path/kgit
+
+
+if [ -n "$_continue" ]; then
+    active_patching=t
+else
+    active_patching=
+fi
+
+# Each BSP gets one of these in wrs/cfg/<BSP>/$fraglist
+fraglist="config_frag.txt"
+
+# yes this is a no-op for now, leaving it in in case
+# I change my mind later
+if [ -z "$verbose" ]; then
+    _redir="> /dev/null"
+else
+    _redir="> /dev/null"
+fi
+
+_meta_series=$1
+if [ -n "$_patch_apply" ] && [ ! -e "$_meta_series" ]; then
+    echo "ERROR. meta series '$_meta_series' does not exist..."
+    exit 1
+fi
+
+# arg1: delay between calls
+# arg2: function to call
+# arg3: max loop count
+background_op_wait()
+{
+    trap 'done=t' SIGTERM SIGUSR1 SIGINT EXIT
+
+    my_sleep=$1
+    my_func=$2
+    max=$3
+    count=0
+
+    # this will recv any signals that may already be pending
+    sleep 1;
+    while [ -z "$done" ] && [ $count -lt $max ]; do
+        eval $my_func
+        sleep $my_sleep
+	count=`expr $count + 1`
+    done
+
+    if [ $count -ge $max ]; then
+	echo "warning: background operation timed out"
+    fi
+}
+
+progress_increment()
+{
+    pdone=`expr $pdone + 1`
+    progress_update
+}
+
+spin_count=1
+progress_update()
+{
+    percent_done=`expr $pdone \* 100 / $ptotal`
+    hash_count=`expr $percent_done / 2`
+    remainder=`expr 50 - $hash_count`
+
+    case $spin_count in
+	1) bar='|'
+           spin_count=`expr $spin_count + 1`
+           ;;
+        2) bar='/'
+           spin_count=`expr $spin_count + 1`
+           ;;
+        3) bar='-'
+           spin_count=`expr $spin_count + 1`
+           ;;	
+        4) bar='\'	
+	   spin_count=1
+           ;;
+    esac
+
+    # for each 2%, print one #
+    echo -n "  ["
+    for i in `seq $hash_count`; do
+	echo -n '#'
+    done
+    for in in `seq $remainder`; do
+ 	echo -n ' '
+    done
+    echo -ne "] ($bar)($percent_done %)\r"
+}
+
+progress_done()
+{
+    extra_message="$1"
+
+    # for each 2%, print one #
+    echo -n "  ["
+    for i in `seq 50`; do
+	echo -n '#'
+    done
+    echo -e "]  (completed $extra_message)                    "
+}
+
+
+# arg1: tag name
+# arg2: message (if present an annotated tag is done)
+do_tag()
+{
+    tag_name="$1"
+    tag_msg="$2"
+
+    git show-ref -q $tag_name
+    if [ $? -eq 1 ]; then
+        if [ "$vlevel" -eq 2 ]; then
+	    echo "      * issuing: git tag $tag_name"
+	fi
+	
+	if [ -n "$tag_msg" ]; then
+	    git tag -a -m "$tag_msg" "$tag_name"
+	else
+	    git tag "$tag_name"
+	fi
+    fi
+}
+
+# allows git commands to be undone
+_git_undo()
+{
+    _type=$1
+    shift
+    _args=$@
+
+    case $_type in
+	tag) if [ -e .git/refs/tags/$_args ]; then
+	        echo "[INFO] executing: git $_type -d $_args"
+	        git $_type -d $_args
+             fi 
+           ;;
+	*) echo "[INFO] executing: git $_type $_args"
+           # git $_type $_args 
+           ;;
+    esac
+}
+
+get_hooks()
+{
+    meta_file=$1
+
+old_ifs=$IFS
+IFS='
+'
+    for h in `grep '# _hook' $1`; do
+	phase=`echo $h | cut -d' ' -f3`
+	hook=`echo $h | cut -d' ' -f4`
+
+	_hook_file_dir=`dirname $hook`
+	_hook_file_name=`basename $hook`
+
+	if [ -e $_hook_file_dir/$_hook_file_name ]; then
+	    cp -f $_hook_file_dir/$_hook_file_name $hook_dir
+	    case $phase in
+		prepatch)
+		    prepatch_scripts="$prepatch_scripts $_hook_file_name"
+		    ;;
+		postpatch)
+		    postpatch_scripts="$postpatch_scripts $_hook_file_name"
+		    ;;
+	    esac
+	else
+	    echo "WARNING: hook $_hook_file_dir/$_hook_file_name not found"
+	fi
+    done
+IFS=$old_ifs
+}
+
+track_branch()
+{
+    branch_name=$1
+    
+    if [ -n "$branch_name" ]; then
+	head_commit=`git show-ref -h -s | head -1`
+	echo "$branch_name:$head_commit" >> $wrs_dir/cfg/branch_status
+    fi
+}
+
+# this is responsible for migrating the data from the kernel-cache layer
+# into the wrs/ dir. That is it -- no processing takes place here.
+do_kconf()
+{
+    local _cfg_file_dir=`dirname $1`
+    local _cfg_file_name=`basename $1`
+
+    local kconf_files="hardware.kcf non-hardware.kcf hardware.cfg non-hardware.cfg"
+
+    _reloc_cfg_file_dir=`make_relocatable $_cfg_file_dir`
+    if [ -d "$_cfg_file_dir" ]; then
+	mkdir -p $work_cfg_dir/$_reloc_cfg_file_dir
+
+	if [ ! $_cfg_file_dir/$_cfg_file_name -ef \
+               $work_cfg_dir/$_reloc_cfg_file_dir/$_cfg_file_name ]; then
+	    if [ -f $_cfg_file_dir/$_cfg_file_name ]; then
+	        cp $_cfg_file_dir/$_cfg_file_name $work_cfg_dir/$_reloc_cfg_file_dir/
+	    fi
+	fi
+
+        # We may run this loop more than 1x since a feature dir can validly
+        # have more than one _kconf specified. Hence the "cp -f"
+	for file in $kconf_files
+	do
+	    if [ -f $_cfg_file_dir/$file ]; then
+		if [ ! $_cfg_file_dir/$file -ef \
+		     $work_cfg_dir/$_reloc_cfg_file_dir/$file ]; then
+                    if [ -f $_cfg_file_dir/$_cfg_file_name ]; then
+		       cp -f $_cfg_file_dir/$file \
+			   $work_cfg_dir/$_reloc_cfg_file_dir/
+                    fi
+		fi
+	    fi
+	done
+    fi
+}
+
+# this is a wrapper around any embedded rc file comments
+do_cfg()
+{
+    local _cfg_file_dir=$1
+
+    if [ -d "$_cfg_file_dir" ]; then
+	reloc_dir=`make_relocatable $_cfg_file_dir`
+	if [ ! -d "$work_cfg_dir/$reloc_dir" ]; then
+	    mkdir -p $work_cfg_dir/$reloc_dir
+	fi
+	if [ ! $_cfg_file_dir -ef $work_cfg_dir/$reloc_dir ]; then
+	    cp -u $_cfg_file_dir/*.scc $work_cfg_dir/$reloc_dir
+	fi
+    fi
+}
+
+# If "branch name inheritance is on", we really only requires knowledge of 
+# its start point and end point. So we condense names to be just that, not 
+# just for leaf nodes (BSPs) but for everything.  
+# If "branchname inheritance is off", just call them as they are in the
+# meta series, each branch is standalone.
+# If you futz with the branch naming here, have a look at "branchpoints" 
+# to make sure it still is OK.
+do_branch()
+{
+    local name=$1
+    local force=$2
+    local create=
+
+    if [ -n "$show_inheritance_in_branches" ]; then
+	if [ -n "$last_branch" ]; then
+	    suffix=`echo $last_branch | sed 's/.*-\([a-zA-Z0-9_]*\)$/\1/'`
+	    name=$name-$suffix
+	fi
+    fi
+
+    if [ -n "$force" ]; then
+	# if the branches have diverged (i.e. another force)
+	# and we don't have "multi_branch_divergence" then
+	# don't do anything
+	if [ -z "$branches_have_diverged" ] ||
+            ([ -n "$branches_have_diverged" ] && 
+	     [ -n "$multi_branch_divergence" ]); then
+	    branches_have_diverged=t
+	else
+	    return
+	fi
+    fi
+
+    git show-ref --quiet --verify -- "refs/heads/$name";
+    if [ $? -eq 1 ]; then
+	# branch doesn't exist. create it.
+	create=t
+    fi
+    if [ -n "$create" ]; then
+	if [ "$vlevel" -eq 2 ]; then
+	    echo "      branch ===> $name"
+	fi
+
+	mkdir -p $wrs_dir/patches/$name
+	
+	if [ -n "$last_passed_patch" ]; then
+	    pcommit=`grep $last_passed_patch $status_file | cut -d: -f1`
+	fi
+	
+	
+	track_branch $last_branch
+
+	# we always checkout from the last point on the current branch
+	# for more fine grained branching git should be used directly
+	if [ -z "$force" ]; then
+	    git checkout -q -b $name
+	else
+	    git checkout -q -b $name $pcommit
+	fi
+
+	active_patching=t
+
+	series_file=$wrs_dir/patches/$name/series
+	if [ -e $wrs_dir/patches/$name/series ]; then
+            cat $wrs_dir/patches/$name/series | tr -s / > $wrs_dir/patches/$name/series.new
+            mv $wrs_dir/patches/$name/series.new $wrs_dir/patches/$name/series
+	fi
+	status_file=$wrs_dir/patches/$name/status
+	if [ -e $wrs_dir/patches/$name/status ]; then
+            cat $wrs_dir/patches/$name/status | tr -s / > $wrs_dir/patches/$name/status.new
+            mv $wrs_dir/patches/$name/status.new $wrs_dir/patches/$name/status
+	fi
+
+	patches_dir=$wrs_dir/patches/$name
+
+	if [ ! -d $wrs_dir/patches/$name ]; then
+	    mkdir -p $wrs_dir/patches/$name
+	fi
+ 	touch $wrs_dir/patches/$name/status
+ 	touch $wrs_dir/patches/$name/series
+    else
+	git checkout -q $name
+
+	series_file=$wrs_dir/patches/$name/series
+	if [ -e $wrs_dir/patches/$name/series ]; then
+            cat $wrs_dir/patches/$name/series | tr -s / > $wrs_dir/patches/$name/series.new
+            mv $wrs_dir/patches/$name/series.new $wrs_dir/patches/$name/series
+	fi
+
+	status_file=$wrs_dir/patches/$name/status
+	if [ -e $wrs_dir/patches/$name/status ]; then
+            cat $wrs_dir/patches/$name/status | tr -s / > $wrs_dir/patches/$name/status.new
+            mv $wrs_dir/patches/$name/status.new $wrs_dir/patches/$name/status
+	fi
+	
+	patches_dir=$wrs_dir/patches/$name
+
+	if [ "$vlevel" -eq 2 ]; then
+	    echo "      branch ===> $name (reuse)"
+	fi
+
+	# if we are "continuing" then we still need to process 
+	# patches one by one in the branch. If we aren't continuing
+	# take the branch existence to mean "all the patches should
+	# be in place"
+	if [ -n "$_continue" ]; then
+	    active_patching=t
+	else
+	    active_patching=
+	fi
+    fi
+
+    last_branch=$name
+}
+
+make_relocatable_additive()
+{
+    in_name=$1
+
+    w=$in_name
+    for r in $rdirs; do
+        r=`clean_path $r`  
+	t=`echo $w | sed s%$r%%`
+	w=$t
+    done
+
+    echo $w
+}
+
+make_relocatable()
+{
+    in_name=$1
+
+    # this takes an input name and searches all known relocations.
+    # the relocation that removes the MOST from the original is
+    # the one we want, since it is the best match by definition
+    out_len=${#in_name}
+    relocated_name=$in_name
+    for r in $rdirs; do
+        r=`clean_path $r`  
+	t=`echo $in_name | sed s%$r%%`
+	this_len=${#t}
+	if [ $this_len -lt $out_len ]; then
+	    relocated_name=$t
+	    out_len=$this_len
+	fi
+    done
+
+    echo "$relocated_name"
+}
+
+do_patch()
+{
+    local name=$1
+    local push_patch=
+    
+    local_name=`make_relocatable $name | tr -s /`
+
+    add_to_series=
+    if [ -n "$active_patching" ]; then
+	# cleanup the path a bit
+	name=`echo $name | sed 's%^\./%%g'`
+	if [ -n "$_continue" ]; then
+	    # check to make sure it really is unique
+	    if [ -e $status_file ]; then
+                grep -q $local_name $status_file
+		if [ $? -ne 0 ]; then
+		    # patch isn't already in the status. push
+		    push_patch=t
+		fi
+	    else
+		 touch $status_file
+		 push_patch=t
+	    fi
+	    if [ -e $series_file ]; then
+                grep -q $local_name $series_file
+		if [ $? -ne 0 ]; then
+	           # patch isn't already in the series. add it
+		    add_to_series=t
+		fi
+	    else
+		 touch $series_file
+		 add_to_series=t
+	    fi
+	else
+	    add_to_series=t
+	    push_patch=t
+	fi
+
+	if [ -n "$_skip" ]; then
+	    echo "`basename $local_name`" | grep -q -E "^$_skip"
+	    if [ $? -eq 0 ]; then
+		push_patch=
+	    fi
+	fi
+    fi
+
+    if [ -n "$push_patch" ]; then
+	if [ -n "$verbose" ]; then
+	    if [ "$vlevel" -eq 2 ]; then
+		echo "         patch `basename $name` ($series_file)"
+	    else
+		progress_increment
+	    fi
+	fi
+
+        # get it into the series file
+	sname=`echo links/$local_name | sed s'%//%/%'`
+
+	if [ -n "$add_to_series" ]; then
+            if [ ! -e "$series_file" ]; then
+	        echo "ERROR. No series file detected. An invalid or non-existent branch has been used."
+	        exit 1;
+            fi
+	    grep -q -E "$name$" $series_file
+	    if [ $? -ne 0 ]; then
+		echo $sname >> $series_file
+	    fi
+
+            # arrange for the patch to be locally available for application
+	    if [ -n "$name" ] && [ -e "$name" ]; then
+		patches_links_dirname=`dirname $sname`
+
+		# unify patches and config, this means that all .scc files
+		# and their patches will be linked under the same directory
+		# structure
+		if [ -d $patches_dir ] && [ ! -d $patches_dir/links ]; then
+    		    $(cd $patches_dir; ln -s ../../cfg links)
+		fi
+
+		if [ ! -d $patches_dir/$patches_links_dirname ]; then
+		    mkdir -p $patches_dir/$patches_links_dirname
+		fi
+
+		if [ ! $name -ef $patches_dir/$sname ]; then
+		    ln -sf $name $patches_dir/$sname
+		fi
+		last_patch_to_push=$sname
+	    else
+		echo "           *  warning: $name not found, not linking"
+	    fi
+	else
+	    last_patch_to_push=$sname
+	fi
+
+    else
+	if [ -n "$verbose" ]; then
+	    if [ "$vlevel" -eq 2 ]; then
+		echo "         skipping already applied `basename $name`"
+	    else
+		progress_increment
+	    fi
+	fi
+    fi
+    last_passed_patch=`basename $name`
+}
+
+do_pending_patches()
+{
+    local sname=$last_patch_to_push
+
+    # if we didn't really push anything (i.e. skipped patches)
+    # then sname is empty ... hence this does nothing.
+    if [ -n "$sname" ]; then
+	if [ -n "$verbose" ]; then
+	    if [ "$vlevel" -eq 2 ]; then
+		echo "    * pushing `basename $sname`"
+	    fi
+	fi
+
+	# if we are verbose and at vlevel 1, we'll start
+	# a background progress monitor, otherwise, we'll
+	# skip it
+	if [ -n "$verbose" ] && [ $vlevel -eq 1 ]; then
+	    do_background_push=t
+	fi
+
+	if [ -n "$do_background_push" ]; then
+	    ( eval "guilt-push $sname $_redir" ) &
+	    j=$!
+	    trap 'kill -SIGUSR1 $j 2> /dev/null' SIGTERM SIGUSR1 SIGINT EXIT
+
+	    ( background_op_wait 2 progress_update 500 ) &
+	    progress_pid=$!
+	    trap 'kill -SIGUSR1 $progress_pid 2> /dev/null' SIGTERM SIGUSR1 SIGINT EXIT
+
+            # wait for the push
+	    wait $j
+	    push_code=$?
+	
+	    # cleanup. probably already dead, but to be sure ...
+	    kill -SIGUSR1 $progress_pid 2> /dev/null
+	else
+	    eval "guilt-push $sname $_redir"
+	    push_code=$?
+	fi	    
+
+	if [ $push_code -ne 0 ]; then
+	    echo "[ERROR] unable to complete push"
+	    echo "pending patches are:"
+	    guilt unapplied
+	    exit 1
+	fi
+    fi
+
+    last_patch_to_push=
+    _processing_patches=
+}
+
+do_git()
+{
+    local cmd=$@
+    
+    if [ ! "$_action" = "undo" ]; then
+	type=`echo $cmd | cut -d' ' -f1`
+	parm=`echo $cmd | cut -d' ' -f2`
+	case $type in
+	    tag)
+                 my_tag=$parm
+
+		 # Make sure that we don't duplicate a single tag across
+		 # multiple branches. This could happen if a series is
+		 # modified which triggers a force branch. That forked series
+		 # would try and use the same tag as the base branch, creating
+		 # a duplicate tag in the tree (which fails)
+	         if [ -n "$branches_have_diverged" ] && [ -z "no_force_tagging" ]; then
+		     my_tag="$parm-`basename $_meta_series -meta`"
+		 fi
+		 
+		 do_tag "$my_tag" "$my_tag"
+		 ;;
+             *) 
+ 		 if [ "$vlevel" -eq 2 ]; then
+		     echo "      * issuing: git $cmd"
+		 fi
+		 eval git $cmd
+		 ;;
+	esac
+    fi
+}
+
+# We have a tree, we have a list of fragments.  Now start the whole
+# processing and sanity checking from here.
+do_config_setup()
+{
+    local frags=$1
+    local name=$2
+
+    if [ $vlevel -eq 2 ]; then       
+	echo "[INFO] processing kernel fragments for $name"
+    fi
+
+    git show-ref --quiet --verify -- "refs/heads/$name";
+    if [ $? -eq 1 ]; then
+		echo "[ERROR] \"$1\" requires \"$name\", but branch \"$name\" does not exist."
+		exit 1
+    fi
+
+    current=`git branch|grep '^\*'|awk '{print $2}'`
+
+    if [ x$name != x$current ]; then
+	echo "[INFO] checking out $name"
+	git checkout -q $name
+	if [ $? -ne 0 ]; then
+		echo "[ERROR] Checkout of $name failed"
+		exit 1;
+	fi
+    fi
+
+    # Things are now good to go for generate_cfg
+}
+
+
+_git()
+{
+    git_args=$@
+
+    do_pending_patches
+    do_git $git_args
+}
+
+_mark()
+{
+    n=$1
+    a=$2
+
+    if [ "$a" = "start" ]; then
+	if [ "$vlevel" -eq 2 ]; then
+	    echo "   mark --> $n"
+	fi
+    else
+        if [ "$vlevel" -eq 2 ]; then
+	    echo "   mark <-- $n"
+	fi
+    fi
+}
+
+_patch()
+{   
+    if [ -n "$_stop_at" ]; then
+	echo $1 | grep -q -E "^$_stop_at"
+	if [ $? -eq 0 ]; then
+	    skip_to_end=t
+	fi
+    fi
+    if [ -z "$skip_to_end" ]; then
+	_processing_patches=t
+	do_patch $1
+	if [ $? -ne 0 ]; then
+	    exit 1
+	fi
+    fi
+}
+
+_cfg()
+{
+    d=$1
+
+    do_cfg "$d"
+}
+
+_branch_begin()
+{
+    name=$1
+    force=$2
+
+    do_pending_patches
+
+    # do branch will let us know if the branch
+    # already existed. 
+    do_branch $name $force
+    if [ -z "$active_patching" ]; then
+	fast_forward_to_next_branch=t
+    else
+	fast_forward_to_next_branch=
+    fi
+}
+
+_force_branch()
+{
+    _branch_begin $@
+}
+
+_reloc_dir()
+{
+    dir=$1
+
+    rdirs="$rdirs $dir/"
+}
+
+_kconf()
+{
+    do_kconf "$2"
+}
+
+wrap_meta_series()
+{
+    series=$1
+    pdone=1
+    ptotal=`grep patch $series | wc -l`
+    start=`date +"%s"`
+
+    # uncomment the commands that we are willing to run
+    cat $series | sed -e 's/^# *\(_cfg\)/\1/g' \
+                      -e 's/^# *\(_mark\)/\1/g' \
+                      -e 's/^# *\(_git\)/\1/g' \
+                      -e 's/^# *\(_branch_begin\)/\1/g' \
+                      -e 's/^# *\(_reloc_dir\)/\1/g' \
+                      -e 's/^# *\(_kconf\)/\1/g' \
+                      -e 's/^# *\(_force_branch\)/\1/g' \
+                      -e 's/^# *\(_patch\)/\1/g' > $series.wrap
+
+    # now run the series
+    source $series.wrap
+
+    # grab any left over patches
+    do_pending_patches
+    if [ $? -ne 0 ]; then
+	exit 1
+    fi
+
+    stop=`date +"%s"`
+    duration=`expr $stop - $start`
+
+    if [ -n "$verbose" ]; then
+	if [ $vlevel -eq 2 ]; then
+	    echo ""
+	    echo "<=== processed $_meta_series in $duration seconds"
+	else
+	    progress_done "in $duration seconds"
+	fi
+    fi
+}
+
+do_meta_series()
+{
+    local _local_meta_series=$1
+    local _action=$1
+    local git_args=""
+    local _processing_patches=
+    
+    if [ ! "`get_current_git_branch`" == "wrs_base" ]; then
+	git checkout -q wrs_base
+    fi
+
+    if [ $vlevel -eq 2 ]; then
+	echo ""
+	echo "===> processing $_meta_series"
+    fi
+
+    # FUTURE:
+    #   - could analyize the branches. 
+    #      - if you don't have any local branches
+    #      - look for your global ones to exist
+    #      - if they do, check them out. create those that 
+    #        don't
+
+    pdone=1
+    ptotal=`grep patch $_local_meta_series | wc -l`
+    start=`date +"%s"`
+    cat $_local_meta_series | while read entry; do
+	if [ -z "$entry" ] || [ -n "$skip_to_end" ]; then
+	    continue
+	fi
+
+	cmd=`echo $entry | 
+              awk '/^# *_cfg/ { print "cfg" }
+                   /^# *_mark/ { print "mark" }
+                   /^# *_git/  { print "git" }
+                   /^# *_branch_begin/ { print "branch_begin" }
+                   /^# *_force_branch/ { print "branch_begin" }
+                   /^# *_kconf/ { print "kconf" }
+                   /^# *_branches_local/ { print "" }
+                   /^# *_reloc_dir/ { print "reloc" }
+		   /^# *_patch/ { print "patch" }
+                   /^#.*/ { print "comment" }
+                   /.*/ { nothing }' | head -1`
+
+	# were a set of valid command passed ?
+	if [ -n "$_valid_meta_cmds" ]; then
+	    echo "$_valid_meta_cmds" | grep -q -E "^$cmd"
+	    if [ $? -ne 0 ]; then
+		continue
+	    fi
+	fi
+
+	if [ -z "$cmd" ]; then
+	    continue
+	fi
+
+	# if we WERE processing patch commands and this command
+	# is not another one, we have to push all the patches 
+	# before continuing so anything like a tag will be in the
+	# correct place.
+	if [ -n "$_processing_patches" ] && [ "$cmd" != "patch" ]; then
+	    do_pending_patches
+	    if [ $? -ne 0 ]; then
+		exit 1
+	    fi
+	fi
+
+	if [ -n "$fast_forward_to_next_branch" ]; then
+	    if [ "$cmd" = "branch_begin" ]; then
+		true
+	    else
+		continue
+	    fi
+	fi
+	case $cmd in
+	    comment)
+		true
+		;;
+	    reloc)
+                dir=`echo $entry | cut -d' ' -f3`
+		rdirs="$rdirs $dir/"
+		;;
+	    mark)
+		n=`echo $entry | cut -d' ' -f3`
+		a=`echo $entry | cut -d' ' -f4`
+		if [ "$a" = "start" ]; then
+		    if [ "$vlevel" -eq 2 ]; then
+			echo "   mark --> $n"
+		    fi
+		else
+                    if [ "$vlevel" -eq 2 ]; then
+			echo "   mark <-- $n"
+		    fi
+		fi
+                ;;
+	    git)
+		git_args=`echo $entry | cut -d' ' -f3-`
+		do_git $git_args
+                ;;
+	    branch_begin) 
+		         n=`echo $entry | cut -d' ' -f3`
+			 f=`echo $entry | cut -d' ' -f4`
+			 # do branch will let us know if the branch
+			 # already existed. 
+			 do_branch $n $f
+			 if [ -z "$active_patching" ]; then
+			     fast_forward_to_next_branch=t
+			 else
+			     fast_forward_to_next_branch=
+			 fi
+                ;;
+	    cfg)
+		d=`echo $entry | cut -d' ' -f3`
+		do_cfg "$d"
+                ;;
+	    kconf)
+		d=`echo $entry | cut -d' ' -f4`
+		do_kconf "$d"
+                ;;
+            patch)  # patching  is the default cmd
+		entry=`echo $entry | sed 's%^# *_patch%%'`
+		if [ -n "$_stop_at" ]; then
+		    echo $entry | grep -q -E "^$_stop_at"
+		    if [ $? -eq 0 ]; then
+			skip_to_end=t
+		    fi
+		fi
+		if [ -z "$skip_to_end" ]; then
+		    _processing_patches=t
+		    do_patch $entry
+		    if [ $? -ne 0 ]; then
+			exit 1
+		    fi
+		fi
+		;;
+                *)
+		true 
+                ;;
+	esac
+    done
+
+    # catch an error codes thrown from the subshell that was
+    # applying the patches.
+    if [ $? -ne 0 ]; then
+	exit 1
+    fi
+
+    # grab any left over patches
+    do_pending_patches
+    if [ $? -ne 0 ]; then
+	exit 1
+    fi
+
+    # tag the last branch's top
+    b=`get_current_git_branch`
+#     t=`git show-ref $b-mark`
+#     if [ -z "$t" ]; then
+# 	do_tag "$b-mark" \
+# "Wind River branch reference tag, if \"$b\"
+#  diverges from this tag, you may need to rebase. 
+ 
+#   - git checkout <blah>
+#   - guilt-rebase $b
+
+# "
+#     fi
+
+    stop=`date +"%s"`
+    let duration=$stop-$start
+
+    if [ -n "$verbose" ]; then
+	if [ $vlevel -eq 2 ]; then
+	    echo ""
+	    echo "<=== processed $_meta_series in $duration seconds"
+	else
+	    progress_done "in $duration seconds"
+	fi
+    fi
+}
+
+#
+# gather and organize the information require to generate a repo
+if [ -n "$_rc_file" ] && [ -e "$_rc_file" ]; then
+    cat $_rc_file | while read blah; do
+	for b in $blah; do
+	    case $b in
+		--*) # ignore
+                     ;;
+		*=*) eval $b
+                     ;;
+	    esac
+	done
+    done
+fi
+
+wrs_dir=`find_dir wrs`
+if [ -z "$wrs_dir" ]; then
+    echo "ERROR cannot locate 'wrs' directory"
+    exit 1
+fi
+
+work_cfg_dir=$wrs_dir/cfg
+hook_dir=$wrs_dir/scripts
+# work dir is wherever we are running
+work_dir=$mypath
+
+
+#
+# init: creates and configures the git repository. should be
+#       safe to run more than once, but only if necessary
+#
+if [ -n "$_init" ]; then
+    if [ -n "$verbose" ]; then
+	echo "[INFO] initializing WR Linux repository . . ."
+    fi
+
+    mkdir -p $work_dir
+    mkdir -p $work_cfg_dir
+    mkdir -p $work_cfg_dir/meta
+fi
+
+if [ -n "$_meta_series" ]; then
+    if [ ! "$_meta_series" -ef "$wrs_dir/meta-series" ]; then
+	cp $_meta_series $wrs_dir/meta-series
+
+	if [ $? != 0 ]; then
+	    echo "[ERROR]" cant copy $_meta_series to $wrs_dir/meta-series
+	    exit 1
+	fi
+    fi
+fi
+
+get_hooks $wrs_dir/meta-series
+
+#
+# patch: Actually runs the gathered meta data and applies
+#        patches to the tree
+#
+if [ -n "$_patch_apply" ]; then
+    if [ -n "$verbose" ]; then
+	echo "[INFO] validating against known patches  (`basename $_meta_series`)"
+    fi
+
+    # this will actually apply the patches and tag the tree
+    # process_meta_series "patch"
+    orig_branch=`get_current_git_branch`
+
+    if [ -n "$prepatch_scripts" ]; then
+	if [ -n "$verbose" ]; then
+	    echo "[INFO] running prepatch scripts"
+	fi
+	for s in $prepatch_scripts; do
+	    $hook_dir/$s
+	    ret=$?
+	    if [ $ret -ne 0 ]; then
+		if [ -e exit_msg ]; then
+		    cat exit_msg
+		fi
+		exit $ret
+	    fi
+	done
+    fi
+
+    # pass 1: interpret the meta series
+    wrap_meta_series $wrs_dir/meta-series
+    ## do_meta_series $wrs_dir/meta-series patch    
+exit
+
+    if [ $? -ne 0 ]; then
+	exit 1
+    fi
+
+    git checkout -q $orig_branch
+    r=$?
+    if [ $r -ne 0 ]; then
+	echo [ERROR] git checkout of \"$orig_branch\" failed
+	exit $r
+    fi
+fi
+
+#
+# This option generates the list of patches (via scc processing) and dumps
+# them to stdout
+#
+if [ -n "$_dump" ]; then
+    ## todo. dump the meta series
+    true
+fi
+
+#
+# This option (re)generates the kconfig. IMPORTANT:  This is working from
+# the files as they are found in the wrs/ dir now -- the do_kconf() that
+# gets run during the initial pass over from --init puts the files from
+# the kernel-cache into the wrs/ dir.
+#
+if [ -n "$_kconf" ]; then
+	_meta_series=$wrs_dir/meta-series
+
+	# we need to build our own list of relocation directories
+	rdirs=`cat $_meta_series|grep '^# _reloc_dir' |awk '{print $3}'`
+
+	# if --update AND --kconf were passed, let's run the
+	# meta series but only do the config fragment migration
+	if [ -n "$_update" ]; then
+	    _valid_meta_cmds="kconf"
+	    do_meta_series $_meta_series
+	    exit 0
+	fi
+    
+	if [ -n "$verbose" ]; then
+		echo "[INFO] collecting configs in $_meta_series "
+	fi
+
+	branchpoints=`cat $_meta_series|grep '_branch_begin\|_force_branch'|awk '{print $3"|"$4}'`
+	if [ -z "$branchpoints" ]; then
+	    branchpoints=master
+	fi
+
+old_ifs=$IFS
+IFS='
+'
+	for i in $branchpoints ; do
+	    name=`echo  $i | cut -d'|' -f1`
+	    force=`echo $i | cut -d'|' -f2`
+	    
+	    # pickup the first forced branch, we'll throw the rest away as
+	    # "branches". Meaning they won't have been created as branches
+	    # unless multi_branch_divergence was specified
+	    if [ -z "$force" ] || [ -n "$multi_branch_divergence" ]; then
+  		if [ -z "$branchname" ]; then
+		    branchname=$name
+		else
+		    if [ -n "$show_inheritance_in_branches" ]; then
+			suffix=`echo $branchname | sed 's/.*-\([a-zA-Z0-9_]*\)$/\1/'`
+			branchname=$name-$suffix
+		    else
+			branchname=$name
+		    fi
+		fi
+	    fi
+	done
+
+	mkdir -p $wrs_dir/cfg/$branchname/
+
+	if [ -z "$_continue" ]; then
+	    rm -f $wrs_dir/cfg/$branchname/{non_,}hdw_frags.txt
+	    rm -f $wrs_dir/cfg/$branchname/$fraglist
+	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
+	    for f in $frgs; do
+		reloc_frag=`make_relocatable $f`
+		echo "$reloc_frag" >> $wrs_dir/cfg/$branchname/$fraglist
+	    done
+	else
+	    frgs=`cat $_meta_series|grep '^# _kconf' |awk '{print $4}'`
+	    for f in $frgs; do
+		reloc_frag=`make_relocatable $f`
+		echo "$reloc_frag" >> $wrs_dir/cfg/$branchname/$fraglist
+	    done
+	fi
+        cat $_meta_series | grep '^# _kconf' | while read entry; do
+		fragtype=`echo $entry | awk '{print $3}'`
+		fragname=`echo $entry | awk '{print $4}'`
+		if [ x$fragtype = xhardware ]; then
+			echo `make_relocatable $fragname` >> $wrs_dir/cfg/$branchname/hdw_frags.txt
+		elif [ x$fragtype = xnon-hardware ]; then
+			echo `make_relocatable $fragname` >> $wrs_dir/cfg/$branchname/non_hdw_frags.txt
+		else
+			echo "[ERROR] type \"$fragtype\" of file \"$fragname\" is not hardware or non-hardware"
+			exit 1
+		fi
+	done
+IFS=$old_ifs
+
+	do_config_setup $wrs_dir/cfg/$branchname/$fraglist $branchname
+fi

@@ -1,0 +1,543 @@
+#!/bin/bash
+
+#  (kgit-classify), (sort and classify patches and configuration)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+. `dirname $0`/kgit
+
+usage()
+{
+cat <<EOF
+
+ kgit-classify [-h] [-v] [-x <prefix>] [-o <dir>] 
+               <cmd> [<options>] [<pspec>] <category> 
+
+    <cmd>: operation to perform on the tgt
+      
+       mv (patches only)
+       ls (category)
+       rm (category only)
+       create (category only)
+       cat (category only)
+       ed (category only)
+
+    <pspec>: can be a patch, a range of patches of a # of patches
+    <cat>: category
+    -o: out dir. if the category is separate from the location 
+                 of the patches, the out dir indicates where they
+                 should be stored and the category updated to 
+                 point at that location.
+
+   -h: help
+   -v: verbose. Adds extra details to listings and progress reports.
+
+EOF
+}
+
+if [ ! $# -gt 0 ]; then
+    usage
+    exit
+fi
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+                -x|--x)
+		        cmd_prefix="$2"
+			shift
+			;;
+                -o|--o)
+		        out_dir="$2"
+			shift
+			;;
+                -v|--v)
+		        verbose=t
+                        ;;
+                -h|--h|--help)
+                        usage
+                        exit
+                        ;;
+                -*)     # a parm we don't recognize
+                        usage
+                        exit
+                        ;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+DO_NOT_CHECK_BRANCH_EXISTENCE=1
+. `dirname $0`/guilt
+
+# Whatever is left over is:
+#   <cmd> [<opts>] [<pspec>] <cat> 
+# 
+cmd=$1
+shift
+
+# was pspec really some options to the command ?
+while [ $# -gt 0 ]; do
+    case "$1" in
+	-*) cmd_opts="$cmd_opts $1"
+            shift
+	    ;;
+        *)  break
+	    ;;
+    esac
+done
+pspec=$1
+
+if [ -z "$2" ]; then
+    # there wasn't patch so this is actually a category
+    category=$pspec
+    pspec=
+else
+    category=$2
+fi
+
+# echo "pspec: $pspec"
+# echo "cat: $category"
+# echo "opts: $cmd_opts"
+# exit
+
+# was the pspec a patch name or just a number ?
+do_pspec()
+{
+    if [ -n "$pspec" ]; then
+	echo $pspec | grep -E "^[0-9]*$" -q
+	if [ $? -eq 0 ]; then
+	    pspec_t=number
+	else
+	    pspec_t=patch
+	    start_patch=`echo "$pspec" | awk 'BEGIN {FS="\\\.\\\."}; {print $1}'`
+	    end_patch=`echo "$pspec" | awk 'BEGIN {FS="\\\.\\\."}; {print $2}'`
+	    if [ -z "$end_patch" ]; then
+		end_patch=$start_patch
+	    fi
+	fi
+    fi
+
+    if [ "$pspec_t" = "number" ]; then
+	patch_count=$pspec
+	if [ -n "$patch_count" ]; then
+	    [ "$patch_count" -lt 0 ] && die "Invalid number of patches to pop."
+
+	    cat $series | grep -v -E "^#" > $series.tmp
+	    sidx=`cat $series.tmp | wc -l`
+	    eidx=`expr $sidx - $patch_count`
+	    
+             # catch underflow
+	    [ $eidx -lt 0 ] && eidx=0
+	    [ $eidx -eq $sidx ] && die "No patches requested to be removed."
+
+	    checked_count=`expr $sidx - $eidx`
+	    start_patch=`head -n "1" < $series.tmp`
+	    end_patch=`head -n "$checked_count" < $series.tmp | tail -n1`
+	    rm -f $series.tmp
+	fi
+    fi
+}
+
+do_pspec
+
+branch=`get_current_git_branch`
+cfg_prefix=wrs/cfg
+
+# if no prefix was passed and there is a stored one, use the stored one
+if [ -z "$cmd_prefix" ]; then
+    if [ -e wrs/cfg/prefix ]; then
+	prefix=`cat wrs/cfg/prefix`
+    fi
+else
+    if [ "$cmd" == "create" ]; then
+	echo "$cmd_prefix" > wrs/cfg/prefix
+    fi
+    prefix=$cmd_prefix
+fi
+
+# A "category" is a scc file that describes a set of patches
+scc_files=`cd wrs/cfg; find -name '*.scc'`
+categories_long="$scc_files"
+for c in $scc_files; do
+    s=`basename $c | sed s%\.scc%%`
+    count=1
+    echo $categories_short | grep -q -E "^$s$"
+    while [ $? -eq 0 ]; do
+	s="$s~$count"
+	echo $categories_short | grep -q $s 
+    done
+    categories_short="$categories_short $s"
+done
+
+find_category_dir()
+{
+    local search_cat=$1
+
+    for d in $categories_long; do
+	echo $d | grep -q -E "\/$search_cat"
+	if [ $? -eq 0 ]; then
+	    echo "`dirname $d`"
+	fi
+    done
+}
+
+#
+# what type of category was passed ?
+#  - <cat>[.scc]
+#  - <dir>/<cat>
+#  - <cat>
+#
+if [ -n "$category" ]; then
+    cat_name=$category
+
+    # normalize cat_name to always have .scc
+    cat_name="`echo $cat_name | sed s%\.scc%%`.scc"
+    cat_name=`basename $cat_name`
+
+    if [ ! -e "$cfg_prefix/$prefix/$cat_name" ]; then
+	# we search for it
+	cat_dir=`find_category_dir $cat_name`
+	if [ -z "$cat_dir" ]; then
+	    cat_dir=`dirname $category`
+	fi
+    else
+	cat_dir=`dirname $category`
+    fi
+
+    if [ "$cat_dir" = "." ]; then
+	cat_dir=`basename $cat_name .scc`
+    fi
+fi
+
+if [ -z "$out_dir" ]; then
+    out_dir=$cat_dir
+fi
+
+## -- command processing below this point ---
+
+if [ "$cmd" = "ls" ]; then
+    if [ -z "$category" ]; then
+	echo ""
+	echo "Current categories:"
+	echo ""
+
+	for opt in $cmd_opts; do
+	    case $opt in
+		-l) verbose=t
+	            ;;
+	    esac
+	done
+	
+	if [ -z "$verbose" ]; then
+	    count=1
+	    for i in $categories_short; do
+		echo "  $count) $i"
+		let count=$count+1
+	    done
+	else
+	    count=1
+	    for i in $categories_long; do
+		out=$i
+		if [ -n "$prefix" ]; then
+		    out=`echo $i | sed s%^\.%% | sed s%$prefix%%`
+		fi
+		out=`echo $out | sed s%\\\./%%`
+		echo "   $count) $out"
+		let count=$count+1
+	    done
+	fi
+	echo ""
+    else
+	ls wrs/cfg/$cat_dir/$cat_name | sed s%wrs/cfg/\.%%
+    fi
+fi
+
+if [ "$cmd" = "cat" ]; then
+    if [ -z "$category" ]; then
+	echo "ERROR. you must supply a category name"
+	exit 1
+    fi
+
+    if [ ! -e "wrs/cfg/$cat_dir/$cat_name" ]; then
+	echo "ERROR. could not find category '$cat_name'"
+	exit 1
+    fi
+
+    if [ -n "$verbose" ]; then
+	echo ""
+	echo "dumping category details for: `basename $cat_name`"  
+	echo ""
+    fi
+
+    # dump the context directly
+    cat wrs/cfg/$cat_dir/$cat_name
+fi
+
+if [ "$cmd" = "create" ]; then
+    if [ -z "$category" ]; then
+	echo "ERROR. You must supply a category name to $cmd"
+	exit 1
+    fi
+
+    if [ -e "$cfg_prefix/$prefix/$cat_dir/$cat_name" ]; then
+	echo "ERROR. Category $cat_name already exists"
+	exit 1
+    fi
+
+    # time to create the category under the wrs/cfg hierarchy
+    mkdir -p "$cfg_prefix/$prefix/$cat_dir"
+    if [ ! $? -eq 0 ]; then
+	echo "ERROR. could not create category dir $cfg_prefix/$prefix/$cat_dir"
+	exit 1
+    fi
+
+    # now create the .scc file
+    touch "$cfg_prefix/$prefix/$cat_dir/$cat_name"
+    if [ ! $? -eq 0 ]; then
+	echo "ERROR. could not create category file $cfg_prefix/$prefix/$cat_dir/$cat_name"
+	exit 1
+    fi
+
+    echo "created category $cat_name in $cat_dir/"
+    
+    # 'creat' the patch directory. Same as the category directory
+    # unless -o was passed
+
+    if [ -n "$out_dir" ]; then
+	if [ -d "wrs/patches/$branch/links/$out_dir" ]; then
+	    echo "ERROR. patch dir wrs/patches/$branch/links/$out_dir already exists"
+	    exit 1
+	fi
+
+	mkdir -p "wrs/patches/$branch/links/$out_dir"
+	if [ ! $? -eq 0 ]; then
+	    echo "ERROR. could not create patch dir wrs/patches/$branch/links/$out_dir"
+	    exit 1
+	fi
+	echo "created patch dir wrs/patches/$branch/$out_dir"
+    fi
+fi
+
+if [ "$cmd" = "rm" ]; then
+
+    # deleting a prefix ?
+    if [ -z "$category" ] && [ -z "$pspec" ] && [ -n "$cmd_prefix" ]; then
+	rm -f wrs/cfg/prefix
+	exit 0
+    fi
+
+    # no category and no patch is an error
+    if [ -z "$category" ] && [ -z "$pspec" ]; then
+	echo "ERROR. You must supply a category name to $cmd"
+	exit 1
+    fi
+
+    if [ ! -e "$cfg_prefix/$prefix/$cat_dir/$cat_name" ]; then
+	# then this is a patch removal
+	pspec=$category
+	do_pspec
+    fi
+
+    if [ -z "$pspec" ]; then
+	# category rm
+        # rm -rf "$cfg_prefix/$prefix/$cat_dir"
+	rm "$cfg_prefix/$prefix/$cat_dir/$cat_name"
+	if [ ! $? -eq 0 ]; then
+	    echo "ERROR. could not remove category file $cfg_prefix/$prefix/$cat_dir/$cat_name"
+	    exit 1
+	fi
+
+	echo "category $cat_name in $cat_dir removed"
+
+        # 'remove' the patch directory. Same as the category directory
+        # unless -o was passed
+	if [ -n "$out_dir" ]; then
+	    if [ ! -d "wrs/patches/$branch/links/$out_dir" ]; then
+		echo "ERROR. patch dir wrs/patches/$branch/links/$out_dir does not exist"
+		exit 1
+	    fi
+
+	    rm -rf "wrs/patches/$branch/links/$out_dir"
+	    if [ ! $? -eq 0 ]; then
+		echo "ERROR. could not create patch dir wrs/patches/$branch/links/$out_dir"
+		exit 1
+	    fi
+	    echo "patch dir wrs/patches/$branch/$out_dir removed"
+	fi
+    else
+	# patch rm
+
+	if [ -n "$start_patch" ]; then
+	    short_name=`basename $start_patch`
+	    short_end_name=`basename $end_patch`
+	    do_delete=0
+
+	    cat "wrs/patches/$branch/series" | while read series_patch; do
+
+		short_series_name=`basename "$series_patch"`
+
+		if [ "$short_name" = "$short_series_name" ]; then
+		    do_delete=1
+		fi
+
+		if [ $do_delete -eq 1 ]; then
+		    scc_files=`find wrs/cfg -name '*.scc'`
+
+		    for i in $scc_files; do
+
+                        # remove it from our scc files
+			grep -q $short_series_name $i;
+			if [ $? -eq 0 ]; then
+            		    if [ -z "$verbose" ]; then
+				echo "[INFO] removing $short_series_name from $i"
+            		    fi
+			    cat $i | sed -n "
+                                     /^$/ b block
+                                     H
+                                     $ b block
+                                     b
+                                     :block
+                                     x
+                                     /.*$short_series_name/!p" > $i.tmp
+			    mv "$i.tmp" "$i"
+        		fi
+		    done
+
+                    # now remove it from the series and disk
+		    if [ -z "$verbose" ]; then
+			echo "[INFO] removing $short_series_name from series"
+			echo ""
+		    fi
+		    guilt delete -f $series_patch
+		fi
+
+		if [ "$short_series_name" = "$short_end_name" ]; then
+		    do_delete=0
+		fi
+	    done
+	fi
+    fi
+fi
+
+if [ "$cmd" = "ed" ]; then
+    if [ -z "$EDITOR" ]; then
+	EDITOR=vi
+    fi
+
+    if [ ! -e "$cfg_prefix/$prefix/$cat_dir/$cat_name" ]; then
+	echo "ERROR. Category $cat_name doesn't exist"
+	exit 1
+    fi
+
+    $EDITOR "$cfg_prefix/$prefix/$cat_dir/$cat_name"
+fi
+
+if [ "$cmd" = "mv" ] || [ "$cmd" = "cp" ]; then
+
+    if [ -z "$category" ]; then
+	echo "ERROR. You must supply a category name to $cmd"
+	exit 1
+    fi
+
+    if [ "$cmd" = "mv" ]; then       
+	if [ ! -e "$cfg_prefix/$prefix/$cat_dir/$cat_name" ]; then
+	    echo "ERROR. Category $cat_name doesn't exist"
+	    exit 1
+	fi
+
+	if [ -z "$pspec" ]; then
+	    echo "ERROR. You must pass a patch spec to $cmd"
+	    exit 1
+	fi
+    fi
+
+    #echo "start: $start_patch"
+    #echo "end: $end_patch"
+
+    # Note: We can only change the category for the working branch
+    #       if this needs to change, then we'll also need to start
+    #       moving patches from series to series.
+    recategorize=0
+    count=0
+    IFS='
+'
+    cat "wrs/patches/$branch/series" | while read series_patch; do
+	    short_name=`basename "$series_patch"`
+	    if [ "$short_name" = "$start_patch" ]; then
+		recategorize=1
+	    fi
+
+	    if [ $recategorize -eq 1 ]; then
+
+		if [ -n "$verbose" ]; then
+		    echo "$count) $short_name"
+		fi
+
+		# we have a hit on a patch. update the new category file
+		cat wrs/cfg/$prefix/$cat_dir/$cat_name | grep -q "$short_name"
+		if [ ! $?  -eq 0 ]; then
+		    if [ -n "$verbose" ]; then
+			echo "      updating $cat_name"
+		    fi
+		    echo "patch $short_name" >> wrs/cfg/$prefix/$cat_dir/$cat_name
+		fi	       
+
+		# the patch should also move .. 
+		if [ ! -e "wrs/patches/$branch/$series_patch" ]; then
+		    echo "WARNING. $series_patch not found, skipping"
+		    continue
+		fi
+		if [ ! -d "wrs/patches/$branch/links/$prefix/$cat_dir" ]; then
+		    echo "WARNING. destination directory 'wrs/patches/$branch/links/$prefix/$cat_dir' not found"
+		    continue
+		fi
+
+		IFS=' '
+		if [ -n "$verbose" ]; then
+		    echo "      recategorizing --> $cat_name"
+		fi
+
+		if [ "$cmd" = "mv" ]; then
+		    mv "wrs/patches/$branch/$series_patch" \
+                        "wrs/patches/$branch/links/$prefix/$cat_dir"
+
+		    # update guilt series on the fly. we are only renaming
+		    # since we are staying in the same series, just moving where
+		    # the patch is stored
+		    series_rename_patch "$series_patch" "links/$prefix/$cat_dir/$short_name"
+		    applied_rename_patch "$series_patch" "links/$prefix/$cat_dir/$short_name"
+		fi
+
+		IFS='
+'
+		let count=$count+1
+	    fi
+
+	    if [ "$short_name" = "$end_patch" ]; then
+		recategorize=0
+	    fi
+	done
+	IFS=" "
+    
+fi
+
+

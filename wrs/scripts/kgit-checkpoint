@@ -1,0 +1,301 @@
+#!/bin/bash
+
+#  (kgit-checkpoint), (checkpoint and restore for meta-information)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+usage()
+{
+cat <<EOF
+
+ kgit-checkpoint -b <target checkpoint branch> 
+                 [-c] [-r] [-d] [-nj] [-v] <action>
+ 
+   -b:  branch that stores checkpointed files
+   -r:  restore checkpoint commit
+   -c:  create a checkpoint commit
+   -m:  checkpoint message (the date will be used if not supplied)
+   -nj: no-join don't attempt to join checkpoint with existing checkpoints
+   -v:  verbose 
+   --continue: continue an aborted checkpoint
+   <action>: 'restore' or 'create'. equivalent to -r and -c -j
+
+EOF
+}
+
+# command line processing
+join_checkpoints=t
+while [ $# -gt 0 ]; do
+	case "$1" in
+                -b|--b)
+                        cmd_branch=$2
+                        shift
+                        ;;
+                -nj|--nj)
+                        join_checkpoints=
+                        ;;
+                -m|--m)
+                        checkpoint_msg="$2"
+                        shift
+                        ;;
+	        -v|--v)
+                        verbose=t
+                        ;;
+	        -r|--r)
+                        restoring=t
+			checkpointing=
+                        ;;
+	        -c|--c)
+                        restoring=
+			checkpointing=t
+                        ;;
+	        --continue)
+                        continuing=t
+			checkpointing=t
+                        ;;
+	        -h|--h)
+                        usage
+			exit
+                        ;;
+	        -*)   
+                        usage
+			exit
+			;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+if [ -z "$1" ] ; then
+    if [ -z "$checkpointing" ] && [ -z "$restoring" ]; then
+	usage
+	exit
+    fi
+fi
+
+# source utility functions
+. `dirname $0`/kgit
+
+action=$@
+case $action in
+    create)
+	restoring=
+	checkpointing=t
+	join_checkpoints=t
+	;;
+    restore)
+	restoring=t
+	checkpointing=
+	;;
+esac
+
+if [ ! -d .git ]; then
+    echo "ERROR. Not a git repository"
+    exit 1
+fi
+
+# set some defaults
+if [ -z "$checkpoint_msg" ]; then
+    checkpoint_msg="checkpoint: `date`"
+fi
+
+# we grab the entire 'wrs' directory unless told otherwise
+if [ -z "$files_to_checkpoint" ]; then
+    dirs_to_checkpoint="wrs/cfg/kernel-*cache wrs/cfg/meta wrs/patches wrs/scripts wrs"
+fi
+
+# save this so we can go back later ...
+current_branch=`get_current_git_branch`
+
+# The checkpoint tag tells us two things:
+#  - the tree has been checkpointed (obviously)
+#  - the branch that contains the checkpoint
+# And it is of the format:
+#  - 'checkpoint-<branch_name>'
+check_refs=`git tag | grep checkpoint- | head -n1`
+if [ -n "$check_refs" ]; then
+    checkpoint_branch=`echo $check_refs | cut -d- -f2`
+    verify_branch=`git show-ref $checkpoint_branch`
+    checkpoint_tag_name=$check_refs
+    if [ -z "verify_branch" ]; then
+	checkpoint_branch=
+	checkpoint_tag_name=
+    fi
+fi
+
+# allow a command line override
+if [ -n "$cmd_branch" ]; then
+    checkpoint_branch=$cmd_branch
+fi
+
+if [ -z "$checkpoint_branch" ]; then
+    echo "ERROR: an existing checkpoint branch was not detected and no command line branch provided"
+    exit 1
+fi
+
+if [ -n "$checkpointing" ]; then  
+    # check to see if we are continuing
+    if [ -n "$continuing" ]; then
+	if [ -n "$verbose" ]; then
+	    echo "Continuing checkpoint on $checkpoint_branch"
+	fi
+	# commit the merge commit, you must have already added the
+	# files
+	git commit -s
+	if [ $? -ne 0 ]; then
+	    echo "ERROR: unable to complete the checkpoint, did you add the files?"
+	    exit 1
+	fi
+	git branch -d $checkpoint_branch-temp
+	exit 0
+    fi
+  
+    if [ -n "$verbose" ]; then
+	echo "Creating checkpoint on branch $checkpoint_branch"
+    fi
+
+    # create a temp branch for the new checkpoint
+    git checkout -q -b $checkpoint_branch-temp wrs_base
+
+    # Test if we are still checkpointed. We can tell this by
+    # noting that afer the switch to this temp branch if the files
+    # like 'wrs' are untracked, since they are only tracked
+    # by wrs_meta.
+    x=`git ls-files -o wrs | head -n1`
+    if [ -z "$x" ]; then
+	# we are fully checkpointed, delete the temp branch
+	# and switch to the actual checkpoint branch to keep
+	# things fast forward
+	git checkout -q $checkpoint_branch
+	git branch -D $checkpoint_branch-temp
+    fi
+
+    # stage the requested files/directories
+    for d in $dirs_to_checkpoint; do       
+	git add $d
+	if [ -f "$d/00-README" ]; then
+	    git commit -q -s -F "$d/00-README"  &> /dev/null
+	else
+	    git commit -q -s -m "checkpoint dir: $d" &> /dev/null
+	fi
+    done
+
+    # special processing for internal compiled patch series
+    for i in $dirs_to_checkpoint; do
+	if [ -d $i ]; then
+	    # special_files=`find $i -name '*.o'`
+	    special_files=
+	    if [ -n "$special_files" ]; then
+		git add -f $special_files
+		git commit -q -s -m "checkpoint dir: $d" &> /dev/null
+	    else
+		(cd $i; 
+                 git add -f .;
+                 git add -f .*;
+                 git commit -q -s -m "checkpoint dir: $d" &> /dev/null)
+	    fi
+	fi
+    done
+
+    if [ -z "$verbose" ]; then
+	q="-q"
+    fi
+
+    # create the "checkpoint" branch, if not already present
+    git show-ref --quiet --verify -- "refs/heads/$checkpoint_branch"
+    if [ $? -eq 1 ]; then
+	echo "[INFO] creating $checkpoint_branch branch";
+	git branch -m $checkpoint_branch-temp $checkpoint_branch
+	git tag checkpoint-$checkpoint_branch
+    else
+	echo "INFO: existing checkpoint branch detected .. reusing"
+	if [ -n "$join_checkpoints" ]; then
+	    git show-ref --quiet --verify -- "refs/heads/$checkpoint_branch-temp"
+	    if [ $? -eq 0 ]; then
+		if [ -n "$verbose" ]; then
+		    echo "INFO: attempting to merge checkpoints"
+		fi
+		git checkout -q $checkpoint_branch
+		git merge $checkpoint_branch-temp
+		if [ $? -ne 0 ]; then
+		    echo ""
+		    echo "ERROR. Could not merge the checkpoint branches, they must be manually merged."
+		    echo ""
+		    echo "Once complete, git add the files and use kgit-checkpoint -c --continue to complete."
+		    echo "the operation"
+		    exit 1
+		fi
+		git branch -d $checkpoint_branch-temp
+		git tag -f checkpoint-$checkpoint_branch
+	    fi
+	else
+	    echo "INFO: checkpoint join wasn't selected, deleting existing checkpoint."
+	    echo "Your tree will be non-fastforward once complete"
+	    git branch -D $checkpoint_branch
+	    git branch -m $checkpoint_branch-temp $checkpoint_branch
+	    git tag -f checkpoint-$checkpoint_branch
+	fi
+    fi
+
+    # return to the current branch
+    if [ "$checkpoint_branch" != "$current_branch" ]; then
+	git checkout -q $current_branch
+    fi
+
+else # restoring ...
+
+    if [ -n "$verbose" ]; then
+	echo "Restoring checkpoint from branch $checkpoint_branch"
+    fi
+
+    # check if 'wrs' is tracked or not. If it is untracked, we don't
+    # have anything to do.
+    x=`git ls-files -o wrs | head -n1`
+    if [ -n "$x" ]; then
+     	echo "checkpoint is already restored, nothing to do"
+     	exit 0
+    fi
+
+    # checkpoint-<branch> is tagged once and then never changes.
+    # we considering everything from this tag to the HEAD of
+    # its branch part of the checkpoint
+    merge_base=`git merge-base wrs_meta wrs_base`
+    meta_head=`git show-ref -h -s wrs_meta`
+    # if merge_base and meta_head do NOT match, there are checkpoint commits
+
+    if [ "$merge_base" != "$meta_head" ]; then
+	# save the old branch
+	git checkout -q -b $checkpoint_branch-temp $checkpoint_branch
+	git reset --mixed $merge_base
+	git checkout -q $current_branch
+	git branch -D $checkpoint_branch-temp
+    else
+	echo "ERROR. No checkpoint commits detected, cannot restore"
+	exit 1
+    fi
+
+    if [ "$checkpoint_branch" != "$current_branch" ]; then
+	git checkout -q $current_branch
+    fi
+fi
+
+

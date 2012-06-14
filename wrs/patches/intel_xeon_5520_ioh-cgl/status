@@ -1,0 +1,14 @@
+links/kernel-cache/bsp/intel_xeon_5520_ioh/ixgbevf-Message-formatting-fixup.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/ixgbevf-convert-to-use-netdev_for_each_mc_addr.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/drivers-net-last_rx-elimination.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/drivers-net-use-skb_headlen.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/ixgbevf-Fix-link-speed-display.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/ixgbevf-use-DMA-API-instead-of-PCI-DMA-functions.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/ixgbevf-Cache-PF-ack-bit-in-interrupt.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/net-trans_start-cleanups.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/ixgbevf-Enable-GRO-by-default.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/net-decreasing-real_num_tx_queues-needs-to-flush-qdi.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/drivers-ixgbevf-fix-unsigned-underflow.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/igbvf-ixgbevf-use-dev_hw_addr_random.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/ixgbevf-fix-null-pointer-dereference-due-to-filter-b.patch
+links/kernel-cache/bsp/intel_xeon_5520_ioh/sysfs-add-attribute-to-indicate-hw-address-assignmen.patch

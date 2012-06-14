@@ -1,0 +1,11 @@
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-mach-add-imx51pdk-machine-files.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-rtc-add-pmic-13892-rtc-driver.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-backlight-add-mc13892-based-backlight-drive.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-lcd-add-epson-vga-resolution-lcd-driver.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-tve-add-TV-encoder-driver.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-w1-add-ds2438-battery-sensor-driver.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-v4l2-ov3640-add-ov3640-camera-driver-for-im.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-si4702-add-si4702-FM-radio-driver.patch
+links/kernel-cache/bsp/fsl_imx51pdk/imx51pdk-hwmon-add-isl29003-light-sensor-driver.patch
+links/kernel-cache/bsp/fsl_imx51pdk/driver-w1-ds2438-fix-deadlock-when-rmmod-the-driver.patch
+links/kernel-cache/bsp/fsl_imx51pdk/driver-w1-ds2438-fix-memory-leak-when-rmmod-the-driv.patch

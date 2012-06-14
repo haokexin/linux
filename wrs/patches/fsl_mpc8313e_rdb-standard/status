@@ -1,0 +1,3 @@
+links/kernel-cache/bsp/fsl_mpc8313e_rdb/powerpc-mpc83xx-add-Vitesse-7385-phy.patch
+links/kernel-cache/bsp/fsl_mpc8313e_rdb/powerpc-mpc83xx-update-dts-of-fsl_mpc8313e_rdb.patch
+links/kernel-cache/bsp/fsl_mpc8313e_rdb/powerpc-mpc83xx-support-all-released-MPC8313E-RDB-bo.patch

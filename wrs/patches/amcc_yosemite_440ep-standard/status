@@ -1,0 +1,5 @@
+links/kernel-cache/bsp/amcc_yosemite_440ep/0001-Device-tree-for-AMCC-Yosemite-440EP-Board.patch
+links/kernel-cache/bsp/amcc_yosemite_440ep/0002-Added-MTD-map-and-enable-hwtimer-api-support.patch
+links/kernel-cache/bsp/amcc_yosemite_440ep/0003-fix-yosemite-dts-error-cause-serial-output-garbage.patch
+links/kernel-cache/bsp/amcc_yosemite_440ep/amcc_yosemite-update-the-device-tree-to-support-MTD.patch
+links/kernel-cache/bsp/amcc_yosemite_440ep/amcc_yosemite-add-eeprom-nodes.patch

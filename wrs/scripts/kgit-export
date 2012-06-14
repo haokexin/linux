@@ -1,0 +1,406 @@
+#!/bin/bash
+
+#  (kgit-export), (export configuration and patches from a git tree)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+usage()
+{
+cat <<EOF
+
+ kgit-export [-d ] [-p <patch_name>] [-s] [-c <cat>] [-h] [-b <branch>] 
+             [-x <prefix chop>] [-o <out dir>] <name>
+ 
+   -b: if branch based operations are being performed, this limits
+       the operation to the selected branches
+   -d: dry run. only show changes, don't export
+   -p or <name>: patch export. pass "all" to export all patches, 
+       pass a particular name to export a single patch, and a '..' 
+       separated range to export a list of patches
+   -s: status. the state of the repository status (series,etc). 
+       NOTE: output directory has no impact on this option
+   -c: configuration. 'configuration' is the meta data used to 
+       construct the repository. you must have a checkpoint commit
+       for this to work. 'all' exports everything, a particular category
+       can be exported via its name.
+   -x: if exporting patches: prefix path to remove, 'all' to remove the
+       entire path up to the patch name
+       if export configuration: count of directories
+
+   -o <out dir>
+
+       output directory for exported files. if no export directory is 
+       passed, it is assumed you are restoring into a cloned git
+       repository and special processing takes place
+
+   -h: help
+   -s: silent operation
+
+EOF
+}
+
+if [ ! $# -gt 0 ]; then
+    usage
+    exit
+fi
+
+# set a default
+verbose=t
+remove_prefix=all
+while [ $# -gt 0 ]; do
+	case "$1" in
+		-d|--dry-run|-dry-run)
+			dry_run=t
+                        verbose=t
+			;;
+                -b|--b)
+                        output_branch=$2
+                        shift
+                        ;;
+                -o|--o)
+                        output_dir=$2
+                        shift
+                        ;;
+                -p|--p)
+		        export_patches=t
+		        start_patch=`echo "$2" | awk 'BEGIN {FS="\\\.\\\."}; {print $1}'`
+		        end_patch=`echo "$2" | awk 'BEGIN {FS="\\\.\\\."}; {print $2}'`
+			if [ -z "$end_patch" ]; then
+			    end_patch=$start_patch
+			fi
+			shift
+			;;
+                -silent|--silent)
+		        silent=t
+			verbose=
+			;;
+                -s|--s)
+		        export_status=t
+			;;
+                -c|--c)
+		        export_cfg=t
+			cfg_name="$2"
+			if [ -z "$cfg_name" ]; then
+			    cfg_name=all
+			else			   
+			    shift
+			fi
+			;;
+                -v|--v)
+		        verbose=t
+			silent=
+                        ;;
+                -x|--x)
+		        remove_prefix="$2"
+			shift
+			;;
+                -h|--h)
+                        usage
+                        exit
+                        ;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+# if we aren't export config data, we are exporting patches
+if [ -z "$export_cfg" ]; then
+    # if no patch name is left on the command line ($1), then the
+    # patch name has to have been passed via "-p" and this step is
+    # already done .. otherwise it is an error.
+    if [ -z "$1" ] && [ -z "$export_patches" ]; then
+	echo "ERROR. No patches have been passed for export"
+	exit 1
+    fi
+
+    if [ -n "$1" ]; then
+	export_patches=t
+	start_patch=`echo "$1" | awk 'BEGIN {FS="\\\.\\\."}; {print $1}'`
+	end_patch=`echo "$1" | awk 'BEGIN {FS="\\\.\\\."}; {print $2}'`
+	if [ -z "$end_patch" ]; then
+	    end_patch=$start_patch
+	fi
+    fi
+fi
+
+path=`dirname $0`
+. $path/kgit
+
+if [ -n "$export_status" ]; then
+    if [ -z "$silent" ]; then
+	echo ""
+	echo "exporting status ..." 
+	echo ""
+    fi
+
+    # simply restore a checkpoint (if it exists)
+    sh wrs/scripts/kgit-checkpoint -r
+fi
+
+if [ -n "$export_cfg" ]; then
+    # if this is empty, export for a non-checkpointed dir
+    checkpoint_commit=`git show-ref -s checkpoint_start`
+    if [ -n "$checkpoint_commit" ]; then
+	kgit-checkpoint -r
+	re_checkpoint=t
+    fi
+
+    if [ -z "$output_dir" ]; then
+	output_dir="./"
+    fi
+
+
+    count=0
+    for type in cfg scc; do
+	if [ -z "$silent" ]; then
+	    echo "exporting $type ..."
+	fi
+	for name in `cd wrs; find . -name "*.$type"`; do
+	    if [ -z "$name" ]; then
+		continue
+	    fi
+	    short_name=`basename $name`
+	    path=`dirname $name`
+
+	    if [ -n "$remove_prefix" ]; then		    
+		export_path="$output_dir/`echo $path | sed s%cfg/%% | sed s%$remove_prefix%%`"
+		export_path="`echo $export_path | sed s%//%/% | sed s%//%/%`"
+	    else
+		export_path="$output_dir/`echo $path | sed s%cfg/%%`"
+	    fi
+	    export_path=`clean_path $export_path`
+
+            export=
+	    if [ "$cfg_name" = "all" ]; then
+		export=t
+	    else
+		echo $short_name | grep -q $cfg_name
+		if [ $? -eq 0 ]; then
+		    export=t
+		fi
+	    fi
+	    if [ -n "$export" ]; then
+		if [ -n "$verbose" ] || [ -n "$dry_run" ]; then
+		    out_string="$export_path"
+		    echo " $count) $short_name --> $out_string"
+		fi
+		if [ -z "$dry_run" ]; then
+		    mkdir -p $export_path			    
+		    # wrs was removed via the find from that dir
+		    cat wrs/$path/$short_name > $export_path/$short_name
+		fi
+		let count=$count+1
+	    fi
+	done
+    done
+
+    if [ -n "$re_checkpoint" ]; then
+	kgit-checkpoint -c
+    fi
+    if [ -n "$verbose" ]; then  
+	echo ""
+    fi
+fi
+
+if [ -n "$export_patches" ]; then
+    count=1
+    # let's figure out where we are and what we are doing
+    start_branch=`get_current_git_branch`
+    start_HEAD=`git show-ref -h $start_branch | cut -d' ' -f 1`
+    if [ -z "$output_dir" ]; then
+	# are we going underneath the git tree itself ? if so
+	# this is a restore operation and some extra processing
+	# is required
+	output_dir='wrs/patches/$branch'
+	remove_prefix=
+    fi
+
+    # check if someone just wants to export the top patch
+    # from the current branch.
+    if [ "$end_patch" = "top" ] || [ "$end_patch" = "HEAD" ]; then
+	start_patch=`guilt top`
+	end_patch=$start_patch
+    fi
+
+    if [ -n "$remove_prefix" ]; then
+	if [ "$remove_prefix" = "all" ]; then
+	    remove_prefix="^.*/"
+	fi
+    fi
+
+    if [ "$start_patch" == "all" ]; then
+	exporting=t
+    fi
+    # for branch in `ls .git/refs/heads`; do
+    for branch in `git branch -a | sed 's/^  //g' | sed 's/^\* //g'`; do
+	local_count=1
+	if [ -e wrs/patches/$branch/status ]; then
+
+	    if [ -n "$output_branch" ]; then
+		if [ ! "$branch" = "$output_branch" ]; then
+		    continue
+		fi
+	    fi
+
+	    IFS=":"
+	    cat "wrs/patches/$branch/status" | while read hash name; do
+ 		IFS=" "
+
+		# guilt 0.33 moved the hash out of the status file, so if we
+		# find an empty name, then we should zero out hash, and make
+		# name what was the hash. We'll pickup the real hash below
+		# via the rev-pars. This allows some compatibility between
+		# the tools
+		if [ -z "$name" ]; then
+		    name=$hash
+		    hash=
+		fi
+
+		if [ -z "$exporting" ]; then
+		    echo $name | grep -q -E "$start_patch\$"
+		    if [ $? -eq 0 ]; then
+			exporting=t
+		    fi
+		fi
+
+		if [ -n "$exporting" ]; then
+		    if [ -n "$output_dir" ]; then
+			if [ -n "$remove_prefix" ]; then
+			    out_name=`echo $name | sed "s%$remove_prefix%%"`
+			    out_name=`echo $out_name | sed s%^links%%`
+			    out_name=`echo $output_dir/$out_name`
+			    out_name=`echo $out_name | sed s%//%/%g`
+			else
+			    out_name="$output_dir/$name"
+			fi
+
+                        # this will expand any embedded variables
+			out_name=`eval echo $out_name`
+			out_dir=`dirname $out_name`
+			out_dir=`clean_path $out_dir`
+
+			# guilt 0.33 specific
+			if [ -z "$hash" ]; then
+			    hash=`git rev-parse refs/patches/$branch/$name`
+			fi
+
+			if [ -z "$dry_run" ]; then
+			    mkdir -p $out_dir/scratch;  
+			fi
+
+			if [ -z "$dry_run" ]; then
+			    tpatch=`git format-patch -o $out_dir/scratch $hash^..$hash`
+			    mv $tpatch $out_dir/scratch/tmp
+			    new_patch_sum=`git patch-id < $out_dir/scratch/tmp | awk '{print $1}'`
+
+			    if [ -e "$out_name" ]; then
+				case $out_name in
+				    *.gz)  
+					old_patch_sum=`zcat $out_name | \
+                                            git patch-id | awk '{print $1}'` 
+					;;
+				    *.bz2) 
+					old_patch_sum=`bzcat $out_name | git patch-id | \
+                                            awk '{print $1}'` 
+					;;
+				    *)     
+					old_patch_sum=`git patch-id < $out_name | \
+                                            awk '{print $1}'` 
+					;;
+				esac
+			    else
+				old_patch_sum=1
+			    fi
+			fi
+
+			if [ -n "$dry_run" ]; then
+			    out_string=$out_name
+			    short_name=`basename $out_name`
+			    if [ $local_count -eq 1 ]; then
+				echo ""
+				echo "  exporting from branch '$branch' ..."
+				echo ""
+			    fi
+			    echo "     $count) $short_name -> $out_string"
+			else
+                            # not doing a dry run, go nuts at the disk
+			    if [ ! "$old_patch_sum" = "$new_patch_sum" ]; then
+				if [ -z "$silent" ]; then
+
+				    if [ $local_count -eq 1 ]; then
+					echo ""
+					echo "  exporting from branch '$branch' ..."
+					echo ""
+				    fi
+
+				    out_string="$out_name"
+				    short_name=`basename $out_name`
+				    echo "     $count) $short_name -> $out_string"
+				fi
+				case $out_name in
+				    *.gz)  gzip $out_dir/scratch/tmp
+				           mv $out_dir/scratch/tmp.gz $out_name ;;
+				    *.bz2) bzip2 $out_dir/scratch/tmp 
+					   mv $out_dir/scratch/tmp.bz2 $out_name ;;
+				    *)     mv $out_dir/scratch/tmp $out_name ;;
+				esac;
+			    else
+				if [ -z "$silent" ]; then
+				    if [ $local_count -eq 1 ]; then
+					echo ""
+					echo "  exporting from branch '$branch' ..."
+					echo ""
+				    fi
+				    short_name=`basename $out_name`
+				    echo "    $count) $short_name is up to date"
+				fi
+			    fi
+			    rm -rf $out_dir/scratch
+			fi
+			let count=$count+1
+			let local_count=$local_count+1
+		    else
+		        # dump to stdout
+			git format-patch $hash^..$hash
+			let count=$count+1
+		    fi		    
+		fi
+
+		if [ -n "$exporting" ]; then
+		    if [ -n "$end_patch" ] && [ ! "$end_patch" = "all" ] ; then
+			echo $name | grep -q $end_patch
+			if [ $? -eq 0 ]; then
+			    exporting=
+			fi
+		    fi
+		fi
+
+ 		IFS=":"
+	    done
+	fi
+    done
+
+    if [ -z "$silent" ]; then
+	echo ""
+    fi
+fi
+

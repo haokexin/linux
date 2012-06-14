@@ -1,0 +1,340 @@
+#!/bin/bash
+
+#  (kgit-rebase), (git patch-id based branch rebasing)
+
+#  Copyright (c) 2008-2009 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+
+usage()
+{
+cat <<EOF
+
+ kgit-rebase [-report_only] [-a] <upstream repo> [<local branch>:<remote branch>]
+
+   rebase applied patches against an upstream branch
+
+      -report_only: only generate a report, do not pull the branches from remote
+      -f          : do everything, pull branches, force the rebase and generate
+                    a report
+
+      <upstream> : new repo that includes the target branch 
+                   "." for local repo
+
+      <local branch>   : branch that is the new base
+      <remote branch>  : target remote branch
+
+      If no branches are passed, then all branches are rebased
+      from the upstream repository   
+
+   Once completed a report can be found it wrs/rebase.txt with the results
+   of the operation.  
+
+   -h: help
+   -v: verbose
+
+EOF
+}
+
+
+if [ ! $# -gt 0 ]; then
+    usage
+    exit
+fi
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+                -report*)
+		        report_only=t
+		        ;;
+                -a)
+                        do_rebase=t
+                        ;;
+                -h|--h)
+                        usage
+                        exit
+                        ;;
+                -v|--v)
+                        verbose=t
+                        ;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+upstream=$1
+if [ -n "$2" ]; then
+    branch=$2
+fi
+
+if [ -n "$branch" ]; then
+    lbranch=`echo $branch | cut -d: -f1`
+    rbranch=`echo $branch | cut -d: -f2`
+fi
+
+# source utility functions
+DO_NOT_CHECK_BRANCH_EXISTENCE=1
+. `dirname $0`/kgit
+. `dirname $0`/guilt
+
+# placeholder. make this really do the rebase with a flag
+rebase_remove_patch()
+{
+    true
+}
+
+
+do_report()
+{
+    branch_list=$1
+
+    # Categorize into:
+    #   - new patches
+    #   - old patches that are no longer used
+    #   - old patches that have been updated
+
+    rm -f wrs/rebase.txt
+    echo "Rebase report for: " >> wrs/rebase.txt
+    echo "-------------------" >> wrs/rebase.txt
+    for branch in "$branch_list"; do
+	echo "    * $branch" >>  wrs/rebase.txt
+	echo ""  >>  wrs/rebase.txt
+
+	applied_shadow=wrs-old/patches/$branch/shadow_status
+
+	# we'll pretend that you wanted to do a rebase of
+	# x to x-new, which in our merged setup is actually
+	# <branch>-old being rebased <branch>
+	upstream=`git rev-parse --verify $branch`
+	ours=`git rev-parse --verify $branch-old`
+	limit=$upstream
+	
+	inup=`git rev-list ^$ours $upstream` &&
+	ours=`git rev-list $ours ^$limit` || exit
+
+	work_dir=wrs/.dowork
+	rm -rf $work_dir
+	mkdir -p $work_dir
+
+	# prep#1: calculate a git patch-id for each commit that looks unique
+        # in the upstream branch/repo/whatever
+	for c in $inup ; do
+	    git diff-tree -p $c
+	done | git patch-id | while read id name ; do
+	    echo "$name" >> "$work_dir/$id"
+	done
+
+        # prep#2: backup the status file, so we don't have to do more work to
+        # figure out all the patches that were pushed before we started
+        # rebasing
+	cp "wrs-old/patches/$branch/status" "$work_dir/status"
+
+        # prep#3: calculate a git patch-id for each commit that looks unique in
+        # our current branch/repo/whatever
+	for c in $ours ; do
+	    git diff-tree -p $c
+	done | git patch-id | while read id name ; do
+            # store the git patch-id in the commit #, so we can look it up below
+            # via the 'hash' value stored in our status file
+	    echo "$id" >> "$work_dir/our_$name"
+	done
+
+	echo "To check for differences and potential commits to merge" >>  wrs/rebase.txt
+	echo "from $branch-old to $branch:" >>  wrs/rebase.txt
+	echo "" >>  wrs/rebase.txt
+	echo "  > git diff $branch-old..$branch" >>  wrs/rebase.txt
+	echo "" >>  wrs/rebase.txt
+	echo "will show the differences. Analyze the results to see what should be migrated." >>  wrs/rebase.txt
+
+        #
+        # For each previously applied patch:
+        #
+        #	1) check to see if it was in our potentially unique commit list
+        #          if it isn't there, comment it out from the series file
+        #
+        #	2) if it was there check the commit id's, patch-id against the 
+        #          upstream patch-ids
+        #          if they match
+        #		a) comment out the patch from the series file
+        #	3) else
+        #		a) push the patch onto the stack
+        #
+
+	echo "Patches that should be considered for merging since " >>  wrs/rebase.txt
+	echo "they are unique to $branch-old:" >>  wrs/rebase.txt
+	echo "-------------------------------" >> wrs/rebase.txt
+	echo ""  >>  wrs/rebase.txt
+        # status is the status file from branch-old
+	IFS=":"
+	cat "$work_dir/status" | while read hash name; do
+	    echo "" >>  wrs/rebase.txt
+	    IFS=" "
+
+            # We are looping through the patches we had previously applied to our
+	    # branch. Check to see the current patch ($name), is suspected to be
+    	    # unique by checking to see if it's commit ID ($hash) is found in the
+            # list of unique commit IDs we calculated above by comparing the HEAD
+	    # commits in the two branches/repos/whatever.
+	    # 
+            # If we find it in 'ours', we go for a second opinion by checking the
+	    # patch-id of the commit in our branch   
+	    #
+	    # If the git patch-id is still different, check to see if the patch
+	    # name shows in the "shadow_status". If it is in the shadow status
+  	    # the patch HAS been updated in this branch and we should try and 
+	    # keep the changes. Note: this is a no-no, you should be creating
+	    # new patches to update things in sub branches, but it might happen
+	    #
+	    echo $ours | grep -q $hash;
+	    count=1
+	    if [ $? -eq 0 ]; then
+		patchid=`cat $work_dir/our_$hash`;
+		if [ -f "$work_dir/$patchid" ]; then
+		    realcommit=`head -1 "$work_dir/$patchid"`
+		    # echo "[INFO] $name matches upstream commit $realcommit";		    
+		    rebase_remove_patch $name
+		else
+		    # check to see if the patch in question has been refreshed on
+		    # this branch OR if it only exists on this branch. If either
+		    # is true, keep it.
+		    keep_patch=0
+		    if [ -e $applied_shadow ]; then
+			grep -q $name $applied_shadow
+			if [ $? -eq 0 ]; then
+		            # found the patch, better try the push
+			    keep_patch=1
+			fi
+		    fi
+		    
+		    grep -q $name $GUILT_DIR/$1/status
+		    if [ ! $? -eq 0 ]; then
+			keep_patch=1
+		    fi
+		    
+		    if [ $keep_patch -eq 1 ]; then			
+			echo "  $count) $name should be checked and merged if required" >>  wrs/rebase.txt
+			let count=$count+1
+		    else
+			rebase_remove_patch $name
+		    fi
+		fi
+	    else
+		rebase_remove_patch $name
+	    fi
+	    IFS=":"
+	done
+
+	echo "" >>  wrs/rebase.txt
+	echo "Unique commits in $branch-old:" >> wrs/rebase.txt
+	echo "------------------------------" >> wrs/rebase.txt
+	echo "" >>  wrs/rebase.txt
+	for c in $ours; do
+	    echo -n "  " >> wrs/rebase.txt
+	    git log --pretty=oneline --abbrev-commit $c^..$c >> wrs/rebase.txt
+	done
+	echo "" >>  wrs/rebase.txt
+	echo "Unique commits in upstream $branch:" >>  wrs/rebase.txt
+	echo "-----------------------------------" >> wrs/rebase.txt
+	echo "" >>  wrs/rebase.txt
+	for c in $inup; do
+	    echo -n "  " >> wrs/rebase.txt
+	    git log --pretty=oneline --abbrev-commit $c^..$c >> wrs/rebase.txt
+	done
+	echo "" >>  wrs/rebase.txt
+
+        ## Add cleanup items here to remove branches if -f was passed
+
+	## i.e --->
+
+	#rm -rf "$rebase_dir"
+
+	#git branch -D $orig_branch > /dev/null; rm -rf $GUILT_DIR/$orig_branch
+	#git branch -m ${branch} $orig_branch; mv $GUILT_DIR/${branch} $GUILT_DIR/$orig_branch
+    done
+    
+}
+
+
+if [ -n "$report_only" ]; then
+    do_report $lbranch
+
+    # go no further
+    exit
+fi
+
+if [ -n "$upstream" ]; then
+    # sync master
+    git pull $upstream master:master
+fi
+
+remote_branches=`git ls-remote -h $upstream | cut -f2`
+if [ -z "$remote_branches" ]; then
+    echo "ERROR. Could not get remote branch names from $upstream"
+    exit 1
+fi
+
+if [ -z "$lbranch" ]; then
+    # no branches. do them all.
+    rebase_branches=
+    for branch in `ls .git/refs/heads`; do
+	if [ -e wrs/patches/$branch/status ] ||
+           [ "$branch" = "wrs_base" ] || [ -n "$force" ]; then 
+	    echo $remote_branches | grep -q $branch
+	    if [ $? -eq 0 ]; then
+		if [ -n "$verbose" ]; then
+		    echo "rebasing '$branch' ..."
+		fi
+		rebase_branches="$branch:$branch $rebase_branches"
+		rebase_list="$rebase_list $branch"
+		if [ -n "$verbose" ]; then
+		    echo "   renaming $branch to $branch-old"
+		fi
+		git branch -m $branch $branch-old
+	    fi
+	fi
+    done
+    
+    if [ -n "$verbose" ]; then
+	echo "   fetching updates from $upstream"
+    fi
+    git fetch $upstream $rebase_branches
+
+    # undo the checkpoint and extract patches   
+    if [ -d wrs ]; then
+	if [ -n "$verbose" ]; then
+	    echo "   renaming status directory wrs-old"
+	fi
+	mv wrs wrs-old
+    fi
+
+    kgit checkpoint -r
+    kgit export -p all
+fi
+
+do_report "$rebase_list"
+
+
+
+## --reference
+
+# git clone /opt/wrs.git/wrlinux-3.0/layers/wrll-linux-edge/git/default_kernel-1 default.clone
+# cd default.clone/
+# kgit init -b all:wrs_base
+# kgit rebase -v /opt/wrs.git/wrlinux-3.0/layers/wrll-linux-edge/git/default_kernel
