@@ -273,6 +273,9 @@ void die(const char *str, struct pt_regs *regs, int err)
 	bust_spinlocks(1);
 	ret = __die(str, err, thread, regs);
 
+	if (ret == NOTIFY_STOP)
+		return;
+
 	if (regs && kexec_should_crash(thread->task))
 		crash_kexec(regs);
 
@@ -285,8 +288,7 @@ void die(const char *str, struct pt_regs *regs, int err)
 		panic("Fatal exception in interrupt");
 	if (panic_on_oops)
 		panic("Fatal exception");
-	if (ret != NOTIFY_STOP)
-		do_exit(SIGSEGV);
+	do_exit(SIGSEGV);
 }
 
 void arm_notify_die(const char *str, struct pt_regs *regs,

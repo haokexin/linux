@@ -23,6 +23,7 @@
 #include <linux/spinlock.h>
 #include <linux/interrupt.h>
 #include <linux/debug_locks.h>
+#include <linux/kgdb.h>
 
 /*
  * In the DEBUG case we are using the "NULL fastpath" for mutexes,
@@ -147,6 +148,14 @@ __mutex_lock_common(struct mutex *lock, long state, unsigned int subclass,
 	unsigned long flags;
 
 	preempt_disable();
+#ifdef CONFIG_KGDB
+	if (atomic_read(&kgdb_active) == raw_smp_processor_id()) {
+		int lvl = console_loglevel;
+		console_loglevel = 8;
+		WARN_ON(1);
+		console_loglevel = lvl;
+	}
+#endif
 	mutex_acquire(&lock->dep_map, subclass, 0, ip);
 
 #ifdef CONFIG_MUTEX_SPIN_ON_OWNER

@@ -160,6 +160,7 @@ unsigned char kbd_sysrq_xlate[KEY_MAX + 1] =
         "\r\000/";                                      /* 0x60 - 0x6f */
 static int sysrq_down;
 static int sysrq_alt_use;
+static int sysrq_sent;
 #endif
 static int sysrq_alt;
 
@@ -378,6 +379,43 @@ static void to_utf8(struct vc_data *vc, uint c)
 		put_queue(vc, 0x80 | (c & 0x3f));
 	}
 }
+
+#ifdef CONFIG_KDB_KEYBOARD
+static int kbd_clear_keys_helper(struct input_handle *handle, void *data)
+{
+	unsigned int *keycode = data;
+	input_inject_event(handle, EV_KEY, *keycode, 0);
+	return 0;
+}
+
+static void kbd_clear_keys_callback(struct work_struct *dummy)
+{
+	unsigned int i, j, k;
+
+	for (i = 0; i < ARRAY_SIZE(key_down); i++) {
+		if (!key_down[i])
+			continue;
+
+		k = i * BITS_PER_LONG;
+
+		for (j = 0; j < BITS_PER_LONG; j++, k++) {
+			if (!test_bit(k, key_down))
+				continue;
+			input_handler_for_each_handle(&kbd_handler, &k,
+				      kbd_clear_keys_helper);
+		}
+	}
+}
+
+static DECLARE_WORK(kbd_clear_keys_work, kbd_clear_keys_callback);
+
+/* Called to clear any key presses after resuming the kernel. */
+void kbd_dbg_clear_keys(void)
+{
+	schedule_work(&kbd_clear_keys_work);
+}
+EXPORT_SYMBOL_GPL(kbd_dbg_clear_keys);
+#endif /* CONFIG_KDB_KEYBOARD */
 
 /*
  * Called after returning from RAW mode or when changing consoles - recompute
@@ -1158,6 +1196,13 @@ static void kbd_rawcode(unsigned char data)
 		put_queue(vc, data);
 }
 
+#define emulate_raw_keycode(kc, dwn) \
+	if (raw_mode && !hw_raw) \
+		if (emulate_raw(vc, kc, !dwn << 7)) \
+			if (keycode < BTN_MISC && printk_ratelimit()) \
+				printk(KERN_WARNING "keyboard.c: can't emulate rawmode for keycode %d\n", kc)
+
+
 static void kbd_keycode(unsigned int keycode, int down, int hw_raw)
 {
 	struct vc_data *vc = vc_cons[fg_console].d;
@@ -1185,26 +1230,35 @@ static void kbd_keycode(unsigned int keycode, int down, int hw_raw)
 
 	rep = (down == 2);
 
-	if ((raw_mode = (kbd->kbdmode == VC_RAW)) && !hw_raw)
-		if (emulate_raw(vc, keycode, !down << 7))
-			if (keycode < BTN_MISC && printk_ratelimit())
-				printk(KERN_WARNING "keyboard.c: can't emulate rawmode for keycode %d\n", keycode);
+	raw_mode = kbd->kbdmode == VC_RAW;
 
 #ifdef CONFIG_MAGIC_SYSRQ	       /* Handle the SysRq Hack */
 	if (keycode == KEY_SYSRQ && (sysrq_down || (down == 1 && sysrq_alt))) {
 		if (!sysrq_down) {
 			sysrq_down = down;
 			sysrq_alt_use = sysrq_alt;
+			sysrq_sent = 0;
 		}
 		return;
 	}
-	if (sysrq_down && !down && keycode == sysrq_alt_use)
+	if (sysrq_down && !down && keycode == sysrq_alt_use) {
 		sysrq_down = 0;
-	if (sysrq_down && down && !rep) {
-		handle_sysrq(kbd_sysrq_xlate[keycode], tty);
+		if (!sysrq_sent) {
+			emulate_raw_keycode(KEY_SYSRQ, 1);
+			emulate_raw_keycode(KEY_SYSRQ, 0);
+		}
+	}
+	if (sysrq_down && !rep) {
+		if (down) {
+			handle_sysrq(kbd_sysrq_xlate[keycode], tty);
+			sysrq_sent = keycode;
+		}
 		return;
 	}
 #endif
+
+	emulate_raw_keycode(keycode, down);
+
 #ifdef CONFIG_SPARC
 	if (keycode == KEY_A && sparc_l1_a_state) {
 		sparc_l1_a_state = 0;

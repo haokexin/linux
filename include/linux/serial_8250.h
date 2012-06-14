@@ -71,5 +71,6 @@ extern int early_serial_setup(struct uart_port *port);
 extern int serial8250_find_port(struct uart_port *p);
 extern int serial8250_find_port_for_earlycon(void);
 extern int setup_early_serial8250_console(char *cmdline);
+int serial8250_get_port_def(struct uart_port *port, int line);
 
 #endif

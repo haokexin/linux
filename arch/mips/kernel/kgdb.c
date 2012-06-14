@@ -27,11 +27,26 @@
 #include <linux/kdebug.h>
 #include <linux/sched.h>
 #include <linux/smp.h>
+#include <linux/uaccess.h>
 #include <asm/inst.h>
 #include <asm/fpu.h>
 #include <asm/cacheflush.h>
 #include <asm/processor.h>
 #include <asm/sigcontext.h>
+
+/* <WRS_ADDED> */
+#ifdef DEBUG_IT
+#define PRINTK(args...) printk(KERN_ALERT args)
+#else
+#define PRINTK(args...)
+#endif /* DEBUG_IT */
+
+static unsigned long stepped_address;
+static unsigned int  stepped_opcode;
+static int stepped_cp0_status_ie;
+
+static unsigned long mipsGetNpc(struct pt_regs *pRegs);
+/* </WRS_ADDED> */
 
 static struct hard_trap_info {
 	unsigned char tt;	/* Trap type code for MIPS R3xxx and R4xxx */
@@ -48,6 +63,78 @@ static struct hard_trap_info {
 	{ 23, SIGSEGV },	/* watch */
 	{ 31, SIGSEGV },	/* virtual data cache coherency */
 	{ 0, 0}			/* Must be last */
+};
+
+struct dbg_reg_def_t dbg_reg_def[DBG_MAX_REG_NUM] =
+{
+	{ "zero", sizeof(long), offsetof(struct pt_regs, regs[0]) },
+	{ "at", sizeof(long), offsetof(struct pt_regs, regs[1]) },
+	{ "v0", sizeof(long), offsetof(struct pt_regs, regs[2]) },
+	{ "v1", sizeof(long), offsetof(struct pt_regs, regs[3]) },
+	{ "a0", sizeof(long), offsetof(struct pt_regs, regs[4]) },
+	{ "a1", sizeof(long), offsetof(struct pt_regs, regs[5]) },
+	{ "a2", sizeof(long), offsetof(struct pt_regs, regs[6]) },
+	{ "a3", sizeof(long), offsetof(struct pt_regs, regs[7]) },
+	{ "t0", sizeof(long), offsetof(struct pt_regs, regs[8]) },
+	{ "t1", sizeof(long), offsetof(struct pt_regs, regs[9]) },
+	{ "t2", sizeof(long), offsetof(struct pt_regs, regs[10]) },
+	{ "t3", sizeof(long), offsetof(struct pt_regs, regs[11]) },
+	{ "t4", sizeof(long), offsetof(struct pt_regs, regs[12]) },
+	{ "t5", sizeof(long), offsetof(struct pt_regs, regs[13]) },
+	{ "t6", sizeof(long), offsetof(struct pt_regs, regs[14]) },
+	{ "t7", sizeof(long), offsetof(struct pt_regs, regs[15]) },
+	{ "s0", sizeof(long), offsetof(struct pt_regs, regs[16]) },
+	{ "s1", sizeof(long), offsetof(struct pt_regs, regs[17]) },
+	{ "s2", sizeof(long), offsetof(struct pt_regs, regs[18]) },
+	{ "s3", sizeof(long), offsetof(struct pt_regs, regs[19]) },
+	{ "s4", sizeof(long), offsetof(struct pt_regs, regs[20]) },
+	{ "s5", sizeof(long), offsetof(struct pt_regs, regs[21]) },
+	{ "s6", sizeof(long), offsetof(struct pt_regs, regs[22]) },
+	{ "s7", sizeof(long), offsetof(struct pt_regs, regs[23]) },
+	{ "t8", sizeof(long), offsetof(struct pt_regs, regs[24]) },
+	{ "t9", sizeof(long), offsetof(struct pt_regs, regs[25]) },
+	{ "k0", sizeof(long), offsetof(struct pt_regs, regs[26]) },
+	{ "k1", sizeof(long), offsetof(struct pt_regs, regs[27]) },
+	{ "gp", sizeof(long), offsetof(struct pt_regs, regs[28]) },
+	{ "sp", sizeof(long), offsetof(struct pt_regs, regs[29]) },
+	{ "s8", sizeof(long), offsetof(struct pt_regs, regs[30]) },
+	{ "ra", sizeof(long), offsetof(struct pt_regs, regs[31]) },
+	{ "sr", sizeof(long), offsetof(struct pt_regs, cp0_status) },
+	{ "lo", sizeof(long), offsetof(struct pt_regs, lo) },
+	{ "hi", sizeof(long), offsetof(struct pt_regs, hi) },
+	{ "bad", sizeof(long), offsetof(struct pt_regs, cp0_badvaddr) },
+	{ "cause", sizeof(long), offsetof(struct pt_regs, cp0_cause) },
+	{ "pc", sizeof(long), offsetof(struct pt_regs, cp0_epc) },
+};
+
+int dbg_set_reg(int regno, void *mem, struct pt_regs *regs)
+{
+	if (regno < 0 || regno >= DBG_MAX_REG_NUM)
+		return -EINVAL;
+
+	if (dbg_reg_def[regno].offset != -1)
+		memcpy((void *)regs + dbg_reg_def[regno].offset, mem,
+		       dbg_reg_def[regno].size);
+	return 0;
+}
+
+char *dbg_get_reg(int regno, void *mem, struct pt_regs *regs)
+{
+	if (regno >= DBG_MAX_REG_NUM || regno < 0)
+		return NULL;
+
+	if (dbg_reg_def[regno].offset != -1)
+		memcpy(mem, (void *)regs + dbg_reg_def[regno].offset,
+		       dbg_reg_def[regno].size);
+	return dbg_reg_def[regno].name;
+}
+
+struct kgdb_arch arch_kgdb_ops = {
+#ifdef CONFIG_CPU_LITTLE_ENDIAN
+	.gdb_bpt_instr = {0xd},
+#else
+	.gdb_bpt_instr = {0x00, 0x00, 0x00, 0x0d},
+#endif
 };
 
 void arch_kgdb_breakpoint(void)
@@ -84,25 +171,10 @@ static int compute_signal(int tt)
 	return SIGHUP;		/* default for things we don't know about */
 }
 
+#if 0
 void pt_regs_to_gdb_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 {
 	int reg;
-
-#if (KGDB_GDB_REG_SIZE == 32)
-	u32 *ptr = (u32 *)gdb_regs;
-#else
-	u64 *ptr = (u64 *)gdb_regs;
-#endif
-
-	for (reg = 0; reg < 32; reg++)
-		*(ptr++) = regs->regs[reg];
-
-	*(ptr++) = regs->cp0_status;
-	*(ptr++) = regs->lo;
-	*(ptr++) = regs->hi;
-	*(ptr++) = regs->cp0_badvaddr;
-	*(ptr++) = regs->cp0_cause;
-	*(ptr++) = regs->cp0_epc;
 
 	/* FP REGS */
 	if (!(current && (regs->cp0_status & ST0_CU1)))
@@ -117,23 +189,7 @@ void gdb_regs_to_pt_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 {
 	int reg;
 
-#if (KGDB_GDB_REG_SIZE == 32)
-	const u32 *ptr = (u32 *)gdb_regs;
-#else
-	const u64 *ptr = (u64 *)gdb_regs;
-#endif
-
-	for (reg = 0; reg < 32; reg++)
-		regs->regs[reg] = *(ptr++);
-
-	regs->cp0_status = *(ptr++);
-	regs->lo = *(ptr++);
-	regs->hi = *(ptr++);
-	regs->cp0_badvaddr = *(ptr++);
-	regs->cp0_cause = *(ptr++);
-	regs->cp0_epc = *(ptr++);
-
-	/* FP REGS from current */
+	/* FPREGS from current */
 	if (!(current && (regs->cp0_status & ST0_CU1)))
 		return;
 
@@ -141,7 +197,7 @@ void gdb_regs_to_pt_regs(unsigned long *gdb_regs, struct pt_regs *regs)
 		current->thread.fpu.fpr[reg] = *(ptr++);
 	restore_fp(current);
 }
-
+#endif
 /*
  * Similar to regs_to_gdb_regs() except that process is sleeping and so
  * we may not be able to get all the info.
@@ -180,6 +236,11 @@ void sleeping_thread_to_gdb_regs(unsigned long *gdb_regs, struct task_struct *p)
 	*(ptr++) = regs->cp0_epc;
 }
 
+void kgdb_arch_set_pc(struct pt_regs *regs, unsigned long pc)
+{
+	regs->cp0_epc = pc;
+}
+
 /*
  * Calls linux_debug_hook before the kernel dies. If KGDB is enabled,
  * then try to fall into the debugger
@@ -190,6 +251,11 @@ static int kgdb_mips_notify(struct notifier_block *self, unsigned long cmd,
 	struct die_args *args = (struct die_args *)ptr;
 	struct pt_regs *regs = args->regs;
 	int trap = (regs->cp0_cause & 0x7c) >> 2;
+	int ss_trap = trap;
+	int error;
+
+	PRINTK("%s at 0x%lx (trap %d)\n", __func__,
+	       regs->cp0_epc, trap);
 
 	/* Userpace events, ignore. */
 	if (user_mode(regs))
@@ -198,7 +264,52 @@ static int kgdb_mips_notify(struct notifier_block *self, unsigned long cmd,
 	if (atomic_read(&kgdb_active) != -1)
 		kgdb_nmicallback(smp_processor_id(), regs);
 
-	if (kgdb_handle_exception(trap, compute_signal(trap), 0, regs))
+	if (trap == 9 && stepped_opcode != 0) {
+		PRINTK("Step done at 0x%lx putting back 0x%x\n",
+		       stepped_address, stepped_opcode);
+
+		/* restores original instruction */
+		error = probe_kernel_write((char *)stepped_address,
+					   (char *) &stepped_opcode,
+					   BREAK_INSTR_SIZE);
+		if (error != 0) {
+			PRINTK("Unable to restore original instruction\n");
+			printk(KERN_CRIT "KGDB: FATAL ERROR on instruction"
+			       "restore at 0x%lx", stepped_address);
+		}
+
+		flush_icache_range(stepped_address,
+				   stepped_address + 4);
+
+		if (regs->cp0_epc == stepped_address)
+			ss_trap = 0;
+
+		/* Restore original interrupts in cpsr regs */
+		regs->cp0_status |= stepped_cp0_status_ie;
+		stepped_opcode = 0;
+	}
+#ifdef DEBUG_IT
+	else {
+		int op;
+		unsigned long addr = regs->cp0_epc;
+
+		PRINTK("%s: It's very likely an actual BP.\n", __func__);
+
+		if (probe_kernel_read((unsigned char *) &op,
+				      (char *) addr,
+				      BREAK_INSTR_SIZE) != 0) {
+			PRINTK("Unable to read memory at 0x%lx\n", addr);
+		} else {
+			PRINTK("op is 0x%x\n", op);
+			if (op != *(unsigned long *)arch_kgdb_ops.gdb_bpt_instr)
+				PRINTK("OOPS this is not a bp !\n");
+			else
+				PRINTK("YES this is a bp !\n");
+		}
+	}
+#endif /* DEBUG_IT */
+
+	if (kgdb_handle_exception(ss_trap, compute_signal(trap), cmd, regs))
 		return NOTIFY_DONE;
 
 	if (atomic_read(&kgdb_setting_breakpoint))
@@ -211,6 +322,26 @@ static int kgdb_mips_notify(struct notifier_block *self, unsigned long cmd,
 
 	return NOTIFY_STOP;
 }
+
+#ifdef CONFIG_KGDB_LOW_LEVEL_TRAP
+int kgdb_ll_trap(int cmd, const char *str,
+		 struct pt_regs *regs, long err, int trap, int sig)
+{
+	struct die_args args = {
+		.regs	= regs,
+		.str	= str,
+		.err	= err,
+		.trapnr	= trap,
+		.signr	= sig,
+
+	};
+
+	if (!kgdb_io_module_registered)
+		return NOTIFY_DONE;
+
+	return kgdb_mips_notify(NULL, cmd, &args);
+}
+#endif /* CONFIG_KGDB_LOW_LEVEL_TRAP */
 
 static struct notifier_block kgdb_notifier = {
 	.notifier_call = kgdb_mips_notify,
@@ -226,18 +357,70 @@ int kgdb_arch_handle_exception(int vector, int signo, int err_code,
 	char *ptr;
 	unsigned long address;
 	int cpu = smp_processor_id();
+	int error;
 
 	switch (remcom_in_buffer[0]) {
-	case 's':
+	case 's': {
+		unsigned long next_addr;
+
+		PRINTK("KGDB: s command at 0x%lx\n", regs->cp0_epc);
+
+		/* handle the optional parameter */
+		ptr = &remcom_in_buffer[1];
+		if (kgdb_hex2long (&ptr, &address))
+			regs->cp0_epc = address;
+
+		atomic_set(&kgdb_cpu_doing_single_step, -1);
+
+		next_addr = mipsGetNpc(regs);
+		stepped_address = next_addr;
+		PRINTK("KGDB next pc 0x%lx\n", next_addr);
+
+		/* Saves original instruction */
+		error = probe_kernel_read((char *) &stepped_opcode,
+					  (char *)next_addr,
+					  BREAK_INSTR_SIZE);
+		if (error != 0) {
+			PRINTK("Unable to access opcode at next pc 0x%lx\n",
+			       next_addr);
+			return error;
+		}
+
+		/* Sets the temporary breakpoint */
+		error = probe_kernel_write((char *)next_addr,
+					   arch_kgdb_ops.gdb_bpt_instr,
+					   BREAK_INSTR_SIZE);
+		if (error != 0) {
+			PRINTK("Unable to write tmp BP at next pc 0x%lx\n",
+			       next_addr);
+			return error;
+		}
+
+		stepped_cp0_status_ie = regs->cp0_status & ST0_IE;
+
+		/* masks interrupts */
+		regs->cp0_status &= ~ST0_IE;
+
+		/* Flush cache */
+		flush_icache_range((long)next_addr,
+				   (long)next_addr + 4);
+		atomic_set(&kgdb_cpu_doing_single_step, cpu);
+
+		PRINTK("step armed over 0x%lx\n", regs->cp0_epc);
+
+		return 0;
+	}
 	case 'c':
+		PRINTK("KGDB: c command at 0x%lx\n", regs->cp0_epc);
+
 		/* handle the optional parameter */
 		ptr = &remcom_in_buffer[1];
 		if (kgdb_hex2long(&ptr, &address))
 			regs->cp0_epc = address;
 
 		atomic_set(&kgdb_cpu_doing_single_step, -1);
-		if (remcom_in_buffer[0] == 's')
-			atomic_set(&kgdb_cpu_doing_single_step, cpu);
+
+		PRINTK("%s done OK\n", __func__);
 
 		return 0;
 	}
@@ -276,3 +459,243 @@ void kgdb_arch_exit(void)
 {
 	unregister_die_notifier(&kgdb_notifier);
 }
+
+/* Copyright (c) 1996-2001 Wind River Systems, Inc. */
+/* <WRS_ADDED> */
+static unsigned long mipsGetNpc(struct pt_regs *pRegs)
+{
+	int	rsVal;
+	int	rtVal;
+	int ptr;
+	unsigned long	disp;
+	unsigned int  machInstr;
+	unsigned long npc;
+	unsigned long pc;
+
+	if (pRegs == NULL)
+		panic("%s: NULL pRegs !\n", __func__);
+
+#if 0
+	/*
+	 * If we are in a branch delay slot, the pc has been changed
+	 * in the breakpoint handler to match with the breakpoint
+	 * address.  It is modified to have its normal value.
+	 */
+
+	if (pRegs->cp0_cause & CAUSE_BD)
+		pRegs->cp0_epc--;
+#endif	/* 0 */
+
+	pc        = pRegs->cp0_epc;
+	machInstr = *(unsigned int *)pc;
+
+	/* Default instruction is the next one. */
+
+	npc = pc + 4;
+
+	/*
+	 * Do not report the instruction in a branch delay slot as the
+	 * next pc.  Doing so will mess up the WDB_STEP_OVER case as
+	 * the branch instruction is re-executed.
+	 */
+
+	/*
+	 * Check if we are on a branch likely instruction, which will nullify
+	 * the instruction in the slot if the branch is taken.
+	 * Also, pre-extract some of the instruction fields just to make coding
+	 * easier.
+	 */
+
+	rsVal = pRegs->regs[(machInstr >> 21) & 0x1f];
+	rtVal = pRegs->regs[(machInstr >> 16) & 0x1f];
+	ptr   = (machInstr >> 16) & 0x1f;
+	disp = ((int) ((machInstr & 0x0000ffff) << 16)) >> 14;
+	if ((machInstr & 0xf3ff0000) == 0x41020000)	{
+		/* BCzFL  */
+		int copId = (machInstr >> 26) & 0x03;
+		npc = pc + 8;
+		switch (copId) {
+		case 1:
+#if 0
+#ifndef SOFT_FLOAT
+			if ((pRegs->fpcsr & FP_COND) != FP_COND)
+				npc = disp + pc + 4;
+#endif	/* !SOFT_FLOAT */
+#endif /* 0 */
+			break;
+		}
+	} else if ((machInstr & 0xf3ff0000) == 0x41030000) {
+		/* BCzTL  */
+		int copId = (machInstr >> 26) & 0x03;
+		npc = pc + 8;
+		switch (copId) {
+		case 1:
+#if 0
+#ifndef SOFT_FLOAT
+			if ((pRegs->fpcsr & FP_COND) == FP_COND)
+				npc = disp + pc + 4;
+#endif	/* !SOFT_FLOAT */
+#endif /* 0 */
+			break;
+		}
+	} else if (((machInstr & 0xfc1f0000) == 0x04130000)
+		   || ((machInstr & 0xfc1f0000) == 0x04030000)) {
+		/* BGEZALL*/
+		/* BGEZL  */
+		if (rsVal >= 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc1f0000) == 0x5c000000) {
+		/* BGTZL  */
+		if (rsVal > 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc1f0000) == 0x58000000) {
+		/* BLEZL  */
+		if (rsVal <= 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if (((machInstr & 0xfc1f0000) == 0x04120000)
+		   || ((machInstr & 0xfc1f0000) == 0x04020000)) {
+		/* BLTZALL*/
+		/* BLTZL  */
+		if (rsVal < 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc000000) == 0x50000000) {
+		/* BEQL   */
+		if (rsVal == rtVal)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc000000) == 0x54000000) {
+		/* BNEL   */
+		if (rsVal != rtVal)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if (((machInstr & 0xfc000000) == 0x08000000) ||
+		   ((machInstr & 0xfc000000) == 0x0c000000)) {
+		/* J    */
+		/* JAL  */
+		npc = ((machInstr & 0x03ffffff) << 2) |
+#ifdef CONFIG_CPU_MIPS64
+	       (pc        & 0xfffffffff0000000ULL);
+#else
+	       (pc        & 0xf0000000);
+#endif
+	} else if (((machInstr & 0xfc1f07ff) == 0x00000009)
+		   || ((machInstr & 0xfc1fffff) == 0x00000008)) {
+		/* JALR */
+		/* JR   */
+		npc = pRegs->regs[(machInstr >> 21) & 0x1f];
+	} else if ((machInstr & 0xf3ff0000) == 0x41000000) {
+		/* BCzF   */
+		int copId = (machInstr >> 26) & 0x03;
+		npc = pc + 8;
+		switch (copId) {
+		case 1:
+#if 0
+#ifndef SOFT_FLOAT
+			if ((pRegs->fpcsr & FP_COND) != FP_COND)
+				npc = disp + pc + 4;
+#endif	/* !SOFT_FLOAT */
+#endif /* 0 */
+			break;
+		}
+	} else if ((machInstr & 0xf3ff0000) == 0x41010000) {
+		/* BCzT   */
+		int copId = (machInstr >> 26) & 0x03;
+		npc = pc + 8;
+		switch (copId) {
+		case 1:
+#if 0
+#ifndef SOFT_FLOAT
+			if ((pRegs->fpcsr & FP_COND) == FP_COND)
+				npc = disp + pc + 4;
+#endif	/* !SOFT_FLOAT */
+#endif /* 0 */
+			break;
+		}
+	} else if ((machInstr & 0xfc000000) == 0x10000000) {
+		/* BEQ    */
+		if (rsVal == rtVal)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if (((machInstr & 0xfc1f0000) == 0x04010000)
+		   || ((machInstr & 0xfc1f0000) == 0x04110000)) {
+		/* BGEZ   */
+		/* BGEZAL */
+		if (rsVal >= 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc1f0000) == 0x1c000000) {
+		/* BGTZ   */
+		if (rsVal > 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc1f0000) == 0x18000000) {
+		/* BLEZ   */
+		if (rsVal <= 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if (((machInstr & 0xfc1f0000) == 0x04000000)
+		   || ((machInstr & 0xfc1f0000) == 0x04100000)) {
+		/* BLTZ   */
+		/* BLTZAL */
+		if (rsVal < 0)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc000000) == 0x14000000) {
+		/* BNE    */
+		if (rsVal != rtVal)
+			npc = disp + pc + 4;
+		else
+			npc = pc + 8;
+	}
+   /* Cavium specific */
+
+	else if ((machInstr & 0xfc000000) == 0xc8000000) {
+		/* BBIT0  */
+		/* branch if bit is Zero */
+		if ((rsVal >> ptr) & 1)
+			npc = pc + 8;
+		else /* cond is true */
+			npc = disp + pc + 4;
+	} else if ((machInstr & 0xfc000000) == 0xd8000000) {
+		/* BBIT032  */
+		/* branch if bit is Zero */
+		if ((rsVal >> (ptr + 32)) & 1)
+			npc = pc + 8;
+		else /* cond is true */
+			npc = disp + pc + 4;
+	} else if ((machInstr & 0xfc000000) == 0xe8000000) {
+		/* BBIT1  */
+		/* branch if bit is Set */
+		if ((rsVal >> ptr) & 1)
+			npc = disp + pc + 4;
+		else /* cond is true */
+			npc = pc + 8;
+	} else if ((machInstr & 0xfc000000) == 0xf8000000) {
+		/* BBIT132  */
+		/* branch if bit is Set */
+		if ((rsVal >> (ptr + 32)) & 1)
+			npc = disp + pc + 4;
+		else /* cond is true */
+			npc = pc + 8;
+	} else {
+		/* normal instruction */
+	}
+
+	return npc;
+}
+/* </WRS_ADDED> */

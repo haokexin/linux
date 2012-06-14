@@ -278,7 +278,8 @@ struct tty_operations {
 	int (*get_icount)(struct tty_struct *tty,
 				struct serial_icounter_struct *icount);
 #ifdef CONFIG_CONSOLE_POLL
-	int (*poll_init)(struct tty_driver *driver, int line, char *options);
+	int (*poll_init)(struct tty_driver *driver, int line, char *options,
+			void *rx_callback);
 	int (*poll_get_char)(struct tty_driver *driver, int line);
 	void (*poll_put_char)(struct tty_driver *driver, int line, char ch);
 #endif
@@ -326,7 +327,12 @@ extern struct tty_driver *alloc_tty_driver(int lines);
 extern void put_tty_driver(struct tty_driver *driver);
 extern void tty_set_operations(struct tty_driver *driver,
 			const struct tty_operations *op);
+#ifdef CONFIG_CONSOLE_POLL
 extern struct tty_driver *tty_find_polling_driver(char *name, int *line);
+extern int tty_console_poll_open(struct tty_driver *driver,
+			struct file **filp, int line);
+extern void tty_console_poll_close(struct file **filp);
+#endif
 
 extern void tty_driver_kref_put(struct tty_driver *driver);
 
