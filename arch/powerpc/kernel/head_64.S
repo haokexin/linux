@@ -177,6 +177,7 @@ _GLOBAL(fsl_secondary_thread_init)
 
 	mfspr	r3, SPRN_PIR
 	rlwimi	r3, r3, 30, 2, 30
+	mtspr	SPRN_PIR, r3
 #endif
 
 _GLOBAL(generic_secondary_thread_init)
