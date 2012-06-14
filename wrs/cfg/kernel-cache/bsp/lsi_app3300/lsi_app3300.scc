@@ -1,0 +1,35 @@
+kconf hardware lsi_app3300.cfg
+patch ARM-add-LSI-APP.patch
+patch lsi_app-add-platform-common-config.patch
+patch lsi_app-implement-platform-common-clock-framework.patch
+patch lsi_app-add-interrupt-definition-and-handling.patch
+patch lsi_app-add-platform-specific-MM-stuff.patch
+patch lsi_app-add-platform-pll-access-method.patch
+patch lsi_app-add-system-timer.patch
+patch lsi_app3k-add-bootloader-communication-stub.patch
+patch lsi_app-platform-header-files.patch
+patch lsi_app3k-add-nor-flash-support.patch
+patch lsi_app3k-common-clock-handling-and-hardware-definit.patch
+patch app3300-msbg-board-specific-implementation.patch
+patch lsi_app-add-ethernet-support.patch
+patch lsi_app3300-update-nor-flash.patch
+patch lsi_app3k-nand-flash.patch
+patch lsi_app3k-extend-IO-region.patch
+patch lsi_app3k-add-platform-nand-device-definition.patch
+patch lsi_app3k-SMP-u-boot-reserved-region.patch
+patch lsi_app3k-SMP-local-timer.patch
+patch lsi_app3k-SMP-CPU-Interrupt-Interface.patch
+patch lsi_app3k-SMP-secondary-core-platform-infrastructure.patch
+patch lsi_app3300-SMP-conflict-with-PREEMPT.patch
+patch lsi_app3k-enable-KGDBoE.patch
+
+# obsolete by:
+#   ARM: 6073/1: oprofile: remove old files and update KConfig
+# patch arm11mp-enable-oprofile-for-lsi_app3300.patch
+
+patch lsi_app3k-eth-obtain-MAC-address-from-u-boot-environ.patch
+patch remove-lsi_app3k-SMP-bootup-potential-deadlock.patch
+patch lsi_app3k-remove-unused-sem-for-preempt_rt.patch
+patch lsi_app3300-add-platform-specific-sched-clock.patch
+patch lsi_app3300-change-register-setting-order-of-app3k_c.patch
+patch lsi_app3300-expand-32-bit-clock-counter-to-a-63-bit-.patch

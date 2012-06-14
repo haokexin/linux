@@ -1,0 +1,18 @@
+kconf hardware stm_spear13xx.cfg
+
+patch ST-SPEAr-13xx-Adding-support-for-SPEAr1310.patch
+patch Ethernet-support-for-spear1310.patch
+patch Add-rtc-support-for-spear13xx.patch
+patch Add-SMP-support-for-spear13xx-machine.patch
+patch ST-SPEAr13xx-Adding-CPU-hotplug-support-added-for-SM.patch
+patch ST-SPEAr-Adding-machine-support-for-USB-host.patch
+patch USB-host-Adding-USB-ehci-ohci-support-for-spear-plat.patch
+patch ST-SPEAr-Adding-machine-support-for-nand.patch
+patch ST-SPEAr-Adding-support-for-serial-nor-flash-in-all-.patch
+patch SPEAr-Power-Management-Added-the-support-for-Standby.patch
+patch ST-SPEAr-Added-ARM-PL061-GPIO-Support-on-SPEAr13xx-a.patch
+patch ST-SPEAr-Adding-Watchdog-support-for-spear13xx-platf.patch
+patch SPEAr-CPU-freq-Adding-support-for-CPU-Freq-framework.patch
+patch ST-SPEAr-Added-PCIE-host-controller-base-driver-supp.patch
+patch ST-SPEAr-adding-support-for-synopsis-i2c-designware.patch
+patch Add-a-NULL-set_awake-function-to-remove-the-Warning-.patch

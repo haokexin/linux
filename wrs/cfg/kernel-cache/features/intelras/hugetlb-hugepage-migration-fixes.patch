@@ -1,0 +1,107 @@
+From 2547b3358b2fbf4ba752bf1b71feb12ecce7ca61 Mon Sep 17 00:00:00 2001
+From: Naoya Horiguchi <n-horiguchi@ah.jp.nec.com>
+Date: Wed, 8 Sep 2010 10:19:35 +0900
+Subject: [PATCH 35/50] hugetlb: hugepage migration fixes
+
+Upstream ID: 290408d4a25002f099efeee7b6a5778d431154d6
+
+Changes from the original patch, remove the core codes
+about migrate.c since this original patch incurred some
+fatal errors. Here just reserver the no-harm part.
+
+Signed-off-by: Andi Kleen <ak@linux.intel.com>
+Signed-off-by: Zumeng Chen <zumeng.chen@windriver.com>
+---
+ include/linux/migrate.h |    4 ++++
+ mm/hugetlb.c            |   18 +++++++++++++++++-
+ mm/migrate.c            |    8 ++++++--
+ 3 files changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/migrate.h b/include/linux/migrate.h
+index 7f085c9..b32563f 100644
+--- a/include/linux/migrate.h
++++ b/include/linux/migrate.h
+@@ -22,6 +22,7 @@ extern int migrate_prep(void);
+ extern int migrate_vmas(struct mm_struct *mm,
+ 		const nodemask_t *from, const nodemask_t *to,
+ 		unsigned long flags);
++extern void migrate_page_copy(struct page *newpage, struct page *page);
+ #else
+ #define PAGE_MIGRATION 0
+ 
+@@ -38,6 +39,9 @@ static inline int migrate_vmas(struct mm_struct *mm,
+ 	return -ENOSYS;
+ }
+ 
++static inline void migrate_page_copy(struct page *newpage,
++				     struct page *page) {}
++
+ /* Possible settings for the migrate_page() method in address_operations */
+ #define migrate_page NULL
+ #define fail_migrate_page NULL
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index 800d52e..64b90e2 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -2231,6 +2231,19 @@ nomem:
+ 	return -ENOMEM;
+ }
+ 
++static int is_hugetlb_entry_migration(pte_t pte)
++{
++	swp_entry_t swp;
++
++	if (huge_pte_none(pte) || pte_present(pte))
++		return 0;
++	swp = pte_to_swp_entry(pte);
++	if (non_swap_entry(swp) && is_migration_entry(swp)) {
++		return 1;
++	} else
++		return 0;
++}
++
+ static int is_hugetlb_entry_hwpoisoned(pte_t pte)
+ {
+ 	swp_entry_t swp;
+@@ -2659,7 +2672,10 @@ int hugetlb_fault(struct mm_struct *mm, struct vm_area_struct *vma,
+ 	ptep = huge_pte_offset(mm, address);
+ 	if (ptep) {
+ 		entry = huge_ptep_get(ptep);
+-		if (unlikely(is_hugetlb_entry_hwpoisoned(entry)))
++		if (unlikely(is_hugetlb_entry_migration(entry))) {
++			migration_entry_wait(mm, (pmd_t *)ptep, address);
++			return 0;
++		} else if (unlikely(is_hugetlb_entry_hwpoisoned(entry)))
+ 			return VM_FAULT_HWPOISON;
+ 	}
+ 
+diff --git a/mm/migrate.c b/mm/migrate.c
+index d3f3f7f..64a5369 100644
+--- a/mm/migrate.c
++++ b/mm/migrate.c
+@@ -32,6 +32,7 @@
+ #include <linux/security.h>
+ #include <linux/memcontrol.h>
+ #include <linux/syscalls.h>
++#include <linux/hugetlb.h>
+ #include <linux/gfp.h>
+ 
+ #include "internal.h"
+@@ -274,9 +275,12 @@ static int migrate_page_move_mapping(struct address_space *mapping,
+ /*
+  * Copy the page to its new location
+  */
+-static void migrate_page_copy(struct page *newpage, struct page *page)
++void migrate_page_copy(struct page *newpage, struct page *page)
+ {
+-	copy_highpage(newpage, page);
++	if (PageHuge(page))
++		copy_huge_page(newpage, page);
++	else
++		copy_highpage(newpage, page);
+ 
+ 	if (PageError(page))
+ 		SetPageError(newpage);
+-- 
+1.7.0.4
+

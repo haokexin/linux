@@ -1,0 +1,41 @@
+From 891c72e95b03d016edd699c4f0aac8fcd83b6018 Mon Sep 17 00:00:00 2001
+From: Lans Zhang <jia.zhang@windriver.com>
+Date: Tue, 24 Aug 2010 10:46:39 +0800
+Subject: [PATCH] audit: add NR_syscalls for arm
+
+We need a NR_syscalls macro for arm under cgl configuration, because the
+check is placed at common area and other architectures all have NR_syscalls.
+
+Signed-off-by: Lans Zhang <jia.zhang@windriver.com>
+---
+ arch/arm/include/asm/unistd.h  |    1 +
+ arch/arm/kernel/entry-common.S |    1 +
+ 2 files changed, 2 insertions(+), 0 deletions(-)
+
+diff --git a/arch/arm/include/asm/unistd.h b/arch/arm/include/asm/unistd.h
+index 61f3a56..7ebc095 100644
+--- a/arch/arm/include/asm/unistd.h
++++ b/arch/arm/include/asm/unistd.h
+@@ -404,6 +404,7 @@
+ #define __NR_vbi_control			(__NR_SYSCALL_BASE+374)
+ 
+ #define __NR_syscall_max 375
++#define NR_syscalls	__NR_syscall_max
+ 
+ #define VBI_MEM_READ			0x0010
+ #define VBI_MEM_WRITE			0x0100
+diff --git a/arch/arm/kernel/entry-common.S b/arch/arm/kernel/entry-common.S
+index 7252517..03710aa 100644
+--- a/arch/arm/kernel/entry-common.S
++++ b/arch/arm/kernel/entry-common.S
+@@ -93,6 +93,7 @@ ENTRY(ret_from_fork)
+ 	b	ret_slow_syscall
+ ENDPROC(ret_from_fork)
+ 
++#undef NR_syscalls
+ 	.equ NR_syscalls,0
+ #define CALL(x) .equ NR_syscalls,NR_syscalls+1
+ #include "calls.S"
+-- 
+1.7.0.4
+

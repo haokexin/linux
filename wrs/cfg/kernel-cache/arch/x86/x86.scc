@@ -1,0 +1,21 @@
+# patches are for everyone, but the kconfig data is just for x86 builds.
+if [ "$WRS_ARCH" = "x86_64" ]; then
+        kconf hardware x86.cfg
+fi
+if [ "$WRS_ARCH" = "i386" ]; then
+        kconf hardware x86.cfg
+fi
+
+patch x86-avoid-using-vmalloc_to_page-on-non-vmalloc-ed-ad.patch
+patch drivers-hwmon-coretemp.c-detect-the-thermal-sensors-.patch
+patch drivers-hwmon-coretemp.c-get-TjMax-value-from-MSR.patch
+patch x86-cpu-Package-Level-Thermal-Control-Power-Limit-No.patch
+patch x86-hwmon-Package-Level-Thermal-Power-pkgtemp-hwmon-.patch
+patch x86-hwmon-avoid-deadlock-on-CPU-removal-in-pkgtemp.patch
+patch x86-hwmon-Package-Level-Thermal-Power-pkgtemp-docume.patch
+patch x86-hwmon-Package-Level-Thermal-Power-thermal-thrott.patch
+patch x86-hwmon-Package-Level-Thermal-Power-power-limit.patch
+patch x86-clock-add-CLOCK_THREAD_CPUTIME_ID-option-for-clo.patch
+patch x86-cpu-hotplug-Prevent-softirq-wakeup-on-wrong-CPU.patch
+patch intel-iommu-Only-unlink-device-domains-from-iommu.patch
+patch sched-x86-Avoid-unnecessary-overflow-in-sched_clock.patch

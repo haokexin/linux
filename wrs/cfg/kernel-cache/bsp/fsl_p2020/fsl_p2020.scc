@@ -1,0 +1,51 @@
+kconf hardware fsl_p2020.cfg
+
+patch Enable-eSDHC-feature-on-fsl_p2020-RDB-board.patch
+patch Add-EEPROM-device-nodes-on-fsl_p2020rdb-board.patch
+
+# moved to standard
+# patch Enable-eSDHC-feature-on-fsl_p2020ds-board.patch
+
+patch Add-EEPROM-device-nodes-on-fsl_p2020-DS-board.patch
+patch Add-DS1339-RTC-device-node-for-fsl_p2020-DS-board.patch
+# moved to -standard
+# patch Add-Freescale-eSPI-device-driver.patch
+# patch Add-eSPI-flash-memory-support.patch
+# patch Add-the-spi-bits_per_word-to-bitbang-file.patch
+# patch Add-fsl_m25p80-modalias-for-spi-flash.patch
+patch Add-eSPI-flash-layout-in-fsl_p2020ds-dts-file.patch
+patch Enable-eSPI-and-set-4-bit-eSDHC-on-fsl_p2020rdb-boar.patch
+patch Update-eSPI-flash-parameters-set-in-fsl_p2020rdb-dts.patch
+patch Add-dts-files-for-DS-CAMP.patch
+patch Update-RDB-CAMP-core0-dts-file.patch
+patch Move-spi-item-from-p2020ds_camp_core1.dts-into-p2020.patch
+patch WRHV-p2020rdb-basic-board-support.patch
+patch wrhv-p2020-make-wrload-able-to-detect-GOS.patch
+
+patch fsl_p2020-cgl-preempt_rt-force-handling-those-nested.patch
+
+
+# following patches are added for 4.0 asyc update 
+
+# already in the kernel-4.2
+# patch 0001-ppc-fsl_p2020-preempt_rt-mmc-restore-spin_lock_irqsa.patch
+# patch 0002-rionet-fix-msg_rx_ring-corruption-issue.patch
+# move to -std
+# patch 0003-powerpc-some-update-to-freescale-rapidio-driver.patch
+# already in the kernel-4.2 
+# patch 0004-fsl_p2020-provide-fsl_mem_ops.patch
+# patch 0005-fsl_rio-adds-more-debugging-messages-and-style-fixes.patch
+# patch 0006-fsl_p2020-Support-RIO-driver.patch
+# move to -std
+# patch 0007-ppc-fsl_p2020-preempt_rt-move-spin_lock-out-of-atomi.patch
+# patch 0008-fsl_p2020-mtd-fix-an-inappropriate-write-buffer-time.patch
+# already in the kernel-4.2
+# patch 0009-fsl_p2020-cgl-preempt_rt-force-handling-those-nested.patch
+patch p2020ds-add-srio-support.patch
+patch powerpc-p2020ds-add-event-button-handler.patch
+patch powerpc-p2020-sync-the-p2020-DTS-to-FSL-NONDPAA-SDK-.patch
+patch powerpc-p2020-update-the-espi-device-node.patch
+patch powerpc-p2020-update-p2020-DTS-for-PM-support.patch
+patch powerpc-p2020-enable-two-workarounds-for-eSDHC.patch
+patch powerpc-p2020-add-several-i2c-device-nodes.patch
+patch wrhv-p2020rdb-sync-with-the-DTS-of-native-BSP.patch

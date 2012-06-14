@@ -1,0 +1,9 @@
+define WRS_BOARD fsl_p50x0
+define WRS_KERNEL preempt_rt
+define WRS_ARCH powerpc
+
+scc_leaf ktypes/preempt_rt fsl_p50x0-preempt_rt
+
+include fsl_p50x0.scc
+
+patch MMU-mmu-no-hash-conflict-with-preempt-rt.patch

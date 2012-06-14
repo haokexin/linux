@@ -1,0 +1,302 @@
+From 597c5f75ef6c3fc521d14ebc074862b92d62e3e0 Mon Sep 17 00:00:00 2001
+From: Liming Wang <liming.wang@windriver.com>
+Date: Thu, 31 Mar 2011 16:30:20 +0800
+Subject: [PATCH 1/2] sched: add extended sched_dl syscalls for all arches.
+
+add four syscalls interface for x86, x86_64,
+arm, powerpc and mips arches:
+
+ - sys_sched_setscheduler_ex
+ - sys_sched_setparam_ex
+ - sys_sched_getparam_ex
+ - sys_sched_wait_interval
+
+split from EDF patches.
+
+Signed-off-by: Liming Wang <liming.wang@windriver.com>
+---
+ arch/arm/include/asm/unistd.h      |    6 +++++-
+ arch/arm/kernel/calls.S            |    4 ++++
+ arch/mips/include/asm/unistd.h     |   24 ++++++++++++++++++------
+ arch/mips/kernel/scall32-o32.S     |    4 ++++
+ arch/mips/kernel/scall64-64.S      |    4 ++++
+ arch/mips/kernel/scall64-n32.S     |    4 ++++
+ arch/mips/kernel/scall64-o32.S     |    4 ++++
+ arch/powerpc/include/asm/systbl.h  |    4 ++++
+ arch/powerpc/include/asm/unistd.h  |    7 ++++++-
+ arch/x86/ia32/ia32entry.S          |    4 ++++
+ arch/x86/include/asm/unistd_32.h   |    7 ++++++-
+ arch/x86/include/asm/unistd_64.h   |    9 +++++++++
+ arch/x86/kernel/syscall_table_32.S |    4 ++++
+ 13 files changed, 76 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm/include/asm/unistd.h b/arch/arm/include/asm/unistd.h
+index 7fe62cf..cba7c03 100644
+--- a/arch/arm/include/asm/unistd.h
++++ b/arch/arm/include/asm/unistd.h
+@@ -393,8 +393,12 @@
+ #define __NR_perf_event_open		(__NR_SYSCALL_BASE+364)
+ #define __NR_recvmmsg			(__NR_SYSCALL_BASE+365)
+ #define __NR_accept4			(__NR_SYSCALL_BASE+366)
++#define __NR_sched_setscheduler_ex	(__NR_SYSCALL_BASE+367)
++#define __NR_sched_setparam_ex		(__NR_SYSCALL_BASE+368)
++#define __NR_sched_getparam_ex		(__NR_SYSCALL_BASE+369)
++#define __NR_sched_wait_interval	(__NR_SYSCALL_BASE+370)
+ 
+-#define __NR_syscall_max 367
++#define __NR_syscall_max 371
+ 
+ /*
+  * The following SWIs are ARM private.
+diff --git a/arch/arm/kernel/calls.S b/arch/arm/kernel/calls.S
+index afeb71f..4c2ebcc 100644
+--- a/arch/arm/kernel/calls.S
++++ b/arch/arm/kernel/calls.S
+@@ -376,6 +376,10 @@
+ 		CALL(sys_perf_event_open)
+ /* 365 */	CALL(sys_recvmmsg)
+ 		CALL(sys_accept4)
++		CALL(sys_sched_setscheduler_ex)
++		CALL(sys_sched_setparam_ex)
++		CALL(sys_sched_getparam_ex)
++/* 370 */	CALL(sys_sched_wait_interval)
+ #ifndef syscalls_counted
+ .equ syscalls_padding, ((NR_syscalls + 3) & ~3) - NR_syscalls
+ #define syscalls_counted
+diff --git a/arch/mips/include/asm/unistd.h b/arch/mips/include/asm/unistd.h
+index 4f86f5a..1da4887 100644
+--- a/arch/mips/include/asm/unistd.h
++++ b/arch/mips/include/asm/unistd.h
+@@ -357,16 +357,20 @@
+ #define __NR_accept4			(__NR_Linux + 334)
+ #define __NR_recvmmsg			(__NR_Linux + 335)
+ #define __NR_revokeat			(__NR_Linux + 336)
++#define __NR_sched_setscheduler_ex	(__NR_Linux + 337)
++#define __NR_sched_setparam_ex		(__NR_Linux + 338)
++#define __NR_sched_getparam_ex		(__NR_Linux + 339)
++#define __NR_sched_wait_interval	(__NR_Linux + 340)
+ 
+ /*
+  * Offset of the last Linux o32 flavoured syscall
+  */
+-#define __NR_Linux_syscalls		336
++#define __NR_Linux_syscalls		340
+ 
+ #endif /* _MIPS_SIM == _MIPS_SIM_ABI32 */
+ 
+ #define __NR_O32_Linux			4000
+-#define __NR_O32_Linux_syscalls		336
++#define __NR_O32_Linux_syscalls		340
+ 
+ #if _MIPS_SIM == _MIPS_SIM_ABI64
+ 
+@@ -670,16 +674,20 @@
+ #define __NR_accept4			(__NR_Linux + 293)
+ #define __NR_recvmmsg			(__NR_Linux + 294)
+ #define __NR_revokeat			(__NR_Linux + 295)
++#define __NR_sched_setscheduler_ex	(__NR_Linux + 296)
++#define __NR_sched_setparam_ex		(__NR_Linux + 297)
++#define __NR_sched_getparam_ex		(__NR_Linux + 298)
++#define __NR_sched_wait_interval	(__NR_Linux + 299)
+ 
+ /*
+  * Offset of the last Linux 64-bit flavoured syscall
+  */
+-#define __NR_Linux_syscalls		295
++#define __NR_Linux_syscalls		299
+ 
+ #endif /* _MIPS_SIM == _MIPS_SIM_ABI64 */
+ 
+ #define __NR_64_Linux			5000
+-#define __NR_64_Linux_syscalls		295
++#define __NR_64_Linux_syscalls		299
+ 
+ #if _MIPS_SIM == _MIPS_SIM_NABI32
+ 
+@@ -988,16 +996,20 @@
+ #define __NR_recvmmsg			(__NR_Linux + 298)
+ #define __NR_getdents64			(__NR_Linux + 299)
+ #define __NR_revokeat			(__NR_Linux + 300)
++#define __NR_sched_setscheduler_ex	(__NR_Linux + 301)
++#define __NR_sched_setparam_ex		(__NR_Linux + 302)
++#define __NR_sched_getparam_ex		(__NR_Linux + 303)
++#define __NR_sched_wait_interval	(__NR_Linux + 304)
+ 
+ /*
+  * Offset of the last N32 flavoured syscall
+  */
+-#define __NR_Linux_syscalls		300
++#define __NR_Linux_syscalls		304
+ 
+ #endif /* _MIPS_SIM == _MIPS_SIM_NABI32 */
+ 
+ #define __NR_N32_Linux			6000
+-#define __NR_N32_Linux_syscalls		300
++#define __NR_N32_Linux_syscalls		304
+ 
+ #ifdef __KERNEL__
+ 
+diff --git a/arch/mips/kernel/scall32-o32.S b/arch/mips/kernel/scall32-o32.S
+index d84cdf4..df5602c 100644
+--- a/arch/mips/kernel/scall32-o32.S
++++ b/arch/mips/kernel/scall32-o32.S
+@@ -588,6 +588,10 @@ einval:	li	v0, -ENOSYS
+ 	sys	sys_vbi_mem		5
+ 	sys 	sys_vbi_activate_vb	2
+ 	sys 	sys_vbi_control		3
++	sys     sys_sched_setscheduler_ex 4
++	sys     sys_sched_setparam_ex	3
++	sys     sys_sched_getparam_ex	3
++	sys     sys_sched_wait_interval	2
+ 	.endm
+ 
+ 	/* We pre-compute the number of _instruction_ bytes needed to
+diff --git a/arch/mips/kernel/scall64-64.S b/arch/mips/kernel/scall64-64.S
+index 940ae73..1339761 100644
+--- a/arch/mips/kernel/scall64-64.S
++++ b/arch/mips/kernel/scall64-64.S
+@@ -423,4 +423,8 @@ EXPORT(sys_call_table)
+ 	PTR	sys_accept4
+ 	PTR     sys_recvmmsg
+ 	PTR	sys_revokeat
++	PTR     sys_sched_setscheduler_ex
++	PTR     sys_sched_setparam_ex
++	PTR     sys_sched_getparam_ex
++	PTR     sys_sched_wait_interval
+ 	.size	sys_call_table,.-sys_call_table
+diff --git a/arch/mips/kernel/scall64-n32.S b/arch/mips/kernel/scall64-n32.S
+index 973faa6..42ed957 100644
+--- a/arch/mips/kernel/scall64-n32.S
++++ b/arch/mips/kernel/scall64-n32.S
+@@ -426,4 +426,8 @@ EXPORT(sysn32_call_table)
+ 	PTR     sys_vbi_mem
+ 	PTR     sys_vbi_activate_vb
+ 	PTR     sys_vbi_control
++	PTR     sys_sched_setscheduler_ex
++	PTR     sys_sched_setparam_ex
++	PTR     sys_sched_getparam_ex
++	PTR     sys_sched_wait_interval
+ 	.size	sysn32_call_table,.-sysn32_call_table
+diff --git a/arch/mips/kernel/scall64-o32.S b/arch/mips/kernel/scall64-o32.S
+index 33b977f..abee6b4 100644
+--- a/arch/mips/kernel/scall64-o32.S
++++ b/arch/mips/kernel/scall64-o32.S
+@@ -543,4 +543,8 @@ EXPORT(syso32_call_table)
+ 	PTR     sys_vbi_mem
+ 	PTR     sys_vbi_activate_vb
+ 	PTR     sys_vbi_control
++	PTR     sys_sched_setscheduler_ex
++	PTR     sys_sched_setparam_ex
++	PTR     sys_sched_getparam_ex
++	PTR     sys_sched_wait_interval
+ 	.size	sys_call_table,.-sys_call_table
+diff --git a/arch/powerpc/include/asm/systbl.h b/arch/powerpc/include/asm/systbl.h
+index 3079049..e114e83 100644
+--- a/arch/powerpc/include/asm/systbl.h
++++ b/arch/powerpc/include/asm/systbl.h
+@@ -330,3 +330,7 @@ SYSCALL(revokeat)
+ SYSCALL(vbi_mem)
+ SYSCALL(vbi_activate_vb)
+ SYSCALL(vbi_control)
++COMPAT_SYS_SPU(sched_setscheduler_ex)
++COMPAT_SYS_SPU(sched_setparam_ex)
++COMPAT_SYS_SPU(sched_getparam_ex)
++COMPAT_SYS_SPU(sched_wait_interval)
+diff --git a/arch/powerpc/include/asm/unistd.h b/arch/powerpc/include/asm/unistd.h
+index 9a15186..80304b1 100644
+--- a/arch/powerpc/include/asm/unistd.h
++++ b/arch/powerpc/include/asm/unistd.h
+@@ -349,6 +349,11 @@
+ #define __NR_vbi_mem		324
+ #define __NR_vbi_activate_vb	325
+ #define __NR_vbi_control	326
++#define __NR_sched_setscheduler_ex	327
++#define __NR_sched_setparam_ex		328
++#define __NR_sched_getparam_ex		329
++#define __NR_sched_wait_interval	330
++
+ #define VBI_MEM_READ		0x0010
+ #define VBI_MEM_WRITE		0x0100
+ #define SYS_VBI_VB_SUSPEND	0x10001
+@@ -357,7 +362,7 @@
+ 
+ #ifdef __KERNEL__
+ 
+-#define __NR_syscalls		327
++#define __NR_syscalls		331
+ 
+ #define __NR__exit __NR_exit
+ #define NR_syscalls	__NR_syscalls
+diff --git a/arch/x86/ia32/ia32entry.S b/arch/x86/ia32/ia32entry.S
+index 70afbd6..2762ad4 100644
+--- a/arch/x86/ia32/ia32entry.S
++++ b/arch/x86/ia32/ia32entry.S
+@@ -849,4 +849,8 @@ ia32_sys_call_table:
+ 	.quad sys_perf_event_open
+ 	.quad compat_sys_recvmmsg
+ 	.quad sys_revokeat
++	.quad sys_sched_setscheduler_ex
++	.quad sys_sched_setparam_ex		/* 340 */
++	.quad sys_sched_getparam_ex
++	.quad sys_sched_wait_interval
+ ia32_syscall_end:
+diff --git a/arch/x86/include/asm/unistd_32.h b/arch/x86/include/asm/unistd_32.h
+index 489e7f5..3586be7 100644
+--- a/arch/x86/include/asm/unistd_32.h
++++ b/arch/x86/include/asm/unistd_32.h
+@@ -347,6 +347,11 @@
+ #define __NR_vbi_mem		339
+ #define __NR_vbi_activate_vb	340
+ #define __NR_vbi_control	341
++#define __NR_sched_setscheduler_ex	342
++#define __NR_sched_setparam_ex		343
++#define __NR_sched_getparam_ex		344
++#define __NR_sched_wait_interval	345
++
+ #define VBI_MEM_READ		0x0010
+ #define VBI_MEM_WRITE		0x0100
+ #define SYS_VBI_VB_SUSPEND	0x10001
+@@ -355,7 +360,7 @@
+ 
+ #ifdef __KERNEL__
+ 
+-#define NR_syscalls 342
++#define NR_syscalls 346
+ 
+ #define __ARCH_WANT_IPC_PARSE_VERSION
+ #define __ARCH_WANT_OLD_READDIR
+diff --git a/arch/x86/include/asm/unistd_64.h b/arch/x86/include/asm/unistd_64.h
+index 0491dda..420b2e8 100644
+--- a/arch/x86/include/asm/unistd_64.h
++++ b/arch/x86/include/asm/unistd_64.h
+@@ -669,6 +669,15 @@ __SYSCALL(__NR_vbi_mem, sys_vbi_mem)
+ __SYSCALL(__NR_vbi_activate_vb, sys_vbi_activate_vb)
+ #define __NR_vbi_control			302
+ __SYSCALL(__NR_vbi_control, sys_vbi_control)
++#define __NR_sched_setscheduler_ex		303
++__SYSCALL(__NR_sched_setscheduler_ex, sys_sched_setscheduler_ex)
++#define __NR_sched_setparam_ex			304
++__SYSCALL(__NR_sched_setparam_ex, sys_sched_setparam_ex)
++#define __NR_sched_getparam_ex			305
++__SYSCALL(__NR_sched_getparam_ex, sys_sched_getparam_ex)
++#define __NR_sched_wait_interval		306
++__SYSCALL(__NR_sched_wait_interval, sys_sched_wait_interval)
++
+ #define VBI_MEM_READ           0x0010
+ #define VBI_MEM_WRITE          0x0100
+ #define SYS_VBI_VB_SUSPEND	0x10001
+diff --git a/arch/x86/kernel/syscall_table_32.S b/arch/x86/kernel/syscall_table_32.S
+index 358b1aa..b5c900b 100644
+--- a/arch/x86/kernel/syscall_table_32.S
++++ b/arch/x86/kernel/syscall_table_32.S
+@@ -341,3 +341,7 @@ ENTRY(sys_call_table)
+ 	.long sys_vbi_mem		/* 339 */
+ 	.long sys_vbi_activate_vb	/* 340 */
+ 	.long sys_vbi_control		/* 341 */
++	.long sys_sched_setscheduler_ex
++	.long sys_sched_setparam_ex
++	.long sys_sched_getparam_ex	/* 344 */
++	.long sys_sched_wait_interval	/* 345 */
+-- 
+1.7.0.4
+

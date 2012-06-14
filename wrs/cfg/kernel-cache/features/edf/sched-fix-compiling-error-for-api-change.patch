@@ -1,0 +1,46 @@
+From 4cf3b6972eee907bc4e111ec02ccd1698f9928e6 Mon Sep 17 00:00:00 2001
+From: Liming Wang <liming.wang@windriver.com>
+Date: Thu, 27 May 2010 19:22:23 -0700
+Subject: [PATCH 14/15] sched: fix compiling error for api change
+
+There is one api change when porting deadline patches:
+
+ - In upstream ea87bb7853168434f4a82426dd1ea8421f9e604d,
+ enqueue_task has been changed: added a parameter. So change
+ the call site to avoid building error.
+
+Signed-off-by:: Liming Wang <liming.wang@windriver>
+---
+ kernel/sched.c    |    2 +-
+ kernel/sched_dl.c |    2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/sched.c b/kernel/sched.c
+index 7cba43e..fbc8513 100644
+--- a/kernel/sched.c
++++ b/kernel/sched.c
+@@ -4570,7 +4570,7 @@ static void __change_class_task(struct rq *rq, struct task_struct *p,
+ 	if (running)
+ 		p->sched_class->set_curr_task(rq);
+ 	if (on_rq) {
+-		enqueue_task(rq, p, 0);
++		enqueue_task(rq, p, 0, false);
+ 
+ 		check_class_changed(rq, p, prev_class, oldprio, running);
+ 	}
+diff --git a/kernel/sched_dl.c b/kernel/sched_dl.c
+index cb196ee..49a11d4 100644
+--- a/kernel/sched_dl.c
++++ b/kernel/sched_dl.c
+@@ -515,7 +515,7 @@ static void check_dl_preempt_curr(struct task_struct *p, struct rq *rq)
+ }
+ 
+ static void
+-enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags)
++enqueue_task_dl(struct rq *rq, struct task_struct *p, int flags, bool head)
+ {
+ 	struct sched_dl_entity *dl_se = &p->dl;
+ 
+-- 
+1.7.0.4
+

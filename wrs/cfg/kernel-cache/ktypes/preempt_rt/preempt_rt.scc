@@ -1,0 +1,46 @@
+include ktypes/standard/standard.scc
+branch preempt_rt
+
+include rt-upstream.scc
+
+kconf non-hardware preempt_rt.cfg
+
+# WR additions outside of, or not yet in 34-rt.
+patch rt-proc-sys-entries-for-controlling-hard-softirq-thr.patch
+patch rt-delete-mention-of-another-long-gone-RT-tunable-op.patch
+patch onionfs.patch
+patch lttng-Revert-notifier-atomic-call-chain-notrace.patch
+patch lttng-notrace-RCU-for-idle-call-chain.patch
+patch GIC-Convert-irq_controller_lock-to-raw_spinlock.patch
+patch ARM-SMP-Convert-ipi_data.lock-to-raw_spinlock.patch
+patch ARM-SMP-Convert-context.id_lock-to-raw_spinlock.patch
+patch drivers-net-rionet.c-make-spinlocks-rt-safe.patch
+patch rt_optimize-MMC-replace-local_irq-by-local_irq-_nort.patch
+patch preempt_rt-yaffs-Fix-the-usage-of-init_MUTEX.patch
+patch preempt_rt-x86-trace_hardirqs_o-avoid-IMV-optimazati.patch
+patch preempt_rt-kgdboc-Fixup-of-the-BUG-sleeping-function.patch
+patch mfd-twl4030_irq-replace-spin_lock-to-raw_spin_lock-t.patch
+patch mfd-twl4030_irq-replace-workqueue-to-tasklet-to-avoi.patch
+patch omap-clock-replace-spin_lock-to-raw_spin_lock-to-avo.patch
+
+# obsolete by:
+#   Remove useless op_model_v7.c
+# patch oprofile-armv7-change-the-interrupt-handler-from-thr.patch
+
+patch ppc-preempt-rt-delete-local_irq_enable-in-do_signal_.patch
+patch omap-gpio-replace-spin_lock-with-raw_spin_lock-in-_s.patch
+#patch Implement-switch-and-pass-buffer-from-kdb-gdb.patch
+#patch Remove-all-references-to-DOING_KGDB2.patch
+#patch Allow-arbitrary-kgdb-magic-knock-sequences.patch
+patch preempt_rt-acpi-don-t-call-cond_resched-if-in_atomic.patch
+patch ocf-disable-when-RT-is-enabled.patch
+patch net-dpa-replace-local_irq-with-local_irq-_nort.patch
+patch fsl_qbman-modify-PORTAL_IRQ_LOCK.patch
+patch TI816x-preempt_rt-Add-IRQF_NODELAY-flag-for-davinci_.patch
+patch preempt_rt-gianfar-use-SYSTEM_SUSPEND-prevent-call-t.patch
+patch preempt_rt-gianfar-Fix-ARP-suspend-resume-generate-c.patch
+patch preempt_rt-arm-perf-keep-PMU-irq-handler-in-hard-irq.patch
+patch Preempt-RT-Oprofile-Call-hrtimer-callback-in-interru.patch
+patch preempt_rt-powerpc-fix-incorrect-definition-of-pte_u.patch
+patch preempt_rt-powerpc-Accomplish-kunmap_virt-with-HIGHM.patch
+patch preempt_rt-gianfar-Fix-vconfig-generate-call-trace.patch

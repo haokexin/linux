@@ -1,0 +1,79 @@
+# kernel patch inheritance
+
+include ktypes/standard/standard.scc
+branch cgl
+
+kconf non-hardware cgl.cfg
+
+define no_force_tagging 1
+
+# CGL feature includes
+include features/preempt_irq/preempt_irq.scc
+tag preempt_irq
+
+include features/grsec/grsec.scc
+tag grsec
+
+include features/oom/oom.scc
+tag oom
+
+include features/memmon/memmon.scc
+tag memmon
+
+
+include features/revoke/revoke.scc
+tag revoke
+
+include features/ipmi/ipmi.scc
+tag ipmi
+
+include features/evlog/evlog.scc
+
+patch kernel-sys.c-Introduce-ALWAYS_RESTART-config-option.patch
+patch bonding-Bonding-device-info-support.patch
+patch md-get-rebuild-info-support.patch
+patch NMI-disabling-at-runtime.patch
+patch NMI-export-proc-intf-to-set-NMI-Watchdog-threshold.patch
+patch time-notify-processes-when-time-of-day-is-changed.patch
+patch Notification-of-death-of-arbitrary-processes.patch
+patch oom-kill-Protect-high-volume-server-applications-fro.patch
+patch time-export-high-resolution-timestamps.patch
+patch net-tracking-high-water-mark-for-per-device-transmit.patch
+patch watchdog-Introduce-dynamic-minor-device-number-alloc.patch
+patch net-add-socket-stats-support.patch
+patch fs-Kconfig-make-MAX_NESTED_LINKS-configurable.patch
+
+
+include features/edac/edac.scc
+tag edac
+
+include features/pmem/pmem.scc
+tag pmem
+
+include features/vMC/vMC.scc
+tag vMC
+
+patch af-mercury.patch
+patch nmi-print-fix.patch
+patch md-RAID1-instrumentation.patch
+patch 8250-faulty-8250-Serial-UARTs-is-optional.patch
+patch nested-alt-sigstack.patch
+
+include features/l2tpv3/l2tpv3-enable.scc
+
+patch audit-mips-Audit-Syscall-missing-MIPS-Arch.patch
+patch Dynamic-Ftrace-seperate-code-or-data-section-for-Pow.patch
+patch audit-add-NR_syscalls-for-mips.patch
+patch audit-add-NR_syscalls-for-arm.patch
+patch audit-fix-kernel-panic-due-to-invalid-syscall.patch
+patch MIPS-AUDIT-Add-syscall-auditing-support.patch
+
+
+patch genirq-nlm_xls_atx_64_be-prevent-usb-softirq-thread-.patch
+patch l2tp-ppp-missing-in-compat-ioctl.patch
+patch kdb-Fix-compile-error-after-pax-is-merged-with-kdb.patch
+patch ftrace-pass-NULL-to-frace_arch_code_modify_post_proc.patch
+patch kernel-use-SLAB-allocator-with-NUMA.patch
+patch Fix-name-of-module_core-for-cgl.patch
+patch features/lxc/lxc-cgl-introduce-lxc-namespace-functionality.patch
+patch vMC-fix-potential-memory-leak-in-main_sdr_add.patch

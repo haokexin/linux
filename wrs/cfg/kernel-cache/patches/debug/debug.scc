@@ -1,0 +1,18 @@
+patch emit-crash-char-Allow-diversion-of-printk-output-for.patch
+patch ptrace-soft-single-stepping.patch
+patch ptrace-scheduling-while-atomic-fix-for-ARM.patch
+patch Fix-ptrace.h-namespace-collsion-with-glibc.patch
+patch powerpc-fix-userspace-build-of-ptrace.h.patch
+patch tracing-Properly-align-linker-defined-symbols.patch
+patch tracing-Replace-syscall_meta_data-struct-array-with-.patch
+patch vmlinux.lds-fix-.data.init_task-output-section-fix-p.patch
+patch perf-fix-compile-error.patch
+patch tracing-fix-oops-for-powerpc-in-irqsoff_tracer.patch
+patch powerpc-lockdep-ignore-MSR_PR-check-when-CONFIG_PROV.patch
+
+# obsolete by:
+#   Remove useless op_model_v7.c
+# patch oprofile-armv7-improve-setup-pmnc-failure-warning.patch
+
+patch Thumb-2-introduces-32-bit-encoded-instructions-adjus.patch
+patch tracing-Replace-syscall_meta_data-struct-array-with-.patch

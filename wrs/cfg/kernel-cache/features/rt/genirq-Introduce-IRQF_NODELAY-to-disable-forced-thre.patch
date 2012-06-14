@@ -1,0 +1,45 @@
+From c0d07d826e9e7479404e9fd5de5f34f67586d639 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Fri, 24 Jul 2009 12:58:11 +0200
+Subject: [PATCH] genirq: Introduce IRQF_NODELAY to disable forced threading for an irq
+
+commit 73a269a0cfccbb16c4926ec9f8f6414177424596 in tip.
+
+Add the IRQF_NODELAY flag and implicitely mark all timer interrupts
+IRQF_NODELAY by redefining IRQF_TIMER.
+
+[PG: bounce NODELAY up two bits since ONESHOT and NO_SUSPEND were added]
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: Paul Gortmaker <paul.gortmaker@windriver.com>
+---
+ include/linux/interrupt.h |    4 +++-
+ 1 files changed, 3 insertions(+), 1 deletions(-)
+
+diff --git a/include/linux/interrupt.h b/include/linux/interrupt.h
+index 6be4419..0e7c133 100644
+--- a/include/linux/interrupt.h
++++ b/include/linux/interrupt.h
+@@ -54,6 +54,7 @@
+  *                irq line disabled until the threaded handler has been run.
+  * IRQF_NO_SUSPEND - Do not disable this IRQ during suspend
+  * IRQF_FORCE_RESUME - Force enable it on resume even if IRQF_NO_SUSPEND is set
++ * IRQF_NODELAY - Interrupt is not force threaded on -rt
+  * IRQF_EARLY_RESUME - Resume IRQ early during syscore instead of at device
+  *                resume time.
+  */
+@@ -68,9 +69,10 @@
+ #define IRQF_ONESHOT		0x00002000
+ #define IRQF_NO_SUSPEND		0x00004000
+ #define IRQF_FORCE_RESUME	0x00008000
++#define IRQF_NODELAY		0x00010000
+ #define IRQF_EARLY_RESUME	0x00020000
+ 
+-#define IRQF_TIMER		(__IRQF_TIMER | IRQF_NO_SUSPEND)
++#define IRQF_TIMER		(__IRQF_TIMER | IRQF_NO_SUSPEND | IRQF_NODELAY)
+ 
+ /*
+  * Bits used by threaded handlers:
+-- 
+1.7.0
+

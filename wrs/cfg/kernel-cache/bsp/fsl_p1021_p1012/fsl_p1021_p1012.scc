@@ -1,0 +1,25 @@
+kconf hardware fsl_p1021_p1012.cfg
+
+patch powerpc-85xx-Add-P1021MDS-board-support.patch
+patch powerpc-P1021MDS-usb-Add-comment-for-USB-Gadget-supp.patch
+patch powerpc-P1021MDS-Increased-writable-RFS-partition-si.patch
+patch PowerPC-P1021MDS-add-CAMP-support.patch
+patch powerpc-P1021MDS-set-release-muxed-QE12-pin-for-UEC-.patch
+patch P1021MDS-UCC-transparent-and-TSA-function-support-fo.patch
+patch P1021MDS-ADD-pq-mds-t1-card-support.patch
+patch P1021MDS-Add-dts-file-for-TDM-feature.patch
+patch P1021MDS-UCC-TDM-test-module.patch
+patch Powerpc-TDM-Fix-incorrect-state-of-ucc_tdm_test-thre.patch
+patch P1021MDS-Add-tdm-dts-binding-description-file.patch
+patch PowerPC-QE-Add-support-for-utopia-upc-on-QE.patch
+patch PowerPC-QE-Add-support-for-Timestamp-timer-on-QE.patch
+patch PowerPC-QE-declare-upc_init-and-upc_dump-to-use-them.patch
+patch PowerPC-ATM-UCC-ATM-driver.patch
+patch PowerPC-ATM-Build-Support-for-UCC-ATM-driver.patch
+patch PowerPC-ATM-Fix-kernel-crash-in-UCC-ATM-driver.patch
+patch P1021MDS-ATM-QE-pio-initial-code-for-ATM-feature.patch
+patch P1021MDS-ATM-ATM-configuration-for-P1021MDS.patch
+patch PowerPC-P1021MDS-Update-device-tree.patch
+patch P1021MDS-ATM-Fixed-kernel-hanging-in-UCC-ATM-driver.patch
+patch powerpc-p1021-update-the-espi-device-node.patch
+patch bsp/fsl_p1020_p1011/mtd-nand-use-elbc_fcm_ctrl-oob-to-set-FPAR_MS-bit-of.patch

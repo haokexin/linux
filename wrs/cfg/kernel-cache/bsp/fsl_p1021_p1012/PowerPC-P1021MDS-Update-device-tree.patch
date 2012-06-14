@@ -1,0 +1,348 @@
+From 1900c9dfa473b93ff69caa103b3212f12456f627 Mon Sep 17 00:00:00 2001
+From: Jiang Lu <lu.jiang@windriver.com>
+Date: Fri, 26 Aug 2011 13:37:57 +0800
+Subject: [PATCH] PowerPC:P1021MDS:Update device tree
+
+The Main changes include:
+- Add IEEE 1588 support
+- power node added to enable PM
+- timer node added to test wakeup from timer
+- Add ATM & UTOPIA node
+- Update multi-host-mode property in crypto node of AMP device tree
+
+All these changes are extracted from vendor drop
+QorIQ-NONDPAA-SDK-V1-20110429_ltib.iso.
+
+Signed-off-by: Jiang Lu <lu.jiang@windriver.com>
+---
+ arch/powerpc/boot/dts/p1021mds.dts            |  187 ++++++++++++++++++++++++-
+ arch/powerpc/boot/dts/p1021mds_camp_core0.dts |    2 +
+ arch/powerpc/boot/dts/p1021mds_camp_core1.dts |    2 +-
+ arch/powerpc/boot/dts/p1021mds_tdm.dts        |    8 +-
+ 4 files changed, 195 insertions(+), 4 deletions(-)
+
+diff --git a/arch/powerpc/boot/dts/p1021mds.dts b/arch/powerpc/boot/dts/p1021mds.dts
+index 64a8452..1269363 100644
+--- a/arch/powerpc/boot/dts/p1021mds.dts
++++ b/arch/powerpc/boot/dts/p1021mds.dts
+@@ -1,7 +1,7 @@
+ /*
+  * P1021 MDS Device Tree Source
+  *
+- * Copyright 2010 Freescale Semiconductor Inc.
++ * Copyright 2011 Freescale Semiconductor Inc.
+  *
+  * This program is free software; you can redistribute it and/or modify it
+  * under the terms of the GNU General Public License as published by the
+@@ -359,6 +359,16 @@
+ 			};
+ 		};
+ 
++		ptp_timer: ptimer@b0e00 {
++			compatible = "fsl,gianfar-ptp-timer";
++			reg = <0xb0e00 0xb0>;
++			interrupts = <68 2 69 2 70 2>;
++			interrupt-parent = <&mpic>;
++			tmr-prsc = <0x2>;
++			cksel = <1>;
++			timer-frequency = <200000000>;
++		};
++
+ 		enet0: ethernet@B0000 {
+ 			#address-cells = <1>;
+ 			#size-cells = <1>;
+@@ -368,9 +378,12 @@
+ 			compatible = "fsl,etsec2";
+ 			fsl,num_rx_queues = <0x8>;
+ 			fsl,num_tx_queues = <0x8>;
++			fsl,magic-packet;
++			clk-handle = <&etsec1_clk>;
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupt-parent = <&mpic>;
+ 			phy-handle = <&phy0>;
++			ptimer-handle = <&ptp_timer>;
+ 			phy-connection-type = "rgmii-id";
+ 			queue-group@0{
+ 				#address-cells = <1>;
+@@ -395,9 +408,12 @@
+ 			compatible = "fsl,etsec2";
+ 			fsl,num_rx_queues = <0x8>;
+ 			fsl,num_tx_queues = <0x8>;
++			fsl,magic-packet;
++			clk-handle = <&etsec2_clk>;
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupt-parent = <&mpic>;
+ 			phy-handle = <&phy4>;
++			ptimer-handle = <&ptp_timer>;
+ 			tbi-handle = <&tbi0>;
+ 			phy-connection-type = "sgmii";
+ 			queue-group@0{
+@@ -423,9 +439,12 @@
+ 			compatible = "fsl,etsec2";
+ 			fsl,num_rx_queues = <0x8>;
+ 			fsl,num_tx_queues = <0x8>;
++			fsl,magic-packet;
++			clk-handle = <&etsec3_clk>;
+ 			local-mac-address = [ 00 00 00 00 00 00 ];
+ 			interrupt-parent = <&mpic>;
+ 			phy-handle = <&phy1>;
++			ptimer-handle = <&ptp_timer>;
+ 			phy-connection-type = "rgmii-id";
+ 			queue-group@0{
+ 				#address-cells = <1>;
+@@ -461,6 +480,29 @@
+ 			fsl,channel-fifo-len = <24>;
+ 			fsl,exec-units-mask = <0x97c>;
+ 			fsl,descriptor-types-mask = <0x3a30abf>;
++			fsl,multi-host-mode = "dual";
++			fsl,channel-remap = <0x3>;
++		};
++
++		power@e0070{
++			compatible = "fsl,mpc8548-pmc", "fsl,p1021-pmc";
++			reg = <0xe0070 0x20>;
++			etsec1_clk: soc-clk@B0{
++				fsl,pmcdr-mask = <0x00000080>;
++			};
++			etsec2_clk: soc-clk@B1{
++				fsl,pmcdr-mask = <0x00000040>;
++			};
++			etsec3_clk: soc-clk@B2{
++				fsl,pmcdr-mask = <0x00000020>;
++			};
++		};
++
++		timer@41100 {
++			compatible = "fsl,mpic-global-timer";
++			reg = <0x41100 0x204>;
++			interrupts = <0xf7 0x2>;
++			interrupt-parent = <&mpic>;
+ 		};
+ 
+ 		mpic: pic@40000 {
+@@ -566,6 +608,115 @@
+ 					0x1  0x11 0x1  0x0  0x2  0x0>;    /* SER7_TXD0_OPT2*/
+ 			};
+ 
++			pio_atm: upc_pin@01 {
++				pio-map = <
++			/* port  pin  dir  open_drain  assignment  has_irq */
++					0x1  0x2  0x2  0x0  0x1  0x0    /* CLK20 */
++					0x1  0x3  0x2  0x0  0x1  0x0    /* CLK19 */
++					0x1  0x1  0x1  0x0  0x3  0x0    /* UPC1_M_TXADDR0 */
++					0x0  0x1d 0x1  0x0  0x3  0x0    /* UPC1_M_TXADDR1 */
++					0x0  0x1e 0x1  0x0  0x3  0x0    /* UPC1_M_TXADDR2 */
++					0x0  0x1  0x1  0x0  0x3  0x0    /* UPC1_M_TXADDR3 */
++					0x1  0x1c 0x1  0x0  0x3  0x0    /* UPC1_M_TXADDR4 */
++					0x0  0x1f 0x1  0x0  0x3  0x0    /* UPC1_M_RXADDR0 */
++					0x1  0x0  0x1  0x0  0x3  0x0    /* UPC1_M_RXADDR1 */
++					0x0  0x1c 0x1  0x0  0x3  0x0    /* UPC1_M_RXADDR2 */
++					0x0  0x3  0x1  0x0  0x3  0x0    /* UPC1_M_RXADDR3 */
++					0x0  0x2  0x1  0x0  0x3  0x0    /* UPC1_M_RXADDR4 */
++					0x0  0x18 0x2  0x0  0x3  0x0    /* UPC1_M_RXCLAV0 */
++					0x0  0x19 0x2  0x0  0x3  0x0    /* UPC1_M_TXCLAV0 */
++					0x0  0x1b 0x1  0x0  0x3  0x0    /* UPC1_M_RXEN */
++					0x0  0x1a 0x1  0x0  0x3  0x0    /* UPC1_M_TXEN */
++					0x0  0x17 0x1  0x0  0x3  0x0    /* UPC1_TXSOC */
++					0x0  0x4  0x1  0x0  0x3  0x0    /* UPC1_TXDATA8 */
++					0x0  0x5  0x1  0x0  0x3  0x0    /* UPC1_TXDATA9 */
++					0x0  0x6  0x1  0x0  0x3  0x0    /* UPC1_TXDATA10 */
++					0x0  0x7  0x1  0x0  0x3  0x0    /* UPC1_TXDATA11 */
++					0x0  0x8  0x1  0x0  0x3  0x0    /* UPC1_TXDATA12 */
++					0x0  0x9  0x1  0x0  0x3  0x0    /* UPC1_TXDATA13 */
++					0x0  0xa  0x1  0x0  0x3  0x0    /* UPC1_TXDATA14 */
++					0x0  0xb  0x1  0x0  0x3  0x0    /* UPC1_TXDATA15 */
++					0x0  0x16 0x2  0x0  0x3  0x0    /* UPC1_RXSOC */
++					0x0  0xc  0x2  0x0  0x3  0x0    /* UPC1_RXDATA8 */
++					0x0  0xd  0x2  0x0  0x3  0x0    /* UPC1_RXDATA9 */
++					0x0  0xe  0x2  0x0  0x3  0x0    /* UPC1_RXDATA10 */
++					0x0  0xf  0x2  0x0  0x3  0x0    /* UPC1_RXDATA11 */
++					0x0  0x10 0x2  0x0  0x3  0x0    /* UPC1_RXDATA12 */
++					0x0  0x11 0x2  0x0  0x3  0x0    /* UPC1_RXDATA13 */
++					0x0  0x12 0x2  0x0  0x3  0x0    /* UPC1_RXDATA14 */
++					0x0  0x13 0x2  0x0  0x3  0x0    /* UPC1_RXDATA15 */
++					0x0  0x15 0x2  0x0  0x3  0x0    /* UPC1_RXPRTY */
++					0x0  0x14 0x1  0x0  0x3  0x0>;    /* UPC1_TXPRTY */
++			};
++		};
++	};
++
++	qoc3@f8010000 {
++		#address-cells = <1>;
++		#size-cells = <1>;
++		#interrupt-cells = <2>;
++		device_type = "qoc3 atm card";
++		ranges = <0 0 0xf8010000 0x1e00>;
++		compatible = "simple-bus";
++
++		pm5384a: fua-phy@e00 {
++			device_type = "atm phy";
++			compatible = "fua-phy";
++			device-id = <1>;
++			reg = <0xe00 0x200>;
++			interrupt-parent = <&mpic>;
++			interrupts = <4 1>;
++			upc-slot = <&upcs0>;
++			ucc-handle = <&ucc_atm>;
++			line_bitr = <0x93d1cc0>;  /* 155000000 - 0x93d1cc0 */
++			max_bitr = <0x93d1cc0>;   /* 50000000  - 0x2faf080 */
++			min_bitr = <0x2faf080>;
++			port-width = <0>;
++		};
++
++		pm5384b: fua-phy@1600 {
++			device_type = "atm phy";
++			compatible = "fua-phy";
++			device-id = <2>;
++			reg = <0x1600 0x200>;
++			interrupt-parent = <&mpic>;
++			interrupts = <4 1>;
++			upc-slot = <&upcs0>;
++			ucc-handle = <&ucc_atm>;
++			line_bitr = <0x93d1cc0>;
++			max_bitr = <0x93d1cc0>;
++			min_bitr = <0x2faf080>;
++			port-width = <0>;
++		};
++
++		pm5384c: fua-phy@1a00 {
++			device_type = "atm phy";
++			compatible = "fua-phy";
++			device-id = <3>;
++			reg = <0x1a00 0x200>;
++			interrupt-parent = <&mpic>;
++			interrupts = <5 1>;
++			upc-slot = <&upcs0>;
++			ucc-handle = <&ucc_atm>;
++			line_bitr = <0x93d1cc0>;
++			max_bitr = <0x93d1cc0>;
++			min_bitr = <0x2faf080>;
++			port-width = <0>;
++		};
++
++		pm5384d: fua-phy@1c00 {
++			device_type = "atm phy";
++			compatible = "fua-phy";
++			device-id = <4>;
++			reg = <0x1c00 0x200>;
++			interrupt-parent = <&mpic>;
++			interrupts = <5 1>;
++			upc-slot = <&upcs0>;
++			ucc-handle = <&ucc_atm>;
++			line_bitr = <0x93d1cc0>;
++			max_bitr = <0x93d1cc0>;
++			min_bitr = <0x2faf080>;
++			port-width = <0>;
+ 		};
+ 	};
+ 
+@@ -655,6 +806,8 @@
+ 		fsl,qe-num-riscs = <1>;
+ 		fsl,qe-num-snums = <28>;
+ 		status = "disabled"; /* no firmware loaded */
++		fsl,time-stamp1-clock = "qeclk";
++		fsl,time-stamp2-clock = "qeclk";
+ 
+ 		qeic: interrupt-controller@80 {
+ 			interrupt-controller;
+@@ -666,6 +819,28 @@
+ 			interrupt-parent = <&mpic>;
+ 		};
+ 
++		upc@2e00 {
++			#address-cells = <1>;
++			#size-cells = <0>;
++			compatible = "fsl,qe-upc";
++			device-id = <1>;
++			reg = <0x2e00 0x200>;
++			fsl,rx-clock = "clk20";
++			fsl,tx-clock = "clk19";
++			fsl,internal-clock = "clk19";
++			fsl,utopia;
++			fsl,tx-slave = <0>;
++			fsl,rx-slave = <0>;
++			fsl,address-mode = <0>;
++			pio-handle = <&pio_atm>;
++
++			upcs0: upc-slot@00 {
++				compatible = "fsl,qe-upc-slot";
++				device-id = <1>;
++				fsl,end-point = <4>;
++			};
++		};
++
+ 		enet3: ucc@2000 {
+ 			device_type = "network";
+ 			compatible = "ucc_geth";
+@@ -734,6 +909,16 @@
+ 			pio-handle = <&pio3>;
+ 		};
+ 
++		ucc_atm: ucc@2200 {
++			device_type = "network";
++			compatible = "ucc_geth", "fsl,qe-ucc-atm";
++			cell-index = <3>;
++			reg = <0x2200 0x200>;
++			interrupts = <34>;
++			interrupt-parent = <&qeic>;
++			multithread;
++		};
++
+ 		muram@10000 {
+ 			#address-cells = <1>;
+ 			#size-cells = <1>;
+diff --git a/arch/powerpc/boot/dts/p1021mds_camp_core0.dts b/arch/powerpc/boot/dts/p1021mds_camp_core0.dts
+index 0a4f695..8fb2af6 100644
+--- a/arch/powerpc/boot/dts/p1021mds_camp_core0.dts
++++ b/arch/powerpc/boot/dts/p1021mds_camp_core0.dts
+@@ -413,6 +413,8 @@
+ 			fsl,channel-fifo-len = <24>;
+ 			fsl,exec-units-mask = <0x97c>;
+ 			fsl,descriptor-types-mask = <0x3a30abf>;
++			fsl,multi-host-mode = "secondary";
++			fsl,channel-remap = <0x3>;
+ 		};
+ 
+ 		mpic: pic@40000 {
+diff --git a/arch/powerpc/boot/dts/p1021mds_camp_core1.dts b/arch/powerpc/boot/dts/p1021mds_camp_core1.dts
+index bf3c1f5..11f7ff1 100644
+--- a/arch/powerpc/boot/dts/p1021mds_camp_core1.dts
++++ b/arch/powerpc/boot/dts/p1021mds_camp_core1.dts
+@@ -121,7 +121,7 @@
+ 			fsl,channel-fifo-len = <24>;
+ 			fsl,exec-units-mask = <0x97c>;
+ 			fsl,descriptor-types-mask = <0x3a30abf>;
+-			fsl,multi-host-mode = "secondary";
++			fsl,multi-host-mode = "primary";
+ 			fsl,channel-remap = <0x3>;
+ 		};
+ 
+diff --git a/arch/powerpc/boot/dts/p1021mds_tdm.dts b/arch/powerpc/boot/dts/p1021mds_tdm.dts
+index 4d1ff3b..6cfe231 100644
+--- a/arch/powerpc/boot/dts/p1021mds_tdm.dts
++++ b/arch/powerpc/boot/dts/p1021mds_tdm.dts
+@@ -376,6 +376,11 @@
+ 		ptp_timer: ptimer@b0e00 {
+ 			compatible = "fsl,gianfar-ptp-timer";
+ 			reg = <0xb0e00 0xb0>;
++			interrupts = <68 2 69 2 70 2>;
++			interrupt-parent = <&mpic>;
++			tmr-prsc = <0x2>;
++			cksel = <1>;
++			timer-frequency = <200000000>;
+ 		};
+ 
+ 		enet0: ethernet@B0000 {
+@@ -494,8 +499,7 @@
+ 		};
+ 
+ 		power@e0070{
+-			compatible = "fsl,mpc8536-pmc", "fsl,mpc8548-pmc",
+-			             "fsl,p1022-pmc";
++			compatible = "fsl,mpc8548-pmc", "fsl,p1021-pmc";
+ 			reg = <0xe0070 0x20>;
+ 			etsec1_clk: soc-clk@B0{
+ 				fsl,pmcdr-mask = <0x00000080>;
+-- 
+1.7.0.4
+

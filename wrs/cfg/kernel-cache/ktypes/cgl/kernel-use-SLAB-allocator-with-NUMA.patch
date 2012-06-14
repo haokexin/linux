@@ -1,0 +1,31 @@
+From cd791cfd159a1f46a868d52f685e51000d90aa21 Mon Sep 17 00:00:00 2001
+From: Greg Moffatt <greg.moffatt@windriver.com>
+Date: Tue, 21 Dec 2010 09:15:02 -0500
+Subject: [PATCH] kernel: use SLAB allocator with NUMA
+
+When NUMA is configured for a CGL kernel on an intel 5500 target,
+the kernel panics when init is started.  There is a conflict between
+NUMA, GRSEC/PAX, and the SLUB allocator.
+
+To address this the SLAB allocator should be configured instead.  To
+achieve this the Kconfig for the allocator is changed such that if
+NUMA is configured by a user the SLAB allocator is selected, rather
+than the SLUB allocator.
+
+Signed-off-by: Greg Moffatt <greg.moffatt@windriver.com>
+
+diff --git a/init/Kconfig b/init/Kconfig
+index 26dd2dc..f917a40 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -1170,6 +1170,7 @@ config COMPAT_BRK
+ 
+ choice
+ 	prompt "Choose SLAB allocator"
++	default SLAB if (NUMA && GRKERNSEC)
+ 	default SLUB
+ 	help
+ 	   This option allows to select a slab allocator.
+-- 
+1.7.0
+

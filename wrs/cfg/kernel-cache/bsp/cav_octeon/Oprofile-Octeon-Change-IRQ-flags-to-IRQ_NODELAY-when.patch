@@ -1,0 +1,40 @@
+From 937c86518f3d69edb9b53ea9127164a55d8a2b1b Mon Sep 17 00:00:00 2001
+From: Yang Shi <yang.shi@windriver.com>
+Date: Fri, 10 Sep 2010 00:44:54 -0700
+Subject: [PATCH] Oprofile: Octeon: Change IRQ flags to IRQ_NODELAY when threaded IRQ enabled
+
+The original oprofile IRQ flags is IRQF_SHARED. And, on Octeon, orpofile
+IRQ is a common external interrupt. So, CONFIG_PREEMPT_HARDIRQS will
+thread it. This cause oprofile IRQ doesn't work well with threaded IRQ.
+So, change the IRQ flags to IRQ_NODELAY.
+
+Signed-off-by: Yang Shi <yang.shi@windriver.com>
+---
+ arch/mips/oprofile/op_model_cavium_octeon.c |   11 +++++++++--
+ 1 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/arch/mips/oprofile/op_model_cavium_octeon.c b/arch/mips/oprofile/op_model_cavium_octeon.c
+index a910443..88fef67 100644
+--- a/arch/mips/oprofile/op_model_cavium_octeon.c
++++ b/arch/mips/oprofile/op_model_cavium_octeon.c
+@@ -114,8 +114,15 @@ static irqreturn_t octeon_perfcount_handler(int irq, void *dev_id)
+ 
+ static int octeon_init(void)
+ {
+-	int result =
+-		request_irq(OCTEON_IRQ_PERF, octeon_perfcount_handler, IRQF_SHARED,
++	unsigned long irq_flags;
++	int result;
++#ifdef CONFIG_PREEMPT_HARDIRQS
++	irq_flags = IRQF_NODELAY;
++#else
++	irq_flags = IRQF_SHARED;
++#endif 
++	result =
++		request_irq(OCTEON_IRQ_PERF, octeon_perfcount_handler, irq_flags,
+ 			    "Perfcounter", octeon_perfcount_handler);
+ #ifdef CONFIG_SMP
+ 	if (result == 0) {
+-- 
+1.6.5.2
+

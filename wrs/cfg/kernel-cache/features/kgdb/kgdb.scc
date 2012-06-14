@@ -1,0 +1,34 @@
+kconf non-hardware kgdb.cfg
+
+scc_merge 4.0-staging.git kgdb-2.6.34-base "kgdb: merge kgdb/kdb functionality"
+
+patch kgdb-export-dbg_kdb_mode.patch
+patch repair-gdbstub-to-match-the-gdbserial-protocol-speci.patch
+patch kgdb-mips-register-read-fixes.patch
+patch kgdb-mips-remove-cache-flush-in-kgdb_arch_handle_exc.patch
+patch gdbstub-calculate-register-data-size-from-gdb-protoc.patch
+patch kdb-add-an-special-escape-for-WR-WorkBench.patch
+patch gdbstub-arm-fix-the-system-crash-when-implement-qcpu.patch
+patch debug_core-move-all-watch-dog-syncs-to-a-single-func.patch
+patch rcu-permit-suppressing-current-grace-period-s-CPU-st.patch
+patch kgdboe-handle-the-special-case-that-passed-0-to-conf.patch
+patch kgdboe-check-kgdboe-whether-initialized-or-not-when-.patch
+patch e1000e-add-netpoll-support-for-MSI-MSI-X-IRQ-modes.patch
+patch kdb-Fix-oops-in-kdb_unregister.patch
+patch debug_core-disable-hw_breakpoints-on-all-cores-in-kg.patch
+patch debug_core-refactor-locking-for-master-slave-cpus.patch
+patch kdb-debug_core-adjust-master-cpu-switch-logic-agains.patch
+patch debug_core-x86-blackfin-Clean-up-hw-debug-disable-AP.patch
+patch kdb-fix-per_cpu-command-to-remove-supress-mask.patch
+patch kdb-Fix-early-debugging-crash-regression.patch
+patch kgdb-arm-fix-register-dump.patch
+patch kgdbts-prevent-re-entry-to-kgdbts-before-it-unregist.patch
+patch kdb-add-an-special-escape-to-gdbstub-for-gdb-4.4.patch
+patch kgdb-ppc-do-not-set-kgdb_single_step-on-ppc.patch
+patch kgdb-ppc-following-gdb-s-fix-about-e500mc-e500mc64.patch
+patch Fix-merge-regression-from-external-kdb-to-upstream-k.patch
+patch Implement-switch-and-pass-buffer-from-kdb-gdb.patch
+patch Remove-all-references-to-DOING_KGDB2.patch
+patch Allow-arbitrary-kgdb-magic-knock-sequences.patch
+patch kgdboc-fix-lost-characters-with-scheduled-breakpoint.patch
+patch kgdb-build-fix.patch

@@ -1,0 +1,113 @@
+# patches are for everyone, but the kconfig data is just for ARM builds.
+if [ "$WRS_ARCH" = "arm" ]; then
+	kconf hardware arm.cfg
+fi
+patch DSS2-fix-a-compile-problem-in-DSS2.patch
+patch omapfb-Fix-omapfb_get_recommended_bpp.patch
+patch OMAP-fix-a-gpmc-nand-problem.patch
+patch arm-ARM-EABI-socketcall.patch
+patch arm-ARM-XIP-u-boot-updates.patch
+patch arm-Prevent-prefetch-optimization-for-ARM.patch
+# commit 82c6f5a5b3e91ef4d2fb8725de4b8cf7affd4d61 replaces arm-Arm-VFP-Context.patch
+# patch arm-Arm-VFP-Context.patch
+patch OMAP3-add-gpio-pad-config-save-and-restore-for-pm.patch
+patch ARM-Align-machine_desc.phys_io-to-a-1MB-section.patch
+patch ARM-Avoid-the-CONSISTENT_DMA_SIZE-warning-on-noMMU-b.patch
+patch ARM-The-v6_dma_inv_range-function-must-preserve-data.patch
+patch ARM-Add-a-config-option-for-the-ARM11MPCore-DMA-cach.patch
+patch ARM-Add-support-for-the-MOVW-MOVT-relocations-in-Thu.patch
+patch ARM-Remove-dummy-loads-from-the-original-relocation-.patch
+patch Add-pm_ops-for-USB-EHCI.patch
+patch OMAP3-AM3505-3517-do-not-have-IO-wakeup-capability.patch
+patch OMAP-DSS2-VENC-don-t-call-platform_enable-disable.patch
+patch OMAP-DSS2-Fix-device-disable-when-driver-is-not-lo.patch
+patch OMAP2-DSS-Add-missing-line-for-update-bg-color.patch
+
+patch omap3evm-Enable-GPIO-latch-chip-using-T2_GPIO6.patch
+patch OMAP2-3-Add-V4L2-DSS-driver-support-in-device.c.patch
+patch V4L-DVB-V4L2-Add-support-for-OMAP2-3-V4L2-display-dr.patch
+patch V4L-Int-if-Dummy-slave.patch
+patch V4L-int-device-add-support-for-VIDIOC_QUERYMENU.patch
+patch V4L-Int-if-Add-support-for-private-sensor-ioctls.patch
+patch omap34xxcam-Add-camera-driver.patch
+patch OMAP3ISP-Cam-Created-tvp514x-int.c-for-V4L2-Int.patch
+patch omap3isp-Add-ISP-main-driver-and-register-definition.patch
+patch OMAP-DSS2-don-t-power-off-a-panel-twice.patch
+patch omap3-iommu-boot-time-disable-iommu-and-camera.patch
+patch ARM-Add-audit-syscall-support-for-ARM-platforms.patch
+patch Add-machine-id-for-spear1310.patch
+patch ARM-6012-1-ST-SPEAr-Added-basic-header-files-for-SPE.patch
+patch ARM-6014-1-ST-SPEAr-Added-clock-framework-for-SPEAr-.patch
+patch ARM-6013-1-ST-SPEAr-Added-timer-source-files-for-SPE.patch
+patch ST-SPEAr13XX-Adding-machine-specific-header-files.patch
+patch spear13xx-clocks.patch
+patch Add-rtc-spear-driver.patch
+patch ARM-move-sev-definition-to-common-system.h-include-f.patch
+patch mtd-generic-FSMC-NAND-MTD-drivers.patch
+patch Newly-erased-page-read-workaround.patch
+patch ST-SPEAr-Add-smi-driver-for-serial-NOR-flash.patch
+patch ARM-AMBA-Add-pclk-support-to-AMBA-bus-infrastructure.patch
+patch Watchdog-Adding-support-for-Watchdog-found-with-ARM-.patch
+patch ARM-force-optimize-for-size.patch
+
+# start ARM CoreTile Express A9x4
+patch ARM-Add-ICST-support.patch
+patch ARM-6165-1-trap-overflows-on-highmem-pages-from-kmap.patch
+patch ARM-6279-1-highmem-fix-SMP-preemption-bug-in-kmap_hi.patch
+patch ARM-6094-1-Extend-cache-l2x0-to-support-the-16-way-P.patch
+patch ARM-6210-1-Do-not-rely-on-reset-defaults-of-L2X0_AUX.patch
+patch ARM-6272-1-Convert-L2x0-to-use-the-IO-relaxed-operat.patch
+patch ARM-Improve-the-L2-cache-performance-when-PL310-is-u.patch
+patch ARM-6271-1-Introduce-_relaxed-I-O-accessors.patch
+patch watchdog-Adding-support-for-ARM-Primecell-SP805-Watc.patch
+patch ARM-smp-avoid-incrementing-mm_users-on-CPU-startup.patch
+patch ARM-CPU-hotplug-move-cpu_killed-completion-to-core-c.patch
+patch ARM-CPU-hotplug-ensure-correct-ordering-of-unplug.patch
+patch ARM-SMP-ensure-frame-pointer-is-reinitialized-for-so.patch
+patch ARM-Realview-Versatile-Integrator-separate-out-commo.patch
+patch ARM-Realview-Versatile-separate-out-common-SP804-tim.patch
+patch ARM-Realview-Versatile-remove-useless-TIMER_RELOAD-c.patch
+patch ARM-Realview-Versatile-don-t-use-magic-numbers-for-t.patch
+patch ARM-Indirect-round-set_rate-operations-through-clk-s.patch
+
+# ti omap specific patches
+include ti-omap/ti-omap.scc
+patch TI-816x-add-config-and-compile-support-for-TI816x-pl.patch
+patch TI-816x-add-TI-816x-compile-options-in-mach-omap2-Ma.patch
+patch TI-816x-add-clock-support-for-816x-platform.patch
+patch TI-816X-Add-support-for-TI816X-GPMC.patch
+patch TI-816x-Add-chip-id-setting-for-ti8168.patch
+patch TI-816x-add-ti-816x-debug-support-in-debug-macro.S.patch
+patch TI-816x-add-ti-816x-support-in-entry-macro.S.patch
+patch TI-816x-add-ti-816x-io-support.patch
+patch TI-816x-add-ti-816x-irq-support.patch
+patch TI-816x-add-mux-support-for-ti-816x.patch
+patch TI-816x-add-ti-816x-power-domain-support.patch
+patch TI-816x-Add-power-reset-management-and-clock-managem.patch
+patch TI-816x-add-ti-816x-serial-port-support.patch
+patch TI-816x-add-MAX_GPTIMER_ID-definition.patch
+patch TI-816x-add-platform-compile-option-for-816x-support.patch
+patch TI-816x-add-common-code-support-for-ti-816x.patch
+patch TI-816x-add-OMAP-Dual-Mode-Timers-support.patch
+patch TI-816x-add-sram-initialize-handle-code.patch
+patch TI-816x-add-816x-support-in-plat-omap-header-files.patch
+patch TI-816x-add-dma-support-for-816x-platform.patch
+patch mach_omap2-fix-a-build-error.patch
+patch TI-AM3517-add-CK_3517-flag-for-sr2_fck-clock.patch
+patch ARM-cns3xxx-Add-basic-support-for-Cavium-Networks-CN.patch
+patch ARM-cns3xxx-Add-CNS3420-Validation-Board-support.patch
+patch ARM-cns3xxx-Use-IO-memory-accessors-everywhere.patch
+patch ARM-CNS3xxx-Adjust-vmalloc-space.patch
+patch ARM-sched_clock-provide-common-infrastructure-for-sc.patch
+patch ARM-sched_clock-allow-init_sched_clock-to-be-called-.patch
+patch ARM-sched_clock-make-minsec-argument-to-clocks_calc_.patch
+patch ARM-Realview-Versatile-separate-out-common-sched_clo.patch
+patch ARM-versatile-convert-sched_clock-to-use-new-infrast.patch
+patch ARM-6384-1-Remove-the-domain-switching-on-ARMv6k-v7-.patch
+patch ARM-v6k-use-CPU-domain-feature-if-we-include-support.patch
+patch ARM-6889-1-futex-add-SMP-futex-support-when-CPU_USE_.patch
+patch ARM-futex-align-the-futex-lock-api-with-wrlinux.patch
+patch ARM-AMBA-Add-pclk-definition-for-platforms-using-pri.patch
+patch ARM-6867-1-Introduce-THREAD_NOTIFY_COPY-for-copy_thr.patch
+patch ARM-6868-1-Preserve-the-VFP-state-during-fork.patch
+patch ARM-Add-__enable_mmu-to-the-Stack-Unwinding-table.patch

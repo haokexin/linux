@@ -1,0 +1,219 @@
+From 1cefbb4c6155ba64ef2e6095d0071d180ef4a44d Mon Sep 17 00:00:00 2001
+From: Wang Hui <Hui.Wang@windriver.com>
+Date: Wed, 19 May 2010 20:53:18 +0800
+Subject: [PATCH 2/2] mxc/usb/otg: add usb otg support for mxc platforms
+
+Add usb otg support for mxc platforms.
+
+[Original code taken from L2.6.31_09.12.01_SDK.tar.gz BSP package:
+http://www.freescale.com/webapp/sps/site/prod_summary.jsp?code=\
+IMX35PDK&fpsp=1&tab=Design_Tools_Tab]
+
+Integrated-by: Wang Hui <Hui.Wang@windriver.com>
+---
+ drivers/usb/Makefile      |    2 +
+ drivers/usb/otg/Kconfig   |   12 +++++++++++
+ drivers/usb/otg/Makefile  |    4 +++
+ drivers/usb/otg/fsl_otg.c |   48 ++++++++++++++++++++++++++------------------
+ drivers/usb/otg/fsl_otg.h |    3 ++
+ 5 files changed, 49 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/usb/Makefile b/drivers/usb/Makefile
+index 80b4008..bbf7c3a 100644
+--- a/drivers/usb/Makefile
++++ b/drivers/usb/Makefile
+@@ -8,6 +8,8 @@ obj-$(CONFIG_USB)		+= core/
+ 
+ obj-$(CONFIG_USB_MON)		+= mon/
+ 
++obj-$(CONFIG_USB_OTG)		+= otg/
++
+ obj-$(CONFIG_PCI)		+= host/
+ obj-$(CONFIG_USB_EHCI_HCD)	+= host/
+ obj-$(CONFIG_USB_ISP116X_HCD)	+= host/
+diff --git a/drivers/usb/otg/Kconfig b/drivers/usb/otg/Kconfig
+index 1714b5a..6ca6094 100644
+--- a/drivers/usb/otg/Kconfig
++++ b/drivers/usb/otg/Kconfig
+@@ -113,4 +113,16 @@ config USB_CNS3XXX_OTG_ENABLE_OTG_DRVVBUS
+ 	 Check the board that you are using, if the IC is FB6862B, say Y.
+ 	 Otherwise, say N.
+ 
++config TRANSCEIVER_MXC_OTG
++	tristate "USB OTG pin detect support"
++	depends on (MC13783_MXC || ISP1504_MXC) && USB_GADGET && USB_EHCI_HCD && USB_OTG
++	help
++	  Support for USB OTG PIN detect on MXC platforms.
++
++config UTMI_MXC_OTG
++	tristate "USB OTG pin detect support for UTMI PHY"
++	depends on  USB_EHCI_FSL_UTMI && USB_GADGET && USB_EHCI_HCD && USB_OTG
++	help
++	  Support for USB OTG PIN detect for UTMI PHY on MXC platforms.
++
+ endif # USB || OTG
+diff --git a/drivers/usb/otg/Makefile b/drivers/usb/otg/Makefile
+index ec5d199..d2dd828 100644
+--- a/drivers/usb/otg/Makefile
++++ b/drivers/usb/otg/Makefile
+@@ -14,6 +14,10 @@ obj-$(CONFIG_USB_ULPI)		+= ulpi.o
+ fsl_usb2_otg-objs		:= fsl_otg.o otg_fsm.o
+ obj-$(CONFIG_FSL_USB2_OTG)	+= fsl_usb2_otg.o
+ 
++fsl_otg_arc-objs		:= fsl_otg.o otg_fsm.o
++obj-$(CONFIG_ISP1504_MXC_OTG) += fsl_otg_arc.o
++obj-$(CONFIG_UTMI_MXC_OTG) += fsl_otg_arc.o
++
+ ccflags-$(CONFIG_USB_DEBUG)	+= -DDEBUG
+ ccflags-$(CONFIG_USB_GADGET_DEBUG) += -DDEBUG
+ 
+diff --git a/drivers/usb/otg/fsl_otg.c b/drivers/usb/otg/fsl_otg.c
+index a28c933..6625493 100644
+--- a/drivers/usb/otg/fsl_otg.c
++++ b/drivers/usb/otg/fsl_otg.c
+@@ -411,12 +411,18 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
+ 	struct otg_transceiver *xceiv = fsm->transceiver;
+ 	struct device *dev;
+ 	struct fsl_otg *otg_dev = container_of(xceiv, struct fsl_otg, otg);
++	struct platform_driver *host_pdrv;
++	struct platform_device *host_pdev;
++
+ 	u32 retval = 0;
+ 
+ 	if (!xceiv->host)
+ 		return -ENODEV;
+ 	dev = xceiv->host->controller;
+ 
++	host_pdrv = container_of((dev->driver), struct platform_driver, driver);
++	host_pdev = to_platform_device(dev);
++
+ 	/* Update a_vbus_vld state as a_vbus_vld int is disabled
+ 	 * in device mode
+ 	 */
+@@ -429,8 +435,9 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
+ 		else {
+ 			otg_reset_controller();
+ 			VDBG("host on......\n");
+-			if (dev->driver->pm && dev->driver->pm->resume) {
+-				retval = dev->driver->pm->resume(dev);
++			if (host_pdrv->resume) {
++				retval = host_pdrv->resume(host_pdev);
++
+ 				if (fsm->id) {
+ 					/* default-b */
+ 					fsl_otg_drv_vbus(1);
+@@ -439,7 +446,9 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
+ 					 * be 1 for host to work.
+ 					 * So we set drv_vbus bit in
+ 					 * transceiver to 0 thru ULPI. */
++#if defined(CONFIG_ISP1504_MXC)
+ 					write_ulpi(0x0c, 0x20);
++#endif
+ 				}
+ 			}
+ 
+@@ -451,9 +460,9 @@ int fsl_otg_start_host(struct otg_fsm *fsm, int on)
+ 			goto end;
+ 		else {
+ 			VDBG("host off......\n");
+-			if (dev && dev->driver) {
+-				if (dev->driver->pm && dev->driver->pm->suspend)
+-					retval = dev->driver->pm->suspend(dev);
++			if (host_pdrv->suspend) {
++				retval = host_pdrv->suspend(host_pdev,
++							otg_suspend_state);
+ 				if (fsm->id)
+ 					/* default-b */
+ 					fsl_otg_drv_vbus(0);
+@@ -472,6 +481,8 @@ int fsl_otg_start_gadget(struct otg_fsm *fsm, int on)
+ {
+ 	struct otg_transceiver *xceiv = fsm->transceiver;
+ 	struct device *dev;
++	struct platform_driver *gadget_pdrv;
++	struct platform_device *gadget_pdev;
+ 
+ 	if (!xceiv->gadget || !xceiv->gadget->dev.parent)
+ 		return -ENODEV;
+@@ -479,13 +490,14 @@ int fsl_otg_start_gadget(struct otg_fsm *fsm, int on)
+ 	VDBG("gadget %s\n", on ? "on" : "off");
+ 	dev = xceiv->gadget->dev.parent;
+ 
+-	if (on) {
+-		if (dev->driver->resume)
+-			dev->driver->resume(dev);
+-	} else {
+-		if (dev->driver->suspend)
+-			dev->driver->suspend(dev, otg_suspend_state);
+-	}
++	gadget_pdrv = container_of((dev->driver),
++			struct platform_driver, driver);
++	gadget_pdev = to_platform_device(dev);
++
++	if (on)
++		gadget_pdrv->resume(gadget_pdev);
++	else
++		gadget_pdrv->suspend(gadget_pdev, otg_suspend_state);
+ 
+ 	return 0;
+ }
+@@ -776,8 +788,6 @@ static int fsl_otg_conf(struct platform_device *pdev)
+ 	status = otg_set_transceiver(&fsl_otg_tc->otg);
+ 	if (status) {
+ 		printk(KERN_WARNING ": unable to register OTG transceiver.\n");
+-		fsl_otg_uninit_timers();
+-		kfree(fsl_otg_tc);
+ 		return status;
+ 	}
+ 
+@@ -823,15 +833,12 @@ int usb_otg_start(struct platform_device *pdev)
+ 		dev_dbg(p_otg->otg.dev, "can't get IRQ %d, error %d\n",
+ 			p_otg->irq, status);
+ 		iounmap(p_otg->dr_mem_map);
++		kfree(p_otg);
+ 		return status;
+ 	}
+ 
+-	if (pdata->platform_init && pdata->platform_init(pdev) != 0) {
+-		printk(KERN_WARNING "OTG platform_init failed \n");
+-		iounmap(p_otg->dr_mem_map);
++	if (pdata->platform_init && pdata->platform_init(pdev) != 0)
+ 		return -EINVAL;
+-	}
+-
+ 
+ 	/* Export DR controller resources */
+ 	otg_set_resources(pdev->resource);
+@@ -918,7 +925,7 @@ int usb_otg_start(struct platform_device *pdev)
+ 
+ #include <linux/seq_file.h>
+ 
+-static const char proc_filename[] = "driver/fsl_usb2_otg";
++static const char proc_filename[] = "driver/isp1504_otg";
+ 
+ static int otg_proc_read(char *page, char **start, off_t off, int count,
+ 			 int *eof, void *_dev)
+@@ -976,6 +983,7 @@ static int otg_proc_read(char *page, char **start, off_t off, int count,
+ 	size -= t;
+ 	next += t;
+ 
++
+ #ifdef  DEBUG
+ 	/* ------ State Machine Variables ----- */
+ 	t = scnprintf(next, size, "a_bus_req: %d\n", fsm->a_bus_req);
+diff --git a/drivers/usb/otg/fsl_otg.h b/drivers/usb/otg/fsl_otg.h
+index 13bc94d..4f84c3f 100644
+--- a/drivers/usb/otg/fsl_otg.h
++++ b/drivers/usb/otg/fsl_otg.h
+@@ -348,6 +348,9 @@ struct usb_dr_mmap {
+ 	u32 pri_ctrl;		/* Priority Control Register */
+ 	u32 si_ctrl;		/* System Interface Control Register */
+ 	u8 res10[236];
++#ifdef CONFIG_ARCH_MX51
++	u32 res11[128];
++#endif
+ 	u32 control;		/* General Purpose Control Register */
+ };
+ 
+-- 
+1.7.0.4
+

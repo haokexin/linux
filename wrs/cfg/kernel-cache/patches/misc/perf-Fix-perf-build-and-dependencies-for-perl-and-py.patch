@@ -1,0 +1,128 @@
+From 7cdd3c7f71c8025c661563ad4cb61180fddcc4d9 Mon Sep 17 00:00:00 2001
+From: Zumeng Chen <zumeng.chen@windriver.com>
+Date: Thu, 2 Dec 2010 21:52:47 -0500
+Subject: [PATCH] perf: Fix perf build and dependencies for perl and python
+
+1) when build perl for perf, there is a bool redefinition,
+    so remove -Werror when building perl.
+
+ 2) Introduced a varible LIBPERL_DIR to judge if perl is
+    involved, which comes from dist/perf/Makefile.
+
+ 3) Introduced a varible PYTHON_MAJOR to judge if python
+    is included, which comes from dist/perf/Makefile.
+
+ 4) If python or perl is not installed, we also remove
+    their scripts to avoid rpm-installing other packages
+    in small.
+
+Signed-off-by: Zumeng Chen <zumeng.chen@windriver.com>
+Signed-off-by: Jason Wessel <jason.wessel@windriver.com>
+---
+ tools/perf/Makefile        |   26 ++++++++++++++++++++++----
+ tools/perf/perf-archive.sh |    2 +-
+ tools/perf/util/pager.c    |   16 ++++++++++++++--
+ 3 files changed, 37 insertions(+), 7 deletions(-)
+
+diff --git a/tools/perf/Makefile b/tools/perf/Makefile
+index 3fe5e27..d72f7b5 100644
+--- a/tools/perf/Makefile
++++ b/tools/perf/Makefile
+@@ -198,7 +198,11 @@ ifndef PERF_DEBUG
+   CFLAGS_OPTIMIZE = -O6
+ endif
+ 
++ifneq ($(LIBPERL_DIR),)
++CFLAGS = -ggdb3 -Wall -Wextra -std=gnu99 $(CFLAGS_OPTIMIZE) -D_FORTIFY_SOURCE=2 $(EXTRA_WARNINGS) $(EXTRA_CFLAGS)
++else
+ CFLAGS = -ggdb3 -Wall -Wextra -std=gnu99 -Werror $(CFLAGS_OPTIMIZE) -D_FORTIFY_SOURCE=2 $(EXTRA_WARNINGS) $(EXTRA_CFLAGS)
++endif
+ EXTLIBS = -lpthread -lrt -lelf -lm
+ ALL_CFLAGS = $(CFLAGS) -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
+ ALL_LDFLAGS = $(LDFLAGS)
+@@ -513,9 +517,10 @@ else
+ 	LIB_OBJS += util/probe-finder.o
+ endif
+ 
++ifeq ($(LIBPERL_DIR),)
+ ifndef NO_LIBPERL
+-PERL_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)perl -MExtUtils::Embed -e ldopts 2>/dev/null`
+-PERL_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)perl -MExtUtils::Embed -e ccopts 2>/dev/null`
++PERL_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)\perl -MExtUtils::Embed -e ldopts 2>/dev/null`
++PERL_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)\perl -MExtUtils::Embed -e ccopts 2>/dev/null`
+ endif
+ 
+ ifneq ($(shell sh -c "(echo '\#include <EXTERN.h>'; echo '\#include <perl.h>'; echo 'int main(void) { perl_alloc(); return 0; }') | $(CC) -x c - $(PERL_EMBED_CCOPTS) -o $(BITBUCKET) $(PERL_EMBED_LDOPTS) > /dev/null 2>&1 && echo y"), y)
+@@ -525,10 +530,17 @@ else
+ 	LIB_OBJS += util/scripting-engines/trace-event-perl.o
+ 	LIB_OBJS += scripts/perl/Perf-Trace-Util/Context.o
+ endif
++else
++	BASIC_CFLAGS += -I=$(LIBPERL_DIR)/CORE
++	ALL_LDFLAGS += -L=$(LIBPERL_DIR)/CORE -lperl
++	LIB_OBJS += util/scripting-engines/trace-event-perl.o
++	LIB_OBJS += scripts/perl/Perf-Trace-Util/Context.o
++endif
+ 
++ifeq ($(PYTHON_MAJOR),)
+ ifndef NO_LIBPYTHON
+-PYTHON_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)python-config --ldflags 2>/dev/null`
+-PYTHON_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)python-config --cflags 2>/dev/null`
++PYTHON_EMBED_LDOPTS = `$(HOST_BUILD_BIN_DIR)\python-config --ldflags 2>/dev/null`
++PYTHON_EMBED_CCOPTS = `$(HOST_BUILD_BIN_DIR)\python-config --cflags 2>/dev/null`
+ endif
+ 
+ ifneq ($(shell sh -c "(echo '\#include <Python.h>'; echo 'int main(void) { Py_Initialize(); return 0; }') | $(CC) -x c - $(PYTHON_EMBED_CCOPTS) -o /dev/null $(PYTHON_EMBED_LDOPTS) > /dev/null 2>&1 && echo y"), y)
+@@ -538,6 +550,12 @@ else
+ 	LIB_OBJS += util/scripting-engines/trace-event-python.o
+ 	LIB_OBJS += scripts/python/Perf-Trace-Util/Context.o
+ endif
++else
++	BASIC_CFLAGS += -I=/usr/include/python$(PYTHON_MAJOR)
++	ALL_LDFLAGS += -L=/usr/lib/python$(PYTHON_MAJOR)/config  -lpython2.6
++	LIB_OBJS += util/scripting-engines/trace-event-python.o
++	LIB_OBJS += scripts/python/Perf-Trace-Util/Context.o
++endif
+ 
+ ifdef NO_DEMANGLE
+ 	BASIC_CFLAGS += -DNO_DEMANGLE
+diff --git a/tools/perf/perf-archive.sh b/tools/perf/perf-archive.sh
+index 910468e..ee7e257 100644
+--- a/tools/perf/perf-archive.sh
++++ b/tools/perf/perf-archive.sh
+@@ -1,4 +1,4 @@
+-#!/bin/bash
++#!/bin/sh
+ # perf archive
+ # Arnaldo Carvalho de Melo <acme@redhat.com>
+ 
+diff --git a/tools/perf/util/pager.c b/tools/perf/util/pager.c
+index 1915de2..98b6f5a 100644
+--- a/tools/perf/util/pager.c
++++ b/tools/perf/util/pager.c
+@@ -57,8 +57,20 @@ void setup_pager(void)
+ 	}
+ 	if (!pager)
+ 		pager = getenv("PAGER");
+-	if (!pager)
+-		pager = "less";
++	if (!pager) {
++		struct stat buf;
++		if (!stat("/bin/less", &buf))
++			pager = "/bin/less";
++		else if (!stat("/usr/bin/less", &buf))
++			pager = "/usr/bin/less";
++		else if (!stat("/bin/more", &buf))
++			pager = "/bin/more";
++		else if (!stat("/usr/bin/more", &buf))
++			pager = "/usr/bin/more";
++		else
++			/* Last resort is hope less is somewhere... */
++			pager = "less";
++	}
+ 	else if (!*pager || !strcmp(pager, "cat"))
+ 		return;
+ 
+-- 
+1.6.5.2
+

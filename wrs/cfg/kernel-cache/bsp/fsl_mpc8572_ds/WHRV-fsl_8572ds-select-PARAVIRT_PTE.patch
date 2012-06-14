@@ -1,0 +1,33 @@
+From 0cb5b1e12856d12aee7c02e25cfe5ffe3f8c3919 Mon Sep 17 00:00:00 2001
+From: Jeremy McNicoll <jeremy.mcnicoll@windriver.com>
+Date: Mon, 3 May 2010 11:40:12 -0400
+Subject: [PATCH 4/4] WHRV: fsl_8572ds select PARAVIRT_PTE
+
+The hypervisor needs the TLB pages to be marked as:
+SX/SW/SR/UW/UR/UX
+
+Since the guest OS is running in user mode it needs to
+ensure that it sets the pages as (UW/UR/UX).  If this is
+not done correctly the hypervisor will interpret these
+pages wrong as instructions thus yielding exception 0x400.
+
+Signed-off-by: Jeremy McNicoll <jeremy.mcnicoll@windriver.com>
+---
+ arch/powerpc/platforms/85xx/Kconfig |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/arch/powerpc/platforms/85xx/Kconfig b/arch/powerpc/platforms/85xx/Kconfig
+index d47442d..b5b8d22 100644
+--- a/arch/powerpc/platforms/85xx/Kconfig
++++ b/arch/powerpc/platforms/85xx/Kconfig
+@@ -165,6 +165,7 @@ config WRHV_8572
+ 	select PARAVIRT_PTE
+ 	select DEFAULT_UIMAGE
+ 	select WRHV_E500
++	select PARAVIRT_PTE
+ 	help
+ 	  This option enables support for the Freescale 8572 DS board
+ 	  on the Wind River Hypervisor.
+-- 
+1.6.5.2
+

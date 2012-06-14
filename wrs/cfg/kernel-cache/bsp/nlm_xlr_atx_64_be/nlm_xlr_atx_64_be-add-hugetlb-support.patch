@@ -1,0 +1,48 @@
+From c22297cd376a851a315e197bd5820b9e8f273c22 Mon Sep 17 00:00:00 2001
+From: Zhang Xiao <xiao.zhang@windriver.com>
+Date: Fri, 30 Mar 2012 17:11:14 +0800
+Subject: [PATCH] nlm_xlr_atx_64_be: add hugetlb support
+
+Introduce hugetlb support to the RMI (CPU_PHOENIX) class of boards.
+
+Signed-off-by: Zhang Xiao <xiao.zhang@windriver.com>
+---
+ arch/mips/Kconfig    |    1 +
+ arch/mips/mm/tlbex.c |    2 +-
+ 2 files changed, 2 insertions(+), 1 deletions(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index a8ace60..bea5fc8 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -1340,6 +1340,7 @@ config CPU_PHOENIX
+ 	select CPU_SUPPORTS_32BIT_KERNEL
+ 	select CPU_SUPPORTS_64BIT_KERNEL
+ 	select CPU_SUPPORTS_HIGHMEM
++	select CPU_SUPPORTS_HUGEPAGES
+ 	select CPU_HAS_LLSC
+ 	select WEAK_ORDERING
+ 	select WEAK_REORDERING_BEYOND_LLSC
+diff --git a/arch/mips/mm/tlbex.c b/arch/mips/mm/tlbex.c
+index 518245b..c45b94f 100644
+--- a/arch/mips/mm/tlbex.c
++++ b/arch/mips/mm/tlbex.c
+@@ -326,6 +326,7 @@ static void __cpuinit build_tlb_write_entry(u32 **p, struct uasm_label **l,
+ 	case CPU_5KC:
+ 	case CPU_TX49XX:
+ 	case CPU_PR4450:
++	case CPU_PHOENIX:
+ 		uasm_i_nop(p);
+ 		tlbw(p);
+ 		break;
+@@ -353,7 +354,6 @@ static void __cpuinit build_tlb_write_entry(u32 **p, struct uasm_label **l,
+ 		tlbw(p);
+ 		break;
+ 
+-	case CPU_PHOENIX:
+ 	case CPU_NEVADA:
+ 		uasm_i_nop(p); /* QED specifies 2 nops hazard */
+ 		/*
+-- 
+1.7.0.4
+

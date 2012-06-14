@@ -1,0 +1,34 @@
+patch malta-uhci-quirks-make-allowance-for-slow-4k-e-c.patch
+patch 4kc-cache-tlb-hazard-tlbp-cache-coherency.patch
+patch mips-support-preemptible-kernel.patch
+# merged to mainline in 2.6.34
+# patch BCM1250-M3-workaround-fix.patch
+patch fix-support-for-SMTC-on-Malta-34Kc.patch
+patch Enable-kernel-snapshots.patch
+patch Perf-tool-MIPS-support-cross-compiling-of-tools-perf.patch
+patch tracing-MIPS-mcount.S-merge-the-same-continuous-ifde.patch
+patch tracing-MIPS-mcount.S-cleanup-the-arguments-of-prepa.patch
+patch tracing-MIPS-mcount.S-cleanup-of-the-comments.patch
+patch tracing-MIPS-mcount.S-Fix-the-argument-passing-of-th.patch
+patch tracing-MIPS-Fixup-of-the-32bit-support-with-mmcount.patch
+patch tracing-MIPS-cleanup-of-the-instructions.patch
+patch tracing-MIPS-Reduce-the-overhead-of-dynamic-Function.patch
+patch tracing-MIPS-cleanup-of-function-graph-tracer.patch
+patch tracing-MIPS-cleanup-of-the-address-space-checking.patch
+patch MIPS-Tracing-Speed-up-function-graph-tracer.patch
+patch MIPS-Tracing-Substitute-in_kernel_space-for-in_modul.patch
+patch MIPS-Tracing-Clean-up-prepare_ftrace_return.patch
+patch MIPS-Tracing-Clean-up-ftrace_make_nop.patch
+patch MIPS-Tracing-Fix-set_graph_function-of-function-grap.patch
+patch MIPS-Mask-jump-target-in-ftrace_dyn_arch_init_insns.patch
+patch ftrace-graph-MIPS-Trace-function-entry-before-updati.patch
+patch MIPS-Audit-Fix-hang-when-starting-audit.patch
+patch MIPS-disable-subsection-optimization-in-atomic_.patch
+patch MIPS-Don-t-overflow-cevt-r4k.c-calculations-at-high-.patch
+patch MIPS-Don-t-re-sync-r4k-for-hotplug.patch
+patch MIPS-Corrected-virt_to_phys-for-mips64-.patch
+patch MIPS-genirq-unthread-pata_pdc2027x-irq-.patch
+patch mti_malta32-fix-the-pci-resource-conflicts.patch
+patch mips-malta-disable-a-break-hardware-trigger.patch
+patch MIPS-Fix-KDUMP-calltrace-by-modifying-ssleep-to-cond.patch
+patch MIPS-add-dts-compiling-support.patch

@@ -1,0 +1,35 @@
+# getdents64; WR syscalls must follow getdents64
+patch mips-syscall-add-__NR_getdents64-to-N32-syscall-tabl.patch
+
+# revokeat
+patch revoke-revokeat-syscall-stub.patch
+patch revoke-wire-up-i386-system-call-V7-From-Pekka-Enberg.patch
+patch revoke-wire-up-powerpc-system-calls.patch
+patch revoke-mips-syscall-wireups.patch
+patch revoke-ignore-unimplemented-revokeat-syscall.patch
+
+# WRHV: vbi_control, vbi_activate_vb, vbi_mem
+patch WRHV-MIPS-add-vbi-syscall-stub.patch
+patch wrhv-x86-syscall-wireups-for-x86-WR-guest-support.patch
+patch wrhv-powerpc-syscall-wireups-for-powerpc-specifics-o.patch
+
+# accept4
+patch ARM-6329-1-wire-up-sys_accept4-on-ARM.patch
+
+# sched_setscheduler_ex, sched_setparam_ex, sched_getparam_ex, 
+# sched_wait_interval
+patch sched-add-extended-sched_dl-syscalls-for-all-arches.patch
+
+# lsc: setns
+patch lxc-syscall-wireups-for-lxc-namespace-functionality.patch
+patch lxc-syscall-wireup-for-arm-and-mips.patch
+
+# vbi_mem, vbi_activate_vb, vbi_control
+patch WRHV-MIPS-Update-system-call-numbers.patch
+patch wrhv-arm-add-VBI-syscall-numbers.patch
+
+# mips compat conversions
+patch mips-cavium-return-correct-sockopt-size-for-n32-on-6.patch
+patch MIPS-O32-compat-N32-Fix-to-use-compat-syscall-wrappe.patch
+patch MIPS-use-32-bit-wrapper-for-compat_sys_futex.patch
+patch syscall-fix-syscall-table-mismatch.patch

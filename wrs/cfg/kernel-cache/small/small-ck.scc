@@ -1,0 +1,28 @@
+kconf non-hardware small-ck.cfg
+
+patch ck-BFS-import.patch
+patch sched-sched_bfs-copy-syscall-stubs-from-sched.c-to-s.patch
+patch ck-introduce-above_background_load.patch
+patch ck-force-swappiness-to-be-honest.patch
+patch ck-cleanup-swapiness-tunable.patch
+patch ck-make-swap-token-active-only-when-swap-is-more-tha.patch
+patch ck-free-swapcache-whenever-we-can.patch
+patch ck-set-the-priority-of-kswapd-to-that-of-the-calling.patch
+patch ck-watermarks.patch
+patch ck-idleprio-tasks.patch
+patch ck-lru-for-files.patch
+patch ck-expose-vmsplit-and-lowmem.patch
+patch ck-change-default-HZ-to-1000.patch
+patch ck-no-default-250-HZ.patch
+patch ck-raise-maxium-HZ.patch
+patch ck-bfs-cpufreq-tweaks.patch
+
+patch BFS-wind-river-fixups.patch
+patch add-functions-for-ltt.patch
+patch BFS-account-for-KDB-specific-additions.patch
+patch BFS-import-2.6.34-bfs318-330test.patch.patch
+patch BFS-import-bfs330-bfs350.patch.patch
+patch BFS-import-bfs350-bfs357.patch.patch
+patch BFS-import-2.6.34.7-sched-bfs-357-360.patch.patch
+patch BFS-import-2.6.35.10-bfs-360-363.patch.patch
+patch BFS-remove-cpuset_lock-cpuset_unlock.patch

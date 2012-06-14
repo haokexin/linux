@@ -1,0 +1,50 @@
+From 40c8be910589e77e28fd2cbca6ac5bbe8f3c663b Mon Sep 17 00:00:00 2001
+From: Jeremy McNicoll <jeremy.mcnicoll@windriver.com>
+Date: Mon, 24 May 2010 16:55:28 -0400
+Subject: [PATCH] WRHV/8572: use common PCI
+
+Enable the needed pieces to utilize the common PCI
+infrastructure that is shared between PPC boards.
+The DTS now stores the associated offset which is
+used to set up the PCI LAW.
+
+Signed-off-by: Jeremy McNicoll <jeremy.mcnicoll@windriver.com>
+Signed-off-by: Tiejun Chen <tiejun.chen@windriver.com>
+---
+ arch/powerpc/boot/dts/wrhv_mpc8572ds.dts  |    5 ++++-
+ arch/powerpc/platforms/85xx/wrhv_8572ds.c |    3 +++
+ 2 files changed, 7 insertions(+), 1 deletions(-)
+
+diff --git a/arch/powerpc/boot/dts/wrhv_mpc8572ds.dts b/arch/powerpc/boot/dts/wrhv_mpc8572ds.dts
+index afbea54..590a5e0 100644
+--- a/arch/powerpc/boot/dts/wrhv_mpc8572ds.dts
++++ b/arch/powerpc/boot/dts/wrhv_mpc8572ds.dts
+@@ -199,7 +199,10 @@
+ 		corenet-law {
+ 			compatible = "fsl,corenet-law";
+ 			reg = <0x0 0x1000>;
+-			fsl,num-laws = <6>;
++			fsl,num-laws = <12>;
++			offset = <0x20>;
++			high-base = <0xc08>;
++			law-attrib = <0xc10>;
+ 		};
+ 
+ 		memory-controller@2000 {
+diff --git a/arch/powerpc/platforms/85xx/wrhv_8572ds.c b/arch/powerpc/platforms/85xx/wrhv_8572ds.c
+index 6ee672c..8efdf08 100644
+--- a/arch/powerpc/platforms/85xx/wrhv_8572ds.c
++++ b/arch/powerpc/platforms/85xx/wrhv_8572ds.c
+@@ -244,6 +244,9 @@ define_machine(mpc8572_ds) {
+ #ifdef CONFIG_PCI
+ 	.pcibios_fixup_bus	= fsl_pcibios_fixup_bus,
+ 	.enable_pci_law		= wrhv_enable_pci_law,
++	.set_law_base		= wrhv_set_law_base,
++	.set_law_attr		= wrhv_set_law_attr,
++	.get_law_attr		= wrhv_get_law_attr,
+ #endif
+ 	.get_irq		= wrhv_vioapic_get_irq,
+ 	.restart		= wrhv_restart,
+-- 
+1.6.5.2
+

@@ -1,0 +1,8 @@
+include ktypes/standard/standard.scc
+branch small
+
+##include features/fastboot/fastboot.scc
+##tag fastboot
+
+kconf non-hardware small.cfg
+

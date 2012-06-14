@@ -1,0 +1,123 @@
+From 627d75fa4c576f0479bcfcf9675593739dfb5859 Mon Sep 17 00:00:00 2001
+From: Bruce Ashfield <bruce.ashfield@windriver.com>
+Date: Wed, 2 Jun 2010 00:31:33 -0400
+Subject: [PATCH] revoke: mips: syscall wireups
+
+Signed-off-by: Bruce Ashfield <bruce.ashfield@windriver.com>
+---
+ arch/mips/include/asm/unistd.h |   15 +++++++++------
+ arch/mips/kernel/scall32-o32.S |    1 +
+ arch/mips/kernel/scall64-64.S  |    1 +
+ arch/mips/kernel/scall64-n32.S |    1 +
+ arch/mips/kernel/scall64-o32.S |    1 +
+ 5 files changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/arch/mips/include/asm/unistd.h b/arch/mips/include/asm/unistd.h
+index baa318a..4f86f5a 100644
+--- a/arch/mips/include/asm/unistd.h
++++ b/arch/mips/include/asm/unistd.h
+@@ -356,16 +356,17 @@
+ #define __NR_perf_event_open		(__NR_Linux + 333)
+ #define __NR_accept4			(__NR_Linux + 334)
+ #define __NR_recvmmsg			(__NR_Linux + 335)
++#define __NR_revokeat			(__NR_Linux + 336)
+ 
+ /*
+  * Offset of the last Linux o32 flavoured syscall
+  */
+-#define __NR_Linux_syscalls		335
++#define __NR_Linux_syscalls		336
+ 
+ #endif /* _MIPS_SIM == _MIPS_SIM_ABI32 */
+ 
+ #define __NR_O32_Linux			4000
+-#define __NR_O32_Linux_syscalls		335
++#define __NR_O32_Linux_syscalls		336
+ 
+ #if _MIPS_SIM == _MIPS_SIM_ABI64
+ 
+@@ -668,16 +669,17 @@
+ #define __NR_perf_event_open		(__NR_Linux + 292)
+ #define __NR_accept4			(__NR_Linux + 293)
+ #define __NR_recvmmsg			(__NR_Linux + 294)
++#define __NR_revokeat			(__NR_Linux + 295)
+ 
+ /*
+  * Offset of the last Linux 64-bit flavoured syscall
+  */
+-#define __NR_Linux_syscalls		294
++#define __NR_Linux_syscalls		295
+ 
+ #endif /* _MIPS_SIM == _MIPS_SIM_ABI64 */
+ 
+ #define __NR_64_Linux			5000
+-#define __NR_64_Linux_syscalls		294
++#define __NR_64_Linux_syscalls		295
+ 
+ #if _MIPS_SIM == _MIPS_SIM_NABI32
+ 
+@@ -985,16 +987,17 @@
+ #define __NR_accept4			(__NR_Linux + 297)
+ #define __NR_recvmmsg			(__NR_Linux + 298)
+ #define __NR_getdents64			(__NR_Linux + 299)
++#define __NR_revokeat			(__NR_Linux + 300)
+ 
+ /*
+  * Offset of the last N32 flavoured syscall
+  */
+-#define __NR_Linux_syscalls		299
++#define __NR_Linux_syscalls		300
+ 
+ #endif /* _MIPS_SIM == _MIPS_SIM_NABI32 */
+ 
+ #define __NR_N32_Linux			6000
+-#define __NR_N32_Linux_syscalls		299
++#define __NR_N32_Linux_syscalls		300
+ 
+ #ifdef __KERNEL__
+ 
+diff --git a/arch/mips/kernel/scall32-o32.S b/arch/mips/kernel/scall32-o32.S
+index 0bb6d27..24be036 100644
+--- a/arch/mips/kernel/scall32-o32.S
++++ b/arch/mips/kernel/scall32-o32.S
+@@ -584,6 +584,7 @@ einval:	li	v0, -ENOSYS
+ 	sys	sys_perf_event_open	5
+ 	sys	sys_accept4		4
+ 	sys     sys_recvmmsg            5
++	sys	sys_revokeat		2
+ 	.endm
+ 
+ 	/* We pre-compute the number of _instruction_ bytes needed to
+diff --git a/arch/mips/kernel/scall64-64.S b/arch/mips/kernel/scall64-64.S
+index 4068d06..940ae73 100644
+--- a/arch/mips/kernel/scall64-64.S
++++ b/arch/mips/kernel/scall64-64.S
+@@ -422,4 +422,5 @@ EXPORT(sys_call_table)
+ 	PTR	sys_perf_event_open
+ 	PTR	sys_accept4
+ 	PTR     sys_recvmmsg
++	PTR	sys_revokeat
+ 	.size	sys_call_table,.-sys_call_table
+diff --git a/arch/mips/kernel/scall64-n32.S b/arch/mips/kernel/scall64-n32.S
+index d1b51f2..f0f42e1 100644
+--- a/arch/mips/kernel/scall64-n32.S
++++ b/arch/mips/kernel/scall64-n32.S
+@@ -422,4 +422,5 @@ EXPORT(sysn32_call_table)
+ 	PTR	sys_accept4
+ 	PTR     compat_sys_recvmmsg
+ 	PTR     sys_getdents64
++	PTR	sys_revokeat
+ 	.size	sysn32_call_table,.-sysn32_call_table
+diff --git a/arch/mips/kernel/scall64-o32.S b/arch/mips/kernel/scall64-o32.S
+index a981be2..93986ca 100644
+--- a/arch/mips/kernel/scall64-o32.S
++++ b/arch/mips/kernel/scall64-o32.S
+@@ -539,4 +539,5 @@ EXPORT(syso32_call_table)
+ 	PTR	sys_perf_event_open
+ 	PTR	sys_accept4
+ 	PTR     compat_sys_recvmmsg
++	PTR	sys_revokeat
+ 	.size	sys_call_table,.-sys_call_table
+-- 
+1.7.0.2
+
