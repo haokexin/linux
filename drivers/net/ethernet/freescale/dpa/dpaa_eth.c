@@ -892,6 +892,17 @@ static void _dpa_rx_error(struct net_device *net_dev,
 		const struct qm_fd *fd,
 		u32 fqid)
 {
+	/*
+	 * limit common, possibly innocuous Rx FIFO Overflow errors'
+	 * interference with zero-loss convergence benchmark results.
+	 */
+	if (likely(fd->status & FM_FD_STAT_ERR_PHYSICAL))
+		pr_warn_once("fsl-dpa: non-zero error counters in fman statistics (sysfs)\n");
+	else
+		if (netif_msg_hw(priv) && net_ratelimit())
+			cpu_netdev_err(net_dev, "FD status = 0x%08x\n",
+					fd->status & FM_FD_STAT_ERRORS);
+
 	if (dpaa_eth_hooks.rx_error &&
 		dpaa_eth_hooks.rx_error(net_dev, fd, fqid) == DPAA_ETH_STOLEN)
 		/* it's up to the hook to perform resource cleanup */

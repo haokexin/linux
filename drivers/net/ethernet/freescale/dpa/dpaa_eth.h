@@ -180,6 +180,8 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 	 FM_PORT_FRM_ERR_ILL_PLCR | FM_PORT_FRM_ERR_PRS_TIMEOUT	| \
 	 FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT | FM_PORT_FRM_ERR_PRS_HDR_ERR)
 
+#define FM_FD_STAT_ERR_PHYSICAL	FM_PORT_FRM_ERR_PHYSICAL
+
 struct pcd_range {
 	uint32_t			 base;
 	uint32_t			 count;
