@@ -125,6 +125,22 @@
 	};
 };
 
+&rio {
+	compatible = "fsl,srio";
+	interrupts = <48 2 0 0>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+	fsl,srio-rmu-handle = <&rmu>;
+	ranges;
+
+	port1 {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		cell-index = <1>;
+	};
+
+};
+
 &soc {
 	#address-cells = <1>;
 	#size-cells = <1>;
@@ -201,6 +217,7 @@
 		compatible = "fsl,p2020-esdhc", "fsl,esdhc";
 	};
 
+/include/ "pq3-rmu-0.dtsi"
 /include/ "pq3-sec3.1-0.dtsi"
 /include/ "pq3-mpic.dtsi"
 /include/ "pq3-mpic-timer-B.dtsi"
