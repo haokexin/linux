@@ -32,6 +32,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+&ifc {
+	#address-cells = <2>;
+	#size-cells = <1>;
+	compatible = "fsl,ifc", "simple-bus";
+	interrupts = <16 2 0 0 25 2 0 0>;
+};
+
 &bportals {
 /include/ "qoriq-bman2-portals.dtsi"
 };
