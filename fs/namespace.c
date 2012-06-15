@@ -2705,8 +2705,8 @@ static int mntns_install(struct nsproxy *nsproxy, void *ns)
 	nsproxy->mnt_ns = mnt_ns;
 
 	/* Find the root */
-	root.mnt    = mnt_ns->root;
-	root.dentry = mnt_ns->root->mnt_root;
+	root.mnt    = &mnt_ns->root->mnt;
+	root.dentry = mnt_ns->root->mnt.mnt_root;
 	path_get(&root);
 	while(d_mountpoint(root.dentry) && follow_down(&root))
 		;
