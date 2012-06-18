@@ -36,6 +36,7 @@
  @Description   FMD wrapper resource allocation functions.
 
 */
+#if !defined(FMAN_RESOURCES_UNIT_TEST)
 
 #include <linux/version.h>
 #if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
@@ -49,8 +50,11 @@
 #include <linux/of_platform.h>
 #include <linux/skbuff.h>
 
+#endif /*#if !defined(FMAN_RESOURCES_UNIT_TEST)*/
+
 #include "lnxwrp_resources.h"
 
+#if !defined(FMAN_RESOURCES_UNIT_TEST)
 static struct device_node *match_mac_to_dpaa_port(struct device_node
 						  *enet_mac_node)
 {
@@ -231,6 +235,7 @@ int fm_set_active_fman_ports(struct platform_device *of_dev,
 
 	return 0;
 }
+#endif /*!defined(FMAN_RESOURCES_UNIT_TEST)*/
 
 #ifdef FM_FIFO_ALLOCATION_OLD_ALG
 /* BPOOL size is constant and equal w/ DPA_BP_SIZE */
@@ -363,6 +368,7 @@ int fm_precalculate_fifosizes(t_LnxWrpFmDev *p_LnxWrpFmDev, int muram_fifo_size)
 
 	{
 #ifdef FM_FIFO_ALLOCATION_OLD_ALG
+#if !defined(FMAN_RESOURCES_UNIT_TEST)
 		uint8_t fm_rev_major = 0;
 		fm_rev_major =
 			(uint8_t) ((*
@@ -371,6 +377,9 @@ int fm_precalculate_fifosizes(t_LnxWrpFmDev *p_LnxWrpFmDev, int muram_fifo_size)
 						 0x000c30c4)) & 0xff00) >> 8);
 
 		if (fm_rev_major < 4)
+#else
+		if(1)
+#endif
 			min_rx_bufs =
 				get_largest_buf_size(max_frame_size,
 						     buf_size) + 7;
@@ -576,6 +585,7 @@ precalculated_fifosize_out:
 	return err;
 }
 
+#if !defined(FMAN_RESOURCES_UNIT_TEST)
 int fm_config_precalculate_fifosize(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
 	t_LnxWrpFmDev *p_LnxWrpFmDev =
@@ -639,6 +649,7 @@ int fm_config_precalculate_fifosize(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 
 	return 0;
 }
+#endif /*if !defined(FMAN_RESOURCES_UNIT_TEST)*/
 
 /* Compute FMan open DMA based on total number of open DMAs and
  * number of available FMan ports.
@@ -888,6 +899,7 @@ precalculated_open_dma_out:
 	return err;
 }
 
+#if !defined(FMAN_RESOURCES_UNIT_TEST)
 int fm_config_precalculate_open_dma(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
 	t_LnxWrpFmDev *p_LnxWrpFmDev =
@@ -934,6 +946,7 @@ int fm_config_precalculate_open_dma(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 
 	return 0;
 }
+#endif /*if !defined(FMAN_RESOURCES_UNIT_TEST)*/
 
 /* Compute FMan tnums based on available tnums and number of ports.
    Set defaults (minim tresholds) and then distribute leftovers.*/
@@ -1132,6 +1145,7 @@ precalculated_tnums_out:
 	return err;
 }
 
+#if !defined(FMAN_RESOURCES_UNIT_TEST)
 int fm_config_precalculate_tnums(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
 	t_LnxWrpFmDev *p_LnxWrpFmDev =
@@ -1177,3 +1191,4 @@ int fm_config_precalculate_tnums(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 
 	return 0;
 }
+#endif /*if !defined(FMAN_RESOURCES_UNIT_TEST)*/
