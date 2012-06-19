@@ -19,3 +19,6 @@ ifeq ($(CONFIG_FMAN_P3040_P4080_P5020),y)
 fsl-ncsw-Pcd-objs	+= fm_manip.o
 endif
 
+ifeq ($(CONFIG_FMAN_T4240),y)
+fsl-ncsw-Pcd-objs	+= fm_manip.o
+endif
