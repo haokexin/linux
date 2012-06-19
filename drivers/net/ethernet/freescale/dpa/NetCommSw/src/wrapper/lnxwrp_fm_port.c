@@ -691,7 +691,18 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 						(t_FmPortBufferPrefixContent
 						 *)))
 
-			MY_ADV_CONFIG_CHECK_END
+			if((p_LnxWrpFmPortDev->settings.param.portType ==
+				    e_FM_PORT_TYPE_OH_OFFLINE_PARSING) &&
+				   (p_LnxWrpFmPortDev->settings.
+						frag_enabled == TRUE)) {
+				ADV_CONFIG_CHECK(p_LnxWrpFmPortDev->h_Dev,
+					FM_PORT_ConfigExtBufPools,
+					NCSW_PARAMS(1, (t_FmPortExtPools *)))
+
+
+
+				MY_ADV_CONFIG_CHECK_END
+			}
 			/* Advance to next advanced configuration entry */
 			i++;
 	}
@@ -802,6 +813,8 @@ void fm_set_rx_port_params(struct fm_port *port,
 }
 EXPORT_SYMBOL(fm_set_rx_port_params);
 
+/* this function is called from oh_probe as well, thus it contains oh port
+ * specific parameters (make sure everything is checked) */
 void fm_set_tx_port_params(struct fm_port *port,
 			   struct fm_port_non_rx_params *params)
 {
@@ -820,6 +833,18 @@ void fm_set_tx_port_params(struct fm_port *port,
 		params->hash_results;
 	p_LnxWrpFmPortDev->buffPrefixContent.passTimeStamp =
 		params->time_stamp;
+	p_LnxWrpFmPortDev->settings.frag_enabled = FALSE;
+
+	if ((params->frag_enable == TRUE) &&
+		(p_LnxWrpFmPortDev->settings.param.portType ==
+			e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) {
+
+		p_LnxWrpFmPortDev->settings.frag_enabled = TRUE;
+		p_LnxWrpFmPortDev->buffPrefixContent.dataAlign =
+			FRAG_DATA_ALIGN;
+		p_LnxWrpFmPortDev->buffPrefixContent.manipExtraSpace =
+			FRAG_MANIP_SPACE;
+	}
 
 	ADD_ADV_CONFIG_START(p_LnxWrpFmPortDev->settings.advConfig,
 			     FM_MAX_NUM_OF_ADV_SETTINGS)
@@ -828,6 +853,14 @@ void fm_set_tx_port_params(struct fm_port *port,
 				      ARGS(1,
 					   (&p_LnxWrpFmPortDev->
 					    buffPrefixContent)));
+
+		/* oh port specific parameter (for fragmentation only) */
+		if ((params->frag_enable == TRUE) &&
+			(p_LnxWrpFmPortDev->settings.param.portType ==
+				e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) {
+			ADD_ADV_CONFIG_NO_RET(FM_PORT_ConfigExtBufPools,
+					ARGS(1, (&params->op_ext_pools)));
+		}
 
 	ADD_ADV_CONFIG_END InitFmPortDev(p_LnxWrpFmPortDev);
 }
