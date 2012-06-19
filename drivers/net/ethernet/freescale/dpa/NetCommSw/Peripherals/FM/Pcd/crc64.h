@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -31,7 +31,7 @@
  */
 
 
-/**************************************************************************//**
+ /**************************************************************************//**
  @File          crc64.h
 
  @Description   brief This file contains the CRC64 Table, and __inline__
@@ -58,7 +58,7 @@
  */
 struct crc64_t {
     uint64_t initial;                       /**< Initial seed */
-    uint64_t table[CRC64_TABLE_ENTRIES];    /**< crc table entries */
+    uint64_t table[CRC64_TABLE_ENTRIES];    /**< CRC table entries */
 };
 
 

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,6 +29,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 
 /******************************************************************************
  @File          FM_muram.c
@@ -158,7 +159,17 @@ t_Error FM_MURAM_FreeMem(t_Handle h_FmMuram, void *ptr)
     SANITY_CHECK_RETURN_ERROR(p_FmMuram->h_Mem, E_INVALID_HANDLE);
 
     if (MM_Put(p_FmMuram->h_Mem, PTR_TO_UINT(ptr)) == 0)
-        RETURN_ERROR(MINOR, E_INVALID_HANDLE, ("memory pointer!!!"));
+        RETURN_ERROR(MINOR, E_INVALID_ADDRESS, ("memory pointer!!!"));
 
     return E_OK;
+}
+
+uint64_t FM_MURAM_GetFreeMemSize(t_Handle h_FmMuram)
+{
+    t_FmMuram   *p_FmMuram = ( t_FmMuram *)h_FmMuram;
+
+    SANITY_CHECK_RETURN_VALUE(h_FmMuram, E_INVALID_HANDLE, 0);
+    SANITY_CHECK_RETURN_VALUE(p_FmMuram->h_Mem, E_INVALID_HANDLE, 0);
+
+    return MM_GetFreeMemSize(p_FmMuram->h_Mem);
 }

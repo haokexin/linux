@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,8 +29,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/*
 
+/*
  @File          lnxwrp_fm_port.c
 
  @Description   FMD wrapper - FMan port functions.
@@ -52,6 +52,7 @@
 #include <linux/spinlock.h>
 
 #include "sprint_ext.h"
+#include "fm_common.h"
 #include "fm_port_ext.h"
 #include "fm_ioctls.h"
 #include "lnxwrp_resources.h"
@@ -461,6 +462,8 @@ static t_Error ConfigureFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 	return E_OK;
 }
 
+#if 0
+TODO: To be removed.
 static t_Error InitFmPort3TupleDefPcd(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
 	t_LnxWrpFmDev *p_LnxWrpFmDev =
@@ -506,8 +509,7 @@ static t_Error InitFmPort3TupleDefPcd(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 		HEADER_TYPE_IPv4;	/* no special options */
 	p_netEnvParam->units[1].hdrs[0].hdr = HEADER_TYPE_ETH;
 	p_LnxWrpFmPortDev->h_DefNetEnv =
-		FM_PCD_SetNetEnvCharacteristics(p_LnxWrpFmDev->h_PcdDev,
-						p_netEnvParam);
+		FM_PCD_NetEnvCharacteristicsSet(p_netEnvParam);
 	kfree(p_netEnvParam);
 	if (!p_LnxWrpFmPortDev->h_DefNetEnv)
 		RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("FM PCD!"));
@@ -604,8 +606,7 @@ static t_Error InitFmPort3TupleDefPcd(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 		}
 
 		p_LnxWrpFmPortDev->h_Schemes[i] =
-			FM_PCD_KgSetScheme(p_LnxWrpFmDev->h_PcdDev,
-					   p_schemeParam);
+			FM_PCD_KgSchemeSet(p_schemeParam);
 		if (!p_LnxWrpFmPortDev->h_Schemes[i]) {
 			kfree(p_schemeParam);
 			RETURN_ERROR(MAJOR, E_INVALID_HANDLE,
@@ -636,6 +637,7 @@ static t_Error InitFmPort3TupleDefPcd(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 
 	return FM_PORT_SetPCD(p_LnxWrpFmPortDev->h_Dev, &pcdParam);
 }
+#endif
 
 static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 {
@@ -681,28 +683,29 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
    and invoke the matching routine with proper casting of arguments. */
 	while (p_LnxWrpFmPortDev->settings.advConfig[i].p_Function
 	       && (i < FM_MAX_NUM_OF_ADV_SETTINGS)) {
-		ADV_CONFIG_CHECK_START(&
-				       (p_LnxWrpFmPortDev->settings.
-					advConfig[i]))
+
+/* TODO: Change this MACRO */
+			ADV_CONFIG_CHECK_START(
+				&(p_LnxWrpFmPortDev->settings.advConfig[i]))
 
 			ADV_CONFIG_CHECK(p_LnxWrpFmPortDev->h_Dev,
 					 FM_PORT_ConfigBufferPrefixContent,
 					 NCSW_PARAMS(1,
-						(t_FmPortBufferPrefixContent
-						 *)))
+						(t_FmBufferPrefixContent *)))
 
 			if((p_LnxWrpFmPortDev->settings.param.portType ==
 				    e_FM_PORT_TYPE_OH_OFFLINE_PARSING) &&
 				   (p_LnxWrpFmPortDev->settings.
 						frag_enabled == TRUE)) {
+
 				ADV_CONFIG_CHECK(p_LnxWrpFmPortDev->h_Dev,
 					FM_PORT_ConfigExtBufPools,
-					NCSW_PARAMS(1, (t_FmPortExtPools *)))
+					NCSW_PARAMS(1, (t_FmExtPools *)))
 
+                /* this define contains an else */
+                MY_ADV_CONFIG_CHECK_END
+                }
 
-
-				MY_ADV_CONFIG_CHECK_END
-			}
 			/* Advance to next advanced configuration entry */
 			i++;
 	}
@@ -763,11 +766,11 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
  *  . for P4080, MXT is in range (0..63)
  *
  */
-
+#if 0
 	if ((p_LnxWrpFmPortDev->defPcd != e_NO_PCD) &&
 	    (InitFmPort3TupleDefPcd(p_LnxWrpFmPortDev) != E_OK))
 		RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
-
+#endif
 	return E_OK;
 }
 
@@ -813,8 +816,6 @@ void fm_set_rx_port_params(struct fm_port *port,
 }
 EXPORT_SYMBOL(fm_set_rx_port_params);
 
-/* this function is called from oh_probe as well, thus it contains oh port
- * specific parameters (make sure everything is checked) */
 void fm_set_tx_port_params(struct fm_port *port,
 			   struct fm_port_non_rx_params *params)
 {
@@ -833,34 +834,35 @@ void fm_set_tx_port_params(struct fm_port *port,
 		params->hash_results;
 	p_LnxWrpFmPortDev->buffPrefixContent.passTimeStamp =
 		params->time_stamp;
-	p_LnxWrpFmPortDev->settings.frag_enabled = FALSE;
 
-	if ((params->frag_enable == TRUE) &&
-		(p_LnxWrpFmPortDev->settings.param.portType ==
-			e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) {
+    p_LnxWrpFmPortDev->settings.frag_enabled = FALSE;
 
-		p_LnxWrpFmPortDev->settings.frag_enabled = TRUE;
-		p_LnxWrpFmPortDev->buffPrefixContent.dataAlign =
-			FRAG_DATA_ALIGN;
-		p_LnxWrpFmPortDev->buffPrefixContent.manipExtraSpace =
-			FRAG_MANIP_SPACE;
-	}
+    if ((params->frag_enable == TRUE) &&
+        (p_LnxWrpFmPortDev->settings.param.portType ==
+            e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) {
+
+        p_LnxWrpFmPortDev->settings.frag_enabled = TRUE;
+        p_LnxWrpFmPortDev->buffPrefixContent.dataAlign =
+            FRAG_DATA_ALIGN;
+        p_LnxWrpFmPortDev->buffPrefixContent.manipExtraSpace =
+            FRAG_MANIP_SPACE;
+    }
 
 	ADD_ADV_CONFIG_START(p_LnxWrpFmPortDev->settings.advConfig,
 			     FM_MAX_NUM_OF_ADV_SETTINGS)
 
-		ADD_ADV_CONFIG_NO_RET(FM_PORT_ConfigBufferPrefixContent,
-				      ARGS(1,
-					   (&p_LnxWrpFmPortDev->
-					    buffPrefixContent)));
+    ADD_ADV_CONFIG_NO_RET(FM_PORT_ConfigBufferPrefixContent,
+		      ARGS(1,
+                        (&p_LnxWrpFmPortDev->
+                        buffPrefixContent)));
 
-		/* oh port specific parameter (for fragmentation only) */
-		if ((params->frag_enable == TRUE) &&
-			(p_LnxWrpFmPortDev->settings.param.portType ==
-				e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) {
-			ADD_ADV_CONFIG_NO_RET(FM_PORT_ConfigExtBufPools,
-					ARGS(1, (&params->op_ext_pools)));
-		}
+       /* oh port specific parameter (for fragmentation only) */
+       if ((params->frag_enable == TRUE) &&
+           (p_LnxWrpFmPortDev->settings.param.portType ==
+               e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) {
+           ADD_ADV_CONFIG_NO_RET(FM_PORT_ConfigExtBufPools,
+                   ARGS(1, (&params->op_ext_pools)));
+       }
 
 	ADD_ADV_CONFIG_END InitFmPortDev(p_LnxWrpFmPortDev);
 }

@@ -41,12 +41,14 @@
 #include "fm_port_ext.h"
 #include "fm_pcd_ext.h"
 
+/* FMAN exported functions */
+EXPORT_SYMBOL(FM_GetSpecialOperationCoding);
 
 /* FMAN Port exported routines */
 EXPORT_SYMBOL(FM_PORT_Disable);
 EXPORT_SYMBOL(FM_PORT_Enable);
 EXPORT_SYMBOL(FM_PORT_SetPCD);
-EXPORT_SYMBOL(FM_PORT_SetOpWorkarounds);
+EXPORT_SYMBOL(FM_PORT_DeletePCD);
 
 /* Runtime PCD exported routines */
 EXPORT_SYMBOL(FM_PCD_Enable);
@@ -61,38 +63,37 @@ EXPORT_SYMBOL(FM_PCD_SetPlcrStatistics);
 EXPORT_SYMBOL(FM_PCD_SetPrsStatistics);
 EXPORT_SYMBOL(FM_PCD_ForceIntr);
 EXPORT_SYMBOL(FM_PCD_HcTxConf);
-EXPORT_SYMBOL(FM_PCD_SetNetEnvCharacteristics);
-EXPORT_SYMBOL(FM_PCD_DeleteNetEnvCharacteristics);
-EXPORT_SYMBOL(FM_PCD_KgSetScheme);
-EXPORT_SYMBOL(FM_PCD_KgDeleteScheme);
-EXPORT_SYMBOL(FM_PCD_KgGetSchemeCounter);
-EXPORT_SYMBOL(FM_PCD_KgSetSchemeCounter);
-EXPORT_SYMBOL(FM_PCD_CcBuildTree);
-EXPORT_SYMBOL(FM_PCD_CcDeleteTree);
-EXPORT_SYMBOL(FM_PCD_CcSetNode);
-EXPORT_SYMBOL(FM_PCD_CcDeleteNode);
-EXPORT_SYMBOL(FM_PCD_CcTreeModifyNextEngine);
-EXPORT_SYMBOL(FM_PCD_CcNodeModifyNextEngine);
-EXPORT_SYMBOL(FM_PCD_CcNodeModifyMissNextEngine);
-EXPORT_SYMBOL(FM_PCD_CcNodeRemoveKey);
-EXPORT_SYMBOL(FM_PCD_CcNodeAddKey);
-EXPORT_SYMBOL(FM_PCD_CcNodeModifyKeyAndNextEngine);
-EXPORT_SYMBOL(FM_PCD_CcNodeModifyKey);
-EXPORT_SYMBOL(FM_PCD_CcIndexedHashNodeGetBucket);
-EXPORT_SYMBOL(FM_PCD_CcNodeGetNextEngine);
-EXPORT_SYMBOL(FM_PCD_CcNodeGetKeyCounter);
-EXPORT_SYMBOL(FM_PCD_PlcrSetProfile);
-EXPORT_SYMBOL(FM_PCD_PlcrDeleteProfile);
-EXPORT_SYMBOL(FM_PCD_PlcrGetProfileCounter);
-EXPORT_SYMBOL(FM_PCD_PlcrSetProfileCounter);
-
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-EXPORT_SYMBOL(FM_PCD_ManipSetNode);
-EXPORT_SYMBOL(FM_PCD_ManipDeleteNode);
-#endif /* defined(FM_CAPWAP_SUPPORT) || ... */
+EXPORT_SYMBOL(FM_PCD_NetEnvCharacteristicsSet);
+EXPORT_SYMBOL(FM_PCD_NetEnvCharacteristicsDelete);
+EXPORT_SYMBOL(FM_PCD_KgSchemeSet);
+EXPORT_SYMBOL(FM_PCD_KgSchemeDelete);
+EXPORT_SYMBOL(FM_PCD_KgSchemeGetCounter);
+EXPORT_SYMBOL(FM_PCD_KgSchemeSetCounter);
+EXPORT_SYMBOL(FM_PCD_CcRootBuild);
+EXPORT_SYMBOL(FM_PCD_CcRootDelete);
+EXPORT_SYMBOL(FM_PCD_MatchTableSet);
+EXPORT_SYMBOL(FM_PCD_MatchTableDelete);
+EXPORT_SYMBOL(FM_PCD_CcRootModifyNextEngine);
+EXPORT_SYMBOL(FM_PCD_MatchTableModifyNextEngine);
+EXPORT_SYMBOL(FM_PCD_MatchTableModifyMissNextEngine);
+EXPORT_SYMBOL(FM_PCD_MatchTableRemoveKey);
+EXPORT_SYMBOL(FM_PCD_MatchTableAddKey);
+EXPORT_SYMBOL(FM_PCD_MatchTableModifyKeyAndNextEngine);
+EXPORT_SYMBOL(FM_PCD_MatchTableModifyKey);
+EXPORT_SYMBOL(FM_PCD_MatchTableGetIndexedHashBucket);
+EXPORT_SYMBOL(FM_PCD_MatchTableGetNextEngine);
+EXPORT_SYMBOL(FM_PCD_MatchTableGetKeyCounter);
+EXPORT_SYMBOL(FM_PCD_PlcrProfileSet);
+EXPORT_SYMBOL(FM_PCD_PlcrProfileDelete);
+EXPORT_SYMBOL(FM_PCD_PlcrProfileGetCounter);
+EXPORT_SYMBOL(FM_PCD_PlcrProfileSetCounter);
+EXPORT_SYMBOL(FM_PCD_ManipNodeSet);
+EXPORT_SYMBOL(FM_PCD_ManipNodeDelete);
 
 #ifdef FM_CAPWAP_SUPPORT
 EXPORT_SYMBOL(FM_PCD_StatisticsSetNode);
 #endif /* FM_CAPWAP_SUPPORT */
+
+EXPORT_SYMBOL(FM_PCD_SetAdvancedOffloadSupport);
 
 #endif /* __LNXWRP_EXP_SYM_H */

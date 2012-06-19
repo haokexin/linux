@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,6 +29,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 
 /******************************************************************************
  @File          dtsec.c
@@ -60,16 +61,15 @@ static t_Error CheckInitParameters(t_Dtsec *p_Dtsec)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("macId can not be greater than the number of 1G MACs"));
     if(p_Dtsec->addr == 0)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Ethernet MAC Must have a valid MAC Address"));
-    if(((p_Dtsec->enetMode == e_ENET_MODE_SGMII_1000) ||
-        (p_Dtsec->enetMode == e_ENET_MODE_RGMII_1000) ||
-        (p_Dtsec->enetMode == e_ENET_MODE_QSGMII_1000)) &&
+    if((ENET_SPEED_FROM_MODE(p_Dtsec->enetMode) >= e_ENET_SPEED_1000) &&
         p_Dtsec->p_DtsecDriverParam->halfDuplex)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Ethernet MAC 1G can't work in half duplex"));
     if(p_Dtsec->p_DtsecDriverParam->halfDuplex && (p_Dtsec->p_DtsecDriverParam)->loopback)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("LoopBack is not supported in halfDuplex mode"));
 #ifdef FM_RX_PREAM_4_ERRATA_DTSEC_A001
-    if(p_Dtsec->p_DtsecDriverParam->preambleRxEn)
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("preambleRxEn"));
+    if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev <= 6) /* fixed for rev3 */
+        if(p_Dtsec->p_DtsecDriverParam->preambleRxEn)
+            RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("preambleRxEn"));
 #endif /* FM_RX_PREAM_4_ERRATA_DTSEC_A001 */
     if(((p_Dtsec->p_DtsecDriverParam)->preambleTxEn || (p_Dtsec->p_DtsecDriverParam)->preambleRxEn) &&( (p_Dtsec->p_DtsecDriverParam)->preambleLength != 0x7))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Preamble length should be 0x7 bytes"));
@@ -101,6 +101,11 @@ static t_Error CheckInitParameters(t_Dtsec *p_Dtsec)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("uninitialized f_Exception"));
     if (!p_Dtsec->f_Event)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("uninitialized f_Event"));
+
+#ifdef FM_LEN_CHECK_ERRATA_FMAN_SW002
+    if(p_Dtsec->p_DtsecDriverParam->lengthCheckEnable)
+       RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("LengthCheck!"));
+#endif /* FM_LEN_CHECK_ERRATA_FMAN_SW002 */
 
     return E_OK;
 }
@@ -306,70 +311,73 @@ static void DtsecErrException(t_Handle h_Dtsec)
     if(event & IMASK_XFUNEN)
     {
 #ifdef FM_TX_LOCKUP_ERRATA_DTSEC6
-        uint32_t  tpkt1, tmpReg1, tpkt2, tmpReg2, i;
-        /* a. Write 0x00E0_0C00 to DTSEC_ID */
-        /* This is a read only regidter */
-
-        /* b. Read and save the value of TPKT */
-        tpkt1 = GET_UINT32(p_DtsecMemMap->tpkt);
-
-        /* c. Read the register at dTSEC address offset 0x32C */
-        tmpReg1 =  GET_UINT32(*(uint32_t*)((uint8_t*)p_DtsecMemMap + 0x32c));
-
-        /* d. Compare bits [9:15] to bits [25:31] of the register at address offset 0x32C. */
-        if((tmpReg1 & 0x007F0000) != (tmpReg1 & 0x0000007F))
+        if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
         {
-            /* If they are not equal, save the value of this register and wait for at least
-             * MAXFRM*16 ns */
-            XX_UDelay((uint32_t)(MIN(DtsecGetMaxFrameLength(p_Dtsec)*16/1000, 1)));
-        }
+            uint32_t  tpkt1, tmpReg1, tpkt2, tmpReg2, i;
+            /* a. Write 0x00E0_0C00 to DTSEC_ID */
+            /* This is a read only regidter */
 
-        /* e. Read and save TPKT again and read the register at dTSEC address offset
-            0x32C again*/
-        tpkt2 = GET_UINT32(p_DtsecMemMap->tpkt);
-        tmpReg2 = GET_UINT32(*(uint32_t*)((uint8_t*)p_DtsecMemMap + 0x32c));
+            /* b. Read and save the value of TPKT */
+            tpkt1 = GET_UINT32(p_DtsecMemMap->tpkt);
 
-        /* f. Compare the value of TPKT saved in step b to value read in step e. Also
-            compare bits [9:15] of the register at offset 0x32C saved in step d to the value
-            of bits [9:15] saved in step e. If the two registers values are unchanged, then
-            the transmit portion of the dTSEC controller is locked up and the user should
-            proceed to the recover sequence. */
-        if((tpkt1 == tpkt2) && ((tmpReg1 & 0x007F0000) == (tmpReg2 & 0x007F0000)))
-        {
-            /* recover sequence */
+            /* c. Read the register at dTSEC address offset 0x32C */
+            tmpReg1 =  GET_UINT32(*(uint32_t*)((uint8_t*)p_DtsecMemMap + 0x32c));
 
-            /* a.Write a 1 to RCTRL[GRS]*/
-
-            WRITE_UINT32(p_DtsecMemMap->rctrl, GET_UINT32(p_DtsecMemMap->rctrl) | RCTRL_GRS);
-
-            /* b.Wait until IEVENT[GRSC]=1, or at least 100 us has elapsed. */
-            for(i = 0 ; i < 100 ; i++ )
+            /* d. Compare bits [9:15] to bits [25:31] of the register at address offset 0x32C. */
+            if((tmpReg1 & 0x007F0000) != (tmpReg1 & 0x0000007F))
             {
-                if(GET_UINT32(p_DtsecMemMap->ievent) & IMASK_GRSCEN)
-                    break;
-                XX_UDelay(1);
+                /* If they are not equal, save the value of this register and wait for at least
+                 * MAXFRM*16 ns */
+                XX_UDelay((uint32_t)(MIN(DtsecGetMaxFrameLength(p_Dtsec)*16/1000, 1)));
             }
-            if(GET_UINT32(p_DtsecMemMap->ievent) & IMASK_GRSCEN)
-                WRITE_UINT32(p_DtsecMemMap->ievent, IMASK_GRSCEN);
+
+            /* e. Read and save TPKT again and read the register at dTSEC address offset
+                0x32C again*/
+            tpkt2 = GET_UINT32(p_DtsecMemMap->tpkt);
+            tmpReg2 = GET_UINT32(*(uint32_t*)((uint8_t*)p_DtsecMemMap + 0x32c));
+
+            /* f. Compare the value of TPKT saved in step b to value read in step e. Also
+                compare bits [9:15] of the register at offset 0x32C saved in step d to the value
+                of bits [9:15] saved in step e. If the two registers values are unchanged, then
+                the transmit portion of the dTSEC controller is locked up and the user should
+                proceed to the recover sequence. */
+            if((tpkt1 == tpkt2) && ((tmpReg1 & 0x007F0000) == (tmpReg2 & 0x007F0000)))
+            {
+                /* recover sequence */
+
+                /* a.Write a 1 to RCTRL[GRS]*/
+
+                WRITE_UINT32(p_DtsecMemMap->rctrl, GET_UINT32(p_DtsecMemMap->rctrl) | RCTRL_GRS);
+
+                /* b.Wait until IEVENT[GRSC]=1, or at least 100 us has elapsed. */
+                for(i = 0 ; i < 100 ; i++ )
+                {
+                    if(GET_UINT32(p_DtsecMemMap->ievent) & IMASK_GRSCEN)
+                        break;
+                    XX_UDelay(1);
+                }
+                if(GET_UINT32(p_DtsecMemMap->ievent) & IMASK_GRSCEN)
+                    WRITE_UINT32(p_DtsecMemMap->ievent, IMASK_GRSCEN);
+                else
+                    DBG(INFO,("Rx lockup due to dTSEC Tx lockup"));
+
+
+                /* c.Write a 1 to bit n of FM_RSTC (offset 0x0CC of FPM)*/
+                FmResetMac(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MAC_1G, p_Dtsec->fmMacControllerDriver.macId);
+
+                /* d.Wait 4 Tx clocks (32 ns) */
+                XX_UDelay(1);
+
+                /* e.Write a 0 to bit n of FM_RSTC. */
+                /* cleared by FMAN */
+            }
             else
-                DBG(INFO,("Rx lockup due to dTSEC Tx lockup"));
-
-
-            /* c.Write a 1 to bit n of FM_RSTC (offset 0x0CC of FPM)*/
-            FmResetMac(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MAC_1G, p_Dtsec->fmMacControllerDriver.macId);
-
-            /* d.Wait 4 Tx clocks (32 ns) */
-            XX_UDelay(1);
-
-            /* e.Write a 0 to bit n of FM_RSTC. */
-            /* cleared by FMAN */
-        }
-        else
-        {
-            /* If either value has changed, the dTSEC controller is not locked up and the
-               controller should be allowed to proceed normally by writing the reset value
-               of 0x0824_0101 to DTSEC_ID. */
-            /* Register is read only */
+            {
+                /* If either value has changed, the dTSEC controller is not locked up and the
+                   controller should be allowed to proceed normally by writing the reset value
+                   of 0x0824_0101 to DTSEC_ID. */
+                /* Register is read only */
+            }
         }
 #endif /* FM_TX_LOCKUP_ERRATA_DTSEC6 */
 
@@ -418,10 +426,9 @@ static void FreeInitResources(t_Dtsec *p_Dtsec)
         XX_DisableIntr(p_Dtsec->mdioIrq);
         XX_FreeIntr(p_Dtsec->mdioIrq);
     }
-    else if (p_Dtsec->mdioIrq == 0)
-        FmUnregisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MOD_1G_MAC, p_Dtsec->macId, e_FM_INTR_TYPE_NORMAL);
+
     FmUnregisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MOD_1G_MAC, p_Dtsec->macId, e_FM_INTR_TYPE_ERR);
-    FmUnregisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MOD_1G_MAC_TMR, p_Dtsec->macId, e_FM_INTR_TYPE_NORMAL);
+    FmUnregisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MOD_1G_MAC, p_Dtsec->macId, e_FM_INTR_TYPE_NORMAL);
 
     /* release the driver's group hash table */
     FreeHashTable(p_Dtsec->p_MulticastAddrHash);
@@ -474,15 +481,22 @@ static t_Error GracefulStop(t_Dtsec *p_Dtsec, e_CommMode mode)
                      GET_UINT32(p_MemMap->rctrl) | RCTRL_GRS);
 
 #ifdef FM_GRS_ERRATA_DTSEC_A002
-    XX_UDelay(100);
+    if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
+        XX_UDelay(100);
 #endif /* FM_GRS_ERRATA_DTSEC_A002 */
 
-#if defined(FM_GTS_ERRATA_DTSEC_A004) || defined(FM_GTS_AFTER_MAC_ABORTED_FRAME_ERRATA_DTSEC_A0012) || defined(FM_GTS_UNDERRUN_ERRATA_DTSEC_A0014)
-    DBG(INFO, ("GTS not supported due to DTSEC_A004 errata."));
-#else  /* not defined(FM_GTS_ERRATA_DTSEC_A004) ||... */
     if (mode & e_COMM_MODE_TX)
+#if defined(FM_GTS_ERRATA_DTSEC_A004) || defined(FM_GTS_AFTER_MAC_ABORTED_FRAME_ERRATA_DTSEC_A0012)
+    if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
+        DBG(INFO, ("GTS not supported due to DTSEC_A004 errata."));
+#else  /* not defined(FM_GTS_ERRATA_DTSEC_A004) ||... */
+#ifdef FM_GTS_UNDERRUN_ERRATA_DTSEC_A0014
+    if((p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2) || (p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 5))
+        DBG(INFO, ("GTS not supported due to DTSEC_A0014 errata."));
+#else  /* FM_GTS_UNDERRUN_ERRATA_DTSEC_A0014 */
         WRITE_UINT32(p_MemMap->tctrl,
                      GET_UINT32(p_MemMap->tctrl) | TCTRL_GTS);
+#endif
 #endif /* defined(FM_GTS_ERRATA_DTSEC_A004) ||...  */
 
     return E_OK;
@@ -576,13 +590,22 @@ static t_Error DtsecConfigHalfDuplex(t_Handle h_Dtsec, bool newVal)
 
 /* .............................................................................. */
 
+static t_Error DtsecConfigTbiPhyAddr(t_Handle h_Dtsec, uint8_t newVal)
+{
+    t_Dtsec *p_Dtsec = (t_Dtsec *)h_Dtsec;
+
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_DtsecDriverParam, E_INVALID_STATE);
+
+    p_Dtsec->p_DtsecDriverParam->tbiPhyAddr = newVal;
+
+    return E_OK;
+}
+
+/* .............................................................................. */
+
 static t_Error DtsecConfigLengthCheck(t_Handle h_Dtsec, bool newVal)
 {
-#ifdef FM_LEN_CHECK_ERRATA_FMAN_SW002
-UNUSED(h_Dtsec);
-    RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("LengthCheck!"));
-
-#else
     t_Dtsec *p_Dtsec = (t_Dtsec *)h_Dtsec;
 
     SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
@@ -591,7 +614,6 @@ UNUSED(h_Dtsec);
     p_Dtsec->p_DtsecDriverParam->lengthCheckEnable = newVal;
 
     return E_OK;
-#endif /* FM_LEN_CHECK_ERRATA_FMAN_SW002 */
 }
 
 static t_Error DtsecConfigException(t_Handle h_Dtsec, e_FmMacExceptions exception, bool enable)
@@ -688,11 +710,16 @@ static t_Error DtsecDisable (t_Handle h_Dtsec, e_CommMode mode)
 
 /* .............................................................................. */
 
-static t_Error DtsecTxMacPause(t_Handle h_Dtsec, uint16_t pauseTime)
+static t_Error DtsecSetTxPauseFrames(t_Handle h_Dtsec,
+                                     uint8_t  priority,
+                                     uint16_t pauseTime,
+                                     uint16_t threshTime)
 {
     t_Dtsec         *p_Dtsec = (t_Dtsec *)h_Dtsec;
     uint32_t        ptv = 0;
     t_DtsecMemMap   *p_MemMap;
+
+UNUSED(priority);UNUSED(threshTime);
 
     SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_STATE);
     SANITY_CHECK_RETURN_ERROR(!p_Dtsec->p_DtsecDriverParam, E_INVALID_STATE);
@@ -703,12 +730,11 @@ static t_Error DtsecTxMacPause(t_Handle h_Dtsec, uint16_t pauseTime)
     if (pauseTime)
     {
 #ifdef FM_BAD_TX_TS_IN_B_2_B_ERRATA_DTSEC_A003
-        {
+        if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
             if (pauseTime <= 320)
                 RETURN_ERROR(MINOR, E_INVALID_VALUE,
                              ("This pause-time value of %d is illegal due to errata dTSEC-A003!"
                               " value should be greater than 320."));
-        }
 #endif /* FM_BAD_TX_TS_IN_B_2_B_ERRATA_DTSEC_A003 */
 
         ptv = GET_UINT32(p_MemMap->ptv);
@@ -720,12 +746,18 @@ static t_Error DtsecTxMacPause(t_Handle h_Dtsec, uint16_t pauseTime)
                      GET_UINT32(p_MemMap->maccfg1) | MACCFG1_TX_FLOW);
     }
     else
-    {
         WRITE_UINT32(p_MemMap->maccfg1,
                      GET_UINT32(p_MemMap->maccfg1) & ~MACCFG1_TX_FLOW);
-    }
 
     return E_OK;
+}
+
+/* .............................................................................. */
+
+static t_Error DtsecSetTxAutoPauseFrames(t_Handle h_Dtsec,
+                                         uint16_t pauseTime)
+{
+    return DtsecSetTxPauseFrames(h_Dtsec, 0, pauseTime, 0);
 }
 
 /* .............................................................................. */
@@ -761,10 +793,6 @@ static t_Error DtsecEnable1588TimeStamp(t_Handle h_Dtsec)
 
     SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_Dtsec->p_DtsecDriverParam, E_INVALID_STATE);
-#ifdef FM_10_100_SGMII_NO_TS_ERRATA_DTSEC3
-    if((p_Dtsec->enetMode == e_ENET_MODE_SGMII_10) || (p_Dtsec->enetMode == e_ENET_MODE_SGMII_100))
-        RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("1588TimeStamp in 10/100 SGMII"));
-#endif /* FM_10_100_SGMII_NO_TS_ERRATA_DTSEC3 */
     p_Dtsec->ptpTsuEnabled = TRUE;
     WRITE_UINT32(p_Dtsec->p_MemMap->rctrl, GET_UINT32(p_Dtsec->p_MemMap->rctrl) | RCTRL_RTSE);
     WRITE_UINT32(p_Dtsec->p_MemMap->tctrl, GET_UINT32(p_Dtsec->p_MemMap->tctrl) | TCTRL_TTSE);
@@ -1215,12 +1243,9 @@ static t_Error DtsecAdjustLink(t_Handle h_Dtsec, e_EnetSpeed speed, bool fullDup
     SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_Dtsec->p_DtsecDriverParam, E_INVALID_HANDLE);
     p_DtsecMemMap = p_Dtsec->p_MemMap;
-    SANITY_CHECK_RETURN_ERROR(p_DtsecMemMap, E_INVALID_HANDLE);
 
-    if (!fullDuplex &&
-        ((speed >= e_ENET_SPEED_1000) ||
-         (ENET_INTERFACE_FROM_MODE(p_Dtsec->enetMode) == e_ENET_IF_SGMII)))
-        RETURN_ERROR(MAJOR, E_CONFLICT, ("Ethernet interface does not support Half Duplex mode"));
+    if (!fullDuplex && (speed == e_ENET_SPEED_1000))
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("Ethernet MAC 1G does not support half-duplex"));
 
     p_Dtsec->enetMode = MAKE_ENET_MODE(ENET_INTERFACE_FROM_MODE(p_Dtsec->enetMode), speed);
     p_Dtsec->halfDuplex = !fullDuplex;
@@ -1253,6 +1278,21 @@ static t_Error DtsecAdjustLink(t_Handle h_Dtsec, e_EnetSpeed speed, bool fullDup
             tmpReg32 &= ~ECNTRL_R100M;
         WRITE_UINT32(p_DtsecMemMap->ecntrl, tmpReg32);
     }
+
+    return E_OK;
+}
+
+/* .............................................................................. */
+
+static t_Error DtsecRestartAutoneg(t_Handle h_Dtsec)
+{
+    t_Dtsec      *p_Dtsec = (t_Dtsec *)h_Dtsec;
+    uint16_t     tmpReg16;
+
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
+    DTSEC_MII_ReadPhyReg(p_Dtsec, p_Dtsec->p_DtsecDriverParam->tbiPhyAddr, 0, &tmpReg16);
+    tmpReg16 |= (PHY_CR_RESET_AN);
+    DTSEC_MII_WritePhyReg(p_Dtsec, p_Dtsec->p_DtsecDriverParam->tbiPhyAddr, 0, tmpReg16);
 
     return E_OK;
 }
@@ -1326,7 +1366,9 @@ static t_Error DtsecSetException(t_Handle h_Dtsec, e_FmMacExceptions exception, 
         if((exception == e_FM_MAC_EX_1G_RX_MIB_CNT_OVFL) &&
             !enable &&
             (p_Dtsec->statisticsLevel != e_FM_MAC_NONE_STATISTICS))
-            DBG(INFO, ("Disabled MIB counters overflow exceptions. Counters value may be inaccurate due to unregistered overflow"));
+            DBG(INFO, ("Disabled MIB counters overflow exceptions."
+                          " Counters value may be inaccurate due to unregistered overflow"));
+
     }
     else
     {
@@ -1441,9 +1483,7 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
              RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("no support for reduced interface in current DTSEC version"));
         }
 
-    if ((p_Dtsec->enetMode == e_ENET_MODE_SGMII_10) ||
-        (p_Dtsec->enetMode == e_ENET_MODE_SGMII_100) ||
-        (p_Dtsec->enetMode == e_ENET_MODE_SGMII_1000)||
+    if ((ENET_INTERFACE_FROM_MODE(p_Dtsec->enetMode) == e_ENET_IF_SGMII)||
         (p_Dtsec->enetMode == e_ENET_MODE_MII_10)    ||
         (p_Dtsec->enetMode == e_ENET_MODE_MII_100))
         if(tmpReg32 & ID2_INT_NORMAL_OFF)
@@ -1463,9 +1503,7 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
         (p_Dtsec->enetMode == e_ENET_MODE_RGMII_1000) ||
         (p_Dtsec->enetMode == e_ENET_MODE_GMII_1000))
         tmpReg32 |= ECNTRL_GMIIM;
-    if ((p_Dtsec->enetMode == e_ENET_MODE_SGMII_10)   ||
-        (p_Dtsec->enetMode == e_ENET_MODE_SGMII_100)  ||
-        (p_Dtsec->enetMode == e_ENET_MODE_SGMII_1000))
+    if (ENET_INTERFACE_FROM_MODE(p_Dtsec->enetMode) == e_ENET_IF_SGMII)
         tmpReg32 |= (ECNTRL_SGMIIM | ECNTRL_TBIM);
     if (p_Dtsec->enetMode == e_ENET_MODE_QSGMII_1000)
         tmpReg32 |= (ECNTRL_SGMIIM | ECNTRL_TBIM | ECNTRL_QSGMIIM);
@@ -1534,15 +1572,17 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
     /* conflict with the external PHY’s Physical address   */
     WRITE_UINT32(p_DtsecMemMap->tbipa, p_DtsecDriverParam->tbiPhyAddr);
 
-    if(p_Dtsec->enetMode == e_ENET_MODE_SGMII_1000)
+    if(ENET_INTERFACE_FROM_MODE(p_Dtsec->enetMode) == e_ENET_IF_SGMII)
     {
         uint16_t            tmpReg16;
 
         /* Configure the TBI PHY Control Register */
         tmpReg16 = PHY_TBICON_CLK_SEL | PHY_TBICON_SRESET;
+
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 17, tmpReg16);
 
         tmpReg16 = PHY_TBICON_CLK_SEL;
+
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 17, tmpReg16);
 
         tmpReg16 = (PHY_CR_PHY_RESET | PHY_CR_ANE | PHY_CR_FULLDUPLEX | PHY_CR_SPEED1);
@@ -1552,7 +1592,8 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
         tmpReg16 = PHY_TBIANA_SGMII;
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 4, tmpReg16);
 
-        tmpReg16 = PHY_CR_ANE | PHY_CR_RESET_AN | PHY_CR_FULLDUPLEX | PHY_CR_SPEED1;
+        tmpReg16 = (PHY_CR_ANE | PHY_CR_RESET_AN | PHY_CR_FULLDUPLEX | PHY_CR_SPEED1);
+
         DTSEC_MII_WritePhyReg(p_Dtsec, p_DtsecDriverParam->tbiPhyAddr, 0, tmpReg16);
     }
 
@@ -1722,9 +1763,19 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
     }
 
     /* register err intr handler for dtsec to FPM (err)*/
-    FmRegisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MOD_1G_MAC, p_Dtsec->macId, e_FM_INTR_TYPE_ERR, DtsecErrException , p_Dtsec);
+    FmRegisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm,
+                   e_FM_MOD_1G_MAC,
+                   p_Dtsec->macId,
+                   e_FM_INTR_TYPE_ERR,
+                   DtsecErrException,
+                   p_Dtsec);
     /* register 1588 intr handler for TMR to FPM (normal)*/
-    FmRegisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm, e_FM_MOD_1G_MAC_TMR, p_Dtsec->macId, e_FM_INTR_TYPE_NORMAL, Dtsec1588Exception , p_Dtsec);
+    FmRegisterIntr(p_Dtsec->fmMacControllerDriver.h_Fm,
+                   e_FM_MOD_1G_MAC,
+                   p_Dtsec->macId,
+                   e_FM_INTR_TYPE_NORMAL,
+                   Dtsec1588Exception,
+                   p_Dtsec);
     /* register normal intr handler for dtsec to main interrupt controller. */
     if (p_Dtsec->mdioIrq != NO_IRQ)
     {
@@ -1781,7 +1832,9 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
     p_FmMacControllerDriver->f_FM_MAC_ConfigPadAndCrc           = DtsecConfigPadAndCrc;
     p_FmMacControllerDriver->f_FM_MAC_ConfigHalfDuplex          = DtsecConfigHalfDuplex;
     p_FmMacControllerDriver->f_FM_MAC_ConfigLengthCheck         = DtsecConfigLengthCheck;
+    p_FmMacControllerDriver->f_FM_MAC_ConfigTbiPhyAddr          = DtsecConfigTbiPhyAddr;
     p_FmMacControllerDriver->f_FM_MAC_ConfigException           = DtsecConfigException;
+    p_FmMacControllerDriver->f_FM_MAC_ConfigResetOnInit         = NULL;
 
     p_FmMacControllerDriver->f_FM_MAC_Enable                    = DtsecEnable;
     p_FmMacControllerDriver->f_FM_MAC_Disable                   = DtsecDisable;
@@ -1790,11 +1843,13 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
 
     p_FmMacControllerDriver->f_FM_MAC_SetPromiscuous            = DtsecSetPromiscuous;
     p_FmMacControllerDriver->f_FM_MAC_AdjustLink                = DtsecAdjustLink;
+    p_FmMacControllerDriver->f_FM_MAC_RestartAutoneg            = DtsecRestartAutoneg;
 
     p_FmMacControllerDriver->f_FM_MAC_Enable1588TimeStamp       = DtsecEnable1588TimeStamp;
     p_FmMacControllerDriver->f_FM_MAC_Disable1588TimeStamp      = DtsecDisable1588TimeStamp;
 
-    p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = DtsecTxMacPause;
+    p_FmMacControllerDriver->f_FM_MAC_SetTxAutoPauseFrames      = DtsecSetTxAutoPauseFrames;
+    p_FmMacControllerDriver->f_FM_MAC_SetTxPauseFrames          = DtsecSetTxPauseFrames;
     p_FmMacControllerDriver->f_FM_MAC_SetRxIgnorePauseFrames    = DtsecRxIgnoreMacPause;
 
     p_FmMacControllerDriver->f_FM_MAC_ResetCounters             = DtsecResetCounters;
@@ -1861,7 +1916,7 @@ t_Handle  DTSEC_Config(t_FmMacParams *p_FmMacParam)
 
     SetDefaultParam(p_DtsecDriverParam);
 
-    for (i=0; i < sizeof(p_FmMacParam->addr); i++)
+   for (i=0; i < sizeof(p_FmMacParam->addr); i++)
         p_Dtsec->addr |= ((uint64_t)p_FmMacParam->addr[i] << ((5-i) * 8));
 
     p_Dtsec->p_MemMap           = (t_DtsecMemMap *)UINT_TO_PTR(baseAddr);
