@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,8 +29,8 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/*
 
+/*
  @File          lnxwrp_ioctls_fm_compat.h
 
  @Description   FM PCD compat structures definition.
@@ -44,6 +44,7 @@
 
 #define COMPAT_K_TO_US 0 /* copy from Kernel to User */
 #define COMPAT_US_TO_K 1 /* copy from User to Kernel */
+#define COMPAT_GENERIC 2
 
 #define COMPAT_COPY_K2US(dest, src, type)	compat_copy_##type(src, dest, 0)
 #define COMPAT_COPY_US2K(dest, src, type)	compat_copy_##type(dest, src, 1)
@@ -55,10 +56,39 @@
 #define COMPAT_PTR2ID_WATERMARK 0xface0000
 #define COMPAT_PTR2ID_WM_MASK   0xffff0000
 
-void compat_del_ptr2id(void *p);
-compat_uptr_t compat_add_ptr2id(void *p);
-compat_uptr_t compat_get_ptr2id(void *p);
-void *compat_get_id2ptr(compat_uptr_t comp);
+/* define it for debug trace */
+/*#define FM_COMPAT_DBG*/
+
+#define _fm_cpt_prk(stage, format, arg...)	\
+	printk(stage "fm_cpt (cpu:%u): " format, smp_processor_id(), ##arg)
+
+#define _fm_cpt_inf(format, arg...) _fm_cpt_prk(KERN_INFO, format, ##arg)
+#define _fm_cpt_wrn(format, arg...) _fm_cpt_prk(KERN_WARNING, format, ##arg)
+#define _fm_cpt_err(format, arg...) _fm_cpt_prk(KERN_ERR, format, ##arg)
+
+/* used for compat IOCTL debugging */
+#if defined(FM_COMPAT_DBG)
+	#define _fm_cpt_dbg(from, format, arg...) \
+		do{ \
+			if (from == COMPAT_US_TO_K) \
+				printk("fm_cpt to KS [%s:%u](cpu:%u) - " format,	\
+					__func__, __LINE__, smp_processor_id(), ##arg); \
+			else if (from == COMPAT_K_TO_US) \
+				printk("fm_cpt to US [%s:%u](cpu:%u) - " format,	\
+					__func__, __LINE__, smp_processor_id(), ##arg); \
+            else \
+                printk("fm_cpt [%s:%u](cpu:%u) - " format,    \
+                    __func__, __LINE__, smp_processor_id(), ##arg); \
+		}while(0)
+#else
+#	define _fm_cpt_dbg(arg...)
+#endif
+
+#define ID_MAP_NAME_SIZE 16
+void compat_del_ptr2id(void *p, const unsigned char *);
+compat_uptr_t compat_add_ptr2id(void *p, const unsigned char *);
+compat_uptr_t compat_get_ptr2id(void *p, const unsigned char *);
+void *compat_get_id2ptr(compat_uptr_t comp, const unsigned char *);
 /* } maping kernel pointers w/ UserSpace id's  */
 
 /* pcd compat structures { */
@@ -119,7 +149,7 @@ typedef struct ioc_compat_fm_pcd_kg_scheme_select_t {
 
 typedef struct ioc_compat_fm_pcd_port_schemes_params_t {
     uint8_t        num_of_schemes;
-    compat_uptr_t  schemes_ids [IOC_FM_PCD_KG_NUM_OF_SCHEMES];
+    compat_uptr_t  schemes_ids [FM_PCD_KG_NUM_OF_SCHEMES];
 } ioc_compat_fm_pcd_port_schemes_params_t;
 
 typedef struct ioc_compat_fm_pcd_net_env_params_t {
@@ -142,6 +172,9 @@ typedef struct ioc_compat_fm_pcd_cc_next_kg_params_t {
     bool          override_fqid;
     uint32_t      new_fqid;
     compat_uptr_t p_direct_scheme;
+#if DPAA_VERSION >= 11
+    uint8_t       new_relative_storage_profile_id;
+#endif
 } ioc_compat_fm_pcd_cc_next_kg_params_t;
 
 typedef struct ioc_compat_fm_pcd_cc_next_cc_params_t {
@@ -156,28 +189,24 @@ typedef struct ioc_compat_fm_pcd_cc_next_engine_params_t {
             ioc_fm_pcd_cc_next_enqueue_params_t        enqueue_params; /**< same structure*/
             ioc_compat_fm_pcd_cc_next_kg_params_t      kg_params;      /**< compat structure*/
     } params;
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-    compat_uptr_t                                      p_manip;
-#endif
+#if DPAA_VERSION >= 11
+    compat_uptr_t                                        p_frm_replic_id;
+#endif /* DPAA_VERSION >= 11 */
+    compat_uptr_t                               manip_id;
+    bool                                        statistics_en;
 } ioc_compat_fm_pcd_cc_next_engine_params_t;
 
 
 typedef struct ioc_compat_fm_pcd_cc_grp_params_t {
-    uint8_t                             num_of_distinction_units;   /**< up to 4 */
+    uint8_t                             num_of_distinction_units;
     uint8_t                             unit_ids [IOC_FM_PCD_MAX_NUM_OF_CC_UNITS];
-                                                                    /**< Indexes of the units as defined in
-                                                                         FM_PCD_SetNetEnvCharacteristics */
     ioc_compat_fm_pcd_cc_next_engine_params_t  next_engine_per_entries_in_grp[IOC_FM_PCD_MAX_NUM_OF_CC_ENTRIES_IN_GRP];
-                                                                    /**< Max size is 16 - if only one group used */
 } ioc_compat_fm_pcd_cc_grp_params_t;
 
 typedef struct ioc_compat_fm_pcd_cc_tree_params_t {
     compat_uptr_t                   net_env_id;
     uint8_t                         num_of_groups;
     ioc_compat_fm_pcd_cc_grp_params_t      fm_pcd_cc_group_params [IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS];
-#ifdef FM_IP_FRAG_N_REASSEM_SUPPORT
-    compat_uptr_t                   ip_reassembly_manip;
-#endif
     compat_uptr_t                   id;
 } ioc_compat_fm_pcd_cc_tree_params_t;
 
@@ -195,6 +224,9 @@ typedef struct ioc_compat_fm_pcd_cc_key_params_t {
 } ioc_compat_fm_pcd_cc_key_params_t;
 
 typedef struct ioc_compat_keys_params_t {
+    uint16_t                                   max_num_of_keys;
+    bool                                       mask_support;
+    ioc_fm_pcd_cc_stats_mode                   statistics_mode;
     uint16_t                                   num_of_keys;
     uint8_t                                    key_size;
     ioc_compat_fm_pcd_cc_key_params_t          key_params[IOC_FM_PCD_MAX_NUM_OF_KEYS]; /**< compat structure*/
@@ -207,6 +239,28 @@ typedef struct ioc_compat_fm_pcd_cc_node_params_t {
     compat_uptr_t                              id;
 } ioc_compat_fm_pcd_cc_node_params_t;
 
+/**************************************************************************//**
+ @Description   Parameters for defining a hash table
+*//***************************************************************************/
+typedef struct ioc_compat_fm_pcd_hash_table_params_t {
+    uint16_t                    max_num_of_keys;
+    ioc_fm_pcd_cc_stats_mode    statistics_mode;
+    uint16_t                    hash_res_mask;
+    uint8_t                     hash_shift;
+    uint8_t                     match_key_size;
+
+    ioc_compat_fm_pcd_cc_next_engine_params_t   cc_next_engine_params_for_miss;
+
+    compat_uptr_t               id;
+
+} ioc_compat_fm_pcd_hash_table_params_t;
+
+typedef struct ioc_compat_fm_pcd_hash_table_add_key_params_t {
+    compat_uptr_t               p_hash_tbl;
+    uint8_t                     key_size;
+    ioc_compat_fm_pcd_cc_key_params_t  *p_key_params;
+} ioc_compat_fm_pcd_hash_table_add_key_params_t;
+
 typedef struct ioc_compat_fm_pcd_cc_node_modify_key_params_t {
     compat_uptr_t                       id;
     uint8_t                             key_indx;
@@ -214,6 +268,12 @@ typedef struct ioc_compat_fm_pcd_cc_node_modify_key_params_t {
     compat_uptr_t                       p_key;
     compat_uptr_t                       p_mask;
 } ioc_compat_fm_pcd_cc_node_modify_key_params_t;
+
+typedef struct ioc_compat_fm_pcd_hash_table_remove_key_params_t {
+    compat_uptr_t p_hash_tbl;
+    uint8_t key_size;
+    compat_uptr_t p_key;
+} ioc_compat_fm_pcd_hash_table_remove_key_params_t;
 
 typedef struct ioc_compat_fm_pcd_cc_node_modify_key_and_next_engine_params_t {
     compat_uptr_t                       id;
@@ -232,7 +292,7 @@ typedef struct ioc_compat_fm_port_pcd_cc_params_t {
 
 typedef struct ioc_compat_fm_port_pcd_kg_params_t {
     uint8_t             num_of_schemes;
-    compat_uptr_t       schemes_ids[IOC_FM_PCD_KG_NUM_OF_SCHEMES];
+    compat_uptr_t       schemes_ids[FM_PCD_KG_NUM_OF_SCHEMES];
     bool                direct_scheme;
     compat_uptr_t       direct_scheme_id;
 } ioc_compat_fm_port_pcd_kg_params_t;
@@ -244,6 +304,7 @@ typedef struct ioc_compat_fm_port_pcd_params_t {
     compat_uptr_t                    p_cc_params;
     compat_uptr_t                    p_kg_params;
     compat_uptr_t                    p_plcr_params;
+    compat_uptr_t                    p_ip_reassembly_manip;
 } ioc_compat_fm_port_pcd_params_t;
 
 typedef struct ioc_compat_fm_pcd_kg_cc_t {
@@ -267,13 +328,17 @@ typedef struct ioc_compat_fm_pcd_kg_scheme_params_t {
         compat_uptr_t                   net_env_id;
         uint8_t                         num_of_distinction_units;
         uint8_t                         unit_ids[IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS];
-    } netEnvParams;
+    } net_env_params;
     bool                                use_hash;
     ioc_fm_pcd_kg_key_extract_and_hash_params_t key_extract_and_hash_params;
     bool                                bypass_fqid_generation;
     uint32_t                            base_fqid;
     uint8_t                             numOfUsedExtractedOrs;
     ioc_fm_pcd_kg_extracted_or_params_t extracted_ors[IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS];
+#if DPAA_VERSION >= 11
+    bool                                override_storage_profile;
+    ioc_fm_pcd_kg_storage_profile_t     storage_profile;
+#endif /* DPAA_VERSION >= 11 */
     ioc_fm_pcd_engine                   next_engine;
     union{
         ioc_fm_pcd_done_action          done_action;
@@ -291,18 +356,48 @@ typedef struct ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t {
     ioc_compat_fm_pcd_cc_next_engine_params_t  cc_next_engine_params;
 } ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t;
 
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-typedef struct ioc_compat_fm_pcd_manip_params_t{
+typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t {
+    uint8_t                         offset;
+    uint8_t                         size;
+    bool                            replace;
+    compat_uptr_t                   p_data;
+} ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t;
+
+typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_params_t {
+    ioc_fm_pcd_manip_hdr_insrt_type                     type;
+    union {
+        ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t       generic;
+#ifdef FM_CAPWAP_SUPPORT
+TODO:
+#endif /* FM_CAPWAP_SUPPORT */
+    } u;
+} ioc_compat_fm_pcd_manip_hdr_insrt_params_t;
+
+typedef struct ioc_compat_fm_pcd_manip_hdr_params_t {
     bool                                        rmv;
-    ioc_fm_pcd_manip_rmv_params_t               rmv_params;
+    ioc_fm_pcd_manip_hdr_rmv_params_t           rmv_params;
     bool                                        insrt;
-    ioc_fm_pcd_manip_insrt_params_t             insrt_params;
-    bool                                        frag_or_reasm;
-    ioc_fm_pcd_manip_frag_or_reasm_params_t     frag_or_reasm_params;
-    bool                                        treat_fd_status_fields_as_errors;
-    compat_uptr_t                               id;
-}ioc_compat_fm_pcd_manip_params_t;
+    ioc_compat_fm_pcd_manip_hdr_insrt_params_t  insrt_params;
+    bool                                        dont_parse_after_manip;
+} ioc_compat_fm_pcd_manip_hdr_params_t;
+
+/**************************************************************************//**
+ @Description   Parameters for defining a manipulation node
+*//***************************************************************************/
+typedef struct ioc_compat_fm_pcd_manip_params_t {
+    ioc_fm_pcd_manip_type                         type;
+    union{
+        ioc_compat_fm_pcd_manip_hdr_params_t      hdr;
+        ioc_fm_pcd_manip_reassem_params_t         reassem;
+        ioc_fm_pcd_manip_frag_params_t            frag;
+        ioc_fm_pcd_manip_special_offload_params_t special_offload;
+    } u;
+     compat_uptr_t                                p_next_manip;
+#ifdef FM_CAPWAP_SUPPORT
+#warning "feature not supported!"
 #endif
+    compat_uptr_t                                 id;
+} ioc_compat_fm_pcd_manip_params_t;
 
 /* } pcd compat structures */
 
@@ -391,11 +486,46 @@ void compat_copy_fm_pcd_cc_node(
         ioc_compat_fm_pcd_cc_node_params_t *compat_param,
         ioc_fm_pcd_cc_node_params_t *param,
         uint8_t compat);
-#if defined(FM_CAPWAP_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
+
 void compat_fm_pcd_manip_set_node(
         ioc_compat_fm_pcd_manip_params_t *compat_param,
         ioc_fm_pcd_manip_params_t *param,
         uint8_t compat);
-#endif
+
+void compat_copy_fm_net_env_delete(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat);
+
+void compat_copy_fm_pcd_cc_delete_node(
+    ioc_compat_fm_obj_t *compat_id,
+    ioc_fm_obj_t *id,
+    uint8_t compat);
+
+void compat_copy_fm_pcd_cc_delete_tree(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat);
+
+void compat_copy_fm_port_pcd_modify_tree(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat);
+
+void compat_copy_fm_pcd_manip_delete_node(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat);
+
+void compat_copy_fm_pcd_scheme_delete(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat);
+
+void compat_copy_fm_pcd_plcr_del_profile(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id,
+        uint8_t compat);
+
 /* } pcd compat functions */
 #endif

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,14 +29,11 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 /*
-
  @File          lnxwrp_fm.c
-
  @Author        Shlomi Gridish
-
  @Description   FM Linux wrapper functions.
-
 */
 
 #include <linux/version.h>
@@ -78,7 +75,10 @@
 #include "lnxwrp_sysfs_fm.h"
 #include "lnxwrp_sysfs_fm_port.h"
 
+/* export LLD API to DPAA offload kernel module */
+#if defined(CONFIG_FSL_DPA_OFFLOAD)
 #include "lnxwrp_exp_sym.h"
+#endif
 
 #define PROC_PRINT(args...) offset += sprintf(buf+offset,args)
 
@@ -206,14 +206,11 @@ typedef _Packed struct {
 
     t_Plr       *p_Plr;
     t_Ppids     *p_Ppids;
-    int         i,j;
+    int         i;
     uint32_t    fmRev;
 
     static const uint8_t     phys1GRxPortId[] = {0x8,0x9,0xa,0xb,0xc};
     static const uint8_t     phys10GRxPortId[] = {0x10};
-    static const uint8_t     physOhPortId[] = {0x1,0x2,0x3,0x4,0x5,0x6,0x7};
-    static const uint8_t     phys1GTxPortId[] = {0x28,0x29,0x2a,0x2b,0x2c};
-    static const uint8_t     phys10GTxPortId[] = {0x30};
 
     fmRev = (uint32_t)(*((volatile uint32_t *)UINT_TO_PTR(p_LnxWrpFmDev->fmBaseAddr+FM_FPM_IP_REV_1_OFFSET)));
     fmRev &= 0xffff;
@@ -224,72 +221,9 @@ typedef _Packed struct {
         p_Plr->plr[i] = 0;
 #endif /* MODULE */
 
-    for (i=0; i<FM_MAX_NUM_OF_PARTITIONS; i++)
-    {
-        uint16_t liodnBase = (uint16_t)((i%2) ?
-                       (p_Plr->plr[i/2] & DMA_LOW_LIODN_MASK) :
-                       ((p_Plr->plr[i/2] & DMA_HIGH_LIODN_MASK) >> DMA_LIODN_SHIFT));
-#ifdef FM_PARTITION_ARRAY
-        /* TODO: this was .liodnPerPartition[i] = liodnBase; is the index meaning the same? */
-        p_LnxWrpFmDev->fmDevSettings.param.liodnBasePerPort[i] = liodnBase;
-#endif /* FM_PARTITION_ARRAY */
-
-        if ((i >= phys1GRxPortId[0]) &&
-             (i <= phys1GRxPortId[FM_MAX_NUM_OF_1G_RX_PORTS-1]))
-        {
-            for (j=0; j<ARRAY_SIZE(phys1GRxPortId); j++)
-                if (phys1GRxPortId[j] == i)
-                    break;
-            ASSERT_COND(j<ARRAY_SIZE(phys1GRxPortId));
-            p_LnxWrpFmDev->rxPorts[j].settings.param.liodnBase = liodnBase;
-        }
-        else if (FM_MAX_NUM_OF_10G_RX_PORTS &&
-                 (i >= phys10GRxPortId[0]) &&
-                 (i <= phys10GRxPortId[FM_MAX_NUM_OF_10G_RX_PORTS-1]))
-        {
-            for (j=0; j<ARRAY_SIZE(phys10GRxPortId); j++)
-                if (phys10GRxPortId[j] == i)
-                    break;
-            ASSERT_COND(j<ARRAY_SIZE(phys10GRxPortId));
-            p_LnxWrpFmDev->rxPorts[FM_MAX_NUM_OF_1G_RX_PORTS+j].settings.param.liodnBase = liodnBase;
-        }
-        else if ((i >= physOhPortId[0]) &&
-                 (i <= physOhPortId[FM_MAX_NUM_OF_OH_PORTS-1]))
-        {
-            for (j=0; j<ARRAY_SIZE(physOhPortId); j++)
-                if (physOhPortId[j] == i)
-                    break;
-            ASSERT_COND(j<ARRAY_SIZE(physOhPortId));
-            if (j == 0)
-                p_LnxWrpFmDev->hcPort.settings.param.liodnBase = liodnBase;
-            else
-                p_LnxWrpFmDev->opPorts[j - 1].settings.param.liodnBase = liodnBase;
-        }
-        else if ((i >= phys1GTxPortId[0]) &&
-                  (i <= phys1GTxPortId[FM_MAX_NUM_OF_1G_TX_PORTS-1]))
-        {
-            for (j=0; j<ARRAY_SIZE(phys1GTxPortId); j++)
-                if (phys1GTxPortId[j] == i)
-                    break;
-            ASSERT_COND(j<ARRAY_SIZE(phys1GTxPortId));
-            p_LnxWrpFmDev->txPorts[j].settings.param.liodnBase = liodnBase;
-        }
-        else if (FM_MAX_NUM_OF_10G_TX_PORTS &&
-                 (i >= phys10GTxPortId[0]) &&
-                 (i <= phys10GTxPortId[FM_MAX_NUM_OF_10G_TX_PORTS-1]))
-        {
-            for (j=0; j<ARRAY_SIZE(phys10GTxPortId); j++)
-                if (phys10GTxPortId[j] == i)
-                    break;
-            ASSERT_COND(j<ARRAY_SIZE(phys10GTxPortId));
-            p_LnxWrpFmDev->txPorts[FM_MAX_NUM_OF_1G_TX_PORTS+j].settings.param.liodnBase = liodnBase;
-        }
-    }
-
     p_Ppids = (t_Ppids *)UINT_TO_PTR(p_LnxWrpFmDev->fmBaseAddr+FM_BMI_PPIDS_OFFSET);
 
     for (i=0; i<FM_MAX_NUM_OF_1G_RX_PORTS; i++)
-        /* TODO: this was .rxPartitionId = ; liodnOffset seems to have the same meaning */
         p_LnxWrpFmDev->rxPorts[i].settings.param.specificParams.rxParams.liodnOffset =
                 p_Ppids->fmbm_ppid[phys1GRxPortId[i]-1];
 
@@ -758,23 +692,26 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if (FM_Init(p_LnxWrpFmDev->h_Dev) != E_OK)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
 
+    /* TODO: Why we mask these interrupts? */
     if (p_LnxWrpFmDev->err_irq == 0) {
         FM_SetException(p_LnxWrpFmDev->h_Dev, e_FM_EX_DMA_BUS_ERROR,FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_DMA_READ_ECC,FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_DMA_SYSTEM_WRITE_ECC,FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_DMA_FM_WRITE_ECC,FALSE);
+        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_DMA_SINGLE_PORT_ECC, FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_FPM_STALL_ON_TASKS , FALSE);
+        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_FPM_SINGLE_ECC, FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_FPM_DOUBLE_ECC,FALSE);
-        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_IRAM_ECC,FALSE);
-        /* TODO: FmDisableRamsEcc assert for ramsEccOwners.
-         * FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_MURAM_ECC,FALSE);*/
+        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_QMI_SINGLE_ECC, FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_QMI_DOUBLE_ECC,FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID,FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_BMI_LIST_RAM_ECC,FALSE);
-        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_BMI_PIPELINE_ECC,FALSE);
+        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_BMI_STORAGE_PROFILE_ECC, FALSE);
         FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_BMI_STATISTICS_RAM_ECC, FALSE);
-        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_FPM_SINGLE_ECC, FALSE);
-        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_QMI_SINGLE_ECC, FALSE);
+        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_BMI_DISPATCH_RAM_ECC, FALSE);
+        FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_IRAM_ECC,FALSE);
+        /* TODO: FmDisableRamsEcc assert for ramsEccOwners.
+         * FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_MURAM_ECC,FALSE);*/
     }
 
     if (p_LnxWrpFmDev->fmRtcBaseAddr)

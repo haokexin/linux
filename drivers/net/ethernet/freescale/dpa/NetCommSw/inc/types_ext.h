@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,6 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+
  /**************************************************************************//**
  @File          types_ext.h
 
@@ -39,12 +40,8 @@
 #ifndef __TYPES_EXT_H
 #define __TYPES_EXT_H
 
-
 #if defined(NCSW_LINUX)
 #include "types_linux.h"
-
-#elif defined(NCSW_LINUX_USD)
-#include "types_linux_usd.h"
 
 #elif defined(NCSW_VXWORKS)
 #include "types_vxworks.h"
@@ -67,21 +64,19 @@ static __inline__ void TypesChecker(void)
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-#define MEM_MAP_START
      _Packed struct strct {
         __volatile__ int vi;
     } _PackedType;
-#define MEM_MAP_END
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
 #endif /* defined(__MWERKS__) && ... */
     size_t          size = 0;
     bool            tr = TRUE, fls = FALSE;
-    struct strct    *p_Strct = NULL;
+    struct strct    *p_Struct = NULL;
     physAddress_t   addr = 0x100;
 
-    tr      = fls;
-    p_Strct = p_Strct;
+    tr          = fls;
+    p_Struct    = p_Struct;
     size++;
     if (tr) size++;
 

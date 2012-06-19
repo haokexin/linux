@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -29,6 +29,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
 
 /**************************************************************************//**
  @File          fm_rtc_ext.h
@@ -544,7 +545,7 @@ t_Error FM_RTC_SetCurrentTime(t_Handle h_FmRtc, uint64_t ts);
 /**************************************************************************//**
  @Function      FM_RTC_GetFreqCompensation
 
- @Description   TODO
+ @Description   Retrieves the frequency compensation value
 
  @Param[in]     h_FmRtc         - Handle to FM RTC object.
  @Param[out]    p_Compensation  - A pointer to the returned value of compensation.
@@ -558,10 +559,10 @@ t_Error FM_RTC_GetFreqCompensation(t_Handle h_FmRtc, uint32_t *p_Compensation);
 /**************************************************************************//**
  @Function      FM_RTC_SetFreqCompensation
 
- @Description   TODO
+ @Description   Sets a new frequency compensation value.
 
  @Param[in]     h_FmRtc             - Handle to FM RTC object.
- @Param[in]     freqCompensation    - the new desired compensation value to be set.
+ @Param[in]     freqCompensation    - The new frequency compensation value to set.
 
  @Return        E_OK on success; Error code otherwise.
 

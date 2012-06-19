@@ -42,8 +42,8 @@
 #include <linux/types.h>
 #include <linux/smp.h>  /* smp_processor_id() */
 
-/*#define FMT_K_DBG*/
-/*#define FMT_K_DBG_RUNTIME*/
+//#define FMT_K_DBG
+//#define FMT_K_DBG_RUNTIME
 
 #define _fmt_prk(stage, format, arg...)	\
 	printk(stage "fmt (cpu:%u): " format, smp_processor_id(), ##arg)

@@ -67,12 +67,6 @@
 
 #define FMT_FRM_WATERMARK   0xdeadbeefdeadbeeaLL
 
-#ifdef CONFIG_COMPAT
-/* Define this for KS64b - US32b */
-#define FMAN_TEST_CONFIG_COMPAT
-#warning Please make sure you have the right value for FMAN_TEST_CONFIG_COMPAT
-#endif
-
 struct fmt_frame_s {
 	ioc_fmt_buff_desc_t	buff;
 	struct list_head	list;
@@ -96,6 +90,7 @@ struct fmt_port_s {
 	uint8_t             id;
 	ioc_fmt_port_type   port_type;
 	ioc_diag_mode       diag;
+	bool		    compat_test_type;
 
 	/* fm ports */
 	/* ! for oh ports p_tx_fm_port_dev == p_rx_fm_port_dev &&
@@ -835,7 +830,7 @@ int dpa_alloc_pcd_fqids(
 		goto _pcd_alloc_fqs_err;
 	}
 
-	_fmt_dbg("wanted %d fqs(align %d), got %d fqids@%.\n",
+	_fmt_dbg("wanted %d fqs(align %d), got %d fqids@%u.\n",
 				num, alignment, num_allocated, *base_fqid);
 
 	/* alloc pcd queues */
@@ -916,14 +911,14 @@ int dpa_free_pcd_fqids(
 
 	/* debugging stuff */
 #if defined(FMT_K_DBG) || defined(FMT_K_DBG_RUNTIME)
-	_fmt_dbg(" portid: %.\n", fmt_port->id);
-	_fmt_dbg(" frames enqueue to qman: %.\n",
+	_fmt_dbg(" portid: %u.\n", fmt_port->id);
+	_fmt_dbg(" frames enqueue to qman: %u.\n",
 			atomic_read(&fmt_port->enqueue_to_qman_frm));
-	_fmt_dbg(" frames enqueue to rxq: %.\n",
+	_fmt_dbg(" frames enqueue to rxq: %u.\n",
 			atomic_read(&fmt_port->enqueue_to_rxq));
-	_fmt_dbg(" frames dequeue from rxq: %.\n",
+	_fmt_dbg(" frames dequeue from rxq: %u.\n",
 			atomic_read(&fmt_port->dequeue_from_rxq));
-	_fmt_dbg(" frames not enqueue to rxq - wrong frm: %.\n",
+	_fmt_dbg(" frames not enqueue to rxq - wrong frm: %u.\n",
 			atomic_read(&fmt_port->not_enqueue_to_rxq_wrong_frm));
 	atomic_set(&fmt_port->enqueue_to_qman_frm, 0);
 	atomic_set(&fmt_port->enqueue_to_rxq, 0);
@@ -1190,8 +1185,10 @@ static int fmt_close(struct inode *inode, struct file *file)
 
 	/* clean the fmt port queue */
 	while ((fmt_frame = dequeue_fmt_frame(fmt_port)) != NULL) {
+		if (fmt_frame && fmt_frame->buff.p_data){
 		kfree(fmt_frame->buff.p_data);
 		kfree(fmt_frame);
+	}
 	}
 
 	/* !!! the qman queues are cleaning from fm_ioctl...
@@ -1219,6 +1216,12 @@ static int fmt_ioctls(unsigned int minor,
 		return -ENODEV;
 	}
 
+	/* set test type properly */
+	if (compat)
+		fmt_port->compat_test_type = true;
+	else
+		fmt_port->compat_test_type = false;
+
 	switch (cmd) {
 	case FMT_PORT_IOC_INIT:
 	{
@@ -1228,7 +1231,7 @@ static int fmt_ioctls(unsigned int minor,
 			_fmt_wrn("port is already initialized.\n");
 			return -EFAULT;
 		}
-#if defined(FMAN_TEST_CONFIG_COMPAT)
+#if defined(CONFIG_COMPAT)
 		if (compat) {
 			if (copy_from_user(&param,
 				(ioc_fmt_port_param_t  *)compat_ptr(arg),
@@ -1270,7 +1273,7 @@ static int fmt_ioctls(unsigned int minor,
 	return 0;
 }
 
-#ifdef FMAN_TEST_CONFIG_COMPAT
+#ifdef CONFIG_COMPAT
 static long fmt_compat_ioctl(
 		struct file *file,
 		unsigned int cmd,
@@ -1302,7 +1305,7 @@ static long fmt_ioctl(
 	return res;
 }
 
-#ifdef FMAN_TEST_CONFIG_COMPAT
+#ifdef CONFIG_COMPAT
 void copy_compat_test_frame_buffer(
 		ioc_fmt_buff_desc_t *buff,
 		ioc_fmt_compat_buff_desc_t *compat_buff)
@@ -1345,11 +1348,16 @@ ssize_t fmt_read(
 
 	_fmt_dbgr("calling...\n");
 
-#ifdef FMAN_TEST_CONFIG_COMPAT
-	cnt = sizeof(ioc_fmt_compat_buff_desc_t);
-#else
-	cnt = sizeof(ioc_fmt_buff_desc_t);
+#ifdef CONFIG_COMPAT
+	if (fmt_port->compat_test_type){
+		cnt = sizeof(ioc_fmt_compat_buff_desc_t);
+	}
+	else
 #endif
+	{
+		cnt = sizeof(ioc_fmt_buff_desc_t);
+	}
+
 	if (size < cnt) {
 		_fmt_err("illegal buffer-size!\n");
 		cnt = 0;
@@ -1357,29 +1365,34 @@ ssize_t fmt_read(
 	}
 
         /* Copy structure */
-#ifdef FMAN_TEST_CONFIG_COMPAT
-	{
-		ioc_fmt_compat_buff_desc_t compat_buff;
-		copy_compat_test_frame_buffer(&p_fmt_frame->buff, &compat_buff);
+#ifdef CONFIG_COMPAT
+	if (fmt_port->compat_test_type) {
+		{
+			ioc_fmt_compat_buff_desc_t compat_buff;
+			copy_compat_test_frame_buffer(&p_fmt_frame->buff,
+								&compat_buff);
 
-		if (copy_to_user(buf, &compat_buff, cnt)) {
+			if (copy_to_user(buf, &compat_buff, cnt)) {
+				_fmt_err("copy_to_user failed!\n");
+				goto _fmt_read_return;
+			}
+		}
+
+		((ioc_fmt_compat_buff_desc_t  *)buf)->p_data =
+			ptr_to_compat(buf+sizeof(ioc_fmt_compat_buff_desc_t));
+		cnt += MIN(p_fmt_frame->buff.size, size-cnt);
+	} else
+#endif
+	{
+		if (copy_to_user(buf, &p_fmt_frame->buff, cnt)) {
 			_fmt_err("copy_to_user failed!\n");
 			goto _fmt_read_return;
 		}
-	}
 
-	((ioc_fmt_compat_buff_desc_t  *)buf)->p_data =
-			ptr_to_compat(buf+sizeof(ioc_fmt_compat_buff_desc_t));
-	cnt += MIN(p_fmt_frame->buff.size, size-cnt);
-#else
-	if (copy_to_user(buf, &p_fmt_frame->buff, cnt)) {
-		_fmt_err("copy_to_user failed!\n");
-		goto _fmt_read_return;
+		((ioc_fmt_buff_desc_t  *)buf)->p_data =
+				buf + sizeof(ioc_fmt_buff_desc_t);
+		cnt += MIN(p_fmt_frame->buff.size, size-cnt);
 	}
-
-	((ioc_fmt_buff_desc_t  *)buf)->p_data = buf+sizeof(ioc_fmt_buff_desc_t);
-	cnt += MIN(p_fmt_frame->buff.size, size-cnt);
-#endif
 
 	if (size < cnt) {
 		_fmt_err("illegal buffer-size!\n");
@@ -1387,19 +1400,22 @@ ssize_t fmt_read(
 	}
 
 	/* copy frame */
-#ifdef FMAN_TEST_CONFIG_COMPAT
-	if (copy_to_user(buf+sizeof(ioc_fmt_compat_buff_desc_t),
+#ifdef CONFIG_COMPAT
+	if (fmt_port->compat_test_type) {
+		if (copy_to_user(buf+sizeof(ioc_fmt_compat_buff_desc_t),
 					p_fmt_frame->buff.p_data, cnt)) {
-		_fmt_err("copy_to_user failed!\n");
-		goto _fmt_read_return;
-	}
-#else
-	if (copy_to_user(buf+sizeof(ioc_fmt_buff_desc_t),
-					p_fmt_frame->buff.p_data, cnt)) {
-		_fmt_err("copy_to_user failed!\n");
-		goto _fmt_read_return;
-	}
+			_fmt_err("copy_to_user failed!\n");
+			goto _fmt_read_return;
+		}
+	} else
 #endif
+	{
+		if (copy_to_user(buf+sizeof(ioc_fmt_buff_desc_t),
+					p_fmt_frame->buff.p_data, cnt)) {
+			_fmt_err("copy_to_user failed!\n");
+			goto _fmt_read_return;
+		}
+	}
 
 _fmt_read_return:
 	kfree(p_fmt_frame->buff.p_data);
@@ -1417,7 +1433,7 @@ ssize_t fmt_write(
 {
 	struct fmt_port_s *fmt_port = NULL;
 	ioc_fmt_buff_desc_t buff_desc;
-#ifdef FMAN_TEST_CONFIG_COMPAT
+#ifdef CONFIG_COMPAT
 	ioc_fmt_compat_buff_desc_t buff_desc_compat;
 #endif
 	uint8_t *p_data = NULL;
@@ -1434,29 +1450,32 @@ ssize_t fmt_write(
 	}
 
     /* If Compat (32B UserSpace - 64B KernelSpace)  */
-#ifdef FMAN_TEST_CONFIG_COMPAT
-	if (copy_from_user(&buff_desc_compat, buf,
-				sizeof(ioc_fmt_compat_buff_desc_t)))
-		return -EFAULT;
+#ifdef CONFIG_COMPAT
+	if (fmt_port->compat_test_type){
+		if (copy_from_user(&buff_desc_compat, buf,
+					sizeof(ioc_fmt_compat_buff_desc_t)))
+			return -EFAULT;
 
-	buff_desc.qid = buff_desc_compat.qid;
-	buff_desc.p_data = compat_ptr(buff_desc_compat.p_data);
-	buff_desc.size = buff_desc_compat.size;
-	buff_desc.status = buff_desc_compat.status;
+		buff_desc.qid = buff_desc_compat.qid;
+		buff_desc.p_data = compat_ptr(buff_desc_compat.p_data);
+		buff_desc.size = buff_desc_compat.size;
+		buff_desc.status = buff_desc_compat.status;
 
-	buff_desc.buff_context.p_user_priv =
+		buff_desc.buff_context.p_user_priv =
 			compat_ptr(buff_desc_compat.buff_context.p_user_priv);
-	memcpy(buff_desc.buff_context.fm_prs_res,
-			buff_desc_compat.buff_context.fm_prs_res,
-			FM_PRS_MAX * sizeof(uint8_t));
-	memcpy(buff_desc.buff_context.fm_time_stamp,
-			buff_desc_compat.buff_context.fm_time_stamp,
-			FM_TIME_STAMP_MAX * sizeof(uint8_t));
-#else
-	if (copy_from_user(&buff_desc, (ioc_fmt_buff_desc_t  *)buf,
-						sizeof(ioc_fmt_buff_desc_t)))
-		return -EFAULT;
+		memcpy(buff_desc.buff_context.fm_prs_res,
+				buff_desc_compat.buff_context.fm_prs_res,
+				FM_PRS_MAX * sizeof(uint8_t));
+		memcpy(buff_desc.buff_context.fm_time_stamp,
+				buff_desc_compat.buff_context.fm_time_stamp,
+				FM_TIME_STAMP_MAX * sizeof(uint8_t));
+	} else
 #endif
+	{
+		if (copy_from_user(&buff_desc, (ioc_fmt_buff_desc_t  *)buf,
+							sizeof(ioc_fmt_buff_desc_t)))
+			return -EFAULT;
+	}
 
 	data_offset = FM_PORT_GetBufferDataOffset(fmt_port->p_tx_fm_port_dev);
 	p_data = kmalloc(buff_desc.size+data_offset, GFP_KERNEL);
@@ -1502,7 +1521,7 @@ ssize_t fmt_write(
 static const struct file_operations fmt_fops =
 {
 	.owner			= THIS_MODULE,
-#ifdef FMAN_TEST_CONFIG_COMPAT
+#ifdef CONFIG_COMPAT
 	.compat_ioctl		= fmt_compat_ioctl,
 #endif
 	.unlocked_ioctl		= fmt_ioctl,

@@ -43,5 +43,14 @@
 #define FM_IOC_TYPE_BASE            (NCSW_IOC_TYPE_BASE+1)
 #define FMT_IOC_TYPE_BASE           (NCSW_IOC_TYPE_BASE+3)
 
+/*#define FM_IOCTL_DBG*/
+
+#if defined(FM_IOCTL_DBG)
+    #define _fm_ioctl_dbg(format, arg...) \
+        printk("fm ioctl [%s:%u](cpu:%u) - " format, \
+            __func__, __LINE__, smp_processor_id(), ##arg)
+#else
+#   define _fm_ioctl_dbg(arg...)
+#endif
 
 #endif /* __INTG_IOCTLS_H */

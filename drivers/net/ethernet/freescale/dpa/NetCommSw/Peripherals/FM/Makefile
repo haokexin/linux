@@ -16,6 +16,7 @@ fsl-ncsw-PFM1-objs	:=   fm.o fm_muram.o
 
 obj-y		+= MAC/
 obj-y		+= Pcd/
+obj-y           += SP/
 obj-y		+= Port/
 obj-y		+= HC/
 obj-y		+= Rtc/
