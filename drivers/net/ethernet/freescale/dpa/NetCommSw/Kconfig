@@ -26,6 +26,9 @@ config FMAN_P3040_P4080_P5020
 config FMAN_P1023
 	bool "P1023"
 
+config FMAN_T4240
+	bool "T4240"
+
 endchoice
 endmenu
 
