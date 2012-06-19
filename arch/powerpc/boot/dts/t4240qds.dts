@@ -203,6 +203,14 @@
 				interrupts = <0x1 0x1 0 0>;
 			};
 		};
+
+		 fman0: fman@400000 {
+			enet0: ethernet@e0000 {
+				fixed-link = <1 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 01 01];
+			};
+		 };
 	};
 
 	pci0: pcie@ffe240000 {
@@ -272,6 +280,14 @@
 		};
 		port2 {
 			ranges = <0 0 0xc 0x30000000 0 0x10000000>;
+		};
+	};
+
+	fsl,dpaa {
+		compatible = "fsl,t4240-dpaa", "fsl,dpaa";
+		ethernet@0 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet0>;
 		};
 	};
 };
