@@ -48,6 +48,7 @@
 		serial3 = &serial3;
 		bman = &bman;
 		qman = &qman;
+		fman0 = &fman0;
 		pci0 = &pci0;
 		pci1 = &pci1;
 		pci2 = &pci2;
