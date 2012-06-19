@@ -11,4 +11,4 @@ EXTRA_CFLAGS += -I$(NCSW_FM_INC)
 
 obj-y		+= fsl-ncsw-MAC.o
 
-fsl-ncsw-MAC-objs	:=   dtsec.o dtsec_mii_acc.o fm_mac.o tgec.o tgec_mii_acc.o
+fsl-ncsw-MAC-objs	:=   dtsec.o dtsec_mii_acc.o fm_mac.o tgec.o tgec_mii_acc.o memac.o memac_mii_acc.o
