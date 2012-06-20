@@ -78,6 +78,8 @@
 #include "lnxwrp_sysfs_fm.h"
 #include "lnxwrp_sysfs_fm_port.h"
 
+#include "lnxwrp_exp_sym.h"
+
 #define PROC_PRINT(args...) offset += sprintf(buf+offset,args)
 
 #define ADD_ADV_CONFIG_NO_RET(_func, _param)    \
