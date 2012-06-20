@@ -39,7 +39,6 @@ rman: rman@1e0000 {
 	ranges = <0x0 0x1e0000 0x20000>;
 	reg = <0x1e0000 0x20000>;
 	interrupts = <16 2 1 11>; /* err_irq */
-	fsl,qman-channels-id = <0x62 0x63>;
 
 	inbound-block@0 {
 		compatible = "fsl,rman-inbound-block";

@@ -373,6 +373,10 @@
 /include/ "qoriq-sec4.2-0.dtsi"
 /include/ "qoriq-pme-0.dtsi"
 /include/ "qoriq-rman-0.dtsi"
+	rman: rman@1e0000 {
+		fsl,qman-channels-id = <0x62 0x63>;
+	};
+
 /include/ "qoriq-qman1.dtsi"
 /include/ "qoriq-bman1.dtsi"
 
