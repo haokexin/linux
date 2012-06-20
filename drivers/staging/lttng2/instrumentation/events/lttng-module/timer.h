@@ -12,6 +12,11 @@
 #include <linux/timer.h>
 #endif /* _TRACE_TIMER_DEF_ */
 
+/* Note: these defines will result in a redefinition error on
+ * compilation since they are the same as those in
+ * include/trace/events/timer.h. _TRACE_EVENTS_TIMER_H is defined
+ * therein.  Key off that.*/
+#ifndef _TRACE_EVENTS_TIMER_H
 DECLARE_EVENT_CLASS(timer_class,
 
 	TP_PROTO(struct timer_list *timer),
@@ -327,6 +332,7 @@ TRACE_EVENT(itimer_expire,
 		  (int) __entry->pid, (unsigned long long)__entry->now)
 )
 
+#endif /* if _TRACE_EVENTS_TIMER_H */
 #endif /*  _TRACE_TIMER_H */
 
 /* This part must be outside protection */
