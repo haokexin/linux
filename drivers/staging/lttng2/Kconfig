@@ -1,6 +1,6 @@
 config LTTNG2
 	tristate "LTTng kernel tracer"
-	depends on TRACEPOINTS && m && !LTTNG
+	depends on TRACEPOINTS && m && !LTT
 	help
 	  The LTTng 2.0 Tracer Toolchain allows integrated kernel and
 	  user-space tracing from a single user interface: the "lttng"
