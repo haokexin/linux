@@ -3704,7 +3704,7 @@ static int __init dpa_set_extra_headroom(char *str)
 	/* Don't allow invalid bootargs; fallback to the Kconfig value */
 	if (dpa_rx_extra_headroom + DPA_BP_HEAD > DPA_MAX_FD_OFFSET) {
 		printk(KERN_WARNING "Invalid %s=%d in bootargs, valid range is "
-			"0-%d. Falling back to the Kconfig value (%d).\n",
+			"0-%lu. Falling back to the Kconfig value (%d).\n",
 			DPA_EXTRA_HEADROOM_BOOTARG, dpa_rx_extra_headroom,
 			DPA_MAX_FD_OFFSET - DPA_BP_HEAD,
 			CONFIG_DPA_EXTRA_HEADROOM);
