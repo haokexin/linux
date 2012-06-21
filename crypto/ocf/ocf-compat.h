@@ -205,14 +205,6 @@ struct ocf_device {
 /* older kernels don't have these */
 
 #include <asm/irq.h>
-#if !defined(IRQ_NONE) && !defined(IRQ_RETVAL)
-#define IRQ_NONE
-#define IRQ_HANDLED
-#define IRQ_WAKE_THREAD
-#define IRQ_RETVAL
-#define irqreturn_t void
-typedef irqreturn_t (*irq_handler_t)(int irq, void *arg, struct pt_regs *regs);
-#endif
 #ifndef IRQF_SHARED
 #define IRQF_SHARED	SA_SHIRQ
 #endif
