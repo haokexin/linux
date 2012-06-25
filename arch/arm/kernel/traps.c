@@ -36,6 +36,7 @@
 #include <asm/tls.h>
 #include <asm/system_misc.h>
 
+#include "ptrace.h"
 #include "signal.h"
 
 DEFINE_TRACE(trap_entry);
