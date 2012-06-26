@@ -414,6 +414,7 @@ struct kobject;
 struct pipe_inode_info;
 struct poll_table_struct;
 struct kstatfs;
+struct vm_fault;
 struct vm_area_struct;
 struct vfsmount;
 struct cred;
@@ -2409,6 +2410,7 @@ extern int nonseekable_open(struct inode * inode, struct file * filp);
 #ifdef CONFIG_FS_XIP
 extern ssize_t xip_file_read(struct file *filp, char __user *buf, size_t len,
 			     loff_t *ppos);
+extern int xip_file_fault(struct vm_area_struct *vma, struct vm_fault *vmf);
 extern int xip_file_mmap(struct file * file, struct vm_area_struct * vma);
 extern ssize_t xip_file_write(struct file *filp, const char __user *buf,
 			      size_t len, loff_t *ppos);
