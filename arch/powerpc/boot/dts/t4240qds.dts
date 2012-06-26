@@ -20,7 +20,7 @@
  * Foundation, either version 2 of that License or (at your option) any
  * later version.
  *
- * THIS SOFTWARE IS PROVIDED BY Freescale Semiconductor ``AS IS'' AND ANY
+ * THIS SOFTWARE IS PROVIDED BY Freescale Semiconductor "AS IS" AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  * DISCLAIMED. IN NO EVENT SHALL Freescale Semiconductor BE LIABLE FOR ANY
@@ -108,6 +108,9 @@
 		ranges = <0x0 0xf 0xf6000000 0x2000000>;
 	};
 
+	lportals: lac-portals@ff8000000 {
+		ranges = <0x0 0xf 0xf8000000 0x20000>;
+	};
 
 	soc: soc@ffe000000 {
 		ranges = <0x00000000 0xf 0xfe000000 0x1000000>;
