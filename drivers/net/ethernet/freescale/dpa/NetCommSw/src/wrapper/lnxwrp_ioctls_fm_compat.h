@@ -84,11 +84,27 @@
 #	define _fm_cpt_dbg(arg...)
 #endif
 
-#define ID_MAP_NAME_SIZE 16
-void compat_del_ptr2id(void *p, const unsigned char *);
-compat_uptr_t compat_add_ptr2id(void *p, const unsigned char *);
-compat_uptr_t compat_get_ptr2id(void *p, const unsigned char *);
-void *compat_get_id2ptr(compat_uptr_t comp, const unsigned char *);
+/*TODO: per FMan module:
+ *
+ *      Parser:  FM_MAP_TYPE_PARSER_NODE,
+ *      Kg:      FM_MAP_TYPE_KG_NODE,
+ *      Policer: FM_MAP_TYPE_POLICER_NODE
+ *      Manip:   FM_MAP_TYPE_MANIP_NODE
+ **/
+enum fm_map_node_type {
+    FM_MAP_TYPE_UNSPEC = 0,
+    FM_MAP_TYPE_PCD_NODE,
+
+    /* add types here, update the policy */
+
+    __FM_MAP_TYPE_AFTER_LAST,
+    FM_MAP_TYPE_MAX = __FM_MAP_TYPE_AFTER_LAST - 1
+};
+
+void compat_del_ptr2id(void *p, enum fm_map_node_type);
+compat_uptr_t compat_add_ptr2id(void *p, enum fm_map_node_type);
+compat_uptr_t compat_get_ptr2id(void *p, enum fm_map_node_type);
+void *compat_get_id2ptr(compat_uptr_t comp, enum fm_map_node_type);
 /* } maping kernel pointers w/ UserSpace id's  */
 
 /* pcd compat structures { */
