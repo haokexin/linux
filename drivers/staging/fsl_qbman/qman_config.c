@@ -39,7 +39,7 @@
 /* Last updated for v00.800 of the BG */
 
 /* Register offsets */
-#define REG_QCSP_PID_CFG(n)	(0x0000 + ((n) * 0x10))
+#define REG_QCSP_LIO_CFG(n)	(0x0000 + ((n) * 0x10))
 #define REG_QCSP_IO_CFG(n)	(0x0004 + ((n) * 0x10))
 #define REG_QCSP_DD_CFG(n)	(0x000c + ((n) * 0x10))
 #define REG_DD_CFG		0x0200
@@ -83,6 +83,9 @@
 #define REG_LIODNR		0x0d08
 #define REG_CI_RLM_AVG		0x0d14
 #define REG_ERR_ISR		0x0e00	/* + "enum qm_isr_reg" */
+#define REG_REV3_QCSP_LIO_CFG(n)	(0x1000 + ((n) * 0x10))
+#define REG_REV3_QCSP_IO_CFG(n)	(0x1004 + ((n) * 0x10))
+#define REG_REV3_QCSP_DD_CFG(n)	(0x100c + ((n) * 0x10))
 
 /* Assists for QMAN_MCR */
 #define MCR_INIT_PFDR		0x01000000
@@ -836,14 +839,20 @@ void qman_liodn_fixup(u16 channel)
 
 	if (!qman_have_ccsr())
 		return;
-	before = qm_in(QCSP_PID_CFG(idx));
+	if ((qman_ip_rev & 0xFF00) >= QMAN_REV30)
+		before = qm_in(REV3_QCSP_LIO_CFG(idx));
+	else
+		before = qm_in(QCSP_LIO_CFG(idx));
 	if (!done) {
 		liodn_offset = before & PID_CFG_LIODN_MASK;
 		done = 1;
 		return;
 	}
 	after = (before & (~PID_CFG_LIODN_MASK)) | liodn_offset;
-	qm_out(QCSP_PID_CFG(idx), after);
+	if ((qman_ip_rev & 0xFF00) >= QMAN_REV30)
+		qm_out(REV3_QCSP_LIO_CFG(idx), after);
+	else
+		qm_out(QCSP_LIO_CFG(idx), after);
 }
 
 #define IO_CFG_SDEST_MASK 0x00ff0000
