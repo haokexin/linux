@@ -302,6 +302,9 @@ struct ahci_host_priv {
 	u32 			em_loc; /* enclosure management location */
 	u32			em_buf_sz;	/* EM buffer size in byte */
 	u32			em_msg_type;	/* EM message type */
+#ifdef CONFIG_HAVE_CLK
+	struct clk *clk;        /* clk structure, only if HAVE_CLK is defined */
+#endif
 };
 
 extern int ahci_ignore_sss;

@@ -12,6 +12,7 @@
  * any later version.
  */
 
+#include <linux/clk.h>
 #include <linux/kernel.h>
 #include <linux/gfp.h>
 #include <linux/module.h>
@@ -116,6 +117,19 @@ static int __init ahci_probe(struct platform_device *pdev)
 		dev_err(dev, "can't map %pR\n", mem);
 		return -ENOMEM;
 	}
+#ifdef CONFIG_HAVE_CLK
+	hpriv->clk = clk_get(dev, NULL);
+	if (IS_ERR(hpriv->clk)) {
+		dev_err(dev, "Clock not found\n");
+		return PTR_ERR(hpriv->clk);
+	}
+
+	rc = clk_enable(hpriv->clk);
+	if (rc) {
+		dev_err(dev, "clock enable failed");
+		goto free_clk;
+	}
+#endif
 
 	/*
 	 * Some platforms might need to prepare for mmio region access,
@@ -126,7 +140,7 @@ static int __init ahci_probe(struct platform_device *pdev)
 	if (pdata && pdata->init) {
 		rc = pdata->init(dev, hpriv->mmio);
 		if (rc)
-			return rc;
+			goto disable_clk;
 	}
 
 	ahci_save_initial_config(dev, hpriv,
@@ -152,7 +166,7 @@ static int __init ahci_probe(struct platform_device *pdev)
 	host = ata_host_alloc_pinfo(dev, ppi, n_ports);
 	if (!host) {
 		rc = -ENOMEM;
-		goto err0;
+		goto pdata_exit;
 	}
 
 	host->private_data = hpriv;
@@ -182,7 +196,7 @@ static int __init ahci_probe(struct platform_device *pdev)
 
 	rc = ahci_reset_controller(host);
 	if (rc)
-		goto err0;
+		goto pdata_exit;
 
 	ahci_init_controller(host);
 	ahci_print_info(host, "platform");
@@ -190,12 +204,18 @@ static int __init ahci_probe(struct platform_device *pdev)
 	rc = ata_host_activate(host, irq, ahci_interrupt, IRQF_SHARED,
 			       &ahci_platform_sht);
 	if (rc)
-		goto err0;
+		goto pdata_exit;
 
 	return 0;
-err0:
+pdata_exit:
 	if (pdata && pdata->exit)
 		pdata->exit(dev);
+disable_clk:
+#ifdef CONFIG_HAVE_CLK
+	clk_disable(hpriv->clk);
+free_clk:
+	clk_put(hpriv->clk);
+#endif
 	return rc;
 }
 
@@ -204,11 +224,17 @@ static int __devexit ahci_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct ahci_platform_data *pdata = dev_get_platdata(dev);
 	struct ata_host *host = dev_get_drvdata(dev);
+	struct ahci_host_priv *hpriv = host->private_data;
 
 	ata_host_detach(host);
 
 	if (pdata && pdata->exit)
 		pdata->exit(dev);
+
+#ifdef CONFIG_HAVE_CLK
+	clk_disable(hpriv->clk);
+	clk_put(hpriv->clk);
+#endif
 
 	return 0;
 }
