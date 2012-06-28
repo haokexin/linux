@@ -19,6 +19,12 @@
 		device_type = "memory";
 	};
 
+	l2sram@fff00000 {
+		device_type = "memory";
+		compatible = "fsl,p2020-l2-cache-controller";
+		reg = <0x0 0xfff00000 0 0x10000>;
+	};
+
 	board_lbc: lbc: localbus@ffe05000 {
 		ranges = <0x0 0x0 0x0 0xe8000000 0x08000000
 			  0x1 0x0 0x0 0xe0000000 0x08000000
