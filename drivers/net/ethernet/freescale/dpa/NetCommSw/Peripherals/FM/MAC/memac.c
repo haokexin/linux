@@ -111,6 +111,8 @@ static void SetDefaultParam(t_MemacDriverParam *p_MemacDriverParam)
 
     p_MemacDriverParam->pauseTime                = DEFAULT_pauseTime;
 
+    p_MemacDriverParam->resetOnInit              = DEFAULT_resetOnInit;
+
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
     p_MemacDriverParam->skipFman11Workaround     = DEFAULT_skipFman11Workaround;
 #endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
@@ -342,6 +344,19 @@ static t_Error MemacConfigLengthCheck(t_Handle h_Memac, bool newVal)
     return E_OK;
 }
 
+/* .............................................................................. */
+
+static t_Error MemacConfigResetOnInit(t_Handle h_Memac, bool enable)
+{
+    t_Memac *p_Memac = (t_Memac *)h_Memac;
+
+    SANITY_CHECK_RETURN_ERROR(p_Memac, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_Memac->p_MemacDriverParam, E_INVALID_STATE);
+
+    p_Memac->p_MemacDriverParam->resetOnInit = enable;
+
+    return E_OK;
+}
 
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
 /* .............................................................................. */
@@ -957,7 +972,7 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
     p_FmMacControllerDriver->f_FM_MAC_ConfigHalfDuplex          = NULL; /* half-duplex is not supported in xgec */
     p_FmMacControllerDriver->f_FM_MAC_ConfigLengthCheck         = MemacConfigLengthCheck;
     p_FmMacControllerDriver->f_FM_MAC_ConfigException           = NULL; //MemacConfigException;
-    p_FmMacControllerDriver->f_FM_MAC_ConfigResetOnInit         = NULL; //MemacConfigResetOnInit;
+    p_FmMacControllerDriver->f_FM_MAC_ConfigResetOnInit         = MemacConfigResetOnInit;
 
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
     p_FmMacControllerDriver->f_FM_MAC_ConfigSkipFman11Workaround= MemacConfigSkipFman11Workaround;
