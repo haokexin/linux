@@ -275,7 +275,11 @@ static inline unsigned int __poll_portal_fast(struct qman_portal *p,
 static irqreturn_t portal_isr(__always_unused int irq, void *ptr)
 {
 	struct qman_portal *p = ptr;
-	u32 clear = QM_DQAVAIL_MASK | p->irq_sources;
+	/* The CSCI source is cleared inside __poll_portal_slow(), because
+	 * it could race against a Query Congestion State command also given
+	 * as part of the handling of this interrupt source. We mustn't
+	 * clear it a second time in this top-level function. */
+	u32 clear = QM_DQAVAIL_MASK | (p->irq_sources & ~QM_PIRQ_CSCI);
 	u32 is = qm_isr_status_read(&p->p) & p->irq_sources;
 	/* DQRR-handling if it's interrupt-driven */
 	if (is & QM_PIRQ_DQRI)
@@ -605,6 +609,12 @@ static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 		unsigned long irqflags __maybe_unused;
 
 		spin_lock_irqsave(&p->cgr_lock, irqflags);
+		/* The CSCI bit must be cleared _before_ issuing the
+		 * Query Congestion State command, to ensure that a long
+		 * CGR State Change callback cannot miss an intervening
+		 * state change. */
+		qm_isr_status_clear(&p->p, QM_PIRQ_CSCI);
+
 		qm_mc_start(&p->p);
 		qm_mc_commit(&p->p, QM_MCC_VERB_QUERYCONGESTION);
 		while (!(mcr = qm_mc_result(&p->p)))
@@ -712,7 +722,10 @@ mr_done:
 		qm_mr_cci_consume(&p->p, num);
 	}
 
-	return is & (QM_PIRQ_CSCI | QM_PIRQ_EQCI | QM_PIRQ_EQRI | QM_PIRQ_MRI);
+	/* QM_PIRQ_CSCI has already been cleared, as part of its specific
+	 * processing. If that interrupt source has meanwhile been re-asserted,
+	 * we mustn't clear it here (or in the top-level interrupt handler). */
+	return is & (QM_PIRQ_EQCI | QM_PIRQ_EQRI | QM_PIRQ_MRI);
 }
 
 /* remove some slowish-path stuff from the "fast path" and make sure it isn't
