@@ -210,7 +210,91 @@
 				phy-connection-type = "sgmii";
 				local-mac-address = [02 01 01 01 01 01];
 			};
-		 };
+			enet1: ethernet@e2000 {
+				fixed-link = <2 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 01 02];
+			};
+			enet2: ethernet@e4000 {
+				fixed-link = <3 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 01 03];
+			};
+			enet3: ethernet@e6000 {
+				fixed-link = <4 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 01 04];
+			};
+			enet4: ethernet@e8000 {
+				fixed-link = <5 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 01 05];
+			};
+			enet5: ethernet@ea000 {
+				fixed-link = <6 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 01 06];
+			};
+			enet6: ethernet@f0000 {
+				fixed-link = <7 1 10000 0 0 >;
+				phy-connection-type = "xgmii";
+				local-mac-address = [02 01 01 01 01 07];
+			};
+			enet7: ethernet@f2000 {
+				fixed-link = <8 1 10000 0 0 >;
+				phy-connection-type = "xgmii";
+				local-mac-address = [02 01 01 01 01 08];
+			};
+		};
+		fman1: fman@500000 {
+			enet8: ethernet@e0000 {
+				fixed-link = <11 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 02 01];
+			};
+
+			enet9: ethernet@e2000 {
+				fixed-link = <12 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 02 02];
+			};
+
+			enet10: ethernet@e4000 {
+				fixed-link = <13 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 02 03];
+			};
+
+			enet11: ethernet@e6000 {
+				fixed-link = <14 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 02 04];
+			};
+
+			enet12: ethernet@e8000 {
+				fixed-link = <15 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 02 05];
+			};
+
+			enet13: ethernet@ea000 {
+				fixed-link = <16 1 1000 0 0 >;
+				phy-connection-type = "sgmii";
+				local-mac-address = [02 01 01 01 02 06];
+			};
+
+			enet14: ethernet@f0000 {
+				fixed-link = <17 1 10000 0 0 >;
+				phy-connection-type = "xgmii";
+				local-mac-address = [02 01 01 01 02 07];
+			};
+
+			enet15: ethernet@f2000 {
+				fixed-link = <18 1 10000 0 0 >;
+				phy-connection-type = "xgmii";
+				local-mac-address = [02 01 01 01 02 08];
+			};
+		};
 	};
 
 	pci0: pcie@ffe240000 {
@@ -288,6 +372,66 @@
 		ethernet@0 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet0>;
+		};
+		ethernet@1 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet1>;
+		};
+		ethernet@2 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet2>;
+		};
+		ethernet@3 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet3>;
+		};
+		ethernet@4 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet4>;
+		};
+		ethernet@5 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet5>;
+		};
+		ethernet@6 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet6>;
+		};
+		ethernet@7 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet7>;
+		};
+		ethernet@8 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet8>;
+		};
+		ethernet@9 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet9>;
+		};
+		ethernet@10 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet10>;
+		};
+		ethernet@11 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet11>;
+		};
+		ethernet@12 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet12>;
+		};
+		ethernet@13 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet13>;
+		};
+		ethernet@14 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet14>;
+		};
+		ethernet@15 {
+			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <&enet15>;
 		};
 	};
 };
