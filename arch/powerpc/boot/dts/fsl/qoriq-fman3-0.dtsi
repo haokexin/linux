@@ -62,49 +62,43 @@ fman0: fman@400000 {
 		compatible = "fsl,fman-qmi";
 		reg = <0x80400 0x400>;
 	};
-/*
-	fman0_oh0: port@81000 {
-		cell-index = <0>;
-		compatible = "fsl,fman-port-oh";
-		reg = <0x81000 0x1000>;
-	};
 
 	fman0_oh1: port@82000 {
-		cell-index = <1>;
+		cell-index = <0>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x82000 0x1000>;
 	};
 
 	fman0_oh2: port@83000 {
-		cell-index = <2>;
+		cell-index = <1>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x83000 0x1000>;
 	};
 
 	fman0_oh3: port@84000 {
-		cell-index = <3>;
+		cell-index = <2>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x84000 0x1000>;
 	};
 
 	fman0_oh4: port@85000 {
-		cell-index = <4>;
+		cell-index = <3>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x85000 0x1000>;
 	};
 
 	fman0_oh5: port@86000 {
-		cell-index = <5>;
+		cell-index = <4>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x86000 0x1000>;
 	};
 
 	fman0_oh6: port@87000 {
-		cell-index = <6>;
+		cell-index = <5>;
 		compatible = "fsl,fman-port-oh";
 		reg = <0x87000 0x1000>;
 	};
-*/
+
 	policer@c0000 {
 		compatible = "fsl,fman-policer";
 		reg = <0xc0000 0x1000>;
