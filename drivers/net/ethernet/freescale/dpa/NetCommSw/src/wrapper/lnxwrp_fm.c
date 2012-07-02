@@ -209,8 +209,8 @@ typedef _Packed struct {
     int         i;
     uint32_t    fmRev;
 
-    static const uint8_t     phys1GRxPortId[] = {0x8,0x9,0xa,0xb,0xc};
-    static const uint8_t     phys10GRxPortId[] = {0x10};
+    static const uint8_t     phys1GRxPortId[] = {0x8,0x9,0xa,0xb,0xc,0xd,0xe,0xf};
+    static const uint8_t     phys10GRxPortId[] = {0x10,0x11};
 
     fmRev = (uint32_t)(*((volatile uint32_t *)UINT_TO_PTR(p_LnxWrpFmDev->fmBaseAddr+FM_FPM_IP_REV_1_OFFSET)));
     fmRev &= 0xffff;
