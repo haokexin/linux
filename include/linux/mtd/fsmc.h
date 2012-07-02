@@ -31,6 +31,7 @@
 
 #define FSMC_FLASH_WIDTH8	1
 #define FSMC_FLASH_WIDTH16	2
+#define FSMC_FLASH_WIDTH32	4
 
 /* fsmc controller registers for NOR flash */
 #define CTRL			0x0
@@ -40,6 +41,7 @@
 	#define NOR_DEV			(2 << 2)
 	#define WIDTH_8			(0 << 4)
 	#define WIDTH_16		(1 << 4)
+	#define WIDTH_32		(2 << 4)
 	#define RSTPWRDWN		(1 << 6)
 	#define WPROT			(1 << 7)
 	#define WRT_ENABLE		(1 << 12)
@@ -130,6 +132,16 @@ struct fsmc_nand_timings {
 	uint8_t tset;
 };
 
+enum rbpin {
+	FSMC_RB_WAIT = 0,
+	FSMC_RB_GPIO,
+};
+
+struct fsmc_rbpin {
+	enum rbpin	use_pin;
+	uint32_t	gpio_pin;
+};
+
 enum access_mode {
 	USE_DMA_ACCESS = 1,
 	USE_WORD_ACCESS,
@@ -148,16 +160,17 @@ enum access_mode {
  * this may be set to NULL
  */
 struct fsmc_nand_platform_data {
-	struct fsmc_nand_timings *nand_timings;
+	const struct fsmc_nand_timings *nand_timings;
+	const struct fsmc_rbpin	*rbpin;
 	struct mtd_partition	*partitions;
 	unsigned int		nr_partitions;
 	unsigned int		options;
 	unsigned int		width;
-	unsigned int		bank;
+	unsigned int		max_banks;
 
 	/* CLE, ALE offsets */
-	unsigned int		cle_off;
-	unsigned int		ale_off;
+	unsigned long           cle_off;
+	unsigned long           ale_off;
 	enum access_mode	mode;
 
 	void			(*select_bank)(uint32_t bank, uint32_t busw);
