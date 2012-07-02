@@ -44,6 +44,7 @@
 
 
 /**************************************************************************//**
+
  @Group         lnx_ioctl_FM_grp Frame Manager Linux IOCTL API
 
  @Description   FM Linux ioctls definitions and enums
@@ -63,9 +64,11 @@
                 Host command/Offline parsing ports. The SW driver manages these
                 ports as sub-modules of the FM, i.e. after an FM is initialized,
                 its ports may be initialized and operated upon.
+
                 The port is initialized aware of its type, but other functions on
                 a port may be indifferent to its type. When necessary, the driver
                 verifies coherency and returns error if applicable.
+
                 On initialization, user specifies the port type and it's index
                 (relative to the port's type). Host command and Offline parsing
                 ports share the same id range, I.e user may not initialized host
@@ -75,12 +78,39 @@
 *//***************************************************************************/
 
 /**************************************************************************//**
- @Group         lnx_ioctl_FM_PORT_runtime_control_grp FM Port Runtime Control Unit
+ @Description   An enum for defining port PCD modes.
+                (Must match enum e_FmPortPcdSupport defined in fm_port_ext.h)
 
- @Description   FM Port Runtime control unit API functions, definitions and enums.
-
- @{
+                This enum defines the superset of PCD engines support - i.e. not
+                all engines have to be used, but all have to be enabled. The real
+                flow of a specific frame depends on the PCD configuration and the
+                frame headers and payload.
+                Note: the first engine and the first engine after the parser (if
+                exists) should be in order, the order is important as it will
+                define the flow of the port. However, as for the rest engines
+                (the ones that follows), the order is not important anymore as
+                it is defined by the PCD graph itself.
 *//***************************************************************************/
+typedef enum ioc_fm_port_pcd_support {
+      e_IOC_FM_PORT_PCD_SUPPORT_NONE = 0                /**< BMI to BMI, PCD is not used */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_ONLY                /**< Use only Parser */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PLCR_ONLY               /**< Use only Policer */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_PLCR            /**< Use Parser and Policer */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG              /**< Use Parser and Keygen */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC       /**< Use Parser, Keygen and Coarse Classification */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC_AND_PLCR
+                                                        /**< Use all PCD engines */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR     /**< Use Parser, Keygen and Policer */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_CC              /**< Use Parser and Coarse Classification */
+    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_CC_AND_PLCR     /**< Use Parser and Coarse Classification and Policer */
+#ifdef FM_CAPWAP_SUPPORT
+    , e_IOC_FM_PORT_PCD_SUPPORT_CC_ONLY                 /**< Use only Coarse Classification */
+    , e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG               /**< Use Coarse Classification,and Keygen */
+    , e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG_AND_PLCR      /**< Use Coarse Classification, Keygen and Policer */
+#endif /* FM_CAPWAP_SUPPORT */
+} ioc_fm_port_pcd_support;
+
+
 
 /**************************************************************************//**
  @Collection    General FM Port defines
@@ -92,34 +122,90 @@
 #endif
 /* @} */
 
-
 /**************************************************************************//**
- @Description   struct for defining port PCD modes
-                (must match enum e_FmPortPcdSupport defined in fm_port_ext.h)
+ @Collection   FM Frame error
 *//***************************************************************************/
-typedef enum ioc_fm_port_pcd_support {
-      e_IOC_FM_PORT_PCD_SUPPORT_NONE = 0                /**< BMI to BMI, PCD is not used */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_ONLY                /**< Use only Parser */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PLCR_ONLY               /**< Use only Policer */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_PLCR            /**< Use Parser and Policer */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG              /**< Use Parser and Keygen */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC       /**< Use Parser, Keygen and Coarse Classification */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_CC_AND_PLCR
-                                                    /**< Use all PCD engines */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_KG_AND_PLCR     /**< Use Parser, Keygen and Policer */
-    , e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_CC              /**< Use Parser and Coarse Classification */
+typedef uint32_t    ioc_fm_port_frame_err_select_t; /**< typedef for defining Frame Descriptor errors */
+
+#define IOC_FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT      FM_FD_ERR_UNSUPPORTED_FORMAT    /**< Not for Rx-Port! Unsupported Format */
+#define IOC_FM_PORT_FRM_ERR_LENGTH                  FM_FD_ERR_LENGTH                /**< Not for Rx-Port! Length Error */
+#define IOC_FM_PORT_FRM_ERR_DMA                     FM_FD_ERR_DMA                   /**< DMA Data error */
+#ifdef FM_DISABLE_SEC_ERRORS
+#define IOC_FM_PORT_FRM_ERR_NON_FM                  FM_FD_RX_STATUS_ERR_NON_FM      /*< Non Frame-Manager error;
+                                                                                        probably come from SEC that was chained to FM */
+#endif /* FM_DISABLE_SEC_ERRORS */
+
+#define IOC_FM_PORT_FRM_ERR_IPRE                    (FM_FD_ERR_IPR & ~FM_FD_IPR)    /**< IPR error */
+#define IOC_FM_PORT_FRM_ERR_IPR_TO                  (FM_FD_ERR_IPR_TO & ~FM_FD_IPR) /**< IPR timeout */
+#define IOC_FM_PORT_FRM_ERR_IPFE                    FM_FD_ERR_IPF                   /**< IPF error */
+
 #ifdef FM_CAPWAP_SUPPORT
-    , e_IOC_FM_PORT_PCD_SUPPORT_CC_ONLY                 /**< Use only Coarse Classification */
-    , e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG               /**< Use Coarse Classification,and Keygen */
-    , e_IOC_FM_PORT_PCD_SUPPORT_CC_AND_KG_AND_PLCR      /**< Use Coarse Classification, Keygen and Policer */
+#define IOC_FM_PORT_FRM_ERR_CRE                     FM_FD_ERR_CRE
+#define IOC_FM_PORT_FRM_ERR_CHE                     FM_FD_ERR_CHE
 #endif /* FM_CAPWAP_SUPPORT */
-} ioc_fm_port_pcd_support;
+
+#define IOC_FM_PORT_FRM_ERR_PHYSICAL                FM_FD_ERR_PHYSICAL              /**< Rx FIFO overflow, FCS error, code error, running disparity
+                                                                                         error (SGMII and TBI modes), FIFO parity error, PHY
+                                                                                         Sequence error, PHY error control character detected. */
+#define IOC_FM_PORT_FRM_ERR_SIZE                    FM_FD_ERR_SIZE                  /**< Frame too long OR Frame size exceeds max_length_frame  */
+#define IOC_FM_PORT_FRM_ERR_CLS_DISCARD             FM_FD_ERR_CLS_DISCARD           /**< classification discard */
+#define IOC_FM_PORT_FRM_ERR_EXTRACTION              FM_FD_ERR_EXTRACTION            /**< Extract Out of Frame */
+#define IOC_FM_PORT_FRM_ERR_NO_SCHEME               FM_FD_ERR_NO_SCHEME             /**< No Scheme Selected */
+#define IOC_FM_PORT_FRM_ERR_KEYSIZE_OVERFLOW        FM_FD_ERR_KEYSIZE_OVERFLOW      /**< Keysize Overflow */
+#define IOC_FM_PORT_FRM_ERR_COLOR_RED               FM_FD_ERR_COLOR_RED             /**< Frame color is red */
+#define IOC_FM_PORT_FRM_ERR_COLOR_YELLOW            FM_FD_ERR_COLOR_YELLOW          /**< Frame color is yellow */
+#define IOC_FM_PORT_FRM_ERR_ILL_PLCR                FM_FD_ERR_ILL_PLCR              /**< Illegal Policer Profile selected */
+#define IOC_FM_PORT_FRM_ERR_PLCR_FRAME_LEN          FM_FD_ERR_PLCR_FRAME_LEN        /**< Policer frame length error */
+#define IOC_FM_PORT_FRM_ERR_PRS_TIMEOUT             FM_FD_ERR_PRS_TIMEOUT           /**< Parser Time out Exceed */
+#define IOC_FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT        FM_FD_ERR_PRS_ILL_INSTRUCT      /**< Invalid Soft Parser instruction */
+#define IOC_FM_PORT_FRM_ERR_PRS_HDR_ERR             FM_FD_ERR_PRS_HDR_ERR           /**< Header error was identified during parsing */
+#define IOC_FM_PORT_FRM_ERR_BLOCK_LIMIT_EXCEEDED    FM_FD_ERR_BLOCK_LIMIT_EXCEEDED  /**< Frame parsed beyind 256 first bytes */
+#define IOC_FM_PORT_FRM_ERR_PROCESS_TIMEOUT         0x00000001                      /**< FPM Frame Processing Timeout Exceeded */
+/* @} */
+
 
 /**************************************************************************//**
- @Description   enum for defining FM Port counters
-                (must match enum e_FmPortCounters defined in fm_port_ext.h)
+ @Description   An enum for defining Dual Tx rate limiting scale.
+                (Must match e_FmPortDualRateLimiterScaleDown defined in fm_port_ext.h)
 *//***************************************************************************/
-typedef enum fm_port_counters {
+typedef enum ioc_fm_port_dual_rate_limiter_scale_down {
+    e_IOC_FM_PORT_DUAL_RATE_LIMITER_NONE = 0,           /**< Use only single rate limiter  */
+    e_IOC_FM_PORT_DUAL_RATE_LIMITER_SCALE_DOWN_BY_2,    /**< Divide high rate limiter by 2 */
+    e_IOC_FM_PORT_DUAL_RATE_LIMITER_SCALE_DOWN_BY_4,    /**< Divide high rate limiter by 4 */
+    e_IOC_FM_PORT_DUAL_RATE_LIMITER_SCALE_DOWN_BY_8     /**< Divide high rate limiter by 8 */
+} ioc_fm_port_dual_rate_limiter_scale_down;
+
+/**************************************************************************//**
+ @Description   A structure for defining Tx rate limiting
+                (Must match struct t_FmPortRateLimit defined in fm_port_ext.h)
+*//***************************************************************************/
+typedef struct ioc_fm_port_rate_limit_t {
+    uint16_t                            max_burst_size;         /**< in KBytes for Tx ports, in frames
+                                                                     for offline parsing ports. (note that
+                                                                     for early chips burst size is
+                                                                     rounded up to a multiply of 1000 frames).*/
+    uint32_t                            rate_limit;             /**< in Kb/sec for Tx ports, in frame/sec for
+                                                                     offline parsing ports. Rate limit refers to
+                                                                     data rate (rather than line rate). */
+    ioc_fm_port_dual_rate_limiter_scale_down rate_limit_divider;    /**< For offline parsing ports only. Not-valid
+                                                                     for some earlier chip revisions */
+} ioc_fm_port_rate_limit_t;
+
+
+
+/**************************************************************************//**
+ @Group         lnx_ioctl_FM_PORT_runtime_control_grp FM Port Runtime Control Unit
+
+ @Description   FM Port Runtime control unit API functions, definitions and enums.
+
+ @{
+*//***************************************************************************/
+
+/**************************************************************************//**
+ @Description   An enum for defining FM Port counters.
+                (Must match enum e_FmPortCounters defined in fm_port_ext.h)
+*//***************************************************************************/
+typedef enum ioc_fm_port_counters {
     e_IOC_FM_PORT_COUNTERS_CYCLE,                       /**< BMI performance counter */
     e_IOC_FM_PORT_COUNTERS_TASK_UTIL,                   /**< BMI performance counter */
     e_IOC_FM_PORT_COUNTERS_QUEUE_UTIL,                  /**< BMI performance counter */
@@ -142,108 +228,127 @@ typedef enum fm_port_counters {
     e_IOC_FM_PORT_COUNTERS_ENQ_TOTAL,                   /**< QMI total QM enqueues counter */
     e_IOC_FM_PORT_COUNTERS_DEQ_FROM_DEFAULT,            /**< QMI counter */
     e_IOC_FM_PORT_COUNTERS_DEQ_CONFIRM                  /**< QMI counter */
-} fm_port_counters;
+} ioc_fm_port_counters;
 
 /**************************************************************************//**
  @Description   Structure for Port id parameters.
+                (Description may be inaccurate;
+                must match struct t_FmPortCongestionGrps defined in fm_port_ext.h)
+
                 Fields commented 'IN' are passed by the port module to be used
                 by the FM module.
                 Fields commented 'OUT' will be filled by FM before returning to port.
 *//***************************************************************************/
 typedef struct ioc_fm_port_congestion_groups_t {
-    uint16_t    num_of_congestion_grps_to_consider; /**< Size of congestion_grps_to_consider array */
-    uint8_t     congestion_grps_to_consider [IOC_FM_PORT_NUM_OF_CONGESTION_GRPS];   /**< list of congestion groups */
+    uint16_t    num_of_congestion_grps_to_consider;     /**< The number of required congestion groups
+                                                             to define the size of the following array */
+    uint8_t     congestion_grps_to_consider [IOC_FM_PORT_NUM_OF_CONGESTION_GRPS];
+                                                        /**< An array of CG indexes;
+                                                             Note that the size of the array should be
+                                                             'num_of_congestion_grps_to_consider'. */
+#if DPAA_VERSION >= 11
+    bool        pfc_priorities_enable[FM_PORT_NUM_OF_CONGESTION_GRPS][FM_MAX_NUM_OF_PFC_PRIORITIES];
+                                                        /**< A matrix that represents the map between the CG ids
+                                                             defined in 'congestion_grps_to_consider' to the priorities
+                                                             mapping array. */
+#endif /* DPAA_VERSION >= 11 */
 } ioc_fm_port_congestion_groups_t;
 
-/**************************************************************************//**
- @Description   struct for defining Dual Tx rate limiting scale
-                (identical to e_FmPortDualRateLimiterScaleDown defined in fm_port_ext.h)
-*//***************************************************************************/
-typedef enum fm_port_dual_rate_limiter_scale_down {
-    e_IOC_FM_PORT_DUAL_RATE_LIMITER_NONE = 0,           /**< Use only single rate limiter  */
-    e_IOC_FM_PORT_DUAL_RATE_LIMITER_SCALE_DOWN_BY_2,    /**< Divide high rate limiter by 2 */
-    e_IOC_FM_PORT_DUAL_RATE_LIMITER_SCALE_DOWN_BY_4,    /**< Divide high rate limiter by 4 */
-    e_IOC_FM_PORT_DUAL_RATE_LIMITER_SCALE_DOWN_BY_8     /**< Divide high rate limiter by 8 */
-} fm_port_dual_rate_limiter_scale_down;
-
-/**************************************************************************//**
- @Description   struct for defining Tx rate limiting
-                (identical to t_FmPortRateLimit defined in fm_port_ext.h)
-*//***************************************************************************/
-typedef struct ioc_fm_port_rate_limit {
-    uint16_t                            max_burst_size;         /**< in KBytes for Tx ports, in frames
-                                                                     for offline parsing ports. (note that
-                                                                     for early chips burst size is
-                                                                     rounded up to a multiply of 1000 frames).*/
-    uint32_t                            rate_limit;             /**< in Kb/sec for Tx ports, in frame/sec for
-                                                                     offline parsing ports. Rate limit refers to
-                                                                     data rate (rather than line rate). */
-    fm_port_dual_rate_limiter_scale_down rate_limit_divider;    /**< For offline parsing ports only. Not-valid
-                                                                     for some earlier chip revisions */
-} ioc_fm_port_rate_limit_t;
 
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_DISABLE
+ @Function      FM_PORT_Disable
 
  @Description   Gracefully disable an FM port. The port will not start new tasks after all
                 tasks associated with the port are terminated.
 
- @Return        0 on success; Error code otherwise.
+ @Return        0 on success; error code otherwise.
 
- @Cautions      Allowed only following FM_PORT_Init().
-                This is a blocking routine, it returns after port is
+ @Cautions      This is a blocking routine, it returns after port is
                 gracefully stopped, i.e. the port will not except new frames,
                 but it will finish all frames or tasks which were already began
 *//***************************************************************************/
 #define FM_PORT_IOC_DISABLE   _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(1))
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_ENABLE
+ @Function      FM_PORT_Enable
 
  @Description   A runtime routine provided to allow disable/enable of port.
 
- @Return        0 on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #define FM_PORT_IOC_ENABLE   _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(2))
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_SET_RATE_LIMIT
+ @Function      FM_PORT_SetRateLimit
 
  @Description   Calling this routine enables rate limit algorithm.
                 By default, this functionality is disabled.
                 Note that rate-limit mechanism uses the FM time stamp.
                 The selected rate limit specified here would be
-                rounded to the nearest power of 2 multiplication
-                (i.e. up to twice the required rate).
+                rounded DOWN to the nearest 16M.
 
                 May be used for Tx and offline parsing ports only
 
  @Param[in]     ioc_fm_port_rate_limit A structure of rate limit parameters
 
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #define FM_PORT_IOC_SET_RATE_LIMIT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(3), ioc_fm_port_rate_limit_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_REMOVE_RATE_LIMIT
+ @Function      FM_PORT_DeleteRateLimit
 
  @Description   Calling this routine disables the previously enabled rate limit.
 
                 May be used for Tx and offline parsing ports only
 
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
-#define FM_PORT_IOC_REMOVE_RATE_LIMIT _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(5))
+#define FM_PORT_IOC_DELETE_RATE_LIMIT   _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(5))
+#define FM_PORT_IOC_REMOVE_RATE_LIMIT   FM_PORT_IOC_DELETE_RATE_LIMIT
+
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_SET_ERRORS_ROUTE
+ @Function      FM_PORT_AddCongestionGrps
+
+ @Description   This routine effects the corresponding Tx port.
+                It should be called in order to enable pause
+                frame transmission in case of congestion in one or more
+                of the congestion groups relevant to this port.
+                Each call to this routine may add one or more congestion
+                groups to be considered relevant to this port.
+
+                May be used for Rx, or RX+OP ports only (depending on chip)
+
+ @Param[in]     ioc_fm_port_congestion_groups_t - A pointer to an array of
+                                                congestion group ids to consider.
+
+ @Return        0 on success; error code otherwise.
+*//***************************************************************************/
+#define      FM_PORT_IOC_ADD_CONGESTION_GRPS    _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(34), ioc_fm_port_congestion_groups_t)
+
+/**************************************************************************//**
+ @Function      FM_PORT_RemoveCongestionGrps
+
+ @Description   This routine effects the corresponding Tx port. It should be
+                called when congestion groups were
+                defined for this port and are no longer relevant, or pause
+                frames transmitting is not required on their behalf.
+                Each call to this routine may remove one or more congestion
+                groups to be considered relevant to this port.
+
+                May be used for Rx, or RX+OP ports only (depending on chip)
+
+ @Param[in]     ioc_fm_port_congestion_groups_t - A pointer to an array of
+                                                congestion group ids to consider.
+
+ @Return        0 on success; error code otherwise.
+*//***************************************************************************/
+#define      FM_PORT_IOC_REMOVE_CONGESTION_GRPS    _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(35), ioc_fm_port_congestion_groups_t)
+
+/**************************************************************************//**
+ @Function      FM_PORT_SetErrorsRoute
 
  @Description   Errors selected for this routine will cause a frame with that error
                 to be enqueued to error queue.
@@ -257,11 +362,16 @@ typedef struct ioc_fm_port_rate_limit {
 
  @Param[in]     ioc_fm_port_frame_err_select_t  A list of errors to enqueue to error queue
 
- @Return        E_OK on success; Error code otherwise.
+ @Return        0 on success; error code otherwise.
 
  @Cautions      Allowed only following FM_PORT_Config() and before FM_PORT_Init().
+                (szbs001: How is it possible to have one function that needs to be
+                          called BEFORE FM_PORT_Init() implemented as an ioctl,
+                          which will ALWAYS be called AFTER the FM_PORT_Init()
+                          for that port!?!?!?!???!?!??!?!?)
 *//***************************************************************************/
 #define FM_PORT_IOC_SET_ERRORS_ROUTE   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(4), ioc_fm_port_frame_err_select_t)
+
 
 /**************************************************************************//**
  @Group         lnx_ioctl_FM_PORT_pcd_runtime_control_grp FM Port PCD Runtime Control Unit
@@ -272,40 +382,33 @@ typedef struct ioc_fm_port_rate_limit {
 *//***************************************************************************/
 
 /**************************************************************************//**
- @Description   A structure of scheme parameters
-                (must match struct t_FmPcdKgSchemeSelect defined in fm_port_ext.h)
+ @Description   A structure defining the KG scheme after the parser.
+                (Must match struct t_FmPcdKgSchemeSelect defined in fm_port_ext.h)
+
+                This is relevant only to change scheme selection mode - from
+                direct to indirect and vice versa, or when the scheme is selected directly,
+                to select the scheme id.
+
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_kg_scheme_select_t {
     bool        direct;                     /**< TRUE to use 'scheme_id' directly, FALSE to use LCV.*/
-    void        *scheme_id;                 /**< Relevant for 'direct'=TRUE only.
+    void       *scheme_id;                  /**< Relevant for 'direct'=TRUE only.
                                                  'scheme_id' selects the scheme after parser. */
 } ioc_fm_pcd_kg_scheme_select_t;
 
 /**************************************************************************//**
- @Description    A structure for defining the Parser starting point
-                (must match struct t_FmPcdPrsStart defined in fm_port_ext.h)
-*//***************************************************************************/
-typedef struct ioc_fm_pcd_prs_start_t {
-    uint8_t             parsing_offset; /**< Number of bytes from begining of packet to
-                                             start parsing */
-    ioc_net_header_type first_prs_hdr;  /**< The type of the first header axpected at
-                                             'parsing_offset' */
-} ioc_fm_pcd_prs_start_t;
-
-/**************************************************************************//**
  @Description   Scheme IDs structure
-                (must match struct t_FmPcdPortSchemesParams defined in fm_port_ext.h)
+                (Must match struct t_FmPcdPortSchemesParams defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_port_schemes_params_t {
     uint8_t     num_of_schemes;                         /**< Number of schemes for port to be bound to. */
-    void        *scheme_ids [FM_PCD_KG_NUM_OF_SCHEMES];
-                                                        /**< Array of 'num_of_schemes' schemes for the
+    void        *scheme_ids[FM_PCD_KG_NUM_OF_SCHEMES];  /**< Array of 'num_of_schemes' schemes for the
                                                              port to be bound to */
 } ioc_fm_pcd_port_schemes_params_t;
 
 /**************************************************************************//**
- @Description   Union for defining port protocol parameters for parser
-                (must match union u_FmPcdHdrPrsOpts defined in fm_port_ext.h)
+ @Description   A union for defining port protocol parameters for parser
+                (Must match union u_FmPcdHdrPrsOpts defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef union ioc_fm_pcd_hdr_prs_opts_u {
     /* MPLS */
@@ -315,6 +418,7 @@ typedef union ioc_fm_pcd_hdr_prs_opts_u {
                                                              is cleared, the parser will advance to MPLS next parse */
         ioc_net_header_type next_parse;                 /**< must be equal or higher than IPv4 */
     } mpls_prs_options;
+
     /* VLAN */
     struct {
         uint16_t            tag_protocol_id1;           /**< User defined Tag Protocol Identifier, to be recognized
@@ -322,6 +426,12 @@ typedef union ioc_fm_pcd_hdr_prs_opts_u {
         uint16_t            tag_protocol_id2;           /**< User defined Tag Protocol Identifier, to be recognized
                                                              on VLAN TAG on top of 0x8100 and 0x88A8 */
     } vlan_prs_options;
+
+    /* PPP */
+    struct{
+        bool                enable_mtu_check;           /**< Check validity of MTU according to RFC2516 */
+    } pppoe_prs_options;
+
     /* IPV6 */
     struct {
         bool                routing_hdr_disable;        /**< Disable routing header */
@@ -337,7 +447,6 @@ typedef union ioc_fm_pcd_hdr_prs_opts_u {
         bool                pad_ignore_checksum;        /**< TRUE to ignore pad in checksum */
     } tcp_prs_options;
 } ioc_fm_pcd_hdr_prs_opts_u;
-
 
 /**************************************************************************//**
  @Description   A structure for defining each header for the parser
@@ -358,73 +467,73 @@ typedef struct ioc_fm_pcd_prs_additional_hdr_params_t {
 } ioc_fm_pcd_prs_additional_hdr_params_t;
 
 /**************************************************************************//**
- @Description   struct for defining port PCD parameters
-                (must match t_FmPortPcdPrsParams defined in fm_port_ext.h)
+ @Description   A structure for defining port PCD parameters
+                (Must match t_FmPortPcdPrsParams defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_port_pcd_prs_params_t {
-    uint8_t                                 prs_res_priv_info;          /**< The private info provides a method of inserting
-                                                                             port information into the parser result. This information
-                                                                             may be extracted by Keygen and be used for frames
-                                                                             distribution when a per-port distinction is required,
-                                                                             it may also be used as a port logical id for analyazing
-                                                                             incoming frames. */
-    uint8_t                                 parsing_offset;             /**< Number of bytes from begining of packet to
-                                                                             start parsing */
-    ioc_net_header_type                     first_prs_hdr;              /**< The type of the first header axpected at
-                                                                             'parsingOffset' */
-    bool                                    includeInPrsStatistics;     /**< TRUE to include this port in the parser statistics;
-                                                                              NOTE: this field is not valid when the FN is in "guest" mode. */
-    uint8_t                                 num_of_hdrs_with_additional_params;
-                                                        /**< Normally 0, some headers may get
-                                                             special parameters */
+    uint8_t                         prs_res_priv_info;      /**< The private info provides a method of inserting
+                                                                 port information into the parser result. This information
+                                                                 may be extracted by KeyGen and be used for frames
+                                                                 distribution when a per-port distinction is required,
+                                                                 it may also be used as a port logical id for analyzing
+                                                                 incoming frames. */
+    uint8_t                         parsing_offset;         /**< Number of bytes from begining of packet to start parsing */
+    ioc_net_header_type             first_prs_hdr;          /**< The type of the first header axpected at 'parsing_offset' */
+    bool                            include_in_prs_statistics; /**< TRUE to include this port in the parser statistics */
+    uint8_t                         num_of_hdrs_with_additional_params;
+                                                            /**< Normally 0, some headers may get special parameters */
     ioc_fm_pcd_prs_additional_hdr_params_t  additional_params[IOC_FM_PCD_PRS_NUM_OF_HDRS];
-                                                        /**< A structure of additional parameters
-                                                             for each header that requires them */
-    bool                                    set_vlan_tpid1;             /**< TRUE to configure user selection of Ethertype to
-                                                                             indicate a VLAN tag (in addition to the TPID values
-                                                                             0x8100 and 0x88A8). */
-    uint16_t                                vlan_tpid1;                 /**< extra tag to use if setVlanTpid1=TRUE. */
-    bool                                    set_vlan_tpid2;             /**< TRUE to configure user selection of Ethertype to
-                                                                             indicate a VLAN tag (in addition to the TPID values
-                                                                             0x8100 and 0x88A8). */
-    uint16_t                                vlan_tpid2;                 /**< extra tag to use if setVlanTpid1=TRUE. */
+                                                            /**< 'num_of_hdrs_with_additional_params' structures
+                                                                  additional parameters for each header that requires them */
+    bool                            set_vlan_tpid1;         /**< TRUE to configure user selection of Ethertype to
+                                                                 indicate a VLAN tag (in addition to the TPID values
+                                                                 0x8100 and 0x88A8). */
+    uint16_t                        vlan_tpid1;             /**< extra tag to use if set_vlan_tpid1=TRUE. */
+    bool                            set_vlan_tpid2;         /**< TRUE to configure user selection of Ethertype to
+                                                                 indicate a VLAN tag (in addition to the TPID values
+                                                                 0x8100 and 0x88A8). */
+    uint16_t                        vlan_tpid2;             /**< extra tag to use if set_vlan_tpid1=TRUE. */
 } ioc_fm_port_pcd_prs_params_t;
 
 /**************************************************************************//**
- @Description   struct for defining coarse alassification parameters
-                (must match t_FmPortPcdCcParams defined in fm_port_ext.h)
+ @Description   A structure for defining coarse alassification parameters
+                (Must match t_FmPortPcdCcParams defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_port_pcd_cc_params_t {
     void                *cc_tree_id; /**< CC tree id */
 } ioc_fm_port_pcd_cc_params_t;
 
 /**************************************************************************//**
- @Description   struct for defining keygen parameters
-                (must match t_FmPortPcdKgParams defined in fm_port_ext.h)
+ @Description   A structure for defining keygen parameters
+                (Must match t_FmPortPcdKgParams defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_port_pcd_kg_params_t {
     uint8_t             num_of_schemes;                 /**< Number of schemes for port to be bound to. */
-    void                *schemes_ids[FM_PCD_KG_NUM_OF_SCHEMES];
-                                                        /**< Array of 'numOfSchemes' schemes for the
+    void               *scheme_ids[FM_PCD_KG_NUM_OF_SCHEMES];
+                                                        /**< Array of 'num_of_schemes' schemes for the
                                                              port to be bound to */
     bool                direct_scheme;                  /**< TRUE for going from parser to a specific scheme,
                                                              regardless of parser result */
-    void                *direct_scheme_id;              /**< relevant only if direct == TRUE */
+    void               *direct_scheme_id;               /**< Scheme id, as returned by FM_PCD_KgSetScheme;
+                                                             relevant only if direct=TRUE. */
 } ioc_fm_port_pcd_kg_params_t;
 
 /**************************************************************************//**
- @Description   struct for defining policer parameters
-                (must match t_FmPortPcdPlcrParams defined in fm_port_ext.h)
+ @Description   A structure for defining policer parameters
+                (Must match t_FmPortPcdPlcrParams defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_port_pcd_plcr_params_t {
-    void                *plcr_profile_id;               /**< relevant only if
-                                                             e_IOC_FM_PCD_SUPPORT_PLCR_ONLY or
-                                                             e_IOC_FM_PCD_SUPPORT_PRS_AND_PLCR were selected */
+    void                *plcr_profile_id;               /**< Selected profile handle;
+                                                             relevant in one of the following cases:
+                                                             e_IOC_FM_PORT_PCD_SUPPORT_PLCR_ONLY or
+                                                             e_IOC_FM_PORT_PCD_SUPPORT_PRS_AND_PLCR were selected,
+                                                             or if any flow uses a KG scheme where policer
+                                                                profile is not generated (bypass_plcr_profile_generation selected) */
 } ioc_fm_port_pcd_plcr_params_t;
 
 /**************************************************************************//**
- @Description   struct for defining port PCD parameters
-                (must match struct t_FmPortPcdParams defined in fm_port_ext.h)
+ @Description   A structure for defining port PCD parameters
+                (Must match struct t_FmPortPcdParams defined in fm_port_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_port_pcd_params_t {
     ioc_fm_port_pcd_support         pcd_support;    /**< Relevant for Rx and offline ports only.
@@ -434,8 +543,21 @@ typedef struct ioc_fm_port_pcd_params_t {
     ioc_fm_port_pcd_cc_params_t     *p_cc_params;   /**< Coarse classification parameters for this port */
     ioc_fm_port_pcd_kg_params_t     *p_kg_params;   /**< Keygen parameters for this port */
     ioc_fm_port_pcd_plcr_params_t   *p_plcr_params; /**< Policer parameters for this port */
-    void                            *p_ip_reassembly_manip;
+    void                            *p_ip_reassembly_manip;/**< IP Reassembly manipulation */
 } ioc_fm_port_pcd_params_t;
+
+
+/**************************************************************************//**
+ @Description   A structure for defining the Parser starting point
+                (Must match struct t_FmPcdPrsStart defined in fm_port_ext.h)
+*//***************************************************************************/
+typedef struct ioc_fm_pcd_prs_start_t {
+    uint8_t             parsing_offset; /**< Number of bytes from begining of packet to
+                                             start parsing */
+    ioc_net_header_type first_prs_hdr;  /**< The type of the first header axpected at
+                                             'parsing_offset' */
+} ioc_fm_pcd_prs_start_t;
+
 
 /**************************************************************************//**
  @Description   FQID parameters structure
@@ -456,9 +578,7 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 
  @Param[in,out] ioc_fm_port_pcd_fqids_params_t  Parameters for allocating FQID's
 
- @Return        0 on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #define FM_PORT_IOC_ALLOC_PCD_FQIDS   _IOWR(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(19), ioc_fm_port_pcd_fqids_params_t)
 
@@ -471,14 +591,13 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 
  @Param[in]		uint32_t	Base FQID of previously allocated range.
 
- @Return        0 on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #define FM_PORT_IOC_FREE_PCD_FQIDS   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(19), uint32_t)
 
+
 /**************************************************************************//**
- @Function      FM_PORT_IOC_SET_PCD
+ @Function      FM_PORT_SetPCD
 
  @Description   Calling this routine defines the port's PCD configuration.
                 It changes it from its default configuration which is PCD
@@ -490,9 +609,7 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
  @Param[in]     ioc_fm_port_pcd_params_t    A Structure of parameters defining the port's PCD
                                             configuration.
 
- @Return        0 on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PORT_IOC_SET_PCD_COMPAT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(20), ioc_compat_fm_port_pcd_params_t)
@@ -500,38 +617,21 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 #define FM_PORT_IOC_SET_PCD _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(20), ioc_fm_port_pcd_params_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_DELETE_PCD
+ @Function      FM_PORT_DeletePCD
 
  @Description   Calling this routine releases the port's PCD configuration.
                 The port returns to its default configuration which is PCD
                 disabled (BMI to BMI) and all PCD configuration is removed.
 
                 May be used for Rx and offline parsing ports which are
-                in PCD mode  only
+                in PCD mode only
 
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #define FM_PORT_IOC_DELETE_PCD _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(21))
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_DETACH_PCD
-
- @Description   Calling this routine detaches the port from its PCD functionality.
-                The port returns to its default flow which is BMI to BMI.
-
-                May be used for Rx and offline parsing ports which are
-                in PCD mode only
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
-*//***************************************************************************/
-#define FM_PORT_IOC_DETACH_PCD _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(22))
-
-/**************************************************************************//**
- @Function      FM_PORT_IOC_ATTACH_PCD
+ @Function      FM_PORT_AttachPCD
 
  @Description   This routine may be called after FM_PORT_DetachPCD was called,
                 to return to the originally configured PCD support flow.
@@ -541,39 +641,50 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
                 May be used for Rx and offline parsing ports which are
                 in PCD mode only
 
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #define FM_PORT_IOC_ATTACH_PCD _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(23))
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_PLCR_ALLOC_PROFILES
+ @Function      FM_PORT_DetachPCD
+
+ @Description   Calling this routine detaches the port from its PCD functionality.
+                The port returns to its default flow which is BMI to BMI.
+
+                May be used for Rx and offline parsing ports which are
+                in PCD mode only
+
+ @Return        0 on success; error code otherwise.
+*//***************************************************************************/
+#define FM_PORT_IOC_DETACH_PCD _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(22))
+
+/**************************************************************************//**
+ @Function      FM_PORT_PcdPlcrAllocProfiles
 
  @Description   This routine may be called only for ports that use the Policer in
                 order to allocate private policer profiles.
 
  @Param[in]     uint16_t       The number of required policer profiles
 
- @Return        E_OK on success; Error code otherwise.
+ @Return        0 on success; error code otherwise.
 
- @Cautions      Allowed only following FM_PORT_Init() and FM_PCD_Init(), and before FM_PORT_SetPCD().
+ @Cautions      Allowed before FM_PORT_SetPCD() only.
 *//***************************************************************************/
 #define FM_PORT_IOC_PCD_PLCR_ALLOC_PROFILES     _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(24), uint16_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_PLCR_FREE_PROFILES
+ @Function      FM_PORT_PcdPlcrFreeProfiles
 
  @Description   This routine should be called for freeing private policer profiles.
 
- @Return        E_OK on success; Error code otherwise.
+ @Return        0 on success; error code otherwise.
 
- @Cautions      Allowed only following FM_PORT_Init() and FM_PCD_Init(), and before FM_PORT_SetPCD().
+ @Cautions      Allowed before FM_PORT_SetPCD() only.
 *//***************************************************************************/
 #define FM_PORT_IOC_PCD_PLCR_FREE_PROFILES     _IO(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(25))
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_KG_MODIFY_INITIAL_SCHEME
+ @Function      FM_PORT_PcdKgModifyInitialScheme
 
  @Description   This routine may be called only for ports that use the keygen in
                 order to change the initial scheme frame should be routed to.
@@ -583,9 +694,7 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
  @Param[in]     ioc_fm_pcd_kg_scheme_select_t   A structure of parameters for defining whether
                                                 a scheme is direct/indirect, and if direct - scheme id.
 
- @Return        0 on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PORT_IOC_PCD_KG_MODIFY_INITIAL_SCHEME_COMPAT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(26), ioc_compat_fm_pcd_kg_scheme_select_t)
@@ -593,18 +702,16 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 #define FM_PORT_IOC_PCD_KG_MODIFY_INITIAL_SCHEME _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(26), ioc_fm_pcd_kg_scheme_select_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_PLCR_MODIFY_INITIAL_PROFILE
+ @Function      FM_PORT_PcdPlcrModifyInitialProfile
 
- @Description   This routine may be called for ports with flows e_IOC_FM_PCD_SUPPORT_PLCR_ONLY or
-                e_IOC_FM_PCD_SUPPORT_PRS_AND_PLCR  only, to change the initial Policer profile frame
-                should be routed to. The change may be of a profile and/or absolute/direct mode
-                selection.
+ @Description   This routine may be called for ports with flows
+                e_IOC_FM_PCD_SUPPORT_PLCR_ONLY or e_IOC_FM_PCD_SUPPORT_PRS_AND_PLCR  only,
+                to change the initial Policer profile frame should be routed to.
+                The change may be of a profile and/or absolute/direct mode selection.
 
  @Param[in]     ioc_fm_obj_t       Policer profile Id as returned from FM_PCD_PlcrSetProfile.
 
- @Return        0 on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PORT_IOC_PCD_PLCR_MODIFY_INITIAL_PROFILE_COMPAT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(27), ioc_compat_fm_obj_t)
@@ -612,16 +719,16 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 #define FM_PORT_IOC_PCD_PLCR_MODIFY_INITIAL_PROFILE _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(27), ioc_fm_obj_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_CC_MODIFY_TREE
+ @Function      FM_PORT_PcdCcModifyTree
 
  @Description   This routine may be called to change this port connection to
                 a pre-initializes coarse classification Tree.
 
  @Param[in]     ioc_fm_obj_t    Id of new coarse classification tree selected for this port.
 
- @Return        0 on success; Error code otherwise.
+ @Return        0 on success; error code otherwise.
 
- @Cautions      Allowed only following FM_PORT_Init().
+ @Cautions      Allowed only following FM_PORT_SetPCD() and FM_PORT_DetachPCD()
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PORT_IOC_PCD_CC_MODIFY_TREE_COMPAT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(28), ioc_compat_fm_obj_t)
@@ -629,7 +736,7 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 #define FM_PORT_IOC_PCD_CC_MODIFY_TREE _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(28), ioc_fm_obj_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_KG_BIND_SCHEMES
+ @Function      FM_PORT_PcdKgBindSchemes
 
  @Description   These routines may be called for modifying the binding of ports
                 to schemes. The scheme itself is not added,
@@ -637,9 +744,9 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 
  @Param[in]     ioc_fm_pcd_port_schemes_params_t    Schemes parameters structre
 
- @Return        0 on success; Error code otherwise.
+ @Return        0 on success; error code otherwise.
 
- @Cautions      Allowed only following FM_PORT_Init().
+ @Cautions      Allowed only following FM_PORT_SetPCD().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PORT_IOC_PCD_KG_BIND_SCHEMES_COMPAT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(30), ioc_compat_fm_pcd_port_schemes_params_t)
@@ -647,7 +754,7 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 #define FM_PORT_IOC_PCD_KG_BIND_SCHEMES _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(30), ioc_fm_pcd_port_schemes_params_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_KG_UNBIND_SCHEMES
+ @Function      FM_PORT_PcdKgUnbindSchemes
 
  @Description   These routines may be called for modifying the binding of ports
                 to schemes. The scheme itself is not removed or invalidated,
@@ -655,9 +762,9 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 
  @Param[in]     ioc_fm_pcd_port_schemes_params_t    Schemes parameters structre
 
- @Return        0 on success; Error code otherwise.
+ @Return        0 on success; error code otherwise.
 
- @Cautions      Allowed only following FM_PORT_Init().
+ @Cautions      Allowed only following FM_PORT_SetPCD().
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PORT_IOC_PCD_KG_UNBIND_SCHEMES_COMPAT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(31), ioc_compat_fm_pcd_port_schemes_params_t)
@@ -665,37 +772,35 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 #define FM_PORT_IOC_PCD_KG_UNBIND_SCHEMES _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(31), ioc_fm_pcd_port_schemes_params_t)
 
 /**************************************************************************//**
- @Function      FM_PORT_IOC_PCD_PRS_MODIFY_START_OFFSET
+ @Function      FM_PORT_PcdPrsModifyStartOffset
 
  @Description   Runtime change of the parser start offset within the header.
 
  @Param[in]     ioc_fm_pcd_prs_start_t  A structure of parameters for defining the
                                         start point for the parser.
 
- @Return        0 on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
 #define      FM_PORT_IOC_PCD_PRS_MODIFY_START_OFFSET _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(32), ioc_fm_pcd_prs_start_t)
 
+#if 0 /* Removed from LLD!?! */
 /**************************************************************************//**
- @Function      FM_PORT_SET_OP_WORKAROUNDS
+ @Function      FM_PORT_IOC_SET_OP_WORKAROUNDS
 
  @Description   Calling this routine sets the required offline port workaround.
 
- @Param[in]     h_FmPort        FM PORT module descriptor.
- @Param[in]     workarounds)    Reuired workaround.
+ @Param[in]     uint32_t    Required workaround.
 
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
+ @Return        0 on success; error code otherwise.
 *//***************************************************************************/
-#define      FM_PORT_SET_OP_WORKAROUNDS _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(33), uint32_t)
+#define      FM_PORT_IOC_SET_OP_WORKAROUNDS _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(33), uint32_t)
+#endif
+
+
 
 /** @} */ /* end of lnx_ioctl_FM_PORT_pcd_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_PORT_runtime_control_grp group */
+
 /** @} */ /* end of lnx_ioctl_FM_PORT_grp group */
 /** @} */ /* end of lnx_ioctl_FM_grp group */
-
-
 #endif /* __FM_PORT_IOCTLS_H */

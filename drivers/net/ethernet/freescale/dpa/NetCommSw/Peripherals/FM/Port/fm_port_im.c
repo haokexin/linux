@@ -378,7 +378,7 @@ t_Error FmPortImInit(t_FmPort *p_FmPort)
 
         WRITE_UINT32(p_FmPort->im.p_FmPortImPram->rxQdPtr,
                      (uint32_t)((uint64_t)(XX_VirtToPhys(p_FmPort->im.p_FmPortImPram)) -
-                                p_FmPort->p_FmPortDriverParam->fmMuramPhysBaseAddr + 0x20));
+                                p_FmPort->fmMuramPhysBaseAddr + 0x20));
 
         LOG2((uint64_t)p_FmPort->im.mrblr, log2Num);
         WRITE_UINT16(p_FmPort->im.p_FmPortImPram->mrblr, log2Num);
@@ -391,7 +391,7 @@ t_Error FmPortImInit(t_FmPort *p_FmPort)
         /* Update the IM PRAM address in the BMI */
         WRITE_UINT32(p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs.fmbm_rfqid,
                      (uint32_t)((uint64_t)(XX_VirtToPhys(p_FmPort->im.p_FmPortImPram)) -
-                                p_FmPort->p_FmPortDriverParam->fmMuramPhysBaseAddr));
+                                p_FmPort->fmMuramPhysBaseAddr));
         if (!p_FmPort->polling || p_FmPort->exceptions)
         {
             /* Allocate, configure and register interrupts */
@@ -443,7 +443,7 @@ t_Error FmPortImInit(t_FmPort *p_FmPort)
 
         WRITE_UINT32(p_FmPort->im.p_FmPortImPram->txQdPtr,
                      (uint32_t)((uint64_t)(XX_VirtToPhys(p_FmPort->im.p_FmPortImPram)) -
-                                p_FmPort->p_FmPortDriverParam->fmMuramPhysBaseAddr + 0x40));
+                                p_FmPort->fmMuramPhysBaseAddr + 0x40));
 
         /* Initialize Tx QD */
         tmpPhysBase = (uint64_t)(XX_VirtToPhys(p_FmPort->im.p_BdRing));
@@ -453,7 +453,7 @@ t_Error FmPortImInit(t_FmPort *p_FmPort)
         /* Update the IM PRAM address in the BMI */
         WRITE_UINT32(p_FmPort->p_FmPortBmiRegs->txPortBmiRegs.fmbm_tcfqid,
                      (uint32_t)((uint64_t)(XX_VirtToPhys(p_FmPort->im.p_FmPortImPram)) -
-                                p_FmPort->p_FmPortDriverParam->fmMuramPhysBaseAddr));
+                                p_FmPort->fmMuramPhysBaseAddr));
     }
 
 

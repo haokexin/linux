@@ -632,7 +632,7 @@ void compat_copy_fm_pcd_kg_scheme(
                sizeof(ioc_fm_pcd_kg_key_extract_and_hash_params_t));
         param->bypass_fqid_generation = compat_param->bypass_fqid_generation;
         param->base_fqid = compat_param->base_fqid;
-        param->numOfUsedExtractedOrs = compat_param->numOfUsedExtractedOrs;
+        param->num_of_used_extracted_ors = compat_param->num_of_used_extracted_ors;
 		memcpy(param->extracted_ors,
                compat_param->extracted_ors,
                IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS * sizeof(ioc_fm_pcd_kg_extracted_or_params_t));
@@ -679,7 +679,7 @@ void compat_copy_fm_pcd_kg_scheme(
         memcpy(&compat_param->key_extract_and_hash_params, &param->key_extract_and_hash_params, sizeof(ioc_fm_pcd_kg_key_extract_and_hash_params_t));
         compat_param->bypass_fqid_generation = param->bypass_fqid_generation;
         compat_param->base_fqid = param->base_fqid;
-        compat_param->numOfUsedExtractedOrs = param->numOfUsedExtractedOrs;
+        compat_param->num_of_used_extracted_ors = param->num_of_used_extracted_ors;
 		memcpy(compat_param->extracted_ors, param->extracted_ors, IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS * sizeof(ioc_fm_pcd_kg_extracted_or_params_t));
         compat_param->next_engine = param->next_engine;
 
@@ -738,7 +738,7 @@ void compat_copy_fm_pcd_kg_schemes_params(
     if (compat == COMPAT_US_TO_K) {
         param->num_of_schemes = compat_param->num_of_schemes;
         for(k=0; k < compat_param->num_of_schemes; k++)
-            param->scheme_ids[k] = compat_get_id2ptr(compat_param->schemes_ids[k], PCD_NODE);
+            param->scheme_ids[k] = compat_get_id2ptr(compat_param->scheme_ids[k], PCD_NODE);
     }
 }
 
@@ -762,8 +762,8 @@ void compat_copy_fm_port_pcd_kg(
 
         param->num_of_schemes = compat_param->num_of_schemes;
         for(k=0; k<compat_param->num_of_schemes; k++)
-            if (compat_param->schemes_ids[k])
-                param->schemes_ids[k] = compat_get_id2ptr(compat_param->schemes_ids[k], PCD_NODE);
+            if (compat_param->scheme_ids[k])
+                param->scheme_ids[k] = compat_get_id2ptr(compat_param->scheme_ids[k], PCD_NODE);
 
         param->direct_scheme = compat_param->direct_scheme;
         if (param->direct_scheme)

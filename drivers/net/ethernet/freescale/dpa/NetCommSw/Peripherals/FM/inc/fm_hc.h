@@ -56,7 +56,10 @@ t_Error     FmHcDumpRegs(t_Handle h_FmHc);
 
 void        FmHcTxConf(t_Handle h_FmHc, t_DpaaFD *p_Fd);
 
-t_Error     FmHcPcdKgSetScheme(t_Handle h_FmHc, t_Handle h_Scheme, t_FmPcdKgSchemeParams *p_Scheme);
+t_Error     FmHcPcdKgSetScheme(t_Handle             h_FmHc,
+                               t_Handle             h_Scheme,
+                               t_FmPcdKgSchemeRegs  *p_SchemeRegs,
+                               bool                 updateCounter);
 t_Error     FmHcPcdKgDeleteScheme(t_Handle h_FmHc, t_Handle h_Scheme);
 t_Error     FmHcPcdCcCapwapTimeoutReassm(t_Handle h_FmHc, t_FmPcdCcCapwapReassmTimeoutParams *p_CcCapwapReassmTimeoutParams );
 t_Error     FmHcPcdCcIpFragScratchPollCmd(t_Handle h_FmHc, bool fill, t_FmPcdCcFragScratchPoolCmdParams *p_FmPcdCcFragScratchPoolCmdParams);
@@ -69,7 +72,7 @@ uint32_t    FmHcPcdKgGetSchemeCounter(t_Handle h_FmHc, t_Handle h_Scheme);
 
 t_Error     FmHcPcdCcDoDynamicChange(t_Handle h_FmHc, uint32_t oldAdAddrOffset, uint32_t newAdAddrOffset);
 
-t_Error     FmHcPcdPlcrSetProfile(t_Handle h_FmHc, t_Handle h_Profile, t_FmPcdPlcrProfileParams *p_ProfileParams);
+t_Error     FmHcPcdPlcrSetProfile(t_Handle h_FmHc, t_Handle h_Profile, t_FmPcdPlcrProfileRegs *p_PlcrRegs);
 t_Error     FmHcPcdPlcrDeleteProfile(t_Handle h_FmHc, t_Handle h_Profile);
 
 t_Error     FmHcPcdPlcrSetProfileCounter(t_Handle h_FmHc, t_Handle h_Profile, e_FmPcdPlcrProfileCounters counter, uint32_t value);

@@ -188,6 +188,8 @@ typedef enum
 #define FM_MAX_NUM_OF_SUB_PORTALS               12
 #define FM_PORT_MAX_NUM_OF_OBSERVED_EXT_POOLS   0
 
+#define FM_IPSEC_SUPPORT
+
 /* RAMs defines */
 #define FM_MURAM_SIZE                   (160 * KILOBYTE)
 #define FM_IRAM_SIZE                    ( 64 * KILOBYTE)
@@ -229,7 +231,6 @@ typedef enum
 #define FM_NO_THRESHOLD_REG
 
 /* p4080 unique features */
-#define FM_QMI_DEQ_OPTIONS_SUPPORT
 #define FM_NO_DISPATCH_RAM_ECC
 #define FM_FIFO_ALLOCATION_OLD_ALG
 #define FM_NO_WATCHDOG

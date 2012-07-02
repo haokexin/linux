@@ -166,7 +166,7 @@ typedef enum e_FmInterModuleEvent
 /**************************************************************************//**
  @Description   PCD KG scheme registers
 *//***************************************************************************/
-typedef _Packed struct t_FmPcdPlcrInterModuleProfileRegs {
+typedef _Packed struct t_FmPcdPlcrProfileRegs {
     volatile uint32_t fmpl_pemode;      /* 0x090 FMPL_PEMODE - FM Policer Profile Entry Mode*/
     volatile uint32_t fmpl_pegnia;      /* 0x094 FMPL_PEGNIA - FM Policer Profile Entry GREEN Next Invoked Action*/
     volatile uint32_t fmpl_peynia;      /* 0x098 FMPL_PEYNIA - FM Policer Profile Entry YELLOW Next Invoked Action*/
@@ -184,12 +184,12 @@ typedef _Packed struct t_FmPcdPlcrInterModuleProfileRegs {
     volatile uint32_t fmpl_perypc;      /* 0x0C8 FMPL_PERYPC - FM Policer Profile Entry Recolored YELLOW Packet Counter*/
     volatile uint32_t fmpl_perrpc;      /* 0x0CC FMPL_PERRPC - FM Policer Profile Entry Recolored RED Packet Counter*/
     volatile uint32_t fmpl_res1[12];    /* 0x0D0-0x0FF Reserved */
-} _PackedType t_FmPcdPlcrInterModuleProfileRegs;
+} _PackedType t_FmPcdPlcrProfileRegs;
 
 /**************************************************************************//**
  @Description   PCD KG scheme registers
 *//***************************************************************************/
-typedef _Packed struct t_FmPcdKgInterModuleSchemeRegs {
+typedef _Packed struct t_FmPcdKgSchemeRegs {
     volatile uint32_t kgse_mode;    /**< MODE */
     volatile uint32_t kgse_ekfc;    /**< Extract Known Fields Command */
     volatile uint32_t kgse_ekdv;    /**< Extract Known Default Value */
@@ -207,7 +207,7 @@ typedef _Packed struct t_FmPcdKgInterModuleSchemeRegs {
     volatile uint32_t kgse_mv;      /**< KeyGen Scheme Entry Match vector */
     volatile uint32_t kgse_om;      /**< KeyGen Scheme Entry Operation Mode bits */
     volatile uint32_t kgse_vsp;     /**< KeyGen Scheme Entry Virtual Storage Profile */
-} _PackedType t_FmPcdKgInterModuleSchemeRegs;
+} _PackedType t_FmPcdKgSchemeRegs;
 
 typedef _Packed struct t_FmPcdCcCapwapReassmTimeoutParams {
     volatile uint32_t                       portIdAndCapwapReassmTbl;
@@ -295,8 +295,8 @@ typedef struct {
     uint32_t        type;
     int             psoSize;
     uint32_t        nia;
-    bool            immediateWrite;
     t_FmFmanCtrl    orFmanCtrl;
+    bool            overwrite;
 } t_SetCcParams;
 
 typedef struct {
@@ -345,7 +345,8 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define HW_PORT_ID                              0x04000000
 #define FM_REV                                  0x02000000
 #define GET_NIA_FPNE                            0x01000000
-#define NUM_OF_EXTRA_TASKS                      0x00800000
+#define GET_NIA_PNDN                            0x00800000
+#define NUM_OF_EXTRA_TASKS                      0x00400000
 
 #define UPDATE_NIA_PNEN                         0x80000000
 #define UPDATE_PSO                              0x40000000
@@ -354,7 +355,6 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define UPDATE_NIA_FENE                         0x04000000
 #define UPDATE_NIA_CMNE                         0x02000000
 #define UPDATE_NIA_FPNE                         0x01000000
-#define UPDATE_NIA_FNE                          0x00800000
 /* @} */
 
 /**************************************************************************//**
@@ -405,10 +405,9 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define NIA_FM_CTL_AC_POST_BMI_FETCH            0x00000012
 #define NIA_FM_CTL_AC_PRE_BMI_ENQ_FRAME         0x0000001A
 #define NIA_FM_CTL_AC_PRE_BMI_DISCARD_FRAME     0x0000001E
-#define NIA_FM_CTL_AC_FRAG_CHECK                0x00000014
+#define NIA_FM_CTL_AC_POST_BMI_ENQ_ORR          0x00000014
+#define NIA_FM_CTL_AC_POST_BMI_ENQ              0x00000022
 #define NIA_FM_CTL_AC_PRE_CC                    0x00000020
-#define NIA_FM_CTL_AC_SWITCH_PORT               0x00000020
-
 
 #define NIA_BMI_AC_ENQ_FRAME        0x00000002
 #define NIA_BMI_AC_TX_RELEASE       0x000002C0
@@ -425,11 +424,16 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA    0x00000202
 
 #define GET_NIA_BMI_AC_ENQ_FRAME(h_FmPcd)   \
-    (uint32_t)((FmPcdIsAdvancedOffloadSupported(h_FmPcd))?(NIA_ENG_FM_CTL | NIA_FM_CTL_AC_PRE_BMI_ENQ_FRAME): \
-                                                          (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME))
+    (uint32_t)((FmPcdIsAdvancedOffloadSupported(h_FmPcd)) ? \
+                (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_PRE_BMI_ENQ_FRAME) : \
+                (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME))
 #define GET_NIA_BMI_AC_DISCARD_FRAME(h_FmPcd)   \
-    (uint32_t)((FmPcdIsAdvancedOffloadSupported(h_FmPcd))?(NIA_ENG_FM_CTL | NIA_FM_CTL_AC_PRE_BMI_DISCARD_FRAME): \
-                                                          (NIA_ENG_BMI | NIA_BMI_AC_DISCARD))
+    (uint32_t)((FmPcdIsAdvancedOffloadSupported(h_FmPcd)) ? \
+                (NIA_ENG_FM_CTL | NIA_FM_CTL_AC_PRE_BMI_DISCARD_FRAME) : \
+                (NIA_ENG_BMI | NIA_BMI_AC_DISCARD))
+
+#define NIA_IPR_DIRECT_SCHEME_IPV4_OFFSET       0x10
+#define NIA_IPR_DIRECT_SCHEME_IPV6_OFFSET       0x14
 
 /**************************************************************************//**
  @Description       Port Id defines
@@ -620,20 +624,8 @@ switch(hdr)                                                 \
         num = ILLEGAL_HDR_NUM; break;                       \
 }
 
-/***********************************************************************/
-/*          SW parser patch flags                                      */
-/***********************************************************************/
-#if (DPAA_VERSION == 10)
-#define IP_FRAG_SW_PATCH_IPv4                   0x300
-#define IP_FRAG_SW_PATCH_IPv6                   0x31E
-
-#else
-#define IP_FRAG_SW_PATCH_IPv4                   0x300
-#define IP_FRAG_SW_PATCH_IPv6                   0x32C
-#endif /* (DPAA_VERSION == 10) */
-
-
 #define FM_PCD_MAX_NUM_OF_OPTIONS(clsPlanEntries)   ((clsPlanEntries==256)? 8:((clsPlanEntries==128)? 7: ((clsPlanEntries==64)? 6: ((clsPlanEntries==32)? 5:0))))
+
 
 /**************************************************************************//**
  @Description   A structure for initializing a keygen classification plan group
@@ -690,7 +682,6 @@ uint8_t     FmPcdKgGetClsPlanGrpBase(t_Handle h_FmPcd, uint8_t clsPlanGrp);
 uint16_t    FmPcdKgGetClsPlanGrpSize(t_Handle h_FmPcd, uint8_t clsPlanGrp);
 t_Error     FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpParams *p_Grp, t_FmPcdKgInterModuleClsPlanSet *p_ClsPlanSet);
 
-t_Error     FmPcdKgBuildScheme(t_Handle h_Scheme,  t_FmPcdKgSchemeParams *p_SchemeParams, t_FmPcdKgInterModuleSchemeRegs *p_SchemeRegs);
 uint8_t     FmPcdKgGetSchemeId(t_Handle h_Scheme);
 #if (DPAA_VERSION >= 11)
 bool        FmPcdKgGetVspe(t_Handle h_Scheme);
@@ -739,7 +730,6 @@ uint32_t    FmPcdPlcrBuildWritePlcrActionRegs(uint16_t absoluteProfileId);
 uint32_t    FmPcdPlcrBuildCounterProfileReg(e_FmPcdPlcrProfileCounters counter);
 uint32_t    FmPcdPlcrBuildWritePlcrActionReg(uint16_t absoluteProfileId);
 uint32_t    FmPcdPlcrBuildReadPlcrActionReg(uint16_t absoluteProfileId);
-t_Error     FmPcdPlcrBuildProfile(t_Handle h_FmPcd, t_FmPcdPlcrProfileParams *p_Profile, t_FmPcdPlcrInterModuleProfileRegs *p_PlcrRegs);
 uint16_t    FmPcdPlcrProfileGetAbsoluteId(t_Handle h_Profile);
 t_Error     FmPcdPlcrGetAbsoluteIdByProfileParams(t_Handle                      h_FmPcd,
                                           e_FmPcdProfileTypeSelection   profileType,
@@ -756,7 +746,9 @@ uint32_t    FmPcdPlcrBuildNiaProfileReg(bool green, bool yellow, bool red);
 void        FmPcdPlcrUpdateRequiredAction(t_Handle h_FmPcd, uint16_t absoluteProfileId, uint32_t requiredAction);
 t_Error     FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx,uint32_t requiredAction);
 
-/* FM-PCD Coarse-Classification API routines */
+/***********************************************************************/
+/*          Common API for FM-PCD CC module                            */
+/***********************************************************************/
 uint8_t     FmPcdCcGetParseCode(t_Handle h_CcNode);
 uint8_t     FmPcdCcGetOffset(t_Handle h_CcNode);
 uint32_t    FmPcdCcGetNodeAddrOffset(t_Handle h_FmPcd, t_Handle h_Pointer);
@@ -774,9 +766,24 @@ t_Error     FmPcdCcTreeAddIPR(t_Handle h_FmPcd, t_Handle h_FmTree, t_Handle h_Ne
 t_Error     FmPcdCcBindTree(t_Handle h_FmPcd, t_Handle h_PcdParams, t_Handle h_CcTree,  uint32_t  *p_Offset,t_Handle h_FmPort);
 t_Error     FmPcdCcUnbindTree(t_Handle h_FmPcd, t_Handle h_CcTree);
 
+/***********************************************************************/
+/*          Common API for FM-PCD Manip module                            */
+/***********************************************************************/
 t_Error     FmPcdManipUpdate(t_Handle h_FmPcd, t_Handle h_PcdParams, t_Handle h_FmPort, t_Handle h_Manip, t_Handle h_Ad, bool validate, int level, t_Handle h_FmTree, bool modify);
 uint32_t    FmPcdManipGetRequiredAction (t_Handle h_Manip);
 
+/***********************************************************************/
+/*          Common API for FM-Port module                            */
+/***********************************************************************/
+#if (DPAA_VERSION >= 11)
+typedef enum e_FmPortGprFuncType
+{
+    e_FM_PORT_GPR_EMPTY = 0,
+    e_FM_PORT_GPR_MURAM_PAGE
+} e_FmPortGprFuncType;
+
+t_Error     FmPortSetGprFunc(t_Handle h_FmPort, e_FmPortGprFuncType gprFunc, void **p_Value);
+#endif /* DPAA_VERSION >= 11) */
 t_Error     FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_FmPortGetSetCcParams);
 uint8_t     FmPortGetNetEnvId(t_Handle h_FmPort);
 uint8_t     FmPortGetHardwarePortId(t_Handle h_FmPort);
@@ -1092,7 +1099,6 @@ t_Error FmDumpPortRegs(t_Handle h_Fm,uint8_t hardwarePortId);
 void        FmRegisterPcd(t_Handle h_Fm, t_Handle h_FmPcd);
 void        FmUnregisterPcd(t_Handle h_Fm);
 t_Handle    FmGetPcdHandle(t_Handle h_Fm);
-bool        FmRamsEccIsExternalCtl(t_Handle h_Fm);
 t_Error     FmEnableRamsEcc(t_Handle h_Fm);
 t_Error     FmDisableRamsEcc(t_Handle h_Fm);
 void        FmGetRevision(t_Handle h_Fm, t_FmRevisionInfo *p_FmRevisionInfo);
@@ -1131,20 +1137,24 @@ t_Error     FmSetCongestionGroupPFCpriority(t_Handle    h_Fm,
                                             uint8_t     priorityBitMap);
 
 #if (DPAA_VERSION >= 11)
-t_Error     FmVSPAlloc(t_Handle         h_Fm,
-                               e_FmPortType     portType,
-                               uint8_t          portId,
-                               uint8_t          numOfStorageProfiles);
+t_Error     FmVSPAllocForPort(t_Handle         h_Fm,
+                              e_FmPortType     portType,
+                              uint8_t          portId,
+                              uint8_t          numOfStorageProfiles);
 
-t_Error     FmVSPFree(  t_Handle        h_Fm,
-                        e_FmPortType    portType,
-                        uint8_t         portId);
+t_Error     FmVSPFreeForPort(t_Handle        h_Fm,
+                             e_FmPortType    portType,
+                             uint8_t         portId);
 
 t_Error     FmVSPGetAbsoluteProfileId(t_Handle      h_Fm,
                                       e_FmPortType  portType,
                                       uint8_t       portId,
                                       uint16_t      relativeProfile,
                                       uint16_t      *p_AbsoluteId);
+t_Error FmVSPCheckRelativeProfile(t_Handle        h_Fm,
+                                  e_FmPortType    portType,
+                                  uint8_t         portId,
+                                  uint16_t        relativeProfile);
 
 uintptr_t   FmGetVSPBaseAddr(t_Handle h_Fm);
 #endif /* (DPAA_VERSION >= 11) */

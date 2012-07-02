@@ -59,7 +59,6 @@
 #define DEV_FM_TX_PORTS_MINOR_BASE  (DEV_FM_RX_PORTS_MINOR_BASE + FM_MAX_NUM_OF_RX_PORTS)   /*/dev/fmx-port-txy */
 #define DEV_FM_MAX_MINORS           (DEV_FM_TX_PORTS_MINOR_BASE + FM_MAX_NUM_OF_TX_PORTS)
 
-
 #define FM_IOC_NUM(n)       n
 #define FM_PCD_IOC_NUM(n)   (n+20)
 #define FM_PORT_IOC_NUM(n)  (n+50)
@@ -67,39 +66,9 @@
 
 #define IOC_FM_MAX_NUM_OF_PORTS         64
 
-/**************************************************************************//**
- @Collection   FM Frame error
-*//***************************************************************************/
-typedef uint32_t    ioc_fm_port_frame_err_select_t;                     /**< typedef for defining Frame Descriptor errors */
-
-#define IOC_FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT              0x04000000  /**< Offline parsing only! Unsupported Format */
-#define IOC_FM_PORT_FRM_ERR_LENGTH                          0x02000000  /**< Offline parsing only! Length Error */
-#define IOC_FM_PORT_FRM_ERR_DMA                             0x01000000  /**< DMA Data error */
-#ifdef FM_CAPWAP_SUPPORT
-#define IOC_FM_PORT_FRM_ERR_NON_FM                          0x00400000  /**< non FMan error; probably come from SEC chained to FM */
-#endif /* FM_CAPWAP_SUPPORT */
-#define IOC_FM_PORT_FRM_ERR_PHYSICAL                        0x00080000  /**< Rx FIFO overflow, FCS error, code error, running disparity
-                                                                         error (SGMII and TBI modes), FIFO parity error. PHY
-                                                                         Sequence error, PHY error control character detected. */
-#define IOC_FM_PORT_FRM_ERR_SIZE                            0x00040000  /**< Frame too long OR Frame size exceeds max_length_frame  */
-#define IOC_FM_PORT_FRM_ERR_CLS_DISCARD                     0x00020000  /**< classification discard */
-#define IOC_FM_PORT_FRM_ERR_EXTRACTION                      0x00008000  /**< Extract Out of Frame */
-#define IOC_FM_PORT_FRM_ERR_NO_SCHEME                       0x00004000  /**< No Scheme Selected */
-#define IOC_FM_PORT_FRM_ERR_KEYSIZE_OVERFLOW                0x00002000  /**< No Scheme Selected */
-#define IOC_FM_PORT_FRM_ERR_COLOR_YELLOW                    0x00000400  /**< */
-#define IOC_FM_PORT_FRM_ERR_COLOR_RED                       0x00000800  /**< */
-#define IOC_FM_PORT_FRM_ERR_ILL_PLCR                        0x00000200  /**< Illegal Policer Profile selected */
-#define IOC_FM_PORT_FRM_ERR_PLCR_FRAME_LEN                  0x00000100  /**< Illegal Policer Profile selected */
-#define IOC_FM_PORT_FRM_ERR_PRS_TIMEOUT                     0x00000080  /**< Parser Time out Exceed */
-#define IOC_FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT                0x00000040  /**< Invalid Soft Parser instruction */
-#define IOC_FM_PORT_FRM_ERR_PRS_HDR_ERR                     0x00000020  /**< Header error was identified during parsing */
-#define IOC_FM_PORT_FRM_ERR_BLOCK_LIMIT_EXCEEDED            0x00000008  /**< Frame parsed beyind 256 first bytes */
-#define IOC_FM_PORT_FRM_ERR_PROCESS_TIMEOUT                 0x00000001  /**< FPT Frame Processing Timeout Exceeded */
-/* @} */
-
 
 /**************************************************************************//**
- @Description   enum for defining port types
+ @Description   Enum for defining port types
                 (must match enum e_FmPortType defined in fm_ext.h)
 *//***************************************************************************/
 typedef enum ioc_fm_port_type {
@@ -110,6 +79,79 @@ typedef enum ioc_fm_port_type {
     e_IOC_FM_PORT_TYPE_TX_10G,                  /**< 10G Tx port */
     e_IOC_FM_PORT_TYPE_DUMMY
 } ioc_fm_port_type;
+
+
+/**************************************************************************//**
+ @Collection   FM Frame descriptor macros
+*//***************************************************************************/
+#define FM_FD_CMD_FCO                   0x80000000  /**< Frame queue Context Override */
+#define FM_FD_CMD_RPD                   0x40000000  /**< Read Prepended Data */
+#define FM_FD_CMD_UPD                   0x20000000  /**< Update Prepended Data */
+#define FM_FD_CMD_DTC                   0x10000000  /**< Do L4 Checksum */
+#define FM_FD_CMD_DCL4C                 0x10000000  /**< Didn't calculate L4 Checksum */
+#define FM_FD_CMD_CFQ                   0x00ffffff  /**< Confirmation Frame Queue */
+
+#define FM_FD_ERR_UNSUPPORTED_FORMAT    0x04000000  /**< Not for Rx-Port! Unsupported Format */
+#define FM_FD_ERR_LENGTH                0x02000000  /**< Not for Rx-Port! Length Error */
+#define FM_FD_ERR_DMA                   0x01000000  /**< DMA Data error */
+
+#define FM_FD_IPR                       0x00000001  /**< IPR frame (not error) */
+
+#define FM_FD_ERR_IPR_NCSP              (0x00100000 | FM_FD_IPR)    /**< IPR non-consistent-sp */
+#define FM_FD_ERR_IPR                   (0x00200000 | FM_FD_IPR)    /**< IPR error */
+#define FM_FD_ERR_IPR_TO                (0x00300000 | FM_FD_IPR)    /**< IPR timeout */
+#define FM_FD_ERR_IPF                   0x00100000                  /**< IPF error */
+
+#ifdef FM_CAPWAP_SUPPORT
+#define FM_FD_ERR_CRE                   0x00200000
+#define FM_FD_ERR_CHE                   0x00100000
+#endif /* FM_CAPWAP_SUPPORT */
+
+#define FM_FD_ERR_PHYSICAL              0x00080000  /**< Rx FIFO overflow, FCS error, code error, running disparity
+                                                         error (SGMII and TBI modes), FIFO parity error. PHY
+                                                         Sequence error, PHY error control character detected. */
+#define FM_FD_ERR_SIZE                  0x00040000  /**< Frame too long OR Frame size exceeds max_length_frame  */
+#define FM_FD_ERR_CLS_DISCARD           0x00020000  /**< classification discard */
+#define FM_FD_ERR_EXTRACTION            0x00008000  /**< Extract Out of Frame */
+#define FM_FD_ERR_NO_SCHEME             0x00004000  /**< No Scheme Selected */
+#define FM_FD_ERR_KEYSIZE_OVERFLOW      0x00002000  /**< Keysize Overflow */
+#define FM_FD_ERR_COLOR_RED             0x00000800  /**< Frame color is red */
+#define FM_FD_ERR_COLOR_YELLOW          0x00000400  /**< Frame color is yellow */
+#define FM_FD_ERR_ILL_PLCR              0x00000200  /**< Illegal Policer Profile selected */
+#define FM_FD_ERR_PLCR_FRAME_LEN        0x00000100  /**< Policer frame length error */
+#define FM_FD_ERR_PRS_TIMEOUT           0x00000080  /**< Parser Time out Exceed */
+#define FM_FD_ERR_PRS_ILL_INSTRUCT      0x00000040  /**< Invalid Soft Parser instruction */
+#define FM_FD_ERR_PRS_HDR_ERR           0x00000020  /**< Header error was identified during parsing */
+#define FM_FD_ERR_BLOCK_LIMIT_EXCEEDED  0x00000008  /**< Frame parsed beyind 256 first bytes */
+
+#define FM_FD_TX_STATUS_ERR_MASK        (FM_FD_ERR_UNSUPPORTED_FORMAT   | \
+                                         FM_FD_ERR_LENGTH               | \
+                                         FM_FD_ERR_DMA) /**< TX Error FD bits */
+
+#define FM_FD_RX_STATUS_ERR_MASK        (FM_FD_ERR_UNSUPPORTED_FORMAT   | \
+                                         FM_FD_ERR_LENGTH               | \
+                                         FM_FD_ERR_DMA                  | \
+                                         FM_FD_ERR_IPR                  | \
+                                         FM_FD_ERR_IPR_TO               | \
+                                         FM_FD_ERR_IPR_NCSP             | \
+                                         FM_FD_ERR_IPF                  | \
+                                         FM_FD_ERR_PHYSICAL             | \
+                                         FM_FD_ERR_SIZE                 | \
+                                         FM_FD_ERR_CLS_DISCARD          | \
+                                         FM_FD_ERR_COLOR_RED            | \
+                                         FM_FD_ERR_COLOR_YELLOW         | \
+                                         FM_FD_ERR_ILL_PLCR             | \
+                                         FM_FD_ERR_PLCR_FRAME_LEN       | \
+                                         FM_FD_ERR_EXTRACTION           | \
+                                         FM_FD_ERR_NO_SCHEME            | \
+                                         FM_FD_ERR_KEYSIZE_OVERFLOW     | \
+                                         FM_FD_ERR_PRS_TIMEOUT          | \
+                                         FM_FD_ERR_PRS_ILL_INSTRUCT     | \
+                                         FM_FD_ERR_PRS_HDR_ERR          | \
+                                         FM_FD_ERR_BLOCK_LIMIT_EXCEEDED) /**< RX Error FD bits */
+
+#define FM_FD_RX_STATUS_ERR_NON_FM      0x00400000  /**< non Frame-Manager error */
+/* @} */
 
 
 /**************************************************************************//**
@@ -222,7 +264,8 @@ typedef struct ioc_fm_obj_t {
 } ioc_fm_obj_t;
 
 /**************************************************************************//**
- @Description   structure for returning revision information
+ @Description   A structure for returning revision information
+                (must match struct t_FmRevisionInfo declared in fm_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_revision_info_t {
     uint8_t         major;               /**< Major revision */
@@ -230,7 +273,7 @@ typedef struct ioc_fm_revision_info_t {
 } ioc_fm_revision_info_t;
 
 /**************************************************************************//**
- @Description   structure for FM counters
+ @Description   A structure for FM counters
 *//***************************************************************************/
 typedef struct ioc_fm_counters_params_t {
     ioc_fm_counters cnt;                /**< The requested counter */

@@ -50,6 +50,8 @@
 /*          Coarse classification defines                              */
 /***********************************************************************/
 
+#define CC_MAX_NUM_OF_KEYS                  MAX(FM_PCD_MAX_NUM_OF_KEYS, FM_PCD_MAX_NUM_OF_FLOWS)
+
 #define CC_PC_FF_MACDST                     0x00
 #define CC_PC_FF_MACSRC                     0x01
 #define CC_PC_FF_ETYPE                      0x02
@@ -142,6 +144,8 @@
 #define FM_PCD_AD_CONT_LOOKUP_TYPE          0x40000000
 #define FM_PCD_AD_CONT_LOOKUP_LCL_MASK      0x00800000
 
+#define FM_PCD_AD_BYPASS_TYPE               0xc0000000
+
 #define FM_PCD_AD_TYPE_MASK                 0xc0000000
 #define FM_PCD_AD_OPCODE_MASK               0x0000000f
 
@@ -185,6 +189,14 @@ typedef _Packed struct
     volatile uint32_t gmask;
 } _PackedType t_AdOfTypeContLookup;
 
+typedef _Packed struct
+{
+    volatile uint32_t profileTableAddr;
+    volatile uint32_t reserved;
+    volatile uint32_t nextActionIndx;
+    volatile uint32_t statsTableAddr;
+} _PackedType t_AdOfTypeStats;
+
 typedef _Packed union
 {
     volatile t_AdOfTypeResult        adResult;
@@ -207,6 +219,13 @@ typedef enum e_ModifyState
     e_MODIFY_STATE_CHANGE
 } e_ModifyState;
 
+typedef struct t_FmPcdStatsObj
+{
+    t_Handle        h_StatsAd;
+    t_Handle        h_StatsCounters;
+    t_List          node;
+} t_FmPcdStatsObj;
+
 typedef struct
 {
     uint8_t                     key[FM_PCD_MAX_SIZE_OF_KEY];
@@ -215,6 +234,9 @@ typedef struct
     t_FmPcdCcNextEngineParams   nextEngineParams;
     uint32_t                    requiredAction;
     uint32_t                    shadowAction;
+
+    t_FmPcdStatsObj             *p_StatsObj;
+
 } t_FmPcdCcKeyAndNextEngineParams;
 
 typedef struct
@@ -232,23 +254,24 @@ typedef struct
 
 typedef struct
 {
-    t_Handle    p_AdTableNew;
-    t_Handle    p_KeysMatchTableNew;
-    t_Handle    p_AdTableOld;
-    t_Handle    p_KeysMatchTableOld;
-    uint16_t    numOfKeys;
-    t_Handle    h_CurrentNode;
-    uint16_t    savedKeyIndex;
-    t_Handle    h_NodeForAdd;
-    t_Handle    h_NodeForRmv;
-    t_Handle    h_ManipForRmv;
+    t_Handle        p_AdTableNew;
+    t_Handle        p_KeysMatchTableNew;
+    t_Handle        p_AdTableOld;
+    t_Handle        p_KeysMatchTableOld;
+    uint16_t        numOfKeys;
+    t_Handle        h_CurrentNode;
+    uint16_t        savedKeyIndex;
+    t_Handle        h_NodeForAdd;
+    t_Handle        h_NodeForRmv;
+    t_Handle        h_ManipForRmv;
+    t_FmPcdStatsObj *p_StatsObjForRmv;
 #if (DPAA_VERSION >= 11)
-    t_Handle    h_FrmReplicForAdd;
-    t_Handle    h_FrmReplicForRmv;
+    t_Handle        h_FrmReplicForAdd;
+    t_Handle        h_FrmReplicForRmv;
 #endif /* (DPAA_VERSION >= 11) */
-    bool        tree;
+    bool            tree;
 
-    t_FmPcdCcKeyAndNextEngineParams  keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
+    t_FmPcdCcKeyAndNextEngineParams  keyAndNextEngineParams[CC_MAX_NUM_OF_KEYS];
 } t_FmPcdModifyCcKeyAdditionalParams;
 
 typedef struct
@@ -259,43 +282,50 @@ typedef struct
 
 typedef struct
 {
-    uint16_t    numOfKeys;
-    uint16_t    maxNumOfKeys;
+    uint16_t            numOfKeys;
+    uint16_t            maxNumOfKeys;
 
-    bool        maskSupport;
-    uint32_t    keysMatchTableMaxSize;
+    bool                maskSupport;
+    uint32_t            keysMatchTableMaxSize;
 
-    bool        glblMaskUpdated;
-    t_Handle    p_GlblMask;
-    bool        lclMask;
-    uint8_t     parseCode;
-    uint8_t     offset;
-    uint8_t     prsArrayOffset;
-    bool        ctrlFlow;
-    uint8_t     owners;
+    e_FmPcdCcStatsMode  statisticsMode;
+    uint32_t            numOfStatsFLRs;
+    uint32_t            countersArraySize;
 
-    uint8_t     ccKeySizeAccExtraction;
-    uint8_t     sizeOfExtraction;
-    uint8_t     glblMaskSize;
+    bool                glblMaskUpdated;
+    t_Handle            p_GlblMask;
+    bool                lclMask;
+    uint8_t             parseCode;
+    uint8_t             offset;
+    uint8_t             prsArrayOffset;
+    bool                ctrlFlow;
+    uint8_t             owners;
 
-    t_Handle    h_KeysMatchTable;
-    t_Handle    h_AdTable;
-    t_Handle    h_StatsAds;
-    t_Handle    h_Ad;
+    uint8_t             ccKeySizeAccExtraction;
+    uint8_t             sizeOfExtraction;
+    uint8_t             glblMaskSize;
 
-    t_List      ccPrevNodesLst;
+    t_Handle            h_KeysMatchTable;
+    t_Handle            h_AdTable;
+    t_Handle            h_StatsAds;
+    t_Handle            h_Ad;
+    t_Handle            h_StatsFLRs;
 
-    t_List      ccTreeIdLst;
-    t_List      ccTreesLst;
+    t_List              availableStatsLst;
 
-    t_Handle    h_FmPcd;
-    uint32_t    shadowAction;
-    uint8_t     userSizeOfExtraction;
-    uint8_t     userOffset;
+    t_List              ccPrevNodesLst;
 
-    t_Handle    h_Spinlock;
+    t_List              ccTreeIdLst;
+    t_List              ccTreesLst;
 
-    t_FmPcdCcKeyAndNextEngineParams keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
+    t_Handle            h_FmPcd;
+    uint32_t            shadowAction;
+    uint8_t             userSizeOfExtraction;
+    uint8_t             userOffset;
+
+    t_Handle            h_Spinlock;
+
+    t_FmPcdCcKeyAndNextEngineParams keyAndNextEngineParams[CC_MAX_NUM_OF_KEYS];
 } t_FmPcdCcNode;
 
 typedef struct
@@ -329,7 +359,7 @@ typedef struct
     uint32_t            requiredAction;
     t_Handle            h_IpReassemblyManip;
 
-    t_FmPcdCcKeyAndNextEngineParams keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_KEYS];
+    t_FmPcdCcKeyAndNextEngineParams keyAndNextEngineParams[FM_PCD_MAX_NUM_OF_CC_GROUPS];
 } t_FmPcdCcTree;
 
 
