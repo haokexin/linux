@@ -94,7 +94,7 @@ void *compat_get_id2ptr(compat_uptr_t comp, const unsigned char *);
 /* pcd compat structures { */
 typedef struct ioc_compat_fm_pcd_cc_node_remove_key_params_t {
     compat_uptr_t                       id;
-    uint8_t                             key_indx;
+    uint16_t                            key_indx;
 } ioc_compat_fm_pcd_cc_node_remove_key_params_t;
 
 typedef union ioc_compat_fm_pcd_plcr_next_engine_params_u {
@@ -149,7 +149,7 @@ typedef struct ioc_compat_fm_pcd_kg_scheme_select_t {
 
 typedef struct ioc_compat_fm_pcd_port_schemes_params_t {
     uint8_t        num_of_schemes;
-    compat_uptr_t  schemes_ids [FM_PCD_KG_NUM_OF_SCHEMES];
+    compat_uptr_t  scheme_ids[FM_PCD_KG_NUM_OF_SCHEMES];
 } ioc_compat_fm_pcd_port_schemes_params_t;
 
 typedef struct ioc_compat_fm_pcd_net_env_params_t {
@@ -171,31 +171,36 @@ typedef struct ioc_compat_fm_pcd_prs_sw_params_t {
 typedef struct ioc_compat_fm_pcd_cc_next_kg_params_t {
     bool          override_fqid;
     uint32_t      new_fqid;
-    compat_uptr_t p_direct_scheme;
 #if DPAA_VERSION >= 11
     uint8_t       new_relative_storage_profile_id;
 #endif
+    compat_uptr_t p_direct_scheme;
 } ioc_compat_fm_pcd_cc_next_kg_params_t;
 
 typedef struct ioc_compat_fm_pcd_cc_next_cc_params_t {
-    compat_uptr_t        cc_node_id;
+    compat_uptr_t       cc_node_id;
 } ioc_compat_fm_pcd_cc_next_cc_params_t;
 
-typedef struct ioc_compat_fm_pcd_cc_next_engine_params_t {
-    ioc_fm_pcd_engine                                  next_engine;
-    union {
-            ioc_compat_fm_pcd_cc_next_cc_params_t      cc_params;      /**< compat structure*/
-            ioc_fm_pcd_cc_next_plcr_params_t           plcr_params;    /**< same structure*/
-            ioc_fm_pcd_cc_next_enqueue_params_t        enqueue_params; /**< same structure*/
-            ioc_compat_fm_pcd_cc_next_kg_params_t      kg_params;      /**< compat structure*/
-    } params;
 #if DPAA_VERSION >= 11
-    compat_uptr_t                                        p_frm_replic_id;
+typedef struct ioc_compat_fm_pcd_cc_next_fr_params_t {
+    compat_uptr_t       frm_replic_id;
+} ioc_compat_fm_pcd_cc_next_fr_params_t;
 #endif /* DPAA_VERSION >= 11 */
+
+typedef struct ioc_compat_fm_pcd_cc_next_engine_params_t {
+    ioc_fm_pcd_engine                          next_engine;
+    union {
+        ioc_compat_fm_pcd_cc_next_cc_params_t  cc_params;      /**< compat structure*/
+        ioc_fm_pcd_cc_next_plcr_params_t       plcr_params;    /**< same structure*/
+        ioc_fm_pcd_cc_next_enqueue_params_t    enqueue_params; /**< same structure*/
+        ioc_compat_fm_pcd_cc_next_kg_params_t  kg_params;      /**< compat structure*/
+#if DPAA_VERSION >= 11
+        ioc_compat_fm_pcd_cc_next_fr_params_t  fr_params;      /**< compat structure*/
+#endif /* DPAA_VERSION >= 11 */
+    } params;
     compat_uptr_t                               manip_id;
     bool                                        statistics_en;
 } ioc_compat_fm_pcd_cc_next_engine_params_t;
-
 
 typedef struct ioc_compat_fm_pcd_cc_grp_params_t {
     uint8_t                             num_of_distinction_units;
@@ -227,6 +232,7 @@ typedef struct ioc_compat_keys_params_t {
     uint16_t                                   max_num_of_keys;
     bool                                       mask_support;
     ioc_fm_pcd_cc_stats_mode                   statistics_mode;
+    uint16_t                                   frame_length_ranges[IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
     uint16_t                                   num_of_keys;
     uint8_t                                    key_size;
     ioc_compat_fm_pcd_cc_key_params_t          key_params[IOC_FM_PCD_MAX_NUM_OF_KEYS]; /**< compat structure*/
@@ -248,31 +254,28 @@ typedef struct ioc_compat_fm_pcd_hash_table_params_t {
     uint16_t                    hash_res_mask;
     uint8_t                     hash_shift;
     uint8_t                     match_key_size;
-
     ioc_compat_fm_pcd_cc_next_engine_params_t   cc_next_engine_params_for_miss;
-
     compat_uptr_t               id;
-
 } ioc_compat_fm_pcd_hash_table_params_t;
 
 typedef struct ioc_compat_fm_pcd_hash_table_add_key_params_t {
-    compat_uptr_t               p_hash_tbl;
-    uint8_t                     key_size;
+    compat_uptr_t                       p_hash_tbl;
+    uint8_t                             key_size;
     ioc_compat_fm_pcd_cc_key_params_t  *p_key_params;
 } ioc_compat_fm_pcd_hash_table_add_key_params_t;
 
 typedef struct ioc_compat_fm_pcd_cc_node_modify_key_params_t {
     compat_uptr_t                       id;
-    uint8_t                             key_indx;
+    uint16_t                            key_indx;
     uint8_t                             key_size;
     compat_uptr_t                       p_key;
     compat_uptr_t                       p_mask;
 } ioc_compat_fm_pcd_cc_node_modify_key_params_t;
 
 typedef struct ioc_compat_fm_pcd_hash_table_remove_key_params_t {
-    compat_uptr_t p_hash_tbl;
-    uint8_t key_size;
-    compat_uptr_t p_key;
+    compat_uptr_t   p_hash_tbl;
+    uint8_t         key_size;
+    compat_uptr_t   p_key;
 } ioc_compat_fm_pcd_hash_table_remove_key_params_t;
 
 typedef struct ioc_compat_fm_pcd_cc_node_modify_key_and_next_engine_params_t {
@@ -292,7 +295,7 @@ typedef struct ioc_compat_fm_port_pcd_cc_params_t {
 
 typedef struct ioc_compat_fm_port_pcd_kg_params_t {
     uint8_t             num_of_schemes;
-    compat_uptr_t       schemes_ids[FM_PCD_KG_NUM_OF_SCHEMES];
+    compat_uptr_t       scheme_ids[FM_PCD_KG_NUM_OF_SCHEMES];
     bool                direct_scheme;
     compat_uptr_t       direct_scheme_id;
 } ioc_compat_fm_port_pcd_kg_params_t;
@@ -317,14 +320,12 @@ typedef struct ioc_compat_fm_pcd_kg_cc_t {
 
 typedef struct ioc_compat_fm_pcd_kg_scheme_params_t {
     bool                                modify;
-    union
-    {
+    union {
         uint8_t                         relative_scheme_id;
         compat_uptr_t                   scheme_id;
     } scm_id;
     bool                                always_direct;
-    struct
-    {
+    struct {
         compat_uptr_t                   net_env_id;
         uint8_t                         num_of_distinction_units;
         uint8_t                         unit_ids[IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS];
@@ -333,11 +334,11 @@ typedef struct ioc_compat_fm_pcd_kg_scheme_params_t {
     ioc_fm_pcd_kg_key_extract_and_hash_params_t key_extract_and_hash_params;
     bool                                bypass_fqid_generation;
     uint32_t                            base_fqid;
-    uint8_t                             numOfUsedExtractedOrs;
+    uint8_t                             num_of_used_extracted_ors;
     ioc_fm_pcd_kg_extracted_or_params_t extracted_ors[IOC_FM_PCD_KG_NUM_OF_GENERIC_REGS];
 #if DPAA_VERSION >= 11
     bool                                override_storage_profile;
-    ioc_fm_pcd_kg_storage_profile       storage_profile;
+    ioc_fm_pcd_kg_storage_profile_t     storage_profile;
 #endif /* DPAA_VERSION >= 11 */
     ioc_fm_pcd_engine                   next_engine;
     union{
@@ -351,7 +352,7 @@ typedef struct ioc_compat_fm_pcd_kg_scheme_params_t {
 
 typedef struct ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t {
     compat_uptr_t                       id;
-    uint8_t                             key_indx;
+    uint16_t                            key_indx;
     uint8_t                             key_size;
     ioc_compat_fm_pcd_cc_next_engine_params_t  cc_next_engine_params;
 } ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t;
@@ -381,21 +382,20 @@ typedef struct ioc_compat_fm_pcd_manip_hdr_params_t {
     bool                                        dont_parse_after_manip;
 } ioc_compat_fm_pcd_manip_hdr_params_t;
 
-/**************************************************************************//**
- @Description   Parameters for defining a manipulation node
-*//***************************************************************************/
 typedef struct ioc_compat_fm_pcd_manip_params_t {
     ioc_fm_pcd_manip_type                         type;
-    union{
+    union {
         ioc_compat_fm_pcd_manip_hdr_params_t      hdr;
         ioc_fm_pcd_manip_reassem_params_t         reassem;
         ioc_fm_pcd_manip_frag_params_t            frag;
         ioc_fm_pcd_manip_special_offload_params_t special_offload;
     } u;
-     compat_uptr_t                                p_next_manip;
+    compat_uptr_t                                 p_next_manip;
 #ifdef FM_CAPWAP_SUPPORT
-#warning "feature not supported!"
-#endif
+#error "FM_CAPWAP_SUPPORT feature not supported!"
+    bool                                          frag_or_reasm;
+    ioc_fm_pcd_manip_frag_or_reasm_params_t       frag_or_reasm_params;
+#endif /* FM_CAPWAP_SUPPORT */
     compat_uptr_t                                 id;
 } ioc_compat_fm_pcd_manip_params_t;
 

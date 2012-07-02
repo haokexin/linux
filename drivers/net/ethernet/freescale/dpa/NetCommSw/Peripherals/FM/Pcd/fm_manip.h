@@ -111,19 +111,28 @@
 #define FM_PCD_MANIP_IP_REASM_COMMON_INT_BUFFER_IDX_MASK    0x000000FF
 #define FM_PCD_MANIP_IP_REASM_COMMON_INT_BUFFER_IDX_SHIFT   24
 
-#define FM_PCD_MANIP_IP_FRAG_DF_OFFSET                      28
+#define FM_PCD_MANIP_IP_MTU_SHIFT                           16
+#define FM_PCD_MANIP_IP_NO_FRAGMENTATION                    0xFFFF0000
+#define FM_PCD_MANIP_IP_CNIA                                0x20000000
+
+#define FM_PCD_MANIP_IP_FRAG_DF_SHIFT                       28
 #define FM_PCD_MANIP_IP_FRAG_SCRATCH_BPID                   24
-#define FM_PCD_MANIP_IP_FRAG_MTU_OFFSET                     16
-#define FM_PCD_MANIP_IP_FRAG_NO_FRAGMETATION                0xFFFF0000
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_EN                     0x08000000
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_MASK                   0xFF000000
-#define FM_PCD_MANIP_IP_FRAG_SG_BDID_OFFSET                 24
+#define FM_PCD_MANIP_IP_FRAG_SG_BDID_SHIFT                  24
+#ifdef ALU_CUSTOM
+#define FM_PCD_MANIP_IP_FRAG_OPT_COUNT_EN                   0x04000000
+#endif /* ALU_CUSTOM */
 
 #define FM_PCD_MANIP_IPSEC_DEC                              0x10000000
+#define FM_PCD_MANIP_IPSEC_VIPV_EN                          0x08000000
 #define FM_PCD_MANIP_IPSEC_ECN_EN                           0x04000000
 #define FM_PCD_MANIP_IPSEC_DSCP_EN                          0x02000000
 #define FM_PCD_MANIP_IPSEC_VIPL_EN                          0x01000000
 #define FM_PCD_MANIP_IPSEC_NADEN                            0x20000000
+
+#define FM_PCD_MANIP_IPSEC_IP_HDR_LEN_MASK                  0x00FF0000
+#define FM_PCD_MANIP_IPSEC_IP_HDR_LEN_SHIFT                 16
 
 #define e_FM_MANIP_IP_INDX                                  1
 
@@ -170,6 +179,8 @@
 #define HMCD_INSRT_N_UPDATE_L2_MPLS             1
 #define HMCD_INSRT_L2_SIZE_SHIFT                24
 
+#define HMCD_L2_MODE_SHIFT                      16
+
 #define HMCD_VLAN_PRI_REP_MODE_SHIFT            16
 #define HMCD_VLAN_PRI_UPDATE                    0
 #define HMCD_VLAN_PRI_UPDATE_DSCP_TO_VPRI       1
@@ -195,6 +206,8 @@
 #define HMCD_IP_REPLACE_REPLACE_IPV6            0x00010000
 #define HMCD_IP_REPLACE_TTL_HL                  0x00200000
 #define HMCD_IP_REPLACE_ID                      0x00400000
+
+#define HMCD_IP_REPLACE_L3HDRSIZE_SHIFT         24
 
 #define MANIP_IS_CASCADE(h_Manip)               (((t_FmPcdManip *)h_Manip)->cascadedNext)
 #define MANIP_GET_HMCT_SIZE(h_Manip)            (((t_FmPcdManip *)h_Manip)->tableSize)
@@ -328,7 +341,6 @@ typedef struct t_IpReassmParams
     t_Handle                        h_Ipv6Ad;
     bool                            ipv6Assigned;
     e_NetHeaderType                 hdr; /* Header selection */
-    uint16_t                        dataOffset;
     t_IpReassCommonTbl              *p_IpReassCommonTbl;
     t_IpReassTbl                    *p_Ipv4ReassTbl;
     t_IpReassTbl                    *p_Ipv6ReassTbl;
@@ -342,7 +354,6 @@ typedef struct t_IpReassmParams
     uintptr_t                       internalBufferPoolManagementIndexAddr;
     uintptr_t                       internalBufferPoolAddr;
     uint32_t                        maxNumFramesInProcess;
-    t_Handle                        h_CouplingFmPort;
     uint8_t                         sgBpid;
     uint8_t                         dataMemId;
     uint16_t                        dataLiodnOffset;

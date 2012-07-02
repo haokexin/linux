@@ -3057,27 +3057,47 @@ t_Error LnxwrpFmPortIOCTL(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev, unsigned int cmd
 
             return FM_PORT_PcdCcModifyTree(p_LnxWrpFmPortDev->h_Dev, id.obj);
         }
-#if defined(FM_IPSEC_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT)
-        case FM_PORT_SET_OP_WORKAROUNDS:
+
+        case FM_PORT_IOC_ADD_CONGESTION_GRPS:
+        case FM_PORT_IOC_REMOVE_CONGESTION_GRPS:
         {
-            fmOpPortWorkaroundsSelect_t workarounds; /* uint32_t type */
+            ioc_fm_port_congestion_groups_t *param;
+
+            param = (ioc_fm_port_congestion_groups_t*) XX_Malloc(sizeof(ioc_fm_port_congestion_groups_t));
+            if (!param)
+                RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PORT"));
+
+            memset(param, 0, sizeof(ioc_fm_port_congestion_groups_t));
 
 #if defined(CONFIG_COMPAT)
             if (compat)
             {
-                if (get_user(workarounds, (fmOpPortWorkaroundsSelect_t *) compat_ptr(arg)))
-                    break;
+                if (copy_from_user(param, (t_FmPortCongestionGrps*) compat_ptr(arg),
+                            sizeof(t_FmPortCongestionGrps)))
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MAJOR, E_WRITE_FAILED, NO_MSG);
+                }
             }
             else
-#endif
+#endif /* CONFIG_COMPAT */
             {
-                if (get_user(workarounds, (fmOpPortWorkaroundsSelect_t *)arg))
-                    break;
+                if (copy_from_user(param, (t_FmPortCongestionGrps*) arg,
+                            sizeof(t_FmPortCongestionGrps)))
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MAJOR, E_WRITE_FAILED, NO_MSG);
+                }
             }
 
-            return FM_PORT_SetOpWorkarounds(p_LnxWrpFmPortDev->h_Dev, workarounds);
+            err = (cmd == FM_PORT_IOC_ADD_CONGESTION_GRPS)
+                ? FM_PORT_AddCongestionGrps(p_LnxWrpFmPortDev->h_Dev, (t_FmPortCongestionGrps*) param)
+                : FM_PORT_RemoveCongestionGrps(p_LnxWrpFmPortDev->h_Dev, (t_FmPortCongestionGrps*) param)
+                ;
+
+            XX_Free(param);
+            return err;
         }
-#endif /* defined(FM_IPSEC_SUPPORT) || defined(FM_IP_FRAG_N_REASSEM_SUPPORT) */
         default:
             RETURN_ERROR(MINOR, E_INVALID_SELECTION,
                 ("invalid ioctl: cmd:0x%08x(type:0x%02x, nr:0x%02x.\n",

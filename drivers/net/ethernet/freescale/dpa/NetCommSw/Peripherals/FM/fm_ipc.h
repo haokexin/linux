@@ -207,25 +207,25 @@ typedef _Packed struct t_FmIpcPortNumOfFmanCtrls {
  @Description   structure for setting Fman contriller events
 *//***************************************************************************/
 typedef _Packed struct t_FmIpcFmanEvents {
-    uint8_t         eventRegId;               /**< IN: Fman controller event register id */
-    uint32_t        enableEvents;             /**< IN/OUT: required enabled events mask */
+    uint8_t     eventRegId;               /**< IN: Fman controller event register id */
+    uint32_t    enableEvents;             /**< IN/OUT: required enabled events mask */
 } _PackedType t_FmIpcFmanEvents;
 
-typedef _Packed struct t_FmIpcVspAllocParams {
-    uint8_t guestId;
-    uint8_t numOfProfiles;
-    uint8_t base;
-}_PackedType t_FmIpcVspAllocParams;
+typedef _Packed struct t_FmIpcResourceAllocParams {
+    uint8_t     guestId;
+    uint8_t     base;
+    uint8_t     num;
+}_PackedType t_FmIpcResourceAllocParams;
 
 typedef _Packed struct t_FmIpcVspSetPortWindow {
-    uint8_t hardwarePortId;
-    uint8_t baseStorageProfile;
-    uint8_t log2NumOfProfiles;
+    uint8_t     hardwarePortId;
+    uint8_t     baseStorageProfile;
+    uint8_t     log2NumOfProfiles;
 }_PackedType t_FmIpcVspSetPortWindow;
 
 typedef _Packed struct t_FmIpcSetCongestionGroupPfcPriority {
-        uint32_t     congestionGroupId;
-        uint8_t      priorityBitMap;
+    uint32_t     congestionGroupId;
+    uint8_t      priorityBitMap;
 }_PackedType t_FmIpcSetCongestionGroupPfcPriority;
 
 #define FM_IPC_MAX_REPLY_BODY_SIZE  16
@@ -270,16 +270,6 @@ typedef _Packed struct t_FmIpcReply
  @Param[in/out] t_FmIpcGetCounter Pointer
 *//***************************************************************************/
 #define FM_GET_COUNTER              2
-
-/**************************************************************************//**
- @Function      FM_DUMP_REGS
-
- @Description   Used by FM front-end for the PORT module in order to set and get
-                parameters in/from master FM module on FM PORT initialization time.
-
- @Param         None
-*//***************************************************************************/
-#define FM_DUMP_REGS                3
 
 /**************************************************************************//**
  @Function      FM_GET_SET_PORT_PARAMS
@@ -329,16 +319,6 @@ typedef _Packed struct t_FmIpcReply
  @Param[in/out] t_FmIcPortIsStalled Pointer
 *//***************************************************************************/
 #define FM_IS_PORT_STALLED          8
-
-/**************************************************************************//**
- @Function      FM_DUMP_PORT_REGS
-
- @Description   Used by FM front-end for the PORT module in order to dump
-                all port registers.
-
- @Param[in]     uint8_t Pointer
-*//***************************************************************************/
-#define FM_DUMP_PORT_REGS           9
 
 /**************************************************************************//**
  @Function      FM_GET_PARAMS

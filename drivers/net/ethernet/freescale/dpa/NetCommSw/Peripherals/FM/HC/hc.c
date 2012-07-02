@@ -69,10 +69,10 @@
 #define HC_HCOR_KG_SCHEME_REGS_MASK         0xFFFFFE00
 #endif /* (DPAA_VERSION == 10) */
 
-#define SIZE_OF_HC_FRAME_PORT_REGS          (sizeof(t_HcFrame)-sizeof(t_FmPcdKgInterModuleSchemeRegs)+sizeof(t_FmPcdKgPortRegs))
+#define SIZE_OF_HC_FRAME_PORT_REGS          (sizeof(t_HcFrame)-sizeof(t_FmPcdKgSchemeRegs)+sizeof(t_FmPcdKgPortRegs))
 #define SIZE_OF_HC_FRAME_SCHEME_REGS        sizeof(t_HcFrame)
-#define SIZE_OF_HC_FRAME_PROFILES_REGS      (sizeof(t_HcFrame)-sizeof(t_FmPcdKgInterModuleSchemeRegs)+sizeof(t_FmPcdPlcrInterModuleProfileRegs))
-#define SIZE_OF_HC_FRAME_PROFILE_CNT        (sizeof(t_HcFrame)-sizeof(t_FmPcdPlcrInterModuleProfileRegs)+sizeof(uint32_t))
+#define SIZE_OF_HC_FRAME_PROFILES_REGS      (sizeof(t_HcFrame)-sizeof(t_FmPcdKgSchemeRegs)+sizeof(t_FmPcdPlcrProfileRegs))
+#define SIZE_OF_HC_FRAME_PROFILE_CNT        (sizeof(t_HcFrame)-sizeof(t_FmPcdPlcrProfileRegs)+sizeof(uint32_t))
 #define SIZE_OF_HC_FRAME_READ_OR_CC_DYNAMIC 16
 
 #define BUILD_FD(len)                     \
@@ -99,9 +99,9 @@ typedef _Packed struct t_HcFrame {
     volatile uint32_t                           extraReg;
     volatile uint32_t                           commandSequence;
     union {
-        t_FmPcdKgInterModuleSchemeRegs          schemeRegs;
-        t_FmPcdKgInterModuleSchemeRegs          schemeRegsWithoutCounter;
-        t_FmPcdPlcrInterModuleProfileRegs       profileRegs;
+        t_FmPcdKgSchemeRegs                     schemeRegs;
+        t_FmPcdKgSchemeRegs                     schemeRegsWithoutCounter;
+        t_FmPcdPlcrProfileRegs                  profileRegs;
         volatile uint32_t                       singleRegForWrite;    /* for writing SP, CPP, profile counter */
         t_FmPcdKgPortRegs                       portRegsForRead;
         volatile uint32_t                       clsPlanEntries[CLS_PLAN_NUM_PER_GRP];
@@ -284,11 +284,13 @@ void FmHcTxConf(t_Handle h_FmHc, t_DpaaFD *p_Fd)
     FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
 }
 
-t_Error FmHcPcdKgSetScheme(t_Handle h_FmHc, t_Handle h_Scheme, t_FmPcdKgSchemeParams *p_SchemeParams)
+t_Error FmHcPcdKgSetScheme(t_Handle             h_FmHc,
+                           t_Handle             h_Scheme,
+                           t_FmPcdKgSchemeRegs  *p_SchemeRegs,
+                           bool                 updateCounter)
 {
     t_FmHc                              *p_FmHc = (t_FmHc*)h_FmHc;
     t_Error                             err = E_OK;
-    t_FmPcdKgInterModuleSchemeRegs      schemeRegs;
     t_HcFrame                           *p_HcFrame;
     t_DpaaFD                            fmFd;
     uint8_t                             physicalSchemeId, relativeSchemeId;
@@ -300,24 +302,17 @@ t_Error FmHcPcdKgSetScheme(t_Handle h_FmHc, t_Handle h_Scheme, t_FmPcdKgSchemePa
     physicalSchemeId = FmPcdKgGetSchemeId(h_Scheme);
     relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmHc->h_FmPcd, physicalSchemeId);
 
-    err = FmPcdKgBuildScheme(h_Scheme, p_SchemeParams, &schemeRegs);
-    if(err)
-    {
-        XX_FreeSmart(p_HcFrame);
-        RETURN_ERROR(MAJOR, err, NO_MSG);
-    }
-
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
-    p_HcFrame->actionReg  = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, p_SchemeParams->schemeCounter.update);
+    p_HcFrame->actionReg  = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, updateCounter);
     p_HcFrame->extraReg = HC_HCOR_KG_SCHEME_REGS_MASK;
-    memcpy(&p_HcFrame->hcSpecificData.schemeRegs, &schemeRegs, sizeof(t_FmPcdKgInterModuleSchemeRegs));
-    if(!p_SchemeParams->schemeCounter.update)
+    memcpy(&p_HcFrame->hcSpecificData.schemeRegs, p_SchemeRegs, sizeof(t_FmPcdKgSchemeRegs));
+    if (!updateCounter)
     {
-        p_HcFrame->hcSpecificData.schemeRegs.kgse_dv0   = schemeRegs.kgse_dv0;
-        p_HcFrame->hcSpecificData.schemeRegs.kgse_dv1   = schemeRegs.kgse_dv1;
-        p_HcFrame->hcSpecificData.schemeRegs.kgse_ccbs  = schemeRegs.kgse_ccbs;
-        p_HcFrame->hcSpecificData.schemeRegs.kgse_mv    = schemeRegs.kgse_mv;
+        p_HcFrame->hcSpecificData.schemeRegs.kgse_dv0   = p_SchemeRegs->kgse_dv0;
+        p_HcFrame->hcSpecificData.schemeRegs.kgse_dv1   = p_SchemeRegs->kgse_dv1;
+        p_HcFrame->hcSpecificData.schemeRegs.kgse_ccbs  = p_SchemeRegs->kgse_ccbs;
+        p_HcFrame->hcSpecificData.schemeRegs.kgse_mv    = p_SchemeRegs->kgse_mv;
     }
 
     BUILD_FD(sizeof(t_HcFrame));
@@ -349,7 +344,7 @@ t_Error FmHcPcdKgDeleteScheme(t_Handle h_FmHc, t_Handle h_Scheme)
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_KG_SCM);
     p_HcFrame->actionReg  = FmPcdKgBuildWriteSchemeActionReg(physicalSchemeId, TRUE);
     p_HcFrame->extraReg = HC_HCOR_KG_SCHEME_REGS_MASK;
-    memset(&p_HcFrame->hcSpecificData.schemeRegs, 0, sizeof(t_FmPcdKgInterModuleSchemeRegs));
+    memset(&p_HcFrame->hcSpecificData.schemeRegs, 0, sizeof(t_FmPcdKgSchemeRegs));
 
     BUILD_FD(sizeof(t_HcFrame));
 
@@ -811,15 +806,13 @@ t_Error FmHcPcdPlcrCcGetSetParams(t_Handle h_FmHc,uint16_t absoluteProfileId, ui
     return E_OK;
 }
 
-t_Error FmHcPcdPlcrSetProfile(t_Handle h_FmHc, t_Handle h_Profile, t_FmPcdPlcrProfileParams *p_ProfileParams)
+t_Error FmHcPcdPlcrSetProfile(t_Handle h_FmHc, t_Handle h_Profile, t_FmPcdPlcrProfileRegs *p_PlcrRegs)
 {
     t_FmHc                              *p_FmHc = (t_FmHc*)h_FmHc;
-    t_FmPcdPlcrInterModuleProfileRegs   profileRegs;
     t_Error                             err = E_OK;
     uint16_t                            profileIndx;
     t_HcFrame                           *p_HcFrame;
     t_DpaaFD                            fmFd;
-
 
     p_HcFrame = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + p_FmHc->padTill16), p_FmHc->dataMemId, 16);
     if (!p_HcFrame)
@@ -827,20 +820,11 @@ t_Error FmHcPcdPlcrSetProfile(t_Handle h_FmHc, t_Handle h_Profile, t_FmPcdPlcrPr
 
     profileIndx = FmPcdPlcrProfileGetAbsoluteId(h_Profile);
 
-    memset(&profileRegs, 0, sizeof(t_FmPcdPlcrInterModuleProfileRegs));
-
-    err = FmPcdPlcrBuildProfile(p_FmHc->h_FmPcd, p_ProfileParams, &profileRegs);
-    if(err)
-    {
-        XX_FreeSmart(p_HcFrame);
-        RETURN_ERROR(MAJOR, err, NO_MSG);
-    }
-
     memset(p_HcFrame, 0, sizeof(t_HcFrame));
     p_HcFrame->opcode = (uint32_t)(HC_HCOR_GBL | HC_HCOR_OPCODE_PLCR_PRFL);
     p_HcFrame->actionReg  = FmPcdPlcrBuildWritePlcrActionRegs(profileIndx);
     p_HcFrame->extraReg = 0x00008000;
-    memcpy(&p_HcFrame->hcSpecificData.profileRegs, &profileRegs, sizeof(t_FmPcdPlcrInterModuleProfileRegs));
+    memcpy(&p_HcFrame->hcSpecificData.profileRegs, p_PlcrRegs, sizeof(t_FmPcdPlcrProfileRegs));
 
     BUILD_FD(sizeof(t_HcFrame));
 
@@ -871,7 +855,7 @@ t_Error FmHcPcdPlcrDeleteProfile(t_Handle h_FmHc, t_Handle h_Profile)
     p_HcFrame->actionReg  = FmPcdPlcrBuildWritePlcrActionReg(absoluteProfileId);
     p_HcFrame->actionReg  |= 0x00008000;
     p_HcFrame->extraReg = 0x00008000;
-    memset(&p_HcFrame->hcSpecificData.profileRegs, 0, sizeof(t_FmPcdPlcrInterModuleProfileRegs));
+    memset(&p_HcFrame->hcSpecificData.profileRegs, 0, sizeof(t_FmPcdPlcrProfileRegs));
 
     BUILD_FD(sizeof(t_HcFrame));
 

@@ -94,47 +94,29 @@ typedef  struct t_FmPcdIpcKgClsPlanParams
     uint8_t     clsPlanBase;
 } _PackedType t_FmPcdIpcKgClsPlanParams;
 
-typedef _Packed struct t_FmPcdIpcPlcrAllocParams
-{
-    uint16_t    num;
-    uint8_t     hardwarePortId;
-    uint16_t    plcrProfilesBase;
-} _PackedType t_FmPcdIpcPlcrAllocParams;
-
-typedef _Packed struct t_FmPcdIpcSharedPlcrAllocParams
-{
-    uint16_t    num;
-    uint32_t    sharedProfilesMask[8];
-} _PackedType t_FmPcdIpcSharedPlcrAllocParams;
-
 typedef _Packed struct t_FmPcdIpcPrsIncludePort
 {
     uint8_t     hardwarePortId;
     bool        include;
 } _PackedType t_FmPcdIpcPrsIncludePort;
 
-#if (DPAA_VERSION >= 11)
-typedef _Packed struct t_FmPcdIpcSpAllocParams
-{
+typedef _Packed struct t_FmPcdIpcResourceAllocParams {
+    uint8_t     guestId;
+    uint8_t     base;
     uint16_t    num;
-    uint8_t     hardwarePortId;
-    uint16_t    spProfilesBase;
-} _PackedType t_FmPcdIpcSpAllocParams;
-#endif /* (DPAA_VERSION >= 11) */
+}_PackedType t_FmPcdIpcResourceAllocParams;
 
 
 #define FM_PCD_MAX_REPLY_SIZE           16
 #define FM_PCD_MAX_MSG_SIZE             36
 #define FM_PCD_MAX_REPLY_BODY_SIZE      36
 
-typedef _Packed struct
-{
+typedef _Packed struct {
     uint32_t    msgId;
     uint8_t     msgBody[FM_PCD_MAX_MSG_SIZE];
 } _PackedType t_FmPcdIpcMsg;
 
-typedef _Packed struct t_FmPcdIpcReply
-{
+typedef _Packed struct t_FmPcdIpcReply {
     uint32_t    error;
     uint8_t     replyBody[FM_PCD_MAX_REPLY_BODY_SIZE];
 } _PackedType t_FmPcdIpcReply;
@@ -201,24 +183,6 @@ typedef _Packed struct t_FmPcdIpcReply
 #define FM_PCD_GET_SW_PRS_OFFSET                8
 
 /**************************************************************************//**
- @Function      FM_PCD_ALLOC_SHARED_PROFILES
-
- @Description   Used by FM PCD front-end in order to allocate shared profiles
-
- @Param[in/out] t_FmPcdIpcSharedPlcrAllocParams Pointer
-*//***************************************************************************/
-#define FM_PCD_ALLOC_SHARED_PROFILES            9
-
-/**************************************************************************//**
- @Function      FM_PCD_FREE_SHARED_PROFILES
-
- @Description   Used by FM PCD front-end in order to free shared profiles
-
- @Param[in/out] t_FmPcdIpcSharedPlcrAllocParams Pointer
-*//***************************************************************************/
-#define FM_PCD_FREE_SHARED_PROFILES             10
-
-/**************************************************************************//**
  @Function      FM_PCD_MASTER_IS_ENABLED
 
  @Description   Used by FM front-end in order to verify
@@ -237,42 +201,6 @@ typedef _Packed struct t_FmPcdIpcReply
  @Param[in]     None
 *//***************************************************************************/
 #define FM_PCD_GUEST_DISABLE                    16
-
-/**************************************************************************//**
- @Function      FM_PCD_KG_DUMP_REGS
-
- @Description   Used by FM front-end to dump KG registers
-
- @Param[in]     None
-*//***************************************************************************/
-#define FM_PCD_KG_DUMP_REGS                     18
-
-/**************************************************************************//**
- @Function      FM_PCD_PLCR_DUMP_REGS
-
- @Description   Used by FM front-end to dump PLCR registers
-
- @Param[in]     None
-*//***************************************************************************/
-#define FM_PCD_PLCR_DUMP_REGS                   19
-
-/**************************************************************************//**
- @Function      FM_PCD_PLCR_PROFILE_DUMP_REGS
-
- @Description   Used by FM front-end to dump PLCR specified profile registers
-
- @Param[in]     t_Handle Pointer
-*//***************************************************************************/
-#define FM_PCD_PLCR_PROFILE_DUMP_REGS           20
-
-/**************************************************************************//**
- @Function      FM_PCD_PRS_DUMP_REGS
-
- @Description   Used by FM front-end to dump PRS registers
-
- @Param[in]     None
-*//***************************************************************************/
-#define FM_PCD_PRS_DUMP_REGS                    21
 
 /**************************************************************************//**
  @Function      FM_PCD_FREE_KG_CLSPLAN

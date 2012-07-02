@@ -48,36 +48,6 @@
 #include "fm_prs.h"
 
 
-t_Handle PrsConfig(t_FmPcd *p_FmPcd,t_FmPcdParams *p_FmPcdParams)
-{
-    t_FmPcdPrs  *p_FmPcdPrs;
-    uintptr_t   baseAddr;
-
-    UNUSED(p_FmPcd);
-    UNUSED(p_FmPcdParams);
-
-    p_FmPcdPrs = (t_FmPcdPrs *) XX_Malloc(sizeof(t_FmPcdPrs));
-    if (!p_FmPcdPrs)
-    {
-        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Parser structure allocation FAILED"));
-        return NULL;
-    }
-    memset(p_FmPcdPrs, 0, sizeof(t_FmPcdPrs));
-
-    if (p_FmPcd->guestId == NCSW_MASTER_ID)
-    {
-        baseAddr = FmGetPcdPrsBaseAddr(p_FmPcdParams->h_Fm);
-        p_FmPcdPrs->p_SwPrsCode  = (uint32_t *)UINT_TO_PTR(baseAddr);
-        p_FmPcdPrs->p_FmPcdPrsRegs  = (t_FmPcdPrsRegs *)UINT_TO_PTR(baseAddr + PRS_REGS_OFFSET);
-    }
-
-    p_FmPcdPrs->fmPcdPrsPortIdStatistics             = 0;
-    p_FmPcd->p_FmPcdDriverParam->prsMaxParseCycleLimit   = DEFAULT_prsMaxParseCycleLimit;
-    p_FmPcd->exceptions |= (DEFAULT_fmPcdPrsErrorExceptions | DEFAULT_fmPcdPrsExceptions);
-
-    return p_FmPcdPrs;
-}
-
 static void PcdPrsErrorException(t_Handle h_FmPcd)
 {
     t_FmPcd                 *p_FmPcd = (t_FmPcd *)h_FmPcd;
@@ -125,43 +95,56 @@ static void PcdPrsException(t_Handle h_FmPcd)
     p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PRS_EXCEPTION_SINGLE_ECC);
 }
 
-static uint32_t GetSwPrsOffset(t_Handle h_FmPcd,  e_NetHeaderType hdr, uint8_t  indexPerHdr)
+t_Handle PrsConfig(t_FmPcd *p_FmPcd,t_FmPcdParams *p_FmPcdParams)
 {
-    t_FmPcd                 *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    int                     i;
-    t_FmPcdPrsLabelParams   *p_Label;
+    t_FmPcdPrs  *p_FmPcdPrs;
+    uintptr_t   baseAddr;
 
-    SANITY_CHECK_RETURN_VALUE(p_FmPcd, E_INVALID_HANDLE, 0);
-    SANITY_CHECK_RETURN_VALUE(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE, 0);
+    UNUSED(p_FmPcd);
+    UNUSED(p_FmPcdParams);
 
-    ASSERT_COND(p_FmPcd->guestId == NCSW_MASTER_ID);
-    ASSERT_COND(p_FmPcd->p_FmPcdPrs->currLabel < FM_PCD_PRS_NUM_OF_LABELS);
-
-    for (i=0; i < p_FmPcd->p_FmPcdPrs->currLabel; i++)
+    p_FmPcdPrs = (t_FmPcdPrs *) XX_Malloc(sizeof(t_FmPcdPrs));
+    if (!p_FmPcdPrs)
     {
-        p_Label = &p_FmPcd->p_FmPcdPrs->labelsTable[i];
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Parser structure allocation FAILED"));
+        return NULL;
+    }
+    memset(p_FmPcdPrs, 0, sizeof(t_FmPcdPrs));
 
-        if ((hdr == p_Label->hdr) && (indexPerHdr == p_Label->indexPerHdr))
-            return p_Label->instructionOffset;
+    if (p_FmPcd->guestId == NCSW_MASTER_ID)
+    {
+        baseAddr = FmGetPcdPrsBaseAddr(p_FmPcdParams->h_Fm);
+        p_FmPcdPrs->p_SwPrsCode  = (uint32_t *)UINT_TO_PTR(baseAddr);
+        p_FmPcdPrs->p_FmPcdPrsRegs  = (t_FmPcdPrsRegs *)UINT_TO_PTR(baseAddr + PRS_REGS_OFFSET);
     }
 
-    REPORT_ERROR(MAJOR, E_NOT_FOUND, ("Sw Parser attachment Not found"));
-    return (uint32_t)ILLEGAL_BASE;
+    p_FmPcdPrs->fmPcdPrsPortIdStatistics             = 0;
+    p_FmPcd->p_FmPcdDriverParam->prsMaxParseCycleLimit   = DEFAULT_prsMaxParseCycleLimit;
+    p_FmPcd->exceptions |= (DEFAULT_fmPcdPrsErrorExceptions | DEFAULT_fmPcdPrsExceptions);
+
+    return p_FmPcdPrs;
 }
 
 t_Error PrsInit(t_FmPcd *p_FmPcd)
 {
     t_FmPcdDriverParam  *p_Param = p_FmPcd->p_FmPcdDriverParam;
     t_FmPcdPrsRegs      *p_Regs = p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs;
-    uint32_t            tmpReg, i, j;
-    uint32_t            *p_SwPrsCode = (uint32_t *)PTR_MOVE(p_FmPcd->p_FmPcdPrs->p_SwPrsCode,
-                                                            FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE);
+    uint32_t            *p_TmpCode, tmpReg, i,
+                        *p_LoadTarget = (uint32_t *)PTR_MOVE(p_FmPcd->p_FmPcdPrs->p_SwPrsCode,
+                                                             FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE);
     uint8_t             swPrsPatch[] = SW_PRS_IP_FRAG_PATCH;
 
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
+    ASSERT_COND(sizeof(swPrsPatch) <= (FM_PCD_PRS_SW_PATCHES_SIZE-FM_PCD_PRS_SW_TAIL_SIZE));
+
+    /* nothing to do in guest-partition */
+    if (p_FmPcd->guestId != NCSW_MASTER_ID)
         return E_OK;
 
-    ASSERT_COND(p_FmPcd->guestId == NCSW_MASTER_ID);
+    p_TmpCode = (uint32_t *)XX_MallocSmart(ROUND_UP(sizeof(swPrsPatch),4), 0, sizeof(uint32_t));
+    if (!p_TmpCode)
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
+    memset((uint8_t *)p_TmpCode, 0, ROUND_UP(sizeof(swPrsPatch),4));
+    memcpy((uint8_t *)p_TmpCode, (uint8_t *)swPrsPatch, sizeof(swPrsPatch));
 
     /**********************RPCLIM******************/
     WRITE_UINT32(p_Regs->rpclim, (uint32_t)p_Param->prsMaxParseCycleLimit);
@@ -178,7 +161,7 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
     /**********************PEVR******************/
 
     /**********************PEVER******************/
-    if(p_FmPcd->exceptions & FM_PCD_EX_PRS_SINGLE_ECC)
+    if (p_FmPcd->exceptions & FM_PCD_EX_PRS_SINGLE_ECC)
     {
         FmEnableRamsEcc(p_FmPcd->h_Fm);
         WRITE_UINT32(p_Regs->pever, FM_PCD_PRS_SINGLE_ECC);
@@ -189,7 +172,6 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
 
     /**********************PERR******************/
     WRITE_UINT32(p_Regs->perr, FM_PCD_PRS_DOUBLE_ECC);
-
     /**********************PERR******************/
 
     /**********************PERER******************/
@@ -202,25 +184,15 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
     WRITE_UINT32(p_Regs->perer, tmpReg);
     /**********************PERER******************/
 
-    /**********************PPCS******************/
+    /**********************PPSC******************/
     WRITE_UINT32(p_Regs->ppsc, p_FmPcd->p_FmPcdPrs->fmPcdPrsPortIdStatistics);
-    /**********************PPCS******************/
+    /**********************PPSC******************/
 
-    ASSERT_COND(sizeof(swPrsPatch)<= (FM_PCD_PRS_SW_PATCHES_SIZE-FM_PCD_PRS_SW_TAIL_SIZE));
     /* load sw parser Ip-Frag patch */
-    if (p_FmPcd->fmRevInfo.majorRev >= 2)
-    {
-        for(i=0; i < (sizeof(swPrsPatch) / 4);i++)
-        {
-           tmpReg = 0;
-           for (j=0; j < 4; j++)
-           {
-              tmpReg <<= 8;
-              tmpReg |= swPrsPatch[i*4+j];
-           }
-           WRITE_UINT32(*(p_SwPrsCode + i), tmpReg);
-        }
-    }
+    for (i=0; i<DIV_CEIL(sizeof(swPrsPatch),4); i++)
+        WRITE_UINT32(p_LoadTarget[i], p_TmpCode[i]);
+
+    XX_FreeSmart(p_TmpCode);
 
     return E_OK;
 }
@@ -291,13 +263,14 @@ t_Error FmPcdPrsIncludePortInStatistics(t_Handle h_FmPcd, uint8_t hardwarePortId
         memset(&msg, 0, sizeof(msg));
         msg.msgId = FM_PCD_PRS_INC_PORT_STATS;
         memcpy(msg.msgBody, &prsIncludePortParams, sizeof(prsIncludePortParams));
-        if ((err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                     (uint8_t*)&msg,
-                                     sizeof(msg.msgId) +sizeof(prsIncludePortParams),
-                                     NULL,
-                                     NULL,
-                                     NULL,
-                                     NULL)) != E_OK)
+        err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
+                                (uint8_t*)&msg,
+                                sizeof(msg.msgId) +sizeof(prsIncludePortParams),
+                                NULL,
+                                NULL,
+                                NULL,
+                                NULL);
+        if (err != E_OK)
             RETURN_ERROR(MAJOR, err, NO_MSG);
         return E_OK;
     }
@@ -311,11 +284,17 @@ t_Error FmPcdPrsIncludePortInStatistics(t_Handle h_FmPcd, uint8_t hardwarePortId
 uint32_t FmPcdGetSwPrsOffset(t_Handle h_FmPcd, e_NetHeaderType hdr, uint8_t indexPerHdr)
 {
     t_FmPcd                 *p_FmPcd = (t_FmPcd *)h_FmPcd;
-    t_Error                 err = E_OK;
-    t_FmPcdIpcSwPrsLable    labelParams;
+    t_FmPcdPrsLabelParams   *p_Label;
+    int                     i;
 
-    if (p_FmPcd->guestId != NCSW_MASTER_ID)
+    SANITY_CHECK_RETURN_VALUE(p_FmPcd, E_INVALID_HANDLE, 0);
+    SANITY_CHECK_RETURN_VALUE(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE, 0);
+
+    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
+        p_FmPcd->h_IpcSession)
     {
+        t_Error                 err = E_OK;
+        t_FmPcdIpcSwPrsLable    labelParams;
         t_FmPcdIpcMsg           msg;
         uint32_t                prsOffset = 0;
         t_FmPcdIpcReply         reply;
@@ -328,13 +307,14 @@ uint32_t FmPcdGetSwPrsOffset(t_Handle h_FmPcd, e_NetHeaderType hdr, uint8_t inde
         msg.msgId = FM_PCD_GET_SW_PRS_OFFSET;
         memcpy(msg.msgBody, &labelParams, sizeof(labelParams));
         replyLength = sizeof(uint32_t) + sizeof(uint32_t);
-        if ((err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                     (uint8_t*)&msg,
-                                     sizeof(msg.msgId) +sizeof(labelParams),
-                                     (uint8_t*)&reply,
-                                     &replyLength,
-                                     NULL,
-                                     NULL)) != E_OK)
+        err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
+                                (uint8_t*)&msg,
+                                sizeof(msg.msgId) +sizeof(labelParams),
+                                (uint8_t*)&reply,
+                                &replyLength,
+                                NULL,
+                                NULL);
+        if (err != E_OK)
             RETURN_ERROR(MAJOR, err, NO_MSG);
         if (replyLength != sizeof(uint32_t) + sizeof(uint32_t))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
@@ -342,8 +322,22 @@ uint32_t FmPcdGetSwPrsOffset(t_Handle h_FmPcd, e_NetHeaderType hdr, uint8_t inde
         memcpy((uint8_t*)&prsOffset, reply.replyBody, sizeof(uint32_t));
         return prsOffset;
     }
+    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
+                     ("running in guest-mode without IPC!"));
 
-    return GetSwPrsOffset(h_FmPcd, hdr, indexPerHdr);
+    ASSERT_COND(p_FmPcd->p_FmPcdPrs->currLabel < FM_PCD_PRS_NUM_OF_LABELS);
+
+    for (i=0; i<p_FmPcd->p_FmPcdPrs->currLabel; i++)
+    {
+        p_Label = &p_FmPcd->p_FmPcdPrs->labelsTable[i];
+
+        if ((hdr == p_Label->hdr) && (indexPerHdr == p_Label->indexPerHdr))
+            return p_Label->instructionOffset;
+    }
+
+    REPORT_ERROR(MAJOR, E_NOT_FOUND, ("Sw Parser attachment Not found"));
+    return (uint32_t)ILLEGAL_BASE;
 }
 
 void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable)
@@ -368,9 +362,9 @@ void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable)
 t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
 {
     t_FmPcd                 *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    uint32_t                *p_LoadTarget, tmpReg;
-    uint8_t                 *p_TmpCode;
-    int                     i, j;
+    uint32_t                *p_LoadTarget;
+    uint32_t                *p_TmpCode;
+    int                     i;
 
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
@@ -378,58 +372,50 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
     SANITY_CHECK_RETURN_ERROR(p_SwPrs, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->enabled, E_INVALID_HANDLE);
 
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_PrsLoadSw - guest mode!"));
+    if (p_FmPcd->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM in guest-mode!"));
 
-    if(!p_SwPrs->override)
+    if (!p_SwPrs->override)
     {
         if(p_FmPcd->p_FmPcdPrs->p_CurrSwPrs > p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("SW parser base must be larger than current loaded code"));
     }
-    if(p_SwPrs->size > FM_PCD_SW_PRS_SIZE - FM_PCD_PRS_SW_TAIL_SIZE - p_SwPrs->base*2)
+    else
+        p_FmPcd->p_FmPcdPrs->currLabel = 0;
+
+    if (p_SwPrs->size > FM_PCD_SW_PRS_SIZE - FM_PCD_PRS_SW_TAIL_SIZE - p_SwPrs->base*2)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("p_SwPrs->size may not be larger than MAX_SW_PRS_CODE_SIZE"));
 
-    p_TmpCode = p_SwPrs->p_Code;
-    if(p_SwPrs->size % 4)
-    {
-        p_TmpCode = (uint8_t *)XX_Malloc(p_SwPrs->size + 2);
-        if (!p_TmpCode)
-            RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
-        memset(p_TmpCode, 0, p_SwPrs->size + 2);
-        memcpy(p_TmpCode, p_SwPrs->p_Code, p_SwPrs->size);
-    }
+    if (p_FmPcd->p_FmPcdPrs->currLabel + p_SwPrs->numOfLabels > FM_PCD_PRS_NUM_OF_LABELS)
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Exceeded number of labels allowed "));
+
+    p_TmpCode = (uint32_t *)XX_MallocSmart(ROUND_UP(p_SwPrs->size,4), 0, sizeof(uint32_t));
+    if (!p_TmpCode)
+        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
+    memset((uint8_t *)p_TmpCode, 0, ROUND_UP(p_SwPrs->size,4));
+    memcpy((uint8_t *)p_TmpCode, p_SwPrs->p_Code, p_SwPrs->size);
 
     /* save sw parser labels */
-    if(p_SwPrs->override)
-        p_FmPcd->p_FmPcdPrs->currLabel = 0;
-    if(p_FmPcd->p_FmPcdPrs->currLabel+ p_SwPrs->numOfLabels > FM_PCD_PRS_NUM_OF_LABELS)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Exceeded number of labels allowed "));
-    memcpy(&p_FmPcd->p_FmPcdPrs->labelsTable[p_FmPcd->p_FmPcdPrs->currLabel], p_SwPrs->labelsTable, p_SwPrs->numOfLabels*sizeof(t_FmPcdPrsLabelParams));
+    memcpy(&p_FmPcd->p_FmPcdPrs->labelsTable[p_FmPcd->p_FmPcdPrs->currLabel],
+           p_SwPrs->labelsTable,
+           p_SwPrs->numOfLabels*sizeof(t_FmPcdPrsLabelParams));
     p_FmPcd->p_FmPcdPrs->currLabel += p_SwPrs->numOfLabels;
+
     /* load sw parser code */
     p_LoadTarget = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4;
-    for(i=0;i<DIV_CEIL(p_SwPrs->size,4);i++)
-    {
-        tmpReg = 0;
-        for(j =0;j<4;j++)
-        {
-            tmpReg <<= 8;
-            tmpReg |= *(p_TmpCode+i*4+j);
-        }
-        WRITE_UINT32(*(p_LoadTarget + i), tmpReg);
-    }
-    p_FmPcd->p_FmPcdPrs->p_CurrSwPrs = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + DIV_CEIL(p_SwPrs->size,4);
+    for(i=0; i<DIV_CEIL(p_SwPrs->size,4); i++)
+        WRITE_UINT32(p_LoadTarget[i], p_TmpCode[i]);
+    p_FmPcd->p_FmPcdPrs->p_CurrSwPrs =
+        p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + ROUND_UP(p_SwPrs->size,4);
 
     /* copy data parameters */
     for(i=0;i<FM_PCD_PRS_NUM_OF_HDRS;i++)
         WRITE_UINT32(*(p_FmPcd->p_FmPcdPrs->p_SwPrsCode+PRS_SW_DATA/4+i), p_SwPrs->swPrsDataParams[i]);
 
-
     /* Clear last 4 bytes */
     WRITE_UINT32(*(p_FmPcd->p_FmPcdPrs->p_SwPrsCode+(PRS_SW_DATA-FM_PCD_PRS_SW_TAIL_SIZE)/4), 0);
 
-    if(p_SwPrs->size % 4)
-        XX_Free(p_TmpCode);
+    XX_FreeSmart(p_TmpCode);
 
     return E_OK;
 }
@@ -449,7 +435,6 @@ t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd,uint16_t value)
     return E_OK;
 }
 
-
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
 t_Error FM_PCD_PrsDumpRegs(t_Handle h_FmPcd)
 {
@@ -460,28 +445,11 @@ t_Error FM_PCD_PrsDumpRegs(t_Handle h_FmPcd)
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPrs, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
-
-    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
-        !p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs &&
-        p_FmPcd->h_IpcSession)
-    {
-        t_FmPcdIpcMsg       msg;
-        memset(&msg, 0, sizeof(msg));
-        msg.msgId = FM_PCD_PRS_DUMP_REGS;
-        return XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                 (uint8_t*)&msg,
-                                 sizeof(msg.msgId),
-                                 NULL,
-                                 NULL,
-                                 NULL,
-                                 NULL);
-    }
-    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
-        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in \"guest-mode\" without neither IPC nor mapped register!"));
+    SANITY_CHECK_RETURN_ERROR(((p_FmPcd->guestId == NCSW_MASTER_ID) ||
+                               p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs), E_INVALID_OPERATION);
 
     DUMP_SUBTITLE(("\n"));
-    DUMP_TITLE(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs, ("FmPcdPrsRegs Regs"));
+    DUMP_TITLE(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs, ("FM-PCD parser regs"));
 
     DUMP_VAR(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs,rpclim);
     DUMP_VAR(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs,rpimac);

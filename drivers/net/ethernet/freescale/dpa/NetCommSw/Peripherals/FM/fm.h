@@ -175,6 +175,8 @@ switch(exception){                                          \
 #define DEFAULT_dmaWatchdog                 0 /* disabled */
 #define DEFAULT_mtu                         9600
 
+#define FM_TIMESTAMP_1_USEC_BIT             8
+
 /**************************************************************************//**
  @Collection   Defines used for enabling/disabling FM interrupts
  @{
@@ -255,40 +257,40 @@ typedef uint32_t t_FmBlockIntrEnable;
 
 typedef _Packed struct
 {
-    volatile uint32_t   fpmtnc;         /**< FPM TNUM Control */
-    volatile uint32_t   fpmpr;          /**< FPM Port_ID FmCtl Association */
-    volatile uint32_t   brkc;           /**< FPM Breakpoint Control */
-    volatile uint32_t   fpmflc;         /**< FPM Flush Control */
-    volatile uint32_t   fpmdis1;        /**< FPM Dispatch Thresholds1 */
-    volatile uint32_t   fpmdis2;        /**< FPM Dispatch Thresholds2  */
-    volatile uint32_t   fmepi;          /**< FM Error Pending Interrupts */
-    volatile uint32_t   fmrie;          /**< FM Error Interrupt Enable */
-    volatile uint32_t   fmfpfcev[4];    /**< FPM FMan-Controller Event 1-4 */
+    volatile uint32_t   fmfp_tnc;       /**< FPM TNUM Control */
+    volatile uint32_t   fmfp_prc;       /**< FPM Port_ID FmCtl Association */
+    volatile uint32_t   fmfp_brkc;      /**< FPM Breakpoint Control */
+    volatile uint32_t   fmfp_mxd;       /**< FPM Maximum dispatch */
+    volatile uint32_t   fmfp_dis1;      /**< FPM Dispatch Thresholds1 */
+    volatile uint32_t   fmfp_dis2;      /**< FPM Dispatch Thresholds2  */
+    volatile uint32_t   fm_epi;         /**< FM Error Pending Interrupts */
+    volatile uint32_t   fm_rie;         /**< FM Error Interrupt Enable */
+    volatile uint32_t   fmfp_fcev[4];   /**< FPM FMan-Controller Event 1-4 */
     volatile uint8_t    res1[16];       /**< reserved */
-    volatile uint32_t   fmfpfcee[4];    /**< PM FMan-Controller Event 1-4 */
+    volatile uint32_t   fmfp_cee[4];    /**< PM FMan-Controller Event 1-4 */
     volatile uint8_t    res2[16];       /**< reserved */
-    volatile uint32_t   fpmtsc1;        /**< FPM TimeStamp Control1 */
-    volatile uint32_t   fpmtsc2;        /**< FPM TimeStamp Control2 */
-    volatile uint32_t   fpmtsp;         /**< FPM Time Stamp */
-    volatile uint32_t   fpmtsf;         /**< FPM Time Stamp Fraction */
-    volatile uint32_t   fmrcr;          /**< FM Rams Control */
-    volatile uint32_t   fpmextc;        /**< FPM External Requests Control */
-    volatile uint32_t   fpmext1;        /**< FPM External Requests Config1 */
-    volatile uint32_t   fpmext2;        /**< FPM External Requests Config2 */
-    volatile uint32_t   fpmdrd[16];     /**< FPM Data_Ram Data 0-15 */
-    volatile uint32_t   fpmdra;         /**< FPM Data Ram Access */
+    volatile uint32_t   fmfp_tsc1;      /**< FPM TimeStamp Control1 */
+    volatile uint32_t   fmfp_tsc2;      /**< FPM TimeStamp Control2 */
+    volatile uint32_t   fmfp_tsp;       /**< FPM Time Stamp */
+    volatile uint32_t   fmfp_tsf;       /**< FPM Time Stamp Fraction */
+    volatile uint32_t   fm_rcr;         /**< FM Rams Control */
+    volatile uint32_t   fmfp_extc;      /**< FPM External Requests Control */
+    volatile uint32_t   fmfp_ext1;      /**< FPM External Requests Config1 */
+    volatile uint32_t   fmfp_ext2;      /**< FPM External Requests Config2 */
+    volatile uint32_t   fmfp_drd[16];   /**< FPM Data_Ram Data 0-15 */
+    volatile uint32_t   fmfp_dra;       /**< FPM Data Ram Access */
     volatile uint32_t   fm_ip_rev_1;    /**< FM IP Block Revision 1 */
     volatile uint32_t   fm_ip_rev_2;    /**< FM IP Block Revision 2 */
-    volatile uint32_t   fmrstc;         /**< FM Reset Command */
-    volatile uint32_t   fmcld;          /**< FM Classifier Debug */
-    volatile uint32_t   fmnpi;          /**< FM Normal Pending Interrupts  */
+    volatile uint32_t   fm_rstc;        /**< FM Reset Command */
+    volatile uint32_t   fm_cld;         /**< FM Classifier Debug */
+    volatile uint32_t   fm_npi;         /**< FM Normal Pending Interrupts  */
     volatile uint32_t   fmfp_exte;      /**< FPM External Requests Enable */
-    volatile uint32_t   fpmem;          /**< FPM Event & Mask */
-    volatile uint32_t   fpmcev[4];      /**< FPM CPU Event 1-4 */
+    volatile uint32_t   fmfp_em;        /**< FPM Event & Mask */
+    volatile uint32_t   fmfp_cev[4];    /**< FPM CPU Event 1-4 */
     volatile uint8_t    res4[16];       /**< reserved */
     volatile uint32_t   fmfp_ps[0x40];  /**< FPM Port Status */
     volatile uint8_t    reserved1[0x260];
-    volatile uint32_t   fpmts[128];     /**< 0x400: FPM Task Status */
+    volatile uint32_t   fmfp_ts[128];     /**< 0x400: FPM Task Status */
 } _PackedType t_FmFpmRegs;
 
 #define NUM_OF_DBG_TRAPS    3
@@ -314,7 +316,7 @@ typedef _Packed struct
    volatile uint32_t   reserved4;
    volatile uint32_t   fmbm_pfs[63];    /**< BMI Port FIFO Size */
    volatile uint32_t   reserved5;
-   volatile uint32_t   fmbm_ppid[63];   /**< Port Partition ID */
+   volatile uint32_t   fmbm_spliodn[63];   /**< Port Partition ID */
 } _PackedType t_FmBmiRegs;
 
 typedef _Packed struct
@@ -815,7 +817,6 @@ typedef struct t_Fm
 #endif /* (DPAA_VERSION >= 11) */
 
 /* un-needed for recovery */
-    t_FmDriverParam             *p_FmDriverParam;
     t_Handle                    h_FmMuram;
     uint64_t                    fmMuramPhysBaseAddr;
     bool                        independentMode;
@@ -825,6 +826,8 @@ typedef struct t_Fm
     uintptr_t                   fifoBaseAddr;                   /* save for freeing */
     t_FmanCtrlIntrSrc           fmanCtrlIntr[FM_NUM_OF_FMAN_CTRL_EVENT_REGS];    /* FM exceptions user callback */
     bool                        usedEventRegs[FM_NUM_OF_FMAN_CTRL_EVENT_REGS];
+
+    t_FmDriverParam             *p_FmDriverParam;
 } t_Fm;
 
 

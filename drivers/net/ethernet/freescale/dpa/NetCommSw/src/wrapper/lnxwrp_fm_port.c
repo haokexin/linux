@@ -668,14 +668,12 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 								   TRUE);
 		if (errCode != E_OK)
 			RETURN_ERROR(MAJOR, errCode, NO_MSG);
-#ifdef FM_QMI_DEQ_OPTIONS_SUPPORT
 		errCode =
 		FM_PORT_ConfigDeqPrefetchOption(p_LnxWrpFmPortDev->h_Dev,
 						e_FM_PORT_DEQ_FULL_PREFETCH);
 		if (errCode
 		    != E_OK)
 			RETURN_ERROR(MAJOR, errCode, NO_MSG);
-#endif /* FM_QMI_DEQ_OPTIONS_SUPPORT */
 	}
 
 /* Call the driver's advanced configuration routines, if requested:

@@ -153,7 +153,7 @@ typedef _Packed struct {
 } _PackedType t_FmPcdKgClsPlanRegs;
 
 typedef _Packed union {
-    t_FmPcdKgInterModuleSchemeRegs  schemeRegs;
+    t_FmPcdKgSchemeRegs             schemeRegs;
     t_FmPcdKgPortConfigRegs         portRegs;
     t_FmPcdKgClsPlanRegs            clsPlanRegs;
 } _PackedType u_FmPcdKgIndirectAccessRegs;
@@ -204,7 +204,7 @@ typedef _Packed struct {
     volatile uint32_t fmpl_res0[21];    /* 0x038 - 0x08B Reserved */
 /* Profile RAM Access Registers */
     volatile uint32_t fmpl_par;         /* 0x08C FMPL_PAR    - FM Policer Profile Action Register*/
-    t_FmPcdPlcrInterModuleProfileRegs profileRegs;
+    t_FmPcdPlcrProfileRegs profileRegs;
 /* Error Capture Registers */
     volatile uint32_t fmpl_serc;        /* 0x100 FMPL_SERC - FM Policer Soft Error Capture */
     volatile uint32_t fmpl_upcr;        /* 0x104 FMPL_UPCR - FM Policer Uninitialized Profile Capture Register */
@@ -367,13 +367,14 @@ typedef struct {
 
 typedef struct {
     t_FmPcdPlcrRegs                 *p_FmPcdPlcrRegs;
+    uint8_t                         partPlcrProfilesBase;
+    uint16_t                        partNumOfPlcrProfiles;
     t_FmPcdPlcrProfile              profiles[FM_PCD_PLCR_NUM_ENTRIES];
     uint16_t                        numOfSharedProfiles;
     uint16_t                        sharedProfilesIds[FM_PCD_PLCR_NUM_ENTRIES];
     t_FmPcdPlcrMapParam             portsMapping[FM_MAX_NUM_OF_PORTS];
     t_Handle                        h_HwSpinlock;
     t_Handle                        h_SwSpinlock;
-
 } t_FmPcdPlcr;
 
 typedef struct {
@@ -457,7 +458,11 @@ typedef struct {
     t_FmPcdDriverParam          *p_FmPcdDriverParam;
 } t_FmPcd;
 
-
+#if (DPAA_VERSION >= 11)
+typedef uint8_t t_FmPcdFrmReplicUpdateType;
+#define FRM_REPLIC_UPDATE_COUNTER             0x01
+#define FRM_REPLIC_UPDATE_INFO                0x02
+#endif /* (DPAA_VERSION >= 11) */
 /***********************************************************************/
 /*  PCD internal routines                                              */
 /***********************************************************************/
@@ -473,7 +478,7 @@ uint8_t     FmPcdNetEnvGetUnitId(t_FmPcd *p_FmPcd, uint8_t netEnvId, e_NetHeader
 
 t_Error     FmPcdManipBuildIpReassmScheme(t_FmPcd *p_FmPcd, t_Handle h_NetEnv, t_Handle h_CcTree, t_Handle h_Manip, bool isIpv4, uint8_t groupId);
 t_Error     FmPcdManipDeleteIpReassmSchemes(t_Handle h_Manip);
-bool        FmPcdManipIsIpPresent(t_FmPcd *p_FmPcd, uint8_t netEnvId, bool ipv6);
+bool        FmPcdManipIpReassmIsIpv6Hdr(t_Handle h_Manip);
 
 t_Handle    KgConfig( t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams);
 t_Error     KgInit(t_FmPcd *p_FmPcd);
@@ -499,10 +504,8 @@ t_Error     PlcrInit(t_FmPcd *p_FmPcd);
 t_Error     PlcrFree(t_FmPcd *p_FmPcd);
 void        PlcrEnable(t_FmPcd *p_FmPcd);
 void        PlcrDisable(t_FmPcd *p_FmPcd);
-t_Error     PlcrFreeProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint16_t num, uint16_t base);
-t_Error     PlcrAllocProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint16_t numOfProfiles, uint16_t *p_Base);
-t_Error     PlcrAllocSharedProfiles(t_FmPcd *p_FmPcd, uint16_t numOfProfiles, uint16_t *profilesIds);
-void        PlcrFreeSharedProfiles(t_FmPcd *p_FmPcd, uint16_t numOfProfiles, uint16_t *profilesIds);
+uint8_t     PlcrAllocProfilesForPartition(t_FmPcd *p_FmPcd, uint8_t base, uint16_t numOfProfiles, uint8_t guestId);
+void        PlcrFreeProfilesForPartition(t_FmPcd *p_FmPcd, uint8_t base, uint16_t numOfProfiles, uint8_t guestId);
 
 t_Handle    PrsConfig(t_FmPcd *p_FmPcd,t_FmPcdParams *p_FmPcdParams);
 t_Error     PrsInit(t_FmPcd *p_FmPcd);
@@ -515,11 +518,14 @@ t_Error     FmPcdCcGetGrpParams(t_Handle treeId, uint8_t grpId, uint32_t *p_GrpB
 uint8_t     FmPcdCcGetOffset(t_Handle h_CcNode);
 uint8_t     FmPcdCcGetParseCode(t_Handle h_CcNode);
 uint16_t    FmPcdCcGetNumOfKeys(t_Handle h_CcNode);
-t_Error     ValidateNextEngineParams(t_Handle h_FmPcd, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams);
+t_Error     ValidateNextEngineParams(t_Handle h_FmPcd, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams, e_FmPcdCcStatsMode supportedStatsMode);
 
 void        FmPcdManipUpdateOwner(t_Handle h_Manip, bool add);
 t_Error     FmPcdManipCheckParamsForCcNextEgine(t_FmPcdCcNextEngineParams *p_InfoForManip, uint32_t *requiredAction);
-void        FmPcdManipUpdateAdResultForCc(t_Handle h_Manip, t_Handle p_Ad, t_Handle *p_AdNew);
+void        FmPcdManipUpdateAdResultForCc(t_Handle                     h_Manip,
+                                          t_FmPcdCcNextEngineParams    *p_CcNextEngineParams,
+                                          t_Handle                     p_Ad,
+                                          t_Handle                     *p_AdNewPtr);
 void        FmPcdManipUpdateAdContLookupForCc(t_Handle h_Manip, t_Handle p_Ad, t_Handle *p_AdNew, uint32_t adTableOffset);
 void        FmPcdManipUpdateOwner(t_Handle h_Manip, bool add);
 t_Error     FmPcdManipCheckParamsWithCcNodeParams(t_Handle h_Manip, t_Handle h_FmPcdCcNode);
@@ -528,9 +534,9 @@ t_Handle    FmPcdManipApplSpecificBuild(void);
 bool        FmPcdManipIsCapwapApplSpecific(t_Handle h_Manip);
 #endif /* FM_CAPWAP_SUPPORT */
 #if (DPAA_VERSION >= 11)
-void *      FrmReplicGetSourceTableDescriptor(t_Handle h_ReplicGroup);
-void        FrmReplicUpdateGroupOwner(t_Handle h_ReplicGroup, bool add, bool fullUpdate, t_Handle h_FmPcdCcNode);
-void        FrmReplicUpdateAdContLookupForCc(t_Handle h_ReplicGroup, t_Handle p_Ad, t_Handle *h_AdNew);
+void *      FrmReplicGroupGetSourceTableDescriptor(t_Handle h_ReplicGroup);
+void        FrmReplicGroupUpdateOwner(t_Handle h_ReplicGroup, bool add);
+void        FrmReplicGroupUpdateAd(t_Handle h_ReplicGroup, void *p_Ad, t_Handle *h_AdNew);
 
 void        FmPcdCcGetAdTablesThatPointOnReplicGroup(t_Handle   h_Node,
                                                      t_Handle   h_ReplicGroup,
@@ -543,8 +549,19 @@ void DequeueNodeInfoFromRelevantLst(t_List *p_List, t_Handle h_Info, t_Handle h_
 t_CcNodeInformation* FindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info, t_Handle h_Spinlock);
 
 
-void NextStepAd(t_Handle p_Ad, t_FmPcdCcNextEngineParams *p_FmPcdCcNextEngineParams, t_FmPcd *p_FmPcd);
-void FillAdOfTypeResult(t_Handle p_Ad, t_FmPcd *p_FmPcd, t_FmPcdCcNextEngineParams *p_CcNextEngineParams);
+void NextStepAd(t_Handle                     h_Ad,
+                t_Handle                     h_StatsAd,
+                t_Handle                     h_StatsCounters,
+                t_Handle                     h_StatsFrameLengthRanges,
+                t_FmPcdCcNextEngineParams    *p_FmPcdCcNextEngineParams,
+                t_FmPcd                      *p_FmPcd);
+
+void FillAdOfTypeResult(t_Handle                    h_Ad,
+                        t_Handle                    h_StatsAd,
+                        t_Handle                    h_StatsCounters,
+                        t_Handle                    h_StatsFrameLengthRanges,
+                        t_FmPcd                     *p_FmPcd,
+                        t_FmPcdCcNextEngineParams   *p_CcNextEngineParams);
 void ReleaseLst(t_List *p_List);
 
 static __inline__ t_Handle FmPcdGetMuramHandle(t_Handle h_FmPcd)

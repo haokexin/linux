@@ -409,7 +409,9 @@ t_Error FM_MAC_SetStatistics (t_Handle h_FmMac, e_FmMacStatisticsLevel statistic
 
     if (p_FmMacControllerDriver->f_FM_MAC_SetStatistics)
         return p_FmMacControllerDriver->f_FM_MAC_SetStatistics(h_FmMac, statisticsLevel);
-
+#if (DPAA_VERSION >= 11)
+    return E_OK;
+#endif
     RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
 }
 

@@ -50,6 +50,10 @@
 #include "fm_plcr.h"
 
 
+/****************************************/
+/*       static functions               */
+/****************************************/
+
 static uint32_t PlcrProfileLock(t_Handle h_Profile)
 {
     ASSERT_COND(h_Profile);
@@ -105,8 +109,8 @@ static bool IsProfileShared(t_Handle h_FmPcd, uint16_t absoluteProfileId)
 
     SANITY_CHECK_RETURN_VALUE(p_FmPcd, E_INVALID_HANDLE, FALSE);
 
-    for(i=0;i<p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles;i++)
-        if(p_FmPcd->p_FmPcdPlcr->sharedProfilesIds[i] == absoluteProfileId)
+    for (i=0;i<p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles;i++)
+        if (p_FmPcd->p_FmPcdPlcr->sharedProfilesIds[i] == absoluteProfileId)
             return TRUE;
     return FALSE;
 }
@@ -121,10 +125,10 @@ static t_Error SetProfileNia(t_FmPcd *p_FmPcd, e_FmPcdEngine nextEngine, u_FmPcd
 
     switch (nextEngine)
     {
-        case e_FM_PCD_DONE :
+        case e_FM_PCD_DONE:
             switch (p_NextEngineParams->action)
             {
-                case e_FM_PCD_DROP_FRAME :
+                case e_FM_PCD_DROP_FRAME:
                     nia |= GET_NIA_BMI_AC_DISCARD_FRAME(p_FmPcd);
                     break;
                 case e_FM_PCD_ENQ_FRAME:
@@ -137,19 +141,19 @@ static t_Error SetProfileNia(t_FmPcd *p_FmPcd, e_FmPcdEngine nextEngine, u_FmPcd
         case e_FM_PCD_KG:
             physicalSchemeId = FmPcdKgGetSchemeId(p_NextEngineParams->h_DirectScheme);
             relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId);
-            if(relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
+            if (relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
                 RETURN_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
             if (!FmPcdKgIsSchemeValidSw(p_NextEngineParams->h_DirectScheme))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid direct scheme."));
-            if(!KgIsSchemeAlwaysDirect(p_FmPcd, relativeSchemeId))
+            if (!KgIsSchemeAlwaysDirect(p_FmPcd, relativeSchemeId))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Policer Profile may point only to a scheme that is always direct."));
             nia |= NIA_ENG_KG | NIA_KG_DIRECT | physicalSchemeId;
             break;
         case e_FM_PCD_PLCR:
             absoluteProfileId = ((t_FmPcdPlcrProfile *)p_NextEngineParams->h_Profile)->absoluteProfileId;
-            if(!IsProfileShared(p_FmPcd, absoluteProfileId))
+            if (!IsProfileShared(p_FmPcd, absoluteProfileId))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next profile must be a shared profile"));
-            if(!FmPcdPlcrIsProfileValid(p_FmPcd, absoluteProfileId))
+            if (!FmPcdPlcrIsProfileValid(p_FmPcd, absoluteProfileId))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid profile "));
             nia |= NIA_ENG_PLCR | NIA_PLCR_ABSOLUTE | absoluteProfileId;
             break;
@@ -250,7 +254,7 @@ static void CalcRates(t_Handle                              h_FmPcd,
      * For high rates it will never exceed the 32 bit reg (after the 16 shift), as it is
      * limited by the 10G physical port.
      */
-    if(temp != 0)
+    if (temp != 0)
     {
         /* In this case, the largest rate integer is non 0, if it does not occupy all (high) 16
          * bits of the PIR_EIR we can use this fact and enlarge it to occupy all 16 bits.
@@ -271,7 +275,7 @@ static void CalcRates(t_Handle                              h_FmPcd,
             temp = temp << 1;
             fppShift++;
         }
-        if(fppShift > 15)
+        if (fppShift > 15)
         {
             REPORT_ERROR(MAJOR, E_INVALID_SELECTION, ("timeStampPeriod to Information rate ratio is too small"));
             return;
@@ -280,7 +284,7 @@ static void CalcRates(t_Handle                              h_FmPcd,
     else
     {
         temp = (uint32_t)fraction; /* fraction will alyas be smaller than 2^16 */
-        if(!temp)
+        if (!temp)
             /* integer and fraction are 0, we set FP to its max val */
             fppShift = 31;
         else
@@ -328,712 +332,24 @@ static void WritePar(t_FmPcd *p_FmPcd, uint32_t par)
     while(GET_UINT32(p_FmPcdPlcrRegs->fmpl_par) & FM_PCD_PLCR_PAR_GO) ;
 }
 
-/*********************************************/
-/*............Policer Exception..............*/
-/*********************************************/
-static void EventsCB(t_Handle h_FmPcd)
+static t_Error BuildProfileRegs(t_FmPcd                     *p_FmPcd,
+                                t_FmPcdPlcrProfileParams    *p_ProfileParams,
+                                t_FmPcdPlcrProfileRegs      *p_PlcrRegs)
 {
-    t_FmPcd *p_FmPcd = (t_FmPcd *)h_FmPcd;
-    uint32_t event, mask, force;
-
-    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-    event = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_evr);
-    mask = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ier);
-
-    event &= mask;
-
-    /* clear the forced events */
-    force = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ifr);
-    if(force & event)
-        WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ifr, force & ~event);
-
-
-    WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_evr, event);
-
-    if(event & FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE)
-        p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_PRAM_SELF_INIT_COMPLETE);
-    if(event & FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE)
-        p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_ATOMIC_ACTION_COMPLETE);
-}
-
-/* ..... */
-
-static void ErrorExceptionsCB(t_Handle h_FmPcd)
-{
-    t_FmPcd             *p_FmPcd = (t_FmPcd *)h_FmPcd;
-    uint32_t            event, force, captureReg, mask;
-
-    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-    event = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eevr);
-    mask = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eier);
-
-    event &= mask;
-
-    /* clear the forced events */
-    force = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eifr);
-    if(force & event)
-        WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eifr, force & ~event);
-
-    WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eevr, event);
-
-    if (event & FM_PCD_PLCR_DOUBLE_ECC)
-        p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_DOUBLE_ECC);
-    if (event & FM_PCD_PLCR_INIT_ENTRY_ERROR)
-    {
-        captureReg = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_upcr);
-        /*ASSERT_COND(captureReg & PLCR_ERR_UNINIT_CAP);
-        p_UnInitCapt->profileNum = (uint8_t)(captureReg & PLCR_ERR_UNINIT_NUM_MASK);
-        p_UnInitCapt->portId = (uint8_t)((captureReg & PLCR_ERR_UNINIT_PID_MASK) >>PLCR_ERR_UNINIT_PID_SHIFT) ;
-        p_UnInitCapt->absolute = (bool)(captureReg & PLCR_ERR_UNINIT_ABSOLUTE_MASK);*/
-        p_FmPcd->f_FmPcdIndexedException(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_INIT_ENTRY_ERROR,(uint16_t)(captureReg & PLCR_ERR_UNINIT_NUM_MASK));
-        WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_upcr, PLCR_ERR_UNINIT_CAP);
-    }
-}
-
-
-
-t_Handle PlcrConfig(t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams)
-{
-    t_FmPcdPlcr *p_FmPcdPlcr;
-    /*uint8_t i=0;*/
-
-    UNUSED(p_FmPcd);
-    UNUSED(p_FmPcdParams);
-
-    p_FmPcdPlcr = (t_FmPcdPlcr *) XX_Malloc(sizeof(t_FmPcdPlcr));
-    if (!p_FmPcdPlcr)
-    {
-        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Policer structure allocation FAILED"));
-        return NULL;
-    }
-    memset(p_FmPcdPlcr, 0, sizeof(t_FmPcdPlcr));
-    if(p_FmPcd->guestId == NCSW_MASTER_ID)
-    {
-        p_FmPcdPlcr->p_FmPcdPlcrRegs  = (t_FmPcdPlcrRegs *)UINT_TO_PTR(FmGetPcdPlcrBaseAddr(p_FmPcdParams->h_Fm));
-        p_FmPcd->p_FmPcdDriverParam->plcrAutoRefresh    = DEFAULT_plcrAutoRefresh;
-        p_FmPcd->exceptions |= (DEFAULT_fmPcdPlcrExceptions | DEFAULT_fmPcdPlcrErrorExceptions);
-    }
-
-    p_FmPcdPlcr->numOfSharedProfiles = DEFAULT_numOfSharedPlcrProfiles;
-
-    return p_FmPcdPlcr;
-}
-
-t_Error PlcrInit(t_FmPcd *p_FmPcd)
-{
-    t_FmPcdDriverParam              *p_Param = p_FmPcd->p_FmPcdDriverParam;
-    t_FmPcdPlcr                     *p_FmPcdPlcr = p_FmPcd->p_FmPcdPlcr;
-    uint32_t                        tmpReg32 = 0;
-    t_Error                         err = E_OK;
-    t_FmPcdPlcrRegs                 *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
-
-    p_FmPcdPlcr->h_HwSpinlock = XX_InitSpinlock();
-    if (!p_FmPcdPlcr->h_HwSpinlock)
-        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("FM Policer HW spinlock"));
-
-    p_FmPcdPlcr->h_SwSpinlock = XX_InitSpinlock();
-    if (!p_FmPcdPlcr->h_SwSpinlock)
-        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("FM Policer SW spinlock"));
-
-    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
-        (p_FmPcdPlcr->numOfSharedProfiles))
-    {
-        t_FmPcdIpcMsg                   msg;
-        uint32_t                        replyLength;
-        t_FmPcdIpcReply                 reply;
-        int         i, j, index = 0;
-        uint32_t    walking1Mask = 0x80000000;
-        uint32_t    sharedProfilesMask[FM_PCD_PLCR_NUM_ENTRIES/32];
-
-        memset(sharedProfilesMask, 0, FM_PCD_PLCR_NUM_ENTRIES/32 * sizeof(uint32_t));
-        memset(&reply, 0, sizeof(reply));
-        memset(&msg, 0, sizeof(msg));
-        msg.msgId = FM_PCD_ALLOC_SHARED_PROFILES;
-        memcpy(msg.msgBody, (uint8_t *)&p_FmPcdPlcr->numOfSharedProfiles, sizeof(uint16_t));
-        replyLength = sizeof(uint32_t) + sizeof(sharedProfilesMask);
-        if ((err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                     (uint8_t*)&msg,
-                                     sizeof(msg.msgId)+ sizeof(p_FmPcdPlcr->numOfSharedProfiles),
-                                     (uint8_t*)&reply,
-                                     &replyLength,
-                                     NULL,
-                                     NULL)) != E_OK)
-            RETURN_ERROR(MAJOR, err,NO_MSG);
-        if (replyLength != (sizeof(uint32_t) + sizeof(sharedProfilesMask)))
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
-
-        memcpy(sharedProfilesMask, reply.replyBody, sizeof(sharedProfilesMask));
-        /* translate 8 regs of 32 bits masks into an array of up to 256 indexes. */
-        for(i = 0; i<FM_PCD_PLCR_NUM_ENTRIES/32 ; i++)
-        {
-            if(sharedProfilesMask[i])
-            {
-                for(j = 0 ; j<32 ; j++)
-                {
-                    if(sharedProfilesMask[i] & walking1Mask)
-                        p_FmPcd->p_FmPcdPlcr->sharedProfilesIds[index++] = (uint16_t)(i*32+j);
-                    walking1Mask >>= 1;
-                }
-                walking1Mask = 0x80000000;
-            }
-        }
-        return (t_Error)reply.error;
-    }
-
-    if(p_FmPcdPlcr->numOfSharedProfiles)
-    {
-        err = PlcrAllocSharedProfiles(p_FmPcd, p_FmPcdPlcr->numOfSharedProfiles, p_FmPcd->p_FmPcdPlcr->sharedProfilesIds);
-        if(err)
-            RETURN_ERROR(MAJOR, err,NO_MSG);
-    }
-
-    /**********************FMPL_GCR******************/
-    tmpReg32 = 0;
-    tmpReg32 |= FM_PCD_PLCR_GCR_STEN;
-    if(p_Param->plcrAutoRefresh)
-        tmpReg32 |= FM_PCD_PLCR_GCR_DAR;
-    tmpReg32 |= GET_NIA_BMI_AC_ENQ_FRAME(p_FmPcd);
-
-    WRITE_UINT32(p_Regs->fmpl_gcr, tmpReg32);
-    /**********************FMPL_GCR******************/
-
-    /**********************FMPL_EEVR******************/
-    WRITE_UINT32(p_Regs->fmpl_eevr, (FM_PCD_PLCR_DOUBLE_ECC | FM_PCD_PLCR_INIT_ENTRY_ERROR));
-    /**********************FMPL_EEVR******************/
-    /**********************FMPL_EIER******************/
-    tmpReg32 = 0;
-    if(p_FmPcd->exceptions & FM_PCD_EX_PLCR_DOUBLE_ECC)
-    {
-        FmEnableRamsEcc(p_FmPcd->h_Fm);
-        tmpReg32 |= FM_PCD_PLCR_DOUBLE_ECC;
-    }
-    if(p_FmPcd->exceptions & FM_PCD_EX_PLCR_INIT_ENTRY_ERROR)
-        tmpReg32 |= FM_PCD_PLCR_INIT_ENTRY_ERROR;
-    WRITE_UINT32(p_Regs->fmpl_eier, tmpReg32);
-    /**********************FMPL_EIER******************/
-
-    /**********************FMPL_EVR******************/
-    WRITE_UINT32(p_Regs->fmpl_evr, (FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE | FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE));
-    /**********************FMPL_EVR******************/
-    /**********************FMPL_IER******************/
-    tmpReg32 = 0;
-    if(p_FmPcd->exceptions & FM_PCD_EX_PLCR_PRAM_SELF_INIT_COMPLETE)
-        tmpReg32 |= FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE;
-    if(p_FmPcd->exceptions & FM_PCD_EX_PLCR_ATOMIC_ACTION_COMPLETE )
-        tmpReg32 |= FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE;
-    WRITE_UINT32(p_Regs->fmpl_ier, tmpReg32);
-    /**********************FMPL_IER******************/
-
-    /* register even if no interrupts enabled, to allow future enablement */
-    FmRegisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PLCR, 0, e_FM_INTR_TYPE_ERR, ErrorExceptionsCB, p_FmPcd);
-    FmRegisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PLCR, 0, e_FM_INTR_TYPE_NORMAL, EventsCB, p_FmPcd);
-
-    /* driver initializes one DFLT profile at the last entry*/
-    /**********************FMPL_DPMR******************/
-    tmpReg32 = 0;
-    WRITE_UINT32(p_Regs->fmpl_dpmr, tmpReg32);
-    p_FmPcd->p_FmPcdPlcr->profiles[0].profilesMng.allocated = TRUE;
-
-    return E_OK;
-}
-
-t_Error PlcrFree(t_FmPcd *p_FmPcd)
-{
-    t_Error                             err;
-
-    FmUnregisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PLCR, 0, e_FM_INTR_TYPE_ERR);
-    FmUnregisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PLCR, 0, e_FM_INTR_TYPE_NORMAL);
-
-    if(p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles)
-    {
-        if(p_FmPcd->guestId != NCSW_MASTER_ID)
-        {
-            t_FmPcdIpcSharedPlcrAllocParams     ipcSharedPlcrParams;
-            t_FmPcdIpcMsg                       msg;
-            int                                 i;
-
-            memset(ipcSharedPlcrParams.sharedProfilesMask, 0, sizeof(ipcSharedPlcrParams.sharedProfilesMask));
-            /* Free resources using IPC messaging */
-            ipcSharedPlcrParams.num = p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles;
-
-            /* translate the allocated profile id's to a 32bit * 8regs mask */
-            for(i = 0;i<p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles;i++)
-                ipcSharedPlcrParams.sharedProfilesMask[p_FmPcd->p_FmPcdPlcr->sharedProfilesIds[i]/32] |= (0x80000000 >> (p_FmPcd->p_FmPcdPlcr->sharedProfilesIds[i] % 32));
-
-            memset(&msg, 0, sizeof(msg));
-            msg.msgId = FM_PCD_FREE_SHARED_PROFILES;
-            memcpy(msg.msgBody, &ipcSharedPlcrParams, sizeof(ipcSharedPlcrParams));
-            if ((err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                         (uint8_t*)&msg,
-                                         sizeof(msg.msgId)+sizeof(ipcSharedPlcrParams),
-                                         NULL,
-                                         NULL,
-                                         NULL,
-                                         NULL)) != E_OK)
-                RETURN_ERROR(MAJOR, err,NO_MSG);
-        }
-       /* else
-            PlcrFreeSharedProfiles(p_FmPcd, p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles, p_FmPcd->p_FmPcdPlcr->sharedProfilesIds);*/
-    }
-    return E_OK;
-}
-
-void PlcrEnable(t_FmPcd *p_FmPcd)
-{
-    t_FmPcdPlcrRegs             *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
-
-    WRITE_UINT32(p_Regs->fmpl_gcr, GET_UINT32(p_Regs->fmpl_gcr) | FM_PCD_PLCR_GCR_EN);
-}
-
-void PlcrDisable(t_FmPcd *p_FmPcd)
-{
-    t_FmPcdPlcrRegs             *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
-
-    WRITE_UINT32(p_Regs->fmpl_gcr, GET_UINT32(p_Regs->fmpl_gcr) & ~FM_PCD_PLCR_GCR_EN);
-}
-
-t_Error FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx ,uint32_t requiredAction)
-{
-    t_FmPcd         *p_FmPcd           = (t_FmPcd *)h_FmPcd;
-    t_FmPcdPlcr     *p_FmPcdPlcr        = p_FmPcd->p_FmPcdPlcr;
-    t_FmPcdPlcrRegs *p_FmPcdPlcrRegs    = p_FmPcdPlcr->p_FmPcdPlcrRegs;
-    uint32_t        tmpReg32, intFlags;
-    t_Error         err;
-
-    /* Calling function locked all PCD modules, so no need to lock here */
-
-    if (profileIndx >= FM_PCD_PLCR_NUM_ENTRIES)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE,("Policer profile out of range"));
-
-    if(!FmPcdPlcrIsProfileValid(p_FmPcd, profileIndx))
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE,("Policer profile is not valid"));
-
-    /*intFlags = PlcrProfileLock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx]);*/
-
-    if (p_FmPcd->h_Hc)
-    {
-        err = FmHcPcdPlcrCcGetSetParams(p_FmPcd->h_Hc, profileIndx, requiredAction);
-
-        FmPcdPlcrUpatePointedOwner(p_FmPcd, profileIndx, TRUE);
-        FmPcdPlcrUpdateRequiredAction(p_FmPcd, profileIndx, requiredAction);
-
-        /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
-        return err;
-    }
-
-    /* lock the HW because once we read the registers we don't want them to be changed
-     * by another access. (We can copy to a tmp location and release the lock!) */
-
-    intFlags = PlcrHwLock(p_FmPcdPlcr);
-    WritePar(p_FmPcd, FmPcdPlcrBuildReadPlcrActionReg(profileIndx));
-
-    if(!p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].pointedOwners ||
-       !(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].requiredAction & requiredAction))
-    {
-        if(requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA)
-        {
-            if((p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnGreen!= e_FM_PCD_DONE) ||
-               (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnYellow!= e_FM_PCD_DONE) ||
-               (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnRed!= e_FM_PCD_DONE))
-            {
-                PlcrHwUnlock(p_FmPcdPlcr, intFlags);
-                /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
-                RETURN_ERROR (MAJOR, E_OK, ("In this case the next engine can be e_FM_PCD_DONE"));
-            }
-
-            if(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnGreen.action == e_FM_PCD_ENQ_FRAME)
-            {
-                tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pegnia);
-                if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
-                {
-                    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
-                    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
-                    RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
-                }
-                tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
-                WRITE_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pegnia, tmpReg32);
-                tmpReg32 = FmPcdPlcrBuildWritePlcrActionReg(profileIndx);
-                tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEGNIA;
-                WritePar(p_FmPcd, tmpReg32);
-            }
-
-            if(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnYellow.action == e_FM_PCD_ENQ_FRAME)
-            {
-                tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_peynia);
-                if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
-                {
-                    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
-                    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
-                    RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
-                }
-                tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
-                WRITE_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_peynia, tmpReg32);
-                tmpReg32 = FmPcdPlcrBuildWritePlcrActionReg(profileIndx);
-                tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEYNIA;
-                WritePar(p_FmPcd, tmpReg32);
-                PlcrHwUnlock(p_FmPcdPlcr, intFlags);
-            }
-
-            if(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnRed.action == e_FM_PCD_ENQ_FRAME)
-            {
-                tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pernia);
-                if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
-                {
-                    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
-                    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
-                    RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
-                }
-                tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
-                WRITE_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pernia, tmpReg32);
-                tmpReg32 = FmPcdPlcrBuildWritePlcrActionReg(profileIndx);
-                tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PERNIA;
-                WritePar(p_FmPcd, tmpReg32);
-
-            }
-        }
-    }
-    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
-
-    FmPcdPlcrUpatePointedOwner(p_FmPcd, profileIndx, TRUE);
-    FmPcdPlcrUpdateRequiredAction(p_FmPcd, profileIndx, requiredAction);
-
-    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
-
-    return E_OK;
-}
-
-void FmPcdPlcrUpatePointedOwner(t_Handle h_FmPcd, uint16_t absoluteProfileId, bool add)
-{
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-
-    /* this routine is protected by calling routine */
-
-    ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].valid);
-
-    if(add)
-        p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners++;
-    else
-        p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners--;
-}
-
-uint32_t FmPcdPlcrGetPointedOwners(t_Handle h_FmPcd, uint16_t absoluteProfileId)
-{
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-
-   ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].valid);
-
-    return p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners;
-}
-
-uint32_t FmPcdPlcrGetRequiredAction(t_Handle h_FmPcd, uint16_t absoluteProfileId)
-{
-    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-
-   ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].valid);
-
-    return p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].requiredAction;
-}
-
-t_Error  FmPcdPlcrAllocProfiles(t_Handle h_FmPcd, uint8_t hardwarePortId, uint16_t numOfProfiles)
-{
-    t_FmPcd                     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    t_FmPcdIpcPlcrAllocParams   ipcPlcrParams;
-    t_Error                     err = E_OK;
-    uint16_t                    base;
-    uint16_t                    swPortIndex = 0;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-
-    if(!numOfProfiles)
-        return E_OK;
-
-    memset(&ipcPlcrParams, 0, sizeof(ipcPlcrParams));
-
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
-    {
-        t_FmPcdIpcMsg               msg;
-        uint32_t                    replyLength;
-        t_FmPcdIpcReply             reply;
-
-        /* Allocate resources using IPC messaging */
-        memset(&reply, 0, sizeof(reply));
-        memset(&msg, 0, sizeof(msg));
-        ipcPlcrParams.num = numOfProfiles;
-        ipcPlcrParams.hardwarePortId = hardwarePortId;
-        msg.msgId = FM_PCD_ALLOC_PROFILES;
-        memcpy(msg.msgBody, &ipcPlcrParams, sizeof(ipcPlcrParams));
-        replyLength = sizeof(uint32_t) + sizeof(uint16_t);
-        if ((err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                     (uint8_t*)&msg,
-                                     sizeof(msg.msgId) +sizeof(ipcPlcrParams),
-                                     (uint8_t*)&reply,
-                                     &replyLength,
-                                     NULL,
-                                     NULL)) != E_OK)
-            RETURN_ERROR(MAJOR, err,NO_MSG);
-        if (replyLength != sizeof(uint32_t) + sizeof(uint16_t))
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
-        if((t_Error)reply.error != E_OK)
-            RETURN_ERROR(MAJOR, (t_Error)reply.error, ("PLCR profiles allocation failed"));
-
-        memcpy((uint8_t*)&base, reply.replyBody, sizeof(uint16_t));
-    }
-    else /* master */
-    {
-        err = PlcrAllocProfiles(p_FmPcd, hardwarePortId, numOfProfiles, &base);
-        if(err)
-            RETURN_ERROR(MAJOR, err,NO_MSG);
-    }
-    HW_PORT_ID_TO_SW_PORT_INDX(swPortIndex, hardwarePortId);
-
-    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles = numOfProfiles;
-    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].profilesBase = base;
-
-    return E_OK;
-}
-
-t_Error FmPcdPlcrFreeProfiles(t_Handle h_FmPcd, uint8_t hardwarePortId)
-{
-    t_FmPcd                     *p_FmPcd = (t_FmPcd*)h_FmPcd;
-    t_FmPcdIpcPlcrAllocParams   ipcPlcrParams;
-    t_Error                     err = E_OK;
-    uint16_t                    swPortIndex = 0;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-
-    HW_PORT_ID_TO_SW_PORT_INDX(swPortIndex, hardwarePortId);
-
-    if (p_FmPcd->guestId != NCSW_MASTER_ID)
-    {
-        t_FmPcdIpcMsg               msg;
-        uint32_t                    replyLength;
-        t_FmPcdIpcReply             reply;
-
-        /* Allocate resources using IPC messaging */
-        memset(&reply, 0, sizeof(reply));
-        memset(&msg, 0, sizeof(msg));
-        ipcPlcrParams.num = p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles;
-        ipcPlcrParams.hardwarePortId = hardwarePortId;
-        ipcPlcrParams.plcrProfilesBase = p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].profilesBase;
-        msg.msgId = FM_PCD_FREE_PROFILES;
-        memcpy(msg.msgBody, &ipcPlcrParams, sizeof(ipcPlcrParams));
-        replyLength = sizeof(uint32_t);
-        if ((err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                     (uint8_t*)&msg,
-                                     sizeof(msg.msgId) +sizeof(ipcPlcrParams),
-                                     (uint8_t*)&reply,
-                                     &replyLength,
-                                     NULL,
-                                     NULL)) != E_OK)
-            RETURN_ERROR(MAJOR, err,NO_MSG);
-        if (replyLength != sizeof(uint32_t))
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
-        if ((t_Error)reply.error != E_OK)
-            RETURN_ERROR(MINOR, (t_Error)reply.error, ("PLCR Free Profiles failed"));
-    }
-    else /* master */
-    {
-        err = PlcrFreeProfiles(p_FmPcd,
-                               hardwarePortId,
-                               p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles,
-                               p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].profilesBase);
-        if (err)
-            RETURN_ERROR(MAJOR, err,NO_MSG);
-    }
-    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles = 0;
-    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].profilesBase = 0;
-
-    return E_OK;
-}
-
-bool FmPcdPlcrIsProfileValid(t_Handle h_FmPcd, uint16_t absoluteProfileId)
-{
-    t_FmPcd         *p_FmPcd            = (t_FmPcd*)h_FmPcd;
-    t_FmPcdPlcr     *p_FmPcdPlcr        = p_FmPcd->p_FmPcdPlcr;
-
-    ASSERT_COND(absoluteProfileId < FM_PCD_PLCR_NUM_ENTRIES);
-
-    return p_FmPcdPlcr->profiles[absoluteProfileId].valid;
-}
-
-t_Error PlcrAllocProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint16_t numOfProfiles, uint16_t *p_Base)
-{
-    t_FmPcdPlcrRegs *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
-    uint32_t        profilesFound, log2Num, tmpReg32;
-    uint32_t        intFlags;
-    uint16_t        first, i;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-
-    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-    if(!numOfProfiles)
-        return E_OK;
-
-    ASSERT_COND(hardwarePortId);
-
-    if (numOfProfiles>FM_PCD_PLCR_NUM_ENTRIES)
-        RETURN_ERROR(MINOR, E_INVALID_VALUE, ("numProfiles is too big."));
-
-    if (!POWER_OF_2(numOfProfiles))
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numProfiles must be a power of 2."));
-
-
-    if(GET_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1]) & FM_PCD_PLCR_PMR_V)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("The requesting port has already an allocated profiles window."));
-
-    first = 0;
-    profilesFound = 0;
-    intFlags = PlcrSwLock(p_FmPcd->p_FmPcdPlcr);
-
-    for(i=0;i<FM_PCD_PLCR_NUM_ENTRIES;)
-    {
-        if(!p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated)
-        {
-            profilesFound++;
-            i++;
-            if(profilesFound == numOfProfiles)
-                break;
-        }
-        else
-        {
-            profilesFound = 0;
-            /* advance i to the next aligned address */
-            first = i = (uint8_t)(first + numOfProfiles);
-        }
-    }
-    if(profilesFound == numOfProfiles)
-    {
-        for(i = first; i<first + numOfProfiles; i++)
-        {
-            p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated = TRUE;
-            p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId = hardwarePortId;
-        }
-    }
-    else
-    {
-        PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
-        RETURN_ERROR(MINOR, E_FULL, ("No profiles."));
-    }
-    PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
-
-    /**********************FMPL_PMRx******************/
-    LOG2((uint64_t)numOfProfiles, log2Num);
-    tmpReg32 = first;
-    tmpReg32 |= log2Num << 16;
-    tmpReg32 |= FM_PCD_PLCR_PMR_V;
-    WRITE_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1], tmpReg32);
-
-    *p_Base = first;
-
-    return E_OK;
-}
-
-t_Error  PlcrAllocSharedProfiles(t_FmPcd *p_FmPcd, uint16_t numOfProfiles, uint16_t *profilesIds)
-{
-    uint32_t        profilesFound;
-    uint16_t        i, k=0;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-
-    /* This routine is issued only on master core of master partition -
-       either directly or through IPC, so no need for lock */
-
-    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-    if(!numOfProfiles)
-        return E_OK;
-
-    if (numOfProfiles>FM_PCD_PLCR_NUM_ENTRIES)
-        RETURN_ERROR(MINOR, E_INVALID_VALUE, ("numProfiles is too big."));
-
-    /* Find numOfProfiles free profiles (may be spread) */
-    profilesFound = 0;
-    for(i=0;i<FM_PCD_PLCR_NUM_ENTRIES; i++)
-    {
-        if(!p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated)
-        {
-            profilesFound++;
-            profilesIds[k] = i;
-            k++;
-            if(profilesFound == numOfProfiles)
-                break;
-        }
-    }
-    if(profilesFound != numOfProfiles)
-        RETURN_ERROR(MAJOR, E_INVALID_STATE,NO_MSG);
-
-    for(i = 0;i<k;i++)
-    {
-        p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.allocated = TRUE;
-        p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.ownerId = 0;
-    }
-
-    return E_OK;
-}
-
-t_Error  PlcrFreeProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint16_t numOfProfiles, uint16_t base)
-{
-    t_FmPcdPlcrRegs *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
-    uint16_t        i;
-    uint32_t        intFlags;
-
-    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE);
-
-    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-
-    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
-
-    WRITE_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1], 0);
-
-    intFlags = PlcrSwLock(p_FmPcd->p_FmPcdPlcr);
-    for(i = base; i<base+numOfProfiles;i++)
-    {
-        ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId == hardwarePortId);
-        ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated);
-
-        p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated = FALSE;
-        p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId = 0;
-    }
-    PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
-
-    return E_OK;
-}
-
-void  PlcrFreeSharedProfiles(t_FmPcd *p_FmPcd, uint16_t numOfProfiles, uint16_t *profilesIds)
-{
-    uint16_t        i;
-
-    SANITY_CHECK_RETURN(p_FmPcd, E_INVALID_HANDLE);
-
-    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
-
-    /* This routine is issued only on master core of master partition -
-       either directly or through IPC, so no need for lock */
-
-    for(i=0;i<numOfProfiles; i++)
-    {
-        ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.allocated);
-        p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.allocated = FALSE;
-    }
-}
-
-t_Error FmPcdPlcrBuildProfile(t_Handle h_FmPcd, t_FmPcdPlcrProfileParams *p_ProfileParams, t_FmPcdPlcrInterModuleProfileRegs *p_PlcrRegs)
-{
-
-    t_FmPcd                 *p_FmPcd = (t_FmPcd*)h_FmPcd;
     t_Error                 err = E_OK;
     uint32_t                pemode, gnia, ynia, rnia;
 
+    ASSERT_COND(p_FmPcd);
 
 /* Set G, Y, R Nia */
     err = SetProfileNia(p_FmPcd, p_ProfileParams->nextEngineOnGreen,  &(p_ProfileParams->paramsOnGreen), &gnia);
-    if(err)
+    if (err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
     err = SetProfileNia(p_FmPcd, p_ProfileParams->nextEngineOnYellow, &(p_ProfileParams->paramsOnYellow), &ynia);
-    if(err)
+    if (err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
     err = SetProfileNia(p_FmPcd, p_ProfileParams->nextEngineOnRed,    &(p_ProfileParams->paramsOnRed), &rnia);
-   if(err)
+   if (err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
 /* Mode fmpl_pemode */
@@ -1041,7 +357,7 @@ t_Error FmPcdPlcrBuildProfile(t_Handle h_FmPcd, t_FmPcdPlcrProfileParams *p_Prof
 
     switch (p_ProfileParams->algSelection)
     {
-        case    e_FM_PCD_PLCR_PASS_THROUGH:
+        case e_FM_PCD_PLCR_PASS_THROUGH:
             p_PlcrRegs->fmpl_pecir         = 0;
             p_PlcrRegs->fmpl_pecbs         = 0;
             p_PlcrRegs->fmpl_pepepir_eir   = 0;
@@ -1052,7 +368,7 @@ t_Error FmPcdPlcrBuildProfile(t_Handle h_FmPcd, t_FmPcdPlcrProfileParams *p_Prof
             pemode &= ~FM_PCD_PLCR_PEMODE_ALG_MASK;
             switch (p_ProfileParams->colorMode)
             {
-                case    e_FM_PCD_PLCR_COLOR_BLIND:
+                case e_FM_PCD_PLCR_COLOR_BLIND:
                     pemode |= FM_PCD_PLCR_PEMODE_CBLND;
                     switch (p_ProfileParams->color.dfltColor)
                     {
@@ -1073,7 +389,7 @@ t_Error FmPcdPlcrBuildProfile(t_Handle h_FmPcd, t_FmPcdPlcrProfileParams *p_Prof
                     }
 
                     break;
-                case    e_FM_PCD_PLCR_COLOR_AWARE:
+                case e_FM_PCD_PLCR_COLOR_AWARE:
                     pemode &= ~FM_PCD_PLCR_PEMODE_CBLND;
                     break;
                 default:
@@ -1081,23 +397,23 @@ t_Error FmPcdPlcrBuildProfile(t_Handle h_FmPcd, t_FmPcdPlcrProfileParams *p_Prof
             }
             break;
 
-        case    e_FM_PCD_PLCR_RFC_2698:
+        case e_FM_PCD_PLCR_RFC_2698:
             /* Select algorithm MODE[ALG] = "01" */
             pemode |= FM_PCD_PLCR_PEMODE_ALG_RFC2698;
             if (p_ProfileParams->nonPassthroughAlgParams.comittedInfoRate > p_ProfileParams->nonPassthroughAlgParams.peakOrAccessiveInfoRate)
                 RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("in RFC2698 Peak rate must be equal or larger than comittedInfoRate."));
             goto cont_rfc;
-        case    e_FM_PCD_PLCR_RFC_4115:
+        case e_FM_PCD_PLCR_RFC_4115:
             /* Select algorithm MODE[ALG] = "10" */
             pemode |= FM_PCD_PLCR_PEMODE_ALG_RFC4115;
 cont_rfc:
             /* Select Color-Blind / Color-Aware operation (MODE[CBLND]) */
             switch (p_ProfileParams->colorMode)
             {
-                case    e_FM_PCD_PLCR_COLOR_BLIND:
+                case e_FM_PCD_PLCR_COLOR_BLIND:
                     pemode |= FM_PCD_PLCR_PEMODE_CBLND;
                     break;
-                case    e_FM_PCD_PLCR_COLOR_AWARE:
+                case e_FM_PCD_PLCR_COLOR_AWARE:
                     pemode &= ~FM_PCD_PLCR_PEMODE_CBLND;
                     /*In color aware more select override color interpretation (MODE[OVCLR]) */
                     switch (p_ProfileParams->color.override)
@@ -1124,7 +440,7 @@ cont_rfc:
             /* Select Measurement Unit Mode to BYTE or PACKET (MODE[PKT]) */
             switch (p_ProfileParams->nonPassthroughAlgParams.rateMode)
             {
-                case e_FM_PCD_PLCR_BYTE_MODE :
+                case e_FM_PCD_PLCR_BYTE_MODE:
                     pemode &= ~FM_PCD_PLCR_PEMODE_PKT;
                         switch (p_ProfileParams->nonPassthroughAlgParams.byteModeParams.frameLengthSelection)
                         {
@@ -1155,7 +471,7 @@ cont_rfc:
                                 RETURN_ERROR(MAJOR, E_INVALID_SELECTION, NO_MSG);
                         }
                     break;
-                case e_FM_PCD_PLCR_PACKET_MODE :
+                case e_FM_PCD_PLCR_PACKET_MODE:
                     pemode |= FM_PCD_PLCR_PEMODE_PKT;
                     break;
                 default:
@@ -1169,7 +485,7 @@ cont_rfc:
             {
                 uint32_t cir=0, cbs=0, pir_eir=0, pbs_ebs=0, fpp=0;
 
-                CalcRates(h_FmPcd, &p_ProfileParams->nonPassthroughAlgParams, &cir, &cbs, &pir_eir, &pbs_ebs, &fpp);
+                CalcRates(p_FmPcd, &p_ProfileParams->nonPassthroughAlgParams, &cir, &cbs, &pir_eir, &pbs_ebs, &fpp);
 
                 /*  Set Committed Information Rate (CIR) */
                 p_PlcrRegs->fmpl_pecir = cir;
@@ -1210,6 +526,723 @@ cont_rfc:
     return E_OK;
 }
 
+static t_Error AllocProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint16_t numOfProfiles, uint16_t *p_Base)
+{
+    t_FmPcdPlcrRegs *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
+    uint32_t        profilesFound, log2Num, tmpReg32;
+    uint32_t        intFlags;
+    uint16_t        first, i;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+
+    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
+    if (!numOfProfiles)
+        return E_OK;
+
+    ASSERT_COND(hardwarePortId);
+
+    if (numOfProfiles>FM_PCD_PLCR_NUM_ENTRIES)
+        RETURN_ERROR(MINOR, E_INVALID_VALUE, ("numProfiles is too big."));
+
+    if (!POWER_OF_2(numOfProfiles))
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numProfiles must be a power of 2."));
+
+
+    if (GET_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1]) & FM_PCD_PLCR_PMR_V)
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("The requesting port has already an allocated profiles window."));
+
+    first = 0;
+    profilesFound = 0;
+    intFlags = PlcrSwLock(p_FmPcd->p_FmPcdPlcr);
+
+    for (i=0;i<FM_PCD_PLCR_NUM_ENTRIES;)
+    {
+        if (!p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated)
+        {
+            profilesFound++;
+            i++;
+            if (profilesFound == numOfProfiles)
+                break;
+        }
+        else
+        {
+            profilesFound = 0;
+            /* advance i to the next aligned address */
+            first = i = (uint8_t)(first + numOfProfiles);
+        }
+    }
+
+    if (profilesFound == numOfProfiles)
+    {
+        for (i=first; i<first + numOfProfiles; i++)
+        {
+            p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated = TRUE;
+            p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId = hardwarePortId;
+        }
+    }
+    else
+    {
+        PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
+        RETURN_ERROR(MINOR, E_FULL, ("No profiles."));
+    }
+    PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
+
+    /**********************FMPL_PMRx******************/
+    LOG2((uint64_t)numOfProfiles, log2Num);
+    tmpReg32 = first;
+    tmpReg32 |= log2Num << 16;
+    tmpReg32 |= FM_PCD_PLCR_PMR_V;
+    WRITE_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1], tmpReg32);
+
+    *p_Base = first;
+
+    return E_OK;
+}
+
+static t_Error FreeProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, uint16_t numOfProfiles, uint16_t base)
+{
+    t_FmPcdPlcrRegs *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
+    uint16_t        i;
+    uint32_t        intFlags;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE);
+
+    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
+
+    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
+
+    WRITE_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1], 0);
+
+    intFlags = PlcrSwLock(p_FmPcd->p_FmPcdPlcr);
+    for (i = base; i<base+numOfProfiles;i++)
+    {
+        ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId == hardwarePortId);
+        ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated);
+
+        p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated = FALSE;
+        p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId = 0;
+    }
+    PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
+
+    return E_OK;
+}
+
+static t_Error AllocSharedProfiles(t_FmPcd *p_FmPcd, uint16_t numOfProfiles, uint16_t *profilesIds)
+{
+    uint32_t        profilesFound;
+    uint16_t        i, k=0;
+    uint32_t        intFlags;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+
+    if (!numOfProfiles)
+        return E_OK;
+
+    if (numOfProfiles>FM_PCD_PLCR_NUM_ENTRIES)
+        RETURN_ERROR(MINOR, E_INVALID_VALUE, ("numProfiles is too big."));
+
+    intFlags = PlcrSwLock(p_FmPcd->p_FmPcdPlcr);
+    /* Find numOfProfiles free profiles (may be spread) */
+    profilesFound = 0;
+    for (i=0;i<FM_PCD_PLCR_NUM_ENTRIES; i++)
+        if (!p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.allocated)
+        {
+            profilesFound++;
+            profilesIds[k] = i;
+            k++;
+            if (profilesFound == numOfProfiles)
+                break;
+        }
+
+    if (profilesFound != numOfProfiles)
+    {
+        PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
+        RETURN_ERROR(MAJOR, E_INVALID_STATE,NO_MSG);
+    }
+
+    for (i = 0;i<k;i++)
+    {
+        p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.allocated = TRUE;
+        p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.ownerId = 0;
+    }
+    PlcrSwUnlock(p_FmPcd->p_FmPcdPlcr, intFlags);
+
+    return E_OK;
+}
+
+static void FreeSharedProfiles(t_FmPcd *p_FmPcd, uint16_t numOfProfiles, uint16_t *profilesIds)
+{
+    uint16_t        i;
+
+    SANITY_CHECK_RETURN(p_FmPcd, E_INVALID_HANDLE);
+
+    ASSERT_COND(numOfProfiles);
+
+    for (i=0; i<numOfProfiles; i++)
+    {
+        ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.allocated);
+        p_FmPcd->p_FmPcdPlcr->profiles[profilesIds[i]].profilesMng.allocated = FALSE;
+    }
+}
+
+/*********************************************/
+/*............Policer Exception..............*/
+/*********************************************/
+static void EventsCB(t_Handle h_FmPcd)
+{
+    t_FmPcd *p_FmPcd = (t_FmPcd *)h_FmPcd;
+    uint32_t event, mask, force;
+
+    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
+    event = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_evr);
+    mask = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ier);
+
+    event &= mask;
+
+    /* clear the forced events */
+    force = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ifr);
+    if (force & event)
+        WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ifr, force & ~event);
+
+
+    WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_evr, event);
+
+    if (event & FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE)
+        p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_PRAM_SELF_INIT_COMPLETE);
+    if (event & FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE)
+        p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_ATOMIC_ACTION_COMPLETE);
+}
+
+/* ..... */
+
+static void ErrorExceptionsCB(t_Handle h_FmPcd)
+{
+    t_FmPcd             *p_FmPcd = (t_FmPcd *)h_FmPcd;
+    uint32_t            event, force, captureReg, mask;
+
+    ASSERT_COND(FmIsMaster(p_FmPcd->h_Fm));
+    event = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eevr);
+    mask = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eier);
+
+    event &= mask;
+
+    /* clear the forced events */
+    force = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eifr);
+    if (force & event)
+        WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eifr, force & ~event);
+
+    WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eevr, event);
+
+    if (event & FM_PCD_PLCR_DOUBLE_ECC)
+        p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_DOUBLE_ECC);
+    if (event & FM_PCD_PLCR_INIT_ENTRY_ERROR)
+    {
+        captureReg = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_upcr);
+        /*ASSERT_COND(captureReg & PLCR_ERR_UNINIT_CAP);
+        p_UnInitCapt->profileNum = (uint8_t)(captureReg & PLCR_ERR_UNINIT_NUM_MASK);
+        p_UnInitCapt->portId = (uint8_t)((captureReg & PLCR_ERR_UNINIT_PID_MASK) >>PLCR_ERR_UNINIT_PID_SHIFT) ;
+        p_UnInitCapt->absolute = (bool)(captureReg & PLCR_ERR_UNINIT_ABSOLUTE_MASK);*/
+        p_FmPcd->f_FmPcdIndexedException(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_INIT_ENTRY_ERROR,(uint16_t)(captureReg & PLCR_ERR_UNINIT_NUM_MASK));
+        WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_upcr, PLCR_ERR_UNINIT_CAP);
+    }
+}
+
+
+/*****************************************************************************/
+/*              Inter-module API routines                                    */
+/*****************************************************************************/
+
+t_Handle PlcrConfig(t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams)
+{
+    t_FmPcdPlcr *p_FmPcdPlcr;
+    uint16_t    i=0;
+
+    UNUSED(p_FmPcd);
+    UNUSED(p_FmPcdParams);
+
+    p_FmPcdPlcr = (t_FmPcdPlcr *) XX_Malloc(sizeof(t_FmPcdPlcr));
+    if (!p_FmPcdPlcr)
+    {
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM Policer structure allocation FAILED"));
+        return NULL;
+    }
+    memset(p_FmPcdPlcr, 0, sizeof(t_FmPcdPlcr));
+    if (p_FmPcd->guestId == NCSW_MASTER_ID)
+    {
+        p_FmPcdPlcr->p_FmPcdPlcrRegs  = (t_FmPcdPlcrRegs *)UINT_TO_PTR(FmGetPcdPlcrBaseAddr(p_FmPcdParams->h_Fm));
+        p_FmPcd->p_FmPcdDriverParam->plcrAutoRefresh    = DEFAULT_plcrAutoRefresh;
+        p_FmPcd->exceptions |= (DEFAULT_fmPcdPlcrExceptions | DEFAULT_fmPcdPlcrErrorExceptions);
+    }
+
+    p_FmPcdPlcr->numOfSharedProfiles    = DEFAULT_numOfSharedPlcrProfiles;
+
+    p_FmPcdPlcr->partPlcrProfilesBase   = p_FmPcdParams->partPlcrProfilesBase;
+    p_FmPcdPlcr->partNumOfPlcrProfiles  = p_FmPcdParams->partNumOfPlcrProfiles;
+    /* for backward compatabilty. if no policer profile, will set automatically to the max */
+    if ((p_FmPcd->guestId == NCSW_MASTER_ID) &&
+        (p_FmPcdPlcr->partNumOfPlcrProfiles == 0))
+        p_FmPcdPlcr->partNumOfPlcrProfiles = FM_PCD_PLCR_NUM_ENTRIES;
+
+    for (i=0; i<FM_PCD_PLCR_NUM_ENTRIES; i++)
+        p_FmPcdPlcr->profiles[i].profilesMng.ownerId = (uint8_t)ILLEGAL_BASE;
+
+    return p_FmPcdPlcr;
+}
+
+t_Error PlcrInit(t_FmPcd *p_FmPcd)
+{
+    t_FmPcdDriverParam              *p_Param = p_FmPcd->p_FmPcdDriverParam;
+    t_FmPcdPlcr                     *p_FmPcdPlcr = p_FmPcd->p_FmPcdPlcr;
+    t_FmPcdPlcrRegs                 *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
+    t_Error                         err = E_OK;
+    uint32_t                        tmpReg32 = 0;
+
+    if ((p_FmPcdPlcr->partPlcrProfilesBase + p_FmPcdPlcr->partNumOfPlcrProfiles) > FM_PCD_PLCR_NUM_ENTRIES)
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("partPlcrProfilesBase+partNumOfPlcrProfiles out of range!!!"));
+
+    p_FmPcdPlcr->h_HwSpinlock = XX_InitSpinlock();
+    if (!p_FmPcdPlcr->h_HwSpinlock)
+        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("FM Policer HW spinlock"));
+
+    p_FmPcdPlcr->h_SwSpinlock = XX_InitSpinlock();
+    if (!p_FmPcdPlcr->h_SwSpinlock)
+        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("FM Policer SW spinlock"));
+
+    if (p_FmPcdPlcr->numOfSharedProfiles)
+    {
+        err = AllocSharedProfiles(p_FmPcd,
+                                  p_FmPcdPlcr->numOfSharedProfiles,
+                                  p_FmPcd->p_FmPcdPlcr->sharedProfilesIds);
+        if (err)
+            RETURN_ERROR(MAJOR, err,NO_MSG);
+    }
+
+    if (p_FmPcd->guestId != NCSW_MASTER_ID)
+        return E_OK;
+
+    /**********************FMPL_GCR******************/
+    tmpReg32 = 0;
+    tmpReg32 |= FM_PCD_PLCR_GCR_STEN;
+    if (p_Param->plcrAutoRefresh)
+        tmpReg32 |= FM_PCD_PLCR_GCR_DAR;
+    tmpReg32 |= GET_NIA_BMI_AC_ENQ_FRAME(p_FmPcd);
+
+    WRITE_UINT32(p_Regs->fmpl_gcr, tmpReg32);
+    /**********************FMPL_GCR******************/
+
+    /**********************FMPL_EEVR******************/
+    WRITE_UINT32(p_Regs->fmpl_eevr, (FM_PCD_PLCR_DOUBLE_ECC | FM_PCD_PLCR_INIT_ENTRY_ERROR));
+    /**********************FMPL_EEVR******************/
+    /**********************FMPL_EIER******************/
+    tmpReg32 = 0;
+    if (p_FmPcd->exceptions & FM_PCD_EX_PLCR_DOUBLE_ECC)
+    {
+        FmEnableRamsEcc(p_FmPcd->h_Fm);
+        tmpReg32 |= FM_PCD_PLCR_DOUBLE_ECC;
+    }
+    if (p_FmPcd->exceptions & FM_PCD_EX_PLCR_INIT_ENTRY_ERROR)
+        tmpReg32 |= FM_PCD_PLCR_INIT_ENTRY_ERROR;
+    WRITE_UINT32(p_Regs->fmpl_eier, tmpReg32);
+    /**********************FMPL_EIER******************/
+
+    /**********************FMPL_EVR******************/
+    WRITE_UINT32(p_Regs->fmpl_evr, (FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE | FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE));
+    /**********************FMPL_EVR******************/
+    /**********************FMPL_IER******************/
+    tmpReg32 = 0;
+    if (p_FmPcd->exceptions & FM_PCD_EX_PLCR_PRAM_SELF_INIT_COMPLETE)
+        tmpReg32 |= FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE;
+    if (p_FmPcd->exceptions & FM_PCD_EX_PLCR_ATOMIC_ACTION_COMPLETE)
+        tmpReg32 |= FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE;
+    WRITE_UINT32(p_Regs->fmpl_ier, tmpReg32);
+    /**********************FMPL_IER******************/
+
+    /* register even if no interrupts enabled, to allow future enablement */
+    FmRegisterIntr(p_FmPcd->h_Fm,
+                   e_FM_MOD_PLCR,
+                   0,
+                   e_FM_INTR_TYPE_ERR,
+                   ErrorExceptionsCB,
+                   p_FmPcd);
+    FmRegisterIntr(p_FmPcd->h_Fm,
+                   e_FM_MOD_PLCR,
+                   0,
+                   e_FM_INTR_TYPE_NORMAL,
+                   EventsCB,
+                   p_FmPcd);
+
+    /* driver initializes one DFLT profile at the last entry*/
+    /**********************FMPL_DPMR******************/
+    tmpReg32 = 0;
+    WRITE_UINT32(p_Regs->fmpl_dpmr, tmpReg32);
+    p_FmPcd->p_FmPcdPlcr->profiles[0].profilesMng.allocated = TRUE;
+
+    return E_OK;
+}
+
+t_Error PlcrFree(t_FmPcd *p_FmPcd)
+{
+    FmUnregisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PLCR, 0, e_FM_INTR_TYPE_ERR);
+    FmUnregisterIntr(p_FmPcd->h_Fm, e_FM_MOD_PLCR, 0, e_FM_INTR_TYPE_NORMAL);
+
+    if (p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles)
+        FreeSharedProfiles(p_FmPcd,
+                           p_FmPcd->p_FmPcdPlcr->numOfSharedProfiles,
+                           p_FmPcd->p_FmPcdPlcr->sharedProfilesIds);
+
+    if (p_FmPcd->p_FmPcdPlcr->h_SwSpinlock)
+        XX_FreeSpinlock(p_FmPcd->p_FmPcdPlcr->h_SwSpinlock);
+
+    if (p_FmPcd->p_FmPcdPlcr->h_HwSpinlock)
+        XX_FreeSpinlock(p_FmPcd->p_FmPcdPlcr->h_HwSpinlock);
+
+    return E_OK;
+}
+
+void PlcrEnable(t_FmPcd *p_FmPcd)
+{
+    t_FmPcdPlcrRegs             *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
+
+    WRITE_UINT32(p_Regs->fmpl_gcr, GET_UINT32(p_Regs->fmpl_gcr) | FM_PCD_PLCR_GCR_EN);
+}
+
+void PlcrDisable(t_FmPcd *p_FmPcd)
+{
+    t_FmPcdPlcrRegs             *p_Regs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
+
+    WRITE_UINT32(p_Regs->fmpl_gcr, GET_UINT32(p_Regs->fmpl_gcr) & ~FM_PCD_PLCR_GCR_EN);
+}
+
+uint8_t PlcrAllocProfilesForPartition(t_FmPcd *p_FmPcd, uint8_t base, uint16_t numOfProfiles, uint8_t guestId)
+{
+    uint8_t     profilesFound = 0;
+    int         i = 0;
+    uint32_t    intFlags;
+
+    ASSERT_COND(p_FmPcd);
+    ASSERT_COND(p_FmPcd->p_FmPcdPlcr);
+
+    if (!numOfProfiles)
+        return E_OK;
+
+    if ((numOfProfiles > FM_PCD_PLCR_NUM_ENTRIES) ||
+        (base + numOfProfiles > FM_PCD_PLCR_NUM_ENTRIES))
+        return (uint8_t)ILLEGAL_BASE;
+
+    if (p_FmPcd->h_IpcSession)
+    {
+        t_FmPcdIpcResourceAllocParams   ipcProfilesAllocParams;
+        t_FmPcdIpcMsg                   msg;
+        t_FmPcdIpcReply                 reply;
+        t_Error                         err;
+        uint32_t                        replyLength;
+
+        memset(&msg, 0, sizeof(msg));
+        memset(&reply, 0, sizeof(reply));
+        memset(&ipcProfilesAllocParams, 0, sizeof(t_FmPcdIpcResourceAllocParams));
+        ipcProfilesAllocParams.guestId         = p_FmPcd->guestId;
+        ipcProfilesAllocParams.num             = p_FmPcd->p_FmPcdPlcr->partNumOfPlcrProfiles;
+        ipcProfilesAllocParams.base            = p_FmPcd->p_FmPcdPlcr->partPlcrProfilesBase;
+        msg.msgId                              = FM_PCD_ALLOC_PROFILES;
+        memcpy(msg.msgBody, &ipcProfilesAllocParams, sizeof(t_FmPcdIpcResourceAllocParams));
+        replyLength = sizeof(uint32_t) + sizeof(uint8_t);
+        err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
+                                (uint8_t*)&msg,
+                                sizeof(msg.msgId) + sizeof(t_FmPcdIpcResourceAllocParams),
+                                (uint8_t*)&reply,
+                                &replyLength,
+                                NULL,
+                                NULL);
+        if ((err != E_OK) ||
+            (replyLength != (sizeof(uint32_t) + sizeof(uint8_t))))
+        {
+            REPORT_ERROR(MAJOR, err, NO_MSG);
+            return (uint8_t)ILLEGAL_BASE;
+        }
+        else
+            memcpy((uint8_t*)&p_FmPcd->p_FmPcdPlcr->partPlcrProfilesBase, reply.replyBody, sizeof(uint8_t));
+        if (p_FmPcd->p_FmPcdPlcr->partPlcrProfilesBase == ILLEGAL_BASE)
+        {
+            REPORT_ERROR(MAJOR, err, NO_MSG);
+            return (uint8_t)ILLEGAL_BASE;
+        }
+    }
+    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
+    {
+        DBG(WARNING, ("FM Guest mode, without IPC - can't validate VSP range!"));
+        return (uint8_t)ILLEGAL_BASE;
+    }
+
+    intFlags = XX_LockIntrSpinlock(p_FmPcd->h_Spinlock);
+    for (i = base; i < base + numOfProfiles; i++)
+        if (p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId == (uint8_t)ILLEGAL_BASE)
+            profilesFound++;
+        else
+            break;
+
+    if (profilesFound == numOfProfiles)
+        for (i = base; i<base + numOfProfiles; i++)
+            p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId = guestId;
+    else
+    {
+        XX_UnlockIntrSpinlock(p_FmPcd->h_Spinlock, intFlags);
+        return (uint8_t)ILLEGAL_BASE;
+    }
+    XX_UnlockIntrSpinlock(p_FmPcd->h_Spinlock, intFlags);
+
+    return base;
+}
+
+void PlcrFreeProfilesForPartition(t_FmPcd *p_FmPcd, uint8_t base, uint16_t numOfProfiles, uint8_t guestId)
+{
+    int     i = 0;
+
+    ASSERT_COND(p_FmPcd);
+    ASSERT_COND(p_FmPcd->p_FmPcdPlcr);
+
+    if (p_FmPcd->h_IpcSession)
+    {
+        t_FmPcdIpcResourceAllocParams   ipcProfilesAllocParams;
+        t_FmPcdIpcMsg                   msg;
+        t_FmPcdIpcReply                 reply;
+        t_Error                         err;
+        uint32_t                        replyLength;
+
+        memset(&msg, 0, sizeof(msg));
+        memset(&reply, 0, sizeof(reply));
+        memset(&ipcProfilesAllocParams, 0, sizeof(t_FmPcdIpcResourceAllocParams));
+        ipcProfilesAllocParams.guestId         = p_FmPcd->guestId;
+        ipcProfilesAllocParams.num             = p_FmPcd->p_FmPcdPlcr->partNumOfPlcrProfiles;
+        ipcProfilesAllocParams.base            = p_FmPcd->p_FmPcdPlcr->partPlcrProfilesBase;
+        msg.msgId                              = FM_PCD_FREE_PROFILES;
+        memcpy(msg.msgBody, &ipcProfilesAllocParams, sizeof(t_FmPcdIpcResourceAllocParams));
+        replyLength = sizeof(uint32_t) + sizeof(uint8_t);
+        err = XX_IpcSendMessage(p_FmPcd->h_IpcSession,
+                                (uint8_t*)&msg,
+                                sizeof(msg.msgId) + sizeof(t_FmPcdIpcResourceAllocParams),
+                                (uint8_t*)&reply,
+                                &replyLength,
+                                NULL,
+                                NULL);
+        if (err != E_OK)
+            REPORT_ERROR(MAJOR, err, NO_MSG);
+        return;
+    }
+    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
+    {
+        DBG(WARNING, ("FM Guest mode, without IPC - can't validate VSP range!"));
+        return;
+    }
+
+    for (i=base; i<numOfProfiles; i++)
+    {
+        if (p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId == guestId)
+           p_FmPcd->p_FmPcdPlcr->profiles[i].profilesMng.ownerId = (uint8_t)ILLEGAL_BASE;
+        else
+            DBG(WARNING, ("Request for freeing storage profile window which wasn't allocated to this partition"));
+    }
+}
+
+t_Error FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx ,uint32_t requiredAction)
+{
+    t_FmPcd         *p_FmPcd           = (t_FmPcd *)h_FmPcd;
+    t_FmPcdPlcr     *p_FmPcdPlcr        = p_FmPcd->p_FmPcdPlcr;
+    t_FmPcdPlcrRegs *p_FmPcdPlcrRegs    = p_FmPcdPlcr->p_FmPcdPlcrRegs;
+    uint32_t        tmpReg32, intFlags;
+    t_Error         err;
+
+    /* Calling function locked all PCD modules, so no need to lock here */
+
+    if (profileIndx >= FM_PCD_PLCR_NUM_ENTRIES)
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE,("Policer profile out of range"));
+
+    if (!FmPcdPlcrIsProfileValid(p_FmPcd, profileIndx))
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE,("Policer profile is not valid"));
+
+    /*intFlags = PlcrProfileLock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx]);*/
+
+    if (p_FmPcd->h_Hc)
+    {
+        err = FmHcPcdPlcrCcGetSetParams(p_FmPcd->h_Hc, profileIndx, requiredAction);
+
+        FmPcdPlcrUpatePointedOwner(p_FmPcd, profileIndx, TRUE);
+        FmPcdPlcrUpdateRequiredAction(p_FmPcd, profileIndx, requiredAction);
+
+        /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
+        return err;
+    }
+
+    /* lock the HW because once we read the registers we don't want them to be changed
+     * by another access. (We can copy to a tmp location and release the lock!) */
+
+    intFlags = PlcrHwLock(p_FmPcdPlcr);
+    WritePar(p_FmPcd, FmPcdPlcrBuildReadPlcrActionReg(profileIndx));
+
+    if (!p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].pointedOwners ||
+       !(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].requiredAction & requiredAction))
+    {
+        if (requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA)
+        {
+            if ((p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnGreen!= e_FM_PCD_DONE) ||
+               (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnYellow!= e_FM_PCD_DONE) ||
+               (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnRed!= e_FM_PCD_DONE))
+            {
+                PlcrHwUnlock(p_FmPcdPlcr, intFlags);
+                /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
+                RETURN_ERROR (MAJOR, E_OK, ("In this case the next engine can be e_FM_PCD_DONE"));
+            }
+
+            if (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnGreen.action == e_FM_PCD_ENQ_FRAME)
+            {
+                tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pegnia);
+                if (!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
+                {
+                    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
+                    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
+                    RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
+                }
+                tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
+                WRITE_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pegnia, tmpReg32);
+                tmpReg32 = FmPcdPlcrBuildWritePlcrActionReg(profileIndx);
+                tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEGNIA;
+                WritePar(p_FmPcd, tmpReg32);
+            }
+
+            if (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnYellow.action == e_FM_PCD_ENQ_FRAME)
+            {
+                tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_peynia);
+                if (!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
+                {
+                    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
+                    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
+                    RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
+                }
+                tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
+                WRITE_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_peynia, tmpReg32);
+                tmpReg32 = FmPcdPlcrBuildWritePlcrActionReg(profileIndx);
+                tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEYNIA;
+                WritePar(p_FmPcd, tmpReg32);
+                PlcrHwUnlock(p_FmPcdPlcr, intFlags);
+            }
+
+            if (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnRed.action == e_FM_PCD_ENQ_FRAME)
+            {
+                tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pernia);
+                if (!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
+                {
+                    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
+                    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
+                    RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine of this policer profile has to be assigned to FM_PCD_DONE"));
+                }
+                tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
+                WRITE_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pernia, tmpReg32);
+                tmpReg32 = FmPcdPlcrBuildWritePlcrActionReg(profileIndx);
+                tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PERNIA;
+                WritePar(p_FmPcd, tmpReg32);
+
+            }
+        }
+    }
+    PlcrHwUnlock(p_FmPcdPlcr, intFlags);
+
+    FmPcdPlcrUpatePointedOwner(p_FmPcd, profileIndx, TRUE);
+    FmPcdPlcrUpdateRequiredAction(p_FmPcd, profileIndx, requiredAction);
+
+    /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
+
+    return E_OK;
+}
+
+void FmPcdPlcrUpatePointedOwner(t_Handle h_FmPcd, uint16_t absoluteProfileId, bool add)
+{
+    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+
+    /* this routine is protected by calling routine */
+
+    ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].valid);
+
+    if (add)
+        p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners++;
+    else
+        p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners--;
+}
+
+uint32_t FmPcdPlcrGetPointedOwners(t_Handle h_FmPcd, uint16_t absoluteProfileId)
+{
+    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+
+   ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].valid);
+
+    return p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners;
+}
+
+uint32_t FmPcdPlcrGetRequiredAction(t_Handle h_FmPcd, uint16_t absoluteProfileId)
+{
+    t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+
+   ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].valid);
+
+    return p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].requiredAction;
+}
+
+t_Error FmPcdPlcrAllocProfiles(t_Handle h_FmPcd, uint8_t hardwarePortId, uint16_t numOfProfiles)
+{
+    t_FmPcd                     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_Error                     err = E_OK;
+    uint16_t                    base;
+    uint16_t                    swPortIndex = 0;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+
+    if (!numOfProfiles)
+        return E_OK;
+
+    err = AllocProfiles(p_FmPcd, hardwarePortId, numOfProfiles, &base);
+    if (err)
+        RETURN_ERROR(MAJOR, err,NO_MSG);
+
+    HW_PORT_ID_TO_SW_PORT_INDX(swPortIndex, hardwarePortId);
+
+    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles = numOfProfiles;
+    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].profilesBase = base;
+
+    return E_OK;
+}
+
+t_Error FmPcdPlcrFreeProfiles(t_Handle h_FmPcd, uint8_t hardwarePortId)
+{
+    t_FmPcd                     *p_FmPcd = (t_FmPcd*)h_FmPcd;
+    t_Error                     err = E_OK;
+    uint16_t                    swPortIndex = 0;
+
+    SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
+
+    HW_PORT_ID_TO_SW_PORT_INDX(swPortIndex, hardwarePortId);
+
+    err = FreeProfiles(p_FmPcd,
+                       hardwarePortId,
+                       p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles,
+                       p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].profilesBase);
+    if (err)
+        RETURN_ERROR(MAJOR, err,NO_MSG);
+
+    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles = 0;
+    p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].profilesBase = 0;
+
+    return E_OK;
+}
+
+bool FmPcdPlcrIsProfileValid(t_Handle h_FmPcd, uint16_t absoluteProfileId)
+{
+    t_FmPcd         *p_FmPcd            = (t_FmPcd*)h_FmPcd;
+    t_FmPcdPlcr     *p_FmPcdPlcr        = p_FmPcd->p_FmPcdPlcr;
+
+    ASSERT_COND(absoluteProfileId < FM_PCD_PLCR_NUM_ENTRIES);
+
+    return p_FmPcdPlcr->profiles[absoluteProfileId].valid;
+}
+
 void  FmPcdPlcrValidateProfileSw(t_Handle h_FmPcd, uint16_t absoluteProfileId)
 {
     t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
@@ -1239,11 +1272,11 @@ uint16_t     FmPcdPlcrProfileGetAbsoluteId(t_Handle h_Profile)
         return ((t_FmPcdPlcrProfile*)h_Profile)->absoluteProfileId;
 }
 
-t_Error     FmPcdPlcrGetAbsoluteIdByProfileParams(t_Handle                      h_FmPcd,
-                                          e_FmPcdProfileTypeSelection   profileType,
-                                          t_Handle                      h_FmPort,
-                                          uint16_t                      relativeProfile,
-                                          uint16_t                      *p_AbsoluteId)
+t_Error FmPcdPlcrGetAbsoluteIdByProfileParams(t_Handle                      h_FmPcd,
+                                              e_FmPcdProfileTypeSelection   profileType,
+                                              t_Handle                      h_FmPort,
+                                              uint16_t                      relativeProfile,
+                                              uint16_t                      *p_AbsoluteId)
 {
     t_FmPcd         *p_FmPcd            = (t_FmPcd*)h_FmPcd;
     t_FmPcdPlcr     *p_FmPcdPlcr        = p_FmPcd->p_FmPcdPlcr;
@@ -1253,26 +1286,27 @@ t_Error     FmPcdPlcrGetAbsoluteIdByProfileParams(t_Handle                      
     {
         case e_FM_PCD_PLCR_PORT_PRIVATE:
             /* get port PCD id from port handle */
-            for(i=0;i<FM_MAX_NUM_OF_PORTS;i++)
-                if(p_FmPcd->p_FmPcdPlcr->portsMapping[i].h_FmPort == h_FmPort)
+            for (i=0;i<FM_MAX_NUM_OF_PORTS;i++)
+                if (p_FmPcd->p_FmPcdPlcr->portsMapping[i].h_FmPort == h_FmPort)
                     break;
             if (i ==  FM_MAX_NUM_OF_PORTS)
                 RETURN_ERROR(MAJOR, E_INVALID_STATE , ("Invalid port handle."));
 
-            if(!p_FmPcd->p_FmPcdPlcr->portsMapping[i].numOfProfiles)
+            if (!p_FmPcd->p_FmPcdPlcr->portsMapping[i].numOfProfiles)
                 RETURN_ERROR(MAJOR, E_INVALID_SELECTION , ("Port has no allocated profiles"));
-            if(relativeProfile >= p_FmPcd->p_FmPcdPlcr->portsMapping[i].numOfProfiles)
+            if (relativeProfile >= p_FmPcd->p_FmPcdPlcr->portsMapping[i].numOfProfiles)
                 RETURN_ERROR(MAJOR, E_INVALID_SELECTION , ("Profile id is out of range"));
             *p_AbsoluteId = (uint16_t)(p_FmPcd->p_FmPcdPlcr->portsMapping[i].profilesBase + relativeProfile);
             break;
         case e_FM_PCD_PLCR_SHARED:
-            if(relativeProfile >= p_FmPcdPlcr->numOfSharedProfiles)
+            if (relativeProfile >= p_FmPcdPlcr->numOfSharedProfiles)
                 RETURN_ERROR(MAJOR, E_INVALID_SELECTION , ("Profile id is out of range"));
             *p_AbsoluteId = (uint16_t)(p_FmPcdPlcr->sharedProfilesIds[relativeProfile]);
             break;
         default:
             RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Invalid policer profile type"));
     }
+
     return E_OK;
 }
 
@@ -1312,7 +1346,7 @@ uint32_t FmPcdPlcrBuildWritePlcrActionRegs(uint16_t absoluteProfileId)
 bool    FmPcdPlcrHwProfileIsValid(uint32_t profileModeReg)
 {
 
-    if(profileModeReg & FM_PCD_PLCR_PEMODE_PI)
+    if (profileModeReg & FM_PCD_PLCR_PEMODE_PI)
         return TRUE;
     else
         return FALSE;
@@ -1351,11 +1385,11 @@ uint32_t FmPcdPlcrBuildNiaProfileReg(bool green, bool yellow, bool red)
 
     uint32_t tmpReg32 = 0;
 
-    if(green)
+    if (green)
         tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEGNIA;
-    if(yellow)
+    if (yellow)
         tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEYNIA;
-    if(red)
+    if (red)
         tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PERNIA;
 
     return tmpReg32;
@@ -1371,6 +1405,7 @@ void FmPcdPlcrUpdateRequiredAction(t_Handle h_FmPcd, uint16_t absoluteProfileId,
 
     p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].requiredAction |= requiredAction;
 }
+/*********************** End of inter-module routines ************************/
 
 
 /**************************************************/
@@ -1385,7 +1420,7 @@ t_Error FM_PCD_ConfigPlcrAutoRefreshMode(t_Handle h_FmPcd, bool enable)
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPlcr, E_INVALID_HANDLE);
 
-    if(!FmIsMaster(p_FmPcd->h_Fm))
+    if (!FmIsMaster(p_FmPcd->h_Fm))
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_ConfigPlcrAutoRefreshMode - guest mode!"));
 
     p_FmPcd->p_FmPcdDriverParam->plcrAutoRefresh = enable;
@@ -1415,11 +1450,11 @@ t_Error FM_PCD_SetPlcrStatistics(t_Handle h_FmPcd, bool enable)
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPlcr, E_INVALID_HANDLE);
 
-    if(!FmIsMaster(p_FmPcd->h_Fm))
+    if (!FmIsMaster(p_FmPcd->h_Fm))
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_SetPlcrStatistics - guest mode!"));
 
     tmpReg32 =  GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_gcr);
-    if(enable)
+    if (enable)
         tmpReg32 |= FM_PCD_PLCR_GCR_STEN;
     else
         tmpReg32 &= ~FM_PCD_PLCR_GCR_STEN;
@@ -1440,28 +1475,11 @@ t_Error FM_PCD_PlcrDumpRegs(t_Handle h_FmPcd)
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPlcr, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
-
-    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
-        !p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs &&
-        p_FmPcd->h_IpcSession)
-    {
-        t_FmPcdIpcMsg       msg;
-        memset(&msg, 0, sizeof(msg));
-        msg.msgId = FM_PCD_PLCR_DUMP_REGS;
-        return XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                 (uint8_t*)&msg,
-                                 sizeof(msg.msgId),
-                                 NULL,
-                                 NULL,
-                                 NULL,
-                                 NULL);
-    }
-    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
-        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in \"guest-mode\" without neither IPC nor mapped register!"));
+    SANITY_CHECK_RETURN_ERROR(((p_FmPcd->guestId == NCSW_MASTER_ID) ||
+                               p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs), E_INVALID_OPERATION);
 
     DUMP_SUBTITLE(("\n"));
-    DUMP_TITLE(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs, ("FmPcdPlcrRegs Regs"));
+    DUMP_TITLE(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs, ("FM-PCD policer regs"));
 
     DUMP_VAR(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs,fmpl_gcr);
     DUMP_VAR(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs,fmpl_gsr);
@@ -1482,7 +1500,6 @@ t_Error FM_PCD_PlcrDumpRegs(t_Handle h_FmPcd)
     DUMP_VAR(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs,fmpl_upcr);
     DUMP_VAR(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs,fmpl_dpmr);
 
-
     DUMP_TITLE(&p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_pmr, ("fmpl_pmr"));
     DUMP_SUBSTRUCT_ARRAY(i, 63)
     {
@@ -1498,7 +1515,7 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
 {
     t_FmPcd                             *p_FmPcd;
     t_FmPcdPlcrRegs                     *p_FmPcdPlcrRegs;
-    t_FmPcdPlcrInterModuleProfileRegs   plcrProfileReg;
+    t_FmPcdPlcrProfileRegs              plcrProfileReg;
     uint32_t                            intFlags;
     uint16_t                            absoluteProfileId;
     t_Error                             err = E_OK;
@@ -1507,7 +1524,7 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
 
     SANITY_CHECK_RETURN_VALUE(h_FmPcd, E_INVALID_HANDLE, NULL);
 
-    if(p_ProfileParams->modify)
+    if (p_ProfileParams->modify)
     {
         p_Profile = (t_FmPcdPlcrProfile *)p_ProfileParams->id.h_Profile;
         p_FmPcd = p_Profile->h_FmPcd;
@@ -1535,13 +1552,12 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
 
         SANITY_CHECK_RETURN_VALUE(p_FmPcd->p_FmPcdPlcr, E_INVALID_HANDLE, NULL);
 
-
         /* SMP: needs to be protected only if another core now changes the windows */
         err = FmPcdPlcrGetAbsoluteIdByProfileParams(h_FmPcd,
-                                             p_ProfileParams->id.newParams.profileType,
-                                             p_ProfileParams->id.newParams.h_FmPort,
-                                             p_ProfileParams->id.newParams.relativeProfileId,
-                                             &absoluteProfileId);
+                                                    p_ProfileParams->id.newParams.profileType,
+                                                    p_ProfileParams->id.newParams.h_FmPort,
+                                                    p_ProfileParams->id.newParams.relativeProfileId,
+                                                    &absoluteProfileId);
 
          if (absoluteProfileId >= FM_PCD_PLCR_NUM_ENTRIES)
          {
@@ -1549,7 +1565,7 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
              return NULL;
          }
 
-         if(FmPcdPlcrIsProfileValid(p_FmPcd, absoluteProfileId))
+         if (FmPcdPlcrIsProfileValid(p_FmPcd, absoluteProfileId))
          {
              REPORT_ERROR(MAJOR, E_ALREADY_EXISTS, ("Policer Profile is already used"));
              return NULL;
@@ -1576,12 +1592,29 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
     p_Profile->nextEngineOnRed = p_ProfileParams->nextEngineOnRed;
     memcpy(&p_Profile->paramsOnRed, &(p_ProfileParams->paramsOnRed), sizeof(u_FmPcdPlcrNextEngineParams));
 
+    memset(&plcrProfileReg, 0, sizeof(t_FmPcdPlcrProfileRegs));
+
+    /* build the policer profile registers */
+    err =  BuildProfileRegs(h_FmPcd, p_ProfileParams, &plcrProfileReg);
+    if (err)
+    {
+        REPORT_ERROR(MAJOR, err, NO_MSG);
+        if (p_ProfileParams->modify)
+            /* unlock */
+            PlcrProfileFlagUnlock(p_Profile);
+        if (!p_ProfileParams->modify &&
+                p_Profile->p_Lock)
+            /* release allocated Profile lock */
+            FmPcdReleaseLock(p_FmPcd, p_Profile->p_Lock);
+        return NULL;
+    }
+
     if (p_FmPcd->h_Hc)
     {
-         err = FmHcPcdPlcrSetProfile(p_FmPcd->h_Hc, (t_Handle)p_Profile, p_ProfileParams);
-         if(p_ProfileParams->modify)
+         err = FmHcPcdPlcrSetProfile(p_FmPcd->h_Hc, (t_Handle)p_Profile, &plcrProfileReg);
+         if (p_ProfileParams->modify)
              PlcrProfileFlagUnlock(p_Profile);
-         if(err)
+         if (err)
          {
              /* release the allocated scheme lock */
              if (!p_ProfileParams->modify &&
@@ -1597,23 +1630,6 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
 
     p_FmPcdPlcrRegs = p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs;
     SANITY_CHECK_RETURN_VALUE(p_FmPcdPlcrRegs, E_INVALID_HANDLE, NULL);
-
-    memset(&plcrProfileReg, 0, sizeof(t_FmPcdPlcrInterModuleProfileRegs));
-
-    /* build the policer profile registers */
-    err =  FmPcdPlcrBuildProfile(h_FmPcd, p_ProfileParams, &plcrProfileReg);
-    if(err)
-    {
-        REPORT_ERROR(MAJOR, err, NO_MSG);
-        if(p_ProfileParams->modify)
-            /* unlock */
-            PlcrProfileFlagUnlock(p_Profile);
-        if (!p_ProfileParams->modify &&
-                p_Profile->p_Lock)
-            /* release allocated Profile lock */
-            FmPcdReleaseLock(p_FmPcd, p_Profile->p_Lock);
-        return NULL;
-    }
 
     intFlags = PlcrHwLock(p_FmPcd->p_FmPcdPlcr);
     WRITE_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pemode , plcrProfileReg.fmpl_pemode);
@@ -1801,7 +1817,7 @@ t_Error FM_PCD_PlcrProfileDumpRegs(t_Handle h_Profile)
 {
     t_FmPcdPlcrProfile                  *p_Profile = (t_FmPcdPlcrProfile*)h_Profile;
     t_FmPcd                             *p_FmPcd;
-    t_FmPcdPlcrInterModuleProfileRegs   *p_ProfilesRegs;
+    t_FmPcdPlcrProfileRegs              *p_ProfilesRegs;
     uint16_t                            profileIndx;
     uint32_t                            tmpReg, intFlags;
 
@@ -1812,30 +1828,10 @@ t_Error FM_PCD_PlcrProfileDumpRegs(t_Handle h_Profile)
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPlcr, E_INVALID_HANDLE);
 
-    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
-        !p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs &&
-        p_FmPcd->h_IpcSession)
-    {
-        t_FmPcdIpcMsg                       msg;
-        memset(&msg, 0, sizeof(msg));
-        msg.msgId = FM_PCD_PLCR_PROFILE_DUMP_REGS;
-        memcpy(msg.msgBody, (uint8_t *)&h_Profile, sizeof(uint32_t));
-        return XX_IpcSendMessage(p_FmPcd->h_IpcSession,
-                                 (uint8_t*)&msg,
-                                 sizeof(msg.msgId) + sizeof(uint32_t),
-                                 NULL,
-                                 NULL,
-                                 NULL,
-                                 NULL);
-    }
-    else if (p_FmPcd->guestId != NCSW_MASTER_ID)
-        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in \"guest-mode\" without neither IPC nor mapped register!"));
-
     profileIndx = p_Profile->absoluteProfileId;
 
     DUMP_SUBTITLE(("\n"));
-    DUMP_TITLE(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs, ("FmPcdPlcrRegs Profile Regs"));
+    DUMP_TITLE(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs, ("FM-PCD policer-profile regs"));
 
     p_ProfilesRegs = &p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->profileRegs;
 

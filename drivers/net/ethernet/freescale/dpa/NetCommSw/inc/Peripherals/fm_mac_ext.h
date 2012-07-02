@@ -336,6 +336,9 @@ t_Error FM_MAC_ConfigWan(t_Handle h_FmMac, bool enable);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_MAC_Config() and before FM_MAC_Init().
+                Not supported on 10G-MAC (i.e. CRC & PAD are added automatically
+                by HW); on mEMAC, this routine supports only PAD (i.e. CRC is
+                added automatically by HW).
 *//***************************************************************************/
 t_Error FM_MAC_ConfigPadAndCrc(t_Handle h_FmMac, bool enable);
 

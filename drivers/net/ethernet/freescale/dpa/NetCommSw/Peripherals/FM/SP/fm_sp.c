@@ -173,6 +173,17 @@ static void fm_vsp_fill_entry(fm_pcd_storage_profile_regs   *regs,
     WRITE_UINT32(sp_regs->fm_sp_spliodn, liodn_offset);
 }
 
+static t_Error CheckParamsGeneratedInternally(t_FmVspEntry *p_FmVspEntry)
+{
+    t_Error err = E_OK;
+
+    if ((err = FmSpCheckIntContextParams(&p_FmVspEntry->intContext))!= E_OK)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
+    if ((err =  FmSpCheckBufMargins(&p_FmVspEntry->bufMargins)) != E_OK)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
+    return err;
+
+}
 static t_Error CheckParams(t_FmVspEntry *p_FmVspEntry)
 {
     t_Error err = E_OK;
@@ -187,13 +198,13 @@ static t_Error CheckParams(t_FmVspEntry *p_FmVspEntry)
 
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
-    if ((err = FmSpCheckIntContextParams(&p_FmVspEntry->intContext))!= E_OK)
-        RETURN_ERROR(MAJOR, err, NO_MSG);
-    if ((err =  FmSpCheckBufMargins(&p_FmVspEntry->bufMargins)) != E_OK)
-        RETURN_ERROR(MAJOR, err, NO_MSG);
-
     if (p_FmVspEntry->p_FmVspEntryDriverParams->liodnOffset & ~FM_LIODN_OFFSET_MASK)
          RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("liodnOffset is larger than %d", FM_LIODN_OFFSET_MASK+1));
+
+    err = FmVSPCheckRelativeProfile(p_FmVspEntry->h_Fm,
+                                    p_FmVspEntry->portType,
+                                    p_FmVspEntry->portId,
+                                    p_FmVspEntry->relativeProfileId);
 
     return err;
 }
@@ -579,6 +590,8 @@ t_Error FM_VSP_Init(t_Handle h_FmVsp)
     SANITY_CHECK_RETURN_ERROR(p_FmVspEntry, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmVspEntry->p_FmVspEntryDriverParams,E_INVALID_HANDLE);
 
+    CHECK_INIT_PARAMETERS(p_FmVspEntry, CheckParams);
+
     memset(&orderedArray, 0, sizeof(uint8_t) * FM_PORT_MAX_NUM_OF_EXT_POOLS);
     memset(&sizesArray, 0, sizeof(uint16_t) * BM_MAX_NUM_OF_POOLS);
 
@@ -590,20 +603,11 @@ t_Error FM_VSP_Init(t_Handle h_FmVsp)
     if (err != E_OK)
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
-    err = CheckParams(p_FmVspEntry);
+
+    err = CheckParamsGeneratedInternally(p_FmVspEntry);
     if (err != E_OK)
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
-    err = FmVSPGetAbsoluteProfileId(p_FmVspEntry->h_Fm,
-                                   p_FmVspEntry->portType,
-                                   p_FmVspEntry->portId,
-                                   p_FmVspEntry->relativeProfileId,
-                                   &absoluteProfileId);
-    if (err != E_OK)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("storage profileId too Big "));
-
-    if (absoluteProfileId >= FM_VSP_MAX_NUM_OF_ENTRIES)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("storage profileId too Big "));
 
     p_FmVspEntry->p_FmSpRegsBase =
         (fm_pcd_storage_profile_regs *)FmGetVSPBaseAddr(p_FmVspEntry->h_Fm);
@@ -639,6 +643,13 @@ t_Error FM_VSP_Init(t_Handle h_FmVsp)
 
     fm_vsp_params.buf_margins                = &p_FmVspEntry->bufMargins;
     fm_vsp_params.int_context                = &p_FmVspEntry->intContext;
+
+   /*no check on err - it was checked earlier*/
+    FmVSPGetAbsoluteProfileId(p_FmVspEntry->h_Fm,
+                                   p_FmVspEntry->portType,
+                                   p_FmVspEntry->portId,
+                                   p_FmVspEntry->relativeProfileId,
+                                   &absoluteProfileId);
 
     /*set all registers related to VSP*/
     fm_vsp_fill_entry(p_FmVspEntry->p_FmSpRegsBase, absoluteProfileId, &fm_vsp_params);

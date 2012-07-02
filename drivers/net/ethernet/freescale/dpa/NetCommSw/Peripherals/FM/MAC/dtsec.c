@@ -472,7 +472,7 @@ static t_Error GracefulStop(t_Dtsec *p_Dtsec, e_CommMode mode)
 
     ASSERT_COND(p_Dtsec);
 
-    p_MemMap= (t_DtsecMemMap*)(p_Dtsec->p_MemMap);
+    p_MemMap = (t_DtsecMemMap*)(p_Dtsec->p_MemMap);
     ASSERT_COND(p_MemMap);
 
     /* Assert the graceful transmit stop bit */
@@ -481,22 +481,23 @@ static t_Error GracefulStop(t_Dtsec *p_Dtsec, e_CommMode mode)
                      GET_UINT32(p_MemMap->rctrl) | RCTRL_GRS);
 
 #ifdef FM_GRS_ERRATA_DTSEC_A002
-    if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
+    if (p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
         XX_UDelay(100);
 #endif /* FM_GRS_ERRATA_DTSEC_A002 */
 
     if (mode & e_COMM_MODE_TX)
 #if defined(FM_GTS_ERRATA_DTSEC_A004) || defined(FM_GTS_AFTER_MAC_ABORTED_FRAME_ERRATA_DTSEC_A0012)
-    if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
+    if (p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
         DBG(INFO, ("GTS not supported due to DTSEC_A004 errata."));
 #else  /* not defined(FM_GTS_ERRATA_DTSEC_A004) ||... */
 #ifdef FM_GTS_UNDERRUN_ERRATA_DTSEC_A0014
-    if((p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2) || (p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 5))
+    if ((p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2) ||
+        (p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 5))
         DBG(INFO, ("GTS not supported due to DTSEC_A0014 errata."));
 #else  /* FM_GTS_UNDERRUN_ERRATA_DTSEC_A0014 */
         WRITE_UINT32(p_MemMap->tctrl,
                      GET_UINT32(p_MemMap->tctrl) | TCTRL_GTS);
-#endif
+#endif /* FM_GTS_UNDERRUN_ERRATA_DTSEC_A0014 */
 #endif /* defined(FM_GTS_ERRATA_DTSEC_A004) ||...  */
 
     return E_OK;
@@ -716,8 +717,8 @@ static t_Error DtsecSetTxPauseFrames(t_Handle h_Dtsec,
                                      uint16_t threshTime)
 {
     t_Dtsec         *p_Dtsec = (t_Dtsec *)h_Dtsec;
-    uint32_t        ptv = 0;
     t_DtsecMemMap   *p_MemMap;
+    uint32_t        ptv = 0;
 
 UNUSED(priority);UNUSED(threshTime);
 
@@ -730,7 +731,7 @@ UNUSED(priority);UNUSED(threshTime);
     if (pauseTime)
     {
 #ifdef FM_BAD_TX_TS_IN_B_2_B_ERRATA_DTSEC_A003
-        if(p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
+        if (p_Dtsec->fmMacControllerDriver.fmRevInfo.majorRev == 2)
             if (pauseTime <= 320)
                 RETURN_ERROR(MINOR, E_INVALID_VALUE,
                              ("This pause-time value of %d is illegal due to errata dTSEC-A003!"
@@ -1462,6 +1463,9 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
     SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_DtsecDriverParam, E_INVALID_STATE);
     SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_MemMap, E_INVALID_STATE);
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec->fmMacControllerDriver.h_Fm, E_INVALID_HANDLE);
+
+    FM_GetRevision(p_Dtsec->fmMacControllerDriver.h_Fm, &p_Dtsec->fmMacControllerDriver.fmRevInfo);
 
     CHECK_INIT_PARAMETERS(p_Dtsec, CheckInitParameters);
 
@@ -1704,8 +1708,6 @@ static t_Error DtsecInit(t_Handle h_Dtsec)
                            e_FM_MAC_1G,
                            p_Dtsec->fmMacControllerDriver.macId,
                            p_DtsecDriverParam->maxFrameLength);
-    if (err)
-        RETURN_ERROR(MAJOR, err, NO_MSG);
     /***************MAXFRM************************/
 
     /***************CAM1************************/

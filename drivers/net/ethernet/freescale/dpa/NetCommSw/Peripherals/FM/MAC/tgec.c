@@ -55,20 +55,21 @@
 
 static t_Error CheckInitParameters(t_Tgec    *p_Tgec)
 {
-    if(ENET_SPEED_FROM_MODE(p_Tgec->enetMode) < e_ENET_SPEED_10000)
+    if (ENET_SPEED_FROM_MODE(p_Tgec->enetMode) < e_ENET_SPEED_10000)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Ethernet 10G MAC driver only support 10G speed"));
 #if (FM_MAX_NUM_OF_10G_MACS > 0)
-    if(p_Tgec->macId >= FM_MAX_NUM_OF_10G_MACS)
+    if (p_Tgec->macId >= FM_MAX_NUM_OF_10G_MACS)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("macId of 10G can not be greater than 0"));
-#endif
-    if(p_Tgec->addr == 0)
+#endif /* (FM_MAX_NUM_OF_10G_MACS > 0) */
+
+    if (p_Tgec->addr == 0)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Ethernet 10G MAC Must have a valid MAC Address"));
-    if(!p_Tgec->f_Exception)
+    if (!p_Tgec->f_Exception)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("uninitialized f_Exception"));
-    if(!p_Tgec->f_Event)
+    if (!p_Tgec->f_Event)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("uninitialized f_Event"));
 #ifdef FM_LEN_CHECK_ERRATA_FMAN_SW002
-    if(!p_Tgec->p_TgecDriverParam->noLengthCheckEnable)
+    if (!p_Tgec->p_TgecDriverParam->noLengthCheckEnable)
        RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("LengthCheck!"));
 #endif /* FM_LEN_CHECK_ERRATA_FMAN_SW002 */
 
@@ -622,31 +623,29 @@ static t_Error TgecModifyMacAddress (t_Handle h_Tgec, t_EnetAddr *p_EnetAddr)
 
 static t_Error TgecResetCounters (t_Handle h_Tgec)
 {
-    t_Tgec *p_Tgec = (t_Tgec *)h_Tgec;
-    t_TgecMemMap       *p_MemMap ;
-    uint32_t            tmpReg32, cmdConfCtrl;
-    int i;
+    t_Tgec          *p_Tgec = (t_Tgec *)h_Tgec;
+    t_TgecMemMap    *p_MemMap;
+    uint32_t        tmpReg32;
+    int             i = 1000;
 
     SANITY_CHECK_RETURN_ERROR(p_Tgec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Tgec->p_MemMap, E_INVALID_HANDLE);
 
-    p_MemMap= (t_TgecMemMap*)(p_Tgec->p_MemMap);
+    p_MemMap = (t_TgecMemMap*)(p_Tgec->p_MemMap);
 
-    cmdConfCtrl = GET_UINT32(p_MemMap->command_config);
+    tmpReg32 = GET_UINT32(p_MemMap->command_config);
 
-    cmdConfCtrl |= CMD_CFG_STAT_CLR;
+    tmpReg32 |= CMD_CFG_STAT_CLR;
 
-    WRITE_UINT32(p_MemMap->command_config, cmdConfCtrl);
+    WRITE_UINT32(p_MemMap->command_config, tmpReg32);
 
-    for (i=0; i<1000; i++)
-    {
-        tmpReg32 = GET_UINT32(p_MemMap->command_config);
-        if (!(tmpReg32 & CMD_CFG_STAT_CLR))
-            break;
-    }
+    while (--i && (GET_UINT32(p_MemMap->command_config) & CMD_CFG_STAT_CLR));
 
-    cmdConfCtrl &= ~CMD_CFG_STAT_CLR;
-    WRITE_UINT32(p_MemMap->command_config, cmdConfCtrl);
+    if (!i)
+        return E_TIMEOUT;
+
+    tmpReg32 &= ~CMD_CFG_STAT_CLR;
+    WRITE_UINT32(p_MemMap->command_config, tmpReg32);
 
     return E_OK;
 }
@@ -972,8 +971,11 @@ static t_Error TgecInit(t_Handle h_Tgec)
     SANITY_CHECK_RETURN_ERROR(p_Tgec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Tgec->p_TgecDriverParam, E_INVALID_STATE);
     SANITY_CHECK_RETURN_ERROR(p_Tgec->p_MemMap, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_Tgec->fmMacControllerDriver.h_Fm, E_INVALID_HANDLE);
 
     FM_GetRevision(p_Tgec->fmMacControllerDriver.h_Fm, &p_Tgec->fmMacControllerDriver.fmRevInfo);
+
+    CHECK_INIT_PARAMETERS(p_Tgec, CheckInitParameters);
 
 #ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
     if (p_Tgec->fmMacControllerDriver.fmRevInfo.majorRev <= 6 /*fixed for rev3 */)
@@ -986,8 +988,6 @@ static t_Error TgecInit(t_Handle h_Tgec)
         }
     }
 #endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
-
-    CHECK_INIT_PARAMETERS(p_Tgec, CheckInitParameters);
 
     p_TgecDriverParam = p_Tgec->p_TgecDriverParam;
     p_MemMap = p_Tgec->p_MemMap;
@@ -1046,11 +1046,6 @@ static t_Error TgecInit(t_Handle h_Tgec)
                            e_FM_MAC_10G,
                            p_Tgec->fmMacControllerDriver.macId,
                            p_TgecDriverParam->maxFrameLength);
-    if (err)
-    {
-        FreeInitResources(p_Tgec);
-        RETURN_ERROR(MAJOR, err, NO_MSG);
-    }
 
     /* Pause Time */
     WRITE_UINT32(p_MemMap->pause_quant, p_TgecDriverParam->pauseTime);

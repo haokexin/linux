@@ -1,5 +1,5 @@
-/*
- * Copyright 2008-2012 Freescale Semiconductor Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -65,7 +65,7 @@
                 and the policer global and common registers.
                 In addition, the FM PCD SW module will initialize all required
                 key generator schemes, coarse classification flows, and policer
-                profiles. When FM module is configured to work with one of these
+                profiles. When an FM module is configured to work with one of these
                 entities, it will register to it using the FM PORT API. The PCD
                 module will manage the PCD resources - i.e. resource management of
                 KeyGen schemes, etc.
@@ -231,17 +231,21 @@ typedef struct t_FmPcdParams {
     bool                        kgSupport;              /**< TRUE if KeyGen will be used for any of the FM ports. */
     bool                        plcrSupport;            /**< TRUE if Policer will be used for any of the FM ports. */
     t_Handle                    h_Fm;                   /**< A handle to the FM module. */
-    uint8_t                     numOfSchemes;           /**< Number of schemes dedicated to this partition. */
+    uint8_t                     numOfSchemes;           /**< Number of schemes dedicated to this partition.
+                                                             this parameter is relevant if 'kgSupport'=TRUE. */
     bool                        useHostCommand;         /**< Optional for single partition, Mandatory for Multi partition */
-    t_FmPcdHcParams             hc;                     /**< Host Command parameters, relevant only if useHostCommand = TRUE. */
-
-    t_FmPcdExceptionCallback    *f_Exception;           /**< Callback routine for general PCD exceptions;
-                                                             Relevant for master (or single) partition only. */
-    t_FmPcdIdExceptionCallback  *f_ExceptionId;         /**< Callback routine for specific KeyGen scheme or Policer profile
-                                                             exceptions; Relevant for master (or single) partition only. */
+    t_FmPcdHcParams             hc;                     /**< Host Command parameters, relevant only if 'useHostCommand' = TRUE. */
+    t_FmPcdExceptionCallback    *f_Exception;           /**< Callback routine for general PCD exceptions. */
+    t_FmPcdIdExceptionCallback  *f_ExceptionId;         /**< Callback routine for specific KeyGen scheme or
+                                                             Policer profile exceptions. */
     t_Handle                    h_App;                  /**< A handle to an application layer object; This handle will
-                                                             be passed by the driver upon calling the above callbacks;
-                                                             Relevant for master (or single) partition only. */
+                                                             be passed by the driver upon calling the above callbacks. */
+    uint8_t                     partPlcrProfilesBase;   /**< The first policer-profile-id dedicated to this partition.
+                                                             this parameter is relevant if 'plcrSupport'=TRUE.
+                                                             NOTE: this parameter relevant only when working with multiple partitions. */
+    uint16_t                    partNumOfPlcrProfiles;  /**< Number of policer-profiles dedicated to this partition.
+                                                             this parameter is relevant if 'plcrSupport'=TRUE.
+                                                             NOTE: this parameter relevant only when working with multiple partitions. */
 } t_FmPcdParams;
 
 
@@ -293,24 +297,20 @@ t_Error FM_PCD_Free(t_Handle h_FmPcd);
  @Function      FM_PCD_ConfigException
 
  @Description   Calling this routine changes the internal driver data base
-                from its default selection of exceptions enabling.
-                [4].
+                from its default selection of all exceptions being enabled.
 
  @Param[in]     h_FmPcd         FM PCD module descriptor.
  @Param[in]     exception       The exception to be selected.
  @Param[in]     enable          TRUE to enable interrupt, FALSE to mask it.
 
  @Return        E_OK on success; Error code otherwise.
-
- @Cautions      This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ConfigException(t_Handle h_FmPcd, e_FmPcdExceptions exception, bool enable);
 
 /**************************************************************************//**
  @Function      FM_PCD_ConfigHcFramesDataMemory
 
- @Description   Configures memory partition for FMan-Controller Host-Command
+ @Description   Configures memory-partition-id for FMan-Controller Host-Command
                 frames. Calling this routine changes the internal driver data
                 base from its default configuration [0].
 
@@ -321,8 +321,6 @@ t_Error FM_PCD_ConfigException(t_Handle h_FmPcd, e_FmPcdExceptions exception, bo
 
  @Cautions      This routine may be called only if 'useHostCommand' was TRUE
                 when FM_PCD_Config() routine was called.
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ConfigHcFramesDataMemory(t_Handle h_FmPcd, uint8_t memId);
 
@@ -346,15 +344,12 @@ t_Error FM_PCD_ConfigPlcrNumOfSharedProfiles(t_Handle h_FmPcd, uint16_t numOfSha
 
  @Description   Calling this routine changes the internal driver data base
                 from its default selection of exceptions enablement.
-                By default auto-refresh is enabled.
+                By default auto-refresh is [disabled].
 
  @Param[in]     h_FmPcd         FM PCD module descriptor.
  @Param[in]     enable          TRUE to enable, FALSE to disable
 
  @Return        E_OK on success; Error code otherwise.
-
- @Cautions      This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ConfigPlcrAutoRefreshMode(t_Handle h_FmPcd, bool enable);
 
@@ -370,9 +365,6 @@ t_Error FM_PCD_ConfigPlcrAutoRefreshMode(t_Handle h_FmPcd, bool enable);
                                 maximum parsing time.
 
  @Return        E_OK on success; Error code otherwise.
-
- @Cautions      This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd,uint16_t value);
 
@@ -391,7 +383,6 @@ t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd,uint16_t value);
                 It also allows on-the-fly initialization, modification and removal
                 of PCD modules such as KeyGen schemes, coarse classification nodes
                 and Policer profiles.
-
 
                 In order to explain the programming model of the PCD driver interface
                 a few terms should be explained, and will be used below.
@@ -517,8 +508,6 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter);
 @Return         E_OK on success; Error code otherwise.
 
 @Cautions       Allowed only following FM_PCD_Init() and when PCD is disabled.
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs);
 
@@ -533,8 +522,6 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs);
 @Return        E_OK on success; Error code otherwise.
 
 @Cautions      Allowed only following FM_PCD_Init() and when PCD is disabled.
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_SetAdvancedOffloadSupport(t_Handle h_FmPcd);
 
@@ -553,8 +540,6 @@ t_Error FM_PCD_SetAdvancedOffloadSupport(t_Handle h_FmPcd);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init() and when PCD is disabled.
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_KgSetDfltValue(t_Handle h_FmPcd, uint8_t valueId, uint32_t value);
 
@@ -570,8 +555,6 @@ t_Error FM_PCD_KgSetDfltValue(t_Handle h_FmPcd, uint8_t valueId, uint32_t value)
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init() and when PCD is disabled.
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_KgSetAdditionalDataAfterParsing(t_Handle h_FmPcd, uint8_t payloadOffset);
 
@@ -587,8 +570,6 @@ t_Error FM_PCD_KgSetAdditionalDataAfterParsing(t_Handle h_FmPcd, uint8_t payload
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_SetException(t_Handle h_FmPcd, e_FmPcdExceptions exception, bool enable);
 
@@ -604,8 +585,6 @@ t_Error FM_PCD_SetException(t_Handle h_FmPcd, e_FmPcdExceptions exception, bool 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ModifyCounter(t_Handle h_FmPcd, e_FmPcdCounters counter, uint32_t value);
 
@@ -621,8 +600,6 @@ t_Error FM_PCD_ModifyCounter(t_Handle h_FmPcd, e_FmPcdCounters counter, uint32_t
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_SetPlcrStatistics(t_Handle h_FmPcd, bool enable);
 
@@ -637,8 +614,6 @@ t_Error FM_PCD_SetPlcrStatistics(t_Handle h_FmPcd, bool enable);
  @Return        None
 
  @Cautions      Allowed only following FM_PCD_Init().
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable);
 
@@ -654,8 +629,6 @@ void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable);
                 or is not able to create interrupt.
 
  @Cautions      Allowed only following FM_PCD_Init().
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ForceIntr (t_Handle h_FmPcd, e_FmPcdExceptions exception);
 
@@ -756,7 +729,7 @@ t_Error     FM_PCD_HcDumpRegs(t_Handle h_FmPcd);
 
 
 /**************************************************************************//**
- KeyGen         FM_PCD_Runtime_build_grp FM PCD Runtime Building Unit
+ @Group         FM_PCD_Runtime_build_grp FM PCD Runtime Building Unit
 
  @Description   Frame Manager PCD Runtime Building API
 
@@ -775,10 +748,11 @@ t_Error     FM_PCD_HcDumpRegs(t_Handle h_FmPcd);
 #define FM_PCD_MAX_NUM_OF_CC_GROUPS             16
 #define FM_PCD_MAX_NUM_OF_CC_UNITS              4
 #define FM_PCD_MAX_NUM_OF_KEYS                  256
+#define FM_PCD_MAX_NUM_OF_FLOWS                 (4*KILOBYTE)
 #define FM_PCD_MAX_SIZE_OF_KEY                  56
 #define FM_PCD_MAX_NUM_OF_CC_ENTRIES_IN_GRP     16
 #define FM_PCD_LAST_KEY_INDEX                   0xffff
-
+#define FM_PCD_MANIP_DSCP_VALUES                64
 /* @} */
 
 /**************************************************************************//**
@@ -817,6 +791,44 @@ typedef protocolOpt_t   ipv6ProtocolOpt_t;      /**< IPv6 protocol options. */
                                                      environment with IPV6 header and IPV6_FRAG_1 option  */
 /* @} */
 
+#define FM_PCD_MANIP_MAX_HDR_SIZE               256
+#define FM_PCD_MANIP_DSCP_TO_VLAN_TRANS         64
+/**************************************************************************//**
+ @Collection    A set of definitions to support Header Manipulation selection.
+*//***************************************************************************/
+typedef uint32_t                hdrManipFlags_t;            /**< A general type to define a HMan update command flags. */
+
+typedef hdrManipFlags_t         ipv4HdrManipUpdateFlags_t;  /**< IPv4 protocol HMan update command flags. */
+
+#define HDR_MANIP_IPV4_TOS      0x80000000                  /**< update TOS with the given value ('tos' field
+                                                                 of t_FmPcdManipHdrFieldUpdateIpv4) */
+#define HDR_MANIP_IPV4_ID       0x40000000                  /**< update IP ID with the given value ('id' field
+                                                                 of t_FmPcdManipHdrFieldUpdateIpv4) */
+#define HDR_MANIP_IPV4_TTL      0x20000000                  /**< Decrement TTL by 1 */
+#define HDR_MANIP_IPV4_SRC      0x10000000                  /**< update IP source address with the given value
+                                                                 ('src' field of t_FmPcdManipHdrFieldUpdateIpv4) */
+#define HDR_MANIP_IPV4_DST      0x08000000                  /**< update IP destination address with the given value
+                                                                 ('dst' field of t_FmPcdManipHdrFieldUpdateIpv4) */
+
+typedef hdrManipFlags_t         ipv6HdrManipUpdateFlags_t;  /**< IPv6 protocol HMan update command flags. */
+
+#define HDR_MANIP_IPV6_TC       0x80000000                  /**< update Traffic Class address with the given value
+                                                                 ('trafficClass' field of t_FmPcdManipHdrFieldUpdateIpv6) */
+#define HDR_MANIP_IPV6_HL       0x40000000                  /**< Decrement Hop Limit by 1 */
+#define HDR_MANIP_IPV6_SRC      0x20000000                  /**< update IP source address with the given value
+                                                                 ('src' field of t_FmPcdManipHdrFieldUpdateIpv6) */
+#define HDR_MANIP_IPV6_DST      0x10000000                  /**< update IP destination address with the given value
+                                                                 ('dst' field of t_FmPcdManipHdrFieldUpdateIpv6) */
+
+typedef hdrManipFlags_t         tcpUdpHdrManipUpdateFlags_t;/**< TCP/UDP protocol HMan update command flags. */
+
+#define HDR_MANIP_TCP_UDP_SRC       0x80000000              /**< update TCP/UDP source address with the given value
+                                                                 ('src' field of t_FmPcdManipHdrFieldUpdateTcpUdp) */
+#define HDR_MANIP_TCP_UDP_DST       0x40000000              /**< update TCP/UDP destination address with the given value
+                                                                 ('dst' field of t_FmPcdManipHdrFieldUpdateTcpUdp) */
+#define HDR_MANIP_TCP_UDP_CHECKSUM  0x20000000             /**< update TCP/UDP checksum */
+
+/* @} */
 
 /**************************************************************************//**
  @Description   A type used for returning the order of the key extraction.
@@ -957,10 +969,10 @@ typedef enum e_FmPcdPlcrColorMode {
  @Description   Enumeration type for selecting a policer profile color
 *//***************************************************************************/
 typedef enum e_FmPcdPlcrColor {
-    e_FM_PCD_PLCR_GREEN,                /**< Green color code */
-    e_FM_PCD_PLCR_YELLOW,               /**< Yellow color code */
-    e_FM_PCD_PLCR_RED,                  /**< Red color code */
-    e_FM_PCD_PLCR_OVERRIDE              /**< Color override code */
+    e_FM_PCD_PLCR_GREEN,                /**< Green */
+    e_FM_PCD_PLCR_YELLOW,               /**< Yellow */
+    e_FM_PCD_PLCR_RED,                  /**< Red */
+    e_FM_PCD_PLCR_OVERRIDE              /**< Color override */
 } e_FmPcdPlcrColor;
 
 /**************************************************************************//**
@@ -1022,9 +1034,7 @@ typedef enum e_FmPcdAction {
 *//***************************************************************************/
 typedef enum e_FmPcdManipHdrInsrtType {
     e_FM_PCD_MANIP_INSRT_GENERIC,                   /**< Insert according to offset & size */
-#if defined(FM_CAPWAP_SUPPORT)
     e_FM_PCD_MANIP_INSRT_BY_HDR,                    /**< Insert according to protocol */
-#endif /* defined (FM_CAPWAP_SUPPORT) || defined(UNDER_CONSTRUCTION_FM_HM) */
 #ifdef FM_CAPWAP_SUPPORT
     e_FM_PCD_MANIP_INSRT_BY_TEMPLATE                /**< Insert template to start of frame */
 #endif /* FM_CAPWAP_SUPPORT */
@@ -1035,22 +1045,76 @@ typedef enum e_FmPcdManipHdrInsrtType {
 *//***************************************************************************/
 typedef enum e_FmPcdManipHdrRmvType {
     e_FM_PCD_MANIP_RMV_GENERIC,                     /**< Remove according to offset & size */
-#if defined(FM_CAPWAP_SUPPORT)
     e_FM_PCD_MANIP_RMV_BY_HDR                       /**< Remove according to offset & size */
-#endif /* defined (FM_CAPWAP_SUPPORT) || defined(UNDER_CONSTRUCTION_FM_HM) */
 } e_FmPcdManipHdrRmvType;
 
+/**************************************************************************//**
+ @Description   An enum for selecting specific L2 fields removal
+*//***************************************************************************/
+typedef enum e_FmPcdManipHdrRmvSpecificL2 {
+    e_FM_PCD_MANIP_HDR_RMV_ETHERNET,                /**< Ethernet/802.3 MAC */
+    e_FM_PCD_MANIP_HDR_RMV_STACKED_QTAGS,           /**< stacked QTags */
+    e_FM_PCD_MANIP_HDR_RMV_ETHERNET_AND_MPLS,       /**< MPLS and Ethernet/802.3 MAC header until
+                                                         the header which follows the MPLS header */
+    e_FM_PCD_MANIP_HDR_RMV_MPLS                     /**< Remove MPLS header (Unlimited MPLS labels) */
+} e_FmPcdManipHdrRmvSpecificL2;
 
-#if defined(FM_CAPWAP_SUPPORT)
+/**************************************************************************//**
+ @Description   Enumeration type for selecting specific fields updates
+*//***************************************************************************/
+typedef enum e_FmPcdManipHdrFieldUpdateType {
+    e_FM_PCD_MANIP_HDR_FIELD_UPDATE_VLAN,               /**< VLAN updates */
+    e_FM_PCD_MANIP_HDR_FIELD_UPDATE_IPV4,               /**< IPV4 updates */
+    e_FM_PCD_MANIP_HDR_FIELD_UPDATE_IPV6,               /**< IPV6 updates */
+    e_FM_PCD_MANIP_HDR_FIELD_UPDATE_TCP_UDP,            /**< TCP_UDP updates */
+} e_FmPcdManipHdrFieldUpdateType;
+
+/**************************************************************************//**
+ @Description   Enumeration type for selecting VLAN updates
+*//***************************************************************************/
+typedef enum e_FmPcdManipHdrFieldUpdateVlan {
+    e_FM_PCD_MANIP_HDR_FIELD_UPDATE_VLAN_VPRI,      /**< Replace VPri of outer most VLAN tag. */
+    e_FM_PCD_MANIP_HDR_FIELD_UPDATE_DSCP_TO_VLAN    /**< DSCP to VLAN priority bits translation */
+} e_FmPcdManipHdrFieldUpdateVlan;
+
+/**************************************************************************//**
+ @Description   Enumeration type for selecting specific L2 fields removal
+*//***************************************************************************/
+typedef enum e_FmPcdManipHdrInsrtSpecificL2 {
+    e_FM_PCD_MANIP_HDR_INSRT_MPLS                   /**< Insert MPLS header (Unlimited MPLS labels) */
+} e_FmPcdManipHdrInsrtSpecificL2;
+
+/**************************************************************************//**
+ @Description   Enumeration type for selecting type of header insertion
+*//***************************************************************************/
+typedef enum e_FmPcdManipHdrInsrtByHdrType {
+    e_FM_PCD_MANIP_INSRT_BY_HDR_SPECIFIC_L2         /**< Specific L2 fields insertion */
+} e_FmPcdManipHdrInsrtByHdrType;
+
+/**************************************************************************//**
+ @Description   Enumeration type for selecting specific customCommand
+*//***************************************************************************/
+typedef enum e_FmPcdManipHdrCustomType {
+    e_FM_PCD_MANIP_HDR_CUSTOM_IP_REPLACE,           /**< Replace IPv4/IPv6 */
+} e_FmPcdManipHdrCustomType;
+
+/**************************************************************************//**
+ @Description   Enumeration type for selecting specific customCommand
+*//***************************************************************************/
+typedef enum e_FmPcdManipHdrCustomIpReplace {
+    e_FM_PCD_MANIP_HDR_CUSTOM_REPLACE_IPV4_BY_IPV6,           /**< Replace IPv4 by IPv6 */
+    e_FM_PCD_MANIP_HDR_CUSTOM_REPLACE_IPV6_BY_IPV4            /**< Replace IPv6 by IPv4 */
+} e_FmPcdManipHdrCustomIpReplace;
+
 /**************************************************************************//**
  @Description   Enumeration type for selecting type of header removal
 *//***************************************************************************/
 typedef enum e_FmPcdManipHdrRmvByHdrType {
 #ifdef FM_CAPWAP_SUPPORT
-    e_FM_PCD_MANIP_RMV_BY_HDR_FROM_START            /**< Locate from data that is not the header */
+    e_FM_PCD_MANIP_RMV_BY_HDR_FROM_START,           /**< Locate from data that is not the header */
 #endif /* FM_CAPWAP_SUPPORT */
+    e_FM_PCD_MANIP_RMV_BY_HDR_SPECIFIC_L2           /**< Specific L2 fields removal */
 } e_FmPcdManipHdrRmvByHdrType;
-#endif /* defined (FM_CAPWAP_SUPPORT) || defined(UNDER_CONSTRUCTION_FM_HM) */
 
 /**************************************************************************//**
  @Description   Enumeration type for selecting type of timeout mode
@@ -1098,8 +1162,10 @@ typedef enum e_FmPcdManipType {
  @Description   Enumeration type for selecting type of statistics mode
 *//***************************************************************************/
 typedef enum e_FmPcdCcStatsMode {
-    e_FM_PCD_CC_STATS_MODE_NONE = 0,    /**< No statistics support */
-    e_FM_PCD_CC_STATS_MODE_FRAME        /**< Frame count statistics */
+    e_FM_PCD_CC_STATS_MODE_NONE = 0,        /**< No statistics support */
+    e_FM_PCD_CC_STATS_MODE_FRAME,           /**< Frame count statistics */
+    e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME,  /**< Byte and frame count statistics */
+    e_FM_PCD_CC_STATS_MODE_RMON,            /**< Byte and frame length range count statistics */
 } e_FmPcdCcStatsMode;
 
 /**************************************************************************//**
@@ -1108,7 +1174,7 @@ typedef enum e_FmPcdCcStatsMode {
 *//***************************************************************************/
 typedef enum e_FmPcdManipDontFragAction {
     e_FM_PCD_MANIP_ENQ_TO_ERR_Q_OR_DISCARD_PACKET = 0,  /**< Discard packet */
-    e_FM_PCD_MANIP_FRAGMENT_PACKECT,                    /**< Fragment packet and continue normal processing */
+    e_FM_PCD_MANIP_FRAGMENT_PACKET,                     /**< Fragment packet and continue normal processing */
     e_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG                /**< Continue normal processing without fragmenting the packet */
 } e_FmPcdManipDontFragAction;
 
@@ -1289,8 +1355,7 @@ typedef struct t_FmPcdDistinctionUnit {
                 by a specific PCD Network Environment Characteristics module.
 
                 Each unit represent a protocol or a group of protocols that may
-                be used later by the different PCD engined to distinguish
-                between flows.
+                be used later by the different PCD engines to distinguish between flows.
 *//***************************************************************************/
 typedef struct t_FmPcdNetEnvParams {
     uint8_t                 numOfDistinctionUnits;                      /**< Number of different units to be identified */
@@ -1558,6 +1623,14 @@ typedef struct t_FmPcdKgSchemeParams {
 } t_FmPcdKgSchemeParams;
 
 /**************************************************************************//**
+ @Collection
+*//***************************************************************************/
+#define FM_PCD_CC_STATS_MAX_NUM_OF_FLR      10  /* Maximal supported number of frame length ranges */
+#define FM_PCD_CC_STATS_FLR_SIZE            2   /* Size in bytes of a frame length range limit */
+#define FM_PCD_CC_STATS_FLR_COUNT_SIZE      4   /* Size in bytes of a frame length range counter */
+/* @} */
+
+/**************************************************************************//**
  @Description   Parameters for defining CC as the next engine after a CC node.
 *//***************************************************************************/
 typedef struct t_FmPcdCcNextCcParams {
@@ -1650,11 +1723,9 @@ typedef struct t_FmPcdCcNextEngineParams {
         t_FmPcdCcNextFrParams           frParams;       /**< Parameters in case next engine is FR */
 #endif /* (DPAA_VERSION >= 11) */
     } params;                                           /**< union used for all the next-engine parameters options */
-
     t_Handle                            h_Manip;        /**< Handle to Manipulation object.
                                                              Relevant if next engine is of type result
                                                              (e_FM_PCD_PLCR, e_FM_PCD_KG, e_FM_PCD_DONE) */
-
     bool                                statisticsEn;   /**< If TRUE, statistics counters are incremented
                                                              for each frame passing through this
                                                              Coarse Classification entry. */
@@ -1707,6 +1778,17 @@ typedef struct t_KeysParams {
     e_FmPcdCcStatsMode          statisticsMode; /**< If not e_FM_PCD_CC_STATS_MODE_NONE, the required structures for
                                                      the requested statistics mode will be allocated according to
                                                      'maxNumOfKeys'. */
+    uint16_t                    frameLengthRanges[FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
+                                                /**< Relevant only for 'e_FM_PCD_CC_STATS_MODE_RMON' statistics
+                                                     mode.
+                                                     Holds a list of programmable thresholds. For each received frame,
+                                                     its length in bytes is examined against these range thresholds and
+                                                     the appropriate counter is incremented by 1. For example, to belong
+                                                     to range i, the following should hold:
+                                                     range i-1 threshold < frame length <= range i threshold
+                                                     Each range threshold must be larger then its preceding range
+                                                     threshold. Last range threshold must be 0xFFFF. */
+
     uint16_t                    numOfKeys;      /**< Number of initial keys;
                                                      Note that in case of 'action' = e_FM_PCD_ACTION_INDEXED_LOOKUP,
                                                      this field should be power-of-2 of the number of bits that are
@@ -1795,6 +1877,27 @@ typedef struct t_FmPcdCcTreeParams {
 } t_FmPcdCcTreeParams;
 
 /**************************************************************************//**
+ @Description   CC key statistics structure
+*//***************************************************************************/
+typedef struct t_FmPcdCcKeyStatistics {
+    uint32_t    byteCount;      /**< This counter reflects byte count of frames that
+                                     were matched this key. */
+    uint32_t    frameLengthRangeCount[FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
+                                /**< These counters reflect how many frames passed that
+                                     were matched this key.
+                                     For 'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FLR'
+                                     statistics mode:
+                                     Each counter holds the number of frames of a
+                                     specific frames length range, according to the
+                                     ranges provided at initialization.
+                                     For 'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME'
+                                     statistics mode:
+                                     The first counter holds the number of frames that
+                                     were matched to this key.
+                                   */
+} t_FmPcdCcKeyStatistics;
+
+/**************************************************************************//**
  @Description   Parameters for defining policer byte rate
 *//***************************************************************************/
 typedef struct t_FmPcdPlcrByteRateModeParams {
@@ -1865,6 +1968,7 @@ typedef struct t_FmPcdPlcrProfileParams {
     bool                                trapProfileOnFlowC;         /**< Trap on flow C */
 } t_FmPcdPlcrProfileParams;
 
+#ifdef FM_CAPWAP_SUPPORT
 /**************************************************************************//**
  @Description   Parameters for selecting a location for requested manipulation
 *//***************************************************************************/
@@ -1876,7 +1980,6 @@ typedef struct t_FmManipHdrInfo
     t_FmPcdFields                       fullField;      /**< Relevant only when byField = TRUE: Extract field */
 } t_FmManipHdrInfo;
 
-#ifdef FM_CAPWAP_SUPPORT
 /**************************************************************************//**
  @Description   Parameters for defining an insertion manipulation
                 of type e_FM_PCD_MANIP_INSRT_TO_START_OF_FRAME_TEMPLATE
@@ -1969,7 +2072,6 @@ typedef struct t_FmPcdManipFragOrReasmParams {
 
 #endif /* FM_CAPWAP_SUPPORT */
 
-#if defined(FM_CAPWAP_SUPPORT)
 /**************************************************************************//**
  @Description   Parameters for defining header removal by header type
 *//***************************************************************************/
@@ -1983,9 +2085,10 @@ typedef struct t_FmPcdManipHdrRmvByHdrParams {
             t_FmManipHdrInfo            hdrInfo;
         } fromStartByHdr;                               /**< Relevant when type = e_FM_PCD_MANIP_RMV_BY_HDR_FROM_START */
 #endif /* FM_CAPWAP_SUPPORT */
+        e_FmPcdManipHdrRmvSpecificL2    specificL2;     /**< Relevant when type = e_FM_PCD_MANIP_BY_HDR_SPECIFIC_L2;
+                                                             Defines which L2 headers to remove. */
     } u;
 } t_FmPcdManipHdrRmvByHdrParams;
-#endif /* defined(FM_CAPWAP_SUPPORT) || defined (UNDER_CONSTRUCTION_FM_HM) */
 
 /**************************************************************************//**
  @Description   Parameters for configuring IP fragmentation manipulation
@@ -2004,9 +2107,15 @@ typedef struct t_FmPcdManipFragIpParams {
                                                              of this pool need to be allocated in the same memory area as the received buffers.
                                                              If the received buffers arrive from different sources, the Scatter/Gather BP id should be
                                                              mutual to all these sources. */
-    e_FmPcdManipDontFragAction  dontFragAction;         /**< Dont Fragment Action - If an IP packet is larger
+    e_FmPcdManipDontFragAction  dontFragAction;         /**< Don't Fragment Action - If an IP packet is larger
                                                              than MTU and its DF bit is set, then this field will
                                                              determine the action to be taken.*/
+#ifdef ALU_CUSTOM
+    bool                        optionsCounterEn;       /**< If TRUE, A counter is incremented each time an IPv4 frame with IPv4 Options
+                                                             is encountered and the COPIED flag on one of the options is cleared.
+                                                             The counter is located on the port page */
+#endif /* ALU_CUSTOM */
+
 } t_FmPcdManipFragIpParams;
 
 /**************************************************************************//**
@@ -2021,13 +2130,21 @@ typedef struct t_FmPcdManipReassemIpParams {
                                                                  relativeSchemeId[0] -  Relative scheme ID for IPV4 Reassembly manipulation;
                                                                  relativeSchemeId[1] -  Relative scheme ID for IPV6 Reassembly manipulation;
                                                                  Relative scheme ID for IPv4/IPv6 Reassembly manipulation must be smaller than
-                                                                 the user schemes id to ensure that the reassemblys schemes will be first match.
+                                                                 the user schemes id to ensure that the reassembly's schemes will be first match;
                                                                  Rest schemes, if defined, should have higher relative scheme ID. */
+#if (DPAA_VERSION >= 11)
+    uint32_t                        nonConsistentSpFqid;    /**< In case that other fragments of the frame corresponds to different storage
+                                                                 profile than the opening fragment (Non-Consistent-SP state)
+                                                                 then one of two possible scenarios occurs:
+                                                                 if 'nonConsistentSpFqid != 0', the reassembled frame will be enqueued to
+                                                                 this fqid, otherwise a 'Non Consistent SP' bit will be set in the FD[status].*/
+#else
     uint8_t                         sgBpid;                 /**< Buffer pool id for the S/G frame created by the reassembly process */
+#endif /* (DPAA_VERSION >= 11) */
     uint8_t                         dataMemId;              /**< Memory partition ID for the IPR's external tables structure */
     uint16_t                        dataLiodnOffset;        /**< LIODN offset for access the IPR's external tables structure. */
     uint16_t                        minFragSize[2];         /**< Minimum fragment size:
-                                                                 minFragSize[0] - for ipv4, minFragSize[1] - for ipv6 */
+                                                                 minFragSize[0] - for IPv4, minFragSize[1] - for IPv6 */
     e_FmPcdManipReassemWaysNumber   numOfFramesPerHashEntry[2];
                                                             /**< Number of frames per hash entry needed for reassembly process:
                                                                  numOfFramesPerHashEntry[0] - for ipv4 (max value is e_FM_PCD_MANIP_EIGHT_WAYS_HASH);
@@ -2046,16 +2163,20 @@ typedef struct t_FmPcdManipReassemIpParams {
 } t_FmPcdManipReassemIpParams;
 
 /**************************************************************************//**
- @Description   structure for defining IPSEC manipulation
+ @Description   Parameters for defining IPSEC manipulation
 *//***************************************************************************/
 typedef struct t_FmPcdManipSpecialOffloadIPSecParams {
-    bool    decryption;                     /**< TRUE if being used in decryption direction;
-                                                 FALSE if being used in encryption direction. */
-    bool    ecnCopy;                        /**< TRUE to copy the ECN bits from inner/outer to outer/inner
-                                                 (direction depends on the 'decryption' field). */
-    bool    dscpCopy;                       /**< TRUE to copy the DSCP bits from inner/outer to outer/inner
-                                                 (direction depends on the 'decryption' field). */
-    bool    variableIpHdrLen;               /**< TRUE for supporting variable IP header length in decryption. */
+    bool        decryption;                     /**< TRUE if being used in decryption direction;
+                                                     FALSE if being used in encryption direction. */
+    bool        ecnCopy;                        /**< TRUE to copy the ECN bits from inner/outer to outer/inner
+                                                     (direction depends on the 'decryption' field). */
+    bool        dscpCopy;                       /**< TRUE to copy the DSCP bits from inner/outer to outer/inner
+                                                     (direction depends on the 'decryption' field). */
+    bool        variableIpHdrLen;               /**< TRUE for supporting variable IP header length in decryption. */
+    bool        variableIpVersion;              /**< TRUE for supporting both IP version on the same SA in encryption */
+    uint8_t     outerIPHdrLen;                  /**< if 'variableIpVersion == TRUE' than this field must be set to non-zero value;
+                                                     It is specifies the length of the outer IP header that was configured in the
+                                                     corresponding SA. */
 } t_FmPcdManipSpecialOffloadIPSecParams;
 
 /**************************************************************************//**
@@ -2091,6 +2212,138 @@ typedef struct t_FmPcdManipHdrInsrtGenericParams {
     uint8_t                         *p_Data;        /**< Pointer to data to be inserted */
 } t_FmPcdManipHdrInsrtGenericParams;
 
+/**************************************************************************//**
+ @Description   Parameters for defining header manipulation VLAN DSCP To Vpri translation
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrFieldUpdateVlanDscpToVpri {
+    uint8_t                         dscpToVpriTable[FM_PCD_MANIP_DSCP_TO_VLAN_TRANS];
+                                                        /**< A table of VPri values for each DSCP value;
+                                                             The index is the DSCP value (0-0x3F) and the
+                                                             value is the corresponding VPRI (0-15). */
+    uint8_t                         vpriDefVal;         /**< 0-7, Relevant only if if updateType =
+                                                             e_FM_PCD_MANIP_HDR_FIELD_UPDATE_DSCP_TO_VLAN,
+                                                             this field is the Q Tag default value if the
+                                                             IP header is not found. */
+} t_FmPcdManipHdrFieldUpdateVlanDscpToVpri;
+
+/**************************************************************************//**
+ @Description   Parameters for defining header manipulation VLAN fields updates
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrFieldUpdateVlan {
+    e_FmPcdManipHdrFieldUpdateVlan  updateType;         /**< Selects VLAN update type */
+    union {
+        uint8_t                                     vpri;       /**< 0-7, Relevant only if If updateType =
+                                                                     e_FM_PCD_MANIP_HDR_FIELD_UPDATE_VLAN_PRI, this
+                                                                     is the new VLAN pri. */
+        t_FmPcdManipHdrFieldUpdateVlanDscpToVpri    dscpToVpri;/**<  Parameters structure, Relevant only if updateType
+                                                                     = e_FM_PCD_MANIP_HDR_FIELD_UPDATE_DSCP_TO_VLAN. */
+    } u;
+} t_FmPcdManipHdrFieldUpdateVlan;
+
+/**************************************************************************//**
+ @Description   Parameters for defining header manipulation IPV4 fields updates
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrFieldUpdateIpv4 {
+    ipv4HdrManipUpdateFlags_t       validUpdates;       /**< ORed flag, selecting the required updates */
+    uint8_t                         tos;                /**< 8 bit New TOS; Relevant if validUpdates contains
+                                                             HDR_MANIP_IPV4_TOS */
+    uint16_t                        id;                 /**< 16 bit New IP ID; Relevant only if validUpdates
+                                                             contains HDR_MANIP_IPV4_ID */
+    uint32_t                        src;                /**< 32 bit New IP SRC; Relevant only if validUpdates
+                                                             contains HDR_MANIP_IPV4_SRC */
+    uint32_t                        dst;                /**< 32 bit New IP DST; Relevant only if validUpdates
+                                                             contains HDR_MANIP_IPV4_DST */
+} t_FmPcdManipHdrFieldUpdateIpv4;
+
+/**************************************************************************//**
+ @Description   Parameters for defining header manipulation IPV6 fields updates
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrFieldUpdateIpv6 {
+    ipv6HdrManipUpdateFlags_t   validUpdates;           /**< ORed flag, selecting the required updates */
+    uint8_t                     trafficClass;           /**< 8 bit New Traffic Class; Relevant if validUpdates contains
+                                                             HDR_MANIP_IPV6_TC */
+    uint8_t                     src[NET_HEADER_FIELD_IPv6_ADDR_SIZE];
+                                                        /**< 16 byte new IP SRC; Relevant only if validUpdates
+                                                             contains HDR_MANIP_IPV6_SRC */
+    uint8_t                     dst[NET_HEADER_FIELD_IPv6_ADDR_SIZE];
+                                                        /**< 16 byte new IP DST; Relevant only if validUpdates
+                                                             contains HDR_MANIP_IPV6_DST */
+} t_FmPcdManipHdrFieldUpdateIpv6;
+
+/**************************************************************************//**
+ @Description   Parameters for defining header manipulation TCP/UDP fields updates
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrFieldUpdateTcpUdp {
+    tcpUdpHdrManipUpdateFlags_t     validUpdates;       /**< ORed flag, selecting the required updates */
+    uint16_t                        src;                /**< 16 bit New TCP/UDP SRC; Relevant only if validUpdates
+                                                             contains HDR_MANIP_TCP_UDP_SRC */
+    uint16_t                        dst;                /**< 16 bit New TCP/UDP DST; Relevant only if validUpdates
+                                                             contains HDR_MANIP_TCP_UDP_DST */
+} t_FmPcdManipHdrFieldUpdateTcpUdp;
+
+/**************************************************************************//**
+ @Description   Parameters for defining header manipulation fields updates
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrFieldUpdateParams {
+    e_FmPcdManipHdrFieldUpdateType                  type;           /**< Type of header field update manipulation */
+    union {
+        t_FmPcdManipHdrFieldUpdateVlan              vlan;           /**< Parameters for VLAN update. Relevant when
+                                                                         type = e_FM_PCD_MANIP_HDR_FIELD_UPDATE_VLAN */
+        t_FmPcdManipHdrFieldUpdateIpv4              ipv4;           /**< Parameters for IPv4 update. Relevant when
+                                                                         type = e_FM_PCD_MANIP_HDR_FIELD_UPDATE_IPV4 */
+        t_FmPcdManipHdrFieldUpdateIpv6              ipv6;           /**< Parameters for IPv6 update. Relevant when
+                                                                         type = e_FM_PCD_MANIP_HDR_FIELD_UPDATE_IPV6 */
+        t_FmPcdManipHdrFieldUpdateTcpUdp            tcpUdp;         /**< Parameters for TCP/UDP update. Relevant when
+                                                                         type = e_FM_PCD_MANIP_HDR_FIELD_UPDATE_TCP_UDP */
+    } u;
+} t_FmPcdManipHdrFieldUpdateParams;
+
+/**************************************************************************//**
+ @Description   Parameters for defining custom header manipulation for IP replacement
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrCustomIpHdrReplace {
+    e_FmPcdManipHdrCustomIpReplace  replaceType;        /**< Selects replace update type */
+    bool                            decTtlHl;           /**< Decrement TTL (IPV4) or Hop limit (IPV6) by 1  */
+    bool                            updateIpv4Id;       /**< Relevant when replaceType =
+                                                             e_FM_PCD_MANIP_HDR_CUSTOM_REPLACE_IPV6_BY_IPV4 */
+    uint16_t                        id;                 /**< 16 bit New IP ID; Relevant only if
+                                                             updateIpv4Id = TRUE */
+    uint8_t                         hdrSize;            /**< The size of the new IP header */
+    uint8_t                         hdr[FM_PCD_MANIP_MAX_HDR_SIZE];
+                                                        /**< The new IP header */
+} t_FmPcdManipHdrCustomIpHdrReplace;
+
+/**************************************************************************//**
+ @Description   Parameters for defining custom header manipulation
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrCustomParams {
+    e_FmPcdManipHdrCustomType               type;           /**< Type of header field update manipulation */
+    union {
+        t_FmPcdManipHdrCustomIpHdrReplace   ipHdrReplace;   /**< Parameters IP header replacement */
+    } u;
+} t_FmPcdManipHdrCustomParams;
+
+/**************************************************************************//**
+ @Description   Parameters for defining specific L2 insertion manipulation
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrInsrtSpecificL2Params {
+    e_FmPcdManipHdrInsrtSpecificL2  specificL2;     /**< Selects which L2 headers to insert */
+    bool                            update;         /**< TRUE to update MPLS header */
+    uint8_t                         size;           /**< size of inserted section */
+    uint8_t                         *p_Data;        /**< data to be inserted */
+} t_FmPcdManipHdrInsrtSpecificL2Params;
+
+/**************************************************************************//**
+ @Description   Parameters for defining header insertion manipulation by header type
+*//***************************************************************************/
+typedef struct t_FmPcdManipHdrInsrtByHdrParams {
+    e_FmPcdManipHdrInsrtByHdrType               type;   /**< Selects manipulation type */
+    union {
+       t_FmPcdManipHdrInsrtSpecificL2Params     specificL2Params;
+                                                        /**< Used when type = e_FM_PCD_MANIP_INSRT_BY_HDR_SPECIFIC_L2:
+                                                             Selects which L2 headers to remove */
+    } u;
+} t_FmPcdManipHdrInsrtByHdrParams;
 
 /**************************************************************************//**
  @Description   Parameters for defining header insertion manipulation
@@ -2098,6 +2351,8 @@ typedef struct t_FmPcdManipHdrInsrtGenericParams {
 typedef struct t_FmPcdManipHdrInsrtParams {
     e_FmPcdManipHdrInsrtType                    type;       /**< Type of insertion manipulation */
     union {
+        t_FmPcdManipHdrInsrtByHdrParams         byHdr;      /**< Parameters for defining header insertion manipulation by header type,
+                                                                 relevant if 'type' = e_FM_PCD_MANIP_INSRT_BY_HDR */
         t_FmPcdManipHdrInsrtGenericParams       generic;    /**< Parameters for defining generic header insertion manipulation,
                                                                  relevant if 'type' = e_FM_PCD_MANIP_INSRT_GENERIC */
 #ifdef FM_CAPWAP_SUPPORT
@@ -2113,10 +2368,8 @@ typedef struct t_FmPcdManipHdrInsrtParams {
 typedef struct t_FmPcdManipHdrRmvParams {
     e_FmPcdManipHdrRmvType                  type;       /**< Type of header removal manipulation */
     union {
-#if defined(FM_CAPWAP_SUPPORT)
         t_FmPcdManipHdrRmvByHdrParams       byHdr;      /**< Parameters for defining header removal manipulation by header type,
                                                              relevant if type = e_FM_PCD_MANIP_RMV_BY_HDR */
-#endif /* defined (FM_CAPWAP_SUPPORT) || defined (UNDER_CONSTRUCTION_FM_HM) */
         t_FmPcdManipHdrRmvGenericParams     generic;    /**< Parameters for defining generic header removal manipulation,
                                                              relevant if type = e_FM_PCD_MANIP_RMV_GENERIC */
     } u;
@@ -2132,6 +2385,11 @@ typedef struct t_FmPcdManipHdrParams {
     bool                                        insrt;              /**< TRUE, to define insertion manipulation */
     t_FmPcdManipHdrInsrtParams                  insrtParams;        /**< Parameters for insertion manipulation, relevant if 'insrt' = TRUE */
 
+    bool                                        fieldUpdate;        /**< TRUE, to define field update manipulation */
+    t_FmPcdManipHdrFieldUpdateParams            fieldUpdateParams;  /**< Parameters for field update manipulation, relevant if 'fieldUpdate' = TRUE */
+
+    bool                                        custom;             /**< TRUE, to define custom manipulation */
+    t_FmPcdManipHdrCustomParams                 customParams;       /**< Parameters for custom manipulation, relevant if 'custom' = TRUE */
 
     bool                                        dontParseAfterManip;/**< FALSE to activate the parser a second time after
                                                                          completing the manipulation on the frame */
@@ -2170,7 +2428,6 @@ typedef struct t_FmPcdManipParams {
         t_FmPcdManipFragParams              frag;               /**< Parameters for defining fragmentation manipulation node */
         t_FmPcdManipSpecialOffloadParams    specialOffload;     /**< Parameters for defining special offload manipulation node */
     } u;
-
     t_Handle                                h_NextManip;        /**< Handle to another (previously defined) manipulation node;
                                                                      Allows concatenation of manipulation actions;
                                                                      This parameter is optional and may be NULL. */
@@ -2475,8 +2732,8 @@ t_Error FM_PCD_PlcrProfileSetCounter(t_Handle                   h_Profile,
 
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
-t_Handle FM_PCD_CcRootBuild (t_Handle             h_FmPcd,
-                             t_FmPcdCcTreeParams  *p_Params);
+t_Handle FM_PCD_CcRootBuild(t_Handle             h_FmPcd,
+                            t_FmPcdCcTreeParams  *p_Params);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcRootDelete
@@ -2503,7 +2760,7 @@ t_Error FM_PCD_CcRootDelete(t_Handle h_CcTree);
 
  @Return        E_OK on success; Error code otherwise.
 
- @Cautions      Allowed only following FM_PCD_CcBuildTree().
+ @Cautions      Allowed only following FM_PCD_CcRootBuild().
 *//***************************************************************************/
 t_Error FM_PCD_CcRootModifyNextEngine(t_Handle                  h_CcTree,
                                       uint8_t                   grpId,
@@ -2575,9 +2832,9 @@ t_Error FM_PCD_MatchTableRemoveKey(t_Handle h_CcNode, uint16_t keyIndex);
 
  @Description   Add the key (including next engine parameters of this key in the
                 index defined by the keyIndex. Note that 'FM_PCD_LAST_KEY_INDEX'
-                may be used by user that don't care about the position of the
+                may be used when the user doesn't care about the position of the
                 key in the table - in that case, the key will be automatically
-                add by the driver in the last available entry.
+                added by the driver in the last available entry.
 
  @Param[in]     h_CcNode     A handle to the node
  @Param[in]     keyIndex     Key index for adding.
@@ -2774,6 +3031,65 @@ t_Error FM_PCD_MatchTableFindNModifyKey(t_Handle h_CcNode,
 *//***************************************************************************/
 uint32_t FM_PCD_MatchTableGetKeyCounter(t_Handle h_CcNode, uint16_t keyIndex);
 
+/**************************************************************************//**
+ @Function      FM_PCD_MatchTableGetKeyStatistics
+
+ @Description   This routine may be used to get statistics counters of specific key
+                in a CC Node.
+
+                If 'e_FM_PCD_CC_STATS_MODE_FRAME' and
+                'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME' were set for this node,
+                these counters reflect how many frames passed that were matched
+                this key; The total frames count will be returned in the counter
+                of the first range (as only one frame length range was defined).
+                If 'e_FM_PCD_CC_STATS_MODE_RMON' was set for this node, the total
+                frame count will be separated to frame length counters, based on
+                provided frame length ranges.
+
+ @Param[in]     h_CcNode        A handle to the node
+ @Param[in]     keyIndex        Key index for adding
+ @Param[out]    p_KeyStatistics Key statistics counters
+
+ @Return        The specific key statistics.
+
+ @Cautions      Allowed only following FM_PCD_MatchTableSet().
+*//***************************************************************************/
+t_Error FM_PCD_MatchTableGetKeyStatistics(t_Handle                  h_CcNode,
+                                          uint16_t                  keyIndex,
+                                          t_FmPcdCcKeyStatistics    *p_KeyStatistics);
+
+/**************************************************************************//**
+ @Description   This routine may be used to get statistics counters of specific key
+                in a CC Node.
+
+                If 'e_FM_PCD_CC_STATS_MODE_FRAME' and
+                'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME' were set for this node,
+                these counters reflect how many frames passed that were matched
+                this key; The total frames count will be returned in the counter
+                of the first range (as only one frame length range was defined).
+                If 'e_FM_PCD_CC_STATS_MODE_RMON' was set for this node, the total
+                frame count will be separated to frame length counters, based on
+                provided frame length ranges.
+				Note that this routine will search the node to locate the index
+                of the required key based on received key parameters.
+
+ @Param[in]     h_CcNode        A handle to the node
+ @Param[in]     keySize         Size of the requested key
+ @Param[in]     p_Key           A pointer to the requested key
+ @Param[in]     p_Mask          A pointer to the mask if relevant,
+                                otherwise pointer to NULL
+ @Param[out]    p_KeyStatistics Key statistics counters
+
+ @Return        The specific key statistics.
+
+ @Cautions      Allowed only following FM_PCD_MatchTableSet().
+*//***************************************************************************/
+t_Error FM_PCD_MatchTableFindNGetKeyStatistics(t_Handle                 h_CcNode,
+                                               uint8_t                  keySize,
+		                                       uint8_t                  *p_Key,
+		                                       uint8_t                  *p_Mask,
+						   t_FmPcdCcKeyStatistics   *p_KeyStatistics);
+
 /**************************************************************************//*
  @Function      FM_PCD_MatchTableGetNextEngine
 
@@ -2793,7 +3109,7 @@ t_Error FM_PCD_MatchTableGetNextEngine(t_Handle                     h_CcNode,
                                        uint16_t                     keyIndex,
                                        t_FmPcdCcNextEngineParams    *p_FmPcdCcNextEngineParams);
 
-/**************************************************************************//*
+/**************************************************************************//**
  @Function      FM_PCD_MatchTableGetIndexedHashBucket
 
  @Description   This routine simulates KeyGen operation on the provided key and
@@ -2958,6 +3274,36 @@ t_Error FM_PCD_HashTableModifyMissNextEngine(t_Handle                  h_HashTbl
 *//***************************************************************************/
 t_Error FM_PCD_HashTableGetMissNextEngine(t_Handle                     h_HashTbl,
                                           t_FmPcdCcNextEngineParams    *p_FmPcdCcNextEngineParams);
+
+/**************************************************************************//**
+ @Description   This routine may be used to get statistics counters of specific key
+                in a hash table.
+
+                If 'e_FM_PCD_CC_STATS_MODE_FRAME' and
+                'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME' were set for this node,
+                these counters reflect how many frames passed that were matched
+                this key; The total frames count will be returned in the counter
+                of the first range (as only one frame length range was defined).
+                If 'e_FM_PCD_CC_STATS_MODE_RMON' was set for this node, the total
+                frame count will be separated to frame length counters, based on
+                provided frame length ranges.
+				Note that this routine will identify the bucket of this key in
+				the hash table and will search the bucket to locate the index
+                of the required key based on received key parameters.
+
+ @Param[in]     h_HashTbl       A handle to a hash table
+ @Param[in]     keySize         Size of the requested key
+ @Param[in]     p_Key           A pointer to the requested key
+ @Param[out]    p_KeyStatistics Key statistics counters
+
+ @Return        The specific key statistics.
+
+ @Cautions      Allowed only following FM_PCD_HashTableSet().
+*//***************************************************************************/
+t_Error FM_PCD_HashTableFindNGetKeyStatistics(t_Handle                 h_HashTbl,
+                                              uint8_t                  keySize,
+                                              uint8_t                  *p_Key,
+                                              t_FmPcdCcKeyStatistics   *p_KeyStatistics);
 
 /**************************************************************************//**
  @Function      FM_PCD_ManipNodeSet

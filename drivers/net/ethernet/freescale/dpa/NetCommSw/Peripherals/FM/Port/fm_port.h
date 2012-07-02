@@ -164,6 +164,21 @@ typedef uint32_t fmPcdEngines_t; /**< options as defined below: */
 #define FM_PCD_MANIP                                0x08000000          /**< Manipulation indicated */
 /* @} */
 
+#define FM_PORT_MAX_NUM_OF_EXT_POOLS_ALL_INTEGRATIONS       8
+#define FM_PORT_MAX_NUM_OF_CONGESTION_GRPS_ALL_INTEGRATIONS 256
+#define FM_PORT_CG_REG_NUM(_cgId) (((FM_PORT_NUM_OF_CONGESTION_GRPS/32)-1)-_cgId/32)
+
+/***********************************************************************/
+/*          SW parser IP-fragmentation labels (offsets)                */
+/***********************************************************************/
+#define IP_FRAG_SW_PATCH_IPv4_LABEL             0x300
+#if (DPAA_VERSION == 10)
+#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x025
+#else
+#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x031
+#endif /* (DPAA_VERSION == 10) */
+#define IP_FRAG_SW_PATCH_IPv6_LABEL             \
+    (IP_FRAG_SW_PATCH_IPv4_LABEL + IP_FRAG_SW_PATCH_IPv4_SIZE)
 
 /**************************************************************************//**
  @Description       Memory Mapped Registers
@@ -172,9 +187,6 @@ typedef uint32_t fmPcdEngines_t; /**< options as defined below: */
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
-
-#define FM_PORT_MAX_NUM_OF_EXT_POOLS_ALL_INTEGRATIONS   8
-#define FM_PORT_NUM_OF_CONGESTION_GRPS_ALL_INTEGRATIONS 256
 
 typedef _Packed struct
 {
@@ -201,7 +213,7 @@ typedef _Packed struct
     volatile uint32_t   fmbm_rfsdm;     /**< Rx Frame Status Discard Mask*/
     volatile uint32_t   fmbm_rfsem;     /**< Rx Frame Status Error Mask*/
     volatile uint32_t   fmbm_rfene;     /**< Rx Frame Enqueue Next Engine */
-    volatile uint32_t   reserved2[0x02];/**< (0x074 0x078)  */
+    volatile uint32_t   reserved2[0x02];/**< (0x074-0x078) */
     volatile uint32_t   fmbm_rcmne;     /**< Rx Frame Continuous Mode Next Engine */
     volatile uint32_t   reserved3[0x20];/**< (0x080 0x0FF)  */
     volatile uint32_t   fmbm_ebmpi[FM_PORT_MAX_NUM_OF_EXT_POOLS_ALL_INTEGRATIONS];
@@ -210,7 +222,7 @@ typedef _Packed struct
                                         /**< Allocate Counter-*/
     volatile uint32_t   reserved4[0x08];
                                         /**< 0x130/0x140 - 0x15F reserved -*/
-    volatile uint32_t   fmbm_rcgm[FM_PORT_NUM_OF_CONGESTION_GRPS_ALL_INTEGRATIONS/32];
+    volatile uint32_t   fmbm_rcgm[FM_PORT_MAX_NUM_OF_CONGESTION_GRPS_ALL_INTEGRATIONS/32];
                                         /**< Congestion Group Map*/
     volatile uint32_t   fmbm_rmpd;      /**< BM Pool Depletion  */
     volatile uint32_t   reserved5[0x1F];/**< (0x184 0x1FF) */
@@ -234,9 +246,9 @@ typedef _Packed struct
     volatile uint32_t   fmbm_rfuc;      /**< Rx FIFO Utilization Counter*/
     volatile uint32_t   fmbm_rpac;      /**< Rx Pause Activation Counter*/
     volatile uint32_t   reserved7[0x18];/**< (0x2A0-0x2FF) */
-    volatile uint32_t   fmbm_rdcfg;     /**< Rx Debug-*/
-    volatile uint32_t   fmbm_rgpr;      /**< TODO */
-    volatile uint32_t   reserved8[0x3c];/**< (0x310-0x3FF) */
+    volatile uint32_t   fmbm_rdcfg[0x3];/**< Rx Debug-*/
+    volatile uint32_t   fmbm_rgpr;      /**< Rx General Purpose Register. */
+    volatile uint32_t   reserved8[0x3a];/**< (0x310-0x3FF) */
 } _PackedType t_FmPortRxBmiRegs;
 
 typedef _Packed struct
@@ -275,9 +287,9 @@ typedef _Packed struct
     volatile uint32_t   fmbm_tduc;      /**< Tx DMA Utilization Counter*/
     volatile uint32_t   fmbm_tfuc;      /**< Tx FIFO Utilization Counter*/
     volatile uint32_t   reserved4[16];  /**< (0x29C-0x2FF) */
-    volatile uint32_t   fmbm_tdcfg;     /**< Tx Debug-*/
-    volatile uint32_t   fmbm_tgpr;      /**< TODO */
-    volatile uint32_t   reserved5[0x3c];/**< (0x310-0x3FF) */
+    volatile uint32_t   fmbm_tdcfg[0x3];/**< Tx Debug-*/
+    volatile uint32_t   fmbm_tgpr;      /**< O/H General Purpose Register */
+    volatile uint32_t   reserved5[0x3a];/**< (0x310-0x3FF) */
 } _PackedType t_FmPortTxBmiRegs;
 
 typedef _Packed struct
@@ -332,10 +344,10 @@ typedef _Packed struct
     volatile uint32_t   fmbm_otuc;      /**< O/H Tasks Utilization Counter  */
     volatile uint32_t   fmbm_oduc;      /**< O/H DMA Utilization Counter */
     volatile uint32_t   fmbm_ofuc;      /**< O/H FIFO Utilization Counter */
-    volatile uint32_t   reserved6[17];  /**< (0x298-0x2FF) */
-    volatile uint32_t   fmbm_odcfg;     /**< O/H Debug-*/
-    volatile uint32_t   fmbm_ogpr;      /**< TODO */
-    volatile uint32_t   reserved7[0x3c];/**< (0x310 0x3FF) */
+    volatile uint32_t   reserved6[26];  /**< (0x298-0x2FF) */
+    volatile uint32_t   fmbm_odcfg[0x3];/**< O/H Debug (only 1 in P1023) */
+    volatile uint32_t   fmbm_ogpr;      /**< O/H General Purpose Register. */
+    volatile uint32_t   reserved7[0x3a];/**< (0x310 0x3FF) */
 } _PackedType t_FmPortOhBmiRegs;
 
 typedef _Packed union
@@ -480,7 +492,6 @@ typedef _Packed struct
                                                              FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT       | \
                                                              FM_PORT_FRM_ERR_BLOCK_LIMIT_EXCEEDED   | \
                                                              FM_PORT_FRM_ERR_PRS_HDR_ERR            | \
-                                                             FM_PORT_FRM_ERR_PROCESS_TIMEOUT        | \
                                                              FM_PORT_FRM_ERR_KEYSIZE_OVERFLOW))
 
 #define BMI_STATUS_OP_MASK_UNUSED               (uint32_t)(BMI_STATUS_RX_MASK_UNUSED &                \
@@ -510,7 +521,6 @@ typedef _Packed struct
                                                  FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT       | \
                                                  FM_PORT_FRM_ERR_BLOCK_LIMIT_EXCEEDED   | \
                                                  FM_PORT_FRM_ERR_PRS_HDR_ERR            | \
-                                                 FM_PORT_FRM_ERR_PROCESS_TIMEOUT        | \
                                                  FM_PORT_FRM_ERR_KEYSIZE_OVERFLOW       | \
                                                  FM_PORT_FRM_ERR_IPRE                   | \
                                                  FM_PORT_FRM_ERR_IPFE)
@@ -716,6 +726,14 @@ typedef _Packed struct
 #define IM_EV_BSY                               0x40000000
 #define IM_EV_RX                                0x80000000
 
+
+/**************************************************************************//**
+ @Description       Additional defines
+*//***************************************************************************/
+#ifdef ALU_CUSTOM
+#define IPF_OPTIONS_COUNT_OFFSET                0x30
+#endif /* ALU_CUSTOM */
+
 typedef struct {
     t_Handle                    h_FmMuram;
     t_FmPortImPram              *p_FmPortImPram;
@@ -774,13 +792,12 @@ typedef struct {
     uint32_t                            txFifoLowComfLevel;
     uint32_t                            rxFifoPriElevationLevel;
     uint32_t                            rxFifoThreshold;
-    t_FmSpBufMargins                  bufMargins;
+    t_FmSpBufMargins                    bufMargins;
     t_FmSpIntContextDataCopy            intContext;
     bool                                syncReq;
     e_FmPortColor                       color;
     fmPortFrameErrSelect_t              errorsToDiscard;
     fmPortFrameErrSelect_t              errorsToEnq;
-    uint64_t                            fmMuramPhysBaseAddr;
     bool                                forwardReuseIntContext;
     t_FmBufferPrefixContent             bufferPrefixContent;
      t_FmBackupBmPools                   *p_BackupBmPools;
@@ -802,6 +819,7 @@ typedef struct t_FmPortRxPoolsParams
 typedef struct {
     t_Handle                    h_Fm;
     t_Handle                    h_FmPcd;
+    t_Handle                    h_FmMuram;
     t_FmRevisionInfo            fmRevInfo;
     uint8_t                     portId;
     e_FmPortType                portType;
@@ -855,8 +873,11 @@ typedef struct {
     bool                        explicitUserSizeOfFifo;
     t_Handle                    h_IpReassemblyManip;
     t_Handle                    h_IpReassemblyTree;
+    uint64_t                    fmMuramPhysBaseAddr;
 #if (DPAA_VERSION >= 11)
     bool                        vspe;
+    e_FmPortGprFuncType         gprFunc;
+    void                        *p_MuramPage;
 #endif /* (DPAA_VERSION >= 11) */
 
     t_FmPortDriverParam         *p_FmPortDriverParam;
