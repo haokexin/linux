@@ -800,7 +800,7 @@ struct amba_device spear1310_ssp1_device = {
 		.end = SPEAR1310_SSP1_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR1310_IRQ_SSP1, NO_IRQ},
+	.irq = {SPEAR1310_IRQ_SSP1},
 };
 
 /* uart1 device registeration */
@@ -813,7 +813,7 @@ struct amba_device spear1310_uart1_device = {
 		.end = SPEAR1310_UART1_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR1310_IRQ_UART1, NO_IRQ},
+	.irq = {SPEAR1310_IRQ_UART1},
 };
 
 /* uart2 device registeration */
@@ -826,7 +826,7 @@ struct amba_device spear1310_uart2_device = {
 		.end = SPEAR1310_UART2_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR1310_IRQ_UART2, NO_IRQ},
+	.irq = {SPEAR1310_IRQ_UART2},
 };
 
 /* uart3 device registeration */
@@ -839,7 +839,7 @@ struct amba_device spear1310_uart3_device = {
 		.end = SPEAR1310_UART3_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR1310_IRQ_UART3, NO_IRQ},
+	.irq = {SPEAR1310_IRQ_UART3},
 };
 
 /* uart4 device registeration */
@@ -852,7 +852,7 @@ struct amba_device spear1310_uart4_device = {
 		.end = SPEAR1310_UART4_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR1310_IRQ_UART4, NO_IRQ},
+	.irq = {SPEAR1310_IRQ_UART4},
 };
 
 /* uart5 device registeration */
@@ -865,7 +865,7 @@ struct amba_device spear1310_uart5_device = {
 		.end = SPEAR1310_UART5_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR1310_IRQ_UART5, NO_IRQ},
+	.irq = {SPEAR1310_IRQ_UART5},
 };
 
 /* CAN device registeration */

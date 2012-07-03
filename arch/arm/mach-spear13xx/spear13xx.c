@@ -25,6 +25,7 @@
 #include <linux/netdevice.h>
 #include <linux/platform_data/spear_thermal.h>
 #include <linux/stmmac.h>
+#include <linux/irq.h>
 #include <asm/hardware/gic.h>
 #include <asm/irq.h>
 #include <asm/pmu.h>
@@ -137,7 +138,7 @@ struct amba_device spear13xx_gpio_device[] = {
 			.end = SPEAR13XX_GPIO0_BASE + SZ_4K - 1,
 			.flags = IORESOURCE_MEM,
 		},
-		.irq = {SPEAR13XX_IRQ_GPIO0, NO_IRQ},
+		.irq = {SPEAR13XX_IRQ_GPIO0},
 	}, {
 		.dev = {
 			.init_name = "gpio1",
@@ -148,7 +149,7 @@ struct amba_device spear13xx_gpio_device[] = {
 			.end = SPEAR13XX_GPIO1_BASE + SZ_4K - 1,
 			.flags = IORESOURCE_MEM,
 		},
-		.irq = {SPEAR13XX_IRQ_GPIO1, NO_IRQ},
+		.irq = {SPEAR13XX_IRQ_GPIO1},
 	}
 };
 
@@ -202,7 +203,7 @@ struct amba_device spear13xx_ssp_device = {
 		.end = SPEAR13XX_SSP_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR13XX_IRQ_SSP, NO_IRQ},
+	.irq = {SPEAR13XX_IRQ_SSP},
 };
 
 /* uart device registeration */
@@ -243,7 +244,7 @@ struct amba_device spear13xx_uart_device = {
 		.end = SPEAR13XX_UART_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR13XX_IRQ_UART, NO_IRQ},
+	.irq = {SPEAR13XX_IRQ_UART},
 };
 
 /* adc device registeration */
