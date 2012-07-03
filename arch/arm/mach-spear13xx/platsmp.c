@@ -16,6 +16,7 @@
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/smp.h>
+#include <linux/jiffies.h>
 #include <asm/cacheflush.h>
 #include <asm/hardware/gic.h>
 #include <asm/mach-types.h>
