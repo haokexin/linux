@@ -62,4 +62,7 @@ struct spear_smi_plat_data {
 	struct device_node *np[MAX_NUM_FLASH_CHIP];
 };
 
+/* function used to initialize default smi platform data */
+void smi_init_board_info(struct platform_device *pdev);
+
 #endif /* __MTD_SPEAR_SMI_H */
