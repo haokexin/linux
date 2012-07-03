@@ -69,7 +69,7 @@ struct talitos_request {
 	struct talitos_desc *desc;
 	dma_addr_t dma_desc;
 	void (*callback) (struct device *dev, struct talitos_desc *desc,
-	                  void *context, int error);
+			  void *context, int error);
 	void *context;
 };
 
@@ -134,6 +134,12 @@ struct talitos_private {
 	/* hwrng device */
 	struct hwrng rng;
 };
+
+extern int talitos_submit(struct device *dev, int ch, struct talitos_desc *desc,
+			  void (*callback)(struct device *dev,
+					   struct talitos_desc *desc,
+					   void *context, int error),
+			  void *context);
 
 /* .features flag */
 #define TALITOS_FTR_SRC_LINK_TBL_LEN_INCLUDES_EXTENT 0x00000001
