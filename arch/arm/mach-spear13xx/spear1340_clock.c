@@ -18,6 +18,7 @@
 #include <plat/clock.h>
 #include <mach/hardware.h>
 #include <mach/spear1340_misc_regs.h>
+#include <asm/io.h>
 
 /* root clks */
 /* 24 MHz oscillator clock */
