@@ -954,7 +954,7 @@ install: all
 	$(INSTALL) scripts/python/bin/* -t '$(DESTDIR_SQ)$(perfexec_instdir_SQ)/scripts/python/bin'
 
 install-python_ext:
-	$(PYTHON_WORD) util/setup.py --quiet install --root='/$(DESTDIR_SQ)'
+	$(PYTHON_WORD) util/setup.py --quiet install --prefix='$(DESTDIR_SQ)/usr'
 
 install-doc:
 	$(MAKE) -C Documentation install
