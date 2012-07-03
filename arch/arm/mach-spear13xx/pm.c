@@ -25,6 +25,7 @@
 #include <mach/misc_regs.h>
 #include <mach/suspend.h>
 #include <asm/hardware/gic.h>
+#include <asm/system_misc.h>
 
 #define PLAT_PHYS_OFFSET	0x00000000
 #define PCM_SET_WAKEUP_CFG	0xfffff
