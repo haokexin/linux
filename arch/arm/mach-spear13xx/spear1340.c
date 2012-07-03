@@ -1408,7 +1408,7 @@ struct amba_device spear1340_uart1_device = {
 		.end = SPEAR1340_UART1_BASE + SZ_4K - 1,
 		.flags = IORESOURCE_MEM,
 	},
-	.irq = {SPEAR1340_IRQ_UART1, NO_IRQ},
+	.irq = {SPEAR1340_IRQ_UART1},
 };
 
 /* Add Platform Devices */
