@@ -63,13 +63,6 @@ static int spear_pm_on(void)
 
 static int spear_pm_sleep(suspend_state_t state)
 {
-	u32 twd_ctrl, twd_load;
-
-	twd_ctrl = readl(twd_base + TWD_TIMER_CONTROL);
-	twd_load = readl(twd_base + TWD_TIMER_LOAD);
-	/* twd timer stop */
-	writel(0, twd_base + TWD_TIMER_CONTROL);
-
 	/* Do the GIC specific latch ups for suspend mode */
 	if (state == PM_SUSPEND_MEM) {
 #ifdef CPU_PWR_DOMAIN_OFF
@@ -90,9 +83,6 @@ static int spear_pm_sleep(suspend_state_t state)
 	spear13xx_l2x0_init();
 	/* Call the CPU PM notifiers to notify exit from sleep */
 	cpu_pm_exit();
-	/* twd timer restart */
-	writel(twd_ctrl, twd_base + TWD_TIMER_CONTROL);
-	writel(twd_load, twd_base + TWD_TIMER_LOAD);
 
 	/* Do the GIC restoration for suspend mode */
 	if (state == PM_SUSPEND_MEM) {

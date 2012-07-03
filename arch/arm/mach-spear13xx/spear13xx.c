@@ -1578,14 +1578,19 @@ void __init spear13xx_map_io(void)
 		spear13xx_clk_init();
 }
 
+#ifdef CONFIG_HAVE_ARM_TWD
+static DEFINE_TWD_LOCAL_TIMER(twd_local_timer, SPEAR13XX_LOCAL_TMR_BASE, IRQ_LOCALTIMER);
+#endif
+
 static void __init spear13xx_timer_init(void)
 {
 	char pclk_name[] = "osc1_24m_clk";
 	struct clk *gpt_clk, *pclk;
 
-#ifdef CONFIG_LOCAL_TIMERS
-	/* Setup the local timer base */
-	twd_base = __io_address(SPEAR13XX_LOCAL_TMR_BASE);
+#ifdef CONFIG_HAVE_ARM_TWD
+	int err = twd_local_timer_register(&twd_local_timer);
+	if (err)
+		pr_err("twd_local_timer_register failed %d\n", err);
 #endif
 
 	/* get the system timer clock */
