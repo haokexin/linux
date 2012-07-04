@@ -187,7 +187,7 @@ struct inode *yaffs_get_inode(struct super_block *sb, int mode, int dev,
 	return inode;
 }
 
-static int yaffs_mknod(struct inode *dir, struct dentry *dentry, int mode,
+static int yaffs_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 		       dev_t rdev)
 {
 	struct inode *inode;
@@ -274,12 +274,12 @@ err_out:
 
 }
 
-static int yaffs_mkdir(struct inode *dir, struct dentry *dentry, int mode)
+static int yaffs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
 {
 	return yaffs_mknod(dir, dentry, mode | S_IFDIR, 0);
 }
 
-static int yaffs_create(struct inode *dir, struct dentry *dentry, int mode,
+static int yaffs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 			struct nameidata *n)
 {
 	return yaffs_mknod(dir, dentry, mode | S_IFREG, 0);
