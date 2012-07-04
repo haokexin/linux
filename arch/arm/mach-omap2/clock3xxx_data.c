@@ -23,6 +23,7 @@
 
 #include <plat/hardware.h>
 #include <plat/clkdev_omap.h>
+#include <asm/trace-clock.h>
 
 #include "iomap.h"
 #include "clock.h"
@@ -3610,6 +3611,9 @@ int __init omap3xxx_clk_init(void)
 	pr_info("Clocking rate (Crystal/Core/MPU): %ld.%01ld/%ld/%ld MHz\n",
 		(osc_sys_ck.rate / 1000000), (osc_sys_ck.rate / 100000) % 10,
 		(core_ck.rate / 1000000), (arm_fck.rate / 1000000));
+
+	/* Set cpu_hz for trace clock before it is used */
+	cpu_hz = arm_fck.rate;
 
 	/*
 	 * Only enable those clocks we will need, let the drivers
