@@ -156,6 +156,7 @@ static inline u32 trace_clock_freq_scale(void)
 	return 1;
 }
 
+#ifdef CONFIG_HAVE_TRACE_CLOCK
 extern int get_trace_clock(void);
 extern void put_trace_clock(void);
 extern void get_synthetic_tsc(void);
@@ -165,6 +166,10 @@ extern void resync_trace_clock(void);
 extern void save_sync_trace_clock(void);
 extern void start_trace_clock(void);
 extern void stop_trace_clock(void);
+#else
+static inline void save_sync_trace_clock(void) {}
+static inline void resync_trace_clock(void) {}
+#endif
 
 static inline void set_trace_clock_is_sync(int state)
 {
