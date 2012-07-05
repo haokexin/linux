@@ -1947,8 +1947,8 @@ static void yaffs_mtd_put_super(struct super_block *sb)
 {
 	struct mtd_info *mtd = yaffs_dev_to_mtd(yaffs_super_to_dev(sb));
 
-	if (mtd->sync)
-		mtd->sync(mtd);
+	if (mtd->_sync)
+		mtd->_sync(mtd);
 
 	put_mtd_device(mtd);
 }
@@ -2048,13 +2048,13 @@ static struct super_block *yaffs_internal_read_super(int yaffs_version,
 		return NULL;
 	}
 
-	yaffs_trace(YAFFS_TRACE_OS, " erase %p", mtd->erase);
-	yaffs_trace(YAFFS_TRACE_OS, " read %p", mtd->read);
-	yaffs_trace(YAFFS_TRACE_OS, " write %p", mtd->write);
-	yaffs_trace(YAFFS_TRACE_OS, " readoob %p", mtd->read_oob);
-	yaffs_trace(YAFFS_TRACE_OS, " writeoob %p", mtd->write_oob);
-	yaffs_trace(YAFFS_TRACE_OS, " block_isbad %p", mtd->block_isbad);
-	yaffs_trace(YAFFS_TRACE_OS, " block_markbad %p", mtd->block_markbad);
+	yaffs_trace(YAFFS_TRACE_OS, " erase %p", mtd->_erase);
+	yaffs_trace(YAFFS_TRACE_OS, " read %p", mtd->_read);
+	yaffs_trace(YAFFS_TRACE_OS, " write %p", mtd->_write);
+	yaffs_trace(YAFFS_TRACE_OS, " readoob %p", mtd->_read_oob);
+	yaffs_trace(YAFFS_TRACE_OS, " writeoob %p", mtd->_write_oob);
+	yaffs_trace(YAFFS_TRACE_OS, " block_isbad %p", mtd->_block_isbad);
+	yaffs_trace(YAFFS_TRACE_OS, " block_markbad %p", mtd->_block_markbad);
 	yaffs_trace(YAFFS_TRACE_OS, " writesize %d", mtd->writesize);
 	yaffs_trace(YAFFS_TRACE_OS, " oobsize %d", mtd->oobsize);
 	yaffs_trace(YAFFS_TRACE_OS, " erasesize %d", mtd->erasesize);
@@ -2073,11 +2073,11 @@ static struct super_block *yaffs_internal_read_super(int yaffs_version,
 
 	if (yaffs_version == 2) {
 		/* Check for version 2 style functions */
-		if (!mtd->erase ||
-		    !mtd->block_isbad ||
-		    !mtd->block_markbad ||
-		    !mtd->read ||
-		    !mtd->write || !mtd->read_oob || !mtd->write_oob) {
+		if (!mtd->_erase ||
+		    !mtd->_block_isbad ||
+		    !mtd->_block_markbad ||
+		    !mtd->_read ||
+		    !mtd->_write || !mtd->_read_oob || !mtd->_write_oob) {
 			yaffs_trace(YAFFS_TRACE_ALWAYS,
 				"MTD device does not support required functions");
 			return NULL;
@@ -2092,9 +2092,9 @@ static struct super_block *yaffs_internal_read_super(int yaffs_version,
 		}
 	} else {
 		/* Check for V1 style functions */
-		if (!mtd->erase ||
-		    !mtd->read ||
-		    !mtd->write || !mtd->read_oob || !mtd->write_oob) {
+		if (!mtd->_erase ||
+		    !mtd->_read ||
+		    !mtd->_write || !mtd->_read_oob || !mtd->_write_oob) {
 			yaffs_trace(YAFFS_TRACE_ALWAYS,
 				"MTD device does not support required functions");
 			return NULL;
