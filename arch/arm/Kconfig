@@ -989,6 +989,7 @@ config PLAT_SPEAR
 	select GENERIC_TIME
 	select HAVE_CLK
 	select ARCH_HAS_CPUFREQ
+	select NEED_MACH_IO_H
 	help
 	  Support for ST's SPEAr platform (SPEAr3xx, SPEAr6xx and SPEAr13xx).
 
