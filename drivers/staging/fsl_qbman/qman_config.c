@@ -781,12 +781,12 @@ int qman_init_ccsr(struct device_node *node)
 }
 
 #define PID_CFG_LIODN_MASK 0x0fff0000
-void qman_liodn_fixup(enum qm_channel channel)
+void qman_liodn_fixup(u16 channel)
 {
 	static int done;
 	static u32 liodn_offset;
 	u32 before, after;
-	int idx = channel - qm_channel_swportal0;
+	int idx = channel - QM_CHANNEL_SWPORTAL0;
 
 	if (!qman_have_ccsr())
 		return;

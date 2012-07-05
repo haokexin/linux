@@ -132,7 +132,7 @@ static qman_cb_dc_ern cb_dc_ern;
 
 static cpumask_t affine_mask;
 static DEFINE_SPINLOCK(affine_mask_lock);
-static enum qm_channel affine_channels[NR_CPUS];
+static u16 affine_channels[NR_CPUS];
 static DEFINE_PER_CPU(struct qman_portal, qman_affine_portal);
 /* "raw" gets the cpu-local struct whether it's a redirect or not. */
 static inline struct qman_portal *get_raw_affine_portal(void)
@@ -892,7 +892,7 @@ const cpumask_t *qman_affine_cpus(void)
 }
 EXPORT_SYMBOL(qman_affine_cpus);
 
-enum qm_channel qman_affine_channel(int cpu)
+u16 qman_affine_channel(int cpu)
 {
 	if (cpu < 0) {
 		struct qman_portal *portal = get_raw_affine_portal();
@@ -1969,7 +1969,7 @@ int qman_modify_cgr(struct qman_cgr *cgr, u32 flags,
 EXPORT_SYMBOL(qman_modify_cgr);
 
 #define TARG_MASK(n) (0x80000000 >> (n->config->public_cfg.channel - \
-					qm_channel_swportal0))
+					QM_CHANNEL_SWPORTAL0))
 
 int qman_create_cgr(struct qman_cgr *cgr, u32 flags,
 			struct qm_mcc_initcgr *opts)

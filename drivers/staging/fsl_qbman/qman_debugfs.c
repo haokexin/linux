@@ -416,7 +416,7 @@ struct query_wq_lengths_data_s {
 	union {
 		u16 channel_wq; /* ignores wq (3 lsbits) */
 		struct {
-			u16 id:13; /* enum qm_channel */
+			u16 id:13; /* qm_channel */
 			u16 __reserved:3;
 		} __packed channel;
 	};
