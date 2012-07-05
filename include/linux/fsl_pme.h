@@ -547,7 +547,7 @@ struct pme_ctx {
  * Returns 0 on success.
  */
 int pme_ctx_init(struct pme_ctx *ctx, u32 flags, u32 bpid, u8 qosin,
-			u8 qosout, enum qm_channel dest,
+			u8 qosout, u16 dest,
 			const struct qm_fqd_stashing *stashing);
 
 /* Cleanup allocated resources */
@@ -578,7 +578,7 @@ int pme_ctx_is_dead(struct pme_ctx *ctx);
  */
 int pme_ctx_reconfigure_tx(struct pme_ctx *ctx, u32 bpid, u8 qosin);
 int pme_ctx_reconfigure_rx(struct pme_ctx *ctx, u8 qosout,
-		enum qm_channel dest, const struct qm_fqd_stashing *stashing);
+		u16 dest, const struct qm_fqd_stashing *stashing);
 
 /* Precondition: pme_ctx must be enabled
  * if PME_CTX_OP_WAIT is specified, it'll wait (if it has to) to start the ctrl

@@ -39,27 +39,14 @@ extern "C" {
 /* Last updated for v00.800 of the BG */
 
 /* Hardware constants */
-enum qm_channel {
-	qm_channel_swportal0 = 0, qm_channel_swportal1, qm_channel_swportal2,
-	qm_channel_swportal3, qm_channel_swportal4, qm_channel_swportal5,
-	qm_channel_swportal6, qm_channel_swportal7, qm_channel_swportal8,
-	qm_channel_swportal9,
-	qm_channel_pool1 = 0x21, qm_channel_pool2, qm_channel_pool3,
-	qm_channel_pool4, qm_channel_pool5, qm_channel_pool6,
-	qm_channel_pool7, qm_channel_pool8, qm_channel_pool9,
-	qm_channel_pool10, qm_channel_pool11, qm_channel_pool12,
-	qm_channel_pool13, qm_channel_pool14, qm_channel_pool15,
-	qm_channel_fman0_sp0 = 0x40, qm_channel_fman0_sp1, qm_channel_fman0_sp2,
-	qm_channel_fman0_sp3, qm_channel_fman0_sp4, qm_channel_fman0_sp5,
-	qm_channel_fman0_sp6, qm_channel_fman0_sp7, qm_channel_fman0_sp8,
-	qm_channel_fman0_sp9, qm_channel_fman0_sp10, qm_channel_fman0_sp11,
-	qm_channel_fman1_sp0 = 0x60, qm_channel_fman1_sp1, qm_channel_fman1_sp2,
-	qm_channel_fman1_sp3, qm_channel_fman1_sp4, qm_channel_fman1_sp5,
-	qm_channel_fman1_sp6, qm_channel_fman1_sp7, qm_channel_fman1_sp8,
-	qm_channel_fman1_sp9, qm_channel_fman1_sp10, qm_channel_fman1_sp11,
-	qm_channel_caam = 0x80,
-	qm_channel_pme = 0xa0,
-};
+#define QM_CHANNEL_SWPORTAL0 0
+#define QMAN_CHANNEL_CAAM 0x80
+#define QMAN_CHANNEL_PME 0xa0
+#define QMAN_CHANNEL_CAAM_REV3 0x840
+#define QMAN_CHANNEL_PME_REV3 0x860
+extern u16 qm_channel_pool1;
+extern u16 qm_channel_caam;
+extern u16 qm_channel_pme;
 enum qm_dc_portal {
 	qm_dc_portal_fman0 = 0,
 	qm_dc_portal_fman1 = 1,
@@ -82,9 +69,11 @@ enum qm_dc_portal {
 #define QM_SDQCR_CHANNELS_POOL_MASK	0x00007fff
 /* for n in [1,15] */
 #define QM_SDQCR_CHANNELS_POOL(n)	(0x00008000 >> (n))
-/* for conversion from n of type "enum qm_channel" */
-#define QM_SDQCR_CHANNELS_POOL_CONV(c) \
-	QM_SDQCR_CHANNELS_POOL((c) + 1 - qm_channel_pool1)
+/* for conversion from n of qm_channel */
+static inline u32 QM_SDQCR_CHANNELS_POOL_CONV(u16 channel)
+{
+	return QM_SDQCR_CHANNELS_POOL(channel + 1 - qm_channel_pool1);
+}
 
 /* For qman_volatile_dequeue(); Choose one PRECEDENCE. EXACT is optional. Use
  * NUMFRAMES(n) (6-bit) or NUMFRAMES_TILLEMPTY to fill in the frame-count. Use
@@ -407,7 +396,7 @@ struct qm_fqd {
 	union {
 		u16 dest_wq;
 		struct {
-			u16 channel:13; /* enum qm_channel */
+			u16 channel:13; /* qm_channel */
 			u16 wq:3;
 		} __packed dest;
 	};
@@ -654,7 +643,7 @@ struct qm_mcc_querywq {
 	union {
 		u16 channel_wq; /* ignores wq (3 lsbits) */
 		struct {
-			u16 id:13; /* enum qm_channel */
+			u16 id:13; /* qm_channel */
 			u16 __reserved1:3;
 		} __packed channel;
 	};
@@ -846,7 +835,7 @@ struct qm_mcr_querywq {
 	union {
 		u16 channel_wq; /* ignores wq (3 lsbits) */
 		struct {
-			u16 id:13; /* enum qm_channel */
+			u16 id:13; /* qm_channel */
 			u16 __reserved:3;
 		} __packed channel;
 	};
@@ -974,7 +963,7 @@ struct qman_portal_config {
 	int is_shared;
 	/* The portal's dedicated channel id, use this value for initialising
 	 * frame queues to target this portal when scheduled. */
-	enum qm_channel channel;
+	u16 channel;
 	/* A mask of which pool channels this portal has dequeue access to
 	 * (using QM_SDQCR_CHANNELS_POOL(n) for the bitmask) */
 	u32 pools;
@@ -1091,7 +1080,7 @@ struct qman_cgr {
 	u32 cgrid; /* 0..255, but u32 to allow specials like -1, 256, etc.*/
 	qman_cb_cgr cb;
 	/* These are private to the driver */
-	enum qm_channel chan; /* portal channel this object is created on */
+	u16 chan; /* portal channel this object is created on */
 	struct list_head node;
 };
 
@@ -1214,7 +1203,7 @@ const cpumask_t *qman_affine_cpus(void);
  * bug to call this function for any value of @cpu (other than -1) that is not a
  * member of the mask returned from qman_affine_cpus().
  */
-enum qm_channel qman_affine_channel(int cpu);
+u16 qman_affine_channel(int cpu);
 
 /**
  * qman_poll_dqrr - process DQRR (fast-path) entries

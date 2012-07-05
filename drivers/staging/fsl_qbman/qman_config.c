@@ -299,14 +299,13 @@ static void qm_set_default_wq(struct qman *qm, u16 wqid)
 	qm_out(WQ_DEF_ENC_WQID, wqid);
 }
 
-static void qm_set_channel_ddebug(struct qman *qm, enum qm_channel channel,
-				u16 tp_cfg)
+static void qm_set_channel_ddebug(struct qman *qm, u16 channel, u16 tp_cfg)
 {
 	u32 offset;
 	int upperhalf = 0;
-	if ((channel >= qm_channel_swportal0) &&
+	if ((channel >= QM_CHANNEL_SWPORTAL0) &&
 				(channel <= qm_channel_swportal9)) {
-		offset = (channel - qm_channel_swportal0);
+		offset = (channel - QM_CHANNEL_SWPORTAL0);
 		upperhalf = offset & 0x1;
 		offset = REG_WQ_SC_DD_CFG(offset / 2);
 	} else if ((channel >= qm_channel_pool1) &&
@@ -828,12 +827,12 @@ int qman_init_ccsr(struct device_node *node)
 }
 
 #define PID_CFG_LIODN_MASK 0x0fff0000
-void qman_liodn_fixup(enum qm_channel channel)
+void qman_liodn_fixup(u16 channel)
 {
 	static int done;
 	static u32 liodn_offset;
 	u32 before, after;
-	int idx = channel - qm_channel_swportal0;
+	int idx = channel - QM_CHANNEL_SWPORTAL0;
 
 	if (!qman_have_ccsr())
 		return;
@@ -848,9 +847,9 @@ void qman_liodn_fixup(enum qm_channel channel)
 }
 
 #define IO_CFG_SDEST_MASK 0x00ff0000
-int qman_set_sdest(enum qm_channel channel, unsigned int cpu_idx)
+int qman_set_sdest(u16 channel, unsigned int cpu_idx)
 {
-	int idx = channel - qm_channel_swportal0;
+	int idx = channel - QM_CHANNEL_SWPORTAL0;
 	u32 before, after;
 
 	if (!qman_have_ccsr())

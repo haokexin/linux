@@ -36,6 +36,12 @@
  * where CCSR isn't available) */
 u16 qman_ip_rev;
 EXPORT_SYMBOL(qman_ip_rev);
+u16 qm_channel_pool1;
+EXPORT_SYMBOL(qm_channel_pool1);
+u16 qm_channel_caam = QMAN_CHANNEL_CAAM;
+EXPORT_SYMBOL(qm_channel_caam);
+u16 qm_channel_pme = QMAN_CHANNEL_PME;
+EXPORT_SYMBOL(qm_channel_pme);
 
 /* size of the fqd region in bytes */
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
@@ -89,6 +95,7 @@ static __init int fsl_pool_channel_range_sdqcr(struct device_node *node)
 		pr_err(STR_ERR_CELL, STR_POOL_CHAN_RANGE, 1, node->full_name);
 		return -EINVAL;
 	}
+	qm_channel_pool1 = chanid[0];
 	for (ret = 0; ret < chanid[1]; ret++)
 		pools_sdqcr |= QM_SDQCR_CHANNELS_POOL_CONV(chanid[0] + ret);
 	return 0;
@@ -108,6 +115,7 @@ static __init int fsl_pool_channel_range_init(struct device_node *node)
 		return -EINVAL;
 	}
 	qman_release_pool_range(chanid[0], chanid[1]);
+	qm_channel_pool1 = chanid[0];
 	pr_info("Qman: pool channel allocator includes range %d:%d\n",
 		chanid[0], chanid[1]);
 	return 0;
@@ -179,6 +187,12 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 		pr_warning("Revision=0x%04x, but portal '%s' has 0x%04x\n",
 			qman_ip_rev, node->full_name, ip_rev);
 
+	if ((qman_ip_rev & 0xff00) >= QMAN_REV30)
+	{
+		qm_channel_caam = QMAN_CHANNEL_CAAM_REV3;;
+		qm_channel_pme = QMAN_CHANNEL_PME_REV3;
+	}
+
 	ret = of_address_to_resource(node, DPA_PORTAL_CE,
 				&pcfg->addr_phys[DPA_PORTAL_CE]);
 	if (ret) {
@@ -205,7 +219,7 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 			"fsl,qman-channel-id");
 		goto err;
 	}
-	if (*channel != (*index + qm_channel_swportal0))
+	if (*channel != (*index + QM_CHANNEL_SWPORTAL0))
 		pr_err("Warning: node %s has mismatched %s and %s\n",
 			node->full_name, "cell-index", "fsl,qman-channel-id");
 	pcfg->public_cfg.channel = *channel;
