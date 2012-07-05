@@ -615,6 +615,10 @@ static struct spi_board_info *spi_board[] __initdata = {
 static void
 spear1340_evb_fixup(struct tag *tags, char **cmdline, struct meminfo *mi)
 {
+	mi->nr_banks = 1;
+	mi->bank[0].start = PHYS_OFFSET;
+	mi->bank[0].size = 0x40000000;
+
 #if defined(CONFIG_FB_DB9000) || defined(CONFIG_FB_DB9000_MODULE)
 	spear13xx_panel_fixup(mi);
 #endif
