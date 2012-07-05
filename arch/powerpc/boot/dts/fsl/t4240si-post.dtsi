@@ -256,12 +256,18 @@
 	 * removed once u-boot can create cpu node with cache info.
 	 */
 	L2_1: l2-cache-controller@c20000 {
+		compatible = "fsl,t4240-l2-cache-controller";
+		reg = <0xc20000 0x40000>;
 		next-level-cache = <&cpc>;
 	};
 	L2_2: l2-cache-controller@c60000 {
+		compatible = "fsl,t4240-l2-cache-controller";
+		reg = <0xc60000 0x40000>;
 		next-level-cache = <&cpc>;
 	};
 	L2_3: l2-cache-controller@ca0000 {
+		compatible = "fsl,t4240-l2-cache-controller";
+		reg = <0xca0000 0x40000>;
 		next-level-cache = <&cpc>;
 	};
 
