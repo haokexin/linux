@@ -184,8 +184,8 @@ static int __devinit mpic_tm_probe(struct of_device *dev,
 	if (!has_tcr) {
 		priv->ticks_per_sec = busfreq / 8;
 	} else {
-		u32 __iomem *tcr;
-		tcr = (u32 __iomem *)((u32)priv->regs + MPIC_TIMER_TCR_OFFSET);
+		void __iomem *tcr;
+		tcr = (void *)priv->regs + MPIC_TIMER_TCR_OFFSET;
 		out_be32(tcr, in_be32(tcr) | MPIC_TIMER_TCR_CLKDIV_64);
 		priv->ticks_per_sec = busfreq / 64;
 	}
