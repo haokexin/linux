@@ -189,7 +189,7 @@ static int park(struct qman_fq *fq, struct qm_mcc_initfq *initfq)
 }
 
 static inline int reconfigure_rx(struct pme_ctx *ctx, int to_park, u8 qosout,
-				enum qm_channel dest,
+				u16 dest,
 				const struct qm_fqd_stashing *stashing)
 {
 	struct qm_mcc_initfq initfq;
@@ -251,7 +251,7 @@ static int empty_pipeline(struct pme_ctx *ctx, __maybe_unused u32 flags)
 }
 
 int pme_ctx_init(struct pme_ctx *ctx, u32 flags, u32 bpid, u8 qosin,
-			u8 qosout, enum qm_channel dest,
+			u8 qosout, u16 dest,
 			const struct qm_fqd_stashing *stashing)
 {
 	int rxinit = 0, ret = -ENOMEM, fqin_inited = 0;
@@ -468,7 +468,7 @@ int pme_ctx_reconfigure_tx(struct pme_ctx *ctx, u32 bpid, u8 qosin)
 EXPORT_SYMBOL(pme_ctx_reconfigure_tx);
 
 int pme_ctx_reconfigure_rx(struct pme_ctx *ctx, u8 qosout,
-		enum qm_channel dest, const struct qm_fqd_stashing *stashing)
+		u16 dest, const struct qm_fqd_stashing *stashing)
 {
 	return reconfigure_rx(ctx, 1, qosout, dest, stashing);
 }

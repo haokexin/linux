@@ -133,7 +133,7 @@ extern u16 qman_ip_rev; /* 0 if uninitialised, otherwise QMAN_REVx */
 #ifdef CONFIG_FSL_QMAN_CONFIG
 /* Hooks from qman_driver.c to qman_config.c */
 int qman_init_ccsr(struct device_node *node);
-void qman_liodn_fixup(enum qm_channel channel);
+void qman_liodn_fixup(u16 channel);
 #endif
 
 /* Hooks from qman_driver.c in to qman_high.c */
