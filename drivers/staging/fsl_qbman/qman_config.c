@@ -800,6 +800,20 @@ void qman_liodn_fixup(enum qm_channel channel)
 	qm_out(QCSP_PID_CFG(idx), after);
 }
 
+#define IO_CFG_SDEST_MASK 0x00ff0000
+int qman_set_sdest(enum qm_channel channel, unsigned int cpu_idx)
+{
+	int idx = channel - qm_channel_swportal0;
+	u32 before, after;
+
+	if (!qman_have_ccsr())
+		return -ENODEV;
+	before = qm_in(QCSP_IO_CFG(idx));
+	after = (before & (~IO_CFG_SDEST_MASK)) | (cpu_idx << 16);
+	qm_out(QCSP_IO_CFG(idx), after);
+	return 0;
+}
+
 #ifdef CONFIG_SYSFS
 
 #define DRV_NAME	"fsl-qman"
