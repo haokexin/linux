@@ -256,7 +256,7 @@ static struct qm_portal_config *get_pcfg(struct list_head *list)
 }
 
 #ifdef CONFIG_FSL_PAMU
-static void set_liodns(const struct qm_portal_config *pcfg, int cpu)
+static void portal_set_liodns(const struct qm_portal_config *pcfg, int cpu)
 {
 	unsigned int index = 0;
 	unsigned int liodn_cnt = pamu_get_liodn_count(pcfg->node);
@@ -267,8 +267,17 @@ static void set_liodns(const struct qm_portal_config *pcfg, int cpu)
 	}
 }
 #else
-#define set_liodns(pcfg, cpu) do { } while (0)
+#define portal_set_liodns(pcfg, cpu) do { } while (0)
 #endif
+
+static void portal_set_cpu(const struct qm_portal_config *pcfg, int cpu)
+{
+	portal_set_liodns(pcfg, cpu);
+#ifdef CONFIG_FSL_QMAN_CONFIG
+	if (qman_set_sdest(pcfg->public_cfg.channel, cpu))
+#endif
+		pr_warning("Failed to set QMan portal's stash request queue\n");
+}
 
 /* UIO handling callbacks */
 #define QMAN_UIO_PREAMBLE() \
@@ -309,14 +318,15 @@ static void qman_uio_cb_destroy(const struct list_head *__p,
 static int qman_uio_cb_open(const struct list_head *__p)
 {
 	QMAN_UIO_PREAMBLE();
-	/* Bind stashing LIODNs to the CPU we are currently executing on. The
-	 * user-space driver assumption is that the pthread has to already be
-	 * affine to one cpu only before opening a portal. If that check is
-	 * circumvented, the only risk is a performance degradation - stashing
-	 * will go to whatever cpu they happened to be running on when opening
-	 * the device file, and if that isn't the cpu they subsequently bind to
-	 * and do their polling on, tough. */
-	set_liodns(pcfg, hard_smp_processor_id());
+	/* Bind stashing LIODNs to the CPU we are currently executing on, and
+	 * set the portal to use the stashing request queue corresonding to the
+	 * cpu as well. The user-space driver assumption is that the pthread has
+	 * to already be affine to one cpu only before opening a portal. If that
+	 * check is circumvented, the only risk is a performance degradation -
+	 * stashing will go to whatever cpu they happened to be running on when
+	 * opening the device file, and if that isn't the cpu they subsequently
+	 * bind to and do their polling on, tough. */
+	portal_set_cpu(pcfg, hard_smp_processor_id());
 	return 0;
 }
 static void qman_uio_cb_interrupt(const struct list_head *__p)
@@ -342,7 +352,7 @@ static struct qman_portal *init_pcfg(struct qm_portal_config *pcfg)
 	struct qman_portal *p;
 	struct cpumask oldmask = *tsk_cpus_allowed(current);
 
-	set_liodns(pcfg, pcfg->public_cfg.cpu);
+	portal_set_cpu(pcfg, pcfg->public_cfg.cpu);
 	set_cpus_allowed_ptr(current, get_cpu_mask(pcfg->public_cfg.cpu));
 	p = qman_create_affine_portal(pcfg, NULL);
 	if (p) {
