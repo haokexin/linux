@@ -51,4 +51,9 @@
 #define PTV			0	/* prescale */
 #define GET_WLDR_VAL(secs)	(0xffffffff - ((secs) * (32768/(1<<PTV))) + 1)
 
+/* MPU_WD_RST bit in PRM_RSTST show Omap WDTimer reset event.
+ * 0x0 = 0x0 : No watchdog reset.
+ * 0x1 = 0x1 : watchdog reset has occurred. */
+#define OMAP3_PRM_RSTST_WD_BIT		4
+
 #endif				/* _OMAP_WATCHDOG_H */
