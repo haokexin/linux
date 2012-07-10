@@ -39,7 +39,7 @@
 
 #include "fsl_fman.h"		/* struct port_device */
 
-enum {DTSEC, XGMAC};
+enum {DTSEC, XGMAC, MEMAC};
 
 struct mac_device {
 	struct device		*dev;

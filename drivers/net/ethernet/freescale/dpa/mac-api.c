@@ -61,7 +61,8 @@ struct mac_priv_s {
 const char	*mac_driver_description __initconst = MAC_DESCRIPTION;
 const size_t	 mac_sizeof_priv[] __devinitconst = {
 	[DTSEC] = sizeof(struct mac_priv_s),
-	[XGMAC] = sizeof(struct mac_priv_s)
+	[XGMAC] = sizeof(struct mac_priv_s),
+	[MEMAC] = sizeof(struct mac_priv_s)
 };
 
 static const e_EnetMode _100[] __devinitconst =
@@ -227,6 +228,70 @@ static int __devinit __cold init(struct mac_device *mac_dev)
 
 	goto _return;
 
+
+_return_fm_mac_free:
+	err = FM_MAC_Free(priv->mac);
+	if (unlikely(-GET_ERROR_TYPE(err) < 0))
+		dpaa_eth_err(mac_dev->dev, "FM_MAC_Free() = 0x%08x\n", err);
+_return:
+	return _errno;
+}
+
+static int __devinit __cold memac_init(struct mac_device *mac_dev)
+{
+	int			_errno;
+	t_Error			err;
+	struct mac_priv_s	*priv;
+	t_FmMacParams		param;
+
+	priv = macdev_priv(mac_dev);
+
+	param.baseAddr =  (typeof(param.baseAddr))(uintptr_t)devm_ioremap(
+		mac_dev->dev, mac_dev->res->start, 0x2000);
+	param.enetMode	= macdev2enetinterface(mac_dev);
+	memcpy(&param.addr, mac_dev->addr, sizeof(mac_dev->addr));
+	param.macId		= mac_dev->cell_index;
+	param.h_Fm		= (t_Handle)mac_dev->fm;
+	param.mdioIrq		= NO_IRQ;
+	param.f_Exception	= mac_exception;
+	param.f_Event		= mac_exception;
+	param.h_App		= mac_dev;
+
+	priv->mac = FM_MAC_Config(&param);
+	if (unlikely(priv->mac == NULL)) {
+		dpaa_eth_err(mac_dev->dev, "FM_MAC_Config() failed\n");
+		_errno = -EINVAL;
+		goto _return;
+	}
+
+	err = FM_MAC_ConfigMaxFrameLength(priv->mac, fm_get_max_frm());
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0)) {
+		dpaa_eth_err(mac_dev->dev,
+			"FM_MAC_ConfigMaxFrameLength() = 0x%08x\n", err);
+		goto _return_fm_mac_free;
+	}
+
+#ifndef CONFIG_T4_SIMULATOR_WORKAROUND
+	err = FM_MAC_ConfigResetOnInit(priv->mac, true);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0)) {
+		dpaa_eth_err(mac_dev->dev,
+			"FM_MAC_ConfigResetOnInit() = 0x%08x\n", err);
+		goto _return_fm_mac_free;
+	}
+#endif
+
+	err = FM_MAC_Init(priv->mac);
+	_errno = -GET_ERROR_TYPE(err);
+	if (unlikely(_errno < 0)) {
+		dpaa_eth_err(mac_dev->dev, "FM_MAC_Init() = 0x%08x\n", err);
+		goto _return_fm_mac_free;
+	}
+
+	cpu_dev_info(mac_dev->dev, "FMan MEMAC\n");
+
+	goto _return;
 
 _return_fm_mac_free:
 	err = FM_MAC_Free(priv->mac);
@@ -717,7 +782,20 @@ static void __devinit __cold setup_xgmac(struct mac_device *mac_dev)
 	mac_dev->uninit		= uninit;
 }
 
+static void __devinit __cold setup_memac(struct mac_device *mac_dev)
+{
+	mac_dev->init_phy	= xgmac_init_phy;
+	mac_dev->init		= memac_init;
+	mac_dev->start		= start;
+	mac_dev->stop		= stop;
+	mac_dev->change_promisc	= change_promisc;
+	mac_dev->change_addr    = change_addr;
+	mac_dev->set_multi      = set_multi;
+	mac_dev->uninit		= uninit;
+}
+
 void (*const mac_setup[])(struct mac_device *mac_dev) __devinitconst = {
 	[DTSEC] = setup_dtsec,
-	[XGMAC] = setup_xgmac
+	[XGMAC] = setup_xgmac,
+	[MEMAC] = setup_memac
 };

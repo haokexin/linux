@@ -123,6 +123,9 @@ static const struct of_device_id mac_match[] __devinitconst = {
 	[XGMAC] = {
 		.compatible	= "fsl,fman-10g-mac"
 	},
+	[MEMAC] = {
+		.compatible	= "fsl,fman-memac"
+	},
 	{}
 };
 MODULE_DEVICE_TABLE(of, mac_match);
