@@ -917,7 +917,6 @@ static int __devinit pca953x_probe(struct i2c_client *client,
 		goto out_failed;
 
 	ret = pca953x_irq_setup(chip, id, irq_base);
-	printk(KERN_INFO "chip->irq_base is %d\n", chip->irq_base);
 	if (ret)
 		goto out_failed;
 
