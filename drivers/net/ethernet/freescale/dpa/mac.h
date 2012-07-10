@@ -43,7 +43,7 @@
 #define CONFIG_DPA_MAX_FRM_SIZE		0
 #endif
 
-enum {DTSEC, XGMAC};
+enum {DTSEC, XGMAC, MEMAC};
 
 struct mac_device {
 	struct device		*dev;
