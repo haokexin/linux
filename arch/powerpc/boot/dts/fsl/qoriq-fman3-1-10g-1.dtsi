@@ -48,7 +48,7 @@ fman@500000 {
 
 	ethernet@f2000 {
 		cell-index = <1>;
-		compatible = "fsl,fman-10g-mac";
+		compatible = "fsl,fman-memac";
 		reg = <0xf2000 0x1000>;
 		fsl,port-handles = <&fman1_10g_rx1 &fman1_10g_tx1>;
 	};
