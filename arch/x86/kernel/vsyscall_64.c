@@ -85,6 +85,7 @@ void update_vsyscall_tz(void)
 	vsyscall_gtod_data.sys_tz = sys_tz;
 }
 
+#ifdef CONFIG_HAVE_TRACE_CLOCK
 void update_trace_clock_is_sync_vdso(void)
 {
 	unsigned long flags;
@@ -96,6 +97,7 @@ void update_trace_clock_is_sync_vdso(void)
 	local_irq_restore(flags);
 }
 EXPORT_SYMBOL_GPL(update_trace_clock_is_sync_vdso);
+#endif
 
 void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 			struct clocksource *clock, u32 mult)
@@ -121,7 +123,9 @@ void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 	vsyscall_gtod_data.wall_time_coarse	= __current_kernel_time();
 	vsyscall_gtod_data.monotonic_time_coarse =
 		timespec_add(vsyscall_gtod_data.wall_time_coarse, *wtm);
+#ifdef CONFIG_HAVE_TRACE_CLOCK
 	vsyscall_gtod_data.trace_clock_is_sync = _trace_clock_is_sync;
+#endif
 
 	write_seqcount_end(&vsyscall_gtod_data.seq);
 }
