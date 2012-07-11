@@ -283,6 +283,8 @@ struct dpa_percpu_priv_s {
 	u32 ingress_calls;
 	u32 tx_returned;
 	u32 tx_confirm;
+	/* fragmented (non-linear) skbuffs received from the stack */
+	u32 tx_frag_skbuffs;
 	struct net_device_stats	 stats;
 	struct dpa_rx_errors rx_errors;
 	struct dpa_ern_cnt ern_cnt;

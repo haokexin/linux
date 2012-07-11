@@ -2689,7 +2689,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 
 	seq_printf(file, "\nDPA counters for %s:\n"
 		"CPU           irqs        rx        tx   recycle" \
-		"   confirm    tx err    rx err  bp count\n",
+		"   confirm     tx sg    tx err    rx err  bp count\n",
 		priv->net_dev->name);
 	for_each_online_cpu(i) {
 		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
@@ -2704,29 +2704,32 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 		total.stats.tx_packets += percpu_priv->stats.tx_packets;
 		total.tx_returned += percpu_priv->tx_returned;
 		total.tx_confirm += percpu_priv->tx_confirm;
+		total.tx_frag_skbuffs += percpu_priv->tx_frag_skbuffs;
 		total.stats.tx_errors += percpu_priv->stats.tx_errors;
 		total.stats.rx_errors += percpu_priv->stats.rx_errors;
 		count_total += dpa_bp_count;
 
 		seq_printf(file, "     %hu/%hu  %8u  %8lu  %8lu  %8u  %8u" \
-				"  %8lu  %8lu  %8d\n",
+				"  %8u  %8lu  %8lu  %8d\n",
 				get_hard_smp_processor_id(i), i,
 				percpu_priv->in_interrupt,
 				percpu_priv->stats.rx_packets,
 				percpu_priv->stats.tx_packets,
 				percpu_priv->tx_returned,
 				percpu_priv->tx_confirm,
+				percpu_priv->tx_frag_skbuffs,
 				percpu_priv->stats.tx_errors,
 				percpu_priv->stats.rx_errors,
 				dpa_bp_count);
 	}
-	seq_printf(file, "Total     %8u  %8u  %8lu  %8u  %8u  %8lu  %8lu" \
+	seq_printf(file, "Total     %8u  %8u  %8lu  %8u  %8u  %8u  %8lu  %8lu" \
 				"  %8d\n",
 			total.in_interrupt,
 			total.ingress_calls,
 			total.stats.tx_packets,
 			total.tx_returned,
 			total.tx_confirm,
+			total.tx_frag_skbuffs,
 			total.stats.tx_errors,
 			total.stats.rx_errors,
 			count_total);
