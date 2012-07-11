@@ -728,6 +728,7 @@ int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 	if (skb_is_nonlinear(skb)) {
 		/* Just create a S/G fd based on the skb */
 		err = skb_to_sg_fd(priv, percpu_priv, skb, &fd);
+		percpu_priv->tx_frag_skbuffs++;
 	} else {
 		/*
 		 * Make sure we have enough headroom to accomodate private
