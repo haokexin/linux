@@ -1066,6 +1066,13 @@ int prom_update_property(struct device_node *np,
 	unsigned long flags;
 	int found = 0;
 
+	if (!newprop->name)
+		return -EINVAL;
+
+	oldprop = of_find_property(np, newprop->name, NULL);
+	if (!oldprop)
+		return prom_add_property(np, newprop);
+
 	write_lock_irqsave(&devtree_lock, flags);
 	next = &np->properties;
 	while (*next) {
