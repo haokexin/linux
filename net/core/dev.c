@@ -1984,9 +1984,8 @@ struct sk_buff *skb_gso_segment(struct sk_buff *skb,
 	}
 
 	__this_cpu_inc(softnet_data.processed);
-	skb_reset_network_header(skb);
-	skb_reset_transport_header(skb);
 
+	skb_reset_mac_header(skb);
 	skb->mac_len = skb->network_header - skb->mac_header;
 	__skb_pull(skb, skb->mac_len);
 
