@@ -39,10 +39,6 @@
 
 #include "fsl_fman.h"		/* struct port_device */
 
-#ifndef CONFIG_DPA_MAX_FRM_SIZE
-#define CONFIG_DPA_MAX_FRM_SIZE		0
-#endif
-
 enum {DTSEC, XGMAC};
 
 struct mac_device {

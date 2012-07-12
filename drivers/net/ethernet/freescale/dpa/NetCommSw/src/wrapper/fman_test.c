@@ -431,7 +431,8 @@ static int fmt_fq_release(const struct qm_fd *fd)
 }
 
 /* sync it w/ dpaa_eth.c: DPA_BP_HEAD */
-#define DPA_BP_HEADROOM (DPA_RX_PRIV_DATA_SIZE + \
+#define DPA_BP_HEADROOM (DPA_TX_PRIV_DATA_SIZE + \
+			fm_get_rx_extra_headroom() + \
 			DPA_PARSE_RESULTS_SIZE + \
 			DPA_HASH_RESULTS_SIZE)
 #define MAC_HEADER_LENGTH 14
@@ -536,7 +537,7 @@ enum dpaa_eth_hook_result fmt_tx_confirm_hook(
 	fd_virt_addr = phys_to_virt(addr);
 	fd_len = fd->length20 + fd->offset;
 
-	if (fd_len > fsl_fman_phy_maxfrm) {
+	if (fd_len > fm_get_max_frm()) {
 		_fmt_err("tx confirm bad frame size: %u!\n", fd_len);
 		goto _fmt_tx_confirm_hook_continue;
 	}
@@ -577,7 +578,7 @@ enum dpaa_eth_hook_result fmt_tx_confirm_error_hook(
 	fd_virt_addr = phys_to_virt(addr);
 	fd_len = fd->length20 + fd->offset;
 
-	if (fd_len > fsl_fman_phy_maxfrm) {
+	if (fd_len > fm_get_max_frm()) {
 		_fmt_err("tx confirm err bad frame size: %u !\n", fd_len);
 		goto _priv_ingress_tx_err_continue;
 	}
@@ -728,7 +729,7 @@ static enum qman_cb_dqrr_result fmt_pcd_dqrr(
 
 	fd_len = dq->fd.length20 + dq->fd.offset;
 
-	if (fd_len > fsl_fman_phy_maxfrm) {
+	if (fd_len > fm_get_max_frm()) {
 		_fmt_err("pcd dqrr wrong frame size: %u (%u:%u)!\n",
 			fd_len, dq->fd.length20, dq->fd.offset);
 		goto _fmt_pcd_dqrr_return;

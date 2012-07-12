@@ -89,12 +89,6 @@
  * creating a S/G frame */
 #define DPA_SKB_COPY_MAX_SIZE	256
 
-/* Bootarg used to override the Kconfig DPA_MAX_FRM_SIZE value */
-#define FSL_FMAN_PHY_MAXFRM_BOOTARG	"fsl_fman_phy_max_frm"
-
-/* Bootarg used to override DPA_EXTRA_HEADROOM Kconfig value */
-#define DPA_EXTRA_HEADROOM_BOOTARG	"dpa_extra_headroom"
-
 /* Valid checksum indication */
 #define DPA_CSUM_VALID		0xFFFF
 
@@ -130,30 +124,9 @@ static struct dentry *dpa_debugfs_root;
 extern struct dentry *powerpc_debugfs_root;
 #endif
 
-/*
- * Max frame size, across all interfaces.
- * Configurable from Kconfig or bootargs, to avoid allocating
- * oversized (socket) buffers when not using jumbo frames.
- * Must be large enough to accomodate the network MTU, but small enough
- * to avoid wasting skb memory.
- *
- * Could be overridden once, at boot-time, via the
- * fsl_fman_phy_set_max_frm() callback.
- */
-int fsl_fman_phy_maxfrm = CONFIG_DPA_MAX_FRM_SIZE;
-
-/*
- * Extra headroom for Rx buffers.
- * FMan is instructed to allocate, on the Rx path, this amount of
- * space at the beginning of a data buffer, beside the DPA private
- * data area and the IC fields.
- * Does not impact Tx buffer layout.
- *
- * Configurable from Kconfig or bootargs. Zero by default, it's needed
- * on particular forwarding scenarios that add extra headers to the
- * forwarded frame to avoid unbounded increase of recycled buffers.
- */
-int dpa_rx_extra_headroom = CONFIG_DPA_EXTRA_HEADROOM;
+/* dpaa_eth mirror for the FMan values */
+static int dpa_rx_extra_headroom;
+static int dpa_max_frm;
 
 static const char rtx[][3] = {
 	[RX] = "RX",
@@ -737,7 +710,8 @@ dpa_get_stats(struct net_device *net_dev)
 static int dpa_change_mtu(struct net_device *net_dev, int new_mtu)
 {
 	const struct dpa_priv_s *priv;
-	const int max_mtu = fsl_fman_phy_maxfrm - (VLAN_ETH_HLEN + ETH_FCS_LEN);
+	const int max_mtu = dpa_get_max_frm()
+				- (VLAN_ETH_HLEN + ETH_FCS_LEN);
 	const int min_mtu = 64;
 
 	priv = netdev_priv(net_dev);
@@ -2082,14 +2056,15 @@ static enum qman_cb_dqrr_result __devinit tx_unit_test_dqrr(
 	if (fd->cmd & FM_FD_CMD_FCO) {
 		size_t bufsize = skb_end_pointer(skb) - startaddr;
 
-		if (bufsize < fsl_fman_phy_maxfrm)
+		if (bufsize < dpa_get_max_frm())
 			goto out;
 	} else {
 		/*
 		 * If we didn't recycle, but the buffer was big enough,
 		 * increment the counter to put it back
 		 */
-		if (skb_end_pointer(skb) - skb->head >= fsl_fman_phy_maxfrm)
+		if (skb_end_pointer(skb) - skb->head >=
+			dpa_get_max_frm())
 			(*percpu_priv->dpa_bp_count)++;
 
 		/* If we didn't recycle, the data pointer should be good */
@@ -2181,7 +2156,7 @@ static int __devinit dpa_tx_unit_test(struct net_device *net_dev)
 			}
 
 			if (skb_end_pointer(skb) - skb->head >=
-					fsl_fman_phy_maxfrm)
+					dpa_get_max_frm())
 				(*percpu_priv->dpa_bp_count)--;
 
 			skb_put(skb, size + headroom);
@@ -3612,6 +3587,10 @@ static int __init __cold dpa_load(void)
 
 	cpu_pr_info(KBUILD_MODNAME ": " DPA_DESCRIPTION " (" VERSION ")\n");
 
+	/* initialise dpaa_eth mirror values */
+	dpa_rx_extra_headroom = fm_get_rx_extra_headroom();
+	dpa_max_frm = fm_get_max_frm();
+
 #ifdef CONFIG_DEBUG_FS
 	dpa_debugfs_root = debugfs_create_dir(KBUILD_MODNAME,
 					      powerpc_debugfs_root);
@@ -3659,69 +3638,3 @@ static void __exit __cold dpa_unload(void)
 	cpu_pr_debug(KBUILD_MODNAME ": %s:%s() ->\n", __file__, __func__);
 }
 module_exit(dpa_unload);
-
-static int __init fsl_fman_phy_set_max_frm(char *str)
-{
-	int ret = 0;
-
-	ret = get_option(&str, &fsl_fman_phy_maxfrm);
-	if (ret != 1) {
-		/* This will only work if CONFIG_EARLY_PRINTK is compiled in,
-		 * and something like "earlyprintk=serial,uart0,115200" is
-		 * specified in the bootargs */
-		printk(KERN_WARNING "No suitable %s=<int> prop in bootargs; "
-			"will use the default DPA_MAX_FRM_SIZE (%d) "
-			"from Kconfig.\n",
-			FSL_FMAN_PHY_MAXFRM_BOOTARG, CONFIG_DPA_MAX_FRM_SIZE);
-
-		fsl_fman_phy_maxfrm = CONFIG_DPA_MAX_FRM_SIZE;
-		return 1;
-	}
-
-	/* Don't allow invalid bootargs; fallback to the Kconfig value */
-	if (fsl_fman_phy_maxfrm < 64 || fsl_fman_phy_maxfrm > 9600) {
-		printk(KERN_WARNING "Invalid %s=%d in bootargs, valid range is "
-			"64-9600. Falling back to the DPA_MAX_FRM_SIZE (%d) "
-			"from Kconfig.\n",
-			FSL_FMAN_PHY_MAXFRM_BOOTARG, fsl_fman_phy_maxfrm,
-			CONFIG_DPA_MAX_FRM_SIZE);
-
-		fsl_fman_phy_maxfrm = CONFIG_DPA_MAX_FRM_SIZE;
-		return 1;
-	}
-
-	printk(KERN_INFO "Using fsl_fman_phy_maxfrm=%d from bootargs\n",
-		fsl_fman_phy_maxfrm);
-	return 0;
-}
-early_param(FSL_FMAN_PHY_MAXFRM_BOOTARG, fsl_fman_phy_set_max_frm);
-
-static int __init dpa_set_extra_headroom(char *str)
-{
-	int ret;
-
-	ret = get_option(&str, &dpa_rx_extra_headroom);
-	if (ret != 1) {
-		printk(KERN_WARNING "No suitable %s=<int> prop in bootargs; "
-			"will use the default DPA_EXTRA_HEADROOM (%d) "
-			"from Kconfig.\n",
-			DPA_EXTRA_HEADROOM_BOOTARG, CONFIG_DPA_EXTRA_HEADROOM);
-		dpa_rx_extra_headroom = CONFIG_DPA_EXTRA_HEADROOM;
-		return 1;
-	}
-
-	/* Don't allow invalid bootargs; fallback to the Kconfig value */
-	if (dpa_rx_extra_headroom + DPA_BP_HEAD > DPA_MAX_FD_OFFSET) {
-		printk(KERN_WARNING "Invalid %s=%d in bootargs, valid range is "
-			"0-%d. Falling back to the Kconfig value (%d).\n",
-			DPA_EXTRA_HEADROOM_BOOTARG, dpa_rx_extra_headroom,
-			DPA_MAX_FD_OFFSET - DPA_BP_HEAD,
-			CONFIG_DPA_EXTRA_HEADROOM);
-		dpa_rx_extra_headroom = CONFIG_DPA_EXTRA_HEADROOM;
-		return 1;
-	}
-
-	return 0;
-}
-
-early_param(DPA_EXTRA_HEADROOM_BOOTARG, dpa_set_extra_headroom);

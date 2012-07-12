@@ -144,7 +144,8 @@ static int __devinit __cold init(struct mac_device *mac_dev)
 		goto _return;
 	}
 
-	err = FM_MAC_ConfigMaxFrameLength(priv->mac, fsl_fman_phy_maxfrm);
+	err = FM_MAC_ConfigMaxFrameLength(priv->mac,
+					  fm_get_max_frm());
 	_errno = -GET_ERROR_TYPE(err);
 	if (unlikely(_errno < 0)) {
 		dpaa_eth_err(mac_dev->dev,
