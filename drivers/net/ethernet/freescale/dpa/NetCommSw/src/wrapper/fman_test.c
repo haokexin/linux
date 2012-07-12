@@ -1448,13 +1448,18 @@ ssize_t fmt_write(
 
 	fmt_port = file->private_data;
 	if (!fmt_port || !fmt_port->valid) {
-		_fmt_err("fmt port not vald.\n");
+		_fmt_err("fmt port not valid.\n");
 		return -EINVAL;
 	}
 
     /* If Compat (32B UserSpace - 64B KernelSpace)  */
 #ifdef CONFIG_COMPAT
-	if (fmt_port->compat_test_type){
+	if (fmt_port->compat_test_type) {
+		if (size < sizeof(ioc_fmt_compat_buff_desc_t)) {
+			_fmt_err("invalid buff_desc size.\n");
+			return -EFAULT;
+		}
+
 		if (copy_from_user(&buff_desc_compat, buf,
 					sizeof(ioc_fmt_compat_buff_desc_t)))
 			return -EFAULT;
@@ -1475,8 +1480,13 @@ ssize_t fmt_write(
 	} else
 #endif
 	{
+		if (size < sizeof(ioc_fmt_buff_desc_t)) {
+			_fmt_err("invalid buff_desc size.\n");
+			return -EFAULT;
+		}
+
 		if (copy_from_user(&buff_desc, (ioc_fmt_buff_desc_t  *)buf,
-							sizeof(ioc_fmt_buff_desc_t)))
+					sizeof(ioc_fmt_buff_desc_t)))
 			return -EFAULT;
 	}
 
