@@ -3159,10 +3159,13 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 		net_dev->features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
 		net_dev->vlan_features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
-		/* Advertise S/G support for MAC-ful, private interfaces */
+		/*
+		 * Advertise S/G and HIGHDMA support for MAC-ful,
+		 * private interfaces
+		 */
 		if (!priv->shared) {
-			net_dev->features |= NETIF_F_SG;
-			net_dev->vlan_features |= NETIF_F_SG;
+			net_dev->features |= NETIF_F_SG | NETIF_F_HIGHDMA;
+			net_dev->vlan_features |= NETIF_F_SG | NETIF_F_HIGHDMA;
 		}
 #endif
 	}
