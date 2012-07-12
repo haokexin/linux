@@ -135,45 +135,6 @@ config DPA_OFFLINE_PORTS
 	  Choosing this feature will not impact the functionality and/or performance of the system,
 	  so it is safe to have it.
 
-config DPA_MAX_FRM_SIZE
-	int "Maximum L2 frame size"
-	depends on DPA
-	range 64 9600
-	default "1522"
-	help
-	  Configure this in relation to the maximum possible MTU of your network configuration. In particular,
-	  one would need to increase this value in order to use jumbo frames. DPA_MAX_FRM_SIZE must accomodate
-	  the Ethernet FCS (4 bytes) and one ETH+VLAN header (18 bytes), to a total of 22 bytes in excess of
-	  the desired L3 MTU.
-
-	  Note that having too large a DPA_MAX_FRM_SIZE (much larger than the actual MTU) may lead to buffer
-	  exhaustion, especially in the case of badly fragmented datagrams on the Rx path. Conversely,
-	  having a DPA_MAX_FRM_SIZE smaller than the actual MTU will lead to frames being dropped.
-
-	  This can be overridden by specifying "fsl_fman_phy_max_frm" in the kernel bootargs:
-	    * in Hypervisor-based scenarios, by adding a "chosen" node with the "bootargs" property specifying
-              "fsl_fman_phy_max_frm=<YourValue>";
-	    * in non-Hypervisor-based scenarios, via u-boot's env, by modifying the "bootargs" env variable.
-
-config DPA_EXTRA_HEADROOM
-	int "Add extra headroom at beginning of data buffers"
-	depends on DPA
-	range 0 447
-	default "64"
-	help
-	  Configure this to tell the Frame Manager to reserve some extra space at the beginning of a
-	  data buffer on the receive path, before Internal Context fields are copied. This is in addition
-	  to the private data area already reserved for driver internal use.
-	  The option does not affect in any way the layout of transmitted buffers.
-
-	  Default value of 64 favours the case when forwarded frames are being encapsulated (e.g. IPSec).
-	  For plain forwarding or termination cases, a value of zero is recommended for optimum performance.
-
-	  This setting can be overridden by specifying "dpa_extra_headroom" in the kernel bootargs:
-	    * in Hypervisor-based scenarios, by adding a "chosen" node with the "bootargs" property specifying
-              "dpa_extra_headroom=<YourValue>";
-	    * in non-Hypervisor-based scenarios, via u-boot's env, by modifying the "bootargs" env variable.
-
 config DPAA_ETH_SG_SUPPORT
 	bool "Add support for S/G frames in the DPAA Ethernet driver"
 	depends on DPA

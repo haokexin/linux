@@ -66,6 +66,14 @@
 #define FM_DEFAULT_TX10G_OPENDMA 8 /* default TX 10g open dmas */
 #define FM_DEFAULT_RX10G_OPENDMA 8 /* default RX 10g open dmas */
 
+#ifndef CONFIG_FSL_FM_MAX_FRAME_SIZE
+#define CONFIG_FSL_FM_MAX_FRAME_SIZE 0
+#endif
+
+#ifndef CONFIG_FSL_FM_RX_EXTRA_HEADROOM
+#define CONFIG_FSL_FM_RX_EXTRA_HEADROOM       0
+#endif
+
 typedef enum {
     e_NO_PCD = 0,
     e_FM_PCD_3_TUPLE

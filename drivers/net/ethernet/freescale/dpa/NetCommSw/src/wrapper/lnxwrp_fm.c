@@ -93,8 +93,122 @@
                          ("Number of advanced-configuration entries exceeded"));\
     } while (0)
 
+/* Bootarg used to override the Kconfig FSL_FM_MAX_FRAME_SIZE value */
+#define FSL_FM_MAX_FRM_BOOTARG     "fsl_fm_max_frm"
+
+/* Bootarg used to override FSL_FM_RX_EXTRA_HEADROOM Kconfig value */
+#define FSL_FM_RX_EXTRA_HEADROOM_BOOTARG  "fsl_fm_rx_extra_headroom"
+
+/* Maximum value for the fsl_fm_rx_extra_headroom bootarg */
+#define FSL_FM_RX_EXTRA_HEADROOM_MAX 384
+
+/*
+ * Max frame size, across all interfaces.
+ * Configurable from Kconfig or bootargs, to avoid allocating
+ * oversized (socket) buffers when not using jumbo frames.
+ * Must be large enough to accomodate the network MTU, but small enough
+ * to avoid wasting skb memory.
+ *
+ * Could be overridden once, at boot-time, via the
+ * fm_set_max_frm() callback.
+ */
+int fsl_fm_max_frm = CONFIG_FSL_FM_MAX_FRAME_SIZE;
+
+/*
+ * Extra headroom for Rx buffers.
+ * FMan is instructed to allocate, on the Rx path, this amount of
+ * space at the beginning of a data buffer, beside the DPA private
+ * data area and the IC fields.
+ * Does not impact Tx buffer layout.
+ *
+ * Configurable from Kconfig or bootargs. Zero by default, it's needed
+ * on particular forwarding scenarios that add extra headers to the
+ * forwarded frame.
+ */
+int fsl_fm_rx_extra_headroom = CONFIG_FSL_FM_RX_EXTRA_HEADROOM;
+
 static t_LnxWrpFm   lnxWrpFm;
 
+int fm_get_max_frm()
+{
+	return fsl_fm_max_frm;
+}
+
+int fm_get_rx_extra_headroom()
+{
+	return fsl_fm_rx_extra_headroom;
+}
+
+static int __init fm_set_max_frm(char *str)
+{
+	int ret = 0;
+
+	ret = get_option(&str, &fsl_fm_max_frm);
+	if (ret != 1) {
+		/*
+		 * This will only work if CONFIG_EARLY_PRINTK is compiled in,
+		 * and something like "earlyprintk=serial,uart0,115200" is
+		 * specified in the bootargs
+		 */
+		printk(KERN_WARNING "No suitable %s=<int> prop in bootargs; "
+			"will use the default FSL_FM_MAX_FRAME_SIZE (%d) "
+			"from Kconfig.\n", FSL_FM_MAX_FRM_BOOTARG,
+			CONFIG_FSL_FM_MAX_FRAME_SIZE);
+
+		fsl_fm_max_frm = CONFIG_FSL_FM_MAX_FRAME_SIZE;
+		return 1;
+	}
+
+	/* Don't allow invalid bootargs; fallback to the Kconfig value */
+	if (fsl_fm_max_frm < 64 || fsl_fm_max_frm > 9600) {
+		printk(KERN_WARNING "Invalid %s=%d in bootargs, valid range is "
+			"64-9600. Falling back to the FSL_FM_MAX_FRAME_SIZE (%d) "
+			"from Kconfig.\n",
+			FSL_FM_MAX_FRM_BOOTARG, fsl_fm_max_frm,
+			CONFIG_FSL_FM_MAX_FRAME_SIZE);
+
+		fsl_fm_max_frm = CONFIG_FSL_FM_MAX_FRAME_SIZE;
+		return 1;
+	}
+
+	printk(KERN_INFO "Using fsl_fm_max_frm=%d from bootargs\n",
+		fsl_fm_max_frm);
+	return 0;
+}
+early_param(FSL_FM_MAX_FRM_BOOTARG, fm_set_max_frm);
+
+static int __init fm_set_rx_extra_headroom(char *str)
+{
+	int ret;
+
+	ret = get_option(&str, &fsl_fm_rx_extra_headroom);
+
+	if (ret != 1) {
+		printk(KERN_WARNING "No suitable %s=<int> prop in bootargs; "
+			"will use the default FSL_FM_RX_EXTRA_HEADROOM (%d) "
+			"from Kconfig.\n", FSL_FM_RX_EXTRA_HEADROOM_BOOTARG,
+			CONFIG_FSL_FM_RX_EXTRA_HEADROOM);
+		fsl_fm_rx_extra_headroom = CONFIG_FSL_FM_RX_EXTRA_HEADROOM;
+
+		return 1;
+	}
+
+	if (fsl_fm_rx_extra_headroom < 0 ||
+		fsl_fm_rx_extra_headroom > FSL_FM_RX_EXTRA_HEADROOM_MAX) {
+		printk(KERN_WARNING "Invalid value for %s=<int> prop in "
+			"bootargs; will use the default "
+			"FSL_FM_RX_EXTRA_HEADROOM (%d) from Kconfig.\n",
+			FSL_FM_RX_EXTRA_HEADROOM_BOOTARG,
+			CONFIG_FSL_FM_RX_EXTRA_HEADROOM);
+		fsl_fm_rx_extra_headroom = CONFIG_FSL_FM_RX_EXTRA_HEADROOM;
+	}
+
+	printk(KERN_INFO "Using fsl_fm_rx_extra_headroom=%d from bootargs\n",
+		fsl_fm_rx_extra_headroom);
+
+	return 0;
+}
+early_param(FSL_FM_RX_EXTRA_HEADROOM_BOOTARG, fm_set_rx_extra_headroom);
 
 static irqreturn_t fm_irq(int irq, void *_dev)
 {

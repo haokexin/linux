@@ -171,11 +171,9 @@ void dpa_list_add_skbs(struct dpa_percpu_priv_s *cpu_priv, int count)
 	int i;
 
 	for (i = 0; i < count; i++) {
-		/*
-		 * new skb of (NET_SKB_PAD + DPA_BP_HEAD +
-		 * DPA_COPIED_HEADERS_SIZE) bytes
-		 */
-		new_skb = dev_alloc_skb(DPA_BP_SIZE(DPA_COPIED_HEADERS_SIZE));
+		new_skb = dev_alloc_skb(DPA_BP_HEAD +
+				fm_get_rx_extra_headroom() +
+				DPA_COPIED_HEADERS_SIZE);
 		if (unlikely(!new_skb)) {
 			pr_err("dev_alloc_skb() failed\n");
 			break;
@@ -286,7 +284,7 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 	 * TODO: maybe adjust to actual headers length from
 	 * parse results
 	 */
-	copy_size = min(DPA_COPIED_HEADERS_SIZE, dpa_fd_length(fd));
+	copy_size = min((ssize_t)DPA_COPIED_HEADERS_SIZE, dpa_fd_length(fd));
 	memcpy(skb_put(skb, copy_size), vaddr + dpa_fd_offset(fd), copy_size);
 
 #ifdef CONFIG_FSL_DPA_1588
@@ -422,7 +420,8 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	if (unlikely(skb == NULL)) {
 		/* List is empty, so allocate a new skb */
-		skb = dev_alloc_skb(DPA_BP_SIZE(DPA_COPIED_HEADERS_SIZE));
+		skb = dev_alloc_skb(DPA_BP_HEAD + fm_get_rx_extra_headroom() +
+			DPA_COPIED_HEADERS_SIZE);
 		if (unlikely(skb == NULL)) {
 			if (netif_msg_rx_err(priv) && net_ratelimit())
 				cpu_netdev_err(net_dev,

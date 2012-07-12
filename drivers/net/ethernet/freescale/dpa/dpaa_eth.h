@@ -56,6 +56,11 @@
 
 #include "mac.h"		/* struct mac_device */
 
+#define dpa_get_rx_extra_headroom() dpa_rx_extra_headroom
+#define dpa_get_max_frm() dpa_max_frm
+
+#define DPA_RX_PRIV_DATA_SIZE   (DPA_TX_PRIV_DATA_SIZE + \
+					dpa_get_rx_extra_headroom())
 
 /* number of Tx queues to FMan */
 #define DPAA_ETH_TX_QUEUES	8
@@ -132,7 +137,7 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 
 #define DPA_BP_HEAD (DPA_TX_PRIV_DATA_SIZE + DPA_PARSE_RESULTS_SIZE + \
 			DPA_HASH_RESULTS_SIZE)
-#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + dpa_rx_extra_headroom + (s))
+#define DPA_BP_SIZE(s)	(DPA_BP_HEAD + dpa_get_rx_extra_headroom() + (s))
 
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
 #define DEFAULT_SKB_COUNT 64 /* maximum number of SKBs in each percpu list */
@@ -143,10 +148,10 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 #define DEFAULT_BUF_SIZE	PAGE_SIZE
 #else
 /*
- * Default buffer size is based on L2 MAXFRM value, minus the FCS which is
+ * Default buffer size is based on L2 MAX_FRM value, minus the FCS which is
  * stripped down by hardware.
  */
-#define DEFAULT_BUF_SIZE DPA_BP_SIZE(fsl_fman_phy_maxfrm - ETH_FCS_LEN)
+#define DEFAULT_BUF_SIZE DPA_BP_SIZE(dpa_get_max_frm() - ETH_FCS_LEN)
 #endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
 
 /*
@@ -301,8 +306,6 @@ struct dpa_priv_s {
 };
 
 extern const struct ethtool_ops dpa_ethtool_ops;
-extern int fsl_fman_phy_maxfrm;
-extern int dpa_rx_extra_headroom;
 
 void __attribute__((nonnull))
 dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd);
