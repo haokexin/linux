@@ -307,7 +307,12 @@ void __init paging_init(void)
 	max_zone_pfns[ZONE_DMA] = lowmem_end_addr >> PAGE_SHIFT;
 	max_zone_pfns[ZONE_HIGHMEM] = top_of_ram >> PAGE_SHIFT;
 #else
-	max_zone_pfns[ZONE_DMA] = top_of_ram >> PAGE_SHIFT;
+	if (top_of_ram < 0x100000000ULL) {
+		max_zone_pfns[ZONE_DMA] = top_of_ram >> PAGE_SHIFT;
+	} else {
+		max_zone_pfns[ZONE_DMA] = 0x100000000ULL >> PAGE_SHIFT;
+		max_zone_pfns[ZONE_NORMAL] = top_of_ram >> PAGE_SHIFT;
+	}
 #endif
 	free_area_init_nodes(max_zone_pfns);
 
