@@ -61,7 +61,6 @@
 
 #define DPA_RX_PRIV_DATA_SIZE   (DPA_TX_PRIV_DATA_SIZE + \
 					dpa_get_rx_extra_headroom())
-
 /* number of Tx queues to FMan */
 #define DPAA_ETH_TX_QUEUES	8
 #define DPAA_ETH_RX_QUEUES	128
@@ -315,6 +314,23 @@ struct dpa_priv_s {
 	int			priv_pcd_num_ranges;
 	struct pcd_range	priv_pcd_ranges[FMAN_PCD_TESTS_MAX_NUM_RANGES];
 #endif
+
+	struct {
+		/**
+		 * All egress queues to a given net device belong to one
+		 * (and the same) congestion group.
+		 */
+		struct qman_cgr cgr;
+		/* If congested, when it began. Used for performance stats. */
+		u32 congestion_start_jiffies;
+		/* Number of jiffies the Tx port was congested. */
+		u32 congested_jiffies;
+		/**
+		 * Counter for the number of times the CGR
+		 * entered congestion state
+		 */
+		u32 cgr_congested_count;
+	} cgr_data;
 };
 
 extern const struct ethtool_ops dpa_ethtool_ops;
@@ -417,7 +433,9 @@ static inline int __hot dpa_xmit(struct dpa_priv_s *priv,
 		if (err != -EBUSY)
 			break;
 	}
+
 	if (unlikely(err < 0)) {
+		/* TODO differentiate b/w -EBUSY (EQCR full) and other codes? */
 		percpu->stats.tx_errors++;
 		percpu->stats.tx_fifo_errors++;
 		return err;
@@ -426,7 +444,7 @@ static inline int __hot dpa_xmit(struct dpa_priv_s *priv,
 	percpu->stats.tx_packets++;
 	percpu->stats.tx_bytes += dpa_fd_length(fd);
 
-	return NETDEV_TX_OK;
+	return 0;
 }
 
 #if defined CONFIG_DPA_ETH_WQ_LEGACY
