@@ -810,6 +810,9 @@ int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 
 xmit_failed:
 	if (fd.cmd & FM_FD_CMD_FCO) {
+		*percpu_priv->dpa_bp_count -= skb_shinfo(skb)->nr_frags + 2;
+		percpu_priv->tx_returned--;
+
 		dpa_fd_release(net_dev, &fd);
 		return NETDEV_TX_OK;
 	}
