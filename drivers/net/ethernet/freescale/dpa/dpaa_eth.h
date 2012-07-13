@@ -58,7 +58,7 @@
 
 
 /* number of Tx queues to FMan */
-#define DPAA_ETH_TX_QUEUES	8
+#define DPAA_ETH_TX_QUEUES	NR_CPUS
 #define DPAA_ETH_RX_QUEUES	128
 
 #if defined(CONFIG_DPAA_FMAN_UNIT_TESTS)
