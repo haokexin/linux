@@ -47,6 +47,9 @@ void *dma_direct_alloc_coherent(struct device *dev, size_t size,
 	/* ignore region specifiers */
 	flag  &= ~(__GFP_HIGHMEM);
 
+	if (*dev->dma_mask <= 0xffffffff)
+		flag |= __GFP_DMA;
+
 	page = alloc_pages_node(node, flag, get_order(size));
 	if (page == NULL)
 		return NULL;
