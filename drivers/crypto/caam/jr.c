@@ -64,7 +64,7 @@ static int caam_jr_dequeue(struct napi_struct *napi, int budget)
 
 		head = ACCESS_ONCE(jrp->head);
 
-		spin_lock_bh(&jrp->outlock);
+		spin_lock(&jrp->outlock);
 
 		sw_idx = tail = jrp->tail;
 		hw_idx = jrp->out_ring_read_index;
@@ -116,7 +116,7 @@ static int caam_jr_dequeue(struct napi_struct *napi, int budget)
 			jrp->tail = tail;
 		}
 
-		spin_unlock_bh(&jrp->outlock);
+		spin_unlock(&jrp->outlock);
 
 		/* Finally, execute user's callback */
 		usercall(dev, userdesc, userstatus, userarg);
@@ -243,14 +243,14 @@ int caam_jr_enqueue(struct device *dev, u32 *desc,
 		return -EIO;
 	}
 
-	spin_lock(&jrp->inplock);
+	spin_lock_bh(&jrp->inplock);
 
 	head = jrp->head;
 	tail = ACCESS_ONCE(jrp->tail);
 
 	if (!rd_reg32(&jrp->rregs->inpring_avail) ||
 	    CIRC_SPACE(head, tail, JOBR_DEPTH) <= 0) {
-		spin_unlock(&jrp->inplock);
+		spin_unlock_bh(&jrp->inplock);
 		dma_unmap_single(dev, desc_dma, desc_size, DMA_TO_DEVICE);
 		return -EBUSY;
 	}
@@ -272,7 +272,7 @@ int caam_jr_enqueue(struct device *dev, u32 *desc,
 
 	wr_reg32(&jrp->rregs->inpring_jobadd, 1);
 
-	spin_unlock(&jrp->inplock);
+	spin_unlock_bh(&jrp->inplock);
 
 	return 0;
 }
