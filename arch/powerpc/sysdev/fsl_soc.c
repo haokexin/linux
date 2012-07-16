@@ -395,7 +395,7 @@ err:
 	return ret;
 }
 
-arch_initcall(fsl_usb_of_init);
+arch_initcall_sync(fsl_usb_of_init);
 
 #if defined(CONFIG_FSL_SOC_BOOKE) || defined(CONFIG_PPC_86xx)
 static __be32 __iomem *rstcr;
