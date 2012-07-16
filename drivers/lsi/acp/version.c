@@ -252,6 +252,7 @@ info_create_string(char *buffer)
 	sprintf(uboot_version2, "Unknown");
 	sprintf(uboot_version3, "Unknown");
 #else
+#ifdef CONFIG_LSI_UBOOTENV
 	if (0 != ubootenv_get("version2", uboot_version2)) {
 		sprintf(uboot_version2, "Unknown");
 	}
@@ -259,6 +260,10 @@ info_create_string(char *buffer)
 	if (0 != ubootenv_get("version3", uboot_version3)) {
 		sprintf(uboot_version3, "Unknown");
 	}
+#else
+	sprintf(uboot_version2, "Unknown");
+	sprintf(uboot_version3, "Unknown");
+#endif
 #endif
 
 	length = sprintf(buffer,

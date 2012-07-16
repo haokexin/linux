@@ -2021,7 +2021,7 @@ static int phy_enable_( int phy ) {
     char mdio_clock_speed_string_ [ 256 ];
     unsigned long mdio_clock_speed_;
     unsigned long mdio_divisor_;
-
+#ifdef CONFIG_LSI_UBOOTENV
     if( 0 != ubootenv_get( "mdio_clock", mdio_clock_speed_string_ ) ) {
 
       mdio_clock_speed_ = 1250000;
@@ -2031,6 +2031,9 @@ static int phy_enable_( int phy ) {
       mdio_clock_speed_ = simple_strtoul(  mdio_clock_speed_string_, NULL, 0 );
 
     }
+#else
+	mdio_clock_speed_ = 1250000;
+#endif
 
 #ifdef CONFIG_ARCH_APP3K
     mdio_divisor_ =
@@ -2052,7 +2055,7 @@ static int phy_enable_( int phy ) {
   {
 
     char phy_address_string_ [ 256 ];
-
+#ifdef CONFIG_LSI_UBOOTENV
     if( 0 != ubootenv_get( "phy_address", phy_address_string_ ) ) {
 
       phy_address_ = phy_scan_( );
@@ -2062,7 +2065,9 @@ static int phy_enable_( int phy ) {
       phy_address_ = simple_strtoul( phy_address_string_, NULL, 0 );
 
     }
-
+#else
+	phy_address_ = phy_scan_();
+#endif
     if( 31 < phy_address_ || 0 > phy_address_ ) {
 
       ERROR_PRINT( "Unable to get valid PHY address!\n" );
@@ -2141,9 +2146,9 @@ static int phy_enable_( int phy ) {
       0x61 - 10 half/full
       0x41 - 10 half
     */
-
+#ifdef CONFIG_LSI_UBOOTENV
     if( 0 != ubootenv_get( "ad_value", ad_value_string_ ) ) {
-
+#endif
       if( ( is_asic ) &&
           ( 0 == ( APP3XX_REVISION_REGISTER & 0x1f ) ) ) {
 
@@ -2158,12 +2163,13 @@ static int phy_enable_( int phy ) {
       }
 
       WARN_PRINT( "ad_value not set, using 0x%x\n", ad_value_ );
-
+#ifdef CONFIG_LSI_UBOOTENV
     } else {
 
       ad_value_ = simple_strtoul( ad_value_string_, NULL, 0 );
 
     }
+#endif
 
     if( 0 != phy_write_( phy_address_, PHY_AUTONEG_ADVERTISE_,
                          ad_value_ ) ) {
@@ -2915,13 +2921,16 @@ int appnic_open( struct net_device * device ) {
 #ifndef PHYLESS
 
 #ifndef CONFIG_ACP
-
+#ifdef CONFIG_LSI_UBOOTENV
     if( ( 0 != ubootenv_get( "phy_mode", phy_string_ ) ) ||
         ( 0 == strncmp( phy_string_, "poll", strlen( "poll" ) ) ) ) {
 
       use_interrupts_ = 0;
 
     }
+#else
+	use_interrupts_ = 0;
+#endif
 
     PHY_DEBUG_PRINT( "use_interrupts_=%d\n", use_interrupts_ );
 
@@ -4445,7 +4454,7 @@ lsinet_init(void)
 
 	} else {
 		unsigned char ethaddr_string[20];
-
+#ifdef CONFIG_LSI_UBOOTENV
 		if (0 != ubootenv_get("ethaddr", ethaddr_string)) {
 			ERROR_PRINT("Could not read ethernet address!\n");
 			return -EBUSY;
@@ -4477,6 +4486,11 @@ lsinet_init(void)
 		dma_base = (unsigned long)ioremap(0x002000482000ULL, 0x1000);
 		appnic_device->dma_base = dma_base;
 		appnic_device->interrupt = 33;
+#else
+		/* Neither dtb info nor ubootenv driver found.*/
+		ERROR_PRINT("Could not read ethernet address!\n");
+		return -EBUSY;
+#endif
 	}
 
  device_tree_succeeded:
