@@ -751,7 +751,7 @@ int usb_get_configuration(struct usb_device *dev)
 	if (!dev->rawdescriptors)
 		goto err2;
 
-	buffer = kmalloc(USB_DT_CONFIG_SIZE, GFP_KERNEL);
+	buffer = kmalloc(USB_DT_CONFIG_SIZE, GFP_KERNEL | GFP_DMA);
 	if (!buffer)
 		goto err2;
 	desc = (struct usb_config_descriptor *)buffer;
@@ -779,7 +779,7 @@ int usb_get_configuration(struct usb_device *dev)
 		    USB_DT_CONFIG_SIZE);
 
 		/* Now that we know the length, get the whole thing */
-		bigbuffer = kmalloc(length, GFP_KERNEL);
+		bigbuffer = kmalloc(length, GFP_KERNEL | GFP_DMA);
 		if (!bigbuffer) {
 			result = -ENOMEM;
 			goto err;

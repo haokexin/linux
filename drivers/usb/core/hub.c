@@ -2767,7 +2767,7 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 			int r = 0;
 
 #define GET_DESCRIPTOR_BUFSIZE	64
-			buf = kmalloc(GET_DESCRIPTOR_BUFSIZE, GFP_NOIO);
+			buf = kmalloc(GET_DESCRIPTOR_BUFSIZE, GFP_NOIO| GFP_DMA);
 			if (!buf) {
 				retval = -ENOMEM;
 				continue;
@@ -3554,7 +3554,7 @@ static int descriptors_changed(struct usb_device *udev,
 		len = max(len, old_length);
 	}
 
-	buf = kmalloc(len, GFP_NOIO);
+	buf = kmalloc(len, GFP_NOIO | GFP_DMA);
 	if (buf == NULL) {
 		dev_err(&udev->dev, "no mem to re-read configs after reset\n");
 		/* assume the worst */

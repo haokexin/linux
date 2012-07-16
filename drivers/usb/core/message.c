@@ -136,7 +136,7 @@ int usb_control_msg(struct usb_device *dev, unsigned int pipe, __u8 request,
 	struct usb_ctrlrequest *dr;
 	int ret;
 
-	dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_NOIO);
+	dr = kmalloc(sizeof(struct usb_ctrlrequest), GFP_NOIO | GFP_DMA);
 	if (!dr)
 		return -ENOMEM;
 
@@ -833,7 +833,7 @@ int usb_string(struct usb_device *dev, int index, char *buf, size_t size)
 	if (size <= 0 || !buf || !index)
 		return -EINVAL;
 	buf[0] = 0;
-	tbuf = kmalloc(256, GFP_NOIO);
+	tbuf = kmalloc(256, GFP_NOIO | GFP_DMA);
 	if (!tbuf)
 		return -ENOMEM;
 
@@ -881,7 +881,7 @@ char *usb_cache_string(struct usb_device *udev, int index)
 	if (index <= 0)
 		return NULL;
 
-	buf = kmalloc(MAX_USB_STRING_SIZE, GFP_NOIO);
+	buf = kmalloc(MAX_USB_STRING_SIZE, GFP_NOIO | GFP_DMA);
 	if (buf) {
 		len = usb_string(udev, index, buf, MAX_USB_STRING_SIZE);
 		if (len > 0) {
@@ -920,7 +920,7 @@ int usb_get_device_descriptor(struct usb_device *dev, unsigned int size)
 
 	if (size > sizeof(*desc))
 		return -EINVAL;
-	desc = kmalloc(sizeof(*desc), GFP_NOIO);
+	desc = kmalloc(sizeof(*desc), GFP_NOIO | GFP_DMA);
 	if (!desc)
 		return -ENOMEM;
 
