@@ -36,6 +36,16 @@
 #include <linux/types.h>	/* __u8 etc */
 #include <asm/byteorder.h>	/* le16_to_cpu */
 
+/*
+ * For some platforms, we do need to set the GFP_DMA for the memory
+ * allocation which will be used for DMA operation.
+ */
+#ifdef CONFIG_PPC64
+#define USB_DMA	GFP_DMA
+#else
+#define USB_DMA	0
+#endif
+
 /*-------------------------------------------------------------------------*/
 
 /* CONTROL REQUEST SUPPORT */
