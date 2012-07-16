@@ -558,6 +558,7 @@ struct scsi_host_template usb_stor_host_template = {
 	/* sysfs device attributes */
 	.sdev_attrs =			sysfs_device_attr_list,
 
+	.unchecked_isa_dma = 		1,
 	/* module management */
 	.module =			THIS_MODULE
 };
