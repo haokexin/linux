@@ -790,21 +790,6 @@ t_Error FM_ConfigDmaAxiDbgNumOfBeats(t_Handle h_Fm, uint8_t axiDbgNumOfBeats);
 t_Error FM_ConfigDmaCamNumOfEntries(t_Handle h_Fm, uint8_t numOfEntries);
 
 /**************************************************************************//**
- @Function      FM_ConfigEnableCounters
-
- @Description   Enable counters.
-                Calling this routine changes the internal driver data
-                base from its default configuration where counters are disabled.
-
- @Param[in]     h_Fm    A handle to an FM Module.
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_Config() and before FM_Init().
-*//***************************************************************************/
-t_Error FM_ConfigEnableCounters(t_Handle h_Fm);
-
-/**************************************************************************//**
  @Function      FM_ConfigDmaDbgCounter
 
  @Description   Define DMA debug counter.
@@ -854,24 +839,6 @@ t_Error FM_ConfigDmaStopOnBusErr(t_Handle h_Fm, bool stop);
  @Cautions      Allowed only following FM_Config() and before FM_Init().
 *//***************************************************************************/
 t_Error FM_ConfigDmaEmergency(t_Handle h_Fm, t_FmDmaEmergency *p_Emergency);
-
-/**************************************************************************//**
- @Function      FM_ConfigDmaEmergencySmoother
-
- @Description   Define DMA emergency smoother.
-                Calling this routine changes the definition of the minimum
-                amount of DATA beats transferred on the AXI READ and WRITE
-                ports before lowering the emergency level.
-                By default smoother is disabled.
-
- @Param[in]     h_Fm            A handle to an FM Module.
- @Param[in]     emergencyCnt    emergency switching counter.
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_Config() and before FM_Init().
-*//***************************************************************************/
-t_Error FM_ConfigDmaEmergencySmoother(t_Handle h_Fm, uint32_t emergencyCnt);
 
 /**************************************************************************//**
  @Function      FM_ConfigDmaErr
@@ -1029,6 +996,24 @@ t_Error FM_ConfigExternalEccRamsEnable(t_Handle h_Fm, bool enable);
  @Cautions      Allowed only following FM_Config() and before FM_Init().
 *//***************************************************************************/
 t_Error FM_ConfigTnumAgingPeriod(t_Handle h_Fm, uint16_t tnumAgingPeriod);
+
+/**************************************************************************//**
+ @Function      FM_ConfigDmaEmergencySmoother
+
+ @Description   Define DMA emergency smoother.
+                Calling this routine changes the definition of the minimum
+                amount of DATA beats transferred on the AXI READ and WRITE
+                ports before lowering the emergency level.
+                By default smoother is disabled.
+
+ @Param[in]     h_Fm            A handle to an FM Module.
+ @Param[in]     emergencyCnt    emergency switching counter.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Config() and before FM_Init().
+*//***************************************************************************/
+t_Error FM_ConfigDmaEmergencySmoother(t_Handle h_Fm, uint32_t emergencyCnt);
 
 /**************************************************************************//**
  @Function      FM_ConfigThresholds

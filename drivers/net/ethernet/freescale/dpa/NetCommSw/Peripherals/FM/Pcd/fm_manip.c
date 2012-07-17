@@ -58,7 +58,7 @@
 
 #define WRITE_UINT16(addr, val)     \
     do{                             \
-            if ((int)&(addr) % 4)    \
+            if ((int)&(addr) % 4)   \
                 WRITE_UINT32(*(uint32_t*)(uint32_t)((uint32_t)&addr & ~0x3L),                                           \
                         ((GET_UINT32(*(uint32_t*)(uint32_t)((uint32_t)&addr & ~0x3L)) & 0xffff0000) | (uint32_t)val));  \
             else                    \
@@ -168,6 +168,7 @@ static uint8_t CalculateTableSize(t_FmPcdManipParams *p_FmPcdManipParams)
             case (e_FM_PCD_MANIP_INSRT_BY_HDR):
                 /* As long as the only insert command is the internal L2, no check on type is required */
                 tableSize +=  HMCD_BASIC_SIZE+HMCD_PTR_SIZE;
+                break;
             default:
                 REPORT_ERROR(MINOR, E_INVALID_SELECTION, ("Unknown insrtParams.type"));
                 return 0;
@@ -344,6 +345,7 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip, t_FmPcdManipParams *p_FmPcdManip
                         hmcdOpt = HMCD_INSRT_N_UPDATE_L2_MPLS;
                     else
                         hmcdOpt = HMCD_INSRT_L2_MPLS;
+                    break;
                 default:
                     RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
             }
@@ -634,6 +636,9 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip, t_FmPcdManipParams *p_FmPcdManip
         FM_MURAM_FreeMem(MANIP_GET_MURAM(p_FmPcdManipParams->h_NextManip), MANIP_GET_HMCT_PTR(p_FmPcdManipParams->h_NextManip));
         /* update old manip table pointer */
         MANIP_SET_HMCT_PTR(p_FmPcdManipParams->h_NextManip, p_TmpPtr);
+        /* indicate that this manip node has no MURAM memory to be freed */
+        MANIP_SET_UNIFIED_TBL_PTR_INDICATION(p_FmPcdManipParams->h_NextManip);
+        /* advance pointer */
         p_TmpPtr += MANIP_GET_HMCT_SIZE(p_FmPcdManipParams->h_NextManip)/4;
     }
     else
@@ -1906,9 +1911,11 @@ static t_Error CheckManipParamsAndSetType(t_FmPcdManip *p_Manip, t_FmPcdManipPar
             RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("manip type"));
     }
 
-    /* TODO - Ganit */
-    if (p_Manip->owner && p_Manip->h_PrevManip)
-        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("No sharing on cascaded internal nodes"));
+    /* Check that next-manip is not already used */
+    if ((p_Manip->type == HMAN_OC) &&
+            p_ManipParams->h_NextManip &&
+            MANIP_GET_OWNERS(p_ManipParams->h_NextManip))
+        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("h_NextManip is already used and may not be shared (no sharing of non-head manip nodes)"));
 
     return E_OK;
 }
@@ -3663,7 +3670,7 @@ t_Error FM_PCD_ManipNodeDelete(t_Handle h_ManipNode)
         FM_MURAM_FreeMem(((t_FmPcd *)p_Manip->h_FmPcd)->h_FmMuram, p_Manip->p_InsertData);
     if (p_Manip->p_UpdateData)
         FM_MURAM_FreeMem(((t_FmPcd *)p_Manip->h_FmPcd)->h_FmMuram, p_Manip->p_UpdateData);
-    if (p_Manip->p_HmcdTbl)
+    if (p_Manip->p_HmcdTbl && !p_Manip->unifiedTablePtr)
         FM_MURAM_FreeMem(((t_FmPcd *)p_Manip->h_FmPcd)->h_FmMuram, p_Manip->p_HmcdTbl);
 
     ReleaseManipHandler(p_Manip, p_Manip->h_FmPcd);

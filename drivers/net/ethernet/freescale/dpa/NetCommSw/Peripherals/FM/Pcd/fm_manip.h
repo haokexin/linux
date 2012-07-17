@@ -209,14 +209,16 @@
 
 #define HMCD_IP_REPLACE_L3HDRSIZE_SHIFT         24
 
-#define MANIP_IS_CASCADE(h_Manip)               (((t_FmPcdManip *)h_Manip)->cascadedNext)
-#define MANIP_GET_HMCT_SIZE(h_Manip)            (((t_FmPcdManip *)h_Manip)->tableSize)
-#define MANIP_GET_HMCT_PTR(h_Manip)             (((t_FmPcdManip *)h_Manip)->p_HmcdTbl)
-#define MANIP_SET_HMCT_PTR(h_Manip, h_NewPtr)   (((t_FmPcdManip *)h_Manip)->p_HmcdTbl = h_NewPtr)
-#define MANIP_GET_HMTD_PTR(h_Manip)             (((t_FmPcdManip *)h_Manip)->h_Ad)
-#define MANIP_DONT_REPARSE(h_Manip)             (((t_FmPcdManip *)h_Manip)->dontParseAfterManip)
-#define MANIP_SET_PREV(h_Manip, h_Prev)         (((t_FmPcdManip *)h_Manip)->h_PrevManip = h_Prev)
-#define MANIP_GET_MURAM(h_Manip)                (((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram)
+#define MANIP_IS_CASCADE(h_Manip)                       (((t_FmPcdManip *)h_Manip)->cascadedNext)
+#define MANIP_GET_HMCT_SIZE(h_Manip)                    (((t_FmPcdManip *)h_Manip)->tableSize)
+#define MANIP_GET_HMCT_PTR(h_Manip)                     (((t_FmPcdManip *)h_Manip)->p_HmcdTbl)
+#define MANIP_SET_HMCT_PTR(h_Manip, h_NewPtr)           (((t_FmPcdManip *)h_Manip)->p_HmcdTbl = h_NewPtr)
+#define MANIP_GET_HMTD_PTR(h_Manip)                     (((t_FmPcdManip *)h_Manip)->h_Ad)
+#define MANIP_DONT_REPARSE(h_Manip)                     (((t_FmPcdManip *)h_Manip)->dontParseAfterManip)
+#define MANIP_SET_PREV(h_Manip, h_Prev)                 (((t_FmPcdManip *)h_Manip)->h_PrevManip = h_Prev)
+#define MANIP_GET_OWNERS(h_Manip)                       (((t_FmPcdManip *)h_Manip)->owner)
+#define MANIP_SET_UNIFIED_TBL_PTR_INDICATION(h_Manip)   (((t_FmPcdManip *)h_Manip)->unifiedTablePtr = TRUE)
+#define MANIP_GET_MURAM(h_Manip)                        (((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram)
 
 #define DSCP_TO_VLAN_TABLE_SIZE                 32
 /***********************************************************************/
@@ -370,10 +372,13 @@ typedef struct t_IpReassmParams
 typedef struct{
     bool                    muramAllocate;
     t_Handle                h_Ad;
-    uint32_t                *p_HmcdTbl;
     uint32_t                type;
     bool                    rmv;
     bool                    insrt;
+    t_Handle                h_NextManip;
+    t_Handle                h_PrevManip;
+    /* HdrManip parameters*/
+    uint32_t                *p_HmcdTbl;
     bool                    dontParseAfterManip;
     bool                    fieldUpdate;
     bool                    custom;
@@ -381,10 +386,10 @@ typedef struct{
     uint8_t                 *p_UpdateData;
     uint8_t                 *p_CustomData1;
     uint8_t                 *p_CustomData2;
-    t_Handle                h_NextManip;
-    t_Handle                h_PrevManip;
     uint16_t                tableSize;
     bool                    cascadedNext;
+    bool                    unifiedTablePtr;
+    /* end HdrManip */
     uint8_t                 *p_Template;
     t_Handle                h_Frag;
     bool                    frag;
