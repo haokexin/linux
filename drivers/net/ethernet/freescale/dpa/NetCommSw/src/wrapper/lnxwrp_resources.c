@@ -356,9 +356,7 @@ int fm_precalculate_fifosizes(t_LnxWrpFmDev *p_LnxWrpFmDev, int muram_fifo_size)
 			+ gb10g * num_10g_ports;	/* divide it by 10 */
 
 	/* Base buffer calculus */
-	oh_buff = DPDE_1G + 4;	/* should be:
-		get_largest_buf_size(max_frame_size, buf_size),
-		but LLD: DPDE + 4 */
+	oh_buff = 8;
 	total_no_buffers = muram_fifo_size / buf_size;
 
 	min_tx_1g_2g5_bufs = CEIL_DIV(max_frame_size, buf_size)

@@ -367,7 +367,7 @@ typedef struct {
 
 typedef struct {
     t_FmPcdPlcrRegs                 *p_FmPcdPlcrRegs;
-    uint8_t                         partPlcrProfilesBase;
+    uint16_t                        partPlcrProfilesBase;
     uint16_t                        partNumOfPlcrProfiles;
     t_FmPcdPlcrProfile              profiles[FM_PCD_PLCR_NUM_ENTRIES];
     uint16_t                        numOfSharedProfiles;
@@ -504,8 +504,13 @@ t_Error     PlcrInit(t_FmPcd *p_FmPcd);
 t_Error     PlcrFree(t_FmPcd *p_FmPcd);
 void        PlcrEnable(t_FmPcd *p_FmPcd);
 void        PlcrDisable(t_FmPcd *p_FmPcd);
-uint8_t     PlcrAllocProfilesForPartition(t_FmPcd *p_FmPcd, uint8_t base, uint16_t numOfProfiles, uint8_t guestId);
-void        PlcrFreeProfilesForPartition(t_FmPcd *p_FmPcd, uint8_t base, uint16_t numOfProfiles, uint8_t guestId);
+uint16_t    PlcrAllocProfilesForPartition(t_FmPcd *p_FmPcd, uint16_t base, uint16_t numOfProfiles, uint8_t guestId);
+void        PlcrFreeProfilesForPartition(t_FmPcd *p_FmPcd, uint16_t base, uint16_t numOfProfiles, uint8_t guestId);
+t_Error     PlcrSetPortProfiles(t_FmPcd    *p_FmPcd,
+                                uint8_t    hardwarePortId,
+                                uint16_t   numOfProfiles,
+                                uint16_t   base);
+t_Error     PlcrClearPortProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId);
 
 t_Handle    PrsConfig(t_FmPcd *p_FmPcd,t_FmPcdParams *p_FmPcdParams);
 t_Error     PrsInit(t_FmPcd *p_FmPcd);

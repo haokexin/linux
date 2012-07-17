@@ -100,12 +100,6 @@ typedef _Packed struct t_FmPcdIpcPrsIncludePort
     bool        include;
 } _PackedType t_FmPcdIpcPrsIncludePort;
 
-typedef _Packed struct t_FmPcdIpcResourceAllocParams {
-    uint8_t     guestId;
-    uint8_t     base;
-    uint16_t    num;
-}_PackedType t_FmPcdIpcResourceAllocParams;
-
 
 #define FM_PCD_MAX_REPLY_SIZE           16
 #define FM_PCD_MAX_MSG_SIZE             36
@@ -120,6 +114,12 @@ typedef _Packed struct t_FmPcdIpcReply {
     uint32_t    error;
     uint8_t     replyBody[FM_PCD_MAX_REPLY_BODY_SIZE];
 } _PackedType t_FmPcdIpcReply;
+
+typedef _Packed struct t_FmIpcResourceAllocParams {
+    uint8_t     guestId;
+    uint16_t    base;
+    uint16_t    num;
+}_PackedType t_FmIpcResourceAllocParams;
 
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(pop)
@@ -150,7 +150,7 @@ typedef _Packed struct t_FmPcdIpcReply {
 
  @Description   Used by FM PCD front-end in order to allocate Policer profiles
 
- @Param[in/out] t_FmPcdIpcKgSchemesParams Pointer
+ @Param[in/out] t_FmIpcResourceAllocParams Pointer
 *//***************************************************************************/
 #define FM_PCD_ALLOC_PROFILES                   5
 
@@ -159,9 +159,29 @@ typedef _Packed struct t_FmPcdIpcReply {
 
  @Description   Used by FM PCD front-end in order to Free Policer profiles
 
- @Param[in/out] t_FmPcdIpcPlcrAllocParams Pointer
+ @Param[in/out] t_FmIpcResourceAllocParams Pointer
 *//***************************************************************************/
 #define FM_PCD_FREE_PROFILES                    6
+
+/**************************************************************************//**
+ @Function      FM_PCD_SET_PORT_PROFILES
+
+ @Description   Used by FM PCD front-end in order to allocate Policer profiles
+                for specific port
+
+ @Param[in/out] t_FmIpcResourceAllocParams Pointer
+*//***************************************************************************/
+#define FM_PCD_SET_PORT_PROFILES                7
+
+/**************************************************************************//**
+ @Function      FM_PCD_CLEAR_PORT_PROFILES
+
+ @Description   Used by FM PCD front-end in order to allocate Policer profiles
+                for specific port
+
+ @Param[in/out] t_FmIpcResourceAllocParams Pointer
+*//***************************************************************************/
+#define FM_PCD_CLEAR_PORT_PROFILES              8
 
 /**************************************************************************//**
  @Function      FM_PCD_GET_PHYS_MURAM_BASE
@@ -170,7 +190,7 @@ typedef _Packed struct t_FmPcdIpcReply {
 
  @Param[in/out] t_FmPcdIcPhysAddr Pointer
 *//***************************************************************************/
-#define FM_PCD_GET_PHYS_MURAM_BASE              7
+#define FM_PCD_GET_PHYS_MURAM_BASE              9
 
 /**************************************************************************//**
  @Function      FM_PCD_GET_SW_PRS_OFFSET
@@ -180,7 +200,7 @@ typedef _Packed struct t_FmPcdIpcReply {
 
  @Param[in/out] t_FmPcdIpcSwPrsLable Pointer
 *//***************************************************************************/
-#define FM_PCD_GET_SW_PRS_OFFSET                8
+#define FM_PCD_GET_SW_PRS_OFFSET                10
 
 /**************************************************************************//**
  @Function      FM_PCD_MASTER_IS_ENABLED

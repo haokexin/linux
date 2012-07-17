@@ -202,33 +202,51 @@ static t_Error IpcMsgHandlerCB(t_Handle  h_FmPcd,
 
             memcpy((uint8_t*)&ipcKgClsPlanParams, p_IpcMsg->msgBody, sizeof(t_FmPcdIpcKgClsPlanParams));
             KgFreeClsPlanEntries(h_FmPcd,
-                                       ipcKgClsPlanParams.numOfClsPlanEntries,
-                                       ipcKgClsPlanParams.guestId,
-                                       ipcKgClsPlanParams.clsPlanBase);
+                                 ipcKgClsPlanParams.numOfClsPlanEntries,
+                                 ipcKgClsPlanParams.guestId,
+                                 ipcKgClsPlanParams.clsPlanBase);
             *p_ReplyLength = sizeof(uint32_t);
             break;
         }
         case (FM_PCD_ALLOC_PROFILES):
         {
-            t_FmPcdIpcResourceAllocParams   ipcVspAllocParams;
-            uint8_t                         base;
-            memcpy(&ipcVspAllocParams, p_IpcMsg->msgBody, sizeof(t_FmPcdIpcResourceAllocParams));
+            t_FmIpcResourceAllocParams      ipcAllocParams;
+            uint16_t                        base;
+            memcpy(&ipcAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
             base =  PlcrAllocProfilesForPartition(h_FmPcd,
-                                                  ipcVspAllocParams.base,
-                                                  ipcVspAllocParams.num,
-                                                  ipcVspAllocParams.guestId);
-            memcpy(p_IpcReply->replyBody, (uint8_t*)&base, sizeof(uint8_t));
-            *p_ReplyLength = sizeof(uint32_t) + sizeof(uint8_t);
+                                                  ipcAllocParams.base,
+                                                  ipcAllocParams.num,
+                                                  ipcAllocParams.guestId);
+            memcpy(p_IpcReply->replyBody, (uint16_t*)&base, sizeof(uint16_t));
+            *p_ReplyLength = sizeof(uint32_t) + sizeof(uint16_t);
             break;
         }
         case (FM_PCD_FREE_PROFILES):
         {
-            t_FmPcdIpcResourceAllocParams   ipcVspAllocParams;
-            memcpy(&ipcVspAllocParams, p_IpcMsg->msgBody, sizeof(t_FmPcdIpcResourceAllocParams));
+            t_FmIpcResourceAllocParams   ipcAllocParams;
+            memcpy(&ipcAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
             PlcrFreeProfilesForPartition(h_FmPcd,
-                                         ipcVspAllocParams.base,
-                                         ipcVspAllocParams.num,
-                                         ipcVspAllocParams.guestId);
+                                         ipcAllocParams.base,
+                                         ipcAllocParams.num,
+                                         ipcAllocParams.guestId);
+            break;
+        }
+        case (FM_PCD_SET_PORT_PROFILES):
+        {
+            t_FmIpcResourceAllocParams   ipcAllocParams;
+            memcpy(&ipcAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
+            PlcrSetPortProfiles(h_FmPcd,
+                                ipcAllocParams.guestId,
+                                ipcAllocParams.num,
+                                ipcAllocParams.base);
+            break;
+        }
+        case (FM_PCD_CLEAR_PORT_PROFILES):
+        {
+            t_FmIpcResourceAllocParams   ipcAllocParams;
+            memcpy(&ipcAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
+            PlcrClearPortProfiles(h_FmPcd,
+                                  ipcAllocParams.guestId);
             break;
         }
         case (FM_PCD_GET_SW_PRS_OFFSET):
@@ -1159,7 +1177,7 @@ t_Error FM_PCD_Enable(t_Handle h_FmPcd)
     }
     else if (p_FmPcd->guestId != NCSW_MASTER_ID)
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in \"guest-mode\" without IPC!"));
+                     ("running in guest-mode without IPC!"));
 
     if (p_FmPcd->p_FmPcdKg)
         KgEnable(p_FmPcd);
@@ -1213,7 +1231,7 @@ t_Error FM_PCD_Disable(t_Handle h_FmPcd)
     }
     else if (p_FmPcd->guestId != NCSW_MASTER_ID)
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in \"guest-mode\" without IPC!"));
+                     ("running in guest-mode without IPC!"));
 
     if (p_FmPcd->numOfEnabledGuestPartitionsPcds != 0)
         RETURN_ERROR(MAJOR, E_INVALID_STATE,
@@ -1244,7 +1262,7 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
     uint8_t                 ipsecAhUnit = 0,ipsecEspUnit = 0;
     bool                    ipsecAhExists = FALSE, ipsecEspExists = FALSE, shim1Selected = FALSE;
     uint8_t                 hdrNum;
-    t_FmPcdNetEnvParams     modifiedNetEnvParams;
+    t_FmPcdNetEnvParams     *p_modifiedNetEnvParams;
 
     SANITY_CHECK_RETURN_VALUE(h_FmPcd, E_INVALID_STATE, NULL);
     SANITY_CHECK_RETURN_VALUE(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE, NULL);
@@ -1257,7 +1275,7 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
         if (!p_FmPcd->netEnvs[i].used)
             break;
 
-    if (i== FM_MAX_NUM_OF_PORTS)
+    if (i == FM_MAX_NUM_OF_PORTS)
     {
         REPORT_ERROR(MAJOR, E_FULL,("No more than %d netEnv's allowed.", FM_MAX_NUM_OF_PORTS));
         FmPcdUnlock(p_FmPcd, intFlags);
@@ -1270,8 +1288,15 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
     /* As anyone doesn't have handle of this netEnv yet, no need
        to protect it with spinlocks */
 
-    memcpy(&modifiedNetEnvParams, p_NetEnvParams, sizeof(t_FmPcdNetEnvParams));
-    p_NetEnvParams = &modifiedNetEnvParams;
+    p_modifiedNetEnvParams = (t_FmPcdNetEnvParams *) XX_Malloc(sizeof(t_FmPcdNetEnvParams));
+    if (!p_modifiedNetEnvParams)
+    {
+        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FmPcdNetEnvParams"));
+        return NULL;
+    }
+
+    memcpy(p_modifiedNetEnvParams, p_NetEnvParams, sizeof(t_FmPcdNetEnvParams));
+    p_NetEnvParams = p_modifiedNetEnvParams;
 
     netEnvCurrId = (uint8_t)i;
 
@@ -1304,6 +1329,7 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                     {
                         REPORT_ERROR(MINOR, E_FULL,
                                 ("Illegal unit - header with opt may not be interchangeable with the same header without opt"));
+                        XX_Free(p_modifiedNetEnvParams);
                         return NULL;
                     }
                 }
@@ -1327,6 +1353,7 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                 if (ipsecEspExists && (ipsecEspUnit != i))
                 {
                     REPORT_ERROR(MINOR, E_INVALID_STATE, ("HEADER_TYPE_IPSEC_AH and HEADER_TYPE_IPSEC_ESP may not be defined in separate units"));
+                    XX_Free(p_modifiedNetEnvParams);
                     return NULL;
                 }
                 else
@@ -1340,6 +1367,7 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                 if (ipsecAhExists && (ipsecAhUnit != i))
                 {
                     REPORT_ERROR(MINOR, E_INVALID_STATE, ("HEADER_TYPE_IPSEC_AH and HEADER_TYPE_IPSEC_ESP may not be defined in separate units"));
+                    XX_Free(p_modifiedNetEnvParams);
                     return NULL;
                 }
                 else
@@ -1409,6 +1437,7 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
             if (p_FmPcd->netEnvs[netEnvCurrId].units[i].hdrs[1].hdr != HEADER_TYPE_NONE)
             {
                 REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("SHIM header may not be interchanged with other headers"));
+                XX_Free(p_modifiedNetEnvParams);
                 return NULL;
             }
     }
@@ -1422,6 +1451,7 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                     if (shim1Selected)
                     {
                         REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("SHIM header cannot be selected with UDP_IPSEC_ESP"));
+                        XX_Free(p_modifiedNetEnvParams);
                         return NULL;
                     }
                     shim1Selected = TRUE;
@@ -1458,12 +1488,14 @@ t_Handle FM_PCD_NetEnvCharacteristicsSet(t_Handle h_FmPcd, t_FmPcdNetEnvParams  
                 if ((hdrNum == ILLEGAL_HDR_NUM) || (hdrNum == NO_HDR_NUM))
                 {
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, NO_MSG);
+                    XX_Free(p_modifiedNetEnvParams);
                     return NULL;
                 }
                 p_FmPcd->netEnvs[netEnvCurrId].lcvs[hdrNum] |= p_FmPcd->netEnvs[netEnvCurrId].unitsVectors[i];
             }
         }
     }
+    XX_Free(p_modifiedNetEnvParams);
 
     p_FmPcd->netEnvs[netEnvCurrId].h_Spinlock = XX_InitSpinlock();
     if (!p_FmPcd->netEnvs[netEnvCurrId].h_Spinlock)
@@ -1561,7 +1593,7 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
                 !p_FmPcd->h_IpcSession)
             {
                 REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
-                             ("Running in \"guest-mode\" without neither IPC nor mapped registers"));
+                             ("running in guest-mode without neither IPC nor mapped register!"));
                 return 0;
             }
             break;
@@ -1622,7 +1654,7 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
                 !p_FmPcd->h_IpcSession)
             {
                 REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
-                             ("Running in \"guest-mode\" without neither IPC nor mapped registers"));
+                             ("running in guest-mode without neither IPC nor mapped register!"));
                 return 0;
             }
             break;
@@ -1631,7 +1663,8 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
             return 0;
     }
 
-    if ((p_FmPcd->guestId != NCSW_MASTER_ID) && p_FmPcd->h_IpcSession)
+    if ((p_FmPcd->guestId != NCSW_MASTER_ID) &&
+        p_FmPcd->h_IpcSession)
     {
         t_FmPcdIpcMsg           msg;
         t_FmPcdIpcReply         reply;

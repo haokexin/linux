@@ -207,6 +207,9 @@ typedef enum e_FmMacsecInterModuleEvent {
 #define FM_FIFO_ALLOCATION_ALG
 #define FM_DEQ_PIPELINE_PARAMS_FOR_OP
 #define FM_HAS_TOTAL_DMAS
+#define FM_KG_NO_IPPID_SUPPORT
+#define FM_NO_GUARANTEED_RESET_VALUES
+#define FM_MAC_RESET
 
 /* FM erratas */
 #define FM_RX_PREAM_4_ERRATA_DTSEC_A001

@@ -94,6 +94,17 @@ typedef _Packed struct t_FmIpcPhysAddr
     volatile uint32_t   low;
 } _PackedType t_FmIpcPhysAddr;
 
+
+typedef _Packed struct t_FmIpcPortOutInitParams {
+    uint8_t             numOfTasks;         /**< OUT */
+    uint8_t             numOfExtraTasks;    /**< OUT */
+    uint8_t             numOfOpenDmas;      /**< OUT */
+    uint8_t             numOfExtraOpenDmas; /**< OUT */
+    uint32_t            sizeOfFifo;         /**< OUT */
+    uint32_t            extraSizeOfFifo;    /**< OUT */
+    t_FmIpcPhysAddr     ipcPhysAddr;        /**< OUT */
+} _PackedType t_FmIpcPortOutInitParams;
+
 /**************************************************************************//**
  @Description   Structure for IPC communication during FM_PORT_Init.
 *//***************************************************************************/
@@ -109,6 +120,7 @@ typedef _Packed struct t_FmIpcPortInInitParams {
     uint32_t            sizeOfFifo;         /**< IN. Port's requested resource */
     uint32_t            extraSizeOfFifo;    /**< IN. Port's requested resource */
     uint8_t             deqPipelineDepth;   /**< IN. Port's requested resource */
+    uint16_t            maxFrameLength;     /**< IN. Port's max frame length. */
     uint16_t            liodnBase;          /**< IN. Irrelevant for P4080 rev 1.
                                                  LIODN base for this port, to be
                                                  used together with LIODN offset. */
@@ -213,8 +225,8 @@ typedef _Packed struct t_FmIpcFmanEvents {
 
 typedef _Packed struct t_FmIpcResourceAllocParams {
     uint8_t     guestId;
-    uint8_t     base;
-    uint8_t     num;
+    uint16_t    base;
+    uint16_t    num;
 }_PackedType t_FmIpcResourceAllocParams;
 
 typedef _Packed struct t_FmIpcVspSetPortWindow {

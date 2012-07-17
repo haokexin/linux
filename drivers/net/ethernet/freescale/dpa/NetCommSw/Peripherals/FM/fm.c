@@ -637,9 +637,9 @@ static t_Error SetVSPWindow(t_Handle  h_Fm,
             RETURN_ERROR(MINOR, err, NO_MSG);
         return E_OK;
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
+    else if (!p_Fm->p_FmBmiRegs)
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+                     ("Either IPC or 'baseAddress' is required!"));
 
     tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_spliodn[hardwarePortId-1]);
     tmpReg |= (uint32_t)((uint32_t)baseStorageProfile & 0x3f) << 16;
@@ -665,7 +665,7 @@ static uint8_t AllocVSPsForPartition(t_Handle  h_Fm, uint8_t base, uint8_t numOf
 
     if (p_Fm->h_IpcSessions[0])
     {
-        t_FmIpcResourceAllocParams  ipcProfilesAllocParams;
+        t_FmIpcResourceAllocParams  ipcAllocParams;
         t_FmIpcMsg                  msg;
         t_FmIpcReply                reply;
         t_Error                     err;
@@ -673,12 +673,12 @@ static uint8_t AllocVSPsForPartition(t_Handle  h_Fm, uint8_t base, uint8_t numOf
 
         memset(&msg, 0, sizeof(msg));
         memset(&reply, 0, sizeof(reply));
-        memset(&ipcProfilesAllocParams, 0, sizeof(t_FmIpcResourceAllocParams));
-        ipcProfilesAllocParams.guestId         = p_Fm->guestId;
-        ipcProfilesAllocParams.num             = p_Fm->partNumOfVSPs;
-        ipcProfilesAllocParams.base            = p_Fm->partVSPBase;
+        memset(&ipcAllocParams, 0, sizeof(t_FmIpcResourceAllocParams));
+        ipcAllocParams.guestId         = p_Fm->guestId;
+        ipcAllocParams.num             = p_Fm->partNumOfVSPs;
+        ipcAllocParams.base            = p_Fm->partVSPBase;
         msg.msgId                              = FM_VSP_ALLOC;
-        memcpy(msg.msgBody, &ipcProfilesAllocParams, sizeof(t_FmIpcResourceAllocParams));
+        memcpy(msg.msgBody, &ipcAllocParams, sizeof(t_FmIpcResourceAllocParams));
         replyLength = sizeof(uint32_t) + sizeof(uint8_t);
         err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
                                 (uint8_t*)&msg,
@@ -730,7 +730,7 @@ static void FreeVSPsForPartition(t_Handle  h_Fm, uint8_t base, uint8_t numOfProf
 
     if (p_Fm->h_IpcSessions[0])
     {
-        t_FmIpcResourceAllocParams  ipcProfilesAllocParams;
+        t_FmIpcResourceAllocParams  ipcAllocParams;
         t_FmIpcMsg                  msg;
         t_FmIpcReply                reply;
         uint32_t                    replyLength;
@@ -738,12 +738,12 @@ static void FreeVSPsForPartition(t_Handle  h_Fm, uint8_t base, uint8_t numOfProf
 
         memset(&msg, 0, sizeof(msg));
         memset(&reply, 0, sizeof(reply));
-        memset(&ipcProfilesAllocParams, 0, sizeof(t_FmIpcResourceAllocParams));
-        ipcProfilesAllocParams.guestId         = p_Fm->guestId;
-        ipcProfilesAllocParams.num             = p_Fm->partNumOfVSPs;
-        ipcProfilesAllocParams.base            = p_Fm->partVSPBase;
+        memset(&ipcAllocParams, 0, sizeof(t_FmIpcResourceAllocParams));
+        ipcAllocParams.guestId         = p_Fm->guestId;
+        ipcAllocParams.num             = p_Fm->partNumOfVSPs;
+        ipcAllocParams.base            = p_Fm->partVSPBase;
         msg.msgId                              = FM_VSP_FREE;
-        memcpy(msg.msgBody, &ipcProfilesAllocParams, sizeof(t_FmIpcResourceAllocParams));
+        memcpy(msg.msgBody, &ipcAllocParams, sizeof(t_FmIpcResourceAllocParams));
         replyLength = sizeof(uint32_t) + sizeof(uint8_t);
         err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
                                 (uint8_t*)&msg,
@@ -844,7 +844,7 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
         {
             t_FmIpcPortInInitParams         ipcInitParams;
             t_FmInterModulePortInitParams   initParams;
-            t_FmIpcPhysAddr                 ipcPhysAddr;
+            t_FmIpcPortOutInitParams        ipcOutInitParams;
 
             memcpy((uint8_t*)&ipcInitParams, p_IpcMsg->msgBody, sizeof(t_FmIpcPortInInitParams));
             initParams.hardwarePortId = ipcInitParams.hardwarePortId;
@@ -858,12 +858,20 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
             initParams.sizeOfFifo = ipcInitParams.sizeOfFifo;
             initParams.extraSizeOfFifo = ipcInitParams.extraSizeOfFifo;
             initParams.deqPipelineDepth = ipcInitParams.deqPipelineDepth;
+            initParams.maxFrameLength = ipcInitParams.maxFrameLength;
             initParams.liodnBase = ipcInitParams.liodnBase;
 
             p_IpcReply->error = (uint32_t)FmGetSetPortParams(h_Fm, &initParams);
-            ipcPhysAddr.high = initParams.fmMuramPhysBaseAddr.high;
-            ipcPhysAddr.low = initParams.fmMuramPhysBaseAddr.low;
-            memcpy(p_IpcReply->replyBody, (uint8_t*)&ipcPhysAddr, sizeof(t_FmIpcPhysAddr));
+
+            ipcOutInitParams.ipcPhysAddr.high = initParams.fmMuramPhysBaseAddr.high;
+            ipcOutInitParams.ipcPhysAddr.low = initParams.fmMuramPhysBaseAddr.low;
+            ipcOutInitParams.sizeOfFifo = initParams.sizeOfFifo;
+            ipcOutInitParams.extraSizeOfFifo = initParams.extraSizeOfFifo;
+            ipcOutInitParams.numOfTasks = initParams.numOfTasks;
+            ipcOutInitParams.numOfExtraTasks = initParams.numOfExtraTasks;
+            ipcOutInitParams.numOfOpenDmas = initParams.numOfOpenDmas;
+            ipcOutInitParams.numOfExtraOpenDmas = initParams.numOfExtraOpenDmas;
+            memcpy(p_IpcReply->replyBody, (uint8_t*)&ipcOutInitParams, sizeof(ipcOutInitParams));
             *p_ReplyLength = sizeof(uint32_t) + sizeof(t_FmIpcPhysAddr);
             break;
         }
@@ -874,8 +882,8 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
             memcpy((uint8_t*)&ipcPortRsrcParams, p_IpcMsg->msgBody, sizeof(t_FmIpcPortRsrcParams));
             p_IpcReply->error = (uint32_t)FmSetSizeOfFifo(h_Fm,
                                                           ipcPortRsrcParams.hardwarePortId,
-                                                          ipcPortRsrcParams.val,
-                                                          ipcPortRsrcParams.extra,
+                                                          &ipcPortRsrcParams.val,
+                                                          &ipcPortRsrcParams.extra,
                                                           (bool)ipcPortRsrcParams.boolInitialConfig);
             *p_ReplyLength = sizeof(uint32_t) + sizeof(uint32_t);
             break;
@@ -886,8 +894,8 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
 
             memcpy((uint8_t*)&ipcPortRsrcParams, p_IpcMsg->msgBody, sizeof(t_FmIpcPortRsrcParams));
             p_IpcReply->error = (uint32_t)FmSetNumOfTasks(h_Fm, ipcPortRsrcParams.hardwarePortId,
-                                                          (uint8_t)ipcPortRsrcParams.val,
-                                                          (uint8_t)ipcPortRsrcParams.extra,
+                                                          (uint8_t*)&ipcPortRsrcParams.val,
+                                                          (uint8_t*)&ipcPortRsrcParams.extra,
                                                           (bool)ipcPortRsrcParams.boolInitialConfig);
             *p_ReplyLength = sizeof(uint32_t);
             break;
@@ -898,8 +906,8 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
 
             memcpy((uint8_t*)&ipcPortRsrcParams, p_IpcMsg->msgBody, sizeof(t_FmIpcPortRsrcParams));
             p_IpcReply->error = (uint32_t)FmSetNumOfOpenDmas(h_Fm, ipcPortRsrcParams.hardwarePortId,
-                                                               (uint8_t)ipcPortRsrcParams.val,
-                                                               (uint8_t)ipcPortRsrcParams.extra,
+                                                               (uint8_t*)&ipcPortRsrcParams.val,
+                                                               (uint8_t*)&ipcPortRsrcParams.extra,
                                                                (bool)ipcPortRsrcParams.boolInitialConfig);
             *p_ReplyLength = sizeof(uint32_t);
             break;
@@ -958,19 +966,19 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
 #if (DPAA_VERSION >= 11)
         case (FM_VSP_ALLOC) :
         {
-            t_FmIpcResourceAllocParams  ipcVspAllocParams;
+            t_FmIpcResourceAllocParams  ipcAllocParams;
             uint8_t                     vspBase;
-            memcpy(&ipcVspAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
-            vspBase =  AllocVSPsForPartition(h_Fm, ipcVspAllocParams.base, ipcVspAllocParams.num, ipcVspAllocParams.guestId);
+            memcpy(&ipcAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
+            vspBase =  AllocVSPsForPartition(h_Fm, ipcAllocParams.base, ipcAllocParams.num, ipcAllocParams.guestId);
             memcpy(p_IpcReply->replyBody, (uint8_t*)&vspBase, sizeof(uint8_t));
             *p_ReplyLength = sizeof(uint32_t) + sizeof(uint8_t);
             break;
         }
         case (FM_VSP_FREE) :
         {
-            t_FmIpcResourceAllocParams   ipcVspAllocParams;
-            memcpy(&ipcVspAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
-            FreeVSPsForPartition(h_Fm, ipcVspAllocParams.base, ipcVspAllocParams.num, ipcVspAllocParams.guestId);
+            t_FmIpcResourceAllocParams   ipcAllocParams;
+            memcpy(&ipcAllocParams, p_IpcMsg->msgBody, sizeof(t_FmIpcResourceAllocParams));
+            FreeVSPsForPartition(h_Fm, ipcAllocParams.base, ipcAllocParams.num, ipcAllocParams.guestId);
             break;
         }
         case (FM_VSP_SET_PORT_WINDOW) :
@@ -1714,10 +1722,10 @@ void FmSetFmanCtrlIntr(t_Handle h_Fm, uint8_t eventRegId, uint32_t enableEvents)
             REPORT_ERROR(MINOR, err, NO_MSG);
         return;
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
+    else if (!p_Fm->p_FmFpmRegs)
     {
         REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+                     ("Either IPC or 'baseAddress' is required!"));
         return;
     }
 
@@ -1763,10 +1771,10 @@ uint32_t FmGetFmanCtrlIntr(t_Handle h_Fm, uint8_t eventRegId)
         memcpy((uint8_t*)&ctrlIntr, reply.replyBody, sizeof(uint32_t));
         return ctrlIntr;
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
+    else if (!p_Fm->p_FmFpmRegs)
     {
         REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+                     ("Either IPC or 'baseAddress' is required!"));
         return 0;
     }
 
@@ -1942,9 +1950,9 @@ t_Error FmSetNumOfRiscsPerPort(t_Handle     h_Fm,
             RETURN_ERROR(MINOR, err, NO_MSG);
         return E_OK;
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
+    else if (!p_Fm->p_FmFpmRegs)
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+                     ("Either IPC or 'baseAddress' is required!"));
 
     tmpReg = (uint32_t)(hardwarePortId << FPM_PORT_FM_CTL_PORTID_SHIFT);
 
@@ -1965,15 +1973,15 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
     t_Error                 err;
     uint32_t                tmpReg, intFlags;
-    uint8_t                 hardwarePortId = p_PortParams->hardwarePortId;
+    uint8_t                 hardwarePortId = p_PortParams->hardwarePortId, macId;
 
     if (p_Fm->guestId != NCSW_MASTER_ID)
     {
-        t_FmIpcPortInInitParams portInParams;
-        t_FmIpcPhysAddr         ipcPhysAddr;
-        t_FmIpcMsg              msg;
-        t_FmIpcReply            reply;
-        uint32_t                replyLength;
+        t_FmIpcPortInInitParams     portInParams;
+        t_FmIpcPortOutInitParams    portOutParams;
+        t_FmIpcMsg                  msg;
+        t_FmIpcReply                reply;
+        uint32_t                    replyLength;
 
         portInParams.hardwarePortId     = p_PortParams->hardwarePortId;
         portInParams.enumPortType       = (uint32_t)p_PortParams->portType;
@@ -1986,13 +1994,14 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
         portInParams.sizeOfFifo         = p_PortParams->sizeOfFifo;
         portInParams.extraSizeOfFifo    = p_PortParams->extraSizeOfFifo;
         portInParams.deqPipelineDepth   = p_PortParams->deqPipelineDepth;
+        portInParams.maxFrameLength     = p_PortParams->maxFrameLength;
         portInParams.liodnBase          = p_PortParams->liodnBase;
 
         memset(&msg, 0, sizeof(msg));
         memset(&reply, 0, sizeof(reply));
         msg.msgId = FM_GET_SET_PORT_PARAMS;
         memcpy(msg.msgBody, &portInParams, sizeof(portInParams));
-        replyLength = (sizeof(uint32_t) + sizeof(p_PortParams->fmMuramPhysBaseAddr));
+        replyLength = (sizeof(uint32_t) + sizeof(t_FmIpcPortOutInitParams));
         if ((err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
                                      (uint8_t*)&msg,
                                      sizeof(msg.msgId) +sizeof(portInParams),
@@ -2003,9 +2012,16 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
             RETURN_ERROR(MINOR, err, NO_MSG);
         if (replyLength != (sizeof(uint32_t) + sizeof(p_PortParams->fmMuramPhysBaseAddr)))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
-        memcpy((uint8_t*)&ipcPhysAddr, reply.replyBody, sizeof(t_FmIpcPhysAddr));
-        p_PortParams->fmMuramPhysBaseAddr.high = ipcPhysAddr.high;
-        p_PortParams->fmMuramPhysBaseAddr.low  = ipcPhysAddr.low;
+        memcpy((uint8_t*)&portOutParams, reply.replyBody, sizeof(t_FmIpcPortOutInitParams));
+
+        p_PortParams->fmMuramPhysBaseAddr.high = portOutParams.ipcPhysAddr.high;
+        p_PortParams->fmMuramPhysBaseAddr.low  = portOutParams.ipcPhysAddr.low;
+        p_PortParams->numOfTasks = portOutParams.numOfTasks;
+        p_PortParams->numOfExtraTasks = portOutParams.numOfExtraTasks;
+        p_PortParams->numOfOpenDmas = portOutParams.numOfOpenDmas;
+        p_PortParams->numOfExtraOpenDmas = portOutParams.numOfExtraOpenDmas;
+        p_PortParams->sizeOfFifo = portOutParams.sizeOfFifo;
+        p_PortParams->extraSizeOfFifo = portOutParams.extraSizeOfFifo;
 
         return (t_Error)(reply.error);
     }
@@ -2033,7 +2049,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     }
     p_Fm->p_FmStateStruct->portsTypes[hardwarePortId] = p_PortParams->portType;
 
-    err = FmSetNumOfTasks(p_Fm, p_PortParams->hardwarePortId, p_PortParams->numOfTasks, p_PortParams->numOfExtraTasks, TRUE);
+    err = FmSetNumOfTasks(p_Fm, p_PortParams->hardwarePortId, &p_PortParams->numOfTasks, &p_PortParams->numOfExtraTasks, TRUE);
     if (err)
     {
         XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
@@ -2093,8 +2109,8 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
 
     err = FmSetSizeOfFifo(p_Fm,
                           p_PortParams->hardwarePortId,
-                          p_PortParams->sizeOfFifo,
-                          p_PortParams->extraSizeOfFifo,
+                          &p_PortParams->sizeOfFifo,
+                          &p_PortParams->extraSizeOfFifo,
                           TRUE);
     if (err)
     {
@@ -2104,8 +2120,8 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
 
     err = FmSetNumOfOpenDmas(p_Fm,
                              p_PortParams->hardwarePortId,
-                             p_PortParams->numOfOpenDmas,
-                             p_PortParams->numOfExtraOpenDmas,
+                             &p_PortParams->numOfOpenDmas,
+                             &p_PortParams->numOfExtraOpenDmas,
                              TRUE);
     if (err)
     {
@@ -2152,6 +2168,28 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     }
     WRITE_UINT32(p_Fm->p_FmDmaRegs->fmdmplr[hardwarePortId/2], tmpReg);
 
+    HW_PORT_ID_TO_SW_PORT_ID(macId, hardwarePortId);
+
+#if defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS)
+    if ((p_PortParams->portType == e_FM_PORT_TYPE_TX_10G) ||
+        (p_PortParams->portType == e_FM_PORT_TYPE_RX_10G))
+    {
+        if (p_PortParams->maxFrameLength >= p_Fm->p_FmStateStruct->macMaxFrameLengths10G[macId])
+            p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId] = p_PortParams->maxFrameLength;
+        else
+            RETURN_ERROR(MINOR, E_INVALID_VALUE, ("Port maxFrameLength is smaller than MAC current MTU"));
+    }
+    else
+#endif /* defined(FM_MAX_NUM_OF_10G_MACS) && ... */
+    if ((p_PortParams->portType == e_FM_PORT_TYPE_TX) ||
+        (p_PortParams->portType == e_FM_PORT_TYPE_RX))
+    {
+        if (p_PortParams->maxFrameLength >= p_Fm->p_FmStateStruct->macMaxFrameLengths1G[macId])
+            p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId] = p_PortParams->maxFrameLength;
+        else
+            RETURN_ERROR(MINOR, E_INVALID_VALUE, ("Port maxFrameLength is smaller than MAC current MTU"));
+    }
+
     FmGetPhysicalMuramBase(p_Fm, &p_PortParams->fmMuramPhysBaseAddr);
     XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
 
@@ -2163,7 +2201,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
     uint32_t                tmpReg, intFlags;
     uint8_t                 hardwarePortId = p_PortParams->hardwarePortId;
-    uint8_t                 numOfTasks;
+    uint8_t                 numOfTasks, macId;
     t_Error                 err;
     t_FmIpcPortFreeParams   portParams;
     t_FmIpcMsg              msg;
@@ -2263,6 +2301,18 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
         WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_gc, tmpReg);
     }
 
+    HW_PORT_ID_TO_SW_PORT_ID(macId, hardwarePortId);
+
+#if defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS)
+    if ((p_PortParams->portType == e_FM_PORT_TYPE_TX_10G) ||
+        (p_PortParams->portType == e_FM_PORT_TYPE_RX_10G))
+        p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId] = 0;
+    else
+#endif /* defined(FM_MAX_NUM_OF_10G_MACS) && ... */
+    if ((p_PortParams->portType == e_FM_PORT_TYPE_TX) ||
+        (p_PortParams->portType == e_FM_PORT_TYPE_RX))
+        p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId] = 0;
+
 #ifdef FM_LOW_END_RESTRICTION
     if ((hardwarePortId==0x1) || (hardwarePortId==0x29))
         p_Fm->p_FmStateStruct->lowEndRestriction = FALSE;
@@ -2304,9 +2354,9 @@ t_Error FmIsPortStalled(t_Handle h_Fm, uint8_t hardwarePortId, bool *p_IsStalled
 
         return (t_Error)(reply.error);
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
+    else if (!p_Fm->baseAddr)
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+                     ("Either IPC or 'baseAddress' is required!"));
 
     tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fmfp_ps[hardwarePortId]);
     *p_IsStalled = (bool)!!(tmpReg & FPM_PS_STALLED);
@@ -2347,9 +2397,9 @@ t_Error FmResumeStalledPort(t_Handle h_Fm, uint8_t hardwarePortId)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
         return (t_Error)(reply.error);
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
+    else if (!p_Fm->baseAddr)
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+                     ("Either IPC or 'baseAddress' is required!"));
 
     if (p_Fm->p_FmStateStruct->revInfo.majorRev >= 6)
         RETURN_ERROR(MINOR, E_NOT_AVAILABLE, ("Not available for this FM revision!"));
@@ -2370,11 +2420,12 @@ t_Error FmResumeStalledPort(t_Handle h_Fm, uint8_t hardwarePortId)
 t_Error FmResetMac(t_Handle h_Fm, e_FmMacType type, uint8_t macId)
 {
     t_Fm                *p_Fm = (t_Fm*)h_Fm;
-    uint32_t            bitMask, timeout = 1000;
+    uint32_t            bitMask;
 
-#if (DPAA_VERSION >= 11)
-    return E_OK;
-#endif /*(DPAA_VERSION >= 11)*/
+#ifndef FM_MAC_RESET
+    if (p_Fm->p_FmStateStruct->revInfo.majorRev >= 6)
+        return E_OK;
+#endif /* FM_MAC_RESET */
 
     if ((p_Fm->guestId != NCSW_MASTER_ID) &&
         !p_Fm->baseAddr &&
@@ -2406,9 +2457,9 @@ t_Error FmResetMac(t_Handle h_Fm, e_FmMacType type, uint8_t macId)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
         return (t_Error)(reply.error);
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+    else if (!p_Fm->baseAddr)
+        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
+                     ("Either IPC or 'baseAddress' is required!"));
 
     /* Get the relevant bit mask */
     if (type == e_FM_MAC_10G)
@@ -2448,10 +2499,7 @@ t_Error FmResetMac(t_Handle h_Fm, e_FmMacType type, uint8_t macId)
 
     /* reset */
     WRITE_UINT32(p_Fm->p_FmFpmRegs->fm_rstc, bitMask);
-    while ((GET_UINT32(p_Fm->p_FmFpmRegs->fm_rstc) & bitMask) &&
-           --timeout) ;
-    if (!timeout)
-        return ERROR_CODE(E_TIMEOUT);
+
     return E_OK;
 }
 
@@ -2487,14 +2535,29 @@ t_Error FmSetMacMaxFrame(t_Handle h_Fm, e_FmMacType type, uint8_t macId, uint16_
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
                      ("running in guest-mode without IPC!"));
 
+    /* if port is already initialized, check that MaxFrameLength is smaller
+     * or equal to the port's max */
 #if (defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS))
     if (type == e_FM_MAC_10G)
-        p_Fm->p_FmStateStruct->macMaxFrameLengths10G[macId] = mtu;
+    {
+        if ((!p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId])
+           || (p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId] &&
+              (mtu <= p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId])))
+               p_Fm->p_FmStateStruct->macMaxFrameLengths10G[macId] = mtu;
+        else
+            RETURN_ERROR(MINOR, E_INVALID_VALUE, ("MAC maxFrameLength is larger than Port maxFrameLength"));
+
+    }
     else
 #else
     UNUSED(type);
 #endif /* (defined(FM_MAX_NUM_OF_10G_MACS) && ... */
+    if ((!p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId])
+       || (p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId] &&
+          (mtu <= p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId])))
         p_Fm->p_FmStateStruct->macMaxFrameLengths1G[macId] = mtu;
+    else
+        RETURN_ERROR(MINOR, E_INVALID_VALUE, ("MAC maxFrameLength is larger than Port maxFrameLength"));
 
     return E_OK;
 }
@@ -2597,16 +2660,17 @@ bool FmIsMaster(t_Handle h_Fm)
     return (p_Fm->guestId == NCSW_MASTER_ID);
 }
 
+#ifdef FM_NO_GUARANTEED_RESET_VALUES
 t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
                         uint8_t     hardwarePortId,
-                        uint32_t    sizeOfFifo,
-                        uint32_t    extraSizeOfFifo,
+                        uint32_t    *p_SizeOfFifo,
+                        uint32_t    *p_ExtraSizeOfFifo,
                         bool        initialConfig)
 {
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
     t_FmIpcPortRsrcParams   rsrcParams;
     t_Error                 err;
-    uint32_t                tmpReg = 0;
+    uint32_t                tmpReg = 0, sizeOfFifo = *p_SizeOfFifo, extraSizeOfFifo = *p_ExtraSizeOfFifo;
     uint16_t                oldVal = 0;
 
     ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
@@ -2682,7 +2746,7 @@ t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
         RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("Requested fifo size and extra size exceed total FIFO size."));
     else
     {
-        /* update acummulated */
+        /* update accumulated */
         ASSERT_COND(p_Fm->p_FmStateStruct->accumulatedFifoSize >= oldVal);
         p_Fm->p_FmStateStruct->accumulatedFifoSize -= oldVal;
         p_Fm->p_FmStateStruct->accumulatedFifoSize += sizeOfFifo;
@@ -2694,17 +2758,167 @@ t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
 
     return E_OK;
 }
+#else /*FM_NO_GUARANTEED_RESET_VALUES*/
+t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
+                        uint8_t     hardwarePortId,
+                        uint32_t    *p_SizeOfFifo,
+                        uint32_t    *p_ExtraSizeOfFifo,
+                        bool        initialConfig)
+{
+    t_Fm                    *p_Fm = (t_Fm*)h_Fm;
+    t_FmIpcPortRsrcParams   rsrcParams;
+    t_Error                 err;
+    uint32_t                tmpReg = 0, sizeOfFifo = *p_SizeOfFifo, extraSizeOfFifo = *p_ExtraSizeOfFifo;
+    uint16_t                currentVal, currentExtraVal;
 
+    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
+    /* it's illegal to be in a state where this is not the first set and no value is specified */
+    ASSERT_COND(initialConfig || sizeOfFifo);
+
+    if ((p_Fm->guestId != NCSW_MASTER_ID) &&
+        !p_Fm->baseAddr &&
+        p_Fm->h_IpcSessions[0])
+    {
+        t_FmIpcMsg          msg;
+        t_FmIpcReply        reply;
+        uint32_t            replyLength;
+
+        rsrcParams.hardwarePortId = hardwarePortId;
+        rsrcParams.val = sizeOfFifo;
+        rsrcParams.extra = extraSizeOfFifo;
+        rsrcParams.boolInitialConfig = (uint8_t)initialConfig;
+
+        memset(&msg, 0, sizeof(msg));
+        memset(&reply, 0, sizeof(reply));
+        msg.msgId = FM_SET_SIZE_OF_FIFO;
+        memcpy(msg.msgBody, &rsrcParams, sizeof(rsrcParams));
+        replyLength = sizeof(uint32_t);
+        if ((err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
+                                     (uint8_t*)&msg,
+                                     sizeof(msg.msgId) + sizeof(rsrcParams),
+                                     (uint8_t*)&reply,
+                                     &replyLength,
+                                     NULL,
+                                     NULL)) != E_OK)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+        if (replyLength != sizeof(uint32_t))
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
+        return (t_Error)(reply.error);
+    }
+    else if ((p_Fm->guestId != NCSW_MASTER_ID) &&
+             p_Fm->baseAddr)
+    {
+        DBG(WARNING, ("No Ipc - can't validate FM total-fifo size."));
+
+        if (sizeOfFifo)
+        {
+            /* whether it is the first time with explicit value, or runtime "set" - write register */
+            tmpReg = (uint32_t)((sizeOfFifo/BMI_FIFO_UNITS - 1) |
+                                ((extraSizeOfFifo/BMI_FIFO_UNITS) << BMI_EXTRA_FIFO_SIZE_SHIFT));
+            WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pfs[hardwarePortId-1], tmpReg);
+        }
+        else /* first config without explicit value: Do Nothing - reset value shouldn't be
+                changed, read register for port save */
+        {
+            tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pfs[hardwarePortId-1]);
+            /* read into oldVal the current extra fifo size */
+            *p_ExtraSizeOfFifo = (uint16_t)((((tmpReg & BMI_EXTRA_FIFO_SIZE_MASK) + 1) * BMI_FIFO_UNITS) >> BMI_EXTRA_FIFO_SIZE_SHIFT);
+            *p_SizeOfFifo = (uint16_t)(((tmpReg & BMI_FIFO_SIZE_MASK) + 1) * BMI_FIFO_UNITS);
+        }
+    }
+    else if (p_Fm->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
+                     ("running in guest-mode without neither IPC nor mapped register!"));
+
+    if (!initialConfig || !sizeOfFifo)
+    {
+        /* !initialConfig - runtime change of existing value.
+         * !numOfTasks - first configuration according to values in regs.
+         * In both cases: read the current FIFO size */
+        tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pfs[hardwarePortId-1]);
+        /* read into oldVal the current extra fifo size */
+        currentExtraVal = (uint16_t)((((tmpReg & BMI_EXTRA_FIFO_SIZE_MASK) + 1) * BMI_FIFO_UNITS) >> BMI_EXTRA_FIFO_SIZE_SHIFT);
+        currentVal = (uint16_t)(((tmpReg & BMI_FIFO_SIZE_MASK) + 1) * BMI_FIFO_UNITS);
+    }
+    else /* first time and sizeOfFifo explicitly specified */
+        currentVal = currentExtraVal = 0;
+
+    if (!sizeOfFifo)
+    {
+        /* This is the first configuration and user did not specify value (!numOfTasks),
+         * reset values will be used and we just save these values for resource management */
+        if (currentExtraVal)
+        {
+            if (!p_Fm->p_FmStateStruct->extraFifoPoolSize)
+                /* if this is the first time a port requires extraFifoPoolSize, the total extraFifoPoolSize
+                 * must be initialized to 1 buffer per port
+                 */
+                p_Fm->p_FmStateStruct->extraFifoPoolSize = FM_MAX_NUM_OF_RX_PORTS*BMI_FIFO_UNITS;
+
+            p_Fm->p_FmStateStruct->extraFifoPoolSize = MAX(p_Fm->p_FmStateStruct->extraFifoPoolSize, extraSizeOfFifo);
+        }
+        if ((p_Fm->p_FmStateStruct->accumulatedFifoSize + currentVal) >
+            (p_Fm->p_FmStateStruct->totalFifoSize - p_Fm->p_FmStateStruct->extraFifoPoolSize))
+            RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("Total port's fifo size and extra size exceed total available FIFO size."));
+
+        p_Fm->p_FmStateStruct->accumulatedFifoSize += currentVal;
+
+        *p_SizeOfFifo = currentVal;
+        *p_ExtraSizeOfFifo = currentExtraVal;
+
+    }
+    else
+    {
+        /* user requires a specific value.
+         * If this is the first configuration call, (numOfTasks != 0) currentVal & currentExtraVal are set to "0",
+         * otherwise they hold the value written in the register.
+         */
+        if (extraSizeOfFifo > currentExtraVal)
+        {
+            if (extraSizeOfFifo && !p_Fm->p_FmStateStruct->extraFifoPoolSize)
+                /* if this is the first time a port requires extraFifoPoolSize, the total extraFifoPoolSize
+                 * must be initialized to 1 buffer per port
+                 */
+                p_Fm->p_FmStateStruct->extraFifoPoolSize = FM_MAX_NUM_OF_RX_PORTS*BMI_FIFO_UNITS;
+
+            p_Fm->p_FmStateStruct->extraFifoPoolSize = MAX(p_Fm->p_FmStateStruct->extraFifoPoolSize, extraSizeOfFifo);
+        }
+
+        /* check that there are enough uncommitted fifo size */
+        if ((p_Fm->p_FmStateStruct->accumulatedFifoSize - currentVal + sizeOfFifo) >
+            (p_Fm->p_FmStateStruct->totalFifoSize - p_Fm->p_FmStateStruct->extraFifoPoolSize))
+            RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("Requested fifo size and extra size exceed total FIFO size."));
+        else
+        {
+            /* update accumulated */
+            ASSERT_COND(p_Fm->p_FmStateStruct->accumulatedFifoSize >= currentVal);
+            p_Fm->p_FmStateStruct->accumulatedFifoSize -= currentVal;
+            p_Fm->p_FmStateStruct->accumulatedFifoSize += sizeOfFifo;
+            /* calculate reg */
+            tmpReg = (uint32_t)((sizeOfFifo/BMI_FIFO_UNITS - 1) |
+                                ((extraSizeOfFifo/BMI_FIFO_UNITS) << BMI_EXTRA_FIFO_SIZE_SHIFT));
+            WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pfs[hardwarePortId-1], tmpReg);
+        }
+        *p_SizeOfFifo = sizeOfFifo;
+        *p_ExtraSizeOfFifo = extraSizeOfFifo;
+
+    }
+
+    return E_OK;
+}
+#endif /* FM_NO_GUARANTEED_RESET_VALUES */
+
+#ifdef FM_NO_GUARANTEED_RESET_VALUES
 t_Error FmSetNumOfTasks(t_Handle    h_Fm,
                         uint8_t     hardwarePortId,
-                        uint8_t     numOfTasks,
-                        uint8_t     numOfExtraTasks,
+                        uint8_t     *p_NumOfTasks,
+                        uint8_t     *p_NumOfExtraTasks,
                         bool        initialConfig)
 {
     t_Fm                    *p_Fm = (t_Fm *)h_Fm;
     t_Error                 err;
     uint32_t                tmpReg = 0;
-    uint8_t                 oldVal = 0;
+    uint8_t                 oldVal = 0, numOfTasks = *p_NumOfTasks, numOfExtraTasks = *p_NumOfExtraTasks;
 
     ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
 
@@ -2790,16 +3004,152 @@ t_Error FmSetNumOfTasks(t_Handle    h_Fm,
 
     return E_OK;
 }
+#else /*FM_NO_GUARANTEED_RESET_VALUES*/
+t_Error FmSetNumOfTasks(t_Handle    h_Fm,
+                        uint8_t     hardwarePortId,
+                        uint8_t     *p_NumOfTasks,
+                        uint8_t     *p_NumOfExtraTasks,
+                        bool        initialConfig)
+{
+    t_Fm                    *p_Fm = (t_Fm *)h_Fm;
+    t_Error                 err;
+    uint32_t                tmpReg = 0;
+    uint8_t                 currentVal, currentExtraVal,numOfTasks = *p_NumOfTasks, numOfExtraTasks = *p_NumOfExtraTasks;
 
+    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
+    /* it's illegal to be in a state where this is not the first set and no value is specified */
+    ASSERT_COND(initialConfig || numOfTasks);
+
+    if ((p_Fm->guestId != NCSW_MASTER_ID) &&
+        !p_Fm->baseAddr &&
+        p_Fm->h_IpcSessions[0])
+    {
+        t_FmIpcPortRsrcParams   rsrcParams;
+        t_FmIpcMsg              msg;
+        t_FmIpcReply            reply;
+        uint32_t                replyLength;
+
+        rsrcParams.hardwarePortId = hardwarePortId;
+        rsrcParams.val = numOfTasks;
+        rsrcParams.extra = numOfExtraTasks;
+        rsrcParams.boolInitialConfig = (uint8_t)initialConfig;
+
+        memset(&msg, 0, sizeof(msg));
+        memset(&reply, 0, sizeof(reply));
+        msg.msgId = FM_SET_NUM_OF_TASKS;
+        memcpy(msg.msgBody, &rsrcParams, sizeof(rsrcParams));
+        replyLength = sizeof(uint32_t);
+        if ((err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
+                                     (uint8_t*)&msg,
+                                     sizeof(msg.msgId) + sizeof(rsrcParams),
+                                     (uint8_t*)&reply,
+                                     &replyLength,
+                                     NULL,
+                                     NULL)) != E_OK)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+        if (replyLength != sizeof(uint32_t))
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
+        return (t_Error)(reply.error);
+    }
+    else if ((p_Fm->guestId != NCSW_MASTER_ID) &&
+             p_Fm->baseAddr)
+    {
+        DBG(WARNING, ("No Ipc - can't validate FM total-num-of-tasks."));
+
+        if (numOfTasks)
+        {
+            /* whether it is the first time with explicit value, or runtime "set" - write register */
+            tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]) & ~(BMI_NUM_OF_TASKS_MASK | BMI_NUM_OF_EXTRA_TASKS_MASK);
+            tmpReg |= (uint32_t)(((numOfTasks-1) << BMI_NUM_OF_TASKS_SHIFT) |
+                        (numOfExtraTasks << BMI_EXTRA_NUM_OF_TASKS_SHIFT));
+            WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1],tmpReg);
+        }
+        else /* first config without explicit value: Do Nothing - reset value shouldn't be
+                 changed, read register for port save */
+         {
+            tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]);
+            *p_NumOfTasks = (uint8_t)(((tmpReg & BMI_NUM_OF_TASKS_MASK) >> BMI_NUM_OF_TASKS_SHIFT) + 1);
+            *p_NumOfExtraTasks = (uint8_t)((tmpReg & BMI_NUM_OF_EXTRA_TASKS_MASK) >> BMI_EXTRA_NUM_OF_TASKS_SHIFT);
+         }
+
+    }
+    else if (p_Fm->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
+                     ("running in guest-mode without neither IPC nor mapped register!"));
+
+    if (!initialConfig || !numOfTasks)
+    {
+        /* !initialConfig - runtime change of existing value.
+         * !numOfTasks - first configuration according to values in regs.
+         * In both cases: read the current number of tasks */
+        tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]);
+        currentVal = (uint8_t)(((tmpReg & BMI_NUM_OF_TASKS_MASK) >> BMI_NUM_OF_TASKS_SHIFT) + 1);
+        currentExtraVal = (uint8_t)((tmpReg & BMI_NUM_OF_EXTRA_TASKS_MASK) >> BMI_EXTRA_NUM_OF_TASKS_SHIFT);
+    }
+    else /* first time and numOfTasks explicitly specified */
+        currentVal = currentExtraVal = 0;
+
+    if (!numOfTasks)
+    {
+        /* This is the first configuration and user did not specify value (!numOfTasks),
+         * reset values will be used and we just save these values for resource management */
+         p_Fm->p_FmStateStruct->extraTasksPoolSize =
+                    (uint8_t)MAX(p_Fm->p_FmStateStruct->extraTasksPoolSize, currentExtraVal);
+         if ((p_Fm->p_FmStateStruct->accumulatedNumOfTasks + currentVal) >
+                 (p_Fm->p_FmStateStruct->totalNumOfTasks - p_Fm->p_FmStateStruct->extraTasksPoolSize))
+             RETURN_ERROR(MAJOR, E_NOT_AVAILABLE,
+                                      ("Total ports' numOfTasks and extra tasks pool for fm%d exceed total available numOfTasks.",
+                                       p_Fm->p_FmStateStruct->fmId));
+        p_Fm->p_FmStateStruct->accumulatedNumOfTasks += currentVal;
+        *p_NumOfTasks = currentVal;
+        *p_NumOfExtraTasks = currentExtraVal;
+    }
+    else
+    {
+        /* user requires a specific value.
+         * If this is the first configuration call, (numOfTasks != 0) currentVal & currentExtraVal are set to "0",
+         * otherwise they hold the value written in the register.
+         */
+        if (numOfExtraTasks > currentExtraVal)
+             p_Fm->p_FmStateStruct->extraTasksPoolSize =
+                 (uint8_t)MAX(p_Fm->p_FmStateStruct->extraTasksPoolSize, numOfExtraTasks);
+
+        /* check that there are enough uncommitted tasks */
+        if ((p_Fm->p_FmStateStruct->accumulatedNumOfTasks - currentVal + numOfTasks) >
+           (p_Fm->p_FmStateStruct->totalNumOfTasks - p_Fm->p_FmStateStruct->extraTasksPoolSize))
+            RETURN_ERROR(MAJOR, E_NOT_AVAILABLE,
+                         ("Requested numOfTasks and extra tasks pool for fm%d exceed total numOfTasks.",
+                          p_Fm->p_FmStateStruct->fmId));
+        else
+        {
+            ASSERT_COND(p_Fm->p_FmStateStruct->accumulatedNumOfTasks >= currentVal);
+            /* update acummulated */
+            p_Fm->p_FmStateStruct->accumulatedNumOfTasks -= currentVal;
+            p_Fm->p_FmStateStruct->accumulatedNumOfTasks += numOfTasks;
+            /* calculate reg */
+            tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]) & ~(BMI_NUM_OF_TASKS_MASK | BMI_NUM_OF_EXTRA_TASKS_MASK);
+            tmpReg |= (uint32_t)(((numOfTasks-1) << BMI_NUM_OF_TASKS_SHIFT) |
+                        (numOfExtraTasks << BMI_EXTRA_NUM_OF_TASKS_SHIFT));
+            WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1],tmpReg);
+        }
+        *p_NumOfTasks = numOfTasks;
+        *p_NumOfExtraTasks = numOfExtraTasks;
+    }
+
+    return E_OK;
+}
+#endif /* FM_NO_GUARANTEED_RESET_VALUES */
+
+#ifdef FM_NO_GUARANTEED_RESET_VALUES
 t_Error FmSetNumOfOpenDmas(t_Handle h_Fm,
                             uint8_t hardwarePortId,
-                            uint8_t numOfOpenDmas,
-                            uint8_t numOfExtraOpenDmas,
+                            uint8_t *p_NumOfOpenDmas,
+                            uint8_t *p_NumOfExtraOpenDmas,
                             bool    initialConfig)
 
 {
     t_Fm                    *p_Fm = (t_Fm *)h_Fm;
-    uint8_t                 oldVal = 0;
+    uint8_t                 oldVal = 0, numOfOpenDmas = *p_NumOfOpenDmas, numOfExtraOpenDmas = *p_NumOfExtraOpenDmas;
     uint32_t                tmpReg = 0;
     t_Error                 err;
 
@@ -2912,8 +3262,171 @@ t_Error FmSetNumOfOpenDmas(t_Handle h_Fm,
 #endif /* FM_HAS_TOTAL_DMAS */
     }
 
+
     return E_OK;
 }
+#else /* FM_NO_GUARANTEED_RESET_VALUES */
+t_Error FmSetNumOfOpenDmas(t_Handle h_Fm,
+                            uint8_t hardwarePortId,
+                            uint8_t *p_NumOfOpenDmas,
+                            uint8_t *p_NumOfExtraOpenDmas,
+                            bool    initialConfig)
+
+{
+    t_Fm                    *p_Fm = (t_Fm *)h_Fm;
+    uint32_t                tmpReg = 0;
+    t_Error                 err;
+    uint8_t                 currentVal, currentExtraVal, numOfOpenDmas = *p_NumOfOpenDmas, numOfExtraOpenDmas = *p_NumOfExtraOpenDmas;
+
+    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
+
+    if ((p_Fm->guestId != NCSW_MASTER_ID) &&
+        !p_Fm->baseAddr &&
+        p_Fm->h_IpcSessions[0])
+    {
+        t_FmIpcPortRsrcParams   rsrcParams;
+        t_FmIpcMsg              msg;
+        t_FmIpcReply            reply;
+        uint32_t                replyLength;
+
+        rsrcParams.hardwarePortId = hardwarePortId;
+        rsrcParams.val = numOfOpenDmas;
+        rsrcParams.extra = numOfExtraOpenDmas;
+        rsrcParams.boolInitialConfig = (uint8_t)initialConfig;
+
+        memset(&msg, 0, sizeof(msg));
+        memset(&reply, 0, sizeof(reply));
+        msg.msgId = FM_SET_NUM_OF_OPEN_DMAS;
+        memcpy(msg.msgBody, &rsrcParams, sizeof(rsrcParams));
+        replyLength = sizeof(uint32_t);
+        if ((err = XX_IpcSendMessage(p_Fm->h_IpcSessions[0],
+                                     (uint8_t*)&msg,
+                                     sizeof(msg.msgId) + sizeof(rsrcParams),
+                                     (uint8_t*)&reply,
+                                     &replyLength,
+                                     NULL,
+                                     NULL)) != E_OK)
+            RETURN_ERROR(MINOR, err, NO_MSG);
+        if (replyLength != sizeof(uint32_t))
+            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
+        return (t_Error)(reply.error);
+    }
+#ifdef FM_HAS_TOTAL_DMAS
+    else if (p_Fm->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
+                     ("running in guest-mode without IPC!"));
+#else
+    else if ((p_Fm->guestId != NCSW_MASTER_ID) &&
+             p_Fm->baseAddr &&
+             (p_Fm->p_FmStateStruct->revInfo.majorRev >= 6))
+    {
+        /*DBG(WARNING, ("No Ipc - can't validate FM total-num-of-dmas."));*/
+
+        if (numOfOpenDmas)
+        {
+            /* whether it is the first time with explicit value, or runtime "set" - write register */
+            tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]) & ~(BMI_NUM_OF_DMAS_MASK | BMI_NUM_OF_EXTRA_DMAS_MASK);
+            tmpReg |= (uint32_t)(((numOfOpenDmas-1) << BMI_NUM_OF_DMAS_SHIFT) |
+                        (numOfExtraOpenDmas << BMI_EXTRA_NUM_OF_DMAS_SHIFT));
+            WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1], tmpReg);
+        }
+        else /* first config without explicit value: Do Nothing - reset value shouldn't be
+                changed, read register for port save */
+        {
+            tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]);
+            /* read into oldVal the current extra tasks */
+            *p_NumOfOpenDmas = (uint8_t)((tmpReg & BMI_NUM_OF_EXTRA_DMAS_MASK) >> BMI_EXTRA_NUM_OF_DMAS_SHIFT);
+            *p_NumOfExtraOpenDmas = (uint8_t)(((tmpReg & BMI_NUM_OF_DMAS_MASK) >> BMI_NUM_OF_DMAS_SHIFT) + 1);
+        }
+    }
+    else if (p_Fm->guestId != NCSW_MASTER_ID)
+        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
+                     ("running in guest-mode without neither IPC nor mapped register!"));
+#endif /* FM_HAS_TOTAL_DMAS */
+
+    /* it's illegal to be in a state where this is not the first set and no value is specified */
+    ASSERT_COND(initialConfig || numOfOpenDmas);
+
+    if (!initialConfig || !numOfOpenDmas)
+    {
+        /* !initialConfig - runtime change of existing value.
+         * !numOfTasks - first configuration according to values in regs.
+         * In both cases: read the current number of open Dma's */
+        tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]);
+        /* read into oldVal the current extra tasks */
+        currentExtraVal = (uint8_t)((tmpReg & BMI_NUM_OF_EXTRA_DMAS_MASK) >> BMI_EXTRA_NUM_OF_DMAS_SHIFT);
+        currentVal = (uint8_t)(((tmpReg & BMI_NUM_OF_DMAS_MASK) >> BMI_NUM_OF_DMAS_SHIFT) + 1);
+    }
+    else /* first time and numOfTasks explicitly specified */
+        currentVal = currentExtraVal = 0;
+
+    if (!numOfOpenDmas)
+    {
+        /* This is the first configuration and user did not specify value (!numOfOpenDmas),
+         * reset values will be used and we just save these values for resource management */
+        p_Fm->p_FmStateStruct->extraOpenDmasPoolSize =
+                    (uint8_t)MAX(p_Fm->p_FmStateStruct->extraOpenDmasPoolSize, currentExtraVal);
+        p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas += currentVal;
+        *p_NumOfOpenDmas = currentVal;
+        *p_NumOfExtraOpenDmas = currentExtraVal;
+    }
+    else
+    {
+        /* user requires a specific value.
+         * If this is the first configuration call, (numOfTasks != 0) currentVal & currentExtraVal are set to "0",
+         * otherwise they hold the value written in the register.
+         */
+        if (numOfExtraOpenDmas > currentExtraVal)
+             p_Fm->p_FmStateStruct->extraOpenDmasPoolSize =
+                 (uint8_t)MAX(p_Fm->p_FmStateStruct->extraOpenDmasPoolSize, numOfExtraOpenDmas);
+
+
+        /* read into oldVal the current num of tasks */
+#ifdef FM_HAS_TOTAL_DMAS
+        if ((p_Fm->p_FmStateStruct->revInfo.majorRev < 6) &&
+            (p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas - currentVal + numOfOpenDmas >
+                p_Fm->p_FmStateStruct->maxNumOfOpenDmas))
+                RETURN_ERROR(MAJOR, E_NOT_AVAILABLE,
+                             ("Requested numOfOpenDmas for fm%d exceeds total numOfOpenDmas.",
+                             p_Fm->p_FmStateStruct->fmId));
+#else
+        if ((p_Fm->p_FmStateStruct->revInfo.majorRev >= 6) &&
+            (p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas - currentVal + numOfOpenDmas > DMA_THRESH_MAX_COMMQ + 1))
+            RETURN_ERROR(MAJOR, E_NOT_AVAILABLE,
+                         ("Requested numOfOpenDmas for fm%d exceeds DMA Command queue (%d)",
+                          p_Fm->p_FmStateStruct->fmId, DMA_THRESH_MAX_COMMQ+1));
+#endif /* FM_HAS_TOTAL_DMAS */
+        else
+        {
+            ASSERT_COND(p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas >= currentVal);
+            /* update acummulated */
+            p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas -= currentVal;
+            p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas += numOfOpenDmas;
+
+            /* calculate reg */
+            tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]) & ~(BMI_NUM_OF_DMAS_MASK | BMI_NUM_OF_EXTRA_DMAS_MASK);
+            tmpReg |= (uint32_t)(((numOfOpenDmas-1) << BMI_NUM_OF_DMAS_SHIFT) |
+                        (numOfExtraOpenDmas << BMI_EXTRA_NUM_OF_DMAS_SHIFT));
+            WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1], tmpReg);
+#ifdef FM_HAS_TOTAL_DMAS
+            if (p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
+            {
+                /* update total num of DMA's with committed number of open DMAS, and max uncommitted pool. */
+                tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_cfg2) & ~BMI_CFG2_DMAS_MASK;
+                tmpReg |= (uint32_t)(p_Fm->p_FmStateStruct->accumulatedNumOfOpenDmas + p_Fm->p_FmStateStruct->extraOpenDmasPoolSize - 1) << BMI_CFG2_DMAS_SHIFT;
+                WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_cfg2, tmpReg);
+            }
+#endif /* FM_HAS_TOTAL_DMAS */
+
+        }
+        *p_NumOfOpenDmas = numOfOpenDmas;
+        *p_NumOfExtraOpenDmas = numOfExtraOpenDmas;
+    }
+
+
+    return E_OK;
+}
+#endif /* FM_NO_GUARANTEED_RESET_VALUES */
 
 #if (DPAA_VERSION >= 11)
 t_Error FmVSPCheckRelativeProfile(t_Handle        h_Fm,
@@ -3425,6 +3938,7 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
     t_Fm                *p_Fm;
     uint8_t             i;
     uintptr_t           baseAddr;
+    uint32_t            tmpReg;
 
     SANITY_CHECK_RETURN_VALUE(p_FmParam, E_NULL_POINTER, NULL);
     SANITY_CHECK_RETURN_VALUE(((p_FmParam->firmware.p_Code && p_FmParam->firmware.size) ||
@@ -3501,20 +4015,6 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
     p_Fm->p_FmStateStruct->errIrq               = p_FmParam->errIrq;
     p_Fm->hcPortInitialized                     = FALSE;
     p_Fm->independentMode                       = FALSE;
-    p_Fm->p_FmStateStruct->ramsEccEnable        = FALSE;
-    p_Fm->p_FmStateStruct->totalNumOfTasks      = BMI_MAX_NUM_OF_TASKS;
-    p_Fm->p_FmStateStruct->maxNumOfOpenDmas     = BMI_MAX_NUM_OF_DMAS;
-    p_Fm->p_FmStateStruct->extraFifoPoolSize    = 0;
-    p_Fm->p_FmStateStruct->exceptions           = DEFAULT_exceptions;
-    /* Chip dependent, will be configured in Init */
-    p_Fm->p_FmStateStruct->totalFifoSize        = 0;
-
-    for(i = 0;i<FM_MAX_NUM_OF_1G_MACS;i++)
-        p_Fm->p_FmStateStruct->macMaxFrameLengths1G[i] = DEFAULT_mtu;
-#if defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS)
-    for(i = 0;i<FM_MAX_NUM_OF_10G_MACS;i++)
-        p_Fm->p_FmStateStruct->macMaxFrameLengths10G[i] = DEFAULT_mtu;
-#endif /*defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS)*/
 
     p_Fm->h_Spinlock = XX_InitSpinlock();
     if (!p_Fm->h_Spinlock)
@@ -3526,8 +4026,18 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
         return NULL;
     }
 
+#if (DPAA_VERSION >= 11)
+    p_Fm->partVSPBase   = p_FmParam->partVSPBase;
+    p_Fm->partNumOfVSPs = p_FmParam->partNumOfVSPs;
+    p_Fm->vspBaseAddr = p_FmParam->vspBaseAddr;
+#endif /* (DPAA_VERSION >= 11) */
+
+
+
+    p_Fm->p_FmStateStruct->ramsEccEnable        = FALSE;
+    p_Fm->p_FmStateStruct->extraFifoPoolSize    = 0;
+    p_Fm->p_FmStateStruct->exceptions           = DEFAULT_exceptions;
     /*p_Fm->p_FmDriverParam->numOfPartitions                    = p_FmParam->numOfPartitions;    */
-    p_Fm->p_FmDriverParam->enCounters                           = FALSE;
     p_Fm->p_FmDriverParam->tnumAgingPeriod                      = 0;
     p_Fm->p_FmDriverParam->resetOnInit                          = DEFAULT_resetOnInit;
 
@@ -3550,8 +4060,6 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
     p_Fm->p_FmDriverParam->dmaCamNumOfEntries                   = DEFAULT_dmaCamNumOfEntries;
     p_Fm->p_FmDriverParam->dmaWatchdog                          = DEFAULT_dmaWatchdog;
 
-    p_Fm->p_FmDriverParam->dmaCommQThresholds.clearEmergency        = DEFAULT_dmaCommQLow;
-    p_Fm->p_FmDriverParam->dmaCommQThresholds.assertEmergency       = DEFAULT_dmaCommQHigh;
     p_Fm->p_FmDriverParam->dmaReadBufThresholds.clearEmergency      = DEFAULT_dmaReadIntBufLow;
     p_Fm->p_FmDriverParam->dmaReadBufThresholds.assertEmergency     = DEFAULT_dmaReadIntBufHigh;
     p_Fm->p_FmDriverParam->dmaWriteBufThresholds.clearEmergency     = DEFAULT_dmaWriteIntBufLow;
@@ -3587,11 +4095,39 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
         memcpy(p_Fm->p_FmDriverParam->firmware.p_Code, p_FmParam->firmware.p_Code ,p_Fm->p_FmDriverParam->firmware.size);
     }
 
-#if (DPAA_VERSION >= 11)
-    p_Fm->partVSPBase   = p_FmParam->partVSPBase;
-    p_Fm->partNumOfVSPs = p_FmParam->partNumOfVSPs;
-    p_Fm->vspBaseAddr = p_FmParam->vspBaseAddr;
-#endif /* (DPAA_VERSION >= 11) */
+    if (p_Fm->guestId != NCSW_MASTER_ID)
+        return p_Fm;
+
+    /* read revision register 1 */
+    tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fm_ip_rev_1);
+    p_Fm->p_FmStateStruct->revInfo.majorRev = (uint8_t)((tmpReg & FPM_REV1_MAJOR_MASK) >> FPM_REV1_MAJOR_SHIFT);
+    p_Fm->p_FmStateStruct->revInfo.minorRev = (uint8_t)((tmpReg & FPM_REV1_MINOR_MASK) >> FPM_REV1_MINOR_SHIFT);
+    /* Chip dependent, will be configured in Init */
+#ifdef FM_NO_GUARANTEED_RESET_VALUES
+    if (1)//p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
+    {
+        p_Fm->p_FmStateStruct->totalFifoSize        = 0;
+        p_Fm->p_FmStateStruct->totalNumOfTasks      = BMI_MAX_NUM_OF_TASKS;
+        p_Fm->p_FmStateStruct->maxNumOfOpenDmas     = BMI_MAX_NUM_OF_DMAS;
+        p_Fm->p_FmDriverParam->dmaCommQThresholds.clearEmergency        = DEFAULT_dmaCommQLow;
+        p_Fm->p_FmDriverParam->dmaCommQThresholds.assertEmergency       = DEFAULT_dmaCommQHigh;
+    }
+    else
+#endif /* FM_NO_GUARANTEED_RESET_VALUES */
+    {
+        tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_cfg1);
+        p_Fm->p_FmStateStruct->totalFifoSize =
+            (((tmpReg & BMI_TOTAL_FIFO_SIZE_MASK) >> BMI_CFG1_FIFO_SIZE_SHIFT) + 1) * BMI_FIFO_UNITS;
+        tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_cfg2);
+        p_Fm->p_FmStateStruct->totalNumOfTasks =
+            (uint8_t)(((tmpReg & BMI_TOTAL_NUM_OF_TASKS_MASK) >> BMI_CFG2_TASKS_SHIFT) + 1);
+        tmpReg = GET_UINT32(p_Fm->p_FmDmaRegs->fmdmtr);
+        p_Fm->p_FmDriverParam->dmaCommQThresholds.assertEmergency =
+            (uint8_t)(tmpReg >> DMA_THRESH_COMMQ_SHIFT);
+        tmpReg = GET_UINT32(p_Fm->p_FmDmaRegs->fmdmhy);
+        p_Fm->p_FmDriverParam->dmaCommQThresholds.clearEmergency =
+            (uint8_t)(tmpReg >> DMA_THRESH_COMMQ_SHIFT);
+    }
 
     return p_Fm;
 }
@@ -3610,7 +4146,7 @@ t_Error FM_Init(t_Handle h_Fm)
     t_Fm                    *p_Fm = (t_Fm*)h_Fm;
     t_FmDriverParam         *p_FmDriverParam = NULL;
     t_Error                 err = E_OK;
-    uint32_t                tmpReg, cfgReg = 0;
+    uint32_t                cfgReg = 0;
     int                     i;
 
     SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
@@ -3621,16 +4157,15 @@ t_Error FM_Init(t_Handle h_Fm)
     if (p_Fm->guestId != NCSW_MASTER_ID)
         return InitGuestMode(p_Fm);
 
-    /* read revision register 1 */
-    tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fm_ip_rev_1);
-    p_Fm->p_FmStateStruct->revInfo.majorRev = (uint8_t)((tmpReg & FPM_REV1_MAJOR_MASK) >> FPM_REV1_MAJOR_SHIFT);
-    p_Fm->p_FmStateStruct->revInfo.minorRev = (uint8_t)((tmpReg & FPM_REV1_MINOR_MASK) >> FPM_REV1_MINOR_SHIFT);
+#ifdef FM_NO_GUARANTEED_RESET_VALUES
+    if (1)//p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
 
-    /* if user didn't configured totalFifoSize - (totalFifoSize=0) we configure default
+    /* if user didn't configure totalFifoSize - (totalFifoSize=0) we configure default
      * according to chip. otherwise, we use user's configuration.
      */
     if (p_Fm->p_FmStateStruct->totalFifoSize == 0)
         p_Fm->p_FmStateStruct->totalFifoSize = DEFAULT_totalFifoSize(p_Fm->p_FmStateStruct->revInfo.majorRev);
+#endif  /* FM_NO_GUARANTEED_RESET_VALUES */
 
     CHECK_INIT_PARAMETERS(p_Fm, CheckFmParameters);
 
@@ -3833,8 +4368,7 @@ t_Error FM_Init(t_Handle h_Fm)
     /**********************/
     /* clear & enable global counters  - calculate reg and save for later,
        because it's the same reg for QMI enable */
-    if (p_Fm->p_FmDriverParam->enCounters)
-        cfgReg = QMI_CFG_EN_COUNTERS;
+    cfgReg = QMI_CFG_EN_COUNTERS;
 #ifndef FM_QMI_NO_DEQ_OPTIONS_SUPPORT
     if (p_Fm->p_FmStateStruct->revInfo.majorRev != 4)
         cfgReg |= (uint32_t)(((QMI_DEF_TNUMS_THRESH) << 8) | (uint32_t)QMI_DEF_TNUMS_THRESH);
@@ -4048,19 +4582,6 @@ t_Error FM_ConfigDmaCamNumOfEntries(t_Handle h_Fm, uint8_t numOfEntries)
     SANITY_CHECK_RETURN_ERROR((p_Fm->guestId == NCSW_MASTER_ID), E_NOT_SUPPORTED);
 
     p_Fm->p_FmDriverParam->dmaCamNumOfEntries = numOfEntries;
-
-    return E_OK;
-}
-
-t_Error FM_ConfigEnableCounters(t_Handle h_Fm)
-{
-    t_Fm *p_Fm = (t_Fm*)h_Fm;
-
-    SANITY_CHECK_RETURN_ERROR(p_Fm, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR(p_Fm->p_FmDriverParam, E_INVALID_HANDLE);
-    SANITY_CHECK_RETURN_ERROR((p_Fm->guestId == NCSW_MASTER_ID), E_NOT_SUPPORTED);
-
-    p_Fm->p_FmDriverParam->enCounters = TRUE;
 
     return E_OK;
 }
@@ -4934,9 +5455,9 @@ uint32_t FM_GetCounter(t_Handle h_Fm, e_FmCounters counter)
 
         return outCounter;
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+    else if (!p_Fm->baseAddr)
+        RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
+                     ("Either IPC or 'baseAddress' is required!"));
 
     /* When applicable (when there is an 'enable counters' bit,
     check that counters are enabled */
@@ -5143,10 +5664,10 @@ void FM_GetDmaStatus(t_Handle h_Fm, t_FmDmaStatus *p_FmDmaStatus)
         p_FmDmaStatus->singlePortEccError = (bool)ipcDmaStatus.boolSinglePortEccError;     /**< Double ECC error on buffer write from FM side */
         return;
     }
-    else if (p_Fm->guestId != NCSW_MASTER_ID)
+    else if (!p_Fm->baseAddr)
     {
-        REPORT_ERROR(MAJOR, E_NOT_SUPPORTED,
-                     ("running in guest-mode without neither IPC nor mapped register!"));
+        REPORT_ERROR(MINOR, E_NOT_SUPPORTED,
+                     ("Either IPC or 'baseAddress' is required!"));
         return;
     }
 

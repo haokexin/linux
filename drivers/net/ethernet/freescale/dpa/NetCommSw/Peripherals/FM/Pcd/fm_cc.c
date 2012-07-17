@@ -517,12 +517,13 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
                                                    t_FmPcdModifyCcKeyAdditionalParams  *p_AdditionalParams,
                                                    bool                                useShadowStructs)
 {
-    t_List                          *p_Pos;
-    t_Error                         err = E_OK;
-    t_CcNodeInformation             ccNodeInfo, *p_CcNodeInformation;
-    t_Handle                        h_Muram;
-    t_FmPcdCcNode                   *p_FmPcdCcNextNode;
-    t_List                          *p_UpdateLst;
+    t_List                  *p_Pos;
+    t_Error                 err = E_OK;
+    t_CcNodeInformation     ccNodeInfo, *p_CcNodeInformation;
+    t_Handle                h_Muram;
+    t_FmPcdCcNode           *p_FmPcdCcNextNode;
+    t_List                  *p_UpdateLst;
+    uint32_t                intFlags;
 
     UNUSED(numOfGoodChanges);
 
@@ -661,15 +662,21 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
         if (p_AdditionalParams->p_AdTableNew)
             ((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->h_AdTable = p_AdditionalParams->p_AdTableNew;
 
-        if (p_AdditionalParams->numOfKeys)
-            ((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->numOfKeys = p_AdditionalParams->numOfKeys;
-
         if (p_AdditionalParams->p_KeysMatchTableNew)
             ((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->h_KeysMatchTable = p_AdditionalParams->p_KeysMatchTableNew;
+
+        /* Locking node's spinlock before updating 'keys and next engine' structure,
+           as it maybe used to retrieve keys statistics */
+        intFlags = XX_LockIntrSpinlock(((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->h_Spinlock);
+
+        if (p_AdditionalParams->numOfKeys)
+            ((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->numOfKeys = p_AdditionalParams->numOfKeys;
 
         memcpy(((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->keyAndNextEngineParams,
                 &p_AdditionalParams->keyAndNextEngineParams,
                 sizeof(t_FmPcdCcKeyAndNextEngineParams) * (CC_MAX_NUM_OF_KEYS));
+
+        XX_UnlockIntrSpinlock(((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->h_Spinlock, intFlags);
     }
     else
         memcpy(&((t_FmPcdCcTree *)(p_AdditionalParams->h_CurrentNode))->keyAndNextEngineParams,
@@ -1428,7 +1435,9 @@ t_Error ValidateNextEngineParams(t_Handle                   h_FmPcd,
 
     if ((supportedStatsMode == e_FM_PCD_CC_STATS_MODE_NONE) &&
         (p_FmPcdCcNextEngineParams->statisticsEn))
-        RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("Statistics supported was not requested upon this table initialization"));
+        RETURN_ERROR(MAJOR, E_CONFLICT,
+                     ("Statistics are requested for a key, but statistics mode was set"
+                      "to 'NONE' upon initialization of this match table"));
 
     switch (p_FmPcdCcNextEngineParams->nextEngine)
     {
@@ -1602,8 +1611,8 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                     return CC_PC_ILLEGAL;
 
                 default:
-                        REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
-                        return CC_PC_ILLEGAL;
+                    REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
+                    return CC_PC_ILLEGAL;
             }
 
         case (HEADER_TYPE_MPLS):
@@ -1617,10 +1626,10 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal MPLS index"));
                     return CC_PC_ILLEGAL;
 
-               default:
+                default:
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
                     return CC_PC_ILLEGAL;
-             }
+            }
 
         case (HEADER_TYPE_IPv4):
             switch (field.ipv4)
@@ -1674,7 +1683,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
             }
 
         case (HEADER_TYPE_IPv6):
-             switch (field.ipv6)
+            switch (field.ipv6)
             {
                 case (NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC):
                     if ((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
@@ -1725,7 +1734,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                 default:
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
                     return CC_PC_ILLEGAL;
-           }
+            }
         case (HEADER_TYPE_MINENCAP):
             switch (field.minencap)
             {
@@ -1744,7 +1753,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                 default:
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
                     return CC_PC_ILLEGAL;
-           }
+            }
 
         case (HEADER_TYPE_TCP):
             switch (field.tcp)
@@ -1791,7 +1800,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                     return CC_PC_ILLEGAL;
             }
 
-         default:
+        default:
             REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
             return CC_PC_ILLEGAL;
     }
@@ -1842,9 +1851,9 @@ static uint8_t GetPrParseCode(e_NetHeaderType   hdr,
 
         case (HEADER_TYPE_MPLS):
             if ((hdrIndex == e_FM_PCD_HDR_INDEX_NONE) || (hdrIndex == e_FM_PCD_HDR_INDEX_1))
-                    *parseArrayOffset = CC_PC_PR_MPLS1_OFFSET;
+                *parseArrayOffset = CC_PC_PR_MPLS1_OFFSET;
             else if (hdrIndex == e_FM_PCD_HDR_INDEX_LAST)
-                    *parseArrayOffset = CC_PC_PR_MPLS_LAST_OFFSET;
+                *parseArrayOffset = CC_PC_PR_MPLS_LAST_OFFSET;
             else
             {
                 REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal MPLS header index"));
@@ -1885,7 +1894,7 @@ static uint8_t GetPrParseCode(e_NetHeaderType   hdr,
         default:
             REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IP header for this type of operation"));
             return CC_PC_ILLEGAL;
-     }
+    }
 
     if (offsetRelevant)
         return CC_PR_OFFSET;
@@ -1907,7 +1916,7 @@ static uint8_t GetFieldParseCode(e_NetHeaderType    hdr,
     switch (hdr)
     {
         case (HEADER_TYPE_NONE):
-                ASSERT_COND(FALSE);
+            ASSERT_COND(FALSE);
         case (HEADER_TYPE_ETH):
             switch (field.eth)
             {
@@ -2023,7 +2032,7 @@ void FillAdOfTypeResult(t_Handle                    h_Ad,
                        tmp = FM_PCD_AD_RESULT_CONTRL_FLOW_TYPE;
                        tmp |= p_CcNextEngineParams->params.enqueueParams.newFqid;
 #if (DPAA_VERSION >= 11)
-                       tmp |= p_CcNextEngineParams->params.enqueueParams.newRelativeStorageProfileId << FM_PCD_AD_RESULT_VSP_SHIFT;
+                       tmp |= (p_CcNextEngineParams->params.enqueueParams.newRelativeStorageProfileId & FM_PCD_AD_RESULT_VSP_MASK) << FM_PCD_AD_RESULT_VSP_SHIFT;
 #endif /* (DPAA_VERSION >= 11) */
                     }
                     else
@@ -2045,7 +2054,7 @@ void FillAdOfTypeResult(t_Handle                    h_Ad,
                     tmp = FM_PCD_AD_RESULT_CONTRL_FLOW_TYPE;
                     tmp |= p_CcNextEngineParams->params.kgParams.newFqid;
 #if (DPAA_VERSION >= 11)
-                    tmp |= p_CcNextEngineParams->params.kgParams.newRelativeStorageProfileId << FM_PCD_AD_RESULT_VSP_SHIFT;
+                    tmp |= (p_CcNextEngineParams->params.kgParams.newRelativeStorageProfileId & FM_PCD_AD_RESULT_VSP_MASK) << FM_PCD_AD_RESULT_VSP_SHIFT;
 #endif /* (DPAA_VERSION >= 11) */
                 }
                 else
@@ -2079,7 +2088,7 @@ void FillAdOfTypeResult(t_Handle                    h_Ad,
 
                     tmp |= p_CcNextEngineParams->params.plcrParams.newFqid;
 #if (DPAA_VERSION >= 11)
-                    tmp |= p_CcNextEngineParams->params.plcrParams.newRelativeStorageProfileId << FM_PCD_AD_RESULT_VSP_SHIFT;
+                    tmp |= (p_CcNextEngineParams->params.plcrParams.newRelativeStorageProfileId & FM_PCD_AD_RESULT_VSP_MASK) << FM_PCD_AD_RESULT_VSP_SHIFT;
 #endif /* (DPAA_VERSION >= 11) */
                     WRITE_UINT32(p_AdResult->plcrProfile,(uint32_t)((uint32_t)profileId << FM_PCD_AD_PROFILEID_FOR_CNTRL_SHIFT));
                 }
@@ -2696,7 +2705,7 @@ static t_Error BuildNewNodeModifyKey(t_FmPcdCcNode                      *p_CcNod
     int                     size;
     int                     i = 0, j = 0;
     bool                    prvLclMask;
-    t_FmPcdStatsObj         *p_StatsObj;
+    t_FmPcdStatsObj         *p_StatsObj, tmpStatsObj;
     p_AdditionalInfo->numOfKeys =  p_CcNode->numOfKeys;
 
     prvLclMask = p_CcNode->lclMask;
@@ -2742,11 +2751,23 @@ static t_Error BuildNewNodeModifyKey(t_FmPcdCcNode                      *p_CcNod
                 p_StatsObj = GetStatsObj(p_CcNode);
                 ASSERT_COND(p_StatsObj);
 
-                /* Store allocated statistics object */
-                p_AdditionalInfo->keyAndNextEngineParams[keyIndex].p_StatsObj = p_StatsObj;
-
                 UpdateStatsCounters(p_AdTableNewTmp,
                                     (uint32_t)((XX_VirtToPhys(p_StatsObj->h_StatsCounters) - p_FmPcd->physicalMuramBase)));
+
+                tmpStatsObj.h_StatsAd = p_StatsObj->h_StatsAd;
+                tmpStatsObj.h_StatsCounters = p_StatsObj->h_StatsCounters;
+
+                /* As we need to replace only the counters, we build a new statistics
+                   object that holds the old AD and the new counters - this will be the
+                   currently used statistics object.
+                   The newly allocated AD is not required and may be released back to
+                   the available objects with the previous counters pointer. */
+                p_StatsObj->h_StatsAd = p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj->h_StatsAd;
+
+                p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj->h_StatsAd = tmpStatsObj.h_StatsAd;
+
+                /* Store allocated statistics object */
+                p_AdditionalInfo->keyAndNextEngineParams[keyIndex].p_StatsObj = p_StatsObj;
 
                 /* As statistics were previously enabled, store the old statistics object to be released */
                 p_AdditionalInfo->p_StatsObjForRmv = p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj;
@@ -2867,8 +2888,10 @@ static t_Error BuildNewNodeModifyNextEngine(t_Handle                            
 
         if (p_FmPcdCcNode1->keyAndNextEngineParams[keyIndex].nextEngineParams.nextEngine == e_FM_PCD_CC)
             p_AdditionalInfo->h_NodeForRmv = p_FmPcdCcNode1->keyAndNextEngineParams[keyIndex].nextEngineParams.params.ccParams.h_CcNode;
+
         if (p_FmPcdCcNode1->keyAndNextEngineParams[keyIndex].nextEngineParams.h_Manip)
             p_AdditionalInfo->h_ManipForRmv = p_FmPcdCcNode1->keyAndNextEngineParams[keyIndex].nextEngineParams.h_Manip;
+
 #if (DPAA_VERSION >= 11)
         if ((p_FmPcdCcNode1->keyAndNextEngineParams[keyIndex].nextEngineParams.nextEngine == e_FM_PCD_FR) &&
             (p_FmPcdCcNode1->keyAndNextEngineParams[keyIndex].nextEngineParams.params.frParams.h_FrmReplic) &&
@@ -2958,7 +2981,7 @@ static t_Error BuildNewNodeModifyNextEngine(t_Handle                            
     if (!p_AdditionalInfo->tree)
     {
         ASSERT_COND(p_FmPcdCcNode1);
-        if(!LIST_IsEmpty(&p_FmPcdCcNode1->ccTreesLst))
+        if (!LIST_IsEmpty(&p_FmPcdCcNode1->ccTreesLst))
         {
             LIST_FOR_EACH(p_Pos, &p_FmPcdCcNode1->ccTreesLst)
             {
@@ -3026,9 +3049,12 @@ static t_Error BuildNewNodeModifyNextEngine(t_Handle                            
     if ((!p_AdditionalInfo->tree) &&
          (((t_FmPcdCcNode *)h_FmPcdCcNodeOrTree)->keyAndNextEngineParams[keyIndex].p_StatsObj) &&
          (!p_CcNextEngineParams->statisticsEn))
+    {
         p_AdditionalInfo->p_StatsObjForRmv =
                 ((t_FmPcdCcNode *)h_FmPcdCcNodeOrTree)->keyAndNextEngineParams[keyIndex].p_StatsObj;
 
+        p_AdditionalInfo->keyAndNextEngineParams[keyIndex].p_StatsObj = NULL;
+    }
 #if (DPAA_VERSION >= 11)
         if ((p_CcNextEngineParams->nextEngine == e_FM_PCD_FR) &&
             (p_CcNextEngineParams->params.frParams.h_FrmReplic) &&
@@ -3393,7 +3419,7 @@ static t_Error CheckParams(t_Handle             h_FmPcd,
     uint32_t                requiredAction = 0;
 
     /* Validate statistics parameters */
-    err = ValidateAndCalcStatsParams(p_CcNodeParam->keysParams.statisticsMode,
+    err = ValidateAndCalcStatsParams(p_CcNode->statisticsMode,
                                      p_CcNodeParam->keysParams.frameLengthRanges,
                                      &(p_CcNode->numOfStatsFLRs),
                                      &(p_CcNode->countersArraySize));
@@ -3512,7 +3538,7 @@ static t_Error Ipv4TtlOrIpv6HopLimitCheckParams(t_Handle            h_FmPcd,
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For node of the type IPV4_TTL or IPV6_HOP_LIMIT the maximal supported 'maxNumOfKeys' is 1"));
 
     /* Validate statistics parameters */
-    err = ValidateAndCalcStatsParams(p_CcNodeParam->keysParams.statisticsMode,
+    err = ValidateAndCalcStatsParams(p_CcNode->statisticsMode,
                                      p_CcNodeParam->keysParams.frameLengthRanges,
                                      &(p_CcNode->numOfStatsFLRs),
                                      &(p_CcNode->countersArraySize));
@@ -3558,7 +3584,7 @@ static t_Error Ipv4TtlOrIpv6HopLimitCheckParams(t_Handle            h_FmPcd,
 
         err = ValidateNextEngineParams(h_FmPcd,
                                        &p_KeyParams->ccNextEngineParams,
-                                       p_CcNodeParam->keysParams.statisticsMode);
+                                       p_CcNode->statisticsMode);
         if (err)
             RETURN_ERROR(MAJOR, err, (NO_MSG));
 
@@ -3624,7 +3650,7 @@ static t_Error IcHashIndexedCheckParams(t_Handle            h_FmPcd,
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For Node of the type INDEXED 'maxNumOfKeys' should be 0 or equal 'numOfKeys'"));
 
     /* Validate statistics parameters */
-    err = ValidateAndCalcStatsParams(p_CcNodeParam->keysParams.statisticsMode,
+    err = ValidateAndCalcStatsParams(p_CcNode->statisticsMode,
                                      p_CcNodeParam->keysParams.frameLengthRanges,
                                      &(p_CcNode->numOfStatsFLRs),
                                      &(p_CcNode->countersArraySize));
@@ -3633,8 +3659,8 @@ static t_Error IcHashIndexedCheckParams(t_Handle            h_FmPcd,
 
     err = ValidateNextEngineParams(h_FmPcd,
                                    &p_CcNodeParam->keysParams.ccNextEngineParamsForMiss,
-                                   p_CcNodeParam->keysParams.statisticsMode);
-    if(GET_ERROR_TYPE(err)!= E_NOT_SUPPORTED)
+                                   p_CcNode->statisticsMode);
+    if (GET_ERROR_TYPE(err)!= E_NOT_SUPPORTED)
         RETURN_ERROR(MAJOR, err, ("MissNextEngineParams for the node of the type IC_INDEX_HASH has to be UnInitialized"));
 
     for (tmp = 0; tmp < p_CcNode->numOfKeys; tmp++)
@@ -3648,7 +3674,7 @@ static t_Error IcHashIndexedCheckParams(t_Handle            h_FmPcd,
         {
             err = ValidateNextEngineParams(h_FmPcd,
                                            &p_KeyParams->ccNextEngineParams,
-                                           p_CcNodeParam->keysParams.statisticsMode);
+                                           p_CcNode->statisticsMode);
             if (err)
                 RETURN_ERROR(MAJOR, err, ("This index has to be initialized for the node of the type IC_INDEX_HASH according to settings of GlobalMask "));
 
@@ -3892,6 +3918,37 @@ static t_Error PreAllocStatsObjs(t_FmPcdCcNode *p_CcNode)
 
     return E_OK;
 }
+
+static t_Error MatchTableGetKeyStatistics(t_FmPcdCcNode           *p_CcNode,
+                                          uint16_t                keyIndex,
+                                          t_FmPcdCcKeyStatistics  *p_KeyStatistics)
+{
+    uint32_t    *p_StatsCounters, i;
+
+    if (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_NONE)
+        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Statistics were not enabled for this match table"));
+
+    if (keyIndex >= p_CcNode->numOfKeys)
+        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("The provided keyIndex exceeds the number of keys in this match table"));
+
+    if (!p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj)
+        RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Statistics were not enabled for this key"));
+
+    p_StatsCounters = p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj->h_StatsCounters;
+    ASSERT_COND(p_StatsCounters);
+
+    p_KeyStatistics->byteCount = GET_UINT32(*p_StatsCounters);
+
+    for (i = 1; i <= p_CcNode->numOfStatsFLRs; i++)
+    {
+        p_StatsCounters = PTR_MOVE(p_StatsCounters, FM_PCD_CC_STATS_FLR_COUNT_SIZE);
+
+        p_KeyStatistics->frameLengthRangeCount[i-1] = GET_UINT32(*p_StatsCounters);
+    }
+
+    return E_OK;
+}
+
 
 /*****************************************************************************/
 /*              Inter-module API routines                                    */
@@ -4298,13 +4355,8 @@ t_Error FmPcdCcModifyKey(t_Handle   h_FmPcd,
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("handler to FmPcd is different from the handle provided at node initialization time"));
 
     if (p_CcNode->maxNumOfKeys)
-    {
-        if ((p_CcNode->numOfKeys + 1) > p_CcNode->maxNumOfKeys)
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("number of keys exceeds the maximal number of keys provided at node initialization time"));
-
         if ((!p_CcNode->maskSupport) && (p_Mask))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("mask support was not enabled for this node initialization time"));
-    }
 
     err = FindKeyIndex(h_FmPcdCcNode,
                        keySize,
@@ -4390,7 +4442,7 @@ t_Error FmPcdCcModifyMissNextEngineParamNode(t_Handle                   h_FmPcd,
     INIT_LIST(&h_OldPointersLst);
     INIT_LIST(&h_NewPointersLst);
 
-    p_ModifyKeyParams =  ModifyKeyCommonPart1(p_CcNode, keyIndex, e_MODIFY_STATE_CHANGE, FALSE, TRUE, FALSE);
+    p_ModifyKeyParams = ModifyKeyCommonPart1(p_CcNode, keyIndex, e_MODIFY_STATE_CHANGE, FALSE, TRUE, FALSE);
     if (!p_ModifyKeyParams)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
 
@@ -4441,10 +4493,10 @@ t_Error FmPcdCcAddKey(t_Handle              h_FmPcd,
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("keyIndex > previously cleared last index + 1"));
 
     if ((p_CcNode->numOfKeys + 1) > FM_PCD_MAX_NUM_OF_CC_NODES)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("number of keys can not be larger than 255"));
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("number of keys can not be larger than %d", FM_PCD_MAX_NUM_OF_CC_NODES));
 
     if (keySize != p_CcNode->userSizeOfExtraction)
-        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("keySize has to be defined as it was defined in initialization step."));
+        RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("keySize has to be defined as it was defined in initialization step"));
 
     if (p_CcNode->h_FmPcd != h_FmPcd)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("handler to FmPcd is different from the handle provided at node initialization time"));
@@ -5061,10 +5113,10 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
 
      if (!FmPcdLockTryLockAll(p_FmPcd))
     {
-        DeleteTree(p_FmPcdCcTree, p_FmPcd);
-        XX_Free(p_Params);
-        DBG(TRACE, ("FmPcdLockTryLockAll failed"));
-        return NULL;
+         FM_PCD_CcRootDelete(p_FmPcdCcTree);
+         XX_Free(p_Params);
+         DBG(TRACE, ("FmPcdLockTryLockAll failed"));
+         return NULL;
     }
 
     for (i = 0; i < numOfEntries; i++)
@@ -5076,7 +5128,7 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
             if (err)
             {
                 FmPcdLockUnlockAll(p_FmPcd);
-                DeleteTree(p_FmPcdCcTree,p_FmPcd);
+                FM_PCD_CcRootDelete(p_FmPcdCcTree);
                 XX_Free(p_Params);
                 REPORT_ERROR(MAJOR, E_NO_MEMORY, ("No memory"));
                 return NULL;
@@ -5089,13 +5141,14 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
     p_FmPcdCcTree->p_Lock = FmPcdAcquireLock(p_FmPcd);
     if (!p_FmPcdCcTree->p_Lock)
     {
-        DeleteTree(p_FmPcdCcTree, p_FmPcd);
+        FM_PCD_CcRootDelete(p_FmPcdCcTree);
         XX_Free(p_Params);
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("FM CC lock"));
         return NULL;
     }
 
     XX_Free(p_Params);
+
     return p_FmPcdCcTree;
 }
 
@@ -5226,6 +5279,13 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
     p_CcNode->maxNumOfKeys      = p_CcNodeParam->keysParams.maxNumOfKeys;
     p_CcNode->maskSupport       = p_CcNodeParam->keysParams.maskSupport;
     p_CcNode->statisticsMode    = p_CcNodeParam->keysParams.statisticsMode;
+
+    /* For backward compatibility - even if statistics mode is nullified,
+       we'll fix it to frame mode so we can support per-key request for
+       statistics using 'statisticsEn' in next engine parameters */
+    if ((!p_CcNode->maxNumOfKeys) &&
+        (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_NONE))
+            p_CcNode->statisticsMode = e_FM_PCD_CC_STATS_MODE_FRAME;
 
     h_FmMuram = FmPcdGetMuramHandle(h_FmPcd);
     if (!h_FmMuram)
@@ -5464,7 +5524,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
             return NULL;
         }
 
-        if (p_CcNodeParam->keysParams.statisticsMode != e_FM_PCD_CC_STATS_MODE_NONE)
+        if (p_CcNode->statisticsMode != e_FM_PCD_CC_STATS_MODE_NONE)
         {
             err = PreAllocStatsObjs(p_CcNode);
             if (err != E_OK)
@@ -5481,7 +5541,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
         p_CcNode->h_Ad = (t_Handle)FM_MURAM_AllocMem(h_FmMuram,
                                                      FM_PCD_CC_AD_ENTRY_SIZE,
                                                      FM_PCD_CC_AD_TABLE_ALIGN);
-        if(!p_CcNode->h_Ad)
+        if (!p_CcNode->h_Ad)
         {
             DeleteNode(p_CcNode);
             REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for CC action descriptor"));
@@ -5492,7 +5552,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
         numOfKeysToAlloc = p_CcNode->numOfKeys;
 
     /* If RMON statistics mode requested, allocate frame length ranges array */
-    if (p_CcNodeParam->keysParams.statisticsMode == e_FM_PCD_CC_STATS_MODE_RMON)
+    if (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_RMON)
     {
         /* First counter is always 'byte count', so ranges count is smaller by 1 */
         p_CcNode->h_StatsFLRs =
@@ -5839,9 +5899,8 @@ t_Error FM_PCD_MatchTableModifyKey(t_Handle h_CcNode,
     uint32_t        intFlags;
     t_Error         err = E_OK;
 
-    SANITY_CHECK_RETURN_ERROR(p_Key, E_NULL_POINTER);
-    SANITY_CHECK_RETURN_ERROR(p_Mask, E_NULL_POINTER);
     SANITY_CHECK_RETURN_ERROR(p_CcNode, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_Key, E_NULL_POINTER);
     p_FmPcd = (t_FmPcd *)p_CcNode->h_FmPcd;
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->h_Hc, E_INVALID_HANDLE);
@@ -6246,22 +6305,16 @@ t_Error FM_PCD_MatchTableGetNextEngine(t_Handle                     h_CcNode,
 uint32_t FM_PCD_MatchTableGetKeyCounter(t_Handle h_CcNode, uint16_t keyIndex)
 {
     t_FmPcdCcNode       *p_CcNode = (t_FmPcdCcNode *)h_CcNode;
-    uint32_t            *p_StatsCounters, *p_FrameCounter;
+    uint32_t            *p_StatsCounters, frameCount;
+    uint32_t            intFlags;
 
     SANITY_CHECK_RETURN_VALUE(p_CcNode, E_INVALID_HANDLE, 0);
 
-    if (keyIndex >= p_CcNode->numOfKeys)
-    {
-        REPORT_ERROR(MINOR, E_INVALID_STATE, ("The provided keyIndex exceeds the number of keys in this match table"));
-        return 0;
-    }
-
     if (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_NONE)
     {
-        REPORT_ERROR(MINOR, E_INVALID_STATE, ("Statistics were not enabled for this match table"));
+        REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Statistics were not enabled for this match table"));
         return 0;
     }
-    ASSERT_COND(p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj);
 
     if ((p_CcNode->statisticsMode != e_FM_PCD_CC_STATS_MODE_FRAME) &&
         (p_CcNode->statisticsMode != e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME))
@@ -6270,13 +6323,30 @@ uint32_t FM_PCD_MatchTableGetKeyCounter(t_Handle h_CcNode, uint16_t keyIndex)
         return 0;
     }
 
+    intFlags = XX_LockIntrSpinlock(p_CcNode->h_Spinlock);
+
+    if (keyIndex >= p_CcNode->numOfKeys)
+    {
+        REPORT_ERROR(MAJOR, E_INVALID_STATE, ("The provided keyIndex exceeds the number of keys in this match table"));
+        return 0;
+    }
+
+    if (!p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj)
+    {
+        REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Statistics were not enabled for this key"));
+        return 0;
+    }
+
     p_StatsCounters = p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj->h_StatsCounters;
+    ASSERT_COND(p_StatsCounters);
 
-    /* The first counter is byte counter */
-    p_FrameCounter = PTR_MOVE(p_StatsCounters, FM_PCD_CC_STATS_FLR_COUNT_SIZE);
-    ASSERT_COND(p_FrameCounter);
+    /* The first counter is byte counter, so we need to advance to the next counter */
+    frameCount = GET_UINT32(*(uint32_t *)(PTR_MOVE(p_StatsCounters,
+                                                   FM_PCD_CC_STATS_FLR_COUNT_SIZE)));
 
-    return GET_UINT32(*p_FrameCounter);
+    XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
+
+    return frameCount;
 }
 
 t_Error FM_PCD_MatchTableGetKeyStatistics(t_Handle                  h_CcNode,
@@ -6284,31 +6354,22 @@ t_Error FM_PCD_MatchTableGetKeyStatistics(t_Handle                  h_CcNode,
                                           t_FmPcdCcKeyStatistics    *p_KeyStatistics)
 {
     t_FmPcdCcNode       *p_CcNode = (t_FmPcdCcNode *)h_CcNode;
-    uint32_t            *p_StatsCounters, i;
+    uint32_t            intFlags;
+    t_Error             err;
 
-    if (keyIndex >= p_CcNode->numOfKeys)
-    {
-        RETURN_ERROR(MINOR, E_INVALID_STATE, ("The provided keyIndex exceeds the number of keys in this match table"));
-    }
+    SANITY_CHECK_RETURN_ERROR(h_CcNode, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_KeyStatistics, E_NULL_POINTER);
 
-    if (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_NONE)
-    {
-        RETURN_ERROR(MINOR, E_INVALID_STATE, ("Statistics were not enabled for this match table"));
-    }
+    intFlags = XX_LockIntrSpinlock(p_CcNode->h_Spinlock);
 
-    ASSERT_COND(p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj);
+    err = MatchTableGetKeyStatistics(p_CcNode,
+                                     keyIndex,
+                                     p_KeyStatistics);
 
-    p_StatsCounters = p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj->h_StatsCounters;
-    ASSERT_COND(p_StatsCounters);
+    XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
 
-    p_KeyStatistics->byteCount = GET_UINT32(*p_StatsCounters);
-
-    for (i = 1; i <= p_CcNode->numOfStatsFLRs; i++)
-    {
-        p_StatsCounters = PTR_MOVE(p_StatsCounters, FM_PCD_CC_STATS_FLR_COUNT_SIZE);
-
-        p_KeyStatistics->frameLengthRangeCount[i-1] = GET_UINT32(*p_StatsCounters);
-    }
+    if (err != E_OK)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
 
     return E_OK;
 }
@@ -6321,21 +6382,29 @@ t_Error FM_PCD_MatchTableFindNGetKeyStatistics(t_Handle                 h_CcNode
 {
     t_FmPcdCcNode       *p_CcNode = (t_FmPcdCcNode *)h_CcNode;
     uint16_t            keyIndex;
+    uint32_t            intFlags;
     t_Error             err;
 
-    SANITY_CHECK_RETURN_ERROR(h_CcNode, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Key, E_NULL_POINTER);
     SANITY_CHECK_RETURN_ERROR(p_Mask, E_NULL_POINTER);
-    SANITY_CHECK_RETURN_ERROR(p_KeyStatistics, E_NULL_POINTER);
+
+    intFlags = XX_LockIntrSpinlock(p_CcNode->h_Spinlock);
 
     err = FindKeyIndex(p_CcNode, keySize, p_Key, p_Mask, &keyIndex);
     if (GET_ERROR_TYPE(err) != E_OK)
-    {
         RETURN_ERROR(MAJOR, err, ("The received key and mask pair was not found in the "
                                   "match table of the provided node"));
-    }
 
-    return FM_PCD_MatchTableGetKeyStatistics(h_CcNode, keyIndex, p_KeyStatistics);
+    err = MatchTableGetKeyStatistics(p_CcNode,
+                                     keyIndex,
+                                     p_KeyStatistics);
+
+    XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
+
+    if (err != E_OK)
+        RETURN_ERROR(MAJOR, err, NO_MSG);
+
+    return E_OK;
 }
 
 t_Error FM_PCD_MatchTableGetIndexedHashBucket(t_Handle    h_CcNode,

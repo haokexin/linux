@@ -136,6 +136,7 @@ typedef uint32_t    fmPortFrameErrSelect_t;                         /**< typedef
 #define FM_PORT_FRM_ERR_NON_FM                  FM_FD_RX_STATUS_ERR_NON_FM      /*< non Frame-Manager error; probably come from SEC that
                                                                                     was chained to FM */
 #endif /* FM_DISABLE_SEC_ERRORS */
+
 #define FM_PORT_FRM_ERR_IPRE                    (FM_FD_ERR_IPR & ~FM_FD_IPR)    /**< IPR error */
 #define FM_PORT_FRM_ERR_IPR_TO                  (FM_FD_ERR_IPR_TO & ~FM_FD_IPR) /**< IPR timeout */
 #define FM_PORT_FRM_ERR_IPFE                    FM_FD_ERR_IPF                   /**< IPF error */
@@ -1446,41 +1447,6 @@ t_Error FM_PORT_SetStatisticsCounters(t_Handle h_FmPort, bool enable);
 t_Error FM_PORT_SetFrameQueueCounters(t_Handle h_FmPort, bool enable);
 
 /**************************************************************************//**
- @Function      FM_PORT_SetPerformanceCounters
-
- @Description   Calling this routine enables/disables port's performance counters.
-                By default, counters are enabled.
-
-                May be used for all port types
-
- @Param[in]     h_FmPort                A handle to a FM Port module.
- @Param[in]     enable                  TRUE to enable, FALSE to disable.
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
-*//***************************************************************************/
-t_Error FM_PORT_SetPerformanceCounters(t_Handle h_FmPort, bool enable);
-
-/**************************************************************************//**
- @Function      FM_PORT_SetPerformanceCounters
-
- @Description   Calling this routine defines port's performance
-                counters parameters.
-
-                May be used for all port types
-
- @Param[in]     h_FmPort                A handle to a FM Port module.
- @Param[in]     p_FmPortPerformanceCnt  A pointer to a structure of performance
-                                        counters parameters.
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_PORT_Init().
-*//***************************************************************************/
-t_Error FM_PORT_SetPerformanceCountersParams(t_Handle h_FmPort, t_FmPortPerformanceCnt *p_FmPortPerformanceCnt);
-
-/**************************************************************************//**
  @Function      FM_PORT_AnalyzePerformanceParams
 
  @Description   User may call this routine to so the driver will analyze if the
@@ -1709,6 +1675,40 @@ t_Error FM_PORT_SetErrorsRoute(t_Handle h_FmPort, fmPortFrameErrSelect_t errs);
 *//***************************************************************************/
 t_Error FM_PORT_SetIMExceptions(t_Handle h_FmPort, e_FmPortExceptions exception, bool enable);
 
+/**************************************************************************//**
+ @Function      FM_PORT_SetPerformanceCounters
+
+ @Description   Calling this routine enables/disables port's performance counters.
+                By default, counters are enabled.
+
+                May be used for all port types
+
+ @Param[in]     h_FmPort                A handle to a FM Port module.
+ @Param[in]     enable                  TRUE to enable, FALSE to disable.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PORT_Init().
+*//***************************************************************************/
+t_Error FM_PORT_SetPerformanceCounters(t_Handle h_FmPort, bool enable);
+
+/**************************************************************************//**
+ @Function      FM_PORT_SetPerformanceCountersParams
+
+ @Description   Calling this routine defines port's performance
+                counters parameters.
+
+                May be used for all port types
+
+ @Param[in]     h_FmPort                A handle to a FM Port module.
+ @Param[in]     p_FmPortPerformanceCnt  A pointer to a structure of performance
+                                        counters parameters.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PORT_Init().
+*//***************************************************************************/
+t_Error FM_PORT_SetPerformanceCountersParams(t_Handle h_FmPort, t_FmPortPerformanceCnt *p_FmPortPerformanceCnt);
 
 /**************************************************************************//**
  @Group         FM_PORT_pcd_runtime_control_grp FM Port PCD Runtime Control Unit

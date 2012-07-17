@@ -442,6 +442,7 @@ typedef _Packed struct
 #define BMI_SP_ID_MASK                          0xff000000
 #define BMI_SP_ID_SHIFT                         24
 #define BMI_SP_EN                               0x01000000
+#define BMI_EBD_EN                              0x80000000
 #endif /* (DPAA_VERSION >= 11) */
 
 #define BMI_PORT_CFG_EN                         0x80000000
@@ -536,6 +537,12 @@ typedef _Packed struct
                                                  FM_PORT_FRM_ERR_LENGTH                 | \
                                                  FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT)
 #endif /* FM_DISABLE_SEC_ERRORS */
+
+#define BMI_RX_FIFO_PRI_ELEVATION_MASK          0x03FF0000
+#define BMI_RX_FIFO_THRESHOLD_MASK              0x000003FF
+#define BMI_TX_FIFO_MIN_FILL_MASK               0x03FF0000
+#define BMI_FIFO_PIPELINE_DEPTH_MASK            0x0000F000
+#define BMI_TX_LOW_COMF_MASK                    0x000003FF
 
 /* shifts */
 #define BMI_PORT_CFG_MS_SEL_SHIFT               16
@@ -802,6 +809,9 @@ typedef struct {
     t_FmBufferPrefixContent             bufferPrefixContent;
      t_FmBackupBmPools                   *p_BackupBmPools;
     bool                                dontReleaseBuf;
+    bool                                setNumOfTasks;
+    bool                                setNumOfOpenDmas;
+    bool                                setSizeOfFifo;
 #if (DPAA_VERSION >= 11)
     bool                                noScatherGather;
 #endif /* (DPAA_VERSION >= 11) */
@@ -870,7 +880,6 @@ typedef struct {
     t_FmPortRsrc                tasks;
     t_FmPortRsrc                fifoBufs;
     t_FmPortRxPoolsParams       rxPoolsParams;
-    bool                        explicitUserSizeOfFifo;
     t_Handle                    h_IpReassemblyManip;
     t_Handle                    h_IpReassemblyTree;
     uint64_t                    fmMuramPhysBaseAddr;

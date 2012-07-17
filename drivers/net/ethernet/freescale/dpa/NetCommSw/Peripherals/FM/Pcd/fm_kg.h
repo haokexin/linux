@@ -105,6 +105,7 @@ typedef uint32_t t_KnownFieldsMasks;
 #define KG_SCH_KN_GREPTYPE                  0x00000400
 #define KG_SCH_KN_IPSEC_SPI                 0x00000200
 #define KG_SCH_KN_IPSEC_NH                  0x00000100
+#define KG_SCH_KN_IPPID                     0x00000080
 #define KG_SCH_KN_L4PSRC                    0x00000004
 #define KG_SCH_KN_L4PDST                    0x00000002
 #define KG_SCH_KN_TFLG                      0x00000001

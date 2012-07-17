@@ -644,9 +644,6 @@ static t_Error TgecResetCounters (t_Handle h_Tgec)
     if (!i)
         return E_TIMEOUT;
 
-    tmpReg32 &= ~CMD_CFG_STAT_CLR;
-    WRITE_UINT32(p_MemMap->command_config, tmpReg32);
-
     return E_OK;
 }
 
@@ -887,7 +884,7 @@ static t_Error TgecTxEccWorkaround(t_Tgec *p_Tgec)
     t_Error err;
 
 #if defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0)
-    XX_Print("Applying 10G tx-ecc error workaround (10GMAC-A004) ...");
+    XX_Print("Applying 10G TX ECC workaround (10GMAC-A004) ...");
 #endif /* (DEBUG_ERRORS > 0) */
     /* enable and set promiscuous */
     WRITE_UINT32(p_Tgec->p_MemMap->command_config, CMD_CFG_PROMIS_EN | CMD_CFG_TX_EN | CMD_CFG_RX_EN);

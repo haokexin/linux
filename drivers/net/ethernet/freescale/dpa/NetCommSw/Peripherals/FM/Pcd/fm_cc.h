@@ -153,6 +153,7 @@
 #if (DPAA_VERSION >= 11)
 #define FM_PCD_AD_RESULT_VSP_SHIFT           24
 #define FM_PCD_AD_RESULT_NO_OM_VSPE          0x02000000
+#define FM_PCD_AD_RESULT_VSP_MASK            0x3f
 #endif /* (DPAA_VERSION >= 11) */
 
 #define GLBL_MASK_FOR_HASH_INDEXED          0xfff00000

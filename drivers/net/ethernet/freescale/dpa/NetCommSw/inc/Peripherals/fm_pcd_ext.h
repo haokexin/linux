@@ -618,6 +618,20 @@ t_Error FM_PCD_SetPlcrStatistics(t_Handle h_FmPcd, bool enable);
 void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable);
 
 /**************************************************************************//**
+ @Function      FM_PCD_HcTxConf
+
+ @Description   This routine should be called to confirm frames that were
+                 received on the HC confirmation queue.
+
+ @Param[in]     h_FmPcd         A handle to an FM PCD Module.
+ @Param[in]     p_Fd            Frame descriptor of the received frame.
+
+ @Cautions      Allowed only following FM_PCD_Init(). Allowed only if 'useHostCommand'
+                option was selected in the initialization.
+*//***************************************************************************/
+void FM_PCD_HcTxConf(t_Handle h_FmPcd, t_DpaaFD *p_Fd);
+
+/**************************************************************************//**
  @Function      FM_PCD_ForceIntr
 
  @Description   Causes an interrupt event on the requested source.
@@ -631,20 +645,6 @@ void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable);
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
 t_Error FM_PCD_ForceIntr (t_Handle h_FmPcd, e_FmPcdExceptions exception);
-
-/**************************************************************************//**
- @Function      FM_PCD_HcTxConf
-
- @Description   This routine should be called to confirm frames that were
-                 received on the HC confirmation queue.
-
- @Param[in]     h_FmPcd         A handle to an FM PCD Module.
- @Param[in]     p_Fd            Frame descriptor of the received frame.
-
- @Cautions      Allowed only following FM_PCD_Init(). Allowed only if 'useHostCommand'
-                option was selected in the initialization.
-*//***************************************************************************/
-void FM_PCD_HcTxConf(t_Handle h_FmPcd, t_DpaaFD *p_Fd);
 
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
 /**************************************************************************//**
@@ -1240,6 +1240,11 @@ typedef union u_FmPcdHdrProtocolOpt {
                                 (index may apply:
                                  e_FM_PCD_HDR_INDEX_NONE/e_FM_PCD_HDR_INDEX_1,
                                  e_FM_PCD_HDR_INDEX_2/e_FM_PCD_HDR_INDEX_LAST)
+
+                                (Note that starting DPAA 11, NET_HEADER_FIELD_IPv6_NEXT_HDR applies to
+                                 the last next header indication, meaning the next L4, which may be
+                                 present at the Ipv6 last extension. On earlier revisions this field
+                                 applies to the Next-Header field of the main IPv6 header)
 
                     HEADER_TYPE_GRE:
                         NET_HEADER_FIELD_GRE_TYPE
@@ -2129,6 +2134,7 @@ typedef struct t_FmPcdManipReassemIpParams {
     uint8_t                         relativeSchemeId[2];    /**< Partition relative scheme id:
                                                                  relativeSchemeId[0] -  Relative scheme ID for IPV4 Reassembly manipulation;
                                                                  relativeSchemeId[1] -  Relative scheme ID for IPV6 Reassembly manipulation;
+                                                                 NOTE: The following is relevant only for v2 devices
                                                                  Relative scheme ID for IPv4/IPv6 Reassembly manipulation must be smaller than
                                                                  the user schemes id to ensure that the reassembly's schemes will be first match;
                                                                  Rest schemes, if defined, should have higher relative scheme ID. */
@@ -3070,7 +3076,7 @@ t_Error FM_PCD_MatchTableGetKeyStatistics(t_Handle                  h_CcNode,
                 If 'e_FM_PCD_CC_STATS_MODE_RMON' was set for this node, the total
                 frame count will be separated to frame length counters, based on
                 provided frame length ranges.
-				Note that this routine will search the node to locate the index
+                Note that this routine will search the node to locate the index
                 of the required key based on received key parameters.
 
  @Param[in]     h_CcNode        A handle to the node
@@ -3086,9 +3092,9 @@ t_Error FM_PCD_MatchTableGetKeyStatistics(t_Handle                  h_CcNode,
 *//***************************************************************************/
 t_Error FM_PCD_MatchTableFindNGetKeyStatistics(t_Handle                 h_CcNode,
                                                uint8_t                  keySize,
-		                                       uint8_t                  *p_Key,
-		                                       uint8_t                  *p_Mask,
-						   t_FmPcdCcKeyStatistics   *p_KeyStatistics);
+                                               uint8_t                  *p_Key,
+                                               uint8_t                  *p_Mask,
+                                               t_FmPcdCcKeyStatistics   *p_KeyStatistics);
 
 /**************************************************************************//*
  @Function      FM_PCD_MatchTableGetNextEngine
@@ -3287,8 +3293,8 @@ t_Error FM_PCD_HashTableGetMissNextEngine(t_Handle                     h_HashTbl
                 If 'e_FM_PCD_CC_STATS_MODE_RMON' was set for this node, the total
                 frame count will be separated to frame length counters, based on
                 provided frame length ranges.
-				Note that this routine will identify the bucket of this key in
-				the hash table and will search the bucket to locate the index
+                Note that this routine will identify the bucket of this key in
+                the hash table and will search the bucket to locate the index
                 of the required key based on received key parameters.
 
  @Param[in]     h_HashTbl       A handle to a hash table

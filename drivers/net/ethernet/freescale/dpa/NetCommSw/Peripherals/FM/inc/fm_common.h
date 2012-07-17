@@ -416,6 +416,7 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define NIA_BMI_AC_TX               0x00000274
 #define NIA_BMI_AC_FETCH            0x00000208
 #define NIA_BMI_AC_MASK             0x000003FF
+#define NIA_BMI_AC_FETCH_ALL_FRAME  0x0000020c
 
 #define NIA_KG_DIRECT               0x00000100
 #define NIA_KG_CC_EN                0x00000200
@@ -879,6 +880,7 @@ typedef struct t_FmInterModulePortInitParams {
     uint32_t            sizeOfFifo;         /**< IN. Port's requested resource */
     uint32_t            extraSizeOfFifo;    /**< IN. Port's requested resource */
     uint8_t             deqPipelineDepth;   /**< IN. Port's requested resource */
+    uint16_t            maxFrameLength;     /**< IN. Port's max frame length. */
     uint16_t            liodnBase;          /**< IN. Irrelevant for P4080 rev 1.
                                                  LIODN base for this port, to be
                                                  used together with LIODN offset. */
@@ -1118,18 +1120,18 @@ t_Error     Fm10GTxEccWorkaround(t_Handle h_Fm, uint8_t macId);
 void        FmMuramClear(t_Handle h_FmMuram);
 t_Error     FmSetNumOfOpenDmas(t_Handle h_Fm,
                                uint8_t  hardwarePortId,
-                               uint8_t  numOfOpenDmas,
-                               uint8_t  numOfExtraOpenDmas,
+                               uint8_t  *p_NumOfOpenDmas,
+                               uint8_t  *p_NumOfExtraOpenDmas,
                                bool     initialConfig);
 t_Error     FmSetNumOfTasks(t_Handle    h_Fm,
                             uint8_t     hardwarePortId,
-                            uint8_t     numOfTasks,
-                            uint8_t     numOfExtraTasks,
+                            uint8_t     *p_NumOfTasks,
+                            uint8_t     *p_NumOfExtraTasks,
                             bool        initialConfig);
 t_Error     FmSetSizeOfFifo(t_Handle    h_Fm,
                             uint8_t     hardwarePortId,
-                            uint32_t    sizeOfFifo,
-                            uint32_t    extraSizeOfFifo,
+                            uint32_t    *p_SizeOfFifo,
+                            uint32_t    *p_ExtraSizeOfFifo,
                             bool        initialConfig);
 
 t_Error     FmSetCongestionGroupPFCpriority(t_Handle    h_Fm,

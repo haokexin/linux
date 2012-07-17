@@ -173,7 +173,6 @@ switch(exception){                                          \
 #define DEFAULT_VerifyUcode                 FALSE
 #define DEFAULT_tnumAgingPeriod             0
 #define DEFAULT_dmaWatchdog                 0 /* disabled */
-#define DEFAULT_mtu                         9600
 
 #define FM_TIMESTAMP_1_USEC_BIT             8
 
@@ -614,14 +613,17 @@ typedef _Packed struct t_FmTrbRegs
 #define BMI_ERR_INTR_EN_LIST_RAM_ECC        0x40000000
 #define BMI_ERR_INTR_EN_STATISTICS_RAM_ECC  0x20000000
 #define BMI_ERR_INTR_EN_DISPATCH_RAM_ECC    0x10000000
-#define BMI_NUM_OF_TASKS_MASK               0x3F000000
+
+#define BMI_NUM_OF_TASKS_MASK               0x3F000000 /* port */
 #define BMI_NUM_OF_EXTRA_TASKS_MASK         0x000F0000
 #define BMI_NUM_OF_DMAS_MASK                0x00000F00
 #define BMI_NUM_OF_EXTRA_DMAS_MASK          0x0000000F
-#define BMI_FIFO_SIZE_MASK                  0x000003FF
+#define BMI_FIFO_SIZE_MASK                  0x000003FF /* port */
 #define BMI_EXTRA_FIFO_SIZE_MASK            0x03FF0000
 #define BMI_CFG2_DMAS_MASK                  0x0000003F
 
+#define BMI_TOTAL_FIFO_SIZE_MASK           0x07FF0000
+#define BMI_TOTAL_NUM_OF_TASKS_MASK        0x007F0000
 /* shifts */
 #define BMI_CFG2_TASKS_SHIFT            16
 #define BMI_CFG2_DMAS_SHIFT             0
@@ -681,7 +683,6 @@ typedef struct
 {
  /*   uint8_t                     numOfPartitions; */
     bool                        resetOnInit;
-    bool                        enCounters;
     t_FmThresholds              thresholds;
     e_FmDmaCacheOverride        dmaCacheOverride;
     e_FmDmaAidMode              dmaAidMode;
@@ -748,8 +749,10 @@ typedef struct
     uint8_t                     extraTasksPoolSize;
     uint8_t                     extraOpenDmasPoolSize;
 #if defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS)
+    uint16_t                    portMaxFrameLengths10G[FM_MAX_NUM_OF_10G_MACS];
     uint16_t                    macMaxFrameLengths10G[FM_MAX_NUM_OF_10G_MACS];
-#endif /* defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS) */
+#endif /* defined(FM_MAX_NUM_OF_10G_MACS) && ... */
+    uint16_t                    portMaxFrameLengths1G[FM_MAX_NUM_OF_1G_MACS];
     uint16_t                    macMaxFrameLengths1G[FM_MAX_NUM_OF_1G_MACS];
 } t_FmStateStruct;
 

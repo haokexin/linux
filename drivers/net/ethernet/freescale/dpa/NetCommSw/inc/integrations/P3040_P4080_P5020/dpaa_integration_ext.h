@@ -30,8 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
-
+/**************************************************************************//**
  @File          dpaa_integration_ext.h
 
  @Description   P3040/P4080/P5020 FM external definitions and structures.
@@ -81,11 +80,11 @@ typedef enum
 /*****************************************************************************
  QMan INTEGRATION-SPECIFIC DEFINITIONS
 ******************************************************************************/
-#define QM_MAX_NUM_OF_POOL_CHANNELS     15      /**< Total number of channels, dedicated and pool */
-#define QM_MAX_NUM_OF_WQ                8       /**< Number of work queues per channel */
-#define QM_MAX_NUM_OF_CGS               256     /**< Congestion groups number */
-#define QM_MAX_NUM_OF_FQIDS             (16 * MEGABYTE)
-                                                /**< FQIDs range - 24 bits */
+#define QM_MAX_NUM_OF_POOL_CHANNELS 15              /**< Total number of channels, dedicated and pool */
+#define QM_MAX_NUM_OF_WQ            8               /**< Number of work queues per channel */
+#define QM_MAX_NUM_OF_SWP_AS        4
+#define QM_MAX_NUM_OF_CGS           256             /**< Number of congestion groups */
+#define QM_MAX_NUM_OF_FQIDS         (16 * MEGABYTE) /**< FQIDs range - 24 bits */
 
 /**************************************************************************//**
  @Description   Work Queue Channel assignments in QMan.
@@ -156,9 +155,6 @@ typedef enum
                                                      connected to RAID */
 } e_QmFQChannel;
 
-/* p4080-rev1 unique features */
-#define QM_CGS_NO_FRAME_MODE
-
 /*****************************************************************************
  BMan INTEGRATION-SPECIFIC DEFINITIONS
 ******************************************************************************/
@@ -206,7 +202,6 @@ typedef enum
 
 /* QMI defines */
 #define QMI_MAX_NUM_OF_TNUMS            64
-#define MAX_QMI_DEQ_SUBPORTAL           12
 #define QMI_DEF_TNUMS_THRESH            48
 
 /* FPM defines */
@@ -226,26 +221,25 @@ typedef enum
 #define FM_CHECK_PORT_RESTRICTIONS(__validPorts, __newPortIndx)   TRUE
 
 /* p4080-rev1 unique features */
-#define FM_PARTITION_ARRAY
-#define FM_PPPOE_NO_MTU_CHECK
-#define FM_NO_THRESHOLD_REG
+#define QM_CGS_NO_FRAME_MODE
 
 /* p4080 unique features */
 #define FM_NO_DISPATCH_RAM_ECC
 #define FM_FIFO_ALLOCATION_OLD_ALG
 #define FM_NO_WATCHDOG
 #define FM_NO_TNUM_AGING
-#define FM_NO_TGEC_LOOPBACK
 #define FM_KG_NO_BYPASS_FQID_GEN
 #define FM_KG_NO_BYPASS_PLCR_PROFILE_GEN
 #define FM_NO_BACKUP_POOLS
 #define FM_NO_OP_OBSERVED_POOLS
 #define FM_NO_ADVANCED_RATE_LIMITER
 #define FM_NO_OP_OBSERVED_CGS
-#define FM_OP_QMI_FRAG_OPTION
+#define FM_HAS_TOTAL_DMAS
+#define FM_KG_NO_IPPID_SUPPORT
+#define FM_NO_GUARANTEED_RESET_VALUES
+#define FM_MAC_RESET
 
 /* FM erratas */
-
 #define FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
 #define FM_TX_SHORT_FRAME_BAD_TS_ERRATA_10GMAC_A006     /* No implementation, Out of LLD scope */
 #define FM_TX_FIFO_CORRUPTION_ERRATA_10GMAC_A007
@@ -254,7 +248,6 @@ typedef enum
 #define FM_BAD_VLAN_DETECT_ERRATA_10GMAC_A010
 
 #define FM_RX_PREAM_4_ERRATA_DTSEC_A001
-#define FM_MAGIC_PACKET_UNRECOGNIZED_ERRATA_DTSEC2              /* No implementation, Out of LLD scope */
 #define FM_GRS_ERRATA_DTSEC_A002
 #define FM_BAD_TX_TS_IN_B_2_B_ERRATA_DTSEC_A003
 #define FM_GTS_ERRATA_DTSEC_A004
@@ -269,12 +262,11 @@ typedef enum
 
 #define FM_UCODE_NOT_RESET_ERRATA_BUGZILLA6173
 
-#define FM_LEN_CHECK_ERRATA_FMAN_SW002
-#define FM_PRS_MEM_ERRATA_FMAN_SW003
 #define FM_10G_REM_N_LCL_FLT_EX_10GMAC_ERRATA_SW005
+
+#define FM_LEN_CHECK_ERRATA_FMAN_SW002
 
 #define FM_NO_CTXA_COPY_ERRATA_FMAN_SW001
 #define FM_KG_ERASE_FLOW_ID_ERRATA_FMAN_SW004
-
 
 #endif /* __DPAA_INTEGRATION_EXT_H */

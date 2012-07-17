@@ -94,7 +94,7 @@ static t_Error WriteKgarWait(t_FmPcd *p_FmPcd, uint32_t kgar)
 {
     WRITE_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->kgar, kgar);
     /* Wait for GO to be idle and read error */
-    while ((kgar = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->kgar)) & FM_PCD_KG_KGAR_GO) ;
+    while ((kgar = GET_UINT32(p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->kgar)) & FM_PCD_KG_KGAR_GO);
     if (kgar & FM_PCD_KG_KGAR_ERR)
         RETURN_ERROR(MINOR, E_INVALID_STATE, ("Keygen scheme access violation"));
     return E_OK;
@@ -109,7 +109,7 @@ static e_FmPcdKgExtractDfltSelect GetGenericSwDefault(t_FmPcdKgExtractDflt swDef
         case (KG_SCH_GEN_PARSE_RESULT_N_FQID):
         case (KG_SCH_GEN_DEFAULT):
         case (KG_SCH_GEN_NEXTHDR):
-            for (i=0 ; i<numOfSwDefaults ; i++)
+            for (i = 0; i < numOfSwDefaults; i++)
                 if (swDefaults[i].type == e_FM_PCD_KG_GENERIC_NOT_FROM_DATA)
                     return swDefaults[i].dfltSelect;
             ASSERT_COND(FALSE);
@@ -128,7 +128,7 @@ static e_FmPcdKgExtractDfltSelect GetGenericSwDefault(t_FmPcdKgExtractDflt swDef
         case (KG_SCH_GEN_IP2_NO_V):
         case (KG_SCH_GEN_GRE_NO_V):
         case (KG_SCH_GEN_L4_NO_V):
-            for (i=0 ; i<numOfSwDefaults ; i++)
+            for (i = 0; i < numOfSwDefaults; i++)
                 if (swDefaults[i].type == e_FM_PCD_KG_GENERIC_FROM_DATA_NO_V)
                     return swDefaults[i].dfltSelect;
 
@@ -155,7 +155,7 @@ static e_FmPcdKgExtractDfltSelect GetGenericSwDefault(t_FmPcdKgExtractDflt swDef
         case (KG_SCH_GEN_SCTP):
         case (KG_SCH_GEN_DCCP):
         case (KG_SCH_GEN_IPSEC_ESP):
-            for (i=0 ; i<numOfSwDefaults ; i++)
+            for (i = 0; i < numOfSwDefaults; i++)
                 if (swDefaults[i].type == e_FM_PCD_KG_GENERIC_FROM_DATA)
                     return swDefaults[i].dfltSelect;
         default:
@@ -403,8 +403,10 @@ static t_GenericCodes GetGenFieldCode(e_NetHeaderType hdr, t_FmPcdFields field, 
             }
 }
 
-static t_KnownFieldsMasks GetKnownProtMask(e_NetHeaderType hdr, e_FmPcdHdrIndex index, t_FmPcdFields field)
+static t_KnownFieldsMasks GetKnownProtMask(t_FmPcd *p_FmPcd, e_NetHeaderType hdr, e_FmPcdHdrIndex index, t_FmPcdFields field)
 {
+    UNUSED(p_FmPcd);
+
     switch (hdr)
     {
         case (HEADER_TYPE_NONE):
@@ -519,8 +521,14 @@ static t_KnownFieldsMasks GetKnownProtMask(e_NetHeaderType hdr, e_FmPcdHdrIndex 
                 case (NET_HEADER_FIELD_IPv6_NEXT_HDR):
                     if ((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return KG_SCH_KN_PTYPE1;
-                    if ((index == e_FM_PCD_HDR_INDEX_2) || (index == e_FM_PCD_HDR_INDEX_LAST))
+                    if (index == e_FM_PCD_HDR_INDEX_2)
                         return KG_SCH_KN_PTYPE2;
+                    if (index == e_FM_PCD_HDR_INDEX_LAST)
+#ifdef FM_KG_NO_IPPID_SUPPORT
+                    if (p_FmPcd->fmRevInfo.majorRev < 6)
+                        return KG_SCH_KN_PTYPE2;
+#endif /* FM_KG_NO_IPPID_SUPPORT */
+                        return KG_SCH_KN_IPPID;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 index"));
                     return 0;
                 case (NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC):
@@ -661,10 +669,10 @@ static uint8_t GetExtractedOrMask(uint8_t bitOffset, bool fqid)
     uint8_t i, mask, numOfOnesToClear, walking1Mask = 1;
 
     /* bitOffset 1-7 --> mask 0x1-0x7F */
-    if (bitOffset<8)
+    if (bitOffset < 8)
     {
         mask = 0;
-        for (i = 0 ; i < bitOffset ; i++, walking1Mask <<= 1)
+        for (i = 0; i < bitOffset; i++, walking1Mask <<= 1)
             mask |= walking1Mask;
     }
     else
@@ -678,7 +686,7 @@ static uint8_t GetExtractedOrMask(uint8_t bitOffset, bool fqid)
           /* bitOffset 9-15 --> mask 0xFE-0x80 */
           if (!fqid && bitOffset>8)
                numOfOnesToClear = (uint8_t)(bitOffset-8);
-       for (i = 0 ; i < numOfOnesToClear ; i++, walking1Mask <<= 1)
+       for (i = 0; i < numOfOnesToClear; i++, walking1Mask <<= 1)
            mask &= ~walking1Mask;
        /* bitOffset 8-24 for FQID, 8 for PP --> no mask (0xFF)*/
     }
@@ -879,7 +887,7 @@ static void PcdKgErrorException(t_Handle h_FmPcd)
                 if (schemeIndexes & 0x1)
                     p_FmPcd->f_FmPcdIndexedException(p_FmPcd->h_App,e_FM_PCD_KG_EXCEPTION_KEYSIZE_OVERFLOW, (uint16_t)(31 - index));
                 schemeIndexes >>= 1;
-                index+=1;
+                index += 1;
             }
         }
         else /* this should happen only when interrupt is forced. */
@@ -972,7 +980,7 @@ static t_Error KgInitMaster(t_FmPcd *p_FmPcd)
                    p_FmPcd);
 
     /* clear binding between ports to schemes so that all ports are not bound to any schemes */
-    for (i=0;i<FM_MAX_NUM_OF_PORTS;i++)
+    for (i = 0; i < FM_MAX_NUM_OF_PORTS; i++)
     {
         SW_PORT_INDX_TO_HW_PORT_ID(hardwarePortId, i);
 
@@ -988,7 +996,6 @@ static t_Error KgInitMaster(t_FmPcd *p_FmPcd)
     /* enable and enable all scheme interrupts */
     WRITE_UINT32(p_Regs->kgseer, 0xFFFFFFFF);
     WRITE_UINT32(p_Regs->kgseeer, 0xFFFFFFFF);
-
 
     if (p_FmPcd->p_FmPcdKg->numOfSchemes)
     {
@@ -1030,15 +1037,15 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
     t_FmPcd                             *p_FmPcd = (t_FmPcd *)(p_Scheme->h_FmPcd);
     uint32_t                            grpBits = 0;
     uint8_t                             grpBase;
-    bool                                direct=TRUE, absolute=FALSE;
-    uint16_t                            profileId=0, numOfProfiles=0, relativeProfileId;
+    bool                                direct = TRUE, absolute = FALSE;
+    uint16_t                            profileId = 0, numOfProfiles = 0, relativeProfileId;
     t_Error                             err = E_OK;
     int                                 i = 0;
     t_NetEnvParams                      netEnvParams;
     uint32_t                            tmpReg, fqbTmp = 0, ppcTmp = 0, selectTmp, maskTmp, knownTmp, genTmp;
     t_FmPcdKgKeyExtractAndHashParams    *p_KeyAndHash = NULL;
     uint8_t                             j, curr, idx;
-    uint8_t                             id, shift=0, code=0, offset=0, size=0;
+    uint8_t                             id, shift = 0, code = 0, offset = 0, size = 0;
     t_FmPcdExtractEntry                 *p_Extract = NULL;
     t_FmPcdKgExtractedOrParams          *p_ExtractOr;
     bool                                generic = FALSE;
@@ -1332,7 +1339,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
 
         /*  configure kgse_ekdv  */
         tmpReg = 0;
-        for ( i=0 ;i<p_KeyAndHash->numOfUsedDflts ; i++)
+        for (i = 0; i < p_KeyAndHash->numOfUsedDflts; i++)
         {
             switch (p_KeyAndHash->dflts[i].type)
             {
@@ -1402,7 +1409,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
 
         /*  configure kgse_ekfc and  kgse_gec */
         knownTmp = 0;
-        for ( i=0 ;i<p_KeyAndHash->numOfUsedExtracts ; i++)
+        for (i = 0; i < p_KeyAndHash->numOfUsedExtracts; i++)
         {
             p_Extract = &p_KeyAndHash->extractArray[i];
             switch (p_Extract->type)
@@ -1446,7 +1453,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
                                             p_Extract->extractByHdr.type = e_FM_PCD_EXTRACT_FROM_HDR;
                                             p_Extract->extractByHdr.hdr = FmPcdGetAliasHdr(p_FmPcd, p_Scheme->netEnvId, HEADER_TYPE_UDP_ENCAP_ESP);
                                             p_Extract->extractByHdr.extractByHdrType.fromField.size = p_Extract->extractByHdr.extractByHdrType.fromField.size;
-                                            /*p_Extract->extractByHdr.extractByHdrType.fromField.offset += ESP_SPI_OFFSET;*/
+                                            /*p_Extract->extractByHdr.extractByHdrType.fromField.offset += ESP_SPI_OFFSET; */
                                             p_Extract->extractByHdr.ignoreProtocolValidation = TRUE;
                                             break;
                                         case (NET_HEADER_FIELD_UDP_ENCAP_ESP_SEQUENCE_NUM):
@@ -1510,7 +1517,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
                             if (!p_Extract->extractByHdr.ignoreProtocolValidation)
                             {
                                 /* if we have a known field for it - use it, otherwise use generic */
-                                bitMask = GetKnownProtMask(p_Extract->extractByHdr.hdr, p_Extract->extractByHdr.hdrIndex,
+                                bitMask = GetKnownProtMask(p_FmPcd, p_Extract->extractByHdr.hdr, p_Extract->extractByHdr.hdrIndex,
                                             p_Extract->extractByHdr.extractByHdrType.fullField);
                                 if (bitMask)
                                 {
@@ -1583,7 +1590,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
 
         if (p_KeyAndHash->numOfUsedMasks >= FM_PCD_KG_NUM_OF_EXTRACT_MASKS)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Only %d masks supported", FM_PCD_KG_NUM_OF_EXTRACT_MASKS));
-        for ( i=0 ;i<p_KeyAndHash->numOfUsedMasks ; i++)
+        for (i = 0; i < p_KeyAndHash->numOfUsedMasks; i++)
         {
             /* Get the relative id of the extract (for known 0-0x1f, for generic 0-7) */
             id = p_LocalExtractsArray->extractsArray[p_KeyAndHash->masks[i].extractArrayIndex].id;
@@ -1597,7 +1604,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
             /* Get the shift of the offset field (depending on i) - may
                be in  kgse_bmch or in kgse_fqb (depending on i) */
             GET_MASK_OFFSET_SHIFT(shift,i);
-            if (i<=1)
+            if (i <= 1)
                 selectTmp |= p_KeyAndHash->masks[i].offset << shift;
             else
                 fqbTmp |= p_KeyAndHash->masks[i].offset << shift;
@@ -1607,9 +1614,9 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
             /* pass all bits */
             maskTmp |= KG_SCH_BITMASK_MASK << shift;
             /* clear bits that need masking */
-            maskTmp &= ~(0xFF << shift) ;
+            maskTmp &= ~(0xFF << shift);
             /* set mask bits */
-            maskTmp |= (p_KeyAndHash->masks[i].mask << shift) ;
+            maskTmp |= (p_KeyAndHash->masks[i].mask << shift);
         }
         p_SchemeRegs->kgse_bmch = selectTmp;
         p_SchemeRegs->kgse_bmcl = maskTmp;
@@ -1649,11 +1656,11 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
            num_of_known - p_KeyAndHash->numOfUsedExtracts - currGenId
            first_generic_index = num_of_known */
         curr = 0;
-        for (i=0;i<p_KeyAndHash->numOfUsedExtracts ; i++)
+        for (i = 0; i < p_KeyAndHash->numOfUsedExtracts; i++)
         {
             if (p_LocalExtractsArray->extractsArray[i].known)
             {
-                ASSERT_COND(curr<(p_KeyAndHash->numOfUsedExtracts - currGenId));
+                ASSERT_COND(curr < (p_KeyAndHash->numOfUsedExtracts - currGenId));
                 j = curr;
                 /* id is the extract id (port id = 0, mac src = 1 etc.). the value in the array is the original
                 index in the user's extractions array */
@@ -1697,7 +1704,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
         p_SchemeRegs->kgse_hc |= KG_SCH_HASH_CONFIG_NO_FQID;
 
     /*  configure kgse_spc  */
-    if ( p_SchemeParams->schemeCounter.update)
+    if (p_SchemeParams->schemeCounter.update)
         p_SchemeRegs->kgse_spc = p_SchemeParams->schemeCounter.value;
 
 
@@ -1706,7 +1713,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
         RETURN_ERROR(MAJOR, E_FULL, ("Generic registers are fully used"));
 
     /* extracted OR mask on Qid */
-    for ( i=0 ;i<p_SchemeParams->numOfUsedExtractedOrs ; i++)
+    for (i = 0; i < p_SchemeParams->numOfUsedExtractedOrs; i++)
     {
 
         p_Scheme->extractedOrs = TRUE;
@@ -1788,7 +1795,7 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
         {
             if (p_ExtractOr->bitOffsetInFqid > MAX_KG_SCH_FQID_BIT_OFFSET )
               RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Illegal extraction (bitOffsetInFqid out of range)"));
-            if (p_ExtractOr->bitOffsetInFqid<8)
+            if (p_ExtractOr->bitOffsetInFqid < 8)
                 genTmp |= (uint32_t)((p_ExtractOr->bitOffsetInFqid+24) << KG_SCH_GEN_SIZE_SHIFT);
             else
                 genTmp |= (uint32_t)((p_ExtractOr->bitOffsetInFqid-8) << KG_SCH_GEN_SIZE_SHIFT);
@@ -1805,14 +1812,14 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
 
         genTmp |= (uint32_t)(p_ExtractOr->extractionOffset << KG_SCH_GEN_DEF_SHIFT);
         /* clear bits that need masking */
-        genTmp &= ~KG_SCH_GEN_MASK ;
+        genTmp &= ~KG_SCH_GEN_MASK;
         /* set mask bits */
         genTmp |= (uint32_t)(p_ExtractOr->mask << KG_SCH_GEN_MASK_SHIFT);
         p_SchemeRegs->kgse_gec[currGenId++] = genTmp;
 
     }
     /* clear all unused GEC registers */
-    for ( i=currGenId ;i<FM_PCD_KG_NUM_OF_GENERIC_REGS ; i++)
+    for (i = currGenId; i < FM_PCD_KG_NUM_OF_GENERIC_REGS; i++)
         p_SchemeRegs->kgse_gec[i] = 0;
 
     /* add base Qid for this scheme */
@@ -1829,9 +1836,11 @@ static t_Error BuildSchemeRegs(t_FmPcdKgScheme          *p_Scheme,
     return E_OK;
 }
 
+
 /*****************************************************************************/
 /*              Inter-module API routines                                    */
 /*****************************************************************************/
+
 t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpParams *p_Grp, t_FmPcdKgInterModuleClsPlanSet *p_ClsPlanSet)
 {
     t_FmPcd                         *p_FmPcd = (t_FmPcd*)h_FmPcd;
@@ -1863,7 +1872,8 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
     p_ClsPlanGrp->netEnvId = p_Grp->netEnvId;
     p_ClsPlanGrp->owners = 0;
     FmPcdSetClsPlanGrpId(p_FmPcd, p_Grp->netEnvId, p_Grp->clsPlanGrpId);
-    FmPcdIncNetEnvOwners(p_FmPcd, p_Grp->netEnvId);
+    if (p_Grp->numOfOptions != 0)
+        FmPcdIncNetEnvOwners(p_FmPcd, p_Grp->netEnvId);
 
     p_ClsPlanGrp->sizeOfGrp = (uint16_t)(1 << p_Grp->numOfOptions);
     /* a minimal group of 8 is required */
@@ -1913,7 +1923,7 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
     p_ClsPlanSet->numOfClsPlanEntries = p_ClsPlanGrp->sizeOfGrp;
 
     oredVectors = 0;
-    for (i = 0; i<p_Grp->numOfOptions; i++)
+    for (i = 0; i < p_Grp->numOfOptions; i++)
     {
         oredVectors |= p_Grp->optVectors[i];
         /* save an array of used options - the indexes represent the power of 2 index */
@@ -1922,10 +1932,10 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
     /* set the classification plan relevant entries so that all bits
      * relevant to the list of options is cleared
      */
-    for (j = 0; j<p_ClsPlanGrp->sizeOfGrp; j++)
+    for (j = 0; j < p_ClsPlanGrp->sizeOfGrp; j++)
         p_ClsPlanSet->vectors[j] = ~oredVectors;
 
-    for (i = 0; i<p_Grp->numOfOptions; i++)
+    for (i = 0; i < p_Grp->numOfOptions; i++)
     {
        /* option i got the place 2^i in the clsPlan array. all entries that
          * have bit i set, should have the vector bit cleared. So each option
@@ -1949,7 +1959,7 @@ t_Error FmPcdKgBuildClsPlanGrp(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanGrpP
         /* now for each option (i), we set their bits in all entries (j)
          * that contain bit 2^i.
          */
-        for (j = 0; j<p_ClsPlanGrp->sizeOfGrp; j++)
+        for (j = 0; j < p_ClsPlanGrp->sizeOfGrp; j++)
         {
             if (j & (1<<i))
                 p_ClsPlanSet->vectors[j] |= p_Grp->optVectors[i];
@@ -1977,10 +1987,10 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
 
     FmPcdSetClsPlanGrpId(p_FmPcd, p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].netEnvId, ILLEGAL_CLS_PLAN);
 
-    FmPcdDecNetEnvOwners(p_FmPcd, p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].netEnvId);
-
     if (grpId == p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId)
         p_FmPcd->p_FmPcdKg->emptyClsPlanGrpId = ILLEGAL_CLS_PLAN;
+    else
+        FmPcdDecNetEnvOwners(p_FmPcd, p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].netEnvId);
 
     /* clear clsPlan driver structure */
     memset(&p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId], 0, sizeof(t_FmPcdKgClsPlanGrp));
@@ -2042,7 +2052,7 @@ t_Error FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBin
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_STATE);
 
     /* for each scheme */
-    for (i = 0; i<p_BindPort->numOfSchemes; i++)
+    for (i = 0; i < p_BindPort->numOfSchemes; i++)
     {
         relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, p_BindPort->schemesIds[i]);
         if (relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
@@ -2061,7 +2071,7 @@ t_Error FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBin
             HW_PORT_ID_TO_SW_PORT_INDX(swPortIndex, p_BindPort->hardwarePortId);
             if (p_Scheme->nextRelativePlcrProfile)
             {
-                for (j = 0;j<p_Scheme->numOfProfiles;j++)
+                for (j = 0; j < p_Scheme->numOfProfiles; j++)
                 {
                     ASSERT_COND(p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].h_FmPort);
                     if (p_Scheme->relativeProfileId+j >= p_FmPcd->p_FmPcdPlcr->portsMapping[swPortIndex].numOfProfiles)
@@ -2229,7 +2239,7 @@ t_Error  FmPcdKgFreeSchemes(t_Handle h_FmPcd, uint8_t numOfSchemes, uint8_t gues
 t_Error  KgAllocClsPlanEntries(t_Handle h_FmPcd, uint16_t numOfClsPlanEntries, uint8_t guestId, uint8_t *p_First)
 {
     t_FmPcd     *p_FmPcd = (t_FmPcd *)h_FmPcd;
-    uint8_t     numOfBlocks, blocksFound=0, first=0;
+    uint8_t     numOfBlocks, blocksFound = 0, first = 0;
     uint8_t     i, j;
 
     /* This routine is issued only on master core of master partition -
@@ -2293,7 +2303,7 @@ UNUSED(guestId);
     ASSERT_COND(!(base%CLS_PLAN_NUM_PER_GRP));
 
     baseBlock = (uint8_t)(base/CLS_PLAN_NUM_PER_GRP);
-    for (i=baseBlock;i<baseBlock+numOfBlocks;i++)
+    for (i = baseBlock; i < baseBlock + numOfBlocks; i++)
     {
         ASSERT_COND(p_FmPcd->p_FmPcdKg->clsPlanBlocksMng[i].allocated);
         ASSERT_COND(guestId == p_FmPcd->p_FmPcdKg->clsPlanBlocksMng[i].ownerId);
@@ -2330,7 +2340,7 @@ void KgSetClsPlan(t_Handle h_FmPcd, t_FmPcdKgInterModuleClsPlanSet *p_Set)
     p_FmPcdKgPortRegs = &p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs;
 
     intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
-    for (i=p_Set->baseEntry;i<p_Set->baseEntry+p_Set->numOfClsPlanEntries;i+=8)
+    for (i = p_Set->baseEntry; i < p_Set->baseEntry + p_Set->numOfClsPlanEntries; i += 8)
     {
         tmpKgarReg = FmPcdKgBuildWriteClsPlanBlockActionReg((uint8_t)(i / CLS_PLAN_NUM_PER_GRP));
 
@@ -2775,7 +2785,7 @@ uint8_t FmPcdKgGetRelativeSchemeId(t_Handle h_FmPcd, uint8_t schemeId)
     t_FmPcd     *p_FmPcd = (t_FmPcd*)h_FmPcd;
     uint8_t     i;
 
-    for (i = 0;i<p_FmPcd->p_FmPcdKg->numOfSchemes;i++)
+    for (i = 0; i < p_FmPcd->p_FmPcdKg->numOfSchemes; i++)
         if (p_FmPcd->p_FmPcdKg->schemesIds[i] == schemeId)
             return i;
 
@@ -3031,7 +3041,7 @@ t_Handle FM_PCD_KgSchemeSet(t_Handle h_FmPcd,  t_FmPcdKgSchemeParams *p_SchemePa
     WRITE_UINT32(p_MemRegs->kgse_fqb,   schemeRegs.kgse_fqb);
     WRITE_UINT32(p_MemRegs->kgse_om,    schemeRegs.kgse_om);
     WRITE_UINT32(p_MemRegs->kgse_vsp,   schemeRegs.kgse_vsp);
-    for (i=0 ; i<FM_PCD_KG_NUM_OF_GENERIC_REGS ; i++)
+    for (i = 0; i < FM_PCD_KG_NUM_OF_GENERIC_REGS; i++)
         WRITE_UINT32(p_MemRegs->kgse_gec[i], schemeRegs.kgse_gec[i]);
 
     /* call indirect command for scheme write */
@@ -3241,7 +3251,7 @@ t_Error FM_PCD_KgDumpRegs(t_Handle h_FmPcd)
 
     DUMP_SUBTITLE(("\n"));
     intFlags = KgHwLock(p_FmPcd->p_FmPcdKg);
-    for (j = 0;j<FM_PCD_KG_NUM_OF_SCHEMES;j++)
+    for (j = 0; j < FM_PCD_KG_NUM_OF_SCHEMES; j++)
     {
         tmpKgarReg = FmPcdKgBuildReadSchemeActionReg((uint8_t)j);
         if (WriteKgarWait(p_FmPcd, tmpKgarReg) != E_OK)
@@ -3272,7 +3282,7 @@ t_Error FM_PCD_KgDumpRegs(t_Handle h_FmPcd)
     }
     DUMP_SUBTITLE(("\n"));
 
-    for (i=0;i<FM_MAX_NUM_OF_PORTS;i++)
+    for (i = 0; i < FM_MAX_NUM_OF_PORTS; i++)
     {
         SW_PORT_INDX_TO_HW_PORT_ID(hardwarePortId, i);
 
@@ -3289,7 +3299,7 @@ t_Error FM_PCD_KgDumpRegs(t_Handle h_FmPcd)
     }
 
     DUMP_SUBTITLE(("\n"));
-    for (j=0;j<FM_PCD_MAX_NUM_OF_CLS_PLANS/CLS_PLAN_NUM_PER_GRP;j++)
+    for (j = 0; j < FM_PCD_MAX_NUM_OF_CLS_PLANS/CLS_PLAN_NUM_PER_GRP; j++)
     {
         DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs, ("FmPcdKgIndirectAccessClsPlanRegs Regs group %d", j));
         DUMP_TITLE(&p_FmPcd->p_FmPcdKg->p_FmPcdKgRegs->indirectAccessRegs.clsPlanRegs.kgcpe, ("kgcpe"));
