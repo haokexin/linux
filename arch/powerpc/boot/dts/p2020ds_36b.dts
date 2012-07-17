@@ -1,0 +1,134 @@
+/*
+ * P2020 DS 36-bit Physical Address Map Device Tree Source
+ *
+ * ALTERNATIVELY, this software may be distributed under the terms of the
+ * GNU General Public License ("GPL") as published by the Free Software
+ * Foundation, either version 2 of that License or (at your option) any
+ * later version.
+ *
+ */
+/include/ "fsl/p2020si-pre.dtsi"
+
+/ {
+	model = "fsl,P2020DS";
+	compatible = "fsl,P2020DS";
+
+	memory {
+		device_type = "memory";
+	};
+
+
+	board_lbc: lbc: localbus@fffe05000  {
+		ranges = <0x0 0x0 0xf 0xe8000000 0x08000000
+			  0x1 0x0 0xf 0xe0000000 0x08000000
+			  0x2 0x0 0xf 0xffa00000 0x00040000
+			  0x3 0x0 0xf 0xffdf0000 0x00008000
+			  0x4 0x0 0xf 0xffa40000 0x00040000
+			  0x5 0x0 0xf 0xffa80000 0x00040000
+			  0x6 0x0 0xf 0xffac0000 0x00040000>;
+		reg = <0xf 0xffe05000 0 0x1000>;
+	};
+
+
+	rio: rapidio@fffec0000 {
+		reg = <0xf 0xffec0000 0 0x20000>;
+
+		port1 {
+			ranges = <0 0 0xc 0x20000000 0 0x20000000>;
+		};
+
+	};
+
+
+	board_soc: soc: soc@fffe00000 {
+		ranges = <0x0 0xf 0xffe00000 0x100000>;
+		spi0: spi@7000 {
+	               cell-index = <0>;
+	               #address-cells = <1>;
+	               #size-cells = <0>;
+	               compatible = "fsl,p2020-espi", "fsl,mpc8536-espi";
+	               interrupt-parent = <&mpic>;
+	               espi,num-ss-bits = <4>;
+	               mode = "cpu";
+
+	               fsl_m25p80@0 {
+	                       #address-cells = <1>;
+	                       #size-cells = <1>;
+	                       compatible = "spansion,s25sl12801";
+	                       reg = <0>;
+	                       linux,modalias = "fsl_m25p80";
+	                       spi-max-frequency = <40000000>; /* input clock */
+	                       partition@0 {
+	                               label = "u-boot-spi";
+	                               reg = <0x00000000 0x00100000>;
+	                               read-only;
+	                       };
+	                       partition@100000 {
+	                               label = "kernel-spi";
+	                               reg = <0x00100000 0x00500000>;
+	                               read-only;
+	                       };
+	                       partition@600000 {
+	                               label = "dtb-spi";
+	                               reg = <0x00600000 0x00100000>;
+	                               read-only;
+	                       };
+	                       partition@700000 {
+	                               label = "file system-spi";
+	                               reg = <0x00700000 0x00900000>;
+	                       };
+	               };
+
+        	};
+
+	};
+
+	pci2: pcie@fffe08000 {
+		ranges = <0x2000000 0x0 0x80000000 0xc 0x00000000 0x0 0x20000000
+			  0x1000000 0x0 0x00000000 0xf 0xffc00000 0x0 0x10000>;
+		reg = <0xf 0xffe08000 0 0x1000>;
+		pcie@0 {
+			ranges = <0x2000000 0x0 0xe0000000
+				  0x2000000 0x0 0xe0000000
+				  0x0 0x20000000
+
+				  0x1000000 0x0 0x0
+				  0x1000000 0x0 0x0
+				  0x0 0x10000>;
+		};
+	};
+
+	board_pci1: pci1: pcie@fffe09000 {
+		ranges = <0x2000000 0x0 0xa0000000 0xc 0x20000000 0x0 0x20000000
+			  0x1000000 0x0 0x00000000 0xf 0xffc10000 0x0 0x10000>;
+		reg = <0xf 0xffe09000 0 0x1000>;
+		pcie@0 {
+			ranges = <0x2000000 0x0 0xe0000000
+				  0x2000000 0x0 0xe0000000
+				  0x0 0x20000000
+
+				  0x1000000 0x0 0x0
+				  0x1000000 0x0 0x0
+				  0x0 0x10000>;
+		};
+	};
+
+	pci0: pcie@fffe0a000 {
+		ranges = <0x2000000 0x0 0xc0000000 0xc 0x40000000 0x0 0x20000000
+			  0x1000000 0x0 0x00000000 0xf 0xffc20000 0x0 0x10000>;
+		reg = <0xf 0xffe0a000 0 0x1000>;
+		pcie@0 {
+			ranges = <0x2000000 0x0 0xe0000000
+				  0x2000000 0x0 0xe0000000
+				  0x0 0x20000000
+
+				  0x1000000 0x0 0x0
+				  0x1000000 0x0 0x0
+				  0x0 0x10000>;
+		};
+	};
+};
+
+/include/ "fsl/p2020si-post.dtsi"
+/include/ "p2020ds.dtsi"
+
