@@ -12,7 +12,7 @@
  * Every architecture is supposed to provide sched_clock, a free-running,
  * non-wrapping, per-cpu clock in nanoseconds.
  */
-#  define MSA_NOW(now)  do { (now) = sched_clock(); } while (0)
+#  define MSA_NOW(now) do { (now) = cpu_clock(smp_processor_id()); } while (0)
 #  define MSA_TO_NSEC(clk) (clk)
 #  define MICROSTATE_ACCT_USING_SCHED_CLOCK
 # endif
