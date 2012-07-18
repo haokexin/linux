@@ -1125,13 +1125,23 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	skb_len = skb->len;
 
-	if (unlikely(netif_receive_skb(skb) == NET_RX_DROP))
+	if (likely(net_dev->features & NETIF_F_GRO)) {
+		gro_result_t gro_result;
+
+		gro_result = napi_gro_receive(&percpu_priv->napi, skb);
+		if (unlikely(gro_result == GRO_DROP)) {
+			percpu_priv->stats.rx_dropped++;
+			goto packet_dropped;
+		}
+	} else if (unlikely(netif_receive_skb(skb) == NET_RX_DROP)) {
 		percpu_priv->stats.rx_dropped++;
-	else {
-		percpu_priv->stats.rx_packets++;
-		percpu_priv->stats.rx_bytes += skb_len;
+		goto packet_dropped;
 	}
 
+	percpu_priv->stats.rx_packets++;
+	percpu_priv->stats.rx_bytes += skb_len;
+
+packet_dropped:
 skb_stolen:
 	net_dev->last_rx = jiffies;
 
@@ -3213,18 +3223,27 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 		mac_addr = priv->mac_dev->addr;
 		net_dev->features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
 		net_dev->vlan_features |= (NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM);
-#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+
 		/*
 		 * Advertise S/G and HIGHDMA support for MAC-ful,
 		 * private interfaces
 		 */
 		if (!priv->shared) {
-			net_dev->features |= NETIF_F_SG | NETIF_F_HIGHDMA |
-				NETIF_F_GSO;
-			net_dev->vlan_features |= NETIF_F_SG | NETIF_F_HIGHDMA |
-				NETIF_F_GSO;
-		}
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+			net_dev->features |= NETIF_F_SG | NETIF_F_HIGHDMA
+				/*
+				 * Recent kernels enable GSO automatically, if
+				 * we declare NETIF_F_SG. For conformity, we'll
+				 * still declare GSO explicitly.
+				 */
+				| NETIF_F_GSO;
+			net_dev->vlan_features |= NETIF_F_SG | NETIF_F_HIGHDMA
+				| NETIF_F_GSO;
 #endif
+			/* Advertise GRO support */
+			net_dev->features |= NETIF_F_GRO;
+			net_dev->vlan_features |= NETIF_F_GRO;
+		}
 	}
 
 	memcpy(net_dev->perm_addr, mac_addr, net_dev->addr_len);

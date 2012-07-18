@@ -478,13 +478,23 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	skb_len = skb->len;
 
-	if (unlikely(netif_receive_skb(skb) == NET_RX_DROP))
+	if (likely(net_dev->features & NETIF_F_GRO)) {
+		gro_result_t gro_result;
+
+		gro_result = napi_gro_receive(&percpu_priv->napi, skb);
+		if (unlikely(gro_result == GRO_DROP)) {
+			percpu_priv->stats.rx_dropped++;
+			goto packet_dropped;
+		}
+	} else if (unlikely(netif_receive_skb(skb) == NET_RX_DROP)) {
 		percpu_priv->stats.rx_dropped++;
-	else {
-		percpu_priv->stats.rx_packets++;
-		percpu_priv->stats.rx_bytes += skb_len;
+		goto packet_dropped;
 	}
 
+	percpu_priv->stats.rx_packets++;
+	percpu_priv->stats.rx_bytes += skb_len;
+
+packet_dropped:
 	net_dev->last_rx = jiffies;
 
 	return;
