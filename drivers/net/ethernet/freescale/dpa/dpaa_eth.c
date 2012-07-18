@@ -3219,8 +3219,10 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 		 * private interfaces
 		 */
 		if (!priv->shared) {
-			net_dev->features |= NETIF_F_SG | NETIF_F_HIGHDMA;
-			net_dev->vlan_features |= NETIF_F_SG | NETIF_F_HIGHDMA;
+			net_dev->features |= NETIF_F_SG | NETIF_F_HIGHDMA |
+				NETIF_F_GSO;
+			net_dev->vlan_features |= NETIF_F_SG | NETIF_F_HIGHDMA |
+				NETIF_F_GSO;
 		}
 #endif
 	}
