@@ -77,6 +77,7 @@ struct mac_device {
 	int (*uninit)(struct mac_device *mac_dev);
 	int (*ptp_enable)(struct mac_device *mac_dev);
 	int (*ptp_disable)(struct mac_device *mac_dev);
+	void *(*get_mac_handle)(struct mac_device *mac_dev);
 	int (*fm_rtc_enable)(struct net_device *net_dev);
 	int (*fm_rtc_disable)(struct net_device *net_dev);
 	int (*fm_rtc_get_cnt)(struct net_device *net_dev, uint64_t *ts);
