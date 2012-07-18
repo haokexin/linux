@@ -191,6 +191,11 @@ static int op_powerpc_create_files(struct super_block *sb, struct dentry *root)
 
 int __init oprofile_arch_init(struct oprofile_operations *ops)
 {
+	/*
+	 * Set the call back even if not PMC device support
+	 * since the RTC will provide interrupts in that case.
+	 */
+	ops->backtrace = op_powerpc_backtrace;
 	if (!cur_cpu_spec->oprofile_cpu_type)
 		return -ENODEV;
 
@@ -237,7 +242,6 @@ int __init oprofile_arch_init(struct oprofile_operations *ops)
 	ops->shutdown = op_powerpc_shutdown;
 	ops->start = op_powerpc_start;
 	ops->stop = op_powerpc_stop;
-	ops->backtrace = op_powerpc_backtrace;
 
 	printk(KERN_DEBUG "oprofile: using %s performance monitoring.\n",
 	       ops->cpu_type);
