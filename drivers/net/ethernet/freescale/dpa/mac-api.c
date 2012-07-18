@@ -511,6 +511,13 @@ static int __cold ptp_disable(struct mac_device *mac_dev)
 	return _errno;
 }
 
+static void *get_mac_handle(struct mac_device *mac_dev)
+{
+	const struct mac_priv_s	*priv;
+	priv = macdev_priv(mac_dev);
+	return (void*)priv->mac;
+}
+
 static int __cold fm_rtc_enable(struct net_device *net_dev)
 {
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
@@ -689,6 +696,7 @@ static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 	mac_dev->uninit		= uninit;
 	mac_dev->ptp_enable		= ptp_enable;
 	mac_dev->ptp_disable		= ptp_disable;
+	mac_dev->get_mac_handle		= get_mac_handle;
 	mac_dev->fm_rtc_enable		= fm_rtc_enable;
 	mac_dev->fm_rtc_disable		= fm_rtc_disable;
 	mac_dev->fm_rtc_get_cnt		= fm_rtc_get_cnt;
