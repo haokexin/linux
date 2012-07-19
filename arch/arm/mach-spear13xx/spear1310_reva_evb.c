@@ -224,6 +224,7 @@ static struct platform_device *plat_devs[] __initdata = {
 	&spear13xx_thermal_device,
 	&spear13xx_udc_device,
 	&spear13xx_wdt_device,
+	&spear13xx_pmu_device,
 
 	/* spear1310_reva specific devices */
 	&spear1310_reva_can0_device,
