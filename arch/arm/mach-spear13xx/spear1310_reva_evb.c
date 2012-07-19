@@ -172,7 +172,6 @@ static struct pmx_dev *pmx_devs[] = {
 	&spear1310_reva_pmx_can,
 	&spear1310_reva_pmx_i2c1,
 	&spear1310_reva_pmx_smii_0_1_2,
-	&spear1310_reva_pmx_fsmc16bit_4_chips,
 	&spear1310_reva_pmx_rs485_hdlc_1_2,
 	&spear1310_reva_pmx_tdm_hdlc_1_2,
 	&spear1310_reva_pmx_uart_1,
@@ -225,6 +224,7 @@ static struct platform_device *plat_devs[] __initdata = {
 	&spear13xx_udc_device,
 	&spear13xx_wdt_device,
 	&spear13xx_pmu_device,
+	&spear13xx_nand_device,
 
 	/* spear1310_reva specific devices */
 	&spear1310_reva_can0_device,
@@ -586,7 +586,7 @@ static void __init spear1310_reva_evb_init(void)
 	 * NOR. Also enable nand in padmux configuration to use it.
 	 */
 	/* set nand device's plat data */
-#if 0
+#if 1
 	/* set nand device's plat data */
 	nand_mach_init(FSMC_NAND_BW8);
 	if (platform_device_add_data(&spear13xx_nand_device, &nand_plat_data,
@@ -618,6 +618,7 @@ static void __init spear1310_reva_evb_init(void)
 				spear13xx_fsmc_nor_device.name);
 #endif
 
+#if 0
 	/* ras part fsmc nor device */
 	/* Initialize fsmc regiters */
 	fsmc_nor_init(&spear1310_reva_ras_fsmc_nor_device,
@@ -628,6 +629,7 @@ static void __init spear1310_reva_evb_init(void)
 				&ras_nor_plat_data, sizeof(ras_nor_plat_data)))
 		printk(KERN_WARNING "%s: couldn't add plat_data",
 				spear1310_reva_ras_fsmc_nor_device.name);
+#endif
 
 #ifdef CONFIG_SPEAR_PCIE_REV341
 	spear1310_reva_pcie_board_init();
