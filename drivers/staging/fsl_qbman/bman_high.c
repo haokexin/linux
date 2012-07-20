@@ -246,17 +246,17 @@ struct bman_portal *bman_create_affine_portal(
 	bm_isr_status_clear(__p, 0xffffffff);
 #ifdef CONFIG_FSL_DPA_HAVE_IRQ
 	snprintf(portal->irqname, MAX_IRQNAME, IRQNAME, config->public_cfg.cpu);
-	if (request_irq(config->public_cfg.irq, portal_isr, 0, portal->irqname,
-			portal)) {
-		pr_err("request_irq() failed\n");
-		goto fail_irq;
-	}
 	if ((config->public_cfg.cpu != -1) &&
 			irq_can_set_affinity(config->public_cfg.irq) &&
 			irq_set_affinity(config->public_cfg.irq,
 				cpumask_of(config->public_cfg.cpu))) {
 		pr_err("irq_set_affinity() failed\n");
 		goto fail_affinity;
+	}
+	if (request_irq(config->public_cfg.irq, portal_isr, IRQF_NOBALANCING, portal->irqname,
+			portal)) {
+		pr_err("request_irq() failed\n");
+		goto fail_irq;
 	}
 	/* Enable the bits that make sense */
 	if (!recovery_mode)
