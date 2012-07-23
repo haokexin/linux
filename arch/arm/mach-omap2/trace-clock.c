@@ -162,7 +162,7 @@ void save_sync_trace_clock(void)
 	if (!pm_count->refcount)
 		goto end;
 
-	pm_count->ext_32k = clock->read(clock);
+	pm_count->ext_32k = sched_clock();
 	pm_count->int_fast_clock = trace_clock_read64();
 end:
 	raw_spin_unlock(&pm_count->lock);
@@ -203,7 +203,7 @@ u64 _trace_clock_read_slow(void)
 	 */
 	ref_time = pm_count->int_fast_clock;
 	if (!pm_count->init_clock)
-		count_32k = clock->read(clock);
+		count_32k = sched_clock();
 	else
 		count_32k = pm_count->init_clock;
 
@@ -415,7 +415,7 @@ void _start_trace_clock(void)
 	u64 old_fast_clock;
 	int cpu;
 
-	ext_32k = clock->read(clock);
+	ext_32k = sched_clock();
 	old_fast_clock = per_cpu(pm_save_count, 0).int_fast_clock;
 
 	for_each_online_cpu(cpu) {
@@ -498,7 +498,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 		if (trace_clock_refcount) {
 			pm_count = &per_cpu(pm_save_count, hotcpu);
 			local_irq_save(flags);
-			pm_count->ext_32k = clock->read(clock);
+			pm_count->ext_32k = sched_clock();
 			pm_count->int_fast_clock = trace_clock_read64();
 			local_irq_restore(flags);
 			pm_count->refcount = 1;
