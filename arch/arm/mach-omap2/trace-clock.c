@@ -697,12 +697,9 @@ EXPORT_SYMBOL_GPL(trace_clock_debug);
 
 static __init int init_trace_clock(void)
 {
-	int cpu, ret;
+	int cpu;
 	u64 rem;
 
-	ret = reserve_pmu(ARM_PMU_DEVICE_CPU);
-	if (ret)
-		return ret;
 	clock = get_clocksource_32k();
 	/*
 	 * clear_ccnt_interval based on the cpu fastest frequency. Never
