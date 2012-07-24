@@ -213,8 +213,6 @@ notrace int __vdso_clock_gettime(clockid_t clock, struct timespec *ts)
 		return do_trace_clock(ts);
 	case CLOCK_TRACE_FREQ:
 		return do_trace_clock_freq(ts);
-	default:
-		return -EINVAL;
 	}
 
 	if (ret == VCLOCK_NONE)
