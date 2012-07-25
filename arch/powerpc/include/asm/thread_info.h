@@ -109,6 +109,7 @@ static inline struct thread_info *current_thread_info(void)
 #define TIF_RESTOREALL		11	/* Restore all regs (implies NOERROR) */
 #define TIF_NOERROR		12	/* Force successful syscall return */
 #define TIF_NOTIFY_RESUME	13	/* callback before returning to user */
+#define TIF_UPROBE		14	/* breakpointed or single-stepping */
 #define TIF_SYSCALL_TRACEPOINT	15	/* syscall tracepoint instrumentation */
 #define TIF_PERFMON_WORK	16	/* work for pfm_handle_work() */
 
@@ -126,6 +127,7 @@ static inline struct thread_info *current_thread_info(void)
 #define _TIF_RESTOREALL		(1<<TIF_RESTOREALL)
 #define _TIF_NOERROR		(1<<TIF_NOERROR)
 #define _TIF_NOTIFY_RESUME	(1<<TIF_NOTIFY_RESUME)
+#define _TIF_UPROBE		(1<<TIF_UPROBE)
 #define _TIF_SYSCALL_TRACEPOINT	(1<<TIF_SYSCALL_TRACEPOINT)
 #define _TIF_RUNLATCH		(1<<TIF_RUNLATCH)
 #define _TIF_PERFMON_WORK	(1<<TIF_PERFMON_WORK)
@@ -133,7 +135,7 @@ static inline struct thread_info *current_thread_info(void)
 				 _TIF_SECCOMP | _TIF_SYSCALL_TRACEPOINT | _TIF_KERNEL_TRACE)
 
 #define _TIF_USER_WORK_MASK	(_TIF_SIGPENDING | _TIF_NEED_RESCHED | \
-				 _TIF_NOTIFY_RESUME)
+				 _TIF_NOTIFY_RESUME | _TIF_UPROBE)
 #define _TIF_PERSYSCALL_MASK	(_TIF_RESTOREALL|_TIF_NOERROR)
 
 /* Bits in local_flags */
