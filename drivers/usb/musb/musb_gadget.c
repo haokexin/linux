@@ -1215,6 +1215,7 @@ static int musb_gadget_disable(struct usb_ep *ep)
 	epnum = musb_ep->current_epnum;
 	epio = musb->endpoints[epnum].regs;
 
+	pm_runtime_get_sync(musb->controller);
 	spin_lock_irqsave(&musb->lock, flags);
 	musb_ep_select(musb->mregs, epnum);
 
@@ -1237,9 +1238,10 @@ static int musb_gadget_disable(struct usb_ep *ep)
 	/* abort all pending DMA and requests */
 	nuke(musb_ep, -ESHUTDOWN);
 
-	schedule_work(&musb->irq_work);
-
 	spin_unlock_irqrestore(&(musb->lock), flags);
+	pm_runtime_put(musb->controller);
+
+	schedule_work(&musb->irq_work);
 
 	dev_dbg(musb->controller, "%s\n", musb_ep->end_point.name);
 
@@ -1296,7 +1298,10 @@ void musb_ep_restart(struct musb *musb, struct musb_request *req)
 		req->tx ? "TX/IN" : "RX/OUT",
 		&req->request, req->request.length, req->epnum);
 
+	pm_runtime_get_sync(musb->controller);
 	musb_ep_select(musb->mregs, req->epnum);
+	pm_runtime_put(musb->controller);
+
 	if (req->tx)
 		txstate(musb, req);
 	else
@@ -1545,6 +1550,7 @@ static void musb_gadget_fifo_flush(struct usb_ep *ep)
 	unsigned long	flags;
 	u16		csr, int_txe;
 
+	pm_runtime_get_sync(musb->controller);
 	mbase = musb->mregs;
 
 	spin_lock_irqsave(&musb->lock, flags);
@@ -1578,6 +1584,7 @@ static void musb_gadget_fifo_flush(struct usb_ep *ep)
 	/* re-enable interrupt */
 	musb_writew(mbase, MUSB_INTRTXE, int_txe);
 	spin_unlock_irqrestore(&musb->lock, flags);
+	pm_runtime_put(musb->controller);
 }
 
 static const struct usb_ep_ops musb_ep_ops = {
