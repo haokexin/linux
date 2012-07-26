@@ -1975,6 +1975,11 @@ static int musb_gadget_start(struct usb_gadget *g,
 					&& otg->set_vbus)
 			otg_set_vbus(otg, 1);
 
+#ifdef CONFIG_USB_MUSB_OMAP2PLUS
+			/*Disable autosuspend/wakeup only for omap2plus. */
+			device_set_wakeup_capable(&hcd->self.root_hub->dev, 0);
+#endif
+
 		hcd->self.uses_pio_for_control = 1;
 	}
 	if (musb->xceiv->last_event == USB_EVENT_NONE)
