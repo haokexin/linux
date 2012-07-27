@@ -168,6 +168,7 @@ static long booke_wdt_ioctl(struct file *file,
 	case WDIOC_GETSUPPORT:
 		if (copy_to_user((void *)arg, &ident, sizeof(ident)))
 			return -EFAULT;
+		break;
 	case WDIOC_GETSTATUS:
 		return put_user(0, p);
 	case WDIOC_GETBOOTSTATUS:
