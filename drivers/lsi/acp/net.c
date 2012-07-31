@@ -3198,9 +3198,9 @@ appnic_hard_start_xmit( struct sk_buff * skb,
     ERROR_PRINT( "No transmit descriptors available!\n" );
   }
 
+  appnic_special_unlock( & adapter->lock );
   /* free the socket buffer */
   dev_kfree_skb( skb );
-  appnic_special_unlock( & adapter->lock );
 
 #ifdef __APPNIC_C_PROFILE__
   end_ = ( 0xffffffff - readl( ( TIMER7_BASE + TIMER_n_VALUE ) ) );
