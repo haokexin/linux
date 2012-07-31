@@ -141,6 +141,15 @@
 
 	};
 
+	rio: rapidio@ffec0000 {
+		reg = <0x0 0xffec0000 0 0x20000>;
+		status = "disabled";
+		port1 {
+			ranges = <0 0 0x0 0xa0000000 0 0x10000000>;
+		};
+
+	};
+
 	soc: soc@ffe00000 {
 		ranges = <0x0 0x0 0xffe00000 0x100000>;
 
