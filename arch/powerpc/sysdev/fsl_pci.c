@@ -466,7 +466,7 @@ int __init fsl_add_bridge(struct device_node *dev, int is_primary)
 			iounmap(hose->cfg_data);
 		iounmap(hose->cfg_addr);
 		pcibios_free_controller(hose);
-		return 0;
+		return -ENODEV;
 	}
 
 	setup_pci_cmd(hose);
@@ -871,17 +871,19 @@ static int __devinit fsl_pci_probe(struct platform_device *pdev)
 		ret = fsl_add_bridge(pdev->dev.of_node, is_primary);
 
 #ifdef CONFIG_SWIOTLB
-		hose = pci_find_hose_for_OF_device(pdev->dev.of_node);
-		/*
-		 * if we couldn't map all of DRAM via the dma windows
-		 * we need SWIOTLB to handle buffers located outside of
-		 * dma capable memory region
-		 */
-		if (memblock_end_of_DRAM() > hose->dma_window_base_cur
-				+ hose->dma_window_size) {
-			ppc_swiotlb_enable = 1;
-			set_pci_dma_ops(&swiotlb_dma_ops);
-			ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
+		if (ret == 0) {
+			hose = pci_find_hose_for_OF_device(pdev->dev.of_node);
+			/*
+			 * if we couldn't map all of DRAM via the dma windows
+			 * we need SWIOTLB to handle buffers located outside of
+			 * dma capable memory region
+			 */
+			if (memblock_end_of_DRAM() > hose->dma_window_base_cur
+					+ hose->dma_window_size) {
+				ppc_swiotlb_enable = 1;
+				set_pci_dma_ops(&swiotlb_dma_ops);
+				ppc_md.pci_dma_dev_setup = pci_dma_dev_setup_swiotlb;
+			}
 		}
 #endif
 	}
