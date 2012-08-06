@@ -125,6 +125,8 @@ static	int cryptodev_find(struct crypt_find_op *);
 static int cryptodev_cb(void *);
 static int cryptodev_open(struct inode *inode, struct file *filp);
 
+static DEFINE_SPINLOCK(cselist_lock);
+
 /*
  * Check a crypto identifier to see if it requested
  * a valid crid and it's capabilities match.
@@ -543,11 +545,16 @@ static struct csession *
 csefind(struct fcrypt *fcr, u_int ses)
 {
 	struct csession *cse;
+	unsigned long flags;
 
+	spin_lock_irqsave(&cselist_lock, flags);
 	dprintk("%s()\n", __FUNCTION__);
 	list_for_each_entry(cse, &fcr->csessions, list)
-		if (cse->ses == ses)
+		if (cse->ses == ses) {
+			spin_unlock_irqrestore(&cselist_lock, flags);
 			return (cse);
+		}
+	spin_unlock_irqrestore(&cselist_lock, flags);
 	return (NULL);
 }
 
@@ -555,23 +562,31 @@ static int
 csedelete(struct fcrypt *fcr, struct csession *cse_del)
 {
 	struct csession *cse;
+	unsigned long flags;
 
+	spin_lock_irqsave(&cselist_lock, flags);
 	dprintk("%s()\n", __FUNCTION__);
 	list_for_each_entry(cse, &fcr->csessions, list) {
 		if (cse == cse_del) {
 			list_del(&cse->list);
+			spin_unlock_irqrestore(&cselist_lock, flags);
 			return (1);
 		}
 	}
+	spin_unlock_irqrestore(&cselist_lock, flags);
 	return (0);
 }
 	
 static struct csession *
 cseadd(struct fcrypt *fcr, struct csession *cse)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&cselist_lock, flags);
 	dprintk("%s()\n", __FUNCTION__);
 	list_add_tail(&cse->list, &fcr->csessions);
 	cse->ses = fcr->sesn++;
+	spin_unlock_irqrestore(&cselist_lock, flags);
 	return (cse);
 }
 
