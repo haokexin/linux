@@ -18,12 +18,6 @@
 #include <asm/mach-types.h>
 
 #ifndef __ASSEMBLY__
-#define IOMEM(x)	((void __iomem __force *)(x))
-#else
-#define IOMEM(x)	(x)
-#endif
-
-#ifndef __ASSEMBLY__
 /* cpu related runtime routines */
 static inline bool cpu_is_spear1310(void)
 {
