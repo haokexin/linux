@@ -1,0 +1,57 @@
+#
+# SPEAr Platform configuration file
+#
+
+if PLAT_SPEAR
+
+choice
+	prompt "ST SPEAr Family"
+	default ARCH_SPEAR3XX
+
+config ARCH_SPEAR13XX
+	bool "SPEAr13XX"
+	select ARM_GIC
+	select CPU_V7
+	select ARCH_SUPPORTS_MSI
+	select HAVE_SMP
+	select MIGHT_HAVE_CACHE_L2X0
+	select ARCH_SUPPORTS_MSI
+	select MIGHT_HAVE_PCI
+
+	help
+	  Supports for ARM's SPEAR13XX family
+
+config ARCH_SPEAR3XX
+	bool "SPEAr3XX"
+	select ARM_VIC
+	select CPU_ARM926T
+	help
+	  Supports for ARM's SPEAR3XX family
+
+config ARCH_SPEAR6XX
+	bool "SPEAr6XX"
+	select ARM_VIC
+	select CPU_ARM926T
+	help
+	  Supports for ARM's SPEAR6XX family
+
+endchoice
+
+config SPEAR_PLUG_BOARDS
+	bool "SPEAr Plug Boards"
+	help
+	  Supports ST SPEAr Plug boards
+
+# Adding SPEAr machine specific configuration files
+source "arch/arm/mach-spear13xx/Kconfig"
+source "arch/arm/mach-spear3xx/Kconfig"
+source "arch/arm/mach-spear6xx/Kconfig"
+
+config SPEAR_PWM
+	tristate "SPEAr Pulse Width Modulator"
+	depends on CPU_SPEAR320 || CPU_SPEAR1340
+	default y
+	help
+	  Support for ST Microelectronics Pulse Width Modulator present on SPEAr Platform.
+
+endif
