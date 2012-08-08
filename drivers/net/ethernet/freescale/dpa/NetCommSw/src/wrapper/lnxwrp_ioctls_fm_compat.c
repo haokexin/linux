@@ -945,20 +945,48 @@ void compat_fm_pcd_manip_set_node(
                 memcpy(&param->u.hdr.rmv_params,
                         &compat_param->u.hdr.rmv_params,
                         sizeof(param->u.hdr.rmv_params));
-                param->u.hdr.insrt =
-                    compat_param->u.hdr.insrt;
+
+                param->u.hdr.insrt = compat_param->u.hdr.insrt;
                 param->u.hdr.insrt_params.type =
                     compat_param->u.hdr.insrt_params.type;
-                param->u.hdr.insrt_params.u.generic.offset =
-                    compat_param->u.hdr.insrt_params.u.generic.offset;
-                param->u.hdr.insrt_params.u.generic.replace =
-                    compat_param->u.hdr.insrt_params.u.generic.replace;
-                param->u.hdr.insrt_params.u.generic.size =
-                    compat_param->u.hdr.insrt_params.u.generic.size;
-                /* user garbage - it could break the US application! */
-                if (compat_param->u.hdr.insrt_params.type == e_IOC_FM_PCD_MANIP_INSRT_GENERIC)
-                    param->u.hdr.insrt_params.u.generic.p_data =
-                        compat_ptr(compat_param->u.hdr.insrt_params.u.generic.p_data);
+                switch (compat_param->u.hdr.insrt_params.type)
+                {
+                    case e_IOC_FM_PCD_MANIP_INSRT_GENERIC:
+                        param->u.hdr.insrt_params.u.generic.offset =
+                            compat_param->u.hdr.insrt_params.u.generic.offset;
+                        param->u.hdr.insrt_params.u.generic.size =
+                            compat_param->u.hdr.insrt_params.u.generic.size;
+                        param->u.hdr.insrt_params.u.generic.replace =
+                            compat_param->u.hdr.insrt_params.u.generic.replace;
+                        param->u.hdr.insrt_params.u.generic.p_data =
+                            compat_ptr(compat_param->u.hdr.insrt_params.u.generic.p_data);
+                        break;
+                    case e_IOC_FM_PCD_MANIP_INSRT_BY_HDR:
+                        param->u.hdr.insrt_params.u.by_hdr.type =
+                            compat_param->u.hdr.insrt_params.u.by_hdr.type;
+                        param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.specific_l2 =
+                            compat_param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.specific_l2;
+                        param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.update =
+                            compat_param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.update;
+                        param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.size =
+                            compat_param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.size;
+                        param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.p_data =
+                            compat_ptr(compat_param->u.hdr.insrt_params.u.by_hdr.u.specific_l2_params.p_data);
+                        break;
+                    default:
+                        _fm_cpt_err("Unsupported type: %d", compat_param->u.hdr.insrt_params.type);
+                }
+
+                param->u.hdr.field_update = compat_param->u.hdr.field_update;
+                memcpy(&param->u.hdr.field_update_params,
+                        &compat_param->u.hdr.field_update_params,
+                        sizeof(param->u.hdr.field_update_params));
+
+                param->u.hdr.custom = compat_param->u.hdr.custom;
+                memcpy(&param->u.hdr.custom_params,
+                        &compat_param->u.hdr.custom_params,
+                        sizeof(param->u.hdr.custom_params));
+
                 param->u.hdr.dont_parse_after_manip =
                     compat_param->u.hdr.dont_parse_after_manip;
                 break;
