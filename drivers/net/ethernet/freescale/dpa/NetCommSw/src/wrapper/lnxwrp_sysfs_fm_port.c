@@ -128,10 +128,9 @@ static ssize_t show_fm_port_stats(struct device *dev,
 		return n;
 	}
 
-	counter =
-	    fm_find_statistic_counter_by_name(attr->attr.name,
-					      (struct SysfsStats_t *) &
-					      portSysfsStats[0], NULL);
+	counter = fm_find_statistic_counter_by_name(
+			attr->attr.name,
+			portSysfsStats, NULL);
 
 	if (counter == e_FM_PORT_COUNTERS_RX_LIST_DMA_ERR) {
 		uint32_t fmRev = 0;
