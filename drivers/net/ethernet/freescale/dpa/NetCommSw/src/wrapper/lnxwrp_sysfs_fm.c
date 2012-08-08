@@ -71,6 +71,10 @@ static const struct SysfsStats_t fmSysfsStats[] = {
 	 .statisticCounter = e_FM_COUNTERS_DEQ_2,
 	 },
 	{
+	 .statisticName = "deq_3",
+	 .statisticCounter = e_FM_COUNTERS_DEQ_3,
+	 },
+	{
 	 .statisticName = "deq_from_default",
 	 .statisticCounter = e_FM_COUNTERS_DEQ_FROM_DEFAULT,
 	 },
@@ -108,10 +112,6 @@ static const struct SysfsStats_t fmSysfsStats[] = {
 	 .statisticCounter = e_FM_DMA_COUNTERS_WRITE_BUF_ECC_FM_ERROR,
 	 },
 	/* FM:PCD  statistics */
-	{
-	 .statisticName = "pcd_enq_total_frame",
-	 .statisticCounter = e_FM_COUNTERS_ENQ_TOTAL_FRAME,
-	 },
 	{
 	 .statisticName = "pcd_kg_total",
 	 .statisticCounter = e_FM_PCD_KG_COUNTERS_TOTAL,
@@ -236,10 +236,9 @@ static ssize_t show_fm_dma_stats(struct device *dev,
 	if (!p_LnxWrpFmDev->active || !p_LnxWrpFmDev->h_Dev)
 		return -EIO;
 
-	counter =
-		fm_find_statistic_counter_by_name(attr->attr.name,
-						  (struct SysfsStats_t *)
-						  &fmSysfsStats[0], NULL);
+	counter = fm_find_statistic_counter_by_name(
+			attr->attr.name,
+			fmSysfsStats, NULL);
 
 	local_irq_save(flags);
 
@@ -293,10 +292,9 @@ static ssize_t show_fm_stats(struct device *dev,
 	if (!p_LnxWrpFmDev->active || !p_LnxWrpFmDev->h_Dev)
 		return -EIO;
 
-	counter =
-		fm_find_statistic_counter_by_name(attr->attr.name,
-						  (struct SysfsStats_t *)
-						  &fmSysfsStats[0], NULL);
+	counter = fm_find_statistic_counter_by_name(
+			attr->attr.name,
+			fmSysfsStats, NULL);
 
 	local_irq_save(flags);
 
@@ -324,13 +322,13 @@ static ssize_t show_fm_pcd_stats(struct device *dev,
 	if (WARN_ON(p_LnxWrpFmDev == NULL))
 		return -EINVAL;
 
-	if (!p_LnxWrpFmDev->active || !p_LnxWrpFmDev->h_Dev)
+	if (!p_LnxWrpFmDev->active || !p_LnxWrpFmDev->h_Dev ||
+			!p_LnxWrpFmDev->h_PcdDev)
 		return -EIO;
 
-	counter =
-		fm_find_statistic_counter_by_name(attr->attr.name,
-						  (struct SysfsStats_t *)
-						  &fmSysfsStats[0], NULL);
+	counter = fm_find_statistic_counter_by_name(
+			attr->attr.name,
+			fmSysfsStats, NULL);
 
 	local_irq_save(flags);
 
@@ -350,6 +348,7 @@ static DEVICE_ATTR(deq_total_frame, S_IRUGO, show_fm_stats, NULL);
 static DEVICE_ATTR(deq_0, S_IRUGO, show_fm_stats, NULL);
 static DEVICE_ATTR(deq_1, S_IRUGO, show_fm_stats, NULL);
 static DEVICE_ATTR(deq_2, S_IRUGO, show_fm_stats, NULL);
+static DEVICE_ATTR(deq_3, S_IRUGO, show_fm_stats, NULL);
 static DEVICE_ATTR(deq_from_default, S_IRUGO, show_fm_stats, NULL);
 static DEVICE_ATTR(deq_from_context, S_IRUGO, show_fm_stats, NULL);
 static DEVICE_ATTR(deq_from_fd, S_IRUGO, show_fm_stats, NULL);
@@ -361,7 +360,6 @@ static DEVICE_ATTR(read_buf_ecc_error, S_IRUGO, show_fm_dma_stats, NULL);
 static DEVICE_ATTR(write_buf_ecc_sys_error, S_IRUGO, show_fm_dma_stats, NULL);
 static DEVICE_ATTR(write_buf_ecc_fm_error, S_IRUGO, show_fm_dma_stats, NULL);
 /* FM:PCD */
-static DEVICE_ATTR(pcd_enq_total_frame, S_IRUGO, show_fm_pcd_stats, NULL);
 static DEVICE_ATTR(pcd_kg_total, S_IRUGO, show_fm_pcd_stats, NULL);
 static DEVICE_ATTR(pcd_plcr_yellow, S_IRUGO, show_fm_pcd_stats, NULL);
 static DEVICE_ATTR(pcd_plcr_red, S_IRUGO, show_fm_pcd_stats, NULL);
@@ -411,6 +409,7 @@ static struct attribute *fm_dev_stats_attributes[] = {
 	&dev_attr_deq_0.attr,
 	&dev_attr_deq_1.attr,
 	&dev_attr_deq_2.attr,
+	&dev_attr_deq_3.attr,
 	&dev_attr_deq_from_default.attr,
 	&dev_attr_deq_from_context.attr,
 	&dev_attr_deq_from_fd.attr,
@@ -420,7 +419,6 @@ static struct attribute *fm_dev_stats_attributes[] = {
 	&dev_attr_read_buf_ecc_error.attr,
 	&dev_attr_write_buf_ecc_sys_error.attr,
 	&dev_attr_write_buf_ecc_fm_error.attr,
-	&dev_attr_pcd_enq_total_frame.attr,
 	&dev_attr_pcd_kg_total.attr,
 	&dev_attr_pcd_plcr_yellow.attr,
 	&dev_attr_pcd_plcr_red.attr,

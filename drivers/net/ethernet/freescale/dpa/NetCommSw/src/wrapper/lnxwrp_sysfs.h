@@ -61,7 +61,7 @@ struct SysfsStats_t {
 };
 
 uint8_t fm_find_statistic_counter_by_name(const char *attr_name,
-					  struct SysfsStats_t *sysfs_stats,
+					  const struct SysfsStats_t *sysfs_stats,
 					  uint8_t *offset);
 
 #endif /* LNXWRP_SYSFS_H_ */
