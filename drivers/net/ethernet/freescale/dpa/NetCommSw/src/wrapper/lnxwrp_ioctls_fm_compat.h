@@ -380,12 +380,28 @@ typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t {
     compat_uptr_t                   p_data;
 } ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t;
 
-typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_params_t {
-    ioc_fm_pcd_manip_hdr_insrt_type                     type;
+typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_specific_l2_params_t {
+    ioc_fm_pcd_manip_hdr_insrt_specific_l2  specific_l2;
+    bool                                    update;
+    uint8_t                                 size;
+    compat_uptr_t                           p_data;
+} ioc_compat_fm_pcd_manip_hdr_insrt_specific_l2_params_t;
+
+typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_by_hdr_params_t {
+    ioc_fm_pcd_manip_hdr_insrt_by_hdr_type                      type;
     union {
-        ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t       generic;
+       ioc_compat_fm_pcd_manip_hdr_insrt_specific_l2_params_t   specific_l2_params;
+    } u;
+} ioc_compat_fm_pcd_manip_hdr_insrt_by_hdr_params_t;
+
+typedef struct ioc_compat_fm_pcd_manip_hdr_insrt_params_t {
+    ioc_fm_pcd_manip_hdr_insrt_type                         type;
+    union {
+        ioc_compat_fm_pcd_manip_hdr_insrt_by_hdr_params_t   by_hdr;
+        ioc_compat_fm_pcd_manip_hdr_insrt_generic_params_t  generic;
 #ifdef FM_CAPWAP_SUPPORT
-TODO:
+#error CAPWAP not supported!
+        ioc_fm_pcd_manip_hdr_insrt_by_template_params_t     by_template;
 #endif /* FM_CAPWAP_SUPPORT */
     } u;
 } ioc_compat_fm_pcd_manip_hdr_insrt_params_t;
@@ -395,6 +411,10 @@ typedef struct ioc_compat_fm_pcd_manip_hdr_params_t {
     ioc_fm_pcd_manip_hdr_rmv_params_t           rmv_params;
     bool                                        insrt;
     ioc_compat_fm_pcd_manip_hdr_insrt_params_t  insrt_params;
+    bool                                        field_update;
+    ioc_fm_pcd_manip_hdr_field_update_params_t  field_update_params;
+    bool                                        custom;
+    ioc_fm_pcd_manip_hdr_custom_params_t        custom_params;
     bool                                        dont_parse_after_manip;
 } ioc_compat_fm_pcd_manip_hdr_params_t;
 
