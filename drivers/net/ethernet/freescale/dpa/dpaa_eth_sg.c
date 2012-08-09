@@ -482,10 +482,10 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	/* TODO We might want to do some prefetches here (skb, shinfo, data) */
 
 	/*
-	 * Reserve DPA_BP_HEAD bytes of headroom, such that forwarded skbs
-	 * will have enough headroom space on Tx
+	 * Make sure forwarded skbs will have enough space on Tx,
+	 * if extra headers are added.
 	 */
-	skb_reserve(skb, DPA_BP_HEAD);
+	skb_reserve(skb, DPA_BP_HEAD + dpa_get_rx_extra_headroom());
 
 	dpa_bp_removed_one_page(dpa_bp, addr);
 
