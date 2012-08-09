@@ -2030,6 +2030,8 @@ static t_Error DetachPCD(t_FmPort *p_FmPort)
         if (FmSetNumOfRiscsPerPort(p_FmPort->h_Fm, p_FmPort->hardwarePortId, 2, p_FmPort->orFmanCtrl)!= E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, NO_MSG);
 
+    p_FmPort->requiredAction = 0;
+
     return E_OK;
 }
 
