@@ -56,7 +56,11 @@
 
 #include "mac.h"		/* struct mac_device */
 
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+#define dpa_get_rx_extra_headroom() fm_get_rx_extra_headroom()
+#else
 #define dpa_get_rx_extra_headroom() dpa_rx_extra_headroom
+#endif
 #define dpa_get_max_frm() dpa_max_frm
 
 #define DPA_RX_PRIV_DATA_SIZE   (DPA_TX_PRIV_DATA_SIZE + \
