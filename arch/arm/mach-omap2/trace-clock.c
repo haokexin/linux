@@ -42,8 +42,6 @@ static int trace_clock_refcount;
 
 static int print_info_done;
 
-static int reserved_pmu;
-
 static u32 get_mul_fact(u64 max_freq, u64 cur_freq)
 {
 	u64 rem;
@@ -545,11 +543,6 @@ int get_trace_clock(void)
 	spin_lock(&trace_clock_lock);
 	if (trace_clock_refcount)
 		goto end;
-	reserved_pmu = reserve_pmu(ARM_PMU_DEVICE_CPU);
-	if (reserved_pmu) {
-		ret = -EBUSY;
-		goto end;
-	}
 	trace_clock_refcount++;
 	_start_trace_clock();
 end:
@@ -565,8 +558,6 @@ void put_trace_clock(void)
 	if (trace_clock_refcount != 1)
 		goto end;
 	_stop_trace_clock();
-	if (reserved_pmu)
-		release_pmu(ARM_PMU_DEVICE_CPU);
 end:
 	trace_clock_refcount--;
 	spin_unlock(&trace_clock_lock);
