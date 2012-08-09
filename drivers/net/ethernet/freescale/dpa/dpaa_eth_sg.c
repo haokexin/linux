@@ -40,7 +40,6 @@
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
 
 #define DPA_COPIED_HEADERS_SIZE 128 /* TODO: determine the required value */
-#define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
 
 /*
  * It does not return a page as you get the page from the fd,
