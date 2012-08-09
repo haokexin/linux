@@ -6327,12 +6327,14 @@ uint32_t FM_PCD_MatchTableGetKeyCounter(t_Handle h_CcNode, uint16_t keyIndex)
 
     if (keyIndex >= p_CcNode->numOfKeys)
     {
+        XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
         REPORT_ERROR(MAJOR, E_INVALID_STATE, ("The provided keyIndex exceeds the number of keys in this match table"));
         return 0;
     }
 
     if (!p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj)
     {
+        XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
         REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Statistics were not enabled for this key"));
         return 0;
     }
@@ -6392,8 +6394,11 @@ t_Error FM_PCD_MatchTableFindNGetKeyStatistics(t_Handle                 h_CcNode
 
     err = FindKeyIndex(p_CcNode, keySize, p_Key, p_Mask, &keyIndex);
     if (GET_ERROR_TYPE(err) != E_OK)
+    {
+        XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, ("The received key and mask pair was not found in the "
                                   "match table of the provided node"));
+    }
 
     err = MatchTableGetKeyStatistics(p_CcNode,
                                      keyIndex,
