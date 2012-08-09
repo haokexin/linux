@@ -40,7 +40,8 @@
 
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
 
-#define DPA_COPIED_HEADERS_SIZE 128 /* TODO: determine the required value */
+#define DPA_COPIED_HEADERS_SIZE 128
+#define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
 
 /*
  * It does not return a page as you get the page from the fd,
@@ -172,7 +173,7 @@ void dpa_list_add_skbs(struct dpa_percpu_priv_s *cpu_priv, int count)
 
 	for (i = 0; i < count; i++) {
 		new_skb = dev_alloc_skb(DPA_BP_HEAD +
-				fm_get_rx_extra_headroom() +
+				dpa_get_rx_extra_headroom() +
 				DPA_COPIED_HEADERS_SIZE);
 		if (unlikely(!new_skb)) {
 			pr_err("dev_alloc_skb() failed\n");
@@ -281,16 +282,11 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 	struct page *page;
 	int frag_offset, page_offset;
 	struct dpa_bp *dpa_bp = priv->dpa_bp;
+	unsigned char *tailptr;
+	t_FmPrsResult *parse_results;
+
 
 	vaddr = phys_to_virt(addr);
-
-	/* copy the headers in the linear portion */
-	/*
-	 * TODO: maybe adjust to actual headers length from
-	 * parse results
-	 */
-	copy_size = min((ssize_t)DPA_COPIED_HEADERS_SIZE, dpa_fd_length(fd));
-	memcpy(skb_put(skb, copy_size), vaddr + dpa_fd_offset(fd), copy_size);
 
 #ifdef CONFIG_FSL_DPA_1588
 	if (priv->tsu && priv->tsu->valid && priv->tsu->hwts_rx_en_ioctl)
@@ -298,11 +294,43 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 #endif
 
 	/*
+	 * If the FMan Parser has already validated the L4 csum, we can take
+	 * some shortcuts knowing that the protocol headers have been parsed.
+	 */
+	if (fd->status & FM_FD_STAT_L4CV) {
+		/*
+		 * If we're here, the csum must be valid (if it hadn't,
+		 * the frame would have been received on the Error FQ,
+		 * respectively on the _dpa_rx_error() path).
+		 */
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
+
+		/* Reduce the size of the buffer to memcopy in the skb data */
+		parse_results = (t_FmPrsResult *)(vaddr +
+			DPA_RX_PRIV_DATA_SIZE);
+		copy_size = parse_results->nxthdr_off;
+	} else {
+		skb->ip_summed = CHECKSUM_NONE;
+		/*
+		 * We don't know the parsed headers' length, so we default
+		 * to the compile-time constant or the frame length.
+		 */
+		copy_size = min((ssize_t)DPA_COPIED_HEADERS_SIZE,
+			dpa_fd_length(fd));
+	}
+
+	tailptr = skb_put(skb, copy_size);
+
+	/* Try to optimize the memcpy to follow */
+	prefetch(vaddr + dpa_fd_offset(fd));
+
+	/*
 	 * If frame is longer than the amount we copy in the linear
 	 * buffer, add the page as fragment,
 	 * otherwise recycle the page
 	 */
-	page = virt_to_page(vaddr);
+	page = pfn_to_page(addr >> PAGE_SHIFT);
+
 	if (copy_size < dpa_fd_length(fd)) {
 		/* add the page as a fragment in the skb */
 		page_offset = (unsigned long)vaddr & (PAGE_SIZE - 1);
@@ -313,6 +341,9 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 		/* recycle the page */
 		dpa_bp_add_page(dpa_bp, (unsigned long)vaddr);
 	}
+
+	/* Copy (at least) the headers in the linear portion */
+	memcpy(tailptr, vaddr + dpa_fd_offset(fd), copy_size);
 }
 
 
@@ -354,7 +385,7 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 		sg_vaddr = phys_to_virt(sg_addr);
 
 		dpa_bp_removed_one_page(dpa_bp, sg_addr);
-		page = virt_to_page(sg_vaddr);
+		page = pfn_to_page(sg_addr >> PAGE_SHIFT);
 
 		/*
 		 * Padding at the beginning of the page
@@ -387,6 +418,18 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 		if (sgt[i].final)
 			break;
 	}
+
+	/* Check if the FMan Parser has already validated the L4 csum. */
+	if (fd->status & FM_FD_STAT_L4CV) {
+		/*
+		 * If we're here, the csum must be valid (if it hadn't,
+		 * the frame would have been received on the Error FQ,
+		 * respectively on the _dpa_rx_error() path).
+		 */
+		skb->ip_summed = CHECKSUM_UNNECESSARY;
+	} else
+		skb->ip_summed = CHECKSUM_NONE;
+
 
 #ifdef CONFIG_FSL_DPA_1588
 	if (priv->tsu && priv->tsu->valid && priv->tsu->hwts_rx_en_ioctl)
@@ -425,7 +468,7 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	if (unlikely(skb == NULL)) {
 		/* List is empty, so allocate a new skb */
-		skb = dev_alloc_skb(DPA_BP_HEAD + fm_get_rx_extra_headroom() +
+		skb = dev_alloc_skb(DPA_BP_HEAD + dpa_get_rx_extra_headroom() +
 			DPA_COPIED_HEADERS_SIZE);
 		if (unlikely(skb == NULL)) {
 			if (netif_msg_rx_err(priv) && net_ratelimit())
@@ -464,17 +507,6 @@ void __hot _dpa_rx(struct net_device *net_dev,
 		dev_kfree_skb(skb);
 		return;
 	}
-
-	/* Check if the FMan Parser has already validated the L4 csum. */
-	if (fd_status & FM_FD_STAT_L4CV) {
-		/*
-		 * If we're here, the csum must be valid (if it hadn't,
-		 * the frame would have been received on the Error FQ,
-		 * respectively on the _dpa_rx_error() path).
-		 */
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-	} else
-		skb->ip_summed = CHECKSUM_NONE;
 
 	skb_len = skb->len;
 
