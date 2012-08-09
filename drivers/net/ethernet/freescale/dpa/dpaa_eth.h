@@ -139,6 +139,8 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 			DPA_HASH_RESULTS_SIZE)
 #define DPA_BP_SIZE(s)	(DPA_BP_HEAD + dpa_get_rx_extra_headroom() + (s))
 
+#define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
+
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
 #define DEFAULT_SKB_COUNT 64 /* maximum number of SKBs in each percpu list */
 /*
@@ -224,7 +226,15 @@ struct dpa_bp {
 	};
 	size_t				size;
 	bool				seed_pool;
+	/*
+	 * physical address of the contiguous memory used by the pool to store
+	 * the buffers
+	 */
 	dma_addr_t			paddr;
+	/*
+	 * virtual address of the contiguous memory used by the pool to store
+	 * the buffers
+	 */
 	void				*vaddr;
 	int kernel_pool;
 	/* current number of buffers in the bpool alloted to this CPU */

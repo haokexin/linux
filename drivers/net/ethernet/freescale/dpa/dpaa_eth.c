@@ -623,6 +623,63 @@ dpa_fq_free(struct device *dev, struct list_head *list)
 	return _errno;
 }
 
+static void
+dpa_fd_release_unmapped(const struct net_device *net_dev,
+			const struct qm_fd *fd)
+{
+	int				 i, j;
+	const struct dpa_priv_s		*priv;
+	struct qm_sg_entry		*sgt;
+	struct dpa_bp			*_dpa_bp, *dpa_bp;
+	struct bm_buffer		 _bmb, bmb[8];
+
+	priv = netdev_priv(net_dev);
+
+	_bmb.hi	= fd->addr_hi;
+	_bmb.lo	= fd->addr_lo;
+
+	_dpa_bp = dpa_bpid2pool(fd->bpid);
+
+	if (fd->format == qm_fd_sg) {
+		sgt = kmalloc(DPA_SGT_MAX_ENTRIES * sizeof(*sgt), GFP_ATOMIC);
+		if (sgt == NULL) {
+			if (netif_msg_tx_err(priv) && net_ratelimit())
+				cpu_netdev_err(net_dev,
+					"Memory allocation failed\n");
+			return;
+		}
+
+		copy_from_unmapped_area(sgt, bm_buf_addr(&_bmb) +
+						dpa_fd_offset(fd),
+					min(DPA_SGT_MAX_ENTRIES * sizeof(*sgt),
+						_dpa_bp->size));
+
+		i = 0;
+		do {
+			dpa_bp = dpa_bpid2pool(sgt[i].bpid);
+			BUG_ON(IS_ERR(dpa_bp));
+
+			j = 0;
+			do {
+				BUG_ON(sgt[i].extension);
+
+				bmb[j].hi	= sgt[i].addr_hi;
+				bmb[j].lo	= sgt[i].addr_lo;
+
+				j++; i++;
+			} while (j < ARRAY_SIZE(bmb) &&
+					!sgt[i-1].final &&
+					sgt[i-1].bpid == sgt[i].bpid);
+
+			while (bman_release(dpa_bp->pool, bmb, j, 0))
+				cpu_relax();
+		} while (!sgt[i-1].final);
+		kfree(sgt);
+	}
+
+	while (bman_release(_dpa_bp->pool, &_bmb, 1, 0))
+		cpu_relax();
+}
 
 void __attribute__((nonnull))
 dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
@@ -1715,11 +1772,16 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 	const struct qm_fd *fd = &dq->fd;
 	struct dpa_bp *dpa_bp;
 	struct sk_buff *skb;
+	struct qm_sg_entry *sgt;
+	int i;
 
 	net_dev = ((struct dpa_fq *)fq)->net_dev;
 	priv = netdev_priv(net_dev);
 
 	percpu_priv = per_cpu_ptr(priv->percpu_priv, smp_processor_id());
+
+	dpa_bp = dpa_bpid2pool(fd->bpid);
+	BUG_ON(IS_ERR(dpa_bp));
 
 	if (unlikely(fd->status & FM_FD_STAT_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
@@ -1728,18 +1790,6 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 
 		percpu_priv->stats.rx_errors++;
 
-		goto out;
-	}
-
-	dpa_bp = dpa_bpid2pool(fd->bpid);
-	BUG_ON(IS_ERR(dpa_bp));
-
-	if (fd->format == qm_fd_sg) {
-		percpu_priv->stats.rx_dropped++;
-		if (netif_msg_rx_status(priv) && net_ratelimit())
-			cpu_netdev_warn(net_dev,
-				"%s:%hu:%s(): Dropping a SG frame\n",
-				__file__, __LINE__, __func__);
 		goto out;
 	}
 
@@ -1757,6 +1807,56 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 
 	skb_reserve(skb, DPA_BP_HEAD);
 
+	if (fd->format == qm_fd_sg) {
+		if (dpa_bp->vaddr) {
+			sgt = dpa_phys2virt(dpa_bp,
+					    qm_fd_addr(fd)) + dpa_fd_offset(fd);
+
+			for (i = 0; i < DPA_SGT_MAX_ENTRIES; i++) {
+				BUG_ON(sgt[i].extension);
+
+				/* copy from sgt[i] */
+				memcpy(skb_put(skb, sgt[i].length),
+					dpa_phys2virt(dpa_bp,
+							qm_sg_addr(&sgt[i]) +
+							sgt[i].offset),
+					sgt[i].length);
+				if (sgt[i].final)
+					break;
+			}
+		} else {
+			sgt = kmalloc(DPA_SGT_MAX_ENTRIES * sizeof(*sgt),
+					GFP_ATOMIC);
+			if (unlikely(sgt == NULL)) {
+				if (netif_msg_tx_err(priv) && net_ratelimit())
+					cpu_netdev_err(net_dev,
+						"Memory allocation failed\n");
+				return -ENOMEM;
+			}
+
+			copy_from_unmapped_area(sgt,
+					qm_fd_addr(fd) + dpa_fd_offset(fd),
+					min(DPA_SGT_MAX_ENTRIES * sizeof(*sgt),
+							dpa_bp->size));
+
+			for (i = 0; i < DPA_SGT_MAX_ENTRIES; i++) {
+				BUG_ON(sgt[i].extension);
+
+				copy_from_unmapped_area(
+					skb_put(skb, sgt[i].length),
+					qm_sg_addr(&sgt[i]) + sgt[i].offset,
+					sgt[i].length);
+
+				if (sgt[i].final)
+					break;
+			}
+
+			kfree(sgt);
+		}
+		goto skb_copied;
+	}
+
+	/* otherwise fd->format == qm_fd_contig */
 	if (dpa_bp->vaddr) {
 		/* Fill the SKB */
 		memcpy(skb_put(skb, dpa_fd_length(fd)),
@@ -1768,6 +1868,7 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 					dpa_fd_length(fd));
 	}
 
+skb_copied:
 	skb->protocol = eth_type_trans(skb, net_dev);
 
 	if (unlikely(dpa_check_rx_mtu(skb, net_dev->mtu))) {
@@ -1786,7 +1887,10 @@ shared_rx_dqrr(struct qman_portal *portal, struct qman_fq *fq,
 	net_dev->last_rx = jiffies;
 
 out:
-	dpa_fd_release(net_dev, fd);
+	if ((fd->format == qm_fd_sg) && (!dpa_bp->vaddr))
+		dpa_fd_release_unmapped(net_dev, fd);
+	else
+		dpa_fd_release(net_dev, fd);
 
 	return qman_cb_dqrr_consume;
 }
