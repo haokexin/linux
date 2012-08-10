@@ -292,6 +292,15 @@ static int kgdb_mips_notify(struct notifier_block *self, unsigned long cmd,
 		return NOTIFY_DONE;
 #endif /* CONFIG_KPROBES */
 
+#ifdef CONFIG_KPROBES
+	/*
+	 * Return immediately if the kprobes fault notifier has set
+	 * DIE_PAGE_FAULT.
+	 */
+	if (cmd == DIE_PAGE_FAULT)
+		return NOTIFY_DONE;
+#endif /* CONFIG_KPROBES */
+
 	/* Userspace events, ignore. */
 	if (user_mode(regs))
 		return NOTIFY_DONE;
