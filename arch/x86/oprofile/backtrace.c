@@ -17,6 +17,18 @@
 #include <asm/ptrace.h>
 #include <asm/stacktrace.h>
 
+static inline int valid_stack_ptr(struct thread_info *tinfo,
+			void *p, unsigned int size, void *end)
+{
+	void *t = tinfo;
+	if (end) {
+		if (p < end && p >= (end-THREAD_SIZE))
+			return 1;
+		else
+			return 0;
+	}
+	return p > t && p < t + THREAD_SIZE - size;
+}
 static int backtrace_stack(void *data, char *name)
 {
 	/* Yes, we want all stacks */
@@ -110,9 +122,14 @@ void
 x86_backtrace(struct pt_regs * const regs, unsigned int depth)
 {
 	struct stack_frame *head = (struct stack_frame *)frame_pointer(regs);
+	struct thread_info *context;
 
 	if (!user_mode_vm(regs)) {
 		unsigned long stack = kernel_stack_pointer(regs);
+		context = (struct thread_info *)
+			(stack & (~(THREAD_SIZE - 1)));
+		if (!valid_stack_ptr(context, (void *)stack, sizeof(stack), NULL))
+			return;
 		if (depth)
 			dump_trace(NULL, regs, (unsigned long *)stack, 0,
 				   &backtrace_ops, &depth);
