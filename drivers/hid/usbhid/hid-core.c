@@ -35,6 +35,8 @@
 #include <linux/hiddev.h>
 #include <linux/hid-debug.h>
 #include <linux/hidraw.h>
+#include <linux/kgdb.h>
+#include <linux/kdb.h>
 #include "usbhid.h"
 
 /*
@@ -260,9 +262,17 @@ static void hid_irq_in(struct urb *urb)
 	case 0:			/* success */
 		usbhid_mark_busy(usbhid);
 		usbhid->retry_delay = 0;
-		hid_input_report(urb->context, HID_INPUT_REPORT,
-				 urb->transfer_buffer,
-				 urb->actual_length, 1);
+		if (unlikely(in_dbg_master() && hid && hid->driver &&
+			     urb->actual_length)) {
+			kdb_put_usb_char(usbhid->inbuf,
+					 interface_to_usbdev(usbhid->intf));
+			break;
+		} else {
+			hid_input_report(urb->context, HID_INPUT_REPORT,
+					 urb->transfer_buffer,
+					 urb->actual_length, 1);
+		}
+
 		/*
 		 * autosuspend refused while keys are pressed
 		 * because most keyboards don't wake up when
@@ -1175,6 +1185,7 @@ static int usbhid_start(struct hid_device *hid)
 				USB_INTERFACE_PROTOCOL_KEYBOARD) {
 		usbhid_set_leds(hid);
 		device_set_wakeup_enable(&dev->dev, 1);
+		kdb_keyboard_attach(dev);
 	}
 	return 0;
 
@@ -1196,6 +1207,7 @@ static void usbhid_stop(struct hid_device *hid)
 	if (WARN_ON(!usbhid))
 		return;
 
+	kdb_keyboard_detach(hid_to_usb_dev(hid));
 	clear_bit(HID_STARTED, &usbhid->iofl);
 	spin_lock_irq(&usbhid->lock);	/* Sync with error and led handlers */
 	set_bit(HID_DISCONNECTED, &usbhid->iofl);
