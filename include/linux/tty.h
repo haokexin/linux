@@ -607,6 +607,7 @@ extern long vt_compat_ioctl(struct tty_struct *tty,
 /* functions for preparation of BKL removal */
 extern void __lockfunc tty_lock(void) __acquires(tty_lock);
 extern void __lockfunc tty_unlock(void) __releases(tty_lock);
+extern int tty_is_locked(void);
 
 /*
  * this shall be called only from where BTM is held (like close)

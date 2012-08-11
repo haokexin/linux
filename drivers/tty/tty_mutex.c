@@ -30,3 +30,8 @@ void __lockfunc tty_unlock(void)
 	mutex_unlock(&big_tty_mutex);
 }
 EXPORT_SYMBOL(tty_unlock);
+
+int tty_is_locked(void)
+{
+	return mutex_is_locked(&big_tty_mutex);
+}
