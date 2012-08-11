@@ -16,7 +16,7 @@ struct netpoll {
 	struct net_device *dev;
 	char dev_name[IFNAMSIZ];
 	const char *name;
-	void (*rx_hook)(struct netpoll *, int, char *, int);
+	void (*rx_hook)(struct netpoll *, int, char *, int, struct sk_buff *);
 
 	__be32 local_ip, remote_ip;
 	u16 local_port, remote_port;
@@ -40,6 +40,7 @@ struct netpoll_info {
 	struct netpoll *netpoll;
 };
 
+void netpoll_poll_dev(struct net_device *dev);
 void netpoll_send_udp(struct netpoll *np, const char *msg, int len);
 void netpoll_print_options(struct netpoll *np);
 int netpoll_parse_options(struct netpoll *np, char *opt);
@@ -56,7 +57,6 @@ static inline void netpoll_send_skb(struct netpoll *np, struct sk_buff *skb)
 {
 	netpoll_send_skb_on_dev(np, skb, np->dev);
 }
-
 
 
 #ifdef CONFIG_NETPOLL
