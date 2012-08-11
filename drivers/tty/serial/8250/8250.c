@@ -1427,6 +1427,10 @@ serial8250_rx_chars(struct uart_8250_port *up, unsigned char lsr)
 			else if (lsr & UART_LSR_FE)
 				flag = TTY_FRAME;
 		}
+#ifdef CONFIG_CONSOLE_POLL
+		if (up->port.poll_rx_cb && up->port.poll_rx_cb(ch))
+			goto ignore_char;
+#endif
 		if (uart_handle_sysrq_char(port, ch))
 			goto ignore_char;
 
