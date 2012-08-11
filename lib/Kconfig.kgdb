@@ -91,4 +91,14 @@ config KDB_KEYBOARD
 	help
 	  KDB can use a PS/2 type keyboard for an input device
 
+config KDB_USB
+	bool "KGDB_KDB: Allow usb input device devices"
+	depends on KDB_KEYBOARD && USB
+	default n
+	help
+	  Activate the support for using a USB keyboard with KDB.  The
+	  USB keyboard support uses the same options as the KDB
+	  keyboard support so you would activate it at runtime or from
+	  the kernel boot arguments with kgdboc=kbd.
+
 endif # KGDB
