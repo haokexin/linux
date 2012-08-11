@@ -381,6 +381,9 @@ struct uart_port {
 	unsigned char		irq_wake;
 	unsigned char		unused[2];
 	void			*private_data;		/* generic platform data pointer */
+#ifdef CONFIG_CONSOLE_POLL
+	int		(*poll_rx_cb)(u8);
+#endif
 };
 
 static inline int serial_port_in(struct uart_port *up, int offset)
