@@ -42,9 +42,10 @@
 	interrupt-parent = <&mpic>;
 
 	ifc: localbus@ffe124000 {
-		reg = <0xf 0xfe124000 0 0x1000>;
+		reg = <0xf 0xfe124000 0 0x2000>;
 		ranges = <0 0 0xf 0xe8000000 0x08000000
-			  2 0 0xf 0xffa00000 0x00010000>;
+			  2 0 0xf 0xff800000 0x00010000
+			  3 0 0xf 0xffdf0000 0x00008000>;
 
 		nor@0,0 {
 			#address-cells = <1>;
@@ -124,6 +125,10 @@
 			};
 		};
 
+		board-control@3,0 {
+			compatible = "fsl,t4240qds-fpga", "fsl,fpga-qixis";
+			reg = <3 0 0x300>;
+		};
 	};
 
 	memory {
