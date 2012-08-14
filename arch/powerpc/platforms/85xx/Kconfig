@@ -281,6 +281,7 @@ config B4860_QDS
 	select MPC8xxx_GPIO
 	select HAS_RAPIDIO
 	select PPC_EPAPR_HV_PIC
+	select HAS_FSL_PAMU
 	help
 	  This option enables support for the B4860 QDS board
 

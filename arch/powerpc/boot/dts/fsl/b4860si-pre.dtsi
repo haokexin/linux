@@ -46,6 +46,10 @@
 		serial1 = &serial1;
 		serial2 = &serial2;
 		serial3 = &serial3;
+		pci0 = &pci0;
+		dma0 = &dma0;
+		dma1 = &dma1;
+		sdhc = &sdhc;
 	};
 
 	cpus {
@@ -54,19 +58,23 @@
 
 		PowerPC,e6500@0 {
 			device_type = "cpu";
-			reg = <0>;
+			reg = <0 1>;
+			next-level-cache = <&L2>;
 		};
 		PowerPC,e6500@1 {
 			device_type = "cpu";
-			reg = <2>;
+			reg = <2 3>;
+			next-level-cache = <&L2>;
 		};
 		PowerPC,e6500@2 {
 			device_type = "cpu";
-			reg = <4>;
+			reg = <4 5>;
+			next-level-cache = <&L2>;
 		};
 		PowerPC,e6500@3 {
 			device_type = "cpu";
-			reg = <6>;
+			reg = <6 7>;
+			next-level-cache = <&L2>;
 		};
 	};
 };

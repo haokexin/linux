@@ -93,6 +93,7 @@ define_machine(b4860_qds) {
 	.init_early		= corenet_ds_init_early,
 };
 
+machine_arch_initcall(b4860_qds, corenet_ds_publish_pci_device);
 machine_device_initcall(b4860_qds, declare_of_platform_devices);
 
 #ifdef CONFIG_SWIOTLB
