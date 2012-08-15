@@ -471,7 +471,7 @@ static int __init create_csd(phys_addr_t phys, size_t size)
 
 			law_start = make64(law[i].lawbarh, law[i].lawbarl);
 			law_end = law_start +
-				(1ULL << ((law[i].lawar & LAWAR_SIZE_MASK) + 1));
+				(1ULL << (law[i].lawar & LAWAR_SIZE_MASK));
 
 			if (law_start <= phys && phys < law_end) {
 				law_target = law[i].lawar & LAWAR_TARGET_MASK;
