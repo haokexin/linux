@@ -67,7 +67,7 @@
 &qportals {
 	qman-fqids@0 {
 		compatible = "fsl,fqid-range";
-		fsl,fqid-range = <256 256>;
+		fsl,fqid-range = <256 512>;
 	};
 	qman-pools@0 {
 		compatible = "fsl,pool-channel-range";
