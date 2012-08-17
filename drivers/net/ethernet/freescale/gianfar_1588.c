@@ -662,7 +662,7 @@ int gfar_ptp_init(struct device_node *np, struct gfar_private *priv)
 	gfar_write(&(priv->ptimer->tmr_add), ptp_attr.freq_comp);
 
 	gfar_write(&(priv->ptimer->tmr_ctrl),
-		gfar_read(&(priv->ptimer->tmr_ctrl)) |
+		(gfar_read(&(priv->ptimer->tmr_ctrl)) & ~TMR_CTRL_CKSEL_MASK) |
 		TMR_CTRL_ENABLE | cksel | TMR_CTRL_FIPER_START);
 
 	/* initialize circular buffer for tx timestamps */
