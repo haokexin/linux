@@ -268,7 +268,7 @@ static int flush_channel(struct device *dev, int ch, int error, int reset_ch,
 			else
 				status = error;
 
-		dma_unmap_single(dev, request->dma_desc,
+		dma_unmap_single(priv->dev, request->dma_desc,
 				 sizeof(struct talitos_desc),
 				 DMA_BIDIRECTIONAL);
 
