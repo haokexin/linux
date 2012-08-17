@@ -194,6 +194,7 @@ extern const char gfar_driver_version[];
 #define GFAR_PTP_PROT_DONTCARE		0xFFFF
 
 /* 1588 Module Registers bits */
+#define TMR_CTRL_CKSEL_MASK	0x00000003
 #define TMR_CTRL_ENABLE		0x00000004
 #define TMR_RTPE		0x00008000
 #define TMR_CTRL_TCLK_MASK	0x03ff0000
