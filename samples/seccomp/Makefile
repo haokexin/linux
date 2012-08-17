@@ -34,5 +34,7 @@ HOSTLOADLIBES_bpf-fancy += -m32
 HOSTLOADLIBES_dropper += -m32
 endif
 
+ifeq ($(CROSS_COMPILE),)
 # Tell kbuild to always build the programs
 always := $(hostprogs-y)
+endif
