@@ -9,4 +9,4 @@ ifeq ($(CROSS_COMPILE),)
 always := $(hostprogs-y)
 endif
 
-HOSTCFLAGS_hid-example.o += -I$(objtree)/usr/include
+HOSTCFLAGS_hid-example.o += -I$(srctree)/usr/include
