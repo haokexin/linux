@@ -40,6 +40,11 @@ typedef u64 cputime64_t;
 #define usecs_to_cputime64(__ct)	\
 	jiffies64_to_cputime64(nsecs_to_jiffies64((__ct)*1000))
 
+/*
+ * Convert cputime to microseconds
+ */
+#define cputime_to_usecs(__ct)		\
+	((unsigned int) cputime_div(__ct, NSEC_PER_USEC))
 
 /*
  * Convert cputime to milliseconds and back.
