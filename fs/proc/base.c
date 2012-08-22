@@ -2975,7 +2975,9 @@ static int proc_tid_msa(struct task_struct *task, char *buffer)
 		now = msp1.last_change;
 		break;
 	default:
+		preempt_disable();
 		MSA_NOW(now);
+		preempt_enable();
 		tp[msp1.cur_state] += now - msp1.last_change;
 	}
 	return
@@ -3029,7 +3031,9 @@ static int proc_tgid_msa(struct task_struct *task, char *buffer)
 		return proc_tid_msa(task, buffer);
 
 	memset(&msp2, 0, sizeof msp2);
+	preempt_disable();
 	MSA_NOW(now);
+	preempt_enable();
 	read_lock(&tasklist_lock);
 	do {
 		msp1 = task->microstates;
