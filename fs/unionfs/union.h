@@ -676,6 +676,15 @@ extern void __show_inode_counts(const struct inode *inode,
 
 #endif /* not CONFIG_UNION_FS_DEBUG */
 
+#define NFDBITS			__NFDBITS
+
+#define FD_SETSIZE		__FD_SETSIZE
+#define FD_SET(fd,fdsetp)	__FD_SET(fd,fdsetp)
+#define FD_CLR(fd,fdsetp)	__FD_CLR(fd,fdsetp)
+#define FD_ISSET(fd,fdsetp)	__FD_ISSET(fd,fdsetp)
+#define FD_ZERO(fdsetp)		__FD_ZERO(fdsetp)
+
+
 static inline void __FD_SET(unsigned long __fd, __kernel_fd_set *__fdsetp)
 {
        __set_bit(__fd, __fdsetp->fds_bits);
