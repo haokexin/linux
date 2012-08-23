@@ -121,7 +121,6 @@ typedef enum {
 #define FM_MAX_NUM_OF_MACSECS       1
 
 #define FM_MACSEC_SUPPORT
-#define FM_CAPWAP_SUPPORT
 #define FM_DISABLE_SEC_ERRORS
 
 #define FM_LOW_END_RESTRICTION      /* prevents the use of TX port 1 with OP port 0 */

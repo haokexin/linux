@@ -41,7 +41,9 @@
 #define __PART_INTEGRATION_EXT_H
 
 #include "std_ext.h"
+#ifndef NCSW_LINUX
 #include "ddr_std_ext.h"
+#endif
 #include "dpaa_integration_ext.h"
 
 
@@ -393,7 +395,9 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
 
  @Return        E_OK on success; Other value otherwise.
 *//***************************************************************************/
+#ifndef NCSW_LINUX
 t_Error P1023_GetDdrType(uintptr_t gutilBase, e_DdrType *p_DdrType );
+#endif
 
 
 /** @} */ /* end of 1023_init_grp group */

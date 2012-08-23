@@ -5,10 +5,10 @@ NET_DPA     = $(srctree)/drivers/net/ethernet/freescale
 DRV_DPA     = $(srctree)/drivers/net/ethernet/freescale/dpa
 NCSW        = $(srctree)/drivers/net/ethernet/freescale/dpa/NetCommSw
 
-ifdef CONFIG_FMAN_P3040_P4080_P5020
+ifeq ("$(CONFIG_FMAN_P3040_P4080_P5020)", "y")
 EXTRA_CFLAGS +=-include $(NCSW)/p3040_4080_5020_dflags.h
 endif
-ifdef CONFIG_FMAN_P1023
+ifeq ("$(CONFIG_FMAN_P1023)", "y")
 EXTRA_CFLAGS +=-include $(NCSW)/p1023_dflags.h
 endif
 
@@ -18,10 +18,10 @@ EXTRA_CFLAGS += -I$(NCSW)/inc/cores
 EXTRA_CFLAGS += -I$(NCSW)/inc/etc
 EXTRA_CFLAGS += -I$(NCSW)/inc/Peripherals
 
-ifdef CONFIG_FMAN_P3040_P4080_P5020
+ifeq ("$(CONFIG_FMAN_P3040_P4080_P5020)", "y")
 EXTRA_CFLAGS += -I$(NCSW)/inc/integrations/P3040_P4080_P5020
 endif
-ifdef CONFIG_FMAN_P1023
+ifeq ("$(CONFIG_FMAN_P1023)", "y")
 EXTRA_CFLAGS += -I$(NCSW)/inc/integrations/P1023
 endif
 
