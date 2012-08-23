@@ -1257,7 +1257,7 @@ int spear13xx_eth_phy_clk_cfg(struct platform_device *pdev)
 {
 	int ret;
 	struct clk *input_clk, *input_pclk, *phy_pclk, *phy_clk;
-	struct plat_stmmacenet_data *pdata = dev_get_platdata(&pdev->dev);
+	struct plat_stmmacphy_data *pdata = dev_get_platdata(&pdev->dev);
 	const char *phy_clk_src_name[] = {
 		"gmac_phy_input_clk",
 		"gmac_phy_synth_clk",
