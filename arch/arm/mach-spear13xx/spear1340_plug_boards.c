@@ -95,7 +95,7 @@ static struct pmx_dev *gmii_pb_pmx_devs[] = {
 
 static void __init gmii_pb_init(void)
 {
-	struct plat_stmmacenet_data *phy_data =
+	struct plat_stmmacphy_data *phy_data =
 		dev_get_platdata(&spear13xx_eth_device.dev);
 
 	phy_data->interface = PHY_INTERFACE_MODE_GMII;
@@ -119,7 +119,7 @@ static struct pmx_dev *rgmii_pb_pmx_devs[] = {
 
 static void __init rgmii_pb_init(void)
 {
-	struct plat_stmmacenet_data *phy_data =
+	struct plat_stmmacphy_data *phy_data =
 		dev_get_platdata(&spear13xx_eth_device.dev);
 
 	phy_data->interface = PHY_INTERFACE_MODE_RGMII;

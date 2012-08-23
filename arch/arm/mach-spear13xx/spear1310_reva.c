@@ -857,7 +857,7 @@ free_vco_clk:
 
 int spear1310_reva_eth_phy_clk_cfg(struct platform_device *pdev)
 {
-	struct plat_stmmacenet_data *pdata = dev_get_platdata(&pdev->dev);
+	struct plat_stmmacphy_data *pdata = dev_get_platdata(&pdev->dev);
 	void __iomem *addr = IOMEM(IO_ADDRESS(SPEAR1310_REVA_RAS_CTRL_REG1));
 	struct clk *clk, *phy_clk = NULL;
 	u32 tmp;
