@@ -265,6 +265,7 @@ void _exception(int signr, struct pt_regs *regs, int code, unsigned long addr)
 
 	trace_trap_entry(regs, regs->trap);
 
+	current->thread.trap_nr = code;
 	memset(&info, 0, sizeof(info));
 	info.si_signo = signr;
 	info.si_code = code;
