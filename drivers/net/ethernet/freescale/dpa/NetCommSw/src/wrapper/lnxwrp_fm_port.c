@@ -658,6 +658,7 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 	if (p_LnxWrpFmPortDev->h_Dev == NULL)
 		RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("FM-port"));
 
+#ifndef  FM_QMI_NO_DEQ_OPTIONS_SUPPORT
 	if ((p_LnxWrpFmPortDev->settings.param.portType ==
 	     e_FM_PORT_TYPE_TX_10G)
 	    || (p_LnxWrpFmPortDev->settings.param.portType ==
@@ -675,6 +676,7 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 		    != E_OK)
 			RETURN_ERROR(MAJOR, errCode, NO_MSG);
 	}
+#endif  /* !FM_QMI_NO_DEQ_OPTIONS_SUPPORT */
 
 /* Call the driver's advanced configuration routines, if requested:
    Compare the function pointer of each entry to the available routines,
