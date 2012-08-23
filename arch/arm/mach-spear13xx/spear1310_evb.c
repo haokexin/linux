@@ -44,6 +44,30 @@ static struct mtd_partition partition_info[] = {
 	PARTITION("Root File System", 0x380000, 84 * 0x20000),
 };
 
+/* Ethernet phy-0 device registeration */
+static struct plat_stmmacphy_data phy0_private_data = {
+	.bus_id = 0,
+	.phy_addr = 5,
+	.phy_mask = 0,
+	.interface = PHY_INTERFACE_MODE_GMII,
+	.phy_clk_cfg = spear13xx_eth_phy_clk_cfg,
+};
+
+static struct resource phy0_resources = {
+	.name = "phyirq",
+	.start = -1,
+	.end = -1,
+	.flags = IORESOURCE_IRQ,
+};
+
+static struct platform_device spear1310_phy0_device = {
+	.name		= "stmmacphy",
+	.id		= 0,
+	.num_resources	= 1,
+	.resource	= &phy0_resources,
+	.dev.platform_data = &phy0_private_data,
+};
+
 /* padmux devices to enable */
 static struct pmx_dev *pmx_devs[] = {
 	/* spear13xx specific devices */
@@ -110,32 +134,16 @@ static struct platform_device *plat_devs[] __initdata = {
 };
 
 /* Ethernet PLatform data */
-/* MDIO Bus Data */
-static struct stmmac_mdio_bus_data mdio0_private_data = {
-	.bus_id = 0,
-	.phy_mask = 0,
-};
-
-static struct stmmac_dma_cfg dma0_private_data = {
-	.pbl = 8,
-	.fixed_burst = 1,
-	.burst_len = DMA_AXI_BLEN_ALL,
-};
-
 static struct plat_stmmacenet_data eth_data = {
 	.bus_id = 0,
-	.phy_addr = -1,
-	.interface = PHY_INTERFACE_MODE_GMII,
 	.has_gmac = 1,
 	.enh_desc = 1,
 	.tx_coe = 1,
-	.dma_cfg = &dma0_private_data,
-	.rx_coe = STMMAC_RX_COE_TYPE2,
+	.pbl = 8,
+	.csum_off_engine = STMAC_TYPE_2,
 	.bugged_jumbo = 1,
+	.features = NETIF_F_HW_CSUM,
 	.pmt = 1,
-	.mdio_bus_data = &mdio0_private_data,
-	.init = spear13xx_eth_phy_clk_cfg,
-	.clk_csr = STMMAC_CSR_150_250M,
 };
 
 static struct mtd_partition nand_partition_info[] __initdata = {

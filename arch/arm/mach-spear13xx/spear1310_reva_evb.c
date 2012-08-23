@@ -35,6 +35,126 @@
 #include <mach/hardware.h>
 #include <mach/spear_pcie.h>
 
+/* Ethernet phy-0 device registeration */
+static struct plat_stmmacphy_data phy0_private_data = {
+	.bus_id = 0,
+	.phy_addr = 5,
+	.phy_mask = 0,
+	.interface = PHY_INTERFACE_MODE_GMII,
+	.phy_clk_cfg = spear13xx_eth_phy_clk_cfg,
+};
+
+static struct resource phy0_resources = {
+	.name = "phyirq",
+	.start = -1,
+	.end = -1,
+	.flags = IORESOURCE_IRQ,
+};
+
+static struct platform_device spear1310_reva_phy0_device = {
+	.name		= "stmmacphy",
+	.id		= 0,
+	.num_resources	= 1,
+	.resource	= &phy0_resources,
+	.dev.platform_data = &phy0_private_data,
+};
+
+/* Ethernet phy-1 device registeration */
+static struct plat_stmmacphy_data phy1_private_data = {
+	.bus_id = 1,
+	.phy_addr = 1,
+	.phy_mask = 0,
+	.interface = PHY_INTERFACE_MODE_MII,
+	.phy_clk_cfg = spear1310_reva_eth_phy_clk_cfg,
+};
+
+static struct resource phy1_resources = {
+	.name = "phyirq",
+	.start = -1,
+	.end = -1,
+	.flags = IORESOURCE_IRQ,
+};
+
+static struct platform_device spear1310_reva_phy1_device = {
+	.name = "stmmacphy",
+	.id = 1,
+	.num_resources = 1,
+	.resource = &phy1_resources,
+	.dev.platform_data = &phy1_private_data,
+};
+
+/* Ethernet phy-2 device registeration */
+static struct plat_stmmacphy_data phy2_private_data = {
+	.bus_id = 2,
+	.phy_addr = 2,
+	.phy_mask = 0,
+	.interface = PHY_INTERFACE_MODE_MII,
+	.phy_clk_cfg = spear1310_reva_eth_phy_clk_cfg,
+};
+
+static struct resource phy2_resources = {
+	.name = "phyirq",
+	.start = -1,
+	.end = -1,
+	.flags = IORESOURCE_IRQ,
+};
+
+static struct platform_device spear1310_reva_phy2_device = {
+	.name = "stmmacphy",
+	.id = 2,
+	.num_resources = 1,
+	.resource = &phy2_resources,
+	.dev.platform_data = &phy2_private_data,
+};
+
+/* Ethernet phy-3 device registeration */
+static struct plat_stmmacphy_data phy3_private_data = {
+	.bus_id = 3,
+	.phy_addr = 3,
+	.phy_mask = 0,
+	.interface = PHY_INTERFACE_MODE_RMII,
+	.phy_clk_cfg = spear1310_reva_eth_phy_clk_cfg,
+};
+
+static struct resource phy3_resources = {
+	.name = "phyirq",
+	.start = -1,
+	.end = -1,
+	.flags = IORESOURCE_IRQ,
+};
+
+static struct platform_device spear1310_reva_phy3_device = {
+	.name = "stmmacphy",
+	.id = 3,
+	.num_resources = 1,
+	.resource = &phy3_resources,
+	.dev.platform_data = &phy3_private_data,
+};
+
+/* Ethernet phy-4 device registeration */
+static struct plat_stmmacphy_data phy4_private_data = {
+	.bus_id = 4,
+	.phy_addr = 4,
+	.phy_mask = 0,
+	.interface = PHY_INTERFACE_MODE_RGMII,
+	.phy_clk_cfg = spear1310_reva_eth_phy_clk_cfg,
+};
+
+static struct resource phy4_resources = {
+	.name = "phyirq",
+	.start = -1,
+	.end = -1,
+	.flags = IORESOURCE_IRQ,
+};
+
+static struct platform_device spear1310_reva_phy4_device = {
+	.name = "stmmacphy",
+	.id = 4,
+	.num_resources = 1,
+	.resource = &phy4_resources,
+	.dev.platform_data = &phy4_private_data,
+};
+
 /* padmux devices to enable */
 static struct pmx_dev *pmx_devs[] = {
 	/* spear13xx specific devices */
@@ -114,6 +234,11 @@ static struct platform_device *plat_devs[] __initdata = {
 	&spear1310_reva_eth4_device,
 	&spear1310_reva_i2c1_device,
 	&spear1310_reva_plgpio_device,
+	&spear1310_reva_phy0_device,
+	&spear1310_reva_phy1_device,
+	&spear1310_reva_phy2_device,
+	&spear1310_reva_phy3_device,
+	&spear1310_reva_phy4_device,
 	&spear1310_reva_ras_fsmc_nor_device,
 	&spear1310_reva_rs485_0_device,
 	&spear1310_reva_rs485_1_device,
@@ -123,143 +248,64 @@ static struct platform_device *plat_devs[] __initdata = {
 
 /* Ethernet Platform Data */
 /* Ethernet GETH-0 device configuration */
-static struct stmmac_mdio_bus_data mdio0_private_data = {
-	.bus_id = 0,
-	.phy_mask = 0,
-};
-
-static struct stmmac_dma_cfg dma0_private_data = {
-	.pbl = 8,
-	.fixed_burst = 1,
-	.burst_len = DMA_AXI_BLEN_ALL,
-};
-
 static struct plat_stmmacenet_data eth0_data = {
 	.bus_id = 0,
-	.phy_addr = 5,
-	.interface = PHY_INTERFACE_MODE_GMII,
 	.has_gmac = 1,
 	.enh_desc = 1,
 	.tx_coe = 1,
-	.dma_cfg = &dma0_private_data,
-	.rx_coe = STMMAC_RX_COE_TYPE2,
+	.pbl = 8,
+	.csum_off_engine = STMAC_TYPE_2,
 	.bugged_jumbo = 1,
+	.features = NETIF_F_HW_CSUM,
 	.pmt = 1,
-	.mdio_bus_data = &mdio0_private_data,
-	.init = spear13xx_eth_phy_clk_cfg,
-	.clk_csr = STMMAC_CSR_150_250M,
 };
 
 /* Ethernet GETH-1 device configuration */
-static struct stmmac_mdio_bus_data mdio1_private_data = {
-	.bus_id = 1,
-	.phy_mask = 0,
-};
-
-static struct stmmac_dma_cfg dma1_private_data = {
-	.pbl = 8,
-	.fixed_burst = 1,
-	.burst_len = DMA_AXI_BLEN_ALL,
-};
-
 static struct plat_stmmacenet_data eth1_data = {
 	.bus_id = 1,
-	.phy_addr = 1,
-	.interface = PHY_INTERFACE_MODE_MII,
 	.has_gmac = 1,
 	.enh_desc = 1,
 	.tx_coe = 0,
-	.dma_cfg = &dma1_private_data,
-	.rx_coe = STMMAC_RX_COE_NONE,
-	.bugged_jumbo = 1,
-	.pmt = 1,
-	.mdio_bus_data = &mdio1_private_data,
-	.init = spear1310_reva_eth_phy_clk_cfg,
-	.clk_csr = STMMAC_CSR_150_250M,
+	.pbl = 8,
+	.csum_off_engine = STMAC_TYPE_0,
+	.bugged_jumbo = 0,
+	.features = NETIF_F_HW_CSUM,
 };
 
 /* Ethernet GETH-2 device configuration */
-static struct stmmac_mdio_bus_data mdio2_private_data = {
-	.bus_id = 2,
-	.phy_mask = 0,
-};
-
-static struct stmmac_dma_cfg dma2_private_data = {
-	.pbl = 8,
-	.fixed_burst = 1,
-	.burst_len = DMA_AXI_BLEN_ALL,
-};
-
 static struct plat_stmmacenet_data eth2_data = {
 	.bus_id = 2,
-	.phy_addr = 2,
-	.interface = PHY_INTERFACE_MODE_MII,
 	.has_gmac = 1,
 	.enh_desc = 1,
 	.tx_coe = 0,
-	.dma_cfg = &dma2_private_data,
-	.rx_coe = STMMAC_RX_COE_NONE,
-	.bugged_jumbo = 1,
-	.pmt = 1,
-	.mdio_bus_data = &mdio2_private_data,
-	.init = spear1310_reva_eth_phy_clk_cfg,
-	.clk_csr = STMMAC_CSR_150_250M,
+	.pbl = 8,
+	.csum_off_engine = STMAC_TYPE_0,
+	.bugged_jumbo = 0,
+	.features = NETIF_F_HW_CSUM,
 };
 
 /* Ethernet GETH-3 device configuration */
-static struct stmmac_mdio_bus_data mdio3_private_data = {
-	.bus_id = 3,
-	.phy_mask = 0,
-};
-
-static struct stmmac_dma_cfg dma3_private_data = {
-	.pbl = 8,
-	.fixed_burst = 1,
-	.burst_len = DMA_AXI_BLEN_ALL,
-};
-
 static struct plat_stmmacenet_data eth3_data = {
 	.bus_id = 3,
-	.phy_addr = 3,
-	.interface = PHY_INTERFACE_MODE_RMII,
 	.has_gmac = 1,
 	.enh_desc = 1,
 	.tx_coe = 0,
-	.dma_cfg = &dma3_private_data,
-	.rx_coe = STMMAC_RX_COE_NONE,
-	.bugged_jumbo = 1,
-	.pmt = 1,
-	.mdio_bus_data = &mdio3_private_data,
-	.init = spear1310_reva_eth_phy_clk_cfg,
-	.clk_csr = STMMAC_CSR_150_250M,
+	.pbl = 8,
+	.csum_off_engine = STMAC_TYPE_0,
+	.bugged_jumbo = 0,
+	.features = NETIF_F_HW_CSUM,
 };
 
 /* Ethernet GETH-4 device configuration */
-static struct stmmac_mdio_bus_data mdio4_private_data = {
-	.bus_id = 4,
-	.phy_mask = 0,
-};
-
-static struct stmmac_dma_cfg dma4_private_data = {
-	.pbl = 8,
-	.fixed_burst = 1,
-	.burst_len = DMA_AXI_BLEN_ALL,
-};
-
 static struct plat_stmmacenet_data eth4_data = {
 	.bus_id = 4,
-	.phy_addr = 4,
-	.interface = PHY_INTERFACE_MODE_RGMII,
 	.has_gmac = 1,
 	.enh_desc = 1,
 	.tx_coe = 0,
-	.dma_cfg = &dma4_private_data,
-	.rx_coe = STMMAC_RX_COE_NONE,
-	.bugged_jumbo = 1,
-	.pmt = 1,
-	.mdio_bus_data = &mdio4_private_data,
-	.init = spear1310_reva_eth_phy_clk_cfg,
-	.clk_csr = STMMAC_CSR_150_250M,
+	.pbl = 8,
+	.csum_off_engine = STMAC_TYPE_0,
+	.bugged_jumbo = 0,
+	.features = NETIF_F_HW_CSUM,
 };
 
 static struct mtd_partition nand_partition_info[] __initdata = {
