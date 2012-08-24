@@ -48,6 +48,7 @@
 		serial3 = &serial3;
 		bman = &bman;
 		qman = &qman;
+		dce = &dce;
 		fman0 = &fman0;
 		fman1 = &fman1;
 		pci0 = &pci0;

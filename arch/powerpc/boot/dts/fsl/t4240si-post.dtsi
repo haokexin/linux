@@ -281,6 +281,7 @@
 
 /include/ "qoriq-usb2-mph-0.dtsi"
 /include/ "qoriq-usb2-dr-0.dtsi"
+/include/ "qoriq-dce-0.dtsi"
 
 /include/ "qoriq-fman3-0.dtsi"
 /include/ "qoriq-fman3-0-1g-0.dtsi"
