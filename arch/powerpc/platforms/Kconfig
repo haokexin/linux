@@ -87,6 +87,11 @@ config MPIC
 	bool
 	default n
 
+config MPIC_TIMER
+	bool "MPIC Global Timer"
+	depends on MPIC && FSL_SOC
+	default n
+
 config PPC_EPAPR_HV_PIC
 	bool
 	default n
