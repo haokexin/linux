@@ -508,7 +508,7 @@ static struct nand_ecclayout lsi_2k_4bit_ecclayout = {
 		40, 41, 42, 43, 44, 45, 46, 47,
 		48, 49, 50, 51, 52, 53, 54, 55,
 		56, 57, 58, 59, 60, 61, 62, 63},
-	.oobfree = {{6,26}}
+	.oobfree = { {2, 30} }
 };
 
 static struct nand_bbt_descr lsi_2k_4bit_bbt_descr = {
