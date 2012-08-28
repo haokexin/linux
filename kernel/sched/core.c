@@ -4414,6 +4414,18 @@ SYSCALL_DEFINE3(sched_setscheduler, pid_t, pid, int, policy,
 }
 
 /**
+ * sys_sched_setscheduler2 - same as above, but with extended sched_param
+ * @pid: the pid in question.
+ * @policy: new policy (could use extended sched_param).
+ * @param: structure containg the extended parameters.
+ */
+SYSCALL_DEFINE3(sched_setscheduler2, pid_t, pid, int, policy,
+		struct sched_param2 __user *, param2)
+{
+	return -ENOSYS;
+}
+
+/**
  * sys_sched_setparam - set/change the RT priority of a thread
  * @pid: the pid in question.
  * @param: structure containing the new RT priority.
@@ -4421,6 +4433,17 @@ SYSCALL_DEFINE3(sched_setscheduler, pid_t, pid, int, policy,
 SYSCALL_DEFINE2(sched_setparam, pid_t, pid, struct sched_param __user *, param)
 {
 	return do_sched_setscheduler(pid, -1, param);
+}
+
+/**
+ * sys_sched_setparam2 - same as above, but with extended sched_param
+ * @pid: the pid in question.
+ * @param2: structure containing the extended parameters.
+ */
+SYSCALL_DEFINE2(sched_setparam2, pid_t, pid,
+		struct sched_param2 __user *, param2)
+{
+	return -ENOSYS;
 }
 
 /**
@@ -4485,6 +4508,17 @@ SYSCALL_DEFINE2(sched_getparam, pid_t, pid, struct sched_param __user *, param)
 out_unlock:
 	rcu_read_unlock();
 	return retval;
+}
+
+/**
+ * sys_sched_getparam2 - same as above, but with extended sched_param
+ * @pid: the pid in question.
+ * @param2: structure containing the extended parameters.
+ */
+SYSCALL_DEFINE2(sched_getparam2, pid_t, pid,
+		struct sched_param2 __user *, param2)
+{
+	return -ENOSYS;
 }
 
 long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
