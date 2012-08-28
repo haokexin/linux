@@ -397,6 +397,10 @@ asmlinkage long compat_sys_sched_getparam(u32 pid, struct sched_param __user *pa
 	return sys_sched_getparam((int)pid, param);
 }
 
+asmlinkage long compat_sys_sched_getparam2(u32 pid, struct sched_param2 __user *param)
+{
+	return sys_sched_getparam2((int)pid, param);
+}
 
 /* Note: it is necessary to treat pid as an unsigned int,
  * with the corresponding cast to a signed int to insure that the 
@@ -419,6 +423,10 @@ asmlinkage long compat_sys_sched_setparam(u32 pid, struct sched_param __user *pa
 	return sys_sched_setparam((int)pid, param);
 }
 
+asmlinkage long compat_sys_sched_setparam2(u32 pid, struct sched_param2 __user *param)
+{
+	return sys_sched_setparam2((int)pid, param);
+}
 
 /* Note: it is necessary to treat pid and policy as unsigned ints,
  * with the corresponding cast to a signed int to insure that the 
@@ -430,6 +438,10 @@ asmlinkage long compat_sys_sched_setscheduler(u32 pid, u32 policy, struct sched_
 	return sys_sched_setscheduler((int)pid, (int)policy, param);
 }
 
+asmlinkage long compat_sys_sched_setscheduler2(u32 pid, u32 policy, struct sched_param2 __user *param)
+{
+	return sys_sched_setscheduler2((int)pid, (int)policy, param);
+}
 
 /* Note: it is necessary to treat len as an unsigned int,
  * with the corresponding cast to a signed int to insure that the 
