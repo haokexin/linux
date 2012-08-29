@@ -136,12 +136,31 @@ config DPA_OFFLINE_PORTS
 	  so it is safe to have it.
 
 config DPAA_ETH_SG_SUPPORT
-	bool "Add support for S/G frames in the DPAA Ethernet driver"
+	bool
+
+choice DPAA_ETH_OPTIMIZE
+	prompt "Optimization choices for the DPAA Ethernet driver"
 	depends on DPA
-	default n
-	help
-	  Configure this to add S/G frames support in the DPAA Ethernet driver.
-	  Please note this replaces the optimal processing code also for non S/G frames.
+	default DPAA_ETH_OPTIMIZE_FOR_IPFWD
+
+	---help---
+	  Compile-time switch between driver optimizations for forwarding use-cases and
+	  termination scenarios.
+
+	config DPAA_ETH_OPTIMIZE_FOR_IPFWD
+		bool "Optimize for forwarding"
+		help
+		  Optimize the DPAA-Ethernet driver for IP/IPSec forwarding use-cases.
+
+	config DPAA_ETH_OPTIMIZE_FOR_TERM
+		bool "Optimize for termination"
+		select DPAA_ETH_SG_SUPPORT
+		help
+		  Optimize the DPAA-Ethernet driver for termination (TCP, UDP) use-cases.
+		  In particular, this choice enables Scatter-Gather (SG) support
+		  in the driver, which is momentarily not accessible otherwise.
+
+endchoice
 
 config FSL_DPA_1588
 	tristate "IEEE 1588-compliant timestamping"
@@ -150,6 +169,7 @@ config FSL_DPA_1588
 
 choice DPA_ETH_WQ_ASSIGN
 	prompt "WorkQueue assignment scheme for FrameQueues"
+	depends on DPA
 	default DPA_ETH_WQ_MULTI
 	help
 	  Selects the FrameQueue to WorkQueue assignment scheme.
