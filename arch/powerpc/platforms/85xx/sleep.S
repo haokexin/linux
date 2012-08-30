@@ -244,7 +244,7 @@ _GLOBAL(mpc85xx_enter_deep_sleep)
 
 	lis	r3, 0xf002	/* L2 cache controller at CCSR+0x20000 */
 	bl	flush_disable_L2
-	bl	flush_disable_L1
+	bl	__flush_disable_L1
 
 	/* Enable I-cache, so as not to upset the bus
 	 * with our loop.

@@ -144,7 +144,7 @@ static void __cpuinit smp_85xx_mach_cpu_die(void)
 
 	mtspr(SPRN_TCR, 0);
 
-	flush_disable_L1();
+	__flush_disable_L1();
 	tmp = (mfspr(SPRN_HID0) & ~(HID0_DOZE|HID0_SLEEP)) | HID0_NAP;
 	mb();
 	isync();
