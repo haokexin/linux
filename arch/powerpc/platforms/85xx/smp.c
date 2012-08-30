@@ -125,7 +125,7 @@ static int __cpuinit smp_85xx_kick_cpu(int nr)
 		 * We don't set the BPTR register here upon it points
 		 * to the boot page properly.
 		 */
-		mpic_reset_core(hw_cpu);
+		mpic_reset_core(nr);
 
 		/* wait until core is ready... */
 		if (!spin_event_timeout(in_be32(&spin_table->addr_l) == 1,
