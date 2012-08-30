@@ -192,7 +192,7 @@ unsigned int __irq_entry do_IRQ(struct pt_regs *regs)
 
 	irq = __this_cpu_read(vector_irq[vector]);
 
-	msa_start_irq(vector);
+	msa_start_irq(irq);
 
 	if (!handle_irq(irq, regs)) {
 		ack_APIC_irq();
@@ -202,7 +202,7 @@ unsigned int __irq_entry do_IRQ(struct pt_regs *regs)
 				__func__, smp_processor_id(), vector, irq);
 	}
 
-	msa_irq_exit(vector, regs->cs != __KERNEL_CS);
+	msa_irq_exit(irq, regs->cs != __KERNEL_CS);
 
 	set_irq_regs(old_regs);
 	return 1;
