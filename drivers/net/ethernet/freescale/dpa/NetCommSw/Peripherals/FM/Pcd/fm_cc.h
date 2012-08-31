@@ -84,6 +84,9 @@
 #define CC_PC_FF_IPV6SRC1                   0x10
 #define CC_PC_FF_IPV6SRC2                   0x1e
 #define CC_PC_FF_IPV6HOP_LIMIT              0x2a
+#define CC_PC_FF_IPPID                      0x24
+#define CC_PC_FF_IPTOS1                     0x76
+
 #define CC_PC_FF_GREPTYPE                   0x11
 
 #define CC_PC_FF_MINENCAP_PTYPE             0x12
@@ -154,6 +157,7 @@
 #define FM_PCD_AD_RESULT_VSP_SHIFT           24
 #define FM_PCD_AD_RESULT_NO_OM_VSPE          0x02000000
 #define FM_PCD_AD_RESULT_VSP_MASK            0x3f
+#define FM_PCD_AD_NCSPFQIDM_MASK             0x80000000
 #endif /* (DPAA_VERSION >= 11) */
 
 #define GLBL_MASK_FOR_HASH_INDEXED          0xfff00000
@@ -265,6 +269,7 @@ typedef struct
     t_Handle        h_NodeForAdd;
     t_Handle        h_NodeForRmv;
     t_Handle        h_ManipForRmv;
+    t_Handle        h_ManipForAdd;
     t_FmPcdStatsObj *p_StatsObjForRmv;
 #if (DPAA_VERSION >= 11)
     t_Handle        h_FrmReplicForAdd;
@@ -366,7 +371,7 @@ typedef struct
 
 bool        FmPcdManipIsManipNode(t_Handle h_Ad);
 t_Error     FmPcdCcNodeTreeTryLock(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_List *p_List);
-void        FmPcdCcNodeTreeReleaseLock(t_List *p_List);
+void        FmPcdCcNodeTreeReleaseLock(t_Handle h_FmPcd, t_List *p_List);
 t_Error     FmPcdUpdateCcShadow (t_FmPcd *p_FmPcd, uint32_t size, uint32_t align);
 
 

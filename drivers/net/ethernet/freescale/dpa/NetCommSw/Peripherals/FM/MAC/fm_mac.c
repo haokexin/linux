@@ -60,6 +60,9 @@ t_Handle FM_MAC_Config (t_FmMacParams *p_FmMacParam)
 #if FM_MAX_NUM_OF_10G_MACS > 0
     else
        p_FmMacControllerDriver = (t_FmMacControllerDriver *)TGEC_Config(p_FmMacParam);
+#else
+    else
+        p_FmMacControllerDriver = NULL; /* should not be reached */
 #endif /* FM_MAX_NUM_OF_10G_MACS > 0 */
 #else
     p_FmMacControllerDriver = (t_FmMacControllerDriver *)MEMAC_Config(p_FmMacParam);

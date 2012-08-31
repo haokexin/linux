@@ -944,7 +944,7 @@ static int /*__devinit*/ fm_probe(struct platform_device *of_dev)
     /* for all other platforms: MURAM Space for fifosize=3/4 * MURAM_SIZE*/
     if(fm_precalculate_fifosizes(
         p_LnxWrpFmDev,
-        CEIL_DIV((3*FM_MURAM_SIZE-1),4))
+        44*KILOBYTE)
         != 0)
     return -EIO;
 #endif

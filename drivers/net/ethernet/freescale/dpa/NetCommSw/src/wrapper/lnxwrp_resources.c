@@ -237,7 +237,6 @@ int fm_set_active_fman_ports(struct platform_device *of_dev,
 }
 #endif /*!defined(FMAN_RESOURCES_UNIT_TEST)*/
 
-#ifdef FM_FIFO_ALLOCATION_OLD_ALG
 /* BPOOL size is constant and equal w/ DPA_BP_SIZE */
 static uint32_t get_largest_buf_size(uint32_t max_rx_frame_size, uint32_t buf_size)
 {
@@ -259,7 +258,6 @@ static uint32_t get_largest_buf_size(uint32_t max_rx_frame_size, uint32_t buf_si
 	return max((uint32_t)16, CEIL_DIV(bp_size, buf_size));
 #endif /* CONFIG_DPAA_ETH_SG_SUPPORT */
 }
-#endif
 
 /* Calculate the fifosize based on MURAM allocation, number of ports, dpde
    value and s/g software support (! Kernel does not suport s/g).
@@ -365,25 +363,26 @@ int fm_precalculate_fifosizes(t_LnxWrpFmDev *p_LnxWrpFmDev, int muram_fifo_size)
 			+ DPDE_10G + 3 + 1; /* +1 to handle Jumbo Frames */
 
 	{
-#ifdef FM_FIFO_ALLOCATION_OLD_ALG
-#if !defined(FMAN_RESOURCES_UNIT_TEST)
+/*
+ * On P1023RDS FM_FIFO_ALLOCATION_ALG is enabled allowing a smaller Rx FIFO
+ * on hardware major rev 4. If the Rx FIFO is smaller than the size of the
+ * buffer in the buffer pool SG frames will be received
+ */
+#if defined(FM_FIFO_ALLOCATION_ALG) && \
+	!defined(FMAN_RESOURCES_UNIT_TEST) && \
+	defined(CONFIG_DPAA_ETH_SG_SUPPORT)
 		uint8_t fm_rev_major = 0;
-		fm_rev_major =
-			(uint8_t) ((*
-				    ((volatile uint32_t *)
-				     UINT_TO_PTR(p_LnxWrpFmDev->fmBaseAddr +
-						 0x000c30c4)) & 0xff00) >> 8);
+		fm_rev_major = (uint8_t) ((*
+				((volatile uint32_t *)
+					UINT_TO_PTR(p_LnxWrpFmDev->fmBaseAddr +
+						0x000c30c4)) & 0xff00) >> 8);
 
-		if (fm_rev_major < 4)
-#else
-		if(1)
-#endif
-			min_rx_bufs =
-				get_largest_buf_size(max_frame_size,
-						     buf_size) + 7;
+		if (fm_rev_major == 4)
+			min_rx_bufs = 8;
 		else
 #endif
-			min_rx_bufs = 8;
+			min_rx_bufs = get_largest_buf_size(max_frame_size,
+							buf_size) + 7;
 	}
 
 	shared_ext_buff = num_10g_ports ? 32 : 16; /* LLD boundaries:
@@ -403,7 +402,7 @@ int fm_precalculate_fifosizes(t_LnxWrpFmDev *p_LnxWrpFmDev, int muram_fifo_size)
 
 	if (remaining_bufs < 0) {
 		printk(KERN_ALERT
-		       "This configuration will not work due to low number of"
+		       "\nThis configuration will not work due to low number of"
 			" buffers (%u buffers)...\n",
 		       total_no_buffers);
 		err = -1;

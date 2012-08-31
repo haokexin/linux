@@ -120,9 +120,9 @@
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_EN                     0x08000000
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_MASK                   0xFF000000
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_SHIFT                  24
-#ifdef ALU_CUSTOM
+#ifdef FM_EXP_FEATURES
 #define FM_PCD_MANIP_IP_FRAG_OPT_COUNT_EN                   0x04000000
-#endif /* ALU_CUSTOM */
+#endif /* FM_EXP_FEATURES */
 
 #define FM_PCD_MANIP_IPSEC_DEC                              0x10000000
 #define FM_PCD_MANIP_IPSEC_VIPV_EN                          0x08000000
@@ -209,18 +209,58 @@
 
 #define HMCD_IP_REPLACE_L3HDRSIZE_SHIFT         24
 
-#define MANIP_IS_CASCADE(h_Manip)                       (((t_FmPcdManip *)h_Manip)->cascadedNext)
+#define DSCP_TO_VLAN_TABLE_SIZE                 32
+
 #define MANIP_GET_HMCT_SIZE(h_Manip)                    (((t_FmPcdManip *)h_Manip)->tableSize)
-#define MANIP_GET_HMCT_PTR(h_Manip)                     (((t_FmPcdManip *)h_Manip)->p_HmcdTbl)
-#define MANIP_SET_HMCT_PTR(h_Manip, h_NewPtr)           (((t_FmPcdManip *)h_Manip)->p_HmcdTbl = h_NewPtr)
+#define MANIP_GET_DATA_SIZE(h_Manip)                    (((t_FmPcdManip *)h_Manip)->dataSize)
+
+#define MANIP_GET_HMCT_PTR(h_Manip)                     (((t_FmPcdManip *)h_Manip)->p_Hmct)
+#define MANIP_GET_DATA_PTR(h_Manip)                     (((t_FmPcdManip *)h_Manip)->p_Data)
+
+#define MANIP_SET_HMCT_PTR(h_Manip, h_NewPtr)           (((t_FmPcdManip *)h_Manip)->p_Hmct = h_NewPtr)
+#define MANIP_SET_DATA_PTR(h_Manip, h_NewPtr)           (((t_FmPcdManip *)h_Manip)->p_Data = h_NewPtr)
+
 #define MANIP_GET_HMTD_PTR(h_Manip)                     (((t_FmPcdManip *)h_Manip)->h_Ad)
 #define MANIP_DONT_REPARSE(h_Manip)                     (((t_FmPcdManip *)h_Manip)->dontParseAfterManip)
 #define MANIP_SET_PREV(h_Manip, h_Prev)                 (((t_FmPcdManip *)h_Manip)->h_PrevManip = h_Prev)
 #define MANIP_GET_OWNERS(h_Manip)                       (((t_FmPcdManip *)h_Manip)->owner)
+#define MANIP_GET_TYPE(h_Manip)                         (((t_FmPcdManip *)h_Manip)->type)
 #define MANIP_SET_UNIFIED_TBL_PTR_INDICATION(h_Manip)   (((t_FmPcdManip *)h_Manip)->unifiedTablePtr = TRUE)
 #define MANIP_GET_MURAM(h_Manip)                        (((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram)
+#define MANIP_FREE_HMTD(h_Manip)                        \
+        {if(((t_FmPcdManip *)h_Manip)->muramAllocate)   \
+            FM_MURAM_FreeMem(((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram, ((t_FmPcdManip *)h_Manip)->h_Ad);\
+        else                                            \
+            XX_Free(((t_FmPcdManip *)h_Manip)->h_Ad);   \
+        ((t_FmPcdManip *)h_Manip)->h_Ad = NULL;         \
+        }
+/* position regarding Manip SW structure */
+#define MANIP_IS_FIRST(h_Manip)                         (!(((t_FmPcdManip *)h_Manip)->h_PrevManip))
+#define MANIP_IS_CASCADE_NEXT(h_Manip)                  (((t_FmPcdManip *)h_Manip)->cascadedNext)
+#define MANIP_IS_UNIFIED(h_Manip)                       (!(((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_NONE))
+#define MANIP_IS_UNIFIED_NON_FIRST(h_Manip)             ((((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_MID) || \
+                                                         (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_LAST))
+#define MANIP_IS_UNIFIED_NON_LAST(h_Manip)              ((((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_FIRST) ||\
+                                                         (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_MID))
+#define MANIP_IS_UNIFIED_FIRST(h_Manip)                 (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_FIRST)
+#define MANIP_IS_UNIFIED_LAST(h_Manip)                  (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_LAST)
 
-#define DSCP_TO_VLAN_TABLE_SIZE                 32
+#define MANIP_UPDATE_UNIFIED_POSITION(h_Manip)          (((t_FmPcdManip *)h_Manip)->unifiedPosition = \
+                                                        (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_NONE)? \
+                                                           e_MANIP_UNIFIED_LAST : e_MANIP_UNIFIED_MID)
+
+typedef enum e_ManipUnifiedPosition {
+    e_MANIP_UNIFIED_NONE = 0,
+    e_MANIP_UNIFIED_FIRST,
+    e_MANIP_UNIFIED_MID,
+    e_MANIP_UNIFIED_LAST
+} e_ManipUnifiedPosition;
+
+typedef enum e_ManipInfo {
+    e_MANIP_HMTD,
+    e_MANIP_HMCT,
+    e_MANIP_HANDLER_TABLE_OWNER
+}e_ManipInfo;
 /***********************************************************************/
 /*          Memory map                                                 */
 /***********************************************************************/
@@ -367,28 +407,29 @@ typedef struct t_IpReassmParams
     uint8_t                         relativeSchemeId[2];
     t_Handle                        h_Ipv4Scheme;
     t_Handle                        h_Ipv6Scheme;
+    uint32_t                        nonConsistentSpFqid;
 } t_IpReassmParams;
 
 typedef struct{
+    e_FmPcdManipType        type;
+    t_FmPcdManipParams      manipParams;
     bool                    muramAllocate;
     t_Handle                h_Ad;
-    uint32_t                type;
+    uint32_t                opcode;
     bool                    rmv;
     bool                    insrt;
     t_Handle                h_NextManip;
     t_Handle                h_PrevManip;
     /* HdrManip parameters*/
-    uint32_t                *p_HmcdTbl;
+    uint32_t                *p_Hmct;
+    uint8_t                 *p_Data;
     bool                    dontParseAfterManip;
     bool                    fieldUpdate;
     bool                    custom;
-    uint8_t                 *p_InsertData;
-    uint8_t                 *p_UpdateData;
-    uint8_t                 *p_CustomData1;
-    uint8_t                 *p_CustomData2;
     uint16_t                tableSize;
+    uint8_t                 dataSize;
     bool                    cascadedNext;
-    bool                    unifiedTablePtr;
+    e_ManipUnifiedPosition  unifiedPosition;
     /* end HdrManip */
     uint8_t                 *p_Template;
     t_Handle                h_Frag;
@@ -408,6 +449,9 @@ typedef struct{
     bool                    cnia;
     t_Handle                p_StatsTbl;
     t_Handle                h_FmPcd;
+    t_List                  nodesLst;
+    t_Handle                h_Spinlock;
+
 } t_FmPcdManip;
 
 typedef struct t_FmPcdCcSavedManipParams

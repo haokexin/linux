@@ -124,7 +124,7 @@ typedef struct ioc_compat_fm_pcd_plcr_profile_params_t {
     union {
         struct {
             ioc_fm_pcd_profile_type_selection   profile_type;
-            compat_uptr_t                       p_port;
+            compat_uptr_t                       p_fm_port;
             uint16_t                            relative_profile_id;
         } new_params;
         compat_uptr_t                           p_profile;
@@ -461,6 +461,11 @@ void compat_copy_fm_pcd_cc_node_modify_next_engine(
 void compat_fm_pcd_cc_tree_modify_next_engine(
         ioc_compat_fm_pcd_cc_tree_modify_next_engine_params_t *compat_param,
         ioc_fm_pcd_cc_tree_modify_next_engine_params_t *param,
+        uint8_t compat);
+
+void compat_copy_fm_pcd_hash_table(
+        ioc_compat_fm_pcd_hash_table_params_t *compat_param,
+        ioc_fm_pcd_hash_table_params_t *param,
         uint8_t compat);
 
 void compat_copy_fm_pcd_cc_grp(

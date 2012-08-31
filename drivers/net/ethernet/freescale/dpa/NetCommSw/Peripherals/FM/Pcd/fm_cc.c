@@ -214,8 +214,8 @@ static void PutStatsObj(t_FmPcdCcNode       *p_CcNode,
     }
 }
 
-static void UpdateStatsCounters(t_AdOfTypeStats *p_StatsAd,
-                                uint32_t        statsCountersAddr)
+static void SetStatsCounters(t_AdOfTypeStats *p_StatsAd,
+                             uint32_t        statsCountersAddr)
 {
     uint32_t tmp = (statsCountersAddr & 0x00FFFFFF);
 
@@ -245,7 +245,7 @@ static void UpdateStatsAd(t_AdOfTypeStats *p_StatsAd,
 
     WRITE_UINT32(p_StatsAd->nextActionIndx, tmp);
 
-    UpdateStatsCounters(p_StatsAd, statsCountersAddr);
+    SetStatsCounters(p_StatsAd, statsCountersAddr);
 }
 
 static void FillAdOfTypeContLookup(t_Handle h_Ad,
@@ -559,6 +559,24 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
                                          &ccNodeInfo,
                                          p_FmPcdCcNextNode->h_Spinlock);
         }
+        if (p_AdditionalParams->h_ManipForAdd)
+        {
+            p_CcNodeInformation = FindNodeInfoInReleventLst(FmPcdManipGetNodeLstPointedOnThisManip(p_AdditionalParams->h_ManipForAdd),
+                                                             p_AdditionalParams->h_CurrentNode,
+                                                             FmPcdManipGetSpinlock(p_AdditionalParams->h_ManipForAdd));
+
+            if (p_CcNodeInformation)
+                p_CcNodeInformation->index++;
+            else
+            {
+                memset(&ccNodeInfo, 0, sizeof(t_CcNodeInformation));
+                ccNodeInfo.h_CcNode = (t_Handle)p_AdditionalParams->h_CurrentNode;
+                ccNodeInfo.index = 1;
+                EnqueueNodeInfoToRelevantLst(FmPcdManipGetNodeLstPointedOnThisManip(p_AdditionalParams->h_ManipForAdd),
+                                            &ccNodeInfo,
+                                             FmPcdManipGetSpinlock(p_AdditionalParams->h_ManipForAdd));
+            }
+        }
     }
 
     if (p_AdditionalParams->h_NodeForRmv)
@@ -616,6 +634,23 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
                                           p_FmPcdCcNextNode->h_Spinlock);
 
         UpdateNodeOwner(p_FmPcdCcNextNode, FALSE);
+
+        if (p_AdditionalParams->h_ManipForRmv)
+        {
+             p_CcNodeInformation = FindNodeInfoInReleventLst(FmPcdManipGetNodeLstPointedOnThisManip(p_AdditionalParams->h_ManipForRmv),
+                                                             p_AdditionalParams->h_CurrentNode,
+                                                             FmPcdManipGetSpinlock(p_AdditionalParams->h_ManipForRmv));
+
+            ASSERT_COND(p_CcNodeInformation);
+            ASSERT_COND(p_CcNodeInformation->index);
+
+            p_CcNodeInformation->index--;
+
+            if (p_CcNodeInformation->index == 0)
+               DequeueNodeInfoFromRelevantLst(FmPcdManipGetNodeLstPointedOnThisManip(p_AdditionalParams->h_ManipForRmv),
+                                              p_AdditionalParams->h_CurrentNode,
+                                              FmPcdManipGetSpinlock(p_AdditionalParams->h_ManipForRmv));
+        }
     }
 
     if (p_AdditionalParams->h_ManipForRmv)
@@ -1097,22 +1132,6 @@ void ReleaseLst(t_List *p_List)
     LIST_Del(p_List);
 }
 
-void FmPcdCcNodeTreeReleaseLock(t_List *p_List)
-{
-    t_List              *p_Pos;
-    t_CcNodeInformation *p_CcNodeInfo;
-    t_Handle            h_FmPcdCcTree;
-
-    LIST_FOR_EACH(p_Pos, p_List)
-    {
-        p_CcNodeInfo = CC_NODE_F_OBJECT(p_Pos);
-        h_FmPcdCcTree = p_CcNodeInfo->h_CcNode;
-        CcRootReleaseLock(h_FmPcdCcTree);
-    }
-
-    ReleaseLst(p_List);
-}
-
 static void DeleteNode(t_FmPcdCcNode *p_CcNode)
 {
     uint32_t i;
@@ -1222,9 +1241,11 @@ static void  GetCcExtractKeySize(uint8_t parseCodeRealSize, uint8_t *parseCodeCc
 }
 
 static void  GetSizeHeaderField(e_NetHeaderType     hdr,
+                                e_FmPcdHdrIndex     index,
                                 t_FmPcdFields       field,
                                 uint8_t             *parseCodeRealSize)
 {
+    UNUSED(index);
     switch (hdr)
     {
         case (HEADER_TYPE_ETH):
@@ -1324,6 +1345,11 @@ static void  GetSizeHeaderField(e_NetHeaderType     hdr,
             {
                 case (NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC):
                    *parseCodeRealSize = 4;
+#ifdef FM_EXP_FEATURES
+                   if ((field.ipv6 == NET_HEADER_FIELD_IPv6_TC) &&
+                     ((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1)) )
+                        *parseCodeRealSize = 1;
+#endif /*FM_EXP_FEATURES*/
                     break;
 
                 case (NET_HEADER_FIELD_IPv6_NEXT_HDR):
@@ -1687,6 +1713,10 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
             {
                 case (NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC):
                     if ((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
+#ifdef FM_EXP_FEATURES
+                    if (field.ipv6 == NET_HEADER_FIELD_IPv6_TC)
+                        return CC_PC_FF_IPTOS1;
+#endif /*FM_EXP_FEATURES*/
                         return CC_PC_FF_IPTOS_IPV6TC1_IPV6FLOW1;
                     if (index == e_FM_PCD_HDR_INDEX_2)
                         return CC_PC_FF_IPTOS_IPV6TC2_IPV6FLOW2;
@@ -1698,6 +1728,8 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                         return CC_PC_FF_IPV6PTYPE1;
                     if (index == e_FM_PCD_HDR_INDEX_2)
                         return CC_PC_FF_IPV6PTYPE2;
+                    if (index == e_FM_PCD_HDR_INDEX_LAST)
+                        return CC_PC_FF_IPPID;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 index"));
                     return CC_PC_ILLEGAL;
 
@@ -2209,14 +2241,16 @@ static void ReleaseNewNodeCommonPart(t_FmPcdModifyCcKeyAdditionalParams *p_Addit
                          p_AdditionalInfo->p_KeysMatchTableNew);
 }
 
-static void UpdateGblMask(t_FmPcdCcNode *p_CcNode,
-                          uint8_t       keySize,
-                          uint8_t       *p_Mask)
+static t_Error UpdateGblMask(t_FmPcdCcNode *p_CcNode,
+                             uint8_t       keySize,
+                             uint8_t       *p_Mask)
 {
+    uint8_t prvGlblMaskSize = p_CcNode->glblMaskSize;
+
     if (p_Mask &&
         !p_CcNode->glblMaskUpdated &&
         (keySize <= 4) &&
-        !p_CcNode->lclMask )
+        !p_CcNode->lclMask)
     {
         memcpy(p_CcNode->p_GlblMask, p_Mask, (sizeof(uint8_t))*keySize);
         p_CcNode->glblMaskUpdated = TRUE;
@@ -2232,7 +2266,7 @@ static void UpdateGblMask(t_FmPcdCcNode *p_CcNode,
             p_CcNode->glblMaskSize = 0;
         }
     }
-    else if (!p_Mask && (p_CcNode->glblMaskUpdated) && (keySize <= 4))
+    else if (!p_Mask && p_CcNode->glblMaskUpdated && (keySize <= 4))
     {
         uint32_t tmpMask = 0xffffffff;
         if (memcmp(p_CcNode->p_GlblMask, &tmpMask, 4) != 0)
@@ -2246,6 +2280,17 @@ static void UpdateGblMask(t_FmPcdCcNode *p_CcNode,
         p_CcNode->lclMask = TRUE;
         p_CcNode->glblMaskSize = 0;
     }
+
+    /* In static mode (maxNumOfKeys > 0), local mask is supported
+       only is mask support was enabled at initialization */
+    if (p_CcNode->maxNumOfKeys && (!p_CcNode->maskSupport) && p_CcNode->lclMask)
+    {
+        p_CcNode->lclMask = FALSE;
+        p_CcNode->glblMaskSize = prvGlblMaskSize;
+        return ERROR_CODE(E_NOT_SUPPORTED);
+    }
+
+    return E_OK;
 }
 
 static __inline__ t_Handle GetNewAd(t_Handle  h_FmPcdCcNodeOrTree, bool isTree)
@@ -2384,9 +2429,11 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
     prvLclMask = p_CcNode->lclMask;
 
     /* Check that new key is not require update of localMask */
-    UpdateGblMask(p_CcNode,
-                  p_CcNode->ccKeySizeAccExtraction,
-                  p_KeyParams->p_Mask);
+    err = UpdateGblMask(p_CcNode,
+                        p_CcNode->ccKeySizeAccExtraction,
+                        p_KeyParams->p_Mask);
+    if (err)
+        RETURN_ERROR(MAJOR, err, (NO_MSG));
 
     /* Update internal data structure with new next engine for the given index */
     memcpy(&p_AdditionalInfo->keyAndNextEngineParams[keyIndex].nextEngineParams,
@@ -2398,9 +2445,9 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
             p_CcNode->userSizeOfExtraction);
 
     if ((p_AdditionalInfo->keyAndNextEngineParams[keyIndex].nextEngineParams.nextEngine == e_FM_PCD_CC)
-        && p_CcNode->keyAndNextEngineParams[keyIndex].nextEngineParams.h_Manip)
+        && p_AdditionalInfo->keyAndNextEngineParams[keyIndex].nextEngineParams.h_Manip)
     {
-        err = FmPcdCcAllocAndFillAdForContLookupManip(p_CcNode->keyAndNextEngineParams[keyIndex].nextEngineParams.params.ccParams.h_CcNode);
+        err = FmPcdCcAllocAndFillAdForContLookupManip(p_AdditionalInfo->keyAndNextEngineParams[keyIndex].nextEngineParams.params.ccParams.h_CcNode);
         if (err)
             RETURN_ERROR(MAJOR, err, (NO_MSG));
     }
@@ -2597,6 +2644,8 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
 
     if (p_KeyParams->ccNextEngineParams.nextEngine == e_FM_PCD_CC)
         p_AdditionalInfo->h_NodeForAdd = p_KeyParams->ccNextEngineParams.params.ccParams.h_CcNode;
+    if (p_KeyParams->ccNextEngineParams.h_Manip)
+        p_AdditionalInfo->h_ManipForAdd = p_KeyParams->ccNextEngineParams.h_Manip;
 
 #if (DPAA_VERSION >= 11)
         if ((p_KeyParams->ccNextEngineParams.nextEngine == e_FM_PCD_FR) &&
@@ -2710,10 +2759,12 @@ static t_Error BuildNewNodeModifyKey(t_FmPcdCcNode                      *p_CcNod
 
     prvLclMask = p_CcNode->lclMask;
 
-    /*check that new key is not require update of localMask*/
-    UpdateGblMask(p_CcNode,
-                  p_CcNode->ccKeySizeAccExtraction,
-                  p_Mask);
+    /* Check that new key is not require update of localMask */
+    err = UpdateGblMask(p_CcNode,
+                        p_CcNode->ccKeySizeAccExtraction,
+                        p_Mask);
+    if (err)
+        RETURN_ERROR(MAJOR, err, (NO_MSG));
 
     /* Update internal data structure with new next engine for the given index */
     memcpy(p_AdditionalInfo->keyAndNextEngineParams[keyIndex].key,
@@ -2751,8 +2802,8 @@ static t_Error BuildNewNodeModifyKey(t_FmPcdCcNode                      *p_CcNod
                 p_StatsObj = GetStatsObj(p_CcNode);
                 ASSERT_COND(p_StatsObj);
 
-                UpdateStatsCounters(p_AdTableNewTmp,
-                                    (uint32_t)((XX_VirtToPhys(p_StatsObj->h_StatsCounters) - p_FmPcd->physicalMuramBase)));
+                SetStatsCounters(p_AdTableNewTmp,
+                                 (uint32_t)((XX_VirtToPhys(p_StatsObj->h_StatsCounters) - p_FmPcd->physicalMuramBase)));
 
                 tmpStatsObj.h_StatsAd = p_StatsObj->h_StatsAd;
                 tmpStatsObj.h_StatsCounters = p_StatsObj->h_StatsCounters;
@@ -2906,8 +2957,10 @@ static t_Error BuildNewNodeModifyNextEngine(t_Handle                            
 
         if (p_FmPcdCcTree->keyAndNextEngineParams[keyIndex].nextEngineParams.nextEngine == e_FM_PCD_CC)
             p_AdditionalInfo->h_NodeForRmv = p_FmPcdCcTree->keyAndNextEngineParams[keyIndex].nextEngineParams.params.ccParams.h_CcNode;
+
         if (p_FmPcdCcTree->keyAndNextEngineParams[keyIndex].nextEngineParams.h_Manip)
             p_AdditionalInfo->h_ManipForRmv = p_FmPcdCcTree->keyAndNextEngineParams[keyIndex].nextEngineParams.h_Manip;
+
 #if (DPAA_VERSION >= 11)
         if ((p_FmPcdCcTree->keyAndNextEngineParams[keyIndex].nextEngineParams.nextEngine == e_FM_PCD_FR) &&
             (p_FmPcdCcTree->keyAndNextEngineParams[keyIndex].nextEngineParams.params.frParams.h_FrmReplic) &&
@@ -3043,6 +3096,8 @@ static t_Error BuildNewNodeModifyNextEngine(t_Handle                            
 
     if (p_CcNextEngineParams->nextEngine == e_FM_PCD_CC)
         p_AdditionalInfo->h_NodeForAdd = p_CcNextEngineParams->params.ccParams.h_CcNode;
+    if (p_CcNextEngineParams->h_Manip)
+        p_AdditionalInfo->h_ManipForAdd = p_CcNextEngineParams->h_Manip;
 
     /* If statistics were previously enabled, but now are disabled,
        store the old statistics object to be released */
@@ -3354,11 +3409,11 @@ static t_Error CheckAndSetManipParamsWithCcNodeParams(t_FmPcdCcNode *p_CcNode)
     return err;
 }
 static t_Error ValidateAndCalcStatsParams(e_FmPcdCcStatsMode   statisticsMode,
-                                          uint16_t             frameLengthRanges[FM_PCD_CC_STATS_MAX_NUM_OF_FLR],
+                                          t_FmPcdCcNodeParams  *p_CcNodeParam,
                                           uint32_t             *p_NumOfRanges,
                                           uint32_t             *p_CountersArraySize)
 {
-    uint32_t    i;
+    UNUSED(p_CcNodeParam);
 
     switch (statisticsMode)
     {
@@ -3368,41 +3423,48 @@ static t_Error ValidateAndCalcStatsParams(e_FmPcdCcStatsMode   statisticsMode,
         case e_FM_PCD_CC_STATS_MODE_FRAME:
         case e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME:
             *p_NumOfRanges = 1;
-            *p_CountersArraySize = 2 * FM_PCD_CC_STATS_FLR_COUNT_SIZE;
+            *p_CountersArraySize = 2 * FM_PCD_CC_STATS_COUNTER_SIZE;
             return E_OK;
 
+#ifdef FM_EXP_FEATURES
         case e_FM_PCD_CC_STATS_MODE_RMON:
-            if (frameLengthRanges[0] <= 0)
-                RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Statistics mode"));
-
-            if (frameLengthRanges[0] == 0xFFFF)
             {
-                *p_NumOfRanges = 1;
-                *p_CountersArraySize = 2 * FM_PCD_CC_STATS_FLR_COUNT_SIZE;
-                return E_OK;
+                uint16_t    *p_FrameLengthRanges = p_CcNodeParam->keysParams.frameLengthRanges;
+                uint32_t    i;
+
+                if (p_FrameLengthRanges[0] <= 0)
+                    RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Statistics mode"));
+
+                if (p_FrameLengthRanges[0] == 0xFFFF)
+                {
+                    *p_NumOfRanges = 1;
+                    *p_CountersArraySize = 2 * FM_PCD_CC_STATS_COUNTER_SIZE;
+                    return E_OK;
+                }
+
+                for (i = 1; i < FM_PCD_CC_STATS_MAX_NUM_OF_FLR; i++)
+                {
+                    if (p_FrameLengthRanges[i-1] >= p_FrameLengthRanges[i])
+                        RETURN_ERROR(MAJOR, E_INVALID_VALUE,
+                                     ("Frame length range must be larger at least by 1 from preceding range"));
+
+                    /* Stop when last range is reached */
+                    if (p_FrameLengthRanges[i] == 0xFFFF)
+                        break;
+                }
+
+                if (i >= FM_PCD_CC_STATS_MAX_NUM_OF_FLR ||
+                        p_FrameLengthRanges[i] != 0xFFFF)
+                    RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Last Frame length range must be 0xFFFF"));
+
+                *p_NumOfRanges = i+1;
+
+                /* Allocate an extra counter for byte count, as counters
+                   array always begins with byte count */
+                *p_CountersArraySize = (*p_NumOfRanges + 1) * FM_PCD_CC_STATS_COUNTER_SIZE;
             }
-
-            for (i = 1; i < FM_PCD_CC_STATS_MAX_NUM_OF_FLR; i++)
-            {
-                if (frameLengthRanges[i-1] >= frameLengthRanges[i])
-                    RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Frame length range must be larger at least by 1 from preceding range"));
-
-                /* Stop when last range is reached */
-                if (frameLengthRanges[i] == 0xFFFF)
-                    break;
-            }
-
-            if (frameLengthRanges[i] != 0xFFFF)
-                RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Last Frame length range must be 0xFFFF"));
-
-            *p_NumOfRanges = i+1;
-
-            /* Allocate an extra counter for byte count, as counters
-               array always begins with byte count */
-            *p_CountersArraySize = (*p_NumOfRanges + 1) * FM_PCD_CC_STATS_FLR_COUNT_SIZE;
-
             return E_OK;
-
+#endif /* FM_EXP_FEATURES */
         default:
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Statistics mode"));
     }
@@ -3420,7 +3482,7 @@ static t_Error CheckParams(t_Handle             h_FmPcd,
 
     /* Validate statistics parameters */
     err = ValidateAndCalcStatsParams(p_CcNode->statisticsMode,
-                                     p_CcNodeParam->keysParams.frameLengthRanges,
+                                     p_CcNodeParam,
                                      &(p_CcNode->numOfStatsFLRs),
                                      &(p_CcNode->countersArraySize));
     if (err)
@@ -3467,9 +3529,11 @@ static t_Error CheckParams(t_Handle             h_FmPcd,
         if (err)
             RETURN_ERROR(MAJOR, err, (NO_MSG));
 
-        UpdateGblMask(p_CcNode,
-                      p_CcNodeParam->keysParams.keySize,
-                      p_KeyParams->p_Mask);
+        err = UpdateGblMask(p_CcNode,
+                            p_CcNodeParam->keysParams.keySize,
+                            p_KeyParams->p_Mask);
+        if (err)
+            RETURN_ERROR(MAJOR, err, (NO_MSG));
 
         if (p_KeyParams->ccNextEngineParams.h_Manip)
         {
@@ -3510,9 +3574,6 @@ static t_Error CheckParams(t_Handle             h_FmPcd,
     {
         if (p_CcNode->maxNumOfKeys < p_CcNode->numOfKeys)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Number of keys exceed the provided maximal number of keys"));
-
-        if ((!p_CcNode->maskSupport) && (p_CcNode->glblMaskUpdated || p_CcNode->lclMask))
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Mask support should be enabled, as it was required by the received keys parameters"));
     }
 
     *isKeyTblAlloc = TRUE;
@@ -3539,7 +3600,7 @@ static t_Error Ipv4TtlOrIpv6HopLimitCheckParams(t_Handle            h_FmPcd,
 
     /* Validate statistics parameters */
     err = ValidateAndCalcStatsParams(p_CcNode->statisticsMode,
-                                     p_CcNodeParam->keysParams.frameLengthRanges,
+                                     p_CcNodeParam,
                                      &(p_CcNode->numOfStatsFLRs),
                                      &(p_CcNode->countersArraySize));
     if (err)
@@ -3643,15 +3704,16 @@ static t_Error IcHashIndexedCheckParams(t_Handle            h_FmPcd,
     if (!POWER_OF_2(p_CcNode->numOfKeys))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For Node of the type INDEXED numOfKeys has to be powerOfTwo"));
 
-    if (p_CcNode->numOfKeys != ((uint32_t)1 << countOnes ))
+    if (p_CcNode->numOfKeys != ((uint32_t)1 << countOnes))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For Node of the type IC_HASH_INDEXED numOfKeys has to be powerOfTwo"));
 
-    if ((p_CcNodeParam->keysParams.maxNumOfKeys) && (p_CcNodeParam->keysParams.maxNumOfKeys != p_CcNode->numOfKeys))
+    if (p_CcNodeParam->keysParams.maxNumOfKeys &&
+        (p_CcNodeParam->keysParams.maxNumOfKeys != p_CcNode->numOfKeys))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For Node of the type INDEXED 'maxNumOfKeys' should be 0 or equal 'numOfKeys'"));
 
     /* Validate statistics parameters */
     err = ValidateAndCalcStatsParams(p_CcNode->statisticsMode,
-                                     p_CcNodeParam->keysParams.frameLengthRanges,
+                                     p_CcNodeParam,
                                      &(p_CcNode->numOfStatsFLRs),
                                      &(p_CcNode->countersArraySize));
     if (err)
@@ -3819,37 +3881,41 @@ static t_Error FindKeyIndex(t_Handle    h_CcNode,
     return ERROR_CODE(E_NOT_FOUND);
 }
 
-static t_Error CalcAndUpdateCcShadow(t_FmPcdCcNode *p_CcNode, bool isKeyTblAlloc)
+static t_Error CalcAndUpdateCcShadow(t_FmPcdCcNode  *p_CcNode,
+                                     bool           isKeyTblAlloc,
+                                     uint32_t       *p_MatchTableSize,
+                                     uint32_t       *p_AdTableSize)
 {
     uint32_t    shadowSize;
     t_Error     err;
 
     /* Calculate keys table maximal size - each entry consists of a key and a mask,
        (if local mask support is requested) */
-    p_CcNode->keysMatchTableMaxSize = p_CcNode->ccKeySizeAccExtraction * sizeof(uint8_t) * p_CcNode->maxNumOfKeys;
+    *p_MatchTableSize = p_CcNode->ccKeySizeAccExtraction * sizeof(uint8_t) * p_CcNode->maxNumOfKeys;
 
     if (p_CcNode->maskSupport)
-        p_CcNode->keysMatchTableMaxSize *= 2;
+        *p_MatchTableSize *= 2;
+
+    /* Calculate next action descriptors table, including one more entry for miss */
+    *p_AdTableSize = (uint32_t)((p_CcNode->maxNumOfKeys + 1) * FM_PCD_CC_AD_ENTRY_SIZE);
 
     /* Calculate maximal shadow size of this node.
-       All shadow structures will be used for runtime modifications host command.
-       If keys table was allocated for this node, the keys table and next engines table may be
-       modified in run time (entries added or removed), so shadow tables are requires.
-       Otherwise, the only supported runtime modification is a specific next engine update and
-       this requires shadow memory of a single AD */
+       All shadow structures will be used for runtime modifications host command. If
+       keys table was allocated for this node, the keys table and next engines table may
+       be modified in run time (entries added or removed), so shadow tables are requires.
+       Otherwise, the only supported runtime modification is a specific next engine update
+       and this requires shadow memory of a single AD */
 
     /* Shadow size should be enough to hold the following 3 structures:
      * 1 - an action descriptor */
     shadowSize = FM_PCD_CC_AD_ENTRY_SIZE;
 
+    /* 2 - keys match table, if was allocated for the current node */
     if (isKeyTblAlloc)
-    {
-        /* 2 - keys match table, if was allocated for the current node */
-        shadowSize += p_CcNode->keysMatchTableMaxSize;
+        shadowSize += *p_MatchTableSize;
 
-        /* 3 - next action descriptors table, including one more entry for miss */
-        shadowSize += (p_CcNode->maxNumOfKeys + 1) * FM_PCD_CC_AD_ENTRY_SIZE;
-    }
+    /* 3 - next action descriptors table */
+    shadowSize += *p_AdTableSize;
 
     /* Update shadow to the calculated size */
     err = FmPcdUpdateCcShadow (p_CcNode->h_FmPcd, (uint32_t)shadowSize, FM_PCD_CC_AD_TABLE_ALIGN);
@@ -3934,6 +4000,8 @@ static t_Error MatchTableGetKeyStatistics(t_FmPcdCcNode           *p_CcNode,
     if (!p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Statistics were not enabled for this key"));
 
+    memset(p_KeyStatistics, 0, sizeof (t_FmPcdCcKeyStatistics));
+
     p_StatsCounters = p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj->h_StatsCounters;
     ASSERT_COND(p_StatsCounters);
 
@@ -3941,9 +4009,13 @@ static t_Error MatchTableGetKeyStatistics(t_FmPcdCcNode           *p_CcNode,
 
     for (i = 1; i <= p_CcNode->numOfStatsFLRs; i++)
     {
-        p_StatsCounters = PTR_MOVE(p_StatsCounters, FM_PCD_CC_STATS_FLR_COUNT_SIZE);
+        p_StatsCounters = PTR_MOVE(p_StatsCounters, FM_PCD_CC_STATS_COUNTER_SIZE);
 
+        p_KeyStatistics->frameCount += GET_UINT32(*p_StatsCounters);
+
+#ifdef FM_EXP_FEATURES
         p_KeyStatistics->frameLengthRangeCount[i-1] = GET_UINT32(*p_StatsCounters);
+#endif /* FM_EXP_FEATURES */
     }
 
     return E_OK;
@@ -4354,10 +4426,6 @@ t_Error FmPcdCcModifyKey(t_Handle   h_FmPcd,
     if (p_CcNode->h_FmPcd != h_FmPcd)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("handler to FmPcd is different from the handle provided at node initialization time"));
 
-    if (p_CcNode->maxNumOfKeys)
-        if ((!p_CcNode->maskSupport) && (p_Mask))
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("mask support was not enabled for this node initialization time"));
-
     err = FindKeyIndex(h_FmPcdCcNode,
                        keySize,
                        p_Key,
@@ -4502,13 +4570,8 @@ t_Error FmPcdCcAddKey(t_Handle              h_FmPcd,
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("handler to FmPcd is different from the handle provided at node initialization time"));
 
     if (p_CcNode->maxNumOfKeys)
-    {
         if ((p_CcNode->numOfKeys + 1) > p_CcNode->maxNumOfKeys)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("number of keys exceeds the maximal number of keys provided at node initialization time"));
-
-        if ((!p_CcNode->maskSupport) && (p_FmPcdCcKeyParams->p_Mask))
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("mask support was not enabled for this node initialization time"));
-    }
 
     err = FindKeyIndex(h_FmPcdCcNode,
                        keySize,
@@ -4603,12 +4666,6 @@ t_Error FmPcdCcModifyKeyAndNextEngine(t_Handle              h_FmPcd,
 
     if (p_CcNode->h_FmPcd != h_FmPcd)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("handler to FmPcd is different from the handle provided at node initialization time"));
-
-    if (p_CcNode->maxNumOfKeys)
-    {
-        if ((!p_CcNode->maskSupport) && (p_FmPcdCcKeyParams->p_Mask))
-            RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("mask support was not enabled for this node initialization time"));
-    }
 
     err = FindKeyIndex(h_FmPcdCcNode,
                        keySize,
@@ -4749,9 +4806,10 @@ t_Error FmPcdCcNodeTreeTryLock(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_List *
     t_FmPcdCcNode           *p_CcNode = (t_FmPcdCcNode *)h_FmPcdCcNode;
     t_List                  *p_Pos, *p_Tmp;
     t_CcNodeInformation     *p_CcNodeInfo, nodeInfo;
+    uint32_t                intFlags;
     t_Error                 err = E_OK;
 
-    UNUSED(h_FmPcd);
+    intFlags = FmPcdLock(h_FmPcd);
 
     if (LIST_IsEmpty(&p_CcNode->ccTreesLst))
         RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("asked for more nodes in CC than MAX"));
@@ -4780,8 +4838,34 @@ t_Error FmPcdCcNodeTreeTryLock(t_Handle h_FmPcd,t_Handle h_FmPcdCcNode, t_List *
         EnqueueNodeInfoToRelevantLst(p_List, &nodeInfo, NULL);
     }
 
+    FmPcdUnlock(h_FmPcd, intFlags);
+    CORE_MemoryBarrier();
+
     return err;
 }
+
+void FmPcdCcNodeTreeReleaseLock(t_Handle h_FmPcd, t_List *p_List)
+{
+    t_List              *p_Pos;
+    t_CcNodeInformation *p_CcNodeInfo;
+    t_Handle            h_FmPcdCcTree;
+    uint32_t            intFlags;
+
+    intFlags = FmPcdLock(h_FmPcd);
+
+    LIST_FOR_EACH(p_Pos, p_List)
+    {
+        p_CcNodeInfo = CC_NODE_F_OBJECT(p_Pos);
+        h_FmPcdCcTree = p_CcNodeInfo->h_CcNode;
+        CcRootReleaseLock(h_FmPcdCcTree);
+    }
+
+    ReleaseLst(p_List);
+
+    FmPcdUnlock(h_FmPcd, intFlags);
+    CORE_MemoryBarrier();
+}
+
 
 t_Error FmPcdUpdateCcShadow (t_FmPcd *p_FmPcd, uint32_t size, uint32_t align)
 {
@@ -5253,13 +5337,17 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
     uint32_t            tmp, keySize;
     bool                glblMask = FALSE;
     t_FmPcdCcKeyParams  *p_KeyParams;
-    t_Handle            h_FmMuram, p_KeysMatchTblTmp, p_AdTableTmp, h_StatsFLRs;
+    t_Handle            h_FmMuram, p_KeysMatchTblTmp, p_AdTableTmp;
+#ifdef FM_EXP_FEATURES
+    t_Handle            h_StatsFLRs;
+#endif /* FM_EXP_FEATURES */
     bool                fullField = FALSE;
     ccPrivateInfo_t     icCode = CC_PRIVATE_INFO_NONE;
     bool                isKeyTblAlloc, fromIc = FALSE;
-    uint16_t            numOfKeysToAlloc;
+    uint32_t            matchTableSize, adTableSize;
     t_CcNodeInformation ccNodeInfo, *p_CcInformation;
     t_FmPcdStatsObj     *p_StatsObj;
+    t_Handle            h_Manip;
 
     SANITY_CHECK_RETURN_VALUE(h_FmPcd,E_INVALID_HANDLE,NULL);
 
@@ -5283,9 +5371,9 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
     /* For backward compatibility - even if statistics mode is nullified,
        we'll fix it to frame mode so we can support per-key request for
        statistics using 'statisticsEn' in next engine parameters */
-    if ((!p_CcNode->maxNumOfKeys) &&
+    if (!p_CcNode->maxNumOfKeys &&
         (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_NONE))
-            p_CcNode->statisticsMode = e_FM_PCD_CC_STATS_MODE_FRAME;
+        p_CcNode->statisticsMode = e_FM_PCD_CC_STATS_MODE_FRAME;
 
     h_FmMuram = FmPcdGetMuramHandle(h_FmPcd);
     if (!h_FmMuram)
@@ -5377,6 +5465,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
                                               p_CcNodeParam->extractCcParams.extractByHdr.hdrIndex,
                                               p_CcNodeParam->extractCcParams.extractByHdr.extractByHdrType.fullField);
                     GetSizeHeaderField(p_CcNodeParam->extractCcParams.extractByHdr.hdr,
+                                       p_CcNodeParam->extractCcParams.extractByHdr.hdrIndex,
                                        p_CcNodeParam->extractCcParams.extractByHdr.extractByHdrType.fullField,
                                        &p_CcNode->sizeOfExtraction);
                     fullField = TRUE;
@@ -5387,6 +5476,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
                         (p_CcNode->parseCode != CC_PC_FF_IPV4IPTOS_TC1) &&
                         (p_CcNode->parseCode != CC_PC_FF_IPV4IPTOS_TC2) &&
                         (p_CcNode->parseCode != CC_PC_FF_IPTOS_IPV6TC1_IPV6FLOW1) &&
+                        (p_CcNode->parseCode !=CC_PC_FF_IPTOS1) &&
                         (p_CcNode->parseCode != CC_PC_FF_IPTOS_IPV6TC2_IPV6FLOW2) &&
                         glblMask)
                     {
@@ -5509,20 +5599,18 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
     /* Update CC shadow with maximal size required by this node */
     if (p_CcNode->maxNumOfKeys)
     {
-        numOfKeysToAlloc = p_CcNode->maxNumOfKeys;
-
-        /* If local mask is currently used, 'keySize' holds local mask size.
-           Otherwise, we need to allocate twice as much memory for future local mask support. */
-        if (p_CcNode->maskSupport && !(p_CcNode->lclMask))
-            numOfKeysToAlloc *= 2;
-
-        err = CalcAndUpdateCcShadow(p_CcNode, isKeyTblAlloc);
+        err = CalcAndUpdateCcShadow(p_CcNode,
+                                    isKeyTblAlloc,
+                                    &matchTableSize,
+                                    &adTableSize);
         if (err != E_OK)
         {
             DeleteNode(p_CcNode);
             REPORT_ERROR(MAJOR, err, NO_MSG);
             return NULL;
         }
+
+        p_CcNode->keysMatchTableMaxSize = matchTableSize;
 
         if (p_CcNode->statisticsMode != e_FM_PCD_CC_STATS_MODE_NONE)
         {
@@ -5549,8 +5637,12 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
         }
     }
     else
-        numOfKeysToAlloc = p_CcNode->numOfKeys;
+    {
+        matchTableSize = (uint32_t)(keySize * sizeof(uint8_t) * (p_CcNode->numOfKeys + 1));
+        adTableSize    = (uint32_t)(FM_PCD_CC_AD_ENTRY_SIZE * (p_CcNode->numOfKeys + 1));
+    }
 
+#ifdef FM_EXP_FEATURES
     /* If RMON statistics mode requested, allocate frame length ranges array */
     if (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_RMON)
     {
@@ -5577,6 +5669,9 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
                         FM_PCD_CC_STATS_FLR_SIZE);
         }
     }
+#else
+    p_CcNode->h_StatsFLRs = NULL;
+#endif /* FM_EXP_FEATURES */
 
     /* Allocate keys match table. Not required for some CC nodes, for example for IPv4 TTL
        identification, IPv6 hop count identification, etc. */
@@ -5584,8 +5679,8 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
     {
         p_CcNode->h_KeysMatchTable =
             (t_Handle)FM_MURAM_AllocMem(h_FmMuram,
-                                        (uint32_t)(keySize * sizeof(uint8_t) * (numOfKeysToAlloc + 1)),
-                                         FM_PCD_CC_KEYS_MATCH_TABLE_ALIGN);
+                                        matchTableSize,
+                                        FM_PCD_CC_KEYS_MATCH_TABLE_ALIGN);
         if (!p_CcNode->h_KeysMatchTable)
         {
             DeleteNode(p_CcNode);
@@ -5594,13 +5689,13 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
         }
         IOMemSet32((uint8_t *)p_CcNode->h_KeysMatchTable,
                    0,
-                   keySize * sizeof(uint8_t) * (numOfKeysToAlloc + 1));
+                   matchTableSize);
     }
 
     /* Allocate action descriptors table */
     p_CcNode->h_AdTable =
         (t_Handle)FM_MURAM_AllocMem(h_FmMuram,
-                                    (uint32_t)((numOfKeysToAlloc + 1) * FM_PCD_CC_AD_ENTRY_SIZE),
+                                    adTableSize,
                                     FM_PCD_CC_AD_TABLE_ALIGN);
     if (!p_CcNode->h_AdTable)
     {
@@ -5608,15 +5703,13 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for CC node action descriptors table"));
         return NULL;
     }
-    IOMemSet32((uint8_t *)p_CcNode->h_AdTable,
-               0,
-               (uint32_t)((numOfKeysToAlloc + 1) * FM_PCD_CC_AD_ENTRY_SIZE));
+    IOMemSet32((uint8_t *)p_CcNode->h_AdTable, 0, adTableSize);
 
     p_KeysMatchTblTmp = p_CcNode->h_KeysMatchTable;
     p_AdTableTmp      = p_CcNode->h_AdTable;
 
     /* For each key, create the key and the next step AD */
-    for (tmp = 0 ; tmp < p_CcNode->numOfKeys; tmp++)
+    for (tmp = 0; tmp < p_CcNode->numOfKeys; tmp++)
     {
         p_KeyParams = &p_CcNodeParam->keysParams.keyParams[tmp];
 
@@ -5723,8 +5816,26 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
                                              &ccNodeInfo,
                                              p_FmPcdCcNextNode->h_Spinlock);
             }
+            else // TODO - think about Spinlock around ++
+                p_CcInformation->index++;
+            if (p_CcNode->keyAndNextEngineParams[tmp].nextEngineParams.h_Manip)
+            {
+                h_Manip = p_CcNode->keyAndNextEngineParams[tmp].nextEngineParams.h_Manip;
+                p_CcInformation = FindNodeInfoInReleventLst(FmPcdManipGetNodeLstPointedOnThisManip(h_Manip),
+                                                             (t_Handle)p_CcNode,
+                                                             FmPcdManipGetSpinlock(h_Manip));
+                if (!p_CcInformation)
+                 {
+                     memset(&ccNodeInfo, 0, sizeof(t_CcNodeInformation));
+                     ccNodeInfo.h_CcNode = (t_Handle)p_CcNode;
+                     ccNodeInfo.index = 1;
+                     EnqueueNodeInfoToRelevantLst(FmPcdManipGetNodeLstPointedOnThisManip(h_Manip),
+                                                  &ccNodeInfo,
+                                                  FmPcdManipGetSpinlock(h_Manip));
+            }
             else
                 p_CcInformation->index++;
+            }
         }
     }
 
@@ -5896,7 +6007,6 @@ t_Error FM_PCD_MatchTableModifyKey(t_Handle h_CcNode,
     t_FmPcd         *p_FmPcd;
     t_FmPcdCcNode   *p_CcNode = (t_FmPcdCcNode *)h_CcNode;
     t_List          h_List;
-    uint32_t        intFlags;
     t_Error         err = E_OK;
 
     SANITY_CHECK_RETURN_ERROR(p_CcNode, E_INVALID_HANDLE);
@@ -5907,9 +6017,7 @@ t_Error FM_PCD_MatchTableModifyKey(t_Handle h_CcNode,
 
     INIT_LIST(&h_List);
 
-    intFlags = FmPcdLock(p_FmPcd);
     err = FmPcdCcNodeTreeTryLock(p_FmPcd, p_CcNode, &h_List);
-    FmPcdUnlock(p_FmPcd, intFlags);
     if (err)
     {
         DBG(TRACE, ("Node's trees lock failed"));
@@ -5923,7 +6031,7 @@ t_Error FM_PCD_MatchTableModifyKey(t_Handle h_CcNode,
                            p_Key,
                            p_Mask);
 
-    FmPcdCcNodeTreeReleaseLock(&h_List);
+    FmPcdCcNodeTreeReleaseLock(p_FmPcd, &h_List);
 
     switch (GET_ERROR_TYPE(err))
     {
@@ -6226,7 +6334,6 @@ t_Error FM_PCD_MatchTableFindNModifyKey(t_Handle h_CcNode,
     t_FmPcd         *p_FmPcd;
     t_FmPcdCcNode   *p_CcNode = (t_FmPcdCcNode *)h_CcNode;
     t_List          h_List;
-    uint32_t        intFlags;
     uint16_t        keyIndex;
     t_Error         err;
 
@@ -6239,9 +6346,7 @@ t_Error FM_PCD_MatchTableFindNModifyKey(t_Handle h_CcNode,
 
     INIT_LIST(&h_List);
 
-    intFlags = FmPcdLock(p_FmPcd);
     err = FmPcdCcNodeTreeTryLock(p_FmPcd, p_CcNode, &h_List);
-    FmPcdUnlock(p_FmPcd, intFlags);
     if (err)
     {
         DBG(TRACE, ("Node's trees lock failed"));
@@ -6251,7 +6356,7 @@ t_Error FM_PCD_MatchTableFindNModifyKey(t_Handle h_CcNode,
     err = FindKeyIndex(p_CcNode, keySize, p_Key, p_Mask, &keyIndex);
     if (GET_ERROR_TYPE(err) != E_OK)
     {
-        FmPcdCcNodeTreeReleaseLock(&h_List);
+        FmPcdCcNodeTreeReleaseLock(p_FmPcd, &h_List);
         RETURN_ERROR(MAJOR, err, ("The received key and mask pair was not found in the "
                                   "match table of the provided node"));
     }
@@ -6263,7 +6368,7 @@ t_Error FM_PCD_MatchTableFindNModifyKey(t_Handle h_CcNode,
                            p_NewKey,
                            p_NewMask);
 
-    FmPcdCcNodeTreeReleaseLock(&h_List);
+    FmPcdCcNodeTreeReleaseLock(p_FmPcd, &h_List);
 
     switch (GET_ERROR_TYPE(err))
     {
@@ -6344,7 +6449,7 @@ uint32_t FM_PCD_MatchTableGetKeyCounter(t_Handle h_CcNode, uint16_t keyIndex)
 
     /* The first counter is byte counter, so we need to advance to the next counter */
     frameCount = GET_UINT32(*(uint32_t *)(PTR_MOVE(p_StatsCounters,
-                                                   FM_PCD_CC_STATS_FLR_COUNT_SIZE)));
+                                                   FM_PCD_CC_STATS_COUNTER_SIZE)));
 
     XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
 
@@ -6472,6 +6577,15 @@ t_Handle FM_PCD_HashTableSet(t_Handle h_FmPcd, t_FmPcdHashTableParams *p_Param)
         return NULL;
     }
 
+#ifdef FM_EXP_FEATURES
+    if (p_Param->statisticsMode == e_FM_PCD_CC_STATS_MODE_RMON)
+    {
+        REPORT_ERROR(MAJOR, E_INVALID_VALUE,
+                     ("RMON statistics mode currently not supported for hash table"));
+        return NULL;
+    }
+#endif /* FM_EXP_FEATURES */
+
     p_ExactMatchCcNodeParam = (t_FmPcdCcNodeParams*)XX_Malloc(sizeof(t_FmPcdCcNodeParams));
     if (!p_ExactMatchCcNodeParam)
     {
@@ -6552,7 +6666,7 @@ t_Handle FM_PCD_HashTableSet(t_Handle h_FmPcd, t_FmPcdHashTableParams *p_Param)
 
     p_IndxHashCcNodeParam->keysParams.maxNumOfKeys   = numOfSets;
     p_IndxHashCcNodeParam->keysParams.maskSupport    = FALSE;
-    p_IndxHashCcNodeParam->keysParams.statisticsMode = p_Param->statisticsMode;
+    p_IndxHashCcNodeParam->keysParams.statisticsMode = e_FM_PCD_CC_STATS_MODE_NONE;
     p_IndxHashCcNodeParam->keysParams.numOfKeys      = numOfSets;      /* Number of keys of this node is number of sets of the hash */
     p_IndxHashCcNodeParam->keysParams.keySize        = 2;
 

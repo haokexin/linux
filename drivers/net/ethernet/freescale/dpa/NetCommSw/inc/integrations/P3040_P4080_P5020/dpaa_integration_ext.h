@@ -1,5 +1,5 @@
-/*
- * Copyright 2008-2012 Freescale Semiconductor Inc.
+/* Copyright (c) 2009-2012 Freescale Semiconductor, Inc
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -225,7 +225,6 @@ typedef enum
 
 /* p4080 unique features */
 #define FM_NO_DISPATCH_RAM_ECC
-#define FM_FIFO_ALLOCATION_OLD_ALG
 #define FM_NO_WATCHDOG
 #define FM_NO_TNUM_AGING
 #define FM_KG_NO_BYPASS_FQID_GEN

@@ -1,5 +1,5 @@
-/*
- * Copyright 2008-2012 Freescale Semiconductor Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc
+ * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,9 +30,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
-/**
-
+/**************************************************************************//**
  @File          part_integration_ext.h
 
  @Description   P1023 external definitions and structures.
@@ -41,9 +39,6 @@
 #define __PART_INTEGRATION_EXT_H
 
 #include "std_ext.h"
-#ifndef NCSW_LINUX
-#include "ddr_std_ext.h"
-#endif
 #include "dpaa_integration_ext.h"
 
 
@@ -384,20 +379,6 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
                             uint32_t    *p_DdrMulFactor,
                             uint32_t    *p_DdrDivFactor);
 
-
-/**************************************************************************//**
- @Function      P1023_GetDdrType
-
- @Description   returns the multiplication factor of the clock in for the DDR clock .
-
- @Param[in]     gutilBase       - Base address of P1023 GUTIL registers.
- @Param         p_DdrType   - (Out) returns DDR type DDR1/DDR2/DDR3.
-
- @Return        E_OK on success; Other value otherwise.
-*//***************************************************************************/
-#ifndef NCSW_LINUX
-t_Error P1023_GetDdrType(uintptr_t gutilBase, e_DdrType *p_DdrType );
-#endif
 
 
 /** @} */ /* end of 1023_init_grp group */

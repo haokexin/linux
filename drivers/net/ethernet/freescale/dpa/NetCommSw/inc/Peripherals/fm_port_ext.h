@@ -137,9 +137,9 @@ typedef uint32_t    fmPortFrameErrSelect_t;                         /**< typedef
                                                                                     was chained to FM */
 #endif /* FM_DISABLE_SEC_ERRORS */
 
-#define FM_PORT_FRM_ERR_IPRE                    (FM_FD_ERR_IPR & ~FM_FD_IPR)    /**< IPR error */
-#define FM_PORT_FRM_ERR_IPR_TO                  (FM_FD_ERR_IPR_TO & ~FM_FD_IPR) /**< IPR timeout */
-#define FM_PORT_FRM_ERR_IPFE                    FM_FD_ERR_IPF                   /**< IPF error */
+#define FM_PORT_FRM_ERR_IPRE                    (FM_FD_ERR_IPR & ~FM_FD_IPR)        /**< IPR error */
+#define FM_PORT_FRM_ERR_IPR_NCSP                (FM_FD_ERR_IPR_NCSP & ~FM_FD_IPR)   /**< IPR non-consistent-sp */
+#define FM_PORT_FRM_ERR_IPFE                    FM_FD_ERR_IPF                       /**< IPF error */
 
 #ifdef FM_CAPWAP_SUPPORT
 #define FM_PORT_FRM_ERR_CRE                     FM_FD_ERR_CRE
@@ -2123,9 +2123,11 @@ t_Error FM_PORT_PcdKgUnbindSchemes (t_Handle h_FmPort, t_FmPcdPortSchemesParams 
 *//***************************************************************************/
 t_Error FM_PORT_PcdPrsModifyStartOffset (t_Handle h_FmPort, t_FmPcdPrsStart *p_FmPcdPrsStart);
 
-#ifdef ALU_CUSTOM
+#if (DPAA_VERSION >= 11)
+#ifdef FM_EXP_FEATURES
 t_Error FM_PORT_GetIPv4OptionsCount(t_Handle h_FmPort, uint32_t *p_Ipv4OptionsCount);
-#endif /* ALU_CUSTOM */
+#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
 
 /** @} */ /* end of FM_PORT_pcd_runtime_control_grp group */
 /** @} */ /* end of FM_PORT_runtime_control_grp group */

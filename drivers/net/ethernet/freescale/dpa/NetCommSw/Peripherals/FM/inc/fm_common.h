@@ -777,6 +777,7 @@ uint32_t    FmPcdManipGetRequiredAction (t_Handle h_Manip);
 /*          Common API for FM-Port module                            */
 /***********************************************************************/
 #if (DPAA_VERSION >= 11)
+#ifdef FM_EXP_FEATURES
 typedef enum e_FmPortGprFuncType
 {
     e_FM_PORT_GPR_EMPTY = 0,
@@ -784,7 +785,8 @@ typedef enum e_FmPortGprFuncType
 } e_FmPortGprFuncType;
 
 t_Error     FmPortSetGprFunc(t_Handle h_FmPort, e_FmPortGprFuncType gprFunc, void **p_Value);
-#endif /* DPAA_VERSION >= 11) */
+#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
 t_Error     FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_FmPortGetSetCcParams);
 uint8_t     FmPortGetNetEnvId(t_Handle h_FmPort);
 uint8_t     FmPortGetHardwarePortId(t_Handle h_FmPort);

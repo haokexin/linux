@@ -552,6 +552,8 @@ void        FmPcdCcGetAdTablesThatPointOnReplicGroup(t_Handle   h_Node,
 void EnqueueNodeInfoToRelevantLst(t_List *p_List, t_CcNodeInformation *p_CcInfo, t_Handle h_Spinlock);
 void DequeueNodeInfoFromRelevantLst(t_List *p_List, t_Handle h_Info, t_Handle h_Spinlock);
 t_CcNodeInformation* FindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info, t_Handle h_Spinlock);
+t_List *FmPcdManipGetSpinlock(t_Handle h_Manip);
+t_List *FmPcdManipGetNodeLstPointedOnThisManip(t_Handle h_Manip);
 
 
 void NextStepAd(t_Handle                     h_Ad,
