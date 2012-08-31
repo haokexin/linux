@@ -626,7 +626,6 @@ static t_Error TgecResetCounters (t_Handle h_Tgec)
     t_Tgec          *p_Tgec = (t_Tgec *)h_Tgec;
     t_TgecMemMap    *p_MemMap;
     uint32_t        tmpReg32;
-    int             i = 1000;
 
     SANITY_CHECK_RETURN_ERROR(p_Tgec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Tgec->p_MemMap, E_INVALID_HANDLE);
@@ -639,10 +638,7 @@ static t_Error TgecResetCounters (t_Handle h_Tgec)
 
     WRITE_UINT32(p_MemMap->command_config, tmpReg32);
 
-    while (--i && (GET_UINT32(p_MemMap->command_config) & CMD_CFG_STAT_CLR));
-
-    if (!i)
-        return E_TIMEOUT;
+    while (GET_UINT32(p_MemMap->command_config) & CMD_CFG_STAT_CLR) ;
 
     return E_OK;
 }

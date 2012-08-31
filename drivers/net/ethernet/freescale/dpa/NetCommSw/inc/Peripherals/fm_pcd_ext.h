@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc.
+/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -98,7 +98,12 @@
 #define FM_PCD_SW_PRS_SIZE                          0x00000800          /**< Total size of SW parser area */
 #define FM_PCD_PRS_SW_OFFSET                        0x00000040          /**< Size of illegal addresses at the beginning
                                                                              of the SW parser area */
+#if (DPAA_VERSION >= 11)
+#define FM_PCD_PRS_SW_PATCHES_SIZE                  0x00000240          /**< Number of bytes saved for patches */
+#else
 #define FM_PCD_PRS_SW_PATCHES_SIZE                  0x00000200          /**< Number of bytes saved for patches */
+#endif /* (DPAA_VERSION >= 11) */
+
 #define FM_PCD_PRS_SW_TAIL_SIZE                     4                   /**< Number of bytes that must be cleared at
                                                                              the end of the SW parser area */
 #define FM_SW_PRS_MAX_IMAGE_SIZE                    (FM_PCD_SW_PRS_SIZE-FM_PCD_PRS_SW_OFFSET-FM_PCD_PRS_SW_TAIL_SIZE-FM_PCD_PRS_SW_PATCHES_SIZE)
@@ -234,12 +239,17 @@ typedef struct t_FmPcdParams {
     uint8_t                     numOfSchemes;           /**< Number of schemes dedicated to this partition.
                                                              this parameter is relevant if 'kgSupport'=TRUE. */
     bool                        useHostCommand;         /**< Optional for single partition, Mandatory for Multi partition */
-    t_FmPcdHcParams             hc;                     /**< Host Command parameters, relevant only if 'useHostCommand' = TRUE. */
-    t_FmPcdExceptionCallback    *f_Exception;           /**< Callback routine for general PCD exceptions. */
+    t_FmPcdHcParams             hc;                     /**< Host Command parameters, relevant only if 'useHostCommand' = TRUE.
+                                                         */
+
+    t_FmPcdExceptionCallback    *f_Exception;           /**< Callback routine for general PCD exceptions.
+                                                         */
     t_FmPcdIdExceptionCallback  *f_ExceptionId;         /**< Callback routine for specific KeyGen scheme or
-                                                             Policer profile exceptions. */
+                                                             Policer profile exceptions.
+                                                         */
     t_Handle                    h_App;                  /**< A handle to an application layer object; This handle will
-                                                             be passed by the driver upon calling the above callbacks. */
+                                                             be passed by the driver upon calling the above callbacks.
+                                                         */
     uint8_t                     partPlcrProfilesBase;   /**< The first policer-profile-id dedicated to this partition.
                                                              this parameter is relevant if 'plcrSupport'=TRUE.
                                                              NOTE: this parameter relevant only when working with multiple partitions. */
@@ -1165,7 +1175,9 @@ typedef enum e_FmPcdCcStatsMode {
     e_FM_PCD_CC_STATS_MODE_NONE = 0,        /**< No statistics support */
     e_FM_PCD_CC_STATS_MODE_FRAME,           /**< Frame count statistics */
     e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME,  /**< Byte and frame count statistics */
+#ifdef FM_EXP_FEATURES
     e_FM_PCD_CC_STATS_MODE_RMON,            /**< Byte and frame length range count statistics */
+#endif /* FM_EXP_FEATURES */
 } e_FmPcdCcStatsMode;
 
 /**************************************************************************//**
@@ -1628,11 +1640,13 @@ typedef struct t_FmPcdKgSchemeParams {
 } t_FmPcdKgSchemeParams;
 
 /**************************************************************************//**
- @Collection
+ @Collection    Definitions for CC statistics
 *//***************************************************************************/
+#ifdef FM_EXP_FEATURES
 #define FM_PCD_CC_STATS_MAX_NUM_OF_FLR      10  /* Maximal supported number of frame length ranges */
 #define FM_PCD_CC_STATS_FLR_SIZE            2   /* Size in bytes of a frame length range limit */
-#define FM_PCD_CC_STATS_FLR_COUNT_SIZE      4   /* Size in bytes of a frame length range counter */
+#endif /* FM_EXP_FEATURES */
+#define FM_PCD_CC_STATS_COUNTER_SIZE        4   /* Size in bytes of a frame length range counter */
 /* @} */
 
 /**************************************************************************//**
@@ -1728,9 +1742,11 @@ typedef struct t_FmPcdCcNextEngineParams {
         t_FmPcdCcNextFrParams           frParams;       /**< Parameters in case next engine is FR */
 #endif /* (DPAA_VERSION >= 11) */
     } params;                                           /**< union used for all the next-engine parameters options */
+
     t_Handle                            h_Manip;        /**< Handle to Manipulation object.
                                                              Relevant if next engine is of type result
                                                              (e_FM_PCD_PLCR, e_FM_PCD_KG, e_FM_PCD_DONE) */
+
     bool                                statisticsEn;   /**< If TRUE, statistics counters are incremented
                                                              for each frame passing through this
                                                              Coarse Classification entry. */
@@ -1745,7 +1761,12 @@ typedef struct t_FmPcdCcKeyParams {
     uint8_t                     *p_Mask;    /**< Relevant only if 'action' = e_FM_PCD_ACTION_EXACT_MATCH;
                                                  pointer to the Mask per key  of the size defined
                                                  in keySize. p_Key and p_Mask (if defined) has to be
-                                                 of the same size defined in the keySize */
+                                                 of the same size defined in the keySize;
+                                                 NOTE that if this value is equal for all entries whithin
+                                                 this table, the driver will automatically use global-mask
+                                                 (i.e. one common mask for all entries) instead of private
+                                                 one; that is done in order to spare some memory and for
+                                                 better performance. */
     t_FmPcdCcNextEngineParams   ccNextEngineParams;
                                             /**< parameters for the next for the defined Key in
                                                  the p_Key */
@@ -1779,13 +1800,15 @@ typedef struct t_KeysParams {
                                                      Should be TRUE to reserve table memory for key masks, even if
                                                      initial keys do not contain masks, or if the node was initialized
                                                      as 'empty' (without keys); this will allow user to add keys with
-                                                     masks at runtime. */
+                                                     masks at runtime.
+                                                     NOTE that if user want to use only global-masks (i.e. one common mask
+                                                     for all the entries within this table, this parameter should set to 'FALSE'. */
     e_FmPcdCcStatsMode          statisticsMode; /**< If not e_FM_PCD_CC_STATS_MODE_NONE, the required structures for
                                                      the requested statistics mode will be allocated according to
                                                      'maxNumOfKeys'. */
+#ifdef FM_EXP_FEATURES
     uint16_t                    frameLengthRanges[FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
-                                                /**< Relevant only for 'e_FM_PCD_CC_STATS_MODE_RMON' statistics
-                                                     mode.
+                                                /**< Relevant only for 'e_FM_PCD_CC_STATS_MODE_RMON' statistics mode.
                                                      Holds a list of programmable thresholds. For each received frame,
                                                      its length in bytes is examined against these range thresholds and
                                                      the appropriate counter is incremented by 1. For example, to belong
@@ -1793,7 +1816,7 @@ typedef struct t_KeysParams {
                                                      range i-1 threshold < frame length <= range i threshold
                                                      Each range threshold must be larger then its preceding range
                                                      threshold. Last range threshold must be 0xFFFF. */
-
+#endif /* FM_EXP_FEATURES */
     uint16_t                    numOfKeys;      /**< Number of initial keys;
                                                      Note that in case of 'action' = e_FM_PCD_ACTION_INDEXED_LOOKUP,
                                                      this field should be power-of-2 of the number of bits that are
@@ -1881,12 +1904,16 @@ typedef struct t_FmPcdCcTreeParams {
                                                         /**< Parameters for each group. */
 } t_FmPcdCcTreeParams;
 
+
 /**************************************************************************//**
  @Description   CC key statistics structure
 *//***************************************************************************/
 typedef struct t_FmPcdCcKeyStatistics {
     uint32_t    byteCount;      /**< This counter reflects byte count of frames that
                                      were matched this key. */
+    uint32_t    frameCount;     /**< This counter reflects count of frames that
+                                     were matched this key. */
+#ifdef FM_EXP_FEATURES
     uint32_t    frameLengthRangeCount[FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
                                 /**< These counters reflect how many frames passed that
                                      were matched this key.
@@ -1898,8 +1925,8 @@ typedef struct t_FmPcdCcKeyStatistics {
                                      For 'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME'
                                      statistics mode:
                                      The first counter holds the number of frames that
-                                     were matched to this key.
-                                   */
+                                     were matched to this key. */
+#endif /* FM_EXP_FEATURES */
 } t_FmPcdCcKeyStatistics;
 
 /**************************************************************************//**
@@ -2115,12 +2142,11 @@ typedef struct t_FmPcdManipFragIpParams {
     e_FmPcdManipDontFragAction  dontFragAction;         /**< Don't Fragment Action - If an IP packet is larger
                                                              than MTU and its DF bit is set, then this field will
                                                              determine the action to be taken.*/
-#ifdef ALU_CUSTOM
+#ifdef FM_EXP_FEATURES
     bool                        optionsCounterEn;       /**< If TRUE, A counter is incremented each time an IPv4 frame with IPv4 Options
                                                              is encountered and the COPIED flag on one of the options is cleared.
                                                              The counter is located on the port page */
-#endif /* ALU_CUSTOM */
-
+#endif /* FM_EXP_FEATURES */
 } t_FmPcdManipFragIpParams;
 
 /**************************************************************************//**
@@ -2434,6 +2460,7 @@ typedef struct t_FmPcdManipParams {
         t_FmPcdManipFragParams              frag;               /**< Parameters for defining fragmentation manipulation node */
         t_FmPcdManipSpecialOffloadParams    specialOffload;     /**< Parameters for defining special offload manipulation node */
     } u;
+
     t_Handle                                h_NextManip;        /**< Handle to another (previously defined) manipulation node;
                                                                      Allows concatenation of manipulation actions;
                                                                      This parameter is optional and may be NULL. */
@@ -3353,6 +3380,20 @@ t_Error  FM_PCD_ManipNodeDelete(t_Handle h_ManipNode);
  @Cautions      Allowed only following FM_PCD_ManipNodeSet().
 *//***************************************************************************/
 t_Error FM_PCD_ManipGetStatistics(t_Handle h_ManipNode, t_FmPcdManipStats *p_FmPcdManipStats);
+
+/**************************************************************************//**
+ @Function      FM_PCD_ManipNodeReplace
+
+ @Description   Change existing manipulation node to be according to new requirement.
+
+ @Param[in]     h_ManipNode         A handle to a manipulation node.
+ @Param[out]    p_ManipParams       A structure of parameters defining the change requirement
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_ManipNodeSet().
+*//***************************************************************************/
+t_Error FM_PCD_ManipNodeReplace(t_Handle h_ManipNode, t_FmPcdManipParams *p_ManipParams);
 
 #if (DPAA_VERSION >= 11)
 /**************************************************************************//**

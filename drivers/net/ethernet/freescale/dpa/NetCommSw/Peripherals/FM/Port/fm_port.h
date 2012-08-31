@@ -171,11 +171,12 @@ typedef uint32_t fmPcdEngines_t; /**< options as defined below: */
 /***********************************************************************/
 /*          SW parser IP-fragmentation labels (offsets)                */
 /***********************************************************************/
-#define IP_FRAG_SW_PATCH_IPv4_LABEL             0x300
 #if (DPAA_VERSION == 10)
+#define IP_FRAG_SW_PATCH_IPv4_LABEL             0x300
 #define IP_FRAG_SW_PATCH_IPv4_SIZE              0x025
 #else
-#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x031
+#define IP_FRAG_SW_PATCH_IPv4_LABEL             0x2E0
+#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x047
 #endif /* (DPAA_VERSION == 10) */
 #define IP_FRAG_SW_PATCH_IPv6_LABEL             \
     (IP_FRAG_SW_PATCH_IPv4_LABEL + IP_FRAG_SW_PATCH_IPv4_SIZE)
@@ -523,17 +524,18 @@ typedef _Packed struct
                                                  FM_PORT_FRM_ERR_BLOCK_LIMIT_EXCEEDED   | \
                                                  FM_PORT_FRM_ERR_PRS_HDR_ERR            | \
                                                  FM_PORT_FRM_ERR_KEYSIZE_OVERFLOW       | \
-                                                 FM_PORT_FRM_ERR_IPRE                   | \
-                                                 FM_PORT_FRM_ERR_IPFE)
+                                                 FM_PORT_FRM_ERR_IPRE)
 
 #ifdef FM_DISABLE_SEC_ERRORS
 #define OP_ERRS_TO_ENQ                          (RX_ERRS_TO_ENQ                         | \
+                                                 FM_PORT_FRM_ERR_IPFE                   | \
                                                  FM_PORT_FRM_ERR_LENGTH                 | \
                                                  FM_PORT_FRM_ERR_NON_FM                 | \
                                                  FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT)
 
 #else
 #define OP_ERRS_TO_ENQ                          (RX_ERRS_TO_ENQ                         | \
+                                                 FM_PORT_FRM_ERR_IPFE                   | \
                                                  FM_PORT_FRM_ERR_LENGTH                 | \
                                                  FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT)
 #endif /* FM_DISABLE_SEC_ERRORS */
@@ -737,9 +739,9 @@ typedef _Packed struct
 /**************************************************************************//**
  @Description       Additional defines
 *//***************************************************************************/
-#ifdef ALU_CUSTOM
+#ifdef FM_EXP_FEATURES
 #define IPF_OPTIONS_COUNT_OFFSET                0x30
-#endif /* ALU_CUSTOM */
+#endif /* FM_EXP_FEATURES */
 
 typedef struct {
     t_Handle                    h_FmMuram;
@@ -884,9 +886,11 @@ typedef struct {
     t_Handle                    h_IpReassemblyTree;
     uint64_t                    fmMuramPhysBaseAddr;
 #if (DPAA_VERSION >= 11)
+#ifdef FM_EXP_FEATURES
     bool                        vspe;
     e_FmPortGprFuncType         gprFunc;
     void                        *p_MuramPage;
+#endif /* FM_EXP_FEATURES */
 #endif /* (DPAA_VERSION >= 11) */
 
     t_FmPortDriverParam         *p_FmPortDriverParam;

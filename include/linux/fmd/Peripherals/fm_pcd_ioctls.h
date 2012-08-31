@@ -1370,9 +1370,9 @@ typedef struct ioc_keys_params_t {
                                                      masks at runtime. */
     ioc_fm_pcd_cc_stats_mode    statistics_mode;/**< If not e_IOC_FM_PCD_CC_STATS_MODE_NONE, the required structures for
                                                      the requested statistics mode will be allocated according to 'max_num_of_keys'. */
+#ifdef FM_EXP_FEATURES
     uint16_t                    frame_length_ranges[IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
-                                                /**< Relevant only for 'e_IOC_FM_PCD_CC_STATS_MODE_RMON' statistics
-                                                     mode.
+                                                /**< Relevant only for 'e_IOC_FM_PCD_CC_STATS_MODE_RMON' statistics mode.
                                                      Holds a list of programmable thresholds. For each received frame,
                                                      its length in bytes is examined against these range thresholds and
                                                      the appropriate counter is incremented by 1. For example, to belong
@@ -1380,6 +1380,7 @@ typedef struct ioc_keys_params_t {
                                                      range i-1 threshold < frame length <= range i threshold
                                                      Each range threshold must be larger then its preceding range
                                                      threshold. Last range threshold must be 0xFFFF. */
+#endif /* FM_EXP_FEATURES */
     uint16_t                    num_of_keys;    /**< Number of initial keys;
                                                      Note that in case of 'action' = e_IOC_FM_PCD_ACTION_INDEXED_LOOKUP,
                                                      this field should be power-of-2 of the number of bits that are
@@ -1513,10 +1514,10 @@ typedef union ioc_fm_pcd_plcr_next_engine_params_u {
         void                       *p_direct_scheme;    /**< Direct scheme select - when next engine is Keygen */
 } ioc_fm_pcd_plcr_next_engine_params_u;
 
-typedef struct fm_pcd_port_params_t {
+typedef struct ioc_fm_pcd_port_params_t {
     ioc_fm_port_type                    port_type;          /**< Type of port for this profile */
     uint8_t                             port_id;            /**< FM-Port id of port for this profile */
-} fm_pcd_port_params_t;
+} ioc_fm_pcd_port_params_t;
 
 /**************************************************************************//**
  @Description   Parameters for defining the policer profile entry
@@ -1527,7 +1528,7 @@ typedef struct ioc_fm_pcd_plcr_profile_params_t {
     union {
         struct {
             ioc_fm_pcd_profile_type_selection   profile_type;               /**< Type of policer profile */
-            void                               *p_port;                     /**< Relevant for per-port profiles only */
+            ioc_fm_pcd_port_params_t            *p_fm_port;                 /**< Relevant for per-port profiles only */
             uint16_t                            relative_profile_id;        /**< Profile id - relative to shared group or to port */
         } new_params;                                                       /**< Use it when modify = FALSE */
         void                                    *p_profile;                 /**< A handle to a profile - use it when modify=TRUE */
@@ -1676,11 +1677,11 @@ typedef struct ioc_fm_pcd_manip_frag_ip_params_t {
     ioc_fm_pcd_manip_dont_frag_action  dont_frag_action;    /**< Dont Fragment Action - If an IP packet is larger
                                                                  than MTU and its DF bit is set, then this field will
                                                                  determine the action to be taken.*/
-#ifdef ALU_CUSTOM
+#ifdef FM_EXP_FEATURES
     bool                        options_counter_en;         /**< If TRUE, A counter is incremented each time an IPv4 frame with IPv4 Options
                                                                  is encountered and the COPIED flag on one of the options is cleared.
                                                                  The counter is located on the port page */
-#endif /* ALU_CUSTOM */
+#endif /* FM_EXP_FEATURES */
 } ioc_fm_pcd_manip_frag_ip_params_t;
 
 /**************************************************************************//**
@@ -1997,9 +1998,9 @@ typedef struct ioc_fm_pcd_manip_params_t {
         ioc_fm_pcd_manip_frag_params_t              frag;   /**< Parameters for defining fragmentation manipulation node */
         ioc_fm_pcd_manip_special_offload_params_t   special_offload;/**< Parameters for defining special offload manipulation node */
     } u;
-    void*                                           p_next_manip;/**< Handle to another (previously defined) manipulation node;
-                                                                      Allows concatenation of manipulation actions
-                                                                      This parameter is optional and may be NULL. */
+    void                                            *p_next_manip;/**< Handle to another (previously defined) manipulation node;
+                                                                 Allows concatenation of manipulation actions
+                                                                 This parameter is optional and may be NULL. */
 #ifdef FM_CAPWAP_SUPPORT
 #error "FM_CAPWAP_SUPPORT feature not supported!"
     bool                                            frag_or_reasm;/**< TRUE, if defined fragmentation/reassembly manipulation */
@@ -2129,11 +2130,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_NET_ENV_CHARACTERISTICS_SET_COMPAT   _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(20), ioc_compat_fm_pcd_net_env_params_t)
-#define FM_PCD_IOC_SET_NET_ENV_CHARACTERISTICS_COMPAT   FM_PCD_IOC_NET_ENV_CHARACTERISTICS_SET_COMPAT
-
 #endif
 #define FM_PCD_IOC_NET_ENV_CHARACTERISTICS_SET  _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(20), ioc_fm_pcd_net_env_params_t)
-#define FM_PCD_IOC_SET_NET_ENV_CHARACTERISTICS  FM_PCD_IOC_NET_ENV_CHARACTERISTICS_SET
 
 /**************************************************************************//**
  @Function      FM_PCD_NetEnvCharacteristicsDelete
@@ -2146,10 +2144,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_NET_ENV_CHARACTERISTICS_DELETE_COMPAT  _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(21), ioc_compat_fm_obj_t)
-#define FM_PCD_IOC_DELETE_NET_ENV_CHARACTERISTICS_COMPAT  FM_PCD_IOC_NET_ENV_CHARACTERISTICS_DELETE_COMPAT
 #endif
 #define FM_PCD_IOC_NET_ENV_CHARACTERISTICS_DELETE   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(21), ioc_fm_obj_t)
-#define FM_PCD_IOC_DELETE_NET_ENV_CHARACTERISTICS   FM_PCD_IOC_NET_ENV_CHARACTERISTICS_DELETE
 
 /**************************************************************************//**
  @Function      FM_PCD_KgSchemeSet
@@ -2167,10 +2163,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_KG_SCHEME_SET_COMPAT     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(24), ioc_compat_fm_pcd_kg_scheme_params_t)
-#define FM_PCD_IOC_KG_SET_SCHEME_COMPAT     FM_PCD_IOC_KG_SCHEME_SET_COMPAT
 #endif
 #define FM_PCD_IOC_KG_SCHEME_SET    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(24), ioc_fm_pcd_kg_scheme_params_t)
-#define FM_PCD_IOC_KG_SET_SCHEME    FM_PCD_IOC_KG_SCHEME_SET
 
 /**************************************************************************//**
  @Function      FM_PCD_KgSchemeDelete
@@ -2183,10 +2177,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_KG_SCHEME_DELETE_COMPAT  _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(25), ioc_compat_fm_obj_t)
-#define FM_PCD_IOC_KG_DEL_SCHEME_COMPAT     FM_PCD_IOC_KG_SCHEME_DELETE_COMPAT
 #endif
 #define FM_PCD_IOC_KG_SCHEME_DELETE     _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(25), ioc_fm_obj_t)
-#define FM_PCD_IOC_KG_DEL_SCHEME        FM_PCD_IOC_KG_SCHEME_DELETE
 
 /**************************************************************************//**
  @Function      FM_PCD_CcRootBuild
@@ -2203,11 +2195,9 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 #if defined(CONFIG_COMPAT)
 //#define FM_PCD_IOC_CC_BUILD_TREE_COMPAT    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(26), ioc_compat_fm_pcd_cc_tree_params_t)
 #define FM_PCD_IOC_CC_ROOT_BUILD_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(26), compat_uptr_t)
-#define FM_PCD_IOC_CC_BUILD_TREE_COMPAT FM_PCD_IOC_CC_ROOT_BUILD_COMPAT
 #endif
 //#define FM_PCD_IOC_CC_BUILD_TREE    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(26), ioc_fm_pcd_cc_tree_params_t)
 #define FM_PCD_IOC_CC_ROOT_BUILD    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(26), void *) /* workaround ...*/
-#define FM_PCD_IOC_CC_BUILD_TREE    FM_PCD_IOC_CC_ROOT_BUILD
 
 /**************************************************************************//**
  @Function      FM_PCD_CcRootDelete
@@ -2218,10 +2208,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_CC_ROOT_DELETE_COMPAT    _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(27), ioc_compat_fm_obj_t)
-#define FM_PCD_IOC_CC_DELETE_TREE_COMPAT    FM_PCD_IOC_CC_ROOT_DELETE_COMPAT
 #endif
 #define FM_PCD_IOC_CC_ROOT_DELETE    _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(27), ioc_fm_obj_t)
-#define FM_PCD_IOC_CC_DELETE_TREE    FM_PCD_IOC_CC_ROOT_DELETE
 
 /**************************************************************************//**
  @Function      FM_PCD_MatchTableSet
@@ -2251,10 +2239,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MATCH_TABLE_DELETE_COMPAT    _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(29), ioc_compat_fm_obj_t)
-#define FM_PCD_IOC_CC_DELETE_NODE_COMPAT        FM_PCD_IOC_MATCH_TABLE_DELETE_COMPAT
 #endif
 #define FM_PCD_IOC_MATCH_TABLE_DELETE   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(29), ioc_fm_obj_t)
-#define FM_PCD_IOC_CC_DELETE_NODE       FM_PCD_IOC_MATCH_TABLE_DELETE
 
 /**************************************************************************//**
  @Function      FM_PCD_CcRootModifyNextEngine
@@ -2269,10 +2255,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_CC_ROOT_MODIFY_NEXT_ENGINE_COMPAT   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(30), ioc_compat_fm_pcd_cc_tree_modify_next_engine_params_t)
-#define FM_PCD_IOC_CC_TREE_MODIFY_NEXT_ENGINE_COMPAT    FM_PCD_IOC_CC_ROOT_MODIFY_NEXT_ENGINE_COMPAT
 #endif
 #define FM_PCD_IOC_CC_ROOT_MODIFY_NEXT_ENGINE   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(30), ioc_fm_pcd_cc_tree_modify_next_engine_params_t)
-#define FM_PCD_IOC_CC_TREE_MODIFY_NEXT_ENGINE   FM_PCD_IOC_CC_ROOT_MODIFY_NEXT_ENGINE
 
 /**************************************************************************//**
  @Function      FM_PCD_MatchTableModifyNextEngine
@@ -2287,10 +2271,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_NEXT_ENGINE_COMPAT   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(31), ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_NEXT_ENGINE_COMPAT       FM_PCD_IOC_MATCH_TABLE_MODIFY_NEXT_ENGINE_COMPAT
 #endif
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_NEXT_ENGINE   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(31), ioc_fm_pcd_cc_node_modify_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_NEXT_ENGINE       FM_PCD_IOC_MATCH_TABLE_MODIFY_NEXT_ENGINE
 
 /**************************************************************************//**
  @Function      FM_PCD_MatchTableModifyMissNextEngine
@@ -2305,10 +2287,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_MISS_NEXT_ENGINE_COMPAT   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(32), ioc_compat_fm_pcd_cc_node_modify_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_MISS_NEXT_ENGINE_COMPAT      FM_PCD_IOC_MATCH_TABLE_MODIFY_MISS_NEXT_ENGINE_COMPAT
 #endif
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_MISS_NEXT_ENGINE _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(32), ioc_fm_pcd_cc_node_modify_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_MISS_NEXT_ENGINE      FM_PCD_IOC_MATCH_TABLE_MODIFY_MISS_NEXT_ENGINE
 
 /**************************************************************************//**
  @Function      FM_PCD_MatchTableRemoveKey
@@ -2325,10 +2305,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MATCH_TABLE_REMOVE_KEY_COMPAT    _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(33), ioc_compat_fm_pcd_cc_node_remove_key_params_t)
-#define FM_PCD_IOC_CC_NODE_REMOVE_KEY_COMPAT    FM_PCD_IOC_MATCH_TABLE_REMOVE_KEY_COMPAT
 #endif
 #define FM_PCD_IOC_MATCH_TABLE_REMOVE_KEY   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(33), ioc_fm_pcd_cc_node_remove_key_params_t)
-#define FM_PCD_IOC_CC_NODE_REMOVE_KEY       FM_PCD_IOC_MATCH_TABLE_REMOVE_KEY
 
 /**************************************************************************//**
  @Function      FM_PCD_MatchTableAddKey
@@ -2348,11 +2326,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MATCH_TABLE_ADD_KEY_COMPAT   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(34), ioc_compat_fm_pcd_cc_node_modify_key_and_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_ADD_KEY_COMPAT       FM_PCD_IOC_MATCH_TABLE_ADD_KEY_COMPAT
 #endif
 #define FM_PCD_IOC_MATCH_TABLE_ADD_KEY  _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(34), ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_ADD_KEY      FM_PCD_IOC_MATCH_TABLE_ADD_KEY
-
 
 /**************************************************************************//**
  @Function      FM_PCD_MatchTableModifyKeyAndNextEngine
@@ -2368,10 +2343,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_AND_NEXT_ENGINE_COMPAT    _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(35), ioc_compat_fm_pcd_cc_node_modify_key_and_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_KEY_AND_NEXT_ENGINE_COMPAT        FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_AND_NEXT_ENGINE_COMPAT
 #endif
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_AND_NEXT_ENGINE   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(35), ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_KEY_AND_NEXT_ENGINE       FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_AND_NEXT_ENGINE
 
 /**************************************************************************//**
  @Function      FM_PCD_MatchTableModifyKey
@@ -2387,10 +2360,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_COMPAT    _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(36), ioc_compat_fm_pcd_cc_node_modify_key_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_KEY_COMPAT        FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_COMPAT
 #endif
 #define FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY   _IOW(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(36), ioc_fm_pcd_cc_node_modify_key_params_t)
-#define FM_PCD_IOC_CC_NODE_MODIFY_KEY       FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY
 
 /**************************************************************************//**
  @Function      FM_PCD_HashTableSet
@@ -2486,11 +2457,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_PLCR_PROFILE_SET_COMPAT     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(41), ioc_compat_fm_pcd_plcr_profile_params_t)
-#define FM_PCD_IOC_PLCR_SET_PROFILE_COMPAT     FM_PCD_IOC_PLCR_PROFILE_SET_COMPAT
 #endif
 #define FM_PCD_IOC_PLCR_PROFILE_SET     _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(41), ioc_fm_pcd_plcr_profile_params_t)
-#define FM_PCD_IOC_PLCR_SET_PROFILE     FM_PCD_IOC_PLCR_PROFILE_SET
-
 
 /**************************************************************************//**
  @Function      FM_PCD_PlcrProfileDelete
@@ -2504,10 +2472,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_PLCR_PROFILE_DELETE_COMPAT   _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(42), ioc_compat_fm_obj_t)
-#define FM_PCD_IOC_PLCR_DEL_PROFILE_COMPAT      FM_PCD_IOC_PLCR_PROFILE_DELETE_COMPAT
 #endif
 #define FM_PCD_IOC_PLCR_PROFILE_DELETE  _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(42), ioc_fm_obj_t)
-#define FM_PCD_IOC_PLCR_DEL_PROFILE     FM_PCD_IOC_PLCR_PROFILE_DELETE
 
 /**************************************************************************//**
  @Function      FM_PCD_ManipNodeSet
@@ -2522,11 +2488,28 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MANIP_NODE_SET_COMPAT    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(43), ioc_compat_fm_pcd_manip_params_t)
-#define FM_PCD_IOC_MANIP_SET_NODE_COMPAT    FM_PCD_IOC_MANIP_NODE_SET_COMPAT
 #endif
 #define FM_PCD_IOC_MANIP_NODE_SET   _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(43), ioc_fm_pcd_manip_params_t)
-#define FM_PCD_IOC_MANIP_SET_NODE   FM_PCD_IOC_MANIP_NODE_SET
 
+/**************************************************************************//**
+ @Function      FM_PCD_ManipNodeReplace
+
+ @Description   Change existing manipulation node to be according to new requirement.
+                (Here, it's implemented as a variant of the same IOCTL as for
+                FM_PCD_ManipNodeSet(), and one that when called, the 'id' member
+                in its 'ioc_fm_pcd_manip_params_t' argument is set to contain
+                the manip node's handle)
+
+ @Param[in]     ioc_fm_pcd_manip_params_t - A structure of parameters defining the manipulation
+
+ @Return        0 on success; error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_ManipNodeSet().
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_MANIP_NODE_REPLACE_COMPAT    FM_PCD_IOC_MANIP_NODE_SET_COMPAT
+#endif
+#define FM_PCD_IOC_MANIP_NODE_REPLACE           FM_PCD_IOC_MANIP_NODE_SET
 
 /**************************************************************************//**
  @Function      FM_PCD_ManipNodeDelete
@@ -2541,10 +2524,8 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 *//***************************************************************************/
 #if defined(CONFIG_COMPAT)
 #define FM_PCD_IOC_MANIP_NODE_DELETE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(44), ioc_compat_fm_obj_t)
-#define FM_PCD_IOC_MANIP_DELETE_NODE_COMPAT FM_PCD_IOC_MANIP_NODE_DELETE_COMPAT
 #endif
 #define FM_PCD_IOC_MANIP_NODE_DELETE    _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(44), ioc_fm_obj_t)
-#define FM_PCD_IOC_MANIP_DELETE_NODE    FM_PCD_IOC_MANIP_NODE_DELETE
 
 /**************************************************************************//**
 @Function      FM_PCD_SetAdvancedOffloadSupport
@@ -2577,6 +2558,56 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 #define FM_PCD_IOC_STATISTICS_SET_NODE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(45), void *)
 
 #endif /* FM_CAPWAP_SUPPORT */
+
+#ifdef NCSW_BACKWARD_COMPATIBLE_API
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_SET_NET_ENV_CHARACTERISTICS_COMPAT \
+                                                FM_PCD_IOC_NET_ENV_CHARACTERISTICS_SET_COMPAT
+#define FM_PCD_IOC_DELETE_NET_ENV_CHARACTERISTICS_COMPAT \
+                                                FM_PCD_IOC_NET_ENV_CHARACTERISTICS_DELETE_COMPAT
+#define FM_PCD_IOC_KG_SET_SCHEME_COMPAT         FM_PCD_IOC_KG_SCHEME_SET_COMPAT
+#define FM_PCD_IOC_KG_DEL_SCHEME_COMPAT         FM_PCD_IOC_KG_SCHEME_DELETE_COMPAT
+#define FM_PCD_IOC_CC_BUILD_TREE_COMPAT         FM_PCD_IOC_CC_ROOT_BUILD_COMPAT
+#define FM_PCD_IOC_CC_DELETE_TREE_COMPAT        FM_PCD_IOC_CC_ROOT_DELETE_COMPAT
+#define FM_PCD_IOC_CC_DELETE_NODE_COMPAT        FM_PCD_IOC_MATCH_TABLE_DELETE_COMPAT
+#define FM_PCD_IOC_CC_TREE_MODIFY_NEXT_ENGINE_COMPAT \
+                                                FM_PCD_IOC_CC_ROOT_MODIFY_NEXT_ENGINE_COMPAT
+#define FM_PCD_IOC_CC_NODE_MODIFY_NEXT_ENGINE_COMPAT \
+                                                FM_PCD_IOC_MATCH_TABLE_MODIFY_NEXT_ENGINE_COMPAT
+#define FM_PCD_IOC_CC_NODE_MODIFY_MISS_NEXT_ENGINE_COMPAT \
+                                                FM_PCD_IOC_MATCH_TABLE_MODIFY_MISS_NEXT_ENGINE_COMPAT
+#define FM_PCD_IOC_CC_NODE_REMOVE_KEY_COMPAT    FM_PCD_IOC_MATCH_TABLE_REMOVE_KEY_COMPAT
+#define FM_PCD_IOC_CC_NODE_ADD_KEY_COMPAT       FM_PCD_IOC_MATCH_TABLE_ADD_KEY_COMPAT
+#define FM_PCD_IOC_CC_NODE_MODIFY_KEY_AND_NEXT_ENGINE_COMPAT \
+                                                FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_AND_NEXT_ENGINE_COMPAT
+#define FM_PCD_IOC_CC_NODE_MODIFY_KEY_COMPAT    FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_COMPAT
+#define FM_PCD_IOC_PLCR_SET_PROFILE_COMPAT      FM_PCD_IOC_PLCR_PROFILE_SET_COMPAT
+#define FM_PCD_IOC_PLCR_DEL_PROFILE_COMPAT      FM_PCD_IOC_PLCR_PROFILE_DELETE_COMPAT
+#define FM_PCD_IOC_MANIP_SET_NODE_COMPAT        FM_PCD_IOC_MANIP_NODE_SET_COMPAT
+#define FM_PCD_IOC_MANIP_DELETE_NODE_COMPAT     FM_PCD_IOC_MANIP_NODE_DELETE_COMPAT
+#endif
+#define FM_PCD_IOC_SET_NET_ENV_CHARACTERISTICS  FM_PCD_IOC_NET_ENV_CHARACTERISTICS_SET
+#define FM_PCD_IOC_DELETE_NET_ENV_CHARACTERISTICS \
+                                                FM_PCD_IOC_NET_ENV_CHARACTERISTICS_DELETE
+#define FM_PCD_IOC_KG_SET_SCHEME                FM_PCD_IOC_KG_SCHEME_SET
+#define FM_PCD_IOC_KG_DEL_SCHEME                FM_PCD_IOC_KG_SCHEME_DELETE
+#define FM_PCD_IOC_CC_BUILD_TREE                FM_PCD_IOC_CC_ROOT_BUILD
+#define FM_PCD_IOC_CC_DELETE_TREE               FM_PCD_IOC_CC_ROOT_DELETE
+#define FM_PCD_IOC_CC_DELETE_NODE               FM_PCD_IOC_MATCH_TABLE_DELETE
+#define FM_PCD_IOC_CC_TREE_MODIFY_NEXT_ENGINE   FM_PCD_IOC_CC_ROOT_MODIFY_NEXT_ENGINE
+#define FM_PCD_IOC_CC_NODE_MODIFY_NEXT_ENGINE   FM_PCD_IOC_MATCH_TABLE_MODIFY_NEXT_ENGINE
+#define FM_PCD_IOC_CC_NODE_MODIFY_MISS_NEXT_ENGINE \
+                                                FM_PCD_IOC_MATCH_TABLE_MODIFY_MISS_NEXT_ENGINE
+#define FM_PCD_IOC_CC_NODE_REMOVE_KEY           FM_PCD_IOC_MATCH_TABLE_REMOVE_KEY
+#define FM_PCD_IOC_CC_NODE_ADD_KEY              FM_PCD_IOC_MATCH_TABLE_ADD_KEY
+#define FM_PCD_IOC_CC_NODE_MODIFY_KEY_AND_NEXT_ENGINE \
+                                                FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY_AND_NEXT_ENGINE
+#define FM_PCD_IOC_CC_NODE_MODIFY_KEY           FM_PCD_IOC_MATCH_TABLE_MODIFY_KEY
+#define FM_PCD_IOC_PLCR_SET_PROFILE             FM_PCD_IOC_PLCR_PROFILE_SET
+#define FM_PCD_IOC_PLCR_DEL_PROFILE             FM_PCD_IOC_PLCR_PROFILE_DELETE
+#define FM_PCD_IOC_MANIP_SET_NODE               FM_PCD_IOC_MANIP_NODE_SET
+#define FM_PCD_IOC_MANIP_DELETE_NODE            FM_PCD_IOC_MANIP_NODE_DELETE
+#endif /* NCSW_BACKWARD_COMPATIBLE_API */
 
 #endif /* __FM_PCD_IOCTLS_H */
 /** @} */ /* end of lnx_ioctl_FM_PCD_Runtime_grp group */

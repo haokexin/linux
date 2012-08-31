@@ -213,8 +213,8 @@ void compat_copy_fm_pcd_plcr_profile(
         {
             param->profile_select.new_params.profile_type =
                 compat_param->profile_select.new_params.profile_type;
-            param->profile_select.new_params.p_port =
-                compat_ptr(compat_param->profile_select.new_params.p_port);
+            param->profile_select.new_params.p_fm_port =
+                compat_ptr(compat_param->profile_select.new_params.p_fm_port);
             param->profile_select.new_params.relative_profile_id =
                 compat_param->profile_select.new_params.relative_profile_id;
         }
@@ -248,8 +248,8 @@ void compat_copy_fm_pcd_plcr_profile(
         if(!param->modify){
             compat_param->profile_select.new_params.profile_type =
                 param->profile_select.new_params.profile_type;
-            compat_param->profile_select.new_params.p_port =
-                ptr_to_compat(param->profile_select.new_params.p_port);
+            compat_param->profile_select.new_params.p_fm_port =
+                ptr_to_compat(param->profile_select.new_params.p_fm_port);
             compat_param->profile_select.new_params.relative_profile_id =
                 param->profile_select.new_params.relative_profile_id;
         }
@@ -493,6 +493,36 @@ void compat_fm_pcd_cc_tree_modify_next_engine(
     compat_copy_fm_pcd_cc_next_engine(
             &compat_param->cc_next_engine_params,
             &param->cc_next_engine_params,
+            compat);
+}
+
+void compat_copy_fm_pcd_hash_table(
+        ioc_compat_fm_pcd_hash_table_params_t *compat_param,
+        ioc_fm_pcd_hash_table_params_t *param,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        param-> max_num_of_keys = compat_param->max_num_of_keys;
+        param->statistics_mode  = compat_param->statistics_mode;
+        param->hash_res_mask    = compat_param->hash_res_mask;
+        param->hash_shift       = compat_param->hash_shift;
+        param->match_key_size   = compat_param->match_key_size;
+        param->id               = compat_ptr(compat_param->id);
+    }
+    else
+    {
+        compat_param-> max_num_of_keys = param->max_num_of_keys;
+        compat_param->statistics_mode  = param->statistics_mode;
+        compat_param->hash_res_mask    = param->hash_res_mask;
+        compat_param->hash_shift       = param->hash_shift;
+        compat_param->match_key_size   = param->match_key_size;
+        compat_param->id               = ptr_to_compat(param->id);
+    }
+
+    compat_copy_fm_pcd_cc_next_engine(
+            &compat_param->cc_next_engine_params_for_miss,
+            &param->cc_next_engine_params_for_miss,
             compat);
 }
 
@@ -1002,20 +1032,26 @@ void compat_fm_pcd_manip_set_node(
         }
 
         if (compat_param->p_next_manip)
-            param->p_next_manip = compat_get_id2ptr(compat_param->id, FM_MAP_TYPE_PCD_NODE);
+            param->p_next_manip = compat_get_id2ptr(compat_param->p_next_manip, FM_MAP_TYPE_PCD_NODE);
+
+        if (compat_param->id)
+            param->id = compat_get_id2ptr(compat_param->id, FM_MAP_TYPE_PCD_NODE);
     }
     else {
         compat_param->type = param->type;
         memcpy(&compat_param->u, &param->u, sizeof(compat_param->u));
 
-        /* user garbage - it could break the US application! */
         if (param->type == e_IOC_FM_PCD_MANIP_HDR &&
             param->u.hdr.insrt_params.type == e_IOC_FM_PCD_MANIP_INSRT_GENERIC)
                 compat_param->u.hdr.insrt_params.u.generic.p_data =
                     ptr_to_compat(param->u.hdr.insrt_params.u.generic.p_data);
 
+        /* This one should be unnecessary, but if the LLD decided to change it,
+           then we'd be scr...eened! */
         if (param->p_next_manip)
             compat_param->p_next_manip = compat_get_ptr2id(param->id, FM_MAP_TYPE_PCD_NODE);
+            /* ... should be one that was added previously by the very call to
+               compat_add_ptr2id() below: */
 
         compat_param->id = compat_add_ptr2id(param->id, FM_MAP_TYPE_PCD_NODE);
     }

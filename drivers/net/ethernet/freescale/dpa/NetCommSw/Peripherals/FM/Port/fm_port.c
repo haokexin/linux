@@ -1981,7 +1981,7 @@ static t_Error DetachPCD(t_FmPort *p_FmPort)
 
     WRITE_UINT32(*p_BmiNia, (p_FmPort->savedBmiNia & BMI_RFNE_FDCS_MASK) | (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME));
 
-/*TODO - not atomic - it seems that port has to be disabled*/
+    /* TODO - not atomic - it seems that port has to be disabled */
     if (p_FmPort->requiredAction & UPDATE_NIA_PNEN)
     {
         switch (p_FmPort->portType)
@@ -2112,6 +2112,7 @@ uint32_t FmPortGetPcdEngines(t_Handle h_FmPort)
 }
 
 #if (DPAA_VERSION >= 11)
+#ifdef FM_EXP_FEATURES
 t_Error FmPortSetGprFunc(t_Handle h_FmPort, e_FmPortGprFuncType gprFunc, void **p_Value)
 {
     t_FmPort            *p_FmPort = (t_FmPort*)h_FmPort;
@@ -2169,6 +2170,7 @@ t_Error FmPortSetGprFunc(t_Handle h_FmPort, e_FmPortGprFuncType gprFunc, void **
 
     return E_OK;
 }
+#endif /* FM_EXP_FEATURES */
 #endif /* (DPAA_VERSION >= 11) */
 
 t_Error FmPortGetSetCcParams(t_Handle h_FmPort, t_FmPortGetSetCcParams *p_CcParams)
@@ -3973,7 +3975,7 @@ t_Error FM_PORT_SetStatisticsCounters(t_Handle h_FmPort, bool enable)
     return E_OK;
 }
 
-t_Error FM_PORT_SetErrorsRoute(t_Handle h_FmPort,  fmPortFrameErrSelect_t errs)
+t_Error FM_PORT_SetErrorsRoute(t_Handle h_FmPort, fmPortFrameErrSelect_t errs)
 {
     t_FmPort                *p_FmPort = (t_FmPort*)h_FmPort;
     volatile uint32_t       *p_ErrQReg, *p_ErrDiscard;
@@ -4626,11 +4628,6 @@ t_Error FM_PORT_PcdCcModifyTree (t_Handle h_FmPort, t_Handle h_CcTree)
     if ((GET_UINT32(*p_BmiNia) & ~BMI_RFNE_FDCS_MASK) != GET_NIA_BMI_AC_ENQ_FRAME(p_FmPort->h_FmPcd))
             RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("may be called only for ports in BMI-to-BMI state."));
 
-    /*TODO - to take care of changes due to previous tree. Maybe in the previous tree where chnged pndn, pnen ...
-             it has to be returned to the default state - initially*/
-
-    p_FmPort->requiredAction = 0;
-
     if (p_FmPort->pcdEngines & FM_PCD_CC)
     {
         if (p_FmPort->h_IpReassemblyManip)
@@ -4745,9 +4742,11 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
     t_FmPcdCcTreeParams     *p_FmPcdCcTreeParams;
     t_FmPortPcdCcParams     fmPortPcdCcParams;
     t_FmPortGetSetCcParams  fmPortGetSetCcParams;
-#ifdef ALU_CUSTOM
+#if (DPAA_VERSION >= 11)
+#ifdef FM_EXP_FEATURES
     void                    *p_MuramPage;
-#endif /* ALU_CUSTOM */
+#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
 
     SANITY_CHECK_RETURN_ERROR(h_FmPort, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_STATE);
@@ -4786,12 +4785,11 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("PCD initialization structure is not consistent with pcdSupport"));
             }
 
-            /* No user-tree, need to build internal tree */
             p_FmPcdCcTreeParams = (t_FmPcdCcTreeParams*)XX_Malloc(sizeof(t_FmPcdCcTreeParams));
             if (!p_FmPcdCcTreeParams)
                 RETURN_ERROR(MAJOR, E_NO_MEMORY, ("p_FmPcdCcTreeParams"));
+            /* No user-tree, need to build internal tree */
             memset(p_FmPcdCcTreeParams, 0, sizeof(t_FmPcdCcTreeParams));
-
             p_FmPcdCcTreeParams->h_NetEnv = p_PcdParams->h_NetEnv;
             p_FmPort->h_IpReassemblyTree = FM_PCD_CcRootBuild(p_FmPort->h_FmPcd, p_FmPcdCcTreeParams);
             if (!p_FmPort->h_IpReassemblyTree)
@@ -4881,9 +4879,11 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
 
         if (p_FmPort->portType == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)
         {
-#ifdef ALU_CUSTOM
+#if (DPAA_VERSION >= 11)
+#ifdef FM_EXP_FEATURES
             FmPortSetGprFunc(p_FmPort, e_FM_PORT_GPR_MURAM_PAGE, &p_MuramPage);
-#endif /* ALU_CUSTOM */
+#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
 
 #ifdef FM_KG_ERASE_FLOW_ID_ERRATA_FMAN_SW004
             if ((p_FmPort->fmRevInfo.majorRev < 6) &&
@@ -5360,6 +5360,13 @@ t_Error FM_PORT_DumpRegs(t_Handle h_FmPort)
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->ohPortBmiRegs,fmbm_otuc);
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->ohPortBmiRegs,fmbm_oduc);
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->ohPortBmiRegs,fmbm_ofuc);
+        DUMP_TITLE(&(p_FmPort->p_FmPortBmiRegs->ohPortBmiRegs.fmbm_odcfg), ("fmbm_odcfg"));
+        DUMP_SUBSTRUCT_ARRAY(i, 3)
+        {
+            DUMP_MEMORY(&(p_FmPort->p_FmPortBmiRegs->ohPortBmiRegs.fmbm_odcfg[i]), sizeof(uint32_t));
+        }
+        DUMP_SUBTITLE(("\n"));
+        DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->ohPortBmiRegs,fmbm_ogpr);
         break;
     case (1):
         DUMP_SUBTITLE(("\n"));
@@ -5421,7 +5428,13 @@ t_Error FM_PORT_DumpRegs(t_Handle h_FmPort)
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs,fmbm_rduc);
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs,fmbm_rfuc);
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs,fmbm_rpac);
-        DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs,fmbm_rdcfg);
+        DUMP_TITLE(&(p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs.fmbm_rdcfg), ("fmbm_rdcfg"));
+        DUMP_SUBSTRUCT_ARRAY(i, 3)
+        {
+            DUMP_MEMORY(&(p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs.fmbm_rdcfg[i]), sizeof(uint32_t));
+        }
+        DUMP_SUBTITLE(("\n"));
+        DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->rxPortBmiRegs,fmbm_rgpr);
         break;
     case (2):
 
@@ -5451,6 +5464,13 @@ t_Error FM_PORT_DumpRegs(t_Handle h_FmPort)
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->txPortBmiRegs,fmbm_ttcquc);
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->txPortBmiRegs,fmbm_tduc);
         DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->txPortBmiRegs,fmbm_tfuc);
+        DUMP_TITLE(&(p_FmPort->p_FmPortBmiRegs->txPortBmiRegs.fmbm_tdcfg), ("fmbm_tdcfg"));
+        DUMP_SUBSTRUCT_ARRAY(i, 3)
+        {
+            DUMP_MEMORY(&(p_FmPort->p_FmPortBmiRegs->txPortBmiRegs.fmbm_tdcfg[i]), sizeof(uint32_t));
+        }
+        DUMP_SUBTITLE(("\n"));
+        DUMP_VAR(&p_FmPort->p_FmPortBmiRegs->txPortBmiRegs,fmbm_tgpr);
         break;
 
    default:
@@ -5642,7 +5662,8 @@ t_Error FM_PORT_RemoveCongestionGrps(t_Handle h_FmPort, t_FmPortCongestionGrps *
     return  E_OK;
 }
 
-#ifdef ALU_CUSTOM
+#if (DPAA_VERSION >= 11)
+#ifdef FM_EXP_FEATURES
 t_Error FM_PORT_GetIPv4OptionsCount(t_Handle h_FmPort, uint32_t *p_Ipv4OptionsCount)
 {
     t_FmPort    *p_FmPort = (t_FmPort*)h_FmPort;
@@ -5657,4 +5678,5 @@ t_Error FM_PORT_GetIPv4OptionsCount(t_Handle h_FmPort, uint32_t *p_Ipv4OptionsCo
 
     return E_OK;
 }
-#endif /* ALU_CUSTOM */
+#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
