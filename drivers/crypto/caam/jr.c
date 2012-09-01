@@ -61,7 +61,6 @@ static int caam_jr_dequeue(struct napi_struct *napi, int budget)
 	int cleaned = 0;
 
 	while (rd_reg32(&jrp->rregs->outring_used) && cleaned < budget) {
-
 		head = ACCESS_ONCE(jrp->head);
 
 		spin_lock(&jrp->outlock);
@@ -81,8 +80,8 @@ static int caam_jr_dequeue(struct napi_struct *napi, int budget)
 		/* we should never fail to find a matching descriptor */
 		BUG_ON(CIRC_CNT(head, tail + i, JOBR_DEPTH) <= 0);
 
-		/* Unmap just-run descriptor so we can post-process */
-		dma_unmap_single(dev, jrp->outring[hw_idx].desc,
+		/* Unmap just-run job descriptor so we can post-process */
+		dma_unmap_single(jrp->jrdev, jrp->outring[hw_idx].desc,
 				 jrp->entinfo[sw_idx].desc_size,
 				 DMA_TO_DEVICE);
 
@@ -115,7 +114,6 @@ static int caam_jr_dequeue(struct napi_struct *napi, int budget)
 
 			jrp->tail = tail;
 		}
-
 		spin_unlock(&jrp->outlock);
 
 		/* Finally, execute user's callback */
@@ -237,7 +235,7 @@ int caam_jr_enqueue(struct device *dev, u32 *desc,
 	dma_addr_t desc_dma;
 
 	desc_size = (*desc & HDR_JD_LENGTH_MASK) * sizeof(u32);
-	desc_dma = dma_map_single(dev, desc, desc_size, DMA_TO_DEVICE);
+	desc_dma = dma_map_single(jrp->jrdev, desc, desc_size, DMA_TO_DEVICE);
 	if (dma_mapping_error(dev, desc_dma)) {
 		dev_err(dev, "caam_jr_enqueue(): can't map jobdesc\n");
 		return -EIO;
@@ -499,6 +497,8 @@ int caam_jr_probe(struct platform_device *pdev, struct device_node *np,
 			dma_set_mask(jrdev, DMA_BIT_MASK(36));
 	else
 		dma_set_mask(jrdev, DMA_BIT_MASK(32));
+
+	jrpriv->jrdev = jrdev;
 
 	/* Identify the interrupt */
 	jrpriv->irq = of_irq_to_resource(np, 0, NULL);

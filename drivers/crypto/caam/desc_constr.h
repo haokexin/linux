@@ -9,11 +9,13 @@
 #define IMMEDIATE (1 << 23)
 #define CAAM_CMD_SZ sizeof(u32)
 #define CAAM_PTR_SZ sizeof(dma_addr_t)
+#define CAAM_PTR_LEN (CAAM_PTR_SZ / CAAM_CMD_SZ)
 #define CAAM_DESC_BYTES_MAX (CAAM_CMD_SZ * MAX_CAAM_DESCSIZE)
 
 #ifdef DEBUG
-#define PRINT_POS do { printk(KERN_DEBUG "%02d: %s\n", desc_len(desc),\
-			      &__func__[sizeof("append")]); } while (0)
+#define PRINT_POS do { pr_debug("%02d: %s\n", desc_len(desc),\
+			      &__func__[sizeof("append")]);\
+		} while (0)
 #else
 #define PRINT_POS
 #endif
@@ -82,6 +84,20 @@ static inline void append_ptr(u32 *desc, dma_addr_t ptr)
 	(*desc) += CAAM_PTR_SZ / CAAM_CMD_SZ;
 }
 
+/* Write command without affecting header, and return pointer to next word */
+static inline u32 *write_ptr(u32 *desc, dma_addr_t ptr)
+{
+	memcpy(desc, &ptr, CAAM_PTR_SZ);
+
+	return desc + CAAM_PTR_LEN;
+}
+
+/* Increase descriptor length */
+static inline void append_len(u32 *desc, unsigned int len)
+{
+	(*desc) += len;
+}
+
 static inline void init_job_desc_shared(u32 *desc, dma_addr_t ptr, int len,
 					u32 options)
 {
@@ -108,6 +124,14 @@ static inline void append_cmd(u32 *desc, u32 command)
 	*cmd = command;
 
 	(*desc)++;
+}
+
+/* Write command without affecting header, and return pointer to next word */
+static inline u32 *write_cmd(u32 *desc, u32 command)
+{
+	*desc = command;
+
+	return desc + 1;
 }
 
 static inline void append_cmd_ptr(u32 *desc, dma_addr_t ptr, int len,
@@ -143,9 +167,26 @@ static inline u32 *append_jump(u32 *desc, u32 options)
 	return cmd;
 }
 
+/* Given destination, as offset from header, append jump */
+static inline void append_jump_to(u32 *desc, u32 options, u32 target)
+{
+	PRINT_POS;
+
+	append_jump(desc, options | ((target - desc_len(desc)) &
+		JUMP_OFFSET_MASK));
+}
+
 static inline void set_jump_tgt_here(u32 *desc, u32 *jump_cmd)
 {
 	*jump_cmd = *jump_cmd | (desc_len(desc) - (jump_cmd - desc));
+}
+
+/* len words have no commands */
+static inline u32 *write_nop(u32 *desc, int len)
+{
+	*desc = CMD_JUMP | len;
+
+	return desc + len;
 }
 
 #define APPEND_CMD(cmd, op) \
@@ -156,6 +197,14 @@ static inline void append_##cmd(u32 *desc, u32 options) \
 }
 APPEND_CMD(operation, OPERATION)
 APPEND_CMD(move, MOVE)
+
+#define WRITE_CMD(cmd, op) \
+static inline u32 *write_##cmd(u32 *desc, u32 options) \
+{ \
+	PRINT_POS; \
+	return write_cmd(desc, CMD_##op | options); \
+}
+WRITE_CMD(move, MOVE)
 
 #define APPEND_CMD_LEN(cmd, op) \
 static inline void append_##cmd(u32 *desc, unsigned int len, u32 options) \
