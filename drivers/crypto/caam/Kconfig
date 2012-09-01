@@ -98,3 +98,17 @@ config CRYPTO_DEV_FSL_CAAM_RNG_API
 
 	  To compile this as a module, choose M here: the module
 	  will be called caamrng.
+
+config CRYPTO_DEV_FSL_CAAM_DMAXOR_API
+       tristate "Freescale CAAM XOR support"
+       depends on CRYPTO_DEV_FSL_CAAM && EXPERIMENTAL
+       default n
+       select DMA_ENGINE
+       select ASYNC_XOR
+       help
+         Selecting this will offload the xor-parity-calculation for
+         users of the Asynchronous Transfers/Transforms API (such as
+         md-raid5 driver) to the SEC4.
+
+	 To compile this as a module, choose M here: the module
+	 will be called caamxor.

@@ -61,6 +61,7 @@ struct caam_drv_private_jr {
 	int out_ring_read_index;	/* Output index "tail" */
 	int tail;			/* entinfo (s/w ring) tail index */
 	struct jr_outentry *outring;	/* Base of output ring, DMA-safe */
+	struct device *jrdev;
 };
 
 /*
@@ -93,6 +94,10 @@ struct caam_drv_private {
 	struct list_head alg_list;
 	/* list of registered hash algorithms (mk generic context handle?) */
 	struct list_head hash_list;
+
+	/* For DMA-XOR support */
+	struct dma_device dma_dev;
+	struct caam_xor_sh_desc *xor_sh_desc;
 
 	/*
 	 * debugfs entries for developer view into driver/device
