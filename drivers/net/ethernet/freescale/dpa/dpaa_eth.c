@@ -359,6 +359,40 @@ static void dpaa_eth_seed_pool(struct dpa_bp *bp)
 	}
 }
 
+/*
+ * Add buffers/pages/skbuffs for Rx processing whenever bpool count falls below
+ * REFILL_THRESHOLD.
+ */
+static void dpaa_eth_refill_bpools(struct dpa_percpu_priv_s *percpu_priv)
+{
+	int count = *percpu_priv->dpa_bp_count;
+
+#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
+	if (unlikely(count < REFILL_THRESHOLD)) {
+		int i;
+
+		for (i = count; i < DEFAULT_COUNT; i += 8)
+			dpa_bp_add_8(percpu_priv->dpa_bp);
+	}
+#else
+	if (unlikely(count < REFILL_THRESHOLD)) {
+		int i, cpu;
+
+		/* Add pages to the buffer pool */
+		cpu = smp_processor_id();
+		for (i = count; i < DEFAULT_COUNT; i += 8)
+			dpa_bp_add_8_pages(percpu_priv->dpa_bp, cpu);
+	}
+
+	/* Add skbs to the percpu skb list, reuse var count */
+	count = percpu_priv->skb_count;
+
+	if (unlikely(count < DEFAULT_SKB_COUNT / 4))
+		dpa_list_add_skbs(percpu_priv,
+				  DEFAULT_SKB_COUNT - count);
+#endif
+}
+
 static int dpa_make_shared_port_pool(struct dpa_bp *bp)
 {
 	/*
@@ -1185,39 +1219,7 @@ static void dpaa_eth_napi_enable(struct dpa_priv_s *priv)
 
 static int dpaa_eth_poll(struct napi_struct *napi, int budget)
 {
-	struct dpa_percpu_priv_s *percpu_priv;
 	int cleaned = qman_poll_dqrr(budget);
-	int count;
-
-	percpu_priv = container_of(napi, struct dpa_percpu_priv_s, napi);
-
-	count = *percpu_priv->dpa_bp_count;
-
-#ifndef CONFIG_DPAA_ETH_SG_SUPPORT
-	if (count < REFILL_THRESHOLD) {
-		int i;
-
-		for (i = count; i < DEFAULT_COUNT; i += 8)
-			dpa_bp_add_8(percpu_priv->dpa_bp);
-	}
-#else
-	if (count < REFILL_THRESHOLD) {
-		int i;
-
-		/* Add pages to the buffer pool */
-		for (i = count; i < DEFAULT_COUNT; i += 8)
-			dpa_bp_add_8_pages(percpu_priv->dpa_bp,
-					   smp_processor_id());
-	}
-
-	/* Add skbs to the percpu skb list, reuse var count */
-	count = percpu_priv->skb_count;
-
-	if (count < DEFAULT_SKB_COUNT / 4)
-		dpa_list_add_skbs(percpu_priv,
-				  DEFAULT_SKB_COUNT - count);
-#endif
-
 
 	if (cleaned < budget) {
 		int tmp;
@@ -1805,6 +1807,7 @@ ingress_rx_error_dqrr(struct qman_portal		*portal,
 		return qman_cb_dqrr_stop;
 	}
 
+	dpaa_eth_refill_bpools(percpu_priv);
 	_dpa_rx_error(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
@@ -1965,6 +1968,8 @@ ingress_rx_default_dqrr(struct qman_portal		*portal,
 
 	prefetchw(&percpu_priv->ingress_calls);
 
+	/* Vale of plenty: make sure we didn't run out of buffers */
+	dpaa_eth_refill_bpools(percpu_priv);
 	_dpa_rx(net_dev, priv, percpu_priv, &dq->fd, fq->fqid);
 
 	return qman_cb_dqrr_consume;
