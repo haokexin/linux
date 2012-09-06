@@ -30,6 +30,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define pr_fmt(fmt) \
+	KBUILD_MODNAME ": %s:%hu:%s() " fmt, \
+	KBUILD_BASENAME".c", __LINE__, __func__
+
 #include <linux/init.h>
 #include <linux/skbuff.h>
 #include <linux/highmem.h>
@@ -78,7 +82,7 @@ static void dpa_bp_add_page(struct dpa_bp *dpa_bp, unsigned long vaddr)
 	addr = dma_map_single(dpa_bp->dev, (void *)vaddr, dpa_bp->size,
 			      DMA_BIDIRECTIONAL);
 	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
-		dpaa_eth_err(dpa_bp->dev, "DMA mapping failed");
+		dev_err(dpa_bp->dev, "DMA mapping failed");
 		return;
 	}
 
@@ -103,7 +107,7 @@ void dpa_bp_add_8_pages(struct dpa_bp *dpa_bp, int cpu_id)
 	for (i = 0; i < 8; i++) {
 		new_page = __get_free_page(GFP_ATOMIC);
 		if (unlikely(!new_page)) {
-			dpaa_eth_err(dpa_bp->dev, "__get_free_page() failed\n");
+			dev_err(dpa_bp->dev, "__get_free_page() failed\n");
 			bm_buffer_set64(&bmb[i], 0);
 			break;
 		}
@@ -111,7 +115,7 @@ void dpa_bp_add_8_pages(struct dpa_bp *dpa_bp, int cpu_id)
 		addr = dma_map_single(dpa_bp->dev, (void *)new_page,
 				dpa_bp->size, DMA_BIDIRECTIONAL);
 		if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
-			dpaa_eth_err(dpa_bp->dev, "DMA mapping failed");
+			dev_err(dpa_bp->dev, "DMA mapping failed");
 			free_page(new_page);
 			break;
 		}
@@ -456,8 +460,8 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	if (unlikely(fd_status & FM_FD_STAT_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
-			cpu_netdev_warn(net_dev, "FD status = 0x%08x\n",
-					fd_status & FM_FD_STAT_ERRORS);
+			netdev_warn(net_dev, "FD status = 0x%08x\n",
+				fd_status & FM_FD_STAT_ERRORS);
 
 		percpu_priv->stats.rx_errors++;
 		goto _release_frame;
@@ -472,8 +476,7 @@ void __hot _dpa_rx(struct net_device *net_dev,
 			DPA_COPIED_HEADERS_SIZE);
 		if (unlikely(skb == NULL)) {
 			if (netif_msg_rx_err(priv) && net_ratelimit())
-				cpu_netdev_err(net_dev,
-						"Could not alloc skb\n");
+				netdev_err(net_dev, "Could not alloc skb\n");
 			percpu_priv->stats.rx_dropped++;
 			goto _release_frame;
 		}
@@ -561,7 +564,7 @@ static int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 				 ((char *)skbh) + DPA_TX_PRIV_DATA_SIZE);
 	if (unlikely(err < 0)) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
-			cpu_netdev_err(net_dev, "HW csum error: %d\n", err);
+			netdev_err(net_dev, "HW csum error: %d\n", err);
 		return err;
 	}
 
@@ -573,7 +576,7 @@ static int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 	addr = dma_map_single(dpa_bp->dev, skbh, dpa_bp->size, DMA_TO_DEVICE);
 	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
-			cpu_netdev_err(net_dev, "dma_map_single() failed\n");
+			netdev_err(net_dev, "dma_map_single() failed\n");
 		return -EINVAL;
 	}
 	fd->addr_hi = upper_32_bits(addr);
@@ -605,7 +608,7 @@ static int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 	/* get a new page to store the SGTable */
 	sgt_page = __get_free_page(GFP_ATOMIC);
 	if (unlikely(!sgt_page)) {
-		dpaa_eth_err(dpa_bp->dev, "__get_free_page() failed\n");
+		dev_err(dpa_bp->dev, "__get_free_page() failed\n");
 		return -ENOMEM;
 	}
 
@@ -619,7 +622,7 @@ static int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 				 (void *)sgt_page + DPA_TX_PRIV_DATA_SIZE);
 	if (unlikely(err < 0)) {
 		if (netif_msg_tx_err(priv) && net_ratelimit())
-			cpu_netdev_err(net_dev, "HW csum error: %d\n", err);
+			netdev_err(net_dev, "HW csum error: %d\n", err);
 		goto csum_failed;
 	}
 
@@ -665,7 +668,7 @@ static int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 	 */
 	sg0_page = __get_free_page(GFP_ATOMIC);
 	if (unlikely(!sg0_page)) {
-		dpaa_eth_err(dpa_bp->dev, "__get_free_page() failed\n");
+		dev_err(dpa_bp->dev, "__get_free_page() failed\n");
 		err = -ENOMEM;
 		goto sg0_page_alloc_failed;
 	}
@@ -689,7 +692,7 @@ static int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 	memcpy(buffer_start + sgt[0].offset, skb->data, skb_headlen(skb));
 	addr = dma_map_single(dpa_bp->dev, buffer_start, dpa_bp->size, dma_dir);
 	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
-		dpaa_eth_err(dpa_bp->dev, "DMA mapping failed");
+		dev_err(dpa_bp->dev, "DMA mapping failed");
 		err = -EINVAL;
 		goto sg0_map_failed;
 
@@ -710,7 +713,7 @@ static int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		addr = dma_map_page(dpa_bp->dev, frag->page, frag->page_offset,
 			dpa_bp->size, dma_dir);
 		if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
-			dpaa_eth_err(dpa_bp->dev, "DMA mapping failed");
+			dev_err(dpa_bp->dev, "DMA mapping failed");
 			err = -EINVAL;
 			goto sg_map_failed;
 		}
@@ -731,7 +734,7 @@ static int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 
 	addr = dma_map_single(dpa_bp->dev, buffer_start, dpa_bp->size, dma_dir);
 	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
-		dpaa_eth_err(dpa_bp->dev, "DMA mapping failed");
+		dev_err(dpa_bp->dev, "DMA mapping failed");
 		err = -EINVAL;
 		goto sgt_map_failed;
 	}
