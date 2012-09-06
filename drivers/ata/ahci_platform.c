@@ -224,7 +224,9 @@ static int __devexit ahci_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct ahci_platform_data *pdata = dev_get_platdata(dev);
 	struct ata_host *host = dev_get_drvdata(dev);
+#ifdef CONFIG_HAVE_CLK
 	struct ahci_host_priv *hpriv = host->private_data;
+#endif
 
 	ata_host_detach(host);
 
