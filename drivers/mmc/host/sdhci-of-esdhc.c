@@ -22,6 +22,7 @@
 #include "sdhci-esdhc.h"
 
 #define VENDOR_V_22    0x12
+#define VENDOR_V_23    0x13
 static u32 esdhc_readl(struct sdhci_host *host, int reg)
 {
 	u32 ret;
@@ -84,6 +85,18 @@ static u8 esdhc_readb(struct sdhci_host *host, int reg)
 	}
 
 	return ret;
+}
+
+static void esdhc_writel(struct sdhci_host *host, u32 val, int reg)
+{
+	/*
+	 * Enable IRQSTATEN[BGESEN] is just to set IRQSTAT[BGE]
+	 * when SYSCTL[RSTD]) is set for some special operations.
+	 * No any impact other operation.
+	 */
+	if (reg == SDHCI_INT_ENABLE)
+		val |= SDHCI_INT_BLK_GAP;
+	sdhci_be32bs_writel(host, val, reg);
 }
 
 static void esdhc_writew(struct sdhci_host *host, u16 val, int reg)
@@ -156,6 +169,40 @@ static void esdhc_of_set_clock(struct sdhci_host *host, unsigned int clock)
 	esdhc_set_clock(host, clock);
 }
 
+/*
+ * For Abort or Suspend after Stop at Block Gap, ignore the ADMA
+ * error(IRQSTAT[ADMAE]) if both Transfer Complete(IRQSTAT[TC])
+ * and Block Gap Event(IRQSTAT[BGE]) are also set.
+ * For Continue, apply soft reset for data(SYSCTL[RSTD]);
+ * and re-issue the entire read
+ * transaction from beginning.
+ */
+static void esdhci_of_adma_workaround(struct sdhci_host *host, u32 intmask)
+{
+	u32 tmp = in_be32(host->ioaddr + SDHCI_SLOT_INT_STATUS);
+
+	tmp = (tmp & SDHCI_VENDOR_VER_MASK) >> SDHCI_VENDOR_VER_SHIFT;
+	if (tmp == VENDOR_V_23) {
+		if ((intmask & SDHCI_INT_DATA_END) &&
+			(intmask & SDHCI_INT_BLK_GAP)) {
+			dma_addr_t dmastart;
+			dma_addr_t dmanow;
+
+			host->data->error = 0;
+			dmastart = sg_dma_address(host->data->sg);
+			dmanow = dmastart + host->data->bytes_xfered;
+			/*
+			 * Force update to the next DMA block boundary.
+			 */
+			dmanow = (dmanow &
+				~(SDHCI_DEFAULT_BOUNDARY_SIZE - 1)) +
+				SDHCI_DEFAULT_BOUNDARY_SIZE;
+			host->data->bytes_xfered = dmanow - dmastart;
+			sdhci_writel(host, dmanow, SDHCI_DMA_ADDRESS);
+		}
+	}
+}
+
 #ifdef CONFIG_PM
 static u32 esdhc_proctl;
 static void esdhc_of_suspend(struct sdhci_host *host)
@@ -196,7 +243,7 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.read_l = esdhc_readl,
 	.read_w = esdhc_readw,
 	.read_b = esdhc_readb,
-	.write_l = sdhci_be32bs_writel,
+	.write_l = esdhc_writel,
 	.write_w = esdhc_writew,
 	.write_b = esdhc_writeb,
 	.set_clock = esdhc_of_set_clock,
@@ -208,6 +255,7 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.platform_suspend = esdhc_of_suspend,
 	.platform_resume = esdhc_of_resume,
 #endif
+	.adma_workaround = esdhci_of_adma_workaround,
 };
 
 static struct sdhci_pltfm_data sdhci_esdhc_pdata = {
