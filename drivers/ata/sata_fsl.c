@@ -143,6 +143,7 @@ enum {
 	    FATAL_ERR_CRC_ERR_RX |
 	    FATAL_ERR_FIFO_OVRFL_TX | FATAL_ERR_FIFO_OVRFL_RX,
 
+	INT_ON_DATA_LENGTH_MISMATCH = (1 << 12),
 	INT_ON_FATAL_ERR = (1 << 5),
 	INT_ON_PHYRDY_CHG = (1 << 4),
 
@@ -285,6 +286,7 @@ struct sata_fsl_host_priv {
 	struct device_attribute intr_coalescing;
 	u32 quirks;
 #define SATA_FSL_QUIRK_P3P5_ERRATA	(1 << 0)
+#define SATA_FSL_QUIRK_V2_ERRATA	(1 << 1)
 	struct device_attribute rx_watermark;
 };
 
@@ -1256,16 +1258,30 @@ static void sata_fsl_host_intr(struct ata_port *ap)
 	void __iomem *hcr_base = host_priv->hcr_base;
 	u32 hstatus, done_mask = 0;
 	struct ata_queued_cmd *qc;
-	u32 SError;
+	u32 SError, tag, atapi_flag = 0;
 	u32 serror_mask = 0xFFFF0000;
 	u32 status_mask = INT_ON_ERROR;
 
 	hstatus = ioread32(hcr_base + HSTATUS);
+	/* Read command completed register */
+	done_mask = ioread32(hcr_base + CC);
 
 	sata_fsl_scr_read(&ap->link, SCR_ERROR, &SError);
 
+	if (host_priv->quirks & SATA_FSL_QUIRK_V2_ERRATA) {
+		if (unlikely(hstatus & INT_ON_DATA_LENGTH_MISMATCH)) {
+			for (tag = 0; tag < ATA_MAX_QUEUE; tag++) {
+				qc = ata_qc_from_tag(ap, tag);
+				if (qc && ata_is_atapi(qc->tf.protocol)) {
+					atapi_flag = 1;
+					break;
+				}
+			}
+		}
+	}
+
 	/* Workaround for P3041/P5020 SATA errata */
-	if (host_priv->quirks & SATA_FSL_QUIRK_P3P5_ERRATA) {
+	if ((host_priv->quirks & SATA_FSL_QUIRK_P3P5_ERRATA) || atapi_flag) {
 		u32 Hcontrol;
 #define HCONTROL_CLEAR_ERROR	(1 << 27)
 		/* Set HControl[27] to clear error registers */
@@ -1276,16 +1292,19 @@ static void sata_fsl_host_intr(struct ata_port *ap)
 		iowrite32(Hcontrol & (~HCONTROL_CLEAR_ERROR),
 						hcr_base + HCONTROL);
 
-		/* Ignore CRC error and fatal error */
+		if (atapi_flag)
+			/* Clear SError[E] bit */
+			sata_fsl_scr_write(&ap->link, SCR_ERROR, SError);
+		else {
+			/* Ignore CRC error */
 #define SERROR_CRC_ERROR	(1 << 21)
-		serror_mask &= ~SERROR_CRC_ERROR;
-		status_mask &= ~(INT_ON_FATAL_ERR | INT_ON_SINGL_DEVICE_ERR);
+			serror_mask &= ~SERROR_CRC_ERROR;
+			/* Set CCR register to indicate that command has completed */
+			done_mask = 1;
+		}
 
-		/* Set CCR register to indicate that command has completed */
-		done_mask = 1;
-	} else {
-		/* Read command completed register */
-		done_mask = ioread32(hcr_base + CC);
+		/* Ignore fatal error and device error */
+		status_mask &= ~(INT_ON_SINGL_DEVICE_ERR | INT_ON_FATAL_ERR);
 	}
 
 	if (unlikely(SError & serror_mask)) {
@@ -1550,6 +1569,15 @@ static int sata_fsl_probe(struct platform_device *ofdev)
 			host_priv->quirks |= SATA_FSL_QUIRK_P3P5_ERRATA;
 		}
 	}
+
+	if (of_device_is_compatible(ofdev->dev.of_node, "fsl,pq-sata-v2"))
+		/*
+		 * if SATA_FSL_QUIRK_P3P5_ERRATA is applied already,
+		 * we will not apply the SATA_FSL_QUIRK_V2_ERRATA, the former
+		 * is enough to address the issue.
+		 */
+		if (!(host_priv->quirks & SATA_FSL_QUIRK_P3P5_ERRATA))
+			host_priv->quirks |= SATA_FSL_QUIRK_V2_ERRATA;
 
 	/* allocate host structure */
 	host = ata_host_alloc_pinfo(&ofdev->dev, ppi, SATA_FSL_MAX_PORTS);
