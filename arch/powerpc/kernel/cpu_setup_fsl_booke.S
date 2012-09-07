@@ -53,6 +53,13 @@ _GLOBAL(__e500_dcache_setup)
 	isync
 	blr
 
+_GLOBAL(__setup_cpu_e6500)
+	mflr	r6
+	bl	.setup_altivec_ivors
+	bl	__setup_cpu_e5500
+	mtlr	r6
+	blr
+
 #ifdef CONFIG_PPC32
 _GLOBAL(__setup_cpu_e200)
 	/* enable dedicated debug exception handling resources (Debug APU) */
@@ -81,6 +88,15 @@ _GLOBAL(__setup_cpu_e500mc)
 	bl	__e500_dcache_setup
 	bl	__setup_e500mc_ivors
 	mtlr	r4
+	blr
+#endif
+
+#ifdef CONFIG_PPC_BOOK3E_64
+_GLOBAL(__restore_cpu_e6500)
+	mflr	r5
+	bl	.setup_altivec_ivors
+	bl	__restore_cpu_e5500
+	mtlr	r5
 	blr
 #endif
 
