@@ -1969,7 +1969,6 @@ phy_renegotiate_( int phy )
 	int autoneg_complete_retries = 8;
 
 	printk( "Initiating Auto Negotiation" );
-	phy_write_( phy, PHY_AUTONEG_ADVERTISE, 0x61 );
 
 	do {
 		phy_read_( phy, PHY_CONTROL, & control.raw );
@@ -2010,7 +2009,17 @@ extern int ubootenv_get( const char *, char * );
 static int phy_enable_( int phy ) {
 
 #ifdef CONFIG_ACP
+  unsigned short ad_value;
   phy_address_ = 0x1e;
+
+  ad_value = PHY_AUTONEG_ADVERTISE_100FULL |
+		PHY_AUTONEG_ADVERTISE_100 |
+		PHY_AUTONEG_ADVERTISE_10FULL |
+		PHY_AUTONEG_ADVERTISE_10;
+
+  if (0 != phy_write_(phy_address_, PHY_AUTONEG_ADVERTISE, ad_value))
+		return -1;
+
   phy_renegotiate_( phy_address_ );
 #else
   /*
