@@ -4088,8 +4088,7 @@ appnic_init( struct net_device * device )
   memset( ( void * ) & adapter->napi, 0, sizeof( struct napi_struct ) );
   netif_napi_add( device, & adapter->napi, lsinet_poll, LSINET_NAPI_WEIGHT );
   adapter->device = device;
-  printk( "%s:%d - lsinet_poll=0x%lx\n",
-	  __FILE__, __LINE__, ( unsigned long ) lsinet_poll );
+  DEBUG_PRINT( "lsinet_poll=0x%lx\n", ( unsigned long ) lsinet_poll );
 #endif
 
   /* that's all */

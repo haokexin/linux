@@ -3477,8 +3477,7 @@ lsi_nand_set_config(struct mtd_info *mtd, struct nand_chip *chip)
 		return -1;
 	}
 
-	printk("%s:%d - write/erase/oob=0x%x/0x%x/0x%x config=0x%lx\n",
-	       __FILE__, __LINE__,
+	DEBUG_PRINT("write/erase/oob=0x%x/0x%x/0x%x config=0x%lx\n",
 	       mtd->writesize, mtd->erasesize, mtd->oobsize, config); /* ZZZ */
 	WRITEL(config, chip->IO_ADDR_W + EP501_NAND_CONFIG_REG);
 
