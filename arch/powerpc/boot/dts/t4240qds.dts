@@ -52,44 +52,9 @@
 			#size-cells = <1>;
 			compatible = "cfi-flash";
 			reg = <0x0 0x0 0x8000000>;
-			/* TODO: Update bank-width depending upon
-			 * on-board Flash
-			 */
-			bank-width = <1>;
+
+			bank-width = <2>;
 			device-width = <1>;
-
-			partition@0 {
-				/* This location must not be altered  */
-				/* 1MB for Vitesse 7385 Switch firmware */
-				reg = <0x0 0x00100000>;
-				label = "NOR  Vitesse-7385 Firmware";
-			};
-
-			partition@100000 {
-				/* 1MB for DTB Image */
-				reg = <0x00100000 0x00100000>;
-				label = "NOR  DTB Image";
-			};
-
-			partition@200000 {
-				/* 10 MB for Linux Kernel Image */
-				reg = <0x00200000 0x00A00000>;
-				label = "NOR  Linux Kernel Image";
-			};
-
-			partition@C00000 {
-				/* 115MB for JFFS2 based Root file System */
-				reg = <0x00C00000 0x07300000>;
-				label = "NOR  JFFS2 Root File System";
-			};
-
-			partition@7F00000 {
-				/* This location must not be altered  */
-				/* 512KB for u-boot Bootloader Image */
-				/* 512KB for u-boot Environment Variables */
-				reg = <0x07F00000 0x00100000>;
-				label = "NOR U-Boot Image";
-			};
 		};
 
 		nand@2,0 {
