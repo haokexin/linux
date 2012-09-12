@@ -64,6 +64,14 @@ config FSL_PQ_MDIO
 
 source "drivers/net/ethernet/freescale/dpa/NetCommSw/Kconfig"
 
+config RX_TX_BUFF_XCHG
+        default n
+	bool "RX and TX ring buffer exchange for Routed packets"
+	depends on GIANFAR && EXPERIMENTAL
+	---help---
+	  Enable this flag to get better throughput for the routing functionality.
+	  Enhances the performance for IPv4 Routing, NAT forwarding.
+ 
 config GFAR_HW_TCP_RECEIVE_OFFLOAD
 	default n
 	bool "Hardware TCP receive offload"

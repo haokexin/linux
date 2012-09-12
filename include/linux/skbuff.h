@@ -448,6 +448,10 @@ struct sk_buff {
 
 	__u32			rxhash;
 
+#ifdef CONFIG_RX_TX_BUFF_XCHG
+	__u8			owner;
+	struct sk_buff		*new_skb;
+#endif
 	__u16			vlan_tci;
 
 #ifdef CONFIG_NET_SCHED
