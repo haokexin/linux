@@ -2985,6 +2985,7 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		skb->owner = KER_PKT_ID;
 }
 	skb->new_skb = new_skb;
+	txq->trans_start = jiffies;
 #endif
 
 	return NETDEV_TX_OK;
