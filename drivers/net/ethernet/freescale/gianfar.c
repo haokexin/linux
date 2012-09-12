@@ -2983,6 +2983,7 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (!skb_recycle_check(skb, priv->rx_buffer_size + RXBUF_ALIGNMENT))
 		skb->owner = KER_PKT_ID;
+	gfar_align_skb(skb);
 }
 	skb->new_skb = new_skb;
 	txq->trans_start = jiffies;
