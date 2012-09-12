@@ -146,6 +146,9 @@ static int gfar_change_mtu(struct net_device *dev, int new_mtu);
 static irqreturn_t gfar_error(int irq, void *dev_id);
 static irqreturn_t gfar_transmit(int irq, void *dev_id);
 static irqreturn_t gfar_transmit_no_napi(int irq, void *dev_id);
+#ifdef CONFIG_RX_TX_BUFF_XCHG
+static irqreturn_t gfar_enable_tx_queue(int irq, void *dev_id);
+#endif
 static irqreturn_t gfar_interrupt(int irq, void *dev_id);
 static void adjust_link(struct net_device *dev);
 static void init_registers(struct net_device *dev);
@@ -2109,9 +2112,7 @@ void gfar_halt(struct net_device *dev)
 static void free_grp_irqs(struct gfar_priv_grp *grp)
 {
 	free_irq(grp->interruptError, grp);
-#ifndef CONFIG_RX_TX_BUFF_XCHG
 	free_irq(grp->interruptTransmit, grp);
-#endif
 	free_irq(grp->interruptReceive, grp);
 }
 
@@ -2398,6 +2399,10 @@ static int register_grp_irqs(struct gfar_priv_grp *grp)
 					gfar_transmit_no_napi, 0,
 					grp->int_name_tx, grp);
 		}
+#else
+		err = request_irq(grp->interruptTransmit,
+					gfar_enable_tx_queue, 0,
+					grp->int_name_tx, grp);
 #endif
 
 		if (err < 0) {
@@ -2426,9 +2431,7 @@ static int register_grp_irqs(struct gfar_priv_grp *grp)
 	return 0;
 
 rx_irq_fail:
-#ifndef CONFIG_RX_TX_BUFF_XCHG
 	free_irq(grp->interruptTransmit, grp);
-#endif
 tx_irq_fail:
 	free_irq(grp->interruptError, grp);
 err_irq_fail:
@@ -2728,9 +2731,15 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	do {
 		lstatus = txbdp->lstatus;
 		if ((lstatus & BD_LFLAG(TXBD_READY))) {
+			u32 imask;
 			/* BD not free for tx */
 			netif_tx_stop_queue(txq);
 			dev->stats.tx_fifo_errors++;
+			spin_lock_irq(&tx_queue->grp->grplock);
+			imask = gfar_read(&regs->imask);
+			imask |= IMASK_DEFAULT_TX;
+			gfar_write(&regs->imask, imask);
+			spin_unlock_irq(&tx_queue->grp->grplock);
 			return NETDEV_TX_BUSY;
 		}
 
@@ -3307,6 +3316,43 @@ static irqreturn_t gfar_transmit(int irq, void *grp_id)
 	gfar_schedule_tx_cleanup((struct gfar_priv_grp *)grp_id);
 	return IRQ_HANDLED;
 }
+
+#ifdef CONFIG_RX_TX_BUFF_XCHG
+static irqreturn_t gfar_enable_tx_queue(int irq, void *grp_id)
+{
+	struct gfar_priv_grp *grp = (struct gfar_priv_grp *)grp_id;
+	struct gfar_private *priv = priv = grp->priv;
+	struct gfar_priv_tx_q *tx_queue = NULL;
+	u32 tstat, mask;
+	int i;
+	unsigned long flags;
+
+	struct net_device *dev = NULL;
+	tstat = gfar_read(&grp->regs->tstat);
+	tstat = tstat & TSTAT_TXF_MASK_ALL;
+
+	/* Clear IEVENT */
+	gfar_write(&grp->regs->ievent, IEVENT_TX_MASK);
+
+	for_each_set_bit(i, &grp->tx_bit_map, priv->num_tx_queues) {
+		mask = TSTAT_TXF0_MASK >> i;
+		if (tstat & mask) {
+			tx_queue = priv->tx_queue[i];
+			dev = tx_queue->dev;
+			if (__netif_subqueue_stopped(dev, tx_queue->qindex))
+				netif_wake_subqueue(dev, tx_queue->qindex);
+		}
+	}
+
+	spin_lock_irqsave(&grp->grplock, flags);
+	mask = gfar_read(&grp->regs->imask);
+	mask = mask & IMASK_TX_DISABLED;
+	gfar_write(&grp->regs->imask, mask);
+	spin_unlock_irqrestore(&grp->grplock, flags);
+
+	return IRQ_HANDLED;
+}
+#endif
 
 /* Interrupt Handler for Transmit complete when TX NO NAPI mode is used*/
 static irqreturn_t gfar_transmit_no_napi(int irq, void *grp_id)
