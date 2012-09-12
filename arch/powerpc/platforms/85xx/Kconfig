@@ -308,6 +308,7 @@ config T4240_QDS
 	select HAS_FSL_PAMU
 	select HAS_FSL_QBMAN
 	select T4_SIMULATOR_WORKAROUND
+	select WORKAROUND_E5500_MFCR
 	help
 	  This option enables support for the T4240 QDS board
 
