@@ -147,9 +147,10 @@ static int gfar_set_mac_address(struct net_device *dev);
 static int gfar_change_mtu(struct net_device *dev, int new_mtu);
 static irqreturn_t gfar_error(int irq, void *dev_id);
 static irqreturn_t gfar_transmit(int irq, void *dev_id);
-static irqreturn_t gfar_transmit_no_napi(int irq, void *dev_id);
 #ifdef CONFIG_RX_TX_BUFF_XCHG
 static irqreturn_t gfar_enable_tx_queue(int irq, void *dev_id);
+#else
+static irqreturn_t gfar_transmit_no_napi(int irq, void *dev_id);
 #endif
 static irqreturn_t gfar_interrupt(int irq, void *dev_id);
 static void adjust_link(struct net_device *dev);
@@ -2669,11 +2670,12 @@ static int gfar_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	u32 lstatus;
 	int i, rq = 0, do_tstamp = 0;
 	u32 bufaddr;
-	unsigned long flags;
 	unsigned int nr_frags, nr_txbds, length, fcb_length = GMAC_FCB_LEN;
 #ifdef CONFIG_RX_TX_BUFF_XCHG
 	struct sk_buff *new_skb;
 	int skb_curtx = 0;
+#else
+	unsigned long flags;
 #endif
 
 	/*
@@ -3374,6 +3376,7 @@ static irqreturn_t gfar_enable_tx_queue(int irq, void *grp_id)
 #endif
 
 /* Interrupt Handler for Transmit complete when TX NO NAPI mode is used*/
+#ifndef CONFIG_RX_TX_BUFF_XCHG
 static irqreturn_t gfar_transmit_no_napi(int irq, void *grp_id)
 {
 	struct gfar_priv_grp *grp = (struct gfar_priv_grp *)grp_id;
@@ -3404,6 +3407,7 @@ static irqreturn_t gfar_transmit_no_napi(int irq, void *grp_id)
 	gfar_configure_tx_coalescing(priv, grp->tx_bit_map);
 	return IRQ_HANDLED;
 }
+#endif
 
 static void gfar_new_rxbdp(struct gfar_priv_rx_q *rx_queue, struct rxbd8 *bdp,
 		struct sk_buff *skb)
@@ -3798,7 +3802,7 @@ int gfar_clean_rx_ring(struct gfar_priv_rx_q *rx_queue, int rx_work_limit)
 	amount_pull = (gfar_uses_fcb(priv) ? GMAC_FCB_LEN : 0);
 
 	while (!((bdp->status & RXBD_EMPTY) || (--rx_work_limit < 0))) {
-		struct sk_buff *newskb;
+		struct sk_buff *newskb = NULL;
 		rmb();
 
 #ifndef CONFIG_RX_TX_BUFF_XCHG
