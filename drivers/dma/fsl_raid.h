@@ -58,6 +58,7 @@
 #define DATA_DEPENDENCY		0x1
 #define ENABLE_DPI		0x0
 #define RING_SIZE		0x1000
+#define RING_SIZE_SHIFT		8
 #define RE_JR_ADDRESS_BIT_SHIFT	4
 #define RE_JR_ADDRESS_BIT_MASK	((1 << RE_JR_ADDRESS_BIT_SHIFT) - 1)
 #define RE_JR_ERROR		0x40000000
@@ -65,6 +66,15 @@
 #define RE_JR_CLEAR_INT		0x80000000
 #define RE_JR_PAUSE		0x80000000
 #define RE_JR_ENABLE		0x80000000
+
+#define RE_JR_REG_LIODN_MASK	0x00000fff
+#define RE_CF_CDB_ALIGN		64
+
+/*
+ *  * max size is 19*sizeof(struct cmpnd_frame), 64 bytes align to 320
+ *   * here 19 = 1(cdb)+2(dest)+16(src)
+ *    */
+#define RE_CF_CDB_SIZE		320
 
 struct re_ctrl {
 	/* General Configuration Registers */
@@ -138,7 +148,7 @@ struct move_cdb {
 	u32 data_depend:1;
 	u32 dpi:1;
 	u32 rsvd3:2;
-};
+} __packed;
 
 /* Data protection/integrity related fields */
 struct dpi_related {
@@ -149,7 +159,7 @@ struct dpi_related {
 	u32 rsvd1:8;
 	u32 meta_tag:16;
 	u32 ref_tag:32;
-};
+} __packed;
 
 /*
  * CDB for GenQ command. In RAID Engine terminology, XOR is
@@ -170,7 +180,7 @@ struct xor_cdb {
 	u8 gfm[16];
 	struct dpi_related dpi_dest_spec;
 	struct dpi_related dpi_src_spec[16];
-};
+} __packed;
 
 /* CDB for no-op command */
 struct noop_cdb {
@@ -178,7 +188,7 @@ struct noop_cdb {
 	u32 rsvd1:23;
 	u32 dependency:1;
 	u32 rsvd2:3;
-};
+} __packed;
 
 /*
  * CDB for GenQQ command. In RAID Engine terminology, P/Q is
@@ -203,7 +213,7 @@ struct pq_cdb {
 	u8 gfm_q2[16];
 	struct dpi_related dpi_dest_spec[2];
 	struct dpi_related dpi_src_spec[16];
-};
+} __packed;
 
 /* Compound frame */
 struct cmpnd_frame {
@@ -217,7 +227,7 @@ struct cmpnd_frame {
 	u32 bpid:8;
 	u32 rsvd5:3;
 	u32 offset:13;
-};
+} __packed;
 
 /* Frame descriptor */
 struct jr_hw_desc {
@@ -230,7 +240,7 @@ struct jr_hw_desc {
 	u64 format:3;
 	u64 rsvd2:29;
 	u64 status:32;
-};
+} __packed;
 
 /* Array to store the virtual/physical address of descriptors */
 struct virt_struct {
@@ -242,7 +252,6 @@ struct virt_struct {
 struct re_jr {
 	dma_cookie_t completed_cookie;
 	spinlock_t desc_lock;
-	spinlock_t submit_lock;
 	struct list_head submit_q;
 	struct list_head ack_q;
 	struct device *dev;
@@ -257,12 +266,12 @@ struct re_jr {
 	struct jr_hw_desc *inb_ring_virt_addr;
 	struct jr_hw_desc *oub_ring_virt_addr;
 	u32 inb_ring_index;
-	u32 oub_ring_index;
 	u32 inb_count;
 	u32 oub_count;
 	struct virt_struct virt_arry[RING_SIZE];
-	struct fsl_dma_pool *soft_desc;
 	struct timer_list timer;
+	struct dma_pool *desc_pool;
+	u64 sstart, send;
 };
 
 /* Async transaction descriptor */
@@ -271,12 +280,15 @@ struct fsl_re_dma_async_tx_desc {
 	struct list_head node;
 	struct list_head tx_list;
 	struct jr_hw_desc hwdesc;
+	struct re_jr *jr;
 	void *cf_addr;
+	int dma_len;
+	int dest_cnt;
+	int src_cnt;
+	dma_addr_t cf_paddr;
+	int cf_len;
 	void *cdb_addr;
-};
-
-/* Linked list of malloc'd software descriptors */
-struct fsl_dma_pool {
-	int desc_cnt;
-	struct list_head head;
+	u32 cdb_opcode;
+	dma_addr_t cdb_paddr;
+	int cdb_len;
 };
