@@ -392,6 +392,7 @@ config UPROBE_EVENT
 	depends on MMU
 	select UPROBES
 	select PROBE_EVENTS
+	select PERF_EVENTS
 	select TRACING
 	default n
 	help
