@@ -1046,7 +1046,7 @@ static int mmc_sd_alive(struct mmc_host *host)
  */
 static void mmc_sd_detect(struct mmc_host *host)
 {
-	int err;
+	int err = -ENOSYS;
 
 	BUG_ON(!host);
 	BUG_ON(!host->card);
@@ -1056,7 +1056,13 @@ static void mmc_sd_detect(struct mmc_host *host)
 	/*
 	 * Just check if our card has been removed.
 	 */
-	err = _mmc_detect_card_removed(host);
+	if (host->ops->get_cd) {
+		err = host->ops->get_cd(host);
+		if (err >= 0)
+			err = !err;
+	}
+	if (err < 0)
+		err = _mmc_detect_card_removed(host);
 
 	mmc_release_host(host);
 
