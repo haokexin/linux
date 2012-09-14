@@ -352,7 +352,9 @@ void dpa_ptp_store_rxstamp(struct net_device *dev, struct sk_buff *skb,
 	dma_addr_t fd_addr = qm_fd_addr(fd);
 	int ret;
 
-	ret = dpa_ptp_store_stamp(dev, skb, fd_addr, &ptp_rx_data);
+	ret = dpa_ptp_store_stamp(dev, skb,
+					fd_addr + fm_get_rx_extra_headroom(),
+					&ptp_rx_data);
 	if (ret)
 		return;
 	dpa_ptp_insert(&tsu->rx_timestamps, &ptp_rx_data);
