@@ -905,7 +905,9 @@ static const struct of_device_id pci_ids[] = {
 int primary_phb_addr;
 int fsl_pci_setup(struct device_node *np)
 {
+#ifdef CONFIG_SWIOTLB
 	struct pci_controller *hose;
+#endif
 	int ret = 0;
 	bool is_primary;
 
