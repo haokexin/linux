@@ -161,6 +161,11 @@
 				interrupts = <0x1 0x1 0 0>;
 			};
 		};
+
+		usb@210000 {
+			dr_mode = "host";
+			phy_type = "ulpi";
+		};
 	};
 
 	pci0: pcie@ffe200000 {

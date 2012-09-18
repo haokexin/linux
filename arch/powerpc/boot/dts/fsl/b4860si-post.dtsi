@@ -129,6 +129,11 @@
 /include/ "qoriq-dma-0.dtsi"
 /include/ "qoriq-dma-1.dtsi"
 
+/include/ "qonverge-usb2-dr-0.dtsi"
+	usb0: usb@210000 {
+		compatible = "fsl-usb2-dr-v2.4", "fsl-usb2-dr";
+	};
+
 /include/ "qoriq-espi-0.dtsi"
 	spi@110000 {
 		fsl,espi-num-chipselects = <4>;
