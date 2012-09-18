@@ -1425,6 +1425,7 @@ static int skb_to_sg_fd(struct dpa_priv_s *priv,
 
 	/* Fill in S/G entry */
 	sg_entry = (struct qm_sg_entry *)(vaddr + fd->offset);
+	memset(sg_entry, 0, sizeof(*sg_entry));
 
 	sg_entry->extension = 0;
 	sg_entry->final = 1;
