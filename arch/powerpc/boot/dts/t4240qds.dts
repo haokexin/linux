@@ -178,91 +178,75 @@
 			enet0: ethernet@e0000 {
 				fixed-link = <1 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 01 01];
 			};
 			enet1: ethernet@e2000 {
 				fixed-link = <2 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 01 02];
 			};
 			enet2: ethernet@e4000 {
 				fixed-link = <3 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 01 03];
 			};
 			enet3: ethernet@e6000 {
 				fixed-link = <4 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 01 04];
 			};
 			enet4: ethernet@e8000 {
 				fixed-link = <5 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 01 05];
 			};
 			enet5: ethernet@ea000 {
 				fixed-link = <6 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 01 06];
 			};
 			enet6: ethernet@f0000 {
 				fixed-link = <7 1 10000 0 0 >;
 				phy-connection-type = "xgmii";
-				local-mac-address = [02 01 01 01 01 07];
 			};
 			enet7: ethernet@f2000 {
 				fixed-link = <8 1 10000 0 0 >;
 				phy-connection-type = "xgmii";
-				local-mac-address = [02 01 01 01 01 08];
 			};
 		};
 		fman1: fman@500000 {
 			enet8: ethernet@e0000 {
 				fixed-link = <11 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 02 01];
 			};
 
 			enet9: ethernet@e2000 {
 				fixed-link = <12 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 02 02];
 			};
 
 			enet10: ethernet@e4000 {
 				fixed-link = <13 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 02 03];
 			};
 
 			enet11: ethernet@e6000 {
 				fixed-link = <14 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 02 04];
 			};
 
 			enet12: ethernet@e8000 {
 				fixed-link = <15 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 02 05];
 			};
 
 			enet13: ethernet@ea000 {
 				fixed-link = <16 1 1000 0 0 >;
 				phy-connection-type = "sgmii";
-				local-mac-address = [02 01 01 01 02 06];
 			};
 
 			enet14: ethernet@f0000 {
 				fixed-link = <17 1 10000 0 0 >;
 				phy-connection-type = "xgmii";
-				local-mac-address = [02 01 01 01 02 07];
 			};
 
 			enet15: ethernet@f2000 {
 				fixed-link = <18 1 10000 0 0 >;
 				phy-connection-type = "xgmii";
-				local-mac-address = [02 01 01 01 02 08];
 			};
 		};
 	};
