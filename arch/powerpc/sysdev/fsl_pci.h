@@ -118,6 +118,13 @@ struct ccsr_pci {
 	__be32	pex_err_cap_r1;		/* 0x.e2c - PCIE error capture register 0 */
 	__be32	pex_err_cap_r2;		/* 0x.e30 - PCIE error capture register 0 */
 	__be32	pex_err_cap_r3;		/* 0x.e34 - PCIE error capture register 0 */
+	u8 res_e38[200];
+	__be32     pdb_stat;	/* 0x.f00 - PCIE Debug Status */
+	u8 res_f04[16];
+	__be32 pex_csr0;	/* 0x.f14 - PEX Control/Status register 0*/
+	__be32 pex_csr1;	/* 0x.f18 - PEX Control/Status register 1*/
+	u8 res_f1c[228];
+
 };
 
 extern int primary_phb_addr;
