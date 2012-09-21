@@ -189,15 +189,24 @@
 	};
 
 	ddr1: memory-controller@8000 {
-		compatible = "fsl,qoriq-memory-controller-v4.5", "fsl,qoriq-memory-controller";
+		compatible = "fsl,qoriq-memory-controller-v4.7",
+				"fsl,qoriq-memory-controller";
 		reg = <0x8000 0x1000>;
 		interrupts = <16 2 1 23>;
 	};
 
 	ddr2: memory-controller@9000 {
-		compatible = "fsl,qoriq-memory-controller-v4.5","fsl,qoriq-memory-controller";
+		compatible = "fsl,qoriq-memory-controller-v4.7",
+				"fsl,qoriq-memory-controller";
 		reg = <0x9000 0x1000>;
 		interrupts = <16 2 1 22>;
+	};
+
+	ddr3: memory-controller@a000 {
+		compatible = "fsl,qoriq-memory-controller-v4.7",
+				"fsl,qoriq-memory-controller";
+		reg = <0xa000 0x1000>;
+		interrupts = <16 2 1 21>;
 	};
 
 	cpc: l3-cache-controller@10000 {
