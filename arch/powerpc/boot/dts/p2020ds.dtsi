@@ -145,6 +145,14 @@
 		};
 	};
 
+   i2c@3100 {
+
+	   rtc@68 {
+		       compatible = "dallas,ds1339";
+			   reg = <0x68>;
+	   };
+   };
+
 	usb@22000 {
 		phy_type = "ulpi";
 		dr_mode = "host";
