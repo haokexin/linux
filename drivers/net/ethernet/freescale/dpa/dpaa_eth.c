@@ -82,12 +82,25 @@
 
 #define DPA_NAPI_WEIGHT		64
 
-/**
- * Size in bytes of the Congestion State threshold.
- * Used for CGR-based congestion control on the egress ports.
- * Values for the 1G and 10G ports should be proportionately different.
+/* Size in bytes of the Congestion State notification threshold on 10G ports */
+#define DPA_CS_THRESHOLD_10G	0x10000000
+/*
+ * Size in bytes of the Congestion State notification threshold on 1G ports.
+
+ * The 1G dTSECs can quite easily be flooded by cores doing Tx in a tight loop
+ * (e.g. by sending UDP datagrams at "while(1) speed"),
+ * and the larger the frame size, the more acute the problem.
+ *
+ * So we have to find a balance between these factors:
+ *	- avoiding the device staying congested for a prolonged time (risking
+ *	  the netdev watchdog to fire - see also the tx_timeout module param);
+ *	- affecting performance of protocols such as TCP, which otherwise
+ *	  behave well under the congestion notification mechanism;
+ *	- preventing the Tx cores from tightly-looping (as if the congestion
+ *	  threshold was too low to be effective);
+ *	- running out of memory if the CS threshold is set too high.
  */
-#define DPA_CS_THRESHOLD	0x10000000
+#define DPA_CS_THRESHOLD_1G	0x10000000
 
 /* S/G table requires at least 256 bytes */
 #define SGT_BUFFER_SIZE		DPA_BP_SIZE(256)
@@ -122,6 +135,7 @@ static uint8_t debug = -1;
 module_param(debug, byte, S_IRUGO);
 MODULE_PARM_DESC(debug, "Module/Driver verbosity level");
 
+/* This has to work in tandem with the DPA_CS_THRESHOLD_xxx values. */
 static uint16_t __devinitdata tx_timeout = 1000;
 module_param(tx_timeout, ushort, S_IRUGO);
 MODULE_PARM_DESC(tx_timeout, "The Tx timeout in ms");
@@ -3350,7 +3364,7 @@ static int dpa_netdev_init(struct device_node *dpa_node,
 
 	SET_ETHTOOL_OPS(net_dev, &dpa_ethtool_ops);
 	net_dev->needed_headroom = DPA_BP_HEAD;
-	net_dev->watchdog_timeo = tx_timeout * HZ / 1000;
+	net_dev->watchdog_timeo = msecs_to_jiffies(tx_timeout);
 
 	err = register_netdev(net_dev);
 	if (err < 0) {
@@ -3576,7 +3590,18 @@ static int dpaa_eth_cgr_init(struct dpa_priv_s *priv)
 	/* Enable Congestion State Change Notifications and CS taildrop */
 	initcgr.we_mask = QM_CGR_WE_CSCN_EN | QM_CGR_WE_CS_THRES;
 	initcgr.cgr.cscn_en = QM_CGR_EN;
-	qm_cgr_cs_thres_set64(&initcgr.cgr.cs_thres, DPA_CS_THRESHOLD, 1);
+	/*
+	 * Set different thresholds based on the MAC speed.
+	 * TODO: this may turn suboptimal if the MAC is reconfigured at a speed
+	 * lower than its max, e.g. if a dTSEC later negotiates a 100Mbps link.
+	 * In such cases, we ought to reconfigure the threshold, too.
+	 */
+	if (priv->mac_dev->if_support & SUPPORTED_10000baseT_Full)
+		qm_cgr_cs_thres_set64(&initcgr.cgr.cs_thres,
+			DPA_CS_THRESHOLD_10G, 1);
+	else
+		qm_cgr_cs_thres_set64(&initcgr.cgr.cs_thres,
+			DPA_CS_THRESHOLD_1G, 1);
 
 	initcgr.we_mask |= QM_CGR_WE_CSTD_EN;
 	initcgr.cgr.cstd_en = QM_CGR_EN;
