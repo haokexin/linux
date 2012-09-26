@@ -84,7 +84,7 @@ static void  UpdateNodeOwner(t_FmPcdCcNode *p_CcNode, bool add)
 
     intFlags = XX_LockIntrSpinlock(p_CcNode->h_Spinlock);
 
-    if (add)
+    if(add)
         p_CcNode->owners++;
     else
     {
@@ -372,7 +372,7 @@ static t_Error FmPcdCcAllocAndFillAdForContLookupManip(t_Handle h_CcNode)
 
         XX_UnlockIntrSpinlock(p_CcNode->h_Spinlock, intFlags);
 
-        if (!p_CcNode->h_Ad)
+        if(!p_CcNode->h_Ad)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for CC action descriptor"));
 
         IOMemSet32(p_CcNode->h_Ad, 0,  FM_PCD_CC_AD_ENTRY_SIZE);
@@ -409,92 +409,92 @@ static t_Error FmPcdCcSetRequiredAction(t_Handle                            h_Fm
     uint8_t             relativeSchemeId, physicalSchemeId;
     t_CcNodeInformation ccNodeInfo;
 
-     for (i = 0; i < numOfEntries; i++)
+     for(i = 0; i < numOfEntries; i++)
      {
-        if (i == 0)
+        if(i == 0)
             h_AdTmp = PTR_MOVE(h_AdTmp, i*FM_PCD_CC_AD_ENTRY_SIZE);
         else
             h_AdTmp = PTR_MOVE(h_AdTmp, FM_PCD_CC_AD_ENTRY_SIZE);
 
-        switch (p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.nextEngine)
+        switch(p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.nextEngine)
         {
-            case (e_FM_PCD_CC):
-                if (requiredAction)
+            case(e_FM_PCD_CC):
+                if(requiredAction)
                 {
                     p_CcNode = p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.ccParams.h_CcNode;
                     ASSERT_COND(p_CcNode);
-                    if (p_CcNode->shadowAction == requiredAction)
+                    if(p_CcNode->shadowAction == requiredAction)
                         break;
-                    if ((requiredAction & UPDATE_CC_WITH_TREE) && !(p_CcNode->shadowAction & UPDATE_CC_WITH_TREE))
+                    if((requiredAction & UPDATE_CC_WITH_TREE) && !(p_CcNode->shadowAction & UPDATE_CC_WITH_TREE))
                     {
 
                         ASSERT_COND(LIST_NumOfObjs(&p_CcNode->ccTreesLst) == 0);
-                        if (p_CcNode->shadowAction & UPDATE_CC_WITH_DELETE_TREE)
+                        if(p_CcNode->shadowAction & UPDATE_CC_WITH_DELETE_TREE)
                             p_CcNode->shadowAction &= ~UPDATE_CC_WITH_DELETE_TREE;
                         memset(&ccNodeInfo, 0, sizeof(t_CcNodeInformation));
                         ccNodeInfo.h_CcNode = h_Tree;
                         EnqueueNodeInfoToRelevantLst(&p_CcNode->ccTreesLst, &ccNodeInfo, NULL);
                         p_CcKeyAndNextEngineParamsTmp[i].shadowAction |= UPDATE_CC_WITH_TREE;
                     }
-                    if ((requiredAction & UPDATE_CC_WITH_DELETE_TREE) && !(p_CcNode->shadowAction & UPDATE_CC_WITH_DELETE_TREE))
+                    if((requiredAction & UPDATE_CC_WITH_DELETE_TREE) && !(p_CcNode->shadowAction & UPDATE_CC_WITH_DELETE_TREE))
                     {
                         ASSERT_COND(LIST_NumOfObjs(&p_CcNode->ccTreesLst) == 1);
-                        if (p_CcNode->shadowAction & UPDATE_CC_WITH_TREE)
+                        if(p_CcNode->shadowAction & UPDATE_CC_WITH_TREE)
                             p_CcNode->shadowAction &= ~UPDATE_CC_WITH_TREE;
                         DequeueNodeInfoFromRelevantLst(&p_CcNode->ccTreesLst, h_Tree, NULL);
                         p_CcKeyAndNextEngineParamsTmp[i].shadowAction |= UPDATE_CC_WITH_DELETE_TREE;
                     }
-                    if (p_CcNode->keyAndNextEngineParams[p_CcNode->numOfKeys].nextEngineParams.nextEngine != e_FM_PCD_INVALID)
+                    if(p_CcNode->keyAndNextEngineParams[p_CcNode->numOfKeys].nextEngineParams.nextEngine != e_FM_PCD_INVALID)
                         tmp  = (uint8_t)(p_CcNode->numOfKeys + 1);
                     else
                         tmp = p_CcNode->numOfKeys;
                     err = FmPcdCcSetRequiredAction(h_FmPcd, requiredAction, p_CcNode->keyAndNextEngineParams, p_CcNode->h_AdTable, tmp, h_Tree);
-                    if (err != E_OK)
+                    if(err != E_OK)
                         return err;
                     p_CcNode->shadowAction |= requiredAction;
                 }
                 break;
 
-            case (e_FM_PCD_KG):
-                if ((requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA) && !(p_CcKeyAndNextEngineParamsTmp[i].shadowAction & UPDATE_NIA_ENQ_WITHOUT_DMA))
+            case(e_FM_PCD_KG):
+                if((requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA) && !(p_CcKeyAndNextEngineParamsTmp[i].shadowAction & UPDATE_NIA_ENQ_WITHOUT_DMA))
                 {
                     physicalSchemeId = FmPcdKgGetSchemeId(p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.kgParams.h_DirectScheme);
                     relativeSchemeId = FmPcdKgGetRelativeSchemeId(h_FmPcd, physicalSchemeId);
-                    if (relativeSchemeId == FM_PCD_KG_NUM_OF_SCHEMES)
+                    if(relativeSchemeId == FM_PCD_KG_NUM_OF_SCHEMES)
                         RETURN_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
                     if (!FmPcdKgIsSchemeValidSw(p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.kgParams.h_DirectScheme))
                          RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid direct scheme."));
-                    if (!KgIsSchemeAlwaysDirect(h_FmPcd, relativeSchemeId))
+                    if(!KgIsSchemeAlwaysDirect(h_FmPcd, relativeSchemeId))
                         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("For this action scheme has to be direct."));
                     err = FmPcdKgCcGetSetParams(h_FmPcd, p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.kgParams.h_DirectScheme, requiredAction, 0);
-                    if (err != E_OK)
+                    if(err != E_OK)
                         RETURN_ERROR(MAJOR, err, NO_MSG);
                     p_CcKeyAndNextEngineParamsTmp[i].shadowAction |= requiredAction;
                 }
                 break;
 
-            case (e_FM_PCD_PLCR):
-                if ((requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA) && !(p_CcKeyAndNextEngineParamsTmp[i].shadowAction & UPDATE_NIA_ENQ_WITHOUT_DMA))
+            case(e_FM_PCD_PLCR):
+                if((requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA) && !(p_CcKeyAndNextEngineParamsTmp[i].shadowAction & UPDATE_NIA_ENQ_WITHOUT_DMA))
                 {
-                    if (!p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.plcrParams.overrideParams)
+                    if(!p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.plcrParams.overrideParams)
                         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("In this initialization only overrideFqid can be initialized"));
-                    if (!p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.plcrParams.sharedProfile)
+                    if(!p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.plcrParams.sharedProfile)
                         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("In this initialization only overrideFqid can be initialized"));
                     err =  FmPcdPlcrGetAbsoluteIdByProfileParams(h_FmPcd, e_FM_PCD_PLCR_SHARED, NULL, p_CcKeyAndNextEngineParamsTmp[i].nextEngineParams.params.plcrParams.newRelativeProfileId, &profileId);
-                    if (err!= E_OK)
+                    if(err!= E_OK)
                         RETURN_ERROR(MAJOR, err, NO_MSG);
                     err = FmPcdPlcrCcGetSetParams(h_FmPcd, profileId, requiredAction);
-                    if (err != E_OK)
+                    if(err != E_OK)
                         RETURN_ERROR(MAJOR, err, NO_MSG);
                     p_CcKeyAndNextEngineParamsTmp[i].shadowAction |= requiredAction;
                 }
                 break;
 
-            case (e_FM_PCD_DONE):
-                if ((requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA) && !(p_CcKeyAndNextEngineParamsTmp[i].shadowAction & UPDATE_NIA_ENQ_WITHOUT_DMA))
+            case(e_FM_PCD_DONE):
+                if((requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA) && !(p_CcKeyAndNextEngineParamsTmp[i].shadowAction & UPDATE_NIA_ENQ_WITHOUT_DMA))
                 {
                     tmpReg32 = GET_UINT32(p_AdTmp->nia);
-                    if ((tmpReg32 & GET_NIA_BMI_AC_ENQ_FRAME(h_FmPcd)) != GET_NIA_BMI_AC_ENQ_FRAME(h_FmPcd))
+                    if((tmpReg32 & GET_NIA_BMI_AC_ENQ_FRAME(h_FmPcd)) != GET_NIA_BMI_AC_ENQ_FRAME(h_FmPcd))
                         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next engine was previously assigned not as PCD_DONE"));
                     tmpReg32 |= NIA_BMI_AC_ENQ_FRAME_WITHOUT_DMA;
                     WRITE_UINT32(p_AdTmp->nia, tmpReg32);
@@ -559,7 +559,7 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
                                          &ccNodeInfo,
                                          p_FmPcdCcNextNode->h_Spinlock);
         }
-        if (p_AdditionalParams->h_ManipForAdd)
+        if(p_AdditionalParams->h_ManipForAdd)
         {
             p_CcNodeInformation = FindNodeInfoInReleventLst(FmPcdManipGetNodeLstPointedOnThisManip(p_AdditionalParams->h_ManipForAdd),
                                                              p_AdditionalParams->h_CurrentNode,
@@ -635,7 +635,7 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
 
         UpdateNodeOwner(p_FmPcdCcNextNode, FALSE);
 
-        if (p_AdditionalParams->h_ManipForRmv)
+        if(p_AdditionalParams->h_ManipForRmv)
         {
              p_CcNodeInformation = FindNodeInfoInReleventLst(FmPcdManipGetNodeLstPointedOnThisManip(p_AdditionalParams->h_ManipForRmv),
                                                              p_AdditionalParams->h_CurrentNode,
@@ -704,8 +704,7 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
            as it maybe used to retrieve keys statistics */
         intFlags = XX_LockIntrSpinlock(((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->h_Spinlock);
 
-        if (p_AdditionalParams->numOfKeys)
-            ((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->numOfKeys = p_AdditionalParams->numOfKeys;
+        ((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->numOfKeys = p_AdditionalParams->numOfKeys;
 
         memcpy(((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->keyAndNextEngineParams,
                 &p_AdditionalParams->keyAndNextEngineParams,
@@ -734,7 +733,7 @@ static t_Handle BuildNewAd(t_Handle                             h_Ad,
     t_FmPcdCcNode   *p_FmPcdCcNodeTmp;
 
     p_FmPcdCcNodeTmp = (t_FmPcdCcNode*)XX_Malloc(sizeof(t_FmPcdCcNode));
-    if (!p_FmPcdCcNodeTmp)
+    if(!p_FmPcdCcNodeTmp)
     {
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("p_FmPcdCcNodeTmp"));
         return NULL;
@@ -951,9 +950,9 @@ static bool FmPcdCcIsCapwapApplSpecific(t_Handle h_Node)
 
     ASSERT_COND(h_Node);
     /* assumption that this function called only for INDEXED_FLOW_ID - so no miss*/
-    for (i = 0; i < p_CcNode->numOfKeys; i++)
+    for(i = 0; i < p_CcNode->numOfKeys; i++)
     {
-        if ( p_CcNode->keyAndNextEngineParams[i].nextEngineParams.h_Manip &&
+        if( p_CcNode->keyAndNextEngineParams[i].nextEngineParams.h_Manip &&
             FmPcdManipIsCapwapApplSpecific(p_CcNode->keyAndNextEngineParams[i].nextEngineParams.h_Manip))
         {
             isManipForCapwapApplSpecificBuild = TRUE;
@@ -1013,7 +1012,7 @@ static t_Error CcUpdateParam(t_Handle                           h_FmPcd,
                 p_CcNode = p_CcKeyAndNextEngineParams[i].nextEngineParams.params.ccParams.h_CcNode;
                 ASSERT_COND(p_CcNode);
 
-                if (p_CcKeyAndNextEngineParams[i].nextEngineParams.h_Manip)
+                if(p_CcKeyAndNextEngineParams[i].nextEngineParams.h_Manip)
                 {
                     err = FmPcdManipUpdate(h_FmPcd,
                                            NULL,
@@ -1073,23 +1072,23 @@ static ccPrivateInfo_t IcDefineCode(t_FmPcdCcNodeParams *p_CcNodeParam)
 {
     switch (p_CcNodeParam->extractCcParams.extractNonHdr.action)
     {
-        case (e_FM_PCD_ACTION_EXACT_MATCH):
-            switch (p_CcNodeParam->extractCcParams.extractNonHdr.src)
+        case(e_FM_PCD_ACTION_EXACT_MATCH):
+            switch(p_CcNodeParam->extractCcParams.extractNonHdr.src)
             {
-                case (e_FM_PCD_EXTRACT_FROM_KEY):
+                case(e_FM_PCD_EXTRACT_FROM_KEY):
                     return CC_PRIVATE_INFO_IC_KEY_EXACT_MATCH;
-                case (e_FM_PCD_EXTRACT_FROM_HASH):
+                case(e_FM_PCD_EXTRACT_FROM_HASH):
                     return CC_PRIVATE_INFO_IC_HASH_EXACT_MATCH;
                 default:
                     return CC_PRIVATE_INFO_NONE;
             }
 
-        case (e_FM_PCD_ACTION_INDEXED_LOOKUP):
-            switch (p_CcNodeParam->extractCcParams.extractNonHdr.src)
+        case(e_FM_PCD_ACTION_INDEXED_LOOKUP):
+            switch(p_CcNodeParam->extractCcParams.extractNonHdr.src)
             {
-                case (e_FM_PCD_EXTRACT_FROM_HASH):
+                case(e_FM_PCD_EXTRACT_FROM_HASH):
                     return CC_PRIVATE_INFO_IC_HASH_INDEX_LOOKUP;
-                case (e_FM_PCD_EXTRACT_FROM_FLOW_ID):
+                case(e_FM_PCD_EXTRACT_FROM_FLOW_ID):
                     return CC_PRIVATE_INFO_IC_DEQ_FQID_INDEX_LOOKUP;
                 default:
                   return  CC_PRIVATE_INFO_NONE;
@@ -1119,7 +1118,7 @@ void ReleaseLst(t_List *p_List)
 {
     t_CcNodeInformation   *p_CcNodeInfo = NULL;
 
-    if (!LIST_IsEmpty(p_List))
+    if(!LIST_IsEmpty(p_List))
     {
         p_CcNodeInfo = DequeueAdditionalInfoFromRelevantLst(p_List);
         while (p_CcNodeInfo)
@@ -1200,9 +1199,9 @@ static void DeleteNode(t_FmPcdCcNode *p_CcNode)
 
 static void DeleteTree(t_FmPcdCcTree *p_FmPcdTree, t_FmPcd *p_FmPcd)
 {
-    if (p_FmPcdTree)
+    if(p_FmPcdTree)
     {
-        if (p_FmPcdTree->ccTreeBaseAddr)
+        if(p_FmPcdTree->ccTreeBaseAddr)
         {
             FM_MURAM_FreeMem(FmPcdGetMuramHandle(p_FmPcd), UINT_TO_PTR(p_FmPcdTree->ccTreeBaseAddr));
             p_FmPcdTree->ccTreeBaseAddr = 0;
@@ -1216,25 +1215,25 @@ static void DeleteTree(t_FmPcdCcTree *p_FmPcdTree, t_FmPcd *p_FmPcd)
 
 static void  GetCcExtractKeySize(uint8_t parseCodeRealSize, uint8_t *parseCodeCcSize)
 {
-    if ((parseCodeRealSize > 0) && (parseCodeRealSize < 2))
+    if((parseCodeRealSize > 0) && (parseCodeRealSize < 2))
         *parseCodeCcSize = 1;
-    else if (parseCodeRealSize == 2)
+    else if(parseCodeRealSize == 2)
         *parseCodeCcSize = 2;
-    else if ((parseCodeRealSize > 2)    && (parseCodeRealSize <= 4))
+    else if((parseCodeRealSize > 2)    && (parseCodeRealSize <= 4))
         *parseCodeCcSize = 4;
-    else if ((parseCodeRealSize > 4)    && (parseCodeRealSize <= 8))
+    else if((parseCodeRealSize > 4)    && (parseCodeRealSize <= 8))
         *parseCodeCcSize = 8;
-    else if ((parseCodeRealSize > 8)    && (parseCodeRealSize <= 16))
+    else if((parseCodeRealSize > 8)    && (parseCodeRealSize <= 16))
         *parseCodeCcSize = 16;
-    else if ((parseCodeRealSize  > 16)  && (parseCodeRealSize <= 24))
+    else if((parseCodeRealSize  > 16)  && (parseCodeRealSize <= 24))
         *parseCodeCcSize = 24;
-    else if ((parseCodeRealSize  > 24)  && (parseCodeRealSize <= 32))
+    else if((parseCodeRealSize  > 24)  && (parseCodeRealSize <= 32))
         *parseCodeCcSize = 32;
-    else if ((parseCodeRealSize  > 32)  && (parseCodeRealSize <= 40))
+    else if((parseCodeRealSize  > 32)  && (parseCodeRealSize <= 40))
         *parseCodeCcSize = 40;
-    else if ((parseCodeRealSize  > 40)  && (parseCodeRealSize <= 48))
+    else if((parseCodeRealSize  > 40)  && (parseCodeRealSize <= 48))
         *parseCodeCcSize = 48;
-    else if ((parseCodeRealSize  > 48)  && (parseCodeRealSize <= 56))
+    else if((parseCodeRealSize  > 48)  && (parseCodeRealSize <= 56))
         *parseCodeCcSize = 56;
     else
         *parseCodeCcSize = 0;
@@ -1345,12 +1344,7 @@ static void  GetSizeHeaderField(e_NetHeaderType     hdr,
             {
                 case (NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC):
                    *parseCodeRealSize = 4;
-#ifdef FM_EXP_FEATURES
-                   if ((field.ipv6 == NET_HEADER_FIELD_IPv6_TC) &&
-                     ((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1)) )
-                        *parseCodeRealSize = 1;
-#endif /*FM_EXP_FEATURES*/
-                    break;
+                   break;
 
                 case (NET_HEADER_FIELD_IPv6_NEXT_HDR):
                 case (NET_HEADER_FIELD_IPv6_HOP_LIMIT):
@@ -1372,7 +1366,7 @@ static void  GetSizeHeaderField(e_NetHeaderType     hdr,
         case (HEADER_TYPE_GRE):
             switch (field.gre)
             {
-                case (NET_HEADER_FIELD_GRE_TYPE):
+                case( NET_HEADER_FIELD_GRE_TYPE):
                    *parseCodeRealSize = 2;
                     break;
 
@@ -1384,7 +1378,7 @@ static void  GetSizeHeaderField(e_NetHeaderType     hdr,
             break;
 
         case (HEADER_TYPE_MINENCAP):
-            switch (field.minencap)
+            switch(field.minencap)
             {
                 case (NET_HEADER_FIELD_MINENCAP_TYPE):
                    *parseCodeRealSize = 1;
@@ -1493,7 +1487,7 @@ t_Error ValidateNextEngineParams(t_Handle                   h_FmPcd,
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("CC Node may point only to a scheme that is always direct."));
             break;
 
-        case (e_FM_PCD_PLCR):
+        case(e_FM_PCD_PLCR):
             if (p_FmPcdCcNextEngineParams->params.plcrParams.overrideParams)
             {
                 /* if private policer profile, it may be uninitialized yet, therefore no checks are done at this stage */
@@ -1513,7 +1507,7 @@ t_Error ValidateNextEngineParams(t_Handle                   h_FmPcd,
                 {
                 }
                 /* TODO - add check according to the revision of the chip.
-                if (!p_FmPcdCcNextEngineParams->params.plcrParams.newFqid ||
+                if(!p_FmPcdCcNextEngineParams->params.plcrParams.newFqid ||
                    (p_FmPcdCcNextEngineParams->params.plcrParams.newFqid & ~0x00FFFFFF))
                     RETURN_ERROR(MAJOR, E_INVALID_STATE, ("newFqid  must be between 1 and 2^24-1"));
                 */
@@ -1605,27 +1599,27 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                                      t_FmPcdFields      field)
 {
 
-    switch (hdr)
-    {
-        case (HEADER_TYPE_NONE):
-            ASSERT_COND(FALSE);
-            return CC_PC_ILLEGAL;
+      switch (hdr)
+        {
+            case(HEADER_TYPE_NONE):
+                ASSERT_COND(FALSE);
+                return CC_PC_ILLEGAL;
 
-        case (HEADER_TYPE_ETH):
-            switch (field.eth)
-            {
-                case (NET_HEADER_FIELD_ETH_DA):
-                    return CC_PC_FF_MACDST;
-                case (NET_HEADER_FIELD_ETH_SA):
-                    return CC_PC_FF_MACSRC;
-                case (NET_HEADER_FIELD_ETH_TYPE):
-                    return CC_PC_FF_ETYPE;
-                default:
-                    REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
-                    return CC_PC_ILLEGAL;
-            }
+       case (HEADER_TYPE_ETH):
+                switch(field.eth)
+                {
+                    case(NET_HEADER_FIELD_ETH_DA):
+                        return CC_PC_FF_MACDST;
+                    case(NET_HEADER_FIELD_ETH_SA):
+                         return CC_PC_FF_MACSRC;
+                    case(NET_HEADER_FIELD_ETH_TYPE):
+                         return CC_PC_FF_ETYPE;
+                    default:
+                        REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
+                        return CC_PC_ILLEGAL;
+                }
 
-        case (HEADER_TYPE_VLAN):
+         case (HEADER_TYPE_VLAN):
             switch (field.vlan)
             {
                 case (NET_HEADER_FIELD_VLAN_TCI):
@@ -1637,8 +1631,8 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                     return CC_PC_ILLEGAL;
 
                 default:
-                    REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
-                    return CC_PC_ILLEGAL;
+                        REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
+                        return CC_PC_ILLEGAL;
             }
 
         case (HEADER_TYPE_MPLS):
@@ -1652,10 +1646,10 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal MPLS index"));
                     return CC_PC_ILLEGAL;
 
-                default:
+               default:
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
                     return CC_PC_ILLEGAL;
-            }
+             }
 
         case (HEADER_TYPE_IPv4):
             switch (field.ipv4)
@@ -1677,9 +1671,9 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                     return CC_PC_ILLEGAL;
 
                 case (NET_HEADER_FIELD_IPv4_PROTO):
-                    if ((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
+                    if((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
                         return CC_PC_FF_IPV4PTYPE1;
-                    if (index == e_FM_PCD_HDR_INDEX_2)
+                    if(index == e_FM_PCD_HDR_INDEX_2)
                         return CC_PC_FF_IPV4PTYPE2;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv4 index"));
                     return CC_PC_ILLEGAL;
@@ -1709,14 +1703,10 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
             }
 
         case (HEADER_TYPE_IPv6):
-            switch (field.ipv6)
+             switch (field.ipv6)
             {
                 case (NET_HEADER_FIELD_IPv6_VER | NET_HEADER_FIELD_IPv6_FL | NET_HEADER_FIELD_IPv6_TC):
                     if ((index == e_FM_PCD_HDR_INDEX_NONE) || (index == e_FM_PCD_HDR_INDEX_1))
-#ifdef FM_EXP_FEATURES
-                    if (field.ipv6 == NET_HEADER_FIELD_IPv6_TC)
-                        return CC_PC_FF_IPTOS1;
-#endif /*FM_EXP_FEATURES*/
                         return CC_PC_FF_IPTOS_IPV6TC1_IPV6FLOW1;
                     if (index == e_FM_PCD_HDR_INDEX_2)
                         return CC_PC_FF_IPTOS_IPV6TC2_IPV6FLOW2;
@@ -1728,7 +1718,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                         return CC_PC_FF_IPV6PTYPE1;
                     if (index == e_FM_PCD_HDR_INDEX_2)
                         return CC_PC_FF_IPV6PTYPE2;
-                    if (index == e_FM_PCD_HDR_INDEX_LAST)
+                    if(index == e_FM_PCD_HDR_INDEX_LAST)
                         return CC_PC_FF_IPPID;
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IPv6 index"));
                     return CC_PC_ILLEGAL;
@@ -1766,7 +1756,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                 default:
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
                     return CC_PC_ILLEGAL;
-            }
+           }
         case (HEADER_TYPE_MINENCAP):
             switch (field.minencap)
             {
@@ -1785,7 +1775,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                 default:
                     REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
                     return CC_PC_ILLEGAL;
-            }
+           }
 
         case (HEADER_TYPE_TCP):
             switch (field.tcp)
@@ -1832,7 +1822,7 @@ static uint8_t GetFullFieldParseCode(e_NetHeaderType    hdr,
                     return CC_PC_ILLEGAL;
             }
 
-        default:
+         default:
             REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Extraction not supported"));
             return CC_PC_ILLEGAL;
     }
@@ -1877,15 +1867,15 @@ static uint8_t GetPrParseCode(e_NetHeaderType   hdr,
             *parseArrayOffset = CC_PC_PR_USER_LLC_SNAP_OFFSET;
             break;
 
-        case (HEADER_TYPE_PPPoE):
+        case(HEADER_TYPE_PPPoE):
             *parseArrayOffset = CC_PC_PR_PPPOE_OFFSET;
             break;
 
         case (HEADER_TYPE_MPLS):
             if ((hdrIndex == e_FM_PCD_HDR_INDEX_NONE) || (hdrIndex == e_FM_PCD_HDR_INDEX_1))
-                *parseArrayOffset = CC_PC_PR_MPLS1_OFFSET;
+                    *parseArrayOffset = CC_PC_PR_MPLS1_OFFSET;
             else if (hdrIndex == e_FM_PCD_HDR_INDEX_LAST)
-                *parseArrayOffset = CC_PC_PR_MPLS_LAST_OFFSET;
+                    *parseArrayOffset = CC_PC_PR_MPLS_LAST_OFFSET;
             else
             {
                 REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal MPLS header index"));
@@ -1906,27 +1896,27 @@ static uint8_t GetPrParseCode(e_NetHeaderType   hdr,
             }
             break;
 
-        case (HEADER_TYPE_MINENCAP):
+        case(HEADER_TYPE_MINENCAP):
             *parseArrayOffset = CC_PC_PR_MINENC_OFFSET;
             break;
 
-        case (HEADER_TYPE_GRE):
+        case(HEADER_TYPE_GRE):
             *parseArrayOffset = CC_PC_PR_GRE_OFFSET;
             break;
 
-        case (HEADER_TYPE_TCP):
-        case (HEADER_TYPE_UDP):
-        case (HEADER_TYPE_IPSEC_AH):
-        case (HEADER_TYPE_IPSEC_ESP):
-        case (HEADER_TYPE_DCCP):
-        case (HEADER_TYPE_SCTP):
+        case(HEADER_TYPE_TCP):
+        case(HEADER_TYPE_UDP):
+        case(HEADER_TYPE_IPSEC_AH):
+        case(HEADER_TYPE_IPSEC_ESP):
+        case(HEADER_TYPE_DCCP):
+        case(HEADER_TYPE_SCTP):
             *parseArrayOffset = CC_PC_PR_L4_OFFSET;
             break;
 
         default:
             REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Illegal IP header for this type of operation"));
             return CC_PC_ILLEGAL;
-    }
+     }
 
     if (offsetRelevant)
         return CC_PR_OFFSET;
@@ -1948,7 +1938,7 @@ static uint8_t GetFieldParseCode(e_NetHeaderType    hdr,
     switch (hdr)
     {
         case (HEADER_TYPE_NONE):
-            ASSERT_COND(FALSE);
+                ASSERT_COND(FALSE);
         case (HEADER_TYPE_ETH):
             switch (field.eth)
             {
@@ -2064,7 +2054,7 @@ void FillAdOfTypeResult(t_Handle                    h_Ad,
                        tmp = FM_PCD_AD_RESULT_CONTRL_FLOW_TYPE;
                        tmp |= p_CcNextEngineParams->params.enqueueParams.newFqid;
 #if (DPAA_VERSION >= 11)
-                       tmp |= (p_CcNextEngineParams->params.enqueueParams.newRelativeStorageProfileId & FM_PCD_AD_RESULT_VSP_MASK) << FM_PCD_AD_RESULT_VSP_SHIFT;
+                       tmp |= (p_CcNextEngineParams->params.enqueueParams.newRelativeStorageProfileId & FM_PCD_AD_RESULT_VSP_MASK)<< FM_PCD_AD_RESULT_VSP_SHIFT;
 #endif /* (DPAA_VERSION >= 11) */
                     }
                     else
@@ -2120,7 +2110,7 @@ void FillAdOfTypeResult(t_Handle                    h_Ad,
 
                     tmp |= p_CcNextEngineParams->params.plcrParams.newFqid;
 #if (DPAA_VERSION >= 11)
-                    tmp |= (p_CcNextEngineParams->params.plcrParams.newRelativeStorageProfileId & FM_PCD_AD_RESULT_VSP_MASK) << FM_PCD_AD_RESULT_VSP_SHIFT;
+                    tmp |= (p_CcNextEngineParams->params.plcrParams.newRelativeStorageProfileId & FM_PCD_AD_RESULT_VSP_MASK)<< FM_PCD_AD_RESULT_VSP_SHIFT;
 #endif /* (DPAA_VERSION >= 11) */
                     WRITE_UINT32(p_AdResult->plcrProfile,(uint32_t)((uint32_t)profileId << FM_PCD_AD_PROFILEID_FOR_CNTRL_SHIFT));
                 }
@@ -2179,11 +2169,11 @@ void NextStepAd(t_Handle                     h_Ad,
                 t_FmPcdCcNextEngineParams    *p_FmPcdCcNextEngineParams,
                 t_FmPcd                      *p_FmPcd)
 {
-    switch (p_FmPcdCcNextEngineParams->nextEngine)
+    switch(p_FmPcdCcNextEngineParams->nextEngine)
     {
-        case (e_FM_PCD_KG):
-        case (e_FM_PCD_PLCR):
-        case (e_FM_PCD_DONE):
+        case(e_FM_PCD_KG):
+        case(e_FM_PCD_PLCR):
+        case(e_FM_PCD_DONE):
             /* if NIA is not CC, create a "result" type AD */
             FillAdOfTypeResult(h_Ad,
                                h_StatsAd,
@@ -2193,7 +2183,7 @@ void NextStepAd(t_Handle                     h_Ad,
                                p_FmPcdCcNextEngineParams);
             break;
 #if (DPAA_VERSION >= 11)
-        case (e_FM_PCD_FR):
+        case(e_FM_PCD_FR):
             if (p_FmPcdCcNextEngineParams->params.frParams.h_FrmReplic)
             {
                 FillAdOfTypeContLookup(h_Ad,
@@ -2210,7 +2200,7 @@ void NextStepAd(t_Handle                     h_Ad,
             break;
 #endif /* (DPAA_VERSION >= 11) */
 
-        case (e_FM_PCD_CC):
+        case(e_FM_PCD_CC):
             /* if NIA is not CC, create a TD to continue the CC lookup */
             FillAdOfTypeContLookup(h_Ad,
                                    h_StatsAd,
@@ -2232,11 +2222,11 @@ void NextStepAd(t_Handle                     h_Ad,
 
 static void ReleaseNewNodeCommonPart(t_FmPcdModifyCcKeyAdditionalParams *p_AdditionalInfo)
 {
-    if (p_AdditionalInfo->p_AdTableNew)
+    if(p_AdditionalInfo->p_AdTableNew)
         FM_MURAM_FreeMem(FmPcdGetMuramHandle(((t_FmPcdCcNode *)(p_AdditionalInfo->h_CurrentNode))->h_FmPcd),
                          p_AdditionalInfo->p_AdTableNew);
 
-    if (p_AdditionalInfo->p_KeysMatchTableNew)
+    if(p_AdditionalInfo->p_KeysMatchTableNew)
         FM_MURAM_FreeMem(FmPcdGetMuramHandle(((t_FmPcdCcNode *)(p_AdditionalInfo->h_CurrentNode))->h_FmPcd),
                          p_AdditionalInfo->p_KeysMatchTableNew);
 }
@@ -2423,7 +2413,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
     err = ValidateNextEngineParams(h_FmPcd,
                                    &p_KeyParams->ccNextEngineParams,
                                    p_CcNode->statisticsMode);
-    if (err)
+    if(err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
     prvLclMask = p_CcNode->lclMask;
@@ -2473,10 +2463,10 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
     /* Check that manip is legal and what requiredAction is necessary for this manip */
-    if (p_KeyParams->ccNextEngineParams.h_Manip)
+    if(p_KeyParams->ccNextEngineParams.h_Manip)
     {
         err = FmPcdManipCheckParamsForCcNextEgine(&p_KeyParams->ccNextEngineParams,&requiredAction);
-        if (err)
+        if(err)
             RETURN_ERROR(MAJOR, err, (NO_MSG));
     }
 
@@ -2529,7 +2519,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
             /* Update mask for the received new key */
             if (p_CcNode->lclMask)
             {
-                if (p_KeyParams->p_Mask)
+                if(p_KeyParams->p_Mask)
                 {
                     Mem2IOCpy32(PTR_MOVE(p_KeysMatchTableNewTmp,
                                 p_CcNode->ccKeySizeAccExtraction),
@@ -2696,7 +2686,7 @@ static t_Error BuildNewNodeRemoveKey(t_FmPcdCcNode                      *p_CcNod
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
     /*update new Ad and new Key Table according to new requirement*/
-    for (i = 0, j = 0; j < p_CcNode->numOfKeys; i++, j++)
+    for (i=0, j=0; j<p_CcNode->numOfKeys; i++, j++)
     {
         if (j == keyIndex)
         {
@@ -2786,7 +2776,7 @@ static t_Error BuildNewNodeModifyKey(t_FmPcdCcNode                      *p_CcNod
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
     /*fill the New AdTable and New KeyTable*/
-    for (j = 0, i = 0; j < p_AdditionalInfo->numOfKeys; j++, i++)
+    for (j=0, i=0; j<p_AdditionalInfo->numOfKeys; j++, i++)
     {
         p_AdTableNewTmp = PTR_MOVE(p_AdditionalInfo->p_AdTableNew, j*FM_PCD_CC_AD_ENTRY_SIZE);
         p_AdTableOldTmp = PTR_MOVE(p_AdditionalInfo->p_AdTableOld, i*FM_PCD_CC_AD_ENTRY_SIZE);
@@ -2935,6 +2925,8 @@ static t_Error BuildNewNodeModifyNextEngine(t_Handle                            
     if (!p_AdditionalInfo->tree)
     {
         p_FmPcdCcNode1 = (t_FmPcdCcNode *)h_FmPcdCcNodeOrTree;
+        p_AdditionalInfo->numOfKeys =  p_FmPcdCcNode1->numOfKeys;
+
         p_Ad = p_FmPcdCcNode1->h_AdTable;
 
         if (p_FmPcdCcNode1->keyAndNextEngineParams[keyIndex].nextEngineParams.nextEngine == e_FM_PCD_CC)
@@ -3034,7 +3026,7 @@ static t_Error BuildNewNodeModifyNextEngine(t_Handle                            
     if (!p_AdditionalInfo->tree)
     {
         ASSERT_COND(p_FmPcdCcNode1);
-        if (!LIST_IsEmpty(&p_FmPcdCcNode1->ccTreesLst))
+        if(!LIST_IsEmpty(&p_FmPcdCcNode1->ccTreesLst))
         {
             LIST_FOR_EACH(p_Pos, &p_FmPcdCcNode1->ccTreesLst)
             {
@@ -3139,11 +3131,11 @@ static void UpdateAdPtrOfNodesWhichPointsOnCrntMdfNode(t_FmPcdCcNode            
         ASSERT_COND(p_NodePtrOnCurrentMdfNode);
 
         /* Search in the previous node which exact index points on this current modified node for getting AD */
-        for (i = 0; i < p_NodePtrOnCurrentMdfNode->numOfKeys + 1; i++)
+        for(i = 0; i < p_NodePtrOnCurrentMdfNode->numOfKeys + 1; i++)
         {
-            if (p_NodePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.nextEngine == e_FM_PCD_CC)
+            if(p_NodePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.nextEngine == e_FM_PCD_CC)
             {
-                if (p_NodePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.params.ccParams.h_CcNode == (t_Handle)p_CrntMdfNode)
+                if(p_NodePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.params.ccParams.h_CcNode == (t_Handle)p_CrntMdfNode)
                 {
                     if (p_NodePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.h_Manip)
                         p_AdTablePtOnCrntCurrentMdfNode = p_CrntMdfNode->h_Ad;
@@ -3187,11 +3179,11 @@ static void UpdateAdPtrOfTreesWhichPointsOnCrntMdfNode(t_FmPcdCcNode            
         ASSERT_COND(p_TreePtrOnCurrentMdfNode);
 
         /*search in the trees which exact index points on this current modified node for getting AD */
-        for (i = 0; i < p_TreePtrOnCurrentMdfNode->numOfEntries; i++)
+        for(i = 0; i < p_TreePtrOnCurrentMdfNode->numOfEntries; i++)
         {
-            if (p_TreePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.nextEngine == e_FM_PCD_CC)
+            if(p_TreePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.nextEngine == e_FM_PCD_CC)
             {
-                if (p_TreePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.params.ccParams.h_CcNode == (t_Handle)p_CrntMdfNode)
+                if(p_TreePtrOnCurrentMdfNode->keyAndNextEngineParams[i].nextEngineParams.params.ccParams.h_CcNode == (t_Handle)p_CrntMdfNode)
                 {
                     p_AdTableTmp = UINT_TO_PTR(p_TreePtrOnCurrentMdfNode->ccTreeBaseAddr + i*FM_PCD_CC_AD_ENTRY_SIZE);
                     memset(&ccNodeInfo, 0, sizeof(t_CcNodeInformation));
@@ -3247,7 +3239,7 @@ static t_FmPcdModifyCcKeyAdditionalParams* ModifyKeyCommonPart1(t_Handle        
             return NULL;
         }
 
-        if (!LIST_NumOfObjs(&p_CcNode->ccTreesLst) ||
+        if(!LIST_NumOfObjs(&p_CcNode->ccTreesLst) ||
            (LIST_NumOfObjs(&p_CcNode->ccTreesLst) != 1))
         {
             XX_Free(p_KeyAndNextEngineParams);
@@ -3259,9 +3251,9 @@ static t_FmPcdModifyCcKeyAdditionalParams* ModifyKeyCommonPart1(t_Handle        
                p_CcNode->keyAndNextEngineParams,
                256 * sizeof(t_FmPcdCcKeyAndNextEngineParams));
 
-        if (ttlCheck)
+        if(ttlCheck)
         {
-            if ((p_CcNode->parseCode == CC_PC_FF_IPV4TTL) ||
+            if((p_CcNode->parseCode == CC_PC_FF_IPV4TTL) ||
                (p_CcNode->parseCode == CC_PC_FF_IPV6HOP_LIMIT))
             {
                 XX_Free(p_KeyAndNextEngineParams);
@@ -3270,9 +3262,9 @@ static t_FmPcdModifyCcKeyAdditionalParams* ModifyKeyCommonPart1(t_Handle        
             }
         }
 
-        if (hashCheck)
+        if(hashCheck)
         {
-            if (p_CcNode->parseCode == CC_PC_GENERIC_IC_HASH_INDEXED)
+            if(p_CcNode->parseCode == CC_PC_GENERIC_IC_HASH_INDEXED)
             {
                 XX_Free(p_KeyAndNextEngineParams);
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("nodeId of CC_PC_GENERIC_IC_HASH_INDEXED can not be used for this operation"));
@@ -3291,7 +3283,7 @@ static t_FmPcdModifyCcKeyAdditionalParams* ModifyKeyCommonPart1(t_Handle        
 
     p_FmPcdModifyCcKeyAdditionalParams =
         (t_FmPcdModifyCcKeyAdditionalParams *)XX_Malloc(sizeof(t_FmPcdModifyCcKeyAdditionalParams));
-    if (!p_FmPcdModifyCcKeyAdditionalParams)
+    if(!p_FmPcdModifyCcKeyAdditionalParams)
     {
         XX_Free(p_KeyAndNextEngineParams);
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("Allocation of internal data structure FAILED"));
@@ -3304,11 +3296,11 @@ static t_FmPcdModifyCcKeyAdditionalParams* ModifyKeyCommonPart1(t_Handle        
 
     while(i < numOfKeys)
     {
-        if ((j == keyIndex) && !wasUpdate)
+        if((j == keyIndex) && !wasUpdate)
         {
-            if (modifyState == e_MODIFY_STATE_ADD)
+            if(modifyState == e_MODIFY_STATE_ADD)
                 j++;
-            else if (modifyState == e_MODIFY_STATE_REMOVE)
+            else if(modifyState == e_MODIFY_STATE_REMOVE)
                 i++;
             wasUpdate = TRUE;
         }
@@ -3326,7 +3318,7 @@ static t_FmPcdModifyCcKeyAdditionalParams* ModifyKeyCommonPart1(t_Handle        
     {
         if (modifyState == e_MODIFY_STATE_ADD)
             j++;
-        else if (modifyState == e_MODIFY_STATE_REMOVE)
+        else if(modifyState == e_MODIFY_STATE_REMOVE)
             i++;
     }
 
@@ -3349,10 +3341,10 @@ static t_Error UpdatePtrWhichPointOnCrntMdfNode(t_FmPcdCcNode                   
     t_Handle                    h_NewAd;
 
     /* Building a list of all action descriptors that point to the previous node */
-    if (!LIST_IsEmpty(&p_CcNode->ccPrevNodesLst))
+    if(!LIST_IsEmpty(&p_CcNode->ccPrevNodesLst))
         UpdateAdPtrOfNodesWhichPointsOnCrntMdfNode(p_CcNode, h_OldLst, &p_NextEngineParams);
 
-    if (!LIST_IsEmpty(&p_CcNode->ccTreeIdLst))
+    if(!LIST_IsEmpty(&p_CcNode->ccTreeIdLst))
         UpdateAdPtrOfTreesWhichPointsOnCrntMdfNode(p_CcNode, h_OldLst, &p_NextEngineParams);
 
     /* This node must be found as next engine of one of its previous nodes or trees*/
@@ -3360,7 +3352,7 @@ static t_Error UpdatePtrWhichPointOnCrntMdfNode(t_FmPcdCcNode                   
 
     /* Building a new action descriptor that points to the modified node */
     h_NewAd = GetNewAd(p_CcNode, FALSE);
-    if (!h_NewAd)
+    if(!h_NewAd)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, NO_MSG);
     IOMemSet32(h_NewAd, 0,  FM_PCD_CC_AD_ENTRY_SIZE);
 
@@ -3426,7 +3418,7 @@ static t_Error ValidateAndCalcStatsParams(e_FmPcdCcStatsMode   statisticsMode,
             *p_CountersArraySize = 2 * FM_PCD_CC_STATS_COUNTER_SIZE;
             return E_OK;
 
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
         case e_FM_PCD_CC_STATS_MODE_RMON:
             {
                 uint16_t    *p_FrameLengthRanges = p_CcNodeParam->keysParams.frameLengthRanges;
@@ -3464,7 +3456,8 @@ static t_Error ValidateAndCalcStatsParams(e_FmPcdCcStatsMode   statisticsMode,
                 *p_CountersArraySize = (*p_NumOfRanges + 1) * FM_PCD_CC_STATS_COUNTER_SIZE;
             }
             return E_OK;
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
+
         default:
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Statistics mode"));
     }
@@ -3498,7 +3491,7 @@ static t_Error CheckParams(t_Handle             h_FmPcd,
     if (p_CcNodeParam->keysParams.ccNextEngineParamsForMiss.h_Manip)
     {
         err = FmPcdManipCheckParamsForCcNextEgine(&p_CcNodeParam->keysParams.ccNextEngineParamsForMiss, &requiredAction);
-        if (err)
+        if(err)
             RETURN_ERROR(MAJOR, err, (NO_MSG));
     }
 
@@ -3520,13 +3513,13 @@ static t_Error CheckParams(t_Handle             h_FmPcd,
     {
         p_KeyParams = &p_CcNodeParam->keysParams.keyParams[tmp];
 
-        if (!p_KeyParams->p_Key)
+        if(!p_KeyParams->p_Key)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("p_Key is not initialized"));
 
         err = ValidateNextEngineParams(h_FmPcd,
                                        &p_KeyParams->ccNextEngineParams,
                                        p_CcNode->statisticsMode);
-        if (err)
+        if(err)
             RETURN_ERROR(MAJOR, err, (NO_MSG));
 
         err = UpdateGblMask(p_CcNode,
@@ -3722,17 +3715,17 @@ static t_Error IcHashIndexedCheckParams(t_Handle            h_FmPcd,
     err = ValidateNextEngineParams(h_FmPcd,
                                    &p_CcNodeParam->keysParams.ccNextEngineParamsForMiss,
                                    p_CcNode->statisticsMode);
-    if (GET_ERROR_TYPE(err)!= E_NOT_SUPPORTED)
+    if(GET_ERROR_TYPE(err)!= E_NOT_SUPPORTED)
         RETURN_ERROR(MAJOR, err, ("MissNextEngineParams for the node of the type IC_INDEX_HASH has to be UnInitialized"));
 
-    for (tmp = 0; tmp < p_CcNode->numOfKeys; tmp++)
+    for(tmp = 0; tmp < p_CcNode->numOfKeys; tmp++)
     {
         p_KeyParams = &p_CcNodeParam->keysParams.keyParams[tmp];
 
-        if (p_KeyParams->p_Mask || p_KeyParams->p_Key)
+        if(p_KeyParams->p_Mask || p_KeyParams->p_Key)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("For Node of the type IC_HASH_INDEXED p_Key or p_Mask has to be NULL"));
 
-        if ((glblMask & (tmp * 16)) == (tmp * 16))
+        if((glblMask & (tmp * 16)) == (tmp * 16))
         {
             err = ValidateNextEngineParams(h_FmPcd,
                                            &p_KeyParams->ccNextEngineParams,
@@ -3765,7 +3758,7 @@ static t_Error IcHashIndexedCheckParams(t_Handle            h_FmPcd,
             err = ValidateNextEngineParams(h_FmPcd,
                                            &p_KeyParams->ccNextEngineParams,
                                            p_CcNode->statisticsMode);
-            if (GET_ERROR_TYPE(err)!= E_NOT_SUPPORTED)
+            if(GET_ERROR_TYPE(err)!= E_NOT_SUPPORTED)
                 RETURN_ERROR(MAJOR, err, ("This index has to be UnInitialized for the node of the type IC_INDEX_HASH according to settings of GlobalMask"));
         }
     }
@@ -3940,7 +3933,7 @@ static t_Error PreAllocStatsObjs(t_FmPcdCcNode *p_CcNode)
 
     /* Allocate statistics ADs and statistics counter. An extra pair (AD + counters)
        will be allocated to support runtime modifications */
-    for (i = 0; i < p_CcNode->maxNumOfKeys + 2; i++)
+    for (i=0; i<p_CcNode->maxNumOfKeys+2; i++)
     {
         /* Allocate list object structure */
         p_StatsObj = XX_Malloc(sizeof(t_FmPcdStatsObj));
@@ -4013,9 +4006,9 @@ static t_Error MatchTableGetKeyStatistics(t_FmPcdCcNode           *p_CcNode,
 
         p_KeyStatistics->frameCount += GET_UINT32(*p_StatsCounters);
 
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
         p_KeyStatistics->frameLengthRangeCount[i-1] = GET_UINT32(*p_StatsCounters);
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
     }
 
     return E_OK;
@@ -4040,7 +4033,7 @@ t_CcNodeInformation* FindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info, 
 
         ASSERT_COND(p_CcInformation->h_CcNode);
 
-        if (p_CcInformation->h_CcNode == h_Info)
+        if(p_CcInformation->h_CcNode == h_Info)
         {
             XX_UnlockIntrSpinlock(h_Spinlock, intFlags);
             return p_CcInformation;
@@ -4304,7 +4297,7 @@ t_Error FmPcdCcModifyNextEngineParamTree(t_Handle                   h_FmPcd,
 
     p_ModifyKeyParams->tree = TRUE;
 
-    if (p_FmPcd->p_CcShadow)
+    if(p_FmPcd->p_CcShadow)
         if (!TRY_LOCK(p_FmPcd->h_ShadowSpinlock, &p_FmPcd->shadowLock))
             return ERROR_CODE(E_BUSY);
 
@@ -4315,7 +4308,7 @@ t_Error FmPcdCcModifyNextEngineParamTree(t_Handle                   h_FmPcd,
                                        &h_OldPointersLst,
                                        &h_NewPointersLst,
                                        p_ModifyKeyParams);
-    if (err)
+    if(err)
     {
         XX_Free(p_ModifyKeyParams);
         RETURN_ERROR(MAJOR, err, NO_MSG);
@@ -4751,7 +4744,7 @@ t_Error FmPcdCcGetGrpParams(t_Handle h_FmPcdCcTree, uint8_t grpId, uint32_t *p_G
 
     SANITY_CHECK_RETURN_ERROR(h_FmPcdCcTree, E_INVALID_HANDLE);
 
-    if (grpId >= p_FmPcdCcTree->numOfGrps)
+    if(grpId >= p_FmPcdCcTree->numOfGrps)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("grpId you asked > numOfGroup of relevant tree"));
 
     *p_GrpBits = p_FmPcdCcTree->fmPcdGroupParam[grpId].totalBitsMask;
@@ -4997,7 +4990,7 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
     }
 
     p_FmPcdCcTree = (t_FmPcdCcTree*)XX_Malloc(sizeof(t_FmPcdCcTree));
-    if (!p_FmPcdCcTree)
+    if(!p_FmPcdCcTree)
     {
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("PCD tree structure"));
         return NULL;
@@ -5018,7 +5011,7 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
         FmPcdCcIsCapwapApplSpecific(p_PcdGroupsParam->ccGrpParams[0].nextEnginePerEntriesInGrp[0].params.ccParams.h_CcNode))
     {
         p_PcdGroupsParam->ccGrpParams[0].nextEnginePerEntriesInGrp[0].h_Manip = FmPcdManipApplSpecificBuild();
-        if (!p_PcdGroupsParam->ccGrpParams[0].nextEnginePerEntriesInGrp[0].h_Manip)
+        if(!p_PcdGroupsParam->ccGrpParams[0].nextEnginePerEntriesInGrp[0].h_Manip)
         {
             DeleteTree(p_FmPcdCcTree,p_FmPcd);
             XX_Free(p_Params);
@@ -5057,7 +5050,7 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
 
         if (lastOne)
         {
-            if (p_FmPcdCcTree->fmPcdGroupParam[i].numOfEntriesInGroup > lastOne)
+            if(p_FmPcdCcTree->fmPcdGroupParam[i].numOfEntriesInGroup > lastOne)
             {
                 DeleteTree(p_FmPcdCcTree,p_FmPcd);
                 XX_Free(p_Params);
@@ -5154,7 +5147,7 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
     p_CcTreeTmp = UINT_TO_PTR(p_FmPcdCcTree->ccTreeBaseAddr);
 
     j = 0;
-    for (i = 0; i < numOfEntries; i++)
+    for(i = 0; i < numOfEntries; i++)
     {
         p_KeyAndNextEngineParams = p_Params+i;
 
@@ -5171,14 +5164,14 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
                p_KeyAndNextEngineParams,
                sizeof(t_FmPcdCcKeyAndNextEngineParams));
 
-        if (p_FmPcdCcTree->keyAndNextEngineParams[i].nextEngineParams.nextEngine== e_FM_PCD_CC)
+        if(p_FmPcdCcTree->keyAndNextEngineParams[i].nextEngineParams.nextEngine== e_FM_PCD_CC)
         {
             p_FmPcdCcNextNode = (t_FmPcdCcNode*)p_FmPcdCcTree->keyAndNextEngineParams[i].nextEngineParams.params.ccParams.h_CcNode;
             p_CcInformation = FindNodeInfoInReleventLst(&p_FmPcdCcNextNode->ccTreeIdLst,
                                                         (t_Handle)p_FmPcdCcTree,
                                                         p_FmPcdCcNextNode->h_Spinlock);
 
-            if (!p_CcInformation)
+            if(!p_CcInformation)
             {
                 memset(&ccNodeInfo, 0, sizeof(t_CcNodeInformation));
                 ccNodeInfo.h_CcNode = (t_Handle)p_FmPcdCcTree;
@@ -5203,13 +5196,13 @@ t_Handle FM_PCD_CcRootBuild(t_Handle h_FmPcd, t_FmPcdCcTreeParams *p_PcdGroupsPa
          return NULL;
     }
 
-    for (i = 0; i < numOfEntries; i++)
+    for(i = 0; i < numOfEntries; i++)
     {
-        if (p_FmPcdCcTree->keyAndNextEngineParams[i].requiredAction)
+        if(p_FmPcdCcTree->keyAndNextEngineParams[i].requiredAction)
         {
             err = FmPcdCcSetRequiredAction(h_FmPcd, p_FmPcdCcTree->keyAndNextEngineParams[i].requiredAction,
                                             &p_FmPcdCcTree->keyAndNextEngineParams[i], p_CcTreeTmp,1, p_FmPcdCcTree);
-            if (err)
+            if(err)
             {
                 FmPcdLockUnlockAll(p_FmPcd);
                 FM_PCD_CcRootDelete(p_FmPcdCcTree);
@@ -5338,9 +5331,9 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
     bool                glblMask = FALSE;
     t_FmPcdCcKeyParams  *p_KeyParams;
     t_Handle            h_FmMuram, p_KeysMatchTblTmp, p_AdTableTmp;
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
     t_Handle            h_StatsFLRs;
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
     bool                fullField = FALSE;
     ccPrivateInfo_t     icCode = CC_PRIVATE_INFO_NONE;
     bool                isKeyTblAlloc, fromIc = FALSE;
@@ -5629,7 +5622,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
         p_CcNode->h_Ad = (t_Handle)FM_MURAM_AllocMem(h_FmMuram,
                                                      FM_PCD_CC_AD_ENTRY_SIZE,
                                                      FM_PCD_CC_AD_TABLE_ALIGN);
-        if (!p_CcNode->h_Ad)
+        if(!p_CcNode->h_Ad)
         {
             DeleteNode(p_CcNode);
             REPORT_ERROR(MAJOR, E_NO_MEMORY, ("MURAM allocation for CC action descriptor"));
@@ -5642,7 +5635,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
         adTableSize    = (uint32_t)(FM_PCD_CC_AD_ENTRY_SIZE * (p_CcNode->numOfKeys + 1));
     }
 
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
     /* If RMON statistics mode requested, allocate frame length ranges array */
     if (p_CcNode->statisticsMode == e_FM_PCD_CC_STATS_MODE_RMON)
     {
@@ -5671,7 +5664,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
     }
 #else
     p_CcNode->h_StatsFLRs = NULL;
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
 
     /* Allocate keys match table. Not required for some CC nodes, for example for IPv4 TTL
        identification, IPv6 hop count identification, etc. */
@@ -5818,7 +5811,7 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
             }
             else // TODO - think about Spinlock around ++
                 p_CcInformation->index++;
-            if (p_CcNode->keyAndNextEngineParams[tmp].nextEngineParams.h_Manip)
+            if(p_CcNode->keyAndNextEngineParams[tmp].nextEngineParams.h_Manip)
             {
                 h_Manip = p_CcNode->keyAndNextEngineParams[tmp].nextEngineParams.h_Manip;
                 p_CcInformation = FindNodeInfoInReleventLst(FmPcdManipGetNodeLstPointedOnThisManip(h_Manip),
@@ -5835,8 +5828,8 @@ t_Handle FM_PCD_MatchTableSet(t_Handle h_FmPcd, t_FmPcdCcNodeParams *p_CcNodePar
             }
             else
                 p_CcInformation->index++;
-            }
         }
+    }
     }
 
     p_AdTableTmp = p_CcNode->h_AdTable;
@@ -6577,14 +6570,14 @@ t_Handle FM_PCD_HashTableSet(t_Handle h_FmPcd, t_FmPcdHashTableParams *p_Param)
         return NULL;
     }
 
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
     if (p_Param->statisticsMode == e_FM_PCD_CC_STATS_MODE_RMON)
     {
         REPORT_ERROR(MAJOR, E_INVALID_VALUE,
                      ("RMON statistics mode currently not supported for hash table"));
         return NULL;
     }
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
 
     p_ExactMatchCcNodeParam = (t_FmPcdCcNodeParams*)XX_Malloc(sizeof(t_FmPcdCcNodeParams));
     if (!p_ExactMatchCcNodeParam)

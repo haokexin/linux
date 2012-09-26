@@ -125,10 +125,10 @@ static t_Error SetProfileNia(t_FmPcd *p_FmPcd, e_FmPcdEngine nextEngine, u_FmPcd
 
     switch (nextEngine)
     {
-        case e_FM_PCD_DONE:
+        case e_FM_PCD_DONE :
             switch (p_NextEngineParams->action)
             {
-                case e_FM_PCD_DROP_FRAME:
+                case e_FM_PCD_DROP_FRAME :
                     nia |= GET_NIA_BMI_AC_DISCARD_FRAME(p_FmPcd);
                     break;
                 case e_FM_PCD_ENQ_FRAME:
@@ -141,19 +141,19 @@ static t_Error SetProfileNia(t_FmPcd *p_FmPcd, e_FmPcdEngine nextEngine, u_FmPcd
         case e_FM_PCD_KG:
             physicalSchemeId = FmPcdKgGetSchemeId(p_NextEngineParams->h_DirectScheme);
             relativeSchemeId = FmPcdKgGetRelativeSchemeId(p_FmPcd, physicalSchemeId);
-            if (relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
+            if(relativeSchemeId >= FM_PCD_KG_NUM_OF_SCHEMES)
                 RETURN_ERROR(MAJOR, E_NOT_IN_RANGE, NO_MSG);
             if (!FmPcdKgIsSchemeValidSw(p_NextEngineParams->h_DirectScheme))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid direct scheme."));
-            if (!KgIsSchemeAlwaysDirect(p_FmPcd, relativeSchemeId))
+            if(!KgIsSchemeAlwaysDirect(p_FmPcd, relativeSchemeId))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Policer Profile may point only to a scheme that is always direct."));
             nia |= NIA_ENG_KG | NIA_KG_DIRECT | physicalSchemeId;
             break;
         case e_FM_PCD_PLCR:
             absoluteProfileId = ((t_FmPcdPlcrProfile *)p_NextEngineParams->h_Profile)->absoluteProfileId;
-            if (!IsProfileShared(p_FmPcd, absoluteProfileId))
+            if(!IsProfileShared(p_FmPcd, absoluteProfileId))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Next profile must be a shared profile"));
-            if (!FmPcdPlcrIsProfileValid(p_FmPcd, absoluteProfileId))
+            if(!FmPcdPlcrIsProfileValid(p_FmPcd, absoluteProfileId))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Invalid profile "));
             nia |= NIA_ENG_PLCR | NIA_PLCR_ABSOLUTE | absoluteProfileId;
             break;
@@ -254,7 +254,7 @@ static void CalcRates(t_Handle                              h_FmPcd,
      * For high rates it will never exceed the 32 bit reg (after the 16 shift), as it is
      * limited by the 10G physical port.
      */
-    if (temp != 0)
+    if(temp != 0)
     {
         /* In this case, the largest rate integer is non 0, if it does not occupy all (high) 16
          * bits of the PIR_EIR we can use this fact and enlarge it to occupy all 16 bits.
@@ -275,7 +275,7 @@ static void CalcRates(t_Handle                              h_FmPcd,
             temp = temp << 1;
             fppShift++;
         }
-        if (fppShift > 15)
+        if(fppShift > 15)
         {
             REPORT_ERROR(MAJOR, E_INVALID_SELECTION, ("timeStampPeriod to Information rate ratio is too small"));
             return;
@@ -284,7 +284,7 @@ static void CalcRates(t_Handle                              h_FmPcd,
     else
     {
         temp = (uint32_t)fraction; /* fraction will alyas be smaller than 2^16 */
-        if (!temp)
+        if(!temp)
             /* integer and fraction are 0, we set FP to its max val */
             fppShift = 31;
         else
@@ -343,13 +343,13 @@ static t_Error BuildProfileRegs(t_FmPcd                     *p_FmPcd,
 
 /* Set G, Y, R Nia */
     err = SetProfileNia(p_FmPcd, p_ProfileParams->nextEngineOnGreen,  &(p_ProfileParams->paramsOnGreen), &gnia);
-    if (err)
+    if(err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
     err = SetProfileNia(p_FmPcd, p_ProfileParams->nextEngineOnYellow, &(p_ProfileParams->paramsOnYellow), &ynia);
-    if (err)
+    if(err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
     err = SetProfileNia(p_FmPcd, p_ProfileParams->nextEngineOnRed,    &(p_ProfileParams->paramsOnRed), &rnia);
-   if (err)
+   if(err)
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
 /* Mode fmpl_pemode */
@@ -357,7 +357,7 @@ static t_Error BuildProfileRegs(t_FmPcd                     *p_FmPcd,
 
     switch (p_ProfileParams->algSelection)
     {
-        case e_FM_PCD_PLCR_PASS_THROUGH:
+        case    e_FM_PCD_PLCR_PASS_THROUGH:
             p_PlcrRegs->fmpl_pecir         = 0;
             p_PlcrRegs->fmpl_pecbs         = 0;
             p_PlcrRegs->fmpl_pepepir_eir   = 0;
@@ -368,7 +368,7 @@ static t_Error BuildProfileRegs(t_FmPcd                     *p_FmPcd,
             pemode &= ~FM_PCD_PLCR_PEMODE_ALG_MASK;
             switch (p_ProfileParams->colorMode)
             {
-                case e_FM_PCD_PLCR_COLOR_BLIND:
+                case    e_FM_PCD_PLCR_COLOR_BLIND:
                     pemode |= FM_PCD_PLCR_PEMODE_CBLND;
                     switch (p_ProfileParams->color.dfltColor)
                     {
@@ -389,7 +389,7 @@ static t_Error BuildProfileRegs(t_FmPcd                     *p_FmPcd,
                     }
 
                     break;
-                case e_FM_PCD_PLCR_COLOR_AWARE:
+                case    e_FM_PCD_PLCR_COLOR_AWARE:
                     pemode &= ~FM_PCD_PLCR_PEMODE_CBLND;
                     break;
                 default:
@@ -397,23 +397,23 @@ static t_Error BuildProfileRegs(t_FmPcd                     *p_FmPcd,
             }
             break;
 
-        case e_FM_PCD_PLCR_RFC_2698:
+        case    e_FM_PCD_PLCR_RFC_2698:
             /* Select algorithm MODE[ALG] = "01" */
             pemode |= FM_PCD_PLCR_PEMODE_ALG_RFC2698;
             if (p_ProfileParams->nonPassthroughAlgParams.comittedInfoRate > p_ProfileParams->nonPassthroughAlgParams.peakOrAccessiveInfoRate)
                 RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("in RFC2698 Peak rate must be equal or larger than comittedInfoRate."));
             goto cont_rfc;
-        case e_FM_PCD_PLCR_RFC_4115:
+        case    e_FM_PCD_PLCR_RFC_4115:
             /* Select algorithm MODE[ALG] = "10" */
             pemode |= FM_PCD_PLCR_PEMODE_ALG_RFC4115;
 cont_rfc:
             /* Select Color-Blind / Color-Aware operation (MODE[CBLND]) */
             switch (p_ProfileParams->colorMode)
             {
-                case e_FM_PCD_PLCR_COLOR_BLIND:
+                case    e_FM_PCD_PLCR_COLOR_BLIND:
                     pemode |= FM_PCD_PLCR_PEMODE_CBLND;
                     break;
-                case e_FM_PCD_PLCR_COLOR_AWARE:
+                case    e_FM_PCD_PLCR_COLOR_AWARE:
                     pemode &= ~FM_PCD_PLCR_PEMODE_CBLND;
                     /*In color aware more select override color interpretation (MODE[OVCLR]) */
                     switch (p_ProfileParams->color.override)
@@ -440,7 +440,7 @@ cont_rfc:
             /* Select Measurement Unit Mode to BYTE or PACKET (MODE[PKT]) */
             switch (p_ProfileParams->nonPassthroughAlgParams.rateMode)
             {
-                case e_FM_PCD_PLCR_BYTE_MODE:
+                case e_FM_PCD_PLCR_BYTE_MODE :
                     pemode &= ~FM_PCD_PLCR_PEMODE_PKT;
                         switch (p_ProfileParams->nonPassthroughAlgParams.byteModeParams.frameLengthSelection)
                         {
@@ -471,7 +471,7 @@ cont_rfc:
                                 RETURN_ERROR(MAJOR, E_INVALID_SELECTION, NO_MSG);
                         }
                     break;
-                case e_FM_PCD_PLCR_PACKET_MODE:
+                case e_FM_PCD_PLCR_PACKET_MODE :
                     pemode |= FM_PCD_PLCR_PEMODE_PKT;
                     break;
                 default:
@@ -600,15 +600,15 @@ static void EventsCB(t_Handle h_FmPcd)
 
     /* clear the forced events */
     force = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ifr);
-    if (force & event)
+    if(force & event)
         WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_ifr, force & ~event);
 
 
     WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_evr, event);
 
-    if (event & FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE)
+    if(event & FM_PCD_PLCR_PRAM_SELF_INIT_COMPLETE)
         p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_PRAM_SELF_INIT_COMPLETE);
-    if (event & FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE)
+    if(event & FM_PCD_PLCR_ATOMIC_ACTION_COMPLETE)
         p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PLCR_EXCEPTION_ATOMIC_ACTION_COMPLETE);
 }
 
@@ -627,7 +627,7 @@ static void ErrorExceptionsCB(t_Handle h_FmPcd)
 
     /* clear the forced events */
     force = GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eifr);
-    if (force & event)
+    if(force & event)
         WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eifr, force & ~event);
 
     WRITE_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_eevr, event);
@@ -1186,12 +1186,12 @@ t_Error FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx ,uint32_t
     intFlags = PlcrHwLock(p_FmPcdPlcr);
     WritePar(p_FmPcd, FmPcdPlcrBuildReadPlcrActionReg(profileIndx));
 
-    if (!p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].pointedOwners ||
+    if(!p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].pointedOwners ||
        !(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].requiredAction & requiredAction))
     {
-        if (requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA)
+        if(requiredAction & UPDATE_NIA_ENQ_WITHOUT_DMA)
         {
-            if ((p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnGreen!= e_FM_PCD_DONE) ||
+            if((p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnGreen!= e_FM_PCD_DONE) ||
                (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnYellow!= e_FM_PCD_DONE) ||
                (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].nextEngineOnRed!= e_FM_PCD_DONE))
             {
@@ -1200,10 +1200,10 @@ t_Error FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx ,uint32_t
                 RETURN_ERROR (MAJOR, E_OK, ("In this case the next engine can be e_FM_PCD_DONE"));
             }
 
-            if (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnGreen.action == e_FM_PCD_ENQ_FRAME)
+            if(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnGreen.action == e_FM_PCD_ENQ_FRAME)
             {
                 tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pegnia);
-                if (!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
+                if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
                 {
                     PlcrHwUnlock(p_FmPcdPlcr, intFlags);
                     /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
@@ -1216,10 +1216,10 @@ t_Error FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx ,uint32_t
                 WritePar(p_FmPcd, tmpReg32);
             }
 
-            if (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnYellow.action == e_FM_PCD_ENQ_FRAME)
+            if(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnYellow.action == e_FM_PCD_ENQ_FRAME)
             {
                 tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_peynia);
-                if (!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
+                if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
                 {
                     PlcrHwUnlock(p_FmPcdPlcr, intFlags);
                     /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
@@ -1233,10 +1233,10 @@ t_Error FmPcdPlcrCcGetSetParams(t_Handle h_FmPcd, uint16_t profileIndx ,uint32_t
                 PlcrHwUnlock(p_FmPcdPlcr, intFlags);
             }
 
-            if (p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnRed.action == e_FM_PCD_ENQ_FRAME)
+            if(p_FmPcd->p_FmPcdPlcr->profiles[profileIndx].paramsOnRed.action == e_FM_PCD_ENQ_FRAME)
             {
                 tmpReg32 = GET_UINT32(p_FmPcdPlcrRegs->profileRegs.fmpl_pernia);
-                if (!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
+                if(!(tmpReg32 & (NIA_ENG_BMI | NIA_BMI_AC_ENQ_FRAME)))
                 {
                     PlcrHwUnlock(p_FmPcdPlcr, intFlags);
                     /*PlcrProfileUnlock(&p_FmPcd->p_FmPcdPlcr->profiles[profileIndx], intFlags);*/
@@ -1269,7 +1269,7 @@ void FmPcdPlcrUpatePointedOwner(t_Handle h_FmPcd, uint16_t absoluteProfileId, bo
 
     ASSERT_COND(p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].valid);
 
-    if (add)
+    if(add)
         p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners++;
     else
         p_FmPcd->p_FmPcdPlcr->profiles[absoluteProfileId].pointedOwners--;
@@ -1347,7 +1347,7 @@ t_Error FmPcdPlcrGetAbsoluteIdByProfileParams(t_Handle                      h_Fm
         case e_FM_PCD_PLCR_PORT_PRIVATE:
             /* get port PCD id from port handle */
             for (i=0;i<FM_MAX_NUM_OF_PORTS;i++)
-                if (p_FmPcd->p_FmPcdPlcr->portsMapping[i].h_FmPort == h_FmPort)
+                if(p_FmPcd->p_FmPcdPlcr->portsMapping[i].h_FmPort == h_FmPort)
                     break;
             if (i ==  FM_MAX_NUM_OF_PORTS)
                 RETURN_ERROR(MAJOR, E_INVALID_STATE , ("Invalid port handle."));
@@ -1406,7 +1406,7 @@ uint32_t FmPcdPlcrBuildWritePlcrActionRegs(uint16_t absoluteProfileId)
 bool    FmPcdPlcrHwProfileIsValid(uint32_t profileModeReg)
 {
 
-    if (profileModeReg & FM_PCD_PLCR_PEMODE_PI)
+    if(profileModeReg & FM_PCD_PLCR_PEMODE_PI)
         return TRUE;
     else
         return FALSE;
@@ -1424,15 +1424,15 @@ uint32_t FmPcdPlcrBuildCounterProfileReg(e_FmPcdPlcrProfileCounters counter)
 {
     switch(counter)
     {
-        case (e_FM_PCD_PLCR_PROFILE_GREEN_PACKET_TOTAL_COUNTER):
+        case(e_FM_PCD_PLCR_PROFILE_GREEN_PACKET_TOTAL_COUNTER):
             return FM_PCD_PLCR_PAR_PWSEL_PEGPC;
-        case (e_FM_PCD_PLCR_PROFILE_YELLOW_PACKET_TOTAL_COUNTER):
+        case(e_FM_PCD_PLCR_PROFILE_YELLOW_PACKET_TOTAL_COUNTER):
             return FM_PCD_PLCR_PAR_PWSEL_PEYPC;
-        case (e_FM_PCD_PLCR_PROFILE_RED_PACKET_TOTAL_COUNTER):
+        case(e_FM_PCD_PLCR_PROFILE_RED_PACKET_TOTAL_COUNTER) :
             return FM_PCD_PLCR_PAR_PWSEL_PERPC;
-        case (e_FM_PCD_PLCR_PROFILE_RECOLOURED_YELLOW_PACKET_TOTAL_COUNTER):
+        case(e_FM_PCD_PLCR_PROFILE_RECOLOURED_YELLOW_PACKET_TOTAL_COUNTER) :
             return FM_PCD_PLCR_PAR_PWSEL_PERYPC;
-        case (e_FM_PCD_PLCR_PROFILE_RECOLOURED_RED_PACKET_TOTAL_COUNTER):
+        case(e_FM_PCD_PLCR_PROFILE_RECOLOURED_RED_PACKET_TOTAL_COUNTER) :
             return FM_PCD_PLCR_PAR_PWSEL_PERRPC;
        default:
             REPORT_ERROR(MAJOR, E_INVALID_SELECTION, NO_MSG);
@@ -1445,11 +1445,11 @@ uint32_t FmPcdPlcrBuildNiaProfileReg(bool green, bool yellow, bool red)
 
     uint32_t tmpReg32 = 0;
 
-    if (green)
+    if(green)
         tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEGNIA;
-    if (yellow)
+    if(yellow)
         tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PEYNIA;
-    if (red)
+    if(red)
         tmpReg32 |= FM_PCD_PLCR_PAR_PWSEL_PERNIA;
 
     return tmpReg32;
@@ -1480,7 +1480,7 @@ t_Error FM_PCD_ConfigPlcrAutoRefreshMode(t_Handle h_FmPcd, bool enable)
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPlcr, E_INVALID_HANDLE);
 
-    if (!FmIsMaster(p_FmPcd->h_Fm))
+    if(!FmIsMaster(p_FmPcd->h_Fm))
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_ConfigPlcrAutoRefreshMode - guest mode!"));
 
     p_FmPcd->p_FmPcdDriverParam->plcrAutoRefresh = enable;
@@ -1510,11 +1510,11 @@ t_Error FM_PCD_SetPlcrStatistics(t_Handle h_FmPcd, bool enable)
     SANITY_CHECK_RETURN_ERROR(!p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPlcr, E_INVALID_HANDLE);
 
-    if (!FmIsMaster(p_FmPcd->h_Fm))
+    if(!FmIsMaster(p_FmPcd->h_Fm))
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_SetPlcrStatistics - guest mode!"));
 
     tmpReg32 =  GET_UINT32(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs->fmpl_gcr);
-    if (enable)
+    if(enable)
         tmpReg32 |= FM_PCD_PLCR_GCR_STEN;
     else
         tmpReg32 &= ~FM_PCD_PLCR_GCR_STEN;
@@ -1584,7 +1584,7 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
 
     SANITY_CHECK_RETURN_VALUE(h_FmPcd, E_INVALID_HANDLE, NULL);
 
-    if (p_ProfileParams->modify)
+    if(p_ProfileParams->modify)
     {
         p_Profile = (t_FmPcdPlcrProfile *)p_ProfileParams->id.h_Profile;
         p_FmPcd = p_Profile->h_FmPcd;
@@ -1659,7 +1659,7 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
     if (err)
     {
         REPORT_ERROR(MAJOR, err, NO_MSG);
-        if (p_ProfileParams->modify)
+        if(p_ProfileParams->modify)
             /* unlock */
             PlcrProfileFlagUnlock(p_Profile);
         if (!p_ProfileParams->modify &&
@@ -1672,9 +1672,9 @@ t_Handle FM_PCD_PlcrProfileSet(t_Handle     h_FmPcd,
     if (p_FmPcd->h_Hc)
     {
          err = FmHcPcdPlcrSetProfile(p_FmPcd->h_Hc, (t_Handle)p_Profile, &plcrProfileReg);
-         if (p_ProfileParams->modify)
+         if(p_ProfileParams->modify)
              PlcrProfileFlagUnlock(p_Profile);
-         if (err)
+         if(err)
          {
              /* release the allocated scheme lock */
              if (!p_ProfileParams->modify &&

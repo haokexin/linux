@@ -65,7 +65,7 @@
                 and the policer global and common registers.
                 In addition, the FM PCD SW module will initialize all required
                 key generator schemes, coarse classification flows, and policer
-                profiles. When an FM module is configured to work with one of these
+                profiles. When a FM module is configured to work with one of these
                 entities, it will register to it using the FM PORT API. The PCD
                 module will manage the PCD resources - i.e. resource management of
                 KeyGen schemes, etc.
@@ -239,17 +239,17 @@ typedef struct t_FmPcdParams {
     uint8_t                     numOfSchemes;           /**< Number of schemes dedicated to this partition.
                                                              this parameter is relevant if 'kgSupport'=TRUE. */
     bool                        useHostCommand;         /**< Optional for single partition, Mandatory for Multi partition */
-    t_FmPcdHcParams             hc;                     /**< Host Command parameters, relevant only if 'useHostCommand' = TRUE.
-                                                         */
+    t_FmPcdHcParams             hc;                     /**< Host Command parameters, relevant only if 'useHostCommand'=TRUE;
+                                                             Relevant when FM not runs in "guest-mode". */
 
-    t_FmPcdExceptionCallback    *f_Exception;           /**< Callback routine for general PCD exceptions.
-                                                         */
+    t_FmPcdExceptionCallback    *f_Exception;           /**< Callback routine for general PCD exceptions;
+                                                             Relevant when FM not runs in "guest-mode". */
     t_FmPcdIdExceptionCallback  *f_ExceptionId;         /**< Callback routine for specific KeyGen scheme or
-                                                             Policer profile exceptions.
-                                                         */
+                                                             Policer profile exceptions;
+                                                             Relevant when FM not runs in "guest-mode". */
     t_Handle                    h_App;                  /**< A handle to an application layer object; This handle will
-                                                             be passed by the driver upon calling the above callbacks.
-                                                         */
+                                                             be passed by the driver upon calling the above callbacks;
+                                                             Relevant when FM not runs in "guest-mode". */
     uint8_t                     partPlcrProfilesBase;   /**< The first policer-profile-id dedicated to this partition.
                                                              this parameter is relevant if 'plcrSupport'=TRUE.
                                                              NOTE: this parameter relevant only when working with multiple partitions. */
@@ -307,13 +307,17 @@ t_Error FM_PCD_Free(t_Handle h_FmPcd);
  @Function      FM_PCD_ConfigException
 
  @Description   Calling this routine changes the internal driver data base
-                from its default selection of all exceptions being enabled.
+                from its default selection of exceptions enabling.
+                [4].
 
  @Param[in]     h_FmPcd         FM PCD module descriptor.
  @Param[in]     exception       The exception to be selected.
  @Param[in]     enable          TRUE to enable interrupt, FALSE to mask it.
 
  @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ConfigException(t_Handle h_FmPcd, e_FmPcdExceptions exception, bool enable);
 
@@ -360,6 +364,9 @@ t_Error FM_PCD_ConfigPlcrNumOfSharedProfiles(t_Handle h_FmPcd, uint16_t numOfSha
  @Param[in]     enable          TRUE to enable, FALSE to disable
 
  @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ConfigPlcrAutoRefreshMode(t_Handle h_FmPcd, bool enable);
 
@@ -375,6 +382,9 @@ t_Error FM_PCD_ConfigPlcrAutoRefreshMode(t_Handle h_FmPcd, bool enable);
                                 maximum parsing time.
 
  @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd,uint16_t value);
 
@@ -518,6 +528,8 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter);
 @Return         E_OK on success; Error code otherwise.
 
 @Cautions       Allowed only following FM_PCD_Init() and when PCD is disabled.
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs);
 
@@ -532,6 +544,8 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs);
 @Return        E_OK on success; Error code otherwise.
 
 @Cautions      Allowed only following FM_PCD_Init() and when PCD is disabled.
+               This routine should NOT be called from guest-partition
+               (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_SetAdvancedOffloadSupport(t_Handle h_FmPcd);
 
@@ -550,6 +564,8 @@ t_Error FM_PCD_SetAdvancedOffloadSupport(t_Handle h_FmPcd);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init() and when PCD is disabled.
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_KgSetDfltValue(t_Handle h_FmPcd, uint8_t valueId, uint32_t value);
 
@@ -565,6 +581,8 @@ t_Error FM_PCD_KgSetDfltValue(t_Handle h_FmPcd, uint8_t valueId, uint32_t value)
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init() and when PCD is disabled.
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_KgSetAdditionalDataAfterParsing(t_Handle h_FmPcd, uint8_t payloadOffset);
 
@@ -580,6 +598,8 @@ t_Error FM_PCD_KgSetAdditionalDataAfterParsing(t_Handle h_FmPcd, uint8_t payload
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_SetException(t_Handle h_FmPcd, e_FmPcdExceptions exception, bool enable);
 
@@ -595,6 +615,8 @@ t_Error FM_PCD_SetException(t_Handle h_FmPcd, e_FmPcdExceptions exception, bool 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ModifyCounter(t_Handle h_FmPcd, e_FmPcdCounters counter, uint32_t value);
 
@@ -610,6 +632,8 @@ t_Error FM_PCD_ModifyCounter(t_Handle h_FmPcd, e_FmPcdCounters counter, uint32_t
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_SetPlcrStatistics(t_Handle h_FmPcd, bool enable);
 
@@ -624,6 +648,8 @@ t_Error FM_PCD_SetPlcrStatistics(t_Handle h_FmPcd, bool enable);
  @Return        None
 
  @Cautions      Allowed only following FM_PCD_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable);
 
@@ -653,6 +679,8 @@ void FM_PCD_HcTxConf(t_Handle h_FmPcd, t_DpaaFD *p_Fd);
                 or is not able to create interrupt.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_PCD_ForceIntr (t_Handle h_FmPcd, e_FmPcdExceptions exception);
 
@@ -667,6 +695,9 @@ t_Error FM_PCD_ForceIntr (t_Handle h_FmPcd, e_FmPcdExceptions exception);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                NOTE: this routine may be called only for FM in master mode
+                (i.e. 'guestId'=NCSW_MASTER_ID) or in a case that the registers
+                are mapped.
 *//***************************************************************************/
 t_Error FM_PCD_DumpRegs(t_Handle h_FmPcd);
 
@@ -680,6 +711,9 @@ t_Error FM_PCD_DumpRegs(t_Handle h_FmPcd);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                NOTE: this routine may be called only for FM in master mode
+                (i.e. 'guestId'=NCSW_MASTER_ID) or in a case that the registers
+                are mapped.
 *//***************************************************************************/
 t_Error FM_PCD_KgDumpRegs(t_Handle h_FmPcd);
 
@@ -693,6 +727,9 @@ t_Error FM_PCD_KgDumpRegs(t_Handle h_FmPcd);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                NOTE: this routine may be called only for FM in master mode
+                (i.e. 'guestId'=NCSW_MASTER_ID) or in a case that the registers
+                are mapped.
 *//***************************************************************************/
 t_Error FM_PCD_PlcrDumpRegs(t_Handle h_FmPcd);
 
@@ -706,6 +743,9 @@ t_Error FM_PCD_PlcrDumpRegs(t_Handle h_FmPcd);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                NOTE: this routine may be called only for FM in master mode
+                (i.e. 'guestId'=NCSW_MASTER_ID) or in a case that the registers
+                are mapped.
 *//***************************************************************************/
 t_Error FM_PCD_PlcrProfileDumpRegs(t_Handle h_Profile);
 
@@ -719,6 +759,9 @@ t_Error FM_PCD_PlcrProfileDumpRegs(t_Handle h_Profile);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                NOTE: this routine may be called only for FM in master mode
+                (i.e. 'guestId'=NCSW_MASTER_ID) or in a case that the registers
+                are mapped.
 *//***************************************************************************/
 t_Error FM_PCD_PrsDumpRegs(t_Handle h_FmPcd);
 
@@ -732,6 +775,8 @@ t_Error FM_PCD_PrsDumpRegs(t_Handle h_FmPcd);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_PCD_Init().
+                NOTE: this routine may be called only for FM in master mode
+                (i.e. 'guestId'=NCSW_MASTER_ID).
 *//***************************************************************************/
 t_Error     FM_PCD_HcDumpRegs(t_Handle h_FmPcd);
 #endif /* (defined(DEBUG_ERRORS) && ... */
@@ -739,7 +784,7 @@ t_Error     FM_PCD_HcDumpRegs(t_Handle h_FmPcd);
 
 
 /**************************************************************************//**
- @Group         FM_PCD_Runtime_build_grp FM PCD Runtime Building Unit
+ KeyGen         FM_PCD_Runtime_build_grp FM PCD Runtime Building Unit
 
  @Description   Frame Manager PCD Runtime Building API
 
@@ -979,10 +1024,10 @@ typedef enum e_FmPcdPlcrColorMode {
  @Description   Enumeration type for selecting a policer profile color
 *//***************************************************************************/
 typedef enum e_FmPcdPlcrColor {
-    e_FM_PCD_PLCR_GREEN,                /**< Green */
-    e_FM_PCD_PLCR_YELLOW,               /**< Yellow */
-    e_FM_PCD_PLCR_RED,                  /**< Red */
-    e_FM_PCD_PLCR_OVERRIDE              /**< Color override */
+    e_FM_PCD_PLCR_GREEN,                /**< Green color code */
+    e_FM_PCD_PLCR_YELLOW,               /**< Yellow color code */
+    e_FM_PCD_PLCR_RED,                  /**< Red color code */
+    e_FM_PCD_PLCR_OVERRIDE              /**< Color override code */
 } e_FmPcdPlcrColor;
 
 /**************************************************************************//**
@@ -1059,7 +1104,7 @@ typedef enum e_FmPcdManipHdrRmvType {
 } e_FmPcdManipHdrRmvType;
 
 /**************************************************************************//**
- @Description   An enum for selecting specific L2 fields removal
+ @Description   Enumeration type for selecting specific L2 fields removal
 *//***************************************************************************/
 typedef enum e_FmPcdManipHdrRmvSpecificL2 {
     e_FM_PCD_MANIP_HDR_RMV_ETHERNET,                /**< Ethernet/802.3 MAC */
@@ -1175,9 +1220,10 @@ typedef enum e_FmPcdCcStatsMode {
     e_FM_PCD_CC_STATS_MODE_NONE = 0,        /**< No statistics support */
     e_FM_PCD_CC_STATS_MODE_FRAME,           /**< Frame count statistics */
     e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME,  /**< Byte and frame count statistics */
-#ifdef FM_EXP_FEATURES
-    e_FM_PCD_CC_STATS_MODE_RMON,            /**< Byte and frame length range count statistics */
-#endif /* FM_EXP_FEATURES */
+#if (DPAA_VERSION >= 11)
+    e_FM_PCD_CC_STATS_MODE_RMON,            /**< Byte and frame length range count statistics;
+                                                 This mode is supported only on B4860 device */
+#endif /* (DPAA_VERSION >= 11) */
 } e_FmPcdCcStatsMode;
 
 /**************************************************************************//**
@@ -1372,7 +1418,8 @@ typedef struct t_FmPcdDistinctionUnit {
                 by a specific PCD Network Environment Characteristics module.
 
                 Each unit represent a protocol or a group of protocols that may
-                be used later by the different PCD engines to distinguish between flows.
+                be used later by the different PCD engines to distinguish
+                between flows.
 *//***************************************************************************/
 typedef struct t_FmPcdNetEnvParams {
     uint8_t                 numOfDistinctionUnits;                      /**< Number of different units to be identified */
@@ -1642,10 +1689,10 @@ typedef struct t_FmPcdKgSchemeParams {
 /**************************************************************************//**
  @Collection    Definitions for CC statistics
 *//***************************************************************************/
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
 #define FM_PCD_CC_STATS_MAX_NUM_OF_FLR      10  /* Maximal supported number of frame length ranges */
 #define FM_PCD_CC_STATS_FLR_SIZE            2   /* Size in bytes of a frame length range limit */
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
 #define FM_PCD_CC_STATS_COUNTER_SIZE        4   /* Size in bytes of a frame length range counter */
 /* @} */
 
@@ -1806,17 +1853,18 @@ typedef struct t_KeysParams {
     e_FmPcdCcStatsMode          statisticsMode; /**< If not e_FM_PCD_CC_STATS_MODE_NONE, the required structures for
                                                      the requested statistics mode will be allocated according to
                                                      'maxNumOfKeys'. */
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
     uint16_t                    frameLengthRanges[FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
-                                                /**< Relevant only for 'e_FM_PCD_CC_STATS_MODE_RMON' statistics mode.
-                                                     Holds a list of programmable thresholds. For each received frame,
+                                                /**< Relevant only for 'e_FM_PCD_CC_STATS_MODE_RMON' statistics
+                                                     mode (this feature is supported only on B4860 device);
+                                                     Holds a list of programmable thresholds - for each received frame,
                                                      its length in bytes is examined against these range thresholds and
-                                                     the appropriate counter is incremented by 1. For example, to belong
+                                                     the appropriate counter is incremented by 1 - for example, to belong
                                                      to range i, the following should hold:
                                                      range i-1 threshold < frame length <= range i threshold
                                                      Each range threshold must be larger then its preceding range
-                                                     threshold. Last range threshold must be 0xFFFF. */
-#endif /* FM_EXP_FEATURES */
+                                                     threshold, and last range threshold must be 0xFFFF. */
+#endif /* (DPAA_VERSION >= 11) */
     uint16_t                    numOfKeys;      /**< Number of initial keys;
                                                      Note that in case of 'action' = e_FM_PCD_ACTION_INDEXED_LOOKUP,
                                                      this field should be power-of-2 of the number of bits that are
@@ -1910,23 +1958,18 @@ typedef struct t_FmPcdCcTreeParams {
 *//***************************************************************************/
 typedef struct t_FmPcdCcKeyStatistics {
     uint32_t    byteCount;      /**< This counter reflects byte count of frames that
-                                     were matched this key. */
+                                     were matched by this key. */
     uint32_t    frameCount;     /**< This counter reflects count of frames that
-                                     were matched this key. */
-#ifdef FM_EXP_FEATURES
+                                     were matched by this key. */
+#if (DPAA_VERSION >= 11)
     uint32_t    frameLengthRangeCount[FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
-                                /**< These counters reflect how many frames passed that
-                                     were matched this key.
-                                     For 'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FLR'
+                                /**< These counters reflect how many frames matched
+                                     this key in 'e_FM_PCD_CC_STATS_MODE_RMON'
                                      statistics mode:
                                      Each counter holds the number of frames of a
                                      specific frames length range, according to the
-                                     ranges provided at initialization.
-                                     For 'e_FM_PCD_CC_STATS_MODE_BYTE_AND_FRAME'
-                                     statistics mode:
-                                     The first counter holds the number of frames that
-                                     were matched to this key. */
-#endif /* FM_EXP_FEATURES */
+                                     ranges provided at initialization. */
+#endif /* (DPAA_VERSION >= 11) */
 } t_FmPcdCcKeyStatistics;
 
 /**************************************************************************//**
@@ -2195,7 +2238,7 @@ typedef struct t_FmPcdManipReassemIpParams {
 } t_FmPcdManipReassemIpParams;
 
 /**************************************************************************//**
- @Description   Parameters for defining IPSEC manipulation
+ @Description   structure for defining IPSEC manipulation
 *//***************************************************************************/
 typedef struct t_FmPcdManipSpecialOffloadIPSecParams {
     bool        decryption;                     /**< TRUE if being used in decryption direction;
@@ -2371,6 +2414,7 @@ typedef struct t_FmPcdManipHdrInsrtSpecificL2Params {
 typedef struct t_FmPcdManipHdrInsrtByHdrParams {
     e_FmPcdManipHdrInsrtByHdrType               type;   /**< Selects manipulation type */
     union {
+
        t_FmPcdManipHdrInsrtSpecificL2Params     specificL2Params;
                                                         /**< Used when type = e_FM_PCD_MANIP_INSRT_BY_HDR_SPECIFIC_L2:
                                                              Selects which L2 headers to remove */
@@ -2765,8 +2809,8 @@ t_Error FM_PCD_PlcrProfileSetCounter(t_Handle                   h_Profile,
 
  @Cautions      Allowed only following FM_PCD_Init().
 *//***************************************************************************/
-t_Handle FM_PCD_CcRootBuild(t_Handle             h_FmPcd,
-                            t_FmPcdCcTreeParams  *p_Params);
+t_Handle FM_PCD_CcRootBuild (t_Handle             h_FmPcd,
+                             t_FmPcdCcTreeParams  *p_Params);
 
 /**************************************************************************//**
  @Function      FM_PCD_CcRootDelete
@@ -2793,7 +2837,7 @@ t_Error FM_PCD_CcRootDelete(t_Handle h_CcTree);
 
  @Return        E_OK on success; Error code otherwise.
 
- @Cautions      Allowed only following FM_PCD_CcRootBuild().
+ @Cautions      Allowed only following FM_PCD_CcBuildTree().
 *//***************************************************************************/
 t_Error FM_PCD_CcRootModifyNextEngine(t_Handle                  h_CcTree,
                                       uint8_t                   grpId,
@@ -2865,7 +2909,7 @@ t_Error FM_PCD_MatchTableRemoveKey(t_Handle h_CcNode, uint16_t keyIndex);
 
  @Description   Add the key (including next engine parameters of this key in the
                 index defined by the keyIndex. Note that 'FM_PCD_LAST_KEY_INDEX'
-                may be used when the user doesn't care about the position of the
+                may be used by user that don't care about the position of the
                 key in the table - in that case, the key will be automatically
                 added by the driver in the last available entry.
 

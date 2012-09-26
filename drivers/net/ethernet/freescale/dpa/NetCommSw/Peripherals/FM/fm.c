@@ -78,25 +78,25 @@ static t_Error CheckFmParameters(t_Fm *p_Fm)
 {
     if (IsFmanCtrlCodeLoaded(p_Fm) && !p_Fm->p_FmDriverParam->resetOnInit)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Old FMan CTRL code is loaded; FM must be reset!"));
-    if (!p_Fm->p_FmDriverParam->dmaAxiDbgNumOfBeats || (p_Fm->p_FmDriverParam->dmaAxiDbgNumOfBeats > DMA_MODE_MAX_AXI_DBG_NUM_OF_BEATS))
+    if(!p_Fm->p_FmDriverParam->dmaAxiDbgNumOfBeats || (p_Fm->p_FmDriverParam->dmaAxiDbgNumOfBeats > DMA_MODE_MAX_AXI_DBG_NUM_OF_BEATS))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("axiDbgNumOfBeats has to be in the range 1 - %d", DMA_MODE_MAX_AXI_DBG_NUM_OF_BEATS));
-    if (p_Fm->p_FmDriverParam->dmaCamNumOfEntries % DMA_CAM_UNITS)
+    if(p_Fm->p_FmDriverParam->dmaCamNumOfEntries % DMA_CAM_UNITS)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaCamNumOfEntries has to be divisble by %d", DMA_CAM_UNITS));
-    if (!p_Fm->p_FmDriverParam->dmaCamNumOfEntries || (p_Fm->p_FmDriverParam->dmaCamNumOfEntries > DMA_MODE_MAX_CAM_NUM_OF_ENTRIES))
+    if(!p_Fm->p_FmDriverParam->dmaCamNumOfEntries || (p_Fm->p_FmDriverParam->dmaCamNumOfEntries > DMA_MODE_MAX_CAM_NUM_OF_ENTRIES))
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaCamNumOfEntries has to be in the range 1 - %d", DMA_MODE_MAX_CAM_NUM_OF_ENTRIES));
-    if (p_Fm->p_FmDriverParam->dmaCommQThresholds.assertEmergency > DMA_THRESH_MAX_COMMQ)
+    if(p_Fm->p_FmDriverParam->dmaCommQThresholds.assertEmergency > DMA_THRESH_MAX_COMMQ)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaCommQThresholds.assertEmergency can not be larger than %d", DMA_THRESH_MAX_COMMQ));
-    if (p_Fm->p_FmDriverParam->dmaCommQThresholds.clearEmergency > DMA_THRESH_MAX_COMMQ)
+    if(p_Fm->p_FmDriverParam->dmaCommQThresholds.clearEmergency > DMA_THRESH_MAX_COMMQ)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaCommQThresholds.clearEmergency can not be larger than %d", DMA_THRESH_MAX_COMMQ));
-    if (p_Fm->p_FmDriverParam->dmaCommQThresholds.clearEmergency >= p_Fm->p_FmDriverParam->dmaCommQThresholds.assertEmergency)
+    if(p_Fm->p_FmDriverParam->dmaCommQThresholds.clearEmergency >= p_Fm->p_FmDriverParam->dmaCommQThresholds.assertEmergency)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaCommQThresholds.clearEmergency must be smaller than dmaCommQThresholds.assertEmergency"));
-    if (p_Fm->p_FmDriverParam->dmaReadBufThresholds.assertEmergency > DMA_THRESH_MAX_BUF)
+    if(p_Fm->p_FmDriverParam->dmaReadBufThresholds.assertEmergency > DMA_THRESH_MAX_BUF)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaReadBufThresholds.assertEmergency can not be larger than %d", DMA_THRESH_MAX_BUF));
-    if (p_Fm->p_FmDriverParam->dmaReadBufThresholds.clearEmergency > DMA_THRESH_MAX_BUF)
+    if(p_Fm->p_FmDriverParam->dmaReadBufThresholds.clearEmergency > DMA_THRESH_MAX_BUF)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaReadBufThresholds.clearEmergency can not be larger than %d", DMA_THRESH_MAX_BUF));
-    if (p_Fm->p_FmDriverParam->dmaReadBufThresholds.clearEmergency >= p_Fm->p_FmDriverParam->dmaReadBufThresholds.assertEmergency)
+    if(p_Fm->p_FmDriverParam->dmaReadBufThresholds.clearEmergency >= p_Fm->p_FmDriverParam->dmaReadBufThresholds.assertEmergency)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaReadBufThresholds.clearEmergency must be smaller than dmaReadBufThresholds.assertEmergency"));
-    if (p_Fm->p_FmDriverParam->dmaWriteBufThresholds.assertEmergency > DMA_THRESH_MAX_BUF)
+    if(p_Fm->p_FmDriverParam->dmaWriteBufThresholds.assertEmergency > DMA_THRESH_MAX_BUF)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaWriteBufThresholds.assertEmergency can not be larger than %d", DMA_THRESH_MAX_BUF));
     if (p_Fm->p_FmDriverParam->dmaWriteBufThresholds.clearEmergency > DMA_THRESH_MAX_BUF)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("dmaWriteBufThresholds.clearEmergency can not be larger than %d", DMA_THRESH_MAX_BUF));
@@ -254,15 +254,15 @@ static void    QmiErrEvent(t_Fm *p_Fm)
 
     /* clear the forced events */
     force = GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_eif);
-    if (force & event)
+    if(force & event)
         WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_eif, force & ~event);
 
     /* clear the acknowledged events */
     WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_eie, event);
 
-    if (event & QMI_ERR_INTR_EN_DOUBLE_ECC)
+    if(event & QMI_ERR_INTR_EN_DOUBLE_ECC)
         p_Fm->f_Exception(p_Fm->h_App,e_FM_EX_QMI_DOUBLE_ECC);
-    if (event & QMI_ERR_INTR_EN_DEQ_FROM_DEF)
+    if(event & QMI_ERR_INTR_EN_DEQ_FROM_DEF)
         p_Fm->f_Exception(p_Fm->h_App,e_FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID);
 }
 
@@ -305,7 +305,7 @@ static void    DmaErrEvent(t_Fm *p_Fm)
                          tnum,
                          liodn);
     }
-    if (mask & DMA_MODE_ECC)
+    if(mask & DMA_MODE_ECC)
     {
         if (status & DMA_STATUS_FM_SPDAT_ECC)
             p_Fm->f_Exception(p_Fm->h_App, e_FM_EX_DMA_SINGLE_PORT_ECC);
@@ -327,11 +327,11 @@ static void    FpmErrEvent(t_Fm *p_Fm)
     /* clear the all occurred events */
     WRITE_UINT32(p_Fm->p_FmFpmRegs->fmfp_em, event);
 
-    if ((event  & FPM_EV_MASK_DOUBLE_ECC) && (event & FPM_EV_MASK_DOUBLE_ECC_EN))
+    if((event  & FPM_EV_MASK_DOUBLE_ECC) && (event & FPM_EV_MASK_DOUBLE_ECC_EN))
         p_Fm->f_Exception(p_Fm->h_App,e_FM_EX_FPM_DOUBLE_ECC);
-    if ((event  & FPM_EV_MASK_STALL) && (event & FPM_EV_MASK_STALL_EN))
+    if((event  & FPM_EV_MASK_STALL) && (event & FPM_EV_MASK_STALL_EN))
         p_Fm->f_Exception(p_Fm->h_App,e_FM_EX_FPM_STALL_ON_TASKS);
-    if ((event  & FPM_EV_MASK_SINGLE_ECC) && (event & FPM_EV_MASK_SINGLE_ECC_EN))
+    if((event  & FPM_EV_MASK_SINGLE_ECC) && (event & FPM_EV_MASK_SINGLE_ECC_EN))
         p_Fm->f_Exception(p_Fm->h_App,e_FM_EX_FPM_SINGLE_ECC);
 }
 
@@ -384,13 +384,13 @@ static void QmiEvent(t_Fm *p_Fm)
 
     /* clear the forced events */
     force = GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_if);
-    if (force & event)
+    if(force & event)
         WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_if, force & ~event);
 
     /* clear the acknowledged events */
     WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_ie, event);
 
-    if (event & QMI_INTR_EN_SINGLE_ECC)
+    if(event & QMI_INTR_EN_SINGLE_ECC)
         p_Fm->f_Exception(p_Fm->h_App,e_FM_EX_QMI_SINGLE_ECC);
 }
 
@@ -492,7 +492,7 @@ static t_Error LoadFmanCtrlCode(t_Fm *p_Fm)
         WRITE_UINT32(p_Iram->idata, p_Fm->p_FmDriverParam->firmware.p_Code[i]);
 
     compTo16 = (uint8_t)(p_Fm->p_FmDriverParam->firmware.size % 16);
-    if (compTo16)
+    if(compTo16)
         for (i=0; i < ((16-compTo16) / 4); i++)
             WRITE_UINT32(p_Iram->idata, 0xffffffff);
 
@@ -594,7 +594,7 @@ do {                                    \
         FM_G_CALL_10G_MAC_ISR(0);
     if (pending & INTR_EN_10G_MAC1)
         FM_G_CALL_10G_MAC_ISR(1);
-    if (pending & INTR_EN_TMR)
+    if(pending & INTR_EN_TMR)
         p_Fm->intrMng[e_FM_EV_TMR].f_Isr(p_Fm->intrMng[e_FM_EV_TMR].h_SrcHandle);
 }
 
@@ -766,7 +766,7 @@ static void FreeVSPsForPartition(t_Handle  h_Fm, uint8_t base, uint8_t numOfProf
 
     for (i=base; i<numOfProfiles; i++)
     {
-        if (p_Fm->p_FmSp->profiles[i].profilesMng.ownerId == guestId)
+        if(p_Fm->p_FmSp->profiles[i].profilesMng.ownerId == guestId)
            p_Fm->p_FmSp->profiles[i].profilesMng.ownerId = (uint8_t)ILLEGAL_BASE;
         else
             DBG(WARNING, ("Request for freeing storage profile window which wasn't allocated to this partition"));
@@ -802,7 +802,7 @@ static t_Error FmGuestHandleIpcMsgCB(t_Handle  h_Fm,
             t_FmIpcIsr ipcIsr;
 
             memcpy((uint8_t*)&ipcIsr, p_IpcMsg->msgBody, sizeof(t_FmIpcIsr));
-            if (ipcIsr.boolErr)
+            if(ipcIsr.boolErr)
                 GuestErrorIsr(p_Fm, ipcIsr.pendingReg);
             else
                 GuestEventIsr(p_Fm, ipcIsr.pendingReg);
@@ -921,7 +921,7 @@ static t_Error FmHandleIpcMsgCB(t_Handle  h_Fm,
             uint8_t guestId = p_IpcMsg->msgBody[0];
             /* build the FM master partition IPC address */
             memset(p_Fm->fmIpcHandlerModuleName[guestId], 0, (sizeof(char)) * MODULE_NAME_SIZE);
-            if (Sprint (p_Fm->fmIpcHandlerModuleName[guestId], "FM_%d_%d",p_Fm->p_FmStateStruct->fmId, guestId) != (guestId<10 ? 6:7))
+            if(Sprint (p_Fm->fmIpcHandlerModuleName[guestId], "FM_%d_%d",p_Fm->p_FmStateStruct->fmId, guestId) != (guestId<10 ? 6:7))
                 RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Sprint failed"));
             p_Fm->h_IpcSessions[guestId] = XX_IpcInitSession(p_Fm->fmIpcHandlerModuleName[guestId], p_Fm->fmModuleName);
             if (p_Fm->h_IpcSessions[guestId] == NULL)
@@ -1543,7 +1543,7 @@ t_Error FmVSPAllocForPort (t_Handle        h_Fm,
         {
             profilesFound++;
             i++;
-            if (profilesFound == numOfVSPs)
+            if(profilesFound == numOfVSPs)
                 break;
         }
         else
@@ -1867,7 +1867,7 @@ void  FmUnregisterFmanCtrlIntr(t_Handle h_Fm, uint8_t eventRegId)
 
     ASSERT_COND(eventRegId<FM_NUM_OF_FMAN_CTRL_EVENT_REGS);
 
-    if (p_Fm->guestId != NCSW_MASTER_ID)
+    if(p_Fm->guestId != NCSW_MASTER_ID)
     {
         REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM in guest-mode"));
         return;
@@ -2029,7 +2029,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
 
     intFlags = XX_LockIntrSpinlock(p_Fm->h_Spinlock);
-    if (p_PortParams->independentMode)
+    if(p_PortParams->independentMode)
     {
         /* set port parameters */
         p_Fm->independentMode = p_PortParams->independentMode;
@@ -2037,9 +2037,9 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
         WRITE_UINT32(p_Fm->p_FmFpmRegs->fmfp_mxd, 0);
     }
 
-    if (p_PortParams->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND)
+    if(p_PortParams->portType == e_FM_PORT_TYPE_OH_HOST_COMMAND)
     {
-        if (p_Fm->hcPortInitialized)
+        if(p_Fm->hcPortInitialized)
         {
             XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Only one host command port is allowed."));
@@ -2050,16 +2050,16 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     p_Fm->p_FmStateStruct->portsTypes[hardwarePortId] = p_PortParams->portType;
 
     err = FmSetNumOfTasks(p_Fm, p_PortParams->hardwarePortId, &p_PortParams->numOfTasks, &p_PortParams->numOfExtraTasks, TRUE);
-    if (err)
+    if(err)
     {
         XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
 #ifdef FM_QMI_NO_DEQ_OPTIONS_SUPPORT
-    if (p_Fm->p_FmStateStruct->revInfo.majorRev != 4)
+    if(p_Fm->p_FmStateStruct->revInfo.majorRev != 4)
 #endif /* FM_QMI_NO_DEQ_OPTIONS_SUPPORT */
-    if ((p_PortParams->portType != e_FM_PORT_TYPE_RX) &&
+    if((p_PortParams->portType != e_FM_PORT_TYPE_RX) &&
        (p_PortParams->portType != e_FM_PORT_TYPE_RX_10G))
     /* for transmit & O/H ports */
     {
@@ -2097,7 +2097,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
 #ifdef FM_LOW_END_RESTRICTION
     if ((hardwarePortId==0x1) || (hardwarePortId==0x29))
     {
-        if (p_Fm->p_FmStateStruct->lowEndRestriction)
+        if(p_Fm->p_FmStateStruct->lowEndRestriction)
         {
             XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
             RETURN_ERROR(MAJOR, E_NOT_AVAILABLE, ("OP #0 cannot work with Tx Port #1."));
@@ -2112,7 +2112,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
                           &p_PortParams->sizeOfFifo,
                           &p_PortParams->extraSizeOfFifo,
                           TRUE);
-    if (err)
+    if(err)
     {
         XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
@@ -2123,7 +2123,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
                              &p_PortParams->numOfOpenDmas,
                              &p_PortParams->numOfExtraOpenDmas,
                              TRUE);
-    if (err)
+    if(err)
     {
         XX_UnlockIntrSpinlock(p_Fm->h_Spinlock, intFlags);
         RETURN_ERROR(MAJOR, err, NO_MSG);
@@ -2134,9 +2134,9 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     if (p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
     {
         tmpReg = (uint32_t)(hardwarePortId << FPM_PORT_FM_CTL_PORTID_SHIFT);
-        if (p_PortParams->independentMode)
+        if(p_PortParams->independentMode)
         {
-            if ((p_PortParams->portType==e_FM_PORT_TYPE_RX) || (p_PortParams->portType==e_FM_PORT_TYPE_RX_10G))
+            if((p_PortParams->portType==e_FM_PORT_TYPE_RX) || (p_PortParams->portType==e_FM_PORT_TYPE_RX_10G))
                 tmpReg |= (FPM_PORT_FM_CTL1 << FPM_PRC_ORA_FM_CTL_SEL_SHIFT) |FPM_PORT_FM_CTL1;
             else
                 tmpReg |= (FPM_PORT_FM_CTL2 << FPM_PRC_ORA_FM_CTL_SEL_SHIFT) |FPM_PORT_FM_CTL2;
@@ -2146,7 +2146,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
             tmpReg |= (FPM_PORT_FM_CTL2|FPM_PORT_FM_CTL1);
 
             /* order restoration */
-            if (hardwarePortId%2)
+            if(hardwarePortId%2)
                 tmpReg |= (FPM_PORT_FM_CTL1 << FPM_PRC_ORA_FM_CTL_SEL_SHIFT);
             else
                 tmpReg |= (FPM_PORT_FM_CTL2 << FPM_PRC_ORA_FM_CTL_SEL_SHIFT);
@@ -2156,7 +2156,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
 
     /* set LIODN base for this port */
     tmpReg = GET_UINT32(p_Fm->p_FmDmaRegs->fmdmplr[hardwarePortId/2]);
-    if (hardwarePortId%2)
+    if(hardwarePortId%2)
     {
         tmpReg &= ~FM_LIODN_BASE_MASK;
         tmpReg |= (uint32_t)p_PortParams->liodnBase;
@@ -2273,7 +2273,7 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
     /* WRITE_UINT32(p_Fm->p_FmBmiRegs->fmbm_spliodn[hardwarePortId-1], 0); */
 
 #ifdef FM_QMI_NO_DEQ_OPTIONS_SUPPORT
-    if (p_Fm->p_FmStateStruct->revInfo.majorRev != 4)
+    if(p_Fm->p_FmStateStruct->revInfo.majorRev != 4)
 #endif /* FM_QMI_NO_DEQ_OPTIONS_SUPPORT */
     if ((p_PortParams->portType != e_FM_PORT_TYPE_RX) &&
         (p_PortParams->portType != e_FM_PORT_TYPE_RX_10G))
@@ -2425,7 +2425,7 @@ t_Error FmResetMac(t_Handle h_Fm, e_FmMacType type, uint8_t macId)
 #ifndef FM_MAC_RESET
     if (p_Fm->p_FmStateStruct->revInfo.majorRev >= 6)
         return E_OK;
-#endif /* FM_MAC_RESET */
+#endif /*(FM_MAC_RESET >= 11)*/
 
     if ((p_Fm->guestId != NCSW_MASTER_ID) &&
         !p_Fm->baseAddr &&
@@ -2540,7 +2540,7 @@ t_Error FmSetMacMaxFrame(t_Handle h_Fm, e_FmMacType type, uint8_t macId, uint16_
 #if (defined(FM_MAX_NUM_OF_10G_MACS) && (FM_MAX_NUM_OF_10G_MACS))
     if (type == e_FM_MAC_10G)
     {
-        if ((!p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId])
+        if((!p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId])
            || (p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId] &&
               (mtu <= p_Fm->p_FmStateStruct->portMaxFrameLengths10G[macId])))
                p_Fm->p_FmStateStruct->macMaxFrameLengths10G[macId] = mtu;
@@ -2552,7 +2552,7 @@ t_Error FmSetMacMaxFrame(t_Handle h_Fm, e_FmMacType type, uint8_t macId, uint16_
 #else
     UNUSED(type);
 #endif /* (defined(FM_MAX_NUM_OF_10G_MACS) && ... */
-    if ((!p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId])
+    if((!p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId])
        || (p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId] &&
           (mtu <= p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId])))
         p_Fm->p_FmStateStruct->macMaxFrameLengths1G[macId] = mtu;
@@ -2596,7 +2596,7 @@ uint32_t FmGetTimeStampScale(t_Handle h_Fm)
                                      NULL,
                                      NULL)) != E_OK)
             RETURN_ERROR(MINOR, err, NO_MSG);
-        if (replyLength != (sizeof(uint32_t) + sizeof(uint32_t)))
+        if(replyLength != (sizeof(uint32_t) + sizeof(uint32_t)))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
 
         memcpy((uint8_t*)&timeStamp, reply.replyBody, sizeof(uint32_t));
@@ -2810,7 +2810,7 @@ t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
     {
         DBG(WARNING, ("No Ipc - can't validate FM total-fifo size."));
 
-        if (sizeOfFifo)
+        if(sizeOfFifo)
         {
             /* whether it is the first time with explicit value, or runtime "set" - write register */
             tmpReg = (uint32_t)((sizeOfFifo/BMI_FIFO_UNITS - 1) |
@@ -2830,7 +2830,7 @@ t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
                      ("running in guest-mode without neither IPC nor mapped register!"));
 
-    if (!initialConfig || !sizeOfFifo)
+    if(!initialConfig || !sizeOfFifo)
     {
         /* !initialConfig - runtime change of existing value.
          * !numOfTasks - first configuration according to values in regs.
@@ -2847,9 +2847,9 @@ t_Error FmSetSizeOfFifo(t_Handle    h_Fm,
     {
         /* This is the first configuration and user did not specify value (!numOfTasks),
          * reset values will be used and we just save these values for resource management */
-        if (currentExtraVal)
+        if(currentExtraVal)
         {
-            if (!p_Fm->p_FmStateStruct->extraFifoPoolSize)
+            if(!p_Fm->p_FmStateStruct->extraFifoPoolSize)
                 /* if this is the first time a port requires extraFifoPoolSize, the total extraFifoPoolSize
                  * must be initialized to 1 buffer per port
                  */
@@ -3056,7 +3056,7 @@ t_Error FmSetNumOfTasks(t_Handle    h_Fm,
     {
         DBG(WARNING, ("No Ipc - can't validate FM total-num-of-tasks."));
 
-        if (numOfTasks)
+        if(numOfTasks)
         {
             /* whether it is the first time with explicit value, or runtime "set" - write register */
             tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]) & ~(BMI_NUM_OF_TASKS_MASK | BMI_NUM_OF_EXTRA_TASKS_MASK);
@@ -3077,7 +3077,7 @@ t_Error FmSetNumOfTasks(t_Handle    h_Fm,
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED,
                      ("running in guest-mode without neither IPC nor mapped register!"));
 
-    if (!initialConfig || !numOfTasks)
+    if(!initialConfig || !numOfTasks)
     {
         /* !initialConfig - runtime change of existing value.
          * !numOfTasks - first configuration according to values in regs.
@@ -3095,7 +3095,7 @@ t_Error FmSetNumOfTasks(t_Handle    h_Fm,
          * reset values will be used and we just save these values for resource management */
          p_Fm->p_FmStateStruct->extraTasksPoolSize =
                     (uint8_t)MAX(p_Fm->p_FmStateStruct->extraTasksPoolSize, currentExtraVal);
-         if ((p_Fm->p_FmStateStruct->accumulatedNumOfTasks + currentVal) >
+         if((p_Fm->p_FmStateStruct->accumulatedNumOfTasks + currentVal) >
                  (p_Fm->p_FmStateStruct->totalNumOfTasks - p_Fm->p_FmStateStruct->extraTasksPoolSize))
              RETURN_ERROR(MAJOR, E_NOT_AVAILABLE,
                                       ("Total ports' numOfTasks and extra tasks pool for fm%d exceed total available numOfTasks.",
@@ -3322,7 +3322,7 @@ t_Error FmSetNumOfOpenDmas(t_Handle h_Fm,
     {
         /*DBG(WARNING, ("No Ipc - can't validate FM total-num-of-dmas."));*/
 
-        if (numOfOpenDmas)
+        if(numOfOpenDmas)
         {
             /* whether it is the first time with explicit value, or runtime "set" - write register */
             tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_pp[hardwarePortId-1]) & ~(BMI_NUM_OF_DMAS_MASK | BMI_NUM_OF_EXTRA_DMAS_MASK);
@@ -3347,7 +3347,7 @@ t_Error FmSetNumOfOpenDmas(t_Handle h_Fm,
     /* it's illegal to be in a state where this is not the first set and no value is specified */
     ASSERT_COND(initialConfig || numOfOpenDmas);
 
-    if (!initialConfig || !numOfOpenDmas)
+    if(!initialConfig || !numOfOpenDmas)
     {
         /* !initialConfig - runtime change of existing value.
          * !numOfTasks - first configuration according to values in regs.
@@ -3471,7 +3471,7 @@ t_Error FmVSPGetAbsoluteProfileId(t_Handle        h_Fm,
     p_Fm = (t_Fm*)h_Fm;
 
     err = FmVSPCheckRelativeProfile(h_Fm, portType, portId, relativeProfile);
-    if (err != E_OK)
+    if(err != E_OK)
         return err;
 
     SW_PORT_ID_TO_HW_PORT_ID(hardwarePortId, portType, portId)
@@ -3522,14 +3522,14 @@ static t_Error InitFmDma(t_Fm *p_Fm)
             tmpReg |= DMA_MODE_ECC;
     }
 
-    if (p_FmDriverParam->dmaStopOnBusError)
+    if(p_FmDriverParam->dmaStopOnBusError)
         tmpReg |= DMA_MODE_SBER;
     tmpReg |= (uint32_t)(p_FmDriverParam->dmaAxiDbgNumOfBeats - 1) << DMA_MODE_AXI_DBG_SHIFT;
     if (p_FmDriverParam->dmaEnEmergency)
     {
         tmpReg |= p_FmDriverParam->dmaEmergency.emergencyBusSelect;
         tmpReg |= p_FmDriverParam->dmaEmergency.emergencyLevel << DMA_MODE_EMERGENCY_LEVEL_SHIFT;
-        if (p_FmDriverParam->dmaEnEmergencySmoother)
+        if(p_FmDriverParam->dmaEnEmergencySmoother)
             WRITE_UINT32(p_Fm->p_FmDmaRegs->fmdmemsr, p_FmDriverParam->dmaEmergencySwitchCounter);
     }
     tmpReg |= ((p_FmDriverParam->dmaCamNumOfEntries/DMA_CAM_UNITS) - 1) << DMA_MODE_CEN_SHIFT;
@@ -3745,9 +3745,9 @@ static t_Error InitFmQmi(t_Fm *p_Fm)
      /* Clear error interrupt events */
     WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_eie, (QMI_ERR_INTR_EN_DOUBLE_ECC | QMI_ERR_INTR_EN_DEQ_FROM_DEF));
     tmpReg = 0;
-    if (p_Fm->p_FmStateStruct->exceptions & FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID)
+    if(p_Fm->p_FmStateStruct->exceptions & FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID)
         tmpReg |= QMI_ERR_INTR_EN_DEQ_FROM_DEF;
-    if (p_Fm->p_FmStateStruct->exceptions & FM_EX_QMI_DOUBLE_ECC)
+    if(p_Fm->p_FmStateStruct->exceptions & FM_EX_QMI_DOUBLE_ECC)
         tmpReg |= QMI_ERR_INTR_EN_DOUBLE_ECC;
     /* enable events */
     WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_eien, tmpReg);
@@ -3766,7 +3766,7 @@ static t_Error InitFmQmi(t_Fm *p_Fm)
         else
         {
             tmpReg = (uint32_t)(periodInFmClocks/64);
-            if (!tmpReg)
+            if(!tmpReg)
                 tmpReg = 1;
         }
         tmpReg <<= QMI_TAPC_TAP;
@@ -3779,7 +3779,7 @@ static t_Error InitFmQmi(t_Fm *p_Fm)
     if ((p_Fm->p_FmStateStruct->revInfo.majorRev != 4) && (p_Fm->p_FmStateStruct->revInfo.majorRev < 6))
     {
         WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_ie, QMI_INTR_EN_SINGLE_ECC);
-        if (p_Fm->p_FmStateStruct->exceptions & FM_EX_QMI_SINGLE_ECC)
+        if(p_Fm->p_FmStateStruct->exceptions & FM_EX_QMI_SINGLE_ECC)
             tmpReg |= QMI_INTR_EN_SINGLE_ECC;
         /* enable events */
         WRITE_UINT32(p_Fm->p_FmQmiRegs->fmqm_ien, tmpReg);
@@ -3818,7 +3818,7 @@ static t_Error InitGuestMode(t_Fm *p_Fm)
         t_FmIpcParams           ipcParams;
 
         err = XX_IpcRegisterMsgHandler(p_Fm->fmModuleName, FmGuestHandleIpcMsgCB, p_Fm, FM_IPC_MAX_REPLY_SIZE);
-        if (err)
+        if(err)
             RETURN_ERROR(MAJOR, err, NO_MSG);
 
         memset(&msg, 0, sizeof(msg));
@@ -3838,7 +3838,7 @@ static t_Error InitGuestMode(t_Fm *p_Fm)
                                          p_Fm)) != E_OK)
                 REPORT_ERROR(MINOR, err, NO_MSG);
             while(blockingFlag) ;
-            if (replyLength != (sizeof(uint32_t) + sizeof(uint8_t)))
+            if(replyLength != (sizeof(uint32_t) + sizeof(uint8_t)))
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
             isMasterAlive = *(uint8_t*)(reply.replyBody);
         } while (!isMasterAlive);
@@ -3856,7 +3856,7 @@ static t_Error InitGuestMode(t_Fm *p_Fm)
                                      NULL,
                                      NULL)) != E_OK)
             RETURN_ERROR(MAJOR, err, NO_MSG);
-        if (replyLength != (sizeof(uint32_t) + sizeof(t_FmIpcParams)))
+        if(replyLength != (sizeof(uint32_t) + sizeof(t_FmIpcParams)))
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("IPC reply length mismatch"));
         memcpy((uint8_t*)&ipcParams, reply.replyBody, sizeof(t_FmIpcParams));
 
@@ -4104,7 +4104,7 @@ t_Handle FM_Config(t_FmParams *p_FmParam)
     p_Fm->p_FmStateStruct->revInfo.minorRev = (uint8_t)((tmpReg & FPM_REV1_MINOR_MASK) >> FPM_REV1_MINOR_SHIFT);
     /* Chip dependent, will be configured in Init */
 #ifdef FM_NO_GUARANTEED_RESET_VALUES
-    if (1)//p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
+    if(1)//p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
     {
         p_Fm->p_FmStateStruct->totalFifoSize        = 0;
         p_Fm->p_FmStateStruct->totalNumOfTasks      = BMI_MAX_NUM_OF_TASKS;
@@ -4158,13 +4158,13 @@ t_Error FM_Init(t_Handle h_Fm)
         return InitGuestMode(p_Fm);
 
 #ifdef FM_NO_GUARANTEED_RESET_VALUES
-    if (1)//p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
+    if(1)//p_Fm->p_FmStateStruct->revInfo.majorRev < 6)
 
-    /* if user didn't configure totalFifoSize - (totalFifoSize=0) we configure default
-     * according to chip. otherwise, we use user's configuration.
-     */
-    if (p_Fm->p_FmStateStruct->totalFifoSize == 0)
-        p_Fm->p_FmStateStruct->totalFifoSize = DEFAULT_totalFifoSize(p_Fm->p_FmStateStruct->revInfo.majorRev);
+        /* if user didn't configured totalFifoSize - (totalFifoSize=0) we configure default
+         * according to chip. otherwise, we use user's configuration.
+         */
+        if (p_Fm->p_FmStateStruct->totalFifoSize == 0)
+            p_Fm->p_FmStateStruct->totalFifoSize = DEFAULT_totalFifoSize(p_Fm->p_FmStateStruct->revInfo.majorRev);
 #endif  /* FM_NO_GUARANTEED_RESET_VALUES */
 
     CHECK_INIT_PARAMETERS(p_Fm, CheckFmParameters);
@@ -4221,7 +4221,7 @@ t_Error FM_Init(t_Handle h_Fm)
 
         /* verify breakpoint debug status register */
         debug_reg = GET_UINT32(*(uint32_t *)UINT_TO_PTR(p_Fm->baseAddr + FM_DEBUG_STATUS_REGISTER_OFFSET));
-        if (!debug_reg)
+        if(!debug_reg)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Invalid debug status register value = 0"));
 
         /*************************************/
@@ -4344,7 +4344,7 @@ t_Error FM_Init(t_Handle h_Fm)
     }
 
     err = XX_IpcRegisterMsgHandler(p_Fm->fmModuleName, FmHandleIpcMsgCB, p_Fm, FM_IPC_MAX_REPLY_SIZE);
-    if (err)
+    if(err)
     {
         FreeInitResources(p_Fm);
         RETURN_ERROR(MAJOR, err, NO_MSG);
@@ -4634,7 +4634,7 @@ t_Error FM_ConfigDmaEmergencySmoother(t_Handle h_Fm, uint32_t emergencyCnt)
     SANITY_CHECK_RETURN_ERROR(p_Fm->p_FmDriverParam, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR((p_Fm->guestId == NCSW_MASTER_ID), E_NOT_SUPPORTED);
 
-    if (!p_Fm->p_FmDriverParam->dmaEnEmergency)
+    if(!p_Fm->p_FmDriverParam->dmaEnEmergency)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("FM_ConfigEnDmaEmergencySmoother may be called only after FM_ConfigEnDmaEmergency"));
 
     p_Fm->p_FmDriverParam->dmaEnEmergencySmoother = TRUE;
@@ -4739,7 +4739,7 @@ t_Error FM_ConfigException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
     SANITY_CHECK_RETURN_ERROR((p_Fm->guestId == NCSW_MASTER_ID), E_NOT_SUPPORTED);
 
     GET_EXCEPTION_FLAG(bitMask, exception);
-    if (bitMask)
+    if(bitMask)
     {
         if (enable)
             p_Fm->p_FmDriverParam->userSetExceptions |= bitMask;
@@ -5050,7 +5050,7 @@ t_Error FM_SetPortsBandwidth(t_Handle h_Fm, t_FmPortsBandwidthParams *p_PortsBan
         shift = (uint8_t)(32-4*(relativePortId+1));
 
 
-        if (weight > 1)
+        if(weight > 1)
             /* Add this port to tmpReg */
             /* (each 8 ports result in one register)*/
             tmpRegs[hardwarePortId/8] |= ((weight-1) << shift);
@@ -5177,7 +5177,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
     SANITY_CHECK_RETURN_ERROR((p_Fm->guestId == NCSW_MASTER_ID), E_NOT_SUPPORTED);
 
     GET_EXCEPTION_FLAG(bitMask, exception);
-    if (bitMask)
+    if(bitMask)
     {
         if (enable)
             p_Fm->p_FmStateStruct->exceptions |= bitMask;
@@ -5188,7 +5188,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
         {
              case (e_FM_EX_DMA_BUS_ERROR):
                 tmpReg = GET_UINT32(p_Fm->p_FmDmaRegs->fmdmmr);
-                if (enable)
+                if(enable)
                     tmpReg |= DMA_MODE_BER;
                 else
                     tmpReg &= ~DMA_MODE_BER;
@@ -5199,7 +5199,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
              case (e_FM_EX_DMA_SYSTEM_WRITE_ECC):
              case (e_FM_EX_DMA_FM_WRITE_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmDmaRegs->fmdmmr);
-                if (enable)
+                if(enable)
                     tmpReg |= DMA_MODE_ECC;
                 else
                     tmpReg &= ~DMA_MODE_ECC;
@@ -5207,7 +5207,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
              case (e_FM_EX_FPM_STALL_ON_TASKS):
                 tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fmfp_em);
-                if (enable)
+                if(enable)
                     tmpReg |= FPM_EV_MASK_STALL_EN;
                 else
                     tmpReg &= ~FPM_EV_MASK_STALL_EN;
@@ -5215,7 +5215,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
              case (e_FM_EX_FPM_SINGLE_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fmfp_em);
-                if (enable)
+                if(enable)
                     tmpReg |= FPM_EV_MASK_SINGLE_ECC_EN;
                 else
                     tmpReg &= ~FPM_EV_MASK_SINGLE_ECC_EN;
@@ -5223,7 +5223,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
             case ( e_FM_EX_FPM_DOUBLE_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fmfp_em);
-                if (enable)
+                if(enable)
                     tmpReg |= FPM_EV_MASK_DOUBLE_ECC_EN;
                 else
                     tmpReg &= ~FPM_EV_MASK_DOUBLE_ECC_EN;
@@ -5239,7 +5239,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 }
 #endif   /* FM_QMI_NO_ECC_EXCEPTIONS */
                 tmpReg = GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_ien);
-                if (enable)
+                if(enable)
                     tmpReg |= QMI_INTR_EN_SINGLE_ECC;
                 else
                     tmpReg &= ~QMI_INTR_EN_SINGLE_ECC;
@@ -5254,7 +5254,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 }
 #endif   /* FM_QMI_NO_ECC_EXCEPTIONS */
                 tmpReg = GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_eien);
-                if (enable)
+                if(enable)
                     tmpReg |= QMI_ERR_INTR_EN_DOUBLE_ECC;
                 else
                     tmpReg &= ~QMI_ERR_INTR_EN_DOUBLE_ECC;
@@ -5262,7 +5262,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
              case (e_FM_EX_QMI_DEQ_FROM_UNKNOWN_PORTID):
                 tmpReg = GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_eien);
-                if (enable)
+                if(enable)
                     tmpReg |= QMI_ERR_INTR_EN_DEQ_FROM_DEF;
                 else
                     tmpReg &= ~QMI_ERR_INTR_EN_DEQ_FROM_DEF;
@@ -5270,7 +5270,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
              case (e_FM_EX_BMI_LIST_RAM_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier);
-                if (enable)
+                if(enable)
                     tmpReg |= BMI_ERR_INTR_EN_LIST_RAM_ECC;
                 else
                     tmpReg &= ~BMI_ERR_INTR_EN_LIST_RAM_ECC;
@@ -5278,7 +5278,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
              case (e_FM_EX_BMI_STORAGE_PROFILE_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier);
-                if (enable)
+                if(enable)
                     tmpReg |= BMI_ERR_INTR_EN_STORAGE_PROFILE_ECC;
                 else
                     tmpReg &= ~BMI_ERR_INTR_EN_STORAGE_PROFILE_ECC;
@@ -5286,7 +5286,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
              case (e_FM_EX_BMI_STATISTICS_RAM_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier);
-                if (enable)
+                if(enable)
                     tmpReg |= BMI_ERR_INTR_EN_STATISTICS_RAM_ECC;
                 else
                     tmpReg &= ~BMI_ERR_INTR_EN_STATISTICS_RAM_ECC;
@@ -5294,7 +5294,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                 break;
              case (e_FM_EX_BMI_DISPATCH_RAM_ECC):
                tmpReg = GET_UINT32(p_Fm->p_FmBmiRegs->fmbm_ier);
-               if (enable)
+               if(enable)
                {
 #ifdef FM_NO_DISPATCH_RAM_ECC
                    if (p_Fm->p_FmStateStruct->revInfo.majorRev != 4)
@@ -5311,7 +5311,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
                break;
              case (e_FM_EX_IRAM_ECC):
                  tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fm_rie);
-                if (enable)
+                if(enable)
                 {
                     /* enable ECC if not enabled */
                     FmEnableRamsEcc(p_Fm);
@@ -5329,7 +5329,7 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
 
              case (e_FM_EX_MURAM_ECC):
                 tmpReg = GET_UINT32(p_Fm->p_FmFpmRegs->fm_rie);
-                if (enable)
+                if(enable)
                 {
                     /* enable ECC if not enabled */
                     FmEnableRamsEcc(p_Fm);
@@ -5466,7 +5466,7 @@ uint32_t FM_GetCounter(t_Handle h_Fm, e_FmCounters counter)
         case (e_FM_COUNTERS_DEQ_1):
         case (e_FM_COUNTERS_DEQ_2):
         case (e_FM_COUNTERS_DEQ_3):
-              if (p_Fm->p_FmStateStruct->revInfo.majorRev >= 6)
+              if(p_Fm->p_FmStateStruct->revInfo.majorRev >= 6)
                 RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("Requested counter not supported"));
         case (e_FM_COUNTERS_ENQ_TOTAL_FRAME):
         case (e_FM_COUNTERS_DEQ_TOTAL_FRAME):
@@ -5475,7 +5475,7 @@ uint32_t FM_GetCounter(t_Handle h_Fm, e_FmCounters counter)
         case (e_FM_COUNTERS_DEQ_FROM_CONTEXT):
         case (e_FM_COUNTERS_DEQ_FROM_FD):
         case (e_FM_COUNTERS_DEQ_CONFIRM):
-            if (!(GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_gc) & QMI_CFG_EN_COUNTERS))
+            if(!(GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_gc) & QMI_CFG_EN_COUNTERS))
                 RETURN_ERROR(MINOR, E_INVALID_STATE, ("Requested counter was not enabled"));
             break;
         default:
@@ -5527,7 +5527,7 @@ t_Error  FM_ModifyCounter(t_Handle h_Fm, e_FmCounters counter, uint32_t val)
         case (e_FM_COUNTERS_DEQ_1):
         case (e_FM_COUNTERS_DEQ_2):
         case (e_FM_COUNTERS_DEQ_3):
-             if (p_Fm->p_FmStateStruct->revInfo.majorRev >= 6)
+             if(p_Fm->p_FmStateStruct->revInfo.majorRev >= 6)
                  RETURN_ERROR(MINOR, E_NOT_SUPPORTED, ("Requested counter not supported"));
         case (e_FM_COUNTERS_ENQ_TOTAL_FRAME):
         case (e_FM_COUNTERS_DEQ_TOTAL_FRAME):
@@ -5536,7 +5536,7 @@ t_Error  FM_ModifyCounter(t_Handle h_Fm, e_FmCounters counter, uint32_t val)
         case (e_FM_COUNTERS_DEQ_FROM_CONTEXT):
         case (e_FM_COUNTERS_DEQ_FROM_FD):
         case (e_FM_COUNTERS_DEQ_CONFIRM):
-            if (!(GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_gc) & QMI_CFG_EN_COUNTERS))
+            if(!(GET_UINT32(p_Fm->p_FmQmiRegs->fmqm_gc) & QMI_CFG_EN_COUNTERS))
                 RETURN_ERROR(MINOR, E_INVALID_STATE, ("Requested counter was not enabled"));
             break;
         default:
@@ -5594,7 +5594,7 @@ void FM_SetDmaEmergency(t_Handle h_Fm, e_FmDmaMuramPort muramPort, bool enable)
 
     bitMask = (uint32_t)((muramPort==e_FM_DMA_MURAM_PORT_WRITE) ? DMA_MODE_EMERGENCY_WRITE : DMA_MODE_EMERGENCY_READ);
 
-    if (enable)
+    if(enable)
         WRITE_UINT32(p_Fm->p_FmDmaRegs->fmdmmr, GET_UINT32(p_Fm->p_FmDmaRegs->fmdmmr) | bitMask);
     else /* disable */
         WRITE_UINT32(p_Fm->p_FmDmaRegs->fmdmmr, GET_UINT32(p_Fm->p_FmDmaRegs->fmdmmr) & ~bitMask);

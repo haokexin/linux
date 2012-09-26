@@ -886,11 +886,9 @@ typedef struct {
     t_Handle                    h_IpReassemblyTree;
     uint64_t                    fmMuramPhysBaseAddr;
 #if (DPAA_VERSION >= 11)
-#ifdef FM_EXP_FEATURES
     bool                        vspe;
     e_FmPortGprFuncType         gprFunc;
     void                        *p_MuramPage;
-#endif /* FM_EXP_FEATURES */
 #endif /* (DPAA_VERSION >= 11) */
 
     t_FmPortDriverParam         *p_FmPortDriverParam;
