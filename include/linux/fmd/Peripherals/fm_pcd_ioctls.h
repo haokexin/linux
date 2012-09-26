@@ -96,7 +96,12 @@
 #define IOC_FM_PCD_SW_PRS_SIZE                          0x00000800          /**< Total size of SW parser area */
 #define IOC_FM_PCD_PRS_SW_OFFSET                        0x00000040          /**< Size of illegal addresses at the beginning
                                                                              of the SW parser area */
+#if DPAA_VERSION >= 11
+#define IOC_FM_PCD_PRS_SW_PATCHES_SIZE                  0x00000240          /**< Number of bytes saved for patches */
+#else
 #define IOC_FM_PCD_PRS_SW_PATCHES_SIZE                  0x00000200          /**< Number of bytes saved for patches */
+#endif
+
 #define IOC_FM_PCD_PRS_SW_TAIL_SIZE                     4                   /**< Number of bytes that must be cleared at
                                                                              the end of the SW parser area */
 #define IOC_FM_SW_PRS_MAX_IMAGE_SIZE                    (IOC_FM_PCD_SW_PRS_SIZE-IOC_FM_PCD_PRS_SW_OFFSET-IOC_FM_PCD_PRS_SW_TAIL_SIZE-IOC_FM_PCD_PRS_SW_PATCHES_SIZE)

@@ -545,7 +545,7 @@ Status: not exported, would be nice to have
     FM_PCD_ManipGetStatistics
 
 Status: not exported
-#if DPAA_VERSION >= 3
+#if DPAA_VERSION >= 11
     FM_PCD_FrmReplicSetGroup
     FM_PCD_FrmReplicDeleteGroup
     FM_PCD_FrmReplicAddMember
@@ -1498,7 +1498,7 @@ invalid_port_id:
                 if (copy_from_user(&compat_id, (ioc_compat_fm_obj_t *) compat_ptr(arg), sizeof(ioc_compat_fm_obj_t)))
                     break;
 
-		compat_copy_fm_pcd_plcr_del_profile(&compat_id, &id, COMPAT_US_TO_K);
+                compat_copy_fm_pcd_plcr_del_profile(&compat_id, &id, COMPAT_US_TO_K);
             }
             else
 #endif

@@ -288,7 +288,7 @@ typedef struct {
 
 typedef struct {
     bool            allocated;
-    uint8_t         ownerId; /* guestId for KG in multi-partition only,
+    uint8_t         ownerId; /* guestId for KG in multi-partition only.
                                 portId for PLCR in any environment */
 } t_FmPcdAllocMng;
 

@@ -473,24 +473,28 @@ typedef struct t_FmParams {
     uint8_t                 fmId;                   /**< Index of the FM */
     uint8_t                 guestId;                /**< FM Partition Id */
     uintptr_t               baseAddr;               /**< A pointer to base of memory mapped FM registers (virtual);
+                                                         this field is optional when the FM runs in "guest-mode"
+                                                         (i.e. guestId != NCSW_MASTER_ID); in that case, the driver will
+                                                         use the memory-map instead of calling the IPC where possible;
                                                          NOTE that this should include ALL common registers of the FM including
                                                          the PCD registers area (i.e. until the VSP pages - 880KB). */
     t_Handle                h_FmMuram;              /**< A handle of an initialized MURAM object,
                                                          to be used by the FM. */
-    uint16_t                fmClkFreq;              /**< In Mhz. */
-
-    t_FmExceptionsCallback  *f_Exception;           /**< An application callback routine to handle exceptions. */
-
-    t_FmBusErrorCallback    *f_BusError;            /**< An application callback routine to handle exceptions. */
-
+    uint16_t                fmClkFreq;              /**< In Mhz;
+                                                         Relevant when FM not runs in "guest-mode". */
+    t_FmExceptionsCallback  *f_Exception;           /**< An application callback routine to handle exceptions;
+                                                         Relevant when FM not runs in "guest-mode". */
+    t_FmBusErrorCallback    *f_BusError;            /**< An application callback routine to handle exceptions;
+                                                         Relevant when FM not runs in "guest-mode". */
     t_Handle                h_App;                  /**< A handle to an application layer object; This handle will
-                                                         be passed by the driver upon calling the above callbacks. */
-
-    int                     irq;                    /**< FM interrupt source for normal events. */
-
-    int                     errIrq;                 /**< FM interrupt source for errors. */
-
-    t_FmFirmwareParams      firmware;               /**< The firmware parameters structure. */
+                                                         be passed by the driver upon calling the above callbacks;
+                                                         Relevant when FM not runs in "guest-mode". */
+    int                     irq;                    /**< FM interrupt source for normal events;
+                                                         Relevant when FM not runs in "guest-mode". */
+    int                     errIrq;                 /**< FM interrupt source for errors;
+                                                         Relevant when FM not runs in "guest-mode". */
+    t_FmFirmwareParams      firmware;               /**< The firmware parameters structure;
+                                                         Relevant when FM not runs in "guest-mode". */
 
 #if (DPAA_VERSION >= 11)
     uintptr_t               vspBaseAddr;            /**< A pointer to base of memory mapped FM VSP registers (virtual);
@@ -690,6 +694,8 @@ typedef struct t_FmDmaThresholds {
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigResetOnInit(t_Handle h_Fm, bool enable);
 
@@ -706,6 +712,8 @@ t_Error FM_ConfigResetOnInit(t_Handle h_Fm, bool enable);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigTotalFifoSize(t_Handle h_Fm, uint32_t totalFifoSize);
 
@@ -722,6 +730,8 @@ t_Error FM_ConfigTotalFifoSize(t_Handle h_Fm, uint32_t totalFifoSize);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaCacheOverride(t_Handle h_Fm, e_FmDmaCacheOverride cacheOverride);
 
@@ -738,6 +748,8 @@ t_Error FM_ConfigDmaCacheOverride(t_Handle h_Fm, e_FmDmaCacheOverride cacheOverr
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaAidOverride(t_Handle h_Fm, bool aidOverride);
 
@@ -754,6 +766,8 @@ t_Error FM_ConfigDmaAidOverride(t_Handle h_Fm, bool aidOverride);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaAidMode(t_Handle h_Fm, e_FmDmaAidMode aidMode);
 
@@ -770,6 +784,8 @@ t_Error FM_ConfigDmaAidMode(t_Handle h_Fm, e_FmDmaAidMode aidMode);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaAxiDbgNumOfBeats(t_Handle h_Fm, uint8_t axiDbgNumOfBeats);
 
@@ -786,6 +802,8 @@ t_Error FM_ConfigDmaAxiDbgNumOfBeats(t_Handle h_Fm, uint8_t axiDbgNumOfBeats);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaCamNumOfEntries(t_Handle h_Fm, uint8_t numOfEntries);
 
@@ -802,6 +820,8 @@ t_Error FM_ConfigDmaCamNumOfEntries(t_Handle h_Fm, uint8_t numOfEntries);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaDbgCounter(t_Handle h_Fm, e_FmDmaDbgCntMode fmDmaDbgCntMode);
 
@@ -820,6 +840,8 @@ t_Error FM_ConfigDmaDbgCounter(t_Handle h_Fm, e_FmDmaDbgCntMode fmDmaDbgCntMode)
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
                 Only if bus error is enabled.
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaStopOnBusErr(t_Handle h_Fm, bool stop);
 
@@ -837,6 +859,8 @@ t_Error FM_ConfigDmaStopOnBusErr(t_Handle h_Fm, bool stop);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaEmergency(t_Handle h_Fm, t_FmDmaEmergency *p_Emergency);
 
@@ -854,6 +878,8 @@ t_Error FM_ConfigDmaEmergency(t_Handle h_Fm, t_FmDmaEmergency *p_Emergency);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaErr(t_Handle h_Fm, e_FmDmaErr dmaErr);
 
@@ -871,6 +897,8 @@ t_Error FM_ConfigDmaErr(t_Handle h_Fm, e_FmDmaErr dmaErr);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigCatastrophicErr(t_Handle h_Fm, e_FmCatastrophicErr catastrophicErr);
 
@@ -887,6 +915,8 @@ t_Error FM_ConfigCatastrophicErr(t_Handle h_Fm, e_FmCatastrophicErr catastrophic
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigEnableMuramTestMode(t_Handle h_Fm);
 
@@ -903,6 +933,8 @@ t_Error FM_ConfigEnableMuramTestMode(t_Handle h_Fm);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigEnableIramTestMode(t_Handle h_Fm);
 
@@ -921,6 +953,8 @@ t_Error FM_ConfigEnableIramTestMode(t_Handle h_Fm);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigHaltOnExternalActivation(t_Handle h_Fm, bool enable);
 
@@ -939,6 +973,8 @@ t_Error FM_ConfigHaltOnExternalActivation(t_Handle h_Fm, bool enable);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigHaltOnUnrecoverableEccError(t_Handle h_Fm, bool enable);
 
@@ -956,6 +992,8 @@ t_Error FM_ConfigHaltOnUnrecoverableEccError(t_Handle h_Fm, bool enable);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigException(t_Handle h_Fm, e_FmExceptions exception, bool enable);
 
@@ -974,6 +1012,8 @@ t_Error FM_ConfigException(t_Handle h_Fm, e_FmExceptions exception, bool enable)
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigExternalEccRamsEnable(t_Handle h_Fm, bool enable);
 
@@ -994,6 +1034,8 @@ t_Error FM_ConfigExternalEccRamsEnable(t_Handle h_Fm, bool enable);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigTnumAgingPeriod(t_Handle h_Fm, uint16_t tnumAgingPeriod);
 
@@ -1012,6 +1054,8 @@ t_Error FM_ConfigTnumAgingPeriod(t_Handle h_Fm, uint16_t tnumAgingPeriod);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaEmergencySmoother(t_Handle h_Fm, uint32_t emergencyCnt);
 
@@ -1030,12 +1074,15 @@ t_Error FM_ConfigDmaEmergencySmoother(t_Handle h_Fm, uint32_t emergencyCnt);
                     fmCtl1DispTh: [16]
                     fmCtl2DispTh: [16]
 
+
  @Param[in]     h_Fm            A handle to an FM Module.
  @Param[in]     p_FmThresholds  A structure of threshold parameters.
 
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigThresholds(t_Handle h_Fm, t_FmThresholds *p_FmThresholds);
 
@@ -1051,6 +1098,8 @@ t_Error FM_ConfigThresholds(t_Handle h_Fm, t_FmThresholds *p_FmThresholds);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaSosEmergencyThreshold(t_Handle h_Fm, uint32_t dmaSosEmergency);
 
@@ -1071,6 +1120,8 @@ t_Error FM_ConfigDmaSosEmergencyThreshold(t_Handle h_Fm, uint32_t dmaSosEmergenc
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaWriteBufThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThresholds);
 
@@ -1090,6 +1141,8 @@ t_Error FM_ConfigDmaWriteBufThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDma
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaCommQThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThresholds);
 
@@ -1110,6 +1163,8 @@ t_Error FM_ConfigDmaCommQThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThr
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaReadBufThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThresholds);
 
@@ -1126,6 +1181,8 @@ t_Error FM_ConfigDmaReadBufThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaT
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ConfigDmaWatchdog(t_Handle h_Fm, uint32_t watchDogValue);
 
@@ -1269,6 +1326,8 @@ t_Error FM_DumpRegs(t_Handle h_Fm);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable);
 
@@ -1284,6 +1343,8 @@ t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_SetPortsBandwidth(t_Handle h_Fm, t_FmPortsBandwidthParams *p_PortsBandwidth);
 
@@ -1303,6 +1364,8 @@ t_Error FM_SetPortsBandwidth(t_Handle h_Fm, t_FmPortsBandwidthParams *p_PortsBan
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_EnableRamsEcc(t_Handle h_Fm);
 
@@ -1322,6 +1385,8 @@ t_Error FM_EnableRamsEcc(t_Handle h_Fm);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Config() and before FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_DisableRamsEcc(t_Handle h_Fm);
 
@@ -1382,6 +1447,8 @@ uint32_t  FM_GetCounter(t_Handle h_Fm, e_FmCounters counter);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error  FM_ModifyCounter(t_Handle h_Fm, e_FmCounters counter, uint32_t val);
 
@@ -1395,6 +1462,8 @@ t_Error  FM_ModifyCounter(t_Handle h_Fm, e_FmCounters counter, uint32_t val);
  @Return        E_OK on success; Error code otherwise.
 
  @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 void FM_Resume(t_Handle h_Fm);
 
@@ -1410,6 +1479,8 @@ void FM_Resume(t_Handle h_Fm);
  @Return        None.
 
  @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 void FM_SetDmaEmergency(t_Handle h_Fm, e_FmDmaMuramPort muramPort, bool enable);
 
@@ -1424,6 +1495,8 @@ void FM_SetDmaEmergency(t_Handle h_Fm, e_FmDmaMuramPort muramPort, bool enable);
  @Return        None.
 
  @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 void FM_SetDmaExtBusPri(t_Handle h_Fm, e_FmDmaExtBusPri pri);
 
@@ -1563,6 +1636,8 @@ t_Error FM_CtrlMonGetCounters(t_Handle h_Fm, uint8_t fmCtrlIndex, t_FmCtrlMon *p
                 or is not able to create interrupt.
 
  @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_ForceIntr (t_Handle h_Fm, e_FmExceptions exception);
 

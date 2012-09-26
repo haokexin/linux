@@ -66,10 +66,10 @@ static void PcdPrsErrorException(t_Handle h_FmPcd)
 
     WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->perr, event);
 
-    DBG(TRACE, ("parser error - 0x%08x\n", event));
+    DBG(TRACE, ("parser error - 0x%08x\n",event));
 
     if(event & FM_PCD_PRS_DOUBLE_ECC)
-        p_FmPcd->f_Exception(p_FmPcd->h_App, e_FM_PCD_PRS_EXCEPTION_DOUBLE_ECC);
+        p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PRS_EXCEPTION_DOUBLE_ECC);
 }
 
 static void PcdPrsException(t_Handle h_FmPcd)
@@ -83,7 +83,7 @@ static void PcdPrsException(t_Handle h_FmPcd)
 
     ASSERT_COND(event & FM_PCD_PRS_SINGLE_ECC);
 
-    DBG(TRACE, ("parser event - 0x%08x\n", event));
+    DBG(TRACE, ("parser event - 0x%08x\n",event));
 
     /* clear the forced events */
     force = GET_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->pevfr);
@@ -92,10 +92,10 @@ static void PcdPrsException(t_Handle h_FmPcd)
 
     WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->pevr, event);
 
-    p_FmPcd->f_Exception(p_FmPcd->h_App, e_FM_PCD_PRS_EXCEPTION_SINGLE_ECC);
+    p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PRS_EXCEPTION_SINGLE_ECC);
 }
 
-t_Handle PrsConfig(t_FmPcd *p_FmPcd, t_FmPcdParams *p_FmPcdParams)
+t_Handle PrsConfig(t_FmPcd *p_FmPcd,t_FmPcdParams *p_FmPcdParams)
 {
     t_FmPcdPrs  *p_FmPcdPrs;
     uintptr_t   baseAddr;
@@ -141,10 +141,10 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
     if (p_FmPcd->guestId != NCSW_MASTER_ID)
         return E_OK;
 
-    p_TmpCode = (uint32_t *)XX_MallocSmart(ROUND_UP(sizeof(swPrsPatch), 4), 0, sizeof(uint32_t));
+    p_TmpCode = (uint32_t *)XX_MallocSmart(ROUND_UP(sizeof(swPrsPatch),4), 0, sizeof(uint32_t));
     if (!p_TmpCode)
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
-    memset((uint8_t *)p_TmpCode, 0, ROUND_UP(sizeof(swPrsPatch), 4));
+    memset((uint8_t *)p_TmpCode, 0, ROUND_UP(sizeof(swPrsPatch),4));
     memcpy((uint8_t *)p_TmpCode, (uint8_t *)swPrsPatch, sizeof(swPrsPatch));
 
     /**********************RPCLIM******************/
@@ -190,7 +190,7 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
     /**********************PPSC******************/
 
     /* load sw parser Ip-Frag patch */
-    for (i = 0; i < DIV_CEIL(sizeof(swPrsPatch), 4); i++)
+    for (i=0; i<DIV_CEIL(sizeof(swPrsPatch),4); i++)
         WRITE_UINT32(p_LoadTarget[i], p_TmpCode[i]);
 
     XX_FreeSmart(p_TmpCode);
@@ -227,7 +227,7 @@ t_Error PrsIncludePortInStatistics(t_FmPcd *p_FmPcd, uint8_t hardwarePortId, boo
     uint32_t    bitMask = 0;
     uint8_t     prsPortId;
 
-    SANITY_CHECK_RETURN_ERROR((hardwarePortId >= 1 && hardwarePortId <= 16), E_INVALID_VALUE);
+    SANITY_CHECK_RETURN_ERROR((hardwarePortId >=1 && hardwarePortId <= 16), E_INVALID_VALUE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPrs, E_INVALID_HANDLE);
 
@@ -249,7 +249,7 @@ t_Error FmPcdPrsIncludePortInStatistics(t_Handle h_FmPcd, uint8_t hardwarePortId
     t_FmPcd                     *p_FmPcd = (t_FmPcd *)h_FmPcd;
     t_Error                     err;
 
-    SANITY_CHECK_RETURN_ERROR((hardwarePortId >= 1 && hardwarePortId <= 16), E_INVALID_VALUE);
+    SANITY_CHECK_RETURN_ERROR((hardwarePortId >=1 && hardwarePortId <= 16), E_INVALID_VALUE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdPrs, E_INVALID_HANDLE);
 
@@ -329,7 +329,7 @@ uint32_t FmPcdGetSwPrsOffset(t_Handle h_FmPcd, e_NetHeaderType hdr, uint8_t inde
 
     ASSERT_COND(p_FmPcd->p_FmPcdPrs->currLabel < FM_PCD_PRS_NUM_OF_LABELS);
 
-    for (i = 0; i < p_FmPcd->p_FmPcdPrs->currLabel; i++)
+    for (i=0; i<p_FmPcd->p_FmPcdPrs->currLabel; i++)
     {
         p_Label = &p_FmPcd->p_FmPcdPrs->labelsTable[i];
 
@@ -390,10 +390,10 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
     if (p_FmPcd->p_FmPcdPrs->currLabel + p_SwPrs->numOfLabels > FM_PCD_PRS_NUM_OF_LABELS)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Exceeded number of labels allowed "));
 
-    p_TmpCode = (uint32_t *)XX_MallocSmart(ROUND_UP(p_SwPrs->size, 4), 0, sizeof(uint32_t));
+    p_TmpCode = (uint32_t *)XX_MallocSmart(ROUND_UP(p_SwPrs->size,4), 0, sizeof(uint32_t));
     if (!p_TmpCode)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
-    memset((uint8_t *)p_TmpCode, 0, ROUND_UP(p_SwPrs->size, 4));
+    memset((uint8_t *)p_TmpCode, 0, ROUND_UP(p_SwPrs->size,4));
     memcpy((uint8_t *)p_TmpCode, p_SwPrs->p_Code, p_SwPrs->size);
 
     /* save sw parser labels */
@@ -404,13 +404,13 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
 
     /* load sw parser code */
     p_LoadTarget = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4;
-    for (i = 0; i < DIV_CEIL(p_SwPrs->size, 4); i++)
+    for(i=0; i<DIV_CEIL(p_SwPrs->size,4); i++)
         WRITE_UINT32(p_LoadTarget[i], p_TmpCode[i]);
     p_FmPcd->p_FmPcdPrs->p_CurrSwPrs =
-        p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + ROUND_UP(p_SwPrs->size, 4);
+        p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + ROUND_UP(p_SwPrs->size,4);
 
     /* copy data parameters */
-    for (i = 0; i < FM_PCD_PRS_NUM_OF_HDRS; i++)
+    for (i=0;i<FM_PCD_PRS_NUM_OF_HDRS;i++)
         WRITE_UINT32(*(p_FmPcd->p_FmPcdPrs->p_SwPrsCode+PRS_SW_DATA/4+i), p_SwPrs->swPrsDataParams[i]);
 
     /* Clear last 4 bytes */
@@ -421,7 +421,7 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
     return E_OK;
 }
 
-t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd, uint16_t value)
+t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd,uint16_t value)
 {
     t_FmPcd *p_FmPcd = (t_FmPcd*)h_FmPcd;
 
