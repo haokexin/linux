@@ -285,14 +285,6 @@ config B4860_QDS
 	help
 	  This option enables support for the B4860 QDS board
 
-# Note that this is a big hack, surely we have to figure this out
-# at runtime.
-config FSL_THREADS
-	bool "Freescale smt"
-	default y
-	help
-	  This option enables support for e6500 SMT
-
 config P5020_DS
 	bool "Freescale P5020 DS"
 	select DEFAULT_UIMAGE
