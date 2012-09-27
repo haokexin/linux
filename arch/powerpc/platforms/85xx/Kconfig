@@ -351,7 +351,6 @@ config T4240_QDS
 	select PPC_EPAPR_HV_PIC
 	select HAS_FSL_PAMU
 	select HAS_FSL_QBMAN
-	select T4_SIMULATOR_WORKAROUND
 	help
 	  This option enables support for the T4240 QDS board
 
