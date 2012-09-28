@@ -1625,6 +1625,8 @@ uint32_t FM_PCD_GetCounter(t_Handle h_FmPcd, e_FmPcdCounters counter)
                 REPORT_ERROR(MINOR, E_INVALID_STATE, ("Requested counter was not enabled"));
                 return 0;
             }
+            ASSERT_COND(p_FmPcd->p_FmPcdPlcr->p_FmPcdPlcrRegs ||
+                        ((p_FmPcd->guestId != NCSW_MASTER_ID) && p_FmPcd->h_IpcSession));
             break;
 
         case(e_FM_PCD_PRS_COUNTERS_PARSE_DISPATCH):

@@ -125,6 +125,7 @@ static void FreeStatObjects(t_List     *p_List,
     while (!LIST_IsEmpty(p_List))
     {
         p_StatsObj = DequeueStatsObj(p_List);
+        ASSERT_COND(p_StatsObj);
 
         FM_MURAM_FreeMem(h_FmMuram, p_StatsObj->h_StatsAd);
         FM_MURAM_FreeMem(h_FmMuram, p_StatsObj->h_StatsCounters);
@@ -172,7 +173,7 @@ static t_FmPcdStatsObj* GetStatsObj(t_FmPcdCcNode *p_CcNode)
         p_StatsObj->h_StatsCounters = (t_Handle)FM_MURAM_AllocMem(h_FmMuram,
                                                                   p_CcNode->countersArraySize,
                                                                   FM_PCD_CC_AD_TABLE_ALIGN);
-        if (!p_StatsObj->h_StatsAd)
+        if (!p_StatsObj->h_StatsCounters)
         {
             FM_MURAM_FreeMem(h_FmMuram, p_StatsObj->h_StatsAd);
             XX_Free(p_StatsObj);
@@ -713,9 +714,13 @@ static t_Error FmPcdCcReleaseModifiedDataStructure(t_Handle                     
         XX_UnlockIntrSpinlock(((t_FmPcdCcNode *)(p_AdditionalParams->h_CurrentNode))->h_Spinlock, intFlags);
     }
     else
+    {
+        uint8_t numEntries = ((t_FmPcdCcTree *)(p_AdditionalParams->h_CurrentNode))->numOfEntries;
+        ASSERT_COND(numEntries < FM_PCD_MAX_NUM_OF_CC_GROUPS);
         memcpy(&((t_FmPcdCcTree *)(p_AdditionalParams->h_CurrentNode))->keyAndNextEngineParams,
                &p_AdditionalParams->keyAndNextEngineParams,
-               sizeof(t_FmPcdCcKeyAndNextEngineParams) * (((t_FmPcdCcTree *)(p_AdditionalParams->h_CurrentNode))->numOfEntries));
+               sizeof(t_FmPcdCcKeyAndNextEngineParams) * numEntries);
+    }
 
     ReleaseLst(h_FmPcdOldPointersLst);
     ReleaseLst(h_FmPcdNewPointersLst);
@@ -2492,6 +2497,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
                 ASSERT_COND(p_StatsObj);
 
                 /* Store allocated statistics object */
+                ASSERT_COND(keyIndex < FM_PCD_MAX_NUM_OF_CC_GROUPS);
                 p_AdditionalInfo->keyAndNextEngineParams[keyIndex].p_StatsObj = p_StatsObj;
 
                 h_StatsAd = p_StatsObj->h_StatsAd;
@@ -2785,6 +2791,7 @@ static t_Error BuildNewNodeModifyKey(t_FmPcdCcNode                      *p_CcNod
 
         if (j == keyIndex)
         {
+            ASSERT_COND(keyIndex < FM_PCD_MAX_NUM_OF_CC_GROUPS);
             if (p_CcNode->keyAndNextEngineParams[keyIndex].p_StatsObj)
             {
                 /* As statistics were enabled, we need to update the existing
@@ -3278,7 +3285,7 @@ static t_FmPcdModifyCcKeyAdditionalParams* ModifyKeyCommonPart1(t_Handle        
         numOfKeys = p_FmPcdCcTree->numOfEntries;
         memcpy(p_KeyAndNextEngineParams,
                p_FmPcdCcTree->keyAndNextEngineParams,
-               256 * sizeof(t_FmPcdCcKeyAndNextEngineParams));
+               FM_PCD_MAX_NUM_OF_CC_GROUPS * sizeof(t_FmPcdCcKeyAndNextEngineParams));
     }
 
     p_FmPcdModifyCcKeyAdditionalParams =

@@ -416,7 +416,6 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip, t_FmPcdManipParams *p_FmPcdManip
 
                     p_TmpData += DSCP_TO_VLAN_TABLE_SIZE;
                 }
-
                 else if(p_FmPcdManipParams->u.hdr.fieldUpdateParams.u.vlan.updateType ==
                    e_FM_PCD_MANIP_HDR_FIELD_UPDATE_VLAN_VPRI)
                 {
@@ -630,14 +629,16 @@ static t_Error BuildHmct(t_FmPcdManip *p_Manip, t_FmPcdManipParams *p_FmPcdManip
                 XX_Free(((t_FmPcdManip *)p_FmPcdManipParams->h_NextManip)->h_Ad);
             ((t_FmPcdManip *)p_FmPcdManipParams->h_NextManip)->h_Ad = NULL;
 
-
-        /* advance pointer */
+            /* advance pointer */
             p_TmpHmct += MANIP_GET_HMCT_SIZE(p_FmPcdManipParams->h_NextManip)/4;
         }
     }
     else
+    {
+        ASSERT_COND(p_Last);
         /* set the "last" indication on the last command of the current table */
         WRITE_UINT32(*p_Last, GET_UINT32(*p_Last) | HMCD_LAST);
+    }
 
     return E_OK;
 }
@@ -654,7 +655,7 @@ static t_Error CreateManipActionNew(t_FmPcdManip *p_Manip, t_FmPcdManipParams *p
     if(p_FmPcdManipParams->h_NextManip)
     {
         if(MANIP_DONT_REPARSE(p_FmPcdManipParams->h_NextManip))
-            nextSize =(uint32_t)(GetHmctSize(p_FmPcdManipParams->h_NextManip) + GetDataSize(p_FmPcdManipParams->h_NextManip));
+            nextSize = (uint32_t)(GetHmctSize(p_FmPcdManipParams->h_NextManip) + GetDataSize(p_FmPcdManipParams->h_NextManip));
         else
             p_Manip->cascadedNext = TRUE;
     }
@@ -959,6 +960,8 @@ static t_Error UpdateInitMvIntFrameHeaderFromFrameToBufferPrefix(t_Handle h_FmPo
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("Parser result offset wasn't configured previousely"));
 
     }
+
+    ASSERT_COND(p_Ad);
 
    if(p_Manip->updateParams & OFFSET_OF_PR)
    {
