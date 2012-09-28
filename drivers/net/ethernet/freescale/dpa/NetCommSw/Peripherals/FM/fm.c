@@ -2184,6 +2184,7 @@ t_Error FmGetSetPortParams(t_Handle h_Fm,t_FmInterModulePortInitParams *p_PortPa
     if ((p_PortParams->portType == e_FM_PORT_TYPE_TX) ||
         (p_PortParams->portType == e_FM_PORT_TYPE_RX))
     {
+        ASSERT_COND(macId < FM_MAX_NUM_OF_1G_MACS);
         if (p_PortParams->maxFrameLength >= p_Fm->p_FmStateStruct->macMaxFrameLengths1G[macId])
             p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId] = p_PortParams->maxFrameLength;
         else
@@ -2311,7 +2312,10 @@ void FmFreePortParams(t_Handle h_Fm,t_FmInterModulePortFreeParams *p_PortParams)
 #endif /* defined(FM_MAX_NUM_OF_10G_MACS) && ... */
     if ((p_PortParams->portType == e_FM_PORT_TYPE_TX) ||
         (p_PortParams->portType == e_FM_PORT_TYPE_RX))
+    {
+        ASSERT_COND(macId < FM_MAX_NUM_OF_1G_MACS);
         p_Fm->p_FmStateStruct->portMaxFrameLengths1G[macId] = 0;
+    }
 
 #ifdef FM_LOW_END_RESTRICTION
     if ((hardwarePortId==0x1) || (hardwarePortId==0x29))

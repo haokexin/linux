@@ -240,7 +240,7 @@ typedef _Packed struct t_FmIpcSetCongestionGroupPfcPriority {
     uint8_t      priorityBitMap;
 }_PackedType t_FmIpcSetCongestionGroupPfcPriority;
 
-#define FM_IPC_MAX_REPLY_BODY_SIZE  16
+#define FM_IPC_MAX_REPLY_BODY_SIZE  20
 #define FM_IPC_MAX_REPLY_SIZE       (FM_IPC_MAX_REPLY_BODY_SIZE + sizeof(uint32_t))
 #define FM_IPC_MAX_MSG_SIZE         30
 

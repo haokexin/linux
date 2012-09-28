@@ -990,6 +990,8 @@ t_Error PlcrSetPortProfiles(t_FmPcd    *p_FmPcd,
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
                      ("Either IPC or 'baseAddress' is required!"));
 
+    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
+
     if (GET_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1]) & FM_PCD_PLCR_PMR_V)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE,
                      ("The requesting port has already an allocated profiles window."));
@@ -1036,6 +1038,7 @@ t_Error PlcrClearPortProfiles(t_FmPcd *p_FmPcd, uint8_t hardwarePortId)
         RETURN_ERROR(MINOR, E_NOT_SUPPORTED,
                      ("Either IPC or 'baseAddress' is required!"));
 
+    ASSERT_COND(IN_RANGE(1, hardwarePortId, 63));
     WRITE_UINT32(p_Regs->fmpl_pmr[hardwarePortId-1], 0);
 
     return E_OK;

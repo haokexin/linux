@@ -143,7 +143,7 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
 
     p_TmpCode = (uint32_t *)XX_MallocSmart(ROUND_UP(sizeof(swPrsPatch),4), 0, sizeof(uint32_t));
     if (!p_TmpCode)
-        REPORT_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
+        RETURN_ERROR(MAJOR, E_NO_MEMORY, ("Tmp Sw-Parser code allocation FAILED"));
     memset((uint8_t *)p_TmpCode, 0, ROUND_UP(sizeof(swPrsPatch),4));
     memcpy((uint8_t *)p_TmpCode, (uint8_t *)swPrsPatch, sizeof(swPrsPatch));
 
