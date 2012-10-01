@@ -49,7 +49,7 @@
 #define COMPAT_COPY_K2US(dest, src, type)	compat_copy_##type(src, dest, 0)
 #define COMPAT_COPY_US2K(dest, src, type)	compat_copy_##type(dest, src, 1)
 
-/* maping kernel pointers w/ UserSpace id's { */
+/* mapping kernel pointers w/ UserSpace id's { */
 /* Because compat_ptr(ptr_to_compat(X)) != X, this way we cannot exchange pointers
    back and forth (US - KS). compat_ptr is a cast and pointers are broken. */
 #define COMPAT_PTR2ID_ARRAY_MAX (256+1) /* first location is not used */
@@ -105,7 +105,20 @@ void compat_del_ptr2id(void *p, enum fm_map_node_type);
 compat_uptr_t compat_add_ptr2id(void *p, enum fm_map_node_type);
 compat_uptr_t compat_get_ptr2id(void *p, enum fm_map_node_type);
 void *compat_get_id2ptr(compat_uptr_t comp, enum fm_map_node_type);
-/* } maping kernel pointers w/ UserSpace id's  */
+
+static inline compat_uptr_t compat_pcd_ptr2id(void *ptr) {
+    return (ptr)? compat_get_ptr2id(ptr, FM_MAP_TYPE_PCD_NODE)
+                : (compat_uptr_t) 0;
+}
+
+static inline void *compat_pcd_id2ptr(compat_uptr_t id) {
+    return (id) ? compat_get_id2ptr(id, FM_MAP_TYPE_PCD_NODE)
+                : NULL;
+}
+
+/* other similar inlines may be added as new nodes are added
+   to enum fm_map_node_type above... */
+/* } mapping kernel pointers w/ UserSpace id's  */
 
 /* pcd compat structures { */
 typedef struct ioc_compat_fm_pcd_cc_node_remove_key_params_t {
@@ -248,7 +261,9 @@ typedef struct ioc_compat_keys_params_t {
     uint16_t                                   max_num_of_keys;
     bool                                       mask_support;
     ioc_fm_pcd_cc_stats_mode                   statistics_mode;
+#ifdef FM_EXP_FEATURES
     uint16_t                                   frame_length_ranges[IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
+#endif /* FM_EXP_FEATURES */
     uint16_t                                   num_of_keys;
     uint8_t                                    key_size;
     ioc_compat_fm_pcd_cc_key_params_t          key_params[IOC_FM_PCD_MAX_NUM_OF_KEYS]; /**< compat structure*/
