@@ -1471,10 +1471,9 @@ t_Error ValidateNextEngineParams(t_Handle                   h_FmPcd,
              break;
 
          case (e_FM_PCD_DONE):
-             if (p_FmPcdCcNextEngineParams->params.enqueueParams.action == e_FM_PCD_ENQ_FRAME)
-             {
-                 if (p_FmPcdCcNextEngineParams->params.enqueueParams.overrideFqid &&
-                         !p_FmPcdCcNextEngineParams->params.enqueueParams.newFqid)
+             if (p_FmPcdCcNextEngineParams->params.enqueueParams.action == e_FM_PCD_ENQ_FRAME &&
+                     p_FmPcdCcNextEngineParams->params.enqueueParams.overrideFqid) {
+                 if (!p_FmPcdCcNextEngineParams->params.enqueueParams.newFqid)
                      RETURN_ERROR(MAJOR, E_INVALID_STATE, ("overrideFqid defined, but not newFqid."));
                  if (p_FmPcdCcNextEngineParams->params.enqueueParams.newFqid & ~0x00FFFFFF)
                      RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("fqidForCtrlFlow must be between 1 and 2^24-1"));
