@@ -53,12 +53,14 @@ _GLOBAL(__e500_dcache_setup)
 	isync
 	blr
 
+#ifdef CONFIG_PPC_BOOK3E_64
 _GLOBAL(__setup_cpu_e6500)
 	mflr	r6
 	bl	.setup_altivec_ivors
 	bl	__setup_cpu_e5500
 	mtlr	r6
 	blr
+#endif
 
 #ifdef CONFIG_PPC32
 _GLOBAL(__setup_cpu_e200)
