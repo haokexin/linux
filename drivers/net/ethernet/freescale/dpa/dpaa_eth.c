@@ -676,11 +676,43 @@ dpa_fq_free(struct device *dev, struct list_head *list)
 	return _errno;
 }
 
+static inline void * __must_check __attribute__((nonnull))
+dpa_phys2virt(const struct dpa_bp *dpa_bp, dma_addr_t addr)
+{
+	return dpa_bp->vaddr + (addr - dpa_bp->paddr);
+}
+
 static void
-dpa_fd_release_unmapped(const struct net_device *net_dev,
+dpa_release_sgt(struct qm_sg_entry *sgt, struct dpa_bp *dpa_bp,
+		struct bm_buffer *bmb)
+{
+	int i = 0, j;
+
+	do {
+		dpa_bp = dpa_bpid2pool(sgt[i].bpid);
+		BUG_ON(IS_ERR(dpa_bp));
+
+		j = 0;
+		do {
+			BUG_ON(sgt[i].extension);
+
+			bmb[j].hi       = sgt[i].addr_hi;
+			bmb[j].lo       = sgt[i].addr_lo;
+
+			j++; i++;
+		} while (j < ARRAY_SIZE(bmb) &&
+				!sgt[i-1].final &&
+				sgt[i-1].bpid == sgt[i].bpid);
+
+		while (bman_release(dpa_bp->pool, bmb, j, 0))
+			cpu_relax();
+	} while (!sgt[i-1].final);
+}
+
+static void
+dpa_fd_release_sg(const struct net_device *net_dev,
 			const struct qm_fd *fd)
 {
-	int				 i, j;
 	const struct dpa_priv_s		*priv;
 	struct qm_sg_entry		*sgt;
 	struct dpa_bp			*_dpa_bp, *dpa_bp;
@@ -693,7 +725,11 @@ dpa_fd_release_unmapped(const struct net_device *net_dev,
 
 	_dpa_bp = dpa_bpid2pool(fd->bpid);
 
-	if (fd->format == qm_fd_sg) {
+	if (_dpa_bp->vaddr) {
+		sgt = dpa_phys2virt(_dpa_bp, bm_buf_addr(&_bmb)) +
+					dpa_fd_offset(fd);
+		dpa_release_sgt(sgt, dpa_bp, bmb);
+	} else {
 		sgt = kmalloc(DPA_SGT_MAX_ENTRIES * sizeof(*sgt), GFP_ATOMIC);
 		if (sgt == NULL) {
 			if (netif_msg_tx_err(priv) && net_ratelimit())
@@ -706,27 +742,7 @@ dpa_fd_release_unmapped(const struct net_device *net_dev,
 						dpa_fd_offset(fd),
 					min(DPA_SGT_MAX_ENTRIES * sizeof(*sgt),
 						_dpa_bp->size));
-
-		i = 0;
-		do {
-			dpa_bp = dpa_bpid2pool(sgt[i].bpid);
-			BUG_ON(IS_ERR(dpa_bp));
-
-			j = 0;
-			do {
-				BUG_ON(sgt[i].extension);
-
-				bmb[j].hi	= sgt[i].addr_hi;
-				bmb[j].lo	= sgt[i].addr_lo;
-
-				j++; i++;
-			} while (j < ARRAY_SIZE(bmb) &&
-					!sgt[i-1].final &&
-					sgt[i-1].bpid == sgt[i].bpid);
-
-			while (bman_release(dpa_bp->pool, bmb, j, 0))
-				cpu_relax();
-		} while (!sgt[i-1].final);
+		dpa_release_sgt(sgt, dpa_bp, bmb);
 		kfree(sgt);
 	}
 
@@ -737,9 +753,8 @@ dpa_fd_release_unmapped(const struct net_device *net_dev,
 void __attribute__((nonnull))
 dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 {
-	int				 i, j;
 	const struct dpa_priv_s		*priv;
-	const struct qm_sg_entry	*sgt;
+	struct qm_sg_entry		*sgt;
 	struct dpa_bp			*_dpa_bp, *dpa_bp;
 	struct bm_buffer		 _bmb, bmb[8];
 
@@ -753,27 +768,7 @@ dpa_fd_release(const struct net_device *net_dev, const struct qm_fd *fd)
 
 	if (fd->format == qm_fd_sg) {
 		sgt = (phys_to_virt(bm_buf_addr(&_bmb)) + dpa_fd_offset(fd));
-
-		i = 0;
-		do {
-			dpa_bp = dpa_bpid2pool(sgt[i].bpid);
-			BUG_ON(IS_ERR(dpa_bp));
-
-			j = 0;
-			do {
-				BUG_ON(sgt[i].extension);
-
-				bmb[j].hi	= sgt[i].addr_hi;
-				bmb[j].lo	= sgt[i].addr_lo;
-
-				j++; i++;
-			} while (j < ARRAY_SIZE(bmb) &&
-					!sgt[i-1].final &&
-					sgt[i-1].bpid == sgt[i].bpid);
-
-			while (bman_release(dpa_bp->pool, bmb, j, 0))
-				cpu_relax();
-		} while (!sgt[i-1].final);
+		dpa_release_sgt(sgt, dpa_bp, bmb);
 	}
 
 	while (bman_release(_dpa_bp->pool, &_bmb, 1, 0))
@@ -1307,12 +1302,6 @@ static struct dpa_bp *dpa_size2pool(struct dpa_priv_s *priv, size_t size)
 		if (DPA_BP_SIZE(size) <= priv->dpa_bp[i].size)
 			return dpa_bpid2pool(priv->dpa_bp[i].bpid);
 	return ERR_PTR(-ENODEV);
-}
-
-static inline void * __must_check __attribute__((nonnull))
-dpa_phys2virt(const struct dpa_bp *dpa_bp, dma_addr_t addr)
-{
-	return dpa_bp->vaddr + (addr - dpa_bp->paddr);
 }
 
 /**
@@ -1971,8 +1960,8 @@ skb_copied:
 	net_dev->last_rx = jiffies;
 
 out:
-	if ((fd->format == qm_fd_sg) && (!dpa_bp->vaddr))
-		dpa_fd_release_unmapped(net_dev, fd);
+	if (fd->format == qm_fd_sg)
+		dpa_fd_release_sg(net_dev, fd);
 	else
 		dpa_fd_release(net_dev, fd);
 
