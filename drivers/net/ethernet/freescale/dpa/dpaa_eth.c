@@ -1098,6 +1098,8 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	dma_addr_t addr = qm_fd_addr(fd);
 	u32 fd_status = fd->status;
 	unsigned int skb_len;
+	t_FmPrsResult *parse_result;
+	int use_gro = net_dev->features & NETIF_F_GRO;
 
 	skbh = (struct sk_buff **)phys_to_virt(addr);
 
@@ -1148,8 +1150,39 @@ void __hot _dpa_rx(struct net_device *net_dev,
 		 * the frame would have been received on the Error FQ,
 		 * respectively on the _dpa_rx_error() path). */
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
-	} else
+		if (use_gro) {
+			/*
+			 * Don't go through GRO for certain types of traffic
+			 * that we know are not GRO-able, such as dgram-based
+			 * protocols. In the worst-case scenarios, such as
+			 * small-pkt terminating UDP or similar IP forwarding,
+			 * the extra GRO processing would be overkill.
+			 *
+			 * So if the FMan Parser is running, the only supported
+			 * protocol that's also GRO-able is currently TCP.
+			 */
+			parse_result = (t_FmPrsResult *)((u8 *)skbh +
+				DPA_RX_PRIV_DATA_SIZE);
+			if (!(parse_result->l4r & FM_L4_PARSE_RESULT_TCP))
+				use_gro = 0;
+		}
+	} else {
 		skb->ip_summed = CHECKSUM_NONE;
+		/*
+		 * Bypass GRO for unknown traffic or if no PCDs are applied.
+		 * It's unlikely that a GRO handler is installed for this proto
+		 * or, if it is, user does not seem to care about performance
+		 * (otherwise, PCDs would have been in place).
+		 *
+		 * TODO: Ultimately, we might still leave GRO for frames larger
+		 * than a certain size (beyond which the GRO overhead becomes
+		 * negligible - that is, empirically, around 1500 bytes), but
+		 * that approach is rather clumsy. The way to go is knowing
+		 * for sure whether the Parser was running, and only disable
+		 * GRO for unrecognized frames.
+		 */
+		use_gro = 0;
+	}
 
 	/* Execute the Rx processing hook, if it exists. */
 	if (dpaa_eth_hooks.rx_default && dpaa_eth_hooks.rx_default(skb,
@@ -1159,7 +1192,7 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	skb_len = skb->len;
 
-	if (likely(net_dev->features & NETIF_F_GRO)) {
+	if (use_gro) {
 		gro_result_t gro_result;
 
 		gro_result = napi_gro_receive(&percpu_priv->napi, skb);
