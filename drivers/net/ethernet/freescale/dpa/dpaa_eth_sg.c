@@ -278,7 +278,8 @@ struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
  * received data is recycled as it is no longer required.
  */
 static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
-				   const struct qm_fd *fd, struct sk_buff *skb)
+				   const struct qm_fd *fd, struct sk_buff *skb,
+				   int *use_gro)
 {
 	unsigned int copy_size;
 	dma_addr_t addr = qm_fd_addr(fd);
@@ -288,7 +289,6 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 	struct dpa_bp *dpa_bp = priv->dpa_bp;
 	unsigned char *tailptr;
 	t_FmPrsResult *parse_results;
-
 
 	vaddr = phys_to_virt(addr);
 
@@ -313,6 +313,19 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 		parse_results = (t_FmPrsResult *)(vaddr +
 			DPA_RX_PRIV_DATA_SIZE);
 		copy_size = parse_results->nxthdr_off;
+
+		/*
+		 * Don't go through GRO for certain types of traffic
+		 * that we know are not GRO-able, such as dgram-based
+		 * protocols. In the worst-case scenarios, such as
+		 * small-pkt terminating UDP or similar IP forwarding,
+		 * the extra GRO processing would be overkill.
+		 *
+		 * So if the FMan Parser is running, the only supported
+		 * protocol that's also GRO-able is currently TCP.
+		 */
+		if (*use_gro && !(parse_results->l4r & FM_L4_PARSE_RESULT_TCP))
+			*use_gro = 0;
 	} else {
 		skb->ip_summed = CHECKSUM_NONE;
 		/*
@@ -321,6 +334,21 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 		 */
 		copy_size = min((ssize_t)DPA_COPIED_HEADERS_SIZE,
 			dpa_fd_length(fd));
+
+		/*
+		 * Bypass GRO for unknown traffic or if no PCDs are applied.
+		 * It's unlikely that a GRO handler is installed for this proto
+		 * or, if it is, user does not seem to care about performance
+		 * (otherwise, PCDs would have been in place).
+		 *
+		 * TODO: Ultimately, we might still leave GRO for frames larger
+		 * than a certain size (beyond which the GRO overhead becomes
+		 * negligible - that is, empirically, around 1500 bytes), but
+		 * that approach is rather clumsy. The way to go is knowing
+		 * for sure whether the Parser was running, and only disable
+		 * GRO for unrecognized frames.
+		 */
+		*use_gro = 0;
 	}
 
 	tailptr = skb_put(skb, copy_size);
@@ -359,7 +387,8 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
  * The page holding the S/G Table is recycled here.
  */
 static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
-			       const struct qm_fd *fd, struct sk_buff *skb)
+			       const struct qm_fd *fd, struct sk_buff *skb,
+			       int *use_gro)
 {
 	const struct qm_sg_entry *sgt;
 	dma_addr_t addr = qm_fd_addr(fd);
@@ -370,6 +399,7 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 	int frag_offset, frag_len;
 	int page_offset;
 	int i;
+	t_FmPrsResult *parse_results;
 
 	vaddr = phys_to_virt(addr);
 
@@ -431,8 +461,23 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 		 * respectively on the _dpa_rx_error() path).
 		 */
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
-	} else
+
+		/*
+		 * In the case of a SG frame, FMan stores the Internal Context
+		 * in the buffer containing the sgt.
+		 */
+		parse_results = (t_FmPrsResult *)(vaddr +
+			DPA_RX_PRIV_DATA_SIZE);
+		/*
+		 * Selectively disable GRO. See comment in contig_fd_to_skb().
+		 */
+		if (*use_gro && !(parse_results->l4r & FM_L4_PARSE_RESULT_TCP))
+			*use_gro = 0;
+	} else {
 		skb->ip_summed = CHECKSUM_NONE;
+		/* Bypass GRO. See comment in contig_fd_to_skb(). */
+		use_gro = 0;
+	}
 
 
 #ifdef CONFIG_FSL_DPA_1588
@@ -457,6 +502,7 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	dma_addr_t addr = qm_fd_addr(fd);
 	u32 fd_status = fd->status;
 	unsigned int skb_len;
+	int use_gro = net_dev->features & NETIF_F_GRO;
 
 	if (unlikely(fd_status & FM_FD_STAT_ERRORS) != 0) {
 		if (netif_msg_hw(priv) && net_ratelimit())
@@ -496,9 +542,9 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	prefetch(phys_to_virt(addr) + dpa_fd_offset(fd));
 
 	if (likely(fd->format == qm_fd_contig))
-		contig_fd_to_skb(priv, fd, skb);
+		contig_fd_to_skb(priv, fd, skb, &use_gro);
 	else if (fd->format == qm_fd_sg)
-		sg_fd_to_skb(priv, fd, skb);
+		sg_fd_to_skb(priv, fd, skb, &use_gro);
 	else
 		/* The only FD types that we may receive are contig and S/G */
 		BUG();
@@ -513,7 +559,7 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	skb_len = skb->len;
 
-	if (likely(net_dev->features & NETIF_F_GRO)) {
+	if (use_gro) {
 		gro_result_t gro_result;
 
 		gro_result = napi_gro_receive(&percpu_priv->napi, skb);
