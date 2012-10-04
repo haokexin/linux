@@ -133,7 +133,7 @@ switch(exception){                                          \
 
 #define DEFAULT_totalFifoSize(major)       (((major == 2) || (major == 5))  ?   \
                                             (100*KILOBYTE):((major == 6) ?      \
-                                            (288*KILOBYTE):((major == 4) ? (44*KILOBYTE):(122*KILOBYTE))))
+                                            (288*KILOBYTE):((major == 4) ? (48*KILOBYTE):(122*KILOBYTE))))
 
 #define DEFAULT_eccEnable                   FALSE
 #define DEFAULT_dispLimit                   0
