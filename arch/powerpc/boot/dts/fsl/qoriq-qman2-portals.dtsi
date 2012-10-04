@@ -1,6 +1,5 @@
 /*
- * QorIQ QMan Portal device tree stub for 50 portals & 15 pool channels.
- * i.e. QMan 3.0
+ * QorIQ QMan Portal device tree stub for QMan 3.0 with maximum 50 portals.
  *
  * Copyright 2011-2012 Freescale Semiconductor Inc.
  *
