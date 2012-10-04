@@ -385,8 +385,13 @@ int fm_precalculate_fifosizes(t_LnxWrpFmDev *p_LnxWrpFmDev, int muram_fifo_size)
 							buf_size) + 7;
 	}
 
+#ifdef CONFIG_FMAN_P1023
+	shared_ext_buff = 0;
+#else
+	/* changing these might reduce performance */
 	shared_ext_buff = num_10g_ports ? 32 : 16; /* LLD boundaries:
-					DEFAULT_PORT_extraSizeOfFifo */
+					DEFAULT_PORT_extraNumOfFifoBufs */
+#endif
 
 	/* TX ports will have minimum required buffers
 	   Calculus of the remaining buffers for all RX ports */

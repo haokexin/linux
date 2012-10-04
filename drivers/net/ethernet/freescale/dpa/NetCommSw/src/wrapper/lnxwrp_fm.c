@@ -787,6 +787,8 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 #if defined(CONFIG_FMAN_RESOURCE_ALLOCATION_ALGORITHM) && defined(CONFIG_FMAN_P3040_P4080_P5020)
     /* Enable 14g w/ jumbo frames following HW suggestion. */
     FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev, 128*KILOBYTE);
+#elif defined(CONFIG_FMAN_RESOURCE_ALLOCATION_ALGORITHM) && defined(CONFIG_FMAN_P1023)
+    FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev, 48*KILOBYTE);
 #endif
 
     if (FM_Init(p_LnxWrpFmDev->h_Dev) != E_OK)
@@ -944,7 +946,7 @@ static int /*__devinit*/ fm_probe(struct platform_device *of_dev)
     /* for all other platforms: MURAM Space for fifosize=3/4 * MURAM_SIZE*/
     if(fm_precalculate_fifosizes(
         p_LnxWrpFmDev,
-        44*KILOBYTE)
+        48*KILOBYTE)
         != 0)
     return -EIO;
 #endif
