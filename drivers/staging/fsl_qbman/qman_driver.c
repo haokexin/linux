@@ -42,6 +42,7 @@ u16 qm_channel_caam = QMAN_CHANNEL_CAAM;
 EXPORT_SYMBOL(qm_channel_caam);
 u16 qm_channel_pme = QMAN_CHANNEL_PME;
 EXPORT_SYMBOL(qm_channel_pme);
+u16 qman_portal_max;
 
 /* size of the fqd region in bytes */
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
@@ -165,16 +166,35 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 		return NULL;
 	}
 
-	if (of_device_is_compatible(node, "fsl,qman-portal-1.0"))
+	if (of_device_is_compatible(node, "fsl,qman-portal-1.0") ||
+		of_device_is_compatible(node, "fsl,qman-portal-1.0.0")) {
 		ip_rev = QMAN_REV10;
-	else if (of_device_is_compatible(node, "fsl,qman-portal-1.1"))
+		qman_portal_max = 10;
+	} else if (of_device_is_compatible(node, "fsl,qman-portal-1.1") ||
+		of_device_is_compatible(node, "fsl,qman-portal-1.1.0")) {
 		ip_rev = QMAN_REV11;
-	else if	(of_device_is_compatible(node, "fsl,qman-portal-1.2"))
+		qman_portal_max = 10;
+	} else if (of_device_is_compatible(node, "fsl,qman-portal-1.2") ||
+		of_device_is_compatible(node, "fsl,qman-portal-1.2.0")) {
 		ip_rev = QMAN_REV12;
-	else if (of_device_is_compatible(node, "fsl,qman-portal-2.0"))
+		qman_portal_max = 10;
+	} else if (of_device_is_compatible(node, "fsl,qman-portal-2.0") ||
+		of_device_is_compatible(node, "fsl,qman-portal-2.0.0")) {
 		ip_rev = QMAN_REV20;
-	else if (of_device_is_compatible(node, "fsl,qman-portal-3.0"))
+		qman_portal_max = 3;
+	} else if (of_device_is_compatible(node, "fsl,qman-portal-3.0.0")) {
 		ip_rev = QMAN_REV30;
+		qman_portal_max = 50;
+	} else if (of_device_is_compatible(node, "fsl,qman-portal-3.0.1")) {
+		ip_rev = QMAN_REV30;
+		qman_portal_max = 25;
+	} else if (of_device_is_compatible(node, "fsl,qman-portal-3.0.2")) {
+		ip_rev = QMAN_REV30;
+		qman_portal_max = 10;
+	} else if (of_device_is_compatible(node, "fsl,qman-portal-3.0.3")) {
+		ip_rev = QMAN_REV30;
+		qman_portal_max = 18;
+	}
 
 	if (!qman_ip_rev) {
 		if (ip_rev)
@@ -213,6 +233,9 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 			"cell-index");
 		goto err;
 	}
+	if (*index >= qman_portal_max)
+		goto err;
+
 	channel = of_get_property(node, "fsl,qman-channel-id", &ret);
 	if (!channel || (ret != 4)) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,

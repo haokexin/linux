@@ -38,6 +38,7 @@ u16 bman_ip_rev;
 EXPORT_SYMBOL(bman_ip_rev);
 u16 bman_pool_max;
 EXPORT_SYMBOL(bman_pool_max);
+u16 bman_portal_max;
 
 /* After initialising cpus that own shared portal configs, we cache the
  * resulting portals (ie. not just the configs) in this array. Then we
@@ -110,19 +111,32 @@ static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 		return NULL;
 	}
 
-	if (of_device_is_compatible(node, "fsl,bman-portal-1.0")) {
+	if (of_device_is_compatible(node, "fsl,bman-portal-1.0") ||
+		of_device_is_compatible(node, "fsl,bman-portal-1.0.0")) {
 		bman_ip_rev = BMAN_REV10;
 		bman_pool_max = 64;
-	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.0")) {
+		bman_portal_max = 10;
+	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.0") ||
+	 	of_device_is_compatible(node, "fsl,bman-portal-2.0.8")) {
 		bman_ip_rev = BMAN_REV20;
 		bman_pool_max = 8;
-	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1-0") ||
-		of_device_is_compatible(node, "fsl,bman-portal-2.1-1")) {
+		bman_portal_max = 3;
+	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1.0")) {
 		bman_ip_rev = BMAN_REV21;
 		bman_pool_max = 64;
-	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1-2")) {
+		bman_portal_max = 50;
+	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1.1")) {
 		bman_ip_rev = BMAN_REV21;
-		bman_pool_max = 32;
+		bman_pool_max = 64;
+		bman_portal_max = 25;
+	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1.2")) {
+		bman_ip_rev = BMAN_REV21;
+		bman_pool_max = 64;
+		bman_portal_max = 10;
+	} else if (of_device_is_compatible(node, "fsl,bman-portal-2.1.3")) {
+		bman_ip_rev = BMAN_REV21;
+		bman_pool_max = 64;
+		bman_portal_max = 18;
         }
 
 	ret = of_address_to_resource(node, DPA_PORTAL_CE,
@@ -137,12 +151,16 @@ static struct bm_portal_config * __init parse_pcfg(struct device_node *node)
 		pr_err("Can't get %s property 'reg::CI'\n", node->full_name);
 		goto err;
 	}
+
 	index = of_get_property(node, "cell-index", &ret);
 	if (!index || (ret != 4)) {
 		pr_err("Can't get %s property '%s'\n", node->full_name,
 			"cell-index");
 		goto err;
 	}
+	if (*index >= bman_portal_max)
+		goto err;
+
 	pcfg->public_cfg.cpu = -1;
 
 	irq = irq_of_parse_and_map(node, 0);
