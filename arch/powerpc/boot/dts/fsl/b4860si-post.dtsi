@@ -64,6 +64,13 @@
 	};
 };
 
+&bportals {
+/include/ "qoriq-bman2-portals.dtsi"
+};
+&qportals {
+/include/ "qoriq-qman2-portals.dtsi"
+};
+
 &soc {
 	#address-cells = <1>;
 	#size-cells = <1>;
@@ -117,6 +124,8 @@
 			16 2 1 30>;
 	};
 
+/include/ "qoriq-qman1.dtsi"
+/include/ "qoriq-bman1.dtsi"
 /include/ "qoriq-mpic.dtsi"
 
 	guts: global-utilities@e0000 {
