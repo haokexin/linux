@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor Inc.
+ * Copyright 2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,33 +30,27 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* Module names for debug messages */
-const char *moduleStrings[] =
-{
-     "???"                      /* MODULE_UNKNOWN */
-    ,"MEM"                      /* MODULE_ */
-    ,"MM"                       /* MODULE_MM */
-    ,"CORE"                     /* MODULE_CORE */
-    ,"P4080"                    /* MODULE_P4080 */
-    ,"P4080-Platform"           /* MODULE_P4080_PLTFRM */
-    ,"PM"                       /* MODULE_PM */
-    ,"MMU"                      /* MODULE_MMU */
-    ,"PIC"                      /* MODULE_PIC */
-    ,"L3 cache (CPC)"           /* MODULE_CPC */
-    ,"DUART"                    /* MODULE_DUART */
-    ,"SerDes"                   /* MODULE_SERDES */
-    ,"PIO"                      /* MODULE_PIO */
-    ,"QM"                       /* MODULE_QM */
-    ,"BM"                       /* MODULE_BM */
-    ,"SEC"                      /* MODULE_SEC */
-    ,"LAW"                      /* MODULE_LAW */
-    ,"LBC"                      /* MODULE_LBC */
-    ,"PAMU"                     /* MODULE_PAMU */
-    ,"FM"                       /* MODULE_FM */
-    ,"FM-MURAM"                 /* MODULE_FM_MURAM */
-    ,"FM-PCD"                   /* MODULE_FM_PCD */
-    ,"FM-RTC"                   /* MODULE_FM_RTC */
-    ,"FM-MAC"                   /* MODULE_FM_MAC */
-    ,"FM-Port"                  /* MODULE_FM_PORT */
-    ,"DPA"                      /* MODULE_DPA */
-};
+
+/**************************************************************************//**
+ @File          debug_ext.h
+
+ @Description   Debug mode definitions.
+*//***************************************************************************/
+
+#ifndef __XX_COMMON_H
+#define __XX_COMMON_H
+
+/*****************************************************************************
+ *  UNIFIED MODULE CODES
+ *****************************************************************************/
+#define MODULE_UNKNOWN          0x00000000
+#define MODULE_FM               0x00010000
+#define MODULE_FM_MURAM         0x00020000
+#define MODULE_FM_PCD           0x00030000
+#define MODULE_FM_RTC           0x00040000
+#define MODULE_FM_MAC           0x00050000
+#define MODULE_FM_PORT          0x00060000
+#define MODULE_MM               0x00070000
+#define MODULE_FM_SP            0x00080000
+
+#endif /* __XX_COMMON_H */
