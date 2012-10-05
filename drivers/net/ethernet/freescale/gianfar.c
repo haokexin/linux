@@ -1702,6 +1702,9 @@ static int gfar_suspend(struct device *dev)
 		return 0;
 
 	local_irq_save(flags);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	system_state = SYSTEM_SUSPEND;
+#endif
 	lock_tx_qs(priv);
 	lock_rx_qs(priv);
 
@@ -1709,6 +1712,9 @@ static int gfar_suspend(struct device *dev)
 
 	unlock_rx_qs(priv);
 	unlock_tx_qs(priv);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	system_state = SYSTEM_RUNNING;
+#endif
 	local_irq_restore(flags);
 
 	disable_napi(priv);
@@ -1757,6 +1763,9 @@ static int gfar_resume(struct device *dev)
 	mpc85xx_pmc_set_wake(priv->ofdev, 0);
 
 	local_irq_save(flags);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	system_state = SYSTEM_SUSPEND;
+#endif
 	lock_rx_qs(priv);
 	gfar_halt_rx(ndev);
 	unlock_rx_qs(priv);
@@ -2150,6 +2159,9 @@ void stop_gfar(struct net_device *dev)
 	lock_rx_qs(priv);
 
 	gfar_halt(dev);
+#ifdef CONFIG_PREEMPT_RT_FULL
+	system_state = SYSTEM_RUNNING;
+#endif
 
 	unlock_rx_qs(priv);
 	unlock_tx_qs(priv);
