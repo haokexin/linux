@@ -259,7 +259,7 @@ static int __devinit __cold memac_init(struct mac_device *mac_dev)
 
 	priv->mac = FM_MAC_Config(&param);
 	if (unlikely(priv->mac == NULL)) {
-		dpaa_eth_err(mac_dev->dev, "FM_MAC_Config() failed\n");
+		dev_err(mac_dev->dev, "FM_MAC_Config() failed\n");
 		_errno = -EINVAL;
 		goto _return;
 	}
@@ -267,7 +267,7 @@ static int __devinit __cold memac_init(struct mac_device *mac_dev)
 	err = FM_MAC_ConfigMaxFrameLength(priv->mac, fm_get_max_frm());
 	_errno = -GET_ERROR_TYPE(err);
 	if (unlikely(_errno < 0)) {
-		dpaa_eth_err(mac_dev->dev,
+		dev_err(mac_dev->dev,
 			"FM_MAC_ConfigMaxFrameLength() = 0x%08x\n", err);
 		goto _return_fm_mac_free;
 	}
@@ -276,7 +276,7 @@ static int __devinit __cold memac_init(struct mac_device *mac_dev)
 	err = FM_MAC_ConfigResetOnInit(priv->mac, true);
 	_errno = -GET_ERROR_TYPE(err);
 	if (unlikely(_errno < 0)) {
-		dpaa_eth_err(mac_dev->dev,
+		dev_err(mac_dev->dev,
 			"FM_MAC_ConfigResetOnInit() = 0x%08x\n", err);
 		goto _return_fm_mac_free;
 	}
@@ -285,18 +285,18 @@ static int __devinit __cold memac_init(struct mac_device *mac_dev)
 	err = FM_MAC_Init(priv->mac);
 	_errno = -GET_ERROR_TYPE(err);
 	if (unlikely(_errno < 0)) {
-		dpaa_eth_err(mac_dev->dev, "FM_MAC_Init() = 0x%08x\n", err);
+		dev_err(mac_dev->dev, "FM_MAC_Init() = 0x%08x\n", err);
 		goto _return_fm_mac_free;
 	}
 
-	cpu_dev_info(mac_dev->dev, "FMan MEMAC\n");
+	dev_info(mac_dev->dev, "FMan MEMAC\n");
 
 	goto _return;
 
 _return_fm_mac_free:
 	err = FM_MAC_Free(priv->mac);
 	if (unlikely(-GET_ERROR_TYPE(err) < 0))
-		dpaa_eth_err(mac_dev->dev, "FM_MAC_Free() = 0x%08x\n", err);
+		dev_err(mac_dev->dev, "FM_MAC_Free() = 0x%08x\n", err);
 _return:
 	return _errno;
 }
