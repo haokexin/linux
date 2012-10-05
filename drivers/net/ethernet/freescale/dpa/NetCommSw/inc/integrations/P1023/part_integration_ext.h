@@ -52,7 +52,6 @@
 
 #define INTG_MAX_NUM_OF_CORES   2
 
-
 /**************************************************************************//**
  @Description   Module types.
 *//***************************************************************************/
@@ -137,7 +136,6 @@ typedef enum e_ModuleId
 } e_ModuleId;
 
 #define NUM_OF_MODULES  e_MODULE_ID_DUMMY_LAST
-
 
 #define P1023_OFFSET_LAW                    0x00000C08
 #define P1023_OFFSET_ECM                    0x00001000
@@ -386,6 +384,7 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
 
 #define CORE_E500V2
 
+#if 0 /* using unified values */
 /*****************************************************************************
  INTEGRATION-SPECIFIC MODULE CODES
 ******************************************************************************/
@@ -424,6 +423,7 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
 #define MODULE_PCI              0x00200000
 #define MODULE_DPA_PORT         0x00210000
 #define MODULE_USB              0x00220000
+#endif /* using unified values */
 
 /*****************************************************************************
  LBC INTEGRATION-SPECIFIC DEFINITIONS

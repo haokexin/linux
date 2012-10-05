@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2012 Freescale Semiconductor Inc.
+ * Copyright 2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,44 +30,16 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
-
 /* Module names for debug messages */
 const char *moduleStrings[] =
 {
-     ""                         /* MODULE_UNKNOWN */
-    ,"MEM"                      /* MODULE_ */
-    ,"MM"                       /* MODULE_MM */
-    ,"CORE"                     /* MODULE_CORE */
-    ,"P1023"                    /* MODULE_P1023 */
-    ,"MII"                      /* MODULE_MII */
-    ,"PM"                       /* MODULE_PM */
-    ,"MMU"                      /* MODULE_MMU */
-    ,"PIC"                      /* MODULE_PIC */
-    ,"L2 cache"                 /* MODULE_L2_CACHE */
-    ,"DUART"                    /* MODULE_DUART */
-    ,"SerDes"                   /* MODULE_SERDES */
-    ,"PIO"                      /* MODULE_PIO */
-    ,"QM"                       /* MODULE_QM */
-    ,"BM"                       /* MODULE_BM */
-    ,"SEC"                      /* MODULE_SEC */
-    ,"FM"                       /* MODULE_FM */
-    ,"FM-MURAM"                 /* MODULE_FM_MURAM */
-    ,"FM-PCD"                   /* MODULE_FM_PCD */
-    ,"FM-RTC"                   /* MODULE_FM_RTC */
-    ,"FM-MAC"                   /* MODULE_FM_MAC */
-    ,"FM-Port"                  /* MODULE_FM_PORT */
-    ,"FM-MACSEC"                /* MODULE_FM_MACSEC */
-    ,"FM-MACSEC-SecY"           /* MODULE_FM_MACSEC_SECY */
-    ,"FM-SP"                    /* MODULE_FM_SP */
-    ,"ECM"                      /* MODULE_ECM */
-    ,"DMA"                      /* MODULE_DMA */
-    ,"DDR"                      /* MODULE_DDR */
-    ,"LAW"                      /* MODULE_LAW */
-    ,"LBC"                      /* MODULE_LBC */
-    ,"I2C"                      /* MODULE_I2C */
-    ,"ESPI"                     /* MODULE_ESPI */
-    ,"PCI"                      /* MODULE_PCI */
-    ,"DPA-Port"                 /* MODULE_DPA_PORT */
-    ,"USB"                      /* MODULE_USB */
+    "",                         /* MODULE_UNKNOWN */
+    "FM",                       /* MODULE_FM */
+    "FM-MURAM",                 /* MODULE_FM_MURAM */
+    "FM-PCD",                   /* MODULE_FM_PCD */
+    "FM-RTC",                   /* MODULE_FM_RTC */
+    "FM-MAC",                   /* MODULE_FM_MAC */
+    "FM-Port",                  /* MODULE_FM_PORT */
+    "MM",                       /* MODULE_MM */
+    "FM-SP"                     /* MODULE_FM_SP */
 };

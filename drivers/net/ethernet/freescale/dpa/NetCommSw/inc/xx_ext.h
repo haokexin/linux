@@ -42,6 +42,7 @@
 #define __XX_EXT_H
 
 #include "std_ext.h"
+#include "xx_common.h"
 #include "part_ext.h"
 
 

@@ -1,5 +1,5 @@
-/* Copyright (c) 2008-2012 Freescale Semiconductor, Inc
- * All rights reserved.
+/*
+ * Copyright 2008-2012 Freescale Semiconductor Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -30,10 +30,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**************************************************************************//**
+/**
+
  @File          part_integration_ext.h
 
- @Description   P3040/P4080/P5020 external definitions and structures.
+ @Description   T4240 external definitions and structures.
 *//***************************************************************************/
 #ifndef __PART_INTEGRATION_EXT_H
 #define __PART_INTEGRATION_EXT_H
@@ -43,16 +44,16 @@
 
 
 /**************************************************************************//**
- @Group         P3040/P4080/P5020_chip_id P5020 Application Programming Interface
+ @Group         T4240_chip_id T4240 Application Programming Interface
 
- @Description   P3040/P4080/P5020 Chip functions,definitions and enums.
+ @Description   T4240 Chip functions,definitions and enums.
 
  @{
 *//***************************************************************************/
 
-#define CORE_E500MC
+#define CORE_E6500
 
-#define INTG_MAX_NUM_OF_CORES   1
+#define INTG_MAX_NUM_OF_CORES   24
 
 
 /**************************************************************************//**
@@ -65,7 +66,7 @@ typedef enum e_ModuleId
     e_MODULE_ID_DUART_3,
     e_MODULE_ID_DUART_4,
     e_MODULE_ID_LAW,
-    e_MODULE_ID_LBC,
+    e_MODULE_ID_IFC,
     e_MODULE_ID_PAMU,
     e_MODULE_ID_QM,                 /**< Queue manager module */
     e_MODULE_ID_BM,                 /**< Buffer manager module */
@@ -109,87 +110,51 @@ typedef enum e_ModuleId
     e_MODULE_ID_BM_CI_PORTAL_8,
     e_MODULE_ID_BM_CE_PORTAL_9,
     e_MODULE_ID_BM_CI_PORTAL_9,
-    e_MODULE_ID_FM1,                /**< Frame manager #1 module */
-    e_MODULE_ID_FM1_RTC,            /**< FM Real-Time-Clock */
-    e_MODULE_ID_FM1_MURAM,          /**< FM Multi-User-RAM */
-    e_MODULE_ID_FM1_BMI,            /**< FM BMI block */
-    e_MODULE_ID_FM1_QMI,            /**< FM QMI block */
-    e_MODULE_ID_FM1_PRS,            /**< FM parser block */
-    e_MODULE_ID_FM1_PORT_HO0,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM1_PORT_HO1,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM1_PORT_HO2,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM1_PORT_HO3,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM1_PORT_HO4,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM1_PORT_HO5,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM1_PORT_HO6,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM1_PORT_1GRx0,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GRx1,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GRx2,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GRx3,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GRx4,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_10GRx0,    /**< FM Rx 10G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GTx0,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GTx1,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GTx2,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GTx3,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_1GTx4,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM1_PORT_10GTx0,    /**< FM Tx 10G MAC port block */
-    e_MODULE_ID_FM1_PLCR,           /**< FM Policer */
-    e_MODULE_ID_FM1_KG,             /**< FM Keygen */
-    e_MODULE_ID_FM1_DMA,            /**< FM DMA */
-    e_MODULE_ID_FM1_FPM,            /**< FM FPM */
-    e_MODULE_ID_FM1_IRAM,           /**< FM Instruction-RAM */
-    e_MODULE_ID_FM1_1GMDIO0,        /**< FM 1G MDIO MAC 0*/
-    e_MODULE_ID_FM1_1GMDIO1,        /**< FM 1G MDIO MAC 1*/
-    e_MODULE_ID_FM1_1GMDIO2,        /**< FM 1G MDIO MAC 2*/
-    e_MODULE_ID_FM1_1GMDIO3,        /**< FM 1G MDIO MAC 3*/
-    e_MODULE_ID_FM1_10GMDIO,        /**< FM 10G MDIO */
-    e_MODULE_ID_FM1_PRS_IRAM,       /**< FM SW-parser Instruction-RAM */
-    e_MODULE_ID_FM1_1GMAC0,         /**< FM 1G MAC #0 */
-    e_MODULE_ID_FM1_1GMAC1,         /**< FM 1G MAC #1 */
-    e_MODULE_ID_FM1_1GMAC2,         /**< FM 1G MAC #2 */
-    e_MODULE_ID_FM1_1GMAC3,         /**< FM 1G MAC #3 */
-    e_MODULE_ID_FM1_10GMAC0,        /**< FM 10G MAC #0 */
-
-    e_MODULE_ID_FM2,                /**< Frame manager #2 module */
-    e_MODULE_ID_FM2_RTC,            /**< FM Real-Time-Clock */
-    e_MODULE_ID_FM2_MURAM,          /**< FM Multi-User-RAM */
-    e_MODULE_ID_FM2_BMI,            /**< FM BMI block */
-    e_MODULE_ID_FM2_QMI,            /**< FM QMI block */
-    e_MODULE_ID_FM2_PRS,            /**< FM parser block */
-    e_MODULE_ID_FM2_PORT_HO0,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM2_PORT_HO1,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM2_PORT_HO2,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM2_PORT_HO3,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM2_PORT_HO4,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM2_PORT_HO5,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM2_PORT_HO6,       /**< FM Host-command/offline-parsing port block */
-    e_MODULE_ID_FM2_PORT_1GRx0,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_1GRx1,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_1GRx2,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_1GRx3,     /**< FM Rx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_10GRx0,    /**< FM Rx 10G MAC port block */
-    e_MODULE_ID_FM2_PORT_1GTx0,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_1GTx1,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_1GTx2,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_1GTx3,     /**< FM Tx 1G MAC port block */
-    e_MODULE_ID_FM2_PORT_10GTx0,    /**< FM Tx 10G MAC port block */
-    e_MODULE_ID_FM2_PLCR,           /**< FM Policer */
-    e_MODULE_ID_FM2_KG,             /**< FM Keygen */
-    e_MODULE_ID_FM2_DMA,            /**< FM DMA */
-    e_MODULE_ID_FM2_FPM,            /**< FM FPM */
-    e_MODULE_ID_FM2_IRAM,           /**< FM Instruction-RAM */
-    e_MODULE_ID_FM2_1GMDIO0,        /**< FM 1G MDIO MAC 0*/
-    e_MODULE_ID_FM2_1GMDIO1,        /**< FM 1G MDIO MAC 1*/
-    e_MODULE_ID_FM2_1GMDIO2,        /**< FM 1G MDIO MAC 2*/
-    e_MODULE_ID_FM2_1GMDIO3,        /**< FM 1G MDIO MAC 3*/
-    e_MODULE_ID_FM2_10GMDIO,        /**< FM 10G MDIO */
-    e_MODULE_ID_FM2_PRS_IRAM,       /**< FM SW-parser Instruction-RAM */
-    e_MODULE_ID_FM2_1GMAC0,         /**< FM 1G MAC #0 */
-    e_MODULE_ID_FM2_1GMAC1,         /**< FM 1G MAC #1 */
-    e_MODULE_ID_FM2_1GMAC2,         /**< FM 1G MAC #2 */
-    e_MODULE_ID_FM2_1GMAC3,         /**< FM 1G MAC #3 */
-    e_MODULE_ID_FM2_10GMAC0,        /**< FM 10G MAC #0 */
+    e_MODULE_ID_FM,                 /**< Frame manager module */
+    e_MODULE_ID_FM_RTC,             /**< FM Real-Time-Clock */
+    e_MODULE_ID_FM_MURAM,           /**< FM Multi-User-RAM */
+    e_MODULE_ID_FM_BMI,             /**< FM BMI block */
+    e_MODULE_ID_FM_QMI,             /**< FM QMI block */
+    e_MODULE_ID_FM_PARSER,          /**< FM parser block */
+    e_MODULE_ID_FM_PORT_HO1,        /**< FM Host-command/offline-parsing port block */
+    e_MODULE_ID_FM_PORT_HO2,        /**< FM Host-command/offline-parsing port block */
+    e_MODULE_ID_FM_PORT_HO3,        /**< FM Host-command/offline-parsing port block */
+    e_MODULE_ID_FM_PORT_HO4,        /**< FM Host-command/offline-parsing port block */
+    e_MODULE_ID_FM_PORT_HO5,        /**< FM Host-command/offline-parsing port block */
+    e_MODULE_ID_FM_PORT_HO6,        /**< FM Host-command/offline-parsing port block */
+    e_MODULE_ID_FM_PORT_HO7,        /**< FM Host-command/offline-parsing port block */
+    e_MODULE_ID_FM_PORT_1GRx1,      /**< FM Rx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GRx2,      /**< FM Rx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GRx3,      /**< FM Rx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GRx4,      /**< FM Rx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GRx5,      /**< FM Rx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GRx6,      /**< FM Rx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_10GRx1,     /**< FM Rx 10G MAC port block */
+    e_MODULE_ID_FM_PORT_10GRx2,     /**< FM Rx 10G MAC port block */
+    e_MODULE_ID_FM_PORT_1GTx1,      /**< FM Tx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GTx2,      /**< FM Tx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GTx3,      /**< FM Tx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GTx4,      /**< FM Tx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GTx5,      /**< FM Tx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_1GTx6,      /**< FM Tx 1G MAC port block */
+    e_MODULE_ID_FM_PORT_10GTx1,     /**< FM Tx 10G MAC port block */
+    e_MODULE_ID_FM_PORT_10GTx2,     /**< FM Tx 10G MAC port block */
+    e_MODULE_ID_FM_PLCR,            /**< FM Policer */
+    e_MODULE_ID_FM_KG,              /**< FM Keygen */
+    e_MODULE_ID_FM_DMA,             /**< FM DMA */
+    e_MODULE_ID_FM_FPM,             /**< FM FPM */
+    e_MODULE_ID_FM_IRAM,            /**< FM Instruction-RAM */
+    e_MODULE_ID_FM_1GMDIO,          /**< FM 1G MDIO MAC */
+    e_MODULE_ID_FM_10GMDIO,         /**< FM 10G MDIO */
+    e_MODULE_ID_FM_PRS_IRAM,        /**< FM SW-parser Instruction-RAM */
+    e_MODULE_ID_FM_1GMAC1,          /**< FM 1G MAC #1 */
+    e_MODULE_ID_FM_1GMAC2,          /**< FM 1G MAC #2 */
+    e_MODULE_ID_FM_1GMAC3,          /**< FM 1G MAC #3 */
+    e_MODULE_ID_FM_1GMAC4,          /**< FM 1G MAC #4 */
+    e_MODULE_ID_FM_1GMAC5,          /**< FM 1G MAC #5 */
+    e_MODULE_ID_FM_1GMAC6,          /**< FM 1G MAC #6 */
+    e_MODULE_ID_FM_10GMAC1,         /**< FM 10G MAC */
+    e_MODULE_ID_FM_10GMAC2,         /**< FM 10G MAC */
 
     e_MODULE_ID_SEC_GEN,            /**< SEC 4.0 General registers      */
     e_MODULE_ID_SEC_QI,             /**< SEC 4.0 QI registers           */
@@ -204,14 +169,13 @@ typedef enum e_ModuleId
     e_MODULE_ID_SEC_DECO3_CCB3,     /**< SEC 4.0 DECO-3/CCB-3 registers */
     e_MODULE_ID_SEC_DECO4_CCB4,     /**< SEC 4.0 DECO-4/CCB-4 registers */
 
-    e_MODULE_ID_MPIC,               /**< MPIC */
+    e_MODULE_ID_PIC,                /**< PIC */
     e_MODULE_ID_GPIO,               /**< GPIO */
     e_MODULE_ID_SERDES,             /**< SERDES */
     e_MODULE_ID_CPC_1,              /**< CoreNet-Platform-Cache 1 */
     e_MODULE_ID_CPC_2,              /**< CoreNet-Platform-Cache 2 */
 
-    e_MODULE_ID_SRIO_PORTS,     	/**< RapidIO controller */
-    e_MODULE_ID_SRIO_MU,        	/**< RapidIO messaging unit module */
+    e_MODULE_ID_SRIO_PORTS,         /**< RapidIO controller */
 
     e_MODULE_ID_DUMMY_LAST
 } e_ModuleId;
@@ -226,8 +190,8 @@ typedef enum e_ModuleId
 #define MODULE_MEM              0x00010000
 #define MODULE_MM               0x00020000
 #define MODULE_CORE             0x00030000
-#define MODULE_CHIP             0x00040000
-#define MODULE_PLTFRM           0x00050000
+#define MODULE_T4240            0x00040000
+#define MODULE_T4240_PLATFORM   0x00050000
 #define MODULE_PM               0x00060000
 #define MODULE_MMU              0x00070000
 #define MODULE_PIC              0x00080000
@@ -260,17 +224,14 @@ typedef enum e_ModuleId
 /*****************************************************************************
  PAMU INTEGRATION-SPECIFIC DEFINITIONS
 ******************************************************************************/
-#define PAMU_NUM_OF_PARTITIONS  5
-
-#define PAMU_PICS_AVICS_ERRATA_PAMU3
+#define PAMU_NUM_OF_PARTITIONS  4
 
 /*****************************************************************************
  LAW INTEGRATION-SPECIFIC DEFINITIONS
 ******************************************************************************/
 #define LAW_NUM_OF_WINDOWS      32
-#define LAW_MIN_WINDOW_SIZE     0x0000000000001000LL    /**< 4KB */
-#define LAW_MAX_WINDOW_SIZE     0x0000002000000000LL    /**< 64GB */
-
+#define LAW_MIN_WINDOW_SIZE     0x0000000000001000LL    /**< 4 Kbytes */
+#define LAW_MAX_WINDOW_SIZE     0x0000010000000000LL    /**< 1 Tbytes for 40-bit address space */
 
 /*****************************************************************************
  LBC INTEGRATION-SPECIFIC DEFINITIONS
@@ -300,13 +261,10 @@ typedef enum e_ModuleId
 #define LBC_ERR_BUS_MONITOR     0x80000000  /**< Bus monitor error */
 #define LBC_ERR_PARITY_ECC      0x20000000  /**< Parity error for GPCM/UPM */
 #define LBC_ERR_WRITE_PROTECT   0x04000000  /**< Write protection error */
-#define LBC_ERR_ATOMIC_WRITE    0x00800000  /**< Atomic write error */
-#define LBC_ERR_ATOMIC_READ     0x00400000  /**< Atomic read error */
 #define LBC_ERR_CHIP_SELECT     0x00080000  /**< Unrecognized chip select */
 
 #define LBC_ERR_ALL             (LBC_ERR_BUS_MONITOR | LBC_ERR_PARITY_ECC | \
-                                 LBC_ERR_WRITE_PROTECT | LBC_ERR_ATOMIC_WRITE | \
-                                 LBC_ERR_ATOMIC_READ | LBC_ERR_CHIP_SELECT)
+                                 LBC_ERR_WRITE_PROTECT | LBC_ERR_CHIP_SELECT)
                                             /**< All possible errors */
 /* @} */
 /** @} */ /* end of lbc_exception_grp group */
@@ -314,8 +272,7 @@ typedef enum e_ModuleId
 #define LBC_INCORRECT_ERROR_REPORT_ERRATA
 
 #define LBC_NUM_OF_BANKS            8
-#define LBC_MAX_CS_SIZE             0x0000000100000000LL
-#define LBC_ATOMIC_OPERATION_SUPPORT
+#define LBC_MAX_CS_SIZE             0x0000000100000000LL  /* Up to 4G memory block size */
 #define LBC_PARITY_SUPPORT
 #define LBC_ADDRESS_HOLD_TIME_CTRL
 #define LBC_HIGH_CLK_DIVIDERS
@@ -324,13 +281,21 @@ typedef enum e_ModuleId
 /*****************************************************************************
  GPIO INTEGRATION-SPECIFIC DEFINITIONS
 ******************************************************************************/
-#define GPIO_NUM_OF_PORTS   1   /**< Number of ports in GPIO module;
-                                     Each port contains up to 32 i/O pins. */
+#define GPIO_PORT_OFFSET_0x1000
 
-#define GPIO_VALID_PIN_MASKS  \
-    { /* Port A */ 0xFFFFFFFF }
+#define GPIO_NUM_OF_PORTS   3   /**< Number of ports in GPIO module;
+                                     Each port contains up to 32 I/O pins. */
 
-#define GPIO_VALID_INTR_MASKS \
-    { /* Port A */ 0xFFFFFFFF }
+#define GPIO_VALID_PIN_MASKS   \
+    { /* Port A */ 0xFFFFFFFF, \
+	  /* Port B */ 0xFFFFFFFF, \
+      /* Port C */ 0xFFFFFFFF }
+
+#define GPIO_VALID_INTR_MASKS  \
+    { /* Port A */ 0xFFFFFFFF, \
+      /* Port B */ 0xFFFFFFFF, \
+      /* Port C */ 0xFFFFFFFF }
+
+
 
 #endif /* __PART_INTEGRATION_EXT_H */
