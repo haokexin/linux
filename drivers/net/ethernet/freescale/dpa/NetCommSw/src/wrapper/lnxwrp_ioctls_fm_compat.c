@@ -346,7 +346,7 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
         ioc_fm_pcd_cc_next_engine_params_t          *param,
         uint8_t                                     compat)
 {
-    /*_fm_cpt_dbg (compat, " {->...\n");*/
+    _fm_cpt_dbg (compat, " {->...\n");
 
     if (compat == COMPAT_US_TO_K)
     {
@@ -357,13 +357,18 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
         switch (param->next_engine)
         {
             case e_IOC_FM_PCD_KG:
+                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
+            case e_IOC_FM_PCD_DONE:
+            case e_IOC_FM_PCD_PLCR:
+                param->manip_id = compat_pcd_id2ptr(compat_param->manip_id);
+                break;
             case e_IOC_FM_PCD_CC:
+                compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
             default:
                 memcpy(&param->params, &compat_param->params, sizeof(param->params));
             break;
         }
-        param->manip_id = compat_pcd_id2ptr(compat_param->manip_id);
         param->statistics_en = compat_param->statistics_en;
     }
     else
@@ -373,29 +378,22 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
         switch (compat_param->next_engine)
         {
             case e_IOC_FM_PCD_KG:
+                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
+            case e_IOC_FM_PCD_DONE:
+            case e_IOC_FM_PCD_PLCR:
+                compat_param->manip_id = compat_pcd_ptr2id(param->manip_id);
+                break;
             case e_IOC_FM_PCD_CC:
+                compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
             default:
                 memcpy(&compat_param->params, &param->params, sizeof(compat_param->params));
             break;
         }
-        compat_param->manip_id = compat_pcd_ptr2id(param->manip_id);
         compat_param->statistics_en = param->statistics_en;
     }
 
-    switch (compat_param->next_engine)
-    {
-        case e_IOC_FM_PCD_KG:
-            compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
-            break;
-        case e_IOC_FM_PCD_CC:
-            compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
-            break;
-        default:
-        break;
-    }
-
-    /*_fm_cpt_dbg (compat, " ...->}\n");*/
+    _fm_cpt_dbg (compat, " ...->}\n");
 }
 
 void compat_copy_fm_pcd_cc_key(
@@ -908,12 +906,12 @@ void compat_copy_keys(
         param->statistics_mode = compat_param->statistics_mode;
         param->num_of_keys     = compat_param->num_of_keys;
         param->key_size        = compat_param->key_size;
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
         memcpy(&param->frame_length_ranges,
                 &compat_param->frame_length_ranges,
                 sizeof(param->frame_length_ranges[0] *
-                    IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR);
-#endif /* FM_EXP_FEATURES */
+                    IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR));
+#endif /* (DPAA_VERSION >= 11) */
     }
     else {
         compat_param->max_num_of_keys = param->max_num_of_keys;
@@ -921,12 +919,12 @@ void compat_copy_keys(
         compat_param->statistics_mode = param->statistics_mode;
         compat_param->num_of_keys     = param->num_of_keys;
         compat_param->key_size        = param->key_size;
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
         memcpy(&compat_param->frame_length_ranges,
             &param->frame_length_ranges,
             sizeof(compat_param->frame_length_ranges[0] *
-                IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR);
-#endif /* FM_EXP_FEATURES */
+                IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR));
+#endif /* (DPAA_VERSION >= 11) */
     }
 
     for (k=0; k < IOC_FM_PCD_MAX_NUM_OF_KEYS; k++)

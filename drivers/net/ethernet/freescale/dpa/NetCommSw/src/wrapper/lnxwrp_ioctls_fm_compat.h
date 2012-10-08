@@ -261,9 +261,9 @@ typedef struct ioc_compat_keys_params_t {
     uint16_t                                   max_num_of_keys;
     bool                                       mask_support;
     ioc_fm_pcd_cc_stats_mode                   statistics_mode;
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
     uint16_t                                   frame_length_ranges[IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
     uint16_t                                   num_of_keys;
     uint8_t                                    key_size;
     ioc_compat_fm_pcd_cc_key_params_t          key_params[IOC_FM_PCD_MAX_NUM_OF_KEYS]; /**< compat structure*/
@@ -292,7 +292,7 @@ typedef struct ioc_compat_fm_pcd_hash_table_params_t {
 typedef struct ioc_compat_fm_pcd_hash_table_add_key_params_t {
     compat_uptr_t                       p_hash_tbl;
     uint8_t                             key_size;
-    ioc_compat_fm_pcd_cc_key_params_t  *p_key_params;
+    ioc_compat_fm_pcd_cc_key_params_t   key_params;
 } ioc_compat_fm_pcd_hash_table_add_key_params_t;
 
 typedef struct ioc_compat_fm_pcd_cc_node_modify_key_params_t {

@@ -1375,7 +1375,7 @@ typedef struct ioc_keys_params_t {
                                                      masks at runtime. */
     ioc_fm_pcd_cc_stats_mode    statistics_mode;/**< If not e_IOC_FM_PCD_CC_STATS_MODE_NONE, the required structures for
                                                      the requested statistics mode will be allocated according to 'max_num_of_keys'. */
-#ifdef FM_EXP_FEATURES
+#if (DPAA_VERSION >= 11)
     uint16_t                    frame_length_ranges[IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
                                                 /**< Relevant only for 'e_IOC_FM_PCD_CC_STATS_MODE_RMON' statistics mode.
                                                      Holds a list of programmable thresholds. For each received frame,
@@ -1385,7 +1385,7 @@ typedef struct ioc_keys_params_t {
                                                      range i-1 threshold < frame length <= range i threshold
                                                      Each range threshold must be larger then its preceding range
                                                      threshold. Last range threshold must be 0xFFFF. */
-#endif /* FM_EXP_FEATURES */
+#endif /* (DPAA_VERSION >= 11) */
     uint16_t                    num_of_keys;    /**< Number of initial keys;
                                                      Note that in case of 'action' = e_IOC_FM_PCD_ACTION_INDEXED_LOOKUP,
                                                      this field should be power-of-2 of the number of bits that are
@@ -1439,9 +1439,9 @@ typedef struct ioc_fm_pcd_hash_table_params_t {
  @Description   A structure with the arguments for the FM_PCD_HashTableAddKey ioctl() call
 *//***************************************************************************/
 typedef struct ioc_fm_pcd_hash_table_add_key_params_t {
-    void                       *p_hash_tbl;
+    void                        *p_hash_tbl;
     uint8_t                     key_size;
-    ioc_fm_pcd_cc_key_params_t *p_key_params;
+    ioc_fm_pcd_cc_key_params_t  key_params;
 } ioc_fm_pcd_hash_table_add_key_params_t;
 
 /**************************************************************************//**
