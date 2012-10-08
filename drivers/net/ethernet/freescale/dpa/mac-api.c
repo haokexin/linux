@@ -272,7 +272,6 @@ static int __devinit __cold memac_init(struct mac_device *mac_dev)
 		goto _return_fm_mac_free;
 	}
 
-#ifndef CONFIG_T4_SIMULATOR_WORKAROUND
 	err = FM_MAC_ConfigResetOnInit(priv->mac, true);
 	_errno = -GET_ERROR_TYPE(err);
 	if (unlikely(_errno < 0)) {
@@ -280,7 +279,6 @@ static int __devinit __cold memac_init(struct mac_device *mac_dev)
 			"FM_MAC_ConfigResetOnInit() = 0x%08x\n", err);
 		goto _return_fm_mac_free;
 	}
-#endif
 
 	err = FM_MAC_Init(priv->mac);
 	_errno = -GET_ERROR_TYPE(err);
