@@ -3497,7 +3497,7 @@ static void gfar_free_skb(struct sk_buff *skb)
 		if (skb_shinfo(skb)->nr_frags) {
 			int i;
 			for (i = 0; i < skb_shinfo(skb)->nr_frags; i++)
-				put_page(&skb_shinfo(skb)->frags[i].page);
+				put_page(skb_shinfo(skb)->frags[i].page.p);
 			skb_shinfo(skb)->nr_frags = 0;
 			skb->data_len = 0;
 		}
