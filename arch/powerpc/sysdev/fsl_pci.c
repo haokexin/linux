@@ -78,23 +78,26 @@ static int __init fsl_pcie_check_link(struct pci_controller *hose,
 		pr_debug("PCI memory map start 0x%016llx, size 0x%016llx\n",
 		    (u64)rsrc->start, (u64)rsrc->end - (u64)rsrc->start + 1);
 		pci = ioremap(rsrc->start, rsrc->end - rsrc->start + 1);
-		if (pci) {
+		if (!pci) {
+			dev_err(hose->parent, "Unable to map PCIe registers\n");
+			return -ENOMEM;
+		}
+		if (in_be32(&pci->block_rev1) >= PCIE_IP_REV_3_0) {
 #define PEX_CSR0_LTSSM_MASK    0xFC
 #define PEX_CSR0_LTSSM_SHIFT    2
 			val = (in_be32(&pci->pex_csr0)
 				& PEX_CSR0_LTSSM_MASK) >> PEX_CSR0_LTSSM_SHIFT;
-			iounmap(pci);
 			if (val != 0x11)
 				return 1;
-		} else {
-			dev_err(hose->parent, "Unable to map PCIe registers\n");
-			return -ENOMEM;
+			iounmap(pci);
+			return 0;
 		}
-	} else {
-		early_read_config_dword(hose, 0, 0, PCIE_LTSSM, &val);
-		if (val < PCIE_LTSSM_L0)
-			return 1;
+		iounmap(pci);
 	}
+	early_read_config_dword(hose, 0, 0, PCIE_LTSSM, &val);
+	if (val < PCIE_LTSSM_L0)
+		return 1;
+
 	return 0;
 }
 
