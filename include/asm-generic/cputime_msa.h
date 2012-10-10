@@ -84,6 +84,6 @@ typedef u64 cputime64_t;
 /*
  * Convert cputime64 to clock.
  */
-#define cputime64_to_clock_t(__ct)	nsec_to_clock_t(__ct)
+#define cputime64_to_clock_t(__ct)	cputime_to_clock_t(__ct)
 
 #endif
