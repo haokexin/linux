@@ -1014,26 +1014,27 @@ static int fsl_pci_suspend(struct platform_device *pdev, pm_message_t state)
 	struct pci_controller *hose;
 	struct pci_outbound_window_regs *pci_saved_pow;
 	struct pci_inbound_window_regs *pci_saved_piw, *temp_piw;
-	struct resource pci_rsrc;
+	struct ccsr_pci __iomem *pci;
 	unsigned int i;
 
 	hose = pci_find_hose_for_OF_device(pdev->dev.of_node);
-	of_address_to_resource(pdev->dev.of_node, 0, &pci_rsrc);
+	pci = of_iomap(pdev->dev.of_node, 0);
 
-	hose->pci_pow = ioremap(pci_rsrc.start + PCI_POW_PIW_OFFSET,
-			PCI_POW_PIW_SIZE);
-	if (!hose->pci_pow) {
-		dev_err(&pdev->dev, "pci outbound/inbound windows ioremap error!\n");
+	if (!pci) {
+		dev_err(&pdev->dev, "Unable to map PCI registers\n");
 		return -ENOMEM;
 	}
+	hose->pci_pow = (struct pci_outbound_window_regs *)
+				(void *)pci + PCI_POW_PIW_OFFSET;
 
 	hose->pci_piw = (struct pci_inbound_window_regs *)
 		((void *)hose->pci_pow + PCI_POW_PIW_SIZE) - 1;
 
-	if (of_device_is_compatible(pdev->dev.of_node, "fsl,qoriq-pcie-v2.2"))
-		hose->inbound_num = 4;
-	else
-		hose->inbound_num = 3;
+	hose->inbound_num = 3;
+	if (early_find_capability(hose, 0, 0, PCI_CAP_ID_EXP)) {
+		if (in_be32(&pci->block_rev1) >= PCIE_IP_REV_2_2)
+			hose->inbound_num = 4;
+	}
 
 	hose->saved_regs = kmalloc(
 		sizeof(struct pci_outbound_window_regs) * PCI_POW_NUMBER +
@@ -1063,7 +1064,7 @@ static int fsl_pci_suspend(struct platform_device *pdev, pm_message_t state)
 	return 0;
 
 err:
-	iounmap(hose->pci_pow);
+	iounmap(pci);
 	return -ENOMEM;
 }
 
