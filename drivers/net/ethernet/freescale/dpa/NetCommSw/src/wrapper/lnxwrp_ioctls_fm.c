@@ -1751,7 +1751,6 @@ invalid_port_id:
         case FM_PCD_IOC_MATCH_TABLE_ADD_KEY:
         {
             ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t *param;
-            uint8_t *p_key = NULL, *p_mask = NULL;
 
             param = (ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t *) XX_Malloc(
                     sizeof(ioc_fm_pcd_cc_node_modify_key_and_next_engine_params_t));
@@ -1798,33 +1797,59 @@ invalid_port_id:
                 }
             }
 
-            /* copy key & mask: p_mask is optional! */
-            p_key = (uint8_t *) XX_Malloc(2 * param->key_size);
-            if(!p_key)
-                RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
-
-            p_mask = p_key + param->key_size;
-
-            if (param->key_params.p_key && copy_from_user(p_key, param->key_params.p_key, param->key_size))
+            if (param->key_size)
             {
-                XX_Free(p_key);
-                RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
-            }
-            param->key_params.p_key = p_key;
+                int size = 0;
 
-            if (param->key_params.p_mask && copy_from_user(p_mask, param->key_params.p_mask,param->key_size))
-            {
-                XX_Free(p_key);
-                RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
-            }
-            param->key_params.p_mask = p_mask;
+                if (param->key_params.p_key)  size += param->key_size;
+                if (param->key_params.p_mask) size += param->key_size;
 
-            err = FM_PCD_MatchTableAddKey(param->id,
+                if (size)
+                {
+                    uint8_t *p_tmp;
+
+                    p_tmp = (uint8_t*) XX_Malloc(size);
+                    if (!p_tmp)
+                    {
+                        XX_Free(param);
+                        RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD key/mask"));
+                    }
+
+                    if (param->key_params.p_key)
+                    {
+                        if (copy_from_user(p_tmp, param->key_params.p_key, param->key_size))
+                        {
+                            XX_Free(p_tmp);
+                            XX_Free(param);
+                            RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                        }
+
+                        param->key_params.p_key = p_tmp;
+                    }
+
+                    if (param->key_params.p_mask)
+                    {
+                        p_tmp += param->key_size;
+                        if (copy_from_user(p_tmp, param->key_params.p_mask, param->key_size))
+                        {
+                            XX_Free(p_tmp - param->key_size);
+                            XX_Free(param);
+                            RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                        }
+
+                        param->key_params.p_mask = p_tmp;
+                    }
+                }
+            }
+
+            err = FM_PCD_MatchTableAddKey(
+                    param->id,
                     param->key_indx,
                     param->key_size,
-                    (t_FmPcdCcKeyParams*)(&param->key_params));
+                    (t_FmPcdCcKeyParams*)&param->key_params);
 
-            XX_Free(p_key);
+            if (param->key_params.p_key)
+                XX_Free(param->key_params.p_key);
             XX_Free(param);
             break;
         }
@@ -1999,7 +2024,7 @@ invalid_port_id:
                 if (copy_from_user(&compat_id, (ioc_compat_fm_obj_t *) compat_ptr(arg), sizeof(ioc_compat_fm_obj_t)))
                     RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
 
-                id.obj = compat_ptr(compat_id.obj);
+                id.obj = compat_pcd_id2ptr(compat_id.obj);
             }
             else
 #endif
@@ -2017,30 +2042,114 @@ invalid_port_id:
         {
             ioc_fm_pcd_hash_table_add_key_params_t *param = NULL;
 
-            param = kmalloc(sizeof(*param), GFP_KERNEL);
+            param = (ioc_fm_pcd_hash_table_add_key_params_t*) XX_Malloc(
+                    sizeof(ioc_fm_pcd_hash_table_add_key_params_t));
             if (!param)
                 RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD"));
 
-            memset(param, 0, sizeof(*param)) ;
+            memset(param, 0, sizeof(ioc_fm_pcd_hash_table_add_key_params_t));
 
 #if defined(CONFIG_COMPAT)
             if (compat)
             {
-                printk(KERN_WARNING "FM_PCD_IOC_HASH_TABLE_ADD_KEY: compat ioctl call not implemented!");
-                kfree(param);
-                RETURN_ERROR(MINOR, E_INVALID_HANDLE, ("IOCTL FM PCD"));
+                ioc_compat_fm_pcd_hash_table_add_key_params_t *compat_param;
+
+                compat_param = (ioc_compat_fm_pcd_hash_table_add_key_params_t*) XX_Malloc(
+                        sizeof(ioc_compat_fm_pcd_hash_table_add_key_params_t));
+                if (!compat_param)
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD"));
+                }
+
+                memset(compat_param, 0, sizeof(ioc_compat_fm_pcd_hash_table_add_key_params_t));
+                if (copy_from_user(compat_param,
+                            (ioc_compat_fm_pcd_hash_table_add_key_params_t*) compat_ptr(arg),
+                            sizeof(ioc_compat_fm_pcd_hash_table_add_key_params_t)))
+                {
+                    XX_Free(compat_param);
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                }
+
+                if (compat_param->key_size)
+                {
+                    param->p_hash_tbl = compat_pcd_id2ptr(compat_param->p_hash_tbl);
+                    param->key_size   = compat_param->key_size;
+
+                    compat_copy_fm_pcd_cc_key(&compat_param->key_params, &param->key_params, COMPAT_US_TO_K);
+                }
+                else
+                {
+                    XX_Free(compat_param);
+                    err = E_INVALID_VALUE;
+                    break;
+                }
+
+                XX_Free(compat_param);
             }
             else
 #endif
             {
                 if (copy_from_user(param, (ioc_fm_pcd_hash_table_add_key_params_t *)arg,
-                                    sizeof(ioc_fm_pcd_hash_table_add_key_params_t)))
+                            sizeof(ioc_fm_pcd_hash_table_add_key_params_t)))
+                    XX_Free(param);
                     RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
             }
 
-            err = FM_PCD_HashTableAddKey(param->p_hash_tbl, param->key_size, (t_FmPcdCcKeyParams  *)param->p_key_params);
+            if (param->key_size)
+            {
+                int size = 0;
 
-            kfree(param);
+                if (param->key_params.p_key)  size += param->key_size;
+                if (param->key_params.p_mask) size += param->key_size;
+
+                if (size)
+                {
+                    uint8_t *p_tmp;
+
+                    p_tmp = (uint8_t*) XX_Malloc(size);
+                    if (!p_tmp)
+                    {
+                        XX_Free(param);
+                        RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD key/mask"));
+                    }
+
+                    if (param->key_params.p_key)
+                    {
+                        if (copy_from_user(p_tmp, param->key_params.p_key, param->key_size))
+                        {
+                            XX_Free(p_tmp);
+                            XX_Free(param);
+                            RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                        }
+
+                        param->key_params.p_key = p_tmp;
+                    }
+
+                    if (param->key_params.p_mask)
+                    {
+                        p_tmp += param->key_size;
+                        if (copy_from_user(p_tmp, param->key_params.p_mask, param->key_size))
+                        {
+                            XX_Free(p_tmp - param->key_size);
+                            XX_Free(param);
+                            RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                        }
+
+                        param->key_params.p_mask = p_tmp;
+                    }
+                }
+            }
+
+            err = FM_PCD_HashTableAddKey(
+                    param->p_hash_tbl,
+                    param->key_size,
+                    (t_FmPcdCcKeyParams*)&param->key_params);
+
+            if (param->key_params.p_key)
+                XX_Free(param->key_params.p_key);
+            XX_Free(param);
             break;
         }
 
@@ -2051,30 +2160,78 @@ invalid_port_id:
         {
             ioc_fm_pcd_hash_table_remove_key_params_t *param = NULL;
 
-            param = kmalloc(sizeof(*param), GFP_KERNEL);
+            param = (ioc_fm_pcd_hash_table_remove_key_params_t*) XX_Malloc(
+                    sizeof(ioc_fm_pcd_hash_table_remove_key_params_t));
             if (!param)
                 RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD"));
 
-            memset(param, 0, sizeof(*param)) ;
+            memset(param, 0, sizeof(ioc_fm_pcd_hash_table_remove_key_params_t));
 
 #if defined(CONFIG_COMPAT)
             if (compat)
             {
-                printk(KERN_WARNING "FM_PCD_IOC_HASH_TABLE_REMOVE_KEY: compat ioctl call not implemented!");
-                kfree(param);
-                RETURN_ERROR(MINOR, E_INVALID_HANDLE, ("IOCTL FM PCD"));
+                ioc_compat_fm_pcd_hash_table_remove_key_params_t *compat_param;
+
+                compat_param = (ioc_compat_fm_pcd_hash_table_remove_key_params_t*) XX_Malloc(
+                        sizeof(ioc_compat_fm_pcd_hash_table_remove_key_params_t));
+                if (!compat_param)
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD"));
+                }
+
+                memset(compat_param, 0, sizeof(ioc_compat_fm_pcd_hash_table_remove_key_params_t));
+                if (copy_from_user(compat_param,
+                            (ioc_compat_fm_pcd_hash_table_remove_key_params_t*) compat_ptr(arg),
+                            sizeof(ioc_compat_fm_pcd_hash_table_remove_key_params_t)))
+                {
+                    XX_Free(compat_param);
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                }
+
+                param->p_hash_tbl = compat_pcd_id2ptr(compat_param->p_hash_tbl);
+                param->key_size   = compat_param->key_size;
+
+                XX_Free(compat_param);
             }
             else
 #endif
             {
-                if (copy_from_user(param, (ioc_fm_pcd_hash_table_remove_key_params_t *)arg,
-                                    sizeof(ioc_fm_pcd_hash_table_remove_key_params_t)))
+                if (copy_from_user(param, (ioc_fm_pcd_hash_table_remove_key_params_t*)arg,
+                            sizeof(ioc_fm_pcd_hash_table_remove_key_params_t)))
+                    XX_Free(param);
                     RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
             }
 
-            err = FM_PCD_HashTableRemoveKey(param->p_hash_tbl, param->key_size, param->p_key);
+            if (param->key_size)
+            {
+                uint8_t *p_key;
 
-            kfree(param);
+                p_key = (uint8_t*) XX_Malloc(param->key_size);
+                if (!p_key)
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD"));
+                }
+
+                if (param->p_key && copy_from_user(p_key, param->p_key, param->key_size))
+                {
+                    XX_Free(p_key);
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                }
+                param->p_key = p_key;
+            }
+
+            err = FM_PCD_HashTableRemoveKey(
+                    param->p_hash_tbl,
+                    param->key_size,
+                    param->p_key);
+
+            if (param->p_key)
+                XX_Free(param->p_key);
+            XX_Free(param);
             break;
         }
 #if defined(CONFIG_COMPAT)
@@ -2130,49 +2287,49 @@ invalid_port_id:
                 }
             }
 
-            if (!param->p_key)
+            if (param->key_size)
             {
-                XX_Free(param);
-                RETURN_ERROR(MINOR, E_NULL_POINTER, ("IOCTL FM PCD key"));
-            }
+                int size = 0;
 
-            key = (uint8_t *) XX_Malloc(sizeof(uint8_t)*IOC_FM_PCD_MAX_SIZE_OF_KEY);
-            if (!key)
-            {
-                XX_Free(param);
-                RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD key"));
-            }
+                if (param->p_key)  size += param->key_size;
+                if (param->p_mask) size += param->key_size;
 
-            memset(key, 0, sizeof(uint8_t)*IOC_FM_PCD_MAX_SIZE_OF_KEY);
-            if (copy_from_user(key, param->p_key, param->key_size))
-            {
-                XX_Free(key);
-                XX_Free(param);
-                RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
-            }
-
-            param->p_key = key;
-
-            if (param->p_mask)
-            {
-                mask = (uint8_t *) XX_Malloc(sizeof(uint8_t)*IOC_FM_PCD_MAX_SIZE_OF_KEY);
-                if (!mask)
+                if (size)
                 {
-                    if (key) XX_Free(key);
-                    XX_Free(param);
-                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD mask"));
-                }
+                    uint8_t *p_tmp;
 
-                memset(mask, 0, sizeof(uint8_t)*IOC_FM_PCD_MAX_SIZE_OF_KEY);
-                if (copy_from_user(mask, param->p_mask, param->key_size))
-                {
-                    XX_Free(mask);
-                    XX_Free(key);
-                    XX_Free(param);
-                    RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
-                }
+                    p_tmp = (uint8_t*) XX_Malloc(size);
+                    if (!p_tmp)
+                    {
+                        XX_Free(param);
+                        RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD key/mask"));
+                    }
 
-                param->p_mask = mask;
+                    if (param->p_key)
+                    {
+                        if (copy_from_user(p_tmp, param->p_key, param->key_size))
+                        {
+                            XX_Free(p_tmp);
+                            XX_Free(param);
+                            RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                        }
+
+                        param->p_key = p_tmp;
+                    }
+
+                    if (param->p_mask)
+                    {
+                        p_tmp += param->key_size;
+                        if (copy_from_user(p_tmp, param->p_mask, param->key_size))
+                        {
+                            XX_Free(p_tmp - param->key_size);
+                            XX_Free(param);
+                            RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+                        }
+
+                        param->p_mask = p_tmp;
+                    }
+                }
             }
 
             err = FM_PCD_MatchTableModifyKey(param->id,

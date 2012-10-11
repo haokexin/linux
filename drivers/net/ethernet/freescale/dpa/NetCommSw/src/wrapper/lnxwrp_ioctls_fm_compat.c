@@ -356,18 +356,23 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
 
         switch (param->next_engine)
         {
-            case e_IOC_FM_PCD_KG:
-                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
-            case e_IOC_FM_PCD_DONE:
-            case e_IOC_FM_PCD_PLCR:
-                param->manip_id = compat_pcd_id2ptr(compat_param->manip_id);
+#if DPAA_VERSION >= 11
+            case e_IOC_FM_PCD_FR:
+                param->params.fr_params.frm_replic_id = compat_pcd_id2ptr(compat_param->params.fr_params.frm_replic_id);
                 break;
+#endif /* DPAA_VERSION >= 11 */
             case e_IOC_FM_PCD_CC:
                 compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
+            case e_IOC_FM_PCD_KG:
+                param->manip_id = compat_pcd_id2ptr(compat_param->manip_id);
+                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
+                break;
+            case e_IOC_FM_PCD_DONE:
+            case e_IOC_FM_PCD_PLCR:
+                param->manip_id = compat_pcd_id2ptr(compat_param->manip_id);
             default:
                 memcpy(&param->params, &compat_param->params, sizeof(param->params));
-            break;
         }
         param->statistics_en = compat_param->statistics_en;
     }
@@ -377,18 +382,23 @@ static inline void compat_copy_fm_pcd_cc_next_engine(
 
         switch (compat_param->next_engine)
         {
-            case e_IOC_FM_PCD_KG:
-                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
-            case e_IOC_FM_PCD_DONE:
-            case e_IOC_FM_PCD_PLCR:
-                compat_param->manip_id = compat_pcd_ptr2id(param->manip_id);
+#if DPAA_VERSION >= 11
+            case e_IOC_FM_PCD_FR:
+                compat_param->params.fr_params.frm_replic_id = compat_pcd_ptr2id(param->params.fr_params.frm_replic_id);
                 break;
+#endif /* DPAA_VERSION >= 11 */
             case e_IOC_FM_PCD_CC:
                 compat_copy_fm_pcd_cc_next_cc(&compat_param->params.cc_params, &param->params.cc_params, compat);
                 break;
+            case e_IOC_FM_PCD_KG:
+                compat_param->manip_id = compat_pcd_ptr2id(param->manip_id);
+                compat_copy_fm_pcd_cc_next_kg(&compat_param->params.kg_params, &param->params.kg_params, compat);
+                break;
+            case e_IOC_FM_PCD_DONE:
+            case e_IOC_FM_PCD_PLCR:
+                compat_param->manip_id = compat_pcd_ptr2id(param->manip_id);
             default:
                 memcpy(&compat_param->params, &param->params, sizeof(compat_param->params));
-            break;
         }
         compat_param->statistics_en = param->statistics_en;
     }
