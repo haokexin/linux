@@ -159,6 +159,7 @@ work_resched:
 #ifdef CONFIG_MICROSTATE_ACCT
 	bnez    t0, msa_user_skip
 	MSA_USER
+	j	restore_all
 msa_user_skip:
 #endif
 	beqz	t0, restore_all
