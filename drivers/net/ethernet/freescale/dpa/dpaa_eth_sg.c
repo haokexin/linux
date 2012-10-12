@@ -824,6 +824,11 @@ int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 		dev_kfree_skb(skb);
 		return NETDEV_TX_OK;
 	}
+
+#if (DPAA_VERSION >= 11)
+	fd.cmd &= ~FM_FD_CMD_FCO;
+#endif
+
 	if (fd.cmd & FM_FD_CMD_FCO) {
 		/*
 		 * Need to free the skb, but without releasing

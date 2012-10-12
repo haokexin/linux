@@ -1849,6 +1849,10 @@ int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 		goto fd_create_failed;
 	}
 
+#if (DPAA_VERSION >= 11)
+	fd.cmd &= ~FM_FD_CMD_FCO;
+#endif
+
 	if (fd.cmd & FM_FD_CMD_FCO) {
 		/* This skb is recycleable, and the fd generated from it
 		 * has been filled in accordingly */
