@@ -63,6 +63,14 @@
 #endif
 #define dpa_get_max_frm() dpa_max_frm
 
+/*
+ * Currently we have the same max_frm on all interfaces, so these macros
+ * don't get a net_device argument. This will change in the future.
+ */
+#define dpa_get_min_mtu()	64
+#define dpa_get_max_mtu()	\
+	(dpa_get_max_frm() - (VLAN_ETH_HLEN + ETH_FCS_LEN))
+
 #define DPA_RX_PRIV_DATA_SIZE   (DPA_TX_PRIV_DATA_SIZE + \
 					dpa_get_rx_extra_headroom())
 /* number of Tx queues to FMan */
