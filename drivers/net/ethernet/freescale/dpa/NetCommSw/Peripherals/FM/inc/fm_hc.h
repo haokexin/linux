@@ -49,6 +49,7 @@ typedef struct t_FmHcParams {
 
 
 t_Handle    FmHcConfigAndInit(t_FmHcParams *p_FmHcParams);
+t_Handle    FmGcGetHcPortDevH(t_Handle h_FmHc);
 void        FmHcFree(t_Handle h_FmHc);
 t_Error     FmHcSetFramesDataMemory(t_Handle h_FmHc,
                                     uint8_t  memId);

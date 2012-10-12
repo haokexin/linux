@@ -1071,12 +1071,9 @@ static int /*__devinit*/ fm_port_probe(struct platform_device *of_dev)
 
 	dev_set_drvdata(dev, p_LnxWrpFmPortDev);
 
-	if ((p_LnxWrpFmPortDev->settings.param.portType ==
-	     e_FM_PORT_TYPE_OH_HOST_COMMAND)
-	    &&
-	    (InitFmPcdDev((t_LnxWrpFmDev *) p_LnxWrpFmPortDev->h_LnxWrpFmDev)
-	     != E_OK))
-		return -EIO;
+	if (p_LnxWrpFmPortDev->settings.param.portType ==
+		e_FM_PORT_TYPE_OH_HOST_COMMAND)
+		InitFmPcdDev((t_LnxWrpFmDev *) p_LnxWrpFmPortDev->h_LnxWrpFmDev);
 
 	p_LnxWrpFmDev = (t_LnxWrpFmDev *) p_LnxWrpFmPortDev->h_LnxWrpFmDev;
 
@@ -1113,6 +1110,7 @@ static int /*__devinit*/ fm_port_probe(struct platform_device *of_dev)
 		       p_LnxWrpFmDev->name, p_LnxWrpFmPortDev->id);
 		p_LnxWrpFmPortDev->minor =
 			p_LnxWrpFmPortDev->id + DEV_FM_OH_PORTS_MINOR_BASE;
+		p_LnxWrpFmPortDev->h_Dev = FM_PCD_GetHcDevH(p_LnxWrpFmDev->h_PcdDev);
 	} else if (p_LnxWrpFmPortDev->settings.param.portType ==
 		 e_FM_PORT_TYPE_OH_OFFLINE_PARSING) {
 		Sprint(p_LnxWrpFmPortDev->name, "%s-port-oh%d",

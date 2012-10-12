@@ -936,6 +936,13 @@ t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams)
     return p_FmPcd;
 }
 
+t_Handle FM_PCD_GetHcDevH(t_Handle h_FmPcd)
+{
+    t_FmPcd        *p_FmPcd = (t_FmPcd *) h_FmPcd;
+
+    return (p_FmPcd) ? FmGcGetHcPortDevH(p_FmPcd->h_Hc) : NULL;
+}
+
 t_Error FM_PCD_Init(t_Handle h_FmPcd)
 {
     t_FmPcd         *p_FmPcd = (t_FmPcd*)h_FmPcd;

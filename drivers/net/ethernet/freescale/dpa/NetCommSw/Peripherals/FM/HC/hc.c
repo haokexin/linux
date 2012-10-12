@@ -224,6 +224,13 @@ t_Handle FmHcConfigAndInit(t_FmHcParams *p_FmHcParams)
     return (t_Handle)p_FmHc;
 }
 
+t_Handle FmGcGetHcPortDevH(t_Handle h_FmHc)
+{
+    t_FmHc  *p_FmHc = (t_FmHc *)h_FmHc;
+
+    return (p_FmHc) ? p_FmHc->h_HcPortDev : NULL;
+}
+
 void FmHcFree(t_Handle h_FmHc)
 {
     t_FmHc  *p_FmHc = (t_FmHc*)h_FmHc;
