@@ -271,6 +271,8 @@ typedef struct t_FmPcdParams {
 *//***************************************************************************/
 t_Handle FM_PCD_Config(t_FmPcdParams *p_FmPcdParams);
 
+t_Handle FM_PCD_GetHcDevH(t_Handle h_FmPcd);
+
 /**************************************************************************//**
  @Function      FM_PCD_Init
 
