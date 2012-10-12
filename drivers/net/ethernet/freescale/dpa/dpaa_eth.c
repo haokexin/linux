@@ -886,12 +886,8 @@ dpa_get_stats(struct net_device *net_dev)
 
 static int dpa_change_mtu(struct net_device *net_dev, int new_mtu)
 {
-	const struct dpa_priv_s *priv;
-	const int max_mtu = dpa_get_max_frm()
-				- (VLAN_ETH_HLEN + ETH_FCS_LEN);
-	const int min_mtu = 64;
-
-	priv = netdev_priv(net_dev);
+	const int max_mtu = dpa_get_max_mtu();
+	const int min_mtu = dpa_get_min_mtu();
 
 	/* Make sure we don't exceed the Ethernet controller's MAXFRM */
 	if (new_mtu < min_mtu || new_mtu > max_mtu) {
@@ -901,6 +897,25 @@ static int dpa_change_mtu(struct net_device *net_dev, int new_mtu)
 		return -EINVAL;
 	}
 	net_dev->mtu = new_mtu;
+
+	return 0;
+}
+
+/* .ndo_init callback */
+static int dpa_ndo_init(struct net_device *net_dev)
+{
+	/*
+	 * If fsl_fm_max_frm is set to a higher value than the all-common 1500,
+	 * we choose conservatively and let the user explicitly set a higher
+	 * MTU via ifconfig. Otherwise, the user may end up with different MTUs
+	 * in the same LAN.
+	 * If on the other hand fsl_fm_max_frm has been chosen below 1500,
+	 * start with the maximum allowed.
+	 */
+	int init_mtu = min(dpa_get_max_mtu(), ETH_DATA_LEN);
+
+	pr_debug("Setting initial MTU on net device: %d\n", init_mtu);
+	net_dev->mtu = init_mtu;
 
 	return 0;
 }
@@ -3019,6 +3034,7 @@ static const struct net_device_ops dpa_private_ops = {
 	.ndo_select_queue = dpa_select_queue,
 	.ndo_change_mtu = dpa_change_mtu,
 	.ndo_set_rx_mode = dpa_set_rx_mode,
+	.ndo_init = dpa_ndo_init,
 #ifdef CONFIG_FSL_DPA_1588
 	.ndo_do_ioctl = dpa_ioctl,
 #endif
