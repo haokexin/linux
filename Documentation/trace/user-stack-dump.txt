@@ -1,0 +1,52 @@
+		Extended User Stack Trace (EUST)
+		================================
+		Documentation by Paul Barrette
+
+Overview
+--------
+Extended User Stack Trace extends the user stack track functionality
+by adding an interface to dump the user space stack via cat
+/proc/<pid>/stack.  EUST support is a configurable option
+(CONFIG_EXT_USER_STACKTRACE_SUPPORT), and can be enabled if the
+current arch supports CONFIG_USER_STACKTRACE_SUPPORT.  Currently,
+only x86 has supports this feature.
+
+The user space application must be compiled with stack frame pointers.
+
+Synopsis of user stack dump
+-------------------------
+ cat /proc/<pid>/stack
+
+Usage examples
+--------------
+Dump of bash pid 589 stack containing both kernel and (new)
+user stack info:
+        root@qemu0:/# cat /proc/589/stack
+        [<c1032d6c>] do_wait+0x1ac/0x230
+        [<c1033f5d>] sys_wait4+0x7d/0xc0
+        [<c1033fcc>] sys_waitpid+0x2c/0x30
+        [<c16966d0>] sysenter_do_call+0x12/0x26
+        [<ffffffff>] 0xffffffff
+        userspace
+        ffffe424
+        08083bbc
+        08074691
+        080770e8
+        08060f68
+        0805f678
+        4103d443
+
+The user space portion is in hex only.  Tools can be used to
+process further information about the pid in question, e.g.  addr2line:
+
+	$ addr2line -e bash -f -s -p  080e531e
+
+	internal_free at malloc.c:924
+
+addr2line can take an input stream of many addresses at once.
+
+Author's original patch notification:
+https://lkml.org/lkml/2012/4/17/249
+
+Extra information here:
+https://lkml.org/lkml/2012/4/19/11
