@@ -327,8 +327,28 @@ static int proc_pid_stack(struct seq_file *m, struct pid_namespace *ns,
 			seq_printf(m, "[<%pK>] %pS\n",
 				   (void *)entries[i], (void *)entries[i]);
 		}
-		unlock_trace(task);
 	}
+#ifdef CONFIG_EXT_USER_STACKTRACE_SUPPORT
+	 else
+		goto out;
+
+	trace.nr_entries	= 0;
+	trace.max_entries	= MAX_STACK_TRACE_DEPTH;
+	trace.entries		= entries;
+	trace.skip		= 0;
+
+	seq_printf(m, "userspace\n");
+
+	save_stack_trace_user_task(task, &trace);
+
+	for (i = 0; i < trace.nr_entries; i++) {
+		if (entries[i] != ULONG_MAX)
+			seq_printf(m, "%p\n", (void *)entries[i]);
+	}
+#endif
+	unlock_trace(task);
+
+out:
 	kfree(entries);
 
 	return err;

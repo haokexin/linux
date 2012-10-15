@@ -6,6 +6,14 @@
 config USER_STACKTRACE_SUPPORT
 	bool
 
+config EXT_USER_STACKTRACE_SUPPORT
+	bool "Extended user space stack dump support"
+	depends on USER_STACKTRACE_SUPPORT
+	default n
+	help
+		Adds the user space stack to /proc/<pid>/stack.
+		See Documentation/trace/user-stack-dump.txt.
+
 config NOP_TRACER
 	bool
 
