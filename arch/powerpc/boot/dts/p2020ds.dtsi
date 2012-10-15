@@ -151,6 +151,11 @@
 		       compatible = "dallas,ds1339";
 			   reg = <0x68>;
 	   };
+
+	   zl6100@11{
+			compatible = "intersil,zl6100";
+			reg = <0x11>;
+	   };
    };
 
 	usb@22000 {

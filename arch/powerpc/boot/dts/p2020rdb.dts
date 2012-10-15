@@ -149,6 +149,23 @@
 				compatible = "dallas,ds1339";
 				reg = <0x68>;
 			};
+			adt7461@4c{
+				compatible = "adi,adt7461";
+				reg = <0x4c>;
+			};
+
+			eeprom@50 {
+				compatible = "atmel,24c64";
+				reg = <0x50>;
+			};
+
+		};
+
+		i2c@3100 {
+			eeprom@52 {
+				compatible = "atmel,24c64";
+				reg = <0x52>;
+			 };
 		};
 
 		spi@7000 {
