@@ -928,7 +928,7 @@ static void post_direct_ipi(int cpu, struct smtc_ipi *pipi)
 
 static void ipi_resched_interrupt(void)
 {
-	scheduler_ipi();
+	scheduler_ipi(SCHED_IPI_PARMSET(IPI0_IRQ, msa_get_reg()));
 }
 
 static void ipi_call_interrupt(void)
