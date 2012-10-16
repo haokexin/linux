@@ -1484,7 +1484,7 @@ static void sched_ttwu_pending(void)
 	raw_spin_unlock(&rq->lock);
 }
 
-void scheduler_ipi(void)
+void scheduler_ipi(SCHED_IPI_PARMS)
 {
 	if (llist_empty(&this_rq()->wake_list) && !got_nohz_idle_kick())
 		return;
@@ -1503,6 +1503,9 @@ void scheduler_ipi(void)
 	 * somewhat pessimize the simple resched case.
 	 */
 	irq_enter();
+#ifdef CONFIG_MICROSTATE_ACCT
+	msa_start_irq(irq);
+#endif
 	sched_ttwu_pending();
 
 	/*
@@ -1512,7 +1515,11 @@ void scheduler_ipi(void)
 		this_rq()->idle_balance = 1;
 		raise_softirq_irqoff(SCHED_SOFTIRQ);
 	}
+#ifdef CONFIG_MICROSTATE_ACCT
+	msa_irq_exit(irq, is_going_to_user);
+#else
 	irq_exit();
+#endif
 }
 
 static void ttwu_queue_remote(struct task_struct *p, int cpu)
