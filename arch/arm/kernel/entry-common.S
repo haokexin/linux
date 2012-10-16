@@ -32,6 +32,11 @@ ret_fast_syscall:
  UNWIND(.fnstart	)
  UNWIND(.cantunwind	)
 	disable_irq				@ disable interrupts
+#ifdef CONFIG_MICROSTATE_ACCT
+	stmdb	sp!,{r0}
+	bl	msa_user
+	ldmia	sp!,{r0}
+#endif
 	ldr	r1, [tsk, #TI_FLAGS]
 	tst	r1, #_TIF_WORK_MASK
 	bne	fast_work_pending
@@ -451,7 +456,11 @@ ENTRY(vector_swi)
 	ldmia	r0, {r0 - r3}			@ have to reload r0 - r3
 1:
 #endif
-
+#ifdef CONFIG_MICROSTATE_ACCT
+	bl	msa_kernel
+	add	r0, sp, #S_R0 + S_OFF		@ pointer to regs
+	ldmia	r0, {r0 - r3}			@ have to reload r0 - r3
+#endif
 	tst	r10, #_TIF_SYSCALL_WORK		@ are we tracing syscalls?
 	bne	__sys_trace
 

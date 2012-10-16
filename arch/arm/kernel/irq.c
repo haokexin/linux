@@ -72,6 +72,7 @@ void handle_IRQ(unsigned int irq, struct pt_regs *regs)
 	struct pt_regs *old_regs = set_irq_regs(regs);
 
 	irq_enter();
+	msa_start_irq(irq);
 
 	/*
 	 * Some hardware gives randomly wrong interrupts.  Rather
@@ -88,7 +89,7 @@ void handle_IRQ(unsigned int irq, struct pt_regs *regs)
 	/* AT91 specific workaround */
 	irq_finish(irq);
 
-	irq_exit();
+	msa_irq_exit(irq, user_mode(regs));
 	set_irq_regs(old_regs);
 }
 

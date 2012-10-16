@@ -539,30 +539,34 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 	switch (ipinr) {
 	case IPI_TIMER:
 		irq_enter();
+		msa_start_irq(ipinr);
 		ipi_timer();
-		irq_exit();
+		msa_irq_exit(ipinr, user_mode(regs));
 		break;
 
 	case IPI_RESCHEDULE:
-		scheduler_ipi();
+		scheduler_ipi(SCHED_IPI_PARMSET(ipinr, user_mode(regs)));
 		break;
 
 	case IPI_CALL_FUNC:
 		irq_enter();
+		msa_start_irq(ipinr);
 		generic_smp_call_function_interrupt();
-		irq_exit();
+		msa_irq_exit(ipinr, user_mode(regs));
 		break;
 
 	case IPI_CALL_FUNC_SINGLE:
 		irq_enter();
+		msa_start_irq(ipinr);
 		generic_smp_call_function_single_interrupt();
-		irq_exit();
+		msa_irq_exit(ipinr, user_mode(regs));
 		break;
 
 	case IPI_CPU_STOP:
 		irq_enter();
+		msa_start_irq(ipinr);
 		ipi_cpu_stop(cpu);
-		irq_exit();
+		msa_irq_exit(ipinr, user_mode(regs));
 		break;
 
 	default:
