@@ -1109,6 +1109,93 @@ static void _dpa_tx_error(struct net_device		*net_dev,
 	dev_kfree_skb(skb);
 }
 
+/*
+ * Helper function to factor out frame validation logic on all Rx paths. Its
+ * purpose is to extract from the Parse Results structure information about
+ * the integrity of the frame, its checksum, the length of the parsed headers
+ * and whether the frame is suitable for GRO.
+ *
+ * @skb		will have its ip_summed field overwritten;
+ * @use_gro	will only be written with 0, if the frame is definitely not
+ *		GRO-able; otherwise, it will be left unchanged;
+ * @hdr_size	will be written with a safe value, at least the size of the
+ *		headers' length.
+ *
+ * Returns 0 if the frame contained no detectable error (including if the FMan
+ * Parser has not in fact been running), and a non-zero value if the Parser
+ * has run but encountered an error.
+ */
+int __hot _dpa_process_parse_results(const t_FmPrsResult *parse_results,
+	const struct qm_fd *fd,
+	struct sk_buff *skb,
+	int *use_gro,
+	unsigned int *hdr_size __maybe_unused)
+{
+	if (likely(fm_l4_hxs_has_run(parse_results))) {
+		/*
+		 * Was there any parsing error? Note: this includes the check
+		 * for a valid L4 checksum.
+		 */
+		if (unlikely(fm_l4_hxs_error(parse_results)))
+			/* Leave it to the caller to handle the frame. */
+			return parse_results->l4r;
+
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+		/*
+		 * If the HXS Parser has successfully run, we can reduce the
+		 * number of bytes we'll memcopy into skb->data.
+		 */
+		*hdr_size = parse_results->nxthdr_off;
+#endif
+		/*
+		 * We know the frame is valid. But has the L4 checksum actually
+		 * been validated? (The L4CV bit is only set if the frame is
+		 * TCP or UDP-with-non-zero-csum.)
+		 */
+		if (fd->status & FM_FD_STAT_L4CV)
+			skb->ip_summed = CHECKSUM_UNNECESSARY;
+		else
+			/*
+			 * If it turns out to be a 0-csum UDP, the stack will
+			 * figure it out itself later, sparing us an extra
+			 * check here on the fastpath of every incoming frame.
+			 */
+			skb->ip_summed = CHECKSUM_NONE;
+
+		/*
+		 * Don't go through GRO for certain types of traffic that
+		 * we know are not GRO-able, such as dgram-based protocols.
+		 * In the worst-case scenarios, such as small-pkt terminating
+		 * UDP, the extra GRO processing would be overkill.
+		 *
+		 * The only protocol the Parser supports that is also GRO-able
+		 * is currently TCP.
+		 */
+		if (!fm_l4_frame_is_tcp(parse_results))
+			*use_gro = 0;
+	} else {
+		/* Inform the stack that we haven't done any csum validation. */
+		skb->ip_summed = CHECKSUM_NONE;
+#ifdef CONFIG_DPAA_ETH_SG_SUPPORT
+		/*
+		 * Also, since the Parser hasn't run, we don't know the size of
+		 * the headers, so we fall back to a safe default.
+		 */
+		*hdr_size = min((ssize_t)DPA_COPIED_HEADERS_SIZE,
+				dpa_fd_length(fd));
+#endif
+		/*
+		 * Bypass GRO for unknown traffic or if no PCDs are applied.
+		 * It's unlikely that a GRO handler is installed for this proto
+		 * or, if it is, user does not seem to care about performance
+		 * (otherwise, PCDs would have been in place).
+		 */
+		*use_gro = 0;
+	}
+
+	return 0;
+}
+
 #ifndef CONFIG_DPAA_ETH_SG_SUPPORT
 void __hot _dpa_rx(struct net_device *net_dev,
 		const struct dpa_priv_s *priv,
@@ -1123,6 +1210,8 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	u32 fd_status = fd->status;
 	unsigned int skb_len;
 	t_FmPrsResult *parse_result;
+	int ret;
+	unsigned int hdr_size_unused;
 	int use_gro = net_dev->features & NETIF_F_GRO;
 
 	skbh = (struct sk_buff **)phys_to_virt(addr);
@@ -1168,46 +1257,6 @@ void __hot _dpa_rx(struct net_device *net_dev,
 		goto drop_large_frame;
 	}
 
-	/* Check if the FMan Parser has already validated the L4 csum. */
-	if (fd_status & FM_FD_STAT_L4CV) {
-		/* If we're here, the csum must be valid (if it hadn't,
-		 * the frame would have been received on the Error FQ,
-		 * respectively on the _dpa_rx_error() path). */
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-		if (use_gro) {
-			/*
-			 * Don't go through GRO for certain types of traffic
-			 * that we know are not GRO-able, such as dgram-based
-			 * protocols. In the worst-case scenarios, such as
-			 * small-pkt terminating UDP or similar IP forwarding,
-			 * the extra GRO processing would be overkill.
-			 *
-			 * So if the FMan Parser is running, the only supported
-			 * protocol that's also GRO-able is currently TCP.
-			 */
-			parse_result = (t_FmPrsResult *)((u8 *)skbh +
-				DPA_RX_PRIV_DATA_SIZE);
-			if (!(parse_result->l4r & FM_L4_PARSE_RESULT_TCP))
-				use_gro = 0;
-		}
-	} else {
-		skb->ip_summed = CHECKSUM_NONE;
-		/*
-		 * Bypass GRO for unknown traffic or if no PCDs are applied.
-		 * It's unlikely that a GRO handler is installed for this proto
-		 * or, if it is, user does not seem to care about performance
-		 * (otherwise, PCDs would have been in place).
-		 *
-		 * TODO: Ultimately, we might still leave GRO for frames larger
-		 * than a certain size (beyond which the GRO overhead becomes
-		 * negligible - that is, empirically, around 1500 bytes), but
-		 * that approach is rather clumsy. The way to go is knowing
-		 * for sure whether the Parser was running, and only disable
-		 * GRO for unrecognized frames.
-		 */
-		use_gro = 0;
-	}
-
 	/* Execute the Rx processing hook, if it exists. */
 	if (dpaa_eth_hooks.rx_default && dpaa_eth_hooks.rx_default(skb,
 		net_dev, fqid) == DPAA_ETH_STOLEN)
@@ -1216,6 +1265,15 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	skb_len = skb->len;
 
+	/* Validate the skb csum and figure out whether GRO is appropriate */
+	parse_result = (t_FmPrsResult *)((u8 *)skbh + DPA_RX_PRIV_DATA_SIZE);
+	ret = _dpa_process_parse_results(parse_result, fd, skb, &use_gro,
+					 &hdr_size_unused);
+	if (unlikely(ret)) {
+		percpu_priv->l4_hxs_errors++;
+		percpu_priv->stats.rx_dropped++;
+		goto drop_invalid_frame;
+	}
 	if (use_gro) {
 		gro_result_t gro_result;
 
@@ -1235,12 +1293,13 @@ void __hot _dpa_rx(struct net_device *net_dev,
 packet_dropped:
 skb_stolen:
 	net_dev->last_rx = jiffies;
-
 	return;
 
+drop_invalid_frame:
 drop_large_frame:
 	dev_kfree_skb(skb);
 	return;
+
 _return_dpa_fd_release:
 	dpa_fd_release(net_dev, fd);
 }
@@ -2868,7 +2927,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 	/* "Standard" counters */
 	seq_printf(file, "\nDPA counters for %s:\n"
 		"CPU           irqs        rx        tx   recycle" \
-		"   confirm     tx sg    tx err    rx err  bp count\n",
+		"   confirm     tx sg    tx err    rx err   l4 hxs drp    bp count\n",
 		priv->net_dev->name);
 	for_each_online_cpu(i) {
 		percpu_priv = per_cpu_ptr(priv->percpu_priv, i);
@@ -2886,10 +2945,11 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 		total.tx_frag_skbuffs += percpu_priv->tx_frag_skbuffs;
 		total.stats.tx_errors += percpu_priv->stats.tx_errors;
 		total.stats.rx_errors += percpu_priv->stats.rx_errors;
+		total.l4_hxs_errors += percpu_priv->l4_hxs_errors;
 		count_total += dpa_bp_count;
 
 		seq_printf(file, "     %hu/%hu  %8u  %8lu  %8lu  %8u  %8u" \
-				"  %8u  %8lu  %8lu  %8d\n",
+				"  %8u  %8lu  %8lu     %8u    %8d\n",
 				get_hard_smp_processor_id(i), i,
 				percpu_priv->in_interrupt,
 				percpu_priv->stats.rx_packets,
@@ -2899,10 +2959,11 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 				percpu_priv->tx_frag_skbuffs,
 				percpu_priv->stats.tx_errors,
 				percpu_priv->stats.rx_errors,
+				percpu_priv->l4_hxs_errors,
 				dpa_bp_count);
 	}
 	seq_printf(file, "Total     %8u  %8u  %8lu  %8u  %8u  %8u  %8lu  %8lu" \
-				"  %8d\n",
+				"     %8u    %8d\n",
 			total.in_interrupt,
 			total.ingress_calls,
 			total.stats.tx_packets,
@@ -2911,6 +2972,7 @@ static int __cold dpa_debugfs_show(struct seq_file *file, void *offset)
 			total.tx_frag_skbuffs,
 			total.stats.tx_errors,
 			total.stats.rx_errors,
+			total.l4_hxs_errors,
 			count_total);
 
 	/* Congestion stats */

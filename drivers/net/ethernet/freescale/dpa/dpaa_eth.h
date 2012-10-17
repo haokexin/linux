@@ -159,6 +159,12 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
  * A lower value may help with recycling rates, at least on forwarding
  */
 #define DEFAULT_BUF_SIZE	PAGE_SIZE
+/*
+ * Default amount data to be copied from the beginning of a frame into the
+ * linear part of the skb, in case we aren't using the hardware parser.
+ */
+#define DPA_COPIED_HEADERS_SIZE 128
+
 #else
 /*
  * Default buffer size is based on L2 MAX_FRM value, minus the FCS which is
@@ -177,11 +183,20 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 
 /*
  * Values for the L4R field of the FM Parse Results
+ * See $8.8.4.7.20 - L4 HXS - L4 Results from DPAA-Rev2 Reference Manual.
  */
 /* L4 Type field: UDP */
 #define FM_L4_PARSE_RESULT_UDP	0x40
 /* L4 Type field: TCP */
 #define FM_L4_PARSE_RESULT_TCP	0x20
+/*
+ * This includes L4 checksum errors, but also other errors that the Hard Parser
+ * can detect, such as invalid combinations of TCP control flags, or bad UDP
+ * lengths.
+ */
+#define FM_L4_PARSE_ERROR	0x10
+/* Check if the hardware parser has run */
+#define FM_L4_HXS_RUN		0xE0
 
 /*
  * FD status field indicating whether the FM Parser has attempted to validate
@@ -199,6 +214,28 @@ void fsl_dpaa_eth_set_hooks(struct dpaa_eth_hooks_s *hooks);
 	 FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT | FM_PORT_FRM_ERR_PRS_HDR_ERR)
 
 #define FM_FD_STAT_ERR_PHYSICAL	FM_PORT_FRM_ERR_PHYSICAL
+
+/*
+ * Check if the FMan Hardware Parser has run for L4 protocols.
+ *
+ * @parse_result_ptr must be of type (t_FmPrsResult *).
+ */
+#define fm_l4_hxs_has_run(parse_result_ptr) \
+	((parse_result_ptr)->l4r & FM_L4_HXS_RUN)
+/*
+ * Iff the FMan Hardware Parser has run for L4 protocols, check error status.
+ *
+ * @parse_result_ptr must be of type (t_FmPrsResult *).
+ */
+#define fm_l4_hxs_error(parse_result_ptr) \
+	((parse_result_ptr)->l4r & FM_L4_PARSE_ERROR)
+/*
+ * Check if the parsed frame was found to be a TCP segment.
+ *
+ * @parse_result_ptr must be of type (t_FmPrsResult *).
+ */
+#define fm_l4_frame_is_tcp(parse_result_ptr) \
+	((parse_result_ptr)->l4r & FM_L4_PARSE_RESULT_TCP)
 
 struct pcd_range {
 	uint32_t			 base;
@@ -296,6 +333,13 @@ struct dpa_percpu_priv_s {
 	u32 tx_confirm;
 	/* fragmented (non-linear) skbuffs received from the stack */
 	u32 tx_frag_skbuffs;
+	/*
+	 * Frames identified as L4 packets (by FMan's Hardware Parser, but for
+	 * which the parsing failed due to some error condition. If we come
+	 * across such frames, we drop them instead of passing them up the
+	 * stack, which means the L4 stats in the stack won't increment.
+	 */
+	u32 l4_hxs_errors;
 	struct net_device_stats	 stats;
 	struct dpa_rx_errors rx_errors;
 	struct dpa_ern_cnt ern_cnt;
@@ -364,6 +408,12 @@ int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev);
 
 struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 				   const struct qm_fd *fd);
+
+int __hot _dpa_process_parse_results(const t_FmPrsResult *parse_results,
+				     const struct qm_fd *fd,
+				     struct sk_buff *skb,
+				     int *use_gro,
+				     unsigned int *hdr_size __maybe_unused);
 
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
 void dpa_bp_add_8_pages(struct dpa_bp *dpa_bp, int cpu_id);
