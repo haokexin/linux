@@ -352,13 +352,6 @@ config T4240_QDS
 	help
 	  This option enables support for the T4240 QDS board
 
-config T4240_RLT_ERRATUM
-	bool "Enable workaround for RLT erratum"
-	default n
-	help
-	   This will enable a workaround for restoring zombie
-	   RLT entries. Only enable on rev1 E6500 parts
-
 endif
 endif # FSL_SOC_BOOKE
 
