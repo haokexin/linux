@@ -43,8 +43,6 @@
 #include "dpaa_1588.h"
 
 #ifdef CONFIG_DPAA_ETH_SG_SUPPORT
-
-#define DPA_COPIED_HEADERS_SIZE 128
 #define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
 
 /*
@@ -276,19 +274,22 @@ struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
  *
  * If the entire frame fits in the skb linear buffer, the page holding the
  * received data is recycled as it is no longer required.
+ *
+ * Return 0 if the ingress skb was properly constructed, non-zero if an error
+ * was encountered and the frame should be dropped.
  */
-static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
-				   const struct qm_fd *fd, struct sk_buff *skb,
-				   int *use_gro)
+static int __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
+	const struct qm_fd *fd, struct sk_buff *skb, int *use_gro)
 {
-	unsigned int copy_size;
+	unsigned int copy_size = DPA_COPIED_HEADERS_SIZE;
 	dma_addr_t addr = qm_fd_addr(fd);
 	void *vaddr;
 	struct page *page;
 	int frag_offset, page_offset;
 	struct dpa_bp *dpa_bp = priv->dpa_bp;
 	unsigned char *tailptr;
-	t_FmPrsResult *parse_results;
+	const t_FmPrsResult *parse_results;
+	int ret;
 
 	vaddr = phys_to_virt(addr);
 
@@ -297,59 +298,13 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 		dpa_ptp_store_rxstamp(priv->net_dev, skb, fd);
 #endif
 
-	/*
-	 * If the FMan Parser has already validated the L4 csum, we can take
-	 * some shortcuts knowing that the protocol headers have been parsed.
-	 */
-	if (fd->status & FM_FD_STAT_L4CV) {
-		/*
-		 * If we're here, the csum must be valid (if it hadn't,
-		 * the frame would have been received on the Error FQ,
-		 * respectively on the _dpa_rx_error() path).
-		 */
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-
-		/* Reduce the size of the buffer to memcopy in the skb data */
-		parse_results = (t_FmPrsResult *)(vaddr +
-			DPA_RX_PRIV_DATA_SIZE);
-		copy_size = parse_results->nxthdr_off;
-
-		/*
-		 * Don't go through GRO for certain types of traffic
-		 * that we know are not GRO-able, such as dgram-based
-		 * protocols. In the worst-case scenarios, such as
-		 * small-pkt terminating UDP or similar IP forwarding,
-		 * the extra GRO processing would be overkill.
-		 *
-		 * So if the FMan Parser is running, the only supported
-		 * protocol that's also GRO-able is currently TCP.
-		 */
-		if (*use_gro && !(parse_results->l4r & FM_L4_PARSE_RESULT_TCP))
-			*use_gro = 0;
-	} else {
-		skb->ip_summed = CHECKSUM_NONE;
-		/*
-		 * We don't know the parsed headers' length, so we default
-		 * to the compile-time constant or the frame length.
-		 */
-		copy_size = min((ssize_t)DPA_COPIED_HEADERS_SIZE,
-			dpa_fd_length(fd));
-
-		/*
-		 * Bypass GRO for unknown traffic or if no PCDs are applied.
-		 * It's unlikely that a GRO handler is installed for this proto
-		 * or, if it is, user does not seem to care about performance
-		 * (otherwise, PCDs would have been in place).
-		 *
-		 * TODO: Ultimately, we might still leave GRO for frames larger
-		 * than a certain size (beyond which the GRO overhead becomes
-		 * negligible - that is, empirically, around 1500 bytes), but
-		 * that approach is rather clumsy. The way to go is knowing
-		 * for sure whether the Parser was running, and only disable
-		 * GRO for unrecognized frames.
-		 */
-		*use_gro = 0;
-	}
+	/* Peek at the parse results for frame validation. */
+	parse_results = (const t_FmPrsResult *)(vaddr + DPA_RX_PRIV_DATA_SIZE);
+	ret = _dpa_process_parse_results(parse_results, fd, skb, use_gro,
+		&copy_size);
+	if (unlikely(ret))
+		/* This is definitely a bad frame, don't go further. */
+		return ret;
 
 	tailptr = skb_put(skb, copy_size);
 
@@ -376,17 +331,19 @@ static void __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 
 	/* Copy (at least) the headers in the linear portion */
 	memcpy(tailptr, vaddr + dpa_fd_offset(fd), copy_size);
+
+	return 0;
 }
 
 
 /*
- * Move the first DPA_COPIED_HEADERS_SIZE bytes to the skb linear buffer to
- * provide the networking stack the headers it requires in the linear buffer
+ * Move the first bytes of the frame to the skb linear buffer to
+ * provide the networking stack the headers it requires in the linear buffer,
  * and add the rest of the frame as skb fragments.
  *
  * The page holding the S/G Table is recycled here.
  */
-static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
+static int __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 			       const struct qm_fd *fd, struct sk_buff *skb,
 			       int *use_gro)
 {
@@ -398,10 +355,22 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 	struct page *page;
 	int frag_offset, frag_len;
 	int page_offset;
-	int i;
-	t_FmPrsResult *parse_results;
+	int i, ret;
+	unsigned int copy_size = DPA_COPIED_HEADERS_SIZE;
+	const t_FmPrsResult *parse_results;
 
 	vaddr = phys_to_virt(addr);
+	/*
+	 * In the case of a SG frame, FMan stores the Internal Context
+	 * in the buffer containing the sgt.
+	 */
+	parse_results = (const t_FmPrsResult *)(vaddr + DPA_RX_PRIV_DATA_SIZE);
+	/* Validate the frame before anything else. */
+	ret = _dpa_process_parse_results(parse_results, fd, skb, use_gro,
+		&copy_size);
+	if (unlikely(ret))
+		/* Bad frame, stop processing now. */
+		return ret;
 
 	/*
 	 * Iterate through the SGT entries and add the data buffers as
@@ -430,14 +399,13 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 		if (i == 0) {
 			/* This is the first fragment */
 			/* Move the network headers in the skb linear portion */
-			memcpy(skb_put(skb, DPA_COPIED_HEADERS_SIZE),
+			memcpy(skb_put(skb, copy_size),
 				sg_vaddr + sgt[i].offset,
-				DPA_COPIED_HEADERS_SIZE);
+				copy_size);
 
 			/* Adjust offset/length for the remaining data */
-			frag_offset = sgt[i].offset + page_offset +
-				      DPA_COPIED_HEADERS_SIZE;
-			frag_len = sgt[i].length - DPA_COPIED_HEADERS_SIZE;
+			frag_offset = sgt[i].offset + page_offset + copy_size;
+			frag_len = sgt[i].length - copy_size;
 		} else {
 			/*
 			 * Not the first fragment; all data from buferr will
@@ -453,33 +421,6 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 			break;
 	}
 
-	/* Check if the FMan Parser has already validated the L4 csum. */
-	if (fd->status & FM_FD_STAT_L4CV) {
-		/*
-		 * If we're here, the csum must be valid (if it hadn't,
-		 * the frame would have been received on the Error FQ,
-		 * respectively on the _dpa_rx_error() path).
-		 */
-		skb->ip_summed = CHECKSUM_UNNECESSARY;
-
-		/*
-		 * In the case of a SG frame, FMan stores the Internal Context
-		 * in the buffer containing the sgt.
-		 */
-		parse_results = (t_FmPrsResult *)(vaddr +
-			DPA_RX_PRIV_DATA_SIZE);
-		/*
-		 * Selectively disable GRO. See comment in contig_fd_to_skb().
-		 */
-		if (*use_gro && !(parse_results->l4r & FM_L4_PARSE_RESULT_TCP))
-			*use_gro = 0;
-	} else {
-		skb->ip_summed = CHECKSUM_NONE;
-		/* Bypass GRO. See comment in contig_fd_to_skb(). */
-		use_gro = 0;
-	}
-
-
 #ifdef CONFIG_FSL_DPA_1588
 	if (priv->tsu && priv->tsu->valid && priv->tsu->hwts_rx_en_ioctl)
 		dpa_ptp_store_rxstamp(priv->net_dev, skb, fd);
@@ -489,6 +430,8 @@ static void __hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 	dpa_bp = dpa_bpid2pool(fd->bpid);
 	BUG_ON(IS_ERR(dpa_bp));
 	dpa_bp_add_page(dpa_bp, (unsigned long)vaddr);
+
+	return 0;
 }
 
 void __hot _dpa_rx(struct net_device *net_dev,
@@ -541,11 +484,25 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	/* prefetch the first 64 bytes of the frame or the SGT start */
 	prefetch(phys_to_virt(addr) + dpa_fd_offset(fd));
 
-	if (likely(fd->format == qm_fd_contig))
-		contig_fd_to_skb(priv, fd, skb, &use_gro);
-	else if (fd->format == qm_fd_sg)
-		sg_fd_to_skb(priv, fd, skb, &use_gro);
-	else
+	if (likely(fd->format == qm_fd_contig)) {
+		if (unlikely(contig_fd_to_skb(priv, fd, skb, &use_gro))) {
+			/*
+			 * There was a L4 HXS error - e.g. the L4 csum was
+			 * invalid - so drop the frame early instead of passing
+			 * it on to the stack. We'll increment our private
+			 * counters to track this event.
+			 */
+			percpu_priv->l4_hxs_errors++;
+			percpu_priv->stats.rx_dropped++;
+			goto drop_bad_frame;
+		}
+	} else if (fd->format == qm_fd_sg) {
+		if (unlikely(sg_fd_to_skb(priv, fd, skb, &use_gro))) {
+			percpu_priv->l4_hxs_errors++;
+			percpu_priv->stats.rx_dropped++;
+			goto drop_bad_frame;
+		}
+	} else
 		/* The only FD types that we may receive are contig and S/G */
 		BUG();
 
@@ -553,8 +510,7 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 	if (unlikely(dpa_check_rx_mtu(skb, net_dev->mtu))) {
 		percpu_priv->stats.rx_dropped++;
-		dev_kfree_skb(skb);
-		return;
+		goto drop_bad_frame;
 	}
 
 	skb_len = skb->len;
@@ -577,7 +533,10 @@ void __hot _dpa_rx(struct net_device *net_dev,
 
 packet_dropped:
 	net_dev->last_rx = jiffies;
+	return;
 
+drop_bad_frame:
+	dev_kfree_skb(skb);
 	return;
 
 _release_frame:
