@@ -101,6 +101,8 @@
  *	- running out of memory if the CS threshold is set too high.
  */
 #define DPA_CS_THRESHOLD_1G	0x10000000
+/* Set a congestion threshold for MAC-less devices, too. */
+#define DPA_CS_THRESHOLD_MACLESS	0x10000000
 
 /* S/G table requires at least 256 bytes */
 #define SGT_BUFFER_SIZE		DPA_BP_SIZE(256)
@@ -3656,6 +3658,7 @@ static int dpaa_eth_add_channel(void *__arg)
 static int dpaa_eth_cgr_init(struct dpa_priv_s *priv)
 {
 	struct qm_mcc_initcgr initcgr;
+	u32 cs_th;
 	int err;
 
 	err = qman_alloc_cgrid(&priv->cgr_data.cgr.cgrid);
@@ -3674,12 +3677,13 @@ static int dpaa_eth_cgr_init(struct dpa_priv_s *priv)
 	 * lower than its max, e.g. if a dTSEC later negotiates a 100Mbps link.
 	 * In such cases, we ought to reconfigure the threshold, too.
 	 */
-	if (priv->mac_dev->if_support & SUPPORTED_10000baseT_Full)
-		qm_cgr_cs_thres_set64(&initcgr.cgr.cs_thres,
-			DPA_CS_THRESHOLD_10G, 1);
+	if (!priv->mac_dev)
+		cs_th = DPA_CS_THRESHOLD_MACLESS;
+	else if (priv->mac_dev->if_support & SUPPORTED_10000baseT_Full)
+		cs_th = DPA_CS_THRESHOLD_10G;
 	else
-		qm_cgr_cs_thres_set64(&initcgr.cgr.cs_thres,
-			DPA_CS_THRESHOLD_1G, 1);
+		cs_th = DPA_CS_THRESHOLD_1G;
+	qm_cgr_cs_thres_set64(&initcgr.cgr.cs_thres, cs_th, 1);
 
 	initcgr.we_mask |= QM_CGR_WE_CSTD_EN;
 	initcgr.cgr.cstd_en = QM_CGR_EN;
