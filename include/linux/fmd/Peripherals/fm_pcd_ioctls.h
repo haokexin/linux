@@ -2088,6 +2088,7 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
     uint8_t                     num_of_entries;       /**< Number of members in the group - must be at least 1 */
     ioc_fm_pcd_cc_next_engine_params_t   next_engine_params[IOC_FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES];
                                                     /**< Array of members' parameters */
+    void                        *id;
 } ioc_fm_pcd_frm_replic_group_params_t;
 #endif /* DPAA_VERSION >= 11 */
 
@@ -2543,6 +2544,42 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 @Cautions      Allowed only when PCD is disabled.
 *//***************************************************************************/
 #define FM_PCD_IOC_SET_ADVANCED_OFFLOAD_SUPPORT _IO(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(45))
+
+#if (DPAA_VERSION >= 11)
+/**************************************************************************//**
+ @Function      FM_PCD_FrmReplicSetGroup
+
+ @Description   Initialize a Frame Replicator group.
+
+ @Param[in]     h_FmPcd                FM PCD module descriptor.
+ @Param[in]     p_FrmReplicGroupParam  A structure of parameters for the initialization of
+                                       the frame replicator group.
+
+ @Return        A handle to the initialized object on success; NULL code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_Init().
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_FRM_REPLIC_GROUP_SET_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(46), ioc_compat_fm_pcd_frm_replic_group_params_t)
+#endif
+#define FM_PCD_IOC_FRM_REPLIC_GROUP_SET _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(46), ioc_fm_pcd_frm_replic_group_params_t)
+
+/**************************************************************************//**
+ @Function      FM_PCD_FrmReplicDeleteGroup
+
+ @Description   Delete a Frame Replicator group.
+
+ @Param[in]     h_FrmReplicGroup  A handle to the frame replicator group.
+
+ @Return        E_OK on success;  Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_FrmReplicSetGroup().
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_FRM_REPLIC_GROUP_DELETE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(47), ioc_compat_fm_obj_t)
+#endif
+#define FM_PCD_IOC_FRM_REPLIC_GROUP_DELETE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(47), ioc_fm_obj_t)
+#endif
 
 #ifdef FM_CAPWAP_SUPPORT
 #warning "CAPWAP IOCTL not implemented"

@@ -450,6 +450,16 @@ typedef struct ioc_compat_fm_pcd_manip_params_t {
     compat_uptr_t                                 id;
 } ioc_compat_fm_pcd_manip_params_t;
 
+#if DPAA_VERSION >= 11
+typedef struct ioc_compat_fm_pcd_frm_replic_group_params_t {
+	uint8_t                     max_num_of_entries;
+	uint8_t                     num_of_entries;
+	ioc_compat_fm_pcd_cc_next_engine_params_t
+		next_engine_params[IOC_FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES];
+	compat_uptr_t               id;
+} ioc_compat_fm_pcd_frm_replic_group_params_t;
+#endif /* DPAA_VERSION >= 11 */
+
 /* } pcd compat structures */
 
 void compat_obj_delete(
@@ -557,5 +567,11 @@ void compat_copy_fm_port_pcd_modify_tree(
         ioc_fm_obj_t *id,
         uint8_t compat);
 
+#if DPAA_VERSION >= 11
+void compat_copy_fm_pcd_frm_replic_group_params(
+	ioc_compat_fm_pcd_frm_replic_group_params_t *compat_param,
+	ioc_fm_pcd_frm_replic_group_params_t *param,
+	uint8_t compat);
+#endif
 /* } pcd compat functions */
 #endif

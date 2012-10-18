@@ -1022,3 +1022,36 @@ void compat_fm_pcd_manip_set_node(
     }
 }
 
+#if DPAA_VERSION >= 11
+void compat_copy_fm_pcd_frm_replic_group_params(
+	ioc_compat_fm_pcd_frm_replic_group_params_t *compat_param,
+	ioc_fm_pcd_frm_replic_group_params_t *param,
+	uint8_t compat)
+{
+	int k;
+
+	_fm_cpt_dbg (compat, " {->...\n");
+
+	if (compat == COMPAT_US_TO_K)
+	{
+		param->max_num_of_entries = compat_param->max_num_of_entries;
+		param->num_of_entries = compat_param->num_of_entries;
+		param->id = compat_pcd_id2ptr(compat_param->id);
+	}
+	else
+	{
+		compat_param->max_num_of_entries = param->max_num_of_entries;
+		compat_param->num_of_entries = param->num_of_entries;
+		compat_param->id = compat_add_ptr2id(param->id,
+				FM_MAP_TYPE_PCD_NODE);
+	}
+
+	for (k=0; k < IOC_FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES; k++)
+		compat_copy_fm_pcd_cc_next_engine(
+				&compat_param->next_engine_params[k],
+				&param->next_engine_params[k],
+				compat);
+
+	_fm_cpt_dbg (compat, " ...->}\n");
+}
+#endif

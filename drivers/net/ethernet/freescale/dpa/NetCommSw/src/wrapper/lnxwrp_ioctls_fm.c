@@ -428,7 +428,7 @@ void LnxWrpPCDIOCTLTypeChecking(void)
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_frag_stats_t) == sizeof(t_FmPcdManipFragStats));
     ASSERT_COND(sizeof(ioc_fm_pcd_manip_stats_t) == sizeof(t_FmPcdManipStats));
 #if DPAA_VERSION >= 11
-    ASSERT_COND(sizeof(ioc_fm_pcd_frm_replic_group_params_t) == sizeof(t_FmPcdFrmReplicGroupParams));
+    ASSERT_COND(sizeof(ioc_fm_pcd_frm_replic_group_params_t) == sizeof(t_FmPcdFrmReplicGroupParams) + sizeof(void *));
 #endif
 
     /* fm_port_ext.h == fm_port_ioctls.h */
@@ -2583,6 +2583,153 @@ invalid_port_id:
             err = FM_PCD_ManipNodeDelete(id.obj);
             break;
         }
+
+#if (DPAA_VERSION >= 11)
+#if defined(CONFIG_COMPAT)
+	case FM_PCD_IOC_FRM_REPLIC_GROUP_SET_COMPAT:
+#endif
+	case FM_PCD_IOC_FRM_REPLIC_GROUP_SET:
+	{
+		ioc_fm_pcd_frm_replic_group_params_t *param;
+
+		param = (ioc_fm_pcd_frm_replic_group_params_t *) XX_Malloc(
+				sizeof(ioc_fm_pcd_frm_replic_group_params_t));
+		if (!param)
+			RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PCD"));
+
+		memset(param, 0, sizeof(ioc_fm_pcd_plcr_profile_params_t));
+
+#if defined(CONFIG_COMPAT)
+		if (compat)
+		{
+			ioc_compat_fm_pcd_frm_replic_group_params_t
+				*compat_param;
+
+			compat_param =
+				(ioc_compat_fm_pcd_frm_replic_group_params_t *)
+					XX_Malloc(sizeof(*compat_param));
+			if (!compat_param)
+			{
+				XX_Free(param);
+				RETURN_ERROR(MINOR, E_NO_MEMORY,
+						("IOCTL FM PCD"));
+			}
+
+			memset(compat_param, 0, sizeof(*compat_param));
+			if (copy_from_user(compat_param,
+				(ioc_compat_fm_pcd_frm_replic_group_params_t *)
+					compat_ptr(arg),
+					sizeof(*compat_param))) {
+				XX_Free(compat_param);
+				XX_Free(param);
+				RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+			}
+
+			compat_copy_fm_pcd_frm_replic_group_params(compat_param,
+					param, COMPAT_US_TO_K);
+
+			XX_Free(compat_param);
+		}
+		else
+#endif
+		{
+			if (copy_from_user(param,
+				(ioc_fm_pcd_frm_replic_group_params_t *)arg,
+				sizeof(ioc_fm_pcd_frm_replic_group_params_t)))
+			{
+				XX_Free(param);
+				RETURN_ERROR(MINOR, E_READ_FAILED, NO_MSG);
+			}
+		}
+
+		param->id = FM_PCD_FrmReplicSetGroup(p_LnxWrpFmDev->h_PcdDev,
+				(t_FmPcdFrmReplicGroupParams*)param);
+
+		if (!param->id) {
+			XX_Free(param);
+			err = E_INVALID_VALUE;
+			/*
+			 * Since the LLD has no errno-style error reporting,
+			 * we're left here with no other option than to report
+			 * a generic E_INVALID_VALUE
+			 */
+			break;
+		}
+
+#if defined(CONFIG_COMPAT)
+		if (compat)
+		{
+			ioc_compat_fm_pcd_frm_replic_group_params_t
+				*compat_param;
+
+			compat_param =
+				(ioc_compat_fm_pcd_frm_replic_group_params_t *)
+					XX_Malloc(sizeof(*compat_param));
+			if (!compat_param)
+			{
+				XX_Free(param);
+				RETURN_ERROR(MINOR, E_NO_MEMORY,
+						("IOCTL FM PCD"));
+			}
+
+			memset(compat_param, 0, sizeof(*compat_param));
+			compat_copy_fm_pcd_frm_replic_group_params(compat_param,
+					param, COMPAT_K_TO_US);
+			if (copy_to_user(
+				(ioc_compat_fm_pcd_frm_replic_group_params_t *)
+					compat_ptr(arg),
+					compat_param,
+					sizeof(*compat_ptr)))
+				err = E_WRITE_FAILED;
+
+			XX_Free(compat_param);
+		}
+		else
+#endif
+		{
+			if (copy_to_user(
+				(ioc_fm_pcd_frm_replic_group_params_t *)arg,
+				param,
+				sizeof(ioc_fm_pcd_frm_replic_group_params_t)))
+				err = E_WRITE_FAILED;
+		}
+
+		XX_Free(param);
+		break;
+	}
+	break;
+
+#if defined(CONFIG_COMPAT)
+	case FM_PCD_IOC_FRM_REPLIC_GROUP_DELETE_COMPAT:
+#endif
+	case FM_PCD_IOC_FRM_REPLIC_GROUP_DELETE:
+	{
+		ioc_fm_obj_t id;
+
+		memset(&id, 0, sizeof(ioc_fm_obj_t));
+#if defined(CONFIG_COMPAT)
+		if (compat)
+		{
+			ioc_compat_fm_obj_t compat_id;
+
+			if (copy_from_user(&compat_id,
+					(ioc_compat_fm_obj_t *) compat_ptr(arg),
+					sizeof(ioc_compat_fm_obj_t)))
+				break;
+			compat_obj_delete(&compat_id, &id);
+		}
+		else
+#endif
+		{
+			if (copy_from_user(&id, (ioc_fm_obj_t *) arg,
+					sizeof(ioc_fm_obj_t)))
+				break;
+		}
+
+		return FM_PCD_FrmReplicDeleteGroup(id.obj);
+	}
+	break;
+#endif
 
 #ifdef FM_CAPWAP_SUPPORT
 #warning "feature not supported!"
