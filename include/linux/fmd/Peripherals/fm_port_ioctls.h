@@ -38,6 +38,7 @@
 #ifndef __FM_PORT_IOCTLS_H
 #define __FM_PORT_IOCTLS_H
 
+#include "enet_ext.h"
 #include "net_ioctls.h"
 #include "fm_ioctls.h"
 #include "fm_pcd_ioctls.h"
@@ -115,11 +116,7 @@ typedef enum ioc_fm_port_pcd_support {
 /**************************************************************************//**
  @Collection    General FM Port defines
 *//***************************************************************************/
-#ifdef CONFIG_FMAN_P1023
-#define IOC_FM_PORT_NUM_OF_CONGESTION_GRPS       32 /**< Total number of congestion groups in QM */
-#else
-#define IOC_FM_PORT_NUM_OF_CONGESTION_GRPS      256 /**< Total number of congestion groups in QM */
-#endif
+
 /* @} */
 
 /**************************************************************************//**
@@ -242,7 +239,7 @@ typedef enum ioc_fm_port_counters {
 typedef struct ioc_fm_port_congestion_groups_t {
     uint16_t    num_of_congestion_grps_to_consider;     /**< The number of required congestion groups
                                                              to define the size of the following array */
-    uint8_t     congestion_grps_to_consider [IOC_FM_PORT_NUM_OF_CONGESTION_GRPS];
+    uint8_t     congestion_grps_to_consider [FM_PORT_NUM_OF_CONGESTION_GRPS];
                                                         /**< An array of CG indexes;
                                                              Note that the size of the array should be
                                                              'num_of_congestion_grps_to_consider'. */
@@ -326,7 +323,7 @@ typedef struct ioc_fm_port_congestion_groups_t {
 
  @Return        0 on success; error code otherwise.
 *//***************************************************************************/
-#define      FM_PORT_IOC_ADD_CONGESTION_GRPS    _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(34), ioc_fm_port_congestion_groups_t)
+#define FM_PORT_IOC_ADD_CONGESTION_GRPS    _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(34), ioc_fm_port_congestion_groups_t)
 
 /**************************************************************************//**
  @Function      FM_PORT_RemoveCongestionGrps
@@ -345,7 +342,7 @@ typedef struct ioc_fm_port_congestion_groups_t {
 
  @Return        0 on success; error code otherwise.
 *//***************************************************************************/
-#define      FM_PORT_IOC_REMOVE_CONGESTION_GRPS    _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(35), ioc_fm_port_congestion_groups_t)
+#define FM_PORT_IOC_REMOVE_CONGESTION_GRPS    _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(35), ioc_fm_port_congestion_groups_t)
 
 /**************************************************************************//**
  @Function      FM_PORT_SetErrorsRoute
@@ -781,22 +778,38 @@ typedef struct ioc_fm_port_pcd_fqids_params_t {
 
  @Return        0 on success; error code otherwise.
 *//***************************************************************************/
-#define      FM_PORT_IOC_PCD_PRS_MODIFY_START_OFFSET _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(32), ioc_fm_pcd_prs_start_t)
+#define FM_PORT_IOC_PCD_PRS_MODIFY_START_OFFSET _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(32), ioc_fm_pcd_prs_start_t)
 
-#if 0 /* Removed from LLD!?! */
+typedef struct ioc_fm_port_mac_addr_params_t {
+    uint8_t addr[ENET_NUM_OCTETS_PER_ADDRESS];
+} ioc_fm_port_mac_addr_params_t;
+
 /**************************************************************************//**
- @Function      FM_PORT_IOC_SET_OP_WORKAROUNDS
+ @Function      FM_MAC_AddHashMacAddr
 
- @Description   Calling this routine sets the required offline port workaround.
+ @Description   Add an Address to the hash table. This is for filter purpose only.
 
- @Param[in]     uint32_t    Required workaround.
+ @Param[in]     ioc_fm_port_mac_addr_params_t - Ethernet Mac address
 
- @Return        0 on success; error code otherwise.
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Init(). It is a filter only address.
+ @Cautions      Some address need to be filtered out in upper FM blocks.
 *//***************************************************************************/
-#define      FM_PORT_IOC_SET_OP_WORKAROUNDS _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(33), uint32_t)
-#endif
+#define FM_PORT_IOC_ADD_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(34), ioc_fm_port_mac_addr_params_t)
 
+/**************************************************************************//**
+ @Function      FM_MAC_RemoveHashMacAddr
 
+ @Description   Delete an Address to the hash table. This is for filter purpose only.
+
+ @Param[in]     ioc_fm_port_mac_addr_params_t - Ethernet Mac address
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Init().
+*//***************************************************************************/
+#define FM_PORT_IOC_REMOVE_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(35), ioc_fm_port_mac_addr_params_t)
 
 /** @} */ /* end of lnx_ioctl_FM_PORT_pcd_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_PORT_runtime_control_grp group */

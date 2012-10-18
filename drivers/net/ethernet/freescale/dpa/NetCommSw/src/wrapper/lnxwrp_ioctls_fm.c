@@ -77,6 +77,8 @@
 
 #include "lnxwrp_fm.h"
 
+#include "dpaa_eth.h"
+
 #define CMP_IOC_DEFINE(def) (IOC_##def != def)
 
 /* fm_pcd_ioctls.h === fm_pcd_ext.h assertions */
@@ -328,11 +330,6 @@
 #error Error: please synchronize IOC_ defines!
 #endif
 
-/* fm_port_ioctls.h === dpaa_integrations_ext.h assertions */
-#if CMP_IOC_DEFINE(FM_PORT_NUM_OF_CONGESTION_GRPS)
-#error Error: please synchronize IOC_ defines!
-#endif
-
 void LnxWrpPCDIOCTLTypeChecking(void)
 {
     /* fm_ext.h == fm_ioctls.h */
@@ -515,7 +512,40 @@ static t_Error LnxwrpFmPcdIOCTL(t_LnxWrpFmDev *p_LnxWrpFmDev, unsigned int cmd, 
     t_Error err = E_OK;
 
 /*
-    Status: PCD API to fmlib (file: drivers/net/dpa/NetCommSw/inc/Peripherals/fm_pcd_ext.h):
+Status: PCD API to fmlib (file: drivers/net/dpa/NetCommSw/inc/Peripherals/fm_pcd_ext.h):
+
+    FM_PCD_PrsLoadSw
+    FM_PCD_SetAdvancedOffloadSupport
+    FM_PCD_Enable
+    FM_PCD_Disable
+    FM_PCD_ForceIntr
+    FM_PCD_SetException
+    FM_PCD_KgSetAdditionalDataAfterParsing
+    FM_PCD_KgSetDfltValue
+    FM_PCD_NetEnvCharacteristicsSet
+    FM_PCD_NetEnvCharacteristicsDelete
+    FM_PCD_KgSchemeSet
+    FM_PCD_KgSchemeDelete
+    FM_PCD_MatchTableSet
+    FM_PCD_MatchTableDelete
+    FM_PCD_CcRootBuild
+    FM_PCD_CcRootDelete
+    FM_PCD_PlcrProfileSet
+    FM_PCD_PlcrProfileDelete
+    FM_PCD_CcRootModifyNextEngine
+    FM_PCD_MatchTableModifyNextEngine
+    FM_PCD_MatchTableModifyMissNextEngine
+    FM_PCD_MatchTableRemoveKey
+    FM_PCD_MatchTableAddKey
+    FM_PCD_MatchTableModifyKeyAndNextEngine
+    FM_PCD_HashTableSet
+    FM_PCD_HashTableDelete
+    FM_PCD_HashTableAddKey
+    FM_PCD_HashTableRemoveKey
+    FM_PCD_MatchTableModifyKey
+    FM_PCD_ManipNodeReplace
+    FM_PCD_ManipNodeSet
+    FM_PCD_ManipNodeDelete
 
 Status: not exported, should be thru sysfs
     FM_PCD_KgSchemeGetCounter
@@ -532,12 +562,6 @@ Status: not exported
     FM_PCD_MatchTableGetNextEngine
     FM_PCD_MatchTableGetKeyCounter
 
-Status: Exported, Not tested (no test available)
-    FM_PCD_HashTableSet
-    FM_PCD_HashTableDelete
-    FM_PCD_HashTableAddKey
-    FM_PCD_HashTableRemoveKey
-
 Status: not exported, would be nice to have
     FM_PCD_HashTableModifyNextEngine
     FM_PCD_HashTableModifyMissNextEngine
@@ -550,6 +574,15 @@ Status: not exported
     FM_PCD_FrmReplicDeleteGroup
     FM_PCD_FrmReplicAddMember
     FM_PCD_FrmReplicRemoveMember
+
+    FM_VSP_Config
+    FM_VSP_Init
+    FM_VSP_Free
+    FM_VSP_ConfigPoolDepletion
+    FM_VSP_ConfigBufferPrefixContent
+    FM_VSP_ConfigNoScatherGather
+    FM_VSP_GetStatistics -- it’s not available yet
+    FM_VSP_GetBufferPrsResult
 #endif
 
 Status: feature not supported
@@ -558,9 +591,9 @@ Status: feature not supported
     FM_PCD_StatisticsSetNode
 #endif
 
-*/
+ */
     _fm_ioctl_dbg("cmd:0x%08x(type:0x%02x, nr:%u).\n",
-        cmd, _IOC_TYPE(cmd), _IOC_NR(cmd) - 20);
+            cmd, _IOC_TYPE(cmd), _IOC_NR(cmd) - 20);
 
     switch (cmd)
     {
@@ -2113,7 +2146,7 @@ invalid_port_id:
             else
 #endif
             {
-                if (copy_from_user(param, (ioc_fm_pcd_hash_table_add_key_params_t *)arg,
+                if (copy_from_user(param, (ioc_fm_pcd_hash_table_add_key_params_t*) arg,
                             sizeof(ioc_fm_pcd_hash_table_add_key_params_t)))
                 {
                     XX_Free(param);
@@ -3465,8 +3498,89 @@ Status: not exported
                 ;
 
             XX_Free(param);
-            return err;
+            break;
         }
+
+        case FM_PORT_IOC_ADD_RX_HASH_MAC_ADDR:
+        case FM_PORT_IOC_REMOVE_RX_HASH_MAC_ADDR:
+        {
+            ioc_fm_port_mac_addr_params_t *param;
+
+            param = (ioc_fm_port_mac_addr_params_t*) XX_Malloc(
+                    sizeof(ioc_fm_port_mac_addr_params_t));
+            if (!param)
+                RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PORT"));
+
+            memset(param, 0, sizeof(ioc_fm_port_mac_addr_params_t));
+
+#if defined(CONFIG_COMPAT)
+            if (compat)
+            {
+                if (copy_from_user(param, (ioc_fm_port_mac_addr_params_t*) compat_ptr(arg),
+                            sizeof(ioc_fm_port_mac_addr_params_t)))
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+                }
+            }
+            else
+#endif /* CONFIG_COMPAT */
+            {
+                if (copy_from_user(param, (ioc_fm_port_mac_addr_params_t*) arg,
+                            sizeof(ioc_fm_port_mac_addr_params_t)))
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+                }
+            }
+
+            if (p_LnxWrpFmPortDev->pcd_owner_params.dev)
+            {
+                struct net_device *net_dev = dev_get_drvdata(p_LnxWrpFmPortDev->pcd_owner_params.dev);
+
+                if (net_dev)
+                {
+                    struct dpa_priv_s *priv = netdev_priv(net_dev);
+
+                    if (priv)
+                    {
+                        struct mac_device *mac_dev = priv->mac_dev;
+
+                        if (mac_dev)
+                        {
+                            void *mac_handle = mac_dev->get_mac_handle(mac_dev);
+
+                            err = (cmd == FM_PORT_IOC_ADD_RX_HASH_MAC_ADDR)
+                                ? FM_MAC_AddHashMacAddr((t_Handle) mac_handle, (t_EnetAddr*) param)
+                                : FM_MAC_RemoveHashMacAddr((t_Handle) mac_handle, (t_EnetAddr*) param)
+                                ;
+                        }
+                        else
+                        {
+                            err = E_NOT_AVAILABLE;
+                            REPORT_ERROR(MINOR, err, ("Attempt to add/remove hash MAC addr. to/from MAC-less port!"));
+                        }
+                    }
+                    else
+                        /* Not possible, set err nevertheless: */
+                        err = E_NOT_AVAILABLE;
+                }
+                else
+                {
+                    err = E_NOT_AVAILABLE;
+                    REPORT_ERROR(MINOR, err, ("No net device (and no MAC!) associated to this port!"));
+                }
+            }
+            else
+            {
+                err = E_NOT_AVAILABLE;
+                REPORT_ERROR(MINOR, err, ("Port not initialized or other error!?!?"));
+            }
+
+            XX_Free(param);
+            break;
+        }
+
         default:
             RETURN_ERROR(MINOR, E_INVALID_SELECTION,
                 ("invalid ioctl: cmd:0x%08x(type:0x%02x, nr:0x%02x.\n",
