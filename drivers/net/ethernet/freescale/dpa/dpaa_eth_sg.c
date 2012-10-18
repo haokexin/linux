@@ -308,8 +308,8 @@ static int __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 
 	tailptr = skb_put(skb, copy_size);
 
-	/* Try to optimize the memcpy to follow */
-	prefetch(vaddr + dpa_fd_offset(fd));
+	/* Copy (at least) the headers in the linear portion */
+	memcpy(tailptr, vaddr + dpa_fd_offset(fd), copy_size);
 
 	/*
 	 * If frame is longer than the amount we copy in the linear
@@ -328,9 +328,6 @@ static int __hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 		/* recycle the page */
 		dpa_bp_add_page(dpa_bp, (unsigned long)vaddr);
 	}
-
-	/* Copy (at least) the headers in the linear portion */
-	memcpy(tailptr, vaddr + dpa_fd_offset(fd), copy_size);
 
 	return 0;
 }
