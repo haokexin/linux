@@ -3928,6 +3928,7 @@ static int gfar_poll_rx(struct napi_struct *napi, int budget)
 	struct gfar_priv_rx_q *rx_queue = NULL;
 	int rx_cleaned = 0, budget_per_queue = 0, rx_cleaned_per_queue = 0;
 	int i, num_act_qs = 0, napi_done = 1;
+	unsigned long flags;
 	u32 imask, ievent, rstat, rstat_local, rstat_rxf, rstat_rhalt = 0, mask;
 
 	rstat = gfar_read(&regs->rstat);
@@ -3969,7 +3970,7 @@ static int gfar_poll_rx(struct napi_struct *napi, int budget)
 	if (napi_done) {
 		napi_complete(napi);
 		gfar_configure_rx_coalescing(priv, gfargrp->rx_bit_map);
-		spin_lock_irq(&gfargrp->grplock);
+		spin_lock_irqsave(&gfargrp->grplock, flags);
 		imask = gfar_read(&regs->imask);
 		imask |= IMASK_DEFAULT_RX;
 		gfar_write(&regs->imask, imask);
@@ -3981,7 +3982,7 @@ static int gfar_poll_rx(struct napi_struct *napi, int budget)
 			gfar_write(&gfargrp->regs->ievent, IEVENT_RX_MASK);
 			napi_schedule(napi);
 		}
-		spin_unlock_irq(&gfargrp->grplock);
+		spin_unlock_irqrestore(&gfargrp->grplock, flags);
 	}
 
 	return rx_cleaned;
@@ -3997,6 +3998,7 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 	int tx_cleaned = 0, budget_per_queue = 0, tx_cleaned_per_queue = 0;
 	int i, num_act_qs = 0, napi_done = 1;
 	u32 imask, tstat, tstat_local, mask;
+	unsigned long flags;
 
 
 	tstat = gfar_read(&regs->tstat);
@@ -4027,11 +4029,11 @@ static int gfar_poll_tx(struct napi_struct *napi, int budget)
 	if (napi_done) {
 		napi_complete(napi);
 		gfar_configure_tx_coalescing(priv, gfargrp->tx_bit_map);
-		spin_lock_irq(&gfargrp->grplock);
+		spin_lock_irqsave(&gfargrp->grplock, flags);
 		imask = gfar_read(&regs->imask);
 		imask |= IMASK_DEFAULT_TX;
 		gfar_write(&regs->imask, imask);
-		spin_unlock_irq(&gfargrp->grplock);
+		spin_unlock_irqrestore(&gfargrp->grplock, flags);
 	}
 
 	return tx_cleaned;
