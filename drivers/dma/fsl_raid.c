@@ -968,10 +968,8 @@ static int __devinit raide_probe(struct platform_device *ofdev)
 				"fsl,raideng-v1.0-job-ring")) {
 				re_jr_probe(ofdev, child, ridx++, off);
 				repriv->total_jrs++;
-				break;
 			}
 		}
-		break;
 	}
 
 	re_sw_desc_cache = kmem_cache_create("re_desc_cache",
