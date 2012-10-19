@@ -29,10 +29,6 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define pr_fmt(fmt) \
-	KBUILD_MODNAME ": %s:%hu:%s() " fmt, \
-	KBUILD_BASENAME".c", __LINE__, __func__
-
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/of_platform.h>
@@ -158,7 +154,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	mac_dev = alloc_macdev(dev, mac_sizeof_priv[i], mac_setup[i]);
 	if (IS_ERR(mac_dev)) {
 		_errno = PTR_ERR(mac_dev);
-		dev_err(dev, "alloc_macdev() = %d\n", _errno);
+		dpaa_eth_err(dev, "alloc_macdev() = %d\n", _errno);
 		goto _return;
 	}
 
@@ -167,7 +163,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	/* Get the FM node */
 	dev_node = of_get_parent(mac_node);
 	if (unlikely(dev_node == NULL)) {
-		dev_err(dev, "of_get_parent(%s) failed\n",
+		dpaa_eth_err(dev, "of_get_parent(%s) failed\n",
 				mac_node->full_name);
 		_errno = -EINVAL;
 		goto _return_dev_set_drvdata;
@@ -175,7 +171,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 
 	of_dev = of_find_device_by_node(dev_node);
 	if (unlikely(of_dev == NULL)) {
-		dev_err(dev, "of_find_device_by_node(%s) failed\n",
+		dpaa_eth_err(dev, "of_find_device_by_node(%s) failed\n",
 				dev_node->full_name);
 		_errno = -EINVAL;
 		goto _return_of_node_put;
@@ -183,7 +179,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 
 	mac_dev->fm_dev = fm_bind(&of_dev->dev);
 	if (unlikely(mac_dev->fm_dev == NULL)) {
-		dev_err(dev, "fm_bind(%s) failed\n", dev_node->full_name);
+		dpaa_eth_err(dev, "fm_bind(%s) failed\n", dev_node->full_name);
 		_errno = -ENODEV;
 		goto _return_of_node_put;
 	}
@@ -194,7 +190,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	/* Get the address of the memory mapped registers */
 	_errno = of_address_to_resource(mac_node, 0, &res);
 	if (unlikely(_errno < 0)) {
-		dev_err(dev, "of_address_to_resource(%s) = %d\n",
+		dpaa_eth_err(dev, "of_address_to_resource(%s) = %d\n",
 				mac_node->full_name, _errno);
 		goto _return_dev_set_drvdata;
 	}
@@ -204,7 +200,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 		fm_get_mem_region(mac_dev->fm_dev),
 		res.start, res.end + 1 - res.start, "mac");
 	if (unlikely(mac_dev->res == NULL)) {
-		dev_err(dev, "__devm_request_mem_region(mac) failed\n");
+		dpaa_eth_err(dev, "__devm_request_mem_region(mac) failed\n");
 		_errno = -EBUSY;
 		goto _return_dev_set_drvdata;
 	}
@@ -212,7 +208,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	mac_dev->vaddr = devm_ioremap(dev, mac_dev->res->start,
 				      mac_dev->res->end + 1 - mac_dev->res->start);
 	if (unlikely(mac_dev->vaddr == NULL)) {
-		dev_err(dev, "devm_ioremap() failed\n");
+		dpaa_eth_err(dev, "devm_ioremap() failed\n");
 		_errno = -EIO;
 		goto _return_dev_set_drvdata;
 	}
@@ -247,7 +243,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	/* Get the cell-index */
 	uint32_prop = of_get_property(mac_node, "cell-index", &lenp);
 	if (unlikely(uint32_prop == NULL)) {
-		dev_err(dev, "of_get_property(%s, cell-index) failed\n",
+		dpaa_eth_err(dev, "of_get_property(%s, cell-index) failed\n",
 				mac_node->full_name);
 		_errno = -EINVAL;
 		goto _return_dev_set_drvdata;
@@ -258,7 +254,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	/* Get the MAC address */
 	mac_addr = of_get_mac_address(mac_node);
 	if (unlikely(mac_addr == NULL)) {
-		dev_err(dev, "of_get_mac_address(%s) failed\n",
+		dpaa_eth_err(dev, "of_get_mac_address(%s) failed\n",
 				mac_node->full_name);
 		_errno = -EINVAL;
 		goto _return_dev_set_drvdata;
@@ -268,7 +264,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	/* Get the port handles */
 	phandle_prop = of_get_property(mac_node, "fsl,port-handles", &lenp);
 	if (unlikely(phandle_prop == NULL)) {
-		dev_err(dev, "of_get_property(%s, port-handles) failed\n",
+		dpaa_eth_err(dev, "of_get_property(%s, port-handles) failed\n",
 				mac_node->full_name);
 		_errno = -EINVAL;
 		goto _return_dev_set_drvdata;
@@ -279,14 +275,14 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 		/* Find the port node */
 		dev_node = of_find_node_by_phandle(phandle_prop[i]);
 		if (unlikely(dev_node == NULL)) {
-			dev_err(dev, "of_find_node_by_phandle() failed\n");
+			dpaa_eth_err(dev, "of_find_node_by_phandle() failed\n");
 			_errno = -EINVAL;
 			goto _return_of_node_put;
 		}
 
 		of_dev = of_find_device_by_node(dev_node);
 		if (unlikely(of_dev == NULL)) {
-			dev_err(dev, "of_find_device_by_node(%s) failed\n",
+			dpaa_eth_err(dev, "of_find_device_by_node(%s) failed\n",
 					dev_node->full_name);
 			_errno = -EINVAL;
 			goto _return_of_node_put;
@@ -294,7 +290,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 
 		mac_dev->port_dev[i] = fm_port_bind(&of_dev->dev);
 		if (unlikely(mac_dev->port_dev[i] == NULL)) {
-			dev_err(dev, "dev_get_drvdata(%s) failed\n",
+			dpaa_eth_err(dev, "dev_get_drvdata(%s) failed\n",
 					dev_node->full_name);
 			_errno = -EINVAL;
 			goto _return_of_node_put;
@@ -306,10 +302,10 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 	char_prop = (const char *)of_get_property(mac_node,
 						"phy-connection-type", NULL);
 	if (unlikely(char_prop == NULL)) {
-		dev_warn(dev,
-			"of_get_property(%s, phy-connection-type) "
-			"failed. Defaulting to MII\n",
-			mac_node->full_name);
+		dpaa_eth_warning(dev,
+				"of_get_property(%s, phy-connection-type) "
+				"failed. Defaulting to MII\n",
+				mac_node->full_name);
 		mac_dev->phy_if = PHY_INTERFACE_MODE_MII;
 	} else
 		mac_dev->phy_if = str2phy(char_prop);
@@ -339,7 +335,7 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 		const u32 *phy_id = of_get_property(mac_node, "fixed-link",
 							&sz);
 		if (!phy_id || sz < sizeof(*phy_id)) {
-			dev_err(dev, "No PHY (or fixed link) found\n");
+			cpu_dev_err(dev, "No PHY (or fixed link) found\n");
 			_errno = -EINVAL;
 			goto _return_dev_set_drvdata;
 		}
@@ -349,14 +345,14 @@ static int __devinit __cold mac_probe(struct platform_device *_of_dev)
 
 	_errno = mac_dev->init(mac_dev);
 	if (unlikely(_errno < 0)) {
-		dev_err(dev, "mac_dev->init() = %d\n", _errno);
+		dpaa_eth_err(dev, "mac_dev->init() = %d\n", _errno);
 		goto _return_dev_set_drvdata;
 	}
 
-	dev_info(dev,
+	cpu_dev_info(dev,
 		"FMan MAC address: %02hx:%02hx:%02hx:%02hx:%02hx:%02hx\n",
-		mac_dev->addr[0], mac_dev->addr[1], mac_dev->addr[2],
-		mac_dev->addr[3], mac_dev->addr[4], mac_dev->addr[5]);
+		     mac_dev->addr[0], mac_dev->addr[1], mac_dev->addr[2],
+		     mac_dev->addr[3], mac_dev->addr[4], mac_dev->addr[5]);
 
 	goto _return;
 
@@ -401,25 +397,23 @@ static int __init __cold mac_load(void)
 {
 	int	 _errno;
 
-	printk(KERN_DEBUG KBUILD_MODNAME ": -> %s:%s()\n",
-		KBUILD_BASENAME".c", __func__);
+	cpu_pr_debug(KBUILD_MODNAME ": -> %s:%s()\n", __file__, __func__);
 
-	printk(KERN_INFO KBUILD_MODNAME ": %s (" VERSION ")\n",
+	cpu_pr_info(KBUILD_MODNAME ": %s (" VERSION ")\n",
 		mac_driver_description);
 
 	_errno = platform_driver_register(&mac_driver);
 	if (unlikely(_errno < 0)) {
-		printk(KERN_ERR KBUILD_MODNAME ": %s:%hu:%s(): "\
-			"of_register_platform_driver() = %d\n",
-			KBUILD_BASENAME".c", __LINE__, __func__, _errno);
+		cpu_pr_err(KBUILD_MODNAME ": %s:%hu:%s(): " \
+			"platform_driver_register() = %d\n",
+			   __file__, __LINE__, __func__, _errno);
 		goto _return;
 	}
 
 	goto _return;
 
 _return:
-	printk(KERN_DEBUG KBUILD_MODNAME ": %s:%s() ->\n",
-		KBUILD_BASENAME".c", __func__);
+	cpu_pr_debug(KBUILD_MODNAME ": %s:%s() ->\n", __file__, __func__);
 
 	return _errno;
 }
@@ -427,12 +421,10 @@ module_init(mac_load);
 
 static void __exit __cold mac_unload(void)
 {
-	printk(KERN_DEBUG KBUILD_MODNAME ": -> %s:%s()\n",
-		KBUILD_BASENAME".c", __func__);
+	cpu_pr_debug(KBUILD_MODNAME ": -> %s:%s()\n", __file__, __func__);
 
 	platform_driver_unregister(&mac_driver);
 
-	printk(KERN_DEBUG KBUILD_MODNAME ": %s:%s() ->\n",
-		KBUILD_BASENAME".c", __func__);
+	cpu_pr_debug(KBUILD_MODNAME ": %s:%s() ->\n", __file__, __func__);
 }
 module_exit(mac_unload);
