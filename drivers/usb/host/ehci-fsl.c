@@ -223,7 +223,7 @@ static int ehci_fsl_setup_phy(struct usb_hcd *hcd,
 	pdata = hcd->self.controller->platform_data;
 	if (pdata->controller_ver < 0) {
 		dev_warn(hcd->self.controller, "Could not get controller version\n");
-		return;
+		return -ENODEV;
 	}
 
 	portsc = ehci_readl(ehci, &ehci->regs->port_status[port_offset]);
