@@ -792,6 +792,10 @@ static inline void cpu_probe_mips(struct cpuinfo_mips *c, unsigned int cpu)
 {
 	decode_configs(c);
 	switch (c->processor_id & 0xff00) {
+	case PRID_IMP_MIPS64R2_GENERIC:
+		c->cputype = CPU_MIPS64R2_GENERIC;
+		__cpu_name[cpu] = "MIPS64R2-generic";
+		break;
 	case PRID_IMP_4KC:
 		c->cputype = CPU_4KC;
 		__cpu_name[cpu] = "MIPS 4Kc";
