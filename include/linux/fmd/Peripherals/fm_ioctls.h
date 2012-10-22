@@ -59,9 +59,9 @@
 #define DEV_FM_TX_PORTS_MINOR_BASE  (DEV_FM_RX_PORTS_MINOR_BASE + FM_MAX_NUM_OF_RX_PORTS)   /*/dev/fmx-port-txy */
 #define DEV_FM_MAX_MINORS           (DEV_FM_TX_PORTS_MINOR_BASE + FM_MAX_NUM_OF_TX_PORTS)
 
-#define FM_IOC_NUM(n)       n
+#define FM_IOC_NUM(n)       (n)
 #define FM_PCD_IOC_NUM(n)   (n+20)
-#define FM_PORT_IOC_NUM(n)  (n+50)
+#define FM_PORT_IOC_NUM(n)  (n+70)
 /* @} */
 
 #define IOC_FM_MAX_NUM_OF_PORTS         64
