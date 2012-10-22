@@ -164,6 +164,14 @@ void *compat_get_id2ptr(compat_uptr_t comp, enum fm_map_node_type node_type)
 EXPORT_SYMBOL(compat_get_id2ptr);
 /* } maping kernel pointers w/ UserSpace id's  */
 
+void compat_obj_delete(
+	ioc_compat_fm_obj_t *compat_id,
+	ioc_fm_obj_t *id)
+{
+	id->obj = compat_pcd_id2ptr(compat_id->obj);
+	compat_del_ptr2id(id->obj, FM_MAP_TYPE_PCD_NODE);
+}
+
 static inline void compat_copy_fm_pcd_plcr_next_engine(
         ioc_compat_fm_pcd_plcr_next_engine_params_u *compat_param,
         ioc_fm_pcd_plcr_next_engine_params_u        *param,
@@ -289,18 +297,6 @@ void compat_copy_fm_pcd_plcr_profile(
             &param->params_on_red, param->next_engine_on_red, compat);
 
     _fm_cpt_dbg (compat, " ...->}\n");
-}
-
-void compat_copy_fm_pcd_plcr_del_profile(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat)
-{
-    if (compat == COMPAT_US_TO_K)
-    {
-        id->obj = compat_pcd_id2ptr(compat_id->obj);
-        compat_del_ptr2id(id->obj, FM_MAP_TYPE_PCD_NODE);
-    }
 }
 
 static inline void compat_copy_fm_pcd_cc_next_kg(
@@ -593,18 +589,6 @@ void compat_copy_fm_pcd_cc_tree(
     _fm_cpt_dbg (compat, " ...->}\n");
 }
 
-void compat_copy_fm_pcd_cc_delete_tree(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat)
-{
-    if (compat == COMPAT_US_TO_K)
-    {
-        id->obj = compat_pcd_id2ptr(compat_id->obj);
-        compat_del_ptr2id(id->obj, FM_MAP_TYPE_PCD_NODE);
-    }
-}
-
 void compat_fm_pcd_prs_sw(
         ioc_compat_fm_pcd_prs_sw_params_t *compat_param,
         ioc_fm_pcd_prs_sw_params_t *param,
@@ -731,18 +715,6 @@ void compat_copy_fm_pcd_kg_scheme(
     _fm_cpt_dbg(compat," ...->}\n");
 }
 
-void compat_copy_fm_pcd_scheme_delete(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat)
-{
-    if (compat == COMPAT_US_TO_K)
-    {
-        id->obj = compat_pcd_id2ptr(compat_id->obj);
-        compat_del_ptr2id(id->obj, FM_MAP_TYPE_PCD_NODE);
-    }
-}
-
 void compat_copy_fm_pcd_kg_scheme_select(
         ioc_compat_fm_pcd_kg_scheme_select_t *compat_param,
         ioc_fm_pcd_kg_scheme_select_t *param,
@@ -862,18 +834,6 @@ void compat_copy_fm_pcd_net_env(
     }
 }
 
-void compat_copy_fm_net_env_delete(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat)
-{
-    if (compat == COMPAT_US_TO_K)
-    {
-        id->obj = compat_pcd_id2ptr(compat_id->obj);
-        compat_del_ptr2id(id->obj, FM_MAP_TYPE_PCD_NODE);
-    }
-}
-
 void compat_copy_fm_pcd_cc_node_modify_key(
         ioc_compat_fm_pcd_cc_node_modify_key_params_t   *compat_param,
         ioc_fm_pcd_cc_node_modify_key_params_t          *param,
@@ -974,18 +934,6 @@ void compat_copy_fm_pcd_cc_node(
     _fm_cpt_dbg(compat," ...->}\n");
 }
 
-void compat_copy_fm_pcd_cc_delete_node(
-    ioc_compat_fm_obj_t *compat_id,
-    ioc_fm_obj_t *id,
-    uint8_t compat)
-{
-    if (compat == COMPAT_US_TO_K)
-    {
-        id->obj = compat_pcd_id2ptr(compat_id->obj);
-        compat_del_ptr2id(id->obj, FM_MAP_TYPE_PCD_NODE);
-    }
-}
-
 void compat_fm_pcd_manip_set_node(
         ioc_compat_fm_pcd_manip_params_t *compat_param,
         ioc_fm_pcd_manip_params_t *param,
@@ -1074,14 +1022,3 @@ void compat_fm_pcd_manip_set_node(
     }
 }
 
-void compat_copy_fm_pcd_manip_delete_node(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat)
-{
-    if (compat == COMPAT_US_TO_K)
-    {
-        id->obj = compat_pcd_id2ptr(compat_id->obj);
-        compat_del_ptr2id(id->obj, FM_MAP_TYPE_PCD_NODE);
-    }
-}

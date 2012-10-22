@@ -452,6 +452,10 @@ typedef struct ioc_compat_fm_pcd_manip_params_t {
 
 /* } pcd compat structures */
 
+void compat_obj_delete(
+        ioc_compat_fm_obj_t *compat_id,
+        ioc_fm_obj_t *id);
+
 /* pcd compat functions { */
 void compat_copy_fm_pcd_plcr_profile(
         ioc_compat_fm_pcd_plcr_profile_params_t *compat_param,
@@ -548,37 +552,7 @@ void compat_fm_pcd_manip_set_node(
         ioc_fm_pcd_manip_params_t *param,
         uint8_t compat);
 
-void compat_copy_fm_net_env_delete(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat);
-
-void compat_copy_fm_pcd_cc_delete_node(
-    ioc_compat_fm_obj_t *compat_id,
-    ioc_fm_obj_t *id,
-    uint8_t compat);
-
-void compat_copy_fm_pcd_cc_delete_tree(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat);
-
 void compat_copy_fm_port_pcd_modify_tree(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat);
-
-void compat_copy_fm_pcd_manip_delete_node(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat);
-
-void compat_copy_fm_pcd_scheme_delete(
-        ioc_compat_fm_obj_t *compat_id,
-        ioc_fm_obj_t *id,
-        uint8_t compat);
-
-void compat_copy_fm_pcd_plcr_del_profile(
         ioc_compat_fm_obj_t *compat_id,
         ioc_fm_obj_t *id,
         uint8_t compat);
