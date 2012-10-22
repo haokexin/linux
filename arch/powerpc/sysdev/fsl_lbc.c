@@ -49,6 +49,7 @@ u32 fsl_lbc_addr(phys_addr_t addr_base)
 	u32 addr = addr_base & 0xffff8000;
 
 	if (of_device_is_compatible(np, "fsl,elbc") ||
+			of_device_is_compatible(np, "fsl,p3041-rev1.0-elbc") ||
 			of_device_is_compatible(np, "fsl,p5020-rev1.0-elbc") ||
 			of_device_is_compatible(np, "fsl,p5040-rev1.0-elbc"))
 		return addr;
@@ -201,6 +202,7 @@ static int __devinit fsl_lbc_ctrl_init(struct fsl_lbc_ctrl *ctrl,
 
 	/* Set the monitor timeout value to the maximum for erratum A001 */
 	if (of_device_is_compatible(node, "fsl,elbc") ||
+		of_device_is_compatible(node, "fsl,p3041-rev1.0-elbc") ||
 		of_device_is_compatible(node, "fsl,p5020-rev1.0-elbc") ||
 		of_device_is_compatible(node, "fsl,p5040-rev1.0-elbc"))
 		clrsetbits_be32(&lbc->lbcr, LBCR_BMT, LBCR_BMTPS);
