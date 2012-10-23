@@ -155,6 +155,7 @@
 					#size-cells = <0>;
 					compatible = "fsl,hydra-mdio";
 					fsl,mdio-handle = <&mdio0>;
+					fsl,hydra-mdio-mux-mask = <0x70>;
 					fsl,hydra-mdio-muxval = <0x00>;
 					status = "disabled";
 
@@ -180,6 +181,7 @@
 					#size-cells = <0>;
 					compatible = "fsl,hydra-mdio";
 					fsl,mdio-handle = <&mdio0>;
+					fsl,hydra-mdio-mux-mask = <0x70>;
 					fsl,hydra-mdio-muxval = <0x00>;
 					status = "disabled";
 
