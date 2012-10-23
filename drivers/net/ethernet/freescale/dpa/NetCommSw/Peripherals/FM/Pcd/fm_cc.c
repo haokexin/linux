@@ -2496,7 +2496,7 @@ static t_Error BuildNewNodeAddOrMdfyKeyAndNextEngine(t_Handle                   
                 ASSERT_COND(p_StatsObj);
 
                 /* Store allocated statistics object */
-                ASSERT_COND(keyIndex < FM_PCD_MAX_NUM_OF_CC_GROUPS);
+                ASSERT_COND(keyIndex < CC_MAX_NUM_OF_KEYS);
                 p_AdditionalInfo->keyAndNextEngineParams[keyIndex].p_StatsObj = p_StatsObj;
 
                 h_StatsAd = p_StatsObj->h_StatsAd;
