@@ -164,32 +164,59 @@
 
 		fman0: fman@400000 {
 			enet0: ethernet@e0000 {
-				fixed-link = <1 1 1000 0 0 >;
+				phy-handle = <&phy_sgmii_1c>;
 				phy-connection-type = "sgmii";
 			};
 			enet1: ethernet@e2000 {
-				fixed-link = <2 1 1000 0 0 >;
+				phy-handle = <&phy_sgmii_1d>;
 				phy-connection-type = "sgmii";
 			};
 			enet2: ethernet@e4000 {
-				fixed-link = <3 1 1000 0 0 >;
+				phy-handle = <&phy_sgmii_1e>;
 				phy-connection-type = "sgmii";
 			};
 			enet3: ethernet@e6000 {
-				fixed-link = <4 1 1000 0 0 >;
+				phy-handle = <&phy_sgmii_1f>;
 				phy-connection-type = "sgmii";
 			};
 			enet4: ethernet@e8000 {
-				fixed-link = <5 1 1000 0 0 >;
+				phy-handle = <&phy_sgmii_10>;
 				phy-connection-type = "sgmii";
 			};
 			enet5: ethernet@ea000 {
-				fixed-link = <6 1 1000 0 0 >;
+				phy-handle = <&phy_sgmii_11>;
 				phy-connection-type = "sgmii";
 			};
+                       /* 1G MDIO Bus on B4860 */
+                       mdio@fc000 {
+				compatible = "fsl,fman-xmdio";
+				interrupts = <
+					100 2 0 0>;
+                               /* on board SGMII PHYs */
+                               phy_sgmii_10: ethernet-phy@10 {
+                                       reg = <0x10>;
+                               };
+                               phy_sgmii_11: ethernet-phy@11 {
+                                       reg = <0x11>;
+                               };
+
+                               /* PHYs on SGMII Riser Card */
+                               phy_sgmii_1c: ethernet-phy@1c {
+                                       reg = <0x1c>;
+                               };
+                               phy_sgmii_1d: ethernet-phy@1d {
+                                       reg = <0x1d>;
+                               };
+                               phy_sgmii_1e: ethernet-phy@1e {
+                                       reg = <0x1e>;
+                               };
+                               phy_sgmii_1f: ethernet-phy@1f {
+                                       reg = <0x1f>;
+                               };
+                       };
+
 		};
 	};
-
 	pci0: pcie@ffe200000 {
 		reg = <0xf 0xfe200000 0 0x10000>;
 		ranges = <0x02000000 0 0xe0000000 0xc 0x00000000 0x0 0x20000000
