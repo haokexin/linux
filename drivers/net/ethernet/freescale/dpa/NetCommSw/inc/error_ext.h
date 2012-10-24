@@ -40,9 +40,14 @@
 #ifndef __ERROR_EXT_H
 #define __ERROR_EXT_H
 
+#if !defined(NCSW_LINUX)
+#include <errno.h>
+#endif
+
 #include "std_ext.h"
 #include "xx_ext.h"
 #include "core_ext.h"
+
 
 
 
@@ -88,18 +93,45 @@ The scheme below provides the bits description for error codes:
 typedef enum e_ErrorType    /*   Comments / Associated Message Strings                      */
 {                           /* ------------------------------------------------------------ */
     E_OK = 0                /*   Never use "RETURN_ERROR" with E_OK; Use "return E_OK;"     */
-
-    /* Invalid Function Calls */
+    ,E_WRITE_FAILED = EIO   /**< Write access failed on memory/device.                      */
+                            /*   String: none, or device name.                              */
+    ,E_NO_DEVICE = ENXIO    /**< The associated device is not initialized.                  */
+                            /*   String: none.                                              */
+    ,E_NOT_AVAILABLE = EAGAIN
+                            /**< Resource is unavailable.                                   */
+                            /*   String: none, unless the operation is not the main goal
+                                 of the function (in this case add resource description).   */
+    ,E_NO_MEMORY = ENOMEM   /**< External memory allocation failed.                         */
+                            /*   String: description of item for which allocation failed.   */
+    ,E_INVALID_ADDRESS = EFAULT
+                            /**< Invalid address.                                           */
+                            /*   String: description of the specific violation.             */
+    ,E_BUSY = EBUSY         /**< Resource or module is busy.                                */
+                            /*   String: none, unless the operation is not the main goal
+                                 of the function (in this case add resource description).   */
+    ,E_ALREADY_EXISTS = EEXIST
+                            /**< Requested resource or item already exists.                 */
+                            /*   Use when resource duplication or sharing are not allowed.
+                                 String: none, unless the operation is not the main goal
+                                 of the function (in this case add item description).       */
+    ,E_INVALID_OPERATION = ENODEV
+                            /**< The operation/command is invalid (unrecognized).           */
+                            /*   String: none.                                              */
+    ,E_INVALID_VALUE = EDOM /**< Invalid value.                                             */
+                            /*   Use for non-enumeration parameters, and
+                                 only when other error types are not suitable.
+                                 String: parameter description + "(should be <attribute>)",
+                                 e.g: "Maximum Rx buffer length (should be divisible by 8)",
+                                      "Channel number (should be even)".                    */
+    ,E_NOT_IN_RANGE = ERANGE/**< Parameter value is out of range.                           */
+                            /*   Don't use this error for enumeration parameters.
+                                 String: parameter description + "(should be %d-%d)",
+                                 e.g: "Number of pad characters (should be 0-15)".          */
+    ,E_NOT_SUPPORTED = ENOSYS
+                            /**< The function is not supported or not implemented.          */
+                            /*   String: none.                                              */
     ,E_INVALID_STATE        /**< The operation is not allowed in current module state.      */
                             /*   String: none.                                              */
-    ,E_INVALID_OPERATION    /**< The operation/command is invalid (unrecognized).           */
-                            /*   String: none.                                              */
-    ,E_NOT_SUPPORTED        /**< The function is not supported or not implemented.          */
-                            /*   String: none.                                              */
-    ,E_NO_DEVICE            /**< The associated device is not initialized.                  */
-                            /*   String: none.                                              */
-
-    /* Invalid Parameters */
     ,E_INVALID_HANDLE       /**< Invalid handle of module or object.                        */
                             /*   String: none, unless the function takes in more than one
                                  handle (in this case add the handle description)           */
@@ -108,12 +140,6 @@ typedef enum e_ErrorType    /*   Comments / Associated Message Strings          
                                  ID (in this case add the ID description)                   */
     ,E_NULL_POINTER         /**< Unexpected NULL pointer.                                   */
                             /*   String: pointer description.                               */
-    ,E_INVALID_VALUE        /**< Invalid value.                                             */
-                            /*   Use for non-enumeration parameters, and
-                                 only when other error types are not suitable.
-                                 String: parameter description + "(should be <attribute>)",
-                                 e.g: "Maximum Rx buffer length (should be divisible by 8)",
-                                      "Channel number (should be even)".                    */
     ,E_INVALID_SELECTION    /**< Invalid selection or mode.                                 */
                             /*   Use for enumeration values, only when other error types
                                  are not suitable.
@@ -126,57 +152,17 @@ typedef enum e_ErrorType    /*   Comments / Associated Message Strings          
                             /*   String: none, unless the function takes in more than one
                                  memory types (in this case add memory description,
                                  e.g: "Data memory", "Buffer descriptors memory").          */
-    ,E_INVALID_INTR_QUEUE   /**< Invalid interrupt queue.                                   */
-                            /*   String: none, unless the function takes in more than one
-                                 interrupt queues (in this case add queue description,
-                                 e.g: "Rx interrupt queue", "Tx interrupt queue").          */
-    ,E_INVALID_PRIORITY     /**< Invalid priority.                                          */
-                            /*   String: none, unless the function takes in more than one
-                                 priority (in this case add priority description).          */
     ,E_INVALID_CLOCK        /**< Invalid clock.                                             */
                             /*   String: none, unless the function takes in more than one
                                  clocks (in this case add clock description,
                                  e.g: "Rx clock", "Tx clock").                              */
-    ,E_INVALID_RATE         /**< Invalid rate value.                                        */
-                            /*   String: none, unless the function takes in more than one
-                                 rate values (in this case add rate description).           */
-    ,E_INVALID_ADDRESS      /**< Invalid address.                                           */
-                            /*   String: description of the specific violation.             */
-    ,E_INVALID_BUS          /**< Invalid bus type.                                          */
-                            /*   String: none, unless the function takes in more than one
-                                 bus parameters (in this case add bus description).         */
-    ,E_BUS_CONFLICT         /**< Bus (or memory) type conflicts with another setting.       */
-                            /*   String: description of the conflicting buses/memories.     */
     ,E_CONFLICT             /**< Some setting conflicts with another setting.               */
                             /*   String: description of the conflicting settings.           */
     ,E_NOT_ALIGNED          /**< Non-aligned address.                                       */
                             /*   String: parameter description + "(should be %d-bytes aligned)",
                                  e.g: "Rx data buffer (should be 32-bytes aligned)".        */
-    ,E_NOT_IN_RANGE         /**< Parameter value is out of range.                           */
-                            /*   Don't use this error for enumeration parameters.
-                                 String: parameter description + "(should be %d-%d)",
-                                 e.g: "Number of pad characters (should be 0-15)".          */
-
-    /* Frame/Buffer Errors */
-    ,E_INVALID_FRAME        /**< Invalid frame object (NULL handle or missing buffers).     */
-                            /*   String: none.                                              */
-    ,E_EMPTY_FRAME          /**< Frame object is empty (has no buffers).                    */
-                            /*   String: none.                                              */
-    ,E_EMPTY_BUFFER         /**< Buffer object is empty (no data, or zero data length).     */
-                            /*   String: none.                                              */
-
-    /* Resource Errors */
-    ,E_NO_MEMORY            /**< External memory allocation failed.                         */
-                            /*   String: description of item for which allocation failed.   */
     ,E_NOT_FOUND            /**< Requested resource or item was not found.                  */
                             /*   Use only when the resource/item is uniquely identified.
-                                 String: none, unless the operation is not the main goal
-                                 of the function (in this case add item description).       */
-    ,E_NOT_AVAILABLE        /**< Resource is unavailable.                                   */
-                            /*   String: none, unless the operation is not the main goal
-                                 of the function (in this case add resource description).   */
-    ,E_ALREADY_EXISTS       /**< Requested resource or item already exists.                 */
-                            /*   Use when resource duplication or sharing are not allowed.
                                  String: none, unless the operation is not the main goal
                                  of the function (in this case add item description).       */
     ,E_FULL                 /**< Resource is full.                                          */
@@ -185,33 +171,23 @@ typedef enum e_ErrorType    /*   Comments / Associated Message Strings          
     ,E_EMPTY                /**< Resource is empty.                                         */
                             /*   String: none, unless the operation is not the main goal
                                  of the function (in this case add resource description).   */
-    ,E_BUSY                 /**< Resource or module is busy.                                */
-                            /*   String: none, unless the operation is not the main goal
-                                 of the function (in this case add resource description).   */
     ,E_ALREADY_FREE         /**< Specified resource or item is already free or deleted.     */
                             /*   String: none, unless the operation is not the main goal
                                  of the function (in this case add item description).       */
-
-    /* Read/Write Access Errors */
     ,E_READ_FAILED          /**< Read access failed on memory/device.                       */
                             /*   String: none, or device name.                              */
-    ,E_WRITE_FAILED         /**< Write access failed on memory/device.                      */
-                            /*   String: none, or device name.                              */
-
-    /* Send/Receive Failures */
+    ,E_INVALID_FRAME        /**< Invalid frame object (NULL handle or missing buffers).     */
+                            /*   String: none.                                              */
     ,E_SEND_FAILED          /**< Send operation failed on device.                           */
                             /*   String: none, or device name.                              */
     ,E_RECEIVE_FAILED       /**< Receive operation failed on device.                        */
                             /*   String: none, or device name.                              */
-
-    /* Operation time-out */
-    ,E_TIMEOUT              /**< The operation timed out.                                   */
+    ,E_TIMEOUT/* = ETIMEDOUT*/  /**< The operation timed out.                                   */
                             /*   String: none.                                              */
 
     ,E_DUMMY_LAST           /* NEVER USED */
 
 } e_ErrorType;
-
 
 /**************************************************************************//**
  @Description    Event Type Enumeration
@@ -362,12 +338,31 @@ int ERROR_DYNAMIC_LEVEL = ERROR_GLOBAL_LEVEL;
 #define RETURN_ERROR(_level, _err, _vmsg) \
         return ERROR_CODE(_err)
 
+#if (REPORT_EVENTS > 0)
+
+#define REPORT_EVENT(_ev, _appId, _flg, _vmsg) \
+    do { \
+        if (_ev##_LEVEL <= EVENT_DYNAMIC_LEVEL) { \
+            XX_EventById((uint32_t)(_ev), (t_Handle)(_appId), (uint16_t)(_flg), NO_MSG); \
+        } \
+    } while (0)
+
+#else
+
+#define REPORT_EVENT(_ev, _appId, _flg, _vmsg)
+
+#endif /* (REPORT_EVENTS > 0) */
+
 
 #else /* DEBUG_ERRORS > 0 */
 
 extern const char *dbgLevelStrings[];
-extern const char *errTypeStrings[];
 extern const char *moduleStrings[];
+#if (REPORT_EVENTS > 0)
+extern const char *eventStrings[];
+#endif /* (REPORT_EVENTS > 0) */
+
+char * ErrTypeStrings (e_ErrorType err);
 
 
 #if ((defined(DEBUG_USING_STATIC_LEVEL)) && (DEBUG_DYNAMIC_LEVEL < REPORT_LEVEL_WARNING))
@@ -395,7 +390,7 @@ extern const char *moduleStrings[];
                      dbgLevelStrings[REPORT_LEVEL_##_level - 1], \
                      moduleStrings[__ERR_MODULE__ >> 16], \
                      PRINT_FMT_PARAMS, \
-                     errTypeStrings[(GET_ERROR_TYPE(_err) - E_OK - 1)]); \
+                     ErrTypeStrings((e_ErrorType)GET_ERROR_TYPE(_err))); \
             XX_Print _vmsg; \
             XX_Print("\r\n"); \
         } \
@@ -408,6 +403,29 @@ extern const char *moduleStrings[];
         return ERROR_CODE(_err); \
     } while (0)
 
+
+#if (REPORT_EVENTS > 0)
+
+#define REPORT_EVENT(_ev, _appId, _flg, _vmsg) \
+    do { \
+        if (_ev##_LEVEL <= EVENT_DYNAMIC_LEVEL) { \
+            XX_Print("~ %s %s Event " PRINT_FORMAT ": %s (flags: 0x%04x); ", \
+                     dbgLevelStrings[_ev##_LEVEL - 1], \
+                     moduleStrings[__ERR_MODULE__ >> 16], \
+                     PRINT_FMT_PARAMS, \
+                     eventStrings[((_ev) - EV_NO_EVENT - 1)], \
+                     (uint16_t)(_flg)); \
+            XX_Print _vmsg; \
+            XX_Print("\r\n"); \
+            XX_EventById((uint32_t)(_ev), (t_Handle)(_appId), (uint16_t)(_flg), NO_MSG); \
+        } \
+    } while (0)
+
+#else /* not REPORT_EVENTS */
+
+#define REPORT_EVENT(_ev, _appId, _flg, _vmsg)
+
+#endif /* (REPORT_EVENTS > 0) */
 
 #endif /* (DEBUG_ERRORS > 0) */
 

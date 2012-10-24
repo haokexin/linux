@@ -112,7 +112,7 @@ typedef _Packed struct t_FmPrsResult {
     volatile uint8_t     l4r;                /**< Layer 4 result */
     volatile uint8_t     cplan;              /**< Classification plan id */
     volatile uint16_t    nxthdr;             /**< Next Header  */
-    volatile uint16_t    cksum;              /**< Checksum */
+    volatile uint16_t    cksum;              /**< running-sum */
     volatile uint16_t    flags_frag_off;     /**< Flags & fragment-offset field of the last IP-header */
     volatile uint8_t     route_type;         /**< Routing type field of a IPv6 routing extension header */
     volatile uint8_t     rhp_ip_valid;       /**< Routing Extension Header Present; last bit is IP valid */
@@ -160,7 +160,6 @@ typedef _Packed struct t_FmPrsResult {
 #define FM_FD_ERR_IPR_NCSP              (0x00100000 | FM_FD_IPR)    /**< IPR non-consistent-sp */
 #define FM_FD_ERR_IPR                   (0x00200000 | FM_FD_IPR)    /**< IPR error */
 #define FM_FD_ERR_IPR_TO                (0x00300000 | FM_FD_IPR)    /**< IPR timeout */
-#define FM_FD_ERR_IPF                   0x00100000                  /**< IPF error */
 
 #ifdef FM_CAPWAP_SUPPORT
 #define FM_FD_ERR_CRE                   0x00200000
@@ -194,7 +193,6 @@ typedef _Packed struct t_FmPrsResult {
                                          FM_FD_ERR_IPR                  | \
                                          FM_FD_ERR_IPR_TO               | \
                                          FM_FD_ERR_IPR_NCSP             | \
-                                         FM_FD_ERR_IPF                  | \
                                          FM_FD_ERR_PHYSICAL             | \
                                          FM_FD_ERR_SIZE                 | \
                                          FM_FD_ERR_CLS_DISCARD          | \
@@ -288,7 +286,7 @@ typedef uint32_t fmSpecialOperations_t;                 /**< typedef for definin
  @Description   FM Exceptions
 *//***************************************************************************/
 typedef enum e_FmExceptions {
-    e_FM_EX_DMA_BUS_ERROR,              /**< DMA bus error. */
+    e_FM_EX_DMA_BUS_ERROR = 0,          /**< DMA bus error. */
     e_FM_EX_DMA_READ_ECC,               /**< Read Buffer ECC error (Valid for FM rev < 6)*/
     e_FM_EX_DMA_SYSTEM_WRITE_ECC,       /**< Write Buffer ECC error on system side (Valid for FM rev < 6)*/
     e_FM_EX_DMA_FM_WRITE_ECC,           /**< Write Buffer ECC error on FM side (Valid for FM rev < 6)*/
@@ -646,7 +644,7 @@ typedef struct t_FmDmaEmergency {
     e_FmDmaEmergencyLevel   emergencyLevel;                 /**< EBS/SOS */
 } t_FmDmaEmergency;
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Description   structure for defining FM threshold
 *//***************************************************************************/
 typedef struct t_FmThresholds {
@@ -671,7 +669,7 @@ typedef struct t_FmThresholds {
                                                                  queued in fmCtl2 dispatch queue*/
 } t_FmThresholds;
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Description   structure for defining DMA thresholds
 *//***************************************************************************/
 typedef struct t_FmDmaThresholds {
@@ -1039,7 +1037,7 @@ t_Error FM_ConfigExternalEccRamsEnable(t_Handle h_Fm, bool enable);
 *//***************************************************************************/
 t_Error FM_ConfigTnumAgingPeriod(t_Handle h_Fm, uint16_t tnumAgingPeriod);
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Function      FM_ConfigDmaEmergencySmoother
 
  @Description   Define DMA emergency smoother.
@@ -1059,7 +1057,7 @@ t_Error FM_ConfigTnumAgingPeriod(t_Handle h_Fm, uint16_t tnumAgingPeriod);
 *//***************************************************************************/
 t_Error FM_ConfigDmaEmergencySmoother(t_Handle h_Fm, uint32_t emergencyCnt);
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Function      FM_ConfigThresholds
 
  @Description   Calling this routine changes the internal driver data base
@@ -1086,7 +1084,7 @@ t_Error FM_ConfigDmaEmergencySmoother(t_Handle h_Fm, uint32_t emergencyCnt);
 *//***************************************************************************/
 t_Error FM_ConfigThresholds(t_Handle h_Fm, t_FmThresholds *p_FmThresholds);
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Function      FM_ConfigDmaSosEmergencyThreshold
 
  @Description   Calling this routine changes the internal driver data base
@@ -1103,7 +1101,7 @@ t_Error FM_ConfigThresholds(t_Handle h_Fm, t_FmThresholds *p_FmThresholds);
 *//***************************************************************************/
 t_Error FM_ConfigDmaSosEmergencyThreshold(t_Handle h_Fm, uint32_t dmaSosEmergency);
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Function      FM_ConfigDmaWriteBufThresholds
 
  @Description   Calling this routine changes the internal driver data base
@@ -1125,7 +1123,7 @@ t_Error FM_ConfigDmaSosEmergencyThreshold(t_Handle h_Fm, uint32_t dmaSosEmergenc
 *//***************************************************************************/
 t_Error FM_ConfigDmaWriteBufThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThresholds);
 
- /**************************************************************************//**
+ /**************************************************************************//*
  @Function      FM_ConfigDmaCommQThresholds
 
  @Description   Calling this routine changes the internal driver data base
@@ -1146,7 +1144,7 @@ t_Error FM_ConfigDmaWriteBufThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDma
 *//***************************************************************************/
 t_Error FM_ConfigDmaCommQThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThresholds);
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Function      FM_ConfigDmaReadBufThresholds
 
  @Description   Calling this routine changes the internal driver data base
@@ -1168,7 +1166,7 @@ t_Error FM_ConfigDmaCommQThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThr
 *//***************************************************************************/
 t_Error FM_ConfigDmaReadBufThresholds(t_Handle h_Fm, t_FmDmaThresholds *p_FmDmaThresholds);
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Function      FM_ConfigDmaWatchdog
 
  @Description   Calling this routine changes the internal driver data base
@@ -1214,8 +1212,8 @@ t_Error FM_ConfigDmaWatchdog(t_Handle h_Fm, uint32_t watchDogValue);
                                      FM_MAX_NUM_OF_10G_TX_PORTS)      /**< Number of available FM ports */
 /* @} */
 
-/**************************************************************************//**
- @Description   A structure for Port bandwidth requirement. Port is identified
+/**************************************************************************//*
+ @Description   A Structure for Port bandwidth requirement. Port is identified
                 by type and relative id.
 *//***************************************************************************/
 typedef struct t_FmPortBandwidth {
@@ -1224,7 +1222,7 @@ typedef struct t_FmPortBandwidth {
     uint8_t             bandwidth;      /**< bandwidth - (in term of percents) */
 } t_FmPortBandwidth;
 
-/**************************************************************************//**
+/**************************************************************************//*
  @Description   A Structure containing an array of Port bandwidth requirements.
                 The user should state the ports requiring bandwidth in terms of
                 percentage - i.e. all port's bandwidths in the array must add
@@ -1330,23 +1328,6 @@ t_Error FM_DumpRegs(t_Handle h_Fm);
                 (i.e. guestId != NCSW_MASTER_ID)
 *//***************************************************************************/
 t_Error FM_SetException(t_Handle h_Fm, e_FmExceptions exception, bool enable);
-
-/**************************************************************************//**
- @Function      FM_SetPortsBandwidth
-
- @Description   Sets relative weights between ports when accessing common resources.
-
- @Param[in]     h_Fm                A handle to an FM Module.
- @Param[in]     p_PortsBandwidth    A structure of ports bandwidths in percentage, i.e.
-                                    total must equal 100.
-
- @Return        E_OK on success; Error code otherwise.
-
- @Cautions      Allowed only following FM_Init().
-                This routine should NOT be called from guest-partition
-                (i.e. guestId != NCSW_MASTER_ID)
-*//***************************************************************************/
-t_Error FM_SetPortsBandwidth(t_Handle h_Fm, t_FmPortsBandwidthParams *p_PortsBandwidth);
 
 /**************************************************************************//**
  @Function      FM_EnableRamsEcc
@@ -1624,7 +1605,8 @@ t_Error FM_CtrlMonStop(t_Handle h_Fm);
 *//***************************************************************************/
 t_Error FM_CtrlMonGetCounters(t_Handle h_Fm, uint8_t fmCtrlIndex, t_FmCtrlMon *p_Mon);
 
-/**************************************************************************//**
+
+/**************************************************************************//*
  @Function      FM_ForceIntr
 
  @Description   Causes an interrupt event on the requested source.
@@ -1641,12 +1623,30 @@ t_Error FM_CtrlMonGetCounters(t_Handle h_Fm, uint8_t fmCtrlIndex, t_FmCtrlMon *p
 *//***************************************************************************/
 t_Error FM_ForceIntr (t_Handle h_Fm, e_FmExceptions exception);
 
+/**************************************************************************//*
+ @Function      FM_SetPortsBandwidth
+
+ @Description   Sets relative weights between ports when accessing common resources.
+
+ @Param[in]     h_Fm                A handle to an FM Module.
+ @Param[in]     p_PortsBandwidth    A structure of ports bandwidths in percentage, i.e.
+                                    total must equal 100.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Init().
+                This routine should NOT be called from guest-partition
+                (i.e. guestId != NCSW_MASTER_ID)
+*//***************************************************************************/
+t_Error FM_SetPortsBandwidth(t_Handle h_Fm, t_FmPortsBandwidthParams *p_PortsBandwidth);
+
 /** @} */ /* end of FM_runtime_control_grp group */
 /** @} */ /* end of FM_lib_grp group */
 /** @} */ /* end of FM_grp group */
 
 
 #ifdef NCSW_BACKWARD_COMPATIBLE_API
+typedef t_FmFirmwareParams          t_FmPcdFirmwareParams;
 typedef t_FmBufferPrefixContent     t_FmPortBufferPrefixContent;
 typedef t_FmExtPoolParams           t_FmPortExtPoolParams;
 typedef t_FmExtPools                t_FmPortExtPools;
@@ -1656,6 +1656,7 @@ typedef e_FmDmaSwapOption           e_FmPortDmaSwapOption;
 typedef e_FmDmaCacheOption          e_FmPortDmaCacheOption;
 
 #define FM_CONTEXTA_GET_OVVERIDE    FM_CONTEXTA_GET_OVERRIDE
+#define FM_CONTEXTA_SET_OVVERIDE    FM_CONTEXTA_SET_OVERRIDE
 
 #define e_FM_EX_BMI_PIPELINE_ECC    e_FM_EX_BMI_STORAGE_PROFILE_ECC
 #define e_FM_PORT_DMA_NO_SWP        e_FM_DMA_NO_SWP

@@ -115,14 +115,12 @@
 #define FM_PCD_MANIP_IP_NO_FRAGMENTATION                    0xFFFF0000
 #define FM_PCD_MANIP_IP_CNIA                                0x20000000
 
+#define FM_PCD_MANIP_IP_REASSM_TIMEOUT_THREAD_THRESH        1024
 #define FM_PCD_MANIP_IP_FRAG_DF_SHIFT                       28
 #define FM_PCD_MANIP_IP_FRAG_SCRATCH_BPID                   24
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_EN                     0x08000000
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_MASK                   0xFF000000
 #define FM_PCD_MANIP_IP_FRAG_SG_BDID_SHIFT                  24
-#ifdef FM_EXP_FEATURES
-#define FM_PCD_MANIP_IP_FRAG_OPT_COUNT_EN                   0x04000000
-#endif /* FM_EXP_FEATURES */
 
 #define FM_PCD_MANIP_IPSEC_DEC                              0x10000000
 #define FM_PCD_MANIP_IPSEC_VIPV_EN                          0x08000000
@@ -228,11 +226,11 @@
 #define MANIP_SET_UNIFIED_TBL_PTR_INDICATION(h_Manip)   (((t_FmPcdManip *)h_Manip)->unifiedTablePtr = TRUE)
 #define MANIP_GET_MURAM(h_Manip)                        (((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram)
 #define MANIP_FREE_HMTD(h_Manip)                        \
-        {if(((t_FmPcdManip *)h_Manip)->muramAllocate)   \
+        {if (((t_FmPcdManip *)h_Manip)->muramAllocate)    \
             FM_MURAM_FreeMem(((t_FmPcd *)((t_FmPcdManip *)h_Manip)->h_FmPcd)->h_FmMuram, ((t_FmPcdManip *)h_Manip)->h_Ad);\
         else                                            \
-            XX_Free(((t_FmPcdManip *)h_Manip)->h_Ad);   \
-        ((t_FmPcdManip *)h_Manip)->h_Ad = NULL;         \
+            XX_Free(((t_FmPcdManip *)h_Manip)->h_Ad);    \
+        ((t_FmPcdManip *)h_Manip)->h_Ad = NULL;            \
         }
 /* position regarding Manip SW structure */
 #define MANIP_IS_FIRST(h_Manip)                         (!(((t_FmPcdManip *)h_Manip)->h_PrevManip))
@@ -242,12 +240,12 @@
                                                          (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_LAST))
 #define MANIP_IS_UNIFIED_NON_LAST(h_Manip)              ((((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_FIRST) ||\
                                                          (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_MID))
-#define MANIP_IS_UNIFIED_FIRST(h_Manip)                 (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_FIRST)
-#define MANIP_IS_UNIFIED_LAST(h_Manip)                  (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_LAST)
+#define MANIP_IS_UNIFIED_FIRST(h_Manip)                    (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_FIRST)
+#define MANIP_IS_UNIFIED_LAST(h_Manip)                   (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_LAST)
 
 #define MANIP_UPDATE_UNIFIED_POSITION(h_Manip)          (((t_FmPcdManip *)h_Manip)->unifiedPosition = \
-                                                        (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_NONE)? \
-                                                           e_MANIP_UNIFIED_LAST : e_MANIP_UNIFIED_MID)
+                                                         (((t_FmPcdManip *)h_Manip)->unifiedPosition == e_MANIP_UNIFIED_NONE)? \
+                                                            e_MANIP_UNIFIED_LAST : e_MANIP_UNIFIED_MID)
 
 typedef enum e_ManipUnifiedPosition {
     e_MANIP_UNIFIED_NONE = 0,
@@ -410,6 +408,7 @@ typedef struct t_IpReassmParams
     uint32_t                        nonConsistentSpFqid;
 } t_IpReassmParams;
 
+
 typedef struct{
     e_FmPcdManipType        type;
     t_FmPcdManipParams      manipParams;
@@ -421,7 +420,7 @@ typedef struct{
     t_Handle                h_NextManip;
     t_Handle                h_PrevManip;
     /* HdrManip parameters*/
-    uint32_t                *p_Hmct;
+    uint8_t                 *p_Hmct;
     uint8_t                 *p_Data;
     bool                    dontParseAfterManip;
     bool                    fieldUpdate;

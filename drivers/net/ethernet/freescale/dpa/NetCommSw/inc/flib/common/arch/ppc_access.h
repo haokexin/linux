@@ -30,16 +30,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef FL_E500_MACROS_H
+#define FL_E500_MACROS_H
 
-#ifndef __DTSEC_MII_ACC_H
-#define __DTSEC_MII_ACC_H
+#endif /* FL_E500_MACROS_H */
 
-#include "std_ext.h"
-
-
-t_Error DTSEC_MII_WritePhyReg(t_Handle h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t data);
-t_Error DTSEC_MII_ReadPhyReg(t_Handle  h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t *p_Data);
-t_Error DTSEC_MII_Init(t_Handle h_Dtsec);
-
-
-#endif /* __DTSEC_MII_ACC_H */

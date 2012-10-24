@@ -43,21 +43,24 @@
 static void WritePhyReg10G(t_Memac   *p_Memac,
                            uint8_t   phyAddr,
                            uint8_t   reg,
-                           uint16_t  data,
-                           uint16_t  clkDiv)
+                           uint16_t  data)
 {
     t_MemacMiiAccessMemMap  *p_MiiAccess;
     uint32_t                tmpReg;
 
     p_MiiAccess = p_Memac->p_MiiMemMap;
 
-    /* Set up MDC frequency and 10G interface */
     tmpReg = GET_UINT32(p_MiiAccess->mdio_cfg);
-    tmpReg &= ~MDIO_CFG_CLK_DIV_MASK;
-    tmpReg |= (clkDiv << MDIO_CFG_CLK_DIV_SHIFT);
+    /* Leave only MDIO_CLK_DIV bits set on */
+    tmpReg &= MDIO_CFG_CLK_DIV_MASK;
+    /* Set maximum MDIO_HOLD value to allow phy to see
+       change of data signal */
+    tmpReg |= MDIO_CFG_HOLD_MASK;
+    /* Add 10G interface mode */
     tmpReg |= MDIO_CFG_ENC45;
     WRITE_UINT32(p_MiiAccess->mdio_cfg, tmpReg);
 
+    /* Wait for command completion */
     while ((GET_UINT32(p_MiiAccess->mdio_cfg)) & MDIO_CFG_BSY)
         XX_UDelay(1);
 
@@ -83,21 +86,24 @@ static void WritePhyReg10G(t_Memac   *p_Memac,
 static t_Error ReadPhyReg10G(t_Memac   *p_Memac,
                              uint8_t   phyAddr,
                              uint8_t   reg,
-                             uint16_t  *p_Data,
-                             uint16_t  clkDiv)
+                             uint16_t  *p_Data)
 {
     t_MemacMiiAccessMemMap  *p_MiiAccess;
     uint32_t                tmpReg;
 
     p_MiiAccess = p_Memac->p_MiiMemMap;
 
-    /* Set up MDC frequency and 10G interface */
     tmpReg = GET_UINT32(p_MiiAccess->mdio_cfg);
-    tmpReg &= ~MDIO_CFG_CLK_DIV_MASK;
-    tmpReg |= (clkDiv << MDIO_CFG_CLK_DIV_SHIFT);
+    /* Leave only MDIO_CLK_DIV bits set on */
+    tmpReg &= MDIO_CFG_CLK_DIV_MASK;
+    /* Set maximum MDIO_HOLD value to allow phy to see
+       change of data signal */
+    tmpReg |= MDIO_CFG_HOLD_MASK;
+    /* Add 10G interface mode */
     tmpReg |= MDIO_CFG_ENC45;
     WRITE_UINT32(p_MiiAccess->mdio_cfg, tmpReg);
 
+    /* Wait for command completion */
     while ((GET_UINT32(p_MiiAccess->mdio_cfg)) & MDIO_CFG_BSY)
         XX_UDelay(1);
 
@@ -123,7 +129,7 @@ static t_Error ReadPhyReg10G(t_Memac   *p_Memac,
 
     *p_Data =  (uint16_t)GET_UINT32(p_MiiAccess->mdio_data);
 
-    /* Check error */
+    /* Check if there was an error */
     tmpReg  = GET_UINT32(p_MiiAccess->mdio_cfg);
 
     if (tmpReg & MDIO_CFG_READ_ERR)
@@ -137,21 +143,19 @@ static t_Error ReadPhyReg10G(t_Memac   *p_Memac,
 static void WritePhyReg1G(t_Memac   *p_Memac,
                           uint8_t   phyAddr,
                           uint8_t   reg,
-                          uint16_t  data,
-                          uint16_t  clkDiv)
+                          uint16_t  data)
 {
     t_MemacMiiAccessMemMap  *p_MiiAccess;
     uint32_t                tmpReg;
 
     p_MiiAccess = p_Memac->p_MiiMemMap;
 
-    /* Set up MDC frequency and 1G interface */
+    /* Leave only MDIO_CLK_DIV and MDIO_HOLD bits set on */
     tmpReg = GET_UINT32(p_MiiAccess->mdio_cfg);
-    tmpReg &= ~MDIO_CFG_CLK_DIV_MASK;
-    tmpReg |= (clkDiv << MDIO_CFG_CLK_DIV_SHIFT);
-    tmpReg &= ~MDIO_CFG_ENC45;
+    tmpReg &= (MDIO_CFG_CLK_DIV_MASK | MDIO_CFG_HOLD_MASK);
     WRITE_UINT32(p_MiiAccess->mdio_cfg, tmpReg);
 
+    /* Wait for command completion */
     while ((GET_UINT32(p_MiiAccess->mdio_cfg)) & MDIO_CFG_BSY)
         XX_UDelay(1);
 
@@ -160,11 +164,14 @@ static void WritePhyReg1G(t_Memac   *p_Memac,
     tmpReg |= reg;
     WRITE_UINT32(p_MiiAccess->mdio_ctrl, tmpReg);
 
+    while ((GET_UINT32(p_MiiAccess->mdio_cfg)) & MDIO_CFG_BSY)
+        XX_UDelay(1);
+
     WRITE_UINT32(p_MiiAccess->mdio_data, data);
 
     CORE_MemoryBarrier();
 
-    /* Wait for write transaction end */
+    /* Wait for write transaction to end */
     while ((GET_UINT32(p_MiiAccess->mdio_data)) & MDIO_DATA_BSY)
         XX_UDelay(1);
 }
@@ -172,21 +179,19 @@ static void WritePhyReg1G(t_Memac   *p_Memac,
 static t_Error ReadPhyReg1G(t_Memac   *p_Memac,
                             uint8_t   phyAddr,
                             uint8_t   reg,
-                            uint16_t  *p_Data,
-                            uint16_t  clkDiv)
+                            uint16_t  *p_Data)
 {
     t_MemacMiiAccessMemMap  *p_MiiAccess;
     uint32_t                tmpReg;
 
     p_MiiAccess = p_Memac->p_MiiMemMap;
 
-    /* Set up MDC frequency and 1G interface */
+    /* Leave only MDIO_CLK_DIV and MDIO_HOLD bits set on */
     tmpReg = GET_UINT32(p_MiiAccess->mdio_cfg);
-    tmpReg &= ~MDIO_CFG_CLK_DIV_MASK;
-    tmpReg |= (clkDiv << MDIO_CFG_CLK_DIV_SHIFT);
-    tmpReg &= ~MDIO_CFG_ENC45;
+    tmpReg &= (MDIO_CFG_CLK_DIV_MASK | MDIO_CFG_HOLD_MASK);
     WRITE_UINT32(p_MiiAccess->mdio_cfg, tmpReg);
 
+    /* Wait for command completion */
     while ((GET_UINT32(p_MiiAccess->mdio_cfg)) & MDIO_CFG_BSY)
         XX_UDelay(1);
 
@@ -195,6 +200,9 @@ static t_Error ReadPhyReg1G(t_Memac   *p_Memac,
     tmpReg |= reg;
     tmpReg |= MDIO_CTL_READ;
     WRITE_UINT32(p_MiiAccess->mdio_ctrl, tmpReg);
+
+    while ((GET_UINT32(p_MiiAccess->mdio_cfg)) & MDIO_CFG_BSY)
+        XX_UDelay(1);
 
     /* Wait for data to be available */
     while ((GET_UINT32(p_MiiAccess->mdio_data)) & MDIO_DATA_BSY)
@@ -221,7 +229,6 @@ t_Error MEMAC_MII_WritePhyReg(t_Handle  h_Memac,
 {
     t_Memac                 *p_Memac = (t_Memac *)h_Memac;
     bool                    phy10G;
-    uint16_t                clkDiv;
 
     SANITY_CHECK_RETURN_ERROR(p_Memac, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Memac->p_MiiMemMap, E_INVALID_HANDLE);
@@ -230,15 +237,10 @@ t_Error MEMAC_MII_WritePhyReg(t_Handle  h_Memac,
        In 10G interface both phyAddr and devAddr present. */
     phy10G = (phyAddr > 0x1F) ? TRUE : FALSE;
 
-    /* Figure out MDC frequency: the resulting clock should be 2.5 MHz.
-       MDC freq (2.5 MHz) = memacRefClk / ((2*MDIO_CLK_DIV)+1) */
-    clkDiv = DIV_CEIL((p_Memac->fmMacControllerDriver.clkFreq*10), 2*25) - 1;
-    clkDiv = DIV_CEIL(clkDiv, 2);
-
     if (phy10G)
-        WritePhyReg10G(p_Memac, phyAddr, reg, data, clkDiv);
+        WritePhyReg10G(p_Memac, phyAddr, reg, data);
     else
-        WritePhyReg1G(p_Memac, phyAddr, reg, data, clkDiv);
+        WritePhyReg1G(p_Memac, phyAddr, reg, data);
 
     return E_OK;
 }
@@ -251,7 +253,6 @@ t_Error MEMAC_MII_ReadPhyReg(t_Handle h_Memac,
 {
     t_Memac                 *p_Memac = (t_Memac *)h_Memac;
     bool                    phy10G;
-    uint16_t                clkDiv;
     t_Error                 errCode;
 
     SANITY_CHECK_RETURN_ERROR(p_Memac, E_INVALID_HANDLE);
@@ -261,15 +262,10 @@ t_Error MEMAC_MII_ReadPhyReg(t_Handle h_Memac,
        In 10G interface both phyAddr and devAddr present. */
     phy10G = (phyAddr > 0x1F) ? TRUE : FALSE;
 
-    /* Figure out MDC frequency: the resulting clock should be 2.5 MHz.
-       MDC freq (2.5 MHz) = memacRefClk / ((2*MDIO_CLK_DIV)+1) */
-    clkDiv = DIV_CEIL((p_Memac->fmMacControllerDriver.clkFreq*10), 2*25) - 1;
-    clkDiv = DIV_CEIL(clkDiv, 2);
-
     if (phy10G)
-        errCode = ReadPhyReg10G(p_Memac, phyAddr, reg, p_Data, clkDiv);
+        errCode = ReadPhyReg10G(p_Memac, phyAddr, reg, p_Data);
     else
-        errCode = ReadPhyReg1G(p_Memac, phyAddr, reg, p_Data, clkDiv);
+        errCode = ReadPhyReg1G(p_Memac, phyAddr, reg, p_Data);
 
     return errCode;
 }

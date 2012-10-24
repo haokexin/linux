@@ -187,34 +187,34 @@ typedef uint8_t t_GenericCodes;
 #define MAX_KG_SCH_PP_BIT_OFFSET            15
 #define MAX_DIST_FQID_SHIFT                 23
 
-#define GET_MASK_SEL_SHIFT(shift,i)             \
-switch(i) {                                     \
-    case(0):shift = 26;break;                   \
-    case(1):shift = 20;break;                   \
-    case(2):shift = 10;break;                   \
-    case(3):shift = 4;break;                    \
-    default:                                    \
-    RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);\
+#define GET_MASK_SEL_SHIFT(shift,i)                 \
+switch (i) {                                        \
+    case (0):shift = 26;break;                      \
+    case (1):shift = 20;break;                      \
+    case (2):shift = 10;break;                      \
+    case (3):shift = 4;break;                       \
+    default:                                        \
+    RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);   \
 }
 
-#define GET_MASK_OFFSET_SHIFT(shift,i)          \
-switch(i) {                                     \
-    case(0):shift = 16;break;                   \
-    case(1):shift = 0;break;                    \
-    case(2):shift = 28;break;                   \
-    case(3):shift = 24;break;                   \
-    default:                                    \
-    RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);\
+#define GET_MASK_OFFSET_SHIFT(shift,i)              \
+switch (i) {                                        \
+    case (0):shift = 16;break;                      \
+    case (1):shift = 0;break;                       \
+    case (2):shift = 28;break;                      \
+    case (3):shift = 24;break;                      \
+    default:                                        \
+    RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);   \
 }
 
-#define GET_MASK_SHIFT(shift,i)                 \
-switch(i) {                                     \
-    case(0):shift = 24;break;                   \
-    case(1):shift = 16;break;                   \
-    case(2):shift = 8;break;                    \
-    case(3):shift = 0;break;                    \
-    default:                                    \
-    RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);\
+#define GET_MASK_SHIFT(shift,i)                     \
+switch (i) {                                        \
+    case (0):shift = 24;break;                      \
+    case (1):shift = 16;break;                      \
+    case (2):shift = 8;break;                       \
+    case (3):shift = 0;break;                       \
+    default:                                        \
+    RETURN_ERROR(MAJOR, E_INVALID_VALUE, NO_MSG);   \
 }
 
 /***********************************************************************/

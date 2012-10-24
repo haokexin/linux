@@ -46,25 +46,6 @@
 
 #define TX_CONF_STATUS_UNSENT 0x1
 
-#ifdef CORE_8BIT_ACCESS_ERRATA
-#undef WRITE_UINT16
-#undef GET_UINT16
-
-#define WRITE_UINT16(addr, val)  \
-    do{                             \
-            if((int)&(addr) % 4)    \
-                WRITE_UINT32(*(uint32_t*)(uint32_t)((uint32_t)&addr & ~0x3L),                                           \
-                        ((GET_UINT32(*(uint32_t*)(uint32_t)((uint32_t)&addr & ~0x3L)) & 0xffff0000) | (uint32_t)val));  \
-            else                    \
-                WRITE_UINT32(*(uint32_t*)&addr,                                                                         \
-                        ((GET_UINT32(*(uint32_t*)&addr) & 0x0000ffff) | (uint32_t)val<<16));                            \
-      }while(0);
-
-#define GET_UINT16(addr) (((uint32_t)&addr%4) ?           \
-       ((uint16_t)GET_UINT32(*(uint32_t*)(uint32_t)((uint32_t)&addr & ~0x3L))):  \
-       ((uint16_t)(GET_UINT32(*(uint32_t*)(uint32_t)&addr) >> 16)))
-#endif /* CORE_8BIT_ACCESS_ERRATA */
-
 
 typedef enum e_TxConfType
 {
@@ -313,13 +294,8 @@ t_Error FmPortImCheckInitParameters(t_FmPort *p_FmPort)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("max Rx buffer length must be power of 2!!!"));
         if (p_FmPort->im.mrblr < 256)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("max Rx buffer length must at least 256!!!"));
-        if(p_FmPort->p_FmPortDriverParam->liodnOffset & ~FM_LIODN_OFFSET_MASK)
+        if (p_FmPort->p_FmPortDriverParam->liodnOffset & ~FM_LIODN_OFFSET_MASK)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("liodnOffset is larger than %d", FM_LIODN_OFFSET_MASK+1));
-/* TODO - add checks */
-    }
-    else
-    {
-/* TODO - add checks */
     }
 
     return E_OK;
@@ -396,19 +372,19 @@ t_Error FmPortImInit(t_FmPort *p_FmPort)
         {
             /* Allocate, configure and register interrupts */
             err = FmAllocFmanCtrlEventReg(p_FmPort->h_Fm, &p_FmPort->fmanCtrlEventId);
-            if(err)
+            if (err)
                 RETURN_ERROR(MAJOR, err, NO_MSG);
 
             ASSERT_COND(!(p_FmPort->fmanCtrlEventId & ~IM_RXQD_FPMEVT_SEL_MASK));
             tmpReg16 = (uint16_t)(p_FmPort->fmanCtrlEventId & IM_RXQD_FPMEVT_SEL_MASK);
             tmpReg32 = 0;
 
-            if(p_FmPort->exceptions & IM_EV_BSY)
+            if (p_FmPort->exceptions & IM_EV_BSY)
             {
                 tmpReg16 |= IM_RXQD_BSYINTM;
                 tmpReg32 |= IM_EV_BSY;
             }
-            if(!p_FmPort->polling)
+            if (!p_FmPort->polling)
             {
                 tmpReg16 |= IM_RXQD_RXFINTM;
                 tmpReg32 |= IM_EV_RX;
@@ -579,7 +555,7 @@ t_Error FM_PORT_ConfigIMPolling(t_Handle h_FmPort)
     SANITY_CHECK_RETURN_ERROR(p_FmPort->imEn, E_INVALID_STATE);
     SANITY_CHECK_RETURN_ERROR(p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
 
-    if((p_FmPort->portType != e_FM_PORT_TYPE_RX_10G) && (p_FmPort->portType != e_FM_PORT_TYPE_RX))
+    if ((p_FmPort->portType != e_FM_PORT_TYPE_RX_10G) && (p_FmPort->portType != e_FM_PORT_TYPE_RX))
         RETURN_ERROR(MAJOR, E_INVALID_OPERATION, ("Available for Rx ports only"));
 
     if (!FmIsMaster(p_FmPort->h_Fm))
@@ -602,16 +578,16 @@ t_Error FM_PORT_SetIMExceptions(t_Handle h_FmPort, e_FmPortExceptions exception,
     SANITY_CHECK_RETURN_ERROR(p_FmPort->imEn, E_INVALID_STATE);
     SANITY_CHECK_RETURN_ERROR(!p_FmPort->p_FmPortDriverParam, E_INVALID_HANDLE);
 
-    if(exception == e_FM_PORT_EXCEPTION_IM_BUSY)
+    if (exception == e_FM_PORT_EXCEPTION_IM_BUSY)
     {
-        if(enable)
+        if (enable)
         {
             p_FmPort->exceptions |= IM_EV_BSY;
-            if(p_FmPort->fmanCtrlEventId == (uint8_t)NO_IRQ)
+            if (p_FmPort->fmanCtrlEventId == (uint8_t)NO_IRQ)
             {
                 /* Allocate, configure and register interrupts */
                 err = FmAllocFmanCtrlEventReg(p_FmPort->h_Fm, &p_FmPort->fmanCtrlEventId);
-                if(err)
+                if (err)
                     RETURN_ERROR(MAJOR, err, NO_MSG);
                 ASSERT_COND(!(p_FmPort->fmanCtrlEventId & ~IM_RXQD_FPMEVT_SEL_MASK));
 

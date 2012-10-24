@@ -251,12 +251,7 @@ typedef enum
 #define FM_NO_OP_OBSERVED_POOLS
 #define FM_FRAME_END_PARAMS_FOR_OP
 #define FM_DEQ_PIPELINE_PARAMS_FOR_OP
-#define FM_NO_TOTAL_DMAS
 #define FM_QMI_NO_SINGLE_ECC_EXCEPTION
-//TODO - for simulator only, due to wrong reset values. Remove when fixed,
-//and also search for the places it appears in the source files and remove
-//comments of majorRev<6
-#define FM_NO_GUARANTEED_RESET_VALUES
 
 /* FM erratas */
 //#define FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
@@ -266,6 +261,8 @@ typedef enum
 #define FM_MAGIC_PACKET_UNRECOGNIZED_ERRATA_DTSEC2              /* No implementation, Out of LLD scope */
 
 
+
+#define FM_BCB_ERRATA_BMI_SW001
 #define FM_LEN_CHECK_ERRATA_FMAN_SW002
 
 

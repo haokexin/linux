@@ -20,6 +20,7 @@ EXTRA_CFLAGS += -I$(NCSW)/inc
 EXTRA_CFLAGS += -I$(NCSW)/inc/cores
 EXTRA_CFLAGS += -I$(NCSW)/inc/etc
 EXTRA_CFLAGS += -I$(NCSW)/inc/Peripherals
+EXTRA_CFLAGS += -I$(NCSW)/inc/flib
 
 ifeq ("$(CONFIG_FMAN_P3040_P4080_P5020)", "y")
 EXTRA_CFLAGS += -I$(NCSW)/inc/integrations/P3040_P4080_P5020

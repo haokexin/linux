@@ -556,6 +556,10 @@ t_Error FM_MAC_AdjustLink(t_Handle h_FmMac, e_EnetSpeed speed, bool fullDuplex)
     if (p_FmMacControllerDriver->f_FM_MAC_AdjustLink)
         return p_FmMacControllerDriver->f_FM_MAC_AdjustLink(h_FmMac, speed, fullDuplex);
 
+#if (DPAA_VERSION >= 11)
+    return E_OK;
+#endif
+
     RETURN_ERROR(MINOR, E_NOT_SUPPORTED, NO_MSG);
 }
 

@@ -60,7 +60,6 @@ typedef enum e_EnetAddrType
     e_ENET_ADDR_TYPE_BROADCAST      /**< Broadcast address */
 } e_EnetAddrType;
 
-
 /**************************************************************************//**
  @Description   Ethernet MAC-PHY Interface
 *//***************************************************************************/
@@ -152,7 +151,20 @@ typedef enum e_EnetMode
 #define ENET_INTERFACE_FROM_MODE(mode)          (e_EnetInterface)((mode) & 0xFFFF0000)
 #define ENET_SPEED_FROM_MODE(mode)              (e_EnetSpeed)((mode) & 0x0000FFFF)
 
+#define ENET_ADDR_TO_UINT64(_enetAddr)                  \
+        (uint64_t)(((uint64_t)(_enetAddr)[0] << 40) |   \
+                   ((uint64_t)(_enetAddr)[1] << 32) |   \
+                   ((uint64_t)(_enetAddr)[2] << 24) |   \
+                   ((uint64_t)(_enetAddr)[3] << 16) |   \
+                   ((uint64_t)(_enetAddr)[4] << 8) |    \
+                   ((uint64_t)(_enetAddr)[5]))
 
+#define MAKE_ENET_ADDR_FROM_UINT64(_addr64, _enetAddr)              \
+        do {                                                        \
+            int i;                                                  \
+            for (i=0; i < ENET_NUM_OCTETS_PER_ADDRESS; i++)         \
+                (_enetAddr)[i] = (uint8_t)((_addr64) >> ((5-i)*8)); \
+        } while (0)
 
 #endif /* __ENET_EXT_H */
 

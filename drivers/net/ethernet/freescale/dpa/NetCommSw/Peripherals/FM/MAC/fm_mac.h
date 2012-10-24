@@ -51,20 +51,10 @@
 /**************************************************************************//**
  @Description       defaults
 *//***************************************************************************/
-#define DEFAULT_wanModeEnable               FALSE
-#define DEFAULT_promiscuousEnable           FALSE
-#define DEFAULT_rxIgnorePause               FALSE
-#define DEFAULT_maxFrameLength              0x600
-#define DEFAULT_pauseTime                   0xf000
+
+
 #define DEFAULT_halfDuplex                  FALSE
-#define DEFAULT_loopback                    FALSE
-#define DEFAULT_lengthCheckEnable           FALSE
 #define DEFAULT_padAndCrcEnable             TRUE
-
-#ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
-#define DEFAULT_skipFman11Workaround        FALSE
-#endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
-
 #define DEFAULT_resetOnInit                 FALSE
 
 
@@ -181,7 +171,7 @@ static __inline__ void FreeHashTable(t_EthHash *p_Hash)
     {
         if  (p_Hash->p_Lsts)
         {
-            for(i=0; i<p_Hash->size; i++)
+            for (i=0; i<p_Hash->size; i++)
             {
                 p_HashEntry = DequeueAddrFromHashEntry(&p_Hash->p_Lsts[i]);
                 while (p_HashEntry)
@@ -222,7 +212,7 @@ static __inline__ t_EthHash * AllocHashTable(uint16_t size)
         return NULL;
     }
 
-    for(i=0 ; i<p_Hash->size; i++)
+    for (i=0 ; i<p_Hash->size; i++)
         INIT_LIST(&p_Hash->p_Lsts[i]);
 
     return p_Hash;

@@ -150,7 +150,7 @@ static void fm_vsp_fill_entry(fm_pcd_storage_profile_regs   *regs,
     tmp_reg |= (uint32_t)fm_vsp_params->int_context_cache_attr << FM_SP_DMA_ATTR_IC_CACHE_SHIFT;
     tmp_reg |= (uint32_t)fm_vsp_params->header_cache_attr << FM_SP_DMA_ATTR_HDR_CACHE_SHIFT;
     tmp_reg |= (uint32_t)fm_vsp_params->scatter_gather_cache_attr << FM_SP_DMA_ATTR_SG_CACHE_SHIFT;
-    if(fm_vsp_params->dma_write_optimize)
+    if (fm_vsp_params->dma_write_optimize)
         tmp_reg |= FM_SP_DMA_ATTR_WRITE_OPTIMIZE;
     WRITE_UINT32(sp_regs->fm_sp_da, tmp_reg);
 
@@ -239,10 +239,10 @@ void FmSpSetBufPoolsInAscOrderOfBufSizes(t_FmExtPools   *p_FmExtPools,
             else
             {
                 /* find the right place for this poolId */
-                if(bufSize < sizesArray[orderedArray[j]])
+                if (bufSize < sizesArray[orderedArray[j]])
                 {
                     /* move the poolIds one place ahead to make room for this poolId */
-                    for(k=i;k>j;k--)
+                    for (k=i;k>j;k--)
                        orderedArray[k] = orderedArray[k-1];
 
                     /* now k==j, this is the place for the new size */
@@ -263,35 +263,35 @@ t_Error FmSpCheckBufPoolsParams(t_FmExtPools            *p_FmExtPools,
     bool        found;
     uint8_t     count = 0;
 
-    if(p_FmExtPools)
+    if (p_FmExtPools)
     {
-        if(p_FmExtPools->numOfPoolsUsed > FM_PORT_MAX_NUM_OF_EXT_POOLS)
+        if (p_FmExtPools->numOfPoolsUsed > FM_PORT_MAX_NUM_OF_EXT_POOLS)
                 RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("numOfPoolsUsed can't be larger than %d", FM_PORT_MAX_NUM_OF_EXT_POOLS));
 
-        for(i=0;i<p_FmExtPools->numOfPoolsUsed;i++)
+        for (i=0;i<p_FmExtPools->numOfPoolsUsed;i++)
         {
-            if(p_FmExtPools->extBufPool[i].id >= BM_MAX_NUM_OF_POOLS)
+            if (p_FmExtPools->extBufPool[i].id >= BM_MAX_NUM_OF_POOLS)
                 RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("extBufPools.extBufPool[%d].id can't be larger than %d", i, BM_MAX_NUM_OF_POOLS));
-            if(!p_FmExtPools->extBufPool[i].size)
+            if (!p_FmExtPools->extBufPool[i].size)
                 RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("extBufPools.extBufPool[%d].size is 0", i));
         }
     }
-    if(!p_FmExtPools && (p_FmBackupBmPools || p_FmBufPoolDepletion))
+    if (!p_FmExtPools && (p_FmBackupBmPools || p_FmBufPoolDepletion))
           RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("backupBmPools ot bufPoolDepletion can not be defined without external pools"));
 
     /* backup BM pools indication is valid only for some chip derivatives
        (limited by the config routine) */
-    if(p_FmBackupBmPools)
+    if (p_FmBackupBmPools)
     {
-        if(p_FmBackupBmPools->numOfBackupPools >= p_FmExtPools->numOfPoolsUsed)
+        if (p_FmBackupBmPools->numOfBackupPools >= p_FmExtPools->numOfPoolsUsed)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("p_BackupBmPools must be smaller than extBufPools.numOfPoolsUsed"));
         found = FALSE;
-        for(i = 0;i<p_FmBackupBmPools->numOfBackupPools;i++)
+        for (i = 0;i<p_FmBackupBmPools->numOfBackupPools;i++)
         {
 
-            for(j=0;j<p_FmExtPools->numOfPoolsUsed;j++)
+            for (j=0;j<p_FmExtPools->numOfPoolsUsed;j++)
             {
-                if(p_FmBackupBmPools->poolIds[i] == p_FmExtPools->extBufPool[j].id)
+                if (p_FmBackupBmPools->poolIds[i] == p_FmExtPools->extBufPool[j].id)
                 {
                     found = TRUE;
                     break;
@@ -348,7 +348,7 @@ t_Error FmSpCheckBufPoolsParams(t_FmExtPools            *p_FmExtPools,
         count = 0;
         for (i=0;i<BM_MAX_NUM_OF_POOLS;i++)
         {
-            if(p_FmBufPoolDepletion->poolsToConsiderForSingleMode[i])
+            if (p_FmBufPoolDepletion->poolsToConsiderForSingleMode[i])
             {
                 for (j=0;j<p_FmExtPools->numOfPoolsUsed;j++)
                 {
@@ -532,7 +532,7 @@ t_Handle FM_VSP_Config(t_FmVspParams *p_FmVspParams)
     t_FmVspEntry          *p_FmVspEntry = NULL;
 
     p_FmVspEntry = (t_FmVspEntry *)XX_Malloc(sizeof(t_FmVspEntry));
-    if(!p_FmVspEntry)
+    if (!p_FmVspEntry)
     {
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("p_StorageProfile allocation failed"));
         return NULL;
@@ -540,7 +540,7 @@ t_Handle FM_VSP_Config(t_FmVspParams *p_FmVspParams)
     memset(p_FmVspEntry, 0, sizeof(t_FmVspEntry));
 
     p_FmVspEntry->p_FmVspEntryDriverParams = (t_FmVspEntryDriverParams *)XX_Malloc(sizeof(t_FmVspEntryDriverParams));
-    if(!p_FmVspEntry->p_FmVspEntryDriverParams)
+    if (!p_FmVspEntry->p_FmVspEntryDriverParams)
     {
         REPORT_ERROR(MAJOR, E_NO_MEMORY, ("p_StorageProfile allocation failed"));
         XX_Free(p_FmVspEntry);
@@ -609,7 +609,7 @@ t_Error FM_VSP_Init(t_Handle h_FmVsp)
         RETURN_ERROR(MAJOR, err, NO_MSG);
 
 
-    p_FmVspEntry->p_FmSpRegsBase =
+     p_FmVspEntry->p_FmSpRegsBase =
         (fm_pcd_storage_profile_regs *)FmGetVSPBaseAddr(p_FmVspEntry->h_Fm);
     if (!p_FmVspEntry->p_FmSpRegsBase)
         RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("impossible to initialize SpRegsBase"));
@@ -769,7 +769,7 @@ t_Error FM_VSP_ConfigPoolDepletion(t_Handle h_FmVsp, t_FmBufPoolDepletion *p_Buf
     SANITY_CHECK_RETURN_ERROR(p_BufPoolDepletion, E_INVALID_HANDLE);
 
     p_FmVspEntry->p_FmVspEntryDriverParams->p_BufPoolDepletion = (t_FmBufPoolDepletion *)XX_Malloc(sizeof(t_FmBufPoolDepletion));
-    if(!p_FmVspEntry->p_FmVspEntryDriverParams->p_BufPoolDepletion)
+    if (!p_FmVspEntry->p_FmVspEntryDriverParams->p_BufPoolDepletion)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("p_BufPoolDepletion allocation failed"));
     memcpy(p_FmVspEntry->p_FmVspEntryDriverParams->p_BufPoolDepletion, p_BufPoolDepletion, sizeof(t_FmBufPoolDepletion));
 
@@ -785,7 +785,7 @@ t_Error FM_VSP_ConfigBackupPools(t_Handle h_FmVsp, t_FmBackupBmPools *p_BackupBm
     SANITY_CHECK_RETURN_ERROR(p_BackupBmPools, E_INVALID_HANDLE);
 
     p_FmVspEntry->p_FmVspEntryDriverParams->p_BackupBmPools = (t_FmBackupBmPools *)XX_Malloc(sizeof(t_FmBackupBmPools));
-    if(!p_FmVspEntry->p_FmVspEntryDriverParams->p_BackupBmPools)
+    if (!p_FmVspEntry->p_FmVspEntryDriverParams->p_BackupBmPools)
         RETURN_ERROR(MAJOR, E_NO_MEMORY, ("p_BackupBmPools allocation failed"));
     memcpy(p_FmVspEntry->p_FmVspEntryDriverParams->p_BackupBmPools, p_BackupBmPools, sizeof(t_FmBackupBmPools));
 

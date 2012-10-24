@@ -85,6 +85,15 @@ typedef uint8_t headerFieldEth_t;
 
 #define NET_HEADER_FIELD_ETH_ADDR_SIZE                 6
 
+typedef uint16_t headerFieldIp_t;
+
+#define NET_HEADER_FIELD_IP_VER                         (1)
+#define NET_HEADER_FIELD_IP_DSCP                        (NET_HEADER_FIELD_IP_VER << 2)
+#define NET_HEADER_FIELD_IP_ECN                         (NET_HEADER_FIELD_IP_VER << 3)
+#define NET_HEADER_FIELD_IP_PROTO                       (NET_HEADER_FIELD_IP_VER << 4)
+
+#define NET_HEADER_FIELD_IP_PROTO_SIZE                  1
+
 typedef uint16_t headerFieldIpv4_t;
 
 #define NET_HEADER_FIELD_IPv4_VER                       (1)
@@ -369,6 +378,7 @@ typedef enum {
     HEADER_TYPE_VLAN,
     HEADER_TYPE_IPv4,
     HEADER_TYPE_IPv6,
+    HEADER_TYPE_IP,
     HEADER_TYPE_TCP,
     HEADER_TYPE_UDP,
     HEADER_TYPE_IPHC,

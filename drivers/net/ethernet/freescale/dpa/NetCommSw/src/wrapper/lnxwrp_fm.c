@@ -892,12 +892,9 @@ static int /*__devinit*/ fm_probe(struct platform_device *of_dev)
     if (InitFmDev(p_LnxWrpFmDev) != E_OK)
         return -EIO;
 
-/* FIXME: ioctl support for FMan v3 features is not ready yet */
-#if (DPAA_VERSION == 10)
     /* IOCTL ABI checking */
     LnxWrpPCDIOCTLEnumChecking();
     LnxWrpPCDIOCTLTypeChecking();
-#endif
 
     Sprint (p_LnxWrpFmDev->name, "%s%d", DEV_FM_NAME, p_LnxWrpFmDev->id);
 

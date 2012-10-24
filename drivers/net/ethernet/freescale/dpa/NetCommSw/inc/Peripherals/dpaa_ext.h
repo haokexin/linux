@@ -106,14 +106,14 @@ typedef enum e_DpaaFDFormatType {
 #define DPAA_FD_GET_OFFSET(fd)        ((((t_DpaaFD *)fd)->length & DPAA_FD_OFFSET_MASK) >> (31-11))     /**< Macro to get FD OFFSET field */
 #define DPAA_FD_GET_LENGTH(fd)        (((t_DpaaFD *)fd)->length & DPAA_FD_LENGTH_MASK)                  /**< Macro to get FD LENGTH field */
 #define DPAA_FD_GET_STATUS(fd)        ((t_DpaaFD *)fd)->status                                          /**< Macro to get FD STATUS field */
-#define DPAA_FD_GET_ADDR(fd)          XX_PhysToVirt(DPAA_FD_GET_PHYS_ADDR(fd))
+#define DPAA_FD_GET_ADDR(fd)          XX_PhysToVirt(DPAA_FD_GET_PHYS_ADDR(fd))                          /**< TODO */
 
 #define DPAA_FD_SET_DD(fd,val)        (((t_DpaaFD *)fd)->id = ((((t_DpaaFD *)fd)->id & ~DPAA_FD_DD_MASK) | (((val) << (31-1)) & DPAA_FD_DD_MASK )))      /**< Macro to set FD DD field */
                                                                                                         /**< Macro to set FD PID field or LIODN offset*/
 #define DPAA_FD_SET_PID(fd,val)       (((t_DpaaFD *)fd)->id = ((((t_DpaaFD *)fd)->id & ~(DPAA_FD_PID_MASK|DPAA_FD_ELIODN_MASK)) | ((((val) << (31-7)) & DPAA_FD_PID_MASK) | ((((val)>>6) << (31-19)) & DPAA_FD_ELIODN_MASK))))
 #define DPAA_FD_SET_BPID(fd,val)      (((t_DpaaFD *)fd)->id = ((((t_DpaaFD *)fd)->id & ~DPAA_FD_BPID_MASK) | (((val)  << (31-15)) & DPAA_FD_BPID_MASK))) /**< Macro to set FD BPID field */
 #define DPAA_FD_SET_ADDRH(fd,val)     (((t_DpaaFD *)fd)->id = ((((t_DpaaFD *)fd)->id & ~DPAA_FD_ADDRH_MASK) | ((val) & DPAA_FD_ADDRH_MASK)))            /**< Macro to set FD ADDRH field */
-#define DPAA_FD_SET_ADDRL(fd,val)     ((t_DpaaFD *)fd)->addrl = (val)                                     /**< Macro to set FD ADDRL field */
+#define DPAA_FD_SET_ADDRL(fd,val)     ((t_DpaaFD *)fd)->addrl = (val)                                   /**< Macro to set FD ADDRL field */
 #define DPAA_FD_SET_ADDR(fd,val)                            \
 do {                                                        \
     uint64_t physAddr = (uint64_t)(XX_VirtToPhys(val));     \
@@ -123,7 +123,7 @@ do {                                                        \
 #define DPAA_FD_SET_FORMAT(fd,val)    (((t_DpaaFD *)fd)->length = ((((t_DpaaFD *)fd)->length & ~DPAA_FD_FORMAT_MASK) | (((val)  << (31-2))& DPAA_FD_FORMAT_MASK)))  /**< Macro to set FD FORMAT field */
 #define DPAA_FD_SET_OFFSET(fd,val)    (((t_DpaaFD *)fd)->length = ((((t_DpaaFD *)fd)->length & ~DPAA_FD_OFFSET_MASK) | (((val) << (31-11))& DPAA_FD_OFFSET_MASK) )) /**< Macro to set FD OFFSET field */
 #define DPAA_FD_SET_LENGTH(fd,val)    (((t_DpaaFD *)fd)->length = (((t_DpaaFD *)fd)->length & ~DPAA_FD_LENGTH_MASK) | ((val) & DPAA_FD_LENGTH_MASK))                /**< Macro to set FD LENGTH field */
-#define DPAA_FD_SET_STATUS(fd,val)    ((t_DpaaFD *)fd)->status = (val)                                    /**< Macro to set FD STATUS field */
+#define DPAA_FD_SET_STATUS(fd,val)    ((t_DpaaFD *)fd)->status = (val)                                  /**< Macro to set FD STATUS field */
 /* @} */
 
 /**************************************************************************//**

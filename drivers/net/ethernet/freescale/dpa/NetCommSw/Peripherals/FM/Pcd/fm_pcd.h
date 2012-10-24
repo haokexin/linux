@@ -95,7 +95,7 @@
 #define FM_PCD_EX_PRS_SINGLE_ECC                    0x01000000
 
 #define GET_FM_PCD_EXCEPTION_FLAG(bitMask, exception)               \
-switch(exception){                                                  \
+switch (exception){                                                 \
     case e_FM_PCD_KG_EXCEPTION_DOUBLE_ECC:                          \
         bitMask = FM_PCD_EX_KG_DOUBLE_ECC; break;                   \
     case e_FM_PCD_PLCR_EXCEPTION_DOUBLE_ECC:                        \
@@ -555,20 +555,19 @@ t_CcNodeInformation* FindNodeInfoInReleventLst(t_List *p_List, t_Handle h_Info, 
 t_List *FmPcdManipGetSpinlock(t_Handle h_Manip);
 t_List *FmPcdManipGetNodeLstPointedOnThisManip(t_Handle h_Manip);
 
+typedef struct
+{
+    t_Handle    h_StatsAd;
+    t_Handle    h_StatsCounters;
+#if (DPAA_VERSION >= 11)
+    t_Handle    h_StatsFLRs;
+#endif /* (DPAA_VERSION >= 11) */
+} t_FmPcdCcStatsParams;
 
 void NextStepAd(t_Handle                     h_Ad,
-                t_Handle                     h_StatsAd,
-                t_Handle                     h_StatsCounters,
-                t_Handle                     h_StatsFrameLengthRanges,
+                t_FmPcdCcStatsParams         *p_FmPcdCcStatsParams,
                 t_FmPcdCcNextEngineParams    *p_FmPcdCcNextEngineParams,
                 t_FmPcd                      *p_FmPcd);
-
-void FillAdOfTypeResult(t_Handle                    h_Ad,
-                        t_Handle                    h_StatsAd,
-                        t_Handle                    h_StatsCounters,
-                        t_Handle                    h_StatsFrameLengthRanges,
-                        t_FmPcd                     *p_FmPcd,
-                        t_FmPcdCcNextEngineParams   *p_CcNextEngineParams);
 void ReleaseLst(t_List *p_List);
 
 static __inline__ t_Handle FmPcdGetMuramHandle(t_Handle h_FmPcd)

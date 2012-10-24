@@ -39,6 +39,7 @@
 #define __PART_INTEGRATION_EXT_H
 
 #include "std_ext.h"
+#include "ddr_std_ext.h"
 #include "dpaa_integration_ext.h"
 
 
@@ -51,6 +52,7 @@
 *//***************************************************************************/
 
 #define INTG_MAX_NUM_OF_CORES   2
+
 
 /**************************************************************************//**
  @Description   Module types.
@@ -136,6 +138,7 @@ typedef enum e_ModuleId
 } e_ModuleId;
 
 #define NUM_OF_MODULES  e_MODULE_ID_DUMMY_LAST
+
 
 #define P1023_OFFSET_LAW                    0x00000C08
 #define P1023_OFFSET_ECM                    0x00001000
@@ -376,6 +379,19 @@ uint32_t P1023_GetCcbFactor(uintptr_t gutilBase);
 t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
                             uint32_t    *p_DdrMulFactor,
                             uint32_t    *p_DdrDivFactor);
+
+
+/**************************************************************************//**
+ @Function      P1023_GetDdrType
+
+ @Description   returns the multiplication factor of the clock in for the DDR clock .
+
+ @Param[in]     gutilBase       - Base address of P1023 GUTIL registers.
+ @Param         p_DdrType   - (Out) returns DDR type DDR1/DDR2/DDR3.
+
+ @Return        E_OK on success; Other value otherwise.
+*//***************************************************************************/
+t_Error P1023_GetDdrType(uintptr_t gutilBase, e_DdrType *p_DdrType );
 
 
 /** @} */ /* end of 1023_init_grp group */

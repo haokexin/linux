@@ -67,40 +67,40 @@
  @Description   FM MAC Exceptions
 *//***************************************************************************/
 typedef enum e_FmMacExceptions {
-    e_FM_MAC_EX_10G_MDIO_SCAN_EVENTMDIO = 0
-   ,e_FM_MAC_EX_10G_MDIO_CMD_CMPL
-   ,e_FM_MAC_EX_10G_REM_FAULT
-   ,e_FM_MAC_EX_10G_LOC_FAULT
-   ,e_FM_MAC_EX_10G_1TX_ECC_ER
-   ,e_FM_MAC_EX_10G_TX_FIFO_UNFL
-   ,e_FM_MAC_EX_10G_TX_FIFO_OVFL
-   ,e_FM_MAC_EX_10G_TX_ER
-   ,e_FM_MAC_EX_10G_RX_FIFO_OVFL
-   ,e_FM_MAC_EX_10G_RX_ECC_ER
-   ,e_FM_MAC_EX_10G_RX_JAB_FRM
-   ,e_FM_MAC_EX_10G_RX_OVRSZ_FRM
-   ,e_FM_MAC_EX_10G_RX_RUNT_FRM
-   ,e_FM_MAC_EX_10G_RX_FRAG_FRM
-   ,e_FM_MAC_EX_10G_RX_LEN_ER
-   ,e_FM_MAC_EX_10G_RX_CRC_ER
-   ,e_FM_MAC_EX_10G_RX_ALIGN_ER
-   ,e_FM_MAC_EX_1G_BAB_RX
-   ,e_FM_MAC_EX_1G_RX_CTL
-   ,e_FM_MAC_EX_1G_GRATEFUL_TX_STP_COMPLET
-   ,e_FM_MAC_EX_1G_BAB_TX
-   ,e_FM_MAC_EX_1G_TX_CTL
-   ,e_FM_MAC_EX_1G_TX_ERR
-   ,e_FM_MAC_EX_1G_LATE_COL
-   ,e_FM_MAC_EX_1G_COL_RET_LMT
-   ,e_FM_MAC_EX_1G_TX_FIFO_UNDRN
-   ,e_FM_MAC_EX_1G_MAG_PCKT
-   ,e_FM_MAC_EX_1G_MII_MNG_RD_COMPLET
-   ,e_FM_MAC_EX_1G_MII_MNG_WR_COMPLET
-   ,e_FM_MAC_EX_1G_GRATEFUL_RX_STP_COMPLET
-   ,e_FM_MAC_EX_1G_TX_DATA_ERR
-   ,e_FM_MAC_EX_1G_RX_DATA_ERR
-   ,e_FM_MAC_EX_1G_1588_TS_RX_ERR
-   ,e_FM_MAC_EX_1G_RX_MIB_CNT_OVFL
+    e_FM_MAC_EX_10G_MDIO_SCAN_EVENTMDIO = 0                     /**< 10GEC MDIO scan event interrupt */
+   ,e_FM_MAC_EX_10G_MDIO_CMD_CMPL                               /**< 10GEC MDIO command completion interrupt */
+   ,e_FM_MAC_EX_10G_REM_FAULT                                   /**< 10GEC, mEMAC Remote fault interrupt */
+   ,e_FM_MAC_EX_10G_LOC_FAULT                                   /**< 10GEC, mEMAC Local fault interrupt */
+   ,e_FM_MAC_EX_10G_1TX_ECC_ER                                  /**< 10GEC, mEMAC Transmit frame ECC error interrupt */
+   ,e_FM_MAC_EX_10G_TX_FIFO_UNFL                                /**< 10GEC, mEMAC Transmit FIFO underflow interrupt */
+   ,e_FM_MAC_EX_10G_TX_FIFO_OVFL                                /**< 10GEC, mEMAC Transmit FIFO overflow interrupt */
+   ,e_FM_MAC_EX_10G_TX_ER                                       /**< 10GEC Transmit frame error interrupt */
+   ,e_FM_MAC_EX_10G_RX_FIFO_OVFL                                /**< 10GEC, mEMAC Receive FIFO overflow interrupt */
+   ,e_FM_MAC_EX_10G_RX_ECC_ER                                   /**< 10GEC, mEMAC Receive frame ECC error interrupt */
+   ,e_FM_MAC_EX_10G_RX_JAB_FRM                                  /**< 10GEC Receive jabber frame interrupt */
+   ,e_FM_MAC_EX_10G_RX_OVRSZ_FRM                                /**< 10GEC Receive oversized frame interrupt */
+   ,e_FM_MAC_EX_10G_RX_RUNT_FRM                                 /**< 10GEC Receive runt frame interrupt */
+   ,e_FM_MAC_EX_10G_RX_FRAG_FRM                                 /**< 10GEC Receive fragment frame interrupt */
+   ,e_FM_MAC_EX_10G_RX_LEN_ER                                   /**< 10GEC Receive payload length error interrupt */
+   ,e_FM_MAC_EX_10G_RX_CRC_ER                                   /**< 10GEC Receive CRC error interrupt */
+   ,e_FM_MAC_EX_10G_RX_ALIGN_ER                                 /**< 10GEC Receive alignment error interrupt */
+   ,e_FM_MAC_EX_1G_BAB_RX                                       /**< dTSEC Babbling receive error */
+   ,e_FM_MAC_EX_1G_RX_CTL                                       /**< dTSEC Receive control (pause frame) interrupt */
+   ,e_FM_MAC_EX_1G_GRATEFUL_TX_STP_COMPLET                      /**< dTSEC Graceful transmit stop complete */
+   ,e_FM_MAC_EX_1G_BAB_TX                                       /**< dTSEC Babbling transmit error */
+   ,e_FM_MAC_EX_1G_TX_CTL                                       /**< dTSEC Transmit control (pause frame) interrupt */
+   ,e_FM_MAC_EX_1G_TX_ERR                                       /**< dTSEC Transmit error */
+   ,e_FM_MAC_EX_1G_LATE_COL                                     /**< dTSEC Late collision */
+   ,e_FM_MAC_EX_1G_COL_RET_LMT                                  /**< dTSEC Collision retry limit */
+   ,e_FM_MAC_EX_1G_TX_FIFO_UNDRN                                /**< dTSEC Transmit FIFO underrun */
+   ,e_FM_MAC_EX_1G_MAG_PCKT                                     /**< dTSEC Magic Packet detection */
+   ,e_FM_MAC_EX_1G_MII_MNG_RD_COMPLET                           /**< dTSEC MII management read completion */
+   ,e_FM_MAC_EX_1G_MII_MNG_WR_COMPLET                           /**< dTSEC MII management write completion */
+   ,e_FM_MAC_EX_1G_GRATEFUL_RX_STP_COMPLET                      /**< dTSEC Graceful receive stop complete */
+   ,e_FM_MAC_EX_1G_TX_DATA_ERR                                  /**< dTSEC Internal data error on transmit */
+   ,e_FM_MAC_EX_1G_RX_DATA_ERR                                  /**< dTSEC Internal data error on receive */
+   ,e_FM_MAC_EX_1G_1588_TS_RX_ERR                               /**< dTSEC Time-Stamp Receive Error */
+   ,e_FM_MAC_EX_1G_RX_MIB_CNT_OVFL                              /**< dTSEC MIB counter overflow */
 } e_FmMacExceptions;
 
 /**************************************************************************//**

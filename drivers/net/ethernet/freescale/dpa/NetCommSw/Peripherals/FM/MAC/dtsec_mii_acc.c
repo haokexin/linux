@@ -41,55 +41,7 @@
 #include "std_ext.h"
 #include "fm_mac.h"
 #include "dtsec.h"
-
-
-static uint8_t GetMiiDiv(int32_t refClk)
-{
-    uint32_t    div,tmpClk;
-    int         minRange;
-
-    div = 1;
-    minRange = (int)(refClk/40 - 1);
-
-    tmpClk = (uint32_t)ABS(refClk/60 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 2;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/60 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 3;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/80 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 4;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/100 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 5;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/140 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 6;
-        minRange = (int)tmpClk;
-    }
-    tmpClk = (uint32_t)ABS(refClk/280 - 1);
-    if (tmpClk < minRange)
-    {
-        div = 7;
-        minRange = (int)tmpClk;
-    }
-
-    return (uint8_t)div;
-}
+#include "fsl_fman_dtsec_mii_acc.h"
 
 
 /*****************************************************************************/
@@ -98,40 +50,18 @@ t_Error DTSEC_MII_WritePhyReg(t_Handle    h_Dtsec,
                               uint8_t     reg,
                               uint16_t    data)
 {
-    t_Dtsec             *p_Dtsec = (t_Dtsec *)h_Dtsec;
-    t_MiiAccessMemMap   *p_MiiAccess;
-    uint32_t            tmpReg;
+    t_Dtsec              *p_Dtsec = (t_Dtsec *)h_Dtsec;
+    struct dtsec_mii_reg *miiregs;
+    t_Error               err;
 
     SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_MiiMemMap, E_INVALID_HANDLE);
 
-    p_MiiAccess = p_Dtsec->p_MiiMemMap;
+    miiregs = p_Dtsec->p_MiiMemMap;
 
-    WRITE_UINT32(p_Dtsec->p_MiiMemMap->miimcfg,
-                 (uint32_t)GetMiiDiv((int32_t)(((p_Dtsec->fmMacControllerDriver.clkFreq*10)/2)/8)));
+    err = (t_Error)dtsec_mii_write_reg(miiregs, phyAddr, reg, data);
 
-    CORE_MemoryBarrier();
-
-    /* Stop the MII management read cycle */
-    WRITE_UINT32(p_MiiAccess->miimcom, 0);
-    /* Dummy read to make sure MIIMCOM is written */
-    tmpReg = GET_UINT32(p_MiiAccess->miimcom);
-
-    /* Setting up MII Management Address Register */
-    tmpReg = (uint32_t)((phyAddr << MIIMADD_PHY_ADDR_SHIFT) | reg);
-    WRITE_UINT32(p_MiiAccess->miimadd, tmpReg);
-
-    /* Setting up MII Management Control Register with data */
-    WRITE_UINT32(p_MiiAccess->miimcon, (uint32_t)data);
-    /* Dummy read to make sure MIIMCON is written */
-    tmpReg = GET_UINT32(p_MiiAccess->miimcon);
-
-    CORE_MemoryBarrier();
-
-    /* Wait till MII management write is complete */
-    while ((GET_UINT32(p_MiiAccess->miimind)) & MIIMIND_BUSY) ;
-
-    return E_OK;
+    return err;
 }
 
 /*****************************************************************************/
@@ -140,45 +70,40 @@ t_Error DTSEC_MII_ReadPhyReg(t_Handle h_Dtsec,
                              uint8_t  reg,
                              uint16_t *p_Data)
 {
-    t_Dtsec             *p_Dtsec = (t_Dtsec *)h_Dtsec;
-    t_MiiAccessMemMap   *p_MiiAccess;
-    uint32_t            tmpReg;
+    t_Dtsec               *p_Dtsec = (t_Dtsec *)h_Dtsec;
+    struct dtsec_mii_reg  *miiregs;
+    t_Error                err;
 
     SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_MiiMemMap, E_INVALID_HANDLE);
 
-    p_MiiAccess = p_Dtsec->p_MiiMemMap;
+    miiregs = p_Dtsec->p_MiiMemMap;
 
-    WRITE_UINT32(p_Dtsec->p_MiiMemMap->miimcfg,
-                 (uint32_t)GetMiiDiv((int32_t)(((p_Dtsec->fmMacControllerDriver.clkFreq*10)/2)/8)));
-
-    CORE_MemoryBarrier();
-
-    /* Setting up the MII Management Address Register */
-    tmpReg = (uint32_t)((phyAddr << MIIMADD_PHY_ADDR_SHIFT) | reg);
-    WRITE_UINT32(p_MiiAccess->miimadd, tmpReg);
-
-    /* Perform an MII management read cycle */
-    WRITE_UINT32(p_MiiAccess->miimcom, MIIMCOM_READ_CYCLE);
-    /* Dummy read to make sure MIIMCOM is written */
-    tmpReg = GET_UINT32(p_MiiAccess->miimcom);
-
-    CORE_MemoryBarrier();
-
-    /* Wait till MII management read is complete */
-    while ((GET_UINT32(p_MiiAccess->miimind)) & MIIMIND_BUSY) ;
-
-    /* Read MII management status  */
-    *p_Data = (uint16_t)GET_UINT32(p_MiiAccess->miimstat);
-
-    WRITE_UINT32(p_MiiAccess->miimcom, 0);
-    /* Dummy read to make sure MIIMCOM is written */
-    tmpReg = GET_UINT32(p_MiiAccess->miimcom);
+    err = (t_Error)dtsec_mii_read_reg(miiregs, phyAddr, reg, p_Data);
 
     if (*p_Data == 0xffff)
         RETURN_ERROR(MINOR, E_NO_DEVICE,
                      ("Read wrong data (0xffff): phyAddr 0x%x, reg 0x%x",
                       phyAddr, reg));
+    if (err)
+        RETURN_ERROR(MINOR, err, NO_MSG);
+
+    return err;
+}
+
+t_Error DTSEC_MII_Init(t_Handle h_Dtsec)
+{
+    t_Dtsec                *p_Dtsec = (t_Dtsec *)h_Dtsec;
+    struct dtsec_mii_reg  *miiregs;
+    uint16_t dtsec_freq;
+
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec, E_INVALID_HANDLE);
+    SANITY_CHECK_RETURN_ERROR(p_Dtsec->p_MiiMemMap, E_INVALID_HANDLE);
+
+    miiregs = p_Dtsec->p_MiiMemMap;
+    dtsec_freq = (uint16_t)(p_Dtsec->fmMacControllerDriver.clkFreq >> 1);
+
+    dtsec_mii_init(miiregs, dtsec_freq);
 
     return E_OK;
 }

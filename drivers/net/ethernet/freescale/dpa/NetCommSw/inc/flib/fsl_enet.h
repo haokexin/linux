@@ -30,16 +30,48 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef __FSL_ENET_H
+#define __FSL_ENET_H
 
-#ifndef __DTSEC_MII_ACC_H
-#define __DTSEC_MII_ACC_H
+/**
+ @Description  Ethernet MAC-PHY Interface
+*/
 
-#include "std_ext.h"
+enum enet_interface {
+    enet_if_mii    = 0x00010000, /**< MII interface */
+    enet_if_rmii   = 0x00020000, /**< RMII interface */
+    enet_if_smii   = 0x00030000, /**< SMII interface */
+    enet_if_gmii   = 0x00040000, /**< GMII interface */
+    enet_if_rgmii  = 0x00050000, /**< RGMII interface */
+    enet_if_tbi    = 0x00060000, /**< TBI interface */
+    enet_if_rtbi   = 0x00070000, /**< RTBI interface */
+    enet_if_sgmii  = 0x00080000, /**< SGMII interface */
+    enet_if_xgmii  = 0x00090000, /**< XGMII interface */
+    enet_if_qsgmii = 0x000a0000, /**< QSGMII interface */
+    enet_if_xfi    = 0x000b0000  /**< XFI interface */
+};
+
+/**
+ @Description  Ethernet Speed (nominal data rate)
+*/
+enum enet_speed {
+    enet_speed_10     = 10,      /**< 10 Mbps */
+    enet_speed_100    = 100,     /**< 100 Mbps */
+    enet_speed_1000   = 1000,    /**< 1000 Mbps = 1 Gbps */
+    enet_speed_10000  = 10000    /**< 10000 Mbps = 10 Gbps */
+};
+
+enum mac_stat_level {
+    /* No statistics */
+    mac_stat_none = 0,
+    /* Only RMON MIB group 1 (ether stats). Optimized for performance */
+    mac_stat_mib_grp1,
+    /* Only error counters are available. Optimized for performance */
+    mac_stat_partial,
+    /* All counters available. Not optimized for performance */
+    mac_stat_full
+};
 
 
-t_Error DTSEC_MII_WritePhyReg(t_Handle h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t data);
-t_Error DTSEC_MII_ReadPhyReg(t_Handle  h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t *p_Data);
-t_Error DTSEC_MII_Init(t_Handle h_Dtsec);
+#endif /* __ENET_EXT_H */
 
-
-#endif /* __DTSEC_MII_ACC_H */

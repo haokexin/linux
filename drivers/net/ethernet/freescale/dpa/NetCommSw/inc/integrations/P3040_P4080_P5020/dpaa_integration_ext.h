@@ -167,24 +167,23 @@ typedef enum
 #define INTG_MAX_NUM_OF_FM          2
 
 /* Ports defines */
-#define FM_MAX_NUM_OF_1G_RX_PORTS   5
-#define FM_MAX_NUM_OF_10G_RX_PORTS  1
-#define FM_MAX_NUM_OF_RX_PORTS      (FM_MAX_NUM_OF_10G_RX_PORTS+FM_MAX_NUM_OF_1G_RX_PORTS)
-#define FM_MAX_NUM_OF_1G_TX_PORTS   5
-#define FM_MAX_NUM_OF_10G_TX_PORTS  1
-#define FM_MAX_NUM_OF_TX_PORTS      (FM_MAX_NUM_OF_10G_TX_PORTS+FM_MAX_NUM_OF_1G_TX_PORTS)
+#define FM_MAX_NUM_OF_1G_MACS       5
+#define FM_MAX_NUM_OF_10G_MACS      1
+#define FM_MAX_NUM_OF_MACS          (FM_MAX_NUM_OF_1G_MACS + FM_MAX_NUM_OF_10G_MACS)
 #define FM_MAX_NUM_OF_OH_PORTS      7
-#define FM_MAX_NUM_OF_1G_MACS       (FM_MAX_NUM_OF_1G_RX_PORTS)
-#define FM_MAX_NUM_OF_10G_MACS      (FM_MAX_NUM_OF_10G_RX_PORTS)
-#define FM_MAX_NUM_OF_MACS          (FM_MAX_NUM_OF_1G_MACS+FM_MAX_NUM_OF_10G_MACS)
 
+#define FM_MAX_NUM_OF_1G_RX_PORTS   FM_MAX_NUM_OF_1G_MACS
+#define FM_MAX_NUM_OF_10G_RX_PORTS  FM_MAX_NUM_OF_10G_MACS
+#define FM_MAX_NUM_OF_RX_PORTS      (FM_MAX_NUM_OF_10G_RX_PORTS + FM_MAX_NUM_OF_1G_RX_PORTS)
+
+#define FM_MAX_NUM_OF_1G_TX_PORTS   FM_MAX_NUM_OF_1G_MACS
+#define FM_MAX_NUM_OF_10G_TX_PORTS  FM_MAX_NUM_OF_10G_MACS
+#define FM_MAX_NUM_OF_TX_PORTS      (FM_MAX_NUM_OF_10G_TX_PORTS + FM_MAX_NUM_OF_1G_TX_PORTS)
 
 #define FM_PORT_MAX_NUM_OF_EXT_POOLS            8           /**< Number of external BM pools per Rx port */
 #define FM_PORT_NUM_OF_CONGESTION_GRPS          256         /**< Total number of congestion groups in QM */
 #define FM_MAX_NUM_OF_SUB_PORTALS               12
 #define FM_PORT_MAX_NUM_OF_OBSERVED_EXT_POOLS   0
-
-#define FM_IPSEC_SUPPORT
 
 /* RAMs defines */
 #define FM_MURAM_SIZE                   (160 * KILOBYTE)

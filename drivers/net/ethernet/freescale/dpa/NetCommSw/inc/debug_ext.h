@@ -124,11 +124,11 @@
                 The inputs for this macro are the structure/memory title and
                 its base addresses.
 *//***************************************************************************/
-#define DUMP_TITLE(addr, msg)  \
+#define DUMP_TITLE(addr, msg)           \
     DUMP_Print("\r\n"); DUMP_Print msg; \
-    DUMP_Print(" (0x%p)\r\n" \
-               "---------------------------------------------------------\r\n", \
-               (addr))
+    if (addr)                           \
+        DUMP_Print(" (%p)", (addr));    \
+    DUMP_Print("\r\n---------------------------------------------------------\r\n");
 
 /**************************************************************************//**
  @Description   Prints a subtitle for a subsequent dumped sub-structure (optional).

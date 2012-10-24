@@ -581,7 +581,7 @@ Status: not exported
     FM_VSP_ConfigPoolDepletion
     FM_VSP_ConfigBufferPrefixContent
     FM_VSP_ConfigNoScatherGather
-    FM_VSP_GetStatistics -- it’s not available yet
+    FM_VSP_GetStatistics -- it's not available yet
     FM_VSP_GetBufferPrsResult
 #endif
 

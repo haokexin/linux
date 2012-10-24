@@ -233,6 +233,7 @@ typedef enum e_ModuleId
 #define LAW_MIN_WINDOW_SIZE     0x0000000000001000LL    /**< 4 Kbytes */
 #define LAW_MAX_WINDOW_SIZE     0x0000010000000000LL    /**< 1 Tbytes for 40-bit address space */
 
+
 /*****************************************************************************
  LBC INTEGRATION-SPECIFIC DEFINITIONS
 ******************************************************************************/
@@ -288,7 +289,7 @@ typedef enum e_ModuleId
 
 #define GPIO_VALID_PIN_MASKS   \
     { /* Port A */ 0xFFFFFFFF, \
-	  /* Port B */ 0xFFFFFFFF, \
+      /* Port B */ 0xFFFFFFFF, \
       /* Port C */ 0xFFFFFFFF }
 
 #define GPIO_VALID_INTR_MASKS  \

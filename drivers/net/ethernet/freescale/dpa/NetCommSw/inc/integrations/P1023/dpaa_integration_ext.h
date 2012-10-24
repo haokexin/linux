@@ -101,6 +101,7 @@ typedef enum {
 ******************************************************************************/
 #define SEC_NUM_OF_DECOS    2
 #define SEC_ALL_DECOS_MASK  0x00000003
+#define SEC_RNGB
 
 /*****************************************************************************
  FM INTEGRATION-SPECIFIC DEFINITIONS

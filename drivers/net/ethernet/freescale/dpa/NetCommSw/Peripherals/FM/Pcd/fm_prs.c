@@ -61,14 +61,14 @@ static void PcdPrsErrorException(t_Handle h_FmPcd)
 
     /* clear the forced events */
     force = GET_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->perfr);
-    if(force & event)
+    if (force & event)
         WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->perfr, force & ~event);
 
     WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->perr, event);
 
     DBG(TRACE, ("parser error - 0x%08x\n",event));
 
-    if(event & FM_PCD_PRS_DOUBLE_ECC)
+    if (event & FM_PCD_PRS_DOUBLE_ECC)
         p_FmPcd->f_Exception(p_FmPcd->h_App,e_FM_PCD_PRS_EXCEPTION_DOUBLE_ECC);
 }
 
@@ -87,7 +87,7 @@ static void PcdPrsException(t_Handle h_FmPcd)
 
     /* clear the forced events */
     force = GET_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->pevfr);
-    if(force & event)
+    if (force & event)
         WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->pevfr, force & ~event);
 
     WRITE_UINT32(p_FmPcd->p_FmPcdPrs->p_FmPcdPrsRegs->pevr, event);
@@ -177,7 +177,7 @@ t_Error PrsInit(t_FmPcd *p_FmPcd)
 
     /**********************PERER******************/
     tmpReg = 0;
-    if(p_FmPcd->exceptions & FM_PCD_EX_PRS_DOUBLE_ECC)
+    if (p_FmPcd->exceptions & FM_PCD_EX_PRS_DOUBLE_ECC)
     {
         FmEnableRamsEcc(p_FmPcd->h_Fm);
         tmpReg |= FM_PCD_PRS_DOUBLE_ECC;
@@ -348,7 +348,7 @@ void FM_PCD_SetPrsStatistics(t_Handle h_FmPcd, bool enable)
     SANITY_CHECK_RETURN(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN(p_FmPcd->p_FmPcdPrs, E_INVALID_HANDLE);
 
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
+    if (p_FmPcd->guestId != NCSW_MASTER_ID)
     {
         REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_SetPrsStatistics - guest mode!"));
         return;
@@ -378,7 +378,7 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
 
     if (!p_SwPrs->override)
     {
-        if(p_FmPcd->p_FmPcdPrs->p_CurrSwPrs > p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4)
+        if (p_FmPcd->p_FmPcdPrs->p_CurrSwPrs > p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("SW parser base must be larger than current loaded code"));
     }
     else
@@ -404,7 +404,7 @@ t_Error FM_PCD_PrsLoadSw(t_Handle h_FmPcd, t_FmPcdPrsSwParams *p_SwPrs)
 
     /* load sw parser code */
     p_LoadTarget = p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4;
-    for(i=0; i<DIV_CEIL(p_SwPrs->size,4); i++)
+    for (i=0; i<DIV_CEIL(p_SwPrs->size,4); i++)
         WRITE_UINT32(p_LoadTarget[i], p_TmpCode[i]);
     p_FmPcd->p_FmPcdPrs->p_CurrSwPrs =
         p_FmPcd->p_FmPcdPrs->p_SwPrsCode + p_SwPrs->base*2/4 + ROUND_UP(p_SwPrs->size,4);
@@ -428,7 +428,7 @@ t_Error FM_PCD_ConfigPrsMaxCycleLimit(t_Handle h_FmPcd,uint16_t value)
     SANITY_CHECK_RETURN_ERROR(p_FmPcd, E_INVALID_HANDLE);
     SANITY_CHECK_RETURN_ERROR(p_FmPcd->p_FmPcdDriverParam, E_INVALID_HANDLE);
 
-    if(p_FmPcd->guestId != NCSW_MASTER_ID)
+    if (p_FmPcd->guestId != NCSW_MASTER_ID)
         RETURN_ERROR(MAJOR, E_NOT_SUPPORTED, ("FM_PCD_ConfigPrsMaxCycleLimit - guest mode!"));
 
     p_FmPcd->p_FmPcdDriverParam->prsMaxParseCycleLimit = value;

@@ -72,7 +72,7 @@
 #define FM_EX_DMA_SINGLE_PORT_ECC           0x00008000
 
 #define GET_EXCEPTION_FLAG(bitMask, exception)              \
-switch(exception){                                          \
+switch (exception){                                         \
     case e_FM_EX_DMA_BUS_ERROR:                             \
         bitMask = FM_EX_DMA_BUS_ERROR; break;               \
     case e_FM_EX_DMA_SINGLE_PORT_ECC:                       \
@@ -110,6 +110,46 @@ switch(exception){                                          \
     default: bitMask = 0;break;                             \
 }
 
+#define GET_FM_MODULE_EVENT(_mod, _id, _intrType, _event)                                           \
+    switch (_mod) {                                                                                 \
+        case e_FM_MOD_PRS:                                                                          \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_PRS : e_FM_EV_PRS;        \
+            break;                                                                                  \
+        case e_FM_MOD_KG:                                                                           \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_KG : e_FM_EV_DUMMY_LAST;  \
+            break;                                                                                  \
+        case e_FM_MOD_PLCR:                                                                         \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_PLCR : e_FM_EV_PLCR;      \
+            break;                                                                                  \
+        case e_FM_MOD_TMR:                                                                          \
+            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_DUMMY_LAST : e_FM_EV_TMR;     \
+            break;                                                                                  \
+        case e_FM_MOD_10G_MAC:                                                                      \
+            if (_id >= FM_MAX_NUM_OF_10G_MACS) _event = e_FM_EV_DUMMY_LAST;                         \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? (e_FM_EV_ERR_10G_MAC0 + _id) : (e_FM_EV_10G_MAC0 + _id); \
+            break;                                                                                  \
+        case e_FM_MOD_1G_MAC:                                                                       \
+            if (_id >= FM_MAX_NUM_OF_1G_MACS) _event = e_FM_EV_DUMMY_LAST;                          \
+            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? (e_FM_EV_ERR_1G_MAC0 + _id) : (e_FM_EV_1G_MAC0 + _id); \
+            break;                                                                                  \
+        case e_FM_MOD_MACSEC:                                                                       \
+            switch (_id){                                                                           \
+                 case (0): _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_MACSEC_MAC0:e_FM_EV_MACSEC_MAC0; \
+                 break;                                                                             \
+                 }                                                                                  \
+            break;                                                                                  \
+        case e_FM_MOD_FMAN_CTRL:                                                                    \
+            if (_intrType == e_FM_INTR_TYPE_ERR) _event = e_FM_EV_DUMMY_LAST;                       \
+            else _event = (e_FM_EV_FMAN_CTRL_0 + _id);                                              \
+            break;                                                                                  \
+        default: _event = e_FM_EV_DUMMY_LAST;                                                       \
+        break;                                                                                      \
+    }
+
 /**************************************************************************//**
  @Description       defaults
 *//***************************************************************************/
@@ -133,7 +173,7 @@ switch(exception){                                          \
 
 #define DEFAULT_totalFifoSize(major)       (((major == 2) || (major == 5))  ?   \
                                             (100*KILOBYTE):((major == 6) ?      \
-                                            (288*KILOBYTE):((major == 4) ? (48*KILOBYTE):(122*KILOBYTE))))
+                                            (288*KILOBYTE):((major == 4) ? (46*KILOBYTE):(122*KILOBYTE))))
 
 #define DEFAULT_eccEnable                   FALSE
 #define DEFAULT_dispLimit                   0
@@ -180,8 +220,6 @@ switch(exception){                                          \
  @Collection   Defines used for enabling/disabling FM interrupts
  @{
 *//***************************************************************************/
-typedef uint32_t t_FmBlockErrIntrEnable;
-
 #define ERR_INTR_EN_DMA         0x00010000
 #define ERR_INTR_EN_FPM         0x80000000
 #define ERR_INTR_EN_BMI         0x00800000
@@ -202,8 +240,6 @@ typedef uint32_t t_FmBlockErrIntrEnable;
 #define ERR_INTR_EN_1G_MAC6     0x00000100
 #define ERR_INTR_EN_1G_MAC7     0x00000080
 #define ERR_INTR_EN_MACSEC_MAC0 0x00000001
-
-typedef uint32_t t_FmBlockIntrEnable;
 
 #define INTR_EN_QMI             0x40000000
 #define INTR_EN_PRS             0x20000000
@@ -284,7 +320,7 @@ typedef _Packed struct
     volatile uint32_t   fm_cld;         /**< FM Classifier Debug */
     volatile uint32_t   fm_npi;         /**< FM Normal Pending Interrupts  */
     volatile uint32_t   fmfp_exte;      /**< FPM External Requests Enable */
-    volatile uint32_t   fmfp_em;        /**< FPM Event & Mask */
+    volatile uint32_t   fmfp_ee;        /**< FPM Event & Enable */
     volatile uint32_t   fmfp_cev[4];    /**< FPM CPU Event 1-4 */
     volatile uint8_t    res4[16];       /**< reserved */
     volatile uint32_t   fmfp_ps[0x40];  /**< FPM Port Status */
@@ -321,7 +357,7 @@ typedef _Packed struct
 typedef _Packed struct
 {
     volatile uint32_t   fmqm_gc;        /**<  General Configuration Register */
-    volatile uint32_t   Reserved0;
+    volatile uint32_t   reserved0;
     volatile uint32_t   fmqm_eie;       /**<  Error Interrupt Event Register */
     volatile uint32_t   fmqm_eien;      /**<  Error Interrupt Enable Register */
     volatile uint32_t   fmqm_eif;       /**<  Error Interrupt Force Register */
@@ -329,7 +365,7 @@ typedef _Packed struct
     volatile uint32_t   fmqm_ien;       /**<  Interrupt Enable Register */
     volatile uint32_t   fmqm_if;        /**<  Interrupt Force Register */
     volatile uint32_t   fmqm_gs;        /**<  Global Status Register */
-    volatile uint32_t   fmqm_ts;        /**<  Task Status Register */
+    volatile uint32_t   reserved1;
     volatile uint32_t   fmqm_etfc;      /**<  Enqueue Total Frame Counter */
     volatile uint32_t   fmqm_dtfc;      /**<  Dequeue Total Frame Counter */
     volatile uint32_t   fmqm_dc0;       /**<  Dequeue Counter 0 */
@@ -340,15 +376,15 @@ typedef _Packed struct
     volatile uint32_t   fmqm_dfcc;      /**<  Dequeue FQID from Context Counter */
     volatile uint32_t   fmqm_dffc;      /**<  Dequeue FQID from FD Counter */
     volatile uint32_t   fmqm_dcc;       /**<  Dequeue Confirm Counter */
-    volatile uint32_t   Reserved1a[7];
+    volatile uint32_t   reserved1a[7];
     volatile uint32_t   fmqm_tapc;      /**<  Tnum Aging Period Control */
     volatile uint32_t   fmqm_dmcvc;     /**<  Dequeue MAC Command Valid Counter */
     volatile uint32_t   fmqm_difdcc;    /**<  Dequeue Invalid FD Command Counter */
     volatile uint32_t   fmqm_da1v;      /**<  Dequeue A1 Valid Counter */
-    volatile uint32_t   Reserved1b;
+    volatile uint32_t   reserved1b;
     volatile uint32_t   fmqm_dtc;       /**<  0x0080 Debug Trap Counter */
     volatile uint32_t   fmqm_efddd;     /**<  0x0084 Enqueue Frame Descriptor Dynamic Debug */
-    volatile uint32_t   Reserved3[2];
+    volatile uint32_t   reserved3[2];
     _Packed struct {
         volatile uint32_t   fmqm_dtcfg1;    /**<  0x0090 Debug Trap Configuration 1 Register */
         volatile uint32_t   fmqm_dtval1;    /**<  Debug Trap Value 1 Register */
@@ -357,7 +393,7 @@ typedef _Packed struct
         volatile uint32_t   fmqm_dtcfg2;    /**<  Debug Trap Configuration 2 Register */
         volatile uint32_t   fmqm_dtval2;    /**<  Debug Trap Value 2 Register */
         volatile uint32_t   fmqm_dtm2;      /**<  Debug Trap Mask 2 Register */
-        volatile uint32_t   Reserved1;
+        volatile uint32_t   reserved1;
     } _PackedType dbgTraps[NUM_OF_DBG_TRAPS];
 } _PackedType t_FmQmiRegs;
 
@@ -449,11 +485,16 @@ typedef _Packed struct t_FmTrbRegs
 #define DMA_MODE_AID_OR                     0x20000000
 #define DMA_MODE_SBER                       0x10000000
 #define DMA_MODE_BER                        0x00200000
+#define DMA_MODE_EB                         0x00100000
 #define DMA_MODE_ECC                        0x00000020
 #define DMA_MODE_PRIVILEGE_PROT             0x00001000
 #define DMA_MODE_SECURE_PROT                0x00000800
 #define DMA_MODE_EMERGENCY_READ             0x00080000
 #define DMA_MODE_EMERGENCY_WRITE            0x00040000
+#define DMA_MODE_CACHE_OR_MASK              0xC0000000
+#define DMA_MODE_CEN_MASK                   0x0000E000
+#define DMA_MODE_DBG_MASK                   0x00000380
+
 
 #define DMA_TRANSFER_PORTID_MASK            0xFF000000
 #define DMA_TRANSFER_TNUM_MASK              0x00FF0000
@@ -486,6 +527,8 @@ typedef _Packed struct t_FmTrbRegs
 
 #define FM_LIODN_BASE_MASK                  0x00000FFF
 
+#define DMA_EMSR_EMSTR_MASK                 0x0000FFFF
+
 /* shifts */
 #define DMA_MODE_CACHE_OR_SHIFT             30
 #define DMA_MODE_BUS_PRI_SHIFT              16
@@ -496,7 +539,7 @@ typedef _Packed struct t_FmTrbRegs
 #define DMA_MODE_EMERGENCY_LEVEL_SHIFT      6
 #define DMA_MODE_AID_MODE_SHIFT             4
 #define DMA_MODE_MAX_AXI_DBG_NUM_OF_BEATS   16
-#define DMA_MODE_MAX_CAM_NUM_OF_ENTRIES     32
+#define DMA_MODE_MAX_CAM_NUM_OF_ENTRIES     64
 
 #define DMA_THRESH_COMMQ_SHIFT              24
 #define DMA_THRESH_READ_INT_BUF_SHIFT       16
@@ -558,13 +601,28 @@ typedef _Packed struct t_FmTrbRegs
 #define FPM_PS_FM_CTL_SEL_MASK          (FPM_PS_FM_CTL1_SEL | FPM_PS_FM_CTL2_SEL)
 
 #define FPM_RSTC_FM_RESET               0x80000000
-#define FPM_RSTC_10G0_RESET             0x04000000
 #define FPM_RSTC_1G0_RESET              0x40000000
 #define FPM_RSTC_1G1_RESET              0x20000000
 #define FPM_RSTC_1G2_RESET              0x10000000
 #define FPM_RSTC_1G3_RESET              0x08000000
+#define FPM_RSTC_10G0_RESET             0x04000000
 #define FPM_RSTC_1G4_RESET              0x02000000
+#define FPM_RSTC_1G5_RESET              0x01000000
+#define FPM_RSTC_1G6_RESET              0x00800000
+#define FPM_RSTC_1G7_RESET              0x00400000
+#define FPM_RSTC_10G1_RESET             0x00200000
 
+
+#define FPM_DISP_LIMIT_MASK             0x1F000000
+#define FPM_THR1_PRS_MASK               0xFF000000
+#define FPM_THR1_KG_MASK                0x00FF0000
+#define FPM_THR1_PLCR_MASK              0x0000FF00
+#define FPM_THR1_BMI_MASK               0x000000FF
+
+#define FPM_THR2_QMI_ENQ_MASK           0xFF000000
+#define FPM_THR2_QMI_DEQ_MASK           0x000000FF
+#define FPM_THR2_FM_CTL1_MASK           0x00FF0000
+#define FPM_THR2_FM_CTL2_MASK           0x0000FF00
 
 /* shifts */
 #define FPM_DISP_LIMIT_SHIFT            24
@@ -648,6 +706,8 @@ typedef _Packed struct t_FmTrbRegs
 #define QMI_CFG_SOFT_RESET              0x01000000
 #define QMI_CFG_DEQ_MASK                0x0000003F
 #define QMI_CFG_ENQ_MASK                0x00003F00
+
+#define QMI_GS_HALT_NOT_BUSY            0x00000002
 
 #define QMI_ERR_INTR_EN_DOUBLE_ECC      0x80000000
 #define QMI_ERR_INTR_EN_DEQ_FROM_DEF    0x40000000

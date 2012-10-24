@@ -222,7 +222,6 @@ static t_Error ModifyDescriptor(t_FmPcdFrmReplicGroup   *p_ReplicGroup,
 {
     t_Handle            h_Hc;
     t_Error             err;
-    uint32_t            oldDescriptorOffset, newDescriptorOffset;
     t_FmPcd             *p_FmPcd;
 
     ASSERT_COND(p_ReplicGroup);
@@ -235,12 +234,9 @@ static t_Error ModifyDescriptor(t_FmPcdFrmReplicGroup   *p_ReplicGroup,
     if (!h_Hc)
         RETURN_ERROR(MAJOR, E_INVALID_HANDLE, ("Host command"));
 
-    oldDescriptorOffset =
-        (uint32_t)(XX_VirtToPhys(p_OldDescriptor) - p_FmPcd->physicalMuramBase);
-    newDescriptorOffset =
-        (uint32_t)(XX_VirtToPhys(p_NewDescriptor) - p_FmPcd->physicalMuramBase);
-
-    err = FmHcPcdCcDoDynamicChange(h_Hc, oldDescriptorOffset, newDescriptorOffset);
+    err = FmHcPcdCcDoDynamicChange(h_Hc,
+                                   (uint32_t)(XX_VirtToPhys(p_OldDescriptor) - p_FmPcd->physicalMuramBase),
+                                   (uint32_t)(XX_VirtToPhys(p_NewDescriptor) - p_FmPcd->physicalMuramBase));
     if (err)
         RETURN_ERROR(MAJOR, err, ("Dynamic change host command"));
 
@@ -421,8 +417,6 @@ static t_FmPcdFrmReplicMember* InitMember(t_FmPcdFrmReplicGroup     *p_ReplicGro
     /* Initialize the Ad of the member */
     NextStepAd(p_CurrentMember->p_MemberAd,
                NULL,
-               NULL,
-               NULL,
                p_MemberParams,
                p_ReplicGroup->h_FmPcd);
 
@@ -481,8 +475,6 @@ static t_Error RemoveMember(t_FmPcdFrmReplicGroup   *p_ReplicGroup,
                                                  NULL,
                                                  TRUE/*sourceDescriptor*/,
                                                  FALSE/*last*/);
-            if (err)
-                RETURN_ERROR(MAJOR, err, ("update source td itself"));
             break;
 
         case FRM_REPLIC_MIDDLE_MEMBER_INDEX:
@@ -498,8 +490,6 @@ static t_Error RemoveMember(t_FmPcdFrmReplicGroup   *p_ReplicGroup,
                                                  FALSE/*sourceDescriptor*/,
                                                  FALSE/*last*/);
 
-            if (err)
-                RETURN_ERROR(MAJOR, err, ("Build Shadow and modify descriptor in case of middle member"));
             break;
 
         case FRM_REPLIC_LAST_MEMBER_INDEX:
@@ -511,12 +501,23 @@ static t_Error RemoveMember(t_FmPcdFrmReplicGroup   *p_ReplicGroup,
                                                  p_PreviousMember,
                                                  FALSE/*sourceDescriptor*/,
                                                  TRUE/*last*/);
-            if (err)
-                RETURN_ERROR(MAJOR, err, ("Build Shadow and modify descriptor in case of last member"));
             break;
 
         default:
             RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("member position in remove member"));
+    }
+
+    switch (GET_ERROR_TYPE(err))
+    {
+        case E_OK:
+            return E_OK;
+
+        case E_BUSY:
+            DBG(TRACE, ("E_BUSY error"));
+            return ERROR_CODE(E_BUSY);
+
+        default:
+            RETURN_ERROR(MAJOR, err, NO_MSG);
     }
 
     if (p_CurrentMember->h_Manip)
@@ -835,7 +836,12 @@ t_Error FM_PCD_FrmReplicAddMember(t_Handle                  h_ReplicGroup,
     /* group lock */
     err = FrmReplicGroupTryLock(p_ReplicGroup);
     if (err)
-        RETURN_ERROR(MAJOR, err, ("Lock in add operation"));
+    {
+        if (GET_ERROR_TYPE(err) == E_BUSY)
+            return ERROR_CODE(E_BUSY);
+        else
+            RETURN_ERROR(MAJOR, err, ("try lock in Add member"));
+    }
 
     if (memberIndex > p_ReplicGroup->numOfEntries)
     {
@@ -948,6 +954,16 @@ t_Error FM_PCD_FrmReplicRemoveMember(t_Handle   h_ReplicGroup,
 
     SANITY_CHECK_RETURN_ERROR(p_ReplicGroup, E_INVALID_HANDLE);
 
+    /* lock */
+    err = FrmReplicGroupTryLock(p_ReplicGroup);
+    if (err)
+    {
+        if (GET_ERROR_TYPE(err) == E_BUSY)
+            return ERROR_CODE(E_BUSY);
+        else
+            RETURN_ERROR(MAJOR, err, ("try lock in Remove member"));
+    }
+
     if (memberIndex >= p_ReplicGroup->numOfEntries)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("member index to remove"));
 
@@ -956,23 +972,23 @@ t_Error FM_PCD_FrmReplicRemoveMember(t_Handle   h_ReplicGroup,
     if (p_ReplicGroup->numOfEntries == 1)
         RETURN_ERROR(MAJOR, E_CONFLICT, ("Can't remove the last member. At least one member should be related to a group."));
 
-    /* lock */
-    err = FrmReplicGroupTryLock(p_ReplicGroup);
-    if (err)
-        RETURN_ERROR(MAJOR, err, ("Lock in remove member operation"));
-
     err = RemoveMember(p_ReplicGroup, memberIndex);
-    if (err)
-    {
-        /* unlock */
-        FrmReplicGroupUnlock(p_ReplicGroup);
-        RETURN_ERROR(MAJOR, err, ("Unlock in remove member operation"));
-    }
 
     /* unlock */
     FrmReplicGroupUnlock(p_ReplicGroup);
 
-    return E_OK;
+    switch (GET_ERROR_TYPE(err))
+    {
+        case E_OK:
+            return E_OK;
+
+        case E_BUSY:
+            DBG(TRACE, ("E_BUSY error"));
+            return ERROR_CODE(E_BUSY);
+
+        default:
+            RETURN_ERROR(MAJOR, err, NO_MSG);
+    }
 }
 
 /*********************** End of API routines ************************/

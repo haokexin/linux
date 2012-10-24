@@ -122,10 +122,9 @@
     (uint32_t)((((type) == e_FM_PORT_TYPE_RX_10G) ||        \
                 ((type) == e_FM_PORT_TYPE_TX_10G)) ? 8 :    \
                ((((type) == e_FM_PORT_TYPE_RX) ||           \
-                 ((type) == e_FM_PORT_TYPE_TX) ||           \
-                 ((type) == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) ? 2 : 0))
+                 ((type) == e_FM_PORT_TYPE_TX)) ? 2 : 0))
 
-#define DEFAULT_PORT_numOfOpenDmas(type, rev)                  \
+#define DEFAULT_PORT_numOfOpenDmas(type, rev)             \
     (uint32_t)((((type) == e_FM_PORT_TYPE_TX_10G) ||      \
                 ((type) == e_FM_PORT_TYPE_RX_10G)) ? 8 : ((rev>=6) ? 2 : 1))
 
@@ -133,8 +132,7 @@
     (uint32_t)((((type) == e_FM_PORT_TYPE_RX_10G) ||        \
                 ((type) == e_FM_PORT_TYPE_TX_10G)) ? 8 :    \
                ((((type) == e_FM_PORT_TYPE_RX) ||           \
-                 ((type) == e_FM_PORT_TYPE_TX) ||           \
-                 ((type) == e_FM_PORT_TYPE_OH_OFFLINE_PARSING)) ? 1 : 0))
+                 ((type) == e_FM_PORT_TYPE_TX)) ? 1 : 0))
 
 #define DEFAULT_PORT_numOfFifoBufs(type)                    \
     (uint32_t)((((type) == e_FM_PORT_TYPE_RX_10G) ||        \
@@ -176,7 +174,7 @@ typedef uint32_t fmPcdEngines_t; /**< options as defined below: */
 #define IP_FRAG_SW_PATCH_IPv4_SIZE              0x025
 #else
 #define IP_FRAG_SW_PATCH_IPv4_LABEL             0x2E0
-#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x047
+#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x043
 #endif /* (DPAA_VERSION == 10) */
 #define IP_FRAG_SW_PATCH_IPv6_LABEL             \
     (IP_FRAG_SW_PATCH_IPv4_LABEL + IP_FRAG_SW_PATCH_IPv4_SIZE)
@@ -469,6 +467,7 @@ typedef _Packed struct
                                                  BMI_CMD_MR_DEAS)
 #define BMI_CMD_ATTR_ORDER                      0x80000000
 #define BMI_CMD_ATTR_SYNC                       0x02000000
+#define BMI_CMD_ATTR_MODE_MISS_ALLIGN_ADDR_EN   0x00080000
 #define BMI_CMD_ATTR_MACCMD_MASK                0x0000ff00
 #define BMI_CMD_ATTR_MACCMD_OVERRIDE            0x00008000
 #define BMI_CMD_ATTR_MACCMD_SECURED             0x00001000
@@ -528,14 +527,12 @@ typedef _Packed struct
 
 #ifdef FM_DISABLE_SEC_ERRORS
 #define OP_ERRS_TO_ENQ                          (RX_ERRS_TO_ENQ                         | \
-                                                 FM_PORT_FRM_ERR_IPFE                   | \
                                                  FM_PORT_FRM_ERR_LENGTH                 | \
                                                  FM_PORT_FRM_ERR_NON_FM                 | \
                                                  FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT)
 
 #else
 #define OP_ERRS_TO_ENQ                          (RX_ERRS_TO_ENQ                         | \
-                                                 FM_PORT_FRM_ERR_IPFE                   | \
                                                  FM_PORT_FRM_ERR_LENGTH                 | \
                                                  FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT)
 #endif /* FM_DISABLE_SEC_ERRORS */
@@ -739,9 +736,6 @@ typedef _Packed struct
 /**************************************************************************//**
  @Description       Additional defines
 *//***************************************************************************/
-#ifdef FM_EXP_FEATURES
-#define IPF_OPTIONS_COUNT_OFFSET                0x30
-#endif /* FM_EXP_FEATURES */
 
 typedef struct {
     t_Handle                    h_FmMuram;
@@ -818,6 +812,9 @@ typedef struct {
     bool                                noScatherGather;
 #endif /* (DPAA_VERSION >= 11) */
 
+#ifdef FM_BCB_ERRATA_BMI_SW001
+    bool                                bcbWorkaround;
+#endif /* FM_BCB_ERRATA_BMI_SW001 */
 } t_FmPortDriverParam;
 
 

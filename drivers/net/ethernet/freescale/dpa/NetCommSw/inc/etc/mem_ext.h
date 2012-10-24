@@ -32,6 +32,7 @@
 
 
 /**************************************************************************//**
+
  @File          mem_ext.h
 
  @Description   External prototypes for the memory manager object

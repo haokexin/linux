@@ -31,15 +31,13 @@
  */
 
 
-#ifndef __DTSEC_MII_ACC_H
-#define __DTSEC_MII_ACC_H
+#ifndef __FMAN_CRC32_H
+#define __FMAN_CRC32_H
 
-#include "std_ext.h"
-
-
-t_Error DTSEC_MII_WritePhyReg(t_Handle h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t data);
-t_Error DTSEC_MII_ReadPhyReg(t_Handle  h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t *p_Data);
-t_Error DTSEC_MII_Init(t_Handle h_Dtsec);
+#include "common/general.h"
 
 
-#endif /* __DTSEC_MII_ACC_H */
+uint32_t get_mac_addr_crc(uint64_t _addr);
+
+
+#endif /* __FMAN_CRC32_H */

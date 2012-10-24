@@ -100,7 +100,6 @@ typedef enum ioc_fm_port_type {
 #define FM_FD_ERR_IPR_NCSP              (0x00100000 | FM_FD_IPR)    /**< IPR non-consistent-sp */
 #define FM_FD_ERR_IPR                   (0x00200000 | FM_FD_IPR)    /**< IPR error */
 #define FM_FD_ERR_IPR_TO                (0x00300000 | FM_FD_IPR)    /**< IPR timeout */
-#define FM_FD_ERR_IPF                   0x00100000                  /**< IPF error */
 
 #ifdef FM_CAPWAP_SUPPORT
 #define FM_FD_ERR_CRE                   0x00200000
@@ -134,7 +133,6 @@ typedef enum ioc_fm_port_type {
                                          FM_FD_ERR_IPR                  | \
                                          FM_FD_ERR_IPR_TO               | \
                                          FM_FD_ERR_IPR_NCSP             | \
-                                         FM_FD_ERR_IPF                  | \
                                          FM_FD_ERR_PHYSICAL             | \
                                          FM_FD_ERR_SIZE                 | \
                                          FM_FD_ERR_CLS_DISCARD          | \

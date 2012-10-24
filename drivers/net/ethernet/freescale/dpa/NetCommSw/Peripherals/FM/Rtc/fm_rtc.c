@@ -129,7 +129,7 @@ static void RtcExceptions(t_Handle h_FmRtc)
 
     if (events & TMR_TEVENT_ALM1)
     {
-        if(p_Rtc->alarmParams[0].clearOnExpiration)
+        if (p_Rtc->alarmParams[0].clearOnExpiration)
         {
             WRITE_UINT32(p_MemMap->tmr_alarm[0].tmr_alarm_l, 0);
             WRITE_UINT32(p_MemMap->tmr_temask, GET_UINT32(p_MemMap->tmr_temask) & ~TMR_TEVENT_ALM1);
@@ -139,7 +139,7 @@ static void RtcExceptions(t_Handle h_FmRtc)
     }
     if (events & TMR_TEVENT_ALM2)
     {
-        if(p_Rtc->alarmParams[1].clearOnExpiration)
+        if (p_Rtc->alarmParams[1].clearOnExpiration)
         {
             WRITE_UINT32(p_MemMap->tmr_alarm[1].tmr_alarm_l, 0);
             WRITE_UINT32(p_MemMap->tmr_temask, GET_UINT32(p_MemMap->tmr_temask) & ~TMR_TEVENT_ALM2);
@@ -225,12 +225,11 @@ t_Error FM_RTC_Init(t_Handle h_FmRtc)
     p_RtcDriverParam = p_Rtc->p_RtcDriverParam;
     p_MemMap = p_Rtc->p_MemMap;
 
-    if(CheckInitParameters(p_Rtc)!=E_OK)
+    if (CheckInitParameters(p_Rtc)!=E_OK)
         RETURN_ERROR(MAJOR, E_CONFLICT,
                      ("Init Parameters are not Valid"));
 
-    /* TODO A check must be added here, that no timestamping MAC's
-     * are working in this stage. */
+    /* TODO check that no timestamping MACs are working in this stage. */
     WRITE_UINT32(p_MemMap->tmr_ctrl, TMR_CTRL_TMSR);
     XX_UDelay(10);
     WRITE_UINT32(p_MemMap->tmr_ctrl, 0);
@@ -313,7 +312,7 @@ t_Error FM_RTC_Init(t_Handle h_FmRtc)
     /* check the legality of the relation between source and destination clocks */
     /* should be larger than 1.0001 */
     tmpDouble = 10000 * (uint64_t)p_Rtc->clockPeriodNanoSec * (uint64_t)p_Rtc->srcClkFreqMhz;
-    if((tmpDouble) <= 10001)
+    if ((tmpDouble) <= 10001)
         RETURN_ERROR(MAJOR, E_CONFLICT,
               ("Invalid relation between source and destination clocks. Should be larger than 1.0001"));
 
@@ -373,7 +372,7 @@ t_Error FM_RTC_ConfigSourceClock(t_Handle         h_FmRtc,
     SANITY_CHECK_RETURN_ERROR(p_Rtc->p_RtcDriverParam, E_INVALID_STATE);
 
     p_Rtc->p_RtcDriverParam->srcClk = srcClk;
-    if(srcClk != e_FM_RTC_SOURCE_CLOCK_SYSTEM)
+    if (srcClk != e_FM_RTC_SOURCE_CLOCK_SYSTEM)
         p_Rtc->p_RtcDriverParam->extSrcClkFreq = freqInMhz;
 
     return E_OK;
@@ -508,8 +507,7 @@ t_Error FM_RTC_Enable(t_Handle h_FmRtc, bool resetClock)
 
     tmrCtrl = GET_UINT32(p_Rtc->p_MemMap->tmr_ctrl);
 
-    /* TODO A check must be added here, that no timestamping MAC's
-     * are working in this stage. */
+    /* TODO check that no timestamping MACs are working in this stage. */
     if (resetClock)
     {
         WRITE_UINT32(p_Rtc->p_MemMap->tmr_ctrl, (tmrCtrl | TMR_CTRL_TMSR));
@@ -575,9 +573,9 @@ t_Error FM_RTC_SetAlarm(t_Handle h_FmRtc, t_FmRtcAlarmParams *p_FmRtcAlarmParams
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Alarm ID"));
     }
 
-    if(p_FmRtcAlarmParams->alarmTime < p_Rtc->clockPeriodNanoSec)
+    if (p_FmRtcAlarmParams->alarmTime < p_Rtc->clockPeriodNanoSec)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Alarm time must be equal or larger than RTC period - %d nanoseconds", p_Rtc->clockPeriodNanoSec));
-    if(p_FmRtcAlarmParams->alarmTime % (uint64_t)p_Rtc->clockPeriodNanoSec)
+    if (p_FmRtcAlarmParams->alarmTime % (uint64_t)p_Rtc->clockPeriodNanoSec)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Alarm time must be a multiple of RTC period - %d nanoseconds", p_Rtc->clockPeriodNanoSec));
     tmpAlarm = p_FmRtcAlarmParams->alarmTime/(uint64_t)p_Rtc->clockPeriodNanoSec;
 
@@ -586,12 +584,12 @@ t_Error FM_RTC_SetAlarm(t_Handle h_FmRtc, t_FmRtcAlarmParams *p_FmRtcAlarmParams
     WRITE_UINT32(p_MemMap->tmr_alarm[p_FmRtcAlarmParams->alarmId].tmr_alarm_h,
                  (uint32_t)(tmpAlarm >> 32));
 
-    if(p_FmRtcAlarmParams->f_AlarmCallback)
+    if (p_FmRtcAlarmParams->f_AlarmCallback)
     {
         p_Rtc->alarmParams[p_FmRtcAlarmParams->alarmId].f_AlarmCallback = p_FmRtcAlarmParams->f_AlarmCallback;
         p_Rtc->alarmParams[p_FmRtcAlarmParams->alarmId].clearOnExpiration = p_FmRtcAlarmParams->clearOnExpiration;
 
-        if(p_FmRtcAlarmParams->alarmId == 0)
+        if (p_FmRtcAlarmParams->alarmId == 0)
             tmpReg = TMR_TEVENT_ALM1;
         else
             tmpReg = TMR_TEVENT_ALM2;
@@ -618,24 +616,24 @@ t_Error FM_RTC_SetPeriodicPulse(t_Handle h_FmRtc, t_FmRtcPeriodicPulseParams *p_
     {
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Periodic pulse ID"));
     }
-    if(GET_UINT32(p_MemMap->tmr_ctrl) & TMR_CTRL_TE)
+    if (GET_UINT32(p_MemMap->tmr_ctrl) & TMR_CTRL_TE)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Can't set Periodic pulse when RTC is enabled."));
-    if(p_FmRtcPeriodicPulseParams->periodicPulsePeriod < p_Rtc->clockPeriodNanoSec)
+    if (p_FmRtcPeriodicPulseParams->periodicPulsePeriod < p_Rtc->clockPeriodNanoSec)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Periodic pulse must be equal or larger than RTC period - %d nanoseconds", p_Rtc->clockPeriodNanoSec));
-    if(p_FmRtcPeriodicPulseParams->periodicPulsePeriod % (uint64_t)p_Rtc->clockPeriodNanoSec)
+    if (p_FmRtcPeriodicPulseParams->periodicPulsePeriod % (uint64_t)p_Rtc->clockPeriodNanoSec)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Periodic pulse must be a multiple of RTC period - %d nanoseconds", p_Rtc->clockPeriodNanoSec));
     tmpFiper = p_FmRtcPeriodicPulseParams->periodicPulsePeriod/(uint64_t)p_Rtc->clockPeriodNanoSec;
-    if(tmpFiper & 0xffffffff00000000LL)
+    if (tmpFiper & 0xffffffff00000000LL)
         RETURN_ERROR(MAJOR, E_INVALID_SELECTION, ("Periodic pulse/RTC Period must be smaller than 4294967296", p_Rtc->clockPeriodNanoSec));
 
     WRITE_UINT32(p_MemMap->tmr_fiper[p_FmRtcPeriodicPulseParams->periodicPulseId], (uint32_t)tmpFiper);
 
-    if(p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback)
+    if (p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback)
     {
         p_Rtc->periodicPulseParams[p_FmRtcPeriodicPulseParams->periodicPulseId].f_PeriodicPulseCallback =
                                                                 p_FmRtcPeriodicPulseParams->f_PeriodicPulseCallback;
 
-        if(p_FmRtcPeriodicPulseParams->periodicPulseId == 0)
+        if (p_FmRtcPeriodicPulseParams->periodicPulseId == 0)
             tmpReg = TMR_TEVENT_PP1;
         else
             tmpReg = TMR_TEVENT_PP2;
@@ -661,7 +659,7 @@ t_Error FM_RTC_ClearPeriodicPulse(t_Handle h_FmRtc, uint8_t periodicPulseId)
 
     p_Rtc->periodicPulseParams[periodicPulseId].f_PeriodicPulseCallback = NULL;
 
-    if(periodicPulseId == 0)
+    if (periodicPulseId == 0)
         tmpReg = TMR_TEVENT_PP1;
     else
         tmpReg = TMR_TEVENT_PP2;
@@ -692,16 +690,16 @@ t_Error FM_RTC_SetExternalTrigger(t_Handle h_FmRtc, t_FmRtcExternalTriggerParams
     if (p_FmRtcExternalTriggerParams->f_ExternalTriggerCallback)
     {
         p_Rtc->externalTriggerParams[p_FmRtcExternalTriggerParams->externalTriggerId].f_ExternalTriggerCallback = p_FmRtcExternalTriggerParams->f_ExternalTriggerCallback;
-        if(p_FmRtcExternalTriggerParams->externalTriggerId == 0)
+        if (p_FmRtcExternalTriggerParams->externalTriggerId == 0)
             tmpReg = TMR_TEVENT_ETS1;
         else
             tmpReg = TMR_TEVENT_ETS2;
         WRITE_UINT32(p_Rtc->p_MemMap->tmr_temask, GET_UINT32(p_Rtc->p_MemMap->tmr_temask) | tmpReg);
     }
 
-    if(p_FmRtcExternalTriggerParams->usePulseAsInput)
+    if (p_FmRtcExternalTriggerParams->usePulseAsInput)
     {
-        if(p_FmRtcExternalTriggerParams->externalTriggerId == 0)
+        if (p_FmRtcExternalTriggerParams->externalTriggerId == 0)
             tmpReg = TMR_CTRL_PP1L;
         else
             tmpReg = TMR_CTRL_PP2L;
@@ -725,13 +723,13 @@ t_Error FM_RTC_ClearExternalTrigger(t_Handle h_FmRtc, uint8_t externalTriggerId)
 
     p_Rtc->externalTriggerParams[externalTriggerId].f_ExternalTriggerCallback = NULL;
 
-    if(externalTriggerId == 0)
+    if (externalTriggerId == 0)
         tmpReg = TMR_TEVENT_ETS1;
     else
         tmpReg = TMR_TEVENT_ETS2;
     WRITE_UINT32(p_Rtc->p_MemMap->tmr_temask, GET_UINT32(p_Rtc->p_MemMap->tmr_temask) & ~tmpReg);
 
-    if(externalTriggerId == 0)
+    if (externalTriggerId == 0)
         tmpReg = TMR_CTRL_PP1L;
     else
         tmpReg = TMR_CTRL_PP2L;

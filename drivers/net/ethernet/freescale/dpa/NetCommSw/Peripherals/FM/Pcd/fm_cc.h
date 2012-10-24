@@ -50,7 +50,7 @@
 /*          Coarse classification defines                              */
 /***********************************************************************/
 
-#define CC_MAX_NUM_OF_KEYS                  MAX(FM_PCD_MAX_NUM_OF_KEYS, FM_PCD_MAX_NUM_OF_FLOWS)
+#define CC_MAX_NUM_OF_KEYS                  MAX(FM_PCD_MAX_NUM_OF_KEYS + 1, FM_PCD_MAX_NUM_OF_FLOWS)
 
 #define CC_PC_FF_MACDST                     0x00
 #define CC_PC_FF_MACSRC                     0x01
@@ -85,7 +85,7 @@
 #define CC_PC_FF_IPV6SRC2                   0x1e
 #define CC_PC_FF_IPV6HOP_LIMIT              0x2a
 #define CC_PC_FF_IPPID                      0x24
-#define CC_PC_FF_IPTOS1                     0x76
+#define CC_PC_FF_IPDSCP                     0x76
 
 #define CC_PC_FF_GREPTYPE                   0x11
 
@@ -146,6 +146,18 @@
 
 #define FM_PCD_AD_CONT_LOOKUP_TYPE          0x40000000
 #define FM_PCD_AD_CONT_LOOKUP_LCL_MASK      0x00800000
+
+#define FM_PCD_AD_STATS_TYPE                0x40000000
+#define FM_PCD_AD_STATS_FLR_ADDR_MASK       0x00FFFFFF
+#define FM_PCD_AD_STATS_COUNTERS_ADDR_MASK  0x00FFFFFF
+#define FM_PCD_AD_STATS_NEXT_ACTION_MASK    0xFFFF0000
+#define FM_PCD_AD_STATS_NEXT_ACTION_SHIFT   12
+#define FM_PCD_AD_STATS_NAD_EN              0x00008000
+#define FM_PCD_AD_STATS_OP_CODE             0x00000036
+#define FM_PCD_AD_STATS_FLR_EN              0x00004000
+#define FM_PCD_AD_STATS_COND_EN             0x00002000
+
+
 
 #define FM_PCD_AD_BYPASS_TYPE               0xc0000000
 

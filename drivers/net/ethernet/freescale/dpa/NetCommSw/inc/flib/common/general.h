@@ -30,16 +30,22 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
-#ifndef __DTSEC_MII_ACC_H
-#define __DTSEC_MII_ACC_H
+#ifndef __GENERAL_H
+#define __GENERAL_H
 
 #include "std_ext.h"
+#if !defined(NCSW_LINUX)
+#include "errno.h"
+#endif
 
 
-t_Error DTSEC_MII_WritePhyReg(t_Handle h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t data);
-t_Error DTSEC_MII_ReadPhyReg(t_Handle  h_Dtsec, uint8_t phyAddr, uint8_t reg, uint16_t *p_Data);
-t_Error DTSEC_MII_Init(t_Handle h_Dtsec);
+extern uint32_t get_mac_addr_crc(uint64_t _addr);
 
 
-#endif /* __DTSEC_MII_ACC_H */
+#define iowrite32be(val, addr)  WRITE_UINT32(*addr, val)
+#define ioread32be(addr)        GET_UINT32(*addr)
+
+#define ether_crc(len, addr)    get_mac_addr_crc(*(uint64_t *)(addr)>>16)
+
+
+#endif /* __GENERAL_H */

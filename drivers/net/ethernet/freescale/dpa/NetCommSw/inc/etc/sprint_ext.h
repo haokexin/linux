@@ -35,6 +35,7 @@
  @File          sprint_ext.h
 
  @Description   Debug routines (externals).
+
 *//***************************************************************************/
 
 #ifndef __SPRINT_EXT_H

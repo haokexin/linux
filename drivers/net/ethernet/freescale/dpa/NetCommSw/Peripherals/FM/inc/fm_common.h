@@ -118,47 +118,6 @@ typedef enum e_FmInterModuleEvent
 } e_FmInterModuleEvent;
 
 
-#define GET_FM_MODULE_EVENT(_mod, _id, _intrType, _event)                                           \
-    switch(_mod) {                                                                                  \
-        case e_FM_MOD_PRS:                                                                          \
-            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
-            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_PRS : e_FM_EV_PRS;        \
-            break;                                                                                  \
-        case e_FM_MOD_KG:                                                                           \
-            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
-            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_KG : e_FM_EV_DUMMY_LAST;  \
-            break;                                                                                  \
-        case e_FM_MOD_PLCR:                                                                         \
-            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
-            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_PLCR : e_FM_EV_PLCR;      \
-            break;                                                                                  \
-        case e_FM_MOD_TMR:                                                                          \
-            if (_id) _event = e_FM_EV_DUMMY_LAST;                                                   \
-            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_DUMMY_LAST : e_FM_EV_TMR;     \
-            break;                                                                                  \
-        case e_FM_MOD_10G_MAC:                                                                      \
-            if (_id >= FM_MAX_NUM_OF_10G_MACS) _event = e_FM_EV_DUMMY_LAST;                         \
-            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? (e_FM_EV_ERR_10G_MAC0 + _id) : (e_FM_EV_10G_MAC0 + _id); \
-            break;                                                                                  \
-        case e_FM_MOD_1G_MAC:                                                                       \
-            if (_id >= FM_MAX_NUM_OF_1G_MACS) _event = e_FM_EV_DUMMY_LAST;                          \
-            else _event = (_intrType == e_FM_INTR_TYPE_ERR) ? (e_FM_EV_ERR_1G_MAC0 + _id) : (e_FM_EV_1G_MAC0 + _id); \
-            break;                                                                                  \
-        case e_FM_MOD_MACSEC:                                                                       \
-            switch(_id){                                                                            \
-                 case(0): _event = (_intrType == e_FM_INTR_TYPE_ERR) ? e_FM_EV_ERR_MACSEC_MAC0:e_FM_EV_MACSEC_MAC0; \
-                 break;                                                                             \
-                 }                                                                                  \
-            break;                                                                                  \
-        case e_FM_MOD_FMAN_CTRL:                                                                    \
-            if (_intrType == e_FM_INTR_TYPE_ERR) _event = e_FM_EV_DUMMY_LAST;                       \
-            else _event = (e_FM_EV_FMAN_CTRL_0 + _id);                                              \
-            break;                                                                                  \
-        default: _event = e_FM_EV_DUMMY_LAST;                                                       \
-        break;                                                                                      \
-    }
-
-
 #if defined(__MWERKS__) && !defined(__GNUC__)
 #pragma pack(push,1)
 #endif /* defined(__MWERKS__) && ... */
@@ -408,6 +367,7 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 #define NIA_FM_CTL_AC_POST_BMI_ENQ_ORR          0x00000014
 #define NIA_FM_CTL_AC_POST_BMI_ENQ              0x00000022
 #define NIA_FM_CTL_AC_PRE_CC                    0x00000020
+#define NIA_FM_CTL_AC_POST_TX                   0x00000024
 
 #define NIA_BMI_AC_ENQ_FRAME        0x00000002
 #define NIA_BMI_AC_TX_RELEASE       0x000002C0
@@ -498,25 +458,25 @@ static __inline__ bool TRY_LOCK(t_Handle h_Spinlock, volatile bool *p_Flag)
 
 
 #define SW_PORT_ID_TO_HW_PORT_ID(_port, _type, _relativePortId)         \
-switch(_type) {                                                         \
-    case(e_FM_PORT_TYPE_OH_OFFLINE_PARSING):                            \
-    case(e_FM_PORT_TYPE_OH_HOST_COMMAND):                               \
+switch (_type) {                                                        \
+    case (e_FM_PORT_TYPE_OH_OFFLINE_PARSING):                            \
+    case (e_FM_PORT_TYPE_OH_HOST_COMMAND):                               \
         CHECK_PORT_ID_OH_PORTS(_relativePortId);                        \
         _port = (uint8_t)(BASE_OH_PORTID + (_relativePortId));          \
         break;                                                          \
-    case(e_FM_PORT_TYPE_RX):                                            \
+    case (e_FM_PORT_TYPE_RX):                                            \
         CHECK_PORT_ID_1G_RX_PORTS(_relativePortId);                     \
         _port = (uint8_t)(BASE_1G_RX_PORTID + (_relativePortId));       \
         break;                                                          \
-    case(e_FM_PORT_TYPE_RX_10G):                                        \
+    case (e_FM_PORT_TYPE_RX_10G):                                        \
         CHECK_PORT_ID_10G_RX_PORTS(_relativePortId);                    \
         _port = (uint8_t)(BASE_10G_RX_PORTID + (_relativePortId));      \
         break;                                                          \
-    case(e_FM_PORT_TYPE_TX):                                            \
+    case (e_FM_PORT_TYPE_TX):                                            \
         CHECK_PORT_ID_1G_TX_PORTS(_relativePortId);                     \
         _port = (uint8_t)(BASE_1G_TX_PORTID + (_relativePortId));       \
         break;                                                          \
-    case(e_FM_PORT_TYPE_TX_10G):                                        \
+    case (e_FM_PORT_TYPE_TX_10G):                                        \
         CHECK_PORT_ID_10G_TX_PORTS(_relativePortId);                    \
         _port = (uint8_t)(BASE_10G_TX_PORTID + (_relativePortId));      \
         break;                                                          \
@@ -598,27 +558,27 @@ typedef struct {
 #define IS_SPECIAL_HEADER(hdr)              ((hdr) == HEADER_TYPE_MACSEC)
 
 #define GET_PRS_HDR_NUM(num, hdr)                           \
-switch(hdr)                                                 \
-{   case(HEADER_TYPE_ETH):              num = 0;  break;    \
-    case(HEADER_TYPE_LLC_SNAP):         num = 1;  break;    \
-    case(HEADER_TYPE_VLAN):             num = 2;  break;    \
-    case(HEADER_TYPE_PPPoE):            num = 3;  break;    \
-    case(HEADER_TYPE_MPLS):             num = 4;  break;    \
-    case(HEADER_TYPE_IPv4):             num = 5;  break;    \
-    case(HEADER_TYPE_IPv6):             num = 6;  break;    \
-    case(HEADER_TYPE_GRE):              num = 7;  break;    \
-    case(HEADER_TYPE_MINENCAP):         num = 8;  break;    \
-    case(HEADER_TYPE_USER_DEFINED_L3):  num = 9;  break;    \
-    case(HEADER_TYPE_TCP):              num = 10; break;    \
-    case(HEADER_TYPE_UDP):              num = 11; break;    \
-    case(HEADER_TYPE_IPSEC_AH):                             \
-    case(HEADER_TYPE_IPSEC_ESP):        num = 12; break;    \
-    case(HEADER_TYPE_SCTP):             num = 13; break;    \
-    case(HEADER_TYPE_DCCP):             num = 14; break;    \
-    case(HEADER_TYPE_USER_DEFINED_L4):  num = 15; break;    \
-    case(HEADER_TYPE_USER_DEFINED_SHIM1):                   \
-    case(HEADER_TYPE_USER_DEFINED_SHIM2):                   \
-    case(HEADER_TYPE_MACSEC):                               \
+switch (hdr)                                                \
+{   case (HEADER_TYPE_ETH):              num = 0;  break;   \
+    case (HEADER_TYPE_LLC_SNAP):         num = 1;  break;   \
+    case (HEADER_TYPE_VLAN):             num = 2;  break;   \
+    case (HEADER_TYPE_PPPoE):            num = 3;  break;   \
+    case (HEADER_TYPE_MPLS):             num = 4;  break;   \
+    case (HEADER_TYPE_IPv4):             num = 5;  break;   \
+    case (HEADER_TYPE_IPv6):             num = 6;  break;   \
+    case (HEADER_TYPE_GRE):              num = 7;  break;   \
+    case (HEADER_TYPE_MINENCAP):         num = 8;  break;   \
+    case (HEADER_TYPE_USER_DEFINED_L3):  num = 9;  break;   \
+    case (HEADER_TYPE_TCP):              num = 10; break;   \
+    case (HEADER_TYPE_UDP):              num = 11; break;   \
+    case (HEADER_TYPE_IPSEC_AH):                            \
+    case (HEADER_TYPE_IPSEC_ESP):        num = 12; break;   \
+    case (HEADER_TYPE_SCTP):             num = 13; break;   \
+    case (HEADER_TYPE_DCCP):             num = 14; break;   \
+    case (HEADER_TYPE_USER_DEFINED_L4):  num = 15; break;   \
+    case (HEADER_TYPE_USER_DEFINED_SHIM1):                  \
+    case (HEADER_TYPE_USER_DEFINED_SHIM2):                  \
+    case (HEADER_TYPE_MACSEC):                              \
         num = NO_HDR_NUM; break;                            \
     default:                                                \
         REPORT_ERROR(MAJOR, E_NOT_SUPPORTED, ("Unsupported header for parser"));\

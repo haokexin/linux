@@ -37,9 +37,10 @@
 
  @Description   General errors and events reporting utilities.
 *//***************************************************************************/
-
-
 #if (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0))
+#include "error_ext.h"
+
+
 const char *dbgLevelStrings[] =
 {
      "CRITICAL"
@@ -50,44 +51,45 @@ const char *dbgLevelStrings[] =
     ,"TRACE"
 };
 
-const char *errTypeStrings[] =
+
+char * ErrTypeStrings (e_ErrorType err)
 {
-     "Invalid State"                        /* E_INVALID_STATE */
-    ,"Invalid Operation"                    /* E_INVALID_OPERATION */
-    ,"Unsupported Operation"                /* E_NOT_SUPPORTED */
-    ,"No Device"                            /* E_NO_DEVICE */
-    ,"Invalid Handle"                       /* E_INVALID_HANDLE */
-    ,"Invalid ID"                           /* E_INVALID_ID */
-    ,"Unexpected NULL Pointer"              /* E_NULL_POINTER */
-    ,"Invalid Value"                        /* E_INVALID_VALUE */
-    ,"Invalid Selection"                    /* E_INVALID_SELECTION */
-    ,"Invalid Communication Mode"           /* E_INVALID_COMM_MODE */
-    ,"Invalid Memory Type"                  /* E_INVALID_MEMORY_TYPE */
-    ,"Invalid Interrupt Queue"              /* E_INVALID_INTR_QUEUE */
-    ,"Invalid Priority"                     /* E_INVALID_PRIORITY */
-    ,"Invalid Clock"                        /* E_INVALID_CLOCK */
-    ,"Invalid Rate"                         /* E_INVALID_RATE */
-    ,"Invalid Address"                      /* E_INVALID_ADDRESS */
-    ,"Invalid Bus"                          /* E_INVALID_BUS */
-    ,"Conflict In Bus Selection"            /* E_BUS_CONFLICT */
-    ,"Conflict In Settings"                 /* E_CONFLICT */
-    ,"Incorrect Alignment"                  /* E_NOT_ALIGNED */
-    ,"Value Out Of Range"                   /* E_NOT_IN_RANGE */
-    ,"Invalid Frame"                        /* E_INVALID_FRAME */
-    ,"Frame Is Empty"                       /* E_EMPTY_FRAME */
-    ,"Buffer Is Empty"                      /* E_EMPTY_BUFFER */
-    ,"Memory Allocation Failed"             /* E_NO_MEMORY */
-    ,"Resource Not Found"                   /* E_NOT_FOUND */
-    ,"Resource Is Unavailable"              /* E_NOT_AVAILABLE */
-    ,"Resource Already Exists"              /* E_ALREADY_EXISTS */
-    ,"Resource Is Full"                     /* E_FULL */
-    ,"Resource Is Empty"                    /* E_EMPTY */
-    ,"Resource Is Busy"                     /* E_BUSY */
-    ,"Resource Already Free"                /* E_ALREADY_FREE */
-    ,"Read Access Failed"                   /* E_READ_FAILED */
-    ,"Write Access Failed"                  /* E_WRITE_FAILED */
-    ,"Send Operation Failed"                /* E_SEND_FAILED */
-    ,"Receive Operation Failed"             /* E_RECEIVE_FAILED */
-    ,"Operation Timed Out"                  /* E_TIMEOUT */
-};
+    switch (err)
+    {
+        case (E_OK):                    return "OK";
+        case (E_WRITE_FAILED):          return "Write Access Failed";
+        case (E_NO_DEVICE):             return "No Device";
+        case (E_NOT_AVAILABLE):         return "Resource Is Unavailable";
+        case (E_NO_MEMORY):             return "Memory Allocation Failed";
+        case (E_INVALID_ADDRESS):       return "Invalid Address";
+        case (E_BUSY):                  return "Resource Is Busy";
+        case (E_ALREADY_EXISTS):        return "Resource Already Exists";
+        case (E_INVALID_OPERATION):     return "Invalid Operation";
+        case (E_INVALID_VALUE):         return "Invalid Value";
+        case (E_NOT_IN_RANGE):          return "Value Out Of Range";
+        case (E_NOT_SUPPORTED):         return "Unsupported Operation";
+        case (E_INVALID_STATE):         return "Invalid State";
+        case (E_INVALID_HANDLE):        return "Invalid Handle";
+        case (E_INVALID_ID):            return "Invalid ID";
+        case (E_NULL_POINTER):          return "Unexpected NULL Pointer";
+        case (E_INVALID_SELECTION):     return "Invalid Selection";
+        case (E_INVALID_COMM_MODE):     return "Invalid Communication Mode";
+        case (E_INVALID_MEMORY_TYPE):   return "Invalid Memory Type";
+        case (E_INVALID_CLOCK):         return "Invalid Clock";
+        case (E_CONFLICT):              return "Conflict In Settings";
+        case (E_NOT_ALIGNED):           return "Incorrect Alignment";
+        case (E_NOT_FOUND):             return "Resource Not Found";
+        case (E_FULL):                  return "Resource Is Full";
+        case (E_EMPTY):                 return "Resource Is Empty";
+        case (E_ALREADY_FREE):          return "Resource Already Free";
+        case (E_READ_FAILED):           return "Read Access Failed";
+        case (E_INVALID_FRAME):         return "Invalid Frame";
+        case (E_SEND_FAILED):           return "Send Operation Failed";
+        case (E_RECEIVE_FAILED):        return "Receive Operation Failed";
+        case (E_TIMEOUT):               return "Operation Timed Out";
+        default:
+            break;
+    }
+    return NULL;
+}
 #endif /* (defined(DEBUG_ERRORS) && (DEBUG_ERRORS > 0)) */

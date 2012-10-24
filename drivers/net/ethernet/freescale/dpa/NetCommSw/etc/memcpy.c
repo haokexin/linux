@@ -37,71 +37,6 @@
 #include "memcpy_ext.h"
 
 
-#ifdef CORE_8BIT_ACCESS_ERRATA
-static void MY_MY_WRITE_UINT8(uint8_t *addr, uint8_t val)
-{
-    uint32_t newAddr, newVal;
-    newAddr = (uint32_t)addr & ~0x3L;
-    switch ((uint32_t)addr%4)
-    {
-    case (0):
-        newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0x00ffffff) | (((uint32_t)val)<<24);
-        WRITE_UINT32(*(uint32_t*)newAddr, newVal);
-        break;
-    case (1):
-         newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0xff00ffff) | (((uint32_t)val)<<16);
-        WRITE_UINT32(*(uint32_t*)newAddr, newVal);
-        break;
-    case (2):
-        newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0xffff00ff) | (((uint32_t)val)<<8);
-        WRITE_UINT32(*(uint32_t*)newAddr, newVal);
-        break;
-    case (3):
-        newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0xffffff00) | val;
-        WRITE_UINT32(*(uint32_t*)newAddr, newVal);
-        break;
-    }
-}
-
-static uint8_t MY_MY_GET_UINT8(uint8_t *addr)
-{
-    uint32_t newAddr, newVal=0;
-    newAddr = (uint32_t)addr & ~0x3L;
-    switch ((uint32_t)addr%4)
-    {
-    case (0):
-        newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0xff000000)>>24;
-        break;
-    case (1):
-        newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0x00ff0000)>>16;
-        break;
-    case (2):
-        newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0x0000ff00)>>8;
-        break;
-    case (3):
-        newVal = GET_UINT32(*(uint32_t*)newAddr);
-        newVal = (newVal & 0x000000ff);
-        break;
-    }
-
-    return (uint8_t)newVal;
-}
-
-#define MY_WRITE_UINT8(addr,val) MY_MY_WRITE_UINT8(&addr,val)
-#define MY_GET_UINT8(addr) MY_MY_GET_UINT8(&addr)
-#else
-#define MY_WRITE_UINT8 WRITE_UINT8
-#define MY_GET_UINT8   GET_UINT8
-#endif /* CORE_8BIT_ACCESS_ERRATA */
-
-
 void * MemCpy32(void* pDst,void* pSrc, uint32_t size)
 {
     uint32_t leftAlign;
@@ -195,7 +130,7 @@ void * IO2IOCpy32(void* pDst,void* pSrc, uint32_t size)
      */
     while((PTR_TO_UINT(p_Src8) & 3) && size) /* (pSrc mod 4) > 0 and size > 0 */
     {
-        MY_WRITE_UINT8(*p_Dst8, MY_GET_UINT8(*p_Src8));
+        WRITE_UINT8(*p_Dst8, GET_UINT8(*p_Src8));
         p_Dst8++;p_Src8++;
         size--;
     }
@@ -203,7 +138,7 @@ void * IO2IOCpy32(void* pDst,void* pSrc, uint32_t size)
     /* align destination (possibly disaligning source)*/
     while((PTR_TO_UINT(p_Dst8) & 3) && size) /* (pDst mod 4) > 0 and size > 0 */
     {
-        MY_WRITE_UINT8(*p_Dst8, MY_GET_UINT8(*p_Src8));
+        WRITE_UINT8(*p_Dst8, GET_UINT8(*p_Src8));
         p_Dst8++;p_Src8++;
         size--;
     }
@@ -248,7 +183,7 @@ void * IO2IOCpy32(void* pDst,void* pSrc, uint32_t size)
     /* complete the left overs */
     while (size--)
     {
-        MY_WRITE_UINT8(*p_Dst8, MY_GET_UINT8(*p_Src8));
+        WRITE_UINT8(*p_Dst8, GET_UINT8(*p_Src8));
         p_Dst8++;p_Src8++;
     }
 
@@ -274,7 +209,7 @@ void * Mem2IOCpy32(void* pDst,void* pSrc, uint32_t size)
      */
     while((PTR_TO_UINT(p_Src8) & 3) && size) /* (pSrc mod 4) > 0 and size > 0 */
     {
-        MY_WRITE_UINT8(*p_Dst8, *p_Src8);
+        WRITE_UINT8(*p_Dst8, *p_Src8);
         p_Dst8++;p_Src8++;
         size--;
     }
@@ -282,7 +217,7 @@ void * Mem2IOCpy32(void* pDst,void* pSrc, uint32_t size)
     /* align destination (possibly disaligning source)*/
     while((PTR_TO_UINT(p_Dst8) & 3) && size) /* (pDst mod 4) > 0 and size > 0 */
     {
-        MY_WRITE_UINT8(*p_Dst8, *p_Src8);
+        WRITE_UINT8(*p_Dst8, *p_Src8);
         p_Dst8++;p_Src8++;
         size--;
     }
@@ -326,7 +261,7 @@ void * Mem2IOCpy32(void* pDst,void* pSrc, uint32_t size)
     /* complete the left overs */
     while (size--)
     {
-        MY_WRITE_UINT8(*p_Dst8, *p_Src8);
+        WRITE_UINT8(*p_Dst8, *p_Src8);
         p_Dst8++;p_Src8++;
     }
 
@@ -352,7 +287,7 @@ void * IO2MemCpy32(void* pDst,void* pSrc, uint32_t size)
      */
     while((PTR_TO_UINT(p_Src8) & 3) && size) /* (pSrc mod 4) > 0 and size > 0 */
     {
-        *p_Dst8 = MY_GET_UINT8(*p_Src8);
+        *p_Dst8 = GET_UINT8(*p_Src8);
         p_Dst8++;p_Src8++;
         size--;
     }
@@ -360,7 +295,7 @@ void * IO2MemCpy32(void* pDst,void* pSrc, uint32_t size)
     /* align destination (possibly disaligning source)*/
     while((PTR_TO_UINT(p_Dst8) & 3) && size) /* (pDst mod 4) > 0 and size > 0 */
     {
-        *p_Dst8 = MY_GET_UINT8(*p_Src8);
+        *p_Dst8 = GET_UINT8(*p_Src8);
         p_Dst8++;p_Src8++;
         size--;
     }
@@ -405,7 +340,7 @@ void * IO2MemCpy32(void* pDst,void* pSrc, uint32_t size)
     /* complete the left overs */
     while (size--)
     {
-        *p_Dst8 = MY_GET_UINT8(*p_Src8);
+        *p_Dst8 = GET_UINT8(*p_Src8);
         p_Dst8++;p_Src8++;
     }
 
@@ -538,7 +473,7 @@ void * IOMemSet32(void* pDst, uint8_t val, uint32_t size)
     /* align destination to 32 */
     while((PTR_TO_UINT(p_Dst8) & 3) && size) /* (pDst mod 4) > 0 and size > 0 */
     {
-        MY_WRITE_UINT8(*p_Dst8, val);
+        WRITE_UINT8(*p_Dst8, val);
         p_Dst8++;
         size--;
     }
@@ -556,7 +491,7 @@ void * IOMemSet32(void* pDst, uint8_t val, uint32_t size)
     p_Dst8 = (uint8_t*)(p_Dst32);
     while (size--)
     {
-        MY_WRITE_UINT8(*p_Dst8, val);
+        WRITE_UINT8(*p_Dst8, val);
         p_Dst8++;
     }
 
