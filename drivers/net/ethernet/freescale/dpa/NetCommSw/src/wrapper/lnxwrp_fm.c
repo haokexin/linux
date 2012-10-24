@@ -1201,8 +1201,11 @@ static int __init __cold fm_load (void)
         return -ENODEV;
     }
 
-	printk (KERN_CRIT "Freescale FM module ("__DATE__ ":"__TIME__")\n");
-
+	printk(KERN_CRIT "Freescale FM module ("__DATE__ ":"__TIME__")," \
+		" FMD API version %d.%d.%d\n",
+		FMD_API_VERSION_MAJOR,
+		FMD_API_VERSION_MINOR,
+		FMD_API_VERSION_RESPIN);
     return 0;
 }
 

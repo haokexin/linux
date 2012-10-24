@@ -207,6 +207,16 @@ typedef struct ioc_fm_counters_params_t {
     uint32_t        val;                /**< The requested value to get/set from/into the counter */
 } ioc_fm_counters_params_t;
 
+typedef union ioc_fm_api_version_t {
+    struct {
+        uint8_t major;
+        uint8_t minor;
+        uint8_t respin;
+        uint8_t reserved;
+    } version;
+    uint32_t ver;
+} ioc_fm_api_version_t;
+
 /**************************************************************************//**
  @Function      FM_IOC_SET_PORTS_BANDWIDTH
 
@@ -277,9 +287,23 @@ typedef struct ioc_fm_counters_params_t {
 *//***************************************************************************/
 #define FM_IOC_FORCE_INTR                                    _IOW(FM_IOC_TYPE_BASE, FM_IOC_NUM(6), ioc_fm_exceptions)
 
+/**************************************************************************//**
+ @Function      FM_IOC_GET_API_VERSION
+
+ @Description   Reads the FMD IOCTL API version.
+
+ @Param[in,out] ioc_fm_api_version_t The requested counter parameters.
+
+ @Return        Version's value.
+*//***************************************************************************/
+#define FM_IOC_GET_API_VERSION                               _IOR(FM_IOC_TYPE_BASE, FM_IOC_NUM(7), ioc_fm_api_version_t)
+
 /** @} */ /* end of lnx_ioctl_FM_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_lib_grp group */
 /** @} */ /* end of lnx_ioctl_FM_grp */
 
+#define FMD_API_VERSION_MAJOR 18
+#define FMD_API_VERSION_MINOR 1
+#define FMD_API_VERSION_RESPIN 0
 
 #endif /* __FM_IOCTLS_H */

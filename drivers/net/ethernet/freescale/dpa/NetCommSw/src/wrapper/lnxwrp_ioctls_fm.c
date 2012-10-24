@@ -2756,6 +2756,14 @@ invalid_port_id:
     return E_OK;
 }
 
+void FM_Get_Api_Version(ioc_fm_api_version_t *p_version)
+{
+	p_version->version.major = FMD_API_VERSION_MAJOR;
+	p_version->version.minor = FMD_API_VERSION_MINOR;
+	p_version->version.respin = FMD_API_VERSION_RESPIN;
+	p_version->version.reserved = 0;
+}
+
 t_Error LnxwrpFmIOCTL(t_LnxWrpFmDev *p_LnxWrpFmDev, unsigned int cmd, unsigned long arg, bool compat)
 {
     t_Error err = E_OK;
@@ -2933,6 +2941,29 @@ t_Error LnxwrpFmIOCTL(t_LnxWrpFmDev *p_LnxWrpFmDev, unsigned int cmd, unsigned l
             break;
         }
 
+	case FM_IOC_GET_API_VERSION:
+	{
+		ioc_fm_api_version_t version;
+
+		FM_Get_Api_Version(&version);
+
+#if defined(CONFIG_COMPAT)
+		if (compat)
+		{
+			if (copy_to_user(
+				(ioc_fm_api_version_t *)compat_ptr(arg),
+				&version, sizeof(version)))
+				err = E_READ_FAILED;
+		}
+		else
+#endif
+		{
+			if (copy_to_user((ioc_fm_api_version_t *)arg,
+				&version, sizeof(version)))
+				err = E_READ_FAILED;
+		}
+	}
+	break;
         default:
             return LnxwrpFmPcdIOCTL(p_LnxWrpFmDev, cmd, arg, compat);
     }
