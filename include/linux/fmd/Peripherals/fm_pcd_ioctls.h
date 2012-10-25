@@ -416,7 +416,6 @@ TODO: unused IOCTL
  @Collection    Definitions of coarse classification parameters as required by KeyGen
                 (when coarse classification is the next engine after this scheme).
 *//***************************************************************************/
-#define IOC_FM_PCD_MAX_NUM_OF_CC_NODES              255
 #define IOC_FM_PCD_MAX_NUM_OF_CC_TREES              8
 #define IOC_FM_PCD_MAX_NUM_OF_CC_GROUPS             16
 #define IOC_FM_PCD_MAX_NUM_OF_CC_UNITS              4
@@ -786,10 +785,10 @@ typedef enum ioc_fm_pcd_manip_hdr_custom_ip_replace {
  @Description   Enumeration type for selecting type of header removal
 *//***************************************************************************/
 typedef enum ioc_fm_pcd_manip_hdr_rmv_by_hdr_type {
+    e_IOC_FM_PCD_MANIP_RMV_BY_HDR_SPECIFIC_L2 = 0       /**< Specific L2 fields removal */
 #ifdef FM_CAPWAP_SUPPORT
     e_IOC_FM_PCD_MANIP_RMV_BY_HDR_FROM_START,           /**< Locate from data that is not the header */
 #endif /* FM_CAPWAP_SUPPORT */
-    e_IOC_FM_PCD_MANIP_RMV_BY_HDR_SPECIFIC_L2           /**< Specific L2 fields removal */
 } ioc_fm_pcd_manip_hdr_rmv_by_hdr_type;
 
 /**************************************************************************//**
@@ -849,9 +848,13 @@ typedef enum ioc_fm_pcd_cc_stats_mode {
                 is larger than MTU but its DF (Don't Fragment) bit is set.
 *//***************************************************************************/
 typedef enum ioc_fm_pcd_manip_dont_frag_action {
-    e_IOC_FM_PCD_MANIP_ENQ_TO_ERR_Q_OR_DISCARD_PACKET = 0,  /**< Discard packet */
-    e_IOC_FM_PCD_MANIP_FRAGMENT_PACKECT,                    /**< Fragment packet and continue normal processing */
-    e_IOC_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG                /**< Continue normal processing without fragmenting the packet */
+    e_IOC_FM_PCD_MANIP_DISCARD_PACKET = 0,      /**< Discard packet */
+    e_IOC_FM_PCD_MANIP_ENQ_TO_ERR_Q_OR_DISCARD_PACKET =  e_IOC_FM_PCD_MANIP_DISCARD_PACKET,
+                                                /**< Obsolete, cannot enqueue to error queue;
+                                                     In practice, selects to discard packets;
+                                                     Will be removed in the future */
+    e_IOC_FM_PCD_MANIP_FRAGMENT_PACKECT,        /**< Fragment packet and continue normal processing */
+    e_IOC_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG    /**< Continue normal processing without fragmenting the packet */
 } ioc_fm_pcd_manip_dont_frag_action;
 
 /**************************************************************************//**
@@ -882,6 +885,7 @@ typedef union ioc_fm_pcd_fields_u {
     ioc_header_field_llc_snap_t         llc_snap;       /**< LLC SNAP               */
     ioc_header_field_pppoe_t            pppoe;          /**< PPPoE                  */
     ioc_header_field_mpls_t             mpls;           /**< MPLS                   */
+    ioc_header_field_ip_t               ip;             /**< IP                     */
     ioc_header_field_ipv4_t             ipv4;           /**< IPv4                   */
     ioc_header_field_ipv6_t             ipv6;           /**< IPv6                   */
     ioc_header_field_udp_t              udp;            /**< UDP                    */
@@ -1326,7 +1330,7 @@ typedef struct ioc_fm_pcd_cc_next_engine_params_t {
     void                                        *manip_id;      /**< Handle to Manipulation object.
                                                                      Relevant if next engine is of type result
                                                                      (e_IOC_FM_PCD_PLCR, e_IOC_FM_PCD_KG, e_IOC_FM_PCD_DONE) */
-    bool                                        statistics_en;   /**< If TRUE, statistics counters are incremented
+    bool                                        statistics_en;  /**< If TRUE, statistics counters are incremented
                                                                       for each frame passing through this
                                                                       Coarse Classification entry. */
 } ioc_fm_pcd_cc_next_engine_params_t;
@@ -1373,11 +1377,16 @@ typedef struct ioc_keys_params_t {
                                                      initial keys do not contain masks, or if the node was initialized
                                                      as 'empty' (without keys); this will allow user to add keys with
                                                      masks at runtime. */
-    ioc_fm_pcd_cc_stats_mode    statistics_mode;/**< If not e_IOC_FM_PCD_CC_STATS_MODE_NONE, the required structures for
-                                                     the requested statistics mode will be allocated according to 'max_num_of_keys'. */
+    ioc_fm_pcd_cc_stats_mode    statistics_mode;/**< Determines the supported statistics mode for all node's keys.
+                                                     To enable statistics gathering, statistics should be enabled per
+                                                     every key, using 'statistics_en' in next engine parameters structure
+                                                     of that key;
+                                                     If 'max_num_of_keys' is set, all required structures will be
+                                                     preallocated for all keys. */
 #if (DPAA_VERSION >= 11)
     uint16_t                    frame_length_ranges[IOC_FM_PCD_CC_STATS_MAX_NUM_OF_FLR];
-                                                /**< Relevant only for 'e_IOC_FM_PCD_CC_STATS_MODE_RMON' statistics mode.
+                                                /**< Relevant only for 'RMON' statistics mode
+                                                     (this feature is supported only on B4860 device);
                                                      Holds a list of programmable thresholds. For each received frame,
                                                      its length in bytes is examined against these range thresholds and
                                                      the appropriate counter is incremented by 1. For example, to belong
@@ -1559,9 +1568,10 @@ typedef struct ioc_fm_pcd_plcr_profile_params_t {
     ioc_fm_pcd_engine                           next_engine_on_red;         /**< Next engine for red-colored frames */
     ioc_fm_pcd_plcr_next_engine_params_u        params_on_red;              /**< Next engine parameters for red-colored frames  */
 
-    bool                                        trap_profile_on_flow_A;     /**< Trap on flow A */
-    bool                                        trap_profile_on_flow_B;     /**< Trap on flow B */
-    bool                                        trap_profile_on_flow_C;     /**< Trap on flow C */
+    bool                                        trap_profile_on_flow_A;     /**< Obsolete - do not use */
+    bool                                        trap_profile_on_flow_B;     /**< Obsolete - do not use */
+    bool                                        trap_profile_on_flow_C;     /**< Obsolete - do not use */
+
     void                                        *id;                        /**< output parameter; Returns the profile Id to be used */
 } ioc_fm_pcd_plcr_profile_params_t;
 
@@ -1675,6 +1685,7 @@ typedef struct ioc_fm_pcd_manip_frag_ip_params_t {
                                                                  If disabled, the Scatter/Gather buffer will be allocated from the same pool as the
                                                                  received frame's buffer. */
     uint8_t                     sg_bpid;                    /**< Scatter/Gather buffer pool id;
+                                                                 This parameter is relevant when 'sg_bpid_en=TRUE';
                                                                  Same LIODN number is used for these buffers as for the received frames buffers, so buffers
                                                                  of this pool need to be allocated in the same memory area as the received buffers.
                                                                  If the received buffers arrive from different sources, the Scatter/Gather BP id should be
@@ -1700,6 +1711,7 @@ typedef struct ioc_fm_pcd_manip_reassem_ip_params_t {
     uint8_t                         relative_scheme_id[2];    /**< Partition relative scheme id:
                                                                  relativeSchemeId[0] -  Relative scheme ID for IPV4 Reassembly manipulation;
                                                                  relativeSchemeId[1] -  Relative scheme ID for IPV6 Reassembly manipulation;
+                                                                 NOTE: The following comment is relevant only for FMAN v2 devices:
                                                                  Relative scheme ID for IPv4/IPv6 Reassembly manipulation must be smaller than
                                                                  the user schemes id to ensure that the reassembly's schemes will be first match.
                                                                  The remaining schemes, if defined, should have higher relative scheme ID. */

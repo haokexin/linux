@@ -2195,7 +2195,7 @@ typedef struct t_FmPcdManipFragIpParams {
                                                              If disabled, the Scatter/Gather buffer will be allocated from the same pool as the
                                                              received frame's buffer. */
     uint8_t                     sgBpid;                 /**< Scatter/Gather buffer pool id;
-                                                             This parameters is relevant when 'sgBpidEn=TRUE';
+                                                             This parameter is relevant when 'sgBpidEn=TRUE';
                                                              Same LIODN number is used for these buffers as for the received frames buffers, so buffers
                                                              of this pool need to be allocated in the same memory area as the received buffers.
                                                              If the received buffers arrive from different sources, the Scatter/Gather BP id should be

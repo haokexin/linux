@@ -112,52 +112,11 @@ typedef enum ioc_fm_port_pcd_support {
 } ioc_fm_port_pcd_support;
 
 
-
-/**************************************************************************//**
- @Collection    General FM Port defines
-*//***************************************************************************/
-
-/* @} */
-
 /**************************************************************************//**
  @Collection   FM Frame error
 *//***************************************************************************/
-typedef uint32_t    ioc_fm_port_frame_err_select_t; /**< typedef for defining Frame Descriptor errors */
+typedef uint32_t    ioc_fm_port_frame_err_select_t;     /**< typedef for defining Frame Descriptor errors */
 
-#define IOC_FM_PORT_FRM_ERR_UNSUPPORTED_FORMAT      FM_FD_ERR_UNSUPPORTED_FORMAT    /**< Not for Rx-Port! Unsupported Format */
-#define IOC_FM_PORT_FRM_ERR_LENGTH                  FM_FD_ERR_LENGTH                /**< Not for Rx-Port! Length Error */
-#define IOC_FM_PORT_FRM_ERR_DMA                     FM_FD_ERR_DMA                   /**< DMA Data error */
-#ifdef FM_DISABLE_SEC_ERRORS
-#define IOC_FM_PORT_FRM_ERR_NON_FM                  FM_FD_RX_STATUS_ERR_NON_FM      /*< Non Frame-Manager error;
-                                                                                        probably come from SEC that was chained to FM */
-#endif /* FM_DISABLE_SEC_ERRORS */
-
-#define IOC_FM_PORT_FRM_ERR_IPRE                    (FM_FD_ERR_IPR & ~FM_FD_IPR)    /**< IPR error */
-#define IOC_FM_PORT_FRM_ERR_IPR_TO                  (FM_FD_ERR_IPR_TO & ~FM_FD_IPR) /**< IPR timeout */
-#define IOC_FM_PORT_FRM_ERR_IPFE                    FM_FD_ERR_IPF                   /**< IPF error */
-
-#ifdef FM_CAPWAP_SUPPORT
-#define IOC_FM_PORT_FRM_ERR_CRE                     FM_FD_ERR_CRE
-#define IOC_FM_PORT_FRM_ERR_CHE                     FM_FD_ERR_CHE
-#endif /* FM_CAPWAP_SUPPORT */
-
-#define IOC_FM_PORT_FRM_ERR_PHYSICAL                FM_FD_ERR_PHYSICAL              /**< Rx FIFO overflow, FCS error, code error, running disparity
-                                                                                         error (SGMII and TBI modes), FIFO parity error, PHY
-                                                                                         Sequence error, PHY error control character detected. */
-#define IOC_FM_PORT_FRM_ERR_SIZE                    FM_FD_ERR_SIZE                  /**< Frame too long OR Frame size exceeds max_length_frame  */
-#define IOC_FM_PORT_FRM_ERR_CLS_DISCARD             FM_FD_ERR_CLS_DISCARD           /**< classification discard */
-#define IOC_FM_PORT_FRM_ERR_EXTRACTION              FM_FD_ERR_EXTRACTION            /**< Extract Out of Frame */
-#define IOC_FM_PORT_FRM_ERR_NO_SCHEME               FM_FD_ERR_NO_SCHEME             /**< No Scheme Selected */
-#define IOC_FM_PORT_FRM_ERR_KEYSIZE_OVERFLOW        FM_FD_ERR_KEYSIZE_OVERFLOW      /**< Keysize Overflow */
-#define IOC_FM_PORT_FRM_ERR_COLOR_RED               FM_FD_ERR_COLOR_RED             /**< Frame color is red */
-#define IOC_FM_PORT_FRM_ERR_COLOR_YELLOW            FM_FD_ERR_COLOR_YELLOW          /**< Frame color is yellow */
-#define IOC_FM_PORT_FRM_ERR_ILL_PLCR                FM_FD_ERR_ILL_PLCR              /**< Illegal Policer Profile selected */
-#define IOC_FM_PORT_FRM_ERR_PLCR_FRAME_LEN          FM_FD_ERR_PLCR_FRAME_LEN        /**< Policer frame length error */
-#define IOC_FM_PORT_FRM_ERR_PRS_TIMEOUT             FM_FD_ERR_PRS_TIMEOUT           /**< Parser Time out Exceed */
-#define IOC_FM_PORT_FRM_ERR_PRS_ILL_INSTRUCT        FM_FD_ERR_PRS_ILL_INSTRUCT      /**< Invalid Soft Parser instruction */
-#define IOC_FM_PORT_FRM_ERR_PRS_HDR_ERR             FM_FD_ERR_PRS_HDR_ERR           /**< Header error was identified during parsing */
-#define IOC_FM_PORT_FRM_ERR_BLOCK_LIMIT_EXCEEDED    FM_FD_ERR_BLOCK_LIMIT_EXCEEDED  /**< Frame parsed beyind 256 first bytes */
-#define IOC_FM_PORT_FRM_ERR_PROCESS_TIMEOUT         0x00000001                      /**< FPM Frame Processing Timeout Exceeded */
 /* @} */
 
 

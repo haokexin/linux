@@ -85,6 +85,16 @@ typedef uint8_t ioc_header_field_eth_t;
 
 #define IOC_NET_HEADER_FIELD_ETH_ADDR_SIZE                 6
 
+
+typedef uint16_t ioc_header_field_ip_t;
+
+#define IOC_NET_HEADER_FIELD_IP_VER                         (1)
+#define IOC_NET_HEADER_FIELD_IP_DSCP                        (IOC_NET_HEADER_FIELD_IP_VER << 2)
+#define IOC_NET_HEADER_FIELD_IP_ECN                         (IOC_NET_HEADER_FIELD_IP_VER << 3)
+#define IOC_NET_HEADER_FIELD_IP_PROTO                       (IOC_NET_HEADER_FIELD_IP_VER << 4)
+
+#define IOC_NET_HEADER_FIELD_IP_PROTO_SIZE                  1
+
 typedef uint16_t ioc_header_field_ipv4_t;
 
 #define IOC_NET_HEADER_FIELD_IPv4_VER                       (1)
@@ -369,6 +379,7 @@ typedef enum {
     e_IOC_NET_HEADER_TYPE_VLAN,
     e_IOC_NET_HEADER_TYPE_IPv4,
     e_IOC_NET_HEADER_TYPE_IPv6,
+    e_IOC_NET_HEADER_TYPE_IP,
     e_IOC_NET_HEADER_TYPE_TCP,
     e_IOC_NET_HEADER_TYPE_UDP,
     e_IOC_NET_HEADER_TYPE_IPHC,

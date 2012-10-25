@@ -148,10 +148,6 @@
 #endif
 #endif
 
-#if CMP_IOC_DEFINE(FM_PCD_MAX_NUM_OF_CC_NODES)
-#error Error: please synchronize IOC_ defines!
-#endif
-
 #if CMP_IOC_DEFINE(FM_PCD_MAX_NUM_OF_CC_TREES)
 #error Error: please synchronize IOC_ defines!
 #endif
