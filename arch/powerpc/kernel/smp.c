@@ -481,6 +481,7 @@ static int __cpuinit create_idle(unsigned int cpu)
 	if (!c_idle.idle) {
 		schedule_work(&c_idle.work);
 		wait_for_completion(&c_idle.done);
+		set_idle_for_cpu(cpu, c_idle.idle);
 	} else
 		init_idle(c_idle.idle, cpu);
 	if (IS_ERR(c_idle.idle)) {		
