@@ -378,7 +378,6 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
                             uint32_t    *p_DdrDivFactor);
 
 
-
 /** @} */ /* end of 1023_init_grp group */
 /** @} */ /* end of 1023_grp group */
 
