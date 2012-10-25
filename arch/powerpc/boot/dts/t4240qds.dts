@@ -116,32 +116,12 @@
 		ranges = <0x00000000 0xf 0xfe000000 0x1000000>;
 		reg = <0xf 0xfe000000 0 0x00001000>;
 		spi@110000 {
-			status = "disabled";
 			flash@0 {
 				#address-cells = <1>;
 				#size-cells = <1>;
-				compatible = "spansion,s25sl12801";
+				compatible = "sst,sst25wf040";
 				reg = <0>;
 				spi-max-frequency = <40000000>; /* input clock */
-				partition@u-boot {
-					label = "u-boot";
-					reg = <0x00000000 0x00100000>;
-					read-only;
-				};
-				partition@kernel {
-					label = "kernel";
-					reg = <0x00100000 0x00500000>;
-					read-only;
-				};
-				partition@dtb {
-					label = "dtb";
-					reg = <0x00600000 0x00100000>;
-					read-only;
-				};
-				partition@fs {
-					label = "file system";
-					reg = <0x00700000 0x00900000>;
-				};
 			};
 		};
 
