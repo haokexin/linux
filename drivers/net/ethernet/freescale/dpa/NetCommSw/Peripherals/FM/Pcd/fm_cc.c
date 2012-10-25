@@ -6537,7 +6537,7 @@ t_Error FM_PCD_MatchTableFindNGetKeyStatistics(t_Handle                 h_CcNode
     t_Error             err;
 
     SANITY_CHECK_RETURN_ERROR(p_Key, E_NULL_POINTER);
-    SANITY_CHECK_RETURN_ERROR(p_Mask, E_NULL_POINTER);
+    SANITY_CHECK_RETURN_ERROR(p_KeyStatistics, E_NULL_POINTER);
 
     intFlags = XX_LockIntrSpinlock(p_CcNode->h_Spinlock);
 

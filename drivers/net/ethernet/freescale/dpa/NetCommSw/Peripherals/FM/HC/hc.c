@@ -124,8 +124,9 @@ typedef struct t_FmHc {
     t_Handle                    h_QmArg;          /**< A handle to the QM module */
     uint8_t                     dataMemId;        /**< Memory partition ID for data buffers */
 
-    uint32_t                    seqNum;
-    volatile bool               busy[HC_CMD_POOL_SIZE];     /* Buffer is taken for HC */
+    uint32_t                    seqNum[HC_CMD_POOL_SIZE];   /* FIFO of seqNum to use when
+                                                               taking buffer */
+    uint32_t                    nextSeqNumLocation;         /* seqNum location in seqNum[] for next buffer */
     volatile bool               enqueued[HC_CMD_POOL_SIZE]; /* HC is active - frame is enqueued
                                                                and not confirmed yet */
     t_HcFrame                   *p_Frm[HC_CMD_POOL_SIZE];
@@ -134,11 +135,11 @@ typedef struct t_FmHc {
 
 static t_Error FillBufPool(t_FmHc *p_FmHc)
 {
-    int i;
+    uint32_t i;
 
     ASSERT_COND(p_FmHc);
 
-    for (i=0; i<HC_CMD_POOL_SIZE; i++)
+    for (i = 0; i < HC_CMD_POOL_SIZE; i++)
     {
 #ifdef FM_LOCKUP_ALIGNMENT_ERRATA_FMAN_SW004
         p_FmHc->p_Frm[i] = (t_HcFrame *)XX_MallocSmart((sizeof(t_HcFrame) + (16 - (sizeof(t_FmHc) % 16))),
@@ -153,34 +154,35 @@ static t_Error FillBufPool(t_FmHc *p_FmHc)
             RETURN_ERROR(MAJOR, E_NO_MEMORY, ("FM HC frames!"));
     }
 
+    /* Initialize FIFO of seqNum to use during GetBuf */
+    for (i = 0; i < HC_CMD_POOL_SIZE; i++)
+    {
+        p_FmHc->seqNum[i] = i;
+    }
+    p_FmHc->nextSeqNumLocation = 0;
+
     return E_OK;
 }
 
 static __inline__ t_HcFrame * GetBuf(t_FmHc *p_FmHc, uint32_t *p_SeqNum)
 {
     uint32_t    intFlags;
-    bool        noBuf = FALSE;
 
     ASSERT_COND(p_FmHc);
 
     intFlags = FmPcdLock(p_FmHc->h_FmPcd);
 
-    *p_SeqNum = p_FmHc->seqNum;
-    if (p_FmHc->busy[*p_SeqNum])
+    if (p_FmHc->nextSeqNumLocation == HC_CMD_POOL_SIZE)
     {
-        noBuf = TRUE;
+        /* No more buffers */
+        FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
+        return NULL;
     }
-    else
-    {
-        p_FmHc->busy[*p_SeqNum] = TRUE;
-        p_FmHc->seqNum = (uint32_t)((p_FmHc->seqNum+1)%HC_CMD_POOL_SIZE);
-    }
+
+    *p_SeqNum = p_FmHc->seqNum[p_FmHc->nextSeqNumLocation];
+    p_FmHc->nextSeqNumLocation++;
 
     FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
-
-    if (noBuf)
-        return NULL;
-
     return p_FmHc->p_Frm[*p_SeqNum];
 }
 
@@ -191,8 +193,9 @@ static __inline__ void PutBuf(t_FmHc *p_FmHc, t_HcFrame *p_Buf, uint32_t seqNum)
     UNUSED(p_Buf);
 
     intFlags = FmPcdLock(p_FmHc->h_FmPcd);
-    ASSERT_COND(p_FmHc->busy[seqNum]);
-    p_FmHc->busy[seqNum] = FALSE;
+    ASSERT_COND(p_FmHc->nextSeqNumLocation);
+    p_FmHc->nextSeqNumLocation--;
+    p_FmHc->seqNum[p_FmHc->nextSeqNumLocation] = seqNum;
     FmPcdUnlock(p_FmHc->h_FmPcd, intFlags);
 }
 
