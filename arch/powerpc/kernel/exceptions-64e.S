@@ -34,6 +34,30 @@
  */
 #define	SPECIAL_EXC_FRAME_SIZE	INT_FRAME_SIZE
 
+/* only on book3e */
+#define DBG_STACK_BASE		dbgirq_ctx
+#define MC_STACK_BASE		mcheckirq_ctx
+#define CRIT_STACK_BASE		critirq_ctx
+
+#ifdef CONFIG_SMP
+#define BOOK3E_LOAD_EXC_LEVEL_STACK(level)		\
+	std	r14,PACA_EX##level+EX_R14(r13);		\
+	mfspr	r14,SPRN_PIR;				\
+	slwi	r14,r14,3;				\
+	LOAD_REG_ADDR(r10, level##_STACK_BASE);		\
+	add	r10,r10,r14;				\
+	ld	r10,0(r10);				\
+	addi	r10,r10,THREAD_SIZE;			\
+	std	r10,PACA_DBG_STACK(r13);		\
+	ld	r14,PACA_EX##level+EX_R14(r13);
+#else
+#define BOOK3E_LOAD_EXC_LEVEL_STACK(level)		\
+	LOAD_REG_ADDR(r10, level##_STACK_BASE);		\
+	ld	r10,0(r10);				\
+	addi	r10,r10,THREAD_SIZE;			\
+	std	r10,PACA_DBG_STACK(r13);
+#endif
+
 /* Exception prolog code for all exceptions */
 #define EXCEPTION_PROLOG(n, type, addition)				    \
 	mtspr	SPRN_SPRG_##type##_SCRATCH,r13;	/* get spare registers */   \
@@ -60,18 +84,21 @@
 #define SPRN_GEN_SRR1	SPRN_SRR1
 
 #define CRIT_SET_KSTACK						            \
+	BOOK3E_LOAD_EXC_LEVEL_STACK(CRIT);					\
 	ld	r1,PACA_CRIT_STACK(r13);				    \
 	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
 #define SPRN_CRIT_SRR0	SPRN_CSRR0
 #define SPRN_CRIT_SRR1	SPRN_CSRR1
 
 #define DBG_SET_KSTACK						            \
+	BOOK3E_LOAD_EXC_LEVEL_STACK(CRIT);					\
 	ld	r1,PACA_DBG_STACK(r13);					    \
 	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
 #define SPRN_DBG_SRR0	SPRN_DSRR0
 #define SPRN_DBG_SRR1	SPRN_DSRR1
 
 #define MC_SET_KSTACK						            \
+	BOOK3E_LOAD_EXC_LEVEL_STACK(CRIT);					\
 	ld	r1,PACA_MC_STACK(r13);					    \
 	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
 #define SPRN_MC_SRR0	SPRN_MCSRR0
