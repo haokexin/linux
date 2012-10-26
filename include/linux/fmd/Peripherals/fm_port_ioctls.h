@@ -796,7 +796,7 @@ typedef struct ioc_fm_port_mac_addr_params_t {
  @Cautions      Allowed only following FM_MAC_Init(). It is a filter only address.
  @Cautions      Some address need to be filtered out in upper FM blocks.
 *//***************************************************************************/
-#define FM_PORT_IOC_ADD_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(34), ioc_fm_port_mac_addr_params_t)
+#define FM_PORT_IOC_ADD_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(36), ioc_fm_port_mac_addr_params_t)
 
 /**************************************************************************//**
  @Function      FM_MAC_RemoveHashMacAddr
@@ -809,7 +809,7 @@ typedef struct ioc_fm_port_mac_addr_params_t {
 
  @Cautions      Allowed only following FM_MAC_Init().
 *//***************************************************************************/
-#define FM_PORT_IOC_REMOVE_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(35), ioc_fm_port_mac_addr_params_t)
+#define FM_PORT_IOC_REMOVE_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(37), ioc_fm_port_mac_addr_params_t)
 
 /** @} */ /* end of lnx_ioctl_FM_PORT_pcd_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_PORT_runtime_control_grp group */
