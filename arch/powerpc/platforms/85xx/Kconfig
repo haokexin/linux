@@ -273,8 +273,8 @@ endif # PPC32
 
 if PPC64
 
-config B4860_QDS
-	bool "Freescale B4860 QDS"
+config B4_QDS
+	bool "Freescale B4 QDS"
 	select DEFAULT_UIMAGE
 	select E500
 	select PPC_E500MC
@@ -285,7 +285,7 @@ config B4860_QDS
 	select PPC_EPAPR_HV_PIC
 	select HAS_FSL_PAMU
 	help
-	  This option enables support for the B4860 QDS board
+	  This option enables support for the B4 QDS board
 
 endif
 

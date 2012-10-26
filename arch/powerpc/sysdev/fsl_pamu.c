@@ -1037,6 +1037,9 @@ static struct of_device_id qoriq_device_config[] = {
 	{
 		.compatible = "fsl,b4860-device-config",
 	},
+	{
+		.compatible = "fsl,b4420-device-config",
+	},
 	{}
 };
 

@@ -1,7 +1,7 @@
 /*
- * B4860 QDS Setup
- *
- * Maintained by Kumar Gala (see MAINTAINERS for contact information)
+ * B4 QDS Setup
+ * Should apply for QDS platform of B4860 and it's personalities.
+ * viz B4860/B4420/B4220QDS
  *
  * Copyright 2012 Freescale Semiconductor Inc.
  *
@@ -37,18 +37,22 @@
 /*
  * Called very early, device-tree isn't unflattened
  */
-static int __init b4860_qds_probe(void)
+static int __init b4_qds_probe(void)
 {
 	unsigned long root = of_get_flat_dt_root();
 #ifdef CONFIG_SMP
 	extern struct smp_ops_t smp_85xx_ops;
 #endif
 
-	if (of_flat_dt_is_compatible(root, "fsl,B4860QDS"))
+	if ((of_flat_dt_is_compatible(root, "fsl,B4860QDS")) ||
+		(of_flat_dt_is_compatible(root, "fsl,B4420QDS")) ||
+			(of_flat_dt_is_compatible(root, "fsl,B4220QDS")))
 		return 1;
 
 	/* Check if we're running under the Freescale hypervisor */
-	if (of_flat_dt_is_compatible(root, "fsl,B4860QDS-hv")) {
+	if ((of_flat_dt_is_compatible(root, "fsl,B4860QDS-hv")) ||
+		(of_flat_dt_is_compatible(root, "fsl,B4420QDS-hv")) || 
+			(of_flat_dt_is_compatible(root, "fsl,B4220QDS-hv"))) {
 		ppc_md.init_IRQ = ehv_pic_init;
 		ppc_md.get_irq = ehv_pic_get_irq;
 		ppc_md.restart = fsl_hv_restart;
@@ -68,9 +72,9 @@ static int __init b4860_qds_probe(void)
 	return 0;
 }
 
-define_machine(b4860_qds) {
-	.name			= "B4860 QDS",
-	.probe			= b4860_qds_probe,
+define_machine(b4_qds) {
+	.name			= "B4 QDS",
+	.probe			= b4_qds_probe,
 	.setup_arch		= corenet_ds_setup_arch,
 	.init_IRQ		= corenet_ds_pic_init,
 #ifdef CONFIG_PCI
@@ -93,9 +97,9 @@ define_machine(b4860_qds) {
 	.init_early		= corenet_ds_init_early,
 };
 
-machine_arch_initcall(b4860_qds, corenet_ds_publish_pci_device);
-machine_device_initcall(b4860_qds, declare_of_platform_devices);
+machine_arch_initcall(b4_qds, corenet_ds_publish_pci_device);
+machine_device_initcall(b4_qds, declare_of_platform_devices);
 
 #ifdef CONFIG_SWIOTLB
-machine_arch_initcall(b4860_qds, swiotlb_setup_bus_notifier);
+machine_arch_initcall(b4_qds, swiotlb_setup_bus_notifier);
 #endif
