@@ -33,6 +33,7 @@
  *     blow you up
  */
 #define	SPECIAL_EXC_FRAME_SIZE	INT_FRAME_SIZE
+#define EXC_LVL_FRAME_OVERHEAD	(THREAD_SIZE - INT_FRAME_SIZE)
 
 /* only on book3e */
 #define DBG_STACK_BASE		dbgirq_ctx
@@ -83,24 +84,44 @@
 #define SPRN_GEN_SRR0	SPRN_SRR0
 #define SPRN_GEN_SRR1	SPRN_SRR1
 
-#define CRIT_SET_KSTACK						            \
+/* Store something to exception thread info */
+#define	BOOK3E_STORE_EXC_LEVEL_THEAD_INFO(type)					\
+	std	r14,PACA_EX##type+EX_R14(r13);					\
+	std	r15,PACA_EX##type+EX_R15(r13);					\
+	ld	r14,PACA_EX##type+EX_R1(r13);					\
+	clrrdi	r14,r14,THREAD_SHIFT;						\
+	clrrdi	r15,r1,THREAD_SHIFT;						\
+	ld	r10,TI_FLAGS(r14);		     				\
+	std	r10,TI_FLAGS(r15);			     			\
+	ld	r10,TI_PREEMPT(r14);		     				\
+	std	r10,TI_PREEMPT(r1);		     				\
+	ld	r10,TI_TASK(r14);			     			\
+	std	r10,TI_TASK(r1);			     			\
+	ld	r14,PACA_EX##type+EX_R14(r13);					\
+	ld	r15,PACA_EX##type+EX_R15(r13);					\
+1:
+
+#define CRIT_SET_KSTACK						            	\
 	BOOK3E_LOAD_EXC_LEVEL_STACK(CRIT);					\
 	ld	r1,PACA_CRIT_STACK(r13);				    \
 	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
+	BOOK3E_STORE_EXC_LEVEL_THEAD_INFO(CRIT);				
 #define SPRN_CRIT_SRR0	SPRN_CSRR0
 #define SPRN_CRIT_SRR1	SPRN_CSRR1
 
-#define DBG_SET_KSTACK						            \
-	BOOK3E_LOAD_EXC_LEVEL_STACK(CRIT);					\
+#define DBG_SET_KSTACK						            	\
+	BOOK3E_LOAD_EXC_LEVEL_STACK(DBG);					\
 	ld	r1,PACA_DBG_STACK(r13);					    \
-	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
+	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;					\
+	BOOK3E_STORE_EXC_LEVEL_THEAD_INFO(DBG);					
 #define SPRN_DBG_SRR0	SPRN_DSRR0
 #define SPRN_DBG_SRR1	SPRN_DSRR1
 
-#define MC_SET_KSTACK						            \
-	BOOK3E_LOAD_EXC_LEVEL_STACK(CRIT);					\
+#define MC_SET_KSTACK						            	\
+	BOOK3E_LOAD_EXC_LEVEL_STACK(MC);					\
 	ld	r1,PACA_MC_STACK(r13);					    \
 	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
+	BOOK3E_STORE_EXC_LEVEL_THEAD_INFO(MC);					
 #define SPRN_MC_SRR0	SPRN_MCSRR0
 #define SPRN_MC_SRR1	SPRN_MCSRR1
 
