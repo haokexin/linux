@@ -99,7 +99,7 @@
 
 	soc-sram-error {
 		compatible = "fsl,soc-sram-error";
-		interrupts = <16 2 1 29>;
+		interrupts = <16 2 1 2>;
 	};
 
 	corenet-law@0 {
@@ -111,27 +111,27 @@
 	ddr1: memory-controller@8000 {
 		compatible = "fsl,qoriq-memory-controller-v4.5", "fsl,qoriq-memory-controller";
 		reg = <0x8000 0x1000>;
-		interrupts = <16 2 1 23>;
+		interrupts = <16 2 1 8>;
 	};
 
 	ddr2: memory-controller@9000 {
 		compatible = "fsl,qoriq-memory-controller-v4.5","fsl,qoriq-memory-controller";
 		reg = <0x9000 0x1000>;
-		interrupts = <16 2 1 22>;
+		interrupts = <16 2 1 9>;
 	};
 
 	cpc: l3-cache-controller@10000 {
 		compatible = "fsl,p5020-l3-cache-controller", "fsl,p4080-l3-cache-controller", "cache";
 		reg = <0x10000 0x1000
 		       0x11000 0x1000>;
-		interrupts = <16 2 1 27
-			      16 2 1 26>;
+		interrupts = <16 2 1 4
+			      16 2 1 5>;
 	};
 
 	corenet-cf@18000 {
 		compatible = "fsl,corenet-cf";
 		reg = <0x18000 0x1000>;
-		interrupts = <16 2 1 31>;
+		interrupts = <16 2 1 0>;
 		fsl,ccf-num-csdids = <32>;
 		fsl,ccf-num-snoopids = <32>;
 	};
@@ -141,11 +141,20 @@
 		reg = <0x20000 0x4000>;
 		interrupts = <
 			24 2 0 0
-			16 2 1 30>;
+			16 2 1 1>;
 	};
 
 /include/ "qoriq-qman1.dtsi"
+
+	qman: qman@318000 {
+		interrupts = <16 2 1 28>;
+	};
+
 /include/ "qoriq-bman1.dtsi"
+
+	bman: bman@31a000 {
+		interrupts = <16 2 1 29>;
+	};
 
 /include/ "qoriq-rman-0.dtsi"
 	rman: rman@1e0000 {
@@ -160,6 +169,10 @@
 /include/ "qoriq-fman3-0-1g-4.dtsi"
 /include/ "qoriq-fman3-0-1g-5.dtsi"
 	fman0: fman@400000 {
+		interrupts = <
+			96 2 0 0
+			16 2 1 30>;
+
 		/* tx - 1g - 0 */
 		port@a8000 {
 			fsl,qman-channel-id = <0x802>;
