@@ -58,7 +58,9 @@
 #include "fm_ext.h"
 #include "fsl_fman.h"
 #include "fm_port_ext.h"
-
+#if (DPAA_VERSION == 11)
+#include "../../Peripherals/FM/MAC/memac.h"
+#endif
 #include "fm_test_ioctls.h"
 #include "fsl_fman_test.h"
 
@@ -139,6 +141,12 @@ struct fmt_s {
 /* fm test structure */
 static struct fmt_s fm_test;
 
+#if (DPAA_VERSION == 11)
+struct mac_priv_s {
+        t_Handle        mac;
+};
+#endif
+
 #define DTSEC_BASE_ADDR         0x000e0000
 #define DTSEC_MEM_RANGE         0x00002000
 #define MAC_1G_MACCFG1          0x00000100
@@ -147,6 +155,7 @@ static int set_1gmac_loopback(
 		struct fmt_port_s *fmt_port,
 		bool en)
 {
+#if (DPAA_VERSION <= 10)
 	uint32_t dtsec_idx = fmt_port->id; /* dtsec for which port */
 	uint32_t dtsec_idx_off = dtsec_idx * DTSEC_MEM_RANGE;
 	phys_addr_t maccfg1_hw;
@@ -172,7 +181,31 @@ static int set_1gmac_loopback(
 
 	/* unmap register */
 	iounmap(maccfg1_map);
+#else
+	struct mac_device *mac_dev;
+	struct mac_priv_s *priv;
+	t_Memac *p_memac;
 
+	if (!fmt_port)
+		return -EINVAL;
+
+	mac_dev = (struct mac_device *)fmt_port->p_mac_dev;
+
+	if (!mac_dev)
+		return -EINVAL;
+
+	priv = macdev_priv(mac_dev);
+
+	if (!priv)
+		return -EINVAL;
+
+	p_memac = priv->mac;
+
+	if (!p_memac)
+		return -EINVAL;
+
+	memac_set_loopback(p_memac->p_MemMap, en);
+#endif
 	return 0;
 }
 
