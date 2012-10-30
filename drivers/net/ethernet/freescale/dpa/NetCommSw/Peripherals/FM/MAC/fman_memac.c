@@ -254,6 +254,20 @@ void memac_set_rx_ignore_pause_frames(struct memac_regs    *regs,bool enable)
     iowrite32be(tmp, &regs->command_config);
 }
 
+void memac_set_loopback(struct memac_regs *regs, bool enable)
+{
+    uint32_t tmp;
+
+    tmp = ioread32be(&regs->command_config);
+
+    if (enable)
+        tmp |= CMD_CFG_LOOPBACK_EN;
+    else
+        tmp &= ~CMD_CFG_LOOPBACK_EN;
+
+    iowrite32be(tmp, &regs->command_config);
+}
+
 #define GET_MEMAC_CNTR_64(bn) \
     (((uint64_t)ioread32be(&regs->bn ## _u) << 32) | \
             ioread32be(&regs->bn ## _l))

@@ -378,6 +378,7 @@ void memac_reset_counter(struct memac_regs *regs);
 void memac_reset(struct memac_regs *regs);
 void memac_set_hash_table(struct memac_regs *regs, uint32_t val);
 void memac_set_rx_ignore_pause_frames(struct memac_regs  *regs,bool enable);
+void memac_set_loopback(struct memac_regs *regs, bool enable);
 void memac_reset_counter(struct memac_regs *regs);
 
 
