@@ -765,7 +765,8 @@ void compat_copy_fm_port_pcd_kg(
             param->scheme_ids[k] = compat_pcd_id2ptr(compat_param->scheme_ids[k]);
 
         param->direct_scheme = compat_param->direct_scheme;
-        param->direct_scheme_id = compat_pcd_id2ptr(compat_param->direct_scheme_id);
+        if (param->direct_scheme)
+            param->direct_scheme_id = compat_pcd_id2ptr(compat_param->direct_scheme_id);
     }
 }
 
