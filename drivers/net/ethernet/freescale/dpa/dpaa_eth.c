@@ -2225,8 +2225,8 @@ fq_init_fail:
 
 fq_create_fail:
 	priv->egress_fqs[smp_processor_id()] = oldq;
-	local_bh_enable();
 	qman_irqsource_add(QM_PIRQ_DQRI);
+	local_bh_enable();
 	tx_unit_test_ran = true;
 	set_cpus_allowed_ptr(current, old_cpumask);
 	free_cpumask_var(old_cpumask);
