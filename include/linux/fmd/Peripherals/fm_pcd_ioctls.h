@@ -2102,6 +2102,17 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
                                                     /**< Array of members' parameters */
     void                        *id;
 } ioc_fm_pcd_frm_replic_group_params_t;
+
+typedef struct ioc_fm_pcd_frm_replic_member_t {
+    void *h_replic_group;
+    uint16_t member_index;
+} ioc_fm_pcd_frm_replic_member_t;
+
+typedef struct ioc_fm_pcd_frm_replic_member_params_t {
+    ioc_fm_pcd_frm_replic_member_t member;
+    ioc_fm_pcd_cc_next_engine_params_t next_engine_params;
+} ioc_fm_pcd_frm_replic_member_params_t;
+
 #endif /* DPAA_VERSION >= 11 */
 
 /**************************************************************************//**
@@ -2591,6 +2602,42 @@ typedef struct ioc_fm_pcd_frm_replic_group_params_t {
 #define FM_PCD_IOC_FRM_REPLIC_GROUP_DELETE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(47), ioc_compat_fm_obj_t)
 #endif
 #define FM_PCD_IOC_FRM_REPLIC_GROUP_DELETE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(47), ioc_fm_obj_t)
+
+/**************************************************************************//**
+ @Function      FM_PCD_FrmReplicAddMember
+
+ @Description   Add the member in the index defined by the memberIndex.
+
+ @Param[in]     h_FrmReplicGroup   A handle to the frame replicator group.
+ @Param[in]     memberIndex        member index for adding.
+ @Param[in]     p_MemberParams     A pointer to the new member parameters.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_FrmReplicSetGroup() of this group.
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_FRM_REPLIC_MEMBER_ADD_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(48), ioc_compat_fm_pcd_frm_replic_member_params_t)
+#endif
+#define FM_PCD_IOC_FRM_REPLIC_MEMBER_ADD _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(48), ioc_fm_pcd_frm_replic_member_params_t)
+
+/**************************************************************************//**
+ @Function      FM_PCD_FrmReplicRemoveMember
+
+ @Description   Remove the member defined by the index from the relevant group.
+
+ @Param[in]     h_FrmReplicGroup   A handle to the frame replicator group.
+ @Param[in]     memberIndex        member index for removing.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PCD_FrmReplicSetGroup() of this group.
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_PCD_IOC_FRM_REPLIC_MEMBER_REMOVE_COMPAT _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(49), ioc_compat_fm_pcd_frm_replic_member_t)
+#endif
+#define FM_PCD_IOC_FRM_REPLIC_MEMBER_REMOVE _IOWR(FM_IOC_TYPE_BASE, FM_PCD_IOC_NUM(49), ioc_fm_pcd_frm_replic_member_t)
+
 #endif
 
 #ifdef FM_CAPWAP_SUPPORT
