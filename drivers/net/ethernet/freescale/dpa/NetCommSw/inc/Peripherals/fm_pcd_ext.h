@@ -1239,7 +1239,7 @@ typedef enum e_FmPcdManipDontFragAction {
                                                         /**< Obsolete, cannot enqueue to error queue;
                                                              In practice, selects to discard packets;
                                                              Will be removed in the future */
-    e_FM_PCD_MANIP_FRAGMENT_PACKECT,                    /**< Fragment packet and continue normal processing */
+    e_FM_PCD_MANIP_FRAGMENT_PACKET,                     /**< Fragment packet and continue normal processing */
     e_FM_PCD_MANIP_CONTINUE_WITHOUT_FRAG                /**< Continue normal processing without fragmenting the packet */
 } e_FmPcdManipDontFragAction;
 
