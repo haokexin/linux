@@ -320,11 +320,11 @@ typedef _Packed struct {
     int         i,j;
     uint32_t    fmRev;
 
-    static const uint8_t     phys1GRxPortId[] = {0x8,0x9,0xa,0xb,0xc};
-    static const uint8_t     phys10GRxPortId[] = {0x10};
+    static const uint8_t     phys1GRxPortId[] = {0x8,0x9,0xa,0xb,0xc,0xd,0xe,0xf};
+    static const uint8_t     phys10GRxPortId[] = {0x10,0x11};
     static const uint8_t     physOhPortId[] = {0x1,0x2,0x3,0x4,0x5,0x6,0x7};
-    static const uint8_t     phys1GTxPortId[] = {0x28,0x29,0x2a,0x2b,0x2c};
-    static const uint8_t     phys10GTxPortId[] = {0x30};
+    static const uint8_t     phys1GTxPortId[] = {0x28,0x29,0x2a,0x2b,0x2c,0x2d,0x2e,0x2f};
+    static const uint8_t     phys10GTxPortId[] = {0x30,0x31};
 
     fmRev = (uint32_t)(*((volatile uint32_t *)UINT_TO_PTR(p_LnxWrpFmDev->fmBaseAddr+FM_FPM_IP_REV_1_OFFSET)));
     fmRev &= 0xffff;
@@ -892,9 +892,12 @@ static int /*__devinit*/ fm_probe(struct platform_device *of_dev)
     if (InitFmDev(p_LnxWrpFmDev) != E_OK)
         return -EIO;
 
+/* FIXME: ioctl support for FMan v3 features is not ready yet */
+#if (DPAA_VERSION == 10)
     /* IOCTL ABI checking */
     LnxWrpPCDIOCTLEnumChecking();
     LnxWrpPCDIOCTLTypeChecking();
+#endif
 
     Sprint (p_LnxWrpFmDev->name, "%s%d", DEV_FM_NAME, p_LnxWrpFmDev->id);
 

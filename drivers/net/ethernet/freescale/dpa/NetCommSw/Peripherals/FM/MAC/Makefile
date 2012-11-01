@@ -12,3 +12,7 @@ EXTRA_CFLAGS += -I$(NCSW_FM_INC)
 obj-y		+= fsl-ncsw-MAC.o
 
 fsl-ncsw-MAC-objs	:=   dtsec.o dtsec_mii_acc.o fm_mac.o tgec.o tgec_mii_acc.o
+
+ifeq ($(CONFIG_FMAN_T4240),y)
+fsl-ncsw-MAC-objs	+=  memac.o memac_mii_acc.o
+endif

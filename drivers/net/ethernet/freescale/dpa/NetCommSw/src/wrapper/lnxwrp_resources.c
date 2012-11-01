@@ -108,8 +108,8 @@ static struct device_node *match_fman_port_to_mac(struct device_node *fm_node,
 	/* for all enet nodes (macs) check which one refers this FMan port. */
 	for_each_child_of_node(fm_node, fm_node_idx) {
 		if (of_device_is_compatible(fm_node_idx, "fsl,fman-1g-mac") ||
-		    of_device_is_compatible(fm_node_idx,
-					    "fsl,fman-10g-mac")) {
+		    of_device_is_compatible(fm_node_idx, "fsl,fman-10g-mac") ||
+		    of_device_is_compatible(fm_node_idx, "fsl,fman-memac")) {
 			struct device_node *fman_port_node_rx = NULL;
 			struct device_node *fman_port_node_tx = NULL;
 			/* RX is first */

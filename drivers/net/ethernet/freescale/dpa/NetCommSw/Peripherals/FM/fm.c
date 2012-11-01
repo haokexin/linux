@@ -4204,7 +4204,9 @@ t_Error FM_Init(t_Handle h_Fm)
     if (p_FmDriverParam->resetOnInit)
     {
         t_FMIramRegs    *p_Iram = (t_FMIramRegs *)UINT_TO_PTR(p_Fm->baseAddr + FM_MM_IMEM);
+#if (DPAA_VERSION == 10)
         uint32_t        debug_reg;
+#endif
 
         /* write to IRAM first location the debug instruction */
         WRITE_UINT32(p_Iram->iadd, 0);
@@ -4223,10 +4225,15 @@ t_Error FM_Init(t_Handle h_Fm)
         WRITE_UINT32(p_Fm->p_FmFpmRegs->fm_rstc, FPM_RSTC_FM_RESET);
         XX_UDelay(100);
 
+/* FIXME: Temporary workaround, since this is not currently working on hw or simulator
+ *        This FMan debug register might be in another location or absent
+ *        This register access is just a verification and is not mandatory */
+#if (DPAA_VERSION == 10)
         /* verify breakpoint debug status register */
         debug_reg = GET_UINT32(*(uint32_t *)UINT_TO_PTR(p_Fm->baseAddr + FM_DEBUG_STATUS_REGISTER_OFFSET));
         if(!debug_reg)
             RETURN_ERROR(MAJOR, E_INVALID_VALUE, ("Invalid debug status register value = 0"));
+#endif
 
         /*************************************/
         /* Load FMan-Controller code to Iram */

@@ -1062,7 +1062,9 @@ static int fmt_port_init(
 						fm_port_get_handle(
 							fmt_port->p_rx_port);
 			} else if (of_device_is_compatible(fm_port_node,
-							     "fsl,fman-1g-mac"))
+							"fsl,fman-1g-mac") ||
+				   of_device_is_compatible(fm_port_node,
+							"fsl,fman-memac"))
 				fmt_port->p_mac_dev =
 						(typeof(fmt_port->p_mac_dev))
 						dev_get_drvdata(&of_dev->dev);
@@ -1097,7 +1099,9 @@ static int fmt_port_init(
 						fm_port_get_handle(
 							fmt_port->p_rx_port);
 			} else if (of_device_is_compatible(fm_port_node,
-							    "fsl,fman-10g-mac"))
+							"fsl,fman-10g-mac") ||
+				   of_device_is_compatible(fm_port_node,
+							"fsl,fman-memac"))
 				fmt_port->p_mac_dev =
 						(typeof(fmt_port->p_mac_dev))
 						dev_get_drvdata(&of_dev->dev);
