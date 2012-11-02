@@ -39,6 +39,10 @@ static DECLARE_DPA_ALLOC(bpalloc); /* BPID allocator */
 static DECLARE_DPA_ALLOC(fqalloc); /* FQID allocator */
 static DECLARE_DPA_ALLOC(qpalloc); /* pool-channel allocator */
 static DECLARE_DPA_ALLOC(cgralloc); /* CGR ID allocator */
+static DECLARE_DPA_ALLOC(ceetm0_challoc); /* CEETM Channel ID allocator */
+static DECLARE_DPA_ALLOC(ceetm0_lfqidalloc); /* CEETM LFQID allocator */
+static DECLARE_DPA_ALLOC(ceetm1_challoc); /* CEETM Channel ID allocator */
+static DECLARE_DPA_ALLOC(ceetm1_lfqidalloc); /* CEETM LFQID allocator */
 
 /* This is a sort-of-conditional dpa_alloc_free() routine. Eg. when releasing
  * FQIDs (probably from user-space), it can filter out those that aren't in the
@@ -206,6 +210,83 @@ void qman_release_cgrid_range(u32 cgrid, u32 count)
 			cgrid, cgrid + count - 1, count, total_invalid);
 }
 EXPORT_SYMBOL(qman_release_cgrid_range);
+
+/* CEETM CHANNEL ID allocator front-end */
+int qman_alloc_ceetm0_channel_range(u32 *result, u32 count, u32 align,
+								 int partial)
+{
+	return dpa_alloc_new(&ceetm0_challoc, result, count, align, partial);
+}
+EXPORT_SYMBOL(qman_alloc_ceetm0_channel_range);
+
+int qman_alloc_ceetm1_channel_range(u32 *result, u32 count, u32 align,
+								 int partial)
+{
+	return dpa_alloc_new(&ceetm1_challoc, result, count, align, partial);
+}
+EXPORT_SYMBOL(qman_alloc_ceetm1_channel_range);
+
+void qman_release_ceetm0_channel_range(u32 channelid, u32 count)
+{
+	u32 total_invalid;
+
+	total_invalid = release_id_range(&ceetm0_challoc, channelid, count,
+									 NULL);
+	if (total_invalid)
+		pr_err("CEETM channel range [%d..%d] (%d) had %d leaks\n",
+			channelid, channelid + count - 1, count, total_invalid);
+}
+EXPORT_SYMBOL(qman_release_ceetm0_channel_range);
+
+void qman_release_ceetm1_channel_range(u32 channelid, u32 count)
+{
+	u32 total_invalid;
+	total_invalid = release_id_range(&ceetm1_challoc, channelid, count,
+									 NULL);
+	if (total_invalid)
+		pr_err("CEETM channel range [%d..%d] (%d) had %d leaks\n",
+			channelid, channelid + count - 1, count, total_invalid);
+}
+EXPORT_SYMBOL(qman_release_ceetm1_channel_range);
+
+/* CEETM LFQID allocator front-end */
+int qman_alloc_ceetm0_lfqid_range(u32 *result, u32 count, u32 align,
+								 int partial)
+{
+	return dpa_alloc_new(&ceetm0_lfqidalloc, result, count, align, partial);
+}
+EXPORT_SYMBOL(qman_alloc_ceetm0_lfqid_range);
+
+int qman_alloc_ceetm1_lfqid_range(u32 *result, u32 count, u32 align,
+								 int partial)
+{
+	return dpa_alloc_new(&ceetm1_lfqidalloc, result, count, align, partial);
+}
+EXPORT_SYMBOL(qman_alloc_ceetm1_lfqid_range);
+
+void qman_release_ceetm0_lfqid_range(u32 lfqid, u32 count)
+{
+	u32 total_invalid;
+
+	total_invalid = release_id_range(&ceetm0_lfqidalloc, lfqid, count,
+									NULL);
+	if (total_invalid)
+		pr_err("CEETM LFQID range [0x%x..0x%x] (%d) had %d leaks\n",
+			lfqid, lfqid + count - 1, count, total_invalid);
+}
+EXPORT_SYMBOL(qman_release_ceetm0_lfqid_range);
+
+void qman_release_ceetm1_lfqid_range(u32 lfqid, u32 count)
+{
+	u32 total_invalid;
+
+	total_invalid = release_id_range(&ceetm1_lfqidalloc, lfqid, count,
+									NULL);
+	if (total_invalid)
+		pr_err("CEETM LFQID range [0x%x..0x%x] (%d) had %d leaks\n",
+			lfqid, lfqid + count - 1, count, total_invalid);
+}
+EXPORT_SYMBOL(qman_release_ceetm1_lfqid_range);
 
 /* Everything else is the common backend to all the allocators */
 

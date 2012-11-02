@@ -129,6 +129,7 @@ struct qm_portal_config {
 #define QMAN_REV20 0x0200
 #define QMAN_REV30 0x0300
 extern u16 qman_ip_rev; /* 0 if uninitialised, otherwise QMAN_REVx */
+extern u32 qman_clk;
 
 #ifdef CONFIG_FSL_QMAN_CONFIG
 /* Hooks from qman_driver.c to qman_config.c */
@@ -284,3 +285,11 @@ int qman_setup_fq_lookup_table(size_t num_entries);
 /* TODO: unfortunate name-clash here, reword? */
 #define qm_isr_inhibit(qm)		__qm_isr_write(qm, qm_isr_inhibit, 1)
 #define qm_isr_uninhibit(qm)		__qm_isr_write(qm, qm_isr_inhibit, 0)
+
+/* CEETM related */
+#define QMAN_CEETM_MAX	2
+extern struct qm_ceetm qman_ceetms[QMAN_CEETM_MAX];
+int qman_sp_enable_ceetm_mode(enum qm_dc_portal portal, u16 sub_portal);
+int qman_sp_disable_ceetm_mode(enum qm_dc_portal portal, u16 sub_portal);
+int qman_ceetm_set_prescaler(enum qm_dc_portal portal);
+int qman_ceetm_get_prescaler(u16 *pres);

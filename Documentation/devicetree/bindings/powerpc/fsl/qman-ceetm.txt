@@ -1,0 +1,33 @@
+======================================================================
+Freescale Queue Manager CEETM Node
+======================================================================
+
+Customer Edge Egress Traffic Management (CEETM) is the new QMAN feature and
+introduced from QMan v3.0. The CEETM node desribes all the resources to support
+this feature.
+
+Required properties:
+- compatible: must include "fsl,qman-ceetm".
+
+- fsl,ceetm-lfqid-range: 2-cell value <x y>, in which x is the first LFQID and
+  y is the total number of LFQIDs which should not be greater than 0x1000.
+
+- fsl,ceetm-sp-range: 2-cell value <x y>, in which x is the fist sub portal
+  number and y is the total number of sub-portals which should not be greater
+  than 12.
+
+- fsl,ceetm-lni-range: 2-cell value <x y>, in which x is the first LNI number
+  and y is the total number of LNIs which should not be greater than 8.
+
+- fsl,ceetm-channel-range : 2-cell value <x y>, in which x is the first channel
+  number and y is the total number of channels which should no be greater than
+  32.
+
+Example:
+        qman-ceetm@1 {
+                compatible = "fsl,qman-ceetm";
+                fsl,ceetm-lfqid-range = <0xf10000 0x1000>;
+                fsl,ceetm-sp-range = <0 12>;
+                fsl,ceetm-lni-range = <0 8>;
+                fsl,ceetm-channel-range = <0 32>;
+        };

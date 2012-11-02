@@ -65,6 +65,21 @@ enum qm_dc_portal {
 #define QM_PIRQ_SLOW	(QM_PIRQ_CSCI | QM_PIRQ_EQCI | QM_PIRQ_EQRI | \
 			QM_PIRQ_MRI)
 
+/* --- Clock speed --- */
+/* A qman driver instance may or may not know the current qman clock speed.
+ * However, certain CEETM calculations may not be possible if this is not known.
+ * The 'set' function will only succeed (return zero) if the driver did not
+ * already know the clock speed. Likewise, the 'get' function will only succeed
+ * if the driver does know the clock speed (either because it knew when booting,
+ * or was told via 'set'). In cases where software is running on a driver
+ * instance that does not know the clock speed (eg. on a hypervised data-plane),
+ * and the user can obtain the current qman clock speed by other means (eg. from
+ * a message sent from the control-plane), then the 'set' function can be used
+ * to enable rate-calculations in a driver where it would otherwise not be
+ * possible. */
+int qm_get_clock(u64 *clock_hz);
+int qm_set_clock(u64 clock_hz);
+
 /* For qman_static_dequeue_*** APIs */
 #define QM_SDQCR_CHANNELS_POOL_MASK	0x00007fff
 /* for n in [1,15] */
@@ -649,6 +664,201 @@ struct qm_mcc_querywq {
 	};
 	u8 __reserved2[60];
 } __packed;
+
+struct qm_mcc_ceetm_lfqmt_config {
+	u8 __reserved1[4];
+	u32 lfqid:24;
+	u8 __reserved2[2];
+	u16 cqid;
+	u8 __reserved3[2];
+	u16 dctidx;
+	u8 __reserved4[48];
+} __packed;
+
+struct qm_mcc_ceetm_lfqmt_query {
+	u8 __reserved1[4];
+	u32 lfqid:24;
+	u8 __reserved2[56];
+} __packed;
+
+struct qm_mcc_ceetm_cq_config {
+	u8 __reserved1;
+	u16 cqid;
+	u8 dcpid;
+	u8 __reserved2;
+	u16 ccgid;
+	u8 __reserved3[56];
+} __packed;
+
+struct qm_mcc_ceetm_cq_query {
+	u8 __reserved1;
+	u16 cqid;
+	u8 dcpid;
+	u8 __reserved2[59];
+} __packed;
+
+struct qm_mcc_ceetm_dct_config {
+	u8 __reserved1;
+	u16 dctidx;
+	u8 dcpid;
+	u8 __reserved2[15];
+	u32 context_b;
+	u64 context_a;
+	u8 __reserved3[32];
+} __packed;
+
+struct qm_mcc_ceetm_dct_query {
+	u8 __reserved1;
+	u16 dctidx;
+	u8 dcpid;
+	u8 __reserved2[59];
+} __packed;
+
+struct qm_mcc_ceetm_class_scheduler_config {
+	u8 __reserved1;
+	u16 cqcid;
+	u8 dcpid;
+	u8 __reserved2[6];
+	u8 gpc;
+	u16 crem;
+	u16 erem;
+	u8 w[8];
+	u8 __reserved3[40];
+} __packed;
+
+struct qm_mcc_ceetm_class_scheduler_query {
+	u8 __reserved1;
+	u16 cqcid;
+	u8 dcpid;
+	u8 __reserved2[59];
+} __packed;
+
+#define CEETM_COMMAND_CHANNEL_MAPPING	(0 << 12)
+#define CEETM_COMMAND_SP_MAPPING	(1 << 12)
+#define CEETM_COMMAND_CHANNEL_SHAPER	(2 << 12)
+#define CEETM_COMMAND_LNI_SHAPER	(3 << 12)
+#define CEETM_COMMAND_TCFC		(4 << 12)
+
+#define CEETM_CCGRID_MASK	0x01FF
+#define CEETM_CCGR_CM_CONFIGURE	(0 << 14)
+#define CEETM_CCGR_DN_CONFIGURE	(1 << 14)
+#define CEETM_CCGR_TEST_WRITE	(2 << 14)
+#define CEETM_CCGR_CM_QUERY	(0 << 14)
+#define CEETM_CCGR_DN_QUERY	(1 << 14)
+#define CEETM_CCGR_DN_QUERY_FLUSH	(2 << 14)
+#define CEETM_QUERY_CONGESTION_STATE (3 << 14)
+
+struct qm_mcc_ceetm_mapping_shaper_tcfc_config {
+	u8 __reserved1;
+	u16 cid;
+	u8 dcpid;
+	union {
+		struct {
+			u8 map;
+			u8 __reserved2[58];
+		} __packed channel_mapping;
+		struct {
+			u8 map_reserved:5;
+			u8 map_lni_id:3;
+			u8 __reserved2[58];
+		} __packed sp_mapping;
+		struct {
+			u8 cpl;
+			u32 crtcr:24;
+			u32 ertcr:24;
+			u16 crtbl;
+			u16 ertbl;
+			u8 __reserved2[48];
+		} __packed shaper_config;
+		struct {
+			u8 __reserved2[11];
+			u64 lnitcfcc;
+			u8 __reserved3[40];
+		} __packed tcfc_config;
+	};
+} __packed;
+
+struct qm_mcc_ceetm_mapping_shaper_tcfc_query {
+	u8 __reserved1;
+	u16 cid;
+	u8 dcpid;
+	u8 __reserved2[59];
+} __packed;
+
+struct qm_mcc_ceetm_ccgr_config {
+	u8 __reserved1;
+	u16 ccgrid;
+	u8 dcpid;
+	u8 __reserved2;
+	u16 we_mask;
+	union {
+		struct {
+			u8 ctl;
+			u8 cdv;
+			u16 cscn_tupd;
+			u8 oal;
+			u8 __reserved3;
+			struct qm_cgr_cs_thres cs_thres;
+			struct qm_cgr_cs_thres cs_thres_x;
+			struct qm_cgr_cs_thres td_thres;
+			struct qm_cgr_wr_parm wr_parm_g;
+			struct qm_cgr_wr_parm wr_parm_y;
+			struct qm_cgr_wr_parm wr_parm_r;
+		} __packed cm_config;
+		struct {
+			u8 dnc;
+			u8 dn0;
+			u8 dn1;
+			u64 dnba:40;
+			u8 __reserved3[2];
+			u16 dnth_0;
+			u8 __reserved4[2];
+			u16 dnth_1;
+			u8 __reserved5[8];
+		} __packed dn_config;
+		struct {
+			u8 __reserved3[3];
+			u64 i_cnt:40;
+			u8 __reserved4[16];
+		} __packed test_write;
+	};
+	u8 __reserved5[32];
+} __packed;
+
+struct qm_mcc_ceetm_ccgr_query {
+	u8 __reserved1;
+	u16 ccgrid;
+	u8 dcpid;
+	u8 __reserved2[59];
+} __packed;
+
+struct qm_mcc_ceetm_cq_peek_pop_xsfdrread {
+	u8 __reserved1;
+	u16 cqid;
+	u8 dcpid;
+	u8 ct;
+	u16 xsfdr;
+	u8 __reserved2[56];
+} __packed;
+
+#define CEETM_QUERY_DEQUEUE_STATISTICS 0x00
+#define CEETM_QUERY_DEQUEUE_CLEAR_STATISTICS 0x01
+#define CEETM_WRITE_DEQUEUE_STATISTICS 0x02
+#define CEETM_QUERY_REJECT_STATISTICS 0x03
+#define CEETM_QUERY_REJECT_CLEAR_STATISTICS 0x04
+#define CEETM_WRITE_REJECT_STATISTICS 0x05
+struct qm_mcc_ceetm_statistics_query_write {
+	u8 __reserved1;
+	u16 cid;
+	u8 dcpid;
+	u8 ct;
+	u8 __reserved2[13];
+	u64 frm_cnt:40;
+	u16 __reserved3[2];
+	u64 byte_cnt:40;
+	u8 __reserved[32];
+} __packed;
+
 struct qm_mc_command {
 	u8 __dont_write_directly__verb;
 	union {
@@ -661,6 +871,20 @@ struct qm_mc_command {
 		struct qm_mcc_querycgr querycgr;
 		struct qm_mcc_querycongestion querycongestion;
 		struct qm_mcc_querywq querywq;
+		struct qm_mcc_ceetm_lfqmt_config lfqmt_config;
+		struct qm_mcc_ceetm_lfqmt_query lfqmt_query;
+		struct qm_mcc_ceetm_cq_config cq_config;
+		struct qm_mcc_ceetm_cq_query cq_query;
+		struct qm_mcc_ceetm_dct_config dct_config;
+		struct qm_mcc_ceetm_dct_query dct_query;
+		struct qm_mcc_ceetm_class_scheduler_config csch_config;
+		struct qm_mcc_ceetm_class_scheduler_query csch_query;
+		struct qm_mcc_ceetm_mapping_shaper_tcfc_config mst_config;
+		struct qm_mcc_ceetm_mapping_shaper_tcfc_query mst_query;
+		struct qm_mcc_ceetm_ccgr_config ccgr_config;
+		struct qm_mcc_ceetm_ccgr_query ccgr_query;
+		struct qm_mcc_ceetm_cq_peek_pop_xsfdrread cq_ppxr;
+		struct qm_mcc_ceetm_statistics_query_write stats_query_write;
 	};
 } __packed;
 #define QM_MCC_VERB_VBIT		0x80
@@ -704,6 +928,22 @@ struct qm_mc_command {
 #define QM_CGR_WE_CSTD_EN		0x0004
 #define QM_CGR_WE_CS_THRES		0x0002
 #define QM_CGR_WE_MODE			0x0001
+
+/* See 1.5.9.7 CEETM Management Commands */
+#define QM_CEETM_VERB_LFQMT_CONFIG	0x70
+#define QM_CEETM_VERB_LFQMT_QUERY	0x71
+#define QM_CEETM_VERB_CQ_CONFIG		0x72
+#define QM_CEETM_VERB_CQ_QUERY		0x73
+#define QM_CEETM_VERB_DCT_CONFIG	0x74
+#define QM_CEETM_VERB_DCT_QUERY		0x75
+#define QM_CEETM_VERB_CLASS_SCHEDULER_CONFIG		0x76
+#define QM_CEETM_VERB_CLASS_SCHEDULER_QUERY		0x77
+#define QM_CEETM_VERB_MAPPING_SHAPER_TCFC_CONFIG	0x78
+#define QM_CEETM_VERB_MAPPING_SHAPER_TCFC_QUERY		0x79
+#define QM_CEETM_VERB_CCGR_CONFIG			0x7A
+#define QM_CEETM_VERB_CCGR_QUERY			0x7B
+#define QM_CEETM_VERB_CQ_PEEK_POP_XFDRREAD		0x7C
+#define QM_CEETM_VERB_STATISTICS_QUERY_WRITE		0x7D
 
 /* See 1.5.8.5.1: "Initialize FQ" */
 /* See 1.5.8.5.2: "Query FQ" */
@@ -842,6 +1082,189 @@ struct qm_mcr_querywq {
 	u8 __reserved[28];
 	u32 wq_len[8];
 } __packed;
+
+/* QMAN CEETM Management Command Response */
+struct qm_mcr_ceetm_lfqmt_config {
+	u8 __reserved1[62];
+} __packed;
+struct qm_mcr_ceetm_lfqmt_query {
+	u8 __reserved1[8];
+	u16 cqid;
+	u8 __reserved2[2];
+	u16 dctidx;
+	u8 __reserved3[2];
+	u16 ccgid;
+	u8 __reserved4[44];
+} __packed;
+
+struct qm_mcr_ceetm_cq_config {
+	u8 __reserved1[62];
+} __packed;
+
+struct qm_mcr_ceetm_cq_query {
+	u8 __reserved1[4];
+	u16 ccgid;
+	u16 state;
+	u32 pfdr_hptr:24;
+	u32 pfdr_tptr:24;
+	u16 od1_xsfdr;
+	u16 od2_xsfdr;
+	u16 od3_xsfdr;
+	u16 od4_xsfdr;
+	u16 od5_xsfdr;
+	u16 od6_xsfdr;
+	u16 ra1_xsfdr;
+	u16 ra2_xsfdr;
+	u8 __reserved2;
+	u32 frm_cnt:24;
+	u8 __reserved333[28];
+} __packed;
+
+struct qm_mcr_ceetm_dct_config {
+	u8 __reserved1[62];
+} __packed;
+
+struct qm_mcr_ceetm_dct_query {
+	u8 __reserved1[18];
+	u32 context_b;
+	u64 context_a;
+	u8 __reserved2[32];
+} __packed;
+
+struct qm_mcr_ceetm_class_scheduler_config {
+	u8 __reserved1[62];
+} __packed;
+
+struct qm_mcr_ceetm_class_scheduler_query {
+	u8 __reserved1[9];
+	u8 gpc;
+	u16 crem;
+	u16 erem;
+	u8 w[8];
+	u8 __reserved2[5];
+	u32 wbfslist:24;
+	u32 d8;
+	u32 d9;
+	u32 d10;
+	u32 d11;
+	u32 d12;
+	u32 d13;
+	u32 d14;
+	u32 d15;
+} __packed;
+
+struct qm_mcr_ceetm_mapping_shaper_tcfc_config {
+	u16 cid;
+	u8 __reserved2[60];
+} __packed;
+
+struct qm_mcr_ceetm_mapping_shaper_tcfc_query {
+	u16 cid;
+	u8 __reserved1;
+	union {
+		struct {
+			u8 map;
+			u8 __reserved2[58];
+		} __packed channel_mapping_query;
+		struct {
+			u8 map_reserved:5;
+			u8 map_lni_id:3;
+			u8 __reserved2[58];
+		} __packed sp_mapping_query;
+		struct {
+			u8 cpl;
+			u32 crtcr:24;
+			u32 ertcr:24;
+			u16 crtbl;
+			u16 ertbl;
+			u8 __reserved2[16];
+			u32 crat;
+			u32 erat;
+			u8 __reserved3[24];
+		} __packed shaper_query;
+		struct {
+			u8 __reserved1[11];
+			u64 lnitcfcc;
+			u8 __reserved3[40];
+		} __packed tcfc_query;
+	};
+} __packed;
+
+struct qm_mcr_ceetm_ccgr_config {
+	u8 __reserved1[46];
+	union {
+		u8 __reserved2[8];
+		struct {
+			u16 timestamp;
+			u16 wr_porb_g;
+			u16 wr_prob_y;
+			u16 wr_prob_r;
+		} __packed test_write;
+	};
+	u8 __reserved3[8];
+} __packed;
+
+struct qm_mcr_ceetm_ccgr_query {
+	u8 __reserved1[6];
+	union {
+		struct {
+			u8 ctl;
+			u8 cdv;
+			u8 __reserved2[2];
+			u8 oal;
+			u8 __reserved3;
+			struct qm_cgr_cs_thres cs_thres;
+			struct qm_cgr_cs_thres cs_thres_x;
+			struct qm_cgr_cs_thres td_thres;
+			struct qm_cgr_wr_parm wr_parm_g;
+			struct qm_cgr_wr_parm wr_parm_y;
+			struct qm_cgr_wr_parm wr_parm_r;
+			u8 cscn_targ_dcp;
+			u16 dcp_lsn;
+			u64 i_cnt:40;
+			u8 __reserved4[3];
+			u64 a_cnt:40;
+			u64 cscn_targ_swp[2];
+		} __packed cm_query;
+		struct {
+			u8 dnc;
+			u8 dn0;
+			u8 dn1;
+			u64 dnba:40;
+			u8 __reserved2[2];
+			u16 dnth_0;
+			u8 __reserved3[2];
+			u16 dnth_1;
+			u8 __reserved4[10];
+			u16 dnacc_0;
+			u8 __reserved5[2];
+			u16 dnacc_1;
+			u8 __reserved6[24];
+		} __packed dn_query;
+		struct {
+			u8 __reserved2[24];
+			u16 ccg_state[16];
+		} __packed congestion_state;
+
+	};
+} __packed;
+
+struct qm_mcr_ceetm_cq_peek_pop_xsfdrread {
+	u8 stat;
+	u8 __reserved1[11];
+	u16 dctidx;
+	struct qm_fd fd;
+	u8 __reserved2[32];
+} __packed;
+
+struct qm_mcr_ceetm_statistics_query {
+	u8 __reserved1[15];
+	u64 frm_cnt:40;
+	u8 __reserved2[2];
+	u64 byte_cnt:40;
+	u8 __reserved3[32];
+} __packed;
+
 struct qm_mc_result {
 	u8 verb;
 	u8 result;
@@ -855,8 +1278,23 @@ struct qm_mc_result {
 		struct qm_mcr_querycgr querycgr;
 		struct qm_mcr_querycongestion querycongestion;
 		struct qm_mcr_querywq querywq;
+		struct qm_mcr_ceetm_lfqmt_config lfqmt_config;
+		struct qm_mcr_ceetm_lfqmt_query lfqmt_query;
+		struct qm_mcr_ceetm_cq_config cq_config;
+		struct qm_mcr_ceetm_cq_query cq_query;
+		struct qm_mcr_ceetm_dct_config dct_config;
+		struct qm_mcr_ceetm_dct_query dct_query;
+		struct qm_mcr_ceetm_class_scheduler_config csch_config;
+		struct qm_mcr_ceetm_class_scheduler_query csch_query;
+		struct qm_mcr_ceetm_mapping_shaper_tcfc_config mst_config;
+		struct qm_mcr_ceetm_mapping_shaper_tcfc_query mst_query;
+		struct qm_mcr_ceetm_ccgr_config ccgr_config;
+		struct qm_mcr_ceetm_ccgr_query ccgr_query;
+		struct qm_mcr_ceetm_cq_peek_pop_xsfdrread cq_ppxr;
+		struct qm_mcr_ceetm_statistics_query stats_query;
 	};
 } __packed;
+
 #define QM_MCR_VERB_RRID		0x80
 #define QM_MCR_VERB_MASK		QM_MCC_VERB_MASK
 #define QM_MCR_VERB_INITFQ_PARKED	QM_MCC_VERB_INITFQ_PARKED
@@ -1789,6 +2227,937 @@ static inline int qman_poll_fq_for_init(struct qman_fq *fq)
 	return 0;
 }
 
+	/* -------------- */
+	/* CEETM :: types */
+	/* -------------- */
+/**
+ * Token Rate Structure
+ * Shaping rates are based on a "credit" system and a pre-configured h/w
+ * internal timer. The following type represents a shaper "rate" parameter as a
+ * fractional number of "tokens". Here's how it works. This (fractional) number
+ * of tokens is added to the shaper's "credit" every time the h/w timer elapses
+ * (up to a limit which is set by another shaper parameter). Every time a frame
+ * is enqueued through a shaper, the shaper deducts as many tokens as there are
+ * bytes of data in the enqueued frame. A shaper will not allow itself to
+ * enqueue any frames if its token count is negative. As such;
+ *
+ *         The rate at which data is enqueued is limited by the
+ *         rate at which tokens are added.
+ *
+ * Therefore if the user knows the period between these h/w timer updates in
+ * seconds, they can calculate the maximum traffic rate of the shaper (in
+ * bytes-per-second) from the token rate. And vice versa, they can calculate
+ * the token rate to use in order to achieve a given traffic rate.
+ */
+struct qm_ceetm_rate {
+	/* The token rate is; whole + (fraction/8192) */
+	u32 whole:11; /* 0..2047 */
+	u32 fraction:13; /* 0..8191 */
+};
+
+struct qm_ceetm_weight_code {
+	/* The weight code is; 5 msbits + 3 lsbits */
+	u8 y:5;
+	u8 x:3;
+};
+
+struct qm_ceetm {
+	unsigned int idx;
+	struct list_head sub_portals;
+	struct list_head lnis;
+	unsigned int sp_range[2];
+	unsigned int lni_range[2];
+};
+
+struct qm_ceetm_sp {
+	struct list_head node;
+	unsigned int idx;
+	unsigned int dcp_idx;
+	int is_claimed;
+	struct qm_ceetm_lni *lni;
+};
+
+/* Logical Network Interface */
+struct qm_ceetm_lni {
+	struct list_head node;
+	unsigned int idx;
+	unsigned int dcp_idx;
+	int is_claimed;
+	struct qm_ceetm_sp *sp;
+	struct list_head channels;
+	u8 shaper_enable;
+	u8 shaper_couple;
+	struct qm_ceetm_rate cr_token_rate;
+	struct qm_ceetm_rate er_token_rate;
+	u16 cr_token_bucket_limit;
+	u16 er_token_bucket_limit;
+};
+
+/* Class Queue Channel */
+struct qm_ceetm_channel {
+	struct list_head node;
+	unsigned int idx;
+	unsigned int lni_idx;
+	unsigned int dcp_idx;
+	struct list_head class_queues;
+	struct list_head ccgs;
+	u8 shaper_enable;
+	u8 shaper_couple;
+	struct qm_ceetm_rate cr_token_rate;
+	struct qm_ceetm_rate er_token_rate;
+	u16 cr_token_bucket_limit;
+	u16 er_token_bucket_limit;
+};
+
+struct qm_ceetm_ccg;
+
+/* This callback type is used when handling congestion entry/exit. The
+ * 'cb_ctx' value is the opaque value associated with ccg object.
+ * 'congested' is non-zero on congestion-entry, and zero on congestion-exit.
+ */
+typedef void (*qman_cb_ccgr)(struct qm_ceetm_ccg *ccg, void *cb_ctx,
+							int congested);
+
+/* Class Congestion Group */
+struct qm_ceetm_ccg {
+	struct qm_ceetm_channel *parent;
+	struct list_head node;
+	qman_cb_ccgr cb;
+	void *cb_ctx;
+	unsigned int idx;
+};
+
+/* Class Queue */
+struct qm_ceetm_cq {
+	struct qm_ceetm_channel *parent;
+	struct qm_ceetm_ccg *ccg;
+	struct list_head node;
+	unsigned int idx;
+	int is_claimed;
+	struct list_head bound_lfqids;
+	struct list_head binding_node;
+};
+
+/* Logical Frame Queue */
+struct qm_ceetm_lfq {
+	struct qm_ceetm_channel *parent;
+	struct list_head node;
+	unsigned int idx;
+	unsigned int dctidx;
+	u64 context_a;
+	u32 context_b;
+	qman_cb_mr ern;
+};
+
+/* Divide 'n' by 'd', rounding down if 'r' is negative, rounding up if
+ * it's positive, and rounding to the closest value if it's zero. NB,
+ * this macro assumes no particular type, so feed it with types that are
+ * appropriate for its use. NB, these arguments should not be expressions
+ * unless it is safe for them to be evaluated multiple times. Eg. do not
+ * pass in "some_value++" as a parameter to the macro! */
+#define ROUNDING(n, d, r) \
+	(((r) < 0) ? ((n) / (d)) : \
+	(((r) > 0) ? (((n) + (d) - 1) / (d)) : \
+	(((n) + ((d) / 2)) / (d))))
+
+/**
+ * qman_ceetm_bps2tokenrate - Given a desired rate 'bps' measured in bps
+ * (ie. bits-per-second), compute the 'token_rate' fraction that best
+ * approximates that rate.
+ * @bps: the desired shaper rate in bps.
+ * @token_rate: the output token rate computed with the given kbps.
+ * @rounding: dictates how to round if an exact conversion is not possible; if
+ * it is negative then 'token_rate' will round down to the highest value that
+ * does not exceed the desired rate, if it is positive then 'token_rate' will
+ * round up to the lowest value that is greater than or equal to the desired
+ * rate, and if it is zero then it will round to the nearest approximation,
+ * whether that be up or down.
+ *
+ * Return 0 for success, or -EINVAL if prescaler or qman clock is not available.
+  */
+int qman_ceetm_bps2tokenrate(u32 bps,
+				struct qm_ceetm_rate *token_rate,
+				int rounding);
+
+/**
+ * qman_ceetm_tokenrate2bps - Given a 'token_rate', compute the
+ * corresponding number of 'bps'.
+ * @token_rate: the input desired token_rate fraction.
+ * @bps: the output shaper rate in bps computed with the give token rate.
+ * @rounding: has the same semantics as the previous function.
+ *
+ * Return 0 for success, or -EINVAL if prescaler or qman clock is not available.
+ */
+int qman_ceetm_tokenrate2bps(const struct qm_ceetm_rate *token_rate,
+			      u32 *bps,
+			      int rounding);
+
+int qman_alloc_ceetm0_channel_range(u32 *result, u32 count, u32 align,
+								int partial);
+static inline int qman_alloc_ceetm0_channel(u32 *result)
+{
+	int ret = qman_alloc_ceetm0_channel_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
+}
+void qman_release_ceetm0_channel_range(u32 channelid, u32 count);
+static inline void qman_release_ceetm0_channelid(u32 channelid)
+{
+	qman_release_ceetm0_channel_range(channelid, 1);
+}
+
+int qman_alloc_ceetm1_channel_range(u32 *result, u32 count, u32 align,
+								int partial);
+static inline int qman_alloc_ceetm1_channel(u32 *result)
+{
+	int ret = qman_alloc_ceetm1_channel_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
+}
+void qman_release_ceetm1_channel_range(u32 channelid, u32 count);
+static inline void qman_release_ceetm1_channelid(u32 channelid)
+{
+	qman_release_ceetm1_channel_range(channelid, 1);
+}
+
+int qman_alloc_ceetm0_lfqid_range(u32 *result, u32 count, u32 align,
+								int partial);
+static inline int qman_alloc_ceetm0_lfqid(u32 *result)
+{
+	int ret = qman_alloc_ceetm0_lfqid_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
+}
+void qman_release_ceetm0_lfqid_range(u32 lfqid, u32 count);
+static inline void qman_release_ceetm0_lfqid(u32 lfqid)
+{
+	qman_release_ceetm0_lfqid_range(lfqid, 1);
+}
+
+int qman_alloc_ceetm1_lfqid_range(u32 *result, u32 count, u32 align,
+								int partial);
+static inline int qman_alloc_ceetm1_lfqid(u32 *result)
+{
+	int ret = qman_alloc_ceetm1_lfqid_range(result, 1, 0, 0);
+	return (ret > 0) ? 0 : ret;
+}
+void qman_release_ceetm1_lfqid_range(u32 lfqid, u32 count);
+static inline void qman_release_ceetm1_lfqid(u32 lfqid)
+{
+	qman_release_ceetm1_lfqid_range(lfqid, 1);
+}
+	/* ----------------------------- */
+	/* CEETM :: sub-portals          */
+	/* ----------------------------- */
+
+/**
+ * qman_ceetm_claim_sp - Claims the given sub-portal, provided it is available
+ * to us and configured for traffic-management.
+ * @sp: the returned sub-portal object, if successful.
+ * @dcp_id: specifies the desired Fman block (and thus the relevant CEETM
+ * instance),
+ * @sp_idx" is the desired sub-portal index from 0 to 15.
+ *
+ * Returns zero for success, or -ENODEV if the sub-portal is in use,  or -EINVAL
+ * if the sp_idx is out of range.
+ *
+ * Note that if there are multiple driver domains (eg. a linux kernel versus
+ * user-space drivers in USDPAA, or multiple guests running under a hypervisor)
+ * then a sub-portal may be accessible by more than one instance of a qman
+ * driver and so it may be claimed multiple times. If this is the case, it is
+ * up to the system architect to prevent conflicting configuration actions
+ * coming from the different driver domains. The qman drivers do not have any
+ * behind-the-scenes coordination to prevent this from happening.
+ */
+int qman_ceetm_sp_claim(struct qm_ceetm_sp **sp,
+			enum qm_dc_portal dcp_idx,
+			unsigned int sp_idx);
+
+/**
+ * qman_ceetm_sp_release - Releases a previously claimed sub-portal.
+ * @sp: the sub-portal to be released.
+ *
+ * Returns 0 for success, or -EBUSY for failure if the dependencies are not
+ * released.
+ */
+int qman_ceetm_sp_release(struct qm_ceetm_sp *sp);
+
+	/* ----------------------------------- */
+	/* CEETM :: logical network interfaces */
+	/* ----------------------------------- */
+
+/**
+ * qman_ceetm_lni_claim - Claims an unclaimed LNI.
+ * @lni: the returned LNI object, if successful.
+ * @dcp_id: specifies the desired Fman block (and thus the relevant CEETM
+ * instance)
+ * @lni_idx: is the desired LNI index.
+ *
+ * Returns zero for success, or -EINVAL on failure, which will happen if the LNI
+ * is not available or has already been claimed (and not yet successfully
+ * released), or lni_dix is out of range.
+ *
+ * Note that there may be multiple driver domains (or instances) that need to
+ * transmit out the same LNI, so this claim is only guaranteeing exclusivity
+ * within the domain of the driver being called. See qman_ceetm_sp_claim() and
+ * qman_ceetm_sp_get_lni() for more information.
+ */
+int qman_ceetm_lni_claim(struct qm_ceetm_lni **lni,
+			 enum qm_dc_portal dcp_id,
+			 unsigned int lni_idx);
+
+/**
+ * qman_ceetm_lni_releaes - Releases a previously claimed LNI.
+ * @lni: the lni needs to be released.
+ *
+ * This will only succeed if all dependent objects have been released.
+ * Returns zero for success, or -EBUSY if the dependencies are not released.
+ */
+int qman_ceetm_lni_release(struct qm_ceetm_lni *lni);
+
+/**
+ * qman_ceetm_sp_set_lni
+ * qman_ceetm_sp_get_lni - Set/get the LNI that the sub-portal is currently
+ * mapped to.
+ * @sp: the given sub-portal.
+ * @lni(in "set"function): the LNI object which the sp will be mappaed to.
+ * @lni_idx(in "get" function): the LNI index which the sp is mapped to.
+ *
+ * Returns zero for success, or -EINVAL for the "set" function when this sp-lni
+ * mapping has been set, or configure mapping command returns error, and
+ * -EINVAL for "get" function when this sp-lni mapping is not set or the query
+ * mapping command returns error.
+ *
+ * This may be useful in situations where multiple driver domains have access
+ * to the same sub-portals in order to all be able to transmit out the same
+ * physical interface (perhaps they're on different IP addresses or VPNs, so
+ * Fman is splitting Rx traffic and here we need to converge Tx traffic). In
+ * that case, a control-plane is likely to use qman_ceetm_lni_claim() followed
+ * by qman_ceetm_sp_set_lni() to configure the sub-portal, and other domains
+ * are likely to use qman_ceetm_sp_get_lni() followed by qman_ceetm_lni_claim()
+ * in order to determine the LNI that the control-plane had assigned. This is
+ * why the "get" returns an index, whereas the "set" takes an (already claimed)
+ * LNI object.
+ */
+int qman_ceetm_sp_set_lni(struct qm_ceetm_sp *sp,
+			  struct qm_ceetm_lni *lni);
+int qman_ceetm_sp_get_lni(struct qm_ceetm_sp *sp,
+			  unsigned int *lni_idx);
+
+/**
+ * qman_ceetm_lni_enable_shaper
+ * qman_ceetm_lni_disable_shaper - Enables/disables shaping on the LNI.
+ * @lni: the given LNI.
+ * @coupled: indicates whether CR and ER are coupled.
+ *
+ * When the number of (unused) committed-rate tokens reach the committed-rate
+ * token limit, 'coupled' indicates whether surplus tokens should be added to
+ * the excess-rate token count (up to the excess-rate token limit).
+ * When LNI is claimed, the shaper is disabled by default. The enable function
+ * will turn on this shaper for this lni.
+ * Whenever a claimed LNI is first enabled for shaping, its committed and
+ * excess token rates and limits are zero, so will need to be changed to do
+ * anything useful. The shaper can subsequently be enabled/disabled without
+ * resetting the shaping parameters, but the shaping parameters will be reset
+ * when the LNI is released.
+ *
+ * Returns zero for success, or  errno for "enable" function in the cases as:
+ * a) -EINVAL if the shaper is already enabled,
+ * b) -EIO if the configure shaper command returns error.
+ * For "disable" function, returns:
+ * a) -EINVAL if the shaper is has already disabled.
+ * b) -EIO if calling configure shaper command returns error.
+ */
+int qman_ceetm_lni_enable_shaper(struct qm_ceetm_lni *lni, int coupled);
+int qman_ceetm_lni_disable_shaper(struct qm_ceetm_lni *lni);
+
+/**
+ * qman_ceetm_lni_set_commit_rate
+ * qman_ceetm_lni_get_commit_rate
+ * qman_ceetm_lni_set_excess_rate
+ * qman_ceetm_lni_get_excess_rate - Set/get the shaper CR/ER token rate and
+ * token limit for the given LNI.
+ * @lni: the given LNI.
+ * @token_rate: the desired token rate for "set" fuction, or the token rate of
+ * the LNI queried by "get" function.
+ * @token_limit: the desired token bucket limit for "set" function, or the token
+ * limit of the given LNI queried by "get" function.
+ *
+ * Returns zero for success. The "set" function returns -EINVAL if the given
+ * LNI is unshapped or -EIO if the configure shaper command returns error.
+ * The "get" function returns -EINVAL if the token rate or the token limit is
+ * not set or the query command returns error.
+ */
+int qman_ceetm_lni_set_commit_rate(struct qm_ceetm_lni *lni,
+				   const struct qm_ceetm_rate *token_rate,
+				   u16 token_limit);
+int qman_ceetm_lni_get_commit_rate(struct qm_ceetm_lni *lni,
+				   struct qm_ceetm_rate *token_rate,
+				   u16 *token_limit);
+int qman_ceetm_lni_set_excess_rate(struct qm_ceetm_lni *lni,
+				   const struct qm_ceetm_rate *token_rate,
+				   u16 token_limit);
+int qman_ceetm_lni_get_excess_rate(struct qm_ceetm_lni *lni,
+				   struct qm_ceetm_rate *token_rate,
+				   u16 *token_limit);
+
+/**
+ * qman_ceetm_lni_set_tcfcc
+ * qman_ceetm_lni_get_tcfcc - Configure/query "Traffic Class Flow Control".
+ * @lni: the given LNI.
+ * @cq_level: is between 0 and 15, representing individual class queue levels
+ * (CQ0 to CQ7 for every channel) and grouped class queue levels (CQ8 to CQ15
+ * for every channel).
+ * @traffic_class: is between 0 and 7 when associating a given class queue level
+ * to a traffic class, or -1 when disabling traffic class flow control for this
+ * class queue level.
+ *
+ * Return zero for success, or -EINVAL if the cq_level or traffic_class is out
+ * of range as indicated above, or -EIO if the configure/query tcfcc command
+ * returns error.
+ *
+ * Refer to the section of QMan CEETM traffic class flow control in the Refernce
+ * Manual.
+ */
+int qman_ceetm_lni_set_tcfcc(struct qm_ceetm_lni *lni,
+			     unsigned int cq_level,
+			     int traffic_class);
+int qman_ceetm_lni_get_tcfcc(struct qm_ceetm_lni *lni,
+			     unsigned int cq_level,
+			     int *traffic_class);
+
+	/* ----------------------------- */
+	/* CEETM :: class queue channels */
+	/* ----------------------------- */
+
+/**
+ * qman_ceetm_channel_claim - Claims an unclaimed CQ channel that is mapped to
+ * the given LNI.
+ * @channel: the returned class queue channel object, if successful.
+ * @lni: the LNI that the channel belongs to.
+ *
+ * Channels are always initially "unshaped".
+ *
+ * Return zero for success, or -ENODEV if there is no channel available(all 32
+ * channels are claimed) or -EINVAL if the channel mapping command returns
+ * error.
+ */
+int qman_ceetm_channel_claim(struct qm_ceetm_channel **channel,
+			     struct qm_ceetm_lni *lni);
+
+/**
+ * qman_ceetm_channel_release - Releases a previously claimed CQ channel.
+ * @channel: the channel needs to be released.
+ *
+ * Returns zero for success, or -EBUSY if the dependencies are still in use.
+ *
+ * Note any shaping of the channel will be cleared to leave it in an unshaped
+ * state.
+ */
+int qman_ceetm_channel_release(struct qm_ceetm_channel *channel);
+
+/**
+ * qman_ceetm_channel_enable_shaper
+ * qman_ceetm_channel_disable_shaper - Enables/disables shaping on the channel.
+ * @channel: the given channel.
+ * @coupled: indicates whether surplus CR tokens should be added to the
+ * excess-rate token count (up to the excess-rate token limit) when the number
+ * of (unused) committed-rate tokens reach the committed_rate token limit.
+ *
+ * Whenever a claimed channel is first enabled for shaping, its committed and
+ * excess token rates and limits are zero, so will need to be changed to do
+ * anything useful. The shaper can subsequently be enabled/disabled without
+ * resetting the shaping parameters, but the shaping parameters will be reset
+ * when the channel is released.
+ *
+ * Return 0 for success, or -EINVAL for failure, in the case that the channel
+ * shaper has been enabled/disabled or the management command returns error.
+ */
+int qman_ceetm_channel_enable_shaper(struct qm_ceetm_channel *channel,
+							 int coupled);
+int qman_ceetm_channel_disable_shaper(struct qm_ceetm_channel *channel);
+
+/**
+ * qman_ceetm_channel_set_commit_rate
+ * qman_ceetm_channel_get_commit_rate
+ * qman_ceetm_channel_set_excess_rate
+ * qman_ceetm_channel_get_excess_rate - Set/get channel CR/ER shaper parameters.
+ * @channel: the given channel.
+ * @token_rate: the desired token rate for "set" function, or the queried token
+ * rate for "get" function.
+ * @token_limit: the desired token limit for "set" function, or the queried
+ * token limit for "get" function.
+ *
+ * Return zero for success. The "set" function returns -EINVAL if the channel
+ * is unshaped, or -EIO if the configure shapper command returns error. The
+ * "get" function returns -EINVAL if token rate of token limit is not set, or
+ * the query shaper command returns error.
+ */
+int qman_ceetm_channel_set_commit_rate(struct qm_ceetm_channel *channel,
+				   const struct qm_ceetm_rate *token_rate,
+				   u16 token_limit);
+int qman_ceetm_channel_get_commit_rate(struct qm_ceetm_channel *channel,
+				   struct qm_ceetm_rate *token_rate,
+				   u16 *token_limit);
+int qman_ceetm_channel_set_excess_rate(struct qm_ceetm_channel *channel,
+				   const struct qm_ceetm_rate *token_rate,
+				   u16 token_limit);
+int qman_ceetm_channel_get_excess_rate(struct qm_ceetm_channel *channel,
+				   struct qm_ceetm_rate *token_rate,
+				   u16 *token_limit);
+
+/**
+ * qman_ceetm_channel_set_weight
+ * qman_ceetm_channel_get_weight - Set/get the weight for unshaped channel
+ * @channel: the given channel.
+ * @token_limit: the desired token limit as the weight of the unshaped channel
+ * for "set" function, or the queried token limit for "get" function.
+ *
+ * The algorithm of unshaped fair queuing (uFQ) is used for unshaped channel.
+ * It allows the unshaped channels to be included in the CR time eligible list,
+ * and thus use the configured CR token limit value as their fair queuing
+ * weight.
+ *
+ * Return zero for success, or -EINVAL if the channel is a shaped channel or
+ * the management command returns error.
+ */
+int qman_ceetm_channel_set_weight(struct qm_ceetm_channel *channel,
+				  u16 token_limit);
+int qman_ceetm_channel_get_weight(struct qm_ceetm_channel *channel,
+				  u16 *token_limit);
+
+/**
+ * qman_ceetm_channel_set_group
+ * qman_ceetm_channel_get_group - Set/get the grouping of the class scheduler.
+ * @channel: the given channel.
+ * @group_b: indicates whether there is group B in this channel.
+ * @prio_a: the priority of group A.
+ * @prio_b: the priority of group B.
+ *
+ * There are 8 individual class queues (CQ0-CQ7), and 8 grouped class queues
+ * (CQ8-CQ15). If 'group_b' is zero, then all the grouped class queues are in
+ * group A, otherwise they are split into group A (CQ8-11) and group B
+ * (CQ12-C15). The individual class queues and the group(s) are in strict
+ * priority order relative to each other. Within the group(s), the scheduling
+ * is not strict priority order, but the result of scheduling within a group
+ * is in strict priority order relative to the other class queues in the
+ * channel. 'prio_a' and 'prio_b' control the priority order of the groups
+ * relative to the individual class queues, and take values from 0-7. Eg. if
+ * 'group_b' is non-zero, 'prio_a' is 2 and 'prio_b' is 6, then the strict
+ * priority order would be;
+ *      CQ0, CQ1, CQ2, GROUPA, CQ3, CQ4, CQ5, CQ6, GROUPB, CQ7
+ *
+ * Return 0 for success. For "set" function, returns -EINVAL if prio_a or
+ * prio_b are out of the range 1 - 7 (priority of group A or group B can not
+ * be 0, CQ0 is always the highest class queue in this channel.), or -EIO if
+ * the configure scheduler command returns error. For "get" function, return
+ * -EINVAL if the query scheduler command returns error.
+ */
+int qman_ceetm_channel_set_group(struct qm_ceetm_channel *channel,
+			     int group_b,
+			     unsigned int prio_a,
+			     unsigned int prio_b);
+int qman_ceetm_channel_get_group(struct qm_ceetm_channel *channel,
+			     int *group_b,
+			     unsigned int *prio_a,
+			     unsigned int *prio_b);
+
+	/* --------------------- */
+	/* CEETM :: class queues */
+	/* --------------------- */
+
+/**
+ * qman_ceetm_cq_claim - Claims an individual class queue.
+ * @cq: the returned class queue object, if successful.
+ * @channel: the class queue channel.
+ * @idx: is from 0 to 7 (representing CQ0 to CQ7).
+ * @ccg: represents the class congestion group that this class queue should be
+ * subscribed to, or NULL if no congestion group membership is desired.
+ *
+ * Returns zero for success, or -EINVAL if @idx is out of range 0 - 7 or
+ * if this class queue has been claimed, or configure class queue command
+ * returns error, or returns -ENOMEM if allocating CQ memory fails.
+ */
+int qman_ceetm_cq_claim(struct qm_ceetm_cq **cq,
+			struct qm_ceetm_channel *channel,
+			unsigned int idx,
+			struct qm_ceetm_ccg *ccg);
+
+/**
+ * qman_ceetm_cq_claim_A - Claims a class queue group A.
+ * @cq: the returned class queue object, if successful.
+ * @channel: the class queue channel.
+ * @idx: is from 8 to 15 if only group A exits, otherwise, it is from 8 to 11.
+ * @ccg: represents the class congestion group that this class queue should be
+ * subscribed to, or NULL if no congestion group membership is desired.
+ *
+ * Return zero for success, or -EINVAL if @idx is out the range or if
+ * this class queue has been claimed or configure class queue command returns
+ * error, or returns -ENOMEM if allocating CQ memory fails.
+ */
+int qman_ceetm_cq_claim_A(struct qm_ceetm_cq **cq,
+				struct qm_ceetm_channel *channel,
+				unsigned int idx,
+				struct qm_ceetm_ccg *ccg);
+
+/**
+ * qman_ceetm_cq_claim_B - Claims a class queue group B.
+ * @cq: the returned class queue object, if successful.
+ * @channel: the class queue channel.
+ * @idx: is from 0 to 3 (CQ12 to CQ15).
+ * @ccg: represents the class congestion group that this class queue should be
+ * subscribed to, or NULL if no congestion group membership is desired.
+ *
+ * Return zero for success, or -EINVAL if @idx is out the range or if
+ * this class queue has been claimed or configure class queue command returns
+ * error, or returns -ENOMEM if allocating CQ memory fails.
+ */
+int qman_ceetm_cq_claim_B(struct qm_ceetm_cq **cq,
+				struct qm_ceetm_channel *channel,
+				unsigned int idx,
+				struct qm_ceetm_ccg *ccg);
+
+/**
+ * qman_ceetm_cq_release - Releases a previously claimed class queue.
+ * @cq: The class queue to be released.
+ *
+ * Return zero for success, or -EBUSY if the dependent objects (eg. logical
+ * FQIDs) have not been released.
+ */
+int qman_ceetm_cq_release(struct qm_ceetm_cq *cq);
+
+/**
+ * qman_ceetm_set_queue_weight
+ * qman_ceetm_get_queue_weight - Configure/query the weight of a grouped class
+ * queue.
+ * @cq: the given class queue.
+ * @weight_code: the desired weight code to set for the given class queue for
+ * "set" function or the queired weight code for "get" function.
+ *
+ * Grouped class queues have a default weight code of zero, which corresponds to
+ * a scheduler weighting of 1. This function can be used to modify a grouped
+ * class queue to another weight, (Use the helpers qman_ceetm_wbfs2ratio()
+ * and qman_ceetm_ratio2wbfs() to convert between these 'weight_code' values
+ * and the corresponding sharing weight.)
+ *
+ * Returns zero for success, or -EIO if the configure weight command returns
+ * error for "set" function, or -EINVAL if the query command returns
+ * error for "get" function.
+ * See section "CEETM Weighted Scheduling among Grouped Classes" in Reference
+ * Manual for weight and weight code.
+ */
+int qman_ceetm_set_queue_weight(struct qm_ceetm_cq *cq,
+				struct qm_ceetm_weight_code *weight_code);
+int qman_ceetm_get_queue_weight(struct qm_ceetm_cq *cq,
+				struct qm_ceetm_weight_code *weight_code);
+
+/* Weights are encoded using a pseudo-exponential scheme. The weight codes 0,
+ * 32, 64, [...] correspond to weights of 1, 2, 4, [...]. The weights
+ * corresponding to intermediate weight codes are calculated using linear
+ * interpolation on the inverted values. Or put another way, the inverse weights
+ * for each 32nd weight code are 1, 1/2, 1/4, [...], and so the intervals
+ * between these are divided linearly into 32 intermediate values, the inverses
+ * of which form the remaining weight codes.
+ *
+ * The Weighted Bandwidth Fair Scheduling (WBFS) algorithm provides a form of
+ * scheduling within a group of class queues (group A or B). Weights are used to
+ * normalise the class queues to an underlying BFS algorithm where all class
+ * queues are assumed to require "equal bandwidth". So the weights referred to
+ * by the weight codes act as divisors on the size of frames being enqueued. Ie.
+ * one class queue in a group is assigned a weight of 2 whilst the other class
+ * queues in the group keep the default weight of 1, then the WBFS scheduler
+ * will effectively treat all frames enqueued on the weight-2 class queue as
+ * having half the number of bytes they really have. Ie. if all other things are
+ * equal, that class queue would get twice as much bytes-per-second bandwidth as
+ * the others. So weights should be chosen to provide bandwidth ratios between
+ * members of the same class queue group. These weights have no bearing on
+ * behaviour outside that group's WBFS mechanism though.
+ */
+
+/**
+ * qman_ceetm_wbfs2ratio - Given a weight code ('wbfs'), an accurate fractional
+ * representation of the corresponding weight is given (in order to not lose
+ * any precision).
+ * @weight_code: The given weight code in WBFS.
+ * @numerator: the numerator part of the weight computed by the weight code.
+ * @denominator: the denominator part of the weight computed by the weight code
+ *
+ * Returns zero for success or -EINVAL if the given weight code is illegal.
+ */
+int qman_ceetm_wbfs2ratio(unsigned int weight_code,
+			   u32 *numerator,
+			   u32 *denominator);
+/**
+ * qman_ceetm_ratio2wbfs - Given a weight, find the nearest possible weight code
+ * If the user needs to know how close this is, convert the resulting weight
+ * code back to a weight and compare.
+ * @numerator: numerator part of the given weight.
+ * @denominator: denominator part of the given weight.
+ * @weight_code: the weight code computed from the given weight.
+ *
+ * Returns zero for success, or -ERANGE if "numerator/denominator" is outside
+ * the range of weights.
+ */
+int qman_ceetm_ratio2wbfs(u32 numerator,
+			   u32 denominator,
+			   unsigned int *weight_code,
+			   int rounding);
+
+#define QMAN_CEETM_FLAG_CLEAR_STATISTICS_COUNTER	0x1
+/**
+ * qman_ceetm_cq_get_dequeue_statistics - Get the statistics provided by CEETM
+ * CQ counters.
+ * @cq: the given CQ object.
+ * @flags: indicates whether the statistics counter will be cleared after query.
+ * @frame_count: The number of the frames that have been counted since the
+ * counter was cleared last time.
+ * @byte_count: the number of bytes in all frames that have been counted.
+ *
+ * Return zero for success or -EINVAL if query statistics command returns error.
+ *
+ */
+int qman_ceetm_cq_get_dequeue_statistics(struct qm_ceetm_cq *cq, u32 flags,
+					u64 *frame_count, u64 *byte_count);
+
+	/* ---------------------- */
+	/* CEETM :: logical FQIDs */
+	/* ---------------------- */
+/**
+ * qman_ceetm_lfq_claim - Claims an unused logical FQID, associates it with
+ * the given class queue.
+ * @lfq: the returned lfq object, if successful.
+ * @cq: the class queue which needs to claim a LFQID.
+ *
+ * Return zero for success, or -ENODEV if no LFQID is available or -ENOMEM if
+ * allocating memory for lfq fails, or -EINVAL if configuring LFQMT fails.
+ */
+int qman_ceetm_lfq_claim(struct qm_ceetm_lfq **lfq,
+				struct qm_ceetm_cq *cq);
+
+/**
+ * qman_ceetm_lfq_release - Releases a previously claimed logical FQID.
+ * @lfq: the lfq to be released.
+ *
+ * Return zero for success.
+ */
+int qman_ceetm_lfq_release(struct qm_ceetm_lfq *lfq);
+
+/**
+ * qman_ceetm_lfq_set_context
+ * qman_ceetm_lfq_get_context - Set/get the context_a/context_b pair to the
+ * "dequeue context table" associated with the logical FQID.
+ * @lfq: the given logical FQ object.
+ * @context_a: contextA of the dequeue context.
+ * @context_b: contextB of the dequeue context.
+ *
+ * Returns zero for success, or -EINVAL if there is error to set/get the
+ * context pair.
+ */
+int qman_ceetm_lfq_set_context(struct qm_ceetm_lfq *lfq,
+				u64 context_a,
+				u32 context_b);
+int qman_ceetm_lfq_get_context(struct qm_ceetm_lfq *lfq,
+				u64 *context_a,
+				u32 *context_b);
+
+/**
+ * qman_ceetm_create_fq - Initialise a FQ object for the LFQ.
+ * @lfq: the given logic fq.
+ * @fq: the fq object created for the given logic fq.
+ *
+ * The FQ object can be used in qman_enqueue() and qman_enqueue_orp() APIs to
+ * target a logical FQID (and the class queue it is associated with).
+ * Note that this FQ object can only be used for enqueues, and
+ * in the case of qman_enqueue_orp() it can not be used as the 'orp' parameter,
+ * only as 'fq'. This FQ object can not (and shouldn't) be destroyed, it is only
+ * valid as long as the underlying 'lfq' remains claimed. It is the user's
+ * responsibility to ensure that the underlying 'lfq' is not released until any
+ * enqueues to this FQ object have completed. The only field the user needs to
+ * fill in is fq->cb.ern, as that enqueue rejection handler is the callback that
+ * could conceivably be called on this FQ object. This API can be called
+ * multiple times to create multiple FQ objects referring to the same logical
+ * FQID, and any enqueue rejections will respect the callback of the object that
+ * issued the enqueue (and will identify the object via the parameter passed to
+ * the callback too). There is no 'flags' parameter to this API as there is for
+ * qman_create_fq() - the created FQ object behaves as though qman_create_fq()
+ * had been called with the single flag QMAN_FQ_FLAG_NO_MODIFY.
+ *
+ * Returns 0 for success.
+ */
+int qman_ceetm_create_fq(struct qm_ceetm_lfq *lfq, struct qman_fq *fq);
+
+	/* -------------------------------- */
+	/* CEETM :: class congestion groups */
+	/* -------------------------------- */
+
+/**
+ * qman_ceetm_ccg_claim - Claims an unused CCG.
+ * @ccg: the returned CCG object, if successful.
+ * @channel: the given class queue channel
+ * @cscn: the callback function of this CCG.
+ * @cb_ctx: the corresponding context to be used used if state change
+ * notifications are later enabled for this CCG.
+ *
+ * The congestion group is local to the given class queue channel, so only
+ * class queues within the channel can be associated with that congestion group.
+ * The association of class queues to congestion groups occurs  when the class
+ * queues are claimed, see qman_ceetm_cq_claim() and related functions.
+ * Congestion groups are in a "zero" state when initially claimed, and they are
+ * returned to that state when released.
+ *
+ * Return zero for success, or -EINVAL if no CCG in the channel is available.
+ */
+int qman_ceetm_ccg_claim(struct qm_ceetm_ccg **ccg,
+			 struct qm_ceetm_channel *channel,
+			 unsigned int idx,
+			 void (*cscn)(struct qm_ceetm_ccg *,
+				       void *cb_ctx,
+				       int congested),
+			 void *cb_ctx);
+
+/**
+ * qman_ceetm_ccg_release - Releases a previously claimed CCG.
+ * @ccg: the given ccg.
+ *
+ * Returns zero for success, or -EBUSY if the given ccg's dependent objects
+ * (class queues that are associated with the CCG) have not been released.
+ */
+int qman_ceetm_ccg_release(struct qm_ceetm_ccg *ccg);
+
+/* This struct is used to specify attributes for a CCG. The 'we_mask' field
+ * controls which CCG attributes are to be updated, and the remainder specify
+ * the values for those attributes. A CCG counts either frames or the bytes
+ * within those frames, but not both ('mode'). A CCG can optionally cause
+ * enqueues to be rejected, due to tail-drop or WRED, or both (they are
+ * independent options, 'td_en' and 'wr_en_g,wr_en_y,wr_en_r'). Tail-drop can be
+ * level-triggered due to a single threshold ('td_thres') or edge-triggered due
+ * to a "congestion state", but not both ('td_mode'). Congestion state has
+ * distinct entry and exit thresholds ('cs_thres_in' and 'cs_thres_out'), and
+ * notifications can be sent to software the CCG goes in to and out of this
+ * congested state ('cscn_en'). */
+struct qm_ceetm_ccg_params {
+	/* Boolean fields together in a single bitfield struct */
+	struct {
+		/* Whether to count bytes or frames. 1==frames */
+		int mode:1;
+		/* En/disable tail-drop. 1==enable */
+		int td_en:1;
+		/* Tail-drop on congestion-state or threshold. 1=threshold */
+		int td_mode:1;
+		/* Generate congestion state change notifications. 1==enable */
+		int cscn_en:1;
+		/* Enable WRED rejections (per colour). 1==enable */
+		int wr_en_g:1;
+		int wr_en_y:1;
+		int wr_en_r:1;
+	} __packed;
+	/* Tail-drop threshold. See qm_cgr_thres_[gs]et64(). */
+	struct qm_cgr_cs_thres td_thres;
+	/* Congestion state thresholds, for entry and exit. */
+	struct qm_cgr_cs_thres cs_thres_in;
+	struct qm_cgr_cs_thres cs_thres_out;
+	/* Overhead accounting length. Per-packet "tax", from -128 to +127 */
+	signed char oal;
+	/* Congestion state change notification for DCP portal, virtual CCGID*/
+	/* WRED parameters. */
+	struct qm_cgr_wr_parm wr_parm_g;
+	struct qm_cgr_wr_parm wr_parm_y;
+	struct qm_cgr_wr_parm wr_parm_r;
+};
+/* Bits used in 'we_mask' to qman_ceetm_ccg_set(), controls which attributes of
+ * the CCGR are to be updated. */
+#define QM_CCGR_WE_CDV		0x0000 /* cdv */
+#define QM_CCGR_WE_MODE         0x0001 /* mode (bytes/frames) */
+#define QM_CCGR_WE_CS_THRES_IN  0x0002 /* congestion state entry threshold */
+#define QM_CCGR_WE_TD_EN        0x0004 /* congestion state tail-drop enable */
+#define QM_CCGR_WE_CSCN_TUPD	0x0008 /* CSCN target update */
+#define QM_CCGR_WE_CSCN_EN      0x0010 /* congestion notification enable */
+#define QM_CCGR_WE_WR_EN_R      0x0020 /* WRED enable - red */
+#define QM_CCGR_WE_WR_EN_Y      0x0040 /* WRED enable - yellow */
+#define QM_CCGR_WE_WR_EN_G      0x0080 /* WRED enable - green */
+#define QM_CCGR_WE_WR_PARM_R    0x0100 /* WRED parameters - red */
+#define QM_CCGR_WE_WR_PARM_Y    0x0200 /* WRED parameters - yellow */
+#define QM_CCGR_WE_WR_PARM_G    0x0400 /* WRED parameters - green */
+#define QM_CCGR_WE_OAL          0x0800 /* overhead accounting length */
+#define QM_CCGR_WE_CS_THRES_OUT 0x1000 /* congestion state exit threshold */
+#define QM_CCGR_WE_TD_THRES     0x2000 /* tail-drop threshold */
+#define QM_CCGR_WE_TD_MODE      0x4000 /* tail-drop mode (state/threshold) */
+
+/**
+ * qman_ceetm_ccg_set
+ * qman_ceetm_ccg_get - Configure/query a subset of CCG attributes.
+ * @ccg: the given CCG object.
+ * @we_mask: the write enable mask.
+ * @params: the parameters setting for this ccg
+ *
+ * Return 0 for success, or -EIO if configure ccg command returns error for
+ * "set" function, or -EINVAL if query ccg command returns error for "get"
+ * function.
+ */
+int qman_ceetm_ccg_set(struct qm_ceetm_ccg *ccg,
+			u16 we_mask,
+			const struct qm_ceetm_ccg_params *params);
+int qman_ceetm_ccg_get(struct qm_ceetm_ccg *ccg,
+			struct qm_ceetm_ccg_params *params);
+
+/** qman_ceetm_cscn_swp_set - Add or remove a software portal from the target
+ * mask.
+ * qman_ceetm_cscn_swp_get - Query whether a given software portal index is
+ * in the cscn target mask.
+ * @ccg: the give CCG object.
+ * @swp_idx: the index of the software portal.
+ * @cscn_enabled: 1: Set the swp to be cscn target. 0: remove the swp from
+ * the target mask.
+ * @we_mask: the write enable mask.
+ * @params: the parameters setting for this ccg
+ *
+ * Return 0 for success, or -EINVAL if command in set/get function fails.
+ */
+int qman_ceetm_cscn_swp_set(struct qm_ceetm_ccg *ccg,
+				u16 swp_idx,
+				unsigned int cscn_enabled,
+				u16 we_mask,
+				const struct qm_ceetm_ccg_params *params);
+int qman_ceetm_cscn_swp_get(struct qm_ceetm_ccg *ccg,
+				u16 swp_idx,
+				unsigned int *cscn_enabled);
+
+/** qman_ceetm_cscn_dcp_set - Add or remove a direct connect portal from the\
+ * target mask.
+ * qman_ceetm_cscn_swp_get - Query whether a given direct connect portal index
+ * is in the cscn target mask.
+ * @ccg: the give CCG object.
+ * @dcp_idx: the index of the direct connect portal.
+ * @vcgid: congestion state change notification for dcp portal, virtual CGID.
+ * @cscn_enabled: 1: Set the dcp to be cscn target. 0: remove the dcp from
+ * the target mask.
+ * @we_mask: the write enable mask.
+ * @params: the parameters setting for this ccg
+ *
+ * Return 0 for success, or -EINVAL if command in set/get function fails.
+  */
+int qman_ceetm_cscn_dcp_set(struct qm_ceetm_ccg *ccg,
+				u16 dcp_idx,
+				u8 vcgid,
+				unsigned int cscn_enabled,
+				u16 we_mask,
+				const struct qm_ceetm_ccg_params *params);
+int qman_ceetm_cscn_dcp_get(struct qm_ceetm_ccg *ccg,
+				u16 dcp_idx,
+				u8 *vcgid,
+				unsigned int *cscn_enabled);
+
+/**
+ * qman_ceetm_ccg_get_reject_statistics - Get the statistics provided by
+ * CEETM CCG counters.
+ * @ccg: the given CCG object.
+ * @flags: indicates whether the statistics counter will be cleared after query.
+ * @frame_count: The number of the frames that have been counted since the
+ * counter was cleared last time.
+ * @byte_count: the number of bytes in all frames that have been counted.
+ *
+ * Return zero for success or -EINVAL if query statistics command returns error.
+ *
+ */
+int qman_ceetm_ccg_get_reject_statistics(struct qm_ceetm_ccg *ccg, u32 flags,
+					u64 *frame_count, u64 *byte_count);
 #ifdef __cplusplus
 }
 #endif

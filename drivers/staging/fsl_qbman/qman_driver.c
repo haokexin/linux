@@ -44,6 +44,9 @@ u16 qm_channel_pme = QMAN_CHANNEL_PME;
 EXPORT_SYMBOL(qm_channel_pme);
 u16 qman_portal_max;
 
+u32 qman_clk;
+struct qm_ceetm qman_ceetms[QMAN_CEETM_MAX];
+
 /* size of the fqd region in bytes */
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
 static u32 fqd_size = (PAGE_SIZE << CONFIG_FSL_QMAN_FQD_SZ);
@@ -147,6 +150,132 @@ static __init int fsl_cgrid_range_init(struct device_node *node)
 	if (errors)
 		pr_err("Warning: %d error%s while initialising CGRs %d:%d\n",
 			errors, (errors > 1) ? "s" : "", range[0], range[1]);
+	return 0;
+}
+
+static __init int fsl_ceetm_init(struct device_node *node)
+{
+	enum qm_dc_portal dcp_portal;
+	struct qm_ceetm_sp *sp;
+	struct qm_ceetm_lni *lni;
+	int ret, i;
+	const u32 *range;
+
+	/* Find LFQID range */
+	range = of_get_property(node, "fsl,ceetm-lfqid-range", &ret);
+	if (!range) {
+		pr_err("No fsl,ceetm-lfqid-range in node %s\n",
+							node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err("fsl,ceetm-lfqid-range is not a 2-cell range in node"
+					" %s\n", node->full_name);
+		return -EINVAL;
+	}
+
+	dcp_portal = (range[0] & 0x0F0000) >> 16;
+	if (dcp_portal > qm_dc_portal_fman1) {
+		pr_err("The DCP portal %d doesn't support CEETM\n", dcp_portal);
+		return -EINVAL;
+	}
+
+	if (dcp_portal == qm_dc_portal_fman0)
+		qman_release_ceetm0_lfqid_range(range[0], range[1]);
+	if (dcp_portal == qm_dc_portal_fman1)
+		qman_release_ceetm1_lfqid_range(range[0], range[1]);
+	pr_info("Qman: The lfqid allocator of CEETM %d includes range"
+			" 0x%x:0x%x\n", dcp_portal, range[0], range[1]);
+
+	qman_ceetms[dcp_portal].idx = dcp_portal;
+	INIT_LIST_HEAD(&qman_ceetms[dcp_portal].sub_portals);
+	INIT_LIST_HEAD(&qman_ceetms[dcp_portal].lnis);
+
+	/* Find Sub-portal range */
+	range = of_get_property(node, "fsl,ceetm-sp-range", &ret);
+	if (!range) {
+		pr_err("No fsl,ceetm-sp-range in node %s\n", node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err("fsl,ceetm-sp-range is not a 2-cell range in node %s\n",
+							node->full_name);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < range[1]; i++) {
+		sp = kmalloc(sizeof(*sp), GFP_KERNEL);
+		if (!sp) {
+			pr_err("Can't alloc memory for sub-portal %d\n",
+							range[0] + i);
+			return -ENOMEM;
+		}
+		sp->idx = range[0] + i;
+		sp->dcp_idx = dcp_portal;
+		sp->is_claimed = 0;
+		list_add_tail(&sp->node, &qman_ceetms[dcp_portal].sub_portals);
+		sp++;
+	}
+	pr_info("Qman: Reserve sub-portal %d:%d for CEETM %d\n",
+					range[0], range[1], dcp_portal);
+	qman_ceetms[dcp_portal].sp_range[0] = range[0];
+	qman_ceetms[dcp_portal].sp_range[1] = range[1];
+
+	/* Find LNI range */
+	range = of_get_property(node, "fsl,ceetm-lni-range", &ret);
+	if (!range) {
+		pr_err("No fsl,ceetm-lni-range in node %s\n", node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err("fsl,ceetm-lni-range is not a 2-cell range in node %s\n",
+							node->full_name);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < range[1]; i++) {
+		lni = kmalloc(sizeof(*lni), GFP_KERNEL);
+		if (!lni) {
+			pr_err("Can't alloc memory for LNI %d\n",
+							range[0] + i);
+			return -ENOMEM;
+		}
+		lni->idx = range[0] + i;
+		lni->dcp_idx = dcp_portal;
+		lni->is_claimed = 0;
+		INIT_LIST_HEAD(&lni->channels);
+		list_add_tail(&lni->node, &qman_ceetms[dcp_portal].lnis);
+		lni++;
+	}
+	pr_info("Qman: Reserve LNI %d:%d for CEETM %d\n",
+					range[0], range[1], dcp_portal);
+	qman_ceetms[dcp_portal].lni_range[0] = range[0];
+	qman_ceetms[dcp_portal].lni_range[1] = range[1];
+
+	/* Find CEETM channel range */
+	range = of_get_property(node, "fsl,ceetm-channel-range", &ret);
+	if (!range) {
+		pr_err("No fsl,ceetm-channel-range in node %s\n",
+							node->full_name);
+		return -EINVAL;
+	}
+	if (ret != 8) {
+		pr_err("fsl,ceetm-channel-range is not a 2-cell range in node"
+						"%s\n", node->full_name);
+		return -EINVAL;
+	}
+
+	if (dcp_portal == qm_dc_portal_fman0)
+		qman_release_ceetm0_channel_range(range[0], range[1]);
+	if (dcp_portal == qm_dc_portal_fman1)
+		qman_release_ceetm1_channel_range(range[0], range[1]);
+	pr_info("Qman: The channel allocator of CEETM %d includes"
+			" range %d:%d\n", dcp_portal, range[0], range[1]);
+
+	/* Set CEETM PRES register */
+	ret = qman_ceetm_set_prescaler(dcp_portal);
+	if (ret)
+		return ret;
 	return 0;
 }
 
@@ -452,6 +581,7 @@ static __init int qman_init(void)
 	struct qm_portal_config *pcfg;
 	struct qman_portal *p;
 	int cpu, ret;
+	const u32 *clk;
 
 	/* Initialise the Qman (CCSR) device */
 	for_each_compatible_node(dn, NULL, "fsl,qman") {
@@ -459,6 +589,12 @@ static __init int qman_init(void)
 			pr_info("Qman err interrupt handler present\n");
 		else
 			pr_err("Qman CCSR setup failed\n");
+
+		clk = of_get_property(dn, "clock-frequency", NULL);
+		if (!clk)
+			pr_warning("Can't find Qman clock frequency\n");
+		else
+			qman_clk = *clk;
 	}
 #ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
 	/* Setup lookup table for FQ demux */
@@ -466,6 +602,7 @@ static __init int qman_init(void)
 	if (ret)
 		return ret;
 #endif
+
 	/* Parse pool channels into the SDQCR mask. (Must happen before portals
 	 * are initialised.) */
 	for_each_compatible_node(dn, NULL, "fsl,pool-channel-range") {
@@ -576,6 +713,13 @@ static __init int qman_init(void)
 	 * are initialised.) */
 	for_each_compatible_node(dn, NULL, "fsl,pool-channel-range") {
 		ret = fsl_pool_channel_range_init(dn);
+		if (ret)
+			return ret;
+	}
+
+	/* Parse CEETM */
+	for_each_compatible_node(dn, NULL, "fsl,qman-ceetm") {
+		ret = fsl_ceetm_init(dn);
 		if (ret)
 			return ret;
 	}

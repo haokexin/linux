@@ -205,6 +205,20 @@ config FSL_QMAN_FQ_LOOKUP
 	bool
 	default n
 
+config QMAN_CEETM_UPDATE_PERIOD
+	int "Token update period for shaping, in nanoseconds"
+	default 1000
+	 ---help---
+	Traffic shaping works by performing token calculations (using
+	credits) on shaper instances periodically. This update period
+	sets the granularity for how often those token rate credit
+	updates are performed, and thus determines the accuracy and
+	range of traffic rates that can be configured by users. The
+	reference manual recommends a 1 microsecond period as providing
+	a good balance between granularity and range.
+
+	Unless you know what you are doing, leave this value at its default.
+
 endif # FSL_QMAN
 
 endmenu

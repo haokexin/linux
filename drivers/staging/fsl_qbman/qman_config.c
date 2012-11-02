@@ -86,6 +86,8 @@
 #define REG_REV3_QCSP_LIO_CFG(n)	(0x1000 + ((n) * 0x10))
 #define REG_REV3_QCSP_IO_CFG(n)	(0x1004 + ((n) * 0x10))
 #define REG_REV3_QCSP_DD_CFG(n)	(0x100c + ((n) * 0x10))
+#define REG_CEETM_CFG_IDX      0x900
+#define REG_CEETM_CFG_PRES     0x904
 
 /* Assists for QMAN_MCR */
 #define MCR_INIT_PFDR		0x01000000
@@ -866,6 +868,64 @@ int qman_set_sdest(u16 channel, unsigned int cpu_idx)
 	before = qm_in(QCSP_IO_CFG(idx));
 	after = (before & (~IO_CFG_SDEST_MASK)) | (cpu_idx << 16);
 	qm_out(QCSP_IO_CFG(idx), after);
+	return 0;
+}
+
+/* CEETM_CFG_PRES register has PRES field which is calculated by:
+ *    PRES = (2^22 / credit update reference period) * QMan clock period
+ *         = (2^22 * 10^9)/ CONFIG_QMAN_CEETM_UPDATE_PERIOD) / qman_clk
+ */
+
+int qman_ceetm_set_prescaler(enum qm_dc_portal portal)
+{
+	u64 temp;
+	u16 pres;
+
+	if (!qman_have_ccsr())
+		return -ENODEV;
+
+	temp = 0x400000 * 100;
+	temp /= CONFIG_QMAN_CEETM_UPDATE_PERIOD;
+	temp *= 10000000;
+	pres = (u16)(temp / qman_clk);
+
+	qm_out(CEETM_CFG_IDX, portal);
+	qm_out(CEETM_CFG_PRES, pres);
+	return 0;
+}
+
+int qman_ceetm_get_prescaler(u16 *pres)
+{
+	if (!qman_have_ccsr())
+		return -ENODEV;
+	*pres = (u16)qm_in(CEETM_CFG_PRES);
+	return 0;
+}
+
+#define DCP_CFG_CEETME_MASK 0xFFFF0000
+#define QM_SP_ENABLE_CEETM(n) (0x80000000 >> (n))
+int qman_sp_enable_ceetm_mode(enum qm_dc_portal portal, u16 sub_portal)
+{
+	u32 dcp_cfg;
+
+	if (!qman_have_ccsr())
+		return -ENODEV;
+
+	dcp_cfg = qm_in(DCP_CFG(portal));
+	dcp_cfg |= QM_SP_ENABLE_CEETM(sub_portal);
+	qm_out(DCP_CFG(portal), dcp_cfg);
+	return 0;
+}
+
+int qman_sp_disable_ceetm_mode(enum qm_dc_portal portal, u16 sub_portal)
+{
+	u32 dcp_cfg;
+
+	if (!qman_have_ccsr())
+		return -ENODEV;
+	dcp_cfg = qm_in(DCP_CFG(portal));
+	dcp_cfg &= ~(QM_SP_ENABLE_CEETM(sub_portal));
+	qm_out(DCP_CFG(portal), dcp_cfg);
 	return 0;
 }
 

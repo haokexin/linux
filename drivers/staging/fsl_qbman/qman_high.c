@@ -2114,3 +2114,2113 @@ put_portal:
 	return ret;
 }
 EXPORT_SYMBOL(qman_delete_cgr);
+
+int qm_get_clock(u64 *clock_hz)
+{
+	if (!qman_clk) {
+		pr_warning("Qman clock speed is unknown\n");
+		return  -EINVAL;
+	}
+	*clock_hz = (u64)qman_clk;
+	return 0;
+}
+EXPORT_SYMBOL(qm_get_clock);
+
+int qm_set_clock(u64 clock_hz)
+{
+	if (qman_clk)
+		return -1;
+	qman_clk = (u32)clock_hz;
+		return 0;
+}
+EXPORT_SYMBOL(qm_set_clock);
+
+/* CEETM management command */
+int qman_ceetm_configure_lfqmt(struct qm_mcc_ceetm_lfqmt_config *opts)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->lfqmt_config = *opts;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_LFQMT_CONFIG);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+					 QM_CEETM_VERB_LFQMT_CONFIG);
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	res = mcr->result;
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: CONFIGURE LFQMT failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_query_lfqmt(int lfqid,
+			struct qm_mcr_ceetm_lfqmt_query *lfqmt_query)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->lfqmt_query.lfqid = lfqid;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_LFQMT_QUERY);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_LFQMT_QUERY);
+	res = mcr->result;
+	if (res == QM_MCR_RESULT_OK)
+		*lfqmt_query = mcr->lfqmt_query;
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: QUERY LFQMT failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_configure_cq(struct qm_mcc_ceetm_cq_config *opts)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->cq_config = *opts;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_CQ_CONFIG);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	res = mcr->result;
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_CQ_CONFIG);
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: CONFIGURE CQ failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_query_cq(struct qm_ceetm_cq *cq, u32 dcp_idx,
+				struct qm_mcr_ceetm_cq_query *cq_query)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->cq_query.cqid = cq->idx;
+	mcc->cq_query.dcpid = cq->parent->dcp_idx;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_CQ_QUERY);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	res = mcr->result;
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_CQ_QUERY);
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: QUERY CQ failed\n");
+		return -EIO;
+	}
+
+	*cq_query = mcr->cq_query;
+	return 0;
+}
+
+int qman_ceetm_configure_dct(struct qm_mcc_ceetm_dct_config *opts)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->dct_config = *opts;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_DCT_CONFIG);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_DCT_CONFIG);
+	res = mcr->result;
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: CONFIGURE DCT failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_query_dct(struct qm_mcc_ceetm_dct_query *opts,
+			 struct qm_mcr_ceetm_dct_query *dct_query)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p = get_affine_portal();
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->dct_query = *opts;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_DCT_QUERY);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_DCT_QUERY);
+	res = mcr->result;
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: QUERY DCT failed\n");
+		return -EIO;
+	}
+
+	*dct_query = mcr->dct_query;
+	return 0;
+}
+
+int qman_ceetm_configure_class_scheduler(
+			struct qm_mcc_ceetm_class_scheduler_config *opts)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->csch_config = *opts;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_CLASS_SCHEDULER_CONFIG);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+					QM_CEETM_VERB_CLASS_SCHEDULER_CONFIG);
+	res = mcr->result;
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: CONFIGURE CLASS SCHEDULER failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_query_class_scheduler(struct qm_ceetm_channel *channel,
+			struct qm_mcr_ceetm_class_scheduler_query *query)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->csch_query.cqcid = channel->idx;
+	mcc->csch_query.dcpid = channel->dcp_idx;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_CLASS_SCHEDULER_QUERY);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+				QM_CEETM_VERB_CLASS_SCHEDULER_QUERY);
+	res = mcr->result;
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: QUERY CLASS SCHEDULER failed\n");
+		return -EIO;
+	}
+	*query = mcr->csch_query;
+	return 0;
+}
+
+int qman_ceetm_configure_mapping_shaper_tcfc(
+		struct qm_mcc_ceetm_mapping_shaper_tcfc_config *opts)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->mst_config = *opts;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_MAPPING_SHAPER_TCFC_CONFIG);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+				QM_CEETM_VERB_MAPPING_SHAPER_TCFC_CONFIG);
+	res = mcr->result;
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: CONFIGURE CHANNEL MAPPING failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_query_mapping_shaper_tcfc(
+		struct qm_mcc_ceetm_mapping_shaper_tcfc_query *opts,
+		struct qm_mcr_ceetm_mapping_shaper_tcfc_query *response)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->mst_query = *opts;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_MAPPING_SHAPER_TCFC_QUERY);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+				QM_CEETM_VERB_MAPPING_SHAPER_TCFC_QUERY);
+	res = mcr->result;
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: QUERY CHANNEL MAPPING failed\n");
+		return -EIO;
+	}
+
+	*response = mcr->mst_query;
+	return 0;
+}
+
+int qman_ceetm_configure_ccgr(struct qm_mcc_ceetm_ccgr_config *opts)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->ccgr_config = *opts;
+
+	qm_mc_commit(&p->p, QM_CEETM_VERB_CCGR_CONFIG);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_CCGR_CONFIG);
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	res = mcr->result;
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: CONFIGURE CCGR failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_query_ccgr(struct qm_mcc_ceetm_ccgr_query *ccgr_query,
+				struct qm_mcr_ceetm_ccgr_query *response)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->ccgr_query = *ccgr_query;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_CCGR_QUERY);
+
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == QM_CEETM_VERB_CCGR_QUERY);
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	res = mcr->result;
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: QUERY CCGR failed\n");
+		return -EIO;
+	}
+	*response = mcr->ccgr_query;
+	return 0;
+}
+
+int qman_ceetm_cq_peek_pop_xsfdrread(struct qm_ceetm_cq *cq,
+			u8 command_type, u16 xsfdr,
+			struct qm_mcr_ceetm_cq_peek_pop_xsfdrread *cq_ppxr)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	switch (command_type) {
+	case 0:
+	case 1:
+		mcc->cq_ppxr.cqid = cq->idx;
+		break;
+	case 2:
+		mcc->cq_ppxr.xsfdr = xsfdr;
+		break;
+	default:
+		break;
+	}
+	mcc->cq_ppxr.ct = command_type;
+	mcc->cq_ppxr.dcpid = cq->parent->dcp_idx;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_CQ_PEEK_POP_XFDRREAD);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+				QM_CEETM_VERB_CQ_PEEK_POP_XFDRREAD);
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	res = mcr->result;
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: CQ PEEK/POP/XSFDR READ failed\n");
+		return -EIO;
+	}
+	*cq_ppxr = mcr->cq_ppxr;
+	return 0;
+}
+
+int qman_ceetm_query_statistics(u16 cid,
+			enum qm_dc_portal dcp_idx,
+			u16 command_type,
+			struct qm_mcr_ceetm_statistics_query *query_result)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->stats_query_write.cid = cid;
+	mcc->stats_query_write.dcpid = dcp_idx;
+	mcc->stats_query_write.ct = command_type;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_STATISTICS_QUERY_WRITE);
+
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+					 QM_CEETM_VERB_STATISTICS_QUERY_WRITE);
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	res = mcr->result;
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: STATISTICS QUERY failed\n");
+		return -EIO;
+	}
+	*query_result = mcr->stats_query;
+	return 0;
+}
+
+int qman_ceetm_write_statistics(u16 cid, enum qm_dc_portal dcp_idx,
+			u16 command_type, u64 frame_count, u64 byte_count)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	mcc->stats_query_write.cid = cid;
+	mcc->stats_query_write.dcpid = dcp_idx;
+	mcc->stats_query_write.ct = command_type;
+	mcc->stats_query_write.frm_cnt = frame_count;
+	mcc->stats_query_write.byte_cnt = byte_count;
+	qm_mc_commit(&p->p, QM_CEETM_VERB_STATISTICS_QUERY_WRITE);
+
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+					 QM_CEETM_VERB_STATISTICS_QUERY_WRITE);
+
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+
+	res = mcr->result;
+	if (res != QM_MCR_RESULT_OK) {
+		pr_err("CEETM: STATISTICS WRITE failed\n");
+		return -EIO;
+	}
+	return 0;
+}
+
+int qman_ceetm_bps2tokenrate(u32 bps, struct qm_ceetm_rate *token_rate,
+							int rounding)
+{
+	u16 pres;
+	u64 temp;
+	u64 qman_freq;
+	int ret;
+
+	/* Read PRES from CEET_CFG_PRES register */
+	ret = qman_ceetm_get_prescaler(&pres);
+	if (ret)
+		return -EINVAL;
+
+	ret = qm_get_clock(&qman_freq);
+	if (ret)
+		return -EINVAL;
+
+	/* token-rate = bytes-per-second * update-reference-period
+	 *
+	 * Where token-rate is N/8192 for a interger N, and
+	 * update-reference-period is (2^22)/(PRES*QHz), where PRES
+	 * is the prescalar value and QHz is the QMan clock frequency.
+	 * So:
+	 *
+	 * token-rate = (byte-per-second*2^22)/PRES*QHZ)
+	 *
+	 * Converting to bits-per-second gives;
+	 *
+	 *	token-rate = (bps*2^19) / (PRES*QHZ)
+	 *	N = (bps*2^32) / (PRES*QHz)
+	 *
+	 */
+	temp = ROUNDING(((u64)bps << 32), pres, rounding);
+	temp = ROUNDING(temp, qman_freq, rounding);
+	token_rate->whole = temp >> 13;
+	token_rate->fraction = temp & (((u64)1 << 13) - 1);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_bps2tokenrate);
+
+int qman_ceetm_tokenrate2bps(const struct qm_ceetm_rate *token_rate, u32 *bps,
+							int rounding)
+{
+	u16 pres;
+	u64 temp;
+	u64 qman_freq;
+	int ret;
+
+	/* Read PRES from CEET_CFG_PRES register */
+	ret = qman_ceetm_get_prescaler(&pres);
+	if (ret)
+		return -EINVAL;
+
+	ret = qm_get_clock(&qman_freq);
+	if (ret)
+		return -EINVAL;
+
+	/* bytes-per-second = token-rate / update-reference-period
+	 *
+	 * where "token-rate" is N/8192 for an integer N, and
+	 * "update-reference-period" is (2^22)/(PRES*QHz), where PRES is
+	 * the prescalar value and QHz is the QMan clock frequency. So;
+	 *
+	 * bytes-per-second = (N/8192) / (4194304/PRES*QHz)
+	 *                  = N*PRES*QHz / (4194304*8192)
+	 *                  = N*PRES*QHz / (2^35)
+	 *
+	 * Converting to bits-per-second gives;
+	 *
+	 *             bps = N*PRES*QHZ / (2^32)
+	 *
+	 * Note, the numerator has a maximum width of 72 bits! So to
+	 * avoid 64-bit overflow errors, we calculate PRES*QHZ (maximum
+	 * width 48 bits) divided by 2^9 (reducing to maximum 39 bits), before
+	 * multiplying by N (goes to maximum of 63 bits).
+	 *
+	 *             temp = PRES*QHZ / (2^16)
+	 *             kbps = temp*N / (2^16)
+	 */
+	temp = ROUNDING(qman_freq * pres, (u64)1 << 16 , rounding);
+	temp *= ((token_rate->whole << 13) + token_rate->fraction);
+	*bps = ROUNDING(temp, (u64)(1) << 16, rounding);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_tokenrate2bps);
+
+int qman_ceetm_sp_claim(struct qm_ceetm_sp **sp, enum qm_dc_portal dcp_idx,
+						unsigned int sp_idx)
+{
+	struct qm_ceetm_sp *p;
+
+	DPA_ASSERT((dcp_id ==  qm_dc_portal_fman0) ||
+			(dcp_idx == qm_dc_portal_fman1));
+
+	if ((sp_idx < qman_ceetms[dcp_idx].sp_range[0]) ||
+		(sp_idx > (qman_ceetms[dcp_idx].sp_range[0] +
+		qman_ceetms[dcp_idx].sp_range[1]))) {
+		pr_err("Sub-portal index doesn't exist\n");
+		return -EINVAL;
+	}
+
+	list_for_each_entry(p, &qman_ceetms[dcp_idx].sub_portals, node) {
+		if ((p->idx == sp_idx) && (p->is_claimed == 0)) {
+			p->is_claimed = 1;
+			*sp = p;
+			return 0;
+		}
+	}
+	pr_err("The sub-portal#%d is not available!\n", sp_idx);
+	return -ENODEV;
+}
+EXPORT_SYMBOL(qman_ceetm_sp_claim);
+
+int qman_ceetm_sp_release(struct qm_ceetm_sp *sp)
+{
+	struct qm_ceetm_sp *p;
+
+	if (sp->lni->is_claimed == 1) {
+		pr_err("The dependency of sub-portal has not been released!\n");
+		return -EBUSY;
+	}
+
+	list_for_each_entry(p, &qman_ceetms[sp->dcp_idx].sub_portals, node) {
+		if (p->idx == sp->idx)
+			p->is_claimed = 0;
+			p->lni = NULL;
+	}
+	/* Disable CEETM mode of this sub-portal */
+	qman_sp_disable_ceetm_mode(sp->idx, sp->dcp_idx);
+
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_sp_release);
+
+int qman_ceetm_lni_claim(struct qm_ceetm_lni **lni, enum qm_dc_portal dcp_idx,
+							unsigned int lni_idx)
+{
+	struct qm_ceetm_lni *p;
+
+	if ((lni_idx < qman_ceetms[dcp_idx].lni_range[0]) ||
+		(lni_idx > (qman_ceetms[dcp_idx].lni_range[0] +
+		qman_ceetms[dcp_idx].lni_range[1]))) {
+		pr_err("The lni index is out of range\n");
+		return -EINVAL;
+	}
+
+	list_for_each_entry(p, &qman_ceetms[dcp_idx].lnis, node) {
+		if ((p->idx == lni_idx) && (p->is_claimed == 0)) {
+			*lni = p;
+			p->is_claimed = 1;
+			return 0;
+		}
+	}
+
+	pr_err("The LNI#%d is not available!\n", lni_idx);
+	return -EINVAL;
+}
+EXPORT_SYMBOL(qman_ceetm_lni_claim);
+
+int qman_ceetm_lni_release(struct qm_ceetm_lni *lni)
+{
+	struct qm_ceetm_lni *p;
+
+	if (!list_empty(&lni->channels)) {
+		pr_err("The LNI dependencies are not released!\n");
+		return -EBUSY;
+	}
+
+	lni->shaper_enable = 0;
+	lni->shaper_couple = 0;
+	lni->cr_token_rate.whole = 0;
+	lni->cr_token_rate.fraction = 0;
+	lni->er_token_rate.whole = 0;
+	lni->er_token_rate.fraction = 0;
+	lni->cr_token_bucket_limit = 0;
+	lni->er_token_bucket_limit = 0;
+	lni->is_claimed = 0;
+	list_for_each_entry(p, &qman_ceetms[lni->dcp_idx].lnis, node) {
+		if (p->idx == lni->idx)
+			p->is_claimed = 0;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_lni_release);
+
+int qman_ceetm_sp_set_lni(struct qm_ceetm_sp *sp, struct qm_ceetm_lni *lni)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+
+	/*if (sp->lni->idx == lni->idx) {
+		pr_err("This SP <-> LNI mapping has been set\n");
+		return -EINVAL;
+	}
+	*/
+	config_opts.cid = CEETM_COMMAND_SP_MAPPING | sp->idx;
+	config_opts.dcpid = sp->dcp_idx;
+	config_opts.sp_mapping.map_lni_id = lni->idx;
+	sp->lni = lni;
+
+	if (qman_ceetm_configure_mapping_shaper_tcfc(&config_opts))
+		return -EINVAL;
+
+	/* Enable CEETM mode for this sub-portal */
+	qman_sp_enable_ceetm_mode(sp->dcp_idx, sp->idx);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_sp_set_lni);
+
+int qman_ceetm_sp_get_lni(struct qm_ceetm_sp *sp, unsigned int *lni_idx)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+
+	query_opts.cid = CEETM_COMMAND_SP_MAPPING | sp->idx;
+	query_opts.dcpid = sp->dcp_idx;
+	if (qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result)) {
+		pr_err("Can't get SP <-> LNI mapping\n");
+		return -EINVAL;
+	}
+	*lni_idx = query_result.sp_mapping_query.map_lni_id;
+	sp->lni->idx = query_result.sp_mapping_query.map_lni_id;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_sp_get_lni);
+
+int qman_ceetm_lni_enable_shaper(struct qm_ceetm_lni *lni, int coupled)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+
+	if (lni->shaper_enable) {
+		pr_err("The shaper has already been enabled\n");
+		return -EINVAL;
+	}
+
+	lni->shaper_enable = 1;
+	lni->shaper_couple = coupled;
+
+	config_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	config_opts.dcpid = lni->dcp_idx;
+	config_opts.shaper_config.cpl = (coupled << 7);
+				 /* | oal_value;  TBD - oal_value */
+	config_opts.shaper_config.crtcr = (lni->cr_token_rate.whole << 13) |
+			 lni->cr_token_rate.fraction;
+	config_opts.shaper_config.ertcr = (lni->er_token_rate.whole << 13) |
+			 lni->cr_token_rate.fraction;
+	config_opts.shaper_config.crtbl = lni->cr_token_bucket_limit;
+	config_opts.shaper_config.ertbl = lni->er_token_bucket_limit;
+	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_lni_enable_shaper);
+
+int qman_ceetm_lni_disable_shaper(struct qm_ceetm_lni *lni)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+
+	if (!lni->shaper_enable) {
+		pr_err("The shaper has been disabled\n");
+		return -EINVAL;
+	}
+
+	lni->shaper_enable = 0;
+	lni->shaper_couple = 0;
+
+	config_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	config_opts.dcpid = lni->dcp_idx;
+	config_opts.shaper_config.cpl = 0; /* | oal_value;  TBD - oal_value */
+	config_opts.shaper_config.crtcr = 0;
+	config_opts.shaper_config.ertcr = 0;
+	config_opts.shaper_config.ertbl = 0;
+	config_opts.shaper_config.crtbl = 0;
+	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_lni_disable_shaper);
+
+int qman_ceetm_lni_set_commit_rate(struct qm_ceetm_lni *lni,
+				const struct qm_ceetm_rate *token_rate,
+				u16 token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	if (!lni->shaper_enable) {
+		pr_err("The LNI#%d is unshaped, cannot set CR rate\n",
+						lni->idx);
+		return -EINVAL;
+	}
+
+	query_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	query_opts.dcpid = lni->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret) {
+		pr_err("Fail to get current LNI shaper setting\n");
+		return -EINVAL;
+	}
+
+	lni->cr_token_rate.whole = token_rate->whole;
+	lni->cr_token_rate.fraction = token_rate->fraction;
+	lni->cr_token_bucket_limit = token_limit;
+	config_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	config_opts.dcpid = lni->dcp_idx;
+	config_opts.shaper_config.crtcr = (token_rate->whole << 13) |
+				 (token_rate->fraction);
+	config_opts.shaper_config.crtbl = token_limit;
+	config_opts.shaper_config.cpl = query_result.shaper_query.cpl;
+	config_opts.shaper_config.ertcr = query_result.shaper_query.ertcr;
+	config_opts.shaper_config.ertbl = query_result.shaper_query.ertbl;
+	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_lni_set_commit_rate);
+
+int qman_ceetm_lni_get_commit_rate(struct qm_ceetm_lni *lni,
+				struct qm_ceetm_rate *token_rate,
+				u16 *token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	query_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	query_opts.dcpid = lni->dcp_idx;
+
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret | !query_result.shaper_query.crtcr |
+			 !query_result.shaper_query.crtbl) {
+		pr_err("The LNI CR rate or limit is not set\n");
+		return -EINVAL;
+	}
+	token_rate->whole = query_result.shaper_query.crtcr >> 13;
+	token_rate->fraction = query_result.shaper_query.crtcr & 0x1FFF;
+	*token_limit = query_result.shaper_query.crtbl;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_lni_get_commit_rate);
+
+int qman_ceetm_lni_set_excess_rate(struct qm_ceetm_lni *lni,
+					const struct qm_ceetm_rate *token_rate,
+					u16 token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	if (!lni->shaper_enable) {
+		pr_err("The LIN#%d is unshaped, cannot set ER rate\n",
+								lni->idx);
+		return -EINVAL;
+	}
+
+	query_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	query_opts.dcpid = lni->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret) {
+		pr_err("Fail to get current LNI shaper setting\n");
+		return -EINVAL;
+	}
+
+	lni->er_token_rate.whole = token_rate->whole;
+	lni->er_token_rate.fraction = token_rate->fraction;
+	lni->er_token_bucket_limit = token_limit;
+	config_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	config_opts.dcpid = lni->dcp_idx;
+	config_opts.shaper_config.ertcr =
+			 (token_rate->whole << 13) | (token_rate->fraction);
+	config_opts.shaper_config.ertbl = token_limit;
+	config_opts.shaper_config.cpl = query_result.shaper_query.cpl;
+	config_opts.shaper_config.crtcr = query_result.shaper_query.crtcr;
+	config_opts.shaper_config.crtbl = query_result.shaper_query.crtbl;
+	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_lni_set_excess_rate);
+
+int qman_ceetm_lni_get_excess_rate(struct qm_ceetm_lni *lni,
+					struct qm_ceetm_rate *token_rate,
+					u16 *token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	query_opts.cid = CEETM_COMMAND_LNI_SHAPER | lni->idx;
+	query_opts.dcpid = lni->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret | !query_result.shaper_query.ertcr |
+			 !query_result.shaper_query.ertbl) {
+		pr_err("The LNI ER rate or limit is not set\n");
+		return -EINVAL;
+	}
+	token_rate->whole = query_result.shaper_query.ertcr >> 13;
+	token_rate->fraction = query_result.shaper_query.ertcr & 0x1FFF;
+	*token_limit = query_result.shaper_query.ertbl;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_lni_get_excess_rate);
+
+#define QMAN_CEETM_LNITCFCC_CQ_LEVEL_SHIFT(n) ((15 - n) * 4)
+#define QMAN_CEETM_LNITCFCC_ENABLE 0x8
+int qman_ceetm_lni_set_tcfcc(struct qm_ceetm_lni *lni,
+				unsigned int cq_level,
+				int traffic_class)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	u64 lnitcfcc;
+	int ret;
+
+	if ((cq_level > 15) | (traffic_class > 7)) {
+		pr_err("The CQ or traffic class id is out of range\n");
+		return -EINVAL;
+	}
+
+	query_opts.cid = CEETM_COMMAND_TCFC | lni->idx;
+	query_opts.dcpid = lni->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+
+	lnitcfcc = query_result.tcfc_query.lnitcfcc;
+	if (traffic_class == -1) /* disable tcfc for this CQ */
+		lnitcfcc &= ~(1 >> (cq_level * 4));
+	else
+		lnitcfcc |=
+			((QMAN_CEETM_LNITCFCC_ENABLE | traffic_class) & 0xF) <<
+			QMAN_CEETM_LNITCFCC_CQ_LEVEL_SHIFT(cq_level);
+	config_opts.tcfc_config.lnitcfcc = lnitcfcc;
+	config_opts.cid = CEETM_COMMAND_TCFC | lni->idx;
+	config_opts.dcpid = lni->dcp_idx;
+	return qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_lni_set_tcfcc);
+
+#define QMAN_CEETM_LNITCFCC_TC_MASK 0x00000007
+int qman_ceetm_lni_get_tcfcc(struct qm_ceetm_lni *lni, unsigned int cq_level,
+						int *traffic_class)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+	int lnitcfcc;
+
+	if (cq_level > 15) {
+		pr_err("the CQ level is out of range\n");
+		return -EINVAL;
+	}
+
+	query_opts.cid = CEETM_COMMAND_TCFC | lni->idx;
+	query_opts.dcpid = lni->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret)
+		return ret;
+	lnitcfcc = query_result.tcfc_query.lnitcfcc >>
+		QMAN_CEETM_LNITCFCC_CQ_LEVEL_SHIFT(cq_level);
+	if ((lnitcfcc & QMAN_CEETM_LNITCFCC_ENABLE) > 1)
+		*traffic_class = lnitcfcc & QMAN_CEETM_LNITCFCC_TC_MASK;
+	else
+		*traffic_class = -1;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_lni_get_tcfcc);
+
+#define QMAN_CEETM_ENABLE_CHANNEL_SHAPER 0x80
+int qman_ceetm_channel_claim(struct qm_ceetm_channel **channel,
+				struct qm_ceetm_lni *lni)
+{
+	struct qm_ceetm_channel *p;
+	u32 channel_idx;
+	int ret = 0;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	static u8 map;
+
+	if (lni->dcp_idx == qm_dc_portal_fman0)
+		ret = qman_alloc_ceetm0_channel(&channel_idx);
+	if (lni->dcp_idx == qm_dc_portal_fman1)
+		ret = qman_alloc_ceetm1_channel(&channel_idx);
+	if (ret) {
+		pr_err("The is no channel available for LNI#%d\n", lni->idx);
+		return -ENODEV;
+	}
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	p->idx = channel_idx;
+	p->dcp_idx = lni->dcp_idx;
+	p->shaper_enable = 0;
+	p->shaper_couple = 0;
+	list_add_tail(&p->node, &lni->channels);
+	INIT_LIST_HEAD(&p->class_queues);
+	INIT_LIST_HEAD(&p->ccgs);
+	config_opts.cid = CEETM_COMMAND_CHANNEL_MAPPING | channel_idx;
+	config_opts.dcpid = lni->dcp_idx;
+	map = (u8)~QMAN_CEETM_ENABLE_CHANNEL_SHAPER;
+	map &= lni->idx;
+	config_opts.channel_mapping.map = map;
+	if (qman_ceetm_configure_mapping_shaper_tcfc(&config_opts)) {
+		pr_err("Can't map channel#%d for LNI#%d\n",
+						channel_idx, lni->idx);
+		return -EINVAL;
+	}
+	*channel = p;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_channel_claim);
+
+int qman_ceetm_channel_release(struct qm_ceetm_channel *channel)
+{
+	if (!list_empty(&channel->class_queues)) {
+		pr_err("CEETM channel#%d has class queue unreleased!\n",
+						channel->idx);
+		return -EBUSY;
+	}
+	if (!list_empty(&channel->ccgs)) {
+		pr_err("CEETM channel#%d has ccg unreleased!\n",
+						channel->idx);
+		return -EBUSY;
+	}
+	if (channel->dcp_idx == qm_dc_portal_fman0)
+		qman_release_ceetm0_channelid(channel->idx);
+	if (channel->dcp_idx == qm_dc_portal_fman1)
+		qman_release_ceetm1_channelid(channel->idx);
+	list_del(&channel->node);
+	kfree(channel);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_channel_release);
+
+int qman_ceetm_channel_enable_shaper(struct qm_ceetm_channel *channel,
+								int coupled)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	u8 map;
+
+	if (channel->shaper_enable == 1) {
+		pr_err("This channel shaper has been enabled!\n");
+		return -EINVAL;
+	}
+
+	channel->shaper_enable = 1;
+	channel->shaper_couple = coupled;
+
+	query_opts.cid = (u16)(CEETM_COMMAND_CHANNEL_MAPPING | channel->idx);
+	query_opts.dcpid = (u8)channel->dcp_idx;
+
+	if (qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result)) {
+		pr_err("Can't query channel mapping\n");
+		return -EINVAL;
+	}
+
+	map = query_result.channel_mapping_query.map;
+	map |= QMAN_CEETM_ENABLE_CHANNEL_SHAPER;
+
+	config_opts.cid = CEETM_COMMAND_CHANNEL_MAPPING | channel->idx;
+	config_opts.dcpid = channel->dcp_idx;
+	config_opts.channel_mapping.map = map;
+	if (qman_ceetm_configure_mapping_shaper_tcfc(&config_opts)) {
+		pr_err("Can't enable shaper for channel #%d\n",
+						channel->idx);
+		return -EINVAL;
+	}
+
+	config_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	config_opts.shaper_config.cpl = coupled << 7;
+	if (qman_ceetm_configure_mapping_shaper_tcfc(&config_opts)) {
+		pr_err("Can't set coupled for channel #%d\n", channel->idx);
+		return -EINVAL;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_channel_enable_shaper);
+
+int qman_ceetm_channel_disable_shaper(struct qm_ceetm_channel *channel)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	u8 map;
+
+	if (channel->shaper_enable == 0) {
+		pr_err("This channel shaper has been disabled\n");
+		return -EINVAL;
+	}
+
+	query_opts.cid = CEETM_COMMAND_CHANNEL_MAPPING | channel->idx;
+	query_opts.dcpid = channel->dcp_idx;
+
+	if (qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result)) {
+		pr_err("Can't query channel mapping\n");
+		return -EINVAL;
+	}
+
+	map = query_result.channel_mapping_query.map;
+	map &= ~QMAN_CEETM_ENABLE_CHANNEL_SHAPER;
+
+	config_opts.cid = CEETM_COMMAND_CHANNEL_MAPPING | channel->idx;
+	config_opts.dcpid = channel->dcp_idx;
+	config_opts.channel_mapping.map = map;
+	return qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_channel_disable_shaper);
+
+int qman_ceetm_channel_set_commit_rate(struct qm_ceetm_channel *channel,
+				const struct qm_ceetm_rate *token_rate,
+				u16 token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	if (!channel->shaper_enable) {
+		pr_err("This channel is unshaped\n");
+		return -EINVAL;
+	}
+
+	query_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	query_opts.dcpid = channel->dcp_idx;
+
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret) {
+		pr_err("Fail to get the current channel shaper setting\n");
+		return -EINVAL;
+	}
+
+	channel->cr_token_rate.whole = token_rate->whole;
+	channel->cr_token_rate.fraction = token_rate->fraction;
+	channel->cr_token_bucket_limit = token_limit;
+	config_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	config_opts.dcpid = channel->dcp_idx;
+	config_opts.shaper_config.crtcr = (token_rate->whole << 13) |
+				 (token_rate->fraction);
+	config_opts.shaper_config.crtbl = token_limit;
+	config_opts.shaper_config.cpl = query_result.shaper_query.cpl;
+	config_opts.shaper_config.ertcr = query_result.shaper_query.ertcr;
+	config_opts.shaper_config.ertbl = query_result.shaper_query.ertbl;
+	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_channel_set_commit_rate);
+
+int qman_ceetm_channel_get_commit_rate(struct qm_ceetm_channel *channel,
+				struct qm_ceetm_rate *token_rate,
+				u16 *token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	query_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	query_opts.dcpid = channel->dcp_idx;
+
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret | !query_result.shaper_query.crtcr |
+			 !query_result.shaper_query.crtbl) {
+		pr_err("The channel commit rate or limit is not set\n");
+		return -EINVAL;
+	}
+	token_rate->whole = query_result.shaper_query.crtcr >> 13;
+	token_rate->fraction = query_result.shaper_query.crtcr & 0x1FFF;
+	*token_limit = query_result.shaper_query.crtbl;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_channel_get_commit_rate);
+
+int qman_ceetm_channel_set_excess_rate(struct qm_ceetm_channel *channel,
+					const struct qm_ceetm_rate *token_rate,
+					u16 token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	if (!channel->shaper_enable) {
+		pr_err("This channel is unshaped\n");
+		return -EINVAL;
+	}
+
+	query_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	query_opts.dcpid = channel->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret) {
+		pr_err("Fail to get the current channel shaper setting\n");
+		return -EINVAL;
+	}
+
+	channel->er_token_rate.whole = token_rate->whole;
+	channel->er_token_rate.fraction = token_rate->fraction;
+	channel->er_token_bucket_limit = token_limit;
+	config_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	config_opts.dcpid = channel->dcp_idx;
+	config_opts.shaper_config.ertcr =
+			 (token_rate->whole << 13) | (token_rate->fraction);
+	config_opts.shaper_config.ertbl = token_limit;
+	config_opts.shaper_config.cpl = query_result.shaper_query.cpl;
+	config_opts.shaper_config.crtcr = query_result.shaper_query.crtcr;
+	config_opts.shaper_config.crtbl = query_result.shaper_query.crtbl;
+	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_channel_set_excess_rate);
+
+int qman_ceetm_channel_get_excess_rate(struct qm_ceetm_channel *channel,
+					struct qm_ceetm_rate *token_rate,
+					u16 *token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	query_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	query_opts.dcpid = channel->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret | !query_result.shaper_query.ertcr |
+			 !query_result.shaper_query.ertbl) {
+		pr_err("The channel excess rate or limit is not set\n");
+		return -EINVAL;
+	}
+	token_rate->whole = query_result.shaper_query.ertcr >> 13;
+	token_rate->fraction = query_result.shaper_query.ertcr & 0x1FFF;
+	*token_limit = query_result.shaper_query.ertbl;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_channel_get_excess_rate);
+
+int qman_ceetm_channel_set_weight(struct qm_ceetm_channel *channel,
+						u16 token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_config config_opts;
+
+	if (channel->shaper_enable) {
+		pr_err("This channel is a shaped one\n");
+		return -EINVAL;
+	}
+
+	channel->cr_token_bucket_limit = token_limit;
+	config_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	config_opts.dcpid = channel->dcp_idx;
+	config_opts.shaper_config.crtbl = token_limit;
+	return	qman_ceetm_configure_mapping_shaper_tcfc(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_channel_set_weight);
+
+int qman_ceetm_channel_get_weight(struct qm_ceetm_channel *channel,
+					u16 *token_limit)
+{
+	struct qm_mcc_ceetm_mapping_shaper_tcfc_query query_opts;
+	struct qm_mcr_ceetm_mapping_shaper_tcfc_query query_result;
+	int ret;
+
+	query_opts.cid = CEETM_COMMAND_CHANNEL_SHAPER | channel->idx;
+	query_opts.dcpid = channel->dcp_idx;
+	ret = qman_ceetm_query_mapping_shaper_tcfc(&query_opts, &query_result);
+	if (ret | !query_result.shaper_query.crtbl) {
+		pr_err("This unshaped channel's uFQ wight is unavailable\n");
+		return -EINVAL;
+	}
+	*token_limit = query_result.shaper_query.crtbl;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_channel_get_weight);
+
+int qman_ceetm_channel_set_group(struct qm_ceetm_channel *channel, int group_b,
+				unsigned int prio_a, unsigned int prio_b)
+{
+	struct qm_mcc_ceetm_class_scheduler_config config_opts;
+	struct qm_mcr_ceetm_class_scheduler_query query_result;
+	int i;
+
+	if (!prio_a | (prio_a > 7)) {
+		pr_err("The priority of group A is out of range\n");
+		return -EINVAL;
+	}
+	if (!prio_a || (prio_b > 7)) {
+		pr_err("The priority of group B is out of range\n");
+		return -EINVAL;
+	}
+
+	if (qman_ceetm_query_class_scheduler(channel, &query_result)) {
+		pr_err("Can't query channel#%d's scheduler!\n", channel->idx);
+		return -EINVAL;
+	}
+
+	config_opts.cqcid = channel->idx;
+	config_opts.dcpid = channel->dcp_idx;
+	if (!group_b)
+		config_opts.gpc = (u8)((1 << 6) | prio_a);
+	else
+		config_opts.gpc = (u8)((prio_b << 3) | prio_a);
+
+	for (i = 0; i < 8; i++)
+		config_opts.w[i] = query_result.w[i];
+	config_opts.crem = query_result.crem;
+	config_opts.erem = query_result.erem;
+
+	return qman_ceetm_configure_class_scheduler(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_channel_set_group);
+
+int qman_ceetm_channel_get_group(struct qm_ceetm_channel *channel, int *group_b,
+				unsigned int *prio_a, unsigned int *prio_b)
+{
+	struct qm_mcr_ceetm_class_scheduler_query query_result;
+
+	if (qman_ceetm_query_class_scheduler(channel, &query_result)) {
+		pr_err("Can't query channel#%d's scheduler!\n", channel->idx);
+		return -EINVAL;
+	}
+	*group_b = (query_result.gpc >> 6) & 0x1;
+	*prio_a = query_result.gpc & 0x3;
+	*prio_b = (query_result.gpc >> 3) & 0x3;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_channel_get_group);
+
+#define CQ_ELIGIBILITY_MASK(n)	(1 << (7 - n))
+#define CQ_A_ELIGIBILITY_MASK	(1 << 8)
+#define CQ_B_ELIGIBILITY_MASK	(1 << 9)
+int qman_ceetm_cq_claim(struct qm_ceetm_cq **cq,
+		struct qm_ceetm_channel *channel, unsigned int idx,
+		struct qm_ceetm_ccg *ccg)
+{
+	struct qm_ceetm_cq *p;
+	struct qm_mcc_ceetm_cq_config cq_config;
+	struct qm_mcc_ceetm_class_scheduler_config csch_config;
+	struct qm_mcr_ceetm_class_scheduler_query csch_query_result;
+	int i;
+
+	if (idx > 7) {
+		pr_err("The independent class queue id is out of range\n");
+		return -EINVAL;
+	}
+
+	list_for_each_entry(p, &channel->class_queues, node) {
+		if (p->idx == idx) {
+			pr_err("The CQ#%d has been claimed!\n", idx);
+			return -EINVAL;
+		}
+	}
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p) {
+		pr_err("Can't allocate memory for CQ#%d!\n", idx);
+		return -ENOMEM;
+	}
+
+	list_add_tail(&p->node, &channel->class_queues);
+	p->idx = idx;
+	p->is_claimed = 1;
+	p->parent = channel;
+	INIT_LIST_HEAD(&p->bound_lfqids);
+
+	if (ccg) {
+		cq_config.cqid = (channel->idx << 4) | idx;
+		cq_config.dcpid = channel->dcp_idx;
+		cq_config.ccgid = ccg->idx;
+		if (qman_ceetm_configure_cq(&cq_config)) {
+			pr_err("Can't configure the CQ#%d with CCGRID#%d\n",
+						 idx, ccg->idx);
+		return -EINVAL;
+		}
+	}
+
+	if (channel->shaper_enable) {
+		if (qman_ceetm_query_class_scheduler(channel,
+						&csch_query_result)) {
+			pr_err("Can't query channel#%d!\n", channel->idx);
+			return -EINVAL;
+		}
+		csch_config.cqcid = channel->idx;
+		csch_config.dcpid = channel->dcp_idx;
+		csch_config.crem = csch_query_result.crem |
+						CQ_ELIGIBILITY_MASK(idx);
+		csch_config.erem = csch_query_result.erem |
+						CQ_ELIGIBILITY_MASK(idx);
+		csch_config.gpc = csch_query_result.gpc;
+		for (i = 0; i < 8; i++)
+			csch_config.w[i] = csch_query_result.w[i];
+
+		if (qman_ceetm_configure_class_scheduler(&csch_config)) {
+			pr_err("Can't config channel scheduler to set"
+					" eligibility mask for CQ#%d\n", idx);
+			return -EINVAL;
+		}
+	}
+
+	*cq = p;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cq_claim);
+
+int qman_ceetm_cq_claim_A(struct qm_ceetm_cq **cq,
+		struct qm_ceetm_channel *channel, unsigned int idx,
+		struct qm_ceetm_ccg *ccg)
+{
+	struct qm_ceetm_cq *p;
+	struct qm_mcc_ceetm_cq_config cq_config;
+	struct qm_mcc_ceetm_class_scheduler_config csch_config;
+	struct qm_mcr_ceetm_class_scheduler_query csch_query_result;
+	int i;
+
+	if ((idx < 7) || (idx > 15)) {
+		pr_err("This grouped class queue id is out of range\n");
+		return -EINVAL;
+	}
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p) {
+		pr_err("Can't allocate memory for CQ#%d!\n", idx);
+		return -ENOMEM;
+	}
+
+	list_for_each_entry(p, &channel->class_queues, node) {
+		if (p->idx == idx) {
+			pr_err("The CQ#%d has been claimed!\n", idx);
+			return -EINVAL;
+		}
+	}
+	list_add_tail(&p->node, &channel->class_queues);
+	p->idx = idx;
+	p->is_claimed = 1;
+	p->parent = channel;
+	INIT_LIST_HEAD(&p->bound_lfqids);
+
+	if (ccg) {
+		cq_config.cqid = (channel->idx << 4) | idx;
+		cq_config.dcpid = channel->dcp_idx;
+		cq_config.ccgid = ccg->idx;
+		if (qman_ceetm_configure_cq(&cq_config)) {
+			pr_err("Can't configure the CQ#%d with CCGRID#%d\n",
+						 idx, ccg->idx);
+			return -EINVAL;
+		}
+	}
+
+	if (channel->shaper_enable) {
+		if (qman_ceetm_query_class_scheduler(channel,
+						&csch_query_result)) {
+			pr_err("Can't query channel#%d!\n", channel->idx);
+			return -EINVAL;
+		}
+		csch_config.cqcid = channel->idx;
+		csch_config.dcpid = channel->dcp_idx;
+		csch_config.crem = csch_query_result.crem |
+						CQ_A_ELIGIBILITY_MASK;
+		csch_config.erem = csch_query_result.erem |
+						CQ_A_ELIGIBILITY_MASK;
+		csch_config.gpc = csch_query_result.gpc;
+		for (i = 0; i < 8; i++)
+			csch_config.w[i] = csch_query_result.w[i];
+		if (qman_ceetm_configure_class_scheduler(&csch_config)) {
+			pr_err("Can't config channel scheduler to set"
+					" eligibility mask for CQ#%d\n", idx);
+			return -EINVAL;
+		}
+	}
+	*cq = p;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cq_claim_A);
+
+int qman_ceetm_cq_claim_B(struct qm_ceetm_cq **cq,
+		struct qm_ceetm_channel *channel, unsigned int idx,
+		struct qm_ceetm_ccg *ccg)
+{
+	struct qm_ceetm_cq *p;
+	struct qm_mcc_ceetm_cq_config cq_config;
+	struct qm_mcc_ceetm_class_scheduler_config csch_config;
+	struct qm_mcr_ceetm_class_scheduler_query csch_query_result;
+	int i;
+
+	if ((idx < 11) || (idx > 15)) {
+		pr_err("This grouped class queue id is out of range\n");
+		return -EINVAL;
+	}
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p) {
+		pr_err("Can't allocate memory for CQ#%d!\n", idx);
+		return -ENOMEM;
+	}
+
+	list_for_each_entry(p, &channel->class_queues, node) {
+		if (p->idx == idx) {
+			pr_err("The CQ#%d has been claimed!\n", idx);
+			return -EINVAL;
+		}
+	}
+	list_add_tail(&p->node, &channel->class_queues);
+	p->idx = idx;
+	p->is_claimed = 1;
+	p->parent = channel;
+	INIT_LIST_HEAD(&p->bound_lfqids);
+
+	if (ccg) {
+		cq_config.cqid = (channel->idx << 4) | idx;
+		cq_config.dcpid = channel->dcp_idx;
+		cq_config.ccgid = ccg->idx;
+		if (qman_ceetm_configure_cq(&cq_config)) {
+			pr_err("Can't configure the CQ#%d with CCGRID#%d\n",
+					 idx, ccg->idx);
+		return -EINVAL;
+		}
+	}
+
+	if (channel->shaper_enable) {
+		if (qman_ceetm_query_class_scheduler(channel,
+						&csch_query_result)) {
+			pr_err("Can't query channel#%d!\n", channel->idx);
+			return -EINVAL;
+		}
+		csch_config.cqcid = channel->idx;
+		csch_config.dcpid = channel->dcp_idx;
+		csch_config.crem = csch_query_result.crem |
+							 CQ_B_ELIGIBILITY_MASK;
+		csch_config.erem = csch_query_result.erem |
+							CQ_B_ELIGIBILITY_MASK;
+		csch_config.gpc = csch_query_result.gpc;
+		for (i = 0; i < 8; i++)
+			csch_config.w[i] = csch_query_result.w[i];
+		if (qman_ceetm_configure_class_scheduler(&csch_config)) {
+			pr_err("Can't config channel scheduler to set"
+					" eligibility mask for CQ#%d\n", idx);
+			return -EINVAL;
+		}
+	}
+	*cq = p;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cq_claim_B);
+
+int qman_ceetm_cq_release(struct qm_ceetm_cq *cq)
+{
+	if (!list_empty(&cq->bound_lfqids)) {
+		pr_err("The CQ#%d has unreleased LFQID\n", cq->idx);
+		return -EBUSY;
+	}
+	list_del(&cq->node);
+	kfree(cq);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cq_release);
+
+int qman_ceetm_set_queue_weight(struct qm_ceetm_cq *cq,
+				struct qm_ceetm_weight_code *weight_code)
+{
+	struct qm_mcc_ceetm_class_scheduler_config config_opts;
+	struct qm_mcr_ceetm_class_scheduler_query query_result;
+	int i;
+
+	if (qman_ceetm_query_class_scheduler(cq->parent, &query_result)) {
+		pr_err("Can't query channel#%d's scheduler!\n",
+						cq->parent->idx);
+		return -EINVAL;
+	}
+
+	config_opts.cqcid = cq->parent->idx;
+	config_opts.dcpid = cq->parent->dcp_idx;
+	config_opts.crem = query_result.crem;
+	config_opts.erem = query_result.erem;
+	config_opts.gpc = query_result.gpc;
+	for (i = 0; i < 8; i++)
+		config_opts.w[i] = query_result.w[i];
+	config_opts.w[cq->idx] = (weight_code->y << 3) | weight_code->x;
+	return qman_ceetm_configure_class_scheduler(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_set_queue_weight);
+
+int qman_ceetm_get_queue_weight(struct qm_ceetm_cq *cq,
+				struct qm_ceetm_weight_code *weight_code)
+{
+	struct qm_mcr_ceetm_class_scheduler_query query_result;
+
+	if (qman_ceetm_query_class_scheduler(cq->parent,
+						&query_result)) {
+		pr_err("Can't get the weight code for CQ#%d!\n", cq->idx);
+		return -EINVAL;
+	}
+	weight_code->y = (query_result.w[cq->idx] >> 3) & 0x1F;
+	weight_code->x = query_result.w[cq->idx] & 0x3;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_get_queue_weight);
+
+/* The WBFS code is represent as {x,y}, the effect wieght can be calculated as:
+ *	effective weight = 2^x / (1 - (y/64))
+ *			 = 2^(x+6) / (64 - y)
+ */
+#define QM_WBFS_MAKECODE(x, y) (((y) << 3) | ((x & 0x7)))
+#define QM_WBFS_CODE_X(c) ((c) & 0x7)
+#define QM_WBFS_CODE_Y(c) ((c) >> 3)
+static void reduce_fraction(u32 *n, u32 *d)
+{
+	u32 factor = 2;
+	u32 lesser = (*n < *d) ? *n : *d;
+	/* If factor exceeds the square-root of the lesser of *n and *d,
+	 * then there's no point continuing. Proof: if there was a factor
+	 * bigger than the square root, that would imply there exists
+	 * another factor smaller than the square-root with which it
+	 * multiplies to give 'lesser' - but that's a contradiction
+	 * because the other factor would have already been found and
+	 * divided out.
+	 */
+	while ((factor * factor) <= lesser) {
+		/* If 'factor' is a factor of *n and *d, divide them both
+		 * by 'factor' as many times as possible.
+		 */
+		while (!(*n % factor) && !(*d % factor)) {
+			*n /= factor;
+			*d /= factor;
+			lesser /= factor;
+		}
+		if (factor == 2)
+			factor = 3;
+		else
+			factor += 2;
+	}
+}
+
+int qman_ceetm_wbfs2ratio(unsigned int weight_code,
+				u32 *numerator,
+				u32 *denominator)
+{
+	*numerator = (u32) 1 << (QM_WBFS_CODE_X(weight_code) + 6);
+	*denominator = 64 - QM_WBFS_CODE_Y(weight_code);
+	reduce_fraction(numerator, denominator);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_wbfs2ratio);
+
+/* For a given x, the weight is between 2^x (inclusive) and 2^(x+1) (exclusive).
+ * So find 'x' by range, and then estimate 'y' using:
+ *		64 - y	= 2^(x + 6) / weight
+ *			= 2^(x + 6) / (n/d)
+ *			= d * 2^(x+6) / n
+ *		y = 64 - (d * 2^(x+6) / n)
+ */
+int qman_ceetm_ratio2wbfs(u32 numerator,
+				u32 denominator,
+				unsigned int *weight_code,
+				int rounding)
+{
+	unsigned int y, x = 0;
+	/* search incrementing 'x' until:
+	 * weight < 2^(x+1)
+	 *    n/d < 2^(x+1)
+	 *	n < d * 2^(x+1)
+	 */
+	while ((x < 8) && (numerator >= (denominator << (x + 1))))
+		x++;
+	if (x >= 8)
+		return -ERANGE;
+	/* because of the subtraction, use '-rounding' */
+	y = 64 - ROUNDING(denominator << (x + 6), numerator, -rounding);
+	if (y >= 32)
+		return -ERANGE;
+	*weight_code = QM_WBFS_MAKECODE(x, y);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_ratio2wbfs);
+
+int qman_ceetm_cq_get_dequeue_statistics(struct qm_ceetm_cq *cq, u32 flags,
+					u64 *frame_count, u64 *byte_count)
+{
+	struct qm_mcr_ceetm_statistics_query result;
+	u16 cid, command_type;
+	enum qm_dc_portal dcp_idx;
+	int ret;
+
+	cid = (cq->parent->idx << 4) | cq->idx;
+	dcp_idx = cq->parent->dcp_idx;
+	if (flags == QMAN_CEETM_FLAG_CLEAR_STATISTICS_COUNTER)
+		command_type = CEETM_QUERY_DEQUEUE_CLEAR_STATISTICS;
+	else
+		command_type = CEETM_QUERY_DEQUEUE_STATISTICS;
+
+	ret = qman_ceetm_query_statistics(cid, dcp_idx, command_type, &result);
+	if (ret) {
+		pr_err("Can't query the statistics of CQ#%d!\n", cq->idx);
+		return -EINVAL;
+	}
+
+	*frame_count = result.frm_cnt;
+	*byte_count = result.byte_cnt;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cq_get_dequeue_statistics);
+
+#define CEETM_LFQMT_LFQID_MSB 0xF00000
+#define CEETM_LFQMT_LFQID_LSB 0x000FFF
+int qman_ceetm_lfq_claim(struct qm_ceetm_lfq **lfq,
+					struct qm_ceetm_cq *cq)
+{
+	struct qm_ceetm_lfq *p;
+	u32 lfqid;
+	int ret = 0;
+	struct qm_mcc_ceetm_lfqmt_config lfqmt_config;
+
+	if (cq->parent->dcp_idx == qm_dc_portal_fman0)
+		ret = qman_alloc_ceetm0_lfqid(&lfqid);
+	if (cq->parent->dcp_idx == qm_dc_portal_fman1)
+		ret = qman_alloc_ceetm1_lfqid(&lfqid);
+	if (ret) {
+		pr_err("There is no lfqid avalaible for CQ#%d!\n", cq->idx);
+		return -ENODEV;
+	}
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p)
+		return -ENOMEM;
+	p->idx = lfqid;
+	p->dctidx = (u16)(lfqid & CEETM_LFQMT_LFQID_LSB);
+	p->parent = cq->parent;
+	list_add_tail(&p->node, &cq->bound_lfqids);
+
+	lfqmt_config.lfqid = CEETM_LFQMT_LFQID_MSB |
+				(cq->parent->dcp_idx << 16) |
+				(lfqid & CEETM_LFQMT_LFQID_LSB);
+	lfqmt_config.cqid = (cq->parent->idx << 4) | (cq->idx);
+	lfqmt_config.dctidx = p->dctidx;
+	if (qman_ceetm_configure_lfqmt(&lfqmt_config)) {
+		pr_err("Can't configure LFQMT for LFQID#%d @ CQ#%d\n",
+				lfqid, cq->idx);
+		return -EINVAL;
+	}
+	*lfq = p;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_lfq_claim);
+
+int qman_ceetm_lfq_release(struct qm_ceetm_lfq *lfq)
+{
+	if (lfq->parent->dcp_idx == qm_dc_portal_fman0)
+		qman_release_ceetm0_lfqid(lfq->idx);
+	if (lfq->parent->dcp_idx == qm_dc_portal_fman0)
+		qman_release_ceetm1_lfqid(lfq->idx);
+	list_del(&lfq->node);
+	kfree(lfq);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_lfq_release);
+
+int qman_ceetm_lfq_set_context(struct qm_ceetm_lfq *lfq, u64 context_a,
+							u32 context_b)
+{
+	struct qm_mcc_ceetm_dct_config dct_config;
+	lfq->context_a = context_a;
+	lfq->context_b = context_b;
+	dct_config.dctidx = (u16)lfq->dctidx;
+	dct_config.dcpid = lfq->parent->dcp_idx;
+	dct_config.context_b = context_b;
+	dct_config.context_a = context_a;
+	return qman_ceetm_configure_dct(&dct_config);
+}
+EXPORT_SYMBOL(qman_ceetm_lfq_set_context);
+
+int qman_ceetm_lfq_get_context(struct qm_ceetm_lfq *lfq, u64 *context_a,
+							u32 *context_b)
+{
+	struct qm_mcc_ceetm_dct_query dct_query;
+	struct qm_mcr_ceetm_dct_query query_result;
+
+	dct_query.dctidx = (u16)lfq->dctidx;
+	dct_query.dcpid = lfq->parent->dcp_idx;
+	if (qman_ceetm_query_dct(&dct_query, &query_result)) {
+		pr_err("Can't query LFQID#%d's context!\n", lfq->idx);
+		return -EINVAL;
+	}
+	*context_a = query_result.context_a;
+	*context_b = query_result.context_b;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_lfq_get_context);
+
+int qman_ceetm_create_fq(struct qm_ceetm_lfq *lfq, struct qman_fq *fq)
+{
+	spin_lock_init(&fq->fqlock);
+	fq->fqid = lfq->idx;
+	fq->flags = QMAN_FQ_FLAG_NO_MODIFY;
+	if (lfq->ern)
+		fq->cb.ern = lfq->ern;
+#ifdef CONFIG_FSL_QMAN_FQ_LOOKUP
+	if (unlikely(find_empty_fq_table_entry(&fq->key, fq)))
+		return -ENOMEM;
+#endif
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_create_fq);
+
+int qman_ceetm_ccg_claim(struct qm_ceetm_ccg **ccg,
+				struct qm_ceetm_channel *channel,
+				unsigned int idx,
+				void (*cscn)(struct qm_ceetm_ccg *,
+					void *cb_ctx,
+					int congested),
+				void *cb_ctx)
+{
+	struct qm_ceetm_ccg *p;
+
+	if ((idx < 0) || (idx > 15)) {
+		pr_err("The given ccg index is out of range\n");
+		return -EINVAL;
+	}
+
+	list_for_each_entry(p, &channel->ccgs, node) {
+		if (p->idx == idx) {
+			pr_err("The CCG#%d has been claimed\n", idx);
+			return -EINVAL;
+		}
+	}
+
+	p = kmalloc(sizeof(*p), GFP_KERNEL);
+	if (!p) {
+		pr_err("Can't allocate memory for CCG#%d!\n", idx);
+		return -ENOMEM;
+	}
+
+	list_add_tail(&p->node, &channel->ccgs);
+
+	p->idx = idx;
+	p->parent = channel;
+	p->cb = cscn;
+	p->cb_ctx = cb_ctx;
+
+	*ccg = p;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_ccg_claim);
+
+int qman_ceetm_ccg_release(struct qm_ceetm_ccg *ccg)
+{
+	list_del(&ccg->node);
+	kfree(ccg);
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_ccg_release);
+
+int qman_ceetm_ccg_set(struct qm_ceetm_ccg *ccg, u16 we_mask,
+				const struct qm_ceetm_ccg_params *params)
+{
+	struct qm_mcc_ceetm_ccgr_config config_opts;
+
+	config_opts.ccgrid = CEETM_CCGR_CM_CONFIGURE |
+				(ccg->parent->idx << 4) | ccg->idx;
+	config_opts.dcpid = ccg->parent->dcp_idx;
+	config_opts.we_mask = we_mask;
+	config_opts.cm_config.ctl = (params->wr_en_g << 6) |
+				(params->wr_en_y << 5) |
+				(params->wr_en_r << 4) |
+				(params->td_en << 3)   |
+				(params->td_mode << 2) |
+				(params->cscn_en << 1) |
+				(params->mode);
+	config_opts.cm_config.oal = params->oal;
+	config_opts.cm_config.cs_thres = params->cs_thres_in;
+	config_opts.cm_config.cs_thres_x = params->cs_thres_out;
+	config_opts.cm_config.td_thres = params->td_thres;
+	config_opts.cm_config.wr_parm_g = params->wr_parm_g;
+	config_opts.cm_config.wr_parm_y = params->wr_parm_y;
+	config_opts.cm_config.wr_parm_r = params->wr_parm_r;
+
+	return qman_ceetm_configure_ccgr(&config_opts);
+}
+EXPORT_SYMBOL(qman_ceetm_ccg_set);
+
+#define CEETM_CCGR_CTL_MASK 0x01
+int qman_ceetm_ccg_get(struct qm_ceetm_ccg *ccg,
+				struct qm_ceetm_ccg_params *params)
+{
+	struct qm_mcc_ceetm_ccgr_query query_opts;
+	struct qm_mcr_ceetm_ccgr_query query_result;
+
+	query_opts.ccgrid = CEETM_CCGR_CM_QUERY |
+				(ccg->parent->idx << 4) | ccg->idx;
+	query_opts.dcpid = ccg->parent->dcp_idx;
+
+	if (qman_ceetm_query_ccgr(&query_opts, &query_result)) {
+		pr_err("Can't query CCGR#%d\n", ccg->idx);
+		return -EINVAL;
+	}
+
+	params->wr_parm_r = query_result.cm_query.wr_parm_r;
+	params->wr_parm_y = query_result.cm_query.wr_parm_y;
+	params->wr_parm_g = query_result.cm_query.wr_parm_g;
+	params->td_thres = query_result.cm_query.td_thres;
+	params->cs_thres_out = query_result.cm_query.cs_thres_x;
+	params->cs_thres_in = query_result.cm_query.cs_thres;
+	params->oal = query_result.cm_query.oal;
+	params->wr_en_g = (query_result.cm_query.ctl >> 6) &
+					 CEETM_CCGR_CTL_MASK;
+	params->wr_en_y = (query_result.cm_query.ctl >> 5) &
+					 CEETM_CCGR_CTL_MASK;
+	params->wr_en_r = (query_result.cm_query.ctl >> 4) &
+					 CEETM_CCGR_CTL_MASK;
+	params->td_en = (query_result.cm_query.ctl >> 3) &
+					 CEETM_CCGR_CTL_MASK;
+	params->td_mode = (query_result.cm_query.ctl >> 2) &
+					 CEETM_CCGR_CTL_MASK;
+	params->cscn_en = (query_result.cm_query.ctl >> 1) &
+					 CEETM_CCGR_CTL_MASK;
+	params->mode = (query_result.cm_query.ctl & CEETM_CCGR_CTL_MASK);
+
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_ccg_get);
+
+int qman_ceetm_ccg_get_reject_statistics(struct qm_ceetm_ccg *ccg, u32 flags,
+					u64 *frame_count, u64 *byte_count)
+{
+	struct qm_mcr_ceetm_statistics_query result;
+	u16 cid, command_type;
+	enum qm_dc_portal dcp_idx;
+	int ret;
+
+	cid = (ccg->parent->idx << 4) | ccg->idx;
+	dcp_idx = ccg->parent->dcp_idx;
+	if (flags == QMAN_CEETM_FLAG_CLEAR_STATISTICS_COUNTER)
+		command_type = CEETM_QUERY_REJECT_CLEAR_STATISTICS;
+	else
+		command_type = CEETM_QUERY_REJECT_STATISTICS;
+
+	ret = qman_ceetm_query_statistics(cid, dcp_idx, command_type, &result);
+	if (ret) {
+		pr_err("Can't query the statistics of CCG#%d!\n", ccg->idx);
+		return -EINVAL;
+	}
+
+	*frame_count = result.frm_cnt;
+	*byte_count = result.byte_cnt;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_ccg_get_reject_statistics);
+
+#define CEETM_CSCN_TARG_SWP	0
+#define CEETM_CSCN_TARG_DCP	1
+int qman_ceetm_cscn_swp_set(struct qm_ceetm_ccg *ccg,
+				u16 swp_idx,
+				unsigned int cscn_enabled,
+				u16 we_mask,
+				const struct qm_ceetm_ccg_params *params)
+{
+	struct qm_mcc_ceetm_ccgr_config config_opts;
+	int ret;
+
+	config_opts.ccgrid = CEETM_CCGR_CM_CONFIGURE |
+				(ccg->parent->idx << 4) | ccg->idx;
+	config_opts.dcpid = ccg->parent->dcp_idx;
+	config_opts.we_mask = we_mask | QM_CCGR_WE_CSCN_TUPD;
+	config_opts.cm_config.cscn_tupd = (cscn_enabled << 15) |
+					(CEETM_CSCN_TARG_SWP << 14) |
+					swp_idx;
+	config_opts.cm_config.ctl = (params->wr_en_g << 6) |
+				(params->wr_en_y << 5) |
+				(params->wr_en_r << 4) |
+				(params->td_en << 3)   |
+				(params->td_mode << 2) |
+				(params->cscn_en << 1) |
+				(params->mode);
+	config_opts.cm_config.cs_thres = params->cs_thres_in;
+	config_opts.cm_config.cs_thres_x = params->cs_thres_out;
+	config_opts.cm_config.td_thres = params->td_thres;
+	config_opts.cm_config.wr_parm_g = params->wr_parm_g;
+	config_opts.cm_config.wr_parm_y = params->wr_parm_y;
+	config_opts.cm_config.wr_parm_r = params->wr_parm_r;
+
+	ret = qman_ceetm_configure_ccgr(&config_opts);
+	if (ret) {
+		pr_err("Configure CSCN_TARG_SWP failed!\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cscn_swp_set);
+
+int qman_ceetm_cscn_swp_get(struct qm_ceetm_ccg *ccg,
+					u16 swp_idx,
+					unsigned int *cscn_enabled)
+{
+	struct qm_mcc_ceetm_ccgr_query query_opts;
+	struct qm_mcr_ceetm_ccgr_query query_result;
+
+	query_opts.ccgrid = CEETM_CCGR_CM_QUERY |
+				(ccg->parent->idx << 4) | ccg->idx;
+	query_opts.dcpid = ccg->parent->dcp_idx;
+
+	if (qman_ceetm_query_ccgr(&query_opts, &query_result)) {
+		pr_err("Can't query CCGR#%d\n", ccg->idx);
+		return -EINVAL;
+	}
+
+	if (swp_idx < 63)
+		*cscn_enabled = (query_result.cm_query.cscn_targ_swp[0] >>
+			(63 - swp_idx)) & 0x1;
+	else
+		*cscn_enabled = (query_result.cm_query.cscn_targ_swp[1] >>
+			(127 - swp_idx)) & 0x1;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cscn_swp_get);
+
+int qman_ceetm_cscn_dcp_set(struct qm_ceetm_ccg *ccg,
+				u16 dcp_idx,
+				u8 vcgid,
+				unsigned int cscn_enabled,
+				u16 we_mask,
+				const struct qm_ceetm_ccg_params *params)
+{
+	struct qm_mcc_ceetm_ccgr_config config_opts;
+	int ret;
+
+	config_opts.ccgrid = CEETM_CCGR_CM_CONFIGURE |
+				(ccg->parent->idx << 4) | ccg->idx;
+	config_opts.dcpid = ccg->parent->dcp_idx;
+	config_opts.we_mask = we_mask | QM_CCGR_WE_CSCN_TUPD | QM_CCGR_WE_CDV;
+	config_opts.cm_config.cdv = vcgid;
+	config_opts.cm_config.cscn_tupd = (cscn_enabled << 15) |
+					(CEETM_CSCN_TARG_DCP << 14) |
+					dcp_idx;
+	config_opts.cm_config.ctl = (params->wr_en_g << 6) |
+				(params->wr_en_y << 5) |
+				(params->wr_en_r << 4) |
+				(params->td_en << 3)   |
+				(params->td_mode << 2) |
+				(params->cscn_en << 1) |
+				(params->mode);
+	config_opts.cm_config.cs_thres = params->cs_thres_in;
+	config_opts.cm_config.cs_thres_x = params->cs_thres_out;
+	config_opts.cm_config.td_thres = params->td_thres;
+	config_opts.cm_config.wr_parm_g = params->wr_parm_g;
+	config_opts.cm_config.wr_parm_y = params->wr_parm_y;
+	config_opts.cm_config.wr_parm_r = params->wr_parm_r;
+
+	ret = qman_ceetm_configure_ccgr(&config_opts);
+	if (ret) {
+		pr_err("Configure CSCN_TARG_DCP failed!\n");
+		return -EINVAL;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cscn_dcp_set);
+
+int qman_ceetm_cscn_dcp_get(struct qm_ceetm_ccg *ccg,
+				u16 dcp_idx,
+				u8 *vcgid,
+				unsigned int *cscn_enabled)
+{
+	struct qm_mcc_ceetm_ccgr_query query_opts;
+	struct qm_mcr_ceetm_ccgr_query query_result;
+
+	query_opts.ccgrid = CEETM_CCGR_CM_QUERY |
+				(ccg->parent->idx << 4) | ccg->idx;
+	query_opts.dcpid = ccg->parent->dcp_idx;
+
+	if (qman_ceetm_query_ccgr(&query_opts, &query_result)) {
+		pr_err("Can't query CCGR#%d\n", ccg->idx);
+		return -EINVAL;
+	}
+
+	*vcgid = query_result.cm_query.cdv;
+	*cscn_enabled = (query_result.cm_query.cscn_targ_dcp >>
+							(7 - dcp_idx)) & 0x1;
+	return 0;
+}
+EXPORT_SYMBOL(qman_ceetm_cscn_dcp_get);
+
+int qman_ceetm_querycongestion(u16 *ccg_state, unsigned int dcp_idx)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	u8 res;
+	int i, j;
+
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+
+	mcc = qm_mc_start(&p->p);
+	for (i = 0; i < 1 ; i++) {
+		mcc->ccgr_query.ccgrid = i;
+		mcc->ccgr_query.dcpid = dcp_idx;
+		qm_mc_commit(&p->p, QM_CEETM_VERB_CCGR_QUERY);
+
+		while (!(mcr = qm_mc_result(&p->p)))
+			cpu_relax();
+		DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) ==
+						QM_CEETM_VERB_CCGR_QUERY);
+		res = mcr->result;
+		if (res == QM_MCR_RESULT_OK) {
+			for (j = 0; j < 16; j++)
+				*(ccg_state + j) =
+				mcr->ccgr_query.congestion_state.ccg_state[j];
+		} else {
+			pr_err("QUERY CEETM CONGESTION STATE failed\n");
+			return -EIO;
+		}
+	}
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+	return 0;
+}
