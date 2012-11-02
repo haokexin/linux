@@ -1145,6 +1145,74 @@ static const struct file_operations qman_fqd_cred_fops =  {
 	.read           = seq_read,
 };
 
+/*******************************************************************************
+ *  Class Queue Fields
+ ******************************************************************************/
+struct query_cq_fields_data_s {
+	u32 cqid;
+};
+
+static struct query_cq_fields_data_s query_cq_fields_data = {
+	.cqid = 1,
+};
+
+static int query_cq_fields_show(struct seq_file *file, void *offset)
+{
+	int ret;
+	struct qm_mcr_ceetm_cq_query query_result;
+	struct qm_ceetm_cq cq;
+
+	cq.idx = query_cq_fields_data.cqid;
+	ret = qman_ceetm_query_cq(&cq, 0,  &query_result);
+	if (ret)
+		return ret;
+	seq_printf(file, "Query CQ Fields Result cqid 0x%x\n",
+			cq.idx);
+	seq_printf(file, " ccgid: %u\n", query_result.ccgid);
+	seq_printf(file, " state: %u\n", query_result.state);
+	seq_printf(file, " pfdr_hptr: %u\n", query_result.pfdr_hptr);
+	seq_printf(file, " pfdr_tptr: %u\n", query_result.pfdr_tptr);
+	seq_printf(file, " od1_xsfdr: %u\n", query_result.od1_xsfdr);
+	seq_printf(file, " od2_xsfdr: %u\n", query_result.od2_xsfdr);
+	seq_printf(file, " od3_xsfdr: %u\n", query_result.od3_xsfdr);
+	seq_printf(file, " od4_xsfdr: %u\n", query_result.od4_xsfdr);
+	seq_printf(file, " od5_xsfdr: %u\n", query_result.od5_xsfdr);
+	seq_printf(file, " od6_xsfdr: %u\n", query_result.od6_xsfdr);
+	seq_printf(file, " ra1_xsfdr: %u\n", query_result.ra1_xsfdr);
+	seq_printf(file, " ra2_xsfdr: %u\n", query_result.ra2_xsfdr);
+	seq_printf(file, " frame_count: %u\n", query_result.frm_cnt);
+
+	return 0;
+}
+
+static int query_cq_fields_open(struct inode *inode,
+					struct file *file)
+{
+	return single_open(file, query_cq_fields_show, NULL);
+}
+
+static ssize_t query_cq_fields_write(struct file *f,
+			const char __user *buf, size_t count, loff_t *off)
+{
+	int ret;
+	unsigned long val;
+
+	ret = user_input_convert(buf, count, &val);
+	if (ret)
+		return ret;
+	if (val > MAX_FQID)
+		return -EINVAL;
+	query_cq_fields_data.cqid = (u32)val;
+	return count;
+}
+
+static const struct file_operations query_cq_fields_fops = {
+	.owner          = THIS_MODULE,
+	.open		= query_cq_fields_open,
+	.read           = seq_read,
+	.write		= query_cq_fields_write,
+	.release	= single_release,
+};
 /* helper macros used in qman_debugfs_module_init */
 #define QMAN_DBGFS_ENTRY(name, mode, parent, data, fops) \
 	do { \
@@ -1246,6 +1314,9 @@ static int __init qman_debugfs_module_init(void)
 	QMAN_DBGFS_ENTRY_FQDROOT("state_active", S_IRUGO,
 		(void *)&fqd_states[QM_MCR_NP_STATE_ACTIVE],
 		&qman_fqd_state_fops);
+	QMAN_DBGFS_ENTRY_ROOT("query_cq_fields", S_IRUGO | S_IWUGO,
+		&query_cq_fields_data, &query_cq_fields_fops);
+
 
 	QMAN_DBGFS_ENTRY_FQDSTATE("cge_enable", 17);
 
