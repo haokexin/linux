@@ -24,6 +24,10 @@ enum usdpaa_id_type {
 	usdpaa_id_bpid,
 	usdpaa_id_qpool,
 	usdpaa_id_cgrid,
+	usdpaa_id_ceetm0_lfqid,
+	usdpaa_id_ceetm0_channelid,
+	usdpaa_id_ceetm1_lfqid,
+	usdpaa_id_ceetm1_channelid,
 	usdpaa_id_max /* <-- not a valid type, represents the number of types */
 };
 #define USDPAA_IOCTL_MAGIC 'u'

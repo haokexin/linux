@@ -107,6 +107,30 @@ static const struct alloc_backend {
 		.acronym = "CGRID"
 	},
 	{
+		.id_type = usdpaa_id_ceetm0_lfqid,
+		.alloc = qman_alloc_ceetm0_lfqid_range,
+		.release = qman_release_ceetm0_lfqid_range,
+		.acronym = "CEETM0_LFQID"
+	},
+	{
+		.id_type = usdpaa_id_ceetm0_channelid,
+		.alloc = qman_alloc_ceetm0_channel_range,
+		.release = qman_release_ceetm0_channel_range,
+		.acronym = "CEETM0_LFQID"
+	},
+	{
+		.id_type = usdpaa_id_ceetm1_lfqid,
+		.alloc = qman_alloc_ceetm1_lfqid_range,
+		.release = qman_release_ceetm1_lfqid_range,
+		.acronym = "CEETM1_LFQID"
+	},
+	{
+		.id_type = usdpaa_id_ceetm1_channelid,
+		.alloc = qman_alloc_ceetm1_channel_range,
+		.release = qman_release_ceetm1_channel_range,
+		.acronym = "CEETM1_LFQID"
+	},
+	{
 		/* This terminates the array */
 		.id_type = usdpaa_id_max
 	}
