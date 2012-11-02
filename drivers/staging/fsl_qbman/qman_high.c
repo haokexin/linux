@@ -918,7 +918,9 @@ u16 qman_affine_channel(int cpu)
 {
 	if (cpu < 0) {
 		struct qman_portal *portal = get_raw_affine_portal();
+#ifdef CONFIG_FSL_DPA_PORTAL_SHARE
 		BUG_ON(portal->sharing_redirect);
+#endif
 		cpu = portal->config->public_cfg.cpu;
 		put_affine_portal();
 	}
