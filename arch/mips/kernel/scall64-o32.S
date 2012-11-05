@@ -550,4 +550,4 @@ EXPORT(syso32_call_table)
 	PTR	sys_setns
 	PTR	compat_sys_process_vm_readv	/* 4345 */
 	PTR	compat_sys_process_vm_writev
-	.size	sys_call_table,.-sys_call_table
+	.size	syso32_call_table,.-syso32_call_table
