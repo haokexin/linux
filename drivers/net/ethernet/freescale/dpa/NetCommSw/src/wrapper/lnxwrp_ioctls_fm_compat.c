@@ -1055,4 +1055,36 @@ void compat_copy_fm_pcd_frm_replic_group_params(
 
 	_fm_cpt_dbg (compat, " ...->}\n");
 }
+
+void compat_copy_fm_pcd_frm_replic_member(
+	ioc_compat_fm_pcd_frm_replic_member_t *compat_param,
+	ioc_fm_pcd_frm_replic_member_t *param,
+	uint8_t compat)
+{
+	_fm_cpt_dbg (compat, " {->...\n");
+
+	if (compat == COMPAT_US_TO_K)
+	{
+		param->h_replic_group = compat_pcd_id2ptr(compat_param->h_replic_group);
+		param->member_index = compat_param->member_index;
+	}
+
+	_fm_cpt_dbg (compat, " ...->}\n");
+}
+
+void compat_copy_fm_pcd_frm_replic_member_params(
+	ioc_compat_fm_pcd_frm_replic_member_params_t *compat_param,
+	ioc_fm_pcd_frm_replic_member_params_t *param,
+	uint8_t compat)
+{
+	_fm_cpt_dbg (compat, " {->...\n");
+
+	compat_copy_fm_pcd_frm_replic_member(&compat_param->member,
+		&param->member, compat);
+
+	compat_copy_fm_pcd_cc_next_engine(&compat_param->next_engine_params,
+		&param->next_engine_params, compat);
+
+	_fm_cpt_dbg (compat, " ...->}\n");
+}
 #endif

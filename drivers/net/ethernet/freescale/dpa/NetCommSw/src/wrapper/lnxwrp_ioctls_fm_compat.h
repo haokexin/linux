@@ -458,6 +458,16 @@ typedef struct ioc_compat_fm_pcd_frm_replic_group_params_t {
 		next_engine_params[IOC_FM_PCD_FRM_REPLIC_MAX_NUM_OF_ENTRIES];
 	compat_uptr_t               id;
 } ioc_compat_fm_pcd_frm_replic_group_params_t;
+
+typedef struct ioc_compat_fm_pcd_frm_replic_member_t {
+    compat_uptr_t       h_replic_group;
+    uint16_t            member_index;
+} ioc_compat_fm_pcd_frm_replic_member_t;
+
+typedef struct ioc_compat_fm_pcd_frm_replic_member_params_t {
+    ioc_compat_fm_pcd_frm_replic_member_t       member;
+    ioc_compat_fm_pcd_cc_next_engine_params_t          next_engine_params;
+} ioc_compat_fm_pcd_frm_replic_member_params_t;
 #endif /* DPAA_VERSION >= 11 */
 
 /* } pcd compat structures */
@@ -572,6 +582,16 @@ void compat_copy_fm_pcd_frm_replic_group_params(
 	ioc_compat_fm_pcd_frm_replic_group_params_t *compat_param,
 	ioc_fm_pcd_frm_replic_group_params_t *param,
 	uint8_t compat);
+
+void compat_copy_fm_pcd_frm_replic_member(
+	ioc_compat_fm_pcd_frm_replic_member_t *compat_param,
+	ioc_fm_pcd_frm_replic_member_t *param,
+	uint8_t compat);
+
+void compat_copy_fm_pcd_frm_replic_member_params(
+        ioc_compat_fm_pcd_frm_replic_member_params_t *compat_param,
+	ioc_fm_pcd_frm_replic_member_params_t *param,
+        uint8_t compat);
 #endif
 /* } pcd compat functions */
 #endif

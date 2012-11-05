@@ -2725,6 +2725,60 @@ invalid_port_id:
 		return FM_PCD_FrmReplicDeleteGroup(id.obj);
 	}
 	break;
+
+#if defined(CONFIG_COMPAT)
+	case FM_PCD_IOC_FRM_REPLIC_MEMBER_ADD_COMPAT:
+#endif
+	case FM_PCD_IOC_FRM_REPLIC_MEMBER_ADD:
+	{
+		ioc_fm_pcd_frm_replic_member_params_t param;
+
+#if defined(CONFIG_COMPAT)
+		if (compat)
+		{
+			ioc_compat_fm_pcd_frm_replic_member_params_t compat_param;
+
+			if (copy_from_user(&compat_param, compat_ptr(arg), sizeof(compat_param)))
+				RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+			compat_copy_fm_pcd_frm_replic_member_params(&compat_param, &param, COMPAT_US_TO_K);
+		}
+		else
+#endif
+			if (copy_from_user(&param, (void *)arg, sizeof(param)))
+				RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+		return FM_PCD_FrmReplicAddMember(param.member.h_replic_group,
+			param.member.member_index,
+			(t_FmPcdCcNextEngineParams*)&param.next_engine_params);
+	}
+	break;
+
+#if defined(CONFIG_COMPAT)
+	case FM_PCD_IOC_FRM_REPLIC_MEMBER_REMOVE_COMPAT:
+#endif
+	case FM_PCD_IOC_FRM_REPLIC_MEMBER_REMOVE:
+	{
+		ioc_fm_pcd_frm_replic_member_t param;
+
+#if defined(CONFIG_COMPAT)
+		if (compat)
+		{
+			ioc_compat_fm_pcd_frm_replic_member_t compat_param;
+
+			if (copy_from_user(&compat_param, compat_ptr(arg), sizeof(compat_param)))
+				RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+			compat_copy_fm_pcd_frm_replic_member(&compat_param, &param, COMPAT_US_TO_K);
+		}
+		else
+#endif
+			if (copy_from_user(&param, (void *)arg, sizeof(param)))
+				RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+		return FM_PCD_FrmReplicRemoveMember(param.h_replic_group, param.member_index);
+	}
+	break;
 #endif
 
 #ifdef FM_CAPWAP_SUPPORT
