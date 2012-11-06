@@ -714,7 +714,7 @@ static t_Error TgecTxEccWorkaround(t_Tgec *p_Tgec)
     else
         XX_Print("done.\n");
 #endif /* (DEBUG_ERRORS > 0) */
-    TgecResetCounters (p_Tgec);
+    tgec_reset_stat(p_Tgec->p_MemMap);
 
     return err;
 }
