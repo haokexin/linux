@@ -123,11 +123,9 @@ static const struct of_device_id mac_match[] __devinitconst = {
 	[XGMAC] = {
 		.compatible	= "fsl,fman-10g-mac"
 	},
-#ifdef CONFIG_FMAN_T4240
 	[MEMAC] = {
 		.compatible	= "fsl,fman-memac"
 	},
-#endif
 	{}
 };
 MODULE_DEVICE_TABLE(of, mac_match);

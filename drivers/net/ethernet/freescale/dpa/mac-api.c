@@ -62,9 +62,7 @@ const char	*mac_driver_description __initconst = MAC_DESCRIPTION;
 const size_t	 mac_sizeof_priv[] __devinitconst = {
 	[DTSEC] = sizeof(struct mac_priv_s),
 	[XGMAC] = sizeof(struct mac_priv_s),
-#ifdef CONFIG_FMAN_T4240
 	[MEMAC] = sizeof(struct mac_priv_s)
-#endif
 };
 
 static const e_EnetMode _100[] __devinitconst =
@@ -239,7 +237,6 @@ _return:
 	return _errno;
 }
 
-#ifdef CONFIG_FMAN_T4240
 static int __devinit __cold memac_init(struct mac_device *mac_dev)
 {
 	int			_errno;
@@ -301,7 +298,6 @@ _return_fm_mac_free:
 _return:
 	return _errno;
 }
-#endif
 
 static int __cold start(struct mac_device *mac_dev)
 {
@@ -784,7 +780,6 @@ static void __devinit __cold setup_xgmac(struct mac_device *mac_dev)
 	mac_dev->uninit		= uninit;
 }
 
-#ifdef CONFIG_FMAN_T4240
 static void __devinit __cold setup_memac(struct mac_device *mac_dev)
 {
 	mac_dev->init_phy	= xgmac_init_phy;
@@ -796,12 +791,9 @@ static void __devinit __cold setup_memac(struct mac_device *mac_dev)
 	mac_dev->set_multi      = set_multi;
 	mac_dev->uninit		= uninit;
 }
-#endif
 
 void (*const mac_setup[])(struct mac_device *mac_dev) __devinitconst = {
 	[DTSEC] = setup_dtsec,
 	[XGMAC] = setup_xgmac,
-#ifdef CONFIG_FMAN_T4240
 	[MEMAC] = setup_memac
-#endif
 };
