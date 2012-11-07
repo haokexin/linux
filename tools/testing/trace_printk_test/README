@@ -1,0 +1,37 @@
+Building:
+ * use the wrlinux "make kds" command
+ * then cd into tools/testing/trace_printk_test
+ * make
+ * make clean to cleanup
+
+Usage:
+ * load the module on the target
+ * On the target, do the following:
+ * $ mount -t debugfs nodev /sys/kernel/debug
+ * $ cd /sys/kernel/debug/tracing
+ * $ echo 1 > /sys/kernel/debug/tracing/events/printk/enable
+ * $ insmod <path>/trace_printk_test
+ * $ echo 0 > /sys/kernel/debug/tracing/events/printk/enable
+ * $ cat /sys/kernel/debug/tracing/trace
+ * Verify the dump log.
+ * You should see "XXX printk trace" msgs, e.g.:
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 5/5   #P:1
+#
+#                              _-----=> irqs-off
+#                             / _----=> need-resched
+#                            | / _---=> hardirq/softirq
+#                            || / _--=> preempt-depth
+#                            ||| /     delay
+#           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |       |   ||||       |         |
+          insmod-490   [000] ....    91.247266: :
+<6>START-trace_printk
+          insmod-490   [000] d..1    91.247358: console: XXX printk trace (1) dumb_print_handler
+
+          insmod-490   [000] d..1    91.248890: console: XXX printk trace this msg
+
+          insmod-490   [000] d..1    91.249055: console: XXX printk trace (2) dumb_print_handler
+
+          insmod-490   [000] ....    91.249233: : <6>STOP-trace_printk
