@@ -246,6 +246,12 @@
 		fsl,liodn-bits = <12>;
 	};
 
+	clockgen: global-utilities@e1000 {
+		compatible = "fsl,t4240-clockgen", "fsl,qoriq-clockgen-1.0";
+		reg = <0xe1000 0x1000>;
+		clock-frequency = <0>;
+	};
+
 /include/ "interlaken-lac.dtsi"
 
 /include/ "qoriq-dma-0.dtsi"
