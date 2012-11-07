@@ -53,3 +53,4 @@ obj-$(CONFIG_ARM_VEXPRESS_BL_CPUFREQ)	+= vexpress_bL_cpufreq.o
 ##################################################################################
 # PowerPC platform drivers
 obj-$(CONFIG_CPU_FREQ_MAPLE)		+= maple-cpufreq.o
+obj-$(CONFIG_PPC_CORENET_CPUFREQ)   += ppc_corenet_cpufreq.o
