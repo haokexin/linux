@@ -2689,6 +2689,16 @@ static int fsl_udc_suspend(struct platform_device *pdev, pm_message_t state)
  *-----------------------------------------------------------------*/
 static int fsl_udc_resume(struct platform_device *pdev)
 {
+#if defined(CONFIG_FSL_USB2_OTG) || defined(CONFIG_FSL_USB2_OTG_MODULE)
+	/* Add delay to synchronize between host and gadget drivers
+	 * Upon role-reversal host drv is shutdown by kernel worker
+	 * thread. By the time host drv shuts down, dr controller
+	 * gets programmed for gadget role. Shutting host drv after this
+	 * results in controller getting reset, and it stops responding
+	 * to otg events
+	 */
+	msleep(1000);
+#endif
 	/* Enable DR irq reg and set controller Run */
 	if (udc_controller->stopped) {
 		dr_controller_setup(udc_controller);
