@@ -217,6 +217,45 @@ typedef union ioc_fm_api_version_t {
     uint32_t ver;
 } ioc_fm_api_version_t;
 
+#if (DPAA_VERSION >= 11)
+/**************************************************************************//**
+ @Description   A structure of information about each of the external
+                buffer pools used by a port or storage-profile.
+                (must be identical to t_FmExtPoolParams defined in fm_ext.h)
+*//***************************************************************************/
+typedef struct ioc_fm_ext_pool_params {
+    uint8_t                 id;     /**< External buffer pool id */
+    uint16_t                size;   /**< External buffer pool buffer size */
+} ioc_fm_ext_pool_params;
+
+/**************************************************************************//**
+ @Description   A structure for informing the driver about the external
+                buffer pools allocated in the BM and used by a port or a
+                storage-profile.
+                (must be identical to t_FmExtPools defined in fm_ext.h)
+*//***************************************************************************/
+typedef struct ioc_fm_ext_pools {
+    uint8_t                 numOfPoolsUsed;     /**< Number of pools use by this port */
+    ioc_fm_ext_pool_params  extBufPool[FM_PORT_MAX_NUM_OF_EXT_POOLS];
+                                                /**< Parameters for each port */
+} ioc_fm_ext_pools;
+
+typedef struct ioc_fm_vsp_params_t {
+    void                *h_Fm;              /**< A handle to the FM object this VSP related to */
+    ioc_fm_ext_pools    extBufPools;        /**< Which external buffer pools are used
+                                                 (up to FM_PORT_MAX_NUM_OF_EXT_POOLS), and their sizes.
+                                                 parameter associated with Rx / OP port */
+    uint16_t            liodnOffset;        /**< VSP's LIODN offset */
+    struct {
+        ioc_fm_port_type portType;          /**< Port type */
+        uint8_t         portId;             /**< Port Id - relative to type */
+    } portParams;
+    uint8_t             relativeProfileId;  /**< VSP Id - relative to VSP's range
+                                                 defined in relevant FM object */
+    void                *id;                /**< return value */
+} ioc_fm_vsp_params_t;
+#endif /* (DPAA_VERSION >= 11) */
+
 /**************************************************************************//**
  @Function      FM_IOC_SET_PORTS_BANDWIDTH
 
@@ -297,6 +336,58 @@ typedef union ioc_fm_api_version_t {
  @Return        Version's value.
 *//***************************************************************************/
 #define FM_IOC_GET_API_VERSION                               _IOR(FM_IOC_TYPE_BASE, FM_IOC_NUM(7), ioc_fm_api_version_t)
+
+
+/**************************************************************************//**
+ @Function      FM_VSP_Config
+
+ @Description   Creates descriptor for the FM VSP module.
+
+                The routine returns a handle (descriptor) to the FM VSP object.
+                This descriptor must be passed as first parameter to all other
+                FM VSP function calls.
+
+                No actual initialization or configuration of FM hardware is
+                done by this routine.
+
+@Param[in]      p_FmVspParams   Pointer to data structure of parameters
+
+ @Retval        Handle to FM VSP object, or NULL for Failure.
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_IOC_VSP_CONFIG_COMPAT                             _IOWR(FM_IOC_TYPE_BASE, FM_IOC_NUM(8), ioc_compat_fm_vsp_params_t)
+#endif
+#define FM_IOC_VSP_CONFIG                                    _IOWR(FM_IOC_TYPE_BASE, FM_IOC_NUM(8), ioc_fm_vsp_params_t)
+
+/**************************************************************************//**
+ @Function      FM_VSP_Init
+
+ @Description   Initializes the FM VSP module
+
+ @Param[in]     h_FmVsp - FM VSP module descriptor
+
+ @Return        E_OK on success; Error code otherwise.
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_IOC_VSP_INIT_COMPAT                               _IOW(FM_IOC_TYPE_BASE, FM_IOC_NUM(9), ioc_compat_fm_obj_t)
+#endif
+#define FM_IOC_VSP_INIT                                      _IOW(FM_IOC_TYPE_BASE, FM_IOC_NUM(9), ioc_fm_obj_t)
+
+/**************************************************************************//**
+ @Function      FM_VSP_Free
+
+ @Description   Frees all resources that were assigned to FM VSP module.
+
+                Calling this routine invalidates the descriptor.
+
+ @Param[in]     h_FmVsp - FM VSP module descriptor
+
+ @Return        E_OK on success; Error code otherwise.
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_IOC_VSP_FREE_COMPAT                               _IOW(FM_IOC_TYPE_BASE, FM_IOC_NUM(10), ioc_compat_fm_obj_t)
+#endif
+#define FM_IOC_VSP_FREE                                      _IOW(FM_IOC_TYPE_BASE, FM_IOC_NUM(10), ioc_fm_obj_t)
 
 /** @} */ /* end of lnx_ioctl_FM_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_lib_grp group */

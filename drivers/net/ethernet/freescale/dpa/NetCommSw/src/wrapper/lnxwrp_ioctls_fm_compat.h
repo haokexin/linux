@@ -181,6 +181,16 @@ typedef struct ioc_compat_fm_pcd_port_schemes_params_t {
     compat_uptr_t  scheme_ids[FM_PCD_KG_NUM_OF_SCHEMES];
 } ioc_compat_fm_pcd_port_schemes_params_t;
 
+#if (DPAA_VERSION >= 11)
+typedef struct ioc_compat_fm_port_vsp_alloc_params_t {
+    uint8_t       num_of_profiles;          /**< Number of Virtual Storage Profiles */
+    uint8_t   	  dflt_relative_id;         /**< The default Virtual-Storage-Profile-id dedicated to Rx/OP port
+                                             The same default Virtual-Storage-Profile-id will be for coupled Tx port
+                                             if relevant function called for Rx port */
+    compat_uptr_t p_fm_tx_port;             /**< Handle to coupled Tx Port; not relevant for OP port. */
+}ioc_compat_fm_port_vsp_alloc_params_t;
+#endif /* (DPAA_VERSION >= 11) */
+
 typedef struct ioc_compat_fm_pcd_net_env_params_t {
     uint8_t                         num_of_distinction_units;
     ioc_fm_pcd_distinction_unit_t   units[IOC_FM_PCD_MAX_NUM_OF_DISTINCTION_UNITS]; /* same structure*/
@@ -468,6 +478,22 @@ typedef struct ioc_compat_fm_pcd_frm_replic_member_params_t {
     ioc_compat_fm_pcd_frm_replic_member_t       member;
     ioc_compat_fm_pcd_cc_next_engine_params_t          next_engine_params;
 } ioc_compat_fm_pcd_frm_replic_member_params_t;
+
+typedef struct ioc_compat_fm_vsp_params_t {
+	compat_uptr_t       h_Fm;               /**< A handle to the FM object this VSP related to */
+	ioc_fm_ext_pools    extBufPools;        /**< Which external buffer pools are used
+						(up to FM_PORT_MAX_NUM_OF_EXT_POOLS), and their sizes.
+						parameter associated with Rx / OP port */
+	uint16_t            liodnOffset;        /**< VSP's LIODN offset */
+	struct {
+		ioc_fm_port_type portType;      /**< Port type */
+		uint8_t          portId;        /**< Port Id - relative to type */
+	} portParams;
+	uint8_t             relativeProfileId;  /**< VSP Id - relative to VSP's range
+						defined in relevant FM object */
+	compat_uptr_t       id;                 /**< return value */
+} ioc_compat_fm_vsp_params_t;
+
 #endif /* DPAA_VERSION >= 11 */
 
 /* } pcd compat structures */
@@ -589,9 +615,9 @@ void compat_copy_fm_pcd_frm_replic_member(
 	uint8_t compat);
 
 void compat_copy_fm_pcd_frm_replic_member_params(
-        ioc_compat_fm_pcd_frm_replic_member_params_t *compat_param,
+	ioc_compat_fm_pcd_frm_replic_member_params_t *compat_param,
 	ioc_fm_pcd_frm_replic_member_params_t *param,
-        uint8_t compat);
+	uint8_t compat);
 #endif
 /* } pcd compat functions */
 #endif

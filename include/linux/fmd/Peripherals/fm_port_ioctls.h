@@ -770,6 +770,36 @@ typedef struct ioc_fm_port_mac_addr_params_t {
 *//***************************************************************************/
 #define FM_PORT_IOC_REMOVE_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(37), ioc_fm_port_mac_addr_params_t)
 
+#if (DPAA_VERSION >= 11)
+typedef struct ioc_fm_port_vsp_alloc_params_t {
+    uint8_t     num_of_profiles;          /**< Number of Virtual Storage Profiles */
+    uint8_t     dflt_relative_id;         /**< The default Virtual-Storage-Profile-id dedicated to Rx/OP port
+                                             The same default Virtual-Storage-Profile-id will be for coupled Tx port
+                                             if relevant function called for Rx port */
+    void    *p_fm_tx_port;             /**< Handle to coupled Tx Port; not relevant for OP port. */
+}ioc_fm_port_vsp_alloc_params_t;
+
+/**************************************************************************//**
+ @Function      FM_PORT_VSPAlloc
+
+ @Description   This routine allocated VSPs per port and forces the port to work
+                in VSP mode. Note that the port is initialized by default with the
+                physical-storage-profile only.
+
+ @Param[in]     h_FmPort    A handle to a FM Port module.
+ @Param[in]     p_Params    A structure of parameters for allocation VSP's per port
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PORT_Init(), and before FM_PORT_SetPCD()
+                and also before FM_PORT_Enable() (i.e. the port should be disabled).
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_PORT_IOC_VSP_ALLOC_COMPAT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(38), ioc_compat_fm_port_vsp_alloc_params_t)
+#endif
+#define FM_PORT_IOC_VSP_ALLOC _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(38), ioc_fm_port_vsp_alloc_params_t)
+#endif /* (DPAA_VERSION >= 11) */
+
 /** @} */ /* end of lnx_ioctl_FM_PORT_pcd_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_PORT_runtime_control_grp group */
 
