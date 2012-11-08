@@ -190,6 +190,21 @@
 				fixed-link = <8 1 10000 0 0 >;
 				phy-connection-type = "xgmii";
 			};
+			fman0_oh2 {
+				status = "disabled";
+			};
+			fman0_oh3 {
+				status = "disabled";
+			};
+			fman0_oh4 {
+				status = "disabled";
+			};
+			fman0_oh5 {
+				status = "disabled";
+			};
+			fman0_oh6 {
+				status = "disabled";
+			};
 		};
 		fman1: fman@500000 {
 			enet8: ethernet@e0000 {
@@ -230,6 +245,21 @@
 			enet15: ethernet@f2000 {
 				fixed-link = <18 1 10000 0 0 >;
 				phy-connection-type = "xgmii";
+			};
+			fman1_oh2 {
+				status = "disabled";
+			};
+			fman1_oh3 {
+				status = "disabled";
+			};
+			fman1_oh4 {
+				status = "disabled";
+			};
+			fman1_oh5 {
+				status = "disabled";
+			};
+			fman1_oh6 {
+				status = "disabled";
 			};
 		};
 	};
@@ -309,22 +339,27 @@
 		ethernet@0 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet0>;
+			status = "disabled";
 		};
 		ethernet@1 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet1>;
+			status = "disabled";
 		};
 		ethernet@2 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet2>;
+			status = "disabled";
 		};
 		ethernet@3 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet3>;
+			status = "disabled";
 		};
 		ethernet@4 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet4>;
+			status = "disabled";
 		};
 		ethernet@5 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
@@ -341,22 +376,27 @@
 		ethernet@8 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet8>;
+			status = "disabled";
 		};
 		ethernet@9 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet9>;
+			status = "disabled";
 		};
 		ethernet@10 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet10>;
+			status = "disabled";
 		};
 		ethernet@11 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet11>;
+			status = "disabled";
 		};
 		ethernet@12 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet12>;
+			status = "disabled";
 		};
 		ethernet@13 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
