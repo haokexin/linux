@@ -751,11 +751,7 @@ static t_Error InitFmPcdDev(t_LnxWrpFmDev *p_LnxWrpFmDev)
 		fmPcdParams.numOfClsPlanEntries = 0;
 		fmPcdParams.partitionId = 0;
 #endif /* CONFIG_MULTI_PARTITION_SUPPORT */
-#if (DPAA_VERSION >= 11)
-		fmPcdParams.useHostCommand = FALSE;
-#else
 		fmPcdParams.useHostCommand = TRUE;
-#endif
 
 		p_LnxWrpFmDev->hc_tx_fq =
 			FqAlloc(p_LnxWrpFmDev,
