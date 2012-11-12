@@ -234,9 +234,8 @@
 	};
 
 	clockgen: global-utilities@e1000 {
-		compatible = "fsl,b4860-clockgen", "fsl,qoriq-clockgen-1.0";
+		compatible = "fsl,b4860-clockgen", "fsl,qoriq-clockgen-2";
 		reg = <0xe1000 0x1000>;
-		clock-frequency = <0>;
 	};
 
 /include/ "qoriq-dma-0.dtsi"
