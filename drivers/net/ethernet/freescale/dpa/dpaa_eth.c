@@ -4027,6 +4027,9 @@ static struct platform_driver dpa_driver = {
 		.owner		= THIS_MODULE,
 	},
 	.probe		= dpaa_eth_probe,
+#if defined(CONFIG_KEXEC)
+	.shutdown	= dpa_remove,
+#endif
 	.remove		= __devexit_p(dpa_remove)
 };
 
