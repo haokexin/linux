@@ -380,7 +380,10 @@ static void qm_set_dc(struct qman *qm, enum qm_dc_portal portal,
 {
 	DPA_ASSERT(!ed || (portal == qm_dc_portal_fman0) ||
 			(portal == qm_dc_portal_fman1));
-	qm_out(DCP_CFG(portal), (ed ? 0x100 : 0) | (sernd & 0x1f));
+	if ((qman_ip_rev & 0xFF00) >= QMAN_REV30)
+		qm_out(DCP_CFG(portal), (ed ? 0x1000 : 0) | (sernd & 0x3ff));
+	else
+		qm_out(DCP_CFG(portal), (ed ? 0x100 : 0) | (sernd & 0x1f));
 }
 
 static void qm_set_wq_scheduling(struct qman *qm, enum qm_wq_class wq_class,
