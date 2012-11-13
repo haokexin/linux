@@ -785,18 +785,6 @@ static t_Error TgecInit(t_Handle h_Tgec)
     FM_GetRevision(p_Tgec->fmMacControllerDriver.h_Fm, &p_Tgec->fmMacControllerDriver.fmRevInfo);
     CHECK_INIT_PARAMETERS(p_Tgec, CheckInitParameters);
 
-#ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
-    if (p_Tgec->fmMacControllerDriver.fmRevInfo.majorRev <= 6 /*fixed for rev3 */)
-    {
-        if (!p_Tgec->p_TgecDriverParam->skip_fman11_workaround &&
-            ((err = TgecTxEccWorkaround(p_Tgec)) != E_OK))
-        {
-            FreeInitResources(p_Tgec);
-            RETURN_ERROR(MAJOR, err, ("TgecTxEccWorkaround FAILED"));
-        }
-    }
-#endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
-
     p_TgecDriverParam = p_Tgec->p_TgecDriverParam;
 
     MAKE_ENET_ADDR_FROM_UINT64(p_Tgec->addr, ethAddr);
@@ -860,6 +848,18 @@ static t_Error TgecInit(t_Handle h_Tgec)
     }
     else if (p_Tgec->mdioIrq == 0)
         REPORT_ERROR(MINOR, E_NOT_SUPPORTED, (NO_MSG));
+
+#ifdef FM_TX_ECC_FRMS_ERRATA_10GMAC_A004
+    if (p_Tgec->fmMacControllerDriver.fmRevInfo.majorRev <= 6 /*fixed for rev3 */)
+    {
+        if (!p_Tgec->p_TgecDriverParam->skip_fman11_workaround &&
+            ((err = TgecTxEccWorkaround(p_Tgec)) != E_OK))
+        {
+            FreeInitResources(p_Tgec);
+            RETURN_ERROR(MAJOR, err, ("TgecTxEccWorkaround FAILED"));
+        }
+    }
+#endif /* FM_TX_ECC_FRMS_ERRATA_10GMAC_A004 */
 
     XX_Free(p_TgecDriverParam);
     p_Tgec->p_TgecDriverParam = NULL;
