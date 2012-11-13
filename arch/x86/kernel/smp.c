@@ -261,8 +261,10 @@ void smp_reschedule_interrupt(struct pt_regs *regs)
 {
 	ack_APIC_irq();
 	inc_irq_stat(irq_resched_count);
-	scheduler_ipi(SCHED_IPI_PARMSET(RESCHEDULE_VECTOR,
-					regs->cs != __KERNEL_CS));
+	irq_enter();
+	msa_start_irq(RESCHEDULE_VECTOR);
+	scheduler_ipi();
+	msa_irq_exit(RESCHEDULE_VECTOR, regs->cs != __KERNEL_CS);
 	/*
 	 * KVM uses this interrupt to force a cpu out of guest mode
 	 */

@@ -130,7 +130,6 @@ config SPINLOCK_TEST
 
 config MICROSTATE_ACCT
 	bool "Microstate accounting"
-	depends on MIPS_MT_DISABLED
 	help
 	  This option causes the kernel to keep very accurate track of
 	  how long your threads spend on the runqueues, running, or asleep or

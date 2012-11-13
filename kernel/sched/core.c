@@ -1484,7 +1484,7 @@ static void sched_ttwu_pending(void)
 	raw_spin_unlock(&rq->lock);
 }
 
-void scheduler_ipi(SCHED_IPI_PARMS)
+void scheduler_ipi()
 {
 	if (llist_empty(&this_rq()->wake_list) && !got_nohz_idle_kick())
 		return;
@@ -1502,9 +1502,14 @@ void scheduler_ipi(SCHED_IPI_PARMS)
 	 * however a fair share of IPIs are still resched only so this would
 	 * somewhat pessimize the simple resched case.
 	 */
-	irq_enter();
 #ifdef CONFIG_MICROSTATE_ACCT
-	msa_start_irq(irq);
+	/*
+	 * MSA requires that the caller handle calling irq_enter(),
+	 * msa_start_irq(), and msa_irq_exit().
+	 */
+	BUG_ON(!in_irq());
+#else
+	irq_enter();
 #endif
 	sched_ttwu_pending();
 
@@ -1515,9 +1520,7 @@ void scheduler_ipi(SCHED_IPI_PARMS)
 		this_rq()->idle_balance = 1;
 		raise_softirq_irqoff(SCHED_SOFTIRQ);
 	}
-#ifdef CONFIG_MICROSTATE_ACCT
-	msa_irq_exit(irq, is_going_to_user);
-#else
+#ifndef CONFIG_MICROSTATE_ACCT
 	irq_exit();
 #endif
 }

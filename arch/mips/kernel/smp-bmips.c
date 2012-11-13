@@ -243,7 +243,7 @@ static irqreturn_t bmips_ipi_interrupt(int irq, void *dev_id)
 	write_c0_brcm_action(ACTION_CLR_IPI(smp_processor_id(), action));
 
 	if (action == 0)
-		scheduler_ipi(SCHED_IPI_PARMSET(irq, msa_get_reg()));
+		scheduler_ipi();
 	else
 		smp_call_function_interrupt();
 
@@ -288,7 +288,7 @@ static irqreturn_t bmips_ipi_interrupt(int irq, void *dev_id)
 	spin_unlock_irqrestore(&ipi_lock, flags);
 
 	if (action & SMP_RESCHEDULE_YOURSELF)
-		scheduler_ipi(SCHED_IPI_PARMSET(irq, msa_get_reg()));
+		scheduler_ipi();
 	if (action & SMP_CALL_FUNCTION)
 		smp_call_function_interrupt();
 

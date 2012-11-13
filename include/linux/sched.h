@@ -2346,19 +2346,11 @@ struct task_struct *fork_idle(int);
 extern void set_task_comm(struct task_struct *tsk, char *from);
 extern char *get_task_comm(char *to, struct task_struct *tsk);
 
-#ifdef CONFIG_MICROSTATE_ACCT
-#define SCHED_IPI_PARMS int irq, int is_going_to_user
-#define SCHED_IPI_PARMSET(a, b) a, b
-#else
-#define SCHED_IPI_PARMS void
-#define SCHED_IPI_PARMSET(a, b)
-#endif
-
 #ifdef CONFIG_SMP
-void scheduler_ipi(SCHED_IPI_PARMS);
+void scheduler_ipi(void);
 extern unsigned long wait_task_inactive(struct task_struct *, long match_state);
 #else
-static inline void scheduler_ipi(SCHED_IPI_PARMS) { }
+static inline void scheduler_ipi(void) { }
 static inline unsigned long wait_task_inactive(struct task_struct *p,
 					       long match_state)
 {

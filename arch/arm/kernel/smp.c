@@ -545,7 +545,10 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 		break;
 
 	case IPI_RESCHEDULE:
-		scheduler_ipi(SCHED_IPI_PARMSET(ipinr, user_mode(regs)));
+		irq_enter();
+		msa_start_irq(ipinr);
+		scheduler_ipi();
+		msa_irq_exit(ipinr, user_mode(regs));
 		break;
 
 	case IPI_CALL_FUNC:

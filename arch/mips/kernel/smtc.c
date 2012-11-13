@@ -39,6 +39,7 @@
 #include <asm/cacheflush.h>
 #include <asm/time.h>
 #include <asm/addrspace.h>
+#include <asm/setup.h>
 #include <asm/smtc.h>
 #include <asm/smtc_proc.h>
 
@@ -928,7 +929,7 @@ static void post_direct_ipi(int cpu, struct smtc_ipi *pipi)
 
 static void ipi_resched_interrupt(void)
 {
-	scheduler_ipi(SCHED_IPI_PARMSET(IPI0_IRQ, msa_get_reg()));
+	scheduler_ipi();
 }
 
 static void ipi_call_interrupt(void)
@@ -1114,7 +1115,10 @@ static irqreturn_t ipi_interrupt(int irq, void *dev_idm)
 				if (pipi->type == LINUX_SMP_IPI &&
 				    (int)pipi->arg == SMP_RESCHEDULE_YOURSELF)
 					IPIQ[cpu].resched_flag = 0;
+				irq_enter();
+				msa_start_irq(irq);
 				ipi_decode(pipi);
+				msa_irq_exit(irq, msa_get_reg());
 				local_irq_restore(flags);
 			}
 		}
