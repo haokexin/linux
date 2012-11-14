@@ -1484,7 +1484,7 @@ static void sched_ttwu_pending(void)
 	raw_spin_unlock(&rq->lock);
 }
 
-void scheduler_ipi()
+void scheduler_ipi(void)
 {
 	if (llist_empty(&this_rq()->wake_list) && !got_nohz_idle_kick())
 		return;
