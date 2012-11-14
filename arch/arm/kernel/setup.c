@@ -971,6 +971,9 @@ void __init setup_arch(char **cmdline_p)
 
 	unflatten_device_tree();
 
+#ifdef CONFIG_ARCH_VEXPRESS_DT
+	arm_dt_init_cpu_maps();
+#endif
 #ifdef CONFIG_SMP
 	if (is_smp())
 		smp_init_cpus();
