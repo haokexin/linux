@@ -162,9 +162,7 @@ static int qp_valid(u32 qp)
 	do {
 		struct qm_mcr_queryfq_np np;
 		err = qman_query_fq_np(&fq, &np);
-#ifndef CONFIG_T4_SIMULATOR_WORKAROUND
 		if (err)
-#endif
 			/* FQID range exceeded, found no problems */
 			return 1;
 		if ((np.state & QM_MCR_NP_STATE_MASK) != QM_MCR_NP_STATE_OOS) {

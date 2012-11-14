@@ -331,12 +331,6 @@ config P5040_DS
 
 if PPC64
 
-config T4_SIMULATOR_WORKAROUND
-	bool "apply the workaround for t4 simulator"
-	default n
-	help
-	  This option enables the workaround on t4 simulator
-
 config T4240_QDS
 	bool "Freescale T4240 QDS"
 	select DEFAULT_UIMAGE
