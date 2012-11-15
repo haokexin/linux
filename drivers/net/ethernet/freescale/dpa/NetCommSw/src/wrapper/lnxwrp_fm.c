@@ -1013,7 +1013,11 @@ static struct platform_driver fm_driver = {
         .owner          = THIS_MODULE,
     },
     .probe          = fm_probe,
+#if defined(CONFIG_KEXEC)
+    .shutdown       = fm_remove,
+#endif
     .remove         = __devexit_p(fm_remove)
+
 };
 
 t_Handle LNXWRP_FM_Init(void)
