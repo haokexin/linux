@@ -52,13 +52,11 @@ fman@400000 {
 		reg = <0xf0000 0x1000>;
 		fsl,port-handles = <&fman0_10g_rx0 &fman0_10g_tx0>;
 	};
-/*
-	xmdio0: mdio@f1000 {
+
+	mdio@f1000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,fman-xmdio";
+		compatible = "fsl,fman-memac-tbi";
 		reg = <0xf1000 0x1000>;
-		interrupts = <100 1 0 0>;
 	};
-*/
 };

@@ -52,13 +52,11 @@ fman@500000 {
 		fsl,port-handles = <&fman1_rx5 &fman1_tx5>;
 		ptimer-handle = <&ptp_timer1>;
 	};
-/*
-	mdio@eb120 {
+
+	mdio@eb000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		compatible = "fsl,fman-tbi";
-		reg = <0xeb120 0xee0>;
-		interrupts = <101 1 0 0>;
+		compatible = "fsl,fman-memac-tbi";
+		reg = <0xeb000 0x1000>;
 	};
-*/
 };
