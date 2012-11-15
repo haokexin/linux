@@ -792,6 +792,9 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 #elif defined(CONFIG_FMAN_RESOURCE_ALLOCATION_ALGORITHM) && defined(CONFIG_FMAN_P1023)
     FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev, 48*KILOBYTE);
 #endif
+#if (DPAA_VERSION >= 11)
+    FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev, 256*KILOBYTE);
+#endif /* (DPAA_VERSION >= 11) */
 
     if (FM_Init(p_LnxWrpFmDev->h_Dev) != E_OK)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM"));
