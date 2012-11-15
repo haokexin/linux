@@ -1992,9 +1992,6 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
     else
         FmPcdDecNetEnvOwners(p_FmPcd, p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId].netEnvId);
 
-    /* clear clsPlan driver structure */
-    memset(&p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId], 0, sizeof(t_FmPcdKgClsPlanGrp));
-
     /* free blocks */
     if (p_FmPcd->guestId == NCSW_MASTER_ID)
     {
@@ -2036,6 +2033,9 @@ void FmPcdKgDestroyClsPlanGrp(t_Handle h_FmPcd, uint8_t grpId)
             return;
         }
     }
+
+    /* clear clsPlan driver structure */
+    memset(&p_FmPcd->p_FmPcdKg->clsPlanGrps[grpId], 0, sizeof(t_FmPcdKgClsPlanGrp));
 }
 
 t_Error FmPcdKgBuildBindPortToSchemes(t_Handle h_FmPcd , t_FmPcdKgInterModuleBindPortToSchemes *p_BindPort, uint32_t *p_SpReg, bool add)
