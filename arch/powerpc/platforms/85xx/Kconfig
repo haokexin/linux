@@ -343,6 +343,7 @@ config T4240_QDS
 	select PPC_EPAPR_HV_PIC
 	select HAS_FSL_PAMU
 	select HAS_FSL_QBMAN
+	select FSL_QDS_MDIO if PHYLIB
 	help
 	  This option enables support for the T4240 QDS board
 
@@ -355,6 +356,11 @@ config FSL_P4080_DS_MDIO
 	depends on PHYLIB
 
 config FSL_HYDRA_DS_MDIO
+	bool
+	select VITESSE_PHY
+	depends on PHYLIB
+
+config FSL_QDS_MDIO
 	bool
 	select VITESSE_PHY
 	depends on PHYLIB

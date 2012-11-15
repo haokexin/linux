@@ -30,6 +30,7 @@ obj-$(CONFIG_P5040_DS)    += p5040_ds.o corenet_ds.o
 obj-$(CONFIG_T4240_QDS)   += t4240_qds.o corenet_ds.o
 obj-$(CONFIG_FSL_P4080_DS_MDIO) += p4080_ds_mdio.o
 obj-$(CONFIG_FSL_HYDRA_DS_MDIO) += hydra_mdio.o
+obj-$(CONFIG_FSL_QDS_MDIO) += qds_mdio.o
 obj-$(CONFIG_STX_GP3)	  += stx_gp3.o
 obj-$(CONFIG_TQM85xx)	  += tqm85xx.o
 obj-$(CONFIG_SBC8560)     += sbc8560.o

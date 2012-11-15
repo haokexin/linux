@@ -145,6 +145,9 @@ int __init declare_of_platform_devices(void)
 	for_each_compatible_node(np, NULL, "fsl,hydra-xmdio")
 		of_platform_device_create(np, NULL, NULL);
 
+	for_each_compatible_node(np, NULL, "fsl,tetra-mdio")
+		of_platform_device_create(np, NULL, NULL);
+
 	return 0;
 }
 
