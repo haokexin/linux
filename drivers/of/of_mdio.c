@@ -79,6 +79,9 @@ int of_mdiobus_register(struct mii_bus *mdio, struct device_node *np)
 				mdio->irq[addr] = PHY_POLL;
 		}
 
+		mdio->is_c45 = of_device_is_compatible(child,
+					"ethernet-phy-ieee802.3-c45");
+
 		phy = get_phy_device(mdio, addr);
 		if (!phy || IS_ERR(phy)) {
 			dev_err(&mdio->dev, "error probing PHY at address %i\n",

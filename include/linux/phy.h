@@ -131,6 +131,9 @@ struct mii_bus {
 	 * interrupt at the index matching its address
 	 */
 	int *irq;
+
+	/* indicate whether it's for Clause 45 PHY */
+	bool is_c45;
 };
 #define to_mii_bus(d) container_of(d, struct mii_bus, dev)
 

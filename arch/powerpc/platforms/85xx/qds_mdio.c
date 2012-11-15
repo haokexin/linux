@@ -51,6 +51,7 @@ int qds_mdio_write(struct mii_bus *bus, int port_addr, int dev_addr,
 	if ((emisel < 6) || (emisel == 7))
 		clrsetbits_8(priv->qixis_brdcfg4, priv->mask, priv->value);
 
+	priv->real_bus->is_c45 = bus->is_c45;
 	/* Write through to the attached MDIO bus */
 	ret = priv->real_bus->write(priv->real_bus, port_addr, dev_addr,
 					regnum, value);
@@ -73,6 +74,7 @@ int qds_mdio_read(struct mii_bus *bus, int port_addr, int dev_addr,
 	if ((emisel < 6) || (emisel == 7))
 		clrsetbits_8(priv->qixis_brdcfg4, priv->mask, priv->value);
 
+	priv->real_bus->is_c45 = bus->is_c45;
 	ret = priv->real_bus->read(priv->real_bus, port_addr, dev_addr,
 					regnum);
 	mutex_unlock(&emi_lock);
