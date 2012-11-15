@@ -338,8 +338,8 @@ out:									\
 			  TALITOS_IMR_LO_INIT);				\
 	}								\
 									\
-	return work_done;						\
 	spin_unlock_irqrestore(&priv->reg_lock, flags);			\
+	return work_done;						\
 }
 DEF_TALITOS_DONE(4ch, TALITOS_ISR_4CHDONE, 4)
 DEF_TALITOS_DONE(ch0_2, TALITOS_ISR_CH_0_2_DONE, 2)
