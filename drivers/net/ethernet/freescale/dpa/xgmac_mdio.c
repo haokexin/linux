@@ -220,7 +220,7 @@ static int xgmac_mdio_probe(struct platform_device *ofdev)
 	new_bus->parent = &ofdev->dev;
 	dev_set_drvdata(&ofdev->dev, new_bus);
 
-	sprintf(new_bus->id, "%s", np->name);
+	sprintf(new_bus->id, "%s@%llx", np->name, (unsigned long long)addr);
 
 	err = of_mdiobus_register(new_bus, np);
 
