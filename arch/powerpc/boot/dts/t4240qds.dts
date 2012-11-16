@@ -454,9 +454,6 @@
 				};
 			};
 
-			fman1_oh2 {
-				status = "disabled";
-			};
 			fman1_oh3 {
 				status = "disabled";
 			};
