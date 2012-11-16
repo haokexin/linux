@@ -93,6 +93,10 @@ struct sdhci_host {
  * has incorrect set 1.8V and 3.0V
  */
 #define SDHCI_QUIRK_QORIQ_HOSTCAPBLT_ONLY_VS33		(0x200000000U)
+/* Controller can only supports 1.8V, but the peripheral hardware
+ * circuit has capability to support 3.3V
+ */
+#define SDHCI_QUIRK_QORIQ_CIRCUIT_SUPPORT_VS33		(0x400000000U)
 
 	unsigned int quirks2;	/* More deviations from spec. */
 
