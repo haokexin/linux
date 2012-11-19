@@ -39,7 +39,6 @@
 #define __PART_INTEGRATION_EXT_H
 
 #include "std_ext.h"
-#include "ddr_std_ext.h"
 #include "dpaa_integration_ext.h"
 
 
@@ -364,6 +363,7 @@ t_Error  P1023_GetFmFactor(uintptr_t gutilBase, uint32_t *p_FmMulFactor, uint32_
 *//***************************************************************************/
 uint32_t P1023_GetCcbFactor(uintptr_t gutilBase);
 
+#if 0
 /**************************************************************************//**
  @Function      P1023_GetDdrFactor
 
@@ -380,7 +380,6 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
                             uint32_t    *p_DdrMulFactor,
                             uint32_t    *p_DdrDivFactor);
 
-
 /**************************************************************************//**
  @Function      P1023_GetDdrType
 
@@ -392,7 +391,7 @@ t_Error P1023_GetDdrFactor( uintptr_t   gutilBase,
  @Return        E_OK on success; Other value otherwise.
 *//***************************************************************************/
 t_Error P1023_GetDdrType(uintptr_t gutilBase, e_DdrType *p_DdrType );
-
+#endif
 
 /** @} */ /* end of 1023_init_grp group */
 /** @} */ /* end of 1023_grp group */
