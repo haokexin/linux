@@ -104,8 +104,8 @@
 
 			partition@C00000 {
 				/* 500MB for Root file System Image */
-				reg = <0x00e00000 0x1F400000>;
-				label = " NAND RFS Image";
+				reg = <0x00c00000 0x1F400000>;
+				label = "NAND RFS Image";
 			};
 		};
 
