@@ -1373,6 +1373,14 @@ _GLOBAL(init_core_book3e)
 
 _GLOBAL(fsl_enable_threads)
 BEGIN_FTR_SECTION
+	/* Disable the other thread */
+	li	r3,2
+	mtspr	SPRN_TENC,r3
+
+1:	mfspr	r3,SPRN_TENSR
+	andi.	r3,r3,2
+	bne	1b
+
 	/* Configure the MSR per the default */
 	LOAD_REG_IMMEDIATE(r3, MSR_KERNEL);
 	MTTMR(TMRN_IMSR1, 3);
