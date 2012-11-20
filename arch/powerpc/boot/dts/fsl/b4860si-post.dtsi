@@ -238,6 +238,11 @@
 		reg = <0xe1000 0x1000>;
 	};
 
+	rcpm: global-utilities@e2000 {
+		compatible = "fsl,b4860-rcpm", "fsl,qoriq-rcpm-2";
+		reg = <0xe2000 0x1000>;
+	};
+
 /include/ "qoriq-dma-0.dtsi"
 /include/ "qoriq-dma-1.dtsi"
 
