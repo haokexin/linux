@@ -221,7 +221,7 @@
 				status = "disabled";
 			};
 
-			xmdio@fd000 {
+			mdio@fd000 {
 				status = "disabled";
 			};
 
@@ -389,7 +389,7 @@
 				};
 			};
 
-			xmdio0: xmdio@fd000 {
+			xmdio0: mdio@fd000 {
 				/* For 10g interfaces */
 				t4240xmdio1: xmdio-slot1 {
 					#address-cells = <1>;
