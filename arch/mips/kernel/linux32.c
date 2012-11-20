@@ -45,8 +45,6 @@
 #include <asm/mmu_context.h>
 #include <asm/mman.h>
 
-DEFINE_TRACE(ipc_call);
-
 /* Use this to get at 32-bit user passed pointers. */
 /* A() macro should be used for places where you e.g.
    have some internal variable u32 and just want to get
