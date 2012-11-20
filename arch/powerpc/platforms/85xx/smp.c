@@ -132,6 +132,36 @@ static void __cpuinit mpc85xx_take_timebase(void)
 static void __cpuinit smp_85xx_setup_cpu(int cpu_nr);
 
 #ifdef CONFIG_HOTPLUG_CPU
+#ifdef CONFIG_PPC_E500MC
+static void __cpuinit smp_85xx_mach_cpu_die(void)
+{
+	unsigned int cpu = smp_processor_id();
+
+	local_irq_disable();
+	idle_task_exit();
+	mb();
+
+	mtspr(SPRN_TCR, 0);
+
+	__flush_disable_L1();
+	disable_backside_L2_cache();
+
+	generic_set_cpu_dead(cpu);
+
+	while (1)
+		;
+}
+
+void platform_cpu_die(unsigned int cpu)
+{
+	unsigned int hw_cpu = get_hard_smp_processor_id(cpu);
+	struct ccsr_rcpm __iomem *rcpm = guts_regs;
+
+	/* Core Nap Operation */
+	setbits32(&rcpm->cnapcr, 1 << hw_cpu);
+}
+#else
+/* for e500v1 and e500v2 */
 static void __cpuinit smp_85xx_mach_cpu_die(void)
 {
 	unsigned int cpu = smp_processor_id();
@@ -161,6 +191,7 @@ static void __cpuinit smp_85xx_mach_cpu_die(void)
 	while (1)
 		;
 }
+#endif /* CONFIG_PPC_E500MC */
 #endif
 
 static inline void flush_spin_table(void *spin_table)
@@ -188,6 +219,9 @@ static int __cpuinit smp_85xx_kick_cpu(int nr)
 	int ret = 0;
 #if (defined(CONFIG_KEXEC) || defined(CONFIG_CRASH_DUMP)) && !defined(CONFIG_PPC32)
 	unsigned long *ptr;
+#endif
+#ifdef CONFIG_PPC_E500MC
+	struct ccsr_rcpm __iomem *rcpm = guts_regs;
 #endif
 
 	WARN_ON(nr < 0 || nr >= NR_CPUS);
@@ -235,6 +269,14 @@ static int __cpuinit smp_85xx_kick_cpu(int nr)
 		flush_spin_table(spin_table);
 		out_be32(&spin_table->addr_l, 0);
 		flush_spin_table(spin_table);
+
+#ifdef CONFIG_PPC_E500MC
+		/*
+		 * Due to an erratum of core warm reset, clear NAP bits
+		 * in the CNAPCR register by hand prior to reset.
+		 */
+		clrbits32(&rcpm->cnapcr, 1 << hw_cpu);
+#endif
 
 		/*
 		 * We don't set the BPTR register here upon it points
@@ -311,7 +353,7 @@ struct smp_ops_t smp_85xx_ops = {
 	.cpu_disable	= generic_cpu_disable,
 	.cpu_die	= generic_cpu_die,
 #endif
-#if defined(CONFIG_KEXEC) || defined(CONFIG_HOTPLUG_CPU)
+#ifdef CONFIG_KEXEC
 	.give_timebase	= smp_generic_give_timebase,
 	.take_timebase	= smp_generic_take_timebase,
 #endif
