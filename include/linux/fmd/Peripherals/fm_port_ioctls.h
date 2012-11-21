@@ -770,6 +770,31 @@ typedef struct ioc_fm_port_mac_addr_params_t {
 *//***************************************************************************/
 #define FM_PORT_IOC_REMOVE_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(37), ioc_fm_port_mac_addr_params_t)
 
+typedef struct ioc_fm_port_tx_pause_frames_params_t {
+    uint8_t  priority;
+    uint16_t pause_time;
+    uint16_t thresh_time;
+} ioc_fm_port_tx_pause_frames_params_t;
+
+/**************************************************************************//**
+ @Function      FM_MAC_SetTxPauseFrames
+
+ @Description   Enable/Disable transmission of Pause-Frames.
+                The routine changes the default configuration:
+                pause-time - [0xf000]
+                threshold-time - [0]
+
+ @Param[in]     ioc_fm_port_tx_pause_frames_params_t A structure holding the required parameters.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_MAC_Init().
+                PFC is supported only on new mEMAC; i.e. in MACs that don't have
+                PFC support (10G-MAC and dTSEC), user should use 'FM_MAC_NO_PFC'
+                in the 'priority' field.
+*//***************************************************************************/
+#define FM_PORT_IOC_SET_TX_PAUSE_FRAMES       _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(40), ioc_fm_port_tx_pause_frames_params_t)
+
 #if (DPAA_VERSION >= 11)
 /**************************************************************************//**
  @Function      FM_PORT_ConfigBufferPrefixContent
