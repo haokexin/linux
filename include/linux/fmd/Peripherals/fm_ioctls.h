@@ -325,6 +325,15 @@ typedef struct ioc_fm_vsp_prs_result_params_t {
 } ioc_fm_vsp_prs_result_params_t;
 #endif
 
+typedef struct fm_ctrl_mon_t {
+    uint8_t     percent_cnt[1];
+} fm_ctrl_mon_t;
+
+typedef struct ioc_fm_ctrl_mon_counters_params_t {
+    uint8_t     fm_ctrl_index;
+    fm_ctrl_mon_t *p_mon;
+} ioc_fm_ctrl_mon_counters_params_t;
+
 /**************************************************************************//**
  @Function      FM_IOC_SET_PORTS_BANDWIDTH
 
@@ -548,6 +557,63 @@ typedef struct ioc_fm_vsp_prs_result_params_t {
 #endif
 #define FM_IOC_VSP_GET_BUFFER_PRS_RESULT                   _IOWR(FM_IOC_TYPE_BASE, FM_IOC_NUM(14), ioc_fm_vsp_prs_result_params_t)
 #endif /* (DPAA_VERSION >= 11) */
+
+/**************************************************************************//**
+ @Function      FM_CtrlMonStart
+
+ @Description   Start monitoring utilization of all available FM controllers.
+
+                In order to obtain FM controllers utilization the following sequence
+                should be used:
+                -# FM_CtrlMonStart()
+                -# FM_CtrlMonStop()
+                -# FM_CtrlMonGetCounters() - issued for each FM controller
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Init().
+*//***************************************************************************/
+#define FM_IOC_CTRL_MON_START                              _IO(FM_IOC_TYPE_BASE, FM_IOC_NUM(15))
+
+
+/**************************************************************************//**
+ @Function      FM_CtrlMonStop
+
+ @Description   Stop monitoring utilization of all available FM controllers.
+
+                In order to obtain FM controllers utilization the following sequence
+                should be used:
+                -# FM_CtrlMonStart()
+                -# FM_CtrlMonStop()
+                -# FM_CtrlMonGetCounters() - issued for each FM controller
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Init().
+*//***************************************************************************/
+#define FM_IOC_CTRL_MON_STOP                               _IO(FM_IOC_TYPE_BASE, FM_IOC_NUM(16))
+
+/**************************************************************************//**
+ @Function      FM_CtrlMonGetCounters
+
+ @Description   Obtain FM controller utilization parameters.
+
+                In order to obtain FM controllers utilization the following sequence
+                should be used:
+                -# FM_CtrlMonStart()
+                -# FM_CtrlMonStop()
+                -# FM_CtrlMonGetCounters() - issued for each FM controller
+
+ @Param[in]     ioc_fm_ctrl_mon_counters_params_t       A structure holding the required parameters.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Init().
+*//***************************************************************************/
+#if defined(CONFIG_COMPAT)
+#define FM_IOC_CTRL_MON_GET_COUNTERS_COMPAT                _IOW(FM_IOC_TYPE_BASE, FM_IOC_NUM(17), ioc_compat_fm_ctrl_mon_counters_params_t)
+#endif
+#define FM_IOC_CTRL_MON_GET_COUNTERS                       _IOW(FM_IOC_TYPE_BASE, FM_IOC_NUM(17), ioc_fm_ctrl_mon_counters_params_t)
 
 /** @} */ /* end of lnx_ioctl_FM_runtime_control_grp group */
 /** @} */ /* end of lnx_ioctl_FM_lib_grp group */
