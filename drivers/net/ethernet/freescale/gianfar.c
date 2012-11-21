@@ -121,11 +121,9 @@
 
 const char gfar_driver_version[] = "1.3";
 static struct gfar_recycle_cntxt *gfar_global_recycle_cntxt;
-static bool hw_vlan_enabled = 1;
 static int tx_napi_enabled = 1;
 static int tx_napi_weight = GFAR_DEV_TX_WEIGHT;
 static int rx_napi_weight = GFAR_DEV_RX_WEIGHT;
-module_param(hw_vlan_enabled, bool, S_IRUGO);
 module_param(tx_napi_enabled, bool, S_IRUGO);
 module_param(tx_napi_weight, int, S_IRUGO);
 module_param(rx_napi_weight, int, S_IRUGO);
@@ -1339,7 +1337,7 @@ static int gfar_probe(struct platform_device *ofdev)
 			NETIF_F_RXCSUM | NETIF_F_HIGHDMA;
 	}
 
-	if ((priv->device_flags & FSL_GIANFAR_DEV_HAS_VLAN) && hw_vlan_enabled) {
+	if (priv->device_flags & FSL_GIANFAR_DEV_HAS_VLAN) {
 		dev->hw_features |= NETIF_F_HW_VLAN_TX | NETIF_F_HW_VLAN_RX;
 		dev->features |= NETIF_F_HW_VLAN_RX;
 	}
