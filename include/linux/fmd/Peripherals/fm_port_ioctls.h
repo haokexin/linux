@@ -771,6 +771,33 @@ typedef struct ioc_fm_port_mac_addr_params_t {
 #define FM_PORT_IOC_REMOVE_RX_HASH_MAC_ADDR   _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(37), ioc_fm_port_mac_addr_params_t)
 
 #if (DPAA_VERSION >= 11)
+/**************************************************************************//**
+ @Function      FM_PORT_ConfigBufferPrefixContent
+
+ @Description   Defines the structure, size and content of the application buffer.
+                The prefix will
+                In Tx ports, if 'passPrsResult', the application
+                should set a value to their offsets in the prefix of
+                the FM will save the first 'privDataSize', than,
+                depending on 'passPrsResult' and 'passTimeStamp', copy parse result
+                and timeStamp, and the packet itself (in this order), to the
+                application buffer, and to offset.
+                Calling this routine changes the buffer margins definitions
+                in the internal driver data base from its default
+                configuration: Data size:  [DEFAULT_FM_SP_bufferPrefixContent_privDataSize]
+                               Pass Parser result: [DEFAULT_FM_SP_bufferPrefixContent_passPrsResult].
+                               Pass timestamp: [DEFAULT_FM_SP_bufferPrefixContent_passTimeStamp].
+
+                May be used for all ports
+
+ @Param[in]     ioc_fm_buffer_prefix_content_t  A structure holding the required parameters.
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_PORT_Config() and before FM_PORT_Init().
+*//***************************************************************************/
+#define FM_PORT_IOC_CONFIG_BUFFER_PREFIX_CONTENT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(39), ioc_fm_buffer_prefix_content_t)
+
 typedef struct ioc_fm_port_vsp_alloc_params_t {
     uint8_t     num_of_profiles;          /**< Number of Virtual Storage Profiles */
     uint8_t     dflt_relative_id;         /**< The default Virtual-Storage-Profile-id dedicated to Rx/OP port
