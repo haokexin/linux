@@ -235,22 +235,22 @@ typedef struct ioc_fm_ext_pool_params {
                 (must be identical to t_FmExtPools defined in fm_ext.h)
 *//***************************************************************************/
 typedef struct ioc_fm_ext_pools {
-    uint8_t                 numOfPoolsUsed;     /**< Number of pools use by this port */
-    ioc_fm_ext_pool_params  extBufPool[FM_PORT_MAX_NUM_OF_EXT_POOLS];
+    uint8_t                 num_of_pools_used;     /**< Number of pools use by this port */
+    ioc_fm_ext_pool_params  ext_buf_pool[FM_PORT_MAX_NUM_OF_EXT_POOLS];
                                                 /**< Parameters for each port */
 } ioc_fm_ext_pools;
 
 typedef struct ioc_fm_vsp_params_t {
-    void                *h_Fm;              /**< A handle to the FM object this VSP related to */
-    ioc_fm_ext_pools    extBufPools;        /**< Which external buffer pools are used
+    void                *p_fm;              /**< A handle to the FM object this VSP related to */
+    ioc_fm_ext_pools    ext_buf_pools;        /**< Which external buffer pools are used
                                                  (up to FM_PORT_MAX_NUM_OF_EXT_POOLS), and their sizes.
                                                  parameter associated with Rx / OP port */
-    uint16_t            liodnOffset;        /**< VSP's LIODN offset */
+    uint16_t            liodn_offset;        /**< VSP's LIODN offset */
     struct {
-        ioc_fm_port_type portType;          /**< Port type */
-        uint8_t         portId;             /**< Port Id - relative to type */
+        ioc_fm_port_type port_type;          /**< Port type */
+        uint8_t         port_id;             /**< Port Id - relative to type */
     } portParams;
-    uint8_t             relativeProfileId;  /**< VSP Id - relative to VSP's range
+    uint8_t             relative_profile_id;  /**< VSP Id - relative to VSP's range
                                                  defined in relevant FM object */
     void                *id;                /**< return value */
 } ioc_fm_vsp_params_t;
