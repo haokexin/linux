@@ -186,7 +186,7 @@ void XX_Fprint(void *file, char *str, ...)
 #ifdef CONFIG_SMP
     if (vsnprintf (buf, BUF_SIZE, str, args) >= BUF_SIZE)
         printk(KERN_WARNING "Illegal string to print!\n    more than %d characters.\n\tString was not printed completelly.\n", BUF_SIZE);
-    printk (KERN_CRIT "cpu%d/%d: %s",hard_smp_processor_id(), smp_processor_id(), buf);
+    printk (KERN_CRIT "cpu%d: %s",raw_smp_processor_id(), buf);
 #else
     vprintk(str, args);
 #endif /* CONFIG_SMP */

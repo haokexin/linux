@@ -60,7 +60,7 @@
 /*#define FM_COMPAT_DBG*/
 
 #define _fm_cpt_prk(stage, format, arg...)	\
-	printk(stage "fm_cpt (cpu:%u): " format, smp_processor_id(), ##arg)
+	printk(stage "fm_cpt (cpu:%u): " format, raw_smp_processor_id(), ##arg)
 
 #define _fm_cpt_inf(format, arg...) _fm_cpt_prk(KERN_INFO, format, ##arg)
 #define _fm_cpt_wrn(format, arg...) _fm_cpt_prk(KERN_WARNING, format, ##arg)
@@ -72,13 +72,13 @@
 		do{ \
 			if (from == COMPAT_US_TO_K) \
 				printk("fm_cpt to KS [%s:%u](cpu:%u) - " format,	\
-					__func__, __LINE__, smp_processor_id(), ##arg); \
+					__func__, __LINE__, raw_smp_processor_id(), ##arg); \
 			else if (from == COMPAT_K_TO_US) \
 				printk("fm_cpt to US [%s:%u](cpu:%u) - " format,	\
-					__func__, __LINE__, smp_processor_id(), ##arg); \
+					__func__, __LINE__, raw_smp_processor_id(), ##arg); \
             else \
                 printk("fm_cpt [%s:%u](cpu:%u) - " format,    \
-                    __func__, __LINE__, smp_processor_id(), ##arg); \
+                    __func__, __LINE__, raw_smp_processor_id(), ##arg); \
 		}while(0)
 #else
 #	define _fm_cpt_dbg(arg...)

@@ -40,13 +40,13 @@
 #define __FSL_FMAN_TEST_H
 
 #include <linux/types.h>
-#include <linux/smp.h>  /* smp_processor_id() */
+#include <linux/smp.h>  /* raw_smp_processor_id() */
 
 //#define FMT_K_DBG
 //#define FMT_K_DBG_RUNTIME
 
 #define _fmt_prk(stage, format, arg...)	\
-	printk(stage "fmt (cpu:%u): " format, smp_processor_id(), ##arg)
+	printk(stage "fmt (cpu:%u): " format, raw_smp_processor_id(), ##arg)
 
 #define _fmt_inf(format, arg...) _fmt_prk(KERN_INFO, format, ##arg)
 #define _fmt_wrn(format, arg...) _fmt_prk(KERN_WARNING, format, ##arg)
@@ -60,7 +60,7 @@
 #if defined(FMT_K_DBG)
 	#define _fmt_dbg(format, arg...) \
 		printk("fmt [%s:%u](cpu:%u) - " format,	\
-			__func__, __LINE__, smp_processor_id(), ##arg)
+			__func__, __LINE__, raw_smp_processor_id(), ##arg)
 #else
 #	define _fmt_dbg(arg...)
 #endif
@@ -69,7 +69,7 @@
 #if defined(FMT_K_DBG_RUNTIME)
 	#define _fmt_dbgr(format, arg...) \
 		printk("fmt [%s:%u](cpu:%u) - " format, \
-			__func__, __LINE__, smp_processor_id(), ##arg)
+			__func__, __LINE__, raw_smp_processor_id(), ##arg)
 #else
 #	define _fmt_dbgr(arg...)
 #endif
