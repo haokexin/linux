@@ -76,6 +76,8 @@ void __init corenet_ds_setup_arch(void)
 static struct of_device_id __initdata corenetds_pci_ids[] = {
 	{ .compatible = "fsl,p4080-pcie", },
 	{ .compatible = "fsl,qoriq-pcie-v2.2", },
+	{ .compatible = "fsl,qoriq-pcie-v2.4", },
+	{ .compatible = "fsl,qoriq-pcie-v2.3", },
 	{},
 };
 
