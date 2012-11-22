@@ -834,7 +834,7 @@ int qman_init_ccsr(struct device_node *node)
 	return 0;
 }
 
-#define PID_CFG_LIODN_MASK 0x0fff0000
+#define LIO_CFG_LIODN_MASK 0x0fff0000
 void qman_liodn_fixup(u16 channel)
 {
 	static int done;
@@ -849,11 +849,11 @@ void qman_liodn_fixup(u16 channel)
 	else
 		before = qm_in(QCSP_LIO_CFG(idx));
 	if (!done) {
-		liodn_offset = before & PID_CFG_LIODN_MASK;
+		liodn_offset = before & LIO_CFG_LIODN_MASK;
 		done = 1;
 		return;
 	}
-	after = (before & (~PID_CFG_LIODN_MASK)) | liodn_offset;
+	after = (before & (~LIO_CFG_LIODN_MASK)) | liodn_offset;
 	if ((qman_ip_rev & 0xFF00) >= QMAN_REV30)
 		qm_out(REV3_QCSP_LIO_CFG(idx), after);
 	else
@@ -868,9 +868,18 @@ int qman_set_sdest(u16 channel, unsigned int cpu_idx)
 
 	if (!qman_have_ccsr())
 		return -ENODEV;
-	before = qm_in(QCSP_IO_CFG(idx));
-	after = (before & (~IO_CFG_SDEST_MASK)) | (cpu_idx << 16);
-	qm_out(QCSP_IO_CFG(idx), after);
+
+	if ((qman_ip_rev & 0xFF00) >= QMAN_REV30) {
+		before = qm_in(REV3_QCSP_IO_CFG(idx));
+		/* Each pair of vcpu share the same SRQ(SDEST) */
+		cpu_idx /= 2;
+		after = (before & (~IO_CFG_SDEST_MASK)) | (cpu_idx << 16);
+		qm_out(REV3_QCSP_IO_CFG(idx), after);
+	} else {
+		before = qm_in(QCSP_IO_CFG(idx));
+		after = (before & (~IO_CFG_SDEST_MASK)) | (cpu_idx << 16);
+		qm_out(QCSP_IO_CFG(idx), after);
+	}
 	return 0;
 }
 
