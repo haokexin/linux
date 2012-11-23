@@ -18,6 +18,7 @@
 #include <trace/events/power.h>
 #include <trace/sched.h>
 #include <linux/hw_breakpoint.h>
+#include <linux/idle.h>
 #include <trace/pm.h>
 #include <asm/cpu.h>
 #include <asm/apic.h>
@@ -34,19 +35,6 @@ DEFINE_TRACE(pm_idle_entry);
 
 #ifdef CONFIG_X86_64
 static DEFINE_PER_CPU(unsigned char, is_idle);
-static ATOMIC_NOTIFIER_HEAD(idle_notifier);
-
-void idle_notifier_register(struct notifier_block *n)
-{
-	atomic_notifier_chain_register(&idle_notifier, n);
-}
-EXPORT_SYMBOL_GPL(idle_notifier_register);
-
-void idle_notifier_unregister(struct notifier_block *n)
-{
-	atomic_notifier_chain_unregister(&idle_notifier, n);
-}
-EXPORT_SYMBOL_GPL(idle_notifier_unregister);
 #endif
 
 DEFINE_TRACE(sched_kthread_create);
@@ -394,14 +382,14 @@ void enter_idle(void)
 	 * data from buffers before going to idle.
 	 */
 	trace_pm_idle_entry();
-	atomic_notifier_call_chain(&idle_notifier, IDLE_START, NULL);
+	notify_idle(IDLE_START);
 }
 
 static void __exit_idle(void)
 {
 	if (x86_test_and_clear_bit_percpu(0, is_idle) == 0)
 		return;
-	atomic_notifier_call_chain(&idle_notifier, IDLE_END, NULL);
+	notify_idle(IDLE_END);
 	trace_pm_idle_exit();
 }
 
