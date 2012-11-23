@@ -275,6 +275,8 @@
 /include/ "qoriq-i2c-1.dtsi"
 /include/ "qoriq-duart-0.dtsi"
 /include/ "qoriq-duart-1.dtsi"
+/include/ "qoriq-sec5.0-0.dtsi"
+
 
 	/*
 	 * Temporarily define cluster 1/2/3's L2 cache nodes in order to pass
