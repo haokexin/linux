@@ -786,6 +786,14 @@ static int __cold fm_rtc_set_fiper(struct net_device *net_dev, uint32_t id,
 	return _errno;
 }
 
+
+void fm_mac_dump_regs(struct mac_device *mac_dev)
+{
+	struct mac_priv_s *mac_priv = macdev_priv(mac_dev);
+
+	FM_MAC_DumpRegs(mac_priv->mac);
+}
+
 static void __devinit __cold setup_dtsec(struct mac_device *mac_dev)
 {
 	mac_dev->init_phy	= dtsec_init_phy;

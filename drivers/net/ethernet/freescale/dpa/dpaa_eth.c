@@ -3640,14 +3640,51 @@ static ssize_t dpaa_eth_show_dflt_bpid(struct device *dev,
 
 static DEVICE_ATTR(dflt_bpid, S_IRUGO, dpaa_eth_show_dflt_bpid, NULL);
 
+static ssize_t dpaa_eth_show_mac_regs(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct dpa_priv_s *priv = netdev_priv(to_net_dev(dev));
+	struct mac_device *mac_dev = priv->mac_dev;
+
+	fm_mac_dump_regs(mac_dev);
+
+	return 0;
+}
+
+static DEVICE_ATTR(mac_regs, S_IRUGO, dpaa_eth_show_mac_regs, NULL);
+
 static void __devinit dpaa_eth_sysfs_init(struct device *dev)
 {
+	struct dpa_priv_s *priv = netdev_priv(to_net_dev(dev));
+	int i = 0;
+
 	if (device_create_file(dev, &dev_attr_device_addr))
 		dev_err(dev, "Error creating dpaa_eth addr file\n");
+	priv->sysfs_attrs[i++] = &dev_attr_device_addr;
+
 	if (device_create_file(dev, &dev_attr_fqids))
 		dev_err(dev, "Error creating dpaa_eth fqids file\n");
+	priv->sysfs_attrs[i++] = &dev_attr_fqids;
+
 	if (device_create_file(dev, &dev_attr_dflt_bpid))
 		dev_err(dev, "Error creating dpaa_eth dflt_bpid file\n");
+	priv->sysfs_attrs[i++] = &dev_attr_dflt_bpid;
+
+	if (device_create_file(dev, &dev_attr_mac_regs))
+		dev_err(dev, "Error creating dpaa_eth mac_regs file\n");
+	priv->sysfs_attrs[i++] = &dev_attr_mac_regs;
+
+	/* last entry must be NULL */
+	priv->sysfs_attrs[i] = NULL;
+}
+
+static void dpaa_eth_sysfs_remove(struct net_device *net_dev)
+{
+	struct dpa_priv_s *priv = netdev_priv(net_dev);
+	struct device_attribute **p = &priv->sysfs_attrs[0];
+
+	while (p)
+		device_remove_file(&net_dev->dev, *p++);
 }
 
 static int dpaa_eth_add_channel(void *__arg)
@@ -4002,6 +4039,8 @@ static int __devexit __cold dpa_remove(struct platform_device *of_dev)
 	dev = &of_dev->dev;
 	net_dev = dev_get_drvdata(dev);
 	priv = netdev_priv(net_dev);
+
+	dpaa_eth_sysfs_remove(net_dev);
 
 	dev_set_drvdata(dev, NULL);
 	unregister_netdev(net_dev);
