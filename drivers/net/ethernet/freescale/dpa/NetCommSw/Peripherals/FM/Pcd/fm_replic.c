@@ -690,6 +690,12 @@ t_Handle FM_PCD_FrmReplicSetGroup(t_Handle                    h_FmPcd,
     SANITY_CHECK_RETURN_VALUE(h_FmPcd, E_INVALID_HANDLE, NULL);
     SANITY_CHECK_RETURN_VALUE(p_ReplicGroupParam, E_INVALID_HANDLE, NULL);
 
+    if (!FmPcdIsAdvancedOffloadSupported(h_FmPcd))
+    {
+        REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Advanced-offload must be enabled"));
+        return NULL;
+    }
+
     err = CheckParams(h_FmPcd, p_ReplicGroupParam);
     if (err)
     {

@@ -174,7 +174,7 @@ typedef uint32_t fmPcdEngines_t; /**< options as defined below: */
 #define IP_FRAG_SW_PATCH_IPv4_SIZE              0x025
 #else
 #define IP_FRAG_SW_PATCH_IPv4_LABEL             0x2E0
-#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x043
+#define IP_FRAG_SW_PATCH_IPv4_SIZE              0x046
 #endif /* (DPAA_VERSION == 10) */
 #define IP_FRAG_SW_PATCH_IPv6_LABEL             \
     (IP_FRAG_SW_PATCH_IPv4_LABEL + IP_FRAG_SW_PATCH_IPv4_SIZE)

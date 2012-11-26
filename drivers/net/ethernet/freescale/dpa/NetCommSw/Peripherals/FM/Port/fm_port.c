@@ -4923,24 +4923,12 @@ t_Error FM_PORT_SetPCD(t_Handle h_FmPort, t_FmPortPcdParams *p_PcdParam)
             p_FmPort->savedBmiNia |= (NIA_FM_CTL_AC_POST_BMI_FETCH | NIA_ENG_FM_CTL);
 
             /* Set pre-bmi-fetch nia */
-            fmPortGetSetCcParams.getCcParams.type = GET_NIA_PNDN;
-            if ((err = FmPortGetSetCcParams(p_FmPort, &fmPortGetSetCcParams)) != E_OK)
-            {
-                DeletePcd(p_FmPort);
-                if (p_FmPort->h_IpReassemblyTree)
-                {
-                    FM_PCD_CcRootDelete(p_FmPort->h_IpReassemblyTree);
-                    p_FmPort->h_IpReassemblyTree = NULL;
-                }
-                FmPcdLockUnlockAll(p_FmPort->h_FmPcd);
-                RELEASE_LOCK(p_FmPort->lock);
-                RETURN_ERROR(MINOR, err, NO_MSG);
-            }
             fmPortGetSetCcParams.setCcParams.type = UPDATE_NIA_PNDN;
-            if (fmPortGetSetCcParams.getCcParams.nia == (NIA_ENG_BMI | NIA_BMI_AC_FETCH))
-                fmPortGetSetCcParams.setCcParams.nia = (NIA_FM_CTL_AC_PRE_BMI_FETCH_HEADER | NIA_ENG_FM_CTL);
-            else
-                fmPortGetSetCcParams.setCcParams.nia = (NIA_FM_CTL_AC_PRE_BMI_FETCH_FULL_FRAME | NIA_ENG_FM_CTL);
+#if (DPAA_VERSION >= 11)
+            fmPortGetSetCcParams.setCcParams.nia = (NIA_FM_CTL_AC_PRE_BMI_FETCH_FULL_FRAME | NIA_ENG_FM_CTL);
+#else
+            fmPortGetSetCcParams.setCcParams.nia = (NIA_FM_CTL_AC_PRE_BMI_FETCH_HEADER | NIA_ENG_FM_CTL);
+#endif /* (DPAA_VERSION >= 11) */
             if ((err = FmPortGetSetCcParams(p_FmPort, &fmPortGetSetCcParams)) != E_OK)
             {
                 DeletePcd(p_FmPort);

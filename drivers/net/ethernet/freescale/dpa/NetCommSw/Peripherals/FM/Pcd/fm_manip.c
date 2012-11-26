@@ -3790,6 +3790,18 @@ t_Handle FM_PCD_ManipNodeSet(t_Handle h_FmPcd, t_FmPcdManipParams *p_ManipParams
     p_Manip =  ManipOrStatsSetNode(h_FmPcd, (t_Handle)p_ManipParams, FALSE);
     if (!p_Manip)
         return NULL;
+
+    if (((p_Manip->opcode == HMAN_OC_IP_REASSEMBLY) ||
+         (p_Manip->opcode == HMAN_OC_IP_FRAGMENTATION) ||
+         (p_Manip->opcode == HMAN_OC_MV_INT_FRAME_HDR_FROM_FRM_TO_BUFFER_PREFFIX) ||
+         (p_Manip->opcode == HMAN_OC) ||
+         (p_Manip->opcode == HMAN_OC_IPSEC_MANIP)) &&
+        (!FmPcdIsAdvancedOffloadSupported(p_FmPcd)))
+    {
+        REPORT_ERROR(MAJOR, E_INVALID_STATE, ("Advanced-offload must be enabled"));
+        XX_Free(p_Manip);
+        return NULL;
+    }
     p_Manip->h_Spinlock = XX_InitSpinlock();
     if (!p_Manip->h_Spinlock)
     {
@@ -3805,24 +3817,12 @@ t_Handle FM_PCD_ManipNodeSet(t_Handle h_FmPcd, t_FmPcdManipParams *p_ManipParams
         case (HMAN_OC_IP_REASSEMBLY):
             /* IpReassembly */
             err = IpReassembly(&p_ManipParams->u.reassem, p_Manip);
-            if (err)
-            {
-                REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("UNSUPPORTED HEADER MANIPULATION TYPE"));
-                ReleaseManipHandler(p_Manip, p_FmPcd);
-                XX_Free(p_Manip);
-                return NULL;
-            }
             break;
        case (HMAN_OC_IP_FRAGMENTATION):
             /* IpFragmentation */
             err = IpFragmentation(&p_ManipParams->u.frag.u.ipFrag ,p_Manip);
             if (err)
-            {
-                REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("UNSUPPORTED HEADER MANIPULATION TYPE"));
-                ReleaseManipHandler(p_Manip, p_FmPcd);
-                XX_Free(p_Manip);
-                return NULL;
-            }
+                break;
             err = IPManip(p_Manip);
             break;
         case (HMAN_OC_IPSEC_MANIP) :
