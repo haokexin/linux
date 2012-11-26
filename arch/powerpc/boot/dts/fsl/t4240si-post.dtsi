@@ -231,7 +231,7 @@
 
 	iommu@20000 {
 		compatible = "fsl,pamu-v1.0", "fsl,pamu";
-		reg = <0x20000 0x4000>;
+		reg = <0x20000 0x6000>;
 		interrupts = <
 			24 2 0 0
 			16 2 1 30>;
