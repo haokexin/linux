@@ -165,10 +165,11 @@ config FSL_QMAN_DEBUGFS
 # H/w settings that can be hard-coded for now.
 config FSL_QMAN_FQD_SZ
 	int "size of Frame Queue Descriptor region"
-	default 9
+	default 10
 	---help---
 	  This is the size of the FQD region defined as: PAGE_SIZE * (2^value)
-	  ex: 9 => PAGE_SIZE * (2^9)
+	  ex: 10 => PAGE_SIZE * (2^10)
+	  Note: Default device-trees now require minimum Kconfig setting of 10.
 
 # Corenet initiator settings. Stash request queues are 4-deep to match cores'
 # ability to snart. Stash priority is 3, other priorities are 2.
