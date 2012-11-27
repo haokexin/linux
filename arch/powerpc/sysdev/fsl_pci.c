@@ -1025,7 +1025,7 @@ static int fsl_pci_suspend(struct platform_device *pdev, pm_message_t state)
 		return -ENOMEM;
 	}
 	hose->pci_pow = (struct pci_outbound_window_regs *)
-				(void *)pci + PCI_POW_PIW_OFFSET;
+				((void *)pci + PCI_POW_PIW_OFFSET);
 
 	hose->pci_piw = (struct pci_inbound_window_regs *)
 		((void *)hose->pci_pow + PCI_POW_PIW_SIZE) - 1;
