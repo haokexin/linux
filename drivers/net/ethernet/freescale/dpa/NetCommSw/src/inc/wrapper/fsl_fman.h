@@ -233,6 +233,17 @@ int fm_get_tx_port_channel(struct fm_port *port);
 void fm_set_tx_port_params(struct fm_port *port, struct fm_port_non_rx_params *params);
 
 /**************************************************************************//**
+ @Function      fm_mac_set_handle
+
+ @Description   Set mac handle
+
+ @Param[in]     h_lnx_wrp_fm_dev - A handle of the LnxWrp FM device.
+ @Param[in]     h_fm_mac         - A handle of the LnxWrp FM MAC device.
+ @Param[in]     mac_id            - MAC id.
+*//***************************************************************************/
+void fm_mac_set_handle(t_Handle h_lnx_wrp_fm_dev, t_Handle h_fm_mac, int mac_id);
+
+/**************************************************************************//**
  @Function      fm_port_enable
 
  @Description   Enable specific FM-port device (may be Rx or Tx port).

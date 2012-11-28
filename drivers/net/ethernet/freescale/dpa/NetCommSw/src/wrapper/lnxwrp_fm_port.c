@@ -692,6 +692,17 @@ void fm_set_tx_port_params(struct fm_port *port,
 }
 EXPORT_SYMBOL(fm_set_tx_port_params);
 
+void fm_mac_set_handle(t_Handle h_lnx_wrp_fm_dev,
+        t_Handle h_fm_mac,
+        int mac_id)
+{
+    t_LnxWrpFmDev *p_lnx_wrp_fm_dev = (t_LnxWrpFmDev *)h_lnx_wrp_fm_dev;
+
+    p_lnx_wrp_fm_dev->macs[mac_id].h_Dev = h_fm_mac;
+    p_lnx_wrp_fm_dev->macs[mac_id].h_LnxWrpFmDev = h_lnx_wrp_fm_dev;
+}
+EXPORT_SYMBOL(fm_mac_set_handle);
+
 static void LnxwrpFmPcdDevExceptionsCb(t_Handle h_App,
 				       e_FmPcdExceptions exception)
 {
