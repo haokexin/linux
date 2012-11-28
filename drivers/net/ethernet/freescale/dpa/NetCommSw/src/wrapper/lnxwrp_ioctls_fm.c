@@ -3034,7 +3034,6 @@ t_Error LnxwrpFmPortIOCTL(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev, unsigned int cmd
 /*
 Status: not exported
 #if (DPAA_VERSION >= 11)
-    FM_PORT_ConfigBufferPrefixContent
     FM_PORT_VSPAlloc
 #endif
  */
@@ -3808,6 +3807,7 @@ Status: not exported
             XX_Free(param);
             break;
         }
+
         case FM_PORT_IOC_SET_TX_PAUSE_FRAMES:
         {
             t_LnxWrpFmDev *p_LnxWrpFmDev =
@@ -3837,6 +3837,36 @@ Status: not exported
 
             break;
         }
+
+#if (DPAA_VERSION >= 11)
+        case FM_PORT_IOC_CONFIG_BUFFER_PREFIX_CONTENT:
+        {
+            ioc_fm_buffer_prefix_content_t *param;
+
+            param = (ioc_fm_buffer_prefix_content_t*) XX_Malloc(sizeof(ioc_fm_buffer_prefix_content_t));
+            if (!param)
+                RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PORT"));
+
+            memset(param, 0, sizeof(ioc_fm_buffer_prefix_content_t));
+
+            if (copy_from_user(param, (ioc_fm_buffer_prefix_content_t*) arg,
+                        sizeof(ioc_fm_buffer_prefix_content_t)))
+            {
+                XX_Free(param);
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+            }
+
+            if (FM_PORT_ConfigBufferPrefixContent(p_LnxWrpFmPortDev->h_Dev,
+                    (t_FmBufferPrefixContent *)param))
+            {
+                XX_Free(param);
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+            }
+
+            XX_Free(param);
+            break;
+        }
+#endif /* (DPAA_VERSION >= 11) */
 
         default:
             RETURN_ERROR(MINOR, E_INVALID_SELECTION,
