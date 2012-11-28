@@ -51,6 +51,9 @@ smp_85xx_kick_cpu(int nr)
 	struct device_node *np;
 	int n = 0, hw_cpu = get_hard_smp_processor_id(nr);
 	int ioremappable;
+#if (defined(CONFIG_KEXEC) || defined(CONFIG_CRASH_DUMP)) && !defined(CONFIG_PPC32)
+	unsigned long *ptr;
+#endif
 
 	WARN_ON(nr < 0 || nr >= NR_CPUS);
 	WARN_ON(hw_cpu < 0 || hw_cpu >= NR_CPUS);
@@ -95,12 +98,23 @@ smp_85xx_kick_cpu(int nr)
 #else
 	smp_generic_kick_cpu(nr);
 
+#if defined(CONFIG_KEXEC) || defined(CONFIG_CRASH_DUMP)
+	ptr  = (unsigned long *)((unsigned long)&__run_at_kexec);
+	/* We shouldn't access spin_table from the bootloader to up any
+	 * secondary cpu for kexec kernel, and kexec kernel already
+	 * know how to jump to generic_secondary_smp_init.
+	 */
+	if (!*ptr) {
+#endif
 	out_be64((u64 *)(bptr_vaddr + BOOT_ENTRY_ADDR_UPPER),
 		__pa((u64)*((unsigned long long *) generic_secondary_smp_init)));
 
 	if (!ioremappable)
 		flush_dcache_range((ulong)bptr_vaddr,
 				(ulong)(bptr_vaddr + SIZE_BOOT_ENTRY));
+#if defined(CONFIG_KEXEC) || defined(CONFIG_CRASH_DUMP)
+	}
+#endif
 #endif
 
 	local_irq_restore(flags);

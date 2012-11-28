@@ -189,6 +189,9 @@ extern void generic_secondary_thread_init(void);
 extern unsigned long __secondary_hold_spinloop;
 extern unsigned long __secondary_hold_acknowledge;
 extern char __secondary_hold;
+#ifdef CONFIG_KEXEC
+extern unsigned long __run_at_kexec;
+#endif
 
 #endif /* __ASSEMBLY__ */
 
