@@ -3808,6 +3808,35 @@ Status: not exported
             XX_Free(param);
             break;
         }
+        case FM_PORT_IOC_SET_TX_PAUSE_FRAMES:
+        {
+            t_LnxWrpFmDev *p_LnxWrpFmDev =
+                    (t_LnxWrpFmDev *)p_LnxWrpFmPortDev->h_LnxWrpFmDev;
+            ioc_fm_port_tx_pause_frames_params_t param;
+            int mac_id = p_LnxWrpFmPortDev->id;
+
+            if(&p_LnxWrpFmDev->txPorts[mac_id] != p_LnxWrpFmPortDev)
+                mac_id += FM_MAX_NUM_OF_1G_MACS; /* 10G port */
+
+            if (copy_from_user(&param, (ioc_fm_port_tx_pause_frames_params_t *)arg,
+                        sizeof(ioc_fm_port_tx_pause_frames_params_t)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            if (p_LnxWrpFmDev && p_LnxWrpFmDev->macs[mac_id].h_Dev)
+            {
+                FM_MAC_SetTxPauseFrames(p_LnxWrpFmDev->macs[mac_id].h_Dev,
+                        param.priority,
+                        param.pause_time,
+                        param.thresh_time);
+            }
+            else
+            {
+                err = E_NOT_AVAILABLE;
+                REPORT_ERROR(MINOR, err, ("Port not initialized or other error!"));
+            }
+
+            break;
+        }
 
         default:
             RETURN_ERROR(MINOR, E_INVALID_SELECTION,
