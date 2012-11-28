@@ -145,6 +145,10 @@ static int __devinit __cold init(struct mac_device *mac_dev)
 		goto _return;
 	}
 
+	fm_mac_set_handle(mac_dev->fm_dev, priv->mac,
+		(macdev2enetinterface(mac_dev) != e_ENET_MODE_XGMII_10000) ?
+			param.macId : param.macId + FM_MAX_NUM_OF_1G_MACS);
+
 	err = FM_MAC_ConfigMaxFrameLength(priv->mac,
 					  fm_get_max_frm());
 	_errno = -GET_ERROR_TYPE(err);
