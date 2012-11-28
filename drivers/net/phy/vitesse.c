@@ -58,6 +58,7 @@
 #define PHY_ID_VSC8244			0x000fc6c0
 #define PHY_ID_VSC8221			0x000fc550
 #define PHY_ID_VSC8662			0x00070660
+#define PHY_ID_VSC8574			0x000704a0
 
 MODULE_DESCRIPTION("Vitesse PHY driver");
 MODULE_AUTHOR("Kriston Carson");
@@ -122,6 +123,7 @@ static int vsc82xx_config_intr(struct phy_device *phydev)
 	if (phydev->interrupts == PHY_INTERRUPT_ENABLED)
 		err = phy_write(phydev, MII_VSC8244_IMASK,
 			((phydev->drv->phy_id == PHY_ID_VSC8234) ||
+			 (phydev->drv->phy_id == PHY_ID_VSC8574) ||
 			 (phydev->drv->phy_id == PHY_ID_VSC8244)) ?
 				MII_VSC8244_IMASK_MASK :
 				MII_VSC8221_IMASK_MASK);
@@ -169,6 +171,21 @@ static struct phy_driver vsc8234_driver = {
 	.ack_interrupt	= &vsc824x_ack_interrupt,
 	.config_intr	= &vsc82xx_config_intr,
 	.driver 	= { .owner = THIS_MODULE,},
+};
+
+/* Vitesse 8574 */
+static struct phy_driver vsc8574_driver = {
+	.phy_id		= PHY_ID_VSC8574,
+	.name		= "Vitesse VSC8574",
+	.phy_id_mask	= 0x000ffff0,
+	.features	= PHY_GBIT_FEATURES,
+	.flags		= PHY_HAS_INTERRUPT,
+	.config_init	= &vsc824x_config_init,
+	.config_aneg	= &vsc82x4_config_aneg,
+	.read_status	= &genphy_read_status,
+	.ack_interrupt	= &vsc824x_ack_interrupt,
+	.config_intr	= &vsc82xx_config_intr,
+	.driver		= { .owner = THIS_MODULE,},
 };
 
 /* Vitesse 866x */
@@ -229,8 +246,13 @@ static int __init vsc82xx_init(void)
 	err = phy_driver_register(&vsc8662_driver);
 	if (err < 0)
 		goto err_vsc8662;
+	err = phy_driver_register(&vsc8574_driver);
+	if (err < 0)
+		goto err_vsc8574;
 	return 0;
 
+err_vsc8574:
+	phy_driver_unregister(&vsc8662_driver);
 err_vsc8662:
 	phy_driver_unregister(&vsc8234_driver);
 err_vsc8234:
