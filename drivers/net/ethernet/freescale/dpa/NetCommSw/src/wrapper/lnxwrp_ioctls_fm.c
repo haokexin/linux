@@ -4151,6 +4151,34 @@ t_Error LnxwrpFmPortIOCTL(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev, unsigned int cmd
         }
 #endif /* (DPAA_VERSION >= 11) */
 
+        case FM_PORT_IOC_GET_MAC_STATISTICS:
+        {
+            t_LnxWrpFmDev *p_LnxWrpFmDev =
+                    (t_LnxWrpFmDev *)p_LnxWrpFmPortDev->h_LnxWrpFmDev;
+            ioc_fm_port_mac_statistics_t param;
+            int mac_id = p_LnxWrpFmPortDev->id;
+
+            if (!p_LnxWrpFmDev)
+                RETURN_ERROR(MINOR, E_NOT_AVAILABLE, ("Port not initialized or other error!"));
+
+            if (&p_LnxWrpFmDev->txPorts[mac_id] != p_LnxWrpFmPortDev &&
+                &p_LnxWrpFmDev->rxPorts[mac_id] != p_LnxWrpFmPortDev)
+                mac_id += FM_MAX_NUM_OF_1G_MACS; /* 10G port */
+
+            if (!p_LnxWrpFmDev->macs[mac_id].h_Dev)
+                RETURN_ERROR(MINOR, E_NOT_AVAILABLE, ("Port not initialized or other error!"));
+
+            if (FM_MAC_GetStatistics(p_LnxWrpFmDev->macs[mac_id].h_Dev,
+                        (t_FmMacStatistics *)&param))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            if (copy_to_user((ioc_fm_port_mac_statistics_t *)arg, &param,
+                        sizeof(ioc_fm_port_mac_statistics_t)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            break;
+        }
+
         default:
             RETURN_ERROR(MINOR, E_INVALID_SELECTION,
                 ("invalid ioctl: cmd:0x%08x(type:0x%02x, nr:0x%02x.\n",

@@ -795,6 +795,63 @@ typedef struct ioc_fm_port_tx_pause_frames_params_t {
 *//***************************************************************************/
 #define FM_PORT_IOC_SET_TX_PAUSE_FRAMES       _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(40), ioc_fm_port_tx_pause_frames_params_t)
 
+typedef struct ioc_fm_port_mac_statistics_t {
+    /* RMON */
+        uint64_t  e_stat_pkts_64;            /**< r-10G tr-DT 64 byte frame counter */
+        uint64_t  e_stat_pkts_65_to_127;     /**< r-10G 65 to 127 byte frame counter */
+        uint64_t  e_stat_pkts_128_to_255;    /**< r-10G 128 to 255 byte frame counter */
+        uint64_t  e_stat_pkts_256_to_511;    /**< r-10G 256 to 511 byte frame counter */
+        uint64_t  e_stat_pkts_512_to_1023;   /**< r-10G 512 to 1023 byte frame counter */
+        uint64_t  e_stat_pkts_1024_to_1518;  /**< r-10G 1024 to 1518 byte frame counter */
+        uint64_t  e_stat_pkts_1519_to_1522;  /**< r-10G 1519 to 1522 byte good frame count */
+    /* */
+        uint64_t  e_stat_fragments;          /**< Total number of packets that were less than 64 octets long with a wrong CRC.*/
+        uint64_t  e_stat_jabbers;            /**< Total number of packets longer than valid maximum length octets */
+        uint64_t  e_stat_drop_events;        /**< number of dropped packets due to internal errors of the MAC Client (during recieve). */
+        uint64_t  e_stat_CRC_align_errors;   /**< Incremented when frames of correct length but with CRC error are received.*/
+        uint64_t  e_stat_undersize_pkts;     /**< Incremented for frames under 64 bytes with a valid FCS and otherwise well formed;
+                                                This count does not include range length errors */
+        uint64_t  e_stat_oversize_pkts;      /**< Incremented for frames which exceed 1518 (non VLAN) or 1522 (VLAN) and contains
+                                                a valid FCS and otherwise well formed */
+    /* Pause */
+        uint64_t  te_stat_pause;             /**< Pause MAC Control received */
+        uint64_t  re_stat_pause;             /**< Pause MAC Control sent */
+    /* MIB II */
+        uint64_t  if_in_octets;              /**< Total number of byte received. */
+        uint64_t  if_in_pkts;                /**< Total number of packets received.*/
+        uint64_t  if_in_mcast_pkts;          /**< Total number of multicast frame received*/
+        uint64_t  if_in_bcast_pkts;          /**< Total number of broadcast frame received */
+        uint64_t  if_in_discards;            /**< Frames received, but discarded due to problems within the MAC RX. */
+        uint64_t  if_in_errors;              /**< Number of frames received with error:
+                                                   - FIFO Overflow Error
+                                                   - CRC Error
+                                                   - Frame Too Long Error
+                                                   - Alignment Error
+                                                   - The dedicated Error Code (0xfe, not a code error) was received */
+        uint64_t  if_out_octets;             /**< Total number of byte sent. */
+        uint64_t  if_out_pkts;               /**< Total number of packets sent .*/
+        uint64_t  if_out_mcast_pkts;         /**< Total number of multicast frame sent */
+        uint64_t  if_out_bcast_pkts;         /**< Total number of multicast frame sent */
+        uint64_t  if_out_discards;           /**< Frames received, but discarded due to problems within the MAC TX N/A!.*/
+        uint64_t  if_out_errors;             /**< Number of frames transmitted with error:
+                                                   - FIFO Overflow Error
+                                                   - FIFO Underflow Error
+                                                   - Other */
+} ioc_fm_port_mac_statistics_t;
+
+/**************************************************************************//**
+ @Function      FM_MAC_GetStatistics
+
+ @Description   get all MAC statistics counters
+
+ @Param[out]    ioc_fm_port_mac_statistics_t    A structure holding the statistics
+
+ @Return        E_OK on success; Error code otherwise.
+
+ @Cautions      Allowed only following FM_Init().
+*//***************************************************************************/
+#define FM_PORT_IOC_GET_MAC_STATISTICS        _IOR(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(41), ioc_fm_port_mac_statistics_t)
+
 #if (DPAA_VERSION >= 11)
 /**************************************************************************//**
  @Function      FM_PORT_ConfigBufferPrefixContent
