@@ -501,6 +501,26 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 	}
 #endif  /* !FM_QMI_NO_DEQ_OPTIONS_SUPPORT */
 
+#ifdef FM_BCB_ERRATA_BMI_SW001
+/* Configure BCB workaround on Rx ports, only for B4860 rev1 */
+#define SVR_SECURITY_MASK    0x00080000
+#define SVR_PERSONALITY_MASK 0x0000FF00
+#define SVR_VER_IGNORE_MASK (SVR_SECURITY_MASK | SVR_PERSONALITY_MASK)
+#define SVR_B4860_REV1_VALUE 0x86800010
+
+	if ((p_LnxWrpFmPortDev->settings.param.portType ==
+		e_FM_PORT_TYPE_RX_10G) ||
+		(p_LnxWrpFmPortDev->settings.param.portType ==
+		e_FM_PORT_TYPE_RX)) {
+		unsigned int svr;
+
+		svr = mfspr(SPRN_SVR);
+
+		if ((svr & ~SVR_VER_IGNORE_MASK) == SVR_B4860_REV1_VALUE)
+			FM_PORT_ConfigBCBWorkaround(p_LnxWrpFmPortDev->h_Dev);
+	}
+#endif /* FM_BCB_ERRATA_BMI_SW001 */
+
 /* Call the driver's advanced configuration routines, if requested:
    Compare the function pointer of each entry to the available routines,
    and invoke the matching routine with proper casting of arguments. */
