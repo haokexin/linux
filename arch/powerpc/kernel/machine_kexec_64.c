@@ -32,6 +32,7 @@
 int default_machine_kexec_prepare(struct kimage *image)
 {
 	int i;
+#ifndef CONFIG_PPC_BOOK3E
 	unsigned long begin, end;	/* limits of segment */
 	unsigned long low, high;	/* limits of blocked memory range */
 	struct device_node *node;
@@ -40,6 +41,7 @@ int default_machine_kexec_prepare(struct kimage *image)
 
 	if (!ppc_md.hpte_clear_all)
 		return -ENOENT;
+#endif
 
 	/*
 	 * Since we use the kernel fault handlers and paging code to
@@ -50,6 +52,7 @@ int default_machine_kexec_prepare(struct kimage *image)
 		if (image->segment[i].mem < __pa(_end))
 			return -ETXTBSY;
 
+#ifndef CONFIG_PPC_BOOK3E
 	/*
 	 * For non-LPAR, we absolutely can not overwrite the mmu hash
 	 * table, since we are still using the bolted entries in it to
@@ -91,6 +94,7 @@ int default_machine_kexec_prepare(struct kimage *image)
 				return -ETXTBSY;
 		}
 	}
+#endif
 
 	return 0;
 }
@@ -358,6 +362,7 @@ void default_machine_kexec(struct kimage *image)
 	/* NOTREACHED */
 }
 
+#ifndef CONFIG_PPC_BOOK3E
 /* Values we need to export to the second kernel via the device tree. */
 static unsigned long htab_base;
 
@@ -402,3 +407,4 @@ static int __init export_htab_values(void)
 	return 0;
 }
 late_initcall(export_htab_values);
+#endif
