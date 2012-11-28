@@ -135,13 +135,20 @@ void do_final_fixups(void)
 #if defined(CONFIG_PPC64) && defined(CONFIG_RELOCATABLE)
 	int *src, *dest;
 	unsigned long length;
+#ifdef CONFIG_PPC_BOOK3E
+	extern char interrupt_end_book3e[];
+#endif
 
 	if (PHYSICAL_START == 0)
 		return;
 
 	src = (int *)(KERNELBASE + PHYSICAL_START);
 	dest = (int *)KERNELBASE;
+#ifdef CONFIG_PPC_BOOK3E
+	length = (interrupt_end_book3e - _stext) / sizeof(int);
+#else
 	length = (__end_interrupts - _stext) / sizeof(int);
+#endif
 
 	while (length--) {
 		patch_instruction(dest, *src);

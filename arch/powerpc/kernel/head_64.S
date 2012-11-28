@@ -395,12 +395,22 @@ _STATIC(__after_prom_start)
 	/* process relocations for the final address of the kernel */
 	lis	r25,PAGE_OFFSET@highest	/* compute virtual base of kernel */
 	sldi	r25,r25,32
+#if defined(CONFIG_PPC_BOOK3E)
+	tovirt(r26,r26)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	lwz	r7,__run_at_load-_stext(r26)
+#if defined(CONFIG_PPC_BOOK3E)
+	tophys(r26,r26)			/* Restore for the remains. */
+#endif
 	cmplwi	cr0,r7,1	/* flagged to stay where we are ? */
 	bne	1f
 	add	r25,r25,r26
 1:	mr	r3,r25
 	bl	.relocate
+#if defined(CONFIG_PPC_BOOK3E)
+	/* We should set ivpr again after .relocate. */
+	bl	.init_core_book3e
+#endif
 #endif
 
 /*
@@ -428,11 +438,23 @@ _STATIC(__after_prom_start)
  * variable __run_at_load, if it is set the kernel is treated as relocatable
  * kernel, otherwise it will be moved to PHYSICAL_START
  */
+#if defined(CONFIG_PPC_BOOK3E)
+	tovirt(r26,r26)			/* on booke, we already run at PAGE_OFFSET */
+#endif
 	lwz	r7,__run_at_load-_stext(r26)
+#if defined(CONFIG_PPC_BOOK3E)
+	tophys(r26,r26)			/* Restore for the remains. */
+#endif
 	cmplwi	cr0,r7,1
 	bne	3f
 
+#ifdef CONFIG_PPC_BOOK3E
+	LOAD_REG_ADDR(r5, interrupt_end_book3e)
+	LOAD_REG_ADDR(r11, _stext)
+	sub	r5,r5,r11
+#else
 	li	r5,__end_interrupts - _stext	/* just copy interrupts */
+#endif
 	b	5f
 3:
 #endif
