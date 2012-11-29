@@ -3031,12 +3031,7 @@ t_Error LnxwrpFmIOCTL(t_LnxWrpFmDev *p_LnxWrpFmDev, unsigned int cmd, unsigned l
 t_Error LnxwrpFmPortIOCTL(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev, unsigned int cmd, unsigned long arg, bool compat)
 {
     t_Error err = E_OK;
-/*
-Status: not exported
-#if (DPAA_VERSION >= 11)
-    FM_PORT_VSPAlloc
-#endif
- */
+
     _fm_ioctl_dbg("cmd:0x%08x(type:0x%02x, nr:%u).\n",
         cmd, _IOC_TYPE(cmd), _IOC_NR(cmd) - 50);
 
@@ -3858,6 +3853,68 @@ Status: not exported
 
             if (FM_PORT_ConfigBufferPrefixContent(p_LnxWrpFmPortDev->h_Dev,
                     (t_FmBufferPrefixContent *)param))
+            {
+                XX_Free(param);
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+            }
+
+            XX_Free(param);
+            break;
+        }
+
+#if defined(CONFIG_COMPAT)
+        case FM_PORT_IOC_VSP_ALLOC_COMPAT:
+#endif
+        case FM_PORT_IOC_VSP_ALLOC:
+        {
+            ioc_fm_port_vsp_alloc_params_t *param;
+
+            param = (ioc_fm_port_vsp_alloc_params_t *) XX_Malloc(
+                    sizeof(ioc_fm_port_vsp_alloc_params_t));
+            if (!param)
+                RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PORT"));
+
+            memset(param, 0, sizeof(ioc_fm_port_vsp_alloc_params_t));
+
+#if defined(CONFIG_COMPAT)
+            if (compat)
+            {
+                ioc_compat_fm_port_vsp_alloc_params_t *compat_param;
+
+                compat_param = (ioc_compat_fm_port_vsp_alloc_params_t *) XX_Malloc(
+                        sizeof(ioc_compat_fm_port_vsp_alloc_params_t));
+                if (!compat_param)
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_NO_MEMORY, ("IOCTL FM PORT"));
+                }
+
+                memset(compat_param, 0, sizeof(ioc_compat_fm_port_vsp_alloc_params_t));
+                if (copy_from_user(compat_param,
+                                   (ioc_compat_fm_port_vsp_alloc_params_t *) compat_ptr(arg),
+                                   sizeof(ioc_compat_fm_port_vsp_alloc_params_t)))
+                {
+                    XX_Free(compat_param);
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+                }
+
+                compat_copy_fm_port_vsp_alloc_params(compat_param, param, COMPAT_US_TO_K);
+
+                XX_Free(compat_param);
+            }
+            else
+#endif
+            {
+                if (copy_from_user(param, (ioc_fm_port_vsp_alloc_params_t *)arg,
+                                   sizeof(ioc_fm_port_vsp_alloc_params_t)))
+                {
+                    XX_Free(param);
+                    RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+                }
+            }
+
+            if (FM_PORT_VSPAlloc(p_LnxWrpFmPortDev->h_Dev, (t_FmPortVSPAllocParams *)param))
             {
                 XX_Free(param);
                 RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);

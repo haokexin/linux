@@ -815,6 +815,21 @@ void compat_copy_fm_port_pcd_modify_tree(
         id->obj = compat_pcd_id2ptr(compat_id->obj);
 }
 
+void compat_copy_fm_port_vsp_alloc_params(
+        ioc_compat_fm_port_vsp_alloc_params_t *compat_param,
+        ioc_fm_port_vsp_alloc_params_t *param,
+        uint8_t compat)
+{
+    if (compat == COMPAT_US_TO_K)
+    {
+        _fm_cpt_dbg(compat," param->p_fm_tx_port=%p  \n", param->p_fm_tx_port);
+
+        param->dflt_relative_id = compat_param->dflt_relative_id;
+        param->num_of_profiles = compat_param->num_of_profiles;
+        param->p_fm_tx_port = compat_pcd_id2ptr(compat_param->p_fm_tx_port);
+    }
+}
+
 void compat_copy_fm_pcd_net_env(
         ioc_compat_fm_pcd_net_env_params_t *compat_param,
         ioc_fm_pcd_net_env_params_t *param,
