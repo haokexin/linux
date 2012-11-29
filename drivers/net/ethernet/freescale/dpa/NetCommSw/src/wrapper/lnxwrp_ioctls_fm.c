@@ -568,7 +568,6 @@ Status: not exported, would be nice to have
 Status: not exported
 #if DPAA_VERSION >= 11
 
-    FM_VSP_Free
     FM_VSP_ConfigPoolDepletion
     FM_VSP_ConfigBufferPrefixContent
     FM_VSP_ConfigNoScatherGather
@@ -2845,6 +2844,36 @@ invalid_port_id:
         }
 
         return FM_VSP_Init(id.obj);
+    }
+
+#if defined(CONFIG_COMPAT)
+    case FM_IOC_VSP_FREE_COMPAT:
+#endif
+    case FM_IOC_VSP_FREE:
+    {
+        ioc_fm_obj_t id;
+
+        memset(&id, 0, sizeof(ioc_fm_obj_t));
+#if defined(CONFIG_COMPAT)
+        if (compat)
+        {
+            ioc_compat_fm_obj_t compat_id;
+
+            if (copy_from_user(&compat_id,
+                    (ioc_compat_fm_obj_t *) compat_ptr(arg),
+                    sizeof(ioc_compat_fm_obj_t)))
+                break;
+            compat_obj_delete(&compat_id, &id);
+        }
+        else
+#endif
+        {
+            if (copy_from_user(&id, (ioc_fm_obj_t *) arg,
+                    sizeof(ioc_fm_obj_t)))
+                break;
+        }
+
+        return FM_VSP_Free(id.obj);
     }
 #endif /* (DPAA_VERSION >= 11) */
 
