@@ -1134,4 +1134,21 @@ void compat_copy_fm_vsp_params(
     _fm_cpt_dbg (compat, " ...->}\n");
 }
 
+void compat_copy_fm_buf_pool_depletion_params(
+    ioc_compat_fm_buf_pool_depletion_params_t *compat_param,
+    ioc_fm_buf_pool_depletion_params_t *param,
+    uint8_t compat)
+{
+    _fm_cpt_dbg (compat, " {->...\n");
+
+    if (compat == COMPAT_US_TO_K)
+    {
+        param->p_fm_vsp = compat_pcd_id2ptr(compat_param->p_fm_vsp);
+        memcpy(&param->fm_buf_pool_depletion,
+                &compat_param->fm_buf_pool_depletion,
+                sizeof(ioc_fm_buf_pool_depletion_t));
+    }
+
+    _fm_cpt_dbg (compat, " ...->}\n");
+}
 #endif /* (DPAA_VERSION >= 11) */

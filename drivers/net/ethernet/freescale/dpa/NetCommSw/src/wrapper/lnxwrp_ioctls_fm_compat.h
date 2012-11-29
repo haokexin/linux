@@ -494,6 +494,12 @@ typedef struct ioc_compat_fm_vsp_params_t {
     compat_uptr_t       id;                 /**< return value */
 } ioc_compat_fm_vsp_params_t;
 
+
+typedef struct ioc_compat_fm_buf_pool_depletion_params_t {
+    compat_uptr_t p_fm_vsp;
+    ioc_fm_buf_pool_depletion_t fm_buf_pool_depletion;
+} ioc_compat_fm_buf_pool_depletion_params_t;
+
 #endif /* DPAA_VERSION >= 11 */
 
 /* } pcd compat structures */
@@ -627,6 +633,11 @@ void compat_copy_fm_pcd_frm_replic_member_params(
 void compat_copy_fm_vsp_params(
     ioc_compat_fm_vsp_params_t *compat_param,
     ioc_fm_vsp_params_t *param,
+    uint8_t compat);
+
+void compat_copy_fm_buf_pool_depletion_params(
+    ioc_compat_fm_buf_pool_depletion_params_t *compat_param,
+    ioc_fm_buf_pool_depletion_params_t *param,
     uint8_t compat);
 #endif /* (DPAA_VERSION >= 11) */
 /* } pcd compat functions */

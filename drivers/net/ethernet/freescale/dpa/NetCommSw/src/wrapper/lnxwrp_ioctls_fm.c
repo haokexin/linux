@@ -568,7 +568,6 @@ Status: not exported, would be nice to have
 Status: not exported
 #if DPAA_VERSION >= 11
 
-    FM_VSP_ConfigPoolDepletion
     FM_VSP_ConfigBufferPrefixContent
     FM_VSP_ConfigNoScatherGather
     FM_VSP_GetStatistics -- it's not available yet
@@ -2875,6 +2874,38 @@ invalid_port_id:
 
         return FM_VSP_Free(id.obj);
     }
+
+#if defined(CONFIG_COMPAT)
+    case FM_IOC_VSP_CONFIG_POOL_DEPLETION_COMPAT:
+#endif
+    case FM_IOC_VSP_CONFIG_POOL_DEPLETION:
+    {
+        ioc_fm_buf_pool_depletion_params_t param;
+
+#if defined(CONFIG_COMPAT)
+        if (compat)
+        {
+            ioc_compat_fm_buf_pool_depletion_params_t compat_param;
+
+            if (copy_from_user(&compat_param, compat_ptr(arg), sizeof(compat_param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            compat_copy_fm_buf_pool_depletion_params(&compat_param, &param, COMPAT_US_TO_K);
+        }
+        else
+#endif
+            if (copy_from_user(&param, (void *)arg, sizeof(param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+        if (FM_VSP_ConfigPoolDepletion(param.p_fm_vsp,
+                    (t_FmBufPoolDepletion *)&param.fm_buf_pool_depletion))
+            RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+        break;
+    }
+
+
+
 #endif /* (DPAA_VERSION >= 11) */
 
 #ifdef FM_CAPWAP_SUPPORT
