@@ -70,6 +70,7 @@
 #include "fm_ioctls.h"
 #include "fm_pcd_ioctls.h"
 #include "fm_port_ioctls.h"
+#include "fm_vsp_ext.h"
 
 #if defined(CONFIG_COMPAT)
 #include "lnxwrp_ioctls_fm_compat.h"
@@ -566,12 +567,7 @@ Status: not exported, would be nice to have
 
 Status: not exported
 #if DPAA_VERSION >= 11
-    FM_PCD_FrmReplicSetGroup
-    FM_PCD_FrmReplicDeleteGroup
-    FM_PCD_FrmReplicAddMember
-    FM_PCD_FrmReplicRemoveMember
 
-    FM_VSP_Config
     FM_VSP_Init
     FM_VSP_Free
     FM_VSP_ConfigPoolDepletion
@@ -2779,7 +2775,49 @@ invalid_port_id:
 		return FM_PCD_FrmReplicRemoveMember(param.h_replic_group, param.member_index);
 	}
 	break;
+
+#if defined(CONFIG_COMPAT)
+    case FM_IOC_VSP_CONFIG_COMPAT:
 #endif
+    case FM_IOC_VSP_CONFIG:
+    {
+        ioc_fm_vsp_params_t param;
+
+#if defined(CONFIG_COMPAT)
+        if (compat)
+        {
+            ioc_compat_fm_vsp_params_t compat_param;
+
+            if (copy_from_user(&compat_param, compat_ptr(arg), sizeof(compat_param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            compat_copy_fm_vsp_params(&compat_param, &param, COMPAT_US_TO_K);
+        }
+        else
+#endif
+            if (copy_from_user(&param, (void *)arg, sizeof(param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+        param.id = FM_VSP_Config((t_FmVspParams *)&param);
+
+#if defined(CONFIG_COMPAT)
+        if (compat)
+        {
+            ioc_compat_fm_vsp_params_t compat_param;
+
+            memset(&compat_param, 0, sizeof(compat_param));
+            compat_copy_fm_vsp_params(&compat_param, &param, COMPAT_K_TO_US);
+
+            if (copy_to_user(compat_ptr(arg), &compat_param, sizeof(compat_param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+        }
+        else
+#endif
+            if (copy_to_user((void *)arg, &param, sizeof(param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+        break;
+    }
+#endif /* (DPAA_VERSION >= 11) */
 
 #ifdef FM_CAPWAP_SUPPORT
 #warning "feature not supported!"

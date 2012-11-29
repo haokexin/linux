@@ -1038,7 +1038,7 @@ void compat_fm_pcd_manip_set_node(
     }
 }
 
-#if DPAA_VERSION >= 11
+#if (DPAA_VERSION >= 11)
 void compat_copy_fm_pcd_frm_replic_group_params(
 	ioc_compat_fm_pcd_frm_replic_group_params_t *compat_param,
 	ioc_fm_pcd_frm_replic_group_params_t *param,
@@ -1102,4 +1102,36 @@ void compat_copy_fm_pcd_frm_replic_member_params(
 
 	_fm_cpt_dbg (compat, " ...->}\n");
 }
-#endif
+
+void compat_copy_fm_vsp_params(
+    ioc_compat_fm_vsp_params_t *compat_param,
+    ioc_fm_vsp_params_t *param,
+    uint8_t compat)
+{
+    _fm_cpt_dbg (compat, " {->...\n");
+
+    if (compat == COMPAT_US_TO_K)
+    {
+        param->p_fm = compat_pcd_id2ptr(compat_param->p_fm);
+        memcpy(&param->ext_buf_pools, &compat_param->ext_buf_pools, sizeof(ioc_fm_ext_pools));
+        param->liodn_offset = compat_param->liodn_offset;
+        param->portParams.port_id = compat_param->portParams.port_id;
+        param->portParams.port_type = compat_param->portParams.port_type;
+        param->relative_profile_id = compat_param->relative_profile_id;
+        param->id = compat_pcd_id2ptr(compat_param->id);
+    }
+    else
+    {
+        compat_param->p_fm = compat_pcd_ptr2id(param->p_fm);
+        memcpy(&compat_param->ext_buf_pools, &param->ext_buf_pools, sizeof(ioc_fm_ext_pools));
+        compat_param->liodn_offset = param->liodn_offset;
+        compat_param->portParams.port_id = param->portParams.port_id;
+        compat_param->portParams.port_type = param->portParams.port_type;
+        compat_param->relative_profile_id = param->relative_profile_id;
+        compat_param->id = compat_add_ptr2id(param->id, FM_MAP_TYPE_PCD_NODE);
+    }
+
+    _fm_cpt_dbg (compat, " ...->}\n");
+}
+
+#endif /* (DPAA_VERSION >= 11) */
