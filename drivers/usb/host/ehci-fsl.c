@@ -159,11 +159,6 @@ static int usb_hcd_fsl_probe(const struct hc_driver *driver,
 			retval = -ENODEV;
 			goto err4;
 		}
-
-		have_hcd = 1;
-	} else {
-		dev_err(&pdev->dev, "wrong operating mode\n");
-		return -ENODEV;
 	}
 #endif
 	return retval;
