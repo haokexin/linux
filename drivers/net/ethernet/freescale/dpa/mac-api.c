@@ -846,6 +846,14 @@ static void __devinit __cold setup_memac(struct mac_device *mac_dev)
 	mac_dev->change_addr    = change_addr;
 	mac_dev->set_multi      = set_multi;
 	mac_dev->uninit		= uninit;
+	mac_dev->fm_rtc_enable		= fm_rtc_enable;
+	mac_dev->fm_rtc_disable		= fm_rtc_disable;
+	mac_dev->fm_rtc_get_cnt		= fm_rtc_get_cnt;
+	mac_dev->fm_rtc_set_cnt		= fm_rtc_set_cnt;
+	mac_dev->fm_rtc_get_drift	= fm_rtc_get_drift;
+	mac_dev->fm_rtc_set_drift	= fm_rtc_set_drift;
+	mac_dev->fm_rtc_set_alarm	= fm_rtc_set_alarm;
+	mac_dev->fm_rtc_set_fiper	= fm_rtc_set_fiper;
 }
 
 void (*const mac_setup[])(struct mac_device *mac_dev) __devinitconst = {
