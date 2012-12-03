@@ -569,7 +569,6 @@ Status: not exported
 #if DPAA_VERSION >= 11
 
     FM_VSP_GetStatistics -- it's not available yet
-    FM_VSP_GetBufferPrsResult
 #endif
 
 Status: feature not supported
@@ -2956,6 +2955,53 @@ invalid_port_id:
 
         if (FM_VSP_ConfigNoScatherGather(param.p_fm_vsp, param.no_sg))
             RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+        break;
+    }
+
+#if defined(CONFIG_COMPAT)
+    case FM_IOC_VSP_GET_BUFFER_PRS_RESULT_COMPAT:
+#endif
+    case FM_IOC_VSP_GET_BUFFER_PRS_RESULT:
+    {
+        ioc_fm_vsp_prs_result_params_t param;
+
+#if defined(CONFIG_COMPAT)
+        if (compat)
+        {
+            ioc_compat_fm_vsp_prs_result_params_t compat_param;
+
+            if (copy_from_user(&compat_param, compat_ptr(arg), sizeof(compat_param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            compat_copy_fm_vsp_prs_result_params(&compat_param, &param, COMPAT_US_TO_K);
+        }
+        else
+#endif
+            if (copy_from_user(&param, (void *)arg, sizeof(param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+        /* this call just adds the parse results offset to p_data */
+        param.p_data = FM_VSP_GetBufferPrsResult(param.p_fm_vsp, param.p_data);
+
+        if (!param.p_data)
+            RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+#if defined(CONFIG_COMPAT)
+        if (compat)
+        {
+            ioc_compat_fm_vsp_prs_result_params_t compat_param;
+
+            memset(&compat_param, 0, sizeof(compat_param));
+            compat_copy_fm_vsp_prs_result_params(&compat_param, &param, COMPAT_K_TO_US);
+
+            if (copy_to_user(compat_ptr(arg), &compat_param, sizeof(compat_param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+        }
+        else
+#endif
+            if (copy_to_user((void *)arg, &param, sizeof(param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
 
         break;
     }

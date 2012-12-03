@@ -1185,4 +1185,27 @@ void compat_copy_fm_vsp_config_no_sg_params(
 
     _fm_cpt_dbg (compat, " ...->}\n");
 }
+
+void compat_copy_fm_vsp_prs_result_params(
+    ioc_compat_fm_vsp_prs_result_params_t *compat_param,
+    ioc_fm_vsp_prs_result_params_t *param,
+    uint8_t compat)
+{
+    _fm_cpt_dbg (compat, " {->...\n");
+
+    if (compat == COMPAT_US_TO_K)
+    {
+        param->p_fm_vsp = compat_pcd_id2ptr(compat_param->p_fm_vsp);
+        /* p_data is an user-space pointer that needs to remain unmodified */
+        param->p_data = (void *)(unsigned long long)compat_param->p_data;
+    }
+    else
+    {
+        compat_param->p_fm_vsp = compat_pcd_ptr2id(param->p_fm_vsp);
+        /* p_data is an user-space pointer that needs to remain unmodified */
+        compat_param->p_data = (compat_uptr_t)((unsigned long long)param->p_data & 0xFFFFFFFF);
+    }
+
+    _fm_cpt_dbg (compat, " ...->}\n");
+}
 #endif /* (DPAA_VERSION >= 11) */

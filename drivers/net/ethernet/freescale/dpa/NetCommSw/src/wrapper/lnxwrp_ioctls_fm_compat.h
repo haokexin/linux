@@ -509,6 +509,11 @@ typedef struct ioc_compat_fm_vsp_config_no_sg_params_t {
     compat_uptr_t p_fm_vsp;
     bool no_sg;
 } ioc_compat_fm_vsp_config_no_sg_params_t;
+
+typedef struct ioc_compat_fm_vsp_prs_result_params_t {
+    compat_uptr_t p_fm_vsp;
+    compat_uptr_t p_data;
+} ioc_compat_fm_vsp_prs_result_params_t;
 #endif /* DPAA_VERSION >= 11 */
 
 /* } pcd compat structures */
@@ -657,6 +662,11 @@ void compat_copy_fm_buffer_prefix_content_params(
 void compat_copy_fm_vsp_config_no_sg_params(
     ioc_compat_fm_vsp_config_no_sg_params_t *compat_param,
     ioc_fm_vsp_config_no_sg_params_t *param,
+    uint8_t compat);
+
+void compat_copy_fm_vsp_prs_result_params(
+    ioc_compat_fm_vsp_prs_result_params_t *compat_param,
+    ioc_fm_vsp_prs_result_params_t *param,
     uint8_t compat);
 #endif /* (DPAA_VERSION >= 11) */
 /* } pcd compat functions */
