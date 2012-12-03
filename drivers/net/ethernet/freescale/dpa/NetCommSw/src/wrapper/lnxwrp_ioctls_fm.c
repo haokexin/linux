@@ -568,7 +568,6 @@ Status: not exported, would be nice to have
 Status: not exported
 #if DPAA_VERSION >= 11
 
-    FM_VSP_ConfigNoScatherGather
     FM_VSP_GetStatistics -- it's not available yet
     FM_VSP_GetBufferPrsResult
 #endif
@@ -2928,6 +2927,34 @@ invalid_port_id:
 
         if (FM_VSP_ConfigBufferPrefixContent(param.p_fm_vsp,
                 (t_FmBufferPrefixContent *)&param.fm_buffer_prefix_content))
+            RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+        break;
+    }
+
+#if defined(CONFIG_COMPAT)
+    case FM_IOC_VSP_CONFIG_NO_SG_COMPAT:
+#endif
+    case FM_IOC_VSP_CONFIG_NO_SG:
+    {
+        ioc_fm_vsp_config_no_sg_params_t param;
+
+#if defined(CONFIG_COMPAT)
+        if (compat)
+        {
+            ioc_compat_fm_vsp_config_no_sg_params_t compat_param;
+
+            if (copy_from_user(&compat_param, compat_ptr(arg), sizeof(compat_param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            compat_copy_fm_vsp_config_no_sg_params(&compat_param, &param, COMPAT_US_TO_K);
+        }
+        else
+#endif
+            if (copy_from_user(&param, (void *)arg, sizeof(param)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+        if (FM_VSP_ConfigNoScatherGather(param.p_fm_vsp, param.no_sg))
             RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
 
         break;
