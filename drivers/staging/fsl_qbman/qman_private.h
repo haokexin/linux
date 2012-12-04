@@ -138,6 +138,9 @@ void qman_liodn_fixup(u16 channel);
 int qman_set_sdest(u16 channel, unsigned int cpu_idx);
 #endif
 
+int qm_set_wpm(int wpm);
+int qm_get_wpm(int *wpm);
+
 /* Hooks from qman_driver.c in to qman_high.c */
 struct qman_portal *qman_create_affine_portal(
 			const struct qm_portal_config *config,

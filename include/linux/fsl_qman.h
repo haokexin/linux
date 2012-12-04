@@ -3175,6 +3175,27 @@ int qman_ceetm_cscn_dcp_get(struct qm_ceetm_ccg *ccg,
  */
 int qman_ceetm_ccg_get_reject_statistics(struct qm_ceetm_ccg *ccg, u32 flags,
 					u64 *frame_count, u64 *byte_count);
+
+/**
+ * qman_set_wpm - Set waterfall power management
+ *
+ * @wpm_enable: boolean, 1 = enable wpm, 0 = disable wpm.
+ *
+ * Return 0 for success, return -ENODEV if QMan misc_cfg register is not
+ * accessible.
+ */
+int qman_set_wpm(int wpm_enable);
+
+/**
+ * qman_get_swp - Query the waterfall power management setting
+ *
+ * @wpm_enable: boolean, 1 = enable wpm, 0 = disable wpm.
+ *
+ * Return 0 for success, return -ENODEV if QMan misc_cfg register is not
+ * accessible.
+ */
+int qman_get_wpm(int *wpm_enable);
+
 #ifdef __cplusplus
 }
 #endif

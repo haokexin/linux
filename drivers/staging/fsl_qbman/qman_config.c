@@ -68,6 +68,7 @@
 #define REG_SBEC(n)		(0x0a80 + ((n) * 0x04))
 #define REG_MCR			0x0b00
 #define REG_MCP(n)		(0x0b04 + ((n) * 0x04))
+#define REG_MISC_CFG		0x0be0
 #define REG_HID_CFG		0x0bf0
 #define REG_IDLE_STAT		0x0bf4
 #define REG_IP_REV_1		0x0bf8
@@ -880,6 +881,33 @@ int qman_set_sdest(u16 channel, unsigned int cpu_idx)
 		after = (before & (~IO_CFG_SDEST_MASK)) | (cpu_idx << 16);
 		qm_out(QCSP_IO_CFG(idx), after);
 	}
+	return 0;
+}
+
+#define MISC_CFG_WPM_MASK 0x00000002
+int qm_set_wpm(int wpm)
+{
+	u32 before;
+	u32 after;
+
+	if (!qman_have_ccsr())
+		return -ENODEV;
+
+	before = qm_in(MISC_CFG);
+	after = (before & (~MISC_CFG_WPM_MASK)) | (wpm << 1);
+	qm_out(MISC_CFG, after);
+	return 0;
+}
+
+int qm_get_wpm(int *wpm)
+{
+	u32 before;
+
+	if (!qman_have_ccsr())
+		return -ENODEV;
+
+	before = qm_in(MISC_CFG);
+	*wpm = (before & MISC_CFG_WPM_MASK) >> 1;
 	return 0;
 }
 
