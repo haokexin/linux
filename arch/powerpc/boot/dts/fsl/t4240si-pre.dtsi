@@ -49,6 +49,7 @@
 		lac  = &lac;
 		bman = &bman;
 		qman = &qman;
+		pme = &pme;
 		dce = &dce;
 		fman0 = &fman0;
 		fman1 = &fman1;
