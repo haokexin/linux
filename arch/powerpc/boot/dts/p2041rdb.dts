@@ -362,32 +362,26 @@
 
 		ethernet@0 {
 			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet0>;
 		};
 		ethernet@1 {
 			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet1>;
 		};
 		ethernet@2 {
 			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet2>;
 		};
 		ethernet@3 {
 			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet3>;
 		};
 		ethernet@4 {
 			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet4>;
 		};
 		ethernet@5 {
 			compatible = "fsl,p2041-dpa-ethernet", "fsl,dpa-ethernet";
-			fsl,qman-channel = <&qpool1>;
 			fsl,fman-mac = <&enet5>;
 		};
 	};
