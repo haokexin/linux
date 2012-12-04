@@ -990,3 +990,20 @@ int bman_query_pools(struct bm_pool_state *state)
 }
 EXPORT_SYMBOL(bman_query_pools);
 
+#ifdef CONFIG_FSL_BMAN_CONFIG
+u32 bman_query_free_buffers(struct bman_pool *pool)
+{
+	return bm_pool_free_buffers(pool->params.bpid);
+}
+EXPORT_SYMBOL(bman_query_free_buffers);
+
+int bman_update_pool_thresholds(struct bman_pool *pool, const u32 *thresholds)
+{
+	u32 bpid;
+
+	bpid = bman_get_params(pool)->bpid;
+
+	return bm_pool_set(bpid, thresholds);
+}
+EXPORT_SYMBOL(bman_update_pool_thresholds);
+#endif

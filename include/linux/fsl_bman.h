@@ -487,6 +487,22 @@ int bman_flush_stockpile(struct bman_pool *pool, u32 flags);
  */
 int bman_query_pools(struct bm_pool_state *state);
 
+#ifdef CONFIG_FSL_BMAN_CONFIG
+/**
+ * bman_query_free_buffers - Query how many free buffers are in buffer pool
+ * @pool: the buffer pool object to query
+ *
+ * Return the number of the free buffers
+ */
+u32 bman_query_free_buffers(struct bman_pool *pool);
+
+/**
+ * bman_update_pool_thresholds - Change the buffer pool's depletion thresholds
+ * @pool: the buffer pool object to which the thresholds will be set
+ * @thresholds: the new thresholds
+ */
+int bman_update_pool_thresholds(struct bman_pool *pool, const u32 *thresholds);
+#endif
 #ifdef __cplusplus
 }
 #endif

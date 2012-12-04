@@ -553,6 +553,11 @@ int bman_init_ccsr(struct device_node *node)
 	return 0;
 }
 
+u32 bm_pool_free_buffers(u32 bpid)
+{
+	return bm_in(POOL_CONTENT(bpid));
+}
+
 #ifdef CONFIG_SYSFS
 
 #define DRV_NAME "fsl-bman"

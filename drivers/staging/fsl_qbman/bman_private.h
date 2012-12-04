@@ -138,5 +138,8 @@ int bm_pool_set(u32 bpid, const u32 *thresholds);
 #define BM_POOL_THRESH_HW_ENTER 2
 #define BM_POOL_THRESH_HW_EXIT  3
 
+/* Read the free buffer count for a given buffer */
+u32 bm_pool_free_buffers(u32 bpid);
+
 #endif /* CONFIG_FSL_BMAN_CONFIG */
 
