@@ -81,6 +81,7 @@ define_machine(p2041_rdb) {
 	.init_early		= corenet_ds_init_early,
 };
 
+machine_arch_initcall(p2041_rdb, corenet_ds_publish_pci_device);
 machine_device_initcall(p2041_rdb, corenet_ds_publish_devices);
 
 #ifdef CONFIG_SWIOTLB
