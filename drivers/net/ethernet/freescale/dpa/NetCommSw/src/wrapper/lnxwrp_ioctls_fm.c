@@ -2665,7 +2665,7 @@ invalid_port_id:
 				(ioc_compat_fm_pcd_frm_replic_group_params_t *)
 					compat_ptr(arg),
 					compat_param,
-					sizeof(*compat_ptr)))
+					sizeof(*compat_param)))
 				err = E_WRITE_FAILED;
 
 			XX_Free(compat_param);
