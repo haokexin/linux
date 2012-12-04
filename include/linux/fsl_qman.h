@@ -626,7 +626,11 @@ struct qm_mcc_queryfq_np {
 struct qm_mcc_alterfq {
 	u8 __reserved1[3];
 	u32 fqid;	/* 24-bit */
-	u8 __reserved2[56];
+	u8 __reserved2;
+	u8 count;	/* number of consecutive FQID */
+	u8 __reserved3[10];
+	u32 context_b;	/* frame queue context b */
+	u8 __reserved4[40];
 } __packed;
 struct qm_mcc_initcgr {
 	u8 __reserved1;
@@ -899,6 +903,8 @@ struct qm_mc_command {
 #define QM_MCC_VERB_ALTER_FE		0x49	/* Force Eligible FQ */
 #define QM_MCC_VERB_ALTER_RETIRE	0x4a	/* Retire FQ */
 #define QM_MCC_VERB_ALTER_OOS		0x4b	/* Take FQ out of service */
+#define QM_MCC_VERB_ALTER_FQXON		0x4d	/* FQ XON */
+#define QM_MCC_VERB_ALTER_FQXOFF	0x4e	/* FQ XOFF */
 #define QM_MCC_VERB_INITCGR		0x50
 #define QM_MCC_VERB_MODIFYCGR		0x51
 #define QM_MCC_VERB_CGRTESTWRITE	0x52
@@ -1923,6 +1929,17 @@ int qman_retire_fq(struct qman_fq *fq, u32 *flags);
  * was released as ERNs at the time of retirement, they must all be consumed.
  */
 int qman_oos_fq(struct qman_fq *fq);
+
+/**
+ * qman_fq_flow_control - Set the XON/XOFF state of a FQ
+ * @fq: the frame queue object to be set to XON/XOFF state, must not be 'oos',
+ * or 'retired' or 'parked' state
+ * @xon: boolean to set fq in XON or XOFF state
+ *
+ * The frame should be in Tentatively Scheduled state or Truly Schedule sate,
+ * otherwise the IFSI interrupt will be asserted.
+ */
+int qman_fq_flow_control(struct qman_fq *fq, int xon);
 
 /**
  * qman_query_fq - Queries FQD fields (via h/w query command)

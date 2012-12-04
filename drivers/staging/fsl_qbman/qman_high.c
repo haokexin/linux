@@ -1495,6 +1495,59 @@ out:
 }
 EXPORT_SYMBOL(qman_oos_fq);
 
+int qman_fq_flow_control(struct qman_fq *fq, int xon)
+{
+	struct qm_mc_command *mcc;
+	struct qm_mc_result *mcr;
+	struct qman_portal *p;
+	unsigned long irqflags __maybe_unused;
+	int ret = 0;
+	u8 res;
+	u8 myverb;
+
+	if ((fq->state == qman_fq_state_oos) ||
+		(fq->state == qman_fq_state_retired) ||
+		(fq->state == qman_fq_state_parked))
+		return -EINVAL;
+
+#ifdef CONFIG_FSL_DPA_CHECKING
+	if (unlikely(fq_isset(fq, QMAN_FQ_FLAG_NO_MODIFY)))
+		return -EINVAL;
+#endif
+	/* Issue a ALTER_FQXON or ALTER_FQXOFF management command */
+	p = get_affine_portal();
+	PORTAL_IRQ_LOCK(p, irqflags);
+	FQLOCK(fq);
+	if (unlikely((fq_isset(fq, QMAN_FQ_STATE_CHANGING)) ||
+			(fq->state == qman_fq_state_parked) ||
+			(fq->state == qman_fq_state_oos) ||
+			(fq->state == qman_fq_state_retired))) {
+		ret = -EBUSY;
+		goto out;
+	}
+	mcc = qm_mc_start(&p->p);
+	mcc->alterfq.fqid = fq->fqid;
+	mcc->alterfq.count = 0;
+	myverb = xon ? QM_MCC_VERB_ALTER_FQXON : QM_MCC_VERB_ALTER_FQXOFF;
+
+	qm_mc_commit(&p->p, myverb);
+	while (!(mcr = qm_mc_result(&p->p)))
+		cpu_relax();
+	DPA_ASSERT((mcr->verb & QM_MCR_VERB_MASK) == myverb);
+
+	res = mcr->result;
+	if (res != QM_MCR_RESULT_OK) {
+		ret = -EIO;
+		goto out;
+	}
+out:
+	FQUNLOCK(fq);
+	PORTAL_IRQ_UNLOCK(p, irqflags);
+	put_affine_portal();
+	return ret;
+}
+EXPORT_SYMBOL(qman_fq_flow_control);
+
 int qman_query_fq(struct qman_fq *fq, struct qm_fqd *fqd)
 {
 	struct qm_mc_command *mcc;
