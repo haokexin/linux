@@ -554,12 +554,16 @@ static t_Error InitFmPortDev(t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
 	}
 
 #if defined(CONFIG_FMAN_RESOURCE_ALLOCATION_ALGORITHM)
+#if (DPAA_VERSION >= 11)
+#warning The resource allocation algorithm is not available for FMan v3 platforms
+#else
 	/* even if these functions return w/ error, do not crash kernel.
 	   Do not return anything because the container function is not
 	   linux complient (it should return -EIO). */
 	fm_config_precalculate_fifosize(p_LnxWrpFmPortDev);
 	fm_config_precalculate_open_dma(p_LnxWrpFmPortDev);
 	fm_config_precalculate_tnums(p_LnxWrpFmPortDev);
+#endif
 #endif
 
 	if (FM_PORT_Init(p_LnxWrpFmPortDev->h_Dev) != E_OK)
