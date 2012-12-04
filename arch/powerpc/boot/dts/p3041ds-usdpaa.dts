@@ -49,19 +49,15 @@
 			cpu-handle = <&cpu3>;
 		};
 		bman-portal@10000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu0>;
 		};
 		bman-portal@14000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu1>;
 		};
 		bman-portal@18000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu2>;
 		};
 		bman-portal@1c000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu3>;
 		};
 		bman-portal@20000 {
@@ -139,7 +135,6 @@
 		};
 
 		qportal4: qman-portal@10000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu0>;
 			fsl,qman-pool-channels = <&qpool4 &qpool5 &qpool6
 						  &qpool7 &qpool8 &qpool9
@@ -148,7 +143,6 @@
 		};
 
 		qportal5: qman-portal@14000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu1>;
 			fsl,qman-pool-channels = <&qpool4 &qpool5 &qpool6
 						  &qpool7 &qpool8 &qpool9
@@ -157,7 +151,6 @@
 		};
 
 		qportal6: qman-portal@18000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu2>;
 			fsl,qman-pool-channels = <&qpool4 &qpool5 &qpool6
 						  &qpool7 &qpool8 &qpool9
@@ -166,7 +159,6 @@
 		};
 
 		qportal7: qman-portal@1c000 {
-			fsl,usdpaa-portal;
 			cpu-handle = <&cpu3>;
 			fsl,qman-pool-channels = <&qpool4 &qpool5 &qpool6
 						  &qpool7 &qpool8 &qpool9
