@@ -453,10 +453,12 @@ struct qman_portal *qman_create_affine_portal(
 	}
 	isdr ^= (QM_PIRQ_DQRI | QM_PIRQ_MRI);
 	qm_isr_disable_write(__p, isdr);
+#ifndef CONFIG_CRASH_DUMP
 	if (qm_dqrr_current(__p) != NULL) {
 		pr_err("Qman DQRR unclean\n");
 		goto fail_dqrr_mr_empty;
 	}
+#endif
 	if (qm_mr_current(__p) != NULL) {
 		/* special handling, drain just in case it's a few FQRNIs */
 		if (drain_mr_fqrni(__p)) {
