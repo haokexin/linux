@@ -565,13 +565,21 @@ struct __qm_mc_cgr {
 	u8 wr_en_y;	/* boolean, use QM_CGR_EN */
 	u8 wr_en_r;	/* boolean, use QM_CGR_EN */
 	u8 cscn_en;	/* boolean, use QM_CGR_EN */
-	u32 cscn_targ;	/* use QM_CGR_TARG_* */
+	union {
+		struct {
+			u16 cscn_targ_upd_ctrl; /* use QM_CSCN_TARG_UDP_ */
+			u16 cscn_targ_dcp_low;  /* CSCN_TARG_DCP low-16bits */
+		};
+		u32 cscn_targ;	/* use QM_CGR_TARG_* */
+	};
 	u8 cstd_en;	/* boolean, use QM_CGR_EN */
 	u8 cs;		/* boolean, only used in query response */
 	struct qm_cgr_cs_thres cs_thres; /* use qm_cgr_cs_thres_set64() */
 	u8 mode;	/* QMAN_CGR_MODE_FRAME not supported in rev1.0 */
 } __packed;
 #define QM_CGR_EN		0x01 /* For wr_en_*, cscn_en, cstd_en */
+#define QM_CGR_TARG_UDP_CTRL_WRITE_BIT	0x8000 /* value written to portal bit*/
+#define QM_CGR_TARG_UDP_CTRL_DCP	0x4000 /* 0: SWP, 1: DCP */
 #define QM_CGR_TARG_PORTAL(n)	(0x80000000 >> (n)) /* s/w portal, 0-9 */
 #define QM_CGR_TARG_FMAN0	0x00200000 /* direct-connect portal: fman0 */
 #define QM_CGR_TARG_FMAN1	0x00100000 /*                      : fman1 */
@@ -1036,7 +1044,10 @@ struct qm_mcr_querycgr {
 	u32 __reserved4:24;
 	u32 a_bcnt_hi:8;/* high 8-bits of 40-bit "Average" */
 	u32 a_bcnt_lo;	/* low 32-bits of 40-bit */
-	u8 __reserved5[16];
+	union {
+		u32 cscn_targ_swp[4];
+		u8 __reserved5[16];
+	};
 } __packed;
 static inline u64 qm_mcr_querycgr_i_get64(const struct qm_mcr_querycgr *q)
 {
@@ -2142,6 +2153,17 @@ static inline void qman_release_pool(u32 id)
  */
 int qman_create_cgr(struct qman_cgr *cgr, u32 flags,
 			struct qm_mcc_initcgr *opts);
+
+/**
+ * qman_create_cgr_to_dcp - Register a congestion group object to DCP portal
+ * @cgr: the 'cgr' object, with fields filled in
+ * @flags: QMAN_CGR_FLAG_* values
+ * @dcp_portal: the DCP portal to which the cgr object is registered.
+ * @opts: optional state of CGR settings
+ *
+ */
+int qman_create_cgr_to_dcp(struct qman_cgr *cgr, u32 flags, u16 dcp_portal,
+				struct qm_mcc_initcgr *opts);
 
 /**
  * qman_delete_cgr - Deregisters a congestion group object

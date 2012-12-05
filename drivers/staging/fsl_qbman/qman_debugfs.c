@@ -482,6 +482,8 @@ static int query_cgr_show(struct seq_file *file, void *offset)
 	int ret;
 	struct qm_mcr_querycgr cgrd;
 	struct qman_cgr cgr;
+	int i, j;
+	u32 mask;
 
 	memset(&cgr, 0, sizeof(struct qm_mcr_querycgr));
 	cgr.cgrid = query_cgr_data.cgid;
@@ -508,7 +510,29 @@ static int query_cgr_show(struct seq_file *file, void *offset)
 		cgrd.cgr.wr_en_g, cgrd.cgr.wr_en_y, cgrd.cgr.wr_en_r);
 
 	seq_printf(file, " cscn_en: %u\n", cgrd.cgr.cscn_en);
-	seq_printf(file, " cscn_targ: %u\n", cgrd.cgr.cscn_targ);
+	if ((qman_ip_rev & 0xFF00) >= QMAN_REV30) {
+		seq_printf(file, " cscn_targ_dcp:\n");
+		mask = 0x80000000;
+		for (i = 0; i < 32; i++) {
+			if (cgrd.cgr.cscn_targ & mask)
+				seq_printf(file, "  send CSCN to dcp %u\n",
+								(31 - i));
+			mask >>= 1;
+		}
+
+		seq_printf(file, " cscn_targ_swp:\n");
+		for (i = 0; i < 4; i++) {
+			mask = 0x80000000;
+			for (j = 0; j < 32; j++) {
+				if (cgrd.cscn_targ_swp[i] & mask)
+					seq_printf(file, "  send CSCN to swp"
+						" %u\n", (127 - (i * 32) - j));
+				mask >>= 1;
+			}
+		}
+	} else {
+		seq_printf(file, " cscn_targ: %u\n", cgrd.cgr.cscn_targ);
+	}
 	seq_printf(file, " cstd_en: %u\n", cgrd.cgr.cstd_en);
 	seq_printf(file, " cs: %u\n", cgrd.cgr.cs);
 
