@@ -793,7 +793,9 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev, 48*KILOBYTE);
 #endif
 #if (DPAA_VERSION >= 11)
-    FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev, 256*KILOBYTE);
+#define DEFAULT_TOTAL_FIFO_SIZE_FOR_FMAN_V3H 295*KILOBYTE
+    FM_ConfigTotalFifoSize(p_LnxWrpFmDev->h_Dev,
+                           DEFAULT_TOTAL_FIFO_SIZE_FOR_FMAN_V3H);
 #endif /* (DPAA_VERSION >= 11) */
 
     if (FM_Init(p_LnxWrpFmDev->h_Dev) != E_OK)
