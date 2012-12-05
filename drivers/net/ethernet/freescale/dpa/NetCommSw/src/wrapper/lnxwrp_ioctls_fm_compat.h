@@ -516,6 +516,11 @@ typedef struct ioc_compat_fm_vsp_prs_result_params_t {
 } ioc_compat_fm_vsp_prs_result_params_t;
 #endif /* DPAA_VERSION >= 11 */
 
+typedef struct ioc_compat_fm_ctrl_mon_counters_params_t {
+    uint8_t     fm_ctrl_index;
+    compat_uptr_t p_mon;
+} ioc_compat_fm_ctrl_mon_counters_params_t;
+
 /* } pcd compat structures */
 
 void compat_obj_delete(

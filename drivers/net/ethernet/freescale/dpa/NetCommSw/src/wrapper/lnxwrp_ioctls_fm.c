@@ -3244,6 +3244,54 @@ t_Error LnxwrpFmIOCTL(t_LnxWrpFmDev *p_LnxWrpFmDev, unsigned int cmd, unsigned l
 		}
 	}
 	break;
+
+        case FM_IOC_CTRL_MON_START:
+        {
+            FM_CtrlMonStart(p_LnxWrpFmDev->h_Dev);
+        }
+        break;
+
+        case FM_IOC_CTRL_MON_STOP:
+        {
+            FM_CtrlMonStop(p_LnxWrpFmDev->h_Dev);
+        }
+        break;
+
+#if defined(CONFIG_COMPAT)
+        case FM_IOC_CTRL_MON_GET_COUNTERS_COMPAT:
+#endif
+        case FM_IOC_CTRL_MON_GET_COUNTERS:
+        {
+            ioc_fm_ctrl_mon_counters_params_t param;
+            t_FmCtrlMon mon;
+
+#if defined(CONFIG_COMPAT)
+            ioc_compat_fm_ctrl_mon_counters_params_t compat_param;
+
+            if (compat)
+            {
+                if (copy_from_user(&compat_param, (void *)compat_ptr(arg),
+                            sizeof(compat_param)))
+                    RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+                param.fm_ctrl_index = compat_param.fm_ctrl_index;
+                param.p_mon = (fm_ctrl_mon_t *)compat_ptr(compat_param.p_mon);
+            }
+            else
+#endif
+            {
+                if (copy_from_user(&param, (void *)arg, sizeof(ioc_fm_counters_params_t)))
+                    RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+            }
+
+            if (FM_CtrlMonGetCounters(p_LnxWrpFmDev->h_Dev, param.fm_ctrl_index, &mon))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+
+            if (copy_to_user(param.p_mon, &mon, sizeof(t_FmCtrlMon)))
+                RETURN_ERROR(MINOR, E_WRITE_FAILED, NO_MSG);
+        }
+        break;
+
         default:
             return LnxwrpFmPcdIOCTL(p_LnxWrpFmDev, cmd, arg, compat);
     }
