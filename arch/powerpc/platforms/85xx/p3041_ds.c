@@ -67,6 +67,18 @@ static int __init p3041_ds_probe(void)
 	return 0;
 }
 
+#if defined(CONFIG_PHYLIB) && defined(CONFIG_VITESSE_PHY)
+int vsc824x_add_skew(struct phy_device *phydev);
+#define PHY_ID_VSC8244                  0x000fc6c0
+static int __init board_fixups(void)
+{
+	phy_register_fixup_for_uid(PHY_ID_VSC8244, 0xfffff, vsc824x_add_skew);
+
+	return 0;
+}
+machine_device_initcall(p3041_ds, board_fixups);
+#endif
+
 define_machine(p3041_ds) {
 	.name			= "P3041 DS",
 	.probe			= p3041_ds_probe,
@@ -80,10 +92,11 @@ define_machine(p3041_ds) {
 	.calibrate_decr		= generic_calibrate_decr,
 	.progress		= udbg_progress,
 	.power_save		= e500_idle,
+	.init_early		= corenet_ds_init_early,
 };
 
 machine_arch_initcall(p3041_ds, corenet_ds_publish_pci_device);
-machine_device_initcall(p3041_ds, corenet_ds_publish_devices);
+machine_device_initcall(p3041_ds, declare_of_platform_devices);
 
 #ifdef CONFIG_SWIOTLB
 machine_arch_initcall(p3041_ds, swiotlb_setup_bus_notifier);
