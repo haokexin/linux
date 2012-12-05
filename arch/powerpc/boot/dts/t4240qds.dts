@@ -608,22 +608,18 @@
 		ethernet@0 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet0>;
-			status = "disabled";
 		};
 		ethernet@1 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet1>;
-			status = "disabled";
 		};
 		ethernet@2 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet2>;
-			status = "disabled";
 		};
 		ethernet@3 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet3>;
-			status = "disabled";
 		};
 		ethernet@4 {
 			compatible = "fsl,t4240-dpa-ethernet", "fsl,dpa-ethernet";
