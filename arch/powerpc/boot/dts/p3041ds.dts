@@ -486,6 +486,7 @@
 		ethernet@2 {
 			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
 			fsl,fman-mac = <&enet2>;
+			status = "disabled";
 		};
 		ethernet@3 {
 			compatible = "fsl,p3041-dpa-ethernet", "fsl,dpa-ethernet";
