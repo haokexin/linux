@@ -25,13 +25,15 @@ struct mpic_timer *mpic_request_timer(irq_handler_t fn,  void *dev,
 		const struct timeval *time);
 void mpic_start_timer(struct mpic_timer *handle);
 void mpic_stop_timer(struct mpic_timer *handle);
+void mpic_get_remain_time(struct mpic_timer *handle, struct timeval *time);
 void mpic_free_timer(struct mpic_timer *handle);
 #else
 struct mpic_timer *mpic_request_timer(irq_handler_t fn,  void *dev,
-		const struct timeval *time) {return NULL}
-void mpic_start_timer(struct mpic_timer *handle) {}
-void mpic_stop_timer(struct mpic_timer *handle) {}
-void mpic_free_timer(struct mpic_timer *handle) {}
+		const struct timeval *time) { return NULL; }
+void mpic_start_timer(struct mpic_timer *handle) { }
+void mpic_stop_timer(struct mpic_timer *handle) { }
+void mpic_get_remain_time(struct mpic_timer *handle, struct timeval *time) { }
+void mpic_free_timer(struct mpic_timer *handle) { }
 #endif
 
 #endif

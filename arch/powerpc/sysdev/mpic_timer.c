@@ -83,17 +83,45 @@ static struct cascade_priv cascade_timer[] = {
 
 static LIST_HEAD(timer_group_list);
 
+static void convert_ticks_to_time(struct timer_group_priv *priv,
+		const u64 ticks, struct timeval *time)
+{
+	u64 tmp_sec;
+	u32 rem_us;
+	u32 div;
+
+	if (!(priv->flags & FSL_GLOBAL_TIMER)) {
+		time->tv_sec = (__kernel_time_t)
+			div_u64_rem(ticks, priv->timerfreq, &rem_us);
+		tmp_sec = (u64)time->tv_sec * (u64)priv->timerfreq;
+		time->tv_usec = (__kernel_suseconds_t)
+			div_u64((ticks - tmp_sec) * 1000000, priv->timerfreq);
+
+		return;
+	}
+
+	div = (1 << (MPIC_TIMER_TCR_CLKDIV_64 >> 8)) * 8;
+
+	time->tv_sec = (__kernel_time_t)div_u64(ticks, priv->ccbfreq / div);
+	tmp_sec = div_u64((u64)time->tv_sec * (u64)priv->ccbfreq, div);
+
+	time->tv_usec = (__kernel_suseconds_t)
+		div_u64((ticks - tmp_sec) * 1000000, priv->ccbfreq / div);
+
+	return;
+}
+
 /* the time set by the user is converted to "ticks" */
-static int convert_ticks(struct timer_group_priv *priv,
+static int convert_time_to_ticks(struct timer_group_priv *priv,
 		const struct timeval *time, u64 *ticks)
 {
 	u64 max_value;		/* prevent u64 overflow */
 	u64 tmp = 0;
 
-	u64 tmp_sec = 0;
-	u64 tmp_ms = 0;
-	u64 tmp_us = 0;
-	u32 div = 0;
+	u64 tmp_sec;
+	u64 tmp_ms;
+	u64 tmp_us;
+	u32 div;
 
 	if (priv->flags & FSL_GLOBAL_TIMER)
 		max_value = div_u64(ULLONG_MAX, priv->ccbfreq);
@@ -105,8 +133,11 @@ static int convert_ticks(struct timer_group_priv *priv,
 		return -EINVAL;
 
 	if (!(priv->flags & FSL_GLOBAL_TIMER)) {
-		tmp = time->tv_sec * priv->timerfreq;
-		*ticks = tmp;
+		tmp_sec = time->tv_sec * priv->timerfreq;
+		tmp_ms = time->tv_usec / 1000 * priv->timerfreq / 1000;
+		tmp_us = time->tv_usec % 1000 * priv->timerfreq / 1000000;
+
+		*ticks = tmp_sec + tmp_ms + tmp_us;
 
 		return 0;
 	}
@@ -134,7 +165,7 @@ static struct mpic_timer *detect_idle_cascade_timer(
 					struct timer_group_priv *priv)
 {
 	struct cascade_priv *casc_priv;
-	unsigned int tmp;
+	unsigned int map;
 	unsigned int array_size = ARRAY_SIZE(cascade_timer);
 	unsigned int num;
 	unsigned int i;
@@ -143,8 +174,8 @@ static struct mpic_timer *detect_idle_cascade_timer(
 	casc_priv = cascade_timer;
 	for (i = 0; i < array_size; i++) {
 		spin_lock_irqsave(&priv->lock, flags);
-		tmp = casc_priv->cascade_map & priv->idle;
-		if (tmp == casc_priv->cascade_map) {
+		map = casc_priv->cascade_map & priv->idle;
+		if (map == casc_priv->cascade_map) {
 			num = casc_priv->timer_num;
 			priv->timer[num].cascade_handle = casc_priv;
 
@@ -164,7 +195,7 @@ static int set_cascade_timer(struct timer_group_priv *priv, u64 ticks,
 		unsigned int num)
 {
 	struct cascade_priv *casc_priv;
-	u32 tmp;
+	u32 tcr;
 	u32 tmp_ticks;
 	u32 rem_ticks;
 
@@ -173,9 +204,9 @@ static int set_cascade_timer(struct timer_group_priv *priv, u64 ticks,
 	if (!casc_priv)
 		return -EINVAL;
 
-	tmp = casc_priv->tcr_value |
+	tcr = casc_priv->tcr_value |
 		(casc_priv->tcr_value << MPIC_TIMER_TCR_ROVR_OFFSET);
-	setbits32(priv->group_tcr, tmp);
+	setbits32(priv->group_tcr, tcr);
 
 	tmp_ticks = div_u64_rem(ticks, MAX_TICKS_CASCADE, &rem_ticks);
 
@@ -191,7 +222,7 @@ static int set_cascade_timer(struct timer_group_priv *priv, u64 ticks,
 static struct mpic_timer *get_cascade_timer(struct timer_group_priv *priv,
 					u64 ticks)
 {
-	struct mpic_timer *allocated_timer = NULL;
+	struct mpic_timer *allocated_timer;
 
 	/* Two cascade timers: Support the maximum time */
 	const u64 max_ticks = (u64)MAX_TICKS * (u64)MAX_TICKS_CASCADE;
@@ -216,16 +247,16 @@ static struct mpic_timer *get_cascade_timer(struct timer_group_priv *priv,
 static struct mpic_timer *get_timer(const struct timeval *time)
 {
 	struct timer_group_priv *priv;
-	struct mpic_timer *timer = NULL;
+	struct mpic_timer *timer;
 
-	u64 ticks = 0;
+	u64 ticks;
 	unsigned int num;
 	unsigned int i;
 	unsigned long flags;
-	int ret = 0;
+	int ret;
 
 	list_for_each_entry(priv, &timer_group_list, node) {
-		ret = convert_ticks(priv, time, &ticks);
+		ret = convert_time_to_ticks(priv, time, &ticks);
 		if (ret < 0)
 			return NULL;
 
@@ -288,10 +319,49 @@ void mpic_stop_timer(struct mpic_timer *handle)
 {
 	struct timer_group_priv *priv = container_of(handle,
 			struct timer_group_priv, timer[handle->num]);
+	struct cascade_priv *casc_priv;
 
 	setbits32(&priv->regs[handle->num].gtbcr, TIMER_STOP);
+
+	casc_priv = priv->timer[handle->num].cascade_handle;
+	if (casc_priv) {
+		out_be32(&priv->regs[handle->num].gtccr, 0);
+		out_be32(&priv->regs[handle->num - 1].gtccr, 0);
+	} else {
+		out_be32(&priv->regs[handle->num].gtccr, 0);
+	}
 }
 EXPORT_SYMBOL(mpic_stop_timer);
+
+/**
+ * mpic_get_remain_time - get timer time
+ * @handle: the timer to be selected.
+ * @time: time for timer
+ *
+ * Query timer remaining time.
+ */
+void mpic_get_remain_time(struct mpic_timer *handle, struct timeval *time)
+{
+	struct timer_group_priv *priv = container_of(handle,
+			struct timer_group_priv, timer[handle->num]);
+	struct cascade_priv *casc_priv;
+
+	u64 ticks;
+	u32 tmp_ticks;
+
+	casc_priv = priv->timer[handle->num].cascade_handle;
+	if (casc_priv) {
+		tmp_ticks = in_be32(&priv->regs[handle->num].gtccr);
+		ticks = ((u64)tmp_ticks & UINT_MAX) * (u64)MAX_TICKS_CASCADE;
+		tmp_ticks = in_be32(&priv->regs[handle->num - 1].gtccr);
+		ticks += tmp_ticks;
+	} else {
+		ticks = in_be32(&priv->regs[handle->num].gtccr);
+	}
+
+	convert_ticks_to_time(priv, ticks, time);
+}
+EXPORT_SYMBOL(mpic_get_remain_time);
 
 /**
  * mpic_free_timer - free hardware timer
@@ -306,7 +376,7 @@ void mpic_free_timer(struct mpic_timer *handle)
 	struct timer_group_priv *priv = container_of(handle,
 			struct timer_group_priv, timer[handle->num]);
 
-	struct cascade_priv *casc_priv = NULL;
+	struct cascade_priv *casc_priv;
 	unsigned long flags;
 
 	mpic_stop_timer(handle);
@@ -317,10 +387,10 @@ void mpic_free_timer(struct mpic_timer *handle)
 
 	spin_lock_irqsave(&priv->lock, flags);
 	if (casc_priv) {
-		u32 tmp;
-		tmp = casc_priv->tcr_value | (casc_priv->tcr_value <<
+		u32 tcr;
+		tcr = casc_priv->tcr_value | (casc_priv->tcr_value <<
 					MPIC_TIMER_TCR_ROVR_OFFSET);
-		clrbits32(priv->group_tcr, tmp);
+		clrbits32(priv->group_tcr, tcr);
 		priv->idle |= casc_priv->cascade_map;
 		priv->timer[handle->num].cascade_handle = NULL;
 	} else {
@@ -342,9 +412,8 @@ EXPORT_SYMBOL(mpic_free_timer);
 struct mpic_timer *mpic_request_timer(irq_handler_t fn, void *dev,
 					const struct timeval *time)
 {
-	struct mpic_timer *allocated_timer = NULL;
-
-	int ret = 0;
+	struct mpic_timer *allocated_timer;
+	int ret;
 
 	if (list_empty(&timer_group_list))
 		return NULL;
@@ -402,15 +471,15 @@ static int timer_group_get_irq(struct device_node *np,
 		struct timer_group_priv *priv)
 {
 	const u32 all_timer[] = { 0, TIMERS_PER_GROUP };
-	const u32 *p = NULL;
+	const u32 *p;
 	u32 offset;
 	u32 count;
 
-	unsigned int i = 0;
-	unsigned int j = 0;
+	unsigned int i;
+	unsigned int j;
 	unsigned int irq_index = 0;
-	int irq = 0;
-	int len = 0;
+	int irq;
+	int len;
 
 	p = of_get_property(np, "available-ranges", &len);
 	if (!p)
@@ -449,9 +518,9 @@ static int timer_group_get_irq(struct device_node *np,
 
 static void timer_group_init(struct device_node *np)
 {
-	struct timer_group_priv *priv = NULL;
+	struct timer_group_priv *priv;
 	unsigned int i = 0;
-	int ret = 0;
+	int ret;
 
 	priv = kzalloc(sizeof(struct timer_group_priv), GFP_KERNEL);
 	if (!priv) {
