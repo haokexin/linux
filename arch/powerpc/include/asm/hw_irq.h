@@ -87,7 +87,27 @@ static inline bool arch_irqs_disabled(void)
 
 #ifdef CONFIG_PPC_BOOK3E
 #define __hard_irq_enable()	asm volatile("wrteei 1" : : : "memory")
+
+#ifdef CONFIG_FSL_ERRATUM_A_006198
+static inline void __hard_irq_disable(void)
+{
+	unsigned long tmp;
+
+	asm volatile("ld %0, 1f@got(2);"
+		     "mtlr %0;"
+		     "ld %0, .fsl_erratum_a006198_return@got(2);"
+		     "mtspr %1, %0;"
+		     "mfmsr %0;"
+		     "rlwinm %0, %0, 0, ~%3;"
+		     "mtspr %2, %0;"
+		     "rfmci;"
+		     "1: mtmsr %0" : "=&r" (tmp) :
+		     "i" (SPRN_MCSRR0), "i" (SPRN_MCSRR1),
+		     "i" (MSR_EE) : "memory", "lr");
+}
+#else
 #define __hard_irq_disable()	asm volatile("wrteei 0" : : : "memory")
+#endif
 #else
 #define __hard_irq_enable()	__mtmsrd(local_paca->kernel_msr | MSR_EE, 1)
 #define __hard_irq_disable()	__mtmsrd(local_paca->kernel_msr, 1)
@@ -139,7 +159,21 @@ static inline unsigned long arch_local_save_flags(void)
 static inline void arch_local_irq_restore(unsigned long flags)
 {
 #if defined(CONFIG_BOOKE)
+#ifdef CONFIG_FSL_ERRATUM_A_006198
+	unsigned long tmp;
+
+	asm volatile("ld %0, 1f@got(2);"
+		     "mtlr %0;"
+		     "ld %0, .fsl_erratum_a006198_return@got(2);"
+		     "mtspr %1, %3;"
+		     "mtspr %2, %0;"
+		     "rfmci;"
+		     "1: mtmsr %3" : "=&r" (tmp) :
+		     "i" (SPRN_MCSRR1), "i" (SPRN_MCSRR0),
+		     "r" (flags) : "memory", "lr");
+#else
 	asm volatile("wrtee %0" : : "r" (flags) : "memory");
+#endif
 #else
 	mtmsr(flags);
 #endif
