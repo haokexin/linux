@@ -1395,9 +1395,9 @@ BEGIN_FTR_SECTION
 	/* Release the other thread. It will spin until kick_cpu is called */
 	li	r3, 2
 	mtspr	SPRN_TENS, r3
+END_FTR_SECTION_IFSET(CPU_FTR_SMT)
 
 	blr
-END_FTR_SECTION_IFSET(CPU_FTR_SMT)
 
 _STATIC(init_thread_book3e)
 	lis	r3,(SPRN_EPCR_ICM | SPRN_EPCR_GICM)@h
