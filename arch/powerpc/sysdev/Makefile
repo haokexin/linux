@@ -7,6 +7,7 @@ obj-$(CONFIG_MPIC)		+= mpic.o $(mpic-msi-obj-y)
 mpic-msgr-obj-$(CONFIG_MPIC_MSGR)	+= mpic_msgr.o
 obj-$(CONFIG_MPIC)		+= mpic.o $(mpic-msi-obj-y) $(mpic-msgr-obj-y)
 obj-$(CONFIG_MPIC_TIMER)	+= mpic_timer.o
+obj-$(CONFIG_FSL_MPIC_TIMER_WAKEUP)	+= fsl_mpic_timer_wakeup.o
 obj-$(CONFIG_PPC_EPAPR_HV_PIC)	+= ehv_pic.o
 fsl-msi-obj-$(CONFIG_PCI_MSI)	+= fsl_msi.o
 obj-$(CONFIG_PPC_MSI_BITMAP)	+= msi_bitmap.o
