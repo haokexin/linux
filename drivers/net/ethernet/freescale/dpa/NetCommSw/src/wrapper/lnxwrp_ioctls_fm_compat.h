@@ -460,7 +460,7 @@ typedef struct ioc_compat_fm_pcd_manip_params_t {
     compat_uptr_t                                 id;
 } ioc_compat_fm_pcd_manip_params_t;
 
-#if DPAA_VERSION >= 11
+#if (DPAA_VERSION >= 11)
 typedef struct ioc_compat_fm_pcd_frm_replic_group_params_t {
 	uint8_t                     max_num_of_entries;
 	uint8_t                     num_of_entries;
@@ -494,7 +494,6 @@ typedef struct ioc_compat_fm_vsp_params_t {
     compat_uptr_t       id;                 /**< return value */
 } ioc_compat_fm_vsp_params_t;
 
-
 typedef struct ioc_compat_fm_buf_pool_depletion_params_t {
     compat_uptr_t p_fm_vsp;
     ioc_fm_buf_pool_depletion_t fm_buf_pool_depletion;
@@ -514,7 +513,7 @@ typedef struct ioc_compat_fm_vsp_prs_result_params_t {
     compat_uptr_t p_fm_vsp;
     compat_uptr_t p_data;
 } ioc_compat_fm_vsp_prs_result_params_t;
-#endif /* DPAA_VERSION >= 11 */
+#endif /* (DPAA_VERSION >= 11) */
 
 typedef struct ioc_compat_fm_ctrl_mon_counters_params_t {
     uint8_t     fm_ctrl_index;
@@ -598,10 +597,12 @@ void compat_copy_fm_port_pcd(
         ioc_fm_port_pcd_params_t *param,
         uint8_t compat);
 
+#if (DPAA_VERSION >= 11)
 void compat_copy_fm_port_vsp_alloc_params(
         ioc_compat_fm_port_vsp_alloc_params_t *compat_param,
         ioc_fm_port_vsp_alloc_params_t *param,
         uint8_t compat);
+#endif /* (DPAA_VERSION >= 11) */
 
 void compat_copy_fm_pcd_net_env(
         ioc_compat_fm_pcd_net_env_params_t *compat_param,

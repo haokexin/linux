@@ -2112,7 +2112,6 @@ typedef struct ioc_fm_pcd_frm_replic_member_params_t {
     ioc_fm_pcd_frm_replic_member_t member;
     ioc_fm_pcd_cc_next_engine_params_t next_engine_params;
 } ioc_fm_pcd_frm_replic_member_params_t;
-
 #endif /* DPAA_VERSION >= 11 */
 
 /**************************************************************************//**

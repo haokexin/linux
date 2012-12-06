@@ -815,6 +815,7 @@ void compat_copy_fm_port_pcd_modify_tree(
         id->obj = compat_pcd_id2ptr(compat_id->obj);
 }
 
+#if (DPAA_VERSION >= 11)
 void compat_copy_fm_port_vsp_alloc_params(
         ioc_compat_fm_port_vsp_alloc_params_t *compat_param,
         ioc_fm_port_vsp_alloc_params_t *param,
@@ -829,6 +830,7 @@ void compat_copy_fm_port_vsp_alloc_params(
         param->p_fm_tx_port = compat_pcd_id2ptr(compat_param->p_fm_tx_port);
     }
 }
+#endif /* (DPAA_VERSION >= 11) */
 
 void compat_copy_fm_pcd_net_env(
         ioc_compat_fm_pcd_net_env_params_t *compat_param,

@@ -852,7 +852,6 @@ typedef struct ioc_fm_port_mac_statistics_t {
 *//***************************************************************************/
 #define FM_PORT_IOC_GET_MAC_STATISTICS        _IOR(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(41), ioc_fm_port_mac_statistics_t)
 
-#if (DPAA_VERSION >= 11)
 /**************************************************************************//**
  @Function      FM_PORT_ConfigBufferPrefixContent
 
@@ -880,6 +879,7 @@ typedef struct ioc_fm_port_mac_statistics_t {
 *//***************************************************************************/
 #define FM_PORT_IOC_CONFIG_BUFFER_PREFIX_CONTENT _IOW(FM_IOC_TYPE_BASE, FM_PORT_IOC_NUM(39), ioc_fm_buffer_prefix_content_t)
 
+#if (DPAA_VERSION >= 11)
 typedef struct ioc_fm_port_vsp_alloc_params_t {
     uint8_t     num_of_profiles;          /**< Number of Virtual Storage Profiles */
     uint8_t     dflt_relative_id;         /**< The default Virtual-Storage-Profile-id dedicated to Rx/OP port

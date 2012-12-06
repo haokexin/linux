@@ -279,12 +279,13 @@ typedef struct ioc_fm_buf_pool_depletion_t {
 #endif /* (DPAA_VERSION >= 11) */
 } ioc_fm_buf_pool_depletion_t;
 
+#if (DPAA_VERSION >= 11)
 typedef struct ioc_fm_buf_pool_depletion_params_t {
     void        *p_fm_vsp;
     ioc_fm_buf_pool_depletion_t fm_buf_pool_depletion;
 } ioc_fm_buf_pool_depletion_params_t;
+#endif /* (DPAA_VERSION >= 11) */
 
-#if (DPAA_VERSION >= 11)
 typedef struct ioc_fm_buffer_prefix_content_t {
     uint16_t    priv_data_size;       /**< Number of bytes to be left at the beginning
                                          of the external buffer; Note that the private-area will
@@ -314,6 +315,7 @@ typedef struct ioc_fm_buffer_prefix_content_params_t {
     ioc_fm_buffer_prefix_content_t fm_buffer_prefix_content;
 } ioc_fm_buffer_prefix_content_params_t;
 
+#if (DPAA_VERSION >= 11)
 typedef struct ioc_fm_vsp_config_no_sg_params_t {
     void        *p_fm_vsp;
     bool        no_sg;
