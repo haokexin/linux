@@ -42,21 +42,25 @@
 
 #ifdef CONFIG_SMP
 #define BOOK3E_LOAD_EXC_LEVEL_STACK(level)		\
-	std	r14,PACA_EX##level+EX_R14(r13);		\
+	andi.	r10,r11,MSR_PR;				\
+	bne	1f;					\
 	mfspr	r14,SPRN_PIR;				\
 	slwi	r14,r14,3;				\
 	LOAD_REG_ADDR(r10, level##_STACK_BASE);		\
 	add	r10,r10,r14;				\
 	ld	r10,0(r10);				\
 	addi	r10,r10,THREAD_SIZE;			\
-	std	r10,PACA_DBG_STACK(r13);		\
-	ld	r14,PACA_EX##level+EX_R14(r13);
+	std	r10,PACA_##level##_STACK(r13);		\
+1:
 #else
 #define BOOK3E_LOAD_EXC_LEVEL_STACK(level)		\
+	andi.	r10,r11,MSR_PR;				\
+	bne	1f;					\
 	LOAD_REG_ADDR(r10, level##_STACK_BASE);		\
 	ld	r10,0(r10);				\
 	addi	r10,r10,THREAD_SIZE;			\
-	std	r10,PACA_DBG_STACK(r13);
+	std	r10,PACA_##level##_STACK(r13);
+1:
 #endif
 
 /* Exception prolog code for all exceptions */
@@ -86,25 +90,23 @@
 
 /* Store something to exception thread info */
 #define	BOOK3E_STORE_EXC_LEVEL_THEAD_INFO(type)					\
-	std	r14,PACA_EX##type+EX_R14(r13);					\
-	std	r15,PACA_EX##type+EX_R15(r13);					\
+	andi.	r10,r11,MSR_PR;							\
+	bne	1f;								\
 	ld	r14,PACA_EX##type+EX_R1(r13);					\
-	clrrdi	r14,r14,THREAD_SHIFT;						\
-	clrrdi	r15,r1,THREAD_SHIFT;						\
+	CURRENT_THREAD_INFO(r14, r14);						\
+	CURRENT_THREAD_INFO(r15, r1);						\
 	ld	r10,TI_FLAGS(r14);		     				\
 	std	r10,TI_FLAGS(r15);			     			\
 	ld	r10,TI_PREEMPT(r14);		     				\
-	std	r10,TI_PREEMPT(r1);		     				\
+	std	r10,TI_PREEMPT(r15);		     				\
 	ld	r10,TI_TASK(r14);			     			\
-	std	r10,TI_TASK(r1);			     			\
-	ld	r14,PACA_EX##type+EX_R14(r13);					\
-	ld	r15,PACA_EX##type+EX_R15(r13);					\
+	std	r10,TI_TASK(r15);			     			\
 1:
 
 #define CRIT_SET_KSTACK						            	\
 	BOOK3E_LOAD_EXC_LEVEL_STACK(CRIT);					\
 	ld	r1,PACA_CRIT_STACK(r13);				    \
-	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
+	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;					\
 	BOOK3E_STORE_EXC_LEVEL_THEAD_INFO(CRIT);				
 #define SPRN_CRIT_SRR0	SPRN_CSRR0
 #define SPRN_CRIT_SRR1	SPRN_CSRR1
@@ -120,7 +122,7 @@
 #define MC_SET_KSTACK						            	\
 	BOOK3E_LOAD_EXC_LEVEL_STACK(MC);					\
 	ld	r1,PACA_MC_STACK(r13);					    \
-	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;
+	subi	r1,r1,SPECIAL_EXC_FRAME_SIZE;					\
 	BOOK3E_STORE_EXC_LEVEL_THEAD_INFO(MC);					
 #define SPRN_MC_SRR0	SPRN_MCSRR0
 #define SPRN_MC_SRR1	SPRN_MCSRR1
