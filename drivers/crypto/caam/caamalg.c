@@ -2207,6 +2207,9 @@ static int __init caam_algapi_init(void)
 
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
+	if (priv == NULL)
+		return -ENODEV;
+
 	of_node_put(dev_node);
 
 	INIT_LIST_HEAD(&priv->alg_list);

@@ -296,6 +296,9 @@ static int __init caam_rng_init(void)
 
 	ctrldev = &pdev->dev;
 	priv = dev_get_drvdata(ctrldev);
+	if (priv == NULL)
+		return -ENODEV;
+
 	of_node_put(dev_node);
 
 	caam_init_rng(&rng_ctx, priv->jrdev[0]);

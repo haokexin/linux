@@ -42,6 +42,7 @@ static int caam_remove(struct platform_device *pdev)
 
 	kfree(ctrlpriv->jrdev);
 	kfree(ctrlpriv);
+	dev_set_drvdata(ctrldev, NULL);
 
 	return ret;
 }
