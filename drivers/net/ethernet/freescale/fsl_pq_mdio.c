@@ -295,7 +295,7 @@ static int fsl_pq_mdio_probe(struct platform_device *ofdev)
 	struct fsl_pq_mdio_priv *priv;
 	struct fsl_pq_mdio __iomem *regs = NULL;
 	void __iomem *map;
-	u32 __iomem *tbipa;
+	u32 __iomem *tbipa = NULL;
 	struct mii_bus *new_bus;
 	int tbiaddr = -1;
 	const u32 *addrp;
@@ -408,9 +408,8 @@ static int fsl_pq_mdio_probe(struct platform_device *ofdev)
 			err = -EBUSY;
 			goto err_free_irqs;
 		} else {
-#ifndef CONFIG_FSL_FMAN
-			out_be32(tbipa, tbiaddr);
-#endif
+			if (tbipa)
+				out_be32(tbipa, tbiaddr);
 		}
 	}
 
