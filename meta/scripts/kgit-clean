@@ -1,0 +1,122 @@
+#!/bin/bash
+
+#  (kgit-clean), (maintenance utilities for a Wind River git tree)
+
+#  Copyright (c) 2008-2010 Wind River Systems, Inc.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License version 2 as
+#  published by the Free Software Foundation.
+
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#  See the GNU General Public License for more details.
+
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+# For consistent behaviour with "grep -w"
+LC_ALL=C
+export LC_ALL
+meta_dir=meta
+
+usage()
+{
+cat <<EOF
+
+ kgit-clean [-b] [-u upstream] [-c]
+
+   Perform cleanup operations on a prepared repoistory
+
+   -b: remove -old branches. unused branches will also be
+       removed if an upstream repository is passed
+   -c: check repository for branch consistency
+   -u: upstream repository
+
+   -h: help
+   -v: verbose
+
+EOF
+}
+
+
+if [ ! $# -gt 0 ]; then
+    usage
+    exit
+fi
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+                -h|--h|--help)
+                        usage
+                        exit
+                        ;;
+                -v|--v)
+                        verbose=t
+                        ;;
+                -u|--u)
+                        upstream=$2
+			shift
+                        ;;
+                -b|--b)
+                        branches=t
+                        ;;
+                -c|--c)
+                        consistency_check=t
+                        ;;
+		*)
+			break
+			;;
+	esac
+	shift
+done
+
+path=`dirname $0`
+. $path/kgit
+
+if [ -n "$branches" ]; then
+    if [ -n "$verbose" ]; then
+	echo "  * cleaning -old branches"
+    fi
+    for branch in `ls .git/refs/heads`; do
+	case "$branch" in 
+            *-old) 
+		if [ -n "$verbose" ]; then 
+		    echo "     * git branch -D $branch"
+		fi
+		git branch -D $branch
+		;;
+	esac
+    done
+fi
+
+if [ -n "$consistency_check" ]; then
+
+    # check if this is a meta repo, that's all we can 
+    # check. A non meta repo should just do nothing
+    check_refs=`git tag | grep checkpoint- | head -n1`
+    if [ -z "$check_refs" ]; then
+	return
+    fi
+
+    # if there isn't a branch status file, we've got nothing
+    # to check
+    if [ ! -e "$meta_dir/cfg/branch_status" ]; then
+	exit
+    fi
+
+    for i in `cat $meta_dir/cfg/branch_status | cut -d: -f1 | sort | uniq`; do
+	logged_ref=`grep ^$i: $meta_dir/cfg/branch_status | tail -n 1 | cut -d: -f2`
+	actual_ref=`git show-ref -h -s $i`
+
+	if [ -n "$actual_ref" ] && [ "$actual_ref" != "$logged_ref" ]; then
+	    echo ""
+	    echo "NOTICE: branch \"$i\" has an unexpected HEAD commit"
+	    echo "        expected: $logged_ref";
+	    echo "        actual  : $actual_ref"
+	    echo ""
+	fi
+    done
+fi
