@@ -1,0 +1,3 @@
+links/kernel-cache/bsp/mti-malta64/mti_malta64-fix-the-pci-resource-conflicts.patch
+links/kernel-cache/bsp/mti-malta64/mousedev-mousedev-patch-for-qemumips.patch
+links/kernel-cache/bsp/mti-malta64/0001-oprofile-mips-override-register-writes-for-qemu-mips.patch

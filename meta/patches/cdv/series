@@ -1,0 +1,8 @@
+links/kernel-cache/features/cdv/drivers-staging-cdv-initial-pull-from-linux-yocto-3.patch
+links/kernel-cache/features/cdv/drivers-staging-cdv-rename-sysinfo.h-to-cdvsysinfo.h.patch
+links/kernel-cache/features/cdv/drivers-staging-cdv-fix-wrong-kernel-header-file-inc.patch
+links/kernel-cache/features/cdv/drivers-staging-cdv-Make-the-per-driver-file_operati.patch
+links/kernel-cache/features/cdv/drivers-staging-cdv-align-with-drm_frambuffer-and-dr.patch
+links/kernel-cache/features/cdv/drivers-staging-cdv-kmap-kunmap_atomic-now-only-take.patch
+links/kernel-cache/features/cdv/drivers-staging-cdv-align-ttm-usage.patch
+links/kernel-cache/features/cdv/staging-cdv-rename-symbol-name-to-avoid-conflict-wit.patch

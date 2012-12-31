@@ -1,0 +1,9 @@
+links/kernel-cache/features/rt/preempt-rt-import-3.4.18-rt29.patch
+links/kernel-cache/features/rt/preempt-rt-use-_nort-versions-of-local_irq_save-rest.patch
+links/kernel-cache/features/rt/serial-pch_uart-no-need-to-disable-irq-for-rt-kernel.patch
+links/kernel-cache/features/wr-rt/preempt_rt-kgdboc-Fixup-of-the-BUG-sleeping-function.patch
+links/kernel-cache/features/wr-rt/preempt_rt-oprofile-Call-hrtimer-callback-in-interru.patch
+links/kernel-cache/features/wr-rt/rt-Replace-rt-spin-lock-to-raw-one-in-res_counter.patch
+links/kernel-cache/features/wr-rt/serial-PL011-Correct-spin_lock-and-irqsave-usage-in-.patch
+links/kernel-cache/features/wr-rt/rt-cfg80211-fix-call-trace-of-cfg80211-on-rt-kernel.patch
+links/kernel-cache/features/wr-rt/lockdep-selftest-save-restore-migrate_disable-count.patch

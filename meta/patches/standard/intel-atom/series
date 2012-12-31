@@ -1,0 +1,12 @@
+links/kernel-cache/bsp/intel-atom/i2c-busses-add-kontron-kempld-i2c-bus-support.patch
+links/kernel-cache/bsp/intel-atom/mfd-add-multifunction-miscellaneous-devices-for-kbc_.patch
+links/kernel-cache/bsp/intel-atom/misc-add-support-for-lis331dlh-accelerometer-chip.patch
+links/kernel-cache/bsp/intel-atom/gpio-fix-interupt-handler-of-accelerometer-not-to-be.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-change-paremeter-of-lis331dlh_acc_i2c.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-invert-the-X-reading.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-reorganize-code.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-change-return-value-of-some-functions.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-optimizing-code.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-update-odr-while-powering-on.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-add-DEBUG.patch
+links/kernel-cache/bsp/intel-atom/misc-lis331dlh-Fix-the-calltrace-upon-testing-accele.patch
