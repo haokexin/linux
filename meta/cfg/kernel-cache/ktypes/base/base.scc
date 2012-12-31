@@ -1,0 +1,5 @@
+define KERNEL_VERSION 3.4
+
+kconf non-hardware base.cfg
+
+# branch -noinherit base

@@ -1,0 +1,12 @@
+include cfg/x86.scc
+include features/intel-e1xxxx/intel-e100.scc
+include features/intel-e1xxxx/intel-e1xxxx.scc
+include features/drm-emgd/drm-emgd.scc
+include cfg/8250.scc
+include cfg/vesafb.scc
+
+include features/usb/ehci-hcd.scc
+include features/usb/uhci-hcd.scc
+
+kconf hardware emenlow.cfg
+kconf non-hardware reboot-quirk.cfg 
