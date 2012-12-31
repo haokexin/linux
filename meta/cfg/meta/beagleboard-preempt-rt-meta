@@ -1,0 +1,1200 @@
+# _reloc_dir /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg
+
+# _mark beagleboard_preempt_rt_248c736ec3d23b0c1177a0a06fdf1fb0 start
+# _define KMACHINE 'beagleboard'
+# _define KTYPE 'preempt-rt'
+# _define KARCH 'arm'
+# _mark preempt_rt_28a9a9d573d1d710869990693e5e5a96 start
+# _mark standard_nocfg_0e2df64b07f5da1c255ce72ed5c0fa21 start
+# _mark base_3690be4b7577da76c4439b5409f03d61 start
+# _define KERNEL_VERSION '3.4'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/base/base.cfg
+# _mark base_3690be4b7577da76c4439b5409f03d61 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/base
+# _branch_begin standard
+# _mark syscall_stubs_34a338792f2a5b5c5ee96e216ead42a9 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/standard/sched-Add-sched-deadline-syscall-stubs.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/standard/omap-lttng-statedump-arm-stub-part.patch
+# _mark syscall_stubs_34a338792f2a5b5c5ee96e216ead42a9 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/standard
+# _mark kgdb_109e721329abf725cf78def6083ae891 start
+# _define KFEATURE_DESCRIPTION 'Enable KGDB + KGDB access protocols'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb.cfg
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-x86-fix-warning-about-unused-variable.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/mips-kgdb-fix-recursive-page-fault-with-CONFIG_KPROB.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-Accept-either-kbd-or-kdb-to-activate-the-vga-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/usb-hcd-implement-polling-a-specific-usb-device.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/usb-serial-console-try-to-poll-the-hcd-vs-dropping-d.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/usb-serial-sysrq-Run-the-sysrq-handler-in-a-tasklet.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/NET_POLL-Pass-skb-via-NET_POLL-rx-routine.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-Implement-kgdb-over-ethernet-with-NET_POLL.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-tty-Add-the-rx-polling-call-back-capability.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-8250-rx-polling-hook-for-the-8250-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-Stop-extra-character-interference-when-rx-pol.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-Low-level-rx-polling-extention-for-usb-serial.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-usb-Add-polling-support-for-kgdboc-and-usb-se.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-HACK-for-demo-allow-usb-serial-to-initialize-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-amba-pl011-rx-polling-hook-for-the-amba-pl011.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-Add-custom-qcpu-query-for-cpu-arch-information.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-arm-Add-in-kernel-software-single-stepping.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-arm-Add-in-kernel-software-single-stepping-fix-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/arm-kgdb-Fix-software-single-step-support-with-a-com.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/mips-kdb-Add-software-single-stepping-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-mips-Add-in-kernel-software-single-stepping.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-mips-remove-cache-flush-in-kgdb_arch_handle_exc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboe-handle-the-special-case-that-passed-0-to-conf.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboe-check-kgdboe-whether-initialized-or-not-when-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-ppc-do-not-set-kgdb_single_step-on-ppc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-fix-lost-characters-with-scheduled-breakpoint.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/usb-keyboard-kdb-Implement-HID-keyboard-polling.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdboc-tty-use-tty-open-to-start-low-level-drivers.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/pmac_zilog-console_poll-Implement-the-poll_rx_cb-API.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/powerpc-Bail-out-of-KGDB-when-we-ve-been-triggered.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/powerpc-kgdb-restore-current_thread_info-properly.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb/kgdb-Add-module-event-hooks.patch
+# _mark kgdb_109e721329abf725cf78def6083ae891 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kgdb
+# _git tag kgdb
+# _mark msa_d8bc97ccd3150b5367a912fe1f4dddb1 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-base.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-x86.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-proc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-cputime.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/Fix-a-compiler-issue-with-MSA_NOW.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-fix-a-compile-error-in-tsacct.c.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-Add-some-missing-preempt-disables.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/x86-msa-Fix-the-IRQ-number.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/Microstate-Accounting-MIPS-port.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-use-cputime-not-jiffies-in-cputime64_to_clock_t.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/MSA-MIPS-move-Kconfig-MSA-options-to-Kconfig.debug.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-mips-Fix-a-possible-improper-user-return.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-Do-MSA-calls-in-schedule_ipi.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-x86-Add-MSA-info-to-schedule_ipi.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-mips-Add-MSA-info-to-schedule_ipi.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-arm-Add-initial-ARM-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-Don-t-required-scheduler_ipi-hacks.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa/msa-Set-void-parameters-for-scheduler_ipi.patch
+# _mark msa_d8bc97ccd3150b5367a912fe1f4dddb1 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/msa
+# _mark wrnote_b6a55edadc3b1ece12b9c4d9374123b2 start
+# _define KFEATURE_DESCRIPTION 'wrnote for enhanced debugging'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wrnote/wrnote.cfg
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wrnote/wrnote-add-hooks-into-binfmt_elf.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wrnote/wrnote-core-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wrnote/wrnote-create-dummy-wrs_sys_info.h.patch
+# _mark wrnote_b6a55edadc3b1ece12b9c4d9374123b2 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wrnote
+# _git tag wrnote
+# _mark omap_112c7e6387214af656c7df0871fc1f6a start
+# _mark omap_112c7e6387214af656c7df0871fc1f6a end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/omap
+# _mark lttng_2024c205fecf07f7aad750c6b4831801 start
+# _mark lttng_enable_cb76c853de9bf375387d7a2ef232cfcb start
+# _define KFEATURE_DESCRIPTION 'Enable Linux Trace Toolkit - next generation'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/lttng.cfg
+# _mark lttng_enable_cb76c853de9bf375387d7a2ef232cfcb end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0001-kernel-fix-kernel-irq-fix-kstat_irqs_cpu-and-irq_to_.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0002-nmi-safe-kernel-x86-nmi-safe-int3-and-page-fault.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0003-seq_file_sorted.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0004-module.c-sort-module-list.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0005-trace-clock-get-cycles-kconfig-have-get-cycles.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0006-trace-clock-get-cycles-x86-have-get-cycles.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0007-trace-clock-get-cycles-sparc64-have-get-cycles.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0008-trace-clock-get-cycles-powerpc-have-get-cycles.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0009-trace-clock-mips-export-hpt-frequency-for-get-cycles.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0010-trace-clock-get-cycles-mips-have-get-cycles.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0011-trace-clock-trace-clock-core.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0012-trace-clock-trace-clock-generic.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0013-trace-clock-powerpc-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0014-trace-clock-sparc64-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0015-trace-clock-sh-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0016-trace-clock-test-tsc-sync.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0017-trace-clock-x86-remove-arch-specific-tsc_sync.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0018-trace-clock-mips-use-tsc_sync.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0019-trace-clock-mips-create-empty-sync_core.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0020-trace-clock-mips-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0021-trace-clock-x86-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0022-trace-clock-trace-clock-use-access-once.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0023-trace-clock-trace-clock-dont-use-del-timer-sync.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0024-LTTng-tracer-core.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0025-lttng-core-lttng-core-x86.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0026-lttng-core-lttng-core-powerpc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0027-poll-wait-exclusive.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0028-splice-support-modules.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0029-immediate-values-immediate-values-stub-header.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0030-lttng-instrumentation-revert-marker-remove2.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0031-lttng-instrumentation-revert-marker-remove.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0032-lttng-instrumentation-linux-kernel-markers-iterator.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0033-lttng-instrumentation-markers-support-for-proprietar.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0034-lttng-instrumentation-markers-remove-old-comment.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0035-immediate-values-linux-kernel-markers-immediate-valu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0036-lttng-instrumentation-markers-use-dynamic-channels.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0037-lttng-instrumentation-marker.h-api-update.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0038-lttng-instrumentation-marker.c-api-update.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0039-lttng-instrumentation-markers-multi-probes-test.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0040-lttng-instrumentation-markers-examples-api-update.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0041-lttng-instrumentation-lttng-instrumentation-socket.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0042-lttng-instrumentation-lttng-instrumentation-mm-trace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0043-lttng-instrumentation-lttng-instrumentation-irq.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0044-lttng-instrumentation-lttng-instrumentation-tasklets.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0045-lttng-instrumentation-lttng-instrumentation-softirq.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0046-lttng-instrumentation-lttng-instrumentation-timer.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0047-lttng-instrumentation-lttng-instrumentation-kernel.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0048-lttng-instrumentation-lttng-instrumentation-filemap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0049-lttng-instrumentation-lttng-instrumentation-swap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0050-lttng-instrumentation-lttng-instrumentation-fs.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0051-lttng-instrumentation-lttng-instrumentation-memory.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0052-lttng-instrumentation-lttng-instrumentation-page_all.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0053-lttng-instrumentation-lttng-instrumentation-hugetlb.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0054-lttng-instrumentation-lttng-instrumentation-net.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0055-lttng-instrumentation-lttng-instrumentation-ipv4.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0056-lttng-instrumentation-lttng-instrumentation-ipv6.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0057-lttng-instrumentation-lttng-instrumentation-ipc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0058-lttng-instrumentation-lttng-instrumentation-lockdep.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0059-lttng-instrumentation-lttng-trace-rcu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0060-lttng-instrumentation-add-input-subsystem-instrument.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0061-lttng-instrumentation-lttng-instrumentation-page-cac.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0062-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0063-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0064-lttng-instrumentation-avr32-thread-flags-cleanup.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0065-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0066-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0067-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0068-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0069-lttng-instrumentation-h8300-thread-flags-cleanup.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0070-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0071-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0072-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0073-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0074-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0075-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0076-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0077-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0078-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0079-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0080-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0081-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0082-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0083-lttng-instrumentation-lttng-kernel-trace-thread-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0084-lttng-instrumentation-lttng-instrumentation-syscall.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0085-lttng-instrumentation-lttng-instrumentation-traps.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0086-lttng-instrumentation-lttng-instrumentation-schedule.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0087-lttng-instrumentation-lttng-instrumentation-x86.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0088-lttng-instrumentation-lttng-instrumentation-mips.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0089-lttng-instrumentation-lttng-instrumentation-powerpc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0090-lttng-instrumentation-lttng-instrumentation-sh.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0091-lttng-instrumentation-lttng-instrumentation-sh-add-l.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0092-lttng-instrumentation-lttng-instrumentation-sparc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0093-lttng-instrumentation-lttng-instrumentation-s390.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0094-lttng-statedump-lttng-export-tasklist-lock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0095-lttng-statedump-lttng-export-irq_desc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0096-lttng-statedump-lttng-statedump-swap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0097-lttng-statedump-export-get-files-struct-symbol.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0098-lttng-statedump-lttng-statedump-module-list.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0099-lttng-statedump-fix-wan-desc-offset.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0100-lttng-statedump-lttng-statedump-x86.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0101-markers-update-to-channel-api.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0102-lttng-instrumentation-separate-socketcall-tracepoint.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0103-lttng-instrumentation-fix-tracepoints-for-network-so.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0104-markers-list-from-marker-hash-table.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0105-lttng-instrumentation-arm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0106-omap-lttng-use-iter_div.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0107-omap-lttng-statedump-arm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0108-omap-trace-clock-specialize.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0109-omap-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0110-omap-trace-clock-add-write-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0111-omap-trace-clock-basic-pm-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0112-omap-trace-clock-fix-mutex.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0113-markers-make-example-probes-static.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0114-module-vmalloc_sync_all_on_module_load.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0115-ltt-channels-make-marker-entry-permanent-for-trace-s.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0116-markers-get-name-and-fmt-from-session-permanent-eID.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0117-markers-add-is-marker-enabled.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0118-lttng-instrumentation-panic.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0119-rculist-add-for-each-entry-without-prefetch.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0120-markers-hold-markers-mutex-for-marker-section-iterat.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0121-lttng-make-markers-enabled-in-advance.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0122-lttng-powerpc-trace-clock.h-include-asm-time.h-for-g.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0123-export-vmalloc-sync-all-symbol-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0124-omap-trace-clock-32-to-64-use-spinlock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0125-tracepoints-pm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0126-omap-trace-clock-use-spinlock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0127-omap-trace-clock-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0128-modpost-should-learn-about-discard-section.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0129-trace-clock-rename-generic-identifier.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0130-markers-fix-documentation.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0131-finish-ascii-kernel-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0132-lttng-instrumentation-fix-softirq.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0133-trace-clock-fix-usage-of-trace-clock-freq-scale-as-a.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0134-trace-clock-32-to-64-add-compiler-barrier.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0135-omap-trace-clock-32-to-64-use-spinlock-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0136-x86-trace-clock-use-spinlock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0137-mips-trace-clock-use-spinlock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0138-marker-fix-rcu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0139-tracepoints-improve-documentation-sample.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0140-lttng-instrumentation-net-move-network-tracepoints.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0141-lttng-instrumentation-net-trace-incoming-tcp-traffic.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0142-lttng-instrumentation-net-trace-incoming-udp-traffic.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0143-lttng-instrumentation-lockdep-update.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0144-lttng-relay-refactoring.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0145-lttng-pm-idle-instrumentation.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0146-notifier-atomic-call-chain-notrace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0147-idle-notifier-standardize.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0148-idle-notifier-x86_32.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0149-lttng-channels-fix-recursive-lock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0150-markers-fix-rcu-teardown.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0151-mips-trace-clock-fix-order.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0152-trace-clock-provide-sleep-free-get-put.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0153-mips-fix-trace-clock-32.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0154-markers-fix-compaction.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0155-markers-fix-marker-present-locking-reversed.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0156-mips32-fix-trace-clock-spinlock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0157-mips-assume-synchronized-tsc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0158-lttng-fix-trace-clock-definitions-for-sh.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0159-Fix-LTTng-0.181-compilation-on-PowerPC.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0160-arm-trace-clock-update-include.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0161-arm-trace-clock-update-clocksource.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0162-omap-trace-clock-support-pm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0163-omap-trace-clock-pm-update.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0164-omap-dvfs-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0165-omap-debug-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0166-omap-move-trace-clock-header-to-mach.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0167-omap-merge-fix-plat-mach.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0168-omap-move-resync-timer-to-cpufreq-event.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0169-omap-stop-ccnt-in-idle.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0170-omap-trace-clock-fix-no-cpufreq.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0171-arm-trace-clock-use-cpufreq-get.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0172-rcu-list-for-each-entry-continue-rcu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0173-idle-notifier-x86_32-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0174-idle-notifier-x86_32-fix-export-symbol.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0175-omap-trace-clock-use-del-timer-sync.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0176-x86-trace-clock-use-mod-timer.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0177-trace-clock-32-to-64-use-del-timer-sync.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0178-omap-fix-disable-timer-missing-declaration.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0179-markers-revert-modpost-removal.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0180-tsc-sync-relax-check.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0181-omap3-trace-clock-header-moved-to-plat.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0182-arm-fix-comment-2-byte-cmpxchg.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0183-introduce-build-runtime-bug-on.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0184-Create-generic-alignment-API-v12.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0185-lttng-revert-powerpc-irq-instrumentation.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0186-lttng-idle-notifier-i7300-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0187-lttng-mips-fix-syscall-entry-tracing.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0188-lttng-mips-dump-mips-system-call-tables.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0189-lttng-mips-use-64-bit-counter-for-trace-clock-on-oct.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0190-lttng-trace-clock-sh-code-rework.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0191-trace-clock-32-to-64-fix-del-timer-bug.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0192-markers-fix-out-of-bound-array.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0193-markers-revert-removal-of-linker-script.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0194-markers-align-on-128-bytes.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0195-markers-update-to-2.6.35-tracepoints.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0196-markers-modularize-lttng.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0197-trace-clock-fix-kconfig-apply-problem.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0198-lttng-instrumentation-fs-exec-const-filename.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0199-Move-KVM-trace-includes-in-a-standard-directory.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0200-lttng-instrumentation-xtime-deprecated.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0201-trace-clock-get-may-fail.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0202-arm-trace-clock-reserve-pmu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0203-trace-clock-remove-extra-barriers-on-x86.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0204-trace-clock-userspace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0205-arm-trace-clock-fix-missing-include.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0206-lttng-instrumentation-irq-remove-softirq-raise-dup.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0207-marker-remove-init-rcu-head.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0208-lttng-instrumentation-net-fix-conflict.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0209-lttng-instrumentation-x86-add-missing-dump-tables.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0210-markers-fix-128-align.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0211-mips-octeon-fix-get-cycles.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0212-arm-trace-clock-fix-no-pmu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0213-arm-trace-clock-fix-release-pmu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0214-arm-omap-trace-clock-notrace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0215-lttng-instrumentation-lttng-instrumentation-fs-dup.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0216-lttng-update-alignment-macros.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0217-LTTng-modularization-import-of-lttng-0.226.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0218-Support-architectures-without-dump-tables.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0219-Fix-circular-module-deps.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0220-ltt-ascii-init-fix-renaming-CONFIG_LTT_-options-to-L.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0221-VFS-update-to-new-unlocked_ioctl.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0222-probes-fs-trace.c-const-char-fs_exec.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0223-block-trace-update-to-2.6.36.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0224-newer-get_trace_clock-may-fail-on-arm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0225-Connect-probes-to-KVM-TRACE_EVENTS.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0226-Update-net-trace-probe-for-2.6.37.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0227-Fix-ltt-relay-alloc-NULL-pointer-exception.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0228-net_dev_xmit_extended-probe-cleanup-unused-data.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0229-Updates-for-kernel-2.6.38.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0230-kvm-trace-fix-warning-probe-prototype-mismatch.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0231-lockdep-trace-don-t-build-probe-if-CONFIG_LOCKDEP.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0232-Fix-disabled-channel-timer-start-stop-handling.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0233-Add-dup-probe-to-lttng-module.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0234-Fix-typo-in-tracepoint-name.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0235-softirq-instrumentation-update-prototypes.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0236-lttng-modules-v0.19-stable-setup_trace_write-Fix-rec.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0237-lttng-modpost-Fix-wrong-symbol-address-for-vmlinux-s.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0238-lttng-Fix-the-return-value-type-of-get_trace_clock-f.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0239-lttng-Replace-seqlock-API-to-seqcount-API-for-vsysca.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0240-lttng-Add-idle-stuff-for-x86_32.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0241-lttng-wall_to_monotonic-is-a-part-of-timekeeper.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0242-lttng-Misc-build-fix-on-v3.4.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0243-lttng-Replace-_TRACE_RCU_H-macro-to-_LTT_TRACE_RCU_H.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0244-lttng-Include-export.h-into-swapfile.c.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0245-lttng-modules-Remove-smp_lock.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0246-lttng-modules-Convert-to-new-irq_chip-functions.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0247-lttng-modules-Remove-non-exist-block-trace-points.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0248-lttng-Add-lttng-config-and-build-infrastructure.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0001-lttng-omap-Fix-trace-clock-buildup-due-to-PMU-reserv.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0002-lttng-omap-Get-clocksource-from-clocksource_mmio.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/0003-lttng-hugetlb-hugetlb_get_quota-is-no-longer-exist.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/x86-kvm-lttng-build-fix-for-lttng.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/lttng-powerpc-kvm-restrict-to-x86-kvm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/lttng-Move-nmi_return-pv_ops-out-of-lguest_pages.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/net-core-fix-a-wrong-change-introduced-by-lttng-patc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/lttng-fix-clock_gettime-obtaining-the-CPU-time-of-th.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/lttng-omap-Remove-reserve_pmu-in-init_trace_clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/lttng-omap-Replace-clock-read-with-sched_clock-in-tr.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/lttng-omap-Remove-PMU-reserving-in-trace-clock.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng/fixed-the-mips64-build-issue-when-enable-the-MIPS32_.patch
+# _mark lttng_2024c205fecf07f7aad750c6b4831801 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng
+# _git tag lttng
+# _mark lttng2_e5c94d5f146feefd3382d85965e2220a start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng2/lttng2-LTTNG-2.0.3-release-drop.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng2/lttng2-added-lttng-Kconfig-for-in-kernel-building.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng2/lttng2-enable-the-lttng-driver-in-the-build.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng2/LTT-LTTNG2-integration-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng2/LTTNG2-fix-compilation-issue-for-64bit-targets.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng2/LTTNG2-kconfig-fix-for-mips.patch
+# _mark lttng2_e5c94d5f146feefd3382d85965e2220a end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lttng2
+# _git tag lttng2
+# _mark ptrace_f4891e8af94936cb4bf85390685dfc26 start
+# _mark ptrace_f4891e8af94936cb4bf85390685dfc26 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ptrace
+# _git tag ptrace
+# _mark ocd_5ceefa5667168751c6a86eda0ba96e29 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocd/kconfig-OCD-hooks.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocd/ocd-powerpc-hooks.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocd/ocd-extended-module-info.patch
+# _mark ocd_5ceefa5667168751c6a86eda0ba96e29 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocd
+# _git tag ocd
+# _mark blktrace_f232cd86b5e559affb33569041b86b2a start
+# _define KFEATURE_DESCRIPTION 'Enable blktrace'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/blktrace/blktrace.cfg
+# _mark blktrace_f232cd86b5e559affb33569041b86b2a end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/blktrace
+# _git tag blktrace
+# _mark systemtap_bcaf5f7156f35716330760a37eace265 start
+# _define KFEATURE_DESCRIPTION 'Enable options required for systemtap support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/systemtap/systemtap.cfg
+# _mark kprobes_0907521df81fd5136d73e981121e648f start
+# _define KFEATURE_DESCRIPTION 'Enable options required for kprobes support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kprobes/kprobes.cfg
+# _mark kprobes_0907521df81fd5136d73e981121e648f end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kprobes
+# _mark uprobe_enable_decdb4081f2d8cda7a6ee28bfa2f07b0 start
+# _define KFEATURE_DESCRIPTION 'Enable options required for uprobes support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobe.cfg
+# _mark uprobe_enable_decdb4081f2d8cda7a6ee28bfa2f07b0 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe
+# _mark systemtap_bcaf5f7156f35716330760a37eace265 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/systemtap
+# _git tag systemtap
+# _mark utrace_b70b1b5134705c76bf69a6d819c4a7e1 start
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/utrace/utrace.cfg
+# _mark utrace_b70b1b5134705c76bf69a6d819c4a7e1 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/utrace
+# _git tag utrace
+# _mark seccomp_fb62e9a54bcd91023038ccf305ef6852 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/Add-PR_-GET-SET-_NO_NEW_PRIVS-to-prevent-execve-from.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/Fix-execve-behavior-apparmor-for-PR_-GET-SET-_NO_NEW.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/sk_run_filter-add-BPF_S_ANC_SECCOMP_LD_W.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/net-compat.c-linux-filter.h-share-compat_sock_fprog.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/seccomp-kill-the-seccomp_t-typedef.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/asm-syscall.h-add-syscall_get_arch.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/arch-x86-add-syscall_get_arch-to-syscall.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/seccomp-add-system-call-filtering-using-BPF.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/seccomp-remove-duplicated-failure-logging.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/seccomp-add-SECCOMP_RET_ERRNO.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/signal-x86-add-SIGSYS-info-and-make-it-synchronous.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/seccomp-Add-SECCOMP_RET_TRAP.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/ptrace-seccomp-Add-PTRACE_SECCOMP-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/x86-Enable-HAVE_ARCH_SECCOMP_FILTER.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp/Documentation-prctl-seccomp_filter.patch
+# _mark seccomp_fb62e9a54bcd91023038ccf305ef6852 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/seccomp
+# _git tag seccomp
+# _mark x86_8678d2d2af08180bf649beb0dd6a37b3 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/Add-GPIO-driver-support-for-Portwell-NANO-8044.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/gpio-add-PCA953x-I-O-support-on-Intel-FRI-2-carrier-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/gpio-pca953x-Delete-printk.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/usbnet-gobinet-add-Sierra-Wireless-module-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/usbnet-gobinet-add-FLAG_POINTTOPOINT-flag-for-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/usb-serial-add-fusion-wireless-module-driver-for-kbc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/usb-serial-add-Sierra-Wireless-module-driver-for-kbc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/pch_gbe-fragment-packets-with-length-less-than-64-fa.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/pch_gbe-Fix-the-checksum-fill-to-the-error-location.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/x86-pvclock-Add-flag-to-indicate-that-a-vm-was-stopp.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/x86-reboot-Reduce-to-a-single-DMI-table-for-reboot-q.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/x86-reboot-Clean-up-coding-style.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/Revert-x86-reboot-Use-NMI-instead-of-REBOOT_VECTOR-t.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/x86-reboot-Use-NMI-to-assist-in-shutting-down-if-IRQ.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86/x86-reboot-Update-nonmi_ipi-parameter.patch
+# _mark x86_8678d2d2af08180bf649beb0dd6a37b3 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/x86
+# _git tag x86
+# _mark arm_b955b3e2875f77026384584d17ac9ef5 start
+# _kconf hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/arm.cfg
+# _mark hz_100_52d1957e098ba703275a9b293cd72d2a start
+# _define KFEATURE_DESCRIPTION 'Enable 100Hz Timer frequency'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/timer/hz_100.cfg
+# _mark hz_100_52d1957e098ba703275a9b293cd72d2a end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/timer
+# _mark v7_A15_cb2e00d5a890d1012589cea14f42a174 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Use-TTBR1-instead-of-reserved-context-ID.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Remove-__ARCH_WANT_INTERRUPTS_ON_CTXSW-on-ASID-c.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Remove-current_mm-per-cpu-variable.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Remove-__ARCH_WANT_INTERRUPTS_ON_CTXSW-on-pre-AR.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-local-timers-reserve-local_timer_register-to-SMP.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-local-timers-Add-A15-architected-timer-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-architected-timers-Add-A15-specific-sched_clock-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-architected-timers-add-DT-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-architected-timers-add-support-for-UP-timer.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-plug-local-timers-into-the-DT-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-architected-timers-remove-support-for-non-DT-pla.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-LPAE-Invalidate-the-TLB-for-module-addresses-dur.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-kernel-add-device-tree-init-map-function.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-kernel-add-cpu-logical-map-DT-init-in-setup_arch.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-kernel-add-logical-mappings-look-up.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-gic-add-cpuif-topology-description.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-kernel-Make-cpuif_logical_map-cope-with-absent-d.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Add-support-for-hugetlbfs-with-ARM_LPAE.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Versatile-Express-extend-the-MPIDR-range-used-fo.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-Check-master-site-in-daughterboard-s-sy.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-Add-set_dvi_mode.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-add-hdlcd-clock-and-it-s-init-function.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/drivers-misc-add-ARM-CCI-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-HDLCD-Add-support-for-ARM-High-Definition-LCD.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/drivers-vexpress-add-drivers-infrastructure.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/drivers-misc-vexpress-add-SPC-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/drivers-arm-spc-Add-function-for-testing-if-SPC-driv.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/cpufreq-vexpress-add-support-for-big.LITTLE-frequenc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/cpufreq-vexpress-Safely-handle-missing-CPU-frequenci.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/cpufreq-vexpress-Check-for-presence-of-SPC-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Select-ARCH_HAS_CPUFREQ-for-ARCH_VEXPRESS.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-Versatile-Express-Add-proper-support-for-the-dua.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-Update-TC2-memory-to-2GB.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-Update-TC2-device-tree-for-HDLCD-hack.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-Add-CPU-clock-frequencies-to-TC2-device.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-Fix-name-of-dma-node-in-TC2-device-tree.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-Remove-bogus-comment-in-TC2-dts-file.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-update-TC2-dts-for-PM.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-vexpress-update-TC2-dts-for-CPU-Frequencies.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15/ARM-oprofile-add-A7-A15-entries-in-op_perf_name.patch
+# _mark v7_A15_cb2e00d5a890d1012589cea14f42a174 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/v7-A15
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/arm-ARM-EABI-socketcall.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/arm-versatile-fix-and-enable-PCI-I-O-space.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/Add-NAND-flash-support-for-3.4.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/OMAP2-UART-Add-mechanism-to-probe-uart-pins-and-conf.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-make-omap_i2c_unidle-idle-functions-depend-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Fix-the-mismatch-of-pm_runtime-enable-and-d.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Fix-the-interrupt-clearing-in-OMAP4.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Prevent-the-register-access-after-pm_runtim.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Don-t-check-if-wait_for_completion_timeout-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Fix-the-crash-in-i2c-remove.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Handle-error-check-for-pm-runtime.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-prevent-the-overwrite-of-the-errata-flags.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Do-not-set-the-XUDF-Transmit-underflow-if-t.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Rename-the-1p153-to-the-erratum-id-i462.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/I2C-OMAP-Fix-timeout-problem-during-suspend.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-OMAP-AM35xx-remove-redunant-cpu_is-checks-for-AM.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-OMAP-AM35xx-convert-3517-detection-flags-to-AM35.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-OMAP2-INTC-fix-suspend-abort-set-IRQCHIP_SKIP_SE.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-OMAP3-PM-fix-shared-PRCM-interrupts-leave-disabl.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/arm-omap3-am35x-Don-t-mark-missing-features-as-prese.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-OMAP3EVM-Adding-USB-internal-LDOs-board-file.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-omap3evm-enable-VBUS-switch-for-EHCI-tranceiver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-omap-return-early-if-dummy-clock-is-passed-to-cl.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/Input-ads7846-set-proper-debounce-time-in-driver-lev.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/LTTng-Omap3-enable-EMU-for-trace_clock-when-LTT-set.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/LTTng-set-cpu_hz-before-it-is-used.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/ARM-threadirq-Make-ARM-have-threadirq-support-by-def.patch
+# _mark stm_spear13xx_01f9e68c7c629bf4c00b583f47f34702 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-spear13xx-plat-files-to-new-diretory-arch-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-mach-spear13xx-to-arch-arm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-remove-unused-machine-files-in-arch-arm-mach-s.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-machine-definitions-in-mach-types.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-update-Kconfig-and-Makefile-to-support-spear13.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-copy-stmmac-driver-from-st-git-tree.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-modify-stmmac_main.c-to-avoid-compile-error.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-modify-stmmac_ethtool.c-to-avoid-compile-error.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-modify-mach-files-to-make-stmmac-driver-work-f.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-DB9000-LCD-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-spear-sound-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/ata-ahci_platform-Add-support-for-enabling-disabling.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-copy-fsmc-nand-driver-from-st-tree.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-get-rid-of-NO_IRQ-initializers.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-convert-to-twd_local_timer_register-interface.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-fix-missing-include-file-system_misc.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-replace-include-file-system.h-with-cp15.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-fix-missing-include-file-jiffies.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-common-include-files-io.h-for-IOMEM-defini.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-missing-definition-for-spear_smi.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-missing-include-files.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-selecting-NEED_MACH_IO_H-to-restore-io.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-kill-off-__mem_pci.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-PCIE-option-in-Kconfig.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-remove-IOMEM-definition.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-one-memory-bank-to-meminfo-in-machines-fix.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-add-pmu-platform-data-into-initialization.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/SPEAr-enable-FSMC-nand-flash-for-spear1310-reva-evb.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx/stm-spear13xx-drop-warning-unused-variable-hpriv.patch
+# _mark stm_spear13xx_01f9e68c7c629bf4c00b583f47f34702 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/stm-spear13xx
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/powerpc-watchdog-move-booke-watchdog-param-related-c.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/powerpc-fix-irq-distribution.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/powerpc-smp-Do-not-disable-IPI-interrupts-during-sus.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/PCI-fix-uninitialized-variable-cap_mask.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm/video-omap_vout-Set-DSS-overlay_info-only-if-paddr-i.patch
+# _mark arm_b955b3e2875f77026384584d17ac9ef5 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/arm
+# _git tag arm
+# _mark mips_055116cc9bb0991d9bac382a36c747bf start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/mips/malta-uhci-quirks-make-allowance-for-slow-4k-e-c.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/mips/4kc-cache-tlb-hazard-tlbp-cache-coherency.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/mips/mips-support-preemptible-kernel.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/mips/mips64-Add-support-for-generic-MIPS64R2-processor.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/mips/mips-Fix-build-error-when-including-o32-and-n32-elf.patch
+# _mark mips_055116cc9bb0991d9bac382a36c747bf end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/mips
+# _git tag mips
+# _mark powerpc_6036fa7eab1a2cdcb35fe0ad57f1b26d start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/powerpc-Add-unwind-information-for-SPE-registers-of-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/powerpc-kexec-fix-for-powerpc64.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/powerpc-add-crtsavres.o-to-archprepare-for-kbuild.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/powerpc-acpx1-add-early-debug-support-for-acpx1-boar.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/powerpc-acpx1-make-udbg-do-IO-access-in-AS1.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/usb-ehci-ci13612-add-support-for-ci13612-host-contro.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/usb-ehci-ci13612-use-the-of-match-method-to-probe-th.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/usb-ehci-ci13612-use-dynamic-virtual-address-to-map-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/PowerPC-ACP34xx-Add-app350-i2c-controller-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/misc-at24-return-the-actual-read-bytes-in-at24_eepro.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/powerpc-hugetlb-replace-__get_cpu_var-with-get_cpu_v.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/booke-wdt-add-that-missing-break.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/ppc-47x-add-cputable-entries-for-ACP-34xx.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/powerpc-book3e-support-CONFIG_RELOCATABLE.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/book3e-kexec-kdump-enable-kexec-for-kernel.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/book3e-kexec-kdump-create-a-1-1-TLB-mapping.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/book3e-kexec-kdump-introduce-a-kexec-kernel-flag.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/book3e-kexec-kdump-skip-ppc32-kexec-specfic.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/book3e-kexec-kdump-redefine-VIRT_PHYS_OFFSET.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc/book3e-kgdb-update-thread-s-dbcr0.patch
+# _mark powerpc_6036fa7eab1a2cdcb35fe0ad57f1b26d end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/arch/powerpc
+# _git tag powerpc
+# _mark hrt_6e1e88b502116f88f099e0d1f06b12bd start
+# _define KFEATURE_DESCRIPTION 'Enable High Res timers and Generic Time'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/hrt/hrt.cfg
+# _mark hrt_6e1e88b502116f88f099e0d1f06b12bd end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/hrt
+# _mark ftrace_c4e81d5fb2e240e9c1a5e6c9e519ef72 start
+# _define KFEATURE_DESCRIPTION 'Enable Function Tracer'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ftrace/ftrace.cfg
+# _mark ftrace_c4e81d5fb2e240e9c1a5e6c9e519ef72 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ftrace
+# _mark uprobe_250cba7a2a322c2a1936d8c4c71d3a02 start
+# _define KFEATURE_DESCRIPTION 'Enable options required for uprobes support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _mark uprobe_enable_decdb4081f2d8cda7a6ee28bfa2f07b0 start
+# _define KFEATURE_DESCRIPTION 'Enable options required for uprobes support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobe.cfg
+# _mark uprobe_enable_decdb4081f2d8cda7a6ee28bfa2f07b0 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-mm-x86-Add-the-ability-to-install-and-remove.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Clean-up-refactor-and-improve-the-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Move-to-kernel-events.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Make-instruction-tables-volatile.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Remove-uprobe_opcode_sz.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Move-insn-to-arch-specific-structure.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Update-copyright-notices.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Make-macro-names-consistent.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Make-order-of-function-parameters-consi.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Rename-bkpt-to-swbp.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Handle-breakpoint-and-singlestep-except.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Allocate-XOL-slots-for-uprobes-use.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Optimize-probe-hits-with-the-help-of-a-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Make-background-page-replacement-logic-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-core-Decrement-uprobe-count-before-the-pages.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/tracing-Modify-is_delete-is_return-from-int-to-bool.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/tracing-Extract-out-common-code-for-kprobes-uprobes-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/tracing-Provide-trace-events-interface-for-uprobes.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/tracing-Fix-kconfig-warning-due-to-a-typo.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/perf-probe-Provide-perf-interface-for-uprobes.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/perf-probe-Detect-probe-target-when-m-x-options-are-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/On-RISC-architectures-like-powerpc-instructions-are-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/move-key_repace_session_keyring-into-tracehook_notif.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/task_work_add-generic-process-context-callbacks.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/genirq-reimplement-exit_irq_thread-hook-via-task_wor.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/keys-change-keyctl_session_to_parent-to-use-task_wor.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/keys-kill-the-dummy-key_replace_session_keyring.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/keys-kill-task_struct-replacement_session_keyring.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/trace-Kconfig-add-PERF_EVENTS-to-UPROBE_EVENT-select.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Optimize-is_swbp_at_addr-for-current-mm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Change-read_opcode-to-use-FOLL_FORCE.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Introduce-find_active_uprobe-helper.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Teach-find_active_uprobe-to-provide-the-is_s.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Change-register_for_each_vma-to-take-mm-mmap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Teach-handle_swbp-to-rely-on-is_swbp-rather-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Kill-uprobes_srcu-uprobe_srcu_id.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Valid_vma-should-reject-VM_HUGETLB.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-__copy_insn-should-ensure-a_ops-readpage-NUL.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Write_opcode-__replace_page-can-race-with-tr.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Install_breakpoint-should-fail-if-is_swbp_in.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Rework-register_for_each_vma-to-make-it-O-n.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Change-build_map_info-to-try-kmalloc-GFP_NOW.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Document-uprobe_register-vs-uprobe_mmap-race.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Copy_insn-shouldn-t-depend-on-mm-vma-vaddr.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Copy_insn-should-not-return-ENOMEM-if-__copy.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-No-need-to-re-check-vma_address-in-write_opc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Move-BUG_ON-UPROBE_SWBP_INSN_SIZE-from-write.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Simplify-the-usage-of-uprobe-pending_list.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Don-t-use-loff_t-for-the-valid-virtual-addre.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-__copy_insn-needs-loff_t-offset.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Remove-the-unnecessary-initialization-in-add.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Don-t-recheck-vma-f_mapping-in-write_opcode.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-__replace_page-should-not-use-page_address_i.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Kill-write_opcode-lock_page-new_page.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Clean-up-and-document-write_opcode-lock_page.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Uprobe_mmap-munmap-needs-list_for_each_entry.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Suppress-uprobe_munmap-from-mmput.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Fix-overflow-in-vma_address-find_active_upro.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Remove-copy_vma-uprobe_mmap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Remove-insert_vm_struct-uprobe_mmap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Teach-build_probe_list-to-consider-the-range.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Introduce-vaddr_to_offset-vma-vaddr.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Fix-register_for_each_vma-vma_address-check.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Rename-vma_address-and-make-it-return-unsign.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-__replace_page-needs-munlock_vma_page.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Fix-mmap_region-s-mm-mm_rb-corruption-if-upr.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Remove-redundant-lock_page-unlock_page.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Remove-check-for-uprobe-variable-in-handle_s.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Kill-uprobes_state-count.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Kill-dup_mmap-uprobe_mmap-simplify-uprobe_mm.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Change-uprobe_mmap-to-ignore-the-errors-but-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Introduce-MMF_HAS_UPROBES.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Fold-uprobe_reset_state-into-uprobe_dup_mmap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Remove-verify-argument-from-set_orig_insn.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Don-t-put-NULL-pointer-in-uprobe_register.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-uprobes_treelock-should-not-disable-irqs.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Introduce-MMF_RECALC_UPROBES.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Teach-find_active_uprobe-to-clear-MMF_HAS_UP.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Introduce-arch_uprobe_enable-disable_step.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-x86-Implement-x86-specific-arch_uprobe_-_ste.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/ptrace-x86-Introduce-set_task_blockstep-helper.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/ptrace-x86-Partly-fix-set_task_blockstep-update_debu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-x86-Do-not-ab-use-TIF_SINGLESTEP-user_-_sing.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-x86-Xol-should-send-SIGTRAP-if-X86_EFLAGS_TF.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-x86-Fix-arch_uprobe_disable_step-UTASK_SSTEP.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/uprobes-Make-arch_uprobe_task-saved_trap_nr-unsigned.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/powerpc-Consolidate-k-u-probe-definitions.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/powerpc-Add-trap_nr-to-thread_struct.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe/powerpc-Uprobes-port-to-powerpc.patch
+# _mark uprobe_250cba7a2a322c2a1936d8c4c71d3a02 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uprobe
+# _git tag uprobe
+# _mark watchdog_73c62303290d30f1320adeebe718666f start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/watchdog/ppc44x-watchdog-Select-WATCHDOG_NOWAYOUT-option.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/watchdog/Watchdog-Omap-Changes-for-the-new-watchdog-framework.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/watchdog/Watchdog-Omap-select-watchdog-core-for-framework-cha.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/watchdog/Watchdog-Omap-get-the-bootstatus-for-OMAP2Plus.patch
+# _mark watchdog_73c62303290d30f1320adeebe718666f end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/watchdog
+# _mark kprobes_0907521df81fd5136d73e981121e648f start
+# _define KFEATURE_DESCRIPTION 'Enable options required for kprobes support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kprobes/kprobes.cfg
+# _mark kprobes_0907521df81fd5136d73e981121e648f end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kprobes
+# _git tag kprobes
+# _mark patches_30fd2f563d682ba46954a7a9771fbd96 start
+# _mark drivers_6eef72cf89183819e15e2f4cd9557e01 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/drivers/mmc-sdhci-Use-DBG-instead-of-pr_warning-on-large-tim.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/drivers/USB-musb-gadget-add-missed-pm_runtime-ops-to-avoid-o.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/drivers/USB-musb-omap2430-disable-autosuspend-resume.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/drivers/UBI-Force-ubi-driver-load-after-mtd-device-drivers.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/drivers/PM-Runtime-let-rpm_resume-succeed-if-RPM_ACTIVE-even.patch
+# _mark drivers_6eef72cf89183819e15e2f4cd9557e01 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/drivers
+# _mark build_64e8fe0feb2f43301f9afb1ec6c16cd3 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/build/arm-serialize-build-targets.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/build/powerpc-serialize-image-targets.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/build/kbuild-exclude-meta-directory-from-distclean-processi.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/build/modpost-mask-trivial-warnings.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/build/ARM-add-an-extra-pass-for-kallsyms-generation.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/build/firmware-fix-directory-creation-rule-matching-with-m.patch
+# _mark build_64e8fe0feb2f43301f9afb1ec6c16cd3 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/build
+# _mark exports_d95513880cfee705f3f210e9c4ccbc73 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/exports/cleanup-a.out-header-for-export.patch
+# _mark exports_d95513880cfee705f3f210e9c4ccbc73 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/exports
+# _mark boot_4a97fb4cefc82902360a48c7269dc4b6 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/boot/NFS-allow-nfs-root-mount-to-use-alternate-rpc-ports.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/boot/mount_root-clarify-error-messages-for-when-no-rootfs.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/boot/check-console-device-file-on-fs-when-booting.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/boot/nfs-Allow-default-io-size-to-be-configured.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/boot/powerpc-boot-remove-Os-from-BOOTFLAGS.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/boot/efi-Add-patch-to-fix-32bit-EFI-service-mapping-rhbz-.patch
+# _mark boot_4a97fb4cefc82902360a48c7269dc4b6 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/boot
+# _mark net_966b8b8da6eaacd1ba4b8aaf3c812eea start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/net/Resolve-jiffies-wrapping-about-arp.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/net/net-pch_gpe-cannot-disable-ethernet-card-autonegatio.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/net/cfg80211-fix-interface-combinations-check-for-ADHOC-.patch
+# _mark net_966b8b8da6eaacd1ba4b8aaf3c812eea end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/net
+# _mark debug_73219f0776495adc094bc203531fa3f3 start
+# _mark debug_73219f0776495adc094bc203531fa3f3 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/debug
+# _mark misc_78cb9649c56677f35f1243fce1cae095 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/vmware-include-jiffies.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/compiler.h-Undef-before-redefining-__attribute_const.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/Samples-Clean-up-so-modules-and-hostprogs-build-corr.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/Samples-use-source-dirs-instead-of-the-object-dirs.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/rcu-Make-__kfree_rcu-less-dependent-on-compiler-choi.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/rcu-Remove-function-versions-of-__kfree_rcu-and-__is.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/rcu-Fix-qlen_lazy-breakage.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/tools-power-turbostat-make-Makefile-a-bit-more-capab.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/V3-Add-user-space-stack-dump.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc/wr-kernel-trace-printk-test-case.patch
+# _mark misc_78cb9649c56677f35f1243fce1cae095 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches/misc
+# _mark patches_30fd2f563d682ba46954a7a9771fbd96 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/patches
+# _mark initramfs_40610a6c35d1298b812c3ba587072702 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/initramfs/initramfs-add-wrapper.patch
+# _mark initramfs_40610a6c35d1298b812c3ba587072702 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/initramfs
+# _mark yaffs2_cfc0c986581ef6d4c444f7faaaed70ab start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/yaffs2/yaffs2-import-core-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/yaffs2/yaffs2-replace-d_alloc_root-with-d_make_root.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/yaffs2/yaffs-change-type-for-mode-to-umode_t.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/yaffs2/yaffs-add-leading-underscore-to-mtd_info-function-na.patch
+# _mark yaffs2_cfc0c986581ef6d4c444f7faaaed70ab end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/yaffs2
+# _mark unionfs_19daeb0373cf37e5483a74aeb8f1f59e start
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/unionfs/unionfs.cfg
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/unionfs/unionfs-introduce-unionfs-2.5.11-core-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/unionfs/unionfs-replace-d_alloc_root-with-d_make_root.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/unionfs/unionfs-v3.4-build-fixups.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/unionfs/unionfs-update-unionfs-fork-to-align-with-mainline.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/unionfs/unionfs-restore-FD_-utility-defines.patch
+# _mark unionfs_19daeb0373cf37e5483a74aeb8f1f59e end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/unionfs
+# _mark bsdjail_ef6bd4fbb575f96f54f180aa11eecf48 start
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail/bsdjail.cfg
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail/bsdjail-importing-bsdjail-base-patch.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail/bsdjail-port-BSD-jail-to-2.6.34.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail/bsdjail-fix-getprocattr-to-return-useful-information.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail/bsdjail-fix-kernel-panic-when-using-clone_ns.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail/bsdjail-port-BSD-Jail-to-v3.4.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail/Security-Restore-security_commit_creds-for-BSD-Jail.patch
+# _mark bsdjail_ef6bd4fbb575f96f54f180aa11eecf48 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/bsdjail
+# _git tag bsdjail
+# _mark cgroups_a051bb738b48cdae9ec6cfe461ef522e start
+# _define KFEATURE_DESCRIPTION 'Enable cgroups and selected controllers                              namespaces and associated functionality'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups.cfg
+# _mark namespaces_a174b0dc70067f31e2a67db35b645435 start
+# _define KFEATURE_DESCRIPTION 'Enable namespace support + experimental namespaces'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _define EXPERIMENTAL '1'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/namespaces/namespaces.cfg
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/namespaces/namespaces-experimental.cfg
+# _mark namespaces_a174b0dc70067f31e2a67db35b645435 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/namespaces
+# _mark task_counter_d101a501151d26c5428bec05dec18ad8 start
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/task_counter.cfg
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups-add-res_counter_write_u64-API.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups-new-resource-counter-inheritance-API.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups-ability-to-stop-res-charge-propagation-on-bo.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups-add-res-counter-common-ancestor-searching.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/res_counter-allow-charge-failure-pointer-to-be-null.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups-pull-up-res-counter-charge-failure-interpret.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups-allow-subsystems-to-cancel-a-fork.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroups-Add-a-task-counter-subsystem.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/selftests-Add-a-new-task-counter-selftest.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups/cgroup-remove-cgroup_subsys-ss-arg-from-task_counter.patch
+# _mark task_counter_d101a501151d26c5428bec05dec18ad8 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups
+# _mark cgroups_a051bb738b48cdae9ec6cfe461ef522e end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cgroups
+# _mark net_sched_d9447946a1cbd300d7907bba889f5027 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/netem-add-ECN-capability.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/codel-Controlled-Delay-AQM.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/fq_codel-Fair-Queue-Codel-AQM.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/codel-use-Newton-method-instead-of-sqrt-and-divides.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/codel-use-u16-field-instead-of-31bits-for-rec_inv_sq.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/net-codel-Add-missing-include-linux-prefetch.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/net-codel-fix-build-errors.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/fq_codel-should-use-qdisc-backlog-as-threshold.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/codel-refine-one-condition-to-avoid-a-nul-rec_inv_sq.patch
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched/net_sched.cfg
+# _mark net_sched_d9447946a1cbd300d7907bba889f5027 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/net_sched
+# _mark kmemcheck_f784a01fe7d386f91677bf590148da96 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kmemcheck/kmemcheck-add-address-comparison-to-bug-report-decis.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kmemcheck/net-sunrpc-Fix-false-positives.patch
+# _mark kmemcheck_f784a01fe7d386f91677bf590148da96 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kmemcheck
+# _git tag kmemcheck
+# _mark kexec_b0824d5a0a7a32cc65f9ddf3fb9fb8d9 start
+# _mark kexec_b0824d5a0a7a32cc65f9ddf3fb9fb8d9 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kexec
+# _mark ocf_fcdfe2e756e9835fe8228d5e7c34f2ea start
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf/ocf.cfg
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf/ocf-import-latest-ocf-linux-20120127.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf/ocf-config-OCF_TALITOS-should-depend-on-FSL_SOC-CRYP.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf/ocf-OCF_CRYPTOSOFT-depends-on-CRYPTO_HASH2.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf/ocf-drop-ifdef-for-older-kernel-versions.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf/ocf-Make-ocf-session-and-cselist-operation-SMP-safe.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf/OCF-random-update-use-of-mix_pool_bytes-function.patch
+# _mark ocf_fcdfe2e756e9835fe8228d5e7c34f2ea end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ocf
+# _git tag ocf
+# _mark vfat_fe95b029bf111ebe0577e6e715017977 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/vfat/FAT-Add-CONFIG_VFAT_FS_NO_DUALNAMES-option.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/vfat/FAT-Add-CONFIG_VFAT_NO_CREATE_WITH_LONGNAMES-option.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/vfat/FAT-Added-FAT_NO_83NAME.patch
+# _mark vfat_fe95b029bf111ebe0577e6e715017977 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/vfat
+# _mark kvm_be44ae1264d2a57b73e10aea1823450b start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/powerpc-kvm-e500-fix-build-error.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-Factor-out-kvm_vcpu_kick-to-arch-generic-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Rework-wqp-conditional-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/kvmclock-Add-functions-to-check-if-the-host-has-stop.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-factor-out-lpid-allocator-from-book3s_64_mmu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-add-booke-level-vcpu-load-put.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-Move-vm-core-init-destroy-out-of-booke.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500-rename-e500_tlb.h-to-e500.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500-merge-asm-kvm_e500.h-into-arch-powerpc-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500-clean-up-arch-powerpc-kvm-e500.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500-refactor-core-specific-TLB-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500-Track-TLB1-entries-with-a-bitmap.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500-emulate-tlbilx.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/powerpc-booke-Provide-exception-macros-with-interrup.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-category-E.HV-GS-mode-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-standard-PPC-floating-point-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500mc-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500mc-Add-doorbell-emulation-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500mc-implicitly-set-MSR_GS.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500mc-Move-r1-r2-restoration-very-early.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500mc-add-load-inst-fixup.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-rename-CONFIG_KVM_E500-CONFIG_KVM_E500V2.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-make-e500v2-kvm-and-e500mc-cpu-mutually-excl.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-remove-leftover-debugging.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-deliver-program-int-on-emulation-failu.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-rework-rescheduling-checks.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-BOOKE_IRQPRIO_MAX-is-n-1.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-bookehv-fix-exit-timing.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-bookehv-remove-negation-for-CONFIG_64BIT.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-bookehv-disable-MAS-register-updates-early.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-Readd-debug-abort-code-for-machine-che.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-bookehv-remove-unused-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-e500-fix-typo-in-tlb-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-Support-perfmon-interrupts.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-expose-good-state-on-irq-reinject.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-Reinject-performance-monitor-interrupt.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Booke-only-prepare-to-enter-when-we-enter.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3s-PR-Add-SPAPR-H_BULK_REMOVE-support.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Save-Restore-CR-over-vcpu_run.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3S-HV-Make-secondary-threads-more-robust.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3S-HV-Make-virtual-processor-area-regist.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3S-HV-Report-stolen-time-to-guest-throug.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/Restore-guest-CR-after-exit-timing-calculation.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Work-around-POWER7-DABR-corruption-problem.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Pass-EA-to-updating-emulation-ops.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Emulate-tw-and-td-instructions.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3s-PR-Add-HV-traps-so-we-can-run-in-HV-1.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Ignore-unhalt-request-from-kvm_vcpu_block.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/powerpc-kvm-Fix-magic-page-vs.-32-bit-RTAS-on-ppc64.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-Use-minimum-and-maximum-address-mapped-by-TLB1.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Use-clockevent-multiplier-and-shifter-for-de.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-bookehv-Use-a-Macro-for-saving-restoring-gue.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Restrict-PPC_-L-ST-D-macro-to-asm-code.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-booke-hv-Fix-save-restore-of-guest-accessibl.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3S-PR-Optimize-entry-path.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3S-PR-No-isync-in-slbie-path.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-bookehv-Use-lwz-stw-instead-of-PPC_LL-PPC_ST.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Fix-stbux-emulation.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Book3S-Enable-IRQs-during-exit-handling.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-bookehv-Fix-r8-r13-storing-in-level-exceptio.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/kvm-book3s-Make-kernel-emulated-H_PUT_TCE-available-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/kvm-powerpc-Add-new-ioctl-to-retreive-server-MMU-inf.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Emulator-clean-up-instruction-parsing.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Emulator-clean-up-SPR-reads-and-writes.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/Documentation-Kernel-KVM-VirtIO-use-case.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-Update-to-3.5-from-upstream.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-Uprev-kvm-to-3.6-from-upstream.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm/KVM-PPC-Fall-back-to-old-register-number-definition.patch
+# _mark kvm_be44ae1264d2a57b73e10aea1823450b end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/kvm
+# _mark tipc_4bbf8d2c68c0b43cb1beb4c9b64d6b0e start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-introduce-publication-lists-struct.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Factor-out-name-publication-code-to-a-separate-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Separate-cluster-scope-and-zone-scope-names-int.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Update-node-scope-publications-when-network-add.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Don-t-record-failed-publication-attempt-as-a-su.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Add-routines-for-safe-checking-of-node-s-networ.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Ensure-network-address-change-doesn-t-impact-na.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Optimize-re-initialization-of-port-message-head.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Ensure-network-address-change-doesn-t-impact-ne.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-delete-duplicate-peerport-peernode-helper-funct.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Ensure-network-address-change-doesn-t-impact-lo.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-take-lock-while-updating-node-network-address.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-properly-handle-off-node-send-requests-with-inv.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-handle-0.0.0-as-an-alias-for-this-node-on-outgo.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Ensure-network-address-change-doesn-t-impact-re.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Ensure-network-address-change-doesn-t-impact-co.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-remove-inline-instances-from-C-source-files.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Optimize-re-initialization-of-configuration-ser.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Optimize-initialization-of-configuration-servic.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Optimize-termination-of-configuration-service.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Enhance-re-initialization-of-network-topology-s.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Optimize-initialization-of-network-topology-ser.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-remove-redundant-memset-and-stale-comment-from-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Create-helper-routine-to-delete-unused-name-seq.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Enhance-error-checking-of-published-names.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc/tipc-Reject-payload-messages-with-invalid-message-ty.patch
+# _mark tipc_4bbf8d2c68c0b43cb1beb4c9b64d6b0e end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/tipc
+# _mark xip_064309a5a2563852db5f1b9838a12c35 start
+# _mark xip_064309a5a2563852db5f1b9838a12c35 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/xip
+# _mark oprofile_22bcfc9747c6975c868728fd118cdd4e start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/oprofile/Unconditionally-enable-oprofile-backtrace-for-powerp.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/oprofile/x86-oprofile-Fix-the-calltrace-of-profiling-some-spe.patch
+# _mark oprofile_22bcfc9747c6975c868728fd118cdd4e end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/oprofile
+# _mark ramconsole_fca2591e136a401e86364a5ba991ae1f start
+# _define KFEATURE_DESCRIPTION 'Android RAM buffer console'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _mark ramconsole_fca2591e136a401e86364a5ba991ae1f end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ramconsole
+# _mark pramfs_36a38b7bde1cabc7d83c780f5748174b start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/pramfs/pramfs-import-latest-from-upstream.patch
+# _mark pramfs_36a38b7bde1cabc7d83c780f5748174b end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/pramfs
+# _mark fuse_acb5212d00e21d9b37f87793285a1ab0 start
+# _define KFEATURE_DESCRIPTION 'Enable core FUSE functionality'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/fuse/fuse.cfg
+# _mark fuse_acb5212d00e21d9b37f87793285a1ab0 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/fuse
+# _mark xx8250_1cad4750140e6ae0ee9edd34e7fe4833 start
+# _define KFEATURE_DESCRIPTION 'Enable 8250 serial support'
+# _define KFEATURE_COMPATIBILITY 'board'
+# _mark xx8250_1cad4750140e6ae0ee9edd34e7fe4833 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/serial
+# _mark uptime_6a821ecf62115a89ef89468cfdd8b1c1 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uptime/uptime-allow-the-optional-limiting-of-kernel-runtime.patch
+# _mark uptime_6a821ecf62115a89ef89468cfdd8b1c1 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/uptime
+# _mark lxc_041f7183c9198ffc16792e2e6d6589b3 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/proc-Fix-the-proc-access-checks-to-namespace-files.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/proc-Generalize-proc-inode-allocation.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/proc-Usable-inode-numbers-for-the-namespace-file-des.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/proc-Add-a-test-for-proc-namespace-inodes.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/ns-proc-Add-support-for-the-mount-namespace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/ns-proc-Add-support-for-the-user-namespace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/ns-proc-Add-support-for-the-pid-namespace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/pidns-Fix-wait-for-zombies-to-be-reaped-in-zap_pid_n.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/procfs-Use-the-proc-generic-infrastructure-for-proc-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/procfs-Don-t-cache-a-pid-in-the-root-inode.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/pidns-Use-task_active_pid_ns-where-appropriate.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/pidns-Consolidate-initialzation-of-special-init-task.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/pidns-Don-t-allow-new-processes-in-a-dead-pid-namesp.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/pidns-Support-unsharing-the-pid-namespace.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/ns-proc-Enable-setns-for-support-for-the-pid-namespa.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc/ns-proc-Build-fix-on-v3.4.patch
+# _mark lxc_041f7183c9198ffc16792e2e6d6589b3 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/lxc
+# _mark ktest_86e9f8acd62c38fdbd7209ed5b54e6e9 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Fix-kernelrevision-with-POST_BUILD.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Add-MIN_CONFIG_TYPE-to-allow-making-a-minum-.c.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Add-USE_OUTPUT_MIN_CONFIG-to-avoid-prompt-on-m.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Add-useful-example-configs.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Add-kvm.conf-example-config.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Add-an-example-config-that-does-cross-compilin.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Add-the-snowball.conf-example-config.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Add-README-to-explain-what-is-in-the-examples-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest/ktest-Change-singular-paranthesis-to-plural-parenthe.patch
+# _mark ktest_86e9f8acd62c38fdbd7209ed5b54e6e9 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/ktest
+# _mark perf_966992980cb3fa2d3386ed0ca48f0f35 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-force-include-of-stdbool.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-use-pkg-config-instead-of-python-config.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-add-libperl-not-found-warning.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-change-root-to-prefix-for-python-install.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-add-sgidefs.h-to-for-mips-builds.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-add-SLANG_INC-for-slang.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-add-install-lib-argument.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-tools-Fix-parallel-build.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-annotate-replace-expand-with-equivalent-sed-exp.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-tools-Introduce-intlist.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf/perf-tools-Introducing-rblist.patch
+# _mark perf_966992980cb3fa2d3386ed0ca48f0f35 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/perf
+# _mark oscb_0e01aa85f1c627312da4296d926d2de8 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/oscb/oscb-introduce-the-OS-control-block.patch
+# _mark oscb_0e01aa85f1c627312da4296d926d2de8 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/oscb
+# _mark aoe_5aff7f150514c6acdcebfe09750083f2 start
+# _mark aoe_5aff7f150514c6acdcebfe09750083f2 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/aoe
+# _mark standard_nocfg_0e2df64b07f5da1c255ce72ed5c0fa21 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/standard
+# _branch_begin preempt-rt
+# _mark devtmpfs_611ef47de252f0480a4b4a222bf83dfa start
+# _define KFEATURE_DESCRIPTION 'Enable devtmpfs for tmpfs/ramfs support at early bootup'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs/devtmpfs.cfg
+# _mark devtmpfs_611ef47de252f0480a4b4a222bf83dfa end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs
+# _mark debugfs_127efcd54e3d993c537f3230c42b1ff4 start
+# _define KFEATURE_DESCRIPTION 'Enable debugfs support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs/debugfs.cfg
+# _mark debugfs_127efcd54e3d993c537f3230c42b1ff4 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs
+# _mark btrfs_e15cc2926247e19dc2788a7d940a356c start
+# _define KFEATURE_DESCRIPTION 'Enable brtfs filesystem support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs/btrfs.cfg
+# _mark btrfs_e15cc2926247e19dc2788a7d940a356c end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs
+# _mark ext2_4c54365b299ce5ea523a911fd9d54f91 start
+# _define KFEATURE_DESCRIPTION 'Enable Extended2 (ext2) filesystem support'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs/ext2.cfg
+# _mark ext2_4c54365b299ce5ea523a911fd9d54f91 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs
+# _mark ext3_de5b27d19d6439636a476a7494abfed7 start
+# _define KFEATURE_DESCRIPTION 'Enable the Extended 3 (ext3) filesystem'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs/ext3.cfg
+# _mark ext3_de5b27d19d6439636a476a7494abfed7 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs
+# _mark ext4_ebb3886462ffec3791694a3ba6addebc start
+# _define KFEATURE_DESCRIPTION 'Enable the Extended 4 (ext4) filesystem'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs/ext4.cfg
+# _mark ext4_ebb3886462ffec3791694a3ba6addebc end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/fs
+# _mark ipsec_3ed4b9eacee6697a7aff13341b328d49 start
+# _define KFEATURE_DESCRIPTION 'Enable IPsec options'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net/ipsec.cfg
+# _mark ipsec_3ed4b9eacee6697a7aff13341b328d49 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net
+# _mark ipv6_c3e4131ee9b1dc816d84be7540d9e057 start
+# _define KFEATURE_DESCRIPTION 'Enable IPv6 options'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net/ipv6.cfg
+# _mark ipsec6_6d3cfc9497208d81c25788dc6704738a start
+# _define KFEATURE_DESCRIPTION 'Enable IPv6 IPsec options'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _mark ipsec_3ed4b9eacee6697a7aff13341b328d49 start
+# _define KFEATURE_DESCRIPTION 'Enable IPsec options'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net/ipsec.cfg
+# _mark ipsec_3ed4b9eacee6697a7aff13341b328d49 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net/ipsec6.cfg
+# _mark ipsec6_6d3cfc9497208d81c25788dc6704738a end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net
+# _mark ipv6_c3e4131ee9b1dc816d84be7540d9e057 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net
+# _mark ip_nf_ba4c40ddbf6b8215c8a4aafa2fdbac5b start
+# _define KFEATURE_DESCRIPTION 'Enable Netfilter (IPv4) options'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net/ip_nf.cfg
+# _mark ip_nf_ba4c40ddbf6b8215c8a4aafa2fdbac5b end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net
+# _mark ip6_nf_4d52358f7b31f5ed985aa47262b4f214 start
+# _define KFEATURE_DESCRIPTION 'Enable Netfilter (IPv6) options'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net/ip6_nf.cfg
+# _mark ip6_nf_4d52358f7b31f5ed985aa47262b4f214 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net
+# _mark bridge_586d1d026e960e18ca4fbd56ebafb772 start
+# _define KFEATURE_DESCRIPTION 'Enable Bridge Netfilter options'
+# _define KFEATURE_COMPATIBILITY 'all'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net/bridge.cfg
+# _mark bridge_586d1d026e960e18ca4fbd56ebafb772 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/cfg/net
+# _mark rt_270d2282cfd79e626f8e4c24aeed13ce start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/rt/preempt-rt-import-3.4.18-rt29.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/rt/preempt-rt-use-_nort-versions-of-local_irq_save-rest.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/rt/serial-pch_uart-no-need-to-disable-irq-for-rt-kernel.patch
+# _mark rt_270d2282cfd79e626f8e4c24aeed13ce end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/rt
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/preempt-rt/preempt-rt.cfg
+# _mark wr_rt_35ffd19a749a518dcf040f943246ae95 start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wr-rt/preempt_rt-kgdboc-Fixup-of-the-BUG-sleeping-function.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wr-rt/preempt_rt-oprofile-Call-hrtimer-callback-in-interru.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wr-rt/rt-Replace-rt-spin-lock-to-raw-one-in-res_counter.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wr-rt/serial-PL011-Correct-spin_lock-and-irqsave-usage-in-.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wr-rt/rt-cfg80211-fix-call-trace-of-cfg80211-on-rt-kernel.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wr-rt/lockdep-selftest-save-restore-migrate_disable-count.patch
+# _mark wr_rt_35ffd19a749a518dcf040f943246ae95 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/wr-rt
+# _mark preempt_rt_28a9a9d573d1d710869990693e5e5a96 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/ktypes/preempt-rt
+# _mark beagleboard_133eab190ae6eb1eb8dc03b6ae93bec3 start
+# _kconf hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard/beagleboard.cfg
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard/beagleboard-non_hardware.cfg
+# _mark usb_net_74f150694acfcbc64c865a1b4f21bb97 start
+# _define KFEATURE_DESCRIPTION 'Enable all options required for USB networking'
+# _define KFEATURE_COMPATIBILITY 'board'
+# _kconf hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/usb-net/usb-net.cfg
+# _mark usb_net_74f150694acfcbc64c865a1b4f21bb97 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/usb-net
+# _mark wifi_650daae45c5740b961e2d9cd4bd2c342 start
+# _kconf hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard/wifi.cfg
+# _mark wifi_650daae45c5740b961e2d9cd4bd2c342 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard
+# _mark wl1271_144ec78b57720f14b03df91ed8e7dece start
+# _kconf hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard/wl1271.cfg
+# _mark wl1271_144ec78b57720f14b03df91ed8e7dece end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard
+# _mark beagleboard_133eab190ae6eb1eb8dc03b6ae93bec3 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard
+# _mark latencytop_d187975da9889dc3b0da94c7c8ba6e60 start
+# _define KFEATURE_DESCRIPTION 'Enable latencytop'
+# _define KFEATURE_COMPATIBILITY 'arch'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/latencytop/latencytop.cfg
+# _mark latencytop_d187975da9889dc3b0da94c7c8ba6e60 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/latencytop
+# _mark profiling_99430373cddb6f93e3bb1498d957497d start
+# _define KFEATURE_DESCRIPTION 'Enable profiling and timerstats'
+# _define KFEATURE_COMPATIBILITY 'board'
+# _kconf non-hardware /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/profiling/profiling.cfg
+# _mark profiling_99430373cddb6f93e3bb1498d957497d end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/profiling
+# _mark beagleboard_preempt_rt_248c736ec3d23b0c1177a0a06fdf1fb0 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/bsp/beagleboard
+# _branches_local: 

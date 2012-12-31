@@ -1,0 +1,18 @@
+# _reloc_dir /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg
+
+# _mark cdv_stage_fc835059d1fde9997ee901da76e1f035 start
+# _branch_begin cdv master
+# _mark cdv_05ae788e87537ae9e8d5c83c27db023d start
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/drivers-staging-cdv-initial-pull-from-linux-yocto-3.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/drivers-staging-cdv-rename-sysinfo.h-to-cdvsysinfo.h.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/drivers-staging-cdv-fix-wrong-kernel-header-file-inc.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/drivers-staging-cdv-Make-the-per-driver-file_operati.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/drivers-staging-cdv-align-with-drm_frambuffer-and-dr.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/drivers-staging-cdv-kmap-kunmap_atomic-now-only-take.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/drivers-staging-cdv-align-ttm-usage.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv/staging-cdv-rename-symbol-name-to-avoid-conflict-wit.patch
+# _mark cdv_05ae788e87537ae9e8d5c83c27db023d end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/features/cdv
+# _mark cdv_stage_fc835059d1fde9997ee901da76e1f035 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/staging
+# _branches_local: 

@@ -1,0 +1,20 @@
+# _reloc_dir /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg
+
+# _mark emgd_stage_57a28906e9d27152f4190153ce6da5e6 start
+# _mark emgd_1_14_275515a11dd6e0ad0166678501f2dea1 start
+# _branch_begin emgd-1.14 master
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/staging/yocto-emgd-emgd-1.14-driver.patch
+# _patch /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/staging/emgd-pvr-get-it-building-with-v3.4-kernel.patch
+# _mark emgd_1_14_275515a11dd6e0ad0166678501f2dea1 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/staging
+# _mark emgd_1_10_de330c183b139bde1c83b088424ea11c start
+# _branch_begin emgd-1.10 master
+# _mark emgd_1_10_de330c183b139bde1c83b088424ea11c end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/staging
+# _mark emgd_e404d5ca3ec83b7a56d2a5746ed253e1 start
+# _branch_begin emgd master
+# _mark emgd_e404d5ca3ec83b7a56d2a5746ed253e1 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/staging
+# _mark emgd_stage_57a28906e9d27152f4190153ce6da5e6 end
+# _cfg /home/mitch/yocto34-spins/treegen/131231_1602-treegen-linux/meta/cfg/kernel-cache/staging
+# _branches_local: 
