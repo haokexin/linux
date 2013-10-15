@@ -199,7 +199,6 @@ random_proc(void *arg)
 	spin_unlock_irq(&current->sigmask_lock);
 	sprintf(current->comm, "ocf-random");
 #else
-	daemonize("ocf-random");
 	allow_signal(SIGKILL);
 #endif
 
