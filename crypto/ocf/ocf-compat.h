@@ -205,6 +205,9 @@ struct ocf_device {
 /* older kernels don't have these */
 
 #include <asm/irq.h>
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 17)
+#include <linux/irqreturn.h>
+#endif
 #if !defined(IRQ_NONE) && !defined(IRQ_RETVAL)
 #define IRQ_NONE
 #define IRQ_HANDLED
