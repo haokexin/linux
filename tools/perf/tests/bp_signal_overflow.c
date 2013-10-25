@@ -101,7 +101,7 @@ static int test__bp_signal_overflow(struct test_suite *test __maybe_unused, int 
 	fd = sys_perf_event_open(&pe, 0, -1, -1,
 				 perf_event_open_cloexec_flag());
 	if (fd < 0) {
-		pr_debug("failed opening event %llx\n", pe.config);
+		pr_debug("failed opening event %llx\n", (unsigned long long)pe.config);
 		return TEST_FAIL;
 	}
 
