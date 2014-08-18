@@ -701,6 +701,7 @@ int rproc_coredump_add_custom_segment(struct rproc *rproc,
 				      void *priv);
 int rproc_coredump_set_elf_info(struct rproc *rproc, u8 class, u16 machine);
 int rproc_get_id(struct rproc *rproc);
+int rproc_pa_to_da(struct rproc *rproc, phys_addr_t pa, u64 *da);
 
 void rproc_add_subdev(struct rproc *rproc, struct rproc_subdev *subdev);
 
