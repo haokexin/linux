@@ -310,7 +310,8 @@ axxia_ddr_retention_init(void)
 	 * Only available on ASIC systems.
 	 */
 
-	if (of_find_compatible_node(NULL, NULL, "axxia,axm5500-amarillo")) {
+	if (of_find_compatible_node(NULL, NULL, "axxia,axm5500-amarillo") ||
+	    of_find_compatible_node(NULL, NULL, "axxia,axm5516")) {
 		/* Create /proc entry. */
 		if (!proc_create("driver/axxia_ddr_retention_reset",
 				 0200, NULL,
