@@ -10,6 +10,7 @@
 #define _LINUX_PMU_H
 
 #include <linux/rtc.h>
+#include <linux/adb.h>
 #include <uapi/linux/pmu.h>
 
 
