@@ -218,6 +218,6 @@ DT_MACHINE_START(AXXIA_DT, "INTEL Axxia")
 	.init_machine	= axxia_dt_init,
 	.restart	= axxia_restart,
 #if defined(CONFIG_ZONE_DMA) && defined(CONFIG_ARM_LPAE)
-	.dma_zone_size	= (4ULL * SZ_1G) - 1,
+	.dma_zone_size	= (4ULL * SZ_1G),
 #endif
 	MACHINE_END
