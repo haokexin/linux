@@ -514,12 +514,13 @@ static irqreturn_t lpi2c_imx_isr(int irq, void *dev_id)
 
 	if (temp & MSR_RDF)
 		lpi2c_imx_read_rxfifo(lpi2c_imx);
-
-	if (temp & MSR_TDF)
+	else if (temp & MSR_TDF)
 		lpi2c_imx_write_txfifo(lpi2c_imx);
 
-	if (temp & MSR_NDF)
+	if (temp & MSR_NDF) {
 		complete(&lpi2c_imx->complete);
+		lpi2c_imx->is_ndf = true;
+	}
 
 	return IRQ_HANDLED;
 }
