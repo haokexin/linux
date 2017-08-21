@@ -19,6 +19,7 @@
  */
 #define LIBUNWIND__ARCH_REG_ID(regnum) libunwind__x86_reg_id(regnum)
 
+#include <errno.h>
 #include "unwind.h"
 #include "libunwind-x86.h"
 #include <../../../../arch/x86/include/uapi/asm/perf_regs.h>
