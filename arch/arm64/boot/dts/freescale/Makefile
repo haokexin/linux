@@ -9,6 +9,7 @@ DTC_FLAGS_fsl-ls1028a-qds-85bb := -@
 DTC_FLAGS_fsl-ls1028a-qds-899b := -@
 DTC_FLAGS_fsl-ls1028a-qds-9999 := -@
 
+dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1012a-2g5rdb.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1012a-frdm.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1012a-frwy.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls1012a-oxalis.dtb
