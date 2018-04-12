@@ -2174,6 +2174,8 @@ static void atmel_set_termios(struct uart_port *port,
 			mode |= ATMEL_US_PAR_EVEN;
 	} else
 		mode |= ATMEL_US_PAR_NONE;
+	mdrop = termios->c_cflag & SENDA ? ATMEL_US_SENDA : 0;
+	termios->c_cflag &= ~SENDA; /* SENDA bit must be cleared once used */
 
 	uart_port_lock_irqsave(port, &flags);
 
