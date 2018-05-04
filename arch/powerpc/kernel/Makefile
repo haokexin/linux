@@ -4,6 +4,7 @@
 #
 
 CFLAGS_ptrace.o		+= -DUTS_MACHINE='"$(UTS_MACHINE)"' $(call cc-disable-warning, attribute-alias)
+CFLAGS_ptrace.o		+= $(call cc-disable-warning, array-bounds)
 CFLAGS_syscalls.o	+= $(call cc-disable-warning, attribute-alias)
 
 # Avoid clang warnings around longjmp/setjmp declarations
