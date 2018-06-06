@@ -66,5 +66,6 @@ config DRM_IMX_SEC_DSIM
 source "drivers/gpu/drm/imx/dcnano/Kconfig"
 source "drivers/gpu/drm/imx/dpu/Kconfig"
 source "drivers/gpu/drm/imx/dcss/Kconfig"
+source "drivers/gpu/drm/imx/lcdif/Kconfig"
 source "drivers/gpu/drm/imx/ipuv3/Kconfig"
 source "drivers/gpu/drm/imx/mhdp/Kconfig"
