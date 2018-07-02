@@ -626,6 +626,14 @@ static inline bool id_aa64pfr1_mte(u64 pfr1)
 	return val >= ID_AA64PFR1_MTE;
 }
 
+static inline bool id_aa64pfr0_mpam(u64 pfr0)
+{
+	u32 val = cpuid_feature_extract_unsigned_field(pfr0,
+						       ID_AA64PFR0_MPAM_SHIFT);
+
+	return val > 0;
+}
+
 void __init setup_cpu_features(void);
 void check_local_cpu_capabilities(void);
 
@@ -806,6 +814,12 @@ static inline bool system_supports_tlb_range(void)
 {
 	return IS_ENABLED(CONFIG_ARM64_TLB_RANGE) &&
 		cpus_have_const_cap(ARM64_HAS_TLB_RANGE);
+}
+
+static inline bool cpus_support_mpam(void)
+{
+	return IS_ENABLED(CONFIG_ARM64_MPAM) &&
+		cpus_have_const_cap(ARM64_MPAM);
 }
 
 extern int do_emulate_mrs(struct pt_regs *regs, u32 sys_reg, u32 rt);
