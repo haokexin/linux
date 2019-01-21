@@ -5640,8 +5640,8 @@ static void port_event(struct usb_hub *hub, int port1)
 			port_dev->over_current_count);
 		usb_clear_port_feature(hdev, port1,
 				USB_PORT_FEAT_C_OVER_CURRENT);
-		msleep(100);	/* Cool down */
 		hub_power_on(hub, true);
+		msleep(100);	/* Cool down */
 		usb_hub_port_status(hub, port1, &status, &unused);
 		if (status & USB_PORT_STAT_OVERCURRENT)
 			dev_err(&port_dev->dev, "over-current condition\n");
@@ -5793,6 +5793,11 @@ static void hub_event(struct work_struct *work)
 			port_event(hub, i);
 			usb_unlock_port(port_dev);
 			pm_runtime_put_sync(&port_dev->dev);
+		} else {
+			/* Wait for the hub_irq to finish then update
+			 * the port status
+			 */
+			msleep(100);
 		}
 	}
 
