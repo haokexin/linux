@@ -8,6 +8,8 @@ imx6-media-objs := imx-media-dev.o imx-media-internal-sd.o \
 
 imx6-media-csi-objs := imx-media-csi.o imx-media-fim.o
 
+imx8-capture-objs := imx8-isi-core.o imx8-isi-cap.o imx8-isi-hw.o
+
 obj-$(CONFIG_VIDEO_IMX_MEDIA) += imx-media-common.o
 obj-$(CONFIG_VIDEO_IMX_MEDIA) += imx6-media.o
 obj-$(CONFIG_VIDEO_IMX_MEDIA) += imx6-media-csi.o
@@ -20,3 +22,5 @@ obj-$(CONFIG_IMX8_MIPI_CSI2_SAM)  += imx8-mipi-csi2-sam.o
 obj-$(CONFIG_DWC_MIPI_CSI2_HOST) += dwc-mipi-csi2.o
 
 obj-y += hdmirx/
+
+obj-$(CONFIG_IMX8_CAPTURE_DRIVER) += imx8-capture.o
