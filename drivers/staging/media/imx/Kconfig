@@ -74,5 +74,11 @@ config IMX8_MIPI_CSI2_SAM
 
 source "drivers/staging/media/imx/hdmirx/Kconfig"
 
+config IMX8_CAPTURE_DRIVER
+	tristate "IMX8 Camera Controller"
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	select VIDEOBUF2_DMA_CONTIG
+	default y
+
 endmenu
 endif  #VIDEO_IMX_CAPTURE
