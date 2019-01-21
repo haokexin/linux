@@ -56,6 +56,11 @@ config VIDEO_IMX_CAPTURE
 if VIDEO_IMX_CAPTURE
 menu "i.MX8QXP/QM Camera ISI/MIPI Features support"
 
+config IMX8_CAPTURE_DRIVER
+	tristate "IMX8 Camera Controller"
+	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	select VIDEOBUF2_DMA_CONTIG
+
 config IMX8_MIPI_CSI2
 	tristate "IMX8 MIPI CSI2 Controller"
 	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
