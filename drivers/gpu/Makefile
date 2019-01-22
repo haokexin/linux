@@ -4,5 +4,5 @@
 # to ensure this currently.
 obj-y			+= arm/
 obj-y			+= host1x/ drm/ vga/
-obj-$(CONFIG_IMX_IPUV3_CORE)	+= ipu-v3/
+obj-y			+= imx/
 obj-$(CONFIG_TRACE_GPU_MEM)		+= trace/
