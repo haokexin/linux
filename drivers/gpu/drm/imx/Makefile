@@ -9,7 +9,7 @@ obj-$(CONFIG_DRM_IMX_TVE) += imx-tve.o
 obj-$(CONFIG_DRM_IMX_LDB) += imx-ldb.o
 obj-$(CONFIG_DRM_IMX93_PARALLEL_DISPLAY_FORMAT) += imx93-parallel-disp-fmt.o
 
-imx-ipuv3-crtc-objs  := ipuv3-crtc.o ipuv3-plane.o
+imx-ipuv3-crtc-objs  := ipuv3-crtc.o ipuv3-plane.o ipuv3-kms.o
 obj-$(CONFIG_DRM_IMX_IPUV3)	+= imx-ipuv3-crtc.o
 obj-$(CONFIG_DRM_IMX_DW_MIPI_DSI) += dw_mipi_dsi-imx.o
 obj-$(CONFIG_DRM_IMX_DPU) += dpu/
