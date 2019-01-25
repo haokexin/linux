@@ -205,6 +205,49 @@ static int rvu_blk_count_rsrc(struct rvu_block *block, u16 pcifunc, u8 rshift)
 	return count;
 }
 
+int rvu_check_txsch_policy(struct rvu *rvu, struct nix_txsch_alloc_req *req,
+				u16 pcifunc)
+{
+	struct nix_txsch *txsch;
+	int lvl, req_schq, pf = rvu_get_pf(pcifunc);
+	int limit, familylfs, delta;
+
+	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
+		txsch = &rvu->hw->nix->txsch[lvl];
+		req_schq = req->schq_contig[lvl] + req->schq[lvl];
+
+		switch (lvl) {
+		case NIX_TXSCH_LVL_SMQ:
+			limit = rvu->pf_limits.smq->a[pf].val;
+			break;
+		case NIX_TXSCH_LVL_TL4:
+			limit = rvu->pf_limits.tl4->a[pf].val;
+			break;
+		case NIX_TXSCH_LVL_TL3:
+			limit = rvu->pf_limits.tl3->a[pf].val;
+			break;
+		case NIX_TXSCH_LVL_TL2:
+			limit = rvu->pf_limits.tl2->a[pf].val;
+			break;
+		case NIX_TXSCH_LVL_TL1:
+			if (req_schq > 2)
+				return -ENOSPC;
+			continue;
+		}
+
+		familylfs = rvu_txsch_count_rsrc(rvu, lvl, pcifunc,
+						 RVU_PFVF_PF_SHIFT);
+		delta = req_schq - rvu_txsch_count_rsrc(rvu, lvl, pcifunc, 0);
+
+		if ((delta > 0) && /* always allow usage decrease */
+		    ((limit < familylfs + delta) ||
+		     (delta > rvu_rsrc_free_count(&txsch->schq))))
+			return -ENOSPC;
+	}
+
+	return 0;
+}
+
 int rvu_check_rsrc_policy(struct rvu *rvu, struct rsrc_attach *req,
 			  u16 pcifunc)
 {
@@ -321,7 +364,8 @@ static struct rvu_quota_ops pf_limit_ops = {
 
 static void rvu_set_default_limits(struct rvu *rvu)
 {
-	int i, sso_rvus = 0, totalvfs;
+	struct nix_hw *nix_hw = rvu->hw->nix;
+	int i, sso_rvus = 0, nix_rvus = 0, totalvfs;
 
 	/* First pass, count number of SSO/TIM PFs. */
 	for (i = 0; i < rvu->hw->total_pfs; i++) {
@@ -329,7 +373,11 @@ static void rvu_set_default_limits(struct rvu *rvu)
 			continue;
 		if (rvu->pf[i].pdev->device == PCI_DEVID_OCTEONTX2_SSO_RVU_PF)
 			sso_rvus++;
+		if (rvu->pf[i].pdev->device == PCI_DEVID_OCTEONTX2_RVU_PF ||
+		    rvu->pf[i].pdev->device == PCI_DEVID_OCTEONTX2_RVU_AF)
+			nix_rvus++;
 	}
+
 	/* Second pass, set the default limit values. */
 	for (i = 0; i < rvu->hw->total_pfs; i++) {
 		if (rvu->pf[i].pdev == NULL)
@@ -339,10 +387,34 @@ static void rvu_set_default_limits(struct rvu *rvu)
 		case PCI_DEVID_OCTEONTX2_RVU_AF:
 			rvu->pf_limits.nix->a[i].val = totalvfs;
 			rvu->pf_limits.npa->a[i].val = totalvfs;
+			rvu->pf_limits.smq->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_SMQ].schq.max /
+				nix_rvus;
+			rvu->pf_limits.tl4->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_TL4].schq.max /
+				nix_rvus;
+			rvu->pf_limits.tl3->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_TL3].schq.max /
+				nix_rvus;
+			rvu->pf_limits.tl2->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_TL2].schq.max /
+				nix_rvus;
 			break;
 		case PCI_DEVID_OCTEONTX2_RVU_PF:
 			rvu->pf_limits.nix->a[i].val = 1 + totalvfs;
 			rvu->pf_limits.npa->a[i].val = 1 + totalvfs;
+			rvu->pf_limits.smq->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_SMQ].schq.max /
+				nix_rvus;
+			rvu->pf_limits.tl4->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_TL4].schq.max /
+				nix_rvus;
+			rvu->pf_limits.tl3->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_TL3].schq.max /
+				nix_rvus;
+			rvu->pf_limits.tl2->a[i].val =
+				nix_hw->txsch[NIX_TXSCH_LVL_TL2].schq.max /
+				nix_rvus;
 			break;
 		case PCI_DEVID_OCTEONTX2_SSO_RVU_PF:
 			rvu->pf_limits.npa->a[i].val = totalvfs;
@@ -435,6 +507,38 @@ static int rvu_create_limits_sysfs(struct rvu *rvu)
 			err = -EFAULT;
 			break;
 		}
+
+		if (quota_sysfs_create("smq", pf->limits_kobj, rvu->dev,
+				       &rvu->pf_limits.smq->a[i], pf)) {
+			dev_err(rvu->dev, "Failed to allocate quota for smq on %s\n",
+				pci_name(pf->pdev));
+			err = -EFAULT;
+			break;
+		}
+
+		if (quota_sysfs_create("tl4", pf->limits_kobj, rvu->dev,
+				       &rvu->pf_limits.tl4->a[i], pf)) {
+			dev_err(rvu->dev, "Failed to allocate quota for tl4 on %s\n",
+				pci_name(pf->pdev));
+			err = -EFAULT;
+			break;
+		}
+
+		if (quota_sysfs_create("tl3", pf->limits_kobj, rvu->dev,
+				       &rvu->pf_limits.tl3->a[i], pf)) {
+			dev_err(rvu->dev, "Failed to allocate quota for tl3 on %s\n",
+				pci_name(pf->pdev));
+			err = -EFAULT;
+			break;
+		}
+
+		if (quota_sysfs_create("tl2", pf->limits_kobj, rvu->dev,
+				       &rvu->pf_limits.tl2->a[i], pf)) {
+			dev_err(rvu->dev, "Failed to allocate quota for tl2 on %s\n",
+				pci_name(pf->pdev));
+			err = -EFAULT;
+			break;
+		}
 	}
 
 	return err;
@@ -451,12 +555,23 @@ void rvu_policy_destroy(struct rvu *rvu)
 	quotas_free(rvu->pf_limits.cpt);
 	quotas_free(rvu->pf_limits.tim);
 	quotas_free(rvu->pf_limits.nix);
+
+	quotas_free(rvu->pf_limits.smq);
+	quotas_free(rvu->pf_limits.tl4);
+	quotas_free(rvu->pf_limits.tl3);
+	quotas_free(rvu->pf_limits.tl2);
+
 	rvu->pf_limits.sso = NULL;
 	rvu->pf_limits.ssow = NULL;
 	rvu->pf_limits.npa = NULL;
 	rvu->pf_limits.cpt = NULL;
 	rvu->pf_limits.tim = NULL;
 	rvu->pf_limits.nix = NULL;
+
+	rvu->pf_limits.smq = NULL;
+	rvu->pf_limits.tl4 = NULL;
+	rvu->pf_limits.tl3 = NULL;
+	rvu->pf_limits.tl2 = NULL;
 
 	for (i = 0; i < rvu->hw->total_pfs; i++) {
 		pf = &rvu->pf[i];
@@ -468,6 +583,7 @@ int rvu_policy_init(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
 	struct rvu_hwinfo *hw = rvu->hw;
+	struct nix_hw *nix_hw = rvu->hw->nix;
 	int err, i = 0;
 	u32 max = 0;
 
@@ -524,6 +640,42 @@ int rvu_policy_init(struct rvu *rvu)
 					  0, &rvu->rsrc_lock, &pf_limit_ops);
 	if (!rvu->pf_limits.nix) {
 		dev_err(rvu->dev, "Failed to allocate nix limits\n");
+		err = -EFAULT;
+		goto error;
+	}
+
+	max = nix_hw->txsch[NIX_TXSCH_LVL_SMQ].schq.max;
+	rvu->pf_limits.smq = quotas_alloc(hw->total_pfs, max, max, 0,
+					     &rvu->rsrc_lock, &pf_limit_ops);
+	if (!rvu->pf_limits.smq) {
+		dev_err(rvu->dev, "Failed to allocate SQM txschq limits\n");
+		err = -EFAULT;
+		goto error;
+	}
+
+	max = nix_hw->txsch[NIX_TXSCH_LVL_TL4].schq.max;
+	rvu->pf_limits.tl4 = quotas_alloc(hw->total_pfs, max, max, 0,
+					     &rvu->rsrc_lock, &pf_limit_ops);
+	if (!rvu->pf_limits.tl4) {
+		dev_err(rvu->dev, "Failed to allocate TL4 txschq limits\n");
+		err = -EFAULT;
+		goto error;
+	}
+
+	max = nix_hw->txsch[NIX_TXSCH_LVL_TL3].schq.max;
+	rvu->pf_limits.tl3 = quotas_alloc(hw->total_pfs, max, max, 0,
+					     &rvu->rsrc_lock, &pf_limit_ops);
+	if (!rvu->pf_limits.tl3) {
+		dev_err(rvu->dev, "Failed to allocate TL3 txschq limits\n");
+		err = -EFAULT;
+		goto error;
+	}
+
+	max = nix_hw->txsch[NIX_TXSCH_LVL_TL2].schq.max;
+	rvu->pf_limits.tl2 = quotas_alloc(hw->total_pfs, max, max, 0,
+					     &rvu->rsrc_lock, &pf_limit_ops);
+	if (!rvu->pf_limits.tl2) {
+		dev_err(rvu->dev, "Failed to allocate TL2 txschq limits\n");
 		err = -EFAULT;
 		goto error;
 	}
