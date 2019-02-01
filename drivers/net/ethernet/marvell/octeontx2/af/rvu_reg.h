@@ -429,6 +429,9 @@
 #define NIX_PRIV_LFX_INT_CFG		(0x8000020)
 #define NIX_AF_RVU_LF_CFG_DEBUG		(0x8000030)
 
+#define NIX_AF_LF_CFG_SHIFT		17
+#define NIX_AF_LF_SSO_PF_FUNC_SHIFT	16
+
 #define NIX_AF_LINKX_BASE_MASK		GENMASK_ULL(11, 0)
 #define NIX_AF_LINKX_RANGE_MASK		GENMASK_ULL(19, 16)
 
@@ -582,6 +585,7 @@
 #define SSOW_LF_GWS_INT			(0x100ull)
 #define SSOW_LF_GWS_INT_ENA_W1C		(0x118ull)
 #define SSOW_LF_GWS_TAG			(0x200ull)
+#define SSOW_LF_GWS_WQP			(0x210ull)
 #define SSOW_LF_GWS_OP_GET_WORK		(0x600ull)
 #define SSOW_LF_GWS_OP_SWTAG_FLUSH	(0x800ull)
 #define SSOW_LF_GWS_OP_DESCHED		(0x880ull)
@@ -608,6 +612,9 @@
 #define TIM_AF_FLAGS_REG_ENA_TIM	BIT_ULL(0)
 #define TIM_AF_RINGX_CTL1_ENA		BIT_ULL(47)
 #define TIM_AF_RINGX_CTL1_RCF_BUSY	BIT_ULL(50)
+
+#define TIM_AF_RING_GMCTL_SHIFT		3
+#define TIM_AF_RING_SSO_PF_FUNC_SHIFT	0
 
 /* CPT */
 #define CPT_AF_CONSTANTS0               (0x0000)
@@ -698,6 +705,9 @@
 #define CPT_LF_Q_GRP_PTR                0x120
 
 #define NPC_AF_BLK_RST                  (0x00040)
+
+#define CPT_AF_LF_CTL2_SHIFT		3
+#define CPT_AF_LF_SSO_PF_FUNC_SHIFT	32
 
 /* NPC */
 #define NPC_AF_CFG			(0x00000)
