@@ -19,6 +19,21 @@
 /* Length of initial context fetch in 128 byte words */
 #define CPT_CTX_ILEN    2
 
+/* Maximum supported microcode groups */
+#define CPT_MAX_ENGINE_GROUPS	8
+
+/* Invalid engine group */
+#define INVALID_ENGINE_GRP	0xFF
+
+/* Number of engine group for symmetric crypto */
+static int crypto_eng_grp = INVALID_ENGINE_GRP;
+
+/* CPT PF number */
+static int cpt_pf_num = -1;
+
+/* Fault interrupts names */
+static const char *cpt_flt_irq_name[2] = { "CPTAF FLT0", "CPTAF FLT1" };
+
 #define cpt_get_eng_sts(e_min, e_max, rsp, etype)                   \
 ({                                                                  \
 	u64 free_sts = 0, busy_sts = 0;                             \
@@ -59,6 +74,85 @@ static int get_cpt_pf_num(struct rvu *rvu)
 	return cpt_pf_num;
 }
 
+static irqreturn_t rvu_cpt_af_flr_intr_handler(int irq, void *ptr)
+{
+	struct rvu *rvu = (struct rvu *) ptr;
+	u64 reg0, reg1;
+
+	reg0 = rvu_read64(rvu, BLKADDR_CPT0, CPT_AF_FLTX_INT(0));
+	reg1 = rvu_read64(rvu, BLKADDR_CPT0, CPT_AF_FLTX_INT(1));
+	dev_err(rvu->dev, "Received CPTAF FLT irq : 0x%llx, 0x%llx",
+		reg0, reg1);
+
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_FLTX_INT(0), reg0);
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_FLTX_INT(1), reg1);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rvu_cpt_af_rvu_intr_handler(int irq, void *ptr)
+{
+	struct rvu *rvu = (struct rvu *) ptr;
+	u64 reg;
+
+	reg = rvu_read64(rvu, BLKADDR_CPT0, CPT_AF_RVU_INT);
+	dev_err(rvu->dev, "Received CPTAF RVU irq : 0x%llx", reg);
+
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_RVU_INT, reg);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rvu_cpt_af_ras_intr_handler(int irq, void *ptr)
+{
+	struct rvu *rvu = (struct rvu *) ptr;
+	u64 reg;
+
+	reg = rvu_read64(rvu, BLKADDR_CPT0, CPT_AF_RAS_INT);
+	dev_err(rvu->dev, "Received CPTAF RAS irq : 0x%llx", reg);
+
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_RAS_INT, reg);
+	return IRQ_HANDLED;
+}
+
+static int rvu_cpt_do_register_interrupt(struct rvu *rvu, int irq_offs,
+					 irq_handler_t handler,
+					 const char *name)
+{
+	int ret = 0;
+
+	ret = request_irq(pci_irq_vector(rvu->pdev, irq_offs), handler, 0,
+			  name, rvu);
+	if (ret) {
+		dev_err(rvu->dev, "RVUAF: %s irq registration failed", name);
+		goto err;
+	}
+
+	WARN_ON(rvu->irq_allocated[irq_offs]);
+	rvu->irq_allocated[irq_offs] = true;
+err:
+	return ret;
+}
+
+static void rvu_cpt_unregister_interrupts(struct rvu *rvu)
+{
+	int i, offs;
+	u64 reg;
+
+	reg = rvu_read64(rvu, BLKADDR_CPT0, CPT_PRIV_AF_INT_CFG);
+	offs = reg & 0x7FF;
+
+	/* Disable all CPT AF interrupts */
+	for (i = 0; i < 2; i++)
+		rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_FLTX_INT_ENA_W1C(i), 0x1);
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_RVU_INT_ENA_W1C, 0x1);
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_RAS_INT_ENA_W1C, 0x1);
+
+	for (i = 0; i < CPT_AF_INT_VEC_CNT; i++)
+		if (rvu->irq_allocated[offs + i]) {
+			free_irq(pci_irq_vector(rvu->pdev, offs + i), rvu);
+			rvu->irq_allocated[offs + i] = false;
+		}
+}
+
 static bool is_cpt_pf(struct rvu *rvu, u16 pcifunc)
 {
 	int cpt_pf_num = get_cpt_pf_num(rvu);
@@ -92,6 +186,68 @@ static int validate_and_get_cpt_blkaddr(int req_blkaddr)
 		return -EINVAL;
 
 	return blkaddr;
+}
+
+int rvu_cpt_init(struct rvu *rvu)
+{
+	struct pci_dev *pdev;
+	int i;
+
+	for (i = 0; i < rvu->hw->total_pfs; i++) {
+		pdev = pci_get_domain_bus_and_slot(
+				pci_domain_nr(rvu->pdev->bus), i + 1, 0);
+		if (!pdev)
+			continue;
+
+		if (pdev->device == PCI_DEVID_OTX2_CPT_PF) {
+			cpt_pf_num = i;
+			put_device(&pdev->dev);
+			break;
+		}
+
+		put_device(&pdev->dev);
+	}
+
+	return 0;
+}
+
+int rvu_cpt_register_interrupts(struct rvu *rvu)
+{
+
+	int i, offs, ret = 0;
+	u64 reg;
+
+	reg = rvu_read64(rvu, BLKADDR_CPT0, CPT_PRIV_AF_INT_CFG);
+	offs = reg & 0x7FF;
+
+	for (i = 0; i < 2; i++) {
+		ret = rvu_cpt_do_register_interrupt(rvu, offs +
+						    CPT_AF_INT_VEC_FLT0 + i,
+						    rvu_cpt_af_flr_intr_handler,
+						    cpt_flt_irq_name[i]);
+		if (ret)
+			goto err;
+		rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_FLTX_INT_ENA_W1S(i), 0x1);
+	}
+
+	ret = rvu_cpt_do_register_interrupt(rvu, offs + CPT_AF_INT_VEC_RVU,
+					    rvu_cpt_af_rvu_intr_handler,
+					    "CPTAF RVU");
+	if (ret)
+		goto err;
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_RVU_INT_ENA_W1S, 0x1);
+
+	ret = rvu_cpt_do_register_interrupt(rvu, offs + CPT_AF_INT_VEC_RAS,
+					    rvu_cpt_af_ras_intr_handler,
+					    "CPTAF RAS");
+	if (ret)
+		goto err;
+	rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_RAS_INT_ENA_W1S, 0x1);
+
+	return 0;
+err:
+	rvu_cpt_unregister_interrupts(rvu);
+	return ret;
 }
 
 int rvu_mbox_handler_cpt_lf_alloc(struct rvu *rvu,
@@ -254,6 +410,25 @@ static bool is_valid_offset(struct rvu *rvu, struct cpt_rd_wr_reg_msg *req)
 		return true;
 	}
 	return false;
+}
+
+int rvu_mbox_handler_cpt_set_crypto_grp(struct rvu *rvu,
+					struct cpt_set_crypto_grp_req_msg *req,
+					struct cpt_set_crypto_grp_req_msg *rsp)
+{
+	/* This message is accepted only if sent from CPT PF */
+	if (!is_cpt_pf(rvu, req->hdr.pcifunc))
+		return CPT_AF_ERR_ACCESS_DENIED;
+
+	rsp->crypto_eng_grp = req->crypto_eng_grp;
+
+	if (req->crypto_eng_grp != INVALID_ENGINE_GRP &&
+	    (req->crypto_eng_grp < 0 ||
+	    req->crypto_eng_grp >= CPT_MAX_ENGINE_GROUPS))
+		return CPT_AF_ERR_GRP_INVALID;
+
+	crypto_eng_grp = req->crypto_eng_grp;
+	return 0;
 }
 
 int rvu_mbox_handler_cpt_rd_wr_register(struct rvu *rvu,

@@ -210,6 +210,9 @@ M(CPT_LF_ALLOC,		0xA00, cpt_lf_alloc, cpt_lf_alloc_req_msg,	\
 M(CPT_LF_FREE,		0xA01, cpt_lf_free, msg_req, msg_rsp)		\
 M(CPT_RD_WR_REGISTER,	0xA02, cpt_rd_wr_register,  cpt_rd_wr_reg_msg,	\
 			       cpt_rd_wr_reg_msg)			\
+M(CPT_SET_CRYPTO_GRP,	0xA03, cpt_set_crypto_grp,			\
+			       cpt_set_crypto_grp_req_msg,		\
+			       cpt_set_crypto_grp_req_msg)		\
 M(CPT_STATS,            0xA05, cpt_sts, cpt_sts_req, cpt_sts_rsp)	\
 M(CPT_RXC_TIME_CFG,     0xA06, cpt_rxc_time_cfg, cpt_rxc_time_cfg_req,  \
 			       msg_rsp)                                 \
@@ -1634,6 +1637,16 @@ struct cpt_rd_wr_reg_msg {
 	u64 val;
 	u8 is_write;
 	int blkaddr;
+};
+
+struct cpt_set_crypto_grp_req_msg {
+	struct mbox_msghdr hdr;
+	u8 crypto_eng_grp;
+};
+
+struct cpt_lf_alloc_rsp_msg {
+	struct mbox_msghdr hdr;
+	u8 crypto_eng_grp;
 };
 
 struct cpt_lf_alloc_req_msg {
