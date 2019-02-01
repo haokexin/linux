@@ -3183,16 +3183,16 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	rvu_setup_rvum_blk_revid(rvu);
 
+	err = rvu_policy_init(rvu);
+	if (err)
+		goto err_dl;
+
 	/* Enable AF's VFs (if any) */
 	err = rvu_enable_sriov(rvu);
 	if (err) {
 		dev_err(dev, "%s: Failed to enable sriov\n", __func__);
-		goto err_dl;
+		goto err_policy;
 	}
-
-	err = rvu_policy_init(rvu);
-	if (err)
-		goto err_sriov;
 
 	/* Initialize debugfs */
 	rvu_dbg_init(rvu);
@@ -3201,8 +3201,8 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	return 0;
 
-err_sriov:
-	rvu_disable_sriov(rvu);
+err_policy:
+	rvu_policy_destroy(rvu);
 err_dl:
 	rvu_unregister_dl(rvu);
 err_irq:
