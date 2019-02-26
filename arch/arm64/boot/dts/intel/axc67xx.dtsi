@@ -229,6 +229,7 @@
 
 		gpdma0: gpdma@8005020000 {
 			compatible = "axxia,dma32";
+			dma-coherent;
 			reg = <0x80 0x05020000 0 0x10000>;
 			interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>;
@@ -243,6 +244,7 @@
 
 		gpdma1: gpdma@8005030000 {
 			compatible = "axxia,dma32";
+			dma-coherent;
 			reg = <0x80 0x05030000 0 0x10000>;
 			interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
