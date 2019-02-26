@@ -494,6 +494,17 @@ config GPIO_PMIC_EIC_SPRD
 	help
 	  Say yes here to support Spreadtrum PMIC EIC device.
 
+config GPIO_AXXIA
+	bool "PrimeCell PL061 GPIO support for Axxia"
+	depends on ARCH_AXXIA
+	select IRQ_DOMAIN
+	select GPIOLIB_IRQCHIP
+	help
+	  The PrimeCell GPIO is an AMBA compliant System-on-Chip peripheral.
+	  GPIO is an AMBA slave module, and connects to the APB. This Cycle
+	  Model supports receive and transmit direction transaction port for data transfer.
+	  Say yes here to support the PrimeCell PL061 GPIO device for Axxia.
+
 config GPIO_PXA
 	bool "PXA GPIO support"
 	depends on ARCH_PXA || ARCH_MMP || COMPILE_TEST
