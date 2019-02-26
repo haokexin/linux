@@ -426,6 +426,90 @@ config SRAM
 config SRAM_EXEC
 	bool
 
+config AXXIA_MTC
+	tristate "INTEL Axxia Master Test Controller driver"
+	depends on ARCH_AXXIA
+	help
+	  The Master Test Controller (MTC) is a test generator that is fully
+	  compliant with IEEE 1149.1 and can run JTAG test sequences on
+	  external devices.
+	  Say N if you are unsure
+
+config AXXIA_NCR
+	bool "AXXIA NCR Access"
+	depends on ARCH_AXXIA || AXXIA_NET
+	help
+	  Provides access to the INTEL Axxia NCR bus.
+	  Select Y to enable
+	  the NCR Access for the
+	  Axxia hardware.
+
+config ARCH_AXXIA_NCR_RESET_CHECK
+	bool "Axxia NCR driver reset checking"
+	depends on AXXIA_NCR
+	help
+	  Enabling this option will allow the Axxia NCA Config Ring driver
+	  to coordinate with the RTE ncp driver to
+	  detect when NCA hardware
+	  is being held in reset.
+
+config AXXIA_SMMON
+	tristate "INTEL Axxia System Memory Monitor"
+	depends on ARCH_AXXIA || AXXIA_NET
+	depends on !EDAC_AXXIA
+	help
+	 Monitor the system memory controllers for errors.
+	 Enable the Axxia System Memroy
+	 monitor as a module (M)
+	 or built in.
+
+config AXXIA_OEM
+       bool "Axxia OEM Calls"
+       depends on ARCH_AXXIA
+       help
+	 OEM calls to the secure monitor for Axxia.
+	 Select Y to enable the AXXIA
+	 OEM Calls.
+	 for the secure monitor.
+
+config AXXIA_FAULT
+       bool "Axxia Fault Handlers"
+       depends on ARCH_AXXIA
+       help
+	 Add fault handlers for system aborts.
+	 Select Y to enable the Axxia
+	 fault handlers for system
+	 aborts.
+
+config AXXIA_PEI
+       bool "Axxia PEI Controller Setup"
+       depends on ARCH_AXXIA
+       help
+	 Set up the PEI controllers in Linux instead of
+	 the boot loader.
+	 Slect Y if you want to enable
+	 the PEI controller for AXXIA
+
+config AXXIA_MDIO
+       bool "Axxia MDIO Driver"
+       depends on ARCH_AXXIA
+       default y
+       help
+	 Provide access to the Axxia MDIO bus.
+	 Select Y if you want to enable the
+	 access to the Axxia MDIO bus. Only
+	 available for
+
+config VEXPRESS_SYSCFG
+	bool "Versatile Express System Configuration driver"
+	depends on VEXPRESS_CONFIG
+	default y
+	help
+	  ARM Ltd. Versatile Express uses specialised platform
+	  configuration bus. System Configuration interface is
+	  one of the possible means of generating transactions
+	  on this bus.
+
 config DW_XDATA_PCIE
 	depends on PCI
 	tristate "Synopsys DesignWare xData PCIe driver"
