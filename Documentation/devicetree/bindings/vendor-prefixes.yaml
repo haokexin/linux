@@ -157,6 +157,8 @@ patternProperties:
     description: Axentia Technologies AB
   "^axis,.*":
     description: Axis Communications AB
+  "^axxia,.*":
+    description: Intel AXXIA
   "^azoteq,.*":
     description: Azoteq (Pty) Ltd
   "^azw,.*":

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/intel,axxia.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia platforms device tree bindings
+
+maintainers:
+  - Anders Berg <anders.berg@intel.com>
+  - John Jacques <john.jacques@intel.com>
+
+properties:
+  $nodename:
+    const: "/"
+  compatible:
+    oneOf:
+      - description: Intel Axxia AXM5500 (Amarillo) - up to 16 Cortex-A15
+        items:
+          - enum:
+            - axxia,axm5500-sim  # AXM5500 Simulation Platform
+            - axxia,axm5500-emu  # AXM5500 Emulation Platform
+            - axxia,axm5500-amarillo  # AXM5500 Amarillo
+          - const: axxia,axm5500
+
+      - description: Intel Axxia AXM5600 (Victoria) - up to 16 Cortex-A57
+        items:
+          - const: axxia,axm5616  # Simulation, Emulation & Victoria
+
+      - description: Intel Axxia AXC6700 (Waco) - up to 32 Cortex-A53
+        items:
+          - const: axxia,axc6732  # Simulation, Emulation & Waco
+
+additionalProperties: true
+
+...

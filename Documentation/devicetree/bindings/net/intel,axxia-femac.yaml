@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/bindings/net/intel,axxia-femac.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia Fast Ethernet Controller (FEMAC)
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for the Intel Axxia Fast Ethernet controller found on the
+  Axxia 5500 families of devices.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,acp-femac
+
+  device_type:
+    const: network
+
+  reg:
+    items:
+      - description: RX register
+      - description: TX register
+      - description: DMA register
+
+  interrupts:
+    items:
+      - description: RX irq
+      - description: TX irq
+      - description: DMA irq
+
+  mac-address:
+    $ref: ethernet-controller.yaml#/properties/mac-address
+
+  local-mac-address:
+    $ref: ethernet-controller.yaml#/properties/local-mac-address
+
+required:
+  - compatible
+  - device_type
+  - reg
+  - interrupts
+
+additionalProperties: true
+
+examples:
+  - |
+    femac: femac@0x2010120000 {
+           compatible = "axxia,acp-femac";
+           device_type = "network";
+           reg = <0x20 0x10120000 0 0x1000>,
+                 <0x20 0x10121000 0 0x1000>,
+                 <0x20 0x10122000 0 0x1000>;
+           interrupts = <0 2 4>,
+                        <0 3 4>,
+                        <0 4 4>;
+           mac-address = [00 00 00 00 00 00];
+    };
+
+...
