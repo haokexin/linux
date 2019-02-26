@@ -17,6 +17,17 @@ ifdef CONFIG_PCI
 edac_core-y	+= edac_pci.o edac_pci_sysfs.o
 endif
 
+obj-$(CONFIG_EDAC_AXXIA_SYSMEM_5500)	+= axxia_edac-mc.o
+obj-$(CONFIG_EDAC_AXXIA_SYSMEM_5600)	+= axxia_edac-mc_56xx.o
+obj-$(CONFIG_EDAC_AXXIA_SYSMEM_6700)	+= axxia_edac-mc_56xx.o
+obj-$(CONFIG_EDAC_AXXIA_CMEM_5600)	+= axxia_edac-cmc_56xx.o
+obj-$(CONFIG_EDAC_AXXIA_CMEM_6700)	+= axxia_edac-cmc_56xx.o
+obj-$(CONFIG_EDAC_AXXIA_L3_5500)	+= axxia_edac-l3.o
+obj-$(CONFIG_EDAC_AXXIA_L3_5600)	+= axxia_edac-l3_56xx.o
+obj-$(CONFIG_EDAC_AXXIA_L3_6700)	+= axxia_edac-l3_56xx.o
+obj-$(CONFIG_EDAC_AXXIA_L2_CPU_5500)	+= axxia_edac-l2_cpu.o
+obj-$(CONFIG_EDAC_AXXIA_L2_CPU_5600)	+= axxia_edac-l2_cpu_56xx.o
+obj-$(CONFIG_EDAC_AXXIA_L2_CPU_6700)	+= axxia_edac-l2_cpu_56xx.o
 obj-$(CONFIG_EDAC_GHES)			+= ghes_edac.o
 
 edac_mce_amd-y				:= mce_amd.o
@@ -84,3 +95,6 @@ obj-$(CONFIG_EDAC_QCOM)			+= qcom_edac.o
 obj-$(CONFIG_EDAC_ASPEED)		+= aspeed_edac.o
 obj-$(CONFIG_EDAC_BLUEFIELD)		+= bluefield_edac.o
 obj-$(CONFIG_EDAC_DMC520)		+= dmc520_edac.o
+
+CFLAGS_axxia_edac-l2_cpu.o      += -I$(srctree)/arch/$(ARCH)/include/asm/ -include $(srctree)/arch/$(ARCH)/include/asm/axxia_l2_55xx.h
+CFLAGS_axxia_edac-l2_cpu_56xx.o += -I$(srctree)/arch/$(ARCH)/include/asm/ -include $(srctree)/arch/$(ARCH)/include/asm/axxia_l2_56xx.h
