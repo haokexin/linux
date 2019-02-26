@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/usb/intel,axxia-ehci.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia eHCI USB SoC controller (CI13612A)
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for CI13612A USB HighSpeed USB OnTheGo Controller found on
+  the Axxia AXM55xx family of devices. The driver does not support
+  isochronous transfers and doesn't  implement OTG nor USB device
+  controllers.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,acp-usb
+
+  device_type:
+    items:
+      - const: usb
+
+  reg:
+    maxItems: 2
+
+  interrupts:
+    maxItems: 1
+
+  dma-coherent:
+    description: True if DMA operations are coherent.
+    maxItems: 1
+    type: boolean
+
+required:
+  - compatible
+  - device_type
+  - reg
+  - interrupts
+  - dma-coherent
+
+additionalProperties: true
+
+examples:
+  - |
+    usb0: usb@004a4000 {
+          compatible = "axxia,acp-usb";
+          device_type = "usb";
+          reg = <0x20 0x10140000 0x0 0020000>,
+                <0x20 0x10094000 0x0 0002000>;
+          interrupts = <0 55 4>;
+          dma-coherent = <1>;
+     };
+
+...

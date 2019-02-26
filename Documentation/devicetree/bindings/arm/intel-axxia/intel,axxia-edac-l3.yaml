@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/intel-axxia/intel,axxia-edac-l3.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia L3 cache Error Detection & Correction [EDAC]
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  EDAC node to describe L3 cache error detection & correction on
+  Intel Axxia AXM55xx, AXM56xx and AXM55xx devices. The EDAC accesses
+  a range of registers in the dickens l3 controller. L3 cache error
+  detection can use polling mechanism or be interrupt driven.
+
+properties:
+  compatible:
+    items:
+      - enum:
+        - axxia,ccn504-l3-cache  # for AXM55xx
+        - intel,ccn504-l3-cache  # for AXM56xx
+        - intel,ccn512-l3-cache  # for AXC67xx
+
+  reg:
+    maxItems: 1
+    description: |
+      Should contain address of ccn first node; its range shall contain
+      all ccn nodes registers (0x1000000).
+
+  syscon:
+    $ref: /schemas/types.yaml#definitions/phandle
+    description: |
+      Phandle to the SYSCON node.
+
+  interrupts:
+    maxItems: 1
+    description: |
+      If given driver uses interrupts, if not poll mechanism applies.
+
+required:
+  - compatible
+  - reg
+  - syscon
+
+additionalProperties: true
+
+examples:
+  - |
+    edac_l3: edac_l3 {
+             compatible = "intel,ccn504-l3-cache";
+             reg = <0x80 0x00000000 0 0x1000000>;
+             interrupts = <0 256 4>;
+             syscon = <&syscon>;
+    };
+
+    edac_l3: edac_l3 {
+             compatible = "intel,ccn512-l3-cache";
+             reg = <0x40 0x00000000 0 0x1000000>;
+             interrupts = <0 432 4>;
+             syscon = <&syscon>;
+    };
+
+...

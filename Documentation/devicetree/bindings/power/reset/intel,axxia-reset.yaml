@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/power/reset/intel,axxia-reset.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia Reset Driver
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  This driver can do reset of the Axxia SoC. It uses the registers in
+  the syscon block to initiate a chip reset.
+
+properties:
+  compatible:
+    items:
+      - enum:
+        - axxia,axm55xx-reset  # for AXM55xx
+        - intel,axm56xx-reset  # for AXM56xx and AXM67xx
+
+  syscon:
+    $ref: /schemas/types.yaml#definitions/phandle
+    description: Phandle to the system control device node.
+
+required:
+  - compatible
+  - syscon
+
+additionalProperties: true
+
+examples:
+  - |
+    reset: reset@8002C02008 {
+      compatible = "intel,axm56xx-reset";
+      syscon = <&syscon>;
+    };
+
+...

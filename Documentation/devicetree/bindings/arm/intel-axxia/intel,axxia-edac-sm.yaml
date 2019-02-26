@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/intel-axxia/intel,axxia-edac-sm.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia System Memory Error Detection & Correction [EDAC]
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  EDAC node to describe System Memory error detection & correction
+  on Intel Axxia devices. The EDAC accesses a range of registers in
+  the memory controllers. System Memory error detection is interrupt
+  driven (should contain the SYSMEM controller IRQ).
+
+properties:
+  compatible:
+    items:
+      - enum:
+        - axxia,smmon # for AXM55xx
+        - intel,smmon # for AXM56xx and AXC67xx
+
+  reg:
+    maxItems: 2
+
+  syscon:
+    $ref: /schemas/types.yaml#definitions/phandle
+    description: Phandle to the system control device node.
+
+  interrupts:
+    maxItems: 1
+    description: Should contain the SYSMEM controller IRQ.
+
+required:
+  - compatible
+  - reg
+  - interrupts
+
+additionalProperties: true
+
+examples:
+  - |
+    sm0: sm0@00220000 {
+         compatible = "intel,smmon";
+         reg = <0 0x00220000 0 0x1000>;
+         syscon = <&syscon>;
+         interrupts = <0 238 4>;
+    };
+
+    sm1: sm1@00220000 {
+         compatible = "axxia,smmon";
+         reg = <0 0x000f0000 0 0x1000>,
+               <0x20 0x10030000 0 0001000>;
+         interrupts = <0 160 4>;
+         status = "disabled";
+    };
+
+...
