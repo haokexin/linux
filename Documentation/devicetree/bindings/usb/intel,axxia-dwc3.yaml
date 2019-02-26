@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/bindings/usb/intel,axxia-dwc3.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia DWC3 USB SoC controller
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Support of USB3 functionality in Intel's Axxia AXM56xx and AXC67xx
+  families of devices.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,axxia-dwc3
+      - const: snps,dwc3
+
+  dma-coherent:
+    description: Present if DMA operations are coherent.
+
+  "#address-cells":
+    const: 2
+
+  "#size-cells":
+    const: 2
+
+  clocks:
+    minItems: 3
+    description: |
+      A list of phandle and clock-specifier pairs for the clocks
+      listed in clock-names.
+
+  clock-names:
+    items:
+      - const: bus_early
+      - const: ref
+      - const: suspend
+
+  ranges:
+    description: |
+      Allows valid 1:1 translation between child's address space and
+      parent's address space.
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  dr_mode:
+    enum:
+      - host
+      - otg
+      - peripheral
+
+required:
+  - compatible
+  - dma-coherent
+  - "#address-cells"
+  - "#size-cells"
+  - clocks
+  - clocks-names
+  - ranges
+  - reg
+  - interrupts
+  - dr_mode
+
+additionalProperties: true
+
+examples:
+  - |
+    usb0: usb@9000000000 {
+          compatible = "axxia,axxia-dwc3","snps,dwc3";
+          dma-coherent;
+          #address-cells = <2>;
+          #size-cells = <2>;
+          clocks = <&clk_per>,<&clk_per>,<&clk_per>;
+          clock-names = "bus_early","ref","suspend";
+          ranges;
+          reg = <0x90 0x00000000 0 0x100000>;
+          interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
+          dr_mode = "host";
+    };
+
+...

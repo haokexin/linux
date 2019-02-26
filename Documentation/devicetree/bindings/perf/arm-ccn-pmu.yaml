@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/perf/arm-ccn-pmu.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: ARM CCN PMU (Performance Monitoring Unit) modules
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Node bindings for ARM CCN (Cache Coherent Network) PMU (Performance
+  Monitor Unit) modules.
+
+properties:
+  compatible:
+    items:
+      - enum:
+        - arm,ccn-502-pmu
+        - arm,ccn-502-l3
+        - arm,ccn-504-pmu
+        - arm,ccn-504-l3
+        - arm,ccn-508-pmu
+        - arm,ccn-508-l3
+        - arm,ccn-512-pmu
+        - arm,ccn-512-l3
+
+  reg:
+    maxItems: 1
+    description: |
+      CCN_MN reg to validate the regions.
+
+  syscon:
+    $ref: /schemas/types.yaml#definitions/phandle
+    description: |
+      Phandle to the SYSCON node for l3 PMU subnode (L3 cache controller).
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: true
+
+examples:
+  - |
+    arm_ccn_pmu: pmu@0 {
+                 compatible = "arm,ccn-512-pmu";
+                 reg = <0x0 0x1000000>;
+    };
+
+    arm_ccn_l3: l3@0 {
+                compatible = "arm,ccn-512-l3";
+                reg = <0x0 0x1000000>;
+                syscon = <&syscon>;
+    };
+
+...

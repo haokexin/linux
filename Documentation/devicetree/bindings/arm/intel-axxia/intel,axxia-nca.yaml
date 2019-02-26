@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/intel-axxia/intel,axxia-nca.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia NCA Config Ring driver for AXM55xx
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for Intel Axxia NCA Config Ring driver which coordinate with
+  the RTE ncp driver to detect when NCA hardware is being held in reset.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,nca
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    nca@2020100000 {
+       compatible = "axxia,nca";
+       reg = <0x20 0x20100000 0 0x20000>;
+    };
+
+...
