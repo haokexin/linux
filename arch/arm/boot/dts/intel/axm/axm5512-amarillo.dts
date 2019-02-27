@@ -6,7 +6,7 @@
 /memreserve/ 0x00000000 0x00400000;
 
 /include/ "axm55xx.dtsi"
-/include/ "axm5516-cpus.dtsi"
+/include/ "axm5512-cpus.dtsi"
 
 / {
 	model = "Amarillo AXM5500";
@@ -16,10 +16,6 @@
 		device_type = "memory";
 		reg = <0 0x00000000 0 0x40000000>;
 	};
-};
-
-&edac {
-	status = "okay";
 };
 
 &femac {
