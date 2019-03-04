@@ -1808,7 +1808,7 @@ void mpam_enable_once(void)
 		READ_ONCE(mpam_partid_max) + 1, mpam_pmg_max + 1);
 }
 
-static void mpam_reset_class(struct mpam_class *class)
+void mpam_reset_class(struct mpam_class *class)
 {
 	struct mpam_msc_ris *ris;
 	struct mpam_component *comp;
