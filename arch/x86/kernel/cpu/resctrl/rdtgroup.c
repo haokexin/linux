@@ -1356,11 +1356,13 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 			      struct seq_file *s, void *v)
 {
 	struct resctrl_schema *schema;
+	enum resctrl_conf_type type;
 	struct rdtgroup *rdtgrp;
 	struct rdt_resource *r;
 	struct rdt_domain *d;
 	unsigned int size;
 	int ret = 0;
+	u32 closid;
 	bool sep;
 	u32 ctrl;
 
@@ -1386,8 +1388,11 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 		goto out;
 	}
 
+	closid = rdtgrp->closid;
+
 	list_for_each_entry(schema, &resctrl_schema_all, list) {
 		r = schema->res;
+		type = schema->conf_type;
 		sep = false;
 		seq_printf(s, "%*s:", max_name_width, schema->name);
 		list_for_each_entry(d, &r->domains, list) {
@@ -1396,9 +1401,12 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 			if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP) {
 				size = 0;
 			} else {
-				ctrl = resctrl_arch_get_config(r, d,
-							       rdtgrp->closid,
-							       schema->conf_type);
+				if (is_mba_sc(r))
+					ctrl = d->mbps_val[closid];
+				else
+					ctrl = resctrl_arch_get_config(r, d,
+								       closid,
+								       type);
 				if (r->rid == RDT_RESOURCE_MBA)
 					size = ctrl;
 				else
