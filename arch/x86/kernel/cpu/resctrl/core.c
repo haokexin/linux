@@ -25,8 +25,13 @@
 #include <asm/resctrl.h>
 #include "internal.h"
 
-/* Mutex to protect rdtgroup access. */
-DEFINE_MUTEX(rdtgroup_mutex);
+/*
+ * rdt_domain structures are kfree()d when their last cpu goes offline,
+ * and allocated when the first cpu in a new domain comes online.
+ * The rdt_resource's domain list is updated when this happens. The domain
+ * list is protected by cpuhp as a rwlock, writers also take this mutex.
+ */
+DEFINE_MUTEX(domain_list_lock);
 
 /*
  * The cached resctrl_pqr_state is strictly per CPU and can never be
@@ -586,11 +591,11 @@ static int resctrl_arch_online_cpu(unsigned int cpu)
 {
 	struct rdt_resource *r;
 
-	mutex_lock(&rdtgroup_mutex);
+	mutex_lock(&domain_list_lock);
 	for_each_capable_rdt_resource(r)
 		domain_add_cpu(cpu, r);
 	clear_closid_rmid(cpu);
-	mutex_unlock(&rdtgroup_mutex);
+	mutex_unlock(&domain_list_lock);
 
 	return resctrl_online_cpu(cpu);
 }
@@ -601,11 +606,11 @@ static int resctrl_arch_offline_cpu(unsigned int cpu)
 
 	resctrl_offline_cpu(cpu);
 
-	mutex_lock(&rdtgroup_mutex);
+	mutex_lock(&domain_list_lock);
 	for_each_capable_rdt_resource(r)
 		domain_remove_cpu(cpu, r);
 	clear_closid_rmid(cpu);
-	mutex_unlock(&rdtgroup_mutex);
+	mutex_unlock(&domain_list_lock);
 
 	return 0;
 }
