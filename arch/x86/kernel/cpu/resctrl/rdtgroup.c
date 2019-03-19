@@ -35,6 +35,10 @@
 DEFINE_STATIC_KEY_FALSE(rdt_enable_key);
 DEFINE_STATIC_KEY_FALSE(rdt_mon_enable_key);
 DEFINE_STATIC_KEY_FALSE(rdt_alloc_enable_key);
+
+/* Mutex to protect rdtgroup access. */
+DEFINE_MUTEX(rdtgroup_mutex);
+
 static struct kernfs_root *rdt_root;
 struct rdtgroup rdtgroup_default;
 LIST_HEAD(rdt_all_groups);
@@ -939,6 +943,7 @@ static int rdt_bit_usage_show(struct kernfs_open_file *of,
 	bool sep = false;
 	u32 ctrl_val;
 
+	cpus_read_lock();
 	mutex_lock(&rdtgroup_mutex);
 	hw_shareable = r->cache.shareable_bits;
 	list_for_each_entry(dom, &r->domains, list) {
@@ -999,6 +1004,8 @@ static int rdt_bit_usage_show(struct kernfs_open_file *of,
 	}
 	seq_putc(seq, '\n');
 	mutex_unlock(&rdtgroup_mutex);
+	cpus_read_unlock();
+
 	return 0;
 }
 
@@ -1237,6 +1244,9 @@ static bool rdtgroup_mode_test_exclusive(struct rdtgroup *rdtgrp)
 	bool has_cache = false;
 	struct rdt_domain *d;
 	u32 ctrl;
+
+	/* Walking r->domains, ensure it can't race with cpuhp */
+	lockdep_assert_cpus_held();
 
 	list_for_each_entry(s, &resctrl_schema_all, list) {
 		r = s->res;
@@ -1871,6 +1881,9 @@ static int set_cache_qos_cfg(int level, bool enable)
 	struct rdt_domain *d;
 	int cpu;
 
+	/* Walking r->domains, ensure it can't race with cpuhp */
+	lockdep_assert_cpus_held();
+
 	if (level == RDT_RESOURCE_L3)
 		update = l3_qos_cfg_update;
 	else if (level == RDT_RESOURCE_L2)
@@ -2093,6 +2106,7 @@ struct rdtgroup *rdtgroup_kn_lock_live(struct kernfs_node *kn)
 	atomic_inc(&rdtgrp->waitcount);
 	kernfs_break_active_protection(kn);
 
+	cpus_read_lock();
 	mutex_lock(&rdtgroup_mutex);
 
 	/* Was this group deleted while we waited? */
@@ -2110,6 +2124,7 @@ void rdtgroup_kn_unlock(struct kernfs_node *kn)
 		return;
 
 	mutex_unlock(&rdtgroup_mutex);
+	cpus_read_unlock();
 
 	if (atomic_dec_and_test(&rdtgrp->waitcount) &&
 	    (rdtgrp->flags & RDT_DELETED)) {
@@ -2405,6 +2420,9 @@ static int reset_all_ctrls(struct rdt_resource *r)
 	struct rdt_domain *d;
 	int i, cpu;
 
+	/* Walking r->domains, ensure it can't race with cpuhp */
+	lockdep_assert_cpus_held();
+
 	if (!zalloc_cpumask_var(&cpu_mask, GFP_KERNEL))
 		return -ENOMEM;
 
@@ -2684,6 +2702,9 @@ static int mkdir_mondata_subdir_alldom(struct kernfs_node *parent_kn,
 {
 	struct rdt_domain *dom;
 	int ret;
+
+	/* Walking r->domains, ensure it can't race with cpuhp */
+	lockdep_assert_cpus_held();
 
 	list_for_each_entry(dom, &r->domains, list) {
 		ret = mkdir_mondata_subdir(parent_kn, dom, r, prgrp);
@@ -3369,11 +3390,10 @@ static void domain_destroy_mon_state(struct rdt_domain *d)
 
 void resctrl_offline_domain(struct rdt_resource *r, struct rdt_domain *d)
 {
-	lockdep_assert_held(&rdtgroup_mutex);
-
 	if (!r->mon_capable)
 		return;
 
+	mutex_lock(&rdtgroup_mutex);
 	/*
 	 * If resctrl is mounted, remove all the
 	 * per domain monitor data directories.
@@ -3400,6 +3420,8 @@ void resctrl_offline_domain(struct rdt_resource *r, struct rdt_domain *d)
 		mba_sc_domain_destroy(r, d);
 
 	domain_destroy_mon_state(d);
+
+	mutex_unlock(&rdtgroup_mutex);
 }
 
 static int domain_setup_mon_state(struct rdt_resource *r, struct rdt_domain *d)
@@ -3437,20 +3459,19 @@ int resctrl_online_domain(struct rdt_resource *r, struct rdt_domain *d)
 {
 	int err;
 
-	lockdep_assert_held(&rdtgroup_mutex);
-
 	if (!r->mon_capable)
 		return 0;
 
+	mutex_lock(&rdtgroup_mutex);
 	err = domain_setup_mon_state(r, d);
 	if (err)
-		return err;
+		goto out_unlock;
 
 	if (is_mba_sc(r)) {
 		err = mba_sc_domain_allocate(r, d);
 		if (err) {
 			domain_destroy_mon_state(d);
-			return err;
+			goto out_unlock;
 		}
 	}
 
@@ -3465,7 +3486,10 @@ int resctrl_online_domain(struct rdt_resource *r, struct rdt_domain *d)
 	if (resctrl_mounted && resctrl_arch_mon_capable())
 		mkdir_mondata_subdir_allrdtgrp(r, d);
 
-	return 0;
+out_unlock:
+	mutex_unlock(&rdtgroup_mutex);
+
+	return err;
 }
 
 int resctrl_online_cpu(unsigned int cpu)
