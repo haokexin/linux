@@ -906,11 +906,25 @@ static void l3_mon_evt_init(struct rdt_resource *r)
 		list_add_tail(&mbm_local_event.list, &r->evt_list);
 }
 
-int rdt_get_mon_l3_config(struct rdt_resource *r)
+int resctrl_mon_resource_init(void)
+{
+	struct rdt_resource *r = resctrl_arch_get_resource(RDT_RESOURCE_L3);
+	int ret;
+
+	ret = dom_data_init(r);
+	if (ret)
+		return ret;
+
+	if (r->mon_capable)
+		l3_mon_evt_init(r);
+
+	return 0;
+}
+
+int __init rdt_get_mon_l3_config(struct rdt_resource *r)
 {
 	unsigned int mbm_offset = boot_cpu_data.x86_cache_mbm_width_offset;
 	struct rdt_hw_resource *hw_res = resctrl_to_arch_res(r);
-	int ret;
 
 	resctrl_rmid_realloc_limit = boot_cpu_data.x86_cache_size * 1024;
 	hw_res->mon_scale = boot_cpu_data.x86_cache_occ_scale;
@@ -930,12 +944,6 @@ int rdt_get_mon_l3_config(struct rdt_resource *r)
 	 * For a 35MB LLC and 56 RMIDs, this is ~1.8% of the LLC.
 	 */
 	resctrl_rmid_realloc_threshold = resctrl_rmid_realloc_limit / r->num_rmid;
-
-	ret = dom_data_init(r);
-	if (ret)
-		return ret;
-
-	l3_mon_evt_init(r);
 
 	r->mon_capable = true;
 
