@@ -482,9 +482,10 @@ config GOLDFISH
 config X86_CPU_RESCTRL
 	bool "x86 CPU resource control support"
 	depends on X86 && (CPU_SUP_INTEL || CPU_SUP_AMD)
+	depends on MISC_FILESYSTEMS
 	select KERNFS
-	select PROC_CPU_RESCTRL		if PROC_FS
-	select RESCTRL_FS_PSEUDO_LOCK
+	select ARCH_HAS_CPU_RESCTRL
+	select RESCTRL_FS
 	help
 	  Enable x86 CPU resource control support.
 
@@ -505,12 +506,6 @@ config QEMUX86
 	bool "Enable for qemumx86 specific configurations"
 	default n
 	select PCI_MSI_ARCH_FALLBACKS if PCI_MSI
-
-config RESCTRL_FS_PSEUDO_LOCK
-	bool
-	help
-	  Software mechanism to try and pin data in a cache portion using
-	  micro-architecture tricks.
 
 if X86_32
 config X86_BIGSMP
