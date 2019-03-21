@@ -87,6 +87,11 @@ KVM_NVHE_ALIAS(__icache_flags);
 KVM_NVHE_ALIAS(arm64_const_caps_ready);
 KVM_NVHE_ALIAS(cpu_hwcap_keys);
 
+/* Additional static keys for cpufeatures */
+#ifdef CONFIG_ARM64_MPAM
+KVM_NVHE_ALIAS(arm64_mpam_has_hcr);
+#endif
+
 /* Static keys which are set if a vGIC trap should be handled in hyp. */
 KVM_NVHE_ALIAS(vgic_v2_cpuif_trap);
 KVM_NVHE_ALIAS(vgic_v3_cpuif_trap);
