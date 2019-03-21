@@ -71,7 +71,13 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
 	: "cc");
 
 	while (lockval.tickets.next != lockval.tickets.owner) {
+#ifdef CONFIG_ARCH_AXXIA
+		void __axxia_arch_wfe(void);
+
+		__axxia_arch_wfe();
+#else
 		wfe();
+#endif
 		lockval.tickets.owner = READ_ONCE(lock->tickets.owner);
 	}
 
