@@ -1,0 +1,20 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+
+/*
+ * Copyright (C) 2021 INTEL Corporation
+ */
+
+#ifndef __MACH_HARDWARE_H
+#define __MACH_HARDWARE_H
+
+#define AXXIA_UART0_PHYS       0x2010080000
+#define AXXIA_UART1_PHYS       0x2010081000
+#define AXXIA_UART2_PHYS       0x2010082000
+#define AXXIA_UART3_PHYS       0x2010083000
+
+#ifdef CONFIG_DEBUG_LL_AXXIA_UART0
+#define AXXIA_DEBUG_UART_VIRT  0xf0080000
+#define AXXIA_DEBUG_UART_PHYS  AXXIA_UART0_PHYS
+#endif
+
+#endif
