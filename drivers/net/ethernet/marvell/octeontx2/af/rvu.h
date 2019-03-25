@@ -807,6 +807,9 @@ int nix_aq_context_read(struct rvu *rvu, struct nix_hw *nix_hw,
 int rvu_get_nix_blkaddr(struct rvu *rvu, u16 pcifunc);
 u32 convert_dwrr_mtu_to_bytes(u8 dwrr_mtu);
 u32 convert_bytes_to_dwrr_mtu(u32 bytes);
+int rvu_mbox_handler_nix_set_vlan_tpid(struct rvu *rvu,
+				       struct nix_set_vlan_tpid *req,
+				       struct msg_rsp *rsp);
 
 /* NPC APIs */
 int rvu_npc_init(struct rvu *rvu);
