@@ -1935,10 +1935,8 @@ static int parse_sso_cmd_buffer(char *cmd_buf, size_t *count,
 	char *subtoken;
 
 	bytes_not_copied = copy_from_user(cmd_buf, buffer, *count);
-	if (bytes_not_copied) {
-		kfree(cmd_buf);
+	if (bytes_not_copied)
 		return -EFAULT;
-	}
 
 	cmd_buf[*count] = '\0';
 	cmd_buf_tmp = strchr(cmd_buf, '\n');
@@ -2456,12 +2454,12 @@ static void read_sso_hws_info(struct rvu *rvu, int ssowlf, bool all)
 	}
 }
 
-typedef void (*dump_cb)(struct rvu *rvu, int ssolf, bool all);
+typedef void (*sso_dump_cb)(struct rvu *rvu, int ssolf, bool all);
 
 static ssize_t rvu_dbg_sso_cmd_parser(struct file *filp,
 				      const char __user *buffer, size_t count,
-				      loff_t *ppos,
-				      char *lf_type, char *file_nm, dump_cb fn)
+				      loff_t *ppos, char *lf_type,
+				      char *file_nm, sso_dump_cb fn)
 {
 	struct rvu *rvu = filp->private_data;
 	bool all = false;
@@ -2627,6 +2625,155 @@ static void rvu_dbg_sso_init(struct rvu *rvu)
 create_failed:
 	dev_err(dev, "Failed to create debugfs dir/file for SSO\n");
 	debugfs_remove_recursive(rvu->rvu_dbg.sso);
+}
+
+/* CPT debugfs APIs */
+static int parse_cpt_cmd_buffer(char *cmd_buf, size_t *count,
+				const char __user *buffer, char *e_type)
+{
+	int  bytes_not_copied;
+	char *cmd_buf_tmp;
+	char *subtoken;
+
+	bytes_not_copied = copy_from_user(cmd_buf, buffer, *count);
+	if (bytes_not_copied)
+		return -EFAULT;
+
+	cmd_buf[*count] = '\0';
+	cmd_buf_tmp = strchr(cmd_buf, '\n');
+
+	if (cmd_buf_tmp) {
+		*cmd_buf_tmp = '\0';
+		*count = cmd_buf_tmp - cmd_buf + 1;
+	}
+
+	subtoken = strsep(&cmd_buf, " ");
+	if (subtoken)
+		strcpy(e_type, subtoken);
+	else
+		return -EINVAL;
+
+	if (cmd_buf)
+		return -EINVAL;
+
+	if (strcmp(e_type, "SE") && strcmp(e_type, "IE") &&
+	    strcmp(e_type, "AE") && strcmp(e_type, "all"))
+		return -EINVAL;
+
+	return 0;
+}
+
+static ssize_t rvu_dbg_cpt_cmd_parser(struct file *filp,
+				      const char __user *buffer, size_t count,
+				      loff_t *ppos)
+{
+	struct seq_file *s = filp->private_data;
+	struct rvu *rvu = s->private;
+	int blkaddr;
+	char *cmd_buf;
+	int ret = 0;
+
+	if (*ppos != 0)
+		return -EINVAL;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
+	if (blkaddr < 0)
+		return -ENODEV;
+
+	cmd_buf = kzalloc(count + 1, GFP_KERNEL);
+	if (!cmd_buf)
+		return -ENOSPC;
+	if (!count) {
+		kfree(cmd_buf);
+		return count;
+	}
+	if (parse_cpt_cmd_buffer(cmd_buf, &count, buffer,
+				 rvu->rvu_dbg.cpt_ctx[blkaddr].e_type) < 0)
+		ret = -EINVAL;
+
+	kfree(cmd_buf);
+
+	if (ret)
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t rvu_dbg_cpt_engines_sts_write(struct file *filp,
+					     const char __user *buffer,
+					     size_t count, loff_t *ppos)
+{
+	return rvu_dbg_cpt_cmd_parser(filp, buffer, count, ppos);
+}
+
+static int rvu_dbg_cpt_engines_sts_display(struct seq_file *filp, void *unused)
+{
+	u64  busy_sts[2] = {0}, free_sts[2] = {0};
+	struct rvu *rvu = filp->private;
+	u16  max_ses, max_ies, max_aes;
+	u32  e_min = 0, e_max = 0, e;
+	int  blkaddr;
+	char *e_type;
+	u64  reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
+	if (blkaddr < 0)
+		return -ENODEV;
+
+	reg = rvu_read64(rvu, blkaddr, CPT_AF_CONSTANTS1);
+	max_ses = reg & 0xffff;
+	max_ies = (reg >> 16) & 0xffff;
+	max_aes = (reg >> 32) & 0xffff;
+
+	e_type = rvu->rvu_dbg.cpt_ctx[blkaddr].e_type;
+
+	if (strcmp(e_type, "SE") == 0) {
+		e_min = 0;
+		e_max = max_ses - 1;
+	} else if (strcmp(e_type, "IE") == 0) {
+		e_min = max_ses;
+		e_max = max_ses + max_ies - 1;
+	} else if (strcmp(e_type, "AE") == 0) {
+		e_min = max_ses + max_ies;
+		e_max = max_ses + max_ies + max_aes - 1;
+	} else if (strcmp(e_type, "all") == 0) {
+		e_min = 0;
+		e_max = max_ses + max_ies + max_aes - 1;
+	} else {
+		return -EINVAL;
+	}
+
+	for (e = e_min; e <= e_max; e++) {
+		reg = rvu_read64(rvu, blkaddr, CPT_AF_EXEX_STS(e));
+		if (reg & 0x1) {
+			if (e < max_ses)
+				busy_sts[0] |= 1ULL << e;
+			else if (e >= max_ses)
+				busy_sts[1] |= 1ULL << (e - max_ses);
+		}
+		if (reg & 0x2) {
+			if (e < max_ses)
+				free_sts[0] |= 1ULL << e;
+			else if (e >= max_ses)
+				free_sts[1] |= 1ULL << (e - max_ses);
+		}
+	}
+	seq_printf(filp, "FREE STS : 0x%016llx  0x%016llx\n", free_sts[1],
+		   free_sts[0]);
+	seq_printf(filp, "BUSY STS : 0x%016llx  0x%016llx\n", busy_sts[1],
+		   busy_sts[0]);
+
+	return 0;
+}
+
+RVU_DEBUG_SEQ_FOPS(cpt_engines_sts, cpt_engines_sts_display,
+		   cpt_engines_sts_write);
+
+static ssize_t rvu_dbg_cpt_engines_info_write(struct file *filp,
+					      const char __user *buffer,
+					      size_t count, loff_t *ppos)
+{
+	return rvu_dbg_cpt_cmd_parser(filp, buffer, count, ppos);
 }
 
 #define PRINT_CGX_CUML_NIXRX_STATUS(idx, name)				\
