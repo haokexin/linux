@@ -52,6 +52,7 @@ struct dump_ctx {
 struct cpt_ctx {
 	int blkaddr;
 	struct rvu *rvu;
+	char    e_type[NAME_SIZE];
 };
 
 struct rvu_debugfs {
