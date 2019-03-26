@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2021 INTEL Corporation
+
 /*
- * This driver implements I2C master functionality using the LSI API2C
+ * This driver implements I2C master functionality using the Intel Axxia API2C
  * controller.
  *
  * NOTE: The controller has a limitation in that it can only do transfers of
  * maximum 255 bytes at a time. If a larger transfer is attempted, error code
  * (-EINVAL) is returned.
  */
+
 #include <linux/clk.h>
 #include <linux/clkdev.h>
 #include <linux/delay.h>
@@ -47,7 +50,7 @@
 #define   BM_SCLS		BIT(0)
 #define SOFT_RESET		0x24
 #define MST_COMMAND		0x28
-#define   CMD_BUSY		(1<<3)
+#define   CMD_BUSY		BIT(3)
 #define   CMD_MANUAL		(0x00 | CMD_BUSY)
 #define   CMD_AUTO		(0x01 | CMD_BUSY)
 #define   CMD_SEQUENCE		(0x02 | CMD_BUSY)
@@ -60,20 +63,20 @@
 #define MST_RX_FIFO		0x44
 #define MST_INT_ENABLE		0x48
 #define MST_INT_STATUS		0x4c
-#define   MST_STATUS_RFL	(1 << 13) /* RX FIFO serivce */
-#define   MST_STATUS_TFL	(1 << 12) /* TX FIFO service */
-#define   MST_STATUS_SNS	(1 << 11) /* Manual mode done */
-#define   MST_STATUS_SS		(1 << 10) /* Automatic mode done */
-#define   MST_STATUS_SCC	(1 << 9)  /* Stop complete */
-#define   MST_STATUS_IP		(1 << 8)  /* Invalid parameter */
-#define   MST_STATUS_TSS	(1 << 7)  /* Timeout */
-#define   MST_STATUS_AL		(1 << 6)  /* Arbitration lost */
-#define   MST_STATUS_ND		(1 << 5)  /* NAK on data phase */
-#define   MST_STATUS_NA		(1 << 4)  /* NAK on address phase */
-#define   MST_STATUS_NAK	(MST_STATUS_NA | \
+#define   MST_STATUS_RFL	BIT(13) /* RX FIFO service */
+#define   MST_STATUS_TFL	BIT(12) /* TX FIFO service */
+#define   MST_STATUS_SNS	BIT(11) /* Manual mode done */
+#define   MST_STATUS_SS		BIT(10) /* Automatic mode done */
+#define   MST_STATUS_SCC	BIT(9)  /* Stop complete */
+#define   MST_STATUS_IP		BIT(8)  /* Invalid parameter */
+#define   MST_STATUS_TSS	BIT(7)  /* Timeout */
+#define   MST_STATUS_AL		BIT(6)  /* Arbitration lost */
+#define   MST_STATUS_ND		BIT(5)  /* NAK on data phase */
+#define   MST_STATUS_NA		BIT(4)  /* NAK on address phase */
+#define   MST_STATUS_NAK	(MST_STATUS_NA |	\
 				 MST_STATUS_ND)
-#define   MST_STATUS_ERR	(MST_STATUS_NAK | \
-				 MST_STATUS_AL  | \
+#define   MST_STATUS_ERR	(MST_STATUS_NAK |	\
+				 MST_STATUS_AL  |	\
 				 MST_STATUS_IP)
 #define MST_TX_BYTES_XFRD	0x50
 #define MST_RX_BYTES_XFRD	0x54
@@ -149,7 +152,7 @@ struct axxia_i2c_dev {
 	int irq;
 };
 
-static void i2c_int_disable(struct axxia_i2c_dev *idev, u32 mask)
+static void i2c_int_disable(struct axxia_i2c_dev *idev, u64 mask)
 {
 	u32 int_en;
 
@@ -426,7 +429,7 @@ static irqreturn_t axxia_i2c_isr(int irq, void *_dev)
 		complete(&idev->msg_complete);
 	}
 
-out:
+ out:
 	/* Clear interrupt */
 	writel(INT_MST, idev->base + INTERRUPT_STATUS);
 
@@ -576,7 +579,7 @@ static int axxia_i2c_xfer_msg(struct axxia_i2c_dev *idev, struct i2c_msg *msg,
 	i2c_int_enable(idev, int_mask);
 
 	time_left = wait_for_completion_timeout(&idev->msg_complete,
-					      I2C_XFER_TIMEOUT);
+						I2C_XFER_TIMEOUT);
 
 	i2c_int_disable(idev, int_mask);
 
@@ -589,9 +592,9 @@ static int axxia_i2c_xfer_msg(struct axxia_i2c_dev *idev, struct i2c_msg *msg,
 		axxia_i2c_init(idev);
 	}
 
-out:
+ out:
 	if (unlikely(idev->msg_err) && idev->msg_err != -ENXIO &&
-			idev->msg_err != -ETIMEDOUT)
+	    idev->msg_err != -ETIMEDOUT)
 		axxia_i2c_init(idev);
 
 	return idev->msg_err;
@@ -799,7 +802,7 @@ static int axxia_i2c_probe(struct platform_device *pdev)
 
 	return 0;
 
-error_disable_clk:
+ error_disable_clk:
 	clk_disable_unprepare(idev->i2c_clk);
 	return ret;
 }
@@ -816,7 +819,7 @@ static int axxia_i2c_remove(struct platform_device *pdev)
 
 /* Match table for of_platform binding */
 static const struct of_device_id axxia_i2c_of_match[] = {
-	{ .compatible = "lsi,api2c", },
+	{ .compatible = "axxia,api2c", },
 	{},
 };
 
@@ -834,5 +837,5 @@ static struct platform_driver axxia_i2c_driver = {
 module_platform_driver(axxia_i2c_driver);
 
 MODULE_DESCRIPTION("Axxia I2C Bus driver");
-MODULE_AUTHOR("Anders Berg <anders.berg@lsi.com>");
+MODULE_AUTHOR("Anders Berg <anders.berg@intel.com>");
 MODULE_LICENSE("GPL v2");
