@@ -2978,6 +2978,7 @@ static void rvu_unregister_interrupts(struct rvu *rvu)
 {
 	int irq;
 
+	rvu_sso_unregister_interrupts(rvu);
 	rvu_cpt_unregister_interrupts(rvu);
 	rvu_ree_unregister_interrupts(rvu);
 
@@ -3190,6 +3191,10 @@ static int rvu_register_interrupts(struct rvu *rvu)
 		goto fail;
 	}
 	rvu->irq_allocated[offset] = true;
+
+	ret = rvu_sso_register_interrupts(rvu);
+	if (ret)
+		goto fail;
 
 	ret = rvu_cpt_register_interrupts(rvu);
 	if (ret)
