@@ -215,6 +215,16 @@ config MTK_ADSP_IPC
 config QCOM_SCM
 	tristate
 
+config SMC_LATENCY
+	tristate "Measure round-trip latency of the SMC calls"
+	depends on HAVE_ARM_SMCCC
+	default m
+	help
+	  Say Y or M here to enable the measurement of the round-trip
+	  latency for both PSCI_VERSION and SMCCC_ARCH_WORKAROUND_1
+	  conforming to SMC Calling Convention v1.0 and v1.1 respectively
+	  for each of the CPUs.
+
 config QCOM_SCM_DOWNLOAD_MODE_DEFAULT
 	bool "Qualcomm download mode enabled by default"
 	depends on QCOM_SCM
