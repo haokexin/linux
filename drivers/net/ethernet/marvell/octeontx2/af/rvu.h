@@ -340,6 +340,7 @@ struct nix_hw {
 	struct nix_txvlan txvlan;
 	struct nix_ipolicer *ipolicer;
 	u64    *tx_credits;
+	void   *tx_stall;
 };
 
 /* RVU block's capabilities or functionality,
@@ -879,4 +880,16 @@ void rvu_switch_update_rules(struct rvu *rvu, u16 pcifunc);
 int rvu_npc_set_parse_mode(struct rvu *rvu, u16 pcifunc, u64 mode, u8 dir,
 			   u64 pkind, u8 var_len_off, u8 var_len_off_mask,
 			   u8 shift_dir);
+
+/* HW workarounds/fixes */
+void rvu_nix_txsch_lock(struct nix_hw *nix_hw);
+void rvu_nix_txsch_unlock(struct nix_hw *nix_hw);
+void rvu_nix_update_link_credits(struct rvu *rvu, int blkaddr,
+				 int link, u64 ncredits);
+
+void rvu_nix_txsch_config_changed(struct nix_hw *nix_hw);
+ssize_t rvu_nix_get_tx_stall_counters(struct rvu *rvu,
+				      char __user *buffer, loff_t *ppos);
+int rvu_nix_fixes_init(struct rvu *rvu, struct nix_hw *nix_hw, int blkaddr);
+void rvu_nix_fixes_exit(struct rvu *rvu, struct nix_hw *nix_hw);
 #endif /* RVU_H */

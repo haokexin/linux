@@ -2466,6 +2466,7 @@ int rvu_mbox_handler_nix_txschq_cfg(struct rvu *rvu,
 		return 0;
 	}
 
+	rvu_nix_txsch_lock(nix_hw);
 	for (idx = 0; idx < req->num_regs; idx++) {
 		reg = req->reg[idx];
 		reg &= NIX_TX_SCHQ_MASK;
@@ -2474,8 +2475,10 @@ int rvu_mbox_handler_nix_txschq_cfg(struct rvu *rvu,
 		val_mask = req->regval_mask[idx];
 
 		if (!is_txschq_hierarchy_valid(rvu, pcifunc, blkaddr,
-					       txsch->lvl, reg, regval))
+					       txsch->lvl, reg, regval)) {
+			rvu_nix_txsch_unlock(nix_hw);
 			return NIX_AF_INVAL_TXSCHQ_CFG;
+		}
 
 		/* Check if shaping and coloring is supported */
 		if (!is_txschq_shaping_valid(hw, req->lvl, reg))
@@ -2530,6 +2533,8 @@ int rvu_mbox_handler_nix_txschq_cfg(struct rvu *rvu,
 
 	rvu_nix_tx_tl2_cfg(rvu, blkaddr, pcifunc,
 			   &nix_hw->txsch[NIX_TXSCH_LVL_TL2]);
+	rvu_nix_txsch_config_changed(nix_hw);
+	rvu_nix_txsch_unlock(nix_hw);
 	return 0;
 }
 
@@ -4400,6 +4405,10 @@ static int rvu_nix_block_init(struct rvu *rvu, struct nix_hw *nix_hw)
 
 		/* Enable Channel backpressure */
 		rvu_write64(rvu, blkaddr, NIX_AF_RX_CFG, BIT_ULL(0));
+
+		err = rvu_nix_fixes_init(rvu, nix_hw, blkaddr);
+		if (err)
+			return err;
 	}
 	return 0;
 }
@@ -4464,6 +4473,7 @@ static void rvu_nix_block_freemem(struct rvu *rvu, int blkaddr,
 		qmem_free(rvu->dev, mcast->mce_ctx);
 		qmem_free(rvu->dev, mcast->mcast_buf);
 		mutex_destroy(&mcast->mce_lock);
+		rvu_nix_fixes_exit(rvu, nix_hw);
 	}
 }
 
