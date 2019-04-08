@@ -180,6 +180,19 @@ struct npc_mcam {
 	struct list_head mcam_rules;
 };
 
+struct sso_rsrc {
+	u8      sso_hws;
+	u16     sso_hwgrps;
+	u16     sso_xaq_num_works;
+	u16     sso_xaq_buf_size;
+	u16     sso_iue;
+	u64	iaq_rsvd;
+	u64	iaq_max;
+	u64	taq_rsvd;
+	u64	taq_max;
+	struct rsrc_bmap pfvf_ident;
+};
+
 /* Structure for per RVU func info ie PF/VF */
 struct rvu_pfvf {
 	bool		npalf; /* Only one NPALF per RVU_FUNC */
@@ -190,6 +203,7 @@ struct rvu_pfvf {
 	u16		timlfs;
 	u16		cpt1_lfs;
 	u8		cgx_lmac;
+	u8		sso_uniq_ident;
 
 	/* Block LF's MSIX vector info */
 	struct rsrc_bmap msix;      /* Bitmap for MSIX vector alloc */
@@ -373,6 +387,7 @@ struct rvu_hwinfo {
 	struct rvu	 *rvu;
 	struct npc_pkind pkind;
 	struct npc_mcam  mcam;
+	struct sso_rsrc  sso;
 };
 
 struct mbox_wq_info {
@@ -719,6 +734,33 @@ int rvu_cgx_start_stop_io(struct rvu *rvu, u16 pcifunc, bool start);
 int rvu_cgx_nix_cuml_stats(struct rvu *rvu, void *cgxd, int lmac_id, int index,
 			   int rxtxflag, u64 *stat);
 void rvu_cgx_disable_dmac_entries(struct rvu *rvu, u16 pcifunc);
+
+/* SSO APIs */
+int rvu_sso_init(struct rvu *rvu);
+void rvu_sso_freemem(struct rvu *rvu);
+int rvu_sso_lf_teardown(struct rvu *rvu, int lf);
+int rvu_ssow_lf_teardown(struct rvu *rvu, int lf);
+int rvu_mbox_handler_sso_lf_alloc(struct rvu *rvu, struct sso_lf_alloc_req *req,
+				  struct sso_lf_alloc_rsp *rsp);
+int rvu_mbox_handler_sso_lf_free(struct rvu *rvu, struct sso_lf_free_req *req,
+				 struct msg_rsp *rsp);
+int rvu_mbox_handler_ssow_lf_alloc(struct rvu *rvu,
+				   struct ssow_lf_alloc_req *req,
+				   struct msg_rsp *rsp);
+int rvu_mbox_handler_ssow_lf_free(struct rvu *rvu,
+				  struct ssow_lf_free_req *req,
+				  struct msg_rsp *rsp);
+int rvu_mbox_handler_sso_grp_get_priority(struct rvu *rvu,
+					  struct sso_info_req *req,
+					  struct sso_grp_priority *rsp);
+int rvu_mbox_handler_sso_grp_set_priority(struct rvu *rvu,
+					  struct sso_grp_priority *req,
+					  struct msg_rsp *rsp);
+int rvu_mbox_handler_sso_hw_setconfig(struct rvu *rvu,
+				      struct sso_hw_setconfig *req,
+				      struct msg_rsp *rsp);
+int rvu_mbox_handler_sso_ws_cache_inv(struct rvu *rvu, struct msg_req *req,
+				      struct msg_rsp *rsp);
 
 /* NPA APIs */
 int rvu_npa_init(struct rvu *rvu);
