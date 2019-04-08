@@ -484,6 +484,7 @@ config AXXIA_FAULT
 config AXXIA_PEI
        bool "Axxia PEI Controller Setup"
        depends on ARCH_AXXIA
+       select AXXIA_NCR
        help
 	 Set up the PEI controllers in Linux instead of
 	 the boot loader.
