@@ -2754,6 +2754,7 @@ err_disable_mbox_intr:
 	otx2_disable_mbox_intr(pf);
 err_mbox_destroy:
 	otx2_pfaf_mbox_destroy(pf);
+	otx2_pfvf_mbox_destroy(pf);
 err_free_irq_vectors:
 	pci_free_irq_vectors(hw->pdev);
 err_free_netdev:
