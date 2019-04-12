@@ -1153,6 +1153,68 @@ int otx2_set_real_num_queues(struct net_device *netdev,
 }
 EXPORT_SYMBOL(otx2_set_real_num_queues);
 
+static void otx2_alloc_rxvlan(struct otx2_nic *pf)
+{
+	netdev_features_t old, wanted = NETIF_F_HW_VLAN_STAG_RX |
+					NETIF_F_HW_VLAN_CTAG_RX;
+	struct npc_mcam_alloc_entry_req *req;
+	struct npc_mcam_alloc_entry_rsp *rsp;
+	int err;
+
+	mutex_lock(&pf->mbox.lock);
+	req = otx2_mbox_alloc_msg_npc_mcam_alloc_entry(&pf->mbox);
+	if (!req) {
+		mutex_unlock(&pf->mbox.lock);
+		return;
+	}
+
+	req->contig = false;
+	req->count = 1;
+	/* Send message to AF */
+	err = otx2_sync_mbox_msg(&pf->mbox);
+	if (err) {
+		mutex_unlock(&pf->mbox.lock);
+		return;
+	}
+	rsp = (struct npc_mcam_alloc_entry_rsp *)otx2_mbox_get_rsp
+						 (&pf->mbox.mbox, 0, &req->hdr);
+	if (IS_ERR(rsp)) {
+		mutex_unlock(&pf->mbox.lock);
+		return;
+	}
+
+	mutex_unlock(&pf->mbox.lock);
+	pf->rxvlan_entry = rsp->entry_list[0];
+	pf->rxvlan_alloc = true;
+
+	old = pf->netdev->hw_features;
+	if (rsp->hdr.rc) {
+		/* in case of failure during rxvlan allocation
+		 * features must be updated accordingly
+		 */
+		dev_info(pf->dev,
+			 "Disabling RX VLAN offload due to non-availability of MCAM space\n");
+		pf->netdev->hw_features &= ~wanted;
+		pf->netdev->features &= ~wanted;
+	} else if (!(pf->netdev->hw_features & wanted)) {
+		/* we are recovering from the previous failure */
+		pf->netdev->hw_features |= wanted;
+		err = otx2_enable_rxvlan(pf, true);
+		if (!err)
+			pf->netdev->features |= wanted;
+	} else if (pf->netdev->features & wanted) {
+		/* interface is going up */
+		err = otx2_enable_rxvlan(pf, true);
+		if (err) {
+			pf->netdev->features &= ~wanted;
+			netdev_features_change(pf->netdev);
+		}
+	}
+
+	if (old != pf->netdev->hw_features)
+		netdev_features_change(pf->netdev);
+}
+
 static irqreturn_t otx2_q_intr_handler(int irq, void *data)
 {
 	struct otx2_nic *pf = data;
@@ -2655,6 +2717,10 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	/* Enable link notifications */
 	otx2_cgx_config_linkevents(pf, true);
+
+	/* Alloc rxvlan entry in MCAM for PFs only */
+	if (!(pf->pcifunc & RVU_PFVF_FUNC_MASK))
+		otx2_alloc_rxvlan(pf);
 
 	/* Enable pause frames by default */
 	pf->flags |= OTX2_FLAG_RX_PAUSE_ENABLED;
