@@ -1358,6 +1358,7 @@ static void otx2_free_sq_res(struct otx2_nic *pf)
 		qmem_free(pf->dev, sq->tso_hdrs);
 		kfree(sq->sg);
 		kfree(sq->sqb_ptrs);
+		qmem_free(pf->dev, sq->timestamps);
 	}
 }
 
