@@ -1307,7 +1307,7 @@ int otx2_install_rxvlan_offload_flow(struct otx2_nic *pfvf)
 	return err;
 }
 
-static int otx2_delete_rxvlan_offload_flow(struct otx2_nic *pfvf)
+int otx2_delete_rxvlan_offload_flow(struct otx2_nic *pfvf)
 {
 	struct otx2_flow_config *flow_cfg = pfvf->flow_cfg;
 	struct npc_delete_flow_req *req;
