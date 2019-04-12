@@ -640,6 +640,14 @@ static int otx2_set_rss_hash_opts(struct otx2_nic *pfvf,
 	return 0;
 }
 
+struct otx2_flow {
+	struct ethtool_rx_flow_spec flow_spec;
+	struct list_head list;
+	u32 location;
+	u16 entry;
+	bool is_vf;
+};
+
 static int otx2_get_rxnfc(struct net_device *dev,
 			  struct ethtool_rxnfc *nfc, u32 *rules)
 {

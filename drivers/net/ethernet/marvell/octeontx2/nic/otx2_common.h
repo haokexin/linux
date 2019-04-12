@@ -363,6 +363,12 @@ struct otx2_nic {
 	struct work_struct	reset_task;
 	u16			rxvlan_entry;
 	bool			rxvlan_alloc;
+
+	bool			entries_alloc;
+	u32			max_flows;
+	u32			nr_flows;
+	u16			entry_list[NPC_MAX_NONCONTIG_ENTRIES];
+	struct list_head	flows;
 	struct workqueue_struct	*flr_wq;
 	struct flr_work		*flr_wrk;
 	struct refill_work	*refill_wrk;
