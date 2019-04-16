@@ -8,3 +8,4 @@ obj-$(CONFIG_SOC_IMX9) += imx93-src.o imx93_lpm.o
 obj-$(CONFIG_SOC_DEV_IMX9) += soc-imx9.o
 obj-${CONFIG_SECVIO_SC} += secvio/
 obj-$(CONFIG_RPMSG_LIFE_CYCLE) += rpmsg_life_cycle.o
+obj-$(CONFIG_IMX8M_PM_DOMAINS) += imx8m_pm_domains.o
