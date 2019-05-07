@@ -990,6 +990,7 @@ static void mv3310_init_supported_interfaces(unsigned long *mask)
 {
 	__set_bit(PHY_INTERFACE_MODE_SGMII, mask);
 	__set_bit(PHY_INTERFACE_MODE_2500BASEX, mask);
+	__set_bit(PHY_INTERFACE_MODE_2500BASET , mask);
 	__set_bit(PHY_INTERFACE_MODE_5GBASER, mask);
 	__set_bit(PHY_INTERFACE_MODE_XAUI, mask);
 	__set_bit(PHY_INTERFACE_MODE_RXAUI, mask);
