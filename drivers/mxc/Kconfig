@@ -17,6 +17,8 @@ config MXC_IPU
 
 source "drivers/mxc/ipu3/Kconfig"
 
+source "drivers/mxc/mlb/Kconfig"
+
 endmenu
 
 endif
