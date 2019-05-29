@@ -16,6 +16,7 @@ config MXC_IPU
 	  Y here. IPU is needed by Framebuffer and V4L2 drivers.
 
 source "drivers/mxc/ipu3/Kconfig"
+source "drivers/mxc/mlb/Kconfig"
 
 endmenu
 
