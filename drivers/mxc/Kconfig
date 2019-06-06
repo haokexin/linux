@@ -1,6 +1,6 @@
 # drivers/mxc/Kconfig
 
-if ARCH_MXC || ARCH_MXC_ARM64
+if ARCH_MXC
 
 menu "MXC support drivers"
 
@@ -23,11 +23,11 @@ source "drivers/mxc/ipu3/Kconfig"
 source "drivers/mxc/mipi/Kconfig"
 source "drivers/mxc/hdmi-cec/Kconfig"
 
-#if ARCH_MXC_ARM64
+if ARM64
 source "drivers/mxc/hantro/Kconfig"
 source "drivers/mxc/vpu_malone/Kconfig"
 source "drivers/mxc/vpu_windsor/Kconfig"
-#endif
+endif
 
 endmenu
 
