@@ -25,7 +25,12 @@ config MXC_SIM
 	Say Y to get MXC SIM support.
 
 source "drivers/mxc/sim/Kconfig"
+
+# drivers common to MXC and MX8 go here:
+
+if ARM64
 source "drivers/mxc/hantro/Kconfig"
+endif
 
 endmenu
 
