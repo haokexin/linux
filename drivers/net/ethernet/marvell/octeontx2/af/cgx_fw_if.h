@@ -261,4 +261,11 @@ struct cgx_lnk_sts {
 #define CMDMODECHANGE_PORT		GENMASK_ULL(21, 14)
 #define CMDMODECHANGE_FLAGS		GENMASK_ULL(63, 22)
 
+/* command argument to be passed for cmd ID - CGX_CMD_SET_PHY_MOD_TYPE */
+#define CMDSETPHYMODTYPE		GENMASK_ULL(8, 8)
+
+/* response to cmd ID - RESP_GETPHYMODTYPE */
+#define RESP_GETPHYMODTYPE		GENMASK_ULL(9, 9)
+
+
 #endif /* __CGX_FW_INTF_H__ */
