@@ -251,6 +251,12 @@ static void nix_rx_sync(struct rvu *rvu, int blkaddr)
 	err = rvu_poll_reg(rvu, blkaddr, NIX_AF_RX_SW_SYNC, BIT_ULL(0), true);
 	if (err)
 		dev_err(rvu->dev, "SYNC2: NIX RX software sync failed\n");
+
+	/* As per a HW errata in 96xx A0 silicon, HW may clear SW_SYNC[ENA]
+	 * bit too early. Hence wait for 50us more.
+	 */
+	if (is_rvu_96xx_A0(rvu))
+		usleep_range(50, 60);
 }
 
 static bool is_valid_txschq(struct rvu *rvu, int blkaddr,

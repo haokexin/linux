@@ -25,6 +25,7 @@
 
 /* Subsystem Device ID */
 #define PCI_SUBSYS_DEVID_96XX                  0xB200
+#define PCI_SUBSYS_DEVID_95XX                  0xB200
 #define PCI_SUBSYS_DEVID_CN10K_A	       0xB900
 
 /* PCI BAR nos */
