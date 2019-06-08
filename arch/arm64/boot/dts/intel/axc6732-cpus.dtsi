@@ -11,6 +11,7 @@
 			compatible = "arm,armv8";
 			reg = <0>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU1: cpu@1 {
@@ -18,6 +19,7 @@
 			compatible = "arm,armv8";
 			reg = <1>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU2: cpu@2 {
@@ -25,6 +27,7 @@
 			compatible = "arm,armv8";
 			reg = <2>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU3: cpu@3 {
@@ -32,6 +35,7 @@
 			compatible = "arm,armv8";
 			reg = <3>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU4: cpu@4 {
@@ -39,6 +43,7 @@
 			compatible = "arm,armv8";
 			reg = <0x100>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU5: cpu@5 {
@@ -46,6 +51,7 @@
 			compatible = "arm,armv8";
 			reg = <0x101>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU6: cpu@6 {
@@ -53,6 +59,7 @@
 			compatible = "arm,armv8";
 			reg = <0x102>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU7: cpu@7 {
@@ -60,6 +67,7 @@
 			compatible = "arm,armv8";
 			reg = <0x103>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -68,6 +76,7 @@
 			compatible = "arm,armv8";
 			reg = <0x200>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU9: cpu@9 {
@@ -75,6 +84,7 @@
 			compatible = "arm,armv8";
 			reg = <0x201>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU10: cpu@10 {
@@ -82,6 +92,7 @@
 			compatible = "arm,armv8";
 			reg = <0x202>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU11: cpu@11 {
@@ -89,6 +100,7 @@
 			compatible = "arm,armv8";
 			reg = <0x203>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU12: cpu@12 {
@@ -96,6 +108,7 @@
 			compatible = "arm,armv8";
 			reg = <0x300>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU13: cpu@13 {
@@ -103,6 +116,7 @@
 			compatible = "arm,armv8";
 			reg = <0x301>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU14: cpu@14 {
@@ -110,6 +124,7 @@
 			compatible = "arm,armv8";
 			reg = <0x302>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 		};
 
 		CPU15: cpu@15 {
@@ -117,6 +132,7 @@
 			compatible = "arm,armv8";
 			reg = <0x303>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -125,6 +141,7 @@
 			compatible = "arm,armv8";
 			reg = <0x400>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -133,6 +150,7 @@
 			compatible = "arm,armv8";
 			reg = <0x401>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -141,6 +159,7 @@
 			compatible = "arm,armv8";
 			reg = <0x402>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -149,6 +168,7 @@
 			compatible = "arm,armv8";
 			reg = <0x403>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -157,6 +177,7 @@
 			compatible = "arm,armv8";
 			reg = <0x500>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -165,6 +186,7 @@
 			compatible = "arm,armv8";
 			reg = <0x501>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -173,6 +195,7 @@
 			compatible = "arm,armv8";
 			reg = <0x502>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -181,6 +204,7 @@
 			compatible = "arm,armv8";
 			reg = <0x503>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -189,6 +213,7 @@
 			compatible = "arm,armv8";
 			reg = <0x600>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -197,6 +222,7 @@
 			compatible = "arm,armv8";
 			reg = <0x601>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -205,6 +231,7 @@
 			compatible = "arm,armv8";
 			reg = <0x602>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -213,6 +240,7 @@
 			compatible = "arm,armv8";
 			reg = <0x603>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -221,6 +249,7 @@
 			compatible = "arm,armv8";
 			reg = <0x700>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -229,6 +258,7 @@
 			compatible = "arm,armv8";
 			reg = <0x701>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -237,6 +267,7 @@
 			compatible = "arm,armv8";
 			reg = <0x702>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
 		};
 
@@ -245,7 +276,12 @@
 			compatible = "arm,armv8";
 			reg = <0x703>;
 			enable-method = "psci";
+			next-level-cache = <&l2>;
 
+		};
+
+		l2: l2-cache0 {
+			compatible = "cache";
 		};
 	};
 };
