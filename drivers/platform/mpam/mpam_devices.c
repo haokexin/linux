@@ -1140,6 +1140,9 @@ static int mpam_cpu_online(unsigned int cpu)
 	}
 	rcu_read_unlock();
 
+	if (mpam_is_enabled())
+		mpam_resctrl_online_cpu(cpu);
+
 	return 0;
 }
 
@@ -1162,7 +1165,6 @@ static int mpam_discovery_cpu_online(unsigned int cpu)
 		if (!msc->probed)
 			err = mpam_msc_hw_probe(msc);
 		spin_unlock(&msc->lock);
-
 		if (!err)
 			new_device_probed = true;
 		else
@@ -1197,6 +1199,9 @@ static int mpam_cpu_offline(unsigned int cpu)
 		spin_unlock(&msc->lock);
 	}
 	rcu_read_unlock();
+
+	if (mpam_is_enabled())
+		mpam_resctrl_offline_cpu(cpu);
 
 	return 0;
 }
@@ -1774,6 +1779,12 @@ void mpam_enable_once(void)
 	} while (0);
 	mutex_unlock(&mpam_list_lock);
 	cpus_read_unlock();
+
+	if (!err) {
+		err = mpam_resctrl_setup();
+		if (err)
+			pr_err("Failed to initialise resctrl: %d\n", err);
+	}
 
 	if (err) {
 		schedule_work(&mpam_broken_work);
