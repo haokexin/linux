@@ -387,6 +387,8 @@ static void rvu_set_default_limits(struct rvu *rvu)
 		case PCI_DEVID_OCTEONTX2_RVU_AF:
 			rvu->pf_limits.nix->a[i].val = totalvfs;
 			rvu->pf_limits.npa->a[i].val = totalvfs;
+			if (rvu->hw->cap.nix_fixed_txschq_mapping)
+				break;
 			rvu->pf_limits.smq->a[i].val =
 				nix_hw->txsch[NIX_TXSCH_LVL_SMQ].schq.max /
 				nix_rvus;
@@ -403,6 +405,8 @@ static void rvu_set_default_limits(struct rvu *rvu)
 		case PCI_DEVID_OCTEONTX2_RVU_PF:
 			rvu->pf_limits.nix->a[i].val = 1 + totalvfs;
 			rvu->pf_limits.npa->a[i].val = 1 + totalvfs;
+			if (rvu->hw->cap.nix_fixed_txschq_mapping)
+				break;
 			rvu->pf_limits.smq->a[i].val =
 				nix_hw->txsch[NIX_TXSCH_LVL_SMQ].schq.max /
 				nix_rvus;
@@ -510,6 +514,10 @@ static int rvu_create_limits_sysfs(struct rvu *rvu)
 			break;
 		}
 
+		/* In fixed TXSCHQ case each LF is assigned only 1 queue. */
+		if (rvu->hw->cap.nix_fixed_txschq_mapping)
+			continue;
+
 		if (quota_sysfs_create("smq", pf->limits_kobj, rvu->dev,
 				       &rvu->pf_limits.smq->a[i], pf)) {
 			dev_err(rvu->dev, "Failed to allocate quota for smq on %s\n",
@@ -558,11 +566,6 @@ void rvu_policy_destroy(struct rvu *rvu)
 	quotas_free(rvu->pf_limits.tim);
 	quotas_free(rvu->pf_limits.nix);
 
-	quotas_free(rvu->pf_limits.smq);
-	quotas_free(rvu->pf_limits.tl4);
-	quotas_free(rvu->pf_limits.tl3);
-	quotas_free(rvu->pf_limits.tl2);
-
 	rvu->pf_limits.sso = NULL;
 	rvu->pf_limits.ssow = NULL;
 	rvu->pf_limits.npa = NULL;
@@ -570,10 +573,17 @@ void rvu_policy_destroy(struct rvu *rvu)
 	rvu->pf_limits.tim = NULL;
 	rvu->pf_limits.nix = NULL;
 
-	rvu->pf_limits.smq = NULL;
-	rvu->pf_limits.tl4 = NULL;
-	rvu->pf_limits.tl3 = NULL;
-	rvu->pf_limits.tl2 = NULL;
+	if (rvu->hw->cap.nix_fixed_txschq_mapping) {
+		quotas_free(rvu->pf_limits.smq);
+		quotas_free(rvu->pf_limits.tl4);
+		quotas_free(rvu->pf_limits.tl3);
+		quotas_free(rvu->pf_limits.tl2);
+
+		rvu->pf_limits.smq = NULL;
+		rvu->pf_limits.tl4 = NULL;
+		rvu->pf_limits.tl3 = NULL;
+		rvu->pf_limits.tl2 = NULL;
+	}
 
 	for (i = 0; i < rvu->hw->total_pfs; i++) {
 		pf = &rvu->pf[i];
@@ -646,6 +656,9 @@ int rvu_policy_init(struct rvu *rvu)
 		goto error;
 	}
 
+	if (rvu->hw->cap.nix_fixed_txschq_mapping)
+		goto skip_txschq_limits;
+
 	max = nix_hw->txsch[NIX_TXSCH_LVL_SMQ].schq.max;
 	rvu->pf_limits.smq = quotas_alloc(hw->total_pfs, max, max, 0,
 					     &rvu->rsrc_lock, &pf_limit_ops);
@@ -682,6 +695,7 @@ int rvu_policy_init(struct rvu *rvu)
 		goto error;
 	}
 
+skip_txschq_limits:
 	for (i = 0; i < hw->total_pfs; i++)
 		rvu->pf[i].pdev =
 			pci_get_domain_bus_and_slot(pci_domain_nr(pdev->bus),
