@@ -1917,8 +1917,10 @@ static void rvu_dbg_nix_init(struct rvu *rvu, int blkaddr)
 			    &rvu_dbg_nix_band_prof_ctx_fops);
 	debugfs_create_file("ingress_policer_rsrc", 0600, rvu->rvu_dbg.nix, nix_hw,
 			    &rvu_dbg_nix_band_prof_rsrc_fops);
-	debugfs_create_file("tx_stall_hwissue", 0600, rvu->rvu_dbg.nix, nix_hw,
-			    &rvu_dbg_nix_tx_stall_hwissue_fops);
+	if (is_rvu_96xx_A0(rvu)) {
+		debugfs_create_file("tx_stall_hwissue", 0600, rvu->rvu_dbg.nix, nix_hw,
+				    &rvu_dbg_nix_tx_stall_hwissue_fops);
+	}
 }
 
 static void rvu_dbg_npa_init(struct rvu *rvu)
