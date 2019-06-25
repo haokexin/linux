@@ -1853,6 +1853,7 @@ struct ptp_req {
 	struct mbox_msghdr hdr;
 	u8 op;
 	s64 scaled_ppm;
+	u8 is_pmu;
 	u64 thresh;
 	int extts_on;
 };
@@ -1860,6 +1861,7 @@ struct ptp_req {
 struct ptp_rsp {
 	struct mbox_msghdr hdr;
 	u64 clk;
+	u64 tsc;
 };
 
 struct npc_get_field_status_req {
