@@ -40,6 +40,9 @@ static int npc_mcam_verify_channel(struct rvu *rvu, u16 pcifunc, u8 intf,
 	u8 cgx_id, lmac_id;
 	int base = 0, end;
 
+	if (intf == NIX_INTF_TX)
+		return 0;
+
 	if (is_afvf(pcifunc)) {
 		end = rvu_get_num_lbk_chans();
 		if (end < 0)
@@ -3113,6 +3116,10 @@ int rvu_mbox_handler_npc_mcam_alloc_and_write_entry(struct rvu *rvu,
 	channel &= chan_mask;
 
 	if (npc_mcam_verify_channel(rvu, req->hdr.pcifunc, req->intf, channel))
+		return NPC_MCAM_INVALID_REQ;
+
+	if (npc_mcam_verify_pf_func(rvu, &req->entry_data, req->intf,
+				    req->hdr.pcifunc))
 		return NPC_MCAM_INVALID_REQ;
 
 	/* Try to allocate a MCAM entry */
