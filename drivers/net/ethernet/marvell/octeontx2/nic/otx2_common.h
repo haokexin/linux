@@ -362,8 +362,6 @@ struct otx2_nic {
 
 	u64			reset_count;
 	struct work_struct	reset_task;
-	u16			rxvlan_entry;
-	bool			rxvlan_alloc;
 
 	bool			entries_alloc;
 	u32			max_flows;
@@ -835,8 +833,6 @@ void otx2_update_lmac_fec_stats(struct otx2_nic *pfvf);
 int otx2_update_rq_stats(struct otx2_nic *pfvf, int qidx);
 int otx2_update_sq_stats(struct otx2_nic *pfvf, int qidx);
 void otx2_set_ethtool_ops(struct net_device *netdev);
-int otx2_install_rxvlan_offload_flow(struct otx2_nic *pfvf);
-int otx2_delete_rxvlan_offload_flow(struct otx2_nic *pfvf);
 void otx2vf_set_ethtool_ops(struct net_device *netdev);
 
 int otx2_open(struct net_device *netdev);
