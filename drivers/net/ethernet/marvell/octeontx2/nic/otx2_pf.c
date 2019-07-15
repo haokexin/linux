@@ -2637,8 +2637,9 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_unreg_netdev;
 
-	INIT_LIST_HEAD(&pf->flows);
-	pf->max_flows = MAX_ETHTOOL_FLOWS;
+	err = otx2_mcam_flow_init(pf);
+	if (err)
+		goto err_unreg_netdev;
 
 	otx2_set_ethtool_ops(netdev);
 

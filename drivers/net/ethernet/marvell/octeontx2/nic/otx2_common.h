@@ -358,14 +358,19 @@ struct otx2_nic {
 	/* NPC MCAM */
 	struct otx2_flow_config	*flow_cfg;
 	struct otx2_mac_table	*mac_table;
+	struct workqueue_struct	*otx2_ndo_wq;
+	struct work_struct	otx2_rx_mode_work;
 	struct otx2_tc_info	tc_info;
 
 	u64			reset_count;
 	struct work_struct	reset_task;
 
 	bool			entries_alloc;
-	u32			max_flows;
 	u32			nr_flows;
+	u32                     ntuple_max_flows;
+#define OTX2_NTUPLE_FILTER_CAPABLE		0
+#define OTX2_UNICAST_FILTER_CAPABLE		1
+	unsigned long           priv_flags;
 	u16			entry_list[NPC_MAX_NONCONTIG_ENTRIES];
 	struct list_head	flows;
 	struct workqueue_struct	*flr_wq;
@@ -840,6 +845,8 @@ int otx2_stop(struct net_device *netdev);
 int otx2_set_real_num_queues(struct net_device *netdev,
 			     int tx_queues, int rx_queues);
 /* MCAM filter related APIs */
+int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
+			      struct npc_install_flow_req *req);
 int otx2_mcam_flow_init(struct otx2_nic *pf);
 int otx2vf_mcam_flow_init(struct otx2_nic *pfvf);
 int otx2_alloc_mcam_entries(struct otx2_nic *pfvf, u16 count);
@@ -873,4 +880,19 @@ int otx2_dmacflt_remove(struct otx2_nic *pf, const u8 *mac, u8 bit_pos);
 int otx2_dmacflt_update(struct otx2_nic *pf, u8 *mac, u8 bit_pos);
 void otx2_dmacflt_reinstall_flows(struct otx2_nic *pf);
 void otx2_dmacflt_update_pfmac_flow(struct otx2_nic *pfvf);
+/* OTX2_NIC access priv_flags */
+static inline void otx2_nic_enable_feature(struct otx2_nic *pf,
+					   unsigned long nr) {
+	set_bit(nr, &pf->priv_flags);
+}
+
+static inline void otx2_nic_disable_feature(struct otx2_nic *pf,
+					    unsigned long nr) {
+	clear_bit(nr, &pf->priv_flags);
+}
+
+static inline int otx2_nic_is_feature_enabled(struct otx2_nic *pf,
+					      unsigned long nr) {
+	return test_bit(nr, &pf->priv_flags);
+}
 #endif /* OTX2_COMMON_H */
