@@ -1676,6 +1676,13 @@ static int cgx_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	cgx->cgx_id = (pci_resource_start(pdev, PCI_CFG_REG_BAR_NUM) >> 24)
 		& CGX_ID_MASK;
 
+	 /* Skip probe if CGX is not mapped to NIX */
+	if (!is_cgx_mapped_to_nix(pdev->subsystem_device, cgx->cgx_id)) {
+		dev_notice(dev, "skip cgx%d probe\n", cgx->cgx_id);
+		err = -ENOMEM;
+		goto err_release_regions;
+	}
+
 	/* init wq for processing linkup requests */
 	INIT_WORK(&cgx->cgx_cmd_work, cgx_lmac_linkup_work);
 	cgx->cgx_cmd_workq = alloc_workqueue("cgx_cmd_workq", 0, 0);

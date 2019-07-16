@@ -25,7 +25,9 @@
 
 /* Subsystem Device ID */
 #define PCI_SUBSYS_DEVID_96XX                  0xB200
-#define PCI_SUBSYS_DEVID_95XX                  0xB200
+#define PCI_SUBSYS_DEVID_95XX_RVU              0xB200
+#define PCI_SUBSYS_DEVID_95XX                  0xB300
+#define PCI_SUBSYS_DEVID_LOKI                  0xB400
 #define PCI_SUBSYS_DEVID_CN10K_A	       0xB900
 
 /* PCI BAR nos */
@@ -576,6 +578,12 @@ static inline bool is_rvu_95xx_A0(struct rvu *rvu)
 	struct pci_dev *pdev = rvu->pdev;
 
 	return (pdev->revision == 0x10) || (pdev->revision == 0x11);
+}
+
+static inline bool is_cgx_mapped_to_nix(unsigned short id, u8 cgx_id)
+{
+	return !(cgx_id && (id == PCI_SUBSYS_DEVID_95XX ||
+			    id == PCI_SUBSYS_DEVID_LOKI));
 }
 
 /* REVID for PCIe devices.
