@@ -847,6 +847,8 @@ int otx2_set_real_num_queues(struct net_device *netdev,
 /* MCAM filter related APIs */
 int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 			      struct npc_install_flow_req *req);
+int otx2smqvf_probe(struct otx2_nic *vf);
+int otx2smqvf_remove(struct otx2_nic *vf);
 int otx2_mcam_flow_init(struct otx2_nic *pf);
 int otx2vf_mcam_flow_init(struct otx2_nic *pfvf);
 int otx2_alloc_mcam_entries(struct otx2_nic *pfvf, u16 count);
