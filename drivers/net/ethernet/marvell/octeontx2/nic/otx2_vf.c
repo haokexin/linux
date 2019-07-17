@@ -657,6 +657,12 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_detach_rsrc;
 
+	err = otx2smqvf_probe(vf);
+	if (!err)
+		return 0;
+	else if (err == -EINVAL)
+		goto err_detach_rsrc;
+
 	/* Assign default mac address */
 	otx2_get_mac_from_af(netdev);
 
@@ -750,7 +756,8 @@ static void otx2vf_remove(struct pci_dev *pdev)
 
 	cancel_work_sync(&vf->reset_task);
 	otx2_unregister_dl(vf);
-	unregister_netdev(netdev);
+	if (otx2smqvf_remove(vf))
+		unregister_netdev(netdev);
 	if (vf->otx2_wq)
 		destroy_workqueue(vf->otx2_wq);
 	otx2vf_disable_mbox_intr(vf);
