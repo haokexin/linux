@@ -566,6 +566,12 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	otx2_setup_dev_hw_settings(vf);
 
+	err = otx2smqvf_probe(vf);
+	if (!err)
+		return 0;
+	else if (err == -EINVAL)
+		goto err_detach_rsrc;
+
 	/* Assign default mac address */
 	otx2_get_mac_from_af(netdev);
 
