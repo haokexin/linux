@@ -25,3 +25,4 @@ obj-y				+= ocelot/
 obj-y				+= qca/
 obj-y				+= sja1105/
 obj-y				+= xrs700x/
+obj-$(CONFIG_NET_DSA_MVMDIO)    += dsa_mvmdio.o
