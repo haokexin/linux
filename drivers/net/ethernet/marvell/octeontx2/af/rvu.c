@@ -1073,7 +1073,9 @@ cpt:
 
 	mutex_init(&rvu->rsrc_lock);
 
-	rvu_fwdata_init(rvu);
+	err = rvu_fwdata_init(rvu);
+	if (err)
+		goto msix_err;
 
 	err = rvu_setup_msix_resources(rvu);
 	if (err) {
@@ -3345,8 +3347,11 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	rvu->ptp = ptp_get();
 	if (IS_ERR(rvu->ptp)) {
 		err = PTR_ERR(rvu->ptp);
-		if (err == -EPROBE_DEFER)
+		if (err == -EPROBE_DEFER) {
+			dev_err(dev,
+				"PTP driver not loaded, deferring probe\n");
 			goto err_release_regions;
+		}
 		rvu->ptp = NULL;
 	}
 
