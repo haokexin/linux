@@ -2293,6 +2293,13 @@ static int otx2_get_vf_config(struct net_device *netdev, int vf,
 	return 0;
 }
 
+static netdev_features_t
+otx2_features_check(struct sk_buff *skb, struct net_device *dev,
+		    netdev_features_t features)
+{
+	return features;
+}
+
 static int otx2_set_vf_permissions(struct otx2_nic *pf, int vf,
 				   int req_perm)
 {
@@ -2362,6 +2369,7 @@ static const struct net_device_ops otx2_netdev_ops = {
 	.ndo_get_vf_config	= otx2_get_vf_config,
 	.ndo_setup_tc		= otx2_setup_tc,
 	.ndo_set_vf_trust	= otx2_ndo_set_vf_trust,
+	.ndo_features_check     = otx2_features_check,
 };
 
 static int otx2_wq_init(struct otx2_nic *pf)

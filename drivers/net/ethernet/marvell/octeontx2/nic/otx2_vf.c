@@ -477,6 +477,13 @@ static void otx2vf_reset_task(struct work_struct *work)
 	rtnl_unlock();
 }
 
+static netdev_features_t
+otx2_features_check(struct sk_buff *skb, struct net_device *dev,
+		    netdev_features_t features)
+{
+	return features;
+}
+
 static int otx2vf_set_features(struct net_device *netdev,
 			       netdev_features_t features)
 {
@@ -509,6 +516,7 @@ static const struct net_device_ops otx2vf_netdev_ops = {
 	.ndo_set_features = otx2vf_set_features,
 	.ndo_get_stats64 = otx2_get_stats64,
 	.ndo_tx_timeout = otx2_tx_timeout,
+	.ndo_features_check = otx2_features_check,
 };
 
 static int otx2_wq_init(struct otx2_nic *vf)
