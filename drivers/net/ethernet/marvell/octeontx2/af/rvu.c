@@ -1921,8 +1921,7 @@ int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 					      RVU_PFVF_PF_SHIFT);
 		rsp->schq[NIX_TXSCH_LVL_TL2] = rvu->pf_limits.tl2->a[pf].val - curlfs;
 
-		//Two TL1s available (normal and express DMA)
-		rsp->schq[NIX_TXSCH_LVL_TL1] = 2;
+		rsp->schq[NIX_TXSCH_LVL_TL1] = 1;
 
 		if (!is_block_implemented(rvu->hw, BLKADDR_NIX1))
 			goto out;
