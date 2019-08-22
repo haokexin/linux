@@ -250,6 +250,13 @@ static const struct imx_sc_pd_range imx8qxp_scu_pd_ranges[] = {
 	{ "img-parallel-pwm0", IMX_SC_R_PI_0_PWM_0, 2, true, 0 },
 	{ "img-parallel-pll", IMX_SC_R_PI_0_PLL, 1, false, 0 },
 
+	/* HDMI TX SS */
+	{ "hdmi-tx", IMX_SC_R_HDMI, 1, false, 0},
+	{ "hdmi-tx-i2s", IMX_SC_R_HDMI_I2S, 1, false, 0},
+	{ "hdmi-tx-i2c0", IMX_SC_R_HDMI_I2C_0, 1, false, 0},
+	{ "hdmi-tx-pll0", IMX_SC_R_HDMI_PLL_0, 1, false, 0},
+	{ "hdmi-tx-pll1", IMX_SC_R_HDMI_PLL_1, 1, false, 0},
+
 	/* SECO SS */
 	{ "seco_mu", IMX_SC_R_SECO_MU_2, 3, true, 2},
 
