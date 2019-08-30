@@ -1287,8 +1287,17 @@ static void otx2_map_ethtool_link_modes(u64 bitmask,
 	case  ETHTOOL_LINK_MODE_10000baseKR_Full_BIT:
 		set_mod_args(args, 10000, 0, 1, BIT_ULL(CGX_MODE_10G_KR));
 		break;
+	case  ETHTOOL_LINK_MODE_20000baseMLD2_Full_BIT:
+		set_mod_args(args, 20000, 0, 0, BIT_ULL(CGX_MODE_20G_C2C));
+		break;
 	case  ETHTOOL_LINK_MODE_25000baseSR_Full_BIT:
 		set_mod_args(args, 25000, 0, 0, BIT_ULL(CGX_MODE_25G_C2C));
+		break;
+	case  ETHTOOL_LINK_MODE_10000baseR_FEC_BIT:
+		set_mod_args(args, 25000, 0, 0, BIT_ULL(CGX_MODE_25G_C2M));
+		break;
+	case  ETHTOOL_LINK_MODE_20000baseKR2_Full_BIT:
+		set_mod_args(args, 25000, 0, 0, BIT_ULL(CGX_MODE_25G_2_C2C));
 		break;
 	case  ETHTOOL_LINK_MODE_25000baseCR_Full_BIT:
 		set_mod_args(args, 25000, 0, 1, BIT_ULL(CGX_MODE_25G_CR));
@@ -1308,8 +1317,14 @@ static void otx2_map_ethtool_link_modes(u64 bitmask,
 	case  ETHTOOL_LINK_MODE_40000baseKR4_Full_BIT:
 		set_mod_args(args, 40000, 0, 1, BIT_ULL(CGX_MODE_40G_KR4));
 		break;
+	case  ETHTOOL_LINK_MODE_10000baseKX4_Full_BIT:
+		set_mod_args(args, 40000, 0, 0, BIT_ULL(CGX_MODE_40GAUI_C2C));
+		break;
 	case  ETHTOOL_LINK_MODE_50000baseSR2_Full_BIT:
 		set_mod_args(args, 50000, 0, 0, BIT_ULL(CGX_MODE_50G_C2C));
+		break;
+	case  ETHTOOL_LINK_MODE_56000baseKR4_Full_BIT:
+		set_mod_args(args, 50000, 0, 0, BIT_ULL(CGX_MODE_50G_4_C2C));
 		break;
 	case  ETHTOOL_LINK_MODE_50000baseDR_Full_BIT:
 		set_mod_args(args, 50000, 0, 0, BIT_ULL(CGX_MODE_50G_C2M));
@@ -1319,6 +1334,9 @@ static void otx2_map_ethtool_link_modes(u64 bitmask,
 		break;
 	case  ETHTOOL_LINK_MODE_50000baseKR2_Full_BIT:
 		set_mod_args(args, 50000, 0, 1, BIT_ULL(CGX_MODE_50G_KR));
+		break;
+	case  ETHTOOL_LINK_MODE_10000baseLRM_Full_BIT:
+		set_mod_args(args, 80000, 0, 0, BIT_ULL(CGX_MODE_80GAUI_C2C));
 		break;
 	case  ETHTOOL_LINK_MODE_100000baseSR4_Full_BIT:
 		set_mod_args(args, 100000, 0, 0, BIT_ULL(CGX_MODE_100G_C2C));
