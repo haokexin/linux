@@ -1681,6 +1681,9 @@ int otx2_open(struct net_device *netdev)
 	if (pf->linfo.link_up && !(pf->pcifunc & RVU_PFVF_FUNC_MASK))
 		otx2_handle_link_event(pf);
 
+	if (otx2_nic_is_feature_enabled(pf, OTX2_RX_VLAN_OFFLOAD_CAPABLE))
+		otx2_enable_rxvlan(pf, true);
+
 	/* Restore pause frame settings */
 	otx2_config_pause_frm(pf);
 
@@ -1857,6 +1860,10 @@ static int otx2_set_features(struct net_device *netdev,
 	if ((changed & NETIF_F_LOOPBACK) && netif_running(netdev))
 		return otx2_cgx_config_loopback(pf,
 						features & NETIF_F_LOOPBACK);
+
+	if ((changed & NETIF_F_HW_VLAN_CTAG_RX) && netif_running(netdev))
+		return otx2_enable_rxvlan(pf,
+					  features & NETIF_F_HW_VLAN_CTAG_RX);
 
 	if ((changed & NETIF_F_NTUPLE) && !ntuple)
 		otx2_destroy_ntuple_flows(pf);

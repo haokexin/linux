@@ -370,6 +370,7 @@ struct otx2_nic {
 	u32                     ntuple_max_flows;
 #define OTX2_NTUPLE_FILTER_CAPABLE		0
 #define OTX2_UNICAST_FILTER_CAPABLE		1
+#define OTX2_RX_VLAN_OFFLOAD_CAPABLE		2
 	unsigned long           priv_flags;
 	u16			entry_list[NPC_MAX_NONCONTIG_ENTRIES];
 	struct list_head	flows;
