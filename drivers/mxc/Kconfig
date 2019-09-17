@@ -6,6 +6,8 @@ menu "MXC support drivers"
 
 source "drivers/mxc/gpu-viv/Kconfig"
 
+source "drivers/mxc/hdmi-cec/Kconfig"
+
 endmenu
 
 endif
