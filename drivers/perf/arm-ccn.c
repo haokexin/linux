@@ -15,6 +15,33 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 
+#ifdef DEBUG
+#define writel_trace(...) \
+	do { \
+		trace_printk("l:%d writel(%X,%px) from %ps\n", \
+			__LINE__, __VA_ARGS__, (void *)_RET_IP_); \
+		writel(__VA_ARGS__); \
+	} while (0)
+#define readl_trace(...) \
+	({ \
+		u64 _res = readl(__VA_ARGS__); \
+		trace_printk("l:%d %llx = readl(%px) from %ps\n", \
+				__LINE__, _res, __VA_ARGS__, (void *)_RET_IP_); \
+		_res;  \
+	})
+#define readq_trace(...) \
+	({ \
+		u64 _res = readq(__VA_ARGS__); \
+		trace_printk("l:%d %llx = readl(%px) from %ps\n", \
+			__LINE__, _res, __VA_ARGS__, (void *)_RET_IP_); \
+		_res;  \
+	})
+#else
+#define writel_trace(...) writel(__VA_ARGS__)
+#define readl_trace(...) ({ u64 _res = readl(__VA_ARGS__); _res; })
+#define readq_trace(...) ({ u64 _res = readq(__VA_ARGS__); _res; })
+#endif
+
 #define CCN_NUM_XP_PORTS 2
 #define CCN_NUM_VCS 4
 #define CCN_NUM_REGIONS	256
@@ -113,6 +140,22 @@
 #define CCN_TYPE_RND_2P	0x19
 #define CCN_TYPE_RND_3P	0x1a
 #define CCN_TYPE_CYCLES	0xff /* Pseudotype */
+
+static const char *node_types[0x1f] = {
+	[CCN_TYPE_MN] = __stringify_1(CCN_TYPE_MN),
+	[CCN_TYPE_DT] = __stringify_1(CCN_TYPE_DT),
+	[CCN_TYPE_HNF] = __stringify_1(CCN_TYPE_HNF),
+	[CCN_TYPE_HNI] = __stringify_1(CCN_TYPE_HNI),
+	[CCN_TYPE_XP] = __stringify_1(CCN_TYPE_XP),
+	[CCN_TYPE_SBSX] = __stringify_1(CCN_TYPE_SBSX),
+	[CCN_TYPE_SBAS] = __stringify_1(CCN_TYPE_SBAS),
+	[CCN_TYPE_RNI_1P] = __stringify_1(CCN_TYPE_RNI_1P),
+	[CCN_TYPE_RNI_2P] = __stringify_1(CCN_TYPE_RNI_2P),
+	[CCN_TYPE_RNI_3P] = __stringify_1(CCN_TYPE_RNI_3P),
+	[CCN_TYPE_RND_1P] = __stringify_1(CCN_TYPE_RND_1P),
+	[CCN_TYPE_RND_2P] = __stringify_1(CCN_TYPE_RND_2P),
+	[CCN_TYPE_RND_3P] = __stringify_1(CCN_TYPE_RND_3P),
+};
 
 #define CCN_EVENT_WATCHPOINT 0xfe /* Pseudoevent */
 
@@ -972,20 +1015,20 @@ static void arm_ccn_pmu_xp_watchpoint_config(struct perf_event *event)
 	writel(val, source->base + CCN_XP_DT_INTERFACE_SEL);
 
 	/* Comparison values */
-	writel(cmp_l & 0xffffffff, source->base + CCN_XP_DT_CMP_VAL_L(wp));
-	writel((cmp_l >> 32) & 0x7fffffff,
-			source->base + CCN_XP_DT_CMP_VAL_L(wp) + 4);
-	writel(cmp_h & 0xffffffff, source->base + CCN_XP_DT_CMP_VAL_H(wp));
-	writel((cmp_h >> 32) & 0x0fffffff,
-			source->base + CCN_XP_DT_CMP_VAL_H(wp) + 4);
+	writel((unsigned int)(cmp_l & 0xffffffff), source->base + CCN_XP_DT_CMP_VAL_L(wp));
+	writel((unsigned int)((cmp_l >> 32) & 0x7fffffff),
+	       source->base + CCN_XP_DT_CMP_VAL_L(wp) + 4);
+	writel((unsigned int)(cmp_h & 0xffffffff), source->base + CCN_XP_DT_CMP_VAL_H(wp));
+	writel((unsigned int)((cmp_h >> 32) & 0x0fffffff),
+	       source->base + CCN_XP_DT_CMP_VAL_H(wp) + 4);
 
 	/* Mask */
-	writel(mask_l & 0xffffffff, source->base + CCN_XP_DT_CMP_MASK_L(wp));
-	writel((mask_l >> 32) & 0x7fffffff,
-			source->base + CCN_XP_DT_CMP_MASK_L(wp) + 4);
-	writel(mask_h & 0xffffffff, source->base + CCN_XP_DT_CMP_MASK_H(wp));
-	writel((mask_h >> 32) & 0x0fffffff,
-			source->base + CCN_XP_DT_CMP_MASK_H(wp) + 4);
+	writel((unsigned int)(mask_l & 0xffffffff), source->base + CCN_XP_DT_CMP_MASK_L(wp));
+	writel((unsigned int)((mask_l >> 32) & 0x7fffffff),
+	       source->base + CCN_XP_DT_CMP_MASK_L(wp) + 4);
+	writel((unsigned int)(mask_h & 0xffffffff), source->base + CCN_XP_DT_CMP_MASK_H(wp));
+	writel((unsigned int)((mask_h >> 32) & 0x0fffffff),
+	       source->base + CCN_XP_DT_CMP_MASK_H(wp) + 4);
 }
 
 static void arm_ccn_pmu_xp_event_config(struct perf_event *event)
@@ -1380,7 +1423,8 @@ static int arm_ccn_init_nodes(struct arm_ccn *ccn, int region,
 {
 	struct arm_ccn_component *component;
 
-	dev_dbg(ccn->dev, "Region %d: id=%u, type=0x%02x\n", region, id, type);
+	dev_dbg(ccn->dev, "Region %d: id=%u, type=0x%02x (%s)\n", region, id,
+		type, node_types[type]);
 
 	switch (type) {
 	case CCN_TYPE_MN:
