@@ -1618,6 +1618,8 @@ int appnic_init(struct net_device *dev)
 	dev->netdev_ops = &appnic_netdev_ops;
 	dev->ethtool_ops = &appnic_ethtool_ops;
 	dev->features |= NETIF_F_LLTX;
+	dev->min_mtu = ETH_ZLEN - ETH_HLEN;
+	dev->max_mtu = 0x3f00 - (ETH_HLEN + ETH_FCS_LEN);
 
 	memset((void *)&pdata->napi, 0, sizeof(struct napi_struct));
 	netif_napi_add(dev, &pdata->napi,
