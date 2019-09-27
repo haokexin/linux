@@ -25,7 +25,8 @@
 
 #include "nemac-regs.h"
 
-#define DESCRIPTOR_GRANULARITY   64
+#define DESCRIPTOR_GRANULARITY 64
+#define MAX_JUMBO_FRAME_SIZE   0x3F00
 
 static int rx_num_desc = 128; /* Must be multiple of DESCRIPTOR_GRANULARITY */
 module_param(rx_num_desc, int, 0400);
@@ -1153,6 +1154,10 @@ nemac_probe(struct platform_device *pdev)
 
 	/* HW supported features, none enabled by default */
 	ndev->hw_features |= (NETIF_F_RXCSUM | NETIF_F_HIGHDMA);
+
+	/* MTU range: 46 - 16110 */
+	ndev->min_mtu = ETH_ZLEN - ETH_HLEN;
+	ndev->max_mtu = MAX_JUMBO_FRAME_SIZE - (ETH_HLEN + ETH_FCS_LEN);
 
 	/* libphy will adjust the link state accordingly */
 	netif_carrier_off(ndev);
