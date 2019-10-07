@@ -20,6 +20,10 @@
 	};
 };
 
+&ccn_512 {
+	status = "okay";
+};
+
 &serial0 {
 	status = "okay";
 };
