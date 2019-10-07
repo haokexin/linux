@@ -27,6 +27,10 @@
 	};
 };
 
+&ccn_504 {
+	status = "okay";
+};
+
 &serial0 {
 	status = "okay";
 };
