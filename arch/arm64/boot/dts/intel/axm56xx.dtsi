@@ -211,6 +211,7 @@
 			reg = <0x80 0x04120000 0 0x10000>;
 			interrupts = <GIC_SPI 70 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 71 IRQ_TYPE_LEVEL_HIGH>;
+			#dma-cells = <1>;
 			channel0 {
 				interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
 			};
@@ -226,6 +227,7 @@
 			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
 			status = "disabled";
+			#dma-cells = <1>;
 			channel0 {
 				interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>;
 			};
@@ -447,6 +449,8 @@
 				compatible = "arm,pl011", "arm,primecell";
 				reg = <0x80 0x80000000 0 0x10000>;
 				interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+				dmas = <&gpdma0 8>, <&gpdma0 9>;
+				dma-names = "rx", "tx";
 				clocks = <&clk_per 0>;
 				clock-names = "apb_pclk";
 				status = "disabled";
@@ -456,6 +460,8 @@
 				compatible = "arm,pl011", "arm,primecell";
 				reg = <0x80 0x80010000 0 0x10000>;
 				interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>;
+				dmas = <&gpdma0 8>, <&gpdma0 9>;
+				dma-names = "rx", "tx";
 				clocks = <&clk_per 0>;
 				clock-names = "apb_pclk";
 				status = "disabled";
@@ -465,6 +471,8 @@
 				compatible = "arm,pl011", "arm,primecell";
 				reg = <0x80 0x80020000 0 0x10000>;
 				interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+				dmas = <&gpdma0 8>, <&gpdma0 9>;
+				dma-names = "rx", "tx";
 				clocks = <&clk_per 0>;
 				clock-names = "apb_pclk";
 				status = "disabled";
@@ -474,6 +482,8 @@
 				compatible = "arm,pl011", "arm,primecell";
 				reg = <0x80 0x80030000 0 0x10000>;
 				interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+				dmas = <&gpdma0 8>, <&gpdma0 9>;
+				dma-names = "rx", "tx";
 				clocks = <&clk_per 0>;
 				clock-names = "apb_pclk";
 				status = "disabled";
