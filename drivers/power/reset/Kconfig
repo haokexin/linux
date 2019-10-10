@@ -61,7 +61,8 @@ config POWER_RESET_AXXIA_DDR_RETENTION
 	help
 	  Keep memory content during reset. Useful to reserve memory
 	  for dumps, logs etc on fatal errors that can be analysed
-	  after a reboot.
+	  after a reboot. Used only with older versions of Axxia U-Boot
+	  since the new ones handle DDR Retention via the device tree.
 endif
 
 config POWER_RESET_BRCMKONA

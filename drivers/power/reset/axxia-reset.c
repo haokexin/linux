@@ -28,10 +28,8 @@ static struct regmap *syscon;
 
 static int ddr_retention_enabled;
 
-#ifdef CONFIG_POWER_RESET_AXXIA_DDR_RETENTION
-static void (*saved_arm_pm_restart)
-(enum reboot_mode reboot_mode, const char *cmd);
-#endif
+static void
+(*saved_arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd);
 
 void
 initiate_retention_reset(void)
@@ -48,20 +46,18 @@ initiate_retention_reset(void)
 	regmap_update_bits(syscon, SC_PSCRATCH, 1, 1);
 
 	/* trap into secure monitor to do the reset */
-#ifdef CONFIG_POWER_RESET_AXXIA_DDR_RETENTION
-	saved_arm_pm_restart(0, NULL);
-#else
-	machine_restart(NULL);
-#endif
+	if (ddr_retention_enabled)
+		saved_arm_pm_restart(0, NULL);
+	else
+		machine_restart(NULL);
 }
 EXPORT_SYMBOL(initiate_retention_reset);
 
-#ifdef CONFIG_POWER_RESET_AXXIA_DDR_RETENTION
-static void axxia_pm_restart(enum reboot_mode reboot_mode, const char *cmd)
+static void
+axxia_pm_restart(enum reboot_mode reboot_mode, const char *cmd)
 {
 	initiate_retention_reset();
 }
-#endif
 
 static ssize_t
 axxia_ddr_retention_trigger(struct file *file, const char __user *buf,
@@ -79,16 +75,35 @@ static const struct file_operations axxia_ddr_retention_proc_ops = {
 void
 axxia_ddr_retention_init(void)
 {
+	struct device_node *ddr_retention;
+	const unsigned int *state;
+
 	/*
 	 * this feature is only meaningful on ASIC systems,
 	 * but for now we allow it on simulator
 	 */
 
 	/*
-	 * if (of_find_compatible_node(NULL, NULL, "axxia,axm5500-amarillo")) {
+	 * Newer versions of Axxia U-Boot will add a property to the
+	 * device tree to indicate whether or not DDR retention is
+	 * enabled.  If that property exists, use it; otherwise, use the
+	 * Linux configuration option.
 	 */
 
-	if (1) {
+	ddr_retention = of_find_node_by_name(NULL, "ddr_retention");
+	state = of_get_property(ddr_retention, "state", NULL);
+
+	if (ddr_retention && state) {
+		ddr_retention_enabled = (be32_to_cpu(*state) == 0 ? 0 : 1);
+	} else {
+#ifdef CONFIG_POWER_RESET_AXXIA_DDR_RETENTION
+		ddr_retention_enabled = 1;
+#else
+		ddr_retention_enabled = 0;
+#endif
+	}
+
+	if (ddr_retention_enabled) {
 		/* Create /proc entry. */
 		if (!proc_create("driver/axxia_ddr_retention_reset",
 				 0200, NULL, &axxia_ddr_retention_proc_ops)) {
@@ -135,10 +150,9 @@ static int axxia_reset_probe(struct platform_device *pdev)
 	if (err)
 		dev_err(dev, "cannot register restart handler (err=%d)\n", err);
 
-#ifdef CONFIG_POWER_RESET_AXXIA_DDR_RETENTION
-	saved_arm_pm_restart = arm_pm_restart;
-	arm_pm_restart = axxia_pm_restart;
-#endif
+	if (ddr_retention_enabled) {
+		saved_arm_pm_restart = axxia_pm_restart;
+	}
 
 	return err;
 }
