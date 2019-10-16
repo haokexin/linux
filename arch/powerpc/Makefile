@@ -392,6 +392,9 @@ endif
 arch/powerpc/lib/crtsavres.o: arch/powerpc/lib/crtsavres.S
 	$(Q)$(MAKE) $(build)=arch/powerpc/lib arch/powerpc/lib/crtsavres.o
 
+arch/powerpc/lib/crtsavres.o: arch/powerpc/lib/crtsavres.S
+	$(Q)$(MAKE) $(build)=arch/powerpc/lib arch/powerpc/lib/crtsavres.o
+
 archprepare: checkbin arch/powerpc/lib/crtsavres.o
 
 archheaders:
