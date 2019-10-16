@@ -3260,7 +3260,12 @@ int rvu_npc_set_parse_mode(struct rvu *rvu, u16 pcifunc, u64 mode, u8 dir,
 	txpkind = NPC_TX_DEF_PKIND;
 	intf_mode = NPC_INTF_MODE_DEF;
 
-	if (mode & OTX2_PRIV_FLAGS_CUSTOM) {
+	if (mode & OTX2_PRIV_FLAGS_EDSA) {
+		rxpkind = NPC_RX_EDSA_PKIND;
+	} else if (mode & OTX2_PRIV_FLAGS_HIGIG) {
+		rxpkind = NPC_RX_HIGIG_PKIND;
+		txpkind = NPC_TX_HIGIG_PKIND;
+	} else if (mode & OTX2_PRIV_FLAGS_CUSTOM) {
 		if (pkind == NPC_RX_CUSTOM_PRE_L2_PKIND) {
 			rc = npc_set_var_len_offset_pkind(rvu, pcifunc, pkind,
 							  var_len_off,
