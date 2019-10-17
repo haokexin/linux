@@ -26,5 +26,5 @@ obj-$(CONFIG_IMX8_ISI_CORE) += imx8-capture.o
 obj-$(CONFIG_IMX8_ISI_CAPTURE)           += imx8-isi-capture.o
 obj-$(CONFIG_IMX8_ISI_M2M)     += imx8-isi-mem2mem.o
 obj-$(CONFIG_IMX8_ISI_HW)        += imx8-isi-hw.o
-
+obj-$(CONFIG_IMX8_ISI_M2M)     += imx8-isi-m2m.o
 obj-y += hdmirx/
