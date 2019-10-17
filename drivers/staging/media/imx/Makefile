@@ -20,6 +20,7 @@ obj-$(CONFIG_VIDEO_IMX7_CSI) += imx7-media-csi.o
 obj-$(CONFIG_VIDEO_IMX7_CSI) += imx8mq-mipi-csi2.o
 obj-$(CONFIG_IMX8_CAPTURE_DRIVER) += imx8-capture.o
 obj-$(CONFIG_IMX8_ISI_CAPTURE)           += imx8-isi-cap.o
+obj-$(CONFIG_IMX8_ISI_M2M)     += imx8-isi-m2m.o
 obj-$(CONFIG_DWC_MIPI_CSI2_HOST) += dwc-mipi-csi2.o
 obj-$(CONFIG_IMX8_MIPI_CSI2) 	  += imx8-mipi-csi2.o
 obj-$(CONFIG_IMX8_MIPI_CSI2_SAM)  += imx8-mipi-csi2-sam.o
