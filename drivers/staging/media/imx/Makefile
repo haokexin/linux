@@ -25,3 +25,4 @@ obj-y += hdmirx/
 
 obj-$(CONFIG_IMX8_CAPTURE_DRIVER) += imx8-capture.o
 obj-$(CONFIG_IMX8_ISI_CORE) += imx8-capture.o
+obj-$(CONFIG_IMX8_ISI_CAPTURE) 	  += imx8-isi-cap.o
