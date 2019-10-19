@@ -16,33 +16,7 @@
 #include <linux/linkage.h>
 #include <linux/axxia-oem.h>
 #include <linux/uaccess.h>
-
-/*
- * OEM Calls
- */
-
-struct oem_parameters {
-	unsigned long reg0;
-	unsigned long reg1;
-	unsigned long reg2;
-	unsigned long reg3;
-};
-
-static void
-invoke_oem_fn(struct oem_parameters *p)
-{
-	asm volatile("mov x0, %x0\n"
-		     "mov x1, %x1\n"
-		     "mov x2, %x2\n"
-		     "mov x3, %x3" : : "r" (p->reg0), "r" (p->reg1),
-		     "r" (p->reg2), "r" (p->reg3));
-	asm volatile("smc #0");
-	asm volatile("mov %x0, x0\n"
-		     "mov %x1, x1\n"
-		     "mov %x2, x2\n"
-		     "mov %x3, x3" : "=r" (p->reg0), "=r" (p->reg1),
-		     "=r" (p->reg2), "=r" (p->reg3));
-}
+#include <linux/arm-smccc.h>
 
 /*
  * DSP Cluster Control
@@ -400,18 +374,14 @@ static const struct file_operations axxia_ccn_value_proc_ops = {
 unsigned long
 axxia_dspc_get_state(void)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000000;
-	parameters.reg1 = 0;
-	parameters.reg2 = 0;
-	parameters.reg3 = 0;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000000, 0, 0, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
+	if (res.a0 != 0)
 		pr_warn("Getting the DSP State Failed!\n");
 
-	return parameters.reg1;
+	return res.a1;
 }
 EXPORT_SYMBOL(axxia_dspc_get_state);
 
@@ -423,16 +393,14 @@ EXPORT_SYMBOL(axxia_dspc_get_state);
 void
 axxia_dspc_set_state(unsigned long state)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000001;
-	parameters.reg1 = state;
-	parameters.reg2 = 0;
-	parameters.reg3 = 0;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000001, state, 0, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
-		pr_warn("Setting the DSP State Failed!\n");
+	if (res.a0 != 0)
+		pr_warn("Getting the DSP State Failed!\n");
+
+	return;
 }
 EXPORT_SYMBOL(axxia_dspc_set_state);
 
@@ -444,15 +412,14 @@ EXPORT_SYMBOL(axxia_dspc_set_state);
 unsigned long
 axxia_actlr_el3_get(void)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000002;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000002, 0, 0, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
+	if (res.a0 != 0)
 		pr_warn("Getting ACTLR_EL3 Failed!\n");
 
-	return parameters.reg1;
+	return res.a1;
 }
 EXPORT_SYMBOL(axxia_actlr_el3_get);
 
@@ -464,14 +431,14 @@ EXPORT_SYMBOL(axxia_actlr_el3_get);
 void
 axxia_actlr_el3_set(unsigned long input)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000003;
-	parameters.reg1 = input;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000003, input, 0, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
+	if (res.a0 != 0)
 		pr_warn("Setting ACTLR_EL3 Failed!\n");
+
+	return;
 }
 EXPORT_SYMBOL(axxia_actlr_el3_set);
 
@@ -483,15 +450,14 @@ EXPORT_SYMBOL(axxia_actlr_el3_set);
 unsigned long
 axxia_actlr_el2_get(void)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000004;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000004, 0, 0, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
+	if (res.a0 != 0)
 		pr_warn("Getting ACTLR_EL2 Failed!\n");
 
-	return parameters.reg1;
+	return res.a1;
 }
 EXPORT_SYMBOL(axxia_actlr_el2_get);
 
@@ -503,14 +469,14 @@ EXPORT_SYMBOL(axxia_actlr_el2_get);
 void
 axxia_actlr_el2_set(unsigned long input)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000005;
-	parameters.reg1 = input;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000005, input, 0, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
+	if (res.a0 != 0)
 		pr_warn("Setting ACTLR_EL2 Failed!\n");
+
+	return;
 }
 EXPORT_SYMBOL(axxia_actlr_el2_set);
 
@@ -522,16 +488,14 @@ EXPORT_SYMBOL(axxia_actlr_el2_set);
 unsigned long
 axxia_ccn_get(unsigned int offset)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000006;
-	parameters.reg1 = offset;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000006, offset, 0, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
+	if (res.a0 != 0)
 		pr_warn("Getting CCN Register Failed!\n");
 
-	return parameters.reg1;
+	return res.a1;
 }
 EXPORT_SYMBOL(axxia_ccn_get);
 
@@ -543,15 +507,14 @@ EXPORT_SYMBOL(axxia_ccn_get);
 void
 axxia_ccn_set(unsigned int offset, unsigned long value)
 {
-	struct oem_parameters parameters;
+	struct arm_smccc_res res;
 
-	parameters.reg0 = 0xc3000007;
-	parameters.reg1 = offset;
-	parameters.reg2 = value;
-	invoke_oem_fn(&parameters);
+	__arm_smccc_smc(0xc3000007, offset, value, 0, 0, 0, 0, 0, &res, NULL);
 
-	if (parameters.reg0 != 0)
+	if (res.a0 != 0)
 		pr_warn("Getting CCN Register Failed!\n");
+
+	return;
 }
 EXPORT_SYMBOL(axxia_ccn_set);
 
