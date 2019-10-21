@@ -839,6 +839,7 @@ struct nix_lf_alloc_rsp {
 	u8	lbk_links;  /* No. of LBK links present in HW */
 	u8	sdp_links;  /* No. of SDP links present in HW */
 	u8	tx_link;    /* Transmit channel link number */
+	u8	hw_rx_tstamp_en;
 };
 
 struct nix_lf_free_req {
