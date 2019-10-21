@@ -1296,10 +1296,10 @@ int rvu_mbox_handler_nix_lf_alloc(struct rvu *rvu,
 				  struct nix_lf_alloc_rsp *rsp)
 {
 	int nixlf, qints, hwctx_size, intf, err, rc = 0;
+	struct rvu_pfvf *pfvf, *parent_pf;
 	struct rvu_hwinfo *hw = rvu->hw;
 	u16 pcifunc = req->hdr.pcifunc;
 	struct rvu_block *block;
-	struct rvu_pfvf *pfvf;
 	u64 cfg, ctx_cfg;
 	int blkaddr;
 
@@ -1309,6 +1309,7 @@ int rvu_mbox_handler_nix_lf_alloc(struct rvu *rvu,
 	if (req->way_mask)
 		req->way_mask &= 0xFFFF;
 
+	parent_pf = &rvu->pf[rvu_get_pf(pcifunc)];
 	pfvf = rvu_get_pfvf(rvu, pcifunc);
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
 	if (!pfvf->nixlf || blkaddr < 0)
@@ -1517,6 +1518,7 @@ exit:
 	rsp->cgx_links = hw->cgx_links;
 	rsp->lbk_links = hw->lbk_links;
 	rsp->sdp_links = hw->sdp_links;
+	rsp->hw_rx_tstamp_en = parent_pf->hw_rx_tstamp_en;
 
 	return rc;
 }
