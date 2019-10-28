@@ -1708,6 +1708,11 @@ int otx2_open(struct net_device *netdev)
 	/* Restore pause frame settings */
 	otx2_config_pause_frm(pf);
 
+	/* Set NPC parsing mode */
+	err = otx2_set_npc_parse_mode(pf);
+	if (err)
+		goto err_free_cints;
+
 	/* Install DMAC Filters */
 	if (pf->flags & OTX2_FLAG_DMACFLTR_SUPPORT)
 		otx2_dmacflt_reinstall_flows(pf);
