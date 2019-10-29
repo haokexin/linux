@@ -384,16 +384,13 @@ struct otx2_nic {
 	u64			reset_count;
 	struct work_struct	reset_task;
 
-	bool			entries_alloc;
+	/* NPC MCAM */
 	u32			nr_flows;
 	u32                     ntuple_max_flows;
-#define OTX2_NTUPLE_FILTER_CAPABLE		0
-#define OTX2_UNICAST_FILTER_CAPABLE		1
-#define OTX2_RX_VLAN_OFFLOAD_CAPABLE		2
-	unsigned long           priv_flags;
 
 	u16			entry_list[NPC_MAX_NONCONTIG_ENTRIES];
 	struct list_head	flows;
+
 	struct workqueue_struct	*flr_wq;
 	struct flr_work		*flr_wrk;
 	struct refill_work	*refill_wrk;
@@ -905,19 +902,4 @@ int otx2_dmacflt_remove(struct otx2_nic *pf, const u8 *mac, u8 bit_pos);
 int otx2_dmacflt_update(struct otx2_nic *pf, u8 *mac, u8 bit_pos);
 void otx2_dmacflt_reinstall_flows(struct otx2_nic *pf);
 void otx2_dmacflt_update_pfmac_flow(struct otx2_nic *pfvf);
-/* OTX2_NIC access priv_flags */
-static inline void otx2_nic_enable_feature(struct otx2_nic *pf,
-					   unsigned long nr) {
-	set_bit(nr, &pf->priv_flags);
-}
-
-static inline void otx2_nic_disable_feature(struct otx2_nic *pf,
-					    unsigned long nr) {
-	clear_bit(nr, &pf->priv_flags);
-}
-
-static inline int otx2_nic_is_feature_enabled(struct otx2_nic *pf,
-					      unsigned long nr) {
-	return test_bit(nr, &pf->priv_flags);
-}
 #endif /* OTX2_COMMON_H */
