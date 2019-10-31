@@ -150,6 +150,8 @@ struct axxia_i2c_dev {
 	bool last;
 	struct i2c_client *slave;
 	int irq;
+	/* transaction lock */
+	struct mutex i2c_lock;
 };
 
 static void i2c_int_disable(struct axxia_i2c_dev *idev, u64 mask)
@@ -532,6 +534,8 @@ static int axxia_i2c_xfer_msg(struct axxia_i2c_dev *idev, struct i2c_msg *msg,
 	unsigned long time_left;
 	unsigned int wt_value;
 
+	mutex_lock(&idev->i2c_lock);
+
 	idev->msg = msg;
 	idev->msg_r = msg;
 	idev->msg_xfrd = 0;
@@ -596,6 +600,8 @@ static int axxia_i2c_xfer_msg(struct axxia_i2c_dev *idev, struct i2c_msg *msg,
 	if (unlikely(idev->msg_err) && idev->msg_err != -ENXIO &&
 	    idev->msg_err != -ETIMEDOUT)
 		axxia_i2c_init(idev);
+
+	mutex_unlock(&idev->i2c_lock);
 
 	return idev->msg_err;
 }
