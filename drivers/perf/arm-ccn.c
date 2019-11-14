@@ -14,6 +14,8 @@
 #include <linux/perf_event.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/of.h>
+#include <linux/arm-ccn.h>
 
 #ifdef DEBUG
 #define writel_trace(...) \
@@ -198,7 +200,7 @@ struct arm_ccn_dt {
 	} pmu_counters[CCN_NUM_PMU_EVENT_COUNTERS + 1];
 
 	struct {
-	       u64 l, h;
+		  u64 l, h;
 	} cmp_mask[CCN_NUM_PMU_EVENT_COUNTERS + CCN_NUM_PREDEFINED_MASKS];
 
 	struct hrtimer hrtimer;
@@ -224,7 +226,9 @@ struct arm_ccn {
 	struct arm_ccn_component *xp;
 
 	struct arm_ccn_dt dt;
+
 	int mn_id;
+	struct error_reporting *er;
 };
 
 static int arm_ccn_node_to_xp(int node)
@@ -1197,8 +1201,9 @@ static void arm_ccn_pmu_disable(struct pmu *pmu)
 	writel(val, ccn->dt.base + CCN_DT_PMCR);
 }
 
-static irqreturn_t arm_ccn_pmu_overflow_handler(struct arm_ccn_dt *dt)
+irqreturn_t arm_ccn_pmu_overflow_handler(void *ptr)
 {
+	struct arm_ccn_dt *dt = (struct arm_ccn_dt *)ptr;
 	u32 pmovsr = readl(dt->base + CCN_DT_PMOVSR);
 	int idx;
 
@@ -1453,58 +1458,18 @@ static int arm_ccn_init_nodes(struct arm_ccn *ccn, int region,
 	return 0;
 }
 
-
-static irqreturn_t arm_ccn_error_handler(struct arm_ccn *ccn,
-		const u32 *err_sig_val)
-{
-	/* This should be really handled by firmware... */
-	dev_err(ccn->dev, "Error reported in %08x%08x%08x%08x%08x%08x.\n",
-			err_sig_val[5], err_sig_val[4], err_sig_val[3],
-			err_sig_val[2], err_sig_val[1], err_sig_val[0]);
-	dev_err(ccn->dev, "Disabling interrupt generation for all errors.\n");
-	writel(CCN_MN_ERRINT_STATUS__ALL_ERRORS__DISABLE,
-			ccn->base + CCN_MN_ERRINT_STATUS);
-
-	return IRQ_HANDLED;
-}
-
-
-static irqreturn_t arm_ccn_irq_handler(int irq, void *dev_id)
-{
-	irqreturn_t res = IRQ_NONE;
-	struct arm_ccn *ccn = dev_id;
-	u32 err_sig_val[6];
-	u32 err_or;
-	int i;
-
-	/* PMU overflow is a special case */
-	err_or = err_sig_val[0] = readl(ccn->base + CCN_MN_ERR_SIG_VAL_63_0);
-	if (err_or & CCN_MN_ERR_SIG_VAL_63_0__DT) {
-		err_or &= ~CCN_MN_ERR_SIG_VAL_63_0__DT;
-		res = arm_ccn_pmu_overflow_handler(&ccn->dt);
-	}
-
-	/* Have to read all err_sig_vals to clear them */
-	for (i = 1; i < ARRAY_SIZE(err_sig_val); i++) {
-		err_sig_val[i] = readl(ccn->base +
-				CCN_MN_ERR_SIG_VAL_63_0 + i * 4);
-		err_or |= err_sig_val[i];
-	}
-	if (err_or)
-		res |= arm_ccn_error_handler(ccn, err_sig_val);
-
-	if (res != IRQ_NONE)
-		writel(CCN_MN_ERRINT_STATUS__INTREQ__DESSERT,
-				ccn->base + CCN_MN_ERRINT_STATUS);
-
-	return res;
-}
-
+static const struct of_device_id arm_ccn_match[] = {
+	{ .compatible = "arm,ccn-502-pmu", },
+	{ .compatible = "arm,ccn-504-pmu", },
+	{ .compatible = "arm,ccn-512-pmu", },
+	{},
+};
+MODULE_DEVICE_TABLE(of, arm_ccn_match);
 
 static int arm_ccn_probe(struct platform_device *pdev)
 {
 	struct arm_ccn *ccn;
-	int irq;
+	struct resource *res;
 	int err;
 
 	ccn = devm_kzalloc(&pdev->dev, sizeof(*ccn), GFP_KERNEL);
@@ -1513,31 +1478,13 @@ static int arm_ccn_probe(struct platform_device *pdev)
 	ccn->dev = &pdev->dev;
 	platform_set_drvdata(pdev, ccn);
 
-	ccn->base = devm_platform_ioremap_resource(pdev, 0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	ccn->base = devm_ioremap(ccn->dev, res->start, resource_size(res));
 	if (IS_ERR(ccn->base))
 		return PTR_ERR(ccn->base);
 
-	irq = platform_get_irq(pdev, 0);
-	if (irq < 0)
-		return irq;
-
-	/* Check if we can use the interrupt */
-	writel(CCN_MN_ERRINT_STATUS__PMU_EVENTS__DISABLE,
-			ccn->base + CCN_MN_ERRINT_STATUS);
-	if (readl(ccn->base + CCN_MN_ERRINT_STATUS) &
-			CCN_MN_ERRINT_STATUS__PMU_EVENTS__DISABLED) {
-		/* Can set 'disable' bits, so can acknowledge interrupts */
-		writel(CCN_MN_ERRINT_STATUS__PMU_EVENTS__ENABLE,
-				ccn->base + CCN_MN_ERRINT_STATUS);
-		err = devm_request_irq(ccn->dev, irq, arm_ccn_irq_handler,
-				       IRQF_NOBALANCING | IRQF_NO_THREAD,
-				       dev_name(ccn->dev), ccn);
-		if (err)
-			return err;
-
-		ccn->irq = irq;
-	}
-
+	/* Irq number populated from parent */
+	ccn->irq = *(unsigned int *)(&pdev->dev)->platform_data;
 
 	/* Build topology */
 
@@ -1556,7 +1503,32 @@ static int arm_ccn_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	return arm_ccn_pmu_init(ccn);
+	err = arm_ccn_pmu_init(ccn);
+	if (err)
+		return err;
+
+	/* Add PMU handler */
+	if (ccn->irq) {
+		struct error_reporting *er;
+
+		ccn->er = devm_kzalloc(&pdev->dev,
+				       sizeof(*ccn->er), GFP_KERNEL);
+		if (!ccn->er)
+			return -ENOMEM;
+
+		er = ccn->er;
+
+		er->data = (void *)&ccn->dt;
+		er->handler = arm_ccn_pmu_overflow_handler;
+		er->match = of_match_node(arm_ccn_match,
+					  ccn->dev->of_node)->compatible;
+		dev_dbg(ccn->dev, "register handler '%s'\n", er->match);
+		arm_ccn_handler_add(&er->child);
+	}
+
+	dev_info(ccn->dev, "ARM CCN PMU driver probed\n");
+
+	return 0;
 }
 
 static int arm_ccn_remove(struct platform_device *pdev)
@@ -1568,17 +1540,10 @@ static int arm_ccn_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id arm_ccn_match[] = {
-	{ .compatible = "arm,ccn-502", },
-	{ .compatible = "arm,ccn-504", },
-	{ .compatible = "arm,ccn-512", },
-	{},
-};
-MODULE_DEVICE_TABLE(of, arm_ccn_match);
 
 static struct platform_driver arm_ccn_driver = {
 	.driver = {
-		.name = "arm-ccn",
+		.name = "arm-ccn-pmu",
 		.of_match_table = arm_ccn_match,
 		.suppress_bind_attrs = true,
 	},

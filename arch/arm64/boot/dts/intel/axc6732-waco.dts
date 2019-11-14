@@ -20,7 +20,11 @@
 	};
 };
 
-&ccn_512 {
+&arm_ccn_512 {
+	status = "okay";
+};
+
+&arm_ccn_pmu {
 	status = "okay";
 };
 
@@ -252,10 +256,6 @@
 };
 
 &edac_l2 {
-	status = "okay";
-};
-
-&edac_l3 {
 	status = "okay";
 };
 

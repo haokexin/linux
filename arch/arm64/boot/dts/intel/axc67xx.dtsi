@@ -43,12 +43,13 @@
 		gpdma1	  = &gpdma1;
 		edac_cpu  = &edac_cpu;
 		edac_l2	 = &edac_l2;
-		edac_l3	 = &edac_l3;
 		sm0	  = &sm0;
 		sm1	  = &sm1;
 		sm2	  = &sm2;
 		sm3	  = &sm3;
 		cm0	  = &cm0;
+		arm_ccn_512 = &arm_ccn_512;
+		arm_ccn_pmu = &arm_ccn_pmu;
 	};
 
 	clocks {
@@ -103,11 +104,22 @@
 		interrupt-parent = <&gic>;
 		ranges;
 
-		ccn_512: ccn@4000000000 {
+		arm_ccn_512: arm_ccn@4000000000 {
 			compatible = "arm,ccn-512";
-			reg = <0x40 0x00000000 0 0x1000000>;
+			/* CCN_MN only */
+			reg = <0x40 0x00000000 0 0x10000>;
 			interrupts = <0 432 4>;
+			ranges = <0x0 0x40 0x00000000 0x1000000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
 			status = "disabled";
+
+			arm_ccn_pmu: pmu@0 {
+				compatible = "arm,ccn-512-pmu";
+				/* CCN_MN reg also to validate the regions */
+				reg = <0x0 0x1000000>;
+				status = "disabled";
+			};
 		};
 
 		syscon: syscon@8002000000 {
@@ -123,14 +135,6 @@
 
 		edac_l2: edac_l2 {
 			compatible = "intel,cortex-a53-l2-cache";
-			syscon = <&syscon>;
-			status = "disabled";
-		};
-
-		edac_l3: edac_l3 {
-			compatible = "intel,ccn512-l3-cache";
-			reg = <0x40 0x00000000 0 0x1000000>;
-			interrupts = <0 432 4>;
 			syscon = <&syscon>;
 			status = "disabled";
 		};
