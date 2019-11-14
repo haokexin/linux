@@ -29,6 +29,19 @@ config ARM_INTEGRATOR_LM
 	  Say y here to enable support for the ARM Logic Module bus
 	  found on the ARM Integrator AP (Application Platform)
 
+config ARM_CCN
+	bool "ARM CCN core"
+	depends on ARM_CCN_PMU
+	help
+	  The (core) driver of the ARM CCN (Cache Coherent Interconnect)
+	  managing the interrupts to its clients.
+	  
+	  With the ARM CCN resources being shared, namely the control
+	  registers but most importnatly an interrupt line (INTREQ),
+	  a need arose to separate the interrupt handling routine and
+	  assign it to a ARM CCN core driver managing and dispatching
+	  the interrupts to its clients.
+
 config BRCMSTB_GISB_ARB
 	bool "Broadcom STB GISB bus arbiter"
 	depends on ARM || ARM64 || MIPS
