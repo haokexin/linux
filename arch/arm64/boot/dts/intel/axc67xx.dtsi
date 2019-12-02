@@ -50,6 +50,7 @@
 		cm0	  = &cm0;
 		arm_ccn_512 = &arm_ccn_512;
 		arm_ccn_pmu = &arm_ccn_pmu;
+		arm_ccn_l3 = &arm_ccn_l3;
 	};
 
 	clocks {
@@ -118,6 +119,14 @@
 				compatible = "arm,ccn-512-pmu";
 				/* CCN_MN reg also to validate the regions */
 				reg = <0x0 0x1000000>;
+				status = "disabled";
+			};
+
+			arm_ccn_l3: l3@0 {
+				compatible = "arm,ccn-512-l3";
+				/* CCN_MN reg also to validate the regions */
+				reg = <0x0 0x1000000>;
+				syscon = <&syscon>;
 				status = "disabled";
 			};
 		};
