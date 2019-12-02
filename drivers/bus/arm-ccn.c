@@ -94,6 +94,9 @@ static unsigned int ccn_ctrl_irq __ro_after_init;
 
 /* Pass on extra data to the child/ren populated */
 static const struct of_dev_auxdata arm_ccn_auxdata[] = {
+	/* One of the below can be present at the time */
+	OF_DEV_AUXDATA("arm,ccn-504-l3", 0, NULL, &ccn_ctrl_irq),
+	OF_DEV_AUXDATA("arm,ccn-512-l3", 0, NULL, &ccn_ctrl_irq),
 	/* Also one can be present at the time */
 	OF_DEV_AUXDATA("arm,ccn-502-pmu", 0, NULL, &ccn_ctrl_irq),
 	OF_DEV_AUXDATA("arm,ccn-504-pmu", 0, NULL, &ccn_ctrl_irq),
@@ -131,12 +134,20 @@ static irqreturn_t arm_ccn_irq_handler(int irq, void *dev_id)
 	 * has to clear an MN error signal by reading Error Signal Valid
 	 * regs and deassert the interrupt (INTREQ).
 	 */
-	for (i = 1; i < ARRAY_SIZE(err_sig_val); i++) {
+	for (i = 2; i < ARRAY_SIZE(err_sig_val); i++) {
 		err_sig_val[i] = readl(ccn->base +
 			CCN_MN_ERR_SIG_VAL_63_0 + i * 4);
 		err_or |= err_sig_val[i];
 		if (err_or)
 			res |= IRQ_HANDLED;
+	}
+
+	/* Call err_sig_val_hnf handler */
+	err_sig_val[1] = readl(ccn->base + CCN_MN_ERR_SIG_VAL_63_0 + 4);
+	if (err_sig_val[1] & CCN_MN_ERR_SIG_VAL_63_0__HNF) {
+		list_for_each_entry(er, &arm_ccn_head, child)
+			if (strstr(er->match, "l3"))
+				res |= er->handler(er->data);
 	}
 
 	dev_dbg(ccn->dev, "err_sig_val[191-0]: %08x%08x%08x%08x%08x%08x\n",
