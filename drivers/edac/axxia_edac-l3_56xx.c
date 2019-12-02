@@ -26,6 +26,7 @@
 #include <linux/regmap.h>
 #include <linux/arm-smccc.h>
 #include <trace/events/edacl3.h>
+#include <linux/arm-ccn.h>
 #include "edac_module.h"
 #include "axxia_edac.h"
 
@@ -76,7 +77,6 @@
 #define CCN_NODE_ERR_SYND_REG1		0x408
 #define CCN_NODE_ERR_SYND_CLR		0x480
 
-static cpumask_t only_cpu_0 = { CPU_BITS_CPU0};
 static int l3_pmode;
 
 union dickens_hnf_err_syndrome_reg0 {
@@ -158,6 +158,7 @@ struct event_data {
 
 /* Private structure for common edac device */
 struct intel_edac_dev_info {
+	struct device *dev;
 	struct platform_device *pdev;
 	char *ctl_name;
 	char *blk_name;
@@ -170,7 +171,8 @@ struct intel_edac_dev_info {
 	void __iomem *dickens_L3;
 	struct edac_device_ctl_info *edac_dev;
 	void (*check)(struct edac_device_ctl_info *edac_dev);
-};
+		struct error_reporting *er;
+	};
 
 static int __init l3_polling_mode(char *str)
 {
@@ -195,197 +197,57 @@ static void clear_node_error(void __iomem *addr)
 	writeq(err_syndrome_clr.value, addr);
 }
 
-static irqreturn_t
-ccn_pmu_overflow_handler(struct intel_edac_dev_info *dev_info)
+#define ERR_SYND_FIRST_ERR_VLD	BIT_ULL(62)
+#define ERR_SYND_ERR_CLASS	(0x2ULL << 60)
+#define ERR_SYND_ERR_COUNT_SET	(0xffff << 8)
+
+/* Dispatch handler for hnf errors */
+irqreturn_t arm_ccn_error_handler(void *ptr)
 {
-	u64 pmovsr = 0;
+	struct intel_edac_dev_info *dev_info =
+		(struct intel_edac_dev_info *)ptr;
+	int instance;
+	unsigned long count = 0;
+	u64 err_syndrome_reg0, err_syndrome_reg1;
+	void __iomem *addr = dev_info->dickens_L3 + CCN_HNF_NODE_BASE_ADDR(0);
 
-	pmovsr = readq(dev_info->dickens_L3 +
-			CCN_DT_NODE_BASE_ADDR + CCN_DT_PMOVSR);
-	if (!pmovsr)
-		return IRQ_NONE;
+	for (instance = 0;
+		instance < CCN_HNF_NODES;
+		instance++, addr += CCN_REGION_SIZE) {
+		err_syndrome_reg0 = readq(addr + CCN_NODE_ERR_SYND_REG0);
+		err_syndrome_reg1 = readq(addr + CCN_NODE_ERR_SYND_REG1);
 
-	/*
-	 * TODO
-	 * Add perf implementation for handling this
-	 * skipped for now - low priority
-	 */
+		dev_dbg(dev_info->dev, "err_syndrome_reg0 %16llx err_syndrome_reg1 %16llx\n",
+			err_syndrome_reg0, err_syndrome_reg1);
 
-	writeq(pmovsr, dev_info->dickens_L3 +
-		CCN_DT_NODE_BASE_ADDR  + CCN_DT_PMOVSR_CLR);
-
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t ccn_irq_thread(int irq, void *device)
-{
-	struct intel_edac_dev_info *dev_info = device;
-	struct edac_device_ctl_info *edac_dev = dev_info->edac_dev;
-	union dickens_hnf_err_syndrome_reg0 err_syndrome_reg0;
-	union dickens_hnf_err_syndrome_reg1 err_syndrome_reg1;
-	struct arm_smccc_res r;
-	unsigned int count = 0;
-	int i;
-
-	/* only HNF nodes are of our interest */
-	for (i = 0; i < CCN_HNF_NODES; ++i) {
-		err_syndrome_reg0.value = dev_info->data[i].err_synd_reg0;
-		err_syndrome_reg1.value = dev_info->data[i].err_synd_reg1;
-
-		dev_info->data[i].err_synd_reg0 = 0;
-		dev_info->data[i].err_synd_reg1 = 0;
-
-		if (err_syndrome_reg0.reg0.first_err_vld) {
-			if (err_syndrome_reg0.reg0.err_class & 0x3) {
+		/* First error valid */
+		if (err_syndrome_reg0 & ERR_SYND_FIRST_ERR_VLD) {
+			if (((err_syndrome_reg0 & ERR_SYND_ERR_CLASS) >> 60)
+					== 0x3) {
 				regmap_update_bits(dev_info->syscon,
 						   SYSCON_PERSIST_SCRATCH,
 						   L3_PERSIST_SCRATCH_BIT,
 						   L3_PERSIST_SCRATCH_BIT);
 				/* Fatal error */
 				pr_emerg("L3 uncorrectable error\n");
-				arm_smccc_smc(0xc4000027,
-					      CCN_MN_ERRINT_STATUS__INTREQ__DESSERT,
-					      0, 0, 0, 0, 0, 0, &r);
 				machine_restart(NULL);
 			}
-			count = err_syndrome_reg0.reg0.err_count;
-			if (count)
-				edac_device_handle_multi_ce(edac_dev, 0,
-							    dev_info->data[i].idx,
-							    count,
-							    edac_dev->ctl_name);
+			count = (err_syndrome_reg0 & ERR_SYND_ERR_COUNT_SET)
+						>> 8;
+			if (count == 0)
+				continue;
+
+			edac_device_handle_multi_ce
+				(dev_info->edac_dev, 0,
+				 dev_info->data[instance].idx,
+				 (int)count,
+				 dev_info->edac_dev->ctl_name);
+
+			writeq(~0x0, addr + CCN_NODE_ERR_SYND_CLR);
 		}
 	}
-
-	/* Interrupt deasserted */
-	arm_smccc_smc(0xc4000027, CCN_MN_ERRINT_STATUS__INTREQ__DESSERT,
-		      0, 0, 0, 0, 0, 0, &r);
-
-	trace_edacl3_smc_results(&r);
 
 	return IRQ_HANDLED;
-}
-
-static irqreturn_t collect_and_clean(struct intel_edac_dev_info *dev_info,
-				     int report_error)
-{
-	void __iomem *ccn_base = dev_info->dickens_L3;
-	u64 err_sig_val[3];
-	u64 err_type_value[4];
-	u64 err_or;
-	u64 err_synd_reg0 = 0, err_synd_reg1 = 0;
-	int i;
-	irqreturn_t res = IRQ_NONE;
-
-	/* PMU overflow is a special case - for the future */
-	err_or = readq(ccn_base + CCN_MN_ERR_SIG_VAL_63_0);
-	err_sig_val[0] = err_or;
-	if (err_or & CCN_MN_ERR_SIG_VAL_63_0__DT) {
-		err_or &= ~CCN_MN_ERR_SIG_VAL_63_0__DT;
-		res = ccn_pmu_overflow_handler(dev_info);
-	}
-
-	/* Have to read all err_sig_vals to clear them */
-	for (i = 1; i < ARRAY_SIZE(err_sig_val); i++) {
-		err_sig_val[i] = readq(ccn_base +
-				CCN_MN_ERR_SIG_VAL_63_0 + i * 8);
-		err_or |= err_sig_val[i];
-	}
-
-	trace_edacl3_sig_vals(err_sig_val[0], err_sig_val[1],
-			      err_sig_val[2]);
-
-	i = 0;
-	err_type_value[i]   = readq(ccn_base + CCN_MN_ERROR_TYPE_VALUE);
-	err_type_value[++i] = readq(ccn_base + CCN_MN_ERROR_TYPE_VALUE + 0x8);
-	err_type_value[++i] = readq(ccn_base + CCN_MN_ERROR_TYPE_VALUE + 0x10);
-	err_type_value[++i] = readq(ccn_base + CCN_MN_ERROR_TYPE_VALUE + 0x20);
-
-	trace_edacl3_error_types(err_type_value[0], err_type_value[1],
-				 err_type_value[2], err_type_value[3]);
-
-	/* check hni node */
-	for (i = 0; i < CCN_HNI_NODES; ++i) {
-		if ((0x1 << (CCN_HNI_NODE_BIT + i)) & err_sig_val[0]) {
-			err_synd_reg0 = readq(ccn_base +
-					CCN_HNI_NODE_BASE_ADDR(i) +
-					CCN_NODE_ERR_SYND_REG0);
-			err_synd_reg1 = readq(ccn_base +
-					CCN_HNI_NODE_BASE_ADDR(i) +
-					CCN_NODE_ERR_SYND_REG1);
-
-			trace_edacl3_syndromes(err_synd_reg0,
-					       err_synd_reg1);
-			dev_info->data_hni[i].err_synd_reg0 = err_synd_reg0;
-			dev_info->data_hni[i].err_synd_reg1 = err_synd_reg1;
-			dev_info->data_hni[i].idx = CCN_HNF_NODES +
-							CCN_XP_NODES + i;
-
-			clear_node_error(ccn_base + CCN_HNI_NODE_BASE_ADDR(i) +
-						CCN_NODE_ERR_SYND_CLR);
-		}
-	}
-
-	/* go through all hnf nodes */
-	for (i = 0; i < CCN_HNF_NODES; ++i) {
-		/* when enabled process */
-		if ((0x1 << (32 + i)) & err_sig_val[1]) {
-			err_synd_reg0 = readq(ccn_base +
-						CCN_HNF_NODE_BASE_ADDR(i) +
-						CCN_NODE_ERR_SYND_REG0);
-			err_synd_reg1 = readq(ccn_base +
-						CCN_HNF_NODE_BASE_ADDR(i) +
-						CCN_NODE_ERR_SYND_REG1);
-
-			trace_edacl3_syndromes(err_synd_reg0,
-					       err_synd_reg1);
-
-			dev_info->data[i].err_synd_reg0 = err_synd_reg0;
-			dev_info->data[i].err_synd_reg1 = err_synd_reg1;
-			dev_info->data[i].idx = i;
-
-			clear_node_error(ccn_base + CCN_HNF_NODE_BASE_ADDR(i) +
-						CCN_NODE_ERR_SYND_CLR);
-		}
-	}
-
-	/* process XP errors only and only if bit[0] in enabled */
-	if (0x1 & err_sig_val[2]) {
-		/* look into all XP nodes */
-		for (i = 0; i < CCN_XP_NODES; ++i) {
-			err_synd_reg0 = readq(ccn_base +
-						CCN_XP_NODE_BASE_ADDR(i) +
-						CCN_NODE_ERR_SYND_REG0);
-
-			dev_info->data_xp[i].err_synd_reg0 = err_synd_reg0;
-			dev_info->data_xp[i].err_synd_reg1 = 0;
-			dev_info->data_xp[i].idx =  CCN_HNF_NODES + i;
-
-			trace_edacl3_syndromes(err_synd_reg0,
-					       err_synd_reg1);
-
-			clear_node_error(ccn_base + CCN_XP_NODE_BASE_ADDR(i) +
-				CCN_NODE_ERR_SYND_CLR);
-		}
-	}
-
-	if (err_or && report_error)
-		dev_err(&dev_info->pdev->dev,
-			"Error reported in %016llx %016llx %016llx.\n",
-			err_sig_val[2], err_sig_val[1], err_sig_val[0]);
-
-	return res;
-}
-
-static irqreturn_t ccn_irq_handler(int irq, void *device)
-{
-	struct intel_edac_dev_info *dev_info = device;
-	irqreturn_t res = IRQ_NONE;
-
-	res = collect_and_clean(dev_info, 1);
-
-	/* HERE all error data collected, but interrupt not deasserted */
-	return IRQ_WAKE_THREAD;
 }
 
 /* Check for L3 Errors */
@@ -437,17 +299,24 @@ static void intel_l3_error_check(struct edac_device_ctl_info *edac_dev)
 	}
 }
 
+static const struct of_device_id intel_edac_l3_match[] = {
+	{ .compatible = "arm,ccn-504-l3", },
+	{ .compatible = "arm,ccn-512-l3", },
+	{},
+};
+
 static int intel_edac_l3_probe(struct platform_device *pdev)
 {
 	struct intel_edac_dev_info *dev_info = NULL;
 	struct device_node *np = pdev->dev.of_node;
 	struct resource *r;
-	struct arm_smccc_res ret;
-	struct irq_desc *desc;
 
 	dev_info = devm_kzalloc(&pdev->dev, sizeof(*dev_info), GFP_KERNEL);
 	if (!dev_info)
 		return -ENOMEM;
+
+	dev_info->dev = &pdev->dev;
+	platform_set_drvdata(pdev, dev_info);
 
 	dev_info->ctl_name = kstrdup(np->name, GFP_KERNEL);
 	dev_info->blk_name = "l3merrsr";
@@ -455,67 +324,39 @@ static int intel_edac_l3_probe(struct platform_device *pdev)
 	dev_info->edac_idx = edac_device_alloc_index();
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!r) {
-		pr_err("Unable to get mem resource\n");
-		goto err1;
-	}
+	if (!r)
+		return -ENOMEM;
 
 	dev_info->dickens_L3 = devm_ioremap(&pdev->dev, r->start,
 					    resource_size(r));
-	if (!dev_info->dickens_L3) {
-		pr_err("INTEL_L3 devm_ioremap error\n");
-		goto err1;
-	}
+	if (IS_ERR(dev_info->dickens_L3))
+		return PTR_ERR(dev_info->dickens_L3);
 
 	dev_info->syscon =
 		syscon_regmap_lookup_by_phandle(np, "syscon");
 	if (IS_ERR(dev_info->syscon)) {
-		pr_info("%s: syscon lookup failed\n",
+		dev_err(dev_info->dev, "%s: syscon lookup failed\n",
 			np->name);
-		goto err1;
+		return PTR_ERR(dev_info->syscon);
 	}
+
 	/* for the moment only HNF errors are reported via sysfs */
 	dev_info->edac_dev =
 		edac_device_alloc_ctl_info(0, dev_info->ctl_name,
 					   1, dev_info->blk_name,
 					   CCN_HNF_NODES, 0, NULL, 0,
 					   dev_info->edac_idx);
-	if (!dev_info->edac_dev) {
-		pr_info("No memory for edac device\n");
-		goto err1;
-	}
+	if (!dev_info->edac_dev)
+		return -ENOMEM;
 
 	dev_info->edac_dev->log_ce = 0;
 
-	r = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (!r)
-		return -EINVAL;
+	/* Irq number populated from parent */
+	dev_info->irq_used = *(unsigned int *)(&pdev->dev)->platform_data;
 
-	/*
-	 * Check if we can use the interrupt here.
-	 * We are not interested in PMU events, so let's try to disable it.
-	 * Once -1 return, it means old uboot without ccn service.
-	 * Then only polling mechanism is allowed, as it was before.
-	 */
 	if (l3_pmode) {
+		dev_dbg(dev_info->dev, "'poll-mode' selected\n");
 		dev_info->irq_used = 0;
-	} else {
-		arm_smccc_smc(0xc4000027,
-			      CCN_MN_ERRINT_STATUS__PMU_EVENTS__DISABLE,
-			      0, 0, 0, 0, 0, 0, &ret);
-		trace_edacl3_smc_results(&ret);
-
-		if (ret.a0 != ARM_SMCCC_UNKNOWN) {
-			irqreturn_t res;
-
-			dev_info->irq_used = 1;
-			/* clear all error from earlier boot stage */
-			res = collect_and_clean(dev_info, 0);
-			arm_smccc_smc(0xc4000027,
-				      CCN_MN_ERRINT_STATUS__INTREQ__DESSERT,
-				      0, 0, 0, 0, 0, 0, &ret);
-			trace_edacl3_smc_results(&ret);
-		}
 	}
 
 	dev_info->edac_dev->pvt_info = dev_info;
@@ -537,53 +378,58 @@ static int intel_edac_l3_probe(struct platform_device *pdev)
 	if (edac_device_add_device(dev_info->edac_dev) != 0) {
 		pr_info("Unable to add edac device for %s\n",
 			dev_info->ctl_name);
-		goto err2;
+		goto err;
 	}
 
 	if (dev_info->irq_used) {
-		if (devm_request_threaded_irq(&dev_info->pdev->dev, r->start,
-					      ccn_irq_handler, ccn_irq_thread,
-					      IRQF_ONESHOT,
-					      dev_name(&dev_info->pdev->dev),
-					      dev_info))
-			goto err2;
+		struct error_reporting *er;
 
-		desc = irq_to_desc(r->start);
-		sched_setaffinity(desc->action->thread->pid, &only_cpu_0);
+		dev_info->er = devm_kzalloc(&pdev->dev,
+					    sizeof(*dev_info->er),
+					    GFP_KERNEL);
+		if (!dev_info->er)
+			return -ENOMEM;
+
+		er = dev_info->er;
+
+		er->data = (void *)dev_info;
+		er->handler = arm_ccn_error_handler;
+		er->match = of_match_node(intel_edac_l3_match,
+					  dev_info->dev->of_node)->compatible;
+		dev_dbg(dev_info->dev, "register handler '%s'\n", er->match);
+		arm_ccn_handler_add(&er->child);
+
+#define TEST_ERROR_FLOW 0
+		if (TEST_ERROR_FLOW) {
+			#define SRID 32
+			#define LPID 0
+			#define EN 1
+			u32 val = SRID << 16 | LPID << 4 | EN;
+
+			dev_dbg(dev_info->dev, "injecting HNF error %08x @ %p\n",
+				val,
+				dev_info->dickens_L3
+				+ CCN_HNF_NODE_BASE_ADDR(0) + 0x038);
+			writel(val, dev_info->dickens_L3
+				+ CCN_HNF_NODE_BASE_ADDR(0) + 0x038);
+		}
 	}
 
 	return 0;
-err2:
+
+err:
 	edac_device_free_ctl_info(dev_info->edac_dev);
-err1:
-	platform_device_unregister(dev_info->pdev);
-	return 1;
+	return -ENOMEM;
 }
 
 static int intel_edac_l3_remove(struct platform_device *pdev)
 {
-	platform_device_unregister(pdev);
+	struct intel_edac_dev_info *dev_info = platform_get_drvdata(pdev);
+
+	edac_device_free_ctl_info(dev_info->edac_dev);
 	return 0;
 }
 
-static const struct of_device_id intel_edac_l3_match[] = {
-#if defined(CONFIG_EDAC_AXXIA_L3_5600)
-
-	{
-	.compatible = "intel,ccn504-l3-cache",
-	},
-
-#endif
-
-#if defined(CONFIG_EDAC_AXXIA_L3_6700)
-
-	{
-	.compatible = "intel,ccn512-l3-cache",
-	},
-
-#endif
-	{},
-};
 
 static struct platform_driver intel_edac_l3_driver = {
 	.probe = intel_edac_l3_probe,

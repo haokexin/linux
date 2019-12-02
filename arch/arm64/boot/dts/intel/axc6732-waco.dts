@@ -28,6 +28,10 @@
 	status = "okay";
 };
 
+&arm_ccn_l3 {
+	status = "okay";
+};
+
 &serial0 {
 	status = "okay";
 };
