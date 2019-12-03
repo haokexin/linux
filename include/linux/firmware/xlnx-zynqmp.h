@@ -141,7 +141,8 @@ enum pm_ret_status {
 
 enum pm_ioctl_id {
 	IOCTL_GET_RPU_OPER_MODE,
-	IOCTL_SD_DLL_RESET = 6,
+	IOCTL_SET_SGMII_MODE = 5,
+	IOCTL_SD_DLL_RESET,
 	IOCTL_SET_SD_TAPDELAY,
 	IOCTL_SET_PLL_FRAC_MODE,
 	IOCTL_GET_PLL_FRAC_MODE,
@@ -402,6 +403,11 @@ enum pm_pinctrl_tri_state {
 	PM_PINCTRL_TRI_STATE_ENABLE,
 };
 
+enum sgmii_mode {
+	PM_SGMII_DISABLE,
+	PM_SGMII_ENABLE,
+};
+
 enum pm_register_access_id {
 	CONFIG_REG_WRITE,
 	CONFIG_REG_READ,
@@ -483,6 +489,7 @@ int zynqmp_pm_read_ggs(u32 index, u32 *value);
 int zynqmp_pm_write_pggs(u32 index, u32 value);
 int zynqmp_pm_read_pggs(u32 index, u32 *value);
 int zynqmp_pm_afi(u32 index, u32 value);
+int zynqmp_pm_set_sgmii_mode(u32 enable);
 int zynqmp_pm_ulpi_reset(void);
 int zynqmp_pm_system_shutdown(const u32 type, const u32 subtype);
 int zynqmp_pm_set_boot_health_status(u32 value);
@@ -629,6 +636,10 @@ static inline int zynqmp_pm_read_pggs(u32 index, u32 *value)
 	return -ENODEV;
 }
 static inline int zynqmp_pm_afi(u32 index, u32 value)
+{
+	return -ENODEV;
+}
+static inline int zynqmp_pm_set_sgmii_mode(u32 enable)
 {
 	return -ENODEV;
 }
