@@ -141,7 +141,10 @@ enum pm_ret_status {
 
 enum pm_ioctl_id {
 	IOCTL_GET_RPU_OPER_MODE,
-	IOCTL_SET_TAPDELAY_BYPASS = 4,
+	IOCTL_SET_RPU_OPER_MODE,
+	IOCTL_RPU_BOOT_ADDR_CONFIG,
+	IOCTL_TCM_COMB_CONFIG,
+	IOCTL_SET_TAPDELAY_BYPASS,
 	IOCTL_SET_SGMII_MODE,
 	IOCTL_SD_DLL_RESET,
 	IOCTL_SET_SD_TAPDELAY,
@@ -404,6 +407,21 @@ enum pm_pinctrl_tri_state {
 	PM_PINCTRL_TRI_STATE_ENABLE,
 };
 
+enum rpu_oper_mode {
+	PM_RPU_MODE_LOCKSTEP,
+	PM_RPU_MODE_SPLIT,
+};
+
+enum rpu_boot_mem {
+	PM_RPU_BOOTMEM_LOVEC,
+	PM_RPU_BOOTMEM_HIVEC,
+};
+
+enum rpu_tcm_comb {
+	PM_RPU_TCM_SPLIT,
+	PM_RPU_TCM_COMB,
+};
+
 enum tap_delay_signal_type {
 	PM_TAPDELAY_NAND_DQS_IN,
 	PM_TAPDELAY_NAND_DQS_OUT,
@@ -502,6 +520,9 @@ int zynqmp_pm_read_ggs(u32 index, u32 *value);
 int zynqmp_pm_write_pggs(u32 index, u32 value);
 int zynqmp_pm_read_pggs(u32 index, u32 *value);
 int zynqmp_pm_afi(u32 index, u32 value);
+int zynqmp_pm_get_rpu_oper_mode(u32 *value);
+int zynqmp_pm_set_rpu_oper_mode(u32 expect, u32 *value);
+int zynqmp_pm_tcm_comb_config(u32 expect, u32 *value);
 int zynqmp_pm_set_tapdelay_bypass(u32 index, u32 value);
 int zynqmp_pm_set_sgmii_mode(u32 enable);
 int zynqmp_pm_ulpi_reset(void);
@@ -650,6 +671,18 @@ static inline int zynqmp_pm_read_pggs(u32 index, u32 *value)
 	return -ENODEV;
 }
 static inline int zynqmp_pm_afi(u32 index, u32 value)
+{
+	return -ENODEV;
+}
+static inline int zynqmp_pm_get_rpu_oper_mode(u32 *value)
+{
+	return -ENODEV;
+}
+static inline int zynqmp_pm_set_rpu_oper_mode(u32 expect, u32 *value)
+{
+	return -ENODEV;
+}
+static inline int zynqmp_pm_tcm_comb_config(u32 expect, u32 *value)
 {
 	return -ENODEV;
 }

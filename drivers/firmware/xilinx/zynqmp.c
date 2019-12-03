@@ -710,6 +710,24 @@ int zynqmp_pm_set_tapdelay_bypass(u32 index, u32 value)
 }
 EXPORT_SYMBOL_GPL(zynqmp_pm_set_tapdelay_bypass);
 
+int zynqmp_pm_get_rpu_oper_mode(u32 *value)
+{
+	return zynqmp_pm_invoke_fn(PM_IOCTL, 0, IOCTL_GET_RPU_OPER_MODE, 0, 0, value);
+}
+EXPORT_SYMBOL_GPL(zynqmp_pm_get_rpu_oper_mode);
+
+int zynqmp_pm_set_rpu_oper_mode(u32 expect, u32 *value)
+{
+	return zynqmp_pm_invoke_fn(PM_IOCTL, 0, IOCTL_SET_RPU_OPER_MODE, expect, 0, value);
+}
+EXPORT_SYMBOL_GPL(zynqmp_pm_set_rpu_oper_mode);
+
+int zynqmp_pm_tcm_comb_config(u32 expect, u32 *value)
+{
+	return zynqmp_pm_invoke_fn(PM_IOCTL, 0, IOCTL_TCM_COMB_CONFIG, expect, 0, value);
+}
+EXPORT_SYMBOL_GPL(zynqmp_pm_tcm_comb_config);
+
 /**
  * zynqmp_pm_set_boot_health_status() - PM API for setting healthy boot status
  * @value	Status value to be written
