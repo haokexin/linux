@@ -740,6 +740,11 @@ int zynqmp_pm_probe_counter_write(u32 reg, u32 value)
 }
 EXPORT_SYMBOL_GPL(zynqmp_pm_probe_counter_write);
 
+int zynqmp_pm_ospi_mux_select(u32 select)
+{
+	return zynqmp_pm_invoke_fn(PM_IOCTL, 0, IOCTL_OSPI_MUX_SELECT, select, 0, NULL);
+}
+EXPORT_SYMBOL_GPL(zynqmp_pm_ospi_mux_select);
 /**
  * zynqmp_pm_set_boot_health_status() - PM API for setting healthy boot status
  * @value	Status value to be written

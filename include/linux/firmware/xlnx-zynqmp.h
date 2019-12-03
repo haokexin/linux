@@ -169,6 +169,7 @@ enum pm_ioctl_id {
 	/* Probe counter read/write */
 	IOCTL_PROBE_COUNTER_READ,
 	IOCTL_PROBE_COUNTER_WRITE,
+	IOCTL_OSPI_MUX_SELECT,
 };
 
 enum pm_query_id {
@@ -537,6 +538,7 @@ int zynqmp_pm_set_sgmii_mode(u32 enable);
 int zynqmp_pm_ulpi_reset(void);
 int zynqmp_pm_probe_counter_read(u32 reg, u32 *value);
 int zynqmp_pm_probe_counter_write(u32 reg, u32 value);
+int zynqmp_pm_ospi_mux_select(u32 select);
 int zynqmp_pm_system_shutdown(const u32 type, const u32 subtype);
 int zynqmp_pm_set_boot_health_status(u32 value);
 #else
@@ -726,6 +728,10 @@ static inline int zynqmp_pm_probe_counter_read(u32 reg, u32 *value)
 	return -ENODEV;
 }
 static inline int zynqmp_pm_probe_counter_write(u32 reg, u32 value)
+{
+	return -ENODEV;
+}
+static inline int zynqmp_pm_ospi_mux_select(u32 select)
 {
 	return -ENODEV;
 }
