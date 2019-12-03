@@ -166,6 +166,9 @@ enum pm_ioctl_id {
 	/* Set healthy bit value */
 	IOCTL_SET_BOOT_HEALTH_STATUS = 17,
 	IOCTL_AFI,
+	/* Probe counter read/write */
+	IOCTL_PROBE_COUNTER_READ,
+	IOCTL_PROBE_COUNTER_WRITE,
 };
 
 enum pm_query_id {
@@ -532,6 +535,8 @@ int zynqmp_pm_tcm_comb_config(u32 expect, u32 *value);
 int zynqmp_pm_set_tapdelay_bypass(u32 index, u32 value);
 int zynqmp_pm_set_sgmii_mode(u32 enable);
 int zynqmp_pm_ulpi_reset(void);
+int zynqmp_pm_probe_counter_read(u32 reg, u32 *value);
+int zynqmp_pm_probe_counter_write(u32 reg, u32 value);
 int zynqmp_pm_system_shutdown(const u32 type, const u32 subtype);
 int zynqmp_pm_set_boot_health_status(u32 value);
 #else
@@ -713,6 +718,14 @@ static inline int zynqmp_pm_set_boot_health_status(u32 value)
 	return -ENODEV;
 }
 static inline int zynqmp_pm_efuse_access(const u64 address, u32 *out)
+{
+	return -ENODEV;
+}
+static inline int zynqmp_pm_probe_counter_read(u32 reg, u32 *value)
+{
+	return -ENODEV;
+}
+static inline int zynqmp_pm_probe_counter_write(u32 reg, u32 value)
 {
 	return -ENODEV;
 }

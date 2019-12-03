@@ -728,6 +728,18 @@ int zynqmp_pm_tcm_comb_config(u32 expect, u32 *value)
 }
 EXPORT_SYMBOL_GPL(zynqmp_pm_tcm_comb_config);
 
+int zynqmp_pm_probe_counter_read(u32 reg, u32 *value)
+{
+	return zynqmp_pm_invoke_fn(PM_IOCTL, 0, IOCTL_PROBE_COUNTER_READ, reg, 0, value);
+}
+EXPORT_SYMBOL_GPL(zynqmp_pm_probe_counter_read);
+
+int zynqmp_pm_probe_counter_write(u32 reg, u32 value)
+{
+	return zynqmp_pm_invoke_fn(PM_IOCTL, 0, IOCTL_PROBE_COUNTER_WRITE, reg, value, NULL);
+}
+EXPORT_SYMBOL_GPL(zynqmp_pm_probe_counter_write);
+
 /**
  * zynqmp_pm_set_boot_health_status() - PM API for setting healthy boot status
  * @value	Status value to be written
