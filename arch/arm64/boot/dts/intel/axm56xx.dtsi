@@ -179,17 +179,17 @@
 		};
 
 		usb0: usb@9000000000 {
-			compatible = "axxia,axxia-dwc3";
+			compatible = "axxia,axxia-dwc3","snps,dwc3";
 			dma-coherent;
 			status = "disabled";
 			#address-cells = <2>;
 			#size-cells = <2>;
+			clocks = <&clk_per>,<&clk_per>,<&clk_per>;
+			clock-names = "bus_early","ref","suspend";
 			ranges;
-			dwc3 {
-				compatible = "snps,dwc3";
-				reg = <0x90 0x00000000 0 0x100000>;
-				interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
-			};
+			reg = <0x90 0x00000000 0 0x100000>;
+			interrupts = <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
+			dr_mode = "host";
 		};
 
 		sata0: sata@a000000000 {
