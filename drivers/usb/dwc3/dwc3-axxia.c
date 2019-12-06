@@ -10,14 +10,29 @@
 #include <linux/kernel.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
+#include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/io.h>
 #include <linux/of_platform.h>
 
+#define DWC3_AXXIA_MAX_CLOCKS	3
+
 static u64 adwc3_dma_mask;
 
+struct dwc3_axxia_driverdata {
+	const char		*clk_names[DWC3_AXXIA_MAX_CLOCKS];
+	int			num_clks;
+	int			suspend_clk_idx;
+};
+
 struct dwc3_axxia {
-	struct device			*dev;
+	struct device		*dev;
+
+	const char		**clk_names;
+	struct clk		*clks[DWC3_AXXIA_MAX_CLOCKS];
+	int			num_clks;
+	int			suspend_clk_idx;
+
 };
 
 static int axxia_dwc3_probe(struct platform_device *pdev)
@@ -25,28 +40,69 @@ static int axxia_dwc3_probe(struct platform_device *pdev)
 	struct device		*dev = &pdev->dev;
 	struct device_node	*node = pdev->dev.of_node;
 	struct dwc3_axxia	*adwc;
+	const struct dwc3_axxia_driverdata *driver_data;
 	int			error;
+	int			i;
 
 	adwc = devm_kzalloc(dev, sizeof(*adwc), GFP_KERNEL);
 	if (!adwc)
 		return -ENOMEM;
 
-	platform_set_drvdata(pdev, adwc);
+	driver_data = of_device_get_match_data(dev);
+	if (!driver_data)
+		return -ENODEV;
 
 	adwc->dev = dev;
+	adwc->num_clks = driver_data->num_clks;
+	adwc->clk_names = (const char **)driver_data->clk_names;
+	adwc->suspend_clk_idx = driver_data->suspend_clk_idx;
+
+	platform_set_drvdata(pdev, adwc);
+
+	for (i = 0; i < adwc->num_clks; i++) {
+		adwc->clks[i] = devm_clk_get(dev, adwc->clk_names[i]);
+		if (IS_ERR(adwc->clks[i])) {
+			dev_err(dev, "failed to get clock: %s\n",
+				adwc->clk_names[i]);
+			return PTR_ERR(adwc->clks[i]);
+		}
+	}
+
+	for (i = 0; i < adwc->num_clks; i++) {
+		error = clk_prepare_enable(adwc->clks[i]);
+		if (error) {
+			while (i-- > 0)
+				clk_disable_unprepare(adwc->clks[i]);
+			return error;
+		}
+	}
+
+	if (adwc->suspend_clk_idx >= 0)
+		clk_prepare_enable(adwc->clks[adwc->suspend_clk_idx]);
 
 	adwc3_dma_mask = dma_get_mask(dev);
 	dev->dma_mask = &adwc3_dma_mask;
 
-	error = of_platform_populate(node, NULL, NULL, dev);
-	if (error) {
-		dev_err(&pdev->dev, "failed to create dwc3 core\n");
-		goto err_core;
+	if (node) {
+		error = of_platform_populate(node, NULL, NULL, dev);
+		if (error) {
+			dev_err(dev, "failed to add dwc3 core\n");
+			goto populate_err;
+		}
+	} else {
+		dev_err(dev, "no device node, failed to add dwc3 core\n");
+		error = -ENODEV;
+		goto populate_err;
 	}
 
 	return 0;
 
-err_core:
+populate_err:
+	for (i = adwc->num_clks - 1; i >= 0; i--)
+		clk_disable_unprepare(adwc->clks[i]);
+
+	if (adwc->suspend_clk_idx >= 0)
+		clk_disable_unprepare(adwc->clks[adwc->suspend_clk_idx]);
 
 	return error;
 }
@@ -75,8 +131,15 @@ arch_setup_pdev_archdata(struct platform_device *pdev)
 		arch_setup_dma_ops(&pdev->dev, 0, 0, NULL, 1);
 }
 
+static const struct dwc3_axxia_driverdata axxia_drvdata = {
+	.clk_names = { "ref", "bus_early", "suspend" },
+	.num_clks = 3,
+	.suspend_clk_idx = 2,
+};
+
 static const struct of_device_id adwc3_of_match[] = {
-	{ .compatible = "axxia,axxia-dwc3", },
+	{ .compatible = "axxia,axxia-dwc3",
+	  .data = &axxia_drvdata, },
 	{},
 };
 MODULE_DEVICE_TABLE(of, adwc3_of_match);
