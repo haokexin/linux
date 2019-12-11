@@ -210,12 +210,13 @@ static int rvu_blk_count_rsrc(struct rvu_block *block, u16 pcifunc, u8 rshift)
 int rvu_check_txsch_policy(struct rvu *rvu, struct nix_txsch_alloc_req *req,
 				u16 pcifunc)
 {
+	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, BLKADDR_NIX0);
 	struct nix_txsch *txsch;
 	int lvl, req_schq, pf = rvu_get_pf(pcifunc);
 	int limit, familylfs, delta;
 
 	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
-		txsch = &rvu->hw->nix->txsch[lvl];
+		txsch = &nix_hw->txsch[lvl];
 		req_schq = req->schq_contig[lvl] + req->schq[lvl];
 
 		switch (lvl) {
@@ -623,9 +624,9 @@ void rvu_policy_destroy(struct rvu *rvu)
 
 int rvu_policy_init(struct rvu *rvu)
 {
+	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, BLKADDR_NIX0);
 	struct pci_dev *pdev = rvu->pdev;
 	struct rvu_hwinfo *hw = rvu->hw;
-	struct nix_hw *nix_hw = rvu->hw->nix;
 	int err, i = 0;
 	u32 max = 0;
 

@@ -1840,7 +1840,8 @@ int rvu_mbox_handler_msix_offset(struct rvu *rvu, struct msg_req *req,
 int rvu_txsch_count_rsrc(struct rvu *rvu, int lvl, u16 pcifunc,
 				u8 rshift)
 {
-	struct nix_txsch *txsch = &rvu->hw->nix->txsch[lvl];
+	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, BLKADDR_NIX0);
+	struct nix_txsch *txsch = &nix_hw->txsch[lvl];
 	int count = 0, schq;
 
 	if (lvl == NIX_TXSCH_LVL_TL1)
