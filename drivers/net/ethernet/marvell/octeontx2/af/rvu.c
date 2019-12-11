@@ -2579,7 +2579,7 @@ static void rvu_npa_lf_mapped_nix_lf_teardown(struct rvu *rvu, u16 pcifunc)
 	int blkaddr, lf;
 	u64 regval;
 
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, 0);
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
 	if (blkaddr < 0)
 		return;
 
