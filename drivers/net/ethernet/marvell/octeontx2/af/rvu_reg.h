@@ -75,6 +75,8 @@
 #define RVU_PRIV_HWVFX_SSOW_CFG             (0x8001330)
 #define RVU_PRIV_HWVFX_TIM_CFG              (0x8001340)
 #define RVU_PRIV_HWVFX_CPTX_CFG(a)          (0x8001350 | (a) << 3)
+#define RVU_PRIV_PFX_REEX_CFG(a)            (0x8000360 | (a) << 3)
+#define RVU_PRIV_HWVFX_REEX_CFG(a)          (0x8001360 | (a) << 3)
 
 /* RVU PF registers */
 #define	RVU_PF_VFX_PFVF_MBOX0		    (0x00000)
@@ -853,6 +855,14 @@
 	if (rvu->hw->npc_ext_set)					   \
 		offset = (0x8000078ull | (a) << 8);			   \
 	offset; })							   \
+
+/* REE */
+#define REE_AF_CONSTANTS		(0x0A0ull)
+#define REE_AF_RVU_LF_CFG_DEBUG	(0x44000ull)
+#define REE_AF_BLK_RST			(0x45000ull)
+#define REE_PRIV_LFX_CFG		(0x41000ull)
+#define REE_PRIV_LFX_INT_CFG		(0x42000ull)
+#define REE_AF_LF_RST			(0x43000ull)
 
 /* NDC */
 #define NDC_AF_CONST			(0x00000)
