@@ -42,7 +42,7 @@ static int npc_mcam_verify_channel(struct rvu *rvu, u16 pcifunc, u8 intf,
 	u8 cgx_id, lmac_id;
 	int base = 0, end;
 
-	if (intf == NIX_INTF_TX)
+	if (is_npc_intf_tx(intf))
 		return 0;
 
 	if (is_afvf(pcifunc)) {
