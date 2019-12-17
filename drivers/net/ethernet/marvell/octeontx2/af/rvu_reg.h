@@ -785,6 +785,71 @@
 #define NPC_AF_DBG_DATAX(a)		(0x3001400 | (a) << 4)
 #define NPC_AF_DBG_RESULTX(a)		(0x3001800 | (a) << 4)
 
+#define NPC_AF_MCAMEX_BANKX_CAMX_INTF(a, b, c) ({			   \
+	u64 offset;							   \
+									   \
+	offset = (0x1000000ull | (a) << 10 | (b) << 6 | (c) << 3);	   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000000ull | (a) << 8 | (b) << 22 | (c) << 3); \
+	offset; })
+
+#define NPC_AF_MCAMEX_BANKX_CAMX_W0(a, b, c) ({				   \
+	u64 offset;							   \
+									   \
+	offset = (0x1000010ull | (a) << 10 | (b) << 6 | (c) << 3);	   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000010ull | (a) << 8 | (b) << 22 | (c) << 3); \
+	offset; })
+
+#define NPC_AF_MCAMEX_BANKX_CAMX_W1(a, b, c) ({				   \
+	u64 offset;							   \
+									   \
+	offset = (0x1000020ull | (a) << 10 | (b) << 6 | (c) << 3);	   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000020ull | (a) << 8 | (b) << 22 | (c) << 3); \
+	offset; })
+
+#define NPC_AF_MCAMEX_BANKX_CFG(a, b) ({				   \
+	u64 offset;							   \
+									   \
+	offset = (0x1800000ull | (a) << 8 | (b) << 4);			   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000038ull | (a) << 8 | (b) << 22);		   \
+	offset; })
+
+#define NPC_AF_MCAMEX_BANKX_ACTION(a, b) ({				   \
+	u64 offset;							   \
+									   \
+	offset = (0x1900000ull | (a) << 8 | (b) << 4);			   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000040ull | (a) << 8 | (b) << 22);		   \
+	offset; })							   \
+
+#define NPC_AF_MCAMEX_BANKX_TAG_ACT(a, b) ({				   \
+	u64 offset;							   \
+									   \
+	offset = (0x1900008ull | (a) << 8 | (b) << 4);			   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000048ull | (a) << 8 | (b) << 22);		   \
+	offset; })							   \
+
+#define NPC_AF_MCAMEX_BANKX_STAT_ACT(a, b) ({				   \
+	u64 offset;							   \
+									   \
+	offset = (0x1880000ull | (a) << 8 | (b) << 4);			   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000050ull | (a) << 8 | (b) << 22);		   \
+	offset; })							   \
+
+#define NPC_AF_MATCH_STATX(a) ({					   \
+	u64 offset;							   \
+									   \
+	offset = (0x1880008ull | (a) << 8);				   \
+	if (rvu->hw->npc_ext_set)					   \
+		offset = (0x8000078ull | (a) << 8);			   \
+	offset; })							   \
+
+
 #define AF_BAR2_ALIASX_SIZE		(0x100000ull)
 #define SSOW_AF_BAR2_SEL		(0x9000000ull)
 #define SSO_AF_BAR2_SEL			(0x9000000ull)
