@@ -210,10 +210,20 @@ static int rvu_blk_count_rsrc(struct rvu_block *block, u16 pcifunc, u8 rshift)
 int rvu_check_txsch_policy(struct rvu *rvu, struct nix_txsch_alloc_req *req,
 				u16 pcifunc)
 {
-	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, BLKADDR_NIX0);
-	struct nix_txsch *txsch;
 	int lvl, req_schq, pf = rvu_get_pf(pcifunc);
 	int limit, familylfs, delta;
+	struct nix_txsch *txsch;
+	struct nix_hw *nix_hw;
+	int blkaddr;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
+	if (blkaddr < 0)
+		return blkaddr;
+
+	nix_hw = get_nix_hw(rvu->hw, blkaddr);
+
+	if (!nix_hw)
+		return -ENODEV;
 
 	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
 		txsch = &nix_hw->txsch[lvl];
@@ -239,8 +249,9 @@ int rvu_check_txsch_policy(struct rvu *rvu, struct nix_txsch_alloc_req *req,
 		}
 
 		familylfs = rvu_txsch_count_rsrc(rvu, lvl, pcifunc,
-						 RVU_PFVF_PF_SHIFT);
-		delta = req_schq - rvu_txsch_count_rsrc(rvu, lvl, pcifunc, 0);
+						 RVU_PFVF_PF_SHIFT, nix_hw);
+		delta = req_schq - rvu_txsch_count_rsrc(rvu, lvl, pcifunc,
+							0, nix_hw);
 
 		if ((delta > 0) && /* always allow usage decrease */
 		    ((limit < familylfs + delta) ||

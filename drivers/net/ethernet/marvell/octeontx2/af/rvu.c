@@ -1470,6 +1470,10 @@ static int rvu_detach_rsrcs(struct rvu *rvu, struct rsrc_detach *detach,
 				continue;
 			else if ((blkid == BLKADDR_CPT1) && !detach->cptlfs)
 				continue;
+			else if ((blkid == BLKADDR_REE0) && !detach->reelfs)
+				continue;
+			else if ((blkid == BLKADDR_REE1) && !detach->reelfs)
+				continue;
 		}
 		rvu_detach_block(rvu, pcifunc, block->type);
 	}
@@ -1543,6 +1547,12 @@ static int rvu_get_attach_blkaddr(struct rvu *rvu, int blktype,
 		blkaddr = attach->cpt_blkaddr ? attach->cpt_blkaddr :
 			  BLKADDR_CPT0;
 		if (blkaddr != BLKADDR_CPT0 && blkaddr != BLKADDR_CPT1)
+			return -ENODEV;
+		break;
+	case BLKTYPE_REE:
+		blkaddr = attach->ree_blkaddr ? attach->ree_blkaddr :
+			  BLKADDR_REE0;
+		if (blkaddr != BLKADDR_REE0 && blkaddr != BLKADDR_REE1)
 			return -ENODEV;
 		break;
 	default:
@@ -1703,6 +1713,25 @@ static int rvu_check_rsrc_availability(struct rvu *rvu,
 			goto fail;
 	}
 
+	if (req->hdr.ver >= RVU_MULTI_BLK_VER && req->reelfs) {
+		blkaddr = rvu_get_attach_blkaddr(rvu, BLKTYPE_REE,
+						 pcifunc, req);
+		if (blkaddr < 0)
+			return blkaddr;
+		block = &hw->block[blkaddr];
+		if (req->reelfs > block->lf.max) {
+			dev_err(&rvu->pdev->dev,
+				"Func 0x%x: Invalid REELF req, %d > max %d\n",
+				 pcifunc, req->cptlfs, block->lf.max);
+			return -EINVAL;
+		}
+		mappedlfs = rvu_get_rsrc_mapcount(pfvf, block->addr);
+		free_lfs = rvu_rsrc_free_count(&block->lf);
+		if (req->reelfs > mappedlfs &&
+		    ((req->reelfs - mappedlfs) > free_lfs))
+			goto fail;
+	}
+
 	return 0;
 
 fail:
@@ -1783,6 +1812,14 @@ int rvu_mbox_handler_attach_resources(struct rvu *rvu,
 			rvu_detach_block(rvu, pcifunc, BLKTYPE_CPT);
 		rvu_attach_block(rvu, pcifunc, BLKTYPE_CPT,
 				 attach->cptlfs, attach);
+	}
+
+	if (attach->hdr.ver >= RVU_MULTI_BLK_VER && attach->reelfs) {
+		if (attach->modify &&
+		    rvu_attach_from_same_block(rvu, BLKTYPE_REE, attach))
+			rvu_detach_block(rvu, pcifunc, BLKTYPE_REE);
+		rvu_attach_block(rvu, pcifunc, BLKTYPE_REE,
+				 attach->reelfs, attach);
 	}
 
 exit:
@@ -1914,13 +1951,27 @@ int rvu_mbox_handler_msix_offset(struct rvu *rvu, struct msg_req *req,
 			rvu_get_msix_offset(rvu, pfvf, BLKADDR_CPT1, lf);
 	}
 
+	rsp->ree0_lfs = pfvf->ree0_lfs;
+	for (slot = 0; slot < rsp->ree0_lfs; slot++) {
+		lf = rvu_get_lf(rvu, &hw->block[BLKADDR_REE0], pcifunc, slot);
+		rsp->ree0_lf_msixoff[slot] =
+			rvu_get_msix_offset(rvu, pfvf, BLKADDR_REE0, lf);
+	}
+
+	rsp->ree1_lfs = pfvf->ree1_lfs;
+	for (slot = 0; slot < rsp->ree1_lfs; slot++) {
+		lf = rvu_get_lf(rvu, &hw->block[BLKADDR_REE1], pcifunc, slot);
+		rsp->ree1_lf_msixoff[slot] =
+			rvu_get_msix_offset(rvu, pfvf, BLKADDR_REE1, lf);
+	}
+
 	return 0;
 }
 
+
 int rvu_txsch_count_rsrc(struct rvu *rvu, int lvl, u16 pcifunc,
-				u8 rshift)
+			u8 rshift, struct nix_hw *nix_hw)
 {
-	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, BLKADDR_NIX0);
 	struct nix_txsch *txsch = &nix_hw->txsch[lvl];
 	int count = 0, schq;
 
@@ -1974,6 +2025,12 @@ int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 	block = &hw->block[BLKADDR_CPT1];
 	rsp->cpt1 = rvu_rsrc_free_count(&block->lf);
 
+	block = &hw->block[BLKADDR_REE0];
+	rsp->ree0 = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_REE1];
+	rsp->ree1 = rvu_rsrc_free_count(&block->lf);
+
 	if (rvu->hw->cap.nix_fixed_txschq_mapping) {
 		rsp->schq[NIX_TXSCH_LVL_SMQ] = 1;
 		rsp->schq[NIX_TXSCH_LVL_TL4] = 1;
@@ -1989,19 +2046,19 @@ int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 	} else {
 		nix_hw = get_nix_hw(hw, BLKADDR_NIX0);
 		curlfs = rvu_txsch_count_rsrc(rvu, NIX_TXSCH_LVL_SMQ, pcifunc,
-					      RVU_PFVF_PF_SHIFT);
+					      RVU_PFVF_PF_SHIFT, nix_hw);
 		rsp->schq[NIX_TXSCH_LVL_SMQ] = rvu->pf_limits.smq->a[pf].val - curlfs;
 
 		curlfs = rvu_txsch_count_rsrc(rvu, NIX_TXSCH_LVL_TL4, pcifunc,
-					      RVU_PFVF_PF_SHIFT);
+					      RVU_PFVF_PF_SHIFT, nix_hw);
 		rsp->schq[NIX_TXSCH_LVL_TL4] = rvu->pf_limits.tl4->a[pf].val - curlfs;
 
 		curlfs = rvu_txsch_count_rsrc(rvu, NIX_TXSCH_LVL_TL3, pcifunc,
-					      RVU_PFVF_PF_SHIFT);
+					      RVU_PFVF_PF_SHIFT, nix_hw);
 		rsp->schq[NIX_TXSCH_LVL_TL3] = rvu->pf_limits.tl3->a[pf].val - curlfs;
 
 		curlfs = rvu_txsch_count_rsrc(rvu, NIX_TXSCH_LVL_TL2, pcifunc,
-					      RVU_PFVF_PF_SHIFT);
+					      RVU_PFVF_PF_SHIFT, nix_hw);
 		rsp->schq[NIX_TXSCH_LVL_TL2] = rvu->pf_limits.tl2->a[pf].val - curlfs;
 
 		rsp->schq[NIX_TXSCH_LVL_TL1] = 1;
