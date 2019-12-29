@@ -358,6 +358,9 @@ struct altr_sdram_mc_data {
 #define SEU_SAFE_INJECT_SB_CE			0x50000
 #define SEU_SAFE_INJECT_DB_UE			0x002000030001
 
+/* SDRAM Controller EccCtrl Register */
+#define S10_ECCCTRL1_OFST          	0xF8011100
+
 struct altr_edac_device_dev;
 struct edac_device_prv_data {
 	int (*setup)(struct altr_edac_device_dev *device);
