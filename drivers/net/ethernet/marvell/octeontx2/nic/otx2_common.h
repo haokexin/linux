@@ -862,7 +862,7 @@ int otx2_open(struct net_device *netdev);
 int otx2_stop(struct net_device *netdev);
 int otx2_set_real_num_queues(struct net_device *netdev,
 			     int tx_queues, int rx_queues);
-int otx2_set_npc_parse_mode(struct otx2_nic *pfvf);
+int otx2_set_npc_parse_mode(struct otx2_nic *pfvf, bool unbind);
 
 /* MCAM filter related APIs */
 int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
