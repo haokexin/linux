@@ -24,10 +24,8 @@
 #define	PCI_DEVID_OCTEONTX2_LBK			0xA061
 
 /* Subsystem Device ID */
+#define PCI_SUBSYS_DEVID_98XX                  0xB100
 #define PCI_SUBSYS_DEVID_96XX                  0xB200
-#define PCI_SUBSYS_DEVID_95XX_RVU              0xB200
-#define PCI_SUBSYS_DEVID_95XX                  0xB300
-#define PCI_SUBSYS_DEVID_LOKI                  0xB400
 #define PCI_SUBSYS_DEVID_CN10K_A	       0xB900
 
 /* PCI BAR nos */
@@ -558,6 +556,13 @@ static inline bool is_rvu_pre_96xx_C0(struct rvu *rvu)
 		(pdev->revision == 0x14));
 }
 
+static inline bool is_rvu_post_96xx_C0(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	return (pdev->revision == 0x08) || (pdev->revision == 0x30);
+}
+
 static inline bool is_rvu_96xx_A0(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
@@ -572,6 +577,13 @@ static inline bool is_rvu_96xx_B0(struct rvu *rvu)
 	return (pdev->revision == 0x00) || (pdev->revision == 0x01);
 }
 
+static inline bool is_rvu_95xx_B0(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	return (pdev->revision == 0x14);
+}
+
 static inline bool is_rvu_95xx_A0(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
@@ -581,8 +593,8 @@ static inline bool is_rvu_95xx_A0(struct rvu *rvu)
 
 static inline bool is_cgx_mapped_to_nix(unsigned short id, u8 cgx_id)
 {
-	return !(cgx_id && (id == PCI_SUBSYS_DEVID_95XX ||
-			    id == PCI_SUBSYS_DEVID_LOKI));
+	return !(cgx_id && !(id == PCI_SUBSYS_DEVID_96XX ||
+			     id == PCI_SUBSYS_DEVID_98XX));
 }
 
 /* REVID for PCIe devices.
