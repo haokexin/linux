@@ -155,3 +155,4 @@ dtb-$(CONFIG_ARCH_MXC) += imx8ulp-evk.dtb imx8ulp-evk-lpspi-slave.dtb \
 			  imx8ulp-evk-flexio-i2c.dtb imx8ulp-evk-nd.dtb
 
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-sof-cs42888.dtb
