@@ -533,6 +533,8 @@ struct coresight_device *coresight_get_enabled_sink(struct coresight_device *s,
 	 * nothing to search further.
 	 */
 	child = s->pdata->conns[0].child_dev;
+	if (child == NULL)
+		return NULL;
 	if (s->pdata->nr_outport == 1 &&
 	    child->type == CORESIGHT_DEV_TYPE_SINK &&
 	    child->subtype.sink_subtype == CORESIGHT_DEV_SUBTYPE_SINK_BUFFER &&
