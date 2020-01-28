@@ -5484,23 +5484,15 @@ int rvu_mbox_handler_nix_inline_ipsec_cfg(struct rvu *rvu,
 int rvu_mbox_handler_nix_inline_ipsec_lf_cfg(
 struct rvu *rvu, struct nix_inline_ipsec_lf_cfg *req, struct msg_rsp *rsp)
 {
-	struct rvu_hwinfo *hw = rvu->hw;
-	u16 pcifunc = req->hdr.pcifunc;
-	struct rvu_block *block;
-	int lf, blkaddr;
+	int lf, blkaddr, err;
 	u64 val;
 
 	if (!is_block_implemented(rvu->hw, BLKADDR_CPT0))
 		return 0;
 
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
-	if (blkaddr < 0)
-		return NIX_AF_ERR_AF_LF_INVALID;
-
-	block = &hw->block[blkaddr];
-	lf = rvu_get_lf(rvu, block, pcifunc, 0);
-	if (lf < 0)
-		return NIX_AF_ERR_AF_LF_INVALID;
+	err = nix_get_nixlf(rvu, req->hdr.pcifunc, &lf, &blkaddr);
+	if (err)
+		return err;
 
 	if (req->enable) {
 		/* Set TT, TAG_CONST, SA_POW2_SIZE and LENM1_MAX */
@@ -5530,20 +5522,12 @@ struct rvu *rvu, struct nix_inline_ipsec_lf_cfg *req, struct msg_rsp *rsp)
 
 bool rvu_nix_is_ptp_tx_enabled(struct rvu *rvu, u16 pcifunc)
 {
-	struct rvu_hwinfo *hw = rvu->hw;
-	struct rvu_block *block;
-	int blkaddr;
-	int nixlf;
+	int blkaddr, nixlf, err;
 	u64 cfg;
 
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
-	if (blkaddr < 0)
-		return NIX_AF_ERR_AF_LF_INVALID;
-
-	block = &hw->block[blkaddr];
-	nixlf = rvu_get_lf(rvu, block, pcifunc, 0);
-	if (nixlf < 0)
-		return NIX_AF_ERR_AF_LF_INVALID;
+	err = nix_get_nixlf(rvu, pcifunc, &nixlf, &blkaddr);
+	if (err)
+		return false;
 
 	cfg = rvu_read64(rvu, blkaddr, NIX_AF_LFX_TX_CFG(nixlf));
 	return (cfg & BIT_ULL(32));
