@@ -8,6 +8,8 @@
 #include <linux/bitfield.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/firmware.h>
+#include <linux/stddef.h>
 
 #include "rvu_struct.h"
 #include "rvu_reg.h"
