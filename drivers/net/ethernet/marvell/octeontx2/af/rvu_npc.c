@@ -19,7 +19,6 @@
 #define RSVD_MCAM_ENTRIES_PER_PF	3 /* Broadcast, Promisc and AllMulticast */
 #define RSVD_MCAM_ENTRIES_PER_NIXLF	1 /* Ucast for LFs */
 
-#define NPC_PARSE_RESULT_DMAC_OFFSET	8
 #define NPC_HW_TSTAMP_OFFSET		8ULL
 #define NPC_KEX_CHAN_MASK		0xFFFULL
 #define NPC_KEX_PF_FUNC_MASK		0xFFFFULL
@@ -1332,6 +1331,7 @@ static void npc_load_mkex_profile(struct rvu *rvu, int blkaddr,
 		/* Compare with mkex mod_param name string */
 		if (mcam_kex->mkex_sign == MKEX_SIGN &&
 		    !strncmp(mcam_kex->name, mkex_profile, MKEX_NAME_LEN)) {
+			/* If profile is valid, switch to it. */
 			if (!is_parse_nibble_config_valid(rvu, mcam_kex))
 				rvu->kpu.mkex = mcam_kex;
 			goto program_mkex;
