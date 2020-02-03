@@ -23,7 +23,7 @@
 #include <linux/platform_device.h>
 
 #define SCL_WAIT_TIMEOUT_NS 25000000
-#define I2C_XFER_TIMEOUT    (msecs_to_jiffies(250))
+#define I2C_XFER_TIMEOUT    (msecs_to_jiffies(500))
 #define I2C_STOP_TIMEOUT    (msecs_to_jiffies(100))
 #define FIFO_SIZE           8
 #define SEQ_LEN             2
