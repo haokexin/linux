@@ -2703,6 +2703,9 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pf->flags |= OTX2_FLAG_RX_PAUSE_ENABLED;
 	pf->flags |= OTX2_FLAG_TX_PAUSE_ENABLED;
 
+	/* Set interface mode as Default */
+	pf->ethtool_flags |= OTX2_PRIV_FLAG_DEF_MODE;
+
 	return 0;
 
 err_pf_sriov_init:
