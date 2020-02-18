@@ -34,6 +34,8 @@ struct axxia_mdio_priv {
 	struct mii_bus *bus;
 };
 
+static DEFINE_SPINLOCK(mdio_lock);
+
 static inline void __iomem *
 bus_to_regs(struct mii_bus *bus)
 {
@@ -46,6 +48,9 @@ axxia_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 	void __iomem *base = bus_to_regs(bus);
 	u32 ctrl;
 	u32 data;
+	unsigned long flags;
+
+	spin_lock_irqsave(&mdio_lock, flags);
 
 	/* Set the mdio_done (status) bit. */
 	writel(STATUS_DONE | readl(base + MDIO_STATUS), base + MDIO_STATUS);
@@ -69,6 +74,8 @@ axxia_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 		data = readl(base + MDIO_CONTROL);
 	} while ((data & CONTROL_BUSY) != 0);
 
+	spin_unlock_irqrestore(&mdio_lock, flags);
+
 	return data & 0xFFFF;
 }
 
@@ -77,6 +84,9 @@ axxia_mdio_write(struct mii_bus *bus, int mii_id, int regnum, u16 value)
 {
 	void __iomem *base = bus_to_regs(bus);
 	u32 ctrl;
+	unsigned long flags;
+
+	spin_lock_irqsave(&mdio_lock, flags);
 
 	/* Wait for mdio_busy (control) to be clear. */
 	while ((readl(base + MDIO_CONTROL) & CONTROL_BUSY) != 0)
@@ -103,6 +113,8 @@ axxia_mdio_write(struct mii_bus *bus, int mii_id, int regnum, u16 value)
 	/* Wait for the mdio_busy (control) bit to clear. */
 	while ((readl(base + MDIO_CONTROL) & CONTROL_BUSY) != 0)
 		cpu_relax();
+
+	spin_unlock_irqrestore(&mdio_lock, flags);
 
 	return 0;
 }
