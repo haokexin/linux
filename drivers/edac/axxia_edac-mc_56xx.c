@@ -59,6 +59,11 @@
 #define SM_56XX_DENALI_CTL_117	0x1d4
 #define SM_56XX_DENALI_CTL_123	0x1ec
 
+/* out of range */
+#define SM_56XX_DENALI_CTL_132	0x210
+#define SM_56XX_DENALI_CTL_133	0x214
+#define SM_56XX_DENALI_CTL_134	0x218
+
 /* INT STATUS */
 #define SM_56XX_DENALI_CTL_366	0x5b8
 #define SM_56XX_DENALI_CTL_367	0x5bc
@@ -130,8 +135,6 @@
 #define SM_INT_MASK_ALL_HIGH (INT_BIT_0 | INT_BIT_1 | INT_BIT_2)
 #define ALIVE_NOTIFICATION_PERIOD (90 * 1000)
 
-static cpumask_t only_cpu_0 = { CPU_BITS_CPU0};
-
 static int force_restart = 1;
 module_param(force_restart, int, 0644);
 MODULE_PARM_DESC(force_restart, "Machine restart on fatal error.");
@@ -199,7 +202,7 @@ static atomic64_t mc_counter = ATOMIC_INIT(0);
  * one need to collect dumps for all available cs. Below given example
  * for two cs0/cs1.
  *
- *   SMEM MC           smmon_isr_sw           smmon_wq
+ *   SMEM MC           smmon_isr           smmon_wq
  *     |                   |                   |
  *     |                   |                   |
  *     |ALERT_N - int_status bit [33]          |
@@ -416,8 +419,8 @@ struct __packed mpr_dump {
 };
 
 enum events {
-	EV_ILLEGAL = 0,
-	EV_MULT_ILLEGAL,
+	EV_OUT_OF_RANGE = 0,
+	EV_MULT_OUT_OF_RANGE,
 #ifndef CONFIG_EDAC_AXXIA_SYSMEM_SKIP_CORRECTABLE
 	EV_CORR_ECC,
 	EV_MULT_CORR_ECC,
@@ -594,8 +597,8 @@ static char *block_name[] = {
  */
 
 static const u32 event_mask[NR_EVENTS] = {
-	[EV_ILLEGAL]			= INT_BIT_1,
-	[EV_MULT_ILLEGAL]		= INT_BIT_2,
+	[EV_OUT_OF_RANGE]			= INT_BIT_1,
+	[EV_MULT_OUT_OF_RANGE]		= INT_BIT_2,
 #ifndef CONFIG_EDAC_AXXIA_SYSMEM_SKIP_CORRECTABLE
 	[EV_CORR_ECC]			= INT_BIT_3,
 	[EV_MULT_CORR_ECC]		= INT_BIT_4,
@@ -612,8 +615,8 @@ static const struct event_logging {
 	const char *level;
 	const char *name;
 } event_logging[NR_EVENTS] = {
-	[EV_ILLEGAL]		= {0, KERN_ERR, "Illegal access"},
-	[EV_MULT_ILLEGAL]	= {0, KERN_ERR, "Illegal access"},
+	[EV_OUT_OF_RANGE]		= {0, KERN_ERR, "Illegal access"},
+	[EV_MULT_OUT_OF_RANGE]	= {0, KERN_ERR, "Illegal access"},
 #ifndef CONFIG_EDAC_AXXIA_SYSMEM_SKIP_CORRECTABLE
 	[EV_CORR_ECC]		= {0, KERN_NOTICE, "Correctable ECC error"},
 	[EV_MULT_CORR_ECC]	= {0, KERN_NOTICE, "Correctable ECC error"},
@@ -702,7 +705,7 @@ static ssize_t mpr1_dump_show(struct edac_device_ctl_info
 	raw_spin_unlock_irqrestore(&dev_info->data->mpr_data_lock, flags);
 
 	/* Now process on copied data ... */
-	count = scnprintf(buf + total_count, PAGE_SIZE - total_count,
+	count = scnprintf(buf + total_count, PAGE_SIZE - total_count - 1,
 			  "%s", MPR_HDR9);
 
 	total_count += (count > 0 ? count : 0);
@@ -719,7 +722,7 @@ static ssize_t mpr1_dump_show(struct edac_device_ctl_info
 
 		/* x8 base */
 		count = scnprintf(buf + total_count,
-				  PAGE_SIZE - total_count,
+				  PAGE_SIZE - total_count - 1,
 				  MPR_FMT9, i + 1,
 				  *((u32 *)&mpr_page1[j][0]),
 				  *((u32 *)&mpr_page1[j][1]),
@@ -736,7 +739,7 @@ static ssize_t mpr1_dump_show(struct edac_device_ctl_info
 		/* x16 addition */
 		if (dev_info->data->dram_count == MAX_DQ) {
 			count = scnprintf(buf + total_count,
-					  PAGE_SIZE - total_count,
+					  PAGE_SIZE - total_count - 1,
 					  MPR_FMT16,
 					  *((u32 *)&mpr_page1[j][9]),
 					  *((u32 *)&mpr_page1[j][10]),
@@ -752,7 +755,7 @@ static ssize_t mpr1_dump_show(struct edac_device_ctl_info
 		}
 	}
 
-	total_count = scnprintf(data, PAGE_SIZE, "%s\n", buf);
+	total_count = scnprintf(data, PAGE_SIZE - 1, "%s\n", buf);
 
 	/* free resourses */
 	kfree(mpr_page1);
@@ -1027,13 +1030,7 @@ error_read:
 }
 
 static irqreturn_t
-smmon_isr_hw(int interrupt, void *device)
-{
-	return IRQ_WAKE_THREAD;
-}
-
-static irqreturn_t
-smmon_isr_sw(int interrupt, void *device)
+smmon_isr(int interrupt, void *device)
 {
 	struct intel_edac_dev_info *dev_info = device;
 	struct sm_56xx_denali_ctl_366 denali_ctl_366;
@@ -1225,36 +1222,75 @@ static void intel_sm_events_error_check(struct edac_device_ctl_info *edac_dev)
 		mutex_lock(&dev_info->data->edac_sysfs_data_lock);
 		for (i = 0; i < NR_EVENTS; ++i) {
 			counter = atomic_xchg(&events[i].counter, 0);
-			if (counter)
-				switch (i) {
+			if (counter == 0)
+				continue;
+
+			switch (i) {
+			/*
+			 * TODO - How can one determine event type?
+			 *	recoverable/unrecoverable
+			 */
+			case EV_OUT_OF_RANGE:
+			case EV_MULT_OUT_OF_RANGE:
+			{
+				u32 tmp, lower, source;
+				u64 upper;
 				/*
-				 * TODO - How can one determine event type?
-				 *	recoverable/unrecoverable
+				 * Unfortunately this driver instead of using
+				 * EDAC memory module APIs uses EDAC device
+				 * module APIs devised for non-memory types.
+				 * With a plan (hopefully going live) of
+				 * introducing an updated mechanism for
+				 * handling EDAC (RAS, firmware-first handle,
+				 * SDEI interface) no point to rewrite all,
+				 * just stick extra details case by case where
+				 * needed.
 				 */
-				case EV_ILLEGAL:
-				case EV_MULT_ILLEGAL:
-				case EV_UNCORR_ECC:
-				case EV_MULT_UNCORR_ECC:
-					edac_device_handle_multi_ue(edac_dev,
-								    0, i,
-								    counter,
-								    edac_dev->ctl_name);
-					break;
+				edac_device_handle_multi_ue(edac_dev,
+							    0, i, counter,
+							    edac_dev->ctl_name);
+				ncr_read(dev_info->sm_region,
+					 SM_56XX_DENALI_CTL_132, 4,
+					 &lower);
+				ncr_read(dev_info->sm_region,
+					 SM_56XX_DENALI_CTL_133, 4,
+					 &tmp);
+				upper = tmp & 0x3f;
+				ncr_read(dev_info->sm_region,
+					 SM_56XX_DENALI_CTL_134, 4,
+					 &source);
+				edac_device_printk(edac_dev, KERN_EMERG,
+						   "%s: out_of_range_addr 0x%llx out_of_range_length 0x%x\n",
+						   edac_dev->ctl_name,
+						   (unsigned long long)
+						   ((upper << 32) | lower),
+						   (tmp >> 8) & 0x1fff);
+				pr_err(" out_of_range_type 0x%x out_of_range_source_id 0x%x\n",
+				       (tmp >> 24) & 0x7f, source & 0x1fff);
+				break;
+			}
+			case EV_UNCORR_ECC:
+			case EV_MULT_UNCORR_ECC:
+				edac_device_handle_multi_ue(edac_dev,
+							    0, i,
+							    counter,
+							    edac_dev->ctl_name);
+				break;
 #ifndef CONFIG_EDAC_AXXIA_SYSMEM_SKIP_CORRECTABLE
-				case EV_CORR_ECC:
-				case EV_MULT_CORR_ECC:
+			case EV_CORR_ECC:
+			case EV_MULT_CORR_ECC:
 #endif
-				case EV_PORT_ERROR:
-				case EV_WRAP_ERROR:
-				case EV_PARITY_ERROR:
-					edac_device_handle_multi_ce(edac_dev,
-								    0, i,
-								    counter,
-								    edac_dev->ctl_name);
-					break;
-				default:
-					printk_ratelimited("ERROR EVENT MISSING.\n");
-				}
+			case EV_PORT_ERROR:
+			case EV_WRAP_ERROR:
+			case EV_PARITY_ERROR:
+				edac_device_handle_multi_ce(edac_dev,
+							    0, i,
+							    counter,
+							    edac_dev->ctl_name);
+				break;
+			default:
+				printk_ratelimited("ERROR EVENT MISSING.\n");
+			}
 		}
 		mutex_unlock(&dev_info->data->edac_sysfs_data_lock);
 
@@ -1348,7 +1384,6 @@ static int intel_edac_mc_probe(struct platform_device *pdev)
 	struct sm_56xx_denali_ctl_371 denali_ctl_371;
 	int cs_count = MAX_CS;
 	int dram_count = MAX_DQ;
-	struct irq_desc *desc;
 
 	count = atomic64_inc_return(&mc_counter);
 	if ((count - 1) == MEMORY_CONTROLLERS)
@@ -1592,9 +1627,8 @@ static int intel_edac_mc_probe(struct platform_device *pdev)
 	}
 
 	dev_info->data->irq = irq;
-	rc = devm_request_threaded_irq(&pdev->dev, irq,
-				       smmon_isr_hw, smmon_isr_sw, IRQF_ONESHOT,
-				       &dev_info->data->irq_name[0], dev_info);
+	rc = devm_request_irq(&pdev->dev, irq, smmon_isr, 0,
+			      &dev_info->data->irq_name[0], dev_info);
 
 	if (rc) {
 		pr_err("Could not register interrupt handler (%s).\n",
@@ -1618,10 +1652,6 @@ static int intel_edac_mc_probe(struct platform_device *pdev)
 		}
 		goto err_noirq;
 	}
-	desc = irq_to_desc(irq);
-
-	if (desc)
-		sched_setaffinity(desc->action->thread->pid, &only_cpu_0);
 
 	return 0;
 
