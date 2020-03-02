@@ -1024,6 +1024,42 @@ int rvu_cgx_nix_cuml_stats(struct rvu *rvu, void *cgxd, int lmac_id,
 	return 0;
 }
 
+/* Dont allow cgx mapped VFs to overwrite PKIND config
+ * incase of special PKINDs are configured like (HIGIG/EDSA)
+ */
+bool rvu_cgx_is_pkind_config_permitted(struct rvu *rvu, u16 pcifunc)
+{
+	int rc, pf, rxpkind;
+	u8 cgx_id, lmac_id;
+
+	pf = rvu_get_pf(pcifunc);
+
+	/* Ret here for PFs or non cgx interfaces */
+	if (!(pcifunc & RVU_PFVF_FUNC_MASK))
+		return true;
+
+	if (!is_pf_cgxmapped(rvu, pf))
+		return true;
+
+	rvu_get_cgx_lmac_id(rvu->pf2cgxlmac_map[pf], &cgx_id, &lmac_id);
+
+	rc = cgx_get_pkind(rvu_cgx_pdata(cgx_id, rvu), lmac_id, &rxpkind);
+	if (rc)
+		return false;
+
+	switch (rxpkind) {
+	/* Add here specific pkinds reserved for pkt parsing */
+	case NPC_RX_HIGIG_PKIND:
+	case NPC_RX_EDSA_PKIND:
+		rc = false;
+		break;
+	default:
+		rc = true;
+	}
+
+	return rc;
+}
+
 int rvu_cgx_start_stop_io(struct rvu *rvu, u16 pcifunc, bool start)
 {
 	struct rvu_pfvf *parent_pf, *pfvf;
