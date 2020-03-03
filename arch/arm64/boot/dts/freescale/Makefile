@@ -104,12 +104,14 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mn-bsh-smm-s2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-bsh-smm-s2pro.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-evk.dtb imx8mn-evk-rm67191.dtb imx8mn-evk-rm67199.dtb \
 			  imx8mn-evk-rm67191-cmd-ram.dtb imx8mn-evk-rm67199-cmd-ram.dtb \
+			  imx8mn-evk-rpmsg.dtb \
 			  imx8mn-evk-8mic-revE.dtb \
 			  imx8mn-evk-8mic-swpdm.dtb imx8mn-evk-usd-wifi.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-ddr3l-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-ddr4-evk.dtb imx8mn-ddr4-evk-rm67191.dtb imx8mn-ddr4-evk-rm67199.dtb \
 			  imx8mn-ddr4-evk-rm67191-cmd-ram.dtb imx8mn-ddr4-evk-rm67199-cmd-ram.dtb \
 			  imx8mn-ddr4-evk-usd-wifi.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8mn-ddr4-evk-rpmsg.dtb imx8mn-ddr3l-evk-rpmsg.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-ddr3l-evk-ak5558.dtb imx8mn-ddr4-evk-ak5558.dtb imx8mn-evk-ak5558.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-ab2.dtb imx8mn-ddr3l-ab2.dtb imx8mn-ddr4-ab2.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mn-evk-iqaudio-dacplus.dtb imx8mn-evk-iqaudio-dacpro.dtb imx8mn-evk-hifiberry-dacplus.dtb \
