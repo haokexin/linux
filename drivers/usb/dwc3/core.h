@@ -201,6 +201,12 @@
 #define DWC3_EVENTQ		7
 #define DWC3_AUXEVENTQ		8
 
+/* Global SoC Bus Configuration Register */
+#define DWC3_GSBUSCFG0_DATRDREQINFO	(0xf << 28)
+#define DWC3_GSBUSCFG0_DESRDREQINFO	(0xf << 24)
+#define DWC3_GSBUSCFG0_DATWRREQINFO	(0xf << 20)
+#define DWC3_GSBUSCFG0_DESWRREQINFO	(0xf << 16)
+
 /* Global RX Threshold Configuration Register */
 #define DWC3_GRXTHRCFG_MAXRXBURSTSIZE(n) (((n) & 0x1f) << 19)
 #define DWC3_GRXTHRCFG_RXPKTCNT(n) (((n) & 0xf) << 24)
@@ -1452,9 +1458,12 @@ u32 dwc3_core_fifo_space(struct dwc3_ep *dep, u8 type);
 	  dwc->version_type <= _ip##_VERSIONTYPE_##_to))
 
 #if IS_ENABLED(CONFIG_USB_DWC3_OF_SIMPLE)
+int dwc3_enable_hw_coherency(struct device *dev);
 void dwc3_simple_wakeup_capable(struct device *dev, bool wakeup);
 void dwc3_set_simple_data(struct dwc3 *dwc);
 #else
+static inline int dwc3_enable_hw_coherency(struct device *dev)
+{ return 1; }
 void dwc3_simple_wakeup_capable(struct device *dev, bool wakeup)
 { ; }
 void dwc3_set_simple_data(struct dwc3 *dwc)
