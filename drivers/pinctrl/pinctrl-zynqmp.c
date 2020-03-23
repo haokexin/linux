@@ -9,6 +9,7 @@
  *  Chirag Parekh <chirag.parekh@xilinx.com>
  */
 
+#include <linux/module.h>
 #include <dt-bindings/pinctrl/pinctrl-zynqmp.h>
 #include <linux/firmware/xlnx-zynqmp.h>
 #include <linux/init.h>
@@ -1040,8 +1041,4 @@ static struct platform_driver zynqmp_pinctrl_driver = {
 	.remove = zynqmp_pinctrl_remove,
 };
 
-static int __init zynqmp_pinctrl_init(void)
-{
-	return platform_driver_register(&zynqmp_pinctrl_driver);
-}
-arch_initcall(zynqmp_pinctrl_init);
+module_platform_driver(zynqmp_pinctrl_driver);
