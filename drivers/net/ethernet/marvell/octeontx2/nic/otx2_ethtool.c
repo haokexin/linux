@@ -98,7 +98,7 @@ static void otx2_get_qset_strings(struct otx2_nic *pfvf, u8 **data, int qset)
 			*data += ETH_GSTRING_LEN;
 		}
 	}
-	for (qidx = 0; qidx < pfvf->hw.tx_queues; qidx++) {
+	for (qidx = 0; qidx < pfvf->hw.tot_tx_queues; qidx++) {
 		for (stats = 0; stats < otx2_n_queue_stats; stats++) {
 			sprintf(*data, "txq%d: %s", qidx + start_qidx,
 				otx2_queue_stats[stats].name);
@@ -169,7 +169,7 @@ static void otx2_get_qset_stats(struct otx2_nic *pfvf,
 				[otx2_queue_stats[stat].index];
 	}
 
-	for (qidx = 0; qidx < pfvf->hw.tx_queues; qidx++) {
+	for (qidx = 0; qidx < pfvf->hw.tot_tx_queues; qidx++) {
 		if (!otx2_update_sq_stats(pfvf, qidx)) {
 			for (stat = 0; stat < otx2_n_queue_stats; stat++)
 				*((*data)++) = 0;
@@ -263,7 +263,7 @@ static int otx2_get_sset_count(struct net_device *netdev, int sset)
 		return -EINVAL;
 
 	qstats_count = otx2_n_queue_stats *
-		       (pfvf->hw.rx_queues + pfvf->hw.tx_queues);
+		       (pfvf->hw.rx_queues + pfvf->hw.tot_tx_queues);
 	otx2_update_lmac_fec_stats(pfvf);
 
 	return otx2_n_dev_stats + otx2_n_drv_stats + qstats_count +
@@ -311,6 +311,9 @@ static int otx2_set_channels(struct net_device *dev,
 
 	pfvf->hw.rx_queues = channel->rx_count;
 	pfvf->hw.tx_queues = channel->tx_count;
+	if (pfvf->xdp_prog)
+		pfvf->hw.xdp_queues = channel->rx_count;
+	pfvf->hw.tot_tx_queues = pfvf->hw.tx_queues + pfvf->hw.xdp_queues;
 	pfvf->qset.cq_cnt = pfvf->hw.tx_queues +  pfvf->hw.rx_queues;
 
 	if (if_up)
