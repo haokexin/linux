@@ -1433,6 +1433,7 @@
 			power-domains = <&pgc_otg1>;
 			usb3-resume-missing-cas;
 			snps,power-down-scale = <2>;
+			snps,parkmode-disable-ss-quirk;
 			status = "disabled";
 		};
 
@@ -1466,6 +1467,7 @@
 			power-domains = <&pgc_otg2>;
 			usb3-resume-missing-cas;
 			snps,power-down-scale = <2>;
+			snps,parkmode-disable-ss-quirk;
 			status = "disabled";
 		};
 
