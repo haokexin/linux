@@ -5,6 +5,8 @@
 #include "otx2_cptpf.h"
 #include "rvu_reg.h"
 
+/* Fastpath ipsec opcode with inplace processing */
+#define CPT_INLINE_RX_OPCODE (0x26 | (1 << 6))
 #define CN10K_CPT_INLINE_RX_OPCODE (0x29 | (1 << 6))
 
 #define cpt_inline_rx_opcode(pdev)                      \
