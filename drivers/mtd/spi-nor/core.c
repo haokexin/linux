@@ -3512,7 +3512,7 @@ void spi_nor_restore(struct spi_nor *nor)
 	if (nor->addr_width == 4 && !(nor->flags & SNOR_F_4B_OPCODES) &&
 	    (nor->flags & SNOR_F_BROKEN_RESET) &&
 	    (nor->jedec_id != CFI_MFR_AMD) &&
-	    !(nor->info->flags & SPI_NOR_4B_OPCODES))
+	    !(nor->flags & SNOR_F_4B_OPCODES))
 		nor->params->set_4byte_addr_mode(nor, false);
 
 	spi_nor_quad_enable(nor, false);
@@ -3566,7 +3566,7 @@ static int spi_nor_set_addr_width(struct spi_nor *nor)
 			 */
 			nor->addr_width = 4;
 			if (nor->jedec_id == CFI_MFR_AMD ||
-			    nor->info->flags & SPI_NOR_4B_OPCODES) {
+			    nor->flags & SNOR_F_4B_OPCODES) {
 				spi_nor_set_4byte_opcodes(nor);
 			} else {
 				np_spi = of_get_next_parent(np);
