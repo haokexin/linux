@@ -9,7 +9,7 @@
  * CPT PF driver version, It will be incremented by 1 for every feature
  * addition in CPT mailbox messages.
  */
-#define OTX2_CPT_PF_DRV_VERSION 0x1
+#define OTX2_CPT_PF_DRV_VERSION 0x2
 
 static int forward_to_af(struct otx2_cptpf_dev *cptpf,
 			 struct otx2_cptvf_info *vf,
@@ -105,6 +105,19 @@ static int handle_msg_kvf_limits(struct otx2_cptpf_dev *cptpf,
 	return 0;
 }
 
+static int check_cpt_lf_alloc_req(struct otx2_cptpf_dev *cptpf,
+				  struct otx2_cptvf_info *vf,
+				  struct mbox_msghdr *req, int size)
+{
+	struct cpt_lf_alloc_req_msg *alloc_req =
+					(struct cpt_lf_alloc_req_msg *)req;
+
+	if (alloc_req->eng_grpmsk == 0x0)
+		alloc_req->eng_grpmsk = OTX2_CPT_ALL_ENG_GRPS_MASK;
+
+	return forward_to_af(cptpf, vf, req, size);
+}
+
 static int cptpf_handle_vf_req(struct otx2_cptpf_dev *cptpf,
 			       struct otx2_cptvf_info *vf,
 			       struct mbox_msghdr *req, int size)
@@ -125,6 +138,10 @@ static int cptpf_handle_vf_req(struct otx2_cptpf_dev *cptpf,
 	case MBOX_MSG_GET_KVF_LIMITS:
 		err = handle_msg_kvf_limits(cptpf, vf, req);
 		break;
+	case MBOX_MSG_CPT_LF_ALLOC:
+		err = check_cpt_lf_alloc_req(cptpf, vf, req, size);
+		break;
+
 	default:
 		err = forward_to_af(cptpf, vf, req, size);
 		break;
