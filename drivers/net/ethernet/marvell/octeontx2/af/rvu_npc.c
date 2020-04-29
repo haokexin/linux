@@ -3265,6 +3265,10 @@ int rvu_npc_set_parse_mode(struct rvu *rvu, u16 pcifunc, u64 mode, u8 dir,
 
 	if (mode & OTX2_PRIV_FLAGS_EDSA) {
 		rxpkind = NPC_RX_EDSA_PKIND;
+		intf_mode = NPC_INTF_MODE_EDSA;
+	} else if (mode & OTX2_PRIV_FLAGS_FDSA) {
+		rxpkind = NPC_RX_EDSA_PKIND;
+		intf_mode = NPC_INTF_MODE_FDSA;
 	} else if (mode & OTX2_PRIV_FLAGS_HIGIG) {
 		/* Silicon does not support enabling higig in time stamp mode */
 		if (pfvf->hw_rx_tstamp_en ||
@@ -3273,6 +3277,7 @@ int rvu_npc_set_parse_mode(struct rvu *rvu, u16 pcifunc, u64 mode, u8 dir,
 
 		rxpkind = NPC_RX_HIGIG_PKIND;
 		txpkind = NPC_TX_HIGIG_PKIND;
+		intf_mode = NPC_INTF_MODE_HIGIG;
 		enable_higig2 = true;
 	} else if (mode & OTX2_PRIV_FLAGS_CUSTOM) {
 		if (pkind == NPC_RX_CUSTOM_PRE_L2_PKIND) {
