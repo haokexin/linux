@@ -2149,7 +2149,7 @@ static int otx2_set_vf_mac(struct net_device *netdev, int vf, u8 *mac)
 	return ret;
 }
 
-static int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
+int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
 			       __be16 proto)
 {
 	struct otx2_flow_config *flow_cfg = pf->flow_cfg;
@@ -2209,6 +2209,8 @@ static int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
 			flow_cfg->def_ent[flow_cfg->vf_vlan_offset + idx];
 		err = otx2_sync_mbox_msg(&pf->mbox);
 
+		if (!(pf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR))
+			memset(&config->rule, 0, sizeof(config->rule));
 		goto out;
 	}
 
@@ -2282,6 +2284,10 @@ static int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
 	req->set_cntr = 1;
 
 	err = otx2_sync_mbox_msg(&pf->mbox);
+	/* Update these values to reinstall the vfvlan rule */
+	config->rule.vlan	= vlan;
+	config->rule.proto	= proto;
+	config->rule.qos	= qos;
 out:
 	config->vlan = vlan;
 	mutex_unlock(&pf->mbox.lock);
@@ -2308,6 +2314,9 @@ static int otx2_set_vf_vlan(struct net_device *netdev, int vf, u16 vlan, u8 qos,
 		return -EPROTONOSUPPORT;
 
 	if (!(pf->flags & OTX2_FLAG_VF_VLAN_SUPPORT))
+		return -EOPNOTSUPP;
+
+	if (pf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR)
 		return -EOPNOTSUPP;
 
 	return otx2_do_set_vf_vlan(pf, vf, vlan, qos, proto);

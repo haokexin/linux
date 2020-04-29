@@ -23,6 +23,7 @@ static const char otx2_priv_flags_strings[][ETH_GSTRING_LEN] = {
 	"pam4",
 	"edsa",
 	"higig2",
+	"fdsa",
 };
 
 struct otx2_stat {
@@ -1349,6 +1350,9 @@ int otx2_set_npc_parse_mode(struct otx2_nic *pfvf, bool unbind)
 	} else if (OTX2_IS_EDSA_ENABLED(pfvf->ethtool_flags))   {
 		req->mode = OTX2_PRIV_FLAGS_EDSA;
 		interface_mode = OTX2_PRIV_FLAG_EDSA_HDR;
+	} else if (pfvf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR) {
+		req->mode = OTX2_PRIV_FLAGS_FDSA;
+		interface_mode = OTX2_PRIV_FLAG_FDSA_HDR;
 	} else {
 		req->mode = OTX2_PRIV_FLAGS_DEFAULT;
 		interface_mode = OTX2_PRIV_FLAG_DEF_MODE;
@@ -1409,6 +1413,28 @@ static int otx2_enable_addl_header(struct net_device *netdev, int bitpos,
 	return 0;
 }
 
+/* This function disables vfvlan rules upon enabling
+ * fdsa and vice versa
+ */
+static void otx2_endis_vfvlan_rules(struct otx2_nic *pfvf, bool enable)
+{
+	struct vfvlan *rule;
+	int vf;
+
+	for (vf = 0; vf < pci_num_vf(pfvf->pdev); vf++) {
+		/* pass vlan as 0 to disable rule */
+		if (enable) {
+			otx2_do_set_vf_vlan(pfvf, vf, 0, 0, 0);
+		} else {
+			rule = &pfvf->vf_configs[vf].rule;
+			otx2_do_set_vf_vlan(pfvf, vf, rule->vlan, rule->qos,
+					    rule->proto);
+		}
+	}
+}
+
+#define OTX2_IS_INTFMOD_SET(flags) hweight32((flags) & OTX2_INTF_MOD_MASK)
+
 static int otx2_set_priv_flags(struct net_device *netdev, u32 new_flags)
 {
 	struct otx2_nic *pfvf = netdev_priv(netdev);
@@ -1437,16 +1463,35 @@ static int otx2_set_priv_flags(struct net_device *netdev, u32 new_flags)
 		break;
 	case OTX2_PRIV_FLAG_EDSA_HDR:
 		/* HIGIG & EDSA  are mutual exclusive */
-		if (enable && OTX2_IS_HIGIG2_ENABLED(pfvf->ethtool_flags))
+		if (enable && OTX2_IS_INTFMOD_SET(pfvf->ethtool_flags)) {
+			netdev_info(netdev,
+				    "Disable mutually exclusive modes higig2/fdsa\n");
 			return -EINVAL;
+		}
 		return otx2_enable_addl_header(netdev, bitnr,
 					       OTX2_EDSA_HDR_LEN, enable);
 		break;
 	case OTX2_PRIV_FLAG_HIGIG2_HDR:
-		if (enable && OTX2_IS_EDSA_ENABLED(pfvf->ethtool_flags))
+		if (enable && OTX2_IS_INTFMOD_SET(pfvf->ethtool_flags)) {
+			netdev_info(netdev,
+				    "Disable mutually exclusive modes edsa/fdsa\n");
 			return -EINVAL;
+		}
 		return otx2_enable_addl_header(netdev, bitnr,
 					       OTX2_HIGIG2_HDR_LEN, enable);
+		break;
+	case OTX2_PRIV_FLAG_FDSA_HDR:
+		if (enable && OTX2_IS_INTFMOD_SET(pfvf->ethtool_flags)) {
+			netdev_info(netdev,
+				    "Disable mutually exclusive modes edsa/higig2\n");
+			return -EINVAL;
+		}
+		otx2_enable_addl_header(netdev, bitnr,
+					OTX2_FDSA_HDR_LEN, enable);
+		if (enable)
+			netdev_warn(netdev,
+				    "Disabling VF VLAN rules as FDSA & VFVLAN are mutual exclusive\n");
+		otx2_endis_vfvlan_rules(pfvf, enable);
 		break;
 	default:
 		break;
