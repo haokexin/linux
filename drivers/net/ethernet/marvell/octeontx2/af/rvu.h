@@ -297,6 +297,7 @@ struct rvu_pfvf {
 	int	cgx_users;  /* number of cgx users - used only by PFs */
 
 	u8	nix_blkaddr; /* BLKADDR_NIX0/1 assigned to this PF */
+	int     intf_mode;
 
 	struct rvu_npc_mcam_rule *def_rule;
 };
