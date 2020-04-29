@@ -11,6 +11,8 @@
 #include "otx2_common.h"
 
 #define OTX2_DEFAULT_ACTION	0x1
+#define FDSA_MAX_SPORT		32
+#define FDSA_SPORT_MASK         0xf8
 
 static int otx2_mcam_entry_init(struct otx2_nic *pfvf);
 
@@ -763,8 +765,27 @@ static int otx2_prepare_ipv6_flow(struct ethtool_rx_flow_spec *fsp,
 	return 0;
 }
 
+static void otx2_prepare_fdsa_flow_request(struct npc_install_flow_req *req,
+					   bool is_vlan)
+{
+	struct flow_msg *pmask = &req->mask;
+	struct flow_msg *pkt = &req->packet;
+
+	/* In FDSA tag srcport starts from b3..b7 */
+	if (!is_vlan) {
+		pkt->vlan_tci <<= 3;
+		pmask->vlan_tci = cpu_to_be16(FDSA_SPORT_MASK);
+	}
+	/* Strip FDSA tag */
+	req->features |= BIT_ULL(NPC_FDSA_VAL);
+	req->vtag0_valid = true;
+	req->vtag0_type = NIX_AF_LFX_RX_VTAG_TYPE6;
+	req->op = NIX_RX_ACTION_DEFAULT;
+}
+
 int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
-			      struct npc_install_flow_req *req)
+			      struct npc_install_flow_req *req,
+			      struct otx2_nic *pfvf)
 {
 	struct ethhdr *eth_mask = &fsp->m_u.ether_spec;
 	struct ethhdr *eth_hdr = &fsp->h_u.ether_spec;
@@ -819,6 +840,7 @@ int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 		return -EOPNOTSUPP;
 	}
 	if (fsp->flow_type & FLOW_EXT) {
+		int skip_user_def = false;
 		u16 vlan_etype;
 
 		if (fsp->m_ext.vlan_etype) {
@@ -848,13 +870,33 @@ int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 			       sizeof(pkt->vlan_tci));
 			memcpy(&pmask->vlan_tci, &fsp->m_ext.vlan_tci,
 			       sizeof(pmask->vlan_tci));
-			req->features |= BIT_ULL(NPC_OUTER_VID);
+
+			if (pfvf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR) {
+				otx2_prepare_fdsa_flow_request(req, true);
+				skip_user_def = true;
+			} else {
+				req->features |= BIT_ULL(NPC_OUTER_VID);
+			}
 		}
 
-		/* Not Drop/Direct to queue but use action in default entry */
-		if (fsp->m_ext.data[1] &&
-		    fsp->h_ext.data[1] == cpu_to_be32(OTX2_DEFAULT_ACTION))
-			req->op = NIX_RX_ACTION_DEFAULT;
+		if (fsp->m_ext.data[1] && !skip_user_def) {
+			if (pfvf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR) {
+				if (be32_to_cpu(fsp->h_ext.data[1]) >=
+						FDSA_MAX_SPORT)
+					return -EINVAL;
+
+				memcpy(&pkt->vlan_tci,
+				       (u8 *)&fsp->h_ext.data[1] + 2,
+				       sizeof(pkt->vlan_tci));
+				otx2_prepare_fdsa_flow_request(req, false);
+			} else if (fsp->h_ext.data[1] ==
+					cpu_to_be32(OTX2_DEFAULT_ACTION)) {
+				/* Not Drop/Direct to queue but use action
+				 * in default entry
+				 */
+				req->op = NIX_RX_ACTION_DEFAULT;
+			}
+		}
 	}
 
 	if (fsp->flow_type & FLOW_MAC_EXT &&
@@ -909,7 +951,7 @@ static int otx2_add_flow_msg(struct otx2_nic *pfvf, struct otx2_flow *flow)
 		return -ENOMEM;
 	}
 
-	err = otx2_prepare_flow_request(&flow->flow_spec, req);
+	err = otx2_prepare_flow_request(&flow->flow_spec, req, pfvf);
 	if (err) {
 		/* free the allocated msg above */
 		otx2_mbox_reset(&pfvf->mbox.mbox, 0);
@@ -1336,6 +1378,10 @@ int otx2_enable_rxvlan(struct otx2_nic *pf, bool enable)
 	/* Dont have enough mcam entries */
 	if (!(pf->flags & OTX2_FLAG_RX_VLAN_SUPPORT))
 		return -ENOMEM;
+
+	/* FDSA & RXVLAN are mutually exclusive */
+	if (pf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR)
+		enable = false;
 
 	if (enable) {
 		err = otx2_install_rxvlan_offload_flow(pf);
