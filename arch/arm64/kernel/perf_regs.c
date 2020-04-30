@@ -72,6 +72,10 @@ u64 perf_reg_value(struct pt_regs *regs, int idx)
 	if ((u32)idx >= PERF_REG_ARM64_MAX)
 		return perf_ext_regs_value(idx);
 
+	if (perf_reg_abi(current) == PERF_SAMPLE_REGS_ABI_32
+		&& idx == 15)
+		return regs->regs[PERF_REG_ARM64_PC];
+
 	return regs->regs[idx];
 }
 
