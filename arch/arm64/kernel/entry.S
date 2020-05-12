@@ -299,7 +299,7 @@ alternative_else_nop_endif
 	.if	\el == 0
 	mov	x29, xzr
 	.else
-	ldp	x28, x29, [sp, #S_X28]
+	ldr	x29, [sp, #S_X28+8]
 	.endif
 	.endif	/* \exc_el3 == 0 */
 #else
