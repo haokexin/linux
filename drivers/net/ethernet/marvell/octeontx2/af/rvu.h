@@ -107,6 +107,7 @@ struct rvu_block {
 	u64  msixcfg_reg;
 	u64  lfreset_reg;
 	unsigned char name[NAME_SIZE];
+	struct rvu *rvu;
 };
 
 struct nix_mcast {
@@ -196,6 +197,17 @@ struct sso_rsrc {
 	u64	taq_rsvd;
 	u64	taq_max;
 	struct rsrc_bmap pfvf_ident;
+};
+
+struct ree_rsrc {
+	struct qmem	*graph_ctx;	/* Graph base address - used by HW */
+	struct qmem	*prefix_ctx;	/* Prefix blocks - used by HW */
+	void		**ruledb;	/* ROF file from application */
+	u8		*ruledbi;	/* Incremental checksum instructions */
+	u32		aq_head;	/* AF AQ head address */
+	u32		ruledb_len;	/* Length of ruledb */
+	u32		ruledbi_len;	/* Length of ruledbi */
+	u8		ruledb_blocks;	/* Number of blocks pointed by ruledb */
 };
 
 /* Structure for per RVU func info ie PF/VF */
@@ -396,6 +408,7 @@ struct rvu_hwinfo {
 	struct npc_pkind pkind;
 	struct npc_mcam  mcam;
 	struct sso_rsrc  sso;
+	struct ree_rsrc *ree;
 };
 
 struct mbox_wq_info {
@@ -892,6 +905,12 @@ void rvu_reset_lmt_map_tbl(struct rvu *rvu, u16 pcifunc);
 /* TIM APIs */
 int rvu_tim_init(struct rvu *rvu);
 int rvu_tim_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot);
+
+/* REE APIs */
+int rvu_ree_init(struct rvu *rvu);
+void rvu_ree_freemem(struct rvu *rvu);
+int rvu_ree_register_interrupts(struct rvu *rvu);
+void rvu_ree_unregister_interrupts(struct rvu *rvu);
 
 #ifdef CONFIG_DEBUG_FS
 void rvu_dbg_init(struct rvu *rvu);
