@@ -843,6 +843,22 @@ struct ree_af_aq_inst_s {
 #endif
 };
 
+/* REE ROF file entry structure */
+struct ree_rof_s {
+#if defined(__BIG_ENDIAN_BITFIELD)
+	u64 reserved_40_63	: 24;
+	u64 typ			:  8;
+	u64 reserved_24_31	:  8;
+	u64 addr		: 24;
+#else
+	u64 addr		: 24;
+	u64 reserved_24_31	:  8;
+	u64 typ			:  8;
+	u64 reserved_40_63	: 24;
+#endif
+	u64 data;
+};
+
 enum nix_tx_vtag_op {
 	NOP		= 0x0,
 	VTAG_INSERT	= 0x1,
