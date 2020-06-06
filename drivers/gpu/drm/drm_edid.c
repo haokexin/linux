@@ -5274,6 +5274,84 @@ static int add_displayid_detailed_modes(struct drm_connector *connector,
 	return num_modes;
 }
 
+static inline bool is_eotf_supported(u8 output_eotf, u8 sink_eotf)
+{
+	return sink_eotf & BIT(output_eotf);
+}
+
+/**
+ * drm_hdmi_infoframe_set_gen_hdr_metadata() - fill an HDMI DRM infoframe with
+ *                                             HDR metadata from userspace
+ * @frame: HDMI DRM infoframe
+ * @conn_state: Connector state containing HDR metadata
+ *
+ * Return: 0 on success or a negative error code on failure.
+ */
+int
+drm_hdmi_infoframe_set_gen_hdr_metadata(struct hdmi_drm_infoframe *frame,
+					const struct drm_connector_state *conn_state)
+{
+	struct drm_connector *connector;
+	struct gen_hdr_output_metadata *gen_hdr_metadata;
+	struct hdr_metadata_infoframe *hdr_infoframe;
+	int err;
+
+	if (!frame || !conn_state)
+		return -EINVAL;
+
+	connector = conn_state->connector;
+
+	if (!conn_state->gen_hdr_output_metadata)
+		return -EINVAL;
+
+	gen_hdr_metadata = conn_state->gen_hdr_output_metadata->data;
+
+	if (!gen_hdr_metadata || !connector)
+		return -EINVAL;
+
+	if (gen_hdr_metadata->metadata_type == DRM_HDR_TYPE_HDR10) {
+		hdr_infoframe = (struct hdr_metadata_infoframe *)
+			gen_hdr_metadata->payload;
+
+		/* Sink EOTF is Bit map while infoframe is absolute values */
+		if (!is_eotf_supported(hdr_infoframe->eotf,
+		    connector->hdr_sink_metadata.hdmi_type1.eotf)) {
+			DRM_DEBUG_KMS("EOTF Not Supported\n");
+			return -EINVAL;
+		}
+
+		err = hdmi_drm_infoframe_init(frame);
+		if (err < 0)
+			return err;
+
+		frame->eotf = hdr_infoframe->eotf;
+		frame->metadata_type = hdr_infoframe->metadata_type;
+
+		BUILD_BUG_ON(sizeof(frame->display_primaries) !=
+			     sizeof(hdr_infoframe->display_primaries));
+		BUILD_BUG_ON(sizeof(frame->white_point) !=
+			     sizeof(hdr_infoframe->white_point));
+
+		memcpy(&frame->display_primaries,
+		       &hdr_infoframe->display_primaries,
+		       sizeof(frame->display_primaries));
+
+		memcpy(&frame->white_point,
+		       &hdr_infoframe->white_point,
+		       sizeof(frame->white_point));
+
+		frame->max_display_mastering_luminance =
+			hdr_infoframe->max_display_mastering_luminance;
+		frame->min_display_mastering_luminance =
+			hdr_infoframe->min_display_mastering_luminance;
+		frame->max_fall = hdr_infoframe->max_fall;
+		frame->max_cll = hdr_infoframe->max_cll;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(drm_hdmi_infoframe_set_gen_hdr_metadata);
+
 /**
  * drm_add_edid_modes - add modes from EDID data, if available
  * @connector: connector we're probing
@@ -5435,11 +5513,6 @@ static bool is_hdmi2_sink(const struct drm_connector *connector)
 
 	return connector->display_info.hdmi.scdc.supported ||
 		connector->display_info.color_formats & DRM_COLOR_FORMAT_YCRCB420;
-}
-
-static inline bool is_eotf_supported(u8 output_eotf, u8 sink_eotf)
-{
-	return sink_eotf & BIT(output_eotf);
 }
 
 /**
