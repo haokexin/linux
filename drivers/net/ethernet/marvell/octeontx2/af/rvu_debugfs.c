@@ -2722,13 +2722,14 @@ static int rvu_dbg_cpt_engines_sts_display(struct seq_file *filp, void *unused)
 	struct rvu *rvu = filp->private;
 	u16  max_ses, max_ies, max_aes;
 	u32  e_min = 0, e_max = 0, e;
+	struct dentry *current_dir;
 	int  blkaddr;
 	char *e_type;
 	u64  reg;
 
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
-	if (blkaddr < 0)
-		return -ENODEV;
+	current_dir = filp->file->f_path.dentry->d_parent;
+	blkaddr = (!strcmp(current_dir->d_name.name, "cpt1") ?
+		   BLKADDR_CPT1 : BLKADDR_CPT0);
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_CONSTANTS1);
 	max_ses = reg & 0xffff;
@@ -3449,10 +3450,13 @@ static int rvu_dbg_cpt_engines_info_display(struct seq_file *filp, void *unused)
 {
 	struct cpt_ctx *ctx = filp->private;
 	u16 max_ses, max_ies, max_aes;
+	struct dentry *current_dir;
 	struct rvu *rvu = ctx->rvu;
 	int blkaddr = ctx->blkaddr;
 	u32 e_max, e;
 	u64 reg;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_CONSTANTS1);
 	max_ses = reg & 0xffff;
@@ -3483,11 +3487,14 @@ static int rvu_dbg_cpt_lfs_info_display(struct seq_file *filp, void *unused)
 {
 	struct cpt_ctx *ctx = filp->private;
 	int blkaddr = ctx->blkaddr;
+	struct dentry *current_dir;
 	struct rvu *rvu = ctx->rvu;
 	struct rvu_block *block;
 	struct rvu_hwinfo *hw;
 	u64 reg;
 	u32 lf;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	hw = rvu->hw;
 	block = &hw->block[blkaddr];
@@ -3516,8 +3523,11 @@ static int rvu_dbg_cpt_err_info_display(struct seq_file *filp, void *unused)
 {
 	struct cpt_ctx *ctx = filp->private;
 	struct rvu *rvu = ctx->rvu;
+	struct dentry *current_dir;
 	int blkaddr = ctx->blkaddr;
 	u64 reg0, reg1;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	reg0 = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(0));
 	reg1 = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(1));
@@ -3541,10 +3551,13 @@ RVU_DEBUG_SEQ_FOPS(cpt_err_info, cpt_err_info_display, NULL);
 
 static int rvu_dbg_cpt_pc_display(struct seq_file *filp, void *unused)
 {
+	struct dentry *current_dir;
 	struct cpt_ctx *ctx = filp->private;
 	struct rvu *rvu = ctx->rvu;
 	int blkaddr = ctx->blkaddr;
 	u64 reg;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_INST_REQ_PC);
 	seq_printf(filp, "CPT instruction requests   %llu\n", reg);
