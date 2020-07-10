@@ -33,6 +33,7 @@
 #include <linux/irqchip.h>
 #include <linux/irqchip/arm-gic-v3.h>
 #include <linux/irqchip/arm-gic-v4.h>
+#include <linux/irqchip/irq-gic-v3-fixes.h>
 
 #include <asm/cputype.h>
 #include <asm/exception.h>
@@ -2162,11 +2163,12 @@ static struct page *its_allocate_prop_table(gfp_t gfp_flags)
 {
 	struct page *prop_page;
 
-	prop_page = alloc_pages(gfp_flags, get_order(LPI_PROPBASE_SZ));
-	if (!prop_page)
+	prop_page = its_prop_alloc_pages(gic_rdists,
+					LPI_PROPBASE_SZ, gfp_flags);
+	if (!prop_page && !gic_rdists->prop_table_va)
 		return NULL;
 
-	gic_reset_prop_table(page_address(prop_page));
+	gic_reset_prop_table(gic_rdists->prop_table_va);
 
 	return prop_page;
 }
@@ -2925,13 +2927,13 @@ static struct page *its_allocate_pending_table(gfp_t gfp_flags)
 {
 	struct page *pend_page;
 
-	pend_page = alloc_pages(gfp_flags | __GFP_ZERO,
-				get_order(LPI_PENDBASE_SZ));
-	if (!pend_page)
+	pend_page = its_pend_alloc_pages(gic_rdists, LPI_PROPBASE_SZ,
+				LPI_PENDBASE_SZ, gfp_flags | __GFP_ZERO);
+	if (!pend_page && !gic_data_rdist()->pend_vaddr)
 		return NULL;
 
 	/* Make sure the GIC will observe the zero-ed page */
-	gic_flush_dcache_to_poc(page_address(pend_page), LPI_PENDBASE_SZ);
+	gic_flush_dcache_to_poc(gic_data_rdist()->pend_vaddr, LPI_PENDBASE_SZ);
 
 	return pend_page;
 }
@@ -3082,6 +3084,7 @@ static void its_cpu_init_lpis(void)
 			val &= ~(GICR_PROPBASER_SHAREABILITY_MASK |
 				 GICR_PROPBASER_CACHEABILITY_MASK);
 			val |= GICR_PROPBASER_nC;
+
 			gicr_write_propbaser(val, rbase + GICR_PROPBASER);
 		}
 		pr_info_once("GIC: using cache flushing for LPI property table\n");
@@ -3089,7 +3092,7 @@ static void its_cpu_init_lpis(void)
 	}
 
 	/* set PENDBASE */
-	val = (page_to_phys(pend_page) |
+	val = (gic_data_rdist()->pend_paddr |
 	       GICR_PENDBASER_InnerShareable |
 	       GICR_PENDBASER_RaWaWb);
 
@@ -5174,9 +5177,16 @@ int its_cpu_init(void)
 	if (!list_empty(&its_nodes)) {
 		int ret;
 
-		ret = redist_disable_lpis();
-		if (ret)
-			return ret;
+		/*
+		 * This field resets to 0 after power up and is
+		 * set to 1 during Primary Kernel booting and is
+		 * RES1 for Secondary Kerenl booting.
+		 */
+		if (!redist_lpis_enabled(gic_rdists)) {
+			ret = redist_disable_lpis();
+			if (ret)
+				return ret;
+		}
 
 		its_cpu_init_lpis();
 		its_cpu_init_collections();
