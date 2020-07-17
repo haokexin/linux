@@ -24,8 +24,18 @@
 
 &femac {
 	status = "okay";
-	mdio-clock-offset = <0x1c>;
-	mdio-clock-period = <0xf0>;
+	phy-handle = <&phy0>;
+};
+
+&mdio {
+	status = "okay";
+	axxia,mdio-clk-offset = <0x1c>;
+	axxia,mdio-clk-period = <0xf0>;
+	max-speed = <10>;
+
+	phy0: ethernet-phy@0x1e {
+		reg = <0x1e>;
+	};
 };
 
 &ccn {

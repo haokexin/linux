@@ -96,8 +96,8 @@ union appnic_queue_pointer {
 /* The appnic Device Structure */
 
 struct appnic_device {
-	/* net_device */
-	struct net_device *device;
+	struct device	  *dev;
+	struct net_device *netdev;
 
 	/* Addresses, Interrupt, and PHY stuff. */
 	void __iomem *rx_base;
@@ -175,9 +175,11 @@ struct appnic_device {
 	spinlock_t dev_lock;	/* Device Lock */
 	spinlock_t tx_lock;	/* Transmit Lock */
 
-	/* PHY */
-	struct mii_bus *mii_bus;
-	struct phy_device *phy_dev;
+	/* PHY device */
+	struct device_node	*phy_dn;
+	struct phy_device	*phy_dev;
+	int			link_state;
+
 	int phy_irq[PHY_MAX_ADDR];
 	unsigned int link;
 	unsigned int speed;
