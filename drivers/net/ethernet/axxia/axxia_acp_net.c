@@ -31,6 +31,10 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/axxia-ncr.h>
+#include <linux/of_mdio.h>
+#include <linux/crc32.h>
+#include <linux/phy_fixed.h>
+#include <net/ip.h>
 
 #include <asm/dma.h>
 
@@ -75,36 +79,11 @@
 
 #define AXXIA_DRV_NAME           "acp-femac"
 #define AXXIA_MDIO_NAME          "acp-femac-mdio"
-#define AXXIA_DRV_VERSION        "2014-01-09"
+#define AXXIA_DRV_VERSION        "2020-07-16"
 
 MODULE_AUTHOR("John Jacques");
 MODULE_DESCRIPTION("AXXIA ACP-FEMAC Ethernet driver");
 MODULE_LICENSE("GPL");
-
-/* ----------------------------------------------------------------------
- * appnic_mii_read
- *
- * Returns -EBUSY if unsuccessful, the (short) value otherwise.
- */
-
-static int appnic_mii_read(struct mii_bus *bus, int phy, int reg)
-{
-	unsigned short value;
-
-	/* Always returns success, so no need to check return status. */
-	acp_mdio_read(phy, reg, &value, 0);
-
-	return (int)value;
-}
-
-/* ----------------------------------------------------------------------
- * appnic_mii_write
- */
-
-static int appnic_mii_write(struct mii_bus *bus, int phy, int reg, u16 val)
-{
-	return acp_mdio_write(phy, reg, val, 0);
-}
 
 /* ----------------------------------------------------------------------
  * appnic_handle_link_change
@@ -184,120 +163,6 @@ static void appnic_handle_link_change(struct net_device *dev)
 		if (tx_configuration != read_mac(APPNIC_TX_CONF))
 			write_mac(tx_configuration, APPNIC_TX_CONF);
 	}
-}
-
-/* ----------------------------------------------------------------------
- * appnic_mii_probe
- */
-
-static int appnic_mii_probe(struct net_device *dev)
-{
-	struct appnic_device *pdata = netdev_priv(dev);
-	struct phy_device *phydev = NULL;
-	int ret;
-
-	if (pdata->phy_address && pdata->phy_address < PHY_MAX_ADDR) {
-		phydev = mdiobus_get_phy(pdata->mii_bus, pdata->phy_address);
-		if (phydev)
-			goto skip_first;
-	}
-
-	/* Find the first phy */
-	phydev = phy_find_first(pdata->mii_bus);
-	if (!phydev) {
-		pr_crit("!!! no PHY found !!!\n");
-		netdev_err(dev, " no PHY found\n");
-		return -ENODEV;
-	}
-
-skip_first:
-
-	/* Allow the option to disable auto negotiation and manually specify
-	 * the link speed and duplex setting with the use of a environment
-	 * setting.
-	 */
-
-	if (pdata->phy_link_auto == 0) {
-		phydev->autoneg = AUTONEG_DISABLE;
-		phydev->speed =
-			pdata->phy_link_speed == 0 ? SPEED_10 : SPEED_100;
-		phydev->duplex =
-			pdata->phy_link_duplex == 0 ? DUPLEX_HALF : DUPLEX_FULL;
-	} else {
-		phydev->autoneg = AUTONEG_ENABLE;
-	}
-
-	ret = phy_connect_direct(dev, phydev,
-				 &appnic_handle_link_change,
-				 PHY_INTERFACE_MODE_MII);
-
-	if (ret) {
-		netdev_err(dev, "Could not attach to PHY\n");
-		return ret;
-	}
-
-	phy_attached_info(phydev);
-
-	/* Mask with MAC supported features */
-	phydev->supported &= PHY_BASIC_FEATURES;
-	if (pdata->ad_value)
-		phydev->advertising = mii_adv_to_ethtool_adv_t(pdata->ad_value);
-	else
-		phydev->advertising = phydev->supported;
-
-	pdata->link = 0;
-	pdata->speed = 0;
-	pdata->duplex = -1;
-	pdata->phy_dev = phydev;
-
-	pr_info("%s: PHY initialized successfully", AXXIA_DRV_NAME);
-	return 0;
-}
-
-/* ----------------------------------------------------------------------
- * appnic_mii_init
- */
-
-static int appnic_mii_init(struct platform_device *pdev,
-			   struct net_device *dev)
-{
-	struct appnic_device *pdata = netdev_priv(dev);
-	int i, err = -ENXIO;
-
-	pdata->mii_bus = mdiobus_alloc();
-	if (!pdata->mii_bus) {
-		err = -ENOMEM;
-		goto err_out_1;
-	}
-
-	pdata->mii_bus->name = AXXIA_MDIO_NAME;
-	snprintf(pdata->mii_bus->id, MII_BUS_ID_SIZE, "%s-%x",
-		 pdev->name, pdev->id);
-	pdata->mii_bus->priv = pdata;
-	pdata->mii_bus->read = appnic_mii_read;
-	pdata->mii_bus->write = appnic_mii_write;
-	memcpy(pdata->mii_bus->irq, pdata->phy_irq, sizeof(pdata->phy_irq));
-	for (i = 0; i < PHY_MAX_ADDR; ++i)
-		pdata->mii_bus->irq[i] = PHY_POLL;
-
-	if (mdiobus_register(pdata->mii_bus)) {
-		pr_warn("%s: Error registering mii bus", AXXIA_DRV_NAME);
-		goto err_out_free_bus_2;
-	}
-
-	if (appnic_mii_probe(dev) < 0) {
-		pr_warn("%s: Error registering mii bus", AXXIA_DRV_NAME);
-		goto err_out_unregister_bus_3;
-	}
-
-	return 0;
-
-err_out_unregister_bus_3:
-	mdiobus_unregister(pdata->mii_bus);
-err_out_free_bus_2:
-	mdiobus_free(pdata->mii_bus);
-err_out_1:
-	return err;
 }
 
 /* ======================================================================
@@ -821,7 +686,7 @@ static int axxianet_poll(struct napi_struct *napi, int budget)
 {
 	struct appnic_device *pdata =
 		container_of(napi, struct appnic_device, napi);
-	struct net_device *dev = pdata->device;
+	struct net_device *dev = pdata->netdev;
 
 	int work_done = 0;
 	unsigned long dma_interrupt_status;
@@ -940,11 +805,23 @@ static int appnic_open(struct net_device *dev)
 	struct appnic_device *pdata = netdev_priv(dev);
 	int return_code = 0;
 
-	/* Bring the PHY up. */
-	phy_start(pdata->phy_dev);
+	pdata->phy_dev = of_phy_connect(pdata->netdev, pdata->phy_dn,
+					appnic_handle_link_change, 0,
+					PHY_INTERFACE_MODE_MII);
+
+	if (IS_ERR_OR_NULL(pdata->phy_dev)) {
+		netdev_err(dev, "Could not attach to PHY\n");
+		return -ENODEV;
+	}
+
+	pr_debug("[%s] (phy %s)\n",
+		 pdata->phy_dev->drv->name, dev_name(pdata->dev));
 
 	/* Enable NAPI. */
 	napi_enable(&pdata->napi);
+
+	/* Bring the PHY up. */
+	phy_start(pdata->phy_dev);
 
 	/* Install the interrupt handlers. */
 	return_code =
@@ -1173,7 +1050,9 @@ static int appnic_set_mac_address(struct net_device *dev, void *data)
  * ======================================================================
  */
 
-enum {NETDEV_STATS, APPNIC_STATS};
+enum {
+	NETDEV_STATS, APPNIC_STATS
+};
 
 struct appnic_stats {
 	char stat_string[ETH_GSTRING_LEN];
@@ -1624,7 +1503,6 @@ int appnic_init(struct net_device *dev)
 	memset((void *)&pdata->napi, 0, sizeof(struct napi_struct));
 	netif_napi_add(dev, &pdata->napi,
 		       axxianet_poll, AXXIANET_NAPI_WEIGHT);
-	pdata->device = dev;
 
 	return 0;
 
@@ -1645,12 +1523,11 @@ static int appnic_probe_config_dt(struct net_device *dev,
 				  struct device_node *np)
 {
 	struct appnic_device *pdata = netdev_priv(dev);
-	const u32 *field;
 	const char *mac;
-	const char *macspeed;
 #ifdef CONFIG_ARM
 	struct device_node *gp_node;
 #else
+	const u32 *field;
 	u64 value64;
 	u32 value32;
 #endif
@@ -1704,55 +1581,6 @@ static int appnic_probe_config_dt(struct net_device *dev,
 		pdata->dma_interrupt = field[0];
 #endif
 
-	field = of_get_property(np, "mdio-clock", NULL);
-	if (!field)
-		goto device_tree_failed;
-	else
-		pdata->mdio_clock = ntohl(field[0]);
-
-	field = of_get_property(np, "phy-address", NULL);
-	if (!field)
-		goto device_tree_failed;
-	else
-		pdata->phy_address = ntohl(field[0]);
-
-	field = of_get_property(np, "ad-value", NULL);
-	if (!field)
-		goto device_tree_failed;
-	else
-		pdata->ad_value = ntohl(field[0]);
-
-	macspeed = of_get_property(np, "phy-link", NULL);
-
-	if (macspeed) {
-		if (strncmp(macspeed, "auto", strlen("auto")) == 0) {
-			pdata->phy_link_auto = 1;
-		} else if (strncmp(macspeed, "100MF", strlen("100MF")) == 0) {
-			pdata->phy_link_auto = 0;
-			pdata->phy_link_speed = 1;
-			pdata->phy_link_duplex = 1;
-		} else if (strncmp(macspeed, "100MH", strlen("100MH")) == 0) {
-			pdata->phy_link_auto = 0;
-			pdata->phy_link_speed = 1;
-			pdata->phy_link_duplex = 0;
-		} else if (strncmp(macspeed, "10MF", strlen("10MF")) == 0) {
-			pdata->phy_link_auto = 0;
-			pdata->phy_link_speed = 0;
-			pdata->phy_link_duplex = 1;
-		} else if (strncmp(macspeed, "10MH", strlen("10MH")) == 0) {
-			pdata->phy_link_auto = 0;
-			pdata->phy_link_speed = 0;
-			pdata->phy_link_duplex = 0;
-		} else {
-			pr_err("Invalid phy-link value \"%s\" in DTS. Defaulting to \"auto\".\n",
-			       macspeed);
-			pdata->phy_link_auto = 1;
-		}
-	} else {
-		/* Auto is the default. */
-		pdata->phy_link_auto = 1;
-	}
-
 	mac = of_get_mac_address(np);
 	if (!mac)
 		goto device_tree_failed;
@@ -1790,7 +1618,7 @@ static int appnic_drv_probe(struct platform_device *pdev)
 {
 	int rc = 0;
 	struct device_node *np = pdev->dev.of_node;
-	struct net_device *dev;
+	struct net_device *ndev;
 	struct appnic_device *pdata;
 
 	pr_info("%s: INTEL(R) 10/100 Network Driver - version %s\n",
@@ -1798,24 +1626,45 @@ static int appnic_drv_probe(struct platform_device *pdev)
 
 	/* Allocate space for the device. */
 
-	dev = alloc_etherdev(sizeof(struct appnic_device));
-	if (!dev) {
+	ndev = alloc_etherdev(sizeof(struct appnic_device));
+	if (!ndev) {
 		pr_err("%s: Couldn't allocate net device.\n", AXXIA_DRV_NAME);
 		rc = -ENOMEM;
 		goto err_alloc_etherdev;
 	}
 
-	SET_NETDEV_DEV(dev, &pdev->dev);
-	platform_set_drvdata(pdev, dev);
+	SET_NETDEV_DEV(ndev, &pdev->dev);
+	platform_set_drvdata(pdev, ndev);
 
-	pdata = netdev_priv(dev);
+	pdata = netdev_priv(ndev);
+	pdata->netdev = ndev;
+	pdata->dev = &pdev->dev;
+
+	/* In the case of a fixed PHY, the DT node associated
+	 * to the PHY is the Ethernet MAC DT node.
+	 */
+	if (of_phy_is_fixed_link(np)) {
+		rc = of_phy_register_fixed_link(np);
+		if (rc) {
+			pr_err("%s: Failed to register fixed PHY\n", AXXIA_DRV_NAME);
+			goto err_inval;
+		}
+		pdata->phy_dn = of_node_get(np);
+	} else {
+		pdata->phy_dn = of_parse_phandle(np, "phy-handle", 0);
+
+		if (!pdata->phy_dn) {
+			pr_err("%s: No phy-handle\n", AXXIA_DRV_NAME);
+			rc = -ENODEV;
+			goto err_inval;
+		}
+	}
 
 	/* Get the physical addresses, interrupt number, etc. from the
 	 * device tree.  If no entry exists (older boot loader...) just
 	 * use the pre-devicetree method.
 	 */
-
-	rc = appnic_probe_config_dt(dev, np);
+	rc = appnic_probe_config_dt(ndev, np);
 
 	if (rc == -EINVAL) {
 		goto err_inval;
@@ -1849,9 +1698,9 @@ static int appnic_drv_probe(struct platform_device *pdev)
 				mac_address[i++] = (u8)res;
 			}
 
-			memcpy(dev->dev_addr, mac_address, ETH_ALEN);
-			memcpy(dev->perm_addr, mac_address, ETH_ALEN);
-			dev->addr_len = ETH_ALEN;
+			memcpy(ndev->dev_addr, mac_address, ETH_ALEN);
+			memcpy(ndev->perm_addr, mac_address, ETH_ALEN);
+			ndev->addr_len = ETH_ALEN;
 
 			pr_info("%s: Using Static Addresses and Interrupts",
 				AXXIA_DRV_NAME);
@@ -1891,7 +1740,7 @@ static int appnic_drv_probe(struct platform_device *pdev)
 #endif
 
 	/* Initialize the device. */
-	rc = appnic_init(dev);
+	rc = appnic_init(ndev);
 	if (rc != 0) {
 		pr_err("%s: appnic_init() failed: %d\n", AXXIA_DRV_NAME, rc);
 		rc = -ENODEV;
@@ -1899,7 +1748,7 @@ static int appnic_drv_probe(struct platform_device *pdev)
 	}
 
 	/* Register the device. */
-	rc = register_netdev(dev);
+	rc = register_netdev(ndev);
 	if (rc != 0) {
 		pr_err("%s: register_netdev() failed: %d\n",
 		       AXXIA_DRV_NAME, rc);
@@ -1907,21 +1756,11 @@ static int appnic_drv_probe(struct platform_device *pdev)
 		goto err_nodev;
 	}
 
-	/* Initialize the PHY. */
-	rc = appnic_mii_init(pdev, dev);
-	if (rc) {
-		pr_warn("%s: Failed to initialize PHY", AXXIA_DRV_NAME);
-		rc = -ENODEV;
-		goto err_mii_init;
-	}
-
 	return 0;
 
-err_mii_init:
-	unregister_netdev(dev);
 err_nodev:
 err_inval:
-	free_netdev(dev);
+	free_netdev(ndev);
 err_alloc_etherdev:
 	return rc;
 }
@@ -1953,8 +1792,6 @@ static int appnic_drv_remove(struct platform_device *pdev)
 
 	phy_disconnect(pdata->phy_dev);
 	pdata->phy_dev = NULL;
-	mdiobus_unregister(pdata->mii_bus);
-	mdiobus_free(pdata->mii_bus);
 	platform_set_drvdata(pdev, NULL);
 	unregister_netdev(dev);
 	free_irq(dev->irq, dev);

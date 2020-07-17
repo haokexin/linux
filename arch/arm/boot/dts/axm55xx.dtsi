@@ -121,13 +121,15 @@
 		interrupts = <0 2 4>,
 			     <0 3 4>,
 			     <0 4 4>;
-
-		mdio-reg = <0x20 0x10090000 0 0x1000>;
-		mdio-clock = <0>;
-		phy-address = <0x1e>;
-		ad-value = <0>;
-		phy-link = "auto";
 		mac-address = [00 00 00 00 00 00];
+		status = "disabled";
+	};
+
+	mdio: mdio@10090000 {
+		compatible = "axxia,axm-mdio", "axxia,axxia-mdio0";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x20 0x10090000 0 0x1000>;
 		status = "disabled";
 	};
 
