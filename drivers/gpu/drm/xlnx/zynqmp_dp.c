@@ -1461,7 +1461,6 @@ zynqmp_dp_connector_atomic_set_property(struct drm_connector *connector,
 					uint64_t val)
 {
 	struct zynqmp_dp *dp = connector_to_dp(connector);
-	int ret;
 
 	if (property == dp->sync_prop) {
 		zynqmp_dp_set_sync_mode(dp, val);
@@ -1472,7 +1471,7 @@ zynqmp_dp_connector_atomic_set_property(struct drm_connector *connector,
 		if (bpc) {
 			drm_object_property_set_value(&connector->base,
 						      property, bpc);
-			ret = -EINVAL;
+			return -EINVAL;
 		}
 	} else {
 		return -EINVAL;
