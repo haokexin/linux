@@ -14,6 +14,7 @@
 
 /* CPT PF device id */
 #define	PCI_DEVID_OTX2_CPT_PF	0xA0FD
+#define	PCI_DEVID_OTX2_CPT10_PF 0xA0F2
 #define	PCI_DEVID_OTX2_CPT10K_PF 0xA0F2
 
 /* Length of initial context fetch in 128 byte words */
@@ -212,7 +213,8 @@ int rvu_cpt_init(struct rvu *rvu)
 		if (!pdev)
 			continue;
 
-		if (pdev->device == PCI_DEVID_OTX2_CPT_PF) {
+		if (pdev->device == PCI_DEVID_OTX2_CPT_PF ||
+		    pdev->device == PCI_DEVID_OTX2_CPT10_PF) {
 			cpt_pf_num = i;
 			put_device(&pdev->dev);
 			break;
