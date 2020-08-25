@@ -32,6 +32,14 @@ irqreturn_t octeon_i2c_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+static void octeon_i2c_clear_iflg(struct octeon_i2c *i2c)
+{
+	int ctl = octeon_i2c_ctl_read(i2c);
+
+	ctl &= (~TWSI_CTL_IFLG);
+	octeon_i2c_ctl_write(i2c, ctl);
+}
+
 static bool octeon_i2c_test_iflg(struct octeon_i2c *i2c)
 {
 	return (octeon_i2c_ctl_read(i2c) & TWSI_CTL_IFLG);
@@ -61,11 +69,19 @@ static int octeon_i2c_wait(struct octeon_i2c *i2c)
 		return octeon_i2c_test_iflg(i2c) ? 0 : -ETIMEDOUT;
 	}
 
-	i2c->int_enable(i2c);
-	time_left = wait_event_timeout(i2c->queue, octeon_i2c_test_iflg(i2c),
-				       i2c->adap.timeout);
-	i2c->int_disable(i2c);
-
+	if (i2c->twsi_freq <= FREQ_400KHZ) {
+		i2c->int_enable(i2c);
+		time_left = wait_event_timeout(i2c->queue,
+					       octeon_i2c_test_iflg(i2c),
+					       i2c->adap.timeout);
+		i2c->int_disable(i2c);
+	} else {
+		time_left = 1000; /* 1ms */
+		do {
+			if (time_left--)
+				__udelay(1);
+		} while (!octeon_i2c_test_iflg(i2c));
+	}
 	if (i2c->broken_irq_check && !time_left &&
 	    octeon_i2c_test_iflg(i2c)) {
 		dev_err(i2c->dev, "broken irq connection detected, switching to polling mode.\n");
