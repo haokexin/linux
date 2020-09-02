@@ -670,11 +670,14 @@ struct rdists {
 		raw_spinlock_t	rd_lock;
 		void __iomem	*rd_base;
 		struct page	*pend_page;
+		phys_addr_t	pend_paddr;
+		void		*pend_vaddr;
 		phys_addr_t	phys_base;
 		bool		lpi_enabled;
 		cpumask_t	*vpe_table_mask;
 		void		*vpe_l1_base;
 	} __percpu		*rdist;
+	struct page		*prop_page;
 	phys_addr_t		prop_table_pa;
 	void			*prop_table_va;
 	u64			flags;

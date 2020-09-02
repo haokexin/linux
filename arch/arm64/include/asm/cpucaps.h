@@ -64,7 +64,9 @@
 #define ARM64_BTI				54
 #define ARM64_HAS_ARMv8_4_TTL			55
 #define ARM64_HAS_TLB_RANGE			56
+#define ARM64_WORKAROUND_CAVIUM_36890		57
+#define ARM64_WORKAROUND_MRVL_37119		58
 
-#define ARM64_NCAPS				57
+#define ARM64_NCAPS				59
 
 #endif /* __ASM_CPUCAPS_H */
