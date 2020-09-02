@@ -181,6 +181,8 @@ struct vchiq_mmal_instance {
 
 	/* ordered workqueue to process all bulk operations */
 	struct workqueue_struct *bulk_wq;
+
+	struct vchiq_instance *vchiq_instance;
 };
 
 static struct mmal_msg_context *
@@ -2010,6 +2012,9 @@ int vchiq_mmal_finalise(struct vchiq_mmal_instance *instance)
 
 	idr_destroy(&instance->context_map);
 
+	if (instance->vchiq_instance)
+		kfree(instance->vchiq_instance);
+
 	kfree(instance);
 
 	return status;
@@ -2060,6 +2065,8 @@ int vchiq_mmal_init(struct vchiq_mmal_instance **out_instance)
 
 	if (!instance)
 		return -ENOMEM;
+
+	instance->vchiq_instance = vchiq_instance;
 
 	mutex_init(&instance->vchiq_mutex);
 
