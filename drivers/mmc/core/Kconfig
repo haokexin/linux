@@ -89,3 +89,12 @@ config MMC_CRYPTO
 	  Enabling this makes it possible for the kernel to use the crypto
 	  capabilities of the MMC device (if present) to perform crypto
 	  operations on data being transferred to/from the device.
+
+config MMC_OOPS
+	bool "Log panic/oops to a MMC buffer"
+	depends on PSTORE
+	default n
+	help
+	  Oops driver to store the crash dumps to MMC device at a specified
+	  user partition number. The driver is based on pstore frontend
+	  filesystem to access the backend persistent MMC storage device.
