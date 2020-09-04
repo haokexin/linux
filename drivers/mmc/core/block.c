@@ -2949,6 +2949,10 @@ static int mmc_blk_probe(struct mmc_card *card)
 	if (ret)
 		goto out;
 
+#ifdef CONFIG_MMC_OOPS
+	if (mmc_card_mmc(card) || mmc_card_sd(card))
+		mmc_oops_card_set(card);
+#endif
 	/* Add two debugfs entries */
 	mmc_blk_add_debugfs(card, md);
 
