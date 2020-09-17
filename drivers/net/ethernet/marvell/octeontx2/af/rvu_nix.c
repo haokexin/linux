@@ -212,9 +212,11 @@ static bool is_valid_txschq(struct rvu *rvu, int blkaddr,
 	return true;
 }
 
-static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf)
+static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf,
+			      struct nix_lf_alloc_rsp *rsp)
 {
 	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, pcifunc);
+	struct rvu_hwinfo *hw = rvu->hw;
 	int pkind, pf, vf, lbkid;
 	u8 cgx_id, lmac_id;
 	int err;
@@ -239,6 +241,7 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf)
 		pfvf->tx_chan_base = pfvf->rx_chan_base;
 		pfvf->rx_chan_cnt = 1;
 		pfvf->tx_chan_cnt = 1;
+		rsp->tx_link = cgx_id * hw->lmac_per_cgx + lmac_id;
 
 		if (rvu_cgx_is_pkind_config_permitted(rvu, pcifunc)) {
 			cgx_set_pkind(rvu_cgx_pdata(cgx_id, rvu), lmac_id,
@@ -274,6 +277,7 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf)
 					NIX_CHAN_LBK_CHX(lbkid, vf + 1);
 		pfvf->rx_chan_cnt = 1;
 		pfvf->tx_chan_cnt = 1;
+		rsp->tx_link = hw->cgx_links + lbkid;
 		rvu_npc_install_promisc_entry(rvu, pcifunc, nixlf,
 					      pfvf->rx_chan_base, false);
 		break;
@@ -283,6 +287,7 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf)
 		pfvf->tx_chan_base = pfvf->rx_chan_base;
 		pfvf->rx_chan_cnt = 1;
 		pfvf->tx_chan_cnt = 1;
+		rsp->tx_link = hw->cgx_links + hw->lbk_links;
 		rvu_npc_install_promisc_entry(rvu, pcifunc, nixlf,
 					      pfvf->rx_chan_base, false);
 		break;
@@ -449,8 +454,9 @@ int rvu_mbox_handler_nix_bp_enable(struct rvu *rvu,
 		}
 
 		cfg = rvu_read64(rvu, blkaddr, NIX_AF_RX_CHANX_CFG(chan));
+		cfg &= ~GENMASK_ULL(8, 0);
 		rvu_write64(rvu, blkaddr, NIX_AF_RX_CHANX_CFG(chan),
-			    cfg | (bpid & 0xFF) | BIT_ULL(16));
+			    cfg | (bpid & GENMASK_ULL(8, 0)) | BIT_ULL(16));
 		chan_id++;
 		bpid = rvu_nix_get_bpid(rvu, req, type, chan_id);
 	}
@@ -1215,7 +1221,7 @@ int rvu_mbox_handler_nix_lf_alloc(struct rvu *rvu,
 	if (is_sdp_pf(pcifunc))
 		intf = NIX_INTF_TYPE_SDP;
 
-	err = nix_interface_init(rvu, pcifunc, intf, nixlf);
+	err = nix_interface_init(rvu, pcifunc, intf, nixlf, rsp);
 	if (err)
 		goto free_mem;
 
@@ -4191,7 +4197,7 @@ static irqreturn_t rvu_nix_af_rvu_intr_handler(int irq, void *rvu_irq)
 	intr = rvu_read64(rvu, blkaddr, NIX_AF_RVU_INT);
 
 	if (intr & BIT_ULL(0))
-		dev_err(rvu->dev, "NIX: Unmapped slot error\n");
+		dev_err_ratelimited(rvu->dev, "NIX: Unmapped slot error\n");
 
 	/* Clear interrupts */
 	rvu_write64(rvu, blkaddr, NIX_AF_RVU_INT, intr);
@@ -4208,34 +4214,42 @@ static irqreturn_t rvu_nix_af_err_intr_handler(int irq, void *rvu_irq)
 	intr = rvu_read64(rvu, blkaddr, NIX_AF_ERR_INT);
 
 	if (intr & BIT_ULL(14))
-		dev_err(rvu->dev, "NIX: Memory fault on NIX_AQ_INST_S read\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Memory fault on NIX_AQ_INST_S read\n");
 
 	if (intr & BIT_ULL(13))
-		dev_err(rvu->dev, "NIX: Memory fault on NIX_AQ_RES_S write\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Memory fault on NIX_AQ_RES_S write\n");
 
 	if (intr & BIT_ULL(12))
-		dev_err(rvu->dev, "NIX: AQ doorbell error\n");
+		dev_err_ratelimited(rvu->dev, "NIX: AQ doorbell error\n");
 
 	if (intr & BIT_ULL(6))
-		dev_err(rvu->dev, "NIX: Rx on unmapped PF_FUNC\n");
+		dev_err_ratelimited(rvu->dev, "NIX: Rx on unmapped PF_FUNC\n");
 
 	if (intr & BIT_ULL(5))
-		dev_err(rvu->dev, "NIX: Rx multicast replication error\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Rx multicast replication error\n");
 
 	if (intr & BIT_ULL(4))
-		dev_err(rvu->dev, "NIX: Memory fault on NIX_RX_MCE_S read\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Memory fault on NIX_RX_MCE_S read\n");
 
 	if (intr & BIT_ULL(3))
-		dev_err(rvu->dev, "NIX: Memory fault on multicast WQE read\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Memory fault on multicast WQE read\n");
 
 	if (intr & BIT_ULL(2))
-		dev_err(rvu->dev, "NIX: Memory fault on mirror WQE read\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Memory fault on mirror WQE read\n");
 
 	if (intr & BIT_ULL(1))
-		dev_err(rvu->dev, "NIX: Memory fault on mirror pkt write\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Memory fault on mirror pkt write\n");
 
 	if (intr & BIT_ULL(0))
-		dev_err(rvu->dev, "NIX: Memory fault on multicast pkt write\n");
+		dev_err_ratelimited(rvu->dev,
+				    "NIX: Memory fault on multicast pkt write\n");
 
 	/* Clear interrupts */
 	rvu_write64(rvu, blkaddr, NIX_AF_ERR_INT, intr);
@@ -4378,13 +4392,13 @@ static void rvu_nix_blk_unregister_interrupts(struct rvu *rvu,
 
 	if (rvu->irq_allocated[offs + NIX_AF_INT_VEC_RVU]) {
 		free_irq(pci_irq_vector(rvu->pdev, offs + NIX_AF_INT_VEC_RVU),
-			 rvu);
+			 nix_hw);
 		rvu->irq_allocated[offs + NIX_AF_INT_VEC_RVU] = false;
 	}
 
 	for (i = NIX_AF_INT_VEC_AF_ERR; i < NIX_AF_INT_VEC_CNT; i++)
 		if (rvu->irq_allocated[offs + i]) {
-			free_irq(pci_irq_vector(rvu->pdev, offs + i), rvu);
+			free_irq(pci_irq_vector(rvu->pdev, offs + i), nix_hw);
 			rvu->irq_allocated[offs + i] = false;
 		}
 }

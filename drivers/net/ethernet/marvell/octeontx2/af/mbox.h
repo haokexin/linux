@@ -86,7 +86,7 @@ struct mbox_msghdr {
 #define OTX2_MBOX_REQ_SIG (0xdead)
 #define OTX2_MBOX_RSP_SIG (0xbeef)
 	u16 sig;         /* Signature, for validating corrupted msgs */
-#define OTX2_MBOX_VERSION (0x0007)
+#define OTX2_MBOX_VERSION (0x0008)
 	u16 ver;         /* Version of msg's structure for this ID */
 	u16 next_msgoff; /* Offset of next msg within mailbox region */
 	int rc;          /* Msg process'ed response code */
@@ -774,6 +774,7 @@ struct nix_lf_alloc_rsp {
 	u8	cgx_links;  /* No. of CGX links present in HW */
 	u8	lbk_links;  /* No. of LBK links present in HW */
 	u8	sdp_links;  /* No. of SDP links present in HW */
+	u8	tx_link;    /* Transmit channel link number */
 };
 
 struct nix_lf_free_req {
@@ -1618,6 +1619,8 @@ enum ree_af_status {
 	REE_AF_ERR_RULE_DBI_ALLOC_FAILED	= -1021,
 	REE_AF_ERR_LF_WRONG_PRIORITY		= -1022,
 	REE_AF_ERR_LF_SIZE_TOO_BIG		= -1023,
+	REE_AF_ERR_GRAPH_ADDRESS_TOO_BIG	= -1024,
+	REE_AF_ERR_BAD_RULE_TYPE		= -1025,
 };
 
 /* REE mbox message formats */
