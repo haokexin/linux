@@ -120,12 +120,6 @@ SECTIONS {
 		CON_INITCALL
 	}
 
-	__init_end_before_initramfs = .;
-
-	.init.ramfs : AT(ADDR(.init.ramfs) - LOAD_OFFSET) {
-		INIT_RAM_FS
-	}
-
 	__init_end = .;
 
 	.bss ALIGN (PAGE_SIZE) : AT(ADDR(.bss) - LOAD_OFFSET) {
@@ -138,6 +132,17 @@ SECTIONS {
 	}
 	. = ALIGN(PAGE_SIZE);
 	_end = .;
+	/* Add space in TLB mapping for early free pages mapping */
+	. = . + 0x100000; /* CONFIG_LOWMEM_SIZE >> PTE_SHIFT + space */
+
+	/* And alignment to make sure that we map only kernel by TLBs */
+	. = ALIGN(0x400000);
+	_end_tlb_mapping = . ;
+
+	.init.ramfs : AT(ADDR(.init.ramfs) - LOAD_OFFSET) {
+		INIT_RAM_FS
+	}
+	__initramfs_end = . ;
 
 	DISCARDS
 }

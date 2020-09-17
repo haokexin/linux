@@ -344,6 +344,8 @@ source "drivers/gpu/drm/bridge/Kconfig"
 
 source "drivers/gpu/drm/sti/Kconfig"
 
+source "drivers/gpu/drm/zocl/Kconfig"
+
 source "drivers/gpu/drm/imx/Kconfig"
 
 source "drivers/gpu/drm/ingenic/Kconfig"
@@ -370,6 +372,8 @@ source "drivers/gpu/drm/tiny/Kconfig"
 
 source "drivers/gpu/drm/pl111/Kconfig"
 
+source "drivers/gpu/drm/xlnx/Kconfig"
+
 source "drivers/gpu/drm/tve200/Kconfig"
 
 source "drivers/gpu/drm/xen/Kconfig"
@@ -385,8 +389,6 @@ source "drivers/gpu/drm/aspeed/Kconfig"
 source "drivers/gpu/drm/mcde/Kconfig"
 
 source "drivers/gpu/drm/tidss/Kconfig"
-
-source "drivers/gpu/drm/xlnx/Kconfig"
 
 # Keep legacy drivers last
 

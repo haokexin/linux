@@ -255,6 +255,7 @@ static void __init mmu_init_hw(void)
 asmlinkage void __init mmu_init(void)
 {
 	unsigned int kstart, ksize;
+	phys_addr_t __maybe_unused size;
 
 	if (!memblock.reserved.cnt) {
 		pr_emerg("Error memory count\n");
@@ -296,10 +297,14 @@ asmlinkage void __init mmu_init(void)
 #if defined(CONFIG_BLK_DEV_INITRD)
 	/* Remove the init RAM disk from the available memory. */
 	if (initrd_start) {
-		unsigned long size;
 		size = initrd_end - initrd_start;
 		memblock_reserve(__virt_to_phys(initrd_start), size);
 	}
+
+	size = __initramfs_end - __initramfs_start;
+	if (size)
+		memblock_reserve((phys_addr_t)__virt_to_phys(__initramfs_start),
+				 size);
 #endif /* CONFIG_BLK_DEV_INITRD */
 
 	/* Initialize the MMU hardware */
@@ -337,7 +342,8 @@ void __init *early_get_page(void)
 	 * because of mem mapping from head.S
 	 */
 	return memblock_alloc_try_nid_raw(PAGE_SIZE, PAGE_SIZE,
-				MEMBLOCK_LOW_LIMIT, memory_start + kernel_tlb,
+				memory_start,
+				(phys_addr_t)__virt_to_phys(_end_tlb_mapping),
 				NUMA_NO_NODE);
 }
 

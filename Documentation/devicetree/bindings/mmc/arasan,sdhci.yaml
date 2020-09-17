@@ -145,6 +145,16 @@ properties:
       When present, the controller always reports that the internal clock
       is stable even when it is not.
 
+  pinctrl-0:
+    $ref: /schemas/types.yaml#/definitions/flag
+    description:
+      pin control group to be used for this controller.
+
+  pinctrl-names:
+    $ref: /schemas/types.yaml#/definitions/flag
+    description:
+      must contain a "default" entry.
+
   xlnx,mio-bank:
     $ref: /schemas/types.yaml#/definitions/uint32
     enum: [0, 2]

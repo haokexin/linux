@@ -28,5 +28,5 @@ obj-y					+= allwinner/	\
 					   socionext/	\
 					   st/		\
 					   tegra/	\
-					   ti/		\
-					   xilinx/
+					   ti/
+obj-$(CONFIG_PHY_XILINX_ZYNQMP)		+= phy-zynqmp.o

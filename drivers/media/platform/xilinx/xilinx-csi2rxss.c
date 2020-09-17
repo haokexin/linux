@@ -1091,6 +1091,7 @@ static int xcsi2rxss_remove(struct platform_device *pdev)
 
 static const struct of_device_id xcsi2rxss_of_id_table[] = {
 	{ .compatible = "xlnx,mipi-csi2-rx-subsystem-5.0", },
+	{ .compatible = "xlnx,mipi-csi2-rx-subsystem-3.0" },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, xcsi2rxss_of_id_table);

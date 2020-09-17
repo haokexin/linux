@@ -29,6 +29,7 @@
 
 #include <drm/drm_device.h>
 #include <drm/drm_fourcc.h>
+#include <drm/drm_print.h>
 
 static char printable_char(int c)
 {
@@ -224,6 +225,8 @@ const struct drm_format_info *__drm_format_info(u32 format)
 		{ .format = DRM_FORMAT_NV61,		.depth = 0,  .num_planes = 2, .cpp = { 1, 2, 0 }, .hsub = 2, .vsub = 1, .is_yuv = true },
 		{ .format = DRM_FORMAT_NV24,		.depth = 0,  .num_planes = 2, .cpp = { 1, 2, 0 }, .hsub = 1, .vsub = 1, .is_yuv = true },
 		{ .format = DRM_FORMAT_NV42,		.depth = 0,  .num_planes = 2, .cpp = { 1, 2, 0 }, .hsub = 1, .vsub = 1, .is_yuv = true },
+		{ .format = DRM_FORMAT_XV15,		.depth = 0,  .num_planes = 2, .pixels_per_macropixel = { 3, 3, 0 }, .bytes_per_macropixel = { 4, 8, 0 }, .hsub = 2, .vsub = 2, }, /* FIXME consider is_yuv = true */
+		{ .format = DRM_FORMAT_XV20,		.depth = 0,  .num_planes = 2, .pixels_per_macropixel = { 3, 3, 0 }, .bytes_per_macropixel = { 4, 8, 0 }, .hsub = 2, .vsub = 1, },
 		{ .format = DRM_FORMAT_YUYV,		.depth = 0,  .num_planes = 1, .cpp = { 2, 0, 0 }, .hsub = 2, .vsub = 1, .is_yuv = true },
 		{ .format = DRM_FORMAT_YVYU,		.depth = 0,  .num_planes = 1, .cpp = { 2, 0, 0 }, .hsub = 2, .vsub = 1, .is_yuv = true },
 		{ .format = DRM_FORMAT_UYVY,		.depth = 0,  .num_planes = 1, .cpp = { 2, 0, 0 }, .hsub = 2, .vsub = 1, .is_yuv = true },
@@ -286,6 +289,11 @@ const struct drm_format_info *__drm_format_info(u32 format)
 		  .num_planes = 3, .char_per_block = { 2, 2, 2 },
 		  .block_w = { 1, 1, 1 }, .block_h = { 1, 1, 1 }, .hsub = 0,
 		  .vsub = 0, .is_yuv = true },
+		{ .format = DRM_FORMAT_AVUY,		.depth = 0,  .num_planes = 1, .cpp = { 4, 0, 0 }, .hsub = 1, .vsub = 1, .has_alpha = true },
+		{ .format = DRM_FORMAT_XVUY8888,	.depth = 0,  .num_planes = 1, .cpp = { 4, 0, 0 }, .hsub = 1, .vsub = 1 },
+		{ .format = DRM_FORMAT_XVUY2101010,	.depth = 0,  .num_planes = 1, .cpp = { 4, 0, 0 }, .hsub = 1, .vsub = 1 },
+		{ .format = DRM_FORMAT_Y8,		.depth = 0,  .num_planes = 1, .cpp = { 1, 0, 0 }, .hsub = 1, .vsub = 1 },
+		{ .format = DRM_FORMAT_Y10,		.depth = 0,  .num_planes = 1, .pixels_per_macropixel =  { 3, 0, 0 }, .bytes_per_macropixel = { 4, 0, 0 }, .hsub = 1, .vsub = 1 },
 	};
 
 	unsigned int i;
@@ -405,3 +413,38 @@ uint64_t drm_format_info_min_pitch(const struct drm_format_info *info,
 			    drm_format_info_block_height(info, plane));
 }
 EXPORT_SYMBOL(drm_format_info_min_pitch);
+
+/**
+ * drm_format_plane_width_bytes - bytes of the given width of the plane
+ * @info: DRM format information
+ * @plane: plane index
+ * @width: width to get the number of bytes
+ *
+ * This returns the number of bytes for given @width and @plane.
+ * The @char_per_block or macro pixel information should be valid.
+ *
+ * Returns:
+ * The bytes of @width of @plane. 0 for invalid format info.
+ */
+uint64_t drm_format_plane_width_bytes(const struct drm_format_info *info,
+				 int plane, unsigned int width)
+{
+	if (!info || plane >= info->num_planes)
+		return 0;
+
+	if (info->char_per_block[plane])
+		return drm_format_info_min_pitch(info, plane, width);
+
+	if (WARN_ON(!info->bytes_per_macropixel[plane] ||
+		    !info->pixels_per_macropixel[plane])) {
+		struct drm_format_name_buf buf;
+
+		DRM_WARN("Either cpp or macro-pixel info should be valid: %s\n",
+			 drm_get_format_name(info->format, &buf));
+		return 0;
+	}
+
+	return DIV_ROUND_UP(width * info->bytes_per_macropixel[plane],
+			    info->pixels_per_macropixel[plane]);
+}
+EXPORT_SYMBOL(drm_format_plane_width_bytes);

@@ -35,10 +35,11 @@
  * @is_frac:	The divider is a fractional divider
  * @clk_id:	Id of clock
  * @div_type:	divisor type (TYPE_DIV1 or TYPE_DIV2)
+ * @max_div:	Maximum divisor value allowed
  */
 struct zynqmp_clk_divider {
 	struct clk_hw hw;
-	u8 flags;
+	u16 flags;
 	bool is_frac;
 	u32 clk_id;
 	u32 div_type;
@@ -112,17 +113,20 @@ static unsigned long zynqmp_clk_divider_recalc_rate(struct clk_hw *hw,
 static void zynqmp_get_divider2_val(struct clk_hw *hw,
 				    unsigned long rate,
 				    struct zynqmp_clk_divider *divider,
-				    int *bestdiv)
+				    u32 *bestdiv)
 {
 	int div1;
 	int div2;
 	long error = LONG_MAX;
 	unsigned long div1_prate;
 	struct clk_hw *div1_parent_hw;
+	struct zynqmp_clk_divider *pdivider;
 	struct clk_hw *div2_parent_hw = clk_hw_get_parent(hw);
-	struct zynqmp_clk_divider *pdivider =
-				to_zynqmp_clk_divider(div2_parent_hw);
 
+	if (!div2_parent_hw)
+		return;
+
+	pdivider = to_zynqmp_clk_divider(div2_parent_hw);
 	if (!pdivider)
 		return;
 
@@ -255,6 +259,11 @@ static const struct clk_ops zynqmp_clk_divider_ops = {
 	.set_rate = zynqmp_clk_divider_set_rate,
 };
 
+static const struct clk_ops zynqmp_clk_divider_ro_ops = {
+	.recalc_rate = zynqmp_clk_divider_recalc_rate,
+	.round_rate = zynqmp_clk_divider_round_rate,
+};
+
 /**
  * zynqmp_clk_get_max_divisor() - Get maximum supported divisor from firmware.
  * @clk_id:		Id of clock
@@ -310,7 +319,10 @@ struct clk_hw *zynqmp_clk_register_divider(const char *name,
 		return ERR_PTR(-ENOMEM);
 
 	init.name = name;
-	init.ops = &zynqmp_clk_divider_ops;
+	if (nodes->type_flag & CLK_DIVIDER_READ_ONLY)
+		init.ops = &zynqmp_clk_divider_ro_ops;
+	else
+		init.ops = &zynqmp_clk_divider_ops;
 	/* CLK_FRAC is not defined in the common clk framework */
 	init.flags = nodes->flag & ~CLK_FRAC;
 	init.parent_names = parents;
@@ -319,7 +331,21 @@ struct clk_hw *zynqmp_clk_register_divider(const char *name,
 	/* struct clk_divider assignments */
 	div->is_frac = !!((nodes->flag & CLK_FRAC) |
 			  (nodes->custom_type_flag & CUSTOM_FLAG_CLK_FRAC));
-	div->flags = nodes->type_flag;
+	div->flags = 0;
+	div->flags |= (nodes->type_flag & ZYNQMP_CLK_DIVIDER_ONE_BASED) ?
+		      CLK_DIVIDER_ONE_BASED : 0;
+	div->flags |= (nodes->type_flag & ZYNQMP_CLK_DIVIDER_POWER_OF_TWO) ?
+		      CLK_DIVIDER_POWER_OF_TWO : 0;
+	div->flags |= (nodes->type_flag & ZYNQMP_CLK_DIVIDER_ALLOW_ZERO) ?
+		      CLK_DIVIDER_ALLOW_ZERO : 0;
+	div->flags |= (nodes->type_flag & ZYNQMP_CLK_DIVIDER_POWER_OF_TWO) ?
+		      CLK_DIVIDER_HIWORD_MASK : 0;
+	div->flags |= (nodes->type_flag & ZYNQMP_CLK_DIVIDER_ROUND_CLOSEST) ?
+		      CLK_DIVIDER_ROUND_CLOSEST : 0;
+	div->flags |= (nodes->type_flag & ZYNQMP_CLK_DIVIDER_READ_ONLY) ?
+		      CLK_DIVIDER_READ_ONLY : 0;
+	div->flags |= (nodes->type_flag & ZYNQMP_CLK_DIVIDER_MAX_AT_ZERO) ?
+		      CLK_DIVIDER_MAX_AT_ZERO : 0;
 	div->hw.init = &init;
 	div->clk_id = clk_id;
 	div->div_type = nodes->type;

@@ -485,6 +485,8 @@ struct drm_mode_fb_cmd {
 
 #define DRM_MODE_FB_INTERLACED	(1<<0) /* for interlaced framebuffers */
 #define DRM_MODE_FB_MODIFIERS	(1<<1) /* enables ->modifer[] */
+#define DRM_MODE_FB_ALTERNATE_TOP	(1<<2) /* for alternate top field */
+#define DRM_MODE_FB_ALTERNATE_BOTTOM	(1<<3) /* for alternate bottom field */
 
 struct drm_mode_fb_cmd2 {
 	__u32 fb_id;
@@ -640,6 +642,20 @@ struct drm_color_lut {
 	__u16 reserved;
 };
 
+enum drm_hdr_type {
+	/*
+	 * This is for the gen_hdr_output_metadata structure.
+	 * MSB differentiates static (0) or dynamic (1) metadata.
+	 * Other 15 bits represent specific HDR standards.
+	 */
+
+	/* static HDR */
+	DRM_HDR_TYPE_HDR10     = 0x0000,
+
+	/* dynamic HDR */
+	DRM_HDR_TYPE_HDR10P    = 1 << 15 | DRM_HDR_TYPE_HDR10,
+};
+
 /**
  * struct hdr_metadata_infoframe - HDR Metadata Infoframe Data.
  *
@@ -724,6 +740,27 @@ struct hdr_output_metadata {
 	union {
 		struct hdr_metadata_infoframe hdmi_metadata_type1;
 	};
+};
+
+/**
+ * struct gen_hdr_output_metadata - Generic HDR output metadata
+ *
+ * Generic HDR Metadata Information to be passed from userspace
+ */
+struct gen_hdr_output_metadata {
+	/**
+	 * @metadata_type: HDR type.
+	 */
+	__u16 metadata_type;
+	/**
+	 * @size: size of payload/metadata.
+	 */
+	__u16 size;
+	/**
+	 * @payload: Actual metadata - HDR Metadata Infoframe.
+	 * Currently the largest extended HDR infoframe is 4000 bytes.
+	 */
+	__u8 payload[4000];
 };
 
 #define DRM_MODE_PAGE_FLIP_EVENT 0x01

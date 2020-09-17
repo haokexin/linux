@@ -488,7 +488,8 @@ config MICROSEMI_PHY
 	depends on MACSEC || MACSEC=n
 	select CRYPTO_LIB_AES if MACSEC
 	help
-	  Currently supports VSC8514, VSC8530, VSC8531, VSC8540 and VSC8541 PHYs
+	  Currently supports VSC8514, VSC8530, VSC8531, VSC8531_02, VSC8540 and
+	  VSC8541 PHYs
 
 config NATIONAL_PHY
 	tristate "National Semiconductor PHYs"
@@ -546,6 +547,11 @@ config VITESSE_PHY
 	tristate "Vitesse PHYs"
 	help
 	  Currently supports the vsc8244
+
+config XILINX_PHY
+	tristate "Drivers for xilinx PHYs"
+	help
+	  This module provides a driver for the Xilinx PCS/PMA Core.
 
 config XILINX_GMII2RGMII
 	tristate "Xilinx GMII2RGMII converter driver"

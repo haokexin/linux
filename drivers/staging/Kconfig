@@ -76,7 +76,7 @@ source "drivers/staging/gs_fpgaboot/Kconfig"
 
 source "drivers/staging/unisys/Kconfig"
 
-source "drivers/staging/clocking-wizard/Kconfig"
+source "drivers/staging/apf/Kconfig"
 
 source "drivers/staging/fbtft/Kconfig"
 
@@ -115,5 +115,15 @@ source "drivers/staging/kpc2000/Kconfig"
 source "drivers/staging/qlge/Kconfig"
 
 source "drivers/staging/wfx/Kconfig"
+
+source "drivers/staging/fclk/Kconfig"
+
+source "drivers/staging/xlnxsync/Kconfig"
+
+source "drivers/staging/xlnx_tsmux/Kconfig"
+
+source "drivers/staging/xroeframer/Kconfig"
+
+source "drivers/staging/xroetrafficgen/Kconfig"
 
 endif # STAGING
