@@ -1217,6 +1217,35 @@ static int otx2_get_link_ksettings(struct net_device *netdev,
 	return 0;
 }
 
+#define OTX2_OVERWRITE_DEF	0x1
+static int otx2_populate_input_params(struct otx2_nic *pfvf,
+				      struct cgx_set_link_mode_req *req,
+				      u32 speed, u8 duplex, u8 autoneg,
+				      u8 phy_address)
+{
+	if (!ethtool_validate_speed(speed) ||
+	    !ethtool_validate_duplex(duplex))
+		return -EINVAL;
+
+	if (autoneg != AUTONEG_ENABLE && autoneg != AUTONEG_DISABLE)
+		return -EINVAL;
+
+	if (phy_address == OTX2_OVERWRITE_DEF) {
+		req->args.speed = speed;
+		/* firmware expects 1 for half duplex and 0 for full duplex
+		 * hence inverting
+		 */
+		req->args.duplex = duplex ^ 0x1;
+		req->args.an = autoneg;
+	} else {
+		req->args.speed = SPEED_UNKNOWN;
+		req->args.duplex = DUPLEX_UNKNOWN;
+		req->args.an = AUTONEG_UNKNOWN;
+	}
+
+	return 0;
+}
+
 static void otx2_get_advertised_mode(const struct ethtool_link_ksettings *cmd,
 				     u64 *mode)
 {
@@ -1272,6 +1301,13 @@ static int otx2_set_link_ksettings(struct net_device *netdev,
 	req->args.duplex = cmd->base.duplex ^ 0x1;
 	req->args.an = cmd->base.autoneg;
 	otx2_get_advertised_mode(cmd, &req->args.mode);
+
+	if (otx2_populate_input_params(pf, req, cmd->base.speed,
+				       cmd->base.duplex, cmd->base.autoneg,
+				       cmd->base.phy_address)) {
+		mutex_unlock(&mbox->lock);
+		return -EINVAL;
+	}
 
 	err = otx2_sync_mbox_msg(&pf->mbox);
 end:
