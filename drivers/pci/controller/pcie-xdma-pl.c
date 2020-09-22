@@ -855,13 +855,6 @@ static int xilinx_pcie_probe(struct platform_device *pdev)
 		return err;
 	}
 
-	err = pci_parse_request_of_pci_ranges(dev, &bridge->windows,
-										  &bridge->dma_ranges, NULL);
-	if (err) {
-		dev_err(dev, "Getting bridge resources failed\n");
-		return err;
-	}
-
 	bridge->dev.parent = dev;
 	bridge->sysdata = port;
 	bridge->busnr = port->root_busno;
