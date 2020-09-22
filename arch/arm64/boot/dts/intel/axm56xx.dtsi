@@ -159,6 +159,7 @@
 
 		nemac: ethernet@8080240000 {
 			compatible = "intel,nemac";
+			device_type = "network";
 			reg = <0x80 0x80240000 0 0x10000>;
 			interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;

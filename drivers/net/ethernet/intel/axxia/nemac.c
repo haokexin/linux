@@ -25,6 +25,9 @@
 
 #include "nemac-regs.h"
 
+#define AXXIA_DRV_NAME           "intel-femac"
+#define AXXIA_DRV_VERSION        "2020-09-22"
+
 #define DESCRIPTOR_GRANULARITY 64
 #define MAX_JUMBO_FRAME_SIZE   0x3F00
 
@@ -203,6 +206,14 @@ struct nemac_priv {
 
 	/* Stats */
 	struct completion	stats_rdy;
+
+	/* Ethtool Stats*/
+	struct net_device_stats stats;
+	unsigned long dropped_by_stack;
+	unsigned long out_of_tx_descriptors;
+	unsigned long transmit_interrupts;
+	unsigned long receive_interrupts;
+
 };
 
 #define DMA_POINTER_GEN		0x100000
@@ -609,6 +620,7 @@ static netdev_tx_t nemac_xmit(struct sk_buff *skb, struct net_device *ndev)
 		spin_unlock_irqrestore(&priv->txlock, flags);
 		netif_stop_queue(ndev);
 		dev_warn_ratelimited(&ndev->dev, "No TX descriptors!\n");
+		priv->out_of_tx_descriptors++;
 		return NETDEV_TX_BUSY;
 	}
 	queue_set_skb(&priv->txq, desc, skb);
@@ -780,7 +792,8 @@ nemac_rx_packet(struct nemac_priv *priv)
 		pr_desc("RX", desc);
 		skb_put(skb, desc_get_pdulen(desc));
 		skb->protocol = eth_type_trans(skb, priv->netdev);
-		netif_receive_skb(skb);
+		if (netif_receive_skb(skb) == NET_RX_DROP)
+			++priv->dropped_by_stack;
 	}
 
 	/* Allocate and re-initialize descriptors at the head of the queue with
@@ -861,6 +874,7 @@ nemac_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *s)
 	s->rx_crc_errors = nemac_rx_stat_counter(priv, RX_FCS);
 	s->rx_frame_errors = nemac_rx_stat_counter(priv, RX_FRM);
 	s->rx_fifo_errors = nemac_rx_stat_counter(priv, RX_ORUN);
+	s->rx_dropped = nemac_rx_stat_counter(priv, RX_DROP);
 
 	/* detailed tx_errors */
 	s->tx_aborted_errors = nemac_tx_stat_counter(priv, TX_XSCOL);
@@ -875,6 +889,161 @@ static const struct net_device_ops nemac_netdev_ops = {
 	.ndo_set_features = nemac_set_features,
 	.ndo_set_rx_mode  = nemac_set_rx_mode,
 	.ndo_get_stats64  = nemac_get_stats64,
+};
+
+/* ======================================================================
+ * ETHTOOL Operations
+ * ======================================================================
+ */
+/* ----------------------------------------------------------------------
+ * get_hw_statistics
+ *
+ * NOTE: The hardware clears the statistics registers after a read.
+ */
+
+static void get_ethtool_hw_statistics(struct net_device *dev,
+				      struct nemac_priv *pdata)
+{
+	struct rtnl_link_stats64 stats64;
+
+	nemac_get_stats64(dev, &stats64);
+	pdata->stats.rx_packets = (unsigned long)stats64.rx_packets;
+	pdata->stats.tx_packets = (unsigned long)stats64.tx_packets;
+	pdata->stats.rx_bytes = (unsigned long)stats64.rx_bytes;
+	pdata->stats.tx_bytes = (unsigned long)stats64.tx_bytes;
+	pdata->stats.multicast = (unsigned long)stats64.multicast;
+	pdata->stats.collisions = (unsigned long)stats64.collisions;
+
+	/* detailed rx errors: */
+	pdata->stats.rx_length_errors = (unsigned long)stats64.rx_length_errors;
+	pdata->stats.rx_over_errors = (unsigned long)stats64.rx_over_errors;
+	pdata->stats.rx_crc_errors = (unsigned long)stats64.rx_crc_errors;
+	pdata->stats.rx_frame_errors = (unsigned long)stats64.rx_frame_errors;
+	pdata->stats.rx_fifo_errors = (unsigned long)stats64.rx_fifo_errors;
+	pdata->stats.rx_dropped = (unsigned long)stats64.rx_dropped;
+
+	/* detailed tx errors */
+	pdata->stats.tx_aborted_errors = (unsigned long)stats64.rx_packets;
+	pdata->stats.tx_fifo_errors = (unsigned long)stats64.rx_packets;
+}
+
+enum {
+	NETDEV_STATS, NEMACNIC_STATS
+};
+
+struct nemacnic_stats {
+	char stat_string[ETH_GSTRING_LEN];
+	int sizeof_stat;
+	int stat_offset;
+};
+
+#define NEMACNIC_STAT(str, m) {     \
+	.stat_string = str,     \
+	.sizeof_stat = sizeof(((struct nemac_priv *)0)->m), \
+	.stat_offset = offsetof(struct nemac_priv, m) }
+
+static const struct nemacnic_stats nemacnic_gstrings_stats[] = {
+	NEMACNIC_STAT("rx_packets", stats.rx_packets),
+	NEMACNIC_STAT("tx_packets", stats.tx_packets),
+	NEMACNIC_STAT("rx_bytes", stats.rx_bytes),
+	NEMACNIC_STAT("tx_bytes", stats.tx_bytes),
+	NEMACNIC_STAT("multicast", stats.multicast),
+	NEMACNIC_STAT("collisions", stats.collisions),
+	NEMACNIC_STAT("rx_length_errors", stats.rx_length_errors),
+	NEMACNIC_STAT("rx_over_errors", stats.rx_over_errors),
+	NEMACNIC_STAT("rx_dropped", stats.rx_dropped),
+	NEMACNIC_STAT("rx_crc_errors", stats.rx_crc_errors),
+	NEMACNIC_STAT("rx_frame_errors", stats.rx_frame_errors),
+	NEMACNIC_STAT("rx_fifo_errors", stats.rx_fifo_errors),
+	NEMACNIC_STAT("tx_aborted_errors", stats.tx_aborted_errors),
+	NEMACNIC_STAT("tx_fifo_errors", stats.tx_fifo_errors),
+
+	NEMACNIC_STAT("dropped_by_stack", dropped_by_stack),
+	NEMACNIC_STAT("out_of_tx_descriptors", out_of_tx_descriptors),
+	NEMACNIC_STAT("transmit_interrupts", transmit_interrupts),
+	NEMACNIC_STAT("receive_interrupts", receive_interrupts),
+
+};
+
+#define NEMACNIC_GLOBAL_STATS_LEN  ARRAY_SIZE(nemacnic_gstrings_stats)
+#define NEMACNIC_STATS_LEN (NEMACNIC_GLOBAL_STATS_LEN)
+
+/* ----------------------------------------------------------------------
+ * nemacnic_get_ethtool_stats
+ */
+
+static void nemacnic_get_ethtool_stats(struct net_device *dev,
+				       struct ethtool_stats *stats,
+				       u64 *data)
+{
+	struct nemac_priv *pdata = netdev_priv(dev);
+	int i;
+	char *p = NULL;
+
+	get_ethtool_hw_statistics(dev, pdata);
+	for (i = 0; i < NEMACNIC_GLOBAL_STATS_LEN; i++) {
+		p = (char *)pdata + nemacnic_gstrings_stats[i].stat_offset;
+		data[i] = (nemacnic_gstrings_stats[i].sizeof_stat ==
+			sizeof(u64)) ? *(u64 *)p : *(u32 *)p;
+	}
+}
+
+/* ----------------------------------------------------------------------
+ * nemacnic_get_strings
+ */
+
+static void nemacnic_get_strings(struct net_device *netdev, u32 stringset,
+				 u8 *data)
+{
+	u8 *p = data;
+	int i;
+
+	switch (stringset) {
+	case ETH_SS_STATS:
+		for (i = 0; i < NEMACNIC_GLOBAL_STATS_LEN; i++) {
+			memcpy(p, nemacnic_gstrings_stats[i].stat_string,
+			       ETH_GSTRING_LEN);
+			p += ETH_GSTRING_LEN;
+		}
+		break;
+	}
+}
+
+/* ----------------------------------------------------------------------
+ * nemacnic_get_sset_count
+ */
+
+static int nemacnic_get_sset_count(struct net_device *netdev, int sset)
+{
+	switch (sset) {
+	case ETH_SS_STATS:
+		return NEMACNIC_STATS_LEN;
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
+/* ----------------------------------------------------------------------
+ * nemacnic_get_drvinfo
+ */
+
+static void nemacnic_get_drvinfo(struct net_device *dev,
+				 struct ethtool_drvinfo *info)
+{
+	strcpy(info->driver, AXXIA_DRV_NAME);
+	strcpy(info->version, AXXIA_DRV_VERSION);
+	strlcpy(info->bus_info, dev_name(dev->dev.parent),
+		sizeof(info->bus_info));
+}
+
+/* Fill in the struture...  */
+
+static const struct ethtool_ops nemac_ethtool_ops = {
+	.get_drvinfo = nemacnic_get_drvinfo,
+	.get_ethtool_stats = nemacnic_get_ethtool_stats,
+	.get_strings = nemacnic_get_strings,
+	.get_sset_count = nemacnic_get_sset_count,
+	.get_link_ksettings = phy_ethtool_get_link_ksettings,
 };
 
 static int
@@ -1020,6 +1189,12 @@ nemac_dma_interrupt(int irq, void *_dev)
 	struct nemac_priv *priv = _dev;
 	u32 status = readl(priv->reg + NEM_DMA_INTE_STATUS);
 
+	/* Collect the ethtool stats */
+	if (status & INTE_RX_DONE)
+		priv->receive_interrupts++;
+	else if (status & INTE_TX_DONE)
+		priv->transmit_interrupts++;
+
 	if (status & (INTE_RX_DONE | INTE_TX_DONE)) {
 		if (napi_schedule_prep(&priv->napi)) {
 			/* Disable interrupts */
@@ -1150,6 +1325,7 @@ nemac_probe(struct platform_device *pdev)
 			      NEM_GMAC_STA_ADDR_R, NEM_GMAC_STA_ADDR_UPPER_R);
 	dev_set_drvdata(dev, ndev);
 	ndev->netdev_ops = &nemac_netdev_ops;
+	ndev->ethtool_ops = &nemac_ethtool_ops;
 	netif_napi_add(ndev, &priv->napi, nemac_poll, 64);
 
 	/* HW supported features, none enabled by default */
