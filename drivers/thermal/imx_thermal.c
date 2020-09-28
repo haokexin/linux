@@ -257,12 +257,15 @@ static int imx_get_temp(struct thermal_zone_device *tz, int *temp)
 	const struct thermal_soc_data *soc_data = data->socdata;
 	struct regmap *map = data->tempmon;
 	unsigned int n_meas;
-	u32 val;
+	u32 val, run_measurement;
 	int ret;
 
 	ret = pm_runtime_resume_and_get(data->dev);
 	if (ret < 0)
 		return ret;
+
+	regmap_read(map, soc_data->sensor_ctrl, &val);
+	run_measurement = val & soc_data->power_down_mask;
 
 	regmap_read(map, soc_data->temp_data, &val);
 
