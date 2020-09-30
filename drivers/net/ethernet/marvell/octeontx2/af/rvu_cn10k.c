@@ -538,3 +538,11 @@ void rvu_program_channels(struct rvu *rvu)
 	rvu_lbk_set_channels(rvu);
 	rvu_rpm_set_channels(rvu);
 }
+
+void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw)
+{
+	int blkaddr = nix_hw->blkaddr;
+
+	/* Set vWQE timer interval to max possible value i.e. 102us. */
+	rvu_write64(rvu, blkaddr, NIX_AF_VWQE_TIMER, 0x3FFULL);
+}
