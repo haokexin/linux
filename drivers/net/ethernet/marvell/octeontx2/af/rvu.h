@@ -903,6 +903,9 @@ void rvu_program_channels(struct rvu *rvu);
 /* CN10K RVU - LMT*/
 void rvu_reset_lmt_map_tbl(struct rvu *rvu, u16 pcifunc);
 
+/* CN10K NIX */
+void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw);
+
 /* TIM APIs */
 int rvu_tim_init(struct rvu *rvu);
 int rvu_tim_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot);
