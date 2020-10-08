@@ -63,6 +63,7 @@ struct cs_etm_auxtrace {
 	u64 instructions_id;
 	u64 **metadata;
 	unsigned int pmu_type;
+	unsigned int sink_formatted;
 };
 
 struct cs_etm_traceid_queue {
@@ -507,6 +508,7 @@ static int cs_etm__init_trace_params(struct cs_etm_trace_params *t_params,
 
 static int cs_etm__init_decoder_params(struct cs_etm_decoder_params *d_params,
 				       struct cs_etm_queue *etmq,
+				       struct cs_etm_auxtrace *etm,
 				       enum cs_etm_decoder_operation mode,
 				       bool formatted)
 {
@@ -518,7 +520,7 @@ static int cs_etm__init_decoder_params(struct cs_etm_decoder_params *d_params,
 	d_params->packet_printer = cs_etm__packet_dump;
 	d_params->operation = mode;
 	d_params->data = etmq;
-	d_params->formatted = formatted;
+	d_params->formatted = etm->sink_formatted;
 	d_params->fsyncs = false;
 	d_params->hsyncs = false;
 	d_params->frame_aligned = true;
@@ -779,7 +781,7 @@ static struct cs_etm_queue *cs_etm__alloc_queue(struct cs_etm_auxtrace *etm,
 		goto out_free;
 
 	/* Set decoder parameters to decode trace packets */
-	if (cs_etm__init_decoder_params(&d_params, etmq,
+	if (cs_etm__init_decoder_params(&d_params, etmq, etm,
 					dump_trace ? CS_ETM_OPERATION_PRINT :
 						     CS_ETM_OPERATION_DECODE,
 					formatted))
@@ -3050,6 +3052,7 @@ int cs_etm__process_auxtrace_info(union perf_event *event,
 
 	etm->num_cpu = num_cpu;
 	etm->pmu_type = pmu_type;
+	etm->sink_formatted = (hdr[CS_SINK_FORMATTED] & 0x1);
 	etm->snapshot_mode = (hdr[CS_ETM_SNAPSHOT] != 0);
 	etm->metadata = metadata;
 	etm->auxtrace_type = auxtrace_info->type;
