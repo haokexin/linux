@@ -230,14 +230,14 @@ void resctrl_offline_domain(struct rdt_resource *r, struct rdt_domain *d);
  * @rmid:		rmid of the counter to read.
  * @eventid:		eventid to read, e.g. L3 occupancy.
  * @val:		result of the counter read in bytes.
+ * @arch_mon_ctx:	An allocated context from resctrl_arch_mon_ctx_alloc().
  *
  * Return:
  * 0 on success, or -EIO, -EINVAL etc on error.
  */
 int resctrl_arch_rmid_read(struct rdt_resource *r, struct rdt_domain *d,
 			   u32 closid, u32 rmid, enum resctrl_event_id eventid,
-			   u64 *val);
-
+			   u64 *val, unsigned long arch_mon_ctx);
 
 /**
  * resctrl_arch_reset_rmid() - Reset any private state associated with rmid
