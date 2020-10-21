@@ -824,15 +824,6 @@ enum nix_vtag_size {
 /* REE admin queue instruction structure */
 struct ree_af_aq_inst_s {
 	u64 rof_ptr_addr;
-#if defined(__BIG_ENDIAN_BITFIELD)
-	u64 reserved_111_127	: 17;
-	u64 length		: 15;
-	u64 reserved_68_95	: 28;
-	u64 doneint		:  1;
-	u64 reserved_66_66	:  1;
-	u64 nc			:  1;
-	u64 reserved_64_64	:  1;
-#else
 	u64 reserved_64_64	:  1;
 	u64 nc			:  1;
 	u64 reserved_66_66	:  1;
@@ -840,22 +831,14 @@ struct ree_af_aq_inst_s {
 	u64 reserved_68_95	: 28;
 	u64 length		: 15;
 	u64 reserved_111_127	: 17;
-#endif
 };
 
 /* REE ROF file entry structure */
 struct ree_rof_s {
-#if defined(__BIG_ENDIAN_BITFIELD)
-	u64 reserved_40_63	: 24;
-	u64 typ			:  8;
-	u64 reserved_24_31	:  8;
-	u64 addr		: 24;
-#else
 	u64 addr		: 24;
 	u64 reserved_24_31	:  8;
 	u64 typ			:  8;
 	u64 reserved_40_63	: 24;
-#endif
 	u64 data;
 };
 
