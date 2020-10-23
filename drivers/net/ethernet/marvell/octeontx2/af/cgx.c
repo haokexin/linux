@@ -598,6 +598,10 @@ void cgx_lmac_enadis_rx_pause_fwding(void *cgxd, int lmac_id, bool enable)
 	struct cgx *cgx = cgxd;
 	u64 cfg;
 
+	/* FIXME add support rx pause forwarding */
+	if (is_dev_rpm(cgx))
+		return;
+
 	if (!cgx)
 		return;
 
@@ -887,6 +891,12 @@ int cgx_lmac_enadis_pause_frm(void *cgxd, int lmac_id,
 			      u8 tx_pause, u8 rx_pause)
 {
 	struct cgx *cgx = cgxd;
+
+	/* flow control configuration logic is changed for RPM.
+	 * Will add the support later
+	 */
+	if (is_dev_rpm(cgx))
+		return 0;
 
 	if (!cgx || lmac_id >= cgx->lmac_count)
 		return -ENODEV;

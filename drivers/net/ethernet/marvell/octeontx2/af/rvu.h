@@ -610,7 +610,8 @@ static inline bool is_rvu_95xx_A0(struct rvu *rvu)
 static inline bool is_cgx_mapped_to_nix(unsigned short id, u8 cgx_id)
 {
 	return !(cgx_id && !(id == PCI_SUBSYS_DEVID_96XX ||
-			     id == PCI_SUBSYS_DEVID_98XX));
+			     id == PCI_SUBSYS_DEVID_98XX ||
+			     id == PCI_SUBSYS_DEVID_CN10K_A));
 }
 
 /* REVID for PCIe devices.
