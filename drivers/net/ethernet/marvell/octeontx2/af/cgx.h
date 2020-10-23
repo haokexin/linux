@@ -21,7 +21,6 @@
 #define CGX_ID_MASK			0x7
 #define MAX_LMAC_PER_CGX		4
 #define MAX_DMAC_ENTRIES_PER_CGX	32
-#define CGX_FIFO_LEN			65536 /* 64K for both Rx & Tx */
 #define CGX_OFFSET(x)			((x) * MAX_LMAC_PER_CGX)
 
 /* Registers */
