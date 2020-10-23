@@ -459,6 +459,9 @@ bool rvu_cgx_is_higig2_enabled(struct rvu *rvu, int pf)
 	u8 cgx_id, lmac_id;
 	void *cgxd;
 
+	if (!is_mac_feature_supported(rvu, pf, RVU_LMAC_FEAT_HIGIG2))
+		return 0;
+
 	if (!is_pf_cgxmapped(rvu, pf))
 		return false;
 
