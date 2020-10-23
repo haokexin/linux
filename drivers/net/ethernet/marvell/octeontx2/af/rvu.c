@@ -2111,6 +2111,9 @@ int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 		rsp->schq_nix1[NIX_TXSCH_LVL_TL2] = 1;
 	} else {
 		nix_hw = get_nix_hw(hw, BLKADDR_NIX0);
+		if (!nix_hw)
+			goto err;
+
 		curlfs = rvu_txsch_count_rsrc(rvu, NIX_TXSCH_LVL_SMQ, pcifunc,
 					      RVU_PFVF_PF_SHIFT, nix_hw);
 		rsp->schq[NIX_TXSCH_LVL_SMQ] = rvu->pf_limits.smq->a[pf].val - curlfs;
@@ -2133,6 +2136,9 @@ int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 			goto out;
 
 		nix_hw = get_nix_hw(hw, BLKADDR_NIX1);
+		if (!nix_hw)
+			goto err;
+
 		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_SMQ];
 		rsp->schq_nix1[NIX_TXSCH_LVL_SMQ] =
 				rvu_rsrc_free_count(&txsch->schq);
@@ -2153,6 +2159,7 @@ int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 	rsp->schq_nix1[NIX_TXSCH_LVL_TL1] = 1;
 out:
 	rsp->schq[NIX_TXSCH_LVL_TL1] = 1;
+err:
 	mutex_unlock(&rvu->rsrc_lock);
 
 	return 0;
@@ -2824,6 +2831,9 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 
 	pcifunc_arr = kcalloc(rvu->hw->total_pfs + rvu->hw->total_vfs,
 			      sizeof(*pcifunc_arr), GFP_KERNEL);
+	if (!pcifunc_arr)
+		return;
+
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
 	if (blkaddr < 0)
 		return;
