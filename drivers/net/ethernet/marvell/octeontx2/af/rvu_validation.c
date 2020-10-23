@@ -638,8 +638,11 @@ int rvu_policy_init(struct rvu *rvu)
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, BLKADDR_NIX0);
 	struct pci_dev *pdev = rvu->pdev;
 	struct rvu_hwinfo *hw = rvu->hw;
-	int err, i = 0;
+	int err = -EINVAL, i = 0;
 	u32 max = 0;
+
+	if (!nix_hw)
+		goto error;
 
 	max = hw->block[BLKADDR_SSO].lf.max;
 	rvu->pf_limits.sso = quotas_alloc(rvu->hw->total_pfs, max, max,
