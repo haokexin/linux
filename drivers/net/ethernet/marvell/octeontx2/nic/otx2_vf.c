@@ -594,6 +594,7 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	INIT_WORK(&vf->reset_task, otx2vf_reset_task);
 
+	/* To distinguish, for LBK VFs set netdev name explicitly */
 	if (is_otx2_lbkvf(vf->pdev)) {
 		int n;
 

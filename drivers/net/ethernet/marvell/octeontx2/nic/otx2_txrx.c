@@ -93,7 +93,6 @@ static void otx2_snd_pkt_handler(struct otx2_nic *pfvf,
 
 	sqe_id = snd_comp->sqe_id;
 	sg = &sq->sg[sqe_id];
-
 	skb = (struct sk_buff *)sg->skb;
 	if (unlikely(!skb))
 		return;
@@ -341,7 +340,6 @@ static int otx2_rx_napi_handler(struct otx2_nic *pfvf,
 				return 0;
 			break;
 		}
-
 		cq->cq_head++;
 		cq->cq_head &= (cq->cqe_cnt - 1);
 

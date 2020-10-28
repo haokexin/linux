@@ -878,7 +878,7 @@ static u32 otx2_get_rxfh_indir_size(struct net_device *dev)
 {
 	struct otx2_nic *pfvf = netdev_priv(dev);
 
-	return pfvf->hw.rss_info.rss_size;
+	return sizeof(pfvf->hw.rss_info.ind_tbl);
 }
 
 /* Get RSS configuration */
@@ -1666,6 +1666,8 @@ static const struct ethtool_ops otx2vf_ethtool_ops = {
 	.set_ringparam		= otx2_set_ringparam,
 	.get_coalesce		= otx2_get_coalesce,
 	.set_coalesce		= otx2_set_coalesce,
+	.get_msglevel		= otx2_get_msglevel,
+	.set_msglevel		= otx2_set_msglevel,
 	.get_pauseparam		= otx2_get_pauseparam,
 	.set_pauseparam		= otx2_set_pauseparam,
 	.get_link_ksettings     = otx2vf_get_link_ksettings,
