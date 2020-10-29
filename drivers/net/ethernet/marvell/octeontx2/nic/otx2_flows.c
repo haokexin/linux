@@ -49,19 +49,12 @@ int otx2_mcam_flow_init(struct otx2_nic *pf)
 	if (!pf->mac_table)
 		return -ENOMEM;
 
-	/* register work queue for ndo callbacks */
-	pf->otx2_wq = create_singlethread_workqueue("otx2_ndo_work_queue");
-	if (!pf->otx2_wq)
-		return -ENOMEM;
-	INIT_WORK(&pf->rx_mode_work, otx2_do_set_rx_mode);
 	return 0;
 }
 
 void otx2_mcam_flow_del(struct otx2_nic *pf)
 {
 	otx2_destroy_mcam_flows(pf);
-	if (pf->otx2_wq)
-		destroy_workqueue(pf->otx2_wq);
 }
 
 int otx2_alloc_mcam_entries(struct otx2_nic *pfvf)
