@@ -488,5 +488,6 @@ static struct platform_driver octeontx2_pem_driver = {
 	},
 	.probe = octeontx2_pem_probe,
 };
+builtin_platform_driver(octeontx2_pem_driver);
 
 #endif
