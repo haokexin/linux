@@ -32,14 +32,6 @@ irqreturn_t octeon_i2c_isr(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static void octeon_i2c_clear_iflg(struct octeon_i2c *i2c)
-{
-	int ctl = octeon_i2c_ctl_read(i2c);
-
-	ctl &= (~TWSI_CTL_IFLG);
-	octeon_i2c_ctl_write(i2c, ctl);
-}
-
 static bool octeon_i2c_test_iflg(struct octeon_i2c *i2c)
 {
 	return (octeon_i2c_ctl_read(i2c) & TWSI_CTL_IFLG);
