@@ -2949,6 +2949,9 @@ static int mmc_blk_probe(struct mmc_card *card)
 	if (ret)
 		goto out;
 
+	if (mmc_card_mmc(card) || mmc_card_sd(card))
+		mmcpstore_card_set(card, md->disk->disk_name);
+
 	/* Add two debugfs entries */
 	mmc_blk_add_debugfs(card, md);
 
@@ -3098,6 +3101,7 @@ static void __exit mmc_blk_exit(void)
 	unregister_blkdev(MMC_BLOCK_MAJOR, "mmc");
 	unregister_chrdev_region(mmc_rpmb_devt, MAX_DEVICES);
 	bus_unregister(&mmc_rpmb_bus_type);
+	unregister_mmcpstore();
 }
 
 module_init(mmc_blk_init);
