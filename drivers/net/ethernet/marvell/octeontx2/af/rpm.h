@@ -21,7 +21,6 @@
 #define RPMX_CMRX_SW_INT_ENA_W1S        0x198
 #define RPMX_CMRX_LINK_CFG		0x1070
 #define RPMX_MTI_PCS100X_CONTROL1       0x20000
-#define RPMX_MTI_LPCSX_CONTROL1         0x30000
 #define RPMX_MTI_PCS_LBK                BIT_ULL(14)
 #define RPMX_MTI_LPCSX_CONTROL(id)     (0x30000 | ((id) * 0x100))
 
