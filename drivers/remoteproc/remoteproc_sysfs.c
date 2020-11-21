@@ -3,6 +3,7 @@
  * Remote Processor Framework
  */
 
+#include <linux/module.h>
 #include <linux/remoteproc.h>
 #include <linux/slab.h>
 
@@ -198,15 +199,28 @@ static ssize_t state_store(struct device *dev,
 		    rproc->state == RPROC_ATTACHED)
 			return -EBUSY;
 
+		/*
+		 * prevent underlying implementation from being removed
+		 * when remoteproc does not support auto-boot
+		 */
+		if (!rproc->auto_boot &&
+		    !try_module_get(dev->parent->driver->owner))
+			return -EINVAL;
+
 		ret = rproc_boot(rproc);
-		if (ret)
+		if (ret) {
 			dev_err(&rproc->dev, "Boot failed: %d\n", ret);
+			if (!rproc->auto_boot)
+				module_put(dev->parent->driver->owner);
+		}
 	} else if (sysfs_streq(buf, "stop")) {
 		if (rproc->state != RPROC_RUNNING &&
 		    rproc->state != RPROC_ATTACHED)
 			return -EINVAL;
 
 		rproc_shutdown(rproc);
+		if (!rproc->auto_boot)
+			module_put(dev->parent->driver->owner);
 	} else if (sysfs_streq(buf, "detach")) {
 		if (rproc->state != RPROC_ATTACHED)
 			return -EINVAL;
