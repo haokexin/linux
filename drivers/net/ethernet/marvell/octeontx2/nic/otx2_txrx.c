@@ -290,7 +290,7 @@ static bool otx2_check_rcv_errors(struct otx2_nic *pfvf,
 	return true;
 }
 
-static bool otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
+static void otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
 				 struct napi_struct *napi,
 				 struct otx2_cq_queue *cq,
 				 struct nix_cqe_rx_s *cqe)
@@ -305,16 +305,16 @@ static bool otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
 
 	if (unlikely(parse->errlev || parse->errcode)) {
 		if (otx2_check_rcv_errors(pfvf, cqe, cq->cq_idx))
-			return false;
+			return;
 	}
 
 	skb = napi_get_frags(napi);
 	if (unlikely(!skb))
-		return false;
+		return;
 
 	if (pfvf->xdp_prog)
 		if (otx2_xdp_rcv_pkt_handler(pfvf, cqe, cq))
-			return false;
+			return;
 
 	start = (void *)sg;
 	end = start + ((cqe->parse.desc_sizem1 + 1) * 16);
@@ -347,21 +347,7 @@ static bool otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
 					       parse->vtag0_tci);
 	}
 
-	return true;
-}
-
-static void otx2_rcv_add_frags(struct otx2_nic *pfvf,
-			       struct napi_struct *napi,
-			       struct otx2_cq_queue *cq,
-			       struct nix_cqe_rx_s *cqe,
-			       u64 iova, int len)
-{
-	struct nix_rx_parse_s *parse = &cqe->parse;
-	/* skb is checked for NULL before calling this function */
-	struct sk_buff *skb = napi_get_frags(napi);
-
-	otx2_skb_add_frag(pfvf, skb, iova, len, parse);
-	cq->pool_ptrs++;
+	napi_gro_frags(napi);
 }
 
 static int otx2_rx_napi_handler(struct otx2_nic *pfvf,
@@ -369,9 +355,7 @@ static int otx2_rx_napi_handler(struct otx2_nic *pfvf,
 				struct otx2_cq_queue *cq, int budget)
 {
 	struct nix_cqe_rx_s *cqe;
-	struct nix_rx_sg_s *sg;
 	int processed_cqe = 0;
-	u8 segs;
 
 	while (likely(processed_cqe < budget)) {
 		cqe = (struct nix_cqe_rx_s *)CQE_ADDR(cq, cq->cq_head);
@@ -384,30 +368,8 @@ static int otx2_rx_napi_handler(struct otx2_nic *pfvf,
 		cq->cq_head++;
 		cq->cq_head &= (cq->cqe_cnt - 1);
 
-		if (!otx2_rcv_pkt_handler(pfvf, napi, cq, cqe))
-			goto next;
+		otx2_rcv_pkt_handler(pfvf, napi, cq, cqe);
 
-		sg = &cqe->sg;
-		while (sg->subdc == NIX_SUBDC_SG && sg->segs) {
-			/* Hardware supports three segements per SG */
-			for (segs = 0; segs < sg->segs; segs++) {
-				if (segs == 0)
-					otx2_rcv_add_frags(pfvf, napi, cq, cqe,
-							   sg->seg_addr,
-							   sg->seg_size);
-				if (segs == 1)
-					otx2_rcv_add_frags(pfvf, napi, cq, cqe,
-							   sg->seg2_addr,
-							   sg->seg2_size);
-				if (segs == 2)
-					otx2_rcv_add_frags(pfvf, napi, cq, cqe,
-							   sg->seg3_addr,
-							   sg->seg3_size);
-			}
-			sg++;
-		}
-		napi_gro_frags(napi);
-next:
 		cqe->hdr.cqe_type = NIX_XQE_TYPE_INVALID;
 		cqe->sg.seg_addr = 0x00;
 		processed_cqe++;
