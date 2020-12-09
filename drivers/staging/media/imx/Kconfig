@@ -64,5 +64,7 @@ config IMX8_MIPI_CSI2
 	  Enable support for video4linux camera sensor interface driver for
 	  i.MX8QM/QXP platform.
 
+source "drivers/staging/media/imx/hdmirx/Kconfig"
+
 endmenu
 endif  #VIDEO_IMX_CAPTURE
