@@ -459,7 +459,7 @@ struct npc_kpu_profile_adapter {
 	u64				version;
 	const struct npc_lt_def_cfg	*lt_def;
 	const struct npc_kpu_profile_action	*ikpu; /* array[pkinds] */
-	struct npc_kpu_profile	*kpu; /* array[kpus] */
+	const struct npc_kpu_profile	*kpu; /* array[kpus] */
 	struct npc_mcam_kex		*mkex;
 	bool				custom;
 	size_t				pkinds;
