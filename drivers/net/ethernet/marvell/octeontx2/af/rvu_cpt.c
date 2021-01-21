@@ -167,6 +167,14 @@ void rvu_cpt_unregister_interrupts(struct rvu *rvu)
 		}
 }
 
+static bool is_cpt_blkaddr(int blkaddr)
+{
+	if (blkaddr != BLKADDR_CPT0 && blkaddr != BLKADDR_CPT1)
+		return false;
+
+	return true;
+}
+
 static bool is_cpt_pf(struct rvu *rvu, u16 pcifunc)
 {
 	int cpt_pf_num = get_cpt_pf_num(rvu);
@@ -793,8 +801,8 @@ int rvu_cpt_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 	u64 reg;
 
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, pcifunc);
-	if (blkaddr != BLKADDR_CPT0 && blkaddr != BLKADDR_CPT1)
-		return -EINVAL;
+	if (blkaddr < 0)
+		return blkaddr;
 
 	/* Enable BAR2 ALIAS for this pcifunc. */
 	reg = BIT_ULL(16) | pcifunc;
