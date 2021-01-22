@@ -1165,6 +1165,11 @@ static int axienet_recv(struct net_device *ndev, int budget,
 
 	while ((numbdfree < budget) &&
 	       (cur_p->status & XAXIDMA_BD_STS_COMPLETE_MASK)) {
+		new_skb = netdev_alloc_skb(ndev, lp->max_frm_size);
+		if (!new_skb) {
+			dev_err(lp->dev, "No memory for new_skb\n");
+			break;
+		}
 		/* Ensure we see complete descriptor update */
 		dma_rmb();
 
@@ -1243,12 +1248,6 @@ static int axienet_recv(struct net_device *ndev, int budget,
 
 			size += length;
 			packets++;
-		}
-
-		new_skb = netdev_alloc_skb(ndev, lp->max_frm_size);
-		if (!new_skb) {
-			dev_err(lp->dev, "No memory for new_skb\n\r");
-			break;
 		}
 
 		/* Ensure that the skb is completely updated
