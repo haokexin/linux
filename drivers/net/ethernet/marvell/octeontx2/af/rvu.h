@@ -959,4 +959,5 @@ int rvu_tim_lookup_rsrc(struct rvu *rvu, struct rvu_block *block,
 int rvu_npc_get_tx_nibble_cfg(struct rvu *rvu, u64 nibble_ena);
 bool is_parse_nibble_config_valid(struct rvu *rvu,
 				  struct npc_mcam_kex *mcam_kex);
+void rvu_tim_hw_fixes(struct rvu *rvu, int blkaddr);
 #endif /* RVU_H */
