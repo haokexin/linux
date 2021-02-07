@@ -54,7 +54,9 @@ struct pl061_gpio {
 	spinlock_t		lock; /* */
 
 	void __iomem		*base;
+	struct irq_chip		irq_chip;
 	struct gpio_chip	gc;
+	int			parent_irq;
 
 #ifdef CONFIG_PM
 	struct pl061_context_save_regs csave_regs;
@@ -274,21 +276,23 @@ static void pl061_irq_ack(struct irq_data *d)
 static int pl061_irq_set_wake(struct irq_data *d, unsigned int state)
 {
 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+	struct pl061_gpio *pl061 = gpiochip_get_data(gc);
 
-	return irq_set_irq_wake(gc->irq.parent_irq, state);
+	return irq_set_irq_wake(pl061->parent_irq, state);
 }
 
-static struct irq_chip pl061_irqchip = {
-	.name		= "pl061",
-	.irq_ack	= pl061_irq_ack,
-	.irq_mask	= pl061_irq_mask,
-	.irq_unmask	= pl061_irq_unmask,
-	.irq_set_type	= pl061_irq_type,
-	.irq_set_wake	= pl061_irq_set_wake,
-};
+static int pl061_irq_init_hw(struct gpio_chip *gc)
+{
+	struct pl061_gpio *const chip = gpiochip_get_data(gc);
+
+	writeb(0, chip->base + GPIOIE); /* disable irqs */
+
+	return 0;
+}
 
 static int pl061_probe(struct amba_device *adev, const struct amba_id *id)
 {
+	struct gpio_irq_chip *girq;
 	struct device *dev = &adev->dev;
 	struct pl061_platform_data *pdata = dev_get_platdata(dev);
 	struct pl061_gpio *chip;
@@ -320,50 +324,70 @@ static int pl061_probe(struct amba_device *adev, const struct amba_id *id)
 		chip->gc.free = gpiochip_generic_free;
 	}
 
+	chip->gc.label = dev_name(dev);
+	chip->gc.parent = dev;
 	chip->gc.get_direction = pl061_get_direction;
 	chip->gc.direction_input = pl061_direction_input;
 	chip->gc.direction_output = pl061_direction_output;
 	chip->gc.get = pl061_get_value;
 	chip->gc.set = pl061_set_value;
 	chip->gc.ngpio = PL061_GPIO_NR;
-	chip->gc.label = dev_name(dev);
-	chip->gc.parent = dev;
 	chip->gc.owner = THIS_MODULE;
-
-	ret = gpiochip_add_data(&chip->gc, chip);
-	if (ret)
-		return ret;
 
 	/*
 	 * irq_chip support
 	 */
-	writeb(0, chip->base + GPIOIE); /* disable irqs */
+	chip->irq_chip.name = dev_name(dev);
+	chip->irq_chip.irq_ack	= pl061_irq_ack;
+	chip->irq_chip.irq_mask = pl061_irq_mask;
+	chip->irq_chip.irq_unmask = pl061_irq_unmask;
+	chip->irq_chip.irq_set_type = pl061_irq_type;
+	chip->irq_chip.irq_set_wake = pl061_irq_set_wake;
+
 	irq = adev->irq[0];
 	if (irq < 0) {
 		dev_err(&adev->dev, "invalid IRQ\n");
 		return -ENODEV;
 	}
 
-	ret = gpiochip_irqchip_add(&chip->gc, &pl061_irqchip,
-				   irq_base, handle_bad_irq,
-				   IRQ_TYPE_NONE);
-	if (ret) {
-		dev_info(&adev->dev, "could not add irqchip\n");
-		return ret;
-	}
+	chip->parent_irq = irq;
+
+	girq = &chip->gc.irq;
+	girq->chip = &chip->irq_chip;
+	girq->parent_handler = pl061_irq_handler;
+	girq->first = irq_base;
+	girq->default_type = IRQ_TYPE_NONE;
+	girq->handler = handle_bad_irq;
+	girq->init_hw = pl061_irq_init_hw;
 
 	if (of_find_compatible_node(NULL, NULL, "axxia,axc6732")) {
+		girq->num_parents = AMBA_NR_IRQS;
+		girq->parents =
+			devm_kcalloc(dev, girq->num_parents,
+				     sizeof(*girq->parents), GFP_KERNEL);
+		if (!girq->parents)
+			return -ENOMEM;
+
 		for (i = 0; i < AMBA_NR_IRQS; i++) {
 			if (adev->irq[i] <= 0)
 				continue;
 
-			gpiochip_set_chained_irqchip(&chip->gc, &pl061_irqchip,
-						     adev->irq[i],
-						     pl061_irq_handler);
+			girq->parents[i] = adev->irq[i];
 		}
 	} else {
-		gpiochip_set_chained_irqchip(&chip->gc, &pl061_irqchip,
-					     irq, pl061_irq_handler);
+		girq->num_parents = 1;
+		girq->parents =
+			devm_kcalloc(dev, girq->num_parents,
+				     sizeof(*girq->parents), GFP_KERNEL);
+		if (!girq->parents)
+			return -ENOMEM;
+		girq->parents[0] = irq;
+	}
+
+	ret = devm_gpiochip_add_data(dev, &chip->gc, chip);
+	if (ret) {
+		dev_err(dev, "GPIO registering failed (%d)\n", ret);
+		return ret;
 	}
 
 	for (i = 0; i < PL061_GPIO_NR; i++) {
