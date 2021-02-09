@@ -1064,6 +1064,38 @@ void mpam_enable_once(void)
 		READ_ONCE(mpam_partid_max) + 1, mpam_pmg_max + 1);
 }
 
+static void mpam_reset_class(struct mpam_class *class)
+{
+	struct mpam_msc_ris *ris;
+	struct mpam_component *comp;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(comp, &class->components, class_list) {
+		list_for_each_entry_rcu(ris, &comp->ris, comp_list) {
+			spin_lock(&ris->msc->lock);
+			mpam_touch_msc(ris->msc, mpam_reset_ris, ris);
+			spin_unlock(&ris->msc->lock);
+			ris->in_reset_state = true;
+		}
+	}
+	rcu_read_unlock();
+}
+
+/*
+ * Called in response to an error IRQ.
+ * All of MPAMs errors indicate a software bug, restore any modified
+ * controls to their reset values.
+ */
+void mpam_disable(void)
+{
+	struct mpam_class *class;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(class, &mpam_classes, classes_list)
+		mpam_reset_class(class);
+	rcu_read_unlock();
+}
+
 /*
  * Enable mpam once all devices have been probed.
  * Scheduled by mpam_discovery_cpu_online() once all devices have been created.
