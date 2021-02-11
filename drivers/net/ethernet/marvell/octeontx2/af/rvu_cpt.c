@@ -731,6 +731,52 @@ int rvu_mbox_handler_cpt_rxc_time_cfg(struct rvu *rvu,
 	return 0;
 }
 
+static void cpt_rxc_teardown(struct rvu *rvu, int blkaddr)
+{
+	struct cpt_rxc_time_cfg_req req;
+	int timeout = 2000;
+	u64 reg;
+
+	if (is_rvu_otx2(rvu))
+		return;
+
+	/* Set time limit to minimum values, so that rxc entries will be
+	 * flushed out quickly.
+	 */
+	req.step = 1;
+	req.zombie_thres = 1;
+	req.zombie_limit = 1;
+	req.active_thres = 1;
+	req.active_limit = 1;
+
+	cpt_rxc_time_cfg(rvu, &req, blkaddr);
+
+	do {
+		reg = rvu_read64(rvu, blkaddr, CPT_AF_RXC_ACTIVE_STS);
+		udelay(1);
+		if (FIELD_GET(RXC_ACTIVE_COUNT, reg))
+			timeout--;
+		else
+			break;
+	} while (timeout);
+
+	if (timeout == 0)
+		dev_warn(rvu->dev, "Poll for RXC active count hits hard loop counter\n");
+
+	timeout = 2000;
+	do {
+		reg = rvu_read64(rvu, blkaddr, CPT_AF_RXC_ZOMBIE_STS);
+		udelay(1);
+		if (FIELD_GET(RXC_ZOMBIE_COUNT, reg))
+			timeout--;
+		else
+			break;
+	} while (timeout);
+
+	if (timeout == 0)
+		dev_warn(rvu->dev, "Poll for RXC zombie count hits hard loop counter\n");
+}
+
 #define INPROG_INFLIGHT(reg)    ((reg) & 0x1FF)
 #define INPROG_GRB_PARTIAL(reg) ((reg) & BIT_ULL(31))
 #define INPROG_GRB(reg)         (((reg) >> 32) & 0xFF)
@@ -803,6 +849,8 @@ int rvu_cpt_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, pcifunc);
 	if (blkaddr < 0)
 		return blkaddr;
+
+	cpt_rxc_teardown(rvu, blkaddr);
 
 	/* Enable BAR2 ALIAS for this pcifunc. */
 	reg = BIT_ULL(16) | pcifunc;
