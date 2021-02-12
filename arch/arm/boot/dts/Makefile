@@ -1644,3 +1644,5 @@ $(addprefix $(obj)/,$(dtb-merge-y)): TI_DTBOS
 
 TI_DTBOS:
 	$(Q)$(MAKE) $(build)=$(src)/ti
+
+PHONY += TI_DTBOS
