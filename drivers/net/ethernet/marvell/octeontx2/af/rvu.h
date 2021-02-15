@@ -573,14 +573,6 @@ static inline bool is_rvu_pre_96xx_C0(struct rvu *rvu)
 		(pdev->revision == 0x14));
 }
 
-static inline bool is_rvu_post_96xx_C0(struct rvu *rvu)
-{
-	struct pci_dev *pdev = rvu->pdev;
-
-	return (pdev->revision == 0x08) || (pdev->revision == 0x30) ||
-		(pdev->revision == 0x20);
-}
-
 static inline bool is_rvu_96xx_A0(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
@@ -593,13 +585,6 @@ static inline bool is_rvu_96xx_B0(struct rvu *rvu)
 	struct pci_dev *pdev = rvu->pdev;
 
 	return (pdev->revision == 0x00) || (pdev->revision == 0x01);
-}
-
-static inline bool is_rvu_95xx_B0(struct rvu *rvu)
-{
-	struct pci_dev *pdev = rvu->pdev;
-
-	return (pdev->revision == 0x14);
 }
 
 static inline bool is_rvu_95xx_A0(struct rvu *rvu)
