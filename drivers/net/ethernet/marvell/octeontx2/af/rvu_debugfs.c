@@ -2570,74 +2570,34 @@ RVU_DEBUG_FOPS(sso_hws_info, NULL, sso_hws_info_display);
 
 static void rvu_dbg_sso_init(struct rvu *rvu)
 {
-	const struct device *dev = &rvu->pdev->dev;
-	struct dentry *pfile;
-
 	rvu->rvu_dbg.sso = debugfs_create_dir("sso", rvu->rvu_dbg.root);
-	if (!rvu->rvu_dbg.sso)
-		return;
-
 	rvu->rvu_dbg.sso_hwgrp = debugfs_create_dir("hwgrp", rvu->rvu_dbg.sso);
-	if (!rvu->rvu_dbg.sso_hwgrp)
-		return;
-
 	rvu->rvu_dbg.sso_hws = debugfs_create_dir("hws", rvu->rvu_dbg.sso);
-	if (!rvu->rvu_dbg.sso_hws)
-		return;
 
-	pfile = debugfs_create_file("sso_pc", 0600,
-				    rvu->rvu_dbg.sso, rvu,
-			&rvu_dbg_sso_pc_fops);
-	if (!pfile)
-		goto create_failed;
+	debugfs_create_file("sso_pc", 0600, rvu->rvu_dbg.sso, rvu,
+			    &rvu_dbg_sso_pc_fops);
 
-	pfile = debugfs_create_file("sso_hwgrp_pc", 0600,
-				    rvu->rvu_dbg.sso_hwgrp, rvu,
-			&rvu_dbg_sso_hwgrp_pc_fops);
-	if (!pfile)
-		goto create_failed;
+	debugfs_create_file("sso_hwgrp_pc", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_pc_fops);
 
-	pfile = debugfs_create_file("sso_hwgrp_thresh", 0600,
-				    rvu->rvu_dbg.sso_hwgrp, rvu,
-			&rvu_dbg_sso_hwgrp_thresh_fops);
-	if (!pfile)
-		goto create_failed;
+	debugfs_create_file("sso_hwgrp_thresh", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_thresh_fops);
 
-	pfile = debugfs_create_file("sso_hwgrp_taq_walk", 0600,
-				    rvu->rvu_dbg.sso_hwgrp, rvu,
-			&rvu_dbg_sso_hwgrp_taq_wlk_fops);
-	if (!pfile)
-		goto create_failed;
+	debugfs_create_file("sso_hwgrp_taq_walk", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_taq_wlk_fops);
 
-	pfile = debugfs_create_file("sso_hwgrp_iaq_walk", 0600,
-				    rvu->rvu_dbg.sso_hwgrp, rvu,
-			&rvu_dbg_sso_hwgrp_iaq_wlk_fops);
-	if (!pfile)
-		goto create_failed;
+	debugfs_create_file("sso_hwgrp_iaq_walk", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_iaq_wlk_fops);
 
-	pfile = debugfs_create_file("sso_hwgrp_ient_walk", 0600,
-				    rvu->rvu_dbg.sso_hwgrp, rvu,
-			&rvu_dbg_sso_hwgrp_ient_wlk_fops);
-	if (!pfile)
-		goto create_failed;
+	debugfs_create_file("sso_hwgrp_ient_walk", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_ient_wlk_fops);
 
-	pfile = debugfs_create_file("sso_hwgrp_free_list_walk", 0600,
-				    rvu->rvu_dbg.sso_hwgrp, rvu,
-			&rvu_dbg_sso_hwgrp_fl_wlk_fops);
-	if (!pfile)
-		goto create_failed;
+	debugfs_create_file("sso_hwgrp_free_list_walk", 0600,
+			    rvu->rvu_dbg.sso_hwgrp, rvu,
+			    &rvu_dbg_sso_hwgrp_fl_wlk_fops);
 
-	pfile = debugfs_create_file("sso_hws_info", 0600,
-				    rvu->rvu_dbg.sso_hws, rvu,
-			&rvu_dbg_sso_hws_info_fops);
-	if (!pfile)
-		goto create_failed;
-
-	return;
-
-create_failed:
-	dev_err(dev, "Failed to create debugfs dir/file for SSO\n");
-	debugfs_remove_recursive(rvu->rvu_dbg.sso);
+	debugfs_create_file("sso_hws_info", 0600, rvu->rvu_dbg.sso_hws,
+			    rvu, &rvu_dbg_sso_hws_info_fops);
 }
 
 /* CPT debugfs APIs */
