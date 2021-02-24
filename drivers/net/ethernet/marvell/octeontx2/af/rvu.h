@@ -449,6 +449,8 @@ struct rvu_fwdata {
 
 struct ptp;
 
+#define RVU_SWITCH_LBK_CHAN	63
+
 /* KPU profile adapter structure gathering all KPU configuration data and abstracting out the
  * source where it came from.
  */
