@@ -1082,7 +1082,7 @@ static int otx2_set_fecparam(struct net_device *netdev,
 	else
 		err = rsp->fec;
 end:
-	mutex_unlock(&mbox->lock);
+	mutex_unlock(&pfvf->mbox.lock);
 	return err;
 }
 
