@@ -28,11 +28,13 @@ struct rpmsg_endpoint_ops;
 /**
  * struct rpmsg_channel_info - channel info representation
  * @name: name of service
+ * @desc: description of service
  * @src: local address
  * @dst: destination address
  */
 struct rpmsg_channel_info {
 	char name[RPMSG_NAME_SIZE];
+	char desc[RPMSG_NAME_SIZE];
 	u32 src;
 	u32 dst;
 };
@@ -44,6 +46,7 @@ struct rpmsg_channel_info {
  * @driver_override: driver name to force a match; do not set directly,
  *                   because core frees it; use driver_set_override() to
  *                   set or clear it.
+ * @desc: description of remote service
  * @src: local address
  * @dst: destination address
  * @ept: the rpmsg endpoint of this channel
@@ -54,6 +57,7 @@ struct rpmsg_device {
 	struct device dev;
 	struct rpmsg_device_id id;
 	const char *driver_override;
+	char desc[RPMSG_NAME_SIZE];
 	u32 src;
 	u32 dst;
 	struct rpmsg_endpoint *ept;
