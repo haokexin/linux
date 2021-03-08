@@ -8,8 +8,25 @@
 #include <linux/rpmsg.h>
 #include <linux/rpmsg/ns.h>
 #include <linux/slab.h>
-
+#include <linux/virtio_config.h>
 #include "rpmsg_internal.h"
+
+/**
+ * struct rpmsg_ns_msg_ext - dynamic name service announcement message v2
+ * @name: name of remote service that is published
+ * @desc: description of remote service
+ * @addr: address of remote service that is published
+ * @flags: indicates whether service is created or destroyed
+ *
+ * Interchangeable nameservice message with rpmsg_ns_msg. This one has
+ * the addition of the desc field for extra flexibility.
+ */
+struct rpmsg_ns_msg_ext {
+	char name[RPMSG_NAME_SIZE];
+	char desc[RPMSG_NAME_SIZE];
+	u32 addr;
+	u32 flags;
+} __packed;
 
 /**
  * rpmsg_ns_register_device() - register name service device based on rpdev
@@ -34,17 +51,30 @@ static int rpmsg_ns_cb(struct rpmsg_device *rpdev, void *data, int len,
 		       void *priv, u32 src)
 {
 	struct rpmsg_ns_msg *msg = data;
+	struct rpmsg_ns_msg_ext *msg_ext = data;
 	struct rpmsg_device *newch;
 	struct rpmsg_channel_info chinfo;
+ 	struct virtproc_info *vrp = priv;
 	struct device *dev = rpdev->dev.parent;
 	int ret;
+	u32 addr;
+	u32 flags;
 
 #if defined(CONFIG_DYNAMIC_DEBUG)
 	dynamic_hex_dump("NS announcement: ", DUMP_PREFIX_NONE, 16, 1,
 			 data, len, true);
 #endif
 
-	if (len != sizeof(*msg)) {
+	if (len == sizeof(*msg)) {
+		addr = virtio32_to_cpu(vrp->vdev, msg->addr);
+		flags = virtio32_to_cpu(vrp->vdev, msg->flags);
+		chinfo.desc[0] = '\0';
+	} else if (len == sizeof(*msg_ext)) {
+		addr = virtio32_to_cpu(vrp->vdev, msg_ext->addr);
+		flags = virtio32_to_cpu(vrp->vdev, msg_ext->flags);
+		msg_ext->desc[RPMSG_NAME_SIZE - 1] = '\0';
+		strncpy(chinfo.desc, msg_ext->desc, sizeof(chinfo.desc));
+	} else {
 		dev_err(dev, "malformed ns msg (%d)\n", len);
 		return -EINVAL;
 	}
@@ -54,13 +84,13 @@ static int rpmsg_ns_cb(struct rpmsg_device *rpdev, void *data, int len,
 
 	strncpy(chinfo.name, msg->name, sizeof(chinfo.name));
 	chinfo.src = RPMSG_ADDR_ANY;
-	chinfo.dst = rpmsg32_to_cpu(rpdev, msg->addr);
+	chinfo.dst = addr;
 
 	dev_info(dev, "%sing channel %s addr 0x%x\n",
-		 rpmsg32_to_cpu(rpdev, msg->flags) & RPMSG_NS_DESTROY ?
+		 flags & RPMSG_NS_DESTROY ?
 		 "destroy" : "creat", msg->name, chinfo.dst);
 
-	if (rpmsg32_to_cpu(rpdev, msg->flags) & RPMSG_NS_DESTROY) {
+	if (flags & RPMSG_NS_DESTROY) {
 		ret = rpmsg_release_channel(rpdev, &chinfo);
 		if (ret)
 			dev_err(dev, "rpmsg_destroy_channel failed: %d\n", ret);
