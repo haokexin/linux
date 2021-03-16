@@ -14,6 +14,19 @@ struct am65_cpsw_est {
 	struct tc_taprio_qopt_offload taprio;
 };
 
+struct am65_cpsw_iet {
+	struct net_device *ndev;
+	/* Set through priv flags */
+	bool fpe_configured;
+	bool mac_verify_configured;
+	/* frame preemption enabled */
+	bool fpe_enabled;
+	/* configured mask */
+	u32 fpe_mask_configured;
+	/* current mask */
+	u32 mask;
+};
+
 struct am65_cpsw_ale_ratelimit {
 	unsigned long cookie;
 	u64 rate_packet_ps;
@@ -24,6 +37,7 @@ struct am65_cpsw_qos {
 	struct am65_cpsw_est *est_oper;
 	ktime_t link_down_time;
 	int link_speed;
+	struct am65_cpsw_iet iet;
 
 	struct am65_cpsw_ale_ratelimit ale_bc_ratelimit;
 	struct am65_cpsw_ale_ratelimit ale_mc_ratelimit;
@@ -34,4 +48,6 @@ int am65_cpsw_qos_ndo_setup_tc(struct net_device *ndev, enum tc_setup_type type,
 void am65_cpsw_qos_link_up(struct net_device *ndev, int link_speed);
 void am65_cpsw_qos_link_down(struct net_device *ndev);
 
+void am65_cpsw_qos_iet_init(struct net_device *ndev);
+void am65_cpsw_qos_iet_cleanup(struct net_device *ndev);
 #endif /* AM65_CPSW_QOS_H_ */
