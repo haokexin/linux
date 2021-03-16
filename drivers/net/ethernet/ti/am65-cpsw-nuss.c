@@ -539,6 +539,9 @@ static int am65_cpsw_nuss_ndo_slave_stop(struct net_device *ndev)
 
 	phylink_disconnect_phy(port->slave.phylink);
 
+	/* Clean up IET */
+	am65_cpsw_qos_iet_cleanup(ndev);
+
 	ret = am65_cpsw_nuss_common_stop(common);
 	if (ret)
 		return ret;
@@ -606,6 +609,9 @@ static int am65_cpsw_nuss_ndo_slave_open(struct net_device *ndev)
 
 	/* restore vlan configurations */
 	vlan_for_each(ndev, cpsw_restore_vlans, port);
+
+        /* Initialize IET */
+        am65_cpsw_qos_iet_init(ndev);
 
 	phylink_start(port->slave.phylink);
 
