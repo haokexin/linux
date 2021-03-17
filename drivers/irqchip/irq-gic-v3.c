@@ -18,6 +18,7 @@
 #include <linux/percpu.h>
 #include <linux/refcount.h>
 #include <linux/slab.h>
+#include <linux/kernel_stat.h>
 
 #include <linux/irqchip.h>
 #include <linux/irqchip/arm-gic-common.h>
@@ -1263,7 +1264,7 @@ static void gic_cpu_init(void)
 	 * Configure all PPIs and SGIs used by Linux as non-secure
 	 * group 1, others are secure group 0.
 	 */
-	writel_relaxed((0xffff0000 | ((1 << NR_IPI) - 1)),
+	writel_relaxed((0xffff0000 | ((1 << 7) - 1)),
 		       rbase + GICR_IGROUPR0);
 #else
 	/* Configure SGIs/PPIs as non-secure Group-1 */
