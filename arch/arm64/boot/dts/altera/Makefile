@@ -2,6 +2,7 @@
 dtb-$(CONFIG_ARCH_INTEL_SOCFPGA) += socfpga_stratix10_socdk.dtb \
 				socfpga_stratix10_fpga_update.dtb \
 				socfpga_stratix10_socdk_pcie.dtb \
+				socfpga_stratix10_socdk_sgmii.dtb \
 				socfpga_stratix10_socdk_nand.dtb \
 				socfpga_stratix10_swvp.dtb \
 				socfpga_stratix10_socdk_nand.dtb
