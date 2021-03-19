@@ -6,6 +6,8 @@
 
 #ifndef _AXXIA_H
 
+extern int axxia_pen_release;
+
 void axxia_init_clocks(int is_sim);
 void axxia_ddr_retention_init(void);
 void axxia_platform_cpu_die(unsigned int cpu);
