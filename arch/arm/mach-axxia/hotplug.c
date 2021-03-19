@@ -12,8 +12,7 @@
 #include <asm/smp_plat.h>
 #include <asm/cp15.h>
 #include "axxia_power_management.h"
-
-extern int pen_release;
+#include "axxia.h"
 
 static inline void pm_cpu_logical_shutdown(u32 cpu)
 {
@@ -168,7 +167,7 @@ static void __ref platform_do_lowpower(unsigned int cpu, int *spurious)
 	cluster = (phys_cpu / 4) << 8;
 	phys_cpu = cluster + (phys_cpu % 4);
 
-	if (pen_release == phys_cpu) {
+	if (axxia_pen_release == phys_cpu) {
 		/*
 		 * OK, proper wakeup, we're done
 		 */

@@ -27,6 +27,9 @@ static int wfe_available;
 
 void __iomem *syscon;
 
+/* XXX axxia_pen_release is cargo culted code - DO NOT COPY XXX */
+int axxia_pen_release = -1;
+
 inline void
 __axxia_arch_wfe(void)
 {
@@ -66,16 +69,18 @@ static void  do_fixup_sev(void)
 }
 
 /*
- * Write pen_release in a way that is guaranteed to be visible to all
- * observers, irrespective of whether they're taking part in coherency
+ * XXX CARGO CULTED CODE - DO NOT COPY XXX
+ *
+ * Write axxia_pen_release in a way that is guaranteed to be visible to
+ * all observers, irrespective of whether they're taking part in coherency
  * or not.  This is necessary for the hotplug code to work reliably.
  */
-static void  write_pen_release(int val)
+static void axxia_write_pen_release(int val)
 {
-	pen_release = val;
+	axxia_pen_release = val;
 	smp_wmb(); /* */
-	__cpuc_flush_dcache_area((void *)&pen_release, sizeof(pen_release));
-	outer_clean_range(__pa(&pen_release), __pa(&pen_release + 1));
+	__cpuc_flush_dcache_area((void *)&axxia_pen_release, sizeof(axxia_pen_release));
+	outer_clean_range(__pa(&axxia_pen_release), __pa(&axxia_pen_release + 1));
 }
 
 static DEFINE_RAW_SPINLOCK(boot_lock);
@@ -116,7 +121,7 @@ void  axxia_secondary_init(unsigned int cpu)
 	 * Let the primary processor know we're out of the
 	 * pen, then head off into the C entry point.
 	 */
-	write_pen_release(-1);
+	axxia_write_pen_release(-1);
 
 	/*
 	 * Synchronise with the boot thread.
@@ -156,8 +161,8 @@ int  axxia_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 * to secondary cores in the other clusters).
 	 *
 	 * Instead, the secondary cores are immediately put into a loop
-	 * that polls the "pen_release" global and MPIDR register. The two
-	 * are compared and if they match, a secondary core then executes
+	 * that polls the "axxia_pen_release" global and MPIDR register. The
+	 * two are compared and if they match, a secondary core then executes
 	 * the Axxia secondary startup code.
 	 *
 	 * Here we convert the "cpu" variable to be compatible with the
@@ -170,7 +175,7 @@ int  axxia_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	phys_cpu = cluster + (phys_cpu % 4);
 
 	/* Release the specified core */
-	write_pen_release(phys_cpu);
+	axxia_write_pen_release(phys_cpu);
 
 	/* Send a wakeup IPI to get the idled cpu out of WFI state */
 	arch_send_wakeup_ipi_mask(cpumask_of(cpu));
@@ -180,7 +185,7 @@ int  axxia_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	while (time_before(jiffies, timeout)) {
 		smp_rmb(); /* */
 
-		if (pen_release == -1)
+		if (axxia_pen_release == -1)
 			break;
 
 		/* Wait 10 cycles */
@@ -194,7 +199,7 @@ int  axxia_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 */
 	_raw_spin_unlock(&boot_lock);
 
-	return pen_release != -1 ? -EOPNOTSUPP : 0;
+	return axxia_pen_release != -1 ? -EOPNOTSUPP : 0;
 }
 
 static __init struct device_node *get_cpu_node(int cpu)
