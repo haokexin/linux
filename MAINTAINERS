@@ -11144,6 +11144,11 @@ F:	include/linux/mailbox_controller.h
 F:	include/dt-bindings/mailbox/
 F:	Documentation/devicetree/bindings/mailbox/
 
+MAILBOX MARVELL MHU DRIVER
+M:	Wojciech Bartczak <wbartczak@marvell.com>
+S:	Maintained
+F:	drivers/mailbox/mvl_mhu.c
+
 MAILBOX ARM MHUv2
 M:	Viresh Kumar <viresh.kumar@linaro.org>
 M:	Tushar Khandelwal <Tushar.Khandelwal@arm.com>
