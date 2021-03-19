@@ -62,4 +62,4 @@ ENDPROC(axxia_secondary_startup)
 
 	.align 2
 1:	.long	.
-	.long	pen_release
+	.long	axxia_pen_release
