@@ -283,6 +283,8 @@ struct spi_controller_mem_ops {
 			   unsigned long initial_delay_us,
 			   unsigned long polling_rate_us,
 			   unsigned long timeout_ms);
+	void (*do_calibration)(struct spi_mem *mem,
+			       const struct spi_mem_op *op);
 };
 
 /**
@@ -355,6 +357,7 @@ bool spi_mem_dtr_supports_op(struct spi_mem *mem,
 #endif /* CONFIG_SPI_MEM */
 
 int spi_mem_adjust_op_size(struct spi_mem *mem, struct spi_mem_op *op);
+int spi_mem_do_calibration(struct spi_mem *mem, const struct spi_mem_op *op);
 
 bool spi_mem_supports_op(struct spi_mem *mem,
 			 const struct spi_mem_op *op);
