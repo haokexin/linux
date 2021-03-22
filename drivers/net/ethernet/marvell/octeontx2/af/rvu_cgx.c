@@ -789,8 +789,8 @@ static int rvu_cgx_ptp_rx_cfg(struct rvu *rvu, u16 pcifunc, bool enable)
 	if (!is_mac_feature_supported(rvu, pf, RVU_LMAC_FEAT_PTP))
 		return 0;
 
-	if (!is_cgx_config_permitted(rvu, pcifunc))
-		return LMAC_AF_ERR_PERM_DENIED;
+	if (!is_pf_cgxmapped(rvu, rvu_get_pf(pcifunc)))
+		return -EPERM;
 
 	/* Silicon does not support enabling time stamp in higig mode */
 	if (rvu_cgx_is_higig2_enabled(rvu, pf))
