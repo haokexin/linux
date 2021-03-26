@@ -166,6 +166,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb imx8qm-mek-ov5640.dtb \
 			  imx8qm-pcieax2pciebx1.dtb \
 			  imx8qm-mek-usdhc3-m2.dtb imx8qm-mek-usd-wifi.dtb \
 			  imx8qm-mek-hdmi-rx.dtb \
+			  imx8qm-mek-cockpit-a53.dtb imx8qm-mek-cockpit-a72.dtb \
 			  imx8qm-mek-esai.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-colibri-eval-v3.dtb
