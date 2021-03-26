@@ -137,6 +137,7 @@ void pruss_put(struct pruss *pruss);
 int pruss_cfg_read(struct pruss *pruss, unsigned int reg, unsigned int *val);
 int pruss_cfg_update(struct pruss *pruss, unsigned int reg,
 		     unsigned int mask, unsigned int val);
+int pruss_cfg_ocp_master_ports(struct pruss *pruss, bool enable);
 
 #else
 
@@ -155,6 +156,11 @@ static inline int pruss_cfg_read(struct pruss *pruss, unsigned int reg,
 
 static inline int pruss_cfg_update(struct pruss *pruss, unsigned int reg,
 				   unsigned int mask, unsigned int val)
+{
+	return -EOPNOTSUPP;
+}
+
+static inline int pruss_cfg_ocp_master_ports(struct pruss *pruss, bool enable)
 {
 	return -EOPNOTSUPP;
 }
