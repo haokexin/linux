@@ -578,6 +578,7 @@ struct rproc {
 	size_t table_sz;
 	bool has_iommu;
 	bool auto_boot;
+	bool deny_sysfs_ops;
 	bool sysfs_read_only;
 	struct list_head dump_segments;
 	int nb_vdev;
