@@ -579,7 +579,6 @@ femac_alloc_mem_buffers(struct net_device *dev)
 
 #ifndef CONFIG_ARM
 	dev->dev.archdata.dma_ops = &dma_direct_ops;
-	device = &dev->dev;
 #endif
 
 	pdata->dma_alloc = dma_alloc_coherent(device,
