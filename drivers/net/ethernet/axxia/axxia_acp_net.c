@@ -1279,7 +1279,6 @@ int appnic_init(struct net_device *dev)
 		(pdata->tx_buf_sz) + (BUFFER_ALIGNMENT);
 
 	/* Allocate the buffers. */
-
 	rc = femac_alloc_mem_buffers(dev);
 	if (rc != 0) {
 		pr_err("%s: Can't allocate DMA-able memory!\n", AXXIA_DRV_NAME);
@@ -1625,7 +1624,6 @@ static int appnic_drv_probe(struct platform_device *pdev)
 		AXXIA_DRV_NAME, AXXIA_DRV_VERSION);
 
 	/* Allocate space for the device. */
-
 	ndev = alloc_etherdev(sizeof(struct appnic_device));
 	if (!ndev) {
 		pr_err("%s: Couldn't allocate net device.\n", AXXIA_DRV_NAME);
@@ -1639,6 +1637,13 @@ static int appnic_drv_probe(struct platform_device *pdev)
 	pdata = netdev_priv(ndev);
 	pdata->netdev = ndev;
 	pdata->dev = &pdev->dev;
+
+	if (dma_set_mask(&pdev->dev, DMA_BIT_MASK(32)) ||
+	    dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(32))) {
+		pr_err("No usable DMA configuration, aborting\n");
+		rc = -EIO;
+		goto err_inval;
+	}
 
 	/* In the case of a fixed PHY, the DT node associated
 	 * to the PHY is the Ethernet MAC DT node.
