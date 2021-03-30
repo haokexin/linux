@@ -794,8 +794,8 @@ static int irq_domain_translate(struct irq_domain *d,
 	return 0;
 }
 
-void of_phandle_args_to_fwspec(struct device_node *np, const u32 *args,
-			       unsigned int count, struct irq_fwspec *fwspec)
+void of_phandle_args_to_fwspec(struct device_node *np, const u32 *args, unsigned int count,
+			       struct irq_fwspec *fwspec)
 {
 	int i;
 
