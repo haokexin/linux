@@ -956,6 +956,98 @@ static void gic_irq_sync_unlock(struct irq_data *d)
 	mutex_unlock(&irq_bus_lock);
 }
 
+static void axxia_ipi_send_mask(struct irq_data *d, const struct cpumask *mask)
+{
+	int cpu;
+	unsigned long map = 0;
+	unsigned int regoffset;
+	u32 phys_cpu = cpu_logical_map(smp_processor_id());
+
+	/* Sanity check the physical cpu number */
+	if (phys_cpu >= nr_cpu_ids) {
+		pr_err("Invalid cpu num (%d) >= max (%d)\n",
+		       phys_cpu, nr_cpu_ids);
+		return;
+	}
+
+	/* Convert our logical CPU mask into a physical one. */
+	for_each_cpu(cpu, mask)
+		map |= 1 << cpu_logical_map(cpu);
+
+	/*
+	 * Convert the standard ARM IPI number (as defined in
+	 * arch/arm/kernel/smp.c) to an Axxia IPI interrupt.
+	 * The Axxia sends IPI interrupts to other cores via
+	 * the use of "IPI send" registers. Each register is
+	 * specific to a sending CPU and IPI number. For example:
+	 * regoffset 0x0 = CPU0 uses to send IPI0 to other CPUs
+	 * regoffset 0x4 = CPU0 uses to send IPI1 to other CPUs
+	 * ...
+	 * regoffset 0x1000 = CPU1 uses to send IPI0 to other CPUs
+	 * regoffset 0x1004 = CPU1 uses to send IPI1 to other CPUs
+	 * ...
+	 */
+
+	if (phys_cpu < 8)
+		regoffset = phys_cpu * 0x1000;
+	else
+		regoffset = (phys_cpu - 8) * 0x1000 + 0x10000;
+
+	switch (d->hwirq - 16) {
+	case 0: /* IPI_WAKEUP */
+		regoffset += 0x8; /* Axxia IPI2 */
+		muxed_ipi_message_pass(mask, MUX_MSG_CPU_WAKEUP);
+		break;
+
+	case 1: /* IPI_TIMER */
+		regoffset += 0x0; /* Axxia IPI0 */
+		break;
+
+	case 2: /* IPI_RESCHEDULE */
+		regoffset += 0x4; /* Axxia IPI1 */
+		break;
+
+	case 3: /* IPI_CALL_FUNC */
+		regoffset += 0x8; /* Axxia IPI2 */
+		muxed_ipi_message_pass(mask, MUX_MSG_CALL_FUNC);
+		break;
+
+	case 4: /* IPI_CALL_FUNC_SINGLE */
+		regoffset += 0x8; /* Axxia IPI2 */
+		muxed_ipi_message_pass(mask, MUX_MSG_CALL_FUNC_SINGLE);
+		break;
+
+	case 5: /* IPI_CPU_STOP */
+		regoffset += 0x8; /* Axxia IPI2 */
+		muxed_ipi_message_pass(mask, MUX_MSG_CPU_STOP);
+		break;
+
+	case 6: /* IPI_IRQ_WORK */
+		regoffset += 0x8; /* Axxia IPI2 */
+		muxed_ipi_message_pass(mask, MUX_MSG_IRQ_WORK);
+		break;
+
+	case 7: /* IPI_COMPLETE */
+		regoffset += 0x8; /* Axxia IPI2 */
+		muxed_ipi_message_pass(mask, MUX_MSG_COMPLETION);
+		break;
+
+	default:
+		/* Unknown ARM IPI */
+		pr_err("Unknown ARM IPI num (%lu)!\n", d->hwirq - 16);
+		return;
+	}
+
+	/*
+	 * Ensure that stores to Normal memory are visible to the
+	 * other CPUs before issuing the IPI.
+	 */
+	dsb();
+
+	/* Axxia chip uses external SPI interrupts for IPI functionality. */
+	writel_relaxed(map, ipi_send_reg_base + regoffset);
+}
+
 static
 asmlinkage void __exception_irq_entry axxia_gic_handle_irq(struct pt_regs *regs)
 {
@@ -1077,6 +1169,7 @@ static struct irq_chip gic_chip = {
 	.irq_set_type		= gic_set_type,
 	.irq_retrigger		= gic_retrigger,
 	.irq_set_affinity	= gic_set_affinity,
+	.ipi_send_mask		= axxia_ipi_send_mask,
 	.irq_set_wake		= gic_set_wake,
 };
 
@@ -1229,98 +1322,6 @@ static void  gic_cpu_init(struct gic_chip_data *gic)
 
 	writel_relaxed(0xf0, base + GIC_CPU_PRIMASK);
 	writel_relaxed(1, base + GIC_CPU_CTRL);
-}
-
-void axxia_gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
-{
-	int cpu;
-	unsigned long map = 0;
-	unsigned int regoffset;
-	u32 phys_cpu = cpu_logical_map(smp_processor_id());
-
-	/* Sanity check the physical cpu number */
-	if (phys_cpu >= nr_cpu_ids) {
-		pr_err("Invalid cpu num (%d) >= max (%d)\n",
-		       phys_cpu, nr_cpu_ids);
-		return;
-	}
-
-	/* Convert our logical CPU mask into a physical one. */
-	for_each_cpu(cpu, mask)
-		map |= 1 << cpu_logical_map(cpu);
-
-	/*
-	 * Convert the standard ARM IPI number (as defined in
-	 * arch/arm/kernel/smp.c) to an Axxia IPI interrupt.
-	 * The Axxia sends IPI interrupts to other cores via
-	 * the use of "IPI send" registers. Each register is
-	 * specific to a sending CPU and IPI number. For example:
-	 * regoffset 0x0 = CPU0 uses to send IPI0 to other CPUs
-	 * regoffset 0x4 = CPU0 uses to send IPI1 to other CPUs
-	 * ...
-	 * regoffset 0x1000 = CPU1 uses to send IPI0 to other CPUs
-	 * regoffset 0x1004 = CPU1 uses to send IPI1 to other CPUs
-	 * ...
-	 */
-
-	if (phys_cpu < 8)
-		regoffset = phys_cpu * 0x1000;
-	else
-		regoffset = (phys_cpu - 8) * 0x1000 + 0x10000;
-
-	switch (irq) {
-	case 0: /* IPI_WAKEUP */
-		regoffset += 0x8; /* Axxia IPI2 */
-		muxed_ipi_message_pass(mask, MUX_MSG_CPU_WAKEUP);
-		break;
-
-	case 1: /* IPI_TIMER */
-		regoffset += 0x0; /* Axxia IPI0 */
-		break;
-
-	case 2: /* IPI_RESCHEDULE */
-		regoffset += 0x4; /* Axxia IPI1 */
-		break;
-
-	case 3: /* IPI_CALL_FUNC */
-		regoffset += 0x8; /* Axxia IPI2 */
-		muxed_ipi_message_pass(mask, MUX_MSG_CALL_FUNC);
-		break;
-
-	case 4: /* IPI_CALL_FUNC_SINGLE */
-		regoffset += 0x8; /* Axxia IPI2 */
-		muxed_ipi_message_pass(mask, MUX_MSG_CALL_FUNC_SINGLE);
-		break;
-
-	case 5: /* IPI_CPU_STOP */
-		regoffset += 0x8; /* Axxia IPI2 */
-		muxed_ipi_message_pass(mask, MUX_MSG_CPU_STOP);
-		break;
-
-	case 6: /* IPI_IRQ_WORK */
-		regoffset += 0x8; /* Axxia IPI2 */
-		muxed_ipi_message_pass(mask, MUX_MSG_IRQ_WORK);
-		break;
-
-	case 7: /* IPI_COMPLETE */
-		regoffset += 0x8; /* Axxia IPI2 */
-		muxed_ipi_message_pass(mask, MUX_MSG_COMPLETION);
-		break;
-
-	default:
-		/* Unknown ARM IPI */
-		pr_err("Unknown ARM IPI num (%d)!\n", irq);
-		return;
-	}
-
-	/*
-	 * Ensure that stores to Normal memory are visible to the
-	 * other CPUs before issuing the IPI.
-	 */
-	dsb();
-
-	/* Axxia chip uses external SPI interrupts for IPI functionality. */
-	writel_relaxed(map, ipi_send_reg_base + regoffset);
 }
 
 static int gic_irq_domain_map(struct irq_domain *d, unsigned int irq,
