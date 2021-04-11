@@ -2,3 +2,4 @@
 obj-y           += gti/
 obj-y 		+= hw-access/
 obj-$(CONFIG_MARVELL_FWLOG) += fwlog.o
+obj-$(CONFIG_MVMDIO_UIO) += mvmdio_uio.o
