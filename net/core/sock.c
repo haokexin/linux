@@ -230,7 +230,7 @@ static struct lock_class_key af_family_kern_slock_keys[AF_MAX];
   x "AF_NFC"   ,	x "AF_VSOCK"    ,	x "AF_KCM"      , \
   x "AF_QIPCRTR",	x "AF_SMC"	,	x "AF_XDP"	, \
   x "AF_MCTP"  , \
-  x "AF_MAX"
+  x "AF_RPMSG" ,	x "AF_MAX"
 
 static const char *const af_family_key_strings[AF_MAX+1] = {
 	_sock_locks("sk_lock-")
