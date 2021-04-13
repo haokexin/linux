@@ -223,11 +223,12 @@ struct ucred {
 				 * reuses AF_INET address family
 				 */
 #define AF_XDP		44	/* XDP sockets			*/
-#define AF_MCTP		45	/* Management component
+#define AF_RPMSG	45	/* Remote-processor messaging   */
+#define AF_MAX		46	/* For now.. */
+
+#define AF_MCTP		47	/* Management component
 				 * transport protocol
 				 */
-
-#define AF_MAX		46	/* For now.. */
 
 /* Protocol families, same as address families. */
 #define PF_UNSPEC	AF_UNSPEC
@@ -277,6 +278,7 @@ struct ucred {
 #define PF_QIPCRTR	AF_QIPCRTR
 #define PF_SMC		AF_SMC
 #define PF_XDP		AF_XDP
+#define PF_RPMSG	AF_RPMSG
 #define PF_MCTP		AF_MCTP
 #define PF_MAX		AF_MAX
 
@@ -364,6 +366,7 @@ struct ucred {
 #define SOL_KCM		281
 #define SOL_TLS		282
 #define SOL_XDP		283
+#define SOL_RPMSG	284
 
 /* IPX options */
 #define IPX_TYPE	1
