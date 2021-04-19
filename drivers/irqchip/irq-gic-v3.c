@@ -43,8 +43,6 @@
 #define FLAGS_WORKAROUND_MTK_GICR_SAVE		(1ULL << 2)
 #define FLAGS_WORKAROUND_ASR_ERRATUM_8601001	(1ULL << 3)
 
-#define GIC_IRQ_TYPE_PARTITION	(GIC_IRQ_TYPE_LPI + 1)
-
 struct redist_region {
 	void __iomem		*redist_base;
 	phys_addr_t		phys_base;
