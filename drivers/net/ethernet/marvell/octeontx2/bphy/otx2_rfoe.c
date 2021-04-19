@@ -130,10 +130,10 @@ void otx2_bphy_rfoe_cleanup(void)
 		if (drv_ctx->valid) {
 			netdev = drv_ctx->netdev;
 			priv = netdev_priv(netdev);
-			if (priv->ptp_cfg) {
+			--(priv->ptp_cfg->refcnt);
+			if (!priv->ptp_cfg->refcnt) {
 				del_timer_sync(&priv->ptp_cfg->ptp_timer);
 				kfree(priv->ptp_cfg);
-				priv->ptp_cfg = NULL;
 			}
 			otx2_rfoe_ptp_destroy(priv);
 			unregister_netdev(netdev);
@@ -143,8 +143,9 @@ void otx2_bphy_rfoe_cleanup(void)
 				ft_cfg = &priv->rx_ft_cfg[idx];
 				netif_napi_del(&ft_cfg->napi);
 			}
-			kfree(priv->rfoe_common);
-			priv->rfoe_common = NULL;
+			--(priv->rfoe_common->refcnt);
+			if (priv->rfoe_common->refcnt == 0)
+				kfree(priv->rfoe_common);
 			free_netdev(netdev);
 			drv_ctx->valid = 0;
 		}
@@ -1247,6 +1248,7 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 					ret = -ENOMEM;
 					goto err_exit;
 				}
+				priv->rfoe_common->refcnt = 1;
 			}
 			spin_lock_init(&priv->lock);
 			priv->netdev = netdev;
@@ -1274,6 +1276,7 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 			priv->bcn_reg_base = bcn_reg_base;
 			priv->ptp_reg_base = ptp_reg_base;
 			priv->ptp_cfg = ptp_cfg;
+			++(priv->ptp_cfg->refcnt);
 
 			/* Initialise PTP TX work queue */
 			INIT_WORK(&priv->ptp_tx_work, otx2_rfoe_ptp_tx_work);
@@ -1316,6 +1319,7 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 			} else {
 				/* share rfoe_common data */
 				priv->rfoe_common = priv2->rfoe_common;
+				++(priv->rfoe_common->refcnt);
 			}
 
 			/* keep last (rfoe + lmac) priv structure */
@@ -1362,7 +1366,6 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 	return 0;
 
 err_exit:
-	kfree(ptp_cfg);
 	for (i = 0; i < RFOE_MAX_INTF; i++) {
 		drv_ctx = &rfoe_drv_ctx[i];
 		if (drv_ctx->valid) {
@@ -1376,12 +1379,15 @@ err_exit:
 				ft_cfg = &priv->rx_ft_cfg[idx];
 				netif_napi_del(&ft_cfg->napi);
 			}
-			kfree(priv->rfoe_common);
-			priv->rfoe_common = NULL;
+			--(priv->rfoe_common->refcnt);
+			if (priv->rfoe_common->refcnt == 0)
+				kfree(priv->rfoe_common);
 			free_netdev(netdev);
 			drv_ctx->valid = 0;
 		}
 	}
+	del_timer_sync(&ptp_cfg->ptp_timer);
+	kfree(ptp_cfg);
 
 	return ret;
 }
