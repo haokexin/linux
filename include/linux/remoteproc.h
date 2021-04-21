@@ -514,6 +514,7 @@ enum rproc_features {
  * @dev: virtual device for refcounting and common remoteproc behavior
  * @power: refcount of users who need this rproc powered up
  * @state: state of the device
+ * @skip_firmware_load: flag to skip requesting and loading the firmware
  * @dump_conf: Currently selected coredump configuration
  * @lock: lock which protects concurrent manipulations of the rproc
  * @dbg_dir: debugfs directory of this rproc device
@@ -555,6 +556,7 @@ struct rproc {
 	const char *firmware;
 	void *priv;
 	struct rproc_ops *ops;
+	bool skip_firmware_load;
 	struct device dev;
 	atomic_t power;
 	unsigned int state;
