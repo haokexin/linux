@@ -8643,8 +8643,7 @@ static struct npc_kpu_profile_action kpu1_action_entries[] = {
 		8, 12, 26, 0, 0,
 		NPC_S_KPU2_ETAG, 20, 1,
 		NPC_LID_LA, NPC_LT_LA_IH_NIX_ETHER,
-		NPC_F_LA_U_HAS_IH_NIX | NPC_F_LA_U_HAS_TAG
-			| NPC_F_LA_L_WITH_ETAG,
+		NPC_F_LA_U_HAS_IH_NIX | NPC_F_LA_U_HAS_TAG  | NPC_F_LA_L_WITH_ETAG,
 		0, 0, 0, 0,
 	},
 	{
@@ -8800,8 +8799,7 @@ static struct npc_kpu_profile_action kpu1_action_entries[] = {
 		8, 12, 26, 0, 0,
 		NPC_S_KPU2_ETAG, 28, 1,
 		NPC_LID_LA, NPC_LT_LA_HIGIG2_ETHER,
-		NPC_F_LA_U_HAS_HIGIG2 | NPC_F_LA_U_HAS_TAG
-			| NPC_F_LA_L_WITH_ETAG,
+		NPC_F_LA_U_HAS_HIGIG2 | NPC_F_LA_U_HAS_TAG | NPC_F_LA_L_WITH_ETAG,
 		0, 0, 0, 0,
 	},
 	{
@@ -8925,8 +8923,7 @@ static struct npc_kpu_profile_action kpu1_action_entries[] = {
 		8, 12, 26, 0, 0,
 		NPC_S_KPU2_ETAG, 36, 1,
 		NPC_LID_LA, NPC_LT_LA_IH_NIX_HIGIG2_ETHER,
-		NPC_F_LA_U_HAS_IH_NIX | NPC_F_LA_U_HAS_HIGIG2
-			| NPC_F_LA_U_HAS_TAG | NPC_F_LA_L_WITH_ETAG,
+		NPC_F_LA_U_HAS_IH_NIX | NPC_F_LA_U_HAS_HIGIG2 | NPC_F_LA_U_HAS_TAG | NPC_F_LA_L_WITH_ETAG,
 		0, 0, 0, 0,
 	},
 	{
