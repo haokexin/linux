@@ -1745,7 +1745,8 @@ void otx2_cpt_crypto_exit(struct pci_dev *pdev, struct module *mod)
 		dev_err(&pdev->dev, "%s device not found\n", __func__);
 		goto unlock;
 	}
-	if (atomic_dec_and_test(&se_devices.count)) {
+	if (atomic_dec_and_test(&se_devices.count) &&
+	    !is_any_alg_used()) {
 		cpt_unregister_algs();
 		module_put(mod);
 		is_crypto_registered = false;

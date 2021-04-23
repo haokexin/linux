@@ -38,7 +38,17 @@ enum otx2_cpt_eng_type {
 	OTX2_CPT_MAX_ENG_TYPES,
 };
 
+/*
+ * Message request to config cpt lf for inline inbound ipsec.
+ * This message is only used between CPT PF <-> CPT VF
+ */
+struct otx2_cpt_rx_inline_lf_cfg {
+	struct mbox_msghdr hdr;
+	u16 sso_pf_func;
+};
+
 /* Take mbox id from end of CPT mbox range in AF (range 0xA00 - 0xBFF) */
+#define MBOX_MSG_RX_INLINE_IPSEC_LF_CFG 0xBFE
 #define MBOX_MSG_GET_ENG_GRP_NUM        0xBFF
 #define MBOX_MSG_GET_CAPS               0xBFD
 #define MBOX_MSG_GET_KVF_LIMITS         0xBFC
