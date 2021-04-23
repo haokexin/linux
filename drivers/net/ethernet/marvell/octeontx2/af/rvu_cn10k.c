@@ -276,6 +276,16 @@ void rvu_reset_lmt_map_tbl(struct rvu *rvu, u16 pcifunc)
 	}
 }
 
+void rvu_sso_block_cn10k_init(struct rvu *rvu, int blkaddr)
+{
+	u64 reg;
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_WS_CFG);
+	/* Enable GET_WORK prefetching to the GWCs. */
+	reg &= ~BIT_ULL(4);
+	rvu_write64(rvu, blkaddr, SSO_AF_WS_CFG, reg);
+}
+
 int rvu_set_channels_base(struct rvu *rvu)
 {
 	u16 nr_lbk_chans, nr_sdp_chans, nr_cgx_chans, nr_cpt_chans;
