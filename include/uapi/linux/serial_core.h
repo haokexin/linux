@@ -276,4 +276,7 @@
 /* Sunplus UART */
 #define PORT_SUNPLUS	123
 
+/* PRU SW UART */
+#define PORT_PSUART     124
+
 #endif /* _UAPILINUX_SERIAL_CORE_H */
