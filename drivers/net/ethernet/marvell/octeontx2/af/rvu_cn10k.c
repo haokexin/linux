@@ -541,3 +541,13 @@ void rvu_program_channels(struct rvu *rvu)
 	rvu_lbk_set_channels(rvu);
 	rvu_rpm_set_channels(rvu);
 }
+
+void rvu_sso_block_cn10k_init(struct rvu *rvu, int blkaddr)
+{
+	u64 reg;
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_WS_CFG);
+	/* Enable GET_WORK prefetching to the GWCs. */
+	reg &= ~BIT_ULL(4);
+	rvu_write64(rvu, blkaddr, SSO_AF_WS_CFG, reg);
+}
