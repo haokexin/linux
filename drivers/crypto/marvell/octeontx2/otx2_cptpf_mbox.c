@@ -105,17 +105,97 @@ static int handle_msg_kvf_limits(struct otx2_cptpf_dev *cptpf,
 	return 0;
 }
 
-static int check_cpt_lf_alloc_req(struct otx2_cptpf_dev *cptpf,
-				  struct otx2_cptvf_info *vf,
-				  struct mbox_msghdr *req, int size)
+static int rx_inline_ipsec_lf_cfg(struct otx2_cptpf_dev *cptpf, u8 egrp,
+				  u16 sso_pf_func, bool enable)
 {
-	struct cpt_lf_alloc_req_msg *alloc_req =
-					(struct cpt_lf_alloc_req_msg *)req;
+	struct cpt_inline_ipsec_cfg_msg *req;
+	struct nix_inline_ipsec_cfg *nix_req;
+	struct pci_dev *pdev = cptpf->pdev;
+	int ret;
 
-	if (alloc_req->eng_grpmsk == 0x0)
-		alloc_req->eng_grpmsk = OTX2_CPT_ALL_ENG_GRPS_MASK;
+	nix_req = (struct nix_inline_ipsec_cfg *)
+		   otx2_mbox_alloc_msg_rsp(&cptpf->afpf_mbox, 0,
+					   sizeof(*nix_req),
+					   sizeof(struct msg_rsp));
+	if (nix_req == NULL) {
+		dev_err(&pdev->dev, "RVU MBOX failed to get message.\n");
+		return -EFAULT;
+	}
+	memset(nix_req, 0, sizeof(*nix_req));
+	nix_req->hdr.id = MBOX_MSG_NIX_INLINE_IPSEC_CFG;
+	nix_req->hdr.sig = OTX2_MBOX_REQ_SIG;
+	nix_req->enable = enable;
+	nix_req->cpt_credit = OTX2_CPT_INST_QLEN_MSGS - 1;
+	nix_req->gen_cfg.egrp = egrp;
+	nix_req->gen_cfg.opcode = CPT_INLINE_RX_OPCODE;
+	nix_req->inst_qsel.cpt_pf_func = OTX2_CPT_RVU_PFFUNC(cptpf->pf_id, 0);
+	nix_req->inst_qsel.cpt_slot = 0;
+	ret = otx2_cpt_send_mbox_msg(&cptpf->afpf_mbox, pdev);
+	if (ret)
+		return ret;
 
-	return forward_to_af(cptpf, vf, req, size);
+	req = (struct cpt_inline_ipsec_cfg_msg *)
+	      otx2_mbox_alloc_msg_rsp(&cptpf->afpf_mbox, 0,
+				      sizeof(*req), sizeof(struct msg_rsp));
+	if (req == NULL) {
+		dev_err(&pdev->dev, "RVU MBOX failed to get message.\n");
+		return -EFAULT;
+	}
+	memset(req, 0, sizeof(*req));
+	req->hdr.id = MBOX_MSG_CPT_INLINE_IPSEC_CFG;
+	req->hdr.sig = OTX2_MBOX_REQ_SIG;
+	req->hdr.pcifunc = OTX2_CPT_RVU_PFFUNC(cptpf->pf_id, 0);
+	req->dir = CPT_INLINE_INBOUND;
+	req->slot = 0;
+	req->sso_pf_func_ovrd = cptpf->sso_pf_func_ovrd;
+	req->sso_pf_func = sso_pf_func;
+	req->enable = enable;
+
+	return otx2_cpt_send_mbox_msg(&cptpf->afpf_mbox, pdev);
+}
+
+static int handle_msg_rx_inline_ipsec_lf_cfg(struct otx2_cptpf_dev *cptpf,
+					     struct mbox_msghdr *req)
+{
+	struct otx2_cptlfs_info *lfs = &cptpf->lfs;
+	struct otx2_cpt_rx_inline_lf_cfg *cfg_req;
+	u8 egrp;
+	int ret;
+
+	cfg_req = (struct otx2_cpt_rx_inline_lf_cfg *)req;
+	if (cptpf->lfs.lfs_num) {
+		dev_err(&cptpf->pdev->dev,
+			"LF is already configured for RX inline ipsec.\n");
+		return -EEXIST;
+	}
+	/*
+	 * Allow LFs to execute requests destined to only grp IE_TYPES and
+	 * set queue priority of each LF to high
+	 */
+	egrp = otx2_cpt_get_eng_grp(&cptpf->eng_grps, OTX2_CPT_IE_TYPES);
+	if (egrp == OTX2_CPT_INVALID_CRYPTO_ENG_GRP) {
+		dev_err(&cptpf->pdev->dev,
+			"Engine group for inline ipsec is not available\n");
+		return -ENOENT;
+	}
+
+	lfs->pdev = cptpf->pdev;
+	lfs->reg_base = cptpf->reg_base;
+	lfs->mbox = &cptpf->afpf_mbox;
+	lfs->blkaddr = BLKADDR_CPT0;
+	ret = otx2_cptlf_init(lfs, 1 << egrp, OTX2_CPT_QUEUE_HI_PRIO, 1);
+	if (ret)
+		return ret;
+
+	ret = rx_inline_ipsec_lf_cfg(cptpf, egrp, cfg_req->sso_pf_func, true);
+	if (ret)
+		goto lf_cleanup;
+
+	return 0;
+
+lf_cleanup:
+	otx2_cptlf_shutdown(&cptpf->lfs);
+	return ret;
 }
 
 static int cptpf_handle_vf_req(struct otx2_cptpf_dev *cptpf,
@@ -138,8 +218,8 @@ static int cptpf_handle_vf_req(struct otx2_cptpf_dev *cptpf,
 	case MBOX_MSG_GET_KVF_LIMITS:
 		err = handle_msg_kvf_limits(cptpf, vf, req);
 		break;
-	case MBOX_MSG_CPT_LF_ALLOC:
-		err = check_cpt_lf_alloc_req(cptpf, vf, req, size);
+	case MBOX_MSG_RX_INLINE_IPSEC_LF_CFG:
+		err = handle_msg_rx_inline_ipsec_lf_cfg(cptpf, req);
 		break;
 
 	default:
@@ -285,7 +365,9 @@ static void process_afpf_mbox_msg(struct otx2_cptpf_dev *cptpf,
 		if (!msg->rc)
 			cptpf->lfs.are_lfs_attached = 0;
 		break;
-
+	case MBOX_MSG_CPT_INLINE_IPSEC_CFG:
+	case MBOX_MSG_NIX_INLINE_IPSEC_CFG:
+		break;
 	default:
 		dev_err(dev,
 			"Unsupported msg %d received.\n", msg->id);
