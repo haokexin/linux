@@ -82,7 +82,7 @@ axxia_init_clocks(int is_sim)
 	clk_register_clkdev(clk[clk_per], NULL, "2010083000.uart");
 
 	/* PL022 SSP */
-	clk_register_clkdev(clk[clk_per], NULL, "2010088000.ssp");
+	clk_register_clkdev(clk[clk_per], NULL, "2010088000.spi");
 
 	/* I2C */
 	clk_register_clkdev(clk[clk_per], NULL, "2010084000.i2c");

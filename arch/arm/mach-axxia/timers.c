@@ -22,7 +22,6 @@
 
 struct axxia_timer {
 	struct clock_event_device  dev;
-	struct irqaction           irqaction;
 	void __iomem               *base;
 	unsigned long              reload;
 };
@@ -213,11 +212,9 @@ axxia_timer_clockevents_init(void __iomem *base,
 	evt->base               = base;
 	evt->reload             = DIV_ROUND_CLOSEST(rate, HZ);
 
-	evt->irqaction.name     = name;
-	evt->irqaction.flags    = IRQF_TIMER | IRQF_IRQPOLL;
-	evt->irqaction.handler	= axxia_timer_handler;
-	evt->irqaction.dev_id	= evt;
-
-	setup_irq(irq, &evt->irqaction);
+	/* Make irqs happen for the system timer */
+	if (request_irq(irq, axxia_timer_handler, IRQF_TIMER | IRQF_IRQPOLL,
+			name, &evt->dev))
+		pr_err("Failed to request irq %d (%s)\n", irq, name);
 	clockevents_config_and_register(&evt->dev, rate, 0xf, 0xffffffff);
 }
