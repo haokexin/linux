@@ -301,9 +301,7 @@ static int octeontx2_spi_probe(struct pci_dev *pdev,
 
 	master->num_chipselect = 4;
 	master->mode_bits = SPI_CPHA | SPI_CPOL | SPI_CS_HIGH |
-			    SPI_LSB_FIRST | SPI_3WIRE |
-			    SPI_TX_DUAL | SPI_RX_DUAL |
-			    SPI_TX_QUAD | SPI_RX_QUAD;
+			    SPI_LSB_FIRST | SPI_3WIRE;
 	master->transfer_one_message = octeontx2_spi_transfer_one_message;
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
 	master->max_speed_hz = OCTEONTX2_SPI_MAX_CLOCK_HZ;
