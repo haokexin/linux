@@ -21,6 +21,7 @@
 #include <linux/pmu.h>
 #include <linux/kexec.h>
 #include <linux/axxia-ncr.h>
+#include <linux/dma-map-ops.h>
 #ifdef CONFIG_ARM_ARCH_TIMER
 #include <asm/arch_timer.h>
 #endif

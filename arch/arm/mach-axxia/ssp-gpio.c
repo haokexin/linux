@@ -63,8 +63,8 @@ ssp_gpio_probe(struct platform_device *pdev)
 	if (!io)
 		return -EINVAL;
 
-	priv->regs = devm_ioremap_nocache(&pdev->dev,
-					  io->start, resource_size(io));
+	priv->regs = devm_ioremap(&pdev->dev,
+				  io->start, resource_size(io));
 	if (!priv->regs)
 		return -ENXIO;
 
