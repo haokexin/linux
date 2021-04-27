@@ -1421,7 +1421,7 @@ void __init axxia_gic_init_bases(int irq_start,
 	if (WARN_ON(!gic->domain))
 		return;
 #ifdef CONFIG_SMP
-	set_smp_cross_call(axxia_gic_raise_softirq);
+	set_smp_ipi_range(irq_base, 16);
 #endif
 	set_handle_irq(axxia_gic_handle_irq);
 
