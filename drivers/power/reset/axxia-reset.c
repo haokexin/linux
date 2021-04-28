@@ -67,9 +67,9 @@ axxia_ddr_retention_trigger(struct file *file, const char __user *buf,
 	return 0;
 }
 
-static const struct file_operations axxia_ddr_retention_proc_ops = {
-	.write      = axxia_ddr_retention_trigger,
-	.llseek     = noop_llseek,
+static const struct proc_ops axxia_ddr_retention_proc_ops = {
+	.proc_write      = axxia_ddr_retention_trigger,
+	.proc_lseek      = noop_llseek,
 };
 
 void
