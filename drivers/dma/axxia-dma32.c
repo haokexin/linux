@@ -792,9 +792,9 @@ static int gpdma_of_probe(struct platform_device *op)
 
 	res = platform_get_resource(op, IORESOURCE_MEM, 1);
 	if (res) {
-		engine->gpreg = devm_ioremap_nocache(&op->dev,
-						     res->start,
-						     resource_size(res));
+		engine->gpreg = devm_ioremap(&op->dev,
+					     res->start,
+					     resource_size(res));
 		if (IS_ERR(engine->gpreg))
 			return PTR_ERR(engine->gpreg);
 		dev_dbg(&op->dev, "mapped gpreg @ %p\n", engine->gpreg);
