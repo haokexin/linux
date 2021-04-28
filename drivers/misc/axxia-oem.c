@@ -80,10 +80,10 @@ axxia_dspc_write(struct file *file, const char __user *buffer,
 	return count;
 }
 
-static const struct file_operations axxia_dspc_proc_ops = {
-	.read       = axxia_dspc_read,
-	.write      = axxia_dspc_write,
-	.llseek     = noop_llseek,
+static const struct proc_ops axxia_dspc_proc_ops = {
+	.proc_read       = axxia_dspc_read,
+	.proc_write      = axxia_dspc_write,
+	.proc_lseek      = noop_llseek,
 };
 
 /*
@@ -146,10 +146,10 @@ axxia_actlr_el3_write(struct file *file, const char __user *buffer,
 	return count;
 }
 
-static const struct file_operations axxia_actlr_el3_proc_ops = {
-	.read       = axxia_actlr_el3_read,
-	.write      = axxia_actlr_el3_write,
-	.llseek     = noop_llseek,
+static const struct proc_ops axxia_actlr_el3_proc_ops = {
+	.proc_read       = axxia_actlr_el3_read,
+	.proc_write      = axxia_actlr_el3_write,
+	.proc_lseek      = noop_llseek,
 };
 
 /*
@@ -212,10 +212,10 @@ axxia_actlr_el2_write(struct file *file, const char __user *buffer,
 	return count;
 }
 
-static const struct file_operations axxia_actlr_el2_proc_ops = {
-	.read       = axxia_actlr_el2_read,
-	.write      = axxia_actlr_el2_write,
-	.llseek     = noop_llseek,
+static const struct proc_ops axxia_actlr_el2_proc_ops = {
+	.proc_read       = axxia_actlr_el2_read,
+	.proc_write      = axxia_actlr_el2_write,
+	.proc_lseek      = noop_llseek,
 };
 
 /*
@@ -488,10 +488,10 @@ axxia_ccn_offset_write(struct file *file, const char __user *buffer,
 	return count;
 }
 
-static const struct file_operations axxia_ccn_offset_proc_ops = {
-	.read       = axxia_ccn_offset_read,
-	.write      = axxia_ccn_offset_write,
-	.llseek     = noop_llseek,
+static const struct proc_ops axxia_ccn_offset_proc_ops = {
+	.proc_read       = axxia_ccn_offset_read,
+	.proc_write      = axxia_ccn_offset_write,
+	.proc_lseek      = noop_llseek,
 };
 
 static ssize_t
@@ -550,10 +550,10 @@ axxia_ccn_value_write(struct file *file, const char __user *buffer,
 	return count;
 }
 
-static const struct file_operations axxia_ccn_value_proc_ops = {
-	.read       = axxia_ccn_value_read,
-	.write      = axxia_ccn_value_write,
-	.llseek     = noop_llseek,
+static const struct proc_ops axxia_ccn_value_proc_ops = {
+	.proc_read       = axxia_ccn_value_read,
+	.proc_write      = axxia_ccn_value_write,
+	.proc_lseek      = noop_llseek,
 };
 
 /*
