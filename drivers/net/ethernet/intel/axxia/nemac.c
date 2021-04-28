@@ -641,7 +641,7 @@ static netdev_tx_t nemac_xmit(struct sk_buff *skb, struct net_device *ndev)
 	return NETDEV_TX_OK;
 }
 
-static void nemac_tx_timeout(struct net_device *ndev)
+static void nemac_tx_timeout(struct net_device *ndev, unsigned int txqueue)
 {
 }
 
