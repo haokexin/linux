@@ -3,4 +3,4 @@
 # Makefile for Marvell's OcteonTX2 serdes diagnostic commands
 #
 
-obj-y += serdes_debugfs.o
+obj-$(CONFIG_OCTEONTX_SERDES) += serdes_debugfs.o
