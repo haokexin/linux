@@ -126,8 +126,6 @@ void __init axxia_dt_timer_init(void)
 static struct mmci_platform_data mmc_plat_data = {
 	.ocr_mask = MMC_VDD_32_33 | MMC_VDD_33_34,
 	.status	  = NULL,
-	.gpio_wp  = -EOPNOTSUPP,
-	.gpio_cd  = -EOPNOTSUPP
 };
 
 static struct of_dev_auxdata axxia_auxdata_lookup[] __initdata = {
