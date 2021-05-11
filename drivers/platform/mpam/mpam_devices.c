@@ -79,7 +79,9 @@ LIST_HEAD(mpam_classes);
 
 void mpam_register_requestor(u16 partid_max, u8 pmg_max)
 {
-	spin_lock(&partid_max_lock);
+	unsigned long flags;
+
+	spin_lock_irqsave(&partid_max_lock, flags);
 	if (!partid_max_init) {
 		mpam_partid_max = partid_max;
 		mpam_pmg_max = pmg_max;
@@ -88,7 +90,7 @@ void mpam_register_requestor(u16 partid_max, u8 pmg_max)
 		mpam_partid_max = min(mpam_partid_max, partid_max);
 		mpam_pmg_max = min(mpam_pmg_max, pmg_max);
 	}
-	spin_unlock(&partid_max_lock);
+	spin_unlock_irqrestore(&partid_max_lock, flags);
 }
 
 static u32 mpam_read_reg(struct mpam_msc *msc, u16 reg)
@@ -590,10 +592,10 @@ static int mpam_msc_hw_probe(struct mpam_msc *msc)
 		spin_unlock_irqrestore(&msc->hw_lock, flags);
 	}
 
-	spin_lock(&partid_max_lock);
+	spin_lock_irqsave(&partid_max_lock, flags);
 	mpam_partid_max = min(mpam_partid_max, msc->partid_max);
 	mpam_pmg_max = min(mpam_pmg_max, msc->pmg_max);
-	spin_unlock(&partid_max_lock);
+	spin_unlock_irqrestore(&partid_max_lock, flags);
 
 	msc->probed = true;
 
@@ -606,6 +608,7 @@ static void mpam_reset_msc_bitmap(struct mpam_msc *msc, u16 reg, u16 wd)
 	int i;
 
 	lockdep_assert_held(&msc->hw_lock);
+	lockdep_assert_preemption_disabled(); /* don't migrate to another CPU */
 
 	/* write all but the last full-32bit-word */
 	for (i = 0; i < wd / 32; i++, reg += sizeof(bm)) {
@@ -626,6 +629,7 @@ static void mpam_reset_ris_partid(struct mpam_msc_ris *ris, u16 partid)
 	u16 bwa_fract = GENMASK(15, rprops->bwa_wd);
 
 	lockdep_assert_held(&msc->lock);
+	lockdep_assert_preemption_disabled(); /* don't migrate to another CPU */
 
 	spin_lock_irqsave(&msc->hw_lock, flags);
 	__mpam_part_sel(ris->ris_idx, partid, msc);
@@ -647,21 +651,31 @@ static void mpam_reset_ris_partid(struct mpam_msc_ris *ris, u16 partid)
 	spin_unlock_irqrestore(&msc->hw_lock, flags);
 }
 
-static void mpam_reset_ris(struct mpam_msc_ris *ris)
+/* Call with MSC lock held */
+static void mpam_reset_ris(void *arg)
 {
+	unsigned long flags;
 	u16 partid, partid_max;
-	struct mpam_msc *msc = ris->msc;
+	struct mpam_msc_ris *ris = arg;
 
-	lockdep_assert_held(&msc->lock);
+	lockdep_assert_preemption_disabled(); /* don't migrate to another CPU */
 
 	if (ris->in_reset_state)
 		return;
 
-	spin_lock(&partid_max_lock);
+	spin_lock_irqsave(&partid_max_lock, flags);
 	partid_max = mpam_partid_max;
-	spin_unlock(&partid_max_lock);
+	spin_unlock_irqrestore(&partid_max_lock, flags);
 	for (partid = 0; partid < partid_max; partid++)
 		mpam_reset_ris_partid(ris, partid);
+}
+
+static int mpam_touch_msc(struct mpam_msc *msc, void (*fn)(void *a), void *arg)
+{
+	lockdep_assert_irqs_enabled();
+	lockdep_assert_held(&msc->lock);
+
+	return smp_call_function_any(&msc->accessibility, fn, arg, true);
 }
 
 static void mpam_reset_msc(struct mpam_msc *msc, bool online)
@@ -672,7 +686,7 @@ static void mpam_reset_msc(struct mpam_msc *msc, bool online)
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(ris, &msc->ris, msc_list) {
-		mpam_reset_ris(ris);
+		mpam_touch_msc(msc, &mpam_reset_ris, ris);
 
 		/*
 		 * Set in_reset_state when coming online. The reset state
@@ -1113,6 +1127,7 @@ static struct platform_driver mpam_msc_driver = {
 
 static int __init mpam_msc_driver_init(void)
 {
+	unsigned long flags;
 	bool mpam_not_available = false;
 
 	if (!mpam_cpus_have_feature())
@@ -1122,10 +1137,10 @@ static int __init mpam_msc_driver_init(void)
 	 * If the MPAM CPU interface is not implemented, or reserved by
 	 * firmware, there is no point touching the rest of the hardware.
 	 */
-	spin_lock(&partid_max_lock);
+	spin_lock_irqsave(&partid_max_lock, flags);
 	if (!partid_max_init || (!mpam_partid_max && !mpam_pmg_max))
 		mpam_not_available = true;
-	spin_unlock(&partid_max_lock);
+	spin_unlock_irqrestore(&partid_max_lock, flags);
 
 	if (mpam_not_available)
 		return 0;
