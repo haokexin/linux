@@ -52,4 +52,13 @@ config MARVELL_CN10K_SERDES_DIAGNOSTICS
 	  Select this option if you want to enable SerDes diagnostics
 	  interface for performing PRBS, setting Loopback mode or
 	  reading/writing Tx/Rx tuning parameters.
+
+config MRVL_PHY_DIAGNOSTICS
+	tristate "Marvell PHY diagnostics debugfs driver"
+	default m
+	depends on DEBUG_FS
+	help
+	  Select this option if you want an additional interface for
+	  extended diagnostics functions for the PHY. This complements
+	  functionality offered by ethtool. Requires PHY driver support in ATF.
 endmenu
