@@ -883,7 +883,6 @@ void rvu_npc_install_allmulti_entry(struct rvu *rvu, u16 pcifunc, int nixlf,
 	if (action.op != NIX_RX_ACTIONOP_RSS) {
 		*(u64 *)&action = 0;
 		action.op = NIX_RX_ACTIONOP_UCAST;
-		action.pf_func = pcifunc;
 	}
 
 	/* RX_ACTION set to MCAST for CGX PF's */
@@ -913,7 +912,7 @@ void rvu_npc_install_allmulti_entry(struct rvu *rvu, u16 pcifunc, int nixlf,
 	req.entry = index;
 	req.op = action.op;
 	req.hdr.pcifunc = 0; /* AF is requester */
-	req.vf = pcifunc | vf_func;
+	req.vf = pcifunc;
 	req.index = action.index;
 	req.match_id = action.match_id;
 	req.flow_key_alg = action.flow_key_alg;
