@@ -11,6 +11,7 @@
 #include "armada-common.dtsi"
 
 #define CP11X_PCIEx_CONF_BASE(iface)	(CP11X_PCIEx_MEM_BASE(iface) + CP11X_PCIEx_MEM_SIZE(iface))
+#define CP11X_EIP197_INDEX		CP11X_NUM
 
 / {
 	/*
@@ -517,6 +518,7 @@
 			clock-names = "core", "reg";
 			clocks = <&CP11X_LABEL(clk) 1 26>,
 				 <&CP11X_LABEL(clk) 1 17>;
+			cell-index = <CP11X_EIP197_INDEX>;
 			dma-coherent;
 		};
 	};
