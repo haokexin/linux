@@ -1206,12 +1206,9 @@ static int otx2_aura_init(struct otx2_nic *pfvf, int aura_id,
 		 * NIX-RX based on [BP] level. One bit per NIX-RX; index
 		 * enumerated by NPA_BPINTF_E."
 		 */
-		if (pfvf->nix_blkaddr == BLKADDR_NIX1) {
+		if (pfvf->nix_blkaddr == BLKADDR_NIX1)
 			aq->aura.bp_ena = 1;
-			aq->aura.nix1_bpid = pfvf->bpid[0];
-		} else {
-			aq->aura.nix0_bpid = pfvf->bpid[0];
-		}
+		aq->aura.nix0_bpid = pfvf->bpid[0];
 
 		/* Set backpressure level for RQ's Aura */
 		aq->aura.bp = RQ_BP_LVL_AURA;
