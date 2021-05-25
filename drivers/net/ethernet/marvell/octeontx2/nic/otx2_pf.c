@@ -41,6 +41,7 @@ MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(pci, otx2_pf_id_table);
 
 static void otx2_vf_link_event_task(struct work_struct *work);
+static void otx2_vf_ptp_info_task(struct work_struct *work);
 
 enum {
 	TYPE_PFAF,
@@ -2590,6 +2591,8 @@ static int otx2_sriov_vfcfg_init(struct otx2_nic *pf)
 		pf->vf_configs[i].trusted = false;
 		INIT_DELAYED_WORK(&pf->vf_configs[i].link_event_work,
 				  otx2_vf_link_event_task);
+		INIT_DELAYED_WORK(&pf->vf_configs[i].ptp_info_work,
+				  otx2_vf_ptp_info_task);
 	}
 
 	return 0;
@@ -2604,6 +2607,7 @@ static void otx2_sriov_vfcfg_cleanup(struct otx2_nic *pf)
 
 	for (i = 0; i < pf->total_vfs; i++) {
 		cancel_delayed_work_sync(&pf->vf_configs[i].link_event_work);
+		cancel_delayed_work_sync(&pf->vf_configs[i].ptp_info_work);
 		otx2_set_vf_permissions(pf, i, OTX2_RESET_VF_PERM);
 	}
 }
