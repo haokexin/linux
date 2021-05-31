@@ -163,6 +163,7 @@ int otx2_cpt_detach_rsrcs_msg(struct otx2_cptlfs_info *lfs)
 	req->hdr.id = MBOX_MSG_DETACH_RESOURCES;
 	req->hdr.sig = OTX2_MBOX_REQ_SIG;
 	req->hdr.pcifunc = 0;
+	req->cptlfs = 1;
 	ret = otx2_cpt_send_mbox_msg(mbox, lfs->pdev);
 	if (ret)
 		return ret;
