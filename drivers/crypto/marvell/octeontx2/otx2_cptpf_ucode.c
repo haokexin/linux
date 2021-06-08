@@ -1411,6 +1411,7 @@ release_fw:
  */
 int otx2_cpt_discover_eng_capabilities(struct otx2_cptpf_dev *cptpf)
 {
+	struct otx2_cptlfs_info *lfs = &cptpf->lfs;
 	struct otx2_cpt_iq_command iq_cmd;
 	union otx2_cpt_opcode opcode;
 	union otx2_cpt_res_s *result;
@@ -1493,7 +1494,7 @@ int otx2_cpt_discover_eng_capabilities(struct otx2_cptpf_dev *cptpf)
 free_result:
 	kfree(result);
 lf_cleanup:
-	otx2_cptlf_shutdown(&cptpf->lfs);
+	otx2_cptlf_shutdown(lfs);
 delete_grps:
 	delete_engine_grps(pdev, &cptpf->eng_grps);
 
