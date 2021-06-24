@@ -181,6 +181,13 @@ struct mpam_msc_ris
 	struct mpam_component	*comp;
 };
 
+struct mon_cfg {
+	u16     mon;
+	u8      pmg;
+	bool    match_pmg;
+	u32     partid;
+};
+
 static inline unsigned long mpam_alloc_csu_mon(struct mpam_class *class)
 {
 	struct mpam_props *cprops = &class->props;
@@ -211,6 +218,9 @@ void mpam_disable(struct work_struct *work);
 
 int mpam_apply_config(struct mpam_component *comp, u16 partid,
 		      struct mpam_config *cfg);
+
+int mpam_msmon_read(struct mpam_component *comp, struct mon_cfg *ctx,
+		    enum mpam_device_features, u64 *val);
 
 /*
  * MPAM MSCs have the following register layout. See:
