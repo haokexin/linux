@@ -103,9 +103,6 @@ u32 resctrl_arch_rmid_idx_encode(u32 closid, u32 rmid)
 
 	BUG_ON(closid_shift > 8);
 
-	if (rmid == RESCTRL_READ_ALL_RMID)
-		rmid = 0;
-
 	return (closid << closid_shift) | rmid;
 }
 
@@ -240,6 +237,80 @@ void resctrl_arch_mon_ctx_free(struct rdt_resource *r, int evtid,
 	case QOS_L3_MBM_TOTAL_EVENT_ID:
 	case QOS_L3_MBM_LOCAL_EVENT_ID:
 		return;
+	}
+}
+
+int resctrl_arch_rmid_read(struct rdt_resource	*r, struct rdt_domain *d,
+			   u32 closid, u32 rmid, enum resctrl_event_id eventid,
+			   u64 *val, unsigned long arch_mon_ctx)
+{
+	int err;
+	u64 cdp_val;
+	struct mon_cfg cfg;
+	struct mpam_resctrl_dom *dom;
+	enum mpam_device_features type;
+
+	dom = container_of(d, struct mpam_resctrl_dom, resctrl_dom);
+
+	switch (eventid) {
+	case QOS_L3_OCCUP_EVENT_ID:
+		type = mpam_feat_msmon_csu;
+		break;
+	case QOS_L3_MBM_LOCAL_EVENT_ID:
+		type = mpam_feat_msmon_mbwu;
+		break;
+	case QOS_L3_MBM_TOTAL_EVENT_ID:
+		return -EOPNOTSUPP;
+	}
+
+	if (arch_mon_ctx == USE_RMID_IDX)
+		cfg.mon = resctrl_arch_rmid_idx_encode(closid, rmid);
+	else
+		cfg.mon = arch_mon_ctx;
+
+	cfg.match_pmg = true;
+	cfg.pmg = rmid;
+
+	if (cdp_enabled) {
+		cfg.partid = closid << 1;
+		err = mpam_msmon_read(dom->comp, &cfg, type, val);
+		if (err)
+			return err;
+
+		cfg.partid += 1;
+		err = mpam_msmon_read(dom->comp, &cfg, type, &cdp_val);
+		if (!err)
+			*val += cdp_val;
+	} else {
+		cfg.partid = closid;
+		err = mpam_msmon_read(dom->comp, &cfg, type, val);
+	}
+
+	return err;
+}
+
+void resctrl_arch_reset_rmid(struct rdt_resource *r, struct rdt_domain *d,
+			     u32 closid, u32 rmid, enum resctrl_event_id eventid)
+{
+	struct mon_cfg cfg;
+	struct mpam_resctrl_dom *dom;
+
+	if (eventid != QOS_L3_MBM_LOCAL_EVENT_ID)
+		return;
+
+	cfg.mon = resctrl_arch_rmid_idx_encode(closid, rmid);
+	cfg.match_pmg = true;
+	cfg.pmg = rmid;
+
+	if (cdp_enabled) {
+		cfg.partid = closid << 1;
+		mpam_msmon_reset_mbwu(dom->comp, &cfg);
+
+		cfg.partid += 1;
+		mpam_msmon_reset_mbwu(dom->comp, &cfg);
+	} else {
+		cfg.partid = closid;
+		mpam_msmon_reset_mbwu(dom->comp, &cfg);
 	}
 }
 
