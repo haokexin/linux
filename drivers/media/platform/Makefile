@@ -85,4 +85,5 @@ obj-$(CONFIG_VIDEO_QCOM_VENUS)		+= qcom/venus/
 
 obj-y					+= sunxi/
 
+obj-$(CONFIG_VIDEO_IMG_VXD_DEC)		+= vxe-vxd/decoder/
 obj-$(CONFIG_VIDEO_MESON_GE2D)		+= meson/ge2d/
