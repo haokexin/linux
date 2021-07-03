@@ -12,14 +12,14 @@ if AXXIA_NET
 config AXXIA_NET_NUM_RX_DESC
 	int "INTEL Axxia Network Driver: Number of receive descriptors"
 	depends on AXXIA_NET
-	default "4"
+	default "32"
 	help
           The number of receive descriptors to allocate.
 
 config AXXIA_NET_RX_BUF_SZ
 	int "NIC driver: Size of the receive buffer"
 	depends on AXXIA_NET
-	default "32768"
+	default "524288"
 	help
           The size of the receive buffer.
 
