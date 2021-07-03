@@ -126,6 +126,7 @@ struct appnic_device {
 	unsigned long out_of_tx_descriptors;
 	unsigned long transmit_interrupts;
 	unsigned long receive_interrupts;
+	unsigned long not_for_us;
 
 	/* DMA-able memory */
 	int dma_alloc_size;
