@@ -988,6 +988,16 @@ static inline bool sock_flag(const struct sock *sk, enum sock_flags flag)
 
 #ifdef CONFIG_NET
 DECLARE_STATIC_KEY_FALSE(memalloc_socks_key);
+static inline void sock_recv_redundant_info(struct msghdr *msg, struct sock *sk,
+					    struct sk_buff *skb)
+{
+	struct skb_redundant_info *sred;
+
+	sred = skb_redinfo(skb);
+	if (sred->lsdu_size)
+		put_cmsg(msg, SOL_SOCKET, SCM_REDUNDANT, sizeof(*sred), sred);
+}
+
 static inline int sk_memalloc_socks(void)
 {
 	return static_branch_unlikely(&memalloc_socks_key);

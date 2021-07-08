@@ -3482,6 +3482,8 @@ static int packet_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 	}
 
 	sock_recv_cmsgs(msg, sk, skb);
+	
+	sock_recv_redundant_info(msg, sk, skb);
 
 	if (msg->msg_name) {
 		const size_t max_len = min(sizeof(skb->cb),
