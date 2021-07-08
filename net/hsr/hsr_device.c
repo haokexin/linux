@@ -218,6 +218,25 @@ int hsr_lredev_get_node_table(struct hsr_priv *hsr,
 	return ret;
 }
 
+static int hsr_set_sv_frame_vid(struct hsr_priv *hsr, u16 vid)
+{
+	struct hsr_port *port_a = hsr_port_get_hsr(hsr, HSR_PT_SLAVE_A);
+	struct net_device *slave_a_dev;
+	int ret = -EINVAL;
+
+	if (!port_a)
+		return ret;
+
+	slave_a_dev = port_a->dev;
+
+	/* TODO can we use vlan_vid_add() here?? */
+	if (slave_a_dev && slave_a_dev->lredev_ops &&
+	    slave_a_dev->lredev_ops->lredev_set_sv_vlan_id)
+		slave_a_dev->lredev_ops->lredev_set_sv_vlan_id(slave_a_dev,
+							       vid);
+	return 0;
+}
+
 int hsr_lredev_get_lre_stats(struct hsr_priv *hsr, struct lre_stats *stats)
 {
 	struct hsr_port *port_a = hsr_port_get_hsr(hsr, HSR_PT_SLAVE_A);
@@ -371,22 +390,39 @@ static struct sk_buff *hsr_init_skb(struct hsr_port *master)
 	struct hsr_priv *hsr = master->hsr;
 	struct sk_buff *skb;
 	int hlen, tlen;
+	int len;
+
+	hsr = master->hsr;
+
+	if (hsr->disable_sv_frame)
+		return NULL;
 
 	hlen = LL_RESERVED_SPACE(master->dev);
 	tlen = master->dev->needed_tailroom;
+	len = sizeof(struct hsr_tag) +
+	      sizeof(struct hsr_sup_tag) +
+	      sizeof(struct hsr_sup_payload) + hlen + tlen;
+
+	if (hsr->use_vlan_for_sv)
+		len += VLAN_HLEN;
+
 	/* skb size is same for PRP/HSR frames, only difference
 	 * being, for PRP it is a trailer and for HSR it is a
 	 * header
 	 */
-	skb = dev_alloc_skb(sizeof(struct hsr_sup_tag) +
-			    sizeof(struct hsr_sup_payload) + hlen + tlen);
+	skb = dev_alloc_skb(len);
 
 	if (!skb)
 		return skb;
 
 	skb_reserve(skb, hlen);
 	skb->dev = master->dev;
-	skb->priority = TC_PRIO_CONTROL;
+	if (hsr->use_vlan_for_sv) {
+		proto = ETH_P_8021Q;
+		skb->priority = hsr->sv_frame_pcp;
+	} else {
+		skb->priority = TC_PRIO_CONTROL;
+	}
 
 	if (dev_hard_header(skb, skb->dev, ETH_P_PRP,
 			    hsr->sup_multicast_addr,
@@ -413,6 +449,8 @@ static void send_hsr_supervision_frame(struct hsr_port *master,
 	struct hsr_sup_payload *hsr_sp;
 	struct hsr_sup_tag *hsr_stag;
 	struct sk_buff *skb;
+	struct vlan_hdr *vhdr;
+	u16 vlan_tci = 0;
 
 	*interval = msecs_to_jiffies(HSR_LIFE_CHECK_INTERVAL);
 	if (hsr->announce_count < 3 && hsr->prot_version == 0) {
@@ -433,6 +471,16 @@ static void send_hsr_supervision_frame(struct hsr_port *master,
 
 	/* From HSRv1 on we have separate supervision sequence numbers. */
 	spin_lock_bh(&hsr->seqnr_lock);
+	if (hsr->use_vlan_for_sv) {
+		vhdr = skb_put(skb, VLAN_HLEN);
+		vlan_tci = hsr->sv_frame_vid;
+		vlan_tci |= (hsr->sv_frame_pcp	<< VLAN_PRIO_SHIFT);
+		if (hsr->sv_frame_dei)
+			vlan_tci |= VLAN_CFI_MASK;
+		vhdr->h_vlan_TCI = htons(vlan_tci);
+		vhdr->h_vlan_encapsulated_proto = htons(proto);
+	}
+
 	if (hsr->prot_version > 0) {
 		hsr_stag->sequence_nr = htons(hsr->sup_sequence_nr);
 		hsr->sup_sequence_nr++;
@@ -450,9 +498,16 @@ static void send_hsr_supervision_frame(struct hsr_port *master,
 	hsr_sp = skb_put(skb, sizeof(struct hsr_sup_payload));
 	ether_addr_copy(hsr_sp->macaddress_A, master->dev->dev_addr);
 
-	if (skb_put_padto(skb, ETH_ZLEN)) {
-		spin_unlock_bh(&hsr->seqnr_lock);
-		return;
+	if (!hsr->use_vlan_for_sv) {
+		if (skb_put_padto(skb, ETH_ZLEN + HSR_HLEN)) {
+	       		spin_unlock_bh(&hsr->seqnr_lock);	
+			return;
+		}
+	} else {
+		if (skb_put_padto(skb, ETH_ZLEN + HSR_HLEN + VLAN_HLEN)) {
+			spin_unlock_bh(&hsr->seqnr_lock);
+			return;
+		}
 	}
 
 	hsr_forward_skb(skb, master);
@@ -727,7 +782,8 @@ static const unsigned char def_multicast_addr[ETH_ALEN] __aligned(2) = {
 
 int hsr_dev_finalize(struct net_device *hsr_dev, struct net_device *slave[2],
 		     unsigned char multicast_spec, u8 protocol_version,
-		     struct netlink_ext_ack *extack)
+		     struct netlink_ext_ack *extack, bool sv_vlan_tag_needed, unsigned short vid,
+		     unsigned char pcp, unsigned char dei)
 {
 	bool unregister = false;
 	struct hsr_priv *hsr;
@@ -774,6 +830,21 @@ int hsr_dev_finalize(struct net_device *hsr_dev, struct net_device *slave[2],
 	hsr->sup_multicast_addr[ETH_ALEN - 1] = multicast_spec;
 
 	hsr->prot_version = protocol_version;
+	/* update vlan tag infor for SV frames */
+	hsr->use_vlan_for_sv = sv_vlan_tag_needed;
+	hsr->sv_frame_vid = vid;
+	hsr->sv_frame_dei = dei;
+	hsr->sv_frame_pcp = pcp;
+
+	/* FIXME: should I modify the value of these?
+	 *
+	 * - hsr_dev->flags - i.e.
+	 *			IFF_MASTER/SLAVE?
+	 * - hsr_dev->priv_flags - i.e.
+	 *			IFF_EBRIDGE?
+	 *			IFF_TX_SKB_SHARING?
+	 *			IFF_HSR_MASTER/SLAVE?
+	 */
 
 	/* Make sure the 1st call to netif_carrier_on() gets through */
 	netif_carrier_off(hsr_dev);
@@ -829,8 +900,15 @@ int hsr_dev_finalize(struct net_device *hsr_dev, struct net_device *slave[2],
 	if (res)
 		goto err_add_slaves;
 
-	return 0;
+	if (hsr->use_vlan_for_sv)
+		res = hsr_set_sv_frame_vid(hsr, hsr->sv_frame_vid);
 
+	if (res)
+		goto err_procfs;
+
+	return 0;
+err_procfs:
+	hsr_remove_procfs(hsr, hsr_dev);
 err_unregister:
 	hsr_del_ports(hsr, hsr_dev);
 err_add_master:
