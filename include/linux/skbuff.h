@@ -567,6 +567,14 @@ struct ubuf_info_msgzc {
 int mm_account_pinned_pages(struct mmpin *mmp, size_t size);
 void mm_unaccount_pinned_pages(struct mmpin *mmp);
 
+struct skb_redundant_info {
+        __u8  io_port;     /* tx/rx port of the skb */
+        __u8  pathid;      /* pathid in tag */
+        __u16 ethertype;   /* ethertype in tag */
+        __u16 lsdu_size;   /* lsdu size in tag */
+        __u16 seqnr;       /* seqnr in tag */
+};
+
 /* This data is invariant across clones and lives at
  * the end of the header data, ie. at skb->end.
  */
@@ -581,6 +589,7 @@ struct skb_shared_info {
 	struct sk_buff	*frag_list;
 	struct skb_shared_hwtstamps hwtstamps;
 	unsigned int	gso_type;
+	struct skb_shared_hwtstamps red_hwtstamps;
 	struct skb_redundant_info redinfo;
 	u32		tskey;
 
@@ -1637,14 +1646,6 @@ int skb_zerocopy_iter_stream(struct sock *sk, struct sk_buff *skb,
 #define PORT_B          BIT(1)
 #define PORT_A          BIT(0)
 
-struct skb_redundant_info {
-	__u8  io_port;     /* tx/rx port of the skb */
-	__u8  pathid;      /* pathid in tag */
-	__u16 ethertype;   /* ethertype in tag */
-	__u16 lsdu_size;   /* lsdu size in tag */
-	__u16 seqnr;       /* seqnr in tag */
-};
-
 #define REDINFO_T(skb)      (skb_redinfo(skb)->io_port & (0x3 << 6))
 #define REDINFO_PORTS(skb)  (skb_redinfo(skb)->io_port & 0x3)
 #define REDINFO_PATHID(skb) (skb_redinfo(skb)->pathid)
@@ -1777,6 +1778,12 @@ static inline void skb_list_del_init(struct sk_buff *skb)
 static inline struct skb_redundant_info *skb_redinfo(struct sk_buff *skb)
 {
 	return &skb_shinfo(skb)->redinfo;
+}
+
+static inline struct skb_shared_hwtstamps *
+skb_redinfo_hwtstamps(struct sk_buff *skb)
+{
+	return &skb_shinfo(skb)->red_hwtstamps;
 }
 
 /**
