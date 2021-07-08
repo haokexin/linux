@@ -452,6 +452,7 @@ static void send_hsr_supervision_frame(struct hsr_port *master,
 	}
 
 	hsr_forward_skb(skb, master);
+	INC_CNT_TX_SUP(hsr);
 	spin_unlock_bh(&hsr->seqnr_lock);
 	return;
 }
@@ -492,6 +493,7 @@ static void send_prp_supervision_frame(struct hsr_port *master,
 	}
 
 	hsr_forward_skb(skb, master);
+	INC_CNT_TX_SUP(hsr);
 	spin_unlock_bh(&hsr->seqnr_lock);
 }
 
