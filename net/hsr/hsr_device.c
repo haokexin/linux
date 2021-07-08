@@ -450,6 +450,7 @@ static void send_hsr_supervision_frame(struct hsr_port *master,
 		return;
 
 	hsr_forward_skb(skb, master);
+	INC_CNT_TX_SUP(hsr);
 
 	return;
 }
@@ -493,6 +494,7 @@ static void send_prp_supervision_frame(struct hsr_port *master,
 	spin_unlock_irqrestore(&master->hsr->seqnr_lock, irqflags);
 
 	hsr_forward_skb(skb, master);
+	INC_CNT_TX_SUP(hsr);
 }
 
 /* Announce (supervision frame) timer function
