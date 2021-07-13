@@ -30,6 +30,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-j721e-eaik.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-sk.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-edgeai-apps.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-vision-apps.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-j721e-eaik-csi2-ov5640.dtbo
 
 dtb-$(CONFIG_ARCH_K3) += k3-j7200-common-proc-board.dtb
 
