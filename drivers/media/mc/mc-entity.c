@@ -372,9 +372,9 @@ static void media_graph_walk_iter(struct media_graph *graph)
 	lockdep_assert_held(&entity->graph_obj.mdev->graph_mutex);
 }
 
-struct media_entity *media_graph_walk_next(struct media_graph *graph)
+struct media_pad *media_graph_walk_next(struct media_graph *graph)
 {
-	struct media_entity *entity;
+	struct media_pad *pad;
 
 	if (stack_top(graph) == NULL)
 		return NULL;
@@ -387,11 +387,11 @@ struct media_entity *media_graph_walk_next(struct media_graph *graph)
 	while (link_top(graph) != &stack_top(graph)->entity->links)
 		media_graph_walk_iter(graph);
 
-	entity = stack_pop(graph)->entity;
-	dev_dbg(entity->graph_obj.mdev->dev,
-		"walk: returning entity '%s'\n", entity->name);
+	pad = stack_pop(graph);
+	dev_dbg(pad->graph_obj.mdev->dev,
+		"walk: returning pad '%s':%u\n", pad->entity->name, pad->index);
 
-	return entity;
+	return pad;
 }
 EXPORT_SYMBOL_GPL(media_graph_walk_next);
 
