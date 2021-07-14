@@ -262,13 +262,13 @@ bool media_entity_has_route(struct media_entity *entity, unsigned int pad0,
 	if (pad0 == pad1)
 		return true;
 
-	if (!entity->ops || !entity->ops->has_route)
+	if (!entity->ops || !entity->ops->has_pad_interdep)
 		return true;
 
 	if (entity->pads[pad1].index < entity->pads[pad0].index)
 		swap(pad0, pad1);
 
-	return entity->ops->has_route(entity, pad0, pad1);
+	return entity->ops->has_pad_interdep(entity, pad0, pad1);
 }
 EXPORT_SYMBOL_GPL(media_entity_has_route);
 
@@ -395,6 +395,9 @@ static void media_graph_walk_iter(struct media_graph *graph)
 	 */
 	if (!media_entity_has_route(pad->entity, pad->index, local->index)) {
 		link_top(graph) = link_top(graph)->next;
+		dev_dbg(pad->graph_obj.mdev->dev,
+			"walk: skipping \"%s\":%u -> %u (no route)\n",
+			pad->entity->name, pad->index, local->index);
 		return;
 	}
 
@@ -412,7 +415,7 @@ static void media_graph_walk_iter(struct media_graph *graph)
 	stack_push(graph, remote);
 	dev_dbg(remote->graph_obj.mdev->dev, "walk: pushing '%s':%u on stack\n",
 		remote->entity->name, remote->index);
-	lockdep_assert_held(&entity->graph_obj.mdev->graph_mutex);
+	lockdep_assert_held(&remote->graph_obj.mdev->graph_mutex);
 }
 
 struct media_pad *media_graph_walk_next(struct media_graph *graph)
