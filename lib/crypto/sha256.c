@@ -70,7 +70,7 @@ static inline void BLEND_OP(int I, u32 *W)
 	h = t1 + t2;						\
 } while (0)
 
-static void sha256_transform(u32 *state, const u8 *input, u32 *W)
+void sha256_transform(u32 *state, const u8 *input, u32 *W)
 {
 	u32 a, b, c, d, e, f, g, h;
 	int i;
@@ -118,6 +118,7 @@ static void sha256_transform(u32 *state, const u8 *input, u32 *W)
 	state[0] += a; state[1] += b; state[2] += c; state[3] += d;
 	state[4] += e; state[5] += f; state[6] += g; state[7] += h;
 }
+EXPORT_SYMBOL(sha256_transform);
 
 void sha256_update(struct sha256_state *sctx, const u8 *data, unsigned int len)
 {
