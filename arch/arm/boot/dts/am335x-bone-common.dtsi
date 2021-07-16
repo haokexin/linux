@@ -409,3 +409,7 @@
 &wkup_m3_ipc {
 	firmware-name = "am335x-bone-scale-data.bin";
 };
+
+&wkup_m3_ipc {
+	ti,scale-data-fw = "am335x-bone-scale-data.bin";
+};
