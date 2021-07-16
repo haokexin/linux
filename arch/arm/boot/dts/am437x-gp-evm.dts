@@ -1122,3 +1122,7 @@
 &pruss1_mdio {
 	status = "disabled";
 };
+
+&wkup_m3_ipc {
+	ti,set-io-isolation;
+};
