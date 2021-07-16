@@ -784,3 +784,7 @@
 &wkup_m3_ipc {
 	firmware-name = "am335x-evm-scale-data.bin";
 };
+
+&wkup_m3_ipc {
+	ti,scale-data-fw = "am335x-evm-scale-data.bin";
+};
