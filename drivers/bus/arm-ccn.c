@@ -176,6 +176,9 @@ static int ccn_platform_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, ccn);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	if (!res)
+		return -ENOMEM;
+
 	ccn->base = devm_ioremap(ccn->dev, res->start, resource_size(res));
 	if (IS_ERR(ccn->base))
 		return PTR_ERR(ccn->base);
