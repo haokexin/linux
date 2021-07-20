@@ -116,6 +116,10 @@ static unsigned int wdt_timeleft(struct watchdog_device *wdd)
 	u64 load, rate;
 
 	rate = clk_get_rate(wdt->clk);
+	if (!rate) {
+		dev_err(&wdt->adev->dev, "rate is 0");
+		return 0;
+	}
 
 	spin_lock(&wdt->lock);
 	load = readl_relaxed(wdt->base + WDTVALUE);
