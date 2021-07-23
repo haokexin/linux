@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/sys_soc.h>
 #include <linux/platform_device.h>
 #include <linux/reset.h>
 
@@ -29,6 +30,7 @@
 #define DPHY_PMA_RDATA(lane, reg)	(0x700 + ((lane) * 0x100) + (reg))
 #define DPHY_PCS(reg)			(0xb00 + (reg))
 #define DPHY_ISO(reg)			(0xc00 + (reg))
+#define DPHY_WRAP(reg)			(0x1000 + (reg))
 
 #define DPHY_CMN_SSM			DPHY_PMA_CMN(0x20)
 #define DPHY_CMN_SSM_EN			BIT(0)
@@ -64,6 +66,9 @@
 #define DPHY_POWER_ISLAND_EN_DATA_VAL	0xaaaaaaaa
 #define DPHY_POWER_ISLAND_EN_CLK	DPHY_PCS(0xc)
 #define DPHY_POWER_ISLAND_EN_CLK_VAL	0xaa
+
+#define DPHY_LANE			DPHY_WRAP(0x0)
+#define DPHY_LANE_RESET_CMN_EN		BIT(23)
 
 #define DPHY_ISO_CL_CTRL_L		DPHY_ISO(0x10)
 #define DPHY_ISO_DL_CTRL_L0		DPHY_ISO(0x14)
@@ -127,6 +132,10 @@ struct cdns_dphy_ops {
 	unsigned long (*get_wakeup_time_ns)(struct cdns_dphy *dphy);
 };
 
+struct cdns_dphy_quirks {
+	bool has_reset;
+};
+
 struct cdns_dphy {
 	struct cdns_dphy_cfg cfg;
 	void __iomem *regs;
@@ -140,6 +149,7 @@ struct cdns_dphy {
 struct cdns_dphy_driver_data {
 	const struct cdns_dphy_ops *tx;
 	const struct cdns_dphy_ops *rx;
+	const struct cdns_dphy_quirks *quirks;
 };
 
 struct cdns_dphy_rx_band {
@@ -522,11 +532,30 @@ static int cdns_dphy_rx_wait_lane_ready(struct cdns_dphy *dphy, int lanes)
 	return 0;
 }
 
+static const struct soc_device_attribute cdns_dphy_socinfo[] = {
+	{ .family = "J721E", .revision = "SR2.0", },
+	{/* sentinel */}
+};
+
 static int cdns_dphy_rx_configure(struct cdns_dphy *dphy,
 				  union phy_configure_opts *opts)
 {
+	const struct cdns_dphy_driver_data *ddata;
+	const struct soc_device_attribute *soc;
 	unsigned int reg;
 	int band_ctrl, ret;
+
+	soc = soc_device_match(cdns_dphy_socinfo);
+	if (soc) {
+		ddata = of_device_get_match_data(dphy->dev);
+		if (!ddata)
+			return -EINVAL;
+
+		if (ddata->quirks->has_reset) {
+			reg = DPHY_LANE_RESET_CMN_EN;
+			writel(reg, dphy->regs + DPHY_LANE);
+		}
+	}
 
 	band_ctrl = cdns_dphy_rx_get_band_ctrl(opts->mipi_dphy.hs_clk_rate);
 	if (band_ctrl < 0)
@@ -576,6 +605,14 @@ static const struct cdns_dphy_ops rx_ref_dphy_ops = {
 	.validate = cdns_dphy_rx_validate,
 };
 
+struct cdns_dphy_quirks cdns_dphy_quirks = {
+	.has_reset = false,
+};
+
+struct cdns_dphy_quirks j721e_dphy_quirks = {
+	.has_reset = true,
+};
+
 /*
  * This is the reference implementation of DPHY hooks. Specific integration of
  * this IP may have to re-implement some of them depending on how they decided
@@ -584,6 +621,13 @@ static const struct cdns_dphy_ops rx_ref_dphy_ops = {
 static const struct cdns_dphy_driver_data ref_dphy_ops = {
 	.tx = &tx_ref_dphy_ops,
 	.rx = &rx_ref_dphy_ops,
+	.quirks = &cdns_dphy_quirks,
+};
+
+static const struct cdns_dphy_driver_data j721e_dphy = {
+	.tx = &tx_ref_dphy_ops,
+	.rx = &rx_ref_dphy_ops,
+	.quirks = &j721e_dphy_quirks,
 };
 
 static int cdns_dphy_validate(struct phy *phy, enum phy_mode mode, int submode,
@@ -733,7 +777,7 @@ static int cdns_dphy_remove(struct platform_device *pdev)
 
 static const struct of_device_id cdns_dphy_of_match[] = {
 	{ .compatible = "cdns,dphy", .data = &ref_dphy_ops },
-	{ .compatible = "ti,j721e-dphy", .data = &j721e_dphy_ops },
+	{ .compatible = "ti,j721e-dphy", .data = &j721e_dphy },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, cdns_dphy_of_match);
