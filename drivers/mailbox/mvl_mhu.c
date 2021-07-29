@@ -90,7 +90,7 @@ struct mvl_mhu {
 	void __iomem *payload; /* Shared mem */
 	unsigned int irq;
 	const char *name;
-	struct mutex link_mutex;
+	spinlock_t link_lock;
 
 	/* Mailbox controller */
 	struct mbox_controller mbox;
@@ -198,10 +198,11 @@ static bool mvl_mhu_last_tx_done(struct mbox_chan *chan)
 {
 	struct mvl_mhu *mhu = chan->con_priv;
 	u64 val;
+	unsigned long flags;
 
-	mutex_lock(&mhu->link_mutex);
+	spin_lock_irqsave(&mhu->link_lock, flags);
 	val = readq_relaxed(mhu->base + SCP_TO_AP0_MBOX_RINT);
-	mutex_unlock(&mhu->link_mutex);
+	spin_unlock_irqrestore(&mhu->link_lock, flags);
 
 	dev_dbg(mhu->dev, "%s\n", __func__);
 
@@ -211,10 +212,11 @@ static bool mvl_mhu_last_tx_done(struct mbox_chan *chan)
 static int mvl_mhu_send_data(struct mbox_chan *chan, void *data)
 {
 	struct mvl_mhu *mhu = chan->con_priv;
+	unsigned long flags;
 
-	mutex_lock(&mhu->link_mutex);
+	spin_lock_irqsave(&mhu->link_lock, flags);
 	writeq_relaxed(DONT_CARE_DATA, mhu->base + AP0_TO_SCP_MBOX);
-	mutex_unlock(&mhu->link_mutex);
+	spin_unlock_irqrestore(&mhu->link_lock, flags);
 
 	return 0;
 }
@@ -285,7 +287,7 @@ static int mvl_mhu_init_link(struct mvl_mhu *mhu)
 	writeq_relaxed(1ul, mhu->base + XCP0_XCP_DEV2_MBOX_RINT_ENA_W1S);
 
 	mhu->irq = irq;
-	mutex_init(&mhu->link_mutex);
+	spin_lock_init(&mhu->link_lock);
 	dev_dbg(mhu->dev, "MHU @ 0x%llx [%llx], irq=%d\n", res.start, size, irq);
 
 	return 0;
