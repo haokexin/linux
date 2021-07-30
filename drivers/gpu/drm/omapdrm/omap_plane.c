@@ -8,6 +8,7 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_gem_atomic_helper.h>
 #include <drm/drm_plane_helper.h>
+#include <drm/drm_fourcc.h>
 
 #include "omap_dmm_tiler.h"
 #include "omap_drv.h"
@@ -21,6 +22,8 @@
 struct omap_plane_state {
 	/* Must be first. */
 	struct drm_plane_state base;
+
+	struct omap_hw_overlay *overlay;
 };
 
 #define to_omap_plane(x) container_of(x, struct omap_plane, base)
@@ -29,8 +32,6 @@ struct omap_plane {
 	struct drm_plane base;
 	enum omap_plane_id id;
 	const char *name;
-
-	struct omap_hw_overlay *overlay;
 };
 
 static int omap_plane_prepare_fb(struct drm_plane *plane,
@@ -57,10 +58,26 @@ static void omap_plane_atomic_update(struct drm_plane *plane,
 	struct omap_drm_private *priv = plane->dev->dev_private;
 	struct omap_plane *omap_plane = to_omap_plane(plane);
 	struct drm_plane_state *new_state = drm_atomic_get_new_plane_state(state,
-									   plane);
+	struct omap_plane_state *new_omap_state;
+	struct omap_plane_state *old_omap_state;
+								   plane);
 	struct omap_overlay_info info;
-	enum omap_plane_id ovl_id = omap_plane->overlay->overlay_id;
+	enum omap_plane_id ovl_id;
 	int ret;
+
+	new_omap_state = to_omap_plane_state(state);
+	old_omap_state = to_omap_plane_state(old_state);
+
+	/* Cleanup previously held overlay if needed */
+	omap_overlay_disable(old_state->state, plane, old_omap_state->overlay);
+
+	if (!new_omap_state->overlay) {
+		DBG("[PLANE:%d:%s] overlay_id: ??? (%p)", plane->base.id, plane->name,
+		    new_omap_state->overlay);
+		return;
+	}
+
+	ovl_id = new_omap_state->overlay->overlay_id;
 
 	DBG("[PLANE:%d:%s] overlay_id: %d", plane->base.id, plane->name,
 	    ovl_id);
@@ -82,11 +99,11 @@ static void omap_plane_atomic_update(struct drm_plane *plane,
 	/* update scanout: */
 	omap_framebuffer_update_scanout(new_state->fb, new_state, &info);
 
-	DBG("%dx%d -> %dx%d (%d)", info.width, info.height,
-			info.out_width, info.out_height,
-			info.screen_width);
+	DBG("%s: %dx%d -> %dx%d (%d)",
+	    new_omap_state->overlay->name, info.width, info.height,
+	    info.out_width, info.out_height, info.screen_width);
 	DBG("%d,%d %pad %pad", info.pos_x, info.pos_y,
-			&info.paddr, &info.p_uv_addr);
+		    &info.paddr, &info.p_uv_addr);
 
 	/* and finally, update omapdss: */
 	ret = priv->dispc_ops->ovl_setup(priv->dispc, ovl_id, &info,
@@ -107,54 +124,62 @@ static void omap_plane_atomic_disable(struct drm_plane *plane,
 {
 	struct drm_plane_state *new_state = drm_atomic_get_new_plane_state(state,
 									   plane);
-	struct omap_drm_private *priv = plane->dev->dev_private;
-	struct omap_plane *omap_plane = to_omap_plane(plane);
-	enum omap_plane_id ovl_id = omap_plane->overlay->overlay_id;
+	struct drm_plane_state *state = plane->state;
+	struct omap_plane_state *new_omap_state;
+	struct omap_plane_state *old_omap_state;
+
+	new_omap_state = to_omap_plane_state(state);
+	old_omap_state = to_omap_plane_state(old_state);
+
+	if (!old_omap_state->overlay)
+		return;
 
 	new_state->rotation = DRM_MODE_ROTATE_0;
-	new_state->zpos = plane->type == DRM_PLANE_TYPE_PRIMARY ? 0 : ovl_id;
+	new_state->zpos = plane->type == DRM_PLANE_TYPE_PRIMARY
+			   ? 0 : old_omap_state->overlay->overlay_id;
 
-	priv->dispc_ops->ovl_enable(priv->dispc, ovl_id, false);
+	omap_overlay_disable(old_state->state, plane, old_omap_state->overlay);
+	new_omap_state->overlay = NULL;
 }
 
+#define FRAC_16_16(mult, div)    (((mult) << 16) / (div))
 static int omap_plane_atomic_check(struct drm_plane *plane,
 				   struct drm_atomic_state *state)
 {
 	struct omap_drm_private *priv = plane->dev->dev_private;
+	struct drm_crtc *crtc;
 	struct drm_plane_state *new_plane_state = drm_atomic_get_new_plane_state(state,
 										 plane);
 	struct drm_crtc_state *crtc_state;
 	u16 width, height;
 	u32 width_fp, height_fp;
+	struct drm_plane_state *old_state = plane->state;
+	struct omap_plane_state *omap_state = to_omap_plane_state(state);
+	struct omap_global_state *omap_overlay_global_state;
+	u32 crtc_mask;
+	u32 fourcc;
+	u32 caps = 0;
+	bool new_hw_overlay = false;
+	int min_scale, max_scale;
+	int ret;
+	
+	omap_overlay_global_state = omap_get_global_state(state->state);
+	if (IS_ERR(omap_overlay_global_state))
+		return PTR_ERR(omap_overlay_global_state);
+	DBG("%s: omap_overlay_global_state: %p", plane->name,
+	    omap_overlay_global_state);
 
-	if (!new_plane_state->fb)
-		return 0;
-
-	priv->dispc_ops->ovl_get_max_size(priv->dispc, &width, &height);
 	width_fp = width << 16;
 	height_fp = height << 16;
 
-	/* crtc should only be NULL when disabling (i.e., !new_plane_state->fb) */
-	if (WARN_ON(!new_plane_state->crtc))
+	crtc = state->crtc ? state->crtc : plane->state->crtc;
+	if (!crtc)
 		return 0;
 
-	crtc_state = drm_atomic_get_existing_crtc_state(state,
-							new_plane_state->crtc);
+	crtc_state = drm_atomic_get_existing_crtc_state(state->state, crtc);
 	/* we should have a crtc state if the plane is attached to a crtc */
 	if (WARN_ON(!crtc_state))
 		return 0;
-
-	if (!crtc_state->enable)
-		return 0;
-
-	if (new_plane_state->crtc_x < 0 || new_plane_state->crtc_y < 0)
-		return -EINVAL;
-
-	if (new_plane_state->crtc_x + new_plane_state->crtc_w > crtc_state->adjusted_mode.hdisplay)
-		return -EINVAL;
-
-	if (new_plane_state->crtc_y + new_plane_state->crtc_h > crtc_state->adjusted_mode.vdisplay)
-		return -EINVAL;
 
 	/* Make sure dimensions are within bounds. */
 	if (state->src_h > height_fp || state->crtc_h > height)
@@ -163,9 +188,81 @@ static int omap_plane_atomic_check(struct drm_plane *plane,
 	if (state->src_w > width_fp || state->crtc_w > width)
 		return -EINVAL;
 
-	if (new_plane_state->rotation != DRM_MODE_ROTATE_0 &&
-	    !omap_framebuffer_supports_rotation(new_plane_state->fb))
-		return -EINVAL;
+	/*
+	 * Note: these are just sanity checks to filter out totally bad scaling
+	 * factors. The real limits must be calculated case by case, and
+	 * unfortunately we currently do those checks only at the commit
+	 * phase in dispc.
+	 */
+	min_scale = FRAC_16_16(1, 8);
+	max_scale = FRAC_16_16(8, 1);
+
+	ret = drm_atomic_helper_check_plane_state(state, crtc_state,
+						  min_scale, max_scale,
+						  true, true);
+	if (ret)
+		return ret;
+
+	DBG("%s: check (%d -> %d)", plane->name,
+	    old_state->visible, state->visible);
+
+	if (state->visible) {
+		if (state->rotation != DRM_MODE_ROTATE_0 &&
+		    !omap_framebuffer_supports_rotation(state->fb))
+			return -EINVAL;
+
+		if ((state->src_w >> 16) != state->crtc_w ||
+		    (state->src_h >> 16) != state->crtc_h)
+			caps |= OMAP_DSS_OVL_CAP_SCALE;
+
+		fourcc = state->fb->format->format;
+		crtc_mask = drm_crtc_mask(state->crtc);
+
+		/*
+		 * (re)allocate hw overlay if we don't have one or
+		 * there is a caps mismatch
+		 */
+		if (!omap_state->overlay ||
+		    (caps & ~omap_state->overlay->caps)) {
+			new_hw_overlay = true;
+		} else {
+			/* check if allowed on crtc */
+			if (!(omap_state->overlay->possible_crtcs & crtc_mask))
+				new_hw_overlay = true;
+
+			/* check supported format */
+			if (!priv->dispc_ops->ovl_color_mode_supported(priv->dispc,
+						omap_state->overlay->overlay_id,
+						fourcc))
+				new_hw_overlay = true;
+		}
+
+		if (new_hw_overlay) {
+			struct omap_hw_overlay *old_ovl =
+						omap_state->overlay;
+			struct omap_hw_overlay *new_ovl = NULL;
+
+			omap_overlay_release(state->state, plane, old_ovl);
+
+			ret = omap_overlay_assign(state->state, plane, caps,
+						  fourcc, crtc_mask, &new_ovl);
+			if (ret) {
+				DBG("%s: failed to assign hw_overlay(s)!",
+				    plane->name);
+				omap_state->overlay = NULL;
+				return ret;
+			}
+
+			omap_state->overlay = new_ovl;
+		}
+	} else {
+		omap_overlay_release(state->state, plane, omap_state->overlay);
+		omap_state->overlay = NULL;
+	}
+
+	if (omap_state->overlay)
+		DBG("plane: %s overlay_id: %d", plane->name,
+		    omap_state->overlay->overlay_id);
 
 	return 0;
 }
@@ -232,7 +329,7 @@ static void omap_plane_reset(struct drm_plane *plane)
 	 * plane.
 	 */
 	plane->state->zpos = plane->type == DRM_PLANE_TYPE_PRIMARY
-			   ? 0 : omap_plane->overlay->overlay_id;
+			   ? 0 : omap_plane->id;
 	plane->state->color_encoding = DRM_COLOR_YCBCR_BT601;
 	plane->state->color_range = DRM_COLOR_YCBCR_FULL_RANGE;
 }
