@@ -30,3 +30,7 @@
 &ti_csi2rx0 {
 	status = "disabled";
 };
+
+&ti_csi2rx1 {
+	status = "disabled";
+};
