@@ -673,7 +673,7 @@ static int pm_cpu_physical_isolation_and_power_down(int cpu)
 	/* Initiate power down of the CPU logic */
 	pm_clear_bits_syscon_register(NSP_PWRUPCPUSTG2, mask);
 
-	usleep_range(16, 17);
+	udelay(17);
 
 	/* Continue power down of the CPU logic */
 	pm_clear_bits_syscon_register(NSP_PWRUPCPUSTG1, mask);
