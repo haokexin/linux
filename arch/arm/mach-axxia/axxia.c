@@ -72,6 +72,13 @@ static void set_l3_pstate(u32 newstate)
 }
 
 void
+shutdown_l3(void)
+{
+	/* Shutdown to flush */
+	set_l3_pstate(0);
+}
+
+void
 flush_l3(void)
 {
 	/* Switch to SFONLY to flush */
@@ -180,7 +187,7 @@ void __init axxia_dt_init(void)
 	if (!of_find_compatible_node(NULL, NULL, "axxia,axm5500-sim")) {
 		dickens = ioremap(0x2000000000, SZ_16M);
 #ifdef CONFIG_KEXEC
-		kexec_reinit = flush_l3;
+		kexec_reinit = shutdown_l3;
 #endif
 		flush_l3();
 	}
