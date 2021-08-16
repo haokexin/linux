@@ -65,7 +65,7 @@ static void set_l3_pstate(u32 newstate)
 			status = readl(dickens + (hnf[i] << 16) + 0x18);
 			if (((status >> 2) & 3) == newstate)
 				break;
-			usleep_range(1, 2);
+			udelay(2);
 		}
 		WARN_ON(retry == 0);
 	}
