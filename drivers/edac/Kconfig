@@ -487,7 +487,6 @@ config EDAC_AXXIA_L3_6700
 	  can use polling mechanism or be interrupt driven.
 
 config EDAC_AXXIA_L2_CPU_5500
-	depends on MACH_AXXIA
 	tristate "AXXIA EDAC L2/CPU Controller for 5500"
 	help
 	  Support for L2 cache and A15 CPU error detection
