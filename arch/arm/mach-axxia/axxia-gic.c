@@ -91,7 +91,7 @@ static void muxed_ipi_message_pass(const struct cpumask *mask,
 	int cpu;
 
 	for_each_cpu(cpu, mask) {
-		info = &per_cpu(ipi_mux_msg, cpu_logical_map(cpu));
+		info = &per_cpu(ipi_mux_msg, mpidr_to_hwcpu(cpu_logical_map(cpu)));
 		set_bit(ipi_num, &info->msg);
 	}
 }
@@ -285,7 +285,7 @@ static void gic_unmask_remote(void *info)
 
 static void gic_mask_unmask(struct irq_data *d, bool do_mask)
 {
-	u32 pcpu = cpu_logical_map(smp_processor_id());
+	u32 pcpu = mpidr_to_hwcpu(cpu_logical_map(smp_processor_id()));
 	u32 irqid = gic_irq(d);
 
 	WARN_ON(!irqs_disabled());
@@ -434,7 +434,7 @@ static int gic_set_type(struct irq_data *d, unsigned int type)
 
 	gic_rpc_data.d = d;
 	gic_rpc_data.func_mask |= SET_TYPE;
-	gic_rpc_data.cpu = cpu_logical_map(smp_processor_id());
+	gic_rpc_data.cpu = mpidr_to_hwcpu(cpu_logical_map(smp_processor_id()));
 	gic_rpc_data.type = type;
 
 	return IRQ_SET_MASK_OK;
@@ -458,7 +458,7 @@ static int _gic_set_affinity(struct irq_data *d, unsigned int cpu,
 	 * Normalize the cpu number as seen by Linux (0-15) to a
 	 * number as seen by a cluster (0-3).
 	 */
-	bit = 1 << ((cpu_logical_map(cpu) % CORES_PER_CLUSTER) + shift);
+	bit = 1 << ((cpu % CORES_PER_CLUSTER) + shift);
 	mask = 0xff << shift;
 
 	enable_mask = 1 << (gic_irq(d) % 32);
@@ -538,7 +538,7 @@ static int gic_set_affinity(struct irq_data *d,
 			    bool force)
 {
 	unsigned int cpu = cpumask_any_and(mask_val, cpu_online_mask);
-	u32 pcpu = cpu_logical_map(smp_processor_id());
+	u32 pcpu = mpidr_to_hwcpu(cpu_logical_map(smp_processor_id()));
 	unsigned int irqid = gic_irq(d);
 	int ret = IRQ_SET_MASK_OK;
 
@@ -558,7 +558,7 @@ static int gic_set_affinity(struct irq_data *d,
 	 * If the new IRQ affinity is the same as current, then
 	 * there's no need to update anything.
 	 */
-	if (cpu_logical_map(cpu) == irq_cpuid[irqid])
+	if (mpidr_to_hwcpu(cpu_logical_map(cpu)) == irq_cpuid[irqid])
 		return IRQ_SET_MASK_OK;
 
 	/*
@@ -566,10 +566,10 @@ static int gic_set_affinity(struct irq_data *d,
 	 * cluster as the cpu we're currently running on, set the IRQ
 	 * affinity directly. Otherwise, use the RPC mechanism.
 	 */
-	if (on_same_cluster(cpu_logical_map(cpu), pcpu)) {
-		_gic_set_affinity(d, cpu_logical_map(cpu), false);
+	if (on_same_cluster(mpidr_to_hwcpu(cpu_logical_map(cpu)), pcpu)) {
+		_gic_set_affinity(d, mpidr_to_hwcpu(cpu_logical_map(cpu)), false);
 	} else {
-		ret = exec_remote_set_affinity(false, cpu_logical_map(cpu),
+		ret = exec_remote_set_affinity(false, mpidr_to_hwcpu(cpu_logical_map(cpu)),
 					       d, mask_val, force);
 
 		if (ret != IRQ_SET_MASK_OK)
@@ -581,7 +581,7 @@ static int gic_set_affinity(struct irq_data *d,
 	 * different than the prior cluster, clear the IRQ affinity
 	 * on the old cluster.
 	 */
-	if (!on_same_cluster(cpu_logical_map(cpu),
+	if (!on_same_cluster(mpidr_to_hwcpu(cpu_logical_map(cpu)),
 			     irq_cpuid[irqid]) && irqid != IRQ_PMU) {
 		/*
 		 * If old cpu assignment falls within the same cluster as
@@ -597,7 +597,7 @@ static int gic_set_affinity(struct irq_data *d,
 		}
 		if (ret != IRQ_SET_MASK_OK) {
 			/* Need to back out the set operation */
-			if (on_same_cluster(cpu_logical_map(cpu), pcpu))
+			if (on_same_cluster(mpidr_to_hwcpu(cpu_logical_map(cpu)), pcpu))
 				_gic_set_affinity(d, irq_cpuid[irqid], true);
 			else
 				exec_remote_set_affinity(true, cpu, d,
@@ -608,7 +608,7 @@ static int gic_set_affinity(struct irq_data *d,
 	}
 
 	/* Update Axxia IRQ affinity table with the new physical CPU number. */
-	irq_cpuid[irqid] = cpu_logical_map(cpu);
+	irq_cpuid[irqid] = mpidr_to_hwcpu(cpu_logical_map(cpu));
 
 	return IRQ_SET_MASK_OK;
 }
@@ -829,7 +829,7 @@ static int gic_notifier(struct notifier_block *self, unsigned long cmd,	void *v)
 
 	/* Use RPC mechanism to execute this at other clusters. */
 	gic_rpc_data.func_mask |= GIC_NOTIFIER;
-	gic_rpc_data.cpu = cpu_logical_map(smp_processor_id());
+	gic_rpc_data.cpu = mpidr_to_hwcpu(cpu_logical_map(smp_processor_id()));
 	gic_rpc_data.gn_data.self = self;
 	gic_rpc_data.gn_data.cmd = cmd;
 	gic_rpc_data.gn_data.v = v;
@@ -961,7 +961,7 @@ static void axxia_ipi_send_mask(struct irq_data *d, const struct cpumask *mask)
 	int cpu;
 	unsigned long map = 0;
 	unsigned int regoffset;
-	u32 phys_cpu = cpu_logical_map(smp_processor_id());
+	u32 phys_cpu = mpidr_to_hwcpu(cpu_logical_map(smp_processor_id()));
 
 	/* Sanity check the physical cpu number */
 	if (phys_cpu >= nr_cpu_ids) {
@@ -972,7 +972,7 @@ static void axxia_ipi_send_mask(struct irq_data *d, const struct cpumask *mask)
 
 	/* Convert our logical CPU mask into a physical one. */
 	for_each_cpu(cpu, mask)
-		map |= 1 << cpu_logical_map(cpu);
+		map |= 1 << mpidr_to_hwcpu(cpu_logical_map(cpu));
 
 	/*
 	 * Convert the standard ARM IPI number (as defined in
@@ -1055,7 +1055,7 @@ asmlinkage void __exception_irq_entry axxia_gic_handle_irq(struct pt_regs *regs)
 	struct gic_chip_data *gic = &gic_data;
 	void __iomem *cpu_base = gic_data_cpu_base(gic);
 	void __iomem *dist_base = gic_data_dist_base(gic);
-	u32 pcpu = cpu_logical_map(smp_processor_id());
+	u32 pcpu = mpidr_to_hwcpu(cpu_logical_map(smp_processor_id()));
 	u32 cluster = pcpu / CORES_PER_CLUSTER;
 	u32 next, mask;
 
@@ -1199,7 +1199,7 @@ static void  gic_dist_init(struct gic_chip_data *gic)
 	u32 cpumask;
 	unsigned int gic_irqs = gic->gic_irqs;
 	void __iomem *base = gic_data_dist_base(gic);
-	u32 cpu = cpu_logical_map(smp_processor_id());
+	u32 cpu = mpidr_to_hwcpu(cpu_logical_map(smp_processor_id()));
 	u8 cpumask_8;
 	u32 confmask;
 	u32 confoff;
