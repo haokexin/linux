@@ -317,7 +317,7 @@ static void get_hw_statistics(struct appnic_device *pdata)
 	u32 tx_under;
 
 	if (pdata->not_for_us != 0)
-		dev_info(pdata->dev, "Packets not for us, %lu out of %lu\n",
+		dev_dbg(pdata->dev, "Packets not for us, %lu out of %lu\n",
 			 pdata->not_for_us, pdata->stats.rx_dropped);
 
 	/* stats.tx_packets */
