@@ -28,7 +28,7 @@ static int wfe_available;
 void __iomem *syscon;
 
 /* XXX axxia_pen_release is cargo culted code - DO NOT COPY XXX */
-int axxia_pen_release = -1;
+volatile int axxia_pen_release = -1;
 
 inline void
 __axxia_arch_wfe(void)
