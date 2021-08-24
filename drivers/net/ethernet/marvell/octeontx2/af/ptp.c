@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Marvell PTP driver
  *
- * Copyright (C) 2020 Marvell.
+ * Copyright (C) 2021 Marvell
  *
  */
 
@@ -148,7 +148,7 @@ static inline u64 get_tsc(bool is_pmu)
 #endif
 }
 
-int ptp_get_clock(struct ptp *ptp, bool is_pmu, u64 *clk, u64 *tsc)
+static int ptp_get_clock(struct ptp *ptp, bool is_pmu, u64 *clk, u64 *tsc)
 {
 	u64 end, start;
 	u8 retries = 0;
