@@ -1205,16 +1205,22 @@ cpt:
 	}
 
 	err = rvu_sso_init(rvu);
-	if (err)
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize sso\n", __func__);
 		goto sso_err;
+	}
 
 	err = rvu_tim_init(rvu);
-	if (err)
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize tim\n", __func__);
 		goto sso_err;
+	}
 
 	err = rvu_cpt_init(rvu);
-	if (err)
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize cpt\n", __func__);
 		goto sso_err;
+	}
 
 	/* Assign MACs for CGX mapped functions */
 	rvu_setup_pfvf_macaddress(rvu);
@@ -1240,8 +1246,10 @@ cpt:
 	}
 
 	err = rvu_ree_init(rvu);
-	if (err)
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize ree\n", __func__);
 		goto nix_err;
+	}
 
 	rvu_program_channels(rvu);
 
