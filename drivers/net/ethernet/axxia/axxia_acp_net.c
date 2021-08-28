@@ -516,7 +516,7 @@ static void axxianet_rx_packet(struct net_device *dev)
 	readdescriptor(((unsigned long)pdata->rx_desc +
 			pdata->rx_tail_copy.bits.offset), &descriptor);
 
-	sk_buff = netdev_alloc_skb(NULL, AXXIANET_MAX_MTU);
+	sk_buff = netdev_alloc_skb(dev, AXXIANET_MAX_MTU);
 
 	if (sk_buff == (struct sk_buff *)0) {
 		dev_info_ratelimited(d,
