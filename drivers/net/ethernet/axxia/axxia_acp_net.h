@@ -21,9 +21,9 @@ int acp_mdio_write(unsigned long address, unsigned long offset,
 #define AXXIANET_NAPI_WEIGHT	64
 
 /* This is the maximum number of bytes that serve to hold
- * incoming Rx data.
+ * incoming Rx data (includes padding and space for alignment).
  */
-#define AXXIANET_MAX_MTU		(ETH_DATA_LEN + 100) /* MTU + padding */
+#define AXXIANET_MAX_MTU (ETH_DATA_LEN + 102)
 
 /* Device Data Structures */
 
