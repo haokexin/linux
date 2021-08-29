@@ -45,7 +45,7 @@ static const struct pci_device_id rvu_id_table[] = {
 	{ 0, }  /* end of table */
 };
 
-MODULE_AUTHOR("Sunil Goutham <sgoutham@marvell.com>");
+MODULE_AUTHOR("Marvell.");
 MODULE_DESCRIPTION(DRV_STRING);
 MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(pci, rvu_id_table);
