@@ -65,9 +65,22 @@
 	axxia,mdio-clk-offset = <0x1c>;
 	axxia,mdio-clk-period = <0xf0>;
 	max-speed = <10>;
+	phy-mode = "rgmii";
 
-	phy0: ethernet-phy@3 {
+	phy0: ethernet-phy@7 {
 		reg = <0x7>;
+		rxc-skew-ps = <1860>;
+		txc-skew-ps = <1860>;
+		txen-skew-ps = <420>;
+		rxdv-skew-ps = <420>;
+		rxd0-skew-ps = <420>;
+		rxd1-skew-ps = <420>;
+		rxd2-skew-ps = <420>;
+		rxd3-skew-ps = <420>;
+		txd0-skew-ps = <420>;
+		txd1-skew-ps = <420>;
+		txd2-skew-ps = <420>;
+		txd3-skew-ps = <420>;
 	};
 };
 
