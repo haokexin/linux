@@ -291,3 +291,7 @@
 &cm1 {
 	status = "okay";
 };
+
+&watchdog0 {
+	status = "okay";
+};

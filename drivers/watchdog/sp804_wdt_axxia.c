@@ -27,6 +27,9 @@
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/watchdog.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
+#include <linux/of.h>
 
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
@@ -55,6 +58,13 @@
 #define WDTMIS		0x014
 #define INT_MASK	BIT(0)
 
+#define SYSCON_CTL_WR_KEY			0x2000
+#define SYSCON_CTL_RST_REG			0x2008
+#define SYSCON_RST_WD0_EN			BIT(8)
+#define SYSCON_RST_WD0_MASK			GENMASK(8, 8)
+#define SYSCON_RST_WD1_EN			BIT(9)
+#define SYSCON_RST_WD1_MASK			GENMASK(9, 9)
+
 /**
  * struct sp804_wdt_axxia: sp804 wdt device structure
  * @wdd: instance of struct watchdog_device
@@ -72,6 +82,8 @@ struct sp804_wdt_axxia {
 	struct clk			*clk;
 	struct amba_device		*adev;
 	unsigned int			load_val;
+	int id;
+	struct regmap *syscon;
 };
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
@@ -215,14 +227,32 @@ static int
 sp804_wdt_axxia_probe(struct amba_device *adev, const struct amba_id *id)
 {
 	struct sp804_wdt_axxia *wdt;
+	struct device_node *np = adev->dev.of_node;
 	int ret = 0;
 	unsigned int irq;
+	unsigned int mask, value;
+
+	if (!of_device_is_compatible(np, "arm,sp804_wdt_axxia"))
+		return -ENODEV;
 
 	dev_info(&adev->dev, "Probing sp804_wdt_axxia\n");
 
 	wdt = devm_kzalloc(&adev->dev, sizeof(*wdt), GFP_KERNEL);
 	if (!wdt) {
 		ret = -ENOMEM;
+		goto err;
+	}
+
+	wdt->syscon = syscon_regmap_lookup_by_phandle(np, "syscon");
+	if (IS_ERR(wdt->syscon)) {
+		dev_err(&adev->dev, "sp804_wdt: syscon lookup failed\n");
+		ret = PTR_ERR(wdt->syscon);
+		goto err;
+	}
+
+	ret = of_property_read_u32(np, "watchdog_id", &wdt->id);
+	if (ret < 0) {
+		dev_err(&adev->dev, "sp804_wdt: get watchdog_id failed\n");
 		goto err;
 	}
 
@@ -245,6 +275,20 @@ sp804_wdt_axxia_probe(struct amba_device *adev, const struct amba_id *id)
 		dev_err(&adev->dev, "failed to install irq (%d)\n", ret);
 		goto err;
 	}
+
+	/*
+	 * Write the magic number 0xab to 0x2000 before writing to other
+	 * critical system control registers.
+	 */
+	regmap_write(wdt->syscon, SYSCON_CTL_WR_KEY, 0xab);
+
+	/* Update enable and select bits */
+	mask = wdt->id ? SYSCON_RST_WD1_MASK : SYSCON_RST_WD0_MASK;
+	value = wdt->id ? SYSCON_RST_WD1_EN : SYSCON_RST_WD0_EN;
+	regmap_update_bits(wdt->syscon, SYSCON_CTL_RST_REG, mask, value);
+
+	/* Restore it to 0 to keep safe. */
+	regmap_write(wdt->syscon, SYSCON_CTL_WR_KEY, 0x0);
 
 	wdt->adev = adev;
 	wdt->wdd.info = &wdt_info;
@@ -275,9 +319,17 @@ err:
 static void sp804_wdt_axxia_remove(struct amba_device *adev)
 {
 	struct sp804_wdt_axxia *wdt = amba_get_drvdata(adev);
+	unsigned int mask, value;
 
 	watchdog_unregister_device(&wdt->wdd);
 	watchdog_set_drvdata(&wdt->wdd, NULL);
+
+	/* Disable watchdog reset */
+	regmap_write(wdt->syscon, SYSCON_CTL_WR_KEY, 0xab);
+	mask = wdt->id ? SYSCON_RST_WD1_MASK : SYSCON_RST_WD0_MASK;
+	value = 0;
+	regmap_update_bits(wdt->syscon, SYSCON_CTL_RST_REG, mask, value);
+	regmap_write(wdt->syscon, SYSCON_CTL_WR_KEY, 0x0);
 }
 
 static int __maybe_unused sp804_wdt_axxia_suspend(struct device *dev)

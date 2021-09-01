@@ -24,6 +24,7 @@
 		serial3	  = &serial3;
 		timer	  = &timer0;
 		watchdog0 = &watchdog0;
+		watchdog1 = &watchdog1;
 		ethernet0 = &nemac;
 		i2c0	  = &i2c0;
 		i2c1	  = &i2c1;
@@ -506,25 +507,38 @@
 
 			timer0: timer@8080220000 {
 				compatible = "arm,sp804", "arm,primecell";
-				reg = <0x80 0x80220000 0 0xe0>;
+				reg = <0x80 0x80220000 0 0xa0>;
 				interrupts = <GIC_SPI 29 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>,
-					     <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>,
-					     <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>,
-					     <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+					     <GIC_SPI 33 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&clk_per 0>;
 				clock-names = "apb_pclk";
 			};
 
-			watchdog0: watchdog@0x80802200e0 {
+			watchdog0: watchdog@0x80802200a0 {
 				compatible = "arm,sp804_wdt_axxia", "arm,primecell";
+				status = "disabled";
 				arm,primecell-periphid = <0x00141804>;
-				reg = <0x80 0x802200e0 0 0x10>;
-				interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>;
+				reg = <0x80 0x802200a0 0 0x20>;
+				interrupts = <GIC_SPI 34 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&clk_per 0>;
 				clock-names = "apb_pclk";
+				syscon = <&syscon>;
+				watchdog_id = <0>;
+			};
+
+			watchdog1: watchdog@0x80802200c0 {
+				compatible = "arm,sp804_wdt_axxia", "arm,primecell";
+				status = "disabled";
+				arm,primecell-periphid = <0x00141804>;
+				reg = <0x80 0x802200c0 0 0x20>;
+				interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&clk_per 0>;
+				clock-names = "apb_pclk";
+				syscon = <&syscon>;
+				watchdog_id = <1>;
 			};
 
 			gpio0: gpio@8080180000 {
