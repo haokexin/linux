@@ -50,8 +50,8 @@ EFI_ZBOOT_OBJCOPY_FLAGS	= --add-symbol zboot_code_size=0x$(shell \
 include $(srctree)/drivers/firmware/efi/libstub/Makefile.zboot
 
 ifeq ($(CONFIG_ARCH_AXXIA), y)
-  UIMAGE_LOADADDR = 0x00080000
-  UIMAGE_ENTRYADDR = 0x00080000
+  UIMAGE_LOADADDR = 0x00200000
+  UIMAGE_ENTRYADDR = 0x00200000
 endif
 
 check_for_multiple_loadaddr = \
