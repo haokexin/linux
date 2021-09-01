@@ -37,8 +37,8 @@ $(obj)/Image.lzo: $(obj)/Image FORCE
 	$(call if_changed,lzo)
 
 ifeq ($(CONFIG_ARCH_AXXIA), y)
-  UIMAGE_LOADADDR = 0x00080000
-  UIMAGE_ENTRYADDR = 0x00080000
+  UIMAGE_LOADADDR = 0x00200000
+  UIMAGE_ENTRYADDR = 0x00200000
 endif
 
 check_for_multiple_loadaddr = \
