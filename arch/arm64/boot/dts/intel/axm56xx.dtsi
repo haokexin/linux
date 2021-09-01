@@ -507,6 +507,7 @@
 
 			timer0: timer@8080220000 {
 				compatible = "arm,sp804", "arm,primecell";
+				status = "disabled";
 				reg = <0x80 0x80220000 0 0xa0>;
 				interrupts = <GIC_SPI 29 IRQ_TYPE_LEVEL_HIGH>,
 					     <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>,
