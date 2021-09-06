@@ -1565,17 +1565,6 @@ void mbox_handler_cgx_stats(struct otx2_nic *pfvf,
 		pfvf->hw.cgx_tx_stats[id] = rsp->tx_stats[id];
 }
 
-void mbox_handler_rpm_stats(struct otx2_nic *pfvf,
-			    struct rpm_stats_rsp *rsp)
-{
-	int id;
-
-	for (id = 0; id < RPM_RX_STATS_COUNT; id++)
-		pfvf->hw.cgx_rx_stats[id] = rsp->rx_stats[id];
-	for (id = 0; id < RPM_TX_STATS_COUNT; id++)
-		pfvf->hw.cgx_tx_stats[id] = rsp->tx_stats[id];
-}
-
 void mbox_handler_cgx_fec_stats(struct otx2_nic *pfvf,
 				struct cgx_fec_stats_rsp *rsp)
 {
