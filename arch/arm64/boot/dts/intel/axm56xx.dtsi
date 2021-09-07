@@ -98,8 +98,8 @@
 
 		arm_ccn_504: arm_ccn_504@8000000000 {
 			compatible = "arm,ccn-504";
-			/* CCN_MN only */
-			reg = <0x80 0x00000000 0 0x10000>;
+			/* CCN_MN and CCN_NH-I */
+			reg = <0x80 0x00000000 0 0x100000>;
 			interrupts = <0 256 4>;
 			ranges = <0x0 0x80 0x00000000 0x1000000>;
 			#address-cells = <1>;
