@@ -30,7 +30,15 @@
 #define CCN_MN_OLY_COMP_LIST_63_0	0x01e0
 #define CCN_MN_ERR_SIG_VAL_63_0		0x0300
 #define CCN_MN_ERR_SIG_VAL_63_0__DT			BIT(1)
+#define CCN_MN_ERR_SIG_VAL_63_0__HNI		GENMASK(9, 8)
 #define CCN_MN_ERR_SIG_VAL_63_0__HNF			0xff
+
+#define CCN_HNI_BASE			0x80000
+#define CCN_HNI_ERR_CLR_REG_H	0x484
+#define CCN_HNI_AUX_CTL_REG		0x500
+#define CCN_HNI_FIRST_ERR_CLR	GENMASK(30, 30)
+#define CCN_HNI_MULTI_ERR_CLR	GENMASK(27, 27)
+#define CCN_HNI_ERROR_ENABLE	GENMASK(3, 2)
 
 LIST_HEAD(arm_ccn_head);
 
@@ -130,6 +138,19 @@ static irqreturn_t arm_ccn_irq_handler(int irq, void *dev_id)
 				res = er->handler(er->data);
 	}
 
+	/*
+	 * When psci pwrup secondary CPU, the error from NH-I node will be
+	 * reported to MN node. So even though we disable error reporting
+	 * from NH-I in arm_ccn_probe, there is still one error need to be
+	 * handled.
+	 */
+	if (err_or & CCN_MN_ERR_SIG_VAL_63_0__HNI) {
+		err_or &= ~CCN_MN_ERR_SIG_VAL_63_0__HNI;
+		writel((CCN_HNI_FIRST_ERR_CLR | CCN_HNI_MULTI_ERR_CLR),
+				(ccn->base + CCN_HNI_BASE + CCN_HNI_ERR_CLR_REG_H));
+		res |= IRQ_HANDLED;
+	}
+
 	/* To my best knowledge for having the interrupt serviced at minimum one
 	 * has to clear an MN error signal by reading Error Signal Valid
 	 * regs and deassert the interrupt (INTREQ).
@@ -165,7 +186,7 @@ static int ccn_platform_probe(struct platform_device *pdev)
 {
 	int ret;
 	struct resource *res;
-	unsigned int irq;
+	unsigned int irq, value;
 	struct arm_ccn *ccn;
 
 	ccn = devm_kzalloc(&pdev->dev, sizeof(*ccn), GFP_KERNEL);
@@ -196,6 +217,11 @@ static int ccn_platform_probe(struct platform_device *pdev)
 		errint_read = secure_errint_read;
 		errint_write = secure_errint_write;
 	}
+
+	/* Let's inhibit HN-I reporting error to MN */
+	value = readl(ccn->base + CCN_HNI_BASE + CCN_HNI_AUX_CTL_REG);
+	value &= ~CCN_HNI_ERROR_ENABLE;
+	writel(value, ccn->base + CCN_HNI_BASE + CCN_HNI_AUX_CTL_REG);
 
 	/* Check if we can use the interrupt */
 	errint_write(CCN_MN_ERRINT_STATUS__PMU_EVENTS__DISABLE,
