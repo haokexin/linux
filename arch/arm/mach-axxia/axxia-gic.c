@@ -171,7 +171,7 @@ struct gic_rpc_data {
 };
 
 static DEFINE_RAW_SPINLOCK(irq_controller_lock);
-static DEFINE_MUTEX(irq_bus_lock);
+static DEFINE_RAW_SPINLOCK(irq_bus_lock);
 
 static struct gic_chip_data gic_data __read_mostly;
 static struct gic_rpc_data gic_rpc_data = {NULL, 0, 0, 0, 0, NULL};
@@ -871,7 +871,7 @@ static void __init gic_pm_init(struct gic_chip_data *gic)
 static void gic_irq_lock(struct irq_data *d)
 {
 	/* Take the bus lock. */
-	mutex_lock(&irq_bus_lock);
+	raw_spin_lock(&irq_bus_lock);
 }
 
 static void gic_irq_sync_unlock(struct irq_data *d)
@@ -953,7 +953,7 @@ static void gic_irq_sync_unlock(struct irq_data *d)
 	gic_rpc_data.func_mask = 0;
 
 	/* Give the bus lock. */
-	mutex_unlock(&irq_bus_lock);
+	raw_spin_unlock(&irq_bus_lock);
 }
 
 static void axxia_ipi_send_mask(struct irq_data *d, const struct cpumask *mask)
