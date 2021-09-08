@@ -161,6 +161,19 @@ struct mpam_component
 	struct mpam_class	*class;
 };
 
+struct mon_cfg {
+	u16     mon;
+	u8      pmg;
+	bool    match_pmg;
+	u32     partid;
+};
+
+struct msmon_mbwu_state {
+	bool		enabled;
+	struct mon_cfg	cfg;
+	u64		val;
+};
+
 struct mpam_msc_ris
 {
 	u8			ris_idx;
@@ -179,13 +192,9 @@ struct mpam_msc_ris
 	/* parents: */
 	struct mpam_msc		*msc;
 	struct mpam_component	*comp;
-};
 
-struct mon_cfg {
-	u16     mon;
-	u8      pmg;
-	bool    match_pmg;
-	u32     partid;
+	/* msmon mbwu configuration is preserved over reset */
+	struct msmon_mbwu_state	*mbwu_state;
 };
 
 static inline unsigned long mpam_alloc_csu_mon(struct mpam_class *class)

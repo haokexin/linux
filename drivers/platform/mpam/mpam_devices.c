@@ -692,6 +692,7 @@ static void __ris_msmon_read(void *arg)
 	unsigned long flags;
 	struct mon_read *m = arg;
 	struct mon_cfg *ctx = m->ctx;
+	struct mpam_msc_ris *ris = m->ris;
 	struct mpam_msc *msc = m->ris->msc;
 	u32 val, ctl_val, ctl_reg, flt_val, flt_reg, val_reg, cur_ctl, cur_flt;
 
@@ -753,6 +754,10 @@ static void __ris_msmon_read(void *arg)
 	}
 
 	*(m->val) += FIELD_GET(MSMON___VALUE, val);
+
+	/* Include bandwidth consumed before the last hardware reset */
+	if (val_reg == MSMON_MBWU)
+		*(m->val) += ris->mbwu_state[ctx->mon].val;
 }
 
 static int _msmon_read(struct mpam_component *comp, struct mon_read *arg)
@@ -939,6 +944,64 @@ static void mpam_reprogram_ris(void *_arg)
 		mpam_reprogram_ris_partid(ris, partid, cfg);
 }
 
+static void mpam_restore_mbwu_state(void *_ris)
+{
+	int i;
+	struct mon_read mwbu_arg;
+	struct mpam_msc_ris *ris = _ris;
+
+	assert_spin_locked(&ris->msc->lock);
+
+	for (i = 0; i < ris->props.num_mbwu_mon; i++) {
+		if (ris->mbwu_state[i].enabled) {
+			mwbu_arg.ris = ris;
+			mwbu_arg.ctx = &ris->mbwu_state[i].cfg;
+			mwbu_arg.type = mpam_feat_msmon_mbwu;
+
+			__ris_msmon_read(&mwbu_arg);
+		}
+	}
+}
+
+static void mpam_save_mbwu_state(void *arg)
+{
+	int i;
+	struct mon_cfg *cfg;
+	unsigned long flags;
+	u32 cur_flt, cur_ctl, val;
+	struct mpam_msc_ris *ris = arg;
+	struct mpam_msc *msc = ris->msc;
+
+	assert_spin_locked(&msc->lock);
+
+	for (i = 0; i < ris->props.num_mbwu_mon; i++) {
+		cfg = &ris->mbwu_state[i].cfg;
+
+		spin_lock_irqsave(&msc->hw_lock, flags);
+		val = FIELD_PREP(MSMON_CFG_MON_SEL_MON_SEL, i) |
+		      FIELD_PREP(MSMON_CFG_MON_SEL_RIS, ris->ris_idx);
+		mpam_write_reg(msc, MSMON_CFG_MON_SEL, val);
+
+		cur_flt = mpam_read_reg(msc, MSMON_CFG_MBWU_FLT);
+		cur_ctl = mpam_read_reg(msc, MSMON_CFG_MBWU_CTL);
+
+		cfg->mon = i;
+		cfg->pmg = FIELD_GET(MSMON_CFG_MBWU_FLT_PMG, cur_flt);
+		cfg->match_pmg = FIELD_GET(MSMON_CFG_x_CTL_MATCH_PMG, cur_ctl);
+		cfg->partid = FIELD_GET(MSMON_CFG_MBWU_FLT_PARTID, cur_flt);
+
+		ris->mbwu_state[i].enabled = FIELD_GET(MSMON_CFG_x_CTL_EN,
+						       cur_ctl);
+
+		mpam_write_reg(msc, MSMON_CFG_MBWU_CTL, 0);
+
+		ris->mbwu_state[i].val += mpam_read_reg(msc, MSMON_MBWU);
+		mpam_write_reg(msc, MSMON_MBWU, 0);
+
+		spin_unlock_irqrestore(&msc->hw_lock, flags);
+	}
+}
+
 static void mpam_reset_ris(void *arg)
 {
 	struct mpam_msc_ris *ris = arg;
@@ -981,6 +1044,9 @@ static void mpam_reset_msc(struct mpam_msc *msc, bool online)
 		 * for non-zero partid may be lost while the CPUs are offline.
 		 */
 		ris->in_reset_state = online;
+
+		if (mpam_is_enabled() && !online)
+			mpam_touch_msc(msc, &mpam_save_mbwu_state, ris);
 	}
 	rcu_read_unlock();
 }
@@ -1011,6 +1077,9 @@ static void mpam_reprogram_msc(struct mpam_msc *msc)
 			mpam_reprogram_ris_partid(ris, partid, cfg);
 		}
 		ris->in_reset_state = reset;
+
+		if (mpam_has_feature(mpam_feat_msmon_mbwu, &ris->props))
+			mpam_touch_msc(msc, &mpam_restore_mbwu_state, ris);
 	}
 	rcu_read_unlock();
 }
@@ -1590,14 +1659,39 @@ static void mpam_unregister_irqs(void)
 	cpus_read_unlock();
 }
 
+static void __destroy_component_cfg(struct mpam_component *comp)
+{
+	struct mpam_msc_ris *ris;
+
+	kfree(comp->cfg);
+	list_for_each_entry(ris, &comp->ris, comp_list) {
+		kfree(ris->mbwu_state);
+	}
+}
+
 static int __allocate_component_cfg(struct mpam_component *comp)
 {
+	struct mpam_msc_ris *ris;
+
 	if (comp->cfg)
 		return 0;
 
 	comp->cfg = kcalloc(mpam_partid_max, sizeof(*comp->cfg), GFP_KERNEL);
 	if (!comp->cfg)
 		return -ENOMEM;
+
+	list_for_each_entry(ris, &comp->ris, comp_list) {
+		if (!ris->props.num_mbwu_mon)
+			continue;
+
+		ris->mbwu_state = kcalloc(ris->props.num_mbwu_mon,
+					  sizeof(*ris->mbwu_state),
+					  GFP_KERNEL);
+		if (!ris->mbwu_state) {
+			__destroy_component_cfg(comp);
+			return -ENOMEM;
+		}
+	}
 
 	return 0;
 }
