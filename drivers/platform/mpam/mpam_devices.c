@@ -690,10 +690,13 @@ struct mon_read
 static void __ris_msmon_read(void *arg)
 {
 	unsigned long flags;
+	bool config_mismatch;
 	struct mon_read *m = arg;
 	struct mon_cfg *ctx = m->ctx;
+	bool reset_on_next_read = false;
 	struct mpam_msc_ris *ris = m->ris;
 	struct mpam_msc *msc = m->ris->msc;
+	struct msmon_mbwu_state *mbwu_state;
 	u32 val, ctl_val, ctl_reg, flt_val, flt_reg, val_reg, cur_ctl, cur_flt;
 
 	assert_spin_locked(&msc->lock);
@@ -710,6 +713,10 @@ static void __ris_msmon_read(void *arg)
 		flt_reg = MSMON_CFG_MBWU_FLT;
 		val_reg = MSMON_MBWU;
 		ctl_val = MSMON_CFG_MBWU_CTL_TYPE_MBWU | MSMON_CFG_x_CTL_MATCH_PARTID;
+
+		mbwu_state = &ris->mbwu_state[ctx->mon];
+		reset_on_next_read = mbwu_state->reset_on_next_read;
+		mbwu_state->reset_on_next_read = false;
 		break;
 	default:
 		return;
@@ -733,7 +740,9 @@ static void __ris_msmon_read(void *arg)
 	cur_flt = mpam_read_reg(msc, flt_reg);
 	cur_ctl = mpam_read_reg(msc, ctl_reg);
 
-	if (cur_flt != flt_val || cur_ctl != (ctl_val | MSMON_CFG_x_CTL_EN)) {
+	config_mismatch = cur_flt != flt_val ||
+			  cur_ctl != (ctl_val | MSMON_CFG_x_CTL_EN);
+	if (config_mismatch || reset_on_next_read) {
 		mpam_write_reg(msc, flt_reg, flt_val);
 
 		/*
@@ -757,7 +766,7 @@ static void __ris_msmon_read(void *arg)
 
 	/* Include bandwidth consumed before the last hardware reset */
 	if (val_reg == MSMON_MBWU)
-		*(m->val) += ris->mbwu_state[ctx->mon].val;
+		*(m->val) += mbwu_state->val;
 }
 
 static int _msmon_read(struct mpam_component *comp, struct mon_read *arg)
@@ -825,6 +834,28 @@ int mpam_msmon_read(struct mpam_component *comp, struct mon_cfg *ctx,
 	}
 
 	return err;
+}
+
+void mpam_msmon_reset_mbwu(struct mpam_component *comp, struct mon_cfg *ctx)
+{
+	struct mpam_msc *msc;
+	struct mpam_msc_ris *ris;
+
+	if (!mpam_is_enabled())
+		return;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(ris, &comp->ris, comp_list) {
+		if (!mpam_has_feature(mpam_feat_msmon_mbwu, &ris->props))
+			continue;
+
+		msc = ris->msc;
+		spin_lock(&msc->lock);
+		ris->mbwu_state[ctx->mon].val = 0;
+		ris->mbwu_state[ctx->mon].reset_on_next_read = true;
+		spin_unlock(&msc->lock);
+	}
+	rcu_read_unlock();
 }
 
 static void mpam_reset_msc_bitmap(struct mpam_msc *msc, u16 reg, u16 wd)
