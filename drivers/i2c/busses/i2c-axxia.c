@@ -793,6 +793,7 @@ static int axxia_i2c_probe(struct platform_device *pdev)
 	idev->adapter.quirks = &axxia_i2c_quirks;
 	idev->adapter.dev.parent = &pdev->dev;
 	idev->adapter.dev.of_node = pdev->dev.of_node;
+	mutex_init(&idev->i2c_lock);
 
 	platform_set_drvdata(pdev, idev);
 
