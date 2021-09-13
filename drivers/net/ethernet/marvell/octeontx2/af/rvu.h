@@ -201,6 +201,18 @@ struct sso_rsrc {
 	struct rsrc_bmap pfvf_ident;
 };
 
+enum tim_ring_interval {
+	TIM_INTERVAL_1US = 0,
+	TIM_INTERVAL_10US,
+	TIM_INTERVAL_1MS,
+	TIM_INTERVAL_INVAL,
+};
+
+struct tim_rsrc {
+	u16 rings_per_intvl[TIM_INTERVAL_INVAL];
+	enum tim_ring_interval *ring_intvls;
+};
+
 struct ree_rsrc {
 	struct qmem	*graph_ctx;	/* Graph base address - used by HW */
 	struct qmem	*prefix_ctx;	/* Prefix blocks - used by HW */
@@ -410,6 +422,7 @@ struct rvu_hwinfo {
 	struct npc_pkind pkind;
 	struct npc_mcam  mcam;
 	struct sso_rsrc  sso;
+	struct tim_rsrc  tim;
 	struct ree_rsrc *ree;
 };
 
