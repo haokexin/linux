@@ -15,8 +15,7 @@
 #include "axxia.h"
 
 #ifdef CONFIG_HOTPLUG_CPU_COMPLETE_POWER_DOWN
-static int axxia_cpu_die_flag;
-static DEFINE_RAW_SPINLOCK(axxia_cpu_die_lock);
+static unsigned long axxia_cpu_die_flag;
 #endif
 
 static inline void pm_cpu_logical_shutdown(u32 cpu)
@@ -198,9 +197,7 @@ int axxia_platform_cpu_kill(unsigned int cpu)
 
 	retry = 50;
 	while (1) {
-		raw_spin_lock(&axxia_cpu_die_lock);
-		ret = axxia_cpu_die_flag & (1<<cpu);
-		raw_spin_unlock(&axxia_cpu_die_lock);
+		ret = test_bit(cpu, &axxia_cpu_die_flag);
 		if (ret != 0)
 			break;
 		if (!retry)
@@ -213,9 +210,8 @@ int axxia_platform_cpu_kill(unsigned int cpu)
 	pm_cpu_shutdown(cpu);
 	put_cpu();
 
-	raw_spin_lock(&axxia_cpu_die_lock);
-	axxia_cpu_die_flag &= ~(1<<cpu);
-	raw_spin_unlock(&axxia_cpu_die_lock);
+	clear_bit(cpu, &axxia_cpu_die_flag);
+
 #endif
 	return 1;
 }
@@ -231,9 +227,7 @@ void axxia_platform_cpu_die(unsigned int cpu)
 #ifdef CONFIG_HOTPLUG_CPU_COMPLETE_POWER_DOWN
 	bool last_cpu;
 
-	raw_spin_lock(&axxia_cpu_die_lock);
-	axxia_cpu_die_flag |= (1<<cpu);
-	raw_spin_unlock(&axxia_cpu_die_lock);
+	set_bit(cpu, &axxia_cpu_die_flag);
 	last_cpu = pm_cpu_last_of_cluster(cpu);
 
 	if (last_cpu)
