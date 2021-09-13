@@ -14,8 +14,10 @@
 #include "axxia_power_management.h"
 #include "axxia.h"
 
+#ifdef CONFIG_HOTPLUG_CPU_COMPLETE_POWER_DOWN
 static int axxia_cpu_die_flag;
 static DEFINE_RAW_SPINLOCK(axxia_cpu_die_lock);
+#endif
 
 static inline void pm_cpu_logical_shutdown(u32 cpu)
 {
