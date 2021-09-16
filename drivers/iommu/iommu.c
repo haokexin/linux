@@ -982,6 +982,43 @@ struct iommu_group *iommu_group_alloc(void)
 }
 EXPORT_SYMBOL_GPL(iommu_group_alloc);
 
+struct iommu_group *iommu_group_get_from_kobj(struct kobject *group_kobj)
+{
+	struct iommu_group *group;
+
+	if (!iommu_group_kset || !group_kobj)
+		return NULL;
+
+	group = container_of(group_kobj, struct iommu_group, kobj);
+
+	kobject_get(group->devices_kobj);
+	kobject_put(&group->kobj);
+
+	return group;
+}
+
+struct kset *iommu_get_group_kset(void)
+{
+	return kset_get(iommu_group_kset);
+}
+
+const struct iommu_ops *iommu_group_get_ops(struct iommu_group *group)
+{
+	struct group_device *device;
+	const struct iommu_ops *ops = NULL;
+
+	mutex_lock(&group->mutex);
+	device = list_first_entry_or_null(&group->devices, typeof(*device),
+					  list);
+	if (device) {
+		ops = device->dev->bus->iommu_ops;
+	}
+
+	mutex_unlock(&group->mutex);
+
+	return ops;
+}
+
 /**
  * iommu_group_get_iommudata - retrieve iommu_data registered for a group
  * @group: the group
