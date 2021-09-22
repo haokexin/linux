@@ -1,0 +1,42 @@
+/*
+ * Device Tree Include file for Freescale Layerscape-1023A family SoC.
+ *
+ * Copyright 2021-2022 Wind River Systems, Inc.
+ *
+ * This file is licensed under the terms of the GNU General Public
+ * License version 2.  This program is licensed "as is" without any
+ * warranty of any kind, whether express or implied.
+ */
+
+#include "fsl-ls1043a-rdb-usdpaa.dts"
+
+/ {
+	cpus {
+		cpu@2 {
+			status = "disabled";
+		};
+
+		cpu@3 {
+			status = "disabled";
+		};
+	};
+
+	pmu {
+		interrupts = <0 106 0x4>,
+			     <0 107 0x4>;
+		interrupt-affinity = <&cpu0>,
+				     <&cpu1>;
+	};
+
+	thermal-zones {
+		core-cluster {
+			cooling-maps {
+				map0 {
+					cooling-device =
+						<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+						<&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
+};
