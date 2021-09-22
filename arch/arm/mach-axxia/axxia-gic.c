@@ -592,7 +592,7 @@ static int gic_set_affinity(struct irq_data *d,
 			_gic_set_affinity(d, irq_cpuid[irqid], true);
 		} else {
 			ret = exec_remote_set_affinity(true,
-						       get_logical_index(irq_cpuid[irqid]),
+					       get_logical_index(cpu_logical_map(irq_cpuid[irqid])),
 						       d, mask_val, force);
 		}
 		if (ret != IRQ_SET_MASK_OK) {
