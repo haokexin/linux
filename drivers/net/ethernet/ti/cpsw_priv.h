@@ -90,8 +90,7 @@ do {								\
 #define CPDMA_RXCP		0x60
 
 #define CPSW_RX_VLAN_ENCAP_HDR_SIZE		4
-#define CPSW_MIN_PACKET_SIZE_VLAN	(VLAN_ETH_ZLEN)
-#define CPSW_MIN_PACKET_SIZE	(ETH_ZLEN)
+#define CPSW_MIN_PACKET_SIZE	(VLAN_ETH_ZLEN)
 #define CPSW_MAX_PACKET_SIZE	(VLAN_ETH_FRAME_LEN +\
 				 ETH_FCS_LEN +\
 				 CPSW_RX_VLAN_ENCAP_HDR_SIZE)
@@ -387,7 +386,6 @@ struct cpsw_priv {
 	u32 emac_port;
 	struct cpsw_common *cpsw;
 	int offload_fwd_mark;
-	u32 tx_packet_min;
 	u8 port_state[3];
 	struct cpsw_ale_ratelimit ale_bc_ratelimit;
 	struct cpsw_ale_ratelimit ale_mc_ratelimit;
