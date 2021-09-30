@@ -455,6 +455,13 @@ int dpa_alloc_new(struct dpa_alloc *alloc, u32 *result, u32 count, u32 align,
 		kfree(margin_left);
 		goto err;
 	}
+	/* Add the allocation to the used list */
+	used_node = kmalloc(sizeof(*used_node), GFP_KERNEL);
+	if (!used_node) {
+		kfree(margin_right);
+		kfree(margin_left);
+		goto err;
+	}
 	spin_lock_irq(&alloc->lock);
 	list_for_each_entry(i, &alloc->free, list) {
 		base = (i->base + align - 1) / align;
@@ -502,6 +509,7 @@ done:
 		spin_unlock_irq(&alloc->lock);
 		kfree(margin_left);
 		kfree(margin_right);
+		kfree(used_node);
 	}
 
 err:
@@ -510,12 +518,7 @@ err:
 	if (!i)
 		return -ENOMEM;
 
-	/* Add the allocation to the used list with a refcount of 1 */
-	used_node = kmalloc(sizeof(*used_node), GFP_KERNEL);
-	if (!used_node) {
-		spin_unlock_irq(&alloc->lock);
-		return -ENOMEM;
-	}
+	/* Set the used list with a refcount of 1 */
 	used_node->base = *result;
 	used_node->num = num;
 	used_node->refcount = 1;
