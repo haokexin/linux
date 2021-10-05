@@ -319,10 +319,6 @@ static void get_hw_statistics(struct appnic_device *pdata)
 	u32 rx_over;
 	u32 tx_under;
 
-	if (pdata->not_for_us != 0)
-		dev_dbg(pdata->dev, "Packets not for us, %lu out of %lu\n",
-			 pdata->not_for_us, pdata->stats.rx_dropped);
-
 	/* stats.tx_packets */
 	pdata->stats.tx_packets += read_mac(APPNIC_TX_STAT_PACKET_OK);
 
@@ -609,7 +605,8 @@ static int axxianet_rx_packet(struct net_device *dev)
 	} else if (error_num == 0) {
 		struct ethhdr *ethhdr = (struct ethhdr *)sk_buff->data;
 
-		if (mac_addr_valid(dev, &ethhdr->h_dest[0])) {
+		if (pdata->promiscuous_mode != 0 ||
+		    mac_addr_valid(dev, &ethhdr->h_dest[0])) {
 			pdata->stats.rx_bytes += bytes_copied;
 			++pdata->stats.rx_packets;
 			sk_buff->dev = dev;
@@ -1082,7 +1079,28 @@ static int appnic_set_mac_address(struct net_device *dev, void *data)
 	return 0;
 }
 
-/* ======================================================================
+/* ----------------------------------------------------------------------
+ * appnic_set_rx_mode
+ */
+
+static void appnic_set_rx_mode(struct net_device *dev)
+{
+	struct appnic_device *pdata = netdev_priv(dev);
+	unsigned long dev_flags;
+
+	/* Acquire the lock. */
+	spin_lock_irqsave(&pdata->dev_lock, dev_flags);
+
+	if (dev->flags & IFF_PROMISC)
+		pdata->promiscuous_mode = 1;
+	else
+		pdata->promiscuous_mode = 0;
+
+	/* Release the lock */
+	spin_unlock_irqrestore(&pdata->dev_lock, dev_flags);
+}
+
+ /* ======================================================================
  * ETHTOOL Operations
  * ======================================================================
  */
@@ -1220,6 +1238,7 @@ static const struct net_device_ops appnic_netdev_ops = {
 #ifdef CONFIG_NET_POLL_CONTROLLER
 	.ndo_poll_controller = appnic_poll_controller,
 #endif
+	.ndo_set_rx_mode = appnic_set_rx_mode,
 };
 
 /* ----------------------------------------------------------------------
@@ -1401,6 +1420,9 @@ int appnic_init(struct net_device *dev)
 
 		buf += pdata->tx_buf_per_desc;
 	}
+
+	/* Set promiscuous mode to off. */
+	pdata->promiscuous_mode = 0;
 
 	/* Initialize the spinlocks. */
 
