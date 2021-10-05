@@ -172,6 +172,9 @@ struct appnic_device {
 	union appnic_queue_pointer tx_tail_copy;
 	union appnic_queue_pointer tx_head;
 
+	/* Promiscuous Mode */
+	int promiscuous_mode;
+
 	/* Spin Lock */
 	spinlock_t dev_lock;	/* Device Lock */
 	spinlock_t tx_lock;	/* Transmit Lock */
