@@ -1974,14 +1974,6 @@ static int mvpp2_prs_ip6_init(struct mvpp2 *priv)
 	if (err)
 		return err;
 
-	/* IPv4 is the last header. This is similar case as 6-TCP or 17-UDP */
-	/* Result Info: UDF7=1, DS lite */
-	err = mvpp2_prs_ip6_proto(priv, IPPROTO_IPIP,
-				  MVPP2_PRS_RI_UDF7_IP6_LITE,
-				  MVPP2_PRS_RI_UDF7_MASK);
-	if (err)
-		return err;
-
 	/* IPv6 multicast */
 	err = mvpp2_prs_ip6_cast(priv, MVPP2_PRS_L3_MULTI_CAST);
 	if (err)
