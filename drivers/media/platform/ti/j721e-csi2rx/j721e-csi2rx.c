@@ -13,6 +13,7 @@
 #include <linux/dmaengine.h>
 #include <linux/of_platform.h>
 
+#include <media/v4l2-async.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/videobuf2-dma-contig.h>
@@ -472,7 +473,7 @@ static int ti_csi2rx_init_subdev(struct ti_csi2rx_dev *csi)
 	csi->notifier.ops = &csi_async_notifier_ops;
 
 	asd = v4l2_async_notifier_add_fwnode_subdev(&csi->notifier, fwnode,
-						    sizeof(struct v4l2_async_subdev));
+						    struct v4l2_async_subdev);
 	of_node_put(node);
 	if (IS_ERR(asd)) {
 		v4l2_async_notifier_cleanup(&csi->notifier);
@@ -776,81 +777,6 @@ static int ti_csi2rx_get_vc(struct ti_csi2rx_ctx *ctx)
 	return -ENODEV;
 }
 
-/*
- * Find the input format. This is done by finding the first device in the
- * pipeline which can tell us the current format. This could be the sensor, or
- * this could be another device in the middle which is capable of format
- * conversions.
- */
-static int ti_csi2rx_validate_pipeline(struct ti_csi2rx_ctx *ctx)
-{
-	struct ti_csi2rx_dev *csi = ctx->csi;
-	struct media_pipeline *pipe = &csi->pipe;
-	struct media_pad *pad;
-	struct v4l2_subdev *sd;
-	struct v4l2_subdev_format fmt;
-	struct v4l2_pix_format *pix = &ctx->v_fmt.fmt.pix;
-	const struct ti_csi2rx_fmt *ti_fmt;
-	int ret;
-
-	media_graph_walk_start(&pipe->graph, ctx->vdev.entity.pads);
-
-	while ((pad = media_graph_walk_next(&pipe->graph))) {
-		if (!is_media_entity_v4l2_subdev(pad->entity))
-			continue;
-
-		sd = media_entity_to_v4l2_subdev(pad->entity);
-
-		fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
-		fmt.pad = pad->index;
-		fmt.stream = ctx->stream;
-
-		ret = v4l2_subdev_call(sd, pad, get_fmt, NULL, &fmt);
-		if (ret && ret != -ENOIOCTLCMD)
-			return ret;
-		if (!ret)
-			break;
-	}
-
-	/* Could not find input format. */
-	if (!pad)
-		return -EPIPE;
-
-	if (fmt.format.width != pix->width)
-		return -EPIPE;
-	if (fmt.format.height != pix->height)
-		return -EPIPE;
-
-	ti_fmt = find_format_by_pix(pix->pixelformat);
-	if (WARN_ON(!ti_fmt))
-		return -EINVAL;
-
-	if (fmt.format.code == MEDIA_BUS_FMT_YUYV8_2X8 ||
-	    fmt.format.code == MEDIA_BUS_FMT_VYUY8_2X8 ||
-	    fmt.format.code == MEDIA_BUS_FMT_YVYU8_2X8) {
-		dev_err(csi->dev,
-			"Only UYVY input allowed for YUV422 8-bit. Output format can be configured.\n");
-		return -EPIPE;
-	}
-
-	if (fmt.format.code == MEDIA_BUS_FMT_UYVY8_2X8) {
-		/* Format conversion between YUV422 formats can be done. */
-		if (ti_fmt->code != MEDIA_BUS_FMT_UYVY8_2X8 &&
-		    ti_fmt->code != MEDIA_BUS_FMT_YUYV8_2X8 &&
-		    ti_fmt->code != MEDIA_BUS_FMT_VYUY8_2X8 &&
-		    ti_fmt->code != MEDIA_BUS_FMT_YVYU8_2X8)
-			return -EPIPE;
-	} else if (fmt.format.code != ti_fmt->code) {
-		return -EPIPE;
-	}
-
-	if (fmt.format.field != V4L2_FIELD_NONE &&
-	    fmt.format.field != V4L2_FIELD_ANY)
-		return -EPIPE;
-
-	return 0;
-}
-
 static int ti_csi2rx_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct ti_csi2rx_ctx *ctx = vb2_get_drv_priv(vq);
@@ -907,13 +833,6 @@ static int ti_csi2rx_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_pipeline;
 	else
 		ctx->vc = ret;
-
-	ret = ti_csi2rx_validate_pipeline(ctx);
-	if (ret) {
-		dev_err(csi->dev,
-			"Format mismatch between source and video node\n");
-		goto err_pipeline;
-	}
 
 	ti_csi2rx_setup_shim(ctx);
 
