@@ -253,6 +253,7 @@ struct cdns_xspi_dev {
 
 	u8 hw_num_banks;
 
+	int (*prepare_clock)(struct cdns_xspi_dev *dev, int req_clk);
 	struct cdns_xspi_platform_data *plat_data;
 };
 

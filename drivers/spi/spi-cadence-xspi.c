@@ -134,20 +134,25 @@ static int cdns_xspi_phy_init(struct cdns_xspi_dev *cdns_xspi)
 		cdns_xspi->plat_data->clk_wr_delay);
 
 	writel(xspi_dll_phy_ctrl,
-		cdns_xspi->auxbase + CDNS_XSPI_DLL_PHY_CTRL);
+	       cdns_xspi->auxbase + CDNS_XSPI_DLL_PHY_CTRL);
+
 	writel(phy_dq_timing,
-		cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DQ_TIMING);
+	       cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DQ_TIMING);
+
 	writel(phy_dqs_timing,
-		cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DQS_TIMING);
+	       cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DQS_TIMING);
+
 	writel(phy_gate_lpbck_ctrl,
-		cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_GATE_LPBCK_CTRL);
+	       cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_GATE_LPBCK_CTRL);
+
 	writel(phy_dll_slave_ctrl,
-		cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DLL_SLAVE_CTRL);
+	       cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DLL_SLAVE_CTRL);
 
 	writel(CDNS_XSPI_AUX_PHY_ADDONS_VALUE,
-		cdns_xspi->auxbase + CDNS_XSPI_AUX_PHY_ADDONS_REG);
+	       cdns_xspi->auxbase + CDNS_XSPI_AUX_PHY_ADDONS_REG);
+
 	writel(CDNS_XSPI_AUX_DEV_DISC_CONFIG_VALUE,
-		cdns_xspi->auxbase + CDNS_XSPI_AUX_DEV_DISC_CONFIG_REG);
+	       cdns_xspi->auxbase + CDNS_XSPI_AUX_DEV_DISC_CONFIG_REG);
 
 	return cdns_xspi_read_dqs_delay_training(cdns_xspi);
 }
@@ -253,23 +258,71 @@ static int cdns_xspi_controller_init(struct cdns_xspi_dev *cdns_xspi)
 	return 0;
 }
 
+static inline void copy_mem(uint8_t *dst, const uint8_t *src, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+		dst[i] = src[i];
+}
+
+static void ioreadq(void __iomem  *addr, uint8_t *buf, int len)
+{
+	int i = 0;
+	int rcount = len / 8;
+	int rcount_nf = len % 8;
+	uint64_t tmp;
+
+	for (i = 0; i < rcount; i++) {
+		tmp = readq(addr);
+		copy_mem(&buf[i*8], (uint8_t *)&tmp, 8);
+	}
+
+	if (rcount_nf != 0) {
+		tmp = readq(addr);
+		copy_mem(&buf[i*8], (uint8_t *)&tmp, rcount_nf);
+	}
+}
+
+static void iowriteq(void __iomem *addr, const uint8_t *buf, int len)
+{
+	int i = 0;
+	int rcount = len / 8;
+	int rcount_nf = len % 8;
+	uint64_t tmp;
+
+	for (i = 0; i < rcount; i++) {
+		copy_mem((uint8_t *)&tmp, &buf[i*8], 8);
+		writeq(tmp, addr);
+	}
+
+	if (rcount_nf != 0) {
+		copy_mem((uint8_t *)&tmp, &buf[i*8], rcount_nf);
+		writeq(tmp, addr);
+	}
+}
+
 static void cdns_xspi_sdma_handle(struct cdns_xspi_dev *cdns_xspi)
 {
-	u32 sdma_size, sdma_trd_info;
+	u32 sdma_size, sdma_trd_info, sdma_status;
 	u8 sdma_dir;
 
 	sdma_size = readl(cdns_xspi->iobase + CDNS_XSPI_SDMA_SIZE_REG);
 	sdma_trd_info = readl(cdns_xspi->iobase + CDNS_XSPI_SDMA_TRD_INFO_REG);
 	sdma_dir = FIELD_GET(CDNS_XSPI_SDMA_DIR, sdma_trd_info);
 
+	sdma_status = readl(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG);
+	sdma_status |= (CDNS_XSPI_SDMA_TRIGGER);
+	writel(sdma_status, cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG);
+
 	switch (sdma_dir) {
 	case CDNS_XSPI_SDMA_DIR_READ:
-		ioread8_rep(cdns_xspi->sdmabase,
+		ioreadq(cdns_xspi->sdmabase,
 			cdns_xspi->in_buffer, sdma_size);
 		break;
 
 	case CDNS_XSPI_SDMA_DIR_WRITE:
-		iowrite8_rep(cdns_xspi->sdmabase,
+		iowriteq(cdns_xspi->sdmabase,
 			cdns_xspi->out_buffer, sdma_size);
 		break;
 	}
@@ -294,9 +347,9 @@ bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi)
 	u32 ctrl_stat;
 
 	readl_relaxed_poll_timeout
-		(cdns_xspi->iobase + CDNS_XSPI_CTRL_STATUS_REG,
+		(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG,
 		ctrl_stat,
-		((ctrl_stat & BIT(0)) == 0),
+		((ctrl_stat & CDNS_XSPI_SDMA_TRIGGER) == 1),
 		10,
 		1000);
 
@@ -453,6 +506,12 @@ static const struct spi_controller_mem_ops cadence_xspi_mem_ops = {
 
 static int cdns_xspi_setup(struct spi_device *spi_dev)
 {
+	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(spi_dev->master);
+
+	if (cdns_xspi->prepare_clock != NULL) {
+		cdns_xspi->prepare_clock(cdns_xspi, spi_dev->max_speed_hz);
+	}
+
 	if (spi_dev->chip_select > spi_dev->master->num_chipselect) {
 		dev_err(&spi_dev->dev,
 			"%d chip-select is out of range\n",
@@ -505,6 +564,7 @@ int cdns_xspi_of_get_plat_data(struct device *dev)
 		dev_err(dev, "Couldn't determine data select oe start\n");
 		return -ENXIO;
 	}
+
 	plat_data->phy_data_sel_oe_start = property;
 
 	if (of_property_read_u32(node_prop,
@@ -583,16 +643,16 @@ static void cdns_xspi_print_phy_config(struct cdns_xspi_dev *cdns_xspi)
 {
 	struct device *dev = cdns_xspi->dev;
 
-	dev_info(dev, "PHY configuration\n");
-	dev_info(dev, "   * xspi_dll_phy_ctrl: %08x\n",
+	dev_dbg(dev, "PHY configuration\n");
+	dev_dbg(dev, "   * xspi_dll_phy_ctrl: %08x\n",
 		readl(cdns_xspi->iobase + CDNS_XSPI_DLL_PHY_CTRL));
-	dev_info(dev, "   * phy_dq_timing: %08x\n",
+	dev_dbg(dev, "   * phy_dq_timing: %08x\n",
 		readl(cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DQ_TIMING));
-	dev_info(dev, "   * phy_dqs_timing: %08x\n",
+	dev_dbg(dev, "   * phy_dqs_timing: %08x\n",
 		readl(cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DQS_TIMING));
-	dev_info(dev, "   * phy_gate_loopback_ctrl: %08x\n",
+	dev_dbg(dev, "   * phy_gate_loopback_ctrl: %08x\n",
 		readl(cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_GATE_LPBCK_CTRL));
-	dev_info(dev, "   * phy_dll_slave_ctrl: %08x\n",
+	dev_dbg(dev, "   * phy_dll_slave_ctrl: %08x\n",
 		readl(cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DLL_SLAVE_CTRL));
 }
 
@@ -606,7 +666,6 @@ int cdns_xspi_configure(struct cdns_xspi_dev *cdns_xspi)
 		dev_err(dev, "Failed to initialize PHY\n");
 		return ret;
 	}
-
 	cdns_xspi_print_phy_config(cdns_xspi);
 
 	ret = cdns_xspi_controller_init(cdns_xspi);
