@@ -265,7 +265,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek-dom0.dtb imx8qxp-mek-root.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8ulp-evk.dtb imx8ulp-evk-lpspi-slave.dtb \
 			  imx8ulp-evk-i3c.dtb imx8ulp-evk-rk055hdmipi4m.dtb \
 			  imx8ulp-evk-epdc.dtb imx8ulp-evk-sof-btsco.dtb \
-			  imx8ulp-evk-flexio-i2c.dtb
+			  imx8ulp-evk-flexio-i2c.dtb imx8ulp-evk-nd.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-14x14-evk.dtb \
 			  imx93-14x14-evk-rm67199.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx93-11x11-evk.dtb \
