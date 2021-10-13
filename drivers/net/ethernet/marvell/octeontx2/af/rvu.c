@@ -1216,12 +1216,6 @@ cpt:
 		goto sso_err;
 	}
 
-	err = rvu_cpt_init(rvu);
-	if (err) {
-		dev_err(rvu->dev, "%s: Failed to initialize cpt\n", __func__);
-		goto sso_err;
-	}
-
 	/* Assign MACs for CGX mapped functions */
 	rvu_setup_pfvf_macaddress(rvu);
 
