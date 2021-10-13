@@ -20,12 +20,6 @@
 /* Length of initial context fetch in 128 byte words */
 #define CPT_CTX_ILEN    2
 
-/* CPT PF number */
-static int cpt_pf_num = -1;
-
-/* Fault interrupts names */
-static const char *cpt_flt_irq_name[2] = { "CPTAF FLT0", "CPTAF FLT1" };
-
 #define cpt_get_eng_sts(e_min, e_max, rsp, etype)                   \
 ({                                                                  \
 	u64 free_sts = 0, busy_sts = 0;                             \
@@ -66,35 +60,40 @@ static int get_cpt_pf_num(struct rvu *rvu)
 	return cpt_pf_num;
 }
 
-static irqreturn_t rvu_cpt_af_flr_intr_handler(int irq, void *ptr)
+static irqreturn_t rvu_cpt_af_flt_intr_handler(int irq, void *ptr)
 {
-	struct rvu *rvu = (struct rvu *) ptr;
-	u64 reg0, reg1;
-	int blkaddr;
-
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
-	if (blkaddr < 0)
-		return IRQ_NONE;
+	struct rvu_block *block = ptr;
+	struct rvu *rvu = block->rvu;
+	int blkaddr = block->addr;
+	u64 reg0, reg1, reg2 = 0;
 
 	reg0 = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(0));
 	reg1 = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(1));
-	dev_err_ratelimited(rvu->dev, "Received CPTAF FLT irq : 0x%llx, 0x%llx",
-			    reg0, reg1);
+	if (!is_rvu_otx2(rvu)) {
+		reg2 = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(2));
+		dev_err_ratelimited(rvu->dev,
+				    "Received CPTAF FLT irq : 0x%llx, 0x%llx, 0x%llx",
+				     reg0, reg1, reg2);
+	} else {
+		dev_err_ratelimited(rvu->dev,
+				    "Received CPTAF FLT irq : 0x%llx, 0x%llx",
+				     reg0, reg1);
+	}
 
 	rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT(0), reg0);
 	rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT(1), reg1);
+	if (!is_rvu_otx2(rvu))
+		rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT(2), reg2);
+
 	return IRQ_HANDLED;
 }
 
 static irqreturn_t rvu_cpt_af_rvu_intr_handler(int irq, void *ptr)
 {
-	struct rvu *rvu = (struct rvu *) ptr;
-	int blkaddr;
+	struct rvu_block *block = ptr;
+	struct rvu *rvu = block->rvu;
+	int blkaddr = block->addr;
 	u64 reg;
-
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
-	if (blkaddr < 0)
-		return IRQ_NONE;
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_RVU_INT);
 	dev_err_ratelimited(rvu->dev, "Received CPTAF RVU irq : 0x%llx", reg);
@@ -105,13 +104,10 @@ static irqreturn_t rvu_cpt_af_rvu_intr_handler(int irq, void *ptr)
 
 static irqreturn_t rvu_cpt_af_ras_intr_handler(int irq, void *ptr)
 {
-	struct rvu *rvu = (struct rvu *) ptr;
-	int blkaddr;
+	struct rvu_block *block = ptr;
+	struct rvu *rvu = block->rvu;
+	int blkaddr = block->addr;
 	u64 reg;
-
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
-	if (blkaddr < 0)
-		return IRQ_NONE;
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_RAS_INT);
 	dev_err_ratelimited(rvu->dev, "Received CPTAF RAS irq : 0x%llx", reg);
@@ -120,59 +116,189 @@ static irqreturn_t rvu_cpt_af_ras_intr_handler(int irq, void *ptr)
 	return IRQ_HANDLED;
 }
 
-static int rvu_cpt_do_register_interrupt(struct rvu *rvu, int irq_offs,
+static int rvu_cpt_do_register_interrupt(struct rvu_block *block, int irq_offs,
 					 irq_handler_t handler,
 					 const char *name)
 {
-	int ret = 0;
+	struct rvu *rvu = block->rvu;
+	int ret;
 
 	ret = request_irq(pci_irq_vector(rvu->pdev, irq_offs), handler, 0,
-			  name, rvu);
+			  name, block);
 	if (ret) {
 		dev_err(rvu->dev, "RVUAF: %s irq registration failed", name);
-		goto err;
+		return ret;
 	}
 
 	WARN_ON(rvu->irq_allocated[irq_offs]);
 	rvu->irq_allocated[irq_offs] = true;
-err:
-	return ret;
+
+	return 0;
 }
 
-void rvu_cpt_unregister_interrupts(struct rvu *rvu)
+static void cpt_10k_unregister_interrupts(struct rvu_block *block, int off)
 {
-	int blkaddr, i, offs;
+	struct rvu *rvu = block->rvu;
+	int blkaddr = block->addr;
+	int i;
 
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
-	if (blkaddr < 0)
+	/* Disable all CPT AF interrupts */
+	for (i = 0; i < CPT_10K_AF_INT_VEC_RVU; i++)
+		rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1C(i), 0x1);
+	rvu_write64(rvu, blkaddr, CPT_AF_RVU_INT_ENA_W1C, 0x1);
+	rvu_write64(rvu, blkaddr, CPT_AF_RAS_INT_ENA_W1C, 0x1);
+
+	for (i = 0; i < CPT_10K_AF_INT_VEC_CNT; i++)
+		if (rvu->irq_allocated[off + i]) {
+			free_irq(pci_irq_vector(rvu->pdev, off + i), block);
+			rvu->irq_allocated[off + i] = false;
+		}
+}
+
+static void cpt_unregister_interrupts(struct rvu *rvu, int blkaddr)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	int i, offs;
+
+	if (!is_block_implemented(rvu->hw, blkaddr))
 		return;
-
 	offs = rvu_read64(rvu, blkaddr, CPT_PRIV_AF_INT_CFG) & 0x7FF;
 	if (!offs) {
 		dev_warn(rvu->dev,
 			 "Failed to get CPT_AF_INT vector offsets\n");
 		return;
 	}
+	block = &hw->block[blkaddr];
+	if (!is_rvu_otx2(rvu))
+		return cpt_10k_unregister_interrupts(block, offs);
 
 	/* Disable all CPT AF interrupts */
-	for (i = 0; i < 2; i++)
+	for (i = 0; i < CPT_AF_INT_VEC_RVU; i++)
 		rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1C(i), 0x1);
 	rvu_write64(rvu, blkaddr, CPT_AF_RVU_INT_ENA_W1C, 0x1);
 	rvu_write64(rvu, blkaddr, CPT_AF_RAS_INT_ENA_W1C, 0x1);
 
 	for (i = 0; i < CPT_AF_INT_VEC_CNT; i++)
 		if (rvu->irq_allocated[offs + i]) {
-			free_irq(pci_irq_vector(rvu->pdev, offs + i), rvu);
+			free_irq(pci_irq_vector(rvu->pdev, offs + i), block);
 			rvu->irq_allocated[offs + i] = false;
 		}
 }
 
-static bool is_cpt_blkaddr(int blkaddr)
+void rvu_cpt_unregister_interrupts(struct rvu *rvu)
 {
-	if (blkaddr != BLKADDR_CPT0 && blkaddr != BLKADDR_CPT1)
-		return false;
+	cpt_unregister_interrupts(rvu, BLKADDR_CPT0);
+	cpt_unregister_interrupts(rvu, BLKADDR_CPT1);
+}
 
-	return true;
+static int validate_and_get_cpt_blkaddr(int req_blkaddr)
+{
+	int blkaddr;
+
+	blkaddr = req_blkaddr ? req_blkaddr : BLKADDR_CPT0;
+	if (blkaddr != BLKADDR_CPT0 && blkaddr != BLKADDR_CPT1)
+		return -EINVAL;
+
+	return blkaddr;
+}
+
+static int cpt_10k_register_interrupts(struct rvu_block *block, int off)
+{
+	struct rvu *rvu = block->rvu;
+	int blkaddr = block->addr;
+	char irq_name[16];
+	int i, ret;
+
+	for (i = CPT_10K_AF_INT_VEC_FLT0; i < CPT_10K_AF_INT_VEC_RVU; i++) {
+		snprintf(irq_name, sizeof(irq_name), "CPTAF FLT%d", i);
+		ret = rvu_cpt_do_register_interrupt(block, off + i,
+						    rvu_cpt_af_flt_intr_handler,
+						    irq_name);
+		if (ret)
+			goto err;
+		rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1S(i), 0x1);
+	}
+
+	ret = rvu_cpt_do_register_interrupt(block, off + CPT_10K_AF_INT_VEC_RVU,
+					    rvu_cpt_af_rvu_intr_handler,
+					    "CPTAF RVU");
+	if (ret)
+		goto err;
+	rvu_write64(rvu, blkaddr, CPT_AF_RVU_INT_ENA_W1S, 0x1);
+	ret = rvu_cpt_do_register_interrupt(block, off + CPT_10K_AF_INT_VEC_RAS,
+					    rvu_cpt_af_ras_intr_handler,
+					    "CPTAF RAS");
+	if (ret)
+		goto err;
+	rvu_write64(rvu, blkaddr, CPT_AF_RAS_INT_ENA_W1S, 0x1);
+
+	return 0;
+err:
+	rvu_cpt_unregister_interrupts(rvu);
+	return ret;
+}
+
+static int cpt_register_interrupts(struct rvu *rvu, int blkaddr)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	int i, offs, ret = 0;
+	char irq_name[16];
+
+	if (!is_block_implemented(rvu->hw, blkaddr))
+		return 0;
+
+	block = &hw->block[blkaddr];
+	offs = rvu_read64(rvu, blkaddr, CPT_PRIV_AF_INT_CFG) & 0x7FF;
+	if (!offs) {
+		dev_warn(rvu->dev,
+			 "Failed to get CPT_AF_INT vector offsets\n");
+		return 0;
+	}
+
+	if (!is_rvu_otx2(rvu))
+		return cpt_10k_register_interrupts(block, offs);
+
+	for (i = CPT_AF_INT_VEC_FLT0; i < CPT_AF_INT_VEC_RVU; i++) {
+		snprintf(irq_name, sizeof(irq_name), "CPTAF FLT%d", i);
+		ret = rvu_cpt_do_register_interrupt(block, offs + i,
+						    rvu_cpt_af_flt_intr_handler,
+						    irq_name);
+		if (ret)
+			goto err;
+		rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1S(i), 0x1);
+	}
+
+	ret = rvu_cpt_do_register_interrupt(block, offs + CPT_AF_INT_VEC_RVU,
+					    rvu_cpt_af_rvu_intr_handler,
+					    "CPTAF RVU");
+	if (ret)
+		goto err;
+	rvu_write64(rvu, blkaddr, CPT_AF_RVU_INT_ENA_W1S, 0x1);
+
+	ret = rvu_cpt_do_register_interrupt(block, offs + CPT_AF_INT_VEC_RAS,
+					    rvu_cpt_af_ras_intr_handler,
+					    "CPTAF RAS");
+	if (ret)
+		goto err;
+	rvu_write64(rvu, blkaddr, CPT_AF_RAS_INT_ENA_W1S, 0x1);
+
+	return 0;
+err:
+	rvu_cpt_unregister_interrupts(rvu);
+	return ret;
+}
+
+int rvu_cpt_register_interrupts(struct rvu *rvu)
+{
+	int ret;
+
+	ret = cpt_register_interrupts(rvu, BLKADDR_CPT0);
+	if (ret)
+		return ret;
+
+	return cpt_register_interrupts(rvu, BLKADDR_CPT1);
 }
 
 static bool is_cpt_pf(struct rvu *rvu, u16 pcifunc)
@@ -197,89 +323,6 @@ static bool is_cpt_vf(struct rvu *rvu, u16 pcifunc)
 		return false;
 
 	return true;
-}
-
-static int validate_and_get_cpt_blkaddr(int req_blkaddr)
-{
-	int blkaddr;
-
-	blkaddr = req_blkaddr ? req_blkaddr : BLKADDR_CPT0;
-	if (blkaddr != BLKADDR_CPT0 && blkaddr != BLKADDR_CPT1)
-		return -EINVAL;
-
-	return blkaddr;
-}
-
-int rvu_cpt_init(struct rvu *rvu)
-{
-	struct pci_dev *pdev;
-	int i;
-
-	for (i = 0; i < rvu->hw->total_pfs; i++) {
-		pdev = pci_get_domain_bus_and_slot(
-				pci_domain_nr(rvu->pdev->bus), i + 1, 0);
-		if (!pdev)
-			continue;
-
-		if (pdev->device == PCI_DEVID_OTX2_CPT_PF ||
-		    pdev->device == PCI_DEVID_OTX2_CPT10_PF) {
-			cpt_pf_num = i;
-			put_device(&pdev->dev);
-			break;
-		}
-
-		put_device(&pdev->dev);
-	}
-
-	return 0;
-}
-
-int rvu_cpt_register_interrupts(struct rvu *rvu)
-{
-
-	int i, offs, blkaddr, ret = 0;
-
-	if (!is_block_implemented(rvu->hw, BLKADDR_CPT0))
-		return 0;
-
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
-	if (blkaddr < 0)
-		return blkaddr;
-
-	offs = rvu_read64(rvu, blkaddr, CPT_PRIV_AF_INT_CFG) & 0x7FF;
-	if (!offs) {
-		dev_warn(rvu->dev,
-			 "Failed to get CPT_AF_INT vector offsets\n");
-		return 0;
-	}
-
-	for (i = CPT_AF_INT_VEC_FLT0; i < CPT_AF_INT_VEC_RVU; i++) {
-		ret = rvu_cpt_do_register_interrupt(rvu, offs + i,
-						    rvu_cpt_af_flr_intr_handler,
-						    cpt_flt_irq_name[i]);
-		if (ret)
-			goto err;
-		rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1S(i), 0x1);
-	}
-
-	ret = rvu_cpt_do_register_interrupt(rvu, offs + CPT_AF_INT_VEC_RVU,
-					    rvu_cpt_af_rvu_intr_handler,
-					    "CPTAF RVU");
-	if (ret)
-		goto err;
-	rvu_write64(rvu, blkaddr, CPT_AF_RVU_INT_ENA_W1S, 0x1);
-
-	ret = rvu_cpt_do_register_interrupt(rvu, offs + CPT_AF_INT_VEC_RAS,
-					    rvu_cpt_af_ras_intr_handler,
-					    "CPTAF RAS");
-	if (ret)
-		goto err;
-	rvu_write64(rvu, blkaddr, CPT_AF_RAS_INT_ENA_W1S, 0x1);
-
-	return 0;
-err:
-	rvu_cpt_unregister_interrupts(rvu);
-	return ret;
 }
 
 int rvu_mbox_handler_cpt_lf_alloc(struct rvu *rvu,
@@ -355,6 +398,7 @@ static int cpt_lf_free(struct rvu *rvu, struct msg_req *req, int blkaddr)
 	struct rvu_block *block;
 
 	block = &rvu->hw->block[blkaddr];
+
 	num_lfs = rvu_get_rsrc_mapcount(rvu_get_pfvf(rvu, pcifunc),
 					block->addr);
 	if (!num_lfs)
@@ -414,7 +458,7 @@ static int cpt_inline_ipsec_cfg_inbound(struct rvu *rvu, int blkaddr, u8 cptlf,
 		return CPT_AF_ERR_SSO_PF_FUNC_INVALID;
 
 	nix_sel = (blkaddr == BLKADDR_CPT1) ? 1 : 0;
-	/* Set PF_FUNC_INST */
+	/* Enable CPT LF for IPsec inline inbound operations */
 	if (req->enable)
 		val |= BIT_ULL(9);
 	else
@@ -469,7 +513,7 @@ static int cpt_inline_ipsec_cfg_outbound(struct rvu *rvu, int blkaddr, u8 cptlf,
 	if (nix_pf_func && !is_pffunc_map_valid(rvu, nix_pf_func, BLKTYPE_NIX))
 		return CPT_AF_ERR_NIX_PF_FUNC_INVALID;
 
-	/* Set PF_FUNC_INST */
+	/* Enable CPT LF for IPsec inline outbound operations */
 	if (req->enable)
 		val |= BIT_ULL(16);
 	else
@@ -913,6 +957,7 @@ int rvu_cpt_lf_teardown(struct rvu *rvu, u16 pcifunc, int blkaddr, int lf, int s
 static int cpt_inline_inb_lf_cmd_send(struct rvu *rvu, int blkaddr,
 				      int nix_blkaddr)
 {
+	int cpt_pf_num = get_cpt_pf_num(rvu);
 	struct cpt_inst_lmtst_req *req;
 	dma_addr_t res_daddr;
 	int timeout = 3000;
