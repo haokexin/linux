@@ -237,6 +237,7 @@ struct gpmc_device {
 	struct notifier_block nb;
 	struct omap3_gpmc_regs context;
 	int nirqs;
+	struct resource *data;
 	unsigned int is_suspended:1;
 	struct resource *data;
 };
