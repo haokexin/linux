@@ -144,7 +144,8 @@ static irqreturn_t arm_ccn_irq_handler(int irq, void *dev_id)
 	 * from NH-I in arm_ccn_probe, there is still one error need to be
 	 * handled.
 	 */
-	if (err_or & CCN_MN_ERR_SIG_VAL_63_0__HNI) {
+	if (of_find_compatible_node(NULL, NULL, "axxia,axm5616") &&
+		(err_or & CCN_MN_ERR_SIG_VAL_63_0__HNI)) {
 		err_or &= ~CCN_MN_ERR_SIG_VAL_63_0__HNI;
 		writel((CCN_HNI_FIRST_ERR_CLR | CCN_HNI_MULTI_ERR_CLR),
 				(ccn->base + CCN_HNI_BASE + CCN_HNI_ERR_CLR_REG_H));
@@ -219,9 +220,11 @@ static int ccn_platform_probe(struct platform_device *pdev)
 	}
 
 	/* Let's inhibit HN-I reporting error to MN */
-	value = readl(ccn->base + CCN_HNI_BASE + CCN_HNI_AUX_CTL_REG);
-	value &= ~CCN_HNI_ERROR_ENABLE;
-	writel(value, ccn->base + CCN_HNI_BASE + CCN_HNI_AUX_CTL_REG);
+	if (of_find_compatible_node(NULL, NULL, "axxia,axm5616")) {
+		value = readl(ccn->base + CCN_HNI_BASE + CCN_HNI_AUX_CTL_REG);
+		value &= ~CCN_HNI_ERROR_ENABLE;
+		writel(value, ccn->base + CCN_HNI_BASE + CCN_HNI_AUX_CTL_REG);
+	}
 
 	/* Check if we can use the interrupt */
 	errint_write(CCN_MN_ERRINT_STATUS__PMU_EVENTS__DISABLE,
