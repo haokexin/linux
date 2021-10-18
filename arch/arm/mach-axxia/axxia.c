@@ -157,30 +157,6 @@ static struct platform_device pmu_device = {
 	.resource		= axxia_pmu_resources,
 };
 
-static int
-axxia_bus_notifier(struct notifier_block *nb, unsigned long event, void *obj)
-{
-	struct device *dev = obj;
-
-	if (event != BUS_NOTIFY_ADD_DEVICE)
-		return NOTIFY_DONE;
-
-	if (!of_property_read_bool(dev->of_node, "dma-coherent"))
-		return NOTIFY_DONE;
-
-	set_dma_ops(dev, &arm_coherent_dma_ops);
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block axxia_platform_nb = {
-	.notifier_call = axxia_bus_notifier,
-};
-
-static struct notifier_block axxia_amba_nb = {
-	.notifier_call = axxia_bus_notifier,
-};
-
 void __init axxia_dt_init(void)
 {
 	base = ioremap(0x2010000000, 0x40000);
@@ -195,9 +171,6 @@ void __init axxia_dt_init(void)
 #ifdef CONFIG_ARCH_AXXIA_NCR_RESET_CHECK
 	ncr_reset_active = 0;
 #endif
-
-	bus_register_notifier(&platform_bus_type, &axxia_platform_nb);
-	bus_register_notifier(&amba_bustype, &axxia_amba_nb);
 
 	of_platform_populate(NULL, of_default_bus_match_table,
 			     axxia_auxdata_lookup, NULL);
