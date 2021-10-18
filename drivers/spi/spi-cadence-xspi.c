@@ -8,6 +8,8 @@
  */
 #include "spi-cadence-xspi.h"
 
+static bool pstore;
+
 static void cdns_xspi_controller_reset(struct cdns_xspi_dev *cdns_xspi)
 {
 	u32 driving_reg = 0;
@@ -328,30 +330,56 @@ static void cdns_xspi_sdma_handle(struct cdns_xspi_dev *cdns_xspi)
 	}
 }
 
-bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi)
+bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
 	u32 ctrl_stat;
+	u32 stig_status;
+	u32 stig_ready;
 
-	readl_relaxed_poll_timeout
-		(cdns_xspi->iobase + CDNS_XSPI_CTRL_STATUS_REG,
-		ctrl_stat,
-		((ctrl_stat & BIT(3)) == 0),
-		10,
-		1000);
+	if (cdns_xspi->do_phy_init)
+		return true;
+
+	if (sleep) {
+		readl_relaxed_poll_timeout
+			(cdns_xspi->iobase + CDNS_XSPI_CTRL_STATUS_REG,
+			 ctrl_stat,
+			 ((ctrl_stat & BIT(3)) == 0),
+			 10,
+			 1000);
+	} else {
+		do {
+			stig_status = readl(cdns_xspi->iobase +
+					    CDNS_XSPI_CTRL_STATUS_REG);
+			stig_ready = FIELD_GET(BIT(3), stig_status);
+		} while (stig_ready);
+	}
 
 	return true;
 }
 
-bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi)
+bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
-	u32 ctrl_stat;
+	u32 intr_status;
+	u32 sdma_ready;
 
-	readl_relaxed_poll_timeout
-		(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG,
-		ctrl_stat,
-		((ctrl_stat & CDNS_XSPI_SDMA_TRIGGER) == 1),
-		10,
-		1000);
+	if (cdns_xspi->do_phy_init)
+		return true;
+
+	if (sleep) {
+		readl_relaxed_poll_timeout
+			(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG,
+			 intr_status,
+			 ((intr_status & CDNS_XSPI_SDMA_TRIGGER) == 1),
+			 10,
+			 1000);
+	} else {
+		do {
+			intr_status = readl(cdns_xspi->iobase +
+					    CDNS_XSPI_INTR_STATUS_REG);
+			sdma_ready = FIELD_GET(CDNS_XSPI_SDMA_TRIGGER,
+					       intr_status);
+		} while (!sdma_ready);
+	}
 
 	return true;
 }
@@ -453,15 +481,24 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 				goto error;
 			}
 		} else {
-			cdns_xspi_sdma_ready(cdns_xspi);
+			/* Avoid attempting sleep in pstore path,
+			 * take a nominal wait as a best effort
+			 * method for sdma ready status.
+			 */
+			cdns_xspi_sdma_ready(cdns_xspi, !pstore);
+
 		}
 		cdns_xspi_sdma_handle(cdns_xspi);
 	}
 
 	if (cdns_xspi->irq)
 		wait_for_completion(&cdns_xspi->cmd_complete);
-	else
-		cdns_xspi_stig_ready(cdns_xspi);
+	else {
+		/* Similar to sdma ready wait above, have a
+		 * nominal wait for stig ready in pstore path.
+		 */
+		cdns_xspi_stig_ready(cdns_xspi, !pstore);
+	}
 
 	cmd_status = cdns_xspi_check_command_status(cdns_xspi);
 	cdns_xspi_set_interrupts(cdns_xspi, false);
@@ -491,11 +528,22 @@ static int cdns_xspi_mem_op_execute(struct spi_mem *mem,
 {
 	struct cdns_xspi_dev *cdns_xspi =
 		spi_master_get_devdata(mem->spi->master);
+	struct spi_nor *nor = spi_mem_get_drvdata(mem);
 	int ret = 0;
 
-	mutex_lock(&cdns_xspi->lock);
-	ret = cdns_xspi_mem_op(cdns_xspi, mem, op);
-	mutex_unlock(&cdns_xspi->lock);
+	if (nor->pstore) {
+
+		/* Pstore runs with interrupts disabled.
+		 * All the sleeping locks and mechanisms
+		 * need to be avoided.
+		 */
+		pstore = 1;
+		ret = cdns_xspi_mem_op(cdns_xspi, mem, op);
+	} else {
+		mutex_lock(&cdns_xspi->lock);
+		ret = cdns_xspi_mem_op(cdns_xspi, mem, op);
+		mutex_unlock(&cdns_xspi->lock);
+	}
 
 	return ret;
 }
