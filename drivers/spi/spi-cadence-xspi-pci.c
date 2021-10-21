@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 #include "spi-cadence-xspi.h"
 #include <linux/pci.h>
+#include <linux/of.h>
 
 #define DRV_NAME       "spi-cadence-octeon"
 #define STIG_OFFSET    (0x10000000)
@@ -13,6 +14,8 @@
 #define CDNS_XSPI_CLK_CTRL_REG		      0x4020
 #define CDNS_XSPI_CLK_ENABLE              BIT(0)
 #define CDNS_XSPI_CLK_DIV                 GENMASK(4, 1)
+
+#define ASIM_PLATFORM_NAME "ASIM_PLATFORM"
 
 const int cdns_xspi_clk_div_list[] = {
 	4,	//0x0 = Divide by 4.   SPI clock is 200 MHz.
@@ -31,6 +34,25 @@ const int cdns_xspi_clk_div_list[] = {
 	128,	//0xD = Divide by 128. SPI clock is 6.25 MHz.
 	-1	//End of list
 };
+
+static bool mrvl_platform_is_asim(void)
+{
+	/* Check runmode dtb entry */
+	struct device_node *np = of_find_node_by_name(NULL, "soc");
+	const char *runplatform;
+	int ret;
+
+	ret = of_property_read_string(np, "runplatform", &runplatform);
+
+	if (!ret) {
+		if (!strncmp(runplatform, ASIM_PLATFORM_NAME, strlen(ASIM_PLATFORM_NAME))) {
+			pr_debug("asim platform detected\n");
+			return true;
+		}
+	}
+
+	return false;
+}
 
 static int mrvl_setup_clock(struct cdns_xspi_dev *cdns_xspi, int req_clk)
 {
@@ -101,7 +123,7 @@ static int cadence_octeon_spi_probe(struct pci_dev *pdev,
 		goto error_disable;
 	}
 
-	plat_data = devm_kmalloc(dev, sizeof(*plat_data), GFP_KERNEL);
+	plat_data = devm_kzalloc(dev, sizeof(*plat_data), GFP_KERNEL);
 	if (!plat_data) {
 		ret = -ENOMEM;
 		dev_err(dev, "Failed to allocate memory for platform_data\n");
@@ -117,7 +139,7 @@ static int cadence_octeon_spi_probe(struct pci_dev *pdev,
 	cdns_xspi->auxbase  = register_base + AUX_OFFSET;
 	cdns_xspi->sdmabase = register_base + STIG_OFFSET;
 	cdns_xspi->irq = 0;
-	cdns_xspi->skip_sim_check = false;
+	cdns_xspi->do_phy_init = mrvl_platform_is_asim();
 	cdns_xspi->prepare_clock = mrvl_setup_clock;
 
 	init_completion(&cdns_xspi->cmd_complete);

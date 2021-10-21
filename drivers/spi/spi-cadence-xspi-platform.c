@@ -19,7 +19,7 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, master);
 
-	plat_data = devm_kmalloc(dev, sizeof(*plat_data), GFP_KERNEL);
+	plat_data = devm_kzalloc(dev, sizeof(*plat_data), GFP_KERNEL);
 	if (!plat_data) {
 		ret = -ENOMEM;
 		dev_err(dev, "Failed to allocate memory for platform_data\n");

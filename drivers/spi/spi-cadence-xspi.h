@@ -243,7 +243,7 @@ struct cdns_xspi_dev {
 
 	int irq;
 	int current_cs;
-	bool skip_sim_check;
+	bool do_phy_init;
 
 	struct mutex lock;
 

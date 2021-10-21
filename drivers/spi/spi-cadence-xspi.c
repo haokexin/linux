@@ -62,7 +62,7 @@ static int cdns_xspi_read_dqs_delay_training(struct cdns_xspi_dev *cdns_xspi)
 	}
 
 	if (rd_dqs_del_min == -1) {
-		if (cdns_xspi->skip_sim_check)
+		if (cdns_xspi->do_phy_init)
 			return 0;
 		dev_err(cdns_xspi->dev, "PHY training failed\n");
 		return -EBUSY;
@@ -206,7 +206,7 @@ static int cdns_xspi_check_command_status(struct cdns_xspi_dev *cdns_xspi)
 			}
 		}
 	} else {
-		if (cdns_xspi->skip_sim_check)
+		if (cdns_xspi->do_phy_init)
 			return 0;
 		dev_err(cdns_xspi->dev, "Fatal error - command not completed\n");
 		ret = -EPROTO;
@@ -661,12 +661,14 @@ int cdns_xspi_configure(struct cdns_xspi_dev *cdns_xspi)
 	int ret;
 	struct device *dev = cdns_xspi->dev;
 
-	ret = cdns_xspi_phy_init(cdns_xspi);
-	if (ret) {
-		dev_err(dev, "Failed to initialize PHY\n");
-		return ret;
+	if (!cdns_xspi->do_phy_init) {
+		ret = cdns_xspi_phy_init(cdns_xspi);
+		if (ret) {
+			dev_err(dev, "Failed to initialize PHY\n");
+			return ret;
+		}
+		cdns_xspi_print_phy_config(cdns_xspi);
 	}
-	cdns_xspi_print_phy_config(cdns_xspi);
 
 	ret = cdns_xspi_controller_init(cdns_xspi);
 	if (ret) {
