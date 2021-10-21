@@ -8,7 +8,7 @@
 #ifndef NPC_PROFILE_H
 #define NPC_PROFILE_H
 
-#define NPC_KPU_PROFILE_VER	0x0000000100060000
+#define NPC_KPU_PROFILE_VER	0x0000000100070000
 #define NPC_KPU_VER_MAJ(ver)	((u16)(((ver) >> 32) & 0xFFFF))
 #define NPC_KPU_VER_MIN(ver)	((u16)(((ver) >> 16) & 0xFFFF))
 #define NPC_KPU_VER_PATCH(ver)	((u16)((ver) & 0xFFFF))
@@ -184,7 +184,6 @@ enum npc_kpu_parser_state {
 	NPC_S_KPU2_SBTAG,
 	NPC_S_KPU2_QINQ,
 	NPC_S_KPU2_ETAG,
-	NPC_S_KPU2_PREHEADER,
 	NPC_S_KPU2_EXDSA,
 	NPC_S_KPU2_CPT_CTAG,
 	NPC_S_KPU2_CPT_QINQ,
@@ -1368,33 +1367,6 @@ static struct npc_kpu_profile_cam kpu1_cam_entries[] = {
 		NPC_S_KPU1_IH_NIX, 0xff,
 		0x0000,
 		0x0000,
-		0x0000,
-		0x0000,
-		0x0000,
-		0x0000,
-	},
-	{
-		NPC_S_KPU1_IH, 0xff,
-		NPC_IH_W | NPC_IH_UTAG,
-		NPC_IH_W | NPC_IH_UTAG,
-		0x0000,
-		0x0000,
-		0x0000,
-		0x0000,
-	},
-	{
-		NPC_S_KPU1_IH, 0xff,
-		NPC_IH_W,
-		NPC_IH_W | NPC_IH_UTAG,
-		0x0000,
-		0x0000,
-		0x0000,
-		0x0000,
-	},
-	{
-		NPC_S_KPU1_IH, 0xff,
-		0x0000,
-		NPC_IH_W | NPC_IH_UTAG,
 		0x0000,
 		0x0000,
 		0x0000,
