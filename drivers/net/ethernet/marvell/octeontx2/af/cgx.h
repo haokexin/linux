@@ -198,4 +198,8 @@ bool is_higig2_enabled(void *cgxd, int lmac_id);
 int cgx_get_pkind(void *cgxd, u8 lmac_id, int *pkind);
 int cgx_lmac_pfc_config(void *cgxd, int lmac_id, u8 tx_pause, u8 rx_pause,
 			u16 pfc_en);
+int cgx_lmac_get_pfc_frm_cfg(void *cgxd, int lmac_id, u8 *tx_pause,
+			     u8 *rx_pause);
+int verify_lmac_fc_cfg(void *cgxd, int lmac_id, u8 tx_pause, u8 rx_pause,
+		       int pfvf_idx);
 #endif /* CGX_H */
