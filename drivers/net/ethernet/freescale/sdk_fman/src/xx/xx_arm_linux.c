@@ -118,9 +118,7 @@ static bool in_big_phys_area (uint32_t addr)
 void * xx_Malloc(uint32_t n)
 {
     void        *a;
-    uint32_t    flags;
 
-    flags = XX_DisableAllIntr();
 #ifdef BIGPHYSAREA_ENABLE
     if (n >= MAX_ALLOCATION_SIZE)
         a = (void*)bigphysarea_alloc_pages(get_nr_pages(n), 0, GFP_ATOMIC);
@@ -129,7 +127,6 @@ void * xx_Malloc(uint32_t n)
     a = (void *)kmalloc((uint32_t)n, GFP_ATOMIC);
     if (!a)
         XX_Print("No memory for XX_Malloc\n");
-    XX_RestoreAllIntr(flags);
 
     return a;
 }
