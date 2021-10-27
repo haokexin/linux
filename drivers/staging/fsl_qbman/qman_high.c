@@ -170,7 +170,12 @@ void *affine_portals[NR_CPUS];
 /* "raw" gets the cpu-local struct whether it's a redirect or not. */
 static inline struct qman_portal *get_raw_affine_portal(void)
 {
+#ifdef CONFIG_PREEMPT_RT
+	migrate_disable();
+	return this_cpu_ptr(&qman_affine_portal);
+#else
 	return &get_cpu_var(qman_affine_portal);
+#endif
 }
 /* For ops that can redirect, this obtains the portal to use */
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
@@ -187,7 +192,11 @@ static inline struct qman_portal *get_affine_portal(void)
 /* For every "get", there must be a "put" */
 static inline void put_affine_portal(void)
 {
+#ifdef CONFIG_PREEMPT_RT
+	migrate_enable();
+#else
 	put_cpu_var(qman_affine_portal);
+#endif
 }
 /* Exception: poll functions assume the caller is cpu-affine and in no risk of
  * re-entrance, which are the two reasons we usually use the get/put_cpu_var()
