@@ -55,6 +55,8 @@ static DEFINE_MUTEX(mpam_cpuhp_state_lock);
 u16 mpam_partid_max;
 u8 mpam_pmg_max;
 static bool partid_max_init;
+static u16 mpam_cmdline_partid_max;
+static bool mpam_cmdline_partid_max_overridden;
 static DEFINE_SPINLOCK(partid_max_lock);
 
 /*
@@ -101,6 +103,9 @@ void mpam_register_requestor(u16 partid_max, u8 pmg_max)
 		mpam_partid_max = min(mpam_partid_max, partid_max);
 		mpam_pmg_max = min(mpam_pmg_max, pmg_max);
 	}
+
+	if (mpam_cmdline_partid_max_overridden)
+		mpam_partid_max = min(mpam_cmdline_partid_max, mpam_partid_max);
 	spin_unlock_irqrestore(&partid_max_lock, flags);
 }
 
@@ -1991,3 +1996,18 @@ static int __init mpam_msc_driver_init(void)
 }
 /* Must occur after arm64_mpam_register_cpus() from arch_initcall() */
 subsys_initcall(mpam_msc_driver_init);
+
+static int __init mpam_parse_partid_max(char *arg)
+{
+	int ret;
+	unsigned long flags;
+
+	spin_lock_irqsave(&partid_max_lock, flags);
+	ret = kstrtou16(arg, 10, &mpam_cmdline_partid_max);
+	spin_unlock_irqrestore(&partid_max_lock, flags);
+	if (!ret)
+		mpam_cmdline_partid_max_overridden = true;
+
+	return 0;
+}
+early_param("mpam.partid_max", mpam_parse_partid_max);
