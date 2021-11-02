@@ -1843,6 +1843,8 @@ void mpam_disable(struct work_struct *work)
 	}
 	mutex_unlock(&mpam_cpuhp_state_lock);
 
+	mpam_resctrl_exit();
+
 	static_branch_disable(&mpam_enabled);
 
 	mpam_unregister_irqs();
