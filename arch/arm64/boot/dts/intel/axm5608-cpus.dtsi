@@ -38,7 +38,7 @@
 			next-level-cache = <&l2>;
 		};
 
-		cpu@4 {
+		cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x100>;
@@ -46,7 +46,7 @@
 			next-level-cache = <&l2>;
 		};
 
-		cpu@5 {
+		cpu@101 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x101>;
@@ -54,7 +54,7 @@
 			next-level-cache = <&l2>;
 		};
 
-		cpu@6 {
+		cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x102>;
@@ -62,7 +62,7 @@
 			next-level-cache = <&l2>;
 		};
 
-		cpu@7 {
+		cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x103>;
