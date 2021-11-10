@@ -212,6 +212,16 @@
 		reg = <0x00 0xd8000000 0x00 0x24000000>;
 		no-map;
 	};
+	intercore_eth_main_r5fss0_core1_memory_region: intercore-eth-r5f-memory@fc000000 {
+		compatible = "shared-dma-pool";
+		reg = <0x00 0xfc000000 0x00 0x02000000>;
+		no-map;
+	};
+	eeprom_shadow_memory_region: eeprom-shadow-r5f-memory@fe000000 {
+		compatible = "shared-dma-pool";
+		reg = <0x00 0xfe000000 0x00 0x01000000>;
+		no-map;
+	};
 	vision_apps_core_heaps_hi: vision-apps-core-heap-memory-hi@880000000 {
 		compatible = "shared-dma-pool";
 		reg = <0x08 0x80000000 0x00 0x10000000>;
