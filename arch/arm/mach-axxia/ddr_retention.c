@@ -188,7 +188,7 @@ retention_reset_prepare(void)
 	asm volatile ("dmb" : : : "memory");
 	system_state = SYSTEM_RESTART;
 	smp_send_stop();
-	usleep_range(1000, 1100);
+	udelay(1100);
 }
 
 #define __flush_tlb_ID(void) \
