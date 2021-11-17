@@ -369,7 +369,7 @@ bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 		readl_relaxed_poll_timeout
 			(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG,
 			 intr_status,
-			 ((intr_status & CDNS_XSPI_SDMA_TRIGGER) == 1),
+			 (intr_status & CDNS_XSPI_SDMA_TRIGGER),
 			 10,
 			 1000);
 	} else {
