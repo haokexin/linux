@@ -333,26 +333,16 @@ static void cdns_xspi_sdma_handle(struct cdns_xspi_dev *cdns_xspi)
 bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
 	u32 ctrl_stat;
-	u32 stig_status;
-	u32 stig_ready;
 
 	if (cdns_xspi->do_phy_init)
 		return true;
 
-	if (sleep) {
-		readl_relaxed_poll_timeout
+	readl_relaxed_poll_timeout
 			(cdns_xspi->iobase + CDNS_XSPI_CTRL_STATUS_REG,
 			 ctrl_stat,
 			 ((ctrl_stat & BIT(3)) == 0),
-			 10,
-			 1000);
-	} else {
-		do {
-			stig_status = readl(cdns_xspi->iobase +
-					    CDNS_XSPI_CTRL_STATUS_REG);
-			stig_ready = FIELD_GET(BIT(3), stig_status);
-		} while (stig_ready);
-	}
+			 sleep ? 10 : 0,
+			 sleep ? 1000 : 0);
 
 	return true;
 }
@@ -360,26 +350,16 @@ bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
 	u32 intr_status;
-	u32 sdma_ready;
 
 	if (cdns_xspi->do_phy_init)
 		return true;
 
-	if (sleep) {
-		readl_relaxed_poll_timeout
+	readl_relaxed_poll_timeout
 			(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG,
 			 intr_status,
-			 (intr_status & CDNS_XSPI_SDMA_TRIGGER),
-			 10,
-			 1000);
-	} else {
-		do {
-			intr_status = readl(cdns_xspi->iobase +
-					    CDNS_XSPI_INTR_STATUS_REG);
-			sdma_ready = FIELD_GET(CDNS_XSPI_SDMA_TRIGGER,
-					       intr_status);
-		} while (!sdma_ready);
-	}
+			 ((intr_status & CDNS_XSPI_SDMA_TRIGGER)),
+			 sleep ? 10 : 0,
+			 sleep ? 1000 : 0);
 
 	return true;
 }
