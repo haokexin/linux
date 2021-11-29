@@ -3149,6 +3149,44 @@ void wake_up_klogd(void)
 	preempt_enable();
 }
 
+void defer_console_output(void)
+{
+	if (!printk_percpu_data_ready())
+		return;
+
+	preempt_disable();
+	__this_cpu_or(printk_pending, PRINTK_PENDING_OUTPUT);
+	irq_work_queue(this_cpu_ptr(&wake_up_klogd_work));
+	preempt_enable();
+}
+
+void printk_trigger_flush(void)
+{
+	defer_console_output();
+}
+
+int vprintk_deferred(const char *fmt, va_list args)
+{
+	int r;
+
+	r = vprintk_emit(0, LOGLEVEL_SCHED, NULL, fmt, args);
+	defer_console_output();
+
+	return r;
+}
+
+int _printk_deferred(const char *fmt, ...)
+{
+	va_list args;
+	int r;
+
+	va_start(args, fmt);
+	r = vprintk_deferred(fmt, args);
+	va_end(args);
+
+	return r;
+}
+
 /*
  * printk rate limiting, lifted from the networking subsystem.
  *
