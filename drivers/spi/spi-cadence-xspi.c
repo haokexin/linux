@@ -17,6 +17,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-mem.h>
+#include <linux/mtd/spi-nor.h>
 #include <linux/bitfield.h>
 #include <linux/limits.h>
 #include <linux/log2.h>
@@ -550,7 +551,7 @@ static void cdns_xspi_sdma_handle(struct cdns_xspi_dev *cdns_xspi)
 	}
 }
 
-bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi)
+bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
 	u32 ctrl_stat;
 
@@ -558,10 +559,11 @@ bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi)
 		(cdns_xspi->iobase + CDNS_XSPI_CTRL_STATUS_REG,
 		ctrl_stat,
 		((ctrl_stat & BIT(3)) == 0),
-		10, 1000);
+		sleep ? 10 : 0,
+		sleep ? 1000 : 0);
 }
 
-bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi)
+bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
 	u32 ctrl_stat;
 
@@ -569,12 +571,14 @@ bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi)
 		(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG,
 		ctrl_stat,
 		(ctrl_stat & CDNS_XSPI_SDMA_TRIGGER),
-		10, 1000);
+		sleep ? 10 : 0,
+		sleep ? 1000 : 0);
 }
 
 static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 				       const struct spi_mem_op *op,
-				       bool data_phase)
+				       bool data_phase,
+				       bool pstore_sleep)
 {
 	u32 cmd_regs[6];
 	u32 cmd_status;
@@ -619,7 +623,7 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 				return -EIO;
 			}
 		} else {
-			if (cdns_xspi_sdma_ready(cdns_xspi))
+			if (cdns_xspi_sdma_ready(cdns_xspi, pstore_sleep))
 				return -EIO;
 		}
 		cdns_xspi_sdma_handle(cdns_xspi);
@@ -629,7 +633,7 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 		wait_for_completion(&cdns_xspi->cmd_complete);
 		cdns_xspi_set_interrupts(cdns_xspi, false);
 	} else {
-		if (cdns_xspi_stig_ready(cdns_xspi))
+		if (cdns_xspi_stig_ready(cdns_xspi, pstore_sleep))
 			return -EIO;
 	}
 
@@ -642,7 +646,8 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 
 static int cdns_xspi_mem_op(struct cdns_xspi_dev *cdns_xspi,
 			    struct spi_mem *mem,
-			    const struct spi_mem_op *op)
+			    const struct spi_mem_op *op,
+			    bool pstore)
 {
 	enum spi_mem_data_dir dir = op->data.dir;
 
@@ -650,7 +655,8 @@ static int cdns_xspi_mem_op(struct cdns_xspi_dev *cdns_xspi,
 		cdns_xspi->cur_cs = mem->spi->chip_select;
 
 	return cdns_xspi_send_stig_command(cdns_xspi, op,
-					   (dir != SPI_MEM_NO_DATA));
+					   (dir != SPI_MEM_NO_DATA),
+					   !pstore);
 }
 
 static int cdns_xspi_mem_op_execute(struct spi_mem *mem,
@@ -658,9 +664,10 @@ static int cdns_xspi_mem_op_execute(struct spi_mem *mem,
 {
 	struct cdns_xspi_dev *cdns_xspi =
 		spi_master_get_devdata(mem->spi->master);
+	struct spi_nor *nor = spi_mem_get_drvdata(mem);
 	int ret = 0;
 
-	ret = cdns_xspi_mem_op(cdns_xspi, mem, op);
+	ret = cdns_xspi_mem_op(cdns_xspi, mem, op, nor->pstore);
 
 	return ret;
 }
