@@ -769,10 +769,11 @@ static void otx2vf_remove(struct pci_dev *pdev)
 
 	vf = netdev_priv(netdev);
 
-	cancel_work_sync(&vf->reset_task);
 	otx2_unregister_dl(vf);
-	if (otx2smqvf_remove(vf))
+	if (otx2smqvf_remove(vf)) {
 		unregister_netdev(netdev);
+		cancel_work_sync(&vf->reset_task);
+	}
 	if (vf->otx2_wq)
 		destroy_workqueue(vf->otx2_wq);
 	otx2vf_disable_mbox_intr(vf);
