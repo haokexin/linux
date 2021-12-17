@@ -290,6 +290,7 @@ struct vxd_dev {
 	unsigned long long dwr_start;
 	struct time_prof time_fw[MAX_BUF_TRACE];
 	struct time_prof time_drv[MAX_BUF_TRACE];
+	unsigned char map_info_flag;
 
 	/* The variables defined below are used in RTOS only. */
 	/* This variable holds queue handler */
@@ -421,6 +422,10 @@ struct vxd_dec_ctx {
 	struct bspp_ddbuf_array_info fw_pps[MAX_PPSS];
 	decode_cb cb;
 	struct mutex *mutex; /* Per stream mutex */
+	struct vxd_buffer *curr_src;
+	struct vxd_buffer *curr_dst;
+	unsigned char call_back_no;
+	unsigned char unmap_flag;
 
 	/* The below variable used only in Rtos */
 	void *mm_return_resource; /* Place holder for CB to application */
