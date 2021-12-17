@@ -1264,6 +1264,8 @@ static int svc_normal_to_secure_thread(void *data)
 			break;
 
 		}
+		mutex_unlock(ctrl->sdm_lock);
+		sdm_lock_owned = false;
 	}
 	pr_debug("%s: %s: Exit thread\n", __func__, chan->name);
 	if (sdm_lock_owned == true)
