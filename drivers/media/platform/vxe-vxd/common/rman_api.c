@@ -18,6 +18,7 @@
 #include "dq.h"
 #include "idgen_api.h"
 #include "rman_api.h"
+#include "img_errors.h"
 
 /*
  * The following macros are used to build/decompose the composite resource Id

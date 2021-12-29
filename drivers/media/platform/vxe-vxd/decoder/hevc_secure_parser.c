@@ -395,24 +395,25 @@ static int bspp_hevc_unitparser(void *swsr_ctx, struct bspp_unit_data *unitdata)
 			}
 
 			/* Attach SEI data to the picture. */
-			if (!inter_pict_ctx->hevc_ctx.sei_info_attached_to_pic) {
+	if (!inter_pict_ctx->hevc_ctx.sei_info_attached_to_pic) {
 				/*
 				 *  If there is already a non-empty SEI list
 				 *  available
 				 */
-				if (inter_pict_ctx->hevc_ctx.sei_rawdata_list) {
-					/* attach it to the picture header. */
-					unitdata->out.pict_hdr_info->hevc_pict_hdr_info.raw_sei_datalist_firstfield =
-						(void *)inter_pict_ctx->hevc_ctx.sei_rawdata_list;
-					inter_pict_ctx->hevc_ctx.sei_info_attached_to_pic = 1;
-				} else {
-					/* Otherwise expose a handle a picture header field to
-					 * attach SEI list later.
-					 */
-					inter_pict_ctx->hevc_ctx.hndl_pichdr_sei_rawdata_list =
+		if (inter_pict_ctx->hevc_ctx.sei_rawdata_list) {
+			/* attach it to the picture header. */
+			unitdata->out.pict_hdr_info->hevc_pict_hdr_info.raw_sei_datalist_firstfield
+					=
+				(void *)inter_pict_ctx->hevc_ctx.sei_rawdata_list;
+			inter_pict_ctx->hevc_ctx.sei_info_attached_to_pic = 1;
+		} else {
+				/* Otherwise expose a handle a picture header field to
+				 * attach SEI list later.
+				 */
+			inter_pict_ctx->hevc_ctx.hndl_pichdr_sei_rawdata_list =
 		&unitdata->out.pict_hdr_info->hevc_pict_hdr_info.raw_sei_datalist_firstfield;
-				}
 			}
+	}
 
 			/* Attach raw VUI data to the picture header. */
 			hevc_sps = (struct bspp_hevc_sps *)sequ_hdr_info->secure_sequence_info;

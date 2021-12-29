@@ -11,14 +11,10 @@
 #ifndef _JPEGFW_DATA_H_
 #define _JPEGFW_DATA_H_
 
-#define MAX_CODE_WORDS 256
 #define JPEG_VDEC_8x8_DCT_SIZE             64 //!< Number of elements in 8x8 DCT
 #define JPEG_VDEC_MAX_COMPONENTS           4  //!< Maximum number of component in JPEG
 #define JPEG_VDEC_MAX_SETS_HUFFMAN_TABLES  2  //!< Maximum set of huffman table in JPEG
 #define JPEG_VDEC_MAX_QUANT_TABLES         4  //!< Maximum set of quantisation table in JPEG
-#define JPEG_VDEC_QUANT_TBL_ELEMS          16  /*!< Maximum number of elements in quantisation
-						*table in JPEG
-						*/
 #define JPEG_VDEC_TABLE_CLASS_NUM          2  //!< Maximum set of class of huffman table in JPEG
 #define JPEG_VDEC_PLANE_MAX                4  //!< Maximum number of planes
 

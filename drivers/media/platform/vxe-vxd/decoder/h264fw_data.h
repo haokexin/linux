@@ -14,12 +14,6 @@
 
 #include "vdecfw_shared.h"
 
-#define H264_MAX_SPS_COUNT              32
-#define H264_MAX_PPS_COUNT              256
-
-#define H264_SCALING_LISTS_NUM_CHROMA_IDC_NON_3         (8)
-#define H264_SCALING_LISTS_NUM_CHROMA_IDC_3             (12)
-#define MAX_PIC_SCALING_LIST                            (12)
 /* Maximum number of alternative CPB specifications in the stream */
 #define H264_MAXIMUMVALUEOFCPB_CNT  32
 
@@ -40,9 +34,6 @@
 #define H264FW_MAX_DPB_SIZE             16
 #define H264FW_MAX_NUM_MVC_REFS         1
 #endif
-
-/* Number of H264 VLC table configuration registers */
-#define H264FW_NUM_VLC_REG              22
 
 /* Maximum value for num_ref_frames_in_pic_order_cnt_cycle */
 #define H264FW_MAX_CYCLE_REF_FRAMES     256

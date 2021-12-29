@@ -20,18 +20,6 @@
 	(((regval) & group ## _ ## reg ## _ ## field ## _MASK) >> \
 	 group ## _ ## reg ## _ ## field ## _SHIFT)
 
-/* This macro is used to extract the value of a repeated from a register. */
-#define REGIO_READ_REPEATED_FIELD(regval, group, reg, field, repidx, type) \
-	({ \
-		type __repidx = repidx; \
-		(IMG_ASSERT((__repidx) < group ## _ ## reg ## _ ## field ## _NO_REPS), \
-		 (((regval) & (group ## _ ## reg ## _ ## field ## _MASK >> \
-			       ((group ## _ ## reg ## _ ## field ## _NO_REPS - \
-				 (__repidx) - 1) * group ## _ ## reg ## _ ## field ## _SIZE))) >> \
-		  (group ## _ ## reg ## _ ## field ## _SHIFT - \
-		   ((group ## _ ## reg ## _ ## field ## _NO_REPS - (__repidx) - 1) * \
-		    group ## _ ## reg ## _ ## field ## _SIZE)))); })
-
 #if (defined WIN32 || defined __linux__) && !defined NO_REGIO_CHECK_FIELD_VALUE
 /*
  * Only provide register field range checking for Windows and
@@ -76,12 +64,5 @@
 	REGIO_CHECK_VALUE_FITS_WITHIN_FIELD(group, reg, field, __value, type); \
 	(regval) |= ((unsigned int)(__value) << (group ## _ ## reg ## _ ## field ## _SHIFT)); \
 }
-
-/*
- * This macro shifts a value to its correct position in a register. This is
- * used for statically defining register values
- */
-#define REGIO_ENCODE_FIELD(group, reg, field, value)    \
-	((unsigned int)(value) << (group ## _ ## reg ## _ ## field ## _SHIFT))
 
 #endif /* REG_IO2_H_ */

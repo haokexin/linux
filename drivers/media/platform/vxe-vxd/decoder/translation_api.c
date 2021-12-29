@@ -43,7 +43,6 @@
 #include "hevcfw_data.h"
 #include "pvdec_entropy_regs.h"
 #include "pvdec_vec_be_regs.h"
-#include "pvdec_vec_be_hevc_regs.h"
 #endif
 
 #ifdef HAS_JPEG

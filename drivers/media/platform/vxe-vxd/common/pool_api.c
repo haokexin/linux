@@ -18,6 +18,7 @@
 #include "idgen_api.h"
 #include "lst.h"
 #include "pool_api.h"
+#include "img_errors.h"
 
 /*
  * list can be modified by different instances. So please,

@@ -14,13 +14,10 @@
 
 #include "vdecfw_shared.h"
 
-#define HEVC_MAX_VPS_COUNT              16
 #define HEVC_MAX_SPS_COUNT              16
 #define HEVC_MAX_PPS_COUNT              64
 
 #define HEVCFW_MAX_NUM_PROFILE_IDC 32
-#define HEVCFW_MAX_VPS_OP_SETS_PLUS1 1024
-#define HEVCFW_MAX_VPS_NUH_RESERVED_ZERO_LAYER_ID_PLUS1 1
 
 #define HEVCFW_MAX_NUM_REF_PICS 16
 #define HEVCFW_MAX_NUM_ST_REF_PIC_SETS 65

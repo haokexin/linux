@@ -1666,8 +1666,7 @@ int vxd_pvdec_check_irq(const void *dev, void __iomem *reg_base, unsigned int ir
 		dev_dbg(dev, "%s: MMU Page Fault s0:%08x s1:%08x", __func__, status0, status1);
 #endif
 
-		dev_err(dev, "%s: MMU %s fault from %s while %s @ 0x%08X",
-			__func__,
+		dev_err(dev, "%s: MMU %s fault from %s while %s @ 0x%08X", __func__,
 			(reason) ? "Page" : "Protection",
 			(requestor & (0x1)) ? "dmac" :
 			(requestor & (0x2)) ? "vec"  :

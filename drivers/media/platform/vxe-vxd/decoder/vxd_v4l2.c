@@ -48,6 +48,7 @@
 #include "img_dec_common.h"
 #include "vxd_pvdec_priv.h"
 #include "vxd_dec.h"
+#include "img_errors.h"
 
 #define VXD_DEC_SPIN_LOCK_NAME  "vxd-dec"
 #define IMG_VXD_DEC_MODULE_NAME "vxd-dec"
@@ -1653,15 +1654,6 @@ static const struct v4l2_file_operations vxd_dec_fops = {
 	.mmap = v4l2_m2m_fop_mmap,
 };
 
-static struct video_device vxd_dec_videodev = {
-	.name = IMG_VXD_DEC_MODULE_NAME,
-	.fops = &vxd_dec_fops,
-	.ioctl_ops = &vxd_dec_ioctl_ops,
-	.minor = -1,
-	.release = video_device_release,
-	.vfl_dir = VFL_DIR_M2M,
-};
-
 static void device_run(void *priv)
 {
 	struct vxd_dec_ctx *ctx = priv;
@@ -2029,15 +2021,19 @@ static int vxd_dec_probe(struct platform_device *pdev)
 		goto out_v4l2_device;
 	}
 
-	vxd->vfd_dec = vfd;
-	*vfd = vxd_dec_videodev;
+	snprintf(vfd->name, sizeof(vfd->name), "%s", IMG_VXD_DEC_MODULE_NAME);
+	vfd->fops = &vxd_dec_fops;
+	vfd->ioctl_ops = &vxd_dec_ioctl_ops;
+	vfd->minor = -1;
+	vfd->release = video_device_release;
+	vfd->vfl_dir = VFL_DIR_M2M;
 	vfd->v4l2_dev = &vxd->v4l2_dev;
 	vfd->device_caps = V4L2_CAP_VIDEO_M2M_MPLANE | V4L2_CAP_STREAMING;
 	vfd->lock = vxd->mutex;
 
+	vxd->vfd_dec = vfd;
 	video_set_drvdata(vfd, vxd);
 
-	snprintf(vfd->name, sizeof(vfd->name), "%s", vxd_dec_videodev.name);
 	ret = devm_request_threaded_irq(&pdev->dev, module_irq, (irq_handler_t)hard_isrcb,
 					(irq_handler_t)soft_thread_irq, IRQF_SHARED,
 					IMG_VXD_DEC_MODULE_NAME, pdev);
@@ -2131,8 +2127,6 @@ static int __maybe_unused vxd_dec_suspend(struct device *dev)
 {
 	int ret = 0;
 
-	dev_dbg(dev, "%s\n", __func__);
-
 	ret = vxd_suspend_dev(dev);
 	if (ret)
 		dev_err(dev, "failed to suspend core hw!\n");
@@ -2143,8 +2137,6 @@ static int __maybe_unused vxd_dec_suspend(struct device *dev)
 static int __maybe_unused vxd_dec_resume(struct device *dev)
 {
 	int ret = 0;
-
-	dev_dbg(dev, "%s\n", __func__);
 
 	ret = vxd_resume_dev(dev);
 	if (ret)
@@ -2167,5 +2159,6 @@ static struct platform_driver vxd_dec_driver = {
 };
 module_platform_driver(vxd_dec_driver);
 
+MODULE_AUTHOR("Prashanth Kumar Amai <prashanth.ka@pathpartnertech.com> Sidraya Jayagond <sidraya.bj@pathpartnertech.com>");
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("IMG D5520 video decoder driver");

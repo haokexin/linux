@@ -24,8 +24,6 @@
  */
 /* Default field alignment */
 #define VDECFW_SHARE_DEFAULT_ALIGNMENT  4
-/* 64-bit field alignment */
-#define VDECFW_SHARE_64BIT_ALIGNMENT    8
 /* Pointer field alignment */
 #define VDECFW_SHARE_PTR_ALIGNMENT      4
 

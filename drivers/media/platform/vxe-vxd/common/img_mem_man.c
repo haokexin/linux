@@ -17,6 +17,7 @@
 
 #include "imgmmu.h"
 #include "img_mem_man.h"
+#include "img_errors.h"
 
 #define VXD_MMU_SHIFT 8 /* assume 40-bit MMU */
 /* heaps ids (global) */
