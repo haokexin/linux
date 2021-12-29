@@ -4,6 +4,13 @@
  *
  * Copyright (c) Imagination Technologies Ltd.
  * Copyright (c) 2021 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * Authors:
+ *	Sunita Nadampalli <sunitan@ti.com>
+ *
+ * Re-written for upstream
+ *	Sidraya Jayagond <sidraya.bj@pathpartnertech.com>
+ *	Prashanth Kumar Amai <prashanth.ka@pathpartnertech.com>
  */
 
 #include "decoder.h"
@@ -1789,33 +1796,33 @@ decoder_stream_flush_process_dpb_h264(struct dec_str_ctx *dec_str_ctx,
 					decoder_get_decoded_pict(umin_cnt_tid,
 								 &dec_str_ctx->str_decd_pict_list);
 
-				if (display_pict && display_pict->pict &&
-				    display_pict->pict->dec_pict_info) {
-					if (FLAG_IS_SET(ctx_data->dpb[min_cnt_idx].display_flags,
-							VDECFW_BUFFLAG_DISPLAY_FIELD_CODED)) {
-						if
-					(!FLAG_IS_SET(ctx_data->dpb[min_cnt_idx].display_flags,
-						      VDECFW_BUFFLAG_DISPLAY_SINGLE_FIELD))
-							display_pict->pict->dec_pict_info->buf_type
-								=
-								IMG_BUFFERTYPE_PAIR;
-						else
-							display_pict->pict->dec_pict_info->buf_type
-							=
+				if ((display_pict && display_pict->pict &&
+				     display_pict->pict->dec_pict_info) &&
+				    FLAG_IS_SET(ctx_data->dpb[min_cnt_idx].display_flags,
+						VDECFW_BUFFLAG_DISPLAY_FIELD_CODED)) {
+					if (!FLAG_IS_SET(ctx_data->dpb[min_cnt_idx].display_flags,
+							 VDECFW_BUFFLAG_DISPLAY_SINGLE_FIELD))
+						display_pict->pict->dec_pict_info->buf_type =
+									IMG_BUFFERTYPE_PAIR;
+					else
+						display_pict->pict->dec_pict_info->buf_type =
 							FLAG_IS_SET
 							(ctx_data->dpb
 							 [min_cnt_idx].display_flags,
 							 VDECFW_BUFFLAG_DISPLAY_BOTTOM_FIELD)
-							 ?
-							 IMG_BUFFERTYPE_FIELD_BOTTOM :
-							 IMG_BUFFERTYPE_FIELD_TOP;
-					} else {
-						display_pict->pict->dec_pict_info->buf_type =
-									IMG_BUFFERTYPE_FRAME;
-					}
-
+							?
+							IMG_BUFFERTYPE_FIELD_BOTTOM :
+							IMG_BUFFERTYPE_FIELD_TOP;
 					display_pict->pict->dec_pict_info->view_id =
-								ctx_data->dpb[min_cnt_idx].view_id;
+						ctx_data->dpb[min_cnt_idx].view_id;
+				} else if ((display_pict && display_pict->pict &&
+					   display_pict->pict->dec_pict_info) &&
+					   (!FLAG_IS_SET(ctx_data->dpb[min_cnt_idx].display_flags,
+					    VDECFW_BUFFLAG_DISPLAY_FIELD_CODED))){
+					display_pict->pict->dec_pict_info->buf_type =
+						IMG_BUFFERTYPE_FRAME;
+					display_pict->pict->dec_pict_info->view_id =
+						ctx_data->dpb[min_cnt_idx].view_id;
 				} else {
 					VDEC_ASSERT(display_pict);
 					VDEC_ASSERT(display_pict && display_pict->pict);
@@ -3059,13 +3066,12 @@ int decoder_check_support(void *dec_ctx_arg,
 
 				case PIXEL_FORMAT_422:
 					if (comseq_hdrinfo->pixel_info.chroma_fmt_idc ==
-						PIXEL_FORMAT_420) {
-						if (str_op_cfg->pixel_info.num_planes > 1) {
-							pr_warn("[USERSID=0x%08X] UNSUPPORTED[HW]: REQUESTED NUMBER OF PLANES FOR 422 UPSAMPLING",
-								str_cfg->user_str_id);
-							 unsupported->str_opcfg |=
-							 VDECDD_UNSUPPORTED_OUTPUTCONFIG_PIXFORMAT;
-						}
+						PIXEL_FORMAT_420 &&
+						str_op_cfg->pixel_info.num_planes > 1) {
+						pr_warn("[USERSID=0x%08X] UNSUPPORTED[HW]: REQUESTED NUMBER OF PLANES FOR 422 UPSAMPLING",
+							str_cfg->user_str_id);
+						unsupported->str_opcfg |=
+						VDECDD_UNSUPPORTED_OUTPUTCONFIG_PIXFORMAT;
 					} else if (comseq_hdrinfo->pixel_info.chroma_fmt_idc ==
 						PIXEL_FORMAT_MONO) {
 						pr_warn("[USERSID=0x%08X] UNSUPPORTED[HW]: TRANSFORM PIXEL FORMAT FROM 400 TO 422",
@@ -3982,29 +3988,30 @@ static int decoder_picture_decoded(struct dec_str_ctx *dec_str_ctx,
 							(buf_ctrl->display_list[i],
 							 &dec_str_ctx->str_decd_pict_list);
 				if (display_pict) {
+					if (FLAG_IS_SET(buf_ctrl->display_flags[i],
+							VDECFW_BUFFLAG_DISPLAY_FIELD_CODED) &&
+							(!FLAG_IS_SET
+							 (buf_ctrl->display_flags[i],
+							  VDECFW_BUFFLAG_DISPLAY_SINGLE_FIELD))) {
+						display_pict->pict->dec_pict_info->buf_type =
+									IMG_BUFFERTYPE_PAIR;
 					if (FLAG_IS_SET
 						(buf_ctrl->display_flags[i],
-						 VDECFW_BUFFLAG_DISPLAY_FIELD_CODED)) {
-						if (!FLAG_IS_SET
+						 VDECFW_BUFFLAG_DISPLAY_INTERLACED_FIELDS))
+						display_pict->pict->dec_pict_info->interlaced_flds =
+								TRUE;
+					} else if (FLAG_IS_SET
+							(buf_ctrl->display_flags[i],
+							 VDECFW_BUFFLAG_DISPLAY_FIELD_CODED) &&
+							FLAG_IS_SET
 							(buf_ctrl->display_flags[i],
 							 VDECFW_BUFFLAG_DISPLAY_SINGLE_FIELD)) {
-							display_pict->pict->dec_pict_info->buf_type
-								= IMG_BUFFERTYPE_PAIR;
-							if
-							(FLAG_IS_SET(buf_ctrl->display_flags[i],
-							 VDECFW_BUFFLAG_DISPLAY_INTERLACED_FIELDS))
-						display_pict->pict->dec_pict_info->interlaced_flds =
-										TRUE;
-						} else {
-							display_pict->pict->dec_pict_info->buf_type
-								=
-								FLAG_IS_SET(buf_ctrl->display_flags
-										[i],
-								VDECFW_BUFFLAG_DISPLAY_BOTTOM_FIELD)
-								?
-								IMG_BUFFERTYPE_FIELD_BOTTOM :
-								IMG_BUFFERTYPE_FIELD_TOP;
-						}
+						display_pict->pict->dec_pict_info->buf_type =
+							FLAG_IS_SET
+							(buf_ctrl->display_flags[i],
+							 VDECFW_BUFFLAG_DISPLAY_BOTTOM_FIELD) ?
+							IMG_BUFFERTYPE_FIELD_BOTTOM :
+							IMG_BUFFERTYPE_FIELD_TOP;
 					} else {
 						display_pict->pict->dec_pict_info->buf_type =
 							IMG_BUFFERTYPE_FRAME;
@@ -4036,9 +4043,6 @@ static int decoder_picture_decoded(struct dec_str_ctx *dec_str_ctx,
 						ret = decoder_picture_display
 								(dec_str_ctx, pict_id,
 								 last_to_display_for_seq);
-						VDEC_ASSERT(ret == IMG_SUCCESS);
-						if (ret != IMG_SUCCESS)
-							return ret;
 					}
 				} else {
 					/*
@@ -4049,6 +4053,9 @@ static int decoder_picture_decoded(struct dec_str_ctx *dec_str_ctx,
 						dec_str_ctx->config.user_str_id,
 						buf_ctrl->display_list[i]);
 				}
+				VDEC_ASSERT(ret == IMG_SUCCESS);
+				if (ret != IMG_SUCCESS)
+					return ret;
 			}
 
 			/* Release all unused pictures (firmware request) */
@@ -4082,9 +4089,6 @@ static int decoder_picture_decoded(struct dec_str_ctx *dec_str_ctx,
 						ret = decoder_decoded_picture_destroy(dec_str_ctx,
 										      release_pict,
 										      FALSE);
-						VDEC_ASSERT(ret == IMG_SUCCESS);
-						if (ret != IMG_SUCCESS)
-							return ret;
 					} else {
 						/*
 						 * If the decoded picture is not
@@ -4096,10 +4100,13 @@ static int decoder_picture_decoded(struct dec_str_ctx *dec_str_ctx,
 						ret = decoder_picture_destroy(dec_str_ctx,
 									      pict_id, FALSE);
 						VDEC_ASSERT(ret == IMG_SUCCESS);
-						if (ret != IMG_SUCCESS)
-							return ret;
-						release_pict->pict = NULL;
+					if (ret != IMG_SUCCESS)
+						return ret;
+					release_pict->pict = NULL;
 					}
+					VDEC_ASSERT(ret == IMG_SUCCESS);
+					if (ret != IMG_SUCCESS)
+						return ret;
 				} else {
 					/*
 					 * In single core scenario should not
@@ -4501,10 +4508,9 @@ int decoder_service_firmware_response(void *dec_str_ctx_arg, unsigned int *msg,
 		VDEC_ASSERT(picture == dec_str_unit->str_unit->dd_pict_data);
 
 		/* Hold a reference to the last context on the BE */
-		if (dec_str_ctx->last_be_pict_dec_res &&
-		    HAS_X_PASSED_Y(picture->pict_id,
-				   GET_STREAM_PICTURE_ID
-				   (dec_str_ctx->last_be_pict_dec_res->transaction_id),
+		if (dec_str_ctx->last_be_pict_dec_res && HAS_X_PASSED_Y
+		    (picture->pict_id,
+		     GET_STREAM_PICTURE_ID(dec_str_ctx->last_be_pict_dec_res->transaction_id),
 		    1 << FWIF_NUMBITS_STREAM_PICTURE_ID, unsigned int)) {
 			/* Return previous last FW context. */
 			resource_item_return(&dec_str_ctx->last_be_pict_dec_res->ref_cnt);
@@ -4519,9 +4525,9 @@ int decoder_service_firmware_response(void *dec_str_ctx_arg, unsigned int *msg,
 			}
 		}
 		if (!dec_str_ctx->last_be_pict_dec_res ||
-		    (dec_str_ctx->last_be_pict_dec_res &&
-		    HAS_X_PASSED_Y(picture->pict_id, GET_STREAM_PICTURE_ID
-				   (dec_str_ctx->last_be_pict_dec_res->transaction_id),
+		    (dec_str_ctx->last_be_pict_dec_res && HAS_X_PASSED_Y
+		    (picture->pict_id,
+		     GET_STREAM_PICTURE_ID(dec_str_ctx->last_be_pict_dec_res->transaction_id),
 		    1 << FWIF_NUMBITS_STREAM_PICTURE_ID, unsigned int))) {
 			/* Hold onto last FW context. */
 			dec_str_ctx->last_be_pict_dec_res = dec_pict->cur_pict_dec_res;
@@ -4612,4 +4618,3 @@ unsigned char decoder_is_stream_idle(void *dec_str_ctx_handle)
 
 	return lst_empty(&dec_str_ctx->pend_strunit_list);
 }
-

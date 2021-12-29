@@ -93,4 +93,20 @@
 #define IMG_ERROR_INVALID_SIZE				(35)
 #define IMG_ERROR_SURFACE_LOCKED			(36)
 
+/* Mutex subclasses */
+#define SUBCLASS_BASE       0
+#define SUBCLASS_VXD_V4L2   1
+#define SUBCLASS_VXE_V4L2   1
+#define SUBCLASS_BSPP       1
+#define SUBCLASS_ADDR_ALLOC 7
+#define SUBCLASS_IMGMEM     6
+#define SUBCLASS_RMAN       1
+#define SUBCLASS_TALMMU     5
+#define SUBCLASS_VXD_CORE   2
+#define SUBCLASS_POOL       3
+#define SUBCLASS_POOL_RES   5
+#define SUBCLASS_TOPAZ_API  2
+#define SUBCLASS_TOPAZDD_TX 4
+#define SUBCLASS_TOPAZDD    3
+
 #endif /* __IMG_ERRORS__ */

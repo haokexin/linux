@@ -807,69 +807,6 @@ struct vdecfw_mmu_tile_config {
 			mmu_tiling_ext[MSVDX_CORE_CR_MMU_TILE_EXT_NO_ENTRIES]);
 };
 
-struct psr_mod_info {
-	/*
-	 * DMA base address from which to load the parser code text section
-	 * and first portion of data section (const data).
-	 */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_PTR_ALIGNMENT,
-			unsigned int, psr_text_load_addr);
-	/* Size of Parser code in bytes. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_text_size);
-	#ifndef USE_FW_RELOC_INFO_PACKING
-	/* Size of Parser relocation data in words. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_text_reloc_size);
-	#endif /* not USE_FW_RELOC_INFO_PACKING */
-	/* Original address for which module text was linked. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_text_orig);
-	/* Address where to load module text. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_text_addr);
-	/* DMA base address from which to load the parser data section. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_PTR_ALIGNMENT,
-			unsigned int, psr_data_load_addr);
-	/* Size of Parser data in bytes. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_data_size);
-	#ifndef USE_FW_RELOC_INFO_PACKING
-	/* Size of Parser relocation data in words. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_data_reloc_size);
-	#endif /* not USE_FW_RELOC_INFO_PACKING */
-	/* Original address for which module data was linked. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_data_orig);
-	/* Address where to load module data. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_data_addr);
-
-	#ifdef USE_FW_CTX_TRIMMING
-	/* Size of Parser context in bytes. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_ctx_size);
-	#endif /* USE_FW_CTX_TRIMMING */
-	#ifdef USE_FW_RELOC_INFO_PACKING
-	/* Size of Parser packed relocation information in bytes. */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_packed_info_reloc_size);
-	#endif /* USE_FW_RELOC_INFO_PACKING */
-
-	#ifndef USE_FW_RELOC_INFO_PACKING
-	/*
-	 * Data for text section and data section relocations.
-	 * We have DataReloc(unsigned int), TextReloc (unsigned int),
-	 * TextRelocAddr (unsigned int), and TextRelocType (unsigned char).
-	 * It gives 4 bytes for each relocated data element and 9
-	 * bytes for each reallocated text element.
-	 */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, psr_reloc_data[VDECFW_RELOC_SIZE]);
-	#endif /* not USE_FW_RELOC_INFO_PACKING */
-};
-
 /*
  * This structure contains the transaction attributes to be given to the
  * firmware
@@ -971,24 +908,6 @@ struct vdecfw_vlc_table_info {
 			unsigned short, vlc_consecutive_tables);
 };
 
-/*
- * This structure contains the info for DMAing the VLC from one (or more)
- * segments: sVlcTableInfo is an array of structures to find the entries inside
- * the index table which needs to be sent. The size of this array is statically
- * defined for the codec with the biggest number of VLC fragments (VC-1 with 12).
- * ui8VlcTablesNum is the number of valid entries inside the previous array. If
- * this variable equals to one we return to the base case when the section of
- * the gaui16<STD>VlcTableData table from
- * gaui16<STD>VlcIndexData[gaui16<STD>VlcIndexData[0][2]] and
- * gaui16<STD>VlcIndexData[gaui16<STD>VlcIndexData[1][2]] is sent
- */
-struct vdec_vlc_info {
-	struct vdecfw_vlc_table_info vlc_table_info[12];
-
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned char, vlc_table_num);
-};
-
 /* This structure defines the RENDEC buffer configuration. */
 struct vdecfw_rendec_config {
 	/* VEC_RENDEC_CONTROL0 */
@@ -1009,59 +928,6 @@ struct vdecfw_rendec_config {
 	/* VEC_RENDEC_CONTEXT0 - VEC_RENDEC_CONTEXT5 */
 	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
 			unsigned int, rendec_initial_ctx[6]);
-};
-
-/* This structure defines the MMU configuration. */
-struct vdecfw_mmu_config {
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			int, mem_36bit_twiddle);
-	/* MMU_CONTROL0 */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, mmu_control0);
-	/* MMU_CONTROL2 */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, mmu_control2);
-	/* MMU_TILE_MIN_ADDRx */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int,
-			mmu_tile_minaddr[MSVDX_CORE_CR_MMU_TILE_NO_ENTRIES]);
-	/* MMU_TILE_MAX_ADDRx */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int,
-			mmu_tile_maxaddr[MSVDX_CORE_CR_MMU_TILE_NO_ENTRIES]);
-
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, ptd[1]);
-};
-
-/* This structure defines the Core configuration. */
-struct vdecfw_coreinit_data {
-	struct vdecfw_mmu_config mmu_config;
-	struct vdecfw_rendec_config rendec_config;
-	/* CR_VEC_CONTROL_2 */
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, reg_vec_control2);
-};
-
-/* This structure defines the Sequence, VPS and PPS(s) pointers */
-struct vdecfw_seqpps_locations {
-	IMG_ALIGN_FIELD(VDECFW_SHARE_PTR_ALIGNMENT,
-			unsigned long, sequence_info_dest);
-	IMG_ALIGN_FIELD(VDECFW_SHARE_PTR_ALIGNMENT,
-			unsigned long, vps_info_dest);
-	IMG_ALIGN_FIELD(VDECFW_SHARE_PTR_ALIGNMENT,
-			unsigned long, pps_info_dest);
-	IMG_ALIGN_FIELD(VDECFW_SHARE_PTR_ALIGNMENT,
-			unsigned long, second_pps_info_dest);
-
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, sequence_info_size);
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, vps_info_size);
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, pps_info_size);
-	IMG_ALIGN_FIELD(VDECFW_SHARE_DEFAULT_ALIGNMENT,
-			unsigned int, second_pps_info_size);
 };
 
 #endif /* _VDECFW_H_ */

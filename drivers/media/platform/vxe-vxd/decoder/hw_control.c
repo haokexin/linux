@@ -14,10 +14,8 @@
 
 #include "decoder.h"
 #include "hw_control.h"
-#include "img_msvdx_mtx_regs.h"
 #include "img_msvdx_vdmc_regs.h"
 #include "img_pvdec_core_regs.h"
-#include "img_pvdec_entropy_regs.h"
 #include "img_pvdec_pixel_regs.h"
 #include "img_pvdec_test_regs.h"
 #include "img_vdec_fw_msg.h"
