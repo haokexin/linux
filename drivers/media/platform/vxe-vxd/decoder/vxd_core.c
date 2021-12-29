@@ -14,7 +14,6 @@
 #include <linux/interrupt.h>
 #include <linux/printk.h>
 #include <linux/mutex.h>
-#include <linux/time64.h>
 #include <linux/delay.h>
 #include <linux/jiffies.h>
 #include <linux/time64.h>
@@ -25,6 +24,7 @@
 
 #include "img_dec_common.h"
 #include "vxd_pvdec_priv.h"
+#include "img_errors.h"
 
 #define VXD_RENDEC_SIZE (5 * 1024 * 1024)
 
@@ -240,10 +240,6 @@ static void vxd_report_item_locked(struct vxd_dev *vxd,
  */
 static void vxd_emrg_reset_locked(struct vxd_dev *vxd, unsigned int flags)
 {
-#ifdef DEBUG_DECODER_DRIVER
-	dev_dbg(vxd->dev, "%s: enter\n", __func__);
-#endif
-
 	cancel_delayed_work(vxd->dwork);
 
 	vxd->emergency = 1;
@@ -582,10 +578,6 @@ int vxd_create_ctx(struct vxd_dev *vxd, struct vxd_dec_ctx *ctx)
 {
 	int ret = 0;
 	unsigned int fw_load_retries = 2 * 1000;
-
-#ifdef DEBUG_DECODER_DRIVER
-	dev_dbg(vxd->dev, "%s: enter\n", __func__);
-#endif
 
 	while (!vxd->firmware.ready) {
 		usleep_range(1000, 2000);
@@ -1393,7 +1385,7 @@ int vxd_prepare_fw(struct vxd_dev *vxd)
 		return -ENOMEM;
 
 	vxd->firmware.ready = FALSE;
-	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_UEVENT,
 				      drv_fw_name, vxd->dev, GFP_KERNEL, vxd,
 				      vxd_fw_loaded);
 	if (ret < 0) {

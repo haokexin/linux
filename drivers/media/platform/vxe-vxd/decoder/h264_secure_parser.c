@@ -4,6 +4,12 @@
  *
  * Copyright (c) Imagination Technologies Ltd.
  * Copyright (c) 2021 Texas Instruments Incorporated - http://www.ti.com/
+ *
+ * Authors:
+ *	Lakshmi Sankar <lakshmisankar-t@ti.com>
+ * Re-written for upstreming
+ *	Prashanth Kumar Amai <prashanth.ka@pathpartnertech.com>
+ *	Sidraya Jayagond <sidraya.bj@pathpartnertech.com>
  */
 
 #include <linux/dma-mapping.h>
@@ -1435,16 +1441,14 @@ static enum bspp_error_type bspp_h264_pict_hdr_parser
 						swsr_read_signed_expgoulomb(swsr_context);
 					}
 
-					if (!mono_chrome) {
-						if (swsr_read_bits(swsr_context, 1)) {
-							for (j = 0; j < 2; j++) {
-								swsr_read_signed_expgoulomb
-										(swsr_context);
-								swsr_read_signed_expgoulomb
-										(swsr_context);
-							}
-						}
+				if (!mono_chrome && (swsr_read_bits(swsr_context, 1))) {
+					for (j = 0; j < 2; j++) {
+						swsr_read_signed_expgoulomb
+								(swsr_context);
+						swsr_read_signed_expgoulomb
+								(swsr_context);
 					}
+				}
 				}
 			}
 		}
@@ -1455,25 +1459,24 @@ static enum bspp_error_type bspp_h264_pict_hdr_parser
 			if (nal_unit_type == H264_NALTYPE_IDR_SLICE) {
 				swsr_read_bits(swsr_context, 1);
 				swsr_read_bits(swsr_context, 1);
-			} else {
-				if (swsr_read_bits(swsr_context, 1)) {
-					do {
-						/* clamp 0--6 */
-						memmanop = swsr_read_unsigned_expgoulomb
-									(swsr_context);
-						if (memmanop != 0 && memmanop != 5) {
-							if (memmanop == 3) {
-								swsr_read_unsigned_expgoulomb
-									(swsr_context);
-								swsr_read_unsigned_expgoulomb
-									(swsr_context);
-							} else {
-								swsr_read_unsigned_expgoulomb
-									(swsr_context);
-							}
-						}
-					} while (memmanop != 0);
+			}
+			if (swsr_read_bits(swsr_context, 1)) {
+				do {
+					/* clamp 0--6 */
+					memmanop = swsr_read_unsigned_expgoulomb
+								(swsr_context);
+				if (memmanop != 0 && memmanop != 5) {
+					if (memmanop == 3) {
+						swsr_read_unsigned_expgoulomb
+							(swsr_context);
+						swsr_read_unsigned_expgoulomb
+							(swsr_context);
+					} else {
+						swsr_read_unsigned_expgoulomb
+							(swsr_context);
+					}
 				}
+				} while (memmanop != 0);
 			}
 		}
 
@@ -1675,51 +1678,47 @@ static void bspp_h264_select_scaling_list(struct h264fw_picture_ps *h264fw_pps_i
 				(h264_seq_hdr_info->sps_info.seq_scaling_matrix_present_flag) {
 						/* SPS matrix present - use fallback rule B */
 						/* list 6 - first 8x8 Intra list */
-						if (i == 0) {
-							if (seq_scllstflg[i +
-								H264FW_NUM_4X4_LISTS] &&
-								!def_sclmatflg_seq[i +
-								H264FW_NUM_4X4_LISTS]) {
-								VDEC_ASSERT
-							(h264_seq_hdr_info->sps_info.scllst8x8seq);
-								if (scllst8x8seq)
-									quant_matrix =
-										(*scllst8x8seq)[i];
-							} else {
-								quant_matrix = default_8x8_intra;
-							}
-							/* list 7 - first 8x8 Inter list */
-						} else if (i == 1) {
-							if (seq_scllstflg[i +
-								H264FW_NUM_4X4_LISTS] &&
-								!def_sclmatflg_seq[i +
-								H264FW_NUM_4X4_LISTS]) {
-								VDEC_ASSERT
-							(h264_seq_hdr_info->sps_info.scllst8x8seq);
-								if (scllst8x8seq)
-									quant_matrix =
-										(*scllst8x8seq)[i];
-							} else {
-								quant_matrix = default_8x8_inter;
-							}
-						} else {
-							quant_matrix =
-								h264fw_pps_info->scalinglist8x8[i -
-								2];
-						}
+				if (i == 0) {
+					if (seq_scllstflg[i +
+						H264FW_NUM_4X4_LISTS] &&
+						!def_sclmatflg_seq[i +
+						H264FW_NUM_4X4_LISTS]) {
+						VDEC_ASSERT
+						(h264_seq_hdr_info->sps_info.scllst8x8seq);
+					if (scllst8x8seq)
+						quant_matrix = (*scllst8x8seq)[i];
 					} else {
+						quant_matrix = default_8x8_intra;
+						}
+				/* list 7 - first 8x8 Inter list */
+				} else if (i == 1) {
+					if (seq_scllstflg[i +
+							H264FW_NUM_4X4_LISTS] &&
+							!def_sclmatflg_seq[i +
+							H264FW_NUM_4X4_LISTS]) {
+						VDEC_ASSERT
+						(h264_seq_hdr_info->sps_info.scllst8x8seq);
+					if (scllst8x8seq)
+						quant_matrix = (*scllst8x8seq)[i];
+					} else {
+						quant_matrix = default_8x8_inter;
+					}
+					} else {
+						quant_matrix =
+							h264fw_pps_info->scalinglist8x8[i - 2];
+					}
+				} else {
 						/* SPS matrix not present - use fallback rule A */
 						/* list 6 - first 8x8 Intra list */
-						if (i == 0)
-							quant_matrix = default_8x8_intra;
-						/* list 7 - first 8x8 Inter list */
-						else if (i == 1)
-							quant_matrix = default_8x8_inter;
-						else
-							quant_matrix =
-								h264fw_pps_info->scalinglist8x8[i -
-								2];
-					}
+					if (i == 0)
+						quant_matrix = default_8x8_intra;
+					/* list 7 - first 8x8 Inter list */
+					else if (i == 1)
+						quant_matrix = default_8x8_inter;
+					else
+						quant_matrix =
+							h264fw_pps_info->scalinglist8x8[i - 2];
+				}
 				}
 				if (quant_matrix) {
 					/* copy correct 8x8 list to output - as selected by PPS */
@@ -1731,29 +1730,30 @@ static void bspp_h264_select_scaling_list(struct h264fw_picture_ps *h264fw_pps_i
 			/* PPS matrix not present, use SPS information */
 			if (h264_seq_hdr_info->sps_info.seq_scaling_matrix_present_flag) {
 				for (i = 0; i < num8x8_lists; i++) {
-					if (seq_scllstflg[i + H264FW_NUM_4X4_LISTS]) {
-						if (def_sclmatflg_seq[i + H264FW_NUM_4X4_LISTS]) {
-							quant_matrix =
-								(i & 0x1) ? default_8x8_inter :
-								default_8x8_intra;
-						} else {
-							VDEC_ASSERT
+					if (seq_scllstflg[i + H264FW_NUM_4X4_LISTS] &&
+					    def_sclmatflg_seq[i + H264FW_NUM_4X4_LISTS]) {
+						quant_matrix =
+							(i & 0x1) ? default_8x8_inter :
+							default_8x8_intra;
+					} else if ((seq_scllstflg[i + H264FW_NUM_4X4_LISTS]) &&
+						   !(def_sclmatflg_seq[i + H264FW_NUM_4X4_LISTS])) {
+						VDEC_ASSERT
 							(h264_seq_hdr_info->sps_info.scllst8x8seq);
-							if (scllst8x8seq)
-								quant_matrix = (*scllst8x8seq)[i];
-						}
-					} else {
+					if (scllst8x8seq)
+						quant_matrix = (*scllst8x8seq)[i];
+					} else if (!(seq_scllstflg[i + H264FW_NUM_4X4_LISTS]) &&
+						   (i == 0)) {
 						/* SPS list not present - use fallback rule A */
 						/* list 6 - first 8x8 Intra list */
-						if (i == 0)
-							quant_matrix = default_8x8_intra;
+						quant_matrix = default_8x8_intra;
+					} else if (!(seq_scllstflg[i + H264FW_NUM_4X4_LISTS]) &&
+						   (i == 1)) {
 						/* list 7 - first 8x8 Inter list */
-						else if (i == 1)
-							quant_matrix = default_8x8_inter;
-						else
-							quant_matrix =
-								h264fw_pps_info->scalinglist8x8
-								[i - 2];
+						quant_matrix = default_8x8_inter;
+					} else {
+						quant_matrix =
+							h264fw_pps_info->scalinglist8x8
+							[i - 2];
 					}
 					if (quant_matrix) {
 						/* copy correct 8x8 list to output -
@@ -2134,8 +2134,10 @@ static void bspp_h264_generate_slice_groupmap(struct bspp_h264_slice_hdr_info *h
 	num_slice_group_mapunits = map_size;
 	if (h264_pps_info->slice_group_map_type == 6) {
 		if ((unsigned int)num_slice_groups != num_slice_group_mapunits) {
-			VDEC_ASSERT("wrong pps->num_slice_group_map_units_minus1 for used SPS and FMO type 6" ==
-				    NULL);
+			VDEC_ASSERT
+			("wrong pps->num_slice_group_map_units_minus1 for used SPS and FMO type 6"
+					==
+					NULL);
 			if (num_slice_group_mapunits >
 				h264_pps_info->h264_ppssgm_info.slicegroupidnum)
 				num_slice_group_mapunits =
