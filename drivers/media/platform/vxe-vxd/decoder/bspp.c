@@ -23,6 +23,7 @@
 #include "lst.h"
 #include "swsr.h"
 #include "vdecdd_defs.h"
+#include "img_errors.h"
 
 #define BSPP_ERR_MSG_LENGTH     1024
 

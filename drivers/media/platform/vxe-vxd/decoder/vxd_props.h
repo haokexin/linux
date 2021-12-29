@@ -32,19 +32,6 @@
 		 (((maj_rev) == (__maj)) && ((min_rev) == (__min)) && \
 		  ((int)(maint_rev) >= (maint)))); })
 
-#define BEFORE_REV(maj, min, maint, type) \
-	({ \
-		type __maj = maj; \
-		type __min = min; \
-		(((int)(maj_rev) < (__maj)) || \
-		 (((maj_rev) == (__maj)) && ((int)(min_rev) < (__min))) || \
-		 (((maj_rev) == (__maj)) && ((min_rev) == (__min)) && \
-		  ((int)(maint_rev) < (maint)))); })
-
-#define AT_REV(maj, min, maint) \
-	(((maj_rev) == (unsigned int)maj) && \
-	 ((min_rev) == (unsigned int)min) && ((maint_rev) == (unsigned int)maint))
-
 struct vxd_vidstd_props {
 	enum vdec_vid_std vidstd;
 	unsigned int core_rev;
