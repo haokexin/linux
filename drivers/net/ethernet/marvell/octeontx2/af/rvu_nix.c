@@ -4452,8 +4452,14 @@ static int rvu_nix_block_init(struct rvu *rvu, struct nix_hw *nix_hw)
 	/* Restore CINT timer delay to HW reset values */
 	rvu_write64(rvu, blkaddr, NIX_AF_CINT_DELAY, 0x0ULL);
 
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_SEB_CFG);
+
 	/* For better performance use NDC TX instead of NDC RX for SQ's SQEs" */
-	rvu_write64(rvu, blkaddr, NIX_AF_SEB_CFG, 0x1ULL);
+	cfg |= 1ULL;
+	if (!is_rvu_otx2(rvu))
+		cfg |= NIX_PTP_1STEP_EN;
+
+	rvu_write64(rvu, blkaddr, NIX_AF_SEB_CFG, cfg);
 
 	if (!is_rvu_otx2(rvu))
 		rvu_nix_block_cn10k_init(rvu, nix_hw);
