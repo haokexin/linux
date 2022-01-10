@@ -127,7 +127,7 @@
 
 			qspi_fw: partition@0 {
 				label = "fw";
-				reg = <0x0 0x02000000>;
+				reg = <0x00910000 0x02000000>;
 			};
 
 			qspi_uboot: partition@2000000 {
