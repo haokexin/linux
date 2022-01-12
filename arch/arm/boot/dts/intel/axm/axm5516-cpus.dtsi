@@ -38,7 +38,7 @@
 			clock-frequency = <0>;  // Placeholder
 		};
 
-		cpu@4 {
+		cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a15";
 			reg = <0x100>;
