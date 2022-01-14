@@ -1613,7 +1613,11 @@ int otx2_cpt_dl_custom_egrp_create(struct otx2_cptpf_dev *cptpf,
 		if (!strncasecmp(val, "se", 2) && strchr(val, ':')) {
 			if (has_se || ucode_idx)
 				goto err_print;
-			tmp = strim(strsep(&val, ":"));
+			tmp = strsep(&val, ":");
+			if (tmp != NULL)
+				tmp = strim(tmp);
+			else
+				goto err_print;
 			if (!val)
 				goto err_print;
 			if (strlen(tmp) != 2)
@@ -1625,7 +1629,11 @@ int otx2_cpt_dl_custom_egrp_create(struct otx2_cptpf_dev *cptpf,
 		} else if (!strncasecmp(val, "ae", 2) && strchr(val, ':')) {
 			if (has_ae || ucode_idx)
 				goto err_print;
-			tmp = strim(strsep(&val, ":"));
+			tmp = strsep(&val, ":");
+			if (tmp != NULL)
+				tmp = strim(tmp);
+			else
+				goto err_print;
 			if (!val)
 				goto err_print;
 			if (strlen(tmp) != 2)
@@ -1637,7 +1645,11 @@ int otx2_cpt_dl_custom_egrp_create(struct otx2_cptpf_dev *cptpf,
 		} else if (!strncasecmp(val, "ie", 2) && strchr(val, ':')) {
 			if (has_ie || ucode_idx)
 				goto err_print;
-			tmp = strim(strsep(&val, ":"));
+			tmp = strsep(&val, ":");
+			if (tmp != NULL)
+				tmp = strim(tmp);
+			else
+				goto err_print;
 			if (!val)
 				goto err_print;
 			if (strlen(tmp) != 2)
