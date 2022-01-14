@@ -3151,13 +3151,6 @@ void wake_up_klogd(void)
 
 void defer_console_output(void)
 {
-	if (!printk_percpu_data_ready())
-		return;
-
-	preempt_disable();
-	__this_cpu_or(printk_pending, PRINTK_PENDING_OUTPUT);
-	irq_work_queue(this_cpu_ptr(&wake_up_klogd_work));
-	preempt_enable();
 }
 
 void printk_trigger_flush(void)
