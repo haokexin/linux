@@ -3,6 +3,7 @@
  * Copyright Altera Corporation (C) 2021. All rights reserved.
  */
 
+#define DISABLE_QSE
 #include "socfpga_stratix10_socdk.dts"
 
 /{
