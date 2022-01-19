@@ -651,7 +651,7 @@ static inline void __cn10k_aura_freeptr(struct otx2_nic *pfvf, u64 aura,
 	u64 size = 0, count_eot = 0;
 	u64 tar_addr, val = 0;
 
-	lmt_info = per_cpu_ptr(pfvf->hw.lmt_info, smp_processor_id());
+	lmt_info = get_cpu_ptr(pfvf->hw.lmt_info);
 	tar_addr = (__force u64)otx2_get_regaddr(pfvf, NPA_LF_AURA_BATCH_FREE0);
 	/* LMTID is same as AURA Id */
 	val = (lmt_info->lmt_id & 0x7FF) | BIT_ULL(63);
@@ -672,6 +672,7 @@ static inline void __cn10k_aura_freeptr(struct otx2_nic *pfvf, u64 aura,
 	}
 	dma_wmb();
 	memcpy((u64 *)lmt_info->lmt_addr, ptrs, sizeof(u64) * num_ptrs);
+	put_cpu_ptr(pfvf->hw.lmt_info);
 	/* Perform LMTST flush */
 	cn10k_lmt_flush(val, tar_addr);
 }
