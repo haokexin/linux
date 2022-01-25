@@ -258,7 +258,28 @@ static struct platform_driver denali_dt_driver = {
 		.of_match_table	= denali_nand_dt_ids,
 	},
 };
-module_platform_driver(denali_dt_driver);
+
+/**
+ * denali_dt_init - denali nand driver module init
+ *
+ * Called when initializing the driver.
+ */
+static int __init denali_dt_init(void)
+{
+	return platform_driver_register(&denali_dt_driver);
+}
+late_initcall(denali_dt_init);
+
+/**
+ * denali_dt_exit - denali nand driver module exit
+ *
+ * Called when exiting the driver completely.
+ */
+static void __exit denali_dt_exit(void)
+{
+	platform_driver_unregister(&denali_dt_driver);
+}
+module_exit(denali_dt_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Jamie Iles");
