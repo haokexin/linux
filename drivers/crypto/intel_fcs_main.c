@@ -608,6 +608,12 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		break;
 
 	case INTEL_FCS_DEV_RANDOM_NUMBER_GEN:
+		/*
+		 * Random number generation is not supported on Stratix10 platform
+		 */
+		if (of_machine_is_compatible("altr,socfpga-stratix10"))
+			return -ENOTSUPP;
+
 		if (copy_from_user(data, (void __user *)arg, sizeof(*data))) {
 			dev_err(dev, "failure on copy_from_user\n");
 			mutex_unlock(&priv->lock);
@@ -3674,6 +3680,16 @@ static int fcs_rng_read(struct hwrng *rng, void *buf, size_t max, bool wait)
 	void *s_buf;
 	int ret = 0;
 	size_t size = 0;
+
+	/*
+	 * According to the README.md of ATF code, whose repo is
+	 * https://github.com/altera-opensource/arm-trusted-firmware.git.
+	 * Random number generation is not supported on Stratix10 platform
+	 * But ATF code doesn't process properly and return error value.
+	 * So, make the workaround to avoid breaking ATF code.
+	 */
+	if (of_machine_is_compatible("altr,socfpga-stratix10"))
+		return -ENOTSUPP;
 
 	priv = (struct intel_fcs_priv *)rng->priv;
 	dev = priv->client.dev;
