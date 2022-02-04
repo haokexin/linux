@@ -175,6 +175,7 @@ struct otx2_hw {
 	u16                     rx_queues;
 	u16                     tx_queues;
 	u16                     xdp_queues;
+	u16			tc_tx_queues;
 	u16                     tot_tx_queues;
 	u16			max_queues;
 	u16			pool_cnt;
@@ -870,6 +871,10 @@ int otx2_sq_aq_init(void *dev, u16 qidx, u8 chan_offset, u16 sqb_aura);
 int cn10k_sq_aq_init(void *dev, u16 qidx, u8 chan_offset, u16 sqb_aura);
 int otx2_alloc_buffer(struct otx2_nic *pfvf, struct otx2_cq_queue *cq,
 		      dma_addr_t *dma);
+int otx2_pool_init(struct otx2_nic *pfvf, u16 pool_id,
+		   int stack_pages, int numptrs, int buf_size);
+int otx2_aura_init(struct otx2_nic *pfvf, int aura_id,
+		   int pool_id, int numptrs);
 
 /* RSS configuration APIs*/
 int otx2_rss_init(struct otx2_nic *pfvf);
@@ -966,4 +971,6 @@ void otx2_update_bpid_in_rqctx(struct otx2_nic *pfvf, int vlan_prio, int qidx, b
 int otx2_config_priority_flow_ctrl(struct otx2_nic *pfvf);
 int otx2_dcbnl_set_ops(struct net_device *dev);
 #endif
+/* qos support */
+void otx2_qos_sq_setup(struct otx2_nic *pfvf);
 #endif /* OTX2_COMMON_H */
