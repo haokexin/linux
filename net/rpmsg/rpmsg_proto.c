@@ -241,7 +241,7 @@ static int rpmsg_sock_recvmsg(struct socket *sock, struct msghdr *msg,
 
 	msg->msg_namelen = 0;
 
-	skb = skb_recv_datagram(sk, flags, noblock, &ret);
+	skb = skb_recv_datagram(sk, flags, &ret);
 	if (!skb) {
 		/* check for shutdown ? */
 		pr_err("skb_recv_datagram: %d\n", ret);
@@ -287,6 +287,8 @@ static __poll_t rpmsg_sock_poll(struct file *file, struct socket *sock,
 
 	/* exceptional events? */
 	if (sk->sk_err || !skb_queue_empty(&sk->sk_error_queue))
+		mask |= EPOLLERR;
+	if (sk->sk_state == RPMSG_ERROR)
 		mask |= EPOLLERR;
 	if (sk->sk_shutdown & RCV_SHUTDOWN)
 		mask |= EPOLLRDHUP;
@@ -670,8 +672,10 @@ static void rpmsg_proto_remove(struct rpmsg_device *rpdev)
 			rpsk->endpt = NULL;
 		}
 		release_sock(&rpsk->sk);
-		if (endpt)
+		if (endpt) {
 			rpmsg_destroy_ept(endpt);
+			rpsk->sk.sk_error_report(&rpsk->sk);
+		}
 	}
 	kfree(sk_list);
 	rpdev->ept->priv = NULL;
