@@ -32,6 +32,7 @@
 		can2 = &mcu_mcan1;
 		can3 = &main_mcan3;
 		can4 = &main_mcan5;
+		ethernet1 = &main_cpsw_port1;
 	};
 
 	evm_12v0: fixedregulator-evm12v0 {
@@ -655,5 +656,9 @@
 };
 
 &main_mcan17 {
+	status = "disabled";
+};
+
+&main_cpsw {
 	status = "disabled";
 };
