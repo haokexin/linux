@@ -154,12 +154,12 @@ static inline void mpam_thread_switch(struct task_struct *tsk)
 	if (!static_branch_likely(&mpam_enabled))
 		return;
 
+	if (!regval)
+		regval = READ_ONCE(per_cpu(arm64_mpam_default, cpu));
+
 	oldregval = READ_ONCE(per_cpu(arm64_mpam_current, cpu));
 	if (oldregval == regval)
 		return;
-
-	if (!regval)
-		regval = READ_ONCE(per_cpu(arm64_mpam_default, cpu));
 
 	write_sysreg_s(regval, SYS_MPAM0_EL1);
 	WRITE_ONCE(per_cpu(arm64_mpam_current, cpu), regval);
