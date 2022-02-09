@@ -3596,7 +3596,7 @@ struct dw_hdmi *dw_hdmi_probe(struct platform_device *pdev,
 		audio.base = hdmi->regs;
 		audio.irq = irq;
 		audio.hdmi = hdmi;
-		audio.eld = hdmi->connector.eld;
+		audio.get_eld = hdmi_audio_get_eld;
 
 		hdmi->enable_audio = dw_hdmi_gp_audio_enable;
 		hdmi->disable_audio = dw_hdmi_gp_audio_disable;
