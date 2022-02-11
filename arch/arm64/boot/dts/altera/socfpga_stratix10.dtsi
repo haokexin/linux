@@ -634,6 +634,7 @@
 				fcs: fcs {
 					compatible = "intel,stratix10-soc-fcs";
 					platform = "stratix10";
+					status = "disabled";
 				};
 
 				temp_volt: hwmon {
