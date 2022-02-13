@@ -20,6 +20,7 @@
 #include <linux/list.h>
 #include <linux/lockdep.h>
 #include <linux/mutex.h>
+#include <linux/of_platform.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/printk.h>
@@ -639,7 +640,6 @@ static int mpam_msc_hw_probe(struct mpam_msc *msc)
 		spin_unlock_irqrestore(&msc->hw_lock, flags);
 		return -EIO;
 	}
-
 	idr = mpam_msc_read_idr(msc);
 	spin_unlock_irqrestore(&msc->hw_lock, flags);
 
@@ -1287,13 +1287,24 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 	struct device_node *cache;
 
 	do {
-		cache = of_parse_phandle(np, "arm,msc-cache", 0);
-		if (!cache)
+		if (of_device_is_compatible(np, "arm,mpam-cache")) {
+			cache = of_parse_phandle(np, "arm,msc-cache", 0);
+			if (!cache) {
+				pr_err("Failed to read phandle\n");
+				break;
+			}	
+		} else if (of_device_is_compatible(np->parent, "cache")) {
+			cache = np->parent;
+		} else {
+			pr_err("Not a cache\n");
 			break;
+		}
 
 		err = of_property_read_u32(cache, "cache-level", &level);
-		if (err)
+		if (err) {
+			pr_err("Failed to read cache-level\n");
 			break;
+		}			
 
 		cache_id = cache_of_get_id(cache);
 		if (cache_id == ~0UL) {
@@ -1312,24 +1323,25 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 
 static int mpam_dt_parse_resources(struct mpam_msc *msc, void *ignored)
 {
-	int err;
-	const u32 *ris_idx;
-	struct device_node *iter;
+	int err, num_ris = 0;
+	const u32 *ris_idx_p;
+	struct device_node *iter, *np;
 
-	err = mpam_dt_parse_resource(msc, msc->pdev->dev.of_node, 0);
-	if (err)
-		return err;
-
-	for_each_child_of_node(msc->pdev->dev.of_node, iter) {
-		ris_idx = of_get_property(iter, "reg", NULL);
-		if (ris_idx) {
-			err = mpam_dt_parse_resource(msc, iter, *ris_idx);
+	np = msc->pdev->dev.of_node;
+	for_each_child_of_node(np, iter) {
+		ris_idx_p = of_get_property(iter, "reg", NULL);
+		if (ris_idx_p) {
+			num_ris++;
+			err = mpam_dt_parse_resource(msc, iter, *ris_idx_p);
 			if (err) {
 				of_node_put(iter);
 				return err;
 			}
 		}
 	}
+
+	if (!num_ris)
+		mpam_dt_parse_resource(msc, np, 0);
 
 	return err;
 }
@@ -1962,6 +1974,24 @@ static struct platform_driver mpam_msc_driver = {
 	.remove = mpam_msc_drv_remove,
 };
 
+/*
+ * MSC that are hidden under caches are not created as platform devices
+ * as there is no cache driver. Caches are also special-cased in
+ * get_msc_affinity().
+ */
+static void mpam_dt_create_foundling_msc(void)
+{
+	int err;
+	struct device_node *cache;
+
+	for_each_compatible_node(cache, NULL, "cache") {
+		err = of_platform_populate(cache, mpam_of_match, NULL, NULL);
+		if (err) {
+			pr_err("Failed to create MSC devices under caches\n");
+		}
+	}
+}
+
 static int __init mpam_msc_driver_init(void)
 {
 	unsigned long flags;
@@ -1991,6 +2021,9 @@ static int __init mpam_msc_driver_init(void)
 		pr_err("No MSC devices found in firmware\n");
 		return -EINVAL;
 	}
+
+	if (acpi_disabled)
+		mpam_dt_create_foundling_msc();
 
 	return platform_driver_register(&mpam_msc_driver);
 }
