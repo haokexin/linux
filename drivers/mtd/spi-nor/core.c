@@ -107,6 +107,9 @@ void spi_nor_spimem_setup_op(const struct spi_nor *nor,
 		op->dummy.dtr = true;
 		op->data.dtr = true;
 
+		if (spi_nor_protocol_is_dtr_bswap16(proto))
+			op->data.dtr_bswap16 = true;
+
 		/* 2 bytes per clock cycle in DTR mode. */
 		op->dummy.nbytes *= 2;
 
@@ -454,7 +457,7 @@ int spi_nor_read_sr(struct spi_nor *nor, u8 *sr)
 	if (nor->spimem) {
 		struct spi_mem_op op = SPI_NOR_RDSR_OP(sr);
 
-		if (nor->reg_proto == SNOR_PROTO_8_8_8_DTR) {
+		if (spi_nor_protocol_is_octal_dtr(nor->reg_proto)) {
 			op.addr.nbytes = nor->params->rdsr_addr_nbytes;
 			op.dummy.nbytes = nor->params->rdsr_dummy;
 			/*
@@ -2267,7 +2270,7 @@ static int spi_nor_set_addr_nbytes(struct spi_nor *nor)
 {
 	if (nor->params->addr_nbytes) {
 		nor->addr_nbytes = nor->params->addr_nbytes;
-	} else if (nor->read_proto == SNOR_PROTO_8_8_8_DTR) {
+	} else if (spi_nor_protocol_is_octal_dtr(nor->read_proto)) {
 		/*
 		 * In 8D-8D-8D mode, one byte takes half a cycle to transfer. So
 		 * in this protocol an odd addr_nbytes cannot be used because
@@ -2468,6 +2471,19 @@ static void spi_nor_init_fixup_flags(struct spi_nor *nor)
 		nor->flags |= SNOR_F_SOFT_RESET;
 }
 
+static void spi_nor_set_dtr_bswap16_ops(struct spi_nor *nor)
+{
+	struct spi_nor_flash_parameter *params = nor->params;
+	u32 mask = SNOR_HWCAPS_READ_8_8_8_DTR | SNOR_HWCAPS_PP_8_8_8_DTR;
+
+	if ((params->hwcaps.mask & mask) == mask) {
+		params->reads[SNOR_CMD_READ_8_8_8_DTR].proto |=
+			SNOR_PROTO_IS_DTR_BSWAP16;
+		params->page_programs[SNOR_CMD_PP_8_8_8_DTR].proto |=
+			SNOR_PROTO_IS_DTR_BSWAP16;
+	}
+}
+
 /**
  * spi_nor_late_init_params() - Late initialization of default flash parameters.
  * @nor:	pointer to a 'struct spi_nor'
@@ -2487,6 +2503,9 @@ static void spi_nor_late_init_params(struct spi_nor *nor)
 
 	spi_nor_init_flags(nor);
 	spi_nor_init_fixup_flags(nor);
+
+	if (nor->flags & SNOR_F_DTR_BSWAP16)
+		spi_nor_set_dtr_bswap16_ops(nor);
 
 	/*
 	 * NOR protection support. When locking_ops are not provided, we pick
@@ -2670,8 +2689,8 @@ static int spi_nor_octal_dtr_enable(struct spi_nor *nor, bool enable)
 	if (!nor->params->octal_dtr_enable)
 		return 0;
 
-	if (!(nor->read_proto == SNOR_PROTO_8_8_8_DTR &&
-	      nor->write_proto == SNOR_PROTO_8_8_8_DTR))
+	if (!(spi_nor_protocol_is_octal_dtr(nor->read_proto) &&
+	      spi_nor_protocol_is_octal_dtr(nor->write_proto)))
 		return 0;
 
 	if (!(nor->flags & SNOR_F_IO_MODE_EN_VOLATILE))
@@ -2740,7 +2759,7 @@ static int spi_nor_init(struct spi_nor *nor)
 		spi_nor_try_unlock_all(nor);
 
 	if (nor->addr_nbytes == 4 &&
-	    nor->read_proto != SNOR_PROTO_8_8_8_DTR &&
+	    !spi_nor_protocol_is_octal_dtr(nor->read_proto) &&
 	    !(nor->flags & SNOR_F_4B_OPCODES)) {
 		/*
 		 * If the RESET# pin isn't hooked up properly, or the system
