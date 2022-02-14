@@ -980,7 +980,7 @@
 			ranges = <0x0 0x2a000 0x1000>;
 		};
 
-		target-module@2c000 {			/* 0x4a22c000, ap 109 6c.0 */
+		timer15_target: target-module@2c000 {	/* 0x4882c000, ap 17 02.0 */
 			compatible = "ti,sysc";
 			status = "disabled";
 			#address-cells = <1>;
@@ -988,8 +988,8 @@
 			ranges = <0x0 0x2c000 0x1000>;
 		};
 
-		target-module@2e000 {			/* 0x4a22e000, ap 111 6e.0 */
-			compatible = "ti,sysc";
+		timer16_target: target-module@2e000 {	/* 0x4882e000, ap 19 14.0 */
+ 			compatible = "ti,sysc";
 			status = "disabled";
 			#address-cells = <1>;
 			#size-cells = <1>;
