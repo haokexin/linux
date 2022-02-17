@@ -433,7 +433,7 @@ static struct pci_ops cdns_ti_pcie_host_ops = {
 
 static const struct j721e_pcie_data j721e_pcie_rc_data = {
 	.mode = PCI_MODE_RC,
-	.quirk_retrain_flag = true,
+	.quirk_retrain_flag = false,
 	.byte_access_allowed = false,
 	.linkdown_irq_regfield = LINK_DOWN,
 	.is_intc_v1 = true,
