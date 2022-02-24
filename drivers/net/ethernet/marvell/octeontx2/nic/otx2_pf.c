@@ -1832,6 +1832,44 @@ static netdev_tx_t otx2_xmit(struct sk_buff *skb, struct net_device *netdev)
 	return NETDEV_TX_OK;
 }
 
+static int otx2_qos_select_htb_queue(struct otx2_nic *pf, struct sk_buff *skb,
+				     u16 htb_maj_id)
+{
+	u16 classid;
+
+	if ((TC_H_MAJ(skb->priority) >> 16) == htb_maj_id)
+		classid = TC_H_MIN(skb->priority);
+	else
+		classid = READ_ONCE(pf->qos.defcls);
+
+	if (!classid)
+		return 0;
+
+	return otx2_get_txq_by_classid(pf, classid);
+}
+
+static u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
+			     struct net_device *sb_dev)
+{
+	struct otx2_nic *pf = netdev_priv(netdev);
+	int txq;
+
+	if (unlikely(netdev->real_num_tx_queues > pf->hw.tx_queues)) {
+		u16 htb_maj_id = smp_load_acquire(&pf->qos.maj_id); /* barrier */
+
+		if (unlikely(htb_maj_id)) {
+			txq = otx2_qos_select_htb_queue(pf, skb, htb_maj_id);
+			if (txq > 0)
+				return txq;
+			/* Choose from nix queues */
+			txq = netdev_pick_tx(netdev, skb, NULL);
+			return txq % pf->hw.tx_queues;
+		}
+	}
+
+	return netdev_pick_tx(netdev, skb, NULL);
+}
+
 static netdev_features_t otx2_fix_features(struct net_device *dev,
 					   netdev_features_t features)
 {
@@ -2488,6 +2526,7 @@ static const struct net_device_ops otx2_netdev_ops = {
 	.ndo_open		= otx2_open,
 	.ndo_stop		= otx2_stop,
 	.ndo_start_xmit		= otx2_xmit,
+	.ndo_select_queue	= otx2_select_queue,
 	.ndo_fix_features	= otx2_fix_features,
 	.ndo_set_mac_address    = otx2_set_mac_address,
 	.ndo_change_mtu		= otx2_change_mtu,
