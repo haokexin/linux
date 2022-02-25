@@ -158,14 +158,18 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk-pcie-ep.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb imx8qm-mek-ov5640.dtb \
 			  imx8qm-mek-enet2-tja1100.dtb \
 			  imx8qm-mek-hdmi.dtb \
-			  imx8qm-mek-ca53.dtb imx8qm-mek-ca72.dtb \
 			  imx8qm-mek-jdi-wuxga-lvds1-panel.dtb \
 			  imx8qm-mek-jdi-wuxga-lvds1-panel-rpmsg.dtb \
-			  imx8qm-mek-dsi-rm67191.dtb \
 			  imx8qm-mek-pcie-ep.dtb \
-			  imx8qm-pcieax2pciebx1.dtb \
 			  imx8qm-mek-usdhc3-m2.dtb imx8qm-mek-usd-wifi.dtb \
 			  imx8qm-mek-hdmi-rx.dtb \
+			  imx8qm-lpddr4-val.dtb imx8qm-lpddr4-val-mqs.dtb \
+			  imx8qm-lpddr4-val-spdif.dtb imx8qm-mek-ca53.dtb \
+			  imx8qm-mek-ca72.dtb imx8qm-lpddr4-val-ca53.dtb \
+			  imx8qm-lpddr4-val-ca72.dtb imx8qm-ddr4-val.dtb \
+			  imx8qm-lpddr4-val-lpspi.dtb imx8qm-lpddr4-val-lpspi-slave.dtb \
+			  imx8qm-mek-dsi-rm67191.dtb imx8qm-lpddr4-val-dp.dtb\
+			  imx8qp-lpddr4-val.dtb imx8dm-lpddr4-val.dtb imx8qm-pcieax2pciebx1.dtb \
 			  imx8qm-mek-cockpit-a53.dtb imx8qm-mek-cockpit-a72.dtb \
 			  imx8qm-mek-esai.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
@@ -213,7 +217,13 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb imx8qxp-mek-ov5640.dtb \
 			  imx8dx-mek-dsi-rm67191.dtb \
 			  imx8dx-mek-dsi-rm67191-rpmsg.dtb \
 			  imx8qxp-mek-lcdif.dtb \
-			  imx8qxp-mek-lcdif-rpmsg.dtb
+			  imx8qxp-mek-lcdif-rpmsg.dtb \
+			  imx8qxp-mek-lcdif-rpmsg.dtb \
+			  imx8qxp-lpddr4-val-a0.dtb \
+			  imx8qxp-lpddr4-val.dtb imx8qxp-lpddr4-val-mqs.dtb imx8qxp-ddr3l-val.dtb \
+			  imx8qxp-lpddr4-val-lpspi.dtb imx8qxp-lpddr4-val-lpspi-slave.dtb \
+			  imx8qxp-lpddr4-val-spdif.dtb imx8qxp-lpddr4-val-gpmi-nand.dtb imx8dxp-lpddr4-val.dtb \
+			  imx8qxp-17x17-val.dtb imx8dx-lpddr4-val.dtb imx8dx-17x17-val.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8ulp-evk.dtb imx8ulp-evk-lpspi-slave.dtb \
 			  imx8ulp-evk-i3c.dtb imx8ulp-evk-rk055hdmipi4m.dtb \
 			  imx8ulp-evk-epdc.dtb
