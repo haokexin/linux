@@ -1848,8 +1848,8 @@ static int otx2_qos_select_htb_queue(struct otx2_nic *pf, struct sk_buff *skb,
 	return otx2_get_txq_by_classid(pf, classid);
 }
 
-static u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
-			     struct net_device *sb_dev)
+u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
+		      struct net_device *sb_dev)
 {
 	struct otx2_nic *pf = netdev_priv(netdev);
 	int txq;
@@ -1869,6 +1869,7 @@ static u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 
 	return netdev_pick_tx(netdev, skb, NULL);
 }
+EXPORT_SYMBOL(otx2_select_queue);
 
 static netdev_features_t otx2_fix_features(struct net_device *dev,
 					   netdev_features_t features)

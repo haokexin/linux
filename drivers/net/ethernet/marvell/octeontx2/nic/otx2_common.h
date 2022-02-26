@@ -977,4 +977,6 @@ int otx2_dcbnl_set_ops(struct net_device *dev);
 /* qos support */
 void otx2_qos_sq_setup(struct otx2_nic *pfvf);
 int otx2_get_txq_by_classid(struct otx2_nic *pfvf, u16 classid);
+u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
+		      struct net_device *sb_dev);
 #endif /* OTX2_COMMON_H */
