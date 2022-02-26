@@ -22,6 +22,7 @@ void otx2_qos_sq_setup(struct otx2_nic *pfvf)
 
 	hw->tc_tx_queues = OTX2_QOS_MAX_LEAF_NODES;
 }
+EXPORT_SYMBOL(otx2_qos_sq_setup);
 
 static void otx2_qos_aura_pool_free(struct otx2_nic *pfvf, int pool_id)
 {
