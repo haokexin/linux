@@ -1287,7 +1287,12 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 	struct device_node *cache;
 
 	do {
-		if (of_device_is_compatible(np, "arm,mpam-cache")) {
+		if (!of_property_match_string(np->parent, "device_type",
+					      "memory")) {
+			err = mpam_ris_create(msc, ris_idx, MPAM_CLASS_MEMORY,
+						0x4, 0x0);
+			break;
+		} else if (of_device_is_compatible(np, "arm,mpam-cache")) {
 			cache = of_parse_phandle(np, "arm,msc-cache", 0);
 			if (!cache) {
 				pr_err("Failed to read phandle\n");
@@ -1296,7 +1301,7 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 		} else if (of_device_is_compatible(np->parent, "cache")) {
 			cache = np->parent;
 		} else {
-			pr_err("Not a cache\n");
+			pr_err("Nither cache nor memory\n");
 			break;
 		}
 
