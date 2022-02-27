@@ -655,8 +655,10 @@ static int mpam_resctrl_resource_init(struct mpam_resctrl_res *res)
 		r->membw.throttle_mode = THREAD_THROTTLE_UNDEFINED;
 		r->membw.bw_gran = get_mba_granularity(cprops);
 
-		if (class_has_usable_mba(cprops))
+		if (class_has_usable_mba(cprops)) {
 			r->alloc_capable = true;
+			exposed_alloc_capable = true;
+		}
 	}
 
 	return 0;
