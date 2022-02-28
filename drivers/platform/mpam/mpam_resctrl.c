@@ -738,7 +738,16 @@ static int mpam_resctrl_resource_init(struct mpam_resctrl_res *res)
 
 		r->membw.delay_linear = true;
 		r->membw.throttle_mode = THREAD_THROTTLE_UNDEFINED;
-		r->membw.bw_gran = get_mba_granularity(cprops);
+
+		/* Just in case we have an excessive number of bits */
+		if (!r->membw.min_bw)
+			r->membw.min_bw = 1;
+
+		/*
+		 * because its linear with no offset, the granule is the same
+		 * as the smallest value
+		 */
+		r->membw.bw_gran = r->membw.min_bw;
 
 		if (class_has_usable_mba(cprops)) {
 			r->alloc_capable = true;
