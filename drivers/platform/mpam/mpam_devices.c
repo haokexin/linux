@@ -634,7 +634,8 @@ static int mpam_msc_hw_probe(struct mpam_msc *msc)
 	lockdep_assert_held(&msc->lock);
 
 	spin_lock_irqsave(&msc->hw_lock, flags);
-	if (mpam_read_reg(msc, MPAMF_AIDR) != MPAM_ARCHITECTURE_V1) {
+	if (!((mpam_read_reg(msc, MPAMF_AIDR) == MPAM_ARCHITECTURE_V1) ||
+		(mpam_read_reg(msc, MPAMF_AIDR) == MPAM_ARCHITECTURE_V11))) {
 		pr_err_once("%s does not match MPAM architecture v1.0\n",
 			    dev_name(&msc->pdev->dev));
 		spin_unlock_irqrestore(&msc->hw_lock, flags);

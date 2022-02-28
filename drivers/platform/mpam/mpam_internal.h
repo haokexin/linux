@@ -255,6 +255,7 @@ void mpam_resctrl_exit(void);
  * Partitioning and Monitoring (MPAM), for Armv8-A. DDI 0598A.a
  */
 #define MPAM_ARCHITECTURE_V1    0x10
+#define MPAM_ARCHITECTURE_V11    0x11
 
 /* Memory mapped control pages: */
 /* ID Register offsets in the memory mapped page */
