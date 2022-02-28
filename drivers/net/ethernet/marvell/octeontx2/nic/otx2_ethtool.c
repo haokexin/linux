@@ -87,6 +87,11 @@ static void otx2_get_drvinfo(struct net_device *netdev,
 	strlcpy(info->bus_info, pci_name(pfvf->pdev), sizeof(info->bus_info));
 }
 
+static int otx2_get_total_txq_count(struct otx2_nic *pfvf)
+{
+	return pfvf->hw.tot_tx_queues + pfvf->hw.tc_tx_queues;
+}
+
 static void otx2_get_qset_strings(struct otx2_nic *pfvf, u8 **data, int qset)
 {
 	int start_qidx = qset * pfvf->hw.rx_queues;
@@ -99,10 +104,15 @@ static void otx2_get_qset_strings(struct otx2_nic *pfvf, u8 **data, int qset)
 			*data += ETH_GSTRING_LEN;
 		}
 	}
-	for (qidx = 0; qidx < pfvf->hw.tot_tx_queues; qidx++) {
+	for (qidx = 0; qidx < otx2_get_total_txq_count(pfvf); qidx++) {
 		for (stats = 0; stats < otx2_n_queue_stats; stats++) {
-			sprintf(*data, "txq%d: %s", qidx + start_qidx,
-				otx2_queue_stats[stats].name);
+			if (qidx >= pfvf->hw.tot_tx_queues)
+				sprintf(*data, "txq_qos%d: %s",
+					qidx + start_qidx - pfvf->hw.tot_tx_queues,
+					otx2_queue_stats[stats].name);
+			else
+				sprintf(*data, "txq%d: %s", qidx + start_qidx,
+					otx2_queue_stats[stats].name);
 			*data += ETH_GSTRING_LEN;
 		}
 	}
@@ -171,13 +181,13 @@ static void otx2_get_qset_stats(struct otx2_nic *pfvf,
 			*((*data)++) = ((u64 *)&pfvf->qset.rq[qidx].stats)
 				[otx2_queue_stats[stat].index];
 	}
-
-	for (qidx = 0; qidx < pfvf->hw.tot_tx_queues; qidx++) {
+	for (qidx = 0; qidx < otx2_get_total_txq_count(pfvf); qidx++) {
 		if (!otx2_update_sq_stats(pfvf, qidx)) {
 			for (stat = 0; stat < otx2_n_queue_stats; stat++)
 				*((*data)++) = 0;
 			continue;
 		}
+
 		for (stat = 0; stat < otx2_n_queue_stats; stat++)
 			*((*data)++) = ((u64 *)&pfvf->qset.sq[qidx].stats)
 				[otx2_queue_stats[stat].index];
@@ -270,7 +280,8 @@ static int otx2_get_sset_count(struct net_device *netdev, int sset)
 		return -EINVAL;
 
 	qstats_count = otx2_n_queue_stats *
-		       (pfvf->hw.rx_queues + pfvf->hw.tot_tx_queues);
+		       (pfvf->hw.rx_queues + pfvf->hw.tot_tx_queues +
+			pfvf->hw.tc_tx_queues);
 	if (!test_bit(CN10K_RPM, &pfvf->hw.cap_flag))
 		mac_stats = CGX_RX_STATS_COUNT + CGX_TX_STATS_COUNT;
 	otx2_update_lmac_fec_stats(pfvf);
@@ -1619,7 +1630,8 @@ static int otx2vf_get_sset_count(struct net_device *netdev, int sset)
 		return -EINVAL;
 
 	qstats_count = otx2_n_queue_stats *
-		       (vf->hw.rx_queues + vf->hw.tx_queues);
+		       (vf->hw.rx_queues + vf->hw.tx_queues +
+			vf->hw.tc_tx_queues);
 
 	return otx2_n_dev_stats + otx2_n_drv_stats + qstats_count + 1;
 }
