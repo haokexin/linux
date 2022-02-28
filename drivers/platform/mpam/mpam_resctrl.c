@@ -531,14 +531,13 @@ static u32 mbw_pbm_to_percent(unsigned long mbw_pbm, struct mpam_props *cprops)
 
 static u32 mbw_max_to_percent(u16 mbw_max, struct mpam_props *cprops)
 {
-	u8 bit;
-	u32 divisor = 2, value = 0;
+	u64 range = (1ULL << cprops->bwa_wd) - 1;
+	u32 value = 0;
 
-	for (bit = 15; bit; bit--) {
-		if (mbw_max & BIT(bit))
-			value += MAX_MBA_BW / divisor;
-		divisor <<= 1;
-	}
+	if (mbw_max == 0xff)
+		value = (mbw_max*100) / (range);
+	else
+		value = ((mbw_max*100) / (range)) + 1;
 
 	return value;
 }
@@ -557,24 +556,14 @@ static u32 percent_to_mbw_pbm(u8 pc, struct mpam_props *cprops)
 
 static u16 percent_to_mbw_max(u8 pc, struct mpam_props *cprops)
 {
-	u8 bit;
-	u32 divisor = 2, value = 0;
+	u64 range;
+	u32 value = 0;
 
 	if (WARN_ON_ONCE(cprops->bwa_wd > 15))
 		return MAX_MBA_BW;
 
-	for (bit = 15; bit; bit--) {
-		if (pc >= MAX_MBA_BW / divisor) {
-			pc -= MAX_MBA_BW / divisor;
-			value |= BIT(bit);
-		}
-		divisor <<= 1;
-
-		if (!pc || !(MAX_MBA_BW / divisor))
-			break;
-	}
-
-	value &= GENMASK(15, 15 - cprops->bwa_wd);
+	range = (1ULL << cprops->bwa_wd) - 1;
+	value = (pc * range)/100;
 
 	return value;
 }
