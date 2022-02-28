@@ -921,11 +921,11 @@ static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 	}
 
 	if (mpam_has_feature(mpam_feat_mbw_min, rprops))
-		mpam_write_reg(msc, MPAMCFG_MBW_MIN, 0);
+		mpam_write_reg(msc, MPAMCFG_MBW_MIN, (0x3<<8));
 
 	if (mpam_has_feature(mpam_feat_mbw_max, rprops)) {
 		if (mpam_has_feature(mpam_feat_mbw_max, cfg))
-			mpam_write_reg(msc, MPAMCFG_MBW_MAX, cfg->mbw_max);
+			mpam_write_reg(msc, MPAMCFG_MBW_MAX, ((cfg->mbw_max<<8) | 1<<31));
 		else
 			mpam_write_reg(msc, MPAMCFG_MBW_MAX, bwa_fract);
 	}
