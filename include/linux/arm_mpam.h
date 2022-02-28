@@ -19,6 +19,7 @@ enum mpam_class_types {
 	MPAM_CLASS_UNKNOWN,     /* Everything else, e.g. SMMU */
 };
 
+struct acpi_table_mpam_msc {int:0;};
 #ifdef CONFIG_ACPI_MPAM
 /* Parse the ACPI description of resources entries for this MSC. */
 int acpi_mpam_parse_resources(struct mpam_msc *msc,
