@@ -373,12 +373,16 @@ static int otx2_qos_ctx_disable(struct otx2_nic *pfvf, u16 qidx, int aura_id)
 
 int otx2_qos_get_qid(struct otx2_nic *pfvf)
 {
-	return 0;
+	int qidx;
+
+	qidx = find_first_zero_bit(pfvf->qos.qos_sq_bmap,
+				   OTX2_QOS_MAX_LEAF_NODES);
+	return qidx == OTX2_QOS_MAX_LEAF_NODES ? -ENOSPC : qidx;
 }
 
 void otx2_qos_free_qid(struct otx2_nic *pfvf, int qidx)
 {
-	//TODO
+	clear_bit(qidx, pfvf->qos.qos_sq_bmap);
 }
 
 int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx, u16 smq)
