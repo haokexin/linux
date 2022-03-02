@@ -632,8 +632,8 @@ otx2_qos_alloc_root(struct otx2_nic *pfvf)
 	return node;
 }
 
-static void otx2_qos_add_static_node(struct otx2_qos_node *parent,
-				     struct otx2_qos_node *node)
+static int otx2_qos_add_static_node(struct otx2_qos_node *parent,
+				    struct otx2_qos_node *node)
 {
 	struct list_head *head = &parent->child_list;
 	struct otx2_qos_node *tmp_node;
@@ -641,13 +641,16 @@ static void otx2_qos_add_static_node(struct otx2_qos_node *parent,
 
 	for (tmp = head->next; tmp != head; tmp = tmp->next) {
 		tmp_node = list_entry(tmp, struct otx2_qos_node, list);
+		if (tmp_node->prio == node->prio)
+			return -EEXIST;
 		if (tmp_node->prio > node->prio) {
 			list_add_tail(&node->list, tmp);
-			return;
+			return 0;
 		}
 	}
 
 	list_add_tail(&node->list, head);
+	return 0;
 }
 
 static int otx2_qos_alloc_txschq_node(struct otx2_nic *pfvf,
@@ -721,10 +724,15 @@ otx2_qos_sw_create_leaf_node(struct otx2_nic *pfvf,
 	hash_add(pfvf->qos.qos_hlist, &node->hlist, classid);
 
 	mutex_lock(&pfvf->qos.qos_lock);
-	if (node->is_static)
-		otx2_qos_add_static_node(parent, node);
-	else
+	if (node->is_static) {
+		err = otx2_qos_add_static_node(parent, node);
+		if (err) {
+			mutex_unlock(&pfvf->qos.qos_lock);
+			return ERR_PTR(err);
+		}
+	} else {
 		list_add_tail(&node->list, &parent->child_dwrr_list);
+	}
 	mutex_unlock(&pfvf->qos.qos_lock);
 
 	INIT_LIST_HEAD(&node->child_list);
