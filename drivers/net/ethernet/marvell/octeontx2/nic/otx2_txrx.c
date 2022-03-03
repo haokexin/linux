@@ -719,7 +719,7 @@ static void otx2_sqe_add_hdr(struct otx2_nic *pfvf, struct otx2_snd_queue *sq,
 		sqe_hdr->aura = sq->aura_id;
 		/* Post a CQE Tx after pkt transmission */
 		sqe_hdr->pnc = 1;
-		if (pfvf->hw.tx_queues == qidx)
+		if (qidx >= pfvf->hw.tx_queues)
 			sqe_hdr->sq = qidx + pfvf->hw.xdp_queues;
 		else
 			sqe_hdr->sq = qidx;

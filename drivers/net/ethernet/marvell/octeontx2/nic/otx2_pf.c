@@ -1807,7 +1807,7 @@ static netdev_tx_t otx2_xmit(struct sk_buff *skb, struct net_device *netdev)
 	/* XDP SQs are not mapped with TXQs
 	 * advance qid to derive correct sq maped with QOS
 	 */
-	if (qidx == pf->hw.tx_queues)
+	if (qidx >= pf->hw.tx_queues)
 		sq_idx = qidx + pf->hw.xdp_queues;
 
 	/* Check for minimum and maximum packet length */
