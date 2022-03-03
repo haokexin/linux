@@ -323,6 +323,40 @@ txschq_cfg_out:
 	cfg->num_regs = num_regs;
 }
 
+static int otx2_qos_update_tl1_topology(struct otx2_nic *pfvf, u16 tl2_schq)
+{
+	struct mbox *mbox = &pfvf->mbox;
+	struct otx2_hw *hw = &pfvf->hw;
+	struct nix_txschq_config *cfg;
+	u16 schq;
+	int rc;
+
+	/* vf TL2 is dwrr child */
+	if (pfvf->pcifunc & RVU_PFVF_FUNC_MASK)
+		return 0;
+
+	/* get the parent TL1x queue */
+	schq =  hw->txschq_list[NIX_TXSCH_LVL_TL1][0];
+
+	mutex_lock(&mbox->lock);
+	cfg = otx2_mbox_alloc_msg_nix_txschq_cfg(&pfvf->mbox);
+	if (!cfg)
+		return -ENOMEM;
+
+	cfg->lvl = NIX_TXSCH_LVL_TL1;
+
+	/* configure priority anchor */
+	cfg->reg[0] = NIX_AF_TL1X_TOPOLOGY(schq);
+	cfg->regval[0] = (u64)tl2_schq << 32;
+	cfg->regval_mask[0] = ~((u64)0xFF << 32);
+	cfg->num_regs = 1;
+
+	rc = otx2_sync_mbox_msg(&pfvf->mbox);
+	mutex_unlock(&mbox->lock);
+
+	return rc;
+}
+
 static int otx2_qos_txschq_set_parent_topology(struct otx2_nic *pfvf,
 					       struct otx2_qos_node *parent)
 {
@@ -1228,6 +1262,13 @@ static int otx2_qos_root_add(struct otx2_nic *pfvf, u16 htb_maj_id, u16 htb_defc
 		goto txschq_free;
 	}
 
+	err = otx2_qos_update_tl1_topology(pfvf, root->schq);
+	if (err) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Error updating TL1 topology");
+		goto txschq_free;
+	}
+
 	WRITE_ONCE(pfvf->qos.defcls, htb_defcls);
 	smp_store_release(&pfvf->qos.maj_id, htb_maj_id); /* barrier */
 
@@ -1252,6 +1293,9 @@ static int otx2_qos_root_destroy(struct otx2_nic *pfvf)
 	root = otx2_sw_node_find(pfvf, OTX2_QOS_ROOT_CLASSID);
 	if (!root)
 		return -ENOENT;
+
+	/* reset TL1 topology priority anchor */
+	otx2_qos_update_tl1_topology(pfvf, 0);
 
 	/* free the hw mappings */
 	otx2_qos_destroy_node(pfvf, root);
