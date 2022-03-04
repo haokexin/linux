@@ -878,6 +878,7 @@ int otx2_pool_init(struct otx2_nic *pfvf, u16 pool_id,
 		   int stack_pages, int numptrs, int buf_size);
 int otx2_aura_init(struct otx2_nic *pfvf, int aura_id,
 		   int pool_id, int numptrs);
+void otx2_txschq_free_one(struct otx2_nic *pfvf, u16 lvl, u16 schq);
 
 /* RSS configuration APIs*/
 int otx2_rss_init(struct otx2_nic *pfvf);
@@ -979,4 +980,5 @@ void otx2_qos_sq_setup(struct otx2_nic *pfvf);
 int otx2_get_txq_by_classid(struct otx2_nic *pfvf, u16 classid);
 u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev);
+void otx2_reinit_qos_smq(struct otx2_nic *pfvf);
 #endif /* OTX2_COMMON_H */
