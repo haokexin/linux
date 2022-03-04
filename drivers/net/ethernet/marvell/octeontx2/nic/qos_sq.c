@@ -416,6 +416,10 @@ void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx, u16 mdq)
 
 	sq_idx = hw->tot_tx_queues + qidx;
 
+	/* If the DOWN flag is set SQs are already freed */
+	if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
+		return;
+
 	if (sq_idx < hw->tot_tx_queues ||
 	    sq_idx >= hw->tot_tx_queues + hw->tc_tx_queues) {
 		netdev_err(pfvf->netdev, "Send Queue is not a QoS queue\n");
