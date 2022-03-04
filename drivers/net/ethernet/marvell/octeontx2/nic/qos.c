@@ -390,40 +390,13 @@ static int otx2_qos_txschq_set_parent_topology(struct otx2_nic *pfvf,
 	return rc;
 }
 
-static void otx2_qos_txschq_stop(struct otx2_nic *pfvf, u16 lvl, u16 schq)
-{
-	struct nix_txsch_free_req *free_req;
-	int err;
-
-	mutex_lock(&pfvf->mbox.lock);
-
-	free_req = otx2_mbox_alloc_msg_nix_txsch_free(&pfvf->mbox);
-	if (!free_req) {
-		mutex_unlock(&pfvf->mbox.lock);
-		netdev_err(pfvf->netdev,
-			   "Failed alloc txschq free req\n");
-		return;
-	}
-
-	free_req->schq_lvl = lvl;
-	free_req->schq = schq;
-
-	err = otx2_sync_mbox_msg(&pfvf->mbox);
-	if (err) {
-		netdev_err(pfvf->netdev,
-			   "Failed stop txschq %d at level %d\n", lvl, schq);
-	}
-
-	mutex_unlock(&pfvf->mbox.lock);
-}
-
 static void otx2_qos_free_hw_node_schq(struct otx2_nic *pfvf,
 				       struct otx2_qos_node *parent)
 {
 	struct otx2_qos_node *node, *tmp;
 
 	list_for_each_entry_safe(node, tmp, &parent->child_schq_list, list)
-		otx2_qos_txschq_stop(pfvf, node->level, node->schq);
+		otx2_txschq_free_one(pfvf, node->level, node->schq);
 }
 
 static void otx2_qos_free_hw_node_static(struct otx2_nic *pfvf,
@@ -433,7 +406,7 @@ static void otx2_qos_free_hw_node_static(struct otx2_nic *pfvf,
 
 	list_for_each_entry_safe(node, tmp, &parent->child_list, list) {
 		otx2_qos_free_hw_node_static(pfvf, node);
-		otx2_qos_txschq_stop(pfvf, node->level, node->schq);
+		otx2_txschq_free_one(pfvf, node->level, node->schq);
 		otx2_qos_free_hw_node_schq(pfvf, node);
 	}
 }
@@ -445,7 +418,7 @@ static void otx2_qos_free_hw_node_dwrr(struct otx2_nic *pfvf,
 
 	list_for_each_entry_safe(node, tmp, &parent->child_dwrr_list, list) {
 		otx2_qos_free_hw_node_dwrr(pfvf, node);
-		otx2_qos_txschq_stop(pfvf, node->level, node->schq);
+		otx2_txschq_free_one(pfvf, node->level, node->schq);
 		otx2_qos_free_hw_node_schq(pfvf, node);
 	}
 }
@@ -460,7 +433,7 @@ static void otx2_qos_free_hw_cfg(struct otx2_nic *pfvf,
 	otx2_qos_free_hw_node_dwrr(pfvf, node);
 
 	/* free node hw mappings */
-	otx2_qos_txschq_stop(pfvf, node->level, node->schq);
+	otx2_txschq_free_one(pfvf, node->level, node->schq);
 
 	mutex_unlock(&pfvf->qos.qos_lock);
 }
@@ -1079,7 +1052,7 @@ static void otx2_qos_free_cfg(struct otx2_nic *pfvf, struct otx2_qos_cfg *cfg,
 		for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
 			for (idx = 0; idx < cfg->schq_contig[lvl]; idx++) {
 				schq = cfg->schq_contig_list[lvl][idx];
-				otx2_qos_txschq_stop(pfvf, lvl, schq);
+				otx2_txschq_free_one(pfvf, lvl, schq);
 			}
 		}
 	} else {
@@ -1087,7 +1060,7 @@ static void otx2_qos_free_cfg(struct otx2_nic *pfvf, struct otx2_qos_cfg *cfg,
 		for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
 			for (idx = 0; idx < cfg->schq[lvl]; idx++) {
 				schq = cfg->schq_list[lvl][idx];
-				otx2_qos_txschq_stop(pfvf, lvl, schq);
+				otx2_txschq_free_one(pfvf, lvl, schq);
 			}
 		}
 	}
@@ -1591,6 +1564,70 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 	otx2_qos_update_tx_netdev_queues(pfvf);
 
 	return 0;
+}
+
+static void otx2_qos_reinit_smq_schq(struct otx2_nic *pfvf,
+				     struct otx2_qos_node *node)
+{
+	struct otx2_qos_node *tmp;
+
+	if (node->qid == OTX2_QOS_QID_INNER)
+		return;
+
+	list_for_each_entry(tmp, &node->child_schq_list, list) {
+		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
+			if (tmp->mdq)
+				otx2_qos_enable_sq(pfvf, node->qid, tmp->mdq);
+		}
+	}
+}
+
+static void otx2_qos_reinit_smq_static(struct otx2_nic *pfvf,
+				       struct otx2_qos_node *node)
+{
+	struct otx2_qos_node *tmp;
+
+	list_for_each_entry(tmp, &node->child_list, list) {
+		if (tmp->qid == OTX2_QOS_QID_INNER)
+			continue;
+		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
+			if (tmp->mdq)
+				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
+		} else {
+			otx2_qos_reinit_smq_schq(pfvf, tmp);
+		}
+	}
+}
+
+static void otx2_qos_reinit_smq_dwrr(struct otx2_nic *pfvf,
+				     struct otx2_qos_node *node)
+{
+	struct otx2_qos_node *tmp;
+
+	list_for_each_entry(tmp, &node->child_dwrr_list, list) {
+		if (tmp->qid == OTX2_QOS_QID_INNER)
+			continue;
+		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
+			if (tmp->mdq)
+				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
+		} else {
+			otx2_qos_reinit_smq_schq(pfvf, tmp);
+		}
+	}
+}
+
+void otx2_reinit_qos_smq(struct otx2_nic *pfvf)
+{
+	struct otx2_qos_node *root;
+
+	root = otx2_sw_node_find(pfvf, OTX2_QOS_ROOT_CLASSID);
+	if (!root)
+		return;
+
+	mutex_lock(&pfvf->qos.qos_lock);
+	otx2_qos_reinit_smq_static(pfvf, root);
+	otx2_qos_reinit_smq_dwrr(pfvf, root);
+	mutex_unlock(&pfvf->qos.qos_lock);
 }
 
 int otx2_setup_tc_htb(struct net_device *ndev, struct tc_htb_qopt_offload *htb)
