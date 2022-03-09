@@ -60,7 +60,7 @@ static u64 otx2_qos_convert_rate(u64 rate)
 
 	/* convert bytes per second to Mbps */
 	converted_rate = rate * 8;
-	converted_rate = max_t(u32, rate / 1000000, 1);
+	converted_rate = max_t(u32, converted_rate / 1000000, 1);
 
 	return converted_rate;
 }
@@ -197,12 +197,28 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		}
 		num_regs++;
 
-		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-
 		/* configure PIR */
+		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
 		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
 		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_MDQX_PIR(node->schq);
+		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
+								 div_exp,
+								 burst_exp,
+							 burst_mantissa);
+		num_regs++;
+
+		/* configure CIR */
+		if (!test_bit(QOS_CIR_PIR_SUPPORT, &pfvf->hw.cap_flag)) {
+			/* Don't configure CIR when both CIR+PIR not supported
+			 * On 96xx, CIR + PIR + RED_ALGO=STALL causes deadlock
+			 */
+			goto txschq_cfg_out;
+		}
+
+		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
+		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
+		cfg->reg[num_regs] = NIX_AF_MDQX_CIR(node->schq);
 		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
 								 div_exp,
 								 burst_exp,
@@ -239,12 +255,28 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		}
 		num_regs++;
 
-		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-
 		/* configure PIR */
+		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
 		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
 		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL4X_PIR(node->schq);
+		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
+								 div_exp,
+								 burst_exp,
+							 burst_mantissa);
+		num_regs++;
+
+		/* configure CIR */
+		if (!test_bit(QOS_CIR_PIR_SUPPORT, &pfvf->hw.cap_flag)) {
+			/* Don't configure CIR when both CIR+PIR not supported
+			 * On 96xx, CIR + PIR + RED_ALGO=STALL causes deadlock
+			 */
+			goto txschq_cfg_out;
+		}
+
+		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
+		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
+		cfg->reg[num_regs] = NIX_AF_TL4X_CIR(node->schq);
 		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
 								 div_exp,
 								 burst_exp,
@@ -281,9 +313,15 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		}
 		num_regs++;
 
-		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
+		/* configure link cfg */
+		if (level == pfvf->qos.link_cfg_lvl) {
+			cfg->reg[num_regs] = NIX_AF_TL3_TL2X_LINKX_CFG(node->schq, hw->tx_link);
+			cfg->regval[num_regs] = BIT_ULL(13) | BIT_ULL(12);
+			num_regs++;
+		}
 
 		/* configure PIR */
+		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
 		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
 		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL3X_PIR(node->schq);
@@ -292,12 +330,23 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 								 burst_exp,
 							 burst_mantissa);
 		num_regs++;
-		/* configure link cfg */
-		if (level == pfvf->qos.link_cfg_lvl) {
-			cfg->reg[num_regs] = NIX_AF_TL3_TL2X_LINKX_CFG(node->schq, hw->tx_link);
-			cfg->regval[num_regs] = BIT_ULL(13) | BIT_ULL(12);
-			num_regs++;
+
+		/* configure CIR */
+		if (!test_bit(QOS_CIR_PIR_SUPPORT, &pfvf->hw.cap_flag)) {
+			/* Don't configure CIR when both CIR+PIR not supported
+			 * On 96xx, CIR + PIR + RED_ALGO=STALL causes deadlock
+			 */
+			goto txschq_cfg_out;
 		}
+
+		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
+		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
+		cfg->reg[num_regs] = NIX_AF_TL3X_CIR(node->schq);
+		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
+								 div_exp,
+								 burst_exp,
+							 burst_mantissa);
+		num_regs++;
 	} else if (level == NIX_TXSCH_LVL_TL2) {
 		/* configure parent txschq */
 		cfg->reg[num_regs] = NIX_AF_TL2X_PARENT(node->schq);
