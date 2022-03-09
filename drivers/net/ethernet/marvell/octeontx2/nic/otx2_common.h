@@ -236,6 +236,7 @@ struct otx2_hw {
 #define CN10K_LMTST		2
 #define CN10K_RPM		3
 #define CN10K_PTP_ONESTEP	4
+#define QOS_CIR_PIR_SUPPORT	5
 	unsigned long		cap_flag;
 
 #define LMT_LINE_SIZE		128
@@ -537,6 +538,7 @@ static inline void otx2_setup_dev_hw_settings(struct otx2_nic *pfvf)
 		__set_bit(CN10K_LMTST, &hw->cap_flag);
 		__set_bit(CN10K_RPM, &hw->cap_flag);
 		__set_bit(CN10K_PTP_ONESTEP, &hw->cap_flag);
+		__set_bit(QOS_CIR_PIR_SUPPORT, &hw->cap_flag);
 	}
 }
 
