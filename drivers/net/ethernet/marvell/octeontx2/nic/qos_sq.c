@@ -158,8 +158,7 @@ static int otx2_qos_sq_init(struct otx2_nic *pfvf, u16 qidx,
 	sq->stats.bytes = 0;
 	sq->stats.pkts = 0;
 
-	//chan_offset = qidx % pfvf->hw.tx_chan_cnt;
-	chan_offset = qidx % 1;
+	chan_offset = qidx % pfvf->hw.tx_chan_cnt;
 
 	if (test_bit(CN10K_LMTST, &pfvf->hw.cap_flag))
 		err = cn10k_qos_sq_aq_init(pfvf, qidx, chan_offset,
@@ -295,6 +294,8 @@ static void otx2_qos_sq_free_sqbs(struct otx2_nic *pfvf, int qidx)
 	kfree(sq->sg);
 	kfree(sq->sqb_ptrs);
 	qmem_free(pfvf->dev, sq->timestamps);
+
+	memset((void *)sq, 0, sizeof(*sq));
 }
 
 /* send queue id */
