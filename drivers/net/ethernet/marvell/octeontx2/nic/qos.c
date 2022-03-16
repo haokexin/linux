@@ -384,6 +384,10 @@ static int otx2_qos_update_tl1_topology(struct otx2_nic *pfvf, u16 tl2_schq)
 	if (pfvf->pcifunc & RVU_PFVF_FUNC_MASK)
 		return 0;
 
+	/* If the DOWN flag is set TLX nodes are already freed */
+	if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
+		return 0;
+
 	/* get the parent TL1x queue */
 	schq =  hw->txschq_list[NIX_TXSCH_LVL_TL1][0];
 
