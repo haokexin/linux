@@ -1183,6 +1183,7 @@ EXPORT_SYMBOL(otx2_set_real_num_queues);
 static irqreturn_t otx2_q_intr_handler(int irq, void *data)
 {
 	struct otx2_nic *pf = data;
+	struct otx2_snd_queue *sq;
 	u64 val, *ptr;
 	u64 qidx = 0;
 
@@ -1213,6 +1214,10 @@ static irqreturn_t otx2_q_intr_handler(int irq, void *data)
 
 	/* SQ */
 	for (qidx = 0; qidx < pf->hw.tot_tx_queues + pf->hw.tc_tx_queues; qidx++) {
+		sq = &pf->qset.sq[qidx];
+		if (!sq->sqb_ptrs)
+			continue;
+
 		ptr = otx2_get_regaddr(pf, NIX_LF_SQ_OP_INT);
 		val = otx2_atomic64_add((qidx << 44), ptr);
 		otx2_write64(pf, NIX_LF_SQ_OP_INT, (qidx << 44) |
