@@ -11307,6 +11307,13 @@ S:	Supported
 F:	drivers/net/ethernet/marvell/octeontx2/nic/
 F:	include/linux/soc/marvell/octeontx2/
 
+MARVELL OCTEONTX2 PEM ENDPOINT DRIVER
+M:	Radha Mohan Chintakuntla <radhac@marvell.com>
+M:	Veerasenareddy Burry <vburru@marvell.com>
+L:	linux-arm-kernel@lists.infradead.org
+S:	Supported
+F:	drivers/pci/controller/pcie-octeontx2-pem-ep.c
+
 MARVELL OCTEONTX2 RVU ADMIN FUNCTION DRIVER
 M:	Sunil Goutham <sgoutham@marvell.com>
 M:	Linu Cherian <lcherian@marvell.com>
