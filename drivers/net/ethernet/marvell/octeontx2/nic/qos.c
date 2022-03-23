@@ -417,6 +417,10 @@ static int otx2_qos_txschq_set_parent_topology(struct otx2_nic *pfvf,
 	struct nix_txschq_config *cfg;
 	int rc;
 
+	if (parent->level == NIX_TXSCH_LVL_MDQ ||
+	    parent->level == NIX_TXSCH_LVL_TL1)
+		return 0;
+
 	mutex_lock(&mbox->lock);
 
 	cfg = otx2_mbox_alloc_msg_nix_txschq_cfg(&pfvf->mbox);
@@ -1337,8 +1341,8 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 {
 	struct otx2_qos_cfg *old_cfg, *new_cfg;
 	struct otx2_qos_node *node, *parent;
+	int qid, ret, err;
 	bool static_cfg;
-	int qid, ret;
 
 	netdev_dbg(pfvf->netdev,
 		   "TC_HTB_LEAF_ALLOC_QUEUE: classid=0x%x parent_classid=0x%x rate=%lld ceil=%lld prio=%lld quantum=%lld\n",
@@ -1397,16 +1401,16 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 		kfree(new_cfg);
 		otx2_qos_sw_node_delete(pfvf, node);
 		/* restore the old qos tree */
-		ret = otx2_qos_txschq_update_config(pfvf, parent, old_cfg,
+		err = otx2_qos_txschq_update_config(pfvf, parent, old_cfg,
 						    parent->is_static ? true : false);
-		if (ret) {
+		if (err) {
 			netdev_err(pfvf->netdev,
 				   "Failed to restore txcshq configuration");
 			goto free_old_cfg;
 		}
-		ret = otx2_qos_update_smq(pfvf, parent,
+		err = otx2_qos_update_smq(pfvf, parent,
 					  parent->is_static ? true : false);
-		if (ret)
+		if (err)
 			netdev_err(pfvf->netdev,
 				   "Failed to restore smq configuration");
 		goto free_old_cfg;
@@ -1439,7 +1443,7 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 	struct otx2_qos_cfg *old_cfg, *new_cfg;
 	struct otx2_qos_node *node, *child;
 	bool static_cfg;
-	int ret;
+	int ret, err;
 	u16 qid;
 
 	netdev_dbg(pfvf->netdev,
@@ -1503,22 +1507,22 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 		otx2_qos_sw_node_delete(pfvf, child);
 		/* restore the old qos tree */
 		node->qid = qid;
-		ret = otx2_qos_alloc_txschq_node(pfvf, node);
-		if (ret) {
+		err = otx2_qos_alloc_txschq_node(pfvf, node);
+		if (err) {
 			netdev_err(pfvf->netdev,
 				   "Failed to restore old leaf node");
 			goto free_old_cfg;
 		}
-		ret = otx2_qos_txschq_update_config(pfvf, node, old_cfg,
+		err = otx2_qos_txschq_update_config(pfvf, node, old_cfg,
 						    node->is_static ? true : false);
-		if (ret) {
+		if (err) {
 			netdev_err(pfvf->netdev,
 				   "Failed to restore txcshq configuration");
 			goto free_old_cfg;
 		}
-		ret = otx2_qos_update_smq(pfvf, node,
+		err = otx2_qos_update_smq(pfvf, node,
 					  node->is_static ? true : false);
-		if (ret)
+		if (err)
 			netdev_err(pfvf->netdev,
 				   "Failed to restore smq configuration");
 		goto free_old_cfg;
