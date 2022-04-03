@@ -82,6 +82,20 @@
 #define GPIO_LEVEL_MASK_MV78200_OFF(cpu)  ((cpu) ? 0x34 : 0x1C)
 
 /*
+ * For Armada 7k & 8k, AP806 gpio interrupt is also managed by SoC interrupt
+ * registers besides its own gpio interrupt registers;
+ * Each SoC interrupt register bit manages 8 GPIOs: [0] - GPIO0-7 interrupt,
+ * [1] - GPIO8-15 interrupt, [2] - GPIO16-19 interrupt(AP806 has 20 GPIOs)
+ * and [31:3] - Reserved.
+ * SoC interrupt cause register type is RW0C;
+ * SoC interrupt mask register is active low (0 = Interrupt mask and
+ * 1 = Interrupt enable);
+ */
+#define SOC_INT_CAUSE_OFF       0x0000
+#define SOC_INT_MASK_OFF        0x0004
+#define SOC_INT_1BIT_GPIOS      8
+
+/*
  * The Armada XP has per-CPU registers for interrupt cause, interrupt
  * mask and interrupt level mask. Those are in percpu_regs range.
  */
@@ -115,6 +129,8 @@ struct mvebu_gpio_chip {
 	struct gpio_chip   chip;
 	struct regmap     *regs;
 	u32		   offset;
+	u32                soc_offset;
+	bool		   ap_gpio;
 	struct regmap     *percpu_regs;
 	int		   irqbase;
 	struct irq_domain *domain;
@@ -174,13 +190,19 @@ mvebu_gpio_read_edge_cause(struct mvebu_gpio_chip *mvchip)
 }
 
 static void
-mvebu_gpio_write_edge_cause(struct mvebu_gpio_chip *mvchip, u32 val)
+mvebu_gpio_write_edge_cause(struct irq_data *d, struct mvebu_gpio_chip *mvchip, u32 val)
 {
+	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
 	struct regmap *map;
 	unsigned int offset;
+	u32 mask;
 
 	mvebu_gpioreg_edge_cause(mvchip, &map, &offset);
 	regmap_write(map, offset, val);
+	if (mvchip->ap_gpio) {
+		mask = ~(1 << ((d->irq - gc->irq_base) / SOC_INT_1BIT_GPIOS));
+		regmap_write(map, mvchip->soc_offset + SOC_INT_CAUSE_OFF, mask);
+	}
 }
 
 static inline void
@@ -224,13 +246,33 @@ mvebu_gpio_read_edge_mask(struct mvebu_gpio_chip *mvchip)
 }
 
 static void
-mvebu_gpio_write_edge_mask(struct mvebu_gpio_chip *mvchip, u32 val)
+mvebu_gpio_write_edge_mask(struct irq_data *d, struct mvebu_gpio_chip *mvchip, u32 val, bool mask)
 {
+	struct irq_chip_generic *gc = irq_data_get_irq_chip_data(d);
+	struct irq_chip_type *ct = irq_data_get_chip_type(d);
 	struct regmap *map;
 	unsigned int offset;
 
 	mvebu_gpioreg_edge_mask(mvchip, &map, &offset);
 	regmap_write(map, offset, val);
+
+	if (mvchip->ap_gpio) {
+		u32 soc_int_bit = (d->irq - gc->irq_base) / SOC_INT_1BIT_GPIOS;
+		u32 reg;
+
+		regmap_read(map, mvchip->soc_offset, &reg);
+		/* Each SoC interrupt register bit manages 8 GPIOs and is active low */
+		if (mask) {
+			/* When the 8 GPIOs' interrupts are all masked, clear the SoC interrupt bit to mask it */
+			if (!(ct->mask_cache_priv & (0xff << soc_int_bit)))
+				reg &= ~(1 << soc_int_bit);
+		} else {
+			/* When other 7 GPIOs' interrupts are not unmasked, set the SoC interrupt bit to unmask it */
+			if ((ct->mask_cache_priv & (0xff << soc_int_bit)) == mask)
+				reg |= (1 << soc_int_bit);
+		}
+		regmap_write(map, offset + SOC_INT_MASK_OFF, reg);
+	}
 }
 
 static void
@@ -411,7 +453,7 @@ static void mvebu_gpio_irq_ack(struct irq_data *d)
 	u32 mask = d->mask;
 
 	irq_gc_lock(gc);
-	mvebu_gpio_write_edge_cause(mvchip, ~mask);
+	mvebu_gpio_write_edge_cause(d, mvchip, ~mask);
 	irq_gc_unlock(gc);
 }
 
@@ -424,7 +466,7 @@ static void mvebu_gpio_edge_irq_mask(struct irq_data *d)
 
 	irq_gc_lock(gc);
 	ct->mask_cache_priv &= ~mask;
-	mvebu_gpio_write_edge_mask(mvchip, ct->mask_cache_priv);
+	mvebu_gpio_write_edge_mask(d, mvchip, ct->mask_cache_priv, true);
 	irq_gc_unlock(gc);
 }
 
@@ -438,7 +480,7 @@ static void mvebu_gpio_edge_irq_unmask(struct irq_data *d)
 	irq_gc_lock(gc);
 	mvebu_gpio_write_edge_cause(mvchip, ~mask);
 	ct->mask_cache_priv |= mask;
-	mvebu_gpio_write_edge_mask(mvchip, ct->mask_cache_priv);
+	mvebu_gpio_write_edge_mask(d, mvchip, ct->mask_cache_priv, false);
 	irq_gc_unlock(gc);
 }
 
@@ -1111,6 +1153,10 @@ static int mvebu_gpio_probe_syscon(struct platform_device *pdev,
 
 	if (of_property_read_u32(pdev->dev.of_node, "offset", &mvchip->offset))
 		return -EINVAL;
+
+	mvchip->ap_gpio = true;
+	if (of_property_read_u32(pdev->dev.of_node, "soc_offset", &mvchip->soc_offset))
+		mvchip->ap_gpio = false;
 
 	return 0;
 }
