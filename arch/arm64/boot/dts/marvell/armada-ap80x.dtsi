@@ -277,6 +277,7 @@
 				ap_gpio: gpio@1040 {
 					compatible = "marvell,armada-8k-gpio";
 					offset = <0x1040>;
+					soc_offset = <0x328>;
 					ngpios = <20>;
 					gpio-controller;
 					#gpio-cells = <2>;
@@ -284,6 +285,10 @@
 					marvell,pwm-offset = <0x10c0>;
 					#pwm-cells = <2>;
 					clocks = <&ap_clk 3>;
+					gpiobase = <0>;
+					interrupt-controller;
+					#interrupt-cells = <2>;
+					interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>;
 				};
 			};
 
