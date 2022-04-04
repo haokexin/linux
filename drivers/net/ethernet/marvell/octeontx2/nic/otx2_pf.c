@@ -68,10 +68,6 @@ static int otx2_change_mtu(struct net_device *netdev, int new_mtu)
 	netdev_info(netdev, "Changing MTU from %d to %d\n",
 		    netdev->mtu, new_mtu);
 	netdev->mtu = new_mtu;
-	/* Modify receive buffer size based on MTU and do not
-	 * use the fixed size set.
-	 */
-	pf->hw.rbuf_fixed_size = 0;
 
 	if (if_up)
 		err = otx2_open(netdev);
