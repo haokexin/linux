@@ -539,4 +539,16 @@ config EDAC_DMC520
 	  Support for error detection and correction on the
 	  SoCs with ARM DMC-520 DRAM controller.
 
+config EDAC_OCTEONTX
+	bool "Marvell OcteonTX2 OcteonTX3 SoC memory EDAC"
+	select ARM_SDE_INTERFACE
+	select ACPI_APEI
+	select ACPI_APEI_GHES
+	select CRASH_DUMP
+	help
+	  Support for error detection correction and injection on the
+	  OcteonTX2 and OcteonTX3 SoCs.
+	  This will allow RAS errors that are detected to be reported
+	  This driver reports Single Bit Errors and Double Bit Errors.
+
 endif # EDAC
