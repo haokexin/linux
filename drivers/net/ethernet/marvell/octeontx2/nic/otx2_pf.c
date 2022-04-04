@@ -68,10 +68,6 @@ static int otx2_change_mtu(struct net_device *netdev, int new_mtu)
 	netdev_info(netdev, "Changing MTU from %d to %d\n",
 		    netdev->mtu, new_mtu);
 	netdev->mtu = new_mtu;
-	/* Modify receive buffer size based on MTU and do not
-	 * use the fixed size set.
-	 */
-	pf->hw.rbuf_fixed_size = 0;
 
 	if (if_up)
 		err = otx2_open(netdev);
@@ -1430,7 +1426,8 @@ static int otx2_get_rbuf_size(struct otx2_nic *pf, int mtu)
 	int rbuf_size;
 
 	if (pf->hw.rbuf_fixed_size)
-		return pf->hw.rbuf_fixed_size;
+		return ALIGN(pf->hw.rbuf_fixed_size, OTX2_ALIGN) +
+			OTX2_HEAD_ROOM;
 
 	/* The data transferred by NIX to memory consists of actual packet
 	 * plus additional data which has timestamp and/or EDSA/HIGIG2
@@ -2841,6 +2838,7 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	hw->tx_queues = qcount;
 	hw->tot_tx_queues = qcount;
 	hw->max_queues = qcount;
+	hw->rbuf_fixed_size = OTX2_DEFAULT_RBUF_LEN;
 	/* Use CQE of 128 byte descriptor size by default */
 	hw->xqe_size = 128;
 
