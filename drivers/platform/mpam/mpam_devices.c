@@ -894,6 +894,7 @@ static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 	u16 dspri = GENMASK(rprops->dspri_wd, 0);
 	u16 intpri = GENMASK(rprops->intpri_wd, 0);
 	u16 bwa_fract = GENMASK(15, rprops->bwa_wd);
+	u16 minval;
 
 	lockdep_assert_preemption_disabled(); /* don't migrate to another CPU */
 	assert_spin_locked(&msc->lock);
@@ -921,8 +922,24 @@ static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 					      rprops->mbw_pbm_bits);
 	}
 
-	if (mpam_has_feature(mpam_feat_mbw_min, rprops))
-		mpam_write_reg(msc, MPAMCFG_MBW_MIN, (0x3<<8));
+	if (mpam_has_feature(mpam_feat_mbw_min, rprops)) {
+		/*
+		 * By keeping a difference of 5% between MBW_MAX and
+		 * MBW_MIN, we ensure that service requests from high
+		 * priority applications are served with HIGH preference.
+		 * Also, this percentage calculation (-5%) does not work
+		 * well when configured bandwidth percentage is low say,
+		 * 5%. So, let's just fixed it at constant value 0x3
+		 * (~2% bandwidth).
+		 */
+		if (cfg->mbw_max <= 10)
+			minval = 0x3;
+		else
+			/* if mbw_max is x%, mbw_min is (x-5)% */
+			minval = (cfg->mbw_max-((5*0xff)/100));
+
+		mpam_write_reg(msc, MPAMCFG_MBW_MIN, (minval<<8));
+	}
 
 	if (mpam_has_feature(mpam_feat_mbw_max, rprops)) {
 		if (mpam_has_feature(mpam_feat_mbw_max, cfg))
