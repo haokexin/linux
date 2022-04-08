@@ -82,7 +82,7 @@ config IMX8_MEDIA_DEVICE
 
 config IMX8_PARALLEL_CSI
 	tristate "IMX8 Parallel Capture Controller"
-	depends on VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on VIDEO_DEV && VIDEO_V4L2_SUBDEV_API
 	default y
 	help
 	  Enable support for video4linux parallel camera sensor interface
