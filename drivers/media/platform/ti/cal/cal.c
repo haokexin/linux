@@ -641,10 +641,6 @@ static inline void cal_irq_wdma_start(struct cal_ctx *ctx)
 static inline void cal_irq_wdma_end(struct cal_ctx *ctx)
 {
 	struct cal_buffer *buf = NULL;
-	u32 frame_num;
-
-	frame_num = cal_read(ctx->cal, CAL_CSI2_STATUS(ctx->phy->instance,
-						       ctx->csi2_ctx)) & 0xffff;
 
 	spin_lock(&ctx->dma.lock);
 
