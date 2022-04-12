@@ -384,6 +384,18 @@ config VIDEO_OV13B10
 	  This is a Video4Linux2 sensor driver for the OmniVision
 	  OV13B10 camera.
 
+config VIDEO_IMX390
+	tristate "Sony IMX390 sensor support"
+	depends on I2C
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX390 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx390.
+
 config VIDEO_OV2640
 	tristate "OmniVision OV2640 sensor support"
 	depends on VIDEO_DEV && I2C
@@ -771,7 +783,7 @@ config VIDEO_SR030PC30
 
 config VIDEO_OV1063X
 	tristate "OmniVision OV1063X sensor support"
-	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on I2C && VIDEO_V4L2_SUBDEV_API
 	depends on MEDIA_CAMERA_SUPPORT && OF && GPIOLIB
 	select V4L2_FWNODE
 	help
