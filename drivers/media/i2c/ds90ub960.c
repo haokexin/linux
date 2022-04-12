@@ -1282,6 +1282,9 @@ static int ub960_start_streaming(struct ub960_data *priv)
 	default:
 		speed_select = 0;
 		break;
+	case 1200000000:
+		speed_select = 1;
+		break;
 	case 800000000:
 		speed_select = 2;
 		break;
@@ -1910,6 +1913,7 @@ static int ub960_parse_dt(struct ub960_data *priv)
 	}
 
 	if (priv->tx_data_rate != 1600000000 &&
+	    priv->tx_data_rate != 1200000000 &&
 	    priv->tx_data_rate != 800000000 &&
 	    priv->tx_data_rate != 400000000) {
 		dev_err(dev, "OF: %s: invalid \"data-rate\" node\n",
@@ -2031,7 +2035,7 @@ static int ub960_v4l2_notifier_register(struct ub960_data *priv)
 
 		asd = v4l2_async_notifier_add_fwnode_subdev(&priv->notifier,
 							    rxport->fwnode,
-							    sizeof(*ubasd));
+							    struct v4l2_async_subdev);
 		if (IS_ERR(asd)) {
 			dev_err(dev, "Failed to add subdev for source %u: %ld",
 				i, PTR_ERR(asd));
