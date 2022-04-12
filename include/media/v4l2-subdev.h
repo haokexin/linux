@@ -729,6 +729,19 @@ struct v4l2_subdev_stream_configs {
 };
 
 /**
+ * struct v4l2_subdev_krouting - subdev routing table
+ *
+ * @num_routes: number of routes
+ * @routes: &struct v4l2_subdev_route
+ *
+ * This structure contains the routing table for a subdev.
+ */
+struct v4l2_subdev_krouting {
+        unsigned int num_routes;
+        struct v4l2_subdev_route *routes;
+};
+
+/**
  * struct v4l2_subdev_state - Used for storing subdev state information.
  *
  * @_lock: default for 'lock'
@@ -1436,6 +1449,20 @@ v4l2_subdev_lock_and_get_active_state(struct v4l2_subdev *sd)
  */
 int v4l2_subdev_get_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
 			struct v4l2_subdev_format *format);
+
+/**
+ * v4l2_routing_simple_verify() - Verify that all streams are non-overlapping
+ *				  1-to-1 streams
+ * @routing: routing to verify
+ *
+ * This verifies that the given routing contains only non-overlapping 1-to-1
+ * streams. In other words, no two streams have the same source or sink
+ * stream ID on a single pad. This is the most common case of routing
+ * supported by devices.
+ *
+ * Returns 0 on success, error value otherwise.
+ */
+int v4l2_routing_simple_verify(const struct v4l2_subdev_krouting *routing);
 
 #endif /* CONFIG_VIDEO_V4L2_SUBDEV_API */
 
