@@ -454,10 +454,9 @@ subdev_ioctl_get_state(struct v4l2_subdev *sd, struct v4l2_subdev_fh *subdev_fh,
 	case VIDIOC_SUBDEV_S_SELECTION:
 		which = ((struct v4l2_subdev_selection *)arg)->which;
 		break;
-	}
 
 	case VIDIOC_SUBDEV_G_ROUTING:
-	case VIDIOC_SUBDEV_S_ROUTING: {
+	case VIDIOC_SUBDEV_S_ROUTING:
 		which = ((struct v4l2_subdev_routing *)arg)->which;
 		break;
 	}
@@ -482,7 +481,9 @@ static long subdev_do_ioctl(struct file *file, unsigned int cmd, void *arg,
 
 		memset(cap->reserved, 0, sizeof(cap->reserved));
 		cap->version = LINUX_VERSION_CODE;
-		cap->capabilities = ro_subdev ? V4L2_SUBDEV_CAP_RO_SUBDEV : 0;
+		cap->capabilities =
+			(ro_subdev ? V4L2_SUBDEV_CAP_RO_SUBDEV : 0) |
+			((sd->flags & V4L2_SUBDEV_FL_MULTIPLEXED) ? V4L2_SUBDEV_CAP_MPLEXED : 0);
 
 		return 0;
 	}
@@ -1140,7 +1141,7 @@ static int v4l2_link_validate_get_streams(struct media_link *link,
 		return 0;
 	}
 
-	state = v4l2_subdev_lock_active_state(subdev);
+	state = v4l2_subdev_get_locked_active_state(subdev);
 
 	routing = &state->routing;
 
@@ -1321,7 +1322,7 @@ bool v4l2_subdev_has_route(struct media_entity *entity, unsigned int pad0,
 	unsigned int i;
 	struct v4l2_subdev_state *state;
 
-	state = v4l2_subdev_lock_active_state(sd);
+	state = v4l2_subdev_get_locked_active_state(sd);
 
 	routing = &state->routing;
 
