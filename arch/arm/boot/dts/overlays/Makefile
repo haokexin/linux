@@ -25,6 +25,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	applepi-dac.dtbo \
 	at86rf233.dtbo \
 	audioinjector-addons.dtbo \
+	audioinjector-bare-i2s.dtbo \
 	audioinjector-isolated-soundcard.dtbo \
 	audioinjector-ultra.dtbo \
 	audioinjector-wm8731-audio.dtbo \
@@ -98,6 +99,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	i2s-gpio28-31.dtbo \
 	ilitek251x.dtbo \
 	imx219.dtbo \
+	imx258.dtbo \
 	imx290.dtbo \
 	imx378.dtbo \
 	imx477.dtbo \
@@ -135,6 +137,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	midi-uart5.dtbo \
 	minipitft13.dtbo \
 	miniuart-bt.dtbo \
+	mipi-dbi-spi.dtbo \
 	mlx90640.dtbo \
 	mmc.dtbo \
 	mpu6050.dtbo \

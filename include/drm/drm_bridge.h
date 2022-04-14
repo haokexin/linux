@@ -718,14 +718,6 @@ enum drm_bridge_ops {
 	 * this flag shall implement the &drm_bridge_funcs->get_modes callback.
 	 */
 	DRM_BRIDGE_OP_MODES = BIT(3),
-	/**
-	 * @DRM_BRIDGE_OP_UPSTREAM_FIRST: The bridge can requires
-	 * that the upstream node pre_enable is called before its pre_enable,
-	 * and conversely for post_disables. This is most frequently a
-	 * requirement for DSI devices which need the host to be initialised
-	 * before them.
-	 */
-	DRM_BRIDGE_OP_UPSTREAM_FIRST = BIT(4),
 };
 
 /**
@@ -769,6 +761,14 @@ struct drm_bridge {
 	 * modes.
 	 */
 	bool interlace_allowed;
+	/**
+	 * @pre_enable_upstream_first: The bridge requires that the upstream
+	 * bridge @pre_enable function is called before its @pre_enable,
+	 * and conversely for post_disable. This is most frequently a
+	 * requirement for DSI devices which need the host to be initialised
+	 * before the peripheral.
+	 */
+	bool pre_enable_upstream_first;
 	/**
 	 * @ddc: Associated I2C adapter for DDC access, if any.
 	 */
