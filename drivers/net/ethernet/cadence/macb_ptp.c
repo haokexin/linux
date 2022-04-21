@@ -480,7 +480,7 @@ int gem_set_hwtst(struct net_device *dev, struct ifreq *ifr, int cmd)
 		break;
 	case HWTSTAMP_TX_ON:
 		gem_ptp_set_one_step_sync(bp, 0);
-		tx_bd_control = TSTAMP_ALL_PTP_FRAMES;
+		tx_bd_control = TSTAMP_ALL_FRAMES;
 		break;
 	default:
 		return -ERANGE;
