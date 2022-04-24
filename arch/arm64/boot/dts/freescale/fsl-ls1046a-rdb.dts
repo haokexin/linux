@@ -149,7 +149,7 @@
 
 	ethernet@f0000 { /* 10GEC1 */
 		phy-handle = <&aqr106_phy>;
-		phy-connection-type = "xgmii";
+		phy-connection-type = "usxgmii";
 	};
 
 	ethernet@f2000 { /* 10GEC2 */
