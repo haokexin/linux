@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Device Tree Include file for Freescale Layerscape-1026A family SoC.
+ *
+ * Copyright 2021-2023 Wind River Systems, Inc.
+ *
+ */
+
+#include "fsl-ls1046a-rdb-usdpaa.dts"
+
+/ {
+	cpus {
+		cpu@2 {
+			status = "disabled";
+		};
+
+		cpu@3 {
+			status = "disabled";
+		};
+	};
+
+	pmu {
+		interrupts = <0 106 0x4>,
+			     <0 107 0x4>;
+		interrupt-affinity = <&cpu0>,
+				     <&cpu1>;
+	};
+
+	thermal-zones {
+		core-cluster {
+			cooling-maps {
+				map0 {
+					cooling-device =
+						<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+						<&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
+};
