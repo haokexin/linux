@@ -2955,7 +2955,8 @@ static int dpaa_phy_init(struct net_device *net_dev)
 
 	phy_vendor = phy_dev->drv->phy_id & GENMASK(31, 10);
 	/* Unless the PHY is capable of rate adaptation */
-	if (mac_dev->phy_if != PHY_INTERFACE_MODE_XGMII ||
+	if ((mac_dev->phy_if != PHY_INTERFACE_MODE_XGMII &&
+		mac_dev->phy_if != PHY_INTERFACE_MODE_USXGMII) ||
 	    (phy_vendor != PHY_VEND_AQUANTIA &&
 	     phy_vendor != PHY_VEND_AQUANTIA2)) {
 		/* remove any features not supported by the controller */
