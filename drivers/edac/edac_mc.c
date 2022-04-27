@@ -976,6 +976,7 @@ void edac_mc_handle_error(const enum hw_event_mc_err_type type,
 	/* need valid strings here for both: */
 	e->msg = msg ?: "";
 	e->other_detail = other_detail ?: "";
+	e->grain = 1;
 
 	/*
 	 * Check if the event report is consistent and if the memory location is
