@@ -49,6 +49,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-am642-evm-nand.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am642-sk.dtb
 
 dtb-$(CONFIG_ARCH_K3) += k3-am625-sk.dtb
+dtb-$(CONFIG_ARCH_K3) += k3-am625-skeleton.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-am625-sk-csi2-ov5640.dtbo
 
 dtb-$(CONFIG_ARCH_K3) += k3-am62a7-sk.dtb
