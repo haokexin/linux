@@ -23,26 +23,6 @@
 			SYNC_FILE_RANGE_WAIT_AFTER)
 
 /*
- * Do the filesystem syncing work. For simple filesystems
- * writeback_inodes_sb(sb) just dirties buffers with inodes so we have to
- * submit IO for these buffers via __sync_blockdev(). This also speeds up the
- * wait == 1 case since in that case write_inode() functions do
- * sync_dirty_buffer() and thus effectively write one block at a time.
- */
-int __sync_filesystem(struct super_block *sb, int wait)
-{
-	if (wait)
-		sync_inodes_sb(sb);
-	else
-		writeback_inodes_sb(sb, WB_REASON_SYNC);
-
-	if (sb->s_op->sync_fs)
-		sb->s_op->sync_fs(sb, wait);
-	return __sync_blockdev(sb->s_bdev, wait);
-}
-EXPORT_SYMBOL_GPL(__sync_filesystem);
-
-/*
  * Write out and wait upon all dirty data associated with this
  * superblock.  Filesystem data as well as the underlying block
  * device.  Takes the superblock lock.
