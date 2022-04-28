@@ -176,7 +176,7 @@ void nf_ct_destroy(struct nf_conntrack *nfct);
 /* decrement reference count on a conntrack */
 static inline void nf_ct_put(struct nf_conn *ct)
 {
-	if (ct && atomic_dec_and_test(&ct->ct_general.use))
+	if (ct && refcount_dec_and_test(&ct->ct_general.use))
 		nf_ct_destroy(&ct->ct_general);
 }
 
