@@ -470,6 +470,17 @@
 					};
 				};
 
+				pruss1_iep: iep@2e000 {
+					compatible = "ti,am3356-icss-iep";
+					reg = <0x2e000 0x31c>;
+					clocks = <&pruss1_iepclk_mux>;
+				};
+
+				pruss1_ecap: ecap@30000 {
+					compatible = "ti,pruss-ecap";
+					reg = <0x30000 0x60>;
+				};
+
 				pruss1_mii_rt: mii-rt@32000 {
 					compatible = "ti,pruss-mii", "syscon";
 					reg = <0x32000 0x58>;
@@ -501,6 +512,9 @@
 					      <0x22400 0x100>;
 					reg-names = "iram", "control", "debug";
 					firmware-name = "am437x-pru1_0-fw";
+					interrupt-parent = <&pruss1_intc>;
+					interrupts = <16 2 2>;
+					interrupt-names = "vring";
 				};
 
 				pru1_1: pru@38000 {
@@ -510,6 +524,9 @@
 					      <0x24400 0x100>;
 					reg-names = "iram", "control", "debug";
 					firmware-name = "am437x-pru1_1-fw";
+					interrupt-parent = <&pruss1_intc>;
+					interrupts = <18 3 3>;
+					interrupt-names = "vring";
 				};
 
 				pruss1_mdio: mdio@32400 {
@@ -556,6 +573,13 @@
 					};
 				};
 
+				pruss0_iep: iep@6e000 {
+					compatible = "ti,am3356-icss-iep";
+					reg = <0x6e000 0x31c>;
+					clocks = <&pruss0_iepclk_mux>;
+					status = "disabled";
+				};
+
 				pruss0_mii_rt: mii-rt@72000 {
 					compatible = "ti,pruss-mii", "syscon";
 					reg = <0x72000 0x58>;
@@ -588,6 +612,9 @@
 					      <0x62400 0x100>;
 					reg-names = "iram", "control", "debug";
 					firmware-name = "am437x-pru0_0-fw";
+					interrupt-parent = <&pruss0_intc>;
+					interrupts = <16 2 2>;
+					interrupt-names = "vring";
 				};
 
 				pru0_1: pru@78000 {
@@ -597,6 +624,9 @@
 					      <0x64400 0x100>;
 					reg-names = "iram", "control", "debug";
 					firmware-name = "am437x-pru0_1-fw";
+					interrupt-parent = <&pruss0_intc>;
+					interrupts = <18 3 3>;
+					interrupt-names = "vring";
 				};
 			};
 		};
@@ -717,6 +747,14 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges = <0 0x56000000 0x1000000>;
+
+			gpu: gpu@0 {
+				compatible = "ti,am4376-sgx530", "img,sgx530";
+				reg = <0x0 0x10000>;
+				interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&gfx_fck_div_ck>;
+				clock-names = "fclk";
+			};
 		};
 	};
 };

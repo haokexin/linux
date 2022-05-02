@@ -435,6 +435,13 @@ config DW_XDATA_PCIE
 
 	  If unsure, say N.
 
+config SRAM_DMA_HEAP
+	bool "Export on-chip SRAM pools using DMA-Heaps"
+	depends on SRAM
+	help
+	  This driver allows the export of on-chip SRAM marked as exportable
+	  to userspace using the DMA-Heaps interface.
+
 config PCI_ENDPOINT_TEST
 	depends on PCI
 	select CRC32
@@ -469,6 +476,11 @@ config HISI_HIKEY_USB
 	  found on HiKey 960/970 boards, which is necessary to support
 	  switching between the dual-role USB-C port and the USB-A host ports
 	  using only one USB controller.
+
+config DMA_BUF_PHYS
+	tristate "DMA-BUF physical address user-space exporter"
+	help
+	  Exports CPU physical address of DMA-BUF to user-space.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

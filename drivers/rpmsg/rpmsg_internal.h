@@ -53,6 +53,7 @@ struct rpmsg_device_ops {
  * @trysendto:		see @rpmsg_trysendto(), optional
  * @trysend_offchannel:	see @rpmsg_trysend_offchannel(), optional
  * @poll:		see @rpmsg_poll(), optional
+ * @get_mtu:		see @rpmsg_get_mtu(), optional
  *
  * Indirection table for the operations that a rpmsg backend should implement.
  * In addition to @destroy_ept, the backend must at least implement @send and
@@ -72,6 +73,44 @@ struct rpmsg_endpoint_ops {
 			     void *data, int len);
 	__poll_t (*poll)(struct rpmsg_endpoint *ept, struct file *filp,
 			     poll_table *wait);
+	ssize_t (*get_mtu)(struct rpmsg_endpoint *ept);
+};
+/**
+ * struct virtproc_info - virtual remote processor state
+ * @vdev:       the virtio device
+ * @rvq:        rx virtqueue
+ * @svq:        tx virtqueue
+ * @rbufs:      kernel address of rx buffers
+ * @sbufs:      kernel address of tx buffers
+ * @num_bufs:   total number of buffers for rx and tx
+ * @buf_size:   size of one rx or tx buffer
+ * @last_sbuf:  index of last tx buffer used
+ * @bufs_dma:   dma base addr of the buffers
+ * @tx_lock:    protects svq, sbufs and sleepers, to allow concurrent senders.
+ *              sending a message might require waking up a dozing remote
+ *              processor, which involves sleeping, hence the mutex.
+ * @endpoints:  idr of local endpoints, allows fast retrieval
+ * @endpoints_lock: lock of the endpoints set
+ * @sendq:      wait queue of sending contexts waiting for a tx buffers
+ * @sleepers:   number of senders that are waiting for a tx buffer
+ *
+ * This structure stores the rpmsg state of a given virtio remote processor
+ * device (there might be several virtio proc devices for each physical
+ * remote processor).
+ */
+struct virtproc_info {
+        struct virtio_device *vdev;
+        struct virtqueue *rvq, *svq;
+        void *rbufs, *sbufs;
+        unsigned int num_bufs;
+        unsigned int buf_size;
+        int last_sbuf;
+        dma_addr_t bufs_dma;
+        struct mutex tx_lock;
+        struct idr endpoints;
+        struct mutex endpoints_lock;
+        wait_queue_head_t sendq;
+        atomic_t sleepers;
 };
 
 struct device *rpmsg_find_device(struct device *parent,

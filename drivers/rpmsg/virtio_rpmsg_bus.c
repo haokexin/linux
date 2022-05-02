@@ -31,44 +31,6 @@
 
 #include "rpmsg_internal.h"
 
-/**
- * struct virtproc_info - virtual remote processor state
- * @vdev:	the virtio device
- * @rvq:	rx virtqueue
- * @svq:	tx virtqueue
- * @rbufs:	kernel address of rx buffers
- * @sbufs:	kernel address of tx buffers
- * @num_bufs:	total number of buffers for rx and tx
- * @buf_size:   size of one rx or tx buffer
- * @last_sbuf:	index of last tx buffer used
- * @bufs_dma:	dma base addr of the buffers
- * @tx_lock:	protects svq, sbufs and sleepers, to allow concurrent senders.
- *		sending a message might require waking up a dozing remote
- *		processor, which involves sleeping, hence the mutex.
- * @endpoints:	idr of local endpoints, allows fast retrieval
- * @endpoints_lock: lock of the endpoints set
- * @sendq:	wait queue of sending contexts waiting for a tx buffers
- * @sleepers:	number of senders that are waiting for a tx buffer
- *
- * This structure stores the rpmsg state of a given virtio remote processor
- * device (there might be several virtio proc devices for each physical
- * remote processor).
- */
-struct virtproc_info {
-	struct virtio_device *vdev;
-	struct virtqueue *rvq, *svq;
-	void *rbufs, *sbufs;
-	unsigned int num_bufs;
-	unsigned int buf_size;
-	int last_sbuf;
-	dma_addr_t bufs_dma;
-	struct mutex tx_lock;
-	struct idr endpoints;
-	struct mutex endpoints_lock;
-	wait_queue_head_t sendq;
-	atomic_t sleepers;
-};
-
 /* The feature bitmap for virtio rpmsg */
 #define VIRTIO_RPMSG_F_NS	0 /* RP supports name service notifications */
 
@@ -149,6 +111,8 @@ static int virtio_rpmsg_trysendto(struct rpmsg_endpoint *ept, void *data,
 				  int len, u32 dst);
 static int virtio_rpmsg_trysend_offchannel(struct rpmsg_endpoint *ept, u32 src,
 					   u32 dst, void *data, int len);
+static ssize_t virtio_rpmsg_get_mtu(struct rpmsg_endpoint *ept);
+
 static struct rpmsg_device *__rpmsg_create_channel(struct virtproc_info *vrp,
 						   struct rpmsg_channel_info *chinfo);
 
@@ -160,6 +124,7 @@ static const struct rpmsg_endpoint_ops virtio_endpoint_ops = {
 	.trysend = virtio_rpmsg_trysend,
 	.trysendto = virtio_rpmsg_trysendto,
 	.trysend_offchannel = virtio_rpmsg_trysend_offchannel,
+	.get_mtu = virtio_rpmsg_get_mtu,
 };
 
 /**
@@ -380,6 +345,24 @@ static void virtio_rpmsg_release_device(struct device *dev)
 	kfree(vch);
 }
 
+static int virtio_rpmsg_desc_match(struct device *dev, void *data)
+{
+	struct rpmsg_channel_info *chinfo = data;
+	struct rpmsg_device *rpdev = to_rpmsg_device(dev);
+
+	if (!*chinfo->desc)
+		return 0;
+
+	if (strncmp(chinfo->name, rpdev->id.name, RPMSG_NAME_SIZE))
+		return 0;
+
+	if (strncmp(chinfo->desc, rpdev->desc, RPMSG_NAME_SIZE))
+		return 0;
+
+	/* found a match ! */
+	return 1;
+}
+
 /*
  * create an rpmsg channel using its name and address info.
  * this function will be used to create both static and dynamic
@@ -400,6 +383,15 @@ static struct rpmsg_device *__rpmsg_create_channel(struct virtproc_info *vrp,
 		put_device(tmp);
 		dev_err(dev, "channel %s:%x:%x already exist\n",
 				chinfo->name, chinfo->src, chinfo->dst);
+		return NULL;
+	}
+
+	tmp = device_find_child(dev, chinfo, virtio_rpmsg_desc_match);
+	if (tmp) {
+		/* decrement the matched device's refcount back */
+		put_device(tmp);
+		dev_err(dev, "channel %s:%x:%x failed, desc '%s' already exists\n",
+			chinfo->name, chinfo->src, chinfo->dst, chinfo->desc);
 		return NULL;
 	}
 
@@ -694,6 +686,14 @@ static int virtio_rpmsg_trysend_offchannel(struct rpmsg_endpoint *ept, u32 src,
 	struct rpmsg_device *rpdev = ept->rpdev;
 
 	return rpmsg_send_offchannel_raw(rpdev, src, dst, data, len, false);
+}
+
+static ssize_t virtio_rpmsg_get_mtu(struct rpmsg_endpoint *ept)
+{
+	struct rpmsg_device *rpdev = ept->rpdev;
+	struct virtio_rpmsg_channel *vch = to_virtio_rpmsg_channel(rpdev);
+
+	return vch->vrp->buf_size - sizeof(struct rpmsg_hdr);
 }
 
 static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,

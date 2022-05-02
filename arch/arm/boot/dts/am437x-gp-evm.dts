@@ -1122,3 +1122,8 @@
 &pruss1_mdio {
 	status = "disabled";
 };
+
+&wkup_m3_ipc {
+	ti,set-io-isolation;
+	ti,scale-data-fw = "am43x-evm-scale-data.bin";
+};

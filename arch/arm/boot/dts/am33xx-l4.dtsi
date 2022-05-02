@@ -889,6 +889,25 @@
 					};
 				};
 
+				pruss_uart: serial@28000 {
+					compatible = "ti,pruss-uart";
+					reg = <0x28000 0x38>;
+					clocks = <&dpll_per_m2_ck>;
+					interrupt-parent = <&pruss_intc>;
+					status = "disabled";
+				};
+
+				pruss_iep: iep@2e000 {
+					compatible = "ti,am3356-icss-iep";
+					reg = <0x2e000 0x31c>;
+					clocks = <&pruss_iepclk_mux>;
+				};
+
+				pruss_ecap: ecap@30000 {
+					compatible = "ti,pruss-ecap";
+					reg = <0x30000 0x60>;
+				};
+
 				pruss_mii_rt: mii-rt@32000 {
 					compatible = "ti,pruss-mii", "syscon";
 					reg = <0x32000 0x58>;
@@ -913,6 +932,9 @@
 					      <0x22400 0x100>;
 					reg-names = "iram", "control", "debug";
 					firmware-name = "am335x-pru0-fw";
+					interrupt-parent = <&pruss_intc>;
+					interrupts = <16 2 2>;
+					interrupt-names = "vring";
 				};
 
 				pru1: pru@38000 {
@@ -922,6 +944,9 @@
 					      <0x24400 0x100>;
 					reg-names = "iram", "control", "debug";
 					firmware-name = "am335x-pru1-fw";
+					interrupt-parent = <&pruss_intc>;
+					interrupts = <18 3 3>;
+					interrupt-names = "vring";
 				};
 
 				pruss_mdio: mdio@32400 {
