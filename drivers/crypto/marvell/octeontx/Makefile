@@ -6,4 +6,4 @@ octeontx-cpt-objs := otx_cptpf_main.o otx_cptpf_mbox.o otx_cptpf_ucode.o    \
 octeontx-cptvf-objs := otx_cptvf_main.o otx_cptvf_mbox.o otx_cptvf_reqmgr.o \
 		       otx_cptvf_algs.o
 
-ccflags-y += -I$(src)/../../../net/ethernet/cavium/octeontx-83xx
+ccflags-y += -I$(srctree)/drivers/net/ethernet/cavium/octeontx-83xx
