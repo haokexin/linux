@@ -117,6 +117,7 @@ struct evsel {
 	bool			merged_stat;
 	bool			reset_group;
 	bool			errored;
+	bool			needs_auxtrace_mmap;
 	struct hashmap		*per_pkg_mask;
 	int			err;
 	int			cpu_iter;
