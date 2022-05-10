@@ -54,6 +54,8 @@ struct otx2_qos_node {
 	bool is_static;
 	bool first_static;
 	u16 prio_anchor;
+	u16 child_dwrr_prio;
+	u16 child_dwrr_cnt;
 	/* list management */
 	struct hlist_node hlist;
 	struct otx2_qos_node *parent;	/* parent qos node */
