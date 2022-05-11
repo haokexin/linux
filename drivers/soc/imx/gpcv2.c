@@ -216,12 +216,6 @@ static int imx_gpc_pu_pgc_sw_pup_req(struct generic_pm_domain *genpd)
 	return imx_gpc_pu_pgc_sw_pxx_req(genpd, true);
 }
 
-static int imx_pgc_power_down(struct generic_pm_domain *genpd)
-{
-	return imx_gpc_pu_pgc_sw_pxx_req(genpd, true);
-
-}
-
 static int imx_gpc_pu_pgc_sw_pdn_req(struct generic_pm_domain *genpd)
 {
 	return imx_gpc_pu_pgc_sw_pxx_req(genpd, false);
