@@ -287,6 +287,13 @@ struct refill_work {
 	struct otx2_nic *pf;
 };
 
+/* PTPv2 originTimestamp structure */
+struct ptpv2_tstamp {
+	u16 seconds_msb; /* 16 bits + */
+	u32 seconds_lsb; /* 32 bits = 48 bits*/
+	u32 nanoseconds;
+} __packed;
+
 struct otx2_ptp {
 	struct ptp_clock_info ptp_info;
 	struct ptp_clock *ptp_clock;
@@ -304,7 +311,8 @@ struct otx2_ptp {
 	u64 (*convert_rx_ptp_tstmp)(u64 timestamp);
 	u64 (*convert_tx_ptp_tstmp)(u64 timestamp);
 	struct delayed_work synctstamp_work;
-	u64  tstamp;
+	u64 tstamp;
+	u32 base_ns;
 };
 
 #define OTX2_HW_TIMESTAMP_LEN	8
