@@ -1159,33 +1159,17 @@
 				reg = <0x30a70000 0x1000>;
 				interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&clk IMX8MQ_CLK_CSI1_CORE>,
-				   <&clk IMX8MQ_CLK_CSI1_ESC>,
-				   <&clk IMX8MQ_CLK_CSI1_PHY_REF>;
-				clock-names = "core", "esc", "ui";
 						<&clk IMX8MQ_CLK_CSI1_ESC>,
 						<&clk IMX8MQ_CLK_CSI1_PHY_REF>;
 				clock-names = "clk_core", "clk_esc", "clk_pxl";
 				assigned-clocks = <&clk IMX8MQ_CLK_CSI1_CORE>,
-				    <&clk IMX8MQ_CLK_CSI1_PHY_REF>,
-				    <&clk IMX8MQ_CLK_CSI1_ESC>;
-				assigned-clock-rates = <266000000>, <333000000>, <66000000>;
-				assigned-clock-parents = <&clk IMX8MQ_SYS1_PLL_266M>,
-					<&clk IMX8MQ_SYS2_PLL_1000M>,
-					<&clk IMX8MQ_SYS1_PLL_800M>;
-						<&clk IMX8MQ_CLK_CSI1_PHY_REF>,
-						<&clk IMX8MQ_CLK_CSI1_ESC>;
-				assigned-clock-rates = <133000000>, <100000000>, <66000000>;
+						  <&clk IMX8MQ_CLK_CSI1_PHY_REF>,
+						  <&clk IMX8MQ_CLK_CSI1_ESC>;
+						  assigned-clock-rates = <133000000>, <100000000>, <66000000>;
 				power-domains = <&pgc_mipi_csi1>;
-				resets = <&src IMX8MQ_RESET_MIPI_CSI1_CORE_RESET>,
-					 <&src IMX8MQ_RESET_MIPI_CSI1_PHY_REF_RESET>,
-					 <&src IMX8MQ_RESET_MIPI_CSI1_ESC_RESET>;
-				fsl,mipi-phy-gpr = <&iomuxc_gpr 0x88>;
-				interconnects = <&noc IMX8MQ_ICM_CSI1 &noc IMX8MQ_ICS_DRAM>;
-				interconnect-names = "dram";
 				csis-phy-reset = <&src 0x4c 7>;
 				phy-gpr = <&iomuxc_gpr 0x88>;
 				status = "disabled";
-
 			};
 
 			csi1_bridge: csi1_bridge@30a90000 {
