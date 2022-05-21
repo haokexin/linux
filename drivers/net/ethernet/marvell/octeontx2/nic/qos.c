@@ -61,64 +61,9 @@ static u64 otx2_qos_convert_rate(u64 rate)
 
 	/* convert bytes per second to Mbps */
 	converted_rate = rate * 8;
-	converted_rate = max_t(u32, converted_rate / 1000000, 1);
+	converted_rate = max_t(u64, converted_rate / 1000000, 1);
 
 	return converted_rate;
-}
-
-static void otx2_qos_egress_burst_cfg(u32 burst, u32 *burst_exp,
-				      u32 *burst_mantissa)
-{
-	unsigned int tmp;
-
-	/* Burst is calculated as
-	 * ((256 + BURST_MANTISSA) << (1 + BURST_EXPONENT)) / 256
-	 * Max supported burst size is 130,816 bytes.
-	 */
-	burst = min_t(u32, burst, MAX_BURST_SIZE);
-	if (burst) {
-		*burst_exp = ilog2(burst) ? ilog2(burst) - 1 : 0;
-		tmp = burst - rounddown_pow_of_two(burst);
-		if (burst < MAX_BURST_MANTISSA)
-			*burst_mantissa = tmp * 2;
-		else
-			*burst_mantissa = tmp / (1ULL << (*burst_exp - 7));
-	} else {
-		*burst_exp = MAX_BURST_EXPONENT;
-		*burst_mantissa = MAX_BURST_MANTISSA;
-	}
-}
-
-static void otx2_qos_egress_rate_cfg(u32 maxrate, u32 *exp,
-				     u32 *mantissa, u32 *div_exp)
-{
-	unsigned int tmp;
-
-	/* Rate calculation by hardware
-	 *
-	 * PIR_ADD = ((256 + mantissa) << exp) / 256
-	 * rate = (2 * PIR_ADD) / ( 1 << div_exp)
-	 * The resultant rate is in Mbps.
-	 */
-
-	/* 2Mbps to 100Gbps can be expressed with div_exp = 0.
-	 * Setting this to '0' will ease the calculation of
-	 * exponent and mantissa.
-	 */
-	*div_exp = 0;
-
-	if (maxrate) {
-		*exp = ilog2(maxrate) ? ilog2(maxrate) - 1 : 0;
-		tmp = maxrate - rounddown_pow_of_two(maxrate);
-		if (maxrate < MAX_RATE_MANTISSA)
-			*mantissa = tmp * 2;
-		else
-			*mantissa = tmp / (1ULL << (*exp - 7));
-	} else {
-		/* Instead of disabling rate limiting, set all values to max */
-		*exp = MAX_RATE_EXPONENT;
-		*mantissa = MAX_RATE_MANTISSA;
-	}
 }
 
 static int otx2_qos_quantum_to_dwrr_weight(struct otx2_nic *pfvf, int quantum)
@@ -132,25 +77,10 @@ static int otx2_qos_quantum_to_dwrr_weight(struct otx2_nic *pfvf, int quantum)
 	return weight;
 }
 
-static u64 otx2_qos_field_prep_rate(u32 exp, u32 mantissa, u32 div_exp,
-				    u32 burst_exp, u32 burst_mantissa)
-{
-	u64 regval = 0;
-
-	regval = FIELD_PREP(TLX_BURST_EXPONENT, burst_exp) |
-		 FIELD_PREP(TLX_BURST_MANTISSA, burst_mantissa) |
-		 FIELD_PREP(TLX_RATE_DIVIDER_EXPONENT, div_exp) |
-		 FIELD_PREP(TLX_RATE_EXPONENT, exp) |
-		 FIELD_PREP(TLX_RATE_MANTISSA, mantissa) | BIT_ULL(0);
-
-	return regval;
-}
-
 static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  struct otx2_qos_node *node,
 				  struct nix_txschq_config *cfg)
 {
-	u32 burst_exp = 0, burst_mantissa = 0, exp, mantissa, div_exp;
 	struct otx2_hw *hw = &pfvf->hw;
 	u16 rr_weight, quantum;
 	int num_regs = 0;
@@ -200,13 +130,10 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure PIR */
 		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
+
 		cfg->reg[num_regs] = NIX_AF_MDQX_PIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, maxrate, 65536);
 		num_regs++;
 
 		/* configure CIR */
@@ -217,13 +144,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 			goto txschq_cfg_out;
 		}
 
-		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_MDQX_CIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, node->rate, 65536);
 		num_regs++;
 	} else if (level == NIX_TXSCH_LVL_TL4) {
 		/* configure parent txschq */
@@ -258,13 +181,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure PIR */
 		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL4X_PIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, maxrate, 65536);
 		num_regs++;
 
 		/* configure CIR */
@@ -275,13 +194,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 			goto txschq_cfg_out;
 		}
 
-		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL4X_CIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, node->rate, 65536);
 		num_regs++;
 	} else if (level == NIX_TXSCH_LVL_TL3) {
 		/* configure parent txschq */
@@ -323,13 +238,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure PIR */
 		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL3X_PIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, maxrate, 65536);
 		num_regs++;
 
 		/* configure CIR */
@@ -340,13 +251,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 			goto txschq_cfg_out;
 		}
 
-		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL3X_CIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, node->rate, 65536);
 		num_regs++;
 	} else if (level == NIX_TXSCH_LVL_TL2) {
 		/* configure parent txschq */
