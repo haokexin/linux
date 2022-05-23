@@ -1795,6 +1795,7 @@ static int ov5640_probe(struct i2c_client *client,
 	mutex_unlock(&ov5640_mutex);
 	if (retval < 0) {
 		clk_disable_unprepare(sensor->sensor_clk);
+		ov5640_regualtor_disable();
 		return -ENODEV;
 	}
 
