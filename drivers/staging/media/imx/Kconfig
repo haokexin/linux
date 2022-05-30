@@ -33,6 +33,14 @@ config VIDEO_IMX7_CSI
 endmenu
 endif
 
+config DWC_MIPI_CSI2_HOST
+	tristate "IMX93 MIPI CSI2 DWC Controller"
+	depends on VIDEO_DEV && VIDEO_V4L2_SUBDEV_API
+	default y
+	help
+	  Enable support for video4linux MIPI CSI2 DWC driver for
+	  i.MX93 platform.
+
 config VIDEO_IMX_CAPTURE
 	tristate "i.MX V4L2 media core driver"
 	depends on ARCH_MXC || COMPILE_TEST
