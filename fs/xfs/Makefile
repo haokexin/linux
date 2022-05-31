@@ -6,7 +6,7 @@
 
 ccflags-y += -I $(srctree)/$(src)		# needed for trace events
 ccflags-y += -I $(srctree)/$(src)/libxfs
-ccflags-y += -Wno-error=dangling-pointer
+ccflags-y += $(call cc-option, -Wno-error=dangling-pointer)
 
 obj-$(CONFIG_XFS_FS)		+= xfs.o
 
