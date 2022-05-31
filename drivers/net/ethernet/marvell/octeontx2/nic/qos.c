@@ -1258,17 +1258,15 @@ static int otx2_qos_validate_dwrr_cfg(struct otx2_qos_node *parent,
 				      struct netlink_ext_ack *extack,
 				      u64 prio)
 {
-	int err = 0;
-
 	if (parent->child_dwrr_prio == OTX2_QOS_DEFAULT_PRIO) {
 		parent->child_dwrr_prio = prio;
 	} else if (prio != parent->child_dwrr_prio) {
 		NL_SET_ERR_MSG_MOD(extack, "Only one DWRR group is allowed");
-		return  -EOPNOTSUPP;
+		return -EOPNOTSUPP;
 	}
 
 	parent->child_dwrr_cnt++;
-	return err;
+	return 0;
 }
 
 static int otx2_qos_validate_maxnodes_per_tl(struct otx2_qos_node *parent,
@@ -1281,6 +1279,20 @@ static int otx2_qos_validate_maxnodes_per_tl(struct otx2_qos_node *parent,
 
 	mutex_lock(&pfvf->qos.qos_lock);
 	list_for_each_entry(node, &parent->child_list, list) {
+		if (prio == node->prio &&
+		    otx2_qos_is_quantum_static(node->quantum)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "Static priority child with same priority exists");
+			mutex_unlock(&pfvf->qos.qos_lock);
+			return -EEXIST;
+		}
+		if (prio == parent->child_dwrr_prio &&
+		    otx2_qos_is_quantum_static(quantum)) {
+			NL_SET_ERR_MSG_MOD(extack, "DWRR child group with same priority exists");
+			mutex_unlock(&pfvf->qos.qos_lock);
+			return -EEXIST;
+		}
+
 		if (node->prio > highest_prio)
 			highest_prio = node->prio;
 
@@ -1466,10 +1478,6 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 		ret = -EOPNOTSUPP;
 		goto out;
 	}
-
-	ret = otx2_qos_validate_maxnodes_per_tl(node, extack, pfvf, prio, quantum);
-	if (ret)
-		goto out;
 
 	if (!otx2_qos_is_quantum_static(quantum)) {
 		ret = otx2_qos_validate_dwrr_cfg(node, extack, prio);
