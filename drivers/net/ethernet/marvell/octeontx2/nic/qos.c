@@ -19,6 +19,7 @@
 #define OTX2_QOS_CLASS_NONE		0
 #define OTX2_QOS_DEFAULT_PRIO		0xF
 #define OTX2_QOS_MAX_PRIO		7
+#define OTX2_QOS_STATIC_QUANTUM		INT_MAX
 
 /* Egress rate limiting definitions */
 #define MAX_BURST_EXPONENT		0x0FULL
@@ -34,6 +35,11 @@
 #define TLX_RATE_DIVIDER_EXPONENT	GENMASK_ULL(16, 13)
 #define TLX_BURST_MANTISSA		GENMASK_ULL(36, 29)
 #define TLX_BURST_EXPONENT		GENMASK_ULL(40, 37)
+
+static bool otx2_qos_is_quantum_static(int quantum)
+{
+	return quantum == OTX2_QOS_STATIC_QUANTUM ? 1 : 0;
+}
 
 static int otx2_qos_update_tx_netdev_queues(struct otx2_nic *pfvf)
 {
@@ -115,7 +121,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure prio/quantum */
 		cfg->reg[num_regs] = NIX_AF_MDQX_SCHEDULE(node->schq);
-		if (node->is_static && !node->quantum) {
+		if (otx2_qos_is_quantum_static(node->quantum)) {
 			cfg->regval[num_regs] = (node->schq -
 						 node->parent->prio_anchor) << 24;
 		} else {
@@ -166,7 +172,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure priority/quantum */
 		cfg->reg[num_regs] = NIX_AF_TL4X_SCHEDULE(node->schq);
-		if (node->is_static && !node->quantum) {
+		if (otx2_qos_is_quantum_static(node->quantum)) {
 			cfg->regval[num_regs] = (node->schq -
 						 node->parent->prio_anchor) << 24;
 		} else {
@@ -216,7 +222,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure priority/quantum */
 		cfg->reg[num_regs] = NIX_AF_TL3X_SCHEDULE(node->schq);
-		if (node->is_static && !node->quantum) {
+		if (otx2_qos_is_quantum_static(node->quantum)) {
 			cfg->regval[num_regs] = (node->schq -
 						 node->parent->prio_anchor) << 24;
 		} else {
@@ -616,7 +622,8 @@ static int otx2_qos_add_static_node(struct otx2_qos_node *parent,
 
 	for (tmp = head->next; tmp != head; tmp = tmp->next) {
 		tmp_node = list_entry(tmp, struct otx2_qos_node, list);
-		if (tmp_node->prio == node->prio && !node->quantum)
+		if (tmp_node->prio == node->prio &&
+		    otx2_qos_is_quantum_static(tmp_node->quantum))
 			return -EEXIST;
 		if (tmp_node->prio > node->prio) {
 			list_add_tail(&node->list, tmp);
@@ -1277,15 +1284,15 @@ static int otx2_qos_validate_maxnodes_per_tl(struct otx2_qos_node *parent,
 		if (node->prio > highest_prio)
 			highest_prio = node->prio;
 
-		if (node->quantum)
-			dwrr_cnt++;
-		else
+		if (otx2_qos_is_quantum_static(node->quantum))
 			static_cnt++;
+		else
+			dwrr_cnt++;
 	}
 	mutex_unlock(&pfvf->qos.qos_lock);
 
 	/* DWRR group has highest prio allow user to add nodes*/
-	if (quantum && prio == highest_prio)
+	if (!otx2_qos_is_quantum_static(quantum) && prio == highest_prio)
 		return 0;
 
 	if ((static_cnt + dwrr_cnt) >= 8) {
@@ -1316,6 +1323,12 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 		goto out;
 	}
 
+	if (!quantum || quantum > INT_MAX) {
+		NL_SET_ERR_MSG_MOD(extack, "Invalid quantum, range 1 - 2147483647 bytes");
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
 	/* get parent node */
 	parent = otx2_sw_node_find(pfvf, parent_classid);
 	if (!parent) {
@@ -1333,7 +1346,7 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 	if (ret)
 		goto out;
 
-	if (quantum) {
+	if (!otx2_qos_is_quantum_static(quantum)) {
 		ret = otx2_qos_validate_dwrr_cfg(parent, extack, prio);
 		if (ret)
 			goto out;
@@ -1434,6 +1447,12 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 		goto out;
 	}
 
+	if (!quantum || quantum > INT_MAX) {
+		NL_SET_ERR_MSG_MOD(extack, "Invalid quantum, range 1 - 2147483647 bytes");
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
 	/* find node related to classid */
 	node = otx2_sw_node_find(pfvf, classid);
 	if (!node) {
@@ -1451,7 +1470,8 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 	ret = otx2_qos_validate_maxnodes_per_tl(node, extack, pfvf, prio, quantum);
 	if (ret)
 		goto out;
-	if (quantum) {
+
+	if (!otx2_qos_is_quantum_static(quantum)) {
 		ret = otx2_qos_validate_dwrr_cfg(node, extack, prio);
 		if (ret)
 			goto out;
@@ -1554,7 +1574,7 @@ static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 	}
 	parent = node->parent;
 
-	if (node->quantum)
+	if (!otx2_qos_is_quantum_static(node->quantum))
 		dwrr_del_node = true;
 
 	/* disable sq */
@@ -1600,7 +1620,7 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 		return -ENOENT;
 	}
 
-	if (node->quantum)
+	if (!otx2_qos_is_quantum_static(node->quantum))
 		dwrr_del_node = true;
 
 	/* destroy the leaf node */
