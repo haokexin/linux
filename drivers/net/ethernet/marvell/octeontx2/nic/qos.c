@@ -20,6 +20,7 @@
 #define OTX2_QOS_DEFAULT_PRIO		0xF
 #define OTX2_QOS_MAX_PRIO		7
 #define OTX2_QOS_STATIC_QUANTUM		INT_MAX
+#define OTX2_QOS_INVALID_MDQ		0xFFFF
 
 /* Egress rate limiting definitions */
 #define MAX_BURST_EXPONENT		0x0FULL
@@ -603,6 +604,7 @@ otx2_qos_alloc_root(struct otx2_nic *pfvf)
 	node->qid = OTX2_QOS_QID_INNER;
 	node->classid = OTX2_QOS_ROOT_CLASSID;
 	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	hash_add(pfvf->qos.qos_hlist, &node->hlist, node->classid);
 	list_add_tail(&node->list, &pfvf->qos.qos_tree);
@@ -657,6 +659,7 @@ static int otx2_qos_alloc_txschq_node(struct otx2_nic *pfvf,
 		txschq_node->quantum = 0;
 		txschq_node->is_static = true;
 		txschq_node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+		txschq_node->mdq = OTX2_QOS_INVALID_MDQ;
 
 		mutex_lock(&pfvf->qos.qos_lock);
 		list_add_tail(&txschq_node->list, &node->child_schq_list);
@@ -702,6 +705,7 @@ otx2_qos_sw_create_leaf_node(struct otx2_nic *pfvf,
 	node->quantum = quantum;
 	node->is_static = true;
 	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	__set_bit(qid, pfvf->qos.qos_sq_bmap);
 
@@ -1043,24 +1047,32 @@ static void otx2_qos_free_cfg(struct otx2_nic *pfvf, struct otx2_qos_cfg *cfg,
 	}
 }
 
+static void otx2_qos_enadis_sq(struct otx2_nic *pfvf,
+			       struct otx2_qos_node *node,
+			       u16 qid)
+{
+	int old_mdq;
+
+	old_mdq = node->mdq;
+	node->mdq = node->schq;
+	if (old_mdq != OTX2_QOS_INVALID_MDQ)
+		otx2_qos_disable_sq(pfvf, qid, old_mdq);
+	if (node->mdq != OTX2_QOS_INVALID_MDQ)
+		otx2_qos_enable_sq(pfvf, qid, node->mdq);
+}
+
 static void otx2_qos_update_smq_schq(struct otx2_nic *pfvf,
 				     struct otx2_qos_node *node)
 {
 	struct otx2_qos_node *tmp;
-	int old_mdq = 0;
 
 	if (node->qid == OTX2_QOS_QID_INNER)
 		return;
 
 	list_for_each_entry(tmp, &node->child_schq_list, list) {
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			old_mdq = tmp->mdq;
-			tmp->mdq = tmp->schq;
-			if (old_mdq)
-				otx2_qos_disable_sq(pfvf, node->qid, old_mdq);
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, node->qid, tmp->mdq);
-		}
+		if (tmp->level == NIX_TXSCH_LVL_MDQ)
+			otx2_qos_enadis_sq(pfvf, tmp, node->qid);
+
 	}
 }
 
@@ -1068,22 +1080,15 @@ static void otx2_qos_update_smq_static(struct otx2_nic *pfvf,
 				       struct otx2_qos_node *node)
 {
 	struct otx2_qos_node *tmp;
-	int old_mdq = 0;
 
 	list_for_each_entry(tmp, &node->child_list, list) {
+		otx2_qos_update_smq_static(pfvf, tmp);
 		if (tmp->qid == OTX2_QOS_QID_INNER)
 			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			old_mdq = tmp->mdq;
-			tmp->mdq = tmp->schq;
-			if (old_mdq)
-				otx2_qos_disable_sq(pfvf, tmp->qid, old_mdq);
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-			old_mdq = 0;
-		} else {
+		if (tmp->level == NIX_TXSCH_LVL_MDQ)
+			otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
+		else
 			otx2_qos_update_smq_schq(pfvf, tmp);
-		}
 	}
 }
 
@@ -1091,22 +1096,15 @@ static void otx2_qos_update_smq_dwrr(struct otx2_nic *pfvf,
 				     struct otx2_qos_node *node)
 {
 	struct otx2_qos_node *tmp;
-	int old_mdq = 0;
 
 	list_for_each_entry(tmp, &node->child_dwrr_list, list) {
 		if (tmp->qid == OTX2_QOS_QID_INNER)
 			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			old_mdq = tmp->mdq;
-			tmp->mdq = tmp->schq;
-			if (old_mdq)
-				otx2_qos_disable_sq(pfvf, tmp->qid, old_mdq);
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-			old_mdq = 0;
-		} else {
+		if (tmp->level == NIX_TXSCH_LVL_MDQ)
+			otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
+		else
 			otx2_qos_update_smq_schq(pfvf, tmp);
-		}
+
 	}
 }
 
@@ -1135,6 +1133,11 @@ static int otx2_qos_push_txschq_cfg(struct otx2_nic *pfvf,
 	ret = otx2_qos_txschq_alloc(pfvf, cfg);
 	if (ret)
 		return -ENOSPC;
+
+	if (!(pfvf->netdev->flags & IFF_UP)) {
+		otx2_qos_txschq_fill_cfg(pfvf, node, cfg, static_cfg);
+		return 0;
+	}
 
 	ret = otx2_qos_txschq_update_config(pfvf, node, cfg, static_cfg);
 	if (ret) {
@@ -1202,6 +1205,13 @@ static int otx2_qos_root_add(struct otx2_nic *pfvf, u16 htb_maj_id, u16 htb_defc
 	if (err) {
 		NL_SET_ERR_MSG_MOD(extack, "Error allocating txschq");
 		goto free_root_node;
+	}
+
+	if (!(pfvf->netdev->flags & IFF_UP)) {
+		root->schq = new_cfg->schq_list[root->level][0];
+		WRITE_ONCE(pfvf->qos.defcls, htb_defcls);
+		smp_store_release(&pfvf->qos.maj_id, htb_maj_id); /* barrier */
+		return 0;
 	}
 
 	/* update the txschq configuration in hw */
@@ -1667,68 +1677,43 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 	return 0;
 }
 
-static void otx2_qos_reinit_smq_schq(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
-{
-	struct otx2_qos_node *tmp;
-
-	if (node->qid == OTX2_QOS_QID_INNER)
-		return;
-
-	list_for_each_entry(tmp, &node->child_schq_list, list) {
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, node->qid, tmp->mdq);
-		}
-	}
-}
-
-static void otx2_qos_reinit_smq_static(struct otx2_nic *pfvf,
-				       struct otx2_qos_node *node)
-{
-	struct otx2_qos_node *tmp;
-
-	list_for_each_entry(tmp, &node->child_list, list) {
-		if (tmp->qid == OTX2_QOS_QID_INNER)
-			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-		} else {
-			otx2_qos_reinit_smq_schq(pfvf, tmp);
-		}
-	}
-}
-
-static void otx2_qos_reinit_smq_dwrr(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
-{
-	struct otx2_qos_node *tmp;
-
-	list_for_each_entry(tmp, &node->child_dwrr_list, list) {
-		if (tmp->qid == OTX2_QOS_QID_INNER)
-			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-		} else {
-			otx2_qos_reinit_smq_schq(pfvf, tmp);
-		}
-	}
-}
-
-void otx2_reinit_qos_smq(struct otx2_nic *pfvf)
+void otx2_qos_config_txschq(struct otx2_nic *pfvf)
 {
 	struct otx2_qos_node *root;
+	int err;
 
 	root = otx2_sw_node_find(pfvf, OTX2_QOS_ROOT_CLASSID);
 	if (!root)
 		return;
 
-	mutex_lock(&pfvf->qos.qos_lock);
-	otx2_qos_reinit_smq_static(pfvf, root);
-	otx2_qos_reinit_smq_dwrr(pfvf, root);
-	mutex_unlock(&pfvf->qos.qos_lock);
+	err = otx2_qos_txschq_config(pfvf, root);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error update txschq configuration\n");
+		goto root_destroy;
+	}
+
+	err = otx2_qos_update_tl1_topology(pfvf, root->schq);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error updating TL1 topology\n");
+		goto root_destroy;
+	}
+
+	err = otx2_qos_txschq_push_cfg_static(pfvf, root, NULL);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error update txschq configuration\n");
+		goto root_destroy;
+	}
+
+	err = otx2_qos_update_smq(pfvf, root, true);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error update smq configuration\n");
+		goto root_destroy;
+	}
+
+	return;
+
+root_destroy:
+	otx2_qos_root_destroy(pfvf);
 }
 
 int otx2_setup_tc_htb(struct net_device *ndev, struct tc_htb_qopt_offload *htb)

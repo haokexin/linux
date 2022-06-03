@@ -1061,12 +1061,7 @@ int otx2_setup_tc(struct net_device *netdev, enum tc_setup_type type,
 	case TC_SETUP_BLOCK:
 		return otx2_setup_tc_block(netdev, type_data);
 	case TC_SETUP_QDISC_HTB:
-		if (!(netdev->flags & IFF_UP)) {
-			netdev_warn(netdev, "TC_SETUP_QDISC_HTB called while the interface is down\n");
-			return -EOPNOTSUPP;
-		} else {
-			return otx2_setup_tc_htb(netdev, type_data);
-		}
+		return otx2_setup_tc_htb(netdev, type_data);
 	default:
 		return -EOPNOTSUPP;
 	}
