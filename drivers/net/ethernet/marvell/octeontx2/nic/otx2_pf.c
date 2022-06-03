@@ -1789,6 +1789,9 @@ int otx2_open(struct net_device *netdev)
 	/* 'intf_down' may be checked on any cpu */
 	smp_wmb();
 
+	/* Enable QoS configuration before starting tx queues */
+	otx2_qos_config_txschq(pf);
+
 	/* we have already received link status notification */
 	if (pf->linfo.link_up && !(pf->pcifunc & RVU_PFVF_FUNC_MASK))
 		otx2_handle_link_event(pf);
@@ -1802,9 +1805,6 @@ int otx2_open(struct net_device *netdev)
 	/* Install DMAC Filters */
 	if (pf->flags & OTX2_FLAG_DMACFLTR_SUPPORT)
 		otx2_dmacflt_reinstall_flows(pf);
-
-	/* Restore QOS Senq Queues */
-	otx2_reinit_qos_smq(pf);
 
 	err = otx2_rxtx_enable(pf, true);
 	/* If a mbox communication error happens at this point then interface

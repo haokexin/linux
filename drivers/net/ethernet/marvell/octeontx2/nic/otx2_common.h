@@ -1008,5 +1008,5 @@ void otx2_qos_sq_setup(struct otx2_nic *pfvf, int qos_txqs);
 int otx2_get_txq_by_classid(struct otx2_nic *pfvf, u16 classid);
 u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev);
-void otx2_reinit_qos_smq(struct otx2_nic *pfvf);
+void otx2_qos_config_txschq(struct otx2_nic *pfvf);
 #endif /* OTX2_COMMON_H */

@@ -412,6 +412,7 @@ void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx, u16 mdq)
 {
 	struct otx2_qset *qset = &pfvf->qset;
 	struct otx2_hw *hw = &pfvf->hw;
+	struct otx2_snd_queue *sq;
 	struct otx2_cq_queue *cq;
 	int pool_id, sq_idx;
 
@@ -419,6 +420,10 @@ void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx, u16 mdq)
 
 	/* If the DOWN flag is set SQs are already freed */
 	if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
+		return;
+
+	sq = &pfvf->qset.sq[sq_idx];
+	if (!sq->sqb_ptrs)
 		return;
 
 	if (sq_idx < hw->tot_tx_queues ||
