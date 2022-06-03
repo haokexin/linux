@@ -555,6 +555,7 @@ struct rvu {
 	struct ptp		*ptp;
 
 	int			cpt_pf_num;
+	int			mcs_blk_cnt;
 
 #ifdef CONFIG_DEBUG_FS
 	struct rvu_debugfs	rvu_dbg;
@@ -954,6 +955,9 @@ void rvu_apr_block_cn10k_init(struct rvu *rvu);
 
 /* CN10K NIX */
 void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw);
+
+/* CN10K MCS */
+int rvu_mcs_init(struct rvu *rvu);
 
 /* TIM APIs */
 int rvu_tim_init(struct rvu *rvu);
