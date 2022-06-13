@@ -48,6 +48,11 @@ patternProperties:
     description:
       This is the SERDES lane control mux.
 
+  "phy@[0-9a-f]+$":
+    type: object
+    description:
+      This is the register to set phy mode through phy-gmii-sel driver.
+
 required:
   - compatible
   - reg
