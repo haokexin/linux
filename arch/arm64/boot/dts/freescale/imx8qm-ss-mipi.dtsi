@@ -52,7 +52,7 @@
 			clocks = <&dsi_ipg_clk>;
 			bit-offset = <0>;
 			clock-output-names = "mipi0_i2c0_lpcg_ipg_s_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_0_I2C_0>;
+			power-domains = <&pd IMX_SC_R_MIPI_0>;
 		};
 
 		mipi0_i2c0_lpcg_ipg_clk: clock-controller@56223014 {
@@ -62,7 +62,7 @@
 			clocks = <&mipi0_i2c0_lpcg_ipg_s_clk 0>;
 			bit-offset = <0>;
 			clock-output-names = "mipi0_i2c0_lpcg_ipg_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_0_I2C_0>;
+			power-domains = <&pd IMX_SC_R_MIPI_0>;
 		};
 
 		mipi0_i2c1_lpcg_clk: clock-controller@5622302c {
@@ -82,7 +82,7 @@
 			clocks = <&dsi_ipg_clk>;
 			bit-offset = <0>;
 			clock-output-names = "mipi0_i2c1_lpcg_ipg_s_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_0_I2C_1>;
+			power-domains = <&pd IMX_SC_R_MIPI_0>;
 		};
 
 		mipi0_i2c1_lpcg_ipg_clk: clock-controller@56223024 {
@@ -92,7 +92,7 @@
 			clocks = <&mipi0_i2c1_lpcg_ipg_s_clk 0>;
 			bit-offset = <0>;
 			clock-output-names = "mipi0_i2c1_lpcg_ipg_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_0_I2C_1>;
+			power-domains = <&pd IMX_SC_R_MIPI_0>;
 		};
 
 		irqsteer_mipi0: irqsteer@56220000 {
@@ -217,7 +217,7 @@
 			clocks = <&dsi_ipg_clk>;
 			bit-offset = <0>;
 			clock-output-names = "mipi1_i2c0_lpcg_ipg_s_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_1_I2C_0>;
+			power-domains = <&pd IMX_SC_R_MIPI_1>;
 		};
 
 		mipi1_i2c0_lpcg_ipg_clk: clock-controller@57223014 {
@@ -227,7 +227,7 @@
 			clocks = <&mipi1_i2c0_lpcg_ipg_s_clk 0>;
 			bit-offset = <0>;
 			clock-output-names = "mipi1_i2c0_lpcg_ipg_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_1_I2C_0>;
+			power-domains = <&pd IMX_SC_R_MIPI_1>;
 		};
 
 		mipi1_i2c1_lpcg_clk: clock-controller@5722302c {
@@ -247,7 +247,7 @@
 			clocks = <&dsi_ipg_clk>;
 			bit-offset = <0>;
 			clock-output-names = "mipi1_i2c1_lpcg_ipg_s_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_1_I2C_1>;
+			power-domains = <&pd IMX_SC_R_MIPI_1>;
 		};
 
 		mipi1_i2c1_lpcg_ipg_clk: clock-controller@57223024 {
@@ -257,7 +257,7 @@
 			clocks = <&mipi1_i2c1_lpcg_ipg_s_clk 0>;
 			bit-offset = <0>;
 			clock-output-names = "mipi1_i2c1_lpcg_ipg_clk";
-			power-domains = <&pd IMX_SC_R_MIPI_1_I2C_1>;
+			power-domains = <&pd IMX_SC_R_MIPI_1>;
 		};
 
 		irqsteer_mipi1: irqsteer@57220000 {
