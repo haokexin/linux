@@ -103,6 +103,8 @@ examples:
     #include <dt-bindings/interrupt-controller/irq.h>
 
     i2c@83fc4000 {
+        #address-cells = <1>;
+        #size-cells = <0>;
         compatible = "fsl,imx51-i2c", "fsl,imx21-i2c";
         reg = <0x83fc4000 0x4000>;
         interrupts = <63>;
@@ -113,6 +115,8 @@ examples:
     #include <dt-bindings/clock/vf610-clock.h>
 
     i2c@40066000 {
+        #address-cells = <1>;
+        #size-cells = <0>;
         compatible = "fsl,vf610-i2c";
         reg = <0x40066000 0x1000>;
         interrupts = <71 IRQ_TYPE_LEVEL_HIGH>;
