@@ -3145,7 +3145,7 @@ late_initcall(printk_late_init);
 /*
  * Delayed printk version, for scheduler-internal messages:
  */
-#define PRINTK_PENDING_WAKEUP	0x01
+#define PRINTK_PENDING_WAKEUP   0x01
 
 static DEFINE_PER_CPU(int, printk_pending);
 
@@ -3178,7 +3178,7 @@ static void __wake_up_klogd(int val)
 	 * This pairs with devkmsg_read:A and syslog_print:A.
 	 */
 	if (wq_has_sleeper(&log_wait) || /* LMM(__wake_up_klogd:A) */
-	    (val & PRINTK_PENDING_OUTPUT)) {
+	    (val & PRINTK_PENDING_WAKEUP)) {
 		this_cpu_or(printk_pending, val);
 		irq_work_queue(this_cpu_ptr(&wake_up_klogd_work));
 	}
@@ -3192,20 +3192,7 @@ void wake_up_klogd(void)
 
 void defer_console_output(void)
 {
-	/*
-	 * New messages may have been added directly to the ringbuffer
-	 * using vprintk_store(), so wake any waiters as well.
-	 */
-	int val = PRINTK_PENDING_WAKEUP;
-
-	/*
-	 * If console deferring was called with preferred direct printing,
-	 * make the irqwork perform the direct printing.
-	 */
-	if (atomic_read(&printk_prefer_direct))
-		val |= PRINTK_PENDING_DIRECT_OUTPUT;
-
-	__wake_up_klogd(val);
+	__wake_up_klogd(PRINTK_PENDING_WAKEUP);
 }
 
 void printk_trigger_flush(void)
