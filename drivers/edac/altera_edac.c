@@ -277,6 +277,22 @@ release:
 	return ret;
 }
 
+static bool s10_is_ecc_enable(void)
+{
+	struct arm_smccc_res result;
+
+	arm_smccc_smc(INTEL_SIP_SMC_REG_READ, S10_ECCCTRL1_OFST, 0, 0, 0,
+		      0, 0, 0, &result);
+
+	if ((A10_ECCCTRL1_ECC_EN & result.a1) == A10_ECCCTRL1_ECC_EN)
+		return true;
+	else {
+		edac_printk(KERN_ERR, EDAC_MC,
+			    "No ECC/ECC disabled [0x%08lX]\n", result.a1);
+		return false;
+	}
+}
+
 static int altr_sdram_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *id;
@@ -289,6 +305,10 @@ static int altr_sdram_probe(struct platform_device *pdev)
 	u32 read_reg;
 	int irq, irq2, res = 0;
 	unsigned long mem_size, irqflags = 0;
+
+	if (of_machine_is_compatible("altr,socfpga-stratix10"))
+		if (!s10_is_ecc_enable())
+			return -ENODEV;
 
 	id = of_match_device(altr_sdram_ctrl_of_match, &pdev->dev);
 	if (!id)
@@ -1083,8 +1103,46 @@ static int __init __maybe_unused altr_init_a10_ecc_device_type(char *compat)
 
 #ifdef CONFIG_EDAC_ALTERA_SDRAM
 
+/*
+ * A legacy U-Boot bug only enabled memory mapped access to the ECC Enable
+ * register if ECC is enabled. Linux checks the ECC Enable register to
+ * determine ECC status.
+ * Use an SMC call (which always works) to determine ECC enablement.
+ */
+static int altr_s10_sdram_check_ecc_deps(struct altr_edac_device_dev *device)
+{
+	const struct edac_device_prv_data *prv = device->data;
+	unsigned long sdram_ecc_addr;
+	struct arm_smccc_res result;
+	struct device_node *np;
+	phys_addr_t sdram_addr;
+	u32 read_reg;
+	int ret;
+
+	np = of_find_compatible_node(NULL, NULL, "altr,sdr-ctl");
+	if (!np)
+		goto sdram_err;
+
+	sdram_addr = of_translate_address(np, of_get_address(np, 0,
+							     NULL, NULL));
+	of_node_put(np);
+	sdram_ecc_addr = (unsigned long)sdram_addr + prv->ecc_en_ofst;
+	arm_smccc_smc(INTEL_SIP_SMC_REG_READ, sdram_ecc_addr,
+		      0, 0, 0, 0, 0, 0, &result);
+	read_reg = (unsigned int)result.a1;
+	ret = (int)result.a0;
+	if (!ret && (read_reg & prv->ecc_enable_mask))
+		return 0;
+
+sdram_err:
+	edac_printk(KERN_ERR, EDAC_DEVICE,
+		    "%s: No ECC present or ECC disabled.\n",
+		    device->edac_dev_name);
+	return -ENODEV;
+}
+
 static const struct edac_device_prv_data s10_sdramecc_data = {
-	.setup = altr_check_ecc_deps,
+	.setup = altr_s10_sdram_check_ecc_deps,
 	.ce_clear_mask = ALTR_S10_ECC_SERRPENA,
 	.ue_clear_mask = ALTR_S10_ECC_DERRPENA,
 	.ecc_enable_mask = ALTR_S10_ECC_EN,
@@ -2031,6 +2089,18 @@ static const struct irq_domain_ops a10_eccmgr_ic_ops = {
 /* panic routine issues reboot on non-zero panic_timeout */
 extern int panic_timeout;
 
+#ifdef CONFIG_EDAC_ALTERA_ARM64_WARM_RESET
+/* EL3 SMC call to setup CPUs for warm reset */
+void panic_smp_self_stop(void)
+{
+	struct arm_smccc_res result;
+
+	arm_smccc_smc(INTEL_SIP_SMC_ECC_DBE, S10_WARM_RESET_WFI_FLAG,
+		      S10_WARM_RESET_WFI_FLAG, 0, 0, 0, 0, 0, &result);
+	cpu_park_loop();
+}
+#endif
+
 /*
  * The double bit error is handled through SError which is fatal. This is
  * called as a panic notifier to printout ECC error info as part of the panic.
@@ -2062,8 +2132,9 @@ static int s10_edac_dberr_handler(struct notifier_block *this,
 			regmap_write(edac->ecc_mgr_map,
 				     S10_SYSMGR_UE_ADDR_OFST, err_addr);
 			edac_printk(KERN_ERR, EDAC_DEVICE,
-				    "EDAC: [Fatal DBE on %s @ 0x%08X]\n",
-				    ed->edac_dev_name, err_addr);
+				    "EDAC: [Fatal DBE on %s [CPU=%d] @ 0x%08X]\n",
+				    ed->edac_dev_name, raw_smp_processor_id(),
+				    err_addr);
 			break;
 		}
 		/* Notify the System through SMC. Reboot delay = 1 second */

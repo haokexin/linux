@@ -643,6 +643,10 @@
 		};
 
 		firmware {
+			temp_volt: hwmon {
+				compatible = "intel,soc64-hwmon";
+			};
+
 			svc {
 				compatible = "intel,agilex-svc";
 				method = "smc";
@@ -650,6 +654,11 @@
 
 				fpga_mgr: fpga-mgr {
 					compatible = "intel,agilex-soc-fpga-mgr";
+				};
+
+				fcs: fcs {
+					compatible = "intel,agilex-soc-fcs";
+					status = "disabled";
 				};
 			};
 		};
