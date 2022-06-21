@@ -1427,6 +1427,9 @@ static int virt_cpsw_inetaddr_event(struct notifier_block *unused,
 	struct virt_cpsw_common *common;
 	int ret = 0;
 
+	if (ndev->netdev_ops != &virt_cpsw_nuss_netdev_ops)
+		goto out;
+
 	if (!virt_cpsw_dev_check(ndev))
 		goto out;
 
