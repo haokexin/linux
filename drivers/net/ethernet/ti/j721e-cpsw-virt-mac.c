@@ -270,7 +270,7 @@ static int virt_cpsw_nuss_ndo_stop(struct net_device *ndev)
 	netif_tx_stop_all_queues(ndev);
 	netif_carrier_off(ndev);
 
-	ret = rdev_ops->unregister_mac(common->rdev, ndev->dev_addr,
+	ret = rdev_ops->unregister_mac(common->rdev, (void *)ndev->dev_addr,
 				       common->rdev_rx_flow_id);
 	if (ret)
 		dev_err(dev, "unregister_mac rpmsg - fail %d\n", ret);
@@ -298,7 +298,7 @@ static int virt_cpsw_nuss_ndo_open(struct net_device *ndev)
 		return ret;
 
 	ret = rdev_ops->register_mac(common->rdev,
-				     ndev->dev_addr,
+				     (void *)ndev->dev_addr,
 				     common->rdev_rx_flow_id);
 	if (ret) {
 		dev_err(dev, "register_mac rpmsg - fail %d\n", ret);
@@ -848,12 +848,12 @@ static void virt_cpsw_nuss_ndo_get_stats(struct net_device *dev,
 
 		cpu_stats = per_cpu_ptr(ndev_priv->stats, cpu);
 		do {
-			start = u64_stats_fetch_begin_irq(&cpu_stats->syncp);
+			start = u64_stats_fetch_begin(&cpu_stats->syncp);
 			rx_packets = cpu_stats->rx_packets;
 			rx_bytes   = cpu_stats->rx_bytes;
 			tx_packets = cpu_stats->tx_packets;
 			tx_bytes   = cpu_stats->tx_bytes;
-		} while (u64_stats_fetch_retry_irq(&cpu_stats->syncp, start));
+		} while (u64_stats_fetch_retry(&cpu_stats->syncp, start));
 
 		stats->rx_packets += rx_packets;
 		stats->rx_bytes   += rx_bytes;
@@ -1356,9 +1356,9 @@ static int virt_cpsw_nuss_init_ndev(struct virt_cpsw_common *common)
 	SET_NETDEV_DEV(port->ndev, dev);
 
 	if (is_valid_ether_addr(port->local_mac_addr))
-		ether_addr_copy(port->ndev->dev_addr, port->local_mac_addr);
+		ether_addr_copy((u8 *)port->ndev->dev_addr, port->local_mac_addr);
 	else if (is_valid_ether_addr(common->rdev_mac_addr))
-		ether_addr_copy(port->ndev->dev_addr, common->rdev_mac_addr);
+		ether_addr_copy((u8 *)port->ndev->dev_addr, common->rdev_mac_addr);
 
 	port->ndev->min_mtu = VIRT_CPSW_MIN_PACKET_SIZE;
 	port->ndev->max_mtu = VIRT_CPSW_MAX_PACKET_SIZE;
@@ -1384,10 +1384,10 @@ static int virt_cpsw_nuss_init_ndev(struct virt_cpsw_common *common)
 		return ret;
 	}
 
-	netif_tx_napi_add(port->ndev, &common->napi_tx,
-			  virt_cpsw_nuss_tx_poll, NAPI_POLL_WEIGHT);
+	netif_napi_add_tx(port->ndev, &common->napi_tx,
+			  virt_cpsw_nuss_tx_poll);
 	netif_napi_add(port->ndev, &common->napi_rx,
-		       virt_cpsw_nuss_rx_poll, NAPI_POLL_WEIGHT);
+		       virt_cpsw_nuss_rx_poll);
 
 	hrtimer_init(&common->tx_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED);
 	common->tx_hrtimer.function = &virt_cpsw_nuss_tx_timer_callback;
@@ -1427,6 +1427,9 @@ static int virt_cpsw_inetaddr_event(struct notifier_block *unused,
 	struct virt_cpsw_common *common;
 	int ret = 0;
 
+	if (ndev->netdev_ops != &virt_cpsw_nuss_netdev_ops)
+		goto out;
+
 	if (!virt_cpsw_dev_check(ndev))
 		goto out;
 
@@ -1435,7 +1438,7 @@ static int virt_cpsw_inetaddr_event(struct notifier_block *unused,
 	switch (event) {
 	case NETDEV_UP:
 		ret = rdev_ops->register_ipv4(common->rdev,
-					      ndev->dev_addr,
+					      (void *)ndev->dev_addr,
 					      ifa->ifa_address);
 		if (ret)
 			dev_err(common->dev, "register_ipv4 rpmsg - fail %d\n",
