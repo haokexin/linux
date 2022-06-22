@@ -1581,6 +1581,7 @@ void stratix10_svc_free_memory(struct stratix10_svc_chan *chan, void *kaddr)
 
 	list_for_each_entry(pmem, &svc_data_mem, node)
 		if (pmem->vaddr == kaddr) {
+			memset(kaddr, 0, pmem->size);
 			gen_pool_free(chan->ctrl->genpool,
 				       (unsigned long)kaddr, pmem->size);
 			pmem->vaddr = NULL;
@@ -1588,10 +1589,7 @@ void stratix10_svc_free_memory(struct stratix10_svc_chan *chan, void *kaddr)
 			return;
 		}
 
-	memset(kaddr, 0, size);
-	gen_pool_free(chan->ctrl->genpool, (unsigned long)kaddr, size);
-	pmem->vaddr = NULL;
-	list_del(&pmem->node);
+	list_del(&svc_data_mem);
 }
 EXPORT_SYMBOL_GPL(stratix10_svc_free_memory);
 
