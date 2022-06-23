@@ -1059,6 +1059,38 @@ static const struct display_timing auo_g185han01_timings = {
 	.vsync_len = { 2, 5, 20 },
 };
 
+static const struct drm_display_mode ti_panel_edp_mode = {
+	.clock = 36000,
+	.hdisplay = 800,
+	.hsync_start = 800 + 48,
+	.hsync_end = 800 + 48 + 32,
+	.htotal = 800 + 48 + 32 + 80,
+	.vdisplay = 600,
+	.vsync_start = 600 + 3,
+	.vsync_end = 600 + 3 + 4,
+	.vtotal = 600 + 3 + 4 + 9,
+
+	.crtc_clock = 36000,
+	.crtc_hdisplay = 800,
+	.crtc_hsync_start = 800 + 48,
+	.crtc_hsync_end = 800 + 48 + 32,
+	.crtc_htotal = 800 + 48 + 32 + 80,
+	.crtc_vdisplay = 600,
+	.crtc_vsync_start = 600 + 3,
+	.crtc_vsync_end = 600 + 3 + 4,
+	.crtc_vtotal = 600 + 3 + 4 + 9,
+
+	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+};
+
+static const struct panel_desc ti_panel_edp = {
+	.modes = &ti_panel_edp_mode,
+	.num_modes = 1,
+	.bpc = 8,
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
+	.connector_type = DRM_MODE_CONNECTOR_eDP,
+};
+
 static const struct panel_desc auo_g185han01 = {
 	.timings = &auo_g185han01_timings,
 	.num_timings = 1,
@@ -4308,6 +4340,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "vxt,vl050-8048nt-c01",
 		.data = &vl050_8048nt_c01,
+	}, {
+		.compatible = "ti,panel-edp",
+		.data = &ti_panel_edp,
 	}, {
 		.compatible = "winstar,wf35ltiacd",
 		.data = &winstar_wf35ltiacd,
