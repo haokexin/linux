@@ -528,6 +528,8 @@ struct safexcel_result_desc {
 
 	u32 data_lo;
 	u32 data_hi;
+
+	u32 result_token[4];
 } __packed;
 
 /*
