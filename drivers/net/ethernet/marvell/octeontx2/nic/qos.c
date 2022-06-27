@@ -1062,7 +1062,8 @@ static void otx2_qos_enadis_sq(struct otx2_nic *pfvf,
 }
 
 static void otx2_qos_update_smq_schq(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
+				     struct otx2_qos_node *node,
+				     bool action)
 {
 	struct otx2_qos_node *tmp;
 
@@ -1070,55 +1071,69 @@ static void otx2_qos_update_smq_schq(struct otx2_nic *pfvf,
 		return;
 
 	list_for_each_entry(tmp, &node->child_schq_list, list) {
-		if (tmp->level == NIX_TXSCH_LVL_MDQ)
-			otx2_qos_enadis_sq(pfvf, tmp, node->qid);
+		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
+			if (action == QOS_SMQ_FLUSH)
+				otx2_smq_flush(pfvf, tmp->schq);
+			else
+				otx2_qos_enadis_sq(pfvf, tmp, node->qid);
+		}
 
 	}
 }
 
 static void otx2_qos_update_smq_static(struct otx2_nic *pfvf,
-				       struct otx2_qos_node *node)
+				       struct otx2_qos_node *node,
+				       bool action)
 {
 	struct otx2_qos_node *tmp;
 
 	list_for_each_entry(tmp, &node->child_list, list) {
-		otx2_qos_update_smq_static(pfvf, tmp);
+		otx2_qos_update_smq_static(pfvf, tmp, action);
 		if (tmp->qid == OTX2_QOS_QID_INNER)
 			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ)
-			otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
-		else
-			otx2_qos_update_smq_schq(pfvf, tmp);
+		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
+			if (action == QOS_SMQ_FLUSH)
+				otx2_smq_flush(pfvf, tmp->schq);
+			else
+				otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
+		} else {
+			otx2_qos_update_smq_schq(pfvf, tmp, action);
+		}
 	}
 }
 
 static void otx2_qos_update_smq_dwrr(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
+				     struct otx2_qos_node *node,
+				     bool action)
 {
 	struct otx2_qos_node *tmp;
 
 	list_for_each_entry(tmp, &node->child_dwrr_list, list) {
 		if (tmp->qid == OTX2_QOS_QID_INNER)
 			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ)
-			otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
-		else
-			otx2_qos_update_smq_schq(pfvf, tmp);
+		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
+			if (action == QOS_SMQ_FLUSH)
+				otx2_smq_flush(pfvf, tmp->schq);
+			else
+				otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
+		} else {
+			otx2_qos_update_smq_schq(pfvf, tmp, action);
+		}
 
 	}
 }
 
 static int otx2_qos_update_smq(struct otx2_nic *pfvf,
 			       struct otx2_qos_node *node,
-			       bool static_cfg)
+			       bool static_cfg, bool action)
 {
 	mutex_lock(&pfvf->qos.qos_lock);
 	if (static_cfg)
-		otx2_qos_update_smq_static(pfvf, node);
+		otx2_qos_update_smq_static(pfvf, node, action);
 	else
-		otx2_qos_update_smq_dwrr(pfvf, node);
+		otx2_qos_update_smq_dwrr(pfvf, node, action);
 
-	otx2_qos_update_smq_schq(pfvf, node);
+	otx2_qos_update_smq_schq(pfvf, node, action);
 	mutex_unlock(&pfvf->qos.qos_lock);
 
 	return 0;
@@ -1145,7 +1160,7 @@ static int otx2_qos_push_txschq_cfg(struct otx2_nic *pfvf,
 		return -EIO;
 	}
 
-	ret = otx2_qos_update_smq(pfvf, node, static_cfg);
+	ret = otx2_qos_update_smq(pfvf, node, static_cfg, QOS_CFG_SQ);
 	if (ret) {
 		otx2_qos_free_cfg(pfvf, cfg, static_cfg);
 		return -EIO;
@@ -1422,7 +1437,8 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 			goto free_old_cfg;
 		}
 		err = otx2_qos_update_smq(pfvf, parent,
-					  parent->is_static ? true : false);
+					  parent->is_static ? true : false,
+					  QOS_CFG_SQ);
 		if (err)
 			netdev_err(pfvf->netdev,
 				   "Failed to restore smq configuration");
@@ -1552,7 +1568,8 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 			goto free_old_cfg;
 		}
 		err = otx2_qos_update_smq(pfvf, node,
-					  node->is_static ? true : false);
+					  node->is_static ? true : false,
+					  QOS_CFG_SQ);
 		if (err)
 			netdev_err(pfvf->netdev,
 				   "Failed to restore smq configuration");
@@ -1677,6 +1694,17 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 	return 0;
 }
 
+int otx2_clean_qos_queues(struct otx2_nic *pfvf)
+{
+	struct otx2_qos_node *root;
+
+	root = otx2_sw_node_find(pfvf, OTX2_QOS_ROOT_CLASSID);
+	if (!root)
+		return 0;
+
+	return otx2_qos_update_smq(pfvf, root, true, QOS_SMQ_FLUSH);
+}
+
 void otx2_qos_config_txschq(struct otx2_nic *pfvf)
 {
 	struct otx2_qos_node *root;
@@ -1704,7 +1732,7 @@ void otx2_qos_config_txschq(struct otx2_nic *pfvf)
 		goto root_destroy;
 	}
 
-	err = otx2_qos_update_smq(pfvf, root, true);
+	err = otx2_qos_update_smq(pfvf, root, true, QOS_CFG_SQ);
 	if (err) {
 		netdev_err(pfvf->netdev, "Error update smq configuration\n");
 		goto root_destroy;

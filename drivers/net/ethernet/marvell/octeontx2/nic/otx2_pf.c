@@ -1561,6 +1561,8 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	if (err)
 		dev_err(pf->dev, "RVUPF: Failed to stop/free TX schedulers\n");
 
+	otx2_clean_qos_queues(pf);
+
 	mutex_lock(&mbox->lock);
 	/* Disable backpressure */
 	if (!(pf->pcifunc & RVU_PFVF_FUNC_MASK))

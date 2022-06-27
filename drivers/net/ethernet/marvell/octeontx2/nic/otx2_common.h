@@ -983,6 +983,8 @@ u16 otx2_get_max_mtu(struct otx2_nic *pfvf);
 bool otx2_xdp_sq_append_pkt(struct otx2_nic *pfvf, u64 iova, int len, u16 qidx);
 int otx2_handle_ntuple_tc_features(struct net_device *netdev,
 				   netdev_features_t features);
+int otx2_smq_flush(struct otx2_nic *pfvf, int smq);
+
 /* tc support */
 int otx2_init_tc(struct otx2_nic *nic);
 void otx2_shutdown_tc(struct otx2_nic *nic);
@@ -1009,4 +1011,5 @@ int otx2_get_txq_by_classid(struct otx2_nic *pfvf, u16 classid);
 u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev);
 void otx2_qos_config_txschq(struct otx2_nic *pfvf);
+int otx2_clean_qos_queues(struct otx2_nic *pfvf);
 #endif /* OTX2_COMMON_H */
