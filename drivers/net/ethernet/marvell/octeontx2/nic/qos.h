@@ -14,6 +14,11 @@
 #define OTX2_QOS_MAX_LVL		4
 #define OTX2_QOS_MAX_LEAF_NODES		16
 
+enum qos_smq_operations {
+	QOS_CFG_SQ,
+	QOS_SMQ_FLUSH,
+};
+
 u64 otx2_get_txschq_rate_regval(struct otx2_nic *nic, u64 maxrate, u32 burst);
 
 int otx2_setup_tc_htb(struct net_device *ndev, struct tc_htb_qopt_offload *htb);
