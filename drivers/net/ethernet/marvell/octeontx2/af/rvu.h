@@ -29,6 +29,7 @@
 #define PCI_SUBSYS_DEVID_CN10K_A	       0xB900
 #define PCI_SUBSYS_DEVID_CNF10K_A	       0xBA00
 #define PCI_SUBSYS_DEVID_CNF10K_B	       0xBC00
+#define PCI_SUBSYS_DEVID_CN10K_B	       0xBD00
 
 /* PCI BAR nos */
 #define	PCI_AF_REG_BAR_NUM			0
@@ -958,6 +959,7 @@ void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw);
 
 /* CN10K MCS */
 int rvu_mcs_init(struct rvu *rvu);
+int rvu_mcs_flr_handler(struct rvu *rvu, u16 pcifunc);
 
 /* TIM APIs */
 int rvu_tim_init(struct rvu *rvu);
