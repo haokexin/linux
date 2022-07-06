@@ -59,10 +59,10 @@ struct otx2_qos_node {
 	u16 qid;
 	u16 mdq;
 	bool is_static;
-	bool first_static;
 	u16 prio_anchor;
 	u16 child_dwrr_prio;
 	u16 child_dwrr_cnt;
+	u16 act_dwrr_prio;		/* dwrr priority to be configured in hw */
 	/* list management */
 	struct hlist_node hlist;
 	struct otx2_qos_node *parent;	/* parent qos node */

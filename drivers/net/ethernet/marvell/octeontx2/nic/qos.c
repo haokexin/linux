@@ -37,7 +37,7 @@
 #define TLX_BURST_MANTISSA		GENMASK_ULL(36, 29)
 #define TLX_BURST_EXPONENT		GENMASK_ULL(40, 37)
 
-static bool otx2_qos_is_quantum_static(int quantum)
+static bool otx2_qos_is_quantum_static(u32 quantum)
 {
 	return quantum == OTX2_QOS_STATIC_QUANTUM ? 1 : 0;
 }
@@ -73,7 +73,7 @@ static u64 otx2_qos_convert_rate(u64 rate)
 	return converted_rate;
 }
 
-static int otx2_qos_quantum_to_dwrr_weight(struct otx2_nic *pfvf, int quantum)
+static int otx2_qos_quantum_to_dwrr_weight(struct otx2_nic *pfvf, u32 quantum)
 {
 	u32 weight;
 
@@ -89,8 +89,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  struct nix_txschq_config *cfg)
 {
 	struct otx2_hw *hw = &pfvf->hw;
-	u16 rr_weight, quantum;
 	int num_regs = 0;
+	u16 rr_weight;
+	u32 quantum;
 	u64 maxrate;
 	u8 level;
 
@@ -130,7 +131,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = node->prio << 24 |
+			cfg->regval[num_regs] = node->parent->act_dwrr_prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
@@ -181,7 +182,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = node->prio << 24 |
+			cfg->regval[num_regs] = node->parent->act_dwrr_prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
@@ -231,7 +232,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = node->prio << 24 |
+			cfg->regval[num_regs] = node->parent->act_dwrr_prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
@@ -353,8 +354,8 @@ static int otx2_qos_txschq_set_parent_topology(struct otx2_nic *pfvf,
 
 	cfg->regval[0] = (u64)parent->prio_anchor << 32;
 
-	cfg->regval[0] |= ((parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) ?
-			    parent->child_dwrr_prio : 0)  << 1;
+	cfg->regval[0] |= ((parent->act_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) ?
+			    parent->act_dwrr_prio : 0)  << 1;
 	cfg->num_regs++;
 
 	rc = otx2_sync_mbox_msg(&pfvf->mbox);
@@ -604,6 +605,7 @@ otx2_qos_alloc_root(struct otx2_nic *pfvf)
 	node->qid = OTX2_QOS_QID_INNER;
 	node->classid = OTX2_QOS_ROOT_CLASSID;
 	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	node->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	hash_add(pfvf->qos.qos_hlist, &node->hlist, node->classid);
@@ -659,6 +661,7 @@ static int otx2_qos_alloc_txschq_node(struct otx2_nic *pfvf,
 		txschq_node->quantum = 0;
 		txschq_node->is_static = true;
 		txschq_node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+		txschq_node->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 		txschq_node->mdq = OTX2_QOS_INVALID_MDQ;
 
 		mutex_lock(&pfvf->qos.qos_lock);
@@ -705,6 +708,7 @@ otx2_qos_sw_create_leaf_node(struct otx2_nic *pfvf,
 	node->quantum = quantum;
 	node->is_static = true;
 	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	node->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	__set_bit(qid, pfvf->qos.qos_sq_bmap);
@@ -860,14 +864,17 @@ static void otx2_qos_txschq_fill_cfg_static(struct otx2_nic *pfvf,
 	struct otx2_qos_node *tmp;
 	int cnt;
 
+	node->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 	list_for_each_entry(tmp, &node->child_list, list) {
 		otx2_qos_txschq_fill_cfg_static(pfvf, tmp, cfg);
 		cnt = cfg->static_node_pos[tmp->level];
 		tmp->schq = cfg->schq_contig_list[tmp->level][cnt];
-		if (cnt == 0) {
-			tmp->first_static = true;
+		if (cnt == 0)
 			node->prio_anchor = tmp->schq;
-		}
+		if (tmp->classid != OTX2_QOS_CLASS_NONE &&
+		    !otx2_qos_is_quantum_static(tmp->quantum) &&
+		    node->act_dwrr_prio == OTX2_QOS_DEFAULT_PRIO)
+			node->act_dwrr_prio = tmp->schq - node->prio_anchor;
 		cfg->static_node_pos[tmp->level]++;
 		otx2_qos_txschq_fill_cfg_schq(pfvf, tmp, cfg);
 	}
@@ -1622,8 +1629,10 @@ static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 		parent->child_dwrr_cnt--;
 
 	/* Reset DWRR priority if all dwrr nodes are deleted */
-	if (!parent->child_dwrr_cnt)
+	if (!parent->child_dwrr_cnt) {
 		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+		parent->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	}
 
 	return 0;
 }
@@ -1665,8 +1674,10 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 		parent->child_dwrr_cnt--;
 
 	/* Reset DWRR priority if all dwrr nodes are deleted */
-	if (!parent->child_dwrr_cnt)
+	if (!parent->child_dwrr_cnt) {
 		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+		parent->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	}
 
 	/* create downstream txschq entries to parent */
 	otx2_qos_alloc_txschq_node(pfvf, parent);
