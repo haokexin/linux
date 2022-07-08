@@ -411,6 +411,7 @@ struct hw_cap {
 	bool	ipolicer;
 	bool    second_cpt_pass;
 	bool	nix_multiple_dwrr_mtu;   /* Multiple DWRR_MTU to choose from */
+	bool	npc_hash_extract; /* Hash extract enabled ? */
 };
 
 struct rvu_hwinfo {
@@ -501,6 +502,7 @@ struct npc_kpu_profile_adapter {
 	const struct npc_kpu_profile_action	*ikpu; /* array[pkinds] */
 	const struct npc_kpu_profile	*kpu; /* array[kpus] */
 	struct npc_mcam_kex		*mkex;
+	struct npc_mcam_kex_hash	*mkex_hash;
 	bool				custom;
 	size_t				pkinds;
 	size_t				kpus;
@@ -752,6 +754,17 @@ static inline bool is_cnf10ka_a1(struct rvu *rvu)
 	    (pdev->revision & 0x0F) == 0x1)
 		return true;
 	return false;
+}
+
+static inline bool is_rvu_npc_hash_extract_en(struct rvu *rvu)
+{
+	u64 npc_const3;
+
+	npc_const3 = rvu_read64(rvu, BLKADDR_NPC, NPC_AF_CONST3);
+	if (!(npc_const3 & BIT_ULL(62)))
+		return false;
+
+	return true;
 }
 
 static inline u16 rvu_nix_chan_cgx(struct rvu *rvu, u8 cgxid,
