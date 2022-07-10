@@ -67,8 +67,6 @@ enum eoi_reg {
 
 #define GENERATION_SEL_MASK		GENMASK(1, 0)
 
-#define MAX_LANES			2
-
 struct j721e_pcie {
 	struct cdns_pcie	*cdns_pcie;
 	struct clk		*refclk;
@@ -78,6 +76,7 @@ struct j721e_pcie {
 	void __iomem		*intd_cfg_base;
 	struct irq_domain	*legacy_irq_domain;
 	u32			linkdown_irq_regfield;
+	unsigned int		max_lanes;
 	bool			is_intc_v1;
 	u32			link_irq_reg_field;
 };
@@ -436,6 +435,7 @@ static const struct j721e_pcie_data j721e_pcie_rc_data = {
 	.quirk_retrain_flag = false,
 	.byte_access_allowed = false,
 	.linkdown_irq_regfield = LINK_DOWN,
+	.max_lanes = 2,
 	.is_intc_v1 = true,
 	.ops = &j721e_pcie_ops,
 };
@@ -443,6 +443,7 @@ static const struct j721e_pcie_data j721e_pcie_rc_data = {
 static const struct j721e_pcie_data j721e_pcie_ep_data = {
 	.mode = PCI_MODE_EP,
 	.linkdown_irq_regfield = LINK_DOWN,
+	.max_lanes = 2,
 	.ops = &j721e_pcie_ops,
 };
 
@@ -450,6 +451,7 @@ static const struct j721e_pcie_data j7200_pcie_rc_data = {
 	.mode = PCI_MODE_RC,
 	.quirk_detect_quiet_flag = true,
 	.linkdown_irq_regfield = J7200_LINK_DOWN,
+	.max_lanes = 4,
 	.is_intc_v1 = false,
 	.byte_access_allowed = true,
 	.ops = &j7200_pcie_ops,
@@ -459,17 +461,20 @@ static const struct j721e_pcie_data j7200_pcie_ep_data = {
 	.mode = PCI_MODE_EP,
 	.quirk_detect_quiet_flag = true,
 	.quirk_disable_flr = true,
+	.max_lanes = 4,
 };
 
 static const struct j721e_pcie_data am64_pcie_rc_data = {
 	.mode = PCI_MODE_RC,
 	.linkdown_irq_regfield = J7200_LINK_DOWN,
 	.byte_access_allowed = true,
+	.max_lanes = 1,
 };
 
 static const struct j721e_pcie_data am64_pcie_ep_data = {
 	.mode = PCI_MODE_EP,
 	.linkdown_irq_regfield = J7200_LINK_DOWN,
+	.max_lanes = 1,
 };
 
 static const struct of_device_id of_j721e_pcie_match[] = {
@@ -592,7 +597,7 @@ static int j721e_pcie_probe(struct platform_device *pdev)
 	pcie->user_cfg_base = base;
 
 	ret = of_property_read_u32(node, "num-lanes", &num_lanes);
-	if (ret || num_lanes > MAX_LANES)
+	if (ret || num_lanes > data->max_lanes)
 		num_lanes = 1;
 	pcie->num_lanes = num_lanes;
 
