@@ -7,6 +7,24 @@
 
 #include "otx2_common.h"
 
+static int otx2_check_pfc_config(struct otx2_nic *pfvf)
+{
+	u8 tx_queues = pfvf->hw.tx_queues, prio;
+	u8 pfc_en = pfvf->pfc_en;
+
+	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
+		if ((pfc_en & (1 << prio)) &&
+		    prio > tx_queues - 1) {
+			dev_warn(pfvf->dev,
+				 "Increase number of tx queues from %d to %d to support PFC.\n",
+				 tx_queues, prio + 1);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
+
 int otx2_config_priority_flow_ctrl(struct otx2_nic *pfvf)
 {
 	struct cgx_pfc_cfg *req;
@@ -128,6 +146,17 @@ static int otx2_dcbnl_ieee_setpfc(struct net_device *dev, struct ieee_pfc *pfc)
 	/* Save PFC configuration to interface */
 	pfvf->pfc_en = pfc->pfc_en;
 
+	if (pfvf->hw.tx_queues >= NIX_PF_PFC_PRIO_MAX)
+		goto process_pfc;
+
+	/* Check if the PFC configuration can be
+	 * supported by the tx queue configuration
+	 */
+	err = otx2_check_pfc_config(pfvf);
+	if (err)
+		return err;
+
+process_pfc:
 	err = otx2_config_priority_flow_ctrl(pfvf);
 	if (err)
 		return err;
@@ -135,6 +164,12 @@ static int otx2_dcbnl_ieee_setpfc(struct net_device *dev, struct ieee_pfc *pfc)
 	/* Request Per channel Bpids */
 	if (pfc->pfc_en)
 		otx2_nix_config_bp(pfvf, true);
+
+	err = otx2_pfc_txschq_update(pfvf);
+	if (err) {
+		dev_err(pfvf->dev, "%s failed to update TX schedulers\n", __func__);
+		return err;
+	}
 
 	return 0;
 }

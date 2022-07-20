@@ -1495,18 +1495,36 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 		goto err_free_sq_ptrs;
 	}
 
+	if (pf->pfc_en) {
+		err = otx2_pfc_txschq_alloc(pf);
+		if (err) {
+			mutex_unlock(&mbox->lock);
+			goto err_free_sq_ptrs;
+		}
+	}
+
 	err = otx2_config_nix_queues(pf);
 	if (err) {
 		mutex_unlock(&mbox->lock);
 		goto err_free_txsch;
 	}
+
 	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
-		err = otx2_txschq_config(pf, lvl);
+		err = otx2_txschq_config(pf, lvl, 0, false);
 		if (err) {
 			mutex_unlock(&mbox->lock);
 			goto err_free_nix_queues;
 		}
 	}
+
+	if (pf->pfc_en) {
+		err = otx2_pfc_txschq_config(pf);
+		if (err) {
+			mutex_unlock(&mbox->lock);
+			goto err_free_nix_queues;
+		}
+	}
+
 	mutex_unlock(&mbox->lock);
 	return err;
 
@@ -1560,6 +1578,9 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	err = otx2_txschq_stop(pf);
 	if (err)
 		dev_err(pf->dev, "RVUPF: Failed to stop/free TX schedulers\n");
+
+	if (pf->pfc_en)
+		otx2_pfc_txschq_stop(pf);
 
 	otx2_clean_qos_queues(pf);
 
@@ -1977,22 +1998,39 @@ u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev)
 {
 	struct otx2_nic *pf = netdev_priv(netdev);
+	bool qos_enabled;
+	u8 vlan_prio;
 	int txq;
 
-	if (unlikely(netdev->real_num_tx_queues > pf->hw.tx_queues)) {
+	qos_enabled = (netdev->real_num_tx_queues > pf->hw.tx_queues) ? true : false;
+	if (unlikely(qos_enabled)) {
 		u16 htb_maj_id = smp_load_acquire(&pf->qos.maj_id); /* barrier */
 
 		if (unlikely(htb_maj_id)) {
 			txq = otx2_qos_select_htb_queue(pf, skb, htb_maj_id);
 			if (txq > 0)
 				return txq;
-			/* Choose from nix queues */
-			txq = netdev_pick_tx(netdev, skb, NULL);
-			return txq % pf->hw.tx_queues;
+			goto process_pfc;
 		}
 	}
 
-	return netdev_pick_tx(netdev, skb, NULL);
+process_pfc:
+	if (!skb->vlan_present)
+		goto pick_tx;
+
+	vlan_prio = skb->vlan_tci >> 13;
+	if ((vlan_prio > pf->hw.tx_queues - 1) ||
+	    !pf->pfc_alloc_status[vlan_prio])
+		goto pick_tx;
+
+	return vlan_prio;
+
+pick_tx:
+	txq = netdev_pick_tx(netdev, skb, NULL);
+	if (unlikely(qos_enabled))
+		return txq % pf->hw.tx_queues;
+
+	return txq;
 }
 EXPORT_SYMBOL(otx2_select_queue);
 
