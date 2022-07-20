@@ -4,6 +4,7 @@
 #include <linux/firmware.h>
 #include "otx2_cpt_hw_types.h"
 #include "otx2_cpt_common.h"
+#include "otx2_cpt_devlink.h"
 #include "otx2_cptpf_ucode.h"
 #include "otx2_cptpf.h"
 #include "cn10k_cpt.h"
@@ -139,6 +140,7 @@ static void cptpf_flr_wq_handler(struct work_struct *work)
 
 	vf = flr_work - pf->flr_work;
 
+	mutex_lock(&pf->lock);
 	req = otx2_mbox_alloc_msg_rsp(mbox, 0, sizeof(*req),
 				      sizeof(struct msg_rsp));
 	if (!req)
@@ -150,16 +152,19 @@ static void cptpf_flr_wq_handler(struct work_struct *work)
 	req->pcifunc |= (vf + 1) & RVU_PFVF_FUNC_MASK;
 
 	otx2_cpt_send_mbox_msg(mbox, pf->pdev);
+	if (!otx2_cpt_sync_mbox_msg(&pf->afpf_mbox)) {
 
-	if (vf >= 64) {
-		reg = 1;
-		vf = vf - 64;
+		if (vf >= 64) {
+			reg = 1;
+			vf = vf - 64;
+		}
+		/* Clear transaction pending register */
+		otx2_cpt_write64(pf->reg_base, BLKADDR_RVUM, 0,
+				 RVU_PF_VFTRPENDX(reg), BIT_ULL(vf));
+		otx2_cpt_write64(pf->reg_base, BLKADDR_RVUM, 0,
+				 RVU_PF_VFFLR_INT_ENA_W1SX(reg), BIT_ULL(vf));
 	}
-	/* Clear transaction pending register */
-	otx2_cpt_write64(pf->reg_base, BLKADDR_RVUM, 0,
-			 RVU_PF_VFTRPENDX(reg), BIT_ULL(vf));
-	otx2_cpt_write64(pf->reg_base, BLKADDR_RVUM, 0,
-			 RVU_PF_VFFLR_INT_ENA_W1SX(reg), BIT_ULL(vf));
+	mutex_unlock(&pf->lock);
 }
 
 static irqreturn_t cptpf_vf_flr_intr(int __always_unused irq, void *arg)
@@ -466,9 +471,18 @@ static int cptpf_afpf_mbox_init(struct otx2_cptpf_dev *cptpf)
 	if (err)
 		goto error;
 
+	err = otx2_mbox_init(&cptpf->afpf_mbox_up, cptpf->afpf_mbox_base,
+			     pdev, cptpf->reg_base, MBOX_DIR_PFAF_UP, 1);
+	if (err)
+		goto mbox_cleanup;
+
 	INIT_WORK(&cptpf->afpf_mbox_work, otx2_cptpf_afpf_mbox_handler);
+	INIT_WORK(&cptpf->afpf_mbox_up_work, otx2_cptpf_afpf_mbox_up_handler);
+	mutex_init(&cptpf->lock);
 	return 0;
 
+mbox_cleanup:
+	otx2_mbox_destroy(&cptpf->afpf_mbox);
 error:
 	destroy_workqueue(cptpf->afpf_mbox_wq);
 	return err;
@@ -478,6 +492,7 @@ static void cptpf_afpf_mbox_destroy(struct otx2_cptpf_dev *cptpf)
 {
 	destroy_workqueue(cptpf->afpf_mbox_wq);
 	otx2_mbox_destroy(&cptpf->afpf_mbox);
+	otx2_mbox_destroy(&cptpf->afpf_mbox_up);
 }
 
 static ssize_t kvf_limits_show(struct device *dev,
@@ -510,8 +525,11 @@ static ssize_t kvf_limits_store(struct device *dev,
 }
 
 static DEVICE_ATTR_RW(kvf_limits);
+static DEVICE_ATTR_RW(sso_pf_func_ovrd);
+
 static struct attribute *cptpf_attrs[] = {
 	&dev_attr_kvf_limits.attr,
+	&dev_attr_sso_pf_func_ovrd.attr,
 	NULL
 };
 
@@ -616,6 +634,29 @@ static int cptpf_device_init(struct otx2_cptpf_dev *cptpf)
 	return ret;
 }
 
+static ssize_t sso_pf_func_ovrd_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct otx2_cptpf_dev *cptpf = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", cptpf->sso_pf_func_ovrd);
+}
+
+static ssize_t sso_pf_func_ovrd_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct otx2_cptpf_dev *cptpf = dev_get_drvdata(dev);
+	u8 sso_pf_func_ovrd;
+
+	if (kstrtou8(buf, 0, &sso_pf_func_ovrd))
+		return -EINVAL;
+
+	cptpf->sso_pf_func_ovrd = sso_pf_func_ovrd;
+
+	return count;
+}
+
 static int cptpf_sriov_disable(struct pci_dev *pdev)
 {
 	struct otx2_cptpf_dev *cptpf = pci_get_drvdata(pdev);
@@ -695,6 +736,7 @@ static int otx2_cptpf_probe(struct pci_dev *pdev,
 {
 	struct device *dev = &pdev->dev;
 	struct otx2_cptpf_dev *cptpf;
+	void __iomem * const *iomap;
 	int err;
 
 	cptpf = devm_kzalloc(dev, sizeof(*cptpf), GFP_KERNEL);
@@ -723,7 +765,13 @@ static int otx2_cptpf_probe(struct pci_dev *pdev,
 	pci_set_drvdata(pdev, cptpf);
 	cptpf->pdev = pdev;
 
-	cptpf->reg_base = pcim_iomap_table(pdev)[PCI_PF_REG_BAR_NUM];
+	iomap = pcim_iomap_table(pdev);
+	if (!iomap) {
+		dev_err(dev, "Failed to get iomap table\n");
+		err = -ENODEV;
+		goto clear_drvdata;
+	}
+	cptpf->reg_base = iomap[PCI_PF_REG_BAR_NUM];
 
 	/* Check if AF driver is up, otherwise defer probe */
 	err = cpt_is_pf_usable(cptpf);
@@ -766,8 +814,15 @@ static int otx2_cptpf_probe(struct pci_dev *pdev,
 	err = sysfs_create_group(&dev->kobj, &cptpf_sysfs_group);
 	if (err)
 		goto cleanup_eng_grps;
+
+	err = otx2_cpt_register_dl(cptpf);
+	if (err)
+		goto sysfs_grp_del;
+
 	return 0;
 
+sysfs_grp_del:
+	sysfs_remove_group(&dev->kobj, &cptpf_sysfs_group);
 cleanup_eng_grps:
 	otx2_cpt_cleanup_eng_grps(pdev, &cptpf->eng_grps);
 unregister_intr:
@@ -787,6 +842,7 @@ static void otx2_cptpf_remove(struct pci_dev *pdev)
 		return;
 
 	cptpf_sriov_disable(pdev);
+	otx2_cpt_unregister_dl(cptpf);
 	/* Delete sysfs entry created for kernel VF limits */
 	sysfs_remove_group(&pdev->dev.kobj, &cptpf_sysfs_group);
 	/* Cleanup engine groups */

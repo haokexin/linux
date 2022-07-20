@@ -151,6 +151,7 @@ static int cs_etm_set_timestamp(struct auxtrace_record *itr,
 	char path[PATH_MAX];
 	int err = -EINVAL;
 	u32 val;
+	u64 contextid;
 
 	ptr = container_of(itr, struct cs_etm_recording, itr);
 	cs_etm_pmu = ptr->cs_etm_pmu;
@@ -208,17 +209,17 @@ static int cs_etm_set_option(struct auxtrace_record *itr,
 		    !cpu_map__has(online_cpus, i))
 			continue;
 
-		if (option & BIT(ETM_OPT_CTXTID)) {
+		if (option & ETM_SET_OPT_CTXTID) {
 			err = cs_etm_set_context_id(itr, evsel, i);
 			if (err)
 				goto out;
 		}
-		if (option & BIT(ETM_OPT_TS)) {
+		if (option & ETM_SET_OPT_TS) {
 			err = cs_etm_set_timestamp(itr, evsel, i);
 			if (err)
 				goto out;
 		}
-		if (option & ~(BIT(ETM_OPT_CTXTID) | BIT(ETM_OPT_TS)))
+		if (option & ~(ETM_SET_OPT_MASK))
 			/* Nothing else is currently supported */
 			goto out;
 	}
@@ -445,7 +446,7 @@ static int cs_etm_recording_options(struct auxtrace_record *itr,
 		evsel__set_sample_bit(cs_etm_evsel, CPU);
 
 		err = cs_etm_set_option(itr, cs_etm_evsel,
-					BIT(ETM_OPT_CTXTID) | BIT(ETM_OPT_TS));
+					ETM_SET_OPT_CTXTID | ETM_SET_OPT_TS);
 		if (err)
 			goto out;
 	}
@@ -724,6 +725,8 @@ static int cs_etm_info_fill(struct auxtrace_record *itr,
 	u64 nr_cpu, type;
 	struct perf_cpu_map *cpu_map;
 	struct perf_cpu_map *event_cpus = session->evlist->core.cpus;
+	struct evlist *evlist = session->evlist;
+	struct evsel *evsel, *cs_etm_evsel = NULL;
 	struct perf_cpu_map *online_cpus = perf_cpu_map__new(NULL);
 	struct cs_etm_recording *ptr =
 			container_of(itr, struct cs_etm_recording, itr);
@@ -759,6 +762,40 @@ static int cs_etm_info_fill(struct auxtrace_record *itr,
 	info->priv[CS_PMU_TYPE_CPUS] = type << 32;
 	info->priv[CS_PMU_TYPE_CPUS] |= nr_cpu;
 	info->priv[CS_ETM_SNAPSHOT] = ptr->snapshot_mode;
+
+	/* Find the etm_pmu event from the event list */
+	evlist__for_each_entry(evlist, evsel) {
+		if (evsel->core.attr.type == cs_etm_pmu->type) {
+			cs_etm_evsel = evsel;
+			break;
+		}
+	}
+
+	/* From the etm_pmu event determine if the sink supports
+	 * formatted trace by reading the sink's FFSR register
+	 * exposed through SysFS
+	 */
+	if (cs_etm_evsel) {
+		struct evsel_config_term *term;
+		char path[PATH_MAX], *sink;
+		int ret;
+		u32 val;
+
+		list_for_each_entry(term, &cs_etm_evsel->config_terms, list) {
+			if (term->type != EVSEL__CONFIG_TERM_DRV_CFG)
+				continue;
+
+			sink = term->val.str;
+			snprintf(path, PATH_MAX, "sink_%s/mgmt/ffsr", sink);
+			ret = perf_pmu__scan_file(cs_etm_pmu, path, "%x", &val);
+			if (ret != 1) {
+				pr_err("%s: can't read file %s\n",
+				       CORESIGHT_ETM_PMU_NAME, path);
+				break;
+			}
+			info->priv[CS_SINK_FORMATTED] = val & (1 << 4) ? 0 : 1;
+		}
+	}
 
 	offset = CS_ETM_SNAPSHOT + 1;
 

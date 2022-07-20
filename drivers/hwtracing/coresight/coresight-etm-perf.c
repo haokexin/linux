@@ -729,7 +729,9 @@ etm_perf_add_symlink_group(struct device *dev, const char *name, const char *gro
 int etm_perf_add_symlink_sink(struct coresight_device *csdev)
 {
 	const char *name;
+	struct device *pmu_dev = etm_pmu.dev;
 	struct device *dev = &csdev->dev;
+	char sink_name[sizeof("sink_tmc_etxxxxx")];
 	int err = 0;
 
 	if (csdev->type != CORESIGHT_DEV_TYPE_SINK &&
@@ -747,6 +749,10 @@ int etm_perf_add_symlink_sink(struct coresight_device *csdev)
 	} else
 		csdev->ea->attr.show = etm_perf_sink_name_show;
 
+	/* Create a symlink to the actual sink device */
+	sprintf(sink_name, "sink_%s", name);
+	err = sysfs_create_link(&pmu_dev->kobj, &dev->kobj, sink_name);
+
 	return err;
 }
 
@@ -760,6 +766,10 @@ static void etm_perf_del_symlink_group(struct dev_ext_attribute *ea, const char 
 
 void etm_perf_del_symlink_sink(struct coresight_device *csdev)
 {
+	const char *name;
+	struct device *pmu_dev = etm_pmu.dev;
+	char sink_name[sizeof("sink_tmc_etxxxxx")];
+
 	if (csdev->type != CORESIGHT_DEV_TYPE_SINK &&
 	    csdev->type != CORESIGHT_DEV_TYPE_LINKSINK)
 		return;
@@ -767,6 +777,9 @@ void etm_perf_del_symlink_sink(struct coresight_device *csdev)
 	if (!csdev->ea)
 		return;
 
+	name = dev_name(&csdev->dev);
+	sprintf(sink_name, "sink_%s", name);
+	sysfs_remove_link(&pmu_dev->kobj, sink_name);
 	etm_perf_del_symlink_group(csdev->ea, "sinks");
 	csdev->ea = NULL;
 }

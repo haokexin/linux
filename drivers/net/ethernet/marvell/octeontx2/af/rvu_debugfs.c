@@ -95,7 +95,7 @@ static char *cgx_tx_stats_fields[] = {
 	[CGX_STAT5]	= "Total frames sent on the interface",
 	[CGX_STAT6]	= "Packets sent with an octet count < 64",
 	[CGX_STAT7]	= "Packets sent with an octet count == 64",
-	[CGX_STAT8]	= "Packets sent with an octet count of 65–127",
+	[CGX_STAT8]	= "Packets sent with an octet count of 65-127",
 	[CGX_STAT9]	= "Packets sent with an octet count of 128-255",
 	[CGX_STAT10]	= "Packets sent with an octet count of 256-511",
 	[CGX_STAT11]	= "Packets sent with an octet count of 512-1023",
@@ -125,7 +125,7 @@ static char *rpm_rx_stats_fields[] = {
 	"Total frames received on interface",
 	"Packets received with an octet count < 64",
 	"Packets received with an octet count == 64",
-	"Packets received with an octet count of 65â127",
+	"Packets received with an octet count of 65-127",
 	"Packets received with an octet count of 128-255",
 	"Packets received with an octet count of 256-511",
 	"Packets received with an octet count of 512-1023",
@@ -164,7 +164,7 @@ static char *rpm_tx_stats_fields[] = {
 	"Packets sent to the multicast DMAC",
 	"Packets sent to a broadcast DMAC",
 	"Packets sent with an octet count == 64",
-	"Packets sent with an octet count of 65â127",
+	"Packets sent with an octet count of 65-127",
 	"Packets sent with an octet count of 128-255",
 	"Packets sent with an octet count of 256-511",
 	"Packets sent with an octet count of 512-1023",
@@ -225,6 +225,96 @@ static const struct file_operations rvu_dbg_##name##_fops = { \
 }
 
 static void print_nix_qsize(struct seq_file *filp, struct rvu_pfvf *pfvf);
+
+#define LMT_MAPTBL_ENTRY_SIZE 16
+/* Dump LMTST map table */
+static ssize_t rvu_dbg_lmtst_map_table_display(struct file *filp,
+					       char __user *buffer,
+					       size_t count, loff_t *ppos)
+{
+	struct rvu *rvu = filp->private_data;
+	u64 lmt_addr, val, tbl_base;
+	int pf, vf, num_vfs, hw_vfs;
+	void __iomem *lmt_map_base;
+	int index = 0, off = 0;
+	int bytes_not_copied;
+	int buf_size = 10240;
+	char *buf;
+
+	/* don't allow partial reads */
+	if (*ppos != 0)
+		return 0;
+
+	buf = kzalloc(buf_size, GFP_KERNEL);
+	if (!buf)
+		return -ENOSPC;
+
+	tbl_base = rvu_read64(rvu, BLKADDR_APR, APR_AF_LMT_MAP_BASE);
+
+	lmt_map_base = ioremap_wc(tbl_base, 128 * 1024);
+	if (!lmt_map_base) {
+		dev_err(rvu->dev, "Failed to setup lmt map table mapping!!\n");
+		kfree(buf);
+		return false;
+	}
+
+	off +=	scnprintf(&buf[off], buf_size - 1 - off,
+			  "\n\t\t\t\t\tLmtst Map Table Entries");
+	off +=	scnprintf(&buf[off], buf_size - 1 - off,
+			  "\n\t\t\t\t\t=======================");
+	off +=	scnprintf(&buf[off], buf_size - 1 - off, "\nPcifunc\t\t\t");
+	off +=	scnprintf(&buf[off], buf_size - 1 - off, "Table Index\t\t");
+	off +=	scnprintf(&buf[off], buf_size - 1 - off,
+			  "Lmtline Base (word 0)\t\t");
+	off +=	scnprintf(&buf[off], buf_size - 1 - off,
+			  "Lmt Map Entry (word 1)");
+	off += scnprintf(&buf[off], buf_size - 1 - off, "\n");
+	for (pf = 0; pf < rvu->hw->total_pfs; pf++) {
+		off += scnprintf(&buf[off], buf_size - 1 - off, "PF%d  \t\t\t",
+				    pf);
+
+		index = pf * rvu->hw->total_vfs * LMT_MAPTBL_ENTRY_SIZE;
+		off += scnprintf(&buf[off], buf_size - 1 - off, " 0x%llx\t\t",
+				 (tbl_base + index));
+		lmt_addr = readq(lmt_map_base + index);
+		off += scnprintf(&buf[off], buf_size - 1 - off,
+				 " 0x%016llx\t\t", lmt_addr);
+		index += 8;
+		val = readq(lmt_map_base + index);
+		off += scnprintf(&buf[off], buf_size - 1 - off, " 0x%016llx\n",
+				 val);
+		/* Reading num of VFs per PF */
+		rvu_get_pf_numvfs(rvu, pf, &num_vfs, &hw_vfs);
+		for (vf = 0; vf < num_vfs; vf++) {
+			index = (pf * rvu->hw->total_vfs * 16) +
+				((vf + 1)  * LMT_MAPTBL_ENTRY_SIZE);
+			off += scnprintf(&buf[off], buf_size - 1 - off,
+					    "PF%d:VF%d  \t\t", pf, vf);
+			off += scnprintf(&buf[off], buf_size - 1 - off,
+					 " 0x%llx\t\t", (tbl_base + index));
+			lmt_addr = readq(lmt_map_base + index);
+			off += scnprintf(&buf[off], buf_size - 1 - off,
+					 " 0x%016llx\t\t", lmt_addr);
+			index += 8;
+			val = readq(lmt_map_base + index);
+			off += scnprintf(&buf[off], buf_size - 1 - off,
+					 " 0x%016llx\n", val);
+		}
+	}
+	off +=	scnprintf(&buf[off], buf_size - 1 - off, "\n");
+
+	bytes_not_copied = copy_to_user(buffer, buf, off);
+	kfree(buf);
+
+	iounmap(lmt_map_base);
+	if (bytes_not_copied)
+		return -EFAULT;
+
+	*ppos = off;
+	return off;
+}
+
+RVU_DEBUG_FOPS(lmtst_map_table, lmtst_map_table_display, NULL);
 
 static void get_lf_str_list(struct rvu_block block, int pcifunc,
 			    char *lfs)
@@ -783,6 +873,10 @@ static int rvu_dbg_npa_ctx_display(struct seq_file *m, void *unused, int ctype)
 
 	for (aura = id; aura < max_id; aura++) {
 		aq_req.aura_id = aura;
+
+		if (ctype == NPA_AQ_CTYPE_POOL && !test_bit(aura, pfvf->pool_bmap))
+			continue;
+
 		seq_printf(m, "======%s : %d=======\n",
 			   (ctype == NPA_AQ_CTYPE_AURA) ? "AURA" : "POOL",
 			aq_req.aura_id);
@@ -1705,6 +1799,15 @@ static int rvu_dbg_nix_qsize_display(struct seq_file *filp, void *unused)
 
 RVU_DEBUG_SEQ_FOPS(nix_qsize, nix_qsize_display, nix_qsize_write);
 
+static ssize_t rvu_dbg_nix_tx_stall_hwissue_display(struct file *filp,
+						    char __user *buffer,
+						    size_t count, loff_t *ppos)
+{
+	return rvu_nix_get_tx_stall_counters(filp->private_data, buffer, ppos);
+}
+
+RVU_DEBUG_FOPS(nix_tx_stall_hwissue, nix_tx_stall_hwissue_display, NULL);
+
 static void print_band_prof_ctx(struct seq_file *m,
 				struct nix_bandprof_s *prof)
 {
@@ -1908,6 +2011,10 @@ static void rvu_dbg_nix_init(struct rvu *rvu, int blkaddr)
 			    &rvu_dbg_nix_band_prof_ctx_fops);
 	debugfs_create_file("ingress_policer_rsrc", 0600, rvu->rvu_dbg.nix, nix_hw,
 			    &rvu_dbg_nix_band_prof_rsrc_fops);
+	if (is_rvu_96xx_A0(rvu)) {
+		debugfs_create_file("tx_stall_hwissue", 0600, rvu->rvu_dbg.nix, nix_hw,
+				    &rvu_dbg_nix_tx_stall_hwissue_fops);
+	}
 }
 
 static void rvu_dbg_npa_init(struct rvu *rvu)
@@ -1924,6 +2031,814 @@ static void rvu_dbg_npa_init(struct rvu *rvu)
 			    &rvu_dbg_npa_ndc_cache_fops);
 	debugfs_create_file("ndc_hits_miss", 0600, rvu->rvu_dbg.npa, rvu,
 			    &rvu_dbg_npa_ndc_hits_miss_fops);
+}
+
+static int parse_sso_cmd_buffer(char *cmd_buf, size_t *count,
+				const char __user *buffer, int *ssolf,
+				bool *all)
+{
+	int ret, bytes_not_copied;
+	char *cmd_buf_tmp;
+	char *subtoken;
+
+	bytes_not_copied = copy_from_user(cmd_buf, buffer, *count);
+	if (bytes_not_copied)
+		return -EFAULT;
+
+	cmd_buf[*count] = '\0';
+	cmd_buf_tmp = strchr(cmd_buf, '\n');
+
+	if (cmd_buf_tmp) {
+		*cmd_buf_tmp = '\0';
+		*count = cmd_buf_tmp - cmd_buf + 1;
+	}
+
+	subtoken = strsep(&cmd_buf, " ");
+	if (subtoken && strcmp(subtoken, "all") == 0) {
+		*all = true;
+	} else{
+		ret = subtoken ? kstrtoint(subtoken, 10, ssolf) : -EINVAL;
+		if (ret < 0)
+			return ret;
+	}
+	if (cmd_buf)
+		return -EINVAL;
+
+	return 0;
+}
+
+static void sso_hwgrp_display_iq_list(struct rvu *rvu, int ssolf, u16 idx,
+				      u16 tail_idx, u8 queue_type)
+{
+	const char *queue[3] = {"DQ", "CQ", "AQ"};
+	int blkaddr;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	pr_info("SSO HWGGRP[%d] [%s] Chain queue head[%d]", ssolf,
+		queue[queue_type], idx);
+	pr_info("SSO HWGGRP[%d] [%s] Chain queue tail[%d]", ssolf,
+		queue[queue_type], tail_idx);
+	pr_info("--------------------------------------------------\n");
+	do {
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_TAG(idx));
+		pr_info("SSO HWGGRP[%d] [%s] IE[%d] TAG      0x%llx\n", ssolf,
+			queue[queue_type], idx, reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_GRP(idx));
+		pr_info("SSO HWGGRP[%d] [%s] IE[%d] GRP      0x%llx\n", ssolf,
+			queue[queue_type], idx, reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_PENDTAG(idx));
+		pr_info("SSO HWGGRP[%d] [%s] IE[%d] PENDTAG  0x%llx\n", ssolf,
+			queue[queue_type], idx, reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_LINKS(idx));
+		pr_info("SSO HWGGRP[%d] [%s] IE[%d] LINKS    0x%llx\n", ssolf,
+			queue[queue_type], idx, reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_QLINKS(idx));
+		pr_info("SSO HWGGRP[%d] [%s] IE[%d] QLINKS   0x%llx\n", ssolf,
+			queue[queue_type], idx, reg);
+		pr_info("--------------------------------------------------\n");
+		if (idx == tail_idx)
+			break;
+		idx = reg & 0x1FFF;
+	} while (idx != 0x1FFF);
+}
+
+static void sso_hwgrp_display_taq_list(struct rvu *rvu, int ssolf, u8 wae_head,
+				       u16 ent_head, u8 wae_used, u8 taq_lines)
+{
+	int i, blkaddr;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	pr_info("--------------------------------------------------\n");
+	do {
+		for (i = wae_head; i < taq_lines && wae_used; i++) {
+			reg = rvu_read64(rvu, blkaddr,
+					 SSO_AF_TAQX_WAEY_TAG(ent_head, i));
+			pr_info("SSO HWGGRP[%d] TAQ[%d] WAE[%d] TAG  0x%llx\n",
+				ssolf, ent_head, i, reg);
+
+			reg = rvu_read64(rvu, blkaddr,
+					 SSO_AF_TAQX_WAEY_WQP(ent_head, i));
+			pr_info("SSO HWGGRP[%d] TAQ[%d] WAE[%d] WQP  0x%llx\n",
+				ssolf, ent_head, i, reg);
+			wae_used--;
+		}
+
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_TAQX_LINK(ent_head));
+		pr_info("SSO HWGGRP[%d] TAQ[%d] LINK         0x%llx\n",
+			ssolf, ent_head, reg);
+		ent_head = reg & 0x7FF;
+		pr_info("--------------------------------------------------\n");
+	} while (ent_head && wae_used);
+}
+
+static int read_sso_pc(struct rvu *rvu)
+{
+	int blkaddr;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return -ENODEV;
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_ACTIVE_CYCLES0);
+	pr_info("SSO Add-Work active cycles		%lld\n", reg);
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_ACTIVE_CYCLES1);
+	pr_info("SSO Get-Work active cycles		%lld\n", reg);
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_ACTIVE_CYCLES2);
+	pr_info("SSO Work-Slot active cycles		%lld\n", reg);
+	pr_info("\n");
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_NOS_CNT) & 0x1FFF;
+	pr_info("SSO work-queue entries on the no-schedule list	%lld\n", reg);
+	pr_info("\n");
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_AW_READ_ARB);
+	pr_info("SSO XAQ reads outstanding		%lld\n",
+		(reg >> 24) & 0x3F);
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_XAQ_REQ_PC);
+	pr_info("SSO XAQ reads requests			%lld\n", reg);
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_XAQ_LATENCY_PC);
+	pr_info("SSO XAQ read latency cycles		%lld\n", reg);
+	pr_info("\n");
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_AW_WE);
+	pr_info("SSO IAQ reserved			%lld\n",
+		(reg >> 16) & 0x3FFF);
+	pr_info("SSO IAQ total				%lld\n", reg & 0x3FFF);
+	pr_info("\n");
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_TAQ_CNT);
+	pr_info("SSO TAQ reserved			%lld\n",
+		(reg >> 16) & 0x7FF);
+	pr_info("SSO TAQ total				%lld\n", reg & 0x7FF);
+	pr_info("\n");
+
+	return 0;
+}
+
+/* Reads SSO hwgrp perfomance counters */
+static void read_sso_hwgrp_pc(struct rvu *rvu, int ssolf, bool all)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	int blkaddr, max_id;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	block = &hw->block[blkaddr];
+	if (ssolf < 0 || ssolf >= block->lf.max) {
+		pr_info("Invalid SSOLF(HWGRP), valid range is 0-%d\n",
+			block->lf.max - 1);
+		return;
+	}
+	max_id =  block->lf.max;
+
+	if (all)
+		ssolf = 0;
+	else
+		max_id = ssolf + 1;
+
+	pr_info("==================================================\n");
+	for (; ssolf < max_id; ssolf++) {
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_WS_PC(ssolf));
+		pr_info("SSO HWGGRP[%d] Work-Schedule PC     0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_EXT_PC(ssolf));
+		pr_info("SSO HWGGRP[%d] External Schedule PC 0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_WA_PC(ssolf));
+		pr_info("SSO HWGGRP[%d] Work-Add PC          0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_TS_PC(ssolf));
+		pr_info("SSO HWGGRP[%d] Tag Switch PC        0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_DS_PC(ssolf));
+		pr_info("SSO HWGGRP[%d] Deschedule PC        0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_DQ_PC(ssolf));
+		pr_info("SSO HWGGRP[%d] Work-Descheduled PC  0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_HWGRPX_PAGE_CNT(ssolf));
+		pr_info("SSO HWGGRP[%d] In-use Page Count    0x%llx\n", ssolf,
+			reg);
+		pr_info("==================================================\n");
+	}
+}
+
+/* Reads SSO hwgrp Threshold */
+static void read_sso_hwgrp_thresh(struct rvu *rvu, int ssolf, bool all)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	int blkaddr, max_id;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	block = &hw->block[blkaddr];
+	if (ssolf < 0 || ssolf >= block->lf.max) {
+		pr_info("Invalid SSOLF(HWGRP), valid range is 0-%d\n",
+			block->lf.max - 1);
+		return;
+	}
+	max_id =  block->lf.max;
+
+	if (all)
+		ssolf = 0;
+	else
+		max_id = ssolf + 1;
+
+	pr_info("==================================================\n");
+	for (; ssolf < max_id; ssolf++) {
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_HWGRPX_IAQ_THR(ssolf));
+		pr_info("SSO HWGGRP[%d] IAQ Threshold        0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_HWGRPX_TAQ_THR(ssolf));
+		pr_info("SSO HWGGRP[%d] TAQ Threshold        0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_HWGRPX_XAQ_AURA(ssolf));
+		pr_info("SSO HWGGRP[%d] XAQ Aura             0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_HWGRPX_XAQ_LIMIT(ssolf));
+		pr_info("SSO HWGGRP[%d] XAQ Limit            0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_HWGRPX_IU_ACCNT(ssolf));
+		pr_info("SSO HWGGRP[%d] IU Account Index     0x%llx\n", ssolf,
+			reg);
+
+		reg = rvu_read64(rvu, blkaddr,
+				 SSO_AF_IU_ACCNTX_CFG(reg & 0xFF));
+		pr_info("SSO HWGGRP[%d] IU Accounting Cfg    0x%llx\n", ssolf,
+			reg);
+		pr_info("==================================================\n");
+	}
+}
+
+/* Reads SSO hwgrp TAQ list */
+static void read_sso_hwgrp_taq_list(struct rvu *rvu, int ssolf, bool all)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	u8 taq_entries, wae_head;
+	struct rvu_block *block;
+	u16 ent_head, cl_used;
+	int blkaddr, max_id;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	block = &hw->block[blkaddr];
+	if (ssolf < 0 || ssolf >= block->lf.max) {
+		pr_info("Invalid SSOLF(HWGRP), valid range is 0-%d\n",
+			block->lf.max - 1);
+		return;
+	}
+	max_id =  block->lf.max;
+
+	if (all)
+		ssolf = 0;
+	else
+		max_id = ssolf + 1;
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_CONST);
+	taq_entries = (reg >> 48) & 0xFF;
+	pr_info("==================================================\n");
+	for (; ssolf < max_id; ssolf++) {
+		pr_info("++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		pr_info("SSO HWGGRP[%d] Transitory Output Admission Queue",
+			ssolf);
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_TOAQX_STATUS(ssolf));
+		pr_info("SSO HWGGRP[%d] TOAQ Status          0x%llx\n", ssolf,
+			reg);
+		ent_head = (reg >> 12) & 0x7FF;
+		cl_used = (reg >> 32) & 0x7FF;
+		if (reg & BIT_ULL(61) && cl_used) {
+			pr_info("SSO HWGGRP[%d] TOAQ CL_USED         0x%x\n",
+				ssolf, cl_used);
+			sso_hwgrp_display_taq_list(rvu, ssolf, ent_head, 0,
+						   cl_used * taq_entries,
+						   taq_entries);
+		}
+		pr_info("++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		pr_info("SSO HWGGRP[%d] Transitory Input Admission Queue",
+			ssolf);
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_TIAQX_STATUS(ssolf));
+		pr_info("SSO HWGGRP[%d] TIAQ Status          0x%llx\n", ssolf,
+			reg);
+		wae_head = (reg >> 60) & 0xF;
+		cl_used = (reg >> 32) & 0x7FFF;
+		ent_head = (reg >> 12) & 0x7FF;
+		if (reg & BIT_ULL(61) && cl_used) {
+			pr_info("SSO HWGGRP[%d] TIAQ WAE_USED         0x%x\n",
+				ssolf, cl_used);
+			sso_hwgrp_display_taq_list(rvu, ssolf, ent_head,
+						   wae_head, cl_used,
+						   taq_entries);
+		}
+		pr_info("++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		pr_info("==================================================\n");
+	}
+}
+
+/* Reads SSO hwgrp IAQ list */
+static void read_sso_hwgrp_iaq_list(struct rvu *rvu, int ssolf, bool all)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	u16 head_idx, tail_idx;
+	int blkaddr, max_id;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	block = &hw->block[blkaddr];
+	if (ssolf < 0 || ssolf >= block->lf.max) {
+		pr_info("Invalid SSOLF(HWGRP), valid range is 0-%d\n",
+			block->lf.max - 1);
+		return;
+	}
+	max_id =  block->lf.max;
+
+	if (all)
+		ssolf = 0;
+	else
+		max_id = ssolf + 1;
+	pr_info("==================================================\n");
+	for (; ssolf < max_id; ssolf++) {
+		pr_info("++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		pr_info("SSO HWGGRP[%d] Deschedule Queue(DQ)\n", ssolf);
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IPL_DESCHEDX(ssolf));
+		pr_info("SSO HWGGRP[%d] DQ List              0x%llx\n", ssolf,
+			reg);
+		head_idx = (reg >> 13) & 0x1FFF;
+		tail_idx = reg & 0x1FFF;
+		if (reg & (BIT_ULL(26) | BIT_ULL(27)))
+			sso_hwgrp_display_iq_list(rvu, ssolf, head_idx,
+						  tail_idx, 0);
+		pr_info("++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		pr_info("SSO HWGGRP[%d] Conflict Queue(CQ)\n", ssolf);
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IPL_CONFX(ssolf));
+		pr_info("SSO HWGGRP[%d] CQ List              0x%llx\n", ssolf,
+			reg);
+		head_idx = (reg >> 13) & 0x1FFF;
+		tail_idx = reg & 0x1FFF;
+		if (reg & (BIT_ULL(26) | BIT_ULL(27)))
+			sso_hwgrp_display_iq_list(rvu, ssolf, head_idx,
+						  tail_idx, 1);
+		pr_info("++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		pr_info("SSO HWGGRP[%d] Admission Queue(AQ)\n", ssolf);
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IPL_IAQX(ssolf));
+		pr_info("SSO HWGGRP[%d] AQ List              0x%llx\n", ssolf,
+			reg);
+		head_idx = (reg >> 13) & 0x1FFF;
+		tail_idx = reg & 0x1FFF;
+		if (reg & (BIT_ULL(26) | BIT_ULL(27)))
+			sso_hwgrp_display_iq_list(rvu, ssolf, head_idx,
+						  tail_idx, 2);
+		pr_info("++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		pr_info("==================================================\n");
+	}
+}
+
+/* Reads SSO hwgrp IENT list */
+static int read_sso_hwgrp_ient_list(struct rvu *rvu)
+{
+	const char *tt_c[4] = {"SSO_TT_ORDERED_", "SSO_TT_ATOMIC__",
+				"SSO_TT_UNTAGGED", "SSO_TT_EMPTY___"};
+	struct rvu_hwinfo *hw = rvu->hw;
+	int max_idx = hw->sso.sso_iue;
+	u64 pendtag, qlinks, links;
+	int len, idx, blkaddr;
+	u64 tag, grp, wqp;
+	char str[300];
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return -ENODEV;
+
+	for (idx = 0; idx < max_idx; idx++) {
+		len = 0;
+		tag = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_TAG(idx));
+		grp = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_GRP(idx));
+		pendtag = rvu_read64(rvu, blkaddr,
+				     SSO_AF_IENTX_PENDTAG(idx));
+		links = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_LINKS(idx));
+		qlinks = rvu_read64(rvu, blkaddr,
+				    SSO_AF_IENTX_QLINKS(idx));
+		wqp = rvu_read64(rvu, blkaddr, SSO_AF_IENTX_WQP(idx));
+		len = snprintf(str + len, 300,
+			       "SSO IENT[%4d] TT [%s] HWGRP [%3lld] ", idx,
+				tt_c[(tag >> 32) & 0x3], (grp >> 48) & 0x1f);
+		len += snprintf(str + len, 300 - len,
+				"TAG [0x%010llx] GRP [0x%016llx] ", tag, grp);
+		len += snprintf(str + len, 300 - len, "PENDTAG [0x%010llx] ",
+				pendtag);
+		len += snprintf(str + len, 300 - len,
+				"LINKS [0x%016llx] QLINKS [0x%010llx] ", links,
+				qlinks);
+		snprintf(str + len, 300 - len, "WQP [0x%016llx]\n", wqp);
+		pr_info("%s", str);
+	}
+
+	return 0;
+}
+
+/* Reads SSO hwgrp free list */
+static int read_sso_hwgrp_free_list(struct rvu *rvu)
+{
+	int blkaddr;
+	u64 reg;
+	u8 idx;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return -ENODEV;
+
+	pr_info("==================================================\n");
+	for (idx = 0; idx < 4; idx++) {
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_IPL_FREEX(idx));
+		pr_info("SSO FREE LIST[%d]\n", idx);
+		pr_info("qnum_head : %lld qnum_tail : %lld\n",
+			(reg >> 58) & 0x3, (reg >> 56) & 0x3);
+		pr_info("queue_cnt : %llx\n", (reg >> 26) & 0x7fff);
+		pr_info("queue_val : %lld queue_head : %4lld queue_tail %4lld\n"
+			, (reg >> 40) & 0x1, (reg >> 13) & 0x1fff,
+			reg & 0x1fff);
+		pr_info("==================================================\n");
+	}
+
+	return 0;
+}
+
+/* Reads SSO hwgrp perfomance counters */
+static void read_sso_hws_info(struct rvu *rvu, int ssowlf, bool all)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	int blkaddr;
+	int max_id;
+	u64 reg;
+	u8 mask;
+	u8 set;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSOW, 0);
+	if (blkaddr < 0)
+		return;
+
+	block = &hw->block[blkaddr];
+	if (ssowlf < 0 || ssowlf >= block->lf.max) {
+		pr_info("Invalid SSOWLF(HWS), valid range is 0-%d\n",
+			block->lf.max - 1);
+		return;
+	}
+	max_id =  block->lf.max;
+
+	if (all)
+		ssowlf = 0;
+	else
+		max_id = ssowlf + 1;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	pr_info("==================================================\n");
+	for (; ssowlf < max_id; ssowlf++) {
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWSX_ARB(ssowlf));
+		pr_info("SSOW HWS[%d] Arbitration State      0x%llx\n", ssowlf,
+			reg);
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWSX_GMCTL(ssowlf));
+		pr_info("SSOW HWS[%d] Guest Machine Control  0x%llx\n", ssowlf,
+			reg);
+		for (set = 0; set < 2; set++)
+			for (mask = 0; mask < 4; mask++) {
+				reg = rvu_read64(rvu, blkaddr,
+						 SSO_AF_HWSX_SX_GRPMSKX(ssowlf,
+									set,
+									mask));
+				pr_info(
+				"SSOW HWS[%d] SET[%d] Group Mask[%d] 0x%llx\n",
+				ssowlf, set, mask, reg);
+			}
+		pr_info("==================================================\n");
+	}
+}
+
+typedef void (*sso_dump_cb)(struct rvu *rvu, int ssolf, bool all);
+
+static ssize_t rvu_dbg_sso_cmd_parser(struct file *filp,
+				      const char __user *buffer, size_t count,
+				      loff_t *ppos, char *lf_type,
+				      char *file_nm, sso_dump_cb fn)
+{
+	struct rvu *rvu = filp->private_data;
+	bool all = false;
+	char *cmd_buf;
+	int lf = 0;
+
+	if ((*ppos != 0) || !count)
+		return -EINVAL;
+
+	cmd_buf = kzalloc(count + 1, GFP_KERNEL);
+	if (!cmd_buf)
+		return -ENOSPC;
+
+	if (parse_sso_cmd_buffer(cmd_buf, &count, buffer,
+				 &lf, &all) < 0) {
+		pr_info("Usage: echo [<%s>/all] > %s\n", lf_type, file_nm);
+	} else {
+		fn(rvu, lf, all);
+	}
+	kfree(cmd_buf);
+
+	return count;
+}
+
+/* SSO debugfs APIs */
+static ssize_t rvu_dbg_sso_pc_display(struct file *filp,
+				      char __user *buffer,
+				      size_t count, loff_t *ppos)
+{
+	return read_sso_pc(filp->private_data);
+}
+
+static ssize_t rvu_dbg_sso_hwgrp_pc_display(struct file *filp,
+					    const char __user *buffer,
+					    size_t count, loff_t *ppos)
+{
+	return rvu_dbg_sso_cmd_parser(filp, buffer, count, ppos, "hwgrp",
+			"sso_hwgrp_pc", read_sso_hwgrp_pc);
+}
+
+static ssize_t rvu_dbg_sso_hwgrp_thresh_display(struct file *filp,
+						const char __user *buffer,
+						size_t count, loff_t *ppos)
+{
+	return rvu_dbg_sso_cmd_parser(filp, buffer, count, ppos, "hwgrp",
+			"sso_hwgrp_thresh", read_sso_hwgrp_thresh);
+}
+
+static ssize_t rvu_dbg_sso_hwgrp_taq_wlk_display(struct file *filp,
+						 const char __user *buffer,
+						 size_t count, loff_t *ppos)
+{
+	return rvu_dbg_sso_cmd_parser(filp, buffer, count, ppos, "hwgrp",
+			"sso_hwgrp_taq_wlk", read_sso_hwgrp_taq_list);
+}
+
+static ssize_t rvu_dbg_sso_hwgrp_iaq_wlk_display(struct file *filp,
+						 const char __user *buffer,
+						 size_t count, loff_t *ppos)
+{
+	return rvu_dbg_sso_cmd_parser(filp, buffer, count, ppos, "hwgrp",
+			"sso_hwgrp_iaq_wlk", read_sso_hwgrp_iaq_list);
+}
+
+static ssize_t rvu_dbg_sso_hwgrp_ient_wlk_display(struct file *filp,
+						  char __user *buffer,
+						  size_t count, loff_t *ppos)
+{
+	return read_sso_hwgrp_ient_list(filp->private_data);
+}
+
+static ssize_t rvu_dbg_sso_hwgrp_fl_wlk_display(struct file *filp,
+						char __user *buffer,
+						size_t count, loff_t *ppos)
+{
+	return read_sso_hwgrp_free_list(filp->private_data);
+}
+
+static ssize_t rvu_dbg_sso_hws_info_display(struct file *filp,
+					    const char __user *buffer,
+					    size_t count, loff_t *ppos)
+{
+	return rvu_dbg_sso_cmd_parser(filp, buffer, count, ppos, "hws",
+			"sso_hws_info", read_sso_hws_info);
+}
+
+RVU_DEBUG_FOPS(sso_pc, sso_pc_display, NULL);
+RVU_DEBUG_FOPS(sso_hwgrp_pc, NULL, sso_hwgrp_pc_display);
+RVU_DEBUG_FOPS(sso_hwgrp_thresh, NULL, sso_hwgrp_thresh_display);
+RVU_DEBUG_FOPS(sso_hwgrp_taq_wlk, NULL, sso_hwgrp_taq_wlk_display);
+RVU_DEBUG_FOPS(sso_hwgrp_iaq_wlk, NULL, sso_hwgrp_iaq_wlk_display);
+RVU_DEBUG_FOPS(sso_hwgrp_ient_wlk, sso_hwgrp_ient_wlk_display, NULL);
+RVU_DEBUG_FOPS(sso_hwgrp_fl_wlk, sso_hwgrp_fl_wlk_display, NULL);
+RVU_DEBUG_FOPS(sso_hws_info, NULL, sso_hws_info_display);
+
+static void rvu_dbg_sso_init(struct rvu *rvu)
+{
+	rvu->rvu_dbg.sso = debugfs_create_dir("sso", rvu->rvu_dbg.root);
+	rvu->rvu_dbg.sso_hwgrp = debugfs_create_dir("hwgrp", rvu->rvu_dbg.sso);
+	rvu->rvu_dbg.sso_hws = debugfs_create_dir("hws", rvu->rvu_dbg.sso);
+
+	debugfs_create_file("sso_pc", 0600, rvu->rvu_dbg.sso, rvu,
+			    &rvu_dbg_sso_pc_fops);
+
+	debugfs_create_file("sso_hwgrp_pc", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_pc_fops);
+
+	debugfs_create_file("sso_hwgrp_thresh", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_thresh_fops);
+
+	debugfs_create_file("sso_hwgrp_taq_walk", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_taq_wlk_fops);
+
+	debugfs_create_file("sso_hwgrp_iaq_walk", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_iaq_wlk_fops);
+
+	debugfs_create_file("sso_hwgrp_ient_walk", 0600, rvu->rvu_dbg.sso_hwgrp,
+			    rvu, &rvu_dbg_sso_hwgrp_ient_wlk_fops);
+
+	debugfs_create_file("sso_hwgrp_free_list_walk", 0600,
+			    rvu->rvu_dbg.sso_hwgrp, rvu,
+			    &rvu_dbg_sso_hwgrp_fl_wlk_fops);
+
+	debugfs_create_file("sso_hws_info", 0600, rvu->rvu_dbg.sso_hws,
+			    rvu, &rvu_dbg_sso_hws_info_fops);
+}
+
+/* CPT debugfs APIs */
+static int parse_cpt_cmd_buffer(char *cmd_buf, size_t *count,
+				const char __user *buffer, char *e_type)
+{
+	int  bytes_not_copied;
+	char *cmd_buf_tmp;
+	char *subtoken;
+
+	bytes_not_copied = copy_from_user(cmd_buf, buffer, *count);
+	if (bytes_not_copied)
+		return -EFAULT;
+
+	cmd_buf[*count] = '\0';
+	cmd_buf_tmp = strchr(cmd_buf, '\n');
+
+	if (cmd_buf_tmp) {
+		*cmd_buf_tmp = '\0';
+		*count = cmd_buf_tmp - cmd_buf + 1;
+	}
+
+	subtoken = strsep(&cmd_buf, " ");
+	if (subtoken)
+		strcpy(e_type, subtoken);
+	else
+		return -EINVAL;
+
+	if (cmd_buf)
+		return -EINVAL;
+
+	if (strcmp(e_type, "SE") && strcmp(e_type, "IE") &&
+	    strcmp(e_type, "AE") && strcmp(e_type, "all"))
+		return -EINVAL;
+
+	return 0;
+}
+
+static ssize_t rvu_dbg_cpt_cmd_parser(struct file *filp,
+				      const char __user *buffer, size_t count,
+				      loff_t *ppos)
+{
+	struct seq_file *s = filp->private_data;
+	struct rvu *rvu = s->private;
+	int blkaddr;
+	char *cmd_buf;
+	int ret = 0;
+
+	if ((*ppos != 0) || !count)
+		return -EINVAL;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_CPT, 0);
+	if (blkaddr < 0)
+		return -ENODEV;
+
+	cmd_buf = kzalloc(count + 1, GFP_KERNEL);
+	if (!cmd_buf)
+		return -ENOSPC;
+
+	if (parse_cpt_cmd_buffer(cmd_buf, &count, buffer,
+				 rvu->rvu_dbg.cpt_ctx[blkaddr].e_type) < 0)
+		ret = -EINVAL;
+
+	kfree(cmd_buf);
+
+	if (ret)
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t rvu_dbg_cpt_engines_sts_write(struct file *filp,
+					     const char __user *buffer,
+					     size_t count, loff_t *ppos)
+{
+	return rvu_dbg_cpt_cmd_parser(filp, buffer, count, ppos);
+}
+
+static int rvu_dbg_cpt_engines_sts_display(struct seq_file *filp, void *unused)
+{
+	u64  busy_sts[2] = {0}, free_sts[2] = {0};
+	struct rvu *rvu = filp->private;
+	u16  max_ses, max_ies, max_aes;
+	u32  e_min = 0, e_max = 0, e;
+	struct dentry *current_dir;
+	int  blkaddr;
+	char *e_type;
+	u64  reg;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
+	blkaddr = (!strcmp(current_dir->d_name.name, "cpt1") ?
+		   BLKADDR_CPT1 : BLKADDR_CPT0);
+
+	reg = rvu_read64(rvu, blkaddr, CPT_AF_CONSTANTS1);
+	max_ses = reg & 0xffff;
+	max_ies = (reg >> 16) & 0xffff;
+	max_aes = (reg >> 32) & 0xffff;
+
+	e_type = rvu->rvu_dbg.cpt_ctx[blkaddr].e_type;
+
+	if (strcmp(e_type, "SE") == 0) {
+		e_min = 0;
+		e_max = max_ses - 1;
+	} else if (strcmp(e_type, "IE") == 0) {
+		e_min = max_ses;
+		e_max = max_ses + max_ies - 1;
+	} else if (strcmp(e_type, "AE") == 0) {
+		e_min = max_ses + max_ies;
+		e_max = max_ses + max_ies + max_aes - 1;
+	} else if (strcmp(e_type, "all") == 0) {
+		e_min = 0;
+		e_max = max_ses + max_ies + max_aes - 1;
+	} else {
+		return -EINVAL;
+	}
+
+	for (e = e_min; e <= e_max; e++) {
+		reg = rvu_read64(rvu, blkaddr, CPT_AF_EXEX_STS(e));
+		if (reg & 0x1) {
+			if (e < max_ses)
+				busy_sts[0] |= 1ULL << e;
+			else if (e >= max_ses)
+				busy_sts[1] |= 1ULL << (e - max_ses);
+		}
+		if (reg & 0x2) {
+			if (e < max_ses)
+				free_sts[0] |= 1ULL << e;
+			else if (e >= max_ses)
+				free_sts[1] |= 1ULL << (e - max_ses);
+		}
+	}
+	seq_printf(filp, "FREE STS : 0x%016llx  0x%016llx\n", free_sts[1],
+		   free_sts[0]);
+	seq_printf(filp, "BUSY STS : 0x%016llx  0x%016llx\n", busy_sts[1],
+		   busy_sts[0]);
+
+	return 0;
+}
+
+RVU_DEBUG_SEQ_FOPS(cpt_engines_sts, cpt_engines_sts_display,
+		   cpt_engines_sts_write);
+
+static ssize_t rvu_dbg_cpt_engines_info_write(struct file *filp,
+					      const char __user *buffer,
+					      size_t count, loff_t *ppos)
+{
+	return rvu_dbg_cpt_cmd_parser(filp, buffer, count, ppos);
 }
 
 #define PRINT_CGX_CUML_NIXRX_STATUS(idx, name)				\
@@ -2040,13 +2955,13 @@ static int cgx_print_stats(struct seq_file *s, int lmac_id)
 		if (err)
 			return err;
 
-	if (is_rvu_otx2(rvu))
-		seq_printf(s, "%s: %llu\n", cgx_tx_stats_fields[stat],
-			   tx_stat);
-	else
-		seq_printf(s, "%s: %llu\n", rpm_tx_stats_fields[stat],
-			   tx_stat);
-	stat++;
+		if (is_rvu_otx2(rvu))
+			seq_printf(s, "%s: %llu\n", cgx_tx_stats_fields[stat],
+				   tx_stat);
+		else
+			seq_printf(s, "%s: %llu\n", rpm_tx_stats_fields[stat],
+				   tx_stat);
+		stat++;
 	}
 
 	return err;
@@ -2330,6 +3245,7 @@ static void rvu_dbg_npc_mcam_show_flows(struct seq_file *s,
 			seq_printf(s, "mask 0x%x\n", ntohs(rule->mask.etype));
 			break;
 		case NPC_OUTER_VID:
+		case NPC_FDSA_VAL:
 			seq_printf(s, "0x%x ", ntohs(rule->packet.vlan_tci));
 			seq_printf(s, "mask 0x%x\n",
 				   ntohs(rule->mask.vlan_tci));
@@ -2484,6 +3400,8 @@ static int rvu_dbg_npc_mcam_show_rules(struct seq_file *s, void *unused)
 				seq_printf(s, "VF%d", vf);
 			}
 			seq_puts(s, "\n");
+			seq_printf(s, "\tchannel: 0x%x\n", iter->chan);
+			seq_printf(s, "\tchannel_mask: 0x%x\n", iter->chan_mask);
 		}
 
 		rvu_dbg_npc_mcam_show_action(s, iter);
@@ -2588,10 +3506,13 @@ static int rvu_dbg_cpt_engines_info_display(struct seq_file *filp, void *unused)
 {
 	struct cpt_ctx *ctx = filp->private;
 	u16 max_ses, max_ies, max_aes;
+	struct dentry *current_dir;
 	struct rvu *rvu = ctx->rvu;
 	int blkaddr = ctx->blkaddr;
 	u32 e_max, e;
 	u64 reg;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_CONSTANTS1);
 	max_ses = reg & 0xffff;
@@ -2622,11 +3543,14 @@ static int rvu_dbg_cpt_lfs_info_display(struct seq_file *filp, void *unused)
 {
 	struct cpt_ctx *ctx = filp->private;
 	int blkaddr = ctx->blkaddr;
+	struct dentry *current_dir;
 	struct rvu *rvu = ctx->rvu;
 	struct rvu_block *block;
 	struct rvu_hwinfo *hw;
 	u64 reg;
 	u32 lf;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	hw = rvu->hw;
 	block = &hw->block[blkaddr];
@@ -2655,8 +3579,11 @@ static int rvu_dbg_cpt_err_info_display(struct seq_file *filp, void *unused)
 {
 	struct cpt_ctx *ctx = filp->private;
 	struct rvu *rvu = ctx->rvu;
+	struct dentry *current_dir;
 	int blkaddr = ctx->blkaddr;
 	u64 reg0, reg1;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	reg0 = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(0));
 	reg1 = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(1));
@@ -2680,10 +3607,13 @@ RVU_DEBUG_SEQ_FOPS(cpt_err_info, cpt_err_info_display, NULL);
 
 static int rvu_dbg_cpt_pc_display(struct seq_file *filp, void *unused)
 {
+	struct dentry *current_dir;
 	struct cpt_ctx *ctx = filp->private;
 	struct rvu *rvu = ctx->rvu;
 	int blkaddr = ctx->blkaddr;
 	u64 reg;
+
+	current_dir = filp->file->f_path.dentry->d_parent;
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_INST_REQ_PC);
 	seq_printf(filp, "CPT instruction requests   %llu\n", reg);
@@ -2756,6 +3686,10 @@ void rvu_dbg_init(struct rvu *rvu)
 	debugfs_create_file("rsrc_alloc", 0444, rvu->rvu_dbg.root, rvu,
 			    &rvu_dbg_rsrc_status_fops);
 
+	if (!is_rvu_otx2(rvu))
+		debugfs_create_file("lmtst_map_table", 0444, rvu->rvu_dbg.root,
+				    rvu, &rvu_dbg_lmtst_map_table_fops);
+
 	if (!cgx_get_cgxcnt_max())
 		goto create;
 
@@ -2775,6 +3709,7 @@ create:
 	rvu_dbg_npc_init(rvu);
 	rvu_dbg_cpt_init(rvu, BLKADDR_CPT0);
 	rvu_dbg_cpt_init(rvu, BLKADDR_CPT1);
+	rvu_dbg_sso_init(rvu);
 }
 
 void rvu_dbg_exit(struct rvu *rvu)

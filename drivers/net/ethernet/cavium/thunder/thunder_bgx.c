@@ -74,12 +74,14 @@ struct bgx {
 	struct pci_dev		*pdev;
 	bool                    is_dlm;
 	bool                    is_rgx;
+	unsigned long		lmac_bmap; /* bitmap of enabled lmacs */
 };
 
 static struct bgx *bgx_vnic[MAX_BGX_THUNDER];
 static int lmac_count; /* Total no of LMACs in system */
 
 static int bgx_xaui_check_link(struct lmac *lmac);
+static int bgx_lmac_sgmii_init(struct bgx *bgx, struct lmac *lmac);
 
 /* Supported devices */
 static const struct pci_device_id bgx_id_table[] = {
@@ -195,11 +197,23 @@ int bgx_get_lmac_count(int node, int bgx_idx)
 
 	bgx = get_bgx(node, bgx_idx);
 	if (bgx)
-		return bgx->lmac_count;
+		return hweight64(bgx->lmac_bmap);
 
 	return 0;
 }
 EXPORT_SYMBOL(bgx_get_lmac_count);
+
+unsigned long bgx_get_lmac_bmap(int node, int bgx_idx)
+{
+	struct bgx *bgx;
+
+	bgx = get_bgx(node, bgx_idx);
+	if (bgx)
+		return bgx->lmac_bmap;
+
+	return 0;
+}
+EXPORT_SYMBOL(bgx_get_lmac_bmap);
 
 /* Returns the current link status of LMAC */
 void bgx_get_lmac_link_state(int node, int bgx_idx, int lmacid, void *status)
@@ -579,6 +593,14 @@ static void bgx_sgmii_change_link_state(struct lmac *lmac)
 	}
 	bgx_reg_write(bgx, lmac->lmacid, BGX_GMP_PCS_MISCX_CTL, misc_ctl);
 	bgx_reg_write(bgx, lmac->lmacid, BGX_GMP_GMI_PRTX_CFG, port_cfg);
+	if (!bgx->is_rgx) {
+		bgx_reg_modify(bgx, lmac->lmacid, BGX_GMP_PCS_MRX_CTL,
+			       PCS_MRX_CTL_RESET);
+		if (bgx_poll_reg(bgx, lmac->lmacid, BGX_GMP_PCS_MRX_CTL,
+				 PCS_MRX_CTL_RESET, true)) {
+			dev_err(&bgx->pdev->dev, "BGX PCS reset not completed\n");
+		}
+	}
 
 	/* Restore CMR config settings */
 	cmr_cfg |= (rx_en ? CMR_PKT_RX_EN : 0) | (tx_en ? CMR_PKT_TX_EN : 0);
@@ -592,31 +614,17 @@ static void bgx_lmac_handler(struct net_device *netdev)
 {
 	struct lmac *lmac = container_of(netdev, struct lmac, netdev);
 	struct phy_device *phydev;
-	int link_changed = 0;
 
 	phydev = lmac->phydev;
 
-	if (!phydev->link && lmac->last_link)
-		link_changed = -1;
-
-	if (phydev->link &&
-	    (lmac->last_duplex != phydev->duplex ||
-	     lmac->last_link != phydev->link ||
-	     lmac->last_speed != phydev->speed)) {
-			link_changed = 1;
-	}
+	if (phydev->link == 1)
+		lmac->link_up = true;
+	else
+		lmac->link_up = false;
 
 	lmac->last_link = phydev->link;
 	lmac->last_speed = phydev->speed;
 	lmac->last_duplex = phydev->duplex;
-
-	if (!link_changed)
-		return;
-
-	if (link_changed > 0)
-		lmac->link_up = true;
-	else
-		lmac->link_up = false;
 
 	if (lmac->is_sgmii)
 		bgx_sgmii_change_link_state(lmac);
@@ -1095,10 +1103,7 @@ static int bgx_lmac_enable(struct bgx *bgx, u8 lmacid)
 	/* Restore default cfg, incase low level firmware changed it */
 	bgx_reg_write(bgx, lmacid, BGX_CMRX_RX_DMAC_CTL, 0x03);
 
-	if ((lmac->lmac_type != BGX_MODE_XFI) &&
-	    (lmac->lmac_type != BGX_MODE_XLAUI) &&
-	    (lmac->lmac_type != BGX_MODE_40G_KR) &&
-	    (lmac->lmac_type != BGX_MODE_10G_KR)) {
+	if (lmac->is_sgmii) {
 		if (!lmac->phydev) {
 			if (lmac->autoneg) {
 				bgx_reg_write(bgx, lmacid,
@@ -1197,7 +1202,7 @@ static void bgx_init_hw(struct bgx *bgx)
 		dev_err(&bgx->pdev->dev, "BGX%d BIST failed\n", bgx->bgx_id);
 
 	/* Set lmac type and lane2serdes mapping */
-	for (i = 0; i < bgx->lmac_count; i++) {
+	for_each_set_bit(i, &bgx->lmac_bmap, MAX_LMAC_PER_BGX) {
 		lmac = &bgx->lmac[i];
 		bgx_reg_write(bgx, i, BGX_CMRX_CFG,
 			      (lmac->lmac_type << 8) | lmac->lane_to_sds);
@@ -1209,7 +1214,7 @@ static void bgx_init_hw(struct bgx *bgx)
 	bgx_reg_write(bgx, 0, BGX_CMR_RX_LMACS, bgx->lmac_count);
 
 	/* Set the backpressure AND mask */
-	for (i = 0; i < bgx->lmac_count; i++)
+	for_each_set_bit(i, &bgx->lmac_bmap, MAX_LMAC_PER_BGX)
 		bgx_reg_modify(bgx, 0, BGX_CMR_CHAN_MSK_AND,
 			       ((1ULL << MAX_BGX_CHANS_PER_LMAC) - 1) <<
 			       (i * MAX_BGX_CHANS_PER_LMAC));
@@ -1245,7 +1250,10 @@ static void bgx_print_qlm_mode(struct bgx *bgx, u8 lmacid)
 
 	switch (lmac->lmac_type) {
 	case BGX_MODE_SGMII:
-		dev_info(dev, "%s: SGMII\n", (char *)str);
+		if (bgx_reg_read(bgx, lmacid, BGX_GMP_PCS_MISCX_CTL) & 0x100)
+			dev_info(dev, "%s: 1000Base-X\n", (char *)str);
+		else
+			dev_info(dev, "%s: SGMII\n", (char *)str);
 		break;
 	case BGX_MODE_XAUI:
 		dev_info(dev, "%s: XAUI\n", (char *)str);
@@ -1466,12 +1474,14 @@ static int bgx_init_of_phy(struct bgx *bgx)
 {
 	struct fwnode_handle *fwn;
 	struct device_node *node = NULL;
+	bool phy_reset;
 	u8 lmac = 0;
 
 	device_for_each_child_node(&bgx->pdev->dev, fwn) {
 		struct phy_device *pd;
 		struct device_node *phy_np;
 
+		phy_reset = false;
 		/* Should always be an OF node.  But if it is not, we
 		 * cannot handle it, so exit the loop.
 		 */
@@ -1494,10 +1504,12 @@ static int bgx_init_of_phy(struct bgx *bgx)
 			/* Wait until the phy drivers are available */
 			pd = of_phy_find_device(phy_np);
 			if (!pd)
-				goto defer;
+				phy_reset = true;
 			bgx->lmac[lmac].phydev = pd;
 		}
 
+		if (!phy_reset)
+			set_bit(bgx->lmac[lmac].lmacid, &bgx->lmac_bmap);
 		lmac++;
 		if (lmac == bgx->max_lmac) {
 			of_node_put(node);
@@ -1505,20 +1517,6 @@ static int bgx_init_of_phy(struct bgx *bgx)
 		}
 	}
 	return 0;
-
-defer:
-	/* We are bailing out, try not to leak device reference counts
-	 * for phy devices we may have already found.
-	 */
-	while (lmac) {
-		if (bgx->lmac[lmac].phydev) {
-			put_device(&bgx->lmac[lmac].phydev->mdio.dev);
-			bgx->lmac[lmac].phydev = NULL;
-		}
-		lmac--;
-	}
-	of_node_put(node);
-	return -EPROBE_DEFER;
 }
 
 #else
@@ -1544,7 +1542,7 @@ static irqreturn_t bgx_intr_handler(int irq, void *data)
 	u64 status, val;
 	int lmac;
 
-	for (lmac = 0; lmac < bgx->lmac_count; lmac++) {
+	for_each_set_bit(lmac, &bgx->lmac_bmap, MAX_LMAC_PER_BGX) {
 		status = bgx_reg_read(bgx, lmac, BGX_GMP_GMI_TXX_INT);
 		if (status & GMI_TXX_INT_UNDFLW) {
 			pci_err(bgx->pdev, "BGX%d lmac%d UNDFLW\n",
@@ -1643,8 +1641,10 @@ static int bgx_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	bgx_get_qlm_mode(bgx);
 
-	err = bgx_init_phy(bgx);
-	if (err)
+	bgx_init_phy(bgx);
+
+	/* Fail case where no lmac is enabled */
+	if (!bgx->lmac_bmap)
 		goto err_enable;
 
 	bgx_init_hw(bgx);
@@ -1652,7 +1652,7 @@ static int bgx_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	bgx_register_intr(pdev);
 
 	/* Enable all LMACs */
-	for (lmac = 0; lmac < bgx->lmac_count; lmac++) {
+	for_each_set_bit(lmac, &bgx->lmac_bmap, MAX_LMAC_PER_BGX) {
 		err = bgx_lmac_enable(bgx, lmac);
 		if (err) {
 			dev_err(dev, "BGX%d failed to enable lmac%d\n",
@@ -1682,7 +1682,7 @@ static void bgx_remove(struct pci_dev *pdev)
 	u8 lmac;
 
 	/* Disable all LMACs */
-	for (lmac = 0; lmac < bgx->lmac_count; lmac++)
+	for_each_set_bit(lmac, &bgx->lmac_bmap, MAX_LMAC_PER_BGX)
 		bgx_lmac_disable(bgx, lmac);
 
 	pci_free_irq(pdev, GMPX_GMI_TX_INT, bgx);

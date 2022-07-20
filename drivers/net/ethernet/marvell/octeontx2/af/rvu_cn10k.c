@@ -276,6 +276,16 @@ void rvu_reset_lmt_map_tbl(struct rvu *rvu, u16 pcifunc)
 	}
 }
 
+void rvu_sso_block_cn10k_init(struct rvu *rvu, int blkaddr)
+{
+	u64 reg;
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_WS_CFG);
+	/* Enable GET_WORK prefetching to the GWCs. */
+	reg &= ~BIT_ULL(4);
+	rvu_write64(rvu, blkaddr, SSO_AF_WS_CFG, reg);
+}
+
 int rvu_set_channels_base(struct rvu *rvu)
 {
 	u16 nr_lbk_chans, nr_sdp_chans, nr_cgx_chans, nr_cpt_chans;
@@ -334,8 +344,8 @@ int rvu_set_channels_base(struct rvu *rvu)
 	/* Out of 4096 channels start CPT from 2048 so
 	 * that MSB for CPT channels is always set
 	 */
-	if (cpt_chan_base <= 0x800) {
-		hw->cpt_chan_base = 0x800;
+	if (cpt_chan_base <= NIX_CHAN_CPT_CH_START) {
+		hw->cpt_chan_base = NIX_CHAN_CPT_CH_START;
 	} else {
 		dev_err(rvu->dev,
 			"CPT channels could not fit in the range 2048-4095\n");
@@ -537,4 +547,31 @@ void rvu_program_channels(struct rvu *rvu)
 	rvu_nix_set_channels(rvu);
 	rvu_lbk_set_channels(rvu);
 	rvu_rpm_set_channels(rvu);
+}
+
+void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw)
+{
+	int blkaddr = nix_hw->blkaddr;
+	u64 cfg;
+
+	/* Set AF vWQE timer interval to a LF configurable range of
+	 * 6.4us to 1.632ms.
+	 */
+	rvu_write64(rvu, blkaddr, NIX_AF_VWQE_TIMER, 0x3FULL);
+
+	/* Enable NIX RX stream conditional clock to
+	 * avoild double free of NPA buffers.
+	 */
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_CFG);
+	cfg |= BIT_ULL(2);
+	rvu_write64(rvu, blkaddr, NIX_AF_CFG, cfg);
+}
+
+void rvu_apr_block_cn10k_init(struct rvu *rvu)
+{
+	u64 reg;
+
+	reg = rvu_read64(rvu, BLKADDR_APR, APR_AF_LMT_CFG);
+	reg |= 0xFULL << 35;
+	rvu_write64(rvu, BLKADDR_APR, APR_AF_LMT_CFG, reg);
 }

@@ -10,6 +10,7 @@
 #define _PCI_ACPI_H_
 
 #include <linux/acpi.h>
+#include <linux/pci.h>
 
 #ifdef CONFIG_ACPI
 extern acpi_status pci_acpi_add_bus_pm_notifier(struct acpi_device *dev);

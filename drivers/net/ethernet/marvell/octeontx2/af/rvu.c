@@ -45,7 +45,7 @@ static const struct pci_device_id rvu_id_table[] = {
 	{ 0, }  /* end of table */
 };
 
-MODULE_AUTHOR("Sunil Goutham <sgoutham@marvell.com>");
+MODULE_AUTHOR("Marvell.");
 MODULE_DESCRIPTION(DRV_STRING);
 MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(pci, rvu_id_table);
@@ -281,6 +281,12 @@ int rvu_get_blkaddr(struct rvu *rvu, int blktype, u16 pcifunc)
 			goto exit;
 		}
 		break;
+	case BLKTYPE_REE:
+		if (!pcifunc) {
+			blkaddr = BLKADDR_REE0;
+			goto exit;
+		}
+		break;
 	}
 
 	/* Check if this is a RVU PF or VF */
@@ -325,6 +331,26 @@ int rvu_get_blkaddr(struct rvu *rvu, int blktype, u16 pcifunc)
 		cfg = rvu_read64(rvu, BLKADDR_RVUM, reg | (devnum << 16));
 		if (cfg)
 			blkaddr = BLKADDR_CPT1;
+	}
+
+	/* Check if the 'pcifunc' has a REE LF from 'BLKADDR_REE0' or
+	 * 'BLKADDR_REE1'. If pcifunc has REE LFs from both then only
+	 * BLKADDR_REE0 is returned.
+	 */
+	if (blktype == BLKTYPE_REE) {
+		reg = is_pf ? RVU_PRIV_PFX_REEX_CFG(0) :
+			RVU_PRIV_HWVFX_REEX_CFG(0);
+		cfg = rvu_read64(rvu, BLKADDR_RVUM, reg | (devnum << 16));
+		if (cfg) {
+			blkaddr = BLKADDR_REE0;
+			goto exit;
+		}
+
+		reg = is_pf ? RVU_PRIV_PFX_REEX_CFG(1) :
+			RVU_PRIV_HWVFX_REEX_CFG(1);
+		cfg = rvu_read64(rvu, BLKADDR_RVUM, reg | (devnum << 16));
+		if (cfg)
+			blkaddr = BLKADDR_REE1;
 	}
 
 exit:
@@ -388,6 +414,14 @@ static void rvu_update_rsrc_map(struct rvu *rvu, struct rvu_pfvf *pfvf,
 	case BLKADDR_CPT1:
 		attach ? pfvf->cpt1_lfs++ : pfvf->cpt1_lfs--;
 		num_lfs = pfvf->cpt1_lfs;
+		break;
+	case BLKADDR_REE0:
+		attach ? pfvf->ree0_lfs++ : pfvf->ree0_lfs--;
+		num_lfs = pfvf->ree0_lfs;
+		break;
+	case BLKADDR_REE1:
+		attach ? pfvf->ree1_lfs++ : pfvf->ree1_lfs--;
+		num_lfs = pfvf->ree1_lfs;
 		break;
 	}
 
@@ -543,6 +577,8 @@ static void rvu_reset_all_blocks(struct rvu *rvu)
 	rvu_block_reset(rvu, BLKADDR_NDC_NIX1_RX, NDC_AF_BLK_RST);
 	rvu_block_reset(rvu, BLKADDR_NDC_NIX1_TX, NDC_AF_BLK_RST);
 	rvu_block_reset(rvu, BLKADDR_NDC_NPA0, NDC_AF_BLK_RST);
+	rvu_block_reset(rvu, BLKADDR_REE0, REE_AF_BLK_RST);
+	rvu_block_reset(rvu, BLKADDR_REE1, REE_AF_BLK_RST);
 }
 
 static void rvu_scan_block(struct rvu *rvu, struct rvu_block *block)
@@ -726,6 +762,8 @@ static void rvu_free_hw_resources(struct rvu *rvu)
 	rvu_npa_freemem(rvu);
 	rvu_npc_freemem(rvu);
 	rvu_nix_freemem(rvu);
+	rvu_sso_freemem(rvu);
+	rvu_ree_freemem(rvu);
 
 	/* Free block LF bitmaps */
 	for (id = 0; id < BLK_COUNT; id++) {
@@ -857,6 +895,7 @@ static int rvu_setup_nix_hw_resource(struct rvu *rvu, int blkaddr)
 	block->lfcfg_reg = NIX_PRIV_LFX_CFG;
 	block->msixcfg_reg = NIX_PRIV_LFX_INT_CFG;
 	block->lfreset_reg = NIX_AF_LF_RST;
+	block->rvu = rvu;
 	sprintf(block->name, "NIX%d", blkid);
 	rvu->nix_blkaddr[blkid] = blkaddr;
 	return rvu_alloc_bitmap(&block->lf);
@@ -886,8 +925,40 @@ static int rvu_setup_cpt_hw_resource(struct rvu *rvu, int blkaddr)
 	block->lfcfg_reg = CPT_PRIV_LFX_CFG;
 	block->msixcfg_reg = CPT_PRIV_LFX_INT_CFG;
 	block->lfreset_reg = CPT_AF_LF_RST;
+	block->rvu = rvu;
 	sprintf(block->name, "CPT%d", blkid);
 	return rvu_alloc_bitmap(&block->lf);
+}
+
+static int rvu_setup_ree_hw_resource(struct rvu *rvu, int blkaddr, int blkid)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	int err;
+	u64 cfg;
+
+	/* Init REE LF's bitmap */
+	block = &hw->block[blkaddr];
+	if (!block->implemented)
+		return 0;
+	cfg = rvu_read64(rvu, blkaddr, REE_AF_CONSTANTS);
+	block->lf.max = cfg & 0xFF;
+	block->addr = blkaddr;
+	block->type = BLKTYPE_REE;
+	block->multislot = true;
+	block->lfshift = 3;
+	block->lookup_reg = REE_AF_RVU_LF_CFG_DEBUG;
+	block->pf_lfcnt_reg = RVU_PRIV_PFX_REEX_CFG(blkid);
+	block->vf_lfcnt_reg = RVU_PRIV_HWVFX_REEX_CFG(blkid);
+	block->lfcfg_reg = REE_PRIV_LFX_CFG;
+	block->msixcfg_reg = REE_PRIV_LFX_INT_CFG;
+	block->lfreset_reg = REE_AF_LF_RST;
+	block->rvu = rvu;
+	sprintf(block->name, "REE%d", blkid);
+	err = rvu_alloc_bitmap(&block->lf);
+	if (err)
+		return err;
+	return 0;
 }
 
 static void rvu_get_lbk_bufsize(struct rvu *rvu)
@@ -928,6 +999,9 @@ static int rvu_setup_hw_resources(struct rvu *rvu)
 	hw->total_vfs = (cfg >> 20) & 0xFFF;
 	hw->max_vfs_per_pf = (cfg >> 40) & 0xFF;
 
+	if (!is_rvu_otx2(rvu))
+		rvu_apr_block_cn10k_init(rvu);
+
 	/* Init NPA LF's bitmap */
 	block = &hw->block[BLKADDR_NPA];
 	if (!block->implemented)
@@ -943,6 +1017,7 @@ static int rvu_setup_hw_resources(struct rvu *rvu)
 	block->lfcfg_reg = NPA_PRIV_LFX_CFG;
 	block->msixcfg_reg = NPA_PRIV_LFX_INT_CFG;
 	block->lfreset_reg = NPA_AF_LF_RST;
+	block->rvu = rvu;
 	sprintf(block->name, "NPA");
 	err = rvu_alloc_bitmap(&block->lf);
 	if (err) {
@@ -982,6 +1057,7 @@ nix:
 	block->lfcfg_reg = SSO_PRIV_LFX_HWGRP_CFG;
 	block->msixcfg_reg = SSO_PRIV_LFX_HWGRP_INT_CFG;
 	block->lfreset_reg = SSO_AF_LF_HWGRP_RST;
+	block->rvu = rvu;
 	sprintf(block->name, "SSO GROUP");
 	err = rvu_alloc_bitmap(&block->lf);
 	if (err) {
@@ -1006,6 +1082,7 @@ ssow:
 	block->lfcfg_reg = SSOW_PRIV_LFX_HWS_CFG;
 	block->msixcfg_reg = SSOW_PRIV_LFX_HWS_INT_CFG;
 	block->lfreset_reg = SSOW_AF_LF_HWS_RST;
+	block->rvu = rvu;
 	sprintf(block->name, "SSOWS");
 	err = rvu_alloc_bitmap(&block->lf);
 	if (err) {
@@ -1031,6 +1108,7 @@ tim:
 	block->lfcfg_reg = TIM_PRIV_LFX_CFG;
 	block->msixcfg_reg = TIM_PRIV_LFX_INT_CFG;
 	block->lfreset_reg = TIM_AF_LF_RST;
+	block->rvu = rvu;
 	sprintf(block->name, "TIM");
 	err = rvu_alloc_bitmap(&block->lf);
 	if (err) {
@@ -1053,6 +1131,14 @@ cpt:
 		return err;
 	}
 
+	/* REE */
+	err = rvu_setup_ree_hw_resource(rvu, BLKADDR_REE0, 0);
+	if (err)
+		return err;
+	err = rvu_setup_ree_hw_resource(rvu, BLKADDR_REE1, 1);
+	if (err)
+		return err;
+
 	/* Allocate memory for PFVF data */
 	rvu->pf = devm_kcalloc(rvu->dev, hw->total_pfs,
 			       sizeof(struct rvu_pfvf), GFP_KERNEL);
@@ -1072,7 +1158,9 @@ cpt:
 
 	mutex_init(&rvu->rsrc_lock);
 
-	rvu_fwdata_init(rvu);
+	err = rvu_fwdata_init(rvu);
+	if (err)
+		goto msix_err;
 
 	err = rvu_setup_msix_resources(rvu);
 	if (err) {
@@ -1116,6 +1204,18 @@ cpt:
 		goto cgx_err;
 	}
 
+	err = rvu_sso_init(rvu);
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize sso\n", __func__);
+		goto sso_err;
+	}
+
+	err = rvu_tim_init(rvu);
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize tim\n", __func__);
+		goto sso_err;
+	}
+
 	/* Assign MACs for CGX mapped functions */
 	rvu_setup_pfvf_macaddress(rvu);
 
@@ -1139,6 +1239,18 @@ cpt:
 		goto nix_err;
 	}
 
+	err = rvu_ree_init(rvu);
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize ree\n", __func__);
+		goto nix_err;
+	}
+
+	err = rvu_cpt_init(rvu);
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize cpt\n", __func__);
+		goto nix_err;
+	}
+
 	rvu_program_channels(rvu);
 
 	return 0;
@@ -1147,6 +1259,8 @@ nix_err:
 	rvu_nix_freemem(rvu);
 npa_err:
 	rvu_npa_freemem(rvu);
+sso_err:
+	rvu_sso_freemem(rvu);
 cgx_err:
 	rvu_cgx_exit(rvu);
 npc_err:
@@ -1228,6 +1342,10 @@ u16 rvu_get_rsrc_mapcount(struct rvu_pfvf *pfvf, int blkaddr)
 		return pfvf->cptlfs;
 	case BLKADDR_CPT1:
 		return pfvf->cpt1_lfs;
+	case BLKADDR_REE0:
+		return pfvf->ree0_lfs;
+	case BLKADDR_REE1:
+		return pfvf->ree1_lfs;
 	}
 	return 0;
 }
@@ -1248,6 +1366,8 @@ static bool is_blktype_attached(struct rvu_pfvf *pfvf, int blktype)
 		return !!pfvf->timlfs;
 	case BLKTYPE_CPT:
 		return pfvf->cptlfs || pfvf->cpt1_lfs;
+	case BLKTYPE_REE:
+		return pfvf->ree0_lfs || pfvf->ree1_lfs;
 	}
 
 	return false;
@@ -1263,7 +1383,7 @@ bool is_pffunc_map_valid(struct rvu *rvu, u16 pcifunc, int blktype)
 	pfvf = rvu_get_pfvf(rvu, pcifunc);
 
 	/* Check if this PFFUNC has a LF of type blktype attached */
-	if (!is_blktype_attached(pfvf, blktype))
+	if (blktype != BLKTYPE_SSO && !is_blktype_attached(pfvf, blktype))
 		return false;
 
 	return true;
@@ -1273,6 +1393,9 @@ static int rvu_lookup_rsrc(struct rvu *rvu, struct rvu_block *block,
 			   int pcifunc, int slot)
 {
 	u64 val;
+
+	if (block->type == BLKTYPE_TIM)
+		return rvu_tim_lookup_rsrc(rvu, block, pcifunc, slot);
 
 	val = ((u64)pcifunc << 24) | (slot << 16) | (1ULL << 13);
 	rvu_write64(rvu, block->addr, block->lookup_reg, val);
@@ -1288,6 +1411,60 @@ static int rvu_lookup_rsrc(struct rvu *rvu, struct rvu_block *block,
 		return -1;
 
 	return (val & 0xFFF);
+}
+
+int rvu_get_blkaddr_from_slot(struct rvu *rvu, int blktype, u16 pcifunc,
+			      u16 global_slot, u16 *slot_in_block)
+{
+	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, pcifunc);
+	int numlfs, total_lfs = 0, nr_blocks = 0;
+	int i, num_blkaddr[BLK_COUNT] = { 0 };
+	struct rvu_block *block;
+	int blkaddr = -ENODEV;
+	u16 start_slot;
+
+	if (!is_blktype_attached(pfvf, blktype))
+		return -ENODEV;
+
+	/* Get all the block addresses from which LFs are attached to
+	 * the given pcifunc in num_blkaddr[].
+	 */
+	for (blkaddr = BLKADDR_RVUM; blkaddr < BLK_COUNT; blkaddr++) {
+		block = &rvu->hw->block[blkaddr];
+		if (block->type != blktype)
+			continue;
+		if (!is_block_implemented(rvu->hw, blkaddr))
+			continue;
+
+		numlfs = rvu_get_rsrc_mapcount(pfvf, blkaddr);
+		if (numlfs) {
+			total_lfs += numlfs;
+			num_blkaddr[nr_blocks] = blkaddr;
+			nr_blocks++;
+		}
+	}
+
+	if (global_slot >= total_lfs)
+		return -ENODEV;
+
+	/* Based on the given global slot number retrieve the
+	 * correct block address out of all attached block
+	 * addresses and slot number in that block.
+	 */
+	total_lfs = 0;
+	blkaddr = -ENODEV;
+	for (i = 0; i < nr_blocks; i++) {
+		numlfs = rvu_get_rsrc_mapcount(pfvf, num_blkaddr[i]);
+		total_lfs += numlfs;
+		if (global_slot < total_lfs) {
+			blkaddr = num_blkaddr[i];
+			start_slot = total_lfs - numlfs;
+			*slot_in_block = global_slot - start_slot;
+			break;
+		}
+	}
+
+	return blkaddr;
 }
 
 static void rvu_detach_block(struct rvu *rvu, int pcifunc, int blktype)
@@ -1370,6 +1547,10 @@ static int rvu_detach_rsrcs(struct rvu *rvu, struct rsrc_detach *detach,
 				continue;
 			else if ((blkid == BLKADDR_CPT1) && !detach->cptlfs)
 				continue;
+			else if ((blkid == BLKADDR_REE0) && !detach->reelfs)
+				continue;
+			else if ((blkid == BLKADDR_REE1) && !detach->reelfs)
+				continue;
 		}
 		rvu_detach_block(rvu, pcifunc, block->type);
 	}
@@ -1445,6 +1626,12 @@ static int rvu_get_attach_blkaddr(struct rvu *rvu, int blktype,
 		if (blkaddr != BLKADDR_CPT0 && blkaddr != BLKADDR_CPT1)
 			return -ENODEV;
 		break;
+	case BLKTYPE_REE:
+		blkaddr = attach->ree_blkaddr ? attach->ree_blkaddr :
+			  BLKADDR_REE0;
+		if (blkaddr != BLKADDR_REE0 && blkaddr != BLKADDR_REE1)
+			return -ENODEV;
+		break;
 	default:
 		return rvu_get_blkaddr(rvu, blktype, 0);
 	}
@@ -1500,6 +1687,14 @@ static int rvu_check_rsrc_availability(struct rvu *rvu,
 	int free_lfs, mappedlfs, blkaddr;
 	struct rvu_hwinfo *hw = rvu->hw;
 	struct rvu_block *block;
+	int ret;
+
+	ret = rvu_check_rsrc_policy(rvu, req, pcifunc);
+	if (ret) {
+		dev_err(rvu->dev, "Func 0x%x: Resource policy check failed\n",
+			pcifunc);
+		return ret;
+	}
 
 	/* Only one NPA LF can be attached */
 	if (req->npalf && !is_blktype_attached(pfvf, BLKTYPE_NPA)) {
@@ -1597,6 +1792,25 @@ static int rvu_check_rsrc_availability(struct rvu *rvu,
 			goto fail;
 	}
 
+	if (req->hdr.ver >= RVU_MULTI_BLK_VER && req->reelfs) {
+		blkaddr = rvu_get_attach_blkaddr(rvu, BLKTYPE_REE,
+						 pcifunc, req);
+		if (blkaddr < 0)
+			return blkaddr;
+		block = &hw->block[blkaddr];
+		if (req->reelfs > block->lf.max) {
+			dev_err(&rvu->pdev->dev,
+				"Func 0x%x: Invalid REELF req, %d > max %d\n",
+				 pcifunc, req->reelfs, block->lf.max);
+			return -EINVAL;
+		}
+		mappedlfs = rvu_get_rsrc_mapcount(pfvf, block->addr);
+		free_lfs = rvu_rsrc_free_count(&block->lf);
+		if (req->reelfs > mappedlfs &&
+		    ((req->reelfs - mappedlfs) > free_lfs))
+			goto fail;
+	}
+
 	return 0;
 
 fail:
@@ -1677,6 +1891,14 @@ int rvu_mbox_handler_attach_resources(struct rvu *rvu,
 			rvu_detach_block(rvu, pcifunc, BLKTYPE_CPT);
 		rvu_attach_block(rvu, pcifunc, BLKTYPE_CPT,
 				 attach->cptlfs, attach);
+	}
+
+	if (attach->hdr.ver >= RVU_MULTI_BLK_VER && attach->reelfs) {
+		if (attach->modify &&
+		    rvu_attach_from_same_block(rvu, BLKTYPE_REE, attach))
+			rvu_detach_block(rvu, pcifunc, BLKTYPE_REE);
+		rvu_attach_block(rvu, pcifunc, BLKTYPE_REE,
+				 attach->reelfs, attach);
 	}
 
 exit:
@@ -1808,100 +2030,42 @@ int rvu_mbox_handler_msix_offset(struct rvu *rvu, struct msg_req *req,
 			rvu_get_msix_offset(rvu, pfvf, BLKADDR_CPT1, lf);
 	}
 
+	rsp->ree0_lfs = pfvf->ree0_lfs;
+	for (slot = 0; slot < rsp->ree0_lfs; slot++) {
+		lf = rvu_get_lf(rvu, &hw->block[BLKADDR_REE0], pcifunc, slot);
+		rsp->ree0_lf_msixoff[slot] =
+			rvu_get_msix_offset(rvu, pfvf, BLKADDR_REE0, lf);
+	}
+
+	rsp->ree1_lfs = pfvf->ree1_lfs;
+	for (slot = 0; slot < rsp->ree1_lfs; slot++) {
+		lf = rvu_get_lf(rvu, &hw->block[BLKADDR_REE1], pcifunc, slot);
+		rsp->ree1_lf_msixoff[slot] =
+			rvu_get_msix_offset(rvu, pfvf, BLKADDR_REE1, lf);
+	}
+
 	return 0;
 }
 
-int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
-				   struct free_rsrcs_rsp *rsp)
+
+int rvu_txsch_count_rsrc(struct rvu *rvu, int lvl, u16 pcifunc,
+			u8 rshift, struct nix_hw *nix_hw)
 {
-	struct rvu_hwinfo *hw = rvu->hw;
-	struct rvu_block *block;
-	struct nix_txsch *txsch;
-	struct nix_hw *nix_hw;
+	struct nix_txsch *txsch = &nix_hw->txsch[lvl];
+	int count = 0, schq;
 
-	mutex_lock(&rvu->rsrc_lock);
+	if (lvl == NIX_TXSCH_LVL_TL1)
+		return 0;
 
-	block = &hw->block[BLKADDR_NPA];
-	rsp->npa = rvu_rsrc_free_count(&block->lf);
-
-	block = &hw->block[BLKADDR_NIX0];
-	rsp->nix = rvu_rsrc_free_count(&block->lf);
-
-	block = &hw->block[BLKADDR_NIX1];
-	rsp->nix1 = rvu_rsrc_free_count(&block->lf);
-
-	block = &hw->block[BLKADDR_SSO];
-	rsp->sso = rvu_rsrc_free_count(&block->lf);
-
-	block = &hw->block[BLKADDR_SSOW];
-	rsp->ssow = rvu_rsrc_free_count(&block->lf);
-
-	block = &hw->block[BLKADDR_TIM];
-	rsp->tim = rvu_rsrc_free_count(&block->lf);
-
-	block = &hw->block[BLKADDR_CPT0];
-	rsp->cpt = rvu_rsrc_free_count(&block->lf);
-
-	block = &hw->block[BLKADDR_CPT1];
-	rsp->cpt1 = rvu_rsrc_free_count(&block->lf);
-
-	if (rvu->hw->cap.nix_fixed_txschq_mapping) {
-		rsp->schq[NIX_TXSCH_LVL_SMQ] = 1;
-		rsp->schq[NIX_TXSCH_LVL_TL4] = 1;
-		rsp->schq[NIX_TXSCH_LVL_TL3] = 1;
-		rsp->schq[NIX_TXSCH_LVL_TL2] = 1;
-		/* NIX1 */
-		if (!is_block_implemented(rvu->hw, BLKADDR_NIX1))
-			goto out;
-		rsp->schq_nix1[NIX_TXSCH_LVL_SMQ] = 1;
-		rsp->schq_nix1[NIX_TXSCH_LVL_TL4] = 1;
-		rsp->schq_nix1[NIX_TXSCH_LVL_TL3] = 1;
-		rsp->schq_nix1[NIX_TXSCH_LVL_TL2] = 1;
-	} else {
-		nix_hw = get_nix_hw(hw, BLKADDR_NIX0);
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_SMQ];
-		rsp->schq[NIX_TXSCH_LVL_SMQ] =
-				rvu_rsrc_free_count(&txsch->schq);
-
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL4];
-		rsp->schq[NIX_TXSCH_LVL_TL4] =
-				rvu_rsrc_free_count(&txsch->schq);
-
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL3];
-		rsp->schq[NIX_TXSCH_LVL_TL3] =
-				rvu_rsrc_free_count(&txsch->schq);
-
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL2];
-		rsp->schq[NIX_TXSCH_LVL_TL2] =
-				rvu_rsrc_free_count(&txsch->schq);
-
-		if (!is_block_implemented(rvu->hw, BLKADDR_NIX1))
-			goto out;
-
-		nix_hw = get_nix_hw(hw, BLKADDR_NIX1);
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_SMQ];
-		rsp->schq_nix1[NIX_TXSCH_LVL_SMQ] =
-				rvu_rsrc_free_count(&txsch->schq);
-
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL4];
-		rsp->schq_nix1[NIX_TXSCH_LVL_TL4] =
-				rvu_rsrc_free_count(&txsch->schq);
-
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL3];
-		rsp->schq_nix1[NIX_TXSCH_LVL_TL3] =
-				rvu_rsrc_free_count(&txsch->schq);
-
-		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL2];
-		rsp->schq_nix1[NIX_TXSCH_LVL_TL2] =
-				rvu_rsrc_free_count(&txsch->schq);
+	for (schq = 0; schq < txsch->schq.max; schq++) {
+		if (TXSCH_MAP_FLAGS(txsch->pfvf_map[schq]) & NIX_TXSCHQ_FREE)
+			continue;
+		if ((TXSCH_MAP_FUNC(txsch->pfvf_map[schq]) >> rshift) ==
+		    (pcifunc >> rshift))
+			count++;
 	}
 
-	rsp->schq_nix1[NIX_TXSCH_LVL_TL1] = 1;
-out:
-	rsp->schq[NIX_TXSCH_LVL_TL1] = 1;
-	mutex_unlock(&rvu->rsrc_lock);
-
-	return 0;
+	return count;
 }
 
 int rvu_mbox_handler_vf_flr(struct rvu *rvu, struct msg_req *req,
@@ -1922,6 +2086,13 @@ int rvu_mbox_handler_vf_flr(struct rvu *rvu, struct msg_req *req,
 		return RVU_INVALID_VF_ID;
 
 	return 0;
+}
+
+int rvu_ndc_sync(struct rvu *rvu, int lfblkaddr, int lfidx, u64 lfoffset)
+{
+	/* Sync cached info for this LF in NDC to LLC/DRAM */
+	rvu_write64(rvu, lfblkaddr, lfoffset, BIT_ULL(12) | lfidx);
+	return rvu_poll_reg(rvu, lfblkaddr, lfoffset, BIT_ULL(12), true);
 }
 
 int rvu_mbox_handler_get_hw_cap(struct rvu *rvu, struct msg_req *req,
@@ -1972,6 +2143,65 @@ int rvu_mbox_handler_set_vf_perm(struct rvu *rvu, struct set_vf_perm *req,
 						     NIXLF_PROMISC_ENTRY,
 						     false);
 		}
+	}
+
+	return 0;
+}
+
+int rvu_mbox_handler_ndc_sync_op(struct rvu *rvu,
+				 struct ndc_sync_op *req,
+				 struct msg_rsp *rsp)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	u16 pcifunc = req->hdr.pcifunc;
+	int err, lfidx, lfblkaddr;
+
+	if (req->npa_lf_sync) {
+		/* Get NPA LF data */
+		lfblkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPA, pcifunc);
+		if (lfblkaddr < 0)
+			return NPA_AF_ERR_AF_LF_INVALID;
+
+		lfidx = rvu_get_lf(rvu, &hw->block[lfblkaddr], pcifunc, 0);
+		if (lfidx < 0)
+			return NPA_AF_ERR_AF_LF_INVALID;
+
+		/* Sync NPA NDC */
+		err = rvu_ndc_sync(rvu, lfblkaddr,
+				   lfidx, NPA_AF_NDC_SYNC);
+		if (err)
+			dev_err(rvu->dev,
+				"NDC-NPA sync failed for LF %u\n", lfidx);
+	}
+
+	if (!req->nix_lf_tx_sync && !req->nix_lf_rx_sync)
+		return 0;
+
+	/* Get NIX LF data */
+	lfblkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
+	if (lfblkaddr < 0)
+		return NIX_AF_ERR_AF_LF_INVALID;
+
+	lfidx = rvu_get_lf(rvu, &hw->block[lfblkaddr], pcifunc, 0);
+	if (lfidx < 0)
+		return NIX_AF_ERR_AF_LF_INVALID;
+
+	if (req->nix_lf_tx_sync) {
+		/* Sync NIX TX NDC */
+		err = rvu_ndc_sync(rvu, lfblkaddr,
+				   lfidx, NIX_AF_NDC_TX_SYNC);
+		if (err)
+			dev_err(rvu->dev,
+				"NDC-NIX-TX sync fail for LF %u\n", lfidx);
+	}
+
+	if (req->nix_lf_rx_sync) {
+		/* Sync NIX RX NDC */
+		err = rvu_ndc_sync(rvu, lfblkaddr,
+				   lfidx, NIX_AF_NDC_RX_SYNC);
+		if (err)
+			dev_err(rvu->dev,
+				"NDC-NIX-RX sync failed for LF %u\n", lfidx);
 	}
 
 	return 0;
@@ -2453,6 +2683,126 @@ static void rvu_enable_mbox_intr(struct rvu *rvu)
 		    INTR_MASK(hw->total_pfs) & ~1ULL);
 }
 
+static void rvu_npa_lf_mapped_nix_lf_teardown(struct rvu *rvu, u16 pcifunc)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *nix_block;
+	struct rsrc_detach detach;
+	u16 nix_pcifunc;
+	int blkaddr, lf;
+	u64 regval;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
+	if (blkaddr < 0)
+		return;
+
+	nix_block = &hw->block[blkaddr];
+	for (lf = 0; lf < nix_block->lf.max; lf++) {
+		/* Loop through all the NIX LFs and check if the NPA lf is
+		 * being used based on pcifunc.
+		 */
+		regval = rvu_read64(rvu, blkaddr, NIX_AF_LFX_CFG(lf));
+		if ((regval & 0xFFFF) != pcifunc)
+			continue;
+
+		nix_pcifunc = nix_block->fn_map[lf];
+
+		/* Skip NIX LF attached to the pcifunc as it is already
+		 * quiesced.
+		 */
+		if (nix_pcifunc == pcifunc)
+			continue;
+
+		detach.partial = true;
+		detach.nixlf   = true;
+		/* Teardown the NIX LF. */
+		rvu_nix_lf_teardown(rvu, nix_pcifunc, blkaddr, lf);
+		rvu_lf_reset(rvu, nix_block, lf);
+		/* Detach the NIX LF. */
+		rvu_detach_rsrcs(rvu, &detach, nix_pcifunc);
+	}
+}
+
+static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
+{
+	u16 sso_pcifunc, match_cnt = 0;
+	int npa_blkaddr, blkaddr, lf;
+	struct rvu_block *sso_block;
+	struct rsrc_detach detach;
+	u16 *pcifunc_arr;
+	u64 regval;
+
+	pcifunc_arr = kcalloc(rvu->hw->total_pfs + rvu->hw->total_vfs,
+			      sizeof(*pcifunc_arr), GFP_KERNEL);
+	if (!pcifunc_arr)
+		return;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	npa_blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPA, 0);
+	if (blkaddr < 0)
+		return;
+
+	regval = BIT_ULL(16) | pcifunc;
+	rvu_write64(rvu, npa_blkaddr, NPA_AF_BAR2_SEL, regval);
+
+	sso_block = &rvu->hw->block[blkaddr];
+	for (lf = 0; lf < sso_block->lf.max; lf++) {
+		regval = rvu_read64(rvu, blkaddr, SSO_AF_XAQX_GMCTL(lf));
+		if ((regval & 0xFFFF) != pcifunc)
+			continue;
+
+		sso_pcifunc = sso_block->fn_map[lf];
+		regval = rvu_read64(rvu, blkaddr, sso_block->lfcfg_reg |
+				    (lf << sso_block->lfshift));
+		rvu_sso_lf_drain_queues(rvu, sso_pcifunc, lf, regval & 0xF);
+
+		regval = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_XAQ_AURA(lf));
+		rvu_sso_deinit_xaq_aura(rvu, sso_pcifunc, pcifunc, regval, lf);
+	}
+
+	for (lf = 0; lf < sso_block->lf.max; lf++) {
+		regval = rvu_read64(rvu, blkaddr, SSO_AF_XAQX_GMCTL(lf));
+		if ((regval & 0xFFFF) != pcifunc)
+			continue;
+
+		regval = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_XAQ_AURA(lf));
+		if (rvu_sso_poll_aura_cnt(rvu, npa_blkaddr, regval))
+			dev_err(rvu->dev,
+				"[%d]Failed to free XAQs to aura[%lld]\n",
+				__LINE__, regval);
+
+		rvu_write64(rvu, blkaddr, SSO_AF_HWGRPX_XAQ_AURA(lf), 0);
+		rvu_write64(rvu, blkaddr, SSO_AF_XAQX_GMCTL(lf), 0);
+	}
+
+	for (lf = 0; lf < sso_block->lf.max; lf++) {
+		regval = rvu_read64(rvu, blkaddr, SSO_AF_XAQX_GMCTL(lf));
+		if ((regval & 0xFFFF) != pcifunc)
+			continue;
+
+		sso_pcifunc = sso_block->fn_map[lf];
+		regval = rvu_read64(rvu, blkaddr, sso_block->lfcfg_reg |
+				    (lf << sso_block->lfshift));
+		/* Save SSO PF_FUNC info to detach all LFs of that PF_FUNC at
+		 * once later.
+		 */
+		rvu_sso_lf_teardown(rvu, sso_pcifunc, lf, regval & 0xF);
+		rvu_lf_reset(rvu, sso_block, lf);
+		pcifunc_arr[match_cnt] = sso_pcifunc;
+		match_cnt++;
+	}
+
+	detach.partial = true;
+	detach.sso   = true;
+
+	for (sso_pcifunc = 0; sso_pcifunc < match_cnt; sso_pcifunc++)
+		rvu_detach_rsrcs(rvu, &detach, pcifunc_arr[sso_pcifunc]);
+	kfree(pcifunc_arr);
+}
+
 static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 {
 	struct rvu_block *block;
@@ -2464,6 +2814,17 @@ static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 					block->addr);
 	if (!num_lfs)
 		return;
+
+	if (block->addr == BLKADDR_SSO) {
+		for (slot = 0; slot < num_lfs; slot++) {
+			lf = rvu_get_lf(rvu, block, pcifunc, slot);
+			if (lf < 0)
+				continue;
+			rvu_sso_lf_drain_queues(rvu, pcifunc, lf, slot);
+		}
+		rvu_sso_cleanup_xaq_aura(rvu, pcifunc, num_lfs);
+	}
+
 	for (slot = 0; slot < num_lfs; slot++) {
 		lf = rvu_get_lf(rvu, block, pcifunc, slot);
 		if (lf < 0)
@@ -2472,17 +2833,40 @@ static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 		/* Cleanup LF and reset it */
 		if (block->addr == BLKADDR_NIX0 || block->addr == BLKADDR_NIX1)
 			rvu_nix_lf_teardown(rvu, pcifunc, block->addr, lf);
-		else if (block->addr == BLKADDR_NPA)
+		else if (block->addr == BLKADDR_NPA) {
+			rvu_npa_lf_mapped_nix_lf_teardown(rvu, pcifunc);
+			rvu_npa_lf_mapped_sso_lf_teardown(rvu, pcifunc);
 			rvu_npa_lf_teardown(rvu, pcifunc, lf);
-		else if ((block->addr == BLKADDR_CPT0) ||
+		} else if ((block->addr == BLKADDR_CPT0) ||
 			 (block->addr == BLKADDR_CPT1))
-			rvu_cpt_lf_teardown(rvu, pcifunc, lf, slot);
+			rvu_cpt_lf_teardown(rvu, pcifunc, block->addr, lf,
+					    slot);
+		else if (block->addr == BLKADDR_SSO)
+			rvu_sso_lf_teardown(rvu, pcifunc, lf, slot);
+		else if (block->addr == BLKADDR_SSOW)
+			rvu_ssow_lf_teardown(rvu, pcifunc, lf, slot);
+		else if (block->addr == BLKADDR_TIM)
+			rvu_tim_lf_teardown(rvu, pcifunc, lf, slot);
 
 		err = rvu_lf_reset(rvu, block, lf);
 		if (err) {
 			dev_err(rvu->dev, "Failed to reset blkaddr %d LF%d\n",
 				block->addr, lf);
 		}
+
+		if (block->addr == BLKADDR_SSO)
+			rvu_sso_hwgrp_config_thresh(rvu, block->addr, lf);
+	}
+}
+
+static void rvu_sso_pfvf_rst(struct rvu *rvu, u16 pcifunc)
+{
+	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, pcifunc);
+	struct rvu_hwinfo *hw = rvu->hw;
+
+	if (pfvf->sso_uniq_ident) {
+		rvu_free_rsrc(&hw->sso.pfvf_ident, pfvf->sso_uniq_ident);
+		pfvf->sso_uniq_ident = 0;
 	}
 }
 
@@ -2498,12 +2882,22 @@ static void __rvu_flr_handler(struct rvu *rvu, u16 pcifunc)
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_NIX1);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_CPT0);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_CPT1);
+	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_REE0);
+	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_REE1);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_TIM);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_SSOW);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_SSO);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_NPA);
 	rvu_reset_lmt_map_tbl(rvu, pcifunc);
 	rvu_detach_rsrcs(rvu, NULL, pcifunc);
+	rvu_sso_pfvf_rst(rvu, pcifunc);
+	/* In scenarios where PF/VF drivers detach NIXLF without freeing MCAM
+	 * entries, check and free the MCAM entries explicitly to avoid leak.
+	 * Since LF is detached use LF number as -1.
+	 */
+	rvu_npc_free_mcam_entries(rvu, pcifunc, -1);
+	rvu_mac_reset(rvu, pcifunc);
+
 	mutex_unlock(&rvu->flr_lock);
 }
 
@@ -2673,6 +3067,10 @@ static irqreturn_t rvu_me_pf_intr_handler(int irq, void *rvu_irq)
 static void rvu_unregister_interrupts(struct rvu *rvu)
 {
 	int irq;
+
+	rvu_sso_unregister_interrupts(rvu);
+	rvu_cpt_unregister_interrupts(rvu);
+	rvu_ree_unregister_interrupts(rvu);
 
 	/* Disable the Mbox interrupt */
 	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFAF_MBOX_INT_ENA_W1C,
@@ -2883,8 +3281,20 @@ static int rvu_register_interrupts(struct rvu *rvu)
 		goto fail;
 	}
 	rvu->irq_allocated[offset] = true;
-	return 0;
 
+	ret = rvu_sso_register_interrupts(rvu);
+	if (ret)
+		goto fail;
+
+	ret = rvu_cpt_register_interrupts(rvu);
+	if (ret)
+		goto fail;
+
+	ret = rvu_ree_register_interrupts(rvu);
+	if (ret)
+		goto fail;
+
+	return 0;
 fail:
 	rvu_unregister_interrupts(rvu);
 	return ret;
@@ -3120,8 +3530,11 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	rvu->ptp = ptp_get();
 	if (IS_ERR(rvu->ptp)) {
 		err = PTR_ERR(rvu->ptp);
-		if (err == -EPROBE_DEFER)
+		if (err == -EPROBE_DEFER) {
+			dev_err(dev,
+				"PTP driver not loaded, deferring probe\n");
 			goto err_release_regions;
+		}
 		rvu->ptp = NULL;
 	}
 
@@ -3177,11 +3590,15 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	rvu_setup_rvum_blk_revid(rvu);
 
+	err = rvu_policy_init(rvu);
+	if (err)
+		goto err_dl;
+
 	/* Enable AF's VFs (if any) */
 	err = rvu_enable_sriov(rvu);
 	if (err) {
 		dev_err(dev, "%s: Failed to enable sriov\n", __func__);
-		goto err_dl;
+		goto err_policy;
 	}
 
 	/* Initialize debugfs */
@@ -3189,7 +3606,14 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	mutex_init(&rvu->rswitch.switch_lock);
 
+	if (rvu->fwdata)
+		ptp_start(rvu->ptp, rvu->fwdata->sclk, rvu->fwdata->ptp_ext_clk_rate,
+			  rvu->fwdata->ptp_ext_tstamp);
+
 	return 0;
+
+err_policy:
+	rvu_policy_destroy(rvu);
 err_dl:
 	rvu_unregister_dl(rvu);
 err_irq:
@@ -3222,6 +3646,7 @@ static void rvu_remove(struct pci_dev *pdev)
 	struct rvu *rvu = pci_get_drvdata(pdev);
 
 	rvu_dbg_exit(rvu);
+	rvu_policy_destroy(rvu);
 	rvu_unregister_dl(rvu);
 	rvu_unregister_interrupts(rvu);
 	rvu_flr_wq_destroy(rvu);

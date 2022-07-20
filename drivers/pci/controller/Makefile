@@ -27,6 +27,7 @@ obj-$(CONFIG_PCIE_IPROC_PLATFORM) += pcie-iproc-platform.o
 obj-$(CONFIG_PCIE_IPROC_BCMA) += pcie-iproc-bcma.o
 obj-$(CONFIG_PCIE_ALTERA) += pcie-altera.o
 obj-$(CONFIG_PCIE_ALTERA_MSI) += pcie-altera-msi.o
+obj-$(CONFIG_PCIE_OCTEONTX2_PEM_EP) += pcie-octeontx2-pem-ep.o
 obj-$(CONFIG_PCIE_ROCKCHIP) += pcie-rockchip.o
 obj-$(CONFIG_PCIE_ROCKCHIP_EP) += pcie-rockchip-ep.o
 obj-$(CONFIG_PCIE_ROCKCHIP_HOST) += pcie-rockchip-host.o
@@ -56,6 +57,8 @@ ifdef CONFIG_ACPI
 ifdef CONFIG_PCI_QUIRKS
 obj-$(CONFIG_ARM64) += pci-thunder-ecam.o
 obj-$(CONFIG_ARM64) += pci-thunder-pem.o
+obj-$(CONFIG_ARM64) += pci-octeontx2-pem.o
+obj-$(CONFIG_ARM64) += pci-octeon-pem.o
 obj-$(CONFIG_ARM64) += pci-xgene.o
 endif
 endif

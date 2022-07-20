@@ -199,7 +199,7 @@ void rvu_switch_disable(struct rvu *rvu)
 	struct npc_mcam_free_entry_req free_req = { 0 };
 	struct rvu_switch *rswitch = &rvu->rswitch;
 	struct rvu_hwinfo *hw = rvu->hw;
-	int pf, vf, numvfs;
+	int pf, vf, numvfs, hwvf;
 	struct msg_rsp rsp;
 	u16 pcifunc;
 	int err;
@@ -218,8 +218,8 @@ void rvu_switch_disable(struct rvu *rvu)
 				"Reverting RX rule for PF%d failed(%d)\n",
 				pf, err);
 
-		rvu_get_pf_numvfs(rvu, pf, &numvfs, NULL);
-		for (vf = 0; vf < numvfs; vf++) {
+		rvu_get_pf_numvfs(rvu, pf, &numvfs, &hwvf);
+		for (vf = 0; vf < numvfs; vf++, hwvf++) {
 			pcifunc = pf << 10 | ((vf + 1) & 0x3FF);
 			err = rvu_switch_install_rx_rule(rvu, pcifunc, 0xFFF);
 			if (err)

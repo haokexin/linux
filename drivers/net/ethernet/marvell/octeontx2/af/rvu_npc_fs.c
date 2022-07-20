@@ -41,6 +41,7 @@ static const char * const npc_flow_names[] = {
 	[NPC_DPORT_UDP]	= "udp destination port",
 	[NPC_SPORT_SCTP] = "sctp source port",
 	[NPC_DPORT_SCTP] = "sctp destination port",
+	[NPC_FDSA_VAL]	= "FDSA tag value ",
 	[NPC_UNKNOWN]	= "unknown",
 };
 
@@ -444,8 +445,10 @@ do {									       \
 	NPC_SCAN_HDR(NPC_ETYPE_TAG2, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 8, 2);
 	NPC_SCAN_HDR(NPC_VLAN_TAG1, NPC_LID_LB, NPC_LT_LB_CTAG, 2, 2);
 	NPC_SCAN_HDR(NPC_VLAN_TAG2, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 2, 2);
+	NPC_SCAN_HDR(NPC_FDSA_VAL, NPC_LID_LB, NPC_LT_LB_FDSA, 1, 1);
 	NPC_SCAN_HDR(NPC_DMAC, NPC_LID_LA, la_ltype, la_start, 6);
-	NPC_SCAN_HDR(NPC_SMAC, NPC_LID_LA, la_ltype, la_start, 6);
+	/* SMAC follows the DMAC(which is 6 bytes) */
+	NPC_SCAN_HDR(NPC_SMAC, NPC_LID_LA, la_ltype, la_start + 6, 6);
 	/* PF_FUNC is 2 bytes at 0th byte of NPC_LT_LA_IH_NIX_ETHER */
 	NPC_SCAN_HDR(NPC_PF_FUNC, NPC_LID_LA, NPC_LT_LA_IH_NIX_ETHER, 0, 2);
 }
@@ -491,9 +494,12 @@ static void npc_set_features(struct rvu *rvu, int blkaddr, u8 intf)
 		*features |= BIT_ULL(NPC_IPPROTO_ESP);
 
 	/* for vlan corresponding layer type should be in the key */
-	if (*features & BIT_ULL(NPC_OUTER_VID))
-		if (!npc_check_field(rvu, blkaddr, NPC_LB, intf))
+	if (*features & BIT_ULL(NPC_OUTER_VID) ||
+	    *features & BIT_ULL(NPC_FDSA_VAL))
+		if (npc_check_field(rvu, blkaddr, NPC_LB, intf)) {
 			*features &= ~BIT_ULL(NPC_OUTER_VID);
+			*features &= ~BIT_ULL(NPC_FDSA_VAL);
+		}
 
 	/* for vlan ethertypes corresponding layer type should be in the key */
 	if (npc_check_field(rvu, blkaddr, NPC_LB, intf))
@@ -807,6 +813,9 @@ static void npc_update_flow(struct rvu *rvu, struct mcam_entry *entry,
 	if (features & BIT_ULL(NPC_IPPROTO_ICMP6))
 		npc_update_entry(rvu, NPC_LD, entry, NPC_LT_LD_ICMP6,
 				 0, ~0ULL, 0, intf);
+	if (features & BIT_ULL(NPC_FDSA_VAL))
+		npc_update_entry(rvu, NPC_LB, entry, NPC_LT_LB_FDSA,
+				 0, ~0ULL, 0, intf);
 
 	/* For AH, LTYPE should be present in entry */
 	if (features & BIT_ULL(NPC_IPPROTO_AH))
@@ -850,6 +859,8 @@ do {									      \
 		       ntohs(mask->dport), 0);
 
 	NPC_WRITE_FLOW(NPC_OUTER_VID, vlan_tci, ntohs(pkt->vlan_tci), 0,
+		       ntohs(mask->vlan_tci), 0);
+	NPC_WRITE_FLOW(NPC_FDSA_VAL, vlan_tci, ntohs(pkt->vlan_tci), 0,
 		       ntohs(mask->vlan_tci), 0);
 
 	npc_update_ipv6_flow(rvu, entry, features, pkt, mask, output, intf);
@@ -1111,6 +1122,9 @@ find_rule:
 	rule->default_rule = req->default_rule;
 	rule->owner = owner;
 	rule->enable = enable;
+	rule->chan_mask = write_req.entry_data.kw_mask[0] & NPC_KEX_CHAN_MASK;
+	rule->chan = write_req.entry_data.kw[0] & NPC_KEX_CHAN_MASK;
+	rule->chan &= rule->chan_mask;
 	if (is_npc_intf_tx(req->intf))
 		rule->intf = pfvf->nix_tx_intf;
 	else

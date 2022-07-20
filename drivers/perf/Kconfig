@@ -62,7 +62,7 @@ config ARM_PMU_ACPI
 
 config ARM_SMMU_V3_PMU
 	 tristate "ARM SMMUv3 Performance Monitors Extension"
-	 depends on ARM64 && ACPI
+	 depends on ARM64 && ARM_SMMU_V3
 	   help
 	   Provides support for the ARM SMMUv3 Performance Monitor Counter
 	   Groups (PMCG), which provide monitoring of transactions passing
@@ -136,6 +136,19 @@ config ARM_DMC620_PMU
 	help
 	  Support for PMU events monitoring on the ARM DMC-620 memory
 	  controller.
+
+config MARVELL_CN10K_TAD_PMU
+	tristate "Marvell CN10K LLC-TAD PMU"
+	depends on ARM64
+	help
+	  Provides support for Last-Level cache Tag-and-data Units (LLC-TAD)
+	  performance monitors on CN10K family silicons.
+
+config MARVELL_CN10K_DDR_PMU
+	tristate "MARVELL CN10K DRAM Subsystem(DSS) PMU Support"
+	depends on ARM64
+	help
+	  Support for Marvell DDR PMU event on CN10K platform
 
 source "drivers/perf/hisilicon/Kconfig"
 

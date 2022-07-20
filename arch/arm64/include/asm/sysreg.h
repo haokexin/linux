@@ -398,7 +398,10 @@
 #define SYS_LOREA_EL1			sys_reg(3, 0, 10, 4, 1)
 #define SYS_LORN_EL1			sys_reg(3, 0, 10, 4, 2)
 #define SYS_LORC_EL1			sys_reg(3, 0, 10, 4, 3)
+#define SYS_MPAMIDR_EL1			sys_reg(3, 0, 10, 4, 4)
 #define SYS_LORID_EL1			sys_reg(3, 0, 10, 4, 7)
+#define SYS_MPAM1_EL1			sys_reg(3, 0, 10, 5, 0)
+#define SYS_MPAM0_EL1			sys_reg(3, 0, 10, 5, 1)
 
 #define SYS_VBAR_EL1			sys_reg(3, 0, 12, 0, 0)
 #define SYS_DISR_EL1			sys_reg(3, 0, 12, 1, 1)
@@ -546,6 +549,13 @@
 #define SYS_TFSR_EL2			sys_reg(3, 4, 5, 6, 0)
 #define SYS_FAR_EL2			sys_reg(3, 4, 6, 0, 0)
 
+#define SYS_MPAMHCR_EL2			sys_reg(3, 4, 10, 4, 0)
+#define SYS_MPAMVPMV_EL2		sys_reg(3, 4, 10, 4, 1)
+#define SYS_MPAM2_EL2			sys_reg(3, 4, 10, 5, 0)
+
+#define __VPMn_op2(n)			((n) & 0x7)
+#define SYS_MPAM_VPMn_EL2(n)		sys_reg(3, 4, 10, 6, __VPMn_op2(n))
+
 #define SYS_VDISR_EL2			sys_reg(3, 4, 12, 1,  1)
 #define __SYS__AP0Rx_EL2(x)		sys_reg(3, 4, 12, 8, x)
 #define SYS_ICH_AP0R0_EL2		__SYS__AP0Rx_EL2(0)
@@ -604,6 +614,7 @@
 #define SYS_FAR_EL12			sys_reg(3, 5, 6, 0, 0)
 #define SYS_MAIR_EL12			sys_reg(3, 5, 10, 2, 0)
 #define SYS_AMAIR_EL12			sys_reg(3, 5, 10, 3, 0)
+#define SYS_MPAM1_EL12			sys_reg(3, 5, 10, 5, 0)
 #define SYS_VBAR_EL12			sys_reg(3, 5, 12, 0, 0)
 #define SYS_CONTEXTIDR_EL12		sys_reg(3, 5, 13, 0, 1)
 #define SYS_CNTKCTL_EL12		sys_reg(3, 5, 14, 1, 0)

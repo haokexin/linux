@@ -32,6 +32,8 @@ enum rvu_block_addr_e {
 	BLKADDR_NDC_NPA0	= 0xeULL,
 	BLKADDR_NDC_NIX1_RX	= 0x10ULL,
 	BLKADDR_NDC_NIX1_TX	= 0x11ULL,
+	BLKADDR_REE0		= 0x14ULL,
+	BLKADDR_REE1		= 0x15ULL,
 	BLKADDR_APR		= 0x16ULL,
 	BLK_COUNT		= 0x17ULL,
 };
@@ -49,7 +51,8 @@ enum rvu_block_type_e {
 	BLKTYPE_TIM  = 0x8,
 	BLKTYPE_CPT  = 0x9,
 	BLKTYPE_NDC  = 0xa,
-	BLKTYPE_MAX  = 0xa,
+	BLKTYPE_REE  = 0xe,
+	BLKTYPE_MAX  = 0xe,
 };
 
 /* RVU Admin function Interrupt Vector Enumeration */
@@ -60,6 +63,40 @@ enum rvu_af_int_vec_e {
 	RVU_AF_INT_VEC_GEN    = 0x3,
 	RVU_AF_INT_VEC_MBOX   = 0x4,
 	RVU_AF_INT_VEC_CNT    = 0x5,
+};
+
+/* SSO Admin function Interrupt Vector Enumeration */
+enum sso_af_int_vec_e {
+	SSO_AF_INT_VEC_ERR0 = 0x0,
+	SSO_AF_INT_VEC_ERR2 = 0x1,
+	SSO_AF_INT_VEC_RAS  = 0x2,
+	SSO_AF_INT_VEC_CNT  = 0x3,
+};
+
+/* CPT Admin function Interrupt Vector Enumeration */
+enum cpt_af_int_vec_e {
+	CPT_AF_INT_VEC_FLT0	= 0x0,
+	CPT_AF_INT_VEC_FLT1	= 0x1,
+	CPT_AF_INT_VEC_RVU	= 0x2,
+	CPT_AF_INT_VEC_RAS	= 0x3,
+	CPT_AF_INT_VEC_CNT	= 0x4,
+};
+
+enum cpt_10k_af_int_vec_e {
+	CPT_10K_AF_INT_VEC_FLT0	= 0x0,
+	CPT_10K_AF_INT_VEC_FLT1	= 0x1,
+	CPT_10K_AF_INT_VEC_FLT2	= 0x2,
+	CPT_10K_AF_INT_VEC_RVU	= 0x3,
+	CPT_10K_AF_INT_VEC_RAS	= 0x4,
+	CPT_10K_AF_INT_VEC_CNT	= 0x5,
+};
+/* REE Admin function Interrupt Vector Enumeration */
+enum ree_af_int_vec_e {
+	REE_AF_INT_VEC_RAS	= 0x0,
+	REE_AF_INT_VEC_RVU	= 0x1,
+	REE_AF_INT_VEC_QUE_DONE	= 0x2,
+	REE_AF_INT_VEC_AQ	= 0x3,
+	REE_AF_INT_VEC_CNT	= 0x4,
 };
 
 /* NPA Admin function Interrupt Vector Enumeration */
@@ -790,6 +827,27 @@ struct nix_rx_flowkey_alg {
 enum nix_vtag_size {
 	VTAGSIZE_T4   = 0x0,
 	VTAGSIZE_T8   = 0x1,
+};
+
+/* REE admin queue instruction structure */
+struct ree_af_aq_inst_s {
+	u64 rof_ptr_addr;
+	u64 reserved_64_64	:  1;
+	u64 nc			:  1;
+	u64 reserved_66_66	:  1;
+	u64 doneint		:  1;
+	u64 reserved_68_95	: 28;
+	u64 length		: 15;
+	u64 reserved_111_127	: 17;
+};
+
+/* REE ROF file entry structure */
+struct ree_rof_s {
+	u64 addr		: 24;
+	u64 reserved_24_31	:  8;
+	u64 typ			:  8;
+	u64 reserved_40_63	: 24;
+	u64 data;
 };
 
 enum nix_tx_vtag_op {

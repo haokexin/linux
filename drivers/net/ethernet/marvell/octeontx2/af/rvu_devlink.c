@@ -41,7 +41,7 @@ static bool rvu_common_request_irq(struct rvu *rvu, int offset,
 	struct rvu_devlink *rvu_dl = rvu->rvu_dl;
 	int rc;
 
-	sprintf(&rvu->irq_name[offset * NAME_SIZE], name);
+	sprintf(&rvu->irq_name[offset * NAME_SIZE], "%s", name);
 	rc = request_irq(pci_irq_vector(rvu->pdev, offset), fn, 0,
 			 &rvu->irq_name[offset * NAME_SIZE], rvu_dl);
 	if (rc)
@@ -216,7 +216,7 @@ static void rvu_nix_unregister_interrupts(struct rvu *rvu)
 		rvu->irq_allocated[offs + NIX_AF_INT_VEC_RVU] = false;
 	}
 
-	for (i = NIX_AF_INT_VEC_AF_ERR; i < NIX_AF_INT_VEC_CNT; i++)
+	for (i = NIX_AF_INT_VEC_GEN; i < NIX_AF_INT_VEC_CNT; i++)
 		if (rvu->irq_allocated[offs + i]) {
 			free_irq(pci_irq_vector(rvu->pdev, offs + i), rvu_dl);
 			rvu->irq_allocated[offs + i] = false;
@@ -1364,6 +1364,68 @@ static void rvu_health_reporters_destroy(struct rvu *rvu)
 	rvu_nix_health_reporters_destroy(rvu_dl);
 }
 
+enum rvu_af_dl_param_id {
+	RVU_AF_DEVLINK_PARAM_ID_BASE = DEVLINK_PARAM_GENERIC_ID_MAX,
+	RVU_AF_DEVLINK_PARAM_ID_DWRR_MTU,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TIMERS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TENNS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GPIOS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GTI,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_PTP,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_SYNC,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_BTS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_EXT_GTI,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TIMERS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TENNS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GPIOS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_PTP,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_BTS,
+};
+
+static u64 rvu_af_dl_tim_param_id_to_offset(u32 id)
+{
+	u64 offset = 0;
+
+	switch (id) {
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TENNS:
+		offset = TIM_AF_CAPTURE_TENNS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GPIOS:
+		offset = TIM_AF_CAPTURE_GPIOS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GTI:
+		offset = TIM_AF_CAPTURE_GTI;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_PTP:
+		offset = TIM_AF_CAPTURE_PTP;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_BTS:
+		offset = TIM_AF_CAPTURE_BTS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_EXT_GTI:
+		offset = TIM_AF_CAPTURE_EXT_GTI;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TENNS:
+		offset = TIM_AF_ADJUST_TENNS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GPIOS:
+		offset = TIM_AF_ADJUST_GPIOS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI:
+		offset = TIM_AF_ADJUST_GTI;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_PTP:
+		offset = TIM_AF_ADJUST_PTP;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_BTS:
+		offset = TIM_AF_ADJUST_BTS;
+		break;
+	}
+
+	return offset;
+}
+
 /* Devlink Params APIs */
 static int rvu_af_dl_dwrr_mtu_validate(struct devlink *devlink, u32 id,
 				       union devlink_param_value val,
@@ -1433,10 +1495,135 @@ static int rvu_af_dl_dwrr_mtu_get(struct devlink *devlink, u32 id,
 	return 0;
 }
 
-enum rvu_af_dl_param_id {
-	RVU_AF_DEVLINK_PARAM_ID_BASE = DEVLINK_PARAM_GENERIC_ID_MAX,
-	RVU_AF_DEVLINK_PARAM_ID_DWRR_MTU,
-};
+static int rvu_af_dl_tim_capture_timers_get(struct devlink *devlink, u32 id,
+					    struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 capt_timers = rvu_read64(rvu, BLKADDR_TIM, TIM_AF_CAPTURE_TIMERS);
+
+	ctx->val.vu8 = (u8)(capt_timers & TIM_AF_CAPTURE_TIMERS_MASK);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_capture_timers_set(struct devlink *devlink, u32 id,
+					    struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+
+	rvu_write64(rvu, BLKADDR_TIM, TIM_AF_CAPTURE_TIMERS, (u64)ctx->val.vu8);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_capture_timers_validate(struct devlink *devlink,
+						 u32 id,
+						 union devlink_param_value val,
+						 struct netlink_ext_ack *extack)
+{
+	if (val.vu8 > TIM_AF_CAPTURE_TIMERS_MASK) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Invalid value to set tim capture timers");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_capture_time_get(struct devlink *devlink, u32 id,
+					  struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 time, offset;
+
+	offset = rvu_af_dl_tim_param_id_to_offset(id);
+	time = rvu_read64(rvu, BLKADDR_TIM, offset);
+	snprintf(ctx->val.vstr, sizeof(ctx->val.vstr), "%llu", time);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_capture_time_set(struct devlink __always_unused *devlink,
+					  u32 __always_unused id,
+					  struct devlink_param_gset_ctx __always_unused *ctx)
+{
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timers_get(struct devlink *devlink, u32 id,
+					   struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 adjust_timer = rvu_read64(rvu, BLKADDR_TIM, TIM_AF_ADJUST_TIMERS);
+
+	if (adjust_timer & TIM_AF_ADJUST_TIMERS_MASK)
+		ctx->val.vbool = true;
+	else
+		ctx->val.vbool = false;
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timers_set(struct devlink *devlink, u32 id,
+					   struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 adjust_timer = ctx->val.vbool ? BIT_ULL(0) : 0;
+
+	rvu_write64(rvu, BLKADDR_TIM, TIM_AF_ADJUST_TIMERS, adjust_timer);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timer_get(struct devlink *devlink, u32 id,
+					  struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 offset, delta;
+
+	offset = rvu_af_dl_tim_param_id_to_offset(id);
+	delta = rvu_read64(rvu, BLKADDR_TIM, offset);
+	snprintf(ctx->val.vstr, sizeof(ctx->val.vstr), "%llu", delta);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timer_set(struct devlink *devlink, u32 id,
+					  struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 offset, delta;
+
+	if (kstrtoull(ctx->val.vstr, 10, &delta))
+		return -EINVAL;
+
+	offset = rvu_af_dl_tim_param_id_to_offset(id);
+	rvu_write64(rvu, BLKADDR_TIM, offset, delta);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timer_validate(struct devlink *devlink, u32 id,
+					       union devlink_param_value val,
+					       struct netlink_ext_ack *extack)
+{
+	u64 delta;
+
+	if (kstrtoull(val.vstr, 10, &delta)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Invalid value to set tim adjust timer");
+		return -EINVAL;
+	}
+
+	return 0;
+}
 
 static const struct devlink_param rvu_af_dl_params[] = {
 	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_DWRR_MTU,
@@ -1444,6 +1631,82 @@ static const struct devlink_param rvu_af_dl_params[] = {
 			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
 			     rvu_af_dl_dwrr_mtu_get, rvu_af_dl_dwrr_mtu_set,
 			     rvu_af_dl_dwrr_mtu_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TIMERS,
+			     "tim_capture_timers", DEVLINK_PARAM_TYPE_U8,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_timers_get,
+			     rvu_af_dl_tim_capture_timers_set,
+			     rvu_af_dl_tim_capture_timers_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TENNS,
+			     "tim_capture_tenns", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GPIOS,
+			     "tim_capture_gpios", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GTI,
+			     "tim_capture_gti", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_PTP,
+			     "tim_capture_ptp", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_SYNC,
+			     "tim_capture_sync", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_BTS,
+			     "tim_capture_bts", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_EXT_GTI,
+			     "tim_capture_ext_gti", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TIMERS,
+			     "tim_adjust_timers", DEVLINK_PARAM_TYPE_BOOL,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timers_get,
+			     rvu_af_dl_tim_adjust_timers_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TENNS,
+			     "tim_adjust_tenns", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GPIOS,
+			     "tim_adjust_gpios", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI,
+			     "tim_adjust_gti", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_PTP,
+			     "tim_adjust_ptp", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_BTS,
+			     "tim_adjust_bts", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
 };
 
 /* Devlink switch mode */

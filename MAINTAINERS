@@ -11145,6 +11145,11 @@ F:	include/linux/mailbox_controller.h
 F:	include/dt-bindings/mailbox/
 F:	Documentation/devicetree/bindings/mailbox/
 
+MAILBOX MARVELL MHU DRIVER
+M:	Wojciech Bartczak <wbartczak@marvell.com>
+S:	Maintained
+F:	drivers/mailbox/mvl_mhu.c
+
 MAILBOX ARM MHUv2
 M:	Viresh Kumar <viresh.kumar@linaro.org>
 M:	Tushar Khandelwal <Tushar.Khandelwal@arm.com>
@@ -11233,6 +11238,11 @@ L:	linux-arm-kernel@lists.infradead.org (moderated for non-subscribers)
 S:	Maintained
 F:	arch/arm64/boot/dts/marvell/armada-8040-mcbin.dts
 
+MARVELL MDIO UIO DRIVER
+M:	Damian Eppel <deppel@marvell.com>
+S:	Maintained
+F:	drivers/soc/marvell/mvmdio_uio.c
+
 MARVELL MV643XX ETHERNET DRIVER
 M:	Sebastian Hesselbarth <sebastian.hesselbarth@gmail.com>
 L:	netdev@vger.kernel.org
@@ -11297,6 +11307,13 @@ L:	netdev@vger.kernel.org
 S:	Supported
 F:	drivers/net/ethernet/marvell/octeontx2/nic/
 F:	include/linux/soc/marvell/octeontx2/
+
+MARVELL OCTEONTX2 PEM ENDPOINT DRIVER
+M:	Radha Mohan Chintakuntla <radhac@marvell.com>
+M:	Veerasenareddy Burry <vburru@marvell.com>
+L:	linux-arm-kernel@lists.infradead.org
+S:	Supported
+F:	drivers/pci/controller/pcie-octeontx2-pem-ep.c
 
 MARVELL OCTEONTX2 RVU ADMIN FUNCTION DRIVER
 M:	Sunil Goutham <sgoutham@marvell.com>
