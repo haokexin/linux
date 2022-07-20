@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2013 Marvell
  */
+#include <linux/arm-smccc.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/io.h>
@@ -18,6 +19,8 @@
 #include <linux/mfd/syscon.h>
 #include <linux/regmap.h>
 #include <linux/interrupt.h>
+#include <linux/time.h>
+#include "soc/marvell/armada8k/fw.h"
 
 #include "thermal_core.h"
 
@@ -61,6 +64,8 @@
 #define STATUS_POLL_PERIOD_US		1000
 #define STATUS_POLL_TIMEOUT_US		100000
 #define OVERHEAT_INT_POLL_DELAY_MS	1000
+
+#define THERMAL_SUPPORTED_IN_FIRMWARE(priv) (priv->data->is_smc_supported)
 
 struct armada_thermal_data;
 
@@ -111,6 +116,12 @@ struct armada_thermal_data {
 
 	/* One sensor is in the thermal IC, the others are in the CPUs if any */
 	unsigned int cpu_nr;
+
+	/*
+	 * Thermal sensor operations exposed as firmware SIP services and
+	 * accessed via SMC
+	 */
+	bool is_smc_supported;
 };
 
 struct armada_drvdata {
@@ -134,6 +145,18 @@ struct armada_thermal_sensor {
 	struct armada_thermal_priv *priv;
 	int id;
 };
+
+static int thermal_smc(u32 addr, u32 *reg, u32 val1, u32 val2)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(MV_SIP_DFX, addr, val1, val2, 0, 0, 0, 0, &res);
+
+	if (res.a0 == 0 && reg != NULL)
+		*reg = res.a1;
+
+	return res.a0;
+}
 
 static void armadaxp_init(struct platform_device *pdev,
 			  struct armada_thermal_priv *priv)
@@ -206,6 +229,27 @@ static void armada375_init(struct platform_device *pdev,
 static int armada_wait_sensor_validity(struct armada_thermal_priv *priv)
 {
 	u32 reg;
+	int ret;
+	ktime_t timeout;
+
+	if (THERMAL_SUPPORTED_IN_FIRMWARE(priv)) {
+		timeout = ktime_add_us(ktime_get(), STATUS_POLL_TIMEOUT_US);
+		do {
+			ret = thermal_smc(MV_SIP_DFX_THERMAL_IS_VALID,
+					  &reg, 0, 0);
+			if (ret || reg)
+				break;
+
+			usleep_range((STATUS_POLL_PERIOD_US >> 2) + 1,
+				     STATUS_POLL_PERIOD_US);
+
+		} while (ktime_before(ktime_get(), timeout));
+
+		if (ret == SMCCC_RET_SUCCESS)
+			return reg ? 0 : -ETIMEDOUT;
+
+		return ret;
+	}
 
 	return regmap_read_poll_timeout(priv->syscon,
 					priv->data->syscon_status_off, reg,
@@ -233,11 +277,27 @@ static void armada380_init(struct platform_device *pdev,
 	regmap_write(priv->syscon, data->syscon_control0_off, reg);
 }
 
-static void armada_ap806_init(struct platform_device *pdev,
+static void armada_ap80x_init(struct platform_device *pdev,
 			      struct armada_thermal_priv *priv)
 {
 	struct armada_thermal_data *data = priv->data;
 	u32 reg;
+	int ret;
+
+	/*
+	 * The ap806 thermal sensor registers are part of DFX which is secured
+	 * by latest firmware, therefore accessing relevant registers from
+	 * not-secure world will not be possible. In that case Arm Trusted
+	 * Firmware exposes thermal operations as firmware run-time service. If
+	 * SMC initialization succeeds, perform other thermal operations using
+	 * SMC, otherwise (old fw case) fallback to regmap handling.
+	 */
+	ret = thermal_smc(MV_SIP_DFX_THERMAL_INIT, 0x0, 0, 0);
+	if (ret == SMCCC_RET_SUCCESS) {
+		dev_info(&pdev->dev, "firmware support\n");
+		THERMAL_SUPPORTED_IN_FIRMWARE(priv) = true;
+		return;
+	}
 
 	regmap_read(priv->syscon, data->syscon_control0_off, &reg);
 	reg &= ~CONTROL0_TSEN_RESET;
@@ -274,10 +334,16 @@ static void armada_cp110_init(struct platform_device *pdev,
 
 static bool armada_is_valid(struct armada_thermal_priv *priv)
 {
+	int ret;
 	u32 reg;
 
 	if (!priv->data->is_valid_bit)
 		return true;
+
+	if (THERMAL_SUPPORTED_IN_FIRMWARE(priv)) {
+		ret = thermal_smc(MV_SIP_DFX_THERMAL_IS_VALID, &reg, 0, 0);
+		return ret ? false : reg;
+	}
 
 	regmap_read(priv->syscon, priv->data->syscon_status_off, &reg);
 
@@ -324,12 +390,23 @@ static int armada_select_channel(struct armada_thermal_priv *priv, int channel)
 {
 	struct armada_thermal_data *data = priv->data;
 	u32 ctrl0;
+	int ret;
 
 	if (channel < 0 || channel > priv->data->cpu_nr)
 		return -EINVAL;
 
 	if (priv->current_channel == channel)
 		return 0;
+
+	if (THERMAL_SUPPORTED_IN_FIRMWARE(priv)) {
+		ret = thermal_smc(MV_SIP_DFX_THERMAL_SEL_CHANNEL,
+				  NULL, channel, 0);
+		if (ret)
+			return ret;
+
+		priv->current_channel = channel;
+		goto is_valid;
+	}
 
 	/* Stop the measurements */
 	regmap_read(priv->syscon, data->syscon_control0_off, &ctrl0);
@@ -357,6 +434,7 @@ static int armada_select_channel(struct armada_thermal_priv *priv, int channel)
 	ctrl0 |= CONTROL0_TSEN_START;
 	regmap_write(priv->syscon, data->syscon_control0_off, ctrl0);
 
+is_valid:
 	/*
 	 * The IP has a latency of ~15ms, so after updating the selected source,
 	 * we must absolutely wait for the sensor validity bit to ensure we read
@@ -375,6 +453,9 @@ static int armada_read_sensor(struct armada_thermal_priv *priv, int *temp)
 {
 	u32 reg, div;
 	s64 sample, b, m;
+
+	if (THERMAL_SUPPORTED_IN_FIRMWARE(priv))
+		return thermal_smc(MV_SIP_DFX_THERMAL_READ, temp, 0, 0);
 
 	regmap_read(priv->syscon, priv->data->syscon_status_off, &reg);
 	reg = (reg >> priv->data->temp_shift) & priv->data->temp_mask;
@@ -559,7 +640,13 @@ static irqreturn_t armada_overheat_isr_thread(int irq, void *blob)
 			goto enable_irq;
 	} while (temperature >= low_threshold);
 
-	regmap_read(priv->syscon, priv->data->dfx_irq_cause_off, &dummy);
+	if (THERMAL_SUPPORTED_IN_FIRMWARE(priv)) {
+		if (thermal_smc(MV_SIP_DFX_THERMAL_IRQ, 0, 0, 0))
+			return IRQ_NONE;
+	} else {
+		regmap_read(priv->syscon, priv->data->dfx_irq_cause_off,
+			    &dummy);
+	}
 
 	/* Notify the thermal core that the temperature is acceptable again */
 	thermal_zone_device_update(priv->overheat_sensor,
@@ -622,15 +709,39 @@ static const struct armada_thermal_data armada380_data = {
 };
 
 static const struct armada_thermal_data armada_ap806_data = {
-	.init = armada_ap806_init,
+	.init = armada_ap80x_init,
 	.is_valid_bit = BIT(16),
 	.temp_shift = 0,
 	.temp_mask = 0x3ff,
 	.thresh_shift = 3,
 	.hyst_shift = 19,
 	.hyst_mask = 0x3,
-	.coef_b = -150000LL,
-	.coef_m = 423ULL,
+	.coef_b = -153400LL,
+	.coef_m = 425ULL,
+	.coef_div = 1,
+	.inverted = true,
+	.signed_sample = true,
+	.syscon_control0_off = 0x84,
+	.syscon_control1_off = 0x88,
+	.syscon_status_off = 0x8C,
+	.dfx_irq_cause_off = 0x108,
+	.dfx_irq_mask_off = 0x10C,
+	.dfx_overheat_irq = BIT(22),
+	.dfx_server_irq_mask_off = 0x104,
+	.dfx_server_irq_en = BIT(1),
+	.cpu_nr = 4,
+};
+
+static const struct armada_thermal_data armada_ap807_data = {
+	.init = armada_ap80x_init,
+	.is_valid_bit = BIT(16),
+	.temp_shift = 0,
+	.temp_mask = 0x3ff,
+	.thresh_shift = 3,
+	.hyst_shift = 19,
+	.hyst_mask = 0x3,
+	.coef_b = -128900LL,
+	.coef_m = 394ULL,
 	.coef_div = 1,
 	.inverted = true,
 	.signed_sample = true,
@@ -687,6 +798,10 @@ static const struct of_device_id armada_thermal_id_table[] = {
 	{
 		.compatible = "marvell,armada-ap806-thermal",
 		.data       = &armada_ap806_data,
+	},
+	{
+		.compatible = "marvell,armada-ap807-thermal",
+		.data       = &armada_ap807_data,
 	},
 	{
 		.compatible = "marvell,armada-cp110-thermal",
@@ -773,6 +888,27 @@ static void armada_set_sane_name(struct platform_device *pdev,
 }
 
 /*
+ * Let the firmware configure the thermal overheat threshold, hysteresis and
+ * enable overheat interrupt
+ */
+static int armada_fw_overheat_settings(struct armada_thermal_priv *priv,
+				       int thresh_mc, int hyst_mc)
+{
+	int ret;
+
+	ret = thermal_smc(MV_SIP_DFX_THERMAL_THRESH, NULL, thresh_mc, hyst_mc);
+	if (ret)
+		return ret;
+
+	if (thresh_mc >= 0)
+		priv->current_threshold = thresh_mc;
+	if (hyst_mc >= 0)
+		priv->current_hysteresis = hyst_mc;
+
+	return 0;
+}
+
+/*
  * The IP can manage to trigger interrupts on overheat situation from all the
  * sensors. However, the interrupt source changes along with the last selected
  * source (ie. the last read sensor), which is an inconsistent behavior. Avoid
@@ -803,11 +939,22 @@ static int armada_configure_overheat_int(struct armada_thermal_priv *priv,
 	if (ret)
 		return ret;
 
+	priv->overheat_sensor = tz;
+	priv->interrupt_source = sensor_id;
+
+	if (THERMAL_SUPPORTED_IN_FIRMWARE(priv)) {
+		/*
+		 * When thermal supported in firmware the configuring overheat
+		 * threshold and enabling overheat interrupt is done in one
+		 * step.
+		 */
+		return armada_fw_overheat_settings(priv, trips[i].temperature,
+						   trips[i].hysteresis);
+	}
+
 	armada_set_overheat_thresholds(priv,
 				       trips[i].temperature,
 				       trips[i].hysteresis);
-	priv->overheat_sensor = tz;
-	priv->interrupt_source = sensor_id;
 
 	armada_enable_overheat_interrupt(priv);
 

@@ -11,6 +11,7 @@
 #include "armada-common.dtsi"
 
 #define CP11X_PCIEx_CONF_BASE(iface)	(CP11X_PCIEx_MEM_BASE(iface) + CP11X_PCIEx_MEM_SIZE(iface))
+#define CP11X_EIP197_INDEX		CP11X_NUM
 
 / {
 	/*
@@ -370,7 +371,7 @@
 		};
 
 		CP11X_LABEL(spi0): spi@700600 {
-			compatible = "marvell,armada-380-spi";
+			compatible = "marvell,armada-cp110-spi";
 			reg = <0x700600 0x50>;
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
@@ -381,7 +382,7 @@
 		};
 
 		CP11X_LABEL(spi1): spi@700680 {
-			compatible = "marvell,armada-380-spi";
+			compatible = "marvell,armada-cp110-spi";
 			reg = <0x700680 0x50>;
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -517,6 +518,7 @@
 			clock-names = "core", "reg";
 			clocks = <&CP11X_LABEL(clk) 1 26>,
 				 <&CP11X_LABEL(clk) 1 17>;
+			cell-index = <CP11X_EIP197_INDEX>;
 			dma-coherent;
 		};
 	};

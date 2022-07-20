@@ -134,6 +134,8 @@ int otx2_cpt_attach_rscrs_msg(struct otx2_cptlfs_info *lfs)
 	req->hdr.sig = OTX2_MBOX_REQ_SIG;
 	req->hdr.pcifunc = 0;
 	req->cptlfs = lfs->lfs_num;
+	req->cpt_blkaddr = lfs->blkaddr;
+	req->modify = 1;
 	ret = otx2_cpt_send_mbox_msg(mbox, lfs->pdev);
 	if (ret)
 		return ret;
@@ -161,6 +163,7 @@ int otx2_cpt_detach_rsrcs_msg(struct otx2_cptlfs_info *lfs)
 	req->hdr.id = MBOX_MSG_DETACH_RESOURCES;
 	req->hdr.sig = OTX2_MBOX_REQ_SIG;
 	req->hdr.pcifunc = 0;
+	req->cptlfs = 1;
 	ret = otx2_cpt_send_mbox_msg(mbox, lfs->pdev);
 	if (ret)
 		return ret;
@@ -201,4 +204,18 @@ int otx2_cpt_msix_offset_msg(struct otx2_cptlfs_info *lfs)
 		}
 	}
 	return ret;
+}
+
+int otx2_cpt_sync_mbox_msg(struct otx2_mbox *mbox)
+{
+	int err;
+
+	if (!otx2_mbox_nonempty(mbox, 0))
+		return 0;
+	otx2_mbox_msg_send(mbox, 0);
+	err = otx2_mbox_wait_for_rsp(mbox, 0);
+	if (err)
+		return err;
+
+	return otx2_mbox_check_rsp_msgs(mbox, 0);
 }

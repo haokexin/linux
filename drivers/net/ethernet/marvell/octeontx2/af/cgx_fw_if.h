@@ -11,6 +11,10 @@
 #include <linux/bitops.h>
 #include <linux/bitfield.h>
 
+/* Major version would change only if there is structural change in
+ * existing commands and due to which functionaliy is impacted.
+ * Minor version would change with new command/structure additions
+ */
 #define CGX_FIRMWARE_MAJOR_VER		1
 #define CGX_FIRMWARE_MINOR_VER		0
 
@@ -95,7 +99,18 @@ enum CGX_MODE_ {
 	CGX_MODE_100G_C2M,
 	CGX_MODE_100G_CR4,
 	CGX_MODE_100G_KR4,
-	CGX_MODE_MAX /* = 29 */
+	CGX_MODE_LAUI_2_C2C_BIT,
+	CGX_MODE_LAUI_2_C2M_BIT,
+	CGX_MODE_50GBASE_CR2_C_BIT,
+	CGX_MODE_50GBASE_KR2_C_BIT,     /* = 30 */
+	CGX_MODE_100GAUI_2_C2C_BIT,
+	CGX_MODE_100GAUI_2_C2M_BIT,
+	CGX_MODE_100GBASE_CR2_BIT,
+	CGX_MODE_100GBASE_KR2_BIT,
+	CGX_MODE_SFI_1G_BIT,
+	CGX_MODE_25GBASE_CR_C_BIT,
+	CGX_MODE_25GBASE_KR_C_BIT,
+	CGX_MODE_MAX /* = 38 */
 };
 /* REQUEST ID types. Input to firmware */
 enum cgx_cmd_id {
@@ -221,8 +236,9 @@ struct cgx_lnk_sts {
 	uint64_t err_type:10;
 	uint64_t an:1;			/* AN supported or not */
 	uint64_t fec:2;			/* FEC type if enabled, if not 0 */
-	uint64_t port:8;
-	uint64_t reserved2:28;
+	uint64_t lmac_type:8;
+	uint64_t mode:8;
+	uint64_t reserved2:20;
 };
 
 #define RESP_LINKSTAT_UP		GENMASK_ULL(9, 9)
@@ -231,7 +247,7 @@ struct cgx_lnk_sts {
 #define RESP_LINKSTAT_ERRTYPE		GENMASK_ULL(24, 15)
 #define RESP_LINKSTAT_AN		GENMASK_ULL(25, 25)
 #define RESP_LINKSTAT_FEC		GENMASK_ULL(27, 26)
-#define RESP_LINKSTAT_PORT		GENMASK_ULL(35, 28)
+#define RESP_LINKSTAT_LMAC_TYPE		GENMASK_ULL(35, 28)
 
 /* scratchx(1) CSR used for non-secure SW->ATF communication
  * This CSR acts as a command register
@@ -258,7 +274,21 @@ struct cgx_lnk_sts {
 #define CMDMODECHANGE_SPEED		GENMASK_ULL(11, 8)
 #define CMDMODECHANGE_DUPLEX		GENMASK_ULL(12, 12)
 #define CMDMODECHANGE_AN		GENMASK_ULL(13, 13)
-#define CMDMODECHANGE_PORT		GENMASK_ULL(21, 14)
+/* this field categorize the mode ID(FLAGS) range to accommodate
+ * more modes.
+ * To specify mode ID range of 0 - 41, this field will be 0.
+ * To specify mode ID range of 42 - 83, this field will be 1.
+ */
+#define CMDMODECHANGE_MODE_BASEIDX	GENMASK_ULL(21, 20)
 #define CMDMODECHANGE_FLAGS		GENMASK_ULL(63, 22)
+
+/* command argument to be passed for cmd ID - CGX_CMD_SET_PHY_MOD_TYPE */
+#define CMDSETPHYMODTYPE		GENMASK_ULL(8, 8)
+
+/* response to cmd ID - RESP_GETPHYMODTYPE */
+#define RESP_GETPHYMODTYPE		GENMASK_ULL(9, 9)
+
+/* LINK_BRING_UP command timeout */
+#define LINKCFG_TIMEOUT		GENMASK_ULL(21, 8)
 
 #endif /* __CGX_FW_INTF_H__ */

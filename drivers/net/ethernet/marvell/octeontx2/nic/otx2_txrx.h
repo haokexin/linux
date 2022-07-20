@@ -36,9 +36,7 @@
 #define RCV_FRAG_LEN(x)	\
 		((RCV_FRAG_LEN1(x) < 2048) ? 2048 : RCV_FRAG_LEN1(x))
 
-#define DMA_BUFFER_LEN(x)		\
-		((x) - OTX2_HEAD_ROOM - \
-		OTX2_DATA_ALIGN(sizeof(struct skb_shared_info)))
+#define DMA_BUFFER_LEN(x)	((x) - OTX2_HEAD_ROOM)
 
 /* IRQ triggered when NIX_LF_CINTX_CNT[ECOUNT]
  * is equal to this value.
@@ -55,6 +53,9 @@
  * with valid CQEs.
  */
 #define CQ_QCOUNT_DEFAULT	1
+
+#define CQ_OP_STAT_OP_ERR       63
+#define CQ_OP_STAT_CQ_ERR       46
 
 struct queue_stats {
 	u64	bytes;
@@ -96,7 +97,9 @@ struct otx2_snd_queue {
 enum cq_type {
 	CQ_RX,
 	CQ_TX,
-	CQS_PER_CINT = 2, /* RQ + SQ */
+	CQ_XDP,
+	CQ_QOS,
+	CQS_PER_CINT = 4, /* RQ + SQ + XDP + QOS_SQ */
 };
 
 struct otx2_cq_poll {
@@ -104,6 +107,7 @@ struct otx2_cq_poll {
 #define CINT_INVALID_CQ		255
 	u8			cint_idx;
 	u8			cq_ids[CQS_PER_CINT];
+	struct dim		dim;
 	struct napi_struct	napi;
 };
 
@@ -122,6 +126,8 @@ struct otx2_cq_queue {
 	u16			pool_ptrs;
 	u32			cqe_cnt;
 	u32			cq_head;
+	u32			cq_tail;
+	u32			pend_cqe;
 	void			*cqe_base;
 	struct qmem		*cqe;
 	struct otx2_pool	*rbpool;

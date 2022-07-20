@@ -11,6 +11,8 @@
 #include "otx2_common.h"
 
 #define OTX2_DEFAULT_ACTION	0x1
+#define FDSA_MAX_SPORT		32
+#define FDSA_SPORT_MASK         0xf8
 
 static int otx2_mcam_entry_init(struct otx2_nic *pfvf);
 
@@ -21,8 +23,10 @@ struct otx2_flow {
 	u16 entry;
 	bool is_vf;
 	u8 rss_ctx_id;
+#define DMAC_FILTER_RULE		BIT(0)
+#define PFC_FLOWCTRL_RULE		BIT(1)
+	u16 rule_type;
 	int vf;
-	bool dmac_filter;
 };
 
 enum dmac_req {
@@ -763,8 +767,27 @@ static int otx2_prepare_ipv6_flow(struct ethtool_rx_flow_spec *fsp,
 	return 0;
 }
 
-static int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
-			      struct npc_install_flow_req *req)
+static void otx2_prepare_fdsa_flow_request(struct npc_install_flow_req *req,
+					   bool is_vlan)
+{
+	struct flow_msg *pmask = &req->mask;
+	struct flow_msg *pkt = &req->packet;
+
+	/* In FDSA tag srcport starts from b3..b7 */
+	if (!is_vlan) {
+		pkt->vlan_tci <<= 3;
+		pmask->vlan_tci = cpu_to_be16(FDSA_SPORT_MASK);
+	}
+	/* Strip FDSA tag */
+	req->features |= BIT_ULL(NPC_FDSA_VAL);
+	req->vtag0_valid = true;
+	req->vtag0_type = NIX_AF_LFX_RX_VTAG_TYPE6;
+	req->op = NIX_RX_ACTION_DEFAULT;
+}
+
+int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
+			      struct npc_install_flow_req *req,
+			      struct otx2_nic *pfvf)
 {
 	struct ethhdr *eth_mask = &fsp->m_u.ether_spec;
 	struct ethhdr *eth_hdr = &fsp->h_u.ether_spec;
@@ -819,6 +842,7 @@ static int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 		return -EOPNOTSUPP;
 	}
 	if (fsp->flow_type & FLOW_EXT) {
+		int skip_user_def = false;
 		u16 vlan_etype;
 
 		if (fsp->m_ext.vlan_etype) {
@@ -848,13 +872,33 @@ static int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 			       sizeof(pkt->vlan_tci));
 			memcpy(&pmask->vlan_tci, &fsp->m_ext.vlan_tci,
 			       sizeof(pmask->vlan_tci));
-			req->features |= BIT_ULL(NPC_OUTER_VID);
+
+			if (pfvf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR) {
+				otx2_prepare_fdsa_flow_request(req, true);
+				skip_user_def = true;
+			} else {
+				req->features |= BIT_ULL(NPC_OUTER_VID);
+			}
 		}
 
-		/* Not Drop/Direct to queue but use action in default entry */
-		if (fsp->m_ext.data[1] &&
-		    fsp->h_ext.data[1] == cpu_to_be32(OTX2_DEFAULT_ACTION))
-			req->op = NIX_RX_ACTION_DEFAULT;
+		if (fsp->m_ext.data[1] && !skip_user_def) {
+			if (pfvf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR) {
+				if (be32_to_cpu(fsp->h_ext.data[1]) >=
+						FDSA_MAX_SPORT)
+					return -EINVAL;
+
+				memcpy(&pkt->vlan_tci,
+				       (u8 *)&fsp->h_ext.data[1] + 2,
+				       sizeof(pkt->vlan_tci));
+				otx2_prepare_fdsa_flow_request(req, false);
+			} else if (fsp->h_ext.data[1] ==
+					cpu_to_be32(OTX2_DEFAULT_ACTION)) {
+				/* Not Drop/Direct to queue but use action
+				 * in default entry
+				 */
+				req->op = NIX_RX_ACTION_DEFAULT;
+			}
+		}
 	}
 
 	if (fsp->flow_type & FLOW_MAC_EXT &&
@@ -899,6 +943,9 @@ static int otx2_is_flow_rule_dmacfilter(struct otx2_nic *pfvf,
 static int otx2_add_flow_msg(struct otx2_nic *pfvf, struct otx2_flow *flow)
 {
 	u64 ring_cookie = flow->flow_spec.ring_cookie;
+#ifdef CONFIG_DCB
+	int vlan_prio, qidx, pfc_rule = 0;
+#endif
 	struct npc_install_flow_req *req;
 	int err, vf = 0;
 
@@ -909,7 +956,7 @@ static int otx2_add_flow_msg(struct otx2_nic *pfvf, struct otx2_flow *flow)
 		return -ENOMEM;
 	}
 
-	err = otx2_prepare_flow_request(&flow->flow_spec, req);
+	err = otx2_prepare_flow_request(&flow->flow_spec, req, pfvf);
 	if (err) {
 		/* free the allocated msg above */
 		otx2_mbox_reset(&pfvf->mbox.mbox, 0);
@@ -940,6 +987,24 @@ static int otx2_add_flow_msg(struct otx2_nic *pfvf, struct otx2_flow *flow)
 			mutex_unlock(&pfvf->mbox.lock);
 			return -EINVAL;
 		}
+
+#ifdef CONFIG_DCB
+		/* Identify PFC rule if PFC enabled and ntuple rule is vlan */
+		if (!vf && (req->features & BIT_ULL(NPC_OUTER_VID)) &&
+		    pfvf->pfc_en && req->op != NIX_RX_ACTIONOP_RSS) {
+			vlan_prio = ntohs(req->packet.vlan_tci) &
+				    ntohs(req->mask.vlan_tci);
+
+			/* Get the priority */
+			vlan_prio >>= 13;
+			flow->rule_type |= PFC_FLOWCTRL_RULE;
+			/* Check if PFC enabled for this priority */
+			if (pfvf->pfc_en & BIT(vlan_prio)) {
+				pfc_rule = true;
+				qidx = req->index;
+			}
+		}
+#endif
 	}
 
 	/* ethtool ring_cookie has (VF + 1) for VF */
@@ -951,6 +1016,12 @@ static int otx2_add_flow_msg(struct otx2_nic *pfvf, struct otx2_flow *flow)
 
 	/* Send message to AF */
 	err = otx2_sync_mbox_msg(&pfvf->mbox);
+
+#ifdef CONFIG_DCB
+	if (!err && pfc_rule)
+		otx2_update_bpid_in_rqctx(pfvf, vlan_prio, qidx, true);
+#endif
+
 	mutex_unlock(&pfvf->mbox.lock);
 	return err;
 }
@@ -966,7 +1037,7 @@ static int otx2_add_flow_with_pfmac(struct otx2_nic *pfvf,
 		return -ENOMEM;
 
 	pf_mac->entry = 0;
-	pf_mac->dmac_filter = true;
+	pf_mac->rule_type |= DMAC_FILTER_RULE;
 	pf_mac->location = pfvf->flow_cfg->max_flows;
 	memcpy(&pf_mac->flow_spec, &flow->flow_spec,
 	       sizeof(struct ethtool_rx_flow_spec));
@@ -1031,7 +1102,7 @@ int otx2_add_flow(struct otx2_nic *pfvf, struct ethtool_rxnfc *nfc)
 		eth_hdr = &flow->flow_spec.h_u.ether_spec;
 
 		/* Sync dmac filter table with updated fields */
-		if (flow->dmac_filter)
+		if (flow->rule_type & DMAC_FILTER_RULE)
 			return otx2_dmacflt_update(pfvf, eth_hdr->h_dest,
 						   flow->entry);
 
@@ -1052,7 +1123,7 @@ int otx2_add_flow(struct otx2_nic *pfvf, struct ethtool_rxnfc *nfc)
 		if (!test_bit(0, &flow_cfg->dmacflt_bmap))
 			otx2_add_flow_with_pfmac(pfvf, flow);
 
-		flow->dmac_filter = true;
+		flow->rule_type |= DMAC_FILTER_RULE;
 		flow->entry = find_first_zero_bit(&flow_cfg->dmacflt_bmap,
 						  flow_cfg->dmacflt_max_flows);
 		fsp->location = flow_cfg->max_flows + flow->entry;
@@ -1120,7 +1191,7 @@ static void otx2_update_rem_pfmac(struct otx2_nic *pfvf, int req)
 	bool found = false;
 
 	list_for_each_entry(iter, &pfvf->flow_cfg->flow_list, list) {
-		if (iter->dmac_filter && iter->entry == 0) {
+		if ((iter->rule_type & DMAC_FILTER_RULE) && iter->entry == 0) {
 			eth_hdr = &iter->flow_spec.h_u.ether_spec;
 			if (req == DMAC_ADDR_DEL) {
 				otx2_dmacflt_remove(pfvf, eth_hdr->h_dest,
@@ -1156,7 +1227,7 @@ int otx2_remove_flow(struct otx2_nic *pfvf, u32 location)
 	if (!flow)
 		return -ENOENT;
 
-	if (flow->dmac_filter) {
+	if (flow->rule_type & DMAC_FILTER_RULE) {
 		struct ethhdr *eth_hdr = &flow->flow_spec.h_u.ether_spec;
 
 		/* user not allowed to remove dmac filter with interface mac */
@@ -1174,6 +1245,13 @@ int otx2_remove_flow(struct otx2_nic *pfvf, u32 location)
 				  flow_cfg->dmacflt_max_flows) == 1)
 			otx2_update_rem_pfmac(pfvf, DMAC_ADDR_DEL);
 	} else {
+#ifdef CONFIG_DCB
+		if (flow->rule_type & PFC_FLOWCTRL_RULE)
+			otx2_update_bpid_in_rqctx(pfvf, 0,
+						  flow->flow_spec.ring_cookie,
+						  false);
+#endif
+
 		err = otx2_remove_flow_msg(pfvf, flow->entry, false);
 	}
 
@@ -1307,7 +1385,7 @@ int otx2_install_rxvlan_offload_flow(struct otx2_nic *pfvf)
 	return err;
 }
 
-static int otx2_delete_rxvlan_offload_flow(struct otx2_nic *pfvf)
+int otx2_delete_rxvlan_offload_flow(struct otx2_nic *pfvf)
 {
 	struct otx2_flow_config *flow_cfg = pfvf->flow_cfg;
 	struct npc_delete_flow_req *req;
@@ -1336,6 +1414,10 @@ int otx2_enable_rxvlan(struct otx2_nic *pf, bool enable)
 	/* Dont have enough mcam entries */
 	if (!(pf->flags & OTX2_FLAG_RX_VLAN_SUPPORT))
 		return -ENOMEM;
+
+	/* FDSA & RXVLAN are mutually exclusive */
+	if (pf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR)
+		enable = false;
 
 	if (enable) {
 		err = otx2_install_rxvlan_offload_flow(pf);
@@ -1383,7 +1465,7 @@ void otx2_dmacflt_reinstall_flows(struct otx2_nic *pf)
 	struct ethhdr *eth_hdr;
 
 	list_for_each_entry(iter, &pf->flow_cfg->flow_list, list) {
-		if (iter->dmac_filter) {
+		if (iter->rule_type & DMAC_FILTER_RULE) {
 			eth_hdr = &iter->flow_spec.h_u.ether_spec;
 			otx2_dmacflt_add(pf, eth_hdr->h_dest,
 					 iter->entry);

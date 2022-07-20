@@ -11,6 +11,7 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/platform_device.h>
+#include <linux/mpls.h>
 #include <uapi/linux/ppp_defs.h>
 #include <net/ip.h>
 #include <net/ipv6.h>
@@ -196,6 +197,19 @@ static void mvpp2_prs_match_etype(struct mvpp2_prs_entry *pe, int offset,
 {
 	mvpp2_prs_tcam_data_byte_set(pe, offset + 0, ethertype >> 8, 0xff);
 	mvpp2_prs_tcam_data_byte_set(pe, offset + 1, ethertype & 0xff, 0xff);
+}
+
+/* Set u32 in tcam sw entry */
+static void mvpp2_prs_tcam_data_u32_set(struct mvpp2_prs_entry *pe,
+					u32 val, u32 mask)
+{
+	int i;
+
+	for (i = sizeof(u32) - 1; i >= 0; --i) {
+		mvpp2_prs_tcam_data_byte_set(pe, i, val & 0xff, mask & 0xff);
+		mask >>= 8;
+		val >>= 8;
+	}
 }
 
 /* Set vid in tcam sw entry */
@@ -403,11 +417,12 @@ static int mvpp2_prs_tcam_first_free(struct mvpp2 *priv, unsigned char start,
 }
 
 /* Drop flow control pause frames */
-static void mvpp2_prs_drop_fc(struct mvpp2 *priv)
+static void mv_pp2x_prs_drop_fc(struct mvpp2 *priv)
 {
-	unsigned char da[ETH_ALEN] = { 0x01, 0x80, 0xC2, 0x00, 0x00, 0x01 };
 	struct mvpp2_prs_entry pe;
 	unsigned int len;
+	unsigned char da[ETH_ALEN] = {
+			0x01, 0x80, 0xC2, 0x00, 0x00, 0x01 };
 
 	memset(&pe, 0, sizeof(pe));
 
@@ -1211,7 +1226,7 @@ static void mvpp2_prs_mac_init(struct mvpp2 *priv)
 	mvpp2_prs_hw_write(priv, &pe);
 
 	/* Create dummy entries for drop all and promiscuous modes */
-	mvpp2_prs_drop_fc(priv);
+	mv_pp2x_prs_drop_fc(priv);
 	mvpp2_prs_mac_drop_all_set(priv, 0, false);
 	mvpp2_prs_mac_promisc_set(priv, 0, MVPP2_PRS_L2_UNI_CAST, false);
 	mvpp2_prs_mac_promisc_set(priv, 0, MVPP2_PRS_L2_MULTI_CAST, false);
@@ -1331,6 +1346,7 @@ static void mvpp2_prs_vid_init(struct mvpp2 *priv)
 static int mvpp2_prs_etype_init(struct mvpp2 *priv)
 {
 	struct mvpp2_prs_entry pe;
+	unsigned short ethertype;
 	int tid, ihl;
 
 	/* Ethertype: PPPoE */
@@ -1492,6 +1508,34 @@ static int mvpp2_prs_etype_init(struct mvpp2 *priv)
 				MVPP2_PRS_RI_L3_PROTO_MASK);
 	mvpp2_prs_hw_write(priv, &pe);
 
+	for (ethertype = ETH_P_MPLS_UC; ethertype <= ETH_P_MPLS_MC; ++ethertype) {
+		tid = mvpp2_prs_tcam_first_free(priv, MVPP2_PE_FIRST_FREE_TID,
+						MVPP2_PE_LAST_FREE_TID);
+		if (tid < 0)
+			return tid;
+
+		memset(&pe, 0, sizeof(pe));
+		mvpp2_prs_tcam_lu_set(&pe, MVPP2_PRS_LU_L2);
+		pe.index = tid;
+
+		mvpp2_prs_match_etype(&pe, 0, ethertype);
+		mvpp2_prs_sram_next_lu_set(&pe, MVPP2_PRS_LU_MPLS);
+
+		mvpp2_prs_sram_shift_set(&pe, MVPP2_ETH_TYPE_LEN,
+					 MVPP2_PRS_SRAM_OP_SEL_SHIFT_ADD);
+
+		/* Set L3 offset */
+		mvpp2_prs_sram_offset_set(&pe, MVPP2_PRS_SRAM_UDF_TYPE_L3,
+					  MVPP2_ETH_TYPE_LEN,
+					  MVPP2_PRS_SRAM_OP_SEL_UDF_ADD);
+
+		/* Update shadow table and hw entry */
+		mvpp2_prs_shadow_set(priv, pe.index, MVPP2_PRS_LU_L2);
+		priv->prs_shadow[pe.index].udf = MVPP2_PRS_UDF_L2_DEF;
+		priv->prs_shadow[pe.index].finish = false;
+		mvpp2_prs_hw_write(priv, &pe);
+	}
+
 	/* Default entry for MVPP2_PRS_LU_L2 - Unknown ethtype */
 	memset(&pe, 0, sizeof(struct mvpp2_prs_entry));
 	mvpp2_prs_tcam_lu_set(&pe, MVPP2_PRS_LU_L2);
@@ -1598,6 +1642,104 @@ static int mvpp2_prs_vlan_init(struct platform_device *pdev, struct mvpp2 *priv)
 
 	/* Update shadow table and hw entry */
 	mvpp2_prs_shadow_set(priv, pe.index, MVPP2_PRS_LU_VLAN);
+	mvpp2_prs_hw_write(priv, &pe);
+
+	return 0;
+}
+
+/* Set entries for MPLS ethertype */
+static int mvpp2_prs_mpls_init(struct mvpp2 *priv)
+{
+	struct mvpp2_prs_entry pe;
+	int tid;
+
+	/* Add multiple MPLS TCAM entry */
+	tid = mvpp2_prs_tcam_first_free(priv, MVPP2_PE_FIRST_FREE_TID,
+					MVPP2_PE_LAST_FREE_TID);
+	if (tid < 0)
+		return tid;
+
+	memset(&pe, 0, sizeof(pe));
+	mvpp2_prs_tcam_lu_set(&pe, MVPP2_PRS_LU_MPLS);
+	pe.index = tid;
+
+	mvpp2_prs_tcam_data_u32_set(&pe, 0, MPLS_LS_S_MASK);
+
+	mvpp2_prs_sram_shift_set(&pe, MVPP2_MPLS_HEADER_LEN,
+				 MVPP2_PRS_SRAM_OP_SEL_SHIFT_ADD);
+
+	/* Set L3 offset */
+	mvpp2_prs_sram_offset_set(&pe, MVPP2_PRS_SRAM_UDF_TYPE_L3,
+				  MVPP2_MPLS_HEADER_LEN,
+				  MVPP2_PRS_SRAM_OP_SEL_UDF_ADD);
+
+	/* If MPLS isn't last MPLS jump to next MPLS */
+	mvpp2_prs_sram_next_lu_set(&pe, MVPP2_PRS_LU_MPLS);
+
+	/* Update shadow table and hw entry */
+	mvpp2_prs_shadow_set(priv, pe.index, MVPP2_PRS_LU_MPLS);
+	mvpp2_prs_hw_write(priv, &pe);
+
+	/* Add ipv4 MPLS TCAM entry */
+	tid = mvpp2_prs_tcam_first_free(priv, MVPP2_PE_FIRST_FREE_TID,
+					MVPP2_PE_LAST_FREE_TID);
+	if (tid < 0)
+		return tid;
+
+	memset(&pe, 0, sizeof(pe));
+	mvpp2_prs_tcam_lu_set(&pe, MVPP2_PRS_LU_MPLS);
+	pe.index = tid;
+
+	mvpp2_prs_tcam_data_u32_set(&pe, MPLS_LABEL_IPV4NULL << MPLS_LS_LABEL_SHIFT,
+				    MPLS_LS_LABEL_MASK);
+
+	mvpp2_prs_sram_next_lu_set(&pe, MVPP2_PRS_LU_IP4);
+
+	mvpp2_prs_sram_ri_update(&pe, MVPP2_PRS_RI_L3_IP4,
+				 MVPP2_PRS_RI_L3_PROTO_MASK);
+
+	/* goto ipv4 dest-address (skip eth_type + IP-header-size - 4) */
+	mvpp2_prs_sram_shift_set(&pe, MVPP2_MPLS_HEADER_LEN +
+				 sizeof(struct iphdr) - 4,
+				 MVPP2_PRS_SRAM_OP_SEL_SHIFT_ADD);
+	/* Set L3 offset */
+	mvpp2_prs_sram_offset_set(&pe, MVPP2_PRS_SRAM_UDF_TYPE_L3,
+				  MVPP2_MPLS_HEADER_LEN,
+				  MVPP2_PRS_SRAM_OP_SEL_UDF_ADD);
+
+	/* Update shadow table and hw entry */
+	mvpp2_prs_shadow_set(priv, pe.index, MVPP2_PRS_LU_MPLS);
+	mvpp2_prs_hw_write(priv, &pe);
+
+	/* Add ipv6 MPLS TCAM entry */
+	tid = mvpp2_prs_tcam_first_free(priv, MVPP2_PE_FIRST_FREE_TID,
+					MVPP2_PE_LAST_FREE_TID);
+	if (tid < 0)
+		return tid;
+
+	memset(&pe, 0, sizeof(pe));
+	mvpp2_prs_tcam_lu_set(&pe, MVPP2_PRS_LU_MPLS);
+	pe.index = tid;
+
+	mvpp2_prs_tcam_data_u32_set(&pe, MPLS_LABEL_IPV6NULL << MPLS_LS_LABEL_SHIFT,
+				    MPLS_LS_LABEL_MASK);
+
+	mvpp2_prs_sram_next_lu_set(&pe, MVPP2_PRS_LU_IP6);
+
+	/* Skip DIP of IPV6 header */
+	mvpp2_prs_sram_shift_set(&pe, MVPP2_MPLS_HEADER_LEN + 8 +
+				 MVPP2_MAX_L3_ADDR_SIZE,
+				 MVPP2_PRS_SRAM_OP_SEL_SHIFT_ADD);
+
+	mvpp2_prs_sram_ri_update(&pe, MVPP2_PRS_RI_L3_IP6,
+				 MVPP2_PRS_RI_L3_PROTO_MASK);
+	/* Set L3 offset */
+	mvpp2_prs_sram_offset_set(&pe, MVPP2_PRS_SRAM_UDF_TYPE_L3,
+				  MVPP2_MPLS_HEADER_LEN,
+				  MVPP2_PRS_SRAM_OP_SEL_UDF_ADD);
+
+	/* Update shadow table and hw entry */
+	mvpp2_prs_shadow_set(priv, pe.index, MVPP2_PRS_LU_MPLS);
 	mvpp2_prs_hw_write(priv, &pe);
 
 	return 0;
@@ -1829,14 +1971,6 @@ static int mvpp2_prs_ip6_init(struct mvpp2 *priv)
 				  MVPP2_PRS_RI_UDF3_RX_SPECIAL,
 				  MVPP2_PRS_RI_CPU_CODE_MASK |
 				  MVPP2_PRS_RI_UDF3_MASK);
-	if (err)
-		return err;
-
-	/* IPv4 is the last header. This is similar case as 6-TCP or 17-UDP */
-	/* Result Info: UDF7=1, DS lite */
-	err = mvpp2_prs_ip6_proto(priv, IPPROTO_IPIP,
-				  MVPP2_PRS_RI_UDF7_IP6_LITE,
-				  MVPP2_PRS_RI_UDF7_MASK);
 	if (err)
 		return err;
 
@@ -2188,6 +2322,10 @@ int mvpp2_prs_default_init(struct platform_device *pdev, struct mvpp2 *priv)
 		return err;
 
 	err = mvpp2_prs_ip4_init(priv);
+	if (err)
+		return err;
+
+	err = mvpp2_prs_mpls_init(priv);
 	if (err)
 		return err;
 
