@@ -49,7 +49,14 @@ static int cpu_psci_cpu_boot(unsigned int cpu)
 #ifdef CONFIG_HOTPLUG_CPU
 static bool cpu_psci_cpu_can_disable(unsigned int cpu)
 {
-	return !psci_tos_resident_on(cpu);
+	/* This is a work around for Intel socfpga platforms that don't support
+	 * for shutting down cpu0. So add the limitation to disable offline cpu0.
+	 */
+	if ((of_machine_is_compatible("altr,socfpga-stratix10") ||
+			of_machine_is_compatible("intel,socfpga-agilex")) && cpu == 0)
+		return false;
+	else
+		return !psci_tos_resident_on(cpu);
 }
 
 static int cpu_psci_cpu_disable(unsigned int cpu)
