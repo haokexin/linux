@@ -380,7 +380,7 @@ handle_vf_req(struct sdp_dev *sdp, struct rvu_vf *vf, struct mbox_msghdr *req,
 			writeq(en_bp, sdp->sdp_base +
 			       SDPX_OUT_BP_ENX_W1S(reg_off));
 		}
-		/* Fall through */
+		fallthrough;
 	default:
 		err = forward_to_mbox(sdp, &sdp->afpf_mbox, 0, req, size, "AF");
 		break;
