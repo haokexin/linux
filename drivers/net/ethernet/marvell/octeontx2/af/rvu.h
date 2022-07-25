@@ -874,6 +874,8 @@ int nix_get_dwrr_mtu_reg(struct rvu_hwinfo *hw, int smq_link_type);
 u32 convert_dwrr_mtu_to_bytes(u8 dwrr_mtu);
 u32 convert_bytes_to_dwrr_mtu(u32 bytes);
 bool rvu_nix_is_ptp_tx_enabled(struct rvu *rvu, u16 pcifunc);
+void rvu_nix_tx_tl2_cfg(struct rvu *rvu, int blkaddr, u16 pcifunc,
+			struct nix_txsch *txsch, bool enable);
 
 /* NPC APIs */
 int rvu_npc_init(struct rvu *rvu);
