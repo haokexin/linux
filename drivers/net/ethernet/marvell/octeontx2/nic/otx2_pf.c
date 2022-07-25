@@ -2105,7 +2105,7 @@ int otx2_config_hwtstamp(struct net_device *netdev, struct ifreq *ifr)
 		pfvf->flags |= OTX2_FLAG_PTP_ONESTEP_SYNC;
 		schedule_delayed_work(&pfvf->ptp->synctstamp_work,
 				      msecs_to_jiffies(500));
-		/* fall through */
+		fallthrough;
 	case HWTSTAMP_TX_ON:
 		otx2_config_hw_tx_tstamp(pfvf, true);
 		break;
