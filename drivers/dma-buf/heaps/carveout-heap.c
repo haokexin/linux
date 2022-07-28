@@ -186,7 +186,7 @@ static void dma_heap_vunmap(struct dma_buf *dmabuf, struct dma_buf_map *map)
 	dma_buf_map_clear(map);
 }
 
-const struct dma_buf_ops carveout_dma_heap_buf_ops = {
+static const struct dma_buf_ops carveout_dma_heap_buf_ops = {
 	.attach = dma_heap_attach,
 	.detach = dma_heap_detatch,
 	.map_dma_buf = dma_heap_map_dma_buf,
