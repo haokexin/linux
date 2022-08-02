@@ -633,9 +633,11 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool txschq_for
 	req->lvl = lvl;
 	req->num_regs = 1;
 
+#ifdef CONFIG_DCB
 	if (txschq_for_pfc)
 		schq = pfvf->pfc_schq_list[lvl][prio];
 	else
+#endif
 		schq = hw->txschq_list[lvl][prio];
 
 	/* Set topology e.t.c configuration */
@@ -650,9 +652,11 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool txschq_for
 						(u64)hw->smq_link_type);
 		req->num_regs++;
 		/* MDQ config */
+#ifdef CONFIG_DCB
 		if (txschq_for_pfc)
 			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL4][prio];
 		else
+#endif
 			parent = hw->txschq_list[NIX_TXSCH_LVL_TL4][prio];
 
 		req->reg[1] = NIX_AF_MDQX_PARENT(schq);
@@ -662,9 +666,11 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool txschq_for
 		req->reg[2] = NIX_AF_MDQX_SCHEDULE(schq);
 		req->regval[2] =  dwrr_val;
 	} else if (lvl == NIX_TXSCH_LVL_TL4) {
+#ifdef CONFIG_DCB
 		if (txschq_for_pfc)
 			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL3][prio];
 		else
+#endif
 			parent = hw->txschq_list[NIX_TXSCH_LVL_TL3][prio];
 
 		req->reg[0] = NIX_AF_TL4X_PARENT(schq);
@@ -678,9 +684,11 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool txschq_for
 			req->regval[2] = BIT_ULL(12);
 		}
 	} else if (lvl == NIX_TXSCH_LVL_TL3) {
+#ifdef CONFIG_DCB
 		if (txschq_for_pfc)
 			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL2][prio];
 		else
+#endif
 			parent = hw->txschq_list[NIX_TXSCH_LVL_TL2][prio];
 
 		req->reg[0] = NIX_AF_TL3X_PARENT(schq);
@@ -697,9 +705,11 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool txschq_for
 			req->regval[2] = BIT_ULL(13) | BIT_ULL(12) | prio;
 		}
 	} else if (lvl == NIX_TXSCH_LVL_TL2) {
+#ifdef CONFIG_DCB
 		if (txschq_for_pfc)
 			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL1][prio];
 		else
+#endif
 			parent = hw->txschq_list[NIX_TXSCH_LVL_TL1][prio];
 
 		req->reg[0] = NIX_AF_TL2X_PARENT(schq);
@@ -741,6 +751,7 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool txschq_for
 	return otx2_sync_mbox_msg(&pfvf->mbox);
 }
 
+#ifdef CONFIG_DCB
 int otx2_pfc_txschq_config(struct otx2_nic *pfvf)
 {
 	u8 pfc_en, pfc_bit_set;
@@ -978,6 +989,29 @@ update_sq_smq_map:
 	return 0;
 }
 
+int otx2_pfc_txschq_stop(struct otx2_nic *pfvf)
+{
+	u8 pfc_en, pfc_bit_set;
+	int prio, err;
+
+	pfc_en = pfvf->pfc_en;
+	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
+		pfc_bit_set = pfc_en & (1 << prio);
+		if (!pfc_bit_set || !pfvf->pfc_alloc_status[prio])
+			continue;
+
+		/* Delete the existing scheduler */
+		err = otx2_pfc_txschq_stop_one(pfvf, prio);
+		if (err) {
+			dev_err(pfvf->dev, "%s failed to stop PFC TX schedulers\n", __func__);
+			return err;
+		}
+	}
+
+	return 0;
+}
+#endif
+
 int otx2_txsch_alloc(struct otx2_nic *pfvf)
 {
 	struct nix_txsch_alloc_req *req;
@@ -1038,28 +1072,6 @@ void otx2_txschq_free_one(struct otx2_nic *pfvf, u16 lvl, u16 schq)
 	}
 
 	mutex_unlock(&pfvf->mbox.lock);
-}
-
-int otx2_pfc_txschq_stop(struct otx2_nic *pfvf)
-{
-	u8 pfc_en, pfc_bit_set;
-	int prio, err;
-
-	pfc_en = pfvf->pfc_en;
-	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
-		pfc_bit_set = pfc_en & (1 << prio);
-		if (!pfc_bit_set || !pfvf->pfc_alloc_status[prio])
-			continue;
-
-		/* Delete the existing scheduler */
-		err = otx2_pfc_txschq_stop_one(pfvf, prio);
-		if (err) {
-			dev_err(pfvf->dev, "%s failed to stop PFC TX schedulers\n", __func__);
-			return err;
-		}
-	}
-
-	return 0;
 }
 
 int otx2_txschq_stop(struct otx2_nic *pfvf)
