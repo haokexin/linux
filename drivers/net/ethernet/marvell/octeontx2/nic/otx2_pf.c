@@ -1522,6 +1522,7 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 		goto err_free_sq_ptrs;
 	}
 
+#ifdef CONFIG_DCB
 	if (pf->pfc_en) {
 		err = otx2_pfc_txschq_alloc(pf);
 		if (err) {
@@ -1529,6 +1530,7 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 			goto err_free_sq_ptrs;
 		}
 	}
+#endif
 
 	err = otx2_config_nix_queues(pf);
 	if (err) {
@@ -1544,6 +1546,7 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 		}
 	}
 
+#ifdef CONFIG_DCB
 	if (pf->pfc_en) {
 		err = otx2_pfc_txschq_config(pf);
 		if (err) {
@@ -1551,6 +1554,7 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 			goto err_free_nix_queues;
 		}
 	}
+#endif
 
 	mutex_unlock(&mbox->lock);
 	return err;
@@ -1606,8 +1610,10 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	if (err)
 		dev_err(pf->dev, "RVUPF: Failed to stop/free TX schedulers\n");
 
+#ifdef CONFIG_DCB
 	if (pf->pfc_en)
 		otx2_pfc_txschq_stop(pf);
+#endif
 
 	otx2_clean_qos_queues(pf);
 
@@ -2026,7 +2032,9 @@ u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 {
 	struct otx2_nic *pf = netdev_priv(netdev);
 	bool qos_enabled;
+#ifdef CONFIG_DCB
 	u8 vlan_prio;
+#endif
 	int txq;
 
 	qos_enabled = (netdev->real_num_tx_queues > pf->hw.tx_queues) ? true : false;
@@ -2042,6 +2050,7 @@ u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 	}
 
 process_pfc:
+#ifdef CONFIG_DCB
 	if (!skb->vlan_present)
 		goto pick_tx;
 
@@ -2053,6 +2062,7 @@ process_pfc:
 	return vlan_prio;
 
 pick_tx:
+#endif
 	txq = netdev_pick_tx(netdev, skb, NULL);
 	if (unlikely(qos_enabled))
 		return txq % pf->hw.tx_queues;
