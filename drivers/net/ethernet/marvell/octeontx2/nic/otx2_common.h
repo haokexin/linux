@@ -904,10 +904,12 @@ int otx2_config_nix_queues(struct otx2_nic *pfvf);
 int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool pfc_en);
 int otx2_txsch_alloc(struct otx2_nic *pfvf);
 int otx2_txschq_stop(struct otx2_nic *pfvf);
+#ifdef CONFIG_DCB
 int otx2_pfc_txschq_config(struct otx2_nic *pfvf);
 int otx2_pfc_txschq_alloc(struct otx2_nic *pfvf);
 int otx2_pfc_txschq_update(struct otx2_nic *pfvf);
 int otx2_pfc_txschq_stop(struct otx2_nic *pfvf);
+#endif
 void otx2_sqb_flush(struct otx2_nic *pfvf);
 int __otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
 		      dma_addr_t *dma);

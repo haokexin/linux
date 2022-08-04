@@ -988,6 +988,7 @@ update_sq_smq_map:
 
 	return 0;
 }
+EXPORT_SYMBOL(otx2_pfc_txschq_update);
 
 int otx2_pfc_txschq_stop(struct otx2_nic *pfvf)
 {
