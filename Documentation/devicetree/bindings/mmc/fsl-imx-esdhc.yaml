@@ -36,7 +36,7 @@ properties:
           - fsl,imx7ulp-usdhc
           - fsl,imx8mm-usdhc
           - fsl,imxrt1050-usdhc
-          - nxp,s32g2-usdhc
+          - nxp,s32cc-usdhc
       - items:
           - enum:
               - fsl,imx8mq-usdhc
