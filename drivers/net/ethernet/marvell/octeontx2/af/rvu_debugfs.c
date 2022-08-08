@@ -3537,7 +3537,8 @@ static int rvu_dbg_cpt_engines_info_display(struct seq_file *filp, void *unused)
 	return 0;
 }
 
-RVU_DEBUG_SEQ_FOPS(cpt_engines_info, cpt_engines_info_display, NULL);
+RVU_DEBUG_SEQ_FOPS(cpt_engines_info, cpt_engines_info_display,
+		    cpt_engines_info_write);
 
 static int rvu_dbg_cpt_lfs_info_display(struct seq_file *filp, void *unused)
 {
