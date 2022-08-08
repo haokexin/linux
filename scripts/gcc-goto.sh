@@ -3,6 +3,11 @@
 # Test for gcc 'asm goto' support
 # Copyright (C) 2010, Jason Baron <jbaron@redhat.com>
 
+TEST=$1
+shift
+
+case $TEST in
+    "goto")
 cat << "END" | $@ -x c - -fno-PIE -c -o /dev/null
 int main(void)
 {
@@ -20,3 +25,29 @@ entry:
 	return 0;
 }
 END
+    ;;
+
+    "goto_output")
+cat << "END" | $@ -x c - -c -o /dev/null
+int foo(int x) {
+	asm goto ("": "=r"(x) ::: bar);
+	return x;
+	bar: return 0;
+}
+END
+    ;;
+
+    "goto_tied_output")
+cat << "END" | $@ -x c - -c -o /dev/null
+int foo(int *x) {
+	asm goto (".long (%l[bar]) - .\n": "+m"(*x) ::: bar);
+	return *x;
+	bar: return 0;
+}
+END
+    ;;
+
+    *)
+	exit -1
+    ;;
+esac
