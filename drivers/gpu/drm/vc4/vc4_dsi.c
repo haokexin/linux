@@ -802,19 +802,8 @@ dsi_esc_timing(u32 ns)
 static void vc4_dsi_bridge_disable(struct drm_bridge *bridge,
 				   struct drm_bridge_state *state)
 {
+	struct vc4_dsi *dsi = bridge_to_vc4_dsi(bridge);
 	u32 disp0_ctrl;
-	struct vc4_dsi_encoder *vc4_encoder = to_vc4_dsi_encoder(encoder);
-	struct vc4_dsi *dsi = vc4_encoder->dsi;
-	struct device *dev = &dsi->pdev->dev;
-	struct drm_bridge *iter;
-
-	list_for_each_entry_reverse(iter, &dsi->bridge_chain, chain_node) {
-		if (iter->funcs->disable)
-			iter->funcs->disable(iter);
-
-		if (iter == dsi->bridge)
-			break;
-	}
 
 	disp0_ctrl = DSI_PORT_READ(DISP0_CTRL);
 	disp0_ctrl &= ~DSI_DISP0_ENABLE;
@@ -1622,6 +1611,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct vc4_dsi *dsi = dev_get_drvdata(dev);
 	struct vc4_dsi_encoder *vc4_dsi_encoder;
+	struct drm_panel *panel;
 	int ret;
 
 	dsi->variant = of_device_get_match_data(dev);
@@ -1631,7 +1621,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 	if (!vc4_dsi_encoder)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&dsi->bridge_chain);
 	vc4_dsi_encoder->base.type = dsi->variant->port ?
 			VC4_ENCODER_TYPE_DSI1 : VC4_ENCODER_TYPE_DSI0;
 	vc4_dsi_encoder->dsi = dsi;
@@ -1684,7 +1673,7 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 
 		ret = devm_add_action_or_reset(dev, vc4_dsi_dma_chan_release, dsi);
 		if (ret)
-			return ret;
+			goto err_free_dma_mem;
 
 		/* Get the physical address of the device's registers.  The
 		 * struct resource for the regs gives us the bus address
@@ -1762,9 +1751,6 @@ static int vc4_dsi_bind(struct device *dev, struct device *master, void *data)
 			goto err_free_dma;
 		}
 	}
-	dsi->bridge = devm_drm_of_get_bridge(dev, dev->of_node, 0, 0);
-	if (IS_ERR(dsi->bridge))
-		return PTR_ERR(dsi->bridge);
 
 	/* The esc clock rate is supposed to always be 100Mhz. */
 	ret = clk_set_rate(dsi->escape_clock, 100 * 1000000);

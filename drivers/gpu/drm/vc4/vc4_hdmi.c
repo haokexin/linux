@@ -2247,7 +2247,6 @@ static int vc4_hdmi_audio_init(struct vc4_hdmi *vc4_hdmi)
 	const __be32 *addr;
 	int index, len;
 	int ret;
-	int len;
 
 	if (!of_find_property(dev->of_node, "dmas", &len) ||
 	    len == 0) {
