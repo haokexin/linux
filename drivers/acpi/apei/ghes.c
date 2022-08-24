@@ -1498,7 +1498,7 @@ static struct platform_driver ghes_platform_driver = {
 	.remove		= ghes_remove,
 };
 
-void __init ghes_init(void)
+static int __init ghes_init(void)
 {
 	int rc;
 
@@ -1508,24 +1508,24 @@ void __init ghes_init(void)
 
 	switch (hest_disable) {
 	case HEST_NOT_FOUND:
-		return;
+		return -ENODEV;
 	case HEST_DISABLED:
 		pr_info(GHES_PFX "HEST is not enabled!\n");
-		return;
+		return -EINVAL;
 	default:
 		break;
 	}
 
 	if (ghes_disable) {
 		pr_info(GHES_PFX "GHES is not enabled!\n");
-		return;
+		return -EINVAL;
 	}
 
 	ghes_nmi_init_cxt();
 
 	rc = platform_driver_register(&ghes_platform_driver);
 	if (rc)
-		return;
+		goto err;
 
 	if (!acpi_disabled) {
 		rc = apei_osc_setup();
@@ -1543,3 +1543,4 @@ void __init ghes_init(void)
 err:
 	return rc;
 }
+device_initcall(ghes_init);
