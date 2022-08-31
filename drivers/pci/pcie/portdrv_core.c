@@ -231,7 +231,7 @@ static int get_port_device_capability(struct pci_dev *dev)
 	 */
 	if (dev->aer_cap && pci_aer_available() &&
 	    pci_pcie_type(dev) == PCI_EXP_TYPE_ROOT_PORT &&
-	    (pcie_ports_native || host->native_aer)) {
+	    (pcie_ports_native || host->native_aer))
 		services |= PCIE_PORT_SERVICE_AER;
 #endif
 
