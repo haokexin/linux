@@ -2041,8 +2041,6 @@ static void zynqmp_disp_enable(struct zynqmp_disp *disp)
  */
 static void zynqmp_disp_disable(struct zynqmp_disp *disp, bool force)
 {
-	struct drm_crtc *crtc = &disp->xlnx_crtc.crtc;
-
 	if (!force && (!disp->enabled || zynqmp_disp_layer_is_enabled(disp)))
 		return;
 
@@ -2050,12 +2048,6 @@ static void zynqmp_disp_disable(struct zynqmp_disp *disp, bool force)
 	zynqmp_disp_av_buf_disable_aud(&disp->av_buf);
 	zynqmp_disp_av_buf_disable_buf(&disp->av_buf);
 	zynqmp_disp_av_buf_disable(&disp->av_buf);
-
-	/* Mark the flip is done as crtc is disabled anyway */
-	if (crtc->state->event) {
-		complete_all(crtc->state->event->base.completion);
-		crtc->state->event = NULL;
-	}
 
 	disp->enabled = false;
 }
@@ -2636,6 +2628,14 @@ zynqmp_disp_crtc_atomic_disable(struct drm_crtc *crtc,
 	zynqmp_disp_disable(disp, true);
 	if (!disp->dpsub->external_crtc_attached)
 		drm_crtc_vblank_off(crtc);
+
+	spin_lock_irq(&crtc->dev->event_lock);
+	if (crtc->state->event) {
+		drm_crtc_send_vblank_event(crtc, crtc->state->event);
+		crtc->state->event = NULL;
+	}
+	spin_unlock_irq(&crtc->dev->event_lock);
+
 	pm_runtime_put_sync(disp->dev);
 }
 
