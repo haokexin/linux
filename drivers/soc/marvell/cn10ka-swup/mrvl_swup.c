@@ -29,6 +29,9 @@
 #include <soc/marvell/octeontx/octeontx_smc.h>
 #include "mrvl_swup.h"
 
+#include <linux/timekeeping.h>
+#include <linux/ktime.h>
+
 #define TO_VERSION_DESC(x) ((struct mrvl_get_versions *)(x))
 #define TO_CLONE_DESC(x) ((struct mrvl_clone_fw *)(x))
 #define TO_UPDATE_DESC(x) ((struct mrvl_update *)(x))
@@ -54,12 +57,15 @@ static struct device dev;
 #define BUF_DATA 1
 #define BUF_SIGNATURE 2
 #define BUF_READ 3
-#define BUF_COUNT 4
+#define BUF_LOG 4
+#define BUF_WORK 5
+#define BUF_COUNT 6
 static struct memory_desc memdesc[BUF_COUNT] = {
 	{0, 0, 32*1024*1024, "cpio buffer"},
 	{0, 0, 1*1024*1024,  "data buffer"},
 	{0, 0, 1*1024*1024,  "signature buffer"},
 	{0, 0, 0, "read buffer"},
+	{0, 0, 1*1024*1024,  "log buffer"},
 };
 
 static struct allocated_pages {
@@ -132,6 +138,7 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 	struct mrvl_get_versions *user_desc;
 	struct arm_smccc_res res;
 	struct smc_version_info *swup_info = (struct smc_version_info *)memdesc[BUF_DATA].virt;
+	int spi_in_progress = 0;
 
 	user_desc = kzalloc(sizeof(*user_desc), GFP_KERNEL);
 	if (!user_desc)
@@ -152,6 +159,7 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 	swup_info->version      = VERSION_INFO_VERSION;
 	swup_info->bus          = user_desc->bus;
 	swup_info->cs           = user_desc->cs;
+	swup_info->timeout      = user_desc->timeout;
 
 	if (calculate_hash)
 		swup_info->version_flags |= SMC_VERSION_CHECK_VALIDATE_HASH;
@@ -164,6 +172,9 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 		swup_info->num_objects = SMC_MAX_OBJECTS;
 	}
 
+	if (user_desc->version_flags & MARLIN_FORCE_ASYNC)
+		swup_info->version_flags |= SMC_VERSION_ASYNC_HASH;
+
 	res = mrvl_exec_smc(PLAT_CN10K_VERIFY_FIRMWARE,
 			    memdesc[BUF_DATA].phys,
 			    sizeof(struct smc_version_info));
@@ -173,6 +184,12 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 		ret = res.a0;
 		goto mem_error;
 	}
+
+	do {
+		msleep(500);
+		res = mrvl_exec_smc(PLAT_CN10K_ASYNC_STATUS, 0, 0);
+		spi_in_progress = res.a0;
+	} while (spi_in_progress);
 
 	user_desc->retcode = swup_info->retcode;
 	for (i = 0; i < SMC_MAX_VERSION_ENTRIES; i++)
@@ -218,6 +235,9 @@ static int mrvl_clone_fw(unsigned long arg)
 	swup_info->bus = user_desc->bus;
 	swup_info->cs = user_desc->cs;
 	swup_info->version_flags |= SMC_VERSION_CHECK_VALIDATE_HASH;
+
+	if (user_desc->version_flags & MARLIN_FORCE_CLONE)
+		swup_info->version_flags |= SMC_VERSION_FORCE_COPY_OBJECTS;
 
 	if (user_desc->version_flags & MARLIN_CHECK_PREDEFINED_OBJ) {
 		swup_info->version_flags |= SMC_VERSION_CHECK_SPECIFIC_OBJECTS;
@@ -281,11 +301,10 @@ static int mrvl_get_membuf(unsigned long arg)
 	buf.cpio_buf_size = memdesc[BUF_CPIO].size;
 	buf.sign_buf = memdesc[BUF_SIGNATURE].phys;
 	buf.sign_buf_size = memdesc[BUF_SIGNATURE].size;
-	buf.reserved_buf = 0;
-	buf.reserved_buf_size = 0;
+	buf.log_buf = memdesc[BUF_LOG].phys;
+	buf.log_buf_size = memdesc[BUF_LOG].size;
 	buf.read_buf = memdesc[BUF_READ].phys;
 	buf.read_buf_size = memdesc[BUF_READ].size;
-
 
 	if (copy_to_user(TO_PHYS_BUFFER(arg),
 			  &buf,
@@ -302,6 +321,8 @@ static int mrvl_run_fw_update(unsigned long arg)
 	struct smc_update_descriptor *smc_desc;
 	struct arm_smccc_res res;
 	int spi_in_progress = 0;
+
+	ktime_t tstart, tsyncend, tend;
 
 	smc_desc = (struct smc_update_descriptor *)memdesc[BUF_DATA].virt;
 	memset(smc_desc, 0x00, sizeof(*smc_desc));
@@ -341,7 +362,11 @@ static int mrvl_run_fw_update(unsigned long arg)
 		smc_desc->user_size = ioctl_desc.user_size;
 	}
 	smc_desc->user_flags = ioctl_desc.user_flags;
-	smc_desc->update_flags = ioctl_desc.flags;
+	smc_desc->update_flags = ioctl_desc.flags | UPDATE_FLAG_LOG_PROGRESS;
+
+	/* Buffer for ATF logs */
+	smc_desc->output_console = memdesc[BUF_LOG].phys;
+	smc_desc->output_console_size = memdesc[BUF_LOG].size;
 
 	/* In linux use asynchronus SPI operation */
 	smc_desc->async_spi = 1;
@@ -350,9 +375,19 @@ static int mrvl_run_fw_update(unsigned long arg)
 	smc_desc->bus        = ioctl_desc.bus;
 	smc_desc->cs	     = ioctl_desc.cs;
 
-	res = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
+	tstart = ktime_get();
+	if (ioctl_desc.user_flags == 1) {
+		smc_desc->version = UPDATE_VERSION_PREV;
+		res = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
+			    memdesc[BUF_DATA].phys,
+			    sizeof(struct smc_update_descriptor_prev));
+	} else {
+		res = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
 			    memdesc[BUF_DATA].phys,
 			    sizeof(struct smc_update_descriptor));
+	}
+
+	tsyncend = ktime_get();
 
 	ioctl_desc.ret = res.a0;
 	if (copy_to_user(TO_UPDATE_DESC(arg),
@@ -364,11 +399,15 @@ static int mrvl_run_fw_update(unsigned long arg)
 
 	do {
 		msleep(500);
-		res = mrvl_exec_smc(0xc2000b0e, 0, 0);
+		res = mrvl_exec_smc(PLAT_CN10K_ASYNC_STATUS, 0, 0);
 		spi_in_progress = res.a0;
 	} while (spi_in_progress);
 
-	return 0;
+	tend = ktime_get();
+
+	pr_info("Tsync: %lld, ttot: %lld\n", tsyncend - tstart, tend - tstart);
+
+	return ioctl_desc.ret;
 }
 
 static int alloc_readbuf(uint64_t rd_size)
@@ -463,7 +502,7 @@ static int mrvl_read_flash_data(unsigned long arg)
 
 	do {
 		msleep(500);
-		res = mrvl_exec_smc(0xc2000b0e, 0, 0);
+		res = mrvl_exec_smc(PLAT_CN10K_ASYNC_STATUS, 0, 0);
 		spi_in_progress = res.a0;
 	} while (spi_in_progress);
 
@@ -483,10 +522,11 @@ static long mrvl_swup_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	case GET_VERSION:
 	case VERIFY_HASH:
 	case CLONE_FW:
-		ret = alloc_buffers(memdesc, 1<<BUF_DATA | 1<<BUF_SIGNATURE);
+		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE));
 		break;
 	case GET_MEMBUF:
-		ret = alloc_buffers(memdesc, 1<<BUF_DATA | 1<<BUF_SIGNATURE | 1<<BUF_CPIO);
+		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_CPIO) |
+					     BIT(BUF_LOG));
 		break;
 	case RUN_UPDATE:
 	case READ_FLASH:
@@ -542,35 +582,41 @@ static const struct file_operations mrvl_fops = {
 
 static int alloc_buffers(struct memory_desc *memdesc, uint32_t required_buf)
 {
-	int i = 0;
-	int j;
-	struct page *p;
+	int i = 0, j, ret = 0;
 
-	for (i = 0; i < BUF_COUNT; i++) {
-		if (required_buf & 1<<i)
+	for (j = 0; j < BUF_COUNT; j++) {
+		if (required_buf == 0)
 			break;
+
+		for (i = 0; i < BUF_COUNT; i++) {
+			if (required_buf & BIT(i)) {
+				required_buf &= ~(BIT(i));
+				break;
+			}
+		}
+
+		if (memdesc[i].virt != NULL)
+			continue;
+
+		memdesc[i].virt = dma_alloc_coherent(&dev, memdesc[i].size,
+						     &memdesc[i].phys, GFP_KERNEL);
+
+		if (!memdesc[i].virt) {
+			ret = -ENOMEM;
+			break;
+		}
+
+		memset(memdesc[i].virt, 0x00, memdesc[i].size);
 	}
-
-	if (memdesc[i].virt != NULL)
-		return 0;
-
-	memdesc[i].virt = dma_alloc_coherent(&dev, memdesc[i].size, &memdesc[i].phys, GFP_KERNEL);
 
 	for (j = 0; j < BUF_COUNT; j++)
-		pr_info("Pool: %s virt: %llx, phys: %llx, size: %d\n",
+		pr_info("Pool: %s virt: %llx, phys: %llx, size: 0x%llx\n",
 			memdesc[j].pool_name,
-			memdesc[j].virt,
-			memdesc[j].phys,
+			(uint64_t)memdesc[j].virt,
+			(uint64_t)memdesc[j].phys,
 			memdesc[j].size);
 
-	if (!memdesc[i].virt) {
-		pr_err("Failed to alloc\n");
-		return 0;
-	}
-
-	memset(memdesc[i].virt, 0x01, memdesc[i].size);
-
-	return 0;
+	return ret;
 }
 
 

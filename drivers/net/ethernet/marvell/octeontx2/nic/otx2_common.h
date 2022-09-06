@@ -203,6 +203,7 @@ struct otx2_hw {
 	u16		txschq_list[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
 	u16			matchall_ipolicer;
 	u32			dwrr_mtu;
+	u8			smq_link_type;
 
 	/* HW settings, coalescing etc */
 	u16			rx_chan_base;
@@ -287,10 +288,20 @@ struct refill_work {
 	struct otx2_nic *pf;
 };
 
+/* PTPv2 originTimestamp structure */
+struct ptpv2_tstamp {
+	u16 seconds_msb; /* 16 bits + */
+	u32 seconds_lsb; /* 32 bits = 48 bits*/
+	u32 nanoseconds;
+} __packed;
+
 struct otx2_ptp {
 	struct ptp_clock_info ptp_info;
 	struct ptp_clock *ptp_clock;
 	struct otx2_nic *nic;
+
+	struct cyclecounter cycle_counter;
+	struct timecounter time_counter;
 
 	struct delayed_work extts_work;
 	u64 last_extts;
@@ -301,7 +312,8 @@ struct otx2_ptp {
 	u64 (*convert_rx_ptp_tstmp)(u64 timestamp);
 	u64 (*convert_tx_ptp_tstmp)(u64 timestamp);
 	struct delayed_work synctstamp_work;
-	u64  tstamp;
+	u64 tstamp;
+	u32 base_ns;
 };
 
 #define OTX2_HW_TIMESTAMP_LEN	8
@@ -894,6 +906,7 @@ int otx2_pool_init(struct otx2_nic *pfvf, u16 pool_id,
 int otx2_aura_init(struct otx2_nic *pfvf, int aura_id,
 		   int pool_id, int numptrs);
 void otx2_txschq_free_one(struct otx2_nic *pfvf, u16 lvl, u16 schq);
+void otx2_free_pending_sqe(struct otx2_nic *pfvf);
 
 /* RSS configuration APIs*/
 int otx2_rss_init(struct otx2_nic *pfvf);
@@ -970,6 +983,8 @@ u16 otx2_get_max_mtu(struct otx2_nic *pfvf);
 bool otx2_xdp_sq_append_pkt(struct otx2_nic *pfvf, u64 iova, int len, u16 qidx);
 int otx2_handle_ntuple_tc_features(struct net_device *netdev,
 				   netdev_features_t features);
+int otx2_smq_flush(struct otx2_nic *pfvf, int smq);
+
 /* tc support */
 int otx2_init_tc(struct otx2_nic *nic);
 void otx2_shutdown_tc(struct otx2_nic *nic);
@@ -995,5 +1010,6 @@ void otx2_qos_sq_setup(struct otx2_nic *pfvf, int qos_txqs);
 int otx2_get_txq_by_classid(struct otx2_nic *pfvf, u16 classid);
 u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev);
-void otx2_reinit_qos_smq(struct otx2_nic *pfvf);
+void otx2_qos_config_txschq(struct otx2_nic *pfvf);
+int otx2_clean_qos_queues(struct otx2_nic *pfvf);
 #endif /* OTX2_COMMON_H */

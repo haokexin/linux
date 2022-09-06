@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-y		+= gti/
+obj-y		+= octeontx2-rm/
 obj-y		+= octeontx2-dpi/
 obj-y		+= octeontx2-sdp/
 obj-y		+= octeontx2-npa/
@@ -11,8 +12,8 @@ obj-y           += cn10ka-swup/
 obj-$(CONFIG_OCTEONTX_INFO) += octeontx_info.o
 obj-$(CONFIG_MVMDIO_UIO) += mvmdio_uio.o
 obj-$(CONFIG_MRVL_PHY_DIAGNOSTICS) += phy_diag.o
+obj-$(CONFIG_MRVL_PHY_7121P_MAC_ADV_FEATURES) += phy_7121p_macadv_features.o
 obj-$(CONFIG_MARVELL_CN10K_SERDES_DIAGNOSTICS) += cn10k_serdes_diag.o
-obj-$(CONFIG_MARVELL_CN10K_RPRAM) += cn10k-rpram.o
 obj-$(CONFIG_EDAC_OCTEONTX) += octeontx2-ghes/
 obj-$(CONFIG_OCTEONTX2_PCI_CONSOLE) += octeontx2-pcicons/
 obj-$(CONFIG_MARVELL_CN10K_FWLOG) += cn10k-fwlog.o

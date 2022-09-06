@@ -69,6 +69,13 @@
 #define BCN_CAPTURE_CFG			0x10400
 #define BCN_CAPTURE_N1_N2		0x10410
 #define BCN_CAPTURE_PTP			0x10430
+#define BCN_N1_N2			0x10010
+#define BCN_SYNC_VAL			0x10020
+#define BCN_DELTA_VAL			0x10030
+#define BCN_CFG				0x10000
+#define BCN_CFG2			0x12000
+#define BCN_SYNC_EN			BIT(1)
+#define BCN_DELTA_EN			BIT(16)
 
 /* BCN_CAPTURE_CFG register definitions */
 #define CAPT_EN				BIT(0)
@@ -154,6 +161,14 @@ struct mhbw_jd_dma_cfg_word_0_s {
 struct mhbw_jd_dma_cfg_word_1_s {
 	u64 start_addr		: 53;
 	u64 reserved1		: 11;
+};
+
+enum rfoe_rx_dir_ctl_pkt_type_e {
+	ROE		= 0x0,
+	CHI		= 0x1,
+	ALT		= 0x2,
+	ECPRI		= 0x3,
+	GENERIC		= 0x8,
 };
 
 enum rfoe_rx_pswt_e {

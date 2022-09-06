@@ -390,7 +390,8 @@ static void otx2_rfoe_ptp_tx_work(struct work_struct *work)
 	timestamp = readq(priv->rfoe_reg_base +
 			  RFOEX_TX_PTP_TSTMP_W0(priv->rfoe_num,
 						priv->lmac_id));
-	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
+	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN &&
+	    priv->ptp_cfg->use_ptp_alg)
 		otx2_rfoe_calc_ptp_ts(priv, &timestamp);
 	else
 		timestamp = timecounter_cyc2time(&priv->time_counter, timestamp);
@@ -412,37 +413,53 @@ static void otx2_rfoe_tx_timer_cb(struct timer_list *t)
 {
 	struct otx2_rfoe_ndev_priv *priv =
 			container_of(t, struct otx2_rfoe_ndev_priv, tx_timer);
+	int reschedule = 0, psm_qidx, psm_qpos;
 	u16 psm_queue_id, queue_space;
-	int reschedule = 0;
+	bool psm_queue_ena;
 	u64 regval;
 
 	/* check psm queue space for both ptp and oth packets */
 	if (netif_queue_stopped(priv->netdev)) {
 		psm_queue_id = priv->tx_ptp_job_cfg.psm_queue_id;
+		/* check if psm queue is disabled */
+		psm_qidx = psm_queue_id / 64;
+		psm_qpos = psm_queue_id % 64;
+		regval = readq(priv->psm_reg_base + PSM_QUEUE_ENA_W1S(psm_qidx));
+		psm_queue_ena = (regval >> psm_qpos) & 0x1;
+		if (unlikely(!psm_queue_ena)) {
+			reschedule = 1;
+			goto out;
+		}
 		// check queue space
 		regval = readq(priv->psm_reg_base +
 						PSM_QUEUE_SPACE(psm_queue_id));
 		queue_space = regval & 0x7FFF;
-		if (queue_space > 1) {
-			netif_wake_queue(priv->netdev);
-			reschedule = 0;
-		} else {
+		if (queue_space < 1) {
 			reschedule = 1;
+			goto out;
 		}
 
 		psm_queue_id = priv->rfoe_common->tx_oth_job_cfg.psm_queue_id;
+		/* check if psm queue is disabled */
+		psm_qidx = psm_queue_id / 64;
+		psm_qpos = psm_queue_id % 64;
+		regval = readq(priv->psm_reg_base + PSM_QUEUE_ENA_W1S(psm_qidx));
+		psm_queue_ena = (regval >> psm_qpos) & 0x1;
+		if (unlikely(!psm_queue_ena)) {
+			reschedule = 1;
+			goto out;
+		}
 		// check queue space
 		regval = readq(priv->psm_reg_base +
 						PSM_QUEUE_SPACE(psm_queue_id));
 		queue_space = regval & 0x7FFF;
-		if (queue_space > 1) {
-			netif_wake_queue(priv->netdev);
-			reschedule = 0;
-		} else {
+		if (queue_space < 1) {
 			reschedule = 1;
+			goto out;
 		}
+		netif_wake_queue(priv->netdev);
 	}
-
+out:
 	if (reschedule)
 		mod_timer(&priv->tx_timer, jiffies + msecs_to_jiffies(100));
 }
@@ -607,11 +624,11 @@ static void otx2_rfoe_process_rx_pkt(struct otx2_rfoe_ndev_priv *priv,
 	}
 
 	if (priv2->rx_hw_tstamp_en) {
-		if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
-			otx2_rfoe_calc_ptp_ts(priv, &tstamp);
+		if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN &&
+		    priv->ptp_cfg->use_ptp_alg)
+			otx2_rfoe_calc_ptp_ts(priv2, &tstamp);
 		else
-			tstamp = timecounter_cyc2time(&priv->time_counter, tstamp);
-
+			tstamp = timecounter_cyc2time(&priv2->time_counter, tstamp);
 		skb_hwtstamps(skb)->hwtstamp = ns_to_ktime(tstamp);
 	}
 
@@ -865,19 +882,19 @@ static int otx2_rfoe_ioctl(struct net_device *netdev, struct ifreq *req,
 static netdev_tx_t otx2_rfoe_eth_start_xmit(struct sk_buff *skb,
 					    struct net_device *netdev)
 {
+	int psm_queue_id, queue_space, psm_qidx, psm_qpos, pkt_type = 0;
 	struct otx2_rfoe_ndev_priv *priv = netdev_priv(netdev);
 	struct mhbw_jd_dma_cfg_word_0_s *jd_dma_cfg_word_0;
 	struct mhbw_jd_dma_cfg_word_1_s *jd_dma_cfg_word_1;
 	struct mhab_job_desc_cfg *jd_cfg_ptr;
 	struct psm_cmd_addjob_s *psm_cmd_lo;
 	struct tx_job_queue_cfg *job_cfg;
-	u64 jd_cfg_ptr_iova, regval;
 	struct tx_job_entry *job_entry;
 	struct ptp_tstamp_skb *ts_skb;
-	int psm_queue_id, queue_space;
-	int pkt_type = 0;
+	u64 jd_cfg_ptr_iova, regval;
 	unsigned long flags;
 	struct ethhdr *eth;
+	bool psm_queue_ena;
 
 	if (unlikely(skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP)) {
 		if (!priv->tx_hw_tstamp_en) {
@@ -958,6 +975,30 @@ static netdev_tx_t otx2_rfoe_eth_start_xmit(struct sk_buff *skb,
 		  readq(priv->psm_reg_base + PSM_QUEUE_CFG(psm_queue_id)),
 		  readq(priv->psm_reg_base + PSM_QUEUE_PTR(psm_queue_id)),
 		  readq(priv->psm_reg_base + PSM_QUEUE_SPACE(psm_queue_id)));
+
+	/* check if psm queue is disabled */
+	psm_qidx = psm_queue_id / 64;
+	psm_qpos = psm_queue_id % 64;
+	regval = readq(priv->psm_reg_base + PSM_QUEUE_ENA_W1S(psm_qidx));
+	psm_queue_ena = (regval >> psm_qpos) & 0x1;
+	if (unlikely(!psm_queue_ena)) {
+		dev_err_ratelimited(&netdev->dev,
+				    "psm queue %d is disabled, dropping pkt\n",
+				    psm_queue_id);
+		netif_stop_queue(netdev);
+		dev_kfree_skb_any(skb);
+		/* update stats */
+		if (pkt_type == PACKET_TYPE_ECPRI)
+			priv->stats.ecpri_tx_dropped++;
+		else
+			priv->stats.tx_dropped++;
+
+		priv->last_tx_dropped_jiffies = jiffies;
+
+		mod_timer(&priv->tx_timer, jiffies + msecs_to_jiffies(100));
+		spin_unlock_irqrestore(&job_cfg->lock, flags);
+		return NETDEV_TX_OK;
+	}
 
 	/* check psm queue space available */
 	regval = readq(priv->psm_reg_base + PSM_QUEUE_SPACE(psm_queue_id));

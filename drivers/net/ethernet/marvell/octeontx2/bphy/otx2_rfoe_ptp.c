@@ -15,9 +15,6 @@ static int otx2_rfoe_ptp_adjtime(struct ptp_clock_info *ptp_info, s64 delta)
 							otx2_rfoe_ndev_priv,
 							ptp_clock_info);
 
-	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
-		return -EOPNOTSUPP;
-
 	mutex_lock(&priv->ptp_lock);
 	timecounter_adjtime(&priv->time_counter, delta);
 	mutex_unlock(&priv->ptp_lock);
@@ -34,9 +31,6 @@ static int otx2_rfoe_ptp_adjfine(struct ptp_clock_info *ptp, long scaled_ppm)
 	bool neg_adj = false;
 	u64 comp, adj;
 	s64 ppb;
-
-	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
-		return -EOPNOTSUPP;
 
 	if (scaled_ppm < 0) {
 		neg_adj = true;
@@ -91,8 +85,8 @@ static int otx2_rfoe_ptp_gettime(struct ptp_clock_info *ptp_info,
 	u64 nsec;
 
 	mutex_lock(&priv->ptp_lock);
-
-	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN) {
+	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN &&
+	    priv->ptp_cfg->use_ptp_alg) {
 		nsec = readq(priv->ptp_reg_base + MIO_PTP_CLOCK_HI);
 		otx2_rfoe_calc_ptp_ts(priv, &nsec);
 	} else {
@@ -114,9 +108,6 @@ static int otx2_rfoe_ptp_settime(struct ptp_clock_info *ptp_info,
 							ptp_clock_info);
 	u64 nsec;
 
-	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
-		return -EOPNOTSUPP;
-
 	nsec = timespec64_to_ns(ts);
 
 	mutex_lock(&priv->ptp_lock);
@@ -131,14 +122,6 @@ static int otx2_rfoe_ptp_verify_pin(struct ptp_clock_info *ptp,
 				    enum ptp_pin_function func,
 				    unsigned int chan)
 {
-	struct otx2_rfoe_ndev_priv *priv = container_of(ptp,
-							struct
-							otx2_rfoe_ndev_priv,
-							ptp_clock_info);
-
-	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
-		return -EOPNOTSUPP;
-
 	switch (func) {
 	case PTP_PF_NONE:
 	case PTP_PF_EXTTS:
@@ -189,9 +172,6 @@ static int otx2_rfoe_ptp_enable(struct ptp_clock_info *ptp_info,
 							otx2_rfoe_ndev_priv,
 							ptp_clock_info);
 	int pin = -1;
-
-	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
-		return -EOPNOTSUPP;
 
 	switch (rq->type) {
 	case PTP_CLK_REQ_EXTTS:
@@ -245,6 +225,8 @@ int otx2_rfoe_ptp_init(struct otx2_rfoe_ndev_priv *priv)
 	priv->extts_config.func = PTP_PF_NONE;
 	priv->ptp_clock_info = otx2_rfoe_ptp_clock_info;
 	priv->ptp_ext_clk_rate = EXT_PTP_CLK_RATE;
+	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
+		priv->ptp_ext_clk_rate = 950000000UL;
 	snprintf(priv->ptp_clock_info.name, 16, "%s", priv->netdev->name);
 	priv->ptp_clock_info.pin_config = &priv->extts_config;
 	INIT_DELAYED_WORK(&priv->extts_work, otx2_rfoe_ptp_extts_check);

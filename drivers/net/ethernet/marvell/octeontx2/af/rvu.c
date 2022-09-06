@@ -11,11 +11,13 @@
 #include <linux/irq.h>
 #include <linux/pci.h>
 #include <linux/sysfs.h>
+#include <linux/jiffies.h>
 
 #include "cgx.h"
 #include "rvu.h"
 #include "rvu_reg.h"
 #include "ptp.h"
+#include "mcs.h"
 
 #include "rvu_trace.h"
 
@@ -1253,6 +1255,12 @@ cpt:
 
 	rvu_program_channels(rvu);
 
+	err = rvu_mcs_init(rvu);
+	if (err) {
+		dev_err(rvu->dev, "%s: Failed to initialize mcs\n", __func__);
+		goto sso_err;
+	}
+
 	return 0;
 
 nix_err:
@@ -2426,7 +2434,7 @@ static inline void rvu_afvf_mbox_up_handler(struct work_struct *work)
 }
 
 static int rvu_get_mbox_regions(struct rvu *rvu, void **mbox_addr,
-				int num, int type)
+				int num, int type, unsigned long *pf_bmap)
 {
 	struct rvu_hwinfo *hw = rvu->hw;
 	int region;
@@ -2438,6 +2446,9 @@ static int rvu_get_mbox_regions(struct rvu *rvu, void **mbox_addr,
 	 */
 	if (type == TYPE_AFVF) {
 		for (region = 0; region < num; region++) {
+			if (!test_bit(region, pf_bmap))
+				continue;
+
 			if (hw->cap.per_pf_mbox_regs) {
 				bar4 = rvu_read64(rvu, BLKADDR_RVUM,
 						  RVU_AF_PFX_BAR4_ADDR(0)) +
@@ -2459,6 +2470,9 @@ static int rvu_get_mbox_regions(struct rvu *rvu, void **mbox_addr,
 	 * RVU_AF_PF_BAR4_ADDR register.
 	 */
 	for (region = 0; region < num; region++) {
+		if (!test_bit(region, pf_bmap))
+			continue;
+
 		if (hw->cap.per_pf_mbox_regs) {
 			bar4 = rvu_read64(rvu, BLKADDR_RVUM,
 					  RVU_AF_PFX_BAR4_ADDR(region));
@@ -2487,8 +2501,27 @@ static int rvu_mbox_init(struct rvu *rvu, struct mbox_wq_info *mw,
 	int err = -EINVAL, i, dir, dir_up;
 	void __iomem *reg_base;
 	struct rvu_work *mwork;
+	unsigned long *pf_bmap;
 	void **mbox_regions;
 	const char *name;
+	u64 cfg;
+
+	pf_bmap = devm_kcalloc(rvu->dev, BITS_TO_LONGS(num), sizeof(long), GFP_KERNEL);
+	if (!pf_bmap)
+		return -ENOMEM;
+
+	/* RVU VFs */
+	if (type == TYPE_AFVF)
+		bitmap_set(pf_bmap, 0, num);
+
+	if (type == TYPE_AFPF) {
+		/* Mark enabled PFs in bitmap */
+		for (i = 0; i < num; i++) {
+			cfg = rvu_read64(rvu, BLKADDR_RVUM, RVU_PRIV_PFX_CFG(i));
+			if (cfg & BIT_ULL(20))
+				set_bit(i, pf_bmap);
+		}
+	}
 
 	mbox_regions = kcalloc(num, sizeof(void *), GFP_KERNEL);
 	if (!mbox_regions)
@@ -2500,7 +2533,7 @@ static int rvu_mbox_init(struct rvu *rvu, struct mbox_wq_info *mw,
 		dir = MBOX_DIR_AFPF;
 		dir_up = MBOX_DIR_AFPF_UP;
 		reg_base = rvu->afreg_base;
-		err = rvu_get_mbox_regions(rvu, mbox_regions, num, TYPE_AFPF);
+		err = rvu_get_mbox_regions(rvu, mbox_regions, num, TYPE_AFPF, pf_bmap);
 		if (err)
 			goto free_regions;
 		break;
@@ -2509,7 +2542,7 @@ static int rvu_mbox_init(struct rvu *rvu, struct mbox_wq_info *mw,
 		dir = MBOX_DIR_PFVF;
 		dir_up = MBOX_DIR_PFVF_UP;
 		reg_base = rvu->pfreg_base;
-		err = rvu_get_mbox_regions(rvu, mbox_regions, num, TYPE_AFVF);
+		err = rvu_get_mbox_regions(rvu, mbox_regions, num, TYPE_AFVF, pf_bmap);
 		if (err)
 			goto free_regions;
 		break;
@@ -2540,16 +2573,19 @@ static int rvu_mbox_init(struct rvu *rvu, struct mbox_wq_info *mw,
 	}
 
 	err = otx2_mbox_regions_init(&mw->mbox, mbox_regions, rvu->pdev,
-				     reg_base, dir, num);
+				     reg_base, dir, num, pf_bmap);
 	if (err)
 		goto exit;
 
 	err = otx2_mbox_regions_init(&mw->mbox_up, mbox_regions, rvu->pdev,
-				     reg_base, dir_up, num);
+				     reg_base, dir_up, num, pf_bmap);
 	if (err)
 		goto exit;
 
 	for (i = 0; i < num; i++) {
+		if (!test_bit(i, pf_bmap))
+			continue;
+
 		mwork = &mw->mbox_wrk[i];
 		mwork->rvu = rvu;
 		INIT_WORK(&mwork->work, mbox_handler);
@@ -2725,10 +2761,11 @@ static void rvu_npa_lf_mapped_nix_lf_teardown(struct rvu *rvu, u16 pcifunc)
 
 static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 {
+	int npa_blkaddr, blkaddr, lf, retry;
 	u16 sso_pcifunc, match_cnt = 0;
-	int npa_blkaddr, blkaddr, lf;
 	struct rvu_block *sso_block;
 	struct rsrc_detach detach;
+	unsigned long drain_tmo;
 	u16 *pcifunc_arr;
 	u64 regval;
 
@@ -2749,7 +2786,18 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 	rvu_write64(rvu, npa_blkaddr, NPA_AF_BAR2_SEL, regval);
 
 	sso_block = &rvu->hw->block[blkaddr];
-	for (lf = 0; lf < sso_block->lf.max; lf++) {
+	retry = 0;
+	drain_tmo = jiffies + msecs_to_jiffies(SSO_FLUSH_TMO_MAX);
+	for (lf = 0; lf < sso_block->lf.max || retry; lf++) {
+		if (lf == sso_block->lf.max) {
+			if (time_after(jiffies, drain_tmo)) {
+				dev_err(rvu->dev, "Failed to drain SSO queues\n");
+				break;
+			}
+
+			lf = 0;
+			retry = 0;
+		}
 		regval = rvu_read64(rvu, blkaddr, SSO_AF_XAQX_GMCTL(lf));
 		if ((regval & 0xFFFF) != pcifunc)
 			continue;
@@ -2757,7 +2805,11 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 		sso_pcifunc = sso_block->fn_map[lf];
 		regval = rvu_read64(rvu, blkaddr, sso_block->lfcfg_reg |
 				    (lf << sso_block->lfshift));
-		rvu_sso_lf_drain_queues(rvu, sso_pcifunc, lf, regval & 0xF);
+		if (rvu_sso_lf_drain_queues(rvu, sso_pcifunc, lf,
+					    regval & 0xF) == -EAGAIN) {
+			retry = 1;
+			continue;
+		}
 
 		regval = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_XAQ_AURA(lf));
 		rvu_sso_deinit_xaq_aura(rvu, sso_pcifunc, pcifunc, regval, lf);
@@ -2806,8 +2858,9 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 {
 	struct rvu_block *block;
+	unsigned long drain_tmo;
 	int slot, lf, num_lfs;
-	int err;
+	int err, retry;
 
 	block = &rvu->hw->block[blkaddr];
 	num_lfs = rvu_get_rsrc_mapcount(rvu_get_pfvf(rvu, pcifunc),
@@ -2816,11 +2869,25 @@ static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 		return;
 
 	if (block->addr == BLKADDR_SSO) {
-		for (slot = 0; slot < num_lfs; slot++) {
+		retry = 0;
+		drain_tmo = jiffies + msecs_to_jiffies(SSO_FLUSH_TMO_MAX);
+		for (slot = 0; slot < num_lfs || retry; slot++) {
+			if (slot == num_lfs) {
+				if (time_after(jiffies, drain_tmo)) {
+					dev_err(rvu->dev,
+						"Failed to drain SSO queues\n");
+					break;
+				}
+
+				slot = 0;
+				retry = 0;
+			}
 			lf = rvu_get_lf(rvu, block, pcifunc, slot);
 			if (lf < 0)
 				continue;
-			rvu_sso_lf_drain_queues(rvu, pcifunc, lf, slot);
+			if (rvu_sso_lf_drain_queues(rvu, pcifunc, lf, slot) ==
+			    -EAGAIN)
+				retry = 1;
 		}
 		rvu_sso_cleanup_xaq_aura(rvu, pcifunc, num_lfs);
 	}
@@ -2855,7 +2922,7 @@ static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 		}
 
 		if (block->addr == BLKADDR_SSO)
-			rvu_sso_hwgrp_config_thresh(rvu, block->addr, lf);
+			rvu_sso_hwgrp_config_thresh(rvu, block->addr, lf, NULL);
 	}
 }
 
@@ -2897,6 +2964,10 @@ static void __rvu_flr_handler(struct rvu *rvu, u16 pcifunc)
 	 */
 	rvu_npc_free_mcam_entries(rvu, pcifunc, -1);
 	rvu_mac_reset(rvu, pcifunc);
+
+	/* MCS flr handler */
+	if (rvu->mcs_blk_cnt)
+		rvu_mcs_flr_handler(rvu, pcifunc);
 
 	mutex_unlock(&rvu->flr_lock);
 }
@@ -3687,12 +3758,18 @@ static int __init rvu_init_module(void)
 	if (err < 0)
 		goto ptp_err;
 
+	err = pci_register_driver(&mcs_driver);
+	if (err < 0)
+		goto mcs_err;
+
 	err =  pci_register_driver(&rvu_driver);
 	if (err < 0)
 		goto rvu_err;
 
 	return 0;
 rvu_err:
+	pci_unregister_driver(&mcs_driver);
+mcs_err:
 	pci_unregister_driver(&ptp_driver);
 ptp_err:
 	pci_unregister_driver(&cgx_driver);
@@ -3703,6 +3780,7 @@ ptp_err:
 static void __exit rvu_cleanup_module(void)
 {
 	pci_unregister_driver(&rvu_driver);
+	pci_unregister_driver(&mcs_driver);
 	pci_unregister_driver(&ptp_driver);
 	pci_unregister_driver(&cgx_driver);
 }

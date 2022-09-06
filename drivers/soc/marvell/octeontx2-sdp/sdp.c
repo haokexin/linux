@@ -33,7 +33,7 @@
 #define PCI_CFG_REG_BAR_NUM	2
 #define MBOX_BAR_NUM		4
 
-#define SDP_PPAIR_THOLD 0x400
+#define SDP_OUT_BP_WMARK	0x100
 
 /* Supported devices */
 static const struct pci_device_id rvu_sdp_id_table[] = {
@@ -52,7 +52,7 @@ static spinlock_t sdp_lst_lock;
 LIST_HEAD(sdp_dev_lst_head);
 static int sdp_sriov_configure(struct pci_dev *pdev, int num_vfs);
 
-static inline bool is_otx3_sdp(struct sdp_dev *sdp)
+static inline bool is_cn10k_sdp(struct sdp_dev *sdp)
 {
 	if (sdp->pdev->subsystem_device >= PCI_SUBSYS_DEVID_CN10K_A)
 		return 1;
@@ -362,18 +362,17 @@ handle_vf_req(struct sdp_dev *sdp, struct rvu_vf *vf, struct mbox_msghdr *req,
 		err = forward_to_mbox(sdp, &sdp->afpf_mbox, 0, req, size, "AF");
 		break;
 	case MBOX_MSG_NIX_LF_ALLOC:
-		chan_base = sdp->chan_base + sdp->info.num_pf_rings;
+		chan_base = 0;
 		for (vf_id = 0; vf_id < vf->vf_id; vf_id++)
 			chan_base += sdp->info.vf_rings[vf_id];
 		chan_cnt = sdp->info.vf_rings[vf->vf_id];
 		for (chan_idx = 0; chan_idx < chan_cnt; chan_idx++) {
-			chan_diff = chan_base + chan_idx - sdp->chan_base;
+			chan_diff = chan_base + chan_idx;
 			reg_off = 0;
 			while (chan_diff > 63) {
 				reg_off += 1;
 				chan_diff -= 64;
 			}
-
 			en_bp = readq(sdp->sdp_base +
 				      SDPX_OUT_BP_ENX_W1S(reg_off));
 			en_bp |= (1ULL << chan_diff);
@@ -1129,6 +1128,7 @@ static void program_sdp_rinfo(struct sdp_dev *sdp)
 	u32 mac, mac_mask;
 	u64 cfg, val, pkg_ver;
 	u64 ep_pem, valid_ep_pem_mask, npem, epf_base;
+	u32 ring, func, pf, vf;
 
 	/* TODO npfs should be obtained from dts */
 	npfs_per_pem = NUM_PFS_PER_PEM;
@@ -1220,6 +1220,27 @@ static void program_sdp_rinfo(struct sdp_dev *sdp)
 		}
 		npem++;
 	}
+
+	/* assign function to a ring */
+	epf_srn = (npfs_per_pem * rppf) + pf_srn;
+	for (pf = 0; pf < npfs_per_pem; pf++) {
+		func = 0;
+		val = func | pf << 8;
+
+		for (ring = pf_srn; ring < (pf_srn + rppf); ring++)
+			writeq(val, sdp->sdp_base + SDPX_EPVF_RINGX(ring));
+
+		func = 1;
+		for (vf = 0; vf < numvf; vf++) {
+			u32 srn = epf_srn + (vf * rpvf);
+
+			val = func | pf << 8;
+			for (ring = srn; ring < (srn + rpvf); ring++)
+				writeq(val, sdp->sdp_base + SDPX_EPVF_RINGX(ring));
+			func++;
+		}
+		epf_srn += numvf * rpvf;
+	}
 }
 
 static void set_firmware_ready(struct sdp_dev *sdp)
@@ -1229,7 +1250,6 @@ static void set_firmware_ready(struct sdp_dev *sdp)
 	u64 ep_pem, val;
 	u64 cfg;
 
-	/* TODO: add support for 10K model */
 	/* TODO npfs should be obtained from dts */
 	npfs_per_pem = NUM_PFS_PER_PEM;
 	for (ep_pem = 0; ep_pem < MAX_PEMS; ep_pem++) {
@@ -1245,12 +1265,22 @@ static void set_firmware_ready(struct sdp_dev *sdp)
 			continue;
 		/* found the PEM in endpoint mode */
 		for (npfs = 0; npfs < npfs_per_pem; npfs++) {
-			addr  = ioremap(PEMX_CFG_WR(ep_pem), 8);
-			val = ((FW_STATUS_READY << PEMX_CFG_WR_DATA) |
-			       (npfs << PEMX_CFG_WR_PF) |
-			       (1 << 15) |
-			       (PCIEEP_VSECST_CTL << PEMX_CFG_WR_REG));
-			writeq(val, addr);
+			/* Config space access different between otx2 and cn10k */
+			if (is_cn10k_sdp(sdp)) {
+				addr  = ioremap(PEMX_PFX_CSX_PFCFGX(ep_pem,
+								    npfs,
+								    PCIEEP_VSECST_CTL),
+						8);
+				/* 8 byte mapping needed, both 32 bit addresses used */
+				writel(FW_STATUS_READY, addr);
+			} else {
+				addr  = ioremap(PEMX_CFG_WR(ep_pem), 8);
+				val = ((FW_STATUS_READY << PEMX_CFG_WR_DATA) |
+				       (npfs << PEMX_CFG_WR_PF) |
+				       (1 << 15) |
+				       (PCIEEP_VSECST_CTL << PEMX_CFG_WR_REG));
+				writeq(val, addr);
+			}
 		}
 	}
 }
@@ -1377,7 +1407,7 @@ static int sdp_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		 sdp->chan_base, sdp->num_chan);
 
 	/* From cn10k onwards the SDP channel configuration is programmable */
-	if (pdev->subsystem_device >= PCI_SUBSYS_DEVID_CN10K_A) {
+	if (is_cn10k_sdp(sdp)) {
 		regval = sdp->chan_base;
 		regval |= ilog2(sdp->num_chan) << 16;
 		writeq(regval, sdp->sdp_base + SDPX_LINK_CFG);
@@ -1389,23 +1419,12 @@ static int sdp_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto get_rinfo_failed;
 	}
 
-	/* To differentiate a PF between SDP0 or SDP1 we make use of the
-	 * revision ID field in the config space. The revision is filled
-	 * by the firmware. The lower 4 bits field is used here.
-	 * 0 means SDP0
-	 * 1 means SDP1
-	 */
-	if (pdev->revision & 0x0F)
-		sdp->info.node_id = 1;
-	else
-		sdp->info.node_id = 0;
-
+	sdp->info.node_id = inst;
 
 	/*
 	 * For 98xx there are 2xSDPs so start the PF ring from 128 for SDP1
-	 * SDP0 has PCI revid 0 and SDP1 has PCI revid 1
 	 */
-	sdp->info.pf_srn = (pdev->revision & 0x0F) ? 128 : sdp->info.pf_srn;
+	sdp->info.pf_srn = inst ? 128 : sdp->info.pf_srn;
 
 	err = send_chan_info(sdp, &sdp->info);
 	if (err) {
@@ -1416,8 +1435,7 @@ static int sdp_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	program_sdp_rinfo(sdp);
 
 	/* Water mark for backpressuring NIX Tx when enabled */
-	if (pdev->subsystem_device >= PCI_SUBSYS_DEVID_CN10K_A)
-		writeq(SDP_PPAIR_THOLD, sdp->sdp_base + SDPX_OUT_WMARK);
+	writeq(SDP_OUT_BP_WMARK, sdp->sdp_base + SDPX_OUT_WMARK);
 	sdp_gbl_ctl = readq(sdp->sdp_base + SDPX_GBL_CONTROL);
 	sdp_gbl_ctl |= (1 << 2); /* BPFLR_D disable clearing BP in FLR */
 	writeq(sdp_gbl_ctl, sdp->sdp_base + SDPX_GBL_CONTROL);
@@ -1650,7 +1668,7 @@ static int __sriov_enable(struct pci_dev *pdev, int num_vfs)
 	 * On CN10K platform, PF <-> VF mailbox region follows after
 	 * PF <-> AF mailbox region.
 	 */
-	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A)
+	if (is_cn10k_sdp(sdp))
 		pf_vf_mbox_base = pci_resource_start(pdev, PCI_MBOX_BAR_NUM) + MBOX_SIZE;
 	else
 		pf_vf_mbox_base = readq((void __iomem *)((u64)sdp->bar2 +

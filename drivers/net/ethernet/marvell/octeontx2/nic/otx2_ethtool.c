@@ -311,6 +311,9 @@ static int otx2_set_channels(struct net_device *dev,
 	bool if_up = netif_running(dev);
 	int err = 0, qos_txqs;
 
+	if (is_otx2_sdpvf(pfvf->pdev))
+		return -EOPNOTSUPP;
+
 	if (!channel->rx_count || !channel->tx_count)
 		return -EINVAL;
 
@@ -353,7 +356,7 @@ static void otx2_get_pauseparam(struct net_device *netdev,
 	struct otx2_nic *pfvf = netdev_priv(netdev);
 	struct cgx_pause_frm_cfg *req, *rsp;
 
-	if (is_otx2_lbkvf(pfvf->pdev))
+	if (is_otx2_lbkvf(pfvf->pdev) || is_otx2_sdpvf(pfvf->pdev))
 		return;
 
 	mutex_lock(&pfvf->mbox.lock);
@@ -380,7 +383,7 @@ static int otx2_set_pauseparam(struct net_device *netdev,
 	if (pause->autoneg)
 		return -EOPNOTSUPP;
 
-	if (is_otx2_lbkvf(pfvf->pdev))
+	if (is_otx2_lbkvf(pfvf->pdev) || is_otx2_sdpvf(pfvf->pdev))
 		return -EOPNOTSUPP;
 
 	if (pause->rx_pause)
@@ -489,15 +492,20 @@ static int otx2_set_coalesce(struct net_device *netdev,
 	if (!ec->rx_max_coalesced_frames || !ec->tx_max_coalesced_frames)
 		return 0;
 
+	if (ec->use_adaptive_rx_coalesce != ec->use_adaptive_tx_coalesce) {
+		netdev_err(netdev, "adaptive-rx should be same as adaptive-tx");
+		return -EINVAL;
+	}
+
 	/* Check and update coalesce status */
 	if ((pfvf->flags & OTX2_FLAG_ADPTV_INT_COAL_ENABLED) ==
 	    OTX2_FLAG_ADPTV_INT_COAL_ENABLED) {
 		priv_coalesce_status = 1;
-		if (!ec->use_adaptive_rx_coalesce || !ec->use_adaptive_tx_coalesce)
+		if (!ec->use_adaptive_rx_coalesce)
 			pfvf->flags &= ~OTX2_FLAG_ADPTV_INT_COAL_ENABLED;
 	} else {
 		priv_coalesce_status = 0;
-		if (ec->use_adaptive_rx_coalesce || ec->use_adaptive_tx_coalesce)
+		if (ec->use_adaptive_rx_coalesce)
 			pfvf->flags |= OTX2_FLAG_ADPTV_INT_COAL_ENABLED;
 	}
 
@@ -943,8 +951,8 @@ static u32 otx2_get_link(struct net_device *netdev)
 {
 	struct otx2_nic *pfvf = netdev_priv(netdev);
 
-	/* LBK link is internal and always UP */
-	if (is_otx2_lbkvf(pfvf->pdev))
+	/* LBK and SDP links are internal and always UP */
+	if (is_otx2_lbkvf(pfvf->pdev) || is_otx2_sdpvf(pfvf->pdev))
 		return 1;
 	return pfvf->linfo.link_up;
 }
@@ -956,6 +964,13 @@ static int otx2_get_ts_info(struct net_device *netdev,
 
 	if (!pfvf->ptp)
 		return ethtool_op_get_ts_info(netdev, info);
+
+	if (is_otx2_sdpvf(pfvf->pdev)) {
+		info->so_timestamping = SOF_TIMESTAMPING_TX_SOFTWARE |
+					SOF_TIMESTAMPING_RX_SOFTWARE |
+					SOF_TIMESTAMPING_SOFTWARE;
+		return 0;
+	}
 
 	info->so_timestamping = SOF_TIMESTAMPING_TX_SOFTWARE |
 				SOF_TIMESTAMPING_RX_SOFTWARE |
@@ -1676,7 +1691,7 @@ static int otx2vf_get_link_ksettings(struct net_device *netdev,
 {
 	struct otx2_nic *pfvf = netdev_priv(netdev);
 
-	if (is_otx2_lbkvf(pfvf->pdev)) {
+	if (is_otx2_lbkvf(pfvf->pdev) || is_otx2_sdpvf(pfvf->pdev)) {
 		cmd->base.duplex = DUPLEX_FULL;
 		cmd->base.speed = SPEED_100000;
 	} else {

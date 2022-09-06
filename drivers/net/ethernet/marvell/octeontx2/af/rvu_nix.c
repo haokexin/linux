@@ -191,6 +191,18 @@ struct nix_hw *get_nix_hw(struct rvu_hwinfo *hw, int blkaddr)
 	return NULL;
 }
 
+int nix_get_dwrr_mtu_reg(struct rvu_hwinfo *hw, int smq_link_type)
+{
+	if (hw->cap.nix_multiple_dwrr_mtu)
+		return NIX_AF_DWRR_MTUX(smq_link_type);
+
+	if (smq_link_type == SMQ_LINK_TYPE_SDP)
+		return NIX_AF_DWRR_SDP_MTU;
+
+	/* Here it's same reg for RPM and LBK */
+	return NIX_AF_DWRR_RPM_MTU;
+}
+
 u32 convert_dwrr_mtu_to_bytes(u8 dwrr_mtu)
 {
 	dwrr_mtu &= 0x1FULL;
@@ -855,6 +867,7 @@ static int nix_aq_enqueue_wait(struct rvu *rvu, struct rvu_block *block,
 	struct nix_aq_res_s *result;
 	int timeout = 1000;
 	u64 reg, head;
+	int ret;
 
 	result = (struct nix_aq_res_s *)aq->res->base;
 
@@ -878,9 +891,22 @@ static int nix_aq_enqueue_wait(struct rvu *rvu, struct rvu_block *block,
 			return -EBUSY;
 	}
 
-	if (result->compcode != NIX_AQ_COMP_GOOD)
+	if (result->compcode != NIX_AQ_COMP_GOOD) {
 		/* TODO: Replace this with some error code */
+		if (result->compcode == NPA_AQ_COMP_CTX_FAULT ||
+		    result->compcode == NPA_AQ_COMP_LOCKERR ||
+		    result->compcode == NPA_AQ_COMP_CTX_POISON) {
+			ret = rvu_ndc_fix_locked_cacheline(rvu, BLKADDR_NDC_NIX0_RX);
+			ret |= rvu_ndc_fix_locked_cacheline(rvu, BLKADDR_NDC_NIX0_TX);
+			ret |= rvu_ndc_fix_locked_cacheline(rvu, BLKADDR_NDC_NIX1_RX);
+			ret |= rvu_ndc_fix_locked_cacheline(rvu, BLKADDR_NDC_NIX1_TX);
+			if (ret)
+				dev_err(rvu->dev,
+					"%s: Not able to unlock cachelines\n", __func__);
+		}
+
 		return -EBUSY;
+	}
 
 	return 0;
 }
@@ -2145,10 +2171,12 @@ static int nix_smq_flush(struct rvu *rvu, int blkaddr,
 	int err, restore_tx_en = 0;
 	u64 cfg;
 
-	/* Skip SMQ flush if pkt count is zero */
-	cfg = rvu_read64(rvu, blkaddr, NIX_AF_MDQX_IN_MD_COUNT(smq));
-	if (!cfg)
-		return 0;
+	if (!is_rvu_otx2(rvu)) {
+		/* Skip SMQ flush if pkt count is zero */
+		cfg = rvu_read64(rvu, blkaddr, NIX_AF_MDQX_IN_MD_COUNT(smq));
+		if (!cfg)
+			return 0;
+	}
 
 	/* enable cgx tx if disabled */
 	if (is_pf_cgxmapped(rvu, pf)) {
@@ -3222,10 +3250,16 @@ static int nix_setup_txschq(struct rvu *rvu, struct nix_hw *nix_hw, int blkaddr)
 	}
 
 	/* Setup a default value of 8192 as DWRR MTU */
-	if (rvu->hw->cap.nix_common_dwrr_mtu) {
-		rvu_write64(rvu, blkaddr, NIX_AF_DWRR_RPM_MTU,
+	if (rvu->hw->cap.nix_common_dwrr_mtu ||
+	    rvu->hw->cap.nix_multiple_dwrr_mtu) {
+		rvu_write64(rvu, blkaddr,
+			    nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_RPM),
 			    convert_bytes_to_dwrr_mtu(8192));
-		rvu_write64(rvu, blkaddr, NIX_AF_DWRR_SDP_MTU,
+		rvu_write64(rvu, blkaddr,
+			    nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_LBK),
+			    convert_bytes_to_dwrr_mtu(8192));
+		rvu_write64(rvu, blkaddr,
+			    nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_SDP),
 			    convert_bytes_to_dwrr_mtu(8192));
 	}
 
@@ -3319,18 +3353,27 @@ int rvu_mbox_handler_nix_get_hw_info(struct rvu *rvu, struct msg_req *req,
 
 	rsp->min_mtu = NIC_HW_MIN_FRS;
 
-	if (!rvu->hw->cap.nix_common_dwrr_mtu) {
+	if (!rvu->hw->cap.nix_common_dwrr_mtu &&
+	    !rvu->hw->cap.nix_multiple_dwrr_mtu) {
 		/* Return '1' on OTx2 */
 		rsp->rpm_dwrr_mtu = 1;
 		rsp->sdp_dwrr_mtu = 1;
+		rsp->lbk_dwrr_mtu = 1;
 		return 0;
 	}
 
-	dwrr_mtu = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_DWRR_RPM_MTU);
+	/* Return DWRR_MTU for TLx_SCHEDULE[RR_WEIGHT] config */
+	dwrr_mtu = rvu_read64(rvu, blkaddr,
+			      nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_RPM));
 	rsp->rpm_dwrr_mtu = convert_dwrr_mtu_to_bytes(dwrr_mtu);
 
-	dwrr_mtu = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_DWRR_SDP_MTU);
+	dwrr_mtu = rvu_read64(rvu, blkaddr,
+			      nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_SDP));
 	rsp->sdp_dwrr_mtu = convert_dwrr_mtu_to_bytes(dwrr_mtu);
+
+	dwrr_mtu = rvu_read64(rvu, blkaddr,
+			      nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_LBK));
+	rsp->lbk_dwrr_mtu = convert_dwrr_mtu_to_bytes(dwrr_mtu);
 
 	return 0;
 }
@@ -4174,9 +4217,13 @@ linkcfg:
 		return 0;
 
 	/* Update transmit credits for CGX links */
-	lmac_fifo_len =
-		rvu_cgx_get_fifolen(rvu) /
-		cgx_get_lmac_cnt(rvu_cgx_pdata(cgx, rvu));
+	lmac_fifo_len = rvu_cgx_get_lmac_fifolen(rvu, cgx, lmac);
+	if (!lmac_fifo_len) {
+		dev_err(rvu->dev,
+			"%s: Failed to get CGX/RPM%d:LMAC%d FIFO size\n",
+			__func__, cgx, lmac);
+		return 0;
+	}
 	return nix_config_link_credits(rvu, blkaddr, link, pcifunc,
 				       (lmac_fifo_len - req->maxlen) / 16);
 }
@@ -4220,10 +4267,6 @@ int rvu_mbox_handler_nix_set_rx_cfg(struct rvu *rvu, struct nix_rx_cfg *req,
 
 static u64 rvu_get_lbk_link_credits(struct rvu *rvu, u16 lbk_max_frs)
 {
-	/* CN10k supports 72KB FIFO size and max packet size of 64k */
-	if (rvu->hw->lbk_bufsize == 0x12000)
-		return (rvu->hw->lbk_bufsize - lbk_max_frs) / 16;
-
 	return 1600; /* 16 * max LBK datarate = 16 * 100Gbps */
 }
 
@@ -4233,7 +4276,10 @@ static void nix_link_config(struct rvu *rvu, int blkaddr,
 	struct rvu_hwinfo *hw = rvu->hw;
 	int cgx, lmac_cnt, slink, link;
 	u16 lbk_max_frs, lmac_max_frs;
+	unsigned long lmac_bmap;
 	u64 tx_credits, cfg;
+	u64 lmac_fifo_len;
+	int iter;
 
 	rvu_get_lbk_link_max_frs(rvu, &lbk_max_frs);
 	rvu_get_lmac_link_max_frs(rvu, &lmac_max_frs);
@@ -4277,12 +4323,24 @@ static void nix_link_config(struct rvu *rvu, int blkaddr,
 		/* Skip when cgx is not available or lmac cnt is zero */
 		if (lmac_cnt <= 0)
 			continue;
-		tx_credits = ((rvu_cgx_get_fifolen(rvu) / lmac_cnt) -
-			       lmac_max_frs) / 16;
-		/* Enable credits and set credit pkt count to max allowed */
-		cfg =  (tx_credits << 12) | (0x1FF << 2) | BIT_ULL(1);
+
 		slink = cgx * hw->lmac_per_cgx;
-		for (link = slink; link < (slink + lmac_cnt); link++) {
+
+		/* Get LMAC id's from bitmap */
+		lmac_bmap = cgx_get_lmac_bmap(rvu_cgx_pdata(cgx, rvu));
+		for_each_set_bit(iter, &lmac_bmap, MAX_LMAC_PER_CGX) {
+			lmac_fifo_len = rvu_cgx_get_lmac_fifolen(rvu, cgx, iter);
+			if (!lmac_fifo_len) {
+				dev_err(rvu->dev,
+					"%s: Failed to get CGX/RPM%d:LMAC%d FIFO size\n",
+					__func__, cgx, iter);
+				continue;
+			}
+			tx_credits = (lmac_fifo_len - lmac_max_frs) / 16;
+			/* Enable credits and set credit pkt count to max allowed */
+			cfg =  (tx_credits << 12) | (0x1FF << 2) | BIT_ULL(1);
+
+			link = iter + slink;
 			nix_hw->tx_credits[link] = tx_credits;
 			rvu_write64(rvu, blkaddr,
 				    NIX_AF_TX_LINKX_NORM_CREDIT(link), cfg);
@@ -4405,8 +4463,11 @@ static void rvu_nix_setup_capabilities(struct rvu *rvu, int blkaddr)
 	 * Check if HW uses a common MTU for all DWRR quantum configs.
 	 * On OcteonTx2 this register field is '0'.
 	 */
-	if (((hw_const >> 56) & 0x10) == 0x10)
+	if ((((hw_const >> 56) & 0x10) == 0x10) && !(hw_const & BIT_ULL(61)))
 		hw->cap.nix_common_dwrr_mtu = true;
+
+	if (hw_const & BIT_ULL(61))
+		hw->cap.nix_multiple_dwrr_mtu = true;
 }
 
 static int rvu_nix_block_init(struct rvu *rvu, struct nix_hw *nix_hw)
@@ -5649,6 +5710,28 @@ int rvu_mbox_handler_nix_inline_ipsec_cfg(struct rvu *rvu,
 	nix_inline_ipsec_cfg(rvu, req, BLKADDR_NIX0);
 	if (is_block_implemented(rvu->hw, BLKADDR_CPT1))
 		nix_inline_ipsec_cfg(rvu, req, BLKADDR_NIX1);
+
+	return 0;
+}
+
+int rvu_mbox_handler_nix_read_inline_ipsec_cfg(struct rvu *rvu,
+					       struct msg_req *req,
+					       struct nix_inline_ipsec_cfg *rsp)
+
+{
+	u64 val;
+
+	if (!is_block_implemented(rvu->hw, BLKADDR_CPT0))
+		return 0;
+
+	val = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_RX_IPSEC_GEN_CFG);
+	rsp->gen_cfg.egrp = FIELD_GET(IPSEC_GEN_CFG_EGRP, val);
+	rsp->gen_cfg.opcode = FIELD_GET(IPSEC_GEN_CFG_OPCODE, val);
+	rsp->gen_cfg.param1 = FIELD_GET(IPSEC_GEN_CFG_PARAM1, val);
+	rsp->gen_cfg.param2 = FIELD_GET(IPSEC_GEN_CFG_PARAM2, val);
+
+	val = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_RX_CPTX_CREDIT(0));
+	rsp->cpt_credit = val & 0x3FFFFF;
 
 	return 0;
 }

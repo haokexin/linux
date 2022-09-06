@@ -65,6 +65,9 @@ static size_t otx2_cpri_debugfs_get_buffer_size(void);
 static void otx2_cpri_debugfs_create(struct otx2_cpri_drv_ctx *ctx);
 static void otx2_cpri_debugfs_remove(struct otx2_cpri_drv_ctx *ctx);
 
+/* enable rx for the interface */
+static void otx2_cpri_enable_rx(struct otx2_cpri_ndev_priv *priv);
+
 static struct net_device *otx2_cpri_get_netdev(int mhab_id, int lmac_id)
 {
 	struct net_device *netdev = NULL;
@@ -232,13 +235,10 @@ update_processed_pkts:
 /* napi poll routine */
 static int otx2_cpri_napi_poll(struct napi_struct *napi, int budget)
 {
-	struct otx2_bphy_cdev_priv *cdev_priv;
 	struct otx2_cpri_ndev_priv *priv;
-	u64 intr_en, regval;
 	int workdone = 0;
 
 	priv = container_of(napi, struct otx2_cpri_ndev_priv, napi);
-	cdev_priv = priv->cdev_priv;
 
 	/* pkt processing loop */
 	workdone += otx2_cpri_process_rx_pkts(priv, budget);
@@ -247,18 +247,13 @@ static int otx2_cpri_napi_poll(struct napi_struct *napi, int budget)
 		napi_complete_done(napi, workdone);
 
 		/* Re enable the Rx interrupts */
-		intr_en = 1 << CPRI_RX_INTR_SHIFT(priv->cpri_num);
-		spin_lock(&cdev_priv->lock);
-		regval = readq(priv->bphy_reg_base + PSM_INT_GP_ENA_W1S(1));
-		regval |= intr_en;
-		writeq(regval, priv->bphy_reg_base + PSM_INT_GP_ENA_W1S(1));
-		spin_unlock(&cdev_priv->lock);
+		otx2_cpri_enable_rx(priv);
 	}
 
 	return workdone;
 }
 
-void otx2_cpri_rx_napi_schedule(int cpri_num, u32 status)
+bool otx2_cpri_rx_napi_schedule(int cpri_num, u32 status)
 {
 	struct otx2_cpri_drv_ctx *drv_ctx;
 	struct otx2_cpri_ndev_priv *priv;
@@ -277,11 +272,14 @@ void otx2_cpri_rx_napi_schedule(int cpri_num, u32 status)
 		/* clear intr enable bit, re-enable in napi handler */
 		regval = 1 << CPRI_RX_INTR_SHIFT(cpri_num);
 		writeq(regval, priv->bphy_reg_base + PSM_INT_GP_ENA_W1C(1));
+		priv->gp_int_disabled = 1;
 		/* schedule napi */
 		napi_schedule(&priv->napi);
 		/* napi scheduled per MHAB, return */
-		return;
+		return true;
 	}
+
+	return false;
 }
 
 void otx2_cpri_update_stats(struct otx2_cpri_ndev_priv *priv)
@@ -308,6 +306,9 @@ void otx2_cpri_update_stats(struct otx2_cpri_ndev_priv *priv)
 							     priv->lmac_id));
 	dev_stats->fifo_ovr += readq(priv->cpri_reg_base +
 				     CPRIX_ETH_UL_FIFO_ORUN_CNT(priv->cpri_num,
+								priv->lmac_id));
+	dev_stats->rx_bad_octets += readq(priv->cpri_reg_base +
+					  CPRIX_ETH_UL_BOCT_CNT(priv->cpri_num,
 								priv->lmac_id));
 	dev_stats->tx_frames += readq(priv->cpri_reg_base +
 				      CPRIX_ETH_DL_GPKTS_CNT(priv->cpri_num,
@@ -465,6 +466,8 @@ static int otx2_cpri_eth_stop(struct net_device *netdev)
 	spin_unlock(&priv->lock);
 
 	napi_disable(&priv->napi);
+
+	otx2_cpri_enable_rx(priv);
 
 	return 0;
 }
@@ -674,6 +677,7 @@ static void otx2_cpri_debugfs_reader(char *buffer, size_t count, void *priv)
 		 netdev->last_tx_dropped_jiffies,
 		 netdev->last_rx_jiffies,
 		 netdev->last_rx_dropped_jiffies,
+		 netdev->gp_int_disabled,
 		 jiffies);
 }
 
@@ -685,6 +689,7 @@ static const char *otx2_cpri_debugfs_get_formatter(void)
 					   "last-tx-dropped-jiffies: %lu\n"
 					   "last-rx-jiffies: %lu\n"
 					   "last-rx-dropped-jiffies: %lu\n"
+					   "gp-int-disabled: %u\n"
 					   "current-jiffies: %lu\n";
 
 	return buffer_format;
@@ -706,6 +711,7 @@ static size_t otx2_cpri_debugfs_get_buffer_size(void)
 				       max_jiffies,
 				       max_jiffies,
 				       max_jiffies,
+				       max_boolean,
 				       max_jiffies);
 		++buffer_size;
 	}
@@ -752,4 +758,25 @@ void otx2_cpri_set_link_state(struct net_device *netdev, u8 state)
 		}
 	}
 	spin_unlock(&priv->lock);
+}
+
+static void otx2_cpri_enable_rx(struct otx2_cpri_ndev_priv *priv)
+{
+	struct otx2_bphy_cdev_priv *cdev_priv;
+	u64 intr_en, regval;
+
+	cdev_priv = priv->cdev_priv;
+
+	/* Re enable the Rx interrupts if needed */
+	intr_en = 1 << CPRI_RX_INTR_SHIFT(priv->cpri_num);
+	spin_lock(&cdev_priv->lock);
+	if (priv->gp_int_disabled) {
+		regval = readq(priv->bphy_reg_base + PSM_INT_GP_ENA_W1S(1));
+		regval |= intr_en;
+		writeq(regval, priv->bphy_reg_base + PSM_INT_GP_ENA_W1S(1));
+		priv->gp_int_disabled = 0;
+		writeq(0x1, priv->cpri_reg_base +
+		       CPRIX_ETH_UL_INT(priv->cpri_num));
+	}
+	spin_unlock(&cdev_priv->lock);
 }

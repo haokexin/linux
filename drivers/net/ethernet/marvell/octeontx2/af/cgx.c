@@ -521,6 +521,32 @@ u8 cgx_get_lmac_type(void *cgxd, int lmac_id)
 	return (cfg >> CGX_LMAC_TYPE_SHIFT) & CGX_LMAC_TYPE_MASK;
 }
 
+static u32 cgx_get_lmac_fifo_len(void *cgxd, int lmac_id)
+{
+	struct cgx *cgx = cgxd;
+	u8 num_lmacs;
+	u32 fifo_len;
+
+	fifo_len = cgx->mac_ops->fifo_len;
+	num_lmacs = cgx->mac_ops->get_nr_lmacs(cgx);
+
+	switch (num_lmacs) {
+	case 1:
+		return fifo_len;
+	case 2:
+		return fifo_len / 2;
+	case 3:
+		/* LMAC0 gets half of the FIFO, reset 1/4th */
+		if (lmac_id == 0)
+			return fifo_len / 2;
+		return fifo_len / 4;
+	case 4:
+	default:
+		return fifo_len / 4;
+	}
+	return 0;
+}
+
 /* Configure CGX LMAC in internal loopback mode */
 int cgx_lmac_internal_loopback(void *cgxd, int lmac_id, bool enable)
 {
@@ -680,6 +706,16 @@ int cgx_get_tx_stats(void *cgxd, int lmac_id, int idx, u64 *tx_stat)
 		return -ENODEV;
 	*tx_stat = cgx_read(cgx, lmac_id, CGXX_CMRX_TX_STAT0 + (idx * 8));
 	return 0;
+}
+
+u64 cgx_get_dmacflt_dropped_pktcnt(void *cgxd, int lmac_id)
+{
+	struct cgx *cgx = cgxd;
+
+	if (!is_lmac_valid(cgx, lmac_id))
+		return 0;
+
+	return cgx_read(cgx, lmac_id, CGXX_CMRX_RX_STAT4);
 }
 
 int cgx_stats_rst(void *cgxd, int lmac_id)
@@ -996,6 +1032,11 @@ void cgx_lmac_pause_frm_config(void *cgxd, int lmac_id, bool enable)
 	cfg |= CGX_CMR_RX_OVR_BP_EN(lmac_id);
 	cfg &= ~CGX_CMR_RX_OVR_BP_BP(lmac_id);
 	cgx_write(cgx, 0, CGXX_CMR_RX_OVR_BP, cfg);
+
+	/* Disable all PFC classes by default */
+	cfg = cgx_read(cgx, lmac_id, CGXX_SMUX_CBFC_CTL);
+	cfg = FIELD_SET(CGX_PFC_CLASS_MASK, 0, cfg);
+	cgx_write(cgx, lmac_id, CGXX_SMUX_CBFC_CTL, cfg);
 }
 
 int verify_lmac_fc_cfg(void *cgxd, int lmac_id, u8 tx_pause, u8 rx_pause,
@@ -1048,6 +1089,7 @@ int cgx_lmac_pfc_config(void *cgxd, int lmac_id, u8 tx_pause,
 		return 0;
 
 	cfg = cgx_read(cgx, lmac_id, CGXX_SMUX_CBFC_CTL);
+	pfc_en |= FIELD_GET(CGX_PFC_CLASS_MASK, cfg);
 
 	if (rx_pause) {
 		cfg |= (CGXX_SMUX_CBFC_CTL_RX_EN |
@@ -1059,12 +1101,13 @@ int cgx_lmac_pfc_config(void *cgxd, int lmac_id, u8 tx_pause,
 			CGXX_SMUX_CBFC_CTL_DRP_EN);
 	}
 
-	if (tx_pause)
+	if (tx_pause) {
 		cfg |= CGXX_SMUX_CBFC_CTL_TX_EN;
-	else
+		cfg = FIELD_SET(CGX_PFC_CLASS_MASK, pfc_en, cfg);
+	} else {
 		cfg &= ~CGXX_SMUX_CBFC_CTL_TX_EN;
-
-	cfg = FIELD_SET(CGX_PFC_CLASS_MASK, pfc_en, cfg);
+		cfg = FIELD_SET(CGX_PFC_CLASS_MASK, 0, cfg);
+	}
 
 	cgx_write(cgx, lmac_id, CGXX_SMUX_CBFC_CTL, cfg);
 
@@ -1687,8 +1730,13 @@ static int cgx_fwi_link_change(struct cgx *cgx, int lmac_id, bool enable)
 
 	if (enable) {
 		req = FIELD_SET(CMDREG_ID, CGX_CMD_LINK_BRING_UP, req);
-		/* set maximum time firmware poll for Link as 1000 ms */
-		req = FIELD_SET(LINKCFG_TIMEOUT, 1000, req);
+		/* On CN10K firmware offloads link bring up/down operations to ECP
+		 * On Octeontx2 link operations are handled by firmware itself
+		 * which can cause mbox errors so configure maximum time firmware
+		 * poll for Link as 1000 ms
+		 */
+		if (!is_dev_rpm(cgx))
+			req = FIELD_SET(LINKCFG_TIMEOUT, 1000, req);
 	} else {
 		req = FIELD_SET(CMDREG_ID, CGX_CMD_LINK_BRING_DOWN, req);
 	}
@@ -2001,6 +2049,7 @@ static struct mac_ops	cgx_mac_ops    = {
 	.tx_stats_cnt   =       18,
 	.get_nr_lmacs	=	cgx_get_nr_lmacs,
 	.get_lmac_type  =       cgx_get_lmac_type,
+	.lmac_fifo_len	=	cgx_get_lmac_fifo_len,
 	.mac_lmac_intl_lbk =    cgx_lmac_internal_loopback,
 	.mac_get_rx_stats  =	cgx_get_rx_stats,
 	.mac_get_tx_stats  =	cgx_get_tx_stats,
@@ -2013,7 +2062,8 @@ static struct mac_ops	cgx_mac_ops    = {
 	.mac_tx_enable =		cgx_lmac_tx_enable,
 	.pfc_config =                   cgx_lmac_pfc_config,
 	.mac_get_pfc_frm_cfg   =        cgx_lmac_get_pfc_frm_cfg,
-	.mac_reset   =        cgx_lmac_reset,
+	.mac_reset                       =      cgx_lmac_reset,
+	.get_dmacflt_dropped_pktcnt      =      cgx_get_dmacflt_dropped_pktcnt,
 };
 
 static int cgx_probe(struct pci_dev *pdev, const struct pci_device_id *id)

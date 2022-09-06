@@ -14,6 +14,13 @@
 #define OTX2_QOS_MAX_LVL		4
 #define OTX2_QOS_MAX_LEAF_NODES		16
 
+enum qos_smq_operations {
+	QOS_CFG_SQ,
+	QOS_SMQ_FLUSH,
+};
+
+u64 otx2_get_txschq_rate_regval(struct otx2_nic *nic, u64 maxrate, u32 burst);
+
 int otx2_setup_tc_htb(struct net_device *ndev, struct tc_htb_qopt_offload *htb);
 int otx2_qos_get_qid(struct otx2_nic *pfvf);
 void otx2_qos_free_qid(struct otx2_nic *pfvf, int qidx);
@@ -54,6 +61,8 @@ struct otx2_qos_node {
 	bool is_static;
 	bool first_static;
 	u16 prio_anchor;
+	u16 child_dwrr_prio;
+	u16 child_dwrr_cnt;
 	/* list management */
 	struct hlist_node hlist;
 	struct otx2_qos_node *parent;	/* parent qos node */

@@ -18,7 +18,7 @@
 /* PCI BAR nos */
 #define PCI_CFG_REG_BAR_NUM		0
 
-#define CGX_ID_MASK			0x7
+#define CGX_ID_MASK			0xF
 #define MAX_LMAC_PER_CGX		4
 #define MAX_DMAC_ENTRIES_PER_CGX	32
 #define CGX_OFFSET(x)			((x) * MAX_LMAC_PER_CGX)
@@ -39,6 +39,7 @@
 #define CGXX_CMRX_INT_ENA_W1S		0x058
 #define CGXX_CMRX_RX_ID_MAP		0x060
 #define CGXX_CMRX_RX_STAT0		0x070
+#define CGXX_CMRX_RX_STAT4		0x090
 #define CGXX_CMRX_RX_LOGL_XON		0x100
 #define CGXX_CMRX_RX_LMACS		0x128
 #define CGXX_CMRX_RX_DMAC_CTL0		(0x1F8 + mac_ops->csr_offset)
@@ -101,7 +102,7 @@
 
 #define CGX_COMMAND_REG			CGXX_SCRATCH1_REG
 #define CGX_EVENT_REG			CGXX_SCRATCH0_REG
-#define CGX_CMD_TIMEOUT			2200 /* msecs */
+#define CGX_CMD_TIMEOUT			5000 /* msecs */
 #define DEFAULT_PAUSE_TIME		0x7FF
 
 #define CGX_LMAC_FWI			0
@@ -205,4 +206,5 @@ int cgx_lmac_get_pfc_frm_cfg(void *cgxd, int lmac_id, u8 *tx_pause,
 int verify_lmac_fc_cfg(void *cgxd, int lmac_id, u8 tx_pause, u8 rx_pause,
 		       int pfvf_idx);
 int cgx_lmac_reset(void *cgxd, int lmac_id);
+u64 cgx_get_dmacflt_dropped_pktcnt(void *cgx, int lmac_id);
 #endif /* CGX_H */
