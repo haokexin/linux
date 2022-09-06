@@ -591,10 +591,44 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		ret = fcs_request_service(priv, (void *)msg,
 					  FCS_REQUEST_TIMEOUT);
 		if (!ret && !priv->status) {
-			if (!priv->kbuf) {
-				dev_err(dev, "failure on kbuf\n");
-				fcs_close_services(priv, s_buf, NULL);
-				return -EFAULT;
+			/* to query the complete status */
+			msg->arg[0] = ASYNC_POLL_SERVICE;
+			msg->payload = s_buf;
+			msg->payload_length = data->com_paras.gp_data.size;
+			msg->command = COMMAND_POLL_SERVICE_STATUS_ASYNC;
+			priv->client.receive_cb = fcs_data_callback;
+
+			timeout = 100;
+			while (timeout != 0) {
+				ret = fcs_request_service(priv, (void *)msg,
+							  FCS_REQUEST_TIMEOUT);
+				dev_dbg(dev, "request service ret=%d\n", ret);
+
+				if (!ret && !priv->status) {
+					if (priv->size) {
+						if (!priv->kbuf) {
+							dev_err(dev, "failure on kbuf\n");
+							fcs_close_services(priv, s_buf, NULL);
+							return -EFAULT;
+						}
+
+						data->com_paras.gp_data.size = priv->size;
+						ret = copy_to_user(data->com_paras.gp_data.addr,
+								   priv->kbuf, priv->size);
+						if (ret) {
+							dev_err(dev, "failure on copy_to_user\n");
+							fcs_close_services(priv, s_buf, NULL);
+							return -EFAULT;
+						}
+						break;
+					}
+				} else {
+					data->com_paras.gp_data.addr = NULL;
+					data->com_paras.gp_data.size = 0;
+					break;
+				}
+				timeout--;
+				mdelay(100);
 			}
 			data->com_paras.gp_data.size = priv->size;
 			ret = copy_to_user(data->com_paras.gp_data.addr,
