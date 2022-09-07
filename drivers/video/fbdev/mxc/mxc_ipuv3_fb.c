@@ -3598,6 +3598,7 @@ mxcfb_register_failed:
 get_ipu_failed:
 	ipu_clear_usage(mxcfbi->ipu_id, mxcfbi->ipu_di);
 ipu_in_busy:
+	fb_destroy_modelist(&fbi->modelist);
 init_dispdrv_failed:
 	fb_dealloc_cmap(&fbi->cmap);
 	framebuffer_release(fbi);
