@@ -38,150 +38,7 @@ static void otx2_qos_aura_pool_free(struct otx2_nic *pfvf, int pool_id)
 	pool->fc_addr = NULL;
 }
 
-static int cn10k_qos_sq_aq_init(void *dev, u16 qidx, u8 chan_offset,
-				u16 sqb_aura, u16 smq)
-{
-	struct nix_cn10k_aq_enq_req *aq;
-	struct otx2_nic *pfvf = dev;
-
-	/* Get memory to put this msg */
-	aq = otx2_mbox_alloc_msg_nix_cn10k_aq_enq(&pfvf->mbox);
-	if (!aq)
-		return -ENOMEM;
-
-	aq->sq.cq = pfvf->hw.rx_queues + qidx;
-	aq->sq.max_sqe_size = NIX_MAXSQESZ_W16; /* 128 byte */
-	aq->sq.cq_ena = 1;
-	aq->sq.ena = 1;
-	aq->sq.smq = smq;
-	aq->sq.smq_rr_weight = mtu_to_dwrr_weight(pfvf, pfvf->tx_max_pktlen);
-	aq->sq.default_chan = pfvf->hw.tx_chan_base + chan_offset;
-	aq->sq.sqe_stype = NIX_STYPE_STF; /* Cache SQB */
-	aq->sq.sqb_aura = sqb_aura;
-	aq->sq.sq_int_ena = NIX_SQINT_BITS;
-	aq->sq.qint_idx = 0;
-	/* Due pipelining impact minimum 2000 unused SQ CQE's
-	 * need to maintain to avoid CQ overflow.
-	 */
-	aq->sq.cq_limit = ((SEND_CQ_SKID * 256) / (pfvf->qset.sqe_cnt));
-
-	/* Fill AQ info */
-	aq->qidx = qidx;
-	aq->ctype = NIX_AQ_CTYPE_SQ;
-	aq->op = NIX_AQ_INSTOP_INIT;
-
-	return otx2_sync_mbox_msg(&pfvf->mbox);
-}
-
-static int otx2_qos_sq_aq_init(void *dev, u16 qidx, u8 chan_offset,
-			       u16 sqb_aura, u16 smq)
-{
-	struct otx2_nic *pfvf = dev;
-	struct otx2_snd_queue *sq;
-	struct nix_aq_enq_req *aq;
-
-	sq = &pfvf->qset.sq[qidx];
-	sq->lmt_addr = (__force u64 *)(pfvf->reg_base + LMT_LF_LMTLINEX(qidx));
-	/* Get memory to put this msg */
-	aq = otx2_mbox_alloc_msg_nix_aq_enq(&pfvf->mbox);
-	if (!aq)
-		return -ENOMEM;
-
-	aq->sq.cq = pfvf->hw.rx_queues + qidx;
-	aq->sq.max_sqe_size = NIX_MAXSQESZ_W16; /* 128 byte */
-	aq->sq.cq_ena = 1;
-	aq->sq.ena = 1;
-	aq->sq.smq = smq;
-	aq->sq.smq_rr_quantum = mtu_to_dwrr_weight(pfvf, pfvf->tx_max_pktlen);
-	aq->sq.default_chan = pfvf->hw.tx_chan_base + chan_offset;
-	aq->sq.sqe_stype = NIX_STYPE_STF; /* Cache SQB */
-	aq->sq.sqb_aura = sqb_aura;
-	aq->sq.sq_int_ena = NIX_SQINT_BITS;
-	aq->sq.qint_idx = 0;
-	/* Due pipelining impact minimum 2000 unused SQ CQE's
-	 * need to maintain to avoid CQ overflow.
-	 */
-	aq->sq.cq_limit = ((SEND_CQ_SKID * 256) / (pfvf->qset.sqe_cnt));
-
-	/* Fill AQ info */
-	aq->qidx = qidx;
-	aq->ctype = NIX_AQ_CTYPE_SQ;
-	aq->op = NIX_AQ_INSTOP_INIT;
-
-	return otx2_sync_mbox_msg(&pfvf->mbox);
-}
-
-static int otx2_qos_sq_init(struct otx2_nic *pfvf, u16 qidx,
-			    u16 sqb_aura, u16 smq)
-{
-	struct otx2_qset *qset = &pfvf->qset;
-	struct otx2_snd_queue *sq;
-	struct otx2_pool *pool;
-	u8 chan_offset;
-	int err;
-
-	pool = &pfvf->qset.pool[sqb_aura];
-	sq = &qset->sq[qidx];
-	sq->sqe_size = NIX_SQESZ_W16 ? 64 : 128;
-	sq->sqe_cnt = qset->sqe_cnt;
-
-	err = qmem_alloc(pfvf->dev, &sq->sqe, 1, sq->sqe_size);
-	if (err)
-		return err;
-
-	err = qmem_alloc(pfvf->dev, &sq->tso_hdrs,
-			 qset->sqe_cnt, TSO_HEADER_SIZE);
-	if (err)
-		goto sqe_free;
-
-	sq->sqe_base = sq->sqe->base;
-	sq->sg = kcalloc(qset->sqe_cnt, sizeof(struct sg_list), GFP_KERNEL);
-	if (!sq->sg) {
-		err = -ENOMEM;
-		goto tso_free;
-	}
-
-	err = qmem_alloc(pfvf->dev, &sq->timestamps, qset->sqe_cnt,
-			 sizeof(*sq->timestamps));
-	if (err)
-		goto tso_free;
-
-	sq->head = 0;
-	sq->sqe_per_sqb = (pfvf->hw.sqb_size / sq->sqe_size) - 1;
-	sq->num_sqbs = (qset->sqe_cnt + sq->sqe_per_sqb) / sq->sqe_per_sqb;
-	/* Set SQE threshold to 10% of total SQEs */
-	sq->sqe_thresh = ((sq->num_sqbs * sq->sqe_per_sqb) * 10) / 100;
-	sq->aura_id = sqb_aura;
-	sq->aura_fc_addr = pool->fc_addr->base;
-	sq->io_addr = (__force u64)otx2_get_regaddr(pfvf, NIX_LF_OP_SENDX(0));
-
-	sq->stats.bytes = 0;
-	sq->stats.pkts = 0;
-
-	chan_offset = qidx % pfvf->hw.tx_chan_cnt;
-
-	if (test_bit(CN10K_LMTST, &pfvf->hw.cap_flag))
-		err = cn10k_qos_sq_aq_init(pfvf, qidx, chan_offset,
-					   sqb_aura, smq);
-	else
-		err = otx2_qos_sq_aq_init(pfvf, qidx, chan_offset,
-					  sqb_aura, smq);
-	if (err)
-		goto tstamp_free;
-
-	return 0;
-
-tstamp_free:
-	qmem_free(pfvf->dev, sq->timestamps);
-tso_free:
-	qmem_free(pfvf->dev, sq->tso_hdrs);
-sqe_free:
-	qmem_free(pfvf->dev, sq->sqe);
-
-	return err;
-}
-
-static int otx2_qos_sq_aura_pool_init(struct otx2_nic *pfvf, int qidx, u16 smq)
+static int otx2_qos_sq_aura_pool_init(struct otx2_nic *pfvf, int qidx)
 {
 	struct otx2_qset *qset = &pfvf->qset;
 	int pool_id, stack_pages, num_sqbs;
@@ -304,19 +161,14 @@ static void otx2_qos_sqb_flush(struct otx2_nic *pfvf, int qidx)
 {
 	int sqe_tail, sqe_head;
 	u64 incr, *ptr, val;
-	int timeout = 1000;
 
 	ptr = (u64 *)otx2_get_regaddr(pfvf, NIX_LF_SQ_OP_STATUS);
 	incr = (u64)qidx << 32;
-	while (timeout) {
-		val = otx2_atomic64_add(incr, ptr);
-		sqe_head = (val >> 20) & 0x3F;
-		sqe_tail = (val >> 28) & 0x3F;
-		if (sqe_head == sqe_tail)
-			break;
-		usleep_range(1, 3);
-		timeout--;
-	}
+	val = otx2_atomic64_add(incr, ptr);
+	sqe_head = (val >> 20) & 0x3F;
+	sqe_tail = (val >> 28) & 0x3F;
+	if (sqe_head != sqe_tail)
+		usleep_range(50, 60);
 }
 
 static int otx2_qos_ctx_disable(struct otx2_nic *pfvf, u16 qidx, int aura_id)
@@ -388,7 +240,7 @@ void otx2_qos_free_qid(struct otx2_nic *pfvf, int qidx)
 	clear_bit(qidx, pfvf->qos.qos_sq_bmap);
 }
 
-int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx, u16 smq)
+int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx)
 {
 	struct otx2_hw *hw = &pfvf->hw;
 	int pool_id, sq_idx, err;
@@ -396,12 +248,12 @@ int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx, u16 smq)
 	sq_idx = hw->tot_tx_queues + qidx;
 
 	mutex_lock(&pfvf->mbox.lock);
-	err = otx2_qos_sq_aura_pool_init(pfvf, sq_idx, smq);
+	err = otx2_qos_sq_aura_pool_init(pfvf, sq_idx);
 	if (err)
 		goto out;
 
 	pool_id = otx2_get_pool_idx(pfvf, AURA_NIX_SQ, sq_idx);
-	err = otx2_qos_sq_init(pfvf, sq_idx, pool_id, smq);
+	err = otx2_sq_init(pfvf, sq_idx, pool_id);
 	if (err)
 		goto out;
 out:
@@ -409,7 +261,7 @@ out:
 	return err;
 }
 
-void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx, u16 mdq)
+void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx)
 {
 	struct otx2_qset *qset = &pfvf->qset;
 	struct otx2_hw *hw = &pfvf->hw;
