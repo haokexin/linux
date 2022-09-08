@@ -20,7 +20,7 @@
 #define OTX2_QOS_DEFAULT_PRIO		0xF
 #define OTX2_QOS_MAX_PRIO		7
 #define OTX2_QOS_STATIC_QUANTUM		INT_MAX
-#define OTX2_QOS_INVALID_MDQ		0xFFFF
+#define OTX2_QOS_INVALID_SQ		0xFFFF
 
 /* Egress rate limiting definitions */
 #define MAX_BURST_EXPONENT		0x0FULL
@@ -406,6 +406,7 @@ static void otx2_qos_free_hw_cfg(struct otx2_nic *pfvf,
 	/* free child node hw mappings */
 	otx2_qos_free_hw_node_static(pfvf, node);
 	otx2_qos_free_hw_node_dwrr(pfvf, node);
+	otx2_qos_free_hw_node_schq(pfvf, node);
 
 	/* free node hw mappings */
 	otx2_txschq_free_one(pfvf, node->level, node->schq);
@@ -606,7 +607,6 @@ otx2_qos_alloc_root(struct otx2_nic *pfvf)
 	node->classid = OTX2_QOS_ROOT_CLASSID;
 	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 	node->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
-	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	hash_add(pfvf->qos.qos_hlist, &node->hlist, node->classid);
 	list_add_tail(&node->list, &pfvf->qos.qos_tree);
@@ -662,7 +662,6 @@ static int otx2_qos_alloc_txschq_node(struct otx2_nic *pfvf,
 		txschq_node->is_static = true;
 		txschq_node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 		txschq_node->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
-		txschq_node->mdq = OTX2_QOS_INVALID_MDQ;
 
 		mutex_lock(&pfvf->qos.qos_lock);
 		list_add_tail(&txschq_node->list, &node->child_schq_list);
@@ -709,7 +708,6 @@ otx2_qos_sw_create_leaf_node(struct otx2_nic *pfvf,
 	node->is_static = true;
 	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 	node->act_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
-	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	__set_bit(qid, pfvf->qos.qos_sq_bmap);
 
@@ -1058,14 +1056,11 @@ static void otx2_qos_enadis_sq(struct otx2_nic *pfvf,
 			       struct otx2_qos_node *node,
 			       u16 qid)
 {
-	int old_mdq;
+	if (pfvf->qos.qid_to_sqmap[qid] != OTX2_QOS_INVALID_SQ)
+		otx2_qos_disable_sq(pfvf, qid);
 
-	old_mdq = node->mdq;
-	node->mdq = node->schq;
-	if (old_mdq != OTX2_QOS_INVALID_MDQ)
-		otx2_qos_disable_sq(pfvf, qid, old_mdq);
-	if (node->mdq != OTX2_QOS_INVALID_MDQ)
-		otx2_qos_enable_sq(pfvf, qid, node->mdq);
+	pfvf->qos.qid_to_sqmap[qid] = node->schq;
+	otx2_qos_enable_sq(pfvf, qid);
 }
 
 static void otx2_qos_update_smq_schq(struct otx2_nic *pfvf,
@@ -1414,6 +1409,9 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 		goto free_old_cfg;
 	}
 
+	/* Actual SQ mapping will be updated after SMQ alloc */
+	pfvf->qos.qid_to_sqmap[qid] = OTX2_QOS_INVALID_SQ;
+
 	/* allocate and initialize a new child node */
 	node = otx2_qos_sw_create_leaf_node(pfvf, parent, classid, prio, rate,
 					    ceil, quantum, qid);
@@ -1604,7 +1602,7 @@ static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 			     struct netlink_ext_ack *extack)
 {
 	struct otx2_qos_node *node, *parent;
-	int dwrr_del_node = false;
+	int dwrr_del_node = false, qid;
 
 	netdev_dbg(pfvf->netdev, "TC_HTB_LEAF_DEL classid %04x\n", *classid);
 
@@ -1615,15 +1613,18 @@ static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 		return -ENOENT;
 	}
 	parent = node->parent;
+	qid    = node->qid;
 
 	if (!otx2_qos_is_quantum_static(node->quantum))
 		dwrr_del_node = true;
 
 	/* disable sq */
-	otx2_qos_disable_sq(pfvf, node->qid, node->mdq);
+	otx2_qos_disable_sq(pfvf, node->qid);
 
 	/* destroy the leaf node */
 	otx2_qos_destroy_node(pfvf, node);
+	pfvf->qos.qid_to_sqmap[qid] = OTX2_QOS_INVALID_SQ;
+
 
 	if (dwrr_del_node)
 		parent->child_dwrr_cnt--;
