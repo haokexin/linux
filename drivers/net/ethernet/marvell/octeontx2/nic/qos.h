@@ -12,6 +12,7 @@
 #include <linux/rhashtable.h>
 
 #define OTX2_QOS_MAX_LVL		4
+#define OTX2_QOS_MAX_PRIO		7
 #define OTX2_QOS_MAX_LEAF_NODES		16
 
 enum qos_smq_operations {
@@ -60,15 +61,16 @@ struct otx2_qos_node {
 	u16 qid;
 	bool is_static;
 	u16 prio_anchor;
+	DECLARE_BITMAP(prio_bmap, OTX2_QOS_MAX_PRIO + 1);
 	u16 child_dwrr_prio;
 	u16 child_dwrr_cnt;
+	u16 child_static_cnt;
 	u16 act_dwrr_prio;		/* dwrr priority to be configured in hw */
 	/* list management */
 	struct hlist_node hlist;
 	struct otx2_qos_node *parent;	/* parent qos node */
 	struct list_head list;
 	struct list_head child_list;
-	struct list_head child_dwrr_list;
 	struct list_head child_schq_list;
 };
 
