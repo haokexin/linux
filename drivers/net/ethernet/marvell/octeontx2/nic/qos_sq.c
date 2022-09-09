@@ -245,6 +245,9 @@ int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx)
 	struct otx2_hw *hw = &pfvf->hw;
 	int pool_id, sq_idx, err;
 
+	if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
+		return -EPERM;
+
 	sq_idx = hw->tot_tx_queues + qidx;
 
 	mutex_lock(&pfvf->mbox.lock);
@@ -289,6 +292,7 @@ void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx)
 	pool_id = otx2_get_pool_idx(pfvf, AURA_NIX_SQ, sq_idx);
 
 	otx2_qos_sqb_flush(pfvf, sq_idx);
+	otx2_smq_flush(pfvf, otx2_get_smq_idx(pfvf, sq_idx));
 	otx2_cleanup_tx_cqes(pfvf, cq);
 
 	mutex_lock(&pfvf->mbox.lock);
