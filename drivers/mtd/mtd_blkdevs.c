@@ -188,6 +188,8 @@ static int blktrans_open(struct block_device *bdev, fmode_t mode)
 
 	kref_get(&dev->ref);
 
+	if (!mutex_trylock(&mtd_table_mutex))
+		return ret;
 	mutex_lock(&dev->lock);
 
 	if (dev->open)
@@ -212,6 +214,7 @@ static int blktrans_open(struct block_device *bdev, fmode_t mode)
 unlock:
 	dev->open++;
 	mutex_unlock(&dev->lock);
+	mutex_unlock(&mtd_table_mutex);
 	return ret;
 
 error_release:
@@ -220,6 +223,7 @@ error_release:
 error_put:
 	module_put(dev->tr->owner);
 	mutex_unlock(&dev->lock);
+	mutex_unlock(&mtd_table_mutex);
 	blktrans_dev_put(dev);
 	return ret;
 }
@@ -228,6 +232,8 @@ static void blktrans_release(struct gendisk *disk, fmode_t mode)
 {
 	struct mtd_blktrans_dev *dev = disk->private_data;
 
+	if (!mutex_trylock(&mtd_table_mutex))
+		return;
 	mutex_lock(&dev->lock);
 
 	if (--dev->open)
@@ -242,6 +248,7 @@ static void blktrans_release(struct gendisk *disk, fmode_t mode)
 	}
 unlock:
 	mutex_unlock(&dev->lock);
+	mutex_unlock(&mtd_table_mutex);
 	blktrans_dev_put(dev);
 }
 
