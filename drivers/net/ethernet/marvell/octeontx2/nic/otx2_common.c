@@ -8,6 +8,7 @@
 #include <linux/interrupt.h>
 #include <linux/pci.h>
 #include <net/tso.h>
+#include <linux/bitfield.h>
 
 #include "otx2_reg.h"
 #include "otx2_common.h"
@@ -639,6 +640,10 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 		req->regval[0] = ((u64)pfvf->tx_max_pktlen << 8) | OTX2_MIN_MTU;
 		req->regval[0] |= (0x20ULL << 51) | (0x80ULL << 39) |
 				  (0x2ULL << 36);
+		/* Set link type for DWRR MTU selection on CN10K silicons */
+		if (!is_dev_otx2(pfvf->pdev))
+			req->regval[0] |= FIELD_PREP(GENMASK_ULL(58, 57),
+						(u64)hw->smq_link_type);
 		req->num_regs++;
 		/* MDQ config */
 		parent =  hw->txschq_list[NIX_TXSCH_LVL_TL4][0];
@@ -667,7 +672,7 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 		req->num_regs++;
 		req->reg[1] = NIX_AF_TL3X_SCHEDULE(schq);
 		req->regval[1] = dwrr_val;
-		if (lvl == hw->txschq_link_cfg_lvl) {
+		if (lvl == hw->txschq_link_cfg_lvl && !is_otx2_sdpvf(pfvf->pdev)) {
 			req->num_regs++;
 			req->reg[2] = NIX_AF_TL3_TL2X_LINKX_CFG(schq, hw->tx_link);
 			/* Enable this queue and backpressure */
@@ -682,7 +687,7 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 		req->reg[1] = NIX_AF_TL2X_SCHEDULE(schq);
 		req->regval[1] = TXSCH_TL1_DFLT_RR_PRIO << 24 | dwrr_val;
 
-		if (!is_otx2_sdpvf(pfvf->pdev)) {
+		if (lvl == hw->txschq_link_cfg_lvl && !is_otx2_sdpvf(pfvf->pdev)) {
 			req->num_regs++;
 			req->reg[2] = NIX_AF_TL3_TL2X_LINKX_CFG(schq, hw->tx_link);
 			/* Enable this queue and backpressure */
@@ -742,6 +747,8 @@ int otx2_txsch_alloc(struct otx2_nic *pfvf)
 			pfvf->hw.txschq_list[lvl][schq] =
 				rsp->schq_list[lvl][schq];
 
+	pfvf->hw.txschq_link_cfg_lvl = rsp->link_cfg_lvl;
+
 	return 0;
 }
 
@@ -795,7 +802,6 @@ void otx2_sqb_flush(struct otx2_nic *pfvf)
 	int qidx, sqe_tail, sqe_head;
 	struct otx2_snd_queue *sq;
 	u64 incr, *ptr, val;
-	int timeout = 1000;
 
 	ptr = (u64 *)otx2_get_regaddr(pfvf, NIX_LF_SQ_OP_STATUS);
 	for (qidx = 0; qidx < pfvf->hw.tot_tx_queues + pfvf->hw.tc_tx_queues;
@@ -804,15 +810,11 @@ void otx2_sqb_flush(struct otx2_nic *pfvf)
 		if (!sq->sqb_ptrs)
 			continue;
 		incr = (u64)qidx << 32;
-		while (timeout) {
-			val = otx2_atomic64_add(incr, ptr);
-			sqe_head = (val >> 20) & 0x3F;
-			sqe_tail = (val >> 28) & 0x3F;
-			if (sqe_head == sqe_tail)
-				break;
-			usleep_range(1, 3);
-			timeout--;
-		}
+		val = otx2_atomic64_add(incr, ptr);
+		sqe_head = (val >> 20) & 0x3F;
+		sqe_tail = (val >> 28) & 0x3F;
+		if (sqe_head != sqe_tail)
+			usleep_range(50, 60);
 	}
 }
 
@@ -928,7 +930,7 @@ static int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
 	}
 
 	sq->sqe_base = sq->sqe->base;
-	sq->sg = kcalloc(qset->sqe_cnt, sizeof(struct sg_list), GFP_KERNEL);
+	sq->sg = kcalloc(qset->sqe_cnt, sizeof(struct sg_list), GFP_ATOMIC);
 	if (!sq->sg)
 		return -ENOMEM;
 
@@ -1422,7 +1424,7 @@ int otx2_sq_aura_pool_init(struct otx2_nic *pfvf)
 
 		sq = &qset->sq[qidx];
 		sq->sqb_count = 0;
-		sq->sqb_ptrs = kcalloc(num_sqbs, sizeof(*sq->sqb_ptrs), GFP_KERNEL);
+		sq->sqb_ptrs = kcalloc(num_sqbs, sizeof(*sq->sqb_ptrs), GFP_ATOMIC);
 		if (!sq->sqb_ptrs) {
 			err = -ENOMEM;
 			goto err_mem;
@@ -1777,6 +1779,22 @@ void otx2_set_cints_affinity(struct otx2_nic *pfvf)
 	}
 }
 
+static u32 get_dwrr_mtu(struct otx2_nic *pfvf, struct nix_hw_info *hw)
+{
+	if (is_otx2_lbkvf(pfvf->pdev)) {
+		pfvf->hw.smq_link_type = SMQ_LINK_TYPE_LBK;
+		return hw->lbk_dwrr_mtu;
+	}
+
+	if (is_otx2_sdpvf(pfvf->pdev)) {
+		pfvf->hw.smq_link_type = SMQ_LINK_TYPE_SDP;
+		return hw->sdp_dwrr_mtu;
+	}
+
+	pfvf->hw.smq_link_type = SMQ_LINK_TYPE_RPM;
+	return hw->rpm_dwrr_mtu;
+}
+
 u16 otx2_get_max_mtu(struct otx2_nic *pfvf)
 {
 	struct nix_hw_info *rsp;
@@ -1806,7 +1824,7 @@ u16 otx2_get_max_mtu(struct otx2_nic *pfvf)
 		max_mtu = rsp->max_mtu - 8 - OTX2_ETH_HLEN;
 
 		/* Also save DWRR MTU, needed for DWRR weight calculation */
-		pfvf->hw.dwrr_mtu = rsp->rpm_dwrr_mtu;
+		pfvf->hw.dwrr_mtu = get_dwrr_mtu(pfvf, rsp);
 		if (!pfvf->hw.dwrr_mtu)
 			pfvf->hw.dwrr_mtu = 1;
 	}
@@ -1871,6 +1889,29 @@ int otx2_handle_ntuple_tc_features(struct net_device *netdev, netdev_features_t 
 	return 0;
 }
 EXPORT_SYMBOL(otx2_handle_ntuple_tc_features);
+
+int otx2_smq_flush(struct otx2_nic *pfvf, int smq)
+{
+	struct nix_txschq_config *req;
+	int rc;
+
+	mutex_lock(&pfvf->mbox.lock);
+
+	req = otx2_mbox_alloc_msg_nix_txschq_cfg(&pfvf->mbox);
+	if (!req) {
+		mutex_unlock(&pfvf->mbox.lock);
+		return -ENOMEM;
+	}
+
+	req->lvl = NIX_TXSCH_LVL_SMQ;
+	req->reg[0] = NIX_AF_SMQX_CFG(smq);
+	req->regval[0] |= BIT_ULL(49);
+	req->num_regs++;
+
+	rc = otx2_sync_mbox_msg(&pfvf->mbox);
+	mutex_unlock(&pfvf->mbox.lock);
+	return rc;
+}
 
 #define M(_name, _id, _fn_name, _req_type, _rsp_type)			\
 int __weak								\

@@ -13,6 +13,10 @@
 #define OTX2_CPT_DRV_NAME    "rvu_cptpf"
 #define OTX2_CPT_DRV_STRING  "Marvell RVU CPT Physical Function Driver"
 
+#define CPT_UC_RID_CN9K_B0   1
+#define CPT_UC_RID_CN10K_A   4
+#define CPT_UC_RID_CN10K_B   5
+
 static void cptpf_enable_vfpf_mbox_intr(struct otx2_cptpf_dev *cptpf,
 					int num_vfs)
 {
@@ -556,43 +560,26 @@ static int cpt_is_pf_usable(struct otx2_cptpf_dev *cptpf)
 	return 0;
 }
 
-static int cptx_device_reset(struct otx2_cptpf_dev *cptpf, int blkaddr)
+static int cptpf_get_rid(struct pci_dev *pdev, struct otx2_cptpf_dev *cptpf)
 {
-	int timeout = 10, ret;
-	u64 reg = 0;
+	struct otx2_cpt_eng_grps *eng_grps = &cptpf->eng_grps;
 
-	ret = otx2_cpt_write_af_reg(&cptpf->afpf_mbox, cptpf->pdev,
-				    CPT_AF_BLK_RST, 0x1, blkaddr);
-	if (ret)
-		return ret;
-
-	do {
-		ret = otx2_cpt_read_af_reg(&cptpf->afpf_mbox, cptpf->pdev,
-					   CPT_AF_BLK_RST, &reg, blkaddr);
-		if (ret)
-			return ret;
-
-		if (!((reg >> 63) & 0x1))
+	if (is_dev_otx2(pdev)) {
+		eng_grps->rid = pdev->revision;
+	} else {
+		switch (pdev->subsystem_device) {
+		case CPT_PCI_SUBSYS_DEVID_CN10K_A:
+			eng_grps->rid = CPT_UC_RID_CN10K_A;
 			break;
-
-		usleep_range(10000, 20000);
-		if (timeout-- < 0)
-			return -EBUSY;
-	} while (1);
-
-	return ret;
-}
-
-static int cptpf_device_reset(struct otx2_cptpf_dev *cptpf)
-{
-	int ret = 0;
-
-	if (cptpf->has_cpt1) {
-		ret = cptx_device_reset(cptpf, BLKADDR_CPT1);
-		if (ret)
-			return ret;
+		case CPT_PCI_SUBSYS_DEVID_CN10K_B:
+			eng_grps->rid = CPT_UC_RID_CN10K_B;
+			break;
+		default:
+			dev_err(&pdev->dev, "Invalid Subsystem ID\n");
+			return -EINVAL;
+		}
 	}
-	return cptx_device_reset(cptpf, BLKADDR_CPT0);
+	return 0;
 }
 
 static void cptpf_check_block_implemented(struct otx2_cptpf_dev *cptpf)
@@ -612,10 +599,6 @@ static int cptpf_device_init(struct otx2_cptpf_dev *cptpf)
 
 	/* check if 'implemented' bit is set for block BLKADDR_CPT1 */
 	cptpf_check_block_implemented(cptpf);
-	/* Reset the CPT PF device */
-	ret = cptpf_device_reset(cptpf);
-	if (ret)
-		return ret;
 
 	/* Get number of SE, IE and AE engines */
 	ret = otx2_cpt_read_af_reg(&cptpf->afpf_mbox, cptpf->pdev,
@@ -648,6 +631,9 @@ static ssize_t sso_pf_func_ovrd_store(struct device *dev,
 {
 	struct otx2_cptpf_dev *cptpf = dev_get_drvdata(dev);
 	u8 sso_pf_func_ovrd;
+
+	if (!(cptpf->pdev->revision == CPT_UC_RID_CN9K_B0))
+		return count;
 
 	if (kstrtou8(buf, 0, &sso_pf_func_ovrd))
 		return -EINVAL;
@@ -692,7 +678,9 @@ static int cptpf_sriov_enable(struct pci_dev *pdev, int num_vfs)
 	ret = cptpf_register_vfpf_intr(cptpf, num_vfs);
 	if (ret)
 		goto destroy_flr;
-
+	ret = cptpf_get_rid(pdev, cptpf);
+	if (ret)
+		goto disable_intr;
 	/* Get CPT HW capabilities using LOAD_FVC operation. */
 	ret = otx2_cpt_discover_eng_capabilities(cptpf);
 	if (ret)

@@ -85,6 +85,7 @@ struct mac_ops {
 	 */
 	int			(*get_nr_lmacs)(void *cgx);
 	u8                      (*get_lmac_type)(void *cgx, int lmac_id);
+	u32                     (*lmac_fifo_len)(void *cgx, int lmac_id);
 	int                     (*mac_lmac_intl_lbk)(void *cgx, int lmac_id,
 						     bool enable);
 	/* Register Stats related functions */
@@ -125,6 +126,7 @@ struct mac_ops {
 	int                     (*mac_get_pfc_frm_cfg)(void *cgxd, int lmac_id,
 						       u8 *tx_pause, u8 *rx_pause);
 	int			(*mac_reset)(void *cgxd, int lmac_id);
+	u64			(*get_dmacflt_dropped_pktcnt)(void *cgxd, int lmac_id);
 
 };
 

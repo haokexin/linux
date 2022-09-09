@@ -17,6 +17,7 @@
 
 #define MAX_DOM_VFS		8
 #define SDP_MAX_VFS		128
+#define SDP_MAX_RINGS		256
 /* 12 CGX PFs + max HWVFs - VFs used for domains */
 #define SDP_MAX_PORTS		(12 + 256 - MAX_DOM_VFS)
 #define NAME_SIZE		32
@@ -35,21 +36,14 @@
 
 #define SDPX_RINGX_IN_PKT_CNT(a)	(0x10080ull | a << 17)
 
-#define SDPX_OUT_BP_ENX_W1S(a) ({				\
-		u64 offset;					\
-								\
-		offset = (0x80280ull | a << 4);			\
-		if (is_otx3_sdp(sdp))				\
-			offset = (0x40080280ull | a << 4);	\
-		offset; })					\
-
+#define SDPX_OUT_BP_ENX_W1S(a)		(0x40080280ull | a << 4)
 #define SDPX_OUT_WMARK			(0x40060000ull)
 #define SDPX_LINK_CFG			(0x40080180ull)
 #define SDPX_GBL_CONTROL		(0x40080200ull)
 #define SDPX_EPFX_RINFO(a) ({					\
 		u64 offset;					\
 		offset = (0x205f0ull | a << 25);		\
-		if (is_otx3_sdp(sdp))				\
+		if (is_cn10k_sdp(sdp))				\
 			offset = (0x209f0ull | a << 25);	\
 		offset; })					\
 
@@ -98,7 +92,27 @@
 #define PEMX_CFG_WR_PF			18
 #define PEMX_CFG_WR_REG			0
 
-#define PCIEEP_VSECST_CTL		0x4d0
+#define PCIEEP_VSECST_CTL	({		\
+		u64 offset;			\
+		offset = 0x4d0;			\
+		if (is_cn10k_sdp(sdp))		\
+			offset = 0x418;		\
+		offset; })
+
+/*
+ * This register only supported on cn10k.
+ * The documentation for this register is not clear, and the current
+ * implementation works for 0x418, and should work for all multiple
+ * of 8 addresses.  It has not been tested for multiple of 4 addresses,
+ * nor for addresses with bit 16 set.
+ */
+#define PEMX_PFX_CSX_PFCFGX(pem, pf, offset)      ((0x8e0000008000 | (uint64_t)pem << 36 \
+						| pf << 18 \
+						| ((offset >> 16) & 1) << 16 \
+						| (offset >> 3) << 3) \
+						+ (((offset >> 2) & 1) << 2))
+
+
 #define FW_STATUS_READY			0x1ul
 
 #define GPIO_PKG_VER			(0x803000001610ull)

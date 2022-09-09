@@ -17,7 +17,10 @@
 #define OTX2_QOS_QID_NONE		0xFFFEU
 #define OTX2_QOS_ROOT_CLASSID		0xFFFFFFFF
 #define OTX2_QOS_CLASS_NONE		0
-#define OTX2_QOS_DWRR_PRIO		7	/* use TLx prio 7 as dwrr */
+#define OTX2_QOS_DEFAULT_PRIO		0xF
+#define OTX2_QOS_MAX_PRIO		7
+#define OTX2_QOS_STATIC_QUANTUM		INT_MAX
+#define OTX2_QOS_INVALID_MDQ		0xFFFF
 
 /* Egress rate limiting definitions */
 #define MAX_BURST_EXPONENT		0x0FULL
@@ -33,6 +36,11 @@
 #define TLX_RATE_DIVIDER_EXPONENT	GENMASK_ULL(16, 13)
 #define TLX_BURST_MANTISSA		GENMASK_ULL(36, 29)
 #define TLX_BURST_EXPONENT		GENMASK_ULL(40, 37)
+
+static bool otx2_qos_is_quantum_static(int quantum)
+{
+	return quantum == OTX2_QOS_STATIC_QUANTUM ? 1 : 0;
+}
 
 static int otx2_qos_update_tx_netdev_queues(struct otx2_nic *pfvf)
 {
@@ -60,64 +68,9 @@ static u64 otx2_qos_convert_rate(u64 rate)
 
 	/* convert bytes per second to Mbps */
 	converted_rate = rate * 8;
-	converted_rate = max_t(u32, converted_rate / 1000000, 1);
+	converted_rate = max_t(u64, converted_rate / 1000000, 1);
 
 	return converted_rate;
-}
-
-static void otx2_qos_egress_burst_cfg(u32 burst, u32 *burst_exp,
-				      u32 *burst_mantissa)
-{
-	unsigned int tmp;
-
-	/* Burst is calculated as
-	 * ((256 + BURST_MANTISSA) << (1 + BURST_EXPONENT)) / 256
-	 * Max supported burst size is 130,816 bytes.
-	 */
-	burst = min_t(u32, burst, MAX_BURST_SIZE);
-	if (burst) {
-		*burst_exp = ilog2(burst) ? ilog2(burst) - 1 : 0;
-		tmp = burst - rounddown_pow_of_two(burst);
-		if (burst < MAX_BURST_MANTISSA)
-			*burst_mantissa = tmp * 2;
-		else
-			*burst_mantissa = tmp / (1ULL << (*burst_exp - 7));
-	} else {
-		*burst_exp = MAX_BURST_EXPONENT;
-		*burst_mantissa = MAX_BURST_MANTISSA;
-	}
-}
-
-static void otx2_qos_egress_rate_cfg(u32 maxrate, u32 *exp,
-				     u32 *mantissa, u32 *div_exp)
-{
-	unsigned int tmp;
-
-	/* Rate calculation by hardware
-	 *
-	 * PIR_ADD = ((256 + mantissa) << exp) / 256
-	 * rate = (2 * PIR_ADD) / ( 1 << div_exp)
-	 * The resultant rate is in Mbps.
-	 */
-
-	/* 2Mbps to 100Gbps can be expressed with div_exp = 0.
-	 * Setting this to '0' will ease the calculation of
-	 * exponent and mantissa.
-	 */
-	*div_exp = 0;
-
-	if (maxrate) {
-		*exp = ilog2(maxrate) ? ilog2(maxrate) - 1 : 0;
-		tmp = maxrate - rounddown_pow_of_two(maxrate);
-		if (maxrate < MAX_RATE_MANTISSA)
-			*mantissa = tmp * 2;
-		else
-			*mantissa = tmp / (1ULL << (*exp - 7));
-	} else {
-		/* Instead of disabling rate limiting, set all values to max */
-		*exp = MAX_RATE_EXPONENT;
-		*mantissa = MAX_RATE_MANTISSA;
-	}
 }
 
 static int otx2_qos_quantum_to_dwrr_weight(struct otx2_nic *pfvf, int quantum)
@@ -131,25 +84,10 @@ static int otx2_qos_quantum_to_dwrr_weight(struct otx2_nic *pfvf, int quantum)
 	return weight;
 }
 
-static u64 otx2_qos_field_prep_rate(u32 exp, u32 mantissa, u32 div_exp,
-				    u32 burst_exp, u32 burst_mantissa)
-{
-	u64 regval = 0;
-
-	regval = FIELD_PREP(TLX_BURST_EXPONENT, burst_exp) |
-		 FIELD_PREP(TLX_BURST_MANTISSA, burst_mantissa) |
-		 FIELD_PREP(TLX_RATE_DIVIDER_EXPONENT, div_exp) |
-		 FIELD_PREP(TLX_RATE_EXPONENT, exp) |
-		 FIELD_PREP(TLX_RATE_MANTISSA, mantissa) | BIT_ULL(0);
-
-	return regval;
-}
-
 static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  struct otx2_qos_node *node,
 				  struct nix_txschq_config *cfg)
 {
-	u32 burst_exp = 0, burst_mantissa = 0, exp, mantissa, div_exp;
 	struct otx2_hw *hw = &pfvf->hw;
 	u16 rr_weight, quantum;
 	int num_regs = 0;
@@ -175,7 +113,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		/* configure prio/quantum */
 		if (node->qid == OTX2_QOS_QID_NONE) {
 			cfg->reg[num_regs] = NIX_AF_MDQX_SCHEDULE(node->schq);
-			cfg->regval[num_regs] =  OTX2_QOS_DWRR_PRIO << 24 |
+			cfg->regval[num_regs] =  node->prio << 24 |
 						 mtu_to_dwrr_weight(pfvf,
 								    pfvf->tx_max_pktlen);
 			num_regs++;
@@ -184,7 +122,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure prio/quantum */
 		cfg->reg[num_regs] = NIX_AF_MDQX_SCHEDULE(node->schq);
-		if (node->is_static) {
+		if (otx2_qos_is_quantum_static(node->quantum)) {
 			cfg->regval[num_regs] = (node->schq -
 						 node->parent->prio_anchor) << 24;
 		} else {
@@ -192,20 +130,17 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = OTX2_QOS_DWRR_PRIO << 24 |
+			cfg->regval[num_regs] = node->prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
 
 		/* configure PIR */
 		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
+
 		cfg->reg[num_regs] = NIX_AF_MDQX_PIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, maxrate, 65536);
 		num_regs++;
 
 		/* configure CIR */
@@ -216,13 +151,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 			goto txschq_cfg_out;
 		}
 
-		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_MDQX_CIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, node->rate, 65536);
 		num_regs++;
 	} else if (level == NIX_TXSCH_LVL_TL4) {
 		/* configure parent txschq */
@@ -233,7 +164,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		/* return if not htb node */
 		if (node->qid == OTX2_QOS_QID_NONE) {
 			cfg->reg[num_regs] = NIX_AF_TL4X_SCHEDULE(node->schq);
-			cfg->regval[num_regs] =  OTX2_QOS_DWRR_PRIO << 24 |
+			cfg->regval[num_regs] =  node->prio << 24 |
 						 mtu_to_dwrr_weight(pfvf,
 								    pfvf->tx_max_pktlen);
 			num_regs++;
@@ -242,7 +173,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure priority/quantum */
 		cfg->reg[num_regs] = NIX_AF_TL4X_SCHEDULE(node->schq);
-		if (node->is_static) {
+		if (otx2_qos_is_quantum_static(node->quantum)) {
 			cfg->regval[num_regs] = (node->schq -
 						 node->parent->prio_anchor) << 24;
 		} else {
@@ -250,20 +181,16 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = OTX2_QOS_DWRR_PRIO << 24 |
+			cfg->regval[num_regs] = node->prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
 
 		/* configure PIR */
 		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL4X_PIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, maxrate, 65536);
 		num_regs++;
 
 		/* configure CIR */
@@ -274,13 +201,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 			goto txschq_cfg_out;
 		}
 
-		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL4X_CIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, node->rate, 65536);
 		num_regs++;
 	} else if (level == NIX_TXSCH_LVL_TL3) {
 		/* configure parent txschq */
@@ -291,7 +214,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		/* return if not htb node */
 		if (node->qid == OTX2_QOS_QID_NONE) {
 			cfg->reg[num_regs] = NIX_AF_TL3X_SCHEDULE(node->schq);
-			cfg->regval[num_regs] =  OTX2_QOS_DWRR_PRIO << 24 |
+			cfg->regval[num_regs] =  node->prio << 24 |
 						 mtu_to_dwrr_weight(pfvf,
 								    pfvf->tx_max_pktlen);
 			num_regs++;
@@ -300,7 +223,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure priority/quantum */
 		cfg->reg[num_regs] = NIX_AF_TL3X_SCHEDULE(node->schq);
-		if (node->is_static) {
+		if (otx2_qos_is_quantum_static(node->quantum)) {
 			cfg->regval[num_regs] = (node->schq -
 						 node->parent->prio_anchor) << 24;
 		} else {
@@ -308,7 +231,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = OTX2_QOS_DWRR_PRIO << 24 |
+			cfg->regval[num_regs] = node->prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
@@ -322,13 +245,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure PIR */
 		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
-		otx2_qos_egress_rate_cfg(maxrate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL3X_PIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, maxrate, 65536);
 		num_regs++;
 
 		/* configure CIR */
@@ -339,13 +258,9 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 			goto txschq_cfg_out;
 		}
 
-		otx2_qos_egress_rate_cfg(node->rate, &exp, &mantissa, &div_exp);
-		otx2_qos_egress_burst_cfg(65536, &burst_exp, &burst_mantissa);
 		cfg->reg[num_regs] = NIX_AF_TL3X_CIR(node->schq);
-		cfg->regval[num_regs] = otx2_qos_field_prep_rate(exp, mantissa,
-								 div_exp,
-								 burst_exp,
-							 burst_mantissa);
+		cfg->regval[num_regs] =
+			otx2_get_txschq_rate_regval(pfvf, node->rate, 65536);
 		num_regs++;
 	} else if (level == NIX_TXSCH_LVL_TL2) {
 		/* configure parent txschq */
@@ -386,7 +301,7 @@ static int otx2_qos_update_tl1_topology(struct otx2_nic *pfvf, u16 tl2_schq)
 
 	/* If the DOWN flag is set TLX nodes are already freed */
 	if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
-		return 0;
+		return -EOPNOTSUPP;
 
 	/* get the parent TL1x queue */
 	schq =  hw->txschq_list[NIX_TXSCH_LVL_TL1][0];
@@ -437,7 +352,9 @@ static int otx2_qos_txschq_set_parent_topology(struct otx2_nic *pfvf,
 		cfg->reg[0] = NIX_AF_TL2X_TOPOLOGY(parent->schq);
 
 	cfg->regval[0] = (u64)parent->prio_anchor << 32;
-	cfg->regval[0] |= OTX2_QOS_DWRR_PRIO << 1;
+
+	cfg->regval[0] |= ((parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) ?
+			    parent->child_dwrr_prio : 0)  << 1;
 	cfg->num_regs++;
 
 	rc = otx2_sync_mbox_msg(&pfvf->mbox);
@@ -686,6 +603,8 @@ otx2_qos_alloc_root(struct otx2_nic *pfvf)
 	node->level = NIX_TXSCH_LVL_TL2;
 	node->qid = OTX2_QOS_QID_INNER;
 	node->classid = OTX2_QOS_ROOT_CLASSID;
+	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	hash_add(pfvf->qos.qos_hlist, &node->hlist, node->classid);
 	list_add_tail(&node->list, &pfvf->qos.qos_tree);
@@ -705,7 +624,8 @@ static int otx2_qos_add_static_node(struct otx2_qos_node *parent,
 
 	for (tmp = head->next; tmp != head; tmp = tmp->next) {
 		tmp_node = list_entry(tmp, struct otx2_qos_node, list);
-		if (tmp_node->prio == node->prio)
+		if (tmp_node->prio == node->prio &&
+		    otx2_qos_is_quantum_static(tmp_node->quantum))
 			return -EEXIST;
 		if (tmp_node->prio > node->prio) {
 			list_add_tail(&node->list, tmp);
@@ -737,7 +657,9 @@ static int otx2_qos_alloc_txschq_node(struct otx2_nic *pfvf,
 		txschq_node->ceil = 0;
 		txschq_node->prio = 0;
 		txschq_node->quantum = 0;
-		txschq_node->is_static = 0;
+		txschq_node->is_static = true;
+		txschq_node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+		txschq_node->mdq = OTX2_QOS_INVALID_MDQ;
 
 		mutex_lock(&pfvf->qos.qos_lock);
 		list_add_tail(&txschq_node->list, &node->child_schq_list);
@@ -781,7 +703,9 @@ otx2_qos_sw_create_leaf_node(struct otx2_nic *pfvf,
 	node->ceil = otx2_qos_convert_rate(ceil);
 	node->prio = prio;
 	node->quantum = quantum;
-	node->is_static = (prio != OTX2_QOS_DWRR_PRIO) ? 1 : 0;
+	node->is_static = true;
+	node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+	node->mdq = OTX2_QOS_INVALID_MDQ;
 
 	__set_bit(qid, pfvf->qos.qos_sq_bmap);
 
@@ -1123,84 +1047,93 @@ static void otx2_qos_free_cfg(struct otx2_nic *pfvf, struct otx2_qos_cfg *cfg,
 	}
 }
 
+static void otx2_qos_enadis_sq(struct otx2_nic *pfvf,
+			       struct otx2_qos_node *node,
+			       u16 qid)
+{
+	int old_mdq;
+
+	old_mdq = node->mdq;
+	node->mdq = node->schq;
+	if (old_mdq != OTX2_QOS_INVALID_MDQ)
+		otx2_qos_disable_sq(pfvf, qid, old_mdq);
+	if (node->mdq != OTX2_QOS_INVALID_MDQ)
+		otx2_qos_enable_sq(pfvf, qid, node->mdq);
+}
+
 static void otx2_qos_update_smq_schq(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
+				     struct otx2_qos_node *node,
+				     bool action)
 {
 	struct otx2_qos_node *tmp;
-	int old_mdq = 0;
 
 	if (node->qid == OTX2_QOS_QID_INNER)
 		return;
 
 	list_for_each_entry(tmp, &node->child_schq_list, list) {
 		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			old_mdq = tmp->mdq;
-			tmp->mdq = tmp->schq;
-			if (old_mdq)
-				otx2_qos_disable_sq(pfvf, node->qid, old_mdq);
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, node->qid, tmp->mdq);
+			if (action == QOS_SMQ_FLUSH)
+				otx2_smq_flush(pfvf, tmp->schq);
+			else
+				otx2_qos_enadis_sq(pfvf, tmp, node->qid);
 		}
+
 	}
 }
 
 static void otx2_qos_update_smq_static(struct otx2_nic *pfvf,
-				       struct otx2_qos_node *node)
+				       struct otx2_qos_node *node,
+				       bool action)
 {
 	struct otx2_qos_node *tmp;
-	int old_mdq = 0;
 
 	list_for_each_entry(tmp, &node->child_list, list) {
+		otx2_qos_update_smq_static(pfvf, tmp, action);
 		if (tmp->qid == OTX2_QOS_QID_INNER)
 			continue;
 		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			old_mdq = tmp->mdq;
-			tmp->mdq = tmp->schq;
-			if (old_mdq)
-				otx2_qos_disable_sq(pfvf, tmp->qid, old_mdq);
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-			old_mdq = 0;
+			if (action == QOS_SMQ_FLUSH)
+				otx2_smq_flush(pfvf, tmp->schq);
+			else
+				otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
 		} else {
-			otx2_qos_update_smq_schq(pfvf, tmp);
+			otx2_qos_update_smq_schq(pfvf, tmp, action);
 		}
 	}
 }
 
 static void otx2_qos_update_smq_dwrr(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
+				     struct otx2_qos_node *node,
+				     bool action)
 {
 	struct otx2_qos_node *tmp;
-	int old_mdq = 0;
 
 	list_for_each_entry(tmp, &node->child_dwrr_list, list) {
 		if (tmp->qid == OTX2_QOS_QID_INNER)
 			continue;
 		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			old_mdq = tmp->mdq;
-			tmp->mdq = tmp->schq;
-			if (old_mdq)
-				otx2_qos_disable_sq(pfvf, tmp->qid, old_mdq);
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-			old_mdq = 0;
+			if (action == QOS_SMQ_FLUSH)
+				otx2_smq_flush(pfvf, tmp->schq);
+			else
+				otx2_qos_enadis_sq(pfvf, tmp, tmp->qid);
 		} else {
-			otx2_qos_update_smq_schq(pfvf, tmp);
+			otx2_qos_update_smq_schq(pfvf, tmp, action);
 		}
+
 	}
 }
 
 static int otx2_qos_update_smq(struct otx2_nic *pfvf,
 			       struct otx2_qos_node *node,
-			       bool static_cfg)
+			       bool static_cfg, bool action)
 {
 	mutex_lock(&pfvf->qos.qos_lock);
 	if (static_cfg)
-		otx2_qos_update_smq_static(pfvf, node);
+		otx2_qos_update_smq_static(pfvf, node, action);
 	else
-		otx2_qos_update_smq_dwrr(pfvf, node);
+		otx2_qos_update_smq_dwrr(pfvf, node, action);
 
-	otx2_qos_update_smq_schq(pfvf, node);
+	otx2_qos_update_smq_schq(pfvf, node, action);
 	mutex_unlock(&pfvf->qos.qos_lock);
 
 	return 0;
@@ -1216,13 +1149,18 @@ static int otx2_qos_push_txschq_cfg(struct otx2_nic *pfvf,
 	if (ret)
 		return -ENOSPC;
 
+	if (!(pfvf->netdev->flags & IFF_UP)) {
+		otx2_qos_txschq_fill_cfg(pfvf, node, cfg, static_cfg);
+		return 0;
+	}
+
 	ret = otx2_qos_txschq_update_config(pfvf, node, cfg, static_cfg);
 	if (ret) {
 		otx2_qos_free_cfg(pfvf, cfg, static_cfg);
 		return -EIO;
 	}
 
-	ret = otx2_qos_update_smq(pfvf, node, static_cfg);
+	ret = otx2_qos_update_smq(pfvf, node, static_cfg, QOS_CFG_SQ);
 	if (ret) {
 		otx2_qos_free_cfg(pfvf, cfg, static_cfg);
 		return -EIO;
@@ -1284,6 +1222,13 @@ static int otx2_qos_root_add(struct otx2_nic *pfvf, u16 htb_maj_id, u16 htb_defc
 		goto free_root_node;
 	}
 
+	if (!(pfvf->netdev->flags & IFF_UP)) {
+		root->schq = new_cfg->schq_list[root->level][0];
+		WRITE_ONCE(pfvf->qos.defcls, htb_defcls);
+		smp_store_release(&pfvf->qos.maj_id, htb_maj_id); /* barrier */
+		return 0;
+	}
+
 	/* update the txschq configuration in hw */
 	err = otx2_qos_txschq_update_root_cfg(pfvf, root, new_cfg);
 	if (err) {
@@ -1334,6 +1279,67 @@ static int otx2_qos_root_destroy(struct otx2_nic *pfvf)
 	return 0;
 }
 
+static int otx2_qos_validate_dwrr_cfg(struct otx2_qos_node *parent,
+				      struct netlink_ext_ack *extack,
+				      u64 prio)
+{
+	if (parent->child_dwrr_prio == OTX2_QOS_DEFAULT_PRIO) {
+		parent->child_dwrr_prio = prio;
+	} else if (prio != parent->child_dwrr_prio) {
+		NL_SET_ERR_MSG_MOD(extack, "Only one DWRR group is allowed");
+		return -EOPNOTSUPP;
+	}
+
+	parent->child_dwrr_cnt++;
+	return 0;
+}
+
+static int otx2_qos_validate_maxnodes_per_tl(struct otx2_qos_node *parent,
+					     struct netlink_ext_ack *extack,
+					     struct otx2_nic *pfvf,
+					     u64 prio, u64 quantum)
+{
+	int static_cnt = 0, dwrr_cnt = 0, highest_prio = 0;
+	struct otx2_qos_node *node;
+
+	mutex_lock(&pfvf->qos.qos_lock);
+	list_for_each_entry(node, &parent->child_list, list) {
+		if (prio == node->prio &&
+		    otx2_qos_is_quantum_static(node->quantum)) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "Static priority child with same priority exists");
+			mutex_unlock(&pfvf->qos.qos_lock);
+			return -EEXIST;
+		}
+		if (prio == parent->child_dwrr_prio &&
+		    otx2_qos_is_quantum_static(quantum)) {
+			NL_SET_ERR_MSG_MOD(extack, "DWRR child group with same priority exists");
+			mutex_unlock(&pfvf->qos.qos_lock);
+			return -EEXIST;
+		}
+
+		if (node->prio > highest_prio)
+			highest_prio = node->prio;
+
+		if (otx2_qos_is_quantum_static(node->quantum))
+			static_cnt++;
+		else
+			dwrr_cnt++;
+	}
+	mutex_unlock(&pfvf->qos.qos_lock);
+
+	/* DWRR group has highest prio allow user to add nodes*/
+	if (!otx2_qos_is_quantum_static(quantum) && prio == highest_prio)
+		return 0;
+
+	if ((static_cnt + dwrr_cnt) >= 8) {
+		NL_SET_ERR_MSG_MOD(extack, "Invalid Qos configuration, exceeded node count\n");
+		return  -EOPNOTSUPP;
+	}
+
+	return 0;
+}
+
 static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 				     u32 parent_classid, u64 rate, u64 ceil,
 				     u64 prio, u64 quantum,
@@ -1348,6 +1354,18 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 		   "TC_HTB_LEAF_ALLOC_QUEUE: classid=0x%x parent_classid=0x%x rate=%lld ceil=%lld prio=%lld quantum=%lld\n",
 		   classid, parent_classid, rate, ceil, prio, quantum);
 
+	if (prio > OTX2_QOS_MAX_PRIO) {
+		NL_SET_ERR_MSG_MOD(extack, "Valid priority range 0 to 7");
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
+	if (!quantum || quantum > INT_MAX) {
+		NL_SET_ERR_MSG_MOD(extack, "Invalid quantum, range 1 - 2147483647 bytes");
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
 	/* get parent node */
 	parent = otx2_sw_node_find(pfvf, parent_classid);
 	if (!parent) {
@@ -1361,8 +1379,18 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 		goto out;
 	}
 
+	ret = otx2_qos_validate_maxnodes_per_tl(parent, extack, pfvf, prio, quantum);
+	if (ret)
+		goto out;
+
+	if (!otx2_qos_is_quantum_static(quantum)) {
+		ret = otx2_qos_validate_dwrr_cfg(parent, extack, prio);
+		if (ret)
+			goto out;
+	}
+
 	/* read current txschq configuration */
-	static_cfg = (prio != OTX2_QOS_DWRR_PRIO) ? 1 : 0;
+	static_cfg = true;
 	old_cfg = kzalloc(sizeof(*old_cfg), GFP_KERNEL);
 	if (!old_cfg) {
 		NL_SET_ERR_MSG_MOD(extack, "Memory allocation error");
@@ -1409,7 +1437,8 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 			goto free_old_cfg;
 		}
 		err = otx2_qos_update_smq(pfvf, parent,
-					  parent->is_static ? true : false);
+					  parent->is_static ? true : false,
+					  QOS_CFG_SQ);
 		if (err)
 			netdev_err(pfvf->netdev,
 				   "Failed to restore smq configuration");
@@ -1450,6 +1479,18 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 		   "TC_HTB_LEAF_TO_INNER classid %04x, child %04x, rate %llu, ceil %llu\n",
 		   classid, child_classid, rate, ceil);
 
+	if (prio > OTX2_QOS_MAX_PRIO) {
+		NL_SET_ERR_MSG_MOD(extack, "Valid priority range 0 to 7");
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
+	if (!quantum || quantum > INT_MAX) {
+		NL_SET_ERR_MSG_MOD(extack, "Invalid quantum, range 1 - 2147483647 bytes");
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
+
 	/* find node related to classid */
 	node = otx2_sw_node_find(pfvf, classid);
 	if (!node) {
@@ -1464,11 +1505,17 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 		goto out;
 	}
 
+	if (!otx2_qos_is_quantum_static(quantum)) {
+		ret = otx2_qos_validate_dwrr_cfg(node, extack, prio);
+		if (ret)
+			goto out;
+	}
+
 	/* store the qid to assign to leaf node */
 	qid = node->qid;
 
 	/* read current txschq configuration */
-	static_cfg = (prio != OTX2_QOS_DWRR_PRIO) ? 1 : 0;
+	static_cfg = true;
 	old_cfg = kzalloc(sizeof(*old_cfg), GFP_KERNEL);
 	if (!old_cfg) {
 		NL_SET_ERR_MSG_MOD(extack, "Memory allocation error");
@@ -1521,7 +1568,8 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 			goto free_old_cfg;
 		}
 		err = otx2_qos_update_smq(pfvf, node,
-					  node->is_static ? true : false);
+					  node->is_static ? true : false,
+					  QOS_CFG_SQ);
 		if (err)
 			netdev_err(pfvf->netdev,
 				   "Failed to restore smq configuration");
@@ -1548,7 +1596,8 @@ out:
 static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 			     struct netlink_ext_ack *extack)
 {
-	struct otx2_qos_node *node;
+	struct otx2_qos_node *node, *parent;
+	int dwrr_del_node = false;
 
 	netdev_dbg(pfvf->netdev, "TC_HTB_LEAF_DEL classid %04x\n", *classid);
 
@@ -1558,12 +1607,23 @@ static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 		NL_SET_ERR_MSG_MOD(extack, "HTB node not found");
 		return -ENOENT;
 	}
+	parent = node->parent;
+
+	if (!otx2_qos_is_quantum_static(node->quantum))
+		dwrr_del_node = true;
 
 	/* disable sq */
 	otx2_qos_disable_sq(pfvf, node->qid, node->mdq);
 
 	/* destroy the leaf node */
 	otx2_qos_destroy_node(pfvf, node);
+
+	if (dwrr_del_node)
+		parent->child_dwrr_cnt--;
+
+	/* Reset DWRR priority if all dwrr nodes are deleted */
+	if (!parent->child_dwrr_cnt)
+		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 
 	return 0;
 }
@@ -1573,6 +1633,7 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 {
 	struct otx2_qos_node *node, *parent;
 	struct otx2_qos_cfg *new_cfg;
+	int dwrr_del_node = false;
 	int err;
 	u16 qid;
 
@@ -1594,8 +1655,18 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 		return -ENOENT;
 	}
 
+	if (!otx2_qos_is_quantum_static(node->quantum))
+		dwrr_del_node = true;
+
 	/* destroy the leaf node */
 	otx2_qos_destroy_node(pfvf, node);
+
+	if (dwrr_del_node)
+		parent->child_dwrr_cnt--;
+
+	/* Reset DWRR priority if all dwrr nodes are deleted */
+	if (!parent->child_dwrr_cnt)
+		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
 
 	/* create downstream txschq entries to parent */
 	otx2_qos_alloc_txschq_node(pfvf, parent);
@@ -1623,68 +1694,54 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 	return 0;
 }
 
-static void otx2_qos_reinit_smq_schq(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
-{
-	struct otx2_qos_node *tmp;
-
-	if (node->qid == OTX2_QOS_QID_INNER)
-		return;
-
-	list_for_each_entry(tmp, &node->child_schq_list, list) {
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, node->qid, tmp->mdq);
-		}
-	}
-}
-
-static void otx2_qos_reinit_smq_static(struct otx2_nic *pfvf,
-				       struct otx2_qos_node *node)
-{
-	struct otx2_qos_node *tmp;
-
-	list_for_each_entry(tmp, &node->child_list, list) {
-		if (tmp->qid == OTX2_QOS_QID_INNER)
-			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-		} else {
-			otx2_qos_reinit_smq_schq(pfvf, tmp);
-		}
-	}
-}
-
-static void otx2_qos_reinit_smq_dwrr(struct otx2_nic *pfvf,
-				     struct otx2_qos_node *node)
-{
-	struct otx2_qos_node *tmp;
-
-	list_for_each_entry(tmp, &node->child_dwrr_list, list) {
-		if (tmp->qid == OTX2_QOS_QID_INNER)
-			continue;
-		if (tmp->level == NIX_TXSCH_LVL_MDQ) {
-			if (tmp->mdq)
-				otx2_qos_enable_sq(pfvf, tmp->qid, tmp->mdq);
-		} else {
-			otx2_qos_reinit_smq_schq(pfvf, tmp);
-		}
-	}
-}
-
-void otx2_reinit_qos_smq(struct otx2_nic *pfvf)
+int otx2_clean_qos_queues(struct otx2_nic *pfvf)
 {
 	struct otx2_qos_node *root;
 
 	root = otx2_sw_node_find(pfvf, OTX2_QOS_ROOT_CLASSID);
 	if (!root)
+		return 0;
+
+	return otx2_qos_update_smq(pfvf, root, true, QOS_SMQ_FLUSH);
+}
+
+void otx2_qos_config_txschq(struct otx2_nic *pfvf)
+{
+	struct otx2_qos_node *root;
+	int err;
+
+	root = otx2_sw_node_find(pfvf, OTX2_QOS_ROOT_CLASSID);
+	if (!root)
 		return;
 
-	mutex_lock(&pfvf->qos.qos_lock);
-	otx2_qos_reinit_smq_static(pfvf, root);
-	otx2_qos_reinit_smq_dwrr(pfvf, root);
-	mutex_unlock(&pfvf->qos.qos_lock);
+	err = otx2_qos_txschq_config(pfvf, root);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error update txschq configuration\n");
+		goto root_destroy;
+	}
+
+	err = otx2_qos_update_tl1_topology(pfvf, root->schq);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error updating TL1 topology\n");
+		goto root_destroy;
+	}
+
+	err = otx2_qos_txschq_push_cfg_static(pfvf, root, NULL);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error update txschq configuration\n");
+		goto root_destroy;
+	}
+
+	err = otx2_qos_update_smq(pfvf, root, true, QOS_CFG_SQ);
+	if (err) {
+		netdev_err(pfvf->netdev, "Error update smq configuration\n");
+		goto root_destroy;
+	}
+
+	return;
+
+root_destroy:
+	otx2_qos_root_destroy(pfvf);
 }
 
 int otx2_setup_tc_htb(struct net_device *ndev, struct tc_htb_qopt_offload *htb)

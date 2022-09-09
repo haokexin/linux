@@ -40,14 +40,6 @@ enum state {
 	RFOE_INTF_DOWN,
 };
 
-enum rfoe_rx_dir_ctl_pkt_type_e {
-	ROE		= 0x0,
-	CHI		= 0x1,
-	ALT		= 0x2,
-	ECPRI		= 0x3,
-	GENERIC		= 0x8,
-};
-
 enum rfoe_rx_pkt_err_e {
 	RE_NONE		= 0x0,
 	RE_PARTIAL	= 0x1,
@@ -84,18 +76,20 @@ struct tx_job_entry {
 	void __iomem		*jd_ptr;
 	void __iomem		*rd_dma_ptr;
 	void __iomem		*jd_cfg_ptr;
+	void __iomem		*pkt_dma_addr;
 };
 
 /* tx job queue */
 struct tx_job_queue_cfg {
 	u8				psm_queue_id;
-	struct tx_job_entry		job_entries[MAX_TX_JOB_ENTRIES];
 	/* actual number of entries configured by ODP */
 	int				num_entries;
 	/* queue index */
 	int				q_idx;
 	/* lmac protection lock */
 	spinlock_t			lock;
+
+	struct tx_job_entry		job_entries[MAX_TX_JOB_ENTRIES];
 };
 
 /* rfoe common (for all lmac's) */
@@ -120,20 +114,20 @@ struct ptp_tstamp_skb {
 };
 
 struct otx2_rfoe_stats {
-	/* rx */
+	/* Pkt okay stats */
 	u64 rx_packets;		/* rx packets */
 	u64 ptp_rx_packets;	/* ptp rx packets */
 	u64 ecpri_rx_packets;	/* ecpri rx packets */
 	u64 rx_bytes;		/* rx bytes count */
-	u64 rx_dropped;		/* rx dropped */
-	u64 ptp_rx_dropped;	/* ptp rx dropped */
-	u64 ecpri_rx_dropped;	/* ptp rx dropped */
-
-	/* tx */
 	u64 tx_packets;		/* tx packets */
 	u64 ptp_tx_packets;	/* ptp rx packets */
 	u64 ecpri_tx_packets;	/* ecpri rx packets */
 	u64 tx_bytes;		/* tx bytes count */
+
+	/* Drop stats */
+	u64 rx_dropped;		/* rx dropped */
+	u64 ptp_rx_dropped;	/* ptp rx dropped */
+	u64 ecpri_rx_dropped;	/* ptp rx dropped */
 	u64 tx_dropped;		/* tx dropped */
 	u64 ptp_tx_dropped;	/* ptp tx dropped */
 	u64 ecpri_tx_dropped;	/* ptp tx dropped */
@@ -148,7 +142,7 @@ struct otx2_rfoe_stats {
 
 	/* stats update lock */
 	spinlock_t lock;
-};
+} ____cacheline_aligned_in_smp;
 
 struct otx2_rfoe_link_event {
 	u8				rfoe_num;
@@ -233,6 +227,11 @@ struct ptp_bcn_off_cfg {
 
 struct rfoe_rx_ind_vlanx_fwd {
 	u64 fwd			: 64;
+};
+
+struct bcn_ptp_cfg {
+	int ptp_phc_idx;
+	s64 delta;
 };
 
 #endif

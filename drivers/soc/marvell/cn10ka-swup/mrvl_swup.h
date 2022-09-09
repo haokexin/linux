@@ -12,7 +12,9 @@
 
 #define PLAT_OCTEONTX_SPI_SECURE_UPDATE         0xc2000b05
 #define PLAT_CN10K_VERIFY_FIRMWARE		0xc2000b0c
+#define PLAT_CN10K_ASYNC_STATUS			0xc2000b0e
 #define PLAT_CN10K_SPI_READ_FLASH		0xc2000b11
+
 
 #define VER_MAX_NAME_LENGTH	32
 #define SMC_MAX_OBJECTS		32
@@ -22,7 +24,10 @@
 #define VERIFY_LOG_SIZE		1024
 
 #define MARLIN_CHECK_PREDEFINED_OBJ (1<<0)
+#define MARLIN_FORCE_ASYNC          (1<<13)
+#define MARLIN_FORCE_CLONE	    (1<<14)
 #define MARLIN_PRINT_CONSOLE_LOGS   (1<<15)
+
 
 #define VERSION_FLAG_BACKUP	                BIT(0)
 #define VERSION_FLAG_EMMC	                BIT(1)
@@ -46,8 +51,15 @@
  */
 #define SMC_VERSION_COPY_TO_BACKUP_OFFSET	BIT(6)
 
+/**
+ * Set this to force copy all objects into backup storage
+ */
+#define SMC_VERSION_FORCE_COPY_OBJECTS		BIT(7)
+
+#define SMC_VERSION_ASYNC_HASH		BIT(8)
+
 #define VERSION_MAGIC		0x4e535256	/** VRSN */
-#define VERSION_INFO_VERSION	0x0101	/** 1.0.0.0 */
+#define VERSION_INFO_VERSION	0x0102	       /** 1.0.0.0 */
 
 struct memory_desc {
 	void	   *virt;
@@ -125,7 +137,8 @@ struct smc_version_info_entry {
 	uint16_t hash_size;		/** Size of hash in bytes */
 	uint16_t flags;			/** Flags for this object */
 	enum smc_version_entry_retcode retcode;	/** Return code if error */
-	uint64_t reserved[7];		/** Reserved for future growth */
+	uint64_t perform_clone;         /** run clone operation on that image */
+	uint64_t reserved[6];		/** Reserved for future growth */
 	uint8_t log[VERIFY_LOG_SIZE];	/** Log for object */
 };
 
@@ -209,11 +222,17 @@ struct smc_update_obj_info {
 #define UPDATE_MAGIC		0x55504454	/* UPDT */
 /** Current smc_update_descriptor version */
 #define UPDATE_VERSION		0x0100
+#define UPDATE_VERSION_PREV         0x0001
 
-#define UPDATE_FLAG_BACKUP	0x0001	/** Set to update secondary location */
-#define UPDATE_FLAG_EMMC	0x0002	/** Set to update eMMC instead of SPI */
-#define UPDATE_FLAG_ERASE_PART	0x0004	/** Erase eMMC partition data */
+#define UPDATE_FLAG_BACKUP	   0x0001	/** Set to update secondary location */
+#define UPDATE_FLAG_EMMC	   0x0002	/** Set to update eMMC instead of SPI */
+#define UPDATE_FLAG_ERASE_PART	   0x0004	/** Erase eMMC partition data */
 #define UPDATE_FLAG_IGNORE_VERSION 0x0008 /** Don't perform version check */
+#define UPDATE_FLAG_FORCE_WRITE		BIT(4)
+/** Erase configuration data after update */
+#define UPDATE_FLAG_ERASE_CONFIG	BIT(5)
+/** Log update progress */
+#define UPDATE_FLAG_LOG_PROGRESS	BIT(6)
 /** Set when user parameters are passed */
 #define UPDATE_FLAG_USER_PARMS	0x8000
 
@@ -241,6 +260,25 @@ struct smc_update_descriptor {
 	uint32_t	output_console_size;/** Console buffer size in bytes */
 	uint32_t	output_console_end;/** Not used yet */
 	uint64_t	reserved2[8];
+	struct smc_update_obj_info object_retinfo[SMC_MAX_OBJECTS];
+};
+
+
+struct smc_update_descriptor_prev {
+	uint32_t	magic;		/** UPDATE_MAGIC */
+	uint16_t	version;	/** Version of descriptor */
+	uint16_t	update_flags;	/** Flags passed to update process */
+	uint64_t	image_addr;	/** Address of image (CPIO file) */
+	uint64_t	image_size;	/** Size of image (CPIO file) */
+	uint32_t	bus;		/** SPI BUS number */
+	uint32_t	cs;		/** SPI chip select number */
+	uint32_t	async_spi;      /** Async SPI operations */
+	uint32_t	reserved;	/** Space to add stuff */
+	uint64_t	user_addr;	/** Passed to customer function */
+	uint64_t	user_size;	/** Passed to customer function */
+	uint64_t	user_flags;	/** Passed to customer function */
+	uintptr_t	work_buffer;	/** Used for compressed objects */
+	uint64_t	work_buffer_size;/** Size of work buffer */
 	struct smc_update_obj_info object_retinfo[SMC_MAX_OBJECTS];
 };
 
@@ -292,7 +330,8 @@ struct mrvl_get_versions {
 	size_t    log_size;         /** Size of the log buffer */
 	uint16_t  version_flags;    /** Flags to specify options */
 	uint32_t  selected_objects; /** Mask of a selection of TIMs (32 max) */
-	uint64_t  reserved[5];	    /** Reserved for future growth */
+	uint64_t  timeout;
+	uint64_t  reserved[4];	    /** Reserved for future growth */
 	enum smc_version_ret	retcode;
 	struct smc_version_info_entry desc[SMC_MAX_VERSION_ENTRIES];
 } __packed;
@@ -315,8 +354,8 @@ struct mrvl_phys_buffer {
 	uint64_t cpio_buf_size;
 	uint64_t sign_buf;
 	uint64_t sign_buf_size;
-	uint64_t reserved_buf;
-	uint64_t reserved_buf_size;
+	uint64_t log_buf;
+	uint64_t log_buf_size;
 	uint64_t read_buf;
 	uint64_t read_buf_size;
 } __packed;

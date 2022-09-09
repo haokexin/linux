@@ -33,7 +33,7 @@
 
 #define INTR_MASK(pfvfs) ((pfvfs < 64) ? (BIT_ULL(pfvfs) - 1) : (~0ull))
 
-#define MBOX_RSP_TIMEOUT	3000 /* Time(ms) to wait for mbox response */
+#define MBOX_RSP_TIMEOUT	6000 /* Time(ms) to wait for mbox response */
 
 #define MBOX_MSG_ALIGN		16  /* Align mbox msg start to 16bytes */
 
@@ -96,9 +96,10 @@ void otx2_mbox_destroy(struct otx2_mbox *mbox);
 int otx2_mbox_init(struct otx2_mbox *mbox, void __force *hwbase,
 		   struct pci_dev *pdev, void __force *reg_base,
 		   int direction, int ndevs);
+
 int otx2_mbox_regions_init(struct otx2_mbox *mbox, void __force **hwbase,
 			   struct pci_dev *pdev, void __force *reg_base,
-			   int direction, int ndevs);
+			   int direction, int ndevs, unsigned long *bmap);
 void otx2_mbox_msg_send(struct otx2_mbox *mbox, int devid);
 int otx2_mbox_wait_for_rsp(struct otx2_mbox *mbox, int devid);
 int otx2_mbox_busy_poll_for_rsp(struct otx2_mbox *mbox, int devid);
@@ -233,6 +234,7 @@ M(CPT_STATS,            0xA05, cpt_sts, cpt_sts_req, cpt_sts_rsp)	\
 M(CPT_RXC_TIME_CFG,     0xA06, cpt_rxc_time_cfg, cpt_rxc_time_cfg_req,  \
 			       msg_rsp)                                 \
 M(CPT_CTX_CACHE_SYNC,   0xA07, cpt_ctx_cache_sync, msg_req, msg_rsp)    \
+M(CPT_LF_RESET,         0xA08, cpt_lf_reset, cpt_lf_rst_req, msg_rsp)	\
 /* REE mbox IDs (range 0xE00 - 0xFFF) */				\
 M(REE_CONFIG_LF,	0xE01, ree_config_lf, ree_lf_req_msg,		\
 				msg_rsp)				\
@@ -347,7 +349,41 @@ M(NIX_CPT_BP_ENABLE,    0x8020, nix_cpt_bp_enable, nix_bp_cfg_req,	    \
 				nix_bp_cfg_rsp)				    \
 M(NIX_CPT_BP_DISABLE,   0x8021, nix_cpt_bp_disable, nix_bp_cfg_req,	    \
 				msg_rsp)				    \
-M(NIX_RX_SW_SYNC,	0x8022, nix_rx_sw_sync, msg_req, msg_rsp)
+M(NIX_RX_SW_SYNC,	0x8022, nix_rx_sw_sync, msg_req, msg_rsp)	\
+M(NIX_READ_INLINE_IPSEC_CFG, 0x8023, nix_read_inline_ipsec_cfg,		\
+				msg_req, nix_inline_ipsec_cfg)		\
+/* MCS mbox IDs (range 0xa000 - 0xbFFF) */					\
+M(MCS_ALLOC_RESOURCES,	0xa000, mcs_alloc_resources, mcs_alloc_rsrc_req,	\
+				mcs_alloc_rsrc_rsp)				\
+M(MCS_FREE_RESOURCES,	0xa001, mcs_free_resources, mcs_free_rsrc_req, msg_rsp) \
+M(MCS_FLOWID_ENTRY_WRITE, 0xa002, mcs_flowid_entry_write, mcs_flowid_entry_write_req,	\
+				msg_rsp)					\
+M(MCS_SECY_PLCY_WRITE,	0xa003, mcs_secy_plcy_write, mcs_secy_plcy_write_req,	\
+				msg_rsp)					\
+M(MCS_RX_SC_CAM_WRITE,	0xa004, mcs_rx_sc_cam_write, mcs_rx_sc_cam_write_req,	\
+				msg_rsp)					\
+M(MCS_SA_PLCY_WRITE,	0xa005, mcs_sa_plcy_write, mcs_sa_plcy_write_req,	\
+				msg_rsp)					\
+M(MCS_TX_SC_SA_MAP_WRITE, 0xa006, mcs_tx_sc_sa_map_write, mcs_tx_sc_sa_map,	\
+				  msg_rsp)					\
+M(MCS_RX_SC_SA_MAP_WRITE, 0xa007, mcs_rx_sc_sa_map_write, mcs_rx_sc_sa_map,	\
+				  msg_rsp)					\
+M(MCS_FLOWID_ENA_ENTRY,	0xa008, mcs_flowid_ena_entry, mcs_flowid_ena_dis_entry,	\
+				msg_rsp)					\
+M(MCS_PN_TABLE_WRITE,	0xa009, mcs_pn_table_write, mcs_pn_table_write_req,	\
+				msg_rsp)					\
+M(MCS_SET_ACTIVE_LMAC,	0xa00a,	mcs_set_active_lmac, mcs_set_active_lmac,	\
+				msg_rsp)					\
+M(MCS_GET_HW_INFO,	0xa00b,	mcs_get_hw_info, msg_req, mcs_hw_info)		\
+M(MCS_GET_FLOWID_STATS, 0xa00c, mcs_get_flowid_stats, mcs_stats_req,		\
+				mcs_flowid_stats)				\
+M(MCS_GET_SECY_STATS,	0xa00d, mcs_get_secy_stats, mcs_stats_req,		\
+				mcs_secy_stats)					\
+M(MCS_GET_SC_STATS,	0xa00e, mcs_get_sc_stats, mcs_stats_req, mcs_sc_stats)	\
+M(MCS_GET_SA_STATS,	0xa00f, mcs_get_sa_stats, mcs_stats_req, mcs_sa_stats)	\
+M(MCS_GET_PORT_STATS,	0xa010, mcs_get_port_stats, mcs_stats_req,		\
+				mcs_port_stats)					\
+M(MCS_CLEAR_STATS,	0xa011,	mcs_clear_stats, mcs_clear_stats, msg_rsp)
 
 /* Messages initiated by AF (range 0xC00 - 0xDFF) */
 #define MBOX_UP_CGX_MESSAGES						\
@@ -1229,7 +1265,9 @@ struct nix_hw_info {
 	u16 min_mtu;
 	u32 rpm_dwrr_mtu;
 	u32 sdp_dwrr_mtu;
-	u64 rsvd[16]; /* Add reserved fields for future expansion */
+	u32 lbk_dwrr_mtu;
+	u32 rsvd32[1];
+	u64 rsvd[15]; /* Add reserved fields for future expansion */
 };
 
 struct nix_bandprof_alloc_req {
@@ -1269,7 +1307,7 @@ struct nix_inline_ipsec_cfg {
 	u32 cpt_credit;
 	struct {
 		u8 egrp;
-		u8 opcode;
+		u16 opcode;
 		u16 param1;
 		u16 param2;
 	} gen_cfg;
@@ -1779,8 +1817,7 @@ enum ptp_op {
 	PTP_OP_GET_CLOCK = 1,
 	PTP_OP_GET_TSTMP = 2,
 	PTP_OP_SET_THRESH = 3,
-	PTP_OP_SET_CLOCK = 4,
-	PTP_OP_ADJ_CLOCK = 5,
+	PTP_OP_EXTTS_ON = 4,
 };
 
 struct ptp_req {
@@ -1789,8 +1826,7 @@ struct ptp_req {
 	s64 scaled_ppm;
 	u8 is_pmu;
 	u64 thresh;
-	u64 nsec;
-	s64 delta;
+	int extts_on;
 };
 
 struct ptp_rsp {
@@ -1928,6 +1964,13 @@ struct cpt_inst_lmtst_req {
 	u64 rsvd;
 };
 
+/* Mailbox message format to request for CPT LF reset */
+struct cpt_lf_rst_req {
+	struct mbox_msghdr hdr;
+	u32 slot;
+	u32 rsvd;
+};
+
 /* REE mailbox error codes
  * Range 1001 - 1100.
  */
@@ -2055,6 +2098,258 @@ enum cgx_af_status {
 	LMAC_AF_ERR_8023PAUSE_ENADIS_PERM_DENIED = -1105,
 	LMAC_AF_ERR_CMD_TIMEOUT = -1106,
 	LMAC_AF_ERR_FIRMWARE_DATA_NOT_MAPPED = -1107,
+};
+
+/* MCS mbox structures */
+enum mcs_direction {
+	MCS_RX,
+	MCS_TX,
+};
+
+enum mcs_rsrc_type {
+	MCS_RSRC_TYPE_FLOWID,
+	MCS_RSRC_TYPE_SECY,
+	MCS_RSRC_TYPE_SC,
+	MCS_RSRC_TYPE_SA,
+};
+
+struct mcs_alloc_rsrc_req {
+	struct mbox_msghdr hdr;
+	u8 rsrc_type;
+	u8 rsrc_cnt;	/* Resources count */
+	u8 mcs_id;	/* MCS block ID	*/
+	u8 dir;		/* Macsec ingress or egress side */
+	u8 all;		/* Allocate all resource type one each */
+	u64 rsvd;
+};
+
+struct mcs_alloc_rsrc_rsp {
+	struct mbox_msghdr hdr;
+	u8 flow_ids[128];	/* Index of reserved entries */
+	u8 secy_ids[128];
+	u8 sc_ids[128];
+	u8 sa_ids[256];
+	u8 rsrc_type;
+	u8 rsrc_cnt;		/* No of entries reserved */
+	u8 mcs_id;
+	u8 dir;
+	u8 all;
+	u8 rsvd[256];		/* reserved fields for future expansion */
+};
+
+struct mcs_free_rsrc_req {
+	struct mbox_msghdr hdr;
+	u8 rsrc_id;		/* Index of the entry to be freed */
+	u8 rsrc_type;
+	u8 mcs_id;
+	u8 dir;
+	u8 all;			/* Free all the cam resources */
+	u64 rsvd;
+};
+
+struct mcs_flowid_entry_write_req {
+	struct mbox_msghdr hdr;
+	u64 data[4];
+	u64 mask[4];
+	u64 sci;	/* CNF10K-B for tx_secy_mem_map */
+	u8 flow_id;
+	u8 secy_id;	/* secyid for which flowid is mapped */
+	u8 sc_id;	/* Valid if dir = MCS_TX, SC_CAM id mapped to flowid */
+	u8 ena;		/* Enable tcam entry */
+	u8 ctrl_pkt;
+	u8 mcs_id;
+	u8 dir;
+	u64 rsvd;
+};
+
+struct mcs_secy_plcy_write_req {
+	struct mbox_msghdr hdr;
+	u64 plcy;
+	u8 secy_id;
+	u8 mcs_id;
+	u8 dir;
+	u64 rsvd;
+};
+
+/* RX SC_CAM mapping */
+struct mcs_rx_sc_cam_write_req {
+	struct mbox_msghdr hdr;
+	u64 sci;	/* SCI */
+	u64 secy_id;	/* secy index mapped to SC */
+	u8 sc_id;	/* SC CAM entry index */
+	u8 mcs_id;
+	u64 rsvd;
+};
+
+struct mcs_sa_plcy_write_req {
+	struct mbox_msghdr hdr;
+	u64 plcy[2][9];		/* Support 2 SA policy */
+	u8 sa_index[2];
+	u8 sa_cnt;
+	u8 mcs_id;
+	u8 dir;
+	u64 rsvd;
+};
+
+struct mcs_tx_sc_sa_map {
+	struct mbox_msghdr hdr;
+	u8 sa_index0;
+	u8 sa_index1;
+	u8 rekey_ena;
+	u8 sa_index0_vld;
+	u8 sa_index1_vld;
+	u8 tx_sa_active;
+	u64 sectag_sci;
+	u8 sc_id;	/* used as index for SA_MEM_MAP */
+	u8 mcs_id;
+	u64 rsvd;
+};
+
+struct mcs_rx_sc_sa_map {
+	struct mbox_msghdr hdr;
+	u8 sa_index;
+	u8 sa_in_use;
+	u8 sc_id;
+	u8 an;		/* value range 0-3, sc_id + an used as index SA_MEM_MAP */
+	u8 mcs_id;
+	u64 rsvd;
+};
+
+struct mcs_flowid_ena_dis_entry {
+	struct mbox_msghdr hdr;
+	u8 flow_id;
+	u8 ena;
+	u8 mcs_id;
+	u8 dir;
+	u64 rsvd;
+};
+
+struct mcs_pn_table_write_req {
+	struct mbox_msghdr hdr;
+	u64 next_pn;
+	u8 pn_id;
+	u8 mcs_id;
+	u8 dir;
+	u64 rsvd;
+};
+
+struct mcs_hw_info {
+	struct mbox_msghdr hdr;
+	u8 num_mcs_blks;	/* Number of MCS blocks */
+	u8 tcam_entries;	/* RX/TX Tcam entries per mcs block */
+	u8 secy_entries;	/* RX/TX SECY entries per mcs block */
+	u8 sc_entries;		/* RX/TX SC CAM entries per mcs block */
+	u8 sa_entries;		/* PN table entries = SA entries */
+	u64 rsvd[16];
+};
+
+struct mcs_set_active_lmac {
+	struct mbox_msghdr hdr;
+	u32 lmac_bmap;	/* bitmap of active lmac per mcs block */
+	u8 mcs_id;
+	u64 rsvd;
+};
+
+struct mcs_stats_req {
+	struct mbox_msghdr hdr;
+	u8 id;
+	u8 mcs_id;
+	u8 dir;
+	u64 rsvd;
+};
+
+struct mcs_flowid_stats {
+	struct mbox_msghdr hdr;
+	u64 tcam_hit_cnt;
+	u64 rsvd;
+};
+
+struct mcs_secy_stats {
+	struct mbox_msghdr hdr;
+	u64 ctl_pkt_bcast_cnt;
+	u64 ctl_pkt_mcast_cnt;
+	u64 ctl_pkt_ucast_cnt;
+	u64 ctl_octet_cnt;
+	u64 unctl_pkt_bcast_cnt;
+	u64 unctl_pkt_mcast_cnt;
+	u64 unctl_pkt_ucast_cnt;
+	u64 unctl_octet_cnt;
+	/* Valid only for RX */
+	u64 octet_decrypted_cnt;
+	u64 octet_validated_cnt;
+	u64 pkt_port_disabled_cnt;
+	u64 pkt_badtag_cnt;
+	u64 pkt_nosa_cnt;
+	u64 pkt_nosaerror_cnt;
+	u64 pkt_tagged_ctl_cnt;
+	u64 pkt_untaged_cnt;
+	u64 pkt_ctl_cnt;	/* CN10K-B */
+	u64 pkt_notag_cnt;	/* CNF10K-B */
+	/* Valid only for TX */
+	u64 octet_encrypted_cnt;
+	u64 octet_protected_cnt;
+	u64 pkt_noactivesa_cnt;
+	u64 pkt_toolong_cnt;
+	u64 pkt_untagged_cnt;
+	u64 rsvd[4];
+};
+
+struct mcs_port_stats {
+	struct mbox_msghdr hdr;
+	u64 tcam_miss_cnt;
+	u64 parser_err_cnt;
+	u64 preempt_err_cnt;  /* CNF10K-B */
+	u64 sectag_insert_err_cnt;
+	u64 rsvd[4];
+};
+
+/* Only for CN10K-B */
+struct mcs_sa_stats {
+	struct mbox_msghdr hdr;
+	/* RX */
+	u64 pkt_invalid_cnt;
+	u64 pkt_nosaerror_cnt;
+	u64 pkt_notvalid_cnt;
+	u64 pkt_ok_cnt;
+	u64 pkt_nosa_cnt;
+	/* TX */
+	u64 pkt_encrypt_cnt;
+	u64 pkt_protected_cnt;
+	u64 rsvd[4];
+};
+
+struct mcs_sc_stats {
+	struct mbox_msghdr hdr;
+	/* RX */
+	u64 hit_cnt;
+	u64 pkt_invalid_cnt;
+	u64 pkt_late_cnt;
+	u64 pkt_notvalid_cnt;
+	u64 pkt_unchecked_cnt;
+	u64 pkt_delay_cnt;	/* CNF10K-B */
+	u64 pkt_ok_cnt;		/* CNF10K-B */
+	u64 octet_decrypt_cnt;	/* CN10K-B */
+	u64 octet_validate_cnt;	/* CN10K-B */
+	/* TX */
+	u64 pkt_encrypt_cnt;
+	u64 pkt_protected_cnt;
+	u64 octet_encrypt_cnt;		/* CN10K-B */
+	u64 octet_protected_cnt;	/* CN10K-B */
+	u64 rsvd[4];
+};
+
+struct mcs_clear_stats {
+	struct mbox_msghdr hdr;
+#define MCS_FLOWID_STATS	0
+#define MCS_SECY_STATS		1
+#define MCS_SC_STATS		2
+#define MCS_SA_STATS		3
+#define MCS_PORT_STATS		4
+	u8 type;	/* FLOWID, SECY, SC, SA, PORT */
+	u8 id;		/* type = PORT, If id = FF(invalid) port no is derived from pcifunc */
+	u8 mcs_id;
+	u8 dir;
+	u8 all;		/* All resources stats mapped to PF are cleared */
 };
 
 #endif /* MBOX_H */

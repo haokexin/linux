@@ -62,6 +62,7 @@ struct otx2_cpri_stats {
 	u64				undersize;
 	u64				fifo_ovr;
 	u64				rx_dropped;
+	u64				rx_bad_octets;
 	/* Tx */
 	u64				tx_frames;
 	u64				tx_octets;
@@ -128,12 +129,13 @@ struct otx2_cpri_ndev_priv {
 	unsigned long			last_rx_jiffies;
 	unsigned long			last_tx_dropped_jiffies;
 	unsigned long			last_rx_dropped_jiffies;
+	bool				gp_int_disabled;
 };
 
 int otx2_cpri_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 				  struct bphy_netdev_comm_intf_cfg *cfg);
 
-void otx2_cpri_rx_napi_schedule(int cpri_num, u32 status);
+bool otx2_cpri_rx_napi_schedule(int cpri_num, u32 status);
 
 void otx2_cpri_update_stats(struct otx2_cpri_ndev_priv *priv);
 

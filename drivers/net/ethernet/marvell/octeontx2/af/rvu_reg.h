@@ -267,6 +267,7 @@
 #define NIX_AF_RX_LINKX_CFG(a)		(0x0540 | (a) << 16)
 #define NIX_AF_RX_SW_SYNC		(0x0550)
 #define NIX_AF_RX_SW_SYNC_DONE		(0x0560)
+#define NIX_AF_RQM_ECO			(0x05A0)
 #define NIX_AF_SEB_ECO			(0x0600)
 #define NIX_AF_SEB_TEST_BP		(0x0610)
 #define NIX_AF_NORM_TX_FIFO_STATUS	(0x0620)
@@ -280,8 +281,9 @@
 #define NIX_AF_SMQX_CFG(a)                      (0x700 | (a) << 16)
 #define NIX_AF_SMQX_STATUS(a)			(0x730 | (a) << 16)
 #define NIX_AF_SQM_DBG_CTL_STATUS               (0x750)
-#define NIX_AF_DWRR_SDP_MTU                     (0x790)
+#define NIX_AF_DWRR_SDP_MTU                     (0x790)  /* All CN10K except CN10KB */
 #define NIX_AF_DWRR_RPM_MTU                     (0x7A0)
+#define NIX_AF_DWRR_MTUX(a)			(0x790 | (a) << 16) /* Only for CN10KB */
 #define NIX_AF_PSE_CHANNEL_LEVEL                (0x800)
 #define NIX_AF_PSE_SHAPER_CFG                   (0x810)
 #define NIX_AF_MARK_FORMATX_CTL(a)              (0x900 | (a) << 18)
@@ -1050,6 +1052,7 @@
 #define NDC_AF_INTR_ENA_W1S		(0x00068)
 #define NDC_AF_INTR_ENA_W1C		(0x00070)
 #define NDC_AF_ACTIVE_PC		(0x00078)
+#define NDC_AF_CAMS_RD_INTERVAL		(0x00080)
 #define NDC_AF_BP_TEST_ENABLE		(0x001F8)
 #define NDC_AF_BP_TEST(a)		(0x00200 | (a) << 3)
 #define NDC_AF_BLK_RST			(0x002F0)
@@ -1065,6 +1068,8 @@
 		(0x00F00 | (a) << 5 | (b) << 4)
 #define NDC_AF_BANKX_HIT_PC(a)		(0x01000 | (a) << 3)
 #define NDC_AF_BANKX_MISS_PC(a)		(0x01100 | (a) << 3)
+#define NDC_AF_BANKX_LINEX_METADATA(a, b) \
+		(0x10000 | (a) << 3 | (b) << 3)
 
 /* LBK */
 #define LBK_CONST			(0x10ull)

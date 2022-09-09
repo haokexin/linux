@@ -145,6 +145,13 @@ enum nix_scheduler {
 #define TXSCH_TL1_DFLT_RR_PRIO		(0x9ull)
 #define CN10K_MAX_DWRR_WEIGHT          16384 /* Weight is 14bit on CN10K */
 
+/* Don't change the order as on CN10K (except CN10KB)
+ * SMQX_CFG[SDP] value should be 1 for SDP flows.
+ */
+#define SMQ_LINK_TYPE_RPM		0
+#define SMQ_LINK_TYPE_SDP		1
+#define SMQ_LINK_TYPE_LBK		2
+
 /* Min/Max packet sizes, excluding FCS */
 #define	NIC_HW_MIN_FRS			40
 #define	NIC_HW_MAX_FRS			9212
@@ -235,5 +242,8 @@ enum ndc_ctype_e {
 #define NDC_MAX_PORT 6
 #define NDC_READ_TRANS 0
 #define NDC_WRITE_TRANS 1
+
+/* SSO max timeout to drain queues in ms */
+#define SSO_FLUSH_TMO_MAX 60000 /* 1 minute */
 
 #endif /* COMMON_H */

@@ -72,7 +72,7 @@ static irqreturn_t cnf10k_gpint2_intr_handler(int irq, void *dev_id)
 		intr_mask = CNF10K_CPRI_RX_INTR_MASK(cpri_num);
 		if (status & intr_mask) {
 			/* clear UL ETH interrupt */
-			writeq(0x1, cpri_reg_base + CPRIX_ETH_UL_INT(cpri_num));
+			writeq(0x1, cpri_reg_base + CNF10K_CPRIX_ETH_UL_INT(cpri_num));
 			cnf10k_cpri_rx_napi_schedule(cpri_num, status);
 		}
 	}
@@ -114,9 +114,10 @@ static irqreturn_t otx2_bphy_intr_handler(int irq, void *dev_id)
 	for (cpri_num = 0; cpri_num < OTX2_BPHY_CPRI_MAX_MHAB; cpri_num++) {
 		intr_mask = CPRI_RX_INTR_MASK(cpri_num);
 		if (status & intr_mask) {
-			/* clear UL ETH interrupt */
-			writeq(0x1, cpri_reg_base + CPRIX_ETH_UL_INT(cpri_num));
-			otx2_cpri_rx_napi_schedule(cpri_num, status);
+			if (!otx2_cpri_rx_napi_schedule(cpri_num, status))
+				/* clear UL ETH interrupt */
+				writeq(0x1, cpri_reg_base +
+				       CPRIX_ETH_UL_INT(cpri_num));
 		}
 	}
 
@@ -478,9 +479,11 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 	}
 	case OTX2_RFOE_IOCTL_LINK_EVENT:
 	{
+		struct cnf10k_rfoe_drv_ctx *cnf10k_drv_ctx = NULL;
 		struct otx2_rfoe_drv_ctx *drv_ctx = NULL;
 		struct otx2_rfoe_link_event cfg;
 		struct net_device *netdev;
+		int max_interfaces = 0;
 		int idx;
 
 		if (!cdev->odp_intf_cfg) {
@@ -494,28 +497,51 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 			ret = -EFAULT;
 			goto out;
 		}
-		for (idx = 0; idx < RFOE_MAX_INTF; idx++) {
-			drv_ctx = &rfoe_drv_ctx[idx];
-			if (drv_ctx->valid &&
-			    drv_ctx->rfoe_num == cfg.rfoe_num &&
-			    drv_ctx->lmac_id == cfg.lmac_id)
-				break;
+		if (CHIP_CNF10K(cdev->hw_version)) {
+			max_interfaces = CNF10K_RFOE_MAX_INTF;
+			for (idx = 0; idx < CNF10K_RFOE_MAX_INTF; idx++) {
+				cnf10k_drv_ctx = &cnf10k_rfoe_drv_ctx[idx];
+				if (cnf10k_drv_ctx->valid &&
+				    cnf10k_drv_ctx->rfoe_num == cfg.rfoe_num &&
+				    cnf10k_drv_ctx->lmac_id == cfg.lmac_id)
+					break;
+			}
+
+			if (idx < max_interfaces) {
+				netdev = cnf10k_drv_ctx->netdev;
+				cnf10k_rfoe_set_link_state(netdev,
+							   cfg.link_state);
+			}
+		} else {
+			max_interfaces = RFOE_MAX_INTF;
+			for (idx = 0; idx < RFOE_MAX_INTF; idx++) {
+				drv_ctx = &rfoe_drv_ctx[idx];
+				if (drv_ctx->valid &&
+				    drv_ctx->rfoe_num == cfg.rfoe_num &&
+				    drv_ctx->lmac_id == cfg.lmac_id)
+					break;
+			}
+			if (idx < max_interfaces) {
+				netdev = drv_ctx->netdev;
+				otx2_rfoe_set_link_state(netdev,
+							 cfg.link_state);
+			}
 		}
-		if (idx >= RFOE_MAX_INTF) {
+		if (idx >= max_interfaces) {
 			dev_err(cdev->dev, "drv ctx not found\n");
 			ret = -EINVAL;
 			goto out;
 		}
-		netdev = drv_ctx->netdev;
-		otx2_rfoe_set_link_state(netdev, cfg.link_state);
 		ret = 0;
 		goto out;
 	}
 	case OTX2_CPRI_IOCTL_LINK_EVENT:
 	{
+		struct cnf10k_cpri_drv_ctx *cnf10k_drv_ctx = NULL;
 		struct otx2_cpri_drv_ctx *drv_ctx = NULL;
 		struct otx2_cpri_link_event cfg;
 		struct net_device *netdev;
+		int max_interfaces;
 		int idx;
 
 		if (!cdev->odp_intf_cfg) {
@@ -529,20 +555,40 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 			ret = -EFAULT;
 			goto out;
 		}
-		for (idx = 0; idx < OTX2_BPHY_CPRI_MAX_INTF; idx++) {
-			drv_ctx = &cpri_drv_ctx[idx];
-			if (drv_ctx->valid &&
-			    drv_ctx->cpri_num == cfg.cpri_num &&
-			    drv_ctx->lmac_id == cfg.lmac_id)
-				break;
+		if (CHIP_CNF10K(cdev->hw_version)) {
+			max_interfaces = CNF10K_BPHY_CPRI_MAX_INTF;
+			for (idx = 0; idx < CNF10K_BPHY_CPRI_MAX_INTF; idx++) {
+				cnf10k_drv_ctx = &cnf10k_cpri_drv_ctx[idx];
+				if (cnf10k_drv_ctx->valid &&
+				    cnf10k_drv_ctx->cpri_num == cfg.cpri_num &&
+				    cnf10k_drv_ctx->lmac_id == cfg.lmac_id)
+					break;
+			}
+			if (idx < max_interfaces) {
+				netdev = cnf10k_cpri_drv_ctx->netdev;
+				cnf10k_cpri_set_link_state(netdev,
+							   cfg.link_state);
+			}
+		} else {
+			max_interfaces = OTX2_BPHY_CPRI_MAX_INTF;
+			for (idx = 0; idx < OTX2_BPHY_CPRI_MAX_INTF; idx++) {
+				drv_ctx = &cpri_drv_ctx[idx];
+				if (drv_ctx->valid &&
+				    drv_ctx->cpri_num == cfg.cpri_num &&
+				    drv_ctx->lmac_id == cfg.lmac_id)
+					break;
+			}
+			if (idx < max_interfaces) {
+				netdev = drv_ctx->netdev;
+				otx2_cpri_set_link_state(netdev,
+							 cfg.link_state);
+			}
 		}
-		if (idx >= OTX2_BPHY_CPRI_MAX_INTF) {
+		if (idx >= max_interfaces) {
 			dev_err(cdev->dev, "drv ctx not found\n");
 			ret = -EINVAL;
 			goto out;
 		}
-		netdev = drv_ctx->netdev;
-		otx2_cpri_set_link_state(netdev, cfg.link_state);
 		ret = 0;
 		goto out;
 	}
@@ -867,7 +913,7 @@ static int otx2_bphy_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "irq resource not found\n");
 		goto out_unmap_cpri_reg;
 	}
-	cdev_priv->gpint2_irq = platform_get_irq(pdev, 1);
+	cdev_priv->gpint2_irq = platform_get_irq_optional(pdev, 1);
 	if (cdev_priv->gpint2_irq < 0)
 		cdev_priv->gpint2_irq = 0;
 	else
@@ -931,6 +977,9 @@ static int otx2_bphy_probe(struct platform_device *pdev)
 			goto free_irq;
 		}
 	}
+
+	if (bphy_pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
+		bcn_ptp_start();
 
 	err = 0;
 	goto out;

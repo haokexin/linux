@@ -9,6 +9,7 @@
 
 #include <linux/of_address.h>
 #include <linux/arm_sdei.h>
+#include <acpi/acpi_io.h>
 #include <acpi/apei.h>
 #include <linux/arm-smccc.h>
 #include "edac_mc.h"
@@ -190,10 +191,14 @@ static void octeontx_edac_mc_sdei_wq(struct work_struct *work)
 	struct octeontx_edac_mc_record rec;
 	enum hw_event_mc_err_type type;
 	struct mem_ctl_info *mci;
+	static DEFINE_RAW_SPINLOCK(edac_lock_sdei);
 	struct octeontx_edac_ghes *gsrc =
 			container_of(work, struct octeontx_edac_ghes, mc_work);
-	u32 head = gsrc->ring->head;
-	u32 tail = gsrc->ring->tail;
+	u32 head, tail;
+
+	raw_spin_lock(&edac_lock_sdei);
+	head = gsrc->ring->head;
+	tail = gsrc->ring->tail;
 
 	otx_printk(KERN_DEBUG, "%s:[%08x] %llx, tail=%d, head=%d, size=%d, sign=%x\n",
 			gsrc->name, gsrc->id, (long long)gsrc->esb_va, tail, head,
@@ -202,8 +207,10 @@ static void octeontx_edac_mc_sdei_wq(struct work_struct *work)
 	/*Ensure that head updated*/
 	rmb();
 
-	if (head == tail)
+	if (head == tail) {
+		raw_spin_unlock(&edac_lock_sdei);
 		return;
+	}
 
 	ring = &gsrc->ring->records[tail];
 	mci = gsrc->mci;
@@ -240,7 +247,7 @@ static void octeontx_edac_mc_sdei_wq(struct work_struct *work)
 			offset_in_page(rec.cper.mem.physical_addr),
 			0, -1, -1, -1, ring->fru_text, mci->ctl_name);
 
-	if (acpi_disabled) {
+	if (acpi_disabled && IS_ENABLED(CONFIG_ACPI)) {
 		cper_estatus_print(HW_ERR, &rec.estatus);
 	} else {
 		memcpy_toio(gsrc->esb_va->gdata.fru_text, rec.gdata.fru_text,
@@ -257,6 +264,8 @@ static void octeontx_edac_mc_sdei_wq(struct work_struct *work)
 
 	/*Ensure that head updated*/
 	wmb();
+
+	raw_spin_unlock(&edac_lock_sdei);
 
 	if (head != tail)
 		schedule_work(&gsrc->mc_work);
@@ -729,7 +738,8 @@ static int __init octeontx_edac_ghes_probe(struct platform_device *pdev)
 		ret = octeontx_edac_ghes_acpi_match_resource(pdev);
 	} else {
 		otx_printk(KERN_DEBUG, "%s DeviceTree\n", __func__);
-		acpi_permanent_mmap = true;
+		if (IS_ENABLED(CONFIG_ACPI))
+			acpi_permanent_mmap = true;
 		set_bit(EFI_MEMMAP, &efi.flags);
 		ret = octeontx_edac_ghes_of_match_resource(pdev);
 	}
