@@ -57,11 +57,7 @@ struct octeontx_pcie_console_nexus {
 	arch_spinlock_t            excl_lock;
 	__le32 /* volatile */ in_use;
 	__le32 /* volatile */ exclusive;
-#ifdef CONFIG_PREEMPT_RT
-	u32                   pad[15];
-#else
-	u32                   pad[13 * 2];
-#endif
+	u8                    pad[108 - sizeof(arch_spinlock_t)];
 	/* Starts at offset 128 */
 	__le64                console_addr[OCTEONTX_PCIE_MAX_CONSOLES];
 } __packed;
