@@ -3635,7 +3635,7 @@ static int tsn_multicast_to_user(unsigned long event,
 	int res = 0;
 
 	/* If new attributes are added, please revisit this allocation */
-	skb = genlmsg_new(sizeof(*tsn_info), GFP_KERNEL);
+	skb = genlmsg_new(sizeof(*tsn_info), GFP_ATOMIC);
 	if (!skb) {
 		pr_err("Allocation failure.\n");
 		return -ENOMEM;
@@ -3643,7 +3643,7 @@ static int tsn_multicast_to_user(unsigned long event,
 
 	switch (event) {
 	case TSN_QBV_CONFIGCHANGETIME_ARRIVE:
-		nlh = genlmsg_put(skb, 0, 1, &tsn_family, 0, TSN_CMD_QBV_SET);
+		nlh = genlmsg_put(skb, 0, 1, &tsn_family, GFP_ATOMIC, TSN_CMD_QBV_SET);
 		qbvdata = &tsn_info->ntdata.qbv_notify;
 		res = NLA_PUT_U64(skb, TSN_QBV_ATTR_CTRL_BASETIME,
 				  qbvdata->admin.base_time);
@@ -3690,7 +3690,7 @@ static int tsn_multicast_to_user(unsigned long event,
 	(void)genlmsg_end(skb, nlh);
 
 	res = genlmsg_multicast_allns(&tsn_family, skb, 0,
-				      TSN_MCGRP_QBV, GFP_KERNEL);
+				      TSN_MCGRP_QBV, GFP_ATOMIC);
 	skb = NULL;
 	if (res && res != -ESRCH) {
 		pr_err("genlmsg_multicast_allns error: %d\n", res);
