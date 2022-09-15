@@ -141,7 +141,7 @@ err:
 
 static int __init ghes_bed_map_resource(struct device *dev, struct mrvl_bed_source *bsrc)
 {
-	if (pfn_valid(PHYS_PFN(bsrc->block_pa))) {
+	if (memblock_is_map_memory(bsrc->block_pa)) {
 		bsrc->block_va = phys_to_virt(bsrc->block_pa);
 	} else {
 		if (!devm_request_mem_region(dev, bsrc->block_pa, bsrc->block_sz, "BERT")) {
@@ -156,7 +156,7 @@ static int __init ghes_bed_map_resource(struct device *dev, struct mrvl_bed_sour
 	}
 	initdbgmsg("%s Ring block VA=0x%llx\n", __func__, (long long)bsrc->block_va);
 
-	if (pfn_valid(PHYS_PFN(bsrc->bert_pa))) {
+	if (memblock_is_map_memory(bsrc->bert_pa)) {
 		bsrc->bert_va = phys_to_virt(bsrc->bert_pa);
 	} else {
 		if (!devm_request_mem_region(dev, bsrc->bert_pa, bsrc->bert_sz, "BERT")) {
