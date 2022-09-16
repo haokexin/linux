@@ -8,6 +8,7 @@
 #include <linux/of_platform.h>
 #include <linux/of_mdio.h>
 #include <linux/of_net.h>
+#include <linux/of.h>
 #include <linux/pcs-lynx.h>
 #include "enetc_ierb.h"
 #include "enetc_pf.h"
@@ -766,6 +767,8 @@ static int enetc_pf_probe(struct pci_dev *pdev,
 	struct enetc_si *si;
 	struct enetc_pf *pf;
 	int err;
+	struct fwnode_handle *phy_fwnode;
+	struct phy_device *phy_dev;
 
 	err = enetc_pf_register_with_ierb(pdev);
 	if (err == -EPROBE_DEFER)
@@ -847,6 +850,11 @@ static int enetc_pf_probe(struct pci_dev *pdev,
 
 	enetc_tsn_pf_init(ndev, pdev);
 
+	phy_fwnode = fwnode_get_phy_node(of_fwnode_handle(priv->dev->of_node));
+	phy_dev = fwnode_phy_find_device(phy_fwnode);
+	if (phy_dev)
+		phy_dev->mac_managed_pm = 1;
+
 	return 0;
 
 err_reg_netdev:
@@ -896,6 +904,62 @@ static void enetc_pf_remove(struct pci_dev *pdev)
 	enetc_psi_destroy(pdev);
 }
 
+static int enetc_pf_resume(struct device *dev)
+{
+	struct enetc_si *si = dev_get_drvdata(dev);
+	struct net_device *netdev = si->ndev;
+	struct enetc_ndev_priv *priv = netdev_priv(netdev);
+	struct fwnode_handle *phy_fwnode;
+	struct phy_device *phy_dev;
+
+	if (!netdev)
+		return 0;
+
+	rtnl_lock();
+
+	if (!netif_running(netdev)) {
+		rtnl_unlock();
+		return 0;
+	}
+
+	phy_fwnode = fwnode_get_phy_node(of_fwnode_handle(priv->dev->of_node));
+	phy_dev = fwnode_phy_find_device(phy_fwnode);
+	if (phy_dev)
+		phy_init_hw(phy_dev);
+	enetc_start(netdev);
+
+	rtnl_unlock();
+
+	return 0;
+}
+
+static int enetc_pf_suspend(struct device *dev)
+{
+	struct enetc_si *si = dev_get_drvdata(dev);
+	struct net_device *netdev = si->ndev;
+
+	if (!netdev)
+		return 0;
+
+	rtnl_lock();
+
+	if (!netif_running(netdev)) {
+		rtnl_unlock();
+		return 0;
+	}
+
+	enetc_stop(netdev);
+
+	rtnl_unlock();
+
+	return 0;
+}
+
+static const struct dev_pm_ops enetc_pf_pm_ops = {
+	.suspend	= enetc_pf_suspend,
+	.resume		= enetc_pf_resume,
+};
+
 static void enetc_fixup_clear_rss_rfs(struct pci_dev *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
@@ -928,6 +992,9 @@ static struct pci_driver enetc_pf_driver = {
 #ifdef CONFIG_PCI_IOV
 	.sriov_configure = enetc_sriov_configure,
 #endif
+	.driver	= {
+		.pm	= &enetc_pf_pm_ops,
+	},
 };
 module_pci_driver(enetc_pf_driver);
 
