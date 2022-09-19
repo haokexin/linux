@@ -761,6 +761,13 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.desc = "MARVELL erratum 38627",
 		.capability = ARM64_WORKAROUND_MRVL_38627,
 		ERRATA_MIDR_RANGE_LIST(marvell_erratum_38627_cpus),
+#ifdef CONFIG_ARM64_ERRATUM_2457168
+	{
+		.desc = "ARM erratum 2457168",
+		.capability = ARM64_WORKAROUND_2457168,
+		.type = ARM64_CPUCAP_WEAK_LOCAL_CPU_FEATURE,
+		/* Cortex-A510 r0p0-r1p1 */
+		CAP_MIDR_RANGE(MIDR_CORTEX_A510, 0, 0, 1, 1)
 	},
 #endif
 	{
