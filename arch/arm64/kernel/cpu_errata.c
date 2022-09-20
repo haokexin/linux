@@ -761,6 +761,8 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.desc = "MARVELL erratum 38627",
 		.capability = ARM64_WORKAROUND_MRVL_38627,
 		ERRATA_MIDR_RANGE_LIST(marvell_erratum_38627_cpus),
+	},
+#endif
 #ifdef CONFIG_ARM64_ERRATUM_2457168
 	{
 		.desc = "ARM erratum 2457168",
