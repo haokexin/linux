@@ -3219,6 +3219,7 @@ static ssize_t rvu_dbg_cpt_engines_info_write(struct file *filp,
 static int cgx_print_stats(struct seq_file *s, int lmac_id)
 {
 	struct cgx_link_user_info linfo;
+	struct cgx_fec_stats_rsp fec_rsp;
 	struct mac_ops *mac_ops;
 	void *cgxd = s->private;
 	u64 ucast, mcast, bcast;
@@ -3318,6 +3319,16 @@ static int cgx_print_stats(struct seq_file *s, int lmac_id)
 				   tx_stat);
 		stat++;
 	}
+
+	fec_rsp.fec_corr_blks = 0;
+	fec_rsp.fec_uncorr_blks = 0;
+
+	seq_printf(s, "\n=======%s FEC_STATS======\n\n", mac_ops->name);
+	err = mac_ops->get_fec_stats(cgxd, lmac_id, &fec_rsp);
+	if (err)
+		return err;
+	seq_printf(s, "Fec Corrected Errors:  %llu\n",  fec_rsp.fec_corr_blks);
+	seq_printf(s, "Fec Uncorrected Errors: %llu\n", fec_rsp.fec_uncorr_blks);
 
 	return err;
 }
