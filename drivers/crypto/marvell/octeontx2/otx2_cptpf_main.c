@@ -499,6 +499,32 @@ static void cptpf_afpf_mbox_destroy(struct otx2_cptpf_dev *cptpf)
 	otx2_mbox_destroy(&cptpf->afpf_mbox_up);
 }
 
+static ssize_t sso_pf_func_ovrd_show(struct device *dev,
+				     struct device_attribute *attr, char *buf)
+{
+	struct otx2_cptpf_dev *cptpf = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", cptpf->sso_pf_func_ovrd);
+}
+
+static ssize_t sso_pf_func_ovrd_store(struct device *dev,
+				      struct device_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct otx2_cptpf_dev *cptpf = dev_get_drvdata(dev);
+	u8 sso_pf_func_ovrd;
+
+	if (!(cptpf->pdev->revision == CPT_UC_RID_CN9K_B0))
+		return count;
+
+	if (kstrtou8(buf, 0, &sso_pf_func_ovrd))
+		return -EINVAL;
+
+	cptpf->sso_pf_func_ovrd = sso_pf_func_ovrd;
+
+	return count;
+}
+
 static ssize_t kvf_limits_show(struct device *dev,
 			       struct device_attribute *attr, char *buf)
 {
@@ -615,32 +641,6 @@ static int cptpf_device_init(struct otx2_cptpf_dev *cptpf)
 	ret = otx2_cpt_disable_all_cores(cptpf);
 
 	return ret;
-}
-
-static ssize_t sso_pf_func_ovrd_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
-{
-	struct otx2_cptpf_dev *cptpf = dev_get_drvdata(dev);
-
-	return sprintf(buf, "%d\n", cptpf->sso_pf_func_ovrd);
-}
-
-static ssize_t sso_pf_func_ovrd_store(struct device *dev,
-				      struct device_attribute *attr,
-				      const char *buf, size_t count)
-{
-	struct otx2_cptpf_dev *cptpf = dev_get_drvdata(dev);
-	u8 sso_pf_func_ovrd;
-
-	if (!(cptpf->pdev->revision == CPT_UC_RID_CN9K_B0))
-		return count;
-
-	if (kstrtou8(buf, 0, &sso_pf_func_ovrd))
-		return -EINVAL;
-
-	cptpf->sso_pf_func_ovrd = sso_pf_func_ovrd;
-
-	return count;
 }
 
 static int cptpf_sriov_disable(struct pci_dev *pdev)
