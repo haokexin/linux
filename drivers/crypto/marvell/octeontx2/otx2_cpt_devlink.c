@@ -106,13 +106,13 @@ int otx2_cpt_register_dl(struct otx2_cptpf_dev *cptpf)
 	int err;
 
 	dl = devlink_alloc(&otx2_cpt_devlink_ops,
-			   sizeof(struct otx2_cpt_devlink));
+			   sizeof(struct otx2_cpt_devlink), dev);
 	if (!dl) {
 		dev_warn(dev, "devlink_alloc failed\n");
 		return -ENOMEM;
 	}
 
-	err = devlink_register(dl, dev);
+	err = devlink_register(dl);
 	if (err) {
 		dev_err(dev, "devlink register failed with error %d\n", err);
 		goto dl_free;
