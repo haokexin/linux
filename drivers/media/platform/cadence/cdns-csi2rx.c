@@ -92,6 +92,7 @@ struct csi2rx_priv {
 	u8				max_lanes;
 	u8				max_streams;
 	bool				has_internal_dphy;
+	struct v4l2_mbus_framefmt	fmt;
 
 	struct v4l2_subdev		subdev;
 	struct v4l2_async_notifier	notifier;
@@ -169,16 +170,22 @@ static const struct csi2rx_fmt formats[] = {
 	},
 };
 
+static const struct csi2rx_fmt *csi2rx_get_fmt_by_code(u32 code)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(formats); i++)
+		if (formats[i].code == code)
+			return &formats[i];
+
+	return NULL;
+}
+
 static u8 csi2rx_get_bpp(u32 code)
 {
-	int i;
+	const struct csi2rx_fmt *fmt = csi2rx_get_fmt_by_code(code);
 
-	for (i = 0; i < ARRAY_SIZE(formats); i++) {
-		if (formats[i].code == code)
-			return formats[i].bpp;
-	}
-
-	return 0;
+	return (fmt) ? fmt->bpp : 0;
 }
 
 static int csi2rx_get_frame_desc_from_source(struct csi2rx_priv *csi2rx,
@@ -186,7 +193,7 @@ static int csi2rx_get_frame_desc_from_source(struct csi2rx_priv *csi2rx,
 {
 	struct media_pad *remote_pad;
 
-	remote_pad = media_entity_remote_pad(&csi2rx->pads[CSI2RX_PAD_SINK]);
+	remote_pad = media_pad_remote_pad_first(&csi2rx->pads[CSI2RX_PAD_SINK]);
 	if (!remote_pad) {
 		dev_err(csi2rx->dev, "No remote pad found for sink\n");
 		return -ENODEV;
@@ -502,11 +509,98 @@ static int csi2rx_get_frame_desc(struct v4l2_subdev *subdev, unsigned int pad,
 	return csi2rx_get_frame_desc_from_source(csi2rx, fd);
 }
 
+static struct v4l2_mbus_framefmt *
+csi2rx_get_pad_format(struct csi2rx_priv *csi2rx,
+		      struct v4l2_subdev_state *state,
+		      unsigned int pad, u32 which)
+{
+	switch (which) {
+	case V4L2_SUBDEV_FORMAT_TRY:
+		return v4l2_subdev_get_try_format(&csi2rx->subdev, state, pad);
+	case V4L2_SUBDEV_FORMAT_ACTIVE:
+		return &csi2rx->fmt;
+	default:
+		return NULL;
+	}
+}
+
+static int csi2rx_get_fmt(struct v4l2_subdev *subdev,
+			  struct v4l2_subdev_state *state,
+			  struct v4l2_subdev_format *format)
+{
+	struct csi2rx_priv *csi2rx = v4l2_subdev_to_csi2rx(subdev);
+	struct v4l2_mbus_framefmt *framefmt;
+
+	framefmt = csi2rx_get_pad_format(csi2rx, state, format->pad,
+					 format->which);
+	if (!framefmt)
+		return -EINVAL;
+
+	mutex_lock(&csi2rx->lock);
+	format->format = *framefmt;
+	mutex_unlock(&csi2rx->lock);
+
+	return 0;
+}
+
+static int csi2rx_set_fmt(struct v4l2_subdev *subdev,
+			  struct v4l2_subdev_state *state,
+			  struct v4l2_subdev_format *format)
+{
+	struct csi2rx_priv *csi2rx = v4l2_subdev_to_csi2rx(subdev);
+	struct v4l2_mbus_framefmt *framefmt;
+
+	/* No transcoding, source and sink formats must match. */
+	if (format->pad != CSI2RX_PAD_SINK)
+		return csi2rx_get_fmt(subdev, state, format);
+
+	if (!csi2rx_get_fmt_by_code(format->format.code))
+		format->format.code = formats[0].code;
+
+	format->format.field = V4L2_FIELD_NONE;
+
+	framefmt = csi2rx_get_pad_format(csi2rx, state, format->pad,
+					 format->which);
+	if (!framefmt)
+		return -EINVAL;
+
+	mutex_lock(&csi2rx->lock);
+	*framefmt = format->format;
+	mutex_unlock(&csi2rx->lock);
+
+	return 0;
+}
+
+static int csi2rx_init_cfg(struct v4l2_subdev *subdev,
+			   struct v4l2_subdev_state *state)
+{
+	struct v4l2_subdev_format format = {
+		.which = state ? V4L2_SUBDEV_FORMAT_TRY
+			: V4L2_SUBDEV_FORMAT_ACTIVE,
+		.pad = CSI2RX_PAD_SINK,
+		.format = {
+			.width = 640,
+			.height = 480,
+			.code = MEDIA_BUS_FMT_UYVY8_2X8,
+			.field = V4L2_FIELD_NONE,
+			.colorspace = V4L2_COLORSPACE_SRGB,
+			.ycbcr_enc = V4L2_YCBCR_ENC_601,
+			.quantization = V4L2_QUANTIZATION_LIM_RANGE,
+			.xfer_func = V4L2_XFER_FUNC_SRGB,
+		},
+	};
+
+	return csi2rx_set_fmt(subdev, state, &format);
+}
+
 static const struct v4l2_subdev_video_ops csi2rx_video_ops = {
 	.s_stream	= csi2rx_s_stream,
 };
 
 static const struct v4l2_subdev_pad_ops csi2rx_pad_ops = {
+	.get_fmt	= csi2rx_get_fmt,
+	.set_fmt	= csi2rx_set_fmt,
+	.init_cfg	= csi2rx_init_cfg,
 	.get_frame_desc = csi2rx_get_frame_desc,
 };
 
@@ -718,6 +812,10 @@ static int csi2rx_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_cleanup;
 
+	ret = csi2rx_init_cfg(&csi2rx->subdev, NULL);
+	if (ret)
+		goto err_cleanup;
+
 	ret = v4l2_async_register_subdev(&csi2rx->subdev);
 	if (ret < 0)
 		goto err_cleanup;
@@ -731,7 +829,7 @@ static int csi2rx_probe(struct platform_device *pdev)
 	return 0;
 
 err_cleanup:
-	v4l2_async_notifier_unregister(&csi2rx->notifier);
+	v4l2_async_nf_unregister(&csi2rx->notifier);
 	v4l2_async_nf_cleanup(&csi2rx->notifier);
 err_free_priv:
 	kfree(csi2rx);
@@ -742,8 +840,8 @@ static int csi2rx_remove(struct platform_device *pdev)
 {
 	struct csi2rx_priv *csi2rx = platform_get_drvdata(pdev);
 
-	v4l2_async_notifier_unregister(&csi2rx->notifier);
-	v4l2_async_notifier_cleanup(&csi2rx->notifier);
+	v4l2_async_nf_unregister(&csi2rx->notifier);
+	v4l2_async_nf_cleanup(&csi2rx->notifier);
 	v4l2_async_unregister_subdev(&csi2rx->subdev);
 	kfree(csi2rx);
 
