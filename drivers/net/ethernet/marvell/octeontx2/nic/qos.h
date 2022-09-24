@@ -65,7 +65,8 @@ struct otx2_qos_node {
 	u16 child_dwrr_prio;
 	u16 child_dwrr_cnt;
 	u16 child_static_cnt;
-	u16 act_dwrr_prio;		/* dwrr priority to be configured in hw */
+	u16 max_static_prio;
+	u16 txschq_idx;			/* txschq allocation index */
 	/* list management */
 	struct hlist_node hlist;
 	struct otx2_qos_node *parent;	/* parent qos node */
