@@ -1363,6 +1363,10 @@ static int enetc_qci_fmi_get(struct net_device *ndev, u32 index,
 
 	memcpy(counters, fmi_counter_data, sizeof(*counters));
 
+	dma_unmap_single(&priv->si->pdev->dev, dma, data_size, DMA_FROM_DEVICE);
+	memset(cbdr, 0, sizeof(*cbdr));
+	kfree(fmi_counter_data);
+
 	return 0;
 }
 
