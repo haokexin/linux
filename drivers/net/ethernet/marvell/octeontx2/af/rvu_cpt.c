@@ -918,7 +918,7 @@ int rvu_cpt_lf_teardown(struct rvu *rvu, u16 pcifunc, int blkaddr, int lf, int s
 	if (is_cpt_pf(rvu, pcifunc) || is_cpt_vf(rvu, pcifunc))
 		cpt_rxc_teardown(rvu, blkaddr);
 
-	mutex_lock(&rvu->rsrc_lock);
+	mutex_lock(&rvu->alias_lock);
 	/* Enable BAR2 ALIAS for this pcifunc. */
 	reg = BIT_ULL(16) | pcifunc;
 	rvu_bar2_sel_write64(rvu, blkaddr, CPT_AF_BAR2_SEL, reg);
@@ -931,7 +931,7 @@ int rvu_cpt_lf_teardown(struct rvu *rvu, u16 pcifunc, int blkaddr, int lf, int s
 	rvu_write64(rvu, blkaddr, CPT_AF_BAR2_ALIASX(slot, CPT_LF_INPROG), reg);
 
 	rvu_bar2_sel_write64(rvu, blkaddr, CPT_AF_BAR2_SEL, 0);
-	mutex_unlock(&rvu->rsrc_lock);
+	mutex_unlock(&rvu->alias_lock);
 
 	return 0;
 }
