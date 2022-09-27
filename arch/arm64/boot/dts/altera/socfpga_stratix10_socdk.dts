@@ -4,9 +4,6 @@
  */
 
 #include "socfpga_stratix10.dtsi"
-#ifndef DISABLE_QSE
-#include "socfpga_stratix10_qse.dtsi"
-#endif
 
 / {
 	model = "SoCFPGA Stratix 10 SoCDK";
