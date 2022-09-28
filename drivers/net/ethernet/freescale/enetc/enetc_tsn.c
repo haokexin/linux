@@ -743,6 +743,8 @@ static int enetc_qci_sfi_counters_get(struct net_device *ndev, u32 index,
 		le32_to_cpu(sfi_counter_data->flow_meter_dropl);
 
 	memset(cbdr, 0, sizeof(*cbdr));
+	dma_unmap_single(&priv->si->pdev->dev, dma, data_size, DMA_FROM_DEVICE);
+	kfree(sfi_counter_data);
 	return 0;
 }
 
