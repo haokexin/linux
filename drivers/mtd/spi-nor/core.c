@@ -5,6 +5,7 @@
  *
  * Copyright (C) 2005, Intec Automation Inc.
  * Copyright (C) 2014, Freescale Semiconductor, Inc.
+ * Copyright 2022 NXP
  */
 
 #include <linux/err.h>
@@ -2763,26 +2764,42 @@ static int spi_nor_init(struct spi_nor *nor)
 static void spi_nor_soft_reset(struct spi_nor *nor)
 {
 	struct spi_mem_op op;
+	struct device_node *np = spi_nor_get_flash_node(nor);
 	int ret;
+	enum spi_nor_cmd_ext ext;
+	bool inverted_cmd_ext, octal_dtr;
+
+	ext = nor->cmd_ext_type;
+	inverted_cmd_ext = of_property_read_bool(np, "inverted-cmd-ext");
+	octal_dtr = of_property_read_bool(np, "memory-default-octal-dtr");
+
+	if (inverted_cmd_ext)
+		nor->cmd_ext_type = SPI_NOR_EXT_INVERT;
 
 	op = (struct spi_mem_op)SPINOR_SRSTEN_OP;
 
-	spi_nor_spimem_setup_op(nor, &op, nor->reg_proto);
+	if (octal_dtr)
+		spi_nor_spimem_setup_op(nor, &op, SNOR_PROTO_8_8_8_DTR);
+	else
+		spi_nor_spimem_setup_op(nor, &op, nor->reg_proto);
 
 	ret = spi_mem_exec_op(nor->spimem, &op);
 	if (ret) {
 		dev_warn(nor->dev, "Software reset failed: %d\n", ret);
-		return;
+		goto out;
 	}
 
 	op = (struct spi_mem_op)SPINOR_SRST_OP;
 
-	spi_nor_spimem_setup_op(nor, &op, nor->reg_proto);
+	if (octal_dtr)
+		spi_nor_spimem_setup_op(nor, &op, SNOR_PROTO_8_8_8_DTR);
+	else
+		spi_nor_spimem_setup_op(nor, &op, nor->reg_proto);
 
 	ret = spi_mem_exec_op(nor->spimem, &op);
 	if (ret) {
 		dev_warn(nor->dev, "Software reset failed: %d\n", ret);
-		return;
+		goto out;
 	}
 
 	/*
@@ -2791,6 +2808,10 @@ static void spi_nor_soft_reset(struct spi_nor *nor)
 	 * microseconds. So, sleep for a range of 200-400 us.
 	 */
 	usleep_range(SPI_NOR_SRST_SLEEP_MIN, SPI_NOR_SRST_SLEEP_MAX);
+
+out:
+	nor->cmd_ext_type = ext;
+	return;
 }
 
 /* mtd suspend handler */
@@ -2954,6 +2975,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	const struct flash_info *info;
 	struct device *dev = nor->dev;
 	struct mtd_info *mtd = &nor->mtd;
+	struct device_node *np = spi_nor_get_flash_node(nor);
 	int ret;
 	int i;
 
@@ -2979,6 +3001,11 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 				      GFP_KERNEL);
 	if (!nor->bouncebuf)
 		return -ENOMEM;
+
+	if (of_property_read_bool(np, "force-soft-reset")) {
+		nor->flags |= SNOR_F_SOFT_RESET;
+		spi_nor_restore(nor);
+	}
 
 	info = spi_nor_get_flash_info(nor, name);
 	if (IS_ERR(info))
@@ -3051,8 +3078,10 @@ static int spi_nor_create_read_dirmap(struct spi_nor *nor)
 
 	/* convert the dummy cycles to the number of bytes */
 	op->dummy.nbytes = (nor->read_dummy * op->dummy.buswidth) / 8;
-	if (spi_nor_protocol_is_dtr(nor->read_proto))
-		op->dummy.nbytes *= 2;
+	if (nor->info->name && strcmp(nor->info->name, "mx25uw51245g")) {
+		if (spi_nor_protocol_is_dtr(nor->read_proto))
+			op->dummy.nbytes *= 2;
+	}
 
 	/*
 	 * Since spi_nor_spimem_setup_op() only sets buswidth when the number
