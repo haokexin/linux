@@ -117,7 +117,11 @@
 #define Page_Uptodate(page) test_bit(PG_uptodate, &(page)->flags)
 
 /* FIXME: use sb->s_id instead ? */
-#define yaffs_devname(sb, buf) bdevname(sb->s_bdev, buf)
+//#define yaffs_devname(sb, buf) bdevname(sb->s_bdev, buf)
+static inline char* yaffs_devname(struct super_block *sb, char *buf) {
+	snprintf(buf, sizeof(buf), "%pg", sb->s_bdev);
+	return buf;
+}
 
 #else
 
