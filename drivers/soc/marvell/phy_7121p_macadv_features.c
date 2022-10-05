@@ -73,6 +73,9 @@ struct dentry *phy_mac_adv_root;
 #define CMD_SZ 64
 char macadv_cmd_buf[CMD_SZ];
 
+#define STATS_SZ 1024
+char macadv_stats_buf[STATS_SZ];
+
 static struct {
 	int eth;
 	int lmac;
@@ -103,6 +106,7 @@ enum phy_mac_adv_cmd {
 	PHY_MAC_ADV_MACSEC_GET_MAC_ADDR,
 	PHY_MAC_ADV_MACSEC_GET_SA_PARAMS,
 	PHY_MAC_ADV_MACSEC_DBG,
+	PHY_MAC_ADV_MACSEC_SA_SWITCH,
 
 	PHY_MAC_ADV_MACSEC_MAX = 100,
 
@@ -128,7 +132,7 @@ static struct {
 	{PHY_MAC_ADV_MACSEC_SET_PKT_NUM, "pktnum"},
 	{PHY_MAC_ADV_MACSEC_ADD_SA, "sa_add"},
 	{PHY_MAC_ADV_MACSEC_SET_SCI, "sci"},
-	{PHY_MAC_ADV_MACSEC_ADD_VPORT, "vport"},
+	{PHY_MAC_ADV_MACSEC_ADD_VPORT, "vport_add"},
 	{PHY_MAC_ADV_MACSEC_DEL_SA, "sa_del"},
 	{PHY_MAC_ADV_MACSEC_ACTIONTYPE_SA, "sa_action"},
 	{PHY_MAC_ADV_MACSEC_GET_MAC_ADDR, "get_mac"},
@@ -229,6 +233,7 @@ static struct phy_mac_adv_macsec_sa {
 };
 DEFINE_STR_2_ENUM_FUNC(macsec_sa)
 
+#define MACSEC_MAX_VPORT	2
 
 enum PHY_7121_MACSEC_VPORT {
 	PHY_7121_MACSEC_VPORT_0 = 0,
@@ -244,10 +249,42 @@ static struct phy_mac_adv_macsec_vport {
 };
 DEFINE_STR_2_ENUM_FUNC(macsec_vport)
 
+enum PHY_7121_MACSEC_IS_SCI {
+	PHY_7121_MACSEC_IS_SCI_DISABLE = 0,
+	PHY_7121_MACSEC_IS_SCI_ENABLE,
+};
+
+static struct phy_mac_adv_macsec_is_sci {
+	enum PHY_7121_MACSEC_IS_SCI e;
+	const char *s;
+} macsec_is_sci[] = {
+	{PHY_7121_MACSEC_IS_SCI_DISABLE, "disable"},
+	{PHY_7121_MACSEC_IS_SCI_ENABLE, "enable"},
+};
+DEFINE_STR_2_ENUM_FUNC(macsec_is_sci)
+
+
+enum PHY_7121_MACSEC_IS_VLAN_TAG {
+	PHY_7121_MACSEC_IS_VLAN_TAG_DISABLE = 0,
+	PHY_7121_MACSEC_IS_VLAN_TAG_ENABLE,
+};
+
+static struct phy_mac_adv_macsec_is_vlan_tag {
+	enum PHY_7121_MACSEC_IS_VLAN_TAG e;
+	const char *s;
+} macsec_is_vlan_tag[] = {
+	{PHY_7121_MACSEC_IS_VLAN_TAG_DISABLE, "no_vlan_tag"},
+	{PHY_7121_MACSEC_IS_VLAN_TAG_ENABLE, "vlan_tag"},
+};
+DEFINE_STR_2_ENUM_FUNC(macsec_is_vlan_tag)
+
 struct macsec_vport_params {
+	enum PHY_7121_MACSEC_IS_SCI is_sci_explicit;
+	enum PHY_7121_MACSEC_IS_VLAN_TAG is_vlan_tag;
 	enum PHY_7121_MACSEC_VPORT  vport_num;
 	enum PHY_7121_MACSEC_DIR dir;
 	unsigned char mac[6];
+	unsigned char vlan_tag[4];
 };
 
 enum PHY_7121_MACSEC_SA_ACTIONTYPE {
@@ -297,7 +334,23 @@ static struct phy_mac_adv_macsec_dbg {
 };
 DEFINE_STR_2_ENUM_FUNC(macsec_dbg)
 
+
+enum PHY_7121_MACSEC_IS_CHAINED {
+	PHY_7121_MACSEC_IS_CHAINED_FALSE = 0,
+	PHY_7121_MACSEC_IS_CHAINED_TRUE,
+};
+
+static struct phy_mac_adv_macsec_is_chained {
+	enum PHY_7121_MACSEC_IS_CHAINED e;
+	const char *s;
+} macsec_is_chained[] = {
+	{PHY_7121_MACSEC_IS_CHAINED_FALSE, "not_chained"},
+	{PHY_7121_MACSEC_IS_CHAINED_TRUE, "chained"},
+};
+DEFINE_STR_2_ENUM_FUNC(macsec_is_chained)
+
 struct macsec_sa_params {
+	enum PHY_7121_MACSEC_VPORT vport_num;
 	enum PHY_7121_MACSEC_SA  sa_num;
 	enum PHY_7121_MACSEC_DIR dir;
 	uint32_t flags;
@@ -315,6 +368,13 @@ struct macsec_sa_params {
 	uint32_t seq_num_hi;
 	bool is_ethertype;
 	uint32_t ethertype;
+	enum PHY_7121_MACSEC_IS_CHAINED is_chained;
+};
+
+struct macsec_sa_adv_ops {
+	enum PHY_7121_MACSEC_VPORT vport_num;
+	enum PHY_7121_MACSEC_SA sa1;
+	enum PHY_7121_MACSEC_SA sa2;
 };
 
 typedef struct pkttest {
@@ -335,10 +395,54 @@ typedef struct phy_ptp_tc {
 	int ptp_ref_clk;
 } phy_ptp_tc_t;
 
+struct mac_stats_params {
+	enum PHY_7121_MACSEC_VPORT vport_num;
+	enum PHY_7121_MACSEC_DIR dir;
+};
+
+struct ingress_stats {
+	uint32_t InPktsUnchecked;
+	uint32_t InPktsDelayed;
+	uint32_t InPktsLate;
+	uint32_t InPktsOK;
+	uint32_t InPktsInvalid;
+	uint32_t InPktsNotValid;
+	uint32_t InPktsNotUsingSA;
+	uint32_t InPktsUnusedSA;
+	uint32_t InOctetsDecrypted;
+	uint32_t InOctetsValidated;
+};
+
+struct egress_stats {
+	uint32_t OutPktsEncryptedProtected;
+	uint32_t OutPktsTooLong;
+	uint32_t OutPktsSANotInUse;
+	uint32_t OutOctetsEncryptedProtected;
+};
+
+struct macsec_stats_params {
+	enum PHY_7121_MACSEC_VPORT vport_num;
+	enum PHY_7121_MACSEC_SA sa_num;
+	enum PHY_7121_MACSEC_DIR dir;
+	union {
+		struct ingress_stats ingress;
+		struct egress_stats egress;
+	} stats;
+};
+
+static struct {
+	enum phy_mac_adv_cmd e;
+	const char *s;
+} mac_adv_macsec_stats_cmds[] = {
+	{PHY_MAC_ADV_MACSEC_GET_STATS, "macsec_stats"},
+};
+DEFINE_STR_2_ENUM_FUNC(mac_adv_macsec_stats_cmds)
+
 #define MACSEC_ADV_CMD_VERS_MAJOR  0x0001
 #define MACSEC_ADV_CMD_VERS_MINOR  0x0000
 #define MACSEC_ADV_CMD_VERS  (MACSEC_ADV_CMD_VERS_MAJOR \
 				| MACSEC_ADV_CMD_VERS_MINOR)
+
 struct phy_7121_adv_cmds {
 	int mac_adv_cmd_ver;
 	int mac_adv_dbg;
@@ -352,6 +456,9 @@ struct phy_7121_adv_cmds {
 		struct pkttest pkttest_cmd;
 		phy_gen_rclk_t gen_rclk;
 		phy_ptp_tc_t ptp_tc;
+		struct mac_stats_params mac_stats;
+		struct macsec_stats_params macsec_stats;
+		struct macsec_sa_adv_ops sa_adv_ops;
 	} data;
 };
 
@@ -448,7 +555,6 @@ static int copy_user_input(const char __user *buffer,
 	cmd_buf[cnt] = '\0';
 	return 0;
 }
-
 
 static struct arm_smccc_res mrvl_exec_smc(uint64_t buf, uint64_t size)
 {
@@ -610,6 +716,10 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 	enum PHY_7121_MACSEC_SA_ACTIONTYPE actiontype;
 	enum PHY_7121_MACSEC_SA_DROPTYPE droptype;
 	enum PHY_7121_MACSEC_DBG macsec_dbg;
+	enum PHY_7121_MACSEC_VPORT vport;
+	enum PHY_7121_MACSEC_IS_SCI is_sci;
+	enum PHY_7121_MACSEC_IS_CHAINED is_chained;
+	enum PHY_7121_MACSEC_IS_VLAN_TAG vlan_tag;
 	int status;
 
 	struct phy_7121_adv_cmds *mac_adv = (struct phy_7121_adv_cmds *)memdesc[BUF_DATA].virt;
@@ -663,6 +773,20 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SET_DA", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.vport_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_DA vport %d", __func__, vport);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
 		if (!token)
 			return -EINVAL;
 
@@ -694,12 +818,109 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 
 		break;
 
+	case PHY_MAC_ADV_MACSEC_ADD_VPORT:
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_VPORT", __func__);
+
+		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_ADD_VPORT;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_VPORT", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.vport_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_VPORT vport %d", __func__, vport);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token)
+			return -EINVAL;
+
+		dir = macsec_dir_str2enum(token);
+		if (dir == -1)
+			return -EINVAL;
+		mac_adv->data.vport_params.dir = dir;
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_VPORT dir %d", __func__, dir);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_VPORT", __func__);
+			return -EINVAL;
+		}
+
+		is_sci = macsec_is_sci_str2enum(token);
+		if (is_sci == -1)
+			return -EINVAL;
+		mac_adv->data.vport_params.is_sci_explicit = is_sci;
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_VPORT is_sci %d", __func__, is_sci);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_VPORT", __func__);
+			return -EINVAL;
+		}
+
+		vlan_tag = macsec_is_vlan_tag_str2enum(token);
+		if (vlan_tag == -1)
+			return -EINVAL;
+		mac_adv->data.vport_params.is_vlan_tag = vlan_tag;
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_VPORT is_sci %d", __func__, vlan_tag);
+
+		if (vlan_tag != -1) {
+			end = skip_spaces(end);
+			token = strsep(&end, " \t\n");
+			if (!token) {
+				pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_VPORT", __func__);
+				return -EINVAL;
+			}
+
+			status = sscanf(token, "%X:%X:%X:%X",
+					(unsigned int *)&mac_adv->data.vport_params.vlan_tag[0],
+					(unsigned int *)&mac_adv->data.vport_params.vlan_tag[1],
+					(unsigned int *)&mac_adv->data.vport_params.vlan_tag[2],
+					(unsigned int *)&mac_adv->data.vport_params.vlan_tag[3]);
+
+			if (status == -1) {
+				pr_err("\n %s ERROR vlan_tag not provided", __func__);
+				return -EINVAL;
+			}
+		}
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_DA vlan_tag %s",
+				__func__, (char *)mac_adv->data.vport_params.vlan_tag);
+
+		if (mac_adv->data.vport_params.vlan_tag == 0)
+			return -EINVAL;
+
+		break;
+
 	case PHY_MAC_ADV_MACSEC_SET_KEY:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_KEY", __func__);
 
 		memset(mac_adv->data.sa_params.key, 0, MACSEC_KEY_SIZE);
-
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_SET_KEY;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SET_KEY", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_KEY vport %d", __func__, vport);
 
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
@@ -803,11 +1024,65 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 	case PHY_MAC_ADV_MACSEC_GET_STATS:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_GET_STATS", __func__);
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_GET_STATS;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR  PHY_MAC_ADV_MACSEC_GET_STATS", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.macsec_stats.vport_num = vport;
+		MAC_ADV_DEBUG("\n %s  PHY_MAC_ADV_MACSEC_GET_STATS vport %d", __func__, vport);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR  PHY_MAC_ADV_MACSEC_GET_STATS 1", __func__);
+			return -EINVAL;
+		}
+
+		sa = macsec_sa_str2enum(token);
+		if (sa == -1)
+			return -EINVAL;
+		mac_adv->data.macsec_stats.sa_num = sa;
+		MAC_ADV_DEBUG("\n %s  PHY_MAC_ADV_MACSEC_GET_STATS sa %d", __func__, sa);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token)
+			return -EINVAL;
+
+		dir = macsec_dir_str2enum(token);
+		if (dir == -1)
+			return -EINVAL;
+		mac_adv->data.macsec_stats.dir = dir;
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_GET_STATS dir %d", __func__,
+							mac_adv->data.macsec_stats.dir);
+
 		break;
+
 	case PHY_MAC_ADV_MAC_GET_STATS:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MAC_GET_STATS", __func__);
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MAC_GET_STATS;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR  PHY_MAC_ADV_MACSEC_GET_STATS", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.mac_stats.vport_num = vport;
+		MAC_ADV_DEBUG("\n %s  PHY_MAC_ADV_MACSEC_GET_STATS vport %d", __func__, vport);
 		break;
+
 	case PHY_MAC_ADV_MACSEC_PTP:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_PTP", __func__);
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_PTP;
@@ -817,6 +1092,20 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_SCI", __func__);
 
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_SET_SCI;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SET_SCI", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_SCI vport %d", __func__, vport);
 
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
@@ -876,6 +1165,20 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
 		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SET_PKT_NUM", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_PKT_NUM vport %d", __func__, vport);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
 			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SET_KEY 1", __func__);
 			return -EINVAL;
 		}
@@ -928,6 +1231,20 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
 		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ACTIONTYPE_SA", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ACTIONTYPE_SA vport %d", __func__, vport);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
 			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ACTIONTYPE_SA 1",
 									__func__);
 			return -EINVAL;
@@ -970,6 +1287,20 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 	case PHY_MAC_ADV_MACSEC_DROPTYPE_SA:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_DROPTYPE_SA", __func__);
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_DROPTYPE_SA;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_DROPTYPE_SA", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_DROPTYPE_SA vport %d", __func__, vport);
 
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
@@ -1017,6 +1348,20 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
 		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_SA", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_SA vport %d", __func__, vport);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
 			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_SA 1", __func__);
 			return -EINVAL;
 		}
@@ -1038,11 +1383,36 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		mac_adv->data.sa_params.dir = dir;
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_SA dir %d", __func__, dir);
 
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token)
+			return -EINVAL;
+
+		is_chained = macsec_is_chained_str2enum(token);
+		if (dir == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.is_chained = is_chained;
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_ADD_SA is_chained %d", __func__,
+									is_chained);
 		break;
 
 	case PHY_MAC_ADV_MACSEC_DEL_SA:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_DEL_SA", __func__);
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_DEL_SA;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_DEL_SA", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_DEL_SA vport %d", __func__, vport);
 
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
@@ -1069,14 +1439,100 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_DEL_SA dir %d", __func__, dir);
 		break;
 
+	case PHY_MAC_ADV_MACSEC_SA_SWITCH:
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SA_SWITCH %d", __func__, cmd);
+		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_SA_SWITCH;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR cmd %d", __func__, cmd);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_adv_ops.vport_num = vport;
+
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SA_SWITCH vport %d", __func__,
+											vport);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SA_SWITCH", __func__);
+			return -EINVAL;
+		}
+
+		sa = macsec_sa_str2enum(token);
+		if (sa == -1)
+			return -EINVAL;
+		mac_adv->data.sa_adv_ops.sa1 = sa;
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SA_SWITCH sa1 %d", __func__,
+								mac_adv->data.sa_adv_ops.sa1);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SA_SWITCH", __func__);
+			return -EINVAL;
+		}
+
+		sa = macsec_sa_str2enum(token);
+		if (sa == -1)
+			return -EINVAL;
+		mac_adv->data.sa_adv_ops.sa2 = sa;
+		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SA_SWITCH sa2 %d", __func__,
+								mac_adv->data.sa_adv_ops.sa2);
+
+		break;
+
 	case PHY_MAC_ADV_MACSEC_GET_MAC_ADDR:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_GET_MAC_ADDR", __func__);
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_GET_MAC_ADDR;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_VPORT", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.vport_params.vport_num = vport;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_SET_KEY 3", __func__);
+			return -EINVAL;
+		}
+
+		dir = macsec_dir_str2enum(token);
+		if (dir == -1)
+			return -EINVAL;
+		mac_adv->data.vport_params.dir = dir;
+
 		break;
 
 	case PHY_MAC_ADV_MACSEC_GET_SA_PARAMS:
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_GET_SA_PARAMS", __func__);
 		mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_GET_SA_PARAMS;
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_ADD_VPORT", __func__);
+			return -EINVAL;
+		}
+
+		vport = macsec_vport_str2enum(token);
+		if (vport == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.vport_num = vport;
 
 		end = skip_spaces(end);
 		token = strsep(&end, " \t\n");
@@ -1090,6 +1546,18 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 			return -EINVAL;
 		mac_adv->data.sa_params.sa_num = sa;
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_GET_SA_PARAMS sa %d", __func__, sa);
+
+		end = skip_spaces(end);
+		token = strsep(&end, " \t\n");
+		if (!token) {
+			pr_err("\n %s ERROR PHY_MAC_ADV_MACSEC_GET_SA_PARAMS 3", __func__);
+			return -EINVAL;
+		}
+
+		dir = macsec_dir_str2enum(token);
+		if (dir == -1)
+			return -EINVAL;
+		mac_adv->data.sa_params.dir = dir;
 		break;
 
 	case PHY_MAC_ADV_MACSEC_DBG:
@@ -1125,18 +1593,49 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		return count;
 	}
 
-	pr_info("MAC ADV  command success count %d!\n", (int)count);
+	pr_info("MAC ADV  command success %d!\n", (int)count);
+
+	if (mac_adv->mac_adv_cmd == PHY_MAC_ADV_MACSEC_GET_STATS) {
+		if (mac_adv->data.macsec_stats.dir == PHY_7121_MACSEC_INGRESS) {
+			pr_info("SecY_SA_Statistics_I_Get:Ingress SA Statistics:\n"
+			"\tInOctetsDecrypted: %u\n"
+			"\tInOctetsValidated: %u\n"
+			"\tInPktsDelayed:        %u\n"
+			"\tInPktsInvalid:        %u\n"
+			"\tInPktsLate:  %u\n"
+			"\tInPktsNotUsingSA:  %u\n"
+			"\tInPktsNotValid:      %u\n"
+			"\tInPktsOK:      %u\n"
+			"\tInPktsUnchecked:   %u\n"
+			"\tInPktsUnusedSA:      %u\n",
+			mac_adv->data.macsec_stats.stats.ingress.InOctetsDecrypted,
+			mac_adv->data.macsec_stats.stats.ingress.InOctetsValidated,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsDelayed,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsInvalid,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsLate,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsNotUsingSA,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsNotValid,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsOK,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsUnchecked,
+			mac_adv->data.macsec_stats.stats.ingress.InPktsUnusedSA);
+		} else if (dir == PHY_7121_MACSEC_EGRESS) {
+			pr_info("SecY_SA_Statistics_E_Get: Egress SA Statistics:\n"
+			"\tOutOctetsEncryptedProtected: %u\n"
+			"\tOutPktsEncryptedProtected:   %u\n"
+			"\tOutPktsTooLong:                %u\n"
+			"\tOutPktsSANotInUse:      %u\n",
+			mac_adv->data.macsec_stats.stats.egress.OutOctetsEncryptedProtected,
+			mac_adv->data.macsec_stats.stats.egress.OutPktsEncryptedProtected,
+			mac_adv->data.macsec_stats.stats.egress.OutPktsTooLong,
+			mac_adv->data.macsec_stats.stats.egress.OutPktsSANotInUse);
+		}
+	}
+
 	return count;
 }
 
 static int phy_debug_mac_sec_read(struct seq_file *s, void *unused)
 {
-	struct phy_7121_adv_cmds *mac_adv = (struct phy_7121_adv_cmds *)memdesc[BUF_DATA].virt;
-
-	mac_adv->mac_adv_cmd  = PHY_MAC_ADV_MACSEC_GET;
-
-	mrvl_exec_smc(memdesc[BUF_DATA].phys,
-			sizeof(struct phy_7121_adv_cmds));
 
 	return 0;
 }
@@ -1198,6 +1697,148 @@ static ssize_t phy_debug_phy_write(struct file *filp,
 }
 DEFINE_ATTRIBUTE(phy_debug_phy);
 
+static int phy_debug_stats_read(struct seq_file *s, void *unused)
+{
+	struct phy_7121_adv_cmds *mac_adv = (struct phy_7121_adv_cmds *)memdesc[BUF_DATA].virt;
+
+	mac_adv->mac_adv_cmd  = PHY_MAC_ADV_MACSEC_GET;
+
+	mrvl_exec_smc(memdesc[BUF_DATA].phys,
+			sizeof(struct phy_7121_adv_cmds));
+	return 0;
+}
+
+static ssize_t phy_debug_stats_write(struct file *filp,
+					const char __user *buffer,
+					size_t count, loff_t *ppos)
+{
+	struct arm_smccc_res res;
+	char *end;
+	char *token;
+	int cmd;
+	enum PHY_7121_MACSEC_DIR dir;
+	enum PHY_7121_MACSEC_SA sa;
+	enum PHY_7121_MACSEC_VPORT vport;
+
+	struct phy_7121_adv_cmds *mac_adv =
+		(struct phy_7121_adv_cmds *)memdesc[BUF_DATA].virt;
+
+	if (copy_user_input(buffer, count, macadv_stats_buf, STATS_SZ))
+		return -EFAULT;
+
+	MAC_ADV_DEBUG("\n %s buffer %s count %d", __func__, buffer, (int)count);
+
+	end = skip_spaces(macadv_stats_buf);
+	token = strsep(&end, " \t\n");
+	if (!token)
+		return -EINVAL;
+
+	MAC_ADV_DEBUG("\n %s buffer %s count %d", __func__, buffer, (int)count);
+
+	cmd = mac_adv_macsec_stats_cmds_str2enum(token);
+	MAC_ADV_DEBUG("\n %s cmd %d", __func__, cmd);
+
+	if (cmd == -1)
+		return -EINVAL;
+
+	memset(mac_adv, 0x00, sizeof(struct phy_7121_adv_cmds));
+
+	mac_adv->cgx_id =  phy_data.eth;
+	mac_adv->lmac_id =  phy_data.lmac;
+
+	MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_GET_STATS", __func__);
+	mac_adv->mac_adv_cmd = PHY_MAC_ADV_MACSEC_GET_STATS;
+
+	end = skip_spaces(end);
+	token = strsep(&end, " \t\n");
+	if (!token) {
+		pr_err("\n %s ERROR  PHY_MAC_ADV_MACSEC_GET_STATS", __func__);
+		return -EINVAL;
+	}
+
+	vport = macsec_vport_str2enum(token);
+	if (vport == -1)
+		return -EINVAL;
+	mac_adv->data.macsec_stats.vport_num = vport;
+	MAC_ADV_DEBUG("\n %s  PHY_MAC_ADV_MACSEC_GET_STATS vport %d", __func__, vport);
+
+	end = skip_spaces(end);
+	token = strsep(&end, " \t\n");
+	if (!token) {
+		pr_err("\n %s ERROR  PHY_MAC_ADV_MACSEC_GET_STATS 1", __func__);
+		return -EINVAL;
+	}
+
+	sa = macsec_sa_str2enum(token);
+	if (sa == -1)
+		return -EINVAL;
+	mac_adv->data.macsec_stats.sa_num = sa;
+	MAC_ADV_DEBUG("\n %s  PHY_MAC_ADV_MACSEC_GET_STATS sa %d", __func__, sa);
+
+	end = skip_spaces(end);
+	token = strsep(&end, " \t\n");
+	if (!token)
+		return -EINVAL;
+
+	dir = macsec_dir_str2enum(token);
+	if (dir == -1)
+		return -EINVAL;
+	mac_adv->data.vport_params.dir = dir;
+	MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_GET_STATS dir %d", __func__, dir);
+	pr_info("New PHY selected: @(eth=%d, lmac=%d)\n",
+			phy_data.eth, phy_data.lmac);
+
+	arm_smccc_smc(PLAT_OCTEONTX_PHY_ADVANCE_CMDS,
+			memdesc[BUF_DATA].phys, sizeof(struct phy_7121_adv_cmds),
+			phy_data.eth, phy_data.lmac, 0, 0, 0, &res);
+
+	if (res.a0) {
+		pr_warn("MAC ADV  command failed %d!\n", (int)count);
+		return count;
+	}
+
+	pr_info("MAC ADV  command success %d!\n", (int)count);
+
+
+	if (dir == PHY_7121_MACSEC_INGRESS) {
+		pr_info("SecY_SA_Statistics_I_Get:Ingress SA Statistics:\n"
+		"\tInOctetsDecrypted: %u\n"
+		"\tInOctetsValidated: %u\n"
+		"\tInPktsDelayed:        %u\n"
+		"\tInPktsInvalid:        %u\n"
+		"\tInPktsLate:  %u\n"
+		"\tInPktsNotUsingSA:  %u\n"
+		"\tInPktsNotValid:      %u\n"
+		"\tInPktsOK:      %u\n"
+		"\tInPktsUnchecked:   %u\n"
+		"\tInPktsUnusedSA:      %u\n",
+		mac_adv->data.macsec_stats.stats.ingress.InOctetsDecrypted,
+		mac_adv->data.macsec_stats.stats.ingress.InOctetsValidated,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsDelayed,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsInvalid,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsLate,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsNotUsingSA,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsNotValid,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsOK,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsUnchecked,
+		mac_adv->data.macsec_stats.stats.ingress.InPktsUnusedSA);
+	} else if (dir == PHY_7121_MACSEC_EGRESS) {
+
+		pr_info("SecY_SA_Statistics_E_Get: Egress SA Statistics:\n"
+		"\tOutOctetsEncryptedProtected: %u\n"
+		"\tOutPktsEncryptedProtected:   %u\n"
+		"\tOutPktsTooLong:                %u\n"
+		"\tOutPktsSANotInUse:      %u\n",
+		mac_adv->data.macsec_stats.stats.egress.OutOctetsEncryptedProtected,
+		mac_adv->data.macsec_stats.stats.egress.OutPktsEncryptedProtected,
+		mac_adv->data.macsec_stats.stats.egress.OutPktsTooLong,
+		mac_adv->data.macsec_stats.stats.egress.OutPktsSANotInUse);
+	}
+
+	return count;
+}
+DEFINE_ATTRIBUTE(phy_debug_stats);
+
 static int phy_mac_adv_setup_debugfs(void)
 {
 	struct dentry *dbg_file;
@@ -1216,6 +1857,11 @@ static int phy_mac_adv_setup_debugfs(void)
 
 	dbg_file = debugfs_create_file("generic", 0644, phy_mac_adv_root, NULL,
 				    &phy_debug_generic_fops);
+	if (!dbg_file)
+		goto create_failed;
+
+	dbg_file = debugfs_create_file("stats", 0644, phy_mac_adv_root, NULL,
+				    &phy_debug_stats_fops);
 	if (!dbg_file)
 		goto create_failed;
 
