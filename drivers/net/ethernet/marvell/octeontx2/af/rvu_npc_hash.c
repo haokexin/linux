@@ -11,7 +11,6 @@
 #include <linux/firmware.h>
 #include <linux/stddef.h>
 #include <linux/debugfs.h>
-#include <linux/bitfield.h>
 
 #include "rvu_struct.h"
 #include "rvu_reg.h"
