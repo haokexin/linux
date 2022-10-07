@@ -67,8 +67,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-am625-skeleton.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-am625-sk-lpmdemo.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-am625-sk-csi2-ov5640.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am625-sk-oldi-panel.dtbo
-
-dtb-$(CONFIG_ARCH_K3) += k3-am62a7-sk.dtb
+dtb-$(CONFIG_ARCH_K3) += k3-am625-sk-hdmi-audio.dtbo
 
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-fpdlink-cpb-fusion.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-fpdlink-sk-fusion.dtbo
@@ -87,4 +86,5 @@ dtb-$(CONFIG_ARCH_K3) += k3-j721e-fpdlink-imx390-rcm-0-3.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-fpdlink-imx390-rcm-1-0.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-fpdlink-imx390-rcm-1-1.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-fpdlink-imx390-rcm-1-2.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-am62a7-sk.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-fpdlink-imx390-rcm-1-3.dtbo
