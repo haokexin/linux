@@ -310,6 +310,16 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 			goto txschq_cfg_out;
 		}
 
+		/* check if node is root */
+		if (node->qid == OTX2_QOS_QID_INNER && !node->parent) {
+			cfg->reg[num_regs] = NIX_AF_TL2X_SCHEDULE(node->schq);
+			cfg->regval[num_regs] =  hw->txschq_aggr_lvl_rr_prio << 24 |
+						 mtu_to_dwrr_weight(pfvf,
+								    pfvf->tx_max_pktlen);
+			num_regs++;
+			goto txschq_cfg_out;
+		}
+
 		/* configure priority/quantum */
 		cfg->reg[num_regs] = NIX_AF_TL2X_SCHEDULE(node->schq);
 		if (node->is_static) {
@@ -1189,7 +1199,7 @@ static int otx2_qos_root_add(struct otx2_nic *pfvf, u16 htb_maj_id, u16 htb_defc
 
 	if (!(pfvf->netdev->flags & IFF_UP)) {
 		root->schq = new_cfg->schq_list[root->level][0];
-		return 0;
+		goto out;
 	}
 
 	/* update the txschq configuration in hw */
