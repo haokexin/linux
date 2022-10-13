@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/intel-axxia/intel,axxia-gpreg.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: GP device node for Intel Axxia FEMAC driver from AXM55xx
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+properties:
+  compatible:
+    items:
+      - const: axxia,gpreg
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+
+additionalProperties: false
+
+examples:
+  - |
+    gpreg: gpreg@2010094000  {
+           compatible = "axxia,gpreg";
+           reg = <0x20 0x10094000 0 0x1000>;
+    };
+
+...

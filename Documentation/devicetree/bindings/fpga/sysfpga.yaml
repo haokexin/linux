@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/fpga/sysfpga.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: System FPGA Device Tree Binding
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+properties:
+  compatible:
+    items:
+      - const: sysfpga
+
+  reg:
+    maxItems: 1
+    default: 0x40
+
+required:
+  - compatible
+  - reg
+
+examples:
+  - |
+    sysfpga@40 {
+            compatible = "sysfpga";
+            reg = <0x40>;
+    };
+
+...

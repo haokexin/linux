@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2021 INTEL Corporation
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x00>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x01>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x02>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x03>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+	};
+};

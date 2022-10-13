@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/bindings/pci/intel,axxia-pcie.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia PCIe controller
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for the Intel Axxia PCIe controller found on the Axxia
+  AXM55xx family of devices. There are two PEI controllers on
+  Axxia X7/AXM55xx. Only RootComplex mode is supported.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,plb-pciex
+
+  device_type:
+    const: pci
+
+  "#interrupt-cells":
+    const: 1
+
+  "#address-cells":
+    const: 3
+
+  "#size-cells":
+    const: 2
+
+  reg:
+    maxItems: 1
+    description: Config space access MPAGE7 registers.
+
+  ranges:
+    maxItems: 1
+    description: |
+      Contains outbound ranges: the PCI address (3 cells), CPU (PLB)
+      address (2 cells) and size (2 cells).
+
+  dma-ranges:
+    maxItems: 1
+    description: |
+      Contains inbound ranges: the PCI address (3 cells), CPU (PLB)
+      address (2 cells) and size (2 cells).
+
+  interrupts:
+    minItems: 2
+
+  port:
+    maxItems: 1
+
+required:
+  - compatible
+  - device_type
+  - "#interrupt-cells"
+  - "#address-cells"
+  - "#size-cells"
+  - reg
+  - ranges
+  - dma-ranges
+  - interrupts
+  - port
+
+additionalProperties: true
+
+examples:
+  - |
+    pcie1: pcie@0x3080000000 {
+           compatible = "axxia,plb-pciex";
+           device_type = "pci";
+           #interrupt-cells = <1>;
+           #size-cells = <2>;
+           #address-cells = <3>;
+           /* config space access MPAGE7 registers*/
+           reg = <0x30 0xb8000000 0x0 0x01000000
+                  0x20 0x20130000 0x0 0x00008000 >;
+           /* Outbound ranges */
+           /* < <3-cell PCI addr>
+           *<2-cell CPU (PLB) addr> <2-cell size> >
+           */
+           ranges = <0x03000000 0x00000000 0xc0000000
+                     0x30 0x80000000
+                     0x00 0x20000000>;
+           /* Inbound ranges */
+           /* < <3-cell PCI addr>
+           *<2-cell CPU addr> <2-cell size> >
+           */
+           dma-ranges = <0x03000000 0x00000000 0x00000000
+                         0x00 0x00000000
+                         0x00 0x40000000>;
+           interrupts = <0 70 4>,
+                        <0 72 4>;
+           port = <1>;
+    };
+
+...

@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/bindings/pci/intel,axxia-pcie-dw.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia PCIe DesignWare controller
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for the Intel Axxia PCIe DesignWare controller found on the
+  Axxia AXM56xx and AXC67xx families of devices. There are three PEI
+  controllers on Axxia X9/AXM56xx and XLF/AXC67xx. Only RootComplex
+  mode is supported.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,axxia-pcie
+
+  device_type:
+    const: pci
+
+  "#interrupt-cells":
+    const: 1
+
+  "#address-cells":
+    const: 3
+
+  "#size-cells":
+    const: 2
+
+  reg:
+    minItems: 1
+    description: |
+      Should contain the DBI, AXI GPREG and CC GPREG address space.
+
+  reg-names:
+    items:
+      -const: dbi
+      -const: axi_gpreg
+      -const: cc_gpreg
+
+  num-lanes:
+    maxItems: 1
+    description: Number of lanes to use.
+
+  control-value:
+    maxItems: 1
+
+  ranges:
+    maxItems: 1
+    description: |
+      Ranges for the PCI config, outbound memory and I/O regions.
+
+  interrupt-map-mask:
+    maxItems: 1
+
+  interrupt-map:
+    maxItems: 4
+
+  interrupts:
+    minItems: 2
+
+required:
+  - compatible
+  - device_type
+  - reg
+  - reg-names
+  - "#interrupt-cells"
+  - "#address-cells"
+  - "#size-cells"
+  - num-lanes
+  - control-value
+  - ranges
+  - interrupt-map-mask
+  - interrupt-map
+  - interrupts
+
+additionalProperties: true
+
+examples:
+  - |
+    pci0: pcie@c000000000 {
+          compatible = "axxia,axxia-pcie";
+          device_type = "pci";
+          reg = <0xa0 0x02000000 0x00100000   /* dbi */
+                 0xa0 0x03000000 0x00008000   /* AXI gpreg */
+                 0xa0 0x03008000 0x00008000>; /* CC gpreg */
+          reg-names = "dbi", "axi_gpreg", "cc_gpreg";
+          #interrupt-cells = <1>;
+          #address-cells = <3>;
+          #size-cells = <2>;
+          num-lanes = <1>;
+          control-value = <0>;
+          ranges = <0x00000000 0x000000c0 0x40000000
+                    0xc0 0x40000000
+                    0x00 0x10000000         /* config space */
+                    0x03000000 0x00000000 0xa0000000
+                    0xc0 0x00000000
+                    0x00 0x40000000>;       /* outbound mem */
+          interrupt-map-mask = <0 0 0 7>;
+          interrupt-map = <0 0 0 1 &gic 0 93 4>,
+                          <0 0 0 2 &gic 0 93 4>,
+                          <0 0 0 3 &gic 0 93 4>,
+                          <0 0 0 4 &gic 0 93 4>;
+          interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>,
+                       <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
+    };
+
+...
