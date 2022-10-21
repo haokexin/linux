@@ -377,8 +377,8 @@ static int dpaa2_ceetm_dump(struct Qdisc *sch, struct sk_buff *skb)
 		for (ntx = 0; ntx < dev->num_tx_queues; ntx++) {
 			qdisc = netdev_get_tx_queue(dev, ntx)->qdisc_sleeping;
 			sch->q.qlen		+= qdisc->q.qlen;
-			sch->bstats.bytes	+= qdisc->bstats.bytes;
-			sch->bstats.packets	+= qdisc->bstats.packets;
+			u64_stats_add(&sch->bstats.bytes, u64_stats_read(&qdisc->bstats.bytes));
+			u64_stats_add(&sch->bstats.packets, u64_stats_read(&qdisc->bstats.packets));
 			sch->qstats.qlen	+= qdisc->qstats.qlen;
 			sch->qstats.backlog	+= qdisc->qstats.backlog;
 			sch->qstats.drops	+= qdisc->qstats.drops;
@@ -1051,7 +1051,7 @@ static int dpaa2_ceetm_cls_dump_stats(struct Qdisc *sch, unsigned long arg,
 				      struct gnet_dump *d)
 {
 	struct dpaa2_ceetm_class *cl = (struct dpaa2_ceetm_class *)arg;
-	struct gnet_stats_basic_packed tmp_bstats;
+	struct gnet_stats_basic_sync tmp_bstats;
 	struct dpaa2_ceetm_tc_xstats xstats;
 	union dpni_statistics dpni_stats;
 	struct net_device *dev = qdisc_dev(sch);
