@@ -55,6 +55,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-j784s4-exp2-usxgmii.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j784s4-exp1-exp2-usxgmii.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j784s4-fpdlink-fusion.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j784s4-vision-apps.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-j784s4-edgeai-apps.dtbo
 
 dtb-$(CONFIG_ARCH_K3) += k3-am642-evm.dtb
 dtb-$(CONFIG_ARCH_K3) += k3-am642-evm-icssg1-dualemac.dtbo
