@@ -33,6 +33,7 @@ struct otx2_qos_cfg {
 	u16 schq_contig[NIX_TXSCH_LVL_CNT];
 	u16 schq_list[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
 	u16 schq_contig_list[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
+	u16 schq_used_index[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
 	int static_node_pos[NIX_TXSCH_LVL_CNT];
 	int dwrr_node_pos[NIX_TXSCH_LVL_CNT];
 };
