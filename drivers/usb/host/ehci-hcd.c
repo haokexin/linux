@@ -1306,6 +1306,10 @@ MODULE_LICENSE ("GPL");
 #include "ehci-grlib.c"
 #endif
 
+#ifdef CONFIG_USB_CI13612_HCD
+#include "ehci-ci13612.c"
+#endif
+
 static struct platform_driver * const platform_drivers[] = {
 #ifdef CONFIG_USB_EHCI_SH
 	&ehci_hcd_sh_driver,
@@ -1319,12 +1323,10 @@ static struct platform_driver * const platform_drivers[] = {
 #ifdef CONFIG_SPARC_LEON
 	&ehci_grlib_driver,
 #endif
-};
-
 #ifdef CONFIG_USB_CI13612_HCD
-#include "ehci-ci13612.c"
-#define PLATFORM_DRIVER		ci13612_ehci_driver
+	&ci13612_ehci_driver,
 #endif
+};
 
 static int __init ehci_hcd_init(void)
 {
