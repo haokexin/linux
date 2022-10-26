@@ -68,6 +68,9 @@ examples:
   - |
     #include <dt-bindings/clock/s32cc-scmi-clock.h>
 
+    #define S32V234_CLK_LIN0 131
+    #define S32V234_CLK_LIN0_IPG 132
+
     serial@401c8000 {
         compatible = "nxp,s32cc-linflexuart";
         reg = <0x401C8000 0x3000>;
