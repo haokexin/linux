@@ -2321,6 +2321,33 @@ static const char *cqspi_get_name(struct spi_mem *mem)
 	return devm_kasprintf(dev, GFP_KERNEL, "%s.%d", dev_name(dev), mem->spi->chip_select);
 }
 
+static void cqspi_mem_do_calibration(struct spi_mem *mem,
+                                     const struct spi_mem_op *op)
+{
+        struct cqspi_st *cqspi = spi_master_get_devdata(mem->spi->master);
+        struct cqspi_flash_pdata *f_pdata;
+        struct device *dev = &cqspi->pdev->dev;
+        int ret;
+
+        f_pdata = &cqspi->f_pdata[mem->spi->chip_select];
+
+        /* Check if the op is eligible for PHY mode operation. */
+        if (!cqspi_phy_op_eligible(op))
+                return;
+
+        f_pdata->phy_read_op = *op;
+
+        ret = cqspi_phy_check_pattern(f_pdata, mem);
+        if (ret) {
+                dev_dbg(dev, "Pattern not found. Skipping calibration.\n");
+                return;
+        }
+
+        ret = cqspi_phy_calibrate(f_pdata, mem);
+        if (ret)
+                dev_info(&cqspi->pdev->dev, "PHY calibration failed: %d\n", ret);
+}
+
 static const struct spi_controller_mem_ops cqspi_mem_ops = {
 	.exec_op = cqspi_exec_mem_op,
 	.get_name = cqspi_get_name,
@@ -2566,11 +2593,10 @@ static int cqspi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static void cqspi_restore_context(struct cqspi_st *cqspi)
+static void __maybe_unused cqspi_restore_context(struct cqspi_st *cqspi)
 {
 	cqspi_phy_apply_setting(cqspi->f_pdata,
 				    &cqspi->f_pdata->phy_setting);
-	cqspi_delay(cqspi->f_pdata);
 }
 
 static int __maybe_unused cqspi_suspend(struct device *dev)
@@ -2598,6 +2624,8 @@ static int __maybe_unused cqspi_resume(struct device *dev)
 
 	cqspi->current_cs = -1;
 	cqspi->sclk = 0;
+
+	cqspi_restore_context(cqspi);
 
 	return spi_master_resume(master);
 }
