@@ -2564,7 +2564,14 @@ static int cqspi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int cqspi_suspend(struct device *dev)
+static void cqspi_restore_context(struct cqspi_st *cqspi)
+{
+	cqspi_phy_apply_setting(cqspi->f_pdata,
+				    &cqspi->f_pdata->phy_setting);
+	cqspi_delay(cqspi->f_pdata);
+}
+
+static int __maybe_unused cqspi_suspend(struct device *dev)
 {
 	struct cqspi_st *cqspi = dev_get_drvdata(dev);
 	struct spi_master *master = dev_get_drvdata(dev);
@@ -2578,7 +2585,7 @@ static int cqspi_suspend(struct device *dev)
 	return ret;
 }
 
-static int cqspi_resume(struct device *dev)
+static int __maybe_unused cqspi_resume(struct device *dev)
 {
 	struct cqspi_st *cqspi = dev_get_drvdata(dev);
 	struct spi_master *master = dev_get_drvdata(dev);
