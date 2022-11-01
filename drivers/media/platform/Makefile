@@ -88,3 +88,4 @@ obj-y					+= sunxi/
 obj-$(CONFIG_VIDEO_MESON_GE2D)		+= meson/ge2d/
 obj-$(CONFIG_VIDEO_IMG_VXD_DEC)         += vxe-vxd/
 obj-$(CONFIG_VIDEO_IMG_VXE_ENC)         += vxe-vxd/
+obj-$(CONFIG_VIDEO_WAVE_VPU)            += chips-media/
