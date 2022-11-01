@@ -238,6 +238,8 @@ menuconfig V4L_MEM2MEM_DRIVERS
 
 if V4L_MEM2MEM_DRIVERS
 
+source "drivers/media/platform/chips-media/Kconfig"
+
 config VIDEO_ALLEGRO_DVT
 	tristate "Allegro DVT Video IP Core"
 	depends on VIDEO_DEV && VIDEO_V4L2
