@@ -77,7 +77,6 @@ struct j721e_pcie {
 	void __iomem		*intd_cfg_base;
 	struct irq_domain	*legacy_irq_domain;
 	u32			linkdown_irq_regfield;
-	unsigned int		max_lanes;
 	bool			is_intc_v1;
 	u32			link_irq_reg_field;
 };
@@ -94,6 +93,7 @@ struct j721e_pcie_data {
 	unsigned int		quirk_disable_flr:1;
 	u32			linkdown_irq_regfield;
 	unsigned int		byte_access_allowed:1;
+	unsigned int            max_lanes;
 	bool			is_intc_v1;
 	const struct cdns_pcie_ops *ops;
 };
@@ -212,7 +212,7 @@ static const struct irq_domain_ops j721e_pcie_intx_domain_ops = {
 static int j721e_pcie_config_legacy_irq(struct j721e_pcie *pcie)
 {
 	struct irq_domain *legacy_irq_domain;
-	struct device *dev = pcie->dev;
+	struct device *dev = pcie->cdns_pcie->dev;
 	struct device_node *node = dev->of_node;
 	struct device_node *intc_node;
 	int irq, i;
@@ -456,7 +456,7 @@ static const struct j721e_pcie_data j7200_pcie_rc_data = {
 	.mode = PCI_MODE_RC,
 	.quirk_detect_quiet_flag = true,
 	.linkdown_irq_regfield = J7200_LINK_DOWN,
-	.max_lanes = 4,
+	.max_lanes = 2,
 	.is_intc_v1 = false,
 	.byte_access_allowed = true,
 	.ops = &j7200_pcie_ops,
@@ -466,7 +466,7 @@ static const struct j721e_pcie_data j7200_pcie_ep_data = {
 	.mode = PCI_MODE_EP,
 	.quirk_detect_quiet_flag = true,
 	.quirk_disable_flr = true,
-	.max_lanes = 4,
+	.max_lanes = 2,
 };
 
 static const struct j721e_pcie_data am64_pcie_rc_data = {
@@ -484,7 +484,7 @@ static const struct j721e_pcie_data am64_pcie_ep_data = {
 
 static const struct j721e_pcie_data j784s4_pcie_rc_data = {
 	.mode = PCI_MODE_RC,
-	.quirk_retrain_flag = true,
+	.quirk_retrain_flag = false,
 	.is_intc_v1 = true,
 	.byte_access_allowed = false,
 	.linkdown_irq_regfield = LINK_DOWN,
@@ -572,10 +572,6 @@ static int j721e_pcie_probe(struct platform_device *pdev)
 		if (!IS_ENABLED(CONFIG_PCIE_CADENCE_HOST))
 			return -ENODEV;
 
-		ret = j721e_pcie_config_legacy_irq(pcie);
-		if (ret < 0)
-			goto err_get_sync;
-	
 		bridge = devm_pci_alloc_host_bridge(dev, sizeof(*rc));
 		if (!bridge)
 			return -ENOMEM;
@@ -588,7 +584,7 @@ static int j721e_pcie_probe(struct platform_device *pdev)
 
 		cdns_pcie = &rc->pcie;
 		cdns_pcie->dev = dev;
-		cdns_pcie->ops = ops;
+		cdns_pcie->ops = &j721e_pcie_ops;
 		pcie->cdns_pcie = cdns_pcie;
 		break;
 	case PCI_MODE_EP:
@@ -604,7 +600,7 @@ static int j721e_pcie_probe(struct platform_device *pdev)
 
 		cdns_pcie = &ep->pcie;
 		cdns_pcie->dev = dev;
-		cdns_pcie->ops = ops;
+		cdns_pcie->ops = &j721e_pcie_ops;
 		pcie->cdns_pcie = cdns_pcie;
 		break;
 	default:
@@ -673,6 +669,10 @@ static int j721e_pcie_probe(struct platform_device *pdev)
 
 	switch (mode) {
 	case PCI_MODE_RC:
+		ret = j721e_pcie_config_legacy_irq(pcie);
+		if (ret < 0)
+			goto err_get_sync;
+
 		gpiod = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
 		if (IS_ERR(gpiod)) {
 			ret = PTR_ERR(gpiod);
