@@ -39,7 +39,7 @@
 
 #define SHIM_PSI_CFG0(i)		(0x24 + ((i) * 0x20))
 #define SHIM_PSI_CFG0_SRC_TAG		GENMASK(15, 0)
-#define SHIM_PSI_CFG0_DST_TAG		GENMASK(31, 15)
+#define SHIM_PSI_CFG0_DST_TAG		GENMASK(31, 16)
 
 #define CSI_DF_YUV420			0x18
 #define CSI_DF_YUV422			0x1e
@@ -489,20 +489,20 @@ static int ti_csi2rx_init_subdev(struct ti_csi2rx_dev *csi)
 		return -EINVAL;
 	}
 
-	v4l2_async_notifier_init(&csi->notifier);
+	v4l2_async_nf_init(&csi->notifier);
 	csi->notifier.ops = &csi_async_notifier_ops;
 
-	asd = v4l2_async_notifier_add_fwnode_subdev(&csi->notifier, fwnode,
+	asd = v4l2_async_nf_add_fwnode_remote(&csi->notifier, fwnode,
 						    struct v4l2_async_subdev);
 	of_node_put(node);
 	if (IS_ERR(asd)) {
-		v4l2_async_notifier_cleanup(&csi->notifier);
+		v4l2_async_nf_cleanup(&csi->notifier);
 		return PTR_ERR(asd);
 	}
 
-	ret = v4l2_async_notifier_register(&csi->v4l2_dev, &csi->notifier);
+	ret = v4l2_async_nf_register(&csi->v4l2_dev, &csi->notifier);
 	if (ret) {
-		v4l2_async_notifier_cleanup(&csi->notifier);
+		v4l2_async_nf_cleanup(&csi->notifier);
 		return ret;
 	}
 
@@ -558,7 +558,7 @@ static void ti_csi2rx_setup_shim(struct ti_csi2rx_ctx *ctx)
 	writel(reg, csi->shim + SHIM_DMACNTX(ctx->idx));
 
 	reg = FIELD_PREP(SHIM_PSI_CFG0_SRC_TAG, 0) |
-	      FIELD_PREP(SHIM_PSI_CFG0_DST_TAG, 1);
+	      FIELD_PREP(SHIM_PSI_CFG0_DST_TAG, 0);
 	writel(reg, csi->shim + SHIM_PSI_CFG0(ctx->idx));
 }
 
@@ -778,7 +778,7 @@ static int ti_csi2rx_get_vc(struct ti_csi2rx_ctx *ctx)
 	struct media_pad *pad;
 	int ret, i;
 
-	pad = media_entity_remote_pad(&csi->pads[TI_CSI2RX_PAD_SINK]);
+	pad = media_pad_remote_pad_first(&csi->pads[TI_CSI2RX_PAD_SINK]);
 	if (!pad)
 		return -ENODEV;
 
@@ -822,13 +822,13 @@ static int ti_csi2rx_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (ret)
 		goto err;
 
-	remote_pad = media_entity_remote_pad(&ctx->pad);
+	remote_pad = media_pad_remote_pad_first(&ctx->pad);
 	if (!remote_pad) {
 		ret = -ENODEV;
 		goto err_pipeline;
 	}
 
-	state = v4l2_subdev_lock_active_state(&csi->subdev);
+	state = v4l2_subdev_get_locked_active_state(&csi->subdev);
 
 	routing = &state->routing;
 
@@ -1126,8 +1126,8 @@ static void ti_csi2rx_cleanup_v4l2(struct ti_csi2rx_dev *csi)
 
 static void ti_csi2rx_cleanup_subdev(struct ti_csi2rx_dev *csi)
 {
-	v4l2_async_notifier_unregister(&csi->notifier);
-	v4l2_async_notifier_cleanup(&csi->notifier);
+	v4l2_async_nf_unregister(&csi->notifier);
+	v4l2_async_nf_cleanup(&csi->notifier);
 }
 
 static void ti_csi2rx_cleanup_vb2q(struct ti_csi2rx_ctx *ctx)
