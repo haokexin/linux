@@ -574,7 +574,6 @@ otx2_qos_alloc_root(struct otx2_nic *pfvf)
 	node->parent = NULL;
 	if (!is_otx2_vf(pfvf->pcifunc)) {
 		node->level = NIX_TXSCH_LVL_TL1;
-		node->child_dwrr_prio = pfvf->hw.txschq_aggr_lvl_rr_prio;
 	} else {
 		node->level = NIX_TXSCH_LVL_TL2;
 		node->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
@@ -690,7 +689,7 @@ otx2_qos_sw_create_leaf_node(struct otx2_nic *pfvf,
 	hash_add(pfvf->qos.qos_hlist, &node->hlist, classid);
 
 	mutex_lock(&pfvf->qos.qos_lock);
-	otx2_qos_add_child_node(parent, node);
+	err = otx2_qos_add_child_node(parent, node);
 	if (err) {
 		mutex_unlock(&pfvf->qos.qos_lock);
 		return ERR_PTR(err);
@@ -820,6 +819,7 @@ static int otx2_qos_txschq_alloc(struct otx2_nic *pfvf,
 	}
 
 	pfvf->qos.link_cfg_lvl = rsp->link_cfg_lvl;
+	pfvf->hw.txschq_aggr_lvl_rr_prio = rsp->aggr_lvl_rr_prio;
 
 	mutex_unlock(&mbox->lock);
 
@@ -1209,6 +1209,13 @@ static int otx2_qos_root_add(struct otx2_nic *pfvf, u16 htb_maj_id, u16 htb_defc
 	if (err) {
 		NL_SET_ERR_MSG_MOD(extack, "Error allocating txschq");
 		goto free_root_node;
+	}
+
+	/* Update TL1 RR PRIO */
+	if (root->level == NIX_TXSCH_LVL_TL1) {
+		root->child_dwrr_prio = pfvf->hw.txschq_aggr_lvl_rr_prio;
+		netdev_dbg(pfvf->netdev,
+			   "TL1 DWRR Priority %d\n", root->child_dwrr_prio);
 	}
 
 	if (!(pfvf->netdev->flags & IFF_UP) ||

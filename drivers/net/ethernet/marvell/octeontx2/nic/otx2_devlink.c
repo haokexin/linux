@@ -262,9 +262,7 @@ static int otx2_dl_tl1_rr_prio_set(struct devlink *devlink, u32 id,
 	/* Reconfigure TL1/TL2 DWRR PRIORITY */
 	if (!err && if_up) {
 		otx2_stop(pfvf->netdev);
-		err = otx2_open(pfvf->netdev);
-		if (!err)
-			pfvf->hw.txschq_aggr_lvl_rr_prio = ctx->val.vu8;
+		otx2_open(pfvf->netdev);
 	}
 
 	return err;
