@@ -53,8 +53,8 @@ static int rsmu_cm_set_combomode(struct rsmu_cdev *rsmu, u8 dpll, u8 mode)
 	if (mode >= E_COMBOMODE_MAX)
 		return -EINVAL;
 
-	err = rsmu_read(rsmu->mfd, dpll_ctrl_n + DPLL_CTRL_COMBO_MASTER_CFG,
-			&cfg, sizeof(cfg));
+	err = regmap_bulk_read(rsmu->regmap, dpll_ctrl_n + DPLL_CTRL_COMBO_MASTER_CFG,
+			       &cfg, sizeof(cfg));
 	if (err)
 		return err;
 
@@ -64,8 +64,8 @@ static int rsmu_cm_set_combomode(struct rsmu_cdev *rsmu, u8 dpll, u8 mode)
 	else
 		cfg &= ~COMBO_MASTER_HOLD;
 
-	return rsmu_write(rsmu->mfd, dpll_ctrl_n + DPLL_CTRL_COMBO_MASTER_CFG,
-			  &cfg, sizeof(cfg));
+	return regmap_bulk_write(rsmu->regmap, dpll_ctrl_n + DPLL_CTRL_COMBO_MASTER_CFG,
+				 &cfg, sizeof(cfg));
 }
 
 static int rsmu_cm_get_dpll_state(struct rsmu_cdev *rsmu, u8 dpll, u8 *state)
@@ -77,9 +77,7 @@ static int rsmu_cm_get_dpll_state(struct rsmu_cdev *rsmu, u8 dpll, u8 *state)
 	if (dpll > 8)
 		return -EINVAL;
 
-	err = rsmu_read(rsmu->mfd,
-			  STATUS + DPLL0_STATUS + dpll,
-			  &cfg, sizeof(cfg));
+	err = regmap_bulk_read(rsmu->regmap, STATUS + DPLL0_STATUS + dpll, &cfg, sizeof(cfg));
 	if (err)
 		return err;
 
@@ -145,7 +143,7 @@ static int rsmu_cm_get_dpll_ffo(struct rsmu_cdev *rsmu, u8 dpll,
 		return -EINVAL;
 	}
 
-	err = rsmu_read(rsmu->mfd, STATUS + dpll_filter_status, buf, 6);
+	err = regmap_bulk_read(rsmu->regmap, STATUS + dpll_filter_status, buf, 6);
 	if (err)
 		return err;
 

@@ -8,28 +8,33 @@
 #ifndef __LINUX_RSMU_CDEV_H
 #define __LINUX_RSMU_CDEV_H
 
-#include <linux/cdev.h>
+#include <linux/miscdevice.h>
+#include <linux/regmap.h>
 
 struct rsmu_ops;
 
 /**
  * struct rsmu_cdev - Driver data for RSMU character device
- * @dev: pointer to platform device
+ * @name: rsmu device name as rsmu[index]
+ * @dev: pointer to device
  * @mfd: pointer to MFD device
- * @rsmu_cdev: character device handle
+ * @miscdev: character device handle
+ * @regmap: I2C/SPI regmap handle
  * @lock: mutex to protect operations from being interrupted
- * @type: rsmu device type
+ * @type: rsmu device type, passed through platform data
  * @ops: rsmu device methods
  * @index: rsmu device index
  */
 struct rsmu_cdev {
+	char name[16];
 	struct device *dev;
 	struct device *mfd;
-	struct cdev rsmu_cdev;
+	struct miscdevice miscdev;
+	struct regmap *regmap;
 	struct mutex *lock;
 	enum rsmu_type type;
 	struct rsmu_ops *ops;
-	u8 index;
+	int index;
 };
 
 extern struct rsmu_ops cm_ops;
