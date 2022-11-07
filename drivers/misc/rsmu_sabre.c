@@ -35,14 +35,14 @@ static int rsmu_sabre_set_combomode(struct rsmu_cdev *rsmu, u8 dpll, u8 mode)
 	if (mode >= E_COMBOMODE_MAX)
 		return -EINVAL;
 
-	err = rsmu_read(rsmu->mfd, dpll_ctrl_n, &cfg, sizeof(cfg));
+	err = regmap_bulk_read(rsmu->regmap, dpll_ctrl_n, &cfg, sizeof(cfg));
 	if (err)
 		return err;
 
 	cfg &= ~(COMBO_MODE_MASK << COMBO_MODE_SHIFT);
 	cfg |= mode << COMBO_MODE_SHIFT;
 
-	return rsmu_write(rsmu->mfd, dpll_ctrl_n, &cfg, sizeof(cfg));
+	return regmap_bulk_write(rsmu->regmap, dpll_ctrl_n, &cfg, sizeof(cfg));
 }
 
 static int rsmu_sabre_get_dpll_state(struct rsmu_cdev *rsmu, u8 dpll, u8 *state)
@@ -62,7 +62,7 @@ static int rsmu_sabre_get_dpll_state(struct rsmu_cdev *rsmu, u8 dpll, u8 *state)
 		return -EINVAL;
 	}
 
-	err = rsmu_read(rsmu->mfd, dpll_sts_n, &cfg, sizeof(cfg));
+	err = regmap_bulk_read(rsmu->regmap, dpll_sts_n, &cfg, sizeof(cfg));
 	if (err)
 		return err;
 
@@ -107,7 +107,7 @@ static int rsmu_sabre_get_dpll_ffo(struct rsmu_cdev *rsmu, u8 dpll,
 		return -EINVAL;
 	}
 
-	err = rsmu_read(rsmu->mfd, dpll_freq_n, buf, 5);
+	err = regmap_bulk_read(rsmu->regmap, dpll_freq_n, buf, 5);
 	if (err)
 		return err;
 
