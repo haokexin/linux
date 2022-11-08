@@ -1403,6 +1403,13 @@ config GPIO_TPS65912
 	help
 	  This driver supports TPS65912 GPIO chip.
 
+config GPIO_TPS6594X
+	tristate "TI TPS6594X GPIO driver"
+	depends on MFD_TPS6594X
+	help
+	  Select this option to enable GPIO driver for the TPS6954X
+	  PMIC chip family. There are 11 GPIOs that can be configured.
+
 config GPIO_TPS68470
 	tristate "TPS68470 GPIO"
 	depends on INTEL_SKL_INT3472
