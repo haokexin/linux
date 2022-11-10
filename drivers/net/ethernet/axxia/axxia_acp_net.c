@@ -1860,9 +1860,6 @@ static void axxianet_reset(struct net_device *ndev)
 	/* Reset the MAC */
 	write_mac(0x80000000, APPNIC_DMA_PCI_CONTROL);
 
-	/* Stop the PHY */
-	phy_stop(pdata->phy_dev);
-
 	/* Initialize the Descriptor Rings and Buffers */
 	memset((void *)pdata->rx_tail, 0, sizeof(union appnic_queue_pointer));
 	memset((void *)pdata->tx_tail, 0, sizeof(union appnic_queue_pointer));
@@ -1902,9 +1899,6 @@ static void axxianet_reset(struct net_device *ndev)
 
 		buf += pdata->tx_buf_per_desc;
 	}
-
-	/* Start the PHY */
-	phy_start(pdata->phy_dev);
 
 	/* Take MAC out of reset. */
 	write_mac(0x0, APPNIC_RX_SOFT_RESET);
