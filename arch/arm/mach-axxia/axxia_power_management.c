@@ -711,7 +711,7 @@ static int pm_cpu_physical_connection_and_power_up(int cpu)
 	/* Continue stage 2 power up of the CPU*/
 	pm_or_bits_syscon_register(NSP_PWRUPCPUSTG2, mask);
 
-	usleep_range(16, 17);
+	udelay(17);
 
 	/* Initiate power up of HS Rams */
 	pm_or_bits_syscon_register(NSP_PWRUPCPURAM, mask);
@@ -728,7 +728,7 @@ static int pm_cpu_physical_connection_and_power_up(int cpu)
 	/* Release the CPU's isolation clamps */
 	pm_clear_bits_syscon_register(NSP_ISOLATECPU, mask);
 
-	usleep_range(16, 17);
+	udelay(17);
 
 power_up_cleanup:
 
