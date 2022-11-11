@@ -490,10 +490,6 @@ static int am65_cpsw_nuss_common_open(struct am65_cpsw_common *common)
 	}
 
 	napi_enable(&common->napi_rx);
-	if (common->rx_irq_disabled) {
-		common->rx_irq_disabled = false;
-		enable_irq(common->rx_chns.irq);
-	}
 
 	dev_dbg(common->dev, "cpsw_nuss started\n");
 	return 0;
@@ -892,15 +888,12 @@ static int am65_cpsw_nuss_rx_poll(struct napi_struct *napi_rx, int budget)
 	dev_dbg(common->dev, "%s num_rx:%d %d\n", __func__, num_rx, budget);
 
 	if (num_rx < budget && napi_complete_done(napi_rx, num_rx)) {
-		if (common->rx_irq_disabled) {
-			common->rx_irq_disabled = false;
-			if (unlikely(common->rx_pace_timeout)) {
-				hrtimer_start(&common->rx_hrtimer,
-					      ns_to_ktime(common->rx_pace_timeout),
-					      HRTIMER_MODE_REL_PINNED);
-			} else {
-				enable_irq(common->rx_chns.irq);
-			}
+		if (unlikely(common->rx_pace_timeout)) {
+			hrtimer_start(&common->rx_hrtimer,
+				      ns_to_ktime(common->rx_pace_timeout),
+				      HRTIMER_MODE_REL_PINNED);
+		} else {
+			enable_irq(common->rx_chns.irq);
 		}
 	}
 
@@ -1141,7 +1134,6 @@ static irqreturn_t am65_cpsw_nuss_rx_irq(int irq, void *dev_id)
 {
 	struct am65_cpsw_common *common = dev_id;
 
-	common->rx_irq_disabled = true;
 	disable_irq_nosync(irq);
 	napi_schedule(&common->napi_rx);
 
@@ -1662,6 +1654,8 @@ static void am65_cpsw_nuss_mac_config(struct phylink_config *config, unsigned in
 	struct am65_cpsw_port *port = container_of(slave, struct am65_cpsw_port, slave);
 	u32 mr_adv_ability = MAC2MAC_MR_ADV_ABILITY_BASE;
 	struct am65_cpsw_common *common = port->common;
+	struct fwnode_handle *fwnode;
+	bool fixed_link = false;
 
 	if (common->pdata.extra_modes & BIT(state->interface))
 		writel(AM65_CPSW_SGMII_CONTROL_MR_AN_ENABLE,
@@ -2363,8 +2357,8 @@ static int am65_cpsw_nuss_ndev_add_tx_napi(struct am65_cpsw_common *common)
 				  am65_cpsw_nuss_tx_poll);
 		hrtimer_init(&tx_chn->tx_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_PINNED);
 		tx_chn->tx_hrtimer.function = &am65_cpsw_nuss_tx_timer_callback;
-
-		return 0;
+	}
+	return 0;
 }
 
 static void am65_cpsw_nuss_cleanup_ndev(struct am65_cpsw_common *common)
@@ -2919,7 +2913,7 @@ static const struct am65_cpsw_pdata j721e_pdata = {
 };
 
 static const struct am65_cpsw_pdata am64x_cpswxg_pdata = {
-	.quirks = AM64_CPSW_QUIRK_DMA_RX_TDOWN_IRQ|AM64_CPSW_QUIRK_CUT_THRU,,
+	.quirks = AM64_CPSW_QUIRK_DMA_RX_TDOWN_IRQ|AM64_CPSW_QUIRK_CUT_THRU,
 	.ale_dev_id = "am64-cpswxg",
 	.fdqring_mode = K3_RINGACC_RING_MODE_RING,
 };
