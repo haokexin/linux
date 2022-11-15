@@ -551,3 +551,11 @@ void rvu_sso_block_cn10k_init(struct rvu *rvu, int blkaddr)
 	reg &= ~BIT_ULL(4);
 	rvu_write64(rvu, blkaddr, SSO_AF_WS_CFG, reg);
 }
+
+void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw)
+{
+	int blkaddr = nix_hw->blkaddr;
+
+	/* Set vWQE timer interval to max possible value i.e. 102us. */
+	rvu_write64(rvu, blkaddr, NIX_AF_VWQE_TIMER, 0x3FFULL);
+}
