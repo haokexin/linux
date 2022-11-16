@@ -97,6 +97,12 @@
 #  define dbgmsg(dev, ...) (void)(dev)
 #endif // CONFIG_OCTEONTX2_PCI_CONSOLE_DEBUG
 
+#ifdef CONFIG_OCTEONTX2_PCI_CONSOLE_TRACE
+#define otx2_trace trace_printk
+#else
+static inline void otx2_trace(const char *fmt, ...) { }
+#endif // CONFIG_OCTEONTX2_PCI_CONSOLE_TRACE
+
 static u32 max_consoles = 1;
 module_param(max_consoles, uint, 0644);
 MODULE_PARM_DESC(max_consoles, "Maximum console count to support");
@@ -327,6 +333,7 @@ static int pci_console_nexus_probe(struct platform_device *pdev)
 	bool registered;
 	int ret;
 
+	BUILD_BUG_ON(offsetof(struct octeontx_pcie_console_nexus, in_use) != 64);
 	BUILD_BUG_ON(offsetof(struct octeontx_pcie_console_nexus, console_addr)
 		     != 128);
 
@@ -703,8 +710,10 @@ int octeontx_console_output_truncate(struct octeontx_pcie_console *console,
 /*
  * Low-level octeontx console write function.
  *
- * NOTE: this may NOT sleep, as it is called by the TTY 'write()' API.
- *
+ * NOTE:
+ * - this may NOT sleep, as it is called by the TTY 'write()' API.
+ * - avoid using printk() or equivalent here as ultimately this handler will be called,
+ *   resulting in surprise recursion and deadlock.
  */
 static unsigned
 octeontx_console_write(struct device *dev, const char *buf, unsigned int len,
@@ -715,8 +724,9 @@ octeontx_console_write(struct device *dev, const char *buf, unsigned int len,
 	int srclen, avail, wr_len, written;
 	unsigned int wait_usecs;
 	u32 sz, rd_idx, wr_idx;
+	unsigned long irq_flags;
 
-	spin_lock(excl_lock);
+	spin_lock_irqsave(excl_lock, irq_flags);
 
 	sz = le32_to_cpu(readl(&ring_descr->output_buf_size));
 	src = buf;
@@ -767,8 +777,7 @@ octeontx_console_write(struct device *dev, const char *buf, unsigned int len,
 			if (wr_len < 0) {
 				if (wait_usecs >=
 				    PCI_CONS_HOST_WAIT_TIMEOUT_USECS) {
-					dev_err_once(dev,
-						     "Timeout awaiting host\n");
+					otx2_trace("Timeout awaiting host\n");
 					break;
 				}
 				/* We cannot sleep, we have acquired the lock */
@@ -779,18 +788,17 @@ octeontx_console_write(struct device *dev, const char *buf, unsigned int len,
 				wr_len = octeontx_console_output_truncate(
 						ring_descr, wr_len);
 				if (wr_len != 0) {
-					dev_err(dev,
-						"output buffer truncate error\n");
+					otx2_trace("output buffer truncate error\n");
 					break;
 				}
 			}
 		} else {
-			dev_err_once(dev, "output buffer error\n");
+			otx2_trace("output buffer error\n");
 			break;
 		}
 	}
 
-	spin_unlock(excl_lock);
+	spin_unlock_irqrestore(excl_lock, irq_flags);
 
 	return written;
 }

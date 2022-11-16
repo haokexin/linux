@@ -215,6 +215,7 @@ static int mrvl_clone_fw(unsigned long arg)
 	struct mrvl_clone_fw *user_desc;
 	struct arm_smccc_res res;
 	struct smc_version_info *swup_info = (struct smc_version_info *)memdesc[BUF_DATA].virt;
+	int spi_in_progress = 0;
 
 	user_desc = kzalloc(sizeof(*user_desc), GFP_KERNEL);
 	if (!user_desc)
@@ -238,6 +239,9 @@ static int mrvl_clone_fw(unsigned long arg)
 
 	if (user_desc->version_flags & MARLIN_FORCE_CLONE)
 		swup_info->version_flags |= SMC_VERSION_FORCE_COPY_OBJECTS;
+
+	if (user_desc->version_flags & MARLIN_FORCE_ASYNC)
+		swup_info->version_flags |= SMC_VERSION_ASYNC_HASH;
 
 	if (user_desc->version_flags & MARLIN_CHECK_PREDEFINED_OBJ) {
 		swup_info->version_flags |= SMC_VERSION_CHECK_SPECIFIC_OBJECTS;
@@ -274,6 +278,12 @@ static int mrvl_clone_fw(unsigned long arg)
 		ret = res.a0;
 		goto mem_error;
 	}
+
+	do {
+		msleep(500);
+		res = mrvl_exec_smc(PLAT_CN10K_ASYNC_STATUS, 0, 0);
+		spi_in_progress = res.a0;
+	} while (spi_in_progress);
 
 	user_desc->retcode = swup_info->retcode;
 	for (i = 0; i < SMC_MAX_VERSION_ENTRIES; i++)
@@ -319,7 +329,7 @@ static int mrvl_run_fw_update(unsigned long arg)
 {
 	struct mrvl_update ioctl_desc = {0};
 	struct smc_update_descriptor *smc_desc;
-	struct arm_smccc_res res;
+	struct arm_smccc_res res, res_update;
 	int spi_in_progress = 0;
 
 	ktime_t tstart, tsyncend, tend;
@@ -375,33 +385,48 @@ static int mrvl_run_fw_update(unsigned long arg)
 	smc_desc->bus        = ioctl_desc.bus;
 	smc_desc->cs	     = ioctl_desc.cs;
 
+	/* Use full async update*/
+	smc_desc->retcode = 0x01;
+
 	tstart = ktime_get();
 	if (ioctl_desc.user_flags == 1) {
 		smc_desc->version = UPDATE_VERSION_PREV;
-		res = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
+		res_update = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
 			    memdesc[BUF_DATA].phys,
 			    sizeof(struct smc_update_descriptor_prev));
 	} else {
-		res = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
+		res_update = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
 			    memdesc[BUF_DATA].phys,
 			    sizeof(struct smc_update_descriptor));
 	}
 
 	tsyncend = ktime_get();
+	do {
+		msleep(500);
+		res = mrvl_exec_smc(PLAT_CN10K_ASYNC_STATUS, 0, 0);
+		spi_in_progress = res.a0;
+	} while (spi_in_progress);
 
-	ioctl_desc.ret = res.a0;
+	/* Detect if ATF will use async operations
+	 * ATF without full async support won't modify
+	 * smc_desc->retcode field
+	 */
+
+	if (smc_desc->retcode == 0x01) {
+		pr_info("ATF - partial async enabled\n");
+		ioctl_desc.ret = res_update.a1;
+	} else {
+		pr_info("ATF - full async enabled\n");
+		ioctl_desc.ret = smc_desc->retcode;
+	}
+
+
 	if (copy_to_user(TO_UPDATE_DESC(arg),
 			 &ioctl_desc,
 			 sizeof(ioctl_desc))) {
 		pr_err("Data Write Error\n");
 		return -EFAULT;
 	}
-
-	do {
-		msleep(500);
-		res = mrvl_exec_smc(PLAT_CN10K_ASYNC_STATUS, 0, 0);
-		spi_in_progress = res.a0;
-	} while (spi_in_progress);
 
 	tend = ktime_get();
 

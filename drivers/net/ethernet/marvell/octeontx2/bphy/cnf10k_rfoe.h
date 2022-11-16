@@ -37,11 +37,17 @@
 #define CNF10K_RFOE_MAX_FSIZE		9212 /* max frame size excluding FCS */
 #define CNF10K_RFOE_MAX_MTU		(CNF10K_RFOE_MAX_FSIZE - VLAN_ETH_HLEN)
 
+#define PCI_SUBSYS_DEVID_CNF10K_A			0xBA00
 #define PCI_SUBSYS_DEVID_CNF10K_B			0xBC00
 /* BCN register offsets and definitions */
 #define CNF10K_BCN_CAPTURE_CFG				0x1400U
 #define CNF10K_BCN_CAPTURE_N1_N2			0x1410U
 #define CNF10K_BCN_CAPTURE_PTP				0x1440U
+#define CNF10K_BCN_N1_N2				0xF10U
+#define CNF10K_BCN_SYNC_VAL				0xF20U
+#define CNF10K_BCN_DELTA_VAL				0xF30U
+#define CNF10K_BCN_CFG					0xF00U
+#define CNF10K_BCN_CFG2					0x2F00U
 
 /* BCN_CAPTURE_CFG register definitions */
 #define CAPT_EN					BIT(0)
@@ -56,6 +62,7 @@ struct cnf10k_rfoe_drv_ctx {
 	u8				valid;
 	struct net_device               *netdev;
 	struct cnf10k_rx_ft_cfg		*ft_cfg;
+	void				*debugfs;
 };
 
 extern struct cnf10k_rfoe_drv_ctx cnf10k_rfoe_drv_ctx[CNF10K_RFOE_MAX_INTF];
@@ -190,6 +197,7 @@ void cnf10k_rfoe_disable_intf(int rfoe_num);
 void cnf10k_rfoe_set_ethtool_ops(struct net_device *netdev);
 
 /* ptp */
+void cnf10k_rfoe_calc_ptp_ts(struct cnf10k_rfoe_ndev_priv *priv, u64 *ts);
 int cnf10k_rfoe_ptp_init(struct cnf10k_rfoe_ndev_priv *priv);
 void cnf10k_rfoe_ptp_destroy(struct cnf10k_rfoe_ndev_priv *priv);
 

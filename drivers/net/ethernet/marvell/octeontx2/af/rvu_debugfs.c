@@ -3114,7 +3114,7 @@ static ssize_t rvu_dbg_cpt_engines_sts_write(struct file *filp,
 
 static int rvu_dbg_cpt_engines_sts_display(struct seq_file *filp, void *unused)
 {
-	u64  busy_sts[2] = {0}, free_sts[2] = {0};
+	u64  busy_sts[3] = {0}, free_sts[3] = {0};
 	struct rvu *rvu = filp->private;
 	u16  max_ses, max_ies, max_aes;
 	u32  e_min = 0, e_max = 0, e;
@@ -3153,22 +3153,35 @@ static int rvu_dbg_cpt_engines_sts_display(struct seq_file *filp, void *unused)
 	for (e = e_min; e <= e_max; e++) {
 		reg = rvu_read64(rvu, blkaddr, CPT_AF_EXEX_STS(e));
 		if (reg & 0x1) {
-			if (e < max_ses)
+			if (e < 64)
 				busy_sts[0] |= 1ULL << e;
-			else if (e >= max_ses)
-				busy_sts[1] |= 1ULL << (e - max_ses);
+			else if (e < 128)
+				busy_sts[1] |= 1ULL << (e - 64);
+			else
+				busy_sts[2] |= 1ULL << (e - 128);
 		}
 		if (reg & 0x2) {
-			if (e < max_ses)
+			if (e < 64)
 				free_sts[0] |= 1ULL << e;
-			else if (e >= max_ses)
-				free_sts[1] |= 1ULL << (e - max_ses);
+			else if (e < 128)
+				free_sts[1] |= 1ULL << (e - 64);
+			else
+				free_sts[2] |= 1ULL << (e - 128);
 		}
 	}
-	seq_printf(filp, "FREE STS : 0x%016llx  0x%016llx\n", free_sts[1],
-		   free_sts[0]);
-	seq_printf(filp, "BUSY STS : 0x%016llx  0x%016llx\n", busy_sts[1],
-		   busy_sts[0]);
+	seq_puts(filp, "FREE STS : ");
+	if (e_max > 128)
+		seq_printf(filp, "0x%016llx ", free_sts[2]);
+	if (e_max > 64)
+		seq_printf(filp, "0x%016llx ", free_sts[1]);
+	seq_printf(filp, "0x%016llx\n", free_sts[0]);
+
+	seq_puts(filp, "BUSY STS : ");
+	if (e_max > 128)
+		seq_printf(filp, "0x%016llx ", busy_sts[2]);
+	if (e_max > 64)
+		seq_printf(filp, "0x%016llx ", busy_sts[1]);
+	seq_printf(filp, "0x%016llx\n", busy_sts[0]);
 
 	return 0;
 }
@@ -3206,6 +3219,7 @@ static ssize_t rvu_dbg_cpt_engines_info_write(struct file *filp,
 static int cgx_print_stats(struct seq_file *s, int lmac_id)
 {
 	struct cgx_link_user_info linfo;
+	struct cgx_fec_stats_rsp fec_rsp;
 	struct mac_ops *mac_ops;
 	void *cgxd = s->private;
 	u64 ucast, mcast, bcast;
@@ -3305,6 +3319,16 @@ static int cgx_print_stats(struct seq_file *s, int lmac_id)
 				   tx_stat);
 		stat++;
 	}
+
+	fec_rsp.fec_corr_blks = 0;
+	fec_rsp.fec_uncorr_blks = 0;
+
+	seq_printf(s, "\n=======%s FEC_STATS======\n\n", mac_ops->name);
+	err = mac_ops->get_fec_stats(cgxd, lmac_id, &fec_rsp);
+	if (err)
+		return err;
+	seq_printf(s, "Fec Corrected Errors:  %llu\n",  fec_rsp.fec_corr_blks);
+	seq_printf(s, "Fec Uncorrected Errors: %llu\n", fec_rsp.fec_uncorr_blks);
 
 	return err;
 }
@@ -3431,7 +3455,7 @@ static void rvu_dbg_cgx_init(struct rvu *rvu)
 		rvu->rvu_dbg.cgx = debugfs_create_dir(dname,
 						      rvu->rvu_dbg.cgx_root);
 
-		for_each_set_bit(lmac_id, &lmac_bmap, MAX_LMAC_PER_CGX) {
+		for_each_set_bit(lmac_id, &lmac_bmap, rvu->hw->lmac_per_cgx) {
 			/* lmac debugfs dir */
 			sprintf(dname, "lmac%d", lmac_id);
 			rvu->rvu_dbg.lmac =

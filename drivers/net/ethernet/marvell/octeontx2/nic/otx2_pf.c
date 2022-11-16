@@ -290,8 +290,8 @@ static int otx2_pf_flr_init(struct otx2_nic *pf, int num_vfs)
 	return 0;
 }
 
-static void otx2_queue_work(struct mbox *mw, struct workqueue_struct *mbox_wq,
-			    int first, int mdevs, u64 intr, int type)
+static void otx2_queue_vf_work(struct mbox *mw, struct workqueue_struct *mbox_wq,
+			       int first, int mdevs, u64 intr)
 {
 	struct otx2_mbox_dev *mdev;
 	struct otx2_mbox *mbox;
@@ -305,40 +305,26 @@ static void otx2_queue_work(struct mbox *mw, struct workqueue_struct *mbox_wq,
 
 		mbox = &mw->mbox;
 		mdev = &mbox->dev[i];
-		if (type == TYPE_PFAF)
-			otx2_sync_mbox_bbuf(mbox, i);
 		hdr = mdev->mbase + mbox->rx_start;
 		/* The hdr->num_msgs is set to zero immediately in the interrupt
-		 * handler to  ensure that it holds a correct value next time
-		 * when the interrupt handler is called.
-		 * pf->mbox.num_msgs holds the data for use in pfaf_mbox_handler
-		 * pf>mbox.up_num_msgs holds the data for use in
-		 * pfaf_mbox_up_handler.
+		 * handler to ensure that it holds a correct value next time
+		 * when the interrupt handler is called. pf->mw[i].num_msgs
+		 * holds the data for use in otx2_pfvf_mbox_handler and
+		 * pf->mw[i].up_num_msgs holds the data for use in
+		 * otx2_pfvf_mbox_up_handler.
 		 */
 		if (hdr->num_msgs) {
 			mw[i].num_msgs = hdr->num_msgs;
 			hdr->num_msgs = 0;
-			if (type == TYPE_PFAF)
-				memset(mbox->hwbase + mbox->rx_start, 0,
-				       ALIGN(sizeof(struct mbox_hdr),
-					     sizeof(u64)));
-
 			queue_work(mbox_wq, &mw[i].mbox_wrk);
 		}
 
 		mbox = &mw->mbox_up;
 		mdev = &mbox->dev[i];
-		if (type == TYPE_PFAF)
-			otx2_sync_mbox_bbuf(mbox, i);
 		hdr = mdev->mbase + mbox->rx_start;
 		if (hdr->num_msgs) {
 			mw[i].up_num_msgs = hdr->num_msgs;
 			hdr->num_msgs = 0;
-			if (type == TYPE_PFAF)
-				memset(mbox->hwbase + mbox->rx_start, 0,
-				       ALIGN(sizeof(struct mbox_hdr),
-					     sizeof(u64)));
-
 			queue_work(mbox_wq, &mw[i].mbox_up_wrk);
 		}
 	}
@@ -545,7 +531,7 @@ static void otx2_pfvf_mbox_up_handler(struct work_struct *work)
 end:
 		offset = mbox->rx_start + msg->next_msgoff;
 		if (mdev->msgs_acked == (vf_mbox->up_num_msgs - 1))
-			__otx2_mbox_reset(mbox, 0);
+			__otx2_mbox_reset(mbox, vf_idx);
 		mdev->msgs_acked++;
 	}
 }
@@ -562,15 +548,14 @@ static irqreturn_t otx2_pfvf_mbox_intr_handler(int irq, void *pf_irq)
 	if (vfs > 64) {
 		intr = otx2_read64(pf, RVU_PF_VFPF_MBOX_INTX(1));
 		otx2_write64(pf, RVU_PF_VFPF_MBOX_INTX(1), intr);
-		otx2_queue_work(mbox, pf->mbox_pfvf_wq, 64, vfs, intr,
-				TYPE_PFVF);
+		otx2_queue_vf_work(mbox, pf->mbox_pfvf_wq, 64, vfs, intr);
 		vfs -= 64;
 	}
 
 	intr = otx2_read64(pf, RVU_PF_VFPF_MBOX_INTX(0));
 	otx2_write64(pf, RVU_PF_VFPF_MBOX_INTX(0), intr);
 
-	otx2_queue_work(mbox, pf->mbox_pfvf_wq, 0, vfs, intr, TYPE_PFVF);
+	otx2_queue_vf_work(mbox, pf->mbox_pfvf_wq, 0, vfs, intr);
 
 	trace_otx2_msg_interrupt(mbox->mbox.pdev, "VF(s) to PF", intr);
 
@@ -969,7 +954,8 @@ static void otx2_pfaf_mbox_up_handler(struct work_struct *work)
 			otx2_process_mbox_msg_up(pf, msg);
 		offset = mbox->rx_start + msg->next_msgoff;
 	}
-	if (devid) {
+	/* Forward to VF iff VFs are really present */
+	if (devid && pci_num_vf(pf->pdev)) {
 		otx2_forward_vf_mbox_msgs(pf, &pf->mbox.mbox_up,
 					  MBOX_DIR_PFVF_UP, devid - 1,
 					  af_mbox->up_num_msgs);
@@ -982,16 +968,58 @@ static void otx2_pfaf_mbox_up_handler(struct work_struct *work)
 static irqreturn_t otx2_pfaf_mbox_intr_handler(int irq, void *pf_irq)
 {
 	struct otx2_nic *pf = (struct otx2_nic *)pf_irq;
-	struct mbox *mbox;
+	struct mbox *mw = &pf->mbox;
+	struct otx2_mbox_dev *mdev;
+	struct otx2_mbox *mbox;
+	struct mbox_hdr *hdr;
 
 	/* Clear the IRQ */
 	otx2_write64(pf, RVU_PF_INT, BIT_ULL(0));
 
-	mbox = &pf->mbox;
+	trace_otx2_msg_interrupt(pf->pdev, "AF to PF", BIT_ULL(0));
 
-	trace_otx2_msg_interrupt(mbox->mbox.pdev, "AF to PF", BIT_ULL(0));
+	mbox = &mw->mbox_up;
+	mdev = &mbox->dev[0];
+	otx2_sync_mbox_bbuf(mbox, 0);
 
-	otx2_queue_work(mbox, pf->mbox_wq, 0, 1, 1, TYPE_PFAF);
+	/* The hdr->num_msgs is set to zero immediately in the interrupt
+	 * handler to ensure that it holds a correct value next time
+	 * when the interrupt handler is called. pf->mbox.num_msgs holds the
+	 * data for use in pfaf_mbox_handler pf->mbox.up_num_msgs holds the
+	 * data for use in pfaf_mbox_up_handler.
+	 */
+	hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+	if (hdr->num_msgs) {
+		mw->up_num_msgs = hdr->num_msgs;
+		hdr->num_msgs = 0;
+		memset(mbox->hwbase + mbox->rx_start, 0,
+		       ALIGN(sizeof(struct mbox_hdr), sizeof(u64)));
+
+		queue_work(pf->mbox_wq, &mw->mbox_up_wrk);
+
+		/* UP messages are asynchronous and DOWN are synchronous.
+		 * Single line of interrupt is shared for UP notifications
+		 * and DOWN replies. When an UP message occurs in the midway of
+		 * forwarding VF DOWN messages then the header of PF-VF DOWN
+		 * mbox area is zeroed which in turn the caller(VF) to error out.
+		 * Hence do not interfere with DOWN message handling when UP
+		 * message arrives.
+		 */
+		return IRQ_HANDLED;
+	}
+
+	mbox = &mw->mbox;
+	mdev = &mbox->dev[0];
+	otx2_sync_mbox_bbuf(mbox, 0);
+
+	hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+	if (hdr->num_msgs) {
+		mw->num_msgs = hdr->num_msgs;
+		hdr->num_msgs = 0;
+		memset(mbox->hwbase + mbox->rx_start, 0,
+		       ALIGN(sizeof(struct mbox_hdr), sizeof(u64)));
+		queue_work(pf->mbox_wq, &mw->mbox_wrk);
+	}
 
 	return IRQ_HANDLED;
 }
@@ -1495,18 +1523,40 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 		goto err_free_sq_ptrs;
 	}
 
+#ifdef CONFIG_DCB
+	if (pf->pfc_en) {
+		err = otx2_pfc_txschq_alloc(pf);
+		if (err) {
+			mutex_unlock(&mbox->lock);
+			goto err_free_sq_ptrs;
+		}
+	}
+#endif
+
 	err = otx2_config_nix_queues(pf);
 	if (err) {
 		mutex_unlock(&mbox->lock);
 		goto err_free_txsch;
 	}
+
 	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
-		err = otx2_txschq_config(pf, lvl);
+		err = otx2_txschq_config(pf, lvl, 0, false);
 		if (err) {
 			mutex_unlock(&mbox->lock);
 			goto err_free_nix_queues;
 		}
 	}
+
+#ifdef CONFIG_DCB
+	if (pf->pfc_en) {
+		err = otx2_pfc_txschq_config(pf);
+		if (err) {
+			mutex_unlock(&mbox->lock);
+			goto err_free_nix_queues;
+		}
+	}
+#endif
+
 	mutex_unlock(&mbox->lock);
 	return err;
 
@@ -1560,6 +1610,11 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	err = otx2_txschq_stop(pf);
 	if (err)
 		dev_err(pf->dev, "RVUPF: Failed to stop/free TX schedulers\n");
+
+#ifdef CONFIG_DCB
+	if (pf->pfc_en)
+		otx2_pfc_txschq_stop(pf);
+#endif
 
 	otx2_clean_qos_queues(pf);
 
@@ -1620,6 +1675,14 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	mutex_unlock(&mbox->lock);
 }
 
+static void otx2_set_irq_coalesce(struct otx2_nic *pfvf)
+{
+	int cint;
+
+	for (cint = 0; cint < pfvf->hw.cint_cnt; cint++)
+		otx2_config_irq_coalescing(pfvf, cint);
+}
+
 static void otx2_dim_work(struct work_struct *w)
 {
 	struct dim_cq_moder cur_moder;
@@ -1635,6 +1698,7 @@ static void otx2_dim_work(struct work_struct *w)
 				CQ_TIMER_THRESH_MAX : cur_moder.usec;
 	pfvf->hw.cq_ecount_wait = (cur_moder.pkts > NAPI_POLL_WEIGHT) ?
 				NAPI_POLL_WEIGHT : cur_moder.pkts;
+	otx2_set_irq_coalesce(pfvf);
 	dim->state = DIM_START_MEASURE;
 }
 
@@ -1977,22 +2041,43 @@ u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev)
 {
 	struct otx2_nic *pf = netdev_priv(netdev);
+	bool qos_enabled;
+#ifdef CONFIG_DCB
+	u8 vlan_prio;
+#endif
 	int txq;
 
-	if (unlikely(netdev->real_num_tx_queues > pf->hw.tx_queues)) {
+	qos_enabled = (netdev->real_num_tx_queues > pf->hw.tx_queues) ? true : false;
+	if (unlikely(qos_enabled)) {
 		u16 htb_maj_id = smp_load_acquire(&pf->qos.maj_id); /* barrier */
 
 		if (unlikely(htb_maj_id)) {
 			txq = otx2_qos_select_htb_queue(pf, skb, htb_maj_id);
 			if (txq > 0)
 				return txq;
-			/* Choose from nix queues */
-			txq = netdev_pick_tx(netdev, skb, NULL);
-			return txq % pf->hw.tx_queues;
+			goto process_pfc;
 		}
 	}
 
-	return netdev_pick_tx(netdev, skb, NULL);
+process_pfc:
+#ifdef CONFIG_DCB
+	if (!skb->vlan_present)
+		goto pick_tx;
+
+	vlan_prio = skb->vlan_tci >> 13;
+	if ((vlan_prio > pf->hw.tx_queues - 1) ||
+	    !pf->pfc_alloc_status[vlan_prio])
+		goto pick_tx;
+
+	return vlan_prio;
+
+pick_tx:
+#endif
+	txq = netdev_pick_tx(netdev, skb, NULL);
+	if (unlikely(qos_enabled))
+		return txq % pf->hw.tx_queues;
+
+	return txq;
 }
 EXPORT_SYMBOL(otx2_select_queue);
 

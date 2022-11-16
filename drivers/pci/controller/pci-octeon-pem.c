@@ -16,13 +16,22 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 
+#include "../hotplug/pciehp.h"
+
 #define DRV_NAME	"octeon-pem"
 #define DRV_VERSION	"1.0"
 
 #define PCI_DEVID_OCTEON_PEM	0xA06C
 
+#define DTX_PEM_BASE(x)		(0x87E0FE9C0000 + 0x2000 * (x))
+#define DTX_PEM_SIZE		0x1000
+#define DTX_PEM_SEL(x)		(0x0 + 0x8 * (x))
+#define DTX_PEM_ENA(x)		(0x20 + 0x8 * (x))
+#define DTX_PEM_DAT(x)		(0x40 + 0x8 * (x))
+
 #define ID_SHIFT		36
 #define DOMAIN_OFFSET		0x3
+#define ON_OFFSET		0xE0
 #define RST_INT_OFFSET		0x300
 #define RST_INT_ENA_W1C_OFFSET	0x310
 #define RST_INT_ENA_W1S_OFFSET	0x318
@@ -32,9 +41,20 @@ struct pem_ctlr {
 	int			index;
 	char			irq_name[32];
 	void __iomem		*base;
+	void __iomem		*dtx_base;
 	struct pci_dev		*pdev;
 	struct work_struct	recover_rc_work;
 };
+
+static struct pcie_device *to_pciehp_dev(struct pci_dev *dev)
+{
+	struct device *device;
+
+	device = pcie_port_find_device(dev, PCIE_PORT_SERVICE_HP);
+	if (!device)
+		return NULL;
+	return to_pcie_device(device);
+}
 
 static void pem_recover_rc_link(struct work_struct *ws)
 {
@@ -43,7 +63,9 @@ static void pem_recover_rc_link(struct work_struct *ws)
 	struct pci_dev *pem_dev = pem->pdev;
 	struct pci_dev *root_port;
 	struct pci_bus *bus;
-	int rc_domain;
+	struct controller *ctrl;
+	int rc_domain, timeout = 100;
+	u64 pem_reg, dtx_reg;
 
 	rc_domain = pem->index + DOMAIN_OFFSET;
 
@@ -53,10 +75,76 @@ static void pem_recover_rc_link(struct work_struct *ws)
 		return;
 	}
 
+	dev_dbg(&pem_dev->dev, "PEM%d rcvr work\n", pem->index);
+
+	/* Check if HP interrupt thread is in progress
+	 * and wait for it to complete
+	 */
+	ctrl = get_service_data(to_pciehp_dev(root_port));
+	if (ctrl->ist_running) {
+		wait_event(ctrl->requester, !ctrl->ist_running);
+		dev_dbg(&pem_dev->dev, "PEM%d HP Ist done\n", pem->index);
+	}
+
+	/* Disable hot-plug interrupt
+	 * Removal and rescan below would setup again.
+	 */
+	pcie_disable_interrupt(ctrl);
+	dev_dbg(&pem_dev->dev, "PEM%d Disable interrupt\n", pem->index);
+
 	pci_lock_rescan_remove();
 
 	/* Clean-up device and RC bridge */
 	pci_stop_and_remove_bus_device(root_port);
+
+	pci_unlock_rescan_remove();
+
+	/* Due to hardware issue, sometimes link-down event may not go
+	 * through cleanly and put LTSSM in to un-desired state inside PEM.
+	 * Toggling PEMON(bit 0) in PEM_ON register should reset
+	 * PEM state and setup correctly.
+	 */
+	dtx_reg = 0x000500;
+	writeq(dtx_reg, pem->dtx_base + DTX_PEM_SEL(0));
+	dtx_reg = 0xfffffffff;
+	writeq(dtx_reg, pem->dtx_base + DTX_PEM_ENA(0));
+
+	dtx_reg = readq(pem->dtx_base + DTX_PEM_DAT(0));
+
+	writeq(0x0, pem->dtx_base + DTX_PEM_SEL(0));
+	writeq(0x0, pem->dtx_base + DTX_PEM_ENA(0));
+
+	pem_reg = readq(pem->base + ON_OFFSET);
+
+	dtx_reg &= BIT_ULL(13);
+	pem_reg &= (BIT_ULL(1) | BIT_ULL(0));
+
+	if (!dtx_reg && (pem_reg == 0x3)) {
+		pem_reg = readq(pem->base + ON_OFFSET);
+		pem_reg &= ~(BIT_ULL(0));
+		writeq(pem_reg, pem->base + ON_OFFSET);
+
+		udelay(10);
+
+		pem_reg = readq(pem->base + ON_OFFSET);
+		pem_reg |= BIT_ULL(0);
+		writeq(pem_reg, pem->base + ON_OFFSET);
+
+		while (timeout--) {
+			/* Check for PEM_OOR to be set */
+			pem_reg = readq(pem->base + ON_OFFSET);
+			if (pem_reg & BIT(1))
+				break;
+			udelay(1000);
+		}
+		if (!timeout) {
+			dev_warn(&pem_dev->dev,
+				 "PEM failed to get out of reset\n");
+			return;
+		}
+	}
+
+	pci_lock_rescan_remove();
 
 	/*
 	 * Hardware resets and initializes config space of RC bridge
@@ -123,6 +211,7 @@ static int pem_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct device *dev = &pdev->dev;
 	struct pem_ctlr *pem;
 	int err;
+	resource_size_t addr, size;
 
 	pem = devm_kzalloc(dev, sizeof(struct pem_ctlr), GFP_KERNEL);
 	if (pem == NULL)
@@ -153,6 +242,16 @@ static int pem_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto bar0_map_failed;
 	}
 	pem->index = ((u64)pci_resource_start(pdev, 0) >> ID_SHIFT) & 0xf;
+
+	/* DTX register space mapping */
+	addr = DTX_PEM_BASE(pem->index);
+	size = DTX_PEM_SIZE;
+	pem->dtx_base = ioremap(addr, size);
+	if (IS_ERR(pem->dtx_base)) {
+		dev_err(&pdev->dev, "Unable to map DTX region\n");
+		err = -ENODEV;
+		goto bar0_map_failed;
+	}
 
 	err = pem_register_interrupts(pdev);
 	if (err < 0) {

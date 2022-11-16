@@ -43,6 +43,9 @@
 
 #define NAME_SIZE                               32
 
+/* Max priority supported for PFC */
+#define NIX_PF_PFC_PRIO_MAX			8
+
 enum arua_mapped_qtypes {
 	AURA_NIX_RQ,
 	AURA_NIX_SQ,
@@ -200,7 +203,8 @@ struct otx2_hw {
 
 	/* NIX */
 	u8			txschq_link_cfg_lvl;
-	u16		txschq_list[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
+	u8			txschq_aggr_lvl_rr_prio;
+	u16			txschq_list[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
 	u16			matchall_ipolicer;
 	u32			dwrr_mtu;
 	u8			smq_link_type;
@@ -479,6 +483,8 @@ struct otx2_nic {
 	/* PFC */
 	u8			pfc_en;
 	u8			*queue_to_pfc_map;
+	u16			pfc_schq_list[NIX_TXSCH_LVL_CNT][NIX_PF_PFC_PRIO_MAX];
+	bool			pfc_alloc_status[NIX_PF_PFC_PRIO_MAX];
 #endif
 	/* qos */
 	struct otx2_qos		qos;
@@ -863,6 +869,23 @@ static inline void otx2_dma_unmap_page(struct otx2_nic *pfvf,
 			     dir, DMA_ATTR_SKIP_CPU_SYNC);
 }
 
+static inline u16 otx2_get_smq_idx(struct otx2_nic *pfvf, u16 qidx)
+{
+	u16 smq;
+
+#ifdef CONFIG_DCB
+	if (qidx < NIX_PF_PFC_PRIO_MAX &&  pfvf->pfc_alloc_status[qidx])
+		return pfvf->pfc_schq_list[NIX_TXSCH_LVL_SMQ][qidx];
+#endif
+	/* check if qidx falls under QOS queues */
+	if (qidx >= pfvf->hw.tot_tx_queues)
+		smq = pfvf->qos.qid_to_sqmap[qidx - pfvf->hw.tot_tx_queues];
+	else
+		smq = pfvf->hw.txschq_list[NIX_TXSCH_LVL_SMQ][0];
+
+	return smq;
+}
+
 /* MSI-X APIs */
 void otx2_free_cints(struct otx2_nic *pfvf, int n);
 void otx2_set_cints_affinity(struct otx2_nic *pfvf);
@@ -886,9 +909,15 @@ void otx2_free_aura_ptr(struct otx2_nic *pfvf, int type);
 void otx2_sq_free_sqbs(struct otx2_nic *pfvf);
 int otx2_config_nix(struct otx2_nic *pfvf);
 int otx2_config_nix_queues(struct otx2_nic *pfvf);
-int otx2_txschq_config(struct otx2_nic *pfvf, int lvl);
+int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool pfc_en);
 int otx2_txsch_alloc(struct otx2_nic *pfvf);
 int otx2_txschq_stop(struct otx2_nic *pfvf);
+#ifdef CONFIG_DCB
+int otx2_pfc_txschq_config(struct otx2_nic *pfvf);
+int otx2_pfc_txschq_alloc(struct otx2_nic *pfvf);
+int otx2_pfc_txschq_update(struct otx2_nic *pfvf);
+int otx2_pfc_txschq_stop(struct otx2_nic *pfvf);
+#endif
 void otx2_sqb_flush(struct otx2_nic *pfvf);
 int __otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
 		      dma_addr_t *dma);
@@ -896,6 +925,7 @@ int otx2_rxtx_enable(struct otx2_nic *pfvf, bool enable);
 void otx2_ctx_disable(struct mbox *mbox, int type, bool npa);
 int otx2_nix_config_bp(struct otx2_nic *pfvf, bool enable);
 void otx2_cleanup_rx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq);
+int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura);
 void otx2_cleanup_tx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq);
 int otx2_sq_aq_init(void *dev, u16 qidx, u8 chan_offset, u16 sqb_aura);
 int cn10k_sq_aq_init(void *dev, u16 qidx, u8 chan_offset, u16 sqb_aura);
@@ -1012,4 +1042,5 @@ u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev);
 void otx2_qos_config_txschq(struct otx2_nic *pfvf);
 int otx2_clean_qos_queues(struct otx2_nic *pfvf);
+bool otx2_is_qos_configured(struct otx2_nic *pfvf);
 #endif /* OTX2_COMMON_H */
