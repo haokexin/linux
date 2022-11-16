@@ -617,11 +617,11 @@ void otx2_get_mac_from_af(struct net_device *netdev)
 }
 EXPORT_SYMBOL(otx2_get_mac_from_af);
 
-int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
+int otx2_txschq_config(struct otx2_nic *pfvf, int lvl, int prio, bool txschq_for_pfc)
 {
 	struct otx2_hw *hw = &pfvf->hw;
 	struct nix_txschq_config *req;
-	u64 schq, parent;
+	u16 schq, parent;
 	u64 dwrr_val;
 
 	dwrr_val = mtu_to_dwrr_weight(pfvf, pfvf->tx_max_pktlen);
@@ -633,7 +633,13 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 	req->lvl = lvl;
 	req->num_regs = 1;
 
-	schq = hw->txschq_list[lvl][0];
+#ifdef CONFIG_DCB
+	if (txschq_for_pfc)
+		schq = pfvf->pfc_schq_list[lvl][prio];
+	else
+#endif
+		schq = hw->txschq_list[lvl][prio];
+
 	/* Set topology e.t.c configuration */
 	if (lvl == NIX_TXSCH_LVL_SMQ) {
 		req->reg[0] = NIX_AF_SMQX_CFG(schq);
@@ -646,7 +652,13 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 						(u64)hw->smq_link_type);
 		req->num_regs++;
 		/* MDQ config */
-		parent =  hw->txschq_list[NIX_TXSCH_LVL_TL4][0];
+#ifdef CONFIG_DCB
+		if (txschq_for_pfc)
+			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL4][prio];
+		else
+#endif
+			parent = hw->txschq_list[NIX_TXSCH_LVL_TL4][prio];
+
 		req->reg[1] = NIX_AF_MDQX_PARENT(schq);
 		req->regval[1] = parent << 16;
 		req->num_regs++;
@@ -654,7 +666,13 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 		req->reg[2] = NIX_AF_MDQX_SCHEDULE(schq);
 		req->regval[2] =  dwrr_val;
 	} else if (lvl == NIX_TXSCH_LVL_TL4) {
-		parent =  hw->txschq_list[NIX_TXSCH_LVL_TL3][0];
+#ifdef CONFIG_DCB
+		if (txschq_for_pfc)
+			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL3][prio];
+		else
+#endif
+			parent = hw->txschq_list[NIX_TXSCH_LVL_TL3][prio];
+
 		req->reg[0] = NIX_AF_TL4X_PARENT(schq);
 		req->regval[0] = parent << 16;
 		req->num_regs++;
@@ -666,7 +684,13 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 			req->regval[2] = BIT_ULL(12);
 		}
 	} else if (lvl == NIX_TXSCH_LVL_TL3) {
-		parent = hw->txschq_list[NIX_TXSCH_LVL_TL2][0];
+#ifdef CONFIG_DCB
+		if (txschq_for_pfc)
+			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL2][prio];
+		else
+#endif
+			parent = hw->txschq_list[NIX_TXSCH_LVL_TL2][prio];
+
 		req->reg[0] = NIX_AF_TL3X_PARENT(schq);
 		req->regval[0] = parent << 16;
 		req->num_regs++;
@@ -675,23 +699,33 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 		if (lvl == hw->txschq_link_cfg_lvl && !is_otx2_sdpvf(pfvf->pdev)) {
 			req->num_regs++;
 			req->reg[2] = NIX_AF_TL3_TL2X_LINKX_CFG(schq, hw->tx_link);
-			/* Enable this queue and backpressure */
-			req->regval[2] = BIT_ULL(13) | BIT_ULL(12);
+			/* Enable this queue and backpressure
+			 * and set relative channel
+			 */
+			req->regval[2] = BIT_ULL(13) | BIT_ULL(12) | prio;
 		}
 	} else if (lvl == NIX_TXSCH_LVL_TL2) {
-		parent =  hw->txschq_list[NIX_TXSCH_LVL_TL1][0];
+#ifdef CONFIG_DCB
+		if (txschq_for_pfc)
+			parent = pfvf->pfc_schq_list[NIX_TXSCH_LVL_TL1][prio];
+		else
+#endif
+			parent = hw->txschq_list[NIX_TXSCH_LVL_TL1][prio];
+
 		req->reg[0] = NIX_AF_TL2X_PARENT(schq);
 		req->regval[0] = parent << 16;
 
 		req->num_regs++;
 		req->reg[1] = NIX_AF_TL2X_SCHEDULE(schq);
-		req->regval[1] = TXSCH_TL1_DFLT_RR_PRIO << 24 | dwrr_val;
+		req->regval[1] = hw->txschq_aggr_lvl_rr_prio << 24 | dwrr_val;
 
 		if (lvl == hw->txschq_link_cfg_lvl && !is_otx2_sdpvf(pfvf->pdev)) {
 			req->num_regs++;
 			req->reg[2] = NIX_AF_TL3_TL2X_LINKX_CFG(schq, hw->tx_link);
-			/* Enable this queue and backpressure */
-			req->regval[2] = BIT_ULL(13) | BIT_ULL(12);
+			/* Enable this queue and backpressure
+			 * and set relative channel
+			 */
+			req->regval[2] = BIT_ULL(13) | BIT_ULL(12) | prio;
 		}
 	} else if (lvl == NIX_TXSCH_LVL_TL1) {
 		/* Default config for TL1.
@@ -707,7 +741,7 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 
 		req->num_regs++;
 		req->reg[1] = NIX_AF_TL1X_TOPOLOGY(schq);
-		req->regval[1] = (TXSCH_TL1_DFLT_RR_PRIO << 1);
+		req->regval[1] = hw->txschq_aggr_lvl_rr_prio << 1;
 
 		req->num_regs++;
 		req->reg[2] = NIX_AF_TL1X_CIR(schq);
@@ -716,6 +750,268 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 
 	return otx2_sync_mbox_msg(&pfvf->mbox);
 }
+
+#ifdef CONFIG_DCB
+int otx2_pfc_txschq_config(struct otx2_nic *pfvf)
+{
+	u8 pfc_en, pfc_bit_set;
+	int prio, lvl, err;
+
+	pfc_en = pfvf->pfc_en;
+	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
+		pfc_bit_set = pfc_en & (1 << prio);
+
+		/* Either PFC bit is not set
+		 * or tx scheduler is not allocated for the priority
+		 */
+		if (!pfc_bit_set || !pfvf->pfc_alloc_status[prio])
+			continue;
+
+		/* configure the scheduler for the tls*/
+		for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
+			err = otx2_txschq_config(pfvf, lvl, prio, true);
+			if (err) {
+				dev_err(pfvf->dev,
+					"%s configure PFC tx schq for lvl:%d, prio:%d failed!\n",
+					__func__, lvl, prio);
+				return err;
+			}
+		}
+	}
+
+	return 0;
+}
+
+static int otx2_pfc_txschq_alloc_one(struct otx2_nic *pfvf, u8 prio)
+{
+	struct nix_txsch_alloc_req *req;
+	struct nix_txsch_alloc_rsp *rsp;
+	int lvl, rc;
+
+	/* Get memory to put this msg */
+	req = otx2_mbox_alloc_msg_nix_txsch_alloc(&pfvf->mbox);
+	if (!req)
+		return -ENOMEM;
+
+	/* Request one schq per level upto max level as configured
+	 * link config level. These rest of the scheduler can be
+	 * same as hw.txschq_list.
+	 */
+	for (lvl = 0; lvl < pfvf->hw.txschq_link_cfg_lvl; lvl++)
+		req->schq[lvl] = 1;
+
+	rc = otx2_sync_mbox_msg(&pfvf->mbox);
+	if (rc)
+		return rc;
+
+	rsp = (struct nix_txsch_alloc_rsp *)
+	      otx2_mbox_get_rsp(&pfvf->mbox.mbox, 0, &req->hdr);
+	if (IS_ERR(rsp))
+		return PTR_ERR(rsp);
+
+	/* Setup transmit scheduler list */
+	for (lvl = 0; lvl < pfvf->hw.txschq_link_cfg_lvl; lvl++) {
+		if (!rsp->schq[lvl])
+			return -ENOSPC;
+
+		pfvf->pfc_schq_list[lvl][prio] = rsp->schq_list[lvl][0];
+	}
+
+	/* Set the Tx schedulers for rest of the levels same as
+	 * hw.txschq_list as those will be common for all.
+	 */
+	for (; lvl < NIX_TXSCH_LVL_CNT; lvl++)
+		pfvf->pfc_schq_list[lvl][prio] = pfvf->hw.txschq_list[lvl][0];
+
+	pfvf->pfc_alloc_status[prio] = true;
+	return 0;
+}
+
+int otx2_pfc_txschq_alloc(struct otx2_nic *pfvf)
+{
+	u8 pfc_en = pfvf->pfc_en;
+	u8 pfc_bit_set;
+	int err, prio;
+
+	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
+		pfc_bit_set = pfc_en & (1 << prio);
+
+		if (!pfc_bit_set || pfvf->pfc_alloc_status[prio])
+			continue;
+
+		/* Add new scheduler to the priority */
+		err = otx2_pfc_txschq_alloc_one(pfvf, prio);
+		if (err) {
+			dev_err(pfvf->dev, "%s failed to allocate PFC TX schedulers\n", __func__);
+			return err;
+		}
+	}
+
+	return 0;
+}
+
+static int otx2_pfc_txschq_stop_one(struct otx2_nic *pfvf, u8 prio)
+{
+	int lvl;
+
+	/* free PFC TLx nodes */
+	for (lvl = 0; lvl < pfvf->hw.txschq_link_cfg_lvl; lvl++) {
+		otx2_txschq_free_one(pfvf, lvl,
+				     pfvf->pfc_schq_list[lvl][prio]);
+	}
+
+	pfvf->pfc_alloc_status[prio] = false;
+	return 0;
+}
+
+static int otx2_pfc_update_sq_smq_mapping(struct otx2_nic *pfvf, int prio)
+{
+	struct nix_cn10k_aq_enq_req *cn10k_sq_aq;
+	struct net_device *dev = pfvf->netdev;
+	bool if_up = netif_running(dev);
+	struct nix_aq_enq_req *sq_aq;
+
+	if (if_up) {
+		if (pfvf->pfc_alloc_status[prio])
+			netif_tx_stop_all_queues(pfvf->netdev);
+		else
+			netif_tx_stop_queue(netdev_get_tx_queue(dev, prio));
+	}
+
+	if (test_bit(CN10K_LMTST, &pfvf->hw.cap_flag)) {
+		cn10k_sq_aq = otx2_mbox_alloc_msg_nix_cn10k_aq_enq(&pfvf->mbox);
+		if (!cn10k_sq_aq)
+			return -ENOMEM;
+
+		/* Fill AQ info */
+		cn10k_sq_aq->qidx = prio;
+		cn10k_sq_aq->ctype = NIX_AQ_CTYPE_SQ;
+		cn10k_sq_aq->op = NIX_AQ_INSTOP_WRITE;
+
+		/* Fill fields to update */
+		cn10k_sq_aq->sq.ena = 1;
+		cn10k_sq_aq->sq_mask.ena = 1;
+		cn10k_sq_aq->sq_mask.smq = GENMASK(9, 0);
+		cn10k_sq_aq->sq.smq = otx2_get_smq_idx(pfvf, prio);
+	} else {
+		sq_aq = otx2_mbox_alloc_msg_nix_aq_enq(&pfvf->mbox);
+		if (!sq_aq)
+			return -ENOMEM;
+
+		/* Fill AQ info */
+		sq_aq->qidx = prio;
+		sq_aq->ctype = NIX_AQ_CTYPE_SQ;
+		sq_aq->op = NIX_AQ_INSTOP_WRITE;
+
+		/* Fill fields to update */
+		sq_aq->sq.ena = 1;
+		sq_aq->sq_mask.ena = 1;
+		sq_aq->sq_mask.smq = GENMASK(8, 0);
+		sq_aq->sq.smq = otx2_get_smq_idx(pfvf, prio);
+	}
+
+	otx2_sync_mbox_msg(&pfvf->mbox);
+
+	if (if_up) {
+		if (pfvf->pfc_alloc_status[prio])
+			netif_tx_start_all_queues(pfvf->netdev);
+		else
+			netif_tx_start_queue(netdev_get_tx_queue(dev, prio));
+	}
+
+	return 0;
+}
+
+int otx2_pfc_txschq_update(struct otx2_nic *pfvf)
+{
+	u8 pfc_en = pfvf->pfc_en, pfc_bit_set;
+	struct mbox *mbox = &pfvf->mbox;
+	bool if_up = netif_running(pfvf->netdev);
+	int err, prio;
+
+	mutex_lock(&mbox->lock);
+	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
+		pfc_bit_set = pfc_en & (1 << prio);
+
+		/* tx scheduler was created but user wants to disable now */
+		if (!pfc_bit_set && pfvf->pfc_alloc_status[prio]) {
+			mutex_unlock(&mbox->lock);
+			if (if_up)
+				netif_tx_stop_all_queues(pfvf->netdev);
+
+			otx2_smq_flush(pfvf, pfvf->pfc_schq_list[NIX_TXSCH_LVL_SMQ][prio]);
+			if (if_up)
+				netif_tx_start_all_queues(pfvf->netdev);
+
+			/* delete the schq */
+			err = otx2_pfc_txschq_stop_one(pfvf, prio);
+			if (err) {
+				dev_err(pfvf->dev,
+					"%s failed to stop PFC tx schedulers for priority: %d\n",
+					__func__, prio);
+				return err;
+			}
+
+			mutex_lock(&mbox->lock);
+			goto update_sq_smq_map;
+		}
+
+		/* Either PFC bit is not set
+		 * or Tx scheduler is already mapped for the priority
+		 */
+		if (!pfc_bit_set || pfvf->pfc_alloc_status[prio])
+			continue;
+
+		/* Add new scheduler to the priority */
+		err = otx2_pfc_txschq_alloc_one(pfvf, prio);
+		if (err) {
+			mutex_unlock(&mbox->lock);
+			dev_err(pfvf->dev,
+				"%s failed to allocate PFC tx schedulers for priority: %d\n",
+				__func__, prio);
+			return err;
+		}
+
+update_sq_smq_map:
+		err = otx2_pfc_update_sq_smq_mapping(pfvf, prio);
+		if (err) {
+			mutex_unlock(&mbox->lock);
+			dev_err(pfvf->dev, "%s failed PFC Tx schq sq:%d mapping", __func__, prio);
+			return err;
+		}
+	}
+
+	err = otx2_pfc_txschq_config(pfvf);
+	mutex_unlock(&mbox->lock);
+	if (err)
+		return err;
+
+	return 0;
+}
+EXPORT_SYMBOL(otx2_pfc_txschq_update);
+
+int otx2_pfc_txschq_stop(struct otx2_nic *pfvf)
+{
+	u8 pfc_en, pfc_bit_set;
+	int prio, err;
+
+	pfc_en = pfvf->pfc_en;
+	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
+		pfc_bit_set = pfc_en & (1 << prio);
+		if (!pfc_bit_set || !pfvf->pfc_alloc_status[prio])
+			continue;
+
+		/* Delete the existing scheduler */
+		err = otx2_pfc_txschq_stop_one(pfvf, prio);
+		if (err) {
+			dev_err(pfvf->dev, "%s failed to stop PFC TX schedulers\n", __func__);
+			return err;
+		}
+	}
+
+	return 0;
+}
+#endif
 
 int otx2_txsch_alloc(struct otx2_nic *pfvf)
 {
@@ -747,7 +1043,8 @@ int otx2_txsch_alloc(struct otx2_nic *pfvf)
 			pfvf->hw.txschq_list[lvl][schq] =
 				rsp->schq_list[lvl][schq];
 
-	pfvf->hw.txschq_link_cfg_lvl = rsp->link_cfg_lvl;
+	pfvf->hw.txschq_link_cfg_lvl     = rsp->link_cfg_lvl;
+	pfvf->hw.txschq_aggr_lvl_rr_prio = rsp->aggr_lvl_rr_prio;
 
 	return 0;
 }
@@ -773,7 +1070,7 @@ void otx2_txschq_free_one(struct otx2_nic *pfvf, u16 lvl, u16 schq)
 	err = otx2_sync_mbox_msg(&pfvf->mbox);
 	if (err) {
 		netdev_err(pfvf->netdev,
-			   "Failed stop txschq %d at level %d\n", lvl, schq);
+			   "Failed stop txschq %d at level %d\n", schq, lvl);
 	}
 
 	mutex_unlock(&pfvf->mbox.lock);
@@ -884,8 +1181,7 @@ int otx2_sq_aq_init(void *dev, u16 qidx, u8 chan_offset, u16 sqb_aura)
 	aq->sq.max_sqe_size = NIX_MAXSQESZ_W16; /* 128 byte */
 	aq->sq.cq_ena = 1;
 	aq->sq.ena = 1;
-	/* Only one SMQ is allocated, map all SQ's to that SMQ  */
-	aq->sq.smq = pfvf->hw.txschq_list[NIX_TXSCH_LVL_SMQ][0];
+	aq->sq.smq = otx2_get_smq_idx(pfvf, qidx);
 	aq->sq.smq_rr_quantum = mtu_to_dwrr_weight(pfvf, pfvf->tx_max_pktlen);
 	aq->sq.default_chan = pfvf->hw.tx_chan_base + chan_offset;
 	aq->sq.sqe_stype = NIX_STYPE_STF; /* Cache SQB */
@@ -905,7 +1201,7 @@ int otx2_sq_aq_init(void *dev, u16 qidx, u8 chan_offset, u16 sqb_aura)
 	return otx2_sync_mbox_msg(&pfvf->mbox);
 }
 
-static int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
+int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
 {
 	struct otx2_qset *qset = &pfvf->qset;
 	struct otx2_snd_queue *sq;
@@ -942,6 +1238,7 @@ static int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
 	}
 
 	sq->head = 0;
+	sq->cons_head = 0;
 	sq->sqe_per_sqb = (pfvf->hw.sqb_size / sq->sqe_size) - 1;
 	sq->num_sqbs = (qset->sqe_cnt + sq->sqe_per_sqb) / sq->sqe_per_sqb;
 	/* Set SQE threshold to 10% of total SQEs */
@@ -1194,7 +1491,8 @@ void otx2_sq_free_sqbs(struct otx2_nic *pfvf)
 			dma_unmap_page_attrs(pfvf->dev, iova, hw->sqb_size,
 					     DMA_FROM_DEVICE,
 					     DMA_ATTR_SKIP_CPU_SYNC);
-			put_page(virt_to_page(phys_to_virt(pa)));
+			if (page_ref_count(virt_to_page(phys_to_virt(pa))))
+				put_page(virt_to_page(phys_to_virt(pa)));
 		}
 		sq->sqb_count = 0;
 	}
@@ -1227,7 +1525,8 @@ void otx2_free_aura_ptr(struct otx2_nic *pfvf, int type)
 			dma_unmap_page_attrs(pfvf->dev, iova, size,
 					     DMA_FROM_DEVICE,
 					     DMA_ATTR_SKIP_CPU_SYNC);
-			put_page(virt_to_page(phys_to_virt(pa)));
+			if (page_ref_count(virt_to_page(phys_to_virt(pa))))
+				put_page(virt_to_page(phys_to_virt(pa)));
 			iova = otx2_aura_allocptr(pfvf, pool_id);
 		}
 	}
@@ -1648,13 +1947,12 @@ int otx2_nix_config_bp(struct otx2_nic *pfvf, bool enable)
 
 	req->chan_base = 0;
 #ifdef CONFIG_DCB
-	req->chan_cnt = pfvf->pfc_en ? IEEE_8021QAZ_MAX_TCS : 1;
+	req->chan_cnt = pfvf->pfc_en ? IEEE_8021QAZ_MAX_TCS : pfvf->hw.rx_chan_cnt;
 	req->bpid_per_chan = pfvf->pfc_en ? 1 : 0;
 #else
-	req->chan_cnt =  1;
+	req->chan_cnt =  pfvf->hw.rx_chan_cnt;
 	req->bpid_per_chan = 0;
 #endif
-
 
 	return otx2_sync_mbox_msg(&pfvf->mbox);
 }

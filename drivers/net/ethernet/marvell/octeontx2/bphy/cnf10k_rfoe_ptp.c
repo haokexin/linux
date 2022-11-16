@@ -168,7 +168,13 @@ static int cnf10k_rfoe_ptp_gettime(struct ptp_clock_info *ptp_info,
 	u64 nsec;
 
 	mutex_lock(&priv->ptp_lock);
-	nsec = timecounter_read(&priv->time_counter);
+	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+	    priv->ptp_cfg->use_ptp_alg) {
+		nsec = cnf10k_rfoe_read_ptp_clock(priv);
+		cnf10k_rfoe_calc_ptp_ts(priv, &nsec);
+	} else {
+		nsec = timecounter_read(&priv->time_counter);
+	}
 	mutex_unlock(&priv->ptp_lock);
 
 	*ts = ns_to_timespec64(nsec);
@@ -221,6 +227,7 @@ static void cnf10k_rfoe_ptp_extts_check(struct work_struct *work)
 	mutex_lock(&priv->ptp_lock);
 	tstmp = readq(priv->ptp_reg_base + MIO_PTP_TIMESTAMP);
 	mutex_unlock(&priv->ptp_lock);
+	tstmp = cnf10k_ptp_convert_timestamp(tstmp);
 
 	if (tstmp != priv->last_extts) {
 		event.type = PTP_CLOCK_EXTTS;

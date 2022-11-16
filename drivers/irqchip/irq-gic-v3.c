@@ -958,6 +958,7 @@ static int __gic_update_rdist_properties(struct redist_region *region,
 					 void __iomem *ptr)
 {
 	u64 typer = gic_read_typer(ptr + GICR_TYPER);
+	u32 ctlr = readl_relaxed(ptr + GICR_CTLR);
 
 	/* Boot-time cleanip */
 	if ((typer & GICR_TYPER_VLPIS) && (typer & GICR_TYPER_RVPEID)) {
@@ -980,6 +981,7 @@ static int __gic_update_rdist_properties(struct redist_region *region,
 	/* RVPEID implies some form of DirectLPI, no matter what the doc says... :-/ */
 	gic_data.rdists.has_rvpeid &= !!(typer & GICR_TYPER_RVPEID);
 	gic_data.rdists.has_direct_lpi &= (!!(typer & GICR_TYPER_DirectLPIS) |
+					   !!(ctlr & GICR_CTLR_IR) |
 					   gic_data.rdists.has_rvpeid);
 	gic_data.rdists.has_vpend_valid_dirty &= !!(typer & GICR_TYPER_DIRTY);
 

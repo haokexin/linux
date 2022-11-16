@@ -33,6 +33,7 @@
 #include <linux/kernel_stat.h>
 #include <linux/kexec.h>
 #include <linux/kvm_host.h>
+#include <linux/coresight.h>
 
 #include <asm/alternative.h>
 #include <asm/atomic.h>
@@ -869,6 +870,8 @@ static void ipi_cpu_crash_stop(unsigned int cpu, struct pt_regs *regs)
 {
 #ifdef CONFIG_KEXEC_CORE
 	crash_save_cpu(regs, cpu);
+
+	cpu_emergency_stop_cs_etm();
 
 	atomic_dec(&waiting_for_crash_ipi);
 

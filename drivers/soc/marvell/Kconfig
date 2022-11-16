@@ -120,6 +120,19 @@ config OCTEONTX2_PCI_CONSOLE_DEBUG
 
 	  If you are unsure about this, say N here.
 
+config OCTEONTX2_PCI_CONSOLE_TRACE
+	bool "OcteonTX2 PCI Endpoint console driver trace messages"
+	depends on OCTEONTX2_PCI_CONSOLE
+	depends on DYNAMIC_FTRACE
+	help
+	  Say Y here if you want the OcteonTX2 PCI console driver
+	  to write verbose debug messages to the dynamic ftrace infrastructure.
+	  Select this if you are having a problem with the OcteonTX2 PCI console
+	  and want to see more details of the parts that are not debuggable
+	  with traditional prints coming from OCTEONTX2_PCI_CONSOLE_DEBUG.
+
+	  If you are unsure about this, say N here.
+
 config GTI_WATCHDOG
 	tristate "GTI Watchdog driver"
 	depends on ARM64
@@ -243,8 +256,8 @@ config OCTEONTX2_CCU
 
 	  To compile as a module choose M here.
 
-config MARVELL_CN10K_FWLOG
-	tristate "CN10K firmware log interface"
+config MARVELL_FWLOG
+	tristate "firmware log interface"
 	depends on ARM64
 	help
 	  Provides interface to read firmware boot logs. Firmware bootlogs are saved
@@ -252,7 +265,7 @@ config MARVELL_CN10K_FWLOG
 	  user to dump the firmware boot logs.
 
 	  Say Y here if you want to dump the firmware boot logs from linux shell. This
-	  option is available only for CN10K platforms.
+	  option is available only for CN10K and t9x platforms.
 
 config MARVELL_CN10K_EINJ
         tristate "CN10K ECC Injection"

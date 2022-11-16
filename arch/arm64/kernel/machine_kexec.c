@@ -13,6 +13,7 @@
 #include <linux/page-flags.h>
 #include <linux/set_memory.h>
 #include <linux/smp.h>
+#include <linux/coresight.h>
 
 #include <asm/cacheflush.h>
 #include <asm/cpu_ops.h>
@@ -252,6 +253,7 @@ void machine_crash_shutdown(struct pt_regs *regs)
 
 	/* for crashing cpu */
 	crash_save_cpu(regs, smp_processor_id());
+	cpu_emergency_stop_cs_etm();
 	machine_kexec_mask_interrupts();
 
 	pr_info("Starting crashdump kernel...\n");

@@ -5,6 +5,7 @@
  */
 
 #include "cnf10k_rfoe.h"
+#include "otx2_bphy_debugfs.h"
 #include "cnf10k_bphy_hw.h"
 
 #define PTP_PORT               0x13F
@@ -18,6 +19,18 @@
 
 /* global driver ctx */
 struct cnf10k_rfoe_drv_ctx cnf10k_rfoe_drv_ctx[CNF10K_RFOE_MAX_INTF];
+
+static uint8_t cnf10k_rfoe_get_ptp_ts_index(struct cnf10k_rfoe_ndev_priv *priv)
+{
+	struct rfoe_link_tx_ptp_ring_ctl *ctrl;
+	u64 value;
+
+	value = readq(priv->rfoe_reg_base +
+		      CNF10K_RFOEX_LINK_TX_PTP_RING_CTL(priv->rfoe_num,
+							priv->lmac_id));
+	ctrl = (struct rfoe_link_tx_ptp_ring_ctl *)(&value);
+	return ctrl->tail_idx0;
+}
 
 static void cnf10k_rfoe_update_tx_drop_stats(struct cnf10k_rfoe_ndev_priv *priv,
 					     int pkt_type)
@@ -105,7 +118,7 @@ void cnf10k_bphy_intr_handler(struct otx2_bphy_cdev_priv *cdev_priv, u32 status)
 			intr_mask = CNF10K_RFOE_TX_PTP_INTR_MASK(priv->rfoe_num,
 								 priv->lmac_id,
 						cdev_priv->num_rfoe_lmac);
-			if ((status & intr_mask) && priv->ptp_tx_skb)
+			if (status & intr_mask)
 				schedule_work(&priv->ptp_tx_work);
 		}
 	}
@@ -139,6 +152,7 @@ void cnf10k_bphy_rfoe_cleanup(void)
 	for (i = 0; i < CNF10K_RFOE_MAX_INTF; i++) {
 		drv_ctx = &cnf10k_rfoe_drv_ctx[i];
 		if (drv_ctx->valid) {
+			cnf10k_rfoe_debugfs_remove(drv_ctx);
 			netdev = drv_ctx->netdev;
 			netif_stop_queue(netdev);
 			priv = netdev_priv(netdev);
@@ -281,7 +295,13 @@ static void cnf10k_rfoe_prepare_onestep_ptp_header(struct cnf10k_rfoe_ndev_priv 
 	u64 tstamp, tsns;
 
 	tstamp = cnf10k_rfoe_read_ptp_clock(priv);
-	cnf10k_rfoe_ptp_tstamp2time(priv, tstamp, &tsns);
+	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+	    priv->ptp_cfg->use_ptp_alg) {
+		tsns = tstamp;
+		cnf10k_rfoe_calc_ptp_ts(priv, &tsns);
+	} else {
+		cnf10k_rfoe_ptp_tstamp2time(priv, tstamp, &tsns);
+	}
 	ts = ns_to_timespec64(tsns);
 
 	origin_tstamp = (struct ptpv2_tstamp *)((u8 *)skb->data + ptp_offset +
@@ -308,12 +328,12 @@ static void cnf10k_rfoe_ptp_submit_work(struct work_struct *work)
 	struct cnf10k_psm_cmd_addjob_s *psm_cmd_lo;
 	struct rfoe_tx_ptp_tstmp_s *tx_tstmp;
 	struct cnf10k_tx_action_s tx_mem;
-	int ptp_offset = 0, udp_csum = 0;
 	struct tx_job_queue_cfg *job_cfg;
 	struct tx_job_entry *job_entry;
 	struct ptp_tstamp_skb *ts_skb;
 	u16 psm_queue_id, queue_space;
 	struct sk_buff *skb = NULL;
+	unsigned int pkt_len = 0;
 	struct list_head *head;
 	unsigned long flags;
 	u64 regval;
@@ -363,6 +383,8 @@ static void cnf10k_rfoe_ptp_submit_work(struct work_struct *work)
 
 	priv->last_tx_ptp_jiffies = jiffies;
 
+	priv->ptp_ring_cfg.ptp_ring_idx = cnf10k_rfoe_get_ptp_ts_index(priv);
+
 	/* ptp timestamp entry is 128-bit in size */
 	tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
 			((u8 *)priv->ptp_ring_cfg.ptp_ring_base +
@@ -379,32 +401,26 @@ static void cnf10k_rfoe_ptp_submit_work(struct work_struct *work)
 		  job_entry->job_cmd_lo, job_entry->job_cmd_hi,
 		  job_entry->jd_iova_addr);
 
-	if (priv->ptp_onestep_sync &&
-	    cnf10k_ptp_is_sync(skb, &ptp_offset, &udp_csum))
-		cnf10k_rfoe_prepare_onestep_ptp_header(priv, &tx_mem, skb,
-						       ptp_offset, udp_csum);
-
 	priv->ptp_tx_skb = skb;
 	psm_cmd_lo = (struct cnf10k_psm_cmd_addjob_s *)&job_entry->job_cmd_lo;
 	priv->ptp_job_tag = psm_cmd_lo->jobtag;
 
 	/* update length and block size in jd dma cfg word */
 	jd_cfg_ptr = job_entry->jd_cfg_ptr;
-	jd_cfg_ptr->cfg3.pkt_len = skb->len;
 	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
 				job_entry->rd_dma_ptr;
-	jd_dma_cfg_word_0->block_size = (((skb->len + 15) >> 4) * 4);
 
+	pkt_len = skb->len;
 	/* Copy packet data to dma buffer */
 	if (priv->ndev_flags & BPHY_NDEV_TX_1S_PTP_EN_FLAG) {
 		memcpy(job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
 		memcpy(job_entry->pkt_dma_addr + sizeof(tx_mem), skb->data, skb->len);
+		pkt_len += sizeof(tx_mem);
 	} else {
 		memcpy(job_entry->pkt_dma_addr, skb->data, skb->len);
 	}
-
-	jd_cfg_ptr->cfg3.pkt_len = skb->len + sizeof(tx_mem);
-	jd_dma_cfg_word_0->block_size = (((skb->len + 15 + sizeof(tx_mem)) >> 4) * 4);
+	jd_cfg_ptr->cfg3.pkt_len = pkt_len;
+	jd_dma_cfg_word_0->block_size = (((pkt_len + 15) >> 4) * 4);
 
 	/* make sure that all memory writes are completed */
 	dma_wmb();
@@ -439,11 +455,14 @@ static void cnf10k_rfoe_ptp_tx_work(struct work_struct *work)
 	if (!priv->ptp_tx_skb) {
 		netif_err(priv, tx_done, priv->netdev,
 			  "ptp tx skb not found, something wrong!\n");
-		goto submit_next_req;
+		return;
 	}
 
-	if (!(skb_shinfo(priv->ptp_tx_skb)->tx_flags & SKBTX_IN_PROGRESS))
+	if (!(skb_shinfo(priv->ptp_tx_skb)->tx_flags & SKBTX_IN_PROGRESS)) {
+		netif_err(priv, tx_done, priv->netdev,
+			  "ptp tx skb SKBTX_IN_PROGRESS not set\n");
 		goto submit_next_req;
+	}
 
 	/* make sure that all memory writes by rfoe are completed */
 	dma_rmb();
@@ -471,19 +490,20 @@ static void cnf10k_rfoe_ptp_tx_work(struct work_struct *work)
 	}
 	/* update timestamp value in skb */
 	timestamp = cnf10k_ptp_convert_timestamp(tx_tstmp->ptp_timestamp);
-	cnf10k_rfoe_calc_ptp_ts(priv, &timestamp);
-	cnf10k_rfoe_ptp_tstamp2time(priv, timestamp, &tsns);
+	if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+	    priv->ptp_cfg->use_ptp_alg) {
+		cnf10k_rfoe_calc_ptp_ts(priv, &timestamp);
+		tsns = timestamp;
+	} else {
+		cnf10k_rfoe_ptp_tstamp2time(priv, timestamp, &tsns);
+	}
 
 	memset(&ts, 0, sizeof(ts));
 	ts.hwtstamp = ns_to_ktime(tsns);
 	skb_tstamp_tx(priv->ptp_tx_skb, &ts);
 
 submit_next_req:
-	priv->ptp_ring_cfg.ptp_ring_idx++;
-	if (priv->ptp_ring_cfg.ptp_ring_idx >= priv->ptp_ring_cfg.ptp_ring_size)
-		priv->ptp_ring_cfg.ptp_ring_idx = 0;
-	if (priv->ptp_tx_skb &&
-	    (skb_shinfo(priv->ptp_tx_skb)->tx_flags & SKBTX_IN_PROGRESS))
+	if (priv->ptp_tx_skb)
 		dev_kfree_skb_any(priv->ptp_tx_skb);
 	priv->ptp_tx_skb = NULL;
 	clear_bit_unlock(PTP_TX_IN_PROGRESS, &priv->state);
@@ -630,8 +650,13 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 	if (priv2->rx_hw_tstamp_en) {
 		tstamp = be64_to_cpu(*(__be64 *)&psw->ptp_timestamp);
 		tstamp = cnf10k_ptp_convert_timestamp(tstamp);
-		cnf10k_rfoe_calc_ptp_ts(priv2, &tstamp);
-		cnf10k_rfoe_ptp_tstamp2time(priv2, tstamp, &tsns);
+		if (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+		    priv->ptp_cfg->use_ptp_alg) {
+			cnf10k_rfoe_calc_ptp_ts(priv2, &tstamp);
+			tsns = tstamp;
+		} else {
+			cnf10k_rfoe_ptp_tstamp2time(priv2, tstamp, &tsns);
+		}
 		skb_hwtstamps(skb)->hwtstamp = ns_to_ktime(tsns);
 	}
 
@@ -899,6 +924,7 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 	struct tx_job_entry *job_entry;
 	struct ptp_tstamp_skb *ts_skb;
 	int psm_queue_id, queue_space;
+	unsigned int pkt_len = 0;
 	unsigned long flags;
 	struct ethhdr *eth;
 	int pkt_type = 0;
@@ -980,7 +1006,6 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 
 	/* hw timestamp */
 	if (unlikely(pkt_type == PACKET_TYPE_PTP)) {
-		skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
 		/* check if one-step is enabled */
 		if (priv->ptp_onestep_sync &&
 		    cnf10k_ptp_is_sync(skb, &ptp_offset, &udp_csum)) {
@@ -988,15 +1013,22 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 							       &tx_mem, skb,
 							       ptp_offset,
 							       udp_csum);
-			skb_shinfo(skb)->tx_flags &= ~SKBTX_IN_PROGRESS;
+			/* reset UDP hdr checksum as there is no checksum offload */
+			if (udp_csum)
+				udp_hdr(skb)->check = 0;
+			goto ptp_one_step_out;
 		}
 
+		skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
 		if (list_empty(&priv->ptp_skb_list.list) &&
 		    !test_and_set_bit_lock(PTP_TX_IN_PROGRESS, &priv->state)) {
 			priv->ptp_tx_skb = skb;
 			psm_cmd_lo = (struct cnf10k_psm_cmd_addjob_s *)
 						&job_entry->job_cmd_lo;
 			priv->ptp_job_tag = psm_cmd_lo->jobtag;
+
+			priv->ptp_ring_cfg.ptp_ring_idx =
+				cnf10k_rfoe_get_ptp_ts_index(priv);
 
 			/* ptp timestamp entry is 128-bit in size */
 			tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
@@ -1008,6 +1040,7 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 			if (priv->ptp_skb_list.count >= max_ptp_req) {
 				netif_err(priv, tx_err, netdev,
 					  "ptp list full, dropping pkt\n");
+				skb_shinfo(skb)->tx_flags &= ~SKBTX_IN_PROGRESS;
 				cnf10k_rfoe_update_tx_drop_stats(priv, PACKET_TYPE_PTP);
 				goto exit;
 			}
@@ -1028,6 +1061,7 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 		}
 	}
 
+ptp_one_step_out:
 	/* sw timestamp */
 	skb_tx_timestamp(skb);
 
@@ -1040,10 +1074,8 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 
 	/* update length and block size in jd dma cfg word */
 	jd_cfg_ptr = job_entry->jd_cfg_ptr;
-	jd_cfg_ptr->cfg3.pkt_len = skb->len;
 	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
 						job_entry->rd_dma_ptr;
-	jd_dma_cfg_word_0->block_size = (((skb->len + 15) >> 4) * 4);
 
 	/* update rfoe_mode and lmac id for non-ptp (shared) psm job entry */
 	if (pkt_type != PACKET_TYPE_PTP) {
@@ -1054,18 +1086,19 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 			jd_cfg_ptr->cfg.rfoe_mode = 0;
 	}
 
+	pkt_len = skb->len;
 	/* Copy packet data to dma buffer */
 	if (pkt_type == PACKET_TYPE_PTP &&
 	    priv->ndev_flags & BPHY_NDEV_TX_1S_PTP_EN_FLAG) {
 		memcpy(job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
 		memcpy(job_entry->pkt_dma_addr + sizeof(tx_mem),
 		       skb->data, skb->len);
-
-		jd_cfg_ptr->cfg3.pkt_len = skb->len + sizeof(tx_mem);
-		jd_dma_cfg_word_0->block_size = (((skb->len + 15 + sizeof(tx_mem)) >> 4) * 4);
+		pkt_len += sizeof(tx_mem);
 	} else {
 		memcpy(job_entry->pkt_dma_addr, skb->data, skb->len);
 	}
+	jd_cfg_ptr->cfg3.pkt_len = pkt_len;
+	jd_dma_cfg_word_0->block_size = (((pkt_len + 15) >> 4) * 4);
 
 	/* make sure that all memory writes are completed */
 	dma_wmb();
@@ -1083,8 +1116,7 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 	if (job_cfg->q_idx == job_cfg->num_entries)
 		job_cfg->q_idx = 0;
 exit:
-	if (!(priv->tx_hw_tstamp_en &&
-	      skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS))
+	if (!(skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS))
 		dev_kfree_skb_any(skb);
 
 	spin_unlock_irqrestore(&job_cfg->lock, flags);
@@ -1563,6 +1595,9 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 			drv_ctx->valid = 1;
 			drv_ctx->netdev = netdev;
 			drv_ctx->ft_cfg = &priv->rx_ft_cfg[0];
+
+			/* create debugfs entry */
+			cnf10k_rfoe_debugfs_create(drv_ctx);
 		}
 	}
 
@@ -1572,6 +1607,7 @@ err_exit:
 	for (i = 0; i < CNF10K_RFOE_MAX_INTF; i++) {
 		drv_ctx = &cnf10k_rfoe_drv_ctx[i];
 		if (drv_ctx->valid) {
+			cnf10k_rfoe_debugfs_remove(drv_ctx);
 			netdev = drv_ctx->netdev;
 			priv = netdev_priv(netdev);
 			cnf10k_rfoe_ptp_destroy(priv);

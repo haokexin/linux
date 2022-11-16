@@ -24,8 +24,6 @@
 #define DRV_NAME	"rvu_af"
 #define DRV_STRING      "Marvell OcteonTX2 RVU Admin Function Driver"
 
-static int rvu_get_hwvf(struct rvu *rvu, int pcifunc);
-
 static void rvu_set_msix_offset(struct rvu *rvu, struct rvu_pfvf *pfvf,
 				struct rvu_block *block, int lf);
 static void rvu_clear_msix_offset(struct rvu *rvu, struct rvu_pfvf *pfvf,
@@ -448,7 +446,7 @@ void rvu_get_pf_numvfs(struct rvu *rvu, int pf, int *numvfs, int *hwvf)
 		*hwvf = cfg & 0xFFF;
 }
 
-static int rvu_get_hwvf(struct rvu *rvu, int pcifunc)
+int rvu_get_hwvf(struct rvu *rvu, int pcifunc)
 {
 	int pf, func;
 	u64 cfg;
@@ -795,6 +793,7 @@ static void rvu_free_hw_resources(struct rvu *rvu)
 
 	rvu_reset_msix(rvu);
 	mutex_destroy(&rvu->rsrc_lock);
+	mutex_destroy(&rvu->alias_lock);
 }
 
 static void rvu_setup_pfvf_macaddress(struct rvu *rvu)
@@ -840,6 +839,18 @@ lbkvf:
 			}
 			ether_addr_copy(pfvf->default_mac, pfvf->mac_addr);
 		}
+	}
+}
+
+static void rvu_setup_pfvf_aggr_lvl_rr_prio(struct rvu *rvu)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_pfvf *pfvf;
+	int pf;
+
+	for (pf = 0; pf < hw->total_pfs; pf++) {
+		pfvf = &rvu->pf[pf];
+		pfvf->tl1_rr_prio = TXSCH_TL1_DFLT_RR_PRIO;
 	}
 }
 
@@ -1159,6 +1170,7 @@ cpt:
 	}
 
 	mutex_init(&rvu->rsrc_lock);
+	mutex_init(&rvu->alias_lock);
 
 	err = rvu_fwdata_init(rvu);
 	if (err)
@@ -1220,6 +1232,9 @@ cpt:
 
 	/* Assign MACs for CGX mapped functions */
 	rvu_setup_pfvf_macaddress(rvu);
+
+	/* Assign aggr level RR Priority */
+	rvu_setup_pfvf_aggr_lvl_rr_prio(rvu);
 
 	err = rvu_npa_init(rvu);
 	if (err) {
@@ -2257,6 +2272,7 @@ static int rvu_process_mbox_msg(struct otx2_mbox *mbox, int devid,
 		return rsp ? err : -ENOMEM;				\
 	}
 MBOX_MESSAGES
+MBOX_MCS_FIPS_MESSAGES
 #undef M
 
 bad_message:
@@ -2783,7 +2799,7 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 		return;
 
 	regval = BIT_ULL(16) | pcifunc;
-	rvu_write64(rvu, npa_blkaddr, NPA_AF_BAR2_SEL, regval);
+	rvu_bar2_sel_write64(rvu, npa_blkaddr, NPA_AF_BAR2_SEL, regval);
 
 	sso_block = &rvu->hw->block[blkaddr];
 	retry = 0;
@@ -2826,7 +2842,7 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 				"[%d]Failed to free XAQs to aura[%lld]\n",
 				__LINE__, regval);
 
-		rvu_write64(rvu, blkaddr, SSO_AF_HWGRPX_XAQ_AURA(lf), 0);
+		rvu_sso_xaq_aura_write(rvu, lf, 0);
 		rvu_write64(rvu, blkaddr, SSO_AF_XAQX_GMCTL(lf), 0);
 	}
 
@@ -2846,6 +2862,7 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 		pcifunc_arr[match_cnt] = sso_pcifunc;
 		match_cnt++;
 	}
+	rvu_bar2_sel_write64(rvu, npa_blkaddr, NPA_AF_BAR2_SEL, 0);
 
 	detach.partial = true;
 	detach.sso   = true;
@@ -3696,6 +3713,7 @@ err_mbox:
 err_hwsetup:
 	rvu_cgx_exit(rvu);
 	rvu_fwdata_exit(rvu);
+	rvu_mcs_exit(rvu);
 	rvu_reset_all_blocks(rvu);
 	rvu_free_hw_resources(rvu);
 	rvu_clear_rvum_blk_revid(rvu);
@@ -3723,6 +3741,7 @@ static void rvu_remove(struct pci_dev *pdev)
 	rvu_flr_wq_destroy(rvu);
 	rvu_cgx_exit(rvu);
 	rvu_fwdata_exit(rvu);
+	rvu_mcs_exit(rvu);
 	rvu_mbox_destroy(&rvu->afpf_wq_info);
 	rvu_disable_sriov(rvu);
 	rvu_reset_all_blocks(rvu);

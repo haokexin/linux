@@ -81,6 +81,14 @@
 		offset = 0x600c8ull;			\
 	offset; })
 
+#define MCSX_MIL_IP_GBL_STATUS ({			\
+	u64 offset;					\
+							\
+	offset = 0x800d0ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x600d0ull;			\
+	offset; })
+
 /* PAB */
 #define MCSX_PAB_RX_SLAVE_PORT_CFGX(a) ({	\
 	u64 offset;				\
@@ -98,6 +106,103 @@
 #define MCSX_BBE_TX_SLAVE_PADDING_CTL			0x12f8ull
 #define MCSX_BBE_RX_SLAVE_CAL_ENTRY			0x180ull
 #define MCSX_BBE_RX_SLAVE_CAL_LEN			0x188ull
+#define MCSX_PAB_RX_SLAVE_FIFO_SKID_CFGX(a)		(0x290ull + (a) * 0x40ull)
+
+#define MCSX_BBE_RX_SLAVE_BBE_INT ({	\
+	u64 offset;			\
+					\
+	offset = 0xe00ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x160ull;	\
+	offset; })
+
+#define MCSX_BBE_RX_SLAVE_BBE_INT_ENB ({	\
+	u64 offset;			\
+					\
+	offset = 0xe08ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x168ull;	\
+	offset; })
+
+#define MCSX_BBE_RX_SLAVE_BBE_INT_INTR_RW ({	\
+	u64 offset;			\
+					\
+	offset = 0xe08ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x178ull;	\
+	offset; })
+
+#define MCSX_BBE_TX_SLAVE_BBE_INT ({	\
+	u64 offset;			\
+					\
+	offset = 0x1278ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x1e0ull;	\
+	offset; })
+
+#define MCSX_BBE_TX_SLAVE_BBE_INT_INTR_RW ({	\
+	u64 offset;			\
+					\
+	offset = 0x1278ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x1f8ull;	\
+	offset; })
+
+#define MCSX_BBE_TX_SLAVE_BBE_INT_ENB ({	\
+	u64 offset;			\
+					\
+	offset = 0x1280ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x1e8ull;	\
+	offset; })
+
+#define MCSX_PAB_RX_SLAVE_PAB_INT ({	\
+	u64 offset;			\
+					\
+	offset = 0x16f0ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x260ull;	\
+	offset; })
+
+#define MCSX_PAB_RX_SLAVE_PAB_INT_ENB ({	\
+	u64 offset;			\
+					\
+	offset = 0x16f8ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x268ull;	\
+	offset; })
+
+#define MCSX_PAB_RX_SLAVE_PAB_INT_INTR_RW ({	\
+	u64 offset;			\
+					\
+	offset = 0x1708ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x278ull;	\
+	offset; })
+
+#define MCSX_PAB_TX_SLAVE_PAB_INT ({	\
+	u64 offset;			\
+					\
+	offset = 0x2908ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x380ull;	\
+	offset; })
+
+#define MCSX_PAB_TX_SLAVE_PAB_INT_ENB ({	\
+	u64 offset;			\
+					\
+	offset = 0x2910ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x388ull;	\
+	offset; })
+
+#define MCSX_PAB_TX_SLAVE_PAB_INT_INTR_RW ({	\
+	u64 offset;			\
+					\
+	offset = 0x16f8ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x398ull;	\
+	offset; })
 
 /* CPM registers */
 #define MCSX_CPM_RX_SLAVE_FLOWID_TCAM_DATAX(a, b) ({	\
@@ -196,12 +301,29 @@
 	offset += (a) * 0x8ull;				\
 	offset; })
 
+#define MCSX_CPM_RX_SLAVE_XPN_THRESHOLD	({		\
+	u64 offset;					\
+							\
+	offset = 0x23e40ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0xb90ull;			\
+	offset; })
+
 #define MCSX_CPM_RX_SLAVE_PN_THRESHOLD	({		\
 	u64 offset;					\
 							\
 	offset = 0x23e48ull;				\
 	if (mcs->hw->mcs_blks > 1)			\
 		offset = 0xb98ull;			\
+	offset; })
+
+#define MCSX_CPM_RX_SLAVE_PN_THRESH_REACHEDX(a)	({	\
+	u64 offset;					\
+							\
+	offset = 0x23e50ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0xba0ull;			\
+	offset += (a) * 0x8ull;				\
 	offset; })
 
 #define MCSX_CPM_RX_SLAVE_FLOWID_TCAM_ENA_1		0x30708ull
@@ -286,6 +408,14 @@
 	offset += (a) * 0x8ull;				\
 	offset; })
 
+#define MCSX_CPM_TX_SLAVE_XPN_THRESHOLD ({		\
+	u64 offset;					\
+							\
+	offset = 0x3e4b0ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x5528ull;			\
+	offset; })
+
 #define MCSX_CPM_TX_SLAVE_PN_THRESHOLD ({		\
 	u64 offset;					\
 							\
@@ -305,6 +435,175 @@
 /* PEX registers */
 #define MCSX_PEX_RX_SLAVE_VLAN_CFGX(a)		(0x3b58ull + (a) * 0x8ull)
 #define MCSX_PEX_TX_SLAVE_VLAN_CFGX(a)		(0x46f8ull + (a) * 0x8ull)
+
+#define MCSX_PEX_TX_SLAVE_CUSTOM_TAG_REL_MODE_SEL(a)	(0x788ull + (a) * 0x8ull)
+#define MCSX_PEX_TX_SLAVE_PORT_CONFIG(a)		(0x4738ull + (a) * 0x8ull)
+
+#define MCSX_PEX_RX_SLAVE_PEX_CONFIGURATION ({		\
+	u64 offset;					\
+							\
+	offset = 0x3b50ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x4c0ull;			\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_ETYPE_CFGX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x3fc0ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x558ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_DAX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4000ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x598ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_DA_RANGE_MINX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4040ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x5d8ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_DA_RANGE_MAXX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4048ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x5e0ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_COMBO_MINX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4080ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x648ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_COMBO_MAXX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4088ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x650ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_COMBO_ETX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4090ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x658ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_MAC ({	\
+	u64 offset;					\
+							\
+	offset = 0x40e0ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x6d8ull;			\
+	offset; })
+
+#define MCSX_PEX_RX_SLAVE_RULE_ENABLE ({	\
+	u64 offset;					\
+							\
+	offset = 0x40e8ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x6e0ull;			\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_ETYPE_CFGX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4b60ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x7d8ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_DAX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4ba0ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x818ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_DA_RANGE_MINX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4be0ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x858ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_DA_RANGE_MAXX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4be8ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x860ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_COMBO_MINX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4c20ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x8c8ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_COMBO_MAXX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4c28ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x8d0ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_COMBO_ETX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0x4c30ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x8d8ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_MAC ({	\
+	u64 offset;					\
+							\
+	offset = 0x4c80ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x958ull;			\
+	offset; })
+
+#define MCSX_PEX_TX_SLAVE_RULE_ENABLE ({	\
+	u64 offset;					\
+							\
+	offset = 0x4c88ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0x960ull;			\
+	offset; })
 
 /* CNF10K-B */
 #define MCSX_PEX_RX_SLAVE_CUSTOM_TAGX(a)	(0x4c8ull + (a) * 0x8ull)
@@ -518,14 +817,37 @@
 		offset = 0x9d8ull;			\
 	offset; })
 
+#define MCSX_CSE_RX_MEM_SLAVE_INPKTSSCUNCHECKEDX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0xee80ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0xe818ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYUNTAGGEDX(a) ({	\
+	u64 offset;					\
+							\
+	offset = 0xa680ull;				\
+	if (mcs->hw->mcs_blks > 1)			\
+		offset = 0xd018ull;			\
+	offset += (a) * 0x8ull;				\
+	offset; })
+
+#define MCSX_CSE_RX_MEM_SLAVE_INPKTSSCLATEORDELAYEDX(a)	({	\
+	u64 offset;						\
+								\
+	offset = 0xf680ull;					\
+	if (mcs->hw->mcs_blks > 1)				\
+		offset = 0xe018ull;				\
+	offset += (a) * 0x8ull;					\
+	offset; })
+
 #define MCSX_CSE_RX_MEM_SLAVE_INOCTETSSCDECRYPTEDX(a)	(0xe680ull + (a) * 0x8ull)
 #define MCSX_CSE_RX_MEM_SLAVE_INOCTETSSCVALIDATEX(a)	(0xde80ull + (a) * 0x8ull)
-#define MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYUNTAGGEDORNOTAGX(a)	(0xa680ull + (a) * 0x8ull)
 #define MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYNOTAGX(a)	(0xd218 + (a) * 0x8ull)
-#define MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYUNTAGGEDX(a)	(0xd018ull + (a) * 0x8ull)
-#define MCSX_CSE_RX_MEM_SLAVE_INPKTSSCUNCHECKEDOROKX(a)	(0xee80ull + (a) * 0x8ull)
 #define MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYCTLX(a)		(0xb680ull + (a) * 0x8ull)
-#define MCSX_CSE_RX_MEM_SLAVE_INPKTSSCLATEORDELAYEDX(a) (0xf680ull + (a) * 0x8ull)
 #define MCSX_CSE_RX_MEM_SLAVE_INPKTSSAINVALIDX(a)	(0x12680ull + (a) * 0x8ull)
 #define MCSX_CSE_RX_MEM_SLAVE_INPKTSSANOTUSINGSAERRORX(a) (0x15680ull + (a) * 0x8ull)
 #define MCSX_CSE_RX_MEM_SLAVE_INPKTSSANOTVALIDX(a)	(0x13680ull + (a) * 0x8ull)
@@ -738,4 +1060,77 @@
 #define MCSX_CSE_TX_MEM_SLAVE_OUTPKTSEARLYPREEMPTERRX(a) (0x10eb8ull + (a) * 0x8ull)
 #define MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSAENCRYPTEDX(a)	(0x21c40ull + (a) * 0x8ull)
 #define MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSAPROTECTEDX(a)	(0x20c40ull + (a) * 0x8ull)
+
+#define MCSX_IP_INT ({			\
+	u64 offset;			\
+					\
+	offset = 0x80028ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x60028ull;	\
+	offset; })
+
+#define MCSX_IP_INT_ENA_W1S ({		\
+	u64 offset;			\
+					\
+	offset = 0x80040ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x60040ull;	\
+	offset; })
+
+#define MCSX_IP_INT_ENA_W1C ({		\
+	u64 offset;			\
+					\
+	offset = 0x80038ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x60038ull;	\
+	offset; })
+
+#define MCSX_TOP_SLAVE_INT_SUM ({	\
+	u64 offset;			\
+					\
+	offset = 0xc20ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0xab8ull;	\
+	offset; })
+
+#define MCSX_TOP_SLAVE_INT_SUM_ENB ({	\
+	u64 offset;			\
+					\
+	offset = 0xc28ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0xac0ull;	\
+	offset; })
+
+#define MCSX_CPM_RX_SLAVE_RX_INT ({	\
+	u64 offset;			\
+					\
+	offset = 0x23c00ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x0ad8ull;	\
+	offset; })
+
+#define MCSX_CPM_RX_SLAVE_RX_INT_ENB ({	\
+	u64 offset;			\
+					\
+	offset = 0x23c08ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0xae0ull;	\
+	offset; })
+
+#define MCSX_CPM_TX_SLAVE_TX_INT ({	\
+	u64 offset;			\
+					\
+	offset = 0x3d490ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x54a0ull;	\
+	offset; })
+
+#define MCSX_CPM_TX_SLAVE_TX_INT_ENB ({	\
+	u64 offset;			\
+					\
+	offset = 0x3d498ull;		\
+	if (mcs->hw->mcs_blks > 1)	\
+		offset = 0x54a8ull;	\
+	offset; })
+
 #endif

@@ -118,7 +118,7 @@ void mcs_get_rx_secy_stats(struct mcs *mcs, struct mcs_secy_stats *stats, int id
 	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYTAGGEDCTLX(id);
 	stats->pkt_tagged_ctl_cnt = mcs_reg_read(mcs, reg);
 
-	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYUNTAGGEDORNOTAGX(id);
+	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYUNTAGGEDX(id);
 	stats->pkt_untaged_cnt = mcs_reg_read(mcs, reg);
 
 	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYCTLX(id);
@@ -216,7 +216,7 @@ void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCNOTVALIDX(id);
 		stats->pkt_notvalid_cnt = mcs_reg_read(mcs, reg);
 
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCUNCHECKEDOROKX(id);
+		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCUNCHECKEDX(id);
 		stats->pkt_unchecked_cnt = mcs_reg_read(mcs, reg);
 
 		if (mcs->hw->mcs_blks > 1) {
@@ -366,7 +366,7 @@ void cn10kb_mcs_rx_sa_mem_map_write(struct mcs *mcs, struct mcs_rx_sc_sa_map *ma
 
 	val = (map->sa_index & 0xFF) | map->sa_in_use << 9;
 
-	reg = MCSX_CPM_RX_SLAVE_SA_MAP_MEMX(map->sc_id + map->an);
+	reg = MCSX_CPM_RX_SLAVE_SA_MAP_MEMX((4 * map->sc_id) + map->an);
 	mcs_reg_write(mcs, reg, val);
 }
 
@@ -553,6 +553,148 @@ void mcs_clear_secy_plcy(struct mcs *mcs, int secy_id, int dir)
 	}
 }
 
+int mcs_alloc_ctrlpktrule(struct rsrc_bmap *rsrc, u16 *pf_map, u16 offset, u16 pcifunc)
+{
+	int rsrc_id;
+
+	if (!rsrc->bmap)
+		return -EINVAL;
+
+	rsrc_id = bitmap_find_next_zero_area(rsrc->bmap, rsrc->max, offset, 1, 0);
+	if (rsrc_id >= rsrc->max)
+		return -ENOSPC;
+
+	bitmap_set(rsrc->bmap, rsrc_id, 1);
+	pf_map[rsrc_id] = pcifunc;
+
+	return rsrc_id;
+}
+
+int mcs_free_ctrlpktrule(struct mcs *mcs, struct mcs_free_ctrl_pkt_rule_req *req)
+{
+	u16 pcifunc = req->hdr.pcifunc;
+	struct mcs_rsrc_map *map;
+	u64 dis, reg;
+	int id, rc;
+
+	reg = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_RULE_ENABLE : MCSX_PEX_TX_SLAVE_RULE_ENABLE;
+	map = (req->dir == MCS_RX) ? &mcs->rx : &mcs->tx;
+
+	if (req->all) {
+		for (id = 0; id < map->ctrlpktrule.max; id++) {
+			if (map->ctrlpktrule2pf_map[id] != pcifunc)
+				continue;
+			mcs_free_rsrc(&map->ctrlpktrule, map->ctrlpktrule2pf_map, id, pcifunc);
+			dis = mcs_reg_read(mcs, reg);
+			dis &= ~BIT_ULL(id);
+			mcs_reg_write(mcs, reg, dis);
+		}
+		return 0;
+	}
+
+	rc = mcs_free_rsrc(&map->ctrlpktrule, map->ctrlpktrule2pf_map, req->rule_idx, pcifunc);
+	dis = mcs_reg_read(mcs, reg);
+	dis &= ~BIT_ULL(req->rule_idx);
+	mcs_reg_write(mcs, reg, dis);
+
+	return rc;
+}
+
+int mcs_ctrlpktrule_write(struct mcs *mcs, struct mcs_ctrl_pkt_rule_write_req *req)
+{
+	u64 reg, enb;
+	u64 idx;
+
+	switch (req->rule_type) {
+	case MCS_CTRL_PKT_RULE_TYPE_ETH:
+		req->data0 &= GENMASK(15, 0);
+		if (req->data0 != ETH_P_PAE)
+			return -EINVAL;
+
+		idx = req->rule_idx - MCS_CTRLPKT_ETYPE_RULE_OFFSET;
+		reg = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_RULE_ETYPE_CFGX(idx) :
+		      MCSX_PEX_TX_SLAVE_RULE_ETYPE_CFGX(idx);
+
+		mcs_reg_write(mcs, reg, req->data0);
+		break;
+	case MCS_CTRL_PKT_RULE_TYPE_DA:
+		if (!(req->data0 & BIT_ULL(40)))
+			return -EINVAL;
+
+		idx = req->rule_idx - MCS_CTRLPKT_DA_RULE_OFFSET;
+		reg = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_RULE_DAX(idx) :
+		      MCSX_PEX_TX_SLAVE_RULE_DAX(idx);
+
+		mcs_reg_write(mcs, reg, req->data0 & GENMASK_ULL(47, 0));
+		break;
+	case MCS_CTRL_PKT_RULE_TYPE_RANGE:
+		if (!(req->data0 & BIT_ULL(40)) || !(req->data1 & BIT_ULL(40)))
+			return -EINVAL;
+
+		idx = req->rule_idx - MCS_CTRLPKT_DA_RANGE_RULE_OFFSET;
+		if (req->dir == MCS_RX) {
+			reg = MCSX_PEX_RX_SLAVE_RULE_DA_RANGE_MINX(idx);
+			mcs_reg_write(mcs, reg, req->data0 & GENMASK_ULL(47, 0));
+			reg = MCSX_PEX_RX_SLAVE_RULE_DA_RANGE_MAXX(idx);
+			mcs_reg_write(mcs, reg, req->data1 & GENMASK_ULL(47, 0));
+		} else {
+			reg = MCSX_PEX_TX_SLAVE_RULE_DA_RANGE_MINX(idx);
+			mcs_reg_write(mcs, reg, req->data0 & GENMASK_ULL(47, 0));
+			reg = MCSX_PEX_TX_SLAVE_RULE_DA_RANGE_MAXX(idx);
+			mcs_reg_write(mcs, reg, req->data1 & GENMASK_ULL(47, 0));
+		}
+		break;
+	case MCS_CTRL_PKT_RULE_TYPE_COMBO:
+		req->data2 &= GENMASK(15, 0);
+		if (req->data2 != ETH_P_PAE || !(req->data0 & BIT_ULL(40)) ||
+		    !(req->data1 & BIT_ULL(40)))
+			return -EINVAL;
+
+		idx = req->rule_idx - MCS_CTRLPKT_COMBO_RULE_OFFSET;
+		if (req->dir == MCS_RX) {
+			reg = MCSX_PEX_RX_SLAVE_RULE_COMBO_MINX(idx);
+			mcs_reg_write(mcs, reg, req->data0 & GENMASK_ULL(47, 0));
+			reg = MCSX_PEX_RX_SLAVE_RULE_COMBO_MAXX(idx);
+			mcs_reg_write(mcs, reg, req->data1 & GENMASK_ULL(47, 0));
+			reg = MCSX_PEX_RX_SLAVE_RULE_COMBO_ETX(idx);
+			mcs_reg_write(mcs, reg, req->data2);
+		} else {
+			reg = MCSX_PEX_TX_SLAVE_RULE_COMBO_MINX(idx);
+			mcs_reg_write(mcs, reg, req->data0 & GENMASK_ULL(47, 0));
+			reg = MCSX_PEX_TX_SLAVE_RULE_COMBO_MAXX(idx);
+			mcs_reg_write(mcs, reg, req->data1 & GENMASK_ULL(47, 0));
+			reg = MCSX_PEX_TX_SLAVE_RULE_COMBO_ETX(idx);
+			mcs_reg_write(mcs, reg, req->data2);
+		}
+		break;
+	case MCS_CTRL_PKT_RULE_TYPE_MAC:
+		if (!(req->data0 & BIT_ULL(40)))
+			return -EINVAL;
+
+		idx = req->rule_idx - MCS_CTRLPKT_MAC_EN_RULE_OFFSET;
+		reg = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_RULE_MAC :
+		      MCSX_PEX_TX_SLAVE_RULE_MAC;
+
+		mcs_reg_write(mcs, reg, req->data0 & GENMASK_ULL(47, 0));
+		break;
+	}
+
+	reg = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_RULE_ENABLE : MCSX_PEX_TX_SLAVE_RULE_ENABLE;
+
+	enb = mcs_reg_read(mcs, reg);
+	enb |= BIT_ULL(req->rule_idx);
+	mcs_reg_write(mcs, reg, enb);
+
+	return 0;
+}
+
+void mcs_reset_port(struct mcs *mcs, u8 port_id, u8 reset)
+{
+	u64 reg = MCSX_MCS_TOP_SLAVE_PORT_RESET(port_id);
+
+	mcs_reg_write(mcs, reg, reset & 0x1);
+}
+
 int mcs_free_rsrc(struct rsrc_bmap *rsrc, u16 *pf_map, int rsrc_id, u16 pcifunc)
 {
 	/* Check if the rsrc_id is mapped to PF/VF */
@@ -625,7 +767,7 @@ int mcs_alloc_rsrc(struct rsrc_bmap *rsrc, u16 *pf_map, u16 pcifunc)
 }
 
 int mcs_alloc_all_rsrc(struct mcs *mcs, u8 *flow_id, u8 *secy_id,
-		       u8 *sc_id, u8 *sa_id, u16 pcifunc, int dir)
+		       u8 *sc_id, u8 *sa1_id, u8 *sa2_id, u16 pcifunc, int dir)
 {
 	struct mcs_rsrc_map *map;
 	int id;
@@ -653,8 +795,261 @@ int mcs_alloc_all_rsrc(struct mcs *mcs, u8 *flow_id, u8 *secy_id,
 	id =  mcs_alloc_rsrc(&map->sa, map->sa2pf_map, pcifunc);
 	if (id < 0)
 		return -ENOMEM;
-	*sa_id = id;
+	*sa1_id = id;
+
+	id =  mcs_alloc_rsrc(&map->sa, map->sa2pf_map, pcifunc);
+	if (id < 0)
+		return -ENOMEM;
+	*sa2_id = id;
+
 	return 0;
+}
+
+static void cn10kb_mcs_tx_pn_thresh_reached_handler(struct mcs *mcs)
+{
+	struct mcs_intr_event event;
+	struct rsrc_bmap *sc_bmap;
+	u64 val, status;
+	int sc;
+
+	sc_bmap = &mcs->tx.sc;
+
+	event.mcs_id = mcs->mcs_id;
+	event.intr_mask = MCS_CPM_TX_INT_PN_THRESH_REACHED;
+
+	/* TX SA interrupt is raised only if autoreky is enabled.
+	 * MCS_CPM_TX_SLAVE_SA_MAP_MEM_0X[sc].tx_sa_active bit get toggled if
+	 * one of two SAs mapped to SC gets expired. If tx_sa_active=0 imples
+	 * SA in SA_index1 got expired else SA in SA_index0 got expired.
+	 */
+	for_each_set_bit(sc, sc_bmap->bmap, mcs->hw->sc_entries) {
+		val = mcs_reg_read(mcs, MCSX_CPM_TX_SLAVE_SA_MAP_MEM_0X(sc));
+		/* Auto rekey is enable */
+		if (!((val >> 18) & 0x1))
+			continue;
+
+		status = (val >> 21) & 0x1;
+
+		/* Check if tx_sa_active status had changed */
+		if (status == mcs->tx_sa_active[sc])
+			continue;
+		/* SA_index0 is expired */
+		if (status)
+			event.sa_id = val & 0xFF;
+		else
+			event.sa_id = (val >> 9) & 0xFF;
+
+		event.pcifunc = mcs->tx.sa2pf_map[event.sa_id];
+		mcs_add_intr_wq_entry(mcs, &event);
+	}
+}
+
+static void mcs_rx_pn_thresh_reached_handler(struct mcs *mcs)
+{
+	struct mcs_intr_event event;
+	int sa, reg;
+	u64 intr;
+
+	/* Check expired SAs */
+	for (reg = 0; reg < (mcs->hw->sa_entries / 64); reg++) {
+		/* Bit high in *PN_THRESH_REACHEDX implies
+		 * corresponding SAs are expired.
+		 */
+		intr = mcs_reg_read(mcs, MCSX_CPM_RX_SLAVE_PN_THRESH_REACHEDX(reg));
+		for (sa = 0; sa < 64; sa++) {
+			if (!(intr & BIT_ULL(sa)))
+				continue;
+
+			event.mcs_id = mcs->mcs_id;
+			event.intr_mask = MCS_CPM_RX_PN_THRESH_REACHED_INT;
+			event.sa_id = sa + (reg * 64);
+			event.pcifunc = mcs->rx.sa2pf_map[event.sa_id];
+			mcs_add_intr_wq_entry(mcs, &event);
+		}
+	}
+}
+
+static void mcs_rx_misc_intr_handler(struct mcs *mcs, u64 intr)
+{
+	struct mcs_intr_event event = {0};
+
+	event.mcs_id = mcs->mcs_id;
+	event.pcifunc = mcs->pf_map[0];
+
+	if (intr & MCS_CPM_RX_INT_SECTAG_V_EQ1)
+		event.intr_mask = MCS_CPM_RX_SECTAG_V_EQ1_INT;
+	if (intr & MCS_CPM_RX_INT_SECTAG_E_EQ0_C_EQ1)
+		event.intr_mask |= MCS_CPM_RX_SECTAG_E_EQ0_C_EQ1_INT;
+	if (intr & MCS_CPM_RX_INT_SL_GTE48)
+		event.intr_mask |= MCS_CPM_RX_SECTAG_SL_GTE48_INT;
+	if (intr & MCS_CPM_RX_INT_ES_EQ1_SC_EQ1)
+		event.intr_mask |= MCS_CPM_RX_SECTAG_ES_EQ1_SC_EQ1_INT;
+	if (intr & MCS_CPM_RX_INT_SC_EQ1_SCB_EQ1)
+		event.intr_mask |= MCS_CPM_RX_SECTAG_SC_EQ1_SCB_EQ1_INT;
+	if (intr & MCS_CPM_RX_INT_PACKET_XPN_EQ0)
+		event.intr_mask |= MCS_CPM_RX_PACKET_XPN_EQ0_INT;
+
+	mcs_add_intr_wq_entry(mcs, &event);
+}
+
+static void mcs_tx_misc_intr_handler(struct mcs *mcs, u64 intr)
+{
+	struct mcs_intr_event event = {0};
+
+	event.mcs_id = mcs->mcs_id;
+	event.pcifunc = mcs->pf_map[0];
+
+	if (intr & MCS_CPM_TX_INT_SA_NOT_VALID)
+		event.intr_mask = MCS_CPM_TX_SA_NOT_VALID_INT;
+
+	mcs_add_intr_wq_entry(mcs, &event);
+}
+
+static void mcs_bbe_intr_handler(struct mcs *mcs, u64 intr, enum mcs_direction dir)
+{
+	struct mcs_intr_event event = {0};
+	int i;
+
+	if (!(intr & MCS_BBE_INT_MASK))
+		return;
+
+	event.mcs_id = mcs->mcs_id;
+	event.pcifunc = mcs->pf_map[0];
+
+	for (i = 0; i < MCS_MAX_BBE_INT; i++) {
+		if (!(intr & BIT_ULL(i)))
+			continue;
+		/* Lower nibble denotes data fifo overflow interrupts and
+		 * upper nibble indicates policy fifo overflow interrupts.
+		 */
+		if (intr & 0xF)
+			event.intr_mask = (dir == MCS_RX) ?
+					  MCS_BBE_RX_DFIFO_OVERFLOW_INT :
+					  MCS_BBE_TX_DFIFO_OVERFLOW_INT;
+		else
+			event.intr_mask = (dir == MCS_RX) ?
+					  MCS_BBE_RX_PLFIFO_OVERFLOW_INT :
+					  MCS_BBE_RX_PLFIFO_OVERFLOW_INT;
+
+		/* Notify the lmac_id info which ran into BBE fatal error */
+		event.lmac_id = i & 0x3;
+		mcs_add_intr_wq_entry(mcs, &event);
+	}
+}
+
+static void mcs_pab_intr_handler(struct mcs *mcs, u64 intr, enum mcs_direction dir)
+{
+	struct mcs_intr_event event = {0};
+	int i;
+
+	if (!(intr & MCS_PAB_INT_MASK))
+		return;
+
+	event.mcs_id = mcs->mcs_id;
+	event.pcifunc = mcs->pf_map[0];
+
+	for (i = 0; i < MCS_MAX_PAB_INT; i++) {
+		if (!(intr & BIT_ULL(i)))
+			continue;
+		event.intr_mask = (dir == MCS_RX) ? MCS_PAB_RX_CHAN_OVERFLOW_INT :
+				  MCS_PAB_TX_CHAN_OVERFLOW_INT;
+
+		/* Notify the lmac_id info which ran into PAB fatal error */
+		event.lmac_id = i;
+		mcs_add_intr_wq_entry(mcs, &event);
+	}
+}
+
+static irqreturn_t mcs_ip_intr_handler(int irq, void *mcs_irq)
+{
+	struct mcs *mcs = (struct mcs *)mcs_irq;
+	u64 intr, cpm_intr, bbe_intr, pab_intr;
+
+	/* Disable and clear the interrupt */
+	mcs_reg_write(mcs, MCSX_IP_INT_ENA_W1C, BIT_ULL(0));
+	mcs_reg_write(mcs, MCSX_IP_INT, BIT_ULL(0));
+
+	/* Check which block has interrupt*/
+	intr = mcs_reg_read(mcs, MCSX_TOP_SLAVE_INT_SUM);
+
+	/* CPM RX */
+	if (intr & MCS_CPM_RX_INT_ENA) {
+		/* Check for PN thresh interrupt bit */
+		cpm_intr = mcs_reg_read(mcs, MCSX_CPM_RX_SLAVE_RX_INT);
+
+		if (cpm_intr & MCS_CPM_RX_INT_PN_THRESH_REACHED)
+			mcs_rx_pn_thresh_reached_handler(mcs);
+
+		if (cpm_intr & (MCS_CPM_RX_INT_SECTAG_V_EQ1 | MCS_CPM_RX_INT_SECTAG_E_EQ0_C_EQ1 |
+			MCS_CPM_RX_INT_SL_GTE48	| MCS_CPM_RX_INT_ES_EQ1_SC_EQ1 |
+			MCS_CPM_RX_INT_SC_EQ1_SCB_EQ1 | MCS_CPM_RX_INT_PACKET_XPN_EQ0))
+			mcs_rx_misc_intr_handler(mcs, cpm_intr);
+
+		/* Clear the interrupt */
+		mcs_reg_write(mcs, MCSX_CPM_RX_SLAVE_RX_INT, cpm_intr);
+	}
+
+	/* CPM TX */
+	if (intr & MCS_CPM_TX_INT_ENA) {
+		cpm_intr = mcs_reg_read(mcs, MCSX_CPM_TX_SLAVE_TX_INT);
+
+		if (cpm_intr & MCS_CPM_TX_INT_PN_THRESH_REACHED) {
+			if (mcs->hw->mcs_blks > 1)
+				cnf10kb_mcs_tx_pn_thresh_reached_handler(mcs);
+			else
+				cn10kb_mcs_tx_pn_thresh_reached_handler(mcs);
+		}
+
+		if (cpm_intr & MCS_CPM_TX_INT_SA_NOT_VALID)
+			mcs_tx_misc_intr_handler(mcs, cpm_intr);
+
+		/* Clear the interrupt */
+		mcs_reg_write(mcs, MCSX_CPM_TX_SLAVE_TX_INT, cpm_intr);
+	}
+
+	/* BBE RX */
+	if (intr & MCS_BBE_RX_INT_ENA) {
+		bbe_intr = mcs_reg_read(mcs, MCSX_BBE_RX_SLAVE_BBE_INT);
+		mcs_bbe_intr_handler(mcs, bbe_intr, MCS_RX);
+
+		/* Clear the interrupt */
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_BBE_INT_INTR_RW, 0);
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_BBE_INT, bbe_intr);
+	}
+
+	/* BBE TX */
+	if (intr & MCS_BBE_TX_INT_ENA) {
+		bbe_intr = mcs_reg_read(mcs, MCSX_BBE_TX_SLAVE_BBE_INT);
+		mcs_bbe_intr_handler(mcs, bbe_intr, MCS_TX);
+
+		/* Clear the interrupt */
+		mcs_reg_write(mcs, MCSX_BBE_TX_SLAVE_BBE_INT_INTR_RW, 0);
+		mcs_reg_write(mcs, MCSX_BBE_TX_SLAVE_BBE_INT, bbe_intr);
+	}
+
+	/* PAB RX */
+	if (intr & MCS_PAB_RX_INT_ENA) {
+		pab_intr = mcs_reg_read(mcs, MCSX_PAB_RX_SLAVE_PAB_INT);
+		mcs_pab_intr_handler(mcs, pab_intr, MCS_RX);
+
+		/* Clear the interrupt */
+		mcs_reg_write(mcs, MCSX_PAB_RX_SLAVE_PAB_INT_INTR_RW, 0);
+		mcs_reg_write(mcs, MCSX_PAB_RX_SLAVE_PAB_INT, pab_intr);
+	}
+
+	/* PAB TX */
+	if (intr & MCS_PAB_TX_INT_ENA) {
+		pab_intr = mcs_reg_read(mcs, MCSX_PAB_TX_SLAVE_PAB_INT);
+		mcs_pab_intr_handler(mcs, pab_intr, MCS_TX);
+
+		/* Clear the interrupt */
+		mcs_reg_write(mcs, MCSX_PAB_TX_SLAVE_PAB_INT_INTR_RW, 0);
+		mcs_reg_write(mcs, MCSX_PAB_TX_SLAVE_PAB_INT, pab_intr);
+	}
+
+	/* Enable the interrupt */
+	mcs_reg_write(mcs, MCSX_IP_INT_ENA_W1S, BIT_ULL(0));
+	return IRQ_HANDLED;
 }
 
 static void *alloc_mem(struct mcs *mcs, int n)
@@ -687,6 +1082,10 @@ static int mcs_alloc_struct_mem(struct mcs *mcs, struct mcs_rsrc_map *res)
 	if (!res->flowid2secy_map)
 		return -ENOMEM;
 
+	res->ctrlpktrule2pf_map = alloc_mem(mcs, MCS_MAX_CTRLPKT_RULES);
+	if (!res->ctrlpktrule2pf_map)
+		return -ENOMEM;
+
 	res->flow_ids.max = hw->tcam_entries - MCS_RSRC_RSVD_CNT;
 	err = rvu_alloc_bitmap(&res->flow_ids);
 	if (err)
@@ -707,7 +1106,62 @@ static int mcs_alloc_struct_mem(struct mcs *mcs, struct mcs_rsrc_map *res)
 	if (err)
 		return err;
 
+	res->ctrlpktrule.max = MCS_MAX_CTRLPKT_RULES;
+	err = rvu_alloc_bitmap(&res->ctrlpktrule);
+	if (err)
+		return err;
+
 	return 0;
+}
+
+static int mcs_register_interrupts(struct mcs *mcs)
+{
+	int ret = 0;
+
+	mcs->num_vec = pci_msix_vec_count(mcs->pdev);
+
+	ret = pci_alloc_irq_vectors(mcs->pdev, mcs->num_vec,
+				    mcs->num_vec, PCI_IRQ_MSIX);
+	if (ret < 0) {
+		dev_err(mcs->dev, "MCS Request for %d msix vector failed err:%d\n",
+			mcs->num_vec, ret);
+		return ret;
+	}
+
+	ret = request_irq(pci_irq_vector(mcs->pdev, MCS_INT_VEC_IP),
+			  mcs_ip_intr_handler, 0, "MCS_IP", mcs);
+	if (ret) {
+		dev_err(mcs->dev, "MCS IP irq registration failed\n");
+		goto exit;
+	}
+
+	/* MCS enable IP interrupts */
+	mcs_reg_write(mcs, MCSX_IP_INT_ENA_W1S, BIT_ULL(0));
+
+	/* Enable CPM Rx/Tx interrupts */
+	mcs_reg_write(mcs, MCSX_TOP_SLAVE_INT_SUM_ENB,
+			MCS_CPM_RX_INT_ENA | MCS_CPM_TX_INT_ENA |
+			MCS_BBE_RX_INT_ENA | MCS_BBE_TX_INT_ENA |
+			MCS_PAB_RX_INT_ENA | MCS_PAB_TX_INT_ENA);
+
+	mcs_reg_write(mcs, MCSX_CPM_TX_SLAVE_TX_INT_ENB, 0x7);
+	mcs_reg_write(mcs, MCSX_CPM_RX_SLAVE_RX_INT_ENB, 0x7f);
+
+	mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_BBE_INT_ENB, 0xff);
+	mcs_reg_write(mcs, MCSX_BBE_TX_SLAVE_BBE_INT_ENB, 0xff);
+
+	mcs_reg_write(mcs, MCSX_PAB_RX_SLAVE_PAB_INT_ENB, 0xff);
+	mcs_reg_write(mcs, MCSX_PAB_TX_SLAVE_PAB_INT_ENB, 0xff);
+
+	mcs->tx_sa_active = alloc_mem(mcs, mcs->hw->sc_entries);
+	if (!mcs->tx_sa_active)
+		goto exit;
+
+	return ret;
+exit:
+	pci_free_irq_vectors(mcs->pdev);
+	mcs->num_vec = 0;
+	return ret;
 }
 
 int mcs_get_blkcnt(void)
@@ -740,13 +1194,123 @@ struct mcs *mcs_get_pdata(int mcs_id)
 	return NULL;
 }
 
-/* Set to operational mode */
-void mcs_set_lmac_mode(struct mcs *mcs, int lmac_id)
+/* Set lmac to bypass/operational mode */
+void mcs_set_lmac_mode(struct mcs *mcs, int lmac_id, u8 mode)
 {
 	u64 reg;
 
 	reg = MCSX_MCS_TOP_SLAVE_CHANNEL_CFG(lmac_id * 2);
-	mcs_reg_write(mcs, reg, 0x0ull);
+	mcs_reg_write(mcs, reg, (u64)mode);
+}
+
+void mcs_pn_threshold_set(struct mcs *mcs, struct mcs_set_pn_threshold *pn)
+{
+	u64 reg;
+
+	if (pn->dir == MCS_RX)
+		reg = pn->xpn ? MCSX_CPM_RX_SLAVE_XPN_THRESHOLD : MCSX_CPM_RX_SLAVE_PN_THRESHOLD;
+	else
+		reg = pn->xpn ? MCSX_CPM_TX_SLAVE_XPN_THRESHOLD : MCSX_CPM_TX_SLAVE_PN_THRESHOLD;
+
+	mcs_reg_write(mcs, reg, pn->threshold);
+}
+
+void mcs_set_port_cfg(struct mcs *mcs, struct mcs_port_cfg_set_req *req)
+{
+	u64 val = 0;
+
+	mcs_reg_write(mcs, MCSX_PAB_RX_SLAVE_PORT_CFGX(req->port_id),
+		      req->port_mode & MCS_PORT_MODE_MASK);
+
+	if (req->port_mode == 2) { /* 100G */
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_ENTRY, 0);
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_LEN, 1);
+	} else if (req->port_mode == 1) { /* 50G */
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_ENTRY, 0x8);
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_LEN, 2);
+	} else { /* <= 25G */
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_ENTRY, 0xe4);
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_LEN, 4);
+	}
+
+	req->cstm_tag_rel_mode_sel &= 0x3;
+
+	if (mcs->hw->mcs_blks > 1) {
+		req->fifo_skid &= MCS_PORT_FIFO_SKID_MASK;
+		val = (u32)req->fifo_skid << 0x10;
+		val |= req->fifo_skid;
+		mcs_reg_write(mcs, MCSX_PAB_RX_SLAVE_FIFO_SKID_CFGX(req->port_id), val);
+		mcs_reg_write(mcs, MCSX_PEX_TX_SLAVE_CUSTOM_TAG_REL_MODE_SEL(req->port_id),
+			      req->cstm_tag_rel_mode_sel);
+		val = mcs_reg_read(mcs, MCSX_PEX_RX_SLAVE_PEX_CONFIGURATION);
+
+		if (req->custom_hdr_enb)
+			val |= BIT_ULL(req->port_id);
+		else
+			val &= ~BIT_ULL(req->port_id);
+
+		mcs_reg_write(mcs, MCSX_PEX_RX_SLAVE_PEX_CONFIGURATION, val);
+	} else {
+		val = mcs_reg_read(mcs, MCSX_PEX_TX_SLAVE_PORT_CONFIG(req->port_id));
+		val |= (req->cstm_tag_rel_mode_sel << 2);
+		mcs_reg_write(mcs, MCSX_PEX_TX_SLAVE_PORT_CONFIG(req->port_id), val);
+	}
+}
+
+void mcs_get_port_cfg(struct mcs *mcs, struct mcs_port_cfg_get_req *req,
+		      struct mcs_port_cfg_get_rsp *rsp)
+{
+	u64 reg = 0;
+
+	rsp->port_mode = mcs_reg_read(mcs, MCSX_PAB_RX_SLAVE_PORT_CFGX(req->port_id)) &
+			 MCS_PORT_MODE_MASK;
+
+	if (mcs->hw->mcs_blks > 1) {
+		reg = MCSX_PAB_RX_SLAVE_FIFO_SKID_CFGX(req->port_id);
+		rsp->fifo_skid = mcs_reg_read(mcs, reg) & MCS_PORT_FIFO_SKID_MASK;
+		reg = MCSX_PEX_TX_SLAVE_CUSTOM_TAG_REL_MODE_SEL(req->port_id);
+		rsp->cstm_tag_rel_mode_sel = mcs_reg_read(mcs, reg) & 0x3;
+		if (mcs_reg_read(mcs, MCSX_PEX_RX_SLAVE_PEX_CONFIGURATION) & BIT_ULL(req->port_id))
+			rsp->custom_hdr_enb = 1;
+	} else {
+		reg = MCSX_PEX_TX_SLAVE_PORT_CONFIG(req->port_id);
+		rsp->cstm_tag_rel_mode_sel = mcs_reg_read(mcs, reg) >> 2;
+	}
+
+	rsp->port_id = req->port_id;
+	rsp->mcs_id = req->mcs_id;
+}
+
+void mcs_get_custom_tag_cfg(struct mcs *mcs, struct mcs_custom_tag_cfg_get_req *req,
+			    struct mcs_custom_tag_cfg_get_rsp *rsp)
+{
+	u64 reg = 0, val = 0;
+	u8 idx;
+
+	for (idx = 0; idx < MCS_MAX_CUSTOM_TAGS; idx++) {
+		if (mcs->hw->mcs_blks > 1)
+			reg  = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_CUSTOM_TAGX(idx) :
+				MCSX_PEX_TX_SLAVE_CUSTOM_TAGX(idx);
+		else
+			reg = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_VLAN_CFGX(idx) :
+				MCSX_PEX_TX_SLAVE_VLAN_CFGX(idx);
+
+		val = mcs_reg_read(mcs, reg);
+		if (mcs->hw->mcs_blks > 1) {
+			rsp->cstm_etype[idx] = val & GENMASK(15, 0);
+			rsp->cstm_indx[idx] = (val >> 0x16) & 0x3;
+			reg = (req->dir == MCS_RX) ? MCSX_PEX_RX_SLAVE_ETYPE_ENABLE :
+				MCSX_PEX_TX_SLAVE_ETYPE_ENABLE;
+			rsp->cstm_etype_en = mcs_reg_read(mcs, reg) & 0xFF;
+		} else {
+			rsp->cstm_etype[idx] = (val >> 0x1) & GENMASK(15, 0);
+			rsp->cstm_indx[idx] = (val >> 0x11) & 0x3;
+			rsp->cstm_etype_en |= (val & 0x1) << idx;
+		}
+	}
+
+	rsp->mcs_id = req->mcs_id;
+	rsp->dir = req->dir;
 }
 
 void cn10kb_mcs_parser_cfg(struct mcs *mcs)
@@ -778,22 +1342,27 @@ static void mcs_lmac_init(struct mcs *mcs, int lmac_id)
 {
 	u64 reg;
 
-	/* Port mode 100GB */
+	/* Port mode 25GB */
 	reg = MCSX_PAB_RX_SLAVE_PORT_CFGX(lmac_id);
-	mcs_reg_write(mcs, reg, BIT_ULL(1));
+	mcs_reg_write(mcs, reg, 0);
+
+	if (mcs->hw->mcs_blks > 1) {
+		reg = MCSX_PAB_RX_SLAVE_FIFO_SKID_CFGX(lmac_id);
+		mcs_reg_write(mcs, reg, 0xe000e);
+		return;
+	}
 
 	reg = MCSX_PAB_TX_SLAVE_PORT_CFGX(lmac_id);
-	mcs_reg_write(mcs, reg, BIT_ULL(1));
+	mcs_reg_write(mcs, reg, 0);
 }
 
-int mcs_set_lmac_channels(u16 base)
+int mcs_set_lmac_channels(int mcs_id, u16 base)
 {
 	struct mcs *mcs;
 	int lmac;
 	u64 cfg;
 
-	/* Programming channels needed only for CN10K-B which as only 1 mcs block */
-	mcs = mcs_get_pdata(0);
+	mcs = mcs_get_pdata(mcs_id);
 	if (!mcs)
 		return -ENODEV;
 	for (lmac = 0; lmac < mcs->hw->lmac_cnt; lmac++) {
@@ -843,22 +1412,36 @@ static int mcs_x2p_calibration(struct mcs *mcs)
 	return err;
 }
 
-static void mcs_global_cfg(struct mcs *mcs)
+static void mcs_set_external_bypass(struct mcs *mcs, u8 bypass)
 {
 	u64 val;
 
-	/* Disable external bypass */
+	/* Set MCS to external bypass */
 	val = mcs_reg_read(mcs, MCSX_MIL_GLOBAL);
-	val &= ~BIT_ULL(6);
+	if (bypass)
+		val |= BIT_ULL(6);
+	else
+		val &= ~BIT_ULL(6);
 	mcs_reg_write(mcs, MCSX_MIL_GLOBAL, val);
+}
 
-	/* Set MCS to perform standard IEEE802.1AE macsec processing */
-	if (mcs->hw->mcs_blks == 1)
-		mcs_reg_write(mcs, MCSX_IP_MODE, BIT_ULL(3));
+static void mcs_global_cfg(struct mcs *mcs)
+{
+	/* Disable external bypass */
+	mcs_set_external_bypass(mcs, false);
 
 	/* Reset TX/RX stats memory */
 	mcs_reg_write(mcs, MCSX_CSE_RX_SLAVE_STATS_CLEAR, 0x1F);
 	mcs_reg_write(mcs, MCSX_CSE_TX_SLAVE_STATS_CLEAR, 0x1F);
+
+	/* Set MCS to perform standard IEEE802.1AE macsec processing */
+	if (mcs->hw->mcs_blks == 1) {
+		mcs_reg_write(mcs, MCSX_IP_MODE, BIT_ULL(3));
+		return;
+	}
+
+	mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_ENTRY, 0xe4);
+	mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_LEN, 4);
 }
 
 void cn10kb_mcs_set_hw_capabilities(struct mcs *mcs)
@@ -933,7 +1516,7 @@ static int mcs_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	/* Performe X2P clibration */
 	err = mcs_x2p_calibration(mcs);
 	if (err)
-		goto exit;
+		goto err_x2p;
 
 	mcs->mcs_id = (pci_resource_start(pdev, PCI_CFG_REG_BAR_NUM) >> 24)
 			& MCS_ID_MASK;
@@ -941,12 +1524,12 @@ static int mcs_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	/* Set mcs tx side resources */
 	err = mcs_alloc_struct_mem(mcs, &mcs->tx);
 	if (err)
-		goto exit;
+		goto err_x2p;
 
 	/* Set mcs rx side resources */
 	err = mcs_alloc_struct_mem(mcs, &mcs->rx);
 	if (err)
-		goto exit;
+		goto err_x2p;
 
 	/* per port config */
 	for (lmac = 0; lmac < mcs->hw->lmac_cnt; lmac++)
@@ -955,10 +1538,18 @@ static int mcs_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	/* Parser configuration */
 	mcs->mcs_ops->mcs_parser_cfg(mcs);
 
+	err = mcs_register_interrupts(mcs);
+	if (err)
+		goto exit;
+
 	list_add(&mcs->mcs_list, &mcs_list);
 
 	mutex_init(&mcs->stats_lock);
 	return 0;
+
+err_x2p:
+	/* Enable external bypass */
+	mcs_set_external_bypass(mcs, true);
 exit:
 	pci_release_regions(pdev);
 	pci_disable_device(pdev);
@@ -969,13 +1560,10 @@ exit:
 static void mcs_remove(struct pci_dev *pdev)
 {
 	struct mcs *mcs = pci_get_drvdata(pdev);
-	u64 val;
 
 	/* Set MCS to external bypass */
-	val = mcs_reg_read(mcs, MCSX_MIL_GLOBAL);
-	val |= BIT_ULL(6);
-	mcs_reg_write(mcs, MCSX_MIL_GLOBAL, val);
-
+	mcs_set_external_bypass(mcs, true);
+	pci_free_irq_vectors(pdev);
 	pci_release_regions(pdev);
 	pci_disable_device(pdev);
 	pci_set_drvdata(pdev, NULL);

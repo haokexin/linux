@@ -146,6 +146,75 @@ static inline void msix_enable_ctrl(struct pci_dev *dev)
 	pci_write_config_word(dev, dev->msix_cap + PCI_MSIX_FLAGS, control);
 }
 
+static int otx2_rfoe_ptp_clk_src_cfg(struct otx2_bphy_cdev_priv *cdev,
+				     struct ptp_clk_src_cfg clk_src_cfg)
+{
+	struct cnf10k_rfoe_drv_ctx *cnf10k_drv_ctx = NULL;
+	struct cnf10k_rfoe_ndev_priv *cnf10k_priv;
+	struct otx2_rfoe_drv_ctx *drv_ctx = NULL;
+	struct otx2_rfoe_ndev_priv *priv;
+	void __iomem *ptp_reg_base;
+	struct net_device *netdev;
+	u32 ptp_ext_clk_rate;
+	int idx, ret = 0;
+	u64 cfg;
+
+	ptp_ext_clk_rate = (GIGA_HZ * clk_src_cfg.clk_freq_ghz) / clk_src_cfg.clk_freq_div;
+
+	if (CHIP_CNF10K(cdev->hw_version)) {
+		for (idx = 0; idx < cdev->tot_rfoe_intf; idx++) {
+			cnf10k_drv_ctx = &cnf10k_rfoe_drv_ctx[idx];
+			if (cnf10k_drv_ctx->valid) {
+				netdev = cnf10k_drv_ctx->netdev;
+				cnf10k_priv = netdev_priv(netdev);
+				break;
+			}
+		}
+
+		if (idx >= cdev->tot_rfoe_intf) {
+			dev_err(cdev->dev, "drv ctx not found\n");
+			ret = -EINVAL;
+			goto out;
+		}
+
+		ptp_reg_base = cnf10k_priv->ptp_reg_base;
+		cnf10k_priv->ptp_ext_clk_rate = ptp_ext_clk_rate;
+	} else {
+		for (idx = 0; idx < RFOE_MAX_INTF; idx++) {
+			drv_ctx = &rfoe_drv_ctx[idx];
+			if (drv_ctx->valid) {
+				netdev = drv_ctx->netdev;
+				priv = netdev_priv(netdev);
+				break;
+			}
+		}
+
+		if (idx >= RFOE_MAX_INTF) {
+			dev_err(cdev->dev, "drv ctx not found\n");
+			ret = -EINVAL;
+			goto out;
+		}
+
+		ptp_reg_base = priv->ptp_reg_base;
+		priv->ptp_ext_clk_rate = ptp_ext_clk_rate;
+	}
+
+	cfg = readq(ptp_reg_base + MIO_PTP_CLOCK_CFG);
+	cfg &= ~MIO_PTP_CLOCK_CFG_EXT_CLK_MASK;
+	if (clk_src_cfg.clk_input) {
+		cfg |= MIO_PTP_CLOCK_CFG_EXT_CLK_EN;
+		cfg |= (clk_src_cfg.clk_source << 2);
+	} else {
+		cfg &= ~MIO_PTP_CLOCK_CFG_EXT_CLK_EN;
+	}
+
+	writeq(cfg, ptp_reg_base + MIO_PTP_CLOCK_CFG);
+	cfg = ((u64)1000000000ull << 32) / ptp_ext_clk_rate;
+	writeq(cfg, ptp_reg_base + MIO_PTP_CLOCK_COMP);
+out:
+	return ret;
+}
+
 static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 				 unsigned long arg)
 {
@@ -374,6 +443,8 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		while ((readq(bcn_reg_base + bcn_capture_off) & CAPT_EN))
 			cpu_relax();
 		ptp0_ns = readq(bcn_reg_base + bcn_capture_ptp_off);
+		if (CHIP_CNF10K(cdev->hw_version))
+			ptp0_ns = cnf10k_ptp_convert_timestamp(ptp0_ns);
 		regval = readq(bcn_reg_base + bcn_capture_n1_n2_off);
 		bcn_n1 = (regval >> 24) & 0xFFFFFFFFFF;
 		bcn_n2 = regval & 0xFFFFFF;
@@ -392,6 +463,21 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		mod_timer(&ptp_cfg->ptp_timer, expires);
 		ret = 0;
 		goto out;
+	}
+	case OTX2_IOCTL_PTP_CLK_SRC:
+	{
+		struct ptp_clk_src_cfg clk_src_cfg;
+
+		if (copy_from_user(&clk_src_cfg, (void __user *)arg,
+				   sizeof(struct ptp_clk_src_cfg))) {
+			dev_err(cdev->dev, "ioctl: %ld copy from user fault\n",
+				OTX2_IOCTL_PTP_CLK_SRC);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		ret = otx2_rfoe_ptp_clk_src_cfg(cdev, clk_src_cfg);
+		break;
 	}
 	case OTX2_RFOE_IOCTL_SEC_BCN_OFFSET:
 	{
@@ -960,8 +1046,14 @@ static int otx2_bphy_probe(struct platform_device *pdev)
 	dev_info(&pdev->dev, "successfully registered char device, major=%d\n",
 		 MAJOR(cdev_priv->cdev.dev));
 
-	err = request_irq(cdev_priv->irq, otx2_bphy_intr_handler, 0,
-			  "otx2_bphy_int", cdev_priv);
+	if (bphy_pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A ||
+	    bphy_pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B)
+		err = request_irq(cdev_priv->irq, otx2_bphy_intr_handler, 0,
+				  "cnf10k_bphy_int", cdev_priv);
+	else
+		err = request_irq(cdev_priv->irq, otx2_bphy_intr_handler, 0,
+				  "otx2_bphy_int", cdev_priv);
+
 	if (err) {
 		dev_err(&pdev->dev, "can't assign irq %d\n", cdev_priv->irq);
 		goto out_device_destroy;
@@ -970,7 +1062,7 @@ static int otx2_bphy_probe(struct platform_device *pdev)
 	if (cdev_priv->gpint2_irq) {
 		err = request_irq(cdev_priv->gpint2_irq,
 				  cnf10k_gpint2_intr_handler, 0,
-				  "cn10k_bphy_int", cdev_priv);
+				  "cnf10k_bphy_int2", cdev_priv);
 		if (err) {
 			dev_err(&pdev->dev, "can't assign irq %d\n",
 				cdev_priv->gpint2_irq);
@@ -978,8 +1070,7 @@ static int otx2_bphy_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (bphy_pdev->subsystem_device == PCI_SUBSYS_DEVID_OCTX2_95XXN)
-		bcn_ptp_start();
+	bcn_ptp_start();
 
 	err = 0;
 	goto out;
@@ -1026,6 +1117,8 @@ static int otx2_bphy_remove(struct platform_device *pdev)
 
 	/* free irq */
 	free_irq(cdev_priv->irq, cdev_priv);
+	if (cdev_priv->gpint2_irq)
+		free_irq(cdev_priv->gpint2_irq, cdev_priv);
 
 	/* char device cleanup */
 	device_destroy(otx2rfoe_class, cdev_priv->cdev.dev);

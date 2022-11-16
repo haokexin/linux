@@ -538,7 +538,7 @@ int rvu_mbox_handler_nix_cpt_bp_disable(struct rvu *rvu,
 static int rvu_nix_get_bpid(struct rvu *rvu, struct nix_bp_cfg_req *req,
 			    int type, int chan_id)
 {
-	int bpid, blkaddr, lmac_chan_cnt, sdp_chan_cnt, vf;
+	int bpid, blkaddr, lmac_chan_cnt, sdp_chan_cnt, vf, sdp_chan_base;
 	u16 cgx_bpid_cnt, lbk_bpid_cnt, sdp_bpid_cnt;
 	struct rvu_hwinfo *hw = rvu->hw;
 	struct rvu_pfvf *pfvf;
@@ -598,10 +598,22 @@ static int rvu_nix_get_bpid(struct rvu *rvu, struct nix_bp_cfg_req *req,
 			return -EINVAL;
 		break;
 	case NIX_INTF_TYPE_SDP:
-		if ((req->chan_base + req->chan_cnt) > 255)
+		if ((req->chan_base + req->chan_cnt) > sdp_chan_cnt)
 			return -EINVAL;
 
-		bpid = sdp_bpid_cnt + req->chan_base;
+		/* Handle usecase of 2 SDP blocks */
+		if (!hw->cap.programmable_chans)
+			sdp_chan_base = pfvf->rx_chan_base - NIX_CHAN_SDP_CH_START;
+		else
+			sdp_chan_base = pfvf->rx_chan_base - hw->sdp_chan_base;
+
+		/* Channel number allocation is based on VF id,
+		 * hence BPID follows similar scheme.
+		 */
+		vf = (req->hdr.pcifunc & RVU_PFVF_FUNC_MASK) - 1;
+
+		bpid = sdp_bpid_cnt + req->chan_base + sdp_chan_base + vf;
+
 		if (req->bpid_per_chan)
 			bpid += chan_id;
 
@@ -2070,6 +2082,7 @@ int rvu_mbox_handler_nix_txsch_alloc(struct rvu *rvu,
 {
 	struct rvu_hwinfo *hw = rvu->hw;
 	u16 pcifunc = req->hdr.pcifunc;
+	struct rvu_pfvf *parent_pf;
 	int link, blkaddr, rc = 0;
 	int lvl, idx, start, end;
 	struct nix_txsch *txsch;
@@ -2085,6 +2098,8 @@ int rvu_mbox_handler_nix_txsch_alloc(struct rvu *rvu,
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
 		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	parent_pf = &rvu->pf[rvu_get_pf(pcifunc)];
 
 	mutex_lock(&rvu->rsrc_lock);
 
@@ -2151,7 +2166,7 @@ int rvu_mbox_handler_nix_txsch_alloc(struct rvu *rvu,
 	}
 
 	rsp->aggr_level = hw->cap.nix_tx_aggr_lvl;
-	rsp->aggr_lvl_rr_prio = TXSCH_TL1_DFLT_RR_PRIO;
+	rsp->aggr_lvl_rr_prio = parent_pf->tl1_rr_prio;
 	rsp->link_cfg_lvl = rvu_read64(rvu, blkaddr,
 				       NIX_AF_PSE_CHANNEL_LEVEL) & 0x01 ?
 				       NIX_TXSCH_LVL_TL3 : NIX_TXSCH_LVL_TL2;
@@ -2201,14 +2216,15 @@ static int nix_smq_flush(struct rvu *rvu, int blkaddr,
 	err = rvu_poll_reg(rvu, blkaddr,
 			   NIX_AF_SMQX_CFG(smq), BIT_ULL(49), true);
 	if (err)
-		dev_err(rvu->dev,
-			"NIXLF%d: SMQ%d flush failed\n", nixlf, smq);
+		dev_info(rvu->dev,
+			 "NIXLF%d: SMQ%d flush failed, txlink might be busy\n",
+			 nixlf, smq);
 
 	rvu_cgx_enadis_rx_bp(rvu, pf, true);
 	/* restore cgx tx state */
 	if (restore_tx_en)
 		rvu_cgx_config_tx(rvu_cgx_pdata(cgx_id, rvu), lmac_id, false);
-	return err;
+	return 0;
 }
 
 static int nix_txschq_free(struct rvu *rvu, u16 pcifunc)
@@ -2450,7 +2466,9 @@ static bool is_txschq_shaping_valid(struct rvu_hwinfo *hw, int lvl, u64 reg)
 static void nix_tl1_default_cfg(struct rvu *rvu, struct nix_hw *nix_hw,
 				u16 pcifunc, int blkaddr)
 {
+	struct rvu_pfvf *parent_pf = &rvu->pf[rvu_get_pf(pcifunc)];
 	u32 *pfvf_map;
+
 	int schq;
 
 	schq = nix_get_tx_link(rvu, pcifunc);
@@ -2459,7 +2477,7 @@ static void nix_tl1_default_cfg(struct rvu *rvu, struct nix_hw *nix_hw,
 	if (TXSCH_MAP_FLAGS(pfvf_map[schq]) & NIX_TXSCHQ_CFG_DONE)
 		return;
 	rvu_write64(rvu, blkaddr, NIX_AF_TL1X_TOPOLOGY(schq),
-		    (TXSCH_TL1_DFLT_RR_PRIO << 1));
+		    (parent_pf->tl1_rr_prio << 1));
 
 	/* On OcteonTx2 the config was in bytes and newer silcons
 	 * it's changed to weight.
@@ -2502,17 +2520,19 @@ static int nix_txschq_cfg_read(struct rvu *rvu, struct nix_hw *nix_hw,
 	return 0;
 }
 
-static void rvu_nix_tx_tl2_cfg(struct rvu *rvu, int blkaddr,
-			       u16 pcifunc, struct nix_txsch *txsch)
+void rvu_nix_tx_tl2_cfg(struct rvu *rvu, int blkaddr, u16 pcifunc,
+			struct nix_txsch *txsch, bool enable)
 {
 	struct rvu_hwinfo *hw = rvu->hw;
 	int lbk_link_start, lbk_links;
 	u8 pf = rvu_get_pf(pcifunc);
 	int schq;
+	u64 cfg;
 
 	if (!is_pf_cgxmapped(rvu, pf))
 		return;
 
+	cfg = enable ? (BIT_ULL(12) | RVU_SWITCH_LBK_CHAN) : 0;
 	lbk_link_start = hw->cgx_links;
 
 	for (schq = 0; schq < txsch->schq.max; schq++) {
@@ -2526,8 +2546,7 @@ static void rvu_nix_tx_tl2_cfg(struct rvu *rvu, int blkaddr,
 			rvu_write64(rvu, blkaddr,
 				    NIX_AF_TL3_TL2X_LINKX_CFG(schq,
 							      lbk_link_start +
-							      lbk_links),
-				    BIT_ULL(12) | RVU_SWITCH_LBK_CHAN);
+							      lbk_links), cfg);
 	}
 }
 
@@ -2636,8 +2655,6 @@ int rvu_mbox_handler_nix_txschq_cfg(struct rvu *rvu,
 		rvu_write64(rvu, blkaddr, reg, regval);
 	}
 
-	rvu_nix_tx_tl2_cfg(rvu, blkaddr, pcifunc,
-			   &nix_hw->txsch[NIX_TXSCH_LVL_TL2]);
 	rvu_nix_txsch_config_changed(nix_hw);
 	rvu_nix_txsch_unlock(nix_hw);
 	return 0;
@@ -3328,8 +3345,12 @@ static void rvu_get_lbk_link_max_frs(struct rvu *rvu,  u16 *max_mtu)
 
 static void rvu_get_lmac_link_max_frs(struct rvu *rvu, u16 *max_mtu)
 {
-	/* RPM supports FIFO len 128 KB */
-	if (rvu_cgx_get_fifolen(rvu) == 0x20000)
+	int fifo_size = rvu_cgx_get_fifolen(rvu);
+
+	/* RPM supports FIFO len 128 KB and RPM2 supports double the
+	 * FIFO len to accommodate 8 LMACS
+	 */
+	if (fifo_size == 0x20000 || fifo_size == 0x40000)
 		*max_mtu = CN10K_LMAC_LINK_MAX_FRS;
 	else
 		*max_mtu = NIC_HW_MAX_FRS;
@@ -4328,7 +4349,7 @@ static void nix_link_config(struct rvu *rvu, int blkaddr,
 
 		/* Get LMAC id's from bitmap */
 		lmac_bmap = cgx_get_lmac_bmap(rvu_cgx_pdata(cgx, rvu));
-		for_each_set_bit(iter, &lmac_bmap, MAX_LMAC_PER_CGX) {
+		for_each_set_bit(iter, &lmac_bmap, rvu->hw->lmac_per_cgx) {
 			lmac_fifo_len = rvu_cgx_get_lmac_fifolen(rvu, cgx, iter);
 			if (!lmac_fifo_len) {
 				dev_err(rvu->dev,
@@ -4779,7 +4800,13 @@ int rvu_mbox_handler_nix_lf_stop_rx(struct rvu *rvu, struct msg_req *req,
 	pfvf = rvu_get_pfvf(rvu, pcifunc);
 	clear_bit(NIXLF_INITIALIZED, &pfvf->flags);
 
-	return rvu_cgx_start_stop_io(rvu, pcifunc, false);
+	err = rvu_cgx_start_stop_io(rvu, pcifunc, false);
+	if (err)
+		return err;
+
+	rvu_cgx_tx_enable(rvu, pcifunc, true);
+
+	return 0;
 }
 
 #define RX_SA_BASE  GENMASK_ULL(52, 7)
@@ -5618,6 +5645,127 @@ int rvu_mbox_handler_nix_rx_sw_sync(struct rvu *rvu, struct msg_req *req,
 	return 0;
 }
 
+static inline void
+configure_rq_mask(struct rvu *rvu, int blkaddr, int nixlf,
+		  u8 rq_mask, bool enable)
+{
+	u64 cfg;
+	u64 reg;
+
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_CFG1(nixlf));
+	reg = rvu_read64(rvu, blkaddr, NIX_AF_LFX_CFG(nixlf));
+	if (enable) {
+		cfg |= BIT_ULL(43);
+		reg = (reg & ~GENMASK_ULL(36, 35)) | ((u64)rq_mask << 35);
+	} else {
+		cfg &= ~BIT_ULL(43);
+		reg = (reg & ~GENMASK_ULL(36, 35));
+	}
+	rvu_write64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_CFG1(nixlf), cfg);
+	rvu_write64(rvu, blkaddr, NIX_AF_LFX_CFG(nixlf), reg);
+}
+
+static inline void
+configure_spb_cpt(struct rvu *rvu, int blkaddr, int nixlf,
+		  struct nix_rq_cpt_field_mask_cfg_req *req, bool enable)
+{
+	u64 cfg;
+
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_CFG1(nixlf));
+	if (enable) {
+		cfg |= BIT_ULL(37);
+		cfg &= ~GENMASK_ULL(42, 38);
+		cfg |= ((u64)req->ipsec_cfg1.spb_cpt_sizem1 << 38);
+		cfg &= ~GENMASK_ULL(63, 44);
+		cfg |= ((u64)req->ipsec_cfg1.spb_cpt_aura << 44);
+	} else {
+		cfg &= ~BIT_ULL(37);
+		cfg &= ~GENMASK_ULL(42, 38);
+		cfg &= ~GENMASK_ULL(63, 44);
+	}
+	rvu_write64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_CFG1(nixlf), cfg);
+}
+
+static
+int nix_inline_rq_mask_alloc(struct rvu *rvu,
+			     struct nix_rq_cpt_field_mask_cfg_req *req,
+			     struct nix_hw *nix_hw, int blkaddr)
+{
+	u8 rq_cpt_mask_select;
+	u64 reg_mask;
+	u64 reg_set;
+	int idx, rq_idx;
+
+	for (idx = 0; idx < nix_hw->rq_msk.in_use; idx++) {
+		for (rq_idx = 0; rq_idx < RQ_CTX_MASK_MAX; rq_idx++) {
+			reg_mask = rvu_read64(rvu, blkaddr,
+					      NIX_AF_RX_RQX_MASKX(idx, rq_idx));
+			reg_set  = rvu_read64(rvu, blkaddr,
+					      NIX_AF_RX_RQX_SETX(idx, rq_idx));
+			if (reg_mask != req->rq_ctx_word_mask[rq_idx] &&
+			    reg_set != req->rq_ctx_word_set[rq_idx])
+				break;
+		}
+		if (rq_idx == RQ_CTX_MASK_MAX)
+			break;
+	}
+
+	if (idx < nix_hw->rq_msk.in_use) {
+		/* Match found */
+		rq_cpt_mask_select = idx;
+		return idx;
+	}
+
+	if (nix_hw->rq_msk.in_use == nix_hw->rq_msk.total)
+		return NIX_AF_ERR_RQ_CPT_MASK;
+
+	rq_cpt_mask_select = nix_hw->rq_msk.in_use++;
+
+	for (rq_idx = 0; rq_idx < RQ_CTX_MASK_MAX; rq_idx++) {
+		rvu_write64(rvu, blkaddr,
+			    NIX_AF_RX_RQX_MASKX(rq_cpt_mask_select, rq_idx),
+			    req->rq_ctx_word_mask[rq_idx]);
+		rvu_write64(rvu, blkaddr,
+			    NIX_AF_RX_RQX_SETX(rq_cpt_mask_select, rq_idx),
+			    req->rq_ctx_word_set[rq_idx]);
+	}
+
+	return rq_cpt_mask_select;
+}
+
+int rvu_mbox_handler_nix_lf_inline_rq_cfg(struct rvu *rvu,
+					  struct nix_rq_cpt_field_mask_cfg_req *req,
+					  struct msg_rsp *rsp)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct nix_hw *nix_hw;
+	int blkaddr, nixlf;
+	int rq_mask, err;
+
+	err = nix_get_nixlf(rvu, req->hdr.pcifunc, &nixlf, &blkaddr);
+	if (err)
+		return err;
+
+	nix_hw = get_nix_hw(rvu->hw, blkaddr);
+	if (!nix_hw)
+		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	if (!hw->cap.second_cpt_pass)
+		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	if (req->ipsec_cfg1.rq_mask_enable) {
+		rq_mask = nix_inline_rq_mask_alloc(rvu, req, nix_hw, blkaddr);
+		if (rq_mask < 0)
+			return NIX_AF_ERR_RQ_CPT_MASK;
+	}
+
+	configure_rq_mask(rvu, blkaddr, nixlf, rq_mask,
+			  req->ipsec_cfg1.rq_mask_enable);
+	configure_spb_cpt(rvu, blkaddr, nixlf, req,
+			  req->ipsec_cfg1.spb_cpt_enable);
+	return 0;
+}
+
 int rvu_mbox_handler_nix_set_vlan_tpid(struct rvu *rvu,
 				       struct nix_set_vlan_tpid *req,
 				       struct msg_rsp *rsp)
@@ -5790,4 +5938,34 @@ bool rvu_nix_is_ptp_tx_enabled(struct rvu *rvu, u16 pcifunc)
 
 	cfg = rvu_read64(rvu, blkaddr, NIX_AF_LFX_TX_CFG(nixlf));
 	return (cfg & BIT_ULL(32));
+}
+
+int rvu_mbox_handler_nix_tl1_rr_prio(struct rvu *rvu,
+				     struct nix_tl1_rr_prio_req *req,
+				     struct msg_rsp *rsp)
+{
+	u16 pcifunc = req->hdr.pcifunc;
+	int blkaddr, nixlf, schq, err;
+	struct rvu_pfvf *pfvf;
+	u16 regval;
+
+	err = nix_get_nixlf(rvu, pcifunc, &nixlf, &blkaddr);
+	if (err)
+		return err;
+
+	pfvf = rvu_get_pfvf(rvu, pcifunc);
+	/* Only PF is allowed */
+	if (is_vf(pcifunc))
+		return NIX_AF_ERR_TL1_RR_PRIO_PERM_DENIED;
+
+	pfvf->tl1_rr_prio = req->tl1_rr_prio;
+
+	/* update TL1 topology */
+	schq = nix_get_tx_link(rvu, pcifunc);
+	regval = rvu_read64(rvu, blkaddr, NIX_AF_TL1X_TOPOLOGY(schq));
+	regval &= ~GENMASK_ULL(4, 1);
+	regval |= pfvf->tl1_rr_prio << 1;
+	rvu_write64(rvu, blkaddr, NIX_AF_TL1X_TOPOLOGY(schq), regval);
+
+	return 0;
 }

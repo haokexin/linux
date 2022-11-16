@@ -438,6 +438,8 @@
 #define NIX_AF_RQM_BP_TEST		(0x4880)
 #define NIX_AF_CQM_BP_TEST		(0x48c0)
 #define NIX_AF_MDQX_IN_MD_COUNT(a)	(0x14e0 | (a) << 16)
+#define NIX_AF_RX_RQX_MASKX(a, b)       (0x4A40 | (a) << 16 | (b) << 3)
+#define NIX_AF_RX_RQX_SETX(a, b)        (0x4A80 | (a) << 16 | (b) << 3)
 
 #define NIX_PRIV_AF_INT_CFG		(0x8000000)
 #define NIX_PRIV_LFX_CFG		(0x8000010)
@@ -446,6 +448,7 @@
 
 #define NIX_AF_LF_CFG_SHIFT		17
 #define NIX_AF_LF_SSO_PF_FUNC_SHIFT	16
+#define NIX_RQ_MSK_PROFILES             4
 
 #define NIX_AF_LINKX_BASE_MASK		GENMASK_ULL(11, 0)
 #define NIX_AF_LINKX_RANGE_MASK		GENMASK_ULL(19, 16)
@@ -474,6 +477,7 @@
 #define SSO_AF_UNMAP_INFO		(0x12f0)
 #define SSO_AF_UNMAP_INFO2		(0x1300)
 #define SSO_AF_UNMAP_INFO3		(0x1310)
+#define SSO_AF_BP_TEST(a)		(0x1380 | (a) << 4)
 #define SSO_AF_RAS			(0x1420)
 #define SSO_AF_RAS_W1S			(0x1430)
 #define SSO_AF_RAS_ENA_W1C		(0x1460)
@@ -507,6 +511,8 @@
 #define SSO_AF_HWGRPX_DS_PC(a)		(0x200090 | (a) << 12)
 #define SSO_AF_HWGRPX_DQ_PC(a)		(0x2000A0 | (a) << 12)
 #define SSO_AF_HWGRPX_LS_PC(a)		(0x2000C0 | (a) << 12)
+#define SSO_AF_HWGRPX_STASH(a)		(0x2000D0 | (a) << 12)
+#define SSO_AF_BAD_STASH_DIGESTX(a)	(0x2000E0 | (a) << 12)
 #define SSO_AF_HWGRPX_PAGE_CNT(a)	(0x200100 | (a) << 12)
 #define SSO_AF_IU_ACCNTX_CFG(a)		(0x50000 | (a) << 3)
 #define SSO_AF_IU_ACCNTX_RST(a)		(0x60000 | (a) << 3)
@@ -516,6 +522,12 @@
 #define SSO_AF_HWGRPX_XAQ_AURA(a)	(0x200140 | (a) << 12)
 #define SSO_AF_HWGRPX_XAQ_LIMIT(a)	(0x200220 | (a) << 12)
 #define SSO_AF_HWGRPX_IU_ACCNT(a)	(0x200230 | (a) << 12)
+
+#define SSO_AF_WS_NE_DIGESTX(a)		(0x902800 | (a) << 3)
+#define SSO_AF_WS_NI_DIGESTX(a)		(0x903000 | (a) << 3)
+#define SSO_AF_WS_NT_DIGESTX(a)		(0x903200 | (a) << 3)
+#define SSO_AF_WS_GUNMAP_DIGESTX(a)	(0x902200 | (a) << 3)
+
 #define SSO_AF_HWSX_ARB(a)		(0x400100 | (a) << 12)
 #define SSO_AF_HWSX_INV(a)		(0x400180 | (a) << 12)
 #define SSO_AF_HWSX_GMCTL(a)		(0x400200 | (a) << 12)
@@ -547,6 +559,7 @@
 #define SSO_AF_CONST1_NO_NSCHED		BIT_ULL(34)
 #define SSO_AF_CONST1_LSW_PRESENT	BIT_ULL(36)
 #define SSO_AF_CONST1_PRF_PRESENT	BIT_ULL(37)
+#define SSO_AF_CONST1_STASH_PRESENT	BIT_ULL(38)
 #define SSO_AF_IAQ_FREE_CNT_MASK	0x3FFFull
 #define SSO_AF_IAQ_RSVD_FREE_MASK	0x3FFFull
 #define SSO_AF_IAQ_RSVD_FREE_SHIFT	16
@@ -565,6 +578,7 @@
 #define SSO_AF_HWGRP_PAGE_CNT_MASK	(BIT_ULL(32) - 1)
 #define SSO_HWGRP_IAQ_MAX_THR_STRM_PERF	0xD0
 #define SSO_AF_HWGRP_IU_ACCNT_MAX_THR	0x7FFFull
+#define SSO_AF_BP_TEST_CFG3_MASK	GENMASK_ULL(23, 22)
 
 #define SSO_AF_TAQ_FREE_CNT_MASK	0x7FFull
 #define SSO_AF_TAQ_RSVD_FREE_MASK	0x7FFull
@@ -779,6 +793,8 @@
 
 #define CPT_LF_CTL                      0x10
 #define CPT_LF_INPROG                   0x40
+#define CPT_LF_Q_SIZE                   0x100
+#define CPT_LF_Q_INST_PTR               0x110
 #define CPT_LF_Q_GRP_PTR                0x120
 #define CPT_LF_CTX_FLUSH                0x510
 
