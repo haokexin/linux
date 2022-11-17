@@ -250,7 +250,8 @@ static const
 struct phy_gmii_sel_soc_data phy_gmii_sel_cpsw9g_soc_j784s4 = {
 	.use_of_data = true,
 	.regfields = phy_gmii_sel_fields_am654,
-	.extra_modes = BIT(PHY_INTERFACE_MODE_QSGMII),
+	.extra_modes = BIT(PHY_INTERFACE_MODE_QSGMII) |
+		       BIT(PHY_INTERFACE_MODE_USXGMII),
 };
 
 static const struct of_device_id phy_gmii_sel_id_table[] = {
@@ -441,13 +442,7 @@ static int phy_gmii_sel_probe(struct platform_device *pdev)
 	priv->dev = &pdev->dev;
 	priv->soc_data = of_id->data;
 	priv->num_ports = priv->soc_data->num_ports;
-	/*
-	 * Ensure that main_ports is within bounds. If the property
-	 * ti,qsgmii-main-ports is not mentioned, or the value mentioned
-	 * is out of bounds, default to 1.
-	 */
-	if (main_ports < 1 || main_ports > 4)
-		main_ports = 1;
+
 	/* Differentiate between J7200 CPSW5G, J721e CPSW9G and J784s4 CPSW9G*/
 	if (of_device_is_compatible(node, "ti,j7200-cpsw5g-phy-gmii-sel") > 0) {
 		of_property_read_u32_array(node, "ti,qsgmii-main-ports", &main_ports[0], 1);
