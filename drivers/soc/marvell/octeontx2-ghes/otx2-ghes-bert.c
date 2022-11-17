@@ -195,7 +195,7 @@ static int __init ghes_bed_count_error(struct mrvl_bed_source *bsrc)
 
 	bsrc->error_cnt = (error_cnt > OTX2_GHES_ERR_RECS) ? OTX2_GHES_ERR_RECS : error_cnt;
 
-	initdbgmsg("BED mem @ %llx (%llx PA), %llu B, error entries %ld\n",
+	initdbgmsg("BED mem @ %llx (%llx PA), %llu B, error entries %u\n",
 			(long long)bsrc->block_va, bsrc->block_pa,
 			(long long)bsrc->block_sz, bsrc->error_cnt);
 
