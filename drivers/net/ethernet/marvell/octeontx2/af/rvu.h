@@ -982,6 +982,12 @@ int rvu_cpt_lf_teardown(struct rvu *rvu, u16 pcifunc, int blkaddr, int lf,
 int rvu_cpt_ctx_flush(struct rvu *rvu, u16 pcifunc);
 int rvu_cpt_init(struct rvu *rvu);
 
+/* NDC APIs */
+#define NDC_MAX_BANK(rvu, blk_addr) (rvu_read64(rvu, \
+					blk_addr, NDC_AF_CONST) & 0xFF)
+#define NDC_MAX_LINE_PER_BANK(rvu, blk_addr) ((rvu_read64(rvu, \
+					blk_addr, NDC_AF_CONST) & 0xFFFF0000) >> 16)
+
 #define NDC_AF_BANK_MASK       GENMASK_ULL(7, 0)
 #define NDC_AF_BANK_LINE_MASK  GENMASK_ULL(31, 16)
 
