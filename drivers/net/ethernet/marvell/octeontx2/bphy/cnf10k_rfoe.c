@@ -859,7 +859,7 @@ static int cnf10k_rfoe_config_hwtstamp(struct net_device *netdev,
 		break;
 	case HWTSTAMP_TX_ONESTEP_SYNC:
 		priv->ptp_onestep_sync = 1;
-		/* fall through */
+		fallthrough;
 	case HWTSTAMP_TX_ON:
 		priv->tx_hw_tstamp_en = 1;
 		break;
