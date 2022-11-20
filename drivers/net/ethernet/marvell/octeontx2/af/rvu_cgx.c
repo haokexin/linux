@@ -56,7 +56,7 @@ bool is_mac_feature_supported(struct rvu *rvu, int pf, int feature)
 }
 
 /* Returns bitmap of mapped PFs */
-static u16 cgxlmac_to_pfmap(struct rvu *rvu, u8 cgx_id, u8 lmac_id)
+static u64 cgxlmac_to_pfmap(struct rvu *rvu, u8 cgx_id, u8 lmac_id)
 {
 	return rvu->cgxlmac2pf_map[CGX_OFFSET(cgx_id) + lmac_id];
 }
@@ -71,7 +71,8 @@ int cgxlmac_to_pf(struct rvu *rvu, int cgx_id, int lmac_id)
 	if (!pfmap)
 		return -ENODEV;
 	else
-		return find_first_bit(&pfmap, 16);
+		return find_first_bit(&pfmap,
+				      rvu->cgx_cnt_max * MAX_LMAC_PER_CGX);
 }
 
 static u8 cgxlmac_id_to_bmap(u8 cgx_id, u8 lmac_id)
@@ -146,7 +147,7 @@ static int rvu_map_cgx_lmac_pf(struct rvu *rvu)
 
 	/* Reverse map table */
 	rvu->cgxlmac2pf_map = devm_kzalloc(rvu->dev,
-				  cgx_cnt_max * MAX_LMAC_PER_CGX * sizeof(u16),
+				  cgx_cnt_max * MAX_LMAC_PER_CGX * sizeof(u64),
 				  GFP_KERNEL);
 	if (!rvu->cgxlmac2pf_map)
 		return -ENOMEM;
@@ -235,7 +236,8 @@ static void cgx_notify_pfs(struct cgx_link_event *event, struct rvu *rvu)
 	pfmap = cgxlmac_to_pfmap(rvu, event->cgx_id, event->lmac_id);
 
 	do {
-		pfid = find_first_bit(&pfmap, 16);
+		pfid = find_first_bit(&pfmap,
+				      rvu->cgx_cnt_max * MAX_LMAC_PER_CGX);
 		clear_bit(pfid, &pfmap);
 
 		/* check if notification is enabled */
