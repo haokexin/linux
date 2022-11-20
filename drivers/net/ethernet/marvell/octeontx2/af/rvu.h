@@ -28,6 +28,7 @@
 #define PCI_SUBSYS_DEVID_95XX                  0xB300
 #define PCI_SUBSYS_DEVID_LOKI                  0xB400
 #define PCI_SUBSYS_DEVID_CN10K_A	       0xB900
+#define PCI_SUBSYS_DEVID_CNF10K_A	       0xBA00
 #define PCI_SUBSYS_DEVID_CNF10K_B              0xBC00
 #define PCI_SUBSYS_DEVID_CN10K_B               0xBD00
 
