@@ -1201,7 +1201,7 @@ static int rvu_nix_aq_enq_inst(struct rvu *rvu, struct nix_aq_enq_req *req,
 
 	nix_hw =  get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 retry:
 	err = rvu_nix_blk_aq_enq_inst(rvu, nix_hw, req, rsp);
@@ -1646,7 +1646,7 @@ int rvu_mbox_handler_nix_mark_format_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	cfg = (((u32)req->offset & 0x7) << 16) |
 	      (((u32)req->y_mask & 0xF) << 12) |
@@ -2058,7 +2058,7 @@ int rvu_mbox_handler_nix_txsch_alloc(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	mutex_lock(&rvu->rsrc_lock);
 
@@ -2189,7 +2189,7 @@ static int nix_txschq_free(struct rvu *rvu, u16 pcifunc)
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	nixlf = rvu_get_lf(rvu, &hw->block[blkaddr], pcifunc, 0);
 	if (nixlf < 0)
@@ -2278,7 +2278,7 @@ static int nix_txschq_free_one(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	nixlf = rvu_get_lf(rvu, &hw->block[blkaddr], pcifunc, 0);
 	if (nixlf < 0)
@@ -2521,7 +2521,7 @@ int rvu_mbox_handler_nix_txschq_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	if (req->read)
 		return nix_txschq_cfg_read(rvu, nix_hw, blkaddr, req, rsp);
@@ -2630,12 +2630,8 @@ static int nix_tx_vtag_free(struct rvu *rvu, int blkaddr,
 			    u16 pcifunc, int index)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
-	struct nix_txvlan *vlan;
+	struct nix_txvlan *vlan = &nix_hw->txvlan;
 
-	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
-
-	vlan = &nix_hw->txvlan;
 	if (vlan->entry2pfvf_map[index] != pcifunc)
 		return NIX_AF_ERR_PARAM;
 
@@ -2679,14 +2675,9 @@ static int nix_tx_vtag_alloc(struct rvu *rvu, int blkaddr,
 			     u64 vtag, u8 size)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
-	struct nix_txvlan *vlan;
+	struct nix_txvlan *vlan = &nix_hw->txvlan;
 	u64 regval;
 	int index;
-
-	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
-
-	vlan = &nix_hw->txvlan;
 
 	mutex_lock(&vlan->rsrc_lock);
 
@@ -2712,16 +2703,12 @@ static int nix_tx_vtag_decfg(struct rvu *rvu, int blkaddr,
 			     struct nix_vtag_config *req)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
+	struct nix_txvlan *vlan = &nix_hw->txvlan;
 	u16 pcifunc = req->hdr.pcifunc;
 	int idx0 = req->tx.vtag0_idx;
 	int idx1 = req->tx.vtag1_idx;
-	struct nix_txvlan *vlan;
 	int err = 0;
 
-	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
-
-	vlan = &nix_hw->txvlan;
 	if (req->tx.free_vtag0 && req->tx.free_vtag1)
 		if (vlan->entry2pfvf_map[idx0] != pcifunc ||
 		    vlan->entry2pfvf_map[idx1] != pcifunc)
@@ -2748,13 +2735,9 @@ static int nix_tx_vtag_cfg(struct rvu *rvu, int blkaddr,
 			   struct nix_vtag_config_rsp *rsp)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
-	struct nix_txvlan *vlan;
+	struct nix_txvlan *vlan = &nix_hw->txvlan;
 	u16 pcifunc = req->hdr.pcifunc;
 
-	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
-
-	vlan = &nix_hw->txvlan;
 	if (req->tx.cfg_vtag0) {
 		rsp->vtag0_idx =
 			nix_tx_vtag_alloc(rvu, blkaddr,
@@ -3642,7 +3625,7 @@ static int reserve_flowkey_alg_idx(struct rvu *rvu, int blkaddr, u32 flow_cfg)
 
 	hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	/* No room to add new flow hash algoritham */
 	if (hw->flowkey.in_use >= NIX_FLOW_KEY_ALG_MAX)
@@ -3682,7 +3665,7 @@ int rvu_mbox_handler_nix_rss_flowkey_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	alg_idx = get_flowkey_alg_idx(nix_hw, req->flowkey_cfg);
 	/* Failed to get algo index from the exiting list, reserve new  */
@@ -4037,7 +4020,7 @@ int rvu_mbox_handler_nix_set_hw_frs(struct rvu *rvu, struct nix_frs_cfg *req,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	if (is_afvf(pcifunc))
 		rvu_get_lbk_link_max_frs(rvu, &max_mtu);
@@ -4796,7 +4779,7 @@ int rvu_mbox_handler_nix_lso_format_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return NIX_AF_ERR_INVALID_NIXBLK;
+		return -EINVAL;
 
 	/* Find existing matching LSO format, if any */
 	for (idx = 0; idx < nix_hw->lso.in_use; idx++) {
