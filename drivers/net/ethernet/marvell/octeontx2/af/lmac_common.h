@@ -124,6 +124,7 @@ struct mac_ops {
 
 	int                     (*mac_get_pfc_frm_cfg)(void *cgxd, int lmac_id,
 						       u8 *tx_pause, u8 *rx_pause);
+	int			(*mac_reset)(void *cgxd, int lmac_id);
 
 };
 
