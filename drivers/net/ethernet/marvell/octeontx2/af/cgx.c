@@ -710,11 +710,6 @@ int cgx_get_tx_stats(void *cgxd, int lmac_id, int idx, u64 *tx_stat)
 	return 0;
 }
 
-u64 cgx_features_get(void *cgxd)
-{
-	return ((struct cgx *)cgxd)->hw_features;
-}
-
 u64 cgx_get_dmacflt_dropped_pktcnt(void *cgxd, int lmac_id)
 {
 	struct cgx *cgx = cgxd;
@@ -747,6 +742,11 @@ int cgx_stats_rst(void *cgxd, int lmac_id)
 		cgx_write(cgx, lmac_id, CGXX_CMRX_TX_STAT0 + (stat_id * 8), 0);
 
 	return 0;
+}
+
+u64 cgx_features_get(void *cgxd)
+{
+	return ((struct cgx *)cgxd)->hw_features;
 }
 
 static int cgx_set_fec_stats_count(struct cgx_link_user_info *linfo)
@@ -1820,6 +1820,52 @@ int cgx_lmac_linkup_start(void *cgxd)
 	return 0;
 }
 
+int cgx_lmac_reset(void *cgxd, int lmac_id)
+{
+	struct cgx *cgx = cgxd;
+	u64 cfg;
+
+	if (!is_lmac_valid(cgx, lmac_id))
+		return -ENODEV;
+
+	/* Resetting PFC related CSRs */
+	cfg = 0xff;
+	cgx_write(cgxd, lmac_id, CGXX_CMRX_RX_LOGL_XON, cfg);
+
+	return 0;
+}
+
+void cgx_lmac_enadis_higig2(void *cgxd, int lmac_id, bool enable)
+{
+	struct cgx *cgx = cgxd;
+	u64 req = 0, resp;
+
+	/* disable 802.3 pause frames before enabling higig2 */
+	if (enable) {
+		cgx_lmac_enadis_8023_pause_frm(cgxd, lmac_id, false, false);
+		cgx_lmac_enadis_higig2_pause_frm(cgxd, lmac_id, true, true);
+	}
+
+	req = FIELD_SET(CMDREG_ID, CGX_CMD_HIGIG, req);
+	req = FIELD_SET(CMDREG_ENABLE, enable, req);
+	cgx_fwi_cmd_generic(req, &resp, cgx, lmac_id);
+
+	/* enable 802.3 pause frames as higig2 disabled */
+	if (!enable) {
+		cgx_lmac_enadis_higig2_pause_frm(cgxd, lmac_id, false, false);
+		cgx_lmac_enadis_8023_pause_frm(cgxd, lmac_id, true, true);
+	}
+}
+
+bool is_higig2_enabled(void *cgxd, int lmac_id)
+{
+	struct cgx *cgx = cgxd;
+	u64 cfg;
+
+	cfg = cgx_read(cgx, lmac_id, CGXX_SMUX_TX_CTL);
+	return (cfg & CGXX_SMUX_TX_CTL_HIGIG_EN);
+}
+
 static int cgx_configure_interrupt(struct cgx *cgx, struct lmac *lmac,
 				   int cnt, bool req_free)
 {
@@ -1866,52 +1912,6 @@ unsigned long cgx_get_lmac_bmap(void *cgxd)
 	struct cgx *cgx = cgxd;
 
 	return cgx->lmac_bmap;
-}
-
-int cgx_lmac_reset(void *cgxd, int lmac_id)
-{
-	struct cgx *cgx = cgxd;
-	u64 cfg;
-
-	if (!is_lmac_valid(cgx, lmac_id))
-		return -ENODEV;
-
-	/* Resetting PFC related CSRs */
-	cfg = 0xff;
-	cgx_write(cgxd, lmac_id, CGXX_CMRX_RX_LOGL_XON, cfg);
-
-	return 0;
-}
-
-void cgx_lmac_enadis_higig2(void *cgxd, int lmac_id, bool enable)
-{
-	struct cgx *cgx = cgxd;
-	u64 req = 0, resp;
-
-	/* disable 802.3 pause frames before enabling higig2 */
-	if (enable) {
-		cgx_lmac_enadis_8023_pause_frm(cgxd, lmac_id, false, false);
-		cgx_lmac_enadis_higig2_pause_frm(cgxd, lmac_id, true, true);
-	}
-
-	req = FIELD_SET(CMDREG_ID, CGX_CMD_HIGIG, req);
-	req = FIELD_SET(CMDREG_ENABLE, enable, req);
-	cgx_fwi_cmd_generic(req, &resp, cgx, lmac_id);
-
-	/* enable 802.3 pause frames as higig2 disabled */
-	if (!enable) {
-		cgx_lmac_enadis_higig2_pause_frm(cgxd, lmac_id, false, false);
-		cgx_lmac_enadis_8023_pause_frm(cgxd, lmac_id, true, true);
-	}
-}
-
-bool is_higig2_enabled(void *cgxd, int lmac_id)
-{
-	struct cgx *cgx = cgxd;
-	u64 cfg;
-
-	cfg = cgx_read(cgx, lmac_id, CGXX_SMUX_TX_CTL);
-	return (cfg & CGXX_SMUX_TX_CTL_HIGIG_EN);
 }
 
 static int cgx_lmac_init(struct cgx *cgx)
