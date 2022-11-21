@@ -393,7 +393,7 @@ int rpm_get_rx_stats(void *rpmd, int lmac_id, int idx, u64 *rx_stat)
 	rpm_t *rpm = rpmd;
 	u64 val_lo, val_hi;
 
-	if (!rpm || lmac_id >= rpm->lmac_count)
+	if (!is_lmac_valid(rpm, lmac_id))
 		return -ENODEV;
 
 	mutex_lock(&rpm->lock);
@@ -421,7 +421,7 @@ int rpm_get_tx_stats(void *rpmd, int lmac_id, int idx, u64 *tx_stat)
 	rpm_t *rpm = rpmd;
 	u64 val_lo, val_hi;
 
-	if (!rpm || lmac_id >= rpm->lmac_count)
+	if (!is_lmac_valid(rpm, lmac_id))
 		return -ENODEV;
 
 	mutex_lock(&rpm->lock);
@@ -608,7 +608,7 @@ int rpm_lmac_internal_loopback(void *rpmd, int lmac_id, bool enable)
 	u8 lmac_type;
 	u64 cfg;
 
-	if (!rpm || lmac_id >= rpm->lmac_count)
+	if (!is_lmac_valid(rpm, lmac_id))
 		return -ENODEV;
 	lmac_type = rpm->mac_ops->get_lmac_type(rpm, lmac_id);
 

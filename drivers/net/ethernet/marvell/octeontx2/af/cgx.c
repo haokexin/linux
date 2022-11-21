@@ -171,6 +171,9 @@ void cgx_lmac_write(int cgx_id, int lmac_id, u64 offset, u64 val)
 {
 	struct cgx *cgx_dev = cgx_get_pdata(cgx_id);
 
+	/* Software must not access disabled LMAC registers */
+	if (!is_lmac_valid(cgx_dev, lmac_id))
+		return;
 	cgx_write(cgx_dev, lmac_id, offset, val);
 }
 
@@ -178,6 +181,9 @@ u64 cgx_lmac_read(int cgx_id, int lmac_id, u64 offset)
 {
 	struct cgx *cgx_dev = cgx_get_pdata(cgx_id);
 
+	/* Software must not access disabled LMAC registers */
+	if (!is_lmac_valid(cgx_dev, lmac_id))
+		return 0;
 	return cgx_read(cgx_dev, lmac_id, offset);
 }
 
@@ -243,6 +249,9 @@ int cgx_lmac_addr_set(u8 cgx_id, u8 lmac_id, u8 *mac_addr)
 	struct mac_ops *mac_ops;
 	int index, id;
 	u64 cfg;
+
+	if (!lmac)
+		return -ENODEV;
 
 	/* access mac_ops to know csr_offset */
 	mac_ops = cgx_dev->mac_ops;
@@ -497,7 +506,7 @@ int cgx_get_pkind(void *cgxd, u8 lmac_id, int *pkind)
 {
 	struct cgx *cgx = cgxd;
 
-	if (!cgx || lmac_id >= cgx->lmac_count)
+	if (!is_lmac_valid(cgx, lmac_id))
 		return -ENODEV;
 
 	*pkind = cgx_read(cgx, lmac_id, cgx->mac_ops->rxid_map_offset);
@@ -573,15 +582,16 @@ void cgx_lmac_promisc_config(int cgx_id, int lmac_id, bool enable)
 {
 	struct cgx *cgx = cgx_get_pdata(cgx_id);
 	struct lmac *lmac = lmac_pdata(lmac_id, cgx);
-	u16 max_dmac = lmac->mac_to_index_bmap.max;
 	struct mac_ops *mac_ops;
+	u16 max_dmac;
 	int index, i;
 	u64 cfg = 0;
 	int id;
 
-	if (!cgx)
+	if (!cgx || !lmac)
 		return;
 
+	max_dmac = lmac->mac_to_index_bmap.max;
 	id = get_sequence_id_of_lmac(cgx, lmac_id);
 
 	mac_ops = cgx->mac_ops;
@@ -720,7 +730,7 @@ int cgx_stats_rst(void *cgxd, int lmac_id)
 	struct cgx *cgx = cgxd;
 	int stat_id;
 
-	if (!cgx || lmac_id >= cgx->lmac_count)
+	if (!is_lmac_valid(cgx, lmac_id))
 		return -ENODEV;
 
 	for (stat_id = 0 ; stat_id < CGX_RX_STATS_COUNT; stat_id++) {
@@ -773,7 +783,7 @@ int cgx_get_fec_stats(void *cgxd, int lmac_id, struct cgx_fec_stats_rsp *rsp)
 	int corr_reg, uncorr_reg;
 	struct cgx *cgx = cgxd;
 
-	if (!cgx || lmac_id >= cgx->lmac_count)
+	if (!is_lmac_valid(cgx, lmac_id))
 		return -ENODEV;
 
 	if (cgx->lmac_idmap[lmac_id]->link_info.fec == OTX2_FEC_NONE)
@@ -946,7 +956,7 @@ int cgx_lmac_enadis_pause_frm(void *cgxd, int lmac_id,
 {
 	struct cgx *cgx = cgxd;
 
-	if (!cgx || lmac_id >= cgx->lmac_count)
+	if (!is_lmac_valid(cgx, lmac_id))
 		return -ENODEV;
 
 	if (is_higig2_enabled(cgxd, lmac_id))
