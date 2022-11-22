@@ -754,7 +754,7 @@ static int cn10k_ddr_perf_probe(struct platform_device *pdev)
 		return PTR_ERR(base);
 
 	ddr_pmu->base = base;
-	ddr_pmu->mbw_base = ioremap_nocache(res->start + MBW_BASE,
+	ddr_pmu->mbw_base = ioremap(res->start + MBW_BASE,
 						resource_size(res));
 
 	if (!is_probed_once) {
