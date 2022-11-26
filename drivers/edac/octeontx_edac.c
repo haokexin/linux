@@ -251,6 +251,7 @@ static void octeontx_edac_make_error_desc(struct cper_sec_mem_err *mem_err,
 	e->mid_layer = -1;
 	e->low_layer = -1;
 	e->syndrome = 0;
+	e->other_detail = "";
 
 	if (mem_err->validation_bits & CPER_MEM_VALID_ERROR_TYPE)
 		e->other_detail = mem_err_types[mem_err->error_type];
