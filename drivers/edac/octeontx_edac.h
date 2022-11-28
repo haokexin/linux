@@ -59,6 +59,7 @@ struct octeontx_edac {
 	struct mutex lock;
 	char name[NAME_SZ];
 	struct delayed_work work;
+	struct irq_work irq_work;
 };
 
 struct octeontx_ghes_list {
