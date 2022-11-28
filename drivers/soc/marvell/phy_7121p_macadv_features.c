@@ -692,9 +692,6 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_DA mac_adv->data.mac.mac %s",
 				__func__, (char *)mac_adv->data.vport_params.mac);
 
-		if (mac_adv->data.vport_params.mac == 0)
-			return -EINVAL;
-
 		break;
 
 	case PHY_MAC_ADV_MACSEC_SET_KEY:
@@ -866,9 +863,6 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 
 		MAC_ADV_DEBUG("\n %s PHY_MAC_ADV_MACSEC_SET_SCI mac_adv->data.sci_id.sci %s",
 						__func__, (char *)mac_adv->data.sa_params.sci);
-
-		if (mac_adv->data.sa_params.sci == 0)
-			return -EINVAL;
 
 		mac_adv->data.sa_params.is_sci = true;
 
