@@ -869,6 +869,8 @@ static int rvu_cgx_ptp_rx_cfg(struct rvu *rvu, u16 pcifunc, bool enable)
 	/* This flag is required to clean up CGX conf if app gets killed */
 	pfvf->hw_rx_tstamp_en = enable;
 
+	rvu_mcs_ptp_cfg(rvu, cgx_id, lmac_id, enable);
+
 	return 0;
 }
 
