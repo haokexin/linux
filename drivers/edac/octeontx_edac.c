@@ -11,6 +11,7 @@
 #include <linux/arm_sdei.h>
 #include <linux/arm-smccc.h>
 #include <linux/of_device.h>
+#include <linux/irq_work.h>
 #include "edac_mc.h"
 #include "edac_device.h"
 #include "edac_module.h"
@@ -290,9 +291,34 @@ static void octeontx_edac_make_error_desc(struct cper_sec_mem_err *mem_err,
 		*(p - 1) = '\0';
 }
 
+void octeontx_edac_sdei_wq_irq(struct irq_work *work)
+{
+	struct octeontx_ghes *ghes = container_of(work, struct octeontx_ghes, irq_work);
+
+	switch (ghes->sdei_num) {
+	case 0x40000000:
+	case 0x40000002:
+		struct edac_device_ctl_info *edac_dev = ghes->edac_dev;
+		edac_queue_work(&edac_dev->work, msecs_to_jiffies(0));
+		break;
+	case 0x40000001:
+		struct mem_ctl_info *mci = ghes->mci;
+		edac_queue_work(&mci->work, msecs_to_jiffies(0));
+		break;
+	case 0x40000003 ... 0x4000001A:
+		edac_queue_work(&ghes->work, msecs_to_jiffies(0));
+		break;
+	default:
+		pr_err("Unable deal event [%x]\n", ghes->sdei_num);
+		break;
+	}
+}
+
 static int octeontx_sdei_register(struct octeontx_ghes *ghes, sdei_event_callback *cb)
 {
 	int ret = 0;
+
+	init_irq_work(&ghes->irq_work, octeontx_edac_sdei_wq_irq);
 
 	ret = sdei_event_register(ghes->sdei_num, cb, ghes);
 	if (ret < 0) {
@@ -330,32 +356,11 @@ static void octeontx_sdei_unregister(struct octeontx_ghes *ghes)
 	wmb();
 }
 
-
-static int octeontx_mc_sdei_callback(u32 event_id, struct pt_regs *regs, void *arg)
-{
-	struct octeontx_ghes *ghes = arg;
-	struct mem_ctl_info *mci = ghes->mci;
-
-	edac_queue_work(&mci->work, msecs_to_jiffies(0));
-
-	return 0;
-}
-
-static int octeontx_device_sdei_callback(u32 event_id, struct pt_regs *regs, void *arg)
-{
-	struct octeontx_ghes *ghes = arg;
-	struct edac_device_ctl_info *edac_dev = ghes->edac_dev;
-
-	edac_queue_work(&edac_dev->work, msecs_to_jiffies(0));
-
-	return 0;
-}
-
-static int octeontx_cpu_sdei_callback(u32 event_id, struct pt_regs *regs, void *arg)
+static int octeontx_sdei_callback(u32 event_id, struct pt_regs *regs, void *arg)
 {
 	struct octeontx_ghes *ghes = arg;
 
-	edac_queue_work(&ghes->work, msecs_to_jiffies(0));
+	irq_work_queue(&ghes->irq_work);
 
 	return 0;
 }
@@ -756,7 +761,7 @@ static int octeontx_edac_mc_init(struct platform_device *pdev,
 	INIT_DELAYED_WORK(&mci->work, octeontx_edac_mc_wq);
 	edac_stop_work(&mci->work);
 
-	ret = octeontx_sdei_register(ghes, octeontx_mc_sdei_callback);
+	ret = octeontx_sdei_register(ghes, octeontx_sdei_callback);
 	if (ret)
 		goto err2;
 
@@ -829,7 +834,7 @@ static int octeontx_edac_device_init(struct platform_device *pdev,
 	INIT_DELAYED_WORK(&edac_dev->work, octeontx_edac_device_wq);
 	edac_stop_work(&edac_dev->work);
 
-	ret = octeontx_sdei_register(ghes, octeontx_device_sdei_callback);
+	ret = octeontx_sdei_register(ghes, octeontx_sdei_callback);
 	if (ret)
 		goto err1;
 
@@ -945,7 +950,7 @@ static int octeontx_cpu_probe(struct platform_device *pdev)
 		INIT_DELAYED_WORK(&ghes->work, octeontx_edac_cpu_wq);
 		edac_stop_work(&ghes->work);
 
-		octeontx_sdei_register(ghes, octeontx_cpu_sdei_callback);
+		octeontx_sdei_register(ghes, octeontx_sdei_callback);
 	}
 
 	otx_printk(KERN_DEBUG, "Register %d %s\n", cores, edac_dev->ctl_name);
