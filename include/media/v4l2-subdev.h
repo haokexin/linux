@@ -745,8 +745,6 @@ struct v4l2_subdev_krouting {
  * struct v4l2_subdev_state - Used for storing subdev state information.
  *
  * @pads: &struct v4l2_subdev_pad_config array
- * @routing: routing table for the subdev
- * @stream_configs: stream configurations (only for V4L2_SUBDEV_FL_MULTIPLEXED)
  *
  * This structure only needs to be passed to the pad op if the 'which' field
  * of the main argument is set to %V4L2_SUBDEV_FORMAT_TRY. For
@@ -754,8 +752,6 @@ struct v4l2_subdev_krouting {
  */
 struct v4l2_subdev_state {
 	struct v4l2_subdev_pad_config *pads;
-	struct v4l2_subdev_krouting routing;
-	struct v4l2_subdev_stream_configs stream_configs;
 };
 
 /**

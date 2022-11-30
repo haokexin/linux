@@ -1229,8 +1229,6 @@ void v4l2_subdev_free_state(struct v4l2_subdev_state *state)
 {
 	if (!state)
 		return;
-	v4l2_subdev_free_routing(&state->routing);
-	v4l2_uninit_stream_configs(&state->stream_configs);
 
 	kvfree(state->pads);
 	kfree(state);
