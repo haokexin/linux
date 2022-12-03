@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 obj-y           += gti/
 obj-y 		+= hw-access/
+obj-y           += octeontx2-ghes/
 obj-$(CONFIG_MARVELL_FWLOG) += fwlog.o
 obj-$(CONFIG_MVMDIO_UIO) += mvmdio_uio.o
 obj-$(CONFIG_MARVELL_CN10K_SERDES_DIAGNOSTICS) += cn10k_serdes_diag.o
