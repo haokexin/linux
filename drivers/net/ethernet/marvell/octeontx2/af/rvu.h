@@ -16,6 +16,7 @@
 #include "common.h"
 #include "mbox.h"
 #include "npc.h"
+#include "rvu_validation.h"
 #include "rvu_reg.h"
 
 /* PCI device IDs */
@@ -279,6 +280,9 @@ struct rvu_pfvf {
 	struct nix_mce_list	promisc_mce_list;
 	bool			use_mce_list;
 
+	/* For resource limits */
+	struct pci_dev	*pdev;
+	struct kobject	*limits_kobj;
 	struct rvu_npc_mcam_rule *def_ucast_rule;
 
 	bool	cgx_in_use; /* this PF/VF using CGX? */
@@ -508,6 +512,7 @@ struct rvu {
 	struct rvu_hwinfo       *hw;
 	struct rvu_pfvf		*pf;
 	struct rvu_pfvf		*hwvf;
+	struct rvu_limits	pf_limits;
 	struct mutex		rsrc_lock; /* Serialize resource alloc/free */
 	struct mutex		alias_lock; /* Serialize bar2 alias access */
 	int			vfs; /* Number of VFs attached to RVU */
