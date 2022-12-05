@@ -27,9 +27,6 @@ void dwc3_host_wakeup_capable(struct device *dev, bool wakeup)
 	if (dwc3_wakeup_fn)
 		dwc3_wakeup_fn(dev, wakeup);
 }
-static const struct xhci_plat_priv dwc3_xhci_plat_priv = {
-	.quirks = XHCI_SKIP_PHY_INIT,
-};
 
 static int dwc3_host_get_irq(struct dwc3 *dwc)
 {
