@@ -259,6 +259,12 @@ static int free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 	block = &hw->block[BLKADDR_CPT1];
 	rsp->cpt1 = rvu_rsrc_free_count(&block->lf);
 
+	block = &hw->block[BLKADDR_REE0];
+	rsp->ree0 = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_REE1];
+	rsp->ree1 = rvu_rsrc_free_count(&block->lf);
+
 	if (rvu->hw->cap.nix_fixed_txschq_mapping) {
 		rsp->schq[NIX_TXSCH_LVL_SMQ] = 1;
 		rsp->schq[NIX_TXSCH_LVL_TL4] = 1;
@@ -362,6 +368,12 @@ int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
 
 	block = &hw->block[BLKADDR_CPT1];
 	rsp->cpt1 = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_REE0];
+	rsp->ree0 = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_REE1];
+	rsp->ree1 = rvu_rsrc_free_count(&block->lf);
 
 	if (rvu->hw->cap.nix_fixed_txschq_mapping) {
 		rsp->schq[NIX_TXSCH_LVL_SMQ] = 1;
