@@ -5065,6 +5065,11 @@ static int mvpp2_change_mtu(struct net_device *dev, int mtu)
 	err = mvpp2_bm_update_mtu(dev, mtu);
 	if (err) {
 		netdev_err(dev, "failed to change MTU\n");
+
+		/* Return error in case of no memory */
+		if (err == -ENOMEM)
+			goto log_error;
+
 		/* Reconfigure BM to the original MTU */
 		mvpp2_bm_update_mtu(dev, dev->mtu);
 	} else {
