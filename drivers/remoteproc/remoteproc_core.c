@@ -721,7 +721,7 @@ static int rproc_process_last_trace(struct rproc *rproc,
 	/* lookup trace va if not stored already */
 	tmem = &trace->trace_mem;
 	if (!tmem->va) {
-		tmem->va = rproc_da_to_va(rproc, tmem->da, tmem->len);
+		tmem->va = rproc_da_to_va(rproc, tmem->da, tmem->len, NULL);
 		if (!tmem->va)
 			return -EINVAL;
 	}
