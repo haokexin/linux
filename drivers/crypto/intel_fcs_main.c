@@ -3033,6 +3033,8 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		msg->payload_length_output = data_size;
 		priv->client.receive_cb = fcs_attestation_callback;
 
+		context_bank_enable(priv);
+
 		ret = fcs_request_service(priv, (void *)msg,
 					   FCS_REQUEST_TIMEOUT);
 		if (!ret && !priv->status) {
@@ -3047,6 +3049,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			if (!ret && !priv->status) {
 				if (!priv->kbuf || priv->size != 16) {
 					dev_err(dev, "unregconize response\n");
+					context_bank_disable(priv);
 					fcs_close_services(priv, ps_buf, NULL);
 					return -EFAULT;
 				}
@@ -3056,10 +3059,12 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.a_crypt.dst_size = 0;
 			dev_err(dev, "unregconize response. ret=%d. status=%d\n",
 					ret, priv->status);
+			context_bank_disable(priv);
 			fcs_close_services(priv, ps_buf, NULL);
 			return -EFAULT;
 		}
 
+		context_bank_disable(priv);
 		invalidate_smmu_tlb_entries(priv);
 
 		data->status = priv->status;
@@ -3143,6 +3148,8 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		msg->payload_length_output = AES_CRYPT_CMD_MAX_SZ;
 		priv->client.receive_cb = fcs_attestation_callback;
 
+		context_bank_enable(priv);
+
 		ret = fcs_request_service(priv, (void *)msg,
 					10 * FCS_REQUEST_TIMEOUT);
 		if (!ret && !priv->status) {
@@ -3157,6 +3164,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			if (!ret && !priv->status) {
 				if (!priv->kbuf) {
 					dev_err(dev, "unregconize response\n");
+					context_bank_disable(priv);
 					fcs_close_services(priv, d_buf, ps_buf);
 					return -EFAULT;
 				}
@@ -3166,6 +3174,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.s_mac_data.dst_size = 0;
 			dev_err(dev, "unregconize response. ret=%d. status=%d\n",
 					ret, priv->status);
+			context_bank_disable(priv);
 			fcs_close_services(priv, d_buf, ps_buf);
 			return -EFAULT;
 		}
@@ -3177,6 +3186,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.s_mac_data.dst_size = priv->size;
 		}
 
+		context_bank_disable(priv);
 		invalidate_smmu_tlb_entries(priv);
 
 		data->status = priv->status;
@@ -3269,6 +3279,8 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		msg->payload_length_output = out_sz;
 		priv->client.receive_cb = fcs_attestation_callback;
 
+		context_bank_enable(priv);
+
 		ret = fcs_request_service(priv, (void *)msg,
 					10 * FCS_REQUEST_TIMEOUT);
 		if (!ret && !priv->status) {
@@ -3283,6 +3295,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			if (!ret && !priv->status) {
 				if (!priv->kbuf) {
 					dev_err(dev, "unregconize response\n");
+					context_bank_disable(priv);
 					fcs_close_services(priv, d_buf, ps_buf);
 					return -EFAULT;
 				}
@@ -3292,6 +3305,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.s_mac_data.dst_size = 0;
 			dev_err(dev, "unregconize response. ret=%d. status=%d\n",
 					ret, priv->status);
+			context_bank_disable(priv);
 			fcs_close_services(priv, ps_buf, d_buf);
 			return -EFAULT;
 		}
@@ -3303,6 +3317,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.s_mac_data.dst_size = priv->size;
 		}
 
+		context_bank_disable(priv);
 		invalidate_smmu_tlb_entries(priv);
 		data->status = priv->status;
 
@@ -3387,6 +3402,8 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		msg->payload_length_output = out_sz;
 		priv->client.receive_cb = fcs_attestation_callback;
 
+		context_bank_enable(priv);
+
 		ret = fcs_request_service(priv, (void *)msg,
 					10 * FCS_REQUEST_TIMEOUT);
 		if (!ret && !priv->status) {
@@ -3400,6 +3417,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			if (!ret && !priv->status) {
 				if (!priv->kbuf) {
 					dev_err(dev, "unregconize response\n");
+					context_bank_disable(priv);
 					fcs_close_services(priv, d_buf, ps_buf);
 					return -EFAULT;
 				}
@@ -3409,6 +3427,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.ecdsa_data.dst_size = 0;
 			dev_err(dev, "unregconize response. ret=%d. status=%d\n",
 				ret, priv->status);
+			context_bank_disable(priv);
 			fcs_close_services(priv, d_buf, ps_buf);
 			return -EFAULT;
 		}
@@ -3420,6 +3439,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.ecdsa_data.dst_size = priv->size;
 		}
 
+		context_bank_disable(priv);
 		invalidate_smmu_tlb_entries(priv);
 
 		data->status = priv->status;
@@ -3511,6 +3531,8 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		msg->payload_length_output = out_sz;
 		priv->client.receive_cb = fcs_attestation_callback;
 
+		context_bank_enable(priv);
+
 		ret = fcs_request_service(priv, (void *)msg,
 					10 * FCS_REQUEST_TIMEOUT);
 		if (!ret && !priv->status) {
@@ -3525,6 +3547,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			if (!ret && !priv->status) {
 				if (!priv->kbuf) {
 					dev_err(dev, "unregconize response\n");
+					context_bank_disable(priv);
 					fcs_close_services(priv, d_buf, ps_buf);
 					return -EFAULT;
 				}
@@ -3534,6 +3557,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.ecdsa_sha2_data.dst_size = 0;
 			dev_err(dev, "unregconize response. ret=%d. status=%d\n",
 					ret, priv->status);
+			context_bank_disable(priv);
 			fcs_close_services(priv, d_buf, ps_buf);
 			return -EFAULT;
 		}
@@ -3546,6 +3570,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			data->com_paras.ecdsa_sha2_data.dst_size = priv->size;
 		}
 
+		context_bank_disable(priv);
 		invalidate_smmu_tlb_entries(priv);
 		data->status = priv->status;
 
