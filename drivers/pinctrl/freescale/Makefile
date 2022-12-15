@@ -36,3 +36,4 @@ obj-$(CONFIG_PINCTRL_IMXRT1170)	+= pinctrl-imxrt1170.o
 obj-$(CONFIG_PINCTRL_S32CC)     += pinctrl-s32cc-core.o
 obj-$(CONFIG_PINCTRL_S32CC)     += pinctrl-s32g.o
 obj-$(CONFIG_PINCTRL_S32CC)     += pinctrl-s32r45.o
+obj-$(CONFIG_PINCTRL_SCMI) += pinctrl-scmi.o
