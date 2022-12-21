@@ -26,6 +26,17 @@ config MARVELL_UB_GEN_DRIVER
 	  By default the drvier handles CN9X and CN10X platforms.
 	  If unsure, say Y here.
 
+config MARVELL_CN10K_MAC_MGMT
+	tristate "CN10K MAC management interface"
+	default n
+	depends on HAVE_ARM_SMCCC
+	select MARVELL_UB_GEN_DRIVER
+	help
+	  The module provides an interface to change MAC addresses assigned
+	  to the network devices.
+	  Driver is supported only for CN10K platform.
+	  If unsure, say N here.
+
 config MARVELL_SFP_INFO
 	bool "Marvell SFP info sysfs interface"
 	depends on HAVE_ARM_SMCCC
