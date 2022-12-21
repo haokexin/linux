@@ -33,6 +33,7 @@ struct otx2_qos_cfg {
 	u16 schq_contig[NIX_TXSCH_LVL_CNT];
 	u16 schq_list[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
 	u16 schq_contig_list[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
+	u16 schq_used_index[NIX_TXSCH_LVL_CNT][MAX_TXSCHQ_PER_FUNC];
 	int static_node_pos[NIX_TXSCH_LVL_CNT];
 	int dwrr_node_pos[NIX_TXSCH_LVL_CNT];
 };
@@ -54,12 +55,19 @@ struct otx2_qos_node {
 	u64 rate;
 	u64 ceil;
 	u32 prio;
+	u32 quantum;
 	/* hw txschq */
 	u8 level;
 	u16 schq;
 	u16 qid;
+	bool is_static;
 	u16 prio_anchor;
 	DECLARE_BITMAP(prio_bmap, OTX2_QOS_MAX_PRIO + 1);
+	u16 child_dwrr_prio;
+	u16 child_dwrr_cnt;
+	u16 child_static_cnt;
+	u16 max_static_prio;
+	u16 txschq_idx;			/* txschq allocation index */
 	/* list management */
 	struct hlist_node hlist;
 	struct otx2_qos_node *parent;	/* parent qos node */
