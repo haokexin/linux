@@ -78,12 +78,11 @@ static int oct_brd_proc_open(struct inode *inode, struct file *file)
 }
 
 #ifdef CONFIG_PROC_FS
-static const struct file_operations oct_brd_fops = {
-	.owner = THIS_MODULE,
-	.open = oct_brd_proc_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = single_release,
+static const struct proc_ops oct_brd_fops = {
+	.proc_open = oct_brd_proc_open,
+	.proc_read = seq_read,
+	.proc_lseek = seq_lseek,
+	.proc_release = single_release,
 };
 #endif
 
