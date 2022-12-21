@@ -1405,7 +1405,7 @@ static int rvu_nix_aq_enq_inst(struct rvu *rvu, struct nix_aq_enq_req *req,
 
 	nix_hw =  get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 retry:
 	err = rvu_nix_blk_aq_enq_inst(rvu, nix_hw, req, rsp);
@@ -1862,7 +1862,7 @@ int rvu_mbox_handler_nix_mark_format_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	cfg = (((u32)req->offset & 0x7) << 16) |
 	      (((u32)req->y_mask & 0xF) << 12) |
@@ -2274,7 +2274,7 @@ int rvu_mbox_handler_nix_txsch_alloc(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	mutex_lock(&rvu->rsrc_lock);
 
@@ -2405,7 +2405,7 @@ static int nix_txschq_free(struct rvu *rvu, u16 pcifunc)
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	nixlf = rvu_get_lf(rvu, &hw->block[blkaddr], pcifunc, 0);
 	if (nixlf < 0)
@@ -2492,7 +2492,7 @@ static int nix_txschq_free_one(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	nixlf = rvu_get_lf(rvu, &hw->block[blkaddr], pcifunc, 0);
 	if (nixlf < 0)
@@ -2735,7 +2735,7 @@ int rvu_mbox_handler_nix_txschq_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	if (req->read)
 		return nix_txschq_cfg_read(rvu, nix_hw, blkaddr, req, rsp);
@@ -3925,7 +3925,7 @@ static int reserve_flowkey_alg_idx(struct rvu *rvu, int blkaddr, u32 flow_cfg)
 
 	hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	/* No room to add new flow hash algoritham */
 	if (hw->flowkey.in_use >= NIX_FLOW_KEY_ALG_MAX)
@@ -3965,7 +3965,7 @@ int rvu_mbox_handler_nix_rss_flowkey_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	alg_idx = get_flowkey_alg_idx(nix_hw, req->flowkey_cfg);
 	/* Failed to get algo index from the exiting list, reserve new  */
@@ -4054,7 +4054,7 @@ int rvu_mbox_handler_nix_set_mac_addr(struct rvu *rvu,
 				      struct nix_set_mac_addr *req,
 				      struct msg_rsp *rsp)
 {
-	bool from_vf = req->hdr.pcifunc & RVU_PFVF_FUNC_MASK;
+	bool from_vf = !!(req->hdr.pcifunc & RVU_PFVF_FUNC_MASK);
 	u16 pcifunc = req->hdr.pcifunc;
 	int blkaddr, nixlf, err;
 	struct rvu_pfvf *pfvf;
@@ -4320,7 +4320,7 @@ int rvu_mbox_handler_nix_set_hw_frs(struct rvu *rvu, struct nix_frs_cfg *req,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	if (is_afvf(pcifunc))
 		rvu_get_lbk_link_max_frs(rvu, &max_mtu);
@@ -5089,7 +5089,7 @@ int rvu_mbox_handler_nix_lso_format_cfg(struct rvu *rvu,
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
-		return -EINVAL;
+		return NIX_AF_ERR_INVALID_NIXBLK;
 
 	/* Find existing matching LSO format, if any */
 	for (idx = 0; idx < nix_hw->lso.in_use; idx++) {
