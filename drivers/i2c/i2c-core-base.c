@@ -970,7 +970,7 @@ i2c_new_client_device(struct i2c_adapter *adap, struct i2c_board_info const *inf
 	if (adap->attach_ops &&
 	    adap->attach_ops->attach_client &&
 	    adap->attach_ops->attach_client(adap, info, client) != 0)
-		goto out_err_put_of_node;
+		goto out_remove_swnode;
 
 	status = device_register(&client->dev);
 	if (status)
