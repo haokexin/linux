@@ -810,7 +810,7 @@ void otx2_txschq_free_one(struct otx2_nic *pfvf, u16 lvl, u16 schq)
 	err = otx2_sync_mbox_msg(&pfvf->mbox);
 	if (err) {
 		netdev_err(pfvf->netdev,
-			   "Failed stop txschq %d at level %d\n", lvl, schq);
+			   "Failed stop txschq %d at level %d\n", schq, lvl);
 	}
 
 	mutex_unlock(&pfvf->mbox.lock);
@@ -966,7 +966,7 @@ int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
 	}
 
 	sq->sqe_base = sq->sqe->base;
-	sq->sg = kcalloc(qset->sqe_cnt, sizeof(struct sg_list), GFP_KERNEL);
+	sq->sg = kcalloc(qset->sqe_cnt, sizeof(struct sg_list), GFP_ATOMIC);
 	if (!sq->sg)
 		return -ENOMEM;
 
@@ -1043,6 +1043,7 @@ static int otx2_cq_init(struct otx2_nic *pfvf, u16 qidx)
 		   (pfvf->hw.rqpool_cnt != pfvf->hw.rx_queues)) ? 0 : qidx;
 	cq->rbpool = &qset->pool[pool_id];
 	cq->refill_task_sched = false;
+	cq->pend_cqe = 0;
 
 	/* Get memory to put this msg */
 	aq = otx2_mbox_alloc_msg_nix_aq_enq(&pfvf->mbox);
@@ -1100,6 +1101,7 @@ static void otx2_pool_refill_task(struct work_struct *work)
 	rbpool = cq->rbpool;
 	free_ptrs = cq->pool_ptrs;
 
+	get_cpu();
 	while (cq->pool_ptrs) {
 		if (otx2_alloc_rbuf(pfvf, rbpool, &bufptr)) {
 			/* Schedule a WQ if we fails to free atleast half of the
@@ -1119,6 +1121,7 @@ static void otx2_pool_refill_task(struct work_struct *work)
 		pfvf->hw_ops->aura_freeptr(pfvf, qidx, bufptr + OTX2_HEAD_ROOM);
 		cq->pool_ptrs--;
 	}
+	put_cpu();
 	cq->refill_task_sched = false;
 }
 
@@ -1456,6 +1459,7 @@ int otx2_sq_aura_pool_init(struct otx2_nic *pfvf)
 	if (err)
 		goto fail;
 
+	get_cpu();
 	/* Allocate pointers and free them to aura/pool */
 	for (qidx = 0; qidx < hw->tot_tx_queues; qidx++) {
 		pool_id = otx2_get_pool_idx(pfvf, AURA_NIX_SQ, qidx);
@@ -1479,6 +1483,7 @@ int otx2_sq_aura_pool_init(struct otx2_nic *pfvf)
 	}
 
 err_mem:
+	put_cpu();
 	return err ? -ENOMEM : 0;
 
 fail:
@@ -1519,18 +1524,21 @@ int otx2_rq_aura_pool_init(struct otx2_nic *pfvf)
 	if (err)
 		goto fail;
 
+	get_cpu();
 	/* Allocate pointers and free them to aura/pool */
 	for (pool_id = 0; pool_id < hw->rqpool_cnt; pool_id++) {
 		pool = &pfvf->qset.pool[pool_id];
 		for (ptr = 0; ptr < num_ptrs; ptr++) {
 			err = otx2_alloc_rbuf(pfvf, pool, &bufptr);
 			if (err)
-				return -ENOMEM;
+				goto err_mem;
 			pfvf->hw_ops->aura_freeptr(pfvf, pool_id,
 						   bufptr + OTX2_HEAD_ROOM);
 		}
 	}
-	return 0;
+err_mem:
+	put_cpu();
+	return err ? -ENOMEM : 0;
 fail:
 	otx2_mbox_reset(&pfvf->mbox.mbox, 0);
 	otx2_aura_pool_free(pfvf);
@@ -1692,7 +1700,6 @@ int otx2_nix_config_bp(struct otx2_nic *pfvf, bool enable)
 	req->chan_cnt =  pfvf->hw.rx_chan_cnt;
 	req->bpid_per_chan = 0;
 #endif
-
 
 	return otx2_sync_mbox_msg(&pfvf->mbox);
 }
