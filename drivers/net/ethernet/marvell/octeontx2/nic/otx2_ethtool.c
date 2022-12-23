@@ -43,13 +43,19 @@ enum link_mode {
 };
 
 static const struct otx2_stat otx2_dev_stats[] = {
+	OTX2_DEV_STAT(rx_bytes),
+	OTX2_DEV_STAT(rx_frames),
 	OTX2_DEV_STAT(rx_ucast_frames),
 	OTX2_DEV_STAT(rx_bcast_frames),
 	OTX2_DEV_STAT(rx_mcast_frames),
+	OTX2_DEV_STAT(rx_drops),
 
+	OTX2_DEV_STAT(tx_bytes),
+	OTX2_DEV_STAT(tx_frames),
 	OTX2_DEV_STAT(tx_ucast_frames),
 	OTX2_DEV_STAT(tx_bcast_frames),
 	OTX2_DEV_STAT(tx_mcast_frames),
+	OTX2_DEV_STAT(tx_drops),
 };
 
 /* Driver level stats */
@@ -296,6 +302,7 @@ static void otx2_get_channels(struct net_device *dev,
 {
 	struct otx2_nic *pfvf = netdev_priv(dev);
 
+	memset(channel, 0, sizeof(*channel));
 	channel->max_rx = pfvf->hw.max_queues;
 	channel->max_tx = pfvf->hw.max_queues;
 
@@ -315,6 +322,10 @@ static int otx2_set_channels(struct net_device *dev,
 		return -EOPNOTSUPP;
 
 	if (!channel->rx_count || !channel->tx_count)
+		return -EINVAL;
+	if (channel->rx_count > pfvf->hw.max_queues)
+		return -EINVAL;
+	if (channel->tx_count > pfvf->hw.max_queues)
 		return -EINVAL;
 
 	if (bitmap_weight(&pfvf->rq_bmap, pfvf->hw.rx_queues) > 1) {
@@ -336,6 +347,9 @@ static int otx2_set_channels(struct net_device *dev,
 
 	pfvf->hw.rx_queues = channel->rx_count;
 	pfvf->hw.tx_queues = channel->tx_count;
+	if (pfvf->xdp_prog)
+		pfvf->hw.xdp_queues = channel->rx_count;
+	pfvf->hw.tot_tx_queues = pfvf->hw.tx_queues + pfvf->hw.xdp_queues;
 	pfvf->qset.cq_cnt = pfvf->hw.tx_queues +  pfvf->hw.rx_queues;
 
 	if (if_up)
@@ -356,9 +370,12 @@ static void otx2_get_pauseparam(struct net_device *netdev,
 	if (is_otx2_lbkvf(pfvf->pdev) || is_otx2_sdpvf(pfvf->pdev))
 		return;
 
+	mutex_lock(&pfvf->mbox.lock);
 	req = otx2_mbox_alloc_msg_cgx_cfg_pause_frm(&pfvf->mbox);
-	if (!req)
+	if (!req) {
+		mutex_unlock(&pfvf->mbox.lock);
 		return;
+	}
 
 	if (!otx2_sync_mbox_msg(&pfvf->mbox)) {
 		rsp = (struct cgx_pause_frm_cfg *)
@@ -366,6 +383,7 @@ static void otx2_get_pauseparam(struct net_device *netdev,
 		pause->rx_pause = rsp->rx_pause;
 		pause->tx_pause = rsp->tx_pause;
 	}
+	mutex_unlock(&pfvf->mbox.lock);
 }
 
 static int otx2_set_pauseparam(struct net_device *netdev,
