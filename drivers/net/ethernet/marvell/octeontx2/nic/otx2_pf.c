@@ -343,8 +343,10 @@ static void otx2_forward_msg_pfvf(struct otx2_mbox_dev *mdev,
 	/* Msgs are already copied, trigger VF's mbox irq */
 	smp_wmb();
 
+	otx2_mbox_wait_for_zero(pfvf_mbox, devid);
+
 	offset = pfvf_mbox->trigger | (devid << pfvf_mbox->tr_shift);
-	writeq(1, (void __iomem *)pfvf_mbox->reg_base + offset);
+	writeq(MBOX_DOWN_MSG, (void __iomem *)pfvf_mbox->reg_base + offset);
 
 	/* Restore VF's mbox bounce buffer region address */
 	src_mdev->mbase = bbuf_base;
@@ -805,20 +807,22 @@ static void otx2_pfaf_mbox_handler(struct work_struct *work)
 	struct mbox *af_mbox;
 	struct otx2_nic *pf;
 	int offset, id;
+	u16 num_msgs;
 
 	af_mbox = container_of(work, struct mbox, mbox_wrk);
 	mbox = &af_mbox->mbox;
 	mdev = &mbox->dev[0];
 	rsp_hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+	num_msgs = rsp_hdr->num_msgs;
 
 	offset = mbox->rx_start + ALIGN(sizeof(*rsp_hdr), MBOX_MSG_ALIGN);
 	pf = af_mbox->pfvf;
 
-	for (id = 0; id < af_mbox->num_msgs; id++) {
+	for (id = 0; id < num_msgs; id++) {
 		msg = (struct mbox_msghdr *)(mdev->mbase + offset);
 		otx2_process_pfaf_mbox_msg(pf, msg);
 		offset = mbox->rx_start + msg->next_msgoff;
-		if (mdev->msgs_acked == (af_mbox->num_msgs - 1))
+		if (mdev->msgs_acked == (num_msgs - 1))
 			__otx2_mbox_reset(mbox, 0);
 		mdev->msgs_acked++;
 	}
@@ -953,12 +957,14 @@ static void otx2_pfaf_mbox_up_handler(struct work_struct *work)
 	int offset, id, devid = 0;
 	struct mbox_hdr *rsp_hdr;
 	struct mbox_msghdr *msg;
+	u16 num_msgs;
 
 	rsp_hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+	num_msgs = rsp_hdr->num_msgs;
 
 	offset = mbox->rx_start + ALIGN(sizeof(*rsp_hdr), MBOX_MSG_ALIGN);
 
-	for (id = 0; id < af_mbox->up_num_msgs; id++) {
+	for (id = 0; id < num_msgs; id++) {
 		msg = (struct mbox_msghdr *)(mdev->mbase + offset);
 
 		devid = msg->pcifunc & RVU_PFVF_FUNC_MASK;
@@ -971,7 +977,7 @@ static void otx2_pfaf_mbox_up_handler(struct work_struct *work)
 	if (devid && pci_num_vf(pf->pdev)) {
 		otx2_forward_vf_mbox_msgs(pf, &pf->mbox.mbox_up,
 					  MBOX_DIR_PFVF_UP, devid - 1,
-					  af_mbox->up_num_msgs);
+					  num_msgs);
 		return;
 	}
 
@@ -985,53 +991,44 @@ static irqreturn_t otx2_pfaf_mbox_intr_handler(int irq, void *pf_irq)
 	struct otx2_mbox_dev *mdev;
 	struct otx2_mbox *mbox;
 	struct mbox_hdr *hdr;
+	u64 mbox_data;
 
 	/* Clear the IRQ */
 	otx2_write64(pf, RVU_PF_INT, BIT_ULL(0));
 
-	trace_otx2_msg_interrupt(pf->pdev, "AF to PF", BIT_ULL(0));
 
-	mbox = &mw->mbox_up;
-	mdev = &mbox->dev[0];
-	otx2_sync_mbox_bbuf(mbox, 0);
+	mbox_data = otx2_read64(pf, RVU_PF_PFAF_MBOX0);
 
-	/* The hdr->num_msgs is set to zero immediately in the interrupt
-	 * handler to ensure that it holds a correct value next time
-	 * when the interrupt handler is called. pf->mbox.num_msgs holds the
-	 * data for use in pfaf_mbox_handler pf->mbox.up_num_msgs holds the
-	 * data for use in pfaf_mbox_up_handler.
-	 */
-	hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
-	if (hdr->num_msgs) {
-		mw->up_num_msgs = hdr->num_msgs;
-		hdr->num_msgs = 0;
-		memset(mbox->hwbase + mbox->rx_start, 0,
-		       ALIGN(sizeof(struct mbox_hdr), sizeof(u64)));
+	if (mbox_data & MBOX_UP_MSG) {
+		mbox_data &= ~MBOX_UP_MSG;
+		otx2_write64(pf, RVU_PF_PFAF_MBOX0, mbox_data);
 
-		queue_work(pf->mbox_wq, &mw->mbox_up_wrk);
+		mbox = &mw->mbox_up;
+		mdev = &mbox->dev[0];
+		otx2_sync_mbox_bbuf(mbox, 0);
 
-		/* UP messages are asynchronous and DOWN are synchronous.
-		 * Single line of interrupt is shared for UP notifications
-		 * and DOWN replies. When an UP message occurs in the midway of
-		 * forwarding VF DOWN messages then the header of PF-VF DOWN
-		 * mbox area is zeroed which in turn the caller(VF) to error out.
-		 * Hence do not interfere with DOWN message handling when UP
-		 * message arrives.
-		 */
-		return IRQ_HANDLED;
+		hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+		if (hdr->num_msgs)
+			queue_work(pf->mbox_wq, &mw->mbox_up_wrk);
+
+		trace_otx2_msg_interrupt(pf->pdev, "UP message from AF to PF",
+					 BIT_ULL(0));
 	}
 
-	mbox = &mw->mbox;
-	mdev = &mbox->dev[0];
-	otx2_sync_mbox_bbuf(mbox, 0);
+	if (mbox_data & MBOX_DOWN_MSG) {
+		mbox_data &= ~MBOX_DOWN_MSG;
+		otx2_write64(pf, RVU_PF_PFAF_MBOX0, mbox_data);
 
-	hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
-	if (hdr->num_msgs) {
-		mw->num_msgs = hdr->num_msgs;
-		hdr->num_msgs = 0;
-		memset(mbox->hwbase + mbox->rx_start, 0,
-		       ALIGN(sizeof(struct mbox_hdr), sizeof(u64)));
-		queue_work(pf->mbox_wq, &mw->mbox_wrk);
+		mbox = &mw->mbox;
+		mdev = &mbox->dev[0];
+		otx2_sync_mbox_bbuf(mbox, 0);
+
+		hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+		if (hdr->num_msgs)
+			queue_work(pf->mbox_wq, &mw->mbox_wrk);
+
+		trace_otx2_msg_interrupt(pf->pdev, "DOWN reply from AF to PF",
+					 BIT_ULL(0));
 	}
 
 	return IRQ_HANDLED;
@@ -3136,10 +3133,13 @@ static void otx2_vf_link_event_task(struct work_struct *work)
 	vf_idx = config - config->pf->vf_configs;
 	pf = config->pf;
 
+	mutex_lock(&pf->mbox.lock);
+
 	msghdr = otx2_mbox_alloc_msg_rsp(&pf->mbox_pfvf[0].mbox_up, vf_idx,
 					 sizeof(*req), sizeof(struct msg_rsp));
 	if (!msghdr) {
 		dev_err(pf->dev, "Failed to create VF%d link event\n", vf_idx);
+		mutex_unlock(&pf->mbox.lock);
 		return;
 	}
 
@@ -3148,7 +3148,11 @@ static void otx2_vf_link_event_task(struct work_struct *work)
 	req->hdr.sig = OTX2_MBOX_REQ_SIG;
 	memcpy(&req->link_info, &pf->linfo, sizeof(req->link_info));
 
-	otx2_sync_mbox_up_msg(&pf->mbox_pfvf[0], vf_idx);
+	otx2_mbox_wait_for_zero(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	otx2_mbox_msg_send_up(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	mutex_unlock(&pf->mbox.lock);
 }
 
 static void otx2_vf_ptp_info_task(struct work_struct *work)
@@ -3164,10 +3168,13 @@ static void otx2_vf_ptp_info_task(struct work_struct *work)
 	vf_idx = config - config->pf->vf_configs;
 	pf = config->pf;
 
+	mutex_lock(&pf->mbox.lock);
+
 	msghdr = otx2_mbox_alloc_msg_rsp(&pf->mbox_pfvf[0].mbox_up, vf_idx,
 					 sizeof(*req), sizeof(struct msg_rsp));
 	if (!msghdr) {
 		dev_err(pf->dev, "Failed to create VF%d link event\n", vf_idx);
+		mutex_unlock(&pf->mbox.lock);
 		return;
 	}
 
@@ -3176,7 +3183,11 @@ static void otx2_vf_ptp_info_task(struct work_struct *work)
 	req->hdr.sig = OTX2_MBOX_REQ_SIG;
 	req->ptp_en = pf->ptp->ptp_en;
 
-	otx2_sync_mbox_up_msg(&pf->mbox_pfvf[0], vf_idx);
+	otx2_mbox_wait_for_zero(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	otx2_mbox_msg_send_up(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	mutex_unlock(&pf->mbox.lock);
 }
 
 static int otx2_sriov_enable(struct pci_dev *pdev, int numvfs)
