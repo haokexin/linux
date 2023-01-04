@@ -657,7 +657,6 @@ static void handle_std_frame(struct sk_buff *skb,
 {
 	struct hsr_port *port = frame->port_rcv;
 	struct hsr_priv *hsr = port->hsr;
-	unsigned long irqflags;
 
 	frame->skb_hsr = NULL;
 	frame->skb_prp = NULL;
@@ -795,6 +794,7 @@ void hsr_forward_skb(struct sk_buff *skb, struct hsr_port *port)
 {
 	struct hsr_frame_info frame;
 
+	rcu_read_lock();
 	if (fill_frame_info(&frame, skb, port) < 0)
 		goto out_drop;
 
@@ -810,6 +810,7 @@ void hsr_forward_skb(struct sk_buff *skb, struct hsr_port *port)
 		hsr_register_frame_in(frame.node_src, port,
 				      frame.sequence_nr);
 	hsr_forward_do(&frame);
+	rcu_read_unlock();
 	/* Gets called for ingress frames as well as egress from master port.
 	 * So check and increment stats for master port only here.
 	 */
@@ -825,6 +826,7 @@ void hsr_forward_skb(struct sk_buff *skb, struct hsr_port *port)
 
 out_drop:
 	INC_CNT_RX_ERROR_AB(port->type, port->hsr);
+	rcu_read_unlock();
 	port->dev->stats.tx_dropped++;
 	kfree_skb(skb);
 }
