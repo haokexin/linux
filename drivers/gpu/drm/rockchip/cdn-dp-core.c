@@ -580,6 +580,7 @@ static void cdn_dp_encoder_mode_set(struct drm_encoder *encoder,
 	video->h_sync_polarity = !!(mode->flags & DRM_MODE_FLAG_NHSYNC);
 
 	memcpy(&dp->mhdp.mode, adjusted, sizeof(*mode));
+	drm_mode_copy(&dp->mode, adjusted);
 }
 
 static bool cdn_dp_check_link_status(struct cdn_dp_device *dp)
