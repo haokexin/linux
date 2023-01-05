@@ -72,17 +72,12 @@ static bool is_ptp_dev_cn10k(struct ptp *ptp)
 
 static bool cn10k_ptp_errata(struct ptp *ptp)
 {
-	if (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP ||
-	    ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP)
+	if ((ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP &&
+	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)) ||
+	    (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP &&
+	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)))
 		return true;
-	return false;
-}
 
-static bool is_ptp_tsfmt_sec_nsec(struct ptp *ptp)
-{
-	if (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP ||
-	    ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP)
-		return true;
 	return false;
 }
 
@@ -464,14 +459,12 @@ static int ptp_probe(struct pci_dev *pdev,
 		first_ptp_block = ptp;
 
 	spin_lock_init(&ptp->ptp_lock);
-	if (is_ptp_tsfmt_sec_nsec(ptp))
-		ptp->read_ptp_tstmp = &read_ptp_tstmp_sec_nsec;
-	else
-		ptp->read_ptp_tstmp = &read_ptp_tstmp_nsec;
-
 	if (cn10k_ptp_errata(ptp)) {
+		ptp->read_ptp_tstmp = &read_ptp_tstmp_sec_nsec;
 		hrtimer_init(&ptp->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 		ptp->hrtimer.function = ptp_reset_thresh;
+	} else {
+		ptp->read_ptp_tstmp = &read_ptp_tstmp_nsec;
 	}
 
 	return 0;
