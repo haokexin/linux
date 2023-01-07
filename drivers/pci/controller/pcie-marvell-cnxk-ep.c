@@ -49,6 +49,7 @@
 #define PEM_BAR4_INDEX_END_OFFSET (((PEM_BAR4_INDEX_END + 1) * \
 				    PEM_BAR4_INDEX_SIZE) - 1)
 
+#define PEM_HW_INST(a)		((a >> 36) & 0xF)
 /* Some indexes have specific non-memory uses */
 #define PEM_BAR4_INDEX_PTP	14
 #define MIO_PTP_BASE_ADDR	0x807000000f00
@@ -61,6 +62,8 @@ struct mv_pem_ep {
 	struct device	*dev;
 	void __iomem	*base;
 	void		*va[PEM_BAR4_NUM_INDEX];
+	u8		pem;
+	char		uio_name[16];
 	struct uio_info	uio_rst_int_perst;
 	struct miscdevice mdev;
 };
@@ -107,7 +110,8 @@ static int register_perst_uio_dev(struct platform_device *pdev, struct mv_pem_ep
 		return irq;
 
 	uio_info = &pem_ep->uio_rst_int_perst;
-	uio_info->name = "PEM_RST_INT:PERST";
+	snprintf(pem_ep->uio_name, 16, "PEM%d_PERST", pem_ep->pem);
+	uio_info->name = pem_ep->uio_name;
 	uio_info->version = UIO_PERST_VERSION;
 	uio_info->irq = irq;
 	uio_info->irq_flags = IRQF_SHARED;
@@ -126,7 +130,6 @@ static int register_perst_uio_dev(struct platform_device *pdev, struct mv_pem_ep
 
 	/* clear RST interrupt status */
 	regval = pem_ep_reg_read(pem_ep, PEM_RST_INT);
-	dev_info(dev, "PEM_RST_INT: 0x%llx\n", regval);
 	pem_ep_reg_write(pem_ep, PEM_RST_INT, regval);
 
 	/* set RST PERST & LINKDOWN interrupt enables */
@@ -379,6 +382,7 @@ static int pem_ep_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, pem_ep);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	pem_ep->pem = PEM_HW_INST(res->start);
 	pem_ep->base = ioremap(res->start, resource_size(res));
 	if (IS_ERR(pem_ep->base)) {
 		dev_err(dev, "error in mapping PEM EP base\n");
