@@ -131,7 +131,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 
 		/* configure parent txschq */
 		cfg->reg[num_regs] = NIX_AF_MDQX_PARENT(node->schq);
-		cfg->regval[num_regs] = node->parent->schq << 16;
+		cfg->regval[num_regs] = (u64)node->parent->schq << 16;
 		num_regs++;
 
 		/* configure prio/quantum */
@@ -205,7 +205,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = node->parent->child_dwrr_prio << 24 |
+			cfg->regval[num_regs] = (u64)node->parent->child_dwrr_prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
@@ -267,7 +267,6 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		}
 		num_regs++;
 
-
 		/* configure PIR */
 		maxrate = (node->rate > node->ceil) ? node->rate : node->ceil;
 		cfg->reg[num_regs] = NIX_AF_TL3X_PIR(node->schq);
@@ -313,7 +312,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 		/* check if node is root */
 		if (node->qid == OTX2_QOS_QID_INNER && !node->parent) {
 			cfg->reg[num_regs] = NIX_AF_TL2X_SCHEDULE(node->schq);
-			cfg->regval[num_regs] =  hw->txschq_aggr_lvl_rr_prio << 24 |
+			cfg->regval[num_regs] =  (u64)hw->txschq_aggr_lvl_rr_prio << 24 |
 						 mtu_to_dwrr_weight(pfvf,
 								    pfvf->tx_max_pktlen);
 			num_regs++;
@@ -330,7 +329,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 				  node->quantum : pfvf->tx_max_pktlen;
 			rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf,
 								    quantum);
-			cfg->regval[num_regs] = node->parent->child_dwrr_prio << 24 |
+			cfg->regval[num_regs] = (u64)node->parent->child_dwrr_prio << 24 |
 						rr_weight;
 		}
 		num_regs++;
@@ -1257,7 +1256,6 @@ static int otx2_qos_root_destroy(struct otx2_nic *pfvf)
 	root = otx2_sw_node_find(pfvf, OTX2_QOS_ROOT_CLASSID);
 	if (!root)
 		return -ENOENT;
-
 
 	/* free the hw mappings */
 	otx2_qos_destroy_node(pfvf, root);
