@@ -539,7 +539,7 @@ NOKPROBE_SYMBOL(do_ptrauth_fault);
 	}
 
 void
-user_cache_maint_handler_errtaum_38891(unsigned int esr, struct pt_regs *regs)
+user_cache_maint_handler_errtaum_38891(unsigned long esr, struct pt_regs *regs)
 {
 	unsigned long address;
 	int rt = ESR_ELx_SYS64_ISS_RT(esr);
@@ -590,7 +590,7 @@ user_cache_maint_handler_errtaum_38891(unsigned int esr, struct pt_regs *regs)
 }
 
 
-void user_cache_maint_handler_generic(unsigned int esr, struct pt_regs *regs)
+void user_cache_maint_handler_generic(unsigned long esr, struct pt_regs *regs)
 {
 	unsigned long tagged_address, address;
 	int rt = ESR_ELx_SYS64_ISS_RT(esr);
@@ -630,7 +630,7 @@ void user_cache_maint_handler_generic(unsigned int esr, struct pt_regs *regs)
 		arm64_skip_faulting_instruction(regs, AARCH64_INSN_SIZE);
 }
 
-static void user_cache_maint_handler(unsigned int esr, struct pt_regs *regs)
+static void user_cache_maint_handler(unsigned long esr, struct pt_regs *regs)
 {
 	if (cpus_have_cap(ARM64_WORKAROUND_MARVELL_38891))
 		user_cache_maint_handler_errtaum_38891(esr, regs);
@@ -638,7 +638,7 @@ static void user_cache_maint_handler(unsigned int esr, struct pt_regs *regs)
 		user_cache_maint_handler_generic(esr, regs);
 }
 
-static void ctr_read_handler(unsigned int esr, struct pt_regs *regs)
+static void ctr_read_handler(unsigned long esr, struct pt_regs *regs)
 {
 	int rt = ESR_ELx_SYS64_ISS_RT(esr);
 	unsigned long val = arm64_ftr_reg_user_value(&arm64_ftr_reg_ctrel0);
