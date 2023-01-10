@@ -257,15 +257,15 @@ static bool cnf10k_validate_network_transport(struct sk_buff *skb)
 
 static bool cnf10k_ptp_is_sync(struct sk_buff *skb, int *offset, int *udp_csum)
 {
-	struct ethhdr   *eth = (struct ethhdr *)(skb->data);
+	struct ethhdr *eth = (struct ethhdr *)(skb->data);
 	u8 *data = skb->data, *msgtype;
-	u16 proto = eth->h_proto;
+	__be16 proto = eth->h_proto;
 	int network_depth = 0;
 
 	if (eth_type_vlan(eth->h_proto))
 		proto = __vlan_get_protocol(skb, eth->h_proto, &network_depth);
 
-	switch (htons(proto)) {
+	switch (ntohs(proto)) {
 	case ETH_P_1588:
 		if (network_depth)
 			*offset = network_depth;
@@ -307,9 +307,9 @@ static void cnf10k_rfoe_prepare_onestep_ptp_header(struct cnf10k_rfoe_ndev_priv 
 
 	origin_tstamp = (struct ptpv2_tstamp *)((u8 *)skb->data + ptp_offset +
 						PTP_SYNC_SEC_OFFSET);
-	origin_tstamp->seconds_msb = ntohs((ts.tv_sec >> 32) & 0xffff);
-	origin_tstamp->seconds_lsb = ntohl(ts.tv_sec & 0xffffffff);
-	origin_tstamp->nanoseconds = ntohl(ts.tv_nsec);
+	origin_tstamp->seconds_msb = htons((ts.tv_sec >> 32) & 0xffff);
+	origin_tstamp->seconds_lsb = htonl(ts.tv_sec & 0xffffffff);
+	origin_tstamp->nanoseconds = htonl(ts.tv_nsec);
 
 	/* Point to correction field in PTP packet */
 	tx_mem->start_offset = ptp_offset + 8;
@@ -388,7 +388,7 @@ static void cnf10k_rfoe_ptp_submit_work(struct work_struct *work)
 
 	/* ptp timestamp entry is 128-bit in size */
 	tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
-			((u8 *)priv->ptp_ring_cfg.ptp_ring_base +
+			((u8 __force *)priv->ptp_ring_cfg.ptp_ring_base +
 			(16 * priv->ptp_ring_cfg.ptp_ring_idx));
 	memset(tx_tstmp, 0, sizeof(struct rfoe_tx_ptp_tstmp_s));
 
@@ -407,18 +407,19 @@ static void cnf10k_rfoe_ptp_submit_work(struct work_struct *work)
 	priv->ptp_job_tag = psm_cmd_lo->jobtag;
 
 	/* update length and block size in jd dma cfg word */
-	jd_cfg_ptr = job_entry->jd_cfg_ptr;
-	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
+	jd_cfg_ptr = (struct cnf10k_mhab_job_desc_cfg __force *)job_entry->jd_cfg_ptr;
+	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s __force *)
 				job_entry->rd_dma_ptr;
 
 	pkt_len = skb->len;
 	/* Copy packet data to dma buffer */
 	if (priv->ndev_flags & BPHY_NDEV_TX_1S_PTP_EN_FLAG) {
-		memcpy(job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
-		memcpy(job_entry->pkt_dma_addr + sizeof(tx_mem), skb->data, skb->len);
+		memcpy((void __force *)job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
+		memcpy((void __force *)job_entry->pkt_dma_addr + sizeof(tx_mem),
+		       skb->data, skb->len);
 		pkt_len += sizeof(tx_mem);
 	} else {
-		memcpy(job_entry->pkt_dma_addr, skb->data, skb->len);
+		memcpy((void __force *)job_entry->pkt_dma_addr, skb->data, skb->len);
 	}
 	jd_cfg_ptr->cfg3.pkt_len = pkt_len;
 	jd_dma_cfg_word_0->block_size = (((pkt_len + 15) >> 4) * 4);
@@ -470,7 +471,7 @@ static void cnf10k_rfoe_ptp_tx_work(struct work_struct *work)
 
 	/* ptp timestamp entry is 128-bit in size */
 	tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
-			((u8 *)priv->ptp_ring_cfg.ptp_ring_base +
+			((u8 __force *)priv->ptp_ring_cfg.ptp_ring_base +
 			(16 * priv->ptp_ring_cfg.ptp_ring_idx));
 
 	/* match job id */
@@ -563,7 +564,7 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 	struct sk_buff *skb;
 	u8 lmac_id;
 
-	buf_ptr = (u8 *)ft_cfg->mbt_virt_addr +
+	buf_ptr = (u8 __force *)ft_cfg->mbt_virt_addr +
 				(ft_cfg->buf_size * mbt_buf_idx);
 
 	pkt_type = ft_cfg->pkt_type;
@@ -578,9 +579,9 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 		/* Only ecpri payload size is captured in psw->pkt_len, so
 		 * get full packet length from JDT.
 		 */
-		jdt_ptr = otx2_iova_to_virt(priv->iommu_domain, jdt_iova_addr);
+		jdt_ptr = (u8 __force *)otx2_iova_to_virt(priv->iommu_domain, jdt_iova_addr);
 		jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
-				((u8 *)jdt_ptr + ft_cfg->jd_rd_offset);
+				((u8 __force *)jdt_ptr + ft_cfg->jd_rd_offset);
 		len = (jd_dma_cfg_word_0->block_size) << 2;
 		len -= (ft_cfg->pkt_offset * 16);
 	} else {
@@ -975,7 +976,7 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 	} else {
 		job_cfg = &priv->rfoe_common->tx_oth_job_cfg;
 		pkt_type = PACKET_TYPE_OTHER;
-		if (htons(eth->h_proto) == ETH_P_ECPRI)
+		if (ntohs(eth->h_proto) == ETH_P_ECPRI)
 			pkt_type = PACKET_TYPE_ECPRI;
 	}
 
@@ -1071,7 +1072,7 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 
 			/* ptp timestamp entry is 128-bit in size */
 			tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
-				   ((u8 *)priv->ptp_ring_cfg.ptp_ring_base +
+				   ((u8 __force *)priv->ptp_ring_cfg.ptp_ring_base +
 				    (16 * priv->ptp_ring_cfg.ptp_ring_idx));
 			memset(tx_tstmp, 0, sizeof(struct rfoe_tx_ptp_tstmp_s));
 		} else {
@@ -1112,8 +1113,8 @@ ptp_one_step_out:
 	}
 
 	/* update length and block size in jd dma cfg word */
-	jd_cfg_ptr = job_entry->jd_cfg_ptr;
-	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
+	jd_cfg_ptr = (struct cnf10k_mhab_job_desc_cfg __force *)job_entry->jd_cfg_ptr;
+	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s __force *)
 						job_entry->rd_dma_ptr;
 
 	/* update rfoe_mode and lmac id for non-ptp (shared) psm job entry */
@@ -1129,12 +1130,12 @@ ptp_one_step_out:
 	/* Copy packet data to dma buffer */
 	if (pkt_type == PACKET_TYPE_PTP &&
 	    priv->ndev_flags & BPHY_NDEV_TX_1S_PTP_EN_FLAG) {
-		memcpy(job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
-		memcpy(job_entry->pkt_dma_addr + sizeof(tx_mem),
+		memcpy((void __force *)job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
+		memcpy((void __force *)job_entry->pkt_dma_addr + sizeof(tx_mem),
 		       skb->data, skb->len);
 		pkt_len += sizeof(tx_mem);
 	} else {
-		memcpy(job_entry->pkt_dma_addr, skb->data, skb->len);
+		memcpy((void __force *)job_entry->pkt_dma_addr, skb->data, skb->len);
 	}
 	jd_cfg_ptr->cfg3.pkt_len = pkt_len;
 	jd_dma_cfg_word_0->block_size = (((pkt_len + 15) >> 4) * 4);
@@ -1358,7 +1359,7 @@ static void cnf10k_rfoe_fill_rx_ft_cfg(struct cnf10k_rfoe_ndev_priv *priv,
 		ft_cfg = &priv->rx_ft_cfg[idx];
 		rbuf_info = &if_cfg->rbuf_info[idx];
 		ft_cfg->pkt_type = rbuf_info->pkt_type;
-		ft_cfg->gp_int_num = rbuf_info->gp_int_num;
+		ft_cfg->gp_int_num = (enum bphy_netdev_rx_gpint)rbuf_info->gp_int_num;
 		ft_cfg->flow_id = rbuf_info->flow_id;
 		ft_cfg->mbt_idx = rbuf_info->mbt_index;
 		ft_cfg->buf_size = rbuf_info->buf_size * 16;
@@ -1407,7 +1408,7 @@ static void cnf10k_rfoe_fill_tx_job_entries(struct cnf10k_rfoe_ndev_priv *priv,
 		job_entry->jd_iova_addr = tx_job->jd_iova_addr;
 		iova = job_entry->jd_iova_addr;
 		job_entry->jd_ptr = otx2_iova_to_virt(priv->iommu_domain, iova);
-		jd_cfg_iova = *(u64 *)((u8 *)job_entry->jd_ptr + 8);
+		jd_cfg_iova = *(u64 *)((u8 __force *)job_entry->jd_ptr + 8);
 		job_entry->jd_cfg_ptr = otx2_iova_to_virt(priv->iommu_domain,
 							  jd_cfg_iova);
 		job_entry->rd_dma_iova_addr = tx_job->rd_dma_iova_addr;
@@ -1415,7 +1416,7 @@ static void cnf10k_rfoe_fill_tx_job_entries(struct cnf10k_rfoe_ndev_priv *priv,
 		job_entry->rd_dma_ptr = otx2_iova_to_virt(priv->iommu_domain,
 							  iova);
 		jd_dma_cfg_word_1 = (struct cnf10k_mhbw_jd_dma_cfg_word_1_s *)
-						((u8 *)job_entry->rd_dma_ptr + 8);
+						((u8 __force *)job_entry->rd_dma_ptr + 8);
 		job_entry->pkt_dma_addr = otx2_iova_to_virt(priv->iommu_domain,
 							    jd_dma_cfg_word_1->start_addr);
 
