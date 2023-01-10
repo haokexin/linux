@@ -561,7 +561,7 @@ NOKPROBE_SYMBOL(do_ptrauth_fault);
 	} while (0)
 
 extern bool TKT340553_SW_WORKAROUND;
-static void user_cache_maint_handler(unsigned int esr, struct pt_regs *regs)
+static void user_cache_maint_handler(unsigned long esr, struct pt_regs *regs)
 {
 	unsigned long tagged_address, address;
 	int rt = ESR_ELx_SYS64_ISS_RT(esr);
