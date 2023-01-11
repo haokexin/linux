@@ -1310,7 +1310,7 @@ nemac_probe(struct platform_device *pdev)
 	 */
 
 	ret = of_get_mac_address(dn, macaddr_dt);
-	if (ret && is_valid_ether_addr(macaddr_dt)) {
+	if (!ret && is_valid_ether_addr(macaddr_dt)) {
 		ether_addr_copy(ndev->dev_addr, macaddr_dt);
 	} else {
 		random_ether_addr(ndev->dev_addr);
