@@ -67,9 +67,6 @@ static int dpi_wqe_cs_offset(struct dpipf *dpi, u8 offset)
 {
 	u64 reg = 0ULL;
 
-	if (!is_otx3_dpi(dpi))
-		return -1;
-
 	spin_lock(&dpi->vf_lock);
 	reg = dpi_reg_read(dpi, DPI_DMA_CONTROL);
 	reg &= ~DPI_DMA_CONTROL_WQECSDIS;
