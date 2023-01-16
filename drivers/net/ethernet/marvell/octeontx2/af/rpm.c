@@ -605,14 +605,15 @@ u32 rpm2_get_lmac_fifo_len(void *rpmd, int lmac_id)
 int rpm_lmac_internal_loopback(void *rpmd, int lmac_id, bool enable)
 {
 	rpm_t *rpm = rpmd;
-	u8 lmac_type;
+	struct lmac *lmac;
 	u64 cfg;
 
 	if (!is_lmac_valid(rpm, lmac_id))
 		return -ENODEV;
-	lmac_type = rpm->mac_ops->get_lmac_type(rpm, lmac_id);
 
-	if (lmac_type == LMAC_MODE_QSGMII || lmac_type == LMAC_MODE_SGMII) {
+	lmac = lmac_pdata(lmac_id, rpm);
+	if (lmac->lmac_type == LMAC_MODE_QSGMII ||
+	    lmac->lmac_type == LMAC_MODE_SGMII) {
 		dev_err(&rpm->pdev->dev, "loopback not supported for LPC mode\n");
 		return 0;
 	}
@@ -726,7 +727,7 @@ int  rpm_lmac_get_pfc_frm_cfg(void *rpmd, int lmac_id, u8 *tx_pause, u8 *rx_paus
 	return 0;
 }
 
-int rpm_lmac_reset(void *rpmd, int lmac_id)
+int rpm_lmac_reset(void *rpmd, int lmac_id, u8 pf_req_flr)
 {
 	u64 rx_logl_xon, cfg;
 	rpm_t *rpm = rpmd;
@@ -740,6 +741,9 @@ int rpm_lmac_reset(void *rpmd, int lmac_id)
 	cfg = 0xff;
 
 	rpm_write(rpm, lmac_id, rx_logl_xon, cfg);
+
+	if (pf_req_flr)
+		rpm_lmac_internal_loopback(rpm, lmac_id, false);
 
 	return 0;
 }

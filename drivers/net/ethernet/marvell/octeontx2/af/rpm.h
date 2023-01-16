@@ -133,7 +133,7 @@ int rpm_lmac_pfc_config(void *rpmd, int lmac_id, u8 tx_pause, u8 rx_pause,
 			u16 pfc_en);
 int rpm_lmac_get_pfc_frm_cfg(void *rpmd, int lmac_id, u8 *tx_pause,
 			     u8 *rx_pause);
-int rpm_lmac_reset(void *rpmd, int lmac_id);
+int rpm_lmac_reset(void *rpmd, int lmac_id, u8 pf_req_flr);
 int rpm2_get_nr_lmacs(void *rpmd);
 bool is_dev_rpm2(void *rpmd);
 #endif /* RPM_H */

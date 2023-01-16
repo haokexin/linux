@@ -1457,7 +1457,7 @@ void rvu_mac_reset(struct rvu *rvu, u16 pcifunc)
 	cgxd = rvu_cgx_pdata(cgx, rvu);
 	mac_ops = get_mac_ops(cgxd);
 
-	if (mac_ops->mac_reset(cgxd, lmac))
+	if (mac_ops->mac_reset(cgxd, lmac, !is_vf(pcifunc)))
 		dev_err(rvu->dev, "Failed to reset MAC\n");
 }
 
