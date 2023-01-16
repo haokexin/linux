@@ -24,6 +24,7 @@
  * @cgx:		parent cgx port
  * @mcast_filters_count:  Number of multicast filters installed
  * @lmac_id:		lmac port id
+ * @lmac_type:	       lmac type like SGMII/XAUI
  * @cmd_pend:		flag set before new command is started
  *			flag cleared after command response is received
  * @name:		lmac port name
@@ -43,6 +44,7 @@ struct lmac {
 	struct cgx *cgx;
 	u8 mcast_filters_count;
 	u8 lmac_id;
+	u8 lmac_type;
 	bool cmd_pend;
 	char *name;
 };
@@ -125,7 +127,7 @@ struct mac_ops {
 
 	int                     (*mac_get_pfc_frm_cfg)(void *cgxd, int lmac_id,
 						       u8 *tx_pause, u8 *rx_pause);
-	int			(*mac_reset)(void *cgxd, int lmac_id);
+	int			(*mac_reset)(void *cgxd, int lmac_id, u8 pf_req_flr);
 	u64			(*get_dmacflt_dropped_pktcnt)(void *cgxd, int lmac_id);
 
 	/* FEC stats */
