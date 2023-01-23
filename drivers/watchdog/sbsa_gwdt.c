@@ -148,19 +148,29 @@ static int sbsa_gwdt_set_timeout(struct watchdog_device *wdd,
 				 unsigned int timeout)
 {
 	struct sbsa_gwdt *gwdt = watchdog_get_drvdata(wdd);
+	u64 tout;
 
 	wdd->timeout = timeout;
 	timeout = clamp_t(unsigned int, timeout, 1, wdd->max_hw_heartbeat_ms / 1000);
 
-	if (action)
-		sbsa_gwdt_reg_write(gwdt->clk * timeout, gwdt);
-	else
+	if (action) {
+		tout = (u64)gwdt->clk * (u64)timeout;
+		if (tout > UINT_MAX)
+			sbsa_gwdt_reg_write(UINT_MAX, gwdt);
+		else
+			sbsa_gwdt_reg_write(tout, gwdt);
+	} else {
 		/*
 		 * In the single stage mode, The first signal (WS0) is ignored,
 		 * the timeout is (WOR * 2), so the WOR should be configured
 		 * to half value of timeout.
 		 */
-		sbsa_gwdt_reg_write(gwdt->clk / 2 * timeout, gwdt);
+		tout = (u64)gwdt->clk / 2 * (u64)timeout;
+		if (tout > UINT_MAX)
+			sbsa_gwdt_reg_write(UINT_MAX, gwdt);
+		else
+			sbsa_gwdt_reg_write(tout, gwdt);
+	}
 
 	return 0;
 }
