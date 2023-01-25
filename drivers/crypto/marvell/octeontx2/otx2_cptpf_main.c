@@ -592,22 +592,20 @@ static int cpt_is_pf_usable(struct otx2_cptpf_dev *cptpf)
 static int cptpf_get_rid(struct pci_dev *pdev, struct otx2_cptpf_dev *cptpf)
 {
 	struct otx2_cpt_eng_grps *eng_grps = &cptpf->eng_grps;
+	u64 reg_val = 0x0;
 
 	if (is_dev_otx2(pdev)) {
 		eng_grps->rid = pdev->revision;
-	} else {
-		switch (pdev->subsystem_device) {
-		case CPT_PCI_SUBSYS_DEVID_CN10K_A:
-			eng_grps->rid = CPT_UC_RID_CN10K_A;
-			break;
-		case CPT_PCI_SUBSYS_DEVID_CN10K_B:
-			eng_grps->rid = CPT_UC_RID_CN10K_B;
-			break;
-		default:
-			dev_err(&pdev->dev, "Invalid Subsystem ID\n");
-			return -EINVAL;
-		}
+		return 0;
 	}
+	otx2_cpt_read_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_CTL, &reg_val,
+			     BLKADDR_CPT0);
+	if ((is_dev_cn10ka_b0(pdev) && (reg_val & BIT_ULL(18))) ||
+	    is_dev_cn10ka(pdev))
+		eng_grps->rid = CPT_UC_RID_CN10K_A;
+	else if (is_dev_cn10kb(pdev) || is_dev_cn10ka_b0(pdev))
+		eng_grps->rid = CPT_UC_RID_CN10K_B;
+
 	return 0;
 }
 
