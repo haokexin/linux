@@ -15,6 +15,8 @@
 #define PLAT_CN10K_ASYNC_STATUS			0xc2000b0e
 #define PLAT_CN10K_SPI_READ_FLASH		0xc2000b11
 
+#define PLAT_OCTEON_SET_FIRMWARE_LOGGING	0xc2000b1b
+#define PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING	0xc2000b1c
 
 #define VER_MAX_NAME_LENGTH	32
 #define SMC_MAX_OBJECTS		32
@@ -394,12 +396,13 @@ struct mrvl_read_flash {
 	enum read_flash_ret ret;
 } __packed;
 
-#define GET_VERSION _IOWR('a', 'a', struct mrvl_get_versions*)
-#define VERIFY_HASH _IOWR('a', 'b', struct mrvl_get_versions*)
-#define GET_MEMBUF  _IOWR('a', 'c', struct mrvl_phys_buffer*)
-#define RUN_UPDATE  _IOWR('a', 'd', struct mrvl_update*)
-#define CLONE_FW    _IOWR('a', 'e', struct mrvl_clone_fw*)
-#define READ_FLASH  _IOWR('a', 'f', struct mrvl_read_flash*)
-#define FREE_RD_BUF _IOWR('a', 'g', struct mrvl_phys_buffer*)
+#define GET_VERSION   _IOWR('a', 'a', struct mrvl_get_versions*)
+#define VERIFY_HASH   _IOWR('a', 'b', struct mrvl_get_versions*)
+#define GET_MEMBUF    _IOWR('a', 'c', struct mrvl_phys_buffer*)
+#define RUN_UPDATE    _IOWR('a', 'd', struct mrvl_update*)
+#define CLONE_FW      _IOWR('a', 'e', struct mrvl_clone_fw*)
+#define READ_FLASH    _IOWR('a', 'f', struct mrvl_read_flash*)
+#define FREE_RD_BUF   _IOWR('a', 'g', struct mrvl_phys_buffer*)
+#define FREE_ALL_BUF  _IO('a', 'h')
 
 #endif	/* __MRVL_SWUP_H__ */
