@@ -139,6 +139,12 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 	struct smc_version_info *swup_info = (struct smc_version_info *)memdesc[BUF_DATA].virt;
 	int spi_in_progress = 0;
 
+	res = mrvl_exec_smc(PLAT_OCTEON_SET_FIRMWARE_LOGGING,
+			    memdesc[BUF_LOG].phys,
+			    memdesc[BUF_LOG].size);
+	if (res.a0)
+		pr_err("Failed to enable firmware logging\n");
+
 	user_desc = kzalloc(sizeof(*user_desc), GFP_KERNEL);
 	if (!user_desc)
 		return -ENOMEM;
@@ -204,6 +210,7 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 	}
 
 mem_error:
+	mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 	kfree(user_desc);
 	return ret;
 }
@@ -215,6 +222,12 @@ static int mrvl_clone_fw(unsigned long arg)
 	struct arm_smccc_res res;
 	struct smc_version_info *swup_info = (struct smc_version_info *)memdesc[BUF_DATA].virt;
 	int spi_in_progress = 0;
+
+	res = mrvl_exec_smc(PLAT_OCTEON_SET_FIRMWARE_LOGGING,
+			    memdesc[BUF_LOG].phys,
+			    memdesc[BUF_LOG].size);
+	if (res.a0)
+		pr_err("Failed to enable firmware logging\n");
 
 	user_desc = kzalloc(sizeof(*user_desc), GFP_KERNEL);
 	if (!user_desc)
@@ -303,6 +316,7 @@ static int mrvl_clone_fw(unsigned long arg)
 	}
 
 mem_error:
+	mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 	kfree(user_desc);
 	return ret;
 }
@@ -335,8 +349,17 @@ static int mrvl_run_fw_update(unsigned long arg)
 	struct smc_update_descriptor *smc_desc;
 	struct arm_smccc_res res, res_update;
 	int spi_in_progress = 0;
+	bool new_logging_compatible = true;
 
 	ktime_t tstart, tsyncend, tend;
+
+	res = mrvl_exec_smc(PLAT_OCTEON_SET_FIRMWARE_LOGGING,
+			    memdesc[BUF_LOG].phys,
+			    memdesc[BUF_LOG].size);
+	if (res.a0) {
+		pr_err("Failed to enable firmware logging\n");
+		new_logging_compatible = false;
+	}
 
 	smc_desc = (struct smc_update_descriptor *)memdesc[BUF_DATA].virt;
 	memset(smc_desc, 0x00, sizeof(*smc_desc));
@@ -379,9 +402,10 @@ static int mrvl_run_fw_update(unsigned long arg)
 	smc_desc->update_flags = ioctl_desc.flags | UPDATE_FLAG_LOG_PROGRESS;
 
 	/* Buffer for ATF logs */
-	smc_desc->output_console = memdesc[BUF_LOG].phys;
-	smc_desc->output_console_size = memdesc[BUF_LOG].size;
-
+	if (!new_logging_compatible) {
+		smc_desc->output_console = memdesc[BUF_LOG].phys;
+		smc_desc->output_console_size = memdesc[BUF_LOG].size;
+	}
 	/* In linux use asynchronus SPI operation */
 	smc_desc->async_spi = 1;
 
@@ -436,6 +460,7 @@ static int mrvl_run_fw_update(unsigned long arg)
 
 	pr_info("Tsync: %lld, ttot: %lld\n", tsyncend - tstart, tend - tstart);
 
+	mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 	return ioctl_desc.ret;
 }
 
@@ -483,6 +508,12 @@ static int mrvl_read_flash_data(unsigned long arg)
 	struct arm_smccc_res res;
 	int ret, spi_in_progress = 0;
 
+	res = mrvl_exec_smc(PLAT_OCTEON_SET_FIRMWARE_LOGGING,
+			    memdesc[BUF_LOG].phys,
+			    memdesc[BUF_LOG].size);
+	if (res.a0)
+		pr_err("Failed to enable firmware logging\n");
+
 	if (copy_from_user(&ioctl_desc,
 			  TO_READ_FLASH_DESC(arg),
 			  sizeof(ioctl_desc))) {
@@ -526,6 +557,7 @@ static int mrvl_read_flash_data(unsigned long arg)
 			 &ioctl_desc,
 			 sizeof(ioctl_desc))) {
 		pr_err("Data Write Error\n");
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -EFAULT;
 	}
 
@@ -535,6 +567,8 @@ static int mrvl_read_flash_data(unsigned long arg)
 		spi_in_progress = res.a0;
 	} while (spi_in_progress);
 
+
+	mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 	return 0;
 }
 
@@ -551,7 +585,7 @@ static long mrvl_swup_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	case GET_VERSION:
 	case VERIFY_HASH:
 	case CLONE_FW:
-		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE));
+		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_LOG));
 		break;
 	case GET_MEMBUF:
 		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_CPIO) |
@@ -573,28 +607,27 @@ static long mrvl_swup_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	switch (cmd) {
 	case GET_VERSION:
 		ret = mrvl_get_version(arg, 0);
-		free_buffers();
 		break;
 	case VERIFY_HASH:
 		ret = mrvl_get_version(arg, 1);
-		free_buffers();
 		break;
 	case GET_MEMBUF:
 		ret = mrvl_get_membuf(arg);
 		break;
 	case RUN_UPDATE:
 		ret = mrvl_run_fw_update(arg);
-		free_buffers();
 		break;
 	case CLONE_FW:
 		ret = mrvl_clone_fw(arg);
-		free_buffers();
 		break;
 	case READ_FLASH:
 		ret = mrvl_read_flash_data(arg);
 		break;
 	case FREE_RD_BUF:
 		mrvl_free_rd_buf(arg);
+		break;
+	case FREE_ALL_BUF:
+		free_buffers();
 		break;
 	default:
 		pr_err("Not supported IOCTL\n");
