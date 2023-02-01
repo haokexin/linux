@@ -329,10 +329,33 @@ enum read_flash_ret {
 	READ_FL_UNKNOWN_ERROR = -1000,
 };
 
+#define READ_VERSION			0x0100
+#define READ_VERSION_PREV		0x0000
+
+/** Log progress */
+#define READ_FLAG_LOG_PROGRESS	BIT(0)
+/** Compatibility flag */
+#define READ_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG	BIT(0)
+
 /**
  * This descriptor is used to read data from flash
  */
 struct smc_read_flash_descriptor {
+	uint64_t	addr;		/** Physical buffer address */
+	uint64_t	offset;		/** Offset in flash */
+	uint64_t	length;		/** Length to read */
+	uint32_t	bus;		/** SPI BUS number */
+	uint32_t	cs;			/** SPI chip select number */
+	uint32_t	async_spi;	/** Async SPI operations */
+	uint16_t	version;	/** Version of descriptor */
+	uint16_t	read_flags;	/** Flags passed to read process */
+	uintptr_t	output_console;	/** Text output console */
+	uint32_t	output_console_size;/** Console buffer size in bytes */
+	uint32_t	output_console_end;/** Not used yet */
+	uint64_t	reserved[8];	/** Space to add stuff */
+};
+
+struct smc_read_flash_descriptor_prev {
 	uint64_t	addr;		/** Physical buffer address */
 	uint64_t	offset;		/** Offset in flash */
 	uint64_t	length;		/** Length to read */
@@ -411,6 +434,7 @@ struct mrvl_read_flash {
 	uint64_t offset;
 	uint64_t len;
 	enum read_flash_ret ret;
+	uint64_t compatibility_flags;
 } __packed;
 
 #define GET_VERSION   _IOWR('a', 'a', struct mrvl_get_versions*)
