@@ -509,7 +509,8 @@ static int mrvl_read_flash_data(unsigned long arg)
 		return -EFAULT;
 	}
 
-	ret = alloc_buffers(memdesc, 1<<BUF_DATA | 1<<BUF_READ);
+	ret = alloc_buffers(memdesc, 1<<BUF_DATA | 1<<BUF_READ | 1<<BUF_LOG | 1<<BUF_SMCLOG);
+
 	if (ret) {
 		pr_err("Memory Alloc Error\n");
 		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
@@ -524,6 +525,7 @@ static int mrvl_read_flash_data(unsigned long arg)
 							ioctl_desc.offset,
 							ioctl_desc.len);
 
+	smc_desc->version = READ_VERSION;
 
 	/* Set location and length */
 	smc_desc->offset = ioctl_desc.offset;
@@ -532,14 +534,26 @@ static int mrvl_read_flash_data(unsigned long arg)
 	/* In linux use asynchronous SPI operation */
 	smc_desc->async_spi = 1;
 
+	/* enable ATF logs */
+	smc_desc->read_flags = READ_FLAG_LOG_PROGRESS;
+	smc_desc->output_console = memdesc[BUF_SMCLOG].phys;
+	smc_desc->output_console_size = memdesc[BUF_SMCLOG].size;
+
 	/* SPI config */
 	smc_desc->bus        = ioctl_desc.bus;
 	smc_desc->cs	     = ioctl_desc.cs;
 	smc_desc->addr       = memdesc[BUF_READ].phys;
 
-	res = mrvl_exec_smc(PLAT_CN10K_SPI_READ_FLASH,
+	if (ioctl_desc.compatibility_flags & READ_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG) {
+		smc_desc->version = READ_VERSION_PREV;
+		res = mrvl_exec_smc(PLAT_CN10K_SPI_READ_FLASH,
+			    memdesc[BUF_DATA].phys,
+			    sizeof(struct smc_read_flash_descriptor_prev));
+	} else {
+		res = mrvl_exec_smc(PLAT_CN10K_SPI_READ_FLASH,
 			    memdesc[BUF_DATA].phys,
 			    sizeof(struct smc_read_flash_descriptor));
+	}
 
 	ioctl_desc.ret = res.a0;
 	if (copy_to_user(TO_READ_FLASH_DESC(arg),
