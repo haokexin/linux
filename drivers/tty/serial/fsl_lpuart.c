@@ -2938,9 +2938,6 @@ static int lpuart_probe(struct platform_device *pdev)
 		handler = lpuart_int;
 	}
 
-	if (ret)
-		goto failed_irq_request;
-
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_set_autosuspend_delay(&pdev->dev, UART_AUTOSUSPEND_TIMEOUT);
 	pm_runtime_set_active(&pdev->dev);
@@ -2972,14 +2969,12 @@ static int lpuart_probe(struct platform_device *pdev)
 
 	return 0;
 
-failed_get_rs485:
+failed_irq_request:
 	uart_remove_one_port(&lpuart_reg, &sport->port);
 failed_attach_port:
 	pm_runtime_disable(&pdev->dev);
 	pm_runtime_set_suspended(&pdev->dev);
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
-failed_irq_request:
-	uart_remove_one_port(&lpuart_reg, &sport->port);
 failed_get_rs485:
 failed_reset:
 	lpuart_disable_clks(sport);
