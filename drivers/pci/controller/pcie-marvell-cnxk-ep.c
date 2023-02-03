@@ -65,6 +65,7 @@ struct mv_pem_ep {
 	u8		pem;
 	char		uio_name[16];
 	struct uio_info	uio_rst_int_perst;
+	char		mdev_name[32];
 	struct miscdevice mdev;
 };
 
@@ -360,7 +361,8 @@ mem_file_setup(struct mv_pem_ep *pem_ep)
 
 	mdev = &pem_ep->mdev;
 	mdev->minor = MISC_DYNAMIC_MINOR;
-	mdev->name = "pem_ep_bar4_mem";
+	snprintf(pem_ep->mdev_name, 32, "pem%d_ep_bar4_mem", pem_ep->pem);
+	mdev->name = pem_ep->mdev_name;
 	mdev->fops = &memdev_fops;
 	mdev->parent = pem_ep->dev;
 	ret = misc_register(mdev);
