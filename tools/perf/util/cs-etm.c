@@ -1441,7 +1441,7 @@ static inline u64 cs_etm__resolve_sample_time(struct cs_etm_queue *etmq,
 	struct cs_etm_packet_queue *packet_queue = &tidq->packet_queue;
 
 	if (!etm->timeless_decoding && etm->has_virtual_ts)
-		return packet_queue->cs_timestamp;
+		return packet_queue.prev_cs_timestamp;
 	else
 		return etm->latest_kernel_timestamp;
 }
@@ -1824,6 +1824,13 @@ static int cs_etm__sample(struct cs_etm_queue *etmq,
 				return ret;
 		}
 	}
+
+	/*
+	 * Since we synthesize the prev_packet, store the current timestamp
+	 * here in prev_cs_timestamp so that when we *actually* synthesize
+	 * the prev_packet, we use this timestamp and not the future one.
+	 */
+	tidq->packet_queue.prev_cs_timestamp = tidq->packet_queue.cs_timestamp;
 
 	cs_etm__packet_swap(etm, tidq);
 
