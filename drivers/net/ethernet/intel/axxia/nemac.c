@@ -1309,11 +1309,9 @@ nemac_probe(struct platform_device *pdev)
 	 * randomized address.
 	 */
 
-	ret = of_get_mac_address(dn, macaddr_dt);
-	if (!ret && is_valid_ether_addr(macaddr_dt)) {
-		ether_addr_copy(ndev->dev_addr, macaddr_dt);
-	} else {
-		random_ether_addr(ndev->dev_addr);
+	ret = of_get_mac_address(dn, ndev->dev_addr);
+	if (ret) {
+		eth_hw_addr_random(ndev);
 		dev_info(dev, "Using random address %pM\n", ndev->dev_addr);
 	}
 
