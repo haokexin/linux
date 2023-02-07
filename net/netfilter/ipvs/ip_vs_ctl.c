@@ -2292,7 +2292,7 @@ static int ip_vs_stats_percpu_show(struct seq_file *seq, void *v)
 
 	for_each_possible_cpu(i) {
 		struct ip_vs_cpu_stats *u = per_cpu_ptr(cpustats, i);
-		unsigned int start;
+		u64_stats_t start;
 		u64 conns, inpkts, outpkts, inbytes, outbytes;
 
 		do {
