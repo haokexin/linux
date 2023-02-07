@@ -1575,7 +1575,6 @@ static int appnic_probe_config_dt(struct net_device *dev,
 				  struct device_node *np)
 {
 	struct appnic_device *pdata = netdev_priv(dev);
-	u8 mac[ETH_ALEN];
 	struct device_node *gp_node;
 	struct device *d = &dev->dev;
 	int err;
@@ -1598,13 +1597,12 @@ static int appnic_probe_config_dt(struct net_device *dev,
 	pdata->rx_interrupt = irq_of_parse_and_map(np, 1);
 	pdata->dma_interrupt = irq_of_parse_and_map(np, 2);
 
-	err = of_get_mac_address(np, mac);
+	err = of_get_mac_address(np, dev->dev_addr);
 	if (err)
 		goto device_tree_failed;
 
-	memcpy(&pdata->mac_addr[0], mac, ETH_ALEN);
-	memcpy(dev->dev_addr, mac, ETH_ALEN);
-	memcpy(dev->perm_addr, mac, ETH_ALEN);
+	memcpy(&pdata->mac_addr[0], dev->dev_addr, ETH_ALEN);
+	memcpy(dev->perm_addr, dev->dev_addr, ETH_ALEN);
 
 	return 0;
 
