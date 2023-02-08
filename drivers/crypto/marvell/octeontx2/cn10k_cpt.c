@@ -105,7 +105,7 @@ void cn10k_cpt_hw_ctx_clear(struct pci_dev *pdev, struct cn10k_cpt_errata_ctx *e
 {
 	u64 cptr_dma;
 
-	if (!is_dev_cn10ka(pdev))
+	if (!is_dev_cn10ka_ax(pdev))
 		return;
 
 	cptr_dma = er_ctx->cptr_dma & ~(BIT_ULL(60));
@@ -131,7 +131,7 @@ int cn10k_cpt_hw_ctx_init(struct pci_dev *pdev, struct cn10k_cpt_errata_ctx *er_
 	er_ctx->cptr_dma = 0;
 	er_ctx->hw_ctx = NULL;
 
-	if (!is_dev_cn10ka(pdev))
+	if (!is_dev_cn10ka_ax(pdev))
 		return 0;
 
 	hctx = kmalloc(CN10K_CPT_HW_CTX_SIZE, GFP_KERNEL);

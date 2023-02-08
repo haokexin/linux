@@ -68,7 +68,7 @@ static void cpt_hash_callback(int status, void *arg1, void *arg2)
 		minor_op = req->opcode.s.minor;
 
 		if (minor_op == HMAC_FINISH) {
-			if (is_dev_cn10ka(pdev))
+			if (is_dev_cn10ka_ax(pdev))
 				cn10k_cpt_ctx_flush(pdev, cptr_dma, true);
 
 			dma_unmap_single(&pdev->dev, cptr_dma, CPT_HMAC_CTX_SIZE,
@@ -117,7 +117,7 @@ static inline void create_hmac_ctx_hdr(struct otx2_cpt_req_info *req_info, struc
 	}
 	if (minor_op != HMAC_FULL) {
 		req_info->req.cptr = ctx->cptr;
-		if (is_dev_cn10ka(ctx->pdev))
+		if (is_dev_cn10ka_ax(ctx->pdev))
 			req_info->req.cptr_dma = ctx->cptr_dma | BIT_ULL(60);
 		else
 			req_info->req.cptr_dma = ctx->cptr_dma;
@@ -221,7 +221,7 @@ static int cpt_hmac_sha_init(struct ahash_request *req)
 	req_info->in_cnt = argcnt;
 	update_output_data(req, req_info);
 
-	if (is_dev_cn10ka(pdev)) {
+	if (is_dev_cn10ka_ax(pdev)) {
 		cn10k_cpt_hw_ctx_set(ctx->cptr, CPT_HMAC_CTX_SIZE >> 7);
 		ctx->hw_ctx_sz = CPT_HW_CTX_WORD_SIZE;
 	}
