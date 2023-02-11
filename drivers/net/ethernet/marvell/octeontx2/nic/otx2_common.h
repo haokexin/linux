@@ -11,6 +11,7 @@
 #include <linux/ethtool.h>
 #include <linux/pci.h>
 #include <linux/iommu.h>
+#include <net/macsec.h>
 #include <linux/net_tstamp.h>
 #include <linux/ptp_clock_kernel.h>
 #include <linux/timecounter.h>
@@ -411,6 +412,8 @@ struct cn10k_mcs_txsc {
 	u8 sa_bmap;
 	u8 sa_key[CN10K_MCS_SA_PER_SC][MACSEC_MAX_KEY_LEN];
 	u8 encoding_sa;
+	u8 salt[CN10K_MCS_SA_PER_SC][MACSEC_SALT_LEN];
+	ssci_t ssci[CN10K_MCS_SA_PER_SC];
 };
 
 struct cn10k_mcs_rxsc {
@@ -423,6 +426,8 @@ struct cn10k_mcs_rxsc {
 	u16 hw_sa_id[CN10K_MCS_SA_PER_SC];
 	u8 sa_bmap;
 	u8 sa_key[CN10K_MCS_SA_PER_SC][MACSEC_MAX_KEY_LEN];
+	u8 salt[CN10K_MCS_SA_PER_SC][MACSEC_SALT_LEN];
+	ssci_t ssci[CN10K_MCS_SA_PER_SC];
 };
 
 struct cn10k_mcs_cfg {
