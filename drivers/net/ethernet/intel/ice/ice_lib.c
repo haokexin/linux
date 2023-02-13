@@ -2148,7 +2148,7 @@ int ice_vsi_cfg_xdp_txqs(struct ice_vsi *vsi)
 	ice_for_each_rxq(vsi, i)
 		ice_tx_xsk_pool(vsi, i);
 
-	return ret;
+	return 0;
 }
 
 /**
@@ -2717,12 +2717,14 @@ ice_vsi_cfg_def(struct ice_vsi *vsi, struct ice_vf *vf, struct ice_channel *ch)
 		return ret;
 
 	/* allocate memory for Tx/Rx ring stat pointers */
-	if (ice_vsi_alloc_stat_arrays(vsi))
+	ret = ice_vsi_alloc_stat_arrays(vsi);
+	if (ret)
 		goto unroll_vsi_alloc;
 
 	ice_alloc_fd_res(vsi);
 
-	if (ice_vsi_get_qs(vsi)) {
+	ret = ice_vsi_get_qs(vsi);
+	if (ret) {
 		dev_err(dev, "Failed to allocate queues. vsi->idx = %d\n",
 			vsi->idx);
 		goto unroll_vsi_alloc_stat;
@@ -2835,6 +2837,7 @@ ice_vsi_cfg_def(struct ice_vsi *vsi, struct ice_vf *vf, struct ice_channel *ch)
 		break;
 	default:
 		/* clean up the resources and exit */
+		ret = -EINVAL;
 		goto unroll_vsi_init;
 	}
 
@@ -3506,10 +3509,10 @@ int ice_vsi_rebuild(struct ice_vsi *vsi, int init_vsi)
 		if (init_vsi & ICE_VSI_FLAG_INIT) {
 			ret = -EIO;
 			goto err_vsi_cfg_tc_lan;
-		} else {
-			kfree(coalesce);
-			return ice_schedule_reset(pf, ICE_RESET_PFR);
 		}
+
+		kfree(coalesce);
+		return ice_schedule_reset(pf, ICE_RESET_PFR);
 	}
 
 	ice_vsi_realloc_stat_arrays(vsi, prev_txq, prev_rxq);
@@ -3757,7 +3760,7 @@ int ice_vsi_cfg_tc(struct ice_vsi *vsi, u8 ena_tc)
 	dev = ice_pf_to_dev(pf);
 	if (vsi->tc_cfg.ena_tc == ena_tc &&
 	    vsi->mqprio_qopt.mode != TC_MQPRIO_MODE_CHANNEL)
-		return ret;
+		return 0;
 
 	ice_for_each_traffic_class(i) {
 		/* build bitmap of enabled TCs */
