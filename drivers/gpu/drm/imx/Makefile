@@ -17,6 +17,7 @@ obj-$(CONFIG_DRM_IMX93_PARALLEL_DISPLAY_FORMAT) += imx93-parallel-disp-fmt.o
 obj-$(CONFIG_DRM_IMX_IPUV3) += ipuv3/
 obj-$(CONFIG_DRM_IMX_DW_MIPI_DSI) += dw_mipi_dsi-imx.o
 obj-$(CONFIG_DRM_IMX_DPU) += dpu/
+obj-$(CONFIG_DRM_IMX95_DPU) += dpu95/
 obj-$(CONFIG_DRM_IMX_DCNANO) += dcnano/
 obj-$(CONFIG_DRM_IMX_HDMI) += dw_hdmi-imx.o
 obj-$(CONFIG_IMX8MP_HDMI_PAVI) += imx8mp-hdmi-pavi.o
