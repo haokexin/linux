@@ -1136,7 +1136,7 @@ static inline void cn10k_handle_mcs_event(struct otx2_nic *pfvf,
 #endif /* CONFIG_MACSEC */
 
 /* qos support */
-void otx2_qos_sq_setup(struct otx2_nic *pfvf);
+void otx2_qos_sq_setup(struct otx2_nic *pfvf, int qos_txqs);
 u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 		      struct net_device *sb_dev);
 int otx2_get_txq_by_classid(struct otx2_nic *pfvf, u16 classid);
