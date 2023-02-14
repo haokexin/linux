@@ -530,10 +530,10 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int num_vec = pci_msix_vec_count(pdev);
 	struct device *dev = &pdev->dev;
+	int err, qcount, qos_txqs;
 	struct net_device *netdev;
 	struct otx2_nic *vf;
 	struct otx2_hw *hw;
-	int err, qcount;
 
 	err = pcim_enable_device(pdev);
 	if (err) {
@@ -556,7 +556,8 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pci_set_master(pdev);
 
 	qcount = num_online_cpus();
-	netdev = alloc_etherdev_mqs(sizeof(*vf), qcount + OTX2_QOS_MAX_LEAF_NODES, qcount);
+	qos_txqs = min_t(int, qcount, OTX2_QOS_MAX_LEAF_NODES);
+	netdev = alloc_etherdev_mqs(sizeof(*vf), qcount + qos_txqs, qcount);
 	if (!netdev) {
 		err = -ENOMEM;
 		goto err_release_regions;
@@ -721,7 +722,7 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_shutdown_tc;
 #endif
-	otx2_qos_sq_setup(vf);
+	otx2_qos_sq_setup(vf, qos_txqs);
 
 	return 0;
 
