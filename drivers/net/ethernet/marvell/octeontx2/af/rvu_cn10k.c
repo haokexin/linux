@@ -145,16 +145,17 @@ int rvu_mbox_handler_lmtst_tbl_setup(struct rvu *rvu,
 	 * region, if so, convert that IOVA to physical address and
 	 * populate LMT table with that address
 	 */
+	mutex_lock(&rvu->rsrc_lock);
 	if (req->use_local_lmt_region) {
 		err = rvu_get_lmtaddr(rvu, req->hdr.pcifunc,
 				      req->lmt_iova, &lmt_addr);
 		if (err < 0)
-			return err;
+			goto error;
 
 		/* Update the lmt addr for this PFFUNC in the LMT table */
 		err = rvu_update_lmtaddr(rvu, req->hdr.pcifunc, lmt_addr);
 		if (err)
-			return err;
+			goto error;
 	}
 
 	/* Reconfiguring lmtst map table in lmt region shared mode i.e. make
@@ -184,7 +185,7 @@ int rvu_mbox_handler_lmtst_tbl_setup(struct rvu *rvu,
 		 */
 		err = rvu_update_lmtaddr(rvu, req->hdr.pcifunc, val);
 		if (err)
-			return err;
+			goto error;
 	}
 
 	/* This mailbox can also be used to update word1 of APR_LMT_MAP_ENTRY_S
@@ -233,6 +234,7 @@ int rvu_mbox_handler_lmtst_tbl_setup(struct rvu *rvu,
 	}
 
 error:
+	mutex_unlock(&rvu->rsrc_lock);
 	return err;
 }
 
