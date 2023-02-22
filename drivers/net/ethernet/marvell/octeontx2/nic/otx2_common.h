@@ -30,6 +30,9 @@
 #include "qos.h"
 #include <rvu_trace.h>
 
+/* IPv4 flag more fragment bit */
+#define IPV4_FLAG_MORE				0x20
+
 /* PCI device IDs */
 #define PCI_DEVID_OCTEONTX2_RVU_PF              0xA063
 #define PCI_DEVID_OCTEONTX2_RVU_VF		0xA064

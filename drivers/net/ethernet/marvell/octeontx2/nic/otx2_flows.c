@@ -971,11 +971,11 @@ int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 				       sizeof(pkt->vlan_tci));
 				otx2_prepare_fdsa_flow_request(req, false);
 			} else if (flow_type == IP_USER_FLOW) {
-				if (be32_to_cpu(fsp->h_ext.data[1]) != 0x20)
+				if (be32_to_cpu(fsp->h_ext.data[1]) != IPV4_FLAG_MORE)
 					return -EINVAL;
 
 				pkt->ip_flag = be32_to_cpu(fsp->h_ext.data[1]);
-				pmask->ip_flag = fsp->m_ext.data[1];
+				pmask->ip_flag = be32_to_cpu(fsp->m_ext.data[1]);
 				req->features |= BIT_ULL(NPC_IPFRAG_IPV4);
 			} else if (fsp->h_ext.data[1] ==
 					cpu_to_be32(OTX2_DEFAULT_ACTION)) {
