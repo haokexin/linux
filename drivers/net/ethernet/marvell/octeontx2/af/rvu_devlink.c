@@ -1763,6 +1763,8 @@ static int rvu_af_dl_npc_mcam_high_zone_percent_set(struct devlink *devlink, u32
 	mcam = &rvu->hw->mcam;
 	mcam->hprio_count = (mcam->bmap_entries * percent) / 100;
 	mcam->hprio_end = mcam->hprio_count;
+	mcam->lprio_count = (mcam->bmap_entries - mcam->hprio_count) / 2;
+	mcam->lprio_start = mcam->bmap_entries - mcam->lprio_count;
 
 	return 0;
 }
@@ -1775,10 +1777,10 @@ static int rvu_af_dl_npc_mcam_high_zone_percent_validate(struct devlink *devlink
 	struct rvu *rvu = rvu_dl->rvu;
 	struct npc_mcam *mcam;
 
-	/* The high prio zone must be in the range of 1/8 to 3/4 of total mcam space */
-	if (val.vu8 < 12 || val.vu8 > 75) {
+	/* The percent of high prio zone must range from 12% to 100% of unreserved mcam space */
+	if (val.vu8 < 12 || val.vu8 > 100) {
 		NL_SET_ERR_MSG_MOD(extack,
-				   "mcam high zone percent must be between 15% to 75%");
+				   "mcam high zone percent must be between 12% to 100%");
 		return -EINVAL;
 	}
 
