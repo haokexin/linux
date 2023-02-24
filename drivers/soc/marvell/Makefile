@@ -18,3 +18,4 @@ obj-$(CONFIG_MARVELL_CN10K_SERDES_DIAGNOSTICS) += cn10k_serdes_diag.o
 obj-$(CONFIG_OCTEONTX2_PCI_CONSOLE) += octeontx2-pcicons/
 obj-$(CONFIG_MARVELL_FWLOG) += fwlog.o
 obj-$(CONFIG_MARVELL_CN10K_EINJ) += cn10k-einj.o
+obj-y += ptm-ep/
