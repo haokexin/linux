@@ -1838,6 +1838,7 @@ static void dwxgmac3_fpe_configure(void __iomem *ioaddr, struct stmmac_fpe_cfg *
 				   u32 num_rxq, u32 txqpec, bool enable)
 {
 	u32 value;
+	u32 txqmask = (1 << num_txq) - 1;
 
 	if (!enable) {
 		value = readl(ioaddr + XGMAC_FPE_CTRL_STS);
@@ -1852,6 +1853,11 @@ static void dwxgmac3_fpe_configure(void __iomem *ioaddr, struct stmmac_fpe_cfg *
 	value &= ~XGMAC_RQ;
 	value |= (num_rxq - 1) << XGMAC_RQ_SHIFT;
 	writel(value, ioaddr + XGMAC_RXQ_CTRL1);
+
+	value = readl(ioaddr + XGMAC_MTL_FPE_CTRL_STS);
+	value &= ~(txqmask << XGMAC_PEC_SHIFT);
+	value |= (txqpec << XGMAC_PEC_SHIFT);
+	writel(value, ioaddr + XGMAC_MTL_FPE_CTRL_STS);
 
 	value = readl(ioaddr + XGMAC_FPE_CTRL_STS);
 	value |= XGMAC_EFPE;
