@@ -442,7 +442,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		dev_dbg(dev, "FW size=%ld\n", fw->size);
 		s_buf = stratix10_svc_allocate_memory(priv->chan, fw->size);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed to allocate VAB buffer\n");
 			release_firmware(fw);
 			mutex_unlock(&priv->lock);
@@ -508,14 +508,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		datasz = data->com_paras.c_request.size + tsz;
 
 		s_buf = stratix10_svc_allocate_memory(priv->chan, datasz);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed to allocate VAB buffer\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
 
 		ps_buf = stratix10_svc_allocate_memory(priv->chan, PS_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed to allocate p-status buf\n");
 			stratix10_svc_free_memory(priv->chan, s_buf);
 			mutex_unlock(&priv->lock);
@@ -614,7 +614,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		s_buf = stratix10_svc_allocate_memory(priv->chan,
 						      RANDOM_NUMBER_SIZE);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed to allocate RNG buffer\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -675,7 +675,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		s_buf = stratix10_svc_allocate_memory(priv->chan,
 					data->com_paras.gp_data.size);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed allocate provision buffer\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -785,21 +785,21 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		/* allocate buffer for both source and destination */
 		s_buf = stratix10_svc_allocate_memory(priv->chan,
 						      MAX_SDOS_BUF_SZ);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed allocate encrypt src buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
 		d_buf = stratix10_svc_allocate_memory(priv->chan,
 						      MAX_SDOS_BUF_SZ);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate encrypt dst buf\n");
 			stratix10_svc_free_memory(priv->chan, s_buf);
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
 		ps_buf = stratix10_svc_allocate_memory(priv->chan, PS_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed allocate p-status buffer\n");
 			fcs_free_memory(priv, s_buf, d_buf, NULL);
 			mutex_unlock(&priv->lock);
@@ -909,14 +909,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		/* allocate buffer for both source and destination */
 		s_buf = stratix10_svc_allocate_memory(priv->chan,
 						      MAX_SDOS_BUF_SZ);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed allocate decrypt src buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
 		d_buf = stratix10_svc_allocate_memory(priv->chan,
 						      MAX_SDOS_BUF_SZ);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate decrypt dst buf\n");
 			stratix10_svc_free_memory(priv->chan, s_buf);
 			mutex_unlock(&priv->lock);
@@ -925,7 +925,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		ps_buf = stratix10_svc_allocate_memory(priv->chan,
 						       PS_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed allocate p-status buffer\n");
 			fcs_free_memory(priv, s_buf, d_buf, NULL);
 			mutex_unlock(&priv->lock);
@@ -1096,7 +1096,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		s_buf = stratix10_svc_allocate_memory(priv->chan,
 						      SUBKEY_CMD_MAX_SZ +
 						      rsz);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed allocate subkey CMD buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -1104,7 +1104,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan,
 						      SUBKEY_RSP_MAX_SZ);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate subkey RSP buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -1196,7 +1196,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		s_buf = stratix10_svc_allocate_memory(priv->chan,
 						      MEASUREMENT_CMD_MAX_SZ +
 						      rsz);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed allocate measurement CMD buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -1204,7 +1204,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan,
 						      MEASUREMENT_RSP_MAX_SZ);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate measurement RSP buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -1275,7 +1275,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan,
 						      CERTIFICATE_RSP_MAX_SZ);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate certificate RSP buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -1353,7 +1353,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		s_buf = stratix10_svc_allocate_memory(priv->chan,
 						      SHA384_SIZE);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed to allocate RNG buffer\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -1470,14 +1470,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		 datasz = data->com_paras.k_import.obj_data_sz + tsz;
 
 		 s_buf = stratix10_svc_allocate_memory(priv->chan, datasz);
-		 if (!s_buf) {
+		 if (IS_ERR(s_buf)) {
 			 dev_err(dev, "failed to allocate key import buffer\n");
 			 mutex_unlock(&priv->lock);
 			 return -ENOMEM;
 		 }
 
 		 ps_buf = stratix10_svc_allocate_memory(priv->chan, PS_BUF_SIZE);
-		 if (!ps_buf) {
+		 if (IS_ERR(ps_buf)) {
 			 dev_err(dev, "failed allocate p-status buffer\n");
 			 fcs_free_memory(priv, s_buf, NULL, NULL);
 			 mutex_unlock(&priv->lock);
@@ -1554,7 +1554,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan,
 				 CRYPTO_EXPORTED_KEY_OBJECT_MAX_SZ);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate key object buf\n");
 			 mutex_unlock(&priv->lock);
 			 return -ENOMEM;
@@ -1642,7 +1642,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan,
 				 CRYPTO_GET_KEY_INFO_MAX_SZ);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate key object buf\n");
 			 mutex_unlock(&priv->lock);
 			 return -ENOMEM;
@@ -1715,68 +1715,73 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			return -EFAULT;
 		}
 
-		 iv_field_buf = stratix10_svc_allocate_memory(priv->chan, 28);
-		 if (!iv_field_buf) {
-			 dev_err(dev, "failed allocate iv_field buf\n");
-			 mutex_unlock(&priv->lock);
-			 return -ENOMEM;
-		 }
+		iv_field_buf = stratix10_svc_allocate_memory(priv->chan, 28);
+		if (IS_ERR(iv_field_buf)) {
+			dev_err(dev, "failed allocate iv_field buf\n");
+			mutex_unlock(&priv->lock);
+			return -ENOMEM;
+		}
 
-		 sid = data->com_paras.a_crypt.sid;
-		 cid = data->com_paras.a_crypt.cid;
-		 kuid = data->com_paras.a_crypt.kuid;
+		sid = data->com_paras.a_crypt.sid;
+		cid = data->com_paras.a_crypt.cid;
+		kuid = data->com_paras.a_crypt.kuid;
 
-		 memcpy(iv_field_buf, &data->com_paras.a_crypt.cpara.bmode, 1);
-		 memcpy(iv_field_buf + 1, &data->com_paras.a_crypt.cpara.aes_mode, 1);
-		 memcpy(iv_field_buf + 12, data->com_paras.a_crypt.cpara.iv_field, 16);
+		memcpy(iv_field_buf, &data->com_paras.a_crypt.cpara.bmode, 1);
+		memcpy(iv_field_buf + 1, &data->com_paras.a_crypt.cpara.aes_mode, 1);
+		memcpy(iv_field_buf + 12, data->com_paras.a_crypt.cpara.iv_field, 16);
 
-		 msg->command = COMMAND_FCS_CRYPTO_AES_CRYPT_INIT;
-		 msg->payload = iv_field_buf;
-		 msg->payload_length = data->com_paras.a_crypt.cpara_size;
-		 msg->payload_output = NULL;
-		 msg->payload_length_output = 0;
-		 msg->arg[0] = sid;
-		 msg->arg[1] = cid;
-		 msg->arg[2] = kuid;
+		msg->command = COMMAND_FCS_CRYPTO_AES_CRYPT_INIT;
+		msg->payload = iv_field_buf;
+		msg->payload_length = data->com_paras.a_crypt.cpara_size;
+		msg->payload_output = NULL;
+		msg->payload_length_output = 0;
+		msg->arg[0] = sid;
+		msg->arg[1] = cid;
+		msg->arg[2] = kuid;
 
-		 priv->client.receive_cb = fcs_vab_callback;
+		priv->client.receive_cb = fcs_vab_callback;
 
-		 ret = fcs_request_service(priv, (void *)msg,
-					   FCS_REQUEST_TIMEOUT);
-		 if (ret || priv->status) {
-			 dev_err(dev, "failed to send the cmd=%d,ret=%d\n",
-				 COMMAND_FCS_CRYPTO_AES_CRYPT_INIT,
-				 ret);
-			 fcs_close_services(priv, iv_field_buf, NULL);
-			 return -EFAULT;
-		 }
+		ret = fcs_request_service(priv, (void *)msg,
+					  FCS_REQUEST_TIMEOUT);
+		if (ret || priv->status) {
+			dev_err(dev, "failed to send the cmd=%d,ret=%d\n",
+				COMMAND_FCS_CRYPTO_AES_CRYPT_INIT,
+				ret);
+			fcs_close_services(priv, iv_field_buf, NULL);
+			return -EFAULT;
+		}
 
-		 fcs_free_memory(priv, iv_field_buf, NULL, NULL);
+		fcs_free_memory(priv, iv_field_buf, NULL, NULL);
 
-		 s_buf = stratix10_svc_allocate_memory(priv->chan,
-				data->com_paras.a_crypt.src_size);
-		 if (!s_buf) {
-			 dev_err(dev, "failed allocate source buf\n");
-			 fcs_close_services(priv, NULL, NULL);
-			 return -ENOMEM;
-		 }
+		s_buf = stratix10_svc_allocate_memory(priv->chan,
+						      data->com_paras.a_crypt.src_size);;
+		if (IS_ERR(s_buf)) {
+			dev_err(dev, "failed allocate source buf\n");
+			fcs_close_services(priv, NULL, NULL);
+			return -ENOMEM;
+		}
 
-		 d_buf = stratix10_svc_allocate_memory(priv->chan,
-				data->com_paras.a_crypt.dst_size);
-		 if (!d_buf) {
+		d_buf = stratix10_svc_allocate_memory(priv->chan,
+						      data->com_paras.a_crypt.src_size);
+		if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate destation buf\n");
 			 fcs_close_services(priv, s_buf, NULL);
 			 return -ENOMEM;
-		 }
+		}
 
-		 ret = copy_from_user(s_buf,
-				     data->com_paras.a_crypt.src,
-				     data->com_paras.a_crypt.src_size);
-
-		 if (ret) {
+		ret = copy_from_user(s_buf, data->com_paras.a_crypt.src,
+				      data->com_paras.a_crypt.src_size);
+		if (ret) {
 			dev_err(dev, "failure on copy_from_user\n");
 			fcs_close_services(priv, s_buf, d_buf);
 			return -EFAULT;
+		}
+
+		 ps_buf = stratix10_svc_allocate_memory(priv->chan, PS_BUF_SIZE);
+		 if (IS_ERR(ps_buf)) {
+			 dev_err(dev, "failed to allocate p-status buf\n");
+			 fcs_close_services(priv, s_buf, d_buf);
+			 return -ENOMEM;
 		 }
 
 		 msg->command = COMMAND_FCS_CRYPTO_AES_CRYPT_FINALIZE;
@@ -1879,7 +1884,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 s_buf = stratix10_svc_allocate_memory(priv->chan,
 						       AES_CRYPT_CMD_MAX_SZ);
-		 if (!s_buf) {
+		 if (IS_ERR(s_buf)) {
 			 dev_err(dev, "failed allocate source buf\n");
 			 fcs_close_services(priv, NULL, NULL);
 			 return -ENOMEM;
@@ -1887,7 +1892,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan,
 						       AES_CRYPT_CMD_MAX_SZ);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate destation buf\n");
 			 fcs_close_services(priv, s_buf, NULL);
 			 return -ENOMEM;
@@ -1996,7 +2001,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 s_buf = stratix10_svc_allocate_memory(priv->chan,
 						       AES_CRYPT_CMD_MAX_SZ);
-		 if (!s_buf) {
+		 if (IS_ERR(s_buf)) {
 			 dev_err(dev, "failed allocate source buf\n");
 			 fcs_close_services(priv, NULL, NULL);
 			 return -ENOMEM;
@@ -2119,14 +2124,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		 }
 
 		 s_buf = stratix10_svc_allocate_memory(priv->chan, in_sz);
-		 if (!s_buf) {
+		 if (IS_ERR(s_buf)) {
 			 dev_err(dev, "failed allocate source buf\n");
 			 fcs_close_services(priv, NULL, NULL);
 			 return -ENOMEM;
 		 }
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate destation buf\n");
 			 fcs_close_services(priv, s_buf, NULL);
 			 return -ENOMEM;
@@ -2209,15 +2214,15 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		 remaining_size = data->com_paras.ecdsa_data.src_size;
 
 		 s_buf = stratix10_svc_allocate_memory(priv->chan,
-												AES_CRYPT_CMD_MAX_SZ);
-		 if (!s_buf) {
+						       AES_CRYPT_CMD_MAX_SZ);
+		 if (IS_ERR(s_buf)) {
 			 dev_err(dev, "failed allocate source buf\n");
 			 fcs_close_services(priv, NULL, NULL);
 			 return -ENOMEM;
 		 }
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate destation buf\n");
 			 fcs_close_services(priv, s_buf, NULL);
 			 return -ENOMEM;
@@ -2321,14 +2326,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		 }
 
 		 s_buf = stratix10_svc_allocate_memory(priv->chan, in_sz);
-		 if (!s_buf) {
+		 if (IS_ERR(s_buf)) {
 			 dev_err(dev, "failed allocate source buf\n");
 			 fcs_close_services(priv, NULL, NULL);
 			 return -ENOMEM;
 		 }
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate destation buf\n");
 			 fcs_close_services(priv, s_buf, NULL);
 			 return -ENOMEM;
@@ -2414,15 +2419,15 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 						data->com_paras.ecdsa_sha2_data.userdata_sz;
 
 		 s_buf = stratix10_svc_allocate_memory(priv->chan,
-												AES_CRYPT_CMD_MAX_SZ);
-		 if (!s_buf) {
+						       AES_CRYPT_CMD_MAX_SZ);
+		 if (IS_ERR(s_buf)) {
 			 dev_err(dev, "failed allocate source buf\n");
 			 fcs_close_services(priv, NULL, NULL);
 			 return -ENOMEM;
 		 }
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate destation buf\n");
 			 fcs_close_services(priv, s_buf, NULL);
 			 return -ENOMEM;
@@ -2538,7 +2543,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		 }
 
 		 d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		 if (!d_buf) {
+		 if (IS_ERR(d_buf)) {
 			 dev_err(dev, "failed allocate destation buf\n");
 			 fcs_close_services(priv, NULL, NULL);
 			 return -ENOMEM;
@@ -2626,14 +2631,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		};
 
 		s_buf = stratix10_svc_allocate_memory(priv->chan, in_sz);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed allocate source buf\n");
 			fcs_close_services(priv, NULL, NULL);
 			return -ENOMEM;
 		}
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate destation buf\n");
 			fcs_close_services(priv, s_buf, NULL);
 			return -ENOMEM;
@@ -2700,7 +2705,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		buf_sz = RANDOM_NUMBER_EXT_SIZE + RANDOM_NUMBER_EXT_OFFSET;
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan, buf_sz);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed to allocate RNG_EXT output buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -2788,14 +2793,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		in_sz = data->com_paras.data_sdos_ext.src_size;
 
 		s_buf = stratix10_svc_allocate_memory(priv->chan, in_sz);
-		if (!s_buf) {
+		if (IS_ERR(s_buf)) {
 			dev_err(dev, "failed allocate source buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan, AES_CRYPT_CMD_MAX_SZ);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate destation buf\n");
 			fcs_free_memory(priv, s_buf, NULL, NULL);
 			mutex_unlock(&priv->lock);
@@ -2878,7 +2883,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		if (data->com_paras.mbox_send_cmd.cmd_data_sz) {
 			s_buf = stratix10_svc_allocate_memory(priv->chan,
 					data->com_paras.mbox_send_cmd.cmd_data_sz);
-			if (!s_buf) {
+			if (IS_ERR(s_buf)) {
 				dev_err(dev, "failed allocate source CMD buf\n");
 				mutex_unlock(&priv->lock);
 				return -ENOMEM;
@@ -2890,7 +2895,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		if (data->com_paras.mbox_send_cmd.rsp_data_sz) {
 			d_buf = stratix10_svc_allocate_memory(priv->chan,
 					data->com_paras.mbox_send_cmd.rsp_data_sz);
-			if (!d_buf) {
+			if (IS_ERR(d_buf)) {
 				dev_err(dev, "failed allocate destination RSP buf\n");
 				fcs_free_memory(priv, s_buf, NULL, NULL);
 				mutex_unlock(&priv->lock);
@@ -3003,7 +3008,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		}
 
 		iv_field_buf = stratix10_svc_allocate_memory(priv->chan, 28);
-		if (!iv_field_buf) {
+		if (IS_ERR(iv_field_buf)) {
 			dev_err(dev, "failed allocate iv_field buf\n");
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
@@ -3044,7 +3049,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		remaining_size = data->com_paras.a_crypt.src_size;
 
 		ps_buf = stratix10_svc_allocate_memory(priv->chan, PS_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed to allocate p-status buf\n");
 			fcs_close_services(priv, NULL, NULL);
 			return -ENOMEM;
@@ -3152,14 +3157,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan,
 						       AES_CRYPT_CMD_MAX_SZ);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate destation buf\n");
 			fcs_close_services(priv, NULL, NULL);
 			return -ENOMEM;
 		}
 
 		ps_buf = stratix10_svc_allocate_memory(priv->chan, SMMU_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed to allocate p-status buf\n");
 			fcs_close_services(priv, d_buf, NULL);
 			return -ENOMEM;
@@ -3275,14 +3280,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		remaining_size = data->com_paras.s_mac_data.src_size;
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate destation buf\n");
 			fcs_close_services(priv, NULL, NULL);
 			return -ENOMEM;
 		}
 
 		ps_buf = stratix10_svc_allocate_memory(priv->chan, SMMU_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed to allocate p-status buf\n");
 			fcs_close_services(priv, d_buf, NULL);
 			return -ENOMEM;
@@ -3404,14 +3409,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		remaining_size = data->com_paras.ecdsa_data.src_size;
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan, out_sz);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate destation buf\n");
 			fcs_close_services(priv, NULL, NULL);
 			return -ENOMEM;
 		}
 
 		ps_buf = stratix10_svc_allocate_memory(priv->chan, SMMU_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed to allocate p-status buf\n");
 			fcs_close_services(priv, d_buf, NULL);
 			return -ENOMEM;
@@ -3528,14 +3533,14 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		remaining_size = data->com_paras.ecdsa_sha2_data.src_size;
 
 		d_buf = stratix10_svc_allocate_memory(priv->chan, SMMU_BUF_SIZE);
-		if (!d_buf) {
+		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate destation buf\n");
 			fcs_close_services(priv, NULL, NULL);
 			return -ENOMEM;
 		}
 
 		ps_buf = stratix10_svc_allocate_memory(priv->chan, SMMU_BUF_SIZE);
-		if (!ps_buf) {
+		if (IS_ERR(ps_buf)) {
 			dev_err(dev, "failed to allocate p-status buf\n");
 			fcs_close_services(priv, d_buf, NULL);
 			return -ENOMEM;
@@ -3665,7 +3670,7 @@ static int fcs_rng_read(struct hwrng *rng, void *buf, size_t max, bool wait)
 
 	s_buf = stratix10_svc_allocate_memory(priv->chan,
 					      RANDOM_NUMBER_SIZE);
-	if (!s_buf) {
+	if (IS_ERR(s_buf)) {
 		dev_err(dev, "failed to allocate random number buffer\n");
 		mutex_unlock(&priv->lock);
 		return -ENOMEM;
