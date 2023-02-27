@@ -538,6 +538,7 @@ int mcs_install_flowid_bypass_entry(struct mcs *mcs)
 	mcs_ena_dis_flowid_entry(mcs, flow_id, MCS_RX, true);
 	mcs_ena_dis_flowid_entry(mcs, flow_id, MCS_TX, true);
 
+	dev_info(mcs->dev, "Installed tcam bypass entry@%d\n", flow_id);
 	return 0;
 }
 
