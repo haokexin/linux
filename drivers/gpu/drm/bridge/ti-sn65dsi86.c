@@ -1143,7 +1143,7 @@ static int ti_sn_bridge_probe(struct auxiliary_device *adev,
 	struct mipi_dsi_device *dsi;
 	const struct mipi_dsi_device_info info = { .type = "ti_sn_bridge",
 						   .channel = 0,
-						   .node = client->dev.of_node,
+						   .node = np,
 						 };
 
 	ret = drm_of_find_panel_or_bridge(np, 1, 0, &panel, NULL);
@@ -1187,7 +1187,7 @@ static int ti_sn_bridge_probe(struct auxiliary_device *adev,
 	dsi->lanes = 2;
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->mode_flags = MIPI_DSI_MODE_VIDEO;
-	dsi->mode_flags |= MIPI_DSI_MODE_EOT_PACKET | MIPI_DSI_MODE_VIDEO_SYNC_PULSE;
+	dsi->mode_flags |= MIPI_DSI_MODE_NO_EOT_PACKET | MIPI_DSI_MODE_VIDEO_SYNC_PULSE;
 
 	/* check if continuous dsi clock is required or not */
 	pm_runtime_get_sync(pdata->dev);
