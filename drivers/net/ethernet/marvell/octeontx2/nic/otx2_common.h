@@ -357,8 +357,8 @@ struct otx2_flow_config {
 	u32			*bmap_to_dmacindex;
 	unsigned long		*dmacflt_bmap;
 	struct list_head	flow_list;
-	u32			dmacflt_max_flows;
 	u16                     max_flows;
+	u32			dmacflt_max_flows;
 };
 
 struct otx2_tc_info {
