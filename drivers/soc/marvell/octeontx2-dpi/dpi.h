@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Marvell OcteonTx2 DPI PF driver
  *
- * Copyright (C) 2018 Marvell International Ltd.
+ * Copyright (C) 2023 Marvell International Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,7 +28,7 @@
 #define DPI_MAX_REQQ_INT ({				\
 	u32 val;					\
 	val = 8;					\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		val = 32;				\
 	val; })						\
 
@@ -149,7 +149,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4000ULL);				\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10000ULL);			\
 	offset; })					\
 
@@ -157,7 +157,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4010ULL);				\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10010ULL);			\
 	offset; })					\
 
@@ -165,7 +165,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4018ULL);				\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10018ULL);			\
 	offset; })					\
 
@@ -173,7 +173,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4040ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10040ULL | ((x) << 3));	\
 	offset; })					\
 
@@ -181,7 +181,7 @@
 	u64 offset;					\
 							\
 	offset = (0x40C0ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x100C0ULL | ((x) << 3));	\
 	offset; })					\
 
@@ -189,7 +189,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4100ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10100ULL | ((x) << 3));	\
 	offset; })					\
 
@@ -197,7 +197,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4308ULL);				\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10308ULL);			\
 	offset; })					\
 
@@ -205,7 +205,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4318ULL);				\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10318ULL);			\
 	offset; })					\
 
@@ -213,7 +213,7 @@
 	u64 offset;					\
 							\
 	offset = (0x4320ULL);				\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x10320ULL);			\
 	offset; })					\
 
@@ -221,7 +221,7 @@
 	u64 offset;					\
 							\
 	offset = (0x5000ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x11000ULL | ((x) << 3));	\
 	offset; })					\
 
@@ -229,7 +229,7 @@
 	u64 offset;					\
 							\
 	offset = (0x5800ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x11800ULL | ((x) << 3));	\
 	offset; })					\
 
@@ -237,7 +237,7 @@
 	u64 offset;					\
 							\
 	offset = (0x6600ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x12C00ULL | ((x) << 5));	\
 	offset; })					\
 
@@ -245,7 +245,7 @@
 	u64 offset;					\
 							\
 	offset = (0x6680ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x13800ULL | ((x) << 5));	\
 	offset; })					\
 
@@ -253,7 +253,7 @@
 	u64 offset;					\
 							\
 	offset = (0x66C0ULL | (x) << 3);		\
-	if (is_otx3_dpi(dpi))				\
+	if (is_cn10k_dpi(dpi))				\
 		offset = (0x13C00ULL | ((x) << 5));	\
 	offset; })					\
 
@@ -299,9 +299,9 @@ struct dpipf {
 	struct pci_dev		*pdev;
 	int			num_vec;
 	struct msix_entry	*msix_entries;
-	int total_vfs;
-	int vfs_in_use;
-	struct dpipf_vf vf[DPI_MAX_VFS];
+	int			total_vfs;
+	int			vfs_in_use;
+	struct dpipf_vf		vf[DPI_MAX_VFS];
 	/* lock to serialize queue access */
 	spinlock_t		vf_lock;
 };
