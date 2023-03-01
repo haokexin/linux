@@ -2,7 +2,7 @@
 /*
  * Xilinx SYSMON for Versal
  *
- * Copyright (C) 2019 - 2021 Xilinx, Inc.
+ * Copyright (C) 2019 - 2022 Xilinx, Inc.
  *
  * Description:
  * This driver is developed for SYSMON on Versal. The driver supports INDIO Mode
@@ -10,7 +10,8 @@
  * in kernel event monitoring for some modules.
  */
 
-#include <dt-bindings/power/xlnx-versal-power.h>
+#include <linux/bits.h>
+#include <dt-bindings/power/xlnx-versal-regnode.h>
 #include <linux/firmware/xlnx-zynqmp.h>
 #include <linux/moduleparam.h>
 #include "versal-sysmon.h"
@@ -103,18 +104,22 @@ static struct sysmon_ops direct_access = {
 
 static inline void sysmon_secure_read_reg(struct sysmon *sysmon, u32 offset, u32 *data)
 {
-	zynqmp_pm_sec_read_reg(PM_DEV_AMS_ROOT, offset, data);
+	zynqmp_pm_sec_read_reg(sysmon->pm_info, offset, data);
 }
 
 static inline void sysmon_secure_write_reg(struct sysmon *sysmon, u32 offset, u32 data)
 {
-	zynqmp_pm_sec_mask_write_reg(PM_DEV_AMS_ROOT, offset, GENMASK(31, 0), data);
+	zynqmp_pm_sec_mask_write_reg(sysmon->pm_info, offset, GENMASK(31, 0), data);
 }
 
 static inline void sysmon_secure_update_reg(struct sysmon *sysmon, u32 offset,
 					    u32 mask, u32 data)
 {
-	zynqmp_pm_sec_mask_write_reg(PM_DEV_AMS_ROOT, offset, offset, data);
+	u32 val;
+
+	zynqmp_pm_sec_read_reg(sysmon->pm_info, offset, &val);
+	zynqmp_pm_sec_mask_write_reg(sysmon->pm_info, offset, GENMASK(31, 0),
+				     (val & ~mask) | (mask & data));
 }
 
 static struct sysmon_ops secure_access = {
@@ -394,6 +399,7 @@ static int sysmon_write_event_config(struct iio_dev *indio_dev,
 	struct sysmon *sysmon = iio_priv(indio_dev);
 	u32 alarm_reg_num = ALARM_REG(chan->address);
 	u32 offset = SYSMON_ALARM_REG + (4 * alarm_reg_num);
+	u32 shift = ALARM_SHIFT(chan->address);
 	u32 ier = sysmon_get_event_mask(chan->address);
 	u32 alarm_config;
 	unsigned long flags;
@@ -406,11 +412,11 @@ static int sysmon_write_event_config(struct iio_dev *indio_dev,
 
 		sysmon_read_reg(sysmon, offset, &alarm_config);
 
-		if (alarm_config)
+		if (alarm_config & BIT(shift))
 			sysmon_write_reg(sysmon, SYSMON_IER, ier);
 		else
 			sysmon_write_reg(sysmon, SYSMON_IDR, ier);
-	} else {
+	} else if (chan->type == IIO_TEMP) {
 		if (state) {
 			sysmon_write_reg(sysmon, SYSMON_IER, ier);
 			sysmon->temp_mask &= ~ier;
@@ -1045,6 +1051,13 @@ static int sysmon_probe(struct platform_device *pdev)
 		return PTR_ERR(sysmon->base);
 
 	if (secure_mode) {
+		ret = of_property_read_u32(pdev->dev.of_node,
+					   "xlnx,nodeid", &sysmon->pm_info);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "Failed to read SLR node id\n");
+			return ret;
+		}
+
 		ret = zynqmp_pm_feature(PM_IOCTL);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "Feature check failed with %d\n", ret);
@@ -1061,6 +1074,8 @@ static int sysmon_probe(struct platform_device *pdev)
 	}
 
 	sysmon_write_reg(sysmon, SYSMON_NPI_LOCK, NPI_UNLOCK);
+	sysmon_write_reg(sysmon, SYSMON_IDR, 0xffffffff);
+	sysmon_write_reg(sysmon, SYSMON_ISR, 0xffffffff);
 
 	sysmon->irq = platform_get_irq_optional(pdev, 0);
 

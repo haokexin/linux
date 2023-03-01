@@ -867,22 +867,6 @@ static int macb_phylink_connect(struct macb *bp)
 		return ret;
 	}
 
-	/* Figure out if MDIO bus is shared, if yes figure out MDIO
-	 * producer node parent and create device link to ensure
-	 * that supplier is active whenever and for as long as the
-	 * consumer is runtime resumed.
-	 */
-	if (bp->mii_bus != dev->phydev->mdio.bus && !bp->link) {
-		struct macb *mdio_parent = dev->phydev->mdio.bus->priv;
-
-		bp->link = device_link_add(&bp->pdev->dev, &mdio_parent->pdev->dev,
-					   DL_FLAG_PM_RUNTIME |
-					   DL_FLAG_AUTOREMOVE_CONSUMER);
-		if (!bp->link)
-			netdev_warn(dev, "device link creation from %s failed\n",
-				    dev_name(&bp->pdev->dev));
-	}
-
 	/* Since this driver uses runtime handling of clocks, initiate a phy
 	 * reset if the attached phy requires it. Check return to see if phy
 	 * was reset and then do a phy initialization.
@@ -931,7 +915,8 @@ static int macb_mii_probe(struct net_device *dev)
 
 static int macb_mdiobus_register(struct macb *bp)
 {
-	struct device_node *child, *np = bp->pdev->dev.of_node;
+	struct device_node *child, *np = bp->pdev->dev.of_node, *mdio_np, *dev_np;
+	struct platform_device *mdio_pdev = NULL;
 
 	if (of_phy_is_fixed_link(np))
 		return mdiobus_register(bp->mii_bus);
@@ -951,6 +936,29 @@ static int macb_mdiobus_register(struct macb *bp)
 			return of_mdiobus_register(bp->mii_bus, np);
 		}
 
+	/* For shared MDIO usecases find out MDIO producer platform
+	 * device node by traversing through phy-handle DT property.
+	 */
+	np = of_parse_phandle(np, "phy-handle", 0);
+	mdio_np = of_get_parent(np);
+	of_node_put(np);
+	dev_np = of_get_parent(mdio_np);
+	of_node_put(mdio_np);
+	/* Handle error where bus_find_device returns a match for NULL */
+	if (dev_np)
+		mdio_pdev = of_find_device_by_node(dev_np);
+
+	of_node_put(dev_np);
+
+	/* Check if the MDIO producer device is probed */
+	if (mdio_pdev && !dev_get_drvdata(&mdio_pdev->dev)) {
+		platform_device_put(mdio_pdev);
+		netdev_info(bp->dev, "Defer probe as mdio producer %s is not probed\n",
+			    dev_name(&mdio_pdev->dev));
+		return -EPROBE_DEFER;
+	}
+
+	platform_device_put(mdio_pdev);
 	return mdiobus_register(bp->mii_bus);
 }
 
@@ -4851,12 +4859,15 @@ static const struct of_device_id macb_dt_ids[] = {
 	{ .compatible = "atmel,sama5d4-gem", .data = &sama5d4_config },
 	{ .compatible = "cdns,at91rm9200-emac", .data = &emac_config },
 	{ .compatible = "cdns,emac", .data = &emac_config },
-	{ .compatible = "cdns,zynqmp-gem", .data = &zynqmp_config},
-	{ .compatible = "cdns,zynq-gem", .data = &zynq_config },
+	{ .compatible = "cdns,zynqmp-gem", .data = &zynqmp_config}, /* deprecated */
+	{ .compatible = "cdns,zynq-gem", .data = &zynq_config }, /* deprecated */
 	{ .compatible = "sifive,fu540-c000-gem", .data = &fu540_c000_config },
-	{ .compatible = "cdns,versal-gem", .data = &versal_config},
+	{ .compatible = "cdns,versal-gem", .data = &versal_config}, /* deprecated */
 	{ .compatible = "microchip,sama7g5-gem", .data = &sama7g5_gem_config },
 	{ .compatible = "microchip,sama7g5-emac", .data = &sama7g5_emac_config },
+	{ .compatible = "xlnx,zynqmp-gem", .data = &zynqmp_config},
+	{ .compatible = "xlnx,zynq-gem", .data = &zynq_config },
+	{ .compatible = "xlnx,versal-gem", .data = &versal_config},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, macb_dt_ids);
@@ -5147,6 +5158,7 @@ static int __maybe_unused macb_suspend(struct device *dev)
 	if (!device_may_wakeup(&bp->dev->dev)) {
 		rtnl_lock();
 		phylink_stop(bp->phylink);
+		phy_exit(bp->sgmii_phy);
 		rtnl_unlock();
 		spin_lock_irqsave(&bp->lock, flags);
 		macb_reset_hw(bp);
@@ -5213,6 +5225,9 @@ static int __maybe_unused macb_resume(struct device *dev)
 	macb_set_rx_mode(netdev);
 	macb_restore_features(bp);
 	rtnl_lock();
+	if (!device_may_wakeup(&bp->dev->dev))
+		phy_init(bp->sgmii_phy);
+
 	phylink_start(bp->phylink);
 	rtnl_unlock();
 

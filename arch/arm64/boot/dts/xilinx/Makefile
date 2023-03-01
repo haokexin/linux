@@ -19,6 +19,7 @@ dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-zcu111-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-a2197-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-dlc21-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-e-a2197-00-revA.dtb
+dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-e-a2197-00-revB.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-g-a2197-00-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-m-a2197-01-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-m-a2197-02-revA.dtb
@@ -31,10 +32,12 @@ dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-p-a2197-00-revA-x-prc-05-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-p-a2197-00-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-sc-revB.dtb
 
+zynqmp-sc-vek280-revA-dtbs := zynqmp-sc-revB.dtb zynqmp-sc-vek280-revA.dtbo
 zynqmp-sc-vhk158-revA-dtbs := zynqmp-sc-revB.dtb zynqmp-sc-vhk158-revA.dtbo
 zynqmp-sc-vpk120-revB-dtbs := zynqmp-sc-revB.dtb zynqmp-sc-vpk120-revB.dtbo
 zynqmp-sc-vpk180-revA-dtbs := zynqmp-sc-revB.dtb zynqmp-sc-vpk180-revA.dtbo
 
+dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-sc-vek280-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-sc-vhk158-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-sc-vpk120-revB.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-sc-vpk180-revA.dtb
@@ -68,6 +71,7 @@ dtb-$(CONFIG_ARCH_ZYNQMP) += zynqmp-smk-k26-revA-sck-kr-g-revB.dtb
 
 # Versal boards
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-v350-revA.dtb
+dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vek280-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vc-p-a2197-00-revA-x-prc-01-revA-ospi.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vc-p-a2197-00-revA-x-prc-01-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vc-p-a2197-00-revA-x-prc-02-revA.dtb
@@ -94,6 +98,12 @@ dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vmk180-revA-x-ebm-02-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vmk180-revA-x-ebm-03-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vmk180-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vp-x-a2785-00-revA.dtb
+dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vhk158-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vpk120-revA.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vpk120-revB.dtb
 dtb-$(CONFIG_ARCH_ZYNQMP) += versal-vpk180-revA.dtb
+
+# Versal NET platforms
+dtb-$(CONFIG_ARCH_ZYNQMP) += versal-net-emu-rev1.9.dtb
+dtb-$(CONFIG_ARCH_ZYNQMP) += versal-net-ipp-rev1.9-ospi.dtb
+dtb-$(CONFIG_ARCH_ZYNQMP) += versal-net-ipp-rev1.9.dtb

@@ -477,6 +477,8 @@ config XILINX_FLEX_PM
 	  It monitors the read and write transactions. It has counters for the LPD and
 	  FPD domains.
 
+	  This driver is deprecated and will be removed soon.
+
 	  If unsure, say N
 
 config XILINX_TRAFGEN
@@ -488,6 +490,8 @@ config XILINX_TRAFGEN
 	  configurable options which are provided through sysfs entries allow
 	  allow the user to generate a wide variety of traffic based on their
 	  their requirements.
+
+	  This driver is deprecated and will be removed soon.
 
 	  If unsure, say N
 
