@@ -829,13 +829,10 @@ static void cgx_notify_up_ptp_info(struct rvu *rvu, int pf, bool enable)
 {
 	struct cgx_ptp_rx_info_msg *msg;
 
-	mutex_lock(&rvu->mbox_lock);
-
 	/* Send mbox message to PF */
 	msg = otx2_mbox_alloc_msg_cgx_ptp_rx_info(rvu, pf);
 	if (!msg) {
 		dev_err(rvu->dev, "failed to alloc message\n");
-		mutex_unlock(&rvu->mbox_lock);
 		return;
 	}
 
@@ -844,8 +841,6 @@ static void cgx_notify_up_ptp_info(struct rvu *rvu, int pf, bool enable)
 	otx2_mbox_wait_for_zero(&rvu->afpf_wq_info.mbox_up, pf);
 
 	otx2_mbox_msg_send_up(&rvu->afpf_wq_info.mbox_up, pf);
-
-	mutex_unlock(&rvu->mbox_lock);
 }
 
 static int rvu_cgx_ptp_rx_cfg(struct rvu *rvu, u16 pcifunc, bool enable)
