@@ -1079,6 +1079,9 @@ static int cn10k_mdo_stop(struct macsec_context *ctx)
 	struct cn10k_mcs_txsc *txsc;
 	int err;
 
+	if (!cfg)
+		return 0;
+
 	txsc = cn10k_mcs_get_txsc(cfg, ctx->secy);
 	if (!txsc)
 		return -ENOENT;
@@ -1157,6 +1160,9 @@ static int cn10k_mdo_del_secy(struct macsec_context *ctx)
 	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct cn10k_mcs_txsc *txsc;
+
+	if (!cfg)
+		return 0;
 
 	txsc = cn10k_mcs_get_txsc(cfg, ctx->secy);
 	if (!txsc)
