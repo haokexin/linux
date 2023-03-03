@@ -349,6 +349,7 @@ int otx2_register_dl(struct otx2_nic *pfvf)
 		goto err_dl;
 	}
 
+	devlink_params_publish(dl);
 	devlink_register(dl);
 	return 0;
 
