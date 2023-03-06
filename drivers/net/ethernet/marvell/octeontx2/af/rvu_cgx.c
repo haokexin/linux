@@ -234,18 +234,19 @@ static void cgx_notify_pfs(struct cgx_link_event *event, struct rvu *rvu)
 	struct cgx_link_user_info *linfo;
 	struct cgx_link_info_msg *msg;
 	unsigned long pfmap;
-	int pfid, size;
+	int pfid;
 
 	linfo = &event->link_uinfo;
 	pfmap = cgxlmac_to_pfmap(rvu, event->cgx_id, event->lmac_id);
-	size  = rvu->cgx_cnt_max * rvu->hw->lmac_per_cgx;
+	if (!pfmap) {
+		dev_err(rvu->dev, "CGX port%d:%d not mapped with PF\n",
+			event->cgx_id, event->lmac_id);
+		return;
+	}
 
 	do {
-		pfid = find_first_bit(&pfmap, size);
-		if (pfid == size)
-			dev_err(rvu->dev,
-				"CGX port%d:%d not mapped with PF\n",
-				event->cgx_id, event->lmac_id);
+		pfid = find_first_bit(&pfmap,
+				      rvu->cgx_cnt_max * rvu->hw->lmac_per_cgx);
 
 		clear_bit(pfid, &pfmap);
 
