@@ -401,9 +401,9 @@ static int otx2_qos_txschq_set_parent_topology(struct otx2_nic *pfvf,
 static void otx2_qos_free_hw_node_schq(struct otx2_nic *pfvf,
 				       struct otx2_qos_node *parent)
 {
-	struct otx2_qos_node *node, *tmp;
+	struct otx2_qos_node *node;
 
-	list_for_each_entry_safe(node, tmp, &parent->child_schq_list, list)
+	list_for_each_entry_reverse(node, &parent->child_schq_list, list)
 		otx2_txschq_free_one(pfvf, node->level, node->schq);
 }
 
@@ -414,8 +414,8 @@ static void otx2_qos_free_hw_node(struct otx2_nic *pfvf,
 
 	list_for_each_entry_safe(node, tmp, &parent->child_list, list) {
 		otx2_qos_free_hw_node(pfvf, node);
-		otx2_txschq_free_one(pfvf, node->level, node->schq);
 		otx2_qos_free_hw_node_schq(pfvf, node);
+		otx2_txschq_free_one(pfvf, node->level, node->schq);
 	}
 }
 
@@ -1047,6 +1047,13 @@ static void otx2_qos_free_cfg(struct otx2_nic *pfvf, struct otx2_qos_cfg *cfg)
 	int lvl, idx, schq;
 
 	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
+		for (idx = 0; idx < cfg->schq[lvl]; idx++) {
+			schq = cfg->schq_list[lvl][idx];
+			otx2_txschq_free_one(pfvf, lvl, schq);
+		}
+	}
+
+	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
 		for (idx = 0; idx < cfg->schq_contig[lvl]; idx++) {
 			if (cfg->schq_used_index[lvl][idx]) {
 				schq = cfg->schq_contig_list[lvl][idx];
@@ -1055,12 +1062,6 @@ static void otx2_qos_free_cfg(struct otx2_nic *pfvf, struct otx2_qos_cfg *cfg)
 		}
 	}
 
-	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
-		for (idx = 0; idx < cfg->schq[lvl]; idx++) {
-			schq = cfg->schq_list[lvl][idx];
-			otx2_txschq_free_one(pfvf, lvl, schq);
-		}
-	}
 }
 
 static void otx2_qos_enadis_sq(struct otx2_nic *pfvf,
@@ -1724,6 +1725,7 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 		dwrr_del_node = true;
 
 	/* destroy the leaf node */
+	otx2_qos_disable_sq(pfvf, qid);
 	otx2_qos_destroy_node(pfvf, node);
 	pfvf->qos.qid_to_sqmap[qid] = OTX2_QOS_INVALID_SQ;
 
