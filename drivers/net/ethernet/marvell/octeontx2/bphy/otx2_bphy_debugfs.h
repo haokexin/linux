@@ -15,11 +15,15 @@
 #ifndef _OTX2_BPHY_DEBUGFS_H_
 #define _OTX2_BPHY_DEBUGFS_H_
 
+void otx2_debugfs_add_jdt_ring_file(void *priv);
+void otx2_debugfs_add_tstamp_ring_file(void *priv);
+void otx2_debugfs_add_rpm_stats_file(void *priv);
 typedef void (*otx2_bphy_debugfs_reader)(char *buffer, size_t buffer_size,
 					 void *priv);
 
 void otx2_bphy_debugfs_init(void);
 
+void *otx2_bphy_debugfs_add_dir(const char *name);
 void *otx2_bphy_debugfs_add_file(const char *name,
 				 size_t buffer_size,
 				 void *priv,

@@ -49,20 +49,16 @@ static ssize_t fwlogs_read(struct file *file, char __user *buf, size_t count, lo
 		if (*ppos >= (fwlog_hdr->fwlog_end - fwlog_hdr->fwlog_base))
 			return 0;
 
-		rdlen = fwlog_hdr->fwlog_end - fwlog_hdr->fwlog_base - *ppos;
-		if (rdlen <= 0)
-			return 0;
-
 		/* adjust the bytes left to read */
-		if ((char *)(fwlog_hdr->fwlog_ptr + *ppos) == (char *)(fwlog_hdr->fwlog_end))
-			rdbuf = fwlog_buf;
+		if (fwlog_hdr->fwlog_ptr + *ppos >= fwlog_hdr->fwlog_end)
+			rdbuf = fwlog_buf + fwlog_hdr->fwlog_ptr + *ppos - fwlog_hdr->fwlog_end;
 		else
 			rdbuf = (char *)(fwlog_buf +
 					(fwlog_hdr->fwlog_ptr - fwlog_hdr->fwlog_base) +
 					*ppos);
 
-		if ((uint64_t) (*ppos + rdlen) > (fwlog_hdr->fwlog_end - fwlog_hdr->fwlog_base))
-			rdlen = fwlog_hdr->fwlog_end - (fwlog_hdr->fwlog_ptr + *ppos);
+		rdlen = fwlog_hdr->fwlog_end - fwlog_hdr->fwlog_base -
+				max(rdbuf - fwlog_buf, *ppos);
 	}
 
 	count = min_t(size_t, count, rdlen);
@@ -178,7 +174,7 @@ static int __init fwlog_dev_init(void)
 				if (size == 0ULL)
 					size = DEFAULT_FWLOG_MEMSIZE;
 
-				fwlog_mem_size = size / 1024 / 1024;
+				fwlog_mem_size = size;
 			}
 		}
 	}

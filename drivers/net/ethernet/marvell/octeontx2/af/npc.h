@@ -10,6 +10,14 @@
 
 #define NPC_KEX_CHAN_MASK	0xFFFULL
 
+#define SET_KEX_LD(intf, lid, ltype, ld, cfg)	\
+	rvu_write64(rvu, blkaddr,	\
+		    NPC_AF_INTFX_LIDX_LTX_LDX_CFG(intf, lid, ltype, ld), cfg)
+
+#define SET_KEX_LDFLAGS(intf, ld, flags, cfg)	\
+	rvu_write64(rvu, blkaddr,	\
+		    NPC_AF_INTFX_LDATAX_FLAGSX_CFG(intf, ld, flags), cfg)
+
 enum NPC_LID_E {
 	NPC_LID_LA = 0,
 	NPC_LID_LB,
@@ -81,8 +89,7 @@ enum npc_kpu_lc_ltype {
 enum npc_kpu_ld_ltype {
 	NPC_LT_LD_TCP = 1,
 	NPC_LT_LD_UDP,
-	NPC_LT_LD_ICMP,
-	NPC_LT_LD_SCTP,
+	NPC_LT_LD_SCTP = 4,
 	NPC_LT_LD_ICMP6,
 	NPC_LT_LD_CUSTOM0,
 	NPC_LT_LD_CUSTOM1,
@@ -93,6 +100,7 @@ enum npc_kpu_ld_ltype {
 	NPC_LT_LD_NSH,
 	NPC_LT_LD_TU_MPLS_IN_NSH,
 	NPC_LT_LD_TU_MPLS_IN_IP,
+	NPC_LT_LD_ICMP,
 };
 
 enum npc_kpu_le_ltype {
@@ -136,14 +144,14 @@ enum npc_kpu_lg_ltype {
 enum npc_kpu_lh_ltype {
 	NPC_LT_LH_TU_TCP = 1,
 	NPC_LT_LH_TU_UDP,
-	NPC_LT_LH_TU_ICMP,
-	NPC_LT_LH_TU_SCTP,
+	NPC_LT_LH_TU_SCTP = 4,
 	NPC_LT_LH_TU_ICMP6,
+	NPC_LT_LH_CUSTOM0,
+	NPC_LT_LH_CUSTOM1,
 	NPC_LT_LH_TU_IGMP = 8,
 	NPC_LT_LH_TU_ESP,
 	NPC_LT_LH_TU_AH,
-	NPC_LT_LH_CUSTOM0 = 0xE,
-	NPC_LT_LH_CUSTOM1 = 0xF,
+	NPC_LT_LH_TU_ICMP = 0xF,
 };
 
 /* NPC port kind defines how the incoming or outgoing packets
@@ -185,8 +193,10 @@ enum key_fields {
 	NPC_VLAN_ETYPE_STAG, /* 0x88A8 */
 	NPC_OUTER_VID,
 	NPC_TOS,
+	NPC_IPFRAG_IPV4,
 	NPC_SIP_IPV4,
 	NPC_DIP_IPV4,
+	NPC_IPFRAG_IPV6,
 	NPC_SIP_IPV6,
 	NPC_DIP_IPV6,
 	NPC_IPPROTO_TCP,
@@ -209,6 +219,7 @@ enum key_fields {
 	NPC_ERRLEV,
 	NPC_ERRCODE,
 	NPC_LXMB,
+	NPC_EXACT_RESULT,
 	NPC_LA,
 	NPC_LB,
 	NPC_LC,
@@ -388,6 +399,22 @@ struct nix_rx_action {
 	u64	rsvd_63_61	:3;
 #endif
 };
+
+/* NPC_AF_INTFX_KEX_CFG field masks */
+#define NPC_EXACT_NIBBLE_START		40
+#define NPC_EXACT_NIBBLE_END		43
+#define NPC_EXACT_NIBBLE		GENMASK_ULL(43, 40)
+
+/* NPC_EXACT_KEX_S nibble definitions for each field */
+#define NPC_EXACT_NIBBLE_HIT		BIT_ULL(40)
+#define NPC_EXACT_NIBBLE_OPC		BIT_ULL(40)
+#define NPC_EXACT_NIBBLE_WAY		BIT_ULL(40)
+#define NPC_EXACT_NIBBLE_INDEX		GENMASK_ULL(43, 41)
+
+#define NPC_EXACT_RESULT_HIT		BIT_ULL(0)
+#define NPC_EXACT_RESULT_OPC		GENMASK_ULL(2, 1)
+#define NPC_EXACT_RESULT_WAY		GENMASK_ULL(4, 3)
+#define NPC_EXACT_RESULT_IDX		GENMASK_ULL(15, 5)
 
 /* NPC_AF_INTFX_KEX_CFG field masks */
 #define NPC_PARSE_NIBBLE		GENMASK_ULL(30, 0)
