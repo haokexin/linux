@@ -31,6 +31,8 @@
 #define CNF10K_RFOE_RX_INTR_MASK(a)		(RFOE_RX_INTR_EN << \
 						 CNF10K_RFOE_RX_INTR_SHIFT(a))
 #define CNF10K_RFOE_TX_PTP_INTR_MASK(a, b, n)	(1UL << ((a) * (n) + (b)))
+#define CNF10K_RFOEX_RX_CFG(a)			(0x808 + ((a) << 24))
+#define FORCE_COND_CLK_EN			BIT(0)
 
 #define CNF10K_RFOE_MAX_INTF			14
 
@@ -50,10 +52,26 @@
 #define CNF10K_BCN_CFG2					0x2F00U
 
 /* BCN_CAPTURE_CFG register definitions */
-#define CAPT_EN					BIT(0)
-#define CAPT_TRIG_SW				(3UL << 8)
+#define CAPT_EN						BIT(0)
+#define CAPT_TRIG_SW					(3UL << 8)
+
+/* CNF10KB MIO PTP registers */
+#define MIO_PTP_FRNS_TIMESTAMP				0xE0U
+#define MIO_PTP_NXT_ROLLOVER_SET			0xE8U
+#define MIO_PTP_CURR_ROLLOVER_SET			0xF0U
+#define MIO_PTP_NANO_TIMESTAMP				0xF8U
+#define MIO_PTP_SEC_TIMESTAMP				0x100U
 
 #define BPHY_NDEV_TX_1S_PTP_EN_FLAG			BIT(0)
+#define DELAY_REQUEST_MSG_ID				0x1
+
+#define MIO_PTP_CFG_TSTMP_SET_MASK			GENMASK_ULL(28, 26)
+/* PTP atomic update enum */
+enum atomic_opcode {
+	ATOMIC_SET = 1,
+	ATOMIC_INC = 3,
+	ATOMIC_DEC = 4
+};
 
 /* global driver context */
 struct cnf10k_rfoe_drv_ctx {
@@ -62,6 +80,7 @@ struct cnf10k_rfoe_drv_ctx {
 	u8				valid;
 	struct net_device               *netdev;
 	struct cnf10k_rx_ft_cfg		*ft_cfg;
+	struct dentry			*root;
 	void				*debugfs;
 };
 
@@ -159,11 +178,13 @@ struct cnf10k_rfoe_ndev_priv {
 	struct ptp_pin_desc		extts_config;
 	struct cyclecounter		cycle_counter;
 	struct timecounter		time_counter;
+	bool				use_sw_timecounter;
 	/* ptp lock */
 	struct mutex			ptp_lock;
 	u8				mac_addr[ETH_ALEN];
 	struct ptp_bcn_off_cfg		*ptp_cfg;
 	s32				sec_bcn_offset;
+	s32				sec_bcn_offset_slave;
 	u8				link_state;
 	unsigned long			last_tx_ptp_jiffies;
 	unsigned long			last_rx_ptp_jiffies;

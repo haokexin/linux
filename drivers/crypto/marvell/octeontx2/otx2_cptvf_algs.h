@@ -9,11 +9,15 @@
 #include <crypto/skcipher.h>
 #include <crypto/aead.h>
 #include "otx2_cpt_common.h"
+#include "cn10k_cpt.h"
 
 #define OTX2_CPT_MAX_ENC_KEY_SIZE    32
 #define OTX2_CPT_MAX_HASH_KEY_SIZE   64
 #define OTX2_CPT_MAX_KEY_SIZE (OTX2_CPT_MAX_ENC_KEY_SIZE + \
 			       OTX2_CPT_MAX_HASH_KEY_SIZE)
+#define DMA_MODE_FLAG(dma_mode) \
+	(((dma_mode) == OTX2_CPT_DMA_MODE_SG) ? (1 << 7) : 0)
+
 enum otx2_cpt_request_type {
 	OTX2_CPT_ENC_DEC_REQ            = 0x1,
 	OTX2_CPT_AEAD_ENC_DEC_REQ       = 0x2,
@@ -25,6 +29,8 @@ enum otx2_cpt_major_opcodes {
 	OTX2_CPT_MAJOR_OP_MISC = 0x01,
 	OTX2_CPT_MAJOR_OP_FC   = 0x33,
 	OTX2_CPT_MAJOR_OP_HMAC = 0x35,
+	OTX2_CPT_MAJOR_OP_MOD_EXP = 0x03,
+	OTX2_CPT_MAJOR_OP_ECC = 0x05,
 };
 
 enum otx2_cpt_cipher_type {
@@ -123,6 +129,8 @@ struct otx2_cpt_enc_ctx {
 	u8 key_type;
 	u8 enc_align_len;
 	struct crypto_skcipher *fbk_cipher;
+	struct pci_dev *pdev;
+	struct cn10k_cpt_errata_ctx er_ctx;
 };
 
 union otx2_cpt_offset_ctrl {
@@ -161,6 +169,8 @@ struct otx2_cpt_aead_ctx {
 	struct crypto_shash *hashalg;
 	struct otx2_cpt_sdesc *sdesc;
 	struct crypto_aead *fbk_cipher;
+	struct cn10k_cpt_errata_ctx er_ctx;
+	struct pci_dev *pdev;
 	u8 *ipad;
 	u8 *opad;
 	u32 enc_key_len;
@@ -170,9 +180,14 @@ struct otx2_cpt_aead_ctx {
 	u8 key_type;
 	u8 is_trunc_hmac;
 	u8 enc_align_len;
+	bool is_rfc4106_gcm;
 };
 int otx2_cpt_crypto_init(struct pci_dev *pdev, struct module *mod,
 			 int num_queues, int num_devices);
 void otx2_cpt_crypto_exit(struct pci_dev *pdev, struct module *mod);
-
+int otx2_cpt_register_hmac_hash_algs(void);
+void otx2_cpt_unregister_hmac_hash_algs(void);
+int otx2_cpt_register_asym_algs(void);
+void otx2_cpt_unregister_asym_algs(void);
+int otx2_cpt_dev_get(struct pci_dev **pdev, int *cpu_num);
 #endif /* __OTX2_CPT_ALGS_H */

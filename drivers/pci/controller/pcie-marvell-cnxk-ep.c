@@ -17,6 +17,7 @@
 #include <linux/uaccess.h>
 #include <linux/slab.h>
 #include <linux/uio_driver.h>
+#include <linux/miscdevice.h>
 
 #define PEM_EP_DRV_NAME		"octeontx2-pem-ep"
 
@@ -37,22 +38,31 @@
 #define PEM_BAR4_INDEX_CA		BIT_ULL(3)
 #define PEM_BAR4_INDEX_ADDR_IDX(x)	((x) << 4)
 
+#define PEM_BAR4_NUM_INDEX	8
 #define PEM_BAR4_INDEX_START	8
-#define PEM_BAR4_INDEX_END	16
-#define PEM_BAR4_INDEX_SIZE	(4 * 1024 * 1024)
-#define PEM_BAR4_INDEX_MEM	(64 * 1024 * 1024)
+#define PEM_BAR4_INDEX_END	13
+#define PEM_BAR4_INDEX_SIZE	0x400000ULL
+#define PEM_BAR4_INDEX_SHIFT	22
+#define PEM_BAR4_INDEX_MEM	((PEM_BAR4_INDEX_END - PEM_BAR4_INDEX_START + 1) \
+				 * PEM_BAR4_INDEX_SIZE)
+#define PEM_BAR4_INDEX_START_OFFSET (PEM_BAR4_INDEX_START * PEM_BAR4_INDEX_SIZE)
+#define PEM_BAR4_INDEX_END_OFFSET (((PEM_BAR4_INDEX_END + 1) * \
+				    PEM_BAR4_INDEX_SIZE) - 1)
 
 /* Some indexes have specific non-memory uses */
 #define PEM_BAR4_INDEX_PTP	14
 #define MIO_PTP_BASE_ADDR	0x807000000f00
+
+#define PEM_BAR4_INDEX_RSVD1	15
 
 #define	UIO_PERST_VERSION	"0.1"
 
 struct mv_pem_ep {
 	struct device	*dev;
 	void __iomem	*base;
-	void		*va;
+	void		*va[PEM_BAR4_NUM_INDEX];
 	struct uio_info	uio_rst_int_perst;
+	struct miscdevice mdev;
 };
 
 static u64 pem_ep_reg_read(struct mv_pem_ep *pem_ep, u64 offset)
@@ -131,25 +141,36 @@ err_exit:
 
 static int pem_ep_bar_setup(struct mv_pem_ep *pem_ep)
 {
+	unsigned long order, page;
 	phys_addr_t pa;
-	int idx;
 	uint64_t val;
+	int idx, i;
 
-	pem_ep->va = devm_kzalloc(pem_ep->dev, PEM_BAR4_INDEX_MEM, GFP_KERNEL);
-	if (!pem_ep->va)
-		return -ENOMEM;
+	order = get_order(PEM_BAR4_INDEX_SIZE);
 
-	pa = virt_to_phys(pem_ep->va);
-	for (idx = PEM_BAR4_INDEX_START; idx < PEM_BAR4_INDEX_END; idx++) {
-		phys_addr_t addr;
+	for (idx = PEM_BAR4_INDEX_START; idx < PEM_BAR4_INDEX_END + 1; idx++) {
 		int i;
 
 		/* Each index in BAR4 points to a 4MB region */
 		i = idx - PEM_BAR4_INDEX_START;
-		addr = pa + (i * PEM_BAR4_INDEX_SIZE);
+
+		page = __get_free_pages(GFP_KERNEL, order);
+		memset((char *)page, 0, PAGE_SIZE << order);
+		pem_ep->va[i] = (void *)page;
+		if (!pem_ep->va[i]) {
+			dev_err(pem_ep->dev, "cannot allocate bar mem\n");
+			goto err;
+		}
+
+		pa = virt_to_phys(pem_ep->va[i]);
+		if (pa & (PEM_BAR4_INDEX_SIZE - 1)) {
+			dev_err(pem_ep->dev, "paddr not aligned pa:0x%llx\n",
+				pa);
+			goto err;
+		}
 
 		/* IOVA 52:22 is used by hardware */
-		val = PEM_BAR4_INDEX_ADDR_IDX(addr >> 22);
+		val = PEM_BAR4_INDEX_ADDR_IDX(pa >> 22);
 		val |= PEM_BAR4_INDEX_ADDR_V;
 		pem_ep_reg_write(pem_ep, PEM_BAR4_INDEX(idx), val);
 	}
@@ -165,6 +186,182 @@ static int pem_ep_bar_setup(struct mv_pem_ep *pem_ep)
 	pem_ep_reg_write(pem_ep, PEM_DIS_PORT, 1);
 
 	return 0;
+err:
+	for (i = 0; i < PEM_BAR4_NUM_INDEX; i++) {
+		if (pem_ep->va[i])
+			free_pages((unsigned long)pem_ep->va[i],
+				   get_order(PEM_BAR4_INDEX_SIZE));
+		pem_ep->va[i] = NULL;
+	}
+	return -ENOMEM;
+}
+
+static loff_t
+memdev_llseek(struct file *file, loff_t offset, int whence)
+{
+	loff_t npos;
+
+	switch (whence) {
+	case SEEK_SET:
+		npos = offset;
+		break;
+	case SEEK_CUR:
+		npos = file->f_pos + offset;
+		break;
+	case SEEK_END:
+		npos = PEM_BAR4_INDEX_END_OFFSET + offset;
+		break;
+	default:
+		return -EINVAL;
+	}
+	if (npos <  0 || npos > PEM_BAR4_INDEX_END_OFFSET)
+		return -EINVAL;
+	file->f_pos = npos;
+	return npos;
+}
+
+static ssize_t
+memdev_write(struct file *file, const char *buf, size_t count, loff_t *poff)
+{
+	struct mv_pem_ep *pem_ep;
+	struct miscdevice *mdev;
+	struct device *dev;
+	ssize_t written;
+	u64 offset;
+	void *va;
+	int idx;
+
+	mdev = file->private_data;
+	pem_ep = dev_get_drvdata(mdev->parent);
+	dev = pem_ep->dev;
+
+	offset = *poff;
+
+	/* make sure the write is inside the bounds */
+	if (offset < PEM_BAR4_INDEX_START_OFFSET ||
+	    (offset + count) > (PEM_BAR4_INDEX_END_OFFSET)) {
+		dev_err(dev, "write not in bounds offset %llu count %lu\n",
+			offset, count);
+		return -EINVAL;
+	}
+
+	/* make sure write does not span across indices */
+	if (offset >> PEM_BAR4_INDEX_SHIFT !=
+	    (offset + count - 1) >> PEM_BAR4_INDEX_SHIFT) {
+		dev_err(dev, "write spans indices offset %llu count %lu\n",
+			offset, count);
+		return -EINVAL;
+	}
+
+	offset -= PEM_BAR4_INDEX_START_OFFSET;
+	idx = offset / PEM_BAR4_INDEX_SIZE;
+	offset %= PEM_BAR4_INDEX_SIZE;
+	va = pem_ep->va[idx];
+	if (!va) {
+		dev_err(dev, "write error invalid idx %d offset %llu\n", idx,
+			offset);
+		return -EFAULT;
+	}
+	va += offset;
+
+	if (copy_from_user(va, buf, count)) {
+		dev_err(dev, "copy_from_user error\n");
+		return -EFAULT;
+	}
+	written = count;
+	*poff += written;
+	return written;
+}
+
+static ssize_t
+memdev_read(struct file *file, char *buf, size_t count, loff_t *poff)
+{
+	struct mv_pem_ep *pem_ep;
+	struct miscdevice *mdev;
+	struct device *dev;
+	ssize_t read;
+	u64 offset;
+	void *va;
+	int idx;
+
+	mdev = file->private_data;
+	pem_ep = dev_get_drvdata(mdev->parent);
+	dev = pem_ep->dev;
+
+	offset = *poff;
+	/* make sure the read is inside the bounds */
+	if (offset < PEM_BAR4_INDEX_START_OFFSET ||
+	    (offset + count) > (PEM_BAR4_INDEX_END_OFFSET)) {
+		dev_err(dev, "read not in bounds offset %llu count %lu\n",
+			offset, count);
+		return -EINVAL;
+	}
+
+	/* make sure read does not span across indices */
+	if (offset >> PEM_BAR4_INDEX_SHIFT !=
+	    (offset + count - 1) >> PEM_BAR4_INDEX_SHIFT) {
+		dev_err(dev, "read spans indices offset %llu count %lu\n",
+			offset, count);
+		return -EINVAL;
+	}
+
+	offset -= PEM_BAR4_INDEX_START_OFFSET;
+	idx = offset / PEM_BAR4_INDEX_SIZE;
+	offset %= PEM_BAR4_INDEX_SIZE;
+	va = pem_ep->va[idx];
+	if (!va) {
+		dev_err(dev, "write error invalid idx %d offset %llu\n", idx,
+			offset);
+		return -EFAULT;
+	}
+	va += offset;
+
+	if (copy_to_user(buf, va, count)) {
+		dev_err(dev, "copy_to_user error\n");
+		return -EFAULT;
+	}
+	read = count;
+	*poff += read;
+	return read;
+}
+
+static int
+memdev_open(struct inode *inode, struct file *filp)
+{
+	if (!capable(CAP_SYS_RAWIO))
+		return -EPERM;
+
+	return 0;
+}
+
+static int
+memdev_release(struct inode *inode, struct file *filp)
+{
+	return 0;
+}
+
+static const struct file_operations memdev_fops = {
+	.owner   = THIS_MODULE,
+	.llseek  = memdev_llseek,
+	.read    = memdev_read,
+	.write   = memdev_write,
+	.open    = memdev_open,
+	.release = memdev_release,
+};
+
+static int
+mem_file_setup(struct mv_pem_ep *pem_ep)
+{
+	struct miscdevice *mdev;
+	int ret;
+
+	mdev = &pem_ep->mdev;
+	mdev->minor = MISC_DYNAMIC_MINOR;
+	mdev->name = "pem_ep_bar4_mem";
+	mdev->fops = &memdev_fops;
+	mdev->parent = pem_ep->dev;
+	ret = misc_register(mdev);
+	return ret;
 }
 
 static int pem_ep_probe(struct platform_device *pdev)
@@ -172,7 +369,7 @@ static int pem_ep_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct mv_pem_ep *pem_ep;
 	struct resource *res;
-	int ret = 0;
+	int i, ret = 0;
 
 	pem_ep = devm_kzalloc(dev, sizeof(*pem_ep), GFP_KERNEL);
 	if (!pem_ep)
@@ -190,21 +387,33 @@ static int pem_ep_probe(struct platform_device *pdev)
 
 	ret = pem_ep_bar_setup(pem_ep);
 	if (ret < 0) {
-		dev_err(dev, "Error setting up EP BAR\n");
+		dev_err(dev, "Error setting up EP BAR ret=%d\n", ret);
 		goto err_exit;
+	}
+
+	ret = mem_file_setup(pem_ep);
+	if (ret < 0) {
+		dev_err(dev, "Error setting up mem access file ret=%d\n", ret);
+		goto err_bar_setup;
 	}
 
 	/* register the PERST interrupt UIO device */
 	ret = register_perst_uio_dev(pdev, pem_ep);
 	if (ret < 0) {
 		dev_err(dev, "Error registering UIO PERST device\n");
-		goto err_exit;
+		goto err_mem_file_setup;
 	}
-
 	return 0;
 
+err_mem_file_setup:
+	misc_deregister(&pem_ep->mdev);
+err_bar_setup:
+	for (i = 0; i < PEM_BAR4_NUM_INDEX; i++) {
+		if (pem_ep->va[i])
+			free_pages((unsigned long)pem_ep->va[i],
+				   get_order(PEM_BAR4_INDEX_SIZE));
+	}
 err_exit:
-	devm_kfree(pem_ep->dev, pem_ep->va);
 	devm_kfree(dev, pem_ep);
 	return ret;
 }
@@ -213,10 +422,17 @@ static int pem_ep_remove(struct platform_device *pdev)
 {
 	struct mv_pem_ep *pem_ep = platform_get_drvdata(pdev);
 	struct device *dev = &pdev->dev;
+	int i;
 
 	pr_info("Removing %s driver\n", PEM_EP_DRV_NAME);
 
-	devm_kfree(pem_ep->dev, pem_ep->va);
+	misc_deregister(&pem_ep->mdev);
+	for (i = 0; i < PEM_BAR4_NUM_INDEX; i++) {
+		if (pem_ep->va[i])
+			free_pages((unsigned long)pem_ep->va[i],
+				   get_order(PEM_BAR4_INDEX_SIZE));
+	}
+
 	uio_unregister_device(&pem_ep->uio_rst_int_perst);
 	devm_kfree(dev, pem_ep);
 

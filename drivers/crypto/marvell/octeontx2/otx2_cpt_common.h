@@ -51,6 +51,8 @@ struct otx2_cpt_rx_inline_lf_cfg {
 	u16 param2;
 	u16 opcode;
 	u32 credit;
+	u32 credit_th;
+	u16 bpid;
 	u32 reserved;
 };
 
@@ -144,6 +146,16 @@ static inline bool is_dev_otx2(struct pci_dev *pdev)
 {
 	if (pdev->device == OTX2_CPT_PCI_PF_DEVICE_ID ||
 	    pdev->device == OTX2_CPT_PCI_VF_DEVICE_ID)
+		return true;
+
+	return false;
+}
+
+static inline bool is_dev_cn10ka(struct pci_dev *pdev)
+{
+	if ((pdev->device == CN10K_CPT_PCI_PF_DEVICE_ID ||
+	    pdev->device == CN10K_CPT_PCI_VF_DEVICE_ID) &&
+	    pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A)
 		return true;
 
 	return false;

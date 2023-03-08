@@ -839,6 +839,15 @@ static void otx2_handle_link_event(struct otx2_nic *pf)
 	}
 }
 
+int otx2_mbox_up_handler_mcs_intr_notify(struct otx2_nic *pf,
+					 struct mcs_intr_info *event,
+					 struct msg_rsp *rsp)
+{
+	cn10k_handle_mcs_event(pf, event);
+
+	return 0;
+}
+
 int otx2_mbox_up_handler_cgx_link_event(struct otx2_nic *pf,
 					struct cgx_link_info_msg *msg,
 					struct msg_rsp *rsp)
@@ -922,6 +931,7 @@ static int otx2_process_mbox_msg_up(struct otx2_nic *pf,
 		return err;						\
 	}
 MBOX_UP_CGX_MESSAGES
+MBOX_UP_MCS_MESSAGES
 #undef M
 		break;
 	default:
@@ -1168,7 +1178,7 @@ static int otx2_cgx_config_loopback(struct otx2_nic *pf, bool enable)
 	struct msg_req *msg;
 	int err;
 
-	if (enable && bitmap_weight(&pf->flow_cfg->dmacflt_bmap,
+	if (enable && !bitmap_empty(pf->flow_cfg->dmacflt_bmap,
 				    pf->flow_cfg->dmacflt_max_flows))
 		netdev_warn(pf->netdev,
 			    "CGX/RPM internal loopback might not work as DMAC filters are active\n");
@@ -1500,8 +1510,9 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 	if (err)
 		goto err_free_npa_lf;
 
-	/* Enable backpressure */
-	otx2_nix_config_bp(pf, true);
+	/* Enable backpressure for CGX mapped PF/VFs */
+	if (!is_otx2_lbkvf(pf->pdev))
+		otx2_nix_config_bp(pf, true);
 
 	/* Init Auras and pools used by NIX RQ, for free buffer ptrs */
 	err = otx2_rq_aura_pool_init(pf);
@@ -2998,6 +3009,10 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_ptp_destroy;
 
+	err = cn10k_mcs_init(pf);
+	if (err)
+		goto err_del_mcam_entries;
+
 	if (pf->flags & OTX2_FLAG_NTUPLE_SUPPORT)
 		netdev->hw_features |= NETIF_F_NTUPLE;
 
@@ -3031,7 +3046,7 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	err = register_netdev(netdev);
 	if (err) {
 		dev_err(dev, "Failed to register netdevice\n");
-		goto err_del_mcam_entries;
+		goto err_mcs_free;
 	}
 
 	err = otx2_wq_init(pf);
@@ -3075,6 +3090,8 @@ err_mcam_flow_del:
 	otx2_mcam_flow_del(pf);
 err_unreg_netdev:
 	unregister_netdev(netdev);
+err_mcs_free:
+	cn10k_mcs_free(pf);
 err_del_mcam_entries:
 	otx2_mcam_flow_del(pf);
 err_ptp_destroy:
@@ -3246,6 +3263,8 @@ static void otx2_remove(struct pci_dev *pdev)
 		pf->flags &= ~OTX2_FLAG_TX_PAUSE_ENABLED;
 		otx2_config_pause_frm(pf);
 	}
+
+	cn10k_mcs_free(pf);
 
 #ifdef CONFIG_DCB
 	/* Disable PFC config */

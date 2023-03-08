@@ -101,15 +101,25 @@ static int process_request(struct pci_dev *pdev, struct otx2_cpt_req_info *req,
 	if (unlikely(!otx2_cptlf_started(lf->lfs)))
 		return -ENODEV;
 
-	info = lf->lfs->ops->cpt_sg_info_create(pdev, req, gfp);
-	if (unlikely(!info)) {
-		dev_err(&pdev->dev, "Setting up cpt inst info failed");
-		return -ENOMEM;
-	}
-	cpt_req->dlen = info->dlen;
+	if (ctrl->s.dma_mode == OTX2_CPT_DMA_MODE_SG) {
+		info = lf->lfs->ops->cpt_sg_info_create(pdev, req, gfp);
+		if (unlikely(!info)) {
+			dev_err(&pdev->dev, "Setting up cpt inst info failed");
+			return -ENOMEM;
+		}
+		cpt_req->dlen = info->dlen;
 
-	result = info->completion_addr;
-	result->s.compcode = OTX2_CPT_COMPLETION_CODE_INIT;
+		result = info->completion_addr;
+		result->s.compcode = OTX2_CPT_COMPLETION_CODE_INIT;
+	} else {
+		info = otx2_cpt_info_create(pdev, req, gfp);
+		if (unlikely(!info)) {
+			dev_err(&pdev->dev, "Setting up cpt inst info failed");
+			return -ENOMEM;
+		}
+		result = info->completion_addr;
+		result->s.compcode = OTX2_CPT_COMPLETION_CODE_INIT;
+	}
 
 	spin_lock_bh(&pqueue->lock);
 	pentry = get_free_pending_entry(pqueue, pqueue->qlen);
@@ -159,14 +169,16 @@ static int process_request(struct pci_dev *pdev, struct otx2_cpt_req_info *req,
 	cpu_to_be64s(&iq_cmd.cmd.u);
 	iq_cmd.dptr = info->dptr_baddr | info->gthr_sz << 60;
 	iq_cmd.rptr = info->rptr_baddr | info->sctr_sz << 60;
-	iq_cmd.cptr.u = 0;
+	iq_cmd.cptr.s.cptr = cpt_req->cptr_dma;
 	iq_cmd.cptr.s.grp = ctrl->s.grp;
 
 	/* Fill in the CPT_INST_S type command for HW interpretation */
 	otx2_cpt_fill_inst(&cptinst, &iq_cmd, info->comp_baddr);
 
 	/* Print debug info if enabled */
-	otx2_cpt_dump_sg_list(pdev, req);
+	if (ctrl->s.dma_mode == OTX2_CPT_DMA_MODE_SG)
+		otx2_cpt_dump_sg_list(pdev, req);
+
 	pr_debug("Cpt_inst_s hexdump (%d bytes)\n", OTX2_CPT_INST_SIZE);
 	print_hex_dump_debug("", 0, 16, 1, &cptinst, OTX2_CPT_INST_SIZE, false);
 	pr_debug("Dptr hexdump (%d bytes)\n", cpt_req->dlen);

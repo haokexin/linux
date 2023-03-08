@@ -10,6 +10,8 @@
 #include "rvu_reg.h"
 #include "rvu.h"
 #include "npc.h"
+#include "rvu_npc_fs.h"
+#include "rvu_npc_hash.h"
 
 #define NPC_BYTESM		GENMASK_ULL(19, 16)
 #define NPC_HDR_OFFSET		GENMASK_ULL(15, 8)
@@ -24,8 +26,10 @@ static const char * const npc_flow_names[] = {
 	[NPC_VLAN_ETYPE_STAG] = "vlan ether type stag",
 	[NPC_OUTER_VID]	= "outer vlan id",
 	[NPC_TOS]	= "tos",
+	[NPC_IPFRAG_IPV4] = "fragmented IPv4 header ",
 	[NPC_SIP_IPV4]	= "ipv4 source ip",
 	[NPC_DIP_IPV4]	= "ipv4 destination ip",
+	[NPC_IPFRAG_IPV6] = "fragmented IPv6 header ",
 	[NPC_SIP_IPV6]	= "ipv6 source ip",
 	[NPC_DIP_IPV6]	= "ipv6 destination ip",
 	[NPC_IPPROTO_TCP] = "ip proto tcp",
@@ -45,6 +49,19 @@ static const char * const npc_flow_names[] = {
 	[NPC_LXMB]	= "Mcast/Bcast header ",
 	[NPC_UNKNOWN]	= "unknown",
 };
+
+bool npc_is_feature_supported(struct rvu *rvu, u64 features, u8 intf)
+{
+	struct npc_mcam *mcam = &rvu->hw->mcam;
+	u64 mcam_features;
+	u64 unsupported;
+
+	mcam_features = is_npc_intf_tx(intf) ? mcam->tx_features : mcam->rx_features;
+	unsupported = (mcam_features ^ features) & ~mcam_features;
+
+	/* Return false if at least one of the input flows is not extracted */
+	return !unsupported;
+}
 
 const char *npc_get_field_name(u8 hdr)
 {
@@ -229,6 +246,25 @@ static bool npc_check_field(struct rvu *rvu, int blkaddr, enum key_fields type,
 	return true;
 }
 
+static void npc_scan_exact_result(struct npc_mcam *mcam, u8 bit_number,
+				  u8 key_nibble, u8 intf)
+{
+	u8 offset = (key_nibble * 4) % 64; /* offset within key word */
+	u8 kwi = (key_nibble * 4) / 64; /* which word in key */
+	u8 nr_bits = 4; /* bits in a nibble */
+	u8 type;
+
+	switch (bit_number) {
+	case 40 ... 43:
+		type = NPC_EXACT_RESULT;
+		break;
+
+	default:
+		return;
+	}
+	npc_set_kw_masks(mcam, type, nr_bits, kwi, offset, intf);
+}
+
 static void npc_scan_parse_result(struct npc_mcam *mcam, u8 bit_number,
 				  u8 key_nibble, u8 intf)
 {
@@ -278,6 +314,7 @@ static void npc_scan_parse_result(struct npc_mcam *mcam, u8 bit_number,
 	default:
 		return;
 	}
+
 	npc_set_kw_masks(mcam, type, nr_bits, kwi, offset, intf);
 }
 
@@ -450,8 +487,10 @@ do {									       \
 	 * Example: Source IP is 4 bytes and starts at 12th byte of IP header
 	 */
 	NPC_SCAN_HDR(NPC_TOS, NPC_LID_LC, NPC_LT_LC_IP, 1, 1);
+	NPC_SCAN_HDR(NPC_IPFRAG_IPV4, NPC_LID_LC, NPC_LT_LC_IP, 6, 1);
 	NPC_SCAN_HDR(NPC_SIP_IPV4, NPC_LID_LC, NPC_LT_LC_IP, 12, 4);
 	NPC_SCAN_HDR(NPC_DIP_IPV4, NPC_LID_LC, NPC_LT_LC_IP, 16, 4);
+	NPC_SCAN_HDR(NPC_IPFRAG_IPV6, NPC_LID_LC, NPC_LT_LC_IP6_EXT, 6, 1);
 	NPC_SCAN_HDR(NPC_SIP_IPV6, NPC_LID_LC, NPC_LT_LC_IP6, 8, 16);
 	NPC_SCAN_HDR(NPC_DIP_IPV6, NPC_LID_LC, NPC_LT_LC_IP6, 24, 16);
 	NPC_SCAN_HDR(NPC_SPORT_UDP, NPC_LID_LD, NPC_LT_LD_UDP, 0, 2);
@@ -539,8 +578,8 @@ static int npc_scan_kex(struct rvu *rvu, int blkaddr, u8 intf)
 {
 	struct npc_mcam *mcam = &rvu->hw->mcam;
 	u8 lid, lt, ld, bitnr;
+	u64 cfg, masked_cfg;
 	u8 key_nibble = 0;
-	u64 cfg;
 
 	/* Scan and note how parse result is going to be in key.
 	 * A bit set in PARSE_NIBBLE_ENA corresponds to a nibble from
@@ -548,9 +587,21 @@ static int npc_scan_kex(struct rvu *rvu, int blkaddr, u8 intf)
 	 * will be concatenated in key.
 	 */
 	cfg = rvu_read64(rvu, blkaddr, NPC_AF_INTFX_KEX_CFG(intf));
-	cfg &= NPC_PARSE_NIBBLE;
-	for_each_set_bit(bitnr, (unsigned long *)&cfg, 31) {
+	masked_cfg = cfg & NPC_PARSE_NIBBLE;
+	for_each_set_bit(bitnr, (unsigned long *)&masked_cfg, 31) {
 		npc_scan_parse_result(mcam, bitnr, key_nibble, intf);
+		key_nibble++;
+	}
+
+	/* Ignore exact match bits for mcam entries except the first rule
+	 * which is drop on hit. This first rule is configured explitcitly by
+	 * exact match code.
+	 */
+	masked_cfg = cfg & NPC_EXACT_NIBBLE;
+	bitnr = NPC_EXACT_NIBBLE_START;
+	for_each_set_bit_from(bitnr, (unsigned long *)&masked_cfg,
+			      NPC_EXACT_NIBBLE_START) {
+		npc_scan_exact_result(mcam, bitnr, key_nibble, intf);
 		key_nibble++;
 	}
 
@@ -624,9 +675,9 @@ static int npc_check_unsupported_flows(struct rvu *rvu, u64 features, u8 intf)
 
 	unsupported = (*mcam_features ^ features) & ~(*mcam_features);
 	if (unsupported) {
-		dev_info(rvu->dev, "Unsupported flow(s):\n");
+		dev_warn(rvu->dev, "Unsupported flow(s):\n");
 		for_each_set_bit(bit, (unsigned long *)&unsupported, 64)
-			dev_info(rvu->dev, "%s ", npc_get_field_name(bit));
+			dev_warn(rvu->dev, "%s ", npc_get_field_name(bit));
 		return -EOPNOTSUPP;
 	}
 
@@ -644,9 +695,9 @@ static int npc_check_unsupported_flows(struct rvu *rvu, u64 features, u8 intf)
  * If any bits in mask are 0 then corresponding bits in value are
  * dont care.
  */
-static void npc_update_entry(struct rvu *rvu, enum key_fields type,
-			     struct mcam_entry *entry, u64 val_lo,
-			     u64 val_hi, u64 mask_lo, u64 mask_hi, u8 intf)
+void npc_update_entry(struct rvu *rvu, enum key_fields type,
+		      struct mcam_entry *entry, u64 val_lo,
+		      u64 val_hi, u64 mask_lo, u64 mask_hi, u8 intf)
 {
 	struct npc_mcam *mcam = &rvu->hw->mcam;
 	struct mcam_entry dummy = { {0} };
@@ -725,8 +776,6 @@ static void npc_update_entry(struct rvu *rvu, enum key_fields type,
 	}
 }
 
-#define IPV6_WORDS     4
-
 static void npc_update_ipv6_flow(struct rvu *rvu, struct mcam_entry *entry,
 				 u64 features, struct flow_msg *pkt,
 				 struct flow_msg *mask,
@@ -799,7 +848,8 @@ static void npc_update_vlan_features(struct rvu *rvu, struct mcam_entry *entry,
 static void npc_update_flow(struct rvu *rvu, struct mcam_entry *entry,
 			    u64 features, struct flow_msg *pkt,
 			    struct flow_msg *mask,
-			    struct rvu_npc_mcam_rule *output, u8 intf)
+			    struct rvu_npc_mcam_rule *output, u8 intf,
+			    int blkaddr)
 {
 	u64 dmac_mask = ether_addr_to_u64(mask->dmac);
 	u64 smac_mask = ether_addr_to_u64(mask->smac);
@@ -856,10 +906,13 @@ do {									      \
 } while (0)
 
 	NPC_WRITE_FLOW(NPC_DMAC, dmac, dmac_val, 0, dmac_mask, 0);
+
 	NPC_WRITE_FLOW(NPC_SMAC, smac, smac_val, 0, smac_mask, 0);
 	NPC_WRITE_FLOW(NPC_ETYPE, etype, ntohs(pkt->etype), 0,
 		       ntohs(mask->etype), 0);
 	NPC_WRITE_FLOW(NPC_TOS, tos, pkt->tos, 0, mask->tos, 0);
+	NPC_WRITE_FLOW(NPC_IPFRAG_IPV4, ip_flag, pkt->ip_flag, 0,
+		       mask->ip_flag, 0);
 	NPC_WRITE_FLOW(NPC_SIP_IPV4, ip4src, ntohl(pkt->ip4src), 0,
 		       ntohl(mask->ip4src), 0);
 	NPC_WRITE_FLOW(NPC_DIP_IPV4, ip4dst, ntohl(pkt->ip4dst), 0,
@@ -882,12 +935,16 @@ do {									      \
 	NPC_WRITE_FLOW(NPC_FDSA_VAL, vlan_tci, ntohs(pkt->vlan_tci), 0,
 		       ntohs(mask->vlan_tci), 0);
 
+	NPC_WRITE_FLOW(NPC_IPFRAG_IPV6, next_header, pkt->next_header, 0,
+		       mask->next_header, 0);
 	npc_update_ipv6_flow(rvu, entry, features, pkt, mask, output, intf);
 	npc_update_vlan_features(rvu, entry, features, intf);
+
+	npc_update_field_hash(rvu, intf, entry, blkaddr, features,
+			      pkt, mask, opkt, omask);
 }
 
-static struct rvu_npc_mcam_rule *rvu_mcam_find_rule(struct npc_mcam *mcam,
-						    u16 entry)
+static struct rvu_npc_mcam_rule *rvu_mcam_find_rule(struct npc_mcam *mcam, u16 entry)
 {
 	struct rvu_npc_mcam_rule *iter;
 
@@ -1064,8 +1121,9 @@ static int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
 	u16 owner = req->hdr.pcifunc;
 	struct msg_rsp write_rsp;
 	struct mcam_entry *entry;
-	int entry_index, err;
 	bool new = false;
+	u16 entry_index;
+	int err;
 
 	installed_features = req->features;
 	features = req->features;
@@ -1073,7 +1131,7 @@ static int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
 	entry_index = req->entry;
 
 	npc_update_flow(rvu, entry, features, &req->packet, &req->mask, &dummy,
-			req->intf);
+			req->intf, blkaddr);
 
 	if (is_npc_intf_rx(req->intf))
 		npc_update_rx_entry(rvu, pfvf, entry, req, target, pf_set_vfs_mac);
@@ -1098,7 +1156,8 @@ static int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
 			npc_update_flow(rvu, entry, missing_features,
 					&def_ucast_rule->packet,
 					&def_ucast_rule->mask,
-					&dummy, req->intf);
+					&dummy, req->intf,
+					blkaddr);
 		installed_features = req->features | missing_features;
 	}
 
@@ -1228,16 +1287,16 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 	if (is_pffunc_af(req->hdr.pcifunc) &&
 	    req->features & BIT_ULL(NPC_DMAC)) {
 		if (is_unicast_ether_addr(req->packet.dmac)) {
-			dev_err(rvu->dev,
-				"%s: mkex profile does not support ucast flow\n",
-				__func__);
+			dev_warn(rvu->dev,
+				 "%s: mkex profile does not support ucast flow\n",
+				 __func__);
 			return NPC_FLOW_NOT_SUPPORTED;
 		}
 
 		if (!npc_is_field_present(rvu, NPC_LXMB, req->intf)) {
-			dev_err(rvu->dev,
-				"%s: mkex profile does not support bcast/mcast flow",
-				__func__);
+			dev_warn(rvu->dev,
+				 "%s: mkex profile does not support bcast/mcast flow",
+				 __func__);
 			return NPC_FLOW_NOT_SUPPORTED;
 		}
 
@@ -1494,4 +1553,118 @@ void npc_mcam_disable_flows(struct rvu *rvu, u16 target)
 					      index, false);
 	}
 	mutex_unlock(&mcam->lock);
+}
+
+/* single drop on non hit rule starting from 0th index. This an extension
+ * to RPM mac filter to support more rules.
+ */
+int npc_install_mcam_drop_rule(struct rvu *rvu, int mcam_idx, u16 *counter_idx,
+			       u64 chan_val, u64 chan_mask, u64 exact_val, u64 exact_mask,
+			       u64 bcast_mcast_val, u64 bcast_mcast_mask)
+{
+	struct npc_mcam_alloc_counter_req cntr_req = { 0 };
+	struct npc_mcam_alloc_counter_rsp cntr_rsp = { 0 };
+	struct npc_mcam_write_entry_req req = { 0 };
+	struct npc_mcam *mcam = &rvu->hw->mcam;
+	struct rvu_npc_mcam_rule *rule;
+	struct msg_rsp rsp;
+	bool enabled;
+	int blkaddr;
+	int err;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
+	if (blkaddr < 0) {
+		dev_err(rvu->dev, "%s: NPC block not implemented\n", __func__);
+		return -ENODEV;
+	}
+
+	/* Bail out if no exact match support */
+	if (!rvu_npc_exact_has_match_table(rvu)) {
+		dev_info(rvu->dev, "%s: No support for exact match feature\n", __func__);
+		return -EINVAL;
+	}
+
+	/* If 0th entry is already used, return err */
+	enabled = is_mcam_entry_enabled(rvu, mcam, blkaddr, mcam_idx);
+	if (enabled) {
+		dev_err(rvu->dev, "%s: failed to add single drop on non hit rule at %d th index\n",
+			__func__, mcam_idx);
+		return	-EINVAL;
+	}
+
+	/* Add this entry to mcam rules list */
+	rule = kzalloc(sizeof(*rule), GFP_KERNEL);
+	if (!rule)
+		return -ENOMEM;
+
+	/* Disable rule by default. Enable rule when first dmac filter is
+	 * installed
+	 */
+	rule->enable = false;
+	rule->chan = chan_val;
+	rule->chan_mask = chan_mask;
+	rule->entry = mcam_idx;
+	rvu_mcam_add_rule(mcam, rule);
+
+	/* Reserve slot 0 */
+	npc_mcam_rsrcs_reserve(rvu, blkaddr, mcam_idx);
+
+	/* Allocate counter for this single drop on non hit rule */
+	cntr_req.hdr.pcifunc = 0; /* AF request */
+	cntr_req.contig = true;
+	cntr_req.count = 1;
+	err = rvu_mbox_handler_npc_mcam_alloc_counter(rvu, &cntr_req, &cntr_rsp);
+	if (err) {
+		dev_err(rvu->dev, "%s: Err to allocate cntr for drop rule (err=%d)\n",
+			__func__, err);
+		return	-EFAULT;
+	}
+	*counter_idx = cntr_rsp.cntr;
+
+	/* Fill in fields for this mcam entry */
+	npc_update_entry(rvu, NPC_EXACT_RESULT, &req.entry_data, exact_val, 0,
+			 exact_mask, 0, NIX_INTF_RX);
+	npc_update_entry(rvu, NPC_CHAN, &req.entry_data, chan_val, 0,
+			 chan_mask, 0, NIX_INTF_RX);
+	npc_update_entry(rvu, NPC_LXMB, &req.entry_data, bcast_mcast_val, 0,
+			 bcast_mcast_mask, 0, NIX_INTF_RX);
+
+	req.intf = NIX_INTF_RX;
+	req.set_cntr = true;
+	req.cntr = cntr_rsp.cntr;
+	req.entry = mcam_idx;
+
+	err = rvu_mbox_handler_npc_mcam_write_entry(rvu, &req, &rsp);
+	if (err) {
+		dev_err(rvu->dev, "%s: Installation of single drop on non hit rule at %d failed\n",
+			__func__, mcam_idx);
+		return err;
+	}
+
+	dev_err(rvu->dev, "%s: Installed single drop on non hit rule at %d, cntr=%d\n",
+		__func__, mcam_idx, req.cntr);
+
+	/* disable entry at Bank 0, index 0 */
+	npc_enable_mcam_entry(rvu, mcam, blkaddr, mcam_idx, false);
+
+	return 0;
+}
+
+int rvu_mbox_handler_npc_get_field_status(struct rvu *rvu,
+					  struct npc_get_field_status_req *req,
+					  struct npc_get_field_status_rsp *rsp)
+{
+	int blkaddr;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
+	if (blkaddr < 0)
+		return NPC_MCAM_INVALID_REQ;
+
+	if (!is_npc_interface_valid(rvu, req->intf))
+		return NPC_FLOW_INTF_INVALID;
+
+	if (npc_check_field(rvu, blkaddr, req->field, req->intf))
+		rsp->enable = 1;
+
+	return 0;
 }

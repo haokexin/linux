@@ -68,7 +68,7 @@ static int is_2nd_ucode_used(struct otx2_cpt_eng_grp_info *eng_grp)
 static void set_ucode_filename(struct otx2_cpt_ucode *ucode,
 			       const char *filename)
 {
-	strlcpy(ucode->filename, filename, OTX2_CPT_NAME_LENGTH);
+	strscpy(ucode->filename, filename, OTX2_CPT_NAME_LENGTH);
 }
 
 static char *get_eng_type_str(int eng_type)
@@ -124,7 +124,7 @@ static int get_ucode_type(struct device *dev,
 	int i, val = 0;
 	u8 nn;
 
-	strlcpy(tmp_ver_str, ucode_hdr->ver_str, OTX2_CPT_UCODE_VER_STR_SZ);
+	strscpy(tmp_ver_str, ucode_hdr->ver_str, OTX2_CPT_UCODE_VER_STR_SZ);
 	for (i = 0; i < strlen(tmp_ver_str); i++)
 		tmp_ver_str[i] = tolower(tmp_ver_str[i]);
 
@@ -387,6 +387,7 @@ static int load_fw(struct device *dev, struct fw_info_t *fw_info,
 	set_ucode_filename(&uc_info->ucode, filename);
 	memcpy(uc_info->ucode.ver_str, ucode_hdr->ver_str,
 	       OTX2_CPT_UCODE_VER_STR_SZ);
+	uc_info->ucode.ver_str[OTX2_CPT_UCODE_VER_STR_SZ] = 0;
 	uc_info->ucode.ver_num = ucode_hdr->ver_num;
 	uc_info->ucode.type = ucode_type;
 	uc_info->ucode.size = ucode_size;
@@ -1566,16 +1567,6 @@ delete_grps:
 	return ret;
 }
 
-static void swap_engines(struct otx2_cpt_engines *engsl,
-			 struct otx2_cpt_engines *engsr)
-{
-	struct otx2_cpt_engines engs;
-
-	engs = *engsl;
-	*engsl = *engsr;
-	*engsr = engs;
-}
-
 int otx2_cpt_dl_custom_egrp_create(struct otx2_cptpf_dev *cptpf,
 				   struct devlink_param_gset_ctx *ctx)
 {
@@ -1689,7 +1680,7 @@ int otx2_cpt_dl_custom_egrp_create(struct otx2_cptpf_dev *cptpf,
 		}
 		/* Keep SE engines at zero index */
 		if (engs[1].type == OTX2_CPT_SE_TYPES)
-			swap_engines(&engs[0], &engs[1]);
+			swap(engs[0], engs[1]);
 	}
 	mutex_lock(&eng_grps->lock);
 
@@ -1762,7 +1753,7 @@ int otx2_cpt_dl_custom_egrp_delete(struct otx2_cptpf_dev *cptpf,
 	if (kstrtoint(tmp, 10, &egrp))
 		goto err_print;
 
-	if (egrp >= OTX2_CPT_MAX_ENGINE_GROUPS) {
+	if (egrp < 0 || egrp >= OTX2_CPT_MAX_ENGINE_GROUPS) {
 		dev_err(dev, "Invalid engine group %d", egrp);
 		return -EINVAL;
 	}
@@ -1830,7 +1821,6 @@ void otx2_cpt_print_uc_dbg_info(struct otx2_cptpf_dev *cptpf)
 	char engs_info[2 * OTX2_CPT_NAME_LENGTH];
 	struct otx2_cpt_eng_grp_info *grp;
 	struct otx2_cpt_engs_rsvd *engs;
-	u32 mask[4];
 	int i, j;
 
 	pr_debug("Engine groups global info");
@@ -1863,6 +1853,8 @@ void otx2_cpt_print_uc_dbg_info(struct otx2_cptpf_dev *cptpf)
 		for (j = 0; j < OTX2_CPT_MAX_ETYPES_PER_GRP; j++) {
 			engs = &grp->engs[j];
 			if (engs->type) {
+				u32 mask[5] = { };
+
 				get_engs_info(grp, engs_info,
 					      2 * OTX2_CPT_NAME_LENGTH, j);
 				pr_debug("Slot%d: %s", j, engs_info);

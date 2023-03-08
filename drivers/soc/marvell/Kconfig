@@ -222,8 +222,7 @@ config MARVELL_CN10K_SWUP
 
 
 config OCTEONTX2_EINJ
-	tristate "OcteonTX2 EDAC ECC Injection"
-        depends on EDAC_OCTEONTX
+	tristate "OcteonTX2 ECC Injection"
 	help
 	  Provides support for error injection to OcteonTX2
 	  memory controllers (LMC) and cache blocks.
@@ -235,8 +234,7 @@ config OCTEONTX2_EINJ
 	  Unless testing, say N here.
 
 config OCTEONTX2_GHES_BERT
-	bool "OcteonTX2 GHES Boot Error Record Table (BERT) support"
-	depends on EDAC_OCTEONTX
+	bool "OcteonTX2 GHES Boot Error Record support"
 	default y
 	help
 	  Select this option to enable reporting of fatal Marvell GHES
@@ -269,7 +267,6 @@ config MARVELL_FWLOG
 
 config MARVELL_CN10K_EINJ
         tristate "CN10K ECC Injection"
-        depends on EDAC_OCTEONTX
         help
           Provides support for error injection to CN10K
           Pseudo-fault Generation processor error,

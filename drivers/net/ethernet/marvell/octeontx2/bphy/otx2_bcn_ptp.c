@@ -18,7 +18,7 @@
 #define BCN_DEVICE_NAME			"bcn_ptp_sync"
 #define CLASS_NAME			"bcn_ptp_class"
 #define BCN_PTP_IOCTL_BASE		0xCD	/* Temporary */
-#define IOCTL_BCN_PTP_SYNC		_IOW(BCN_PTP_IOCTL_BASE, 0x01, \
+#define IOCTL_BCN_PTP_SYNC		_IOWR(BCN_PTP_IOCTL_BASE, 0x01, \
 					     struct bcn_ptp_cfg)
 #define IOCTL_BCN_PTP_DELTA		_IOWR(BCN_PTP_IOCTL_BASE, 0x02, \
 					      struct bcn_ptp_cfg)
@@ -54,7 +54,7 @@ again:
 	return -EBUSY;
 }
 
-int bcn_ptp_sync(int ptp_phc_idx)
+int bcn_ptp_sync(int ptp_phc_idx, s32 sec_bcn_offset_slave, u64 *ptp_offset)
 {
 	u64 bcn_cfg2, bcn_capture_cfg, bcn_capture_n1_n2, bcn_capture_ptp, bcn_cfg_off;
 	u64 bcn_n1_n2, bcn_cfg, ptp_clock, tsns, bcn_ns, bcn_delta_val, bcn_n2_len;
@@ -62,16 +62,15 @@ int bcn_ptp_sync(int ptp_phc_idx)
 	struct cnf10k_rfoe_ndev_priv *cnf10k_priv;
 	struct otx2_rfoe_drv_ctx *drv_ctx = NULL;
 	struct otx2_rfoe_ndev_priv *priv = NULL;
+	bool is_otx2, use_sw_timecounter = true;
 	struct timecounter *time_counter;
 	void __iomem *bcn_reg_base;
 	struct pci_dev *bphy_pdev;
 	struct net_device *netdev;
 	int idx, err, sign = 0;
-	s32 sec_bcn_offset;
 	u64 bcn_n1, bcn_n2;
 	s64 ptp_bcn_delta;
 	u64 bcn_cfg2_val;
-	bool is_otx2;
 
 	bphy_pdev = pci_get_device(OTX2_BPHY_PCI_VENDOR_ID,
 				   OTX2_BPHY_PCI_DEVICE_ID, NULL);
@@ -100,13 +99,14 @@ int bcn_ptp_sync(int ptp_phc_idx)
 
 		bcn_reg_base = cnf10k_priv->bcn_reg_base;
 		time_counter = &cnf10k_priv->time_counter;
-		sec_bcn_offset = cnf10k_priv->sec_bcn_offset;
+		cnf10k_priv->sec_bcn_offset_slave = sec_bcn_offset_slave;
 		bcn_cfg2 = CNF10K_BCN_CFG2;
 		bcn_cfg_off = CNF10K_BCN_CFG;
 		bcn_capture_cfg = CNF10K_BCN_CAPTURE_CFG;
 		bcn_capture_n1_n2 = CNF10K_BCN_CAPTURE_N1_N2;
 		bcn_capture_ptp = CNF10K_BCN_CAPTURE_PTP;
 		bcn_delta_val = CNF10K_BCN_DELTA_VAL;
+		use_sw_timecounter = cnf10k_priv->use_sw_timecounter;
 	} else {
 		for (idx = 0; idx < RFOE_MAX_INTF; idx++) {
 			drv_ctx = &rfoe_drv_ctx[idx];
@@ -127,7 +127,7 @@ int bcn_ptp_sync(int ptp_phc_idx)
 
 		bcn_reg_base = priv->bcn_reg_base;
 		time_counter = &priv->time_counter;
-		sec_bcn_offset = priv->sec_bcn_offset;
+		priv->sec_bcn_offset_slave = sec_bcn_offset_slave;
 		bcn_cfg2 = BCN_CFG2;
 		bcn_cfg_off = BCN_CFG;
 		bcn_capture_cfg = BCN_CAPTURE_CFG;
@@ -135,6 +135,7 @@ int bcn_ptp_sync(int ptp_phc_idx)
 		bcn_capture_ptp = BCN_CAPTURE_PTP;
 		bcn_delta_val = BCN_DELTA_VAL;
 	}
+
 	bcn_cfg2_val = readq(bcn_reg_base + bcn_cfg2);
 	bcn_cfg2_val |= BCN_DELTA_WRAP_MODE | BCN_DELTA_N1_FORMULA;
 	writeq(bcn_cfg2_val, bcn_reg_base + bcn_cfg2);
@@ -153,7 +154,9 @@ int bcn_ptp_sync(int ptp_phc_idx)
 	if (!is_otx2)
 		ptp_clock = cnf10k_ptp_convert_timestamp(ptp_clock);
 
-	tsns = timecounter_cyc2time(time_counter, ptp_clock);
+	tsns = ptp_clock;
+	if (use_sw_timecounter)
+		tsns = timecounter_cyc2time(time_counter, ptp_clock);
 
 	/* Convert BCN timestamp to PTP timestamp in nanoseconds
 	 * BCN clock has two counters.
@@ -169,7 +172,7 @@ int bcn_ptp_sync(int ptp_phc_idx)
 	bcn_ns = (bcn_n1_n2 >> 24) * 10 * NSEC_PER_MSEC;
 	bcn_ns += (((bcn_n1_n2 & 0xFFFFFF) * 10 * NSEC_PER_MSEC) / bcn_n2_len);
 
-	ptp_bcn_delta = tsns - (UTC_GPS_EPOCH_DIFF * NSEC_PER_SEC) - bcn_ns - sec_bcn_offset;
+	ptp_bcn_delta = tsns - (UTC_GPS_EPOCH_DIFF * NSEC_PER_SEC) - bcn_ns + sec_bcn_offset_slave;
 	if (ptp_bcn_delta < 0) {
 		sign = 1;
 		ptp_bcn_delta = -ptp_bcn_delta;
@@ -201,6 +204,8 @@ int bcn_ptp_sync(int ptp_phc_idx)
 		return err;
 	}
 
+	*ptp_offset = tsns - ptp_clock;
+
 	return 0;
 }
 
@@ -212,13 +217,13 @@ s64 bcn_ptp_delta(int ptp_phc_idx)
 	struct cnf10k_rfoe_ndev_priv *cnf10k_priv;
 	struct otx2_rfoe_drv_ctx *drv_ctx = NULL;
 	struct otx2_rfoe_ndev_priv *priv = NULL;
+	bool is_otx2, use_sw_timecounter = true;
 	struct timecounter *time_counter;
 	void __iomem *bcn_reg_base;
 	struct net_device *netdev;
 	struct pci_dev *bphy_pdev;
 	s32 sec_bcn_offset;
 	int idx, err;
-	bool is_otx2;
 	s64 delta;
 
 	bphy_pdev = pci_get_device(OTX2_BPHY_PCI_VENDOR_ID,
@@ -249,11 +254,12 @@ s64 bcn_ptp_delta(int ptp_phc_idx)
 
 		bcn_reg_base = cnf10k_priv->bcn_reg_base;
 		time_counter = &cnf10k_priv->time_counter;
-		sec_bcn_offset = cnf10k_priv->sec_bcn_offset;
+		sec_bcn_offset = cnf10k_priv->sec_bcn_offset_slave;
 		bcn_cfg2 = CNF10K_BCN_CFG2;
 		bcn_capture_cfg = CNF10K_BCN_CAPTURE_CFG;
 		bcn_capture_n1_n2 = CNF10K_BCN_CAPTURE_N1_N2;
 		bcn_capture_ptp_off = CNF10K_BCN_CAPTURE_PTP;
+		use_sw_timecounter = cnf10k_priv->use_sw_timecounter;
 	} else {
 		for (idx = 0; idx < RFOE_MAX_INTF; idx++) {
 			drv_ctx = &rfoe_drv_ctx[idx];
@@ -274,7 +280,7 @@ s64 bcn_ptp_delta(int ptp_phc_idx)
 
 		bcn_reg_base = priv->bcn_reg_base;
 		time_counter = &priv->time_counter;
-		sec_bcn_offset = priv->sec_bcn_offset;
+		sec_bcn_offset = priv->sec_bcn_offset_slave;
 		bcn_cfg2 = BCN_CFG2;
 		bcn_capture_cfg = BCN_CAPTURE_CFG;
 		bcn_capture_n1_n2 = BCN_CAPTURE_N1_N2;
@@ -296,7 +302,9 @@ s64 bcn_ptp_delta(int ptp_phc_idx)
 	if (!is_otx2)
 		bcn_capture_ptp = cnf10k_ptp_convert_timestamp(bcn_capture_ptp);
 
-	tsns = timecounter_cyc2time(time_counter, bcn_capture_ptp);
+	tsns = bcn_capture_ptp;
+	if (use_sw_timecounter)
+		tsns = timecounter_cyc2time(time_counter, bcn_capture_ptp);
 
 	bcn_ns = (bcn_n1_n2 >> 24) * 10 * NSEC_PER_MSEC;
 	bcn_ns += (((bcn_n1_n2 & 0xFFFFFF) * 10 * NSEC_PER_MSEC) / bcn_n2_len);
@@ -315,6 +323,7 @@ static long bcn_ptp_ioctl(struct file *filp, unsigned int cmd,
 	case IOCTL_BCN_PTP_SYNC:
 	{
 		struct bcn_ptp_cfg cfg;
+		u64 ptp_offset;
 
 		if (copy_from_user(&cfg, (void __user *)arg,
 				   sizeof(struct bcn_ptp_cfg))) {
@@ -323,7 +332,20 @@ static long bcn_ptp_ioctl(struct file *filp, unsigned int cmd,
 			break;
 		}
 
-		ret = bcn_ptp_sync(cfg.ptp_phc_idx);
+		ret = bcn_ptp_sync(cfg.ptp_phc_idx, cfg.sec_bcn_offset_slave, &ptp_offset);
+		if (ret) {
+			pr_err("bcn_ptp_sync fault\n");
+			break;
+		}
+
+		cfg.ptp_offset = ptp_offset;
+
+		if (copy_to_user((void __user *)(unsigned long)arg, &cfg,
+				 sizeof(struct bcn_ptp_cfg))) {
+			pr_err("copy to user fault\n");
+			ret = -EFAULT;
+		}
+
 		break;
 	}
 	case IOCTL_BCN_PTP_DELTA:
