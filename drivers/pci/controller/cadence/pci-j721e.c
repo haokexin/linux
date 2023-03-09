@@ -483,7 +483,7 @@ static const struct j721e_pcie_data am64_pcie_ep_data = {
 
 static const struct j721e_pcie_data j784s4_pcie_rc_data = {
 	.mode = PCI_MODE_RC,
-	.quirk_retrain_flag = true,
+	.quirk_retrain_flag = false,
 	.is_intc_v1 = true,
 	.byte_access_allowed = false,
 	.linkdown_irq_regfield = LINK_DOWN,
