@@ -73,5 +73,8 @@ void otx2_cptpf_vfpf_mbox_handler(struct work_struct *work);
 int otx2_cptpf_lf_init(struct otx2_cptpf_dev *cptpf, u8 eng_grp_mask,
 		       int pri, int lfs_num);
 void otx2_cptpf_lf_cleanup(struct otx2_cptlfs_info *lfs);
+int otx2_inline_cptlf_setup(struct otx2_cptpf_dev *cptpf,
+			    struct otx2_cptlfs_info *lfs, u8 egrp, int num_lfs);
+void otx2_inline_cptlf_cleanup(struct otx2_cptlfs_info *lfs);
 
 #endif /* __OTX2_CPTPF_H */
