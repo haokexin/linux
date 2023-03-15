@@ -1724,14 +1724,6 @@ static int rvu_check_rsrc_availability(struct rvu *rvu,
 	int free_lfs, mappedlfs, blkaddr;
 	struct rvu_hwinfo *hw = rvu->hw;
 	struct rvu_block *block;
-	int ret;
-
-	ret = rvu_check_rsrc_policy(rvu, req, pcifunc);
-	if (ret) {
-		dev_err(rvu->dev, "Func 0x%x: Resource policy check failed\n",
-			pcifunc);
-		return ret;
-	}
 
 	/* Only one NPA LF can be attached */
 	if (req->npalf && !is_blktype_attached(pfvf, BLKTYPE_NPA)) {
@@ -2222,6 +2214,105 @@ int rvu_mbox_handler_ndc_sync_op(struct rvu *rvu,
 			dev_err(rvu->dev,
 				"NDC-NIX-RX sync failed for LF %u\n", lfidx);
 	}
+
+	return 0;
+}
+
+int rvu_mbox_handler_free_rsrc_cnt(struct rvu *rvu, struct msg_req *req,
+				   struct free_rsrcs_rsp *rsp)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	struct rvu_block *block;
+	struct nix_txsch *txsch;
+	struct nix_hw *nix_hw;
+
+	mutex_lock(&rvu->rsrc_lock);
+
+	block = &hw->block[BLKADDR_NPA];
+	rsp->npa = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_NIX0];
+	rsp->nix = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_NIX1];
+	rsp->nix1 = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_SSO];
+	rsp->sso = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_SSOW];
+	rsp->ssow = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_TIM];
+	rsp->tim = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_CPT0];
+	rsp->cpt = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_CPT1];
+	rsp->cpt1 = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_REE0];
+	rsp->ree0 = rvu_rsrc_free_count(&block->lf);
+
+	block = &hw->block[BLKADDR_REE1];
+	rsp->ree1 = rvu_rsrc_free_count(&block->lf);
+
+	if (rvu->hw->cap.nix_fixed_txschq_mapping) {
+		rsp->schq[NIX_TXSCH_LVL_SMQ] = 1;
+		rsp->schq[NIX_TXSCH_LVL_TL4] = 1;
+		rsp->schq[NIX_TXSCH_LVL_TL3] = 1;
+		rsp->schq[NIX_TXSCH_LVL_TL2] = 1;
+		/* NIX1 */
+		if (!is_block_implemented(rvu->hw, BLKADDR_NIX1))
+			goto out;
+		rsp->schq_nix1[NIX_TXSCH_LVL_SMQ] = 1;
+		rsp->schq_nix1[NIX_TXSCH_LVL_TL4] = 1;
+		rsp->schq_nix1[NIX_TXSCH_LVL_TL3] = 1;
+		rsp->schq_nix1[NIX_TXSCH_LVL_TL2] = 1;
+	} else {
+		nix_hw = get_nix_hw(hw, BLKADDR_NIX0);
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_SMQ];
+		rsp->schq[NIX_TXSCH_LVL_SMQ] =
+				rvu_rsrc_free_count(&txsch->schq);
+
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL4];
+		rsp->schq[NIX_TXSCH_LVL_TL4] =
+				rvu_rsrc_free_count(&txsch->schq);
+
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL3];
+		rsp->schq[NIX_TXSCH_LVL_TL3] =
+				rvu_rsrc_free_count(&txsch->schq);
+
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL2];
+		rsp->schq[NIX_TXSCH_LVL_TL2] =
+				rvu_rsrc_free_count(&txsch->schq);
+
+		if (!is_block_implemented(rvu->hw, BLKADDR_NIX1))
+			goto out;
+
+		nix_hw = get_nix_hw(hw, BLKADDR_NIX1);
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_SMQ];
+		rsp->schq_nix1[NIX_TXSCH_LVL_SMQ] =
+				rvu_rsrc_free_count(&txsch->schq);
+
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL4];
+		rsp->schq_nix1[NIX_TXSCH_LVL_TL4] =
+				rvu_rsrc_free_count(&txsch->schq);
+
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL3];
+		rsp->schq_nix1[NIX_TXSCH_LVL_TL3] =
+				rvu_rsrc_free_count(&txsch->schq);
+
+		txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL2];
+		rsp->schq_nix1[NIX_TXSCH_LVL_TL2] =
+				rvu_rsrc_free_count(&txsch->schq);
+	}
+
+	rsp->schq_nix1[NIX_TXSCH_LVL_TL1] = 1;
+out:
+	rsp->schq[NIX_TXSCH_LVL_TL1] = 1;
+	mutex_unlock(&rvu->rsrc_lock);
 
 	return 0;
 }
@@ -3684,15 +3775,11 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	rvu_setup_rvum_blk_revid(rvu);
 
-	err = rvu_policy_init(rvu);
-	if (err)
-		goto err_dl;
-
 	/* Enable AF's VFs (if any) */
 	err = rvu_enable_sriov(rvu);
 	if (err) {
 		dev_err(dev, "%s: Failed to enable sriov\n", __func__);
-		goto err_policy;
+		goto err_dl;
 	}
 
 	/* Initialize debugfs */
@@ -3706,8 +3793,6 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	return 0;
 
-err_policy:
-	rvu_policy_destroy(rvu);
 err_dl:
 	rvu_unregister_dl(rvu);
 err_irq:
@@ -3741,7 +3826,6 @@ static void rvu_remove(struct pci_dev *pdev)
 	struct rvu *rvu = pci_get_drvdata(pdev);
 
 	rvu_dbg_exit(rvu);
-	rvu_policy_destroy(rvu);
 	rvu_unregister_dl(rvu);
 	rvu_unregister_interrupts(rvu);
 	rvu_flr_wq_destroy(rvu);
