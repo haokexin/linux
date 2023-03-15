@@ -58,7 +58,7 @@ static ssize_t fwlogs_read(struct file *file, char __user *buf, size_t count, lo
 					*ppos);
 
 		rdlen = fwlog_hdr->fwlog_end - fwlog_hdr->fwlog_base -
-				max(rdbuf - fwlog_buf, *ppos);
+				max_t(uint64_t, rdbuf - fwlog_buf, *ppos);
 	}
 
 	count = min_t(size_t, count, rdlen);
