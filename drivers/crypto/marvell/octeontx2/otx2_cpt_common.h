@@ -29,7 +29,6 @@
 /* HW capability flags */
 #define CN10K_MBOX  0
 #define CN10K_LMTST 1
-#define CN10KB_SG   2
 
 #define BAD_OTX2_CPT_ENG_TYPE OTX2_CPT_MAX_ENG_TYPES
 
@@ -192,8 +191,6 @@ static inline void otx2_cpt_set_hw_caps(struct pci_dev *pdev,
 		__set_bit(CN10K_MBOX, cap_flag);
 		__set_bit(CN10K_LMTST, cap_flag);
 	}
-	if (is_dev_cn10kb(pdev))
-		__set_bit(CN10KB_SG, cap_flag);
 }
 
 static inline bool cpt_is_errata_38550_exists(struct pci_dev *pdev)
