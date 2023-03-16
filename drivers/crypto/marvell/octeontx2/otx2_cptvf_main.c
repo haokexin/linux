@@ -388,6 +388,10 @@ static int otx2_cptvf_probe(struct pci_dev *pdev,
 	if (ret)
 		goto destroy_pfvf_mbox;
 
+	ret = cpt_hw_ops_get(cptvf);
+	if (ret)
+		goto unregister_interrupts;
+
 	/* Initialize CPT LFs */
 	ret = cptvf_lf_init(cptvf);
 	if (ret)
