@@ -80,13 +80,8 @@ int cn10k_cptvf_lmtst_init(struct otx2_cptvf_dev *cptvf)
 	struct pci_dev *pdev = cptvf->pdev;
 	resource_size_t offset, size;
 
-	if (!test_bit(CN10K_LMTST, &cptvf->cap_flag)) {
-		cptvf->lfs.ops = &otx2_hw_ops;
+	if (!test_bit(CN10K_LMTST, &cptvf->cap_flag))
 		return 0;
-	}
-	cptvf->lfs.ops = &cn10k_hw_ops;
-	if (test_bit(CN10KB_SG, &cptvf->cap_flag))
-		cptvf->lfs.ops->cpt_sg_info_create = cn10kb_sg_info_create;
 
 	offset = pci_resource_start(pdev, PCI_MBOX_BAR_NUM);
 	size = pci_resource_len(pdev, PCI_MBOX_BAR_NUM);
@@ -159,4 +154,15 @@ void cn10k_cpt_ctx_flush(struct pci_dev *pdev, u64 cptr, bool inval)
 
 	otx2_cpt_write64(lfs->reg_base, lfs->blkaddr, lfs->lf[0].slot,
 			 OTX2_CPT_LF_CTX_FLUSH, reg);
+}
+
+int cpt_hw_ops_get(struct otx2_cptvf_dev *cptvf)
+{
+	if (!test_bit(CN10K_LMTST, &cptvf->cap_flag)) {
+		cptvf->lfs.ops = &otx2_hw_ops;
+		return 0;
+	}
+	cptvf->lfs.ops = &cn10k_hw_ops;
+
+	return 0;
 }

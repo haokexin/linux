@@ -54,5 +54,6 @@ void cn10k_cpt_ctx_flush(struct pci_dev *pdev, u64 cptr, bool inval);
 int cn10k_cpt_hw_ctx_init(struct pci_dev *pdev, struct cn10k_cpt_errata_ctx *er_ctx);
 void cn10k_cpt_hw_ctx_clear(struct pci_dev *pdev, struct cn10k_cpt_errata_ctx *er_ctx);
 void cn10k_cpt_hw_ctx_set(union cn10k_cpt_hw_ctx *hctx, u16 ctx_sz);
+int cpt_hw_ops_get(struct otx2_cptvf_dev *cptvf);
 
 #endif /* __CN10K_CPTLF_H */

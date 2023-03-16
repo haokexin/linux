@@ -275,9 +275,9 @@ sg_cleanup:
 	return ret;
 }
 
-static inline int cn10kb_sgio_components_setup(struct pci_dev *pdev,
-					       struct otx2_cpt_buf_ptr *list,
-					       int buf_count, u8 *buffer)
+static inline int sgv2io_components_setup(struct pci_dev *pdev,
+					  struct otx2_cpt_buf_ptr *list,
+					  int buf_count, u8 *buffer)
 {
 	struct cn10kb_cpt_sglist_component *sg_ptr = NULL;
 	int ret = 0, i, j;
@@ -341,7 +341,7 @@ sg_cleanup:
 	return ret;
 }
 
-static inline struct otx2_cpt_inst_info *cn10kb_sg_info_create(struct pci_dev *pdev,
+static inline struct otx2_cpt_inst_info *cn10k_sgv2_info_create(struct pci_dev *pdev,
 					      struct otx2_cpt_req_info *req,
 					      gfp_t gfp)
 {
@@ -375,14 +375,14 @@ static inline struct otx2_cpt_inst_info *cn10kb_sg_info_create(struct pci_dev *p
 	info->sctr_sz = req->out_cnt;
 
 	/* Setup gather (input) components */
-	if (cn10kb_sgio_components_setup(pdev, req->in, req->in_cnt,
-					 info->in_buffer)) {
+	if (sgv2io_components_setup(pdev, req->in, req->in_cnt,
+				    info->in_buffer)) {
 		dev_err(&pdev->dev, "Failed to setup gather list\n");
 		goto destroy_info;
 	}
 
-	if (cn10kb_sgio_components_setup(pdev, req->out, req->out_cnt,
-					 &info->in_buffer[g_len])) {
+	if (sgv2io_components_setup(pdev, req->out, req->out_cnt,
+				    &info->in_buffer[g_len])) {
 		dev_err(&pdev->dev, "Failed to setup scatter list\n");
 		goto destroy_info;
 	}
