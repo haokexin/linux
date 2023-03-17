@@ -244,6 +244,7 @@ config SPI_CADENCE_XFER_WORKAROUND
 	bool "Enable XSPI controller xfer workaround"
 	depends on SPI_CADENCE_XSPI
 	depends on DEBUG_FS
+	select DMI if ACPI
 	help
 	  Enable xfer workaround
 

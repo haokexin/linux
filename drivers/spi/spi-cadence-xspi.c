@@ -2,8 +2,10 @@
 // Cadence XSPI flash controller driver
 // Copyright (C) 2020-21 Cadence
 
+#include <linux/acpi.h>
 #include <linux/completion.h>
 #include <linux/delay.h>
+#include <linux/dmi.h>
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
@@ -15,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/property.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-mem.h>
 #include <linux/mtd/spi-nor.h>
@@ -952,6 +955,67 @@ static int cdns_xspi_mem_op(struct cdns_xspi_dev *cdns_xspi,
 					   !pstore);
 }
 
+#ifdef CONFIG_ACPI
+static bool cdns_xspi_supports_op(struct spi_mem *mem,
+				  const struct spi_mem_op *op)
+{
+	struct spi_device *spi = mem->spi;
+	const union acpi_object *obj;
+	struct acpi_device *adev;
+
+	adev = ACPI_COMPANION(&spi->dev);
+
+	if (!acpi_dev_get_property(adev, "spi-tx-bus-width", ACPI_TYPE_INTEGER,
+				   &obj)) {
+		switch (obj->integer.value) {
+		case 1:
+			break;
+		case 2:
+			spi->mode |= SPI_TX_DUAL;
+			break;
+		case 4:
+			spi->mode |= SPI_TX_QUAD;
+			break;
+		case 8:
+			spi->mode |= SPI_TX_OCTAL;
+			break;
+		default:
+			dev_warn(&spi->dev,
+				 "spi-tx-bus-width %lld not supported\n",
+				 obj->integer.value);
+			break;
+		}
+	}
+
+	if (!acpi_dev_get_property(adev, "spi-rx-bus-width", ACPI_TYPE_INTEGER,
+				   &obj)) {
+		switch (obj->integer.value) {
+		case 1:
+			break;
+		case 2:
+			spi->mode |= SPI_RX_DUAL;
+			break;
+		case 4:
+			spi->mode |= SPI_RX_QUAD;
+			break;
+		case 8:
+			spi->mode |= SPI_RX_OCTAL;
+			break;
+		default:
+			dev_warn(&spi->dev,
+				 "spi-rx-bus-width %lld not supported\n",
+				 obj->integer.value);
+			break;
+		}
+	}
+
+	if (!spi_mem_default_supports_op(mem, op))
+		return false;
+
+	return true;
+}
+#endif
+
 static int cdns_xspi_mem_op_execute(struct spi_mem *mem,
 				    const struct spi_mem_op *op)
 {
@@ -976,6 +1040,9 @@ static int cdns_xspi_adjust_mem_op_size(struct spi_mem *mem, struct spi_mem_op *
 }
 
 static const struct spi_controller_mem_ops cadence_xspi_mem_ops = {
+#ifdef CONFIG_ACPI
+	.supports_op = cdns_xspi_supports_op,
+#endif
 	.exec_op = cdns_xspi_mem_op_execute,
 	.adjust_op_size = cdns_xspi_adjust_mem_op_size,
 };
@@ -1022,9 +1089,37 @@ static irqreturn_t cdns_xspi_irq_handler(int this_irq, void *dev)
 	return result;
 }
 
+#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+
+#define DMI_ENTRY_PROCESSOR_MIN_LENGTH	48
+#define DMI_PROC_VERSION_NUMBER		0x10
+#define DMI_MAX_STRLEN			80
+
+static void find_proc_ver(const struct dmi_header *dm, void *private)
+{
+	const u8 *dmi_data = (const u8 *)dm;
+	char *ptr;
+	int i, idx;
+
+	if (dm->type == DMI_ENTRY_PROCESSOR &&
+	    dm->length >= DMI_ENTRY_PROCESSOR_MIN_LENGTH) {
+		idx = (int)get_unaligned((const u8 *)
+					 (dmi_data + DMI_PROC_VERSION_NUMBER));
+		ptr = (char *)(dmi_data + dm->length);
+		for (i = 1; i < idx; i++) {
+			while (*ptr)
+				ptr++;
+			ptr++;
+		}
+		strcpy(private, ptr);
+	}
+}
+#endif
+
 static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 {
 	struct device_node *node_prop = pdev->dev.of_node;
+	struct fwnode_handle *fwnode_child;
 	struct device_node *node_child;
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
@@ -1035,8 +1130,11 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 	unsigned int base_addr = 0;
 	struct device_node *node_soc;
 	char const *cpu_rev;
+	bool has_acpi;
 
-	if (of_property_read_u32(node_prop, "reg", &base_addr))
+	has_acpi = has_acpi_companion(&pdev->dev);
+
+	if (device_property_read_u32(&pdev->dev, "reg", &base_addr))
 		dev_info(&pdev->dev, "Missing reg property");
 
 	if (base_addr == SPI0_BASE)
@@ -1044,15 +1142,13 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 	else
 		cdns_xspi->xspi_id = 1;
 
-	node_soc = of_find_node_by_name(NULL, "soc");
-	if (!node_soc) {
-		pr_info("Failed to find chip revision node\n");
-		cdns_xspi->revision_supported = false;
-	} else {
-		if (!of_property_read_string(node_soc, "chiprevision", &cpu_rev)) {
-			if (!strncmp(cpu_rev, "A0", 3))
+	if (has_acpi) {
+		char ver[3] = {0};
+
+		if (!dmi_walk(find_proc_ver, &ver)) {
+			if (!strncmp(ver, "A0", 3))
 				cdns_xspi->revision_supported = true;
-			else if (!strncmp(cpu_rev, "A1", 3))
+			else if (!strncmp(ver, "A1", 3))
 				cdns_xspi->revision_supported = true;
 			else
 				cdns_xspi->revision_supported = false;
@@ -1060,26 +1156,44 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 			pr_info("Failed to obtain chip revision\n");
 			cdns_xspi->revision_supported = false;
 		}
-		of_node_put(node_child);
+	} else {
+		node_soc = of_find_node_by_name(NULL, "soc");
+		if (!node_soc) {
+			pr_info("Failed to find chip revision node\n");
+			cdns_xspi->revision_supported = false;
+		} else {
+			if (!of_property_read_string(node_soc, "chiprevision",
+						     &cpu_rev)) {
+				if (!strncmp(cpu_rev, "A0", 3))
+					cdns_xspi->revision_supported = true;
+				else if (!strncmp(cpu_rev, "A1", 3))
+					cdns_xspi->revision_supported = true;
+				else
+					cdns_xspi->revision_supported = false;
+			} else {
+				pr_info("Failed to obtain chip revision\n");
+				cdns_xspi->revision_supported = false;
+			}
+			of_node_put(node_child);
+		}
 	}
+
 #endif
 
-
-	if (of_property_read_u32(node_prop, "cdns,read-size", &read_size))
+	if (device_property_read_u32(&pdev->dev, "cdns,read-size", &read_size))
 		dev_info(&pdev->dev, "Missing read size property, usining byte acess\n");
 	cdns_xspi->read_size = read_size;
 
-	for_each_child_of_node(node_prop, node_child) {
-		if (!of_device_is_available(node_child))
+	device_for_each_child_node(&pdev->dev, fwnode_child) {
+		if (!fwnode_device_is_available(fwnode_child))
 			continue;
-
-		if (of_property_read_u32(node_child, "reg", &cs)) {
+		if (fwnode_property_read_u32(fwnode_child, "reg", &cs)) {
 			dev_err(&pdev->dev, "Couldn't get memory chip select\n");
-			of_node_put(node_child);
+			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		} else if (cs >= CDNS_XSPI_MAX_BANKS) {
 			dev_err(&pdev->dev, "reg (cs) parameter value too large\n");
-			of_node_put(node_child);
+			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		}
 	}
@@ -1549,6 +1663,7 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 
 	master->setup = cdns_xspi_setup;
 	master->dev.of_node = pdev->dev.of_node;
+	master->dev.fwnode = pdev->dev.fwnode;
 	master->bus_num = -1;
 
 	platform_set_drvdata(pdev, master);
@@ -1564,16 +1679,16 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 
 	ret = cdns_xspi_of_get_plat_data(pdev);
 	if (ret)
-		return -ENODEV;
+		return ret;
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "io");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	cdns_xspi->iobase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->iobase)) {
 		dev_err(dev, "Failed to remap controller base address\n");
 		return PTR_ERR(cdns_xspi->iobase);
 	}
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "sdma");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	cdns_xspi->sdmabase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->sdmabase)) {
 		dev_err(dev, "Failed to remap SDMA address\n");
@@ -1581,7 +1696,7 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 	}
 	cdns_xspi->sdmasize = resource_size(res);
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "aux");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	cdns_xspi->auxbase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->auxbase)) {
 		dev_err(dev, "Failed to remap AUX address\n");
@@ -1643,6 +1758,12 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct acpi_device_id cdns_xspi_acpi_match[] = {
+	{"cdns,xspi-nor", 0},
+	{},
+};
+MODULE_DEVICE_TABLE(acpi, cdns_xspi_acpi_match);
+
 #ifdef CONFIG_OF
 static const struct of_device_id cdns_xspi_of_match[] = {
 	{
@@ -1661,6 +1782,7 @@ static struct platform_driver cdns_xspi_platform_driver = {
 	.driver = {
 		.name = CDNS_XSPI_NAME,
 		.of_match_table = cdns_xspi_of_match,
+		.acpi_match_table = cdns_xspi_acpi_match,
 	},
 };
 
