@@ -711,6 +711,7 @@ static int vc4_hvs_init_channel(struct vc4_hvs *hvs, struct drm_crtc *crtc,
 		dispbkgndx |= SCALER_DISPBKGND_GAMMA;
 
 	HVS_WRITE(SCALER_DISPBKGNDX(chan), dispbkgndx |
+		  ((!vc4->is_vc5) ? SCALER_DISPBKGND_GAMMA : 0) |
 		  (interlace ? SCALER_DISPBKGND_INTERLACE : 0));
 
 	/* Reload the LUT, since the SRAMs would have been disabled if
