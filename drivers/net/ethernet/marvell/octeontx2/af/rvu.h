@@ -1091,6 +1091,9 @@ u32 rvu_get_cpt_chan_mask(struct rvu *rvu);
 #define NDC_MAX_LINE_PER_BANK(rvu, blk_addr) ((rvu_read64(rvu, \
 					blk_addr, NDC_AF_CONST) & 0xFFFF0000) >> 16)
 
+#define NDC_AF_BANK_MASK       GENMASK_ULL(7, 0)
+#define NDC_AF_BANK_LINE_MASK  GENMASK_ULL(31, 16)
+
 /* CN10K RVU */
 int rvu_set_channels_base(struct rvu *rvu);
 void rvu_program_channels(struct rvu *rvu);
@@ -1125,6 +1128,8 @@ void rvu_dbg_exit(struct rvu *rvu);
 static inline void rvu_dbg_init(struct rvu *rvu) {}
 static inline void rvu_dbg_exit(struct rvu *rvu) {}
 #endif
+
+int rvu_ndc_fix_locked_cacheline(struct rvu *rvu, int blkaddr);
 
 /* RVU Switch */
 void rvu_switch_enable(struct rvu *rvu);
