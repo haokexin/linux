@@ -1131,6 +1131,7 @@ struct dwc3_scratchpad_array {
  *              hibernation
  * @force_hiber_wake: flag set when the gadget driver is forcefully triggering
 		a hibernation wakeup event
+ * @debug_root: root debugfs directory for this device to put its files in.
  */
 struct dwc3 {
 	struct work_struct	drd_work;
@@ -1355,6 +1356,7 @@ struct dwc3 {
 	u32			*saved_regs;
 	u32			irq_wakeup;
 	bool			force_hiber_wake;
+	struct dentry		*debug_root;
 };
 
 #define INCRX_BURST_MODE 0
