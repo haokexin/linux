@@ -642,16 +642,6 @@ static int npc_scan_verify_kex(struct rvu *rvu, int blkaddr)
 		dev_err(rvu->dev, "Channel cannot be overwritten\n");
 		return -EINVAL;
 	}
-	/* DMAC should be present in key for unicast filter to work */
-	if (!npc_is_field_present(rvu, NPC_DMAC, NIX_INTF_RX)) {
-		dev_err(rvu->dev, "DMAC not present in Key\n");
-		return -EINVAL;
-	}
-	/* check that none of the fields overwrite DMAC */
-	if (npc_check_overlap(rvu, blkaddr, NPC_DMAC, 0, NIX_INTF_RX)) {
-		dev_err(rvu->dev, "DMAC cannot be overwritten\n");
-		return -EINVAL;
-	}
 
 	npc_set_features(rvu, blkaddr, NIX_INTF_TX);
 	npc_set_features(rvu, blkaddr, NIX_INTF_RX);
