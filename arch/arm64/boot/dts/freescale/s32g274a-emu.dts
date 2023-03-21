@@ -1,0 +1,164 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * Copyright 2017-2022 NXP
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+
+/dts-v1/;
+#include "s32g2.dtsi"
+
+/* Emulator has less than 1GB of RAM, remove reserved memory above this limit */
+/delete-node/ &pci_shared_memory0;
+/delete-node/ &pci_shared_memory1;
+
+/ {
+	model = "NXP S32G274A-EMU";
+
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
+
+	memory_DDR0@80000000 {
+		device_type = "memory";
+		reg = <0 0x80000000 0 0x40000000>;
+	};
+
+	memory_DDR1@c0000000 {
+		device_type = "memory";
+		reg = <0 0xc0000000 0 0x40000000>;
+	};
+};
+
+&pfe_reserved  {
+	status = "disabled";
+};
+
+&generic_timer {
+	clock-frequency = <5000000>;
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&usdhc0 {
+	status = "okay";
+};
+
+&can0 {
+	status = "okay";
+};
+
+&can1 {
+	status = "okay";
+};
+
+&can2 {
+	status = "okay";
+};
+
+&can3 {
+	status = "okay";
+};
+
+&stm0 {
+	status = "okay";
+};
+
+&stm1 {
+	status = "okay";
+};
+
+&fccu {
+	status = "okay";
+};
+
+&swt3 {
+	status = "okay";
+};
+
+&swt4 {
+	status = "okay";
+};
+
+&swt5 {
+	status = "okay";
+};
+
+&swt6 {
+	status = "okay";
+};
+
+&pit0 {
+	status = "okay";
+};
+
+&pit1 {
+	status = "okay";
+};
+
+&pinctrl {
+	status = "okay";
+};
+
+&edma0 {
+	status = "okay";
+};
+
+&edma1 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+};
+
+&spi1 {
+	status = "okay";
+};
+
+&spi2 {
+	status = "okay";
+};
+
+&spi3 {
+	status = "okay";
+};
+
+&spi4 {
+	status = "okay";
+};
+
+&spi5 {
+	status = "okay";
+};
+
+&pcie0 {
+	/delete-property/ shared-mem;
+	status = "disabled";
+};
+
+&pcie1 {
+	/delete-property/ shared-mem;
+	status = "disabled";
+};

@@ -41,6 +41,7 @@
 #define STATUS_DST_ADDR_INVALID		BIT(8)
 
 #define FLAG_USE_DMA			BIT(0)
+#define FLAG_USE_SINGLE_DMA		BIT(1)
 
 #define TIMER_RESOLUTION		1
 
@@ -194,7 +195,8 @@ static void pci_epf_test_clean_dma_chan(struct pci_epf_test *epf_test)
 	epf_test->dma_chan = NULL;
 }
 
-static void pci_epf_test_print_rate(const char *ops, u64 size,
+static void pci_epf_test_print_rate(struct device *dev,
+					const char *ops, u64 size,
 				    struct timespec64 *start,
 				    struct timespec64 *end, bool dma)
 {
@@ -219,7 +221,8 @@ static void pci_epf_test_print_rate(const char *ops, u64 size,
 	/* calculate the rate */
 	do_div(rate, (uint32_t)ns);
 
-	pr_info("\n%s => Size: %llu bytes\t DMA: %s\t Time: %llu.%09u seconds\t"
+	dev_info(dev,
+		"\n%s => Size: %llu bytes\t DMA: %s\t Time: %llu.%09u seconds\t"
 		"Rate: %llu KB/s\n", ops, size, dma ? "YES" : "NO",
 		(u64)ts.tv_sec, (u32)ts.tv_nsec, rate / 1024);
 }
@@ -271,7 +274,15 @@ static int pci_epf_test_copy(struct pci_epf_test *epf_test)
 		goto err_dst_addr;
 	}
 
+	dev_info(dev,
+		"\nCOPY => Src Address: 0x%llX\tDest Address: 0x%llX\n",
+		src_phys_addr, dst_phys_addr);
+	dev_info(dev,
+		"\nCOPY => Using BAR:%d\tSize: %u bytes\n",
+		test_reg_bar, reg->size);
+
 	ktime_get_ts64(&start);
+	/* Only DMA Engine transfers supported for the COPY test */
 	use_dma = !!(reg->flags & FLAG_USE_DMA);
 	if (use_dma) {
 		if (!epf_test->dma_supported) {
@@ -297,8 +308,10 @@ static int pci_epf_test_copy(struct pci_epf_test *epf_test)
 		memcpy_toio(dst_addr, buf, reg->size);
 		kfree(buf);
 	}
+
 	ktime_get_ts64(&end);
-	pci_epf_test_print_rate("COPY", reg->size, &start, &end, use_dma);
+	pci_epf_test_print_rate(dev, "COPY", reg->size,
+		&start, &end, use_dma);
 
 err_map_addr:
 	pci_epc_unmap_addr(epc, epf->func_no, epf->vfunc_no, dst_phys_addr);
@@ -322,7 +335,7 @@ static int pci_epf_test_read(struct pci_epf_test *epf_test)
 	void __iomem *src_addr;
 	void *buf;
 	u32 crc32;
-	bool use_dma;
+	bool use_dma, use_single_dma;
 	phys_addr_t phys_addr;
 	phys_addr_t dst_phys_addr;
 	struct timespec64 start, end;
@@ -332,6 +345,7 @@ static int pci_epf_test_read(struct pci_epf_test *epf_test)
 	struct device *dma_dev = epf->epc->dev.parent;
 	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
 	struct pci_epf_test_reg *reg = epf_test->reg[test_reg_bar];
+	bool show_stats = true;
 
 	src_addr = pci_epc_mem_alloc_addr(epc, &phys_addr, reg->size);
 	if (!src_addr) {
@@ -355,10 +369,20 @@ static int pci_epf_test_read(struct pci_epf_test *epf_test)
 		goto err_map_addr;
 	}
 
-	use_dma = !!(reg->flags & FLAG_USE_DMA);
-	if (use_dma) {
-		if (!epf_test->dma_supported) {
-			dev_err(dev, "Cannot transfer data using DMA\n");
+	dev_info(dev, "\nREAD => Src Address: 0x%llX\n", phys_addr);
+	dev_info(dev, "\nREAD => Using BAR:%d\tSize: %u bytes\n",
+		test_reg_bar, reg->size);
+
+	/* Select one type of DMA test, the regular DMA Engine based or
+	 * the simple, more limited single DMA transfer.
+	 * In case both are selected, use the second.
+	 */
+	use_single_dma = !!(reg->flags & FLAG_USE_SINGLE_DMA);
+	use_dma = !!(reg->flags & FLAG_USE_DMA) && (!use_single_dma);
+
+	if (use_dma || use_single_dma) {
+		if (use_dma && !epf_test->dma_supported) {
+			dev_err(dev, "Cannot transfer data using selected DMA\n");
 			ret = -EINVAL;
 			goto err_dma_map;
 		}
@@ -372,10 +396,31 @@ static int pci_epf_test_read(struct pci_epf_test *epf_test)
 		}
 
 		ktime_get_ts64(&start);
-		ret = pci_epf_test_data_transfer(epf_test, dst_phys_addr,
+		if (use_dma)
+			ret = pci_epf_test_data_transfer(
+						 epf_test, dst_phys_addr,
 						 phys_addr, reg->size);
-		if (ret)
+
+		if (use_single_dma) {
+			reinit_completion(&epf_test->transfer_complete);
+			ret = pci_epc_start_single_dma(epc, epf->func_no,
+					epf->vfunc_no, 1,
+					phys_addr, dst_phys_addr, reg->size,
+					&epf_test->transfer_complete);
+			if (ret) {
+				dev_err(dev, "Failed to start single DMA read\n");
+			} else {
+				ret = wait_for_completion_interruptible(
+					&epf_test->transfer_complete);
+				if (ret < 0)
+					dev_err(dev, "DMA wait_for_completion_timeout\n");
+			}
+		}
+
+		if (ret) {
 			dev_err(dev, "Data transfer failed\n");
+			show_stats = false;
+		}
 		ktime_get_ts64(&end);
 
 		dma_unmap_single(dma_dev, dst_phys_addr, reg->size,
@@ -386,11 +431,15 @@ static int pci_epf_test_read(struct pci_epf_test *epf_test)
 		ktime_get_ts64(&end);
 	}
 
-	pci_epf_test_print_rate("READ", reg->size, &start, &end, use_dma);
+	if (show_stats)
+		pci_epf_test_print_rate(dev, "READ", reg->size, &start, &end,
+			use_dma || use_single_dma);
 
 	crc32 = crc32_le(~0, buf, reg->size);
-	if (crc32 != reg->checksum)
+	if (crc32 != reg->checksum) {
+		dev_err(dev, "Checksums do not match\n");
 		ret = -EIO;
+	}
 
 err_dma_map:
 	kfree(buf);
@@ -410,7 +459,7 @@ static int pci_epf_test_write(struct pci_epf_test *epf_test)
 	int ret;
 	void __iomem *dst_addr;
 	void *buf;
-	bool use_dma;
+	bool use_dma, use_single_dma;
 	phys_addr_t phys_addr;
 	phys_addr_t src_phys_addr;
 	struct timespec64 start, end;
@@ -420,6 +469,7 @@ static int pci_epf_test_write(struct pci_epf_test *epf_test)
 	struct device *dma_dev = epf->epc->dev.parent;
 	enum pci_barno test_reg_bar = epf_test->test_reg_bar;
 	struct pci_epf_test_reg *reg = epf_test->reg[test_reg_bar];
+	bool show_stats = true;
 
 	dst_addr = pci_epc_mem_alloc_addr(epc, &phys_addr, reg->size);
 	if (!dst_addr) {
@@ -443,13 +493,23 @@ static int pci_epf_test_write(struct pci_epf_test *epf_test)
 		goto err_map_addr;
 	}
 
+	dev_info(dev, "\nWRITE => Dest Address: 0x%llX\n", phys_addr);
+	dev_info(dev, "\nWRITE => Using BAR:%d\tSize: %u bytes\n",
+		test_reg_bar, reg->size);
+
 	get_random_bytes(buf, reg->size);
 	reg->checksum = crc32_le(~0, buf, reg->size);
 
-	use_dma = !!(reg->flags & FLAG_USE_DMA);
-	if (use_dma) {
-		if (!epf_test->dma_supported) {
-			dev_err(dev, "Cannot transfer data using DMA\n");
+	/* Select one type of DMA test, the regular DMA Engine based or
+	 * the simple, more limited single DMA transfer.
+	 * In case both are selected, use the second.
+	 */
+	use_single_dma = !!(reg->flags & FLAG_USE_SINGLE_DMA);
+	use_dma = !!(reg->flags & FLAG_USE_DMA) && (!use_single_dma);
+
+	if (use_dma || use_single_dma) {
+		if (use_dma && !epf_test->dma_supported) {
+			dev_err(dev, "Cannot transfer data using selected DMA\n");
 			ret = -EINVAL;
 			goto err_dma_map;
 		}
@@ -463,10 +523,29 @@ static int pci_epf_test_write(struct pci_epf_test *epf_test)
 		}
 
 		ktime_get_ts64(&start);
-		ret = pci_epf_test_data_transfer(epf_test, phys_addr,
+		if (use_dma)
+			ret = pci_epf_test_data_transfer(
+						 epf_test, phys_addr,
 						 src_phys_addr, reg->size);
-		if (ret)
+		if (use_single_dma) {
+			reinit_completion(&epf_test->transfer_complete);
+			ret = pci_epc_start_single_dma(epc, epf->func_no,
+					epf->vfunc_no, 0,
+					src_phys_addr, phys_addr, reg->size,
+					&epf_test->transfer_complete);
+			if (ret) {
+				dev_err(dev, "Failed to start single DMA write\n");
+			} else {
+				ret = wait_for_completion_interruptible(
+					&epf_test->transfer_complete);
+				if (ret < 0)
+					dev_err(dev, "DMA wait_for_completion_timeout\n");
+			}
+		}
+		if (ret) {
 			dev_err(dev, "Data transfer failed\n");
+			show_stats = false;
+		}
 		ktime_get_ts64(&end);
 
 		dma_unmap_single(dma_dev, src_phys_addr, reg->size,
@@ -477,7 +556,9 @@ static int pci_epf_test_write(struct pci_epf_test *epf_test)
 		ktime_get_ts64(&end);
 	}
 
-	pci_epf_test_print_rate("WRITE", reg->size, &start, &end, use_dma);
+	if (show_stats)
+		pci_epf_test_print_rate(dev, "WRITE", reg->size, &start, &end,
+			use_dma || use_single_dma);
 
 	/*
 	 * wait 1ms inorder for the write to complete. Without this delay L3
@@ -652,6 +733,8 @@ static int pci_epf_test_set_bar(struct pci_epf *epf)
 
 	epc_features = epf_test->epc_features;
 
+	dev_info(dev, "Setting test BAR%d\n", test_reg_bar);
+
 	for (bar = 0; bar < PCI_STD_NUM_BARS; bar += add) {
 		epf_bar = &epf->bar[bar];
 		/*
@@ -707,7 +790,11 @@ static int pci_epf_test_core_init(struct pci_epf *epf)
 	if (ret)
 		return ret;
 
-	if (msi_capable) {
+	/* MSIs and MSI-Xs are mutually exclusive; MSI-Xs will not work if the
+	 * configuration is done for both, simultaneously.
+	 */
+	if (msi_capable && !msix_capable) {
+		dev_info(dev, "Configuring MSIs\n");
 		ret = pci_epc_set_msi(epc, epf->func_no, epf->vfunc_no,
 				      epf->msi_interrupts);
 		if (ret) {
@@ -717,6 +804,7 @@ static int pci_epf_test_core_init(struct pci_epf *epf)
 	}
 
 	if (msix_capable) {
+		dev_info(dev, "Configuring MSI-Xs\n");
 		ret = pci_epc_set_msix(epc, epf->func_no, epf->vfunc_no,
 				       epf->msix_interrupts,
 				       epf_test->test_reg_bar,
