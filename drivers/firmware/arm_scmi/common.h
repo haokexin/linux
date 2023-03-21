@@ -340,11 +340,16 @@ void scmi_protocol_release(const struct scmi_handle *handle, u8 protocol_id);
  * @dev: Reference to device in the SCMI hierarchy corresponding to this
  *	 channel
  * @handle: Pointer to SCMI entity handle
+ * @no_completion_irq: Flag to indicate that this channel has no completion
+ *		       interrupt mechanism for synchronous commands.
+ *		       This can be dynamically set by transports at run-time
+ *		       inside their provided .chan_setup().
  * @transport_info: Transport layer related information
  */
 struct scmi_chan_info {
 	struct device *dev;
 	struct scmi_handle *handle;
+	bool no_completion_irq;
 	void *transport_info;
 };
 
@@ -403,6 +408,18 @@ struct scmi_device *scmi_child_dev_find(struct device *parent,
  *	be pending simultaneously in the system. May be overridden by the
  *	get_max_msg op.
  * @max_msg_size: Maximum size of data per message that can be handled.
+ * @force_polling: Flag to force this whole transport to use SCMI core polling
+ *		   mechanism instead of completion interrupts even if available.
+ * @sync_cmds_completed_on_ret: Flag to indicate that the transport assures
+ *				synchronous-command messages are atomically
+ *				completed on .send_message: no need to poll
+ *				actively waiting for a response.
+ *				Used by core internally only when polling is
+ *				selected as a waiting for reply method: i.e.
+ *				if a completion irq was found use that anyway.
+ * @atomic_enabled: Flag to indicate that this transport, which is assured not
+ *		    to sleep anywhere on the TX path, can be used in atomic mode
+ *		    when requested.
  */
 struct scmi_desc {
 	int (*transport_init)(void);
@@ -411,6 +428,9 @@ struct scmi_desc {
 	int max_rx_timeout_ms;
 	int max_msg;
 	int max_msg_size;
+	const bool force_polling;
+	const bool sync_cmds_completed_on_ret;
+	const bool atomic_enabled;
 };
 
 #ifdef CONFIG_ARM_SCMI_TRANSPORT_MAILBOX
@@ -422,6 +442,9 @@ extern const struct scmi_desc scmi_smc_desc;
 #ifdef CONFIG_ARM_SCMI_TRANSPORT_VIRTIO
 extern const struct scmi_desc scmi_virtio_desc;
 #endif
+#ifdef CONFIG_ARM_SCMI_TRANSPORT_OPTEE
+extern const struct scmi_desc scmi_optee_desc;
+#endif
 
 void scmi_rx_callback(struct scmi_chan_info *cinfo, u32 msg_hdr, void *priv);
 void scmi_free_channel(struct scmi_chan_info *cinfo, struct idr *idr, int id);
@@ -429,6 +452,7 @@ void scmi_free_channel(struct scmi_chan_info *cinfo, struct idr *idr, int id);
 /* shmem related declarations */
 struct scmi_shared_mem;
 
+bool shmem_is_free(struct scmi_shared_mem __iomem *shmem);
 void shmem_tx_prepare(struct scmi_shared_mem __iomem *shmem,
 		      struct scmi_xfer *xfer);
 u32 shmem_read_header(struct scmi_shared_mem __iomem *shmem);

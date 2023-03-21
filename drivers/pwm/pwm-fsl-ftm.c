@@ -3,6 +3,7 @@
  *  Freescale FlexTimer Module (FTM) PWM Driver
  *
  *  Copyright 2012-2013 Freescale Semiconductor, Inc.
+ *  Copyright 2020,2022 NXP
  */
 
 #include <linux/clk.h>
@@ -32,6 +33,9 @@ enum fsl_pwm_clk {
 
 struct fsl_ftm_soc {
 	bool has_enable_bits;
+	bool has_fltctrl;
+	bool has_fltpol;
+	unsigned int npwm;
 };
 
 struct fsl_pwm_periodcfg {
@@ -386,6 +390,22 @@ static bool fsl_pwm_volatile_reg(struct device *dev, unsigned int reg)
 	return false;
 }
 
+static bool fsl_pwm_is_reg(struct device *dev, unsigned int reg)
+{
+	struct fsl_pwm_chip *fpc = dev_get_drvdata(dev);
+
+	if (reg >= FTM_CSC(fpc->chip.npwm) && reg < FTM_CNTIN)
+		return false;
+
+	if (reg == FTM_FLTCTRL && !fpc->soc->has_fltctrl)
+		return false;
+
+	if (reg == FTM_FLTPOL && !fpc->soc->has_fltpol)
+		return false;
+
+	return true;
+}
+
 static const struct regmap_config fsl_pwm_regmap_config = {
 	.reg_bits = 32,
 	.reg_stride = 4,
@@ -394,6 +414,8 @@ static const struct regmap_config fsl_pwm_regmap_config = {
 	.max_register = FTM_PWMLOAD,
 	.volatile_reg = fsl_pwm_volatile_reg,
 	.cache_type = REGCACHE_FLAT,
+	.writeable_reg = fsl_pwm_is_reg,
+	.readable_reg = fsl_pwm_is_reg,
 };
 
 static int fsl_pwm_probe(struct platform_device *pdev)
@@ -451,7 +473,7 @@ static int fsl_pwm_probe(struct platform_device *pdev)
 
 
 	fpc->chip.ops = &fsl_pwm_ops;
-	fpc->chip.npwm = 8;
+	fpc->chip.npwm = fpc->soc->npwm;
 
 	ret = devm_pwmchip_add(&pdev->dev, &fpc->chip);
 	if (ret < 0) {
@@ -488,6 +510,8 @@ static int fsl_pwm_suspend(struct device *dev)
 		clk_disable_unprepare(fpc->clk[fpc->period.clk_select]);
 	}
 
+	clk_unprepare(fpc->ipg_clk);
+
 	return 0;
 }
 
@@ -512,6 +536,7 @@ static int fsl_pwm_resume(struct device *dev)
 	}
 
 	/* restore all registers from cache */
+	clk_prepare(fpc->ipg_clk);
 	regcache_cache_only(fpc->regmap, false);
 	regcache_sync(fpc->regmap);
 
@@ -525,15 +550,29 @@ static const struct dev_pm_ops fsl_pwm_pm_ops = {
 
 static const struct fsl_ftm_soc vf610_ftm_pwm = {
 	.has_enable_bits = false,
+	.has_fltctrl = true,
+	.has_fltpol = true,
+	.npwm = 8,
 };
 
 static const struct fsl_ftm_soc imx8qm_ftm_pwm = {
 	.has_enable_bits = true,
+	.has_fltctrl = true,
+	.has_fltpol = true,
+	.npwm = 8,
+};
+
+static const struct fsl_ftm_soc s32cc_ftm_pwm = {
+	.has_enable_bits = true,
+	.has_fltctrl = false,
+	.has_fltpol = false,
+	.npwm = 6,
 };
 
 static const struct of_device_id fsl_pwm_dt_ids[] = {
 	{ .compatible = "fsl,vf610-ftm-pwm", .data = &vf610_ftm_pwm },
 	{ .compatible = "fsl,imx8qm-ftm-pwm", .data = &imx8qm_ftm_pwm },
+	{ .compatible = "nxp,s32cc-ftm-pwm", .data = &s32cc_ftm_pwm },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_pwm_dt_ids);
