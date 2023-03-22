@@ -65,16 +65,21 @@ static bool is_ptp_dev_cnf10kb(struct ptp *ptp)
 	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B_PTP) ? true : false;
 }
 
-static bool is_ptp_dev_cn10k(struct ptp *ptp)
+static bool is_ptp_dev_cnf10ka(struct ptp *ptp)
 {
-	return (ptp->pdev->device == PCI_DEVID_CN10K_PTP) ? true : false;
+	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP) ? true : false;
+}
+
+static bool is_ptp_dev_cn10ka(struct ptp *ptp)
+{
+	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP) ? true : false;
 }
 
 static bool cn10k_ptp_errata(struct ptp *ptp)
 {
-	if ((ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP &&
+	if ((is_ptp_dev_cn10ka(ptp) &&
 	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)) ||
-	    (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP &&
+	    (is_ptp_dev_cnf10ka(ptp) &&
 	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)))
 		return true;
 
@@ -346,7 +351,7 @@ static int ptp_get_tstmp(struct ptp *ptp, u64 *clk)
 {
 	u64 timestamp;
 
-	if (is_ptp_dev_cn10k(ptp)) {
+	if (is_ptp_dev_cn10ka(ptp) || is_ptp_dev_cnf10ka(ptp)) {
 		timestamp = readq(ptp->reg_base + PTP_TIMESTAMP);
 		*clk = (timestamp >> 32) * NSEC_PER_SEC + (timestamp & 0xFFFFFFFF);
 	} else {
