@@ -1733,8 +1733,6 @@ static int stratix10_svc_drv_probe(struct platform_device *pdev)
 
 err_put_device:
 	platform_device_put(svc->stratix10_svc_rsu);
-err_free_kfifo:
-	kfifo_free(&controller->svc_fifo);
 err_destroy_pool:
 	gen_pool_destroy(genpool);
 	return ret;
