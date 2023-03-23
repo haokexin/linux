@@ -41,6 +41,7 @@
 
 &pfe {
 	status = "okay";
+	/delete-property/ dma-coherent;
 };
 
 &pfe_mdio0 {
