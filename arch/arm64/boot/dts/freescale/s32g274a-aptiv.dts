@@ -39,6 +39,48 @@
 	status = "okay";
 };
 
+&pfe {
+	status = "okay";
+};
+
+&pfe_mdio0 {
+	status = "okay";
+};
+
+&pfe_mdio1 {
+	/* unused */
+	status = "okay";
+};
+
+&pfe_mdio2 {
+	/* unused */
+	status = "okay";
+};
+
+&pfe_netif0 {
+	phy-mode = "sgmii";
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
+};
+
+&pfe_netif1 {
+	phy-mode = "sgmii";
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
+};
+
+&pfe_netif2 {
+	phy-mode = "sgmii";
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
+};
+
 &gmac0 {
 	status = "okay";
 	phy-mode = "rgmii";
