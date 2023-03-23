@@ -71,6 +71,12 @@
 		#gpio-cells = <2>;
 		reg = <0x74>;
 		status = "okay";
+
+		reg_s32g_can17_19_en:s32g_can17_19_en {
+			gpio-hog;
+			gpios = <13 GPIO_ACTIVE_HIGH>;
+			output-high;
+		};
 	};
 };
 
@@ -116,6 +122,12 @@
 &can2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&can2_pins>;
+	status = "okay";
+};
+
+&can3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&can3_pins>;
 	status = "okay";
 };
 
@@ -222,6 +234,25 @@
 
 		can2_grp2 {
 			pinmux = <S32CC_PINMUX(632, FUNC2)>;
+		};
+
+	};
+
+	can3_pins: can3 {
+		can3_grp0 {
+			pinmux = <S32CC_PINMUX(29, FUNC1)>;
+			output-enable;
+			slew-rate = <S32CC_SLEW_150MHZ>;
+		};
+
+		can3_grp1 {
+			pinmux = <S32CC_PINMUX(30, FUNC0)>;
+			input-enable;
+			slew-rate = <S32CC_SLEW_208MHZ>;
+		};
+
+		can3_grp2 {
+			pinmux = <S32CC_PINMUX(633, FUNC3)>;
 		};
 
 	};
