@@ -76,6 +76,9 @@ int cn10k_cptvf_lmtst_init(struct otx2_cptvf_dev *cptvf)
 	struct pci_dev *pdev = cptvf->pdev;
 	resource_size_t offset, size;
 
+	if (!test_bit(CN10K_LMTST, &cptvf->cap_flag))
+		return 0;
+
 	offset = pci_resource_start(pdev, PCI_MBOX_BAR_NUM);
 	size = pci_resource_len(pdev, PCI_MBOX_BAR_NUM);
 	/* Map VF LMILINE region */
@@ -150,22 +153,11 @@ void cn10k_cpt_ctx_flush(struct pci_dev *pdev, u64 cptr, bool inval)
 
 int cpt_hw_ops_get(struct otx2_cptvf_dev *cptvf)
 {
-	struct pci_dev *pdev = cptvf->pdev;
-	int ret;
-
 	if (!test_bit(CN10K_LMTST, &cptvf->cap_flag)) {
 		cptvf->lfs.ops = &otx2_hw_ops;
 		return 0;
 	}
 	cptvf->lfs.ops = &cn10k_hw_ops;
-
-	ret = otx2_cptvf_send_caps_msg(cptvf);
-	if (ret) {
-		dev_err(&pdev->dev, "Couldn't get CPT engine capabilities.\n");
-		return ret;
-	}
-	if (cptvf->eng_caps[OTX2_CPT_SE_TYPES] & BIT_ULL(35))
-		cptvf->lfs.ops->cpt_sg_info_create = cn10k_sgv2_info_create;
 
 	return 0;
 }
