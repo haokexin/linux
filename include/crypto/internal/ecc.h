@@ -255,4 +255,5 @@ void ecc_point_mult_shamir(const struct ecc_point *result,
 			   const u64 *x, const struct ecc_point *p,
 			   const u64 *y, const struct ecc_point *q,
 			   const struct ecc_curve *curve);
+unsigned int vli_num_bits(const u64 *vli, unsigned int ndigits);
 #endif
