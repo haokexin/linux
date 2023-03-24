@@ -62,6 +62,14 @@ config NOP_USB_XCEIV
 	  built-in with usb ip or which are autonomous and doesn't require any
 	  phy programming such as ISP1x04 etc.
 
+config USB_ULPI_GENERIC
+	tristate "USB ULPI Generic Transceiver Driver"
+	depends on USB_GADGET || !USB_GADGET # if USB_GADGET=m, NOP can't be built-in
+	select USB_ULPI
+	select USB_PHY
+	help
+	  This driver is for USB ulpi phys.
+
 config AM335X_CONTROL_USB
 	tristate
 
