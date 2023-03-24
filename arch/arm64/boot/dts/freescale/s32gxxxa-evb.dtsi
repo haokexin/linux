@@ -10,8 +10,12 @@
 		stdout-path = "serial0:115200n8";
 	};
 
-	usbphynop: usbphynop {
-		compatible = "usb-nop-xceiv";
+	usbphyulpi: usbphyulpi {
+		compatible = "nxp,saf1508", "usb-phy-ulpi-generic";
+		/* ULPI_OTG_ID_PULLUP | ULPI_OTG_DRVVBUS_EXT | ULPI_OTG_EXTVBUSIND |
+		 * ULPI_IC_IND_PASSTHRU | ULPI_IC_EXTVBUS_INDINV
+		 */
+		usb-ulpi-flags = <0x60C1>;
 		#phy-cells = <0>;
 	};
 };
@@ -23,7 +27,7 @@
 &usbotg {
 	pinctrl-names = "default";
 	pinctrl-0 = <&usbotg_pins>;
-	fsl,usbphy = <&usbphynop>;
+	fsl,usbphy = <&usbphyulpi>;
 	status = "okay";
 };
 
