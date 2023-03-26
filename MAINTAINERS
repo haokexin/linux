@@ -12637,6 +12637,11 @@ M:	Piyush Malgujar <pmalgujar@marvell.com>
 S:	Maintained
 F:	drivers/firmware/octeontx2/rpram.c
 
+MAILBOX MARVELL RETIMER DRIVER
+M:	Damian Eppel <deppel@marvell.com>
+S:	Maintained
+F:	drivers/firmware/octeontx2/retimer-mgmt.c
+
 MAPLE TREE
 M:	Liam R. Howlett <Liam.Howlett@oracle.com>
 L:	maple-tree@lists.infradead.org
