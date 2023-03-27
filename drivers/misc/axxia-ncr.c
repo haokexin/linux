@@ -463,33 +463,33 @@ ncr_apb2ser(unsigned int region,
 }
 
 union ncp_cobalt_serdes_ctrl98 {
-	unsigned short raw;
+	unsigned int raw;
 
 	struct {
 #ifdef __BIG_ENDIAN
-		unsigned short reserved_b53 : 13;
-		unsigned short cr_ack_clear :  1;
-		unsigned short cr_rd        :  1;
-		unsigned short cr_wr        :  1;
+		unsigned int reserved_b53 : 13;
+		unsigned int cr_ack_clear :  1;
+		unsigned int cr_rd        :  1;
+		unsigned int cr_wr        :  1;
 #else    /* Little Endian */
-		unsigned short cr_wr        :  1;
-		unsigned short cr_rd        :  1;
-		unsigned short cr_ack_clear :  1;
-		unsigned short reserved_b53 : 13;
+		unsigned int cr_wr        :  1;
+		unsigned int cr_rd        :  1;
+		unsigned int cr_ack_clear :  1;
+		unsigned int reserved_b53 : 13;
 #endif
 	} __packed bits;
 } __packed;
 
 union ncp_cobalt_serdes_ctrl99 {
-	unsigned short raw;
+	unsigned int raw;
 
 	struct {
 #ifdef __BIG_ENDIAN
-		unsigned short reserved : 15;
-		unsigned short cr_ack   :  1;
+		unsigned int reserved : 15;
+		unsigned int cr_ack   :  1;
 #else    /* Little Endian */
-		unsigned short cr_ack   :  1;
-		unsigned short reserved : 15;
+		unsigned int cr_ack   :  1;
+		unsigned int reserved : 15;
 #endif
 	} __packed bits;
 } __packed;
@@ -509,7 +509,7 @@ ncr_apb2ser_e12(unsigned int region,
 	unsigned int transfer_width;
 	union ncp_cobalt_serdes_ctrl98 hss_cobalt_ctrl_98 = {0};
 	union ncp_cobalt_serdes_ctrl99 hss_cobalt_ctrl_99 = {0};
-	unsigned short e12_addr = 0;
+	unsigned int e12_addr = 0;
 	unsigned int ctrl_96_off;
 	unsigned int ctrl_97_off;
 	unsigned int ctrl_98_off;
@@ -541,8 +541,7 @@ ncr_apb2ser_e12(unsigned int region,
 	else if (offset >= 0x2000)
 		e12_addr = offset / 2;
 
-	apb2ser_indirect_access(ctrl_96_off, indirect_offset, 4,
-				1, (unsigned int *)&e12_addr);
+	apb2ser_indirect_access(ctrl_96_off, indirect_offset, 4, 1, &e12_addr);
 
 	if (write) {
 		apb2ser_indirect_access(ctrl_97_off, indirect_offset, 4, 1,
@@ -556,12 +555,11 @@ ncr_apb2ser_e12(unsigned int region,
 
 	hss_cobalt_ctrl_98.bits.cr_ack_clear = 0;
 	apb2ser_indirect_access(ctrl_98_off, indirect_offset, 4, 1,
-				(unsigned int *)&hss_cobalt_ctrl_98.raw);
+				&hss_cobalt_ctrl_98.raw);
 
 	/* poll for cr_ack to get set */
 	do {
 		apb2ser_indirect_access(ctrl_99_off, indirect_offset, 4, 0,
-					(unsigned int *)
 					&hss_cobalt_ctrl_99.raw);
 	} while (!hss_cobalt_ctrl_99.bits.cr_ack &&
 		 time_before(jiffies, timeout));
@@ -570,11 +568,11 @@ ncr_apb2ser_e12(unsigned int region,
 	hss_cobalt_ctrl_98.bits.cr_wr = 0;
 	hss_cobalt_ctrl_98.bits.cr_ack_clear = 1;
 	apb2ser_indirect_access(ctrl_98_off, indirect_offset, 4, 1,
-				(unsigned int *)&hss_cobalt_ctrl_98.raw);
+				&hss_cobalt_ctrl_98.raw);
 
 	hss_cobalt_ctrl_98.bits.cr_ack_clear = 0;
 	apb2ser_indirect_access(ctrl_98_off, indirect_offset, 4, 1,
-				(unsigned int *)&hss_cobalt_ctrl_98.raw);
+				&hss_cobalt_ctrl_98.raw);
 
 	if (!write)
 		apb2ser_indirect_access(ctrl_224_off, indirect_offset, 4, 0,
