@@ -114,6 +114,95 @@ done:
 	return 0;
 }
 
+static int rdtgroup_parse_resource(char *resname, char *tok,
+				   struct rdtgroup *rdtgrp)
+{
+	struct resctrl_schema *s;
+
+	list_for_each_entry(s, &resctrl_schema_all, list) {
+		if (!strcmp(resname, s->name) && rdtgrp->closid < s->num_closid)
+			return parse_line(tok, s, rdtgrp);
+	}
+	rdt_last_cmd_printf("Unknown or unsupported resource name '%s'\n", resname);
+	return -EINVAL;
+}
+
+ssize_t rdtgroup_schemata_write(struct kernfs_open_file *of,
+				char *buf, size_t nbytes, loff_t off)
+{
+	struct resctrl_schema *s;
+	struct rdtgroup *rdtgrp;
+	struct rdt_resource *r;
+	char *tok, *resname;
+	int ret = 0;
+
+	/* Valid input requires a trailing newline */
+	if (nbytes == 0 || buf[nbytes - 1] != '\n')
+		return -EINVAL;
+	buf[nbytes - 1] = '\0';
+
+	cpus_read_lock();
+	rdtgrp = rdtgroup_kn_lock_live(of->kn);
+	if (!rdtgrp) {
+		rdtgroup_kn_unlock(of->kn);
+		cpus_read_unlock();
+		return -ENOENT;
+	}
+	rdt_last_cmd_clear();
+
+	/*
+	 * No changes to pseudo-locked region allowed. It has to be removed
+	 * and re-created instead.
+	 */
+	if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED) {
+		ret = -EINVAL;
+		rdt_last_cmd_puts("Resource group is pseudo-locked\n");
+		goto out;
+	}
+
+	rdt_staged_configs_clear();
+
+	while ((tok = strsep(&buf, "\n")) != NULL) {
+		resname = strim(strsep(&tok, ":"));
+		if (!tok) {
+			rdt_last_cmd_puts("Missing ':'\n");
+			ret = -EINVAL;
+			goto out;
+		}
+		if (tok[0] == '\0') {
+			rdt_last_cmd_printf("Missing '%s' value\n", resname);
+			ret = -EINVAL;
+			goto out;
+		}
+		ret = rdtgroup_parse_resource(resname, tok, rdtgrp);
+		if (ret)
+			goto out;
+	}
+
+	list_for_each_entry(s, &resctrl_schema_all, list) {
+		r = s->res;
+		ret = resctrl_arch_update_domains(r, rdtgrp->closid);
+		if (ret)
+			goto out;
+	}
+
+	if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP) {
+		/*
+		 * If pseudo-locking fails we keep the resource group in
+		 * mode RDT_MODE_PSEUDO_LOCKSETUP with its class of service
+		 * active and updated for just the domain the pseudo-locked
+		 * region was requested for.
+		 */
+		ret = rdtgroup_pseudo_lock_create(rdtgrp);
+	}
+
+out:
+	rdt_staged_configs_clear();
+	rdtgroup_kn_unlock(of->kn);
+	cpus_read_unlock();
+	return ret ?: nbytes;
+}
+
 u32 resctrl_arch_get_config(struct rdt_resource *r, struct rdt_domain *d,
 			    u32 closid, enum resctrl_conf_type type)
 {
