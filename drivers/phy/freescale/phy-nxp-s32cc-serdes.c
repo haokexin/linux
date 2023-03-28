@@ -531,7 +531,7 @@ static void xpcs_phy_release(struct phy *p)
 {
 	struct serdes *serdes = phy_get_drvdata(p);
 	struct xpcs_ctrl *xpcs = &serdes->xpcs;
-	int id = p->id;
+	int id = get_lane_id(p);
 
 	xpcs->ops->release(xpcs->phys[id]);
 	xpcs->phys[id] = NULL;
@@ -540,12 +540,13 @@ static void xpcs_phy_release(struct phy *p)
 static int serdes_phy_init(struct phy *p)
 {
 	struct serdes *serdes = phy_get_drvdata(p);
+	int id = get_lane_id(p);
 
 	if (p->attrs.mode == PHY_MODE_PCIE)
 		return 0;
 
 	if (p->attrs.mode == PHY_MODE_ETHERNET)
-		return xpcs_phy_init(serdes, p->id);
+		return xpcs_phy_init(serdes, id);
 
 	return -EINVAL;
 }
@@ -553,7 +554,7 @@ static int serdes_phy_init(struct phy *p)
 static int serdes_phy_set_mode_ext(struct phy *p,
 				   enum phy_mode mode, int submode)
 {
-	int id = p->id;
+	int id = get_lane_id(p);
 	struct serdes *serdes = phy_get_drvdata(p);
 
 	if (p->attrs.mode != PHY_MODE_PCIE)
@@ -597,12 +598,13 @@ static void serdes_phy_release(struct phy *p)
 static int serdes_phy_power_on(struct phy *p)
 {
 	struct serdes *serdes = phy_get_drvdata(p);
+	int id = get_lane_id(p);
 
 	if (p->attrs.mode == PHY_MODE_PCIE)
-		return pcie_phy_power_on(serdes, p->id);
+		return pcie_phy_power_on(serdes, id);
 
 	if (p->attrs.mode == PHY_MODE_ETHERNET)
-		return xpcs_phy_power_on(serdes, p->id);
+		return xpcs_phy_power_on(serdes, id);
 
 	return 0;
 }
