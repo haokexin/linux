@@ -161,7 +161,8 @@ static inline bool is_dev_cn10ka(struct pci_dev *pdev)
 static inline bool is_dev_cn10ka_ax(struct pci_dev *pdev)
 {
 	if ((pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A) &&
-	    ((pdev->revision & 0xF) == 0 || (pdev->revision & 0xF) == 1))
+	    ((pdev->revision & 0xFF) == 4 || (pdev->revision & 0xFF) == 0x50 ||
+	     (pdev->revision & 0xff) == 0x51))
 		return true;
 
 	return false;
@@ -178,7 +179,7 @@ static inline bool is_dev_cn10kb(struct pci_dev *pdev)
 static inline bool is_dev_cn10ka_b0(struct pci_dev *pdev)
 {
 	if ((pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A) &&
-	    (pdev->revision & 0xF) == 4)
+	    (pdev->revision & 0xFF) == 0x54)
 		return true;
 
 	return false;
