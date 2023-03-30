@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 /*
  * Copyright (c) 2021 SUSE LLC
- * Copyright 2019-2022 NXP
+ * Copyright 2019-2023 NXP
  */
 
 #include <dt-bindings/gpio/gpio.h>
@@ -504,26 +504,26 @@
 		dspi1_grp0 {
 			pinmux = <S32CC_PINMUX(6, FUNC2)>;
 			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 		};
 
 		dspi1_grp1 {
 			pinmux = <S32CC_PINMUX(7, FUNC2)>;
 			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 			bias-pull-up;
 		};
 
 		dspi1_grp2 {
 			pinmux = <S32CC_PINMUX(8, FUNC3)>;
 			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 		};
 
 		dspi1_grp3 {
 			pinmux = <S32CC_PINMUX(95, FUNC0)>;
 			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 			bias-pull-up;
 		};
 
@@ -536,13 +536,13 @@
 		dspi1slave_grp0 {
 			pinmux = <S32CC_PINMUX(6, FUNC2)>;
 			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 		};
 
 		dspi1slave_grp1 {
 			pinmux = <S32CC_PINMUX(7, FUNC2)>;
 			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 		};
 
 		dspi1slave_grp2 {
@@ -554,13 +554,13 @@
 		dspi1slave_grp3 {
 			pinmux = <S32CC_PINMUX(8, FUNC3)>;
 			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 		};
 
 		dspi1slave_grp4 {
 			pinmux = <S32CC_PINMUX(95, FUNC0)>;
 			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 			bias-pull-up;
 		};
 	};
@@ -570,13 +570,13 @@
 			pinmux = <S32CC_PINMUX(9, FUNC3)>,
 				 <S32CC_PINMUX(11, FUNC3)>;
 			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 		};
 
 		dspi5_grp1 {
 			pinmux = <S32CC_PINMUX(10, FUNC0)>;
 			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 			bias-pull-up;
 		};
 
@@ -587,7 +587,7 @@
 		dspi5_grp3 {
 			pinmux = <S32CC_PINMUX(12, FUNC3)>;
 			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_150MHZ>;
 			bias-pull-up;
 		};
 	};
@@ -598,7 +598,7 @@
 			drive-open-drain;
 			output-enable;
 			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_133MHZ>;
 		};
 
 		i2c0_grp1 {
@@ -611,7 +611,7 @@
 			drive-open-drain;
 			output-enable;
 			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
+			slew-rate = <S32CC_SLEW_133MHZ>;
 		};
 	};
 
@@ -637,7 +637,7 @@
 			drive-open-drain;
 			output-enable;
 			input-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
+			slew-rate = <S32CC_SLEW_133MHZ>;
 		};
 
 		i2c1_grp1 {
@@ -671,7 +671,7 @@
 			drive-open-drain;
 			output-enable;
 			input-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
+			slew-rate = <S32CC_SLEW_133MHZ>;
 		};
 
 		i2c2_grp1 {
@@ -701,7 +701,7 @@
 			drive-open-drain;
 			output-enable;
 			input-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
+			slew-rate = <S32CC_SLEW_133MHZ>;
 		};
 
 		i2c4_grp1 {
@@ -714,7 +714,7 @@
 			drive-open-drain;
 			output-enable;
 			input-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
+			slew-rate = <S32CC_SLEW_133MHZ>;
 		};
 	};
 
@@ -731,162 +731,6 @@
 			pinmux = <S32CC_PINMUX(724, FUNC0)>,
 				 <S32CC_PINMUX(723, FUNC0)>;
 		};
-	};
-
-	sd0_pins_default: sd0 {
-		sd0_grp0 {
-			pinmux = <S32CC_PINMUX(46, FUNC1)>,
-				 <S32CC_PINMUX(56, FUNC1)>;
-			output-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
-			bias-pull-down;
-		};
-
-		sd0_grp1 {
-			pinmux = <S32CC_PINMUX(47, FUNC1)>,
-				 <S32CC_PINMUX(48, FUNC1)>,
-				 <S32CC_PINMUX(49, FUNC1)>,
-				 <S32CC_PINMUX(50, FUNC1)>,
-				 <S32CC_PINMUX(51, FUNC1)>,
-				 <S32CC_PINMUX(52, FUNC1)>,
-				 <S32CC_PINMUX(53, FUNC1)>,
-				 <S32CC_PINMUX(54, FUNC1)>,
-				 <S32CC_PINMUX(55, FUNC1)>;
-			output-enable;
-			input-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
-			bias-pull-up;
-		};
-
-		sd0_grp2 {
-			pinmux = <S32CC_PINMUX(57, FUNC1)>;
-			output-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
-		};
-
-		sd0_grp3 {
-			pinmux = <S32CC_PINMUX(58, FUNC0)>;
-			input-enable;
-			slew-rate = <S32CC_SLEW_83MHZ>;
-		};
-
-		sd0_grp4 {
-			pinmux = <S32CC_PINMUX(515, FUNC2)>,
-				 <S32CC_PINMUX(516, FUNC2)>,
-				 <S32CC_PINMUX(517, FUNC2)>,
-				 <S32CC_PINMUX(520, FUNC2)>,
-				 <S32CC_PINMUX(521, FUNC2)>,
-				 <S32CC_PINMUX(522, FUNC2)>,
-				 <S32CC_PINMUX(523, FUNC2)>,
-				 <S32CC_PINMUX(519, FUNC2)>,
-				 <S32CC_PINMUX(518, FUNC2)>,
-				 <S32CC_PINMUX(524, FUNC2)>;
-		};
-
-	};
-
-	sd0_pins_100mhz: sd0 {
-		sd0_grp0 {
-			pinmux = <S32CC_PINMUX(46, FUNC1)>,
-				 <S32CC_PINMUX(56, FUNC1)>;
-			output-enable;
-			slew-rate = <S32CC_SLEW_133MHZ>;
-			bias-pull-down;
-		};
-
-		sd0_grp1 {
-			pinmux = <S32CC_PINMUX(47, FUNC1)>,
-				 <S32CC_PINMUX(48, FUNC1)>,
-				 <S32CC_PINMUX(49, FUNC1)>,
-				 <S32CC_PINMUX(50, FUNC1)>,
-				 <S32CC_PINMUX(51, FUNC1)>,
-				 <S32CC_PINMUX(52, FUNC1)>,
-				 <S32CC_PINMUX(53, FUNC1)>,
-				 <S32CC_PINMUX(54, FUNC1)>,
-				 <S32CC_PINMUX(55, FUNC1)>;
-			output-enable;
-			input-enable;
-			slew-rate = <S32CC_SLEW_133MHZ>;
-			bias-pull-up;
-		};
-
-		sd0_grp2 {
-			pinmux = <S32CC_PINMUX(57, FUNC1)>;
-			output-enable;
-			slew-rate = <S32CC_SLEW_133MHZ>;
-		};
-
-		sd0_grp3 {
-			pinmux = <S32CC_PINMUX(58, FUNC0)>;
-			input-enable;
-			slew-rate = <S32CC_SLEW_133MHZ>;
-		};
-
-		sd0_grp4 {
-			pinmux = <S32CC_PINMUX(515, FUNC2)>,
-				 <S32CC_PINMUX(516, FUNC2)>,
-				 <S32CC_PINMUX(517, FUNC2)>,
-				 <S32CC_PINMUX(520, FUNC2)>,
-				 <S32CC_PINMUX(521, FUNC2)>,
-				 <S32CC_PINMUX(522, FUNC2)>,
-				 <S32CC_PINMUX(523, FUNC2)>,
-				 <S32CC_PINMUX(519, FUNC2)>,
-				 <S32CC_PINMUX(518, FUNC2)>,
-				 <S32CC_PINMUX(524, FUNC2)>;
-		};
-
-	};
-
-	sd0_pins_200mhz: sd0 {
-		sd0_grp0 {
-			pinmux = <S32CC_PINMUX(46, FUNC1)>,
-				 <S32CC_PINMUX(56, FUNC1)>;
-			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
-			bias-pull-down;
-		};
-
-		sd0_grp1 {
-			pinmux = <S32CC_PINMUX(47, FUNC1)>,
-				 <S32CC_PINMUX(48, FUNC1)>,
-				 <S32CC_PINMUX(49, FUNC1)>,
-				 <S32CC_PINMUX(50, FUNC1)>,
-				 <S32CC_PINMUX(51, FUNC1)>,
-				 <S32CC_PINMUX(52, FUNC1)>,
-				 <S32CC_PINMUX(53, FUNC1)>,
-				 <S32CC_PINMUX(54, FUNC1)>,
-				 <S32CC_PINMUX(55, FUNC1)>;
-			output-enable;
-			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
-			bias-pull-up;
-		};
-
-		sd0_grp2 {
-			pinmux = <S32CC_PINMUX(57, FUNC1)>;
-			output-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
-		};
-
-		sd0_grp3 {
-			pinmux = <S32CC_PINMUX(58, FUNC0)>;
-			input-enable;
-			slew-rate = <S32CC_SLEW_208MHZ>;
-		};
-
-		sd0_grp4 {
-			pinmux = <S32CC_PINMUX(515, FUNC2)>,
-				 <S32CC_PINMUX(516, FUNC2)>,
-				 <S32CC_PINMUX(517, FUNC2)>,
-				 <S32CC_PINMUX(520, FUNC2)>,
-				 <S32CC_PINMUX(521, FUNC2)>,
-				 <S32CC_PINMUX(522, FUNC2)>,
-				 <S32CC_PINMUX(523, FUNC2)>,
-				 <S32CC_PINMUX(519, FUNC2)>,
-				 <S32CC_PINMUX(518, FUNC2)>,
-				 <S32CC_PINMUX(524, FUNC2)>;
-		};
-
 	};
 
 	usbotg_pins: usbotg_pins {
@@ -985,10 +829,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&usbotg_pins>;
 	fsl,usbphy = <&usbphyulpi>;
-	status = "okay";
-};
-
-&qspi {
 	status = "okay";
 };
 
