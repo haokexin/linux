@@ -154,6 +154,10 @@ void cn10k_cpt_ctx_flush(struct pci_dev *pdev, u64 cptr, bool inval)
 
 	otx2_cpt_write64(lfs->reg_base, lfs->blkaddr, lfs->lf[0].slot,
 			 OTX2_CPT_LF_CTX_FLUSH, reg);
+	/* Make sure that the FLUSH operation is complete */
+	wmb();
+	otx2_cpt_read64(lfs->reg_base, lfs->blkaddr, lfs->lf[0].slot,
+			OTX2_CPT_LF_CTX_ERR);
 }
 
 int cpt_hw_ops_get(struct otx2_cptvf_dev *cptvf)
