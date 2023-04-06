@@ -610,7 +610,7 @@ static void lpuart_flush_buffer(struct uart_port *port)
 				sport->dma_tx_nents, DMA_TO_DEVICE);
 			sport->dma_tx_in_progress = false;
 		}
-		dmaengine_terminate_all(chan);
+		dmaengine_terminate_async(chan);
 	}
 
 	if (lpuart_is_32(sport)) {
@@ -1408,6 +1408,7 @@ static void lpuart_dma_rx_free(struct uart_port *port, bool dma_terminate)
 	if (dma_terminate)
 		dmaengine_terminate_sync(sport->dma_rx_chan);
 
+	del_timer_sync(&sport->lpuart_timer);
 	dma_unmap_sg(chan->device->dev, &sport->rx_sgl, 1, DMA_FROM_DEVICE);
 	kfree(sport->rx_ring.buf);
 	sport->rx_ring.tail = 0;
@@ -1935,6 +1936,7 @@ static void lpuart_dma_shutdown(struct lpuart_port *sport)
 	if (sport->lpuart_dma_rx_use) {
 		lpuart_del_timer_sync(sport);
 		lpuart_dma_rx_free(&sport->port, true);
+		sport->lpuart_dma_rx_use = false;
 	}
 
 	if (sport->lpuart_dma_tx_use) {
@@ -3151,6 +3153,23 @@ static int __maybe_unused lpuart_suspend(struct device *dev)
 
 	if (lpuart_uport_is_active(sport)) {
 		spin_lock_irqsave(&sport->port.lock, flags);
+
+	/* uart_suspend_port() might set wakeup flag */
+	irq_wake = irqd_is_wakeup_set(irq_get_irq_data(sport->port.irq));
+
+	if (sport->lpuart_dma_rx_use) {
+		/*
+		 * EDMA driver during suspend will forcefully release any
+		 * non-idle DMA channels. If port wakeup is enabled or if port
+		 * is console port or 'no_console_suspend' is set the Rx DMA
+		 * cannot resume as expected, hence gracefully release the
+		 * Rx DMA path before suspend and start Rx DMA path on resume.
+		 */
+		if (irq_wake) {
+			lpuart_dma_rx_free(&sport->port);
+		}
+
+		/* Disable Rx DMA to use UART port as wakeup source */
 		if (lpuart_is_32(sport)) {
 			temp = lpuart32_read(&sport->port, UARTCTRL);
 			temp &= ~(UARTCTRL_TE | UARTCTRL_TIE | UARTCTRL_TCIE);
