@@ -90,15 +90,16 @@ static bool trb_is_link(union xhci_trb *trb)
 	return TRB_TYPE_LINK_LE32(trb->link.control);
 }
 
-static bool last_trb_on_seg(struct xhci_segment *seg, union xhci_trb *trb)
+static bool last_trb_on_seg(struct xhci_segment *seg,
+			    unsigned int trbs_per_seg, union xhci_trb *trb)
 {
-	return trb == &seg->trbs[TRBS_PER_SEGMENT - 1];
+	return trb == &seg->trbs[trbs_per_seg - 1];
 }
 
 static bool last_trb_on_ring(struct xhci_ring *ring,
 			struct xhci_segment *seg, union xhci_trb *trb)
 {
-	return last_trb_on_seg(seg, trb) && (seg->next == ring->first_seg);
+	return last_trb_on_seg(seg, ring->trbs_per_seg, trb) && (seg->next == ring->first_seg);
 }
 
 static bool link_trb_toggles_cycle(union xhci_trb *trb)
@@ -161,7 +162,8 @@ void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring)
 
 	/* event ring doesn't have link trbs, check for last trb */
 	if (ring->type == TYPE_EVENT) {
-		if (!last_trb_on_seg(ring->deq_seg, ring->dequeue)) {
+		if (!last_trb_on_seg(ring->deq_seg, ring->trbs_per_seg,
+				     ring->dequeue)) {
 			ring->dequeue++;
 			goto out;
 		}
@@ -174,7 +176,8 @@ void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring)
 
 	/* All other rings have link trbs */
 	if (!trb_is_link(ring->dequeue)) {
-		if (last_trb_on_seg(ring->deq_seg, ring->dequeue)) {
+		if (last_trb_on_seg(ring->deq_seg, ring->trbs_per_seg,
+		    ring->dequeue)) {
 			xhci_warn(xhci, "Missing link TRB at end of segment\n");
 		} else {
 			ring->dequeue++;
@@ -225,7 +228,7 @@ static void inc_enq(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	if (!trb_is_link(ring->enqueue))
 		ring->num_trbs_free--;
 
-	if (last_trb_on_seg(ring->enq_seg, ring->enqueue)) {
+	if (last_trb_on_seg(ring->enq_seg, ring->trbs_per_seg, ring->enqueue)) {
 		xhci_err(xhci, "Tried to move enqueue past ring segment\n");
 		return;
 	}
@@ -289,6 +292,12 @@ static inline int room_on_ring(struct xhci_hcd *xhci, struct xhci_ring *ring,
 		return 0;
 
 	if (ring->type != TYPE_COMMAND && ring->type != TYPE_EVENT) {
+		/*
+		 * If the ring has a single segment the dequeue segment
+		 * never changes, so don't use it as measure of free space.
+		 */
+		if (ring->num_segs == 1)
+			return ring->num_trbs_free >= num_trbs;
 		num_trbs_in_deq_seg = ring->dequeue - ring->deq_seg->trbs;
 		if (ring->num_trbs_free < num_trbs + num_trbs_in_deq_seg)
 			return 0;
@@ -667,6 +676,15 @@ static int xhci_move_dequeue_past_td(struct xhci_hcd *xhci,
 	} while (!cycle_found || !td_last_trb_found);
 
 deq_found:
+	/*
+	 * Quirk: the xHC does not correctly parse link TRBs if the HW Dequeue
+	 * pointer is set to one. Advance to the next TRB (and next segment).
+	 */
+	if (xhci->quirks & XHCI_AVOID_DQ_ON_LINK && trb_is_link(new_deq)) {
+		if (link_trb_toggles_cycle(new_deq))
+			new_cycle ^= 0x1;
+		next_trb(xhci, ep_ring, &new_seg, &new_deq);
+	}
 
 	/* Don't update the ring cycle state for the producer (us). */
 	addr = xhci_trb_virt_to_dma(new_seg, new_deq);
@@ -677,9 +695,9 @@ deq_found:
 	}
 
 	if ((ep->ep_state & SET_DEQ_PENDING)) {
-		xhci_warn(xhci, "Set TR Deq already pending, don't submit for 0x%pad\n",
-			  &addr);
-		return -EBUSY;
+		xhci_warn(xhci, "WARN A Set TR Deq Ptr command is pending for slot %u ep %u\n",
+			  slot_id, ep_index);
+		ep->ep_state &= ~SET_DEQ_PENDING;
 	}
 
 	/* This function gets called from contexts where it cannot sleep */
@@ -997,11 +1015,13 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
 						 td->urb->stream_id, td->urb,
 						 cached_td->urb->stream_id, cached_td->urb);
 				cached_td = td;
+				ring->num_trbs_free += td->num_trbs;
 				break;
 			}
 		} else {
 			td_to_noop(xhci, ring, td, false);
 			td->cancel_status = TD_CLEARED;
+			ring->num_trbs_free += td->num_trbs;
 		}
 	}
 
@@ -1249,10 +1269,7 @@ static void update_ring_for_set_deq_completion(struct xhci_hcd *xhci,
 		unsigned int ep_index)
 {
 	union xhci_trb *dequeue_temp;
-	int num_trbs_free_temp;
-	bool revert = false;
 
-	num_trbs_free_temp = ep_ring->num_trbs_free;
 	dequeue_temp = ep_ring->dequeue;
 
 	/* If we get two back-to-back stalls, and the first stalled transfer
@@ -1267,8 +1284,6 @@ static void update_ring_for_set_deq_completion(struct xhci_hcd *xhci,
 	}
 
 	while (ep_ring->dequeue != dev->eps[ep_index].queued_deq_ptr) {
-		/* We have more usable TRBs */
-		ep_ring->num_trbs_free++;
 		ep_ring->dequeue++;
 		if (trb_is_link(ep_ring->dequeue)) {
 			if (ep_ring->dequeue ==
@@ -1278,14 +1293,9 @@ static void update_ring_for_set_deq_completion(struct xhci_hcd *xhci,
 			ep_ring->dequeue = ep_ring->deq_seg->trbs;
 		}
 		if (ep_ring->dequeue == dequeue_temp) {
-			revert = true;
+			xhci_dbg(xhci, "Unable to find new dequeue pointer\n");
 			break;
 		}
-	}
-
-	if (revert) {
-		xhci_dbg(xhci, "Unable to find new dequeue pointer\n");
-		ep_ring->num_trbs_free = num_trbs_free_temp;
 	}
 }
 
@@ -3081,7 +3091,7 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 	 * that clears the EHB.
 	 */
 	while (xhci_handle_event(xhci) > 0) {
-		if (event_loop++ < TRBS_PER_SEGMENT / 2)
+		if (event_loop++ < xhci->event_ring->trbs_per_seg / 2)
 			continue;
 		xhci_update_erst_dequeue(xhci, event_ring_deq);
 		event_ring_deq = xhci->event_ring->dequeue;
@@ -3223,7 +3233,8 @@ static int prepare_ring(struct xhci_hcd *xhci, struct xhci_ring *ep_ring,
 		}
 	}
 
-	if (last_trb_on_seg(ep_ring->enq_seg, ep_ring->enqueue)) {
+	if (last_trb_on_seg(ep_ring->enq_seg, ep_ring->trbs_per_seg,
+	    ep_ring->enqueue)) {
 		xhci_warn(xhci, "Missing link TRB at end of ring segment\n");
 		return -EINVAL;
 	}
@@ -3517,6 +3528,48 @@ static int xhci_align_td(struct xhci_hcd *xhci, struct urb *urb, u32 enqd_len,
 	return 1;
 }
 
+static void xhci_vl805_hub_tt_quirk(struct xhci_hcd *xhci, struct urb *urb,
+				    struct xhci_ring *ring)
+{
+	struct list_head *tmp;
+	struct usb_device *udev = urb->dev;
+	unsigned int timeout = 0;
+	unsigned int single_td = 0;
+
+	/*
+	 * Adding a TD to an Idle ring for a FS nonperiodic endpoint
+	 * that is behind the internal hub's TT will run the risk of causing a
+	 * downstream port babble if submitted late in uFrame 7.
+	 * Wait until we've moved on into at least uFrame 0
+	 * (MFINDEX references the next SOF to be transmitted).
+	 *
+	 * Rings for IN endpoints in the Running state also risk causing
+	 * babble if the returned data is large, but there's not much we can do
+	 * about it here.
+	 */
+	if (udev->route & 0xffff0 || udev->speed != USB_SPEED_FULL)
+		return;
+
+	list_for_each(tmp, &ring->td_list) {
+		single_td++;
+		if (single_td == 2) {
+			single_td = 0;
+			break;
+		}
+	}
+	if (single_td) {
+		while (timeout < 20 &&
+		       (readl(&xhci->run_regs->microframe_index) & 0x7) == 0) {
+			udelay(10);
+			timeout++;
+		}
+		if (timeout >= 20)
+			xhci_warn(xhci, "MFINDEX didn't advance - %u.%u dodged\n",
+				  readl(&xhci->run_regs->microframe_index) >> 3,
+				  readl(&xhci->run_regs->microframe_index) & 7);
+	}
+}
+
 /* This is very similar to what ehci-q.c qtd_fill() does */
 int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		struct urb *urb, int slot_id, unsigned int ep_index)
@@ -3532,14 +3585,15 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	unsigned int num_trbs;
 	unsigned int start_cycle, num_sgs = 0;
 	unsigned int enqd_len, block_len, trb_buff_len, full_len;
-	int sent_len, ret;
-	u32 field, length_field, remainder;
+	int sent_len, ret, vli_bulk_quirk = 0;
+	u32 field, length_field, remainder, maxpacket;
 	u64 addr, send_addr;
 
 	ring = xhci_urb_to_transfer_ring(xhci, urb);
 	if (!ring)
 		return -EINVAL;
 
+	maxpacket = usb_endpoint_maxp(&urb->ep->desc);
 	full_len = urb->transfer_buffer_length;
 	/* If we have scatter/gather list, we use it. */
 	if (urb->num_sgs && !(urb->transfer_flags & URB_DMA_MAP_SINGLE)) {
@@ -3576,6 +3630,12 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	start_cycle = ring->cycle_state;
 	send_addr = addr;
 
+	if (xhci->quirks & XHCI_VLI_SS_BULK_OUT_BUG &&
+	    usb_endpoint_is_bulk_out(&urb->ep->desc)
+	    && urb->dev->speed >= USB_SPEED_SUPER) {
+		vli_bulk_quirk = 1;
+	}
+
 	/* Queue the TRBs, even if they are zero-length */
 	for (enqd_len = 0; first_trb || enqd_len < full_len;
 			enqd_len += trb_buff_len) {
@@ -3588,6 +3648,11 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 		if (enqd_len + trb_buff_len > full_len)
 			trb_buff_len = full_len - enqd_len;
 
+		if (vli_bulk_quirk && trb_buff_len > maxpacket) {
+			/* SS bulk wMaxPacket is 1024B */
+			remainder = trb_buff_len & (maxpacket - 1);
+			trb_buff_len -= remainder;
+		}
 		/* Don't change the cycle bit of the first TRB until later */
 		if (first_trb) {
 			first_trb = false;
@@ -3673,6 +3738,8 @@ int xhci_queue_bulk_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 	}
 
 	check_trb_math(urb, enqd_len);
+	if (xhci->quirks & XHCI_VLI_HUB_TT_QUIRK)
+		xhci_vl805_hub_tt_quirk(xhci, urb, ring);
 	giveback_first_trb(xhci, slot_id, ep_index, urb->stream_id,
 			start_cycle, start_trb);
 	return 0;
@@ -3808,6 +3875,8 @@ int xhci_queue_ctrl_tx(struct xhci_hcd *xhci, gfp_t mem_flags,
 			/* Event on completion */
 			field | TRB_IOC | TRB_TYPE(TRB_STATUS) | ep_ring->cycle_state);
 
+	if (xhci->quirks & XHCI_VLI_HUB_TT_QUIRK)
+		xhci_vl805_hub_tt_quirk(xhci, urb, ep_ring);
 	giveback_first_trb(xhci, slot_id, ep_index, 0,
 			start_cycle, start_trb);
 	return 0;

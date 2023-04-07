@@ -98,6 +98,7 @@ static void xhci_free_segments_for_ring(struct xhci_hcd *xhci,
  */
 static void xhci_link_segments(struct xhci_segment *prev,
 			       struct xhci_segment *next,
+			       unsigned int trbs_per_seg,
 			       enum xhci_ring_type type, bool chain_links)
 {
 	u32 val;
@@ -106,16 +107,16 @@ static void xhci_link_segments(struct xhci_segment *prev,
 		return;
 	prev->next = next;
 	if (type != TYPE_EVENT) {
-		prev->trbs[TRBS_PER_SEGMENT-1].link.segment_ptr =
+		prev->trbs[trbs_per_seg - 1].link.segment_ptr =
 			cpu_to_le64(next->dma);
 
 		/* Set the last TRB in the segment to have a TRB type ID of Link TRB */
-		val = le32_to_cpu(prev->trbs[TRBS_PER_SEGMENT-1].link.control);
+		val = le32_to_cpu(prev->trbs[trbs_per_seg - 1].link.control);
 		val &= ~TRB_TYPE_BITMASK;
 		val |= TRB_TYPE(TRB_LINK);
 		if (chain_links)
 			val |= TRB_CHAIN;
-		prev->trbs[TRBS_PER_SEGMENT-1].link.control = cpu_to_le32(val);
+		prev->trbs[trbs_per_seg - 1].link.control = cpu_to_le32(val);
 	}
 }
 
@@ -139,15 +140,17 @@ static void xhci_link_rings(struct xhci_hcd *xhci, struct xhci_ring *ring,
 			  (xhci->quirks & XHCI_AMD_0x96_HOST)));
 
 	next = ring->enq_seg->next;
-	xhci_link_segments(ring->enq_seg, first, ring->type, chain_links);
-	xhci_link_segments(last, next, ring->type, chain_links);
+	xhci_link_segments(ring->enq_seg, first, ring->trbs_per_seg,
+			   ring->type, chain_links);
+	xhci_link_segments(last, next, ring->trbs_per_seg,
+			   ring->type, chain_links);
 	ring->num_segs += num_segs;
-	ring->num_trbs_free += (TRBS_PER_SEGMENT - 1) * num_segs;
+	ring->num_trbs_free += (ring->trbs_per_seg - 1) * num_segs;
 
 	if (ring->type != TYPE_EVENT && ring->enq_seg == ring->last_seg) {
-		ring->last_seg->trbs[TRBS_PER_SEGMENT-1].link.control
+		ring->last_seg->trbs[ring->trbs_per_seg - 1].link.control
 			&= ~cpu_to_le32(LINK_TOGGLE);
-		last->trbs[TRBS_PER_SEGMENT-1].link.control
+		last->trbs[ring->trbs_per_seg - 1].link.control
 			|= cpu_to_le32(LINK_TOGGLE);
 		ring->last_seg = last;
 	}
@@ -314,14 +317,15 @@ void xhci_initialize_ring_info(struct xhci_ring *ring,
 	 * Each segment has a link TRB, and leave an extra TRB for SW
 	 * accounting purpose
 	 */
-	ring->num_trbs_free = ring->num_segs * (TRBS_PER_SEGMENT - 1) - 1;
+	ring->num_trbs_free = ring->num_segs * (ring->trbs_per_seg - 1) - 1;
 }
 
 /* Allocate segments and link them for a ring */
 static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 		struct xhci_segment **first, struct xhci_segment **last,
-		unsigned int num_segs, unsigned int cycle_state,
-		enum xhci_ring_type type, unsigned int max_packet, gfp_t flags)
+		unsigned int num_segs, unsigned int trbs_per_seg,
+		unsigned int cycle_state, enum xhci_ring_type type,
+		unsigned int max_packet, gfp_t flags)
 {
 	struct xhci_segment *prev;
 	bool chain_links;
@@ -350,12 +354,12 @@ static int xhci_alloc_segments_for_ring(struct xhci_hcd *xhci,
 			}
 			return -ENOMEM;
 		}
-		xhci_link_segments(prev, next, type, chain_links);
+		xhci_link_segments(prev, next, trbs_per_seg, type, chain_links);
 
 		prev = next;
 		num_segs--;
 	}
-	xhci_link_segments(prev, *first, type, chain_links);
+	xhci_link_segments(prev, *first, trbs_per_seg, type, chain_links);
 	*last = prev;
 
 	return 0;
@@ -387,16 +391,28 @@ struct xhci_ring *xhci_ring_alloc(struct xhci_hcd *xhci,
 	if (num_segs == 0)
 		return ring;
 
+	ring->trbs_per_seg = TRBS_PER_SEGMENT;
+	/*
+	 * The Via VL805 has a bug where cache readahead will fetch off the end
+	 * of a page if the Link TRB of a transfer ring is in the last 4 slots.
+	 * Where there are consecutive physical pages containing ring segments,
+	 * this can cause a desync between the controller's view of a ring
+	 * and the host.
+	 */
+	if (xhci->quirks & XHCI_VLI_TRB_CACHE_BUG &&
+	    type != TYPE_EVENT && type != TYPE_COMMAND)
+		ring->trbs_per_seg -= 4;
+
 	ret = xhci_alloc_segments_for_ring(xhci, &ring->first_seg,
-			&ring->last_seg, num_segs, cycle_state, type,
-			max_packet, flags);
+			&ring->last_seg, num_segs, ring->trbs_per_seg,
+			cycle_state, type, max_packet, flags);
 	if (ret)
 		goto fail;
 
 	/* Only event ring does not use link TRB */
 	if (type != TYPE_EVENT) {
 		/* See section 4.9.2.1 and 6.4.4.1 */
-		ring->last_seg->trbs[TRBS_PER_SEGMENT - 1].link.control |=
+		ring->last_seg->trbs[ring->trbs_per_seg - 1].link.control |=
 			cpu_to_le32(LINK_TOGGLE);
 	}
 	xhci_initialize_ring_info(ring, cycle_state);
@@ -429,15 +445,14 @@ int xhci_ring_expansion(struct xhci_hcd *xhci, struct xhci_ring *ring,
 	unsigned int		num_segs_needed;
 	int			ret;
 
-	num_segs_needed = (num_trbs + (TRBS_PER_SEGMENT - 1) - 1) /
-				(TRBS_PER_SEGMENT - 1);
-
+	num_segs_needed = (num_trbs + (ring->trbs_per_seg - 1) - 1) /
+				(ring->trbs_per_seg - 1);
 	/* Allocate number of segments we needed, or double the ring size */
 	num_segs = max(ring->num_segs, num_segs_needed);
 
 	ret = xhci_alloc_segments_for_ring(xhci, &first, &last,
-			num_segs, ring->cycle_state, ring->type,
-			ring->bounce_buf_len, flags);
+			num_segs, ring->trbs_per_seg, ring->cycle_state,
+			ring->type, ring->bounce_buf_len, flags);
 	if (ret)
 		return -ENOMEM;
 
@@ -1422,6 +1437,7 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int ep_index;
 	struct xhci_ep_ctx *ep_ctx;
 	struct xhci_ring *ep_ring;
+	struct usb_interface_cache *intfc;
 	unsigned int max_packet;
 	enum xhci_ring_type ring_type;
 	u32 max_esit_payload;
@@ -1431,6 +1447,8 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 	unsigned int mult;
 	unsigned int avg_trb_len;
 	unsigned int err_count = 0;
+	unsigned int is_ums_dev = 0;
+	unsigned int i;
 
 	ep_index = xhci_get_endpoint_index(&ep->desc);
 	ep_ctx = xhci_get_ep_ctx(xhci, virt_dev->in_ctx, ep_index);
@@ -1462,8 +1480,34 @@ int xhci_endpoint_init(struct xhci_hcd *xhci,
 
 	mult = xhci_get_endpoint_mult(udev, ep);
 	max_packet = usb_endpoint_maxp(&ep->desc);
-	max_burst = xhci_get_endpoint_max_burst(udev, ep);
 	avg_trb_len = max_esit_payload;
+
+	/*
+	 * VL805 errata - Bulk OUT bursts to superspeed mass-storage
+	 * devices behind hub ports can cause data corruption with
+	 * non-wMaxPacket-multiple transfers.
+	 */
+	for (i = 0; i < udev->config->desc.bNumInterfaces; i++) {
+		intfc = udev->config->intf_cache[i];
+		/*
+		 * Slight hack - look at interface altsetting 0, which
+		 * should be the UMS bulk-only interface. If the class
+		 * matches, then we disable out bursts for all OUT
+		 * endpoints because endpoint assignments may change
+		 * between alternate settings.
+		 */
+		if (intfc->altsetting[0].desc.bInterfaceClass ==
+		    USB_CLASS_MASS_STORAGE) {
+			is_ums_dev = 1;
+			break;
+		}
+	}
+	if (xhci->quirks & XHCI_VLI_SS_BULK_OUT_BUG &&
+	    usb_endpoint_is_bulk_out(&ep->desc) && is_ums_dev &&
+	    udev->route)
+		max_burst = 0;
+	else
+		max_burst = xhci_get_endpoint_max_burst(udev, ep);
 
 	/* FIXME dig Mult and streams info out of ep companion desc */
 
@@ -1811,7 +1855,7 @@ int xhci_alloc_erst(struct xhci_hcd *xhci,
 	for (val = 0; val < evt_ring->num_segs; val++) {
 		entry = &erst->entries[val];
 		entry->seg_addr = cpu_to_le64(seg->dma);
-		entry->seg_size = cpu_to_le32(TRBS_PER_SEGMENT);
+		entry->seg_size = cpu_to_le32(evt_ring->trbs_per_seg);
 		entry->rsvd = 0;
 		seg = seg->next;
 	}
@@ -2501,9 +2545,11 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	 * Event ring setup: Allocate a normal ring, but also setup
 	 * the event ring segment table (ERST).  Section 4.9.3.
 	 */
+	val2 = 1 << HCS_ERST_MAX(xhci->hcs_params2);
+	val2 = min_t(unsigned int, ERST_MAX_SEGS, val2);
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init, "// Allocating event ring");
-	xhci->event_ring = xhci_ring_alloc(xhci, ERST_NUM_SEGS, 1, TYPE_EVENT,
-					0, flags);
+	xhci->event_ring = xhci_ring_alloc(xhci, val2, 1, TYPE_EVENT,
+					   0, flags);
 	if (!xhci->event_ring)
 		goto fail;
 	if (xhci_check_trb_in_td_math(xhci) < 0)
@@ -2516,7 +2562,7 @@ int xhci_mem_init(struct xhci_hcd *xhci, gfp_t flags)
 	/* set ERST count with the number of entries in the segment table */
 	val = readl(&xhci->ir_set->erst_size);
 	val &= ERST_SIZE_MASK;
-	val |= ERST_NUM_SEGS;
+	val |= val2;
 	xhci_dbg_trace(xhci, trace_xhci_dbg_init,
 			"// Write ERST size = %i to ir_set 0 (some bits preserved)",
 			val);

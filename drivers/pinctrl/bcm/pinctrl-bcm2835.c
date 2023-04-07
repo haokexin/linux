@@ -383,7 +383,7 @@ static const struct gpio_chip bcm2835_gpio_chip = {
 	.get = bcm2835_gpio_get,
 	.set = bcm2835_gpio_set,
 	.set_config = gpiochip_generic_config,
-	.base = -1,
+	.base = 0,
 	.ngpio = BCM2835_NUM_GPIOS,
 	.can_sleep = false,
 	.of_gpio_ranges_fallback = bcm2835_of_gpio_ranges_fallback,
@@ -400,7 +400,7 @@ static const struct gpio_chip bcm2711_gpio_chip = {
 	.get = bcm2835_gpio_get,
 	.set = bcm2835_gpio_set,
 	.set_config = gpiochip_generic_config,
-	.base = -1,
+	.base = 0,
 	.ngpio = BCM2711_NUM_GPIOS,
 	.can_sleep = false,
 	.of_gpio_ranges_fallback = bcm2835_of_gpio_ranges_fallback,
@@ -918,9 +918,12 @@ static int bcm2835_pmx_free(struct pinctrl_dev *pctldev,
 		unsigned offset)
 {
 	struct bcm2835_pinctrl *pc = pinctrl_dev_get_drvdata(pctldev);
+	enum bcm2835_fsel fsel = bcm2835_pinctrl_fsel_get(pc, offset);
 
-	/* disable by setting to GPIO_IN */
-	bcm2835_pinctrl_fsel_set(pc, offset, BCM2835_FSEL_GPIO_IN);
+	/* Return non-GPIOs to GPIO_IN */
+	if (fsel != BCM2835_FSEL_GPIO_IN && fsel != BCM2835_FSEL_GPIO_OUT)
+		bcm2835_pinctrl_fsel_set(pc, offset, BCM2835_FSEL_GPIO_IN);
+
 	return 0;
 }
 
@@ -962,10 +965,7 @@ static void bcm2835_pmx_gpio_disable_free(struct pinctrl_dev *pctldev,
 		struct pinctrl_gpio_range *range,
 		unsigned offset)
 {
-	struct bcm2835_pinctrl *pc = pinctrl_dev_get_drvdata(pctldev);
-
-	/* disable by setting to GPIO_IN */
-	bcm2835_pinctrl_fsel_set(pc, offset, BCM2835_FSEL_GPIO_IN);
+	(void)bcm2835_pmx_free(pctldev, offset);
 }
 
 static int bcm2835_pmx_gpio_set_direction(struct pinctrl_dev *pctldev,
@@ -1346,7 +1346,7 @@ static int bcm2835_pinctrl_probe(struct platform_device *pdev)
 	girq->default_type = IRQ_TYPE_NONE;
 	girq->handler = handle_level_irq;
 
-	err = gpiochip_add_data(&pc->gpio_chip, pc);
+	err = devm_gpiochip_add_data(dev, &pc->gpio_chip, pc);
 	if (err) {
 		dev_err(dev, "could not add GPIO chip\n");
 		goto out_remove;

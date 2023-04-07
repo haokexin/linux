@@ -196,7 +196,7 @@ static const struct drm_ioctl_desc vc4_drm_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(VC4_PERFMON_GET_VALUES, vc4_perfmon_get_values_ioctl, DRM_RENDER_ALLOW),
 };
 
-static const struct drm_driver vc4_drm_driver = {
+const struct drm_driver vc4_drm_driver = {
 	.driver_features = (DRIVER_MODESET |
 			    DRIVER_ATOMIC |
 			    DRIVER_GEM |
@@ -225,7 +225,7 @@ static const struct drm_driver vc4_drm_driver = {
 	.patchlevel = DRIVER_PATCHLEVEL,
 };
 
-static const struct drm_driver vc5_drm_driver = {
+const struct drm_driver vc5_drm_driver = {
 	.driver_features = (DRIVER_MODESET |
 			    DRIVER_ATOMIC |
 			    DRIVER_GEM),
@@ -276,11 +276,25 @@ static void vc4_component_unbind_all(void *ptr)
 static const struct of_device_id vc4_dma_range_matches[] = {
 	{ .compatible = "brcm,bcm2711-hvs" },
 	{ .compatible = "brcm,bcm2835-hvs" },
+	{ .compatible = "brcm,bcm2711-hvs" },
+	{ .compatible = "raspberrypi,rpi-firmware-kms" },
 	{ .compatible = "brcm,bcm2835-v3d" },
 	{ .compatible = "brcm,cygnus-v3d" },
 	{ .compatible = "brcm,vc4-v3d" },
 	{}
 };
+
+/*
+ * we need this helper function for determining presence of fkms
+ * before it's been bound
+ */
+static bool firmware_kms(void)
+{
+	return of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms")) ||
+	       of_device_is_available(of_find_compatible_node(NULL, NULL,
+	       "raspberrypi,rpi-firmware-kms-2711"));
+}
 
 static int vc4_drm_bind(struct device *dev)
 {
@@ -355,7 +369,7 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		return ret;
 
-	if (firmware) {
+	if (firmware && !firmware_kms()) {
 		ret = rpi_firmware_property(firmware,
 					    RPI_FIRMWARE_NOTIFY_DISPLAY_DONE,
 					    NULL, 0);
@@ -373,16 +387,20 @@ static int vc4_drm_bind(struct device *dev)
 	if (ret)
 		return ret;
 
-	ret = vc4_plane_create_additional_planes(drm);
-	if (ret)
-		goto unbind_all;
+	if (!vc4->firmware_kms) {
+		ret = vc4_plane_create_additional_planes(drm);
+		if (ret)
+			return ret;
+	}
 
 	ret = vc4_kms_load(drm);
 	if (ret < 0)
 		goto unbind_all;
 
-	drm_for_each_crtc(crtc, drm)
-		vc4_crtc_disable_at_boot(crtc);
+	if (!vc4->firmware_kms) {
+		drm_for_each_crtc(crtc, drm)
+			vc4_crtc_disable_at_boot(crtc);
+	}
 
 	ret = drm_dev_register(drm, 0);
 	if (ret < 0)
@@ -426,6 +444,7 @@ static struct platform_driver *const component_drivers[] = {
 	&vc4_dsi_driver,
 	&vc4_txp_driver,
 	&vc4_crtc_driver,
+	&vc4_firmware_kms_driver,
 	&vc4_v3d_driver,
 };
 

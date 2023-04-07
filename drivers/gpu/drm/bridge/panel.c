@@ -81,6 +81,10 @@ static int panel_bridge_attach(struct drm_bridge *bridge,
 		return ret;
 	}
 
+	/* set up connector's "panel orientation" property */
+	drm_connector_set_panel_orientation(&panel_bridge->connector,
+					    panel_bridge->panel->orientation);
+
 	drm_connector_attach_encoder(&panel_bridge->connector,
 					  bridge->encoder);
 
@@ -253,6 +257,9 @@ struct drm_bridge *drm_panel_bridge_add_typed(struct drm_panel *panel,
 #endif
 	panel_bridge->bridge.ops = DRM_BRIDGE_OP_MODES;
 	panel_bridge->bridge.type = connector_type;
+
+	panel_bridge->bridge.pre_enable_upstream_first =
+						panel->prepare_upstream_first;
 
 	drm_bridge_add(&panel_bridge->bridge);
 

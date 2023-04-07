@@ -9,6 +9,7 @@ vc4-y := \
 	vc4_dpi.o \
 	vc4_dsi.o \
 	vc4_fence.o \
+	vc4_firmware_kms.o \
 	vc4_kms.o \
 	vc4_gem.o \
 	vc4_hdmi.o \
@@ -24,6 +25,13 @@ vc4-y := \
 	vc4_v3d.o \
 	vc4_validate.o \
 	vc4_validate_shaders.o
+
+vc4-$(CONFIG_DRM_VC4_KUNIT_TEST) += \
+	tests/vc4_mock.o \
+	tests/vc4_mock_crtc.o \
+	tests/vc4_mock_output.o \
+	tests/vc4_mock_plane.o \
+	tests/vc4_test_pv_muxing.o
 
 vc4-$(CONFIG_DEBUG_FS) += vc4_debugfs.o
 

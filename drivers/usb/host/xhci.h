@@ -1633,6 +1633,7 @@ struct xhci_ring {
 	unsigned int		num_trbs_free;
 	unsigned int		num_trbs_free_temp;
 	unsigned int		bounce_buf_len;
+	unsigned int		trbs_per_seg;
 	enum xhci_ring_type	type;
 	bool			last_td_was_short;
 	struct radix_tree_root	*trb_address_map;
@@ -1671,8 +1672,8 @@ struct urb_priv {
  * Each segment table entry is 4*32bits long.  1K seems like an ok size:
  * (1K bytes * 8bytes/bit) / (4*32 bits) = 64 segment entries in the table,
  * meaning 64 ring segments.
- * Initial allocated size of the ERST, in number of entries */
-#define	ERST_NUM_SEGS	1
+ * Maximum number of segments in the ERST */
+#define	ERST_MAX_SEGS	8
 /* Poll every 60 seconds */
 #define	POLL_TIMEOUT	60
 /* Stop endpoint command timeout (secs) for URB cancellation watchdog timer */
@@ -1899,6 +1900,10 @@ struct xhci_hcd {
 #define XHCI_EP_CTX_BROKEN_DCS	BIT_ULL(42)
 #define XHCI_SUSPEND_RESUME_CLKS	BIT_ULL(43)
 #define XHCI_RESET_TO_DEFAULT	BIT_ULL(44)
+#define XHCI_AVOID_DQ_ON_LINK	BIT_ULL(45)
+#define XHCI_VLI_TRB_CACHE_BUG	BIT_ULL(46)
+#define XHCI_VLI_SS_BULK_OUT_BUG	BIT_ULL(47)
+#define XHCI_VLI_HUB_TT_QUIRK	BIT_ULL(48)
 
 	unsigned int		num_active_eps;
 	unsigned int		limit_active_eps;

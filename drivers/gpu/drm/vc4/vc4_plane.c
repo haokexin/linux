@@ -65,11 +65,13 @@ static const struct hvs_format {
 		.drm = DRM_FORMAT_RGB565,
 		.hvs = HVS_PIXEL_FORMAT_RGB565,
 		.pixel_order = HVS_PIXEL_ORDER_XRGB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XRGB,
 	},
 	{
 		.drm = DRM_FORMAT_BGR565,
 		.hvs = HVS_PIXEL_FORMAT_RGB565,
 		.pixel_order = HVS_PIXEL_ORDER_XBGR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XBGR,
 	},
 	{
 		.drm = DRM_FORMAT_ARGB1555,
@@ -87,57 +89,163 @@ static const struct hvs_format {
 		.drm = DRM_FORMAT_RGB888,
 		.hvs = HVS_PIXEL_FORMAT_RGB888,
 		.pixel_order = HVS_PIXEL_ORDER_XRGB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XRGB,
 	},
 	{
 		.drm = DRM_FORMAT_BGR888,
 		.hvs = HVS_PIXEL_FORMAT_RGB888,
 		.pixel_order = HVS_PIXEL_ORDER_XBGR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XBGR,
 	},
 	{
 		.drm = DRM_FORMAT_YUV422,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_3PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCBCR,
 	},
 	{
 		.drm = DRM_FORMAT_YVU422,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_3PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCRCB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCRCB,
+	},
+	{
+		.drm = DRM_FORMAT_YUV444,
+		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_3PLANE,
+		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCBCR,
+	},
+	{
+		.drm = DRM_FORMAT_YVU444,
+		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_3PLANE,
+		.pixel_order = HVS_PIXEL_ORDER_XYCRCB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCRCB,
 	},
 	{
 		.drm = DRM_FORMAT_YUV420,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV420_3PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCBCR,
 	},
 	{
 		.drm = DRM_FORMAT_YVU420,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV420_3PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCRCB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCRCB,
 	},
 	{
 		.drm = DRM_FORMAT_NV12,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV420_2PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCBCR,
 	},
 	{
 		.drm = DRM_FORMAT_NV21,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV420_2PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCRCB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCRCB,
 	},
 	{
 		.drm = DRM_FORMAT_NV16,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_2PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCBCR,
 	},
 	{
 		.drm = DRM_FORMAT_NV61,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_YUV422_2PLANE,
 		.pixel_order = HVS_PIXEL_ORDER_XYCRCB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCRCB,
 	},
 	{
 		.drm = DRM_FORMAT_P030,
 		.hvs = HVS_PIXEL_FORMAT_YCBCR_10BIT,
-		.pixel_order = HVS_PIXEL_ORDER_XYCBCR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_XYCBCR,
 		.hvs5_only = true,
+	},
+	{
+		.drm = DRM_FORMAT_XRGB2101010,
+		.hvs = HVS_PIXEL_FORMAT_RGBA1010102,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ARGB,
+		.hvs5_only = true,
+	},
+	{
+		.drm = DRM_FORMAT_ARGB2101010,
+		.hvs = HVS_PIXEL_FORMAT_RGBA1010102,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ARGB,
+		.hvs5_only = true,
+	},
+	{
+		.drm = DRM_FORMAT_ABGR2101010,
+		.hvs = HVS_PIXEL_FORMAT_RGBA1010102,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ABGR,
+		.hvs5_only = true,
+	},
+	{
+		.drm = DRM_FORMAT_XBGR2101010,
+		.hvs = HVS_PIXEL_FORMAT_RGBA1010102,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ABGR,
+		.hvs5_only = true,
+	},
+	{
+		.drm = DRM_FORMAT_RGB332,
+		.hvs = HVS_PIXEL_FORMAT_RGB332,
+		.pixel_order = HVS_PIXEL_ORDER_ARGB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ARGB,
+	},
+	{
+		.drm = DRM_FORMAT_BGR233,
+		.hvs = HVS_PIXEL_FORMAT_RGB332,
+		.pixel_order = HVS_PIXEL_ORDER_ABGR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ABGR,
+	},
+	{
+		.drm = DRM_FORMAT_XRGB4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_ABGR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ARGB,
+	},
+	{
+		.drm = DRM_FORMAT_ARGB4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_ABGR,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ARGB,
+	},
+	{
+		.drm = DRM_FORMAT_XBGR4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_ARGB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ABGR,
+	},
+	{
+		.drm = DRM_FORMAT_ABGR4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_ARGB,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_ABGR,
+	},
+	{
+		.drm = DRM_FORMAT_BGRX4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_RGBA,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_BGRA,
+	},
+	{
+		.drm = DRM_FORMAT_BGRA4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_RGBA,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_BGRA,
+	},
+	{
+		.drm = DRM_FORMAT_RGBX4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_BGRA,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_RGBA,
+	},
+	{
+		.drm = DRM_FORMAT_RGBA4444,
+		.hvs = HVS_PIXEL_FORMAT_RGBA4444,
+		.pixel_order = HVS_PIXEL_ORDER_BGRA,
+		.pixel_order_hvs5 = HVS_PIXEL_ORDER_RGBA,
 	},
 };
 
@@ -155,9 +263,9 @@ static const struct hvs_format *vc4_get_hvs_format(u32 drm_format)
 
 static enum vc4_scaling_mode vc4_get_scaling_mode(u32 src, u32 dst)
 {
-	if (dst == src)
+	if (dst == src >> 16)
 		return VC4_SCALING_NONE;
-	if (3 * dst >= 2 * src)
+	if (3 * dst >= 2 * (src >> 16))
 		return VC4_SCALING_PPF;
 	else
 		return VC4_SCALING_TPZ;
@@ -366,15 +474,10 @@ static int vc4_plane_setup_clipping_and_scaling(struct drm_plane_state *state)
 		vc4_state->offsets[i] = bo->dma_addr + fb->offsets[i];
 	}
 
-	/*
-	 * We don't support subpixel source positioning for scaling,
-	 * but fractional coordinates can be generated by clipping
-	 * so just round for now
-	 */
-	vc4_state->src_x = DIV_ROUND_CLOSEST(state->src.x1, 1 << 16);
-	vc4_state->src_y = DIV_ROUND_CLOSEST(state->src.y1, 1 << 16);
-	vc4_state->src_w[0] = DIV_ROUND_CLOSEST(state->src.x2, 1 << 16) - vc4_state->src_x;
-	vc4_state->src_h[0] = DIV_ROUND_CLOSEST(state->src.y2, 1 << 16) - vc4_state->src_y;
+	vc4_state->src_x = state->src.x1;
+	vc4_state->src_y = state->src.y1;
+	vc4_state->src_w[0] = state->src.x2 - vc4_state->src_x;
+	vc4_state->src_h[0] = state->src.y2 - vc4_state->src_y;
 
 	vc4_state->crtc_x = state->dst.x1;
 	vc4_state->crtc_y = state->dst.y1;
@@ -427,7 +530,7 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 {
 	u32 scale, recip;
 
-	scale = (1 << 16) * src / dst;
+	scale = src / dst;
 
 	/* The specs note that while the reciprocal would be defined
 	 * as (1<<32)/scale, ~0 is close enough.
@@ -441,14 +544,48 @@ static void vc4_write_tpz(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
 			VC4_SET_FIELD(recip, SCALER_TPZ1_RECIP));
 }
 
-static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst)
+/* phase magnitude bits */
+#define PHASE_BITS 6
+
+static void vc4_write_ppf(struct vc4_plane_state *vc4_state, u32 src, u32 dst, u32 xy, int channel, int chroma_offset)
 {
-	u32 scale = (1 << 16) * src / dst;
+	u32 scale = src / dst;
+	s32 offset, offset2;
+	s32 phase;
+
+	/* Start the phase at 1/2 pixel from the 1st pixel at src_x.
+	   1/4 pixel for YUV, plus the offset for chroma siting */
+	if (channel) {
+		/* the phase is relative to scale_src->x, so shift it for display list's x value */
+		offset = (xy & 0x1ffff) >> (16 - PHASE_BITS) >> 1;
+		offset -= chroma_offset >> (17 - PHASE_BITS);
+		offset += -(1 << PHASE_BITS >> 2);
+	} else {
+		/* the phase is relative to scale_src->x, so shift it for display list's x value */
+		offset = (xy & 0xffff) >> (16 - PHASE_BITS);
+		offset += -(1 << PHASE_BITS >> 1);
+
+		/* This is a kludge to make sure the scaling factors are consitent with YUV's luma scaling.
+		   we lose 1bit precision because of this. */
+		scale &= ~1;
+	}
+
+	/* There may be a also small error introduced by precision of scale.
+	   Add half of that as a compromise */
+	offset2 = src - dst * scale;
+	offset2 >>= 16 - PHASE_BITS;
+	phase = offset + (offset2 >> 1);
+
+	/* Ensure +ve values don't touch the sign bit, then truncate negative values */
+	if (phase >= 1 << PHASE_BITS)
+		phase = (1 << PHASE_BITS) - 1;
+
+	phase &= SCALER_PPF_IPHASE_MASK;
 
 	vc4_dlist_write(vc4_state,
 			SCALER_PPF_AGC |
 			VC4_SET_FIELD(scale, SCALER_PPF_SCALE) |
-			VC4_SET_FIELD(0, SCALER_PPF_IPHASE));
+			VC4_SET_FIELD(phase, SCALER_PPF_IPHASE));
 }
 
 static u32 vc4_lbm_size(struct drm_plane_state *state)
@@ -473,7 +610,7 @@ static u32 vc4_lbm_size(struct drm_plane_state *state)
 	if (vc4_state->x_scaling[0] == VC4_SCALING_TPZ)
 		pix_per_line = vc4_state->crtc_w;
 	else
-		pix_per_line = vc4_state->src_w[0];
+		pix_per_line = vc4_state->src_w[0] >> 16;
 
 	if (!vc4_state->is_yuv) {
 		if (vc4_state->y_scaling[0] == VC4_SCALING_TPZ)
@@ -507,13 +644,15 @@ static void vc4_write_scaling_parameters(struct drm_plane_state *state,
 	/* Ch0 H-PPF Word 0: Scaling Parameters */
 	if (vc4_state->x_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state,
-			      vc4_state->src_w[channel], vc4_state->crtc_w);
+			      vc4_state->src_w[channel], vc4_state->crtc_w, vc4_state->src_x, channel,
+			      state->chroma_siting_h);
 	}
 
 	/* Ch0 V-PPF Words 0-1: Scaling Parameters, Context */
 	if (vc4_state->y_scaling[channel] == VC4_SCALING_PPF) {
 		vc4_write_ppf(vc4_state,
-			      vc4_state->src_h[channel], vc4_state->crtc_h);
+			      vc4_state->src_h[channel], vc4_state->crtc_h, vc4_state->src_y, channel,
+			      state->chroma_siting_v);
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 	}
 
@@ -564,7 +703,8 @@ static void vc4_plane_calc_load(struct drm_plane_state *state)
 	for (i = 0; i < fb->format->num_planes; i++) {
 		/* Even if the bandwidth/plane required for a single frame is
 		 *
-		 * vc4_state->src_w[i] * vc4_state->src_h[i] * cpp * vrefresh
+		 * (vc4_state->src_w[i] >> 16) * (vc4_state->src_h[i] >> 16) *
+		 *  cpp * vrefresh
 		 *
 		 * when downscaling, we have to read more pixels per line in
 		 * the time frame reserved for a single line, so the bandwidth
@@ -573,11 +713,11 @@ static void vc4_plane_calc_load(struct drm_plane_state *state)
 		 * load by this number. We're likely over-estimating the read
 		 * demand, but that's better than under-estimating it.
 		 */
-		vscale_factor = DIV_ROUND_UP(vc4_state->src_h[i],
+		vscale_factor = DIV_ROUND_UP(vc4_state->src_h[i] >> 16,
 					     vc4_state->crtc_h);
-		vc4_state->membus_load += vc4_state->src_w[i] *
-					  vc4_state->src_h[i] * vscale_factor *
-					  fb->format->cpp[i];
+		vc4_state->membus_load += (vc4_state->src_w[i] >> 16) *
+					  (vc4_state->src_h[i] >> 16) *
+					  vscale_factor * fb->format->cpp[i];
 		vc4_state->hvs_load += vc4_state->crtc_h * vc4_state->crtc_w;
 	}
 
@@ -730,7 +870,8 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	bool mix_plane_alpha;
 	bool covers_screen;
 	u32 scl0, scl1, pitch0;
-	u32 tiling, src_y;
+	u32 tiling, src_x, src_y;
+	u32 width, height;
 	u32 hvs_format = format->hvs;
 	unsigned int rotation;
 	int ret, i;
@@ -741,6 +882,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	ret = vc4_plane_setup_clipping_and_scaling(state);
 	if (ret)
 		return ret;
+
+	width = vc4_state->src_w[0] >> 16;
+	height = vc4_state->src_h[0] >> 16;
 
 	/* SCL1 is used for Cb/Cr scaling of planar formats.  For RGB
 	 * and 4:4:4, scl1 should be set to scl0 so both channels of
@@ -762,9 +906,11 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 					 DRM_MODE_REFLECT_Y);
 
 	/* We must point to the last line when Y reflection is enabled. */
-	src_y = vc4_state->src_y;
+	src_y = vc4_state->src_y >> 16;
 	if (rotation & DRM_MODE_REFLECT_Y)
-		src_y += vc4_state->src_h[0] - 1;
+		src_y += height - 1;
+
+	src_x = vc4_state->src_x >> 16;
 
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
@@ -779,7 +925,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 						 (i ? v_subsample : 1) *
 						 fb->pitches[i];
 
-			vc4_state->offsets[i] += vc4_state->src_x /
+			vc4_state->offsets[i] += src_x /
 						 (i ? h_subsample : 1) *
 						 fb->format->cpp[i];
 		}
@@ -802,7 +948,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 *	pitch * tile_h == tile_size * tiles_per_row
 		 */
 		u32 tiles_w = fb->pitches[0] >> (tile_size_shift - tile_h_shift);
-		u32 tiles_l = vc4_state->src_x >> tile_w_shift;
+		u32 tiles_l = src_x >> tile_w_shift;
 		u32 tiles_r = tiles_w - tiles_l;
 		u32 tiles_t = src_y >> tile_h_shift;
 		/* Intra-tile offsets, which modify the base address (the
@@ -812,7 +958,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		u32 tile_y = (src_y >> 4) & 1;
 		u32 subtile_y = (src_y >> 2) & 3;
 		u32 utile_y = src_y & 3;
-		u32 x_off = vc4_state->src_x & tile_w_mask;
+		u32 x_off = src_x & tile_w_mask;
 		u32 y_off = src_y & tile_h_mask;
 
 		/* When Y reflection is requested we must set the
@@ -908,7 +1054,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 				 * of the 12-pixels in that 128-bit word is the
 				 * first pixel to be used
 				 */
-				u32 remaining_pixels = vc4_state->src_x % 96;
+				u32 remaining_pixels = src_x % 96;
 				u32 aligned = remaining_pixels / 12;
 				u32 last_bits = remaining_pixels % 12;
 
@@ -930,12 +1076,12 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 					return -EINVAL;
 				}
 				pix_per_tile = tile_w / fb->format->cpp[0];
-				x_off = (vc4_state->src_x % pix_per_tile) /
+				x_off = (src_x % pix_per_tile) /
 					(i ? h_subsample : 1) *
 					fb->format->cpp[i];
 			}
 
-			tile = vc4_state->src_x / pix_per_tile;
+			tile = src_x / pix_per_tile;
 
 			vc4_state->offsets[i] += param * tile_w * tile;
 			vc4_state->offsets[i] += src_y /
@@ -953,6 +1099,28 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 			      (long long)fb->modifier);
 		return -EINVAL;
 	}
+
+	/* fetch an extra pixel if we don't actually line up with the left edge. */
+	if ((vc4_state->src_x & 0xffff) && vc4_state->src_x < (state->fb->width << 16))
+		width++;
+
+	/* same for the right side */
+	if (((vc4_state->src_x + vc4_state->src_w[0]) & 0xffff) &&
+	       vc4_state->src_x + vc4_state->src_w[0] < (state->fb->width << 16))
+		width++;
+
+	/* now for the top */
+	if ((vc4_state->src_y & 0xffff) && vc4_state->src_y < (state->fb->height << 16))
+		height++;
+
+	/* and the bottom */
+	if (((vc4_state->src_y + vc4_state->src_h[0]) & 0xffff) &&
+	       vc4_state->src_y + vc4_state->src_h[0] < (state->fb->height << 16))
+		height++;
+
+	/* for YUV444 hardware wants double the width, otherwise it doesn't fetch full width of chroma */
+	if (format->drm == DRM_FORMAT_YUV444 || format->drm == DRM_FORMAT_YVU444)
+		width <<= 1;
 
 	/* Don't waste cycles mixing with plane alpha if the set alpha
 	 * is opaque or there is no per-pixel alpha information.
@@ -996,24 +1164,17 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		vc4_dlist_write(vc4_state,
 				(mix_plane_alpha ? SCALER_POS2_ALPHA_MIX : 0) |
 				vc4_hvs4_get_alpha_blend_mode(state) |
-				VC4_SET_FIELD(vc4_state->src_w[0],
-					      SCALER_POS2_WIDTH) |
-				VC4_SET_FIELD(vc4_state->src_h[0],
-					      SCALER_POS2_HEIGHT));
+				VC4_SET_FIELD(width, SCALER_POS2_WIDTH) |
+				VC4_SET_FIELD(height, SCALER_POS2_HEIGHT));
 
 		/* Position Word 3: Context.  Written by the HVS. */
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
 
 	} else {
-		u32 hvs_pixel_order = format->pixel_order;
-
-		if (format->pixel_order_hvs5)
-			hvs_pixel_order = format->pixel_order_hvs5;
-
 		/* Control word */
 		vc4_dlist_write(vc4_state,
 				SCALER_CTL0_VALID |
-				(hvs_pixel_order << SCALER_CTL0_ORDER_SHIFT) |
+				(format->pixel_order_hvs5 << SCALER_CTL0_ORDER_SHIFT) |
 				(hvs_format << SCALER_CTL0_PIXEL_FORMAT_SHIFT) |
 				VC4_SET_FIELD(tiling, SCALER_CTL0_TILING) |
 				(vc4_state->is_unity ?
@@ -1057,10 +1218,8 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		/* Position Word 2: Source Image Size */
 		vc4_state->pos2_offset = vc4_state->dlist_count;
 		vc4_dlist_write(vc4_state,
-				VC4_SET_FIELD(vc4_state->src_w[0],
-					      SCALER5_POS2_WIDTH) |
-				VC4_SET_FIELD(vc4_state->src_h[0],
-					      SCALER5_POS2_HEIGHT));
+				VC4_SET_FIELD(width, SCALER5_POS2_WIDTH) |
+				VC4_SET_FIELD(height, SCALER5_POS2_HEIGHT));
 
 		/* Position Word 3: Context.  Written by the HVS. */
 		vc4_dlist_write(vc4_state, 0xc0c0c0c0);
@@ -1492,6 +1651,16 @@ static bool vc4_format_mod_supported(struct drm_plane *plane,
 	case DRM_FORMAT_BGRX1010102:
 	case DRM_FORMAT_RGBA1010102:
 	case DRM_FORMAT_BGRA1010102:
+	case DRM_FORMAT_XRGB4444:
+	case DRM_FORMAT_ARGB4444:
+	case DRM_FORMAT_XBGR4444:
+	case DRM_FORMAT_ABGR4444:
+	case DRM_FORMAT_RGBX4444:
+	case DRM_FORMAT_RGBA4444:
+	case DRM_FORMAT_BGRX4444:
+	case DRM_FORMAT_BGRA4444:
+	case DRM_FORMAT_RGB332:
+	case DRM_FORMAT_BGR233:
 	case DRM_FORMAT_YUV422:
 	case DRM_FORMAT_YVU422:
 	case DRM_FORMAT_YUV420:
@@ -1572,8 +1741,15 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 					  DRM_COLOR_YCBCR_BT709,
 					  DRM_COLOR_YCBCR_LIMITED_RANGE);
 
+	drm_plane_create_chroma_siting_properties(plane, 0, 0);
+
+	if (type == DRM_PLANE_TYPE_PRIMARY)
+		drm_plane_create_zpos_immutable_property(plane, 0);
+
 	return plane;
 }
+
+#define VC4_NUM_OVERLAY_PLANES	16
 
 int vc4_plane_create_additional_planes(struct drm_device *drm)
 {
@@ -1590,24 +1766,35 @@ int vc4_plane_create_additional_planes(struct drm_device *drm)
 	 * modest number of planes to expose, that should hopefully
 	 * still cover any sane usecase.
 	 */
-	for (i = 0; i < 16; i++) {
+	for (i = 0; i < VC4_NUM_OVERLAY_PLANES; i++) {
 		struct drm_plane *plane =
 			vc4_plane_init(drm, DRM_PLANE_TYPE_OVERLAY,
 				       GENMASK(drm->mode_config.num_crtc - 1, 0));
 
 		if (IS_ERR(plane))
 			continue;
+
+		/* Create zpos property. Max of all the overlays + 1 primary +
+		 * 1 cursor plane on a crtc.
+		 */
+		drm_plane_create_zpos_property(plane, i + 1, 1,
+					       VC4_NUM_OVERLAY_PLANES + 1);
 	}
 
 	drm_for_each_crtc(crtc, drm) {
 		/* Set up the legacy cursor after overlay initialization,
-		 * since we overlay planes on the CRTC in the order they were
-		 * initialized.
+		 * since the zpos fallback is that planes are rendered by plane
+		 * ID order, and that then puts the cursor on top.
 		 */
 		cursor_plane = vc4_plane_init(drm, DRM_PLANE_TYPE_CURSOR,
 					      drm_crtc_mask(crtc));
 		if (!IS_ERR(cursor_plane)) {
 			crtc->cursor = cursor_plane;
+
+			drm_plane_create_zpos_property(cursor_plane,
+						       VC4_NUM_OVERLAY_PLANES + 1,
+						       1,
+						       VC4_NUM_OVERLAY_PLANES + 1);
 		}
 	}
 

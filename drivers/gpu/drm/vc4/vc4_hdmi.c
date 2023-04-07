@@ -41,6 +41,8 @@
 #include <linux/component.h>
 #include <linux/gpio/consumer.h>
 #include <linux/i2c.h>
+#include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
@@ -56,6 +58,14 @@
 #include "vc4_hdmi.h"
 #include "vc4_hdmi_regs.h"
 #include "vc4_regs.h"
+
+/*
+ * "Broadcast RGB" property.
+ * Allows overriding of HDMI full or limited range RGB
+ */
+#define VC4_BROADCAST_RGB_AUTO 0
+#define VC4_BROADCAST_RGB_FULL 1
+#define VC4_BROADCAST_RGB_LIMITED 2
 
 #define VC5_HDMI_HORZA_HFP_SHIFT		16
 #define VC5_HDMI_HORZA_HFP_MASK			VC4_MASK(28, 16)
@@ -97,6 +107,10 @@
 #define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1_SHIFT	8
 #define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1_MASK	VC4_MASK(15, 8)
 
+#define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_MASK	VC4_MASK(7, 0)
+#define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_SET_AVMUTE	BIT(0)
+#define VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_CLEAR_AVMUTE	BIT(4)
+
 # define VC4_HD_M_SW_RST			BIT(2)
 # define VC4_HD_M_ENABLE			BIT(0)
 
@@ -104,6 +118,10 @@
 #define CEC_CLOCK_FREQ 40000
 
 #define HDMI_14_MAX_TMDS_CLK   (340 * 1000 * 1000)
+
+/* bit field to force hotplug detection. bit0 = HDMI0 */
+static int force_hotplug = 0;
+module_param(force_hotplug, int, 0644);
 
 static const char * const output_format_str[] = {
 	[VC4_HDMI_OUTPUT_RGB]		= "RGB",
@@ -150,10 +168,15 @@ static bool vc4_hdmi_mode_needs_scrambling(const struct drm_display_mode *mode,
 	return clock > HDMI_14_MAX_TMDS_CLK;
 }
 
-static bool vc4_hdmi_is_full_range_rgb(struct vc4_hdmi *vc4_hdmi,
-				       const struct drm_display_mode *mode)
+static bool vc4_hdmi_is_full_range(struct vc4_hdmi *vc4_hdmi,
+				   const struct drm_display_mode *mode)
 {
 	struct drm_display_info *display = &vc4_hdmi->connector.display_info;
+
+	if (vc4_hdmi->broadcast_rgb == VC4_BROADCAST_RGB_LIMITED)
+		return false;
+	else if (vc4_hdmi->broadcast_rgb == VC4_BROADCAST_RGB_FULL)
+		return true;
 
 	return !display->is_hdmi ||
 		drm_default_rgb_quant_range(mode) == HDMI_QUANTIZATION_RANGE_FULL;
@@ -462,7 +485,9 @@ static int vc4_hdmi_connector_detect_ctx(struct drm_connector *connector,
 
 	WARN_ON(pm_runtime_resume_and_get(&vc4_hdmi->pdev->dev));
 
-	if (vc4_hdmi->hpd_gpio) {
+	if (force_hotplug & BIT(vc4_hdmi->encoder.type - VC4_ENCODER_TYPE_HDMI0))
+		status = connector_status_connected;
+	else if (vc4_hdmi->hpd_gpio) {
 		if (gpiod_get_value_cansleep(vc4_hdmi->hpd_gpio))
 			status = connector_status_connected;
 	} else {
@@ -480,6 +505,7 @@ static int vc4_hdmi_connector_detect_ctx(struct drm_connector *connector,
 static int vc4_hdmi_connector_get_modes(struct drm_connector *connector)
 {
 	struct vc4_hdmi *vc4_hdmi = connector_to_vc4_hdmi(connector);
+	struct vc4_dev *vc4 = to_vc4_dev(connector->dev);
 	int ret = 0;
 	struct edid *edid;
 
@@ -503,7 +529,7 @@ static int vc4_hdmi_connector_get_modes(struct drm_connector *connector)
 	ret = drm_add_edid_modes(connector, edid);
 	kfree(edid);
 
-	if (vc4_hdmi->disable_4kp60) {
+	if (!vc4->hvs->vc5_hdmi_enable_hdmi_20) {
 		struct drm_device *drm = connector->dev;
 		const struct drm_display_mode *mode;
 
@@ -523,14 +549,18 @@ static int vc4_hdmi_connector_atomic_check(struct drm_connector *connector,
 {
 	struct drm_connector_state *old_state =
 		drm_atomic_get_old_connector_state(state, connector);
+	struct vc4_hdmi_connector_state *old_vc4_state = conn_state_to_vc4_hdmi_conn_state(old_state);
 	struct drm_connector_state *new_state =
 		drm_atomic_get_new_connector_state(state, connector);
+	struct vc4_hdmi_connector_state *new_vc4_state = conn_state_to_vc4_hdmi_conn_state(new_state);
 	struct drm_crtc *crtc = new_state->crtc;
 
 	if (!crtc)
 		return 0;
 
 	if (old_state->colorspace != new_state->colorspace ||
+	    old_vc4_state->broadcast_rgb != new_vc4_state->broadcast_rgb ||
+	    old_vc4_state->requested_output_format != new_vc4_state->requested_output_format ||
 	    !drm_connector_atomic_hdr_metadata_equal(old_state, new_state)) {
 		struct drm_crtc_state *crtc_state;
 
@@ -542,6 +572,70 @@ static int vc4_hdmi_connector_atomic_check(struct drm_connector *connector,
 	}
 
 	return 0;
+}
+
+/**
+ * vc4_hdmi_connector_atomic_get_property - hook for
+ *						connector->atomic_get_property.
+ * @connector: Connector to get the property for.
+ * @state: Connector state to retrieve the property from.
+ * @property: Property to retrieve.
+ * @val: Return value for the property.
+ *
+ * Returns the atomic property value for a digital connector.
+ */
+int vc4_hdmi_connector_get_property(struct drm_connector *connector,
+				    const struct drm_connector_state *state,
+				    struct drm_property *property,
+				    uint64_t *val)
+{
+	struct vc4_hdmi *vc4_hdmi = connector_to_vc4_hdmi(connector);
+	const struct vc4_hdmi_connector_state *vc4_conn_state =
+				const_conn_state_to_vc4_hdmi_conn_state(state);
+
+	if (property == vc4_hdmi->broadcast_rgb_property) {
+		*val = vc4_conn_state->broadcast_rgb;
+	} else if (property == vc4_hdmi->output_format_property) {
+		*val = vc4_conn_state->requested_output_format;
+	} else {
+		DRM_DEBUG_ATOMIC("Unknown property [PROP:%d:%s]\n",
+				 property->base.id, property->name);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+/**
+ * vc4_hdmi_connector_atomic_set_property - hook for
+ *						connector->atomic_set_property.
+ * @connector: Connector to set the property for.
+ * @state: Connector state to set the property on.
+ * @property: Property to set.
+ * @val: New value for the property.
+ *
+ * Sets the atomic property value for a digital connector.
+ */
+int vc4_hdmi_connector_set_property(struct drm_connector *connector,
+				    struct drm_connector_state *state,
+				    struct drm_property *property,
+				    uint64_t val)
+{
+	struct vc4_hdmi *vc4_hdmi = connector_to_vc4_hdmi(connector);
+	struct vc4_hdmi_connector_state *vc4_conn_state =
+				conn_state_to_vc4_hdmi_conn_state(state);
+
+	if (property == vc4_hdmi->broadcast_rgb_property) {
+		vc4_conn_state->broadcast_rgb = val;
+		return 0;
+	} else if (property == vc4_hdmi->output_format_property) {
+		vc4_conn_state->requested_output_format = val;
+		return 0;
+	}
+
+	DRM_DEBUG_ATOMIC("Unknown property [PROP:%d:%s]\n",
+			 property->base.id, property->name);
+	return -EINVAL;
 }
 
 static void vc4_hdmi_connector_reset(struct drm_connector *connector)
@@ -580,6 +674,8 @@ vc4_hdmi_connector_duplicate_state(struct drm_connector *connector)
 	new_state->tmds_char_rate = vc4_state->tmds_char_rate;
 	new_state->output_bpc = vc4_state->output_bpc;
 	new_state->output_format = vc4_state->output_format;
+	new_state->requested_output_format = vc4_state->requested_output_format;
+	new_state->broadcast_rgb = vc4_state->broadcast_rgb;
 	__drm_atomic_helper_connector_duplicate_state(connector, &new_state->base);
 
 	return &new_state->base;
@@ -590,6 +686,8 @@ static const struct drm_connector_funcs vc4_hdmi_connector_funcs = {
 	.reset = vc4_hdmi_connector_reset,
 	.atomic_duplicate_state = vc4_hdmi_connector_duplicate_state,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_get_property = vc4_hdmi_connector_get_property,
+	.atomic_set_property = vc4_hdmi_connector_set_property,
 };
 
 static const struct drm_connector_helper_funcs vc4_hdmi_connector_helper_funcs = {
@@ -597,6 +695,59 @@ static const struct drm_connector_helper_funcs vc4_hdmi_connector_helper_funcs =
 	.get_modes = vc4_hdmi_connector_get_modes,
 	.atomic_check = vc4_hdmi_connector_atomic_check,
 };
+
+static const struct drm_prop_enum_list broadcast_rgb_names[] = {
+	{ VC4_BROADCAST_RGB_AUTO, "Automatic" },
+	{ VC4_BROADCAST_RGB_FULL, "Full" },
+	{ VC4_BROADCAST_RGB_LIMITED, "Limited 16:235" },
+};
+
+static void
+vc4_hdmi_attach_broadcast_rgb_property(struct drm_device *dev,
+				       struct vc4_hdmi *vc4_hdmi)
+{
+	struct drm_property *prop = vc4_hdmi->broadcast_rgb_property;
+
+	if (!prop) {
+		prop = drm_property_create_enum(dev, DRM_MODE_PROP_ENUM,
+						"Broadcast RGB",
+						broadcast_rgb_names,
+						ARRAY_SIZE(broadcast_rgb_names));
+		if (!prop)
+			return;
+
+		vc4_hdmi->broadcast_rgb_property = prop;
+	}
+
+	drm_object_attach_property(&vc4_hdmi->connector.base, prop, 0);
+}
+
+static const struct drm_prop_enum_list output_format_names[] = {
+	{ VC4_HDMI_OUTPUT_AUTO, "Automatic" },
+	{ VC4_HDMI_OUTPUT_RGB, "RGB" },
+	{ VC4_HDMI_OUTPUT_YUV422, "YCbCr 4:2:2" },
+	{ VC4_HDMI_OUTPUT_YUV444, "YCbCr 4:4:4" },
+};
+
+static void
+vc4_hdmi_attach_output_format_property(struct drm_device *dev,
+				       struct vc4_hdmi *vc4_hdmi)
+{
+	struct drm_property *prop = vc4_hdmi->output_format_property;
+
+	if (!prop) {
+		prop = drm_property_create_enum(dev, DRM_MODE_PROP_ENUM,
+						"Output format",
+						output_format_names,
+						ARRAY_SIZE(output_format_names));
+		if (!prop)
+			return;
+
+		vc4_hdmi->output_format_property = prop;
+	}
+
+	drm_object_attach_property(&vc4_hdmi->connector.base, prop, 0);
+}
 
 static int vc4_hdmi_connector_init(struct drm_device *dev,
 				   struct vc4_hdmi *vc4_hdmi)
@@ -643,6 +794,9 @@ static int vc4_hdmi_connector_init(struct drm_device *dev,
 
 	if (vc4_hdmi->variant->supports_hdr)
 		drm_connector_attach_hdr_output_metadata_property(connector);
+
+	vc4_hdmi_attach_broadcast_rgb_property(dev, vc4_hdmi);
+	vc4_hdmi_attach_output_format_property(dev, vc4_hdmi);
 
 	drm_connector_attach_encoder(connector, encoder);
 
@@ -798,7 +952,7 @@ static void vc4_hdmi_set_avi_infoframe(struct drm_encoder *encoder)
 
 	drm_hdmi_avi_infoframe_quant_range(&frame.avi,
 					   connector, mode,
-					   vc4_hdmi_is_full_range_rgb(vc4_hdmi, mode) ?
+					   vc4_hdmi_is_full_range(vc4_hdmi, mode) ?
 					   HDMI_QUANTIZATION_RANGE_FULL :
 					   HDMI_QUANTIZATION_RANGE_LIMITED);
 	drm_hdmi_avi_infoframe_colorimetry(&frame.avi, cstate);
@@ -1051,7 +1205,7 @@ static void vc4_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 	csc_ctl = VC4_SET_FIELD(VC4_HD_CSC_CTL_ORDER_BGR,
 				VC4_HD_CSC_CTL_ORDER);
 
-	if (!vc4_hdmi_is_full_range_rgb(vc4_hdmi, mode)) {
+	if (!vc4_hdmi_is_full_range(vc4_hdmi, mode)) {
 		/* CEA VICs other than #1 requre limited range RGB
 		 * output unless overridden by an AVI infoframe.
 		 * Apply a colorspace conversion to squash 0-255 down
@@ -1090,15 +1244,6 @@ static void vc4_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
  * [ 0      1      0      0]
  * [ 0      0      1      0]
  *
- * Matrix is signed 2p13 fixed point, with signed 9p6 offsets
- */
-static const u16 vc5_hdmi_csc_full_rgb_unity[3][4] = {
-	{ 0x2000, 0x0000, 0x0000, 0x0000 },
-	{ 0x0000, 0x2000, 0x0000, 0x0000 },
-	{ 0x0000, 0x0000, 0x2000, 0x0000 },
-};
-
-/*
  * CEA VICs other than #1 require limited range RGB output unless
  * overridden by an AVI infoframe. Apply a colorspace conversion to
  * squash 0-255 down to 16-235. The matrix here is:
@@ -1109,43 +1254,105 @@ static const u16 vc5_hdmi_csc_full_rgb_unity[3][4] = {
  *
  * Matrix is signed 2p13 fixed point, with signed 9p6 offsets
  */
-static const u16 vc5_hdmi_csc_full_rgb_to_limited_rgb[3][4] = {
-	{ 0x1b80, 0x0000, 0x0000, 0x0400 },
-	{ 0x0000, 0x1b80, 0x0000, 0x0400 },
-	{ 0x0000, 0x0000, 0x1b80, 0x0400 },
+static const u16 vc5_hdmi_csc_full_rgb_to_rgb[2][3][4] = {
+	{
+		/* Full range - unity */
+		{ 0x2000, 0x0000, 0x0000, 0x0000 },
+		{ 0x0000, 0x2000, 0x0000, 0x0000 },
+		{ 0x0000, 0x0000, 0x2000, 0x0000 },
+	}, {
+		/* Limited range */
+		{ 0x1b80, 0x0000, 0x0000, 0x0400 },
+		{ 0x0000, 0x1b80, 0x0000, 0x0400 },
+		{ 0x0000, 0x0000, 0x1b80, 0x0400 },
+	}
 };
 
 /*
- * Conversion between Full Range RGB and Full Range YUV422 using the
- * BT.709 Colorspace
+ * Conversion between Full Range RGB and YUV using the BT.601 Colorspace
  *
+ * Full range
+ * [    0.299000   0.587000   0.114000   0.000000 ]
+ * [   -0.168736  -0.331264   0.500000 128.000000 ]
+ * [    0.500000  -0.418688  -0.081312 128.000000 ]
  *
- * [  0.181906  0.611804  0.061758  16  ]
- * [ -0.100268 -0.337232  0.437500  128 ]
- * [  0.437500 -0.397386 -0.040114  128 ]
+ * Limited range
+ * [    0.255785   0.502160   0.097523  16.000000 ]
+ * [   -0.147644  -0.289856   0.437500 128.000000 ]
+ * [    0.437500  -0.366352  -0.071148 128.000000 ]
  *
  * Matrix is signed 2p13 fixed point, with signed 9p6 offsets
  */
-static const u16 vc5_hdmi_csc_full_rgb_to_limited_yuv422_bt709[3][4] = {
-	{ 0x05d2, 0x1394, 0x01fa, 0x0400 },
-	{ 0xfccc, 0xf536, 0x0e00, 0x2000 },
-	{ 0x0e00, 0xf34a, 0xfeb8, 0x2000 },
+static const u16 vc5_hdmi_csc_full_rgb_to_yuv_bt601[2][3][4] = {
+	{
+		/* Full range */
+		{ 0x0991, 0x12c9, 0x03a6, 0x0000 },
+		{ 0xfa9b, 0xf567, 0x1000, 0x2000 },
+		{ 0x1000, 0xf29b, 0xfd67, 0x2000 },
+	}, {
+		/* Limited range */
+		{ 0x082f, 0x1012, 0x031f, 0x0400 },
+		{ 0xfb48, 0xf6ba, 0x0e00, 0x2000 },
+		{ 0x0e00, 0xf448, 0xfdba, 0x2000 },
+	}
 };
 
 /*
- * Conversion between Full Range RGB and Full Range YUV444 using the
- * BT.709 Colorspace
+ * Conversion between Full Range RGB and YUV using the BT.709 Colorspace
  *
- * [ -0.100268 -0.337232  0.437500  128 ]
- * [  0.437500 -0.397386 -0.040114  128 ]
- * [  0.181906  0.611804  0.061758  16  ]
+ * Full range
+ * [    0.212600   0.715200   0.072200   0.000000 ]
+ * [   -0.114572  -0.385428   0.500000 128.000000 ]
+ * [    0.500000  -0.454153  -0.045847 128.000000 ]
+ *
+ * Limited range
+ * [    0.181873   0.611831   0.061765  16.000000 ]
+ * [   -0.100251  -0.337249   0.437500 128.000000 ]
+ * [    0.437500  -0.397384  -0.040116 128.000000 ]
  *
  * Matrix is signed 2p13 fixed point, with signed 9p6 offsets
  */
-static const u16 vc5_hdmi_csc_full_rgb_to_limited_yuv444_bt709[3][4] = {
-	{ 0xfccc, 0xf536, 0x0e00, 0x2000 },
-	{ 0x0e00, 0xf34a, 0xfeb8, 0x2000 },
-	{ 0x05d2, 0x1394, 0x01fa, 0x0400 },
+static const u16 vc5_hdmi_csc_full_rgb_to_yuv_bt709[2][3][4] = {
+	{
+		/* Full range */
+		{ 0x06ce, 0x16e3, 0x024f, 0x0000 },
+		{ 0xfc56, 0xf3ac, 0x1000, 0x2000 },
+		{ 0x1000, 0xf179, 0xfe89, 0x2000 },
+	}, {
+		/* Limited range	*/
+		{ 0x05d2, 0x1394, 0x01fa, 0x0400 },
+		{ 0xfccc, 0xf536, 0x0e00, 0x2000 },
+		{ 0x0e00, 0xf34a, 0xfeb8, 0x2000 },
+	}
+};
+
+/*
+ * Conversion between Full Range RGB and YUV using the BT.2020 Colorspace
+ *
+ * Full range
+ * [    0.262700   0.678000   0.059300   0.000000 ]
+ * [   -0.139630  -0.360370   0.500000 128.000000 ]
+ * [    0.500000  -0.459786  -0.040214 128.000000 ]
+ *
+ * Limited range
+ * [    0.224732   0.580008   0.050729  16.000000 ]
+ * [   -0.122176  -0.315324   0.437500 128.000000 ]
+ * [    0.437500  -0.402312  -0.035188 128.000000 ]
+ *
+ * Matrix is signed 2p13 fixed point, with signed 9p6 offsets
+ */
+static const u16 vc5_hdmi_csc_full_rgb_to_yuv_bt2020[2][3][4] = {
+	{
+		/* Full range */
+		{ 0x0868, 0x15b2, 0x01e6, 0x0000 },
+		{ 0xfb89, 0xf479, 0x1000, 0x2000 },
+		{ 0x1000, 0xf14a, 0xfeb8, 0x2000 },
+	}, {
+		/* Limited range */
+		{ 0x0731, 0x128f, 0x01a0, 0x0400 },
+		{ 0xfc18, 0xf5ea, 0x0e00, 0x2000 },
+		{ 0x0e00, 0xf321, 0xfee1, 0x2000 },
+	}
 };
 
 static void vc5_hdmi_set_csc_coeffs(struct vc4_hdmi *vc4_hdmi,
@@ -1161,6 +1368,20 @@ static void vc5_hdmi_set_csc_coeffs(struct vc4_hdmi *vc4_hdmi,
 	HDMI_WRITE(HDMI_CSC_34_33, (coeffs[2][3] << 16) | coeffs[2][2]);
 }
 
+static void vc5_hdmi_set_csc_coeffs_swap(struct vc4_hdmi *vc4_hdmi,
+					 const u16 coeffs[3][4])
+{
+	lockdep_assert_held(&vc4_hdmi->hw_lock);
+
+	/* YUV444 needs the CSC matrices using the channels in a different order */
+	HDMI_WRITE(HDMI_CSC_12_11, (coeffs[1][1] << 16) | coeffs[1][0]);
+	HDMI_WRITE(HDMI_CSC_14_13, (coeffs[1][3] << 16) | coeffs[1][2]);
+	HDMI_WRITE(HDMI_CSC_22_21, (coeffs[2][1] << 16) | coeffs[2][0]);
+	HDMI_WRITE(HDMI_CSC_24_23, (coeffs[2][3] << 16) | coeffs[2][2]);
+	HDMI_WRITE(HDMI_CSC_32_31, (coeffs[0][1] << 16) | coeffs[0][0]);
+	HDMI_WRITE(HDMI_CSC_34_33, (coeffs[0][3] << 16) | coeffs[0][2]);
+}
+
 static void vc5_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 			       struct drm_connector_state *state,
 			       const struct drm_display_mode *mode)
@@ -1168,6 +1389,8 @@ static void vc5_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 	struct drm_device *drm = vc4_hdmi->connector.dev;
 	struct vc4_hdmi_connector_state *vc4_state =
 		conn_state_to_vc4_hdmi_conn_state(state);
+	unsigned int lim_range = vc4_hdmi_is_full_range(vc4_hdmi, mode) ? 0 : 1;
+	const u16 (*csc)[4];
 	unsigned long flags;
 	u32 if_cfg = 0;
 	u32 if_xbar = 0x543210;
@@ -1183,31 +1406,56 @@ static void vc5_hdmi_csc_setup(struct vc4_hdmi *vc4_hdmi,
 
 	switch (vc4_state->output_format) {
 	case VC4_HDMI_OUTPUT_YUV444:
-		vc5_hdmi_set_csc_coeffs(vc4_hdmi, vc5_hdmi_csc_full_rgb_to_limited_yuv444_bt709);
-		break;
-
 	case VC4_HDMI_OUTPUT_YUV422:
-		csc_ctl |= VC4_SET_FIELD(VC5_MT_CP_CSC_CTL_FILTER_MODE_444_TO_422_STANDARD,
-					 VC5_MT_CP_CSC_CTL_FILTER_MODE_444_TO_422) |
-			VC5_MT_CP_CSC_CTL_USE_444_TO_422 |
-			VC5_MT_CP_CSC_CTL_USE_RNG_SUPPRESSION;
+		switch (state->colorspace) {
+		default:
+		case DRM_MODE_COLORIMETRY_NO_DATA:
+		case DRM_MODE_COLORIMETRY_BT709_YCC:
+		case DRM_MODE_COLORIMETRY_XVYCC_709:
+		case DRM_MODE_COLORIMETRY_RGB_WIDE_FIXED:
+		case DRM_MODE_COLORIMETRY_RGB_WIDE_FLOAT:
+			csc = vc5_hdmi_csc_full_rgb_to_yuv_bt709[lim_range];
+			break;
+		case DRM_MODE_COLORIMETRY_SMPTE_170M_YCC:
+		case DRM_MODE_COLORIMETRY_XVYCC_601:
+		case DRM_MODE_COLORIMETRY_SYCC_601:
+		case DRM_MODE_COLORIMETRY_OPYCC_601:
+		case DRM_MODE_COLORIMETRY_BT601_YCC:
+			csc = vc5_hdmi_csc_full_rgb_to_yuv_bt601[lim_range];
+			break;
+		case DRM_MODE_COLORIMETRY_BT2020_CYCC:
+		case DRM_MODE_COLORIMETRY_BT2020_YCC:
+		case DRM_MODE_COLORIMETRY_BT2020_RGB:
+		case DRM_MODE_COLORIMETRY_DCI_P3_RGB_D65:
+		case DRM_MODE_COLORIMETRY_DCI_P3_RGB_THEATER:
+			csc = vc5_hdmi_csc_full_rgb_to_yuv_bt2020[lim_range];
+			break;
+		}
 
-		csc_chan_ctl |= VC4_SET_FIELD(VC5_MT_CP_CHANNEL_CTL_OUTPUT_REMAP_LEGACY_STYLE,
-					      VC5_MT_CP_CHANNEL_CTL_OUTPUT_REMAP);
+		if (vc4_state->output_format == VC4_HDMI_OUTPUT_YUV422) {
+			csc_ctl |= VC4_SET_FIELD(VC5_MT_CP_CSC_CTL_FILTER_MODE_444_TO_422_STANDARD,
+						 VC5_MT_CP_CSC_CTL_FILTER_MODE_444_TO_422) |
+				VC5_MT_CP_CSC_CTL_USE_444_TO_422 |
+				VC5_MT_CP_CSC_CTL_USE_RNG_SUPPRESSION;
 
-		if_cfg |= VC4_SET_FIELD(VC5_DVP_HT_VEC_INTERFACE_CFG_SEL_422_FORMAT_422_LEGACY,
-					VC5_DVP_HT_VEC_INTERFACE_CFG_SEL_422);
+			csc_chan_ctl |= VC4_SET_FIELD(VC5_MT_CP_CHANNEL_CTL_OUTPUT_REMAP_LEGACY_STYLE,
+						      VC5_MT_CP_CHANNEL_CTL_OUTPUT_REMAP);
 
-		vc5_hdmi_set_csc_coeffs(vc4_hdmi, vc5_hdmi_csc_full_rgb_to_limited_yuv422_bt709);
+			if_cfg |= VC4_SET_FIELD(VC5_DVP_HT_VEC_INTERFACE_CFG_SEL_422_FORMAT_422_LEGACY,
+						VC5_DVP_HT_VEC_INTERFACE_CFG_SEL_422);
+
+			vc5_hdmi_set_csc_coeffs(vc4_hdmi, csc);
+		} else {
+			vc5_hdmi_set_csc_coeffs_swap(vc4_hdmi, csc);
+		}
+
 		break;
 
 	case VC4_HDMI_OUTPUT_RGB:
 		if_xbar = 0x354021;
 
-		if (!vc4_hdmi_is_full_range_rgb(vc4_hdmi, mode))
-			vc5_hdmi_set_csc_coeffs(vc4_hdmi, vc5_hdmi_csc_full_rgb_to_limited_rgb);
-		else
-			vc5_hdmi_set_csc_coeffs(vc4_hdmi, vc5_hdmi_csc_full_rgb_unity);
+		vc5_hdmi_set_csc_coeffs(vc4_hdmi,
+					vc5_hdmi_csc_full_rgb_to_rgb[lim_range]);
 		break;
 
 	default:
@@ -1315,7 +1563,6 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 					VC4_HDMI_VERTB_VBP));
 	unsigned long flags;
 	unsigned char gcp;
-	bool gcp_en;
 	u32 reg;
 	int idx;
 
@@ -1350,16 +1597,13 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 	switch (vc4_state->output_bpc) {
 	case 12:
 		gcp = 6;
-		gcp_en = true;
 		break;
 	case 10:
 		gcp = 5;
-		gcp_en = true;
 		break;
 	case 8:
 	default:
-		gcp = 4;
-		gcp_en = false;
+		gcp = 0;
 		break;
 	}
 
@@ -1368,8 +1612,7 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 	 * doesn't signal in GCP.
 	 */
 	if (vc4_state->output_format == VC4_HDMI_OUTPUT_YUV422) {
-		gcp = 4;
-		gcp_en = false;
+		gcp = 0;
 	}
 
 	reg = HDMI_READ(HDMI_DEEP_COLOR_CONFIG_1);
@@ -1382,11 +1625,12 @@ static void vc5_hdmi_set_timings(struct vc4_hdmi *vc4_hdmi,
 	reg = HDMI_READ(HDMI_GCP_WORD_1);
 	reg &= ~VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1_MASK;
 	reg |= VC4_SET_FIELD(gcp, VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_1);
+	reg &= ~VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_MASK;
+	reg |= VC5_HDMI_GCP_WORD_1_GCP_SUBPACKET_BYTE_0_CLEAR_AVMUTE;
 	HDMI_WRITE(HDMI_GCP_WORD_1, reg);
 
 	reg = HDMI_READ(HDMI_GCP_CONFIG);
-	reg &= ~VC5_HDMI_GCP_CONFIG_GCP_ENABLE;
-	reg |= gcp_en ? VC5_HDMI_GCP_CONFIG_GCP_ENABLE : 0;
+	reg |= VC5_HDMI_GCP_CONFIG_GCP_ENABLE;
 	HDMI_WRITE(HDMI_GCP_CONFIG, reg);
 
 	reg = HDMI_READ(HDMI_MISC_CONTROL);
@@ -1683,8 +1927,14 @@ static void vc4_hdmi_encoder_atomic_mode_set(struct drm_encoder *encoder,
 	mutex_lock(&vc4_hdmi->mutex);
 	drm_mode_copy(&vc4_hdmi->saved_adjusted_mode,
 		      &crtc_state->adjusted_mode);
+	vc4_hdmi->broadcast_rgb = vc4_state->broadcast_rgb;
 	vc4_hdmi->output_bpc = vc4_state->output_bpc;
 	vc4_hdmi->output_format = vc4_state->output_format;
+	vc4_hdmi->requested_output_format = vc4_state->requested_output_format;
+	vc4_hdmi->broadcast_rgb = vc4_state->broadcast_rgb;
+	memcpy(&vc4_hdmi->saved_adjusted_mode,
+	       &crtc_state->adjusted_mode,
+	       sizeof(vc4_hdmi->saved_adjusted_mode));
 	mutex_unlock(&vc4_hdmi->mutex);
 }
 
@@ -1711,9 +1961,6 @@ vc4_hdmi_sink_supports_format_bpc(const struct vc4_hdmi *vc4_hdmi,
 	switch (format) {
 	case VC4_HDMI_OUTPUT_RGB:
 		drm_dbg(dev, "RGB Format, checking the constraints.\n");
-
-		if (!(info->color_formats & DRM_COLOR_FORMAT_RGB444))
-			return false;
 
 		if (bpc == 10 && !(info->edid_hdmi_rgb444_dc_modes & DRM_EDID_HDMI_DC_30)) {
 			drm_dbg(dev, "10 BPC but sink doesn't support Deep Color 30.\n");
@@ -1774,15 +2021,23 @@ vc4_hdmi_sink_supports_format_bpc(const struct vc4_hdmi *vc4_hdmi,
 
 static enum drm_mode_status
 vc4_hdmi_encoder_clock_valid(const struct vc4_hdmi *vc4_hdmi,
+			     const struct drm_display_mode *mode,
 			     unsigned long long clock)
 {
 	const struct drm_connector *connector = &vc4_hdmi->connector;
 	const struct drm_display_info *info = &connector->display_info;
+	struct vc4_dev *vc4 = to_vc4_dev(connector->dev);
 
 	if (clock > vc4_hdmi->variant->max_pixel_clock)
 		return MODE_CLOCK_HIGH;
 
-	if (vc4_hdmi->disable_4kp60 && clock > HDMI_14_MAX_TMDS_CLK)
+	if (!vc4->hvs->vc5_hdmi_enable_hdmi_20 && clock > HDMI_14_MAX_TMDS_CLK)
+		return MODE_CLOCK_HIGH;
+
+	/* 4096x2160@60 is not reliable without overclocking core */
+	if (!vc4->hvs->vc5_hdmi_enable_4096by2160 &&
+	    mode->hdisplay > 3840 && mode->vdisplay >= 2160 &&
+	    drm_mode_vrefresh(mode) >= 50)
 		return MODE_CLOCK_HIGH;
 
 	if (info->max_tmds_clock && clock > (info->max_tmds_clock * 1000))
@@ -1819,7 +2074,7 @@ vc4_hdmi_encoder_compute_clock(const struct vc4_hdmi *vc4_hdmi,
 	unsigned long long clock;
 
 	clock = vc4_hdmi_encoder_compute_mode_clock(mode, bpc, fmt);
-	if (vc4_hdmi_encoder_clock_valid(vc4_hdmi, clock) != MODE_OK)
+	if (vc4_hdmi_encoder_clock_valid(vc4_hdmi, mode, clock) != MODE_OK)
 		return -EINVAL;
 
 	vc4_state->tmds_char_rate = clock;
@@ -1837,6 +2092,26 @@ vc4_hdmi_encoder_compute_format(const struct vc4_hdmi *vc4_hdmi,
 	const struct drm_connector *connector = &vc4_hdmi->connector;
 	const struct drm_display_info *info = &connector->display_info;
 	unsigned int format;
+
+	if (vc4_state->requested_output_format != VC4_HDMI_OUTPUT_AUTO) {
+		drm_dbg(dev, "Trying with user requested output %u\n",
+			vc4_state->requested_output_format);
+
+		format = vc4_state->requested_output_format;
+		if (vc4_hdmi_sink_supports_format_bpc(vc4_hdmi, info, mode,
+						      format, bpc)) {
+			int ret;
+
+			ret = vc4_hdmi_encoder_compute_clock(vc4_hdmi, vc4_state,
+							     mode, bpc, format);
+			if (!ret) {
+				vc4_state->output_format = format;
+				return 0;
+			}
+		}
+
+		return -EINVAL;
+	}
 
 	drm_dbg(dev, "Trying with an RGB output\n");
 
@@ -1878,7 +2153,7 @@ vc4_hdmi_encoder_compute_config(const struct vc4_hdmi *vc4_hdmi,
 {
 	struct drm_device *dev = vc4_hdmi->connector.dev;
 	struct drm_connector_state *conn_state = &vc4_state->base;
-	unsigned int max_bpc = clamp_t(unsigned int, conn_state->max_bpc, 8, 12);
+	unsigned int max_bpc = clamp_t(unsigned int, conn_state->max_requested_bpc, 8, 12);
 	unsigned int bpc;
 	int ret;
 
@@ -1982,7 +2257,7 @@ vc4_hdmi_encoder_mode_valid(struct drm_encoder *encoder,
 	     (mode->hsync_end % 2) || (mode->htotal % 2)))
 		return MODE_H_ILLEGAL;
 
-	return vc4_hdmi_encoder_clock_valid(vc4_hdmi, mode->clock * 1000);
+	return vc4_hdmi_encoder_clock_valid(vc4_hdmi, mode, mode->clock * 1000);
 }
 
 static const struct drm_encoder_helper_funcs vc4_hdmi_encoder_helper_funcs = {
@@ -2150,7 +2425,7 @@ static int vc4_hdmi_audio_startup(struct device *dev, void *data)
 	}
 
 	if (!vc4_hdmi_audio_can_stream(vc4_hdmi)) {
-		ret = -ENODEV;
+		ret = -ENOTSUPP;
 		goto out_dev_exit;
 	}
 
@@ -3491,14 +3766,6 @@ static int vc4_hdmi_bind(struct device *dev, struct device *master, void *data)
 
 	vc4_hdmi->disable_wifi_frequencies =
 		of_property_read_bool(dev->of_node, "wifi-2.4ghz-coexistence");
-
-	if (variant->max_pixel_clock == 600000000) {
-		struct vc4_dev *vc4 = to_vc4_dev(drm);
-		long max_rate = clk_round_rate(vc4->hvs->core_clk, 550000000);
-
-		if (max_rate < 550000000)
-			vc4_hdmi->disable_4kp60 = true;
-	}
 
 	ret = devm_pm_runtime_enable(dev);
 	if (ret)
