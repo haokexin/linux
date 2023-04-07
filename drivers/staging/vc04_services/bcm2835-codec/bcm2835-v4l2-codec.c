@@ -705,6 +705,7 @@ struct bcm2835_codec_ctx {
 	struct bcm2835_codec_dev	*dev;
 
 	struct v4l2_ctrl_handler hdl;
+	struct v4l2_ctrl *gop_size;
 
 	struct vchiq_mmal_component  *component;
 	bool component_enabled;
@@ -2224,6 +2225,9 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 		container_of(ctrl->handler, struct bcm2835_codec_ctx, hdl);
 	int ret = 0;
 
+	if (ctrl->flags & V4L2_CTRL_FLAG_READ_ONLY)
+		return 0;
+
 	switch (ctrl->id) {
 	case V4L2_CID_MPEG_VIDEO_BITRATE:
 		ctx->bitrate = ctrl->val;
@@ -2283,6 +2287,17 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	case V4L2_CID_MPEG_VIDEO_H264_I_PERIOD:
+		/*
+		 * Incorrect initial implementation meant that H264_I_PERIOD
+		 * was implemented to control intra-I period. As the MMAL
+		 * encoder never produces I-frames that aren't IDR frames, it
+		 * should actually have been GOP_SIZE.
+		 * Support both controls, but writing to H264_I_PERIOD will
+		 * update GOP_SIZE.
+		 */
+		__v4l2_ctrl_s_ctrl(ctx->gop_size, ctrl->val);
+	fallthrough;
+	case V4L2_CID_MPEG_VIDEO_GOP_SIZE:
 		if (!ctx->component)
 			break;
 
@@ -2364,6 +2379,10 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 						    sizeof(u32_value));
 		break;
 	}
+	case V4L2_CID_MPEG_VIDEO_B_FRAMES:
+		ret = 0;
+		break;
+
 	case V4L2_CID_JPEG_COMPRESSION_QUALITY:
 		if (!ctx->component)
 			break;
@@ -2376,7 +2395,7 @@ static int bcm2835_codec_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 
 	default:
-		v4l2_err(&ctx->dev->v4l2_dev, "Invalid control\n");
+		v4l2_err(&ctx->dev->v4l2_dev, "Invalid control %08x\n", ctrl->id);
 		return -EINVAL;
 	}
 
@@ -3198,74 +3217,81 @@ static int queue_init(void *priv, struct vb2_queue *src_vq,
 static void dec_add_profile_ctrls(struct bcm2835_codec_dev *const dev,
 				  struct v4l2_ctrl_handler *const hdl)
 {
+	struct v4l2_ctrl *ctrl;
 	unsigned int i;
 	const struct bcm2835_codec_fmt_list *const list = &dev->supported_fmts[0];
 
 	for (i = 0; i < list->num_entries; ++i) {
 		switch (list->list[i].fourcc) {
 		case V4L2_PIX_FMT_H264:
-			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
-					       V4L2_CID_MPEG_VIDEO_H264_LEVEL,
-					       V4L2_MPEG_VIDEO_H264_LEVEL_4_2,
-					       ~(BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_0) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1B) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_1) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_2) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_3) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_0) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_1) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_2) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_0) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_1) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_2) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_0) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_1) |
-						 BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2)),
-					       V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
-			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
-					       V4L2_CID_MPEG_VIDEO_H264_PROFILE,
-					       V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
-					       ~(BIT(V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
-						 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
-						 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
-						 BIT(V4L2_MPEG_VIDEO_H264_PROFILE_HIGH)),
-						V4L2_MPEG_VIDEO_H264_PROFILE_HIGH);
+			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+						      V4L2_CID_MPEG_VIDEO_H264_LEVEL,
+						      V4L2_MPEG_VIDEO_H264_LEVEL_4_2,
+						      ~(BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_0) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1B) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_1) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_2) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_1_3) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_0) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_1) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_2_2) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_0) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_1) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_3_2) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_0) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_1) |
+							BIT(V4L2_MPEG_VIDEO_H264_LEVEL_4_2)),
+						       V4L2_MPEG_VIDEO_H264_LEVEL_4_0);
+			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+						      V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+						      V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
+						      ~(BIT(V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
+							BIT(V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
+							BIT(V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
+							BIT(V4L2_MPEG_VIDEO_H264_PROFILE_HIGH)),
+						       V4L2_MPEG_VIDEO_H264_PROFILE_HIGH);
+			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 			break;
 		case V4L2_PIX_FMT_MPEG2:
-			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
-					       V4L2_CID_MPEG_VIDEO_MPEG2_LEVEL,
-					       V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH,
-					       ~(BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH_1440) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH)),
-					       V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN);
-			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
-					       V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE,
-					       V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN,
-					       ~(BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN)),
-					       V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN);
+			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+						      V4L2_CID_MPEG_VIDEO_MPEG2_LEVEL,
+						      V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH,
+						      ~(BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW) |
+							BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN) |
+							BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH_1440) |
+							BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH)),
+						      V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN);
+			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+						      V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE,
+						      V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN,
+						      ~(BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE) |
+							BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN)),
+						      V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN);
+			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 			break;
 		case V4L2_PIX_FMT_MPEG4:
-			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
-					       V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL,
-					       V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
-					       ~(BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_0) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_0B) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_1) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_2) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_3) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_3B) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_4) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_5)),
-					       V4L2_MPEG_VIDEO_MPEG4_LEVEL_4);
-			v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
-					       V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
-					       V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE,
-					       ~(BIT(V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE) |
-						 BIT(V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE)),
-					       V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE);
+			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+						      V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL,
+						      V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
+						      ~(BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_0) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_0B) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_1) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_2) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_3) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_3B) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_4) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_LEVEL_5)),
+						      V4L2_MPEG_VIDEO_MPEG4_LEVEL_4);
+			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
+			ctrl = v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
+						      V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
+						      V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE,
+						      ~(BIT(V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE) |
+							BIT(V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE)),
+						      V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE);
+			ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 			break;
 		/* No profiles defined by V4L2 */
 		case V4L2_PIX_FMT_H263:
@@ -3346,7 +3372,7 @@ static int bcm2835_codec_open(struct file *file)
 	case ENCODE:
 	{
 		/* Encode controls */
-		v4l2_ctrl_handler_init(hdl, 11);
+		v4l2_ctrl_handler_init(hdl, 13);
 
 		v4l2_ctrl_new_std_menu(hdl, &bcm2835_codec_ctrl_ops,
 				       V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
@@ -3407,6 +3433,13 @@ static int bcm2835_codec_open(struct file *file)
 		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
 				  V4L2_CID_MPEG_VIDEO_FORCE_KEY_FRAME,
 				  0, 0, 0, 0);
+		v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+				  V4L2_CID_MPEG_VIDEO_B_FRAMES,
+				  0, 0,
+				  1, 0);
+		ctx->gop_size = v4l2_ctrl_new_std(hdl, &bcm2835_codec_ctrl_ops,
+						  V4L2_CID_MPEG_VIDEO_GOP_SIZE,
+						  0, 0x7FFFFFFF, 1, 60);
 		if (hdl->error) {
 			rc = hdl->error;
 			goto free_ctrl_handler;
