@@ -3767,6 +3767,17 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force, bool interrupt)
 	    (dep->flags & DWC3_EP_END_TRANSFER_PENDING))
 		return;
 
+	if (!interrupt)
+		dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
+	else
+		dep->flags |= DWC3_EP_END_TRANSFER_PENDING;
+	/*
+	 * when transfer is stopped with force rm bit false, it can be
+	 * restarted by passing resource_index in params; don't loose it
+	 */
+	if (force)
+		dep->resource_index = 0;
+
 	/*
 	 * NOTICE: We are violating what the Databook says about the
 	 * EndTransfer command. Ideally we would _always_ wait for the
@@ -3797,33 +3808,6 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force, bool interrupt)
 	 * controller to handle the command completely before DWC3
 	 * remove requests attempts to unmap USB request buffers.
 	 */
-
-	cmd = DWC3_DEPCMD_ENDTRANSFER;
-	cmd |= force ? DWC3_DEPCMD_HIPRI_FORCERM : 0;
-	cmd |= interrupt ? DWC3_DEPCMD_CMDIOC : 0;
-	cmd |= DWC3_DEPCMD_PARAM(dep->resource_index);
-	memset(&params, 0, sizeof(params));
-	ret = dwc3_send_gadget_ep_cmd(dep, cmd, &params);
-	WARN_ON_ONCE(ret);
-
-	/*
-	 * when transfer is stopped with force rm bit false, it can be
-	 * restarted by passing resource_index in params; don't loose it
-	 */
-	if (force)
-		dep->resource_index = 0;
-
-	if (!interrupt)
-		dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
-	else
-		dep->flags |= DWC3_EP_END_TRANSFER_PENDING;
-	/*
-	 * when transfer is stopped with force rm bit false, it can be
-	 * restarted by passing resource_index in params; don't loose it
-	 */
-	if (force)
-		dep->resource_index = 0;
-
 	__dwc3_stop_active_transfer(dep, force, interrupt);
 }
 
