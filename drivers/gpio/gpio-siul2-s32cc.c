@@ -550,6 +550,7 @@ static const struct regmap_config siul2_regmap_conf = {
 	.reg_bits = 32,
 	.reg_stride = 4,
 	.cache_type = REGCACHE_FLAT,
+	.use_raw_spinlock = true,
 };
 
 static struct regmap *common_regmap_init(struct platform_device *pdev,
