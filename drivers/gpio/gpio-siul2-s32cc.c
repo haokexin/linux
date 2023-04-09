@@ -372,13 +372,6 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	int ret = 0;
 	u32 mask;
 
-	ret = siul2_gpio_dir_in(gc, gpio);
-	if (ret) {
-		dev_err(gc->parent, "Failed to configure GPIO %lu as input\n",
-			gpio);
-		return ret;
-	}
-
 	/* SIUL2 GPIO doesn't support level triggering */
 	if ((irq_type & IRQ_TYPE_LEVEL_HIGH) ||
 	    (irq_type & IRQ_TYPE_LEVEL_LOW)) {
@@ -469,7 +462,6 @@ static void siul2_gpio_irq_unmask(struct irq_data *data)
 	int index = siul2_irq_gpio_index(platdata, gpio);
 	unsigned long flags;
 	u32 mask;
-	int ret;
 
 	if (index < 0)
 		return;
@@ -498,13 +490,6 @@ static void siul2_gpio_irq_unmask(struct irq_data *data)
 	regmap_write(gpio_dev->eirqimcrsmap,
 		     SIUL2_EIRQ_REG(platdata->irqs[index].eirq),
 		     platdata->irqs[index].imscr_conf);
-
-	/* Configure GPIO as input */
-	ret = siul2_gpio_dir_in(gc, gpio);
-	if (ret) {
-		dev_err(gc->parent, "Failed to configure GPIO %d as input\n",
-			ret);
-	}
 }
 
 static void siul2_gpio_irq_mask(struct irq_data *data)
@@ -541,8 +526,6 @@ static void siul2_gpio_irq_mask(struct irq_data *data)
 	regmap_write(gpio_dev->eirqimcrsmap,
 		     SIUL2_EIRQ_REG(platdata->irqs[index].eirq),
 		     0);
-
-	siul2_gpio_free(gc, gpio);
 }
 
 static const struct regmap_config siul2_regmap_conf = {
