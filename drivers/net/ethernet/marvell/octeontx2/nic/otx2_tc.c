@@ -1241,13 +1241,15 @@ static int otx2_setup_tc_block_ingress_cb(enum tc_setup_type type,
 					  void *type_data, void *cb_priv)
 {
 	struct otx2_nic *nic = cb_priv;
+	bool ntuple;
 
 	if (!tc_cls_can_offload_and_chain0(nic->netdev, type_data))
 		return -EOPNOTSUPP;
 
+	ntuple = !!(nic->netdev->features & NETIF_F_NTUPLE);
 	switch (type) {
 	case TC_SETUP_CLSFLOWER:
-		if (nic->flow_cfg->ntuple) {
+		if (ntuple) {
 			netdev_warn(nic->netdev,
 				    "Can't install TC flower offload rule when NTUPLE is active");
 			return -EOPNOTSUPP;
