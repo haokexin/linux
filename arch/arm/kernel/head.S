@@ -120,7 +120,12 @@ ENTRY(stext)
 
 #ifndef CONFIG_XIP_KERNEL
 	adr_l	r8, _text			@ __pa(_text)
+#ifdef CONFIG_ARCH_AXXIA
+	ldr	r3, =TEXT_OFFSET
+	sub	r8, r8, r3			@ PHYS_OFFSET
+#else
 	sub	r8, r8, #TEXT_OFFSET		@ PHYS_OFFSET
+#endif
 #else
 	ldr	r8, =PLAT_PHYS_OFFSET		@ always constant in this case
 #endif
