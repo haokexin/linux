@@ -28,10 +28,30 @@
 	};
 };
 
-&pfe_aux0 {
+&pfe_slave {
 	status = "okay";
+	/delete-property/ dma-coherent; /* Disable for cut 1.1 compatibility OBE */
+	interrupts = <GIC_SPI 191 IRQ_TYPE_EDGE_RISING>;
+	interrupt-names = "hif1";
+	nxp,pfeng-hif-channels = <PFE_HIF_CHANNEL_1>;
+	nxp,pfeng-ihc-channel = <PFE_HIF_CHANNEL_1>;
+	nxp,pfeng-master-channel = <PFE_HIF_CHANNEL_0>;
 };
 
 &pfesl_aux0 {
 	status = "okay";
+	local-mac-address = [ e2 51 24 01 df 37 ];
+	nxp,pfeng-hif-channels = <PFE_HIF_CHANNEL_1>;
+};
+
+&pfesl_netif0 {
+	status = "disabled";
+};
+
+&pfesl_netif1 {
+	status = "disabled";
+};
+
+&pfesl_netif2 {
+	status = "disabled";
 };
