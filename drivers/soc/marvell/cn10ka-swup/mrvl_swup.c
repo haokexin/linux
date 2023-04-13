@@ -40,8 +40,6 @@
 static int alloc_buffers(struct memory_desc *memdesc, uint32_t required_buf);
 static void free_buffers(void);
 
-static int alloc_readbuf(uint64_t rd_size);
-
 /*Debugfs interface root */;
 struct dentry *mrvl_swup_root;
 
@@ -63,14 +61,11 @@ static struct memory_desc memdesc[BUF_COUNT] = {
 	{0, 0, 32*1024*1024, "cpio buffer"},
 	{0, 0, 1*1024*1024,  "data buffer"},
 	{0, 0, 1*1024*1024,  "signature buffer"},
-	{0, 0, 0, "read buffer"},
+	{0, 0, 32*1024*1024, "read buffer"},
 	{0, 0, 1*1024*1024,  "log buffer"},
+	{0, 0, 0,            "work buffer"},
 };
 
-static struct allocated_pages {
-	struct page *p;
-	int order;
-} page_handler = {0};
 /* IOCTL mapping to fw name */
 static const struct {
 	const char *str;
@@ -464,43 +459,6 @@ static int mrvl_run_fw_update(unsigned long arg)
 	return ioctl_desc.ret;
 }
 
-static int alloc_readbuf(uint64_t rd_size)
-{
-	int i, required_mem = 0, page_order;
-	void *page_addr;
-	uint32_t required_buf = 1<<BUF_DATA | 1<<BUF_READ;
-
-	memdesc[BUF_READ].size = rd_size;
-	required_mem += memdesc[BUF_READ].size;
-	required_mem += memdesc[BUF_DATA].size;
-
-	if (!required_mem)
-		return 0;
-
-	page_order = get_order(required_mem);
-	page_handler.p = alloc_pages(GFP_KERNEL, page_order);
-	if (!page_handler.p)
-		return -ENOMEM;
-
-	page_handler.order = page_order;
-	page_addr = page_address(page_handler.p);
-	memset(page_addr, 0x00, 1<<page_order);
-
-	for (i = 0; i < BUF_COUNT; i++) {
-		if (required_buf & 1<<i) {
-			memdesc[i].virt = page_addr;
-			memdesc[i].phys = virt_to_phys(page_addr);
-			page_addr += memdesc[i].size;
-		}
-	}
-	pr_debug("Alloc Read : size: %llx, required_mem: %x pg order %d addr %p\n",
-							rd_size,
-							required_mem,
-							page_order,
-							page_addr);
-	return 0;
-}
-
 static int mrvl_read_flash_data(unsigned long arg)
 {
 	struct mrvl_read_flash ioctl_desc = {0};
@@ -521,7 +479,7 @@ static int mrvl_read_flash_data(unsigned long arg)
 		return -EFAULT;
 	}
 
-	ret = alloc_readbuf(ioctl_desc.len);
+	ret = alloc_buffers(memdesc, 1<<BUF_DATA | 1<<BUF_READ);
 	if (ret) {
 		pr_err("Memory Alloc Error\n");
 		return -ENOMEM;
@@ -540,7 +498,7 @@ static int mrvl_read_flash_data(unsigned long arg)
 	smc_desc->offset = ioctl_desc.offset;
 	smc_desc->length = ioctl_desc.len;
 
-	/* In linux use asynchronus SPI operation */
+	/* In linux use asynchronous SPI operation */
 	smc_desc->async_spi = 1;
 
 	/* SPI config */
