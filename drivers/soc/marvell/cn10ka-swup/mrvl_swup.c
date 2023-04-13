@@ -55,14 +55,16 @@ static struct device dev;
 #define BUF_SIGNATURE 2
 #define BUF_READ 3
 #define BUF_LOG 4
-#define BUF_WORK 5
-#define BUF_COUNT 6
+#define BUF_SMCLOG 5
+#define BUF_WORK 6
+#define BUF_COUNT 7
 static struct memory_desc memdesc[BUF_COUNT] = {
 	{0, 0, 32*1024*1024, "cpio buffer"},
 	{0, 0, 1*1024*1024,  "data buffer"},
 	{0, 0, 1*1024*1024,  "signature buffer"},
 	{0, 0, 32*1024*1024, "read buffer"},
 	{0, 0, 1*1024*1024,  "log buffer"},
+	{0, 0, 1*1024*1024,  "smclog buffer"},
 	{0, 0, 0,            "work buffer"},
 };
 
@@ -141,8 +143,10 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 		pr_err("Failed to enable firmware logging\n");
 
 	user_desc = kzalloc(sizeof(*user_desc), GFP_KERNEL);
-	if (!user_desc)
+	if (!user_desc) {
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -ENOMEM;
+	}
 
 	if (copy_from_user(user_desc,
 			  TO_VERSION_DESC(arg),
@@ -225,8 +229,10 @@ static int mrvl_clone_fw(unsigned long arg)
 		pr_err("Failed to enable firmware logging\n");
 
 	user_desc = kzalloc(sizeof(*user_desc), GFP_KERNEL);
-	if (!user_desc)
+	if (!user_desc) {
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -ENOMEM;
+	}
 
 	if (copy_from_user(user_desc,
 			  TO_CLONE_DESC(arg),
@@ -326,6 +332,8 @@ static int mrvl_get_membuf(unsigned long arg)
 	buf.sign_buf_size = memdesc[BUF_SIGNATURE].size;
 	buf.log_buf = memdesc[BUF_LOG].phys;
 	buf.log_buf_size = memdesc[BUF_LOG].size;
+	buf.smclog_buf = memdesc[BUF_SMCLOG].phys;
+	buf.smclog_buf_size = memdesc[BUF_SMCLOG].size;
 	buf.read_buf = memdesc[BUF_READ].phys;
 	buf.read_buf_size = memdesc[BUF_READ].size;
 
@@ -344,7 +352,6 @@ static int mrvl_run_fw_update(unsigned long arg)
 	struct smc_update_descriptor *smc_desc;
 	struct arm_smccc_res res, res_update;
 	int spi_in_progress = 0;
-	bool new_logging_compatible = true;
 
 	ktime_t tstart, tsyncend, tend;
 
@@ -353,7 +360,6 @@ static int mrvl_run_fw_update(unsigned long arg)
 			    memdesc[BUF_LOG].size);
 	if (res.a0) {
 		pr_err("Failed to enable firmware logging\n");
-		new_logging_compatible = false;
 	}
 
 	smc_desc = (struct smc_update_descriptor *)memdesc[BUF_DATA].virt;
@@ -363,6 +369,7 @@ static int mrvl_run_fw_update(unsigned long arg)
 			  TO_UPDATE_DESC(arg),
 			  sizeof(ioctl_desc))) {
 		pr_err("Data Read Error\n");
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -EFAULT;
 	}
 
@@ -374,12 +381,14 @@ static int mrvl_run_fw_update(unsigned long arg)
 	/*Verify data size*/
 	if (ioctl_desc.image_size > memdesc[BUF_CPIO].size) {
 		pr_err("Incorrect CPIO data size\n");
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -EFAULT;
 	}
 
 	/* Verify userdata */
 	if (ioctl_desc.user_size > memdesc[BUF_SIGNATURE].size) {
 		pr_err("Incorrect user data size\n");
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -EFAULT;
 	}
 
@@ -397,10 +406,9 @@ static int mrvl_run_fw_update(unsigned long arg)
 	smc_desc->update_flags = ioctl_desc.flags | UPDATE_FLAG_LOG_PROGRESS;
 
 	/* Buffer for ATF logs */
-	if (!new_logging_compatible) {
-		smc_desc->output_console = memdesc[BUF_LOG].phys;
-		smc_desc->output_console_size = memdesc[BUF_LOG].size;
-	}
+	smc_desc->output_console = memdesc[BUF_SMCLOG].phys;
+	smc_desc->output_console_size = memdesc[BUF_SMCLOG].size;
+
 	/* In linux use asynchronus SPI operation */
 	smc_desc->async_spi = 1;
 
@@ -448,6 +456,7 @@ static int mrvl_run_fw_update(unsigned long arg)
 			 &ioctl_desc,
 			 sizeof(ioctl_desc))) {
 		pr_err("Data Write Error\n");
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -EFAULT;
 	}
 
@@ -476,12 +485,14 @@ static int mrvl_read_flash_data(unsigned long arg)
 			  TO_READ_FLASH_DESC(arg),
 			  sizeof(ioctl_desc))) {
 		pr_err("Data Read Error\n");
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -EFAULT;
 	}
 
 	ret = alloc_buffers(memdesc, 1<<BUF_DATA | 1<<BUF_READ);
 	if (ret) {
 		pr_err("Memory Alloc Error\n");
+		mrvl_exec_smc(PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING, 0, 0);
 		return -ENOMEM;
 	}
 	smc_desc = (struct smc_read_flash_descriptor *)memdesc[BUF_DATA].virt;
@@ -543,11 +554,12 @@ static long mrvl_swup_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	case GET_VERSION:
 	case VERIFY_HASH:
 	case CLONE_FW:
-		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_LOG));
+		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_LOG) |
+					     BIT(BUF_SMCLOG));
 		break;
 	case GET_MEMBUF:
 		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_CPIO) |
-					     BIT(BUF_LOG));
+					     BIT(BUF_LOG) | BIT(BUF_SMCLOG));
 		break;
 	case RUN_UPDATE:
 	case READ_FLASH:
