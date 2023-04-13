@@ -70,8 +70,9 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-colibri-eval-v3.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb
 
-dtb-$(CONFIG_ARCH_S32) += s32g274a-bluebox3.dtb
 dtb-$(CONFIG_ARCH_S32) += s32g274a-aptiv.dtb
+dtb-$(CONFIG_ARCH_S32) += s32g274a-aptiv-pfems.dtb
+dtb-$(CONFIG_ARCH_S32) += s32g274a-bluebox3.dtb
 dtb-$(CONFIG_ARCH_S32) += s32g2xxa-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += s32g2xxa-evb-pfems.dtb
 dtb-$(CONFIG_ARCH_S32) += s32g2xxa-evb3.dtb
