@@ -14,6 +14,20 @@
 #include "s32g274a-aptiv.dtsi"
 #include "s32g-pfe-slave.dtsi"
 
+
+/delete-node/ &pfe_reserved_bmu2;
+/ {
+	reserved-memory {
+		pfe_reserved_bmu2: pfebufs@83000000 {
+			compatible = "nxp,s32g-pfe-bmu2-pool";
+			/* BMU2: 2 MB */
+			reg = <0 0x83000000 0 0x200000>;
+			no-map;
+			status = "okay";
+		};
+	};
+};
+
 &pfe_aux0 {
 	status = "okay";
 };
