@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * Copyright 2021 NXP
+ */
+
+/dts-v1/;
+#include "s32g3.dtsi"
+#include "s32gxxxa-cvc-fl.dtsi"
+/ {
+	model = "Freescale S32G399A";
+	compatible = "fsl,s32g399", "arm,vexpress";
+};
+
+&swt8 {
+	status = "okay";
+};
+
+&swt9 {
+	status = "okay";
+};
+
+&swt10 {
+	status = "okay";
+};
+
+&swt11 {
+	status = "okay";
+};
