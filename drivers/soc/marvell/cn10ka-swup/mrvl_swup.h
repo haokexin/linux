@@ -373,6 +373,8 @@ struct mrvl_phys_buffer {
 	uint64_t sign_buf_size;
 	uint64_t log_buf;
 	uint64_t log_buf_size;
+	uint64_t smclog_buf;
+	uint64_t smclog_buf_size;
 	uint64_t read_buf;
 	uint64_t read_buf_size;
 } __packed;
