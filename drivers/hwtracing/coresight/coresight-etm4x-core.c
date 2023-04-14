@@ -990,15 +990,6 @@ static bool etm4_init_iomem_access(struct etmv4_drvdata *drvdata,
 {
 	u32 devarch = readl_relaxed(drvdata->base + TRCDEVARCH);
 
-	/* OcteonTX2 hardware reports version as ETMv4.2 but it supports
-	 * Ignore Packet feature of ETMv4.3. Hence, treat this as comaptible
-	 * with ETMv4.3.
-	 */
-	if (drvdata->etm_quirks & CORESIGHT_QUIRK_ETM_TREAT_ETMv43) {
-		idr1 &= ~0xF0;
-		idr1 |= 0x30;
-	}
-
 	/*
 	 * All ETMs must implement TRCDEVARCH to indicate that
 	 * the component is an ETMv4. Even though TRCIDR1 also
