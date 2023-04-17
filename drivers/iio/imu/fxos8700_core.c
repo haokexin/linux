@@ -162,12 +162,11 @@
 
 #define FXOS8700_DEVICE_ID          0xC7
 #define FXOS8700_PRE_DEVICE_ID      0xC4
-#define FXOS8700_DATA_BUF_SIZE      3
 
 struct fxos8700_data {
 	struct regmap *regmap;
 	struct iio_trigger *trig;
-	__be16 buf[FXOS8700_DATA_BUF_SIZE] __aligned(IIO_DMA_MINALIGN);
+	__be16 buf __aligned(IIO_DMA_MINALIGN);
 };
 
 /* Regmap info */
@@ -367,7 +366,12 @@ static int fxos8700_set_scale(struct fxos8700_data *data,
 		return ret;
 
 	active_mode = val & FXOS8700_ACTIVE;
+
 	if (active_mode) {
+		/*
+		 * The device must be in standby mode to change any of the
+		 * other fields within CTRL_REG1
+		 */
 		ret = regmap_write(data->regmap, FXOS8700_CTRL_REG1,
 				   val & ~FXOS8700_ACTIVE);
 		if (ret)
@@ -385,8 +389,14 @@ static int fxos8700_set_scale(struct fxos8700_data *data,
 			    fxos8700_accel_scale[i].bits);
 	if (ret)
 		return ret;
-	return regmap_write(data->regmap, FXOS8700_CTRL_REG1,
-				  active_mode);
+
+	ret = regmap_write(data->regmap, FXOS8700_XYZ_DATA_CFG,
+				fxos8700_accel_scale[i].bits);
+	if (ret)
+		return ret;
+
+	return regmap_update_bits(data->regmap, FXOS8700_CTRL_REG1,
+				  FXOS8700_ACTIVE, active_mode);
 }
 
 static int fxos8700_get_scale(struct fxos8700_data *data,
@@ -417,62 +427,28 @@ static int fxos8700_get_scale(struct fxos8700_data *data,
 static int fxos8700_get_data(struct fxos8700_data *data, int chan_type,
 			     int axis, int *val)
 {
-	u8 base, reg;
-	s16 tmp;
+	u8 base, offset;
+	enum fxos8700_sensor type = fxos8700_to_sensor(chan_type);
+	u8 tmp_data[2];
+	u16 native_data;
 	int ret;
 
-	/*
-	 * Different register base addresses varies with channel types.
-	 * This bug hasn't been noticed before because using an enum is
-	 * really hard to read. Use an a switch statement to take over that.
-	 */
-	switch (chan_type) {
-	case IIO_ACCEL:
-		base = FXOS8700_OUT_X_MSB;
-		break;
-	case IIO_MAGN:
-		base = FXOS8700_M_OUT_X_MSB;
-		break;
-	default:
-		return -EINVAL;
-	}
+	base = type ? FXOS8700_M_OUT_X_MSB : FXOS8700_OUT_X_MSB;
+	offset = axis - IIO_MOD_X;
 
-	/* Block read 6 bytes of device output registers to avoid data loss */
-	ret = regmap_bulk_read(data->regmap, base, data->buf,
-			       sizeof(data->buf));
+	ret = regmap_bulk_read(data->regmap, base + offset, &tmp_data[0], 2);
 	if (ret)
-		return ret;
+		return -EIO;
 
-	/* Convert axis to buffer index */
-	reg = axis - IIO_MOD_X;
-
-	/*
-	 * Convert to native endianness. The accel data and magn data
-	 * are signed, so a forced type conversion is needed.
-	 */
-	tmp = be16_to_cpu(data->buf[reg]);
-
-	/*
-	 * ACCEL output data registers contain the X-axis, Y-axis, and Z-axis
-	 * 14-bit left-justified sample data and MAGN output data registers
-	 * contain the X-axis, Y-axis, and Z-axis 16-bit sample data. Apply
-	 * a signed 2 bits right shift to the readback raw data from ACCEL
-	 * output data register and keep that from MAGN sensor as the origin.
-	 * Value should be extended to 32 bit.
-	 */
-	switch (chan_type) {
-	case IIO_ACCEL:
-		tmp = tmp >> 2;
-		break;
-	case IIO_MAGN:
-		/* Nothing to do */
-		break;
-	default:
-		return -EINVAL;
-	}
-
+	data->buf = ((tmp_data[1] << 8) & 0xff00) | tmp_data[0];
 	/* Convert to native endianness */
-	*val = sign_extend32(tmp, 15);
+	native_data = be16_to_cpu(data->buf);
+
+	/*accel raw data only has 14 bit */
+	if (!type)
+		native_data = native_data >> 2;
+
+	*val = sign_extend32(native_data, 15);
 
 	return 0;
 }
@@ -524,6 +500,8 @@ static int fxos8700_get_odr(struct fxos8700_data *data, enum fxos8700_sensor t,
 		return ret;
 
 	val = FIELD_GET(FXOS8700_CTRL_ODR_MSK, val);
+	val &= FXOS8700_CTRL_ODR_MSK;
+	val = val >> 3;
 
 	for (i = 0; i < odr_num; i++)
 		if (val == fxos8700_odr[i].bits)
@@ -667,6 +645,15 @@ static int fxos8700_chip_init(struct fxos8700_data *data, bool use_spi)
 				FXOS8700_CTRL_ODR_MSK | FXOS8700_ACTIVE,
 				FIELD_PREP(FXOS8700_CTRL_ODR_MSK, FXOS8700_CTRL_ODR_MAX) |
 				FXOS8700_ACTIVE);
+
+	/* Set for max full-scale range (+/-8G) */
+	ret = regmap_write(data->regmap, FXOS8700_XYZ_DATA_CFG, MODE_8G);
+	/* Max ODR (800Hz individual or 400Hz hybrid), active mode */
+	if (ret)
+		return ret;
+
+	return regmap_write(data->regmap, FXOS8700_CTRL_REG1,
+			   FXOS8700_CTRL_ODR_MAX << 3 | FXOS8700_ACTIVE);
 }
 
 static void fxos8700_chip_uninit(void *data)
