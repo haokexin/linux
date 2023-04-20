@@ -21,15 +21,12 @@
 #define SC_PSCRATCH            0x00dc
 #define SC_CRIT_WRITE_KEY      0x2000
 #define SC_RESET_CONTROL       0x2008
-#define   RSTCTL_RST_CHIP       BIT(1)
-#define   RSTCTL_RST_SYS	BIT(0)
+#define RSTCTL_RST_CHIP        BIT(1)
+#define RSTCTL_RST_SYS         BIT(0)
 
 static struct regmap *syscon;
 
 static int ddr_retention_enabled;
-
-static void
-(*saved_arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd);
 
 void
 initiate_retention_reset(void)
@@ -44,27 +41,14 @@ initiate_retention_reset(void)
 
 	/* set retention reset bit in pscratch */
 	regmap_update_bits(syscon, SC_PSCRATCH, 1, 1);
-
-	/* trap into secure monitor to do the reset */
-	if (ddr_retention_enabled)
-		saved_arm_pm_restart(0, NULL);
-	else
-		machine_restart(NULL);
 }
 EXPORT_SYMBOL(initiate_retention_reset);
 
-static void
-axxia_pm_restart(enum reboot_mode reboot_mode, const char *cmd)
-{
-	initiate_retention_reset();
-}
-
 static ssize_t
-axxia_ddr_retention_trigger(struct file *file, const char __user *buf,
-			    size_t count, loff_t *ppos)
+axxia_ddr_retention_trigger(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
-	initiate_retention_reset();
-	return 0;
+	machine_restart(NULL);
+	return count;
 }
 
 static const struct proc_ops axxia_ddr_retention_proc_ops = {
@@ -86,7 +70,7 @@ axxia_ddr_retention_init(void)
 	/*
 	 * Newer versions of Axxia U-Boot will add a property to the
 	 * device tree to indicate whether or not DDR retention is
-	 * enabled.  If that property exists, use it; otherwise, use the
+	 * enabled. If that property exists, use it; otherwise, use the
 	 * Linux configuration option.
 	 */
 
@@ -95,7 +79,8 @@ axxia_ddr_retention_init(void)
 
 	if (ddr_retention && state) {
 		ddr_retention_enabled = (be32_to_cpu(*state) == 0 ? 0 : 1);
-	} else {
+	}
+	else {
 #ifdef CONFIG_POWER_RESET_AXXIA_DDR_RETENTION
 		ddr_retention_enabled = 1;
 #else
@@ -104,35 +89,37 @@ axxia_ddr_retention_init(void)
 	}
 
 	if (ddr_retention_enabled) {
-		/* Create /proc entry. */
-		if (!proc_create("driver/axxia_ddr_retention_reset",
-				 0200, NULL, &axxia_ddr_retention_proc_ops)) {
+		/* Create /proc entry */
+		if (!proc_create("driver/axxia_ddr_retention_reset", 0200, NULL, &axxia_ddr_retention_proc_ops)) {
 			pr_info("Failed to register DDR retention proc entry\n");
-		} else {
-			ddr_retention_enabled = 1;
+		}
+		else {
 			pr_info("DDR Retention Reset Initialized\n");
 		}
-	} else {
+	}
+	else {
 		pr_info("DDR Retention Reset is Not Available\n");
 	}
 }
 
-static int axxia_restart_handler(struct notifier_block *this,
-				 unsigned long mode, void *cmd)
+static int axxia_restart_handler(struct notifier_block *this, unsigned long mode, void *cmd)
 {
-	/* Access Key (0xab) */
-	regmap_write(syscon, SC_CRIT_WRITE_KEY, 0xab);
+	if (ddr_retention_enabled) {
+		initiate_retention_reset();
+	}
+	else {
+		/* Access Key (0xab) */
+		regmap_write(syscon, SC_CRIT_WRITE_KEY, 0xab);
 
-	/* Assert chip reset */
-	regmap_update_bits(syscon, SC_RESET_CONTROL,
-			   RSTCTL_RST_CHIP, RSTCTL_RST_CHIP);
+		/* Assert chip reset */
+		regmap_update_bits(syscon, SC_RESET_CONTROL, RSTCTL_RST_CHIP, RSTCTL_RST_CHIP);
+	}
 
 	return NOTIFY_DONE;
 }
 
 static struct notifier_block axxia_restart_nb = {
 	.notifier_call = axxia_restart_handler,
-	.priority = 128,
 };
 
 static int axxia_reset_probe(struct platform_device *pdev)
@@ -146,13 +133,10 @@ static int axxia_reset_probe(struct platform_device *pdev)
 		return PTR_ERR(syscon);
 	}
 
+	axxia_restart_nb.priority = ddr_retention_enabled ? 130 : 128;
 	err = register_restart_handler(&axxia_restart_nb);
 	if (err)
 		dev_err(dev, "cannot register restart handler (err=%d)\n", err);
-
-	if (ddr_retention_enabled) {
-		saved_arm_pm_restart = axxia_pm_restart;
-	}
 
 	return err;
 }
