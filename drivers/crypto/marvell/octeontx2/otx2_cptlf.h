@@ -119,6 +119,7 @@ struct otx2_cptlfs_info {
 	u8 kvf_limits;          /* Kernel crypto limits */
 	atomic_t state;         /* LF's state. started/reset */
 	int blkaddr;            /* CPT blkaddr: BLKADDR_CPT0/BLKADDR_CPT1 */
+	int global_slot;        /* Global slot across the blocks */
 };
 
 static inline void otx2_cpt_free_instruction_queues(
@@ -269,7 +270,7 @@ static inline void otx2_cptlf_disable_iqueues(struct otx2_cptlfs_info *lfs)
 
 	for (slot = 0; slot < lfs->lfs_num; slot++) {
 		otx2_cptlf_do_disable_iqueue(&lfs->lf[slot]);
-		otx2_cpt_lf_reset_msg(lfs, slot);
+		otx2_cpt_lf_reset_msg(lfs, lfs->global_slot + slot);
 	}
 }
 
