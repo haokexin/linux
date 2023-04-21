@@ -563,6 +563,12 @@
 			interrupts = <0 175 4>;
 		};
 
+		socfpga_axi_setup: stmmac-axi-config {
+			snps,wr_osr_lmt = <0xf>;
+			snps,rd_osr_lmt = <0xf>;
+			snps,blen = <0 0 0 0 16 0 0>;
+		};
+
 		gmac0: ethernet@ff700000 {
 			compatible = "altr,socfpga-stmmac", "snps,dwmac-3.70a", "snps,dwmac";
 			altr,sysmgr-syscon = <&sysmgr 0x60 0>;
@@ -578,6 +584,7 @@
 			snps,perfect-filter-entries = <128>;
 			tx-fifo-depth = <4096>;
 			rx-fifo-depth = <4096>;
+			snps,axi-config = <&socfpga_axi_setup>;
 			status = "disabled";
 		};
 
@@ -596,6 +603,7 @@
 			snps,perfect-filter-entries = <128>;
 			tx-fifo-depth = <4096>;
 			rx-fifo-depth = <4096>;
+			snps,axi-config = <&socfpga_axi_setup>;
 			status = "disabled";
 		};
 
@@ -665,7 +673,7 @@
 		i2c0: i2c@ffc04000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			compatible = "snps,designware-i2c";
+			compatible = "intel,socfpga-i2c", "snps,designware-i2c";
 			reg = <0xffc04000 0x1000>;
 			resets = <&rst I2C0_RESET>;
 			clocks = <&l4_sp_clk>;
@@ -676,7 +684,7 @@
 		i2c1: i2c@ffc05000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			compatible = "snps,designware-i2c";
+			compatible = "intel,socfpga-i2c", "snps,designware-i2c";
 			reg = <0xffc05000 0x1000>;
 			resets = <&rst I2C1_RESET>;
 			clocks = <&l4_sp_clk>;
@@ -687,7 +695,7 @@
 		i2c2: i2c@ffc06000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			compatible = "snps,designware-i2c";
+			compatible = "intel,socfpga-i2c", "snps,designware-i2c";
 			reg = <0xffc06000 0x1000>;
 			resets = <&rst I2C2_RESET>;
 			clocks = <&l4_sp_clk>;
@@ -698,7 +706,7 @@
 		i2c3: i2c@ffc07000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
-			compatible = "snps,designware-i2c";
+			compatible = "intel,socfpga-i2c", "snps,designware-i2c";
 			reg = <0xffc07000 0x1000>;
 			resets = <&rst I2C3_RESET>;
 			clocks = <&l4_sp_clk>;

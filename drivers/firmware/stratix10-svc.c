@@ -29,14 +29,25 @@
  * from the secure world for FPGA manager to reuse, or to free the buffer(s)
  * when all bit-stream data had be send.
  *
- * FPGA_CONFIG_STATUS_TIMEOUT_SEC - poll the FPGA configuration status,
- * service layer will return error to FPGA manager when timeout occurs,
- * timeout is set to 30 seconds (30 * 1000) at Intel Stratix10 SoC.
+ * FPGA_CONFIG_POLL_INTERVAL_MS_FAST - interval for polling the service status
+ * at secure world for fast response commands. Interval is set to 20ms.
+ *
+ * FPGA_CONFIG_POLL_INTERVAL_MS_SLOW - interval for polling the service status
+ * at secure world for slow response commands. Interval is set to 500ms.
+ *
+ * FPGA_CONFIG_POLL_COUNT_FAST - number of count for polling service status for
+ * fast response commands. Count is set to 50 (50*20ms=1sec)
+ *
+ * FPGA_CONFIG_POLL_COUNT_SLOW - number of count for polling service status for
+ * slow response commands. Count is set to 58 (58*500ms=29sec)
  */
 #define SVC_NUM_DATA_IN_FIFO			8
 #define SVC_NUM_CHANNEL					4
 #define FPGA_CONFIG_DATA_CLAIM_TIMEOUT_MS	2000
-#define FPGA_CONFIG_STATUS_TIMEOUT_SEC		30
+#define FPGA_CONFIG_POLL_INTERVAL_MS_FAST	20
+#define FPGA_CONFIG_POLL_INTERVAL_MS_SLOW	500
+#define FPGA_CONFIG_POLL_COUNT_FAST		50
+#define FPGA_CONFIG_POLL_COUNT_SLOW		58
 #define BYTE_TO_WORD_SIZE				4
 
 /* stratix10 service layer clients */
@@ -257,6 +268,47 @@ static void svc_thread_cmd_data_claim(struct stratix10_svc_controller *ctrl,
 }
 
 /**
+ * svc_cmd_poll_status() - poll for status
+ * @p_data: pointer to service data structure
+ * @ctrl: pointer to service layer controller
+ * @res: pointer to store response
+ * @poll_count: pointer to poll count value
+ * @poll_interval_in_ms: interval value in miliseconds
+ *
+ * Check whether the service at secure world has completed, and then inform the
+ * response.
+ */
+static void svc_cmd_poll_status(struct stratix10_svc_data *p_data,
+				struct stratix10_svc_controller *ctrl,
+				struct arm_smccc_res *res,
+				int *poll_count, int poll_interval_in_ms)
+{
+	unsigned long a0, a1, a2;
+
+	a0 = INTEL_SIP_SMC_FPGA_CONFIG_ISDONE;
+	a1 = (unsigned long)p_data->paddr;
+	a2 = (unsigned long)p_data->size;
+
+	if (p_data->command == COMMAND_POLL_SERVICE_STATUS)
+		a0 = INTEL_SIP_SMC_SERVICE_COMPLETED;
+
+	while (*poll_count) {
+		ctrl->invoke_fn(a0, a1, a2, 0, 0, 0, 0, 0, res);
+		if ((res->a0 == INTEL_SIP_SMC_STATUS_OK) ||
+		    (res->a0 == INTEL_SIP_SMC_STATUS_ERROR) ||
+		    (res->a0 == INTEL_SIP_SMC_STATUS_REJECTED))
+			break;
+
+		/*
+		 * request is still in progress, go to sleep then
+		 * poll again
+		 */
+		msleep(poll_interval_in_ms);
+		(*poll_count)--;
+	}
+}
+
+/**
  * svc_thread_cmd_config_status() - check configuration status
  * @ctrl: pointer to service layer controller
  * @p_data: pointer to service data structure
@@ -270,8 +322,7 @@ static void svc_thread_cmd_config_status(struct stratix10_svc_controller *ctrl,
 					 struct stratix10_svc_cb_data *cb_data)
 {
 	struct arm_smccc_res res;
-	int count_in_sec;
-	unsigned long a0, a1, a2;
+	int poll_count;
 
 	cb_data->kaddr1 = NULL;
 	cb_data->kaddr2 = NULL;
@@ -281,34 +332,22 @@ static void svc_thread_cmd_config_status(struct stratix10_svc_controller *ctrl,
 	/* for debug purpose only */
 	pr_debug("%s: polling completed status\n", __func__);
 
-	a0 = INTEL_SIP_SMC_FPGA_CONFIG_ISDONE;
-	a1 = (unsigned long)p_data->paddr;
-	a2 = (unsigned long)p_data->size;
-
-	if (p_data->command == COMMAND_POLL_SERVICE_STATUS)
-		a0 = INTEL_SIP_SMC_SERVICE_COMPLETED;
-
-	count_in_sec = FPGA_CONFIG_STATUS_TIMEOUT_SEC;
-	while (count_in_sec) {
-		ctrl->invoke_fn(a0, a1, a2, 0, 0, 0, 0, 0, &res);
-		if ((res.a0 == INTEL_SIP_SMC_STATUS_OK) ||
-		    (res.a0 == INTEL_SIP_SMC_STATUS_ERROR) ||
-		    (res.a0 == INTEL_SIP_SMC_STATUS_REJECTED))
-			break;
-
-		/*
-		 * request is still in progress, wait one second then
-		 * poll again
-		 */
-		msleep(1000);
-		count_in_sec--;
+	poll_count = FPGA_CONFIG_POLL_COUNT_FAST;
+	svc_cmd_poll_status(p_data, ctrl, &res, &poll_count,
+			    FPGA_CONFIG_POLL_INTERVAL_MS_FAST);
+	/* Inceased poll interval if response is still not ready */
+	if (!poll_count) {
+		poll_count = FPGA_CONFIG_POLL_COUNT_SLOW;
+		svc_cmd_poll_status(p_data, ctrl, &res, &poll_count,
+				    FPGA_CONFIG_POLL_INTERVAL_MS_SLOW);
 	}
 
-	if (!count_in_sec) {
+	if (!poll_count) {
 		pr_err("%s: poll status timeout\n", __func__);
 		cb_data->status = BIT(SVC_STATUS_BUSY);
 	} else if (res.a0 == INTEL_SIP_SMC_STATUS_OK) {
 		cb_data->status = BIT(SVC_STATUS_COMPLETED);
+		cb_data->kaddr1 = (res.a1) ? &res.a1 : NULL;
 		cb_data->kaddr2 = (res.a2) ?
 				  svc_pa_to_va(res.a2) : NULL;
 		cb_data->kaddr3 = (res.a3) ? &res.a3 : NULL;
@@ -378,10 +417,12 @@ static void svc_thread_recv_status_ok(struct stratix10_svc_data *p_data,
 	case COMMAND_FIRMWARE_VERSION:
 	case COMMAND_HWMON_READTEMP:
 	case COMMAND_HWMON_READVOLT:
+	case COMMAND_READ_SECURE_REG:
 		cb_data->status = BIT(SVC_STATUS_OK);
 		cb_data->kaddr1 = &res.a1;
 		break;
 	case COMMAND_SMC_SVC_VERSION:
+	case COMMAND_WRITE_TO_SECURE_REG:
 		cb_data->status = BIT(SVC_STATUS_OK);
 		cb_data->kaddr1 = &res.a1;
 		cb_data->kaddr2 = &res.a2;
@@ -395,6 +436,7 @@ static void svc_thread_recv_status_ok(struct stratix10_svc_data *p_data,
 	case COMMAND_POLL_SERVICE_STATUS:
 	case COMMAND_POLL_SERVICE_STATUS_ASYNC:
 	case COMMAND_FCS_GET_ROM_PATCH_SHA384:
+	case COMMAND_FCS_SDOS_DATA_EXT:
 		cb_data->status = BIT(SVC_STATUS_OK);
 		cb_data->kaddr1 = &res.a1;
 		cb_data->kaddr2 = svc_pa_to_va(res.a2);
@@ -412,20 +454,29 @@ static void svc_thread_recv_status_ok(struct stratix10_svc_data *p_data,
 	case COMMAND_FCS_CRYPTO_GET_KEY_INFO:
 	case COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE:
 	case COMMAND_FCS_CRYPTO_AES_CRYPT_FINALIZE:
+	case COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE_SMMU:
+	case COMMAND_FCS_CRYPTO_AES_CRYPT_FINALIZE_SMMU:
 	case COMMAND_FCS_CRYPTO_GET_DIGEST_UPDATE:
 	case COMMAND_FCS_CRYPTO_GET_DIGEST_FINALIZE:
+	case COMMAND_FCS_CRYPTO_GET_DIGEST_UPDATE_SMMU:
+	case COMMAND_FCS_CRYPTO_GET_DIGEST_FINALIZE_SMMU:
 	case COMMAND_FCS_CRYPTO_MAC_VERIFY_UPDATE:
 	case COMMAND_FCS_CRYPTO_MAC_VERIFY_FINALIZE:
+	case COMMAND_FCS_CRYPTO_MAC_VERIFY_UPDATE_SMMU:
+	case COMMAND_FCS_CRYPTO_MAC_VERIFY_FINALIZE_SMMU:
 	case COMMAND_FCS_CRYPTO_ECDSA_HASH_SIGNING_FINALIZE:
 	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_UPDATE:
 	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_FINALIZE:
+	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_UPDATE_SMMU:
+	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_FINALIZE_SMMU:
 	case COMMAND_FCS_CRYPTO_ECDSA_HASH_VERIFY_FINALIZE:
 	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_UPDATE:
 	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_FINALIZE:
+	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_UPDATE_SMMU:
+	case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_FINALIZE_SMMU:
 	case COMMAND_FCS_CRYPTO_ECDSA_GET_PUBLIC_KEY_FINALIZE:
 	case COMMAND_FCS_CRYPTO_ECDH_REQUEST_FINALIZE:
 	case COMMAND_FCS_RANDOM_NUMBER_GEN_EXT:
-	case COMMAND_FCS_SDOS_DATA_EXT:
 		cb_data->status = BIT(SVC_STATUS_OK);
 		cb_data->kaddr2 = svc_pa_to_va(res.a2);
 		cb_data->kaddr3 = &res.a3;
@@ -727,6 +778,24 @@ static int svc_normal_to_secure_thread(void *data)
 			a5 = (unsigned long)pdata->paddr_output;
 			a6 = (unsigned long)pdata->size_output;
 			break;
+		case COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_AES_CRYPTO_UPDATE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			break;
+		case COMMAND_FCS_CRYPTO_AES_CRYPT_FINALIZE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_AES_CRYPTO_FINALIZE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			break;
 		case COMMAND_FCS_CRYPTO_GET_DIGEST_INIT:
 			a0 = INTEL_SIP_SMC_FCS_GET_DIGEST_INIT;
 			a1 = pdata->arg[0];
@@ -746,6 +815,24 @@ static int svc_normal_to_secure_thread(void *data)
 			break;
 		case COMMAND_FCS_CRYPTO_GET_DIGEST_FINALIZE:
 			a0 = INTEL_SIP_SMC_FCS_GET_DIGEST_FINALIZE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			break;
+		case COMMAND_FCS_CRYPTO_GET_DIGEST_UPDATE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_GET_DIGEST_SMMU_UPDATE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			break;
+		case COMMAND_FCS_CRYPTO_GET_DIGEST_FINALIZE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_GET_DIGEST_SMMU_FINALIZE;
 			a1 = pdata->arg[0];
 			a2 = pdata->arg[1];
 			a3 = (unsigned long)pdata->paddr;
@@ -773,6 +860,26 @@ static int svc_normal_to_secure_thread(void *data)
 			break;
 		case COMMAND_FCS_CRYPTO_MAC_VERIFY_FINALIZE:
 			a0 = INTEL_SIP_SMC_FCS_MAC_VERIFY_FINALIZE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			a7 = pdata->arg[2];
+			break;
+		case COMMAND_FCS_CRYPTO_MAC_VERIFY_UPDATE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_MAC_VERIFY_SMMU_UPDATE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			a7 = pdata->arg[2];
+			break;
+		case COMMAND_FCS_CRYPTO_MAC_VERIFY_FINALIZE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_MAC_VERIFY_SMMU_FINALIZE;
 			a1 = pdata->arg[0];
 			a2 = pdata->arg[1];
 			a3 = (unsigned long)pdata->paddr;
@@ -824,6 +931,24 @@ static int svc_normal_to_secure_thread(void *data)
 			a5 = (unsigned long)pdata->paddr_output;
 			a6 = (unsigned long)pdata->size_output;
 			break;
+		case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_UPDATE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_ECDSA_SHA2_DATA_SIGNING_SMMU_UPDATE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			break;
+		case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_FINALIZE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_ECDSA_SHA2_DATA_SIGNING_SMMU_FINALIZE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			break;
 		case COMMAND_FCS_CRYPTO_ECDSA_HASH_VERIFY_INIT:
 			a0 = INTEL_SIP_SMC_FCS_ECDSA_HASH_SIGNATURE_VERIFY_INIT;
 			a1 = pdata->arg[0];
@@ -861,6 +986,26 @@ static int svc_normal_to_secure_thread(void *data)
 			break;
 		case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_FINALIZE:
 			a0 = INTEL_SIP_SMC_FCS_ECDSA_SHA2_DATA_SIGNATURE_VERIFY_FINALIZE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			a7 = pdata->arg[2];
+			break;
+		case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_UPDATE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_ECDSA_SHA2_DATA_SIGNATURE_VERIFY_SMMU_UPDATE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			a3 = (unsigned long)pdata->paddr;
+			a4 = (unsigned long)pdata->size;
+			a5 = (unsigned long)pdata->paddr_output;
+			a6 = (unsigned long)pdata->size_output;
+			a7 = pdata->arg[2];
+			break;
+		case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_FINALIZE_SMMU:
+			a0 = INTEL_SIP_SMC_FCS_ECDSA_SHA2_DATA_SIGNATURE_VERIFY_SMMU_FINALIZE;
 			a1 = pdata->arg[0];
 			a2 = pdata->arg[1];
 			a3 = (unsigned long)pdata->paddr;
@@ -948,6 +1093,15 @@ static int svc_normal_to_secure_thread(void *data)
 			a4 = pdata->arg[1];
 			a5 = (unsigned long)pdata->paddr_output;
 			a6 = (unsigned long)pdata->size_output / BYTE_TO_WORD_SIZE;
+			break;
+		case COMMAND_WRITE_TO_SECURE_REG:
+			a0 = INTEL_SIP_SMC_REG_WRITE;
+			a1 = pdata->arg[0];
+			a2 = pdata->arg[1];
+			break;
+		case COMMAND_READ_SECURE_REG:
+			a0 = INTEL_SIP_SMC_REG_READ;
+			a1 = pdata->arg[0];
 			break;
 		default:
 			pr_warn("it shouldn't happen\n");
@@ -1039,22 +1193,32 @@ static int svc_normal_to_secure_thread(void *data)
 			case COMMAND_FCS_CRYPTO_AES_CRYPT_INIT:
 			case COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE:
 			case COMMAND_FCS_CRYPTO_AES_CRYPT_FINALIZE:
+			case COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE_SMMU:
+			case COMMAND_FCS_CRYPTO_AES_CRYPT_FINALIZE_SMMU:
 			case COMMAND_FCS_CRYPTO_GET_DIGEST_INIT:
 			case COMMAND_FCS_CRYPTO_GET_DIGEST_UPDATE:
 			case COMMAND_FCS_CRYPTO_GET_DIGEST_FINALIZE:
+			case COMMAND_FCS_CRYPTO_GET_DIGEST_UPDATE_SMMU:
+			case COMMAND_FCS_CRYPTO_GET_DIGEST_FINALIZE_SMMU:
 			case COMMAND_FCS_CRYPTO_MAC_VERIFY_INIT:
 			case COMMAND_FCS_CRYPTO_MAC_VERIFY_UPDATE:
 			case COMMAND_FCS_CRYPTO_MAC_VERIFY_FINALIZE:
+			case COMMAND_FCS_CRYPTO_MAC_VERIFY_UPDATE_SMMU:
+			case COMMAND_FCS_CRYPTO_MAC_VERIFY_FINALIZE_SMMU:
 			case COMMAND_FCS_CRYPTO_ECDSA_HASH_SIGNING_INIT:
 			case COMMAND_FCS_CRYPTO_ECDSA_HASH_SIGNING_FINALIZE:
 			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_INIT:
 			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_UPDATE:
 			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_FINALIZE:
+			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_UPDATE_SMMU:
+			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_FINALIZE_SMMU:
 			case COMMAND_FCS_CRYPTO_ECDSA_HASH_VERIFY_INIT:
 			case COMMAND_FCS_CRYPTO_ECDSA_HASH_VERIFY_FINALIZE:
 			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_INIT:
 			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_UPDATE:
 			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_FINALIZE:
+			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_UPDATE_SMMU:
+			case COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_FINALIZE_SMMU:
 			case COMMAND_FCS_CRYPTO_ECDSA_GET_PUBLIC_KEY_INIT:
 			case COMMAND_FCS_CRYPTO_ECDSA_GET_PUBLIC_KEY_FINALIZE:
 			case COMMAND_FCS_CRYPTO_ECDH_REQUEST_INIT:
@@ -1417,6 +1581,8 @@ int stratix10_svc_send(struct stratix10_svc_chan *chan, void *msg)
 	struct stratix10_svc_data *p_data;
 	int ret = 0;
 	unsigned int cpu = 0;
+	phys_addr_t *src_addr;
+	phys_addr_t *dst_addr;
 
 	p_data = kzalloc(sizeof(*p_data), GFP_KERNEL);
 	if (!p_data)
@@ -1451,21 +1617,57 @@ int stratix10_svc_send(struct stratix10_svc_chan *chan, void *msg)
 			p_data->flag = ct->flags;
 		}
 	} else {
-		list_for_each_entry(p_mem, &svc_data_mem, node)
-			if (p_mem->vaddr == p_msg->payload) {
-				p_data->paddr = p_mem->paddr;
-				p_data->size = p_msg->payload_length;
-				break;
-			}
-		if (p_msg->payload_output) {
+		if (p_msg->command == COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE_SMMU ||
+				p_msg->command == COMMAND_FCS_CRYPTO_AES_CRYPT_FINALIZE_SMMU){
+			src_addr = (phys_addr_t *)p_msg->payload;
+			p_data->paddr = *src_addr;
+			p_data->size = p_msg->payload_length;
+			dst_addr = (phys_addr_t *)p_msg->payload_output;
+			p_data->paddr_output = *dst_addr;
+			p_data->size_output = p_msg->payload_length_output;
+		} else if (
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_UPDATE_SMMU ||
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_ECDSA_SHA2_DATA_SIGNING_FINALIZE_SMMU ||
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_GET_DIGEST_UPDATE_SMMU ||
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_GET_DIGEST_FINALIZE_SMMU ||
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_UPDATE_SMMU ||
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_ECDSA_SHA2_VERIFY_FINALIZE_SMMU ||
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_MAC_VERIFY_UPDATE_SMMU ||
+			p_msg->command ==
+				COMMAND_FCS_CRYPTO_MAC_VERIFY_FINALIZE_SMMU) {
+			src_addr = (phys_addr_t *)p_msg->payload;
+			p_data->paddr = *src_addr;
+			p_data->size = p_msg->payload_length;
 			list_for_each_entry(p_mem, &svc_data_mem, node)
 				if (p_mem->vaddr == p_msg->payload_output) {
-					p_data->paddr_output =
-						p_mem->paddr;
-					p_data->size_output =
-						p_msg->payload_length_output;
+					p_data->paddr_output = p_mem->paddr;
+					p_data->size_output = p_msg->payload_length_output;
 					break;
 				}
+		} else {
+			list_for_each_entry(p_mem, &svc_data_mem, node)
+				if (p_mem->vaddr == p_msg->payload) {
+					p_data->paddr = p_mem->paddr;
+					p_data->size = p_msg->payload_length;
+					break;
+				}
+			if (p_msg->payload_output) {
+				list_for_each_entry(p_mem, &svc_data_mem, node)
+					if (p_mem->vaddr == p_msg->payload_output) {
+						p_data->paddr_output =
+							p_mem->paddr;
+						p_data->size_output =
+							p_msg->payload_length_output;
+						break;
+					}
+			}
 		}
 	}
 

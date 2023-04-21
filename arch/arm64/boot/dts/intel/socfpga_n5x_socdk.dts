@@ -167,9 +167,9 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		input@1 {
-			label = "Main Die";
-			reg = <0>;
+		input@0 {
+			label = "Main Die SDM";
+			reg = <0x0>;
 		};
 	};
 };

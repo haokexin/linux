@@ -1225,7 +1225,7 @@ static struct net_device_ops intel_fpga_qse_netdev_ops = {
 	.ndo_set_mac_address	= eth_mac_addr,
 	.ndo_set_rx_mode	= qse_set_rx_mode,
 	.ndo_change_mtu		= qse_change_mtu,
-	.ndo_do_ioctl		= qse_do_ioctl,
+	.ndo_eth_ioctl		= qse_do_ioctl,
 	.ndo_get_stats64	= qse_get_stats64
 };
 
@@ -1237,7 +1237,8 @@ static void intel_fpga_qse_validate(struct phylink_config *config,
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
 
 	if (state->interface != PHY_INTERFACE_MODE_NA &&
-	    state->interface != PHY_INTERFACE_MODE_10GKR) {
+	    state->interface != PHY_INTERFACE_MODE_1000BASEX &&
+	    state->interface != PHY_INTERFACE_MODE_10GBASER) {
 		bitmap_zero(supported, __ETHTOOL_LINK_MODE_MASK_NBITS);
 		return;
 	}
@@ -1254,7 +1255,9 @@ static void intel_fpga_qse_validate(struct phylink_config *config,
 
 	switch (state->interface) {
 	case PHY_INTERFACE_MODE_NA:
-	case PHY_INTERFACE_MODE_10GKR:
+	case PHY_INTERFACE_MODE_1000BASEX:
+	case PHY_INTERFACE_MODE_10GBASER:
+		phylink_set(mask, 1000baseX_Full);
 		phylink_set(mask, 10000baseT_Full);
 		phylink_set(mask, 10000baseCR_Full);
 		phylink_set(mask, 10000baseSR_Full);
@@ -1262,6 +1265,7 @@ static void intel_fpga_qse_validate(struct phylink_config *config,
 		phylink_set(mask, 10000baseLRM_Full);
 		phylink_set(mask, 10000baseER_Full);
 		phylink_set(mask, 10000baseKR_Full);
+		phylink_set(mac_supported, 1000baseX_Full);
 		phylink_set(mac_supported, 10000baseT_Full);
 		phylink_set(mac_supported, 10000baseCR_Full);
 		phylink_set(mac_supported, 10000baseSR_Full);
@@ -1269,7 +1273,6 @@ static void intel_fpga_qse_validate(struct phylink_config *config,
 		phylink_set(mac_supported, 10000baseLRM_Full);
 		phylink_set(mac_supported, 10000baseER_Full);
 		phylink_set(mac_supported, 10000baseKR_Full);
-		state->speed = SPEED_10000;
 		break;
 	default:
 		break;
@@ -1289,15 +1292,14 @@ static void intel_fpga_qse_mac_pcs_get_state(struct phylink_config *config,
 {
 	struct intel_fpga_qse_private *priv =
 			netdev_priv(to_net_dev(config->dev));
-	u32 speed_reconfig;
 
-	speed_reconfig = csrrd32(priv->phy_reconfig_csr,
-				 phy_csroffs(speed_reconfig));
-	if (speed_reconfig & PHY_ETH_SPEED_10000) {
+	if (state->interface == PHY_INTERFACE_MODE_10GBASER) {
 		state->speed = SPEED_10000;
-		state->duplex = DUPLEX_FULL;
+	} else if (state->interface == PHY_INTERFACE_MODE_1000BASEX) {
+		state->speed = SPEED_1000;
 	}
 
+	state->duplex = DUPLEX_FULL;
 	state->link = 1;
 
 }
@@ -1322,9 +1324,13 @@ static void intel_fpga_qse_mac_config(struct phylink_config *config,
 			     phy_csroffs(reconfig_busy), PHY_RECONFIG_BUSY)) {
 		csrwr32(0, priv->phy_reconfig_csr,
 			phy_csroffs(logical_chan_num));
-		switch (state->speed) {
-		case SPEED_10000:
-			speed_reconfig |= (PHY_ETH_SPEED_10000 |
+		switch (state->interface) {
+		case PHY_INTERFACE_MODE_10GBASER:
+			speed_reconfig = (PHY_ETH_SPEED_10000 |
+					   PHY_RECONFIG_START);
+			break;
+		case PHY_INTERFACE_MODE_1000BASEX:
+			speed_reconfig = (PHY_ETH_SPEED_1000 |
 					   PHY_RECONFIG_START);
 			break;
 		default:
@@ -1386,7 +1392,6 @@ static int intel_fpga_qse_ll_probe(struct platform_device *pdev)
 	struct resource *phy_reconfig_csr;
 	struct intel_fpga_qse_private *priv;
 	struct device_node *np = pdev->dev.of_node;
-	const unsigned char *macaddr;
 	const struct of_device_id *of_id = NULL;
 
 	ndev = alloc_etherdev(sizeof(struct intel_fpga_qse_private));
@@ -1574,10 +1579,8 @@ static int intel_fpga_qse_ll_probe(struct platform_device *pdev)
 	}
 
 	/* get default MAC address from device tree */
-	macaddr = of_get_mac_address(pdev->dev.of_node);
-	if (!IS_ERR(macaddr))
-		ether_addr_copy(ndev->dev_addr, macaddr);
-	else
+	ret = of_get_mac_address(pdev->dev.of_node, ndev->dev_addr);
+	if (ret)
 		eth_hw_addr_random(ndev);
 
 	/* initialize netdev */

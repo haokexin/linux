@@ -59,6 +59,7 @@ struct macsec_context;
 struct macsec_ops;
 
 struct sfp_bus;
+struct qsfp_bus;
 /* 802.11 specific */
 struct wireless_dev;
 /* 802.15.4 specific */
@@ -2271,6 +2272,7 @@ struct net_device {
 #endif
 	struct phy_device	*phydev;
 	struct sfp_bus		*sfp_bus;
+	struct qsfp_bus		*qsfp_bus;
 	struct lock_class_key	*qdisc_tx_busylock;
 	bool			proto_down;
 	unsigned		wol_enabled:1;
