@@ -48,6 +48,18 @@ static struct clk_bulk_data imx8_dsp_clks[] = {
 	{ .id = "core" },
 };
 
+static struct clk_bulk_data imx8_aux_clks[] = {
+	{ .id = "esai0_core" },
+	{ .id = "esai0_extal" },
+	{ .id = "esai0_fsys" },
+	{ .id = "esai0_spba" },
+	{ .id = "sai1_bus" },
+	{ .id = "sai1_mclk0" },
+	{ .id = "sai1_mclk1" },
+	{ .id = "sai1_mclk2" },
+	{ .id = "sai1_mclk3" },
+};
+
 struct imx8_priv {
 	struct device *dev;
 	struct snd_sof_dev *sdev;
@@ -175,6 +187,15 @@ static int imx8_run(struct snd_sof_dev *sdev)
 
 	imx_sc_pm_cpu_start(dsp_priv->sc_ipc, IMX_SC_R_DSP, true,
 			    RESET_VECTOR_VADDR);
+
+	return 0;
+}
+
+/* post fw run operations */
+int imx8_post_fw_run(struct snd_sof_dev *sdev)
+{
+	/* hardware requirement */
+	udelay(10);
 
 	return 0;
 }
@@ -317,7 +338,11 @@ static int imx8_probe(struct snd_sof_dev *sdev)
 	priv->clks->dsp_clks = imx8_dsp_clks;
 	priv->clks->num_dsp_clks = ARRAY_SIZE(imx8_dsp_clks);
 
+	priv->clks->aux_clks = imx8_aux_clks;
+	priv->clks->num_aux_clks = ARRAY_SIZE(imx8_aux_clks);
+
 	ret = imx8_parse_clocks(sdev, priv->clks);
+
 	if (ret < 0)
 		goto exit_pdev_unregister;
 
@@ -514,6 +539,9 @@ static struct snd_sof_dsp_ops sof_imx8_ops = {
 
 	/* firmware loading */
 	.load_firmware	= snd_sof_load_firmware_memcpy,
+
+	/* pre/post fw run */
+	.post_fw_run = imx8_post_fw_run,
 
 	/* Debug information */
 	.dbg_dump = imx8_dump,
