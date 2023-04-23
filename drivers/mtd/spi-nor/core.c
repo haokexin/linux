@@ -676,6 +676,40 @@ static void spi_nor_clear_sr(struct spi_nor *nor)
 		dev_dbg(nor->dev, "error %d clearing SR\n", ret);
 }
 
+static const struct flash_info *spi_nor_read_id(struct spi_nor *nor);
+/*
+ * Cypress FL-L series devices have redesigned the status register,
+ * P_ERR and E_ERR bits are shifted to the status register 2.
+ */
+static int spi_nor_s25fl_l_sr_ready(struct spi_nor *nor)
+{
+	u8 sr1, sr2;
+	int ret;
+
+	ret = nor->controller_ops->read_reg(nor, SPINOR_OP_RDSR, &sr1, 1);
+	if (ret < 0) {
+		pr_err("error %d reading SR\n", (int) ret);
+		return ret;
+	}
+	ret = nor->controller_ops->read_reg(nor, SPINOR_OP_RDSR2_FL_L, &sr2, 1);
+	if (ret < 0) {
+		pr_err("error %d reading SR2\n", (int) ret);
+		return ret;
+	}
+
+	if (nor->flags & SNOR_F_USE_CLSR && sr2 & (SR_E_ERR | SR_P_ERR)) {
+		if (sr2 & SR_E_ERR)
+			dev_err(nor->dev, "Erase Error occurred\n");
+		else
+			dev_err(nor->dev, "Programming Error occurred\n");
+
+		nor->controller_ops->write_reg(nor, SPINOR_OP_CLSR, NULL, 0);
+		return -EIO;
+	}
+
+	return !(sr1 & SR_WIP);
+}
+
 /**
  * spi_nor_sr_ready() - Query the Status Register to see if the flash is ready
  * for new commands.
@@ -685,7 +719,16 @@ static void spi_nor_clear_sr(struct spi_nor *nor)
  */
 static int spi_nor_sr_ready(struct spi_nor *nor)
 {
-	int ret = spi_nor_read_sr(nor, nor->bouncebuf);
+	int ret;
+	const struct flash_info *tmpinfo = (nor->info == NULL) ? nor->info : spi_nor_read_id(nor);
+
+	if (!IS_ERR_OR_NULL(tmpinfo)){
+		if (!strcmp(tmpinfo->name, "s25fl064l") || !strcmp(tmpinfo->name, "s25fl128l") || !strcmp(tmpinfo->name, "s25fl256l")){
+			return spi_nor_s25fl_l_sr_ready(nor);
+		}
+	}
+
+	ret = spi_nor_read_sr(nor, nor->bouncebuf);
 
 	if (ret)
 		return ret;
