@@ -1003,7 +1003,6 @@
 				snps,quirk-frame-length-adjustment = <0x20>;
 				snps,resume-hs-terminations;
 				clock-names = "ref";
-				snps,enable_guctl1_resume_quirk;
 				snps,enable_guctl1_ipd_quirk;
 				/* dma-coherent; */
 			};
@@ -1034,7 +1033,6 @@
 				snps,quirk-frame-length-adjustment = <0x20>;
 				snps,resume-hs-terminations;
 				clock-names = "ref";
-				snps,enable_guctl1_resume_quirk;
 				snps,enable_guctl1_ipd_quirk;
 				/* dma-coherent; */
 			};
