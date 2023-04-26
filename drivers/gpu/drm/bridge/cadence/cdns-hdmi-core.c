@@ -818,6 +818,7 @@ void cdns_hdmi_unbind(struct device *dev)
 {
 	struct cdns_mhdp_device *mhdp = dev_get_drvdata(dev);
 
+	cdns_mhdp_plat_call(mhdp, power_off);
 	__cdns_hdmi_remove(mhdp);
 }
 EXPORT_SYMBOL_GPL(cdns_hdmi_unbind);
