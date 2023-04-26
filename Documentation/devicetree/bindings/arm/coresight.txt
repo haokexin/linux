@@ -132,6 +132,9 @@ its hardware characteristcs.
 	  the setting supports one data transfer per burst up to a maximum of
 	  16 data transfers per burst.
 
+	* memory-region: Phandle to reserved memory node which is used to store
+	  the ETR trace data.
+
 * Optional property for CATU :
 	* interrupts : Exactly one SPI may be listed for reporting the address
 	  error
