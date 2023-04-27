@@ -293,6 +293,12 @@ struct iommu_ops {
 	void (*aux_detach_dev)(struct iommu_domain *domain, struct device *dev);
 	int (*aux_get_pasid)(struct iommu_domain *domain, struct device *dev);
 
+	/* Per group IOMMU features */
+	int (*get_group_qos_params)(struct iommu_group *group, u16 *partition,
+				    u8 *perf_mon_grp);
+	int (*set_group_qos_params)(struct iommu_group *group, u16 partition,
+				    u8 perf_mon_grp);
+
 	struct iommu_sva *(*sva_bind)(struct device *dev, struct mm_struct *mm,
 				      void *drvdata);
 	void (*sva_unbind)(struct iommu_sva *handle);
@@ -414,6 +420,7 @@ extern int bus_iommu_probe(struct bus_type *bus);
 extern bool iommu_present(struct bus_type *bus);
 extern bool iommu_capable(struct bus_type *bus, enum iommu_cap cap);
 extern struct iommu_domain *iommu_domain_alloc(struct bus_type *bus);
+struct iommu_group *iommu_group_get_from_kobj(struct kobject *group_kobj);
 extern struct iommu_group *iommu_group_get_by_id(int id);
 extern void iommu_domain_free(struct iommu_domain *domain);
 extern int iommu_attach_device(struct iommu_domain *domain,
@@ -431,6 +438,7 @@ extern int iommu_uapi_sva_unbind_gpasid(struct iommu_domain *domain,
 extern int iommu_sva_unbind_gpasid(struct iommu_domain *domain,
 				   struct device *dev, ioasid_t pasid);
 extern struct iommu_domain *iommu_get_domain_for_dev(struct device *dev);
+extern struct iommu_domain *iommu_get_domain_for_group(struct iommu_group *group);
 extern struct iommu_domain *iommu_get_dma_domain(struct device *dev);
 extern int iommu_map(struct iommu_domain *domain, unsigned long iova,
 		     phys_addr_t paddr, size_t size, int prot);
@@ -497,6 +505,8 @@ extern int iommu_page_response(struct device *dev,
 			       struct iommu_page_response *msg);
 
 extern int iommu_group_id(struct iommu_group *group);
+struct kset *iommu_get_group_kset(void);
+const struct iommu_ops *iommu_group_get_ops(struct iommu_group *group);
 extern struct iommu_domain *iommu_group_default_domain(struct iommu_group *);
 
 int iommu_enable_nesting(struct iommu_domain *domain);
@@ -701,6 +711,11 @@ static inline bool iommu_capable(struct bus_type *bus, enum iommu_cap cap)
 }
 
 static inline struct iommu_domain *iommu_domain_alloc(struct bus_type *bus)
+{
+	return NULL;
+}
+
+static inline struct iommu_group *iommu_group_get_from_kobj(struct kobject *group_kobj)
 {
 	return NULL;
 }
@@ -917,6 +932,16 @@ static inline int iommu_page_response(struct device *dev,
 static inline int iommu_group_id(struct iommu_group *group)
 {
 	return -ENODEV;
+}
+
+static inline struct kset *iommu_get_group_kset(void)
+{
+	return NULL;
+}
+
+static inline const struct iommu_ops *iommu_group_get_ops(struct iommu_group *group)
+{
+	return NULL;
 }
 
 static inline int iommu_set_pgtable_quirks(struct iommu_domain *domain,

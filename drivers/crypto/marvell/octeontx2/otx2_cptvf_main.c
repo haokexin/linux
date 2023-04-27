@@ -10,6 +10,10 @@
 
 #define OTX2_CPTVF_DRV_NAME "rvu_cptvf"
 
+static unsigned int cpt_block_num;
+module_param(cpt_block_num, uint, 0644);
+MODULE_PARM_DESC(cpt_block_num, "cpt block number (0=CPT0 1=CPT1, default 0)");
+
 static void cptvf_enable_pfvf_mbox_intrs(struct otx2_cptvf_dev *cptvf)
 {
 	/* Clear interrupt if any */
@@ -258,7 +262,6 @@ static int cptvf_lf_init(struct otx2_cptvf_dev *cptvf)
 	struct otx2_cptlfs_info *lfs = &cptvf->lfs;
 	struct device *dev = &cptvf->pdev->dev;
 	int ret, lfs_num;
-	u8 eng_grp_msk;
 
 	/* Get engine group number for symmetric crypto */
 	cptvf->lfs.kcrypto_eng_grp_num = OTX2_CPT_INVALID_CRYPTO_ENG_GRP;
@@ -271,19 +274,17 @@ static int cptvf_lf_init(struct otx2_cptvf_dev *cptvf)
 		ret = -ENOENT;
 		return ret;
 	}
-	eng_grp_msk = 1 << cptvf->lfs.kcrypto_eng_grp_num;
 
 	ret = otx2_cptvf_send_kvf_limits_msg(cptvf);
 	if (ret)
 		return ret;
 
-	lfs->reg_base = cptvf->reg_base;
-	lfs->pdev = cptvf->pdev;
-	lfs->mbox = &cptvf->pfvf_mbox;
-
 	lfs_num = cptvf->lfs.kvf_limits ? cptvf->lfs.kvf_limits :
 		  num_online_cpus();
-	ret = otx2_cptlf_init(lfs, eng_grp_msk, OTX2_CPT_QUEUE_HI_PRIO,
+
+	otx2_cptlf_set_dev_info(lfs, cptvf->pdev, cptvf->reg_base,
+				&cptvf->pfvf_mbox, cptvf->blkaddr);
+	ret = otx2_cptlf_init(lfs, 0xF, OTX2_CPT_QUEUE_HI_PRIO,
 			      lfs_num);
 	if (ret)
 		return ret;
@@ -380,6 +381,7 @@ static int otx2_cptvf_probe(struct pci_dev *pdev,
 	if (ret)
 		goto destroy_pfvf_mbox;
 
+	cptvf->blkaddr = (cpt_block_num == 0) ? BLKADDR_CPT0 : BLKADDR_CPT1;
 	/* Initialize CPT LFs */
 	ret = cptvf_lf_init(cptvf);
 	if (ret)

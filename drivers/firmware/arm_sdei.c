@@ -67,7 +67,7 @@ struct sdei_event {
 static DEFINE_MUTEX(sdei_events_lock);
 
 /* and then hold this when modifying the list */
-static DEFINE_SPINLOCK(sdei_list_lock);
+static DEFINE_RAW_SPINLOCK(sdei_list_lock);
 static LIST_HEAD(sdei_list);
 
 /* Private events are registered/enabled via IPI passing one of these */
@@ -167,14 +167,14 @@ static struct sdei_event *sdei_event_find(u32 event_num)
 
 	lockdep_assert_held(&sdei_events_lock);
 
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	list_for_each_entry(e, &sdei_list, list) {
 		if (e->event_num == event_num) {
 			found = e;
 			break;
 		}
 	}
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 
 	return found;
 }
@@ -259,9 +259,9 @@ static struct sdei_event *sdei_event_create(u32 event_num,
 		event->private_registered = regs;
 	}
 
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	list_add(&event->list, &sdei_list);
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 
 	return event;
 
@@ -287,9 +287,9 @@ static void sdei_event_destroy_llocked(struct sdei_event *event)
 
 static void sdei_event_destroy(struct sdei_event *event)
 {
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	sdei_event_destroy_llocked(event);
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 }
 
 static int sdei_api_get_version(u64 *version)
@@ -416,9 +416,9 @@ int sdei_event_enable(u32 event_num)
 		err = sdei_do_cross_call(_local_event_enable, event);
 
 	if (!err) {
-		spin_lock(&sdei_list_lock);
+		raw_spin_lock(&sdei_list_lock);
 		event->reenable = true;
-		spin_unlock(&sdei_list_lock);
+		raw_spin_unlock(&sdei_list_lock);
 	}
 	cpus_read_unlock();
 	mutex_unlock(&sdei_events_lock);
@@ -454,9 +454,9 @@ int sdei_event_disable(u32 event_num)
 		return -ENOENT;
 	}
 
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	event->reenable = false;
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 
 	if (event->type == SDEI_EVENT_TYPE_SHARED)
 		err = sdei_api_event_disable(event->event_num);
@@ -501,10 +501,10 @@ int sdei_event_unregister(u32 event_num)
 		goto unlock;
 	}
 
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	event->reregister = false;
 	event->reenable = false;
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 
 	if (event->type == SDEI_EVENT_TYPE_SHARED)
 		err = sdei_api_event_unregister(event->event_num);
@@ -531,7 +531,7 @@ static int sdei_unregister_shared(void)
 	struct sdei_event *event;
 
 	mutex_lock(&sdei_events_lock);
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	list_for_each_entry(event, &sdei_list, list) {
 		if (event->type != SDEI_EVENT_TYPE_SHARED)
 			continue;
@@ -540,7 +540,7 @@ static int sdei_unregister_shared(void)
 		if (err)
 			break;
 	}
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 	mutex_unlock(&sdei_events_lock);
 
 	return err;
@@ -609,9 +609,9 @@ int sdei_event_register(u32 event_num, sdei_event_callback *cb, void *arg)
 		goto cpu_unlock;
 	}
 
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	event->reregister = true;
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 cpu_unlock:
 	cpus_read_unlock();
 unlock:
@@ -625,7 +625,7 @@ static int sdei_reregister_shared(void)
 	struct sdei_event *event;
 
 	mutex_lock(&sdei_events_lock);
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	list_for_each_entry(event, &sdei_list, list) {
 		if (event->type != SDEI_EVENT_TYPE_SHARED)
 			continue;
@@ -651,7 +651,7 @@ static int sdei_reregister_shared(void)
 			}
 		}
 	}
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 	mutex_unlock(&sdei_events_lock);
 
 	return err;
@@ -663,7 +663,7 @@ static int sdei_cpuhp_down(unsigned int cpu)
 	int err;
 
 	/* un-register private events */
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	list_for_each_entry(event, &sdei_list, list) {
 		if (event->type == SDEI_EVENT_TYPE_SHARED)
 			continue;
@@ -674,7 +674,7 @@ static int sdei_cpuhp_down(unsigned int cpu)
 			       event->event_num, err);
 		}
 	}
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 
 	return sdei_mask_local_cpu();
 }
@@ -685,7 +685,7 @@ static int sdei_cpuhp_up(unsigned int cpu)
 	int err;
 
 	/* re-register/enable private events */
-	spin_lock(&sdei_list_lock);
+	raw_spin_lock(&sdei_list_lock);
 	list_for_each_entry(event, &sdei_list, list) {
 		if (event->type == SDEI_EVENT_TYPE_SHARED)
 			continue;
@@ -706,7 +706,7 @@ static int sdei_cpuhp_up(unsigned int cpu)
 			}
 		}
 	}
-	spin_unlock(&sdei_list_lock);
+	raw_spin_unlock(&sdei_list_lock);
 
 	return sdei_unmask_local_cpu();
 }

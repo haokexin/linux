@@ -10,6 +10,7 @@
 #include "rvu.h"
 #include "rvu_reg.h"
 #include "rvu_struct.h"
+#include "rvu_npc_hash.h"
 
 #define DRV_NAME "octeontx2-af"
 
@@ -41,7 +42,7 @@ static bool rvu_common_request_irq(struct rvu *rvu, int offset,
 	struct rvu_devlink *rvu_dl = rvu->rvu_dl;
 	int rc;
 
-	sprintf(&rvu->irq_name[offset * NAME_SIZE], name);
+	sprintf(&rvu->irq_name[offset * NAME_SIZE], "%s", name);
 	rc = request_irq(pci_irq_vector(rvu->pdev, offset), fn, 0,
 			 &rvu->irq_name[offset * NAME_SIZE], rvu_dl);
 	if (rc)
@@ -1364,6 +1365,70 @@ static void rvu_health_reporters_destroy(struct rvu *rvu)
 	rvu_nix_health_reporters_destroy(rvu_dl);
 }
 
+enum rvu_af_dl_param_id {
+	RVU_AF_DEVLINK_PARAM_ID_BASE = DEVLINK_PARAM_GENERIC_ID_MAX,
+	RVU_AF_DEVLINK_PARAM_ID_DWRR_MTU,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TIMERS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TENNS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GPIOS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GTI,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_PTP,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_SYNC,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_BTS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_EXT_GTI,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TIMERS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TENNS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GPIOS,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_PTP,
+	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_BTS,
+	RVU_AF_DEVLINK_PARAM_ID_NPC_MCAM_ZONE_PERCENT,
+	RVU_AF_DEVLINK_PARAM_ID_NPC_EXACT_FEATURE_DISABLE,
+};
+
+static u64 rvu_af_dl_tim_param_id_to_offset(u32 id)
+{
+	u64 offset = 0;
+
+	switch (id) {
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TENNS:
+		offset = TIM_AF_CAPTURE_TENNS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GPIOS:
+		offset = TIM_AF_CAPTURE_GPIOS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GTI:
+		offset = TIM_AF_CAPTURE_GTI;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_PTP:
+		offset = TIM_AF_CAPTURE_PTP;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_BTS:
+		offset = TIM_AF_CAPTURE_BTS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_EXT_GTI:
+		offset = TIM_AF_CAPTURE_EXT_GTI;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TENNS:
+		offset = TIM_AF_ADJUST_TENNS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GPIOS:
+		offset = TIM_AF_ADJUST_GPIOS;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI:
+		offset = TIM_AF_ADJUST_GTI;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_PTP:
+		offset = TIM_AF_ADJUST_PTP;
+		break;
+	case RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_BTS:
+		offset = TIM_AF_ADJUST_BTS;
+		break;
+	}
+
+	return offset;
+}
+
 /* Devlink Params APIs */
 static int rvu_af_dl_dwrr_mtu_validate(struct devlink *devlink, u32 id,
 				       union devlink_param_value val,
@@ -1412,7 +1477,8 @@ static int rvu_af_dl_dwrr_mtu_set(struct devlink *devlink, u32 id,
 	u64 dwrr_mtu;
 
 	dwrr_mtu = convert_bytes_to_dwrr_mtu(ctx->val.vu32);
-	rvu_write64(rvu, BLKADDR_NIX0, NIX_AF_DWRR_RPM_MTU, dwrr_mtu);
+	rvu_write64(rvu, BLKADDR_NIX0,
+		    nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_RPM), dwrr_mtu);
 
 	return 0;
 }
@@ -1427,16 +1493,309 @@ static int rvu_af_dl_dwrr_mtu_get(struct devlink *devlink, u32 id,
 	if (!rvu->hw->cap.nix_common_dwrr_mtu)
 		return -EOPNOTSUPP;
 
-	dwrr_mtu = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_DWRR_RPM_MTU);
+	dwrr_mtu = rvu_read64(rvu, BLKADDR_NIX0,
+			      nix_get_dwrr_mtu_reg(rvu->hw, SMQ_LINK_TYPE_RPM));
 	ctx->val.vu32 = convert_dwrr_mtu_to_bytes(dwrr_mtu);
 
 	return 0;
 }
 
-enum rvu_af_dl_param_id {
-	RVU_AF_DEVLINK_PARAM_ID_BASE = DEVLINK_PARAM_GENERIC_ID_MAX,
-	RVU_AF_DEVLINK_PARAM_ID_DWRR_MTU,
-};
+static int rvu_af_dl_tim_capture_timers_get(struct devlink *devlink, u32 id,
+					    struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 capt_timers = rvu_read64(rvu, BLKADDR_TIM, TIM_AF_CAPTURE_TIMERS);
+
+	ctx->val.vu8 = (u8)(capt_timers & TIM_AF_CAPTURE_TIMERS_MASK);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_capture_timers_set(struct devlink *devlink, u32 id,
+					    struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+
+	rvu_write64(rvu, BLKADDR_TIM, TIM_AF_CAPTURE_TIMERS, (u64)ctx->val.vu8);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_capture_timers_validate(struct devlink *devlink,
+						 u32 id,
+						 union devlink_param_value val,
+						 struct netlink_ext_ack *extack)
+{
+	if (val.vu8 > TIM_AF_CAPTURE_TIMERS_MASK) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Invalid value to set tim capture timers");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static bool cn10k_tim_ptp_errata(struct pci_dev *pdev)
+{
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A ||
+	    pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A ||
+	    pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B)
+		return true;
+	return false;
+}
+
+static u64 cn10k_tim_ptp_rollover_errata_fix(struct rvu *rvu, u64 time)
+{
+	long offset = rvu_read64(rvu, BLKADDR_TIM, TIM_AF_ADJUST_PTP);
+	u32 sec, nsec, max_nsec = NSEC_PER_SEC;
+
+	sec = (u32)(time >> 32);
+	nsec = (u32)time;
+
+	if (!offset || nsec < max_nsec)
+		return time;
+
+	if (offset < 0) {
+		nsec += max_nsec;
+		sec -= 1;
+	} else {
+		nsec -= max_nsec;
+		sec += 1;
+	}
+
+	return (u64)sec << 32 | nsec;
+}
+
+static int rvu_af_dl_tim_capture_time_get(struct devlink *devlink, u32 id,
+					  struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 time, offset;
+
+	offset = rvu_af_dl_tim_param_id_to_offset(id);
+	time = rvu_read64(rvu, BLKADDR_TIM, offset);
+	if (offset == TIM_AF_CAPTURE_PTP && cn10k_tim_ptp_errata(rvu->pdev))
+		time = cn10k_tim_ptp_rollover_errata_fix(rvu, time);
+	snprintf(ctx->val.vstr, sizeof(ctx->val.vstr), "%llu", time);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_capture_time_set(struct devlink __always_unused *devlink,
+					  u32 __always_unused id,
+					  struct devlink_param_gset_ctx __always_unused *ctx)
+{
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timers_get(struct devlink *devlink, u32 id,
+					   struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 adjust_timer = rvu_read64(rvu, BLKADDR_TIM, TIM_AF_ADJUST_TIMERS);
+
+	if (adjust_timer & TIM_AF_ADJUST_TIMERS_MASK)
+		ctx->val.vbool = true;
+	else
+		ctx->val.vbool = false;
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timers_set(struct devlink *devlink, u32 id,
+					   struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 adjust_timer = ctx->val.vbool ? BIT_ULL(0) : 0;
+
+	rvu_write64(rvu, BLKADDR_TIM, TIM_AF_ADJUST_TIMERS, adjust_timer);
+
+	return 0;
+}
+
+static bool cn10k_tim_adjust_gti_errata(struct pci_dev *pdev)
+{
+	if ((pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
+	     (pdev->revision & 0x0F) >= 0x1) ||
+	    (pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A &&
+	     (pdev->revision & 0x0F) >= 0x4) ||
+	    pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_B)
+		return true;
+	return false;
+}
+
+static int rvu_af_dl_tim_adjust_timer_get(struct devlink *devlink, u32 id,
+					  struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 offset, delta;
+
+	if (id == RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI &&
+	    cn10k_tim_adjust_gti_errata(rvu->pdev))
+		return -ENXIO;
+
+	offset = rvu_af_dl_tim_param_id_to_offset(id);
+	delta = rvu_read64(rvu, BLKADDR_TIM, offset);
+	snprintf(ctx->val.vstr, sizeof(ctx->val.vstr), "%llu", delta);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timer_set(struct devlink *devlink, u32 id,
+					  struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 offset, delta;
+
+	if (kstrtoull(ctx->val.vstr, 10, &delta))
+		return -EINVAL;
+
+	if (id == RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI &&
+	    cn10k_tim_adjust_gti_errata(rvu->pdev))
+		return -ENXIO;
+
+	offset = rvu_af_dl_tim_param_id_to_offset(id);
+	rvu_write64(rvu, BLKADDR_TIM, offset, delta);
+
+	return 0;
+}
+
+static int rvu_af_dl_tim_adjust_timer_validate(struct devlink *devlink, u32 id,
+					       union devlink_param_value val,
+					       struct netlink_ext_ack *extack)
+{
+	u64 delta;
+
+	if (kstrtoull(val.vstr, 10, &delta)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Invalid value to set tim adjust timer");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int rvu_af_npc_exact_feature_get(struct devlink *devlink, u32 id,
+					struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	bool enabled;
+
+	enabled = rvu_npc_exact_has_match_table(rvu);
+
+	snprintf(ctx->val.vstr, sizeof(ctx->val.vstr), "%s",
+		 enabled ? "enabled" : "disabled");
+
+	return 0;
+}
+
+static int rvu_af_npc_exact_feature_disable(struct devlink *devlink, u32 id,
+					    struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+
+	rvu_npc_exact_disable_feature(rvu);
+
+	return 0;
+}
+
+static int rvu_af_npc_exact_feature_validate(struct devlink *devlink, u32 id,
+					     union devlink_param_value val,
+					     struct netlink_ext_ack *extack)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u64 enable;
+
+	if (kstrtoull(val.vstr, 10, &enable)) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Only 1 value is supported");
+		return -EINVAL;
+	}
+
+	if (enable != 1) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "Only disabling exact match feature is supported");
+		return -EINVAL;
+	}
+
+	if (rvu_npc_exact_can_disable_feature(rvu))
+		return 0;
+
+	NL_SET_ERR_MSG_MOD(extack,
+			   "Can't disable exact match feature; Please try before any configuration");
+	return -EFAULT;
+}
+
+static int rvu_af_dl_npc_mcam_high_zone_percent_get(struct devlink *devlink, u32 id,
+						    struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	struct npc_mcam *mcam;
+	u32 percent;
+
+	mcam = &rvu->hw->mcam;
+	percent = (mcam->hprio_count * 100) / mcam->bmap_entries;
+	ctx->val.vu8 = (u8)percent;
+
+	return 0;
+}
+
+static int rvu_af_dl_npc_mcam_high_zone_percent_set(struct devlink *devlink, u32 id,
+						    struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	struct npc_mcam *mcam;
+	u32 percent;
+
+	percent = ctx->val.vu8;
+	mcam = &rvu->hw->mcam;
+	mcam->hprio_count = (mcam->bmap_entries * percent) / 100;
+	mcam->hprio_end = mcam->hprio_count;
+	mcam->lprio_count = (mcam->bmap_entries - mcam->hprio_count) / 2;
+	mcam->lprio_start = mcam->bmap_entries - mcam->lprio_count;
+
+	return 0;
+}
+
+static int rvu_af_dl_npc_mcam_high_zone_percent_validate(struct devlink *devlink, u32 id,
+							 union devlink_param_value val,
+							 struct netlink_ext_ack *extack)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	struct npc_mcam *mcam;
+
+	/* The percent of high prio zone must range from 12% to 100% of unreserved mcam space */
+	if (val.vu8 < 12 || val.vu8 > 100) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "mcam high zone percent must be between 12% to 100%");
+		return -EINVAL;
+	}
+
+	/* Do not allow user to modify the high priority zone entries while mcam entries
+	 * have already been assigned.
+	 */
+	mcam = &rvu->hw->mcam;
+	if (mcam->bmap_fcnt < mcam->bmap_entries) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "mcam entries have already been assigned, can't resize");
+		return -EPERM;
+	}
+
+	return 0;
+}
 
 static const struct devlink_param rvu_af_dl_params[] = {
 	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_DWRR_MTU,
@@ -1444,6 +1803,94 @@ static const struct devlink_param rvu_af_dl_params[] = {
 			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
 			     rvu_af_dl_dwrr_mtu_get, rvu_af_dl_dwrr_mtu_set,
 			     rvu_af_dl_dwrr_mtu_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TIMERS,
+			     "tim_capture_timers", DEVLINK_PARAM_TYPE_U8,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_timers_get,
+			     rvu_af_dl_tim_capture_timers_set,
+			     rvu_af_dl_tim_capture_timers_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_TENNS,
+			     "tim_capture_tenns", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GPIOS,
+			     "tim_capture_gpios", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_GTI,
+			     "tim_capture_gti", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_PTP,
+			     "tim_capture_ptp", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_SYNC,
+			     "tim_capture_sync", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_BTS,
+			     "tim_capture_bts", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_CAPTURE_EXT_GTI,
+			     "tim_capture_ext_gti", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_capture_time_get,
+			     rvu_af_dl_tim_capture_time_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TIMERS,
+			     "tim_adjust_timers", DEVLINK_PARAM_TYPE_BOOL,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timers_get,
+			     rvu_af_dl_tim_adjust_timers_set, NULL),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_TENNS,
+			     "tim_adjust_tenns", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GPIOS,
+			     "tim_adjust_gpios", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI,
+			     "tim_adjust_gti", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_PTP,
+			     "tim_adjust_ptp", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_BTS,
+			     "tim_adjust_bts", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_NPC_MCAM_ZONE_PERCENT,
+			     "npc_mcam_high_zone_percent", DEVLINK_PARAM_TYPE_U8,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_npc_mcam_high_zone_percent_get,
+			     rvu_af_dl_npc_mcam_high_zone_percent_set,
+			     rvu_af_dl_npc_mcam_high_zone_percent_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_NPC_EXACT_FEATURE_DISABLE,
+			     "npc_exact_feature_disable", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_npc_exact_feature_get,
+			     rvu_af_npc_exact_feature_disable,
+			     rvu_af_npc_exact_feature_validate),
 };
 
 /* Devlink switch mode */
@@ -1501,6 +1948,7 @@ int rvu_register_dl(struct rvu *rvu)
 {
 	struct rvu_devlink *rvu_dl;
 	struct devlink *dl;
+	size_t size;
 	int err;
 
 	dl = devlink_alloc(&rvu_devlink_ops, sizeof(struct rvu_devlink),
@@ -1508,13 +1956,6 @@ int rvu_register_dl(struct rvu *rvu)
 	if (!dl) {
 		dev_warn(rvu->dev, "devlink_alloc failed\n");
 		return -ENOMEM;
-	}
-
-	err = devlink_register(dl);
-	if (err) {
-		dev_err(rvu->dev, "devlink register failed with error %d\n", err);
-		devlink_free(dl);
-		return err;
 	}
 
 	rvu_dl = devlink_priv(dl);
@@ -1529,21 +1970,23 @@ int rvu_register_dl(struct rvu *rvu)
 		goto err_dl_health;
 	}
 
-	err = devlink_params_register(dl, rvu_af_dl_params,
-				      ARRAY_SIZE(rvu_af_dl_params));
+	/* Register exact match devlink only for CN10K-B */
+	size = ARRAY_SIZE(rvu_af_dl_params);
+	if (!rvu_npc_exact_has_match_table(rvu))
+		size -= 1;
+
+	err = devlink_params_register(dl, rvu_af_dl_params, size);
 	if (err) {
 		dev_err(rvu->dev,
 			"devlink params register failed with error %d", err);
 		goto err_dl_health;
 	}
 
-	devlink_params_publish(dl);
-
+	devlink_register(dl);
 	return 0;
 
 err_dl_health:
 	rvu_health_reporters_destroy(rvu);
-	devlink_unregister(dl);
 	devlink_free(dl);
 	return err;
 }
@@ -1552,13 +1995,16 @@ void rvu_unregister_dl(struct rvu *rvu)
 {
 	struct rvu_devlink *rvu_dl = rvu->rvu_dl;
 	struct devlink *dl = rvu_dl->dl;
+	size_t size;
 
-	if (!dl)
-		return;
-
-	devlink_params_unregister(dl, rvu_af_dl_params,
-				  ARRAY_SIZE(rvu_af_dl_params));
-	rvu_health_reporters_destroy(rvu);
 	devlink_unregister(dl);
+	/* Unregister exact match devlink only for CN10K-B */
+	size = ARRAY_SIZE(rvu_af_dl_params);
+	if (!rvu_npc_exact_has_match_table(rvu))
+		size -= 1;
+
+	devlink_params_unregister(dl, rvu_af_dl_params, size);
+
+	rvu_health_reporters_destroy(rvu);
 	devlink_free(dl);
 }

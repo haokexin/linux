@@ -228,6 +228,30 @@ config SPI_CADENCE_QUADSPI
 	  device with a Cadence QSPI controller and want to access the
 	  Flash as an MTD device.
 
+config SPI_CADENCE_XSPI
+	tristate "Cadence XSPI controller"
+	depends on (OF || COMPILE_TEST) && HAS_IOMEM
+	depends on SPI_MEM
+	help
+	  Enable support for the Cadence XSPI Flash controller.
+
+	  Cadence XSPI is a specialized controller for connecting an SPI
+	  Flash over upto 8bit wide bus. Enable this option if you have a
+	  device with a Cadence XSPI controller and want to access the
+	  Flash as an MTD device.
+
+config SPI_CADENCE_MRVL_XSPI
+	tristate "Marvell mods for XSPI controller"
+	depends on SPI_CADENCE_XSPI
+
+	help
+	  Enable support for Marvell XSPI modifications
+
+	  During implementation of Cadence XSPI core Marvell
+	  has added some additional features like clock divider,
+	  PHY config support or non-memory SPI capabilities.
+	  Enable that option if you want to enable these features.
+
 config SPI_CLPS711X
 	tristate "CLPS711X host SPI controller"
 	depends on ARCH_CLPS711X || COMPILE_TEST
@@ -567,6 +591,15 @@ config SPI_OCTEON
 	help
 	  SPI host driver for the hardware found on some Cavium OCTEON
 	  SOCs.
+
+config SPI_OCTEONTX2
+	tristate "Marvell OcteonTX2 SPI controller"
+	depends on PCI && 64BIT && (ARM64 || COMPILE_TEST)
+	help
+	  This driver supports the OcteonTX2 SPI controller in master
+	  mode. It supports single, dual and quad mode transfers.
+	  This controller hardware is found on some of Marvell
+	  OcteonTX2 SoCs.
 
 config SPI_OMAP_UWIRE
 	tristate "OMAP1 MicroWire"

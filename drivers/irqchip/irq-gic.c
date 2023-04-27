@@ -1059,7 +1059,9 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 		return 0;
 	}
 
-	if (is_of_node(fwspec->fwnode)) {
+
+	if (is_of_node(fwspec->fwnode) ||
+	    is_fwnode_irqchip(fwspec->fwnode)) {
 		if (fwspec->param_count < 3)
 			return -EINVAL;
 
@@ -1070,6 +1072,17 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 		case 1:			/* PPI */
 			*hwirq = fwspec->param[1] + 16;
 			break;
+#ifdef GIC_IRQ_TYPE_GSI
+		case GIC_IRQ_TYPE_GSI:	/* GSI */
+			if (fwspec->param[1] < 16) {
+				pr_err(FW_BUG "Illegal GSI%d translation request\n",
+				       fwspec->param[0]);
+				return -EINVAL;
+			}
+
+			*hwirq = fwspec->param[1];
+			break;
+#endif /* GIC_IRQ_TYPE_GSI */
 		default:
 			return -EINVAL;
 		}
@@ -1077,23 +1090,6 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 		*type = fwspec->param[2] & IRQ_TYPE_SENSE_MASK;
 
 		/* Make it clear that broken DTs are... broken */
-		WARN_ON(*type == IRQ_TYPE_NONE);
-		return 0;
-	}
-
-	if (is_fwnode_irqchip(fwspec->fwnode)) {
-		if(fwspec->param_count != 2)
-			return -EINVAL;
-
-		if (fwspec->param[0] < 16) {
-			pr_err(FW_BUG "Illegal GSI%d translation request\n",
-			       fwspec->param[0]);
-			return -EINVAL;
-		}
-
-		*hwirq = fwspec->param[0];
-		*type = fwspec->param[1];
-
 		WARN_ON(*type == IRQ_TYPE_NONE);
 		return 0;
 	}
@@ -1674,11 +1670,17 @@ static void __init gic_acpi_setup_kvm_info(void)
 	vgic_set_kvm_info(&gic_v2_kvm_info);
 }
 
+static struct fwnode_handle *gsi_domain_handle;
+
+static struct fwnode_handle *gic_v2_get_gsi_domain_id(u32 gsi)
+{
+	return gsi_domain_handle;
+}
+
 static int __init gic_v2_acpi_init(union acpi_subtable_headers *header,
 				   const unsigned long end)
 {
 	struct acpi_madt_generic_distributor *dist;
-	struct fwnode_handle *domain_handle;
 	struct gic_chip_data *gic = &gic_data[0];
 	int count, ret;
 
@@ -1716,22 +1718,22 @@ static int __init gic_v2_acpi_init(union acpi_subtable_headers *header,
 	/*
 	 * Initialize GIC instance zero (no multi-GIC support).
 	 */
-	domain_handle = irq_domain_alloc_fwnode(&dist->base_address);
-	if (!domain_handle) {
+	gsi_domain_handle = irq_domain_alloc_fwnode(&dist->base_address);
+	if (!gsi_domain_handle) {
 		pr_err("Unable to allocate domain handle\n");
 		gic_teardown(gic);
 		return -ENOMEM;
 	}
 
-	ret = __gic_init_bases(gic, domain_handle);
+	ret = __gic_init_bases(gic, gsi_domain_handle);
 	if (ret) {
 		pr_err("Failed to initialise GIC\n");
-		irq_domain_free_fwnode(domain_handle);
+		irq_domain_free_fwnode(gsi_domain_handle);
 		gic_teardown(gic);
 		return ret;
 	}
 
-	acpi_set_irq_model(ACPI_IRQ_MODEL_GIC, domain_handle);
+	acpi_set_irq_model(ACPI_IRQ_MODEL_GIC, gic_v2_get_gsi_domain_id);
 
 	if (IS_ENABLED(CONFIG_ARM_GIC_V2M))
 		gicv2m_init(NULL, gic_data[0].domain);

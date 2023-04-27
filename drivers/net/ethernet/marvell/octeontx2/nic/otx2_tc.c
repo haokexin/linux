@@ -19,6 +19,7 @@
 
 #include "cn10k.h"
 #include "otx2_common.h"
+#include "qos.h"
 
 /* Egress rate limiting definitions */
 #define MAX_BURST_EXPONENT		0x0FULL
@@ -64,7 +65,7 @@ int otx2_tc_alloc_ent_bitmap(struct otx2_nic *nic)
 {
 	struct otx2_tc_info *tc = &nic->tc_info;
 
-	if (!nic->flow_cfg->max_flows || is_otx2_vf(nic->pcifunc))
+	if (!nic->flow_cfg->max_flows)
 		return 0;
 
 	/* Max flows changed, free the existing bitmap */
@@ -147,8 +148,8 @@ static void otx2_get_egress_rate_cfg(u64 maxrate, u32 *exp,
 	}
 }
 
-static u64 otx2_get_txschq_rate_regval(struct otx2_nic *nic,
-				       u64 maxrate, u32 burst)
+u64 otx2_get_txschq_rate_regval(struct otx2_nic *nic,
+				u64 maxrate, u32 burst)
 {
 	u32 burst_exp, burst_mantissa;
 	u32 exp, mantissa, div_exp;
@@ -489,6 +490,31 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 			req->features |= BIT_ULL(NPC_IPPROTO_ICMP6);
 	}
 
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL)) {
+		struct flow_match_control match;
+
+		flow_rule_match_control(rule, &match);
+		if (match.mask->flags & FLOW_DIS_FIRST_FRAG) {
+			NL_SET_ERR_MSG_MOD(extack, "HW doesn't support frag first/later");
+			return -EOPNOTSUPP;
+		}
+
+		if (match.mask->flags & FLOW_DIS_IS_FRAGMENT) {
+			if (ntohs(flow_spec->etype) == ETH_P_IP) {
+				flow_spec->ip_flag = IPV4_FLAG_MORE;
+				flow_mask->ip_flag = IPV4_FLAG_MORE;
+				req->features |= BIT_ULL(NPC_IPFRAG_IPV4);
+			} else if (ntohs(flow_spec->etype) == ETH_P_IPV6) {
+				flow_spec->next_header = IPPROTO_FRAGMENT;
+				flow_mask->next_header = 0xff;
+				req->features |= BIT_ULL(NPC_IPFRAG_IPV6);
+			} else {
+				NL_SET_ERR_MSG_MOD(extack, "flow-type should be either IPv4 and IPv6");
+				return -EOPNOTSUPP;
+			}
+		}
+	}
+
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ETH_ADDRS)) {
 		struct flow_match_eth_addrs match;
 
@@ -534,6 +560,19 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 			netdev_err(nic->netdev, "vlan tpid 0x%x not supported\n",
 				   ntohs(match.key->vlan_tpid));
 			return -EOPNOTSUPP;
+		}
+
+		if (!match.mask->vlan_id) {
+			struct flow_action_entry *act;
+			int i;
+
+			flow_action_for_each(i, act, &rule->action) {
+				if (act->id == FLOW_ACTION_DROP) {
+					netdev_err(nic->netdev, "vlan tpid 0x%x with vlan_id %d is not supported for DROP rule.\n",
+						   ntohs(match.key->vlan_tpid), match.key->vlan_id);
+					return -EOPNOTSUPP;
+				}
+			}
 		}
 
 		if (match.mask->vlan_id ||
@@ -983,6 +1022,12 @@ static int otx2_setup_tc_block_ingress_cb(enum tc_setup_type type,
 
 	switch (type) {
 	case TC_SETUP_CLSFLOWER:
+		if (otx2_is_ntuple_rule_installed(nic)) {
+			netdev_warn(nic->netdev,
+				    "Can't install TC flower offload rule when NTUPLE is active");
+			return -EOPNOTSUPP;
+		}
+
 		return otx2_setup_tc_cls_flower(nic, type_data);
 	case TC_SETUP_CLSMATCHALL:
 		return otx2_setup_tc_ingress_matchall(nic, type_data);
@@ -1059,10 +1104,13 @@ int otx2_setup_tc(struct net_device *netdev, enum tc_setup_type type,
 	switch (type) {
 	case TC_SETUP_BLOCK:
 		return otx2_setup_tc_block(netdev, type_data);
+	case TC_SETUP_QDISC_HTB:
+		return otx2_setup_tc_htb(netdev, type_data);
 	default:
 		return -EOPNOTSUPP;
 	}
 }
+EXPORT_SYMBOL(otx2_setup_tc);
 
 static const struct rhashtable_params tc_flow_ht_params = {
 	.head_offset = offsetof(struct otx2_tc_flow, node),
@@ -1097,6 +1145,7 @@ int otx2_init_tc(struct otx2_nic *nic)
 	}
 	return err;
 }
+EXPORT_SYMBOL(otx2_init_tc);
 
 void otx2_shutdown_tc(struct otx2_nic *nic)
 {
@@ -1105,3 +1154,4 @@ void otx2_shutdown_tc(struct otx2_nic *nic)
 	kfree(tc->tc_entries_bitmap);
 	rhashtable_destroy(&tc->flow_table);
 }
+EXPORT_SYMBOL(otx2_shutdown_tc);

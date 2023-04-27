@@ -10,6 +10,7 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/crypto.h>
+#include <net/devlink.h>
 #include "otx2_cpt_hw_types.h"
 #include "rvu.h"
 #include "mbox.h"
@@ -28,6 +29,7 @@
 /* HW capability flags */
 #define CN10K_MBOX  0
 #define CN10K_LMTST 1
+#define CN10KB_SG   2
 
 #define BAD_OTX2_CPT_ENG_TYPE OTX2_CPT_MAX_ENG_TYPES
 
@@ -39,9 +41,26 @@ enum otx2_cpt_eng_type {
 };
 
 /* Take mbox id from end of CPT mbox range in AF (range 0xA00 - 0xBFF) */
+#define MBOX_MSG_RX_INLINE_IPSEC_LF_CFG 0xBFE
 #define MBOX_MSG_GET_ENG_GRP_NUM        0xBFF
 #define MBOX_MSG_GET_CAPS               0xBFD
 #define MBOX_MSG_GET_KVF_LIMITS         0xBFC
+
+/*
+ * Message request to config cpt lf for inline inbound ipsec.
+ * This message is only used between CPT PF <-> CPT VF
+ */
+struct otx2_cpt_rx_inline_lf_cfg {
+	struct mbox_msghdr hdr;
+	u16 sso_pf_func;
+	u16 param1;
+	u16 param2;
+	u16 opcode;
+	u32 credit;
+	u32 credit_th;
+	u16 bpid;
+	u32 reserved;
+};
 
 /*
  * Message request and response to get engine group number
@@ -86,7 +105,10 @@ union otx2_cpt_eng_caps {
 		u64 kasumi:1;
 		u64 des:1;
 		u64 crc:1;
-		u64 reserved_14_63:50;
+		u64 mmul:1;
+		u64 reserved_15_33:19;
+		u64 pdcp_chain:1;
+		u64 reserved_35_63:29;
 	};
 };
 
@@ -129,6 +151,40 @@ static inline bool is_dev_otx2(struct pci_dev *pdev)
 	return false;
 }
 
+static inline bool is_dev_cn10ka(struct pci_dev *pdev)
+{
+	if (pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A)
+		return true;
+
+	return false;
+}
+
+static inline bool is_dev_cn10ka_ax(struct pci_dev *pdev)
+{
+	if ((pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A) &&
+	    ((pdev->revision & 0xF) == 0 || (pdev->revision & 0xF) == 1))
+		return true;
+
+	return false;
+}
+
+static inline bool is_dev_cn10kb(struct pci_dev *pdev)
+{
+	if (pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_B)
+		return true;
+
+	return false;
+}
+
+static inline bool is_dev_cn10ka_b0(struct pci_dev *pdev)
+{
+	if ((pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A) &&
+	    (pdev->revision & 0xF) == 4)
+		return true;
+
+	return false;
+}
+
 static inline void otx2_cpt_set_hw_caps(struct pci_dev *pdev,
 					unsigned long *cap_flag)
 {
@@ -136,8 +192,17 @@ static inline void otx2_cpt_set_hw_caps(struct pci_dev *pdev,
 		__set_bit(CN10K_MBOX, cap_flag);
 		__set_bit(CN10K_LMTST, cap_flag);
 	}
+	if (is_dev_cn10kb(pdev))
+		__set_bit(CN10KB_SG, cap_flag);
 }
 
+static inline bool cpt_is_errata_38550_exists(struct pci_dev *pdev)
+{
+	if (is_dev_otx2(pdev) || is_dev_cn10ka_ax(pdev))
+		return true;
+
+	return false;
+}
 
 int otx2_cpt_send_ready_msg(struct otx2_mbox *mbox, struct pci_dev *pdev);
 int otx2_cpt_send_mbox_msg(struct otx2_mbox *mbox, struct pci_dev *pdev);
@@ -156,5 +221,6 @@ struct otx2_cptlfs_info;
 int otx2_cpt_attach_rscrs_msg(struct otx2_cptlfs_info *lfs);
 int otx2_cpt_detach_rsrcs_msg(struct otx2_cptlfs_info *lfs);
 int otx2_cpt_msix_offset_msg(struct otx2_cptlfs_info *lfs);
+int otx2_cpt_sync_mbox_msg(struct otx2_mbox *mbox);
 
 #endif /* __OTX2_CPT_COMMON_H */

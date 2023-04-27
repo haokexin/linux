@@ -117,6 +117,9 @@ MODULE_PARM_DESC(nowayout,
 		 "Watchdog cannot be stopped once started (default="
 		 __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
 
+static int panicnotify;
+module_param(panicnotify, int, 0);
+MODULE_PARM_DESC(panicnotify, "after kernel panic, do: 0 = don't stop wd(*)  1 = stop wd");
 /*
  * Arm Base System Architecture 1.0 introduces watchdog v1 which
  * increases the length watchdog offset register to 48 bits.
@@ -135,10 +138,14 @@ static u64 sbsa_gwdt_reg_read(struct sbsa_gwdt *gwdt)
 
 static void sbsa_gwdt_reg_write(u64 val, struct sbsa_gwdt *gwdt)
 {
-	if (gwdt->version == 0)
-		writel((u32)val, gwdt->control_base + SBSA_GWDT_WOR);
-	else
+	if (gwdt->version == 0) {
+		if (val > UINT_MAX)
+			writel(UINT_MAX, gwdt->control_base + SBSA_GWDT_WOR);
+		else
+			writel((u32)val, gwdt->control_base + SBSA_GWDT_WOR);
+	} else {
 		lo_hi_writeq(val, gwdt->control_base + SBSA_GWDT_WOR);
+	}
 }
 
 /*
@@ -153,14 +160,14 @@ static int sbsa_gwdt_set_timeout(struct watchdog_device *wdd,
 	timeout = clamp_t(unsigned int, timeout, 1, wdd->max_hw_heartbeat_ms / 1000);
 
 	if (action)
-		sbsa_gwdt_reg_write(gwdt->clk * timeout, gwdt);
+		sbsa_gwdt_reg_write((u64)gwdt->clk * (u64)timeout, gwdt);
 	else
 		/*
 		 * In the single stage mode, The first signal (WS0) is ignored,
 		 * the timeout is (WOR * 2), so the WOR should be configured
 		 * to half value of timeout.
 		 */
-		sbsa_gwdt_reg_write(gwdt->clk / 2 * timeout, gwdt);
+		sbsa_gwdt_reg_write((u64)gwdt->clk / 2 * (u64)timeout, gwdt);
 
 	return 0;
 }
@@ -307,6 +314,9 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
 	}
 	if (status & SBSA_GWDT_WCS_EN)
 		set_bit(WDOG_HW_RUNNING, &wdd->status);
+
+	if (!nowayout && panicnotify)
+		watchdog_stop_on_panic(wdd);
 
 	if (action) {
 		irq = platform_get_irq(pdev, 0);
