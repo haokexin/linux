@@ -1757,7 +1757,7 @@ static int __sriov_enable(struct pci_dev *pdev, int num_vfs)
 		dev_err(&pdev->dev,
 			"Workqueue allocation failed for PF-VF MBOX\n");
 		err = -ENOMEM;
-		goto err_workqueue_alloc;
+		goto err_mbox_up_init;
 	}
 
 	for (vf = 0; vf < num_vfs; vf++) {
@@ -1784,11 +1784,10 @@ static int __sriov_enable(struct pci_dev *pdev, int num_vfs)
 err_enable_sriov:
 	disable_vf_flr_int(pdev);
 	disable_vf_mbox_int(pdev);
-err_workqueue_alloc:
 	destroy_workqueue(sdp->pfvf_mbox_wq);
+err_mbox_up_init:
 	if (sdp->pfvf_mbox_up.dev != NULL)
 		otx2_mbox_destroy(&sdp->pfvf_mbox_up);
-err_mbox_up_init:
 	if (sdp->pfvf_mbox.dev != NULL)
 		otx2_mbox_destroy(&sdp->pfvf_mbox);
 err_mbox_init:
