@@ -443,6 +443,7 @@ static int ptp_probe(struct pci_dev *pdev,
 {
 	struct device *dev = &pdev->dev;
 	struct ptp *ptp;
+	void __iomem * const *base;
 	int err;
 
 	ptp = devm_kzalloc(dev, sizeof(*ptp), GFP_KERNEL);
@@ -461,7 +462,11 @@ static int ptp_probe(struct pci_dev *pdev,
 	if (err)
 		goto error_free;
 
-	ptp->reg_base = pcim_iomap_table(pdev)[PCI_PTP_BAR_NO];
+	base = pcim_iomap_table(pdev);
+	if (!base)
+		goto error_free;
+
+	ptp->reg_base = base[PCI_PTP_BAR_NO];
 	if (!ptp->reg_base) {
 		err = -ENODEV;
 		goto error_free;
