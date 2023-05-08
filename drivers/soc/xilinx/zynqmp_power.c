@@ -50,7 +50,7 @@ static enum pm_suspend_mode suspend_mode = PM_SUSPEND_MODE_STD;
 
 static void zynqmp_pm_get_callback_data(u32 *buf)
 {
-	zynqmp_pm_invoke_fn(GET_CALLBACK_DATA, 0, 0, 0, 0, buf);
+	zynqmp_pm_invoke_fn(GET_CALLBACK_DATA, 0, 0, 0, 0, 0, buf);
 }
 
 static void suspend_event_callback(const u32 *payload, void *data)
@@ -82,9 +82,11 @@ static irqreturn_t zynqmp_pm_isr(int irq, void *data)
 			pm_suspend(PM_SUSPEND_MEM);
 			break;
 		default:
-			pr_err("%s Unsupported InitSuspendCb reason "
-				"code %d\n", __func__, payload[1]);
+			pr_err("%s Unsupported InitSuspendCb reason code %d\n",
+			       __func__, payload[1]);
 		}
+	} else {
+		pr_err("%s() Unsupported Callback %d\n", __func__, payload[0]);
 	}
 
 	return IRQ_HANDLED;
@@ -251,8 +253,8 @@ static int zynqmp_pm_probe(struct platform_device *pdev)
 						dev_name(&pdev->dev),
 						&pdev->dev);
 		if (ret) {
-			dev_err(&pdev->dev, "devm_request_threaded_irq '%d' "
-					    "failed with %d\n", irq, ret);
+			dev_err(&pdev->dev, "devm_request_threaded_irq '%d' failed with %d\n",
+				irq, ret);
 			return ret;
 		}
 	} else {

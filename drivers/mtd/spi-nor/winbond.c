@@ -133,12 +133,26 @@ static const struct flash_info winbond_nor_parts[] = {
 	{ "w25m512jv", INFO(0xef7119, 0, 64 * 1024, 1024)
 		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_QUAD_READ |
 			      SPI_NOR_DUAL_READ) },
+	{ "w25h02jv", INFO(0xef9022, 0, 64 * 1024, 4096)
+		FLAGS(SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB |
+		      SPI_NOR_TB_SR_BIT6 | SPI_NOR_4BIT_BP |
+		      SPI_NOR_BP3_SR_BIT5)
+		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_DUAL_READ |
+			      SPI_NOR_QUAD_READ)
+		FIXUP_FLAGS(SPI_NOR_4B_OPCODES) },
 	{ "w25q512nwm", INFO(0xef8020, 0, 64 * 1024, 1024)
 		PARSE_SFDP
 		OTP_INFO(256, 3, 0x1000, 0x1000) },
 	{ "w25q512jvq", INFO(0xef4020, 0, 64 * 1024, 1024)
 		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_DUAL_READ |
 			      SPI_NOR_QUAD_READ) },
+	{ "w25q02nw", INFO(0xef8022, 0, 64 * 1024, 4096)
+		FLAGS(SPI_NOR_HAS_LOCK | SPI_NOR_HAS_TB |
+		      SPI_NOR_TB_SR_BIT6 | SPI_NOR_4BIT_BP |
+		      SPI_NOR_BP3_SR_BIT5)
+		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_DUAL_READ |
+			      SPI_NOR_QUAD_READ)
+		FIXUP_FLAGS(SPI_NOR_4B_OPCODES) },
 };
 
 /**
@@ -215,13 +229,17 @@ static const struct spi_nor_otp_ops winbond_nor_otp_ops = {
 
 static void winbond_nor_default_init(struct spi_nor *nor)
 {
-	nor->params->set_4byte_addr_mode = winbond_nor_set_4byte_addr_mode;
+	struct spi_nor_flash_parameter *params = spi_nor_get_params(nor, 0);
+
+	params->set_4byte_addr_mode = winbond_nor_set_4byte_addr_mode;
 }
 
 static void winbond_nor_late_init(struct spi_nor *nor)
 {
-	if (nor->params->otp.org->n_regions)
-		nor->params->otp.ops = &winbond_nor_otp_ops;
+	struct spi_nor_flash_parameter *params = spi_nor_get_params(nor, 0);
+
+	if (params->otp.org->n_regions)
+		params->otp.ops = &winbond_nor_otp_ops;
 }
 
 static const struct spi_nor_fixups winbond_nor_fixups = {

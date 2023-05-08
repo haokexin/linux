@@ -11,6 +11,12 @@
 
 #define SPI_NOR_MAX_ID_LEN	6
 
+/* In single configuration enable CS0 */
+#define SPI_NOR_ENABLE_CS0     BIT(0)
+
+/* In parallel configuration enable multiple CS */
+#define SPI_NOR_ENABLE_MULTI_CS	(BIT(0) | BIT(1))
+
 /* Standard SPI NOR flash operations. */
 #define SPI_NOR_READID_OP(naddr, ndummy, buf, len)			\
 	SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_RDID, 0),			\
@@ -130,6 +136,9 @@ enum spi_nor_option_flags {
 	SNOR_F_IO_MODE_EN_VOLATILE = BIT(11),
 	SNOR_F_SOFT_RESET	= BIT(12),
 	SNOR_F_SWP_IS_VOLATILE	= BIT(13),
+	SNOR_F_HAS_STACKED      = BIT(14),
+	SNOR_F_HAS_PARALLEL	= BIT(15),
+	SNOR_F_HAS_SR_BP3_BIT5	= BIT(16),
 };
 
 struct spi_nor_read_command {
@@ -458,6 +467,9 @@ struct spi_nor_fixups {
  *   SPI_NOR_NO_ERASE:        no erase command needed.
  *   NO_CHIP_ERASE:           chip does not support chip erase.
  *   SPI_NOR_NO_FR:           can't do fastread.
+ *   SPI_NOR_BP3_SR_BIT5:     BP3 is bit 5 of status register,
+ *                            must be used with SPI_NOR_4BIT_BP
+ *   SST_GLOBAL_PROT_UNLK:    Unlock the Global protection for sst flashes.
  *
  * @no_sfdp_flags:  flags that indicate support that can be discovered via SFDP.
  *                  Used when SFDP tables are not defined in the flash. These
@@ -484,6 +496,9 @@ struct spi_nor_fixups {
  * @mfr_flags:      manufacturer private flags. Used in the manufacturer fixup
  *                  hooks to differentiate support between flashes of the same
  *                  manufacturer.
+ *   SST_WRITE                use SST byte programming
+ *   USE_FSR                  flash_info mfr_flag. Used to read proprietary FSR
+ *                            register
  * @otp_org:        flash's OTP organization.
  * @fixups:         part specific fixup hooks.
  */
@@ -507,6 +522,8 @@ struct flash_info {
 #define SPI_NOR_NO_ERASE		BIT(6)
 #define NO_CHIP_ERASE			BIT(7)
 #define SPI_NOR_NO_FR			BIT(8)
+#define SPI_NOR_BP3_SR_BIT5		BIT(9)
+#define SST_GLOBAL_PROT_UNLK            BIT(10)
 
 	u8 no_sfdp_flags;
 #define SPI_NOR_SKIP_SFDP		BIT(0)
@@ -522,6 +539,9 @@ struct flash_info {
 #define SPI_NOR_IO_MODE_EN_VOLATILE	BIT(1)
 
 	u8 mfr_flags;
+#define	SST_WRITE			BIT(0)
+#define USE_FSR				BIT(1)
+
 
 	const struct spi_nor_otp_organization otp_org;
 	const struct spi_nor_fixups *fixups;

@@ -247,6 +247,7 @@ static int gem_hw_timestamp(struct macb *bp, u32 dma_desc_ts_1,
 			    u32 dma_desc_ts_2, struct timespec64 *ts)
 {
 	struct timespec64 tsu;
+	bool sec_rollover = false;
 
 	ts->tv_sec = (GEM_BFEXT(DMA_SECH, dma_desc_ts_2) << GEM_DMA_SECL_SIZE) |
 			GEM_BFEXT(DMA_SECL, dma_desc_ts_1);
@@ -264,9 +265,12 @@ static int gem_hw_timestamp(struct macb *bp, u32 dma_desc_ts_1,
 	 */
 	if ((ts->tv_sec & (GEM_DMA_SEC_TOP >> 1)) &&
 	    !(tsu.tv_sec & (GEM_DMA_SEC_TOP >> 1)))
-		ts->tv_sec -= GEM_DMA_SEC_TOP;
+		sec_rollover = true;
 
-	ts->tv_sec += ((~GEM_DMA_SEC_MASK) & tsu.tv_sec);
+	ts->tv_sec |= ((~GEM_DMA_SEC_MASK) & tsu.tv_sec);
+
+	if (sec_rollover)
+		ts->tv_sec -= GEM_DMA_SEC_TOP;
 
 	return 0;
 }
@@ -399,11 +403,14 @@ void gem_ptp_init(struct net_device *dev)
 void gem_ptp_remove(struct net_device *ndev)
 {
 	struct macb *bp = netdev_priv(ndev);
+	unsigned long flags;
 
 	if (bp->ptp_clock)
 		ptp_clock_unregister(bp->ptp_clock);
 
+	spin_lock_irqsave(&bp->tsu_clk_lock, flags);
 	gem_ptp_clear_timer(bp);
+	spin_unlock_irqrestore(&bp->tsu_clk_lock, flags);
 
 	dev_info(&bp->pdev->dev, "%s ptp clock unregistered.\n",
 		 GEM_PTP_TIMER_NAME);

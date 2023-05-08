@@ -49,6 +49,7 @@
 
 #define XCSI_ISR_FR		BIT(31)
 #define XCSI_ISR_VCXFE		BIT(30)
+#define XCSI_ISR_YUV420		BIT(28)
 #define XCSI_ISR_WCC		BIT(22)
 #define XCSI_ISR_ILC		BIT(21)
 #define XCSI_ISR_SPFIFOF	BIT(20)
@@ -70,7 +71,7 @@
 #define XCSI_ISR_VC0FSYNCERR	BIT(1)
 #define XCSI_ISR_VC0FLVLERR	BIT(0)
 
-#define XCSI_ISR_ALLINTR_MASK	(0xc07e3fff)
+#define XCSI_ISR_ALLINTR_MASK	(0xd07e3fff)
 
 /*
  * Removed VCXFE mask as it doesn't exist in IER
@@ -138,6 +139,7 @@ struct xcsi2rxss_event {
 static const struct xcsi2rxss_event xcsi2rxss_events[] = {
 	{ XCSI_ISR_FR, "Frame Received" },
 	{ XCSI_ISR_VCXFE, "VCX Frame Errors" },
+	{ XCSI_ISR_YUV420, "YUV 420 Word Count Errors" },
 	{ XCSI_ISR_WCC, "Word Count Errors" },
 	{ XCSI_ISR_ILC, "Invalid Lane Count Error" },
 	{ XCSI_ISR_SPFIFOF, "Short Packet FIFO OverFlow Error" },
@@ -474,12 +476,15 @@ static int xcsi2rxss_log_status(struct v4l2_subdev *sd)
 static struct v4l2_subdev *xcsi2rxss_get_remote_subdev(struct media_pad *local)
 {
 	struct media_pad *remote;
+	struct v4l2_subdev *sd;
 
 	remote = media_pad_remote_pad_first(local);
 	if (!remote || !is_media_entity_v4l2_subdev(remote->entity))
-		return NULL;
+		sd = NULL;
+	else
+		sd = media_entity_to_v4l2_subdev(remote->entity);
 
-	return media_entity_to_v4l2_subdev(remote->entity);
+	return sd;
 }
 
 static int xcsi2rxss_start_stream(struct xcsi2rxss_state *state)
@@ -505,7 +510,14 @@ static int xcsi2rxss_start_stream(struct xcsi2rxss_state *state)
 	state->rsubdev =
 		xcsi2rxss_get_remote_subdev(&state->pads[XVIP_PAD_SINK]);
 
+	if (!state->rsubdev) {
+		ret = -ENODEV;
+		goto exit_start_stream;
+	}
+
 	ret = v4l2_subdev_call(state->rsubdev, video, s_stream, 1);
+
+exit_start_stream:
 	if (ret) {
 		/* disable interrupts */
 		xcsi2rxss_clr(state, XCSI_IER_OFFSET, XCSI_IER_INTR_MASK);
@@ -580,8 +592,11 @@ static irqreturn_t xcsi2rxss_irq_handler(int irq, void *data)
 	 * Stream line buffer full
 	 * This means there is a backpressure from downstream IP
 	 */
-	if (status & XCSI_ISR_SLBF) {
-		dev_alert_ratelimited(dev, "Stream Line Buffer Full!\n");
+	if (status & (XCSI_ISR_SLBF | XCSI_ISR_YUV420)) {
+		if (status & XCSI_ISR_SLBF)
+			dev_alert_ratelimited(dev, "Stream Line Buffer Full!\n");
+		if (status & XCSI_ISR_YUV420)
+			dev_alert_ratelimited(dev, "YUV 420 Word count error!\n");
 
 		/* disable interrupts */
 		xcsi2rxss_clr(state, XCSI_IER_OFFSET, XCSI_IER_INTR_MASK);
@@ -669,21 +684,28 @@ __xcsi2rxss_get_pad_format(struct xcsi2rxss_state *xcsi2rxss,
 			   struct v4l2_subdev_state *sd_state,
 			   unsigned int pad, u32 which)
 {
+	struct v4l2_mbus_framefmt *get_fmt;
+
 	switch (which) {
 	case V4L2_SUBDEV_FORMAT_TRY:
-		return v4l2_subdev_get_try_format(&xcsi2rxss->subdev,
-						  sd_state, pad);
+		get_fmt = v4l2_subdev_get_try_format(&xcsi2rxss->subdev,
+						     sd_state, pad);
+		break;
 	case V4L2_SUBDEV_FORMAT_ACTIVE:
-		return &xcsi2rxss->format;
+		get_fmt = &xcsi2rxss->format;
+		break;
 	default:
-		return NULL;
+		get_fmt = NULL;
+		break;
 	}
+
+	return get_fmt;
 }
 
 /**
  * xcsi2rxss_init_cfg - Initialise the pad format config to default
  * @sd: Pointer to V4L2 Sub device structure
- * @sd_state: Pointer to sub device state structure
+ * @cfg: Pointer to sub device pad information structure
  *
  * This function is used to initialize the pad format with the default
  * values.
@@ -710,7 +732,7 @@ static int xcsi2rxss_init_cfg(struct v4l2_subdev *sd,
 /**
  * xcsi2rxss_get_format - Get the pad format
  * @sd: Pointer to V4L2 Sub device structure
- * @sd_state: Pointer to sub device state structure
+ * @cfg: Pointer to sub device pad information structure
  * @fmt: Pointer to pad level media bus format
  *
  * This function is used to get the pad format information.
@@ -722,20 +744,30 @@ static int xcsi2rxss_get_format(struct v4l2_subdev *sd,
 				struct v4l2_subdev_format *fmt)
 {
 	struct xcsi2rxss_state *xcsi2rxss = to_xcsi2rxssstate(sd);
+	struct v4l2_mbus_framefmt *get_fmt;
+	int ret = 0;
 
 	mutex_lock(&xcsi2rxss->lock);
-	fmt->format = *__xcsi2rxss_get_pad_format(xcsi2rxss, sd_state,
-						  fmt->pad,
-						  fmt->which);
+
+	get_fmt = __xcsi2rxss_get_pad_format(xcsi2rxss, sd_state, fmt->pad,
+					     fmt->which);
+	if (!get_fmt) {
+		ret = -EINVAL;
+		goto unlock_get_format;
+	}
+
+	fmt->format = *get_fmt;
+
+unlock_get_format:
 	mutex_unlock(&xcsi2rxss->lock);
 
-	return 0;
+	return ret;
 }
 
 /**
  * xcsi2rxss_set_format - This is used to set the pad format
  * @sd: Pointer to V4L2 Sub device structure
- * @sd_state: Pointer to sub device state structure
+ * @cfg: Pointer to sub device pad information structure
  * @fmt: Pointer to pad level media bus format
  *
  * This function is used to set the pad format. Since the pad format is fixed
@@ -752,6 +784,7 @@ static int xcsi2rxss_set_format(struct v4l2_subdev *sd,
 	struct xcsi2rxss_state *xcsi2rxss = to_xcsi2rxssstate(sd);
 	struct v4l2_mbus_framefmt *__format;
 	u32 dt;
+	int ret = 0;
 
 	mutex_lock(&xcsi2rxss->lock);
 
@@ -762,12 +795,15 @@ static int xcsi2rxss_set_format(struct v4l2_subdev *sd,
 	 */
 	__format = __xcsi2rxss_get_pad_format(xcsi2rxss, sd_state,
 					      fmt->pad, fmt->which);
+	if (!__format) {
+		ret = -EINVAL;
+		goto unlock_set_format;
+	}
 
 	/* only sink pad format can be updated */
 	if (fmt->pad == XVIP_PAD_SOURCE) {
 		fmt->format = *__format;
-		mutex_unlock(&xcsi2rxss->lock);
-		return 0;
+		goto unlock_set_format;
 	}
 
 	/*
@@ -784,9 +820,11 @@ static int xcsi2rxss_set_format(struct v4l2_subdev *sd,
 	}
 
 	*__format = fmt->format;
+
+unlock_set_format:
 	mutex_unlock(&xcsi2rxss->lock);
 
-	return 0;
+	return ret;
 }
 
 /*

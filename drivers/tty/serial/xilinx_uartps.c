@@ -34,12 +34,12 @@
 #define TX_TIMEOUT		500000
 
 /* Rx Trigger level */
-static int rx_trigger_level = 56;
+static uint rx_trigger_level = 56;
 module_param(rx_trigger_level, uint, 0444);
 MODULE_PARM_DESC(rx_trigger_level, "Rx trigger level, 1-63 bytes");
 
 /* Rx Timeout */
-static int rx_timeout = 10;
+static uint rx_timeout = 10;
 module_param(rx_timeout, uint, 0444);
 MODULE_PARM_DESC(rx_timeout, "Rx timeout, 1-255");
 
@@ -228,6 +228,13 @@ static void cdns_uart_handle_rx(void *dev_id, unsigned int isrstatus)
 	bool is_rxbs_support;
 
 	is_rxbs_support = cdns_uart->quirks & CDNS_UART_RXBS_SUPPORT;
+
+	/*
+	 * RXEMPTY will never be set if RX is disabled as read bytes
+	 * will not be removed from the FIFO
+	 */
+	if (readl(port->membase + CDNS_UART_CR) & CDNS_UART_CR_RX_DIS)
+		return;
 
 	while ((readl(port->membase + CDNS_UART_SR) &
 		CDNS_UART_SR_RXEMPTY) != CDNS_UART_SR_RXEMPTY) {
@@ -1089,13 +1096,17 @@ static void cdns_uart_poll_put_char(struct uart_port *port, unsigned char c)
 static void cdns_uart_pm(struct uart_port *port, unsigned int state,
 		   unsigned int oldstate)
 {
+	int ret;
+
 	switch (state) {
 	case UART_PM_STATE_OFF:
 		pm_runtime_mark_last_busy(port->dev);
 		pm_runtime_put_autosuspend(port->dev);
 		break;
 	default:
-		pm_runtime_get_sync(port->dev);
+		ret = pm_runtime_get_sync(port->dev);
+		if (ret < 0)
+			dev_err(port->dev, "Failed to enable clocks\n");
 		break;
 	}
 }

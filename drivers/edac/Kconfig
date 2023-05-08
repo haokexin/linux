@@ -345,6 +345,13 @@ config EDAC_CPC925
 	  a companion chip to the PowerPC 970 family of
 	  processors.
 
+config EDAC_PL310_L2
+	tristate "Pl310 L2 Cache Controller"
+	depends on ARM
+	help
+	  Support for parity error detection on L2 cache controller
+	  data and tag ram memory
+
 config EDAC_HIGHBANK_MC
 	tristate "Highbank Memory Controller"
 	depends on ARCH_HIGHBANK
@@ -491,12 +498,29 @@ config EDAC_SYNOPSYS
 	  Support for error detection and correction on the Synopsys DDR
 	  memory controller.
 
+config EDAC_ZYNQMP_OCM
+	tristate "Xilinx ZynqMP OCM Controller"
+	depends on ARCH_ZYNQMP
+	help
+	  Support for error detection and correction on the xilinx ZynqMP OCM
+	  controller.
+
 config EDAC_XGENE
 	tristate "APM X-Gene SoC"
 	depends on (ARM64 || COMPILE_TEST)
 	help
 	  Support for error detection and correction on the
 	  APM X-Gene family of SOCs.
+
+config EDAC_CORTEX_ARM64
+	tristate "ARM Cortex A57/A53"
+	default y if !CPU_IDLE
+	depends on !CPU_IDLE && ARM64
+	help
+	  Support for error detection and correction on the
+	  ARM Cortex A57 and A53.
+
+	  This driver is deprecated and will be removed soon.
 
 config EDAC_TI
 	tristate "Texas Instruments DDR3 ECC Controller"
@@ -540,5 +564,32 @@ config EDAC_DMC520
 	help
 	  Support for error detection and correction on the
 	  SoCs with ARM DMC-520 DRAM controller.
+
+config EDAC_XILINX_DDR
+	tristate "Xilinx Versal DDR Memory Controller"
+	depends on ARCH_ZYNQMP
+	help
+	  Support for error detection and correction on the Xilinx Versal DDR
+	  memory controller.
+
+	  Report both Single Bit Errors (CE) and Double Bit Errors (UE).
+	  Support injecting both Correctable and UnCorrectable errors for debug
+	  purpose using sysfs entries.
+
+config EDAC_XILINX_XILSEM
+	tristate "Xilinx Versal XilSEM Controller"
+	depends on ARCH_ZYNQMP
+	help
+	  Support for handling error events on the Xilinx Versal Xilsem
+	  controller.
+
+	  Xilinx Versal Soft Error Mitigation (XilSEM) is part of the
+	  Platform Loader and Manager (PLM) which is loaded into and runs on the
+	  Platform Management Controller (PMC). XilSEM is responsible for detecting
+	  and optionally correcting soft errors in Configuration Memory of Versal.
+	  Whenever an error is detected, be it correctable or uncorrectable, XilSEM
+	  reports the errors to user application.
+	  This driver is responsible for handling the reported correctable and
+	  uncorrectable errors.
 
 endif # EDAC

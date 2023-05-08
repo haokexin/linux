@@ -20,7 +20,12 @@ select: false
 
 properties:
   compatible:
-    const: xlnx,versal-clk
+    oneOf:
+      - description: For implementations complying for Versal.
+        const: xlnx,versal-clk
+
+      - description: For implementations complying for Versal NET.
+        const: xlnx,versal-net-clk
 
   "#clock-cells":
     const: 1
@@ -30,13 +35,11 @@ properties:
       clocks to the given clock controller.
     items:
       - description: reference clock
-      - description: alternate reference clock
       - description: alternate reference clock for programmable logic
 
   clock-names:
     items:
       - const: ref
-      - const: alt_ref
       - const: pl_alt_ref
 
 required:
@@ -50,14 +53,14 @@ additionalProperties: false
 examples:
   - |
     firmware {
-      zynqmp_firmware: zynqmp-firmware {
-        compatible = "xlnx,zynqmp-firmware";
+      versal_firmware: versal-firmware {
+        compatible = "xlnx,versal-firmware";
         method = "smc";
         versal_clk: clock-controller {
           #clock-cells = <1>;
           compatible = "xlnx,versal-clk";
-          clocks = <&ref>, <&alt_ref>, <&pl_alt_ref>;
-          clock-names = "ref", "alt_ref", "pl_alt_ref";
+          clocks = <&ref>, <&pl_alt_ref>;
+          clock-names = "ref", "pl_alt_ref";
         };
       };
     };

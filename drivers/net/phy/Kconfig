@@ -254,7 +254,8 @@ config MICROSEMI_PHY
 	depends on PTP_1588_CLOCK_OPTIONAL || !NETWORK_PHY_TIMESTAMPING
 	select CRYPTO_LIB_AES if MACSEC
 	help
-	  Currently supports VSC8514, VSC8530, VSC8531, VSC8540 and VSC8541 PHYs
+	  Currently supports VSC8514, VSC8530, VSC8531, VSC8531_02, VSC8540 and
+	  VSC8541 PHYs
 
 config MOTORCOMM_PHY
 	tristate "Motorcomm PHYs"
@@ -359,6 +360,14 @@ config VITESSE_PHY
 	tristate "Vitesse PHYs"
 	help
 	  Currently supports the vsc8244
+
+config XILINX_PHY
+	tristate "Drivers for xilinx PHYs"
+	help
+	  This module provides a driver for the Xilinx PCS/PMA Core.
+	  The supported PHY modes include SGMII and 1000BaseX.
+	  This can be used an Ethernet controller, for example Xilinx
+	  Axi Ethernet or Cadence GEM in Xilinx devices.
 
 config XILINX_GMII2RGMII
 	tristate "Xilinx GMII2RGMII converter driver"

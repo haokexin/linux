@@ -53,6 +53,8 @@ properties:
       - const: dwc_usb3
       - items:
           enum: [host, peripheral, otg]
+      - items:
+          enum: [dwc_usb3, otg, hiber]
 
   clocks:
     description:
@@ -246,6 +248,13 @@ properties:
       of resume. This option is to support certain legacy ULPI PHYs.
     type: boolean
 
+  snps,enable_guctl1_ipd_quirk:
+    description:
+      When set, HW reduce the ULPI clock latency by 1 cycle, thus reducing
+      the IPD (~360ns) and making controller enumerate FS/LS devices
+      connected behind via-hubs.
+    type: boolean
+
   snps,is-utmi-l1-suspend:
     description:
       True when DWC3 asserts output signal utmi_l1_suspend_n, false when
@@ -282,6 +291,21 @@ properties:
     minimum: 8
     maximum: 62
     deprecated: true
+
+  snps,ulpi-ext-vbus-drv:
+    description:
+      Some ULPI USB PHY does not support internal VBUS supply, and driving
+      the CPEN pin, requires the configuration of the ulpi DRVVBUSEXTERNAL
+      bit. When set, the xhci host will configure the USB2 PHY drives VBUS
+      with an external supply.
+    type: boolean
+
+  snps,xhci-reset-on-resume:
+    description:
+      When set, xhci host will reset the host controller on resume from
+      suspend. Some controllers might lose power during suspend, so host
+      require re-initialization.
+    type: boolean
 
   snps,rx-thr-num-pkt-prd:
     description:

@@ -229,10 +229,12 @@ extern "C" {
 #define DRM_FORMAT_VYUY		fourcc_code('V', 'Y', 'U', 'Y') /* [31:0] Y1:Cb0:Y0:Cr0 8:8:8:8 little endian */
 
 #define DRM_FORMAT_AYUV		fourcc_code('A', 'Y', 'U', 'V') /* [31:0] A:Y:Cb:Cr 8:8:8:8 little endian */
+#define DRM_FORMAT_AVUY		fourcc_code('A', 'V', 'U', 'Y') /* [31:0] A:Cr:Cb:Y 8:8:8:8 little endian */
 #define DRM_FORMAT_AVUY8888	fourcc_code('A', 'V', 'U', 'Y') /* [31:0] A:Cr:Cb:Y 8:8:8:8 little endian */
 #define DRM_FORMAT_XYUV8888	fourcc_code('X', 'Y', 'U', 'V') /* [31:0] X:Y:Cb:Cr 8:8:8:8 little endian */
 #define DRM_FORMAT_XVUY8888	fourcc_code('X', 'V', 'U', 'Y') /* [31:0] X:Cr:Cb:Y 8:8:8:8 little endian */
 #define DRM_FORMAT_VUY888	fourcc_code('V', 'U', '2', '4') /* [23:0] Cr:Cb:Y 8:8:8 little endian */
+#define DRM_FORMAT_XVUY2101010	fourcc_code('X', 'V', '3', '0') /* [31:0] x:Cr:Cb:Y 2:10:10:10 little endian */
 #define DRM_FORMAT_VUY101010	fourcc_code('V', 'U', '3', '0') /* Y followed by U then V, 10:10:10. Non-linear modifier only */
 
 /*
@@ -278,6 +280,10 @@ extern "C" {
 #define DRM_FORMAT_YUV420_8BIT	fourcc_code('Y', 'U', '0', '8')
 #define DRM_FORMAT_YUV420_10BIT	fourcc_code('Y', 'U', '1', '0')
 
+/* Grey scale */
+#define DRM_FORMAT_Y8		fourcc_code('G', 'R', 'E', 'Y') /* 8  Greyscale	*/
+#define DRM_FORMAT_Y10		fourcc_code('Y', '1', '0', ' ') /* 10 Greyscale */
+
 /*
  * 2 plane RGB + A
  * index 0 = RGB plane, same format as the corresponding non _A8 format has
@@ -311,6 +317,14 @@ extern "C" {
  * index 1 = Cr:Cb plane, [39:0] Cr1:Cb1:Cr0:Cb0 little endian
  */
 #define DRM_FORMAT_NV15		fourcc_code('N', 'V', '1', '5') /* 2x2 subsampled Cr:Cb plane */
+
+/*
+ * 2 plane 10 bit per component YCbCr
+ * index 0 = Y plane, [31:0] x:Y2:Y1:Y0 2:10:10:10 little endian
+ * index 1 = Cb:Cr plane, [63:0] x:Cb2:Cr2:Cb1:x:Cr1:Cb0:Cr0 2:10:10:10:2:10:10:10 little endian
+ */
+#define DRM_FORMAT_XV15		fourcc_code('X', 'V', '1', '5') /* 2x2 subsampled Cb:Cr plane 2:10:10:10 */
+#define DRM_FORMAT_XV20		fourcc_code('X', 'V', '2', '0') /* 2x1 subsampled Cb:Cr plane 2:10:10:10 */
 
 /*
  * 2 plane YCbCr MSB aligned
@@ -362,6 +376,14 @@ extern "C" {
  * index 2: Cb plane, [15:0] Cb:x [10:6] little endian
  */
 #define DRM_FORMAT_Q401		fourcc_code('Q', '4', '0', '1')
+
+/* 3 plane non-subsampled (444) YCbCr
+ * 10 bpc, 30 bits per sample image data in a single contiguous buffer.
+ * index 0: Y plane, [31:0] x:Y2:Y1:Y0 [2:10:10:10] little endian
+ * index 1: Cb plane, [31:0] x:Cb2:Cb1:Cb0 [2:10:10:10] little endian
+ * index 2: Cr plane, [31:0] x:Cr2:Cr1:Cr0 [2:10:10:10] little endian
+ */
+#define DRM_FORMAT_X403		fourcc_code('X', '4', '0', '3') /* non-subsampled Cb:Cr plane, 10 bit per channel */
 
 /*
  * 3 plane YCbCr

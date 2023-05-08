@@ -27,6 +27,9 @@
  * @notifier: V4L2 asynchronous subdevs notifier
  * @dmas: list of DMA channels at the pipeline output and input
  * @v4l2_caps: V4L2 capabilities of the whole device (see VIDIOC_QUERYCAP)
+ * @lock: This is to ensure all dma path entities acquire same pipeline object
+ * @atomic_streamon: Indicates that multi dma media pipe will get enabled
+ *  with single dma start
  */
 struct xvip_composite_device {
 	struct v4l2_device v4l2_dev;
@@ -37,6 +40,11 @@ struct xvip_composite_device {
 
 	struct list_head dmas;
 	u32 v4l2_caps;
+	struct mutex lock; /* lock to protect xvip pipeline instance */
+	bool atomic_streamon;
 };
+
+int xvip_graph_pipeline_start_stop(struct xvip_composite_device *xdev,
+				   struct xvip_pipeline *pipe, bool on);
 
 #endif /* __XILINX_VIPP_H__ */

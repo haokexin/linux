@@ -12,6 +12,16 @@ menuconfig FPGA
 
 if FPGA
 
+config FPGA_MGR_DEBUG_FS
+	tristate "FPGA debug fs"
+	select DEBUG_FS
+	help
+	  Say Y here if you want to expose a DebugFS interface for the
+	  FPGA Manager Framework. FPGA manager DebugFS provides a user
+	  interface to read the fpga specific configuration information.
+
+	  If unsure, say N.
+
 config FPGA_MGR_SOCFPGA
 	tristate "Altera SOCFPGA FPGA Manager"
 	depends on ARCH_INTEL_SOCFPGA || COMPILE_TEST
@@ -91,6 +101,24 @@ config FPGA_MGR_TS73XX
 	  FPGA manager driver support for the Altera Cyclone II FPGA
 	  present on the TS-73xx SBC boards.
 
+config FPGA_MGR_ZYNQ_AFI_FPGA
+	bool "Xilinx AFI FPGA"
+	depends on FPGA_MGR_ZYNQ_FPGA
+	help
+	  Zynq AFI driver support for writing to the AFI registers
+	  for configuring the PS_PL interface. For some of the bitstream
+	  or designs to work the PS to PL interfaces need to be configured
+	  like the data bus-width etc.
+
+config XILINX_AFI_FPGA
+	bool "Xilinx AFI FPGA"
+	depends on FPGA_MGR_ZYNQMP_FPGA || COMPILE_TEST
+	help
+	  FPGA manager driver support for writing to the AFI registers
+	  for configuring the PS_PL interface. For some of the bitstream
+	  or designs to work the PS to PL interfaces need to be configured
+	  like the datawidth etc.
+
 config FPGA_BRIDGE
 	tristate "FPGA Bridge Framework"
 	help
@@ -115,8 +143,8 @@ config ALTERA_FREEZE_BRIDGE
 
 config XILINX_PR_DECOUPLER
 	tristate "Xilinx LogiCORE PR Decoupler"
-	depends on FPGA_BRIDGE
 	depends on HAS_IOMEM
+	select FPGA_BRIDGE
 	help
 	  Say Y to enable drivers for Xilinx LogiCORE PR Decoupler
 	  or Xilinx Dynamic Function eXchange AIX Shutdown Manager.

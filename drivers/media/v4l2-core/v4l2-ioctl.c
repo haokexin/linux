@@ -16,6 +16,7 @@
 #include <linux/kernel.h>
 #include <linux/version.h>
 
+#include <linux/v4l2-subdev.h>
 #include <linux/videodev2.h>
 
 #include <media/media-device.h> /* for media_set_bus_info() */
@@ -1304,6 +1305,9 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_PIX_FMT_BGRX32:	descr = "32-bit XBGR 8-8-8-8"; break;
 	case V4L2_PIX_FMT_RGBA32:	descr = "32-bit RGBA 8-8-8-8"; break;
 	case V4L2_PIX_FMT_RGBX32:	descr = "32-bit RGBX 8-8-8-8"; break;
+	case V4L2_PIX_FMT_XBGR30:	descr = "32-bit XBGR 2-10-10-10"; break;
+	case V4L2_PIX_FMT_XBGR40:	descr = "40-bit XBGR 4-12-12-12"; break;
+	case V4L2_PIX_FMT_BGR48:	descr = "48-bit BGR 16-16-16"; break;
 	case V4L2_PIX_FMT_GREY:		descr = "8-bit Greyscale"; break;
 	case V4L2_PIX_FMT_Y4:		descr = "4-bit Greyscale"; break;
 	case V4L2_PIX_FMT_Y6:		descr = "6-bit Greyscale"; break;
@@ -1330,9 +1334,14 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_PIX_FMT_UYVY:		descr = "UYVY 4:2:2"; break;
 	case V4L2_PIX_FMT_VYUY:		descr = "VYUY 4:2:2"; break;
 	case V4L2_PIX_FMT_YUV422P:	descr = "Planar YUV 4:2:2"; break;
+	case V4L2_PIX_FMT_YUV444P:	descr = "3 Planar YUV 4:4:4 8-bit"; break;
 	case V4L2_PIX_FMT_YUV411P:	descr = "Planar YUV 4:1:1"; break;
+	case V4L2_PIX_FMT_X403:		descr = "3 Planar YUV 4:4:4 10-bit"; break;
 	case V4L2_PIX_FMT_Y41P:		descr = "YUV 4:1:1 (Packed)"; break;
 	case V4L2_PIX_FMT_YUV444:	descr = "16-bit A/XYUV 4-4-4-4"; break;
+	case V4L2_PIX_FMT_XVUY32:	descr = "32-bit packed XVUY 8-8-8-8"; break;
+	case V4L2_PIX_FMT_AVUY32:	descr = "32-bit packed AVUY 8-8-8-8"; break;
+	case V4L2_PIX_FMT_VUY24:	descr = "24-bit packed VUY 8-8-8"; break;
 	case V4L2_PIX_FMT_YUV555:	descr = "16-bit A/XYUV 1-5-5-5"; break;
 	case V4L2_PIX_FMT_YUV565:	descr = "16-bit YUV 5-6-5"; break;
 	case V4L2_PIX_FMT_YUV24:	descr = "24-bit YUV 4:4:4 8-8-8"; break;
@@ -1347,6 +1356,7 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_PIX_FMT_YUV420:	descr = "Planar YUV 4:2:0"; break;
 	case V4L2_PIX_FMT_HI240:	descr = "8-bit Dithered RGB (BTTV)"; break;
 	case V4L2_PIX_FMT_M420:		descr = "YUV 4:2:0 (M420)"; break;
+	case V4L2_PIX_FMT_XVUY10:	descr = "XVUY 2-10-10-10"; break;
 	case V4L2_PIX_FMT_NV12:		descr = "Y/UV 4:2:0"; break;
 	case V4L2_PIX_FMT_NV21:		descr = "Y/VU 4:2:0"; break;
 	case V4L2_PIX_FMT_NV16:		descr = "Y/UV 4:2:2"; break;
@@ -1358,18 +1368,34 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 	case V4L2_PIX_FMT_NV12_16L16:	descr = "Y/UV 4:2:0 (16x16 Linear)"; break;
 	case V4L2_PIX_FMT_NV12_32L32:   descr = "Y/UV 4:2:0 (32x32 Linear)"; break;
 	case V4L2_PIX_FMT_P010_4L4:	descr = "10-bit Y/UV 4:2:0 (4x4 Linear)"; break;
+	case V4L2_PIX_FMT_XV20:		descr = "Y/CrCb 4:2:2 10-bit"; break;
+	case V4L2_PIX_FMT_XV15:		descr = "Y/CrCb 4:2:0 10-bit"; break;
 	case V4L2_PIX_FMT_NV12M:	descr = "Y/UV 4:2:0 (N-C)"; break;
 	case V4L2_PIX_FMT_NV21M:	descr = "Y/VU 4:2:0 (N-C)"; break;
 	case V4L2_PIX_FMT_NV16M:	descr = "Y/UV 4:2:2 (N-C)"; break;
 	case V4L2_PIX_FMT_NV61M:	descr = "Y/VU 4:2:2 (N-C)"; break;
 	case V4L2_PIX_FMT_NV12MT:	descr = "Y/UV 4:2:0 (64x32 MB, N-C)"; break;
 	case V4L2_PIX_FMT_NV12MT_16X16:	descr = "Y/UV 4:2:0 (16x16 MB, N-C)"; break;
+	case V4L2_PIX_FMT_XV20M:        descr = "Y/CrCb 4:2:2 10-bit (N-C)"; break;
+	case V4L2_PIX_FMT_XV15M:        descr = "Y/CrCb 4:2:0 10-bit (N-C)"; break;
 	case V4L2_PIX_FMT_YUV420M:	descr = "Planar YUV 4:2:0 (N-C)"; break;
 	case V4L2_PIX_FMT_YVU420M:	descr = "Planar YVU 4:2:0 (N-C)"; break;
 	case V4L2_PIX_FMT_YUV422M:	descr = "Planar YUV 4:2:2 (N-C)"; break;
 	case V4L2_PIX_FMT_YVU422M:	descr = "Planar YVU 4:2:2 (N-C)"; break;
 	case V4L2_PIX_FMT_YUV444M:	descr = "Planar YUV 4:4:4 (N-C)"; break;
 	case V4L2_PIX_FMT_YVU444M:	descr = "Planar YVU 4:4:4 (N-C)"; break;
+	case V4L2_PIX_FMT_X012:		descr = "Y/CbCr 4:2:0, 4-12-12-12"; break;
+	case V4L2_PIX_FMT_X012M:	descr = "Y/CbCr 4:2:0, 4-12-12-12 (N-C)"; break;
+	case V4L2_PIX_FMT_X212:		descr = "Y/CbCr 4:2:2, 4-12-12-12"; break;
+	case V4L2_PIX_FMT_X212M:	descr = "Y/CbCr 4:2:2, 4-12-12-12 (N-C)"; break;
+	case V4L2_PIX_FMT_X412:		descr = "Y/CbCr 4:4:4, 4-12-12-12"; break;
+	case V4L2_PIX_FMT_X412M:	descr = "Y/CbCr 4:4:4, 4-12-12-12 (N-C)"; break;
+	case V4L2_PIX_FMT_X016:		descr = "Y/CbCr 4:2:0, 16-16-16"; break;
+	case V4L2_PIX_FMT_X016M:	descr = "Y/CbCr 4:2:0, 16-16-16 (N-C)"; break;
+	case V4L2_PIX_FMT_X216:		descr = "Y/CbCr 4:2:2, 16-16-16"; break;
+	case V4L2_PIX_FMT_X216M:	descr = "Y/CbCr 4:2:2, 16-16-16 (N-C)"; break;
+	case V4L2_PIX_FMT_X416:		descr = "Y/CbCr 4:4:4, 16-16-16"; break;
+	case V4L2_PIX_FMT_X416M:	descr = "Y/CbCr 4:4:4, 16-16-16 (N-C)"; break;
 	case V4L2_PIX_FMT_SBGGR8:	descr = "8-bit Bayer BGBG/GRGR"; break;
 	case V4L2_PIX_FMT_SGBRG8:	descr = "8-bit Bayer GBGB/RGRG"; break;
 	case V4L2_PIX_FMT_SGRBG8:	descr = "8-bit Bayer GRGR/BGBG"; break;
@@ -3126,6 +3152,23 @@ static int check_array_args(unsigned int cmd, void *parg, size_t *array_size,
 			*kernel_ptr = (void **)&ctrls->controls;
 			*array_size = sizeof(struct v4l2_ext_control)
 				    * ctrls->count;
+			ret = 1;
+		}
+		break;
+	}
+
+	case VIDIOC_SUBDEV_G_ROUTING:
+	case VIDIOC_SUBDEV_S_ROUTING: {
+		struct v4l2_subdev_routing *route = parg;
+
+		if (route->num_routes > 0) {
+			if (route->num_routes > 256)
+				return -EINVAL;
+
+			*user_ptr = (void __user *)route->routes;
+			*kernel_ptr = (void *)&route->routes;
+			*array_size = sizeof(struct v4l2_plane)
+				    * route->num_routes;
 			ret = 1;
 		}
 		break;

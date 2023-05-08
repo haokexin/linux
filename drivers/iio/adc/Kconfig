@@ -509,6 +509,18 @@ config INA2XX_ADC
 	  Say yes here to build support for TI INA2xx family of Power Monitors.
 	  This driver is mutually exclusive with the HWMON version.
 
+config INA260_ADC
+	tristate "Texas Instruments INA260 Power Monitors IIO driver"
+	depends on I2C && !SENSORS_INA2XX
+	select REGMAP_I2C
+	select IIO_BUFFER
+	select IIO_KFIFO_BUF
+	help
+	  Say yes here to build support for TI INA260 power monitor.
+	  This driver can also be built as a module. It supports software buffer
+	  mode and raw reads of ina260 iio channels. Up to 4 channels are
+	  supported including timestamp.
+
 config INGENIC_ADC
 	tristate "Ingenic JZ47xx SoCs ADC driver"
 	depends on MIPS || COMPILE_TEST
@@ -1338,4 +1350,15 @@ config XILINX_AMS
 	  The driver can also be built as a module. If so, the module will be called
 	  xilinx-ams.
 
+config VERSAL_SYSMON
+	tristate "Xilinx Sysmon driver for Versal"
+	depends on HAS_IOMEM
+	help
+	  Say yes here to have support for the Xilinx Sysmon.
+	  The driver will enable users to monitor temperature and voltage on the
+	  Xilinx Versal platform.
+	  The HW also supports I2C access but it is not supported by the driver.
+
+	  The driver can also be build as a module. If so, the module will be called
+	  versal-sysmon.
 endmenu

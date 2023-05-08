@@ -245,6 +245,9 @@ struct media_pad {
  *			guaranteed to not both be sinks or sources.
  *			Optional: If the operation isn't implemented all pads
  *			will be considered as interdependent.
+ * @has_route:		Return whether a route exists inside the entity between
+ *			two given pads. Optional. If the operation isn't
+ *			implemented all pads will be considered as connected.
  *
  * .. note::
  *
@@ -260,6 +263,8 @@ struct media_entity_operations {
 	int (*link_validate)(struct media_link *link);
 	bool (*has_pad_interdep)(struct media_entity *entity, unsigned int pad0,
 				 unsigned int pad1);
+	bool (*has_route)(struct media_entity *entity, unsigned int pad0,
+			  unsigned int pad1);
 };
 
 /**
@@ -1080,6 +1085,9 @@ __must_check int media_graph_walk_init(
  * @graph: Media graph structure that will be used to walk the graph
  */
 void media_graph_walk_cleanup(struct media_graph *graph);
+
+bool media_entity_has_route(struct media_entity *entity, unsigned int sink,
+			    unsigned int source);
 
 /**
  * media_graph_walk_start - Start walking the media graph at a

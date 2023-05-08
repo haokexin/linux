@@ -27,6 +27,7 @@ allOf:
             enum:
               - xlnx,zynqmp-8.9a
               - xlnx,versal-8.9a
+              - xlnx,versal-net-5.1-emmc
     then:
       properties:
         clock-output-names:
@@ -59,6 +60,11 @@ properties:
       - items:
           - const: xlnx,versal-8.9a             # Versal SDHCI 8.9a PHY
           - const: arasan,sdhci-8.9a
+        description:
+          For this device it is strongly suggested to include
+          clock-output-names and '#clock-cells'.
+      - items:
+          - const: xlnx,versal-net-5.1-emmc     # Versal Net eMMC PHY
         description:
           For this device it is strongly suggested to include
           clock-output-names and '#clock-cells'.
@@ -234,8 +240,8 @@ examples:
           interrupt-parent = <&gic>;
           interrupts = <0 126 4>;
           reg = <0xf1040000 0x10000>;
-          clocks = <&clk200>, <&clk200>;
-          clock-names = "clk_xin", "clk_ahb";
+          clocks = <&clk200>, <&clk200>, <&clk1200>;
+          clock-names = "clk_xin", "clk_ahb", "gate";
           clock-output-names = "clk_out_sd0", "clk_in_sd0";
           #clock-cells = <1>;
           clk-phase-sd-hs = <132>, <60>;

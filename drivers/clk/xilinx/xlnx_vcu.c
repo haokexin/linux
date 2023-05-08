@@ -11,6 +11,7 @@
 #include <linux/clk-provider.h>
 #include <linux/device.h>
 #include <linux/errno.h>
+#include <linux/gpio/consumer.h>
 #include <linux/io.h>
 #include <linux/mfd/syscon.h>
 #include <linux/mfd/syscon/xlnx-vcu.h>
@@ -45,28 +46,6 @@
 #define MHZ				1000000
 #define FVCO_MIN			(1500U * MHZ)
 #define FVCO_MAX			(3000U * MHZ)
-
-/**
- * struct xvcu_device - Xilinx VCU init device structure
- * @dev: Platform device
- * @pll_ref: pll ref clock source
- * @aclk: axi clock source
- * @logicore_reg_ba: logicore reg base address
- * @vcu_slcr_ba: vcu_slcr Register base address
- * @pll: handle for the VCU PLL
- * @pll_post: handle for the VCU PLL post divider
- * @clk_data: clocks provided by the vcu clock provider
- */
-struct xvcu_device {
-	struct device *dev;
-	struct clk *pll_ref;
-	struct clk *aclk;
-	struct regmap *logicore_reg_ba;
-	void __iomem *vcu_slcr_ba;
-	struct clk_hw *pll;
-	struct clk_hw *pll_post;
-	struct clk_hw_onecell_data *clk_data;
-};
 
 static struct regmap_config vcu_settings_regmap_config = {
 	.name = "regmap",
@@ -222,6 +201,78 @@ static inline void xvcu_write(void __iomem *iomem, u32 offset, u32 value)
 {
 	iowrite32(value, iomem + offset);
 }
+
+/**
+ * xvcu_get_color_depth - read the color depth register
+ * @xvcu:	Pointer to the xvcu_device structure
+ *
+ * Return:	Returns 32bit value
+ *
+ */
+u32 xvcu_get_color_depth(struct xvcu_device *xvcu)
+{
+	u32 value;
+
+	if (!regmap_read(xvcu->logicore_reg_ba, VCU_ENC_COLOR_DEPTH, &value))
+		return value;
+	else
+		return 0;
+}
+EXPORT_SYMBOL_GPL(xvcu_get_color_depth);
+
+/**
+ * xvcu_get_memory_depth - read the memory depth register
+ * @xvcu:	Pointer to the xvcu_device structure
+ *
+ * Return:	Returns 32bit value
+ *
+ */
+u32 xvcu_get_memory_depth(struct xvcu_device *xvcu)
+{
+	u32 value;
+
+	if (!regmap_read(xvcu->logicore_reg_ba, VCU_MEMORY_DEPTH, &value))
+		return value;
+	else
+		return 0;
+}
+EXPORT_SYMBOL_GPL(xvcu_get_memory_depth);
+
+/**
+ * xvcu_get_clock_frequency - provide the core clock frequency
+ * @xvcu:	Pointer to the xvcu_device structure
+ *
+ * Return:	Returns 32bit value
+ *
+ */
+u32 xvcu_get_clock_frequency(struct xvcu_device *xvcu)
+{
+	u32 value;
+
+	if (!regmap_read(xvcu->logicore_reg_ba, VCU_CORE_CLK, &value))
+		return value * MHZ;
+	else
+		return 0;
+}
+EXPORT_SYMBOL_GPL(xvcu_get_clock_frequency);
+
+/**
+ * xvcu_get_num_cores - read the number of core register
+ * @xvcu:	Pointer to the xvcu_device structure
+ *
+ * Return:	Returns 32bit value
+ *
+ */
+u32 xvcu_get_num_cores(struct xvcu_device *xvcu)
+{
+	u32 value;
+
+	if (!regmap_read(xvcu->logicore_reg_ba, VCU_NUM_CORE, &value))
+		return value;
+	else
+		return 0;
+}
+EXPORT_SYMBOL_GPL(xvcu_get_num_cores);
 
 #define to_vcu_pll(_hw) container_of(_hw, struct vcu_pll, hw)
 
@@ -547,7 +598,7 @@ static int xvcu_register_clock_provider(struct xvcu_device *xvcu)
 		return PTR_ERR(hw);
 	xvcu->pll_post = hw;
 
-	parent_data[0].fw_name = "pll_ref";
+	parent_data[0].fw_name = "dummy_name";
 	parent_data[1].hw = xvcu->pll_post;
 
 	hws[CLK_XVCU_ENC_CORE] =
@@ -587,8 +638,8 @@ static void xvcu_unregister_clock_provider(struct xvcu_device *xvcu)
 		xvcu_clk_hw_unregister_leaf(hws[CLK_XVCU_ENC_MCU]);
 	if (!IS_ERR_OR_NULL(hws[CLK_XVCU_ENC_CORE]))
 		xvcu_clk_hw_unregister_leaf(hws[CLK_XVCU_ENC_CORE]);
-
-	clk_hw_unregister_fixed_factor(xvcu->pll_post);
+	if (!IS_ERR_OR_NULL(xvcu->pll_post))
+		clk_hw_unregister_fixed_factor(xvcu->pll_post);
 }
 
 /**
@@ -676,6 +727,24 @@ static int xvcu_probe(struct platform_device *pdev)
 	 * Bit 0 : Gasket isolation
 	 * Bit 1 : put VCU out of reset
 	 */
+	xvcu->reset_gpio = devm_gpiod_get_optional(&pdev->dev, "reset",
+						   GPIOD_OUT_LOW);
+	if (IS_ERR(xvcu->reset_gpio)) {
+		ret = PTR_ERR(xvcu->reset_gpio);
+		dev_err(&pdev->dev, "failed to get reset gpio for vcu.\n");
+		goto error_get_gpio;
+	}
+
+	if (xvcu->reset_gpio) {
+		gpiod_set_value(xvcu->reset_gpio, 0);
+		/* min 2 clock cycle of vcu pll_ref, slowest freq is 33.33KHz */
+		usleep_range(60, 120);
+		gpiod_set_value(xvcu->reset_gpio, 1);
+		usleep_range(60, 120);
+	} else {
+		dev_warn(&pdev->dev, "No reset gpio info from dts for vcu. This may lead to incorrect functionality if VCU isolation is removed post initialization.\n");
+	}
+
 	regmap_write(xvcu->logicore_reg_ba, VCU_GASKET_INIT, VCU_GASKET_VALUE);
 
 	ret = xvcu_register_clock_provider(xvcu);
@@ -686,10 +755,17 @@ static int xvcu_probe(struct platform_device *pdev)
 
 	dev_set_drvdata(&pdev->dev, xvcu);
 
+	ret = devm_of_platform_populate(&pdev->dev);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to register allegro codecs\n");
+		goto error_clk_provider;
+	}
+
 	return 0;
 
 error_clk_provider:
 	xvcu_unregister_clock_provider(xvcu);
+error_get_gpio:
 	clk_disable_unprepare(xvcu->aclk);
 	return ret;
 }
@@ -713,6 +789,13 @@ static int xvcu_remove(struct platform_device *pdev)
 	xvcu_unregister_clock_provider(xvcu);
 
 	/* Add the Gasket isolation and put the VCU in reset. */
+	if (xvcu->reset_gpio) {
+		gpiod_set_value(xvcu->reset_gpio, 0);
+		/* min 2 clock cycle of vcu pll_ref, slowest freq is 33.33KHz */
+		usleep_range(60, 120);
+		gpiod_set_value(xvcu->reset_gpio, 1);
+		usleep_range(60, 120);
+	}
 	regmap_write(xvcu->logicore_reg_ba, VCU_GASKET_INIT, 0);
 
 	clk_disable_unprepare(xvcu->aclk);
