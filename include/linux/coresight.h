@@ -35,15 +35,6 @@
 
 extern struct bus_type coresight_bustype;
 
-
-struct coresight_kdump_ctxt {
-	/* Sink buffer related info */
-	uint64_t aux_pages; /* aux pages array base */
-	uint64_t aux_nr_pages;
-	uint64_t size;	/* total buffer size */
-	uint64_t head;	/* starting page offset and index */
-};
-
 enum coresight_dev_type {
 	CORESIGHT_DEV_TYPE_NONE,
 	CORESIGHT_DEV_TYPE_SINK,
@@ -312,9 +303,7 @@ struct coresight_ops_sink {
 			      struct perf_output_handle *handle,
 			      void *sink_config);
 
-	void (*kdump_sync)(struct perf_output_handle *handle,
-			   void *sink_config,
-			   struct coresight_kdump_ctxt *kdump_ctxt);
+	void (*kdump_sync)(void *perfbuf, void *kdump_ctxt);
 };
 
 /**
@@ -511,9 +500,6 @@ extern char *coresight_alloc_device_name(struct coresight_dev_list *devs,
 
 extern bool coresight_loses_context_with_cpu(struct device *dev);
 
-
-extern void cpu_emergency_stop_cs_etm(void);
-
 u32 coresight_relaxed_read32(struct coresight_device *csdev, u32 offset);
 u32 coresight_read32(struct coresight_device *csdev, u32 offset);
 void coresight_write32(struct coresight_device *csdev, u32 val, u32 offset);
@@ -600,8 +586,6 @@ static inline void coresight_relaxed_write64(struct coresight_device *csdev,
 static inline void coresight_write64(struct coresight_device *csdev, u64 val, u32 offset)
 {
 }
-
-static inline void cpu_emergency_stop_cs_etm(void) {}
 
 static void print_arch_cpu_state(int cpu) {};
 
