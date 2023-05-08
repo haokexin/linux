@@ -743,12 +743,6 @@ static int otx2_get_rxnfc(struct net_device *dev,
 	struct otx2_nic *pfvf = netdev_priv(dev);
 	int ret = -EOPNOTSUPP;
 
-	if (otx2_tc_flower_rule_cnt(pfvf)) {
-		netdev_err(pfvf->netdev,
-			   "Can't enable NTUPLE when TC flower offload is active, disable TC rules and retry\n");
-		return -EINVAL;
-	}
-
 	switch (nfc->cmd) {
 	case ETHTOOL_GRXRINGS:
 		nfc->data = pfvf->hw.rx_queues;
@@ -782,6 +776,7 @@ static int otx2_set_rxnfc(struct net_device *dev, struct ethtool_rxnfc *nfc)
 	struct otx2_nic *pfvf = netdev_priv(dev);
 	int ret = -EOPNOTSUPP;
 
+	pfvf->flow_cfg->ntuple = ntuple;
 	switch (nfc->cmd) {
 	case ETHTOOL_SRXFH:
 		ret = otx2_set_rss_hash_opts(pfvf, nfc);
@@ -1164,7 +1159,7 @@ static void otx2_get_link_mode_info(u64 link_mode_bmap,
 		ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
 	};
 	/* CGX link modes to Ethtool link mode mapping */
-	const int cgx_link_mode[38] = {
+	const int cgx_link_mode[51] = {
 		0, /* SGMII  Mode */
 		ETHTOOL_LINK_MODE_1000baseX_Full_BIT,
 		ETHTOOL_LINK_MODE_10000baseT_Full_BIT,
@@ -1202,7 +1197,20 @@ static void otx2_get_link_mode_info(u64 link_mode_bmap,
 		ETHTOOL_LINK_MODE_100000baseKR2_Full_BIT,
 		ETHTOOL_LINK_MODE_1000baseKX_Full_BIT,
 		ETHTOOL_LINK_MODE_56000baseCR4_Full_BIT,
-		ETHTOOL_LINK_MODE_56000baseSR4_Full_BIT
+		ETHTOOL_LINK_MODE_56000baseSR4_Full_BIT,
+		0,
+		0,
+		0,
+		0,
+		ETHTOOL_LINK_MODE_2500baseX_Full_BIT,
+		ETHTOOL_LINK_MODE_5000baseT_Full_BIT,
+		ETHTOOL_LINK_MODE_100baseT1_Full_BIT,
+		ETHTOOL_LINK_MODE_1000baseT1_Full_BIT,
+		ETHTOOL_LINK_MODE_2500baseT_Full_BIT,
+		ETHTOOL_LINK_MODE_200000baseCR4_Full_BIT,
+		ETHTOOL_LINK_MODE_10000baseCR_Full_BIT,
+		ETHTOOL_LINK_MODE_10000baseER_Full_BIT,
+		ETHTOOL_LINK_MODE_200000baseDR4_Full_BIT,
 	};
 	u8 bit;
 

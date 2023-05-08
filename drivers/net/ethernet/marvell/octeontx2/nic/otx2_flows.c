@@ -280,6 +280,7 @@ int otx2vf_mcam_flow_init(struct otx2_nic *pfvf)
 
 	flow_cfg = pfvf->flow_cfg;
 	INIT_LIST_HEAD(&flow_cfg->flow_list);
+	INIT_LIST_HEAD(&flow_cfg->flow_list_tc);
 	flow_cfg->max_flows = 0;
 
 	return 0;
@@ -302,6 +303,7 @@ int otx2_mcam_flow_init(struct otx2_nic *pf)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&pf->flow_cfg->flow_list);
+	INIT_LIST_HEAD(&pf->flow_cfg->flow_list_tc);
 
 	/* Allocate bare minimum number of MCAM entries needed for
 	 * unicast and ntuple filters.
@@ -896,23 +898,18 @@ static int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 		case UDP_V6_FLOW:
 		case TCP_V4_FLOW:
 		case TCP_V6_FLOW:
-			if ((ntohs(pkt->dport) == GTPU_PORT) && (ntohs(pkt->sport) == GTPU_PORT)) {
+			if (ntohs(pkt->dport) == GTPU_PORT) {
 				/* Check for GTP-U packets */
 				skip_user_def = true;
 				pkt->gtpu_teid = fsp->h_ext.data[1];
 				pmask->gtpu_teid = fsp->m_ext.data[1];
 				req->features |= BIT_ULL(NPC_GTPU_TEID);
-			} else if ((ntohs(pkt->dport) == GTPC_PORT) &&
-				   (ntohs(pkt->sport) == GTPC_PORT)) {
+			} else if (ntohs(pkt->dport) == GTPC_PORT) {
 				/* Check for GTP-C packets */
 				skip_user_def = true;
 				pkt->gtpc_teid = fsp->h_ext.data[1];
 				pmask->gtpc_teid = fsp->m_ext.data[1];
 				req->features |= BIT_ULL(NPC_GTPC_TEID);
-			} else {
-				netdev_err(pfvf->netdev,
-					   "Need both src and dst ports as GTP-U/C\n");
-				return -EINVAL;
 			}
 		}
 

@@ -169,34 +169,6 @@ void mcs_get_port_stats(struct mcs *mcs, struct mcs_port_stats *stats,
 	}
 }
 
-void mcs_get_sa_stats(struct mcs *mcs, struct mcs_sa_stats *stats, int id, int dir)
-{
-	u64 reg;
-
-	if (dir == MCS_RX) {
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSAINVALIDX(id);
-		stats->pkt_invalid_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSANOTUSINGSAERRORX(id);
-		stats->pkt_nosaerror_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSANOTVALIDX(id);
-		stats->pkt_notvalid_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSAOKX(id);
-		stats->pkt_ok_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSAUNUSEDSAX(id);
-		stats->pkt_nosa_cnt = mcs_reg_read(mcs, reg);
-	} else {
-		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSAENCRYPTEDX(id);
-		stats->pkt_encrypt_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSAPROTECTEDX(id);
-		stats->pkt_protected_cnt = mcs_reg_read(mcs, reg);
-	}
-}
-
 void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 		      int id, int dir)
 {
@@ -225,13 +197,6 @@ void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 			reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCOKX(id);
 			stats->pkt_ok_cnt = mcs_reg_read(mcs, reg);
 		}
-		if (mcs->hw->mcs_blks == 1) {
-			reg = MCSX_CSE_RX_MEM_SLAVE_INOCTETSSCDECRYPTEDX(id);
-			stats->octet_decrypt_cnt = mcs_reg_read(mcs, reg);
-
-			reg = MCSX_CSE_RX_MEM_SLAVE_INOCTETSSCVALIDATEX(id);
-			stats->octet_validate_cnt = mcs_reg_read(mcs, reg);
-		}
 	} else {
 		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSCENCRYPTEDX(id);
 		stats->pkt_encrypt_cnt = mcs_reg_read(mcs, reg);
@@ -239,14 +204,7 @@ void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSCPROTECTEDX(id);
 		stats->pkt_protected_cnt = mcs_reg_read(mcs, reg);
 
-		if (mcs->hw->mcs_blks == 1) {
-			reg = MCSX_CSE_TX_MEM_SLAVE_OUTOCTETSSCENCRYPTEDX(id);
-			stats->octet_encrypt_cnt = mcs_reg_read(mcs, reg);
-
-			reg = MCSX_CSE_TX_MEM_SLAVE_OUTOCTETSSCPROTECTEDX(id);
-			stats->octet_protected_cnt = mcs_reg_read(mcs, reg);
 		}
-	}
 }
 
 void mcs_clear_stats(struct mcs *mcs, u8 type, u8 id, int dir)
@@ -255,7 +213,6 @@ void mcs_clear_stats(struct mcs *mcs, u8 type, u8 id, int dir)
 	struct mcs_port_stats port_st;
 	struct mcs_secy_stats secy_st;
 	struct mcs_sc_stats sc_st;
-	struct mcs_sa_stats sa_st;
 	u64 reg;
 
 	if (dir == MCS_RX)
@@ -277,9 +234,6 @@ void mcs_clear_stats(struct mcs *mcs, u8 type, u8 id, int dir)
 		break;
 	case MCS_SC_STATS:
 		mcs_get_sc_stats(mcs, &sc_st, id, dir);
-		break;
-	case MCS_SA_STATS:
-		mcs_get_sa_stats(mcs, &sa_st, id, dir);
 		break;
 	case MCS_PORT_STATS:
 		mcs_get_port_stats(mcs, &port_st, id, dir);
@@ -318,13 +272,6 @@ int mcs_clear_all_stats(struct mcs *mcs, u16 pcifunc, int dir)
 		if (map->sc2pf_map[id] != pcifunc)
 			continue;
 		mcs_clear_stats(mcs, MCS_SC_STATS, id, dir);
-	}
-
-	/* Clear SA stats */
-	for (id = 0; id < map->sa.max; id++) {
-		if (map->sa2pf_map[id] != pcifunc)
-			continue;
-		mcs_clear_stats(mcs, MCS_SA_STATS, id, dir);
 	}
 	return 0;
 }
@@ -473,6 +420,8 @@ void mcs_flowid_entry_write(struct mcs *mcs, u64 *data, u64 *mask, int flow_id, 
 		for (reg_id = 0; reg_id < 4; reg_id++) {
 			reg = MCSX_CPM_RX_SLAVE_FLOWID_TCAM_DATAX(reg_id, flow_id);
 			mcs_reg_write(mcs, reg, data[reg_id]);
+		}
+		for (reg_id = 0; reg_id < 4; reg_id++) {
 			reg = MCSX_CPM_RX_SLAVE_FLOWID_TCAM_MASKX(reg_id, flow_id);
 			mcs_reg_write(mcs, reg, mask[reg_id]);
 		}
@@ -480,6 +429,8 @@ void mcs_flowid_entry_write(struct mcs *mcs, u64 *data, u64 *mask, int flow_id, 
 		for (reg_id = 0; reg_id < 4; reg_id++) {
 			reg = MCSX_CPM_TX_SLAVE_FLOWID_TCAM_DATAX(reg_id, flow_id);
 			mcs_reg_write(mcs, reg, data[reg_id]);
+		}
+		for (reg_id = 0; reg_id < 4; reg_id++) {
 			reg = MCSX_CPM_TX_SLAVE_FLOWID_TCAM_MASKX(reg_id, flow_id);
 			mcs_reg_write(mcs, reg, mask[reg_id]);
 		}
@@ -494,6 +445,9 @@ int mcs_install_flowid_bypass_entry(struct mcs *mcs)
 
 	/* Flow entry */
 	flow_id = mcs->hw->tcam_entries - MCS_RSRC_RSVD_CNT;
+	__set_bit(flow_id, mcs->rx.flow_ids.bmap);
+	__set_bit(flow_id, mcs->tx.flow_ids.bmap);
+
 	for (reg_id = 0; reg_id < 4; reg_id++) {
 		reg = MCSX_CPM_RX_SLAVE_FLOWID_TCAM_MASKX(reg_id, flow_id);
 		mcs_reg_write(mcs, reg, GENMASK_ULL(63, 0));
@@ -504,6 +458,8 @@ int mcs_install_flowid_bypass_entry(struct mcs *mcs)
 	}
 	/* secy */
 	secy_id = mcs->hw->secy_entries - MCS_RSRC_RSVD_CNT;
+	__set_bit(secy_id, mcs->rx.secy.bmap);
+	__set_bit(secy_id, mcs->tx.secy.bmap);
 
 	/* Set validate frames to NULL and enable control port */
 	plcy = 0x7ull;
@@ -528,6 +484,8 @@ int mcs_install_flowid_bypass_entry(struct mcs *mcs)
 	/* Enable Flowid entry */
 	mcs_ena_dis_flowid_entry(mcs, flow_id, MCS_RX, true);
 	mcs_ena_dis_flowid_entry(mcs, flow_id, MCS_TX, true);
+
+	dev_info(mcs->dev, "Installed tcam bypass entry@%d\n", flow_id);
 	return 0;
 }
 
@@ -988,9 +946,8 @@ static irqreturn_t mcs_ip_intr_handler(int irq, void *mcs_irq)
 	struct mcs *mcs = (struct mcs *)mcs_irq;
 	u64 intr, cpm_intr, bbe_intr, pab_intr;
 
-	/* Disable and clear the interrupt */
+	/* Disable the interrupt */
 	mcs_reg_write(mcs, MCSX_IP_INT_ENA_W1C, BIT_ULL(0));
-	mcs_reg_write(mcs, MCSX_IP_INT, BIT_ULL(0));
 
 	/* Check which block has interrupt*/
 	intr = mcs_reg_read(mcs, MCSX_TOP_SLAVE_INT_SUM);
@@ -1074,7 +1031,8 @@ static irqreturn_t mcs_ip_intr_handler(int irq, void *mcs_irq)
 		mcs_reg_write(mcs, MCSX_PAB_TX_SLAVE_PAB_INT, pab_intr);
 	}
 
-	/* Enable the interrupt */
+	/* Clear and enable the interrupt */
+	mcs_reg_write(mcs, MCSX_IP_INT, BIT_ULL(0));
 	mcs_reg_write(mcs, MCSX_IP_INT_ENA_W1S, BIT_ULL(0));
 
 	return IRQ_HANDLED;
@@ -1336,8 +1294,11 @@ void mcs_reset_port(struct mcs *mcs, u8 port_id, u8 reset)
 void mcs_set_lmac_mode(struct mcs *mcs, int lmac_id, u8 mode)
 {
 	u64 reg;
+	int id = lmac_id * 2;
 
-	reg = MCSX_MCS_TOP_SLAVE_CHANNEL_CFG(lmac_id * 2);
+	reg = MCSX_MCS_TOP_SLAVE_CHANNEL_CFG(id);
+	mcs_reg_write(mcs, reg, (u64)mode);
+	reg = MCSX_MCS_TOP_SLAVE_CHANNEL_CFG((id + 1));
 	mcs_reg_write(mcs, reg, (u64)mode);
 }
 

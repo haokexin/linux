@@ -2,6 +2,7 @@
 // Cadence XSPI flash controller driver
 // Copyright (C) 2020-21 Cadence
 
+#include <linux/acpi.h>
 #include <linux/completion.h>
 #include <linux/delay.h>
 #include <linux/err.h>
@@ -15,11 +16,13 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/property.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-mem.h>
 #include <linux/bitfield.h>
 #include <linux/limits.h>
 #include <linux/log2.h>
+#include <linux/mtd/spi-nor.h>
 
 #define CDNS_XSPI_MAGIC_NUM_VALUE	0x6522
 #define CDNS_XSPI_MAX_BANKS		8
@@ -607,7 +610,7 @@ static void cdns_xspi_sdma_handle(struct cdns_xspi_dev *cdns_xspi)
 	}
 }
 
-bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi)
+bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
 	u32 ctrl_stat;
 
@@ -615,10 +618,11 @@ bool cdns_xspi_stig_ready(struct cdns_xspi_dev *cdns_xspi)
 		(cdns_xspi->iobase + CDNS_XSPI_CTRL_STATUS_REG,
 		ctrl_stat,
 		((ctrl_stat & BIT(3)) == 0),
-		CDNS_XSPI_POLL_DELAY_US, CDNS_XSPI_POLL_TIMEOUT_US);
+		sleep ? CDNS_XSPI_POLL_DELAY_US : 0,
+		sleep ? CDNS_XSPI_POLL_TIMEOUT_US : 0);
 }
 
-bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi)
+bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi, bool sleep)
 {
 	u32 ctrl_stat;
 
@@ -626,12 +630,14 @@ bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi)
 		(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG,
 		ctrl_stat,
 		(ctrl_stat & CDNS_XSPI_SDMA_TRIGGER),
-		CDNS_XSPI_POLL_DELAY_US, CDNS_XSPI_POLL_TIMEOUT_US);
+		sleep ? CDNS_XSPI_POLL_DELAY_US : 0,
+		sleep ? CDNS_XSPI_POLL_TIMEOUT_US : 0);
 }
 
 static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 				       const struct spi_mem_op *op,
-				       bool data_phase)
+				       bool data_phase,
+				       bool pstore_sleep)
 {
 	u32 cmd_regs[6];
 	u32 cmd_status;
@@ -675,24 +681,24 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 
 		cdns_xspi_trigger_command(cdns_xspi, cmd_regs);
 
-		if (cdns_xspi->irq) {
+		if (cdns_xspi->irq && pstore_sleep) {
 			wait_for_completion(&cdns_xspi->sdma_complete);
 			if (cdns_xspi->sdma_error) {
 				cdns_xspi_set_interrupts(cdns_xspi, false);
 				return -EIO;
 			}
 		} else {
-			if (cdns_xspi_sdma_ready(cdns_xspi))
+			if (cdns_xspi_sdma_ready(cdns_xspi, pstore_sleep))
 				return -EIO;
 		}
 		cdns_xspi_sdma_handle(cdns_xspi);
 	}
 
-	if (cdns_xspi->irq) {
+	if (cdns_xspi->irq && pstore_sleep) {
 		wait_for_completion(&cdns_xspi->cmd_complete);
 		cdns_xspi_set_interrupts(cdns_xspi, false);
 	} else {
-		if (cdns_xspi_stig_ready(cdns_xspi))
+		if (cdns_xspi_stig_ready(cdns_xspi, pstore_sleep))
 			return -EIO;
 	}
 
@@ -705,7 +711,8 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 
 static int cdns_xspi_mem_op(struct cdns_xspi_dev *cdns_xspi,
 			    struct spi_mem *mem,
-			    const struct spi_mem_op *op)
+			    const struct spi_mem_op *op,
+			    bool pstore)
 {
 	enum spi_mem_data_dir dir = op->data.dir;
 
@@ -717,17 +724,81 @@ static int cdns_xspi_mem_op(struct cdns_xspi_dev *cdns_xspi,
 #endif
 
 	return cdns_xspi_send_stig_command(cdns_xspi, op,
-					   (dir != SPI_MEM_NO_DATA));
+					   (dir != SPI_MEM_NO_DATA),
+					   !pstore);
 }
+
+#ifdef CONFIG_ACPI
+static bool cdns_xspi_supports_op(struct spi_mem *mem,
+				  const struct spi_mem_op *op)
+{
+	struct spi_device *spi = mem->spi;
+	const union acpi_object *obj;
+	struct acpi_device *adev;
+
+	adev = ACPI_COMPANION(&spi->dev);
+
+	if (!acpi_dev_get_property(adev, "spi-tx-bus-width", ACPI_TYPE_INTEGER,
+				   &obj)) {
+		switch (obj->integer.value) {
+		case 1:
+			break;
+		case 2:
+			spi->mode |= SPI_TX_DUAL;
+			break;
+		case 4:
+			spi->mode |= SPI_TX_QUAD;
+			break;
+		case 8:
+			spi->mode |= SPI_TX_OCTAL;
+			break;
+		default:
+			dev_warn(&spi->dev,
+				 "spi-tx-bus-width %lld not supported\n",
+				 obj->integer.value);
+			break;
+		}
+	}
+
+	if (!acpi_dev_get_property(adev, "spi-rx-bus-width", ACPI_TYPE_INTEGER,
+				   &obj)) {
+		switch (obj->integer.value) {
+		case 1:
+			break;
+		case 2:
+			spi->mode |= SPI_RX_DUAL;
+			break;
+		case 4:
+			spi->mode |= SPI_RX_QUAD;
+			break;
+		case 8:
+			spi->mode |= SPI_RX_OCTAL;
+			break;
+		default:
+			dev_warn(&spi->dev,
+				 "spi-rx-bus-width %lld not supported\n",
+				 obj->integer.value);
+			break;
+		}
+	}
+
+	if (!spi_mem_default_supports_op(mem, op))
+		return false;
+
+	return true;
+}
+#endif
 
 static int cdns_xspi_mem_op_execute(struct spi_mem *mem,
 				    const struct spi_mem_op *op)
 {
 	struct cdns_xspi_dev *cdns_xspi =
 		spi_master_get_devdata(mem->spi->master);
+	struct spi_nor *nor = spi_mem_get_drvdata(mem);
+
 	int ret = 0;
 
-	ret = cdns_xspi_mem_op(cdns_xspi, mem, op);
+	ret = cdns_xspi_mem_op(cdns_xspi, mem, op, nor->pstore);
 
 	return ret;
 }
@@ -743,6 +814,9 @@ static int cdns_xspi_adjust_mem_op_size(struct spi_mem *mem, struct spi_mem_op *
 }
 
 static const struct spi_controller_mem_ops cadence_xspi_mem_ops = {
+#ifdef CONFIG_ACPI
+	.supports_op = cdns_xspi_supports_op,
+#endif
 	.exec_op = cdns_xspi_mem_op_execute,
 	.adjust_op_size = cdns_xspi_adjust_mem_op_size,
 };
@@ -795,27 +869,28 @@ static irqreturn_t cdns_xspi_irq_handler(int this_irq, void *dev)
 static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 {
 	struct device_node *node_prop = pdev->dev.of_node;
+	struct fwnode_handle *fwnode_child;
 	struct device_node *node_child;
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
 	unsigned int cs;
 	unsigned int read_size = 0;
 
-	if (of_property_read_u32(node_prop, "cdns,read-size", &read_size))
+	if (device_property_read_u32(&pdev->dev, "cdns,read-size", &read_size))
 		dev_info(&pdev->dev, "Missing read size property, usining byte access\n");
 	cdns_xspi->read_size = read_size;
 
-	for_each_child_of_node(node_prop, node_child) {
-		if (!of_device_is_available(node_child))
+	device_for_each_child_node(&pdev->dev, fwnode_child) {
+		if (!fwnode_device_is_available(fwnode_child))
 			continue;
 
-		if (of_property_read_u32(node_child, "reg", &cs)) {
+		if (fwnode_property_read_u32(fwnode_child, "reg", &cs)) {
 			dev_err(&pdev->dev, "Couldn't get memory chip select\n");
-			of_node_put(node_child);
+			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		} else if (cs >= CDNS_XSPI_MAX_BANKS) {
 			dev_err(&pdev->dev, "reg (cs) parameter value too large\n");
-			of_node_put(node_child);
+			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		}
 	}
@@ -998,7 +1073,7 @@ int cdns_xspi_transfer_one_message(struct spi_controller *master,
 				cdns_xspi_prepare_generic(cs, txd, current_cycle_count,
 							  false, cmd_regs);
 				cdns_xspi_trigger_command(cdns_xspi, cmd_regs);
-				if (cdns_xspi_stig_ready(cdns_xspi))
+				if (cdns_xspi_stig_ready(cdns_xspi, true))
 					return -EIO;
 			} else {
 				cdns_xspi_prepare_generic(cs, txd, 1, true, cmd_regs);
@@ -1006,10 +1081,10 @@ int cdns_xspi_transfer_one_message(struct spi_controller *master,
 				cdns_xspi_prepare_transfer(cs, 1, current_cycle_count - 1,
 							   cmd_regs);
 				cdns_xspi_trigger_command(cdns_xspi, cmd_regs);
-				if (cdns_xspi_sdma_ready(cdns_xspi))
+				if (cdns_xspi_sdma_ready(cdns_xspi, true))
 					return -EIO;
 				cdns_xspi_sdma_handle(cdns_xspi);
-				if (cdns_xspi_stig_ready(cdns_xspi))
+				if (cdns_xspi_stig_ready(cdns_xspi, true))
 					return -EIO;
 
 				cdns_xspi->in_buffer += current_cycle_count;
@@ -1070,6 +1145,7 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 
 	master->mem_ops = &cadence_xspi_mem_ops;
 	master->dev.of_node = pdev->dev.of_node;
+	master->dev.fwnode = pdev->dev.fwnode;
 	master->bus_num = -1;
 #if IS_ENABLED(CONFIG_SPI_CADENCE_MRVL_XSPI)
 	master->setup = cdns_xspi_setup;
@@ -1090,19 +1166,21 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 	if (ret)
 		return -ENODEV;
 
-	cdns_xspi->iobase = devm_platform_ioremap_resource_byname(pdev, "io");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	cdns_xspi->iobase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->iobase)) {
 		dev_err(dev, "Failed to remap controller base address\n");
 		return PTR_ERR(cdns_xspi->iobase);
 	}
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "sdma");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	cdns_xspi->sdmabase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->sdmabase))
 		return PTR_ERR(cdns_xspi->sdmabase);
 	cdns_xspi->sdmasize = resource_size(res);
 
-	cdns_xspi->auxbase = devm_platform_ioremap_resource_byname(pdev, "aux");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	cdns_xspi->auxbase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->auxbase)) {
 		dev_err(dev, "Failed to remap AUX address\n");
 		return PTR_ERR(cdns_xspi->auxbase);
@@ -1149,6 +1227,12 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct acpi_device_id cdns_xspi_acpi_match[] = {
+	{"cdns,xspi-nor", 0},
+	{},
+};
+MODULE_DEVICE_TABLE(acpi, cdns_xspi_acpi_match);
+
 #ifdef CONFIG_OF
 static const struct of_device_id cdns_xspi_of_match[] = {
 	{
@@ -1167,6 +1251,7 @@ static struct platform_driver cdns_xspi_platform_driver = {
 	.driver = {
 		.name = CDNS_XSPI_NAME,
 		.of_match_table = cdns_xspi_of_match,
+		.acpi_match_table = cdns_xspi_acpi_match,
 	},
 };
 

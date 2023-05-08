@@ -359,13 +359,8 @@ struct otx2_flow_config {
 	u32			*bmap_to_dmacindex;
 	unsigned long		*dmacflt_bmap;
 	struct list_head	flow_list;
-};
-
-struct otx2_tc_info {
-	/* hash table to store TC offloaded flows */
-	struct rhashtable		flow_table;
-	struct rhashtable_params	flow_ht_params;
-	unsigned long			*tc_entries_bitmap;
+	struct list_head	flow_list_tc;
+	bool			ntuple;
 };
 
 struct dev_hw_ops {
@@ -408,7 +403,7 @@ struct cn10k_mcs_txsc {
 	struct cn10k_txsc_stats stats;
 	struct list_head entry;
 	enum macsec_validation_type last_validate_frames;
-	bool last_protect_frames;
+	bool last_replay_protect;
 	u16 hw_secy_id_tx;
 	u16 hw_secy_id_rx;
 	u16 hw_flow_id;
@@ -491,7 +486,6 @@ struct otx2_nic {
 	/* NPC MCAM */
 	struct otx2_flow_config	*flow_cfg;
 	struct otx2_mac_table	*mac_table;
-	struct otx2_tc_info	tc_info;
 
 	u64			reset_count;
 	struct work_struct	reset_task;
@@ -975,7 +969,7 @@ static inline int otx2_tc_flower_rule_cnt(struct otx2_nic *pfvf)
 	if (!pfvf->flow_cfg)
 		return 0;
 
-	return bitmap_weight(pfvf->tc_info.tc_entries_bitmap, pfvf->flow_cfg->max_flows);
+	return pfvf->flow_cfg->nr_flows;
 }
 
 static inline int otx2_is_ntuple_rule_installed(struct otx2_nic *pfvf)
@@ -983,7 +977,7 @@ static inline int otx2_is_ntuple_rule_installed(struct otx2_nic *pfvf)
 	if (!pfvf->flow_cfg)
 		return false;
 
-	return (!otx2_tc_flower_rule_cnt(pfvf) && pfvf->flow_cfg->nr_flows);
+	return pfvf->flow_cfg->nr_flows;
 }
 
 /* MSI-X APIs */
@@ -1108,7 +1102,8 @@ int otx2_init_tc(struct otx2_nic *nic);
 void otx2_shutdown_tc(struct otx2_nic *nic);
 int otx2_setup_tc(struct net_device *netdev, enum tc_setup_type type,
 		  void *type_data);
-int otx2_tc_alloc_ent_bitmap(struct otx2_nic *nic);
+void otx2_tc_apply_ingress_police_rules(struct otx2_nic *nic);
+
 /* CGX/RPM DMAC filters support */
 int otx2_dmacflt_get_max_cnt(struct otx2_nic *pf);
 int otx2_dmacflt_add(struct otx2_nic *pf, const u8 *mac, u32 bit_pos);

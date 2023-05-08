@@ -17,7 +17,6 @@
 #include "mbox.h"
 #include "mcs_fips_mbox.h"
 #include "npc.h"
-#include "rvu_validation.h"
 #include "rvu_reg.h"
 
 /* PCI device IDs */
@@ -292,9 +291,6 @@ struct rvu_pfvf {
 	struct nix_mce_list	promisc_mce_list;
 	bool			use_mce_list;
 
-	/* For resource limits */
-	struct pci_dev	*pdev;
-	struct kobject	*limits_kobj;
 	struct rvu_npc_mcam_rule *def_ucast_rule;
 
 	bool	cgx_in_use; /* this PF/VF using CGX? */
@@ -553,7 +549,6 @@ struct rvu {
 	struct rvu_hwinfo       *hw;
 	struct rvu_pfvf		*pf;
 	struct rvu_pfvf		*hwvf;
-	struct rvu_limits	pf_limits;
 	struct mutex		rsrc_lock; /* Serialize resource alloc/free */
 	struct mutex		alias_lock; /* Serialize bar2 alias access */
 	int			vfs; /* Number of VFs attached to RVU */
@@ -799,10 +794,10 @@ static inline bool is_rvu_npc_hash_extract_en(struct rvu *rvu)
 
 static inline bool is_rvu_nix_spi_to_sa_en(struct rvu *rvu)
 {
-	u64 npc_const2;
+	u64 nix_const2;
 
-	npc_const2 = rvu_read64(rvu, BLKADDR_NIX0, NPC_AF_CONST2);
-	if ((npc_const2 >> 48) & 0xffff)
+	nix_const2 = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_CONST2);
+	if ((nix_const2 >> 48) & 0xffff)
 		return true;
 
 	return false;
@@ -848,6 +843,16 @@ static inline u16 rvu_nix_chan_sdp(struct rvu *rvu, u8 chan)
 static inline u16 rvu_nix_chan_cpt(struct rvu *rvu, u8 chan)
 {
 	return rvu->hw->cpt_chan_base + chan;
+}
+
+static inline bool is_rvu_supports_nix1(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_98XX)
+		return true;
+
+	return false;
 }
 
 /* Function Prototypes

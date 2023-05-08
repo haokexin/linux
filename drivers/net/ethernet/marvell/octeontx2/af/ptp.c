@@ -65,24 +65,24 @@ static bool is_ptp_dev_cnf10kb(struct ptp *ptp)
 	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B_PTP) ? true : false;
 }
 
-static bool is_ptp_dev_cn10k(struct ptp *ptp)
+static bool is_ptp_dev_cnf10ka(struct ptp *ptp)
 {
-	return (ptp->pdev->device == PCI_DEVID_CN10K_PTP) ? true : false;
+	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP) ? true : false;
+}
+
+static bool is_ptp_dev_cn10ka(struct ptp *ptp)
+{
+	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP) ? true : false;
 }
 
 static bool cn10k_ptp_errata(struct ptp *ptp)
 {
-	if (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP ||
-	    ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP)
+	if ((is_ptp_dev_cn10ka(ptp) &&
+	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)) ||
+	    (is_ptp_dev_cnf10ka(ptp) &&
+	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)))
 		return true;
-	return false;
-}
 
-static bool is_ptp_tsfmt_sec_nsec(struct ptp *ptp)
-{
-	if (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP ||
-	    ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP)
-		return true;
 	return false;
 }
 
@@ -351,7 +351,7 @@ static int ptp_get_tstmp(struct ptp *ptp, u64 *clk)
 {
 	u64 timestamp;
 
-	if (is_ptp_dev_cn10k(ptp)) {
+	if (is_ptp_dev_cn10ka(ptp) || is_ptp_dev_cnf10ka(ptp)) {
 		timestamp = readq(ptp->reg_base + PTP_TIMESTAMP);
 		*clk = (timestamp >> 32) * NSEC_PER_SEC + (timestamp & 0xFFFFFFFF);
 	} else {
@@ -464,14 +464,12 @@ static int ptp_probe(struct pci_dev *pdev,
 		first_ptp_block = ptp;
 
 	spin_lock_init(&ptp->ptp_lock);
-	if (is_ptp_tsfmt_sec_nsec(ptp))
-		ptp->read_ptp_tstmp = &read_ptp_tstmp_sec_nsec;
-	else
-		ptp->read_ptp_tstmp = &read_ptp_tstmp_nsec;
-
 	if (cn10k_ptp_errata(ptp)) {
+		ptp->read_ptp_tstmp = &read_ptp_tstmp_sec_nsec;
 		hrtimer_init(&ptp->hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 		ptp->hrtimer.function = ptp_reset_thresh;
+	} else {
+		ptp->read_ptp_tstmp = &read_ptp_tstmp_nsec;
 	}
 
 	return 0;
