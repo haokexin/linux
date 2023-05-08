@@ -1118,15 +1118,14 @@ static void find_proc_ver(const struct dmi_header *dm, void *private)
 
 static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 {
-	struct device_node *node_prop = pdev->dev.of_node;
 	struct fwnode_handle *fwnode_child;
-	struct device_node *node_child;
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
 	unsigned int cs;
 	unsigned int read_size = 0;
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+	struct device_node *node_child;
 	unsigned int base_addr = 0;
 	struct device_node *node_soc;
 	char const *cpu_rev;
