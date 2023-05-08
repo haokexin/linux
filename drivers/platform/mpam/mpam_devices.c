@@ -1593,7 +1593,9 @@ static void mpam_pcc_rx_callback(struct mbox_client *cl, void *msg)
 static int mpam_msc_drv_probe(struct platform_device *pdev)
 {
 	int err;
+#ifdef CONFIG_ACPI
 	pgprot_t prot;
+#endif
 	void * __iomem io;
 	struct mpam_msc *msc;
 	struct resource *msc_res;
@@ -1670,7 +1672,7 @@ static int mpam_msc_drv_probe(struct platform_device *pdev)
 				err = PTR_ERR(msc->pcc_chan);
 				break;
 			}
-#ifdef ACPI
+#ifdef CONFIG_ACPI
 			prot = __acpi_get_mem_attribute(msc->pcc_chan->shmem_base_addr);
 			io = ioremap_prot(msc->pcc_chan->shmem_base_addr,
 					  msc->pcc_chan->shmem_size, pgprot_val(prot));
