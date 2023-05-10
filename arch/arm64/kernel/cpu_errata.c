@@ -210,6 +210,29 @@ has_neoverse_n1_erratum_1542419(const struct arm64_cpu_capabilities *entry,
 	return is_midr_in_range(midr, &range) && has_dic;
 }
 
+#ifdef CONFIG_NXP_S32CC_ERRATUM_ERR050481
+#define SYS_L2CTRL_NCORES_SHIFT	24
+#define SYS_L2CTRL_NCORES_MASK	(0x3 << SYS_L2CTRL_NCORES_SHIFT)
+#define SYS_L2CTRL_2CORES	0x1
+
+static bool
+has_nxp_s32cc_erratum_err050481(const struct arm64_cpu_capabilities *entry,
+				  int scope)
+{
+	u32 l2ctrl = read_sysreg_s(SYS_L2CTRL_EL1);
+	u32 ncores;
+
+	ncores = (l2ctrl & SYS_L2CTRL_NCORES_MASK);
+	ncores >>= SYS_L2CTRL_NCORES_SHIFT;
+
+	/**
+	 * Applies to S32CC platforms with 2 cores per cluster.
+	 * This excludes S32G3.
+	 */
+	return (ncores == SYS_L2CTRL_2CORES);
+}
+#endif
+
 #ifdef CONFIG_ARM64_WORKAROUND_REPEAT_TLBI
 static const struct arm64_cpu_capabilities arm64_repeat_tlbi_list[] = {
 #ifdef CONFIG_QCOM_FALKOR_ERRATUM_1009
@@ -371,6 +394,10 @@ static const struct midr_range erratum_speculative_at_list[] = {
 	MIDR_RANGE(MIDR_CORTEX_A55, 0, 0, 2, 0),
 	/* Kryo4xx Silver (rdpe => r1p0) */
 	MIDR_REV(MIDR_QCOM_KRYO_4XX_SILVER, 0xd, 0xe),
+#endif
+#ifdef CONFIG_ARM64_ERRATUM_1530924
+	/* Cortex-A53 r0p[01234] */
+	MIDR_REV_RANGE(MIDR_CORTEX_A53, 0, 0, 4),
 #endif
 	{},
 };
@@ -578,7 +605,7 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 #endif
 #ifdef CONFIG_ARM64_WORKAROUND_SPECULATIVE_AT
 	{
-		.desc = "ARM errata 1165522, 1319367, or 1530923",
+		.desc = "ARM errata 1165522, 1319367, 1530923, or 1530924",
 		.capability = ARM64_WORKAROUND_SPECULATIVE_AT,
 		ERRATA_MIDR_RANGE_LIST(erratum_speculative_at_list),
 	},
@@ -722,6 +749,14 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		MIDR_FIXED(MIDR_CPU_VAR_REV(1,1), BIT(25)),
 		.cpu_enable = cpu_clear_bf16_from_user_emulation,
 	},
+#endif
+#ifdef CONFIG_NXP_S32CC_ERRATUM_ERR050481
+   {
+       .desc = "NXP erratum ERR050481 (TLBI handled incorrectly)",
+       .capability = ARM64_WORKAROUND_NXP_ERR050481,
+       .type = ARM64_CPUCAP_LOCAL_CPU_ERRATUM,
+       .matches = has_nxp_s32cc_erratum_err050481,
+   },
 #endif
 	{
 	}

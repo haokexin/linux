@@ -8,6 +8,8 @@
  *
  * Copyright (C) 2019 Micro Crystal AG
  * Author: Alexandre Belloni <alexandre.belloni@bootlin.com>
+ *
+ * Copyright 2022 NXP
  */
 #include <linux/clk-provider.h>
 #include <linux/i2c.h>
@@ -518,6 +520,7 @@ enum pcf85063_type {
 	PCF85063,
 	PCF85063TP,
 	PCF85063A,
+	PCF85073A,
 	RV8263,
 	PCF85063_LAST_ID
 };
@@ -553,6 +556,14 @@ static struct pcf85063_config pcf85063_cfg[] = {
 		},
 		.has_alarms = 1,
 		.force_cap_7000 = 1,
+	},
+	[PCF85073A] = {
+		.regmap = {
+			.reg_bits = 8,
+			.val_bits = 8,
+			.max_register = 0x11,
+		},
+		.has_alarms = 1,
 	},
 };
 
@@ -601,6 +612,18 @@ static int pcf85063_probe(struct i2c_client *client)
 	if (err) {
 		dev_err(&client->dev, "RTC chip is not present\n");
 		return err;
+	}
+
+	/* Not battery-backed, we need to start the oscillator. */
+	if (of_property_read_bool(client->dev.of_node, "nxp,no-battery")) {
+		err = regmap_update_bits(pcf85063->regmap, PCF85063_REG_SC,
+					 PCF85063_REG_SC_OS, 0);
+
+		if (err) {
+			dev_err(&pcf85063->rtc->dev,
+				"failed to start the oscillator\n");
+			return err;
+		}
 	}
 
 	pcf85063->rtc = devm_rtc_allocate_device(&client->dev);
@@ -665,6 +688,7 @@ static const struct of_device_id pcf85063_of_match[] = {
 	{ .compatible = "nxp,pcf85063", .data = &pcf85063_cfg[PCF85063] },
 	{ .compatible = "nxp,pcf85063tp", .data = &pcf85063_cfg[PCF85063TP] },
 	{ .compatible = "nxp,pcf85063a", .data = &pcf85063_cfg[PCF85063A] },
+	{ .compatible = "nxp,pca85073a", .data = &pcf85063_cfg[PCF85073A] },
 	{ .compatible = "microcrystal,rv8263", .data = &pcf85063_cfg[RV8263] },
 	{}
 };

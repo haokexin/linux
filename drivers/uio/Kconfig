@@ -182,4 +182,45 @@ config UIO_DFL
 	    opae-sdk/tools/libopaeuio/
 
 	  If you compile this as a module, it will be called uio_dfl.
+
+config UIO_NXP_HSE
+	tristate "NXP HSE UIO driver"
+	depends on SOC_S32CC
+	default m
+	help
+	  Enables the UIO driver support for NXP Hardware Security Engine (HSE).
+	  If the driver is built as a module, it will be called uio_hse.
+
+choice
+	prompt "Messaging Unit Interface"
+	depends on UIO_NXP_HSE
+	default UIO_NXP_HSE_MU0
+	help
+	  Configures the Messaging Unit instance reserved for the UIO driver.
+
+config UIO_NXP_HSE_MU0
+	bool "MU0"
+	depends on !CRYPTO_DEV_NXP_HSE_MU0
+config UIO_NXP_HSE_MU1
+	bool "MU1"
+        depends on !CRYPTO_DEV_NXP_HSE_MU1
+config UIO_NXP_HSE_MU2
+	bool "MU2"
+        depends on !CRYPTO_DEV_NXP_HSE_MU2
+config UIO_NXP_HSE_MU3
+	bool "MU3"
+        depends on !CRYPTO_DEV_NXP_HSE_MU3
+endchoice
+
+config UIO_NXP_HSE_MU
+	string
+	depends on UIO_NXP_HSE
+	default mu0b if UIO_NXP_HSE_MU0
+	default mu1b if UIO_NXP_HSE_MU1
+	default mu2b if UIO_NXP_HSE_MU2
+	default mu3b if UIO_NXP_HSE_MU3
+
+comment "MU interface must be activated by HSE firmware before use"
+	depends on UIO_NXP_HSE && !UIO_NXP_HSE_MU0
+
 endif

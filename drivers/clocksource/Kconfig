@@ -461,6 +461,20 @@ config VF_PIT_TIMER
 	help
 	  Support for Periodic Interrupt Timer on Freescale Vybrid Family SoCs.
 
+config NXP_GLOBAL_TIME_STM
+	tristate "NXP S32CC Global Time Source at SoC Level"
+	help
+	  Support for universal timestamps on NXP S32CC SoCs. The driver
+	  allows the Linux core to initiate a global timer, which can be
+	  read from any other core on the SoC as well as to read the value
+	  of that timer. Other cores can initialize that timer as well.
+
+config NXP_STM_TIMER
+	bool "NXP System Timer Module driver"
+	select CLKSRC_MMIO
+	help
+	  Support for NXP System Timer Module.
+
 config OXNAS_RPS_TIMER
 	bool "Oxford Semiconductor OXNAS RPS Timers driver" if COMPILE_TEST
 	select TIMER_OF

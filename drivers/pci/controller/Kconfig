@@ -50,6 +50,60 @@ config PCI_IXP4XX
 	  Say Y here if you want support for the PCI host controller found
 	  in the Intel IXP4xx XScale-based network processor SoC.
 
+config PCI_S32CC
+	bool "NXP S32CC PCIe Host controller"
+	depends on OF && ARM64
+	depends on SOC_S32CC
+	select PCIEPORTBUS
+	select PCIE_DW
+	help
+	If you're using a S32CC based board, either in Root Complex
+	or EP mode, you should enable this.
+	Otherwise you should set it to 'no'
+
+config PCI_S32CC_IOCTL_LIMIT_ONE_ENDPOINT
+	bool "Limit ioctl configuration to one endpoint"
+	depends on PCI_S32CC
+	default false
+	help
+	Use this with legacy test applications which can only handle one endpoint.
+
+config PCI_S32CC_EP_MSI
+	bool "Enable MSI support in EP mode for S32CC PCIe"
+	depends on PCI_S32CC && PCI_MSI
+	help
+	  Experimental: Enable MSI support in EP mode for S32CC PCIe.
+	  This is not enforced by PCIe standard, but all the required registers
+	  are there for the EP mode too.
+
+config PCI_S32CC_DEBUG
+	bool "Enable basic debug by printing for S32CC PCIe module"
+	depends on PCI_S32CC
+	help
+	  Enable basic debug by printing for S32CC PCIe module.
+
+config PCI_S32CC_DEBUG_WRITES
+	bool "Enable dumping register writes performed by the S32CC PCIe module"
+	depends on PCI_S32CC && PCI_S32CC_DEBUG
+	help
+	Enable dumping register writes performed by the S32CC PCIe module.
+	Register writes done by the DW code is not dumped.
+
+config PCI_DW_DMA
+	bool "Freescale S32CC PCIe DW DMA"
+	depends on OF && ARM64 && PCI_S32CC
+	help
+	If you're using a S32CC based board and want to use
+	Internal DMA engine in PCIe mode, you want this enabled.
+	Otherwise you should set it to 'no'
+
+config PCIE_DMA_MAX_SIZE
+	depends on PCI_DW_DMA
+	hex
+	default 0x400000
+	help
+	  Freescale S32CC PCIe DW DMA max size.
+
 config PCI_TEGRA
 	bool "NVIDIA Tegra PCIe controller"
 	depends on ARCH_TEGRA || COMPILE_TEST

@@ -323,6 +323,10 @@ static void stmmac_clk_csr_set(struct stmmac_priv *priv)
 			priv->clk_csr = STMMAC_CSR_150_250M;
 		else if ((clk_rate >= CSR_F_250M) && (clk_rate <= CSR_F_300M))
 			priv->clk_csr = STMMAC_CSR_250_300M;
+		else if ((clk_rate >= CSR_F_300M) && (clk_rate < CSR_F_500M))
+			priv->clk_csr = STMMAC_CSR_300_500M;
+		else if ((clk_rate >= CSR_F_500M) && (clk_rate < CSR_F_800M))
+			priv->clk_csr = STMMAC_CSR_500_800M;
 	}
 
 	if (priv->plat->has_sun8i) {
@@ -887,7 +891,8 @@ static int stmmac_init_ptp(struct stmmac_priv *priv)
 	if (priv->plat->ptp_clk_freq_config)
 		priv->plat->ptp_clk_freq_config(priv);
 
-	ret = stmmac_init_tstamp_counter(priv, STMMAC_HWTS_ACTIVE);
+	ret = stmmac_init_tstamp_counter(priv, STMMAC_HWTS_ACTIVE |
+			(priv->plat->ext_sys_time ? PTP_TCR_ESTI : 0));
 	if (ret)
 		return ret;
 
@@ -943,10 +948,37 @@ static struct phylink_pcs *stmmac_mac_select_pcs(struct phylink_config *config,
 	return &priv->hw->xpcs->pcs;
 }
 
+static void stmmac_mac_pcs_get_state(struct phylink_config *config,
+				     struct phylink_link_state *state)
+{
+	struct stmmac_priv *priv = netdev_priv(to_net_dev(config->dev));
+	struct dw_xpcs *xpcs;
+
+	if (!priv->hw->xpcs)
+		return;
+
+	xpcs = priv->hw->xpcs;
+
+	if (xpcs->pcs.ops->pcs_get_state) {
+		state->link = 0;
+		xpcs->pcs.ops->pcs_get_state(&xpcs->pcs, state);
+	}
+}
+
 static void stmmac_mac_config(struct phylink_config *config, unsigned int mode,
 			      const struct phylink_link_state *state)
 {
-	/* Nothing to do, xpcs_config() handles everything */
+	struct stmmac_priv *priv = netdev_priv(to_net_dev(config->dev));
+	struct dw_xpcs *xpcs;
+
+	if (!priv->hw->xpcs)
+		return;
+
+	xpcs = priv->hw->xpcs;
+
+	if (xpcs->pcs.ops->pcs_config)
+		xpcs->pcs.ops->pcs_config(&xpcs->pcs, mode, state->interface,
+					  state->advertising, false);
 }
 
 static void stmmac_fpe_link_state_handle(struct stmmac_priv *priv, bool is_up)
@@ -1090,6 +1122,7 @@ static void stmmac_mac_link_up(struct phylink_config *config,
 
 static const struct phylink_mac_ops stmmac_phylink_mac_ops = {
 	.validate = phylink_generic_validate,
+	.mac_pcs_get_state = stmmac_mac_pcs_get_state,
 	.mac_select_pcs = stmmac_mac_select_pcs,
 	.mac_config = stmmac_mac_config,
 	.mac_link_down = stmmac_mac_link_down,
@@ -3855,6 +3888,9 @@ static int __stmmac_open(struct net_device *dev,
 	netif_tx_start_all_queues(priv->dev);
 	stmmac_enable_all_dma_irq(priv);
 
+	/* Indicate that the MAC is responsible for PHY PM */
+	dev->phydev->mac_managed_pm = true;
+
 	return 0;
 
 irq_error:
@@ -5212,6 +5248,7 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
 	}
 	while (count < limit) {
 		unsigned int buf1_len = 0, buf2_len = 0;
+		unsigned int fcs_len_in_buf1, fcs_len_in_buf2;
 		enum pkt_hash_types hash_type;
 		struct stmmac_rx_buffer *buf;
 		struct dma_desc *np, *p;
@@ -5294,13 +5331,13 @@ read_again:
 
 		/* ACS is disabled; strip manually. */
 		if (likely(!(status & rx_not_ls))) {
-			if (buf2_len) {
-				buf2_len -= ETH_FCS_LEN;
-				len -= ETH_FCS_LEN;
-			} else if (buf1_len) {
-				buf1_len -= ETH_FCS_LEN;
-				len -= ETH_FCS_LEN;
-			}
+			fcs_len_in_buf2 = min_t(unsigned int, ETH_FCS_LEN, buf2_len);
+			fcs_len_in_buf1 = min_t(unsigned int,
+						ETH_FCS_LEN - fcs_len_in_buf2, buf1_len);
+
+			buf2_len -= fcs_len_in_buf2;
+			buf1_len -= fcs_len_in_buf1;
+			len -= ETH_FCS_LEN;
 		}
 
 		if (!skb) {

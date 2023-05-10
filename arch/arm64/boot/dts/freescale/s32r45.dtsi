@@ -1,0 +1,306 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright 2017-2023 NXP
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+
+#include "s32cc.dtsi"
+#include <dt-bindings/clock/s32r45-scmi-clock.h>
+#include <dt-bindings/mux/nxp-s32r45-can-ts.h>
+
+/ {
+	compatible = "nxp,s32r45";
+
+	aliases {
+		can4 = &can4;
+	};
+
+	reserved-memory {
+		ddr_errata_reserved: ddr@85000000 {
+			reg = <0x0 0x85000000 0x0 0x1000>; /* 4 KB */
+			no-map;
+		};
+	};
+
+	soc {
+		siul2@4009c000 {
+			compatible = "simple-mfd";
+			status = "okay";
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+				 /* MIDR */
+			ranges = <MIDR_SIUL2_0 0 0x0 0x4009c000 0x0 0x10>,
+				 <MIDR_SIUL2_1 0 0x0 0x4403c000 0x0 0x10>,
+
+				 /* MSCR 0-101 */
+				 <MSCRS_SIUL2_0 0 0x0 0x4009c240 0x0 0x198>,
+				 /* MSCR 102-133 */
+				 <MSCRS_SIUL2_1 0 0x0 0x4403c3d8 0x0 0x80>,
+
+				 /* IMCR range 512–595 */
+				 <IMCRS_SIUL2_0 0 0x0 0x4009ca40 0x0 0x150>,
+				 /* IMCR range 603 - 695 */
+				 <IMCRS_SIUL2_1_0 0 0x0 0x4403cbac 0x0 0x174>,
+				 /* IMCR range 696 - 727 (EIRQs) */
+				 <IMCRS_SIUL2_1_EIRQS 0 0x0 0x4403cd20 0x0 0x80>,
+				 /* IMCR range 728 - 785 */
+				 <IMCRS_SIUL2_1_1 0 0x0 0x4403cda0 0x0 0xe8>,
+
+				 /* Output pads */
+				 <OPADS_SIUL2_0 0 0x0 0x4009d700 0x0 0x10>,
+				 <OPADS_SIUL2_1 0 0x0 0x4403d700 0x0 0x14>,
+
+				 /* Input pads */
+				 <IPADS_SIUL2_0 0 0x0 0x4009d740 0x0 0x10>,
+				 <IPADS_SIUL2_1 0 0x0 0x4403d740 0x0 0x14>,
+
+				/* EIRQs */
+				 <EIRQS_SIUL2_1 0 0x0 0x4403c010 0x0 0xb4>;
+
+			pinctrl: siul2-pinctrl@4009c240 {
+				compatible = "nxp,s32r45-siul2-pinctrl";
+				#pinctrl-cells = <2>;
+
+				reg = <MSCRS_SIUL2_0   0 0x0 0x198>,
+				      <MSCRS_SIUL2_1   0 0x0 0x80>,
+				      <IMCRS_SIUL2_0   0 0x0 0x150>,
+				      <IMCRS_SIUL2_1_0 0 0x0 0x174>,
+				      <IMCRS_SIUL2_1_1 0 0x0 0xe8>;
+
+				/* MSCR range */
+				nxp,pins = <0   101
+					    102 133
+				/* IMCR range */
+					    512 595
+					    603 695
+					    728 785>;
+				status = "okay";
+			};
+
+			gpio: siul2-gpio@4009d700 {
+				compatible = "nxp,s32r-siul2-gpio", "nxp,s32cc-siul2-gpio";
+
+				reg = <OPADS_SIUL2_0       0 0x0 0x10>,
+				      <OPADS_SIUL2_1       0 0x0 0x14>,
+				      <IPADS_SIUL2_0       0 0x0 0x10>,
+				      <IPADS_SIUL2_1       0 0x0 0x14>,
+				      <EIRQS_SIUL2_1       0 0x0 0xb4>,
+				      <IMCRS_SIUL2_1_EIRQS 0 0x0 0x80>;
+				reg-names = "opads0", "opads1", "ipads0",
+					    "ipads1", "eirqs", "eirq-imcrs";
+
+				#gpio-cells = <2>;
+				gpio-controller;
+					/* GPIO 0-101 */
+				gpio-ranges = <&pinctrl 0   0   102>,
+					/* GPIO 102-133 */
+					      <&pinctrl 102 102 32>;
+
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupts = <GIC_SPI 237 IRQ_TYPE_LEVEL_HIGH>;
+				status = "okay";
+			};
+
+			nvram1: nvram@4403C000 {
+				compatible = "nxp,s32cc-siul2_1-nvmem";
+				reg = <MIDR_SIUL2_1 0 0x0 0x10>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				status = "okay";
+				serdes_presence: serdes_presence@0 {
+					reg = <SERDES_PRESENCE_OFFSET NVRAM_CELL_SIZE>;
+				};
+			};
+		};
+
+		can4: flexcan@44000000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x44000000 0x0 0x4000>;
+			interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 194 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		can5: flexcan@44004000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x44004000 0x0 0x4000>;
+			interrupts = <GIC_SPI 196 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 199 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		can6: flexcan@44008000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x44008000 0x0 0x4000>;
+			interrupts = <GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 203 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		can7: flexcan@4400c000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x4400c000 0x0 0x4000>;
+			interrupts = <GIC_SPI 204 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 206 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 207 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		gmac1: ethernet@44010000 {
+			compatible = "nxp,s32cc-dwmac";
+			reg = <0x0 0x44010000 0x0 0x2000>, /* gmac IP */
+			      <0x0 0x4007ca00 0x0 0x4>;    /* S32 CTRL_STS reg */
+			dma-coherent;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 220 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			tx-fifo-depth = <20480>;
+			rx-fifo-depth = <20480>;
+			phy-names = "gmac_xpcs";
+			phys = <&serdes1 PHY_TYPE_XPCS 0 0>;
+			snps,mtl-rx-config = <&mtl_rx_setup_gmac1>;
+			snps,mtl-tx-config = <&mtl_tx_setup_gmac1>;
+			clocks = <&clks S32R45_SCMI_CLK_GMAC1_AXI>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_AXI>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_SGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_RGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_RMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_MII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_SGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_RGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_RMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_MII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TS>;
+			clock-names = "stmmaceth", "pclk",
+				      "tx_sgmii", "tx_rgmii",
+				      "tx_rmii", "tx_mii",
+				      "rx_sgmii", "rx_rgmii",
+				      "rx_rmii", "rx_mii",
+				      "ptp_ref";
+
+			mtl_rx_setup_gmac1: rx-queues-config {
+				snps,rx-queues-to-use = <5>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				queue@0 {
+				};
+
+				queue@1 {
+				};
+
+				queue@2 {
+				};
+
+				queue@3 {
+				};
+
+				queue@4 {
+				};
+			};
+
+			mtl_tx_setup_gmac1: tx-queues-config {
+				snps,tx-queues-to-use = <5>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				queue@0 {
+				};
+
+				queue@1 {
+				};
+
+				queue@2 {
+				};
+
+				queue@3 {
+				};
+
+				queue@4 {
+				};
+			};
+
+			gmac1_mdio: mdio0 {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+	};
+};
+
+&ddr_errata {
+	memory-region = <&ddr_errata_reserved>;
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie1 {
+	interrupts =  <GIC_SPI 209 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 210 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 211 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 212 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 217 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 219 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "link_req_stat", "dma", "msi",
+				"phy_link_down", "phy_link_up", "misc",
+				"pcs", "tlp_req_no_comp";
+	#interrupt-cells = <1>;
+	interrupt-map-mask = <0 0 0 0x7>;
+	interrupt-map = <0 0 0 1 &gic 0 0 0 213 4>,
+				<0 0 0 2 &gic 0 0 0 214 4>,
+				<0 0 0 3 &gic 0 0 0 215 4>,
+				<0 0 0 4 &gic 0 0 0 216 4>;
+	msi-parent = <&gic>;
+};
+
+&ocotp {
+	compatible = "nxp,s32r45-ocotp";
+};
+
+&tmu {
+	compatible = "nxp,s32r45-tmu";
+};
+
+/* Used for FlexCAN timestamping */
+&stm7 {
+	status = "okay";
+};
+
+&can_ts_ctrl {
+	idle-states = <S32R45_CAN_TS_STM7>;
+};

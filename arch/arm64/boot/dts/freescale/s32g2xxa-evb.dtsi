@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * Device Tree file for S32G-VNP-PROC + S32GRV-VNP-PLAT boards
+ *
+ * Copyright 2021-2023 NXP
+ */
+
+/dts-v1/;
+#include "s32g2.dtsi"
+#include "s32gxxxa-evb.dtsi"
+
+/ {
+	model = "NXP S32G2XXX-EVB";
+};
+
+&usdhc0 {
+	no-1-8-v;
+	status = "okay";
+};
+
+&pfe_mdio2 {
+	/* AQR107 on S32G-PROCEVB-S */
+	pfe_mdio_a_phy4: ethernet-phy@4 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <4>;
+	};
+};
+
+&pfe_netif0 {
+	phy-mode = "sgmii";
+	phy-handle = <&pfe_mdio_a_phy4>;
+};

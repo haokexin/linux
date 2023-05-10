@@ -37,6 +37,8 @@ static struct ulpi_info ulpi_ids[] = {
 	ULPI_INFO(ULPI_ID(0x0424, 0x0007), "SMSC USB3320"),
 	ULPI_INFO(ULPI_ID(0x0424, 0x0009), "SMSC USB334x"),
 	ULPI_INFO(ULPI_ID(0x0451, 0x1507), "TI TUSB1210"),
+	ULPI_INFO(ULPI_ID(0x04cc, 0x1508), "NXP SAF1508"),
+	ULPI_INFO(ULPI_ID(0x0483, 0x4f4b), "ST STULPI01A"),
 };
 
 static int ulpi_set_otg_flags(struct usb_phy *phy)

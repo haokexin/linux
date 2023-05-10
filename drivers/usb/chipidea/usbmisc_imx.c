@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * Copyright 2012 Freescale Semiconductor, Inc.
+ * Copyright 2020 NXP
  */
 
 #include <linux/module.h>
@@ -137,6 +138,20 @@
 #define MX6_USB_OTG_WAKEUP_BITS (MX6_BM_WAKEUP_ENABLE | MX6_BM_VBUS_WAKEUP | \
 				 MX6_BM_ID_WAKEUP)
 
+#define S32G_WAKEUP_IE	BIT(0)
+#define S32G_CORE_IE	BIT(1)
+#define S32G_PWRFLT		BIT(2)
+#define S32G_WAKEUPIC	BIT(5)
+#define S32G_PWRFLTEN	BIT(7)
+#define S32G_PWRFLTDF	BIT(8)
+#define S32G_WAKEUPIS	BIT(9)
+#define S32G_WAKEUPCTRL	BIT(10)
+#define S32G_WAKEUPEN	BIT(11)
+#define S32G_UCMALLBE	BIT(15)
+
+/* Flags for 'struct imx_usbmisc' */
+#define REINIT_DURING_RESUME	BIT(1)
+
 struct usbmisc_ops {
 	/* It's called once when probe a usb device */
 	int (*init)(struct imx_usbmisc_data *data);
@@ -150,6 +165,7 @@ struct usbmisc_ops {
 	int (*hsic_set_clk)(struct imx_usbmisc_data *data, bool enabled);
 	/* usb charger detection */
 	int (*charger_detection)(struct imx_usbmisc_data *data);
+	u32 flags;
 };
 
 struct imx_usbmisc {
@@ -592,6 +608,63 @@ static int usbmisc_vf610_init(struct imx_usbmisc_data *data)
 	return 0;
 }
 
+static int usbmisc_s32g_set_wakeup
+	(struct imx_usbmisc_data *data, bool enabled)
+{
+	struct imx_usbmisc *usbmisc = dev_get_drvdata(data->dev);
+	unsigned long flags;
+	u32 reg;
+	u32 wake_settings = S32G_WAKEUP_IE | S32G_CORE_IE |
+			S32G_WAKEUPEN | S32G_WAKEUPCTRL;
+
+	spin_lock_irqsave(&usbmisc->lock, flags);
+
+	reg = readl(usbmisc->base);
+	if (enabled)
+		reg |= wake_settings;
+	else
+		reg &= ~wake_settings;
+
+	writel(reg, usbmisc->base);
+	spin_unlock_irqrestore(&usbmisc->lock, flags);
+
+	return 0;
+}
+
+static int usbmisc_s32g_init(struct imx_usbmisc_data *data,
+			     bool en_all_byte)
+{
+	struct imx_usbmisc *usbmisc = dev_get_drvdata(data->dev);
+	unsigned long flags;
+	u32 reg;
+
+	spin_lock_irqsave(&usbmisc->lock, flags);
+
+	reg = readl(usbmisc->base);
+
+	reg |= S32G_PWRFLTEN;
+	if (en_all_byte)
+		reg |= S32G_UCMALLBE;
+
+	writel(reg, usbmisc->base);
+
+	spin_unlock_irqrestore(&usbmisc->lock, flags);
+	usbmisc_s32g_set_wakeup(data, false);
+
+	return 0;
+}
+
+static int usbmisc_s32g2_init(struct imx_usbmisc_data *data)
+{
+	/* Enable workaround for ERR050474 */
+	return usbmisc_s32g_init(data, true);
+}
+
+static int usbmisc_s32g3_init(struct imx_usbmisc_data *data)
+{
+	return usbmisc_s32g_init(data, false);
+}
+
 static int usbmisc_imx7d_set_wakeup
 	(struct imx_usbmisc_data *data, bool enabled)
 {
@@ -985,6 +1058,18 @@ static const struct usbmisc_ops imx7ulp_usbmisc_ops = {
 	.hsic_set_clk = usbmisc_imx6_hsic_set_clk,
 };
 
+static const struct usbmisc_ops s32g2_usbmisc_ops = {
+	.init = usbmisc_s32g2_init,
+	.set_wakeup = usbmisc_s32g_set_wakeup,
+	.flags = REINIT_DURING_RESUME,
+};
+
+static const struct usbmisc_ops s32g3_usbmisc_ops = {
+	.init = usbmisc_s32g3_init,
+	.set_wakeup = usbmisc_s32g_set_wakeup,
+	.flags = REINIT_DURING_RESUME,
+};
+
 static inline bool is_imx53_usbmisc(struct imx_usbmisc_data *data)
 {
 	struct imx_usbmisc *usbmisc = dev_get_drvdata(data->dev);
@@ -1009,30 +1094,29 @@ EXPORT_SYMBOL_GPL(imx_usbmisc_init);
 int imx_usbmisc_init_post(struct imx_usbmisc_data *data)
 {
 	struct imx_usbmisc *usbmisc;
+	int ret = 0;
 
 	if (!data)
 		return 0;
 
 	usbmisc = dev_get_drvdata(data->dev);
-	if (!usbmisc->ops->post)
-		return 0;
-	return usbmisc->ops->post(data);
+	if (usbmisc->ops->post)
+		ret = usbmisc->ops->post(data);
+	if (ret) {
+		dev_err(data->dev, "post init failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	if (usbmisc->ops->set_wakeup)
+		ret = usbmisc->ops->set_wakeup(data, false);
+	if (ret) {
+		dev_err(data->dev, "set_wakeup failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(imx_usbmisc_init_post);
-
-int imx_usbmisc_set_wakeup(struct imx_usbmisc_data *data, bool enabled)
-{
-	struct imx_usbmisc *usbmisc;
-
-	if (!data)
-		return 0;
-
-	usbmisc = dev_get_drvdata(data->dev);
-	if (!usbmisc->ops->set_wakeup)
-		return 0;
-	return usbmisc->ops->set_wakeup(data, enabled);
-}
-EXPORT_SYMBOL_GPL(imx_usbmisc_set_wakeup);
 
 int imx_usbmisc_hsic_set_connect(struct imx_usbmisc_data *data)
 {
@@ -1047,20 +1131,6 @@ int imx_usbmisc_hsic_set_connect(struct imx_usbmisc_data *data)
 	return usbmisc->ops->hsic_set_connect(data);
 }
 EXPORT_SYMBOL_GPL(imx_usbmisc_hsic_set_connect);
-
-int imx_usbmisc_hsic_set_clk(struct imx_usbmisc_data *data, bool on)
-{
-	struct imx_usbmisc *usbmisc;
-
-	if (!data)
-		return 0;
-
-	usbmisc = dev_get_drvdata(data->dev);
-	if (!usbmisc->ops->hsic_set_clk || !data->hsic)
-		return 0;
-	return usbmisc->ops->hsic_set_clk(data, on);
-}
-EXPORT_SYMBOL_GPL(imx_usbmisc_hsic_set_clk);
 
 int imx_usbmisc_charger_detection(struct imx_usbmisc_data *data, bool connect)
 {
@@ -1093,6 +1163,70 @@ int imx_usbmisc_charger_detection(struct imx_usbmisc_data *data, bool connect)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(imx_usbmisc_charger_detection);
+
+int imx_usbmisc_suspend(struct imx_usbmisc_data *data, bool wakeup)
+{
+	struct imx_usbmisc *usbmisc;
+	int ret = 0;
+
+	if (!data)
+		return 0;
+
+	usbmisc = dev_get_drvdata(data->dev);
+
+	if (wakeup && usbmisc->ops->set_wakeup)
+		ret = usbmisc->ops->set_wakeup(data, true);
+	if (ret) {
+		dev_err(data->dev, "set_wakeup failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	if (usbmisc->ops->hsic_set_clk && data->hsic)
+		ret = usbmisc->ops->hsic_set_clk(data, false);
+	if (ret) {
+		dev_err(data->dev, "set_wakeup failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(imx_usbmisc_suspend);
+
+int imx_usbmisc_resume(struct imx_usbmisc_data *data, bool wakeup)
+{
+	struct imx_usbmisc *usbmisc;
+	int ret = 0;
+
+	if (!data)
+		return 0;
+
+	usbmisc = dev_get_drvdata(data->dev);
+
+	if (usbmisc->ops->flags & REINIT_DURING_RESUME && usbmisc->ops->init)
+		usbmisc->ops->init(data);
+
+	if (wakeup && usbmisc->ops->set_wakeup)
+		ret = usbmisc->ops->set_wakeup(data, false);
+	if (ret) {
+		dev_err(data->dev, "set_wakeup failed, ret=%d\n", ret);
+		return ret;
+	}
+
+	if (usbmisc->ops->hsic_set_clk && data->hsic)
+		ret = usbmisc->ops->hsic_set_clk(data, true);
+	if (ret) {
+		dev_err(data->dev, "set_wakeup failed, ret=%d\n", ret);
+		goto hsic_set_clk_fail;
+	}
+
+	return 0;
+
+hsic_set_clk_fail:
+	if (wakeup && usbmisc->ops->set_wakeup)
+		usbmisc->ops->set_wakeup(data, true);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(imx_usbmisc_resume);
 
 static const struct of_device_id usbmisc_imx_dt_ids[] = {
 	{
@@ -1138,6 +1272,14 @@ static const struct of_device_id usbmisc_imx_dt_ids[] = {
 	{
 		.compatible = "fsl,imx7ulp-usbmisc",
 		.data = &imx7ulp_usbmisc_ops,
+	},
+	{
+		.compatible = "nxp,s32g2-usbmisc",
+		.data = &s32g2_usbmisc_ops,
+	},
+	{
+		.compatible = "nxp,s32g3-usbmisc",
+		.data = &s32g3_usbmisc_ops,
 	},
 	{ /* sentinel */ }
 };

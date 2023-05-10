@@ -23,7 +23,7 @@ properties:
     oneOf:
       - const: fsl,s32v234-linflexuart
       - items:
-          - const: nxp,s32g2-linflexuart
+          - const: nxp,s32cc-linflexuart
           - const: fsl,s32v234-linflexuart
 
   reg:
@@ -32,17 +32,66 @@ properties:
   interrupts:
     maxItems: 1
 
+  clocks:
+    items:
+      - description: lin clock
+      - description: ipg clock
+
+  clock-names:
+    items:
+      - const: lin
+      - const: ipg
+
+  dmas:
+    items:
+      - description: DMA controller phandle and request line for RX
+      - description: DMA controller phandle and request line for TX
+
+  dma-names:
+    items:
+      - const: rx
+      - const: tx
+
+  rs485-rts-active-low: true
+  linux,rs485-enabled-at-boot-time: true
+
 required:
   - compatible
   - reg
   - interrupts
+  - clocks
+  - clock-names
 
 unevaluatedProperties: false
 
 examples:
   - |
+    #include <dt-bindings/clock/s32cc-scmi-clock.h>
+
+    #define S32V234_CLK_LIN0 131
+    #define S32V234_CLK_LIN0_IPG 132
+
+    serial@401c8000 {
+        compatible = "nxp,s32cc-linflexuart";
+        reg = <0x401C8000 0x3000>;
+        interrupts = <0 82 1>;
+        clocks = <&clks S32CC_SCMI_CLK_LINFLEX_LIN>,
+                 <&clks S32CC_SCMI_CLK_LINFLEX_XBAR>;
+        clock-names = "lin", "ipg";
+        dmas = <&edma0 0 4>,
+               <&edma0 0 3>;
+        dma-names = "rx", "tx";
+    };
+
+  - |
     serial@40053000 {
         compatible = "fsl,s32v234-linflexuart";
         reg = <0x40053000 0x1000>;
         interrupts = <0 59 4>;
+        clocks = <&clks S32V234_CLK_LIN0>,
+                 <&clks S32V234_CLK_LIN0_IPG>;
+        clock-names = "lin", "ipg";
+        dmas = <&edma 0 20>,
+               <&edma 0 19>;
+        dma-names = "rx", "tx";
     };
