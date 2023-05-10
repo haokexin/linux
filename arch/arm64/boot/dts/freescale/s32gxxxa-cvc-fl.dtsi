@@ -213,7 +213,7 @@
 &can3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&can3_pins>;
-	status = "okay";
+	status = "disabled";
 };
 
 &fccu {
