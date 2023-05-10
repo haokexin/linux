@@ -31,11 +31,13 @@
 };
 
 &qspi {
-	status = "okay";
+	/* We don't support HyperFlash in linux */
+	status = "disabled";
 };
 
 &gmac0 {
-	status = "okay";
+	/* Before enabling SJA1110, set it to be "disabled" */
+	status = "disabled";
 	phy-mode = "rgmii";
 	phy-handle = <&gmac0_mdio_c_phy19>;
 	pinctrl-names = "default";
