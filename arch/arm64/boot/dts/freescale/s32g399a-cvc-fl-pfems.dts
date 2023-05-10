@@ -7,8 +7,17 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
- * Based on s32g399a-rdb3.dts
+ * Based on s32g399a-rdb3-pfems.dts
  */
 
 /dts-v1/;
 #include "s32g399a-cvc-fl.dtsi"
+#include "s32g-pfe-slave.dtsi"
+
+&pfe_aux0 {
+	status = "okay";
+};
+
+&pfesl_aux0 {
+	status = "okay";
+};
