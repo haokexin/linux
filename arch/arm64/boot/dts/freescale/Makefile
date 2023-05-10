@@ -135,6 +135,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mm-venice-gw73xx-0x-rs232-rts.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-venice-gw73xx-0x-rs422.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-venice-gw73xx-0x-rs485.dtb
 
+dtb-$(CONFIG_ARCH_S32) += s32g399a-cvc-fl.dtb
+dtb-$(CONFIG_ARCH_S32) += s32g399a-cvc-fl-pfems.dtb
 dtb-$(CONFIG_ARCH_S32) += s32g274a-bluebox3.dtb
 dtb-$(CONFIG_ARCH_S32) += s32g2xxa-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += s32g2xxa-evb-pfems.dtb
@@ -154,4 +156,3 @@ dtb-$(CONFIG_ARCH_S32) += s32g399a-emu.dtb
 dtb-$(CONFIG_ARCH_S32) += s32r45-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += s32r45-emu.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb
-dtb-$(CONFIG_ARCH_S32) += s32g399a-cvc-fl.dtb
