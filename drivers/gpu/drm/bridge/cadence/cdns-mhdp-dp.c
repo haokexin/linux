@@ -233,21 +233,13 @@ static int cdns_mhdp_get_training_status(struct cdns_mhdp_device *mhdp)
 	if (ret)
 		goto err_get_training_status;
 
-	if (of_machine_is_compatible("fsl,ls1028a-rdb"))
-		ret = cdns_mhdp_mailbox_validate_receive(mhdp, MB_MODULE_ID_DP_TX,
-							DPTX_READ_LINK_STAT,
-							sizeof(status) - 3);
-	else
-		ret = cdns_mhdp_mailbox_validate_receive(mhdp, MB_MODULE_ID_DP_TX,
-							DPTX_READ_LINK_STAT,
-							sizeof(status));
+	ret = cdns_mhdp_mailbox_validate_receive(mhdp, MB_MODULE_ID_DP_TX,
+						 DPTX_READ_LINK_STAT,
+						 sizeof(status));
 	if (ret)
 		goto err_get_training_status;
 
-	if (of_machine_is_compatible("fsl,ls1028a-rdb"))
-		ret = cdns_mhdp_mailbox_read_receive(mhdp, status, sizeof(status) - 3);
-	else
-		ret = cdns_mhdp_mailbox_read_receive(mhdp, status, sizeof(status));
+	ret = cdns_mhdp_mailbox_read_receive(mhdp, status, sizeof(status));
 	if (ret)
 		goto err_get_training_status;
 
