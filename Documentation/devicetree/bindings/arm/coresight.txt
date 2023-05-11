@@ -132,8 +132,8 @@ its hardware characteristcs.
 	  the setting supports one data transfer per burst up to a maximum of
 	  16 data transfers per burst.
 
-	* memory-region: Phandle to reserved memory node which is used to store
-	  the ETR trace data.
+	* memory-region: Phandle to reserved memory node which is used to
+	  capture ETR trace data or sync ETF trace data during panic.
 
 	* metadata-region: Physical base address and length of the register
 	  snapshot. This metadata is used to read the trace data from the
