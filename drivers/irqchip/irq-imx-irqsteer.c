@@ -272,6 +272,7 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, data);
 
 	pm_runtime_enable(&pdev->dev);
+	pm_runtime_forbid(&pdev->dev);
 
 	return 0;
 out:
