@@ -3481,6 +3481,7 @@ static int spi_nor_init(struct spi_nor *nor)
 			nor->spimem->spi->cs_index_mask = SPI_NOR_ENABLE_MULTI_CS;
 			params = spi_nor_get_params(nor, 0);
 			params->set_4byte_addr_mode(nor, true);
+			params->addr_mode_nbytes = 4;
 		} else {
 			for (idx = 0; idx < SNOR_FLASH_CNT_MAX; idx++) {
 				params = spi_nor_get_params(nor, idx);
@@ -3493,6 +3494,7 @@ static int spi_nor_init(struct spi_nor *nor)
 					err = params->set_4byte_addr_mode(nor, true);
 					if (err && err != -ENOTSUPP)
 						return err;
+					params->addr_mode_nbytes = 4;
 				}
 			}
 		}
