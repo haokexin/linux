@@ -523,13 +523,8 @@ static void rvu_rpm_set_channels(struct rvu *rvu)
 	struct rvu_hwinfo *hw = rvu->hw;
 	u16 base = hw->cgx_chan_base;
 	int cgx, lmac;
-	void *cgxd;
 
 	for (cgx = 0; cgx < rvu->cgx_cnt_max; cgx++) {
-		cgxd = rvu_cgx_pdata(cgx, rvu);
-		if (!cgxd)
-			continue;
-
 		for (lmac = 0; lmac < hw->lmac_per_cgx; lmac++) {
 			__rvu_rpm_set_channels(cgx, lmac, base);
 			base += 16;
