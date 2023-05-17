@@ -1729,6 +1729,7 @@ int otx2_open(struct net_device *netdev)
 	/* RQ and SQs are mapped to different CQs,
 	 * so find out max CQ IRQs (i.e CINTs) needed.
 	 */
+	pf->hw.tot_tx_queues = pf->hw.tx_queues + pf->hw.xdp_queues;
 	pf->hw.cint_cnt = max(pf->hw.rx_queues, pf->hw.tx_queues);
 	pf->hw.cint_cnt = max_t(u8, pf->hw.cint_cnt, pf->hw.tc_tx_queues);
 	pf->qset.cq_cnt = pf->hw.rx_queues + pf->hw.tot_tx_queues + pf->hw.tc_tx_queues;
@@ -2730,8 +2731,6 @@ static int otx2_xdp_setup(struct otx2_nic *pf, struct bpf_prog *prog)
 		pf->hw.xdp_queues = pf->hw.rx_queues;
 	else
 		pf->hw.xdp_queues = 0;
-
-	pf->hw.tot_tx_queues += pf->hw.xdp_queues;
 
 	if (if_up)
 		otx2_open(pf->netdev);
