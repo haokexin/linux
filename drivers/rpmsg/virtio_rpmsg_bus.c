@@ -30,44 +30,6 @@
 
 #include "rpmsg_internal.h"
 
-/**
- * struct virtproc_info - virtual remote processor state
- * @vdev:	the virtio device
- * @rvq:	rx virtqueue
- * @svq:	tx virtqueue
- * @rbufs:	kernel address of rx buffers
- * @sbufs:	kernel address of tx buffers
- * @num_bufs:	total number of buffers for rx and tx
- * @buf_size:   size of one rx or tx buffer
- * @last_sbuf:	index of last tx buffer used
- * @bufs_dma:	dma base addr of the buffers
- * @tx_lock:	protects svq, sbufs and sleepers, to allow concurrent senders.
- *		sending a message might require waking up a dozing remote
- *		processor, which involves sleeping, hence the mutex.
- * @endpoints:	idr of local endpoints, allows fast retrieval
- * @endpoints_lock: lock of the endpoints set
- * @sendq:	wait queue of sending contexts waiting for a tx buffers
- * @sleepers:	number of senders that are waiting for a tx buffer
- *
- * This structure stores the rpmsg state of a given virtio remote processor
- * device (there might be several virtio proc devices for each physical
- * remote processor).
- */
-struct virtproc_info {
-	struct virtio_device *vdev;
-	struct virtqueue *rvq, *svq;
-	void *rbufs, *sbufs;
-	unsigned int num_bufs;
-	unsigned int buf_size;
-	int last_sbuf;
-	dma_addr_t bufs_dma;
-	struct mutex tx_lock;
-	struct idr endpoints;
-	struct mutex endpoints_lock;
-	wait_queue_head_t sendq;
-	atomic_t sleepers;
-};
-
 /* The feature bitmap for virtio rpmsg */
 #define VIRTIO_RPMSG_F_NS	0 /* RP supports name service notifications */
 
@@ -245,6 +207,9 @@ static struct rpmsg_endpoint *__rpmsg_create_ept(struct virtproc_info *vrp,
 		goto free_ept;
 	}
 	ept->addr = id;
+	ept->cb_lockdep_class = ((ept->addr == RPMSG_NS_ADDR) ?
+				 RPMSG_LOCKDEP_SUBCLASS_NS :
+				 RPMSG_LOCKDEP_SUBCLASS_NORMAL);
 
 	mutex_unlock(&vrp->endpoints_lock);
 
@@ -303,7 +268,7 @@ __rpmsg_destroy_ept(struct virtproc_info *vrp, struct rpmsg_endpoint *ept)
 	mutex_unlock(&vrp->endpoints_lock);
 
 	/* make sure in-flight inbound messages won't invoke cb anymore */
-	mutex_lock(&ept->cb_lock);
+	mutex_lock_nested(&ept->cb_lock, ept->cb_lockdep_class);
 	ept->cb = NULL;
 	mutex_unlock(&ept->cb_lock);
 
@@ -381,6 +346,24 @@ static void virtio_rpmsg_release_device(struct device *dev)
 	kfree(vch);
 }
 
+static int virtio_rpmsg_desc_match(struct device *dev, void *data)
+{
+	struct rpmsg_channel_info *chinfo = data;
+	struct rpmsg_device *rpdev = to_rpmsg_device(dev);
+
+	if (!*chinfo->desc)
+		return 0;
+
+	if (strncmp(chinfo->name, rpdev->id.name, RPMSG_NAME_SIZE))
+		return 0;
+
+	if (strncmp(chinfo->desc, rpdev->desc, RPMSG_NAME_SIZE))
+		return 0;
+
+	/* found a match ! */
+	return 1;
+}
+
 /*
  * create an rpmsg channel using its name and address info.
  * this function will be used to create both static and dynamic
@@ -401,6 +384,15 @@ static struct rpmsg_device *__rpmsg_create_channel(struct virtproc_info *vrp,
 		put_device(tmp);
 		dev_err(dev, "channel %s:%x:%x already exist\n",
 				chinfo->name, chinfo->src, chinfo->dst);
+		return NULL;
+	}
+
+	tmp = device_find_child(dev, chinfo, virtio_rpmsg_desc_match);
+	if (tmp) {
+		/* decrement the matched device's refcount back */
+		put_device(tmp);
+		dev_err(dev, "channel %s:%x:%x failed, desc '%s' already exists\n",
+			chinfo->name, chinfo->src, chinfo->dst, chinfo->desc);
 		return NULL;
 	}
 
@@ -747,7 +739,7 @@ static int rpmsg_recv_single(struct virtproc_info *vrp, struct device *dev,
 
 	if (ept) {
 		/* make sure ept->cb doesn't go away while we use it */
-		mutex_lock(&ept->cb_lock);
+		mutex_lock_nested(&ept->cb_lock, ept->cb_lockdep_class);
 
 		if (ept->cb)
 			ept->cb(ept->rpdev, msg->data, msg_len, ept->priv,

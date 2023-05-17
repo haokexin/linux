@@ -25,14 +25,20 @@ struct rpmsg_endpoint;
 struct rpmsg_device_ops;
 struct rpmsg_endpoint_ops;
 
+/* lockdep subclasses for use with ept cb_lock mutex nested calls */
+#define RPMSG_LOCKDEP_SUBCLASS_NORMAL   0 /* regular ept cb_lock */
+#define RPMSG_LOCKDEP_SUBCLASS_NS       1 /* name service ept cb_lock */
+
 /**
  * struct rpmsg_channel_info - channel info representation
  * @name: name of service
+ * @desc: description of service
  * @src: local address
  * @dst: destination address
  */
 struct rpmsg_channel_info {
 	char name[RPMSG_NAME_SIZE];
+	char desc[RPMSG_NAME_SIZE];
 	u32 src;
 	u32 dst;
 };
@@ -44,6 +50,7 @@ struct rpmsg_channel_info {
  * @driver_override: driver name to force a match; do not set directly,
  *                   because core frees it; use driver_set_override() to
  *                   set or clear it.
+ * @desc: description of remote service
  * @src: local address
  * @dst: destination address
  * @ept: the rpmsg endpoint of this channel
@@ -54,6 +61,7 @@ struct rpmsg_device {
 	struct device dev;
 	struct rpmsg_device_id id;
 	const char *driver_override;
+	char desc[RPMSG_NAME_SIZE];
 	u32 src;
 	u32 dst;
 	struct rpmsg_endpoint *ept;
@@ -71,6 +79,7 @@ typedef int (*rpmsg_rx_cb_t)(struct rpmsg_device *, void *, int, void *, u32);
  * @refcount: when this drops to zero, the ept is deallocated
  * @cb: rx callback handler
  * @cb_lock: must be taken before accessing/changing @cb
+ * @cb_lockdep_class: mutex lockdep class to be used with @cb_lock
  * @addr: local rpmsg address
  * @priv: private data for the driver's use
  *
@@ -93,6 +102,7 @@ struct rpmsg_endpoint {
 	struct kref refcount;
 	rpmsg_rx_cb_t cb;
 	struct mutex cb_lock;
+	int cb_lockdep_class;
 	u32 addr;
 	void *priv;
 

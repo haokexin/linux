@@ -367,9 +367,38 @@ static int omap_modeset_init_properties(struct drm_device *dev)
 	struct omap_drm_private *priv = dev->dev_private;
 	unsigned int num_planes = dispc_get_num_ovls(priv->dispc);
 
+	static const struct drm_prop_enum_list trans_key_mode_list[] = {
+		{ 0, "disable"},
+		{ 1, "gfx-dst"},
+		{ 2, "vid-src"},
+	};
+
 	priv->zorder_prop = drm_property_create_range(dev, 0, "zorder", 0,
 						      num_planes - 1);
 	if (!priv->zorder_prop)
+		return -ENOMEM;
+
+	/* crtc properties */
+
+	priv->background_color_prop = drm_property_create_range(dev, 0,
+		"background", 0, 0xffffff);
+	if (!priv->background_color_prop)
+		return -ENOMEM;
+
+	priv->trans_key_mode_prop = drm_property_create_enum(dev, 0,
+		"trans-key-mode",
+		trans_key_mode_list, ARRAY_SIZE(trans_key_mode_list));
+	if (!priv->trans_key_mode_prop)
+		return -ENOMEM;
+
+	priv->trans_key_prop = drm_property_create_range(dev, 0, "trans-key",
+		0, 0xffffff);
+	if (!priv->trans_key_prop)
+		return -ENOMEM;
+
+	priv->alpha_blender_prop = drm_property_create_bool(dev, 0,
+		"alpha_blender");
+	if (!priv->alpha_blender_prop)
 		return -ENOMEM;
 
 	return 0;
@@ -784,6 +813,14 @@ static int omapdrm_init(struct omap_drm_private *priv, struct device *dev)
 	drm_kms_helper_poll_init(ddev);
 	omap_modeset_enable_external_hpd(ddev);
 
+	if (priv->dispc_ops->has_writeback(priv->dispc)) {
+		ret = omap_wb_init(ddev);
+		if (ret)
+			dev_warn(priv->dev, "failed to initialize writeback\n");
+		else
+			priv->wb_initialized = true;
+	}
+
 	/*
 	 * Register the DRM device with the core and the connectors with
 	 * sysfs.
@@ -795,7 +832,11 @@ static int omapdrm_init(struct omap_drm_private *priv, struct device *dev)
 	return 0;
 
 err_cleanup_helpers:
+	if (priv->wb_initialized)
+		omap_wb_cleanup(ddev);
+
 	omap_modeset_disable_external_hpd(ddev);
+
 	drm_kms_helper_poll_fini(ddev);
 
 	omap_fbdev_fini(ddev);
@@ -821,6 +862,9 @@ static void omapdrm_cleanup(struct omap_drm_private *priv)
 	DBG("");
 
 	drm_dev_unregister(ddev);
+
+	if (priv->wb_initialized)
+		omap_wb_cleanup(ddev);
 
 	omap_modeset_disable_external_hpd(ddev);
 	drm_kms_helper_poll_fini(ddev);

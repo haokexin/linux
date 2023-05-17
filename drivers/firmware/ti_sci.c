@@ -11,16 +11,19 @@
 #include <linux/bitmap.h>
 #include <linux/debugfs.h>
 #include <linux/export.h>
+#include <linux/firmware.h>
 #include <linux/io.h>
 #include <linux/iopoll.h>
 #include <linux/kernel.h>
 #include <linux/mailbox_client.h>
 #include <linux/module.h>
 #include <linux/of_device.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/soc/ti/ti-msgmgr.h>
 #include <linux/soc/ti/ti_sci_protocol.h>
+#include <linux/suspend.h>
 #include <linux/reboot.h>
 
 #include "ti_sci.h"
@@ -85,10 +88,13 @@ struct ti_sci_desc {
  * @dev:	Device pointer
  * @desc:	SoC description for this instance
  * @nb:	Reboot Notifier block
+ * @pm_nb:	PM notifier block
  * @d:		Debugfs file entry
  * @debug_region: Memory region where the debug message are available
  * @debug_region_size: Debug region size
  * @debug_buffer: Buffer allocated to copy debug messages.
+ * @lpm_region: Memory region where the FS Stub LPM Firmware will be stored
+ * @lpm_region_size: LPM region size
  * @handle:	Instance of TI SCI handle to send to clients.
  * @cl:		Mailbox Client
  * @chan_tx:	Transmit mailbox channel
@@ -96,17 +102,24 @@ struct ti_sci_desc {
  * @minfo:	Message info
  * @node:	list head
  * @host_id:	Host ID
+ * @mem_ctx_lo: Low word of address used for low power context memory
+ * @mem_ctx_hi: High word of address used for low power context memory
  * @users:	Number of users of this instance
  * @is_suspending: Flag set to indicate in suspend path.
+ * @lpm_firmware_loaded: Flag to indicate if LPM firmware has been loaded
+ * @lpm_firmware_name: Name of firmware binary to load from fw search path
  */
 struct ti_sci_info {
 	struct device *dev;
 	struct notifier_block nb;
+	struct notifier_block pm_nb;
 	const struct ti_sci_desc *desc;
 	struct dentry *d;
 	void __iomem *debug_region;
 	char *debug_buffer;
 	size_t debug_region_size;
+	void __iomem *lpm_region;
+	size_t lpm_region_size;
 	struct ti_sci_handle handle;
 	struct mbox_client cl;
 	struct mbox_chan *chan_tx;
@@ -114,14 +127,19 @@ struct ti_sci_info {
 	struct ti_sci_xfers_info minfo;
 	struct list_head node;
 	u8 host_id;
+	u32 mem_ctx_lo;
+	u32 mem_ctx_hi;
 	/* protected by ti_sci_list_mutex */
 	int users;
 	bool is_suspending;
+	bool lpm_firmware_loaded;
+	const char *lpm_firmware_name;
 };
 
 #define cl_to_ti_sci_info(c)	container_of(c, struct ti_sci_info, cl)
 #define handle_to_ti_sci_info(h) container_of(h, struct ti_sci_info, handle)
 #define reboot_to_ti_sci_info(n) container_of(n, struct ti_sci_info, nb)
+#define pm_nb_to_ti_sci_info(n) container_of(n, struct ti_sci_info, pm_nb)
 
 #ifdef CONFIG_DEBUG_FS
 
@@ -1666,6 +1684,65 @@ fail:
 	return ret;
 }
 
+/**
+ * ti_sci_cmd_prepare_sleep() - Prepare system for system suspend
+ * @handle:		pointer to TI SCI handle
+ * @mode:		Device identifier
+ * @ctx_lo:		Low part of address for context save
+ * @ctx_hi:		High part of address for context save
+ * @debug_flags:	Debug flags to pass to firmware
+ *
+ * Return: 0 if all went well, else returns appropriate error value.
+ */
+static int ti_sci_cmd_prepare_sleep(const struct ti_sci_handle *handle, u8 mode,
+				    u32 ctx_lo, u32 ctx_hi, u32 debug_flags)
+{
+	struct ti_sci_info *info;
+	struct ti_sci_msg_req_prepare_sleep *req;
+	struct ti_sci_msg_hdr *resp;
+	struct ti_sci_xfer *xfer;
+	struct device *dev;
+	int ret = 0;
+
+	if (IS_ERR(handle))
+		return PTR_ERR(handle);
+	if (!handle)
+		return -EINVAL;
+
+	info = handle_to_ti_sci_info(handle);
+	dev = info->dev;
+
+	xfer = ti_sci_get_one_xfer(info, TI_SCI_MSG_PREPARE_SLEEP,
+				   TI_SCI_FLAG_REQ_ACK_ON_PROCESSED,
+				   sizeof(*req), sizeof(*resp));
+	if (IS_ERR(xfer)) {
+		ret = PTR_ERR(xfer);
+		dev_err(dev, "Message alloc failed(%d)\n", ret);
+		return ret;
+	}
+
+	req = (struct ti_sci_msg_req_prepare_sleep *)xfer->xfer_buf;
+	req->mode = mode;
+	req->ctx_lo = ctx_lo;
+	req->ctx_hi = ctx_hi;
+	req->debug_flags = debug_flags;
+
+	ret = ti_sci_do_xfer(info, xfer);
+	if (ret) {
+		dev_err(dev, "Mbox send fail %d\n", ret);
+		goto fail;
+	}
+
+	resp = (struct ti_sci_msg_hdr *)xfer->xfer_buf;
+
+	ret = ti_sci_is_response_ack(resp) ? 0 : -ENODEV;
+
+fail:
+	ti_sci_put_one_xfer(&info->minfo, xfer);
+
+	return ret;
+}
+
 static int ti_sci_cmd_core_reboot(const struct ti_sci_handle *handle)
 {
 	struct ti_sci_info *info;
@@ -1692,6 +1769,7 @@ static int ti_sci_cmd_core_reboot(const struct ti_sci_handle *handle)
 		return ret;
 	}
 	req = (struct ti_sci_msg_req_reboot *)xfer->xfer_buf;
+	req->domain = 0;
 
 	ret = ti_sci_do_xfer(info, xfer);
 	if (ret) {
@@ -2807,6 +2885,7 @@ static void ti_sci_setup_ops(struct ti_sci_info *info)
 	struct ti_sci_core_ops *core_ops = &ops->core_ops;
 	struct ti_sci_dev_ops *dops = &ops->dev_ops;
 	struct ti_sci_clk_ops *cops = &ops->clk_ops;
+	struct ti_sci_pm_ops *pmops = &ops->pm_ops;
 	struct ti_sci_rm_core_ops *rm_core_ops = &ops->rm_core_ops;
 	struct ti_sci_rm_irq_ops *iops = &ops->rm_irq_ops;
 	struct ti_sci_rm_ringacc_ops *rops = &ops->rm_ring_ops;
@@ -2845,6 +2924,8 @@ static void ti_sci_setup_ops(struct ti_sci_info *info)
 	cops->get_best_match_freq = ti_sci_cmd_clk_get_match_freq;
 	cops->set_freq = ti_sci_cmd_clk_set_freq;
 	cops->get_freq = ti_sci_cmd_clk_get_freq;
+
+	pmops->prepare_sleep = ti_sci_cmd_prepare_sleep;
 
 	rm_core_ops->get_range = ti_sci_cmd_get_resource_range;
 	rm_core_ops->get_range_from_shost =
@@ -3282,14 +3363,71 @@ static int tisci_reboot_handler(struct notifier_block *nb, unsigned long mode,
 	return NOTIFY_BAD;
 }
 
+static int ti_sci_load_lpm_firmware(struct device *dev, struct ti_sci_info *info)
+{
+	const struct firmware *firmware;
+	int ret = 0;
+
+	/* If no firmware name is set, do not attempt to load. */
+	if (!info->lpm_firmware_name)
+		return 0;
+
+	if (request_firmware_direct(&firmware, info->lpm_firmware_name, dev)) {
+		dev_warn(dev, "Cannot load %s\n", info->lpm_firmware_name);
+		return -ENODEV;
+	}
+
+	if (firmware->size > info->lpm_region_size)
+		return -ENOMEM;
+
+	memcpy_toio(info->lpm_region, firmware->data, firmware->size);
+
+	release_firmware(firmware);
+
+	return ret;
+}
+
 static void ti_sci_set_is_suspending(struct ti_sci_info *info, bool is_suspending)
 {
 	info->is_suspending = is_suspending;
 }
 
+static int __maybe_unused ti_sci_prepare_system_suspend(struct ti_sci_info *info)
+{
+	int ret = -EINVAL;
+	int mode;
+#ifdef CONFIG_SUSPEND
+	switch (pm_suspend_target_state) {
+	case PM_SUSPEND_MEM:
+		mode = TISCI_MSG_VALUE_SLEEP_MODE_DEEP_SLEEP;
+		ret = 0;
+		break;
+	default:
+		ret = -EINVAL;
+	}
+#endif
+	/*
+	 * Do not fail if we don't have action to take for a
+	 * specific suspend mode.
+	 */
+	if (ret)
+		return 0;
+
+	ret = ti_sci_cmd_prepare_sleep(&info->handle, mode, info->mem_ctx_lo,
+				       info->mem_ctx_hi, 0);
+
+	return ret;
+}
+
 static int ti_sci_suspend(struct device *dev)
 {
 	struct ti_sci_info *info = dev_get_drvdata(dev);
+	int ret = 0;
+
+	ret = ti_sci_prepare_system_suspend(info);
+	if (ret)
+		return ret;
+
 	/*
 	 * We must switch operation to polled mode now as drivers and the genpd
 	 * layer may make late TI SCI calls to change clock and device states
@@ -3297,7 +3435,7 @@ static int ti_sci_suspend(struct device *dev)
 	 */
 	ti_sci_set_is_suspending(info, true);
 
-	return 0;
+	return ret;
 }
 
 static int ti_sci_resume(struct device *dev)
@@ -3310,6 +3448,85 @@ static int ti_sci_resume(struct device *dev)
 }
 
 static DEFINE_SIMPLE_DEV_PM_OPS(ti_sci_pm_ops, ti_sci_suspend, ti_sci_resume);
+
+static int tisci_pm_handler(struct notifier_block *nb, unsigned long pm_event,
+			    void *unused)
+{
+	struct ti_sci_info *info = pm_nb_to_ti_sci_info(nb);
+	int ret = NOTIFY_DONE;
+
+	switch (pm_event) {
+	case PM_SUSPEND_PREPARE:
+		if (!info->lpm_firmware_loaded) {
+			ret = ti_sci_load_lpm_firmware(info->dev, info);
+			if (ret) {
+				dev_err(info->dev,
+					"Failed to load low power mode firmware, suspend is non functional (%d)\n",
+					ret);
+				ret = NOTIFY_BAD;
+			} else {
+				info->lpm_firmware_loaded = true;
+			}
+		}
+
+		break;
+	}
+
+	return ret;
+}
+
+static int ti_sci_init_suspend(struct platform_device *pdev, struct ti_sci_info *info)
+{
+	struct device *dev = &pdev->dev;
+	struct device_node *rmem_np;
+	struct reserved_mem *rmem;
+	struct resource *res;
+	int ret;
+
+	rmem_np = of_parse_phandle(dev->of_node, "ti,ctx-memory-region", 0);
+	if (!rmem_np) {
+		dev_warn(dev, "ti,ctx-memory-region is required for suspend but not provided.\n");
+		return -EINVAL;
+	}
+
+	rmem = of_reserved_mem_lookup(rmem_np);
+	of_node_put(rmem_np);
+	if (!rmem)
+		return -EINVAL;
+
+	info->mem_ctx_lo = (rmem->base & 0xFFFFFFFF);
+	info->mem_ctx_hi = (rmem->base >> 32);
+
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "lpm");
+	if (!res) {
+		dev_warn(dev,
+			 "lpm region is required for suspend but not provided.\n");
+		return -EINVAL;
+	}
+
+	info->lpm_region = devm_ioremap_resource(dev, res);
+	if (IS_ERR(info->lpm_region))
+		return PTR_ERR(info->lpm_region);
+	info->lpm_region_size = resource_size(res);
+
+	if (of_property_read_string(dev->of_node, "ti,lpm-firmware-name",
+				    &info->lpm_firmware_name)) {
+		dev_warn(dev,
+			 "ti,lpm-firmware-name is required for suspend but not provided.\n");
+		return -EINVAL;
+	}
+
+	info->pm_nb.notifier_call = tisci_pm_handler;
+	info->pm_nb.priority = 128;
+
+	ret = register_pm_notifier(&info->pm_nb);
+	if (ret) {
+		dev_err(dev, "pm_notifier registration fail(%d)\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
 
 /* Description for K2G */
 static const struct ti_sci_desc ti_sci_pmmc_k2g_desc = {
@@ -3462,6 +3679,23 @@ static int ti_sci_probe(struct platform_device *pdev)
 			goto out;
 		}
 	}
+
+	/*
+	 * Attempt to call prepare_sleep, this will be NAK'd if suspend is not
+	 * supported by firmware in use, in which case we will not attempt to
+	 * init suspend.
+	 */
+	ret = ti_sci_cmd_prepare_sleep(&info->handle, 0, info->mem_ctx_lo,
+				       info->mem_ctx_hi, 0);
+	if (!ret) {
+		ret = ti_sci_init_suspend(pdev, info);
+		if (ret)
+			dev_warn(dev,
+				 "ti_sci_init_suspend failed, mem suspend will be non-functional.\n");
+	}
+
+	/* Suspend is an optional feature, reset return value and continue. */
+	ret = 0;
 
 	dev_info(dev, "ABI: %d.%d (firmware rev 0x%04x '%s')\n",
 		 info->handle.version.abi_major, info->handle.version.abi_minor,

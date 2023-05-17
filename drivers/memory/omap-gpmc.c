@@ -237,6 +237,7 @@ struct gpmc_device {
 	struct notifier_block nb;
 	struct omap3_gpmc_regs context;
 	int nirqs;
+	struct resource *data;
 	unsigned int is_suspended:1;
 	struct resource *data;
 };
@@ -2174,7 +2175,8 @@ static int gpmc_probe_generic_child(struct platform_device *pdev,
 		}
 	}
 
-	if (of_match_node(omap_nand_ids, child)) {
+	if (of_device_is_compatible(child, "ti,omap2-nand") ||
+	    of_node_name_eq(child, "nand")) {
 		/* NAND specific setup */
 		val = 8;
 		of_property_read_u32(child, "nand-bus-width", &val);

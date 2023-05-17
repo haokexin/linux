@@ -470,10 +470,11 @@ static bool cal_ctx_wr_dma_stopped(struct cal_ctx *ctx)
 }
 
 static int
-cal_get_remote_frame_desc_entry(struct cal_camerarx *phy,
+cal_get_remote_frame_desc_entry(struct cal_camerarx *phy, u32 stream,
 				struct v4l2_mbus_frame_desc_entry *entry)
 {
 	struct v4l2_mbus_frame_desc fd;
+	unsigned int i;
 	int ret;
 
 	ret = cal_camerarx_get_remote_frame_desc(phy, &fd);
@@ -484,20 +485,18 @@ cal_get_remote_frame_desc_entry(struct cal_camerarx *phy,
 		return ret;
 	}
 
-	if (fd.num_entries == 0) {
-		dev_err(phy->cal->dev,
-			"No streams found in the remote frame descriptor\n");
-
-		return -ENODEV;
+	for (i = 0; i < fd.num_entries; i++) {
+		if (stream == fd.entry[i].stream) {
+			*entry = fd.entry[i];
+			return 0;
+		}
 	}
 
-	if (fd.num_entries > 1)
-		dev_dbg(phy->cal->dev,
-			"Multiple streams not supported in remote frame descriptor, using the first one\n");
+	dev_err(phy->cal->dev,
+		"Failed to find stream %u from remote frame descriptor\n",
+		stream);
 
-	*entry = fd.entry[0];
-
-	return 0;
+	return -ENODEV;
 }
 
 int cal_ctx_prepare(struct cal_ctx *ctx)
@@ -505,14 +504,15 @@ int cal_ctx_prepare(struct cal_ctx *ctx)
 	struct v4l2_mbus_frame_desc_entry entry;
 	int ret;
 
-	ret = cal_get_remote_frame_desc_entry(ctx->phy, &entry);
+	ret = cal_get_remote_frame_desc_entry(ctx->phy, ctx->stream, &entry);
 
 	if (ret == -ENOIOCTLCMD) {
 		ctx->vc = 0;
 		ctx->datatype = CAL_CSI2_CTX_DT_ANY;
 	} else if (!ret) {
-		ctx_dbg(2, ctx, "Framedesc: len %u, vc %u, dt %#x\n",
-			entry.length, entry.bus.csi2.vc, entry.bus.csi2.dt);
+		ctx_dbg(2, ctx, "Framedesc: stream %u, len %u, vc %u, dt %#x\n",
+			entry.stream, entry.length, entry.bus.csi2.vc,
+			entry.bus.csi2.dt);
 
 		ctx->vc = entry.bus.csi2.vc;
 		ctx->datatype = entry.bus.csi2.dt;
@@ -688,7 +688,6 @@ static inline void cal_irq_wdma_start(struct cal_ctx *ctx)
 static inline void cal_irq_wdma_end(struct cal_ctx *ctx)
 {
 	struct cal_buffer *buf = NULL;
-
 	spin_lock(&ctx->dma.lock);
 
 	/* If the DMA context was stopping, it is now stopped. */
@@ -1044,10 +1043,10 @@ static struct cal_ctx *cal_ctx_create(struct cal_dev *cal, int inst)
 		return NULL;
 
 	ctx->cal = cal;
-	ctx->phy = cal->phy[inst];
 	ctx->dma_ctx = inst;
 	ctx->csi2_ctx = inst;
 	ctx->cport = inst;
+	ctx->stream = 0;
 
 	ret = cal_ctx_v4l2_init(ctx);
 	if (ret) {
@@ -1256,18 +1255,33 @@ static int cal_probe(struct platform_device *pdev)
 	}
 
 	/* Create contexts. */
-	for (i = 0; i < cal->data->num_csi2_phy; ++i) {
-		if (!cal->phy[i]->source_node)
-			continue;
+	if (!cal_mc_api) {
+		for (i = 0; i < cal->data->num_csi2_phy; ++i) {
+			if (!cal->phy[i]->source_node)
+				continue;
 
-		cal->ctx[cal->num_contexts] = cal_ctx_create(cal, i);
-		if (!cal->ctx[cal->num_contexts]) {
-			cal_err(cal, "Failed to create context %u\n", cal->num_contexts);
-			ret = -ENODEV;
-			goto error_context;
+			cal->ctx[cal->num_contexts] = cal_ctx_create(cal, i);
+			if (!cal->ctx[cal->num_contexts]) {
+				cal_err(cal, "Failed to create context %u\n", cal->num_contexts);
+				ret = -ENODEV;
+				goto error_context;
+			}
+
+			cal->ctx[cal->num_contexts]->phy = cal->phy[i];
+
+			cal->num_contexts++;
 		}
+	} else {
+		for (i = 0; i < ARRAY_SIZE(cal->ctx); ++i) {
+			cal->ctx[i] = cal_ctx_create(cal, i);
+			if (!cal->ctx[i]) {
+				cal_err(cal, "Failed to create context %u\n", i);
+				ret = -ENODEV;
+				goto error_context;
+			}
 
-		cal->num_contexts++;
+			cal->num_contexts++;
+		}
 	}
 
 	/* Register the media device. */

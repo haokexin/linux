@@ -1059,6 +1059,38 @@ static const struct display_timing auo_g185han01_timings = {
 	.vsync_len = { 2, 5, 20 },
 };
 
+static const struct drm_display_mode ti_panel_edp_mode = {
+	.clock = 36000,
+	.hdisplay = 800,
+	.hsync_start = 800 + 48,
+	.hsync_end = 800 + 48 + 32,
+	.htotal = 800 + 48 + 32 + 80,
+	.vdisplay = 600,
+	.vsync_start = 600 + 3,
+	.vsync_end = 600 + 3 + 4,
+	.vtotal = 600 + 3 + 4 + 9,
+
+	.crtc_clock = 36000,
+	.crtc_hdisplay = 800,
+	.crtc_hsync_start = 800 + 48,
+	.crtc_hsync_end = 800 + 48 + 32,
+	.crtc_htotal = 800 + 48 + 32 + 80,
+	.crtc_vdisplay = 600,
+	.crtc_vsync_start = 600 + 3,
+	.crtc_vsync_end = 600 + 3 + 4,
+	.crtc_vtotal = 600 + 3 + 4 + 9,
+
+	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+};
+
+static const struct panel_desc ti_panel_edp = {
+	.modes = &ti_panel_edp_mode,
+	.num_modes = 1,
+	.bpc = 8,
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X24,
+	.connector_type = DRM_MODE_CONNECTOR_eDP,
+};
+
 static const struct panel_desc auo_g185han01 = {
 	.timings = &auo_g185han01_timings,
 	.num_timings = 1,
@@ -2761,6 +2793,35 @@ static const struct panel_desc multi_inno_mi1010ait_1cp = {
 	.connector_type = DRM_MODE_CONNECTOR_LVDS,
 };
 
+static const struct drm_display_mode microtips_13_101hieb0hf0_s_mode = {
+	.clock = 150275,
+	.hdisplay = 1920,
+	.hsync_start = 1920 + 32,
+	.hsync_end = 1920 + 32 + 52,
+	.htotal = 1920 + 32 + 52 + 24,
+	.vdisplay = 1200,
+	.vsync_start = 1200 + 24,
+	.vsync_end = 1200 + 24 + 8,
+	.vtotal = 1200 + 24 + 8 + 3,
+};
+
+static const struct panel_desc microtips_13_101hieb0hf0_s = {
+	.modes = &microtips_13_101hieb0hf0_s_mode,
+	.bpc = 8,
+	.num_modes = 1,
+	.size = {
+		.width = 217,
+		.height = 136,
+	},
+	.delay = {
+		.prepare = 50,
+		.disable = 50,
+	},
+	.bus_flags = DRM_BUS_FLAG_DE_HIGH,
+	.bus_format = MEDIA_BUS_FMT_RGB888_1X7X4_SPWG,
+	.connector_type = DRM_MODE_CONNECTOR_LVDS,
+};
+
 static const struct display_timing nec_nl12880bc20_05_timing = {
 	.pixelclock = { 67000000, 71000000, 75000000 },
 	.hactive = { 1280, 1280, 1280 },
@@ -4156,6 +4217,9 @@ static const struct of_device_id platform_of_match[] = {
 		.compatible = "logictechno,lttd800480070-l6wh-rt",
 		.data = &logictechno_lttd800480070_l6wh_rt,
 	}, {
+		.compatible = "microtips,13-101hieb0hf0-s",
+		.data = &microtips_13_101hieb0hf0_s,
+	}, {
 		.compatible = "mitsubishi,aa070mc01-ca1",
 		.data = &mitsubishi_aa070mc01,
 	}, {
@@ -4308,6 +4372,9 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "vxt,vl050-8048nt-c01",
 		.data = &vl050_8048nt_c01,
+	}, {
+		.compatible = "ti,panel-edp",
+		.data = &ti_panel_edp,
 	}, {
 		.compatible = "winstar,wf35ltiacd",
 		.data = &winstar_wf35ltiacd,

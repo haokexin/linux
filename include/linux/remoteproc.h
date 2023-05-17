@@ -514,6 +514,7 @@ enum rproc_features {
  * @dev: virtual device for refcounting and common remoteproc behavior
  * @power: refcount of users who need this rproc powered up
  * @state: state of the device
+ * @skip_firmware_load: flag to skip requesting and loading the firmware
  * @dump_conf: Currently selected coredump configuration
  * @lock: lock which protects concurrent manipulations of the rproc
  * @dbg_dir: debugfs directory of this rproc device
@@ -545,6 +546,8 @@ enum rproc_features {
  * @cdev: character device of the rproc
  * @cdev_put_on_release: flag to indicate if remoteproc should be shutdown on @char_dev release
  * @features: indicate remoteproc features
+ * @detach_on_shutdown: flag to indicate if remoteproc cannot be shutdown in
+ *			attached state and _only_ support detach
  */
 struct rproc {
 	struct list_head node;
@@ -553,6 +556,7 @@ struct rproc {
 	const char *firmware;
 	void *priv;
 	struct rproc_ops *ops;
+	bool skip_firmware_load;
 	struct device dev;
 	atomic_t power;
 	unsigned int state;
@@ -578,6 +582,7 @@ struct rproc {
 	size_t table_sz;
 	bool has_iommu;
 	bool auto_boot;
+	bool deny_sysfs_ops;
 	bool sysfs_read_only;
 	struct list_head dump_segments;
 	int nb_vdev;
@@ -585,6 +590,7 @@ struct rproc {
 	u16 elf_machine;
 	struct cdev cdev;
 	bool cdev_put_on_release;
+	bool detach_on_shutdown;
 	DECLARE_BITMAP(features, RPROC_MAX_FEATURES);
 };
 
@@ -700,6 +706,8 @@ int rproc_coredump_add_custom_segment(struct rproc *rproc,
 						     size_t size),
 				      void *priv);
 int rproc_coredump_set_elf_info(struct rproc *rproc, u8 class, u16 machine);
+int rproc_get_id(struct rproc *rproc);
+int rproc_pa_to_da(struct rproc *rproc, phys_addr_t pa, u64 *da);
 
 void rproc_add_subdev(struct rproc *rproc, struct rproc_subdev *subdev);
 

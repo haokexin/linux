@@ -1264,7 +1264,13 @@ static int ti_sn_bridge_probe(struct auxiliary_device *adev,
 {
 	struct ti_sn65dsi86 *pdata = dev_get_drvdata(adev->dev.parent);
 	struct device_node *np = pdata->dev->of_node;
-	int ret;
+	int ret, val;
+	struct mipi_dsi_host *host;
+	struct mipi_dsi_device *dsi;
+	const struct mipi_dsi_device_info info = { .type = "ti_sn_bridge",
+						   .channel = 0,
+						   .node = np,
+						 };
 
 	pdata->next_bridge = devm_drm_of_get_bridge(pdata->dev, np, 1, 0);
 	if (IS_ERR(pdata->next_bridge))
@@ -1285,7 +1291,42 @@ static int ti_sn_bridge_probe(struct auxiliary_device *adev,
 	if (pdata->bridge.type == DRM_MODE_CONNECTOR_DisplayPort)
 		pdata->bridge.ops = DRM_BRIDGE_OP_EDID | DRM_BRIDGE_OP_DETECT;
 
+	host = of_find_mipi_dsi_host_by_node(pdata->host_node);
+	if (!host) {
+		DRM_ERROR("failed to find dsi host\n");
+		return -EPROBE_DEFER;
+	}
+
 	drm_bridge_add(&pdata->bridge);
+
+	/*
+	 * Attach to DSI host.
+	 */
+	dsi = mipi_dsi_device_register_full(host, &info);
+	if (IS_ERR(dsi)) {
+		DRM_ERROR("failed to create dsi device\n");
+		return PTR_ERR(dsi);
+	}
+
+	/* TODO: setting to 4 MIPI lanes always for now */
+	dsi->lanes = 2;
+	dsi->format = MIPI_DSI_FMT_RGB888;
+	dsi->mode_flags = MIPI_DSI_MODE_VIDEO;
+	dsi->mode_flags |= MIPI_DSI_MODE_NO_EOT_PACKET | MIPI_DSI_MODE_VIDEO_SYNC_PULSE;
+
+	/* check if continuous dsi clock is required or not */
+	pm_runtime_get_sync(pdata->dev);
+	regmap_read(pdata->regmap, SN_DPPLL_SRC_REG, &val);
+	pm_runtime_put(pdata->dev);
+	if (!(val & DPPLL_CLK_SRC_DSICLK))
+		dsi->mode_flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
+
+	ret = mipi_dsi_attach(dsi);
+	if (ret < 0) {
+		DRM_ERROR("failed to attach dsi to host\n");
+		return ret;
+	}
+	pdata->dsi = dsi;
 
 	ret = ti_sn_attach_host(pdata);
 	if (ret) {

@@ -170,6 +170,57 @@
 			};
 		};
 	};
+
+	cpsw9g_virt_mac: main_r5fss_cpsw9g_virt_mac0 {
+		compatible = "ti,j721e-cpsw-virt-mac";
+		dma-coherent;
+		ti,psil-base = <0x4a00>;
+		ti,remote-name = "mpu_1_0_ethswitch-device-0";
+
+		dmas = <&main_udmap 0xca00>,
+		       <&main_udmap 0xca01>,
+		       <&main_udmap 0xca02>,
+		       <&main_udmap 0xca03>,
+		       <&main_udmap 0xca04>,
+		       <&main_udmap 0xca05>,
+		       <&main_udmap 0xca06>,
+		       <&main_udmap 0xca07>,
+		       <&main_udmap 0x4a00>;
+		dma-names = "tx0", "tx1", "tx2", "tx3",
+			    "tx4", "tx5", "tx6", "tx7",
+			    "rx";
+
+		virt_emac_port {
+			ti,label = "virt-port";
+			/* local-mac-address = [0 0 0 0 0 0]; */
+		};
+	};
+
+	cpsw9g_virt_maconly: main-r5fss-cpsw9g-virt-mac1 {
+		compatible = "ti,j721e-cpsw-virt-mac";
+		dma-coherent;
+		ti,psil-base = <0x4a00>;
+		ti,remote-name = "mpu_1_0_ethmac-device-1";
+
+		dmas = <&main_udmap 0xca00>,
+		       <&main_udmap 0xca01>,
+		       <&main_udmap 0xca02>,
+		       <&main_udmap 0xca03>,
+		       <&main_udmap 0xca04>,
+		       <&main_udmap 0xca05>,
+		       <&main_udmap 0xca06>,
+		       <&main_udmap 0xca07>,
+		       <&main_udmap 0x4a00>;
+		dma-names = "tx0", "tx1", "tx2", "tx3",
+			    "tx4", "tx5", "tx6", "tx7",
+			    "rx";
+
+		virt_emac_port {
+			ti,label = "virt-port";
+			/* local-mac-address = [0 0 0 0 0 0]; */
+		};
+	};
+
 };
 
 &main_pmx0 {
@@ -235,6 +286,13 @@
 		pinctrl-single,pins = <
 			J721E_IOPAD(0x228, PIN_INPUT_PULLUP, 0) /* (Y6) I2C1_SCL */
 			J721E_IOPAD(0x22c, PIN_INPUT_PULLUP, 0) /* (AA6) I2C1_SDA */
+		>;
+	};
+
+	main_i2c2_pins_default: main-i2c2-pins-default {
+		pinctrl-single,pins = <
+			J721E_IOPAD(0x1c8, PIN_INPUT_PULLUP, 2) /* (AB5) SPI0_CLK.I2C2_SCL */
+			J721E_IOPAD(0x1cc, PIN_INPUT_PULLUP, 2) /* (AA1) SPI0_D0.I2C2_SDA */
 		>;
 	};
 
@@ -459,7 +517,7 @@
 };
 
 &serdes_ln_ctrl {
-	idle-states = <J721E_SERDES0_LANE0_PCIE0_LANE0>, <J721E_SERDES0_LANE1_PCIE0_LANE1>,
+	idle-states = <J721E_SERDES0_LANE0_PCIE0_LANE0>, <J721E_SERDES0_LANE1_QSGMII_LANE2>,
 		      <J721E_SERDES1_LANE0_PCIE1_LANE0>, <J721E_SERDES1_LANE1_PCIE1_LANE1>,
 		      <J721E_SERDES2_LANE0_PCIE2_LANE0>, <J721E_SERDES2_LANE1_PCIE2_LANE1>,
 		      <J721E_SERDES3_LANE0_USB3_0_SWAP>, <J721E_SERDES3_LANE1_USB3_0>,
@@ -554,6 +612,14 @@
 		gpio-controller;
 		#gpio-cells = <2>;
 
+		p08-hog {
+			/* P10 - PM_I2C_CTRL_OE */
+			gpio-hog;
+			gpios = <8 GPIO_ACTIVE_HIGH>;
+			output-high;
+			line-name = "CTRL_PM_I2C_OE";
+		};
+
 		p09-hog {
 			/* P11 - MCASP/TRACE_MUX_S0 */
 			gpio-hog;
@@ -588,6 +654,108 @@
 		interrupts = <11 IRQ_TYPE_EDGE_FALLING>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
+	};
+};
+
+&main_i2c2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_i2c2_pins_default>;
+	clock-frequency = <400000>;
+
+	ina226@40 {
+		compatible = "ti,ina226";
+		reg = <0x40>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@41 {
+		compatible = "ti,ina226";
+		reg = <0x41>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@42 {
+		compatible = "ti,ina226";
+		reg = <0x42>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@43 {
+		compatible = "ti,ina226";
+		reg = <0x43>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@44 {
+		compatible = "ti,ina226";
+		reg = <0x44>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@45 {
+		compatible = "ti,ina226";
+		reg = <0x45>;
+		shunt-resistor = <5000>;
+	};
+
+	ina226@46 {
+		compatible = "ti,ina226";
+		reg = <0x46>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@47 {
+		compatible = "ti,ina226";
+		reg = <0x47>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@48 {
+		compatible = "ti,ina226";
+		reg = <0x48>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@49 {
+		compatible = "ti,ina226";
+		reg = <0x49>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@4a {
+		compatible = "ti,ina226";
+		reg = <0x4a>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@4b {
+		compatible = "ti,ina226";
+		reg = <0x4b>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@4c {
+		compatible = "ti,ina226";
+		reg = <0x4c>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@4d {
+		compatible = "ti,ina226";
+		reg = <0x4d>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@4e {
+		compatible = "ti,ina226";
+		reg = <0x4e>;
+		shunt-resistor = <10000>;
+	};
+
+	ina226@4f {
+		compatible = "ti,ina226";
+		reg = <0x4f>;
+		shunt-resistor = <10000>;
 	};
 };
 
@@ -809,9 +977,13 @@
 	assigned-clock-parents = <&cmn_refclk1>;
 };
 
+&cmn_refclk1 {
+	clock-frequency = <100000000>;
+};
+
 &serdes0 {
-	assigned-clocks = <&serdes0 CDNS_SIERRA_PLL_CMNLC>;
-	assigned-clock-parents = <&wiz0_pll1_refclk>;
+	assigned-clocks = <&serdes0 CDNS_SIERRA_PLL_CMNLC>, <&serdes0 CDNS_SIERRA_PLL_CMNLC1>;
+	assigned-clock-parents = <&wiz0_pll1_refclk>, <&wiz0_pll1_refclk>;
 
 	serdes0_pcie_link: phy@0 {
 		reg = <0>;
@@ -820,6 +992,15 @@
 		cdns,phy-type = <PHY_TYPE_PCIE>;
 		resets = <&serdes_wiz0 1>;
 	};
+
+	serdes0_qsgmii_link: phy@1 {
+		reg = <1>;
+		cdns,num-lanes = <1>;
+		#phy-cells = <0>;
+		cdns,phy-type = <PHY_TYPE_QSGMII>;
+		resets = <&serdes_wiz0 2>;
+	};
+
 };
 
 &serdes1 {
@@ -864,6 +1045,15 @@
 	phy-names = "dpphy";
 	pinctrl-names = "default";
 	pinctrl-0 = <&dp0_pins_default>;
+};
+
+&cpsw0 {
+	/*
+	 * Disable cpsw0 since cpsw9g_virt_mac is the default Ethernet
+	 * controller. cpsw0 is enabled with overlay for native
+	 * Ethernet driver support.
+	 */
+	status = "disabled";
 };
 
 &pcie0_rc {
@@ -993,5 +1183,70 @@
 };
 
 &main_mcan13 {
+	status = "disabled";
+};
+
+/* uart2 assigned to cpsw9g eth-switch fw running on remote CPU core */
+&main_uart2 {
+	status = "disabled";
+};
+
+&csi0_port0 {
+	status = "disabled";
+};
+
+&csi0_port1 {
+	status = "disabled";
+};
+
+&csi0_port2 {
+	status = "disabled";
+};
+
+&csi0_port3 {
+	status = "disabled";
+};
+
+&csi0_port4 {
+	status = "disabled";
+};
+
+&main_spi4 {
+	status = "disabled";
+};
+
+&mcu_spi0 {
+	status = "disabled";
+};
+
+&mcu_spi1 {
+	status = "disabled";
+};
+
+&mcu_spi2 {
+	status = "disabled";
+};
+
+&main_ehrpwm0 {
+	status = "disabled";
+};
+
+&main_ehrpwm1 {
+	status = "disabled";
+};
+
+&main_ehrpwm2 {
+	status = "disabled";
+};
+
+&main_ehrpwm3 {
+	status = "disabled";
+};
+
+&main_ehrpwm4 {
+	status = "disabled";
+};
+
+&main_ehrpwm5 {
 	status = "disabled";
 };

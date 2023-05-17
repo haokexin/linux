@@ -28,6 +28,10 @@ obj-y += verisilicon/
 obj-y += via/
 obj-y += xilinx/
 
+obj-$(CONFIG_VIDEO_IMG_VXD_DEC)         += vxe-vxd/
+obj-$(CONFIG_VIDEO_IMG_VXE_ENC)         += vxe-vxd/
+obj-$(CONFIG_VIDEO_WAVE_VPU)            += chips-media/
+
 # Please place here only ancillary drivers that aren't SoC-specific
 # Please keep it alphabetically sorted by Kconfig name
 # (e. g. LC_ALL=C sort Makefile)

@@ -63,6 +63,7 @@ properties:
               - enum:
                   - ti,j721e-evm
                   - ti,j721e-sk
+                  - ti,j721e-eaik
               - const: ti,j721e
 
       - description: K3 J721s2 SoC
@@ -70,6 +71,12 @@ properties:
           - enum:
               - ti,j721s2-evm
           - const: ti,j721s2
+
+      - description: K3 J784s4 SoC
+        items:
+          - enum:
+              - ti,j784s4-evm
+          - const: ti,j784s4
 
 additionalProperties: true
 

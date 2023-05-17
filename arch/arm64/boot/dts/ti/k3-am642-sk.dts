@@ -87,6 +87,72 @@
 			no-map;
 		};
 
+		mcu_m4fss_dma_memory_region: m4f-dma-memory@a4000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa4000000 0x00 0x100000>;
+			no-map;
+		};
+
+		mcu_m4fss_memory_region: m4f-memory@a4100000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa4100000 0x00 0xf00000>;
+			no-map;
+		};
+
+		rtos_ipc_memory_region: ipc-memories@a5000000 {
+			reg = <0x00 0xa5000000 0x00 0x00800000>;
+			alignment = <0x1000>;
+			no-map;
+		};
+
+		main_r5fss0_core0_dma_memory_region: r5f-dma-memory@a0000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa0000000 0x00 0x100000>;
+			no-map;
+		};
+
+		main_r5fss0_core0_memory_region: r5f-memory@a0100000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa0100000 0x00 0xf00000>;
+			no-map;
+		};
+
+		main_r5fss0_core1_dma_memory_region: r5f-dma-memory@a1000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa1000000 0x00 0x100000>;
+			no-map;
+		};
+
+		main_r5fss0_core1_memory_region: r5f-memory@a1100000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa1100000 0x00 0xf00000>;
+			no-map;
+		};
+
+		main_r5fss1_core0_dma_memory_region: r5f-dma-memory@a2000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa2000000 0x00 0x100000>;
+			no-map;
+		};
+
+		main_r5fss1_core0_memory_region: r5f-memory@a2100000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa2100000 0x00 0xf00000>;
+			no-map;
+		};
+
+		main_r5fss1_core1_dma_memory_region: r5f-dma-memory@a3000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa3000000 0x00 0x100000>;
+			no-map;
+		};
+
+		main_r5fss1_core1_memory_region: r5f-memory@a3100000 {
+			compatible = "shared-dma-pool";
+			reg = <0x00 0xa3100000 0x00 0xf00000>;
+			no-map;
+		};
+
 		rtos_ipc_memory_region: ipc-memories@a5000000 {
 			reg = <0x00 0xa5000000 0x00 0x00800000>;
 			alignment = <0x1000>;
@@ -219,6 +285,21 @@
 			gpios = <&exp2 7 GPIO_ACTIVE_HIGH>;
 		};
 	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&usr_led_pins_default>;
+
+		led-0 {
+			label = "am64-sk:green:heartbeat";
+			gpios = <&main_gpio0 60 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			function = LED_FUNCTION_HEARTBEAT;
+			default-state = "off";
+		};
+	};
+
 };
 
 &main_pmx0 {
@@ -336,6 +417,46 @@
 			AM64X_IOPAD(0x00bc, PIN_INPUT, 7) /* (U8) GPIO0_46 */
 		>;
 	};
+
+	main_bten_default: main-bten-default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x00c8, PIN_OUTPUT, 7) /* (P17) GPIO0_49 */
+		>;
+	};
+
+	main_btuart_rts_sel_default: main-btuart-rts-sel-default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x100, PIN_OUTPUT, 7) /* (V7) GPIO0_63 */
+		>;
+	};
+
+	main_uart4_default: main-uart4-default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x250, PIN_INPUT, 1)	/* (A17) UART4_RXD */
+			AM64X_IOPAD(0x254, PIN_OUTPUT, 1)	/* (B17) UART4_TXD */
+			AM64X_IOPAD(0x64, PIN_INPUT, 2)		/* (R16) UART4_CTS */
+			AM64X_IOPAD(0x7c, PIN_OUTPUT, 2)	/* (R17) UART4_RTS */
+		>;
+	};
+
+	usr_led_pins_default: usr-led-pins-default {
+		pinctrl-single,pins = <
+			AM64X_IOPAD(0x0F4, PIN_OUTPUT, 7) /* (Y9) PRG1_PRU0_GPO15.GPIO0_60 */
+		>;
+	};
+
+};
+
+&main_gpio0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_btuart_rts_sel_default>;
+
+	gpio0-63 {
+		gpio-hog;
+		gpios = <63 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "btuart_rts_sel";
+	};
 };
 
 &mcu_uart0 {
@@ -365,7 +486,14 @@
 };
 
 &main_uart4 {
-	status = "disabled";
+	pinctrl-names = "default";
+	pinctrl-0 = <&main_uart4_default &main_bten_default>;
+	status = "okay";
+
+	bluetooth {
+		compatible = "ti,wl1835-st";
+		enable-gpios = <&main_gpio0 49 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &main_uart5 {
@@ -512,6 +640,12 @@
 		ti,rx-internal-delay = <DP83867_RGMIIDCTL_2_00_NS>;
 		ti,fifo-depth = <DP83867_PHYCR_FIFO_DEPTH_4_B_NIB>;
 	};
+};
+
+&mcu_m4fss {
+	mboxes = <&mailbox0_cluster6 &mbox_m4_0>;
+	memory-region = <&mcu_m4fss_dma_memory_region>,
+			<&mcu_m4fss_memory_region>;
 };
 
 &tscadc0 {
@@ -691,4 +825,88 @@
 
 &elm0 {
 	status = "disabled";
+};
+
+#define TS_OFFSET(pa, val)     (0x4+(pa)*4) (0x10000 | val)
+
+&timesync_router {
+	pinctrl-names = "default";
+	pinctrl-0 = <&mcu_cpts_pps>;
+
+	/* Example of the timesync routing */
+	mcu_cpts_pps: mcu-cpts-pps {
+		pinctrl-single,pins = <
+				/* pps [cpts genf1] in22 -> out37 [cpts hw8_push] */
+				TS_OFFSET(37, 22)
+				/* pps [cpts genf1] in22 -> out25 [SYNC1_OUT pin] */
+				TS_OFFSET(25, 22)
+				>;
+	};
+};
+
+&mailbox0_cluster2 {
+	mbox_main_r5fss0_core0: mbox-main-r5fss0-core0 {
+		ti,mbox-rx = <0 0 2>;
+		ti,mbox-tx = <1 0 2>;
+	};
+
+	mbox_main_r5fss0_core1: mbox-main-r5fss0-core1 {
+		ti,mbox-rx = <2 0 2>;
+		ti,mbox-tx = <3 0 2>;
+	};
+};
+
+&mailbox0_cluster3 {
+	status = "disabled";
+};
+
+&mailbox0_cluster4 {
+	mbox_main_r5fss1_core0: mbox-main-r5fss1-core0 {
+		ti,mbox-rx = <0 0 2>;
+		ti,mbox-tx = <1 0 2>;
+	};
+
+	mbox_main_r5fss1_core1: mbox-main-r5fss1-core1 {
+		ti,mbox-rx = <2 0 2>;
+		ti,mbox-tx = <3 0 2>;
+	};
+};
+
+&mailbox0_cluster5 {
+	status = "disabled";
+};
+
+&mailbox0_cluster6 {
+	mbox_m4_0: mbox-m4-0 {
+		ti,mbox-rx = <0 0 2>;
+		ti,mbox-tx = <1 0 2>;
+	};
+};
+
+&mailbox0_cluster7 {
+	status = "disabled";
+};
+
+&main_r5fss0_core0 {
+	mboxes = <&mailbox0_cluster2 &mbox_main_r5fss0_core0>;
+	memory-region = <&main_r5fss0_core0_dma_memory_region>,
+			<&main_r5fss0_core0_memory_region>;
+};
+
+&main_r5fss0_core1 {
+	mboxes = <&mailbox0_cluster2 &mbox_main_r5fss0_core1>;
+	memory-region = <&main_r5fss0_core1_dma_memory_region>,
+			<&main_r5fss0_core1_memory_region>;
+};
+
+&main_r5fss1_core0 {
+	mboxes = <&mailbox0_cluster4 &mbox_main_r5fss1_core0>;
+	memory-region = <&main_r5fss1_core0_dma_memory_region>,
+			<&main_r5fss1_core0_memory_region>;
+};
+
+&main_r5fss1_core1 {
+	mboxes = <&mailbox0_cluster4 &mbox_main_r5fss1_core1>;
+	memory-region = <&main_r5fss1_core1_dma_memory_region>,
+			<&main_r5fss1_core1_memory_region>;
 };
