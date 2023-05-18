@@ -1488,7 +1488,7 @@ int v4l2_subdev_set_routing(struct v4l2_subdev *sd,
 	struct v4l2_subdev_krouting *dst = &state->routing;
 	const struct v4l2_subdev_krouting *src = routing;
 
-	lockdep_assert_held(&state->lock);
+	lockdep_assert_held(state->lock);
 
 	kvfree(dst->routes);
 	dst->routes = NULL;
@@ -1538,7 +1538,7 @@ v4l2_state_get_stream_format(struct v4l2_subdev_state *state, unsigned int pad,
 	struct v4l2_subdev_stream_configs *stream_configs;
 	unsigned int i;
 
-	lockdep_assert_held(&state->lock);
+	lockdep_assert_held(state->lock);
 
 	stream_configs = &state->stream_configs;
 
