@@ -139,6 +139,8 @@ enum spi_nor_option_flags {
 	SNOR_F_HAS_STACKED      = BIT(14),
 	SNOR_F_HAS_PARALLEL	= BIT(15),
 	SNOR_F_HAS_SR_BP3_BIT5	= BIT(16),
+	SNOR_F_RWW		= BIT(17),
+	SNOR_F_ECC		= BIT(18),
 };
 
 struct spi_nor_read_command {
@@ -470,6 +472,8 @@ struct spi_nor_fixups {
  *   SPI_NOR_BP3_SR_BIT5:     BP3 is bit 5 of status register,
  *                            must be used with SPI_NOR_4BIT_BP
  *   SST_GLOBAL_PROT_UNLK:    Unlock the Global protection for sst flashes.
+ *   SPI_NOR_QUAD_PP:         flash supports Quad Input Page Program.
+ *   SPI_NOR_RWW:             flash supports reads while write.
  *
  * @no_sfdp_flags:  flags that indicate support that can be discovered via SFDP.
  *                  Used when SFDP tables are not defined in the flash. These
@@ -524,6 +528,8 @@ struct flash_info {
 #define SPI_NOR_NO_FR			BIT(8)
 #define SPI_NOR_BP3_SR_BIT5		BIT(9)
 #define SST_GLOBAL_PROT_UNLK            BIT(10)
+#define SPI_NOR_QUAD_PP			BIT(11)
+#define SPI_NOR_RWW			BIT(12)
 
 	u8 no_sfdp_flags;
 #define SPI_NOR_SKIP_SFDP		BIT(0)
