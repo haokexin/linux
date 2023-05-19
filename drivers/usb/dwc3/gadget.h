@@ -133,7 +133,7 @@ int __dwc3_gadget_ep_disable(struct dwc3_ep *dep);
 int __dwc3_gadget_kick_transfer(struct dwc3_ep *dep);
 void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force,
 		bool interrupt);
-int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on, int suspend);
+int dwc3_gadget_run_stop(struct dwc3 *dwc, int is_on);
 dma_addr_t dwc3_trb_dma_offset(struct dwc3_ep *dep, struct dwc3_trb *trb);
 void dwc3_gadget_enter_hibernation(struct dwc3 *dwc);
 void dwc3_gadget_exit_hibernation(void *_dwc);
