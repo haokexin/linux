@@ -2556,8 +2556,10 @@ static int rvu_mbox_init(struct rvu *rvu, struct mbox_wq_info *mw,
 	}
 
 	mbox_regions = kcalloc(num, sizeof(void *), GFP_KERNEL);
-	if (!mbox_regions)
-		return -ENOMEM;
+	if (!mbox_regions) {
+		err = -ENOMEM;
+		goto free_bitmap;
+	}
 
 	switch (type) {
 	case TYPE_AFPF:
@@ -2626,8 +2628,7 @@ static int rvu_mbox_init(struct rvu *rvu, struct mbox_wq_info *mw,
 		mwork->rvu = rvu;
 		INIT_WORK(&mwork->work, mbox_up_handler);
 	}
-	kfree(mbox_regions);
-	return 0;
+	goto free_regions;
 
 exit:
 	destroy_workqueue(mw->mbox_wq);
@@ -2636,6 +2637,8 @@ unmap_regions:
 		iounmap((void __iomem *)mbox_regions[num]);
 free_regions:
 	kfree(mbox_regions);
+free_bitmap:
+	bitmap_free(pf_bmap);
 	return err;
 }
 
