@@ -327,7 +327,7 @@ void dwc3_gadget_enter_hibernation(struct dwc3 *dwc)
 	}
 
 	/* stop the controller */
-	dwc3_gadget_run_stop(dwc, false, true);
+	dwc3_gadget_run_stop(dwc, false);
 
 	/* set the flag */
 	dwc->is_hibernated = true;
@@ -457,7 +457,7 @@ void dwc3_gadget_exit_hibernation(void *_dwc)
 	}
 
 	/* start the controller */
-	ret = dwc3_gadget_run_stop(dwc, true, false);
+	ret = dwc3_gadget_run_stop(dwc, true);
 	if (ret < 0) {
 		dev_err(dwc->dev, "USB core failed to start on wakeup\n");
 		goto err;
