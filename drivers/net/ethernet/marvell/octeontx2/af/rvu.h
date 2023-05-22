@@ -411,6 +411,7 @@ struct nix_hw {
 	struct nix_bp bp;
 	u64    *tx_credits;
 	void   *tx_stall;
+	u64 cc_mcs_cnt;
 };
 
 /* RVU block's capabilities or functionality,
