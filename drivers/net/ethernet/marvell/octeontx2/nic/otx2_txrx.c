@@ -1403,12 +1403,12 @@ static inline bool otx2_xdp_rcv_pkt_handler(struct otx2_nic *pfvf,
 	u32 act;
 	int err;
 
-	iova = cqe->sg.seg_addr;
+	iova = cqe->sg.seg_addr - OTX2_HEAD_ROOM;
 	pa = otx2_iova_to_phys(pfvf->iommu_domain, iova);
 	page = virt_to_page(phys_to_virt(pa));
 
-	xdp.data = phys_to_virt(pa);
-	xdp.data_hard_start = page_address(page) + OTX2_HEAD_ROOM;
+	xdp.data_hard_start = phys_to_virt(pa);
+	xdp.data = xdp.data_hard_start + OTX2_HEAD_ROOM;
 	xdp.data_end = xdp.data + cqe->sg.seg_size;
 
 	rcu_read_lock();
@@ -1422,7 +1422,7 @@ static inline bool otx2_xdp_rcv_pkt_handler(struct otx2_nic *pfvf,
 	case XDP_TX:
 		qidx += pfvf->hw.tx_queues;
 		cq->pool_ptrs++;
-		return otx2_xdp_sq_append_pkt(pfvf, iova,
+		return otx2_xdp_sq_append_pkt(pfvf, cqe->sg.seg_addr,
 					      cqe->sg.seg_size, qidx);
 	case XDP_REDIRECT:
 		cq->pool_ptrs++;
