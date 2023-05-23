@@ -499,8 +499,7 @@ static int tmu_probe(struct platform_device *pd)
 	tmu_init_hw(dev, tmu_chip);
 
 	tmu_dd->hwmon_device =
-		hwmon_device_register_with_info(dev, DRIVER_NAME,
-						tmu_dd, NULL, NULL);
+		hwmon_device_register_for_thermal(dev, DRIVER_NAME, tmu_dd);
 	if (IS_ERR(tmu_dd->hwmon_device)) {
 		ret = PTR_ERR(tmu_dd->hwmon_device);
 		dev_err(dev, "Cannot register hwmon device: %d\n", ret);
