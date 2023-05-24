@@ -148,6 +148,7 @@ config SOC_IMX6
 	select HAVE_IMX_MMDC
 	select HAVE_IMX_SRC
 	select MFD_SYSCON
+	select HAVE_IMX_DDRC
 	select PL310_ERRATA_769419 if CACHE_L2X0
 
 config SOC_IMX6Q
