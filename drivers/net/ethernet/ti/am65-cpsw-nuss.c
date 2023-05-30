@@ -1764,7 +1764,6 @@ static void am65_cpsw_nuss_slave_disable_unused(struct am65_cpsw_port *port)
 
 static void am65_cpsw_nuss_free_tx_chns(struct am65_cpsw_common *common)
 {
-	struct device *dev = common->dev;
 	int i;
 
 	for (i = 0; i < common->tx_ch_num; i++) {
