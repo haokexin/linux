@@ -118,8 +118,8 @@
 
 /* FIXME: use sb->s_id instead ? */
 //#define yaffs_devname(sb, buf) bdevname(sb->s_bdev, buf)
-static inline char* yaffs_devname(struct super_block *sb, char *buf) {
-	snprintf(buf, sizeof(buf), "%pg", sb->s_bdev);
+static inline char* yaffs_devname(struct super_block *sb, char *buf, unsigned long len) {
+	snprintf(buf, len, "%pg", sb->s_bdev);
 	return buf;
 }
 
@@ -2944,12 +2944,12 @@ static struct super_block *yaffs_internal_read_super(int yaffs_version,
 
 	if (!sb->s_dev)
 		printk(KERN_INFO "yaffs: sb->s_dev is NULL\n");
-	else if (!yaffs_devname(sb, devname_buf))
+	else if (!yaffs_devname(sb, devname_buf, sizeof(devname_buf)))
 		printk(KERN_INFO "yaffs: devname is NULL\n");
 	else
 		printk(KERN_INFO "yaffs: dev is %d name is \"%s\" %s\n",
 		       sb->s_dev,
-		       yaffs_devname(sb, devname_buf), read_only ? "ro" : "rw");
+		       yaffs_devname(sb, devname_buf, sizeof(devname_buf)), read_only ? "ro" : "rw");
 
 	if (!data_str)
 		data_str = "";
@@ -2974,7 +2974,7 @@ static struct super_block *yaffs_internal_read_super(int yaffs_version,
 	yaffs_trace(YAFFS_TRACE_ALWAYS,
 		"yaffs: Attempting MTD mount of %u.%u,\"%s\"",
 		MAJOR(sb->s_dev), MINOR(sb->s_dev),
-		yaffs_devname(sb, devname_buf));
+		yaffs_devname(sb, devname_buf, sizeof(devname_buf)));
 
 
 	mtd = yaffs_get_mtd_device(sb->s_dev);
