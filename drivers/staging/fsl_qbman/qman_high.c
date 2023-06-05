@@ -126,6 +126,8 @@ struct qman_portal {
 	u8 alloced;
 	/* power management data */
 	u32 save_isdr;
+	/* local lock */
+	local_lock_t lock;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	/* Keep a shadow copy of the DQRR on LE systems as the SW needs to
 	 * do byte swaps of DQRR read only memory.  First entry must be aligned
@@ -142,7 +144,7 @@ struct qman_portal {
 		if ((p)->is_shared) \
 			raw_spin_lock_irqsave(&(p)->sharing_lock, irqflags); \
 		else \
-			local_irq_save(irqflags); \
+			local_lock_irqsave(&qman_affine_portal.lock, irqflags); \
 	} while (0)
 #define PORTAL_IRQ_UNLOCK(p, irqflags) \
 	do { \
@@ -150,7 +152,7 @@ struct qman_portal {
 			raw_spin_unlock_irqrestore(&(p)->sharing_lock, \
 						   irqflags); \
 		else \
-			local_irq_restore(irqflags); \
+			local_unlock_irqrestore(&qman_affine_portal.lock, irqflags); \
 	} while (0)
 #else
 #define PORTAL_IRQ_LOCK(p, irqflags) local_irq_save(irqflags)
@@ -164,13 +166,20 @@ static qman_cb_dc_ern cb_dc_ern;
 static cpumask_t affine_mask;
 static DEFINE_SPINLOCK(affine_mask_lock);
 static u16 affine_channels[NR_CPUS];
-static DEFINE_PER_CPU(struct qman_portal, qman_affine_portal);
+static DEFINE_PER_CPU(struct qman_portal, qman_affine_portal) = {
+		.lock = INIT_LOCAL_LOCK(lock),
+};
 void *affine_portals[NR_CPUS];
 
 /* "raw" gets the cpu-local struct whether it's a redirect or not. */
 static inline struct qman_portal *get_raw_affine_portal(void)
 {
+#ifdef CONFIG_PREEMPT_RT
+	migrate_disable();
+	return this_cpu_ptr(&qman_affine_portal);
+#else
 	return &get_cpu_var(qman_affine_portal);
+#endif
 }
 /* For ops that can redirect, this obtains the portal to use */
 #ifdef CONFIG_FSL_DPA_PORTAL_SHARE
@@ -187,7 +196,11 @@ static inline struct qman_portal *get_affine_portal(void)
 /* For every "get", there must be a "put" */
 static inline void put_affine_portal(void)
 {
+#ifdef CONFIG_PREEMPT_RT
+	migrate_enable();
+#else
 	put_cpu_var(qman_affine_portal);
+#endif
 }
 /* Exception: poll functions assume the caller is cpu-affine and in no risk of
  * re-entrance, which are the two reasons we usually use the get/put_cpu_var()

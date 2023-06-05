@@ -510,6 +510,38 @@ int __cold dpa_remove(struct platform_device *of_dev)
 }
 EXPORT_SYMBOL(dpa_remove);
 
+#if defined(CONFIG_KEXEC)
+void __cold dpa_shutdown(struct platform_device *of_dev)
+{
+	struct device		*dev;
+	struct net_device	*net_dev;
+	struct dpa_priv_s	*priv;
+
+	dev = &of_dev->dev;
+	net_dev = dev_get_drvdata(dev);
+
+	priv = netdev_priv(net_dev);
+
+	dev_set_drvdata(dev, NULL);
+	unregister_netdev(net_dev);
+
+	dpa_fq_free(dev, &priv->dpa_fq_list);
+
+	qman_delete_cgr_safe(&priv->ingress_cgr);
+	qman_release_cgrid(priv->ingress_cgr.cgrid);
+	qman_delete_cgr_safe(&priv->cgr_data.cgr);
+	qman_release_cgrid(priv->cgr_data.cgr.cgrid);
+
+	dpa_private_napi_del(net_dev);
+
+	dpa_bp_free(priv);
+
+	free_netdev(net_dev);
+
+	return;
+}
+#endif
+
 struct mac_device * __cold __must_check
 __attribute__((nonnull))
 dpa_mac_probe(struct platform_device *_of_dev)
@@ -968,18 +1000,18 @@ invalid_error_queue:
 EXPORT_SYMBOL(dpa_fq_probe_mac);
 
 static u32 rx_pool_channel;
-static DEFINE_SPINLOCK(rx_pool_channel_init);
+static DEFINE_MUTEX(rx_pool_channel_init);
 
 int dpa_get_channel(void)
 {
-	spin_lock(&rx_pool_channel_init);
+	mutex_lock(&rx_pool_channel_init);
 	if (!rx_pool_channel) {
 		u32 pool;
 		int ret = qman_alloc_pool(&pool);
 		if (!ret)
 			rx_pool_channel = pool;
 	}
-	spin_unlock(&rx_pool_channel_init);
+	mutex_unlock(&rx_pool_channel_init);
 	if (!rx_pool_channel)
 		return -ENOMEM;
 	return rx_pool_channel;
@@ -1332,7 +1364,8 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 			initfq.fqd.context_a.stashing.data_cl = 2;
 			initfq.fqd.context_a.stashing.annotation_cl = 1;
 			initfq.fqd.context_a.stashing.context_cl =
-				DIV_ROUND_UP(sizeof(struct qman_fq), 64);
+				 (DIV_ROUND_UP(sizeof(struct qman_fq), 64) > 3) ?
+				 3 : DIV_ROUND_UP(sizeof(struct qman_fq), 64);
 		}
 
 		_errno = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &initfq);
