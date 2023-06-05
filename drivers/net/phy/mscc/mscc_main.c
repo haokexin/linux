@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: (GPL-2.0 OR MIT)
 /*
- * Driver for Microsemi VSC85xx PHYs
- *
- * Author: Nagaraju Lakkaraju
- * License: Dual MIT/GPL
- * Copyright (c) 2016 Microsemi Corporation
- */
+* Driver for Microsemi VSC85xx PHYs
+*
+* Author: Nagaraju Lakkaraju
+* License: Dual MIT/GPL
+* Copyright (c) 2016 Microsemi Corporation
+*/
 
 #include <linux/firmware.h>
 #include <linux/jiffies.h>
@@ -21,521 +21,534 @@
 #include "mscc.h"
 
 static const struct vsc85xx_hw_stat vsc85xx_hw_stats[] = {
-	{
-		.string	= "phy_receive_errors",
-		.reg	= MSCC_PHY_ERR_RX_CNT,
-		.page	= MSCC_PHY_PAGE_STANDARD,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_false_carrier",
-		.reg	= MSCC_PHY_ERR_FALSE_CARRIER_CNT,
-		.page	= MSCC_PHY_PAGE_STANDARD,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_cu_media_link_disconnect",
-		.reg	= MSCC_PHY_ERR_LINK_DISCONNECT_CNT,
-		.page	= MSCC_PHY_PAGE_STANDARD,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_cu_media_crc_good_count",
-		.reg	= MSCC_PHY_CU_MEDIA_CRC_VALID_CNT,
-		.page	= MSCC_PHY_PAGE_EXTENDED,
-		.mask	= VALID_CRC_CNT_CRC_MASK,
-	}, {
-		.string	= "phy_cu_media_crc_error_count",
-		.reg	= MSCC_PHY_EXT_PHY_CNTL_4,
-		.page	= MSCC_PHY_PAGE_EXTENDED,
-		.mask	= ERR_CNT_MASK,
-	},
+{
+	.string	= "phy_receive_errors",
+	.reg	= MSCC_PHY_ERR_RX_CNT,
+	.page	= MSCC_PHY_PAGE_STANDARD,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_false_carrier",
+	.reg	= MSCC_PHY_ERR_FALSE_CARRIER_CNT,
+	.page	= MSCC_PHY_PAGE_STANDARD,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_cu_media_link_disconnect",
+	.reg	= MSCC_PHY_ERR_LINK_DISCONNECT_CNT,
+	.page	= MSCC_PHY_PAGE_STANDARD,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_cu_media_crc_good_count",
+	.reg	= MSCC_PHY_CU_MEDIA_CRC_VALID_CNT,
+	.page	= MSCC_PHY_PAGE_EXTENDED,
+	.mask	= VALID_CRC_CNT_CRC_MASK,
+}, {
+	.string	= "phy_cu_media_crc_error_count",
+	.reg	= MSCC_PHY_EXT_PHY_CNTL_4,
+	.page	= MSCC_PHY_PAGE_EXTENDED,
+	.mask	= ERR_CNT_MASK,
+},
 };
 
 static const struct vsc85xx_hw_stat vsc8584_hw_stats[] = {
-	{
-		.string	= "phy_receive_errors",
-		.reg	= MSCC_PHY_ERR_RX_CNT,
-		.page	= MSCC_PHY_PAGE_STANDARD,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_false_carrier",
-		.reg	= MSCC_PHY_ERR_FALSE_CARRIER_CNT,
-		.page	= MSCC_PHY_PAGE_STANDARD,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_cu_media_link_disconnect",
-		.reg	= MSCC_PHY_ERR_LINK_DISCONNECT_CNT,
-		.page	= MSCC_PHY_PAGE_STANDARD,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_cu_media_crc_good_count",
-		.reg	= MSCC_PHY_CU_MEDIA_CRC_VALID_CNT,
-		.page	= MSCC_PHY_PAGE_EXTENDED,
-		.mask	= VALID_CRC_CNT_CRC_MASK,
-	}, {
-		.string	= "phy_cu_media_crc_error_count",
-		.reg	= MSCC_PHY_EXT_PHY_CNTL_4,
-		.page	= MSCC_PHY_PAGE_EXTENDED,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_serdes_tx_good_pkt_count",
-		.reg	= MSCC_PHY_SERDES_TX_VALID_CNT,
-		.page	= MSCC_PHY_PAGE_EXTENDED_3,
-		.mask	= VALID_CRC_CNT_CRC_MASK,
-	}, {
-		.string	= "phy_serdes_tx_bad_crc_count",
-		.reg	= MSCC_PHY_SERDES_TX_CRC_ERR_CNT,
-		.page	= MSCC_PHY_PAGE_EXTENDED_3,
-		.mask	= ERR_CNT_MASK,
-	}, {
-		.string	= "phy_serdes_rx_good_pkt_count",
-		.reg	= MSCC_PHY_SERDES_RX_VALID_CNT,
-		.page	= MSCC_PHY_PAGE_EXTENDED_3,
-		.mask	= VALID_CRC_CNT_CRC_MASK,
-	}, {
-		.string	= "phy_serdes_rx_bad_crc_count",
-		.reg	= MSCC_PHY_SERDES_RX_CRC_ERR_CNT,
-		.page	= MSCC_PHY_PAGE_EXTENDED_3,
-		.mask	= ERR_CNT_MASK,
-	},
+{
+	.string	= "phy_receive_errors",
+	.reg	= MSCC_PHY_ERR_RX_CNT,
+	.page	= MSCC_PHY_PAGE_STANDARD,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_false_carrier",
+	.reg	= MSCC_PHY_ERR_FALSE_CARRIER_CNT,
+	.page	= MSCC_PHY_PAGE_STANDARD,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_cu_media_link_disconnect",
+	.reg	= MSCC_PHY_ERR_LINK_DISCONNECT_CNT,
+	.page	= MSCC_PHY_PAGE_STANDARD,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_cu_media_crc_good_count",
+	.reg	= MSCC_PHY_CU_MEDIA_CRC_VALID_CNT,
+	.page	= MSCC_PHY_PAGE_EXTENDED,
+	.mask	= VALID_CRC_CNT_CRC_MASK,
+}, {
+	.string	= "phy_cu_media_crc_error_count",
+	.reg	= MSCC_PHY_EXT_PHY_CNTL_4,
+	.page	= MSCC_PHY_PAGE_EXTENDED,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_serdes_tx_good_pkt_count",
+	.reg	= MSCC_PHY_SERDES_TX_VALID_CNT,
+	.page	= MSCC_PHY_PAGE_EXTENDED_3,
+	.mask	= VALID_CRC_CNT_CRC_MASK,
+}, {
+	.string	= "phy_serdes_tx_bad_crc_count",
+	.reg	= MSCC_PHY_SERDES_TX_CRC_ERR_CNT,
+	.page	= MSCC_PHY_PAGE_EXTENDED_3,
+	.mask	= ERR_CNT_MASK,
+}, {
+	.string	= "phy_serdes_rx_good_pkt_count",
+	.reg	= MSCC_PHY_SERDES_RX_VALID_CNT,
+	.page	= MSCC_PHY_PAGE_EXTENDED_3,
+	.mask	= VALID_CRC_CNT_CRC_MASK,
+}, {
+	.string	= "phy_serdes_rx_bad_crc_count",
+	.reg	= MSCC_PHY_SERDES_RX_CRC_ERR_CNT,
+	.page	= MSCC_PHY_PAGE_EXTENDED_3,
+	.mask	= ERR_CNT_MASK,
+},
 };
 
 #if IS_ENABLED(CONFIG_OF_MDIO)
 static const struct vsc8531_edge_rate_table edge_table[] = {
-	{MSCC_VDDMAC_3300, { 0, 2,  4,  7, 10, 17, 29, 53} },
-	{MSCC_VDDMAC_2500, { 0, 3,  6, 10, 14, 23, 37, 63} },
-	{MSCC_VDDMAC_1800, { 0, 5,  9, 16, 23, 35, 52, 76} },
-	{MSCC_VDDMAC_1500, { 0, 6, 14, 21, 29, 42, 58, 77} },
+{MSCC_VDDMAC_3300, { 0, 2,  4,  7, 10, 17, 29, 53} },
+{MSCC_VDDMAC_2500, { 0, 3,  6, 10, 14, 23, 37, 63} },
+{MSCC_VDDMAC_1800, { 0, 5,  9, 16, 23, 35, 52, 76} },
+{MSCC_VDDMAC_1500, { 0, 6, 14, 21, 29, 42, 58, 77} },
 };
 #endif
 
 static int vsc85xx_phy_read_page(struct phy_device *phydev)
 {
-	return __phy_read(phydev, MSCC_EXT_PAGE_ACCESS);
+return __phy_read(phydev, MSCC_EXT_PAGE_ACCESS);
 }
 
 static int vsc85xx_phy_write_page(struct phy_device *phydev, int page)
 {
-	return __phy_write(phydev, MSCC_EXT_PAGE_ACCESS, page);
+return __phy_write(phydev, MSCC_EXT_PAGE_ACCESS, page);
 }
 
 static int vsc85xx_get_sset_count(struct phy_device *phydev)
 {
-	struct vsc8531_private *priv = phydev->priv;
+struct vsc8531_private *priv = phydev->priv;
 
-	if (!priv)
-		return 0;
+if (!priv)
+	return 0;
 
-	return priv->nstats;
+return priv->nstats;
 }
 
 static void vsc85xx_get_strings(struct phy_device *phydev, u8 *data)
 {
-	struct vsc8531_private *priv = phydev->priv;
-	int i;
+struct vsc8531_private *priv = phydev->priv;
+int i;
 
-	if (!priv)
-		return;
+if (!priv)
+	return;
 
-	for (i = 0; i < priv->nstats; i++)
-		strscpy(data + i * ETH_GSTRING_LEN, priv->hw_stats[i].string,
-			ETH_GSTRING_LEN);
+for (i = 0; i < priv->nstats; i++)
+	strscpy(data + i * ETH_GSTRING_LEN, priv->hw_stats[i].string,
+		ETH_GSTRING_LEN);
 }
 
 static u64 vsc85xx_get_stat(struct phy_device *phydev, int i)
 {
-	struct vsc8531_private *priv = phydev->priv;
-	int val;
+struct vsc8531_private *priv = phydev->priv;
+int val;
 
-	val = phy_read_paged(phydev, priv->hw_stats[i].page,
-			     priv->hw_stats[i].reg);
-	if (val < 0)
-		return U64_MAX;
+val = phy_read_paged(phydev, priv->hw_stats[i].page,
+		     priv->hw_stats[i].reg);
+if (val < 0)
+	return U64_MAX;
 
-	val = val & priv->hw_stats[i].mask;
-	priv->stats[i] += val;
+val = val & priv->hw_stats[i].mask;
+priv->stats[i] += val;
 
-	return priv->stats[i];
+return priv->stats[i];
 }
 
 static void vsc85xx_get_stats(struct phy_device *phydev,
-			      struct ethtool_stats *stats, u64 *data)
+		      struct ethtool_stats *stats, u64 *data)
 {
-	struct vsc8531_private *priv = phydev->priv;
-	int i;
+struct vsc8531_private *priv = phydev->priv;
+int i;
 
-	if (!priv)
-		return;
+if (!priv)
+	return;
 
-	for (i = 0; i < priv->nstats; i++)
-		data[i] = vsc85xx_get_stat(phydev, i);
+for (i = 0; i < priv->nstats; i++)
+	data[i] = vsc85xx_get_stat(phydev, i);
 }
 
 static int vsc85xx_led_cntl_set(struct phy_device *phydev,
-				u8 led_num,
-				u8 mode)
+			u8 led_num,
+			u8 mode)
 {
-	int rc;
-	u16 reg_val;
+int rc;
+u16 reg_val;
 
-	mutex_lock(&phydev->lock);
-	reg_val = phy_read(phydev, MSCC_PHY_LED_MODE_SEL);
-	reg_val &= ~LED_MODE_SEL_MASK(led_num);
-	reg_val |= LED_MODE_SEL(led_num, (u16)mode);
-	rc = phy_write(phydev, MSCC_PHY_LED_MODE_SEL, reg_val);
-	mutex_unlock(&phydev->lock);
+mutex_lock(&phydev->lock);
+reg_val = phy_read(phydev, MSCC_PHY_LED_MODE_SEL);
+reg_val &= ~LED_MODE_SEL_MASK(led_num);
+reg_val |= LED_MODE_SEL(led_num, (u16)mode);
+rc = phy_write(phydev, MSCC_PHY_LED_MODE_SEL, reg_val);
+mutex_unlock(&phydev->lock);
 
-	return rc;
+return rc;
 }
 
 static int vsc85xx_mdix_get(struct phy_device *phydev, u8 *mdix)
 {
-	u16 reg_val;
+u16 reg_val;
 
-	reg_val = phy_read(phydev, MSCC_PHY_DEV_AUX_CNTL);
-	if (reg_val & HP_AUTO_MDIX_X_OVER_IND_MASK)
-		*mdix = ETH_TP_MDI_X;
-	else
-		*mdix = ETH_TP_MDI;
+reg_val = phy_read(phydev, MSCC_PHY_DEV_AUX_CNTL);
+if (reg_val & HP_AUTO_MDIX_X_OVER_IND_MASK)
+	*mdix = ETH_TP_MDI_X;
+else
+	*mdix = ETH_TP_MDI;
 
-	return 0;
+return 0;
 }
 
 static int vsc85xx_mdix_set(struct phy_device *phydev, u8 mdix)
 {
-	int rc;
-	u16 reg_val;
+int rc;
+u16 reg_val;
 
-	reg_val = phy_read(phydev, MSCC_PHY_BYPASS_CONTROL);
-	if (mdix == ETH_TP_MDI || mdix == ETH_TP_MDI_X) {
-		reg_val |= (DISABLE_PAIR_SWAP_CORR_MASK |
-			    DISABLE_POLARITY_CORR_MASK  |
-			    DISABLE_HP_AUTO_MDIX_MASK);
-	} else {
-		reg_val &= ~(DISABLE_PAIR_SWAP_CORR_MASK |
-			     DISABLE_POLARITY_CORR_MASK  |
-			     DISABLE_HP_AUTO_MDIX_MASK);
-	}
-	rc = phy_write(phydev, MSCC_PHY_BYPASS_CONTROL, reg_val);
-	if (rc)
-		return rc;
+reg_val = phy_read(phydev, MSCC_PHY_BYPASS_CONTROL);
+if (mdix == ETH_TP_MDI || mdix == ETH_TP_MDI_X) {
+	reg_val |= (DISABLE_PAIR_SWAP_CORR_MASK |
+		    DISABLE_POLARITY_CORR_MASK  |
+		    DISABLE_HP_AUTO_MDIX_MASK);
+} else {
+	reg_val &= ~(DISABLE_PAIR_SWAP_CORR_MASK |
+		     DISABLE_POLARITY_CORR_MASK  |
+		     DISABLE_HP_AUTO_MDIX_MASK);
+}
+rc = phy_write(phydev, MSCC_PHY_BYPASS_CONTROL, reg_val);
+if (rc)
+	return rc;
 
-	reg_val = 0;
+reg_val = 0;
 
-	if (mdix == ETH_TP_MDI)
-		reg_val = FORCE_MDI_CROSSOVER_MDI;
-	else if (mdix == ETH_TP_MDI_X)
-		reg_val = FORCE_MDI_CROSSOVER_MDIX;
+if (mdix == ETH_TP_MDI)
+	reg_val = FORCE_MDI_CROSSOVER_MDI;
+else if (mdix == ETH_TP_MDI_X)
+	reg_val = FORCE_MDI_CROSSOVER_MDIX;
 
-	rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED,
-			      MSCC_PHY_EXT_MODE_CNTL, FORCE_MDI_CROSSOVER_MASK,
-			      reg_val);
-	if (rc < 0)
-		return rc;
+rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED,
+		      MSCC_PHY_EXT_MODE_CNTL, FORCE_MDI_CROSSOVER_MASK,
+		      reg_val);
+if (rc < 0)
+	return rc;
 
-	return genphy_restart_aneg(phydev);
+return genphy_restart_aneg(phydev);
 }
 
 static int vsc85xx_downshift_get(struct phy_device *phydev, u8 *count)
 {
-	int reg_val;
+int reg_val;
 
-	reg_val = phy_read_paged(phydev, MSCC_PHY_PAGE_EXTENDED,
-				 MSCC_PHY_ACTIPHY_CNTL);
-	if (reg_val < 0)
-		return reg_val;
+reg_val = phy_read_paged(phydev, MSCC_PHY_PAGE_EXTENDED,
+			 MSCC_PHY_ACTIPHY_CNTL);
+if (reg_val < 0)
+	return reg_val;
 
-	reg_val &= DOWNSHIFT_CNTL_MASK;
-	if (!(reg_val & DOWNSHIFT_EN))
-		*count = DOWNSHIFT_DEV_DISABLE;
-	else
-		*count = ((reg_val & ~DOWNSHIFT_EN) >> DOWNSHIFT_CNTL_POS) + 2;
+reg_val &= DOWNSHIFT_CNTL_MASK;
+if (!(reg_val & DOWNSHIFT_EN))
+	*count = DOWNSHIFT_DEV_DISABLE;
+else
+	*count = ((reg_val & ~DOWNSHIFT_EN) >> DOWNSHIFT_CNTL_POS) + 2;
 
-	return 0;
+return 0;
 }
 
 static int vsc85xx_downshift_set(struct phy_device *phydev, u8 count)
 {
-	if (count == DOWNSHIFT_DEV_DEFAULT_COUNT) {
-		/* Default downshift count 3 (i.e. Bit3:2 = 0b01) */
-		count = ((1 << DOWNSHIFT_CNTL_POS) | DOWNSHIFT_EN);
-	} else if (count > DOWNSHIFT_COUNT_MAX || count == 1) {
-		phydev_err(phydev, "Downshift count should be 2,3,4 or 5\n");
-		return -ERANGE;
-	} else if (count) {
-		/* Downshift count is either 2,3,4 or 5 */
-		count = (((count - 2) << DOWNSHIFT_CNTL_POS) | DOWNSHIFT_EN);
-	}
+if (count == DOWNSHIFT_DEV_DEFAULT_COUNT) {
+	/* Default downshift count 3 (i.e. Bit3:2 = 0b01) */
+	count = ((1 << DOWNSHIFT_CNTL_POS) | DOWNSHIFT_EN);
+} else if (count > DOWNSHIFT_COUNT_MAX || count == 1) {
+	phydev_err(phydev, "Downshift count should be 2,3,4 or 5\n");
+	return -ERANGE;
+} else if (count) {
+	/* Downshift count is either 2,3,4 or 5 */
+	count = (((count - 2) << DOWNSHIFT_CNTL_POS) | DOWNSHIFT_EN);
+}
 
-	return phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED,
-				MSCC_PHY_ACTIPHY_CNTL, DOWNSHIFT_CNTL_MASK,
-				count);
+return phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED,
+			MSCC_PHY_ACTIPHY_CNTL, DOWNSHIFT_CNTL_MASK,
+			count);
 }
 
 static int vsc85xx_wol_set(struct phy_device *phydev,
-			   struct ethtool_wolinfo *wol)
+		   struct ethtool_wolinfo *wol)
 {
-	const u8 *mac_addr = phydev->attached_dev->dev_addr;
-	int rc;
-	u16 reg_val;
-	u8  i;
-	u16 pwd[3] = {0, 0, 0};
-	struct ethtool_wolinfo *wol_conf = wol;
+const u8 *mac_addr = phydev->attached_dev->dev_addr;
+int rc;
+u16 reg_val;
+u8  i;
+u16 pwd[3] = {0, 0, 0};
+struct ethtool_wolinfo *wol_conf = wol;
 
-	mutex_lock(&phydev->lock);
-	rc = phy_select_page(phydev, MSCC_PHY_PAGE_EXTENDED_2);
-	if (rc < 0) {
-		rc = phy_restore_page(phydev, rc, rc);
+mutex_lock(&phydev->lock);
+rc = phy_select_page(phydev, MSCC_PHY_PAGE_EXTENDED_2);
+if (rc < 0) {
+	rc = phy_restore_page(phydev, rc, rc);
+	goto out_unlock;
+}
+
+if (wol->wolopts & WAKE_MAGIC) {
+	/* Store the device address for the magic packet */
+	for (i = 0; i < ARRAY_SIZE(pwd); i++)
+		pwd[i] = mac_addr[5 - (i * 2 + 1)] << 8 |
+			 mac_addr[5 - i * 2];
+	__phy_write(phydev, MSCC_PHY_WOL_LOWER_MAC_ADDR, pwd[0]);
+	__phy_write(phydev, MSCC_PHY_WOL_MID_MAC_ADDR, pwd[1]);
+	__phy_write(phydev, MSCC_PHY_WOL_UPPER_MAC_ADDR, pwd[2]);
+} else {
+	__phy_write(phydev, MSCC_PHY_WOL_LOWER_MAC_ADDR, 0);
+	__phy_write(phydev, MSCC_PHY_WOL_MID_MAC_ADDR, 0);
+	__phy_write(phydev, MSCC_PHY_WOL_UPPER_MAC_ADDR, 0);
+}
+
+if (wol_conf->wolopts & WAKE_MAGICSECURE) {
+	for (i = 0; i < ARRAY_SIZE(pwd); i++)
+		pwd[i] = wol_conf->sopass[5 - (i * 2 + 1)] << 8 |
+			 wol_conf->sopass[5 - i * 2];
+	__phy_write(phydev, MSCC_PHY_WOL_LOWER_PASSWD, pwd[0]);
+	__phy_write(phydev, MSCC_PHY_WOL_MID_PASSWD, pwd[1]);
+	__phy_write(phydev, MSCC_PHY_WOL_UPPER_PASSWD, pwd[2]);
+} else {
+	__phy_write(phydev, MSCC_PHY_WOL_LOWER_PASSWD, 0);
+	__phy_write(phydev, MSCC_PHY_WOL_MID_PASSWD, 0);
+	__phy_write(phydev, MSCC_PHY_WOL_UPPER_PASSWD, 0);
+}
+
+reg_val = __phy_read(phydev, MSCC_PHY_WOL_MAC_CONTROL);
+if (wol_conf->wolopts & WAKE_MAGICSECURE)
+	reg_val |= SECURE_ON_ENABLE;
+else
+	reg_val &= ~SECURE_ON_ENABLE;
+__phy_write(phydev, MSCC_PHY_WOL_MAC_CONTROL, reg_val);
+
+rc = phy_restore_page(phydev, rc, rc > 0 ? 0 : rc);
+if (rc < 0)
+	goto out_unlock;
+
+if (wol->wolopts & WAKE_MAGIC) {
+	/* Enable the WOL interrupt */
+	reg_val = phy_read(phydev, MII_VSC85XX_INT_MASK);
+	reg_val |= MII_VSC85XX_INT_MASK_WOL;
+	rc = phy_write(phydev, MII_VSC85XX_INT_MASK, reg_val);
+	if (rc)
 		goto out_unlock;
-	}
-
-	if (wol->wolopts & WAKE_MAGIC) {
-		/* Store the device address for the magic packet */
-		for (i = 0; i < ARRAY_SIZE(pwd); i++)
-			pwd[i] = mac_addr[5 - (i * 2 + 1)] << 8 |
-				 mac_addr[5 - i * 2];
-		__phy_write(phydev, MSCC_PHY_WOL_LOWER_MAC_ADDR, pwd[0]);
-		__phy_write(phydev, MSCC_PHY_WOL_MID_MAC_ADDR, pwd[1]);
-		__phy_write(phydev, MSCC_PHY_WOL_UPPER_MAC_ADDR, pwd[2]);
-	} else {
-		__phy_write(phydev, MSCC_PHY_WOL_LOWER_MAC_ADDR, 0);
-		__phy_write(phydev, MSCC_PHY_WOL_MID_MAC_ADDR, 0);
-		__phy_write(phydev, MSCC_PHY_WOL_UPPER_MAC_ADDR, 0);
-	}
-
-	if (wol_conf->wolopts & WAKE_MAGICSECURE) {
-		for (i = 0; i < ARRAY_SIZE(pwd); i++)
-			pwd[i] = wol_conf->sopass[5 - (i * 2 + 1)] << 8 |
-				 wol_conf->sopass[5 - i * 2];
-		__phy_write(phydev, MSCC_PHY_WOL_LOWER_PASSWD, pwd[0]);
-		__phy_write(phydev, MSCC_PHY_WOL_MID_PASSWD, pwd[1]);
-		__phy_write(phydev, MSCC_PHY_WOL_UPPER_PASSWD, pwd[2]);
-	} else {
-		__phy_write(phydev, MSCC_PHY_WOL_LOWER_PASSWD, 0);
-		__phy_write(phydev, MSCC_PHY_WOL_MID_PASSWD, 0);
-		__phy_write(phydev, MSCC_PHY_WOL_UPPER_PASSWD, 0);
-	}
-
-	reg_val = __phy_read(phydev, MSCC_PHY_WOL_MAC_CONTROL);
-	if (wol_conf->wolopts & WAKE_MAGICSECURE)
-		reg_val |= SECURE_ON_ENABLE;
-	else
-		reg_val &= ~SECURE_ON_ENABLE;
-	__phy_write(phydev, MSCC_PHY_WOL_MAC_CONTROL, reg_val);
-
-	rc = phy_restore_page(phydev, rc, rc > 0 ? 0 : rc);
-	if (rc < 0)
+} else {
+	/* Disable the WOL interrupt */
+	reg_val = phy_read(phydev, MII_VSC85XX_INT_MASK);
+	reg_val &= (~MII_VSC85XX_INT_MASK_WOL);
+	rc = phy_write(phydev, MII_VSC85XX_INT_MASK, reg_val);
+	if (rc)
 		goto out_unlock;
-
-	if (wol->wolopts & WAKE_MAGIC) {
-		/* Enable the WOL interrupt */
-		reg_val = phy_read(phydev, MII_VSC85XX_INT_MASK);
-		reg_val |= MII_VSC85XX_INT_MASK_WOL;
-		rc = phy_write(phydev, MII_VSC85XX_INT_MASK, reg_val);
-		if (rc)
-			goto out_unlock;
-	} else {
-		/* Disable the WOL interrupt */
-		reg_val = phy_read(phydev, MII_VSC85XX_INT_MASK);
-		reg_val &= (~MII_VSC85XX_INT_MASK_WOL);
-		rc = phy_write(phydev, MII_VSC85XX_INT_MASK, reg_val);
-		if (rc)
-			goto out_unlock;
-	}
-	/* Clear WOL iterrupt status */
-	reg_val = phy_read(phydev, MII_VSC85XX_INT_STATUS);
+}
+/* Clear WOL iterrupt status */
+reg_val = phy_read(phydev, MII_VSC85XX_INT_STATUS);
 
 out_unlock:
-	mutex_unlock(&phydev->lock);
+mutex_unlock(&phydev->lock);
 
-	return rc;
+return rc;
 }
 
 static void vsc85xx_wol_get(struct phy_device *phydev,
-			    struct ethtool_wolinfo *wol)
+		    struct ethtool_wolinfo *wol)
 {
-	int rc;
-	u16 reg_val;
-	u8  i;
-	u16 pwd[3] = {0, 0, 0};
-	struct ethtool_wolinfo *wol_conf = wol;
+int rc;
+u16 reg_val;
+u8  i;
+u16 pwd[3] = {0, 0, 0};
+struct ethtool_wolinfo *wol_conf = wol;
 
-	mutex_lock(&phydev->lock);
-	rc = phy_select_page(phydev, MSCC_PHY_PAGE_EXTENDED_2);
-	if (rc < 0)
-		goto out_unlock;
+mutex_lock(&phydev->lock);
+rc = phy_select_page(phydev, MSCC_PHY_PAGE_EXTENDED_2);
+if (rc < 0)
+	goto out_unlock;
 
-	reg_val = __phy_read(phydev, MSCC_PHY_WOL_MAC_CONTROL);
-	if (reg_val & SECURE_ON_ENABLE)
-		wol_conf->wolopts |= WAKE_MAGICSECURE;
-	if (wol_conf->wolopts & WAKE_MAGICSECURE) {
-		pwd[0] = __phy_read(phydev, MSCC_PHY_WOL_LOWER_PASSWD);
-		pwd[1] = __phy_read(phydev, MSCC_PHY_WOL_MID_PASSWD);
-		pwd[2] = __phy_read(phydev, MSCC_PHY_WOL_UPPER_PASSWD);
-		for (i = 0; i < ARRAY_SIZE(pwd); i++) {
-			wol_conf->sopass[5 - i * 2] = pwd[i] & 0x00ff;
-			wol_conf->sopass[5 - (i * 2 + 1)] = (pwd[i] & 0xff00)
-							    >> 8;
-		}
+reg_val = __phy_read(phydev, MSCC_PHY_WOL_MAC_CONTROL);
+if (reg_val & SECURE_ON_ENABLE)
+	wol_conf->wolopts |= WAKE_MAGICSECURE;
+if (wol_conf->wolopts & WAKE_MAGICSECURE) {
+	pwd[0] = __phy_read(phydev, MSCC_PHY_WOL_LOWER_PASSWD);
+	pwd[1] = __phy_read(phydev, MSCC_PHY_WOL_MID_PASSWD);
+	pwd[2] = __phy_read(phydev, MSCC_PHY_WOL_UPPER_PASSWD);
+	for (i = 0; i < ARRAY_SIZE(pwd); i++) {
+		wol_conf->sopass[5 - i * 2] = pwd[i] & 0x00ff;
+		wol_conf->sopass[5 - (i * 2 + 1)] = (pwd[i] & 0xff00)
+						    >> 8;
 	}
+}
 
 out_unlock:
-	phy_restore_page(phydev, rc, rc > 0 ? 0 : rc);
-	mutex_unlock(&phydev->lock);
+phy_restore_page(phydev, rc, rc > 0 ? 0 : rc);
+mutex_unlock(&phydev->lock);
 }
 
 #if IS_ENABLED(CONFIG_OF_MDIO)
 static int vsc85xx_edge_rate_magic_get(struct phy_device *phydev)
 {
-	u32 vdd, sd;
-	int i, j;
-	struct device *dev = &phydev->mdio.dev;
-	struct device_node *of_node = dev->of_node;
-	u8 sd_array_size = ARRAY_SIZE(edge_table[0].slowdown);
+u32 vdd, sd;
+int i, j;
+struct device *dev = &phydev->mdio.dev;
+struct device_node *of_node = dev->of_node;
+u8 sd_array_size = ARRAY_SIZE(edge_table[0].slowdown);
 
-	if (!of_node)
-		return -ENODEV;
+if (!of_node)
+	return -ENODEV;
 
-	if (of_property_read_u32(of_node, "vsc8531,vddmac", &vdd))
-		vdd = MSCC_VDDMAC_3300;
+if (of_property_read_u32(of_node, "vsc8531,vddmac", &vdd))
+	vdd = MSCC_VDDMAC_3300;
 
-	if (of_property_read_u32(of_node, "vsc8531,edge-slowdown", &sd))
-		sd = 0;
+if (of_property_read_u32(of_node, "vsc8531,edge-slowdown", &sd))
+	sd = 0;
 
-	for (i = 0; i < ARRAY_SIZE(edge_table); i++)
-		if (edge_table[i].vddmac == vdd)
-			for (j = 0; j < sd_array_size; j++)
-				if (edge_table[i].slowdown[j] == sd)
-					return (sd_array_size - j - 1);
+for (i = 0; i < ARRAY_SIZE(edge_table); i++)
+	if (edge_table[i].vddmac == vdd)
+		for (j = 0; j < sd_array_size; j++)
+			if (edge_table[i].slowdown[j] == sd)
+				return (sd_array_size - j - 1);
 
-	return -EINVAL;
+return -EINVAL;
 }
 
 static int vsc85xx_dt_led_mode_get(struct phy_device *phydev,
-				   char *led,
-				   u32 default_mode)
+			   char *led,
+			   u32 default_mode)
 {
-	struct vsc8531_private *priv = phydev->priv;
-	struct device *dev = &phydev->mdio.dev;
-	struct device_node *of_node = dev->of_node;
-	u32 led_mode;
-	int err;
+struct vsc8531_private *priv = phydev->priv;
+struct device *dev = &phydev->mdio.dev;
+struct device_node *of_node = dev->of_node;
+u32 led_mode;
+int err;
 
-	if (!of_node)
-		return -ENODEV;
+if (!of_node)
+	return -ENODEV;
 
-	led_mode = default_mode;
-	err = of_property_read_u32(of_node, led, &led_mode);
-	if (!err && !(BIT(led_mode) & priv->supp_led_modes)) {
-		phydev_err(phydev, "DT %s invalid\n", led);
-		return -EINVAL;
-	}
+led_mode = default_mode;
+err = of_property_read_u32(of_node, led, &led_mode);
+if (!err && !(BIT(led_mode) & priv->supp_led_modes)) {
+	phydev_err(phydev, "DT %s invalid\n", led);
+	return -EINVAL;
+}
 
-	return led_mode;
+return led_mode;
 }
 
 #else
 static int vsc85xx_edge_rate_magic_get(struct phy_device *phydev)
 {
-	return 0;
+return 0;
 }
 
 static int vsc85xx_dt_led_mode_get(struct phy_device *phydev,
-				   char *led,
-				   u8 default_mode)
+			   char *led,
+			   u8 default_mode)
 {
-	return default_mode;
+return default_mode;
 }
 #endif /* CONFIG_OF_MDIO */
 
 static int vsc85xx_dt_led_modes_get(struct phy_device *phydev,
-				    u32 *default_mode)
+			    u32 *default_mode)
 {
-	struct vsc8531_private *priv = phydev->priv;
-	char led_dt_prop[28];
-	int i, ret;
+struct vsc8531_private *priv = phydev->priv;
+char led_dt_prop[28];
+int i, ret;
 
-	for (i = 0; i < priv->nleds; i++) {
-		ret = sprintf(led_dt_prop, "vsc8531,led-%d-mode", i);
-		if (ret < 0)
-			return ret;
+for (i = 0; i < priv->nleds; i++) {
+	ret = sprintf(led_dt_prop, "vsc8531,led-%d-mode", i);
+	if (ret < 0)
+		return ret;
 
-		ret = vsc85xx_dt_led_mode_get(phydev, led_dt_prop,
-					      default_mode[i]);
-		if (ret < 0)
-			return ret;
-		priv->leds_mode[i] = ret;
-	}
+	ret = vsc85xx_dt_led_mode_get(phydev, led_dt_prop,
+				      default_mode[i]);
+	if (ret < 0)
+		return ret;
+	priv->leds_mode[i] = ret;
+}
 
-	return 0;
+return 0;
 }
 
 static int vsc85xx_edge_rate_cntl_set(struct phy_device *phydev, u8 edge_rate)
 {
-	int rc;
+int rc;
 
-	mutex_lock(&phydev->lock);
-	rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_2,
-			      MSCC_PHY_WOL_MAC_CONTROL, EDGE_RATE_CNTL_MASK,
-			      edge_rate << EDGE_RATE_CNTL_POS);
-	mutex_unlock(&phydev->lock);
+mutex_lock(&phydev->lock);
+rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_2,
+		      MSCC_PHY_WOL_MAC_CONTROL, EDGE_RATE_CNTL_MASK,
+		      edge_rate << EDGE_RATE_CNTL_POS);
+mutex_unlock(&phydev->lock);
 
-	return rc;
+return rc;
 }
 
 static int vsc85xx_mac_if_set(struct phy_device *phydev,
-			      phy_interface_t interface)
+		      phy_interface_t interface)
 {
-	int rc;
-	u16 reg_val;
+int rc;
+u16 reg_val;
 
-	mutex_lock(&phydev->lock);
-	reg_val = phy_read(phydev, MSCC_PHY_EXT_PHY_CNTL_1);
-	reg_val &= ~(MAC_IF_SELECTION_MASK);
-	switch (interface) {
-	case PHY_INTERFACE_MODE_RGMII_TXID:
-	case PHY_INTERFACE_MODE_RGMII_RXID:
-	case PHY_INTERFACE_MODE_RGMII_ID:
-	case PHY_INTERFACE_MODE_RGMII:
-		reg_val |= (MAC_IF_SELECTION_RGMII << MAC_IF_SELECTION_POS);
-		break;
-	case PHY_INTERFACE_MODE_RMII:
-		reg_val |= (MAC_IF_SELECTION_RMII << MAC_IF_SELECTION_POS);
-		break;
-	case PHY_INTERFACE_MODE_MII:
-	case PHY_INTERFACE_MODE_GMII:
-		reg_val |= (MAC_IF_SELECTION_GMII << MAC_IF_SELECTION_POS);
-		break;
-	default:
-		rc = -EINVAL;
-		goto out_unlock;
-	}
-	rc = phy_write(phydev, MSCC_PHY_EXT_PHY_CNTL_1, reg_val);
-	if (rc)
-		goto out_unlock;
+mutex_lock(&phydev->lock);
+reg_val = phy_read(phydev, MSCC_PHY_EXT_PHY_CNTL_1);
+reg_val &= ~(MAC_IF_SELECTION_MASK);
+switch (interface) {
+case PHY_INTERFACE_MODE_RGMII_TXID:
+case PHY_INTERFACE_MODE_RGMII_RXID:
+case PHY_INTERFACE_MODE_RGMII_ID:
+case PHY_INTERFACE_MODE_RGMII:
+	reg_val |= (MAC_IF_SELECTION_RGMII << MAC_IF_SELECTION_POS);
+	break;
+case PHY_INTERFACE_MODE_RMII:
+	reg_val |= (MAC_IF_SELECTION_RMII << MAC_IF_SELECTION_POS);
+	break;
+case PHY_INTERFACE_MODE_MII:
+case PHY_INTERFACE_MODE_GMII:
+	reg_val |= (MAC_IF_SELECTION_GMII << MAC_IF_SELECTION_POS);
+	break;
+default:
+	rc = -EINVAL;
+	goto out_unlock;
+}
+rc = phy_write(phydev, MSCC_PHY_EXT_PHY_CNTL_1, reg_val);
+if (rc)
+	goto out_unlock;
 
-	rc = genphy_soft_reset(phydev);
+rc = genphy_soft_reset(phydev);
 
 out_unlock:
-	mutex_unlock(&phydev->lock);
+mutex_unlock(&phydev->lock);
 
-	return rc;
+return rc;
 }
 
 /* Set the RGMII RX and TX clock skews individually, according to the PHY
- * interface type, to:
- *  * 0.2 ns (their default, and lowest, hardware value) if delays should
- *    not be enabled
- *  * 2.0 ns (which causes the data to be sampled at exactly half way between
- *    clock transitions at 1000 Mbps) if delays should be enabled
- */
-static int vsc85xx_rgmii_set_skews(struct phy_device *phydev, u32 rgmii_cntl,
-				   u16 rgmii_rx_delay_mask,
-				   u16 rgmii_tx_delay_mask)
+* interface type, to:
+*  * 0.2 ns (their default, and lowest, hardware value) if delays should
+*    not be enabled
+*  * 2.0 ns (which causes the data to be sampled at exactly half way between
+*    clock transitions at 1000 Mbps) if delays should be enabled
+*/
+static int vsc85xx_update_rgmii_cntl(struct phy_device *phydev, u32 rgmii_cntl,
+			     u16 rgmii_rx_delay_mask,
+			     u16 rgmii_tx_delay_mask)
 {
 	u16 rgmii_rx_delay_pos = ffs(rgmii_rx_delay_mask) - 1;
 	u16 rgmii_tx_delay_pos = ffs(rgmii_tx_delay_mask) - 1;
 	u16 reg_val = 0;
-	int rc;
 	struct vsc8531_private *vsc8531 = phydev->priv;
+	u16 mask = 0;
+	int rc = 0;
+
+	/* For traffic to pass, the VSC8502 family needs the RX_CLK disable bit
+	 * to be unset for all PHY modes, so do that as part of the paged
+	 * register modification.
+	 * For some family members (like VSC8530/31/40/41) this bit is reserved
+	 * and read-only, and the RX clock is enabled by default.
+	 */
+	if (rgmii_cntl == VSC8502_RGMII_CNTL)
+		mask |= VSC8502_RGMII_RX_CLK_DISABLE;
+
+	if (phy_interface_is_rgmii(phydev))
+		mask |= rgmii_rx_delay_mask | rgmii_tx_delay_mask;
 
 	mutex_lock(&phydev->lock);
 
@@ -549,10 +562,9 @@ static int vsc85xx_rgmii_set_skews(struct phy_device *phydev, u32 rgmii_cntl,
 	    phydev->interface == PHY_INTERFACE_MODE_RGMII_ID)
 		reg_val |= RGMII_CLK_DELAY_2_0_NS << rgmii_tx_delay_pos;
 
-	rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_2,
-			      rgmii_cntl,
-			      rgmii_rx_delay_mask | rgmii_tx_delay_mask,
-			      reg_val);
+	if (mask)
+		rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_2,
+				      rgmii_cntl, mask, reg_val);
 
 	mutex_unlock(&phydev->lock);
 
@@ -561,19 +573,11 @@ static int vsc85xx_rgmii_set_skews(struct phy_device *phydev, u32 rgmii_cntl,
 
 static int vsc85xx_default_config(struct phy_device *phydev)
 {
-	int rc;
-
 	phydev->mdix_ctrl = ETH_TP_MDI_AUTO;
 
-	if (phy_interface_mode_is_rgmii(phydev->interface)) {
-		rc = vsc85xx_rgmii_set_skews(phydev, VSC8502_RGMII_CNTL,
-					     VSC8502_RGMII_RX_DELAY_MASK,
-					     VSC8502_RGMII_TX_DELAY_MASK);
-		if (rc)
-			return rc;
-	}
-
-	return 0;
+	return vsc85xx_update_rgmii_cntl(phydev, VSC8502_RGMII_CNTL,
+					 VSC8502_RGMII_RX_DELAY_MASK,
+					 VSC8502_RGMII_TX_DELAY_MASK);
 }
 
 static int vsc85xx_get_tunable(struct phy_device *phydev,
@@ -1770,13 +1774,11 @@ static int vsc8584_config_init(struct phy_device *phydev)
 	if (ret)
 		return ret;
 
-	if (phy_interface_is_rgmii(phydev)) {
-		ret = vsc85xx_rgmii_set_skews(phydev, VSC8572_RGMII_CNTL,
-					      VSC8572_RGMII_RX_DELAY_MASK,
-					      VSC8572_RGMII_TX_DELAY_MASK);
-		if (ret)
-			return ret;
-	}
+	ret = vsc85xx_update_rgmii_cntl(phydev, VSC8572_RGMII_CNTL,
+					VSC8572_RGMII_RX_DELAY_MASK,
+					VSC8572_RGMII_TX_DELAY_MASK);
+	if (ret)
+		return ret;
 
 	ret = genphy_soft_reset(phydev);
 	if (ret)
