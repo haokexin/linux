@@ -97,6 +97,7 @@ struct stmmac_dma_cfg {
 	bool aal;
 	bool eame;
 	bool multi_msi_en;
+	bool multi_irq_en;
 	bool dche;
 };
 
@@ -263,6 +264,7 @@ struct plat_stmmacenet_data {
 	bool int_snapshot_en;
 	bool ext_snapshot_en;
 	bool multi_msi_en;
+	bool multi_irq_en;
 	int msi_mac_vec;
 	int msi_wol_vec;
 	int msi_lpi_vec;
@@ -272,5 +274,6 @@ struct plat_stmmacenet_data {
 	int msi_tx_base_vec;
 	bool use_phy_wol;
 	bool sph_disable;
+	bool use_hw_vlan;
 };
 #endif

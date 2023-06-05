@@ -277,6 +277,22 @@ release:
 	return ret;
 }
 
+static bool s10_is_ecc_enable(void)
+{
+	struct arm_smccc_res result;
+
+	arm_smccc_smc(INTEL_SIP_SMC_REG_READ, S10_ECCCTRL1_OFST, 0, 0, 0,
+		      0, 0, 0, &result);
+
+	if ((A10_ECCCTRL1_ECC_EN & result.a1) == A10_ECCCTRL1_ECC_EN)
+		return true;
+	else {
+		edac_printk(KERN_ERR, EDAC_MC,
+			    "No ECC/ECC disabled [0x%08lX]\n", result.a1);
+		return false;
+	}
+}
+
 static int altr_sdram_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *id;
@@ -289,6 +305,10 @@ static int altr_sdram_probe(struct platform_device *pdev)
 	u32 read_reg;
 	int irq, irq2, res = 0;
 	unsigned long mem_size, irqflags = 0;
+
+	if (of_machine_is_compatible("altr,socfpga-stratix10"))
+		if (!s10_is_ecc_enable())
+			return -ENODEV;
 
 	id = of_match_device(altr_sdram_ctrl_of_match, &pdev->dev);
 	if (!id)
@@ -2069,6 +2089,18 @@ static const struct irq_domain_ops a10_eccmgr_ic_ops = {
 /* panic routine issues reboot on non-zero panic_timeout */
 extern int panic_timeout;
 
+#ifdef CONFIG_EDAC_ALTERA_ARM64_WARM_RESET
+/* EL3 SMC call to setup CPUs for warm reset */
+void panic_smp_self_stop(void)
+{
+	struct arm_smccc_res result;
+
+	arm_smccc_smc(INTEL_SIP_SMC_ECC_DBE, S10_WARM_RESET_WFI_FLAG,
+		      S10_WARM_RESET_WFI_FLAG, 0, 0, 0, 0, 0, &result);
+	cpu_park_loop();
+}
+#endif
+
 /*
  * The double bit error is handled through SError which is fatal. This is
  * called as a panic notifier to printout ECC error info as part of the panic.
@@ -2100,8 +2132,9 @@ static int s10_edac_dberr_handler(struct notifier_block *this,
 			regmap_write(edac->ecc_mgr_map,
 				     S10_SYSMGR_UE_ADDR_OFST, err_addr);
 			edac_printk(KERN_ERR, EDAC_DEVICE,
-				    "EDAC: [Fatal DBE on %s @ 0x%08X]\n",
-				    ed->edac_dev_name, err_addr);
+				    "EDAC: [Fatal DBE on %s [CPU=%d] @ 0x%08X]\n",
+				    ed->edac_dev_name, raw_smp_processor_id(),
+				    err_addr);
 			break;
 		}
 		/* Notify the System through SMC. Reboot delay = 1 second */
@@ -2161,6 +2194,7 @@ static int altr_edac_a10_probe(struct platform_device *pdev)
 #ifdef CONFIG_64BIT
 	{
 		int dberror, err_addr;
+		struct arm_smccc_res result;
 
 		edac->panic_notifier.notifier_call = s10_edac_dberr_handler;
 		atomic_notifier_chain_register(&panic_notifier_list,
@@ -2170,11 +2204,28 @@ static int altr_edac_a10_probe(struct platform_device *pdev)
 		regmap_read(edac->ecc_mgr_map, S10_SYSMGR_UE_VAL_OFST,
 			    &dberror);
 		if (dberror) {
-			regmap_read(edac->ecc_mgr_map, S10_SYSMGR_UE_ADDR_OFST,
-				    &err_addr);
-			edac_printk(KERN_ERR, EDAC_DEVICE,
-				    "Previous Boot UE detected[0x%X] @ 0x%X\n",
-				    dberror, err_addr);
+			/* Bit-31 is set if previous DDR UE happened */
+			if (dberror & BIT(31)) {
+				/* Read previous DDR UE info */
+				arm_smccc_smc(INTEL_SIP_SMC_SEU_ERR_STATUS, 0,
+					0, 0, 0, 0, 0, 0, &result);
+
+				if (!(int)result.a0) {
+					edac_printk(KERN_ERR, EDAC_DEVICE,
+					"Previous DDR UE:Count=0x%X,Address=0x%X,ErrorData=0x%X\n"
+					, (unsigned int)result.a1, (unsigned int)result.a2
+					, (unsigned int)result.a3);
+				} else {
+					edac_printk(KERN_ERR, EDAC_DEVICE,
+						"INTEL_SIP_SMC_SEU_ERR_STATUS failed\n");
+				}
+			} else {
+				regmap_read(edac->ecc_mgr_map, S10_SYSMGR_UE_ADDR_OFST,
+						&err_addr);
+				edac_printk(KERN_ERR, EDAC_DEVICE,
+						"Previous Boot UE detected[0x%X] @ 0x%X\n",
+						dberror, err_addr);
+			}
 			/* Reset the sticky registers */
 			regmap_write(edac->ecc_mgr_map,
 				     S10_SYSMGR_UE_VAL_OFST, 0);
@@ -2182,6 +2233,7 @@ static int altr_edac_a10_probe(struct platform_device *pdev)
 				     S10_SYSMGR_UE_ADDR_OFST, 0);
 		}
 	}
+
 #else
 	edac->db_irq = platform_get_irq(pdev, 1);
 	if (edac->db_irq < 0) {
