@@ -23,6 +23,8 @@ properties:
   reg:
     maxItems: 1
 
+  wakeup-source: true
+
   interrupts:
     maxItems: 1
 
@@ -33,8 +35,6 @@ properties:
 required:
   - compatible
   - reg
-  - interrupts
-  - interrupt-names
 
 additionalProperties: true
 
@@ -48,6 +48,7 @@ examples:
         tps6598x: tps6598x@38 {
             compatible = "ti,tps6598x";
             reg = <0x38>;
+            wakeup-source;
 
             interrupt-parent = <&msmgpio>;
             interrupts = <107 IRQ_TYPE_LEVEL_LOW>;
