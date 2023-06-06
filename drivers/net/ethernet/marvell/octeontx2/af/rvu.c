@@ -3783,11 +3783,8 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	rvu->ptp = ptp_get();
 	if (IS_ERR(rvu->ptp)) {
 		err = PTR_ERR(rvu->ptp);
-		if (err == -EPROBE_DEFER) {
-			dev_err(dev,
-				"PTP driver not loaded, deferring probe\n");
+		if (err)
 			goto err_release_regions;
-		}
 		rvu->ptp = NULL;
 	}
 
