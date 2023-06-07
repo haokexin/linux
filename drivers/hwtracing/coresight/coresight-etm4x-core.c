@@ -39,6 +39,7 @@
 
 #include "coresight-etm4x.h"
 #include "coresight-etm-perf.h"
+#include "coresight-quirks.h"
 #include "coresight-etm4x-cfg.h"
 #include "coresight-self-hosted-trace.h"
 #include "coresight-syscfg.h"
@@ -51,7 +52,7 @@ MODULE_PARM_DESC(boot_enable, "Enable tracing on boot");
 #define PARAM_PM_SAVE_NEVER	  1 /* never save any state */
 #define PARAM_PM_SAVE_SELF_HOSTED 2 /* save self-hosted state only */
 
-static int pm_save_enable = PARAM_PM_SAVE_FIRMWARE;
+static int pm_save_enable = PARAM_PM_SAVE_NEVER;
 module_param(pm_save_enable, int, 0444);
 MODULE_PARM_DESC(pm_save_enable,
 	"Save/restore state on power down: 1 = never, 2 = self-hosted");
@@ -183,7 +184,10 @@ static void etm_write_os_lock(struct etmv4_drvdata *drvdata,
 static inline void etm4_os_unlock_csa(struct etmv4_drvdata *drvdata,
 				      struct csdev_access *csa)
 {
+	/* Disable this warning for task isolation mode */
+#ifndef CONFIG_TASK_ISOLATION
 	WARN_ON(drvdata->cpu != smp_processor_id());
+#endif
 
 	/* Writing 0 to OS Lock unlocks the trace unit registers */
 	etm_write_os_lock(drvdata, csa, 0x0);
@@ -507,6 +511,20 @@ static int etm4_enable_hw(struct etmv4_drvdata *drvdata)
 done:
 	etm4_cs_lock(drvdata, csa);
 
+	/* For supporting SW sync insertion */
+	if (drvdata->etm_quirks & CORESIGHT_QUIRK_ETM_SW_SYNC) {
+		/* ETM sync insertions are gated in the ETR timer
+		 * handler based on hw state.
+		 */
+		drvdata->hw_state = USR_START;
+
+		/* Global timer handler not being associated with
+		 * a specific ETM core, need to know the current
+		 * list of acitve ETMs.
+		 */
+		coresight_etm_active_enable(drvdata->cpu);
+	}
+
 	dev_dbg(etm_dev, "cpu: %d enable smp call done: %d\n",
 		drvdata->cpu, rc);
 	return rc;
@@ -753,20 +771,27 @@ static int etm4_enable_sysfs(struct coresight_device *csdev)
 			return ret;
 	}
 
-	spin_lock(&drvdata->spinlock);
+	raw_spin_lock(&drvdata->spinlock);
 
 	/*
 	 * Executing etm4_enable_hw on the cpu whose ETM is being enabled
 	 * ensures that register writes occur when cpu is powered.
+	 *
+	 * Note: When task isolation is enabled, the target cpu used
+	 * is always primary core and hence the above assumption of
+	 * cpu associated with the ETM being in powered up state during
+	 * register writes is not valid.
+	 * But on the other hand, using smp call ensures that atomicity is
+	 * not broken as well.
 	 */
 	arg.drvdata = drvdata;
-	ret = smp_call_function_single(drvdata->cpu,
+	ret = smp_call_function_single(drvdata->rc_cpu,
 				       etm4_enable_hw_smp_call, &arg, 1);
 	if (!ret)
 		ret = arg.rc;
 	if (!ret)
 		drvdata->sticky_enable = true;
-	spin_unlock(&drvdata->spinlock);
+	raw_spin_unlock(&drvdata->spinlock);
 
 	if (!ret)
 		dev_dbg(&csdev->dev, "ETM tracing enabled\n");
@@ -864,6 +889,12 @@ static void etm4_disable_hw(void *info)
 	coresight_disclaim_device_unlocked(csdev);
 	etm4_cs_lock(drvdata, csa);
 
+	/* For supporting SW sync insertion */
+	if (drvdata->etm_quirks & CORESIGHT_QUIRK_ETM_SW_SYNC) {
+		drvdata->hw_state = USR_STOP;
+		coresight_etm_active_disable(drvdata->cpu);
+	}
+
 	dev_dbg(&drvdata->csdev->dev,
 		"cpu: %d disable smp call done\n", drvdata->cpu);
 }
@@ -911,15 +942,22 @@ static void etm4_disable_sysfs(struct coresight_device *csdev)
 	 * DYING hotplug callback is serviced by the ETM driver.
 	 */
 	cpus_read_lock();
-	spin_lock(&drvdata->spinlock);
+	raw_spin_lock(&drvdata->spinlock);
 
 	/*
 	 * Executing etm4_disable_hw on the cpu whose ETM is being disabled
 	 * ensures that register writes occur when cpu is powered.
+	 *
+	 * Note: When task isolation is enabled, the target cpu used
+	 * is always primary core and hence the above assumption of
+	 * cpu associated with the ETM being in powered up state during
+	 * register writes is not valid.
+	 * But on the other hand, using smp call ensures that atomicity is
+	 * not broken as well.
 	 */
-	smp_call_function_single(drvdata->cpu, etm4_disable_hw, drvdata, 1);
+	smp_call_function_single(drvdata->rc_cpu, etm4_disable_hw, drvdata, 1);
 
-	spin_unlock(&drvdata->spinlock);
+	raw_spin_unlock(&drvdata->spinlock);
 	cpus_read_unlock();
 
 	dev_dbg(&csdev->dev, "ETM tracing disabled\n");
@@ -1010,6 +1048,15 @@ static bool etm4_init_iomem_access(struct etmv4_drvdata *drvdata,
 				   struct csdev_access *csa)
 {
 	u32 devarch = readl_relaxed(drvdata->base + TRCDEVARCH);
+
+	/* OcteonTX2 hardware reports version as ETMv4.2 but it supports
+	 * Ignore Packet feature of ETMv4.3. Hence, treat this as comaptible
+	 * with ETMv4.3.
+	 */
+	if (drvdata->etm_quirks & CORESIGHT_QUIRK_ETM_TREAT_ETMv43) {
+		devarch &= ~ETM_DEVARCH_REVISION_MASK;
+		devarch |= 0x3 << ETM_DEVARCH_REVISION_SHIFT;
+	}
 
 	/*
 	 * All ETMs must implement TRCDEVARCH to indicate that
@@ -1538,13 +1585,13 @@ static int etm4_starting_cpu(unsigned int cpu)
 	if (!etmdrvdata[cpu])
 		return 0;
 
-	spin_lock(&etmdrvdata[cpu]->spinlock);
+	raw_spin_lock(&etmdrvdata[cpu]->spinlock);
 	if (!etmdrvdata[cpu]->os_unlock)
 		etm4_os_unlock(etmdrvdata[cpu]);
 
 	if (local_read(&etmdrvdata[cpu]->mode))
 		etm4_enable_hw(etmdrvdata[cpu]);
-	spin_unlock(&etmdrvdata[cpu]->spinlock);
+	raw_spin_unlock(&etmdrvdata[cpu]->spinlock);
 	return 0;
 }
 
@@ -1553,10 +1600,10 @@ static int etm4_dying_cpu(unsigned int cpu)
 	if (!etmdrvdata[cpu])
 		return 0;
 
-	spin_lock(&etmdrvdata[cpu]->spinlock);
+	raw_spin_lock(&etmdrvdata[cpu]->spinlock);
 	if (local_read(&etmdrvdata[cpu]->mode))
 		etm4_disable_hw(etmdrvdata[cpu]);
-	spin_unlock(&etmdrvdata[cpu]->spinlock);
+	raw_spin_unlock(&etmdrvdata[cpu]->spinlock);
 	return 0;
 }
 
@@ -1935,11 +1982,18 @@ static int etm4_probe(struct device *dev, void __iomem *base, u32 etm_pid)
 
 	drvdata->base = base;
 
-	spin_lock_init(&drvdata->spinlock);
+	raw_spin_lock_init(&drvdata->spinlock);
 
 	drvdata->cpu = coresight_get_cpu(dev);
 	if (drvdata->cpu < 0)
 		return drvdata->cpu;
+
+	/* Update the SMP target cpu */
+	drvdata->rc_cpu = coresight_get_etm_sync_mode() == SYNC_MODE_SW_GLOBAL ?
+			  SYNC_GLOBAL_CORE : drvdata->cpu;
+
+	/* Enable fixes for Silicon issues */
+	drvdata->etm_quirks = coresight_get_etm_quirks(etm_pid);
 
 	init_arg.drvdata = drvdata;
 	init_arg.csa = &desc.access;
@@ -2134,6 +2188,7 @@ static const struct amba_id etm4_ids[] = {
 	CS_AMBA_UCI_ID(0x000bb804, uci_id_etm4),/* Qualcomm Kryo 4XX Cortex-A76 */
 	CS_AMBA_UCI_ID(0x000bbd0d, uci_id_etm4),/* Qualcomm Kryo 5XX Cortex-A77 */
 	CS_AMBA_UCI_ID(0x000cc0af, uci_id_etm4),/* Marvell ThunderX2 */
+	CS_AMBA_UCI_ID(0x000cc210, uci_id_etm4),/* Marvell OcteonTX2 CN9XXX */
 	CS_AMBA_UCI_ID(0x000b6d01, uci_id_etm4),/* HiSilicon-Hip08 */
 	CS_AMBA_UCI_ID(0x000b6d02, uci_id_etm4),/* HiSilicon-Hip09 */
 	{},

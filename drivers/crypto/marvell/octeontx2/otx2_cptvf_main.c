@@ -10,6 +10,10 @@
 
 #define OTX2_CPTVF_DRV_NAME "rvu_cptvf"
 
+static unsigned int cpt_block_num;
+module_param(cpt_block_num, uint, 0644);
+MODULE_PARM_DESC(cpt_block_num, "cpt block number (0=CPT0 1=CPT1, default 0)");
+
 static void cptvf_enable_pfvf_mbox_intrs(struct otx2_cptvf_dev *cptvf)
 {
 	/* Clear interrupt if any */
@@ -246,7 +250,8 @@ static void cptvf_lf_shutdown(struct otx2_cptlfs_info *lfs)
 	/* Unregister crypto algorithms */
 	otx2_cpt_crypto_exit(lfs->pdev, THIS_MODULE);
 	/* Unregister LFs interrupts */
-	otx2_cptlf_unregister_interrupts(lfs);
+	otx2_cptlf_unregister_misc_interrupts(lfs);
+	otx2_cptlf_unregister_done_interrupts(lfs);
 	/* Cleanup LFs software side */
 	lf_sw_cleanup(lfs);
 	/* Send request to detach LFs */
@@ -258,7 +263,6 @@ static int cptvf_lf_init(struct otx2_cptvf_dev *cptvf)
 	struct otx2_cptlfs_info *lfs = &cptvf->lfs;
 	struct device *dev = &cptvf->pdev->dev;
 	int ret, lfs_num;
-	u8 eng_grp_msk;
 
 	/* Get engine group number for symmetric crypto */
 	cptvf->lfs.kcrypto_eng_grp_num = OTX2_CPT_INVALID_CRYPTO_ENG_GRP;
@@ -271,19 +275,17 @@ static int cptvf_lf_init(struct otx2_cptvf_dev *cptvf)
 		ret = -ENOENT;
 		return ret;
 	}
-	eng_grp_msk = 1 << cptvf->lfs.kcrypto_eng_grp_num;
 
 	ret = otx2_cptvf_send_kvf_limits_msg(cptvf);
 	if (ret)
 		return ret;
 
-	lfs->reg_base = cptvf->reg_base;
-	lfs->pdev = cptvf->pdev;
-	lfs->mbox = &cptvf->pfvf_mbox;
-
 	lfs_num = cptvf->lfs.kvf_limits ? cptvf->lfs.kvf_limits :
 		  num_online_cpus();
-	ret = otx2_cptlf_init(lfs, eng_grp_msk, OTX2_CPT_QUEUE_HI_PRIO,
+
+	otx2_cptlf_set_dev_info(lfs, cptvf->pdev, cptvf->reg_base,
+				&cptvf->pfvf_mbox, cptvf->blkaddr);
+	ret = otx2_cptlf_init(lfs, 0xF, OTX2_CPT_QUEUE_HI_PRIO,
 			      lfs_num);
 	if (ret)
 		return ret;
@@ -299,7 +301,11 @@ static int cptvf_lf_init(struct otx2_cptvf_dev *cptvf)
 		goto cleanup_lf;
 
 	/* Register LFs interrupts */
-	ret = otx2_cptlf_register_interrupts(lfs);
+	ret = otx2_cptlf_register_misc_interrupts(lfs);
+	if (ret)
+		goto cleanup_lf_sw;
+
+	ret = otx2_cptlf_register_done_interrupts(lfs);
 	if (ret)
 		goto cleanup_lf_sw;
 
@@ -320,7 +326,8 @@ static int cptvf_lf_init(struct otx2_cptvf_dev *cptvf)
 disable_irqs:
 	otx2_cptlf_free_irqs_affinity(lfs);
 unregister_intr:
-	otx2_cptlf_unregister_interrupts(lfs);
+	otx2_cptlf_unregister_misc_interrupts(lfs);
+	otx2_cptlf_unregister_done_interrupts(lfs);
 cleanup_lf_sw:
 	lf_sw_cleanup(lfs);
 cleanup_lf:
@@ -379,6 +386,20 @@ static int otx2_cptvf_probe(struct pci_dev *pdev,
 	ret = cptvf_register_interrupts(cptvf);
 	if (ret)
 		goto destroy_pfvf_mbox;
+
+	cptvf->blkaddr = (cpt_block_num == 0) ? BLKADDR_CPT0 : BLKADDR_CPT1;
+
+	ret = cpt_hw_ops_get(cptvf);
+	if (ret)
+		goto unregister_interrupts;
+
+	ret = otx2_cptvf_send_caps_msg(cptvf);
+	if (ret) {
+		dev_err(&pdev->dev, "Couldn't get CPT engine capabilities.\n");
+		return ret;
+	}
+	if (cptvf->eng_caps[OTX2_CPT_SE_TYPES] & BIT_ULL(35))
+		cptvf->lfs.ops->cpt_sg_info_create = cn10k_sgv2_info_create;
 
 	/* Initialize CPT LFs */
 	ret = cptvf_lf_init(cptvf);

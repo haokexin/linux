@@ -117,7 +117,7 @@ void mcs_get_rx_secy_stats(struct mcs *mcs, struct mcs_secy_stats *stats, int id
 	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYTAGGEDCTLX(id);
 	stats->pkt_tagged_ctl_cnt = mcs_reg_read(mcs, reg);
 
-	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYUNTAGGEDORNOTAGX(id);
+	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYUNTAGGEDX(id);
 	stats->pkt_untaged_cnt = mcs_reg_read(mcs, reg);
 
 	reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSECYCTLX(id);
@@ -169,34 +169,6 @@ void mcs_get_port_stats(struct mcs *mcs, struct mcs_port_stats *stats,
 	}
 }
 
-void mcs_get_sa_stats(struct mcs *mcs, struct mcs_sa_stats *stats, int id, int dir)
-{
-	u64 reg;
-
-	if (dir == MCS_RX) {
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSAINVALIDX(id);
-		stats->pkt_invalid_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSANOTUSINGSAERRORX(id);
-		stats->pkt_nosaerror_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSANOTVALIDX(id);
-		stats->pkt_notvalid_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSAOKX(id);
-		stats->pkt_ok_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSAUNUSEDSAX(id);
-		stats->pkt_nosa_cnt = mcs_reg_read(mcs, reg);
-	} else {
-		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSAENCRYPTEDX(id);
-		stats->pkt_encrypt_cnt = mcs_reg_read(mcs, reg);
-
-		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSAPROTECTEDX(id);
-		stats->pkt_protected_cnt = mcs_reg_read(mcs, reg);
-	}
-}
-
 void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 		      int id, int dir)
 {
@@ -215,7 +187,7 @@ void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCNOTVALIDX(id);
 		stats->pkt_notvalid_cnt = mcs_reg_read(mcs, reg);
 
-		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCUNCHECKEDOROKX(id);
+		reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCUNCHECKEDX(id);
 		stats->pkt_unchecked_cnt = mcs_reg_read(mcs, reg);
 
 		if (mcs->hw->mcs_blks > 1) {
@@ -225,13 +197,6 @@ void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 			reg = MCSX_CSE_RX_MEM_SLAVE_INPKTSSCOKX(id);
 			stats->pkt_ok_cnt = mcs_reg_read(mcs, reg);
 		}
-		if (mcs->hw->mcs_blks == 1) {
-			reg = MCSX_CSE_RX_MEM_SLAVE_INOCTETSSCDECRYPTEDX(id);
-			stats->octet_decrypt_cnt = mcs_reg_read(mcs, reg);
-
-			reg = MCSX_CSE_RX_MEM_SLAVE_INOCTETSSCVALIDATEX(id);
-			stats->octet_validate_cnt = mcs_reg_read(mcs, reg);
-		}
 	} else {
 		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSCENCRYPTEDX(id);
 		stats->pkt_encrypt_cnt = mcs_reg_read(mcs, reg);
@@ -239,14 +204,7 @@ void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats,
 		reg = MCSX_CSE_TX_MEM_SLAVE_OUTPKTSSCPROTECTEDX(id);
 		stats->pkt_protected_cnt = mcs_reg_read(mcs, reg);
 
-		if (mcs->hw->mcs_blks == 1) {
-			reg = MCSX_CSE_TX_MEM_SLAVE_OUTOCTETSSCENCRYPTEDX(id);
-			stats->octet_encrypt_cnt = mcs_reg_read(mcs, reg);
-
-			reg = MCSX_CSE_TX_MEM_SLAVE_OUTOCTETSSCPROTECTEDX(id);
-			stats->octet_protected_cnt = mcs_reg_read(mcs, reg);
 		}
-	}
 }
 
 void mcs_clear_stats(struct mcs *mcs, u8 type, u8 id, int dir)
@@ -255,7 +213,6 @@ void mcs_clear_stats(struct mcs *mcs, u8 type, u8 id, int dir)
 	struct mcs_port_stats port_st;
 	struct mcs_secy_stats secy_st;
 	struct mcs_sc_stats sc_st;
-	struct mcs_sa_stats sa_st;
 	u64 reg;
 
 	if (dir == MCS_RX)
@@ -277,9 +234,6 @@ void mcs_clear_stats(struct mcs *mcs, u8 type, u8 id, int dir)
 		break;
 	case MCS_SC_STATS:
 		mcs_get_sc_stats(mcs, &sc_st, id, dir);
-		break;
-	case MCS_SA_STATS:
-		mcs_get_sa_stats(mcs, &sa_st, id, dir);
 		break;
 	case MCS_PORT_STATS:
 		mcs_get_port_stats(mcs, &port_st, id, dir);
@@ -318,13 +272,6 @@ int mcs_clear_all_stats(struct mcs *mcs, u16 pcifunc, int dir)
 		if (map->sc2pf_map[id] != pcifunc)
 			continue;
 		mcs_clear_stats(mcs, MCS_SC_STATS, id, dir);
-	}
-
-	/* Clear SA stats */
-	for (id = 0; id < map->sa.max; id++) {
-		if (map->sa2pf_map[id] != pcifunc)
-			continue;
-		mcs_clear_stats(mcs, MCS_SA_STATS, id, dir);
 	}
 	return 0;
 }
@@ -538,6 +485,7 @@ int mcs_install_flowid_bypass_entry(struct mcs *mcs)
 	mcs_ena_dis_flowid_entry(mcs, flow_id, MCS_RX, true);
 	mcs_ena_dis_flowid_entry(mcs, flow_id, MCS_TX, true);
 
+	dev_info(mcs->dev, "Installed tcam bypass entry@%d\n", flow_id);
 	return 0;
 }
 
@@ -1219,12 +1167,34 @@ struct mcs *mcs_get_pdata(int mcs_id)
 	return NULL;
 }
 
+bool is_mcs_bypass(int mcs_id)
+{
+	struct mcs *mcs_dev;
+
+	list_for_each_entry(mcs_dev, &mcs_list, mcs_list) {
+		if (mcs_dev->mcs_id == mcs_id)
+			return mcs_dev->bypass;
+	}
+	return true;
+}
+
 void mcs_set_port_cfg(struct mcs *mcs, struct mcs_port_cfg_set_req *req)
 {
 	u64 val = 0;
 
 	mcs_reg_write(mcs, MCSX_PAB_RX_SLAVE_PORT_CFGX(req->port_id),
 		      req->port_mode & MCS_PORT_MODE_MASK);
+
+	if (req->port_mode == 2) { /* 100G */
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_ENTRY, 0);
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_LEN, 1);
+	} else if (req->port_mode == 1) { /* 50G */
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_ENTRY, 0x8);
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_LEN, 2);
+	} else { /* <= 25G */
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_ENTRY, 0xe4);
+		mcs_reg_write(mcs, MCSX_BBE_RX_SLAVE_CAL_LEN, 4);
+	}
 
 	req->cstm_tag_rel_mode_sel &= 0x3;
 
@@ -1447,6 +1417,7 @@ static void mcs_set_external_bypass(struct mcs *mcs, u8 bypass)
 	else
 		val &= ~BIT_ULL(6);
 	mcs_reg_write(mcs, MCSX_MIL_GLOBAL, val);
+	mcs->bypass = bypass;
 }
 
 static void mcs_global_cfg(struct mcs *mcs)

@@ -861,9 +861,11 @@ struct tc_htb_qopt_offload {
 	enum tc_htb_command command;
 	u32 parent_classid;
 	u16 classid;
+	u8 prio;
 	u16 qid;
 	u64 rate;
 	u64 ceil;
+	u64 quantum;
 };
 
 #define TC_HTB_CLASSID_ROOT U32_MAX

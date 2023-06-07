@@ -9,11 +9,13 @@
 #include <linux/etherdevice.h>
 #include <linux/of.h>
 #include <linux/if_vlan.h>
+#include <linux/ethtool.h>
 
 #include "nic_reg.h"
 #include "nic.h"
 #include "q_struct.h"
 #include "thunder_bgx.h"
+#include "thunder_lbk.h"
 
 #define DRV_NAME	"nicpf"
 #define DRV_VERSION	"1.0"
@@ -46,9 +48,9 @@ struct nicpf {
 	void __iomem		*reg_base;       /* Register start address */
 	u8			num_sqs_en;	/* Secondary qsets enabled */
 	u64			nicvf[MAX_NUM_VFS_SUPPORTED];
+#define	NIC_VF_UNASSIGNED	((u8)0xFF)
 	u8			vf_sqs[MAX_NUM_VFS_SUPPORTED][MAX_SQS_PER_VF];
 	u8			pqs_vf[MAX_NUM_VFS_SUPPORTED];
-	bool			sqs_used[MAX_NUM_VFS_SUPPORTED];
 	struct pkind_cfg	pkind;
 #define	NIC_SET_VF_LMAC_MAP(bgx, lmac)	(((bgx & 0xF) << 4) | (lmac & 0xF))
 #define	NIC_GET_BGX_FROM_VF_LMAC_MAP(map)	((map >> 4) & 0xF)
@@ -56,11 +58,14 @@ struct nicpf {
 	u8			*vf_lmac_map;
 	u16			cpi_base[MAX_NUM_VFS_SUPPORTED];
 	u16			rssi_base[MAX_NUM_VFS_SUPPORTED];
+	struct pci_dev		*vf_pdev[MAX_NUM_VFS_SUPPORTED];
 
 	/* MSI-X */
 	u8			num_vec;
 	unsigned int		irq_allocated[NIC_PF_MSIX_VECTORS];
 	char			irq_name[NIC_PF_MSIX_VECTORS][20];
+	int			lbk_vf[NUM_LBK_IFS];
+	u8			lbk_link_status[NUM_LBK_IFS];
 };
 
 /* Supported devices */
@@ -151,6 +156,128 @@ static void nic_send_msg_to_vf(struct nicpf *nic, int vf, union nic_mbx *mbx)
 	}
 }
 
+/* NIC PF control and configuraiton block. */
+static struct nicpf *nicpf_ctl;
+
+void nic_bgx_port_ctx_set(int node, int bgx, int lmac, int ctx, int dp_idx)
+{
+	int vf;
+	union nic_mbx mbx = {};
+	struct nicpf *nic = nicpf_ctl;
+	u8 bgxlmac = NIC_SET_VF_LMAC_MAP(bgx, lmac);
+
+	for (vf = 0; vf < nic->num_vf_en; vf++) {
+		if (nic->vf_enabled[vf] && nic->vf_lmac_map[vf] == bgxlmac) {
+			mbx.ctx.msg = NIC_MBOX_MSG_PORT_CTX;
+			mbx.ctx.vf_id = vf;
+			mbx.ctx.ctx = ctx;
+			mbx.ctx.dp_idx = dp_idx;
+			nic_send_msg_to_vf(nic, vf, &mbx);
+			break;
+		}
+	}
+}
+EXPORT_SYMBOL(nic_bgx_port_ctx_set);
+
+#define LBK_PKIND 15
+
+static u8 lbk_link_up[NUM_LBK_IFS];
+static u8 bgx_lmac_cnt;
+
+static int nic_get_lbk_port_pkind(void)
+{
+	return LBK_PKIND;
+}
+
+static int nic_start_lbk_port(void)
+{
+	return 0;
+}
+
+static void nic_stop_lbk_port(void)
+{
+}
+
+struct thunder_lbk_com_s thunder_lbk_com = {
+	.port_start = nic_start_lbk_port,
+	.port_stop = nic_stop_lbk_port,
+	.get_port_pkind = nic_get_lbk_port_pkind
+};
+EXPORT_SYMBOL(thunder_lbk_com);
+
+static void nic_lbk_link_update(struct nicpf *nic, int vf_idx)
+{
+	union nic_mbx mbx = {};
+	int vf = nic->lbk_vf[vf_idx - bgx_lmac_cnt];
+
+	mbx.link_status.msg = NIC_MBOX_MSG_BGX_LINK_CHANGE;
+	if (lbk_link_up[vf_idx - bgx_lmac_cnt]) {
+		mbx.link_status.link_up = true;
+		mbx.link_status.duplex = 1;
+		mbx.link_status.speed = 1000;
+		mbx.link_status.mac_type = LBK_MODE_LMAC;
+	} else {
+		mbx.link_status.link_up = false;
+		mbx.link_status.duplex = DUPLEX_UNKNOWN;
+		mbx.link_status.speed = SPEED_UNKNOWN;
+		mbx.link_status.mac_type = LBK_MODE_LMAC;
+	}
+	nic_send_msg_to_vf(nic, vf, &mbx);
+	nic->lbk_link_status[vf - bgx_lmac_cnt] =
+		lbk_link_up[vf - bgx_lmac_cnt];
+}
+
+static bool is_lbkvf(struct nicpf *nic, int vf)
+{
+	int lbk;
+
+	for (lbk = 0; lbk < NUM_LBK_IFS; lbk++) {
+		if (nic->lbk_vf[lbk] == vf)
+			return true;
+		continue;
+	}
+	return false;
+}
+
+static void nic_create_lbk_interface(struct nicpf *nic)
+{
+	u64 lmac_credit;
+	u16 sdevid;
+	int i, num_lbk_ifs, numvfs;
+
+	/* Init with a invalid index, used for is_lbkvf() identification */
+	for (i = 0; i < NUM_LBK_IFS; i++)
+		nic->lbk_vf[i] = INVALID_VF;
+
+	pci_read_config_word(nic->pdev, PCI_SUBSYSTEM_ID, &sdevid);
+	if (sdevid != PCI_SUBSYS_DEVID_83XX_NIC_PF)
+		return;
+
+	numvfs = pci_sriov_get_totalvfs(nic->pdev);
+
+	if (nic->num_vf_en + NUM_LBK_IFS <= numvfs)
+		num_lbk_ifs = NUM_LBK_IFS;
+	else
+		num_lbk_ifs = numvfs - nic->num_vf_en;
+
+	for (i = 0; i < num_lbk_ifs; i++) {
+		nic->num_vf_en++; /* Additional vf for LBK */
+
+		nic->lbk_vf[i] = nic->num_vf_en - 1;
+		lmac_credit = nic_reg_read(nic, NIC_PF_LMAC_0_7_CREDIT +
+			(NIC_LBK_PKIO_LMAC * 8));
+
+		lmac_credit = (1ull << 1); /* channel credit enable */
+		lmac_credit |= (0x1ff << 2); /* Max outstanding pkt count */
+		lmac_credit |= (((16 * 1024 - NIC_HW_MAX_FRS) / 16) << 12);
+
+		nic_reg_write(nic, NIC_PF_LMAC_0_7_CREDIT +
+			(NIC_LBK_PKIO_LMAC * 8), lmac_credit);
+		/* LBK link is always up. */
+		lbk_link_up[i] = 1;
+	}
+}
+
 /* Responds to VF's READY message with VF's
  * ID, node, MAC address e.t.c
  * @vf: VF which sent READY message
@@ -165,16 +292,16 @@ static void nic_mbx_send_ready(struct nicpf *nic, int vf)
 	mbx.nic_cfg.vf_id = vf;
 
 	mbx.nic_cfg.tns_mode = NIC_TNS_BYPASS_MODE;
+	if (vf < nic->num_vf_en && vf < nic->lbk_vf[0]) {
 
-	if (vf < nic->num_vf_en) {
 		bgx_idx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vf]);
 		lmac = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vf]);
-
 		mac = bgx_get_lmac_mac(nic->node, bgx_idx, lmac);
 		if (mac)
 			ether_addr_copy((u8 *)&mbx.nic_cfg.mac_addr, mac);
 	}
 	mbx.nic_cfg.sqs_mode = (vf >= nic->num_vf_en) ? true : false;
+	mbx.nic_cfg.lbk_mode = (vf >= nic->lbk_vf[0]) ? true : false;
 	mbx.nic_cfg.node_id = nic->node;
 
 	mbx.nic_cfg.loopback_supported = vf < nic->num_vf_en;
@@ -253,7 +380,7 @@ static void nic_get_bgx_stats(struct nicpf *nic, struct bgx_stats_msg *bgx)
 static int nic_update_hw_frs(struct nicpf *nic, int new_frs, int vf)
 {
 	int bgx, lmac, lmac_cnt;
-	u64 lmac_credits;
+	u64 lmac_credits, pkind_val;
 
 	if ((new_frs > NIC_HW_MAX_FRS) || (new_frs < NIC_HW_MIN_FRS))
 		return 1;
@@ -277,6 +404,12 @@ static int nic_update_hw_frs(struct nicpf *nic, int new_frs, int vf)
 	if (!pass1_silicon(nic->pdev))
 		nic_reg_write(nic,
 			      NIC_PF_LMAC_0_7_CFG2 + (lmac * 8), new_frs);
+
+	/* Set max receive packet size also to MTU */
+	pkind_val = nic_reg_read(nic, NIC_PF_PKIND_0_15_CFG | (lmac << 3));
+	((struct pkind_cfg *)&pkind_val)->maxlen = new_frs;
+	nic_reg_write(nic, NIC_PF_PKIND_0_15_CFG | (lmac << 3), pkind_val);
+
 	return 0;
 }
 
@@ -318,6 +451,7 @@ static void nic_set_lmac_vf_mapping(struct nicpf *nic)
 {
 	unsigned bgx_map = bgx_get_map(nic->node);
 	int bgx, next_bgx_lmac = 0;
+	unsigned long lmac_bmap;
 	int lmac, lmac_cnt = 0;
 	u64 lmac_credit;
 
@@ -327,10 +461,13 @@ static void nic_set_lmac_vf_mapping(struct nicpf *nic)
 		if (!(bgx_map & (1 << bgx)))
 			continue;
 		lmac_cnt = bgx_get_lmac_count(nic->node, bgx);
-		for (lmac = 0; lmac < lmac_cnt; lmac++)
+		lmac_bmap = bgx_get_lmac_bmap(nic->node, bgx);
+
+		for_each_set_bit(lmac, &lmac_bmap, MAX_LMAC_PER_BGX)
 			nic->vf_lmac_map[next_bgx_lmac++] =
 						NIC_SET_VF_LMAC_MAP(bgx, lmac);
 		nic->num_vf_en += lmac_cnt;
+		bgx_lmac_cnt = nic->num_vf_en;
 
 		/* Program LMAC credits */
 		lmac_credit = (1ull << 1); /* channel credit enable */
@@ -352,6 +489,9 @@ static void nic_set_lmac_vf_mapping(struct nicpf *nic)
 			break;
 		}
 	}
+
+	/* Create additional primary nic for lbk on 83xx */
+	nic_create_lbk_interface(nic);
 }
 
 static void nic_get_hw_info(struct nicpf *nic)
@@ -478,10 +618,15 @@ static void nic_config_cpi(struct nicpf *nic, struct cpi_cfg_msg *cfg)
 	u8  qset, rq_idx = 0;
 
 	vnic = cfg->vf_id;
-	bgx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vnic]);
-	lmac = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vnic]);
+	if (is_lbkvf(nic, vnic)) {
+		lmac = NIC_LBK_PKIO_LMAC;
+		chan = NIC_LBK_CHAN_BASE + NIC_LBK_PKIO + (vnic - bgx_lmac_cnt);
+	} else {
+		bgx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vnic]);
+		lmac = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vnic]);
+		chan = (lmac * hw->chans_per_lmac) + (bgx * hw->chans_per_bgx);
+	}
 
-	chan = (lmac * hw->chans_per_lmac) + (bgx * hw->chans_per_bgx);
 	cpi_base = vnic * NIC_MAX_CPI_PER_LMAC;
 	rssi_base = vnic * hw->rss_ind_tbl_size;
 
@@ -575,10 +720,18 @@ static void nic_config_rss(struct nicpf *nic, struct rss_cfg_msg *cfg)
 	for (; rssi < (rssi_base + cfg->tbl_len); rssi++) {
 		u8 svf = cfg->ind_tbl[idx] >> 3;
 
-		if (svf)
+		if (svf && svf <= MAX_SQS_PER_VF) {
 			qset = nic->vf_sqs[cfg->vf_id][svf - 1];
-		else
+			if (qset >= MAX_NUM_VFS_SUPPORTED ||
+			    nic->pqs_vf[qset] != cfg->vf_id) {
+				dev_err(&nic->pdev->dev,
+					"Invalid rss table entry %d from VF %d\n",
+					cfg->ind_tbl[idx], cfg->vf_id);
+				qset = cfg->vf_id;
+			}
+		} else {
 			qset = cfg->vf_id;
+		}
 		nic_reg_write(nic, NIC_PF_RSSI_0_4097_RQ | (rssi << 3),
 			      (qset << 3) | (cfg->ind_tbl[idx] & 0x7));
 		idx++;
@@ -612,7 +765,7 @@ static void nic_tx_channel_cfg(struct nicpf *nic, u8 vnic,
 			       struct sq_cfg_msg *sq)
 {
 	struct hw_info *hw = nic->hw;
-	u32 bgx, lmac, chan;
+	u32 bgx = 0, lmac, chan;
 	u32 tl2, tl3, tl4;
 	u32 rr_quantum;
 	u8 sq_idx = sq->sq_num;
@@ -624,8 +777,15 @@ static void nic_tx_channel_cfg(struct nicpf *nic, u8 vnic,
 	else
 		pqs_vnic = vnic;
 
-	bgx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[pqs_vnic]);
-	lmac = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[pqs_vnic]);
+	if (is_lbkvf(nic, vnic)) {
+		lmac = NIC_LBK_PKIO_LMAC;
+		chan = NIC_LBK_CHAN_BASE + NIC_LBK_PKIO + (vnic - bgx_lmac_cnt);
+	} else {
+		bgx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[pqs_vnic]);
+		lmac =
+		      NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[pqs_vnic]);
+		chan = (lmac * hw->chans_per_lmac) + (bgx * hw->chans_per_bgx);
+	}
 
 	/* 24 bytes for FCS, IPG and preamble */
 	rr_quantum = ((NIC_HW_MAX_FRS + 24) / 4);
@@ -666,11 +826,11 @@ static void nic_tx_channel_cfg(struct nicpf *nic, u8 vnic,
 	 * On 81xx/83xx TL3_CHAN reg should be configured with channel
 	 * within LMAC i.e 0-7 and not the actual channel number like on 88xx
 	 */
-	chan = (lmac * hw->chans_per_lmac) + (bgx * hw->chans_per_bgx);
 	if (hw->tl1_per_bgx)
 		nic_reg_write(nic, NIC_PF_TL3_0_255_CHAN | (tl3 << 3), chan);
 	else
-		nic_reg_write(nic, NIC_PF_TL3_0_255_CHAN | (tl3 << 3), 0);
+		nic_reg_write(nic, NIC_PF_TL3_0_255_CHAN | (tl3 << 3),
+			      (vnic - bgx_lmac_cnt));
 
 	/* Enable backpressure on the channel */
 	nic_reg_write(nic, NIC_PF_CHAN_0_255_TX_CFG | (chan << 3), 1);
@@ -706,7 +866,19 @@ static void nic_send_pnicvf(struct nicpf *nic, int sqs)
 static void nic_send_snicvf(struct nicpf *nic, struct nicvf_ptr *nicvf)
 {
 	union nic_mbx mbx = {};
-	int sqs_id = nic->vf_sqs[nicvf->vf_id][nicvf->sqs_id];
+	int sqs_id;
+
+	if (nicvf->sqs_id >= MAX_SQS_PER_VF) {
+		nic_mbx_send_nack(nic, nicvf->vf_id);
+		return;
+	}
+
+	sqs_id = nic->vf_sqs[nicvf->vf_id][nicvf->sqs_id];
+	if (sqs_id < nic->num_vf_en ||
+	    nic->pqs_vf[sqs_id] != nicvf->vf_id) {
+		nic_mbx_send_nack(nic, nicvf->vf_id);
+		return;
+	}
 
 	mbx.nicvf.msg = NIC_MBOX_MSG_SNICVF_PTR;
 	mbx.nicvf.sqs_id = nicvf->sqs_id;
@@ -714,47 +886,180 @@ static void nic_send_snicvf(struct nicpf *nic, struct nicvf_ptr *nicvf)
 	nic_send_msg_to_vf(nic, nicvf->vf_id, &mbx);
 }
 
+#ifdef CONFIG_PCI_IOV
+/* Find and take reference to all vf devices */
+static void nic_get_vf_pdev(struct nicpf *nic, int vf_en)
+{
+	struct pci_dev *pdev = nic->pdev;
+	struct pci_dev *vfdev;
+	u16 vid = pdev->vendor;
+	u16 devid;
+	int vf = 0, pos;
+
+	pos = pci_find_ext_capability(pdev, PCI_EXT_CAP_ID_SRIOV);
+	if (!pos)
+		return;
+	pci_read_config_word(pdev, pos + PCI_SRIOV_VF_DID, &devid);
+
+	vfdev = pci_get_device(vid, devid, NULL);
+	for (; vfdev; vfdev = pci_get_device(vid, devid, vfdev)) {
+		if (!vfdev->is_virtfn)
+			continue;
+		if (vfdev->physfn != pdev)
+			continue;
+		if (vf >= vf_en)
+			continue;
+		nic->vf_pdev[vf] = vfdev;
+		pci_dev_get(vfdev);
+		++vf;
+	}
+}
+#endif
+
+/* Release references to all vf devices */
+static void nic_put_vf_pdev(struct nicpf *nic)
+{
+	int vf;
+
+	for (vf = 0; vf < MAX_NUM_VFS_SUPPORTED; vf++) {
+		struct pci_dev *vfdev = nic->vf_pdev[vf];
+
+		nic->vf_pdev[vf] = NULL;
+		if (vfdev)
+			pci_dev_put(vfdev);
+	}
+}
+
+/* Check if pri.VF and sec.VF are in same domain i.e bound to same driver */
+static bool nic_check_svf_drv(struct nicpf *nic, u8 pvf, u8 svf)
+{
+	return pci_dev_driver(nic->vf_pdev[pvf]) ==
+	       pci_dev_driver(nic->vf_pdev[svf]);
+}
+
 /* Find next available Qset that can be assigned as a
  * secondary Qset to a VF.
  */
-static int nic_nxt_avail_sqs(struct nicpf *nic)
+static int nic_nxt_avail_sqs(struct nicpf *nic, u8 pvf)
 {
 	int sqs;
 
-	for (sqs = 0; sqs < nic->num_sqs_en; sqs++) {
-		if (!nic->sqs_used[sqs])
-			nic->sqs_used[sqs] = true;
+	for (sqs = nic->num_vf_en;
+	     sqs < (nic->num_vf_en + nic->num_sqs_en); sqs++) {
+		if (nic->pqs_vf[sqs] == NIC_VF_UNASSIGNED &&
+		    nic_check_svf_drv(nic, pvf, sqs))
+			nic->pqs_vf[sqs] = pvf;
 		else
 			continue;
-		return sqs + nic->num_vf_en;
+		return sqs;
 	}
 	return -1;
 }
 
 /* Allocate additional Qsets for requested VF */
-static void nic_alloc_sqs(struct nicpf *nic, struct sqs_alloc *sqs)
+static void nic_alloc_sqs(struct nicpf *nic, u8 pvf, struct sqs_alloc *sqs)
 {
 	union nic_mbx mbx = {};
 	int idx, alloc_qs = 0;
 	int sqs_id;
 
-	if (!nic->num_sqs_en)
+	if (!nic->num_sqs_en || sqs->qs_count > MAX_SQS_PER_VF)
 		goto send_mbox;
 
-	for (idx = 0; idx < sqs->qs_count; idx++) {
-		sqs_id = nic_nxt_avail_sqs(nic);
-		if (sqs_id < 0)
-			break;
-		nic->vf_sqs[sqs->vf_id][idx] = sqs_id;
-		nic->pqs_vf[sqs_id] = sqs->vf_id;
-		alloc_qs++;
+	if (sqs->spec) {
+		for (idx = 0; idx < sqs->qs_count; idx++) {
+			sqs_id = sqs->svf[idx];
+
+			/* Check if desired SQS is within the allowed range */
+			if (!(sqs_id >= nic->num_vf_en &&
+			      (sqs_id < (nic->num_vf_en + nic->num_sqs_en)))) {
+				dev_err(&nic->pdev->dev,
+					"Req SQS is invalid sqs->svf[%d]=%u",
+					idx, sqs_id);
+				break;
+			}
+
+			/* Check if desired SQS is free or assigned to a PVF */
+			if (nic->pqs_vf[sqs_id] != NIC_VF_UNASSIGNED &&
+			    nic->pqs_vf[sqs_id] != pvf) {
+				dev_err(&nic->pdev->dev,
+					"SQS%d is already allocated to VF%u",
+					sqs_id, nic->pqs_vf[sqs_id]);
+				break;
+			}
+
+			/* Check if SQS is bound to the same driver as PVF */
+			if (!nic_check_svf_drv(nic, pvf, sqs_id)) {
+				dev_err(&nic->pdev->dev,
+					"SQS%d use different driver", sqs_id);
+				break;
+			}
+		}
+
+		if (idx != sqs->qs_count)
+			goto send_mbox;
+
+		/* Clear any existing assignments */
+		for (idx = 0; idx < MAX_SQS_PER_VF; idx++)
+			nic->vf_sqs[pvf][idx] = NIC_VF_UNASSIGNED;
+		for (idx = nic->num_vf_en;
+		     idx < (nic->num_vf_en + nic->num_sqs_en); idx++) {
+			if (nic->pqs_vf[idx] == pvf)
+				nic->pqs_vf[idx] = NIC_VF_UNASSIGNED;
+		}
+
+		/* Populate VF's SQS table */
+		for (idx = 0; idx < sqs->qs_count; idx++) {
+			sqs_id = sqs->svf[idx];
+			nic->vf_sqs[pvf][idx] = sqs_id;
+			nic->pqs_vf[sqs_id] = pvf;
+			mbx.sqs_alloc.svf[idx] = sqs_id;
+		}
+		alloc_qs = idx;
+	} else {
+		for (idx = 0; idx < sqs->qs_count; idx++) {
+			sqs_id = nic_nxt_avail_sqs(nic, pvf);
+			if (sqs_id < 0)
+				break;
+			nic->vf_sqs[pvf][idx] = sqs_id;
+			nic->pqs_vf[sqs_id] = pvf;
+			mbx.sqs_alloc.svf[idx] = sqs_id;
+		}
+		alloc_qs = idx;
 	}
 
 send_mbox:
 	mbx.sqs_alloc.msg = NIC_MBOX_MSG_ALLOC_SQS;
-	mbx.sqs_alloc.vf_id = sqs->vf_id;
 	mbx.sqs_alloc.qs_count = alloc_qs;
-	nic_send_msg_to_vf(nic, sqs->vf_id, &mbx);
+	nic_send_msg_to_vf(nic, pvf, &mbx);
+}
+
+static int nic_port_set_link_state(struct nicpf *nic,
+				   struct set_link_state *link)
+{
+	int bgx_idx, lmac_idx;
+
+	if (link->vf_id >= nic->num_vf_en)
+		return -1;
+
+	bgx_idx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[link->vf_id]);
+	lmac_idx = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[link->vf_id]);
+
+	return bgx_set_lmac_link_state(nic->node, bgx_idx, lmac_idx,
+				       link->enable);
+}
+
+static int nic_port_change_mode(struct nicpf *nic, struct change_mode *cm)
+{
+	int bgx_idx, lmac_idx;
+
+	if (cm->vf_id >= nic->num_vf_en)
+		return -1;
+
+	bgx_idx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[cm->vf_id]);
+	lmac_idx = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[cm->vf_id]);
+
+	return bgx_change_lmac_mode(nic->node, bgx_idx, lmac_idx, cm);
 }
 
 static int nic_config_loopback(struct nicpf *nic, struct set_loopback *lbk)
@@ -864,7 +1169,7 @@ static void nic_pause_frame(struct nicpf *nic, int vf, struct pfc *cfg)
 	struct pfc pfc;
 	union nic_mbx mbx = {};
 
-	if (vf >= nic->num_vf_en)
+	if (is_lbkvf(nic, vf))
 		return;
 	bgx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vf]);
 	lmac = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vf]);
@@ -889,7 +1194,7 @@ static void nic_config_timestamp(struct nicpf *nic, int vf, struct set_ptp *ptp)
 	u8 lmac, bgx_idx;
 	u64 pkind_val, pkind_idx;
 
-	if (vf >= nic->num_vf_en)
+	if (is_lbkvf(nic, vf))
 		return;
 
 	bgx_idx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[vf]);
@@ -929,6 +1234,12 @@ static void nic_link_status_get(struct nicpf *nic, u8 vf)
 	union nic_mbx mbx = {};
 	struct bgx_link_status link;
 	u8 bgx, lmac;
+
+	if (is_lbkvf(nic, vf)) {
+		if (lbk_link_up[vf - bgx_lmac_cnt] !=
+		    nic->lbk_link_status[vf - bgx_lmac_cnt])
+			nic_lbk_link_update(nic, vf);
+	}
 
 	mbx.link_status.msg = NIC_MBOX_MSG_BGX_LINK_CHANGE;
 
@@ -1030,12 +1341,18 @@ static void nic_handle_mbx_intr(struct nicpf *nic, int vf)
 			ret = -1; /* NACK */
 			break;
 		}
+		if (is_lbkvf(nic, vf)) {
+			ret = 0;
+			break;
+		}
 		lmac = mbx.mac.vf_id;
 		bgx = NIC_GET_BGX_FROM_VF_LMAC_MAP(nic->vf_lmac_map[lmac]);
 		lmac = NIC_GET_LMAC_FROM_VF_LMAC_MAP(nic->vf_lmac_map[lmac]);
 		bgx_set_lmac_mac(nic->node, bgx, lmac, mbx.mac.mac_addr);
 		break;
 	case NIC_MBOX_MSG_SET_MAX_FRS:
+		if (is_lbkvf(nic, vf))
+			break;
 		ret = nic_update_hw_frs(nic, mbx.frs.max_frs,
 					mbx.frs.vf_id);
 		break;
@@ -1051,17 +1368,25 @@ static void nic_handle_mbx_intr(struct nicpf *nic, int vf)
 		break;
 	case NIC_MBOX_MSG_CFG_DONE:
 		/* Last message of VF config msg sequence */
-		nic_enable_vf(nic, vf, true);
+		if (is_lbkvf(nic, vf))
+			nic->vf_enabled[vf] = true;
+		else
+			nic_enable_vf(nic, vf, true);
 		break;
 	case NIC_MBOX_MSG_SHUTDOWN:
 		/* First msg in VF teardown sequence */
-		if (vf >= nic->num_vf_en)
-			nic->sqs_used[vf - nic->num_vf_en] = false;
-		nic->pqs_vf[vf] = 0;
-		nic_enable_vf(nic, vf, false);
+		if (vf < nic->num_vf_en) {
+			for (i = 0; i < MAX_SQS_PER_VF; i++)
+				nic->vf_sqs[vf][i] = NIC_VF_UNASSIGNED;
+		}
+		nic->pqs_vf[vf] = NIC_VF_UNASSIGNED;
+		if (is_lbkvf(nic, vf))
+			nic->vf_enabled[vf] = false;
+		else
+			nic_enable_vf(nic, vf, false);
 		break;
 	case NIC_MBOX_MSG_ALLOC_SQS:
-		nic_alloc_sqs(nic, &mbx.sqs_alloc);
+		nic_alloc_sqs(nic, vf, &mbx.sqs_alloc);
 		return;
 	case NIC_MBOX_MSG_NICVF_PTR:
 		nic->nicvf[vf] = mbx.nicvf.nicvf;
@@ -1086,6 +1411,12 @@ static void nic_handle_mbx_intr(struct nicpf *nic, int vf)
 		return;
 	case NIC_MBOX_MSG_PTP_CFG:
 		nic_config_timestamp(nic, vf, &mbx.ptp);
+		break;
+	case NIC_MBOX_MSG_SET_LINK:
+		ret = nic_port_set_link_state(nic, &mbx.set_link);
+		break;
+	case NIC_MBOX_MSG_CHANGE_MODE:
+		ret = nic_port_change_mode(nic, &mbx.cm);
 		break;
 	case NIC_MBOX_MSG_RESET_XCAST:
 		if (vf >= nic->num_vf_en) {
@@ -1281,6 +1612,10 @@ static int nic_sriov_init(struct pci_dev *pdev, struct nicpf *nic)
 		return err;
 	}
 
+#ifdef CONFIG_PCI_IOV
+	nic_get_vf_pdev(nic, vf_en);
+#endif
+
 	dev_info(&pdev->dev, "SRIOV enabled, number of VF available %d\n",
 		 vf_en);
 
@@ -1293,7 +1628,7 @@ static int nic_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	struct device *dev = &pdev->dev;
 	struct nicpf *nic;
 	u8     max_lmac;
-	int    err;
+	int    err, vf, sqs;
 
 	BUILD_BUG_ON(sizeof(union nic_mbx) > 16);
 
@@ -1354,16 +1689,27 @@ static int nic_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	nic_set_lmac_vf_mapping(nic);
 
+	/* Initialize all VF's primary Qset */
+	for (vf = 0; vf < MAX_NUM_VFS_SUPPORTED; vf++) {
+		nic->pqs_vf[vf] = NIC_VF_UNASSIGNED;
+		for (sqs = 0; sqs < MAX_SQS_PER_VF; sqs++)
+			nic->vf_sqs[vf][sqs] = NIC_VF_UNASSIGNED;
+	}
+
 	/* Register interrupts */
 	err = nic_register_interrupts(nic);
 	if (err)
 		goto err_release_regions;
+
+	/* Set port context */
+	bgx_init_ctx_set_cb(nic_bgx_port_ctx_set);
 
 	/* Configure SRIOV */
 	err = nic_sriov_init(pdev, nic);
 	if (err)
 		goto err_unregister_interrupts;
 
+	nicpf_ctl = nic;
 	return 0;
 
 err_unregister_interrupts:
@@ -1383,8 +1729,10 @@ static void nic_remove(struct pci_dev *pdev)
 	if (!nic)
 		return;
 
-	if (nic->flags & NIC_SRIOV_ENABLED)
+	if (nic->flags & NIC_SRIOV_ENABLED) {
+		nic_put_vf_pdev(nic);
 		pci_disable_sriov(pdev);
+	}
 
 	nic_unregister_interrupts(nic);
 	pci_release_regions(pdev);

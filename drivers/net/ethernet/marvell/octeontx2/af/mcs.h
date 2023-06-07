@@ -149,6 +149,7 @@ struct mcs {
 	u16			num_vec;
 	void			*rvu;
 	u16			*tx_sa_active;
+	u8                      bypass;
 };
 
 struct mcs_ops {
@@ -206,6 +207,7 @@ void mcs_get_custom_tag_cfg(struct mcs *mcs, struct mcs_custom_tag_cfg_get_req *
 int mcs_alloc_ctrlpktrule(struct rsrc_bmap *rsrc, u16 *pf_map, u16 offset, u16 pcifunc);
 int mcs_free_ctrlpktrule(struct mcs *mcs, struct mcs_free_ctrl_pkt_rule_req *req);
 int mcs_ctrlpktrule_write(struct mcs *mcs, struct mcs_ctrl_pkt_rule_write_req *req);
+bool is_mcs_bypass(int mcs_id);
 
 /* CN10K-B APIs */
 void cn10kb_mcs_set_hw_capabilities(struct mcs *mcs);
@@ -230,7 +232,6 @@ void cnf10kb_mcs_pab_intr_handler(struct mcs *mcs, u64 intr, enum mcs_direction 
 
 /* Stats APIs */
 void mcs_get_sc_stats(struct mcs *mcs, struct mcs_sc_stats *stats, int id, int dir);
-void mcs_get_sa_stats(struct mcs *mcs, struct mcs_sa_stats *stats, int id, int dir);
 void mcs_get_port_stats(struct mcs *mcs, struct mcs_port_stats *stats, int id, int dir);
 void mcs_get_flowid_stats(struct mcs *mcs, struct mcs_flowid_stats *stats, int id, int dir);
 void mcs_get_rx_secy_stats(struct mcs *mcs, struct mcs_secy_stats *stats, int id);

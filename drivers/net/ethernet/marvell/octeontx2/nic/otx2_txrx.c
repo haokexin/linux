@@ -147,6 +147,8 @@ static void otx2_snd_pkt_handler(struct otx2_nic *pfvf,
 				    pfvf->netdev->name, cq->cint_idx,
 				    snd_comp->status);
 
+	/* Barrier, so that update to sq by other cpus is visible */
+	smp_mb();
 	sg = &sq->sg[snd_comp->sqe_id];
 	skb = (struct sk_buff *)sg->skb;
 	if (unlikely(!skb))
@@ -172,8 +174,26 @@ static void otx2_snd_pkt_handler(struct otx2_nic *pfvf,
 	sg->skb = (u64)NULL;
 }
 
-static void otx2_set_rxtstamp(struct otx2_nic *pfvf,
-			      struct sk_buff *skb, void *data)
+static inline void otx2_set_taginfo(struct nix_rx_parse_s *parse,
+				    struct sk_buff *skb)
+{
+	/* Check if VLAN is present, captured and stripped from packet */
+	if (parse->vtag0_valid && parse->vtag0_gone) {
+		skb_frag_t *frag0 = &skb_shinfo(skb)->frags[0];
+
+		/* Is the tag captured STAG or CTAG ? */
+		if (((struct ethhdr *)skb_frag_address(frag0))->h_proto ==
+		    htons(ETH_P_8021Q))
+			__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021AD),
+					       parse->vtag0_tci);
+		else
+			__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q),
+					       parse->vtag0_tci);
+	}
+}
+
+static inline void otx2_set_rxtstamp(struct otx2_nic *pfvf,
+				     struct sk_buff *skb, void *data)
 {
 	u64 timestamp, tsns;
 	int err;
@@ -210,6 +230,7 @@ static bool otx2_skb_add_frag(struct otx2_nic *pfvf, struct sk_buff *skb,
 			otx2_set_rxtstamp(pfvf, skb, va);
 			off = OTX2_HW_TIMESTAMP_LEN;
 		}
+		off += pfvf->xtra_hdr;
 	}
 
 	page = virt_to_page(va);
@@ -266,9 +287,12 @@ static void otx2_free_rcv_seg(struct otx2_nic *pfvf, struct nix_cqe_rx_s *cqe,
 	while (start < end) {
 		sg = (struct nix_rx_sg_s *)start;
 		seg_addr = &sg->seg_addr;
-		for (seg = 0; seg < sg->segs; seg++, seg_addr++)
+		for (seg = 0; seg < sg->segs; seg++, seg_addr++) {
+			if (unlikely(!seg_addr))
+				return;
 			pfvf->hw_ops->aura_freeptr(pfvf, qidx,
 						   *seg_addr & ~0x07ULL);
+		}
 		start += sizeof(*sg);
 	}
 }
@@ -382,6 +406,7 @@ static void otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
 	if (pfvf->netdev->features & NETIF_F_RXCSUM)
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 
+	otx2_set_taginfo(parse, skb);
 	napi_gro_frags(napi);
 }
 
@@ -486,7 +511,11 @@ process_cqe:
 	if (likely(tx_pkts)) {
 		struct netdev_queue *txq;
 
-		txq = netdev_get_tx_queue(pfvf->netdev, cq->cint_idx);
+		qidx = cq->cq_idx - pfvf->hw.rx_queues;
+
+		if (qidx >= pfvf->hw.tx_queues)
+			qidx -= pfvf->hw.xdp_queues;
+		txq = netdev_get_tx_queue(pfvf->netdev, qidx);
 		netdev_tx_completed_queue(txq, tx_pkts, tx_bytes);
 		/* Check if queue was stopped earlier due to ring full */
 		smp_mb();
@@ -499,13 +528,18 @@ process_cqe:
 
 static void otx2_adjust_adaptive_coalese(struct otx2_nic *pfvf, struct otx2_cq_poll *cq_poll)
 {
-	struct dim_sample dim_sample;
+	struct dim_sample dim_sample = { 0 };
 	u64 rx_frames, rx_bytes;
+	u64 tx_frames, tx_bytes;
 
 	rx_frames = OTX2_GET_RX_STATS(RX_BCAST) + OTX2_GET_RX_STATS(RX_MCAST) +
-		OTX2_GET_RX_STATS(RX_UCAST);
+			OTX2_GET_RX_STATS(RX_UCAST);
 	rx_bytes = OTX2_GET_RX_STATS(RX_OCTS);
-	dim_update_sample(pfvf->napi_events, rx_frames, rx_bytes, &dim_sample);
+	tx_bytes = OTX2_GET_TX_STATS(TX_OCTS);
+	tx_frames = OTX2_GET_TX_STATS(TX_UCAST);
+
+	dim_update_sample(pfvf->napi_events, rx_frames + tx_frames,
+			  rx_bytes + tx_bytes, &dim_sample);
 	net_dim(&cq_poll->dim, dim_sample);
 }
 
@@ -546,16 +580,9 @@ int otx2_napi_handler(struct napi_struct *napi, int budget)
 		if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
 			return workdone;
 
-		/* Check for adaptive interrupt coalesce */
-		if (workdone != 0 &&
-		    ((pfvf->flags & OTX2_FLAG_ADPTV_INT_COAL_ENABLED) ==
-		     OTX2_FLAG_ADPTV_INT_COAL_ENABLED)) {
-			/* Adjust irq coalese using net_dim */
+		/* Adjust irq coalese using net_dim */
+		if (pfvf->flags & OTX2_FLAG_ADPTV_INT_COAL_ENABLED)
 			otx2_adjust_adaptive_coalese(pfvf, cq_poll);
-			/* Update irq coalescing */
-			for (i = 0; i < pfvf->hw.cint_cnt; i++)
-				otx2_config_irq_coalescing(pfvf, i);
-		}
 
 		/* Re-enable interrupts */
 		otx2_write64(pfvf, NIX_LF_CINTX_ENA_W1S(cq_poll->cint_idx),
@@ -734,7 +761,10 @@ static void otx2_sqe_add_hdr(struct otx2_nic *pfvf, struct otx2_snd_queue *sq,
 		sqe_hdr->aura = sq->aura_id;
 		/* Post a CQE Tx after pkt transmission */
 		sqe_hdr->pnc = 1;
-		sqe_hdr->sq = qidx;
+		if (qidx >= pfvf->hw.tx_queues)
+			sqe_hdr->sq = qidx + pfvf->hw.xdp_queues;
+		else
+			sqe_hdr->sq = qidx;
 	}
 	sqe_hdr->total = skb->len;
 	/* Set SQE identifier which will be used later for freeing SKB */
@@ -1142,8 +1172,12 @@ bool otx2_sq_append_skb(struct net_device *netdev, struct otx2_snd_queue *sq,
 
 	if (skb_shinfo(skb)->gso_size && !is_hw_tso_supported(pfvf, skb)) {
 		/* Insert vlan tag before giving pkt to tso */
-		if (skb_vlan_tag_present(skb))
+		if (skb_vlan_tag_present(skb)) {
 			skb = __vlan_hwaccel_push_inside(skb);
+			if (!skb)
+				return false;
+		}
+
 		otx2_sq_append_tso(pfvf, sq, skb, qidx);
 		return true;
 	}
@@ -1204,7 +1238,7 @@ void otx2_cleanup_rx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq)
 		iova = cqe->sg.seg_addr - OTX2_HEAD_ROOM;
 		pa = otx2_iova_to_phys(pfvf->iommu_domain, iova);
 		otx2_dma_unmap_page(pfvf, iova, pfvf->rbsize, DMA_FROM_DEVICE);
-		put_page(virt_to_page(phys_to_virt(pa)));
+		page_frag_free(phys_to_virt(pa));
 	}
 
 	/* Free CQEs to HW */
@@ -1214,13 +1248,17 @@ void otx2_cleanup_rx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq)
 
 void otx2_cleanup_tx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq)
 {
+	int tx_pkts = 0, tx_bytes = 0;
 	struct sk_buff *skb = NULL;
 	struct otx2_snd_queue *sq;
 	struct nix_cqe_tx_s *cqe;
+	struct netdev_queue *txq;
 	int processed_cqe = 0;
 	struct sg_list *sg;
+	int qidx;
 
-	sq = &pfvf->qset.sq[cq->cint_idx];
+	qidx = cq->cq_idx - pfvf->hw.rx_queues;
+	sq = &pfvf->qset.sq[qidx];
 
 	if (otx2_nix_cq_op_status(pfvf, cq) || !cq->pend_cqe)
 		return;
@@ -1235,12 +1273,20 @@ void otx2_cleanup_tx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq)
 		sg = &sq->sg[cqe->comp.sqe_id];
 		skb = (struct sk_buff *)sg->skb;
 		if (skb) {
+			tx_bytes += skb->len;
+			tx_pkts++;
 			otx2_dma_unmap_skb_frags(pfvf, sg);
 			dev_kfree_skb_any(skb);
 			sg->skb = (u64)NULL;
 		}
 	}
 
+	if (likely(tx_pkts)) {
+		if (qidx >= pfvf->hw.tx_queues)
+			qidx -= pfvf->hw.xdp_queues;
+		txq = netdev_get_tx_queue(pfvf->netdev, qidx);
+		netdev_tx_completed_queue(txq, tx_pkts, tx_bytes);
+	}
 	/* Free CQEs to HW */
 	otx2_write64(pfvf, NIX_LF_CQ_OP_DOOR,
 		     ((u64)cq->cq_idx << 32) | processed_cqe);
@@ -1265,6 +1311,38 @@ int otx2_rxtx_enable(struct otx2_nic *pfvf, bool enable)
 	err = otx2_sync_mbox_msg(&pfvf->mbox);
 	mutex_unlock(&pfvf->mbox.lock);
 	return err;
+}
+
+void otx2_free_pending_sqe(struct otx2_nic *pfvf)
+{
+	int tx_pkts = 0, tx_bytes = 0;
+	struct sk_buff *skb = NULL;
+	struct otx2_snd_queue *sq;
+	struct netdev_queue *txq;
+	struct sg_list *sg;
+	int sq_idx, sqe;
+
+	for (sq_idx = 0; sq_idx < pfvf->hw.tx_queues; sq_idx++) {
+		sq = &pfvf->qset.sq[sq_idx];
+		for (sqe = 0; sqe < sq->sqe_cnt; sqe++) {
+			sg = &sq->sg[sqe];
+			skb = (struct sk_buff *)sg->skb;
+			if (skb) {
+				tx_bytes += skb->len;
+				tx_pkts++;
+				otx2_dma_unmap_skb_frags(pfvf, sg);
+				dev_kfree_skb_any(skb);
+				sg->skb = (u64)NULL;
+			}
+		}
+
+		if (!tx_pkts)
+			continue;
+		txq = netdev_get_tx_queue(pfvf->netdev, sq_idx);
+		netdev_tx_completed_queue(txq, tx_pkts, tx_bytes);
+		tx_pkts = 0;
+		tx_bytes = 0;
+	}
 }
 
 static void otx2_xdp_sqe_add_sg(struct otx2_snd_queue *sq, u64 dma_addr,

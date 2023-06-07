@@ -52,6 +52,8 @@
 #define RVU_AF_SMMU_ADDR_TLN		    (0x6018)
 #define RVU_AF_SMMU_TLN_FLIT0		    (0x6020)
 
+#define RVU_AF_BAR2_ALIASX(a, b)	    (0x9100000ull | (a) << 12 | (b))
+
 /* Admin function's privileged PF/VF registers */
 #define RVU_PRIV_CONST                      (0x8000000)
 #define RVU_PRIV_GEN_CFG                    (0x8000010)
@@ -75,6 +77,8 @@
 #define RVU_PRIV_HWVFX_SSOW_CFG             (0x8001330)
 #define RVU_PRIV_HWVFX_TIM_CFG              (0x8001340)
 #define RVU_PRIV_HWVFX_CPTX_CFG(a)          (0x8001350 | (a) << 3)
+#define RVU_PRIV_PFX_REEX_CFG(a)            (0x8000360 | (a) << 3)
+#define RVU_PRIV_HWVFX_REEX_CFG(a)          (0x8001360 | (a) << 3)
 
 /* RVU PF registers */
 #define	RVU_PF_VFX_PFVF_MBOX0		    (0x00000)
@@ -121,6 +125,7 @@
 #define NPA_AF_LF_RST                   (0x0020)
 #define NPA_AF_GEN_CFG                  (0x0030)
 #define NPA_AF_NDC_CFG                  (0x0040)
+#define NPA_AF_NDC_SYNC                 (0x0050)
 #define NPA_AF_INP_CTL                  (0x00D0)
 #define NPA_AF_ACTIVE_CYCLES_PC         (0x00F0)
 #define NPA_AF_AVG_DELAY                (0x0100)
@@ -163,6 +168,9 @@
 #define NPA_PRIV_LFX_INT_CFG		(0x10020)
 #define NPA_AF_RVU_LF_CFG_DEBUG         (0x10030)
 
+#define NPA_AF_BAR2_SEL			(0x9000000ull)
+#define NPA_AF_BAR2_ALIASX(a, b)	RVU_AF_BAR2_ALIASX(a, b)
+
 /* NIX block's admin function registers */
 #define NIX_AF_CFG			(0x0000)
 #define NIX_AF_STATUS			(0x0010)
@@ -189,6 +197,7 @@
 #define NIX_AF_RX_CFG			(0x00D0)
 #define NIX_AF_AVG_DELAY		(0x00E0)
 #define NIX_AF_CINT_DELAY		(0x00F0)
+#define NIX_AF_VWQE_TIMER		(0x00F8)
 #define NIX_AF_RX_MCAST_BASE		(0x0100)
 #define NIX_AF_RX_MCAST_CFG		(0x0110)
 #define NIX_AF_RX_MCAST_BUF_BASE	(0x0120)
@@ -228,7 +237,7 @@
 #define NIX_AF_RX_DEF_OSCTP		(0x0290)
 #define NIX_AF_RX_DEF_CST_APAD0		(0x0298)
 #define NIX_AF_RX_DEF_ISCTP		(0x02A0)
-#define NIX_AF_RX_DEF_IPSECX		(0x02B0)
+#define NIX_AF_RX_DEF_IPSECX(a)		(0x02B0ull | (uint64_t)(a) << 3)
 #define NIX_AF_RX_DEF_CST_APAD1		(0x02A8)
 #define NIX_AF_RX_DEF_IIP4_DSCP		(0x02E0)
 #define NIX_AF_RX_DEF_OIP4_DSCP		(0x02E8)
@@ -238,6 +247,7 @@
 #define NIX_AF_RX_CPTX_INST_ADDR	(0x0310)
 #define NIX_AF_RX_CPTX_INST_QSEL(a)	(0x0320ull | (uint64_t)(a) << 3)
 #define NIX_AF_RX_CPTX_CREDIT(a)	(0x0360ull | (uint64_t)(a) << 3)
+#define NIX_AF_NDC_RX_SYNC		(0x03E0)
 #define NIX_AF_NDC_TX_SYNC		(0x03F0)
 #define NIX_AF_AQ_CFG			(0x0400)
 #define NIX_AF_AQ_BASE			(0x0410)
@@ -258,6 +268,7 @@
 #define NIX_AF_RX_LINKX_CFG(a)		(0x0540 | (a) << 16)
 #define NIX_AF_RX_SW_SYNC		(0x0550)
 #define NIX_AF_RX_SW_SYNC_DONE		(0x0560)
+#define NIX_AF_RQM_ECO			(0x05A0)
 #define NIX_AF_SEB_ECO			(0x0600)
 #define NIX_AF_SEB_TEST_BP		(0x0610)
 #define NIX_AF_NORM_TX_FIFO_STATUS	(0x0620)
@@ -271,8 +282,9 @@
 #define NIX_AF_DEBUG_NPC_RESP_DATAX(a)          (0x680 | (a) << 3)
 #define NIX_AF_SMQX_CFG(a)                      (0x700 | (a) << 16)
 #define NIX_AF_SQM_DBG_CTL_STATUS               (0x750)
-#define NIX_AF_DWRR_SDP_MTU                     (0x790)
+#define NIX_AF_DWRR_SDP_MTU                     (0x790)  /* All CN10K except CN10KB */
 #define NIX_AF_DWRR_RPM_MTU                     (0x7A0)
+#define NIX_AF_DWRR_MTUX(a)			(0x790 | (a) << 16) /* Only for CN10KB */
 #define NIX_AF_PSE_CHANNEL_LEVEL                (0x800)
 #define NIX_AF_PSE_SHAPER_CFG                   (0x810)
 #define NIX_AF_TX_EXPR_CREDIT			(0x830)
@@ -392,6 +404,10 @@
 #define NIX_AF_RX_CHANX_CFG(a)                  (0x1A30 | (a) << 15)
 #define NIX_AF_CINT_TIMERX(a)                   (0x1A40 | (a) << 18)
 #define NIX_AF_LSO_FORMATX_FIELDX(a, b)         (0x1B00 | (a) << 16 | (b) << 3)
+#define NIX_AF_SPI_TO_SA_KEYX_WAYX(a, b)        (0x1C00 | (a) << 16 | (b) << 3)
+#define NIX_AF_SPI_TO_SA_VALUEX_WAYX(a, b)      (0x1C40 | (a) << 16 | (b) << 3)
+#define NIX_AF_SPI_TO_SA_HASH_KEY               (0x1C90)
+#define NIX_AF_SPI_TO_SA_HASH_VALUE             (0x1CA0)
 #define NIX_AF_LFX_CFG(a)		(0x4000 | (a) << 17)
 #define NIX_AF_LFX_SQS_CFG(a)		(0x4020 | (a) << 17)
 #define NIX_AF_LFX_TX_CFG2(a)		(0x4028 | (a) << 17)
@@ -426,6 +442,9 @@
 #define NIX_AF_RX_NPC_MIRROR_DROP	(0x4730)
 #define NIX_AF_RX_ACTIVE_CYCLES_PCX(a)	(0x4800 | (a) << 16)
 #define NIX_AF_LINKX_CFG(a)		(0x4010 | (a) << 17)
+#define NIX_AF_MDQX_IN_MD_COUNT(a)	(0x14e0 | (a) << 16)
+#define NIX_AF_RX_RQX_MASKX(a, b)       (0x4A40 | (a) << 16 | (b) << 3)
+#define NIX_AF_RX_RQX_SETX(a, b)        (0x4A80 | (a) << 16 | (b) << 3)
 
 #define NIX_PRIV_AF_INT_CFG		(0x8000000)
 #define NIX_PRIV_LFX_CFG		(0x8000010)
@@ -435,20 +454,228 @@
 #define NIX_AF_LINKX_BASE_MASK		GENMASK_ULL(11, 0)
 #define NIX_AF_LINKX_RANGE_MASK		GENMASK_ULL(19, 16)
 
+#define NIX_AF_LF_CFG_SHIFT		17
+#define NIX_AF_LF_SSO_PF_FUNC_SHIFT	16
+#define NIX_RQ_MSK_PROFILES             4
+
 /* SSO */
 #define SSO_AF_CONST			(0x1000)
 #define SSO_AF_CONST1			(0x1008)
-#define SSO_AF_BLK_RST			(0x10f8)
+#define SSO_AF_WQ_INT_PC		(0x1020)
+#define SSO_AF_NOS_CNT			(0x1050)
+#define SSO_AF_AW_WE			(0x1080)
+#define SSO_AF_WS_CFG			(0x1088)
 #define SSO_AF_LF_HWGRP_RST		(0x10e0)
+#define SSO_AF_AW_CFG			(0x10f0)
+#define SSO_AF_BLK_RST			(0x10f8)
+#define SSO_AF_ACTIVE_CYCLES0		(0x1100)
+#define SSO_AF_ACTIVE_CYCLES1		(0x1108)
+#define SSO_AF_ACTIVE_CYCLES2		(0x1110)
+#define SSO_AF_ERR0			(0x1220)
+#define SSO_AF_ERR0_W1S			(0x1228)
+#define SSO_AF_ERR0_ENA_W1C		(0x1230)
+#define SSO_AF_ERR0_ENA_W1S		(0x1238)
+#define SSO_AF_ERR2			(0x1260)
+#define SSO_AF_ERR2_W1S			(0x1268)
+#define SSO_AF_ERR2_ENA_W1C		(0x1270)
+#define SSO_AF_ERR2_ENA_W1S		(0x1278)
+#define SSO_AF_UNMAP_INFO		(0x12f0)
+#define SSO_AF_UNMAP_INFO2		(0x1300)
+#define SSO_AF_UNMAP_INFO3		(0x1310)
+#define SSO_AF_BP_TEST(a)		(0x1380 | (a) << 4)
+#define SSO_AF_RAS			(0x1420)
+#define SSO_AF_RAS_W1S			(0x1430)
+#define SSO_AF_RAS_ENA_W1C		(0x1460)
+#define SSO_AF_RAS_ENA_W1S		(0x1470)
+#define SSO_PRIV_AF_INT_CFG		(0x3000)
+#define SSO_AF_AW_ADD			(0x2080)
+#define SSO_AF_AW_READ_ARB		(0x2090)
+#define SSO_AF_XAQ_REQ_PC		(0x20B0)
+#define SSO_AF_XAQ_LATENCY_PC		(0x20B8)
+#define SSO_AF_TAQ_CNT			(0x20c0)
+#define SSO_AF_TAQ_ADD			(0x20e0)
+#define SSO_AF_POISONX(a)		(0x2100 | (a) << 3)
+#define SSO_AF_POISONX_W1S(a)		(0x2200 | (a) << 3)
 #define SSO_AF_RVU_LF_CFG_DEBUG		(0x3800)
 #define SSO_PRIV_LFX_HWGRP_CFG		(0x10000)
 #define SSO_PRIV_LFX_HWGRP_INT_CFG	(0x20000)
+#define SSO_AF_XAQX_GMCTL(a)		(0xe0000 | (a) << 3)
+#define SSO_AF_XAQX_HEAD_PTR(a)		(0x80000 | (a) << 3)
+#define SSO_AF_XAQX_TAIL_PTR(a)		(0x90000 | (a) << 3)
+#define SSO_AF_XAQX_HEAD_NEXT(a)	(0xa0000 | (a) << 3)
+#define SSO_AF_XAQX_TAIL_NEXT(a)	(0xb0000 | (a) << 3)
+#define SSO_AF_TOAQX_STATUS(a)		(0xd0000 | (a) << 3)
+#define SSO_AF_TIAQX_STATUS(a)		(0xc0000 | (a) << 3)
+#define SSO_AF_HWGRPX_IAQ_THR(a)	(0x200000 | (a) << 12)
+#define SSO_AF_HWGRPX_TAQ_THR(a)	(0x200010 | (a) << 12)
+#define SSO_AF_HWGRPX_PRI(a)		(0x200020 | (a) << 12)
+#define SSO_AF_HWGRPX_WS_PC(a)		(0x200050 | (a) << 12)
+#define SSO_AF_HWGRPX_EXT_PC(a)		(0x200060 | (a) << 12)
+#define SSO_AF_HWGRPX_WA_PC(a)		(0x200070 | (a) << 12)
+#define SSO_AF_HWGRPX_TS_PC(a)		(0x200080 | (a) << 12)
+#define SSO_AF_HWGRPX_DS_PC(a)		(0x200090 | (a) << 12)
+#define SSO_AF_HWGRPX_DQ_PC(a)		(0x2000A0 | (a) << 12)
+#define SSO_AF_HWGRPX_LS_PC(a)		(0x2000C0 | (a) << 12)
+#define SSO_AF_HWGRPX_STASH(a)		(0x2000D0 | (a) << 12)
+#define SSO_AF_BAD_STASH_DIGESTX(a)	(0x2000E0 | (a) << 12)
+#define SSO_AF_HWGRPX_PAGE_CNT(a)	(0x200100 | (a) << 12)
+#define SSO_AF_IU_ACCNTX_CFG(a)		(0x50000 | (a) << 3)
+#define SSO_AF_IU_ACCNTX_RST(a)		(0x60000 | (a) << 3)
+#define SSO_AF_HWGRPX_AW_STATUS(a)	(0x200110 | (a) << 12)
+#define SSO_AF_HWGRPX_AW_CFG(a)		(0x200120 | (a) << 12)
+#define SSO_AF_HWGRPX_AW_TAGSPACE(a)	(0x200130 | (a) << 12)
+#define SSO_AF_HWGRPX_XAQ_AURA(a)	(0x200140 | (a) << 12)
+#define SSO_AF_HWGRPX_XAQ_LIMIT(a)	(0x200220 | (a) << 12)
+#define SSO_AF_HWGRPX_IU_ACCNT(a)	(0x200230 | (a) << 12)
+
+#define SSO_AF_WS_NE_DIGESTX(a)		(0x902800 | (a) << 3)
+#define SSO_AF_WS_NI_DIGESTX(a)		(0x903000 | (a) << 3)
+#define SSO_AF_WS_NT_DIGESTX(a)		(0x903200 | (a) << 3)
+#define SSO_AF_WS_GUNMAP_DIGESTX(a)	(0x902200 | (a) << 3)
+
+#define SSO_AF_HWSX_ARB(a)		(0x400100 | (a) << 12)
+#define SSO_AF_HWSX_INV(a)		(0x400180 | (a) << 12)
+#define SSO_AF_HWSX_GMCTL(a)		(0x400200 | (a) << 12)
+#define SSO_AF_HWSX_LSW_CFG(a)		(0x400300 | (a) << 12)
+#define SSO_AF_HWSX_SX_GRPMSKX(a, b, c) \
+				(0x400400 | (a) << 12 | (b) << 5 | (c) << 3)
+#define SSO_AF_TAQX_LINK(a)		(0xc00000 | (a) << 3)
+#define SSO_AF_TAQX_WAEY_TAG(a, b)	(0xe00000 | (a) << 8 | (b) << 4)
+#define SSO_AF_TAQX_WAEY_WQP(a, b)	(0xe00008 | (a) << 8 | (b) << 4)
+#define SSO_AF_IPL_FREEX(a)		(0x800000 | (a) << 3)
+#define SSO_AF_IPL_IAQX(a)		(0x840000 | (a) << 3)
+#define SSO_AF_IPL_DESCHEDX(a)		(0x860000 | (a) << 3)
+#define SSO_AF_IPL_CONFX(a)		(0x880000 | (a) << 3)
+#define SSO_AF_IENTX_TAG(a)		(0Xa00000 | (a) << 3)
+#define SSO_AF_IENTX_GRP(a)		(0xa20000 | (a) << 3)
+#define SSO_AF_IENTX_PENDTAG(a)		(0xa40000 | (a) << 3)
+#define SSO_AF_IENTX_LINKS(a)		(0xa60000 | (a) << 3)
+#define SSO_AF_IENTX_QLINKS(a)		(0xa80000 | (a) << 3)
+#define SSO_AF_IENTX_WQP(a)		(0xaa0000 | (a) << 3)
+#define SSO_AF_XAQDIS_DIGESTX(a)	(0x901000 | (a) << 3)
+#define SSO_AF_FLR_AQ_DIGESTX(a)	(0x901200 | (a) << 3)
+#define SSO_AF_QCTLDIS_DIGESTX(a)	(0x900E00 | (a) << 3)
+#define SSO_AF_WQP0_DIGESTX(a)		(0x900A00 | (a) << 3)
+#define SSO_AF_NPA_DIGESTX(a)		(0x900000 | (a) << 3)
+#define SSO_AF_BFP_DIGESTX(a)		(0x900200 | (a) << 3)
+#define SSO_AF_BFPN_DIGESTX(a)		(0x900400 | (a) << 3)
+#define SSO_AF_GRPDIS_DIGESTX(a)	(0x900600 | (a) << 3)
+
+#define SSO_AF_CONST1_NO_NSCHED		BIT_ULL(34)
+#define SSO_AF_CONST1_LSW_PRESENT	BIT_ULL(36)
+#define SSO_AF_CONST1_PRF_PRESENT	BIT_ULL(37)
+#define SSO_AF_CONST1_HW_FLR		BIT_ULL(38)
+#define SSO_AF_IAQ_FREE_CNT_MASK	0x3FFFull
+#define SSO_AF_IAQ_RSVD_FREE_MASK	0x3FFFull
+#define SSO_AF_IAQ_RSVD_FREE_SHIFT	16
+#define SSO_AF_IAQ_FREE_CNT_MAX		SSO_AF_IAQ_FREE_CNT_MASK
+#define SSO_AF_AW_ADD_RSVD_FREE_MASK	0x3FFFull
+#define SSO_AF_AW_ADD_RSVD_FREE_SHIFT	16
+#define SSO_HWGRP_IAQ_MAX_THR_MASK	0x3FFFull
+#define SSO_HWGRP_IAQ_RSVD_THR_MASK	0x3FFFull
+#define SSO_HWGRP_IAQ_MAX_THR_SHIFT	32
+#define SSO_HWGRP_IAQ_RSVD_THR		0x2
+#define SSO_HWGRP_IAQ_GRP_CNT_SHIFT	48
+#define SSO_HWGRP_IAQ_GRP_CNT_MASK	0x3FFFull
+#define SSO_AF_HWGRPX_IUEX_NOSCHED(a, b)\
+		((((b >> 48) & 0x3FF) == a) && (b & BIT_ULL(60)))
+#define SSO_AF_HWGRP_PAGE_CNT_MASK	(BIT_ULL(32) - 1)
+#define SSO_AF_HWGRP_PAGE_CNT_MASK	(BIT_ULL(32) - 1)
+#define SSO_HWGRP_IAQ_MAX_THR_STRM_PERF	0xD0
+#define SSO_AF_HWGRP_IU_ACCNT_MAX_THR	0x7FFFull
+#define SSO_AF_BP_TEST_CFG3_MASK	GENMASK_ULL(23, 22)
+
+#define SSO_AF_TAQ_FREE_CNT_MASK	0x7FFull
+#define SSO_AF_TAQ_RSVD_FREE_MASK	0x7FFull
+#define SSO_AF_TAQ_RSVD_FREE_SHIFT	16
+#define SSO_AF_TAQ_FREE_CNT_MAX		SSO_AF_TAQ_FREE_CNT_MASK
+#define SSO_AF_TAQ_ADD_RSVD_FREE_MASK	0x1FFFull
+#define SSO_AF_TAQ_ADD_RSVD_FREE_SHIFT	16
+#define SSO_HWGRP_TAQ_MAX_THR_MASK	0x7FFull
+#define SSO_HWGRP_TAQ_RSVD_THR_MASK	0x7FFull
+#define SSO_HWGRP_TAQ_MAX_THR_SHIFT	32
+#define SSO_HWGRP_TAQ_GRP_CNT_SHIFT	48
+#define SSO_HWGRP_TAQ_RSVD_THR		0x3
+#define SSO_AF_ERR0_MASK		0xFFEull
+#define SSO_AF_ERR2_MASK		0xF001F000ull
+#define SSO_HWGRP_TAQ_MAX_THR_STRM_PERF	0x10
+
+#define SSO_HWGRP_PRI_MASK		0x7ull
+#define SSO_HWGRP_PRI_AFF_MASK		0xFull
+#define SSO_HWGRP_PRI_AFF_SHIFT		8
+#define SSO_HWGRP_PRI_WGT_MASK		0x3Full
+#define SSO_HWGRP_PRI_WGT_SHIFT		16
+#define SSO_HWGRP_PRI_WGT_LEFT_MASK	0x3Full
+#define SSO_HWGRP_PRI_WGT_LEFT_SHIFT	24
+
+#define SSO_HWGRP_AW_CFG_RWEN		BIT_ULL(0)
+#define SSO_HWGRP_AW_CFG_LDWB		BIT_ULL(1)
+#define SSO_HWGRP_AW_CFG_LDT		BIT_ULL(2)
+#define SSO_HWGRP_AW_CFG_STT		BIT_ULL(3)
+#define SSO_HWGRP_AW_CFG_XAQ_BYP_DIS	BIT_ULL(4)
+#define SSO_HWGRP_AW_CFG_XAQ_ALLOC_DIS	BIT_ULL(6)
+
+#define SSO_HWGRP_AW_STS_TPTR_VLD	BIT_ULL(8)
+#define SSO_HWGRP_AW_STS_NPA_FETCH	BIT_ULL(9)
+#define SSO_HWGRP_AW_STS_TPTR_NEXT_VLD	BIT_ULL(10)
+#define SSO_HWGRP_AW_STS_XAQ_BUFSC_MASK	0x7ull
+#define SSO_HWGRP_AW_STS_INIT_STS	0x18ull
+
+#define SSO_LF_GGRP_OP_ADD_WORK1	(0x8ull)
+#define SSO_LF_GGRP_QCTL		(0x20ull)
+#define SSO_LF_GGRP_INT			(0x100ull)
+#define SSO_LF_GGRP_INT_ENA_W1S		(0x110ull)
+#define SSO_LF_GGRP_INT_ENA_W1C		(0x118ull)
+#define SSO_LF_GGRP_INT_THR		(0x140ull)
+#define SSO_LF_GGRP_INT_CNT		(0x180ull)
+#define SSO_LF_GGRP_XAQ_CNT		(0x1b0ull)
+#define SSO_LF_GGRP_AQ_CNT		(0x1c0ull)
+#define SSO_LF_GGRP_AQ_THR		(0x1e0ull)
+#define SSO_LF_GGRP_MISC_CNT		(0x200ull)
+
+#define SSO_LF_GGRP_INT_MASK		(0X7)
+#define SSO_LF_GGRP_AQ_THR_MASK		(BIT_ULL(33) - 1)
+#define SSO_LF_GGRP_XAQ_CNT_MASK	(BIT_ULL(33) - 1)
+#define SSO_LF_GGRP_INT_CNT_MASK	(0x3FFF3FFF0000ull)
 
 /* SSOW */
 #define SSOW_AF_RVU_LF_HWS_CFG_DEBUG	(0x0010)
 #define SSOW_AF_LF_HWS_RST		(0x0030)
+#define SSOW_AF_LF_FLR			(0x0040)
 #define SSOW_PRIV_LFX_HWS_CFG		(0x1000)
 #define SSOW_PRIV_LFX_HWS_INT_CFG	(0x2000)
+
+#define SSOW_AF_LF_FLR_MASK		GENMASK_ULL(20, 16)
+#define SSOW_AF_LF_FLR_ERROR		BIT_ULL(31)
+#define SSOW_AF_LF_FLR_ABORT		BIT_ULL(32)
+
+#define SSOW_LF_GWS_PENDSTATE		(0x50ull)
+#define SSOW_LF_GWS_NW_TIM		(0x70ull)
+#define SSOW_LF_GWS_INT			(0x100ull)
+#define SSOW_LF_GWS_INT_ENA_W1C		(0x118ull)
+#define SSOW_LF_GWS_TAG			(0x200ull)
+#define SSOW_LF_GWS_WQP			(0x210ull)
+#define SSOW_LF_GWS_PRF_TAG		(0x400ull)
+#define SSOW_LF_GWS_OP_GET_WORK		(0x600ull)
+#define SSOW_LF_GWS_OP_SWTAG_FLUSH	(0x800ull)
+#define SSOW_LF_GWS_OP_DESCHED		(0x880ull)
+#define SSOW_LF_GWS_OP_CLR_NSCHED0	(0xA00ull)
+#define SSOW_LF_GWS_OP_GWC_INVAL	(0xe00ull)
+
+#define SSO_TT_EMPTY			(0x3)
+#define SSOW_LF_GWS_INT_MASK		(0x7FF)
+#define SSOW_LF_GWS_MAX_NW_TIM		(BIT_ULL(10) - 1)
+#define SSOW_LF_GWS_OP_GET_WORK_WAIT	BIT_ULL(16)
+#define SSOW_LF_GWS_OP_GET_WORK_GROUPED	BIT_ULL(18)
+#define SSOW_LF_GWS_TAG_PEND_DESCHED	BIT_ULL(58)
+#define SSOW_LF_GWS_TAG_PEND_SWITCH	BIT_ULL(62)
+#define SSOW_LF_GWS_TAG_PEND_GET_WORK	BIT_ULL(63)
+
+#define SSOW_AF_BAR2_SEL		(0x9000000ull)
+#define SSOW_AF_BAR2_ALIASX(a, b)	RVU_AF_BAR2_ALIASX(a, b)
+
+#define SSO_AF_BAR2_SEL			(0x9000000ull)
+#define SSO_AF_BAR2_ALIASX(a, b)	RVU_AF_BAR2_ALIASX(a, b)
 
 /* TIM */
 #define TIM_AF_CONST			(0x90)
@@ -457,6 +684,38 @@
 #define TIM_AF_RVU_LF_CFG_DEBUG		(0x30000)
 #define TIM_AF_BLK_RST			(0x10)
 #define TIM_AF_LF_RST			(0x20)
+#define TIM_AF_FR_RN_GPIOS		(0x040)
+#define TIM_AF_FR_RN_GTI		(0x050)
+#define TIM_AF_FR_RN_PTP		(0x060)
+#define TIM_AF_FR_RN_TENNS		(0x070)
+#define TIM_AF_FR_RN_SYNCE		(0x140)
+#define TIM_AF_FR_RN_BTS		(0x150)
+#define TIM_AF_RINGX_GMCTL(a)		(0x2000 | (a) << 3)
+#define TIM_AF_RINGX_CTL0(a)		(0x4000 | (a) << 3)
+#define TIM_AF_RINGX_CTL1(a)		(0x6000 | (a) << 3)
+#define TIM_AF_RINGX_CTL2(a)		(0x8000 | (a) << 3)
+#define TIM_AF_FLAGS_REG		(0x80)
+#define TIM_AF_FLAGS_REG_ENA_TIM	BIT_ULL(0)
+#define TIM_AF_RINGX_CTL1_ENA		BIT_ULL(47)
+#define TIM_AF_RINGX_CTL1_RCF_BUSY	BIT_ULL(50)
+#define TIM_AF_ADJUST_TENNS		(0x160)
+#define TIM_AF_ADJUST_GPIOS		(0x170)
+#define TIM_AF_ADJUST_GTI		(0x180)
+#define TIM_AF_ADJUST_PTP		(0x190)
+#define TIM_AF_ADJUST_BTS		(0x1B0)
+#define TIM_AF_ADJUST_TIMERS		(0x1C0)
+#define TIM_AF_ADJUST_TIMERS_MASK	BIT_ULL(0)
+#define TIM_AF_CAPTURE_TENNS		(0x1D0)
+#define TIM_AF_CAPTURE_GPIOS		(0x1E0)
+#define TIM_AF_CAPTURE_GTI		(0x1F0)
+#define TIM_AF_CAPTURE_PTP		(0x200)
+#define TIM_AF_CAPTURE_BTS		(0x220)
+#define TIM_AF_CAPTURE_EXT_GTI		(0x240)
+#define TIM_AF_CAPTURE_TIMERS		(0x250)
+#define TIM_AF_CAPTURE_TIMERS_MASK	GENMASK_ULL(1, 0)
+#define TIM_AF_RING_GMCTL_SHIFT		3
+#define TIM_AF_RING_SSO_PF_FUNC_SHIFT	0
+#define TIM_AF_FLAGS_REG_GPIO_EDGE_MASK	GENMASK_ULL(6, 5)
 
 /* CPT */
 #define CPT_AF_CONSTANTS0               (0x0000)
@@ -529,6 +788,7 @@
 #define CPT_AF_CTX_PSH_PC               (0x49450ull)
 #define CPT_AF_CTX_PSH_LATENCY_PC       (0x49458ull)
 #define CPT_AF_CTX_CAM_DATA(a)          (0x49800ull | (u64)(a) << 3)
+#define CPT_AF_RXC_CFG1                 (0x50000ull)
 #define CPT_AF_RXC_TIME                 (0x50010ull)
 #define CPT_AF_RXC_TIME_CFG             (0x50018ull)
 #define CPT_AF_RXC_DFRG                 (0x50020ull)
@@ -538,17 +798,22 @@
 
 #define AF_BAR2_ALIASX(a, b)            (0x9100000ull | (a) << 12 | (b))
 #define CPT_AF_BAR2_SEL                 0x9000000
-#define CPT_AF_BAR2_ALIASX(a, b)        AF_BAR2_ALIASX(a, b)
+#define CPT_AF_BAR2_ALIASX(a, b)        RVU_AF_BAR2_ALIASX(a, b)
 
 #define CPT_AF_LF_CTL2_SHIFT 3
 #define CPT_AF_LF_SSO_PF_FUNC_SHIFT 32
 
 #define CPT_LF_CTL                      0x10
 #define CPT_LF_INPROG                   0x40
+#define CPT_LF_Q_SIZE                   0x100
+#define CPT_LF_Q_INST_PTR               0x110
 #define CPT_LF_Q_GRP_PTR                0x120
 #define CPT_LF_CTX_FLUSH                0x510
 
 #define NPC_AF_BLK_RST                  (0x00040)
+
+#define CPT_AF_LF_CTL2_SHIFT		3
+#define CPT_AF_LF_SSO_PF_FUNC_SHIFT	32
 
 /* NPC */
 #define NPC_AF_CFG			(0x00000)
@@ -708,6 +973,82 @@
 #define NDC_AF_BANKX_MISS_PC(a)		(0x01100 | (a) << 3)
 #define NDC_AF_BANKX_LINEX_METADATA(a, b) \
 		(0x10000 | (a) << 12 | (b) << 3)
+
+/* REE */
+#define REE_AF_CMD_CTL			(0x00ull)
+#define REE_AF_CONSTANTS		(0x0A0ull)
+#define REE_AF_AQ_SBUF_CTL		(0x100ull)
+#define REE_AF_AQ_SBUF_ADDR		(0x110ull)
+#define REE_AF_AQ_DONE			(0x128ull)
+#define REE_AF_AQ_DONE_ACK		(0x130ull)
+#define REE_AF_AQ_DONE_INT		(0x150ull)
+#define REE_AF_AQ_DONE_INT_ENA_W1S	(0x168ull)
+#define REE_AF_AQ_DONE_INT_ENA_W1C	(0x170ull)
+#define REE_AF_AQ_ENA			(0x180ull)
+#define REE_AF_AQ_DOORBELL		(0x200ull)
+#define REE_AF_PF_FUNC			(0x210ull)
+#define REE_AF_EM_BASE			(0x300ull)
+#define REE_AF_RAS			(0x980ull)
+#define REE_AF_RAS_ENA_W1C		(0x990ull)
+#define REE_AF_RAS_ENA_W1S		(0x998ull)
+#define REE_AF_QUE_SBUF_CTL(a)		(0x1200ull | (a) << 3)
+#define REE_PRIV_AF_INT_CFG		(0x4000ull)
+#define REE_AF_REEXM_STATUS		(0x8050ull)
+#define REE_AF_REEXM_CTRL		(0x80C0ull)
+#define REE_AF_REEXM_MAX_MATCH		(0x80C8ull)
+#define REE_AF_REEXM_MAX_PRE_CNT	(0x80D0ull)
+#define REE_AF_REEXM_MAX_PTHREAD_CNT	(0x80D8ull)
+#define REE_AF_REEXM_MAX_LATENCY_CNT	(0x80E0ull)
+#define REE_AF_REEXR_STATUS		(0x8250ull)
+#define REE_AF_REEXR_CTRL		(0x82C0ull)
+#define REE_PRIV_LFX_CFG		(0x41000ull)
+#define REE_PRIV_LFX_INT_CFG		(0x42000ull)
+#define REE_AF_LF_RST			(0x43000ull)
+#define REE_AF_RVU_LF_CFG_DEBUG		(0x44000ull)
+#define REE_AF_BLK_RST			(0x45000ull)
+#define REE_AF_RVU_INT			(0x46000ull)
+#define REE_AF_RVU_INT_ENA_W1S		(0x46010ull)
+#define REE_AF_RVU_INT_ENA_W1C		(0x46018ull)
+#define REE_AF_AQ_INT			(0x46020ull)
+#define REE_AF_AQ_INT_ENA_W1S		(0x46030ull)
+#define REE_AF_AQ_INT_ENA_W1C		(0x46038ull)
+#define REE_AF_GRACEFUL_DIS_CTL		(0x46100ull)
+#define REE_AF_GRACEFUL_DIS_STATUS	(0x46110ull)
+
+#define REE_AF_FORCE_CSCLK		BIT_ULL(1)
+#define REE_AF_FORCE_CCLK		BIT_ULL(2)
+#define REE_AF_RAS_DAT_PSN		BIT_ULL(0)
+#define REE_AF_RAS_LD_CMD_PSN		BIT_ULL(1)
+#define REE_AF_RAS_LD_REEX_PSN		BIT_ULL(2)
+#define REE_AF_RVU_INT_UNMAPPED_SLOT	BIT_ULL(0)
+#define REE_AF_AQ_INT_DOVF		BIT_ULL(0)
+#define REE_AF_AQ_INT_IRDE		BIT_ULL(1)
+#define REE_AF_AQ_INT_PRDE		BIT_ULL(2)
+#define REE_AF_AQ_INT_PLLE		BIT_ULL(3)
+#define REE_AF_REEXM_CTRL_INIT		BIT_ULL(0)
+#define REE_AF_REEXM_CTRL_GO		BIT_ULL(3)
+#define REE_AF_REEXM_STATUS_INIT_DONE	BIT_ULL(0)
+#define REE_AF_REEXR_CTRL_INIT		BIT_ULL(0)
+#define REE_AF_REEXR_CTRL_GO		BIT_ULL(1)
+#define REE_AF_REEXR_CTRL_MODE_IM_L1_L2	BIT_ULL(4)
+#define REE_AF_REEXR_CTRL_MODE_L1_L2	BIT_ULL(5)
+
+#define REE_AF_AQ_SBUF_CTL_SIZE_SHIFT	32
+#define REE_AF_REEXM_MAX_MATCH_MAX	0xFEull
+#define REE_AF_REEXM_MAX_PRE_CNT_COUNT	0x3F0ull
+#define REE_AF_REEXM_MAX_PTHREAD_COUNT	0xFFFFull
+#define REE_AF_REEXM_MAX_LATENCY_COUNT	0xFFFFull
+#define REE_AF_QUE_SBUF_CTL_SIZE_SHIFT	32
+#define REE_AF_REEX_CSR_BLOCK_BASE_ADDR	(0x8000ull)
+#define REE_AF_REEX_CSR_BLOCK_ID	(0x200ull)
+#define REE_AF_REEX_CSR_BLOCK_ID_MASK	GENMASK_ULL(18, 16)
+#define REE_AF_REEX_CSR_BLOCK_ID_SHIFT	16
+#define REE_AF_REEX_CSR_INDEX		8
+#define REE_AF_REEX_CSR_INDEX_MASK	GENMASK_ULL(4, 0)
+#define REE_AF_QUE_SBUF_CTL_MAX_SIZE	GENMASK_ULL((50 - 32), 0)
+#define REE_AF_REEXR_STATUS_IM_INIT_DONE	BIT_ULL(4)
+#define REE_AF_REEXR_STATUS_L1_CACHE_INIT_DONE	BIT_ULL(5)
+#define REE_AF_REEXR_STATUS_L2_CACHE_INIT_DONE	BIT_ULL(6)
 
 /* LBK */
 #define LBK_CONST			(0x10ull)

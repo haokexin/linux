@@ -402,6 +402,23 @@ config ARM64_ERRATUM_826319
 
 	  If unsure, say Y.
 
+config ARM64_WORKAROUND_MARVELL_38891
+       bool "Marvell CN10K TAD Errata 38891"
+       default y
+       help
+	  This option adds an alternative code sequence to work around Marvell
+	  CN10K TAD erratum 38891 and also enables kernel trap for execution of
+	  cache maintenance instruction in user space.
+
+	  An issue exists whereby if one core (core A) is accessing a cache line
+	  and a certain set of race cases occur when a second core (Core B) is
+	  executing a DC CVAC, DC CVAP or DC CVADP to the same cache line, the
+	  second core B may respond to the Last Level Cache (TAD's) request for
+	  data with an unexpected transaction type. This will cause the TAD to
+	  ignore the response, response will never come to Core A, so as soon
+	  as Core A reaches an instruction that requires that response to
+	  complete it will hang. Core B and other cores will remain responsive.
+
 config ARM64_ERRATUM_827319
 	bool "Cortex-A53: 827319: Data cache clean instructions might cause overlapping transactions to the interconnect"
 	default y
@@ -1073,6 +1090,44 @@ config HISILICON_ERRATUM_161600802
 
 	  If unsure, say Y.
 
+config MRVL_ERRATUM_35443
+	bool "Marvell erratum 35443"
+	default y
+	help
+	Enable workaround for erratum.
+
+	This implements gicv3-its errata workaround for 9xx silicons.
+
+	erratum 35443: only alloc 8MB table size.
+
+	Fixes the ITS table size provided by TYPER register.
+
+	If unsure, say Y.
+
+config CAVIUM_ERRATUM_36890
+	bool "Cavium erratum 36890"
+	default y
+	help
+	  Enable workaround for erratum 36890.  On all ThunderX T88xx and
+	  OcteonTX1 T81/T83 and some OcteonTX2 chips, the "dc zva" instruction
+	  does not work all the time.  This happens when there are two VAs
+	  that match up with one PA; including when the two VAs match but have
+	  different asids.  The fix is to disable "dc zva" in userspace.
+
+	  If unsure, say Y.
+
+config MRVL_ERRATUM_38500
+	bool "Marvell erratum 38500"
+	default y
+	help
+	  Enable workaround for erratum 38500. T8x ARM CPU can incorrectly
+	  forward data from an older store to a younger load. When this happens
+	  L1 Dcache parity error occurs in hardware and Synchronous parity error
+	  abort is raised to software. To workaround this erratum, nops are
+	  introduced in between loads and stores.
+
+	  If unsure, say Y.
+
 config QCOM_FALKOR_ERRATUM_1003
 	bool "Falkor E1003: Incorrect translation due to ASID change"
 	default y
@@ -1135,6 +1190,15 @@ config SOCIONEXT_SYNQUACER_PREITS
 	  If unsure, say Y.
 
 endmenu # "ARM errata workarounds via the alternatives framework"
+
+config MRVL_OCTEONTX_EL0_INTR
+	bool "Handle interrupts in EL0 via EL3"
+	default y
+	help
+	  Handle certain interrupts in EL0 with the help of EL3 firmware to achieve
+	  low latency and also not break task isolation.
+	  Generally implemented and tested on OcteonTx and its successive
+	  generation CPUs.
 
 choice
 	prompt "Page size"
@@ -1475,6 +1539,7 @@ config ARCH_FORCE_MAX_ORDER
 config UNMAP_KERNEL_AT_EL0
 	bool "Unmap kernel when running in userspace (aka \"KAISER\")" if EXPERT
 	default y
+	depends on !GTI_WATCHDOG
 	help
 	  Speculation attacks against some high-performance processors can
 	  be used to bypass MMU permission checks and leak kernel data to
@@ -1883,6 +1948,26 @@ config ARM64_TLB_RANGE
 
 	  The feature introduces new assembly instructions, and they were
 	  support when binutils >= 2.30.
+
+config ARM64_MPAM
+	bool "Enable support for MPAM"
+	select ACPI_MPAM if ACPI
+	select ARCH_HAS_CPU_RESCTRL
+	select RESCTRL_FS
+	help
+	  Memory Partitioning and Monitoring is an optional extension
+	  that allows the CPUs to mark load and store transactions with
+	  labels for partition-id and performance-monitoring-group.
+	  System components, such as the caches, can use the partition-id
+	  to apply a performance policy. MPAM monitors can use the
+	  partition-id and performance-monitoring-group to measure the
+	  cache occupancy or data throughput.
+
+	  Use of this extension requires CPU support, support in the
+	  memory system components (MSC), and a description from firmware
+	  of where the MSC are in the address space.
+
+	  MPAM is exposed to user-space via the resctrl pseudo filesystem.
 
 endmenu # "ARMv8.4 architectural features"
 

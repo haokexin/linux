@@ -32,6 +32,8 @@ enum rvu_block_addr_e {
 	BLKADDR_NDC_NPA0	= 0xeULL,
 	BLKADDR_NDC_NIX1_RX	= 0x10ULL,
 	BLKADDR_NDC_NIX1_TX	= 0x11ULL,
+	BLKADDR_REE0		= 0x14ULL,
+	BLKADDR_REE1		= 0x15ULL,
 	BLKADDR_APR		= 0x16ULL,
 	BLK_COUNT		= 0x17ULL,
 };
@@ -49,7 +51,8 @@ enum rvu_block_type_e {
 	BLKTYPE_TIM  = 0x8,
 	BLKTYPE_CPT  = 0x9,
 	BLKTYPE_NDC  = 0xa,
-	BLKTYPE_MAX  = 0xa,
+	BLKTYPE_REE  = 0xe,
+	BLKTYPE_MAX  = 0xe,
 };
 
 /* RVU Admin function Interrupt Vector Enumeration */
@@ -80,6 +83,15 @@ enum cpt_10k_af_int_vec_e {
 	CPT_10K_AF_INT_VEC_CNT	= 0x5,
 };
 
+/* REE Admin function Interrupt Vector Enumeration */
+enum ree_af_int_vec_e {
+	REE_AF_INT_VEC_RAS	= 0x0,
+	REE_AF_INT_VEC_RVU	= 0x1,
+	REE_AF_INT_VEC_QUE_DONE	= 0x2,
+	REE_AF_INT_VEC_AQ	= 0x3,
+	REE_AF_INT_VEC_CNT	= 0x4,
+};
+
 /* NPA Admin function Interrupt Vector Enumeration */
 enum npa_af_int_vec_e {
 	NPA_AF_INT_VEC_RVU	= 0x0,
@@ -98,6 +110,14 @@ enum nix_af_int_vec_e {
 	NIX_AF_INT_VEC_AF_ERR	= 0x3,
 	NIX_AF_INT_VEC_POISON	= 0x4,
 	NIX_AF_INT_VEC_CNT	= 0x5,
+};
+
+/* SSO Admin function Interrupt Vector Enumeration */
+enum sso_af_int_vec_e {
+	SSO_AF_INT_VEC_ERR0 = 0x0,
+	SSO_AF_INT_VEC_ERR2 = 0x1,
+	SSO_AF_INT_VEC_RAS  = 0x2,
+	SSO_AF_INT_VEC_CNT  = 0x3,
 };
 
 /**
@@ -340,11 +360,12 @@ struct nix_aq_res_s {
 /* NIX Completion queue context structure */
 struct nix_cq_ctx_s {
 	u64 base;
-	u64 rsvd_64_67		: 4;
+	u64 lbp_ena             : 1;
+	u64 lbpid_low           : 3;
 	u64 bp_ena		: 1;
-	u64 rsvd_69_71		: 3;
+	u64 lbpid_med           : 3;
 	u64 bpid		: 9;
-	u64 rsvd_81_83		: 3;
+	u64 lbpid_high          : 3;
 	u64 qint_idx		: 7;
 	u64 cq_err		: 1;
 	u64 cint_idx		: 7;
@@ -358,10 +379,14 @@ struct nix_cq_ctx_s {
 	u64 drop		: 8;
 	u64 drop_ena		: 1;
 	u64 ena			: 1;
-	u64 rsvd_210_211	: 2;
-	u64 substream		: 20;
+	u64 cpt_drop_err_en     : 1;
+	u64 rsvd_211	        : 1;
+	u64 substream           : 12;
+	u64 stash_thresh        : 4;
+	u64 lbp_frac            : 4;
 	u64 caching		: 1;
-	u64 rsvd_233_235	: 3;
+	u64 stashing            : 1;
+	u64 rsvd_234_235	: 2;
 	u64 qsize		: 4;
 	u64 cq_err_int		: 8;
 	u64 cq_err_int_ena	: 8;
@@ -374,7 +399,9 @@ struct nix_cn10k_rq_ctx_s {
 	u64 ipsech_ena		: 1;
 	u64 ena_wqwd		: 1;
 	u64 cq			: 20;
-	u64 rsvd_36_24		: 13;
+	u64 rsvd_34_24          : 11;
+	u64 port_ol4_dis        : 1;
+	u64 port_il4_dis        : 1;
 	u64 lenerr_dis		: 1;
 	u64 csum_il4_dis	: 1;
 	u64 csum_ol4_dis	: 1;
@@ -819,5 +846,26 @@ enum nix_tx_vtag_op {
 /* NIX RX VTAG actions */
 #define VTAG_STRIP	BIT_ULL(4)
 #define VTAG_CAPTURE	BIT_ULL(5)
+
+/* REE admin queue instruction structure */
+struct ree_af_aq_inst_s {
+	u64 rof_ptr_addr;
+	u64 reserved_64_64	:  1;
+	u64 nc			:  1;
+	u64 reserved_66_66	:  1;
+	u64 doneint		:  1;
+	u64 reserved_68_95	: 28;
+	u64 length		: 15;
+	u64 reserved_111_127	: 17;
+};
+
+/* REE ROF file entry structure */
+struct ree_rof_s {
+	u64 addr		: 24;
+	u64 reserved_24_31	:  8;
+	u64 typ			:  8;
+	u64 reserved_40_63	: 24;
+	u64 data;
+};
 
 #endif /* RVU_STRUCT_H */

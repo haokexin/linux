@@ -23,6 +23,7 @@
 #include "otx2_struct.h"
 #include "otx2_ptp.h"
 #include "cn10k.h"
+#include "qos.h"
 #include <rvu_trace.h>
 
 #define DRV_NAME	"rvu_nicpf"
@@ -40,6 +41,7 @@ MODULE_LICENSE("GPL v2");
 MODULE_DEVICE_TABLE(pci, otx2_pf_id_table);
 
 static void otx2_vf_link_event_task(struct work_struct *work);
+static void otx2_vf_ptp_info_task(struct work_struct *work);
 
 enum {
 	TYPE_PFAF,
@@ -291,8 +293,8 @@ static int otx2_pf_flr_init(struct otx2_nic *pf, int num_vfs)
 	return 0;
 }
 
-static void otx2_queue_work(struct mbox *mw, struct workqueue_struct *mbox_wq,
-			    int first, int mdevs, u64 intr, int type)
+static void otx2_queue_vf_work(struct mbox *mw, struct workqueue_struct *mbox_wq,
+			       int first, int mdevs, u64 intr)
 {
 	struct otx2_mbox_dev *mdev;
 	struct otx2_mbox *mbox;
@@ -306,40 +308,26 @@ static void otx2_queue_work(struct mbox *mw, struct workqueue_struct *mbox_wq,
 
 		mbox = &mw->mbox;
 		mdev = &mbox->dev[i];
-		if (type == TYPE_PFAF)
-			otx2_sync_mbox_bbuf(mbox, i);
 		hdr = mdev->mbase + mbox->rx_start;
 		/* The hdr->num_msgs is set to zero immediately in the interrupt
-		 * handler to  ensure that it holds a correct value next time
-		 * when the interrupt handler is called.
-		 * pf->mbox.num_msgs holds the data for use in pfaf_mbox_handler
-		 * pf>mbox.up_num_msgs holds the data for use in
-		 * pfaf_mbox_up_handler.
+		 * handler to ensure that it holds a correct value next time
+		 * when the interrupt handler is called. pf->mw[i].num_msgs
+		 * holds the data for use in otx2_pfvf_mbox_handler and
+		 * pf->mw[i].up_num_msgs holds the data for use in
+		 * otx2_pfvf_mbox_up_handler.
 		 */
 		if (hdr->num_msgs) {
 			mw[i].num_msgs = hdr->num_msgs;
 			hdr->num_msgs = 0;
-			if (type == TYPE_PFAF)
-				memset(mbox->hwbase + mbox->rx_start, 0,
-				       ALIGN(sizeof(struct mbox_hdr),
-					     sizeof(u64)));
-
 			queue_work(mbox_wq, &mw[i].mbox_wrk);
 		}
 
 		mbox = &mw->mbox_up;
 		mdev = &mbox->dev[i];
-		if (type == TYPE_PFAF)
-			otx2_sync_mbox_bbuf(mbox, i);
 		hdr = mdev->mbase + mbox->rx_start;
 		if (hdr->num_msgs) {
 			mw[i].up_num_msgs = hdr->num_msgs;
 			hdr->num_msgs = 0;
-			if (type == TYPE_PFAF)
-				memset(mbox->hwbase + mbox->rx_start, 0,
-				       ALIGN(sizeof(struct mbox_hdr),
-					     sizeof(u64)));
-
 			queue_work(mbox_wq, &mw[i].mbox_up_wrk);
 		}
 	}
@@ -355,8 +343,10 @@ static void otx2_forward_msg_pfvf(struct otx2_mbox_dev *mdev,
 	/* Msgs are already copied, trigger VF's mbox irq */
 	smp_wmb();
 
+	otx2_mbox_wait_for_zero(pfvf_mbox, devid);
+
 	offset = pfvf_mbox->trigger | (devid << pfvf_mbox->tr_shift);
-	writeq(1, (void __iomem *)pfvf_mbox->reg_base + offset);
+	writeq(MBOX_DOWN_MSG, (void __iomem *)pfvf_mbox->reg_base + offset);
 
 	/* Restore VF's mbox bounce buffer region address */
 	src_mdev->mbase = bbuf_base;
@@ -495,6 +485,9 @@ static void otx2_pfvf_mbox_handler(struct work_struct *work)
 	return;
 
 inval_msg:
+	if (!msg)
+		return;
+
 	otx2_reply_invalid_msg(mbox, vf_idx, 0, msg->id);
 	otx2_mbox_msg_send(mbox, vf_idx);
 }
@@ -546,7 +539,7 @@ static void otx2_pfvf_mbox_up_handler(struct work_struct *work)
 end:
 		offset = mbox->rx_start + msg->next_msgoff;
 		if (mdev->msgs_acked == (vf_mbox->up_num_msgs - 1))
-			__otx2_mbox_reset(mbox, 0);
+			__otx2_mbox_reset(mbox, vf_idx);
 		mdev->msgs_acked++;
 	}
 }
@@ -563,15 +556,14 @@ static irqreturn_t otx2_pfvf_mbox_intr_handler(int irq, void *pf_irq)
 	if (vfs > 64) {
 		intr = otx2_read64(pf, RVU_PF_VFPF_MBOX_INTX(1));
 		otx2_write64(pf, RVU_PF_VFPF_MBOX_INTX(1), intr);
-		otx2_queue_work(mbox, pf->mbox_pfvf_wq, 64, vfs, intr,
-				TYPE_PFVF);
+		otx2_queue_vf_work(mbox, pf->mbox_pfvf_wq, 64, vfs, intr);
 		vfs -= 64;
 	}
 
 	intr = otx2_read64(pf, RVU_PF_VFPF_MBOX_INTX(0));
 	otx2_write64(pf, RVU_PF_VFPF_MBOX_INTX(0), intr);
 
-	otx2_queue_work(mbox, pf->mbox_pfvf_wq, 0, vfs, intr, TYPE_PFVF);
+	otx2_queue_vf_work(mbox, pf->mbox_pfvf_wq, 0, vfs, intr);
 
 	trace_otx2_msg_interrupt(mbox->mbox.pdev, "VF(s) to PF", intr);
 
@@ -791,10 +783,6 @@ static void otx2_process_pfaf_mbox_msg(struct otx2_nic *pf,
 	case MBOX_MSG_NIX_LF_ALLOC:
 		mbox_handler_nix_lf_alloc(pf, (struct nix_lf_alloc_rsp *)msg);
 		break;
-	case MBOX_MSG_NIX_TXSCH_ALLOC:
-		mbox_handler_nix_txsch_alloc(pf,
-					     (struct nix_txsch_alloc_rsp *)msg);
-		break;
 	case MBOX_MSG_NIX_BP_ENABLE:
 		mbox_handler_nix_bp_enable(pf, (struct nix_bp_cfg_rsp *)msg);
 		break;
@@ -822,20 +810,22 @@ static void otx2_pfaf_mbox_handler(struct work_struct *work)
 	struct mbox *af_mbox;
 	struct otx2_nic *pf;
 	int offset, id;
+	u16 num_msgs;
 
 	af_mbox = container_of(work, struct mbox, mbox_wrk);
 	mbox = &af_mbox->mbox;
 	mdev = &mbox->dev[0];
 	rsp_hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+	num_msgs = rsp_hdr->num_msgs;
 
 	offset = mbox->rx_start + ALIGN(sizeof(*rsp_hdr), MBOX_MSG_ALIGN);
 	pf = af_mbox->pfvf;
 
-	for (id = 0; id < af_mbox->num_msgs; id++) {
+	for (id = 0; id < num_msgs; id++) {
 		msg = (struct mbox_msghdr *)(mdev->mbase + offset);
 		otx2_process_pfaf_mbox_msg(pf, msg);
 		offset = mbox->rx_start + msg->next_msgoff;
-		if (mdev->msgs_acked == (af_mbox->num_msgs - 1))
+		if (mdev->msgs_acked == (num_msgs - 1))
 			__otx2_mbox_reset(mbox, 0);
 		mdev->msgs_acked++;
 	}
@@ -896,6 +886,30 @@ int otx2_mbox_up_handler_cgx_link_event(struct otx2_nic *pf,
 	return 0;
 }
 
+int otx2_mbox_up_handler_cgx_ptp_rx_info(struct otx2_nic *pf,
+					 struct cgx_ptp_rx_info_msg *msg,
+					 struct msg_rsp *rsp)
+{
+	int i;
+
+	if (!pf->ptp)
+		return 0;
+
+	pf->ptp->ptp_en = msg->ptp_en;
+
+	/* notify VFs about ptp event */
+	for (i = 0; i < pci_num_vf(pf->pdev); i++) {
+		struct otx2_vf_config *config = &pf->vf_configs[i];
+		struct delayed_work *dwork = &config->ptp_info_work;
+
+		if (config->intf_down)
+			continue;
+
+		schedule_delayed_work(dwork, msecs_to_jiffies(100));
+	}
+	return 0;
+}
+
 static int otx2_process_mbox_msg_up(struct otx2_nic *pf,
 				    struct mbox_msghdr *req)
 {
@@ -946,12 +960,14 @@ static void otx2_pfaf_mbox_up_handler(struct work_struct *work)
 	int offset, id, devid = 0;
 	struct mbox_hdr *rsp_hdr;
 	struct mbox_msghdr *msg;
+	u16 num_msgs;
 
 	rsp_hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+	num_msgs = rsp_hdr->num_msgs;
 
 	offset = mbox->rx_start + ALIGN(sizeof(*rsp_hdr), MBOX_MSG_ALIGN);
 
-	for (id = 0; id < af_mbox->up_num_msgs; id++) {
+	for (id = 0; id < num_msgs; id++) {
 		msg = (struct mbox_msghdr *)(mdev->mbase + offset);
 
 		devid = msg->pcifunc & RVU_PFVF_FUNC_MASK;
@@ -960,10 +976,11 @@ static void otx2_pfaf_mbox_up_handler(struct work_struct *work)
 			otx2_process_mbox_msg_up(pf, msg);
 		offset = mbox->rx_start + msg->next_msgoff;
 	}
-	if (devid) {
+	/* Forward to VF iff VFs are really present */
+	if (devid && pci_num_vf(pf->pdev)) {
 		otx2_forward_vf_mbox_msgs(pf, &pf->mbox.mbox_up,
 					  MBOX_DIR_PFVF_UP, devid - 1,
-					  af_mbox->up_num_msgs);
+					  num_msgs);
 		return;
 	}
 
@@ -973,16 +990,49 @@ static void otx2_pfaf_mbox_up_handler(struct work_struct *work)
 static irqreturn_t otx2_pfaf_mbox_intr_handler(int irq, void *pf_irq)
 {
 	struct otx2_nic *pf = (struct otx2_nic *)pf_irq;
-	struct mbox *mbox;
+	struct mbox *mw = &pf->mbox;
+	struct otx2_mbox_dev *mdev;
+	struct otx2_mbox *mbox;
+	struct mbox_hdr *hdr;
+	u64 mbox_data;
 
 	/* Clear the IRQ */
 	otx2_write64(pf, RVU_PF_INT, BIT_ULL(0));
 
-	mbox = &pf->mbox;
 
-	trace_otx2_msg_interrupt(mbox->mbox.pdev, "AF to PF", BIT_ULL(0));
+	mbox_data = otx2_read64(pf, RVU_PF_PFAF_MBOX0);
 
-	otx2_queue_work(mbox, pf->mbox_wq, 0, 1, 1, TYPE_PFAF);
+	if (mbox_data & MBOX_UP_MSG) {
+		mbox_data &= ~MBOX_UP_MSG;
+		otx2_write64(pf, RVU_PF_PFAF_MBOX0, mbox_data);
+
+		mbox = &mw->mbox_up;
+		mdev = &mbox->dev[0];
+		otx2_sync_mbox_bbuf(mbox, 0);
+
+		hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+		if (hdr->num_msgs)
+			queue_work(pf->mbox_wq, &mw->mbox_up_wrk);
+
+		trace_otx2_msg_interrupt(pf->pdev, "UP message from AF to PF",
+					 BIT_ULL(0));
+	}
+
+	if (mbox_data & MBOX_DOWN_MSG) {
+		mbox_data &= ~MBOX_DOWN_MSG;
+		otx2_write64(pf, RVU_PF_PFAF_MBOX0, mbox_data);
+
+		mbox = &mw->mbox;
+		mdev = &mbox->dev[0];
+		otx2_sync_mbox_bbuf(mbox, 0);
+
+		hdr = (struct mbox_hdr *)(mdev->mbase + mbox->rx_start);
+		if (hdr->num_msgs)
+			queue_work(pf->mbox_wq, &mw->mbox_wrk);
+
+		trace_otx2_msg_interrupt(pf->pdev, "DOWN reply from AF to PF",
+					 BIT_ULL(0));
+	}
 
 	return IRQ_HANDLED;
 }
@@ -1228,6 +1278,7 @@ static char *nix_snd_status_e_str[NIX_SND_STATUS_MAX] =  {
 static irqreturn_t otx2_q_intr_handler(int irq, void *data)
 {
 	struct otx2_nic *pf = data;
+	struct otx2_snd_queue *sq;
 	u64 val, *ptr;
 	u64 qidx = 0;
 
@@ -1257,9 +1308,13 @@ static irqreturn_t otx2_q_intr_handler(int irq, void *data)
 	}
 
 	/* SQ */
-	for (qidx = 0; qidx < pf->hw.tot_tx_queues; qidx++) {
+	for (qidx = 0; qidx < pf->hw.tot_tx_queues + pf->hw.tc_tx_queues; qidx++) {
 		u64 sq_op_err_dbg, mnq_err_dbg, snd_err_dbg;
 		u8 sq_op_err_code, mnq_err_code, snd_err_code;
+
+		sq = &pf->qset.sq[qidx];
+		if (!sq->sqb_ptrs)
+			continue;
 
 		/* Below debug registers captures first errors corresponding to
 		 * those registers. We don't have to check against SQ qid as
@@ -1383,12 +1438,16 @@ static void otx2_free_sq_res(struct otx2_nic *pf)
 	otx2_ctx_disable(&pf->mbox, NIX_AQ_CTYPE_SQ, false);
 	/* Free SQB pointers */
 	otx2_sq_free_sqbs(pf);
-	for (qidx = 0; qidx < pf->hw.tot_tx_queues; qidx++) {
+	for (qidx = 0; qidx < pf->hw.tot_tx_queues + pf->hw.tc_tx_queues; qidx++) {
 		sq = &qset->sq[qidx];
+		/* Skip freeing Qos queues if they are not initialized */
+		if (!sq->sqe)
+			continue;
 		qmem_free(pf->dev, sq->sqe);
 		qmem_free(pf->dev, sq->tso_hdrs);
 		kfree(sq->sg);
 		kfree(sq->sqb_ptrs);
+		qmem_free(pf->dev, sq->timestamps);
 	}
 }
 
@@ -1413,7 +1472,8 @@ static int otx2_get_rbuf_size(struct otx2_nic *pf, int mtu)
 	 * memory = frame_size + headroom * 6;
 	 * each receive buffer size = memory / 6;
 	 */
-	frame_size = mtu + OTX2_ETH_HLEN + OTX2_HW_TIMESTAMP_LEN;
+	frame_size = mtu + OTX2_ETH_HLEN + OTX2_HW_TIMESTAMP_LEN +
+		     pf->addl_mtu + pf->xtra_hdr;
 	total_size = frame_size + OTX2_HEAD_ROOM * 6;
 	rbuf_size = total_size / 6;
 
@@ -1433,7 +1493,7 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 	 * so, aura count = pool count.
 	 */
 	hw->rqpool_cnt = hw->rx_queues;
-	hw->sqpool_cnt = hw->tot_tx_queues;
+	hw->sqpool_cnt = hw->tot_tx_queues + hw->tc_tx_queues;
 	hw->pool_cnt = hw->rqpool_cnt + hw->sqpool_cnt;
 
 	/* Maximum hardware supported transmit length */
@@ -1452,8 +1512,9 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 	if (err)
 		goto err_free_npa_lf;
 
-	/* Enable backpressure */
-	otx2_nix_config_bp(pf, true);
+	/* Enable backpressure for CGX mapped PF/VFs */
+	if (!is_otx2_lbkvf(pf->pdev))
+		otx2_nix_config_bp(pf, true);
 
 	/* Init Auras and pools used by NIX RQ, for free buffer ptrs */
 	err = otx2_rq_aura_pool_init(pf);
@@ -1491,10 +1552,14 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 	}
 
 	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++) {
-		err = otx2_txschq_config(pf, lvl, 0, false);
-		if (err) {
-			mutex_unlock(&mbox->lock);
-			goto err_free_nix_queues;
+		int idx;
+
+		for (idx = 0; idx < pf->hw.txschq_cnt[lvl]; idx++) {
+			err = otx2_txschq_config(pf, lvl, idx, false);
+			if (err) {
+				mutex_unlock(&mbox->lock);
+				goto err_free_nix_queues;
+			}
 		}
 	}
 
@@ -1567,6 +1632,8 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 		otx2_pfc_txschq_stop(pf);
 #endif
 
+	otx2_clean_qos_queues(pf);
+
 	mutex_lock(&mbox->lock);
 	/* Disable backpressure */
 	if (!(pf->pcifunc & RVU_PFVF_FUNC_MASK))
@@ -1584,6 +1651,8 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 		else
 			otx2_cleanup_tx_cqes(pf, cq);
 	}
+
+	otx2_free_pending_sqe(pf);
 
 	otx2_free_sq_res(pf);
 
@@ -1660,6 +1729,14 @@ static void otx2_do_set_rx_mode(struct otx2_nic *pf)
 	mutex_unlock(&pf->mbox.lock);
 }
 
+static void otx2_set_irq_coalesce(struct otx2_nic *pfvf)
+{
+	int cint;
+
+	for (cint = 0; cint < pfvf->hw.cint_cnt; cint++)
+		otx2_config_irq_coalescing(pfvf, cint);
+}
+
 static void otx2_dim_work(struct work_struct *w)
 {
 	struct dim_cq_moder cur_moder;
@@ -1675,6 +1752,7 @@ static void otx2_dim_work(struct work_struct *w)
 		CQ_TIMER_THRESH_MAX : cur_moder.usec;
 	pfvf->hw.cq_ecount_wait = (cur_moder.pkts > NAPI_POLL_WEIGHT) ?
 		NAPI_POLL_WEIGHT : cur_moder.pkts;
+	otx2_set_irq_coalesce(pfvf);
 	dim->state = DIM_START_MEASURE;
 }
 
@@ -1688,11 +1766,13 @@ int otx2_open(struct net_device *netdev)
 
 	netif_carrier_off(netdev);
 
-	pf->qset.cq_cnt = pf->hw.rx_queues + pf->hw.tot_tx_queues;
 	/* RQ and SQs are mapped to different CQs,
 	 * so find out max CQ IRQs (i.e CINTs) needed.
 	 */
 	pf->hw.cint_cnt = max(pf->hw.rx_queues, pf->hw.tx_queues);
+	pf->hw.cint_cnt = max_t(u8, pf->hw.cint_cnt, pf->hw.tc_tx_queues);
+	pf->qset.cq_cnt = pf->hw.rx_queues + pf->hw.tot_tx_queues + pf->hw.tc_tx_queues;
+
 	qset->napi = kcalloc(pf->hw.cint_cnt, sizeof(*cq_poll), GFP_KERNEL);
 	if (!qset->napi)
 		return -ENOMEM;
@@ -1708,7 +1788,7 @@ int otx2_open(struct net_device *netdev)
 	if (!qset->cq)
 		goto err_free_mem;
 
-	qset->sq = kcalloc(pf->hw.tot_tx_queues,
+	qset->sq = kcalloc(pf->hw.tot_tx_queues + pf->hw.tc_tx_queues,
 			   sizeof(struct otx2_snd_queue), GFP_KERNEL);
 	if (!qset->sq)
 		goto err_free_mem;
@@ -1742,6 +1822,11 @@ int otx2_open(struct net_device *netdev)
 						  CINT_INVALID_CQ;
 		else
 			cq_poll->cq_ids[CQ_XDP] = CINT_INVALID_CQ;
+
+		cq_poll->cq_ids[CQ_QOS] = (qidx < pf->hw.tc_tx_queues) ?
+					  (qidx + pf->hw.rx_queues +
+					   pf->hw.tot_tx_queues) :
+					  CINT_INVALID_CQ;
 
 		cq_poll->dev = (void *)pf;
 		cq_poll->dim.mode = DIM_CQ_PERIOD_MODE_START_FROM_CQE;
@@ -1826,13 +1911,21 @@ int otx2_open(struct net_device *netdev)
 	/* 'intf_down' may be checked on any cpu */
 	smp_wmb();
 
+	/* Enable QoS configuration before starting tx queues */
+	otx2_qos_config_txschq(pf);
+
 	/* we have already received link status notification */
 	if (pf->linfo.link_up && !(pf->pcifunc & RVU_PFVF_FUNC_MASK))
 		otx2_handle_link_event(pf);
 
+	/* Set NPC parsing mode */
+	otx2_set_npc_parse_mode(pf, false);
+
 	/* Install DMAC Filters */
 	if (pf->flags & OTX2_FLAG_DMACFLTR_SUPPORT)
 		otx2_dmacflt_reinstall_flows(pf);
+
+	otx2_tc_apply_ingress_police_rules(pf);
 
 	err = otx2_rxtx_enable(pf, true);
 	/* If a mbox communication error happens at this point then interface
@@ -1860,6 +1953,7 @@ err_free_cints:
 	vec = pci_irq_vector(pf->pdev,
 			     pf->hw.nix_msixoff + NIX_LF_QINT_VEC_START);
 	otx2_write64(pf, NIX_LF_QINTX_ENA_W1C(0), BIT_ULL(0));
+	synchronize_irq(vec);
 	free_irq(vec, pf);
 err_disable_napi:
 	otx2_disable_napi(pf);
@@ -1903,6 +1997,7 @@ int otx2_stop(struct net_device *netdev)
 	vec = pci_irq_vector(pf->pdev,
 			     pf->hw.nix_msixoff + NIX_LF_QINT_VEC_START);
 	otx2_write64(pf, NIX_LF_QINTX_ENA_W1C(0), BIT_ULL(0));
+	synchronize_irq(vec);
 	free_irq(vec, pf);
 
 	/* Cleanup CQ NAPI and IRQ */
@@ -1947,6 +2042,13 @@ static netdev_tx_t otx2_xmit(struct sk_buff *skb, struct net_device *netdev)
 	int qidx = skb_get_queue_mapping(skb);
 	struct otx2_snd_queue *sq;
 	struct netdev_queue *txq;
+	int sq_idx = qidx;
+
+	/* XDP SQs are not mapped with TXQs
+	 * advance qid to derive correct sq maped with QOS
+	 */
+	if (qidx >= pf->hw.tx_queues)
+		sq_idx = qidx + pf->hw.xdp_queues;
 
 	/* Check for minimum and maximum packet length */
 	if (skb->len <= ETH_HLEN ||
@@ -1955,7 +2057,7 @@ static netdev_tx_t otx2_xmit(struct sk_buff *skb, struct net_device *netdev)
 		return NETDEV_TX_OK;
 	}
 
-	sq = &pf->qset.sq[qidx];
+	sq = &pf->qset.sq[sq_idx];
 	txq = netdev_get_tx_queue(netdev, qidx);
 
 	if (!otx2_sq_append_skb(netdev, sq, skb, qidx)) {
@@ -1973,14 +2075,45 @@ static netdev_tx_t otx2_xmit(struct sk_buff *skb, struct net_device *netdev)
 	return NETDEV_TX_OK;
 }
 
-static u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
-			     struct net_device *sb_dev)
+static int otx2_qos_select_htb_queue(struct otx2_nic *pf, struct sk_buff *skb,
+				     u16 htb_maj_id)
 {
-#ifdef CONFIG_DCB
+	u16 classid;
+
+	if ((TC_H_MAJ(skb->priority) >> 16) == htb_maj_id)
+		classid = TC_H_MIN(skb->priority);
+	else
+		classid = READ_ONCE(pf->qos.defcls);
+
+	if (!classid)
+		return 0;
+
+	return otx2_get_txq_by_classid(pf, classid);
+}
+
+u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
+		      struct net_device *sb_dev)
+{
 	struct otx2_nic *pf = netdev_priv(netdev);
+	bool qos_enabled;
+#ifdef CONFIG_DCB
 	u8 vlan_prio;
 #endif
+	int txq;
 
+	qos_enabled = (netdev->real_num_tx_queues > pf->hw.tx_queues) ? true : false;
+	if (unlikely(qos_enabled)) {
+		u16 htb_maj_id = smp_load_acquire(&pf->qos.maj_id); /* barrier */
+
+		if (unlikely(htb_maj_id)) {
+			txq = otx2_qos_select_htb_queue(pf, skb, htb_maj_id);
+			if (txq > 0)
+				return txq;
+			goto process_pfc;
+		}
+	}
+
+process_pfc:
 #ifdef CONFIG_DCB
 	if (!skb->vlan_present)
 		goto pick_tx;
@@ -1994,8 +2127,13 @@ static u16 otx2_select_queue(struct net_device *netdev, struct sk_buff *skb,
 
 pick_tx:
 #endif
-	return netdev_pick_tx(netdev, skb, NULL);
+	txq = netdev_pick_tx(netdev, skb, NULL);
+	if (unlikely(qos_enabled))
+		return txq % pf->hw.tx_queues;
+
+	return txq;
 }
+EXPORT_SYMBOL(otx2_select_queue);
 
 static netdev_features_t otx2_fix_features(struct net_device *dev,
 					   netdev_features_t features)
@@ -2129,6 +2267,15 @@ int otx2_config_hwtstamp(struct net_device *netdev, struct ifreq *ifr)
 	if (copy_from_user(&config, ifr->ifr_data, sizeof(config)))
 		return -EFAULT;
 
+	/* reserved for future extensions */
+	if (config.flags)
+		return -EINVAL;
+
+	if (OTX2_IS_INTFMOD_SET(pfvf->ethtool_flags)) {
+		netdev_info(netdev, "Can't support PTP HW timestamping when switch features are enabled\n");
+		return -EOPNOTSUPP;
+	}
+
 	switch (config.tx_type) {
 	case HWTSTAMP_TX_OFF:
 		if (pfvf->flags & OTX2_FLAG_PTP_ONESTEP_SYNC)
@@ -2255,8 +2402,8 @@ static int otx2_set_vf_mac(struct net_device *netdev, int vf, u8 *mac)
 	return ret;
 }
 
-static int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
-			       __be16 proto)
+int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
+			__be16 proto)
 {
 	struct otx2_flow_config *flow_cfg = pf->flow_cfg;
 	struct nix_vtag_config_rsp *vtag_rsp;
@@ -2315,6 +2462,8 @@ static int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
 			flow_cfg->def_ent[flow_cfg->vf_vlan_offset + idx];
 		err = otx2_sync_mbox_msg(&pf->mbox);
 
+		if (!(pf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR))
+			memset(&config->rule, 0, sizeof(config->rule));
 		goto out;
 	}
 
@@ -2388,6 +2537,10 @@ static int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos,
 	req->set_cntr = 1;
 
 	err = otx2_sync_mbox_msg(&pf->mbox);
+	/* Update these values to reinstall the vfvlan rule */
+	config->rule.vlan	= vlan;
+	config->rule.proto	= proto;
+	config->rule.qos	= qos;
 out:
 	config->vlan = vlan;
 	mutex_unlock(&pf->mbox.lock);
@@ -2414,6 +2567,9 @@ static int otx2_set_vf_vlan(struct net_device *netdev, int vf, u16 vlan, u8 qos,
 		return -EPROTONOSUPPORT;
 
 	if (!(pf->flags & OTX2_FLAG_VF_VLAN_SUPPORT))
+		return -EOPNOTSUPP;
+
+	if (pf->ethtool_flags & OTX2_PRIV_FLAG_FDSA_HDR)
 		return -EOPNOTSUPP;
 
 	return otx2_do_set_vf_vlan(pf, vf, vlan, qos, proto);
@@ -2688,6 +2844,8 @@ static int otx2_sriov_vfcfg_init(struct otx2_nic *pf)
 		pf->vf_configs[i].trusted = false;
 		INIT_DELAYED_WORK(&pf->vf_configs[i].link_event_work,
 				  otx2_vf_link_event_task);
+		INIT_DELAYED_WORK(&pf->vf_configs[i].ptp_info_work,
+				  otx2_vf_ptp_info_task);
 	}
 
 	return 0;
@@ -2702,6 +2860,7 @@ static void otx2_sriov_vfcfg_cleanup(struct otx2_nic *pf)
 
 	for (i = 0; i < pf->total_vfs; i++) {
 		cancel_delayed_work_sync(&pf->vf_configs[i].link_event_work);
+		cancel_delayed_work_sync(&pf->vf_configs[i].ptp_info_work);
 		otx2_set_vf_permissions(pf, i, OTX2_RESET_VF_PERM);
 	}
 }
@@ -2709,10 +2868,10 @@ static void otx2_sriov_vfcfg_cleanup(struct otx2_nic *pf)
 static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct device *dev = &pdev->dev;
+	int err, qcount, qos_txqs;
 	struct net_device *netdev;
 	struct otx2_nic *pf;
 	struct otx2_hw *hw;
-	int err, qcount;
 	int num_vec;
 
 	err = pcim_enable_device(pdev);
@@ -2737,8 +2896,9 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	/* Set number of queues */
 	qcount = min_t(int, num_online_cpus(), OTX2_MAX_CQ_CNT);
+	qos_txqs = min_t(int, qcount, OTX2_QOS_MAX_LEAF_NODES);
 
-	netdev = alloc_etherdev_mqs(sizeof(*pf), qcount, qcount);
+	netdev = alloc_etherdev_mqs(sizeof(*pf), qcount + qos_txqs, qcount);
 	if (!netdev) {
 		err = -ENOMEM;
 		goto err_release_regions;
@@ -2819,7 +2979,7 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	err = otx2_realloc_msix_vectors(pf);
 	if (err)
-		goto err_detach_rsrc;
+		goto err_mbox_destroy;
 
 	err = otx2_set_real_num_queues(netdev, hw->tx_queues, hw->rx_queues);
 	if (err)
@@ -2847,6 +3007,9 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	 * walking through the translation tables.
 	 */
 	pf->iommu_domain = iommu_get_domain_for_dev(dev);
+	if (pf->iommu_domain)
+		pf->iommu_domain_type =
+			((struct iommu_domain *)pf->iommu_domain)->type;
 
 	netdev->hw_features = (NETIF_F_RXCSUM | NETIF_F_IP_CSUM |
 			       NETIF_F_IPV6_CSUM | NETIF_F_RXHASH |
@@ -2884,7 +3047,8 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	netdev->hw_features |= NETIF_F_LOOPBACK | NETIF_F_RXALL;
 
 	netif_set_tso_max_segs(netdev, OTX2_MAX_GSO_SEGS);
-	netdev->watchdog_timeo = OTX2_TX_TIMEOUT;
+	netdev->watchdog_timeo = netdev->watchdog_timeo ?
+				 netdev->watchdog_timeo : OTX2_TX_TIMEOUT;
 
 	netdev->netdev_ops = &otx2_netdev_ops;
 
@@ -2919,11 +3083,16 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	/* Enable link notifications */
 	otx2_cgx_config_linkevents(pf, true);
 
+	/* Set interface mode as Default */
+	pf->ethtool_flags |= OTX2_PRIV_FLAG_DEF_MODE;
+
 #ifdef CONFIG_DCB
 	err = otx2_dcbnl_set_ops(netdev);
 	if (err)
 		goto err_pf_sriov_init;
 #endif
+
+	otx2_qos_sq_setup(pf, qos_txqs);
 
 	return 0;
 
@@ -2949,6 +3118,7 @@ err_disable_mbox_intr:
 	otx2_disable_mbox_intr(pf);
 err_mbox_destroy:
 	otx2_pfaf_mbox_destroy(pf);
+	otx2_pfvf_mbox_destroy(pf);
 err_free_irq_vectors:
 	pci_free_irq_vectors(hw->pdev);
 err_free_netdev:
@@ -2972,10 +3142,13 @@ static void otx2_vf_link_event_task(struct work_struct *work)
 	vf_idx = config - config->pf->vf_configs;
 	pf = config->pf;
 
+	mutex_lock(&pf->mbox.lock);
+
 	msghdr = otx2_mbox_alloc_msg_rsp(&pf->mbox_pfvf[0].mbox_up, vf_idx,
 					 sizeof(*req), sizeof(struct msg_rsp));
 	if (!msghdr) {
 		dev_err(pf->dev, "Failed to create VF%d link event\n", vf_idx);
+		mutex_unlock(&pf->mbox.lock);
 		return;
 	}
 
@@ -2984,7 +3157,46 @@ static void otx2_vf_link_event_task(struct work_struct *work)
 	req->hdr.sig = OTX2_MBOX_REQ_SIG;
 	memcpy(&req->link_info, &pf->linfo, sizeof(req->link_info));
 
-	otx2_sync_mbox_up_msg(&pf->mbox_pfvf[0], vf_idx);
+	otx2_mbox_wait_for_zero(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	otx2_mbox_msg_send_up(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	mutex_unlock(&pf->mbox.lock);
+}
+
+static void otx2_vf_ptp_info_task(struct work_struct *work)
+{
+	struct cgx_ptp_rx_info_msg *req;
+	struct otx2_vf_config *config;
+	struct mbox_msghdr *msghdr;
+	struct otx2_nic *pf;
+	int vf_idx;
+
+	config = container_of(work, struct otx2_vf_config,
+			      ptp_info_work.work);
+	vf_idx = config - config->pf->vf_configs;
+	pf = config->pf;
+
+	mutex_lock(&pf->mbox.lock);
+
+	msghdr = otx2_mbox_alloc_msg_rsp(&pf->mbox_pfvf[0].mbox_up, vf_idx,
+					 sizeof(*req), sizeof(struct msg_rsp));
+	if (!msghdr) {
+		dev_err(pf->dev, "Failed to create VF%d link event\n", vf_idx);
+		mutex_unlock(&pf->mbox.lock);
+		return;
+	}
+
+	req = (struct cgx_ptp_rx_info_msg *)msghdr;
+	req->hdr.id = MBOX_MSG_CGX_PTP_RX_INFO;
+	req->hdr.sig = OTX2_MBOX_REQ_SIG;
+	req->ptp_en = pf->ptp->ptp_en;
+
+	otx2_mbox_wait_for_zero(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	otx2_mbox_msg_send_up(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+
+	mutex_unlock(&pf->mbox.lock);
 }
 
 static int otx2_sriov_enable(struct pci_dev *pdev, int numvfs)
@@ -3085,6 +3297,7 @@ static void otx2_remove(struct pci_dev *pdev)
 		otx2_config_priority_flow_ctrl(pf);
 	}
 #endif
+	otx2_set_npc_parse_mode(pf, true);
 	cancel_work_sync(&pf->reset_task);
 	/* Disable link notifications */
 	otx2_cgx_config_linkevents(pf, false);

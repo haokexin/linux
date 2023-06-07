@@ -1011,8 +1011,11 @@ struct etmv4_save_state {
 struct etmv4_drvdata {
 	void __iomem			*base;
 	struct coresight_device		*csdev;
-	spinlock_t			spinlock;
+	raw_spinlock_t			spinlock;
 	local_t				mode;
+	u32				etm_quirks;
+	int				hw_state;
+	int				rc_cpu;
 	int				cpu;
 	u8				arch;
 	u8				nr_pe;

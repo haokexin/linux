@@ -141,6 +141,8 @@ u64 arch_timer_reg_read_cp15(int access, enum arch_timer_reg reg)
 		switch (reg) {
 		case ARCH_TIMER_REG_CTRL:
 			return read_sysreg(cntp_ctl_el0);
+		case ARCH_TIMER_REG_CVAL:
+			return read_sysreg(cntp_cval_el0);
 		default:
 			BUILD_BUG();
 		}
@@ -148,6 +150,8 @@ u64 arch_timer_reg_read_cp15(int access, enum arch_timer_reg reg)
 		switch (reg) {
 		case ARCH_TIMER_REG_CTRL:
 			return read_sysreg(cntv_ctl_el0);
+		case ARCH_TIMER_REG_CVAL:
+			return read_sysreg(cntv_cval_el0);
 		default:
 			BUILD_BUG();
 		}

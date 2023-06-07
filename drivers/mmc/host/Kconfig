@@ -246,11 +246,23 @@ config MMC_SDHCI_CADENCE
 	tristate "SDHCI support for the Cadence SD/SDIO/eMMC controller"
 	depends on MMC_SDHCI_PLTFM
 	depends on OF
+	select MMC_SDHCI_IO_ACCESSORS
 	help
 	  This selects the Cadence SD/SDIO/eMMC driver.
 
 	  If you have a controller with this interface, say Y or M here.
 
+	  If unsure, say N.
+
+config MMC_SDHCI_CADENCE_DEBUG
+	tristate "Debug support for the Cadence SD/SDIO/eMMC controller"
+	depends on MMC_SDHCI_CADENCE
+	default n
+	help
+	  This enables the debug traces for Cadence SD/SDIO/eMMC controller
+	  PHY timings and host controller register configuration.
+
+	  If you have a controller with this interface, say Y or M here.
 	  If unsure, say N.
 
 config MMC_SDHCI_CNS3XXX
@@ -1111,3 +1123,11 @@ config MMC_LITEX
 	  module will be called litex_mmc.
 
 	  If unsure, say N.
+
+config MMC_SDHCI_TIMEOUT
+	int
+	default 1 if MMC_SDHCI_CADENCE
+	default 10
+	depends on MMC_SDHCI
+	help
+	  Default timeout value for command and data.

@@ -24,6 +24,7 @@
 #define CORESIGHT_LSR		0xfb4
 #define CORESIGHT_DEVARCH	0xfbc
 #define CORESIGHT_AUTHSTATUS	0xfb8
+#define CORESIGHT_DEVID1	0xfc4
 #define CORESIGHT_DEVID		0xfc8
 #define CORESIGHT_DEVTYPE	0xfcc
 
@@ -34,7 +35,10 @@
  */
 #define CORESIGHT_CLAIM_SELF_HOSTED	BIT(1)
 
-#define TIMEOUT_US		100
+/* Timeout is in ms to accommodate longer time taken
+ * by ETR hardware on OcteonTX2 implementation.
+ */
+#define TIMEOUT_US		5000
 #define BMVAL(val, lsb, msb)	((val & GENMASK(msb, lsb)) >> lsb)
 
 #define ETM_MODE_EXCL_KERN	BIT(30)
@@ -86,6 +90,7 @@ enum cs_mode {
 	CS_MODE_DISABLED,
 	CS_MODE_SYSFS,
 	CS_MODE_PERF,
+	CS_MODE_READ_PREVBOOT,
 };
 
 /**

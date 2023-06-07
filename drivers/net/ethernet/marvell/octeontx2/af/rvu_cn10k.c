@@ -145,16 +145,17 @@ int rvu_mbox_handler_lmtst_tbl_setup(struct rvu *rvu,
 	 * region, if so, convert that IOVA to physical address and
 	 * populate LMT table with that address
 	 */
+	mutex_lock(&rvu->rsrc_lock);
 	if (req->use_local_lmt_region) {
 		err = rvu_get_lmtaddr(rvu, req->hdr.pcifunc,
 				      req->lmt_iova, &lmt_addr);
 		if (err < 0)
-			return err;
+			goto error;
 
 		/* Update the lmt addr for this PFFUNC in the LMT table */
 		err = rvu_update_lmtaddr(rvu, req->hdr.pcifunc, lmt_addr);
 		if (err)
-			return err;
+			goto error;
 	}
 
 	/* Reconfiguring lmtst map table in lmt region shared mode i.e. make
@@ -184,7 +185,7 @@ int rvu_mbox_handler_lmtst_tbl_setup(struct rvu *rvu,
 		 */
 		err = rvu_update_lmtaddr(rvu, req->hdr.pcifunc, val);
 		if (err)
-			return err;
+			goto error;
 	}
 
 	/* This mailbox can also be used to update word1 of APR_LMT_MAP_ENTRY_S
@@ -233,6 +234,7 @@ int rvu_mbox_handler_lmtst_tbl_setup(struct rvu *rvu,
 	}
 
 error:
+	mutex_unlock(&rvu->rsrc_lock);
 	return err;
 }
 
@@ -540,4 +542,62 @@ void rvu_program_channels(struct rvu *rvu)
 	rvu_nix_set_channels(rvu);
 	rvu_lbk_set_channels(rvu);
 	rvu_rpm_set_channels(rvu);
+}
+
+void rvu_sso_block_cn10k_init(struct rvu *rvu, int blkaddr)
+{
+	u64 reg;
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_WS_CFG);
+	/* Enable GET_WORK prefetching to the GWCs. */
+	reg &= ~BIT_ULL(4);
+	rvu_write64(rvu, blkaddr, SSO_AF_WS_CFG, reg);
+}
+
+void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	int blkaddr = nix_hw->blkaddr;
+	u64 cfg, val;
+
+	/* Set AF vWQE timer interval to a LF configurable range of
+	 * 6.4us to 1.632ms.
+	 */
+	rvu_write64(rvu, blkaddr, NIX_AF_VWQE_TIMER, 0x3FULL);
+
+	/* Enable NIX RX stream and global conditional clock to
+	 * avoild multiple free of NPA buffers.
+	 */
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_CFG);
+	cfg |= BIT_ULL(1) | BIT_ULL(2);
+	rvu_write64(rvu, blkaddr, NIX_AF_CFG, cfg);
+
+	/* Enable zero CPT aura in RQM if per-LF programmable
+	 * config doesn't exist. RQM method doesn't exist on A0.
+	 */
+	val = rvu_read64(rvu, blkaddr, NIX_AF_CONST);
+	if (!(val & BIT_ULL(62)) && is_cn10ka_a1(rvu)) {
+		cfg = rvu_read64(rvu, blkaddr, NIX_AF_RQM_ECO);
+		cfg |= BIT_ULL(63);
+		rvu_write64(rvu, blkaddr, NIX_AF_RQM_ECO, cfg);
+	}
+
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_CONST);
+
+	if (!(cfg & BIT_ULL(62))) {
+		hw->cap.second_cpt_pass = false;
+		return;
+	}
+
+	hw->cap.second_cpt_pass = true;
+	nix_hw->rq_msk.total = NIX_RQ_MSK_PROFILES;
+}
+
+void rvu_apr_block_cn10k_init(struct rvu *rvu)
+{
+	u64 reg;
+
+	reg = rvu_read64(rvu, BLKADDR_APR, APR_AF_LMT_CFG);
+	reg |= 0xFULL << 35;
+	rvu_write64(rvu, BLKADDR_APR, APR_AF_LMT_CFG, reg);
 }

@@ -44,6 +44,9 @@ struct thread_info {
 	void			*scs_sp;
 #endif
 	u32			cpu;
+#ifdef CONFIG_ARM64_MPAM
+	u64			mpam_partid_pmg;
+#endif
 };
 
 #define thread_saved_pc(tsk)	\

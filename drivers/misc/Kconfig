@@ -496,6 +496,22 @@ config VCPU_STALL_DETECTOR
 
 	  If you do not intend to run this kernel as a guest, say N.
 
+config MARVELL_OTX_BPHY_CTR
+	bool "Marvell OcteonTX BPHY Control driver"
+	select MRVL_OCTEONTX_EL0_INTR
+	help
+	default y
+	  Enables BPHY control driver which handles ioctl calls
+	  to set/clear IRQ handlers in EL3 using SMC calls.
+	  The purpose of this is to handle some BPHY Interrupts in
+	  user space directly without kernel's intervention.
+
+config MARVELL_LOKI
+	tristate "Marvell Loki driver"
+	default y
+	help
+	  Handles GPINT0 interrupt on Loki SoC.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

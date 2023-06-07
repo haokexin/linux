@@ -13,6 +13,8 @@
 #include <linux/mutex.h>
 #include <linux/refcount.h>
 
+#include "coresight-quirks.h"
+
 #define TMC_RSZ			0x004
 #define TMC_STS			0x00c
 #define TMC_RRD			0x010
@@ -93,6 +95,7 @@
 #define TMC_DEVID_AXIAW_MASK	0x7f
 
 #define TMC_AUTH_NSID_MASK	GENMASK(1, 0)
+#define TMC_AUTH_SID_MASK	GENMASK(5, 4)
 
 enum tmc_config_type {
 	TMC_CONFIG_TYPE_ETB,
@@ -126,15 +129,22 @@ enum tmc_mem_intf_width {
  * so we have to rely on PID of the IP to detect the functionality.
  */
 #define TMC_ETR_SAVE_RESTORE		(0x1U << 2)
+/* TMC ETR to use reserved memory for trace buffer*/
+#define TMC_ETR_RESRV_MEM		(0x1U << 3)
 
 /* Coresight SoC-600 TMC-ETR unadvertised capabilities */
 #define CORESIGHT_SOC_600_ETR_CAPS	\
 	(TMC_ETR_SAVE_RESTORE | TMC_ETR_AXI_ARCACHE)
 
+/* Marvell OcteonTx CN9xxx TMC-ETR unadvertised capabilities */
+#define OCTEONTX_CN9XXX_ETR_CAPS	(TMC_ETR_SAVE_RESTORE)
+
 enum etr_mode {
 	ETR_MODE_FLAT,		/* Uses contiguous flat buffer */
 	ETR_MODE_ETR_SG,	/* Uses in-built TMC ETR SG mechanism */
 	ETR_MODE_CATU,		/* Use SG mechanism in CATU */
+	ETR_MODE_SECURE,	/* Use Secure buffer */
+	ETR_MODE_RESRV,		/* Use reserved region contiguous buffer */
 };
 
 struct etr_buf_operations;
@@ -164,6 +174,42 @@ struct etr_buf {
 };
 
 /**
+ * @paddr	: Start address of reserved memory region.
+ * @vaddr	: Corresponding CPU virtual address.
+ * @size	: Size of reserved memory region.
+ */
+struct etr_resrv_mem {
+	phys_addr_t     paddr;
+	void		*vaddr;
+	size_t		size;
+};
+
+/**
+ * @paddr	: Start address for previous boot register metadata region.
+ * @vaddr	: Corresponding CPU virtual address.
+ * @size	: Size of register metadata region.
+ */
+struct tmc_reg_metadata {
+	phys_addr_t     paddr;
+	void		*vaddr;
+	size_t		size;
+};
+
+/**
+ * struct etr_tsync_data - Timer based sync insertion data management
+ * @syncs_per_fill:    syncs inserted per buffer wrap
+ * @prev_rwp:          writepointer for the last sync insertion
+ * @len_thold:         Buffer length threshold for inserting syncs
+ * @tick:              Tick interval in ns
+ */
+struct etr_tsync_data {
+	int syncs_per_fill;
+	u64 prev_rwp;
+	u64 len_thold;
+	u64 tick;
+};
+
+/**
  * struct tmc_drvdata - specifics associated to an TMC component
  * @base:	memory mapped base address for this component.
  * @csdev:	component vitals needed by the framework.
@@ -187,6 +233,8 @@ struct etr_buf {
  * @idr_mutex:	Access serialisation for idr.
  * @sysfs_buf:	SYSFS buffer for ETR.
  * @perf_buf:	PERF buffer for ETR.
+ * @resrv_mem:	Reserved Memory for ETR buffer.
+ * @reg_metadata: Previous boot register metadata.
  */
 struct tmc_drvdata {
 	void __iomem		*base;
@@ -203,6 +251,9 @@ struct tmc_drvdata {
 	u32			size;
 	u32			max_burst_size;
 	u32			mode;
+	u32			etr_quirks;
+	int			cpu;
+	int			rc_cpu;
 	enum tmc_config_type	config_type;
 	enum tmc_mem_intf_width	memwidth;
 	u32			trigger_cntr;
@@ -211,6 +262,11 @@ struct tmc_drvdata {
 	struct mutex		idr_mutex;
 	struct etr_buf		*sysfs_buf;
 	struct etr_buf		*perf_buf;
+	void			*etm_source;
+	struct etr_tsync_data	tsync_data;
+	struct hrtimer		timer;
+	struct etr_resrv_mem	resrv_mem;
+	struct tmc_reg_metadata reg_metadata;
 };
 
 struct etr_buf_operations {
@@ -254,6 +310,19 @@ struct tmc_sg_table {
 	struct tmc_pages data_pages;
 };
 
+struct tmc_register_snapshot {
+	uint32_t valid;         /* Indicate if this ETF/ETR was enabled */
+	uint32_t size;          /* Size of trace data */
+	uint32_t rrphi;         /* Read Pointer High Address bits */
+	uint32_t rrp;           /* Read Pointer */
+	uint32_t rwphi;         /* Write Pointer High Address bits */
+	uint32_t rwp;           /* Write Pointer */
+	uint32_t sts;           /* Status Register */
+	uint32_t trc_addrhi;    /* High Address bits of trace data in preserved region */
+	uint32_t trc_addr;      /* Address bits of trace data in preserved region */
+	uint32_t reserved[7];
+};
+
 /* Generic functions */
 void tmc_wait_for_tmcready(struct tmc_drvdata *drvdata);
 void tmc_flush_and_stop(struct tmc_drvdata *drvdata);
@@ -292,7 +361,24 @@ tmc_write_##name(struct tmc_drvdata *drvdata, u64 val)			\
 
 TMC_REG_PAIR(rrp, TMC_RRP, TMC_RRPHI)
 TMC_REG_PAIR(rwp, TMC_RWP, TMC_RWPHI)
-TMC_REG_PAIR(dba, TMC_DBALO, TMC_DBAHI)
+
+static inline u64 tmc_read_dba(struct tmc_drvdata *drvdata)
+{
+	if (drvdata->etr_quirks & CORESIGHT_QUIRK_ETR_FORCE_64B_DBA_RW)
+		return readq(drvdata->base + TMC_DBALO);
+
+	return csdev_access_relaxed_read_pair(&drvdata->csdev->access, TMC_DBALO, TMC_DBAHI);
+}
+
+static inline void tmc_write_dba(struct tmc_drvdata *drvdata, u64 val)
+{
+	if (drvdata->etr_quirks & CORESIGHT_QUIRK_ETR_FORCE_64B_DBA_RW) {
+		writeq(val, drvdata->base + TMC_DBALO);
+		return;
+	}
+
+	csdev_access_relaxed_write_pair(&drvdata->csdev->access, val, TMC_DBALO, TMC_DBAHI);
+}
 
 /* Initialise the caps from unadvertised static capabilities of the device */
 static inline void tmc_etr_init_caps(struct tmc_drvdata *drvdata, u32 dev_caps)

@@ -188,14 +188,13 @@ int otx2_mbox_wait_for_rsp(struct otx2_mbox *mbox, int devid)
 {
 	unsigned long timeout = jiffies + msecs_to_jiffies(MBOX_RSP_TIMEOUT);
 	struct otx2_mbox_dev *mdev = &mbox->dev[devid];
-	struct device *sender = &mbox->pdev->dev;
 
 	while (!time_after(jiffies, timeout)) {
 		if (mdev->num_msgs == mdev->msgs_acked)
 			return 0;
 		usleep_range(800, 1000);
 	}
-	dev_dbg(sender, "timed out while waiting for rsp\n");
+	trace_otx2_msg_wait_rsp(mbox->pdev);
 	return -EIO;
 }
 EXPORT_SYMBOL(otx2_mbox_wait_for_rsp);
@@ -214,7 +213,7 @@ int otx2_mbox_busy_poll_for_rsp(struct otx2_mbox *mbox, int devid)
 }
 EXPORT_SYMBOL(otx2_mbox_busy_poll_for_rsp);
 
-void otx2_mbox_msg_send(struct otx2_mbox *mbox, int devid)
+static void otx2_mbox_msg_send_data(struct otx2_mbox *mbox, int devid, u64 data)
 {
 	struct otx2_mbox_dev *mdev = &mbox->dev[devid];
 	struct mbox_hdr *tx_hdr, *rx_hdr;
@@ -257,10 +256,44 @@ void otx2_mbox_msg_send(struct otx2_mbox *mbox, int devid)
 	/* The interrupt should be fired after num_msgs is written
 	 * to the shared memory
 	 */
-	writeq(1, (void __iomem *)mbox->reg_base +
+	writeq(data, (void __iomem *)mbox->reg_base +
 	       (mbox->trigger | (devid << mbox->tr_shift)));
 }
+
+void otx2_mbox_msg_send(struct otx2_mbox *mbox, int devid)
+{
+	otx2_mbox_msg_send_data(mbox, devid, MBOX_DOWN_MSG);
+}
 EXPORT_SYMBOL(otx2_mbox_msg_send);
+
+void otx2_mbox_msg_send_up(struct otx2_mbox *mbox, int devid)
+{
+	otx2_mbox_msg_send_data(mbox, devid, MBOX_UP_MSG);
+}
+EXPORT_SYMBOL(otx2_mbox_msg_send_up);
+
+bool otx2_mbox_wait_for_zero(struct otx2_mbox *mbox, int devid)
+{
+	u64 data;
+
+	data = readq((void __iomem *)mbox->reg_base +
+		     (mbox->trigger | (devid << mbox->tr_shift)));
+
+	/* If data is non-zero wait for ~1ms and return to caller
+	 * whether data has changed to zero or not after the wait.
+	 */
+
+	if (data)
+		usleep_range(950, 1000);
+	else
+		return true;
+
+	data = readq((void __iomem *)mbox->reg_base +
+		     (mbox->trigger | (devid << mbox->tr_shift)));
+
+	return data == 0;
+}
+EXPORT_SYMBOL(otx2_mbox_wait_for_zero);
 
 struct mbox_msghdr *otx2_mbox_alloc_msg_rsp(struct otx2_mbox *mbox, int devid,
 					    int size, int size_rsp)
@@ -405,6 +438,14 @@ const char *otx2_mbox_id2name(u16 id)
 	switch (id) {
 #define M(_name, _id, _1, _2, _3) case _id: return # _name;
 	MBOX_MESSAGES
+#undef M
+
+#define M(_name, _id, _1, _2, _3) case _id: return # _name;
+	MBOX_UP_CGX_MESSAGES
+#undef M
+
+#define M(_name, _id, _1, _2, _3) case _id: return # _name;
+	MBOX_UP_CPT_MESSAGES
 #undef M
 	default:
 		return "INVALID ID";
