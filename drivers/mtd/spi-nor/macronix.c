@@ -36,15 +36,16 @@ static const struct spi_nor_fixups mx25l25635_fixups = {
 static int spi_nor_macronix_octal_dtr_enable(struct spi_nor *nor, bool enable)
 {
 	struct spi_mem_op op;
-	u8 buf = 0xff;
+	u8 *buf = nor->bouncebuf;
 	u8 addr_width = 4;
 	int ret;
 
+	*buf = 0xff;
 	op = (struct spi_mem_op)
 		SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_RDCR2, 1),
 			   SPI_MEM_OP_ADDR(addr_width, 0x0, 1),
 			   SPI_MEM_OP_NO_DUMMY,
-			   SPI_MEM_OP_DATA_IN(1, &buf, 1));
+			   SPI_MEM_OP_DATA_IN(1, buf, 1));
 
 	ret = spi_mem_exec_op(nor->spimem, &op);
 	if (ret) {
@@ -62,14 +63,14 @@ static int spi_nor_macronix_octal_dtr_enable(struct spi_nor *nor, bool enable)
 	if (ret)
 		return ret;
 
-	buf &= ~CR2_STR_OPI_EN;
-	buf |= CR2_DTR_OPI_EN;
+	*buf &= ~CR2_STR_OPI_EN;
+	*buf |= CR2_DTR_OPI_EN;
 
 	op = (struct spi_mem_op)
 		SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_WRCR2, 1),
 			   SPI_MEM_OP_ADDR(addr_width, 0x0, 1),
 			   SPI_MEM_OP_NO_DUMMY,
-			   SPI_MEM_OP_DATA_OUT(1, &buf, 1));
+			   SPI_MEM_OP_DATA_OUT(1, buf, 1));
 	ret = spi_mem_exec_op(nor->spimem, &op);
 	if (ret) {
 		dev_err(nor->dev, "Failed to enable octal DTR mode\n");
