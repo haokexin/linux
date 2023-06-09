@@ -302,7 +302,8 @@ static void pcie_aspm_configure_common_clock(struct pcie_link_state *link)
 	pcie_capability_clear_and_set_word(parent, PCI_EXP_LNKCTL,
 					   PCI_EXP_LNKCTL_CCC, ccc);
 
-	if (pcie_retrain_link(link)) {
+	/* Retrain link and then wait for the link to become active */
+	if (pcie_retrain_link(link) && pcie_wait_for_link(parent, true)) {
 
 		/* Training failed. Restore common clock configurations */
 		pci_err(parent, "ASPM: Could not configure common clock\n");
