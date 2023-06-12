@@ -24,10 +24,7 @@ static int otx2_cpt_dl_egrp_delete(struct devlink *dl, u32 id,
 static int otx2_cpt_dl_uc_info(struct devlink *dl, u32 id,
 			       struct devlink_param_gset_ctx *ctx)
 {
-	struct otx2_cpt_devlink *cpt_dl = devlink_priv(dl);
-	struct otx2_cptpf_dev *cptpf = cpt_dl->cptpf;
-
-	otx2_cpt_print_uc_dbg_info(cptpf);
+	ctx->val.vstr[0] = '\0';
 
 	return 0;
 }
@@ -38,13 +35,12 @@ static int otx2_cpt_dl_max_rxc_icb_cnt(struct devlink *dl, u32 id,
 	struct otx2_cpt_devlink *cpt_dl = devlink_priv(dl);
 	struct otx2_cptpf_dev *cptpf = cpt_dl->cptpf;
 	struct pci_dev *pdev = cptpf->pdev;
-	u64 reg_val;
+	u64 reg_val = 0;
 
-	if (cpt_feature_rxc_icb_cnt(pdev)) {
-		otx2_cpt_read_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_RXC_CFG1, &reg_val,
-				     BLKADDR_CPT0);
-		dev_info(&pdev->dev, "rxc_icb_cnt: %llx\n", (reg_val >> 32) & 0x1FF);
-	}
+	otx2_cpt_read_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_RXC_CFG1, &reg_val,
+			     BLKADDR_CPT0);
+	ctx->val.vu16 = (reg_val >> 32) & 0x1FF;
+
 	return 0;
 }
 
@@ -70,6 +66,21 @@ static int otx2_cpt_dl_max_rxc_icb_cnt_set(struct devlink *dl, u32 id,
 	return 0;
 }
 
+static int otx2_cpt_dl_t106_mode_get(struct devlink *dl, u32 id,
+				     struct devlink_param_gset_ctx *ctx)
+{
+	struct otx2_cpt_devlink *cpt_dl = devlink_priv(dl);
+	struct otx2_cptpf_dev *cptpf = cpt_dl->cptpf;
+	struct pci_dev *pdev = cptpf->pdev;
+	u64 reg_val = 0;
+
+	otx2_cpt_read_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_CTL, &reg_val,
+			     BLKADDR_CPT0);
+	ctx->val.vu8 = (reg_val >> 18) & 0x1;
+
+	return 0;
+}
+
 static int otx2_cpt_dl_t106_mode_set(struct devlink *dl, u32 id,
 				     struct devlink_param_gset_ctx *ctx)
 {
@@ -85,10 +96,11 @@ static int otx2_cpt_dl_t106_mode_set(struct devlink *dl, u32 id,
 		otx2_cpt_read_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_CTL, &reg_val,
 				     BLKADDR_CPT0);
 		reg_val &= ~(0x1ULL << 18);
-		reg_val |= (u64)ctx->val.vu8 << 18;
+		reg_val |= ((u64)ctx->val.vu8 & 0x1) << 18;
 		return otx2_cpt_write_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_CTL,
 					     reg_val, BLKADDR_CPT0);
 	}
+
 	return 0;
 }
 
@@ -120,7 +132,7 @@ static const struct devlink_param otx2_cpt_dl_params[] = {
 	DEVLINK_PARAM_DRIVER(OTX2_CPT_DEVLINK_PARAM_ID_T106_MODE,
 			     "t106_mode", DEVLINK_PARAM_TYPE_U8,
 			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
-			     otx2_cpt_dl_uc_info, otx2_cpt_dl_t106_mode_set,
+			     otx2_cpt_dl_t106_mode_get, otx2_cpt_dl_t106_mode_set,
 			     NULL),
 };
 
