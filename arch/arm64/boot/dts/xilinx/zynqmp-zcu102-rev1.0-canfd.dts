@@ -69,6 +69,7 @@
 			compatible = "xlnx,clk-wiz-6.0", "xlnx,clocking-wizard";
 			reg = <0x0 0x80010000 0x0 0x10000>;
 			speed-grade = <2>;
+			xlnx,nr-outputs = <7>;
 		};
 		psu_ctrl_ipi: PERIPHERAL@ff380000 {
 			compatible = "xlnx,PERIPHERAL-1.0";
