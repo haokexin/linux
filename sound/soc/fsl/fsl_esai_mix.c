@@ -128,7 +128,6 @@ static void fsl_esai_mix_buffer_from_fe_tx(struct snd_pcm_substream *substream, 
 	struct fsl_esai_client *client;
 	struct fsl_esai_client_dma *client_dma;
 	struct snd_soc_dpcm *dpcm;
-	unsigned long flags;
 	int sample_offset = 0;
 	int client_chn = 0;
 	int mix_chn = 0;
@@ -230,7 +229,6 @@ static void fsl_esai_split_buffer_from_be_rx(struct snd_pcm_substream *substream
 	struct fsl_esai_client *client;
 	struct fsl_esai_client_dma *client_dma;
 	struct snd_soc_dpcm *dpcm;
-	unsigned long flags;
 	int sample_offset = 0;
 	int client_chn = 0;
 	int mix_chn = 0;
