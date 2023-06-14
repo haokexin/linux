@@ -1204,7 +1204,6 @@ static int linflex_poll_init(struct uart_port *port)
 
 static void linflex_poll_putchar(struct uart_port *port, unsigned char ch)
 {
-	int ich = ch;
 	unsigned long flags;
 	struct linflex_port *sport = container_of(port, struct linflex_port,
 						  port);
@@ -1216,7 +1215,7 @@ static void linflex_poll_putchar(struct uart_port *port, unsigned char ch)
 		linflex_poll_init(port);
 	}
 
-	linflex_console_putchar(port, ich);
+	linflex_console_putchar(port, ch);
 	spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
