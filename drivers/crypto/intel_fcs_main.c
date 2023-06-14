@@ -398,9 +398,8 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 	void *ps_buf;
 	void *iv_field_buf;
 	void *input_file_pointer;
-	void *output_file_pointer;
 	unsigned int buf_sz, in_sz, out_sz;
-	uint32_t remaining_size, data_size, total_out_size;
+	uint32_t remaining_size, data_size;
 	uint32_t sign_size;
 	int ret = 0;
 	int i;
