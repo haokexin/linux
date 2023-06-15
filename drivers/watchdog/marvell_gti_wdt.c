@@ -347,3 +347,4 @@ module_platform_driver(gti_wdt_driver);
 
 MODULE_AUTHOR("Bharat Bhushan <bbhushan2@marvell.com>");
 MODULE_DESCRIPTION("Marvell GTI watchdog driver");
+MODULE_LICENSE("GPL v2");
