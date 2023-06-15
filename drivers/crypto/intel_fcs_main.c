@@ -3800,7 +3800,11 @@ static int fcs_driver_probe(struct platform_device *pdev)
 	if (!priv->p_data)
 		return -ENODEV;
 	
-	of_property_read_string(dev->of_node, "platform", &platform);
+	ret = of_property_read_string(dev->of_node, "platform", &platform);
+	if (ret) {
+		dev_err(dev, "can't find platform");
+		return -ENODEV;
+	}
 
 	/* Proceed only if platform is agilex as
 	 * register addresses are platform specific
@@ -3896,7 +3900,9 @@ static int fcs_driver_remove(struct platform_device *pdev)
 	int i, ret;
 	const char *platform;
 
-	of_property_read_string(dev->of_node, "platform", &platform);
+	ret = of_property_read_string(dev->of_node, "platform", &platform);
+	if (ret)
+		goto no_platform;
 
 	if (!strncmp(platform, AGILEX_PLATFORM, AGILEX_PLATFORM_STR_LEN)) {
 		msg.command = COMMAND_SMC_SVC_VERSION;
@@ -3924,6 +3930,7 @@ static int fcs_driver_remove(struct platform_device *pdev)
 		}
 	}
 
+no_platform:
 	if (priv->p_data->have_hwrng)
 		hwrng_unregister(&priv->rng);
 	misc_deregister(&priv->miscdev);
