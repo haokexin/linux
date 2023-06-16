@@ -209,7 +209,7 @@ int otx2_cpt_register_dl(struct otx2_cptpf_dev *cptpf)
 		devlink_free(dl);
 		return ret;
 	}
-
+	devlink_params_publish(dl);
 	devlink_register(dl);
 
 	return 0;
