@@ -342,6 +342,10 @@ static int tcf_skbedit_offload_act_setup(struct tc_action *act, void *entry_data
 		} else if (is_tcf_skbedit_priority(act)) {
 			entry->id = FLOW_ACTION_PRIORITY;
 			entry->priority = tcf_skbedit_priority(act);
+		} else if (is_tcf_skbedit_queue_mapping(act)) {
+			return -EOPNOTSUPP;
+		} else if (is_tcf_skbedit_inheritdsfield(act)) {
+			return -EOPNOTSUPP;
 		} else {
 			return -EOPNOTSUPP;
 		}
