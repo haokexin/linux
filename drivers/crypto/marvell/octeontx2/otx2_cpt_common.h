@@ -53,6 +53,8 @@ struct otx2_cpt_rx_inline_lf_cfg {
 	u32 credit_th;
 	u16 bpid;
 	u32 reserved;
+	u8 ctx_ilen_valid : 1;
+	u8 ctx_ilen : 7;
 };
 
 /* Take mbox id from end of CPT mbox range in AF (range 0xA00 - 0xBFF) */
