@@ -136,7 +136,7 @@ static int otx2vf_process_mbox_msg_up(struct otx2_nic *vf,
 									\
 		rsp->hdr.id = _id;					\
 		rsp->hdr.sig = OTX2_MBOX_RSP_SIG;			\
-		rsp->hdr.pcifunc = 0;					\
+		rsp->hdr.pcifunc = req->pcifunc;			\
 		rsp->hdr.rc = 0;					\
 									\
 		err = otx2_mbox_up_handler_ ## _fn_name(		\
