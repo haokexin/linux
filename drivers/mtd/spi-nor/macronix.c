@@ -131,6 +131,7 @@ static struct spi_nor_fixups mx25uw51245g_fixups = {
 	.default_init = mx25uw51245g_default_init,
 	.post_bfpt = mx25uw51245g_post_bfpt_fixup,
 	.post_sfdp = mx25uw51245g_post_sfdp_fixup,
+	.late_init = mx25uw51245g_post_sfdp_fixup,
 };
 
 static const struct flash_info macronix_nor_parts[] = {
