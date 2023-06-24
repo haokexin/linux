@@ -690,6 +690,8 @@
 			sw0_p0: port@0 {
 				label = "sw0-p0";
 				phy-mode = "rgmii-id";
+				rx-internal-delay-ps = <2000>;
+				tx-internal-delay-ps = <2000>;
 				ethernet = <&pfe_netif2>;
 				reg = <0>;
 
@@ -716,6 +718,8 @@
 			enet_p3: enet_p3@3 {
 				label = "enet_p3";
 				phy-mode = "rgmii-id";
+				rx-internal-delay-ps = <2000>;
+				tx-internal-delay-ps = <2000>;
 				phy-handle = <&pfe_mdio_a_phy2>;
 				reg = <3>;
 			};
@@ -723,6 +727,8 @@
 			enet_p4: enet_p4@4 {
 				label = "enet_p4";
 				phy-mode = "rgmii-id";
+				rx-internal-delay-ps = <2000>;
+				tx-internal-delay-ps = <2000>;
 				phy-handle = <&pfe_mdio_a_phy3>;
 				reg = <4>;
 			};
