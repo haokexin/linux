@@ -2538,7 +2538,7 @@ static int rvu_mbox_init(struct rvu *rvu, struct mbox_wq_info *mw,
 	const char *name;
 	u64 cfg;
 
-	pf_bmap = devm_kcalloc(rvu->dev, BITS_TO_LONGS(num), sizeof(long), GFP_KERNEL);
+	pf_bmap = bitmap_zalloc(num, GFP_KERNEL);
 	if (!pf_bmap)
 		return -ENOMEM;
 
