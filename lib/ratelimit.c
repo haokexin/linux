@@ -53,9 +53,7 @@ int ___ratelimit(struct ratelimit_state *rs, const char *func)
 	if (time_is_before_jiffies(rs->begin + interval)) {
 		if (rs->missed) {
 			if (!(rs->flags & RATELIMIT_MSG_ON_RELEASE)) {
-				printk_deferred(KERN_WARNING
-						"%s: %d callbacks suppressed\n",
-						func, rs->missed);
+				pr_warn("%s: %d callbacks suppressed\n", func, rs->missed);
 				rs->missed = 0;
 			}
 		}
