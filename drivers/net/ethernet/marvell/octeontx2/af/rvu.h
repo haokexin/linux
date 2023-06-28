@@ -18,6 +18,7 @@
 #include "mcs_fips_mbox.h"
 #include "npc.h"
 #include "rvu_reg.h"
+#include "ptp.h"
 
 /* PCI device IDs */
 #define	PCI_DEVID_OCTEONTX2_RVU_AF		0xA065
@@ -790,6 +791,16 @@ static inline bool is_cgx_mapped_to_nix(unsigned short id, u8 cgx_id)
 			     id == PCI_SUBSYS_DEVID_98XX ||
 			     id == PCI_SUBSYS_DEVID_CN10K_A ||
 			     id == PCI_SUBSYS_DEVID_CN10K_B));
+}
+
+static inline bool is_cnf10ka_a0(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
+	    (pdev->revision & 0x0F) == 0x0)
+		return true;
+	return false;
 }
 
 static inline bool is_rvu_npc_hash_extract_en(struct rvu *rvu)
