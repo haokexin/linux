@@ -128,7 +128,7 @@ void ice_fltr_remove_all(struct ice_vsi *vsi)
  * @mac: MAC address to add
  * @action: filter action
  */
-enum ice_status
+int
 ice_fltr_add_mac_to_list(struct ice_vsi *vsi, struct list_head *list,
 			 const u8 *mac, enum ice_sw_fwd_act_type action)
 {
