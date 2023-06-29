@@ -66,17 +66,26 @@
 #define SMC_VERSION_ASYNC_HASH			BIT(8)
 
 /**
- * Set this to skip failed images, instead of faili whole clone operation
+ * Set this to skip failed images, instead of failing whole clone operation
  */
 #define SMC_VERSION_SKIP_FAIL_CHECK		BIT(9)
 
 /**
- * Set this to skip failed images, instead of faili whole clone operation
+ * Set this to skip the erase of EBF config data
  */
 #define SMC_VERSION_ERASE_EBF_CONFIG	BIT(10)
 
+/**
+ * Set this to log progress
+ */
+#define SMC_VERSION_LOG_PROGRESS	BIT(11)
+
 #define VERSION_MAGIC		0x4e535256	/** VRSN */
-#define VERSION_INFO_VERSION	0x0102	       /** 1.0.0.0 */
+#define VERSION_OLD_VERSION_BEFORE_LOG	0x0102	/** 1.2 */
+#define VERSION_INFO_VERSION			0x0103	/** 1.3 */
+
+/** Compatibility flag */
+#define VERSION_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG	BIT(0)
 
 struct memory_desc {
 	void	   *virt;
@@ -173,7 +182,10 @@ struct smc_version_info {
 	uint32_t	num_objects;
 	uint32_t	timeout;	/** Timeout in ms */
 	uint32_t	reserved32;		/** Pad to 64 bits */
-	uint64_t	reserved[4];	/** Reserved for future growth */
+	uintptr_t	output_console;	/** Text output console */
+	uint32_t	output_console_size;/** Console buffer size in bytes */
+	uint32_t	output_console_end;/** Not used yet */
+	uint64_t	reserved[2];	/** Reserved for future growth */
 	struct smc_version_info_entry objects[SMC_MAX_VERSION_ENTRIES];
 };
 
@@ -252,6 +264,8 @@ struct smc_update_obj_info {
 #define UPDATE_FLAG_LOG_PROGRESS	BIT(6)
 /** Set when user parameters are passed */
 #define UPDATE_FLAG_USER_PARMS	0x8000
+/** Compatibility flag */
+#define UPDATE_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG	BIT(0)
 
 /** Offset from the beginning of the flash where the backup image is located */
 #define BACKUP_IMAGE_OFFSET	0x2000000
@@ -343,14 +357,13 @@ enum marlin_bootflash_clone_op {
 struct mrvl_get_versions {
 	uint32_t  bus;              /** SPI BUS number */
 	uint32_t  cs;               /** SPI chip select number */
-	uintptr_t log_addr;         /** Pointer to a buffer where to store log */
-	size_t    log_size;         /** Size of the log buffer */
 	uint16_t  version_flags;    /** Flags to specify options */
 	uint32_t  selected_objects; /** Mask of a selection of TIMs (32 max) */
 	uint64_t  timeout;
 	uint64_t  reserved[4];	    /** Reserved for future growth */
 	enum smc_version_ret	retcode;
 	struct smc_version_info_entry desc[SMC_MAX_VERSION_ENTRIES];
+	uint64_t compatibility_flags;
 } __packed;
 
 struct mrvl_clone_fw {
@@ -364,6 +377,7 @@ struct mrvl_clone_fw {
 	uint64_t reserved[5];	   /** Reserved for future growth */
 	enum smc_version_ret	retcode;
 	struct smc_version_info_entry desc[SMC_MAX_VERSION_ENTRIES];
+	uint64_t compatibility_flags;
 } __packed;
 
 struct mrvl_phys_buffer {
@@ -388,6 +402,7 @@ struct mrvl_update {
 	uint64_t user_size;
 	uint16_t timeout;
 	enum update_ret ret;
+	uint64_t compatibility_flags;
 } __packed;
 
 struct mrvl_read_flash {
