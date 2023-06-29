@@ -28,6 +28,8 @@
 #include <linux/pm.h>
 #include <linux/reset.h>
 #include <linux/watchdog.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
 
 #define WDOG_CONTROL_REG_OFFSET		    0x00
 #define WDOG_CONTROL_REG_WDT_EN_MASK	    0x01
@@ -492,6 +494,19 @@ static int dw_wdt_init_timeouts(struct dw_wdt *dw_wdt, struct device *dev)
 	return 0;
 }
 
+static int dw_wdt_notify(struct notifier_block *nb,
+		    unsigned long code, void *data)
+{
+	struct watchdog_device *wdd;
+
+	wdd = container_of(nb, struct watchdog_device, reboot_nb);
+	if (code == SYS_HALT || code == SYS_POWER_OFF)
+		if (!nowayout)
+			dw_wdt_stop(wdd);
+
+	return NOTIFY_DONE;
+}
+
 #ifdef CONFIG_DEBUG_FS
 
 #define DW_WDT_DBGFS_REG(_name, _off) \
@@ -664,13 +679,21 @@ static int dw_wdt_drv_probe(struct platform_device *pdev)
 
 	watchdog_set_restart_priority(wdd, 128);
 
-	ret = watchdog_register_device(wdd);
+	wdd->reboot_nb.notifier_call = dw_wdt_notify;
+	ret = register_reboot_notifier(&wdd->reboot_nb);
 	if (ret)
 		goto out_assert_rst;
+
+	ret = watchdog_register_device(wdd);
+	if (ret)
+		goto err_out_notifier;
 
 	dw_wdt_dbgfs_init(dw_wdt);
 
 	return 0;
+
+err_out_notifier:
+	unregister_reboot_notifier(&wdd->reboot_nb);
 
 out_assert_rst:
 	reset_control_assert(dw_wdt->rst);
