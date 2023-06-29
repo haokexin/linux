@@ -184,6 +184,16 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 			    memdesc[BUF_DATA].phys,
 			    sizeof(struct smc_version_info));
 
+	swup_info->version_flags |= SMC_VERSION_LOG_PROGRESS;
+
+	/* Buffer for ATF logs */
+	swup_info->output_console = memdesc[BUF_SMCLOG].phys;
+	swup_info->output_console_size = memdesc[BUF_SMCLOG].size;
+
+	if (user_desc->compatibility_flags & VERSION_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG) {
+		swup_info->version = VERSION_OLD_VERSION_BEFORE_LOG;
+	}
+
 	if (res.a0) {
 		pr_err("Error during SMC processing\n");
 		ret = res.a0;
@@ -287,6 +297,15 @@ static int mrvl_clone_fw(unsigned long arg)
 		pr_err("Incorrect clone parameter.\n");
 		goto mem_error;
 	}
+
+	swup_info->version_flags |= SMC_VERSION_LOG_PROGRESS;
+
+	/* Buffer for ATF logs */
+	swup_info->output_console = memdesc[BUF_SMCLOG].phys;
+	swup_info->output_console_size = memdesc[BUF_SMCLOG].size;
+
+	if (user_desc->compatibility_flags & VERSION_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG)
+		swup_info->version = VERSION_OLD_VERSION_BEFORE_LOG;
 
 	res = mrvl_exec_smc(PLAT_CN10K_VERIFY_FIRMWARE,
 			    memdesc[BUF_DATA].phys,
@@ -421,7 +440,7 @@ static int mrvl_run_fw_update(unsigned long arg)
 	smc_desc->retcode = 0x01;
 
 	tstart = ktime_get();
-	if (ioctl_desc.user_flags == 1) {
+	if (ioctl_desc.compatibility_flags & UPDATE_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG) {
 		smc_desc->version = UPDATE_VERSION_PREV;
 		res_update = mrvl_exec_smc(PLAT_OCTEONTX_SPI_SECURE_UPDATE,
 			    memdesc[BUF_DATA].phys,
@@ -555,8 +574,7 @@ static long mrvl_swup_ioctl(struct file *file, unsigned int cmd, unsigned long a
 	case GET_VERSION:
 	case VERIFY_HASH:
 	case CLONE_FW:
-		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_LOG) |
-					     BIT(BUF_SMCLOG));
+		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_LOG) | BIT(BUF_SMCLOG));
 		break;
 	case GET_MEMBUF:
 		ret = alloc_buffers(memdesc, BIT(BUF_DATA) | BIT(BUF_SIGNATURE) | BIT(BUF_CPIO) |
