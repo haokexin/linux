@@ -225,14 +225,14 @@ static inline struct hlist_head *dev_index_hash(struct net *net, int ifindex)
 static inline void rps_lock(struct softnet_data *sd)
 {
 #ifdef CONFIG_RPS
-	raw_spin_lock(&sd->input_pkt_queue.raw_lock);
+	spin_lock(&sd->input_pkt_queue.lock);
 #endif
 }
 
 static inline void rps_unlock(struct softnet_data *sd)
 {
 #ifdef CONFIG_RPS
-	raw_spin_unlock(&sd->input_pkt_queue.raw_lock);
+	spin_unlock(&sd->input_pkt_queue.lock);
 #endif
 }
 
@@ -3046,7 +3046,6 @@ static void __netif_reschedule(struct Qdisc *q)
 	sd->output_queue_tailp = &q->next_sched;
 	raise_softirq_irqoff(NET_TX_SOFTIRQ);
 	local_irq_restore(flags);
-	preempt_check_resched_rt();
 }
 
 void __netif_schedule(struct Qdisc *q)
@@ -3109,7 +3108,6 @@ void __dev_kfree_skb_irq(struct sk_buff *skb, enum skb_free_reason reason)
 	__this_cpu_write(softnet_data.completion_queue, skb);
 	raise_softirq_irqoff(NET_TX_SOFTIRQ);
 	local_irq_restore(flags);
-	preempt_check_resched_rt();
 }
 EXPORT_SYMBOL(__dev_kfree_skb_irq);
 
@@ -3843,11 +3841,7 @@ no_lock_out:
 	 * This permits qdisc->running owner to get the lock more
 	 * often and dequeue packets faster.
 	 */
-#ifdef CONFIG_PREEMPT_RT
-	contended = true;
-#else
 	contended = qdisc_is_running(q);
-#endif
 	if (unlikely(contended))
 		spin_lock(&q->busylock);
 
@@ -4675,7 +4669,6 @@ drop:
 	rps_unlock(sd);
 
 	local_irq_restore(flags);
-	preempt_check_resched_rt();
 
 	atomic_long_inc(&skb->dev->rx_dropped);
 	kfree_skb(skb);
@@ -4916,7 +4909,7 @@ static int netif_rx_internal(struct sk_buff *skb)
 		struct rps_dev_flow voidflow, *rflow = &voidflow;
 		int cpu;
 
-		migrate_disable();
+		preempt_disable();
 		rcu_read_lock();
 
 		cpu = get_rps_cpu(skb->dev, skb, &rflow);
@@ -4926,14 +4919,14 @@ static int netif_rx_internal(struct sk_buff *skb)
 		ret = enqueue_to_backlog(skb, cpu, &rflow->last_qtail);
 
 		rcu_read_unlock();
-		migrate_enable();
+		preempt_enable();
 	} else
 #endif
 	{
 		unsigned int qtail;
 
-		ret = enqueue_to_backlog(skb, get_cpu_light(), &qtail);
-		put_cpu_light();
+		ret = enqueue_to_backlog(skb, get_cpu(), &qtail);
+		put_cpu();
 	}
 	return ret;
 }
@@ -4972,9 +4965,11 @@ int netif_rx_ni(struct sk_buff *skb)
 
 	trace_netif_rx_ni_entry(skb);
 
-	local_bh_disable();
+	preempt_disable();
 	err = netif_rx_internal(skb);
-	local_bh_enable();
+	if (local_softirq_pending())
+		do_softirq();
+	preempt_enable();
 	trace_netif_rx_ni_exit(err);
 
 	return err;
@@ -6418,14 +6413,12 @@ static void net_rps_action_and_irq_enable(struct softnet_data *sd)
 		sd->rps_ipi_list = NULL;
 
 		local_irq_enable();
-		preempt_check_resched_rt();
 
 		/* Send pending IPI's to kick RPS processing on remote cpus. */
 		net_rps_send_ipi(remsd);
 	} else
 #endif
 		local_irq_enable();
-	preempt_check_resched_rt();
 }
 
 static bool sd_has_rps_ipi_waiting(struct softnet_data *sd)
@@ -6503,7 +6496,6 @@ void __napi_schedule(struct napi_struct *n)
 	local_irq_save(flags);
 	____napi_schedule(this_cpu_ptr(&softnet_data), n);
 	local_irq_restore(flags);
-	preempt_check_resched_rt();
 }
 EXPORT_SYMBOL(__napi_schedule);
 
@@ -11324,7 +11316,6 @@ static int dev_cpu_dead(unsigned int oldcpu)
 
 	raise_softirq_irqoff(NET_TX_SOFTIRQ);
 	local_irq_enable();
-	preempt_check_resched_rt();
 
 #ifdef CONFIG_RPS
 	remsd = oldsd->rps_ipi_list;
@@ -11338,7 +11329,7 @@ static int dev_cpu_dead(unsigned int oldcpu)
 		netif_rx_ni(skb);
 		input_queue_head_incr(oldsd);
 	}
-	while ((skb = __skb_dequeue(&oldsd->input_pkt_queue))) {
+	while ((skb = skb_dequeue(&oldsd->input_pkt_queue))) {
 		netif_rx_ni(skb);
 		input_queue_head_incr(oldsd);
 	}
@@ -11653,7 +11644,7 @@ static int __init net_dev_init(void)
 
 		INIT_WORK(flush, flush_backlog);
 
-		skb_queue_head_init_raw(&sd->input_pkt_queue);
+		skb_queue_head_init(&sd->input_pkt_queue);
 		skb_queue_head_init(&sd->process_queue);
 #ifdef CONFIG_XFRM_OFFLOAD
 		skb_queue_head_init(&sd->xfrm_backlog);
