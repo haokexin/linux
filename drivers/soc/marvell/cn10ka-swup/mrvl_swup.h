@@ -26,6 +26,7 @@
 #define VERIFY_LOG_SIZE		1024
 
 #define MARLIN_CHECK_PREDEFINED_OBJ		(1<<0)
+#define MARLIN_DEBUG					(1<<10)
 #define MARLIN_SKIP_EBF_ERASE			(1<<11)
 #define MARLIN_SKIP_FAIL_CLONE_CHECK	(1<<12)
 #define MARLIN_FORCE_ASYNC				(1<<13)
@@ -79,6 +80,11 @@
  * Set this to log progress
  */
 #define SMC_VERSION_LOG_PROGRESS	BIT(11)
+
+/**
+ * Set this to set debug mode
+ */
+#define SMC_VERSION_DEBUG			BIT(12)
 
 #define VERSION_MAGIC		0x4e535256	/** VRSN */
 #define VERSION_OLD_VERSION_BEFORE_LOG	0x0102	/** 1.2 */
@@ -334,8 +340,12 @@ enum read_flash_ret {
 
 /** Log progress */
 #define READ_FLAG_LOG_PROGRESS	BIT(0)
+/** Debug */
+#define READ_FLAG_DEBUG			BIT(1)
 /** Compatibility flag */
 #define READ_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG	BIT(0)
+/** Read flag */
+#define READ_IOCTL_FLAG_DEBUG	BIT(0)
 
 /**
  * This descriptor is used to read data from flash
@@ -435,6 +445,7 @@ struct mrvl_read_flash {
 	uint64_t len;
 	enum read_flash_ret ret;
 	uint64_t compatibility_flags;
+	uint64_t ioctl_flags;
 } __packed;
 
 #define GET_VERSION   _IOWR('a', 'a', struct mrvl_get_versions*)
