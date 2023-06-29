@@ -184,6 +184,9 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 			    memdesc[BUF_DATA].phys,
 			    sizeof(struct smc_version_info));
 
+	if (user_desc->version_flags & MARLIN_DEBUG)
+		swup_info->version_flags |= SMC_VERSION_DEBUG;
+
 	swup_info->version_flags |= SMC_VERSION_LOG_PROGRESS;
 
 	/* Buffer for ATF logs */
@@ -538,6 +541,9 @@ static int mrvl_read_flash_data(unsigned long arg)
 	smc_desc->read_flags = READ_FLAG_LOG_PROGRESS;
 	smc_desc->output_console = memdesc[BUF_SMCLOG].phys;
 	smc_desc->output_console_size = memdesc[BUF_SMCLOG].size;
+
+	if (ioctl_desc.ioctl_flags & READ_IOCTL_FLAG_DEBUG)
+		smc_desc->read_flags |= READ_FLAG_DEBUG;
 
 	/* SPI config */
 	smc_desc->bus        = ioctl_desc.bus;
