@@ -35,6 +35,7 @@
 #define OCOTP_UID_HIGH			0x420
 
 #define IMX8MP_OCOTP_UID_OFFSET		0x10
+#define IMX8MP_OCOTP_UID_HIGH		0xE00
 
 #define IMX93_OCOTP_UID_OFFSET		0x80c0
 
@@ -139,6 +140,13 @@ static void __init imx8mm_soc_uid(void)
 
 	clk_disable_unprepare(clk);
 	clk_put(clk);
+
+	if (offset) {
+		soc_uid_h = readl_relaxed(ocotp_base + IMX8MP_OCOTP_UID_HIGH + 0x10);
+		soc_uid_h <<= 32;
+		soc_uid_h |= readl_relaxed(ocotp_base + IMX8MP_OCOTP_UID_HIGH);
+	}
+
 	iounmap(ocotp_base);
 	of_node_put(np);
 }
