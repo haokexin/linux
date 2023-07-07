@@ -1240,6 +1240,7 @@ void otx2_cleanup_rx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq, int q
 			otx2_free_rcv_seg(pfvf, cqe, cq->cq_idx);
 			continue;
 		}
+		iova = cqe->sg.seg_addr - OTX2_HEAD_ROOM;
 		otx2_free_bufs(pfvf, pool, iova, pfvf->rbsize);
 	}
 
