@@ -275,8 +275,7 @@ static void lynx_28g_rmw(struct lynx_28g_priv *priv, unsigned long off,
 }
 
 #define lynx_28g_lane_rmw(lane, reg, val, mask)	\
-	lynx_28g_rmw((lane)->priv, LYNX_28G_##reg(lane->id), \
-		     LYNX_28G_##reg##_##val, LYNX_28G_##reg##_##mask)
+	lynx_28g_rmw((lane)->priv, LYNX_28G_##reg(lane->id), val, mask)
 #define lynx_28g_lane_read(lane, reg)			\
 	ioread32((lane)->priv->base + LYNX_28G_##reg((lane)->id))
 #define lynx_28g_lane_write(lane, reg, val)            \
@@ -328,8 +327,12 @@ static void lynx_28g_lane_set_nrate(struct lynx_28g_lane *lane,
 		switch (intf) {
 		case PHY_INTERFACE_MODE_SGMII:
 		case PHY_INTERFACE_MODE_1000BASEX:
-			lynx_28g_lane_rmw(lane, LNaTGCR0, N_RATE_QUARTER, N_RATE_MSK);
-			lynx_28g_lane_rmw(lane, LNaRGCR0, N_RATE_QUARTER, N_RATE_MSK);
+			lynx_28g_lane_rmw(lane, LNaTGCR0,
+					  LYNX_28G_LNaTGCR0_N_RATE_QUARTER,
+					  LYNX_28G_LNaTGCR0_N_RATE_MSK);
+			lynx_28g_lane_rmw(lane, LNaRGCR0,
+					  LYNX_28G_LNaRGCR0_N_RATE_QUARTER,
+					  LYNX_28G_LNaRGCR0_N_RATE_MSK);
 			break;
 		default:
 			break;
@@ -339,8 +342,12 @@ static void lynx_28g_lane_set_nrate(struct lynx_28g_lane *lane,
 		switch (intf) {
 		case PHY_INTERFACE_MODE_10GBASER:
 		case PHY_INTERFACE_MODE_USXGMII:
-			lynx_28g_lane_rmw(lane, LNaTGCR0, N_RATE_FULL, N_RATE_MSK);
-			lynx_28g_lane_rmw(lane, LNaRGCR0, N_RATE_FULL, N_RATE_MSK);
+			lynx_28g_lane_rmw(lane, LNaTGCR0,
+					  LYNX_28G_LNaTGCR0_N_RATE_FULL,
+					  LYNX_28G_LNaTGCR0_N_RATE_MSK);
+			lynx_28g_lane_rmw(lane, LNaRGCR0,
+					  LYNX_28G_LNaRGCR0_N_RATE_FULL,
+					  LYNX_28G_LNaRGCR0_N_RATE_MSK);
 			break;
 		default:
 			break;
@@ -349,8 +356,12 @@ static void lynx_28g_lane_set_nrate(struct lynx_28g_lane *lane,
 	case LYNX_28G_PLLnCR1_FRATE_12G_25GVCO:
 		switch (intf) {
 		case PHY_INTERFACE_MODE_25GBASER:
-			lynx_28g_lane_rmw(lane, LNaTGCR0, N_RATE_DOUBLE, N_RATE_MSK);
-			lynx_28g_lane_rmw(lane, LNaRGCR0, N_RATE_DOUBLE, N_RATE_MSK);
+			lynx_28g_lane_rmw(lane, LNaTGCR0,
+					  LYNX_28G_LNaTGCR0_N_RATE_DOUBLE,
+					  LYNX_28G_LNaTGCR0_N_RATE_MSK);
+			lynx_28g_lane_rmw(lane, LNaRGCR0,
+					  LYNX_28G_LNaRGCR0_N_RATE_DOUBLE,
+					  LYNX_28G_LNaRGCR0_N_RATE_MSK);
 			break;
 		default:
 			break;
@@ -365,11 +376,15 @@ static void lynx_28g_lane_set_pll(struct lynx_28g_lane *lane,
 				  struct lynx_28g_pll *pll)
 {
 	if (pll->id == 0) {
-		lynx_28g_lane_rmw(lane, LNaTGCR0, USE_PLLF, USE_PLL_MSK);
-		lynx_28g_lane_rmw(lane, LNaRGCR0, USE_PLLF, USE_PLL_MSK);
+		lynx_28g_lane_rmw(lane, LNaTGCR0, LYNX_28G_LNaTGCR0_USE_PLLF,
+				  LYNX_28G_LNaTGCR0_USE_PLL_MSK);
+		lynx_28g_lane_rmw(lane, LNaRGCR0, LYNX_28G_LNaRGCR0_USE_PLLF,
+				  LYNX_28G_LNaRGCR0_USE_PLL_MSK);
 	} else {
-		lynx_28g_lane_rmw(lane, LNaTGCR0, USE_PLLS, USE_PLL_MSK);
-		lynx_28g_lane_rmw(lane, LNaRGCR0, USE_PLLS, USE_PLL_MSK);
+		lynx_28g_lane_rmw(lane, LNaTGCR0, LYNX_28G_LNaTGCR0_USE_PLLS,
+				  LYNX_28G_LNaTGCR0_USE_PLL_MSK);
+		lynx_28g_lane_rmw(lane, LNaRGCR0, LYNX_28G_LNaRGCR0_USE_PLLS,
+				  LYNX_28G_LNaRGCR0_USE_PLL_MSK);
 	}
 }
 
@@ -395,7 +410,8 @@ static void lynx_28g_cleanup_lane(struct lynx_28g_lane *lane)
 			     GENMASK(3, 0) << lane_offset);
 
 		/* Disable the SGMII PCS */
-		lynx_28g_lane_rmw(lane, SGMIIaCR1, SGPCS_DIS, SGPCS_MSK);
+		lynx_28g_lane_rmw(lane, SGMIIaCR1, LYNX_28G_SGMIIaCR1_SGPCS_DIS,
+				  LYNX_28G_SGMIIaCR1_SGPCS_MSK);
 
 		break;
 	case PHY_INTERFACE_MODE_25GBASER:
@@ -424,8 +440,10 @@ static void lynx_28g_lane_set_sgmii(struct lynx_28g_lane *lane)
 		     GENMASK(3, 0) << lane_offset);
 
 	/* Setup the protocol select and SerDes parallel interface width */
-	lynx_28g_lane_rmw(lane, LNaGCR0, PROTO_SEL_SGMII, PROTO_SEL_MSK);
-	lynx_28g_lane_rmw(lane, LNaGCR0, IF_WIDTH_10_BIT, IF_WIDTH_MSK);
+	lynx_28g_lane_rmw(lane, LNaGCR0, LYNX_28G_LNaGCR0_PROTO_SEL_SGMII,
+			  LYNX_28G_LNaGCR0_PROTO_SEL_MSK);
+	lynx_28g_lane_rmw(lane, LNaGCR0, LYNX_28G_LNaGCR0_IF_WIDTH_10_BIT,
+			  LYNX_28G_LNaGCR0_IF_WIDTH_MSK);
 
 	/* Switch to the PLL that works with this interface type */
 	pll = lynx_28g_pll_get(priv, PHY_INTERFACE_MODE_SGMII);
@@ -435,7 +453,8 @@ static void lynx_28g_lane_set_sgmii(struct lynx_28g_lane *lane)
 	lynx_28g_lane_set_nrate(lane, pll, PHY_INTERFACE_MODE_SGMII);
 
 	/* Enable the SGMII PCS */
-	lynx_28g_lane_rmw(lane, SGMIIaCR1, SGPCS_EN, SGPCS_MSK);
+	lynx_28g_lane_rmw(lane, SGMIIaCR1, LYNX_28G_SGMIIaCR1_SGPCS_EN,
+			LYNX_28G_SGMIIaCR1_SGPCS_MSK);
 
 	/* Configure the appropriate equalization parameters for the protocol */
 	lynx_28g_lane_write(lane, LNaTECR0,
@@ -470,8 +489,10 @@ static void lynx_28g_lane_set_10gbaser(struct lynx_28g_lane *lane)
 		     GENMASK(3, 0) << lane_offset);
 
 	/* Setup the protocol select and SerDes parallel interface width */
-	lynx_28g_lane_rmw(lane, LNaGCR0, PROTO_SEL_XFI, PROTO_SEL_MSK);
-	lynx_28g_lane_rmw(lane, LNaGCR0, IF_WIDTH_20_BIT, IF_WIDTH_MSK);
+	lynx_28g_lane_rmw(lane, LNaGCR0, LYNX_28G_LNaGCR0_PROTO_SEL_XFI,
+			  LYNX_28G_LNaGCR0_PROTO_SEL_MSK);
+	lynx_28g_lane_rmw(lane, LNaGCR0, LYNX_28G_LNaGCR0_IF_WIDTH_20_BIT,
+			  LYNX_28G_LNaGCR0_IF_WIDTH_MSK);
 
 	/* Switch to the PLL that works with this interface type */
 	pll = lynx_28g_pll_get(priv, PHY_INTERFACE_MODE_10GBASER);
@@ -517,8 +538,10 @@ static void lynx_28g_lane_set_25gbaser(struct lynx_28g_lane *lane)
 		     LYNX_28G_PCCD_MASK << lane_offset);
 
 	/* Setup the protocol select and SerDes parallel interface width */
-	lynx_28g_lane_rmw(lane, LNaGCR0, PROTO_SEL_25G, PROTO_SEL_MSK);
-	lynx_28g_lane_rmw(lane, LNaGCR0, IF_WIDTH_40_BIT, IF_WIDTH_MSK);
+	lynx_28g_lane_rmw(lane, LNaGCR0, LYNX_28G_LNaGCR0_PROTO_SEL_25G,
+			  LYNX_28G_LNaGCR0_PROTO_SEL_MSK);
+	lynx_28g_lane_rmw(lane, LNaGCR0, LYNX_28G_LNaGCR0_IF_WIDTH_40_BIT,
+			  LYNX_28G_LNaGCR0_IF_WIDTH_MSK);
 
 	/* Switch to the PLL that works with this interface type */
 	pll = lynx_28g_pll_get(priv, PHY_INTERFACE_MODE_25GBASER);
@@ -737,7 +760,9 @@ static void lynx_28g_cdr_lock_check(struct work_struct *work)
 
 		rrstctl = lynx_28g_lane_read(lane, LNaRRSTCTL);
 		if (!(rrstctl & LYNX_28G_LNaRRSTCTL_CDR_LOCK)) {
-			lynx_28g_lane_rmw(lane, LNaRRSTCTL, RST_REQ, RST_REQ);
+			lynx_28g_lane_rmw(lane, LNaRRSTCTL,
+					  LYNX_28G_LNaRRSTCTL_RST_REQ,
+					  LYNX_28G_LNaRRSTCTL_RST_REQ);
 			do {
 				rrstctl = lynx_28g_lane_read(lane, LNaRRSTCTL);
 			} while (!(rrstctl & LYNX_28G_LNaRRSTCTL_RST_DONE));
