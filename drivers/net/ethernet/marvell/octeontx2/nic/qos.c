@@ -56,6 +56,20 @@ static int otx2_qos_validate_quantum(struct otx2_nic *pfvf, u32 quantum)
 	return err;
 }
 
+static void otx2_reset_dwrr_prio(struct otx2_qos_node *parent, u64 prio)
+{
+	/* For PF, root node dwrr priority is static and
+	 * holds the priority configured from devlink
+	 */
+	if (parent->level == NIX_TXSCH_LVL_TL1)
+		return;
+
+	if (parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) {
+		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+		clear_bit(prio, parent->prio_bmap);
+	}
+}
+
 static bool is_qos_node_dwrr(struct otx2_qos_node *parent,
 			     struct otx2_nic *pfvf,
 			     u64 prio)
@@ -1687,11 +1701,8 @@ static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 	}
 
 	/* Reset DWRR priority if all dwrr nodes are deleted */
-	if (!parent->child_dwrr_cnt &&
-	    parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) {
-		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
-		clear_bit(prio, parent->prio_bmap);
-	}
+	if (!parent->child_dwrr_cnt)
+		otx2_reset_dwrr_prio(parent, prio);
 
 	if (!parent->child_static_cnt)
 		parent->max_static_prio = 0;
@@ -1777,11 +1788,8 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 	}
 
 	/* Reset DWRR priority if all dwrr nodes are deleted */
-	if (!parent->child_dwrr_cnt &&
-	    parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) {
-		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
-		clear_bit(prio, parent->prio_bmap);
-	}
+	if (!parent->child_dwrr_cnt)
+		otx2_reset_dwrr_prio(parent, prio);
 
 	if (!parent->child_static_cnt)
 		parent->max_static_prio = 0;
