@@ -441,13 +441,13 @@ static const struct flash_info spansion_nor_parts[] = {
 		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_DUAL_READ) },
 	{ "s25fl064l",  INFO(0x016017,      0,  64 * 1024, 128)
 		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ)
-		FIXUP_FLAGS(SPI_NOR_4B_OPCODES) },
+		FIXUP_FLAGS(SPI_NOR_4B_OPCODES | USE_CLSR) },
 	{ "s25fl128l",  INFO(0x016018,      0,  64 * 1024, 256)
 		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ)
-		FIXUP_FLAGS(SPI_NOR_4B_OPCODES) },
+		FIXUP_FLAGS(SPI_NOR_4B_OPCODES | USE_CLSR) },
 	{ "s25fl256l",  INFO(0x016019,      0,  64 * 1024, 512)
 		NO_SFDP_FLAGS(SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ)
-		FIXUP_FLAGS(SPI_NOR_4B_OPCODES) },
+		FIXUP_FLAGS(SPI_NOR_4B_OPCODES | USE_CLSR) },
 	{ "s25hl512t",  INFO6(0x342a1a, 0x0f0390, 256 * 1024, 256)
 		PARSE_SFDP
 		MFR_FLAGS(USE_CLSR)
@@ -495,6 +495,39 @@ static void spansion_nor_clear_sr(struct spi_nor *nor)
 		dev_dbg(nor->dev, "error %d clearing SR\n", ret);
 }
 
+/*
+ * Cypress FL-L series devices have redesigned the status register,
+ * P_ERR and E_ERR bits are shifted to the status register 2.
+ */
+static int spi_nor_s25fl_l_sr_ready(struct spi_nor *nor)
+{
+	u8 sr1, sr2;
+	int ret;
+
+	ret = nor->controller_ops->read_reg(nor, SPINOR_OP_RDSR, &sr1, 1);
+	if (ret < 0) {
+		pr_err("error %d reading SR\n", (int) ret);
+		return ret;
+	}
+	ret = nor->controller_ops->read_reg(nor, SPINOR_OP_RDSR2_FL_L, &sr2, 1);
+	if (ret < 0) {
+		pr_err("error %d reading SR2\n", (int) ret);
+		return ret;
+	}
+
+	if (nor->flags & SNOR_F_USE_CLSR && sr2 & (SR_E_ERR | SR_P_ERR)) {
+		if (sr2 & SR_E_ERR)
+			dev_err(nor->dev, "Erase Error occurred\n");
+		else
+			dev_err(nor->dev, "Programming Error occurred\n");
+
+		nor->controller_ops->write_reg(nor, SPINOR_OP_CLSR, NULL, 0);
+		return -EIO;
+	}
+
+	return !(sr1 & SR_WIP);
+}
+
 /**
  * spansion_nor_sr_ready_and_clear() - Query the Status Register to see if the
  * flash is ready for new commands and clear it if there are any errors.
@@ -505,6 +538,13 @@ static void spansion_nor_clear_sr(struct spi_nor *nor)
 static int spansion_nor_sr_ready_and_clear(struct spi_nor *nor)
 {
 	int ret;
+	const struct flash_info *tmpinfo = (nor->info == NULL) ? nor->info : spi_nor_read_id(nor);
+
+	if (!IS_ERR_OR_NULL(tmpinfo)){
+		if (!strcmp(tmpinfo->name, "s25fl064l") || !strcmp(tmpinfo->name, "s25fl128l") || !strcmp(tmpinfo->name, "s25fl256l")){
+			return spi_nor_s25fl_l_sr_ready(nor);
+		}
+	}
 
 	ret = spi_nor_read_sr(nor, nor->bouncebuf);
 	if (ret)
