@@ -52,6 +52,7 @@ static bool is_soc_cn9x(void)
 /* Detect ASIM platform */
 static bool is_platform_asim(void)
 {
+#if !defined(CONFIG_ACPI)
 	int ret;
 	struct device_node *np;
 	const char *runplatform;
@@ -66,7 +67,7 @@ static bool is_platform_asim(void)
 			     sizeof(ASIM_PLAT_NAME) - 1))
 			return true;
 	}
-
+#endif
 	return false;
 }
 
