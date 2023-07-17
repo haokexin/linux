@@ -8,9 +8,9 @@ PKG="ncursesw"
 PKG2="ncurses"
 
 if [ "$CROSS_CURSES_LIB" != "" ]; then
-    echo libs=\'$CROSS_CURSES_LIB\'
+    echo $CROSS_CURSES_LIB > ${libs}
     if [ x"$CROSS_CURSES_INC" != x ]; then
-	echo cflags=\'$CROSS_CURSES_INC\'
+	echo $CROSS_CURSES_INC > ${cflags}
     fi
     exit 0
 fi
