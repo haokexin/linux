@@ -35,7 +35,7 @@
 #define BP_SRC_A7RCR1_A7_CORE1_ENABLE  1
 
 static void __iomem *src_base;
-static DEFINE_SPINLOCK(src_lock);
+static DEFINE_RAW_SPINLOCK(src_lock);
 static bool m4_is_enabled;
 
 static const int sw_reset_bits[5] = {
@@ -64,11 +64,11 @@ static int imx_src_reset_module(struct reset_controller_dev *rcdev,
 
 	bit = 1 << sw_reset_bits[sw_reset_idx];
 
-	spin_lock_irqsave(&src_lock, flags);
+	raw_spin_lock_irqsave(&src_lock, flags);
 	val = readl_relaxed(src_base + SRC_SCR);
 	val |= bit;
 	writel_relaxed(val, src_base + SRC_SCR);
-	spin_unlock_irqrestore(&src_lock, flags);
+	raw_spin_unlock_irqrestore(&src_lock, flags);
 
 	timeout = jiffies + msecs_to_jiffies(1000);
 	while (readl(src_base + SRC_SCR) & bit) {
@@ -89,7 +89,7 @@ void imx_enable_cpu(int cpu, bool enable)
 	u32 mask, val;
 
 	cpu = cpu_logical_map(cpu);
-	spin_lock(&src_lock);
+	raw_spin_lock(&src_lock);
 	if (cpu_is_imx7d()) {
 		/* enable core */
 		if (enable)
@@ -106,12 +106,12 @@ void imx_enable_cpu(int cpu, bool enable)
 		val |= 1 << (BP_SRC_SCR_CORE1_RST + cpu - 1);
 		writel_relaxed(val, src_base + SRC_SCR);
 	}
-		spin_unlock(&src_lock);
+		raw_spin_unlock(&src_lock);
 }
 
 void imx_set_cpu_jump(int cpu, void *jump_addr)
 {
-	spin_lock(&src_lock);
+	raw_spin_lock(&src_lock);
 	cpu = cpu_logical_map(cpu);
 	if (cpu_is_imx7d())
 		writel_relaxed(__pa_symbol(jump_addr),
@@ -119,7 +119,7 @@ void imx_set_cpu_jump(int cpu, void *jump_addr)
 	else
 		writel_relaxed(__pa_symbol(jump_addr),
 			src_base + SRC_GPR1 + cpu * 8);
-	spin_unlock(&src_lock);
+	raw_spin_unlock(&src_lock);
 }
 
 u32 imx_get_cpu_arg(int cpu)
@@ -172,7 +172,7 @@ void __init imx_src_init(void)
 	 * force warm reset sources to generate cold reset
 	 * for a more reliable restart
 	 */
-	spin_lock(&src_lock);
+	raw_spin_lock(&src_lock);
 	val = readl_relaxed(src_base + SRC_SCR);
 
 	/* bit 4 is m4c_non_sclr_rst on i.MX6SX */
@@ -184,7 +184,7 @@ void __init imx_src_init(void)
 
 	val &= ~(1 << BP_SRC_SCR_WARM_RESET_ENABLE);
 	writel_relaxed(val, src_base + SRC_SCR);
-	spin_unlock(&src_lock);
+	raw_spin_unlock(&src_lock);
 }
 
 static const struct of_device_id imx_src_dt_ids[] = {
