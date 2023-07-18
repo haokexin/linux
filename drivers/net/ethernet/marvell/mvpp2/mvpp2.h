@@ -865,6 +865,9 @@
 /* Port flags */
 #define MVPP2_F_LOOPBACK		BIT(0)
 #define MVPP2_F_DT_COMPAT		BIT(1)
+#define MVPP22_F_IF_MUSDK		BIT(2) /* musdk port */
+/* BIT(1 and 2) are reserved */
+#define MVPP2_F_IF_TX_ON		BIT(3)
 
 /* Marvell tag types */
 enum mvpp2_tag_type {
@@ -1257,6 +1260,12 @@ struct mvpp2_port {
 	/* List of steering rules active on that port */
 	struct mvpp2_ethtool_fs *rfs_rules[MVPP2_N_RFS_ENTRIES_PER_FLOW];
 	int n_rfs_rules;
+
+	/* us private storage, allocated/used by User/Kernel mode toggling */
+	void *us_cfg;
+
+	/* Coherency-update for TX-ON from link_status_irq */
+	struct tasklet_struct txqs_on_tasklet;
 
 	/* Each port has its own view of the rss contexts, so that it can number
 	 * them from 0
