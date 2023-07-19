@@ -1120,6 +1120,11 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		if (!token)
 			return -EINVAL;
 
+		if (strlen(token) != 23) {
+			pr_err("\nERROR Provide correct sci(8) %d", (int)strlen(token));
+			return -EINVAL;
+		}
+
 		status = sscanf(token, "%X:%X:%X:%X:%X:%X:%X:%X",
 						(unsigned int *)&mac_adv->data.sa_params.sci[0],
 						(unsigned int *)&mac_adv->data.sa_params.sci[1],
