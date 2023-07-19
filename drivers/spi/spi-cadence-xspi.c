@@ -25,10 +25,10 @@
 #include <linux/limits.h>
 #include <linux/log2.h>
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
 #include <soc/marvell/octeontx/octeontx_smc.h>
 #include <linux/gpio.h>
-#elif IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+
+#if IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
 #include <linux/debugfs.h>
 struct dentry *mrvl_spi_debug_root;
 #endif
@@ -260,7 +260,6 @@ struct dentry *mrvl_spi_debug_root;
 #define XFER_QWORD_COUNT 32
 #define XFER_QWORD_BYTECOUNT 8
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
 #define SPI1_CLK 38
 #define SPI1_CS0 40
 #define SPI1_CS1 41
@@ -277,12 +276,9 @@ struct dentry *mrvl_spi_debug_root;
 
 #define CHANGE_GPIO_SMC_ID 0xc2000b14
 #define SPI_GPIO(x) (x+GPIO_OFFSET)
-#endif
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
 #define SPI0_BASE 0x8040
 #define SPI1_BASE 0x8050
-#endif
 
 #define SPI_NOT_CLAIMED				0x00
 #define SPI_AP_NS_OWN				0x02
@@ -334,10 +330,10 @@ struct cdns_xspi_dev {
 	int write_len;
 
 	u8 hw_num_banks;
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+
 	int xspi_id;
-	bool revision_supported;
-#endif
+	bool wo_mode;
+
 	enum cdns_xspi_sdma_size read_size;
 	int current_clock;
 	bool xfer_in_progress;
@@ -411,7 +407,6 @@ fail:
 	return -1;
 }
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
 static int gpio_as_sw(struct cdns_xspi_dev *cdns_xspi)
 {
 	struct arm_smccc_res res;
@@ -525,7 +520,6 @@ static void spidelay(unsigned int d)
 }
 
 #include "spi-bitbang-txrx.h"
-#endif
 
 
 static bool cdns_xspi_reset_dll(struct cdns_xspi_dev *cdns_xspi)
@@ -857,10 +851,10 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 		return -EIO;
 	}
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
-	gpio_as_spi(cdns_xspi);
+#if !IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+	if (cdns_xspi->wo_mode)
+		gpio_as_spi(cdns_xspi);
 #endif
-
 	ret = cdns_xspi_wait_for_controller_idle(cdns_xspi);
 	if (ret < 0) {
 		ret = -EIO;
@@ -1089,33 +1083,6 @@ static irqreturn_t cdns_xspi_irq_handler(int this_irq, void *dev)
 	return result;
 }
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-
-#define DMI_ENTRY_PROCESSOR_MIN_LENGTH	48
-#define DMI_PROC_VERSION_NUMBER		0x10
-#define DMI_MAX_STRLEN			80
-
-static void find_proc_ver(const struct dmi_header *dm, void *private)
-{
-	const u8 *dmi_data = (const u8 *)dm;
-	char *ptr;
-	int i, idx;
-
-	if (dm->type == DMI_ENTRY_PROCESSOR &&
-	    dm->length >= DMI_ENTRY_PROCESSOR_MIN_LENGTH) {
-		idx = (int)get_unaligned((const u8 *)
-					 (dmi_data + DMI_PROC_VERSION_NUMBER));
-		ptr = (char *)(dmi_data + dm->length);
-		for (i = 1; i < idx; i++) {
-			while (*ptr)
-				ptr++;
-			ptr++;
-		}
-		strcpy(private, ptr);
-	}
-}
-#endif
-
 static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 {
 	struct fwnode_handle *fwnode_child;
@@ -1123,15 +1090,7 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
 	unsigned int cs;
 	unsigned int read_size = 0;
-
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-	struct device_node *node_child;
 	unsigned int base_addr = 0;
-	struct device_node *node_soc;
-	char const *cpu_rev;
-	bool has_acpi;
-
-	has_acpi = has_acpi_companion(&pdev->dev);
 
 	if (device_property_read_u32(&pdev->dev, "reg", &base_addr))
 		dev_info(&pdev->dev, "Missing reg property");
@@ -1140,44 +1099,6 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 		cdns_xspi->xspi_id = 0;
 	else
 		cdns_xspi->xspi_id = 1;
-
-	if (has_acpi) {
-		char ver[3] = {0};
-
-		if (!dmi_walk(find_proc_ver, &ver)) {
-			if (!strncmp(ver, "A0", 3))
-				cdns_xspi->revision_supported = true;
-			else if (!strncmp(ver, "A1", 3))
-				cdns_xspi->revision_supported = true;
-			else
-				cdns_xspi->revision_supported = false;
-		} else {
-			pr_info("Failed to obtain chip revision\n");
-			cdns_xspi->revision_supported = false;
-		}
-	} else {
-		node_soc = of_find_node_by_name(NULL, "soc");
-		if (!node_soc) {
-			pr_info("Failed to find chip revision node\n");
-			cdns_xspi->revision_supported = false;
-		} else {
-			if (!of_property_read_string(node_soc, "chiprevision",
-						     &cpu_rev)) {
-				if (!strncmp(cpu_rev, "A0", 3))
-					cdns_xspi->revision_supported = true;
-				else if (!strncmp(cpu_rev, "A1", 3))
-					cdns_xspi->revision_supported = true;
-				else
-					cdns_xspi->revision_supported = false;
-			} else {
-				pr_info("Failed to obtain chip revision\n");
-				cdns_xspi->revision_supported = false;
-			}
-			of_node_put(node_child);
-		}
-	}
-
-#endif
 
 	if (device_property_read_u32(&pdev->dev, "cdns,read-size", &read_size))
 		dev_info(&pdev->dev, "Missing read size property, usining byte acess\n");
@@ -1328,8 +1249,8 @@ static int cdns_xspi_prepare_transfer(int cs, int dir, int len, u32 *cmd_regs)
 	return 0;
 }
 
-int cdns_xspi_transfer_one_message_b0(struct spi_controller *master,
-					   struct spi_message *m)
+int cdns_xspi_transfer_one_message(struct spi_controller *master,
+				   struct spi_message *m)
 {
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
 	struct spi_device *spi = m->spi;
@@ -1433,7 +1354,6 @@ int cdns_xspi_transfer_one_message_b0(struct spi_controller *master,
 	return 0;
 }
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
 static int spi_swap(int val, int len)
 {
 	uint8_t *buf8 = (uint8_t *) &val;
@@ -1465,7 +1385,6 @@ static int spi_swap(int val, int len)
 
 	return *intswapped;
 }
-#endif
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
 static int handle_tx_rx(struct cdns_xspi_dev *cdns_xspi, void *tx_buf,
@@ -1529,15 +1448,22 @@ static int handle_tx_rx(struct cdns_xspi_dev *cdns_xspi, void *tx_buf,
 }
 #endif
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-static int cdns_xspi_transfer_one_message(struct spi_controller *master,
-					   struct spi_message *m)
+static int cdns_xspi_transfer_one_message_wo(struct spi_controller *master,
+					     struct spi_message *m)
 {
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
 	struct spi_device *spi = m->spi;
 	struct spi_transfer *t = NULL;
 	int cs = spi->chip_select;
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
+
+#if IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+	cdns_xspi->cur_cs = cs;
+
+	list_for_each_entry(t, &m->transfers, transfer_list) {
+		handle_tx_rx(cdns_xspi, (void *)t->tx_buf, t->rx_buf, cdns_xspi->write_len, t->len);
+	}
+
+#else
 	int cs_change = 0;
 
 	if (gpio_as_sw(cdns_xspi) == 1)
@@ -1585,21 +1511,12 @@ static int cdns_xspi_transfer_one_message(struct spi_controller *master,
 		/* For some reason quick changing GPIO function can cause issues */
 		//gpio_as_spi();
 	}
-#elif IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-
-	cdns_xspi->cur_cs = cs;
-
-	list_for_each_entry(t, &m->transfers, transfer_list) {
-		handle_tx_rx(cdns_xspi, (void *)t->tx_buf, t->rx_buf, cdns_xspi->write_len, t->len);
-	}
 #endif
 	m->status = 0;
 	spi_finalize_current_message(master);
 
 	return 0;
 }
-
-#endif
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
 static struct cdns_xspi_dev *cdns_xspi_debug;
@@ -1723,13 +1640,13 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 		}
 	}
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-	if (cdns_xspi->revision_supported)
+	if (cdns_xspi_is_xfer_supported(cdns_xspi)) {
 		master->transfer_one_message = cdns_xspi_transfer_one_message;
-#else
-	if (cdns_xspi_is_xfer_supported(cdns_xspi))
-		master->transfer_one_message = cdns_xspi_transfer_one_message_b0;
-#endif
+		cdns_xspi->wo_mode = false;
+	} else {
+		master->transfer_one_message = cdns_xspi_transfer_one_message_wo;
+		cdns_xspi->wo_mode = true;
+	}
 
 	cdns_xspi->current_clock = 25000000;
 	cdns_xspi_setup_clock(cdns_xspi, cdns_xspi->current_clock);
@@ -1752,14 +1669,13 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 
 	dev_info(dev, "Successfully registered SPI master\n");
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
-	if (cdns_xspi->revision_supported)
-		spi_gpio_prepare(cdns_xspi);
-#elif IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-	if (cdns_xspi->revision_supported)
+	if (cdns_xspi->wo_mode) {
+#if IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
 		mrvl_spi_setup_debugfs(cdns_xspi);
+#else
+		spi_gpio_prepare(cdns_xspi);
 #endif
-
+	}
 	return 0;
 }
 
