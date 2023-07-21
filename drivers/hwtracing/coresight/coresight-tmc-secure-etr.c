@@ -167,7 +167,7 @@ void tmc_etr_timer_init(struct tmc_drvdata *drvdata)
 
 	timer = coresight_get_etm_sync_mode() == SYNC_MODE_SW_GLOBAL ?
 		tmc_etr_tsync_global_timer() : &drvdata->timer;
-	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL_HARD);
 }
 
 /* Timer setup API common for both global and per core mode
@@ -203,7 +203,7 @@ void tmc_etr_timer_start(void *data)
 		tmc_etr_timer_handler_global : tmc_etr_timer_handler_percore;
 	dev_dbg(&drvdata->csdev->dev, "Starting sync timer, mode:%s period:%lld ns\n",
 		mode_global ? "global" : "percore", tick);
-	hrtimer_start(timer, ns_to_ktime(tick), HRTIMER_MODE_REL_PINNED);
+	hrtimer_start(timer, ns_to_ktime(tick), HRTIMER_MODE_REL_PINNED_HARD);
 }
 
 /* Timer cancel API common for both global and per core mode
