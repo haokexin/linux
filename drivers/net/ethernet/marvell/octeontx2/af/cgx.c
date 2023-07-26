@@ -185,6 +185,7 @@ u64 cgx_lmac_read(int cgx_id, int lmac_id, u64 offset)
 	/* Software must not access disabled LMAC registers */
 	if (!is_lmac_valid(cgx_dev, lmac_id))
 		return 0;
+	
 	return cgx_read(cgx_dev, lmac_id, offset);
 }
 
