@@ -1237,7 +1237,7 @@ static int rvu_nix_blk_aq_enq_inst(struct rvu *rvu, struct nix_hw *nix_hw,
 				     pcifunc, smq))
 			return NIX_AF_ERR_AQ_ENQUEUE;
 		rvu_nix_update_sq_smq_mapping(rvu, blkaddr, nixlf, req->qidx,
-					      req->sq.smq);
+					      smq);
 	}
 
 	memset(&inst, 0, sizeof(struct nix_aq_inst_s));
