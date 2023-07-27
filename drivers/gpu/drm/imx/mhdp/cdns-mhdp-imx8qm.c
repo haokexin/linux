@@ -506,11 +506,14 @@ int cdns_mhdp_power_on_imx8qm(struct cdns_mhdp_device *mhdp)
 int cdns_mhdp_power_off_imx8qm(struct cdns_mhdp_device *mhdp)
 {
 	struct imx_mhdp_device *imx_mhdp =
-                                container_of(mhdp, struct imx_mhdp_device, mhdp);
+				container_of(mhdp, struct imx_mhdp_device, mhdp);
 
+	imx8qm_phy_reset(0);
+
+	/* disable pixel and ipg clock */
 	imx8qm_pixel_clk_disable(imx_mhdp);
 	imx8qm_ipg_clk_disable(imx_mhdp);
-	imx8qm_phy_reset(0);
+
 	imx8qm_detach_pm_domains(imx_mhdp);
 	return 0;
 }
