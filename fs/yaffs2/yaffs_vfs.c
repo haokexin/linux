@@ -844,7 +844,7 @@ static const struct file_operations yaffs_file_operations = {
 	.mmap = generic_file_mmap,
 	.flush = yaffs_file_flush,
 	.fsync = yaffs_sync_object,
-	.splice_read = generic_file_splice_read,
+	.splice_read = copy_splice_read,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 	.splice_write = iter_file_splice_write,
 #else
