@@ -104,6 +104,20 @@
 #define LYNX_28G_LNaTECR1_EQ_ADPT_EQ(x)                (((x) << 24) & GENMASK(29, 24))
 #define LYNX_28G_LNaTECR1_EQ_ADPT_EQ_X(x)      (((x) & GENMASK(29, 24)) >> 24)
 
+#define LYNX_28G_LNaTECR0_EQ_TYPE(x)           (((x) << 28) & GENMASK(30, 28))
+#define LYNX_28G_LNaTECR0_EQ_TYPE_X(x)         (((x) & GENMASK(30, 28)) >> 28)
+#define LYNX_28G_LNaTECR0_EQ_SGN_PREQ          BIT(23)
+#define LYNX_28G_LNaTECR0_EQ_PREQ(x)           (((x) << 16) & GENMASK(19, 16))
+#define LYNX_28G_LNaTECR0_EQ_PREQ_X(x)         (((x) & GENMASK(19, 16)) >> 16)
+#define LYNX_28G_LNaTECR0_EQ_SGN_POST1Q                BIT(15)
+#define LYNX_28G_LNaTECR0_EQ_POST1Q(x)         (((x) << 8) & GENMASK(12, 8))
+#define LYNX_28G_LNaTECR0_EQ_POST1Q_X(x)               (((x) & GENMASK(12, 8)) >> 8)
+#define LYNX_28G_LNaTECR0_EQ_AMP_RED(x)                ((x) & GENMASK(5, 0))
+
+#define LYNX_28G_LNaTECR1_EQ_ADPT_EQ_DRVR_DIS  BIT(31)
+#define LYNX_28G_LNaTECR1_EQ_ADPT_EQ(x)                (((x) << 24) & GENMASK(29, 24))
+#define LYNX_28G_LNaTECR1_EQ_ADPT_EQ_X(x)      (((x) & GENMASK(29, 24)) >> 24)
+
 /* Lane a Rx Reset Control Register */
 #define LYNX_28G_LNaRRSTCTL(lane)		(0x800 + (lane) * 0x100 + 0x40)
 #define LYNX_28G_LNaRRSTCTL_HLT_REQ		BIT(27)
@@ -124,6 +138,23 @@
 #define LYNX_28G_LNaRGCR0_N_RATE_MSK		GENMASK(26, 24)
 
 #define LYNX_28G_LNaRGCR1(lane)			(0x800 + (lane) * 0x100 + 0x48)
+
+#define LYNX_28G_LNaRGCR1_RX_ORD_ELECIDLE      BIT(31)
+#define LYNX_28G_LNaRGCR1_DATA_LOST_FLT                BIT(30)
+#define LYNX_28G_LNaRGCR1_DATA_LOST            BIT(29)
+#define LYNX_28G_LNaRGCR1_IDLE_CONFIG          BIT(28)
+#define LYNX_28G_LNaRGCR1_ENTER_IDLE_FLT_SEL(x)        (((x) << 24) & GENMASK(26, 24))
+#define LYNX_28G_LNaRGCR1_ENTER_IDLE_FLT_SEL_X(x) (((x) & GENMASK(26, 24)) >> 24)
+#define LYNX_28G_LNaRGCR1_EXIT_IDLE_FLT_SEL(x) (((x) << 20) & GENMASK(22, 20))
+#define LYNX_28G_LNaRGCR1_EXIT_IDLE_FLT_SEL_X(x) (((x) & GENMASK(22, 20)) >> 20)
+#define LYNX_28G_LNaRGCR1_DATA_LOST_TH_SEL(x)  (((x) << 16) & GENMASK(18, 16))
+#define LYNX_28G_LNaRGCR1_DATA_LOST_TH_SEL_X(x)        (((x) & GENMASK(18, 16)) >> 16)
+#define LYNX_28G_LNaRGCR1_EXT_REC_CLK_SEL(x)   (((x) << 8) & GENMASK(10, 8))
+#define LYNX_28G_LNaRGCR1_EXT_REC_CLK_SEL_X(x) (((x) & GENMASK(10, 8)) >> 8)
+#define LYNX_28G_LNaRGCR1_WAKE_TX_DIS          BIT(5)
+#define LYNX_28G_LNaRGCR1_PHY_RDY              BIT(4)
+#define LYNX_28G_LNaRGCR1_CHANGE_RX_CLK                BIT(3)
+#define LYNX_28G_LNaRGCR1_PWR_MGT(x)           ((x) & GENMASK(2, 0))
 
 #define LYNX_28G_LNaRGCR1_RX_ORD_ELECIDLE	BIT(31)
 #define LYNX_28G_LNaRGCR1_DATA_LOST_FLT		BIT(30)
@@ -156,6 +187,13 @@
 
 #define LYNX_28G_LNaRECR1(lane)			(0x800 + (lane) * 0x100 + 0x54)
 
+#define LYNX_28G_LNaRECR1_EQ_BLW_OV_EN         BIT(31)
+#define LYNX_28G_LNaRECR1_EQ_BLW_OV(x)         (((x) << 24) & GENMASK(28, 24))
+#define LYNX_28G_LNaRECR1_EQ_BLW_OV_X(x)       (((x) & GENMASK(28, 24)) >> 24)
+#define LYNX_28G_LNaRECR1_EQ_OFFSET_OV_EN      BIT(23)
+#define LYNX_28G_LNaRECR1_EQ_OFFSET_OV(x)      (((x) << 16) & GENMASK(21, 16))
+#define LYNX_28G_LNaRECR1_EQ_OFFSET_OV_X(x)    (((x) & GENMASK(21, 16)) >> 16)
+
 #define LYNX_28G_LNaRECR1_EQ_BLW_OV_EN		BIT(31)
 #define LYNX_28G_LNaRECR1_EQ_BLW_OV(x)		(((x) << 24) & GENMASK(28, 24))
 #define LYNX_28G_LNaRECR1_EQ_BLW_OV_X(x)	(((x) & GENMASK(28, 24)) >> 24)
@@ -164,6 +202,19 @@
 #define LYNX_28G_LNaRECR1_EQ_OFFSET_OV_X(x)	(((x) & GENMASK(21, 16)) >> 16)
 
 #define LYNX_28G_LNaRECR2(lane)			(0x800 + (lane) * 0x100 + 0x58)
+
+#define LYNX_28G_LNaRECR2_EQ_OFFSET_RNG_DBL    BIT(31)
+#define LYNX_28G_LNaRECR2_EQ_BOOST(x)          (((x) << 28) & GENMASK(29, 28))
+#define LYNX_28G_LNaRECR2_EQ_BOOST_X(x)                (((x) & GENMASK(29, 28)) >> 28)
+#define LYNX_28G_LNaRECR2_EQ_BLW_SEL(x)                (((x) << 24) & GENMASK(25, 24))
+#define LYNX_28G_LNaRECR2_EQ_BLW_SEL_X(x)      (((x) & GENMASK(25, 24)) >> 24)
+#define LYNX_28G_LNaRECR2_EQ_ZERO(x)           (((x) << 16) & GENMASK(17, 16))
+#define LYNX_28G_LNaRECR2_EQ_ZERO_X(x)         (((x) & GENMASK(17, 16)) >> 16)
+#define LYNX_28G_LNaRECR2_EQ_IND(x)            (((x) << 12) & GENMASK(13, 12))
+#define LYNX_28G_LNaRECR2_EQ_IND_X(x)          (((x) & GENMASK(13, 12)) >> 12)
+#define LYNX_28G_LNaRECR2_EQ_BIN_DATA_AVG_TC(x)        (((x) << 4) & GENMASK(5, 4))
+#define LYNX_28G_LNaRECR2_EQ_BIN_DATA_AVG_TC_X(x) (((x) & GENMASK(5, 4)) >> 4)
+#define LYNX_28G_LNaRECR2_SPARE_IN(x)          ((x) & GENMASK(1, 0))
 
 #define LYNX_28G_LNaRECR2_EQ_OFFSET_RNG_DBL	BIT(31)
 #define LYNX_28G_LNaRECR2_EQ_BOOST(x)		(((x) << 28) & GENMASK(29, 28))
@@ -180,6 +231,19 @@
 
 #define LYNX_28G_LNaRCCR0(lane)			(0x800 + (lane) * 0x100 + 0x68)
 
+#define LYNX_28G_LNaRCCR0_CAL_EN               BIT(31)
+#define LYNX_28G_LNaRCCR0_MEAS_EN              BIT(30)
+#define LYNX_28G_LNaRCCR0_CAL_BIN_SEL          BIT(28)
+#define LYNX_28G_LNaRCCR0_CAL_DC3_DIS          BIT(27)
+#define LYNX_28G_LNaRCCR0_CAL_DC2_DIS          BIT(26)
+#define LYNX_28G_LNaRCCR0_CAL_DC1_DIS          BIT(25)
+#define LYNX_28G_LNaRCCR0_CAL_DC0_DIS          BIT(24)
+#define LYNX_28G_LNaRCCR0_CAL_AC3_OV_EN                BIT(15)
+#define LYNX_28G_LNaRCCR0_CAL_AC3_OV(x)                (((x) << 8) & GENMASK(11, 8))
+#define LYNX_28G_LNaRCCR0_CAL_AC3_OV_X(x)      (((x) & GENMASK(11, 8)) >> 8)
+#define LYNX_28G_LNaRCCR0_CAL_AC2_OV_EN                BIT(7)
+#define LYNX_28G_LNaRCCR0_CAL_AC2_OV(x)                ((x) & GENMASK(3, 0))
+
 #define LYNX_28G_LNaRCCR0_CAL_EN		BIT(31)
 #define LYNX_28G_LNaRCCR0_MEAS_EN		BIT(30)
 #define LYNX_28G_LNaRCCR0_CAL_BIN_SEL		BIT(28)
@@ -194,6 +258,24 @@
 #define LYNX_28G_LNaRCCR0_CAL_AC2_OV(x)		((x) & GENMASK(3, 0))
 
 #define LYNX_28G_LNaRSCCR0(lane)		(0x800 + (lane) * 0x100 + 0x74)
+
+#define LYNX_28G_LNaRSCCR0_SMP_OFF_EN          BIT(31)
+#define LYNX_28G_LNaRSCCR0_SMP_OFF_OV_EN       BIT(30)
+#define LYNX_28G_LNaRSCCR0_SMP_MAN_OFF_EN      BIT(29)
+#define LYNX_28G_LNaRSCCR0_SMP_OFF_RNG_OV_EN   BIT(27)
+#define LYNX_28G_LNaRSCCR0_SMP_OFF_RNG_4X_OV   BIT(25)
+#define LYNX_28G_LNaRSCCR0_SMP_OFF_RNG_2X_OV   BIT(24)
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_PD                BIT(23)
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_CTRL(x)   (((x) << 16) & GENMASK(19, 16))
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_CTRL_X(x) (((x) & GENMASK(19, 16)) >> 16)
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1R(x)    (((x) << 12) & GENMASK(13, 12))
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1R_X(x)  (((x) & GENMASK(13, 12)) >> 12)
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1F(x)    (((x) << 8) & GENMASK(9, 8))
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1F(x)    (((x) << 8) & GENMASK(9, 8))
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1F_X(x)  (((x) & GENMASK(9, 8)) >> 8)
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_EG1R(x)   (((x) << 4) & GENMASK(5, 4))
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_EG1R_X(x) (((x) & GENMASK(5, 4)) >> 4)
+#define LYNX_28G_LNaRSCCR0_SMP_AUTOZ_EG1F(x)   ((x) & GENMASK(1, 0))
 
 #define LYNX_28G_LNaRSCCR0_SMP_OFF_EN		BIT(31)
 #define LYNX_28G_LNaRSCCR0_SMP_OFF_OV_EN	BIT(30)
@@ -215,6 +297,16 @@
 
 #define LYNX_28G_LNaTTLCR0(lane)		(0x800 + (lane) * 0x100 + 0x80)
 
+#define LYNX_28G_LNaTTLCR0_TTL_FLT_SEL(x)      (((x) << 24) & GENMASK(29, 24))
+#define LYNX_28G_LNaTTLCR0_TTL_FLT_SEL_X(x)    (((x) & GENMASK(29, 24)) >> 24)
+#define LYNX_28G_LNaTTLCR0_TTL_SLO_PM_BYP      BIT(22)
+#define LYNX_28G_LNaTTLCR0_STALL_DET_DIS       BIT(21)
+#define LYNX_28G_LNaTTLCR0_INACT_MON_DIS       BIT(20)
+#define LYNX_28G_LNaTTLCR0_CDR_OV(x)           (((x) << 16) & GENMASK(18, 16))
+#define LYNX_28G_LNaTTLCR0_CDR_OV_X(x)         (((x) & GENMASK(18, 16)) >> 16)
+#define LYNX_28G_LNaTTLCR0_DATA_IN_SSC         BIT(15)
+#define LYNX_28G_LNaTTLCR0_CDR_MIN_SMP_ON(x)   ((x) & GENMASK(1, 0))
+
 #define LYNX_28G_LNaTTLCR0_TTL_FLT_SEL(x)	(((x) << 24) & GENMASK(29, 24))
 #define LYNX_28G_LNaTTLCR0_TTL_FLT_SEL_X(x)	(((x) & GENMASK(29, 24)) >> 24)
 #define LYNX_28G_LNaTTLCR0_TTL_SLO_PM_BYP	BIT(22)
@@ -235,7 +327,13 @@
 #define LYNX_28G_SGMIIaCR1_SGPCS_EN		BIT(11)
 #define LYNX_28G_SGMIIaCR1_SGPCS_MSK		BIT(11)
 
-+enum lynx_28g_lane_mode {
+enum lynx_28g_eq_type {
+	EQ_TYPE_NO_EQ = 0,
+	EQ_TYPE_2TAP = 1,
+	EQ_TYPE_3TAP = 2,
+};
+
+enum lynx_28g_lane_mode {
 	LANE_MODE_UNKNOWN,
 	LANE_MODE_1000BASEX_SGMII,
 	LANE_MODE_10GBASER,
@@ -299,6 +397,8 @@ static void lynx_28g_rmw(struct lynx_28g_priv *priv, unsigned long off,
 	lynx_28g_rmw((lane)->priv, LYNX_28G_##reg(lane->id), val, mask)
 #define lynx_28g_lane_read(lane, reg)			\
 	ioread32((lane)->priv->base + LYNX_28G_##reg((lane)->id))
+#define lynx_28g_lane_write(lane, reg, val)            \
+	iowrite32(val, (lane)->priv->base + LYNX_28G_##reg((lane)->id))
 #define lynx_28g_lane_write(lane, reg, val)            \
 	iowrite32(val, (lane)->priv->base + LYNX_28G_##reg((lane)->id))
 #define lynx_28g_pll_read(pll, reg)			\
@@ -487,18 +587,18 @@ static void lynx_28g_lane_set_sgmii(struct lynx_28g_lane *lane)
 
 	/* Configure the appropriate equalization parameters for the protocol */
 	lynx_28g_lane_write(lane, LNaTECR0,
-			LYNX_28G_LNaTECR0_EQ_SGN_PREQ |
-			LYNX_28G_LNaTECR0_EQ_SGN_POST1Q |
-			LYNX_28G_LNaTECR0_EQ_AMP_RED(6));
+			    LYNX_28G_LNaTECR0_EQ_SGN_PREQ |
+			    LYNX_28G_LNaTECR0_EQ_SGN_POST1Q |
+			    LYNX_28G_LNaTECR0_EQ_AMP_RED(6));
 	lynx_28g_lane_write(lane, LNaRGCR1,
-			LYNX_28G_LNaRGCR1_ENTER_IDLE_FLT_SEL(4) |
-			LYNX_28G_LNaRGCR1_EXIT_IDLE_FLT_SEL(3) |
-			LYNX_28G_LNaRGCR1_DATA_LOST_FLT);
+			    LYNX_28G_LNaRGCR1_ENTER_IDLE_FLT_SEL(4) |
+			    LYNX_28G_LNaRGCR1_EXIT_IDLE_FLT_SEL(3) |
+			    LYNX_28G_LNaRGCR1_DATA_LOST_FLT);
 	lynx_28g_lane_write(lane, LNaRECR0,
-			LYNX_28G_LNaRECR0_EQ_GAINK2_HF_OV_EN |
-			LYNX_28G_LNaRECR0_EQ_GAINK2_HF_OV(0x1f) |
-			LYNX_28G_LNaRECR0_EQ_GAINK3_MF_OV_EN |
-			LYNX_28G_LNaRECR0_EQ_GAINK3_MF_OV(0));
+			    LYNX_28G_LNaRECR0_EQ_GAINK2_HF_OV_EN |
+			    LYNX_28G_LNaRECR0_EQ_GAINK2_HF_OV(0x1f) |
+			    LYNX_28G_LNaRECR0_EQ_GAINK3_MF_OV_EN |
+			    LYNX_28G_LNaRECR0_EQ_GAINK3_MF_OV(0));
 	lynx_28g_lane_write(lane, LNaRECR1, LYNX_28G_LNaRECR1_EQ_OFFSET_OV(31));
 	lynx_28g_lane_write(lane, LNaRECR2, 0);
 	lynx_28g_lane_write(lane, LNaRSCCR0, 0);
@@ -534,25 +634,25 @@ tatic void lynx_28g_lane_set_10g(struct lynx_28g_lane *lane,
 
 	/* Configure the appropriate equalization parameters for the protocol */
 	lynx_28g_lane_write(lane, LNaTECR0,
-			LYNX_28G_LNaTECR0_EQ_TYPE(EQ_TYPE_2TAP) |
-			LYNX_28G_LNaTECR0_EQ_SGN_PREQ |
-			LYNX_28G_LNaTECR0_EQ_PREQ(0) |
-			LYNX_28G_LNaTECR0_EQ_SGN_POST1Q |
-			LYNX_28G_LNaTECR0_EQ_POST1Q(3) |
-			LYNX_28G_LNaTECR0_EQ_AMP_RED(7));
+			    LYNX_28G_LNaTECR0_EQ_TYPE(EQ_TYPE_2TAP) |
+			    LYNX_28G_LNaTECR0_EQ_SGN_PREQ |
+			    LYNX_28G_LNaTECR0_EQ_PREQ(0) |
+			    LYNX_28G_LNaTECR0_EQ_SGN_POST1Q |
+			    LYNX_28G_LNaTECR0_EQ_POST1Q(3) |
+			    LYNX_28G_LNaTECR0_EQ_AMP_RED(7));
 	lynx_28g_lane_write(lane, LNaRGCR1, LYNX_28G_LNaRGCR1_IDLE_CONFIG);
 	lynx_28g_lane_write(lane, LNaRECR0, 0);
 	lynx_28g_lane_write(lane, LNaRECR1, LYNX_28G_LNaRECR1_EQ_OFFSET_OV(31));
 	lynx_28g_lane_write(lane, LNaRECR2,
-			LYNX_28G_LNaRECR2_EQ_OFFSET_RNG_DBL |
-			LYNX_28G_LNaRECR2_EQ_BLW_SEL(1) |
-			LYNX_28G_LNaRECR2_EQ_BIN_DATA_AVG_TC(2));
+			    LYNX_28G_LNaRECR2_EQ_OFFSET_RNG_DBL |
+			    LYNX_28G_LNaRECR2_EQ_BLW_SEL(1) |
+			    LYNX_28G_LNaRECR2_EQ_BIN_DATA_AVG_TC(2));
 	lynx_28g_lane_write(lane, LNaRSCCR0,
-			LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1R(2));
+			    LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1R(2));
 	lynx_28g_lane_write(lane, LNaRCCR0, LYNX_28G_LNaRCCR0_CAL_EN);
 	lynx_28g_lane_write(lane, LNaTTLCR0,
-			LYNX_28G_LNaTTLCR0_TTL_SLO_PM_BYP |
-			LYNX_28G_LNaTTLCR0_DATA_IN_SSC);
+			    LYNX_28G_LNaTTLCR0_TTL_SLO_PM_BYP |
+			    LYNX_28G_LNaTTLCR0_DATA_IN_SSC);
 }
 
 static void lynx_28g_lane_set_25gbaser(struct lynx_28g_lane *lane)
@@ -581,34 +681,34 @@ static void lynx_28g_lane_set_25gbaser(struct lynx_28g_lane *lane)
 
 	/* Configure the appropriate equalization parameters for 25GBASE-R */
 	lynx_28g_lane_write(lane, LNaTECR0,
-                           LYNX_28G_LNaTECR0_EQ_TYPE(EQ_TYPE_3TAP) |
-                           LYNX_28G_LNaTECR0_EQ_SGN_PREQ |
-                           LYNX_28G_LNaTECR0_EQ_PREQ(2) |
-                           LYNX_28G_LNaTECR0_EQ_SGN_POST1Q |
-                           LYNX_28G_LNaTECR0_EQ_POST1Q(7));
+			    LYNX_28G_LNaTECR0_EQ_TYPE(EQ_TYPE_3TAP) |
+			    LYNX_28G_LNaTECR0_EQ_SGN_PREQ |
+			    LYNX_28G_LNaTECR0_EQ_PREQ(2) |
+			    LYNX_28G_LNaTECR0_EQ_SGN_POST1Q |
+			    LYNX_28G_LNaTECR0_EQ_POST1Q(7));
 	lynx_28g_lane_write(lane, LNaRGCR1, LYNX_28G_LNaRGCR1_IDLE_CONFIG);
 	lynx_28g_lane_write(lane, LNaRECR0,
-                           LYNX_28G_LNaRECR0_EQ_GAINK4_LF_OV_EN |
-                           LYNX_28G_LNaRECR0_EQ_GAINK4_LF_OV(5));
+			    LYNX_28G_LNaRECR0_EQ_GAINK4_LF_OV_EN |
+			    LYNX_28G_LNaRECR0_EQ_GAINK4_LF_OV(5));
 	lynx_28g_lane_write(lane, LNaRECR1, LYNX_28G_LNaRECR1_EQ_OFFSET_OV(31));
 	lynx_28g_lane_write(lane, LNaRECR2,
-                           LYNX_28G_LNaRECR2_EQ_OFFSET_RNG_DBL |
-                           LYNX_28G_LNaRECR2_EQ_BOOST(2) |
-                           LYNX_28G_LNaRECR2_EQ_BLW_SEL(1) |
-                           LYNX_28G_LNaRECR2_EQ_BIN_DATA_AVG_TC(2) |
-                           LYNX_28G_LNaRECR2_SPARE_IN(3));
+			    LYNX_28G_LNaRECR2_EQ_OFFSET_RNG_DBL |
+			    LYNX_28G_LNaRECR2_EQ_BOOST(2) |
+			    LYNX_28G_LNaRECR2_EQ_BLW_SEL(1) |
+			    LYNX_28G_LNaRECR2_EQ_BIN_DATA_AVG_TC(2) |
+			    LYNX_28G_LNaRECR2_SPARE_IN(3));
 	lynx_28g_lane_write(lane, LNaRSCCR0,
-                           LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1R(2) |
-                           LYNX_28G_LNaRSCCR0_SMP_AUTOZ_EG1R(2));
+			    LYNX_28G_LNaRSCCR0_SMP_AUTOZ_D1R(2) |
+			    LYNX_28G_LNaRSCCR0_SMP_AUTOZ_EG1R(2));
 	lynx_28g_lane_write(lane, LNaRCCR0,
-                           LYNX_28G_LNaRCCR0_CAL_EN |
-                           LYNX_28G_LNaRCCR0_CAL_DC3_DIS |
-                           LYNX_28G_LNaRCCR0_CAL_DC2_DIS |
-                           LYNX_28G_LNaRCCR0_CAL_DC1_DIS |
-                           LYNX_28G_LNaRCCR0_CAL_DC0_DIS);
+			    LYNX_28G_LNaRCCR0_CAL_EN |
+			    LYNX_28G_LNaRCCR0_CAL_DC3_DIS |
+			    LYNX_28G_LNaRCCR0_CAL_DC2_DIS |
+			    LYNX_28G_LNaRCCR0_CAL_DC1_DIS |
+			    LYNX_28G_LNaRCCR0_CAL_DC0_DIS);
 	lynx_28g_lane_write(lane, LNaTTLCR0,
-                           LYNX_28G_LNaTTLCR0_DATA_IN_SSC |
-                           LYNX_28G_LNaTTLCR0_CDR_MIN_SMP_ON(1));
+			    LYNX_28G_LNaTTLCR0_DATA_IN_SSC |
+			    LYNX_28G_LNaTTLCR0_CDR_MIN_SMP_ON(1));
 }
 
 static int lynx_28g_set_mode(struct phy *phy, enum phy_mode mode, int submode)
