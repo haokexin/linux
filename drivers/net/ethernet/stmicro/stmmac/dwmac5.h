@@ -160,6 +160,9 @@ void dwmac5_est_irq_status(void __iomem *ioaddr, struct net_device *dev,
 void dwmac5_fpe_configure(void __iomem *ioaddr, struct stmmac_fpe_cfg *cfg,
 			  u32 num_txq, u32 num_rxq,
 			  u32 txqpec, bool enable);
+void dwmac5_fpe_tx_configure(void __iomem *ioaddr, struct stmmac_fpe_cfg *cfg,
+			     u32 num_txq, u32 txqpec, bool enable);
+void dwmac5_fpe_rx_configure(void __iomem *ioaddr, u32 num_rxq);
 void dwmac5_fpe_send_mpacket(void __iomem *ioaddr,
 			     struct stmmac_fpe_cfg *cfg,
 			     enum stmmac_mpacket_type type);
