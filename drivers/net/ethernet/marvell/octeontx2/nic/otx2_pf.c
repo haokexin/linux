@@ -1786,6 +1786,17 @@ static void otx2_dim_work(struct work_struct *w)
 	dim->state = DIM_START_MEASURE;
 }
 
+static void otx2_free_queue_mem(struct otx2_qset *qset)
+{
+	kfree(qset->sq);
+	qset->sq = NULL;
+	kfree(qset->cq);
+	qset->cq = NULL;
+	kfree(qset->rq);
+	qset->rq = NULL;
+	kfree(qset->napi);
+}
+
 int otx2_open(struct net_device *netdev)
 {
 	struct otx2_nic *pf = netdev_priv(netdev);
@@ -1991,10 +2002,7 @@ err_disable_napi:
 	otx2_disable_napi(pf);
 	otx2_free_hw_resources(pf);
 err_free_mem:
-	kfree(qset->sq);
-	kfree(qset->cq);
-	kfree(qset->rq);
-	kfree(qset->napi);
+	otx2_free_queue_mem(qset);
 	return err;
 }
 EXPORT_SYMBOL(otx2_open);
@@ -2060,10 +2068,8 @@ int otx2_stop(struct net_device *netdev)
 		cancel_delayed_work_sync(&pf->refill_wrk[wrk].pool_refill_work);
 	devm_kfree(pf->dev, pf->refill_wrk);
 
-	kfree(qset->sq);
-	kfree(qset->cq);
-	kfree(qset->rq);
-	kfree(qset->napi);
+	otx2_free_queue_mem(qset);
+
 	/* Do not clear RQ/SQ ringsize settings */
 	memset((void *)qset + offsetof(struct otx2_qset, sqe_cnt), 0,
 	       sizeof(*qset) - offsetof(struct otx2_qset, sqe_cnt));
