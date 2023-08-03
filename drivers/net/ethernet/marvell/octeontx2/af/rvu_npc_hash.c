@@ -1901,15 +1901,13 @@ int rvu_npc_exact_init(struct rvu *rvu)
 
 	/* Check exact match feature is supported */
 	npc_const3 = rvu_read64(rvu, blkaddr, NPC_AF_CONST3);
-	if (!(npc_const3 & BIT_ULL(62))) {
+	if (!(npc_const3 & BIT_ULL(62)))
 		return 0;
-	}
 
 	/* Check if kex profile has enabled EXACT match nibble */
 	cfg = rvu_read64(rvu, blkaddr, NPC_AF_INTFX_KEX_CFG(NIX_INTF_RX));
-	if (!(cfg & NPC_EXACT_NIBBLE_HIT)) {
+	if (!(cfg & NPC_EXACT_NIBBLE_HIT))
 		return 0;
-	}
 
 	/* Set capability to true */
 	rvu->hw->cap.npc_exact_match_enabled = true;
