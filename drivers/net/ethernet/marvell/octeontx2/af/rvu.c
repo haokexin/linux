@@ -1277,7 +1277,7 @@ cpt:
 	err = rvu_cpt_init(rvu);
 	if (err) {
 		dev_err(rvu->dev, "%s: Failed to initialize cpt\n", __func__);
-		goto mcs_err;
+		goto sso_err;
 	}
 
 	rvu_program_channels(rvu);
@@ -1290,8 +1290,6 @@ cpt:
 
 	return 0;
 
-mcs_err:
-	rvu_mcs_exit(rvu);
 sso_err:
 	rvu_sso_freemem(rvu);
 nix_err:
@@ -1457,7 +1455,7 @@ int rvu_get_blkaddr_from_slot(struct rvu *rvu, int blktype, u16 pcifunc,
 	int numlfs, total_lfs = 0, nr_blocks = 0;
 	int i, num_blkaddr[BLK_COUNT] = { 0 };
 	struct rvu_block *block;
-	int blkaddr;
+	int blkaddr = -ENODEV;
 	u16 start_slot;
 
 	if (!is_blktype_attached(pfvf, blktype))
@@ -2728,6 +2726,7 @@ static void rvu_mbox_destroy(struct mbox_wq_info *mw)
 	int devid;
 
 	if (mw->mbox_wq) {
+		flush_workqueue(mw->mbox_wq);
 		destroy_workqueue(mw->mbox_wq);
 		mw->mbox_wq = NULL;
 	}
@@ -2841,7 +2840,7 @@ static void rvu_npa_lf_mapped_nix_lf_teardown(struct rvu *rvu, u16 pcifunc)
 	int blkaddr, lf;
 	u64 regval;
 
-	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, 0);
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
 	if (blkaddr < 0)
 		return;
 
@@ -2884,6 +2883,9 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 
 	pcifunc_arr = kcalloc(rvu->hw->total_pfs + rvu->hw->total_vfs,
 			      sizeof(*pcifunc_arr), GFP_KERNEL);
+	if (!pcifunc_arr)
+		return;
+
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
 	if (blkaddr < 0)
 		return;
@@ -2966,6 +2968,42 @@ static void rvu_npa_lf_mapped_sso_lf_teardown(struct rvu *rvu, u16 pcifunc)
 	kfree(pcifunc_arr);
 }
 
+static void rvu_sso_hw_flr(struct rvu *rvu, u16 pcifunc)
+{
+	int blkaddr, ssow_blkaddr;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, 0);
+	if (blkaddr < 0)
+		return;
+
+	ssow_blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSOW, 0);
+	if (ssow_blkaddr < 0)
+		return;
+
+	/* Check for HW FLR support */
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_CONST1);
+	if (!(reg & SSO_AF_CONST1_HW_FLR))
+		return;
+
+	/* Perform complete HW FLR */
+	rvu_write64(rvu, ssow_blkaddr, SSOW_AF_LF_FLR,
+		    pcifunc | SSOW_AF_LF_FLR_MASK);
+
+	/* Wait for FLR completion */
+	if (rvu_poll_reg(rvu, ssow_blkaddr, SSOW_AF_LF_FLR, SSOW_AF_LF_FLR_MASK,
+			 true)) {
+		if (rvu_read64(rvu, ssow_blkaddr, SSOW_AF_LF_FLR) &
+		    SSOW_AF_LF_FLR_ERROR) {
+			dev_err(rvu->dev, "HW FLR terminated with error\n");
+		} else {
+			rvu_write64(rvu, ssow_blkaddr, SSOW_AF_LF_FLR,
+				    SSOW_AF_LF_FLR_ABORT);
+			dev_err(rvu->dev, "HW FLR aborted after timeout.\n");
+		}
+	}
+}
+
 static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 {
 	struct rvu_block *block;
@@ -2978,6 +3016,9 @@ static void rvu_blklf_teardown(struct rvu *rvu, u16 pcifunc, u8 blkaddr)
 					block->addr);
 	if (!num_lfs)
 		return;
+
+	if (block->addr == BLKADDR_SSOW)
+		rvu_sso_hw_flr(rvu, pcifunc);
 
 	if (block->addr == BLKADDR_SSO) {
 		retry = 0;
@@ -3492,6 +3533,7 @@ fail:
 static void rvu_flr_wq_destroy(struct rvu *rvu)
 {
 	if (rvu->flr_wq) {
+		flush_workqueue(rvu->flr_wq);
 		destroy_workqueue(rvu->flr_wq);
 		rvu->flr_wq = NULL;
 	}
@@ -3714,7 +3756,6 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 
 	pci_set_master(pdev);
-
 	rvu->ptp = ptp_get();
 	if (IS_ERR(rvu->ptp)) {
 		err = PTR_ERR(rvu->ptp);
@@ -3788,7 +3829,7 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	mutex_init(&rvu->rswitch.switch_lock);
 
 	if (rvu->fwdata)
-		ptp_start(rvu->ptp, rvu->fwdata->sclk, rvu->fwdata->ptp_ext_clk_rate,
+		ptp_start(rvu, rvu->fwdata->sclk, rvu->fwdata->ptp_ext_clk_rate,
 			  rvu->fwdata->ptp_ext_tstamp);
 
 	return 0;

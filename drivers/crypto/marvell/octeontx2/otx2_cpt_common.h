@@ -59,6 +59,8 @@ struct otx2_cpt_rx_inline_lf_cfg {
 	u32 credit_th;
 	u16 bpid;
 	u32 reserved;
+	u8 ctx_ilen_valid : 1;
+	u8 ctx_ilen : 7;
 };
 
 /*
@@ -203,6 +205,14 @@ static inline bool cpt_is_errata_38550_exists(struct pci_dev *pdev)
 }
 
 static inline bool cpt_feature_rxc_icb_cnt(struct pci_dev *pdev)
+{
+	if (!is_dev_otx2(pdev) && !is_dev_cn10ka_ax(pdev))
+		return true;
+
+	return false;
+}
+
+static inline bool cpt_feature_sgv2(struct pci_dev *pdev)
 {
 	if (!is_dev_otx2(pdev) && !is_dev_cn10ka_ax(pdev))
 		return true;

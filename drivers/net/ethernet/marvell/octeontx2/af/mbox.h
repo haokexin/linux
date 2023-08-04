@@ -143,6 +143,7 @@ M(NDC_SYNC_OP,		0x009, ndc_sync_op, ndc_sync_op, msg_rsp)	\
 M(LMTST_TBL_SETUP,	0x00a, lmtst_tbl_setup, lmtst_tbl_setup_req,    \
 				msg_rsp)				\
 M(SET_VF_PERM,		0x00b, set_vf_perm, set_vf_perm, msg_rsp)	\
+M(PTP_GET_CAP,		0x00c, ptp_get_cap, msg_req, ptp_get_cap_rsp)	\
 /* CGX mbox IDs (range 0x200 - 0x3FF) */				\
 M(CGX_START_RXTX,	0x200, cgx_start_rxtx, msg_req, msg_rsp)	\
 M(CGX_STOP_RXTX,	0x201, cgx_stop_rxtx, msg_req, msg_rsp)		\
@@ -312,6 +313,9 @@ M(NPC_GET_FIELD_HASH_INFO, 0x6013, npc_get_field_hash_info,                     
 M(NPC_GET_FIELD_STATUS, 0x6014, npc_get_field_status,                     \
 				   npc_get_field_status_req,              \
 				   npc_get_field_status_rsp)              \
+M(NPC_MCAM_GET_HIT_STATUS, 0x6015, npc_mcam_get_hit_status,                     \
+				   npc_mcam_get_hit_status_req,              \
+				   npc_mcam_get_hit_status_rsp)              \
 /* NIX mbox IDs (range 0x8000 - 0xFFFF) */				\
 M(NIX_LF_ALLOC,		0x8000, nix_lf_alloc,				\
 				 nix_lf_alloc_req, nix_lf_alloc_rsp)	\
@@ -1791,6 +1795,7 @@ struct flow_msg {
 		u8 ip_flag;
 		u8 next_header;
 	};
+	__be16 vlan_itci;
 	__be32 gtpu_teid;
 	__be32 gtpc_teid;
 };
@@ -1913,6 +1918,32 @@ struct npc_get_field_hash_info_rsp {
 	u64 hash_ctrl[NPC_MAX_INTF][NPC_MAX_HASH];
 };
 
+struct npc_get_field_status_req {
+	struct mbox_msghdr hdr;
+	u8 intf;
+	u8 field;
+};
+
+struct npc_get_field_status_rsp {
+	struct mbox_msghdr hdr;
+	u8 enable;
+};
+
+struct npc_mcam_get_hit_status_req {
+	struct mbox_msghdr hdr;
+	bool clear;
+	u8 reserved[3];
+	u32 mcam_id_start;
+	u32 mcam_id_end;
+#define MCAM_ARR_SIZE 256
+	u64  mcam_ids[MCAM_ARR_SIZE];
+};
+
+struct npc_mcam_get_hit_status_rsp {
+	struct mbox_msghdr hdr;
+	u64 mcam_hit_status[MCAM_ARR_SIZE];
+};
+
 enum tim_clk_srcs {
 	TIM_CLK_SRCS_TENNS	= 0,
 	TIM_CLK_SRCS_GPIO	= 1,
@@ -1988,6 +2019,8 @@ enum ptp_op {
 	PTP_OP_GET_TSTMP = 2,
 	PTP_OP_SET_THRESH = 3,
 	PTP_OP_PPS_ON = 4,
+	PTP_OP_ADJTIME = 5,
+	PTP_OP_SET_CLOCK = 6,
 };
 
 struct ptp_req {
@@ -1998,6 +2031,8 @@ struct ptp_req {
 	u64 thresh;
 	u64 period;
 	int pps_on;
+	s64 delta;
+	u64 clk;
 };
 
 struct ptp_rsp {
@@ -2006,15 +2041,10 @@ struct ptp_rsp {
 	u64 tsc;
 };
 
-struct npc_get_field_status_req {
+struct ptp_get_cap_rsp {
 	struct mbox_msghdr hdr;
-	u8 intf;
-	u8 field;
-};
-
-struct npc_get_field_status_rsp {
-	struct mbox_msghdr hdr;
-	u8 enable;
+#define        PTP_CAP_HW_ATOMIC_UPDATE BIT_ULL(0)
+	u64 cap;
 };
 
 struct set_vf_perm  {
@@ -2451,7 +2481,7 @@ struct mcs_hw_info {
 	u8 tcam_entries;	/* RX/TX Tcam entries per mcs block */
 	u8 secy_entries;	/* RX/TX SECY entries per mcs block */
 	u8 sc_entries;		/* RX/TX SC CAM entries per mcs block */
-	u8 sa_entries;		/* PN table entries = SA entries */
+	u16 sa_entries;		/* PN table entries = SA entries */
 	u64 rsvd[16];
 };
 

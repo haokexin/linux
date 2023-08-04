@@ -564,7 +564,7 @@
 #define SSO_AF_CONST1_NO_NSCHED		BIT_ULL(34)
 #define SSO_AF_CONST1_LSW_PRESENT	BIT_ULL(36)
 #define SSO_AF_CONST1_PRF_PRESENT	BIT_ULL(37)
-#define SSO_AF_CONST1_STASH_PRESENT	BIT_ULL(38)
+#define SSO_AF_CONST1_HW_FLR		BIT_ULL(38)
 #define SSO_AF_IAQ_FREE_CNT_MASK	0x3FFFull
 #define SSO_AF_IAQ_RSVD_FREE_MASK	0x3FFFull
 #define SSO_AF_IAQ_RSVD_FREE_SHIFT	16
@@ -641,8 +641,13 @@
 /* SSOW */
 #define SSOW_AF_RVU_LF_HWS_CFG_DEBUG	(0x0010)
 #define SSOW_AF_LF_HWS_RST		(0x0030)
+#define SSOW_AF_LF_FLR			(0x0040)
 #define SSOW_PRIV_LFX_HWS_CFG		(0x1000)
 #define SSOW_PRIV_LFX_HWS_INT_CFG	(0x2000)
+
+#define SSOW_AF_LF_FLR_MASK		GENMASK_ULL(20, 16)
+#define SSOW_AF_LF_FLR_ERROR		BIT_ULL(31)
+#define SSOW_AF_LF_FLR_ABORT		BIT_ULL(32)
 
 #define SSOW_LF_GWS_PENDSTATE		(0x50ull)
 #define SSOW_LF_GWS_NW_TIM		(0x70ull)
@@ -852,7 +857,6 @@
 #define NPC_AF_INTFX_MISS_STAT_ACT(a)	(0x1880040 + (a) * 0x8)
 #define NPC_AF_INTFX_MISS_ACT(a)	(0x1a00000 | (a) << 4)
 #define NPC_AF_INTFX_MISS_TAG_ACT(a)	(0x1b00008 | (a) << 4)
-#define NPC_AF_MCAM_BANKX_HITX(a, b)	(0x1c80000 | (a) << 8 | (b) << 4)
 #define NPC_AF_LKUP_CTL			(0x2000000)
 #define NPC_AF_LKUP_DATAX(a)		(0x2000200 | (a) << 4)
 #define NPC_AF_LKUP_RESULTX(a)		(0x2000400 | (a) << 4)
@@ -874,6 +878,14 @@
 #define NPC_AF_INTFX_EXACT_SECRET0(a)	(0xE00 | (a) << 3)
 #define NPC_AF_INTFX_EXACT_SECRET1(a)	(0xE20 | (a) << 3)
 #define NPC_AF_INTFX_EXACT_SECRET2(a)	(0xE40 | (a) << 3)
+
+#define NPC_AF_MCAM_BANKX_HITX(a, b) ({				\
+	u64 offset;						\
+								\
+	offset = (0x1c80000 | (a) << 8 | (b) << 4);		\
+	if (rvu->hw->npc_ext_set)				\
+		offset = (0x8000070 | (a) << 22 | (b) << 8);	\
+	offset; })						\
 
 #define NPC_AF_MCAMEX_BANKX_CAMX_INTF(a, b, c) ({			   \
 	u64 offset;							   \

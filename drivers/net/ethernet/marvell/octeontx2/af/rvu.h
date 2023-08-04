@@ -18,6 +18,7 @@
 #include "mcs_fips_mbox.h"
 #include "npc.h"
 #include "rvu_reg.h"
+#include "ptp.h"
 
 /* PCI device IDs */
 #define	PCI_DEVID_OCTEONTX2_RVU_AF		0xA065
@@ -409,6 +410,7 @@ struct nix_hw {
 	struct nix_ipolicer *ipolicer;
 	struct nix_bp bp;
 	u64    *tx_credits;
+	u64 cc_mcs_cnt;
 };
 
 /* RVU block's capabilities or functionality,
@@ -434,6 +436,7 @@ struct hw_cap {
 	bool	npc_hash_extract; /* Hash extract enabled ? */
 	bool	npc_exact_match_enabled; /* Exact match supported ? */
 	u16     spi_to_sas; /* Num of SPI to SA index */
+	bool    cpt_rxc;   /* Is CPT-RXC supported */
 };
 
 struct rvu_hwinfo {
@@ -747,11 +750,30 @@ static inline bool is_cn10kb_a1(struct rvu *rvu)
 	return false;
 }
 
+static inline bool is_cn10kb(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_B)
+		return true;
+	return false;
+}
+
 static inline bool is_cnf10kb_a0(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
 
 	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+	    (pdev->revision & 0x0F) == 0x0)
+		return true;
+	return false;
+}
+
+static inline bool is_cnf10ka_a0(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
 	    (pdev->revision & 0x0F) == 0x0)
 		return true;
 	return false;

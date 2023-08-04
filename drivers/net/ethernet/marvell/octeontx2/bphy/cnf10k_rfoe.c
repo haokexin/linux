@@ -547,13 +547,16 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 		return;
 	}
 
-	if (psw->mac_err_sts || psw->mcs_err_sts) {
-		net_warn_ratelimited("%s: psw mac_err_sts = 0x%x, mcs_err_sts=0x%x\n",
-				     priv->netdev->name,
-				     psw->mac_err_sts,
-				     psw->mcs_err_sts);
-		cnf10k_rfoe_update_rx_drop_stats(priv2, pkt_type);
-		return;
+	if (unlikely(psw->mac_err_sts || psw->mcs_err_sts)) {
+		if (netif_msg_rx_err(priv2))
+			net_warn_ratelimited("%s: psw mac_err_sts = 0x%x, mcs_err_sts=0x%x\n",
+					     priv2->netdev->name,
+					     psw->mac_err_sts,
+					     psw->mcs_err_sts);
+		if (psw->mac_err_sts) {
+			cnf10k_rfoe_update_rx_drop_stats(priv2, pkt_type);
+			return;
+		}
 	}
 
 	/* drop the packet if interface is down */
@@ -607,26 +610,20 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 static int cnf10k_rfoe_process_rx_flow(struct cnf10k_rfoe_ndev_priv *priv,
 				       int pkt_type, int budget)
 {
-	struct otx2_bphy_cdev_priv *cdev_priv = priv->cdev_priv;
 	int count = 0, processed_pkts = 0;
 	struct cnf10k_rx_ft_cfg *ft_cfg;
-	u64 mbt_cfg;
-	u16 nxt_buf;
+	u16 nxt_buf, sw_buf;
+	u64 mbt_status;
 	int *mbt_last_idx = &priv->rfoe_common->rx_mbt_last_idx[pkt_type];
 	u16 *prv_nxt_buf = &priv->rfoe_common->nxt_buf[pkt_type];
 
 	ft_cfg = &priv->rx_ft_cfg[pkt_type];
 
-	spin_lock(&cdev_priv->mbt_lock);
 	/* read mbt nxt_buf */
-	writeq(ft_cfg->mbt_idx,
-	       priv->rfoe_reg_base +
-	       CNF10K_RFOEX_RX_INDIRECT_INDEX_OFFSET(priv->rfoe_num));
-	mbt_cfg = readq(priv->rfoe_reg_base +
-			CNF10K_RFOEX_RX_IND_MBT_CFG(priv->rfoe_num));
-	spin_unlock(&cdev_priv->mbt_lock);
-
-	nxt_buf = (mbt_cfg >> 32) & 0xffff;
+	mbt_status = readq(priv->rfoe_reg_base +
+			   CNF10K_RFOEX_RX_MBT_STATUS(priv->rfoe_num, ft_cfg->mbt_idx));
+	nxt_buf = mbt_status & 0xffff;
+	sw_buf = (mbt_status >> 16) & 0xffff;
 
 	/* no mbt entries to process */
 	if (nxt_buf == *prv_nxt_buf) {
@@ -661,6 +658,13 @@ static int cnf10k_rfoe_process_rx_flow(struct cnf10k_rfoe_ndev_priv *priv,
 
 		processed_pkts++;
 	}
+
+	/* update mbt sw_buf */
+	sw_buf += processed_pkts;
+	if (sw_buf > ft_cfg->num_bufs)
+		sw_buf -= ft_cfg->num_bufs;
+	writeq((sw_buf << 16), (priv->rfoe_reg_base +
+				CNF10K_RFOEX_RX_MBT_STATUS(priv->rfoe_num, ft_cfg->mbt_idx)));
 
 	return processed_pkts;
 }
@@ -1366,7 +1370,7 @@ static void cnf10k_rfoe_fill_rx_ft_cfg(struct cnf10k_rfoe_ndev_priv *priv,
 	struct otx2_bphy_cdev_priv *cdev_priv = priv->cdev_priv;
 	struct cnf10k_bphy_ndev_rbuf_info *rbuf_info;
 	struct cnf10k_rx_ft_cfg *ft_cfg;
-	u64 jdt_cfg0, iova;
+	u64 jdt_cfg0, iova, mbt_cfg;
 	int idx;
 
 	/* RX flow table configuration */
@@ -1405,6 +1409,19 @@ static void cnf10k_rfoe_fill_rx_ft_cfg(struct cnf10k_rfoe_ndev_priv *priv,
 		netif_napi_add(priv->netdev, &ft_cfg->napi,
 			       cnf10k_rfoe_napi_poll,
 			       NAPI_POLL_WEIGHT);
+
+		/* Enable MBT ring full drop enable */
+		spin_lock(&cdev_priv->mbt_lock);
+		writeq(ft_cfg->mbt_idx,
+		       priv->rfoe_reg_base +
+		       CNF10K_RFOEX_RX_INDIRECT_INDEX_OFFSET(priv->rfoe_num));
+		mbt_cfg = readq(priv->rfoe_reg_base +
+				CNF10K_RFOEX_RX_IND_MBT_CFG(priv->rfoe_num));
+		mbt_cfg |= (1ULL << 59);
+		writeq(mbt_cfg,
+		       (priv->rfoe_reg_base +
+			CNF10K_RFOEX_RX_IND_MBT_CFG(priv->rfoe_num)));
+		spin_unlock(&cdev_priv->mbt_lock);
 	}
 }
 
@@ -1612,7 +1629,7 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 				cnf10k_rfoe_fill_tx_job_entries(priv, tx_cfg,
 								tx_info,
 								num_entries);
-			} else {
+			} else if (priv2) {
 				/* share rfoe_common data */
 				priv->rfoe_common = priv2->rfoe_common;
 				++(priv->rfoe_common->refcnt);
