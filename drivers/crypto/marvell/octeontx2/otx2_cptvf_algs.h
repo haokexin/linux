@@ -17,6 +17,8 @@
 			       OTX2_CPT_MAX_HASH_KEY_SIZE)
 #define DMA_MODE_FLAG(dma_mode) \
 	(((dma_mode) == OTX2_CPT_DMA_MODE_SG) ? (1 << 7) : 0)
+#define OUTPUT_MODE_FLAG(mode) \
+	(((mode) == OTX2_CPT_OUT_MODE_INPLACE) ? (1 << 6) : 0)
 
 enum otx2_cpt_request_type {
 	OTX2_CPT_ENC_DEC_REQ            = 0x1,
@@ -28,8 +30,10 @@ enum otx2_cpt_request_type {
 enum otx2_cpt_major_opcodes {
 	OTX2_CPT_MAJOR_OP_MISC = 0x01,
 	OTX2_CPT_MAJOR_OP_FC   = 0x33,
+	OTX2_CPT_MAJOR_OP_HASH = 0x34,
 	OTX2_CPT_MAJOR_OP_HMAC = 0x35,
 	OTX2_CPT_MAJOR_OP_MOD_EXP = 0x03,
+	OTX2_CPT_MAJOR_OP_ECDSA = 0x04,
 	OTX2_CPT_MAJOR_OP_ECC = 0x05,
 };
 
@@ -42,7 +46,8 @@ enum otx2_cpt_cipher_type {
 	OTX2_CPT_AES_CFB  = 0x5,
 	OTX2_CPT_AES_CTR  = 0x6,
 	OTX2_CPT_AES_GCM  = 0x7,
-	OTX2_CPT_AES_XTS  = 0x8
+	OTX2_CPT_AES_XTS  = 0x8,
+	OTX2_CPT_AES_CCM  = 0xA
 };
 
 enum otx2_cpt_mac_type {

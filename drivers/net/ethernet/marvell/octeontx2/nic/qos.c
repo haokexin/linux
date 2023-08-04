@@ -20,6 +20,8 @@
 #define OTX2_QOS_DEFAULT_PRIO		0xF
 #define OTX2_QOS_INVALID_SQ		0xFFFF
 #define OTX2_QOS_INVALID_TXSCHQ_IDX	0xFFFF
+#define CN10K_MAX_RR_WEIGHT		GENMASK_ULL(13, 0)
+#define OTX2_MAX_RR_QUANTUM		GENMASK_ULL(23, 0)
 
 /* Egress rate limiting definitions */
 #define MAX_BURST_EXPONENT		0x0FULL
@@ -35,6 +37,38 @@
 #define TLX_RATE_DIVIDER_EXPONENT	GENMASK_ULL(16, 13)
 #define TLX_BURST_MANTISSA		GENMASK_ULL(36, 29)
 #define TLX_BURST_EXPONENT		GENMASK_ULL(40, 37)
+
+static int otx2_qos_quantum_to_dwrr_weight(struct otx2_nic *pfvf, u32 quantum);
+
+static int otx2_qos_validate_quantum(struct otx2_nic *pfvf, u32 quantum)
+{
+	u32 rr_weight = otx2_qos_quantum_to_dwrr_weight(pfvf, quantum);
+	int err = 0;
+
+	/* Max Round robin weight supported by octeontx2 and CN10K
+	 * is different. Validate accordingly
+	 */
+	if (is_dev_otx2(pfvf->pdev))
+		err = (rr_weight > OTX2_MAX_RR_QUANTUM) ? -EINVAL : 0;
+	else if	(rr_weight > CN10K_MAX_RR_WEIGHT)
+		err = -EINVAL;
+
+	return err;
+}
+
+static void otx2_reset_dwrr_prio(struct otx2_qos_node *parent, u64 prio)
+{
+	/* For PF, root node dwrr priority is static and
+	 * holds the priority configured from devlink
+	 */
+	if (parent->level == NIX_TXSCH_LVL_TL1)
+		return;
+
+	if (parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) {
+		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
+		clear_bit(prio, parent->prio_bmap);
+	}
+}
 
 static bool is_qos_node_dwrr(struct otx2_qos_node *parent,
 			     struct otx2_nic *pfvf,
@@ -52,6 +86,13 @@ static bool is_qos_node_dwrr(struct otx2_qos_node *parent,
 			if (parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO &&
 			    parent->child_dwrr_prio != prio)
 				continue;
+
+			if (otx2_qos_validate_quantum(pfvf, node->quantum)) {
+				netdev_err(pfvf->netdev,
+					   "Unsupported quantum value for existing classid=0x%x quantum=%d prio=%d",
+					    node->classid, node->quantum, node->prio);
+				break;
+			}
 			/* mark old node as dwrr */
 			node->is_static = false;
 			parent->child_dwrr_cnt++;
@@ -113,7 +154,7 @@ static void __otx2_qos_txschq_cfg(struct otx2_nic *pfvf,
 {
 	struct otx2_hw *hw = &pfvf->hw;
 	int num_regs = 0;
-	u16 rr_weight;
+	u32 rr_weight;
 	u32 quantum;
 	u64 maxrate;
 	u8 level;
@@ -691,6 +732,7 @@ otx2_qos_sw_create_leaf_node(struct otx2_nic *pfvf,
 	err = otx2_qos_add_child_node(parent, node);
 	if (err) {
 		mutex_unlock(&pfvf->qos.qos_lock);
+		kfree(node);
 		return ERR_PTR(err);
 	}
 	mutex_unlock(&pfvf->qos.qos_lock);
@@ -1199,6 +1241,7 @@ static int otx2_qos_root_add(struct otx2_nic *pfvf, u16 htb_maj_id, u16 htb_defc
 	new_cfg = kzalloc(sizeof(*new_cfg), GFP_KERNEL);
 	if (!new_cfg) {
 		NL_SET_ERR_MSG_MOD(extack, "Memory allocation error");
+		otx2_qos_sw_node_delete(pfvf, root);
 		mutex_destroy(&pfvf->qos.qos_lock);
 		return -ENOMEM;
 	}
@@ -1266,8 +1309,17 @@ static int otx2_qos_root_destroy(struct otx2_nic *pfvf)
 
 static int otx2_qos_validate_dwrr_cfg(struct otx2_qos_node *parent,
 				      struct netlink_ext_ack *extack,
-				      u64 prio)
+				      struct otx2_nic *pfvf,
+				      u64 prio, u64 quantum)
 {
+	int err;
+
+	err = otx2_qos_validate_quantum(pfvf, quantum);
+	if (err) {
+		NL_SET_ERR_MSG_MOD(extack, "Unsupported quantum value");
+		return err;
+	}
+
 	if (parent->child_dwrr_prio == OTX2_QOS_DEFAULT_PRIO) {
 		parent->child_dwrr_prio = prio;
 	} else if (prio != parent->child_dwrr_prio) {
@@ -1344,7 +1396,8 @@ static int otx2_qos_leaf_alloc_queue(struct otx2_nic *pfvf, u16 classid,
 		goto out;
 
 	if (!static_cfg) {
-		ret = otx2_qos_validate_dwrr_cfg(parent, extack, prio);
+		ret = otx2_qos_validate_dwrr_cfg(parent, extack, pfvf, prio,
+						 quantum);
 		if (ret)
 			goto out;
 	}
@@ -1479,7 +1532,8 @@ static int otx2_qos_leaf_to_inner(struct otx2_nic *pfvf, u16 classid,
 
 	static_cfg = !is_qos_node_dwrr(node, pfvf, prio);
 	if (!static_cfg) {
-		ret = otx2_qos_validate_dwrr_cfg(node, extack, prio);
+		ret = otx2_qos_validate_dwrr_cfg(node, extack, pfvf, prio,
+						 quantum);
 		if (ret)
 			goto out;
 	}
@@ -1647,11 +1701,8 @@ static int otx2_qos_leaf_del(struct otx2_nic *pfvf, u16 *classid,
 	}
 
 	/* Reset DWRR priority if all dwrr nodes are deleted */
-	if (!parent->child_dwrr_cnt &&
-	    parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) {
-		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
-		clear_bit(prio, parent->prio_bmap);
-	}
+	if (!parent->child_dwrr_cnt)
+		otx2_reset_dwrr_prio(parent, prio);
 
 	if (!parent->child_static_cnt)
 		parent->max_static_prio = 0;
@@ -1737,11 +1788,8 @@ static int otx2_qos_leaf_del_last(struct otx2_nic *pfvf, u16 classid, bool force
 	}
 
 	/* Reset DWRR priority if all dwrr nodes are deleted */
-	if (!parent->child_dwrr_cnt &&
-	    parent->child_dwrr_prio != OTX2_QOS_DEFAULT_PRIO) {
-		parent->child_dwrr_prio = OTX2_QOS_DEFAULT_PRIO;
-		clear_bit(prio, parent->prio_bmap);
-	}
+	if (!parent->child_dwrr_cnt)
+		otx2_reset_dwrr_prio(parent, prio);
 
 	if (!parent->child_static_cnt)
 		parent->max_static_prio = 0;

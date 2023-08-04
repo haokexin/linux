@@ -164,8 +164,8 @@ static int otx2_set_matchall_egress_rate(struct otx2_nic *nic,
 	struct nix_txschq_config *req;
 	int txschq, err;
 
-	/* All SQs share the same TL4, so pick the first scheduler */
-	txschq = hw->txschq_list[NIX_TXSCH_LVL_TL4][0];
+	/* All SQs (Normal, PFC) share the same TL2, so pick the first scheduler */
+	txschq = hw->txschq_list[NIX_TXSCH_LVL_TL2][0];
 
 	mutex_lock(&nic->mbox.lock);
 	req = otx2_mbox_alloc_msg_nix_txschq_cfg(&nic->mbox);
@@ -174,9 +174,9 @@ static int otx2_set_matchall_egress_rate(struct otx2_nic *nic,
 		return -ENOMEM;
 	}
 
-	req->lvl = NIX_TXSCH_LVL_TL4;
+	req->lvl = NIX_TXSCH_LVL_TL2;
 	req->num_regs = 1;
-	req->reg[0] = NIX_AF_TL4X_PIR(txschq);
+	req->reg[0] = NIX_AF_TL2X_PIR(txschq);
 	req->regval[0] = otx2_get_txschq_rate_regval(nic, maxrate, burst);
 
 	err = otx2_sync_mbox_msg(&nic->mbox);
@@ -372,8 +372,12 @@ static int otx2_tc_parse_actions(struct otx2_nic *nic,
 				return -EOPNOTSUPP;
 			}
 			req->vf = priv->pcifunc & RVU_PFVF_FUNC_MASK;
-			req->op = NIX_RX_ACTION_DEFAULT;
-			return 0;
+
+			/* if op is already set; avoid overwriting the same */
+			if (!req->op)
+				req->op = NIX_RX_ACTION_DEFAULT;
+			break;
+
 		case FLOW_ACTION_VLAN_POP:
 			req->vtag0_valid = true;
 			/* use RX_VTAG_TYPE7 which is initialized to strip vlan tag */
@@ -405,6 +409,12 @@ static int otx2_tc_parse_actions(struct otx2_nic *nic,
 		case FLOW_ACTION_MARK:
 			mark = act->mark;
 			break;
+
+		case FLOW_ACTION_RX_QUEUE_MAPPING:
+			req->op = NIX_RX_ACTIONOP_UCAST;
+			req->index = act->rx_queue;
+			break;
+
 		default:
 			return -EOPNOTSUPP;
 		}
@@ -419,6 +429,63 @@ static int otx2_tc_parse_actions(struct otx2_nic *nic,
 	if (nr_police)
 		return otx2_tc_act_set_police(nic, node, f, rate, burst,
 					      mark, req, pps);
+
+	return 0;
+}
+
+static int otx2_tc_process_vlan(struct otx2_nic *nic, struct flow_msg *flow_spec,
+				struct flow_msg *flow_mask, struct flow_rule *rule,
+				struct npc_install_flow_req *req, bool is_inner)
+{
+	struct flow_match_vlan match;
+	u16 vlan_tci, vlan_tci_mask;
+
+	if (!is_inner)
+		flow_rule_match_vlan(rule, &match);
+	else
+		flow_rule_match_cvlan(rule, &match);
+
+	if ((ntohs(match.key->vlan_tpid) != ETH_P_8021Q) &&
+	    (ntohs(match.key->vlan_tpid) != ETH_P_8021AD)) {
+		netdev_err(nic->netdev, "vlan tpid 0x%x not supported\n",
+			   ntohs(match.key->vlan_tpid));
+		return -EOPNOTSUPP;
+	}
+
+	if (!match.mask->vlan_id) {
+		struct flow_action_entry *act;
+		int i;
+
+		flow_action_for_each(i, act, &rule->action) {
+			if (act->id == FLOW_ACTION_DROP) {
+				netdev_err(nic->netdev, "vlan tpid 0x%x with vlan_id %d is not supported for DROP rule.\n",
+					   ntohs(match.key->vlan_tpid), match.key->vlan_id);
+				return -EOPNOTSUPP;
+			}
+		}
+	}
+
+	if (match.mask->vlan_id ||
+	    match.mask->vlan_dei ||
+	    match.mask->vlan_priority) {
+		vlan_tci = match.key->vlan_id |
+			   match.key->vlan_dei << 12 |
+			   match.key->vlan_priority << 13;
+
+		vlan_tci_mask = match.mask->vlan_id |
+				match.mask->vlan_dei << 12 |
+				match.mask->vlan_priority << 13;
+
+		if (!is_inner) {
+			flow_spec->vlan_tci = htons(vlan_tci);
+			flow_mask->vlan_tci = htons(vlan_tci_mask);
+			req->features |= BIT_ULL(NPC_OUTER_VID);
+		} else {
+			flow_spec->vlan_itci = htons(vlan_tci);
+			flow_mask->vlan_itci = htons(vlan_tci_mask);
+			req->features |= BIT_ULL(NPC_INNER_VID);
+		}
+	}
 
 	return 0;
 }
@@ -442,6 +509,7 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 	      BIT(FLOW_DISSECTOR_KEY_BASIC) |
 	      BIT(FLOW_DISSECTOR_KEY_ETH_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_VLAN) |
+	      BIT(FLOW_DISSECTOR_KEY_CVLAN) |
 	      BIT(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_PORTS) |
@@ -548,47 +616,19 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 	}
 
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_VLAN)) {
-		struct flow_match_vlan match;
-		u16 vlan_tci, vlan_tci_mask;
+		int ret;
 
-		flow_rule_match_vlan(rule, &match);
+		ret = otx2_tc_process_vlan(nic, flow_spec, flow_mask, rule, req, false);
+		if (ret)
+			return ret;
+	}
 
-		if (ntohs(match.key->vlan_tpid) != ETH_P_8021Q) {
-			netdev_err(nic->netdev, "vlan tpid 0x%x not supported\n",
-				   ntohs(match.key->vlan_tpid));
-			return -EOPNOTSUPP;
-		}
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN)) {
+		int ret;
 
-		if (!match.mask->vlan_id) {
-			struct flow_action_entry *act;
-			int i;
-
-			flow_action_for_each(i, act, &rule->action) {
-				if (act->id == FLOW_ACTION_DROP) {
-					netdev_err(nic->netdev,
-						   "vlan tpid 0x%x with vlan_id %d is not supported for DROP rule.\n",
-						   ntohs(match.key->vlan_tpid),
-						   match.key->vlan_id);
-					return -EOPNOTSUPP;
-				}
-			}
-		}
-
-		if (match.mask->vlan_id ||
-		    match.mask->vlan_dei ||
-		    match.mask->vlan_priority) {
-			vlan_tci = match.key->vlan_id |
-				   match.key->vlan_dei << 12 |
-				   match.key->vlan_priority << 13;
-
-			vlan_tci_mask = match.mask->vlan_id |
-					match.mask->vlan_dei << 12 |
-					match.mask->vlan_priority << 13;
-
-			flow_spec->vlan_tci = htons(vlan_tci);
-			flow_mask->vlan_tci = htons(vlan_tci_mask);
-			req->features |= BIT_ULL(NPC_OUTER_VID);
-		}
+		ret = otx2_tc_process_vlan(nic, flow_spec, flow_mask, rule, req, true);
+		if (ret)
+			return ret;
 	}
 
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPV4_ADDRS)) {

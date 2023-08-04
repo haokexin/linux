@@ -5,6 +5,7 @@ obj-y           += octeontx2-ghes/
 obj-y           += octeontx2-pcicons/
 obj-y		+= octeontx2-dpi/
 obj-y		+= octeontx2-sdp/
+obj-y		+= octeontx2-serdes/
 obj-y           += cn10ka-swup/
 obj-$(CONFIG_MARVELL_FWLOG) += fwlog.o
 obj-$(CONFIG_MVMDIO_UIO) += mvmdio_uio.o

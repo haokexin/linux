@@ -20,6 +20,7 @@ static const char * const npc_flow_names[] = {
 	[NPC_VLAN_ETYPE_CTAG] = "vlan ether type ctag",
 	[NPC_VLAN_ETYPE_STAG] = "vlan ether type stag",
 	[NPC_OUTER_VID]	= "outer vlan id",
+	[NPC_INNER_VID]	= "inner vlan id",
 	[NPC_TOS]	= "tos",
 	[NPC_IPFRAG_IPV4] = "fragmented IPv4 header ",
 	[NPC_SIP_IPV4]	= "ipv4 source ip",
@@ -330,6 +331,8 @@ static void npc_handle_multi_layer_fields(struct rvu *rvu, int blkaddr, u8 intf)
 	 */
 	struct npc_key_field *vlan_tag1;
 	struct npc_key_field *vlan_tag2;
+	/* Inner VLAN TCI for double tagged frames */
+	struct npc_key_field *vlan_tag3;
 	u64 *features;
 	u8 start_lid;
 	int i;
@@ -352,6 +355,7 @@ static void npc_handle_multi_layer_fields(struct rvu *rvu, int blkaddr, u8 intf)
 	etype_tag2 = &key_fields[NPC_ETYPE_TAG2];
 	vlan_tag1 = &key_fields[NPC_VLAN_TAG1];
 	vlan_tag2 = &key_fields[NPC_VLAN_TAG2];
+	vlan_tag3 = &key_fields[NPC_VLAN_TAG3];
 
 	/* if key profile programmed does not extract Ethertype at all */
 	if (!etype_ether->nr_kws && !etype_tag1->nr_kws && !etype_tag2->nr_kws)
@@ -417,6 +421,12 @@ vlan_tci:
 	if (npc_check_overlap(rvu, blkaddr, NPC_OUTER_VID, start_lid, intf))
 		goto done;
 	*features |= BIT_ULL(NPC_OUTER_VID);
+
+	/* If key profile extracts inner vlan tci */
+	if (vlan_tag3->nr_kws) {
+		key_fields[NPC_INNER_VID] = *vlan_tag3;
+		*features |= BIT_ULL(NPC_INNER_VID);
+	}
 done:
 	return;
 }
@@ -499,6 +509,7 @@ do {									       \
 	NPC_SCAN_HDR(NPC_ETYPE_TAG2, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 8, 2);
 	NPC_SCAN_HDR(NPC_VLAN_TAG1, NPC_LID_LB, NPC_LT_LB_CTAG, 2, 2);
 	NPC_SCAN_HDR(NPC_VLAN_TAG2, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 2, 2);
+	NPC_SCAN_HDR(NPC_VLAN_TAG3, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 6, 2);
 	NPC_SCAN_HDR(NPC_FDSA_VAL, NPC_LID_LB, NPC_LT_LB_FDSA, 1, 1);
 	NPC_SCAN_HDR(NPC_GTPU_TEID, NPC_LID_LE, NPC_LT_LE_GTPU, 4, 4);
 	NPC_SCAN_HDR(NPC_GTPC_TEID, NPC_LID_LE, NPC_LT_LE_GTPC, 4, 4);
@@ -940,6 +951,8 @@ do {									      \
 		       ntohs(mask->vlan_tci), 0);
 	NPC_WRITE_FLOW(NPC_FDSA_VAL, vlan_tci, ntohs(pkt->vlan_tci), 0,
 		       ntohs(mask->vlan_tci), 0);
+	NPC_WRITE_FLOW(NPC_INNER_VID, vlan_itci, ntohs(pkt->vlan_itci), 0,
+		       ntohs(mask->vlan_itci), 0);
 
 	NPC_WRITE_FLOW(NPC_IPFRAG_IPV6, next_header, pkt->next_header, 0,
 		       mask->next_header, 0);
@@ -1681,6 +1694,71 @@ int rvu_mbox_handler_npc_get_field_status(struct rvu *rvu,
 
 	if (npc_check_field(rvu, blkaddr, req->field, req->intf))
 		rsp->enable = 1;
+
+	return 0;
+}
+
+int rvu_mbox_handler_npc_mcam_get_hit_status(struct rvu *rvu,
+					     struct npc_mcam_get_hit_status_req *req,
+					     struct npc_mcam_get_hit_status_rsp *rsp)
+{
+	struct npc_mcam *mcam = &rvu->hw->mcam;
+	u8 mcam_entry_per_hit_counter = 16;
+	u8 bank_inc, bank_start, bank_end;
+	u8 hit_start, hit_end;
+	u8 bank, arr_idx;
+	u64 val, bitmap;
+	u32 start, end;
+	int blkaddr;
+	bool clear;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
+	if (blkaddr < 0)
+		return NPC_MCAM_INVALID_REQ;
+
+	if (is_cn10ka_a0(rvu) || is_cn10ka_a1(rvu) ||
+	    is_cnf10kb_a0(rvu) || is_cnf10ka_a1(rvu))
+		mcam_entry_per_hit_counter = 64;
+
+	bank_inc = 1;
+	start = req->mcam_id_start;
+	end = req->mcam_id_end;
+	bank_start = npc_get_bank(mcam, start);
+	bank_end = npc_get_bank(mcam, end);
+	if (bank_start < 0 || bank_start > 3 ||
+	    bank_end < 0 || bank_end > 3)
+		return NPC_MCAM_INVALID_REQ;
+
+	arr_idx = start / mcam_entry_per_hit_counter;
+	hit_start = (start % mcam->banksize) / mcam_entry_per_hit_counter;
+	hit_end = (end % mcam->banksize) / mcam_entry_per_hit_counter;
+	clear = req->clear;
+	if (mcam->keysize == NPC_MCAM_KEY_X2)
+		bank_inc = 2;
+
+	bank = bank_start;
+	while (bank <= bank_end) {
+		for (; hit_start < mcam_entry_per_hit_counter; hit_start++) {
+			if (bank == bank_end && hit_start > hit_end)
+				return 0;
+
+			bitmap = req->mcam_ids[arr_idx];
+			if (bitmap) {
+				val = rvu_read64(rvu, blkaddr,
+						 NPC_AF_MCAM_BANKX_HITX(bank, hit_start));
+				rsp->mcam_hit_status[arr_idx] = val & bitmap;
+				if (clear)
+					rvu_write64(rvu, blkaddr,
+						    NPC_AF_MCAM_BANKX_HITX(bank, hit_start),
+						    bitmap);
+			}
+
+			arr_idx++;
+		}
+
+		hit_start = 0;
+		bank += bank_inc;
+	}
 
 	return 0;
 }

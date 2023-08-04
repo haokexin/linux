@@ -12,6 +12,7 @@
 #include "rvu_reg.h"
 #include "rvu.h"
 #include "npc.h"
+#include "mcs.h"
 #include "cgx.h"
 #include "lmac_common.h"
 #include "rvu_npc_hash.h"
@@ -1788,7 +1789,7 @@ int rvu_mbox_handler_nix_lf_alloc(struct rvu *rvu,
 	/* Configure RX VTAG Type 6 (strip) for fdsa */
 	rvu_write64(rvu, blkaddr,
 		    NIX_AF_LFX_RX_VTAG_TYPEX(nixlf, NIX_AF_LFX_RX_VTAG_TYPE6),
-		    VTAGSIZE_T4 | BIT_ULL(4) | BIT_ULL(5));
+		    VTAGSIZE_T4 | VTAG_STRIP | VTAG_CAPTURE);
 
 	goto exit;
 
@@ -3047,8 +3048,12 @@ static int nix_tx_vtag_free(struct rvu *rvu, int blkaddr,
 			    u16 pcifunc, int index)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
-	struct nix_txvlan *vlan = &nix_hw->txvlan;
+	struct nix_txvlan *vlan;
 
+	if (!nix_hw)
+		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	vlan = &nix_hw->txvlan;
 	if (vlan->entry2pfvf_map[index] != pcifunc)
 		return NIX_AF_ERR_PARAM;
 
@@ -3092,9 +3097,14 @@ static int nix_tx_vtag_alloc(struct rvu *rvu, int blkaddr,
 			     u64 vtag, u8 size)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
-	struct nix_txvlan *vlan = &nix_hw->txvlan;
+	struct nix_txvlan *vlan;
 	u64 regval;
 	int index;
+
+	if (!nix_hw)
+		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	vlan = &nix_hw->txvlan;
 
 	mutex_lock(&vlan->rsrc_lock);
 
@@ -3120,12 +3130,16 @@ static int nix_tx_vtag_decfg(struct rvu *rvu, int blkaddr,
 			     struct nix_vtag_config *req)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
-	struct nix_txvlan *vlan = &nix_hw->txvlan;
 	u16 pcifunc = req->hdr.pcifunc;
 	int idx0 = req->tx.vtag0_idx;
 	int idx1 = req->tx.vtag1_idx;
+	struct nix_txvlan *vlan;
 	int err = 0;
 
+	if (!nix_hw)
+		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	vlan = &nix_hw->txvlan;
 	if (req->tx.free_vtag0 && req->tx.free_vtag1)
 		if (vlan->entry2pfvf_map[idx0] != pcifunc ||
 		    vlan->entry2pfvf_map[idx1] != pcifunc)
@@ -3152,9 +3166,13 @@ static int nix_tx_vtag_cfg(struct rvu *rvu, int blkaddr,
 			   struct nix_vtag_config_rsp *rsp)
 {
 	struct nix_hw *nix_hw = get_nix_hw(rvu->hw, blkaddr);
-	struct nix_txvlan *vlan = &nix_hw->txvlan;
+	struct nix_txvlan *vlan;
 	u16 pcifunc = req->hdr.pcifunc;
 
+	if (!nix_hw)
+		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	vlan = &nix_hw->txvlan;
 	if (req->tx.cfg_vtag0) {
 		rsp->vtag0_idx =
 			nix_tx_vtag_alloc(rvu, blkaddr,
@@ -3911,7 +3929,7 @@ static int set_flowkey_fields(struct nix_rx_flowkey_alg *alg, u32 flow_cfg)
 					field->bytesm1 = 15; /* DIP,16 bytes */
 				}
 			}
-			field->ltype_mask = 0xF; /* Match only IPv6 */
+			field->ltype_mask = 0xE; /* Match IPv6 and IPv6_ext */
 			break;
 		case NIX_FLOW_KEY_TYPE_TCP:
 		case NIX_FLOW_KEY_TYPE_UDP:
@@ -4369,20 +4387,13 @@ int rvu_mbox_handler_nix_set_rx_mode(struct rvu *rvu, struct nix_rx_mode *req,
 	}
 
 	/* install/uninstall promisc entry */
-	if (promisc) {
+	if (promisc)
 		rvu_npc_install_promisc_entry(rvu, pcifunc, nixlf,
 					      pfvf->rx_chan_base,
 					      pfvf->rx_chan_cnt);
-
-		if (rvu_npc_exact_has_match_table(rvu))
-			rvu_npc_exact_promisc_enable(rvu, pcifunc);
-	} else {
+	else
 		if (!nix_rx_multicast)
 			rvu_npc_enable_promisc_entry(rvu, pcifunc, nixlf, false);
-
-		if (rvu_npc_exact_has_match_table(rvu))
-			rvu_npc_exact_promisc_disable(rvu, pcifunc);
-	}
 
 	return 0;
 }
@@ -4691,6 +4702,12 @@ static void nix_link_config(struct rvu *rvu, int blkaddr,
 			    ((u64)lbk_max_frs << 16) | NIC_HW_MIN_FRS);
 	}
 
+	/* Get MCS external bypass status for CN10K-B */
+	if (mcs_get_blkcnt() == 1) {
+		/* Adjust for 2 credits when external bypass is disabled */
+		nix_hw->cc_mcs_cnt = is_mcs_bypass(0) ? 0 : 2;
+	}
+
 	/* Set credits for Tx links assuming max packet length allowed.
 	 * This will be reconfigured based on MTU set for PF/VF.
 	 */
@@ -4714,6 +4731,7 @@ static void nix_link_config(struct rvu *rvu, int blkaddr,
 			tx_credits = (lmac_fifo_len - lmac_max_frs) / 16;
 			/* Enable credits and set credit pkt count to max allowed */
 			cfg =  (tx_credits << 12) | (0x1FF << 2) | BIT_ULL(1);
+			cfg |= (nix_hw->cc_mcs_cnt << 32);
 
 			link = iter + slink;
 			nix_hw->tx_credits[link] = tx_credits;
@@ -5380,7 +5398,7 @@ static void nix_inline_ipsec_cfg(struct rvu *rvu, struct nix_inline_ipsec_cfg *r
 				 int blkaddr)
 {
 	u8 cpt_idx, cpt_blkaddr;
-	u64 val;
+	u64 val = 0;
 
 	cpt_idx = (blkaddr == BLKADDR_NIX0) ? 0 : 1;
 	if (req->enable) {
@@ -6236,7 +6254,7 @@ int nix_inline_rq_mask_alloc(struct rvu *rvu,
 					      NIX_AF_RX_RQX_MASKX(idx, rq_idx));
 			reg_set  = rvu_read64(rvu, blkaddr,
 					      NIX_AF_RX_RQX_SETX(idx, rq_idx));
-			if (reg_mask != req->rq_ctx_word_mask[rq_idx] &&
+			if (reg_mask != req->rq_ctx_word_mask[rq_idx] ||
 			    reg_set != req->rq_ctx_word_set[rq_idx])
 				break;
 		}

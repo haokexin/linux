@@ -426,13 +426,16 @@ static int cn10k_mcs_write_tx_secy(struct otx2_nic *pfvf,
 	struct mcs_secy_plcy_write_req *req;
 	struct mbox *mbox = &pfvf->mbox;
 	struct macsec_tx_sc *sw_tx_sc;
-	/* Insert SecTag after 12 bytes (DA+SA)*/
-	u8 tag_offset = 12;
 	u8 sectag_tci = 0;
+	u8 tag_offset;
 	u64 policy;
 	u8 cipher;
 	int ret;
 
+	/* Insert SecTag after 12 bytes (DA+SA) or 16 bytes
+	 * if VLAN tag needs to be sent in clear text.
+	 */
+	tag_offset = txsc->vlan_dev ? 16 : 12;
 	sw_tx_sc = &secy->tx_sc;
 
 	mutex_lock(&mbox->lock);
@@ -1050,7 +1053,7 @@ static void cn10k_mcs_sync_stats(struct otx2_nic *pfvf, struct macsec_secy *secy
 
 static int cn10k_mdo_open(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
 	struct macsec_tx_sa *sw_tx_sa;
@@ -1074,7 +1077,7 @@ static int cn10k_mdo_open(struct macsec_context *ctx)
 
 static int cn10k_mdo_stop(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct cn10k_mcs_txsc *txsc;
 	int err;
@@ -1095,7 +1098,7 @@ static int cn10k_mdo_stop(struct macsec_context *ctx)
 
 static int cn10k_mdo_add_secy(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
 	struct cn10k_mcs_txsc *txsc;
@@ -1111,6 +1114,7 @@ static int cn10k_mdo_add_secy(struct macsec_context *ctx)
 	txsc->encoding_sa = secy->tx_sc.encoding_sa;
 	txsc->last_validate_frames = secy->validate_frames;
 	txsc->last_replay_protect = secy->replay_protect;
+	txsc->vlan_dev = is_vlan_dev(ctx->netdev);
 
 	list_add(&txsc->entry, &cfg->txsc_list);
 
@@ -1122,7 +1126,7 @@ static int cn10k_mdo_add_secy(struct macsec_context *ctx)
 
 static int cn10k_mdo_upd_secy(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
 	struct macsec_tx_sa *sw_tx_sa;
@@ -1157,7 +1161,7 @@ static int cn10k_mdo_upd_secy(struct macsec_context *ctx)
 
 static int cn10k_mdo_del_secy(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct cn10k_mcs_txsc *txsc;
 
@@ -1179,7 +1183,7 @@ static int cn10k_mdo_del_secy(struct macsec_context *ctx)
 
 static int cn10k_mdo_add_txsa(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct macsec_tx_sa *sw_tx_sa = ctx->sa.tx_sa;
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
@@ -1224,7 +1228,7 @@ static int cn10k_mdo_add_txsa(struct macsec_context *ctx)
 
 static int cn10k_mdo_upd_txsa(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct macsec_tx_sa *sw_tx_sa = ctx->sa.tx_sa;
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
@@ -1257,7 +1261,7 @@ static int cn10k_mdo_upd_txsa(struct macsec_context *ctx)
 
 static int cn10k_mdo_del_txsa(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	u8 sa_num = ctx->sa.assoc_num;
 	struct cn10k_mcs_txsc *txsc;
@@ -1277,7 +1281,7 @@ static int cn10k_mdo_del_txsa(struct macsec_context *ctx)
 
 static int cn10k_mdo_add_rxsc(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
 	struct cn10k_mcs_rxsc *rxsc;
@@ -1311,7 +1315,7 @@ static int cn10k_mdo_add_rxsc(struct macsec_context *ctx)
 
 static int cn10k_mdo_upd_rxsc(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
 	bool enable = ctx->rx_sc->active;
@@ -1330,7 +1334,7 @@ static int cn10k_mdo_upd_rxsc(struct macsec_context *ctx)
 
 static int cn10k_mdo_del_rxsc(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct cn10k_mcs_rxsc *rxsc;
 
@@ -1348,8 +1352,8 @@ static int cn10k_mdo_del_rxsc(struct macsec_context *ctx)
 
 static int cn10k_mdo_add_rxsa(struct macsec_context *ctx)
 {
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct macsec_rx_sc *sw_rx_sc = ctx->sa.rx_sa->sc;
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_rx_sa *rx_sa = ctx->sa.rx_sa;
 	struct macsec_secy *secy = ctx->secy;
@@ -1391,8 +1395,8 @@ static int cn10k_mdo_add_rxsa(struct macsec_context *ctx)
 
 static int cn10k_mdo_upd_rxsa(struct macsec_context *ctx)
 {
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct macsec_rx_sc *sw_rx_sc = ctx->sa.rx_sa->sc;
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_rx_sa *rx_sa = ctx->sa.rx_sa;
 	struct macsec_secy *secy = ctx->secy;
@@ -1424,8 +1428,8 @@ static int cn10k_mdo_upd_rxsa(struct macsec_context *ctx)
 
 static int cn10k_mdo_del_rxsa(struct macsec_context *ctx)
 {
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct macsec_rx_sc *sw_rx_sc = ctx->sa.rx_sa->sc;
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	u8 sa_num = ctx->sa.assoc_num;
 	struct cn10k_mcs_rxsc *rxsc;
@@ -1447,8 +1451,8 @@ static int cn10k_mdo_del_rxsa(struct macsec_context *ctx)
 
 static int cn10k_mdo_get_dev_stats(struct macsec_context *ctx)
 {
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct mcs_secy_stats tx_rsp = { 0 }, rx_rsp = { 0 };
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
 	struct cn10k_mcs_txsc *txsc;
@@ -1483,7 +1487,7 @@ static int cn10k_mdo_get_dev_stats(struct macsec_context *ctx)
 
 static int cn10k_mdo_get_tx_sc_stats(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct mcs_sc_stats rsp = { 0 };
 	struct cn10k_mcs_txsc *txsc;
@@ -1504,7 +1508,7 @@ static int cn10k_mdo_get_tx_sc_stats(struct macsec_context *ctx)
 
 static int cn10k_mdo_get_rx_sc_stats(struct macsec_context *ctx)
 {
-	struct otx2_nic *pfvf = netdev_priv(ctx->netdev);
+	struct otx2_nic *pfvf = macsec_netdev_priv(ctx->netdev);
 	struct cn10k_mcs_cfg *cfg = pfvf->macsec_cfg;
 	struct macsec_secy *secy = ctx->secy;
 	struct mcs_sc_stats rsp = { 0 };
