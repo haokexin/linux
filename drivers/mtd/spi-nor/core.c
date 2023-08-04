@@ -677,37 +677,85 @@ static void spi_nor_clear_sr(struct spi_nor *nor)
 }
 
 static const struct flash_info *spi_nor_read_id(struct spi_nor *nor);
+
+/**
+ * spi_nor_s25fl_l_read_sr2() - Read the Status Register 2 using the
+ * SPINOR_OP_RDSR2_FL_L (07h) command.
+ * @nor:	pointer to 'struct spi_nor'.
+ * @sr2:	pointer to DMA-able buffer where the value of the
+ *		Status Register 2 will be written.
+ *
+ * Return: 0 on success, -errno otherwise.
+ */
+static int spi_nor_s25fl_l_read_sr2(struct spi_nor *nor, u8 *sr2)
+{
+	int ret;
+
+	if (nor->spimem) {
+		struct spi_mem_op op =
+			SPI_MEM_OP(SPI_MEM_OP_CMD(SPINOR_OP_RDSR2_FL_L, 1),
+				   SPI_MEM_OP_NO_ADDR,
+				   SPI_MEM_OP_NO_DUMMY,
+				   SPI_MEM_OP_DATA_IN(1, sr2, 1));
+
+		ret = spi_mem_exec_op(nor->spimem, &op);
+	} else {
+		ret = nor->controller_ops->read_reg(nor, SPINOR_OP_RDSR2_FL_L,
+						    sr2, 1);
+	}
+
+	if (ret)
+		dev_dbg(nor->dev, "error %d reading SR2\n", ret);
+
+	return ret;
+}
+
 /*
- * Cypress FL-L series devices have redesigned the status register,
- * P_ERR and E_ERR bits are shifted to the status register 2.
+ * spi_nor_s25fl_l_sr_ready() - Query the Status Register to see if the flash
+ * is ready for new commands. Used by Cypress FL-L series chips.
+ * @nor:	pointer to 'struct spi_nor'.
+ *
+ * Return: 1 if ready, 0 if not ready, -errno on errors.
  */
 static int spi_nor_s25fl_l_sr_ready(struct spi_nor *nor)
 {
-	u8 sr1, sr2;
+	u8 *sr = nor->bouncebuf;
 	int ret;
 
-	ret = nor->controller_ops->read_reg(nor, SPINOR_OP_RDSR, &sr1, 1);
-	if (ret < 0) {
-		pr_err("error %d reading SR\n", (int) ret);
+	ret = spi_nor_read_sr(nor, sr);
+	if (ret)
 		return ret;
-	}
-	ret = nor->controller_ops->read_reg(nor, SPINOR_OP_RDSR2_FL_L, &sr2, 1);
-	if (ret < 0) {
-		pr_err("error %d reading SR2\n", (int) ret);
-		return ret;
-	}
 
-	if (nor->flags & SNOR_F_USE_CLSR && sr2 & (SR_E_ERR | SR_P_ERR)) {
-		if (sr2 & SR_E_ERR)
+	/**
+	 * P_ERR and E_ERR bits are located in the Status Register 2
+	 * of Cypress FL-L series chips.
+	 */
+	ret = spi_nor_s25fl_l_read_sr2(nor, &sr[1]);
+	if (ret)
+		return ret;
+
+	if (nor->flags & SNOR_F_USE_CLSR && sr[1] & (SR_E_ERR | SR_P_ERR)) {
+		if (sr[1] & SR_E_ERR)
 			dev_err(nor->dev, "Erase Error occurred\n");
 		else
 			dev_err(nor->dev, "Programming Error occurred\n");
 
-		nor->controller_ops->write_reg(nor, SPINOR_OP_CLSR, NULL, 0);
+		spi_nor_clear_sr(nor);
+
+		/*
+		 * WEL bit remains set to one when an erase or page program
+		 * error occurs. Issue a Write Disable command to protect
+	 * against inadvertent writes that can possibly corrupt the
+		 * contents of the memory.
+	 */
+		ret = spi_nor_write_disable(nor);
+		if (ret)
+			return ret;
+
 		return -EIO;
 	}
 
-	return !(sr1 & SR_WIP);
+	return !(sr[0] & SR_WIP);
 }
 
 /**
@@ -720,12 +768,15 @@ static int spi_nor_s25fl_l_sr_ready(struct spi_nor *nor)
 static int spi_nor_sr_ready(struct spi_nor *nor)
 {
 	int ret;
-	const struct flash_info *tmpinfo = (nor->info == NULL) ? nor->info : spi_nor_read_id(nor);
+	const struct flash_info *tmpinfo = nor->info ? nor->info : spi_nor_read_id(nor);
 
-	if (!IS_ERR_OR_NULL(tmpinfo)){
-		if (!strcmp(tmpinfo->name, "s25fl064l") || !strcmp(tmpinfo->name, "s25fl128l") || !strcmp(tmpinfo->name, "s25fl256l")){
-			return spi_nor_s25fl_l_sr_ready(nor);
-		}
+	if (IS_ERR_OR_NULL(tmpinfo))
+		return -ENOENT;
+
+	if (!strcmp(tmpinfo->name, "s25fl064l")
+			|| !strcmp(tmpinfo->name, "s25fl128l")
+			|| !strcmp(tmpinfo->name, "s25fl256l")) {
+		return spi_nor_s25fl_l_sr_ready(nor);
 	}
 
 	ret = spi_nor_read_sr(nor, nor->bouncebuf);
