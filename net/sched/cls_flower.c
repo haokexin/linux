@@ -71,6 +71,7 @@ struct fl_flow_key {
 	} tp_range;
 	struct flow_dissector_key_ct ct;
 	struct flow_dissector_key_hash hash;
+	struct flow_dissector_key_ipsec ipsec;
 } __aligned(BITS_PER_LONG / 8); /* Ensure that we can do comparisons as longs. */
 
 struct fl_flow_mask_range {
@@ -712,6 +713,8 @@ static const struct nla_policy fl_policy[TCA_FLOWER_MAX + 1] = {
 	[TCA_FLOWER_FLAGS]		= { .type = NLA_U32 },
 	[TCA_FLOWER_KEY_HASH]		= { .type = NLA_U32 },
 	[TCA_FLOWER_KEY_HASH_MASK]	= { .type = NLA_U32 },
+	[TCA_FLOWER_KEY_SPI]		= { .type = NLA_U32 },
+	[TCA_FLOWER_KEY_SPI_MASK]	= { .type = NLA_U32 },
 
 };
 
@@ -765,6 +768,24 @@ static void fl_set_key_val(struct nlattr **tb,
 		memset(mask, 0xff, len);
 	else
 		nla_memcpy(mask, tb[mask_type], len);
+}
+
+static int fl_set_key_spi(struct nlattr **tb, struct fl_flow_key *key,
+			  struct fl_flow_key *mask,
+			  struct netlink_ext_ack *extack)
+{
+	if (key->basic.ip_proto != IPPROTO_ESP &&
+	    key->basic.ip_proto != IPPROTO_AH) {
+		NL_SET_ERR_MSG(extack,
+			       "Protocol must be either ESP or AH");
+		return -EINVAL;
+	}
+
+	fl_set_key_val(tb, &key->ipsec.spi,
+		       TCA_FLOWER_KEY_SPI,
+		       &mask->ipsec.spi, TCA_FLOWER_KEY_SPI_MASK,
+		       sizeof(key->ipsec.spi));
+	return 0;
 }
 
 static int fl_set_key_port_range(struct nlattr **tb, struct fl_flow_key *key,
@@ -1669,6 +1690,12 @@ static int fl_set_key(struct net *net, struct nlattr **tb,
 			return ret;
 	}
 
+	if (tb[TCA_FLOWER_KEY_SPI]) {
+		ret = fl_set_key_spi(tb, key, mask, extack);
+		if (ret)
+			return ret;
+	}
+
 	if (tb[TCA_FLOWER_KEY_ENC_IPV4_SRC] ||
 	    tb[TCA_FLOWER_KEY_ENC_IPV4_DST]) {
 		key->enc_control.addr_type = FLOW_DISSECTOR_KEY_IPV4_ADDRS;
@@ -1835,6 +1862,8 @@ static void fl_init_dissector(struct flow_dissector *dissector,
 			     FLOW_DISSECTOR_KEY_CT, ct);
 	FL_KEY_SET_IF_MASKED(mask, keys, cnt,
 			     FLOW_DISSECTOR_KEY_HASH, hash);
+	FL_KEY_SET_IF_MASKED(mask, keys, cnt,
+			     FLOW_DISSECTOR_KEY_IPSEC, ipsec);
 
 	skb_flow_dissector_init(dissector, keys, cnt);
 }
@@ -3008,6 +3037,12 @@ static int fl_dump_key(struct sk_buff *skb, struct net *net,
 		  fl_dump_key_val(skb, key->arp.tha, TCA_FLOWER_KEY_ARP_THA,
 				  mask->arp.tha, TCA_FLOWER_KEY_ARP_THA_MASK,
 				  sizeof(key->arp.tha))))
+		goto nla_put_failure;
+
+	if (key->ipsec.spi &&
+	    fl_dump_key_val(skb, &key->ipsec.spi, TCA_FLOWER_KEY_SPI,
+			    &mask->ipsec.spi, TCA_FLOWER_KEY_SPI_MASK,
+			    sizeof(key->ipsec.spi)))
 		goto nla_put_failure;
 
 	if ((key->basic.ip_proto == IPPROTO_TCP ||
