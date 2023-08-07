@@ -1126,15 +1126,6 @@ static bool etm4_init_iomem_access(struct etmv4_drvdata *drvdata,
 {
 	u32 devarch = readl_relaxed(drvdata->base + TRCDEVARCH);
 
-	/* OcteonTX2 hardware reports version as ETMv4.2 but it supports
-	 * Ignore Packet feature of ETMv4.3. Hence, treat this as comaptible
-	 * with ETMv4.3.
-	 */
-	if (drvdata->etm_quirks & CORESIGHT_QUIRK_ETM_TREAT_ETMv43) {
-		devarch &= ~0xF0;
-		devarch |= 0x30;
-	}
-
 	if (!is_coresight_device(drvdata->base) || !is_devtype_cpu_trace(drvdata->base))
 		return false;
 
@@ -1221,6 +1212,13 @@ static void etm4_init_arch_data(void *info)
 	 */
 	if (!etm4_init_csdev_access(drvdata, csa))
 		return;
+
+	/* OcteonTX2 hardware reports version as ETMv4.2 but it supports
+	 * Ignore Packet feature of ETMv4.3. Hence, override this
+	 * with ETMv4.3.
+	 */
+	if (drvdata->etm_quirks & CORESIGHT_QUIRK_ETM_TREAT_ETMv43)
+		drvdata->arch = ETM_ARCH_V4_3;
 
 	if (!csa->io_mem ||
 	    fwnode_property_present(dev_fwnode(dev), "qcom,skip-power-up"))
