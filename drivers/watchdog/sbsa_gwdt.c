@@ -40,6 +40,7 @@
  * is half of that in the single stage mode.
  */
 
+#include <linux/clk.h>
 #include <linux/io.h>
 #include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/interrupt.h>
@@ -90,6 +91,7 @@ struct sbsa_gwdt {
 	int			version;
 	void __iomem		*refresh_base;
 	void __iomem		*control_base;
+	struct clk		*sclk;
 };
 
 #define DEFAULT_TIMEOUT		10 /* seconds */
@@ -117,6 +119,9 @@ MODULE_PARM_DESC(nowayout,
 		 "Watchdog cannot be stopped once started (default="
 		 __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
 
+static int panicnotify;
+module_param(panicnotify, int, 0);
+MODULE_PARM_DESC(panicnotify, "after kernel panic, do: 0 = don't stop wd(*)  1 = stop wd");
 /*
  * Arm Base System Architecture 1.0 introduces watchdog v1 which
  * increases the length watchdog offset register to 48 bits.
@@ -148,19 +153,29 @@ static int sbsa_gwdt_set_timeout(struct watchdog_device *wdd,
 				 unsigned int timeout)
 {
 	struct sbsa_gwdt *gwdt = watchdog_get_drvdata(wdd);
+	u64 tout;
 
 	wdd->timeout = timeout;
 	timeout = clamp_t(unsigned int, timeout, 1, wdd->max_hw_heartbeat_ms / 1000);
 
-	if (action)
-		sbsa_gwdt_reg_write(gwdt->clk * timeout, gwdt);
-	else
+	if (action) {
+		tout = (u64)gwdt->clk * (u64)timeout;
+		if (tout > UINT_MAX)
+			sbsa_gwdt_reg_write(UINT_MAX, gwdt);
+		else
+			sbsa_gwdt_reg_write(tout, gwdt);
+	} else {
 		/*
 		 * In the single stage mode, The first signal (WS0) is ignored,
 		 * the timeout is (WOR * 2), so the WOR should be configured
 		 * to half value of timeout.
 		 */
-		sbsa_gwdt_reg_write(gwdt->clk / 2 * timeout, gwdt);
+		tout = (u64)gwdt->clk / 2 * (u64)timeout;
+		if (tout > UINT_MAX)
+			sbsa_gwdt_reg_write(UINT_MAX, gwdt);
+		else
+			sbsa_gwdt_reg_write(tout, gwdt);
+	}
 
 	return 0;
 }
@@ -255,6 +270,39 @@ static const struct watchdog_ops sbsa_gwdt_ops = {
 	.get_timeleft	= sbsa_gwdt_get_timeleft,
 };
 
+static void sbsa_clk_disable_unprepare(void *data)
+{
+	clk_disable_unprepare(data);
+}
+
+static int get_sbsa_clkfrq(struct platform_device *pdev, struct sbsa_gwdt *gwdt)
+{
+	int err;
+
+	gwdt->sclk = devm_clk_get(&pdev->dev, NULL);
+	if (IS_ERR(gwdt->sclk))
+		return PTR_ERR(gwdt->sclk);
+
+	err = clk_prepare_enable(gwdt->sclk);
+	if (err)
+		return err;
+
+	err = devm_add_action_or_reset(&pdev->dev,
+				       sbsa_clk_disable_unprepare, gwdt->sclk);
+	if (err)
+		goto err_exit;
+
+	gwdt->clk = clk_get_rate(gwdt->sclk);
+	if (!gwdt->clk)
+		return -EINVAL;
+
+	return 0;
+
+err_exit:
+	clk_disable_unprepare(gwdt->sclk);
+	return err;
+}
+
 static int sbsa_gwdt_probe(struct platform_device *pdev)
 {
 	void __iomem *rf_base, *cf_base;
@@ -282,7 +330,11 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
 	 * Generic timer. We don't need to check it, because if it returns "0",
 	 * system would panic in very early stage.
 	 */
-	gwdt->clk = arch_timer_get_cntfrq();
+	if (!get_sbsa_clkfrq(pdev, gwdt))
+		dev_info(dev, "Using Clock data from device node.\n");
+	else
+		gwdt->clk = arch_timer_get_cntfrq();
+
 	gwdt->refresh_base = rf_base;
 	gwdt->control_base = cf_base;
 
@@ -307,6 +359,9 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
 	}
 	if (status & SBSA_GWDT_WCS_EN)
 		set_bit(WDOG_HW_RUNNING, &wdd->status);
+
+	if (!nowayout && panicnotify)
+		watchdog_stop_on_panic(wdd);
 
 	if (action) {
 		irq = platform_get_irq(pdev, 0);

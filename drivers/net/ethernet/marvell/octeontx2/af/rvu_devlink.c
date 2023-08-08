@@ -1618,9 +1618,15 @@ static int rvu_af_dl_tim_adjust_timers_set(struct devlink *devlink, u32 id,
 	return 0;
 }
 
-static bool cn10k_tim_adjust_gti_errata(struct rvu *rvu)
+static bool cn10k_tim_adjust_gti_errata(struct pci_dev *pdev)
 {
-	if (is_cnf10ka_a1(rvu))
+	if ((pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
+	     (pdev->revision & 0x0F) >= 0x1) ||
+	    (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+	     (pdev->revision & 0x0F) >= 0x4) ||
+	    (pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A &&
+	     (pdev->revision & 0x0F) >= 0x4) ||
+	    pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_B)
 		return true;
 	return false;
 }
@@ -1633,7 +1639,7 @@ static int rvu_af_dl_tim_adjust_timer_get(struct devlink *devlink, u32 id,
 	u64 offset, delta;
 
 	if (id == RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI &&
-	    cn10k_tim_adjust_gti_errata(rvu))
+	    cn10k_tim_adjust_gti_errata(rvu->pdev))
 		return -ENXIO;
 
 	offset = rvu_af_dl_tim_param_id_to_offset(id);
@@ -1654,7 +1660,7 @@ static int rvu_af_dl_tim_adjust_timer_set(struct devlink *devlink, u32 id,
 		return -EINVAL;
 
 	if (id == RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI &&
-	    cn10k_tim_adjust_gti_errata(rvu))
+	    cn10k_tim_adjust_gti_errata(rvu->pdev))
 		return -ENXIO;
 
 	offset = rvu_af_dl_tim_param_id_to_offset(id);
@@ -1759,6 +1765,8 @@ static int rvu_af_dl_npc_mcam_high_zone_percent_set(struct devlink *devlink, u32
 	mcam = &rvu->hw->mcam;
 	mcam->hprio_count = (mcam->bmap_entries * percent) / 100;
 	mcam->hprio_end = mcam->hprio_count;
+	mcam->lprio_count = (mcam->bmap_entries - mcam->hprio_count) / 2;
+	mcam->lprio_start = mcam->bmap_entries - mcam->lprio_count;
 
 	return 0;
 }
@@ -1771,10 +1779,10 @@ static int rvu_af_dl_npc_mcam_high_zone_percent_validate(struct devlink *devlink
 	struct rvu *rvu = rvu_dl->rvu;
 	struct npc_mcam *mcam;
 
-	/* The high prio zone must be in the range of 1/8 to 3/4 of total mcam space */
-	if (val.vu8 < 12 || val.vu8 > 75) {
+	/* The percent of high prio zone must range from 12% to 100% of unreserved mcam space */
+	if (val.vu8 < 12 || val.vu8 > 100) {
 		NL_SET_ERR_MSG_MOD(extack,
-				   "mcam high zone percent must be between 15% to 75%");
+				   "mcam high zone percent must be between 12% to 100%");
 		return -EINVAL;
 	}
 

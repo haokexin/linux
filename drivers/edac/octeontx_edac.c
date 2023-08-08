@@ -17,13 +17,15 @@ static const struct soc_device_attribute cn10_socinfo[] = {
 	/* cn10ka */
 	{.soc_id = "jep106:0369:00b9", .revision = "0x00000000",},
 	{.soc_id = "jep106:0369:00b9", .revision = "0x00000001",},
+	{.soc_id = "jep106:0369:00b9", .revision = "0x00000008",},
 	/* cn10kb */
 	{.soc_id = "jep106:0369:00bd",},
 	/* cnf10ka */
 	{.soc_id = "jep106:0369:00ba", .revision = "0x00000000",},
 	{.soc_id = "jep106:0369:00ba", .revision = "0x00000001",},
 	/* cnf10kb */
-	{.soc_id = "jep106:0369:00bc",},
+	{.soc_id = "jep106:0369:00bc", .revision = "0x00000000",},
+	{.soc_id = "jep106:0369:00bc", .revision = "0x00000008",},
 	{},
 };
 
@@ -761,6 +763,7 @@ static int octeontx_edac_mc_init(struct platform_device *pdev,
 	struct octeontx_edac_pvt *pvt = NULL;
 	struct mem_ctl_info *mci = NULL;
 	struct edac_mc_layer layers[1] = {0};
+	struct dimm_info *dimm;
 	int ret = 0;
 	int idx = 0;
 
@@ -790,6 +793,11 @@ static int octeontx_edac_mc_init(struct platform_device *pdev,
 	mci->edac_check = NULL;
 	pvt->ghes = ghes;
 	ghes->mci = mci;
+
+	for (idx = 0; idx < mci->tot_dimms; idx++) {
+		dimm = mci->dimms[idx];
+		dimm->grain = 1;
+	}
 
 	ret = edac_mc_add_mc_with_groups(mci, ghes->ecc_cap ? octeontx_dev_groups : NULL);
 	if (ret)

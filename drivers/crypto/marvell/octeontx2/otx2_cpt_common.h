@@ -29,7 +29,6 @@
 /* HW capability flags */
 #define CN10K_MBOX  0
 #define CN10K_LMTST 1
-#define CN10KB_SG   2
 
 #define BAD_OTX2_CPT_ENG_TYPE OTX2_CPT_MAX_ENG_TYPES
 
@@ -54,6 +53,8 @@ struct otx2_cpt_rx_inline_lf_cfg {
 	u32 credit_th;
 	u16 bpid;
 	u32 reserved;
+	u8 ctx_ilen_valid : 1;
+	u8 ctx_ilen : 7;
 };
 
 /* Take mbox id from end of CPT mbox range in AF (range 0xA00 - 0xBFF) */
@@ -153,9 +154,17 @@ static inline bool is_dev_otx2(struct pci_dev *pdev)
 
 static inline bool is_dev_cn10ka(struct pci_dev *pdev)
 {
-	if ((pdev->device == CN10K_CPT_PCI_PF_DEVICE_ID ||
-	    pdev->device == CN10K_CPT_PCI_VF_DEVICE_ID) &&
-	    pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A)
+	if (pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A)
+		return true;
+
+	return false;
+}
+
+static inline bool is_dev_cn10ka_ax(struct pci_dev *pdev)
+{
+	if ((pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A) &&
+	    ((pdev->revision & 0xFF) == 4 || (pdev->revision & 0xFF) == 0x50 ||
+	     (pdev->revision & 0xff) == 0x51))
 		return true;
 
 	return false;
@@ -163,9 +172,16 @@ static inline bool is_dev_cn10ka(struct pci_dev *pdev)
 
 static inline bool is_dev_cn10kb(struct pci_dev *pdev)
 {
-	if ((pdev->device == CN10K_CPT_PCI_PF_DEVICE_ID ||
-	    pdev->device == CN10K_CPT_PCI_VF_DEVICE_ID) &&
-	    pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_B)
+	if (pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_B)
+		return true;
+
+	return false;
+}
+
+static inline bool is_dev_cn10ka_b0(struct pci_dev *pdev)
+{
+	if ((pdev->subsystem_device == CPT_PCI_SUBSYS_DEVID_CN10K_A) &&
+	    (pdev->revision & 0xFF) == 0x54)
 		return true;
 
 	return false;
@@ -178,8 +194,30 @@ static inline void otx2_cpt_set_hw_caps(struct pci_dev *pdev,
 		__set_bit(CN10K_MBOX, cap_flag);
 		__set_bit(CN10K_LMTST, cap_flag);
 	}
-	if (is_dev_cn10kb(pdev))
-		__set_bit(CN10KB_SG, cap_flag);
+}
+
+static inline bool cpt_is_errata_38550_exists(struct pci_dev *pdev)
+{
+	if (is_dev_otx2(pdev) || is_dev_cn10ka_ax(pdev))
+		return true;
+
+	return false;
+}
+
+static inline bool cpt_feature_rxc_icb_cnt(struct pci_dev *pdev)
+{
+	if (!is_dev_otx2(pdev) && !is_dev_cn10ka_ax(pdev))
+		return true;
+
+	return false;
+}
+
+static inline bool cpt_feature_sgv2(struct pci_dev *pdev)
+{
+	if (!is_dev_otx2(pdev) && !is_dev_cn10ka_ax(pdev))
+		return true;
+
+	return false;
 }
 
 int otx2_cpt_send_ready_msg(struct otx2_mbox *mbox, struct pci_dev *pdev);
@@ -200,5 +238,6 @@ int otx2_cpt_attach_rscrs_msg(struct otx2_cptlfs_info *lfs);
 int otx2_cpt_detach_rsrcs_msg(struct otx2_cptlfs_info *lfs);
 int otx2_cpt_msix_offset_msg(struct otx2_cptlfs_info *lfs);
 int otx2_cpt_sync_mbox_msg(struct otx2_mbox *mbox);
+int otx2_cpt_lf_reset_msg(struct otx2_cptlfs_info *lfs, int slot);
 
 #endif /* __OTX2_CPT_COMMON_H */

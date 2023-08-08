@@ -18,7 +18,7 @@
 #include "mcs_fips_mbox.h"
 #include "npc.h"
 #include "rvu_reg.h"
-#include "rvu_validation.h"
+#include "ptp.h"
 
 /* PCI device IDs */
 #define	PCI_DEVID_OCTEONTX2_RVU_AF		0xA065
@@ -293,10 +293,6 @@ struct rvu_pfvf {
 	struct nix_mce_list	promisc_mce_list;
 	bool			use_mce_list;
 
-	/* For resource limits */
-	struct pci_dev	*pdev;
-	struct kobject	*limits_kobj;
-
 	struct rvu_npc_mcam_rule *def_ucast_rule;
 
 	bool	cgx_in_use; /* this PF/VF using CGX? */
@@ -351,6 +347,22 @@ struct nix_mark_format {
 	u32 *cfg;
 };
 
+/* smq(flush) to tl1 cir/pir info */
+struct nix_smq_tree_ctx {
+	u64 cir_off;
+	u64 cir_val;
+	u64 pir_off;
+	u64 pir_val;
+};
+
+/* smq flush context */
+struct nix_smq_flush_ctx {
+	int smq;
+	u16 tl1_schq;
+	u16 tl2_schq;
+	struct nix_smq_tree_ctx smq_tree_ctx[NIX_TXSCH_LVL_CNT];
+};
+
 struct npc_pkind {
 	struct rsrc_bmap rsrc;
 	u32	*pfchan_map;
@@ -400,6 +412,7 @@ struct nix_hw {
 	struct nix_bp bp;
 	u64    *tx_credits;
 	void   *tx_stall;
+	u64 cc_mcs_cnt;
 };
 
 /* RVU block's capabilities or functionality,
@@ -425,6 +438,7 @@ struct hw_cap {
 	bool	npc_hash_extract; /* Hash extract enabled ? */
 	bool	npc_exact_match_enabled; /* Exact match supported ? */
 	u16     spi_to_sas; /* Num of SPI to SA index */
+	bool    cpt_rxc;   /* Is CPT-RXC supported */
 };
 
 struct rvu_hwinfo {
@@ -540,7 +554,6 @@ struct rvu {
 	struct rvu_hwinfo       *hw;
 	struct rvu_pfvf		*pf;
 	struct rvu_pfvf		*hwvf;
-	struct rvu_limits	pf_limits;
 	struct mutex		rsrc_lock; /* Serialize resource alloc/free */
 	struct mutex		alias_lock; /* Serialize bar2 alias access */
 	int			vfs; /* Number of VFs attached to RVU */
@@ -568,7 +581,7 @@ struct rvu {
 	u8			cgx_mapped_pfs;
 	u8			cgx_cnt_max;	 /* CGX port count max */
 	u8			*pf2cgxlmac_map; /* pf to cgx_lmac map */
-	u16			*cgxlmac2pf_map; /* bitmap of mapped pfs for
+	u64			*cgxlmac2pf_map; /* bitmap of mapped pfs for
 						  * every cgx lmac port
 						  */
 	unsigned long		pf_notify_bmap; /* Flags for PF notification */
@@ -611,6 +624,8 @@ struct rvu {
 	spinlock_t		mcs_intrq_lock;
 	/* CPT interrupt lock */
 	spinlock_t		cpt_intr_lock;
+
+	struct mutex		mbox_lock; /* Serialize mbox up and down msgs */
 };
 
 static inline void rvu_write64(struct rvu *rvu, u64 block, u64 offset, u64 val)
@@ -685,7 +700,8 @@ static inline bool is_cgx_mapped_to_nix(unsigned short id, u8 cgx_id)
 
 	return !(cgx_id && !(id == PCI_SUBSYS_DEVID_96XX ||
 			     id == PCI_SUBSYS_DEVID_98XX ||
-			     id == PCI_SUBSYS_DEVID_CN10K_A));
+			     id == PCI_SUBSYS_DEVID_CN10K_A ||
+			     id == PCI_SUBSYS_DEVID_CN10K_B));
 }
 
 /* REVID for PCIe devices.
@@ -750,11 +766,30 @@ static inline bool is_cn10kb_a1(struct rvu *rvu)
 	return false;
 }
 
+static inline bool is_cn10kb(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_B)
+		return true;
+	return false;
+}
+
 static inline bool is_cnf10kb_a0(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
 
 	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+	    (pdev->revision & 0x0F) == 0x0)
+		return true;
+	return false;
+}
+
+static inline bool is_cnf10ka_a0(struct rvu *rvu)
+{
+	struct pci_dev *pdev = rvu->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
 	    (pdev->revision & 0x0F) == 0x0)
 		return true;
 	return false;
@@ -783,10 +818,10 @@ static inline bool is_rvu_npc_hash_extract_en(struct rvu *rvu)
 
 static inline bool is_rvu_nix_spi_to_sa_en(struct rvu *rvu)
 {
-	u64 npc_const2;
+	u64 nix_const2;
 
-	npc_const2 = rvu_read64(rvu, BLKADDR_NIX0, NPC_AF_CONST2);
-	if ((npc_const2 >> 48) & 0xffff)
+	nix_const2 = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_CONST2);
+	if ((nix_const2 >> 48) & 0xffff)
 		return true;
 
 	return false;

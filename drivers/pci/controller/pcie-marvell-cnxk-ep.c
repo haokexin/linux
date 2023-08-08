@@ -19,7 +19,7 @@
 #include <linux/uio_driver.h>
 #include <linux/miscdevice.h>
 
-#define PEM_EP_DRV_NAME		"octeontx2-pem-ep"
+#define PEM_EP_DRV_NAME		"marvell-cnxk-ep"
 
 #define PEM_DIS_PORT		0x50ull
 #define PEM_CFG                 0x00D8ull
@@ -39,7 +39,7 @@
 #define PEM_BAR4_INDEX_ADDR_IDX(x)	((x) << 4)
 
 #define PEM_BAR4_NUM_INDEX	8
-#define PEM_BAR4_INDEX_START	8
+#define PEM_BAR4_INDEX_START	7
 #define PEM_BAR4_INDEX_END	13
 #define PEM_BAR4_INDEX_SIZE	0x400000ULL
 #define PEM_BAR4_INDEX_SHIFT	22
@@ -49,6 +49,7 @@
 #define PEM_BAR4_INDEX_END_OFFSET (((PEM_BAR4_INDEX_END + 1) * \
 				    PEM_BAR4_INDEX_SIZE) - 1)
 
+#define PEM_HW_INST(a)		((a >> 36) & 0xF)
 /* Some indexes have specific non-memory uses */
 #define PEM_BAR4_INDEX_PTP	14
 #define MIO_PTP_BASE_ADDR	0x807000000f00
@@ -61,7 +62,10 @@ struct mv_pem_ep {
 	struct device	*dev;
 	void __iomem	*base;
 	void		*va[PEM_BAR4_NUM_INDEX];
+	u8		pem;
+	char		uio_name[16];
 	struct uio_info	uio_rst_int_perst;
+	char		mdev_name[32];
 	struct miscdevice mdev;
 };
 
@@ -107,7 +111,8 @@ static int register_perst_uio_dev(struct platform_device *pdev, struct mv_pem_ep
 		return irq;
 
 	uio_info = &pem_ep->uio_rst_int_perst;
-	uio_info->name = "PEM_RST_INT:PERST";
+	snprintf(pem_ep->uio_name, 16, "PEM%d_PERST", pem_ep->pem);
+	uio_info->name = pem_ep->uio_name;
 	uio_info->version = UIO_PERST_VERSION;
 	uio_info->irq = irq;
 	uio_info->irq_flags = IRQF_SHARED;
@@ -126,7 +131,6 @@ static int register_perst_uio_dev(struct platform_device *pdev, struct mv_pem_ep
 
 	/* clear RST interrupt status */
 	regval = pem_ep_reg_read(pem_ep, PEM_RST_INT);
-	dev_info(dev, "PEM_RST_INT: 0x%llx\n", regval);
 	pem_ep_reg_write(pem_ep, PEM_RST_INT, regval);
 
 	/* set RST PERST & LINKDOWN interrupt enables */
@@ -357,7 +361,8 @@ mem_file_setup(struct mv_pem_ep *pem_ep)
 
 	mdev = &pem_ep->mdev;
 	mdev->minor = MISC_DYNAMIC_MINOR;
-	mdev->name = "pem_ep_bar4_mem";
+	snprintf(pem_ep->mdev_name, 32, "pem%d_ep_bar4_mem", pem_ep->pem);
+	mdev->name = pem_ep->mdev_name;
 	mdev->fops = &memdev_fops;
 	mdev->parent = pem_ep->dev;
 	ret = misc_register(mdev);
@@ -379,6 +384,7 @@ static int pem_ep_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, pem_ep);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	pem_ep->pem = PEM_HW_INST(res->start);
 	pem_ep->base = ioremap(res->start, resource_size(res));
 	if (IS_ERR(pem_ep->base)) {
 		dev_err(dev, "error in mapping PEM EP base\n");

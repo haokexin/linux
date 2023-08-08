@@ -66,7 +66,7 @@ static irqreturn_t cpt_af_flt_intr_handler(int vec, void *ptr)
 	struct rvu *rvu = block->rvu;
 	int blkaddr = block->addr;
 	u64 reg, val;
-	int i, eng;
+	int i, eng = 0;
 	u8 grp;
 
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_FLTX_INT(vec));
@@ -676,6 +676,7 @@ static bool is_valid_offset(struct rvu *rvu, struct cpt_rd_wr_reg_msg *req)
 		case CPT_AF_BLK_RST:
 		case CPT_AF_CONSTANTS1:
 		case CPT_AF_CTX_FLUSH_TIMER:
+		case CPT_AF_RXC_CFG1:
 			return true;
 		}
 
@@ -728,8 +729,7 @@ int rvu_mbox_handler_cpt_rd_wr_register(struct rvu *rvu,
 
 static void get_ctx_pc(struct rvu *rvu, struct cpt_sts_rsp *rsp, int blkaddr)
 {
-	if (is_rvu_otx2(rvu))
-		return;
+	struct rvu_hwinfo *hw = rvu->hw;
 
 	rsp->ctx_mis_pc = rvu_read64(rvu, blkaddr, CPT_AF_CTX_MIS_PC);
 	rsp->ctx_hit_pc = rvu_read64(rvu, blkaddr, CPT_AF_CTX_HIT_PC);
@@ -751,14 +751,16 @@ static void get_ctx_pc(struct rvu *rvu, struct cpt_sts_rsp *rsp, int blkaddr)
 	rsp->ctx_err = rvu_read64(rvu, blkaddr, CPT_AF_CTX_ERR);
 	rsp->ctx_enc_id = rvu_read64(rvu, blkaddr, CPT_AF_CTX_ENC_ID);
 	rsp->ctx_flush_timer = rvu_read64(rvu, blkaddr, CPT_AF_CTX_FLUSH_TIMER);
+	rsp->x2p_link_cfg0 = rvu_read64(rvu, blkaddr, CPT_AF_X2PX_LINK_CFG(0));
+	rsp->x2p_link_cfg1 = rvu_read64(rvu, blkaddr, CPT_AF_X2PX_LINK_CFG(1));
 
+	if (!hw->cap.cpt_rxc)
+		return;
 	rsp->rxc_time = rvu_read64(rvu, blkaddr, CPT_AF_RXC_TIME);
 	rsp->rxc_time_cfg = rvu_read64(rvu, blkaddr, CPT_AF_RXC_TIME_CFG);
 	rsp->rxc_active_sts = rvu_read64(rvu, blkaddr, CPT_AF_RXC_ACTIVE_STS);
 	rsp->rxc_zombie_sts = rvu_read64(rvu, blkaddr, CPT_AF_RXC_ZOMBIE_STS);
 	rsp->rxc_dfrg = rvu_read64(rvu, blkaddr, CPT_AF_RXC_DFRG);
-	rsp->x2p_link_cfg0 = rvu_read64(rvu, blkaddr, CPT_AF_X2PX_LINK_CFG(0));
-	rsp->x2p_link_cfg1 = rvu_read64(rvu, blkaddr, CPT_AF_X2PX_LINK_CFG(1));
 }
 
 static void get_eng_sts(struct rvu *rvu, struct cpt_sts_rsp *rsp, int blkaddr)
@@ -939,10 +941,11 @@ int rvu_mbox_handler_cpt_flt_eng_info(struct rvu *rvu, struct cpt_flt_eng_info_r
 static void cpt_rxc_teardown(struct rvu *rvu, int blkaddr)
 {
 	struct cpt_rxc_time_cfg_req req, prev;
+	struct rvu_hwinfo *hw = rvu->hw;
 	int timeout = 2000;
 	u64 reg;
 
-	if (is_rvu_otx2(rvu))
+	if (!hw->cap.cpt_rxc)
 		return;
 
 	/* Set time limit to minimum values, so that rxc entries will be
@@ -1070,14 +1073,21 @@ int rvu_cpt_lf_teardown(struct rvu *rvu, u16 pcifunc, int blkaddr, int lf, int s
 static int cpt_inline_inb_lf_cmd_send(struct rvu *rvu, int blkaddr,
 				      int nix_blkaddr)
 {
-	int cpt_pf_num = rvu->cpt_pf_num;
+	int cpt_pf_num = rvu->cpt_pf_num, num_lfs;
 	struct cpt_inst_lmtst_req *req;
 	dma_addr_t res_daddr;
 	int timeout = 3000;
+	u16 pcifunc;
 	u8 cpt_idx;
 	u64 *inst;
 	u16 *res;
 	int rc;
+
+	pcifunc = (cpt_pf_num & RVU_PFVF_PF_MASK) << RVU_PFVF_PF_SHIFT;
+	num_lfs = rvu_get_rsrc_mapcount(rvu_get_pfvf(rvu, pcifunc),
+					blkaddr);
+	if (num_lfs == 0)
+		return 0;
 
 	res = kzalloc(CPT_RES_LEN, GFP_KERNEL);
 	if (!res)
@@ -1183,15 +1193,13 @@ int rvu_cpt_ctx_flush(struct rvu *rvu, u16 pcifunc)
 	reg = rvu_read64(rvu, blkaddr, CPT_AF_CONSTANTS0);
 	max_ctx_entries = (reg >> 48) & 0xFFF;
 
-	mutex_lock(&rvu->rsrc_lock);
 
 	num_lfs = rvu_get_rsrc_mapcount(rvu_get_pfvf(rvu, pcifunc),
 					blkaddr);
-	if (num_lfs == 0) {
-		dev_warn(rvu->dev, "CPT LF is not configured\n");
-		goto unlock;
-	}
+	if (num_lfs == 0)
+		return 0;
 
+	mutex_lock(&rvu->alias_lock);
 	/* Enable BAR2 ALIAS for this pcifunc. */
 	reg = BIT_ULL(16) | pcifunc;
 	rvu_bar2_sel_write64(rvu, blkaddr, CPT_AF_BAR2_SEL, reg);
@@ -1209,16 +1217,30 @@ int rvu_cpt_ctx_flush(struct rvu *rvu, u16 pcifunc)
 	}
 	rvu_bar2_sel_write64(rvu, blkaddr, CPT_AF_BAR2_SEL, 0);
 
-unlock:
-	mutex_unlock(&rvu->rsrc_lock);
-
+	mutex_unlock(&rvu->alias_lock);
 	return 0;
 }
 
 int rvu_cpt_init(struct rvu *rvu)
 {
+	struct rvu_hwinfo *hw = rvu->hw;
+	u64 reg_val;
+
 	/* Retrieve CPT PF number */
 	rvu->cpt_pf_num = get_cpt_pf_num(rvu);
+	if (is_block_implemented(rvu->hw, BLKADDR_CPT0) && !is_rvu_otx2(rvu) && !is_cn10kb(rvu))
+		hw->cap.cpt_rxc = true;
+
+	if (hw->cap.cpt_rxc && !is_cn10ka_a0(rvu) && !is_cn10ka_a1(rvu)) {
+		/* Set CPT_AF_RXC_CFG1:max_rxc_icb_cnt to 0xc0 to not effect
+		 * inline inbound peak performance
+		 */
+		reg_val = rvu_read64(rvu, BLKADDR_CPT0, CPT_AF_RXC_CFG1);
+		reg_val &= ~(0x1FFULL << 32);
+		reg_val |= 0xC0ULL << 32;
+		rvu_write64(rvu, BLKADDR_CPT0, CPT_AF_RXC_CFG1, reg_val);
+	}
+
 	spin_lock_init(&rvu->cpt_intr_lock);
 
 	return 0;

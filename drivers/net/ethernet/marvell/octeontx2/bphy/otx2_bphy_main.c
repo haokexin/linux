@@ -105,7 +105,7 @@ static irqreturn_t otx2_bphy_intr_handler(int irq, void *dev_id)
 	}
 
 	/* CNF95 intr processing */
-	for (rfoe_num = 0; rfoe_num < MAX_RFOE_INTF; rfoe_num++) {
+	for (rfoe_num = 0; rfoe_num < cdev_priv->num_rfoe_mhab; rfoe_num++) {
 		intr_mask = RFOE_RX_INTR_MASK(rfoe_num);
 		if (status & intr_mask)
 			otx2_rfoe_rx_napi_schedule(rfoe_num, status);
@@ -153,7 +153,6 @@ static int otx2_rfoe_ptp_clk_src_cfg(struct otx2_bphy_cdev_priv *cdev,
 	struct cnf10k_rfoe_ndev_priv *cnf10k_priv;
 	struct otx2_rfoe_drv_ctx *drv_ctx = NULL;
 	struct otx2_rfoe_ndev_priv *priv;
-	void __iomem *ptp_reg_base;
 	struct net_device *netdev;
 	u32 ptp_ext_clk_rate;
 	int idx, ret = 0;
@@ -170,8 +169,6 @@ static int otx2_rfoe_ptp_clk_src_cfg(struct otx2_bphy_cdev_priv *cdev,
 				cnf10k_priv->ptp_ext_clk_rate = ptp_ext_clk_rate;
 			}
 		}
-
-		ptp_reg_base = cnf10k_priv->ptp_reg_base;
 	} else {
 		for (idx = 0; idx < RFOE_MAX_INTF; idx++) {
 			drv_ctx = &rfoe_drv_ctx[idx];
@@ -181,15 +178,13 @@ static int otx2_rfoe_ptp_clk_src_cfg(struct otx2_bphy_cdev_priv *cdev,
 				priv->ptp_ext_clk_rate = ptp_ext_clk_rate;
 			}
 		}
-
-		ptp_reg_base = priv->ptp_reg_base;
 	}
 
 	cfg = readq(ptp_reg_base + MIO_PTP_CLOCK_CFG);
 	cfg &= ~MIO_PTP_CLOCK_CFG_EXT_CLK_MASK;
 	if (clk_src_cfg.clk_input) {
 		cfg |= MIO_PTP_CLOCK_CFG_EXT_CLK_EN;
-		cfg |= (clk_src_cfg.clk_source << 2);
+		cfg |= ((u64)clk_src_cfg.clk_source << 2);
 	} else {
 		cfg &= ~MIO_PTP_CLOCK_CFG_EXT_CLK_EN;
 	}
@@ -238,6 +233,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 				   (MAX_RFOE_INTF *
 				   sizeof(struct bphy_netdev_comm_intf_cfg)))) {
 			dev_err(cdev->dev, "copy from user fault\n");
+			kfree(intf_cfg);
 			ret = -EFAULT;
 			goto out;
 		}
@@ -248,6 +244,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		ret = otx2_rfoe_parse_and_init_intf(cdev, intf_cfg);
 		if (ret < 0) {
 			dev_err(cdev->dev, "odp <-> netdev parse error\n");
+			kfree(intf_cfg);
 			goto out;
 		}
 
@@ -255,6 +252,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 			ret = otx2_cpri_parse_and_init_intf(cdev, intf_cfg);
 			if (ret < 0) {
 				dev_err(cdev->dev, "odp <-> netdev parse error\n");
+				kfree(intf_cfg);
 				goto out;
 			}
 		}
@@ -267,6 +265,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		if (!bphy_pdev) {
 			dev_err(cdev->dev, "Couldn't find BPHY PCI device %x\n",
 				OTX2_BPHY_PCI_DEVICE_ID);
+			kfree(intf_cfg);
 			ret = -ENODEV;
 			goto out;
 		}
@@ -337,13 +336,21 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		}
 
 		spin_lock_irqsave(&cdev->mbt_lock, flags);
-		writeq(cfg.rx_ind_idx, (rfoe_reg_base +
-		       RFOEX_RX_INDIRECT_INDEX_OFFSET(cfg.rfoe_num)));
+
+		if (CHIP_CNF10K(cdev->hw_version))
+			writeq(cfg.rx_ind_idx, (rfoe_reg_base +
+			       CNF10K_RFOEX_RX_INDIRECT_INDEX_OFFSET(cfg.rfoe_num)));
+		else
+			writeq(cfg.rx_ind_idx, (rfoe_reg_base +
+			       RFOEX_RX_INDIRECT_INDEX_OFFSET(cfg.rfoe_num)));
+
 		if (cfg.dir == OTX2_RFOE_RX_IND_READ)
 			cfg.regval = readq(rfoe_reg_base + cfg.regoff);
 		else
 			writeq(cfg.regval, rfoe_reg_base + cfg.regoff);
+
 		spin_unlock_irqrestore(&cdev->mbt_lock, flags);
+
 		if (copy_to_user((void __user *)(unsigned long)arg, &cfg,
 				 sizeof(struct otx2_rfoe_rx_ind_cfg))) {
 			dev_err(cdev->dev, "copy to user fault\n");
@@ -462,6 +469,13 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 			goto out;
 		}
 
+		if (clk_src_cfg.clk_freq_div <= 0) {
+			dev_err(cdev->dev, "Invalid ptp clock freq divisor %d\n",
+				clk_src_cfg.clk_freq_div);
+			ret = -EINVAL;
+			goto out;
+		}
+
 		ret = otx2_rfoe_ptp_clk_src_cfg(cdev, clk_src_cfg);
 		break;
 	}
@@ -537,6 +551,12 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		if (copy_from_user(&id, (void __user *)arg, sizeof(int))) {
 			dev_err(cdev->dev, "copy from user fault\n");
 			ret = -EFAULT;
+			goto out;
+		}
+
+		if (id < 0 || id >= BPHY_MAX_RFOE_MHAB) {
+			dev_err(cdev->dev, "Invalid rfoe mhab id %d\n", id);
+			ret = -EINVAL;
 			goto out;
 		}
 
@@ -637,7 +657,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 					break;
 			}
 			if (idx < max_interfaces) {
-				netdev = cnf10k_cpri_drv_ctx->netdev;
+				netdev = cnf10k_drv_ctx->netdev;
 				cnf10k_cpri_set_link_state(netdev,
 							   cfg.link_state);
 			}
@@ -687,6 +707,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 				   (BPHY_MAX_RFOE_MHAB *
 				    sizeof(*intf_cfg)))) {
 			dev_err(cdev->dev, "copy from user fault\n");
+			kfree(intf_cfg);
 			ret = -EFAULT;
 			goto out;
 		}
@@ -697,6 +718,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		ret = cnf10k_rfoe_parse_and_init_intf(cdev, intf_cfg);
 		if (ret < 0) {
 			dev_err(cdev->dev, "odp <-> netdev parse error\n");
+			kfree(intf_cfg);
 			goto out;
 		}
 
@@ -708,6 +730,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		if (!bphy_pdev) {
 			dev_err(cdev->dev, "Couldn't find BPHY PCI device %x\n",
 				OTX2_BPHY_PCI_DEVICE_ID);
+			kfree(intf_cfg);
 			ret = -ENODEV;
 			goto out;
 		}
@@ -747,6 +770,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		if (copy_from_user(intf_cfg, (void __user *)arg,
 				   sizeof(*intf_cfg))) {
 			dev_err(cdev->dev, "copy from user fault\n");
+			kfree(intf_cfg);
 			ret = -EFAULT;
 			goto out;
 		}
@@ -755,6 +779,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 			ret = cnf10k_cpri_parse_and_init_intf(cdev, intf_cfg);
 			if (ret < 0) {
 				dev_err(cdev->dev, "odp <-> netdev parse error\n");
+				kfree(intf_cfg);
 				goto out;
 			}
 		}
@@ -767,6 +792,7 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 		if (!bphy_pdev) {
 			dev_err(cdev->dev, "Couldn't find BPHY PCI device %x\n",
 				OTX2_BPHY_PCI_DEVICE_ID);
+			kfree(intf_cfg);
 			ret = -ENODEV;
 			goto out;
 		}
@@ -784,6 +810,43 @@ static long otx2_bphy_cdev_ioctl(struct file *filp, unsigned int cmd,
 
 		kfree(intf_cfg);
 
+		ret = 0;
+		goto out;
+	}
+	case OTX2_IOCTL_PTP_SW_PHC_RESET:
+	{
+		struct cnf10k_rfoe_drv_ctx *cnf10k_drv_ctx = NULL;
+		struct cnf10k_rfoe_ndev_priv *cnf10k_priv;
+		struct otx2_rfoe_drv_ctx *drv_ctx = NULL;
+		struct otx2_rfoe_ndev_priv *priv;
+		struct net_device *netdev;
+		int idx;
+
+		if (!cdev->odp_intf_cfg) {
+			dev_info(cdev->dev, "odp interface cfg is not done\n");
+			ret = -EBUSY;
+			goto out;
+		}
+
+		if (CHIP_CNF10K(cdev->hw_version)) {
+			for (idx = 0; idx < CNF10K_RFOE_MAX_INTF; idx++) {
+				cnf10k_drv_ctx = &cnf10k_rfoe_drv_ctx[idx];
+				if (cnf10k_drv_ctx->valid) {
+					netdev = cnf10k_drv_ctx->netdev;
+					cnf10k_priv = netdev_priv(netdev);
+					cnf10k_rfoe_ptp_reset_sw_phc(cnf10k_priv);
+				}
+			}
+		} else {
+			for (idx = 0; idx < RFOE_MAX_INTF; idx++) {
+				drv_ctx = &rfoe_drv_ctx[idx];
+				if (drv_ctx->valid) {
+					netdev = drv_ctx->netdev;
+					priv = netdev_priv(netdev);
+					otx2_rfoe_ptp_reset_sw_phc(priv);
+				}
+			}
+		}
 		ret = 0;
 		goto out;
 	}

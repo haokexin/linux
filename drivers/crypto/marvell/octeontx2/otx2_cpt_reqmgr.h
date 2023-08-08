@@ -21,6 +21,9 @@
 #define OTX2_CPT_DMA_MODE_DIRECT 0
 #define OTX2_CPT_DMA_MODE_SG     1
 
+#define OTX2_CPT_OUT_MODE_OOP     0
+#define OTX2_CPT_OUT_MODE_INPLACE 1
+
 /* Context source CPTR or DPTR */
 #define OTX2_CPT_FROM_CPTR 0
 #define OTX2_CPT_FROM_DPTR 1
@@ -44,6 +47,7 @@ struct otx2_cptvf_request {
 	void *cptr;
 	dma_addr_t dptr_dma;
 	void *dptr;
+	dma_addr_t rptr_dma;
 };
 
 /*
@@ -275,9 +279,9 @@ sg_cleanup:
 	return ret;
 }
 
-static inline int cn10kb_sgio_components_setup(struct pci_dev *pdev,
-					       struct otx2_cpt_buf_ptr *list,
-					       int buf_count, u8 *buffer)
+static inline int sgv2io_components_setup(struct pci_dev *pdev,
+					  struct otx2_cpt_buf_ptr *list,
+					  int buf_count, u8 *buffer)
 {
 	struct cn10kb_cpt_sglist_component *sg_ptr = NULL;
 	int ret = 0, i, j;
@@ -341,7 +345,7 @@ sg_cleanup:
 	return ret;
 }
 
-static inline struct otx2_cpt_inst_info *cn10kb_sg_info_create(struct pci_dev *pdev,
+static inline struct otx2_cpt_inst_info *cn10k_sgv2_info_create(struct pci_dev *pdev,
 					      struct otx2_cpt_req_info *req,
 					      gfp_t gfp)
 {
@@ -375,14 +379,14 @@ static inline struct otx2_cpt_inst_info *cn10kb_sg_info_create(struct pci_dev *p
 	info->sctr_sz = req->out_cnt;
 
 	/* Setup gather (input) components */
-	if (cn10kb_sgio_components_setup(pdev, req->in, req->in_cnt,
-					 info->in_buffer)) {
+	if (sgv2io_components_setup(pdev, req->in, req->in_cnt,
+				    info->in_buffer)) {
 		dev_err(&pdev->dev, "Failed to setup gather list\n");
 		goto destroy_info;
 	}
 
-	if (cn10kb_sgio_components_setup(pdev, req->out, req->out_cnt,
-					 &info->in_buffer[g_len])) {
+	if (sgv2io_components_setup(pdev, req->out, req->out_cnt,
+				    &info->in_buffer[g_len])) {
 		dev_err(&pdev->dev, "Failed to setup scatter list\n");
 		goto destroy_info;
 	}
@@ -504,7 +508,7 @@ static inline struct otx2_cpt_inst_info *otx2_cpt_info_create(struct pci_dev *pd
 
 	info->in_buffer = req->req.dptr;
 	info->dptr_baddr = req->req.dptr_dma;
-	info->rptr_baddr = req->req.dptr_dma;
+	info->rptr_baddr = req->req.rptr_dma;
 
 	info->completion_addr = (u8 *)info + info_len;
 	info->dma_len = total_mem_len - info_len;

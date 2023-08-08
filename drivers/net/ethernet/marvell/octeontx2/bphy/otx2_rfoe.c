@@ -301,18 +301,19 @@ static void otx2_rfoe_ptp_submit_work(struct work_struct *work)
 	priv->ptp_job_tag = psm_cmd_lo->jobtag;
 
 	/* update length and block size in jd dma cfg word */
-	jd_cfg_ptr_iova = *(u64 *)((u8 *)job_entry->jd_ptr + 8);
-	jd_cfg_ptr = otx2_iova_to_virt(priv->iommu_domain, jd_cfg_ptr_iova);
+	jd_cfg_ptr_iova = *(u64 *)((u8 __force *)job_entry->jd_ptr + 8);
+	jd_cfg_ptr = (struct mhab_job_desc_cfg __force *)
+		     otx2_iova_to_virt(priv->iommu_domain, jd_cfg_ptr_iova);
 	jd_cfg_ptr->cfg1.pkt_len = skb->len;
-	jd_dma_cfg_word_0 = (struct mhbw_jd_dma_cfg_word_0_s *)
+	jd_dma_cfg_word_0 = (struct mhbw_jd_dma_cfg_word_0_s __force *)
 				job_entry->rd_dma_ptr;
 	jd_dma_cfg_word_0->block_size = (((skb->len + 15) >> 4) * 4);
 
 	/* copy packet data to rd_dma_ptr start addr */
 	jd_dma_cfg_word_1 = (struct mhbw_jd_dma_cfg_word_1_s *)
-				((u8 *)job_entry->rd_dma_ptr + 8);
-	memcpy(otx2_iova_to_virt(priv->iommu_domain,
-				 jd_dma_cfg_word_1->start_addr),
+				((u8 __force *)job_entry->rd_dma_ptr + 8);
+	memcpy((void __force *)otx2_iova_to_virt(priv->iommu_domain,
+						 jd_dma_cfg_word_1->start_addr),
 	       skb->data, skb->len);
 
 	/* make sure that all memory writes are completed */
@@ -464,6 +465,14 @@ out:
 		mod_timer(&priv->tx_timer, jiffies + msecs_to_jiffies(100));
 }
 
+static void otx2_rfoe_dump_psw(struct otx2_rfoe_ndev_priv *priv, u8 *buf_ptr)
+{
+	netdev_err(priv->netdev,
+		   "psw0(w0)=0x%llx psw0(w1)=0x%llx psw1(w0)=0x%llx psw1(w1)=0x%llx\n",
+		   *(u64 *)buf_ptr, *((u64 *)buf_ptr + 1),
+		   *((u64 *)buf_ptr + 2), *((u64 *)buf_ptr + 3));
+}
+
 static void otx2_rfoe_process_rx_pkt(struct otx2_rfoe_ndev_priv *priv,
 				     struct rx_ft_cfg *ft_cfg, int mbt_buf_idx)
 {
@@ -491,8 +500,10 @@ static void otx2_rfoe_process_rx_pkt(struct otx2_rfoe_ndev_priv *priv,
 			  RFOEX_RX_IND_MBT_SEG_STATE(priv->rfoe_num));
 	spin_unlock(&cdev_priv->mbt_lock);
 
-	buf_ptr = (u8 *)ft_cfg->mbt_virt_addr +
+	buf_ptr = (u8 __force *)ft_cfg->mbt_virt_addr +
 				(ft_cfg->buf_size * mbt_buf_idx);
+
+	dma_rmb();
 
 	pkt_type = ft_cfg->pkt_type;
 #ifdef ASIM
@@ -538,8 +549,14 @@ static void otx2_rfoe_process_rx_pkt(struct otx2_rfoe_ndev_priv *priv,
 		tstamp = ecpri_psw1->ptp_timestamp;
 	}
 
+	if (unlikely(!jdt_iova_addr)) {
+		netdev_err(priv->netdev, "JD_PTR was null at mbt_buf_idx %d\n", mbt_buf_idx);
+		otx2_rfoe_dump_psw(priv, buf_ptr);
+		return;
+	}
+
 	/* read jd ptr from psw */
-	jdt_ptr = otx2_iova_to_virt(priv->iommu_domain, jdt_iova_addr);
+	jdt_ptr = (u8 __force *)otx2_iova_to_virt(priv->iommu_domain, jdt_iova_addr);
 	jd_dma_cfg_word_0 = (struct mhbw_jd_dma_cfg_word_0_s *)
 			((u8 *)jdt_ptr + ft_cfg->jd_rd_offset);
 	len = (jd_dma_cfg_word_0->block_size) << 2;
@@ -913,7 +930,7 @@ static netdev_tx_t otx2_rfoe_eth_start_xmit(struct sk_buff *skb,
 	} else {
 		job_cfg = &priv->rfoe_common->tx_oth_job_cfg;
 		eth = (struct ethhdr *)skb->data;
-		if (htons(eth->h_proto) == ETH_P_ECPRI)
+		if (ntohs(eth->h_proto) == ETH_P_ECPRI)
 			pkt_type = PACKET_TYPE_ECPRI;
 		else
 			pkt_type = PACKET_TYPE_OTHER;
@@ -1085,10 +1102,11 @@ static netdev_tx_t otx2_rfoe_eth_start_xmit(struct sk_buff *skb,
 	}
 
 	/* update length and block size in jd dma cfg word */
-	jd_cfg_ptr_iova = *(u64 *)((u8 *)job_entry->jd_ptr + 8);
-	jd_cfg_ptr = otx2_iova_to_virt(priv->iommu_domain, jd_cfg_ptr_iova);
+	jd_cfg_ptr_iova = *(u64 *)((u8 __force *)job_entry->jd_ptr + 8);
+	jd_cfg_ptr = (struct mhab_job_desc_cfg __force *)
+		     otx2_iova_to_virt(priv->iommu_domain, jd_cfg_ptr_iova);
 	jd_cfg_ptr->cfg1.pkt_len = skb->len;
-	jd_dma_cfg_word_0 = (struct mhbw_jd_dma_cfg_word_0_s *)
+	jd_dma_cfg_word_0 = (struct mhbw_jd_dma_cfg_word_0_s __force *)
 						job_entry->rd_dma_ptr;
 	jd_dma_cfg_word_0->block_size = (((skb->len + 15) >> 4) * 4);
 
@@ -1103,9 +1121,9 @@ static netdev_tx_t otx2_rfoe_eth_start_xmit(struct sk_buff *skb,
 
 	/* copy packet data to rd_dma_ptr start addr */
 	jd_dma_cfg_word_1 = (struct mhbw_jd_dma_cfg_word_1_s *)
-					((u8 *)job_entry->rd_dma_ptr + 8);
-	memcpy(otx2_iova_to_virt(priv->iommu_domain,
-				 jd_dma_cfg_word_1->start_addr),
+					((u8 __force *)job_entry->rd_dma_ptr + 8);
+	memcpy((void __force *)otx2_iova_to_virt(priv->iommu_domain,
+						 jd_dma_cfg_word_1->start_addr),
 	       skb->data, skb->len);
 
 	/* make sure that all memory writes are completed */
@@ -1386,7 +1404,7 @@ static void otx2_rfoe_fill_tx_job_entries(struct otx2_rfoe_ndev_priv *priv,
 		job_entry->jd_iova_addr = tx_job->jd_iova_addr;
 		iova = job_entry->jd_iova_addr;
 		job_entry->jd_ptr = otx2_iova_to_virt(priv->iommu_domain, iova);
-		jd_cfg_iova = *(u64 *)((u8 *)job_entry->jd_ptr + 8);
+		jd_cfg_iova = *(u64 *)((u8 __force *)job_entry->jd_ptr + 8);
 		job_entry->jd_cfg_ptr = otx2_iova_to_virt(priv->iommu_domain,
 							  jd_cfg_iova);
 		job_entry->rd_dma_iova_addr = tx_job->rd_dma_iova_addr;
@@ -1421,6 +1439,10 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 	struct rx_ft_cfg *ft_cfg;
 	u8 pkt_type_mask;
 
+	cdev->num_rfoe_mhab = 3;
+	cdev->num_rfoe_lmac = 4;
+	cdev->tot_rfoe_intf = 10; /* 2 rfoe x 4 lmac + 1 rfoe x 2 lmac */
+
 	ptp_cfg = kzalloc(sizeof(*ptp_cfg), GFP_KERNEL);
 	if (!ptp_cfg)
 		return -ENOMEM;
@@ -1429,16 +1451,23 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 	ptp_cfg->clk_cfg.clk_freq_div = PTP_CLK_FREQ_DIV;
 	spin_lock_init(&ptp_cfg->lock);
 
-	for (i = 0; i < MAX_RFOE_INTF; i++) {
+	for (i = 0; i < cdev->num_rfoe_mhab; i++) {
 		priv2 = NULL;
 		rfoe_cfg = &cfg[i].rfoe_if_cfg;
 		pkt_type_mask = rfoe_cfg->pkt_type_mask;
-		for (lmac = 0; lmac < MAX_LMAC_PER_RFOE; lmac++) {
+		for (lmac = 0; lmac < cdev->num_rfoe_lmac; lmac++) {
+			intf_idx = (i * cdev->num_rfoe_lmac) + lmac;
+			if (intf_idx >= cdev->tot_rfoe_intf) {
+				dev_dbg(cdev->dev,
+					"rfoe%d lmac%d doesn't exist, skipping intf cfg\n",
+					i, lmac);
+				continue;
+			}
 			if_cfg = &rfoe_cfg->if_cfg[lmac];
 			/* check if lmac is valid */
 			if (!if_cfg->lmac_info.is_valid) {
 				dev_dbg(cdev->dev,
-					"rfoe%d lmac%d invalid\n", i, lmac);
+					"rfoe%d lmac%d invalid intf cfg, skipping\n", i, lmac);
 				continue;
 			}
 			netdev =
@@ -1529,7 +1558,7 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 				otx2_rfoe_fill_tx_job_entries(priv, tx_cfg,
 							      tx_info,
 							      num_entries);
-			} else {
+			} else if (priv2) {
 				/* share rfoe_common data */
 				priv->rfoe_common = priv2->rfoe_common;
 				++(priv->rfoe_common->refcnt);
@@ -1539,7 +1568,6 @@ int otx2_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 			if (!priv2)
 				priv2 = priv;
 
-			intf_idx = (i * 4) + lmac;
 			snprintf(netdev->name, sizeof(netdev->name),
 				 "rfoe%d", intf_idx);
 			netdev->netdev_ops = &otx2_rfoe_netdev_ops;
@@ -1730,6 +1758,8 @@ static void otx2_rfoe_debugfs_remove(struct otx2_rfoe_drv_ctx *ctx)
 {
 	if (ctx->debugfs)
 		otx2_bphy_debugfs_remove_file(ctx->debugfs);
+
+	debugfs_remove_recursive(ctx->root);
 }
 
 void otx2_rfoe_set_link_state(struct net_device *netdev, u8 state)

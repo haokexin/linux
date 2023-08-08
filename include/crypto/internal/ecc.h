@@ -182,6 +182,12 @@ int vli_cmp(const u64 *left, const u64 *right, unsigned int ndigits);
 u64 vli_sub(u64 *result, const u64 *left, const u64 *right,
 	    unsigned int ndigits);
 
+void vli_mod_add(u64 *result, const u64 *left, const u64 *right,
+		 const u64 *mod, unsigned int ndigits);
+
+void vli_mod_add(u64 *result, const u64 *left, const u64 *right,
+		 const u64 *mod, unsigned int ndigits);
+
 /**
  * vli_from_be64() - Load vli from big-endian u64 array
  *
@@ -225,6 +231,13 @@ void vli_mod_inv(u64 *result, const u64 *input, const u64 *mod,
 void vli_mod_mult_slow(u64 *result, const u64 *left, const u64 *right,
 		       const u64 *mod, unsigned int ndigits);
 
+void vli_mod_mult_fast(u64 *result, const u64 *left, const u64 *right,
+			      const struct ecc_curve *curve);
+
+void ecc_point_mult(struct ecc_point *result, const struct ecc_point *point,
+		    const u64 *scalar, u64 *initial_z,
+		    const struct ecc_curve *curve, unsigned int ndigits);
+
 /**
  * ecc_point_mult_shamir() - Add two points multiplied by scalars
  *
@@ -242,4 +255,5 @@ void ecc_point_mult_shamir(const struct ecc_point *result,
 			   const u64 *x, const struct ecc_point *p,
 			   const u64 *y, const struct ecc_point *q,
 			   const struct ecc_curve *curve);
+unsigned int vli_num_bits(const u64 *vli, unsigned int ndigits);
 #endif

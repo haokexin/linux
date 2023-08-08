@@ -13,6 +13,8 @@
 #define OTX2_DEFAULT_ACTION	0x1
 #define FDSA_MAX_SPORT		32
 #define FDSA_SPORT_MASK         0xf8
+#define GTPU_PORT		2152
+#define GTPC_PORT		2123
 
 static int otx2_mcam_entry_init(struct otx2_nic *pfvf);
 
@@ -278,6 +280,7 @@ int otx2vf_mcam_flow_init(struct otx2_nic *pfvf)
 
 	flow_cfg = pfvf->flow_cfg;
 	INIT_LIST_HEAD(&flow_cfg->flow_list);
+	INIT_LIST_HEAD(&flow_cfg->flow_list_tc);
 	flow_cfg->max_flows = 0;
 
 	return 0;
@@ -300,6 +303,7 @@ int otx2_mcam_flow_init(struct otx2_nic *pf)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&pf->flow_cfg->flow_list);
+	INIT_LIST_HEAD(&pf->flow_cfg->flow_list_tc);
 
 	/* Allocate bare minimum number of MCAM entries needed for
 	 * unicast and ntuple filters.
@@ -884,9 +888,30 @@ int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 	default:
 		return -EOPNOTSUPP;
 	}
+
 	if (fsp->flow_type & FLOW_EXT) {
 		int skip_user_def = false;
 		u16 vlan_etype;
+
+		switch (flow_type) {
+		case UDP_V4_FLOW:
+		case UDP_V6_FLOW:
+		case TCP_V4_FLOW:
+		case TCP_V6_FLOW:
+			if (ntohs(pkt->dport) == GTPU_PORT) {
+				/* Check for GTP-U packets */
+				skip_user_def = true;
+				pkt->gtpu_teid = fsp->h_ext.data[1];
+				pmask->gtpu_teid = fsp->m_ext.data[1];
+				req->features |= BIT_ULL(NPC_GTPU_TEID);
+			} else if (ntohs(pkt->dport) == GTPC_PORT) {
+				/* Check for GTP-C packets */
+				skip_user_def = true;
+				pkt->gtpc_teid = fsp->h_ext.data[1];
+				pmask->gtpc_teid = fsp->m_ext.data[1];
+				req->features |= BIT_ULL(NPC_GTPC_TEID);
+			}
+		}
 
 		if (fsp->m_ext.vlan_etype) {
 			/* Partial masks not supported */
@@ -943,11 +968,11 @@ int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 				       sizeof(pkt->vlan_tci));
 				otx2_prepare_fdsa_flow_request(req, false);
 			} else if (flow_type == IP_USER_FLOW) {
-				if (be32_to_cpu(fsp->h_ext.data[1]) != 0x20)
+				if (be32_to_cpu(fsp->h_ext.data[1]) != IPV4_FLAG_MORE)
 					return -EINVAL;
 
 				pkt->ip_flag = be32_to_cpu(fsp->h_ext.data[1]);
-				pmask->ip_flag = fsp->m_ext.data[1];
+				pmask->ip_flag = be32_to_cpu(fsp->m_ext.data[1]);
 				req->features |= BIT_ULL(NPC_IPFRAG_IPV4);
 			} else if (fsp->h_ext.data[1] ==
 					cpu_to_be32(OTX2_DEFAULT_ACTION)) {
@@ -1123,6 +1148,7 @@ int otx2_add_flow(struct otx2_nic *pfvf, struct ethtool_rxnfc *nfc)
 	struct ethhdr *eth_hdr;
 	bool new = false;
 	int err = 0;
+	u64 vf_num;
 	u32 ring;
 
 	if (!flow_cfg->max_flows) {
@@ -1135,9 +1161,19 @@ int otx2_add_flow(struct otx2_nic *pfvf, struct ethtool_rxnfc *nfc)
 	if (!(pfvf->flags & OTX2_FLAG_NTUPLE_SUPPORT))
 		return -ENOMEM;
 
+	/* Number of queues on a VF can be greater or less than
+	 * the PF's queue. Hence no need to check for the
+	 * queue count. Hence no need to check queue count if PF
+	 * is installing for its VF.
+	 */
+	vf_num = ethtool_get_flow_spec_ring_vf(fsp->ring_cookie);
+	if (!is_otx2_vf(pfvf->pcifunc) && vf_num)
+		goto bypass_queue_check;
+
 	if (ring >= pfvf->hw.rx_queues && fsp->ring_cookie != RX_CLS_FLOW_DISC)
 		return -EINVAL;
 
+bypass_queue_check:
 	if (fsp->location >= otx2_get_maxflows(flow_cfg))
 		return -EINVAL;
 
@@ -1217,6 +1253,9 @@ int otx2_add_flow(struct otx2_nic *pfvf, struct ethtool_rxnfc *nfc)
 		flow_cfg->nr_flows++;
 	}
 
+	if (vf_num)
+		netdev_info(pfvf->netdev,
+			    "Make sure that VF's queue number is within its queue limit\n");
 	return 0;
 }
 

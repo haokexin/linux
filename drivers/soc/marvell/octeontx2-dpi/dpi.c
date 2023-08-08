@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 /* Marvell OcteonTx2 DPI PF driver
  *
- * Copyright (C) 2018 Marvell International Ltd.
+ * Copyright (C) 2023 Marvell International Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -17,14 +17,8 @@
 #include "dpi.h"
 
 #define DPI_DRV_NAME	"octeontx2-dpi"
-#define DPI_DRV_STRING      "Marvell OcteonTX2 DPI-DMA Driver"
+#define DPI_DRV_STRING  "Marvell OcteonTX2 DPI-DMA Driver"
 #define DPI_DRV_VERSION	"1.0"
-
-/* Supported devices */
-static const struct pci_device_id dpi_id_table[] = {
-	{ PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVID_OCTEONTX2_DPI_PF) },
-	{ 0, }  /* end of table */
-};
 
 static int mps = 128;
 module_param(mps, int, 0644);
@@ -34,13 +28,7 @@ static int mrrs = 128;
 module_param(mrrs, int, 0644);
 MODULE_PARM_DESC(mrrs, "Maximum read request size, Supported sizes are 128, 256, 512 and 1024 bytes");
 
-MODULE_DEVICE_TABLE(pci, dpi_id_table);
-MODULE_AUTHOR("Marvell International Ltd.");
-MODULE_DESCRIPTION(DPI_DRV_STRING);
-MODULE_LICENSE("GPL v2");
-MODULE_VERSION(DPI_DRV_VERSION);
-
-static inline bool is_otx3_dpi(struct dpipf *dpi)
+static inline bool is_cn10k_dpi(struct dpipf *dpi)
 {
 	if (dpi->pdev->subsystem_device >= PCI_SUBDEVID_OCTEONTX3_DPI_PF)
 		return 1;
@@ -67,9 +55,6 @@ static int dpi_wqe_cs_offset(struct dpipf *dpi, u8 offset)
 {
 	u64 reg = 0ULL;
 
-	if (!is_otx3_dpi(dpi))
-		return -1;
-
 	spin_lock(&dpi->vf_lock);
 	reg = dpi_reg_read(dpi, DPI_DMA_CONTROL);
 	reg &= ~DPI_DMA_CONTROL_WQECSDIS;
@@ -87,23 +72,56 @@ static int dpi_queue_init(struct dpipf *dpi, struct dpipf_vf *dpivf, u8 vf)
 	int engine = 0;
 	int queue = vf;
 	u64 reg = 0ULL;
+	int cnt = 0xFFFFF;
 	u32 aura = dpivf->vf_config.aura;
 	u16 buf_size = dpivf->vf_config.csize;
 	u16 sso_pf_func = dpivf->vf_config.sso_pf_func;
 	u16 npa_pf_func = dpivf->vf_config.npa_pf_func;
 
 	spin_lock(&dpi->vf_lock);
-	reg = DPI_DMA_IBUFF_CSIZE_CSIZE((u64)(buf_size / 8));
-	if (is_otx3_dpi(dpi))
-		reg |= DPI_DMA_IBUFF_CSIZE_NPA_FREE;
-	dpi_reg_write(dpi, DPI_DMAX_IBUFF_CSIZE(queue), reg);
 
-	if (!is_otx3_dpi(dpi)) {
+	if (!is_cn10k_dpi(dpi)) {
 		/* IDs are already configured while creating the domains.
 		 * No need to configure here.
 		 */
 		for (engine = 0; engine < dpi_dma_engine_get_num(); engine++) {
-			/* Dont configure the queus for PKT engines */
+			/* Dont configure the queues for PKT engines */
+			if (engine >= 4)
+				break;
+
+			reg = 0;
+			reg = dpi_reg_read(dpi, DPI_DMA_ENGX_EN(engine));
+			reg &= DPI_DMA_ENG_EN_QEN((~(1 << queue)));
+			dpi_reg_write(dpi, DPI_DMA_ENGX_EN(engine), reg);
+		}
+	}
+
+	dpi_reg_write(dpi, DPI_DMAX_QRST(queue), 0x1ULL);
+
+	while (cnt) {
+		reg = dpi_reg_read(dpi, DPI_DMAX_QRST(queue));
+		--cnt;
+		if (!(reg & 0x1))
+			break;
+	}
+
+	if (reg & 0x1)
+		dev_err(&dpi->pdev->dev, "Queue reset failed\n");
+
+	dpi_reg_write(dpi, DPI_DMAX_IDS2(queue), 0ULL);
+	dpi_reg_write(dpi, DPI_DMAX_IDS(queue), 0ULL);
+
+	reg = DPI_DMA_IBUFF_CSIZE_CSIZE((u64)(buf_size / 8));
+	if (is_cn10k_dpi(dpi))
+		reg |= DPI_DMA_IBUFF_CSIZE_NPA_FREE;
+	dpi_reg_write(dpi, DPI_DMAX_IBUFF_CSIZE(queue), reg);
+
+	if (!is_cn10k_dpi(dpi)) {
+		/* IDs are already configured while creating the domains.
+		 * No need to configure here.
+		 */
+		for (engine = 0; engine < dpi_dma_engine_get_num(); engine++) {
+			/* Don't configure the queues for PKT engines */
 			if (engine >= 4)
 				break;
 
@@ -124,6 +142,7 @@ static int dpi_queue_init(struct dpipf *dpi, struct dpipf_vf *dpivf, u8 vf)
 	reg |= DPI_DMA_IDS_DMA_STRM(vf + 1);
 	reg |= DPI_DMA_IDS_INST_STRM(vf + 1);
 	dpi_reg_write(dpi, DPI_DMAX_IDS(queue), reg);
+
 	spin_unlock(&dpi->vf_lock);
 
 	return 0;
@@ -137,15 +156,17 @@ static int dpi_queue_fini(struct dpipf *dpi, struct dpipf_vf *dpivf, u8 vf)
 	u16 buf_size = dpivf->vf_config.csize;
 
 	spin_lock(&dpi->vf_lock);
-	for (engine = 0; engine < dpi_dma_engine_get_num(); engine++) {
-		/* Dont configure the queus for PKT engines */
-		if (engine >= 4)
-			break;
+	if (!is_cn10k_dpi(dpi)) {
+		for (engine = 0; engine < dpi_dma_engine_get_num(); engine++) {
+			/* Don't configure the queues for PKT engines */
+			if (engine >= 4)
+				break;
 
-		reg = 0;
-		reg = dpi_reg_read(dpi, DPI_DMA_ENGX_EN(engine));
-		reg &= DPI_DMA_ENG_EN_QEN((~(1 << queue)));
-		dpi_reg_write(dpi, DPI_DMA_ENGX_EN(engine), reg);
+			reg = 0;
+			reg = dpi_reg_read(dpi, DPI_DMA_ENGX_EN(engine));
+			reg &= DPI_DMA_ENG_EN_QEN((~(1 << queue)));
+			dpi_reg_write(dpi, DPI_DMA_ENGX_EN(engine), reg);
+		}
 	}
 
 	dpi_reg_write(dpi, DPI_DMAX_QRST(queue), 0x1ULL);
@@ -156,6 +177,7 @@ static int dpi_queue_fini(struct dpipf *dpi, struct dpipf_vf *dpivf, u8 vf)
 	/* Reset IDS and IDS2 registers */
 	dpi_reg_write(dpi, DPI_DMAX_IDS2(queue), 0ULL);
 	dpi_reg_write(dpi, DPI_DMAX_IDS(queue), 0ULL);
+
 	spin_unlock(&dpi->vf_lock);
 
 	return 0;
@@ -186,7 +208,7 @@ static int dpi_init(struct dpipf *dpi)
 		 * When a VF is initialised corresponding bit
 		 * in the qmap will be set for all engines.
 		 */
-		if (!is_otx3_dpi(dpi))
+		if (!is_cn10k_dpi(dpi))
 			dpi_reg_write(dpi, DPI_DMA_ENGX_EN(engine), 0x0ULL);
 	}
 
@@ -194,7 +216,7 @@ static int dpi_init(struct dpipf *dpi)
 	reg =  (DPI_DMA_CONTROL_ZBWCSEN | DPI_DMA_CONTROL_PKT_EN |
 		DPI_DMA_CONTROL_LDWB | DPI_DMA_CONTROL_O_MODE);
 
-	if (is_otx3_dpi(dpi))
+	if (is_cn10k_dpi(dpi))
 		reg |= DPI_DMA_CONTROL_DMA_ENB(0x3fULL);
 	else
 		reg |= DPI_DMA_CONTROL_DMA_ENB(0xfULL);
@@ -231,7 +253,7 @@ static int dpi_init(struct dpipf *dpi)
 	}
 
 	/* Set the write control FIFO threshold as per HW recommendation */
-	if (is_otx3_dpi(dpi))
+	if (is_cn10k_dpi(dpi))
 		dpi_reg_write(dpi, DPI_WCTL_FIF_THR, 0x30);
 
 	return 0;
@@ -245,7 +267,7 @@ static int dpi_fini(struct dpipf *dpi)
 	for (engine = 0; engine < dpi_dma_engine_get_num(); engine++) {
 
 		dpi_reg_write(dpi, DPI_ENGX_BUF(engine), reg);
-		if (!is_otx3_dpi(dpi))
+		if (!is_cn10k_dpi(dpi))
 			dpi_reg_write(dpi, DPI_DMA_ENGX_EN(engine), 0x0ULL);
 	}
 
@@ -264,7 +286,7 @@ static int dpi_fini(struct dpipf *dpi)
 
 static int dpi_queue_reset(struct dpipf *dpi, u16 queue)
 {
-	/* TODO: add support */
+	/* Nothing to do yet */
 	return 0;
 }
 
@@ -509,11 +531,6 @@ static int dpi_queue_config(struct pci_dev *pfdev,
 	return queue_config(dpi, dpivf, msg);
 }
 
-struct otx2_dpipf_com_s otx2_dpipf_com  = {
-	.queue_config = dpi_queue_config
-};
-EXPORT_SYMBOL(otx2_dpipf_com);
-
 static ssize_t dpi_device_config_store(struct device *dev,
 				       struct device_attribute *attr,
 				       const char *buf, size_t count)
@@ -624,6 +641,16 @@ static void dpi_remove(struct pci_dev *pdev)
 	devm_kfree(dev, dpi);
 }
 
+struct otx2_dpipf_com_s otx2_dpipf_com  = {
+	.queue_config = dpi_queue_config
+};
+EXPORT_SYMBOL(otx2_dpipf_com);
+
+static const struct pci_device_id dpi_id_table[] = {
+	{ PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVID_OCTEONTX2_DPI_PF) },
+	{ 0, }  /* end of table */
+};
+
 static struct pci_driver dpi_driver = {
 	.name = DPI_DRV_NAME,
 	.id_table = dpi_id_table,
@@ -646,3 +673,8 @@ static void __exit dpi_cleanup_module(void)
 
 module_init(dpi_init_module);
 module_exit(dpi_cleanup_module);
+MODULE_DEVICE_TABLE(pci, dpi_id_table);
+MODULE_AUTHOR("Marvell International Ltd.");
+MODULE_DESCRIPTION(DPI_DRV_STRING);
+MODULE_LICENSE("GPL v2");
+MODULE_VERSION(DPI_DRV_VERSION);

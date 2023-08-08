@@ -234,14 +234,20 @@ static void cgx_notify_pfs(struct cgx_link_event *event, struct rvu *rvu)
 	struct cgx_link_user_info *linfo;
 	struct cgx_link_info_msg *msg;
 	unsigned long pfmap;
-	int err, pfid;
+	int pfid;
 
 	linfo = &event->link_uinfo;
 	pfmap = cgxlmac_to_pfmap(rvu, event->cgx_id, event->lmac_id);
+	if (!pfmap) {
+		dev_err(rvu->dev, "CGX port%d:%d not mapped with PF\n",
+			event->cgx_id, event->lmac_id);
+		return;
+	}
 
 	do {
 		pfid = find_first_bit(&pfmap,
 				      rvu->cgx_cnt_max * rvu->hw->lmac_per_cgx);
+
 		clear_bit(pfid, &pfmap);
 
 		/* check if notification is enabled */
@@ -252,16 +258,21 @@ static void cgx_notify_pfs(struct cgx_link_event *event, struct rvu *rvu)
 			continue;
 		}
 
+		mutex_lock(&rvu->mbox_lock);
+
 		/* Send mbox message to PF */
 		msg = otx2_mbox_alloc_msg_cgx_link_event(rvu, pfid);
-		if (!msg)
+		if (!msg) {
+			mutex_unlock(&rvu->mbox_lock);
 			continue;
+		}
 		msg->link_info = *linfo;
-		otx2_mbox_msg_send(&rvu->afpf_wq_info.mbox_up, pfid);
-		err = otx2_mbox_wait_for_rsp(&rvu->afpf_wq_info.mbox_up, pfid);
-		if (err)
-			dev_warn(rvu->dev, "notification to pf %d failed\n",
-				 pfid);
+
+		otx2_mbox_wait_for_zero(&rvu->afpf_wq_info.mbox_up, pfid);
+
+		otx2_mbox_msg_send_up(&rvu->afpf_wq_info.mbox_up, pfid);
+
+		mutex_unlock(&rvu->mbox_lock);
 	} while (pfmap);
 }
 
@@ -472,6 +483,8 @@ bool rvu_cgx_is_higig2_enabled(struct rvu *rvu, int pf)
 
 	rvu_get_cgx_lmac_id(rvu->pf2cgxlmac_map[pf], &cgx_id, &lmac_id);
 	cgxd = rvu_cgx_pdata(cgx_id, rvu);
+	if (!cgxd)
+		return false;
 
 	return is_higig2_enabled(cgxd, lmac_id);
 }
@@ -819,7 +832,6 @@ int rvu_mbox_handler_cgx_promisc_disable(struct rvu *rvu, struct msg_req *req,
 static void cgx_notify_up_ptp_info(struct rvu *rvu, int pf, bool enable)
 {
 	struct cgx_ptp_rx_info_msg *msg;
-	int err;
 
 	/* Send mbox message to PF */
 	msg = otx2_mbox_alloc_msg_cgx_ptp_rx_info(rvu, pf);
@@ -829,10 +841,10 @@ static void cgx_notify_up_ptp_info(struct rvu *rvu, int pf, bool enable)
 	}
 
 	msg->ptp_en = enable;
-	otx2_mbox_msg_send(&rvu->afpf_wq_info.mbox_up, pf);
-	err = otx2_mbox_wait_for_rsp(&rvu->afpf_wq_info.mbox_up, pf);
-	if (err)
-		dev_err(rvu->dev, "ptp notification to pf %d failed\n", pf);
+
+	otx2_mbox_wait_for_zero(&rvu->afpf_wq_info.mbox_up, pf);
+
+	otx2_mbox_msg_send_up(&rvu->afpf_wq_info.mbox_up, pf);
 }
 
 static int rvu_cgx_ptp_rx_cfg(struct rvu *rvu, u16 pcifunc, bool enable)
@@ -1452,7 +1464,7 @@ void rvu_mac_reset(struct rvu *rvu, u16 pcifunc)
 	cgxd = rvu_cgx_pdata(cgx, rvu);
 	mac_ops = get_mac_ops(cgxd);
 
-	if (mac_ops->mac_reset(cgxd, lmac))
+	if (mac_ops->mac_reset(cgxd, lmac, !is_vf(pcifunc)))
 		dev_err(rvu->dev, "Failed to reset MAC\n");
 }
 

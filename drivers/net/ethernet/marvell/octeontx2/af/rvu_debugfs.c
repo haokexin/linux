@@ -263,59 +263,6 @@ static int rvu_dbg_mcs_tx_port_stats_display(struct seq_file *filp, void *unused
 
 RVU_DEBUG_SEQ_FOPS(mcs_tx_port_stats, mcs_tx_port_stats_display, NULL);
 
-static int rvu_dbg_mcs_sa_stats_display(struct seq_file *filp, void *unused, int dir)
-{
-	struct mcs *mcs = filp->private;
-	struct mcs_sa_stats stats;
-	struct rsrc_bmap *map;
-	int sa_id;
-
-	if (dir == MCS_TX) {
-		map = &mcs->tx.sa;
-		mutex_lock(&mcs->stats_lock);
-		for_each_set_bit(sa_id, map->bmap, mcs->hw->sa_entries) {
-			seq_puts(filp, "\n TX SA stats\n");
-			mcs_get_sa_stats(mcs, &stats, sa_id, MCS_TX);
-			seq_printf(filp, "sa%d: Pkts encrypted: %lld\n", sa_id,
-				   stats.pkt_encrypt_cnt);
-
-			seq_printf(filp, "sa%d: Pkts protected: %lld\n", sa_id,
-				   stats.pkt_protected_cnt);
-		}
-		mutex_unlock(&mcs->stats_lock);
-		return 0;
-	}
-
-	/* RX stats */
-	map = &mcs->rx.sa;
-	mutex_lock(&mcs->stats_lock);
-	for_each_set_bit(sa_id, map->bmap, mcs->hw->sa_entries) {
-		seq_puts(filp, "\n RX SA stats\n");
-		mcs_get_sa_stats(mcs, &stats, sa_id, MCS_RX);
-		seq_printf(filp, "sa%d: Invalid pkts: %lld\n", sa_id, stats.pkt_invalid_cnt);
-		seq_printf(filp, "sa%d: Pkts no sa error: %lld\n", sa_id, stats.pkt_nosaerror_cnt);
-		seq_printf(filp, "sa%d: Pkts not valid: %lld\n", sa_id, stats.pkt_notvalid_cnt);
-		seq_printf(filp, "sa%d: Pkts ok: %lld\n", sa_id, stats.pkt_ok_cnt);
-		seq_printf(filp, "sa%d: Pkts no sa: %lld\n", sa_id, stats.pkt_nosa_cnt);
-	}
-	mutex_unlock(&mcs->stats_lock);
-	return 0;
-}
-
-static int rvu_dbg_mcs_rx_sa_stats_display(struct seq_file *filp, void *unused)
-{
-	return rvu_dbg_mcs_sa_stats_display(filp, unused, MCS_RX);
-}
-
-RVU_DEBUG_SEQ_FOPS(mcs_rx_sa_stats, mcs_rx_sa_stats_display, NULL);
-
-static int rvu_dbg_mcs_tx_sa_stats_display(struct seq_file *filp, void *unused)
-{
-	return rvu_dbg_mcs_sa_stats_display(filp, unused, MCS_TX);
-}
-
-RVU_DEBUG_SEQ_FOPS(mcs_tx_sa_stats, mcs_tx_sa_stats_display, NULL);
-
 static int rvu_dbg_mcs_tx_sc_stats_display(struct seq_file *filp, void *unused)
 {
 	struct mcs *mcs = filp->private;
@@ -332,13 +279,6 @@ static int rvu_dbg_mcs_tx_sc_stats_display(struct seq_file *filp, void *unused)
 		seq_printf(filp, "\n=======sc%d======\n\n", sc_id);
 		seq_printf(filp, "sc%d: Pkts encrypted: %lld\n", sc_id, stats.pkt_encrypt_cnt);
 		seq_printf(filp, "sc%d: Pkts protected: %lld\n", sc_id, stats.pkt_protected_cnt);
-
-		if (mcs->hw->mcs_blks == 1) {
-			seq_printf(filp, "sc%d: Octets encrypted: %lld\n", sc_id,
-				   stats.octet_encrypt_cnt);
-			seq_printf(filp, "sc%d: Octets protected: %lld\n", sc_id,
-				   stats.octet_protected_cnt);
-		}
 	}
 	mutex_unlock(&mcs->stats_lock);
 	return 0;
@@ -369,12 +309,6 @@ static int rvu_dbg_mcs_rx_sc_stats_display(struct seq_file *filp, void *unused)
 		if (mcs->hw->mcs_blks > 1) {
 			seq_printf(filp, "sc%d: Delay pkts: %lld\n", sc_id, stats.pkt_delay_cnt);
 			seq_printf(filp, "sc%d: Pkts ok: %lld\n", sc_id, stats.pkt_ok_cnt);
-		}
-		if (mcs->hw->mcs_blks == 1) {
-			seq_printf(filp, "sc%d: Octets decrypted: %lld\n", sc_id,
-				   stats.octet_decrypt_cnt);
-			seq_printf(filp, "sc%d: Octets validated: %lld\n", sc_id,
-				   stats.octet_validate_cnt);
 		}
 	}
 	mutex_unlock(&mcs->stats_lock);
@@ -497,8 +431,10 @@ static int rvu_dbg_mcs_rx_secy_stats_display(struct seq_file *filp, void *unused
 			   stats.octet_validated_cnt);
 		seq_printf(filp, "secy%d: Pkts on disable port: %lld\n", secy_id,
 			   stats.pkt_port_disabled_cnt);
-		seq_printf(filp, "secy%d: Octets validated: %lld\n", secy_id, stats.pkt_badtag_cnt);
-		seq_printf(filp, "secy%d: Octets validated: %lld\n", secy_id, stats.pkt_nosa_cnt);
+		seq_printf(filp, "secy%d: Pkts with badtag: %lld\n",
+			   secy_id, stats.pkt_badtag_cnt);
+		seq_printf(filp, "secy%d: Pkts with no SA(sectag.tci.c=0): %lld\n",
+			   secy_id, stats.pkt_nosa_cnt);
 		seq_printf(filp, "secy%d: Pkts with nosaerror: %lld\n", secy_id,
 			   stats.pkt_nosaerror_cnt);
 		seq_printf(filp, "secy%d: Tagged ctrl pkts: %lld\n", secy_id,
@@ -518,10 +454,14 @@ RVU_DEBUG_SEQ_FOPS(mcs_rx_secy_stats, mcs_rx_secy_stats_display, NULL);
 static void rvu_dbg_mcs_init(struct rvu *rvu)
 {
 	struct mcs *mcs;
-	char dname[10];
+	char *dname = NULL;
 	int i;
 
 	if (!rvu->mcs_blk_cnt)
+		return;
+
+	dname = kmalloc_array(rvu->mcs_blk_cnt, sizeof(char), GFP_KERNEL);
+	if (!dname)
 		return;
 
 	rvu->rvu_dbg.mcs_root = debugfs_create_dir("mcs", rvu->rvu_dbg.root);
@@ -544,9 +484,6 @@ static void rvu_dbg_mcs_init(struct rvu *rvu)
 		debugfs_create_file("sc", 0600, rvu->rvu_dbg.mcs_rx, mcs,
 				    &rvu_dbg_mcs_rx_sc_stats_fops);
 
-		debugfs_create_file("sa", 0600, rvu->rvu_dbg.mcs_rx, mcs,
-				    &rvu_dbg_mcs_rx_sa_stats_fops);
-
 		debugfs_create_file("port", 0600, rvu->rvu_dbg.mcs_rx, mcs,
 				    &rvu_dbg_mcs_rx_port_stats_fops);
 
@@ -561,12 +498,11 @@ static void rvu_dbg_mcs_init(struct rvu *rvu)
 		debugfs_create_file("sc", 0600, rvu->rvu_dbg.mcs_tx, mcs,
 				    &rvu_dbg_mcs_tx_sc_stats_fops);
 
-		debugfs_create_file("sa", 0600, rvu->rvu_dbg.mcs_tx, mcs,
-				    &rvu_dbg_mcs_tx_sa_stats_fops);
-
 		debugfs_create_file("port", 0600, rvu->rvu_dbg.mcs_tx, mcs,
 				    &rvu_dbg_mcs_tx_port_stats_fops);
 	}
+
+	kfree(dname);
 }
 
 #define LMT_MAPTBL_ENTRY_SIZE 16
@@ -1818,6 +1754,8 @@ static void print_nix_rq_ctx(struct seq_file *m, struct nix_aq_enq_rsp *rsp)
 static void print_nix_cq_ctx(struct seq_file *m, struct nix_aq_enq_rsp *rsp)
 {
 	struct nix_cq_ctx_s *cq_ctx = &rsp->cq;
+	struct nix_hw *nix_hw = m->private;
+	struct rvu *rvu = nix_hw->rvu;
 
 	seq_printf(m, "W0: base \t\t\t%llx\n\n", cq_ctx->base);
 
@@ -1828,6 +1766,15 @@ static void print_nix_cq_ctx(struct seq_file *m, struct nix_aq_enq_rsp *rsp)
 		   cq_ctx->cq_err, cq_ctx->qint_idx);
 	seq_printf(m, "W1: bpid \t\t\t%d\nW1: bp_ena \t\t\t%d\n\n",
 		   cq_ctx->bpid, cq_ctx->bp_ena);
+	if (!is_rvu_otx2(rvu)) {
+		seq_printf(m, "W1: lbpid_high \t\t\t0x%03x\n", cq_ctx->lbpid_high);
+		seq_printf(m, "W1: lbpid_med \t\t\t0x%03x\n", cq_ctx->lbpid_med);
+		seq_printf(m, "W1: lbpid_low \t\t\t0x%03x\n", cq_ctx->lbpid_low);
+		seq_printf(m, "(W1: lbpid) \t\t\t0x%03x\n",
+			   cq_ctx->lbpid_high << 6 | cq_ctx->lbpid_med << 3 |
+			   cq_ctx->lbpid_low);
+		seq_printf(m, "W1: lbp_ena \t\t\t\t%d\n\n", cq_ctx->lbp_ena);
+	}
 
 	seq_printf(m, "W2: update_time \t\t%d\nW2:avg_level \t\t\t%d\n",
 		   cq_ctx->update_time, cq_ctx->avg_level);
@@ -1840,6 +1787,11 @@ static void print_nix_cq_ctx(struct seq_file *m, struct nix_aq_enq_rsp *rsp)
 		   cq_ctx->qsize, cq_ctx->caching);
 	seq_printf(m, "W3: substream \t\t\t0x%03x\nW3: ena \t\t\t%d\n",
 		   cq_ctx->substream, cq_ctx->ena);
+	if (!is_rvu_otx2(rvu)) {
+		seq_printf(m, "W3: lbp_frac \t\t\t%d\n", cq_ctx->lbp_frac);
+		seq_printf(m, "W3: cpt_drop_err_en \t\t\t%d\n",
+			   cq_ctx->cpt_drop_err_en);
+	}
 	seq_printf(m, "W3: drop_ena \t\t\t%d\nW3: drop \t\t\t%d\n",
 		   cq_ctx->drop_ena, cq_ctx->drop);
 	seq_printf(m, "W3: bp \t\t\t\t%d\n\n", cq_ctx->bp);
@@ -2506,9 +2458,12 @@ static int read_sso_pc(struct rvu *rvu)
 	pr_info("SSO Work-Slot active cycles		%lld\n", reg);
 	pr_info("\n");
 
-	reg = rvu_read64(rvu, blkaddr, SSO_AF_NOS_CNT) & 0x1FFF;
-	pr_info("SSO work-queue entries on the no-schedule list	%lld\n", reg);
-	pr_info("\n");
+	if (is_rvu_otx2(rvu)) {
+		reg = rvu_read64(rvu, blkaddr, SSO_AF_NOS_CNT) & 0x1FFF;
+		pr_info("SSO work-queue entries on the no-schedule list	%lld\n",
+			reg);
+		pr_info("\n");
+	}
 
 	reg = rvu_read64(rvu, blkaddr, SSO_AF_AW_READ_ARB);
 	pr_info("SSO XAQ reads outstanding		%lld\n",
@@ -3629,6 +3584,11 @@ static void rvu_dbg_npc_mcam_show_flows(struct seq_file *s,
 			seq_printf(s, "mask 0x%x\n",
 				   ntohs(rule->mask.vlan_tci));
 			break;
+		case NPC_INNER_VID:
+			seq_printf(s, "0x%x ", ntohs(rule->packet.vlan_itci));
+			seq_printf(s, "mask 0x%x\n",
+				   ntohs(rule->mask.vlan_itci));
+			break;
 		case NPC_TOS:
 			seq_printf(s, "%d ", rule->packet.tos);
 			seq_printf(s, "mask 0x%x\n", rule->mask.tos);
@@ -3668,6 +3628,14 @@ static void rvu_dbg_npc_mcam_show_flows(struct seq_file *s,
 		case NPC_DPORT_SCTP:
 			seq_printf(s, "%d ", ntohs(rule->packet.dport));
 			seq_printf(s, "mask 0x%x\n", ntohs(rule->mask.dport));
+			break;
+		case NPC_GTPU_TEID:
+			seq_printf(s, "%d ", ntohl(rule->packet.gtpu_teid));
+			seq_printf(s, "mask 0x%x\n", ntohl(rule->mask.gtpu_teid));
+			break;
+		case NPC_GTPC_TEID:
+			seq_printf(s, "%d ", ntohl(rule->packet.gtpc_teid));
+			seq_printf(s, "mask 0x%x\n", ntohl(rule->mask.gtpc_teid));
 			break;
 		default:
 			seq_puts(s, "\n");

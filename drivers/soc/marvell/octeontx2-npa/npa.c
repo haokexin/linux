@@ -1074,8 +1074,8 @@ int npa_aura_pool_init(int pool_size, int buf_size, u32 *aura_handle,
 		       struct device *owner)
 {
 	struct npa_dev_t *npa_pf;
+	bool set = false;
 	int aura_id;
-	bool set;
 	int i;
 
 	for_each_set_bit(i, pf_bmp, NPA_MAX_PFS) {
@@ -1120,6 +1120,9 @@ static int npa_lf_aura_pool_fini(struct npa_dev_t *npa, u16 aura_id)
 	otx2_atomic64_add((u64) aura_id | BIT_ULL(63), npa->alloc_reg_ptr);
 
 	pool_req = otx2_af_mbox_alloc_msg_npa_aq_enq(mbox);
+	if (!pool_req)
+		return -1;
+
 	pool_req->aura_id = aura_id;
 	pool_req->ctype = NPA_AQ_CTYPE_POOL;
 	pool_req->op = NPA_AQ_INSTOP_WRITE;
@@ -1127,6 +1130,9 @@ static int npa_lf_aura_pool_fini(struct npa_dev_t *npa, u16 aura_id)
 	pool_req->pool_mask.ena = ~pool_req->pool_mask.ena;
 
 	aura_req = otx2_af_mbox_alloc_msg_npa_aq_enq(mbox);
+	if (!aura_req)
+		return -1;
+
 	aura_req->aura_id = aura_id;
 	aura_req->ctype = NPA_AQ_CTYPE_AURA;
 	aura_req->op = NPA_AQ_INSTOP_WRITE;
@@ -1141,6 +1147,11 @@ static int npa_lf_aura_pool_fini(struct npa_dev_t *npa, u16 aura_id)
 
 	/* Sync NDC-NPA for LF */
 	ndc_req = otx2_af_mbox_alloc_msg_ndc_sync_op(mbox);
+	if (!ndc_req) {
+		dev_err(&npa->pdev->dev, "Error on NDC-NPA LF sync allocation.\n");
+		return -1;
+	}
+
 	ndc_req->npa_lf_sync = 1;
 
 	rc = npa_sync_mbox_msg(&npa->afpf_mbox);

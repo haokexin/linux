@@ -17,7 +17,7 @@
 
 #define KEY_SIZE 256
 
-#define PLAT_OCTEONTX_PHY_ADVANCE_CMDS		0xc2000b0b
+#define PLAT_OCTEONTX_PHY_ADVANCE_CMDS		0xc2000e07
 
 #define MAX_ETH				10
 #define MAX_LMAC_PER_ETH		4
@@ -720,7 +720,7 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 	enum PHY_7121_MACSEC_IS_SCI is_sci;
 	enum PHY_7121_MACSEC_IS_CHAINED is_chained;
 	enum PHY_7121_MACSEC_IS_VLAN_TAG vlan_tag;
-	int status;
+	int status, ii, jj;
 
 	struct phy_7121_adv_cmds *mac_adv = (struct phy_7121_adv_cmds *)memdesc[BUF_DATA].virt;
 
@@ -954,33 +954,21 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 
 		MAC_ADV_DEBUG(" ++++++ %s", token);
 
-		status = sscanf(token, "%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x",
-					(unsigned int *)&mac_adv->data.sa_params.key[0],
-					(unsigned int *)&mac_adv->data.sa_params.key[1],
-					(unsigned int *)&mac_adv->data.sa_params.key[2],
-					(unsigned int *)&mac_adv->data.sa_params.key[3],
-					(unsigned int *)&mac_adv->data.sa_params.key[4],
-					(unsigned int *)&mac_adv->data.sa_params.key[5],
-					(unsigned int *)&mac_adv->data.sa_params.key[6],
-					(unsigned int *)&mac_adv->data.sa_params.key[7],
-					(unsigned int *)&mac_adv->data.sa_params.key[8],
-					(unsigned int *)&mac_adv->data.sa_params.key[9],
-					(unsigned int *)&mac_adv->data.sa_params.key[10],
-					(unsigned int *)&mac_adv->data.sa_params.key[11],
-					(unsigned int *)&mac_adv->data.sa_params.key[12],
-					(unsigned int *)&mac_adv->data.sa_params.key[13],
-					(unsigned int *)&mac_adv->data.sa_params.key[14],
-					(unsigned int *)&mac_adv->data.sa_params.key[15]);
-
-		if (status == -1) {
-			pr_err("\n %s ERROR  sci not provided", __func__);
-			return -EINVAL;
-		}
-
-		if (strlen(token) != 47) {
+		if (strlen(token) != MACSEC_KEY_SIZE * 2) {
 			pr_err("\nERROR Provide correct key(16) %d", (int)strlen(token));
 			return -EINVAL;
 		}
+
+		for (ii = 0, jj = 0; jj < MACSEC_KEY_SIZE * 2; jj += 2, ii++) {
+			status |=
+			sscanf(token + jj, "%02hhx",  &mac_adv->data.sa_params.key[ii]);
+		}
+
+		if (status == -1) {
+			pr_err("\n %s ERROR  key not provided", __func__);
+			return -EINVAL;
+		}
+
 
 		mac_adv->data.sa_params.key_size = MACSEC_KEY_SIZE;
 
@@ -1131,6 +1119,11 @@ static ssize_t phy_debug_mac_sec_write(struct file *filp,
 		token = strsep(&end, " \t\n");
 		if (!token)
 			return -EINVAL;
+
+		if (strlen(token) != 23) {
+			pr_err("\nERROR Provide correct sci(8) %d", (int)strlen(token));
+			return -EINVAL;
+		}
 
 		status = sscanf(token, "%X:%X:%X:%X:%X:%X:%X:%X",
 						(unsigned int *)&mac_adv->data.sa_params.sci[0],
