@@ -278,4 +278,14 @@ config MARVELL_CN10K_EINJ
           called cn10k-einj.
           Unless testing, say N here.
 
+config MARVELL_PTM_EP
+	tristate "Marvell PCIe PTM EP"
+	default m
+	help
+	  Provides PTM requestor(EP) support. The driver provides interface for
+	  triggering and capturing time.
+
+	  To compile this as a module, choose M here. The module will be called
+	  mrvl-ptm-ep.
+
 endmenu

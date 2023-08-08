@@ -2,8 +2,10 @@
 // Cadence XSPI flash controller driver
 // Copyright (C) 2020-21 Cadence
 
+#include <linux/acpi.h>
 #include <linux/completion.h>
 #include <linux/delay.h>
+#include <linux/dmi.h>
 #include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
@@ -15,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
+#include <linux/property.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/spi-mem.h>
 #include <linux/mtd/spi-nor.h>
@@ -207,6 +210,7 @@ struct dentry *mrvl_spi_debug_root;
 #define CDNS_XSPI_CLK_CTRL_AUX_REG	      0x2020
 #define CDNS_XSPI_CLK_ENABLE                  BIT(0)
 #define CDNS_XSPI_CLK_DIV                     GENMASK(4, 1)
+#define CDNS_XSPI_XFER_SUPPORTED	      BIT(7)
 
 /* MSI-X clear interrupt register */
 #define CDNS_XSPI_SPIX_INTR_AUX               0x2000
@@ -237,6 +241,24 @@ struct dentry *mrvl_spi_debug_root;
 
 #define CDNS_XSPI_DLL_RST_N BIT(24)
 #define CDNS_XSPI_DLL_LOCK  BIT(0)
+
+#define SPIX_XFER_FUNC_CTRL 0x8210
+#define SPIX_XFER_FUNC_CTRL_READ_DATA(i) (0x8000 + 8 * (i))
+
+#define XFER_SOFT_RESET_BP 11
+#define XFER_CS_N_HOLD_BP 6
+
+
+#define XFER_SOFT_RESET		BIT(11)
+#define XFER_CS_N_HOLD		GENMASK(9, 6)
+#define XFER_RECEIVE_ENABLE	BIT(4)
+#define XFER_FUNC_ENABLE	BIT(3)
+#define XFER_CLK_CAPTURE_POL	BIT(2)
+#define XFER_CLK_DRIVE_POL	BIT(1)
+#define XFER_FUNC_START		BIT(0)
+
+#define XFER_QWORD_COUNT 32
+#define XFER_QWORD_BYTECOUNT 8
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO)
 #define SPI1_CLK 38
@@ -318,6 +340,8 @@ struct cdns_xspi_dev {
 #endif
 	enum cdns_xspi_sdma_size read_size;
 	int current_clock;
+	bool xfer_in_progress;
+	int current_xfer_qword;
 };
 
 const int cdns_xspi_clk_div_list[] = {
@@ -569,7 +593,8 @@ static bool cdns_xspi_setup_clock(struct cdns_xspi_dev *cdns_xspi, int requested
 	clk_reg = readl(cdns_xspi->auxbase + CDNS_XSPI_CLK_CTRL_AUX_REG);
 
 	if (FIELD_GET(CDNS_XSPI_CLK_DIV, clk_reg) != i) {
-		clk_reg = FIELD_PREP(CDNS_XSPI_CLK_DIV, i);
+		clk_reg &= ~CDNS_XSPI_CLK_DIV;
+		clk_reg |= FIELD_PREP(CDNS_XSPI_CLK_DIV, i);
 		clk_reg |= CDNS_XSPI_CLK_ENABLE;
 		update_clk = true;
 	}
@@ -655,9 +680,13 @@ static void cdns_xspi_set_interrupts(struct cdns_xspi_dev *cdns_xspi,
 				     bool enabled)
 {
 	u32 intr_enable;
+	u32 irq_status;
 
 	if (!cdns_xspi->irq)
 		return;
+
+	irq_status = readl(cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG);
+	writel(irq_status, cdns_xspi->iobase + CDNS_XSPI_INTR_STATUS_REG);
 
 	intr_enable = readl(cdns_xspi->iobase + CDNS_XSPI_INTR_ENABLE_REG);
 	if (enabled)
@@ -926,6 +955,67 @@ static int cdns_xspi_mem_op(struct cdns_xspi_dev *cdns_xspi,
 					   !pstore);
 }
 
+#ifdef CONFIG_ACPI
+static bool cdns_xspi_supports_op(struct spi_mem *mem,
+				  const struct spi_mem_op *op)
+{
+	struct spi_device *spi = mem->spi;
+	const union acpi_object *obj;
+	struct acpi_device *adev;
+
+	adev = ACPI_COMPANION(&spi->dev);
+
+	if (!acpi_dev_get_property(adev, "spi-tx-bus-width", ACPI_TYPE_INTEGER,
+				   &obj)) {
+		switch (obj->integer.value) {
+		case 1:
+			break;
+		case 2:
+			spi->mode |= SPI_TX_DUAL;
+			break;
+		case 4:
+			spi->mode |= SPI_TX_QUAD;
+			break;
+		case 8:
+			spi->mode |= SPI_TX_OCTAL;
+			break;
+		default:
+			dev_warn(&spi->dev,
+				 "spi-tx-bus-width %lld not supported\n",
+				 obj->integer.value);
+			break;
+		}
+	}
+
+	if (!acpi_dev_get_property(adev, "spi-rx-bus-width", ACPI_TYPE_INTEGER,
+				   &obj)) {
+		switch (obj->integer.value) {
+		case 1:
+			break;
+		case 2:
+			spi->mode |= SPI_RX_DUAL;
+			break;
+		case 4:
+			spi->mode |= SPI_RX_QUAD;
+			break;
+		case 8:
+			spi->mode |= SPI_RX_OCTAL;
+			break;
+		default:
+			dev_warn(&spi->dev,
+				 "spi-rx-bus-width %lld not supported\n",
+				 obj->integer.value);
+			break;
+		}
+	}
+
+	if (!spi_mem_default_supports_op(mem, op))
+		return false;
+
+	return true;
+}
+#endif
+
 static int cdns_xspi_mem_op_execute(struct spi_mem *mem,
 				    const struct spi_mem_op *op)
 {
@@ -950,6 +1040,9 @@ static int cdns_xspi_adjust_mem_op_size(struct spi_mem *mem, struct spi_mem_op *
 }
 
 static const struct spi_controller_mem_ops cadence_xspi_mem_ops = {
+#ifdef CONFIG_ACPI
+	.supports_op = cdns_xspi_supports_op,
+#endif
 	.exec_op = cdns_xspi_mem_op_execute,
 	.adjust_op_size = cdns_xspi_adjust_mem_op_size,
 };
@@ -996,21 +1089,51 @@ static irqreturn_t cdns_xspi_irq_handler(int this_irq, void *dev)
 	return result;
 }
 
+#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+
+#define DMI_ENTRY_PROCESSOR_MIN_LENGTH	48
+#define DMI_PROC_VERSION_NUMBER		0x10
+#define DMI_MAX_STRLEN			80
+
+static void find_proc_ver(const struct dmi_header *dm, void *private)
+{
+	const u8 *dmi_data = (const u8 *)dm;
+	char *ptr;
+	int i, idx;
+
+	if (dm->type == DMI_ENTRY_PROCESSOR &&
+	    dm->length >= DMI_ENTRY_PROCESSOR_MIN_LENGTH) {
+		idx = (int)get_unaligned((const u8 *)
+					 (dmi_data + DMI_PROC_VERSION_NUMBER));
+		ptr = (char *)(dmi_data + dm->length);
+		for (i = 1; i < idx; i++) {
+			while (*ptr)
+				ptr++;
+			ptr++;
+		}
+		strcpy(private, ptr);
+	}
+}
+#endif
+
 static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 {
-	struct device_node *node_prop = pdev->dev.of_node;
-	struct device_node *node_child;
+	struct fwnode_handle *fwnode_child;
 	struct spi_master *master = platform_get_drvdata(pdev);
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
 	unsigned int cs;
 	unsigned int read_size = 0;
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+	struct device_node *node_child;
 	unsigned int base_addr = 0;
 	struct device_node *node_soc;
 	char const *cpu_rev;
+	bool has_acpi;
 
-	if (of_property_read_u32(node_prop, "reg", &base_addr))
+	has_acpi = has_acpi_companion(&pdev->dev);
+
+	if (device_property_read_u32(&pdev->dev, "reg", &base_addr))
 		dev_info(&pdev->dev, "Missing reg property");
 
 	if (base_addr == SPI0_BASE)
@@ -1018,15 +1141,13 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 	else
 		cdns_xspi->xspi_id = 1;
 
-	node_soc = of_find_node_by_name(NULL, "soc");
-	if (!node_soc) {
-		pr_info("Failed to find chip revision node\n");
-		cdns_xspi->revision_supported = false;
-	} else {
-		if (!of_property_read_string(node_soc, "chiprevision", &cpu_rev)) {
-			if (!strncmp(cpu_rev, "A0", 3))
+	if (has_acpi) {
+		char ver[3] = {0};
+
+		if (!dmi_walk(find_proc_ver, &ver)) {
+			if (!strncmp(ver, "A0", 3))
 				cdns_xspi->revision_supported = true;
-			else if (!strncmp(cpu_rev, "A1", 3))
+			else if (!strncmp(ver, "A1", 3))
 				cdns_xspi->revision_supported = true;
 			else
 				cdns_xspi->revision_supported = false;
@@ -1034,26 +1155,44 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 			pr_info("Failed to obtain chip revision\n");
 			cdns_xspi->revision_supported = false;
 		}
-		of_node_put(node_child);
+	} else {
+		node_soc = of_find_node_by_name(NULL, "soc");
+		if (!node_soc) {
+			pr_info("Failed to find chip revision node\n");
+			cdns_xspi->revision_supported = false;
+		} else {
+			if (!of_property_read_string(node_soc, "chiprevision",
+						     &cpu_rev)) {
+				if (!strncmp(cpu_rev, "A0", 3))
+					cdns_xspi->revision_supported = true;
+				else if (!strncmp(cpu_rev, "A1", 3))
+					cdns_xspi->revision_supported = true;
+				else
+					cdns_xspi->revision_supported = false;
+			} else {
+				pr_info("Failed to obtain chip revision\n");
+				cdns_xspi->revision_supported = false;
+			}
+			of_node_put(node_child);
+		}
 	}
+
 #endif
 
-
-	if (of_property_read_u32(node_prop, "cdns,read-size", &read_size))
+	if (device_property_read_u32(&pdev->dev, "cdns,read-size", &read_size))
 		dev_info(&pdev->dev, "Missing read size property, usining byte acess\n");
 	cdns_xspi->read_size = read_size;
 
-	for_each_child_of_node(node_prop, node_child) {
-		if (!of_device_is_available(node_child))
+	device_for_each_child_node(&pdev->dev, fwnode_child) {
+		if (!fwnode_device_is_available(fwnode_child))
 			continue;
-
-		if (of_property_read_u32(node_child, "reg", &cs)) {
+		if (fwnode_property_read_u32(fwnode_child, "reg", &cs)) {
 			dev_err(&pdev->dev, "Couldn't get memory chip select\n");
-			of_node_put(node_child);
+			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		} else if (cs >= CDNS_XSPI_MAX_BANKS) {
 			dev_err(&pdev->dev, "reg (cs) parameter value too large\n");
-			of_node_put(node_child);
+			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		}
 	}
@@ -1078,12 +1217,218 @@ static void cdns_xspi_print_phy_config(struct cdns_xspi_dev *cdns_xspi)
 		 readl(cdns_xspi->auxbase + CDNS_XSPI_CCP_PHY_DLL_SLAVE_CTRL));
 }
 
+static bool cdns_xspi_is_xfer_supported(struct cdns_xspi_dev *cdns_xspi)
+{
+	u32 clk_reg = readl(cdns_xspi->auxbase + CDNS_XSPI_CLK_CTRL_AUX_REG);
+
+	if (clk_reg & CDNS_XSPI_XFER_SUPPORTED)
+		return true;
+
+	return false;
+}
+
 static int cdns_xspi_setup(struct spi_device *spi_dev)
 {
 	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(spi_dev->master);
 
 	cdns_xspi->current_clock = spi_dev->max_speed_hz;
 	cdns_xspi_setup_clock(cdns_xspi, cdns_xspi->current_clock);
+
+	return 0;
+}
+
+static int cdns_xspi_prepare_generic(int cs, const void *dout, int len, int glue, u32 *cmd_regs)
+{
+	u8 *data = (u8 *)dout;
+	int i;
+	int data_counter = 0;
+
+	memset(cmd_regs, 0x00, 6*4);
+
+	if (len > 7) {
+		for (i = (len >= 10 ? 2 : len - 8); i >= 0 ; i--)
+			cmd_regs[3] |= data[data_counter++] << (8*i);
+	}
+	if (len > 3) {
+		for (i = (len >= 7 ? 3 : len - 4); i >= 0; i--)
+			cmd_regs[2] |= data[data_counter++] << (8*i);
+	}
+	for (i = (len >= 3 ? 2 : len - 1); i >= 0 ; i--)
+		cmd_regs[1] |= data[data_counter++] << (8 + 8*i);
+
+	cmd_regs[1] |= 96;
+	cmd_regs[3] |= len << 24;
+	cmd_regs[4] |= cs << 12;
+
+	if (glue == 1)
+		cmd_regs[4] |= 1 << 28;
+
+	return 0;
+}
+
+unsigned char reverse_bits(unsigned char num)
+{
+	unsigned int count = sizeof(num) * 8 - 1;
+	unsigned int reverse_num = num;
+
+	num >>= 1;
+	while (num) {
+		reverse_num <<= 1;
+		reverse_num |= num & 1;
+		num >>= 1;
+		count--;
+	}
+	reverse_num <<= count;
+	return reverse_num;
+}
+
+static void cdns_xspi_read_single_qword(struct cdns_xspi_dev *cdns_xspi, u8 **buffer)
+{
+	u64 d = readq(cdns_xspi->iobase +
+		      SPIX_XFER_FUNC_CTRL_READ_DATA(cdns_xspi->current_xfer_qword));
+	u8 *ptr = (u8 *)&d;
+	int k;
+
+	for (k = 0; k < 8; k++) {
+		u8 val = reverse_bits((ptr[k]));
+		**buffer = val;
+		*buffer = *buffer + 1;
+	}
+
+	cdns_xspi->current_xfer_qword++;
+	cdns_xspi->current_xfer_qword %= XFER_QWORD_COUNT;
+}
+
+static void cdns_xspi_finish_read(struct cdns_xspi_dev *cdns_xspi, u8 **buffer, u32 data_count)
+{
+	u64 d = readq(cdns_xspi->iobase +
+		      SPIX_XFER_FUNC_CTRL_READ_DATA(cdns_xspi->current_xfer_qword));
+	u8 *ptr = (u8 *)&d;
+	int k;
+
+	for (k = 0; k < data_count % XFER_QWORD_BYTECOUNT; k++) {
+		u8 val = reverse_bits((ptr[k]));
+		**buffer = val;
+		*buffer = *buffer + 1;
+	}
+
+	cdns_xspi->current_xfer_qword++;
+	cdns_xspi->current_xfer_qword %= XFER_QWORD_COUNT;
+}
+
+static int cdns_xspi_prepare_transfer(int cs, int dir, int len, u32 *cmd_regs)
+{
+	memset(cmd_regs, 0x00, 6*4);
+
+	cmd_regs[1] |= 127;
+	cmd_regs[2] |= len << 16;
+	cmd_regs[4] |= dir << 4; //dir = 0 read, dir =1 write
+	cmd_regs[4] |= cs << 12;
+
+	return 0;
+}
+
+int cdns_xspi_transfer_one_message_b0(struct spi_controller *master,
+					   struct spi_message *m)
+{
+	struct cdns_xspi_dev *cdns_xspi = spi_master_get_devdata(master);
+	struct spi_device *spi = m->spi;
+	struct spi_transfer *t = NULL;
+
+	const int max_len = XFER_QWORD_BYTECOUNT * XFER_QWORD_COUNT;
+	int current_cycle_count;
+	int cs = spi->chip_select;
+	int cs_change = 0;
+
+	if (cdns_xspi_wait_for_controller_idle(cdns_xspi) < 0)
+		return -EIO;
+
+	writel(FIELD_PREP(CDNS_XSPI_CTRL_WORK_MODE, CDNS_XSPI_WORK_MODE_STIG),
+	       cdns_xspi->iobase + CDNS_XSPI_CTRL_CONFIG_REG);
+
+	/* Enable xfer state machine */
+	if (!cdns_xspi->xfer_in_progress) {
+		u32 xfer_control = readl(cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+
+		cdns_xspi->current_xfer_qword = 0;
+		cdns_xspi->xfer_in_progress = true;
+		xfer_control |= (XFER_RECEIVE_ENABLE |
+				 XFER_CLK_CAPTURE_POL |
+				 XFER_FUNC_START |
+				 XFER_SOFT_RESET |
+				 FIELD_PREP(XFER_CS_N_HOLD, (1 << cs)));
+		xfer_control &= ~(XFER_FUNC_ENABLE | XFER_CLK_DRIVE_POL);
+		writel(xfer_control, cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+	}
+
+	list_for_each_entry(t, &m->transfers, transfer_list) {
+		u8 *txd = (u8 *) t->tx_buf;
+		u8 *rxd = (u8 *) t->rx_buf;
+		u8 data[10];
+		u32 cmd_regs[6];
+
+		if (!txd)
+			txd = data;
+
+		cdns_xspi->in_buffer = txd + 1;
+		cdns_xspi->out_buffer = txd + 1;
+
+		while (t->len) {
+
+			current_cycle_count = t->len > max_len ? max_len : t->len;
+
+			if (current_cycle_count < 10) {
+				cdns_xspi_prepare_generic(cs, txd, current_cycle_count,
+							  false, cmd_regs);
+				cdns_xspi_trigger_command(cdns_xspi, cmd_regs);
+				if (cdns_xspi_stig_ready(cdns_xspi, true))
+					return -EIO;
+			} else {
+				cdns_xspi_prepare_generic(cs, txd, 1, true, cmd_regs);
+				cdns_xspi_trigger_command(cdns_xspi, cmd_regs);
+				cdns_xspi_prepare_transfer(cs, 1, current_cycle_count - 1,
+							   cmd_regs);
+				cdns_xspi_trigger_command(cdns_xspi, cmd_regs);
+				if (cdns_xspi_sdma_ready(cdns_xspi, true))
+					return -EIO;
+				cdns_xspi_sdma_handle(cdns_xspi);
+				if (cdns_xspi_stig_ready(cdns_xspi, true))
+					return -EIO;
+
+				cdns_xspi->in_buffer += current_cycle_count;
+				cdns_xspi->out_buffer += current_cycle_count;
+			}
+
+			if (rxd) {
+				int j;
+
+				for (j = 0; j < current_cycle_count / 8; j++)
+					cdns_xspi_read_single_qword(cdns_xspi, &rxd);
+				cdns_xspi_finish_read(cdns_xspi, &rxd, current_cycle_count);
+			} else {
+				cdns_xspi->current_xfer_qword += current_cycle_count /
+								 XFER_QWORD_BYTECOUNT;
+				if (current_cycle_count % XFER_QWORD_BYTECOUNT)
+					cdns_xspi->current_xfer_qword++;
+
+				cdns_xspi->current_xfer_qword %= XFER_QWORD_COUNT;
+			}
+			cs_change = t->cs_change;
+			t->len -= current_cycle_count;
+		}
+	}
+
+	if (!cs_change) {
+		u32 xfer_control = readl(cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+
+		xfer_control &= ~(XFER_RECEIVE_ENABLE |
+				  XFER_SOFT_RESET);
+		writel(xfer_control, cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+		cdns_xspi->xfer_in_progress = false;
+	}
+
+	m->status = 0;
+	spi_finalize_current_message(master);
 
 	return 0;
 }
@@ -1123,48 +1468,6 @@ static int spi_swap(int val, int len)
 #endif
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-static int cdns_xspi_prepare_generic(int cs, const void *dout, int len, int glue, u32 *cmd_regs)
-{
-	u8 *data = (u8 *)dout;
-	int i;
-	int data_counter = 0;
-
-	memset(cmd_regs, 0x00, 6*4);
-
-	if (len > 7) {
-		for (i = (len >= 10 ? 2 : len - 8); i >= 0 ; i--)
-			cmd_regs[3] |= data[data_counter++] << (8*i);
-	}
-	if (len > 3) {
-		for (i = (len >= 7 ? 3 : len - 4); i >= 0; i--)
-			cmd_regs[2] |= data[data_counter++] << (8*i);
-	}
-	for (i = (len >= 3 ? 2 : len - 1); i >= 0 ; i--)
-		cmd_regs[1] |= data[data_counter++] << (8 + 8*i);
-
-	cmd_regs[1] |= 96;
-	cmd_regs[3] |= len << 24;
-	cmd_regs[4] |= cs << 12;
-
-	if (glue == 1)
-		cmd_regs[4] |= 1 << 28;
-
-	return 0;
-}
-
-static int cdns_xspi_prepare_transfer(int cs, int dir, int len, u32 *cmd_regs)
-{
-	memset(cmd_regs, 0x00, 6*4);
-
-	cmd_regs[1] |= 127;
-	cmd_regs[2] |= len << 16;
-	cmd_regs[4] |= dir << 4; //dir = 0 read, dir =1 write
-	cmd_regs[4] |= cs << 12;
-
-	return 0;
-}
-
-
 static int handle_tx_rx(struct cdns_xspi_dev *cdns_xspi, void *tx_buf,
 			void *rx_buf, int write_len, int len)
 {
@@ -1295,8 +1598,8 @@ static int cdns_xspi_transfer_one_message(struct spi_controller *master,
 
 	return 0;
 }
-#endif
 
+#endif
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
 static struct cdns_xspi_dev *cdns_xspi_debug;
@@ -1365,6 +1668,7 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 
 	master->setup = cdns_xspi_setup;
 	master->dev.of_node = pdev->dev.of_node;
+	master->dev.fwnode = pdev->dev.fwnode;
 	master->bus_num = -1;
 
 	platform_set_drvdata(pdev, master);
@@ -1380,21 +1684,16 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 
 	ret = cdns_xspi_of_get_plat_data(pdev);
 	if (ret)
-		return -ENODEV;
+		return ret;
 
-#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
-	if (cdns_xspi->revision_supported)
-		master->transfer_one_message = cdns_xspi_transfer_one_message;
-#endif
-
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "io");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	cdns_xspi->iobase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->iobase)) {
 		dev_err(dev, "Failed to remap controller base address\n");
 		return PTR_ERR(cdns_xspi->iobase);
 	}
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "sdma");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 1);
 	cdns_xspi->sdmabase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->sdmabase)) {
 		dev_err(dev, "Failed to remap SDMA address\n");
@@ -1402,7 +1701,7 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 	}
 	cdns_xspi->sdmasize = resource_size(res);
 
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "aux");
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	cdns_xspi->auxbase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(cdns_xspi->auxbase)) {
 		dev_err(dev, "Failed to remap AUX address\n");
@@ -1423,6 +1722,14 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 			return ret;
 		}
 	}
+
+#if IS_ENABLED(CONFIG_SPI_CADENCE_GPIO_WO) || IS_ENABLED(CONFIG_SPI_CADENCE_HW_WO)
+	if (cdns_xspi->revision_supported)
+		master->transfer_one_message = cdns_xspi_transfer_one_message;
+#else
+	if (cdns_xspi_is_xfer_supported(cdns_xspi))
+		master->transfer_one_message = cdns_xspi_transfer_one_message_b0;
+#endif
 
 	cdns_xspi->current_clock = 25000000;
 	cdns_xspi_setup_clock(cdns_xspi, cdns_xspi->current_clock);
@@ -1456,6 +1763,12 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct acpi_device_id cdns_xspi_acpi_match[] = {
+	{"cdns,xspi-nor", 0},
+	{},
+};
+MODULE_DEVICE_TABLE(acpi, cdns_xspi_acpi_match);
+
 #ifdef CONFIG_OF
 static const struct of_device_id cdns_xspi_of_match[] = {
 	{
@@ -1474,6 +1787,7 @@ static struct platform_driver cdns_xspi_platform_driver = {
 	.driver = {
 		.name = CDNS_XSPI_NAME,
 		.of_match_table = cdns_xspi_of_match,
+		.acpi_match_table = cdns_xspi_acpi_match,
 	},
 };
 

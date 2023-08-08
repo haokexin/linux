@@ -49,7 +49,7 @@ static struct mac_ops		rpm2_mac_ops   = {
 	.int_set_reg    =       RPM2_CMRX_SW_INT_ENA_W1S,
 	.irq_offset     =       1,
 	.int_ena_bit    =       BIT_ULL(0),
-	.lmac_fwi	=	RPM_LMAC_FWI,
+	.lmac_fwi	=	RPM2_LMAC_FWI,
 	.non_contiguous_serdes_lane = true,
 	.rx_stats_cnt   =       43,
 	.tx_stats_cnt   =       34,
@@ -453,21 +453,21 @@ int rpm_get_fec_stats(void *rpmd, int lmac_id, struct cgx_fec_stats_rsp *rsp)
 	if (rpm->lmac_idmap[lmac_id]->link_info.fec == OTX2_FEC_BASER) {
 		val_lo = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_VL0_CCW_LO);
 		val_hi = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_CW_HI);
-		rsp->fec_corr_blks = (val_hi << 32 | val_lo);
+		rsp->fec_corr_blks = (val_hi << 16 | val_lo);
 
 		val_lo = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_VL0_NCCW_LO);
 		val_hi = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_CW_HI);
-		rsp->fec_uncorr_blks = (val_hi << 32 | val_lo);
+		rsp->fec_uncorr_blks = (val_hi << 16 | val_lo);
 
 		/* 50G uses 2 Physical serdes lines */
 		if (rpm->lmac_idmap[lmac_id]->link_info.lmac_type_id == LMAC_MODE_50G_R) {
 			val_lo = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_VL1_CCW_LO);
 			val_hi = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_CW_HI);
-			rsp->fec_corr_blks += (val_hi << 32 | val_lo);
+			rsp->fec_corr_blks += (val_hi << 16 | val_lo);
 
 			val_lo = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_VL1_NCCW_LO);
 			val_hi = rpm_read(rpm, lmac_id, RPMX_MTI_FCFECX_CW_HI);
-			rsp->fec_uncorr_blks += (val_hi << 32 | val_lo);
+			rsp->fec_uncorr_blks += (val_hi << 16 | val_lo);
 		}
 	} else {
 		/* enable RS-FEC capture */
@@ -604,14 +604,15 @@ u32 rpm2_get_lmac_fifo_len(void *rpmd, int lmac_id)
 int rpm_lmac_internal_loopback(void *rpmd, int lmac_id, bool enable)
 {
 	rpm_t *rpm = rpmd;
-	u8 lmac_type;
+	struct lmac *lmac;
 	u64 cfg;
 
 	if (!is_lmac_valid(rpm, lmac_id))
 		return -ENODEV;
-	lmac_type = rpm->mac_ops->get_lmac_type(rpm, lmac_id);
 
-	if (lmac_type == LMAC_MODE_QSGMII || lmac_type == LMAC_MODE_SGMII) {
+	lmac = lmac_pdata(lmac_id, rpm);
+	if (lmac->lmac_type == LMAC_MODE_QSGMII ||
+	    lmac->lmac_type == LMAC_MODE_SGMII) {
 		dev_err(&rpm->pdev->dev, "loopback not supported for LPC mode\n");
 		return 0;
 	}
@@ -725,7 +726,7 @@ int  rpm_lmac_get_pfc_frm_cfg(void *rpmd, int lmac_id, u8 *tx_pause, u8 *rx_paus
 	return 0;
 }
 
-int rpm_lmac_reset(void *rpmd, int lmac_id)
+int rpm_lmac_reset(void *rpmd, int lmac_id, u8 pf_req_flr)
 {
 	u64 rx_logl_xon, cfg;
 	rpm_t *rpm = rpmd;
@@ -739,6 +740,9 @@ int rpm_lmac_reset(void *rpmd, int lmac_id)
 	cfg = 0xff;
 
 	rpm_write(rpm, lmac_id, rx_logl_xon, cfg);
+
+	if (pf_req_flr)
+		rpm_lmac_internal_loopback(rpm, lmac_id, false);
 
 	return 0;
 }

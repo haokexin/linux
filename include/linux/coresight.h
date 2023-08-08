@@ -35,15 +35,6 @@
 
 extern struct bus_type coresight_bustype;
 
-
-struct coresight_kdump_ctxt {
-	/* Sink buffer related info */
-	uint64_t aux_pages; /* aux pages array base */
-	uint64_t aux_nr_pages;
-	uint64_t size;	/* total buffer size */
-	uint64_t head;	/* starting page offset and index */
-};
-
 enum coresight_dev_type {
 	CORESIGHT_DEV_TYPE_NONE,
 	CORESIGHT_DEV_TYPE_SINK,
@@ -290,6 +281,7 @@ static struct coresight_dev_list (var) = {				\
 #define link_ops(csdev)		csdev->ops->link_ops
 #define helper_ops(csdev)	csdev->ops->helper_ops
 #define ect_ops(csdev)		csdev->ops->ect_ops
+#define panic_ops(csdev)	csdev->ops->panic_ops
 
 /**
  * struct coresight_ops_sink - basic operations for a sink
@@ -299,7 +291,6 @@ static struct coresight_dev_list (var) = {				\
  * @alloc_buffer:	initialises perf's ring buffer for trace collection.
  * @free_buffer:	release memory allocated in @get_config.
  * @update_buffer:	update buffer pointers after a trace session.
- * @kdump_sync:		Sync sink info for kdump kernel
  */
 struct coresight_ops_sink {
 	int (*enable)(struct coresight_device *csdev, u32 mode, void *data);
@@ -311,10 +302,6 @@ struct coresight_ops_sink {
 	unsigned long (*update_buffer)(struct coresight_device *csdev,
 			      struct perf_output_handle *handle,
 			      void *sink_config);
-
-	void (*kdump_sync)(struct perf_output_handle *handle,
-			   void *sink_config,
-			   struct coresight_kdump_ctxt *kdump_ctxt);
 };
 
 /**
@@ -337,7 +324,6 @@ struct coresight_ops_link {
  *		to the HW.
  * @enable:	enables tracing for a source.
  * @disable:	disables tracing for a source.
- * @kdump_sync:	Sync source info for kdump kernel
  */
 struct coresight_ops_source {
 	int (*cpu_id)(struct coresight_device *csdev);
@@ -346,7 +332,6 @@ struct coresight_ops_source {
 		      struct perf_event *event,  u32 mode);
 	void (*disable)(struct coresight_device *csdev,
 			struct perf_event *event);
-	void (*kdump_sync)(void *csdev, void *kdump_ctxt);
 };
 
 /**
@@ -374,12 +359,22 @@ struct coresight_ops_ect {
 	int (*disable)(struct coresight_device *csdev);
 };
 
+/**
+ * struct coresight_ops_panic - Generic device ops for panic handing
+ *
+ * @sync	: Sync the device register state/trace data
+ */
+struct coresight_ops_panic {
+	int (*sync)(struct coresight_device *csdev);
+};
+
 struct coresight_ops {
 	const struct coresight_ops_sink *sink_ops;
 	const struct coresight_ops_link *link_ops;
 	const struct coresight_ops_source *source_ops;
 	const struct coresight_ops_helper *helper_ops;
 	const struct coresight_ops_ect *ect_ops;
+	const struct coresight_ops_panic *panic_ops;
 };
 
 #if IS_ENABLED(CONFIG_CORESIGHT)
@@ -511,9 +506,6 @@ extern char *coresight_alloc_device_name(struct coresight_dev_list *devs,
 
 extern bool coresight_loses_context_with_cpu(struct device *dev);
 
-
-extern void cpu_emergency_stop_cs_etm(void);
-
 u32 coresight_relaxed_read32(struct coresight_device *csdev, u32 offset);
 u32 coresight_read32(struct coresight_device *csdev, u32 offset);
 void coresight_write32(struct coresight_device *csdev, u32 val, u32 offset);
@@ -524,6 +516,7 @@ u64 coresight_read64(struct coresight_device *csdev, u32 offset);
 void coresight_relaxed_write64(struct coresight_device *csdev,
 			       u64 val, u32 offset);
 void coresight_write64(struct coresight_device *csdev, u64 val, u32 offset);
+extern void print_arch_cpu_state(int cpu);
 
 #else
 static inline struct coresight_device *
@@ -600,7 +593,8 @@ static inline void coresight_write64(struct coresight_device *csdev, u64 val, u3
 {
 }
 
-static inline void cpu_emergency_stop_cs_etm(void) {}
+static void print_arch_cpu_state(int cpu) {};
+
 #endif		/* IS_ENABLED(CONFIG_CORESIGHT) */
 
 extern int coresight_get_cpu(struct device *dev);

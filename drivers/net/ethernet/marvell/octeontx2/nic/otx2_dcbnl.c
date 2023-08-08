@@ -142,11 +142,11 @@ static int otx2_dcbnl_ieee_setpfc(struct net_device *dev, struct ieee_pfc *pfc)
 {
 	struct otx2_nic *pfvf = netdev_priv(dev);
 	bool if_up = netif_running(dev);
+	u8 prev_pfc_en;
 	int err;
 
-	/* Save PFC configuration to interface */
+	prev_pfc_en = pfvf->pfc_en;
 	pfvf->pfc_en = pfc->pfc_en;
-
 	if (pfvf->hw.tx_queues >= NIX_PF_PFC_PRIO_MAX)
 		goto process_pfc;
 
@@ -163,7 +163,9 @@ process_pfc:
 		return err;
 
 	if (if_up) {
+		pfvf->pfc_en = prev_pfc_en;
 		otx2_stop(dev);
+		pfvf->pfc_en = pfc->pfc_en;
 		otx2_open(dev);
 	}
 

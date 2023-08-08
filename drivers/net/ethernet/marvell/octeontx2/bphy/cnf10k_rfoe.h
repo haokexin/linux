@@ -18,6 +18,7 @@
 #include <linux/ptp_clock_kernel.h>
 #include <linux/if_vlan.h>
 #include <net/ip.h>
+#include <linux/timecounter.h>
 
 #include "rfoe_common.h"
 #include "otx2_bphy.h"
@@ -41,6 +42,7 @@
 
 #define PCI_SUBSYS_DEVID_CNF10K_A			0xBA00
 #define PCI_SUBSYS_DEVID_CNF10K_B			0xBC00
+#define PCI_SUBSYS_DEVID_CN10K_A			0xB900
 /* BCN register offsets and definitions */
 #define CNF10K_BCN_CAPTURE_CFG				0x1400U
 #define CNF10K_BCN_CAPTURE_N1_N2			0x1410U
@@ -170,8 +172,6 @@ struct cnf10k_rfoe_ndev_priv {
 	struct timer_list		tx_timer;
 	unsigned long			state;
 	struct work_struct		ptp_tx_work;
-	struct work_struct		ptp_queue_work;
-	struct ptp_tx_skb_list		ptp_skb_list;
 	struct ptp_clock		*ptp_clock;
 	struct ptp_clock_info		ptp_clock_info;
 	struct delayed_work		extts_work;
@@ -195,14 +195,20 @@ struct cnf10k_rfoe_ndev_priv {
 	u64				last_extts;
 	u64				thresh;
 
+	struct hrtimer			hrtimer;
+	ktime_t				last_ts;
+	u32				clock_rate;
+	u32				clock_period;
+	u8				ptp_errata;
+
 	struct otx2_rfoe_stats		stats;
 } ____cacheline_aligned_in_smp;
 
 /* PTPv2 originTimestamp structure */
 struct ptpv2_tstamp {
-	u16 seconds_msb; /* 16 bits + */
-	u32 seconds_lsb; /* 32 bits = 48 bits*/
-	u32 nanoseconds;
+	__be16 seconds_msb; /* 16 bits + */
+	__be32 seconds_lsb; /* 32 bits = 48 bits*/
+	__be32 nanoseconds;
 } __packed;
 
 void cnf10k_rfoe_rx_napi_schedule(int rfoe_num, u32 status);
@@ -221,6 +227,7 @@ void cnf10k_rfoe_set_ethtool_ops(struct net_device *netdev);
 void cnf10k_rfoe_calc_ptp_ts(struct cnf10k_rfoe_ndev_priv *priv, u64 *ts);
 int cnf10k_rfoe_ptp_init(struct cnf10k_rfoe_ndev_priv *priv);
 void cnf10k_rfoe_ptp_destroy(struct cnf10k_rfoe_ndev_priv *priv);
+int cnf10k_rfoe_ptp_reset_sw_phc(struct cnf10k_rfoe_ndev_priv *priv);
 
 void cnf10k_bphy_intr_handler(struct otx2_bphy_cdev_priv *cdev_priv,
 			      u32 status);
@@ -228,10 +235,68 @@ u64 cnf10k_rfoe_read_ptp_clock(struct cnf10k_rfoe_ndev_priv *priv);
 int cnf10k_rfoe_ptp_tstamp2time(struct cnf10k_rfoe_ndev_priv *priv, u64 tstamp,
 				u64 *tsns);
 
+static inline bool is_ptp_dev_cnf10kb(struct cnf10k_rfoe_ndev_priv *priv)
+{
+	return (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B) ? true : false;
+}
+
+static inline bool is_ptp_dev_cnf10ka(struct cnf10k_rfoe_ndev_priv *priv)
+{
+	return (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A) ? true : false;
+}
+
+static inline bool is_ptp_dev_cn10ka(struct cnf10k_rfoe_ndev_priv *priv)
+{
+	return (priv->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A) ? true : false;
+}
+
 static inline u64 cnf10k_ptp_convert_timestamp(u64 timestamp)
 {
 	return ((timestamp >> 32) * NSEC_PER_SEC) + (timestamp & 0xFFFFFFFFUL);
 }
 
+static inline u64 cnf10k_ptp_convert_ext_timestamp(struct cnf10k_rfoe_ndev_priv *priv,
+						   u64 timestamp)
+{
+	if (is_ptp_dev_cn10ka(priv) || is_ptp_dev_cnf10ka(priv))
+		return ((timestamp >> 32) * NSEC_PER_SEC) + (timestamp & 0xFFFFFFFFUL);
+
+	return timestamp;
+}
+
 void cnf10k_rfoe_set_link_state(struct net_device *netdev, u8 state);
+
+static inline bool is_cnf10ka_a0(struct cnf10k_rfoe_ndev_priv *priv)
+{
+	struct pci_dev *pdev = priv->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
+	    (pdev->revision & 0x0F) == 0x0)
+		return true;
+
+	return false;
+}
+
+static inline bool is_cnf10ka_a1(struct cnf10k_rfoe_ndev_priv *priv)
+{
+	struct pci_dev *pdev = priv->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
+	    (pdev->revision & 0x0F) == 0x1)
+		return true;
+
+	return false;
+}
+
+static inline bool is_cnf10kb_a0(struct cnf10k_rfoe_ndev_priv *priv)
+{
+	struct pci_dev *pdev = priv->pdev;
+
+	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
+	    (pdev->revision & 0x0F) == 0x0)
+		return true;
+
+	return false;
+}
+
 #endif

@@ -57,6 +57,7 @@ static const char *cgx_lmactype_string[LMAC_MODE_MAX] = {
 	[LMAC_MODE_50G_R] = "50G_R",
 	[LMAC_MODE_100G_R] = "100G_R",
 	[LMAC_MODE_USXGMII] = "USXGMII",
+	[LMAC_MODE_USGMII] = "USGMII",
 };
 
 /* CGX PHY management internal APIs */
@@ -476,11 +477,18 @@ int cgx_lmac_addr_max_entries_get(u8 cgx_id, u8 lmac_id)
 u64 cgx_lmac_addr_get(u8 cgx_id, u8 lmac_id)
 {
 	struct cgx *cgx_dev = cgx_get_pdata(cgx_id);
-	struct lmac *lmac = lmac_pdata(lmac_id, cgx_dev);
 	struct mac_ops *mac_ops;
+	struct lmac *lmac;
 	int index;
 	u64 cfg;
 	int id;
+
+	if (!cgx_dev)
+		return 0;
+
+	lmac = lmac_pdata(lmac_id, cgx_dev);
+	if (!lmac)
+		return 0;
 
 	mac_ops = cgx_dev->mac_ops;
 
@@ -554,14 +562,15 @@ static u32 cgx_get_lmac_fifo_len(void *cgxd, int lmac_id)
 int cgx_lmac_internal_loopback(void *cgxd, int lmac_id, bool enable)
 {
 	struct cgx *cgx = cgxd;
-	u8 lmac_type;
+	struct lmac *lmac;
 	u64 cfg;
 
 	if (!is_lmac_valid(cgx, lmac_id))
 		return -ENODEV;
 
-	lmac_type = cgx->mac_ops->get_lmac_type(cgx, lmac_id);
-	if (lmac_type == LMAC_MODE_SGMII || lmac_type == LMAC_MODE_QSGMII) {
+	lmac = lmac_pdata(lmac_id, cgx);
+	if (lmac->lmac_type == LMAC_MODE_SGMII ||
+	    lmac->lmac_type == LMAC_MODE_QSGMII) {
 		cfg = cgx_read(cgx, lmac_id, CGXX_GMP_PCS_MRX_CTL);
 		if (enable)
 			cfg |= CGXX_GMP_PCS_MRX_CTL_LBK;
@@ -1298,7 +1307,7 @@ static void set_mod_args(struct cgx_set_link_mode_args *args,
 				  CGX_MODE_MAX);
 	args->mode = mode;
 	mode_baseidx = cgx_mode - 41;
-	if (mode_baseidx > 0) {
+	if (mode_baseidx >= 0) {
 		args->mode_baseidx = 1;
 		args->mode = BIT_ULL(mode_baseidx);
 	}
@@ -1448,6 +1457,42 @@ static void otx2_map_ethtool_link_modes(u64 bitmask,
 		set_mod_args(args, 25000, 0, 1,
 			     BIT_ULL(CGX_MODE_25GBASE_KR_C_BIT));
 		break;
+	case  ETHTOOL_LINK_MODE_2500baseX_Full_BIT:
+		set_mod_args(args, 2500, 0, 1,
+			     BIT_ULL(ETH_MODE_2500_BASEX_BIT));
+		break;
+	case  ETHTOOL_LINK_MODE_5000baseT_Full_BIT:
+		set_mod_args(args, 5000, 0, 1,
+			     BIT_ULL(ETH_MODE_5000_BASEX_BIT));
+		break;
+	case  ETHTOOL_LINK_MODE_100baseT1_Full_BIT:
+		set_mod_args(args, 1000, 0, 1,
+			     BIT_ULL(ETH_MODE_O_USGMII_BIT));
+		break;
+	case  ETHTOOL_LINK_MODE_1000baseT1_Full_BIT:
+		set_mod_args(args, 1000, 0, 1,
+			     BIT_ULL(ETH_MODE_Q_USGMII_BIT));
+		break;
+	case  ETHTOOL_LINK_MODE_2500baseT_Full_BIT:
+		set_mod_args(args, 2500, 0, 1,
+			     BIT_ULL(ETH_MODE_2_5G_USXGMII_BIT));
+		break;
+	case ETHTOOL_LINK_MODE_200000baseCR4_Full_BIT:
+		set_mod_args(args, 5000, 0, 1,
+			     BIT_ULL(ETH_MODE_5G_USXGMII_BIT));
+		break;
+	case  ETHTOOL_LINK_MODE_10000baseCR_Full_BIT:
+		set_mod_args(args, 10000, 0, 1,
+			     BIT_ULL(ETH_MODE_10G_SXGMII_BIT));
+		break;
+	case  ETHTOOL_LINK_MODE_10000baseER_Full_BIT:
+		set_mod_args(args, 5000, 0, 1,
+			     BIT_ULL(ETH_MODE_10G_DXGMII_BIT));
+		break;
+	case ETHTOOL_LINK_MODE_200000baseDR4_Full_BIT:
+		set_mod_args(args, 2500, 0, 1,
+			     BIT_ULL(ETH_MODE_10G_QXGMII_BIT));
+		break;
 	default:
 		set_mod_args(args, 0, 1, 0, BIT_ULL(CGX_MODE_MAX));
 		break;
@@ -1466,6 +1511,13 @@ static inline void link_status_user_format(u64 lstat,
 	linfo->an = FIELD_GET(RESP_LINKSTAT_AN, lstat);
 	linfo->fec = FIELD_GET(RESP_LINKSTAT_FEC, lstat);
 	linfo->lmac_type_id = FIELD_GET(RESP_LINKSTAT_LMAC_TYPE, lstat);
+
+	if (linfo->lmac_type_id >= LMAC_MODE_MAX) {
+		dev_err(&cgx->pdev->dev, "Unknown lmac_type_id %d reported by firmware on cgx port%d:%d",
+			linfo->lmac_type_id, cgx->cgx_id, lmac_id);
+		return;
+	}
+
 	lmac_string = cgx_lmactype_string[linfo->lmac_type_id];
 	strncpy(linfo->lmac_type, lmac_string, LMACTYPE_STR_LEN - 1);
 }
@@ -1822,7 +1874,7 @@ int cgx_lmac_linkup_start(void *cgxd)
 	return 0;
 }
 
-int cgx_lmac_reset(void *cgxd, int lmac_id)
+int cgx_lmac_reset(void *cgxd, int lmac_id, u8 pf_req_flr)
 {
 	struct cgx *cgx = cgxd;
 	u64 cfg;
@@ -1834,6 +1886,8 @@ int cgx_lmac_reset(void *cgxd, int lmac_id)
 	cfg = 0xff;
 	cgx_write(cgxd, lmac_id, CGXX_CMRX_RX_LOGL_XON, cfg);
 
+	if (pf_req_flr)
+		cgx_lmac_internal_loopback(cgxd, lmac_id, false);
 	return 0;
 }
 
@@ -1919,7 +1973,7 @@ unsigned long cgx_get_lmac_bmap(void *cgxd)
 static int cgx_lmac_init(struct cgx *cgx)
 {
 	struct lmac *lmac;
-	u64 lmac_list;
+	u64 lmac_list = 0;
 	int i, err;
 
 	/* lmac_list specifies which lmacs are enabled
@@ -1987,6 +2041,7 @@ static int cgx_lmac_init(struct cgx *cgx)
 		cgx->lmac_idmap[lmac->lmac_id] = lmac;
 		set_bit(lmac->lmac_id, &cgx->lmac_bmap);
 		cgx->mac_ops->mac_pause_frm_config(cgx, lmac->lmac_id, true);
+		lmac->lmac_type = cgx->mac_ops->get_lmac_type(cgx, lmac->lmac_id);
 	}
 
 	return cgx_lmac_verify_fwi_version(cgx);

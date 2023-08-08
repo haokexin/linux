@@ -19,6 +19,12 @@
 #define PTP_SYNC_SEC_OFFSET    34
 #define PTP_SYNC_NSEC_OFFSET   40
 
+#define BPHY_NDEV_NUM_TXQ	2
+#define BPHY_NDEV_NUM_RXQ	1
+
+#define PTP_QUEUE_ID		0
+#define OTH_QUEUE_ID		1
+
 /* global driver ctx */
 struct cnf10k_rfoe_drv_ctx cnf10k_rfoe_drv_ctx[CNF10K_RFOE_MAX_INTF];
 
@@ -156,7 +162,7 @@ void cnf10k_bphy_rfoe_cleanup(void)
 		if (drv_ctx->valid) {
 			cnf10k_rfoe_debugfs_remove(drv_ctx);
 			netdev = drv_ctx->netdev;
-			netif_stop_queue(netdev);
+			netif_tx_stop_all_queues(netdev);
 			priv = netdev_priv(netdev);
 			--(priv->ptp_cfg->refcnt);
 			if (!priv->ptp_cfg->refcnt) {
@@ -257,15 +263,15 @@ static bool cnf10k_validate_network_transport(struct sk_buff *skb)
 
 static bool cnf10k_ptp_is_sync(struct sk_buff *skb, int *offset, int *udp_csum)
 {
-	struct ethhdr   *eth = (struct ethhdr *)(skb->data);
+	struct ethhdr *eth = (struct ethhdr *)(skb->data);
 	u8 *data = skb->data, *msgtype;
-	u16 proto = eth->h_proto;
+	__be16 proto = eth->h_proto;
 	int network_depth = 0;
 
 	if (eth_type_vlan(eth->h_proto))
 		proto = __vlan_get_protocol(skb, eth->h_proto, &network_depth);
 
-	switch (htons(proto)) {
+	switch (ntohs(proto)) {
 	case ETH_P_1588:
 		if (network_depth)
 			*offset = network_depth;
@@ -307,9 +313,9 @@ static void cnf10k_rfoe_prepare_onestep_ptp_header(struct cnf10k_rfoe_ndev_priv 
 
 	origin_tstamp = (struct ptpv2_tstamp *)((u8 *)skb->data + ptp_offset +
 						PTP_SYNC_SEC_OFFSET);
-	origin_tstamp->seconds_msb = ntohs((ts.tv_sec >> 32) & 0xffff);
-	origin_tstamp->seconds_lsb = ntohl(ts.tv_sec & 0xffffffff);
-	origin_tstamp->nanoseconds = ntohl(ts.tv_nsec);
+	origin_tstamp->seconds_msb = htons((ts.tv_sec >> 32) & 0xffff);
+	origin_tstamp->seconds_lsb = htonl(ts.tv_sec & 0xffffffff);
+	origin_tstamp->nanoseconds = htonl(ts.tv_nsec);
 
 	/* Point to correction field in PTP packet */
 	tx_mem->start_offset = ptp_offset + 8;
@@ -318,129 +324,25 @@ static void cnf10k_rfoe_prepare_onestep_ptp_header(struct cnf10k_rfoe_ndev_priv 
 	tx_mem->step_type = 1;
 }
 
-/* submit pending ptp tx requests */
-static void cnf10k_rfoe_ptp_submit_work(struct work_struct *work)
+#define OTX2_RFOE_PTP_TSTMP_POLL_CNT	20
+
+static void cnf10k_rfoe_dump_ts_ring(struct cnf10k_rfoe_ndev_priv *priv)
 {
-	struct cnf10k_rfoe_ndev_priv *priv = container_of(work,
-						struct cnf10k_rfoe_ndev_priv,
-						ptp_queue_work);
-	struct cnf10k_mhbw_jd_dma_cfg_word_0_s *jd_dma_cfg_word_0;
-	struct cnf10k_mhab_job_desc_cfg *jd_cfg_ptr;
-	struct cnf10k_psm_cmd_addjob_s *psm_cmd_lo;
 	struct rfoe_tx_ptp_tstmp_s *tx_tstmp;
-	struct cnf10k_tx_action_s tx_mem;
-	struct tx_job_queue_cfg *job_cfg;
-	struct tx_job_entry *job_entry;
-	struct ptp_tstamp_skb *ts_skb;
-	u16 psm_queue_id, queue_space;
-	struct sk_buff *skb = NULL;
-	unsigned int pkt_len = 0;
-	struct list_head *head;
-	unsigned long flags;
-	u64 regval;
+	u64 *ptp_tstamp;
+	u8 i;
 
-	memset(&tx_mem, 0, sizeof(tx_mem));
-	job_cfg = &priv->tx_ptp_job_cfg;
+	pr_info("PTP ring entries dump:\n");
 
-	spin_lock_irqsave(&job_cfg->lock, flags);
-
-	/* check pending ptp requests */
-	if (list_empty(&priv->ptp_skb_list.list)) {
-		netif_dbg(priv, tx_queued, priv->netdev,
-			  "no pending ptp tx requests\n");
-		spin_unlock_irqrestore(&job_cfg->lock, flags);
-		return;
+	for (i = 0; i < priv->ptp_ring_cfg.ptp_ring_size; i++) {
+		tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
+			   ((u8 __force *)priv->ptp_ring_cfg.ptp_ring_base +
+			    (16 * i));
+		ptp_tstamp = (u64 *)tx_tstmp;
+		pr_info("entry = %u, tx_tstmp_w0 = 0x%llx tx_tstmp_w1 = 0x%llx\n",
+			i, *ptp_tstamp, *(ptp_tstamp + 1));
 	}
-
-	/* check psm queue space available */
-	psm_queue_id = job_cfg->psm_queue_id;
-	regval = readq(priv->psm_reg_base + PSM_QUEUE_SPACE(psm_queue_id));
-	queue_space = regval & 0x7FFF;
-	if (queue_space < 1) {
-		netif_dbg(priv, tx_queued, priv->netdev,
-			  "ptp tx psm queue %d full\n",
-			  psm_queue_id);
-		/* reschedule to check later */
-		spin_unlock_irqrestore(&job_cfg->lock, flags);
-		schedule_work(&priv->ptp_queue_work);
-		return;
-	}
-
-	if (test_and_set_bit_lock(PTP_TX_IN_PROGRESS, &priv->state)) {
-		netif_dbg(priv, tx_queued, priv->netdev, "ptp tx ongoing\n");
-		spin_unlock_irqrestore(&job_cfg->lock, flags);
-		return;
-	}
-
-	head = &priv->ptp_skb_list.list;
-	ts_skb = list_entry(head->next, struct ptp_tstamp_skb, list);
-	skb = ts_skb->skb;
-	list_del(&ts_skb->list);
-	kfree(ts_skb);
-	priv->ptp_skb_list.count--;
-
-	netif_dbg(priv, tx_queued, priv->netdev,
-		  "submitting ptp tx skb %pS\n", skb);
-
-	priv->last_tx_ptp_jiffies = jiffies;
-
-	priv->ptp_ring_cfg.ptp_ring_idx = cnf10k_rfoe_get_ptp_ts_index(priv);
-
-	/* ptp timestamp entry is 128-bit in size */
-	tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
-			((u8 *)priv->ptp_ring_cfg.ptp_ring_base +
-			(16 * priv->ptp_ring_cfg.ptp_ring_idx));
-	memset(tx_tstmp, 0, sizeof(struct rfoe_tx_ptp_tstmp_s));
-
-	/* get the tx job entry */
-	job_entry = (struct tx_job_entry *)
-				&job_cfg->job_entries[job_cfg->q_idx];
-
-	netif_dbg(priv, tx_queued, priv->netdev,
-		  "rfoe=%d lmac=%d psm_queue=%d tx_job_entry %d job_cmd_lo=0x%llx job_cmd_high=0x%llx jd_iova_addr=0x%llx\n",
-		  priv->rfoe_num, priv->lmac_id, psm_queue_id, job_cfg->q_idx,
-		  job_entry->job_cmd_lo, job_entry->job_cmd_hi,
-		  job_entry->jd_iova_addr);
-
-	priv->ptp_tx_skb = skb;
-	psm_cmd_lo = (struct cnf10k_psm_cmd_addjob_s *)&job_entry->job_cmd_lo;
-	priv->ptp_job_tag = psm_cmd_lo->jobtag;
-
-	/* update length and block size in jd dma cfg word */
-	jd_cfg_ptr = job_entry->jd_cfg_ptr;
-	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
-				job_entry->rd_dma_ptr;
-
-	pkt_len = skb->len;
-	/* Copy packet data to dma buffer */
-	if (priv->ndev_flags & BPHY_NDEV_TX_1S_PTP_EN_FLAG) {
-		memcpy(job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
-		memcpy(job_entry->pkt_dma_addr + sizeof(tx_mem), skb->data, skb->len);
-		pkt_len += sizeof(tx_mem);
-	} else {
-		memcpy(job_entry->pkt_dma_addr, skb->data, skb->len);
-	}
-	jd_cfg_ptr->cfg3.pkt_len = pkt_len;
-	jd_dma_cfg_word_0->block_size = (((pkt_len + 15) >> 4) * 4);
-
-	/* make sure that all memory writes are completed */
-	dma_wmb();
-
-	/* submit PSM job */
-	writeq(job_entry->job_cmd_lo,
-	       priv->psm_reg_base + PSM_QUEUE_CMD_LO(psm_queue_id));
-	writeq(job_entry->job_cmd_hi,
-	       priv->psm_reg_base + PSM_QUEUE_CMD_HI(psm_queue_id));
-
-	/* increment queue index */
-	job_cfg->q_idx++;
-	if (job_cfg->q_idx == job_cfg->num_entries)
-		job_cfg->q_idx = 0;
-
-	spin_unlock_irqrestore(&job_cfg->lock, flags);
 }
-
-#define OTX2_RFOE_PTP_TSTMP_POLL_CNT	100
 
 /* ptp interrupt processing bottom half */
 static void cnf10k_rfoe_ptp_tx_work(struct work_struct *work)
@@ -450,8 +352,12 @@ static void cnf10k_rfoe_ptp_tx_work(struct work_struct *work)
 						 ptp_tx_work);
 	struct rfoe_tx_ptp_tstmp_s *tx_tstmp;
 	struct skb_shared_hwtstamps ts;
+	struct netdev_queue *txq;
 	u64 timestamp, tsns;
-	u16 jobid;
+	u64 *ptp_tstamp;
+	int cnt;
+
+	txq = netdev_get_tx_queue(priv->netdev, PTP_QUEUE_ID);
 
 	if (!priv->ptp_tx_skb) {
 		netif_err(priv, tx_done, priv->netdev,
@@ -465,30 +371,37 @@ static void cnf10k_rfoe_ptp_tx_work(struct work_struct *work)
 		goto submit_next_req;
 	}
 
-	/* make sure that all memory writes by rfoe are completed */
-	dma_rmb();
-
 	/* ptp timestamp entry is 128-bit in size */
 	tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
-			((u8 *)priv->ptp_ring_cfg.ptp_ring_base +
-			(16 * priv->ptp_ring_cfg.ptp_ring_idx));
+		   ((u8 __force *)priv->ptp_ring_cfg.ptp_ring_base +
+		    (16 * priv->ptp_ring_cfg.ptp_ring_idx));
 
-	/* match job id */
-	jobid = tx_tstmp->jobid;
-	if (jobid != priv->ptp_job_tag) {
-		netif_err(priv, tx_done, priv->netdev,
-			  "ptp job id doesn't match, job_id=0x%x skb->job_tag=0x%x\n",
-			  jobid, priv->ptp_job_tag);
-		priv->stats.tx_hwtstamp_failures++;
-		goto submit_next_req;
+	/* poll for match job id */
+	for (cnt = 0; cnt < OTX2_RFOE_PTP_TSTMP_POLL_CNT; cnt++) {
+		/* make sure that all memory writes by rfoe are completed */
+		dma_rmb();
+		if (tx_tstmp->jobid == priv->ptp_job_tag)
+			break;
+		usleep_range(5, 10);
+	}
+
+	if (cnt >= OTX2_RFOE_PTP_TSTMP_POLL_CNT) {
+		netdev_err(priv->netdev,
+			   "ptp job id doesn't match @ idx=%d: job_id=0x%x skb->job_tag=0x%x\n",
+			   priv->ptp_ring_cfg.ptp_ring_idx, tx_tstmp->jobid, priv->ptp_job_tag);
+		if (netif_msg_tx_queued(priv))
+			cnf10k_rfoe_dump_ts_ring(priv);
+		goto tx_tstmp_error;
 	}
 
 	if (tx_tstmp->drop || tx_tstmp->tx_err) {
-		netif_err(priv, tx_done, priv->netdev,
-			  "ptp tx timstamp error\n");
-		priv->stats.tx_hwtstamp_failures++;
-		goto submit_next_req;
+		ptp_tstamp = (u64 *)tx_tstmp;
+		netdev_err(priv->netdev,
+			   "ptp timstamp error @ idx=%d: tstmp_w0=0x%llx tstmp_w1=0x%llx\n",
+			   priv->ptp_ring_cfg.ptp_ring_idx, *ptp_tstamp, *(ptp_tstamp + 1));
+		goto tx_tstmp_error;
 	}
+
 	/* update timestamp value in skb */
 	timestamp = cnf10k_ptp_convert_timestamp(tx_tstmp->ptp_timestamp);
 	tsns = timestamp;
@@ -501,12 +414,17 @@ static void cnf10k_rfoe_ptp_tx_work(struct work_struct *work)
 	ts.hwtstamp = ns_to_ktime(tsns);
 	skb_tstamp_tx(priv->ptp_tx_skb, &ts);
 
+	goto submit_next_req;
+
+tx_tstmp_error:
+	priv->stats.tx_hwtstamp_failures++;
 submit_next_req:
 	if (priv->ptp_tx_skb)
 		dev_kfree_skb_any(priv->ptp_tx_skb);
 	priv->ptp_tx_skb = NULL;
-	clear_bit_unlock(PTP_TX_IN_PROGRESS, &priv->state);
-	schedule_work(&priv->ptp_queue_work);
+
+	if (txq && netif_tx_queue_stopped(txq))
+		netif_tx_wake_queue(txq);
 }
 
 /* psm queue timer callback to check queue space */
@@ -514,36 +432,47 @@ static void cnf10k_rfoe_tx_timer_cb(struct timer_list *t)
 {
 	struct cnf10k_rfoe_ndev_priv *priv =
 			container_of(t, struct cnf10k_rfoe_ndev_priv, tx_timer);
-	u16 psm_queue_id, queue_space, queue_wakeup = 0;
+	u16 psm_queue_id, queue_space;
+	struct netdev_queue *txq;
+	u8 schedule_mask = 0;
 	u64 regval;
 
-	/* check psm queue space for both ptp and oth packets */
-	if (netif_queue_stopped(priv->netdev)) {
-		queue_wakeup = 1;
+	txq = netdev_get_tx_queue(priv->netdev, PTP_QUEUE_ID);
+	if (txq && netif_tx_queue_stopped(txq)) {
 		/* check ptp psm queue space */
 		psm_queue_id = priv->tx_ptp_job_cfg.psm_queue_id;
 		regval = readq(priv->psm_reg_base +
 			       PSM_QUEUE_SPACE(psm_queue_id));
-		queue_space = regval & 0x7FFF;
-		if (queue_space < 1) {
-			queue_wakeup &= ~1;
-			goto out_wakeup;
-		}
+		queue_space = regval & 0xFFFF;
+		if (queue_space > 1)
+			netif_tx_wake_queue(txq);
+		else
+			schedule_mask = 1 << PTP_QUEUE_ID;
+	}
 
+	txq = netdev_get_tx_queue(priv->netdev, OTH_QUEUE_ID);
+	if (txq && netif_tx_queue_stopped(txq)) {
 		/* check other psm queue space */
 		psm_queue_id = priv->rfoe_common->tx_oth_job_cfg.psm_queue_id;
 		regval = readq(priv->psm_reg_base +
 			       PSM_QUEUE_SPACE(psm_queue_id));
-		queue_space = regval & 0x7FFF;
-		if (queue_space < 1)
-			queue_wakeup &= ~1;
+		queue_space = regval & 0xFFFF;
+		if (queue_space > 1)
+			netif_tx_wake_queue(txq);
+		else
+			schedule_mask |= (1 << OTH_QUEUE_ID);
 	}
 
-out_wakeup:
-	if (queue_wakeup)
-		netif_wake_queue(priv->netdev);
-	else
+	if (schedule_mask)
 		mod_timer(&priv->tx_timer, jiffies + msecs_to_jiffies(100));
+}
+
+static void cnf10k_rfoe_dump_psw(struct cnf10k_rfoe_ndev_priv *priv, u8 *buf_ptr)
+{
+	int i;
+
+	for (i = 0; i < 8; i++)
+		netdev_err(priv->netdev, "psw(w%d)=0x%llx\n", i, *((u64 *)buf_ptr + i));
 }
 
 static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
@@ -563,14 +492,21 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 	struct sk_buff *skb;
 	u8 lmac_id;
 
-	buf_ptr = (u8 *)ft_cfg->mbt_virt_addr +
+	buf_ptr = (u8 __force *)ft_cfg->mbt_virt_addr +
 				(ft_cfg->buf_size * mbt_buf_idx);
+	dma_rmb();
 
 	pkt_type = ft_cfg->pkt_type;
 
 	psw = (struct rfoe_psw_s *)buf_ptr;
 	if (psw->pkt_type == CNF10K_ECPRI) {
 		jdt_iova_addr = (u64)psw->jd_ptr;
+		if (unlikely(!jdt_iova_addr)) {
+			netdev_err(priv->netdev, "JD_PTR was null at mbt_buf_idx %d\n",
+				   mbt_buf_idx);
+			cnf10k_rfoe_dump_psw(priv, buf_ptr);
+			return;
+		}
 		ecpri_psw_w2 = (struct rfoe_psw_w2_ecpri_s *)
 					&psw->proto_sts_word;
 		lmac_id = ecpri_psw_w2->lmac_id;
@@ -578,15 +514,21 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 		/* Only ecpri payload size is captured in psw->pkt_len, so
 		 * get full packet length from JDT.
 		 */
-		jdt_ptr = otx2_iova_to_virt(priv->iommu_domain, jdt_iova_addr);
+		jdt_ptr = (u8 __force *)otx2_iova_to_virt(priv->iommu_domain, jdt_iova_addr);
 		jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
-				((u8 *)jdt_ptr + ft_cfg->jd_rd_offset);
+				((u8 __force *)jdt_ptr + ft_cfg->jd_rd_offset);
 		len = (jd_dma_cfg_word_0->block_size) << 2;
 		len -= (ft_cfg->pkt_offset * 16);
 	} else {
 		rfoe_psw_w2 = (struct rfoe_psw_w2_roe_s *)&psw->proto_sts_word;
 		lmac_id = rfoe_psw_w2->lmac_id;
 		len = psw->pkt_len;
+		if (unlikely(!len)) {
+			netdev_err(priv->netdev, "packet length was zero at mbt_buf_idx %d\n",
+				   mbt_buf_idx);
+			cnf10k_rfoe_dump_psw(priv, buf_ptr);
+			return;
+		}
 	}
 
 	for (idx = 0; idx < CNF10K_RFOE_MAX_INTF; idx++) {
@@ -605,13 +547,16 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 		return;
 	}
 
-	if (psw->mac_err_sts || psw->mcs_err_sts) {
-		net_warn_ratelimited("%s: psw mac_err_sts = 0x%x, mcs_err_sts=0x%x\n",
-				     priv->netdev->name,
-				     psw->mac_err_sts,
-				     psw->mcs_err_sts);
-		cnf10k_rfoe_update_rx_drop_stats(priv2, pkt_type);
-		return;
+	if (unlikely(psw->mac_err_sts || psw->mcs_err_sts)) {
+		if (netif_msg_rx_err(priv2))
+			net_warn_ratelimited("%s: psw mac_err_sts = 0x%x, mcs_err_sts=0x%x\n",
+					     priv2->netdev->name,
+					     psw->mac_err_sts,
+					     psw->mcs_err_sts);
+		if (psw->mac_err_sts) {
+			cnf10k_rfoe_update_rx_drop_stats(priv2, pkt_type);
+			return;
+		}
 	}
 
 	/* drop the packet if interface is down */
@@ -665,26 +610,20 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 static int cnf10k_rfoe_process_rx_flow(struct cnf10k_rfoe_ndev_priv *priv,
 				       int pkt_type, int budget)
 {
-	struct otx2_bphy_cdev_priv *cdev_priv = priv->cdev_priv;
 	int count = 0, processed_pkts = 0;
 	struct cnf10k_rx_ft_cfg *ft_cfg;
-	u64 mbt_cfg;
-	u16 nxt_buf;
+	u16 nxt_buf, sw_buf;
+	u64 mbt_status;
 	int *mbt_last_idx = &priv->rfoe_common->rx_mbt_last_idx[pkt_type];
 	u16 *prv_nxt_buf = &priv->rfoe_common->nxt_buf[pkt_type];
 
 	ft_cfg = &priv->rx_ft_cfg[pkt_type];
 
-	spin_lock(&cdev_priv->mbt_lock);
 	/* read mbt nxt_buf */
-	writeq(ft_cfg->mbt_idx,
-	       priv->rfoe_reg_base +
-	       CNF10K_RFOEX_RX_INDIRECT_INDEX_OFFSET(priv->rfoe_num));
-	mbt_cfg = readq(priv->rfoe_reg_base +
-			CNF10K_RFOEX_RX_IND_MBT_CFG(priv->rfoe_num));
-	spin_unlock(&cdev_priv->mbt_lock);
-
-	nxt_buf = (mbt_cfg >> 32) & 0xffff;
+	mbt_status = readq(priv->rfoe_reg_base +
+			   CNF10K_RFOEX_RX_MBT_STATUS(priv->rfoe_num, ft_cfg->mbt_idx));
+	nxt_buf = mbt_status & 0xffff;
+	sw_buf = (mbt_status >> 16) & 0xffff;
 
 	/* no mbt entries to process */
 	if (nxt_buf == *prv_nxt_buf) {
@@ -719,6 +658,13 @@ static int cnf10k_rfoe_process_rx_flow(struct cnf10k_rfoe_ndev_priv *priv,
 
 		processed_pkts++;
 	}
+
+	/* update mbt sw_buf */
+	sw_buf += processed_pkts;
+	if (sw_buf > ft_cfg->num_bufs)
+		sw_buf -= ft_cfg->num_bufs;
+	writeq((sw_buf << 16), (priv->rfoe_reg_base +
+				CNF10K_RFOEX_RX_MBT_STATUS(priv->rfoe_num, ft_cfg->mbt_idx)));
 
 	return processed_pkts;
 }
@@ -939,7 +885,7 @@ static int cnf10k_rfoe_check_psm_queue_space(struct cnf10k_rfoe_ndev_priv *priv,
 	int queue_space;
 
 	queue_space = readq(priv->psm_reg_base +
-			    PSM_QUEUE_SPACE(psm_queue_id)) & 0x7FFF;
+			    PSM_QUEUE_SPACE(psm_queue_id)) & 0xFFFF;
 
 	if (queue_space < 1)
 		return 1;
@@ -947,46 +893,16 @@ static int cnf10k_rfoe_check_psm_queue_space(struct cnf10k_rfoe_ndev_priv *priv,
 	return 0;
 }
 
-/* netdev xmit */
-static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
-					      struct net_device *netdev)
+static int cnf10k_rfoe_check_update_tx_stats(struct cnf10k_rfoe_ndev_priv *priv,
+					     int pkt_type)
 {
-	struct cnf10k_mhbw_jd_dma_cfg_word_0_s *jd_dma_cfg_word_0;
-	struct cnf10k_rfoe_ndev_priv *priv = netdev_priv(netdev);
-	struct cnf10k_mhab_job_desc_cfg *jd_cfg_ptr;
-	struct cnf10k_psm_cmd_addjob_s *psm_cmd_lo;
-	struct rfoe_tx_ptp_tstmp_s *tx_tstmp;
-	int ptp_offset = 0, udp_csum = 0;
-	struct cnf10k_tx_action_s tx_mem;
-	struct tx_job_queue_cfg *job_cfg;
-	struct tx_job_entry *job_entry;
-	int psm_queue_id, pkt_type = 0;
-	struct ptp_tstamp_skb *ts_skb;
-	unsigned int pkt_len = 0;
-	unsigned long flags;
-	struct ethhdr *eth;
-
-	eth = (struct ethhdr *)skb->data;
-	if (priv->tx_hw_tstamp_en &&
-	    skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP) {
-		job_cfg = &priv->tx_ptp_job_cfg;
-		pkt_type = PACKET_TYPE_PTP;
-		memset(&tx_mem, 0, sizeof(tx_mem));
-	} else {
-		job_cfg = &priv->rfoe_common->tx_oth_job_cfg;
-		pkt_type = PACKET_TYPE_OTHER;
-		if (htons(eth->h_proto) == ETH_P_ECPRI)
-			pkt_type = PACKET_TYPE_ECPRI;
-	}
-
-	spin_lock_irqsave(&job_cfg->lock, flags);
+	struct net_device *netdev = priv->netdev;
 
 	if (unlikely(priv->if_type != IF_TYPE_ETHERNET)) {
 		netif_err(priv, tx_queued, netdev,
 			  "%s {rfoe%d lmac%d} invalid intf mode, drop pkt\n",
 			  netdev->name, priv->rfoe_num, priv->lmac_id);
-		cnf10k_rfoe_update_tx_drop_stats(priv, PACKET_TYPE_OTHER);
-		goto exit;
+		goto err;
 	}
 
 	if (unlikely(!netif_carrier_ok(netdev))) {
@@ -994,8 +910,7 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 			  "%s {rfoe%d lmac%d} link down, drop pkt\n",
 			  netdev->name, priv->rfoe_num,
 			  priv->lmac_id);
-		cnf10k_rfoe_update_tx_drop_stats(priv, pkt_type);
-		goto exit;
+		goto err;
 	}
 
 	if (unlikely(!(priv->pkt_type_mask & (1U << pkt_type)))) {
@@ -1003,9 +918,78 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 			  "%s {rfoe%d lmac%d} pkt not supported, drop pkt\n",
 			  netdev->name, priv->rfoe_num,
 			  priv->lmac_id);
-		cnf10k_rfoe_update_tx_drop_stats(priv, pkt_type);
-		goto exit;
+		goto err;
 	}
+
+	return 0;
+
+err:
+	cnf10k_rfoe_update_tx_drop_stats(priv, pkt_type);
+	return -EINVAL;
+}
+
+static void cnf10k_rfoe_submit_job(struct cnf10k_rfoe_ndev_priv *priv,
+				   struct tx_job_entry *job_entry, int job_index,
+				   int psm_queue_id, unsigned int pkt_len,
+				   bool update_lmac, u8 rfoe_mode)
+{
+	struct cnf10k_mhbw_jd_dma_cfg_word_0_s *jd_dma_cfg_word_0;
+	struct cnf10k_mhab_job_desc_cfg *jd_cfg_ptr;
+
+	netif_dbg(priv, tx_queued, priv->netdev,
+		  "rfoe=%d lmac=%d psm_queue=%d tx_job_entry %d job_cmd_lo=0x%llx job_cmd_high=0x%llx jd_iova_addr=0x%llx\n",
+		  priv->rfoe_num, priv->lmac_id, psm_queue_id, job_index,
+		  job_entry->job_cmd_lo, job_entry->job_cmd_hi,
+		  job_entry->jd_iova_addr);
+
+	/* update length and block size in jd dma cfg word */
+	jd_cfg_ptr = (struct cnf10k_mhab_job_desc_cfg __force *)job_entry->jd_cfg_ptr;
+	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s __force *)
+						job_entry->rd_dma_ptr;
+
+	if (update_lmac) {
+		jd_cfg_ptr->cfg3.lmacid = priv->lmac_id & 0x3;
+		jd_cfg_ptr->cfg.rfoe_mode = rfoe_mode;
+	}
+
+	jd_cfg_ptr->cfg3.pkt_len = pkt_len;
+	jd_dma_cfg_word_0->block_size = (((pkt_len + 15) >> 4) * 4);
+
+	/* make sure that all memory writes are completed */
+	dma_wmb();
+
+	/* submit PSM job */
+	writeq(job_entry->job_cmd_lo,
+	       priv->psm_reg_base + PSM_QUEUE_CMD_LO(psm_queue_id));
+	writeq(job_entry->job_cmd_hi,
+	       priv->psm_reg_base + PSM_QUEUE_CMD_HI(psm_queue_id));
+}
+
+static netdev_tx_t cnf10k_rfoe_ptp_xmit(struct sk_buff *skb,
+					struct net_device *netdev)
+{
+	struct cnf10k_rfoe_ndev_priv *priv = netdev_priv(netdev);
+	struct cnf10k_psm_cmd_addjob_s *psm_cmd_lo;
+	struct rfoe_tx_ptp_tstmp_s *tx_tstmp;
+	int ptp_offset = 0, udp_csum = 0;
+	struct cnf10k_tx_action_s tx_mem;
+	struct tx_job_queue_cfg *job_cfg;
+	struct tx_job_entry *job_entry;
+	int pkt_type = PACKET_TYPE_PTP;
+	struct netdev_queue *txq;
+	unsigned int pkt_len = 0;
+	unsigned long flags;
+	int psm_queue_id;
+
+	job_cfg = &priv->tx_ptp_job_cfg;
+	memset(&tx_mem, 0, sizeof(tx_mem));
+
+	txq = netdev_get_tx_queue(netdev, skb_get_queue_mapping(skb));
+
+	spin_lock_irqsave(&job_cfg->lock, flags);
+
+	if (cnf10k_rfoe_check_update_tx_stats(priv, pkt_type))
+		goto exit;
 
 	/* get psm queue number */
 	psm_queue_id = job_cfg->psm_queue_id;
@@ -1021,7 +1005,139 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 		netif_err(priv, tx_err, netdev,
 			  "no space in psm queue %d, dropping pkt\n",
 			   psm_queue_id);
-		netif_stop_queue(netdev);
+		netif_tx_stop_queue(txq);
+		cnf10k_rfoe_update_tx_drop_stats(priv, pkt_type);
+		mod_timer(&priv->tx_timer, jiffies + msecs_to_jiffies(100));
+		spin_unlock_irqrestore(&job_cfg->lock, flags);
+		return NETDEV_TX_BUSY;
+	}
+
+	/* PTP packets are xmited one by one */
+	if (priv->ptp_tx_skb) {
+		netif_tx_stop_queue(txq);
+		spin_unlock_irqrestore(&job_cfg->lock, flags);
+		return NETDEV_TX_BUSY;
+	}
+
+	priv->ptp_tx_skb = skb;
+
+	/* get the tx job entry */
+	job_entry = (struct tx_job_entry *)
+				&job_cfg->job_entries[job_cfg->q_idx];
+
+	if (unlikely(netif_msg_pktdata(priv))) {
+		netdev_printk(KERN_DEBUG, priv->netdev, "Tx: skb %pS len=%d\n",
+			      skb, skb->len);
+		print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 4,
+			       skb->data, skb->len, true);
+	}
+
+	/* check if one-step is enabled */
+	if (priv->ptp_onestep_sync) {
+		if (cnf10k_ptp_is_sync(skb, &ptp_offset, &udp_csum)) {
+			cnf10k_rfoe_prepare_onestep_ptp_header(priv,
+							       &tx_mem, skb,
+							       ptp_offset,
+							       udp_csum);
+			/* recalculate UDP hdr checksum as RFOE block has no checksum
+			 * offload support and checksum field is left with stale data
+			 */
+			if (udp_csum)
+				cnf10k_rfoe_compute_udp_csum(skb);
+		}
+
+		if ((*(skb->data + ptp_offset) & 0xF) != DELAY_REQUEST_MSG_ID)
+			goto ptp_one_step_out;
+	}
+
+	skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
+
+	psm_cmd_lo = (struct cnf10k_psm_cmd_addjob_s *)&job_entry->job_cmd_lo;
+	priv->ptp_job_tag = psm_cmd_lo->jobtag;
+	priv->ptp_ring_cfg.ptp_ring_idx = cnf10k_rfoe_get_ptp_ts_index(priv);
+
+	/* ptp timestamp entry is 128-bit in size */
+	tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
+		   ((u8 __force *)priv->ptp_ring_cfg.ptp_ring_base +
+		    (16 * priv->ptp_ring_cfg.ptp_ring_idx));
+	memset(tx_tstmp, 0, sizeof(struct rfoe_tx_ptp_tstmp_s));
+
+ptp_one_step_out:
+	/* sw timestamp */
+	skb_tx_timestamp(skb);
+
+	pkt_len = skb->len;
+
+	/* Copy packet data to dma buffer */
+	if (priv->ndev_flags & BPHY_NDEV_TX_1S_PTP_EN_FLAG) {
+		memcpy((void __force *)job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
+		memcpy((void __force *)job_entry->pkt_dma_addr + sizeof(tx_mem),
+		       skb->data, skb->len);
+		pkt_len += sizeof(tx_mem);
+	} else {
+		memcpy((void __force *)job_entry->pkt_dma_addr, skb->data, pkt_len);
+	}
+
+	cnf10k_rfoe_submit_job(priv, job_entry, job_cfg->q_idx, psm_queue_id,
+			       pkt_len, false, 0);
+
+	cnf10k_rfoe_update_tx_stats(priv, pkt_type, skb->len);
+
+	/* increment queue index */
+	job_cfg->q_idx++;
+	if (job_cfg->q_idx == job_cfg->num_entries)
+		job_cfg->q_idx = 0;
+exit:
+	spin_unlock_irqrestore(&job_cfg->lock, flags);
+
+	return NETDEV_TX_OK;
+}
+
+/* netdev xmit */
+static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
+					      struct net_device *netdev)
+{
+	struct cnf10k_rfoe_ndev_priv *priv = netdev_priv(netdev);
+	int qidx = skb_get_queue_mapping(skb);
+	struct tx_job_queue_cfg *job_cfg;
+	struct tx_job_entry *job_entry;
+	int psm_queue_id, pkt_type = 0;
+	struct netdev_queue *txq;
+	unsigned int pkt_len = 0;
+	unsigned long flags;
+	struct ethhdr *eth;
+
+	if (skb_get_queue_mapping(skb) == PTP_QUEUE_ID)
+		return cnf10k_rfoe_ptp_xmit(skb, netdev);
+
+	eth = (struct ethhdr *)skb->data;
+	job_cfg = &priv->rfoe_common->tx_oth_job_cfg;
+	pkt_type = PACKET_TYPE_OTHER;
+	if (htons(eth->h_proto) == ETH_P_ECPRI)
+		pkt_type = PACKET_TYPE_ECPRI;
+
+	txq = netdev_get_tx_queue(netdev, qidx);
+
+	spin_lock_irqsave(&job_cfg->lock, flags);
+
+	if (cnf10k_rfoe_check_update_tx_stats(priv, pkt_type))
+		goto exit;
+
+	/* get psm queue number */
+	psm_queue_id = job_cfg->psm_queue_id;
+	netif_dbg(priv, tx_queued, priv->netdev,
+		  "psm: queue(%d): cfg=0x%llx ptr=0x%llx space=0x%llx\n",
+		  psm_queue_id,
+		  readq(priv->psm_reg_base + PSM_QUEUE_CFG(psm_queue_id)),
+		  readq(priv->psm_reg_base + PSM_QUEUE_PTR(psm_queue_id)),
+		  readq(priv->psm_reg_base + PSM_QUEUE_SPACE(psm_queue_id)));
+
+	/* check psm queue space available */
+	if (cnf10k_rfoe_check_psm_queue_space(priv, psm_queue_id)) {
+		netif_err(priv, tx_err, netdev,
+			  "no space in psm queue %d, dropping pkt\n",
+			   psm_queue_id);
+		netif_tx_stop_queue(txq);
 		cnf10k_rfoe_update_tx_drop_stats(priv, pkt_type);
 		mod_timer(&priv->tx_timer, jiffies + msecs_to_jiffies(100));
 		spin_unlock_irqrestore(&job_cfg->lock, flags);
@@ -1032,78 +1148,6 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 	job_entry = (struct tx_job_entry *)
 				&job_cfg->job_entries[job_cfg->q_idx];
 
-	netif_dbg(priv, tx_queued, priv->netdev,
-		  "rfoe=%d lmac=%d psm_queue=%d tx_job_entry %d job_cmd_lo=0x%llx job_cmd_high=0x%llx jd_iova_addr=0x%llx\n",
-		  priv->rfoe_num, priv->lmac_id, psm_queue_id, job_cfg->q_idx,
-		  job_entry->job_cmd_lo, job_entry->job_cmd_hi,
-		  job_entry->jd_iova_addr);
-
-	/* hw timestamp */
-	if (unlikely(pkt_type == PACKET_TYPE_PTP)) {
-		/* check if one-step is enabled */
-		if (priv->ptp_onestep_sync) {
-			if (cnf10k_ptp_is_sync(skb, &ptp_offset, &udp_csum)) {
-				cnf10k_rfoe_prepare_onestep_ptp_header(priv,
-								       &tx_mem, skb,
-								       ptp_offset,
-								       udp_csum);
-				/* recalculate UDP hdr checksum as RFOE block has no checksum
-				 * offload support and checksum field is left with stale data
-				 */
-				if (udp_csum)
-					cnf10k_rfoe_compute_udp_csum(skb);
-			}
-
-			if ((*(skb->data + ptp_offset) & 0xF) != DELAY_REQUEST_MSG_ID)
-				goto ptp_one_step_out;
-		}
-
-		skb_shinfo(skb)->tx_flags |= SKBTX_IN_PROGRESS;
-		if (list_empty(&priv->ptp_skb_list.list) &&
-		    !test_and_set_bit_lock(PTP_TX_IN_PROGRESS, &priv->state)) {
-			priv->ptp_tx_skb = skb;
-			psm_cmd_lo = (struct cnf10k_psm_cmd_addjob_s *)
-						&job_entry->job_cmd_lo;
-			priv->ptp_job_tag = psm_cmd_lo->jobtag;
-
-			priv->ptp_ring_cfg.ptp_ring_idx =
-				cnf10k_rfoe_get_ptp_ts_index(priv);
-
-			/* ptp timestamp entry is 128-bit in size */
-			tx_tstmp = (struct rfoe_tx_ptp_tstmp_s *)
-				   ((u8 *)priv->ptp_ring_cfg.ptp_ring_base +
-				    (16 * priv->ptp_ring_cfg.ptp_ring_idx));
-			memset(tx_tstmp, 0, sizeof(struct rfoe_tx_ptp_tstmp_s));
-		} else {
-			/* check ptp queue count */
-			if (priv->ptp_skb_list.count >= max_ptp_req) {
-				netif_err(priv, tx_err, netdev,
-					  "ptp list full, dropping pkt\n");
-				skb_shinfo(skb)->tx_flags &= ~SKBTX_IN_PROGRESS;
-				cnf10k_rfoe_update_tx_drop_stats(priv, PACKET_TYPE_PTP);
-				goto exit;
-			}
-			/* allocate and add ptp req to queue */
-			ts_skb = kmalloc(sizeof(*ts_skb), GFP_ATOMIC);
-			if (!ts_skb) {
-				cnf10k_rfoe_update_tx_drop_stats(priv, PACKET_TYPE_PTP);
-				goto exit;
-			}
-			ts_skb->skb = skb;
-			list_add_tail(&ts_skb->list, &priv->ptp_skb_list.list);
-			priv->ptp_skb_list.count++;
-			cnf10k_rfoe_update_tx_stats(priv, PACKET_TYPE_PTP,
-						    skb->len);
-			/* sw timestamp */
-			skb_tx_timestamp(skb);
-			goto exit;	/* submit the packet later */
-		}
-	}
-
-ptp_one_step_out:
-	/* sw timestamp */
-	skb_tx_timestamp(skb);
-
 	if (unlikely(netif_msg_pktdata(priv))) {
 		netdev_printk(KERN_DEBUG, priv->netdev, "Tx: skb %pS len=%d\n",
 			      skb, skb->len);
@@ -1111,42 +1155,14 @@ ptp_one_step_out:
 			       skb->data, skb->len, true);
 	}
 
-	/* update length and block size in jd dma cfg word */
-	jd_cfg_ptr = job_entry->jd_cfg_ptr;
-	jd_dma_cfg_word_0 = (struct cnf10k_mhbw_jd_dma_cfg_word_0_s *)
-						job_entry->rd_dma_ptr;
-
-	/* update rfoe_mode and lmac id for non-ptp (shared) psm job entry */
-	if (pkt_type != PACKET_TYPE_PTP) {
-		jd_cfg_ptr->cfg3.lmacid = priv->lmac_id & 0x3;
-		if (pkt_type == PACKET_TYPE_ECPRI)
-			jd_cfg_ptr->cfg.rfoe_mode = 1;
-		else
-			jd_cfg_ptr->cfg.rfoe_mode = 0;
-	}
-
 	pkt_len = skb->len;
+
 	/* Copy packet data to dma buffer */
-	if (pkt_type == PACKET_TYPE_PTP &&
-	    priv->ndev_flags & BPHY_NDEV_TX_1S_PTP_EN_FLAG) {
-		memcpy(job_entry->pkt_dma_addr, &tx_mem, sizeof(tx_mem));
-		memcpy(job_entry->pkt_dma_addr + sizeof(tx_mem),
-		       skb->data, skb->len);
-		pkt_len += sizeof(tx_mem);
-	} else {
-		memcpy(job_entry->pkt_dma_addr, skb->data, skb->len);
-	}
-	jd_cfg_ptr->cfg3.pkt_len = pkt_len;
-	jd_dma_cfg_word_0->block_size = (((pkt_len + 15) >> 4) * 4);
+	memcpy((void __force *)job_entry->pkt_dma_addr, skb->data, skb->len);
 
-	/* make sure that all memory writes are completed */
-	dma_wmb();
-
-	/* submit PSM job */
-	writeq(job_entry->job_cmd_lo,
-	       priv->psm_reg_base + PSM_QUEUE_CMD_LO(psm_queue_id));
-	writeq(job_entry->job_cmd_hi,
-	       priv->psm_reg_base + PSM_QUEUE_CMD_HI(psm_queue_id));
+	cnf10k_rfoe_submit_job(priv, job_entry, job_cfg->q_idx, psm_queue_id,
+			       pkt_len, true,
+			       pkt_type == PACKET_TYPE_ECPRI ? 1 : 0);
 
 	cnf10k_rfoe_update_tx_stats(priv, pkt_type, skb->len);
 
@@ -1155,8 +1171,7 @@ ptp_one_step_out:
 	if (job_cfg->q_idx == job_cfg->num_entries)
 		job_cfg->q_idx = 0;
 exit:
-	if (!(skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS))
-		dev_kfree_skb_any(skb);
+	dev_kfree_skb_any(skb);
 
 	spin_unlock_irqrestore(&job_cfg->lock, flags);
 
@@ -1189,7 +1204,7 @@ static int cnf10k_rfoe_eth_open(struct net_device *netdev)
 
 	if (priv->link_state == LINK_STATE_UP) {
 		netif_carrier_on(netdev);
-		netif_start_queue(netdev);
+		netif_tx_start_all_queues(netdev);
 	}
 	spin_unlock(&priv->lock);
 
@@ -1200,13 +1215,12 @@ static int cnf10k_rfoe_eth_open(struct net_device *netdev)
 static int cnf10k_rfoe_eth_stop(struct net_device *netdev)
 {
 	struct cnf10k_rfoe_ndev_priv *priv = netdev_priv(netdev);
-	struct ptp_tstamp_skb *ts_skb, *ts_skb2;
 	int idx;
 
 	spin_lock(&priv->lock);
 	set_bit(RFOE_INTF_DOWN, &priv->state);
 
-	netif_stop_queue(netdev);
+	netif_tx_stop_all_queues(netdev);
 	netif_carrier_off(netdev);
 	spin_unlock(&priv->lock);
 
@@ -1223,17 +1237,7 @@ static int cnf10k_rfoe_eth_stop(struct net_device *netdev)
 	if (priv->ptp_tx_skb) {
 		dev_kfree_skb_any(priv->ptp_tx_skb);
 		priv->ptp_tx_skb = NULL;
-		clear_bit_unlock(PTP_TX_IN_PROGRESS, &priv->state);
 	}
-
-	/* clear ptp skb list */
-	cancel_work_sync(&priv->ptp_queue_work);
-	list_for_each_entry_safe(ts_skb, ts_skb2,
-				 &priv->ptp_skb_list.list, list) {
-		list_del(&ts_skb->list);
-		kfree(ts_skb);
-	}
-	priv->ptp_skb_list.count = 0;
 
 	return 0;
 }
@@ -1310,6 +1314,23 @@ static int cnf10k_rfoe_vlan_rx_kill(struct net_device *netdev, __be16 proto,
 	return cnf10k_rfoe_vlan_rx_configure(netdev, vid, false);
 }
 
+static u16 cnf10k_rfoe_select_queue(struct net_device *netdev,
+				    struct sk_buff *skb,
+				    struct net_device *sb_dev)
+{
+	/* Pick queue 0 for PTP packets and 1 for other packets.
+	 * Out of two hardware PSM queues used by an RFOE, PTP packets
+	 * are submitted to one queue and others are submitted to another queue.
+	 * Without this netdev queue selection, stopping one netdev queue by
+	 * netif_stop_queue stops both ptp and other packet jobs.
+	 * Hence use separate netdev queues.
+	 */
+	if (skb_shinfo(skb)->tx_flags & SKBTX_HW_TSTAMP)
+		return PTP_QUEUE_ID;
+	else
+		return OTH_QUEUE_ID;
+}
+
 static const struct net_device_ops cnf10k_rfoe_netdev_ops = {
 	.ndo_init		= cnf10k_rfoe_init,
 	.ndo_open		= cnf10k_rfoe_eth_open,
@@ -1322,6 +1343,7 @@ static const struct net_device_ops cnf10k_rfoe_netdev_ops = {
 	.ndo_get_stats64	= cnf10k_rfoe_get_stats64,
 	.ndo_vlan_rx_add_vid	= cnf10k_rfoe_vlan_rx_add,
 	.ndo_vlan_rx_kill_vid	= cnf10k_rfoe_vlan_rx_kill,
+	.ndo_select_queue	= cnf10k_rfoe_select_queue,
 };
 
 static void cnf10k_rfoe_dump_rx_ft_cfg(struct cnf10k_rfoe_ndev_priv *priv)
@@ -1348,7 +1370,7 @@ static void cnf10k_rfoe_fill_rx_ft_cfg(struct cnf10k_rfoe_ndev_priv *priv,
 	struct otx2_bphy_cdev_priv *cdev_priv = priv->cdev_priv;
 	struct cnf10k_bphy_ndev_rbuf_info *rbuf_info;
 	struct cnf10k_rx_ft_cfg *ft_cfg;
-	u64 jdt_cfg0, iova;
+	u64 jdt_cfg0, iova, mbt_cfg;
 	int idx;
 
 	/* RX flow table configuration */
@@ -1358,7 +1380,7 @@ static void cnf10k_rfoe_fill_rx_ft_cfg(struct cnf10k_rfoe_ndev_priv *priv,
 		ft_cfg = &priv->rx_ft_cfg[idx];
 		rbuf_info = &if_cfg->rbuf_info[idx];
 		ft_cfg->pkt_type = rbuf_info->pkt_type;
-		ft_cfg->gp_int_num = rbuf_info->gp_int_num;
+		ft_cfg->gp_int_num = (enum bphy_netdev_rx_gpint)rbuf_info->gp_int_num;
 		ft_cfg->flow_id = rbuf_info->flow_id;
 		ft_cfg->mbt_idx = rbuf_info->mbt_index;
 		ft_cfg->buf_size = rbuf_info->buf_size * 16;
@@ -1387,6 +1409,19 @@ static void cnf10k_rfoe_fill_rx_ft_cfg(struct cnf10k_rfoe_ndev_priv *priv,
 		netif_napi_add(priv->netdev, &ft_cfg->napi,
 			       cnf10k_rfoe_napi_poll,
 			       NAPI_POLL_WEIGHT);
+
+		/* Enable MBT ring full drop enable */
+		spin_lock(&cdev_priv->mbt_lock);
+		writeq(ft_cfg->mbt_idx,
+		       priv->rfoe_reg_base +
+		       CNF10K_RFOEX_RX_INDIRECT_INDEX_OFFSET(priv->rfoe_num));
+		mbt_cfg = readq(priv->rfoe_reg_base +
+				CNF10K_RFOEX_RX_IND_MBT_CFG(priv->rfoe_num));
+		mbt_cfg |= (1ULL << 59);
+		writeq(mbt_cfg,
+		       (priv->rfoe_reg_base +
+			CNF10K_RFOEX_RX_IND_MBT_CFG(priv->rfoe_num)));
+		spin_unlock(&cdev_priv->mbt_lock);
 	}
 }
 
@@ -1407,7 +1442,7 @@ static void cnf10k_rfoe_fill_tx_job_entries(struct cnf10k_rfoe_ndev_priv *priv,
 		job_entry->jd_iova_addr = tx_job->jd_iova_addr;
 		iova = job_entry->jd_iova_addr;
 		job_entry->jd_ptr = otx2_iova_to_virt(priv->iommu_domain, iova);
-		jd_cfg_iova = *(u64 *)((u8 *)job_entry->jd_ptr + 8);
+		jd_cfg_iova = *(u64 *)((u8 __force *)job_entry->jd_ptr + 8);
 		job_entry->jd_cfg_ptr = otx2_iova_to_virt(priv->iommu_domain,
 							  jd_cfg_iova);
 		job_entry->rd_dma_iova_addr = tx_job->rd_dma_iova_addr;
@@ -1415,7 +1450,7 @@ static void cnf10k_rfoe_fill_tx_job_entries(struct cnf10k_rfoe_ndev_priv *priv,
 		job_entry->rd_dma_ptr = otx2_iova_to_virt(priv->iommu_domain,
 							  iova);
 		jd_dma_cfg_word_1 = (struct cnf10k_mhbw_jd_dma_cfg_word_1_s *)
-						((u8 *)job_entry->rd_dma_ptr + 8);
+						((u8 __force *)job_entry->rd_dma_ptr + 8);
 		job_entry->pkt_dma_addr = otx2_iova_to_virt(priv->iommu_domain,
 							    jd_dma_cfg_word_1->start_addr);
 
@@ -1447,6 +1482,7 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 	struct cnf10k_rx_ft_cfg *ft_cfg;
 	struct ptp_bcn_off_cfg *ptp_cfg;
 	struct net_device *netdev;
+	u8 ptp_errata = false;
 	u8 pkt_type_mask;
 
 	cdev->hw_version = cfg->hw_params.chip_ver;
@@ -1460,6 +1496,7 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 		cdev->num_rfoe_mhab = 2;
 		cdev->num_rfoe_lmac = 4;
 		cdev->tot_rfoe_intf = 8;
+		ptp_errata = true;
 	} else {
 		dev_err(cdev->dev, "unsupported chip version\n");
 		return -EINVAL;
@@ -1473,26 +1510,28 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 	ptp_cfg->clk_cfg.clk_freq_div = PTP_CLK_FREQ_DIV;
 	spin_lock_init(&ptp_cfg->lock);
 
-	for (i = 0; i < BPHY_MAX_RFOE_MHAB; i++) {
+	for (i = 0; i < cdev->num_rfoe_mhab; i++) {
 		priv2 = NULL;
 		rfoe_cfg = &cfg->rfoe_if_cfg[i];
 		pkt_type_mask = rfoe_cfg->pkt_type_mask;
-		for (lmac = 0; lmac < MAX_LMAC_PER_RFOE; lmac++) {
+		for (lmac = 0; lmac < cdev->num_rfoe_lmac; lmac++) {
+			intf_idx = (i * cdev->num_rfoe_lmac) + lmac;
+			if (intf_idx >= cdev->tot_rfoe_intf) {
+				dev_dbg(cdev->dev,
+					"rfoe%d lmac%d doesn't exist, skipping intf cfg\n",
+					i, lmac);
+				continue;
+			}
 			if_cfg = &rfoe_cfg->if_cfg[lmac];
 			/* check if lmac is valid */
 			if (!if_cfg->lmac_info.is_valid) {
 				dev_dbg(cdev->dev,
-					"rfoe%d lmac%d invalid, skipping\n",
+					"rfoe%d lmac%d invalid intf cfg, skipping\n",
 					i, lmac);
 				continue;
 			}
-			if (lmac >= cdev->num_rfoe_lmac) {
-				dev_dbg(cdev->dev,
-					"rfoe%d, lmac%d not supported, skipping\n",
-					i, lmac);
-				continue;
-			}
-			netdev = alloc_etherdev(sizeof(*priv));
+			netdev = alloc_etherdev_mqs(sizeof(*priv), BPHY_NDEV_NUM_TXQ,
+						    BPHY_NDEV_NUM_RXQ);
 			if (!netdev) {
 				dev_err(cdev->dev,
 					"error allocating net device\n");
@@ -1545,16 +1584,12 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 			priv->bcn_reg_base = bcn_reg_base;
 			priv->ptp_reg_base = ptp_reg_base;
 			priv->ptp_cfg = ptp_cfg;
+			priv->ptp_errata = ptp_errata;
 			++(priv->ptp_cfg->refcnt);
 
 			/* Initialise PTP TX work queue */
 			INIT_WORK(&priv->ptp_tx_work, cnf10k_rfoe_ptp_tx_work);
-			INIT_WORK(&priv->ptp_queue_work,
-				  cnf10k_rfoe_ptp_submit_work);
 
-			/* Initialise PTP skb list */
-			INIT_LIST_HEAD(&priv->ptp_skb_list.list);
-			priv->ptp_skb_list.count = 0;
 			timer_setup(&priv->tx_timer,
 				    cnf10k_rfoe_tx_timer_cb, 0);
 
@@ -1594,7 +1629,7 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 				cnf10k_rfoe_fill_tx_job_entries(priv, tx_cfg,
 								tx_info,
 								num_entries);
-			} else {
+			} else if (priv2) {
 				/* share rfoe_common data */
 				priv->rfoe_common = priv2->rfoe_common;
 				++(priv->rfoe_common->refcnt);
@@ -1604,7 +1639,6 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 			if (!priv2)
 				priv2 = priv;
 
-			intf_idx = (i * cdev->num_rfoe_lmac) + lmac;
 			snprintf(netdev->name, sizeof(netdev->name),
 				 "rfoe%d", intf_idx);
 			netdev->netdev_ops = &cnf10k_rfoe_netdev_ops;
@@ -1627,7 +1661,7 @@ int cnf10k_rfoe_parse_and_init_intf(struct otx2_bphy_cdev_priv *cdev,
 				netdev->name);
 
 			netif_carrier_off(netdev);
-			netif_stop_queue(netdev);
+			netif_tx_stop_all_queues(netdev);
 			set_bit(RFOE_INTF_DOWN, &priv->state);
 			priv->link_state = LINK_STATE_UP;
 
@@ -1687,13 +1721,13 @@ void cnf10k_rfoe_set_link_state(struct net_device *netdev, u8 state)
 			netdev_info(netdev, "Link DOWN\n");
 			if (netif_running(netdev)) {
 				netif_carrier_off(netdev);
-				netif_stop_queue(netdev);
+				netif_tx_stop_all_queues(netdev);
 			}
 		} else {
 			netdev_info(netdev, "Link UP\n");
 			if (netif_running(netdev)) {
 				netif_carrier_on(netdev);
-				netif_start_queue(netdev);
+				netif_tx_start_all_queues(netdev);
 			}
 		}
 	}

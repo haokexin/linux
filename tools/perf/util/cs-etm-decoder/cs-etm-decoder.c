@@ -266,8 +266,12 @@ cs_etm_decoder__do_soft_timestamp(struct cs_etm_queue *etmq,
 
 	packet_queue->cs_timestamp = packet_queue->next_cs_timestamp;
 
-	/* Estimate the timestamp for the next range packet */
-	packet_queue->next_cs_timestamp += packet_queue->instr_count;
+	/* Don't update the timestamp here in SW since this
+	 * wouldn't represent an actual timestamp. It could also
+	 * lead to an issue where the cs_timestamp value is moved
+	 * beyond next actual HW timestamp or when the successive
+	 * HW timestamp is same.
+	 */
 	packet_queue->instr_count = 0;
 
 	/* Tell the front end which traceid_queue needs attention */
@@ -327,7 +331,7 @@ cs_etm_decoder__do_hard_timestamp(struct cs_etm_queue *etmq,
 		 * which instructions started by subtracting the number of instructions
 		 * executed to the timestamp.
 		 */
-		packet_queue->cs_timestamp = elem->timestamp - packet_queue->instr_count;
+		packet_queue->cs_timestamp = elem->timestamp;
 	}
 	packet_queue->next_cs_timestamp = elem->timestamp;
 	packet_queue->instr_count = 0;

@@ -591,22 +591,20 @@ static int cpt_is_pf_usable(struct otx2_cptpf_dev *cptpf)
 static int cptpf_get_rid(struct pci_dev *pdev, struct otx2_cptpf_dev *cptpf)
 {
 	struct otx2_cpt_eng_grps *eng_grps = &cptpf->eng_grps;
+	u64 reg_val = 0x0;
 
 	if (is_dev_otx2(pdev)) {
 		eng_grps->rid = pdev->revision;
-	} else {
-		switch (pdev->subsystem_device) {
-		case CPT_PCI_SUBSYS_DEVID_CN10K_A:
-			eng_grps->rid = CPT_UC_RID_CN10K_A;
-			break;
-		case CPT_PCI_SUBSYS_DEVID_CN10K_B:
-			eng_grps->rid = CPT_UC_RID_CN10K_B;
-			break;
-		default:
-			dev_err(&pdev->dev, "Invalid Subsystem ID\n");
-			return -EINVAL;
-		}
+		return 0;
 	}
+	otx2_cpt_read_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_CTL, &reg_val,
+			     BLKADDR_CPT0);
+	if ((cpt_feature_sgv2(pdev) && (reg_val & BIT_ULL(18))) ||
+	    is_dev_cn10ka_ax(pdev))
+		eng_grps->rid = CPT_UC_RID_CN10K_A;
+	else if (cpt_feature_sgv2(pdev))
+		eng_grps->rid = CPT_UC_RID_CN10K_B;
+
 	return 0;
 }
 
@@ -727,7 +725,7 @@ static int otx2_cptpf_probe(struct pci_dev *pdev,
 	struct device *dev = &pdev->dev;
 	struct otx2_cptpf_dev *cptpf;
 	void __iomem * const *iomap;
-	int err;
+	int err, num_vec;
 
 	cptpf = devm_kzalloc(dev, sizeof(*cptpf), GFP_KERNEL);
 	if (!cptpf)
@@ -768,8 +766,11 @@ static int otx2_cptpf_probe(struct pci_dev *pdev,
 	if (err)
 		goto clear_drvdata;
 
-	err = pci_alloc_irq_vectors(pdev, RVU_PF_INT_VEC_CNT,
-				    RVU_PF_INT_VEC_CNT, PCI_IRQ_MSIX);
+	num_vec = pci_msix_vec_count(cptpf->pdev);
+	if (num_vec <= 0)
+		goto clear_drvdata;
+
+	err = pci_alloc_irq_vectors(pdev, num_vec, num_vec, PCI_IRQ_MSIX);
 	if (err < 0) {
 		dev_err(dev, "Request for %d msix vectors failed\n",
 			RVU_PF_INT_VEC_CNT);
@@ -833,6 +834,14 @@ static void otx2_cptpf_remove(struct pci_dev *pdev)
 
 	cptpf_sriov_disable(pdev);
 	otx2_cpt_unregister_dl(cptpf);
+
+	/* Cleanup Inline CPT LF's if attached */
+	if (cptpf->lfs.lfs_num)
+		otx2_inline_cptlf_cleanup(&cptpf->lfs);
+
+	if (cptpf->cpt1_lfs.lfs_num)
+		otx2_inline_cptlf_cleanup(&cptpf->cpt1_lfs);
+
 	/* Delete sysfs entry created for kernel VF limits */
 	sysfs_remove_group(&pdev->dev.kobj, &cptpf_sysfs_group);
 	/* Cleanup engine groups */

@@ -18,6 +18,7 @@
 #include "otx2_cptvf_algs.h"
 #include "otx2_cpt_reqmgr.h"
 #include "cn10k_cpt.h"
+#include "cpt_asym.h"
 
 /* Size of salt in AES GCM mode */
 #define AES_GCM_SALT_SIZE 4
@@ -83,6 +84,16 @@ static inline int get_se_device(struct pci_dev **pdev, int *cpu_num)
 int otx2_cpt_dev_get(struct pci_dev **pdev, int *cpu_num)
 {
 	return get_se_device(pdev, cpu_num);
+}
+
+/* taken from crypto/ccm.c */
+static inline int crypto_ccm_check_iv(const u8 *iv)
+{
+	/* 2 <= L <= 8, so 1 <= L' <= 7. */
+	if (iv[0] < 1 || iv[0] > 7)
+		return -EINVAL;
+
+	return 0;
 }
 
 static inline int validate_hmac_cipher_null(struct otx2_cpt_req_info *cpt_req)
@@ -649,6 +660,7 @@ static int cpt_aead_init(struct crypto_aead *atfm, u8 cipher_type, u8 mac_type)
 		ctx->enc_align_len = 8;
 		break;
 	case OTX2_CPT_AES_GCM:
+	case OTX2_CPT_AES_CCM:
 	case OTX2_CPT_CIPHER_NULL:
 		ctx->enc_align_len = 1;
 		break;
@@ -723,6 +735,11 @@ static int otx2_cpt_aead_gcm_aes_init(struct crypto_aead *tfm)
 	return cpt_aead_init(tfm, OTX2_CPT_AES_GCM, OTX2_CPT_MAC_NULL);
 }
 
+static int otx2_cpt_aead_ccm_aes_init(struct crypto_aead *tfm)
+{
+	return cpt_aead_init(tfm, OTX2_CPT_AES_CCM, OTX2_CPT_MAC_NULL);
+}
+
 static void otx2_cpt_aead_exit(struct crypto_aead *tfm)
 {
 	struct otx2_cpt_aead_ctx *ctx = crypto_aead_ctx(tfm);
@@ -749,6 +766,32 @@ static int otx2_cpt_aead_gcm_set_authsize(struct crypto_aead *tfm,
 		return -EINVAL;
 	else if (crypto_gcm_check_authsize(authsize))
 		return -EINVAL;
+
+	tfm->authsize = authsize;
+	/* Set authsize for fallback case */
+	if (ctx->fbk_cipher)
+		ctx->fbk_cipher->authsize = authsize;
+
+	return 0;
+}
+
+static int otx2_cpt_aead_ccm_set_authsize(struct crypto_aead *tfm,
+					  unsigned int authsize)
+{
+	struct otx2_cpt_aead_ctx *ctx = crypto_aead_ctx(tfm);
+
+	switch (authsize) {
+	case 4:
+	case 6:
+	case 8:
+	case 10:
+	case 12:
+	case 14:
+	case 16:
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	tfm->authsize = authsize;
 	/* Set authsize for fallback case */
@@ -1095,7 +1138,8 @@ static inline int create_aead_ctx_hdr(struct aead_request *req, u32 enc,
 	struct otx2_cpt_req_info *req_info = &rctx->cpt_req;
 	struct otx2_cpt_fc_ctx *fctx = &rctx->fctx;
 	int mac_len = crypto_aead_authsize(tfm);
-	int ds;
+	u8 minor_op = 0;
+	int ds, rc;
 
 	rctx->ctrl_word.e.enc_data_offset = req->assoclen;
 
@@ -1118,12 +1162,14 @@ static inline int create_aead_ctx_hdr(struct aead_request *req, u32 enc,
 			memcpy(fctx->hmac.e.ipad, ctx->ipad, ds);
 		if (ctx->opad)
 			memcpy(fctx->hmac.e.opad, ctx->opad, ds);
+		fctx->enc.enc_ctrl.e.enc_cipher = ctx->cipher_type;
+		fctx->enc.enc_ctrl.e.mac_type = ctx->mac_type;
 		break;
 
 	case OTX2_CPT_AES_GCM:
 		if (ctx->is_rfc4106_gcm && crypto_ipsec_check_assoclen(req->assoclen))
 			return -EINVAL;
-		else if (req->assoclen > 512)
+		else if (req->cryptlen && req->assoclen > 512)
 			return -EINVAL;
 
 		/* Copy encryption key to context */
@@ -1139,6 +1185,31 @@ static inline int create_aead_ctx_hdr(struct aead_request *req, u32 enc,
 			/* Copy IV to context */
 			memcpy(fctx->enc.encr_iv, req->iv, crypto_aead_ivsize(tfm));
 		}
+		if (ctx->is_rfc4106_gcm || req->cryptlen) {
+			fctx->enc.enc_ctrl.e.enc_cipher = ctx->cipher_type;
+			fctx->enc.enc_ctrl.e.mac_type = ctx->mac_type;
+		} else {
+			fctx->enc.enc_ctrl.e.enc_cipher = OTX2_CPT_CIPHER_NULL;
+			fctx->enc.enc_ctrl.e.mac_type = OTX2_CPT_GMAC;
+		}
+		break;
+
+	case OTX2_CPT_AES_CCM:
+		rc = crypto_ccm_check_iv(req->iv);
+		if (rc)
+			return rc;
+		if (req->assoclen > 1024)
+			return -EINVAL;
+
+		/* Copy encryption key to context */
+		memcpy(fctx->enc.encr_key, ctx->key, ctx->enc_key_len);
+		fctx->enc.enc_ctrl.e.iv_source = OTX2_CPT_FROM_CPTR;
+		/* Copy IV to context */
+		memcpy(fctx->enc.encr_iv, req->iv, crypto_aead_ivsize(tfm));
+		/* 16-byte IV */
+		minor_op = 1 << 5;
+		fctx->enc.enc_ctrl.e.enc_cipher = ctx->cipher_type;
+		fctx->enc.enc_ctrl.e.mac_type = ctx->mac_type;
 		break;
 
 	default:
@@ -1152,18 +1223,16 @@ static inline int create_aead_ctx_hdr(struct aead_request *req, u32 enc,
 	req_info->req.opcode.s.major = OTX2_CPT_MAJOR_OP_FC |
 				 DMA_MODE_FLAG(OTX2_CPT_DMA_MODE_SG);
 	if (enc) {
-		req_info->req.opcode.s.minor = 2;
+		req_info->req.opcode.s.minor = 2 | minor_op;
 		req_info->req.param1 = req->cryptlen;
 		req_info->req.param2 = req->cryptlen + req->assoclen;
 	} else {
-		req_info->req.opcode.s.minor = 3;
+		req_info->req.opcode.s.minor = 3 | minor_op;
 		req_info->req.param1 = req->cryptlen - mac_len;
 		req_info->req.param2 = req->cryptlen + req->assoclen - mac_len;
 	}
 
-	fctx->enc.enc_ctrl.e.enc_cipher = ctx->cipher_type;
 	fctx->enc.enc_ctrl.e.aes_key = ctx->key_type;
-	fctx->enc.enc_ctrl.e.mac_type = ctx->mac_type;
 	fctx->enc.enc_ctrl.e.mac_len = mac_len;
 	cpu_to_be64s(&fctx->enc.enc_ctrl.u);
 
@@ -1214,7 +1283,8 @@ static inline int create_aead_input_list(struct aead_request *req, u32 enc)
 	struct otx2_cpt_req_ctx *rctx = aead_request_ctx(req);
 	struct otx2_cpt_req_info *req_info = &rctx->cpt_req;
 	u32 inputlen =  req->cryptlen + req->assoclen;
-	u32 status, argcnt = 0;
+	u32 argcnt = 0;
+	int status;
 
 	status = create_aead_ctx_hdr(req, enc, &argcnt);
 	if (status)
@@ -1730,6 +1800,25 @@ static struct aead_alg otx2_cpt_aeads[] = { {
 	.decrypt = otx2_cpt_aead_decrypt,
 	.ivsize = AES_GCM_IV_SIZE,
 	.maxauthsize = AES_GCM_ICV_SIZE,
+}, {
+	.base = {
+		.cra_name = "ccm(aes)",
+		.cra_driver_name = "cpt_ccm_aes",
+		.cra_blocksize = 1,
+		.cra_flags = CRYPTO_ALG_ASYNC | CRYPTO_ALG_NEED_FALLBACK,
+		.cra_ctxsize = sizeof(struct otx2_cpt_aead_ctx),
+		.cra_priority = 4001,
+		.cra_alignmask = 0,
+		.cra_module = THIS_MODULE,
+	},
+	.init = otx2_cpt_aead_ccm_aes_init,
+	.exit = otx2_cpt_aead_exit,
+	.setkey = otx2_cpt_aead_gcm_aes_setkey,
+	.setauthsize = otx2_cpt_aead_ccm_set_authsize,
+	.encrypt = otx2_cpt_aead_encrypt,
+	.decrypt = otx2_cpt_aead_decrypt,
+	.ivsize = AES_BLOCK_SIZE,
+	.maxauthsize = AES_BLOCK_SIZE,
 } };
 
 static inline int is_any_alg_used(void)
@@ -1816,9 +1905,14 @@ static void swap_func(void *lptr, void *rptr, int size)
 int otx2_cpt_crypto_init(struct pci_dev *pdev, struct module *mod,
 			 int num_queues, int num_devices)
 {
-	int ret = 0;
-	int count;
+	struct otx2_cptvf_dev *cptvf = pci_get_drvdata(pdev);
+	int ret, count;
 
+	ret = cpt_ae_fpm_tbl_get(pdev, &cptvf->fpm_tbl);
+	if (ret) {
+		dev_err(&pdev->dev, "Couldn't get AE fpm table\n");
+		return ret;
+	}
 	mutex_lock(&mutex);
 	count = atomic_read(&se_devices.count);
 	if (count >= OTX2_CPT_MAX_LFS_NUM) {
@@ -1844,13 +1938,18 @@ int otx2_cpt_crypto_init(struct pci_dev *pdev, struct module *mod,
 	sort(se_devices.desc, count, sizeof(struct cpt_device_desc),
 	     compare_func, swap_func);
 
+	mutex_unlock(&mutex);
+	return 0;
+
 unlock:
 	mutex_unlock(&mutex);
+	cpt_ae_fpm_tbl_free(pdev, &cptvf->fpm_tbl);
 	return ret;
 }
 
 void otx2_cpt_crypto_exit(struct pci_dev *pdev, struct module *mod)
 {
+	struct otx2_cptvf_dev *cptvf = pci_get_drvdata(pdev);
 	struct cpt_device_table *dev_tbl;
 	bool dev_found = false;
 	int i, j, count;
@@ -1881,4 +1980,5 @@ void otx2_cpt_crypto_exit(struct pci_dev *pdev, struct module *mod)
 
 unlock:
 	mutex_unlock(&mutex);
+	cpt_ae_fpm_tbl_free(pdev, &cptvf->fpm_tbl);
 }

@@ -15,6 +15,8 @@
 #define PLAT_CN10K_ASYNC_STATUS			0xc2000b0e
 #define PLAT_CN10K_SPI_READ_FLASH		0xc2000b11
 
+#define PLAT_OCTEON_SET_FIRMWARE_LOGGING	0xc2000b1b
+#define PLAT_OCTEON_CLEAR_FIRMWARE_LOGGING	0xc2000b1c
 
 #define VER_MAX_NAME_LENGTH	32
 #define SMC_MAX_OBJECTS		32
@@ -24,6 +26,7 @@
 #define VERIFY_LOG_SIZE		1024
 
 #define MARLIN_CHECK_PREDEFINED_OBJ		(1<<0)
+#define MARLIN_DEBUG					(1<<10)
 #define MARLIN_SKIP_EBF_ERASE			(1<<11)
 #define MARLIN_SKIP_FAIL_CLONE_CHECK	(1<<12)
 #define MARLIN_FORCE_ASYNC				(1<<13)
@@ -64,17 +67,31 @@
 #define SMC_VERSION_ASYNC_HASH			BIT(8)
 
 /**
- * Set this to skip failed images, instead of faili whole clone operation
+ * Set this to skip failed images, instead of failing whole clone operation
  */
 #define SMC_VERSION_SKIP_FAIL_CHECK		BIT(9)
 
 /**
- * Set this to skip failed images, instead of faili whole clone operation
+ * Set this to skip the erase of EBF config data
  */
 #define SMC_VERSION_ERASE_EBF_CONFIG	BIT(10)
 
+/**
+ * Set this to log progress
+ */
+#define SMC_VERSION_LOG_PROGRESS	BIT(11)
+
+/**
+ * Set this to set debug mode
+ */
+#define SMC_VERSION_DEBUG			BIT(12)
+
 #define VERSION_MAGIC		0x4e535256	/** VRSN */
-#define VERSION_INFO_VERSION	0x0102	       /** 1.0.0.0 */
+#define VERSION_OLD_VERSION_BEFORE_LOG	0x0102	/** 1.2 */
+#define VERSION_INFO_VERSION			0x0103	/** 1.3 */
+
+/** Compatibility flag */
+#define VERSION_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG	BIT(0)
 
 struct memory_desc {
 	void	   *virt;
@@ -171,7 +188,10 @@ struct smc_version_info {
 	uint32_t	num_objects;
 	uint32_t	timeout;	/** Timeout in ms */
 	uint32_t	reserved32;		/** Pad to 64 bits */
-	uint64_t	reserved[4];	/** Reserved for future growth */
+	uintptr_t	output_console;	/** Text output console */
+	uint32_t	output_console_size;/** Console buffer size in bytes */
+	uint32_t	output_console_end;/** Not used yet */
+	uint64_t	reserved[2];	/** Reserved for future growth */
 	struct smc_version_info_entry objects[SMC_MAX_VERSION_ENTRIES];
 };
 
@@ -250,6 +270,8 @@ struct smc_update_obj_info {
 #define UPDATE_FLAG_LOG_PROGRESS	BIT(6)
 /** Set when user parameters are passed */
 #define UPDATE_FLAG_USER_PARMS	0x8000
+/** Compatibility flag */
+#define UPDATE_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG	BIT(0)
 
 /** Offset from the beginning of the flash where the backup image is located */
 #define BACKUP_IMAGE_OFFSET	0x2000000
@@ -313,10 +335,37 @@ enum read_flash_ret {
 	READ_FL_UNKNOWN_ERROR = -1000,
 };
 
+#define READ_VERSION			0x0100
+#define READ_VERSION_PREV		0x0000
+
+/** Log progress */
+#define READ_FLAG_LOG_PROGRESS	BIT(0)
+/** Debug */
+#define READ_FLAG_DEBUG			BIT(1)
+/** Compatibility flag */
+#define READ_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG	BIT(0)
+/** Read flag */
+#define READ_IOCTL_FLAG_DEBUG	BIT(0)
+
 /**
  * This descriptor is used to read data from flash
  */
 struct smc_read_flash_descriptor {
+	uint64_t	addr;		/** Physical buffer address */
+	uint64_t	offset;		/** Offset in flash */
+	uint64_t	length;		/** Length to read */
+	uint32_t	bus;		/** SPI BUS number */
+	uint32_t	cs;			/** SPI chip select number */
+	uint32_t	async_spi;	/** Async SPI operations */
+	uint16_t	version;	/** Version of descriptor */
+	uint16_t	read_flags;	/** Flags passed to read process */
+	uintptr_t	output_console;	/** Text output console */
+	uint32_t	output_console_size;/** Console buffer size in bytes */
+	uint32_t	output_console_end;/** Not used yet */
+	uint64_t	reserved[8];	/** Space to add stuff */
+};
+
+struct smc_read_flash_descriptor_prev {
 	uint64_t	addr;		/** Physical buffer address */
 	uint64_t	offset;		/** Offset in flash */
 	uint64_t	length;		/** Length to read */
@@ -341,14 +390,13 @@ enum marlin_bootflash_clone_op {
 struct mrvl_get_versions {
 	uint32_t  bus;              /** SPI BUS number */
 	uint32_t  cs;               /** SPI chip select number */
-	uintptr_t log_addr;         /** Pointer to a buffer where to store log */
-	size_t    log_size;         /** Size of the log buffer */
 	uint16_t  version_flags;    /** Flags to specify options */
 	uint32_t  selected_objects; /** Mask of a selection of TIMs (32 max) */
 	uint64_t  timeout;
 	uint64_t  reserved[4];	    /** Reserved for future growth */
 	enum smc_version_ret	retcode;
 	struct smc_version_info_entry desc[SMC_MAX_VERSION_ENTRIES];
+	uint64_t compatibility_flags;
 } __packed;
 
 struct mrvl_clone_fw {
@@ -362,6 +410,7 @@ struct mrvl_clone_fw {
 	uint64_t reserved[5];	   /** Reserved for future growth */
 	enum smc_version_ret	retcode;
 	struct smc_version_info_entry desc[SMC_MAX_VERSION_ENTRIES];
+	uint64_t compatibility_flags;
 } __packed;
 
 struct mrvl_phys_buffer {
@@ -371,6 +420,8 @@ struct mrvl_phys_buffer {
 	uint64_t sign_buf_size;
 	uint64_t log_buf;
 	uint64_t log_buf_size;
+	uint64_t smclog_buf;
+	uint64_t smclog_buf_size;
 	uint64_t read_buf;
 	uint64_t read_buf_size;
 } __packed;
@@ -384,6 +435,7 @@ struct mrvl_update {
 	uint64_t user_size;
 	uint16_t timeout;
 	enum update_ret ret;
+	uint64_t compatibility_flags;
 } __packed;
 
 struct mrvl_read_flash {
@@ -392,14 +444,17 @@ struct mrvl_read_flash {
 	uint64_t offset;
 	uint64_t len;
 	enum read_flash_ret ret;
+	uint64_t compatibility_flags;
+	uint64_t ioctl_flags;
 } __packed;
 
-#define GET_VERSION _IOWR('a', 'a', struct mrvl_get_versions*)
-#define VERIFY_HASH _IOWR('a', 'b', struct mrvl_get_versions*)
-#define GET_MEMBUF  _IOWR('a', 'c', struct mrvl_phys_buffer*)
-#define RUN_UPDATE  _IOWR('a', 'd', struct mrvl_update*)
-#define CLONE_FW    _IOWR('a', 'e', struct mrvl_clone_fw*)
-#define READ_FLASH  _IOWR('a', 'f', struct mrvl_read_flash*)
-#define FREE_RD_BUF _IOWR('a', 'g', struct mrvl_phys_buffer*)
+#define GET_VERSION   _IOWR('a', 'a', struct mrvl_get_versions*)
+#define VERIFY_HASH   _IOWR('a', 'b', struct mrvl_get_versions*)
+#define GET_MEMBUF    _IOWR('a', 'c', struct mrvl_phys_buffer*)
+#define RUN_UPDATE    _IOWR('a', 'd', struct mrvl_update*)
+#define CLONE_FW      _IOWR('a', 'e', struct mrvl_clone_fw*)
+#define READ_FLASH    _IOWR('a', 'f', struct mrvl_read_flash*)
+#define FREE_RD_BUF   _IOWR('a', 'g', struct mrvl_phys_buffer*)
+#define FREE_ALL_BUF  _IO('a', 'h')
 
 #endif	/* __MRVL_SWUP_H__ */
