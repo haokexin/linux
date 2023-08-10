@@ -397,7 +397,7 @@ static int sii902x_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
 	int i, dat, ret;
-	struct fb_info edid_fbi;
+	struct fb_info edid_fbi = {};
 	struct fb_info *init_fbi = sii902x.fbi;
 
 	memset(&sii902x, 0, sizeof(sii902x));
