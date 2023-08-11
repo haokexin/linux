@@ -16,6 +16,7 @@
  * Inspired by sdhci-pci.c, by Pierre Ossman
  */
 
+#include <linux/acpi.h>
 #include <linux/err.h>
 #include <linux/module.h>
 #include <linux/property.h>
@@ -202,7 +203,10 @@ int sdhci_pltfm_suspend(struct device *dev)
 {
 	struct sdhci_host *host = dev_get_drvdata(dev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
+	bool has_acpi;
 	int ret;
+
+	has_acpi = has_acpi_companion(dev);
 
 	if (host->tuning_mode != SDHCI_TUNING_MODE_3)
 		mmc_retune_needed(host->mmc);
@@ -211,7 +215,8 @@ int sdhci_pltfm_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
-	clk_disable_unprepare(pltfm_host->clk);
+	if (!has_acpi)
+		clk_disable_unprepare(pltfm_host->clk);
 
 	return 0;
 }
