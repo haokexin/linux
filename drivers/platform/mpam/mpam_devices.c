@@ -1040,8 +1040,6 @@ static void mpam_reprogram_ris_partid(struct mpam_msc_ris *ris, u16 partid,
 	u16 bwa_fract = GENMASK(15, rprops->bwa_wd);
 	u16 minval;
 
-	lockdep_assert_held(&msc->lock);
-
 	spin_lock(&msc->part_sel_lock);
 	__mpam_part_sel(ris->ris_idx, partid, msc);
 
@@ -1206,12 +1204,8 @@ static int mpam_save_mbwu_state(void *arg)
 static int mpam_reset_ris(void *arg)
 {
 	struct mpam_msc_ris *ris = arg;
-	struct mpam_msc *msc = ris->msc;
 	struct reprogram_ris reprogram_arg;
 	struct mpam_config empty_cfg = { 0 };
-
-	lockdep_assert_preemption_disabled(); /* don't migrate to another CPU */
-	lockdep_assert_held(&msc->lock);
 
 	if (ris->in_reset_state)
 		return 0;
