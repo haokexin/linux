@@ -1950,6 +1950,11 @@ static void mvpp2_ethtool_get_strings(struct net_device *netdev, u32 sset,
 	struct mvpp2_port *port = netdev_priv(netdev);
 	int i, q;
 
+	if (sset == ETH_SS_PRIV_FLAGS) {
+		memcpy(data, mvpp22_priv_flags_strings,
+		       ARRAY_SIZE(mvpp22_priv_flags_strings) * ETH_GSTRING_LEN);
+	}
+
 	if (sset != ETH_SS_STATS)
 		return;
 
