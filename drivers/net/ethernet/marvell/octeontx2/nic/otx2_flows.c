@@ -1170,7 +1170,13 @@ int otx2_add_flow(struct otx2_nic *pfvf, struct ethtool_rxnfc *nfc)
 	/* Number of queues on a VF can be greater or less than
 	 * the PF's queue. Hence no need to check for the
 	 * queue count. Hence no need to check queue count if PF
-	 * is installing for its VF.
+	 * is installing for its VF. Below is the expected vf_num value
+	 * based on the ethtool commands.
+	 *
+	 * e.g.
+	 * 1. ethtool -U <netdev> ... action -1  ==> vf_num:255
+	 * 2. ethtool -U <netdev> ... action <queue_num>  ==> vf_num:0
+	 * 3. ethtool -U <netdev> ... vf <vf_idx> queue <queue_num>  ==> vf_num:vf_idx+1
 	 */
 	vf_num = ethtool_get_flow_spec_ring_vf(fsp->ring_cookie);
 	if (!is_otx2_vf(pfvf->pcifunc) && vf_num)
@@ -1259,7 +1265,7 @@ bypass_queue_check:
 		flow_cfg->nr_flows++;
 	}
 
-	if (vf_num)
+	if (flow->is_vf)
 		netdev_info(pfvf->netdev,
 			    "Make sure that VF's queue number is within its queue limit\n");
 	return 0;
