@@ -23,6 +23,7 @@
 /**
  * struct scmi_smc - Structure representing a SCMI smc transport
  *
+ * @irq: An optional IRQ for completion
  * @cinfo: SCMI channel info
  * @notif_cinfo: SCMI notification channel info
  * @shmem: Transmit/Receive shared memory area
@@ -39,6 +40,7 @@
  */
 
 struct scmi_smc {
+	int irq;
 	struct scmi_chan_info *cinfo;
 	struct scmi_chan_info *notif_cinfo;
 	struct scmi_shared_mem __iomem *shmem;
@@ -133,11 +135,10 @@ static struct scmi_smc *create_scmi_smc_dev(struct device *cdev,
 	 * completion of a message is signaled by an interrupt rather than by
 	 * the return of the SMC call.
 	 */
-	irq = of_irq_get_byname(cdev->of_node, "a2p");
-	if (irq > 0) {
-		ret = devm_request_irq(dev, irq, smc_msg_done_isr,
-				       IRQF_NO_SUSPEND,
-				       dev_name(dev), scmi_info);
+	scmi_info->irq = of_irq_get_byname(cdev->of_node, "a2p");
+	if (scmi_info->irq > 0) {
+		ret = request_irq(scmi_info->irq, smc_msg_done_isr,
+				  IRQF_NO_SUSPEND, dev_name(dev), scmi_info);
 		if (ret) {
 			dev_err(dev, "failed to setup SCMI smc irq\n");
 			return ERR_PTR(ret);
@@ -212,8 +213,10 @@ static int smc_chan_setup(struct scmi_chan_info *cinfo, struct device *dev,
 		return PTR_ERR(scmi_info);
 
 	np = of_parse_phandle(cdev->of_node, "shmem", shmem_idx);
-	if (!of_device_is_compatible(np, "arm,scmi-shmem"))
+	if (!of_device_is_compatible(np, "arm,scmi-shmem")) {
+		of_node_put(np);
 		return -ENXIO;
+	}
 
 	ret = of_address_to_resource(np, 0, &res);
 	of_node_put(np);
@@ -251,6 +254,10 @@ static int smc_chan_free(int id, void *p, void *data)
 {
 	struct scmi_chan_info *cinfo = p;
 	struct scmi_smc *scmi_info = cinfo->transport_info;
+
+	/* Ignore any possible further reception on the IRQ path */
+	if (scmi_info->irq > 0)
+		free_irq(scmi_info->irq, scmi_info);
 
 	cinfo->transport_info = NULL;
 	scmi_info->cinfo = NULL;
