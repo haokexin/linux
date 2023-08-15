@@ -3053,7 +3053,8 @@ static int __init overlay_data_apply(const char *overlay_name, int *overlay_id)
 	if (!size)
 		pr_err("no overlay data for %s\n", overlay_name);
 
-	ret = of_overlay_fdt_apply(info->dtb_begin, size, &info->overlay_id);
+	ret = of_overlay_fdt_apply(info->dtb_begin, size, &info->overlay_id,
+			NULL);
 	if (overlay_id)
 		*overlay_id = info->overlay_id;
 	if (ret < 0)
