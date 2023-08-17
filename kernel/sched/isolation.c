@@ -119,6 +119,12 @@ static int __init housekeeping_setup(char *str, unsigned long flags)
 		}
 	}
 
+	alloc_bootmem_cpumask_var(&non_housekeeping_mask);
+	if (cpulist_parse(str, non_housekeeping_mask) < 0) {
+		pr_warn("Housekeeping: nohz_full= or isolcpus= incorrect CPU range\n");
+		goto free_non_housekeeping_mask;
+	}
+
 	if (!cpumask_subset(non_housekeeping_mask, cpu_possible_mask)) {
 		pr_info("housekeeping: kernel parameter 'nohz_full=' or 'isolcpus=' contains nonexistent CPUs.\n");
 		cpumask_and(non_housekeeping_mask, cpu_possible_mask,
@@ -128,12 +134,6 @@ static int __init housekeeping_setup(char *str, unsigned long flags)
 	if (cpumask_empty(non_housekeeping_mask)) {
 		pr_info("housekeeping: kernel parameter 'nohz_full=' or 'isolcpus=' has no valid CPUs.\n");
 		free_bootmem_cpumask_var(non_housekeeping_mask);
-		return 0;
-	}
-
-	alloc_bootmem_cpumask_var(&non_housekeeping_mask);
-	if (cpulist_parse(str, non_housekeeping_mask) < 0) {
-		pr_warn("Housekeeping: nohz_full= or isolcpus= incorrect CPU range\n");
 		goto free_non_housekeeping_mask;
 	}
 
