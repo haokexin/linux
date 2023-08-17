@@ -96,7 +96,7 @@ static inline bool is_soc_cn10ka_ax(void)
 		if (rev == NULL)
 			return true;
 
-		if ((rev[0] == 'A') || (rev[0] == 'a'))
+		if (strchr(rev, 'A') || strchr(rev, 'a'))
 			return true;
 	}
 
@@ -116,7 +116,7 @@ static inline bool is_soc_cnf10ka_ax(void)
 		if (rev == NULL)
 			return true;
 
-		if ((rev[0] == 'A') || (rev[0] == 'a'))
+		if (strchr(rev, 'A') || strchr(rev, 'a'))
 			return true;
 	}
 
