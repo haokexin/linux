@@ -2135,6 +2135,8 @@ struct cpt_lf_alloc_req_msg {
 	int blkaddr;
 	u8 ctx_ilen_valid : 1;
 	u8 ctx_ilen : 7;
+	u8 rxc_ena : 1;
+	u8 rxc_ena_lf_id : 7;
 };
 
 /* Mailbox message request and response format for CPT stats. */
