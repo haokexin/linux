@@ -1915,6 +1915,12 @@ static void enetc_cbs_init(struct enetc_si *si)
 	}
 }
 
+static void enetc_cbs_free(struct enetc_si *si)
+{
+	kfree(si->ecbs);
+	si->ecbs = NULL;
+}
+
 static void enetc_qbv_init(struct enetc_hw *hw)
 {
 	/* Set PSPEED to be 1Gbps */
@@ -1948,6 +1954,12 @@ void enetc_tsn_deinit(struct net_device *ndev)
 {
 	struct enetc_ndev_priv *priv = netdev_priv(ndev);
 	struct enetc_si *si = priv->si;
+	u32 capability;
+
+	capability = __enetc_tsn_get_cap(si);
+
+	if (capability & TSN_CAP_CBS)
+		enetc_cbs_free(si);
 
 	dev_info(&si->pdev->dev, "%s: release\n", __func__);
 }
