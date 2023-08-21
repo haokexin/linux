@@ -133,7 +133,6 @@ static int __init housekeeping_setup(char *str, unsigned long flags)
 
 	if (cpumask_empty(non_housekeeping_mask)) {
 		pr_info("housekeeping: kernel parameter 'nohz_full=' or 'isolcpus=' has no valid CPUs.\n");
-		free_bootmem_cpumask_var(non_housekeeping_mask);
 		goto free_non_housekeeping_mask;
 	}
 
