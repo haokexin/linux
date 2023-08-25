@@ -1189,12 +1189,30 @@ static int cnf10k_change_mtu(struct net_device *netdev, int new_mtu)
 static int cnf10k_rfoe_eth_open(struct net_device *netdev)
 {
 	struct cnf10k_rfoe_ndev_priv *priv = netdev_priv(netdev);
+	u16 nxt_buf, sw_buf, nxt_buf1, sw_buf1;
+	struct cnf10k_rx_ft_cfg *ft_cfg;
+	u64 mbt_status, mbt_sts_off;
 	int idx;
 
 	for (idx = 0; idx < PACKET_TYPE_MAX; idx++) {
 		if (!(priv->pkt_type_mask & (1U << idx)))
 			continue;
-		napi_enable(&priv->rx_ft_cfg[idx].napi);
+		ft_cfg = &priv->rx_ft_cfg[idx];
+		napi_enable(&ft_cfg->napi);
+
+		/* clear mbt full ring condition if exists */
+		mbt_sts_off = CNF10K_RFOEX_RX_MBT_STATUS(priv->rfoe_num, ft_cfg->mbt_idx);
+		mbt_status = readq(priv->rfoe_reg_base + mbt_sts_off);
+		nxt_buf = mbt_status & 0xffff;
+		sw_buf = (mbt_status >> 16) & 0xffff;
+		if (((nxt_buf + 1) % ft_cfg->num_bufs) == sw_buf) {
+			usleep_range(50, 100);
+			mbt_status = readq(priv->rfoe_reg_base + mbt_sts_off);
+			nxt_buf1 = mbt_status & 0xffff;
+			sw_buf1 = (mbt_status >> 16) & 0xffff;
+			if (nxt_buf == nxt_buf1 && sw_buf == sw_buf1)
+				writeq((nxt_buf << 16), priv->rfoe_reg_base + mbt_sts_off);
+		}
 	}
 
 	priv->ptp_tx_skb = NULL;
