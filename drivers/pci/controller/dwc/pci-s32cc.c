@@ -1736,12 +1736,8 @@ static int s32cc_pcie_config_common(struct s32cc_pcie *s32cc_pp,
 	struct dw_pcie_rp *pp = &pcie->pp;
 	int ret = 0;
 
-	dev_dbg(dev, "%s\n", __func__);
-
 #ifdef CONFIG_PCI_S32CC_EP_MSI
-	struct dw_pcie *pcie = &s32cc_pp->pcie;
 	u32 val, ctrl, num_ctrls;
-	struct dw_pcie_rp *pp = &pcie->pp;
 #endif
 
 	/* MSI configuration, for both RC and EP */
