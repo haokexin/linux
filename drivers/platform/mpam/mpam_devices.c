@@ -1302,7 +1302,7 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 	int err = 0;
 	u32 level = 0;
 	unsigned long cache_id;
-	struct device_node *cache;
+	struct device_node *cache = NULL;
 
 	do {
 		if (!of_property_match_string(np->parent, "device_type",
@@ -1315,9 +1315,9 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 			if (!cache) {
 				pr_err("Failed to read phandle\n");
 				break;
-			}	
+			}
 		} else if (of_device_is_compatible(np->parent, "cache")) {
-			cache = np->parent;
+			cache = of_node_get(np->parent);
 		} else {
 			pr_err("Nither cache nor memory\n");
 			break;
@@ -1327,7 +1327,7 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 		if (err) {
 			pr_err("Failed to read cache-level\n");
 			break;
-		}			
+		}
 
 		cache_id = cache_of_get_id(cache);
 		if (cache_id == ~0UL) {
