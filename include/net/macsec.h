@@ -313,4 +313,9 @@ static inline bool macsec_send_sci(const struct macsec_secy *secy)
 		(secy->n_rx_sc > 1 && !tx_sc->end_station && !tx_sc->scb);
 }
 
+static inline u64 sci_to_cpu(sci_t sci)
+{
+	return be64_to_cpu((__force __be64)sci);
+}
+
 #endif /* _NET_MACSEC_H_ */
