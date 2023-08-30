@@ -141,11 +141,8 @@ static int otx2_dcbnl_ieee_getpfc(struct net_device *dev, struct ieee_pfc *pfc)
 static int otx2_dcbnl_ieee_setpfc(struct net_device *dev, struct ieee_pfc *pfc)
 {
 	struct otx2_nic *pfvf = netdev_priv(dev);
-	bool if_up = netif_running(dev);
-	u8 prev_pfc_en;
 	int err;
 
-	prev_pfc_en = pfvf->pfc_en;
 	pfvf->pfc_en = pfc->pfc_en;
 	if (pfvf->hw.tx_queues >= NIX_PF_PFC_PRIO_MAX)
 		goto process_pfc;
@@ -162,11 +159,14 @@ process_pfc:
 	if (err)
 		return err;
 
-	if (if_up) {
-		pfvf->pfc_en = prev_pfc_en;
-		otx2_stop(dev);
-		pfvf->pfc_en = pfc->pfc_en;
-		otx2_open(dev);
+	/* Request Per channel Bpids */
+	if (pfc->pfc_en)
+		otx2_nix_config_bp(pfvf, true);
+
+	err = otx2_pfc_txschq_update(pfvf);
+	if (err) {
+		dev_err(pfvf->dev, "%s failed to update TX schedulers\n", __func__);
+		return err;
 	}
 
 	return 0;
