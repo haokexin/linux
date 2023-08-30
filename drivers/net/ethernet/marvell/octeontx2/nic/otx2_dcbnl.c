@@ -139,16 +139,7 @@ static int otx2_pfc_txschq_stop_one(struct otx2_nic *pfvf, u8 prio)
 static int otx2_pfc_update_sq_smq_mapping(struct otx2_nic *pfvf, int prio)
 {
 	struct nix_cn10k_aq_enq_req *cn10k_sq_aq;
-	struct net_device *dev = pfvf->netdev;
-	bool if_up = netif_running(dev);
 	struct nix_aq_enq_req *sq_aq;
-
-	if (if_up) {
-		if (pfvf->pfc_alloc_status[prio])
-			netif_tx_stop_all_queues(pfvf->netdev);
-		else
-			netif_tx_stop_queue(netdev_get_tx_queue(dev, prio));
-	}
 
 	if (test_bit(CN10K_LMTST, &pfvf->hw.cap_flag)) {
 		cn10k_sq_aq = otx2_mbox_alloc_msg_nix_cn10k_aq_enq(&pfvf->mbox);
@@ -183,14 +174,6 @@ static int otx2_pfc_update_sq_smq_mapping(struct otx2_nic *pfvf, int prio)
 	}
 
 	otx2_sync_mbox_msg(&pfvf->mbox);
-
-	if (if_up) {
-		if (pfvf->pfc_alloc_status[prio])
-			netif_tx_start_all_queues(pfvf->netdev);
-		else
-			netif_tx_start_queue(netdev_get_tx_queue(dev, prio));
-	}
-
 	return 0;
 }
 
@@ -201,6 +184,11 @@ int otx2_pfc_txschq_update(struct otx2_nic *pfvf)
 	struct mbox *mbox = &pfvf->mbox;
 	int err, prio;
 
+	if (if_up) {
+		netif_carrier_off(pfvf->netdev);
+		netif_tx_stop_all_queues(pfvf->netdev);
+	}
+
 	mutex_lock(&mbox->lock);
 	for (prio = 0; prio < NIX_PF_PFC_PRIO_MAX; prio++) {
 		pfc_bit_set = pfc_en & (1 << prio);
@@ -208,13 +196,7 @@ int otx2_pfc_txschq_update(struct otx2_nic *pfvf)
 		/* tx scheduler was created but user wants to disable now */
 		if (!pfc_bit_set && pfvf->pfc_alloc_status[prio]) {
 			mutex_unlock(&mbox->lock);
-			if (if_up)
-				netif_tx_stop_all_queues(pfvf->netdev);
-
 			otx2_smq_flush(pfvf, pfvf->pfc_schq_list[NIX_TXSCH_LVL_SMQ][prio]);
-			if (if_up)
-				netif_tx_start_all_queues(pfvf->netdev);
-
 			/* delete the schq */
 			err = otx2_pfc_txschq_stop_one(pfvf, prio);
 			if (err) {
@@ -255,6 +237,11 @@ update_sq_smq_map:
 
 	err = otx2_pfc_txschq_config(pfvf);
 	mutex_unlock(&mbox->lock);
+	if (if_up) {
+		netif_carrier_on(pfvf->netdev);
+		netif_tx_start_all_queues(pfvf->netdev);
+	}
+
 	if (err)
 		return err;
 
@@ -399,14 +386,9 @@ static int otx2_dcbnl_ieee_getpfc(struct net_device *dev, struct ieee_pfc *pfc)
 static int otx2_dcbnl_ieee_setpfc(struct net_device *dev, struct ieee_pfc *pfc)
 {
 	struct otx2_nic *pfvf = netdev_priv(dev);
-	bool if_up = netif_running(dev);
-	u8 prev_pfc_en;
 	int err;
 
-	prev_pfc_en = pfvf->pfc_en;
-	/* Save PFC configuration to interface */
 	pfvf->pfc_en = pfc->pfc_en;
-
 	if (pfvf->hw.tx_queues >= NIX_PF_PFC_PRIO_MAX)
 		goto process_pfc;
 
@@ -422,11 +404,14 @@ process_pfc:
 	if (err)
 		return err;
 
-	if (if_up) {
-		pfvf->pfc_en = prev_pfc_en;
-		otx2_stop(dev);
-		pfvf->pfc_en = pfc->pfc_en;
-		otx2_open(dev);
+	/* Request Per channel Bpids */
+	if (pfc->pfc_en)
+		otx2_nix_config_bp(pfvf, true);
+
+	err = otx2_pfc_txschq_update(pfvf);
+	if (err) {
+		dev_err(pfvf->dev, "%s failed to update TX schedulers\n", __func__);
+		return err;
 	}
 
 	return 0;
