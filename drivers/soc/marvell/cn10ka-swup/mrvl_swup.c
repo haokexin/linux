@@ -188,10 +188,6 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 	if (user_desc->version_flags & MARLIN_FORCE_ASYNC)
 		swup_info->version_flags |= SMC_VERSION_ASYNC_HASH;
 
-	res = mrvl_exec_smc(PLAT_CN10K_VERIFY_FIRMWARE,
-			    memdesc[BUF_DATA].phys,
-			    sizeof(struct smc_version_info));
-
 	if (user_desc->version_flags & MARLIN_DEBUG)
 		swup_info->version_flags |= SMC_VERSION_DEBUG;
 
@@ -205,6 +201,10 @@ static enum smc_version_entry_retcode mrvl_get_version(unsigned long arg, uint8_
 	if (user_desc->compatibility_flags & VERSION_COMPAT_FLAG_USE_OLD_VERSION_BEFORE_LOG) {
 		swup_info->version = VERSION_OLD_VERSION_BEFORE_LOG;
 	}
+
+	res = mrvl_exec_smc(PLAT_CN10K_VERIFY_FIRMWARE,
+			    memdesc[BUF_DATA].phys,
+			    sizeof(struct smc_version_info));
 
 	if (res.a0) {
 		pr_err("Error during SMC processing\n");
