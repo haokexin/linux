@@ -1199,6 +1199,8 @@ int rvu_npc_get_tx_nibble_cfg(struct rvu *rvu, u64 nibble_ena);
 bool is_parse_nibble_config_valid(struct rvu *rvu,
 				  struct npc_mcam_kex *mcam_kex);
 void rvu_tim_hw_fixes(struct rvu *rvu, int blkaddr);
+bool rvu_tim_ptp_has_errata(struct pci_dev *pdev);
+u64 rvu_tim_ptp_rollover_errata_fix(struct rvu *rvu, u64 time);
 int rvu_ndc_fix_locked_cacheline(struct rvu *rvu, int blkaddr);
 int rvu_get_hwvf(struct rvu *rvu, int pcifunc);
 #endif /* RVU_H */
