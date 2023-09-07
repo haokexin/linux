@@ -367,8 +367,10 @@ static void npc_handle_multi_layer_fields(struct rvu *rvu, int blkaddr, u8 intf)
 	vlan_tag3 = &key_fields[NPC_VLAN_TAG3];
 
 	/* if key profile programmed does not extract Ethertype at all */
-	if (!etype_ether->nr_kws && !etype_tag1->nr_kws && !etype_tag2->nr_kws)
+	if (!etype_ether->nr_kws && !etype_tag1->nr_kws && !etype_tag2->nr_kws) {
+		dev_err(rvu->dev, "mkex: Ethertype is not extracted.\n");
 		goto vlan_tci;
+	}
 
 	/* if key profile programmed extracts Ethertype from one layer */
 	if (etype_ether->nr_kws && !etype_tag1->nr_kws && !etype_tag2->nr_kws)
@@ -381,35 +383,45 @@ static void npc_handle_multi_layer_fields(struct rvu *rvu, int blkaddr, u8 intf)
 	/* if key profile programmed extracts Ethertype from multiple layers */
 	if (etype_ether->nr_kws && etype_tag1->nr_kws) {
 		for (i = 0; i < NPC_MAX_KWS_IN_KEY; i++) {
-			if (etype_ether->kw_mask[i] != etype_tag1->kw_mask[i])
+			if (etype_ether->kw_mask[i] != etype_tag1->kw_mask[i]) {
+				dev_err(rvu->dev, "mkex: Etype pos is different for untagged and tagged pkts.\n");
 				goto vlan_tci;
+			}
 		}
 		key_fields[NPC_ETYPE] = *etype_tag1;
 	}
 	if (etype_ether->nr_kws && etype_tag2->nr_kws) {
 		for (i = 0; i < NPC_MAX_KWS_IN_KEY; i++) {
-			if (etype_ether->kw_mask[i] != etype_tag2->kw_mask[i])
+			if (etype_ether->kw_mask[i] != etype_tag2->kw_mask[i]) {
+				dev_err(rvu->dev, "mkex: Etype pos is different for untagged and double tagged pkts.\n");
 				goto vlan_tci;
+			}
 		}
 		key_fields[NPC_ETYPE] = *etype_tag2;
 	}
 	if (etype_tag1->nr_kws && etype_tag2->nr_kws) {
 		for (i = 0; i < NPC_MAX_KWS_IN_KEY; i++) {
-			if (etype_tag1->kw_mask[i] != etype_tag2->kw_mask[i])
+			if (etype_tag1->kw_mask[i] != etype_tag2->kw_mask[i]) {
+				dev_err(rvu->dev, "mkex: Etype pos is different for tagged and double tagged pkts.\n");
 				goto vlan_tci;
+			}
 		}
 		key_fields[NPC_ETYPE] = *etype_tag2;
 	}
 
 	/* check none of higher layers overwrite Ethertype */
 	start_lid = key_fields[NPC_ETYPE].layer_mdata.lid + 1;
-	if (npc_check_overlap(rvu, blkaddr, NPC_ETYPE, start_lid, intf))
+	if (npc_check_overlap(rvu, blkaddr, NPC_ETYPE, start_lid, intf)) {
+		dev_err(rvu->dev, "mkex: Ethertype is overwritten by higher layers.\n");
 		goto vlan_tci;
+	}
 	*features |= BIT_ULL(NPC_ETYPE);
 vlan_tci:
 	/* if key profile does not extract outer vlan tci at all */
-	if (!vlan_tag1->nr_kws && !vlan_tag2->nr_kws)
+	if (!vlan_tag1->nr_kws && !vlan_tag2->nr_kws) {
+		dev_err(rvu->dev, "mkex: Outer vlan tci is not extracted.\n");
 		goto done;
+	}
 
 	/* if key profile extracts outer vlan tci from one layer */
 	if (vlan_tag1->nr_kws && !vlan_tag2->nr_kws)
@@ -420,15 +432,19 @@ vlan_tci:
 	/* if key profile extracts outer vlan tci from multiple layers */
 	if (vlan_tag1->nr_kws && vlan_tag2->nr_kws) {
 		for (i = 0; i < NPC_MAX_KWS_IN_KEY; i++) {
-			if (vlan_tag1->kw_mask[i] != vlan_tag2->kw_mask[i])
+			if (vlan_tag1->kw_mask[i] != vlan_tag2->kw_mask[i]) {
+				dev_err(rvu->dev, "mkex: Out vlan tci pos is different for tagged and double tagged pkts.\n");
 				goto done;
+			}
 		}
 		key_fields[NPC_OUTER_VID] = *vlan_tag2;
 	}
 	/* check none of higher layers overwrite outer vlan tci */
 	start_lid = key_fields[NPC_OUTER_VID].layer_mdata.lid + 1;
-	if (npc_check_overlap(rvu, blkaddr, NPC_OUTER_VID, start_lid, intf))
+	if (npc_check_overlap(rvu, blkaddr, NPC_OUTER_VID, start_lid, intf)) {
+		dev_err(rvu->dev, "mkex: Outer vlan tci is overwritten by higher layers.\n");
 		goto done;
+	}
 	*features |= BIT_ULL(NPC_OUTER_VID);
 
 	/* If key profile extracts inner vlan tci */
