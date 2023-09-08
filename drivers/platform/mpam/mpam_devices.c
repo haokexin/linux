@@ -1482,7 +1482,7 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 				break;
 			}
 		} else if (of_device_is_compatible(np->parent, "cache")) {
-			cache = np->parent;
+			cache = of_node_get(np->parent);
 		} else {
 			/* For now, only caches are supported */
 			cache = NULL;
