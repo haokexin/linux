@@ -3195,6 +3195,9 @@ void console_flush_on_panic(enum con_flush_mode mode)
 		console_srcu_read_unlock(cookie);
 	}
 
+	if (!have_boot_console)
+		nbcon_atomic_flush_all();
+
 	console_flush_all(false, &next_seq, &handover);
 }
 
@@ -3963,8 +3966,22 @@ void defer_console_output(void)
 	__wake_up_klogd(PRINTK_PENDING_WAKEUP | PRINTK_PENDING_OUTPUT);
 }
 
+/**
+ * printk_trigger_flush() - Make sure that the consoles will get flushed
+ *
+ * Try to flush consoles when possible or queue flushing consoles like
+ * in the deferred printk.
+ *
+ * Context: Can be used in any context
+ */
 void printk_trigger_flush(void)
 {
+	if (!have_boot_console) {
+		preempt_disable();
+		nbcon_atomic_flush_all();
+		preempt_enable();
+	}
+
 	defer_console_output();
 }
 
