@@ -417,6 +417,12 @@ process_pfc:
 
 	err = otx2_pfc_txschq_update(pfvf);
 	if (err) {
+		if (pfc->pfc_en)
+			otx2_nix_config_bp(pfvf, false);
+
+		otx2_pfc_txschq_stop(pfvf);
+		pfvf->pfc_en = old_pfc_en;
+		otx2_config_priority_flow_ctrl(pfvf);
 		dev_err(pfvf->dev, "%s failed to update TX schedulers\n", __func__);
 		return err;
 	}
