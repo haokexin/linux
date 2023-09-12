@@ -939,6 +939,7 @@ static irqreturn_t flexcan_irq_bus_err(int irq, void *dev_id)
 	}
 
 	can_rx_offload_queue_timestamp(&priv->offload, skb, timestamp);
+	can_rx_offload_irq_finish(&priv->offload);
 
 	return IRQ_HANDLED;
 }
@@ -1043,6 +1044,9 @@ static irqreturn_t flexcan_irq_state(int irq, void *dev_id)
 			break;
 		}
 	}
+
+	if (handled)
+		can_rx_offload_irq_finish(&priv->offload);
 
 	return handled;
 }
