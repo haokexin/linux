@@ -572,7 +572,6 @@ static struct printk_buffers panic_nbcon_pbufs;
  * in an unsafe state. Otherwise, on success the caller may assume
  * the console is not in an unsafe state.
  */
-__maybe_unused
 static bool nbcon_context_try_acquire(struct nbcon_context *ctxt)
 {
 	unsigned int cpu = smp_processor_id();
@@ -874,7 +873,6 @@ EXPORT_SYMBOL_GPL(nbcon_exit_unsafe);
  * When true is returned, @wctxt->ctxt.backlog indicates whether there are
  * still records pending in the ringbuffer,
  */
-__maybe_unused
 static bool nbcon_emit_next_record(struct nbcon_write_context *wctxt)
 {
 	struct nbcon_context *ctxt = &ACCESS_PRIVATE(wctxt, ctxt);
@@ -964,6 +962,93 @@ update_con:
 	nbcon_seq_try_update(ctxt, pmsg.seq + 1);
 
 	return nbcon_context_exit_unsafe(ctxt);
+}
+
+/**
+ * nbcon_atomic_emit_one - Print one record for an nbcon console using the
+ *					write_atomic() callback
+ * @wctxt:			An initialized write context struct to use
+ *				for this context
+ *
+ * Return:	False if the given console could not print a record or there
+ *		are no more records to print, otherwise true.
+ *
+ * This is an internal helper to handle the locking of the console before
+ * calling nbcon_emit_next_record().
+ */
+static bool nbcon_atomic_emit_one(struct nbcon_write_context *wctxt)
+{
+	struct nbcon_context *ctxt = &ACCESS_PRIVATE(wctxt, ctxt);
+
+	if (!nbcon_context_try_acquire(ctxt))
+		return false;
+
+	/*
+	 * nbcon_emit_next_record() returns false when the console was
+	 * handed over or taken over. In both cases the context is no
+	 * longer valid.
+	 */
+	if (!nbcon_emit_next_record(wctxt))
+		return false;
+
+	nbcon_context_release(ctxt);
+
+	return ctxt->backlog;
+}
+
+/**
+ * __nbcon_atomic_flush_all - Flush all nbcon consoles using their
+ *					write_atomic() callback
+ * @stop_seq:			Flush up until this record
+ */
+static void __nbcon_atomic_flush_all(u64 stop_seq)
+{
+	struct nbcon_write_context wctxt = { };
+	struct nbcon_context *ctxt = &ACCESS_PRIVATE(&wctxt, ctxt);
+	struct console *con;
+	bool any_progress;
+	int cookie;
+
+	do {
+		any_progress = false;
+
+		cookie = console_srcu_read_lock();
+		for_each_console_srcu(con) {
+			short flags = console_srcu_read_flags(con);
+
+			if (!(flags & CON_NBCON))
+				continue;
+
+			if (!console_is_usable(con, flags))
+				continue;
+
+			if (nbcon_seq_read(con) >= stop_seq)
+				continue;
+
+			memset(ctxt, 0, sizeof(*ctxt));
+			ctxt->console			= con;
+			ctxt->spinwait_max_us		= 2000;
+			ctxt->prio			= NBCON_PRIO_NORMAL;
+
+			any_progress |= nbcon_atomic_emit_one(&wctxt);
+		}
+		console_srcu_read_unlock(cookie);
+	} while (any_progress);
+}
+
+/**
+ * nbcon_atomic_flush_all - Flush all nbcon consoles using their
+ *				write_atomic() callback
+ *
+ * Flush the backlog up through the currently newest record. Any new
+ * records added while flushing will not be flushed. This is to avoid
+ * one CPU printing unbounded because other CPUs continue to add records.
+ *
+ * Context:	Any context which could not be migrated to another CPU.
+ */
+void nbcon_atomic_flush_all(void)
+{
+	__nbcon_atomic_flush_all(prb_next_reserve_seq(prb));
 }
 
 /**
