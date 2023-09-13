@@ -1120,7 +1120,7 @@
 #define NDC_AF_BANKX_HIT_PC(a)		(0x01000 | (a) << 3)
 #define NDC_AF_BANKX_MISS_PC(a)		(0x01100 | (a) << 3)
 #define NDC_AF_BANKX_LINEX_METADATA(a, b) \
-		(0x10000 | (a) << 3 | (b) << 3)
+		(0x10000 | (a) << 12 | (b) << 3)
 
 /* LBK */
 #define LBK_CONST			(0x10ull)
