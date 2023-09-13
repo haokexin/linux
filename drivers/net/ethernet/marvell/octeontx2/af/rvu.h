@@ -18,7 +18,6 @@
 #include "mcs_fips_mbox.h"
 #include "npc.h"
 #include "rvu_reg.h"
-#include "ptp.h"
 
 /* PCI device IDs */
 #define	PCI_DEVID_OCTEONTX2_RVU_AF		0xA065
@@ -764,16 +763,6 @@ static inline bool is_cnf10kb_a0(struct rvu *rvu)
 	struct pci_dev *pdev = rvu->pdev;
 
 	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_B &&
-	    (pdev->revision & 0x0F) == 0x0)
-		return true;
-	return false;
-}
-
-static inline bool is_cnf10ka_a0(struct rvu *rvu)
-{
-	struct pci_dev *pdev = rvu->pdev;
-
-	if (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A &&
 	    (pdev->revision & 0x0F) == 0x0)
 		return true;
 	return false;
