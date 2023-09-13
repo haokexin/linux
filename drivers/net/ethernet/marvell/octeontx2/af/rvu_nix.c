@@ -1116,9 +1116,9 @@ static int nix_aq_enqueue_wait(struct rvu *rvu, struct rvu_block *block,
 
 	if (result->compcode != NIX_AQ_COMP_GOOD) {
 		/* TODO: Replace this with some error code */
-		if (result->compcode == NPA_AQ_COMP_CTX_FAULT ||
-		    result->compcode == NPA_AQ_COMP_LOCKERR ||
-		    result->compcode == NPA_AQ_COMP_CTX_POISON) {
+		if (result->compcode == NIX_AQ_COMP_CTX_FAULT ||
+		    result->compcode == NIX_AQ_COMP_LOCKERR ||
+		    result->compcode == NIX_AQ_COMP_CTX_POISON) {
 			ret = rvu_ndc_fix_locked_cacheline(rvu, BLKADDR_NDC_NIX0_RX);
 			ret |= rvu_ndc_fix_locked_cacheline(rvu, BLKADDR_NDC_NIX0_TX);
 			ret |= rvu_ndc_fix_locked_cacheline(rvu, BLKADDR_NDC_NIX1_RX);
