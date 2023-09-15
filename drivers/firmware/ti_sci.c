@@ -109,7 +109,6 @@ struct ti_sci_desc {
  * @ctx_mem_buf: Low power context memory buffer
  * @fw_caps:	FW/SoC low power capabilities
  * @users:	Number of users of this instance
- * @is_suspending: Flag set to indicate in suspend path.
  * @lpm_firmware_loaded: Flag to indicate if LPM firmware has been loaded
  * @lpm_firmware_name: Name of firmware binary to load from fw search path
  */
@@ -136,7 +135,6 @@ struct ti_sci_info {
 	u64 fw_caps;
 	/* protected by ti_sci_list_mutex */
 	int users;
-	bool is_suspending;
 	bool lpm_firmware_loaded;
 	const char *lpm_firmware_name;
 };
@@ -441,14 +439,14 @@ static inline int ti_sci_do_xfer(struct ti_sci_info *info,
 
 	ret = 0;
 
-	if (!info->is_suspending) {
+	if (system_state <= SYSTEM_RUNNING) {
 		/* And we wait for the response. */
 		timeout = msecs_to_jiffies(info->desc->max_rx_timeout_ms);
 		if (!wait_for_completion_timeout(&xfer->done, timeout))
 			ret = -ETIMEDOUT;
 	} else {
 		/*
-		 * If we are suspending, we cannot use wait_for_completion_timeout
+		 * If we are !running, we cannot use wait_for_completion_timeout
 		 * during noirq phase, so we must manually poll the completion.
 		 */
 		ret = read_poll_timeout_atomic(try_wait_for_completion, done_state,
@@ -3562,71 +3560,6 @@ static int ti_sci_load_lpm_firmware(struct device *dev, struct ti_sci_info *info
 
 	return ret;
 }
-static void ti_sci_set_is_suspending(struct ti_sci_info *info, bool is_suspending)
-{
-	info->is_suspending = is_suspending;
-}
-
-static int ti_sci_prepare_system_suspend(struct ti_sci_info *info)
-{
-#if IS_ENABLED(CONFIG_SUSPEND)
-	u8 mode;
-
-	/* Map and validate the target Linux suspend state to TISCI LPM. */
-	switch (pm_suspend_target_state) {
-	case PM_SUSPEND_MEM:
-		/* S2MEM is not supported by the firmware. */
-		if (!(info->fw_caps & MSG_FLAG_CAPS_LPM_DEEP_SLEEP))
-			return 0;
-		/* S2MEM can't continue if the LPM firmware is not loaded. */
-		if (!info->lpm_firmware_loaded)
-			return -EINVAL;
-		mode = TISCI_MSG_VALUE_SLEEP_MODE_DEEP_SLEEP;
-		break;
-	default:
-		/*
-		 * Do not fail if we don't have action to take for a
-		 * specific suspend mode.
-		 */
-		return 0;
-	}
-
-	return ti_sci_cmd_prepare_sleep(&info->handle, mode,
-					(u32)(info->ctx_mem_addr & 0xffffffff),
-					(u32)((u64)info->ctx_mem_addr >> 32), 0);
-#else
-	return 0;
-#endif
-}
-
-static int ti_sci_suspend(struct device *dev)
-{
-	struct ti_sci_info *info = dev_get_drvdata(dev);
-	int ret;
-
-	ret = ti_sci_prepare_system_suspend(info);
-	if (ret)
-		return ret;
-	/*
-	 * We must switch operation to polled mode now as drivers and the genpd
-	 * layer may make late TI SCI calls to change clock and device states
-	 * from the noirq phase of suspend.
-	 */
-	ti_sci_set_is_suspending(info, true);
-
-	return 0;
-}
-
-static int ti_sci_resume(struct device *dev)
-{
-	struct ti_sci_info *info = dev_get_drvdata(dev);
-
-	ti_sci_set_is_suspending(info, false);
-
-	return 0;
-}
-
-static DEFINE_SIMPLE_DEV_PM_OPS(ti_sci_pm_ops, ti_sci_suspend, ti_sci_resume);
 
 static int tisci_pm_handler(struct notifier_block *nb, unsigned long pm_event,
 			    void *unused)
@@ -3931,7 +3864,6 @@ static struct platform_driver ti_sci_driver = {
 	.driver = {
 		   .name = "ti-sci",
 		   .of_match_table = of_match_ptr(ti_sci_of_match),
-		   .pm = &ti_sci_pm_ops,
 	},
 };
 module_platform_driver(ti_sci_driver);
