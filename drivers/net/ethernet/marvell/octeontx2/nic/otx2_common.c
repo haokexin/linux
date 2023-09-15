@@ -797,7 +797,6 @@ int otx2_txsch_alloc(struct otx2_nic *pfvf)
 	/* Request one schq per level */
 	for (lvl = 0; lvl < NIX_TXSCH_LVL_CNT; lvl++)
 		req->schq[lvl] = 1;
-
 	if (is_otx2_sdpvf(pfvf->pdev) && chan_cnt > 1) {
 		/* For SDP, backpressure is asserted at TL4,
 		 * so single scheduler queue at higher levels suffice.
