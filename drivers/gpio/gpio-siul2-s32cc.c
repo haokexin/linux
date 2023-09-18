@@ -411,6 +411,7 @@ static irqreturn_t siul2_gpio_irq_handler(int irq, void *data)
 	u32 disr0_val;
 	unsigned long disr0_val_long;
 	irqreturn_t ret = IRQ_NONE;
+	unsigned long lock_flags;
 	int i;
 
 	/* Go through the entire GPIO bank and handle all interrupts */
@@ -445,7 +446,9 @@ static irqreturn_t siul2_gpio_irq_handler(int irq, void *data)
 		 */
 		regmap_write(gpio_dev->irqmap, SIUL2_DISR0, BIT(eirq));
 
+		raw_spin_lock_irqsave(&gpio_dev->lock, lock_flags);
 		generic_handle_irq(child_irq);
+		raw_spin_unlock_irqrestore(&gpio_dev->lock, lock_flags);
 
 		ret |= IRQ_HANDLED;
 	}
