@@ -654,7 +654,7 @@ int dpa_alloc_reserve(struct dpa_alloc *alloc, u32 base, u32 num)
 		}
 	}
 	/* Add the allocation to the used list with a refcount of 1 */
-	used_node = kmalloc(sizeof(*used_node), GFP_KERNEL);
+	used_node = kmalloc(sizeof(*used_node), GFP_ATOMIC);
 	if (!used_node) {
 		spin_unlock_irq(&alloc->lock);
 		return -ENOMEM;
