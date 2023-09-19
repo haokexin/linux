@@ -78,6 +78,7 @@ bool nbcon_alloc(struct console *con);
 void nbcon_init(struct console *con);
 void nbcon_free(struct console *con);
 void nbcon_atomic_flush_all(void);
+bool nbcon_atomic_emit_next_record(struct console *con);
 
 /*
  * Check if the given console is currently capable and allowed to print
@@ -133,6 +134,7 @@ static inline bool nbcon_alloc(struct console *con) { return false; }
 static inline void nbcon_init(struct console *con) { }
 static inline void nbcon_free(struct console *con) { }
 static inline void nbcon_atomic_flush_all(void) { }
+static bool nbcon_atomic_emit_next_record(struct console *con) { return false; }
 
 static inline bool console_is_usable(struct console *con, short flags) { return false; }
 

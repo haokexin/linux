@@ -997,6 +997,29 @@ static bool nbcon_atomic_emit_one(struct nbcon_write_context *wctxt)
 }
 
 /**
+ * nbcon_atomic_emit_next_record - Print one record for an nbcon console
+ *					using the write_atomic() callback
+ * @con:	The console to print on
+ *
+ * Return:	True if a record could be printed, otherwise false.
+ * Context:	Any context which could not be migrated to another CPU.
+ *
+ * This function is meant to be called by console_flush_all() to print records
+ * on nbcon consoles using the write_atomic() callback. Essentially it is the
+ * nbcon version of console_emit_next_record().
+ */
+bool nbcon_atomic_emit_next_record(struct console *con)
+{
+	struct nbcon_write_context wctxt = { };
+	struct nbcon_context *ctxt = &ACCESS_PRIVATE(&wctxt, ctxt);
+
+	ctxt->console	= con;
+	ctxt->prio	= NBCON_PRIO_NORMAL;
+
+	return nbcon_atomic_emit_one(&wctxt);
+}
+
+/**
  * __nbcon_atomic_flush_all - Flush all nbcon consoles using their
  *					write_atomic() callback
  * @stop_seq:			Flush up until this record
