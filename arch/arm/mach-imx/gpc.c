@@ -51,7 +51,7 @@ static u32 gpc_wake_irqs[IMR_NUM];
 static u32 gpc_saved_imrs[IMR_NUM];
 static u32 gpc_mf_irqs[IMR_NUM];
 static u32 gpc_mf_request_on[IMR_NUM];
-static DEFINE_SPINLOCK(gpc_lock);
+static DEFINE_RAW_SPINLOCK(gpc_lock);
 
 void imx_gpc_add_m4_wake_up_irq(u32 hwirq, bool enable)
 {
@@ -64,10 +64,10 @@ void imx_gpc_add_m4_wake_up_irq(u32 hwirq, bool enable)
 		return;
 
 	mask = 1 << hwirq % 32;
-	spin_lock_irqsave(&gpc_lock, flags);
+	raw_spin_lock_irqsave(&gpc_lock, flags);
 	gpc_wake_irqs[idx] = enable ? gpc_wake_irqs[idx] | mask :
 		gpc_wake_irqs[idx] & ~mask;
-	spin_unlock_irqrestore(&gpc_lock, flags);
+	raw_spin_unlock_irqrestore(&gpc_lock, flags);
 }
 
 void imx_gpc_hold_m4_in_sleep(void)
@@ -233,10 +233,10 @@ static int imx_gpc_irq_set_wake(struct irq_data *d, unsigned int on)
 	u32 mask;
 
 	mask = 1 << d->hwirq % 32;
-	spin_lock_irqsave(&gpc_lock, flags);
+	raw_spin_lock_irqsave(&gpc_lock, flags);
 	gpc_wake_irqs[idx] = on ? gpc_wake_irqs[idx] | mask :
 				  gpc_wake_irqs[idx] & ~mask;
-	spin_unlock_irqrestore(&gpc_lock, flags);
+	raw_spin_unlock_irqrestore(&gpc_lock, flags);
 
 	/*
 	 * Do *not* call into the parent, as the GIC doesn't have any
@@ -375,10 +375,10 @@ int imx_gpc_mf_power_on(unsigned int irq, unsigned int on)
 	u32 mask;
 
 	mask = 1 << (d->irq_data.hwirq % 32);
-	spin_lock_irqsave(&gpc_lock, flags);
+	raw_spin_lock_irqsave(&gpc_lock, flags);
 	gpc_mf_request_on[idx] = on ? gpc_mf_request_on[idx] | mask :
 				  gpc_mf_request_on[idx] & ~mask;
-	spin_unlock_irqrestore(&gpc_lock, flags);
+	raw_spin_unlock_irqrestore(&gpc_lock, flags);
 
 	return 0;
 }
