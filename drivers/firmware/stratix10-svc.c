@@ -549,7 +549,7 @@ static int svc_normal_to_secure_thread(void *data)
 					&chan->svc_fifo_lock);
 
 		if (!ret_fifo) {
-			schedule_timeout_interruptible(MAX_SCHEDULE_TIMEOUT);
+			schedule_timeout_interruptible(HZ);
 			continue;
 		}
 
