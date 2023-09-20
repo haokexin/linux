@@ -1006,6 +1006,7 @@ int otx2_pfc_txschq_stop(struct otx2_nic *pfvf)
 
 	return 0;
 }
+EXPORT_SYMBOL(otx2_pfc_txschq_stop);
 #endif
 
 int otx2_txsch_alloc(struct otx2_nic *pfvf)
