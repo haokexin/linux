@@ -282,7 +282,7 @@ MODULE_PARM(yaffs_gc_control, "i");
 	} while (0)
 #else
 #define update_dir_time(dir) do {\
-		(dir)->i_ctime = (dir)->i_mtime = current_time(dir); \
+		(dir)->i_mtime = inode_set_ctime_to_ts( dir, current_time(dir) ); \
 	} while (0)
 #endif
 
@@ -1901,7 +1901,7 @@ out:
 
 	return ret_val;
 }
-
+WRAP_DIR_ITER(yaffs_iterate)
 #else
 
 static int yaffs_readdir(struct file *f, void *dirent, filldir_t filldir)
@@ -2018,7 +2018,7 @@ out:
 static const struct file_operations yaffs_dir_operations = {
 	.read = generic_read_dir,
 #ifdef YAFFS_USE_DIR_ITERATE
-	.iterate = yaffs_iterate,
+	.iterate_shared = shared_yaffs_iterate,
 #else
 	.readdir = yaffs_readdir,
 #endif
@@ -2079,8 +2079,9 @@ static void yaffs_fill_inode_from_obj(struct inode *inode,
 		inode->i_atime.tv_nsec = 0;
 		inode->i_mtime.tv_sec = (time64_t) obj->yst_mtime;
 		inode->i_mtime.tv_nsec = 0;
-		inode->i_ctime.tv_sec = (time64_t) obj->yst_ctime;
-		inode->i_ctime.tv_nsec = 0;
+		//inode->i_ctime.tv_sec = (time64_t) obj->yst_ctime;
+		inode->__i_ctime.tv_sec = (time64_t) obj->yst_ctime;
+		inode->__i_ctime.tv_nsec = 0;
 #else
 		inode->i_rdev = obj->yst_rdev;
 		inode->i_atime = obj->yst_atime;
