@@ -447,16 +447,16 @@ int dpa_alloc_new(struct dpa_alloc *alloc, u32 *result, u32 count, u32 align,
 	/* If 'align' is 0, it should behave as though it was 1 */
 	if (!align)
 		align = 1;
-	margin_left = kmalloc(sizeof(*margin_left), GFP_KERNEL);
+	margin_left = kmalloc(sizeof(*margin_left), GFP_ATOMIC);
 	if (!margin_left)
 		goto err;
-	margin_right = kmalloc(sizeof(*margin_right), GFP_KERNEL);
+	margin_right = kmalloc(sizeof(*margin_right), GFP_ATOMIC);
 	if (!margin_right) {
 		kfree(margin_left);
 		goto err;
 	}
 	/* Add the allocation to the used list */
-	used_node = kmalloc(sizeof(*used_node), GFP_KERNEL);
+	used_node = kmalloc(sizeof(*used_node), GFP_ATOMIC);
 	if (!used_node) {
 		kfree(margin_right);
 		kfree(margin_left);
