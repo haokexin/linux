@@ -932,6 +932,7 @@ long do_splice_from(struct pipe_inode_info *pipe, struct file *out,
 		return warn_unsupported(out, "write");
 	return out->f_op->splice_write(pipe, out, ppos, len, flags);
 }
+EXPORT_SYMBOL_GPL(do_splice_from);
 
 /*
  * Indicate to the caller that there was a premature EOF when reading from the
