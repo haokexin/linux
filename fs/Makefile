@@ -130,3 +130,4 @@ obj-$(CONFIG_EROFS_FS)		+= erofs/
 obj-$(CONFIG_VBOXSF_FS)		+= vboxsf/
 obj-$(CONFIG_ZONEFS_FS)		+= zonefs/
 obj-$(CONFIG_YAFFS_FS)		+= yaffs2/
+obj-$(CONFIG_AUFS_FS)           += aufs/
