@@ -5,8 +5,11 @@
 #include <linux/kernel.h>
 #include <linux/console.h>
 #include <linux/delay.h>
+#include <linux/kthread.h>
 #include <linux/slab.h>
 #include <linux/serial_core.h>
+#include <linux/syscore_ops.h>
+#include "printk_ringbuffer.h"
 #include "internal.h"
 /*
  * Printk console printing implementation for consoles which does not depend
@@ -211,6 +214,11 @@ void nbcon_seq_force(struct console *con, u64 seq)
 	con->seq = 0;
 }
 
+static void nbcon_context_seq_set(struct nbcon_context *ctxt)
+{
+	ctxt->seq = nbcon_seq_read(ctxt->console);
+}
+
 /**
  * nbcon_seq_try_update - Try to update the console sequence number
  * @ctxt:	Pointer to an acquire context that contains
@@ -234,6 +242,8 @@ static void nbcon_seq_try_update(struct nbcon_context *ctxt, u64 new_seq)
 		ctxt->seq = nbcon_seq_read(con);
 	}
 }
+
+bool printk_threads_enabled __ro_after_init;
 
 /**
  * nbcon_context_try_acquire_direct - Try to acquire directly
@@ -860,6 +870,7 @@ EXPORT_SYMBOL_GPL(nbcon_exit_unsafe);
 /**
  * nbcon_emit_next_record - Emit a record in the acquired context
  * @wctxt:	The write context that will be handed to the write function
+ * @use_atomic:	True if the write_atomic callback is to be used
  *
  * Return:	True if this context still owns the console. False if
  *		ownership was handed over or taken.
@@ -873,7 +884,7 @@ EXPORT_SYMBOL_GPL(nbcon_exit_unsafe);
  * When true is returned, @wctxt->ctxt.backlog indicates whether there are
  * still records pending in the ringbuffer,
  */
-static bool nbcon_emit_next_record(struct nbcon_write_context *wctxt)
+static bool nbcon_emit_next_record(struct nbcon_write_context *wctxt, bool use_atomic)
 {
 	struct nbcon_context *ctxt = &ACCESS_PRIVATE(wctxt, ctxt);
 	struct console *con = ctxt->console;
@@ -923,8 +934,16 @@ static bool nbcon_emit_next_record(struct nbcon_write_context *wctxt)
 	nbcon_state_read(con, &cur);
 	wctxt->unsafe_takeover = cur.unsafe_takeover;
 
-	if (con->write_atomic) {
+	if (use_atomic &&
+	    con->write_atomic) {
 		done = con->write_atomic(con, wctxt);
+
+	} else if (!use_atomic &&
+		   con->write_thread &&
+		   con->kthread) {
+		WARN_ON_ONCE(con->kthread != current);
+		done = con->write_thread(con, wctxt);
+
 	} else {
 		WARN_ON_ONCE(1);
 		done = false;
@@ -962,6 +981,141 @@ update_con:
 	nbcon_seq_try_update(ctxt, pmsg.seq + 1);
 
 	return nbcon_context_exit_unsafe(ctxt);
+}
+
+/**
+ * nbcon_kthread_should_wakeup - Check whether a printer thread should wakeup
+ * @con:	Console to operate on
+ * @ctxt:	The acquire context that contains the state
+ *		at console_acquire()
+ *
+ * Return:	True if the thread should shutdown or if the console is
+ *		allowed to print and a record is available. False otherwise.
+ *
+ * After the thread wakes up, it must first check if it should shutdown before
+ * attempting any printing.
+ */
+static bool nbcon_kthread_should_wakeup(struct console *con, struct nbcon_context *ctxt)
+{
+	struct nbcon_state cur;
+	bool is_usable;
+	short flags;
+	int cookie;
+
+	do {
+		if (kthread_should_stop())
+			return true;
+
+		cookie = console_srcu_read_lock();
+		flags = console_srcu_read_flags(con);
+		is_usable = console_is_usable(con, flags);
+		console_srcu_read_unlock(cookie);
+
+		if (!is_usable)
+			return false;
+
+		nbcon_state_read(con, &cur);
+
+		/*
+		 * Some other CPU is using the console. Patiently poll
+		 * to see if it becomes available. This is more efficient
+		 * than having every release trigger an irq_work to wake
+		 * the kthread.
+		 */
+		msleep(1);
+	} while (cur.prio != NBCON_PRIO_NONE);
+
+	/* Bring the sequence in @ctxt up to date */
+	nbcon_context_seq_set(ctxt);
+
+	return prb_read_valid(prb, ctxt->seq, NULL);
+}
+
+/**
+ * nbcon_kthread_func - The printer thread function
+ * @__console:	Console to operate on
+ */
+static int nbcon_kthread_func(void *__console)
+{
+	struct console *con = __console;
+	struct nbcon_write_context wctxt = {
+		.ctxt.console	= con,
+		.ctxt.prio	= NBCON_PRIO_NORMAL,
+	};
+	struct nbcon_context *ctxt = &ACCESS_PRIVATE(&wctxt, ctxt);
+	struct uart_port *port = NULL;
+	unsigned long flags;
+	short con_flags;
+	bool backlog;
+	int cookie;
+	int ret;
+
+	if (con->uart_port)
+		port = con->uart_port(con);
+
+wait_for_event:
+	/*
+	 * Guarantee this task is visible on the rcuwait before
+	 * checking the wake condition.
+	 *
+	 * The full memory barrier within set_current_state() of
+	 * ___rcuwait_wait_event() pairs with the full memory
+	 * barrier within rcuwait_has_sleeper().
+	 *
+	 * This pairs with rcuwait_has_sleeper:A and nbcon_kthread_wake:A.
+	 */
+	ret = rcuwait_wait_event(&con->rcuwait,
+				 nbcon_kthread_should_wakeup(con, ctxt),
+				 TASK_INTERRUPTIBLE); /* LMM(nbcon_kthread_func:A) */
+
+	if (kthread_should_stop())
+		return 0;
+
+	/* Wait was interrupted by a spurious signal, go back to sleep. */
+	if (ret)
+		goto wait_for_event;
+
+	do {
+		backlog = false;
+
+		cookie = console_srcu_read_lock();
+
+		con_flags = console_srcu_read_flags(con);
+
+		if (console_is_usable(con, con_flags)) {
+			/*
+			 * Ensure this stays on the CPU to make handover and
+			 * takeover possible.
+			 */
+			if (port)
+				spin_lock_irqsave(&port->lock, flags);
+			else
+				migrate_disable();
+
+			if (nbcon_context_try_acquire(ctxt)) {
+				/*
+				 * If the emit fails, this context is no
+				 * longer the owner.
+				 */
+				if (nbcon_emit_next_record(&wctxt, false)) {
+					nbcon_context_release(ctxt);
+					backlog = ctxt->backlog;
+				}
+			}
+
+			if (port)
+				spin_unlock_irqrestore(&port->lock, flags);
+			else
+				migrate_enable();
+		}
+
+		console_srcu_read_unlock(cookie);
+
+		cond_resched();
+
+	} while (backlog);
+
+	goto wait_for_event;
 }
 
 /* Track the nbcon emergency nesting per CPU. */
@@ -1011,7 +1165,7 @@ static bool nbcon_atomic_emit_one(struct nbcon_write_context *wctxt)
 	 * handed over or taken over. In both cases the context is no
 	 * longer valid.
 	 */
-	if (!nbcon_emit_next_record(wctxt))
+	if (!nbcon_emit_next_record(wctxt, true))
 		return false;
 
 	nbcon_context_release(ctxt);
@@ -1196,6 +1350,76 @@ void nbcon_cpu_emergency_exit(void)
 }
 
 /**
+ * nbcon_kthread_stop - Stop a printer thread
+ * @con:	Console to operate on
+ */
+static void nbcon_kthread_stop(struct console *con)
+{
+	lockdep_assert_console_list_lock_held();
+
+	if (!con->kthread)
+		return;
+
+	kthread_stop(con->kthread);
+	con->kthread = NULL;
+}
+
+/**
+ * nbcon_kthread_create - Create a printer thread
+ * @con:	Console to operate on
+ *
+ * If it fails, let the console proceed. The atomic part might
+ * be usable and useful.
+ */
+void nbcon_kthread_create(struct console *con)
+{
+	struct task_struct *kt;
+
+	lockdep_assert_console_list_lock_held();
+
+	if (!(con->flags & CON_NBCON) || !con->write_thread)
+		return;
+
+	if (!printk_threads_enabled || con->kthread)
+		return;
+
+	/*
+	 * Printer threads cannot be started as long as any boot console is
+	 * registered because there is no way to synchronize the hardware
+	 * registers between boot console code and regular console code.
+	 */
+	if (have_boot_console)
+		return;
+
+	kt = kthread_run(nbcon_kthread_func, con, "pr/%s%d", con->name, con->index);
+	if (IS_ERR(kt)) {
+		con_printk(KERN_ERR, con, "failed to start printing thread\n");
+		return;
+	}
+
+	con->kthread = kt;
+
+	/*
+	 * It is important that console printing threads are scheduled
+	 * shortly after a printk call and with generous runtime budgets.
+	 */
+	sched_set_normal(con->kthread, -20);
+}
+
+static int __init printk_setup_threads(void)
+{
+	struct console *con;
+
+	console_list_lock();
+	printk_threads_enabled = true;
+	for_each_console(con)
+		nbcon_kthread_create(con);
+	console_list_unlock();
+	return 0;
+}
+early_initcall(printk_setup_threads);
+
+/**
  * nbcon_alloc - Allocate buffers needed by the nbcon console
  * @con:	Console to allocate buffers for
  *
@@ -1241,8 +1465,10 @@ void nbcon_init(struct console *con)
 	/* nbcon_alloc() must have been called and successful! */
 	BUG_ON(!con->pbufs);
 
+	rcuwait_init(&con->rcuwait);
 	nbcon_seq_force(con, con->seq);
 	nbcon_state_set(con, &state);
+	nbcon_kthread_create(con);
 }
 
 /**
@@ -1253,6 +1479,7 @@ void nbcon_free(struct console *con)
 {
 	struct nbcon_state state = { };
 
+	nbcon_kthread_stop(con);
 	nbcon_state_set(con, &state);
 
 	/* Boot consoles share global printk buffers. */
