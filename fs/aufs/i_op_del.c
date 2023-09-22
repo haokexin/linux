@@ -277,7 +277,8 @@ static void epilog(struct inode *dir, struct dentry *dentry,
 
 	inode = d_inode(dentry);
 	d_drop(dentry);
-	inode->i_ctime = dir->i_ctime;
+	//inode->i_ctime = dir->i_ctime;
+	inode_set_ctime_to_ts(inode, inode_get_ctime(dir));
 
 	au_dir_ts(dir, bindex);
 	inode_inc_iversion(dir);
@@ -379,10 +380,12 @@ int aufs_unlink(struct inode *dir, struct dentry *dentry)
 		if (bindex == btop) {
 			vfsub_update_h_iattr(&a->h_path, /*did*/NULL);
 			/*ignore*/
-			inode->i_ctime = d_inode(a->h_path.dentry)->i_ctime;
+			//inode->i_ctime = d_inode(a->h_path.dentry)->i_ctime;
+			inode_set_ctime_to_ts(inode, inode_get_ctime(d_inode(a->h_path.dentry)) );
 		} else
 			/* todo: this timestamp may be reverted later */
-			inode->i_ctime = h_dir->i_ctime;
+		        //inode->i_ctime = h_dir->i_ctime;
+			inode_set_ctime_to_ts(inode,inode_get_ctime(h_dir) );
 		goto out_unpin; /* success */
 	}
 

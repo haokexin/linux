@@ -443,12 +443,14 @@ static int do_rename(struct au_ren_args *a)
 		AuDebugOn(au_dbtop(a->dst_dentry) != a->btgt);
 		a->h_path.dentry = au_h_dptr(a->dst_dentry, a->btgt);
 		vfsub_update_h_iattr(&a->h_path, /*did*/NULL); /*ignore*/
-		a->dst_inode->i_ctime = d_inode(a->h_path.dentry)->i_ctime;
+		//a->dst_inode->i_ctime = d_inode(a->h_path.dentry)->i_ctime;
+		inode_set_ctime_to_ts( a->dst_inode, inode_get_ctime(d_inode(a->h_path.dentry)) );
 	}
 	AuDebugOn(au_dbtop(a->src_dentry) != a->btgt);
 	a->h_path.dentry = au_h_dptr(a->src_dentry, a->btgt);
 	vfsub_update_h_iattr(&a->h_path, /*did*/NULL); /*ignore*/
-	a->src_inode->i_ctime = d_inode(a->h_path.dentry)->i_ctime;
+	//a->src_inode->i_ctime = d_inode(a->h_path.dentry)->i_ctime;
+	inode_set_ctime_to_ts( a->src_inode, inode_get_ctime(d_inode(a->h_path.dentry)) );
 
 	if (!a->exchange) {
 		/* remove whiteout for dentry */
