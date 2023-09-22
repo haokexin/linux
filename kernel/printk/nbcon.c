@@ -1279,8 +1279,21 @@ enum nbcon_prio nbcon_get_default_prio(void)
  */
 bool nbcon_atomic_emit_next_record(struct console *con)
 {
-	enum nbcon_prio prio = nbcon_get_default_prio();
+	struct uart_port *port = con->uart_port(con);
+	static DEFINE_SPINLOCK(shared_spinlock);
 	bool progress = false;
+	enum nbcon_prio prio;
+	unsigned long flags;
+
+	/*
+	 * If there is no port lock available, fallback to a shared
+	 * spinlock. This serves to provide the necessary type of
+	 * migration/preemption disabling while printing.
+	 */
+	if (port)
+		spin_lock_irqsave(&port->lock, flags);
+	else
+		spin_lock_irqsave(&shared_spinlock, flags);
 
 	/*
 	 * Do not emit for EMERGENCY priority. The console will be
@@ -1296,6 +1309,11 @@ bool nbcon_atomic_emit_next_record(struct console *con)
 
 		progress = nbcon_atomic_emit_one(&wctxt);
 	}
+
+	if (port)
+		spin_unlock_irqrestore(&port->lock, flags);
+	else
+		spin_unlock_irqrestore(&shared_spinlock, flags);
 
 	return progress;
 }
@@ -1485,6 +1503,8 @@ static int __init printk_setup_threads(void)
 	printk_threads_enabled = true;
 	for_each_console(con)
 		nbcon_kthread_create(con);
+	if (IS_ENABLED(CONFIG_PREEMPT_RT) && printing_via_unlock)
+		nbcon_legacy_kthread_create();
 	console_list_unlock();
 	return 0;
 }
