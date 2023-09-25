@@ -477,7 +477,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -571,7 +570,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -660,7 +658,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -876,8 +873,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_free_memory(priv, ps_buf, s_buf, d_buf);
-			fcs_close_services(priv, NULL, NULL);
 			ret = -EFAULT;
 		}
 
@@ -1004,8 +999,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_free_memory(priv, ps_buf, s_buf, d_buf);
-			fcs_close_services(priv, NULL, NULL);
 			ret = -EFAULT;
 		}
 
@@ -1115,6 +1108,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 						      SUBKEY_RSP_MAX_SZ);
 		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate subkey RSP buf\n");
+			stratix10_svc_free_memory(priv->chan, s_buf);
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
@@ -1163,7 +1157,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			mutex_unlock(&priv->lock);
+			fcs_close_services(priv, s_buf, d_buf);
 			return -EFAULT;
 		}
 
@@ -1215,6 +1209,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 						      MEASUREMENT_RSP_MAX_SZ);
 		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate measurement RSP buf\n");
+			stratix10_svc_free_memory(priv->chan, s_buf);
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
@@ -1320,7 +1315,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, NULL, d_buf);
 			ret = -EFAULT;
 		}
 
@@ -1330,6 +1324,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 	case INTEL_FCS_DEV_ATTESTATION_CERTIFICATE_RELOAD:
 		if (copy_from_user(data, (void __user *)arg, sizeof(*data))) {
 			dev_err(dev, "failure on copy_from_user\n");
+			mutex_unlock(&priv->lock);
 			return -EFAULT;
 		}
 
@@ -1386,7 +1381,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			if (priv->size > SHA384_SIZE) {
 				dev_err(dev, "returned size is incorrect\n");
 				fcs_close_services(priv, s_buf, NULL);
-				ret = -EFAULT;
+				return -EFAULT;
 			}
 
 			for (i = 0; i < 12; i++)
@@ -1405,7 +1400,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -1500,7 +1494,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 				      data->com_paras.k_import.obj_data_sz);
 		 if (ret) {
 			 dev_err(dev, "failed copy buf ret=%d\n", ret);
-			 fcs_free_memory(priv, ps_buf, s_buf, d_buf);
+			 fcs_free_memory(priv, ps_buf, s_buf, NULL);
 			 mutex_unlock(&priv->lock);
 			 return -EFAULT;
 		 }
@@ -1537,13 +1531,11 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, NULL);
-			 fcs_free_memory(priv, ps_buf, s_buf, NULL);
+			 fcs_close_services(priv, s_buf, ps_buf);
 			 return -EFAULT;
 		 }
 
-		 fcs_close_services(priv, NULL, NULL);
-		 fcs_free_memory(priv, ps_buf, s_buf, NULL);
+		 fcs_close_services(priv, s_buf, ps_buf);
 		 break;
 
 	case INTEL_FCS_DEV_CRYPTO_EXPORT_KEY:
@@ -1600,7 +1592,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -1688,7 +1679,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -1964,7 +1954,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2094,7 +2083,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2180,7 +2168,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2296,7 +2283,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2382,7 +2368,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2514,7 +2499,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2589,7 +2573,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2694,7 +2677,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, d_buf);
 			ret = -EFAULT;
 		}
 
@@ -2988,8 +2970,10 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (!ret && !priv->status)
 			data->status = -1;
-		else
+		else {
+			mutex_unlock(&priv->lock);
 			return -EFAULT;
+		}
 
 		data->status = priv->status;
 
@@ -3056,13 +3040,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		fcs_free_memory(priv, iv_field_buf, NULL, NULL);
 
 		remaining_size = data->com_paras.a_crypt.src_size;
-
-		ps_buf = stratix10_svc_allocate_memory(priv->chan, PS_BUF_SIZE);
-		if (IS_ERR(ps_buf)) {
-			dev_err(dev, "failed to allocate p-status buf\n");
-			fcs_close_services(priv, NULL, NULL);
-			return -ENOMEM;
-		}
 
 		if (remaining_size > AES_BUFFER_CMD_MAX_SZ) {
 			msg->command = COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE_SMMU;
