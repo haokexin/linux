@@ -13,6 +13,7 @@
 #include <linux/of_address.h>
 #include <linux/of_net.h>
 #include <linux/slab.h>
+#include <linux/clk.h>
 
 #include "hardware.h"
 
@@ -52,6 +53,7 @@ void __init imx6_enet_mac_init(const char *enet_compat, const char *ocotp_compat
 	u32 macaddr1_high = 0;
 	u8 *macaddr;
 	int i, id;
+	struct clk *clk;
 
 	for (i = 0; i < 2; i++) {
 		enet_np = of_find_compatible_node(from, NULL, enet_compat);
@@ -79,11 +81,20 @@ void __init imx6_enet_mac_init(const char *enet_compat, const char *ocotp_compat
 			goto put_ocotp_node;
 		}
 
+		clk = of_clk_get_by_name(ocotp_np, NULL);
+		if (!clk)
+			goto put_ocotp_node;
+
+		clk_prepare_enable(clk);
+
 		macaddr_low = readl_relaxed(base + OCOTP_MACn(1));
 		if (id)
 			macaddr1_high = readl_relaxed(base + OCOTP_MACn(2));
 		else
 			macaddr_high = readl_relaxed(base + OCOTP_MACn(0));
+
+		clk_disable_unprepare(clk);
+		clk_put(clk);
 
 		newmac = kzalloc(sizeof(*newmac) + 6, GFP_KERNEL);
 		if (!newmac)
