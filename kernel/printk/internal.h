@@ -82,6 +82,7 @@ enum nbcon_prio nbcon_get_default_prio(void);
 void nbcon_atomic_flush_all(void);
 bool nbcon_atomic_emit_next_record(struct console *con);
 void nbcon_kthread_create(struct console *con);
+void nbcon_wake_threads(void);
 
 /*
  * Check if the given console is currently capable and allowed to print
