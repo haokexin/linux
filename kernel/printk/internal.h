@@ -44,7 +44,17 @@ enum printk_info_flags {
 };
 
 extern struct printk_ringbuffer *prb;
+extern bool printk_threads_enabled;
+extern bool have_legacy_console;
 extern bool have_boot_console;
+
+/*
+ * Specifies if the console lock/unlock dance is needed for console
+ * printing. If @have_boot_console is true, the nbcon consoles will
+ * be printed serially along with the legacy consoles because nbcon
+ * consoles cannot print simultaneously with boot consoles.
+ */
+#define printing_via_unlock (have_legacy_console || have_boot_console)
 
 __printf(4, 0)
 int vprintk_store(int facility, int level,
@@ -151,6 +161,7 @@ static inline void nbcon_kthread_wake(struct console *con)
 static inline void nbcon_kthread_wake(struct console *con) { }
 static inline void nbcon_kthread_create(struct console *con) { }
 #define printk_threads_enabled (false)
+#define printing_via_unlock (false)
 
 /*
  * In !PRINTK builds we still export console_sem
