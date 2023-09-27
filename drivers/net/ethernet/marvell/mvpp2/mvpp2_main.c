@@ -7732,9 +7732,17 @@ static int mvpp2_probe(struct platform_device *pdev)
 			priv->sysctrl_base = NULL;
 	}
 
+	/*TODO handle or remove this when merging porting changes.
+	 * This changes were done with reference to sdk11 mvpp2 driver porting commit.
+	 * When percpu_pools is set 8 BM pools are configured which caused issue when running
+	 * DPDK application giving segmentation fault. Thus commenting this will configure
+	 * 3 BM pools which is according to sdk11 and DPDK requirement.
+	 */
+/*
 	if (priv->hw_version >= MVPP22 &&
 	    mvpp2_get_nrxqs(priv) * 2 <= MVPP2_BM_MAX_POOLS)
 		priv->percpu_pools = 1;
+*/
 
 	mvpp2_setup_bm_pool();
 
