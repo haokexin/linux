@@ -234,20 +234,19 @@ int scmi_pinctrl_create_pcf(unsigned long *configs,
 	return ret;
 }
 
-int scmi_pinctrl_convert_from_pcf(unsigned long **configs,
+int scmi_pinctrl_convert_from_pcf(unsigned long *configs,
 				  struct scmi_pinctrl_pinconf *pcf)
 {
-	unsigned int index = 0, m_idx = 0;
-	unsigned long bit, mask = pcf->mask, cfg;
+	unsigned int index = 0, m_idx = 0, value;
+	unsigned long bit, mask = pcf->mask;
 
 	for_each_set_bit(bit, &mask, sizeof(pcf->mask) * BITS_PER_BYTE) {
 		if (is_multi_bit_value((enum pin_config_param)bit))
-			cfg = PIN_CONF_PACKED(bit,
-					      pcf->multi_bit_values[m_idx++]);
+			value = pcf->multi_bit_values[m_idx++];
 		else
-			cfg = PIN_CONF_PACKED(bit,
-					      pcf->boolean_values & BIT(bit));
-		(*configs)[index++] = cfg;
+			value = !!(pcf->boolean_values & BIT(bit));
+
+		configs[index++] = PIN_CONF_PACKED(bit, value);
 	}
 
 	return 0;
@@ -553,9 +552,9 @@ scmi_pinctrl_protocol_pinmux_set(const struct scmi_protocol_handle *ph,
 }
 
 static int
-scmi_pinctrl_add_multi_bit_values(const struct scmi_protocol_handle *ph,
-				  struct scmi_pinctrl_pinconf *pcf,
-				  struct scmi_msg_resp_pinctrl_pcf_get *rv)
+scmi_pinctrl_add_le32_multi_bit_values(const struct scmi_protocol_handle *ph,
+				       struct scmi_pinctrl_pinconf *pcf,
+				       struct scmi_msg_resp_pinctrl_pcf_get *rv)
 {
 	unsigned int b = sizeof(pcf->mask) * BITS_PER_BYTE - 1;
 	unsigned int mb_idx = 0;
@@ -612,7 +611,7 @@ scmi_pinctrl_protocol_pinconf_get(const struct scmi_protocol_handle *ph,
 	pcf->mask = le32_to_cpu(rv->mask);
 	pcf->boolean_values = le32_to_cpu(rv->boolean_values);
 
-	ret = scmi_pinctrl_add_multi_bit_values(ph, pcf, rv);
+	ret = scmi_pinctrl_add_le32_multi_bit_values(ph, pcf, rv);
 err:
 	ph->xops->xfer_put(ph, t);
 

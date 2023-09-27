@@ -256,15 +256,15 @@ static void process_rx_msg(struct llce_can_dev *llce,
 	u8 len, *payload;
 
 	if (can_mb->is_long) {
-		word0 = can_mb->data.longm->word0;
-		word1 = can_mb->data.longm->word1;
-		payload = &can_mb->data.longm->payload[0];
-		timestamp = can_mb->data.longm->timestamp;
+		word0 = can_mb->data.longm.word0;
+		word1 = can_mb->data.longm.word1;
+		payload = &can_mb->data.longm.payload[0];
+		timestamp = can_mb->data.longm.timestamp;
 	} else {
-		word0 = can_mb->data.shortm->word0;
-		word1 = can_mb->data.shortm->word1;
-		payload = &can_mb->data.shortm->payload[0];
-		timestamp = can_mb->data.shortm->timestamp;
+		word0 = can_mb->data.shortm.word0;
+		word1 = can_mb->data.shortm.word1;
+		payload = &can_mb->data.shortm.payload[0];
+		timestamp = can_mb->data.shortm.timestamp;
 	}
 
 	unpack_word0(word0, &rtr, &ide, &std_id, &ext_id);
@@ -547,7 +547,7 @@ static int get_sset_count(struct net_device *dev, int sset)
 	return count;
 }
 
-static const struct ethtool_ops llce_can_ethtool_ops = {
+static const struct ethtool_ops llce_can_common_ethtool_ops = {
 	.get_ethtool_stats = get_ethtool_stats,
 	.get_strings = get_strings,
 	.get_sset_count = get_sset_count,
@@ -591,7 +591,7 @@ struct llce_can_dev *init_llce_can_dev(struct device *dev, size_t priv_size,
 
 	init_llce_rx_client(llce, dev);
 
-	netdev->ethtool_ops = &llce_can_ethtool_ops;
+	netdev->ethtool_ops = &llce_can_common_ethtool_ops;
 
 free_mem:
 	if (ret) {
@@ -636,7 +636,7 @@ int llce_send_config_cmd(struct mbox_chan *conf_chan,
 		}
 
 		break;
-	case LLCE_GET_FIFO_INDEX:
+	case LLCE_EXECUTE_SW_CMD:
 		break;
 	default:
 		dev_err(dev, "Unknown command for CAN cfg channel %u\n",

@@ -89,7 +89,7 @@ static inline u32 scmi_pinctrl_count_mb_configs(u32 mask)
 static inline size_t scmi_pinctrl_mb_configs_size(u32 mask)
 {
 	return hweight32(mask & SCMI_PINCTRL_MULTI_BIT_CFGS) *
-	       sizeof_field(struct scmi_pinctrl_pinconf, multi_bit_values);
+	       sizeof(*((struct scmi_pinctrl_pinconf *)0)->multi_bit_values);
 }
 
 void scmi_pinctrl_pin_list_init(struct scmi_pinctrl_pin_list *list);
@@ -101,7 +101,7 @@ int scmi_pinctrl_pin_list_add_pin(struct scmi_pinctrl_pin_list *list,
 int scmi_pinctrl_create_pcf(unsigned long *configs,
 			    unsigned int num_configs,
 			    struct scmi_pinctrl_pinconf *pcf);
-int scmi_pinctrl_convert_from_pcf(unsigned long **configs,
+int scmi_pinctrl_convert_from_pcf(unsigned long *configs,
 				  struct scmi_pinctrl_pinconf *pcf);
 unsigned int scmi_pinctrl_count_multi_bit_values(unsigned long *configs,
 						 unsigned int num_configs);

@@ -3,7 +3,7 @@
  * Freescale LINFlexD UART serial port driver
  *
  * Copyright 2012-2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2022 NXP
+ * Copyright 2017-2023 NXP
  */
 
 #include <linux/circ_buf.h>
@@ -24,7 +24,7 @@
 #include <linux/jiffies.h>
 #include <linux/kgdb.h>
 #include <linux/delay.h>
-
+#include <linux/iopoll.h>
 /* All registers are 32-bit width */
 
 #define LINCR1	0x0000	/* LIN control register				*/
@@ -151,7 +151,7 @@
 
 #define DRIVER_NAME	"fsl-linflexuart"
 #define DEV_NAME	"ttyLF"
-#define UART_NR		4
+#define UART_NR		7
 
 #define EARLYCON_BUFFER_INITIAL_CAP	8
 
@@ -187,6 +187,8 @@ struct linflex_port {
 #ifdef CONFIG_CONSOLE_POLL
 	bool			poll_in_use;
 #endif
+	atomic_t		sending;
+	unsigned int		character_delay;
 };
 
 static const struct of_device_id linflex_dt_ids[] = {
@@ -331,6 +333,7 @@ static void linflex_stop_tx(struct uart_port *port)
 		ier = readl(port->membase + LINIER);
 		ier &= ~(LINFLEXD_LINIER_DTIE);
 		writel(ier, port->membase + LINIER);
+		atomic_set(&lfport->sending, 0);
 		return;
 	}
 
@@ -345,7 +348,7 @@ static void linflex_stop_tx(struct uart_port *port)
 	dma_sync_single_for_cpu(lfport->port.dev, lfport->dma_tx_buf_bus,
 				lfport->dma_tx_bytes, DMA_TO_DEVICE);
 	count = lfport->dma_tx_bytes - state.residue;
-	xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
+	xmit->tail = (xmit->tail + count) % UART_XMIT_SIZE;
 	port->icount.tx += count;
 
 	lfport->dma_tx_in_progress = 0;
@@ -396,25 +399,18 @@ static void linflex_put_char(struct uart_port *sport, unsigned char c)
 	}
 
 	if (!lfport->dma_tx_use)
-		writel(status | LINFLEXD_UARTSR_DTFTFF,
-		       sport->membase + UARTSR);
+		writel(LINFLEXD_UARTSR_DTFTFF, sport->membase + UARTSR);
 }
 
-static inline void linflex_transmit_buffer(struct uart_port *sport)
+static inline void linflex_put_char_pio(struct uart_port *sport)
 {
 	struct circ_buf *xmit = &sport->state->xmit;
+	struct linflex_port *lfport = to_linflex_port(sport);
 
-	while (!uart_circ_empty(xmit)) {
-		linflex_put_char(sport, xmit->buf[xmit->tail]);
-		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
-		sport->icount.tx++;
-	}
-
-	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-		uart_write_wakeup(sport);
-
-	if (uart_circ_empty(xmit))
-		linflex_stop_tx(sport);
+	atomic_set(&lfport->sending, 1);
+	writeb(xmit->buf[xmit->tail], sport->membase + BDRL);
+	xmit->tail = (xmit->tail + 1) % UART_XMIT_SIZE;
+	sport->icount.tx++;
 }
 
 static int linflex_dma_tx(struct linflex_port *lfport, unsigned long count)
@@ -470,7 +466,7 @@ static void linflex_dma_tx_complete(void *arg)
 
 	spin_lock_irqsave(&lfport->port.lock, flags);
 
-	xmit->tail = (xmit->tail + lfport->dma_tx_bytes) & (UART_XMIT_SIZE - 1);
+	xmit->tail = (xmit->tail + lfport->dma_tx_bytes) % UART_XMIT_SIZE;
 	lfport->port.icount.tx += lfport->dma_tx_bytes;
 	lfport->dma_tx_in_progress = 0;
 
@@ -551,14 +547,31 @@ static void linflex_timer_func(struct timer_list *t)
 static void linflex_start_tx(struct uart_port *port)
 {
 	struct linflex_port *lfport = to_linflex_port(port);
+	struct circ_buf *xmit = &port->state->xmit;
 	unsigned long ier;
+
+	/* Nothing to send, return. */
+	if (uart_circ_empty(xmit))
+		return;
 
 	if (lfport->dma_tx_use) {
 		linflex_prepare_tx(lfport);
 	} else {
-		linflex_transmit_buffer(port);
+		/* If already sending, let TX interrupt handler do the job. */
+		if (atomic_read(&lfport->sending))
+			return;
+		/* Enable TX interrupt. */
 		ier = readl(port->membase + LINIER);
 		writel(ier | LINFLEXD_LINIER_DTIE, port->membase + LINIER);
+		/* Don't send here all the characters since this would be done
+		 * using polling on UARTSR.DTF while having the spinlock acquired.
+		 * RX interrupt handler will starve and characters will be
+		 * lost.
+		 * Still, the TX interrupt will arise only after a character
+		 * is sent so we need to transmit one character at a time and
+		 * let TX handler transmit the rest of them.
+		 */
+		linflex_put_char_pio(port);
 	}
 }
 
@@ -567,9 +580,11 @@ static irqreturn_t linflex_txint(int irq, void *dev_id)
 	struct linflex_port *lfport = dev_id;
 	struct uart_port *sport = &lfport->port;
 	struct circ_buf *xmit = &sport->state->xmit;
-	unsigned long flags;
 
-	spin_lock_irqsave(&sport->lock, flags);
+	/* Clear DTF flag no matter if we have any other character
+	 * to send or not. This is the reason the interrupt was fired.
+	 */
+	writel(LINFLEXD_UARTSR_DTFTFF, sport->membase + UARTSR);
 
 	if (sport->x_char) {
 		linflex_put_char(sport, sport->x_char);
@@ -581,9 +596,11 @@ static irqreturn_t linflex_txint(int irq, void *dev_id)
 		goto out;
 	}
 
-	linflex_transmit_buffer(sport);
+	linflex_put_char_pio(sport);
+
+	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(sport);
 out:
-	spin_unlock_irqrestore(&sport->lock, flags);
 	return IRQ_HANDLED;
 }
 
@@ -593,47 +610,53 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 	struct uart_port *sport = &lfport->port;
 	unsigned int flg;
 	struct tty_port *port = &sport->state->port;
-	unsigned long flags, status;
+	unsigned long status;
 	unsigned char rx;
-	bool brk;
+	int sysrq;
 
-	spin_lock_irqsave(&sport->lock, flags);
+	while (true) {
+		/* Wait for one more character to be received to avoid
+		 * buffer overflow.
+		 */
+		readl_poll_timeout_atomic(sport->membase + UARTSR, status,
+				status & LINFLEXD_UARTSR_RMB,
+				lfport->character_delay / 8,
+				lfport->character_delay);
+		if (!(status & LINFLEXD_UARTSR_RMB))
+			break;
 
-	status = readl(sport->membase + UARTSR);
-	while (status & LINFLEXD_UARTSR_RMB) {
 		rx = readb(sport->membase + BDRM);
-		brk = false;
+		writel(~LINFLEXD_UARTSR_DTFTFF, sport->membase + UARTSR);
+
 		flg = TTY_NORMAL;
 		sport->icount.rx++;
 
-		if (status & (LINFLEXD_UARTSR_BOF | LINFLEXD_UARTSR_FEF |
-				LINFLEXD_UARTSR_PE)) {
+		if (unlikely(status & (LINFLEXD_UARTSR_BOF |
+				LINFLEXD_UARTSR_FEF |
+				LINFLEXD_UARTSR_PE))) {
 			if (status & LINFLEXD_UARTSR_BOF)
 				sport->icount.overrun++;
 			if (status & LINFLEXD_UARTSR_FEF) {
 				if (!rx) {
-					brk = true;
 					sport->icount.brk++;
-				} else
+					if (uart_handle_break(sport))
+						continue;
+				} else {
+					flg = TTY_FRAME;
 					sport->icount.frame++;
+				}
 			}
-			if (status & LINFLEXD_UARTSR_PE)
+			if (status & LINFLEXD_UARTSR_PE) {
+				flg = TTY_PARITY;
 				sport->icount.parity++;
+			}
 		}
 
-		writel(status, sport->membase + UARTSR);
-		status = readl(sport->membase + UARTSR);
-
-		if (brk) {
-			uart_handle_break(sport);
-		} else {
-			if (uart_handle_sysrq_char(sport, (unsigned char)rx))
-				continue;
-			tty_insert_flip_char(port, rx, flg);
-		}
+		sysrq = uart_handle_sysrq_char(sport, (unsigned char)rx);
+		if (!sysrq)
+			uart_insert_char(sport, status,
+					 LINFLEXD_UARTSR_BOF, rx, flg);
 	}
-
-	spin_unlock_irqrestore(&sport->lock, flags);
 
 	tty_flip_buffer_push(port);
 
@@ -643,16 +666,38 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 static irqreturn_t linflex_int(int irq, void *dev_id)
 {
 	struct linflex_port *lfport = dev_id;
+	struct uart_port *sport = &lfport->port;
+	unsigned long flags;
+	u32 status, ier, old_ier;
+	bool breakcond;
 
-	unsigned long status;
+	spin_lock_irqsave(&sport->lock, flags);
 
-	status = readl(lfport->port.membase + UARTSR);
+	/* Disable transmission/reception IRQs. */
+	old_ier = readl(sport->membase + LINIER);
+	ier = old_ier & (~(LINFLEXD_LINIER_DRIE | LINFLEXD_LINIER_DTIE));
+	writel(ier, sport->membase + LINIER);
 
-	if (status & LINFLEXD_UARTSR_DRFRFE && !lfport->dma_rx_use)
-		linflex_rxint(irq, dev_id);
-	if (status & LINFLEXD_UARTSR_DTFTFF && !lfport->dma_rx_use)
-		linflex_txint(irq, dev_id);
+	while (true) {
+		status = readl(sport->membase + UARTSR);
+		breakcond = true;
 
+		if (status & LINFLEXD_UARTSR_DRFRFE && !lfport->dma_rx_use) {
+			linflex_rxint(irq, dev_id);
+			breakcond = false;
+		}
+		if (status & LINFLEXD_UARTSR_DTFTFF && !lfport->dma_tx_use) {
+			linflex_txint(irq, dev_id);
+			breakcond = false;
+		}
+		if (breakcond)
+			break;
+	}
+
+	/* Enable transmission/reception IRQs. */
+	writel(old_ier, sport->membase + LINIER);
+
+	spin_unlock_irqrestore(&sport->lock, flags);
 	return IRQ_HANDLED;
 }
 
@@ -873,6 +918,7 @@ static int linflex_startup(struct uart_port *port)
 
 	dma_rx_use = lfport->dma_rx_chan && !linflex_dma_rx_request(port);
 	dma_tx_use = lfport->dma_tx_chan && !linflex_dma_tx_request(port);
+	atomic_set(&lfport->sending, 0);
 
 	spin_lock_irqsave(&port->lock, flags);
 	lfport->dma_rx_use = dma_rx_use;
@@ -889,8 +935,9 @@ static int linflex_startup(struct uart_port *port)
 	spin_unlock_irqrestore(&port->lock, flags);
 
 	if (!lfport->dma_rx_use || !lfport->dma_tx_use) {
-		ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
-				       DRIVER_NAME, lfport);
+		ret = devm_request_threaded_irq(port->dev, port->irq, NULL,
+						linflex_int, IRQF_ONESHOT,
+						DRIVER_NAME, lfport);
 	}
 	return ret;
 }
@@ -931,6 +978,29 @@ linflex_ldiv_multiplier(struct uart_port *port)
 	return mul;
 }
 #endif
+
+static inline void set_character_delay(struct uart_port *port,
+		struct ktermios *termios)
+{
+	struct linflex_port *lfport = to_linflex_port(port);
+	speed_t speed = tty_termios_baud_rate(termios);
+	unsigned int bits;
+
+	/* We always have 1 start bit and 1 stop bit. */
+	bits = tty_get_char_size(termios->c_cflag) + 2;
+
+	/* Check if we have 2 stop bits. */
+	if (termios->c_cflag & CSTOPB)
+		bits++;
+	/* Parity bit. */
+	if (termios->c_cflag & PARENB)
+		bits++;
+
+	/* Compute actual byte transmission duration.
+	 * The formula used is (1s / baudrate) * bits_per_character.
+	 */
+	lfport->character_delay = DIV_ROUND_UP(USEC_PER_SEC * bits, speed);
+}
 
 static void
 linflex_set_termios(struct uart_port *port, struct ktermios *termios,
@@ -1048,6 +1118,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	/* ask the core to calculate the divisor */
 	baud = uart_get_baud_rate(port, termios, old, 50, port->uartclk / 16);
 #endif
+	set_character_delay(port, termios);
 
 	port->read_status_mask = 0;
 
@@ -1120,13 +1191,11 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	    !linflex_dma_rx(lfport))
 		mod_timer(&lfport->timer, jiffies + lfport->dma_rx_timeout);
 
-	if (lfport->dma_tx_use) {
-		xmit = &port->state->xmit;
-		if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-			uart_write_wakeup(port);
+	xmit = &port->state->xmit;
+	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(port);
+	linflex_start_tx(port);
 
-		linflex_prepare_tx(lfport);
-	}
 	spin_unlock_irqrestore(&port->lock, flags);
 }
 
@@ -1248,9 +1317,8 @@ static int linflex_poll_getchar(struct uart_port *port)
 			;
 	}
 
-	writel((readl(port->membase + UARTSR) |
-				LINFLEXD_UARTSR_DRFRFE),
-				port->membase + UARTSR);
+	writel(LINFLEXD_UARTSR_DRFRFE | LINFLEXD_UARTSR_RMB,
+	       port->membase + UARTSR);
 
 	ret = readb(port->membase + BDRM);
 
@@ -1307,36 +1375,27 @@ static void linflex_console_putchar(struct uart_port *port, int ch)
 				!= LINFLEXD_UARTSR_DTFTFF)
 			;
 
-		writel((readl(port->membase + UARTSR) |
-					LINFLEXD_UARTSR_DTFTFF),
-					port->membase + UARTSR);
+		writel(LINFLEXD_UARTSR_DTFTFF, port->membase + UARTSR);
 	}
 }
 
 static void linflex_string_write(struct uart_port *sport, const char *s,
 				 unsigned int count)
 {
-	struct linflex_port *lfport = to_linflex_port(sport);
 	struct circ_buf *xmit = &sport->state->xmit;
-	unsigned long cr, ier = 0;
+	unsigned long cr;
 
-	if (!lfport->dma_tx_use)
-		ier = readl(sport->membase + LINIER);
 	linflex_stop_tx(sport);
+
 	cr = readl(sport->membase + UARTCR);
 	cr |= (LINFLEXD_UARTCR_TXEN);
 	writel(cr, sport->membase + UARTCR);
 
 	uart_console_write(sport, s, count, linflex_console_putchar);
 
-	if (!lfport->dma_tx_use) {
-		writel(ier, sport->membase + LINIER);
-	} else {
-		if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
-			uart_write_wakeup(sport);
-
-		linflex_prepare_tx(lfport);
-	}
+	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(sport);
+	linflex_start_tx(sport);
 }
 
 static void

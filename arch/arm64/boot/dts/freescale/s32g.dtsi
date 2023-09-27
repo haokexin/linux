@@ -15,6 +15,13 @@
 #include <dt-bindings/nvmem/s32cc-scmi-nvmem.h>
 
 / {
+	aliases {
+		serial3 = &llce_uart0;
+		serial4 = &llce_uart1;
+		serial5 = &llce_uart2;
+		serial6 = &llce_uart3;
+	};
+
 	reserved-memory {
 		pfe_reserved_bmu2: pfebufs@34000000 {
 			compatible = "nxp,s32g-pfe-bmu2-pool";
@@ -68,7 +75,7 @@
 				reg = <0x82>;
 				#address-cells = <1>;
 				#size-cells = <1>;
-				status = "okay";
+				status = "disabled";
 
 				nvmem-cells = <&scmi_soc_letter>, <&scmi_part_no>,
 					      <&scmi_soc_major>, <&scmi_soc_minor>,
@@ -255,12 +262,7 @@
 
 		llce_shmem: llce_shmem@43800000 {
 			compatible = "mmio-sram";
-			reg = <0x0 0x43800000 0x0 0x3c000>;
-		};
-
-		llce_boot_status: llce_boot_status@4383c000 {
-			compatible = "mmio-sram";
-			reg = <0x0 0x4383c000 0x0 0x14000>;
+			reg = <0x0 0x43800000 0x0 0x50000>;
 		};
 
 		llce: llce@43a00000 {
@@ -279,7 +281,17 @@
 				/* Tx_Ack_FIFO */
 				<0x5 0 0x0 0x43b10000 0x0 0x8000>,
 				/* LLCE SEMA42*/
-				<0x6 0 0x0 0x43c20000 0x0 0x44>;
+				<0x6 0 0x0 0x43c20000 0x0 0x44>,
+				/* LLCE UART0 */
+				<0x7 0 0x0 0x43c08000 0x0 0x400>,
+				/* LLCE UART1 */
+				<0x8 0 0x0 0x43c08400 0x0 0x400>,
+				/* LLCE UART2 */
+				<0x9 0 0x0 0x43c08800 0x0 0x400>,
+				/* LLCE UART3 */
+				<0x10 0 0x0 0x43c08C00 0x0 0x400>,
+				/* LLCE CORE2CORE */
+				<0x11 0 0x0 0x43c26000 0x0 0x70>;
 
 			clocks = <&clks S32G_SCMI_CLK_LLCE_SYS>;
 			clock-names = "llce_sys";
@@ -287,9 +299,9 @@
 				"ppe_tx.bin", "frpe.bin";
 			memory-region = <&llce_dte_sram>, <&llce_ppe_rx_sram>,
 				<&llce_ppe_tx_sram>, <&llce_frpe_sram>,
-				<&llce_shmem>, <&llce_boot_status>;
+				<&llce_shmem>;
 			memory-region-names = "dte.bin", "ppe_rx.bin",
-				"ppe_tx.bin", "frpe.bin", "shmem", "status";
+				"ppe_tx.bin", "frpe.bin", "shmem";
 			/* LLCE system control registers */
 			reg = <0x0 0x43ff8000 0x0 0x4000>;
 			reg-names = "sysctrl";
@@ -309,26 +321,32 @@
 					<0x3 0x0 0x0 0x6000>,
 					<0x4 0x0 0x0 0x6000>,
 					<0x5 0x0 0x0 0x8000>,
-					<0x6 0x0 0x0 0x44>;
+					<0x6 0x0 0x0 0x44>,
+					<0x11 0x0 0x0 0x70>;
 				reg-names = "rxin_fifo",
 					"rxout_fifo",
 					"icsr",
 					"blrin_fifo",
 					"blrout_fifo",
 					"txack_fifo",
-					"sema42";
+					"sema42",
+					"core2core";
 				clocks = <&clks S32G_SCMI_CLK_LLCE_SYS>;
 				clock-names = "llce_sys";
-				memory-region = <&llce_shmem>, <&llce_boot_status>;
-				memory-region-names = "shmem", "status";
-				interrupts = <GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>,
+				memory-region = <&llce_shmem>;
+				memory-region-names = "shmem";
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				interrupts = <GIC_SPI 172 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 175 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 182 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 183 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
-				interrupt-names = "rxin_fifo_0_7",
+				interrupt-names = "linflex_irq",
+					"rxin_fifo_0_7",
 					"rxin_fifo_8_15",
 					"rxout_fifo_0_7",
 					"rxout_fifo_8_15",
@@ -681,6 +699,58 @@
 				pinctrl-0 = <&llce_can15_pins>;
 				status = "disabled";
 			};
+
+			llce_uart0: serial@43c08000 {
+				compatible = "nxp,s32cc-linflexuart";
+				reg = <0x7 0x0 0x0 0x400>;
+				reg-names = "llce_uart_base";
+				clocks = <&clks S32CC_SCMI_CLK_LINFLEX_LIN>,
+					 <&clks S32CC_SCMI_CLK_LINFLEX_XBAR>;
+				clock-names = "lin", "ipg";
+				pinctrl-0 = <&llce_uart0_pins>;
+				pinctrl-names = "default";
+				interrupts-extended = <&llce_mb LLCE_MB_LINFLEXD_IRQ_0>;
+				status = "disabled";
+			};
+
+			llce_uart1: serial@43c080400 {
+				compatible = "nxp,s32cc-linflexuart";
+				reg = <0x8 0x0 0x0 0x400>;
+				reg-names = "llce_uart_base";
+				clocks = <&clks S32CC_SCMI_CLK_LINFLEX_LIN>,
+					 <&clks S32CC_SCMI_CLK_LINFLEX_XBAR>;
+				clock-names = "lin", "ipg";
+				pinctrl-0 = <&llce_uart1_pins>;
+				pinctrl-names = "default";
+				interrupts-extended = <&llce_mb LLCE_MB_LINFLEXD_IRQ_1>;
+				status = "disabled";
+			};
+
+			llce_uart2: serial@43c08800 {
+				compatible = "nxp,s32cc-linflexuart";
+				reg = <0x9 0x0 0x0 0x400>;
+				reg-names = "llce_uart_base";
+				clocks = <&clks S32CC_SCMI_CLK_LINFLEX_LIN>,
+					 <&clks S32CC_SCMI_CLK_LINFLEX_XBAR>;
+				clock-names = "lin", "ipg";
+				pinctrl-0 = <&llce_uart2_pins>;
+				pinctrl-names = "default";
+				interrupts-extended = <&llce_mb LLCE_MB_LINFLEXD_IRQ_2>;
+				status = "disabled";
+			};
+
+			llce_uart3: serial@43c08c00 {
+				compatible = "nxp,s32cc-linflexuart";
+				reg = <0x10 0x0 0x0 0x400>;
+				reg-names = "llce_uart_base";
+				clocks = <&clks S32CC_SCMI_CLK_LINFLEX_LIN>,
+					 <&clks S32CC_SCMI_CLK_LINFLEX_XBAR>;
+				clock-names = "lin", "ipg";
+				pinctrl-0 = <&llce_uart3_pins>;
+				pinctrl-names = "default";
+				interrupts-extended = <&llce_mb LLCE_MB_LINFLEXD_IRQ_3>;
+				status = "disabled";
+			};
 		};
 
 		usbmisc: usbmisc@44064200 {
@@ -705,6 +775,26 @@
 			dr_mode = "host";
 			maximum-speed = "high-speed";
 			status = "disabled";
+		};
+	};
+
+	thermal-zones {
+		ddr_sram {
+			polling-delay-passive = <1000>;
+			polling-delay = <5000>;
+			thermal-sensors = <&tmu 0>;
+		};
+
+		a53_cores {
+			polling-delay-passive = <1000>;
+			polling-delay = <5000>;
+			thermal-sensors = <&tmu 1>;
+		};
+
+		llce {
+			polling-delay-passive = <1000>;
+			polling-delay = <5000>;
+			thermal-sensors = <&tmu 2>;
 		};
 	};
 };
@@ -995,6 +1085,78 @@
 			pinmux = <S32CC_PINMUX(173, FUNC1)>;
 			output-enable;
 			slew-rate = <S32CC_SLEW_208MHZ>;
+		};
+	};
+
+	llce_uart0_pins: llce_uart0_pins {
+		llce_uart0_pins_grp0 {
+			pinmux = <S32CC_PINMUX(175, FUNC1)>;
+			output-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart0_pins_grp1 {
+			pinmux = <S32CC_PINMUX(176, FUNC0)>;
+			input-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart0_pins_grp2 {
+			pinmux = <S32CC_PINMUX(790, FUNC2)>;
+		};
+	};
+
+	llce_uart1_pins: llce_uart1_pins {
+		llce_uart1_pins_grp0 {
+			pinmux = <S32CC_PINMUX(40, FUNC1)>;
+			output-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart1_pins_grp1 {
+			pinmux = <S32CC_PINMUX(36, FUNC4)>;
+			input-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart1_pins_grp2 {
+			pinmux = <S32CC_PINMUX(791, FUNC2)>;
+		};
+	};
+
+	llce_uart2_pins: llce_uart2_pins {
+		llce_uart2_pins_grp0 {
+			pinmux = <S32CC_PINMUX(37, FUNC1)>;
+			output-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart2_pins_grp1 {
+			pinmux = <S32CC_PINMUX(38, FUNC2)>;
+			input-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart2_pins_grp2 {
+			pinmux = <S32CC_PINMUX(792, FUNC2)>;
+		};
+	};
+
+	llce_uart3_pins: llce_uart3_pins {
+		llce_uart3_pins_grp0 {
+			pinmux = <S32CC_PINMUX(39, FUNC1)>;
+			output-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart3_pins_grp1 {
+			pinmux = <S32CC_PINMUX(183, FUNC2)>;
+			input-enable;
+			slew-rate = <S32CC_SLEW_133MHZ>;
+		};
+
+		llce_uart3_pins_grp2 {
+			pinmux = <S32CC_PINMUX(793, FUNC2)>;
 		};
 	};
 

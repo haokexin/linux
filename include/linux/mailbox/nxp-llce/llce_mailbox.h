@@ -58,8 +58,8 @@ enum llce_rx_cmd {
 
 struct llce_rx_can_mb {
 	union {
-		struct llce_can_short_mb *shortm;
-		struct llce_can_mb *longm;
+		struct llce_can_short_mb shortm;
+		struct llce_can_mb longm;
 	} data;
 	bool is_long;
 };
@@ -83,7 +83,12 @@ struct llce_rx_msg {
 enum llce_config_cmd {
 	LLCE_EXECUTE_FW_CMD = 0x99,
 	LLCE_EXECUTE_FW_HIF_CMD,
+	LLCE_EXECUTE_SW_CMD,
+};
+
+enum llce_sw_config_cmd {
 	LLCE_GET_FIFO_INDEX,
+	LLCE_GET_CAN_STATS,
 };
 
 struct llce_config_msg {
@@ -94,9 +99,17 @@ struct llce_config_msg {
 			u8 hw_ctrl;
 		} fw_cmd;
 		struct {
-			u8 hw_ctrl;
-			u8 fifo;
-		} fifo_cmd;
+			enum llce_sw_config_cmd cmd;
+			union {
+				struct {
+					u8 hw_ctrl;
+					u8 fifo;
+				} fifo_cmd;
+				struct {
+					struct llce_can_rx_tx_count stats;
+				} stats_cmd;
+			};
+		} sw_cmd;
 	};
 };
 

@@ -1735,12 +1735,8 @@ static int s32cc_pcie_config_common(struct s32cc_pcie *s32cc_pp,
 	struct pcie_port *pp = &pcie->pp;
 	int ret = 0;
 
-	dev_dbg(dev, "%s\n", __func__);
-
 #ifdef CONFIG_PCI_S32CC_EP_MSI
-	struct dw_pcie *pcie = &s32cc_pp->pcie;
 	u32 val, ctrl, num_ctrls;
-	struct pcie_port *pp = &pcie->pp;
 #endif
 
 	/* MSI configuration, for both RC and EP */
@@ -1776,13 +1772,13 @@ static int s32cc_pcie_config_common(struct s32cc_pcie *s32cc_pp,
 
 		num_ctrls = pp->num_vectors / MAX_MSI_IRQS_PER_CTRL;
 
-		/* Initialize IRQ Status array */
+		/* Initialize IRQ Mask array */
 		for (ctrl = 0; ctrl < num_ctrls; ctrl++) {
+			pcie->pp.irq_mask[ctrl] = ~0;
 			dw_pcie_writel_dbi(pcie, PCIE_MSI_INTR0_MASK +
-					(ctrl * MSI_REG_CTRL_BLOCK_SIZE), ~0);
+					(ctrl * MSI_REG_CTRL_BLOCK_SIZE), pcie->pp.irq_mask[ctrl]);
 			dw_pcie_writel_dbi(pcie, PCIE_MSI_INTR0_ENABLE +
 					(ctrl * MSI_REG_CTRL_BLOCK_SIZE), ~0);
-			pcie->pp.irq_status[ctrl] = 0;
 		}
 
 		/* Setup interrupt pins */
@@ -1917,8 +1913,7 @@ static int s32cc_pcie_suspend(struct device *dev)
 	struct s32cc_pcie *s32cc_pp = dev_get_drvdata(dev);
 	struct dw_pcie *pcie = &s32cc_pp->pcie;
 	struct pcie_port *pp = &pcie->pp;
-	struct pci_bus *bus = pp->bridge->bus;
-	struct pci_bus *root_bus;
+	struct pci_bus *bus, *root_bus;
 
 	dev_dbg(pcie->dev, "%s\n", __func__);
 
@@ -1934,12 +1929,13 @@ static int s32cc_pcie_suspend(struct device *dev)
 
 		s32cc_pcie_downstream_dev_to_D0(s32cc_pp);
 
+		bus = pp->bridge->bus;
 		root_bus = s32cc_get_child_downstream_bus(bus);
 		if (!IS_ERR(root_bus))
 			pci_walk_bus(root_bus, pci_dev_set_disconnected, NULL);
 
-		pci_stop_root_bus(pp->bridge->bus);
-		pci_remove_root_bus(pp->bridge->bus);
+		pci_stop_root_bus(bus);
+		pci_remove_root_bus(bus);
 	}
 
 	s32cc_pcie_pme_turnoff(s32cc_pp);
