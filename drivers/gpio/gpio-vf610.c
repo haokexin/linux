@@ -101,7 +101,7 @@ static int vf610_gpio_get(struct gpio_chip *gc, unsigned int gpio)
 	unsigned long mask = BIT(gpio);
 	unsigned long offset = GPIO_PDIR;
 
-	if (port->sdata && port->sdata->have_paddr) {
+	if (port->sdata->have_paddr) {
 		mask &= vf610_gpio_readl(port->gpio_base + GPIO_PDDR);
 		if (mask)
 			offset = GPIO_PDOR;
@@ -125,7 +125,7 @@ static int vf610_gpio_direction_input(struct gpio_chip *chip, unsigned gpio)
 	unsigned long mask = BIT(gpio);
 	u32 val;
 
-	if (port->sdata && port->sdata->have_paddr) {
+	if (port->sdata->have_paddr) {
 		val = vf610_gpio_readl(port->gpio_base + GPIO_PDDR);
 		val &= ~mask;
 		vf610_gpio_writel(val, port->gpio_base + GPIO_PDDR);
@@ -143,7 +143,7 @@ static int vf610_gpio_direction_output(struct gpio_chip *chip, unsigned gpio,
 
 	vf610_gpio_set(chip, gpio, value);
 
-	if (port->sdata && port->sdata->have_paddr) {
+	if (port->sdata->have_paddr) {
 		val = vf610_gpio_readl(port->gpio_base + GPIO_PDDR);
 		val |= mask;
 		vf610_gpio_writel(val, port->gpio_base + GPIO_PDDR);
