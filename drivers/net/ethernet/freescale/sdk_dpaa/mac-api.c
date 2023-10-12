@@ -496,12 +496,14 @@ static int xgmac_init_phy(struct net_device *net_dev,
 
 /* The Aquantia PHYs are capable of performing rate adaptation */
 #define PHY_VEND_AQUANTIA      0x03a1b400
+#define PHY_VEND_AQUANTIA2     0x31c31c00
 static int memac_init_phy(struct net_device *net_dev,
 			  struct mac_device *mac_dev)
 {
 	struct phy_device       *phy_dev;
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
 	void (*adjust_link_handler)(struct net_device *);
+	u32 phy_vendor;
 
 	if ((macdev2enetinterface(mac_dev) == e_ENET_MODE_XGMII_10000) ||
 	    (macdev2enetinterface(mac_dev) == e_ENET_MODE_SGMII_2500)) {
@@ -545,10 +547,12 @@ static int memac_init_phy(struct net_device *net_dev,
 		return phy_dev == NULL ? -ENODEV : PTR_ERR(phy_dev);
 	}
 
+	phy_vendor = phy_dev->drv->phy_id & GENMASK(31, 10);
 	/* Unless the PHY is capable of rate adaptation */
 	if ((mac_dev->phy_if != PHY_INTERFACE_MODE_XGMII &&
 		mac_dev->phy_if != PHY_INTERFACE_MODE_USXGMII) ||
-	    ((phy_dev->drv->phy_id & GENMASK(31, 10)) != PHY_VEND_AQUANTIA)) {
+	    (phy_vendor != PHY_VEND_AQUANTIA &&
+	     phy_vendor != PHY_VEND_AQUANTIA2)) {
 		/* Remove any features not supported by the controller */
 		ethtool_convert_legacy_u32_to_link_mode(mask,
 							mac_dev->if_support);
