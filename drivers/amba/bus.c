@@ -376,11 +376,21 @@ static int amba_device_try_add(struct amba_device *dev, struct resource *parent)
 {
 	u32 size;
 	void __iomem *tmp;
-	int i, ret;
+	int i, ret, cpu;
+	struct device_node *dn;
 
 	ret = request_resource(parent, &dev->res);
 	if (ret)
 		goto err_out;
+
+	dn = of_parse_phandle(dev->dev.of_node, "cpu", 0);
+	if (dn) {
+		cpu = of_cpu_node_to_id(dn);
+		of_node_put(dn);
+
+		if (!cpu_online(cpu))
+			return -ENODEV;
+	}
 
 	/* Hard-coded primecell ID instead of plug-n-play */
 	if (dev->periphid != 0)
