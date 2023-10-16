@@ -230,7 +230,6 @@ scmi_base_implementation_list_get(const struct scmi_protocol_handle *ph,
 			 */
 			if (calc_list_sz > real_list_sz) {
 				ret = -EPROTO;
-				break;
 			}
 		}
 
