@@ -1813,6 +1813,8 @@ static int __init coresight_init(void)
 	/* Register function to be called for panic */
 	ret = atomic_notifier_chain_register(&panic_notifier_list,
 					     &coresight_notifier);
+	if (!ret)
+		return 0;
 
 	etm_perf_exit();
 exit_bus_unregister:
@@ -1822,6 +1824,8 @@ exit_bus_unregister:
 
 static void __exit coresight_exit(void)
 {
+	atomic_notifier_chain_unregister(&panic_notifier_list,
+					     &coresight_notifier);
 	cscfg_exit();
 	etm_perf_exit();
 	bus_unregister(&coresight_bustype);
