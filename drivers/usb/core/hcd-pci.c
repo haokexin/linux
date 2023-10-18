@@ -322,14 +322,6 @@ void usb_hcd_pci_remove(struct pci_dev *dev)
 	if (pci_dev_run_wake(dev))
 		pm_runtime_get_noresume(&dev->dev);
 
-	/* Fake an interrupt request in order to give the driver a chance
-	 * to test whether the controller hardware has been removed (e.g.,
-	 * cardbus physical eject).
-	 */
-	local_irq_disable();
-	usb_hcd_irq(0, hcd);
-	local_irq_enable();
-
 	/* Note: dev_set_drvdata must be called while holding the rwsem */
 	if (dev->class == CL_EHCI) {
 		down_write(&companions_rwsem);
