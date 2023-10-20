@@ -997,6 +997,21 @@ static bool nbcon_atomic_emit_one(struct nbcon_write_context *wctxt)
 }
 
 /**
+ * nbcon_get_default_prio - The appropriate nbcon priority to use for nbcon
+ *				printing on the current CPU
+ *
+ * Return:	The nbcon_prio to use for acquiring an nbcon console in this
+ *		context for printing.
+ */
+enum nbcon_prio nbcon_get_default_prio(void)
+{
+	if (this_cpu_in_panic())
+		return NBCON_PRIO_PANIC;
+
+	return NBCON_PRIO_NORMAL;
+}
+
+/**
  * nbcon_atomic_emit_next_record - Print one record for an nbcon console
  *					using the write_atomic() callback
  * @con:	The console to print on
@@ -1014,7 +1029,7 @@ bool nbcon_atomic_emit_next_record(struct console *con)
 	struct nbcon_context *ctxt = &ACCESS_PRIVATE(&wctxt, ctxt);
 
 	ctxt->console	= con;
-	ctxt->prio	= NBCON_PRIO_NORMAL;
+	ctxt->prio	= nbcon_get_default_prio();
 
 	return nbcon_atomic_emit_one(&wctxt);
 }
@@ -1023,11 +1038,13 @@ bool nbcon_atomic_emit_next_record(struct console *con)
  * __nbcon_atomic_flush_all - Flush all nbcon consoles using their
  *					write_atomic() callback
  * @stop_seq:			Flush up until this record
+ * @allow_unsafe_takeover:	True, to allow unsafe hostile takeovers
  */
-static void __nbcon_atomic_flush_all(u64 stop_seq)
+static void __nbcon_atomic_flush_all(u64 stop_seq, bool allow_unsafe_takeover)
 {
 	struct nbcon_write_context wctxt = { };
 	struct nbcon_context *ctxt = &ACCESS_PRIVATE(&wctxt, ctxt);
+	enum nbcon_prio prio = nbcon_get_default_prio();
 	struct console *con;
 	bool any_progress;
 	int cookie;
@@ -1051,7 +1068,8 @@ static void __nbcon_atomic_flush_all(u64 stop_seq)
 			memset(ctxt, 0, sizeof(*ctxt));
 			ctxt->console			= con;
 			ctxt->spinwait_max_us		= 2000;
-			ctxt->prio			= NBCON_PRIO_NORMAL;
+			ctxt->prio			= prio;
+			ctxt->allow_unsafe_takeover	= allow_unsafe_takeover;
 
 			any_progress |= nbcon_atomic_emit_one(&wctxt);
 		}
@@ -1071,7 +1089,21 @@ static void __nbcon_atomic_flush_all(u64 stop_seq)
  */
 void nbcon_atomic_flush_all(void)
 {
-	__nbcon_atomic_flush_all(prb_next_reserve_seq(prb));
+	__nbcon_atomic_flush_all(prb_next_reserve_seq(prb), false);
+}
+
+/**
+ * nbcon_atomic_flush_unsafe - Flush all nbcon consoles using their
+ *	write_atomic() callback and allowing unsafe hostile takeovers
+ *
+ * Flush the backlog up through the currently newest record. Unsafe hostile
+ * takeovers will be performed, if necessary.
+ *
+ * Context:	Any context which could not be migrated to another CPU.
+ */
+void nbcon_atomic_flush_unsafe(void)
+{
+	__nbcon_atomic_flush_all(prb_next_reserve_seq(prb), true);
 }
 
 /**
@@ -1164,6 +1196,9 @@ static inline bool uart_is_nbcon(struct uart_port *up)
  *
  * If @up is an nbcon console, this console will be acquired and marked as
  * unsafe. Otherwise this function does nothing.
+ *
+ * nbcon consoles acquired via the port lock wrapper always use priority
+ * NBCON_PRIO_NORMAL.
  */
 void nbcon_handle_port_lock(struct uart_port *up)
 {
@@ -1198,6 +1233,9 @@ EXPORT_SYMBOL_GPL(nbcon_handle_port_lock);
  *
  * If @up is an nbcon console, the console will be marked as safe and
  * released. Otherwise this function does nothing.
+ *
+ * nbcon consoles acquired via the port lock wrapper always use priority
+ * NBCON_PRIO_NORMAL.
  */
 void nbcon_handle_port_unlock(struct uart_port *up)
 {
