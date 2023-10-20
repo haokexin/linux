@@ -36,7 +36,7 @@
 #define LLCE_MGR_TX_BOOT_END			(0x00000F00U)
 #define LLCE_MGR_FRPE_BOOT_END			(0x0000F000U)
 #define LLCE_MGR_BOOT_END_ALL_CORES_MASK	(0x0000FFFFU)
-#define CORES_TS_OFFSET				(0x13FD0)
+#define CORES_TS_OFFSET				(0x13730)
 
 struct sram_node {
 	const char *name;
