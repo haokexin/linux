@@ -927,14 +927,18 @@ static bool nbcon_emit_next_record(struct nbcon_write_context *wctxt)
 	if (con->write_atomic) {
 		done = con->write_atomic(con, wctxt);
 	} else {
-		nbcon_context_release(ctxt);
 		WARN_ON_ONCE(1);
 		done = false;
 	}
 
-	/* If not done, the emit was aborted. */
-	if (!done)
+	if (!done) {
+		/*
+		 * The emit was aborted. This may have been due to a loss
+		 * of ownership. Explicitly release ownership to be sure.
+		 */
+		nbcon_context_release(ctxt);
 		return false;
+	}
 
 	/*
 	 * Since any dropped message was successfully output, reset the
