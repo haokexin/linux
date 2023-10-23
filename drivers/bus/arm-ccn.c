@@ -205,11 +205,9 @@ static int ccn_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(ccn->base))
 		return PTR_ERR(ccn->base);
 
-	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-	if (!res)
+	irq = platform_get_irq(pdev, 0);
+	if (irq < 0)
 		return -EINVAL;
-
-	irq = res->start;
 
 	if (platform_has_secure_ccn_access()) {
 		errint_read = nonsecure_errint_read;
