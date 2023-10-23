@@ -388,7 +388,7 @@ struct dpu_fetchunit {
 	void __iomem *pec_base;
 	void __iomem *base;
 	char *name;
-	struct mutex mutex;
+	raw_spinlock_t          lock;
 	int id;
 	int sub_id;	/* for fractional fetch units */
 	int type;

@@ -58,9 +58,9 @@ fetchlayer_set_src_buf_dimensions(struct dpu_fetchunit *fu,
 
 	val = LINEWIDTH(w) | LINECOUNT(h);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, SOURCEBUFFERDIMENSION(fu->sub_id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void fetchlayer_set_fmt(struct dpu_fetchunit *fu,
@@ -72,22 +72,22 @@ static void fetchlayer_set_fmt(struct dpu_fetchunit *fu,
 	u32 val, bits, shift;
 	int i, sub_id = fu->sub_id;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY(sub_id));
 	val &= ~YUVCONVERSIONMODE_MASK;
 	val |= YUVCONVERSIONMODE(YUVCONVERSIONMODE__OFF);
 	dpu_fu_write(fu, LAYERPROPERTY(sub_id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	for (i = 0; i < ARRAY_SIZE(dpu_pixel_format_matrix); i++) {
 		if (dpu_pixel_format_matrix[i].pixel_format == fmt) {
 			bits = dpu_pixel_format_matrix[i].bits;
 			shift = dpu_pixel_format_matrix[i].shift;
 
-			mutex_lock(&fu->mutex);
+			raw_spin_lock(&fu->lock);
 			dpu_fu_write(fu, COLORCOMPONENTBITS(sub_id), bits);
 			dpu_fu_write(fu, COLORCOMPONENTSHIFT(sub_id), shift);
-			mutex_unlock(&fu->mutex);
+			raw_spin_unlock(&fu->lock);
 			return;
 		}
 	}
@@ -103,9 +103,9 @@ fetchlayer_set_framedimensions(struct dpu_fetchunit *fu, unsigned int w,
 
 	val = FRAMEWIDTH(w) | FRAMEHEIGHT(h);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, FRAMEDIMENSIONS, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 void fetchlayer_rgb_constantcolor(struct dpu_fetchunit *fu,
@@ -115,9 +115,9 @@ void fetchlayer_rgb_constantcolor(struct dpu_fetchunit *fu,
 
 	val = rgb_color(r, g, b, a);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CONSTANTCOLOR(fu->id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchlayer_rgb_constantcolor);
 
@@ -127,17 +127,17 @@ void fetchlayer_yuv_constantcolor(struct dpu_fetchunit *fu, u8 y, u8 u, u8 v)
 
 	val = yuv_color(y, u, v);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CONSTANTCOLOR(fu->id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchlayer_yuv_constantcolor);
 
 static void fetchlayer_set_controltrigger(struct dpu_fetchunit *fu)
 {
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CONTROLTRIGGER, SHDTOKGEN);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 int fetchlayer_fetchtype(struct dpu_fetchunit *fu, fetchtype_t *type)
@@ -145,10 +145,10 @@ int fetchlayer_fetchtype(struct dpu_fetchunit *fu, fetchtype_t *type)
 	struct dpu_soc *dpu = fu->dpu;
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, FETCHTYPE);
 	val &= FETCHTYPE_MASK;
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	switch (val) {
 	case FETCHTYPE__DECODE:
@@ -186,16 +186,16 @@ struct dpu_fetchunit *dpu_fl_get(struct dpu_soc *dpu, int id)
 
 	fu = dpu->fl_priv[i];
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 
 	if (fu->inuse) {
-		mutex_unlock(&fu->mutex);
+		raw_spin_unlock(&fu->lock);
 		return ERR_PTR(-EBUSY);
 	}
 
 	fu->inuse = true;
 
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	return fu;
 }
@@ -203,11 +203,11 @@ EXPORT_SYMBOL_GPL(dpu_fl_get);
 
 void dpu_fl_put(struct dpu_fetchunit *fu)
 {
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 
 	fu->inuse = false;
 
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(dpu_fl_put);
 
@@ -247,10 +247,10 @@ void _dpu_fl_init(struct dpu_soc *dpu, unsigned int id)
 	fetchunit_shdldreq_sticky(fu, 0xFF);
 	fetchunit_disable_src_buf(fu);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, BURSTBUFFERMANAGEMENT,
 			SETNUMBUFFERS(16) | SETBURSTLENGTH(16));
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 int dpu_fl_init(struct dpu_soc *dpu, unsigned int id,
@@ -282,7 +282,7 @@ int dpu_fl_init(struct dpu_soc *dpu, unsigned int id,
 	fu->ops = &fl_ops;
 	fu->name = "fetchlayer";
 
-	mutex_init(&fu->mutex);
+	raw_spin_lock_init(&fu->lock);
 
 	ret = fetchlayer_fetchtype(fu, &fl->fetchtype);
 	if (ret < 0)

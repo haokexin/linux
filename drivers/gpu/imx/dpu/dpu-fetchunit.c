@@ -67,14 +67,14 @@ void fetchunit_shden(struct dpu_fetchunit *fu, bool enable)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, STATICCONTROL);
 	if (enable)
 		val |= SHDEN;
 	else
 		val &= ~SHDEN;
 	dpu_fu_write(fu, STATICCONTROL, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_shden);
 
@@ -82,12 +82,12 @@ void fetchunit_baddr_autoupdate(struct dpu_fetchunit *fu, u8 layer_mask)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, STATICCONTROL);
 	val &= ~BASEADDRESSAUTOUPDATE_MASK;
 	val |= BASEADDRESSAUTOUPDATE(layer_mask);
 	dpu_fu_write(fu, STATICCONTROL, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_baddr_autoupdate);
 
@@ -95,12 +95,12 @@ void fetchunit_shdldreq_sticky(struct dpu_fetchunit *fu, u8 layer_mask)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, STATICCONTROL);
 	val &= ~SHDLDREQSTICKY_MASK;
 	val |= SHDLDREQSTICKY(layer_mask);
 	dpu_fu_write(fu, STATICCONTROL, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_shdldreq_sticky);
 
@@ -124,12 +124,12 @@ void fetchunit_set_burstlength(struct dpu_fetchunit *fu,
 		burst_length = 16;
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, BURSTBUFFERMANAGEMENT);
 	val &= ~SETBURSTLENGTH_MASK;
 	val |= SETBURSTLENGTH(burst_length);
 	dpu_fu_write(fu, BURSTBUFFERMANAGEMENT, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	dev_dbg(dpu->dev, "%s%d burst length is %u\n",
 					fu->name, fu->id, burst_length);
@@ -158,9 +158,9 @@ void fetchunit_set_baseaddress(struct dpu_fetchunit *fu, unsigned int width,
 		baddr += (dma_addr_t)(y_offset % mt_h) * stride;
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, BASEADDRESS(fu->sub_id), baddr);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_set_baseaddress);
 
@@ -168,12 +168,12 @@ void fetchunit_set_src_bpp(struct dpu_fetchunit *fu, int bpp)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, SOURCEBUFFERATTRIBUTES(fu->sub_id));
 	val &= ~0x3f0000;
 	val |= BITSPERPIXEL(bpp);
 	dpu_fu_write(fu, SOURCEBUFFERATTRIBUTES(fu->sub_id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_set_src_bpp);
 
@@ -204,12 +204,12 @@ void fetchunit_set_src_stride(struct dpu_fetchunit *fu,
 							  baddr, nonzero_mod);
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, SOURCEBUFFERATTRIBUTES(fu->sub_id));
 	val &= ~0xffff;
 	val |= STRIDE(stride);
 	dpu_fu_write(fu, SOURCEBUFFERATTRIBUTES(fu->sub_id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_set_src_stride);
 
@@ -233,7 +233,7 @@ void fetchunit_set_pixel_blend_mode(struct dpu_fetchunit *fu,
 		}
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY(fu->sub_id));
 	val &= ~(PREMULCONSTRGB | ALPHA_ENABLE_MASK | RGB_ENABLE_MASK);
 	val |= mode;
@@ -243,7 +243,7 @@ void fetchunit_set_pixel_blend_mode(struct dpu_fetchunit *fu,
 	val &= ~CONSTANTALPHA_MASK;
 	val |= CONSTANTALPHA(alpha >> 8);
 	dpu_fu_write(fu, CONSTANTCOLOR(fu->sub_id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_set_pixel_blend_mode);
 
@@ -251,11 +251,11 @@ void fetchunit_enable_src_buf(struct dpu_fetchunit *fu)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY(fu->sub_id));
 	val |= SOURCEBUFFERENABLE;
 	dpu_fu_write(fu, LAYERPROPERTY(fu->sub_id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_enable_src_buf);
 
@@ -263,11 +263,11 @@ void fetchunit_disable_src_buf(struct dpu_fetchunit *fu)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY(fu->sub_id));
 	val &= ~SOURCEBUFFERENABLE;
 	dpu_fu_write(fu, LAYERPROPERTY(fu->sub_id), val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchunit_disable_src_buf);
 
@@ -275,9 +275,9 @@ bool fetchunit_is_enabled(struct dpu_fetchunit *fu)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY(fu->sub_id));
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	return !!(val & SOURCEBUFFERENABLE);
 }
