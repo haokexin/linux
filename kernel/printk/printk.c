@@ -2361,6 +2361,32 @@ asmlinkage int vprintk_emit(int facility, int level,
 
 	printed_len = vprintk_store(facility, level, dev_info, fmt, args);
 
+	/*
+	 * There are 3 situations where nbcon atomic printing should happen in
+	 * the printk() caller context:
+	 *
+	 * 1. When booting, before the printing threads have been started.
+	 *
+	 * 2. During shutdown, since the printing threads may not get a
+	 *    chance to print the final messages.
+	 *
+	 * 3. When this CPU is in panic.
+	 *
+	 * Note that if boot consoles are registered (have_boot_console), the
+	 * console_lock/console_unlock dance must be relied upon instead
+	 * because nbcon consoles cannot print simultaneously with boot
+	 * consoles.
+	 */
+	if (!have_boot_console) {
+		if (!printk_threads_enabled ||
+		    (system_state > SYSTEM_RUNNING) ||
+		    this_cpu_in_panic()) {
+			preempt_disable();
+			nbcon_atomic_flush_all();
+			preempt_enable();
+		}
+	}
+
 	nbcon_wake_threads();
 
 	/* If called from the scheduler, we can not call up(). */
