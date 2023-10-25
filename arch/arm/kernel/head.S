@@ -336,6 +336,10 @@ __create_page_tables:
 #endif
 #else
 	orr	r3, r3, #PMD_SECT_XN
+#ifdef CONFIG_ARCH_AXXIA
+	/* Axxia memory is non-secure, so set NS. */
+	orr	r3, r3, #0x20
+#endif
 	str	r3, [r0], #4
 #endif
 

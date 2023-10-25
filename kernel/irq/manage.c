@@ -447,6 +447,22 @@ out_unlock:
 	return ret;
 }
 
+#ifdef CONFIG_ARCH_AXXIA
+int __irq_set_affinity(unsigned int irq, const struct cpumask *mask, bool force)
+{
+	unsigned long flags;
+	struct irq_desc *desc = irq_get_desc_buslock(irq, &flags,
+			IRQ_GET_DESC_CHECK_GLOBAL);
+	int ret;
+
+	if (!desc)
+		return -EINVAL;
+
+	ret = irq_set_affinity_locked(irq_desc_get_irq_data(desc), mask, force);
+	irq_put_desc_busunlock(desc, flags);
+	return ret;
+}
+#else
 static int __irq_set_affinity(unsigned int irq, const struct cpumask *mask,
 			      bool force)
 {
@@ -462,6 +478,7 @@ static int __irq_set_affinity(unsigned int irq, const struct cpumask *mask,
 	raw_spin_unlock_irqrestore(&desc->lock, flags);
 	return ret;
 }
+#endif
 
 /**
  * irq_set_affinity - Set the irq affinity of a given irq

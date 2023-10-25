@@ -34,9 +34,10 @@ config ARM_CCI5xx_PMU
 	  count events pertaining to the slave/master interfaces as well as the
 	  internal events to the CCI.
 
-config ARM_CCN
+config ARM_CCN_PMU
 	tristate "ARM CCN driver support"
 	depends on ARM || ARM64 || COMPILE_TEST
+	select ARM_CCN
 	help
 	  PMU (perf) driver supporting the ARM CCN (Cache Coherent Network)
 	  interconnect.

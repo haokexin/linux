@@ -47,12 +47,23 @@ config POWER_RESET_ATC260X
 	  through Actions Semi ATC260x series PMICs.
 
 config POWER_RESET_AXXIA
-	bool "LSI Axxia reset driver"
+	bool "Intel Axxia reset driver"
 	depends on ARCH_AXXIA
 	help
-	  This driver supports restart for Axxia SoC.
+	  This driver supports restart for Intel Axxia SoC.
 
 	  Say Y if you have an Axxia family SoC.
+
+if POWER_RESET_AXXIA
+config POWER_RESET_AXXIA_DDR_RETENTION
+	bool "Keep memory content"
+	depends on POWER_RESET_AXXIA
+	help
+	  Keep memory content during reset. Useful to reserve memory
+	  for dumps, logs etc on fatal errors that can be analysed
+	  after a reboot. Used only with older versions of Axxia U-Boot
+	  since the new ones handle DDR Retention via the device tree.
+endif
 
 config POWER_RESET_BRCMKONA
 	bool "Broadcom Kona reset driver"

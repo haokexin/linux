@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/bindings/rapidio/intel,axxia-rapidio.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia Designware Serial RapidIO interface
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for the Intel Axxia RapidIO controllers for INTEL Axxia
+  devicess. The Device revision is identified from the  RapidIO Device
+  Information Capability Register (dicar). The link down monitor resets
+  the interface, the handler waits for the link to go up.
+  The SRIO mport driver supports local and remote configuration register
+  access, Direct IO and Messaging transactions for all the Axxia AXM
+  chipset (AXM55xx and X9/AXM56xx) variants.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,axxia-rapidio
+
+  index:
+    maxItems: 1
+
+  device_type:
+    const: rapidio
+
+  "#address-cells":
+    const: 2
+
+  "#size-cells":
+    const: 2
+
+  reg:
+    maxItems: 1
+    description: Should contain the sRIO Register address space.
+
+  ranges:
+    maxItems: 1
+    description: |
+      Ranges for the SRIO config, outbound memory and I/O regions.
+
+  linkdown-reset:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 1
+
+  outb-dmes:
+    maxItems: 1
+
+  outb-dmes:
+    maxItems: 1
+    type: boolean
+
+required:
+  - compatible
+  - index
+  - device_type
+  - "#address-cells"
+  - "#size-cells"
+  - reg
+  - ranges
+  - linkdown-reset
+  - interrupts
+  - outb-dmes
+  - enable_ds
+
+additionalProperties: true
+
+examples:
+  - |
+    rio0: rapidio@0xb000000000 {
+      index = <0>;
+      compatible = "axxia,axxia-rapidio";
+      device_type = "rapidio";
+      reg = <0xa0 0x00020000 0 0x00001000>;
+      #address-cells = <2>;
+      #size-cells = <2>;
+      ranges = <0x0 0x0 0x00b0 0x00000000 0x0 0x40000000>;
+      linkdown-reset = <0x0200 0x100 0x00a0 0x10000000
+                0x0 0x000010000>;
+      interrupts = <GIC_SPI 129 IRQ_TYPE_LEVEL_HIGH>;
+      outb-dmes = <2 0x00000003 1 0x00000000>;
+      enable_ds = <1>;
+    };
+
+...
