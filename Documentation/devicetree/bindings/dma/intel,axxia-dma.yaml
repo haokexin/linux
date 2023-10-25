@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/dma/intel,axxia-dma.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia General Purpose DMA controller
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for the Intel Axxia General Purpose DMA controller found
+  on AXM55xx, AXM56xx and AXC67xx devices.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,dma32
+      - const: axxia,dma31
+
+  dma-coherent: true
+
+  "#dma-cells":
+    const: 1
+    description: |
+      The length of the DMA specifier, must be <1>. This one cell
+      in dmas property of a client device represents the channel number.
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 2
+    description: |
+      Should contain one DMA interrupt per-channel. Intel Axxia DMA
+      controller has 2 channels in total.
+
+patternProperties:
+  "^channel[0-2]$":
+    type: object
+    description: |
+      Sub-node for each DMA channel on the Axxia controller. Should
+      define the interrupts for the channel.
+
+    properties:
+      interrupts:
+        maxItems: 1
+
+    additionalProperties: false
+    required:
+      - interrupts
+
+required:
+  - compatible
+  - dma-coherent
+  - reg
+  - interrupts
+  - "#dma-cells"
+
+additionalProperties: true
+
+examples:
+  - |
+    gpdma0: gpdma@8005020000 {
+            compatible = "axxia,dma32";
+            dma-coherent;
+            reg = <0x80 0x05020000 0 0x10000>;
+            interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>,
+                         <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>;
+            #dma-cells = <1>;
+            channel0 {
+                interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
+            };
+
+            channel1 {
+                interrupts = <GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>;
+            };
+    };
+
+...

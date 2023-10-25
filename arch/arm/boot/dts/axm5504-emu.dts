@@ -1,0 +1,38 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2021 INTEL Corporation
+
+/dts-v1/;
+
+/memreserve/ 0x00000000 0x00400000;
+
+/include/ "axm55xx.dtsi"
+/include/ "axm5504-cpus.dtsi"
+
+/ {
+	model = "Emulation Platform AXM5500";
+	compatible = "axxia,axm5500-emu", "axxia,axm5500";
+
+	memory {
+		device_type = "memory";
+		reg = <0 0x00000000 0 0x10000000>;
+	};
+};
+
+&femac {
+	status = "okay";
+	phy-address = <0x03>;
+	mdio-clock-offset = <0x10>;
+	mdio-clock-period = <0x2c>;
+};
+
+&serial0 {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};

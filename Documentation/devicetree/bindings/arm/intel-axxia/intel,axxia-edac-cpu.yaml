@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/arm/intel-axxia/intel,axxia-edac-cpu.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia CPU Controller Error Detection & Correction [EDAC]
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  EDAC node to describe CPU Controller error detection & correction
+  on Intel Axxia AXM55xx, AXM56xx and AXM67xx devices. The EDAC accesses
+  ARM v7/v8 CPUMERRSR_EL1 register data. ARM A15, A53 and A57 CPUs error
+  detection uses polling mechanism.
+
+properties:
+  compatible:
+    items:
+      - enum:
+        - axxia,cortex-a15-cpu  # for AXM55xx
+        - intel,cortex-a57-cpu  # for AXM56xx
+        - intel,cortex-a53-cpu  # for AXM67xx
+
+  syscon:
+    $ref: /schemas/types.yaml#definitions/phandle
+    description: |
+      Phandle to the SYSCON node for 55xx/56xx/67xx.
+
+required:
+  - compatible
+  - syscon
+
+additionalProperties: true
+
+examples:
+  - |
+    edac_cpu: edac_cpu {
+              compatible = "intel,cortex-a57-cpu";
+              syscon = <&syscon>;
+    };
+
+...

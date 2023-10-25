@@ -446,6 +446,18 @@
 			Format: <int> (must be >=0)
 			Default: 64
 
+	axm_srio_int_mode= [HW,ARM,ARM64]
+			Parameter value for Interrupt Mode (AXXIA_IBDME_INTERRUPT_MODE)
+			in the Intel Axxia Embedded SRIO driver.
+
+	axm_srio_tmr_mode= [HW,ARM,ARM64]
+			Parameter value for Timer Mode (AXXIA_IBDME_TIMER_MODE)
+			in the Intel Axxia Embedded SRIO driver.
+
+ 	axm_srio_tmr_period= [HW,ARM,ARM64]
+			Parameter value for Timer Period in the Intel Axxia Embedded
+			SRIO driver.
+
 	bau=		[X86_UV] Enable the BAU on SGI UV.  The default
 			behavior is to disable the BAU (i.e. bau=0).
 			Format: { "0" | "1" }

@@ -1,0 +1,199 @@
+// SPDX-License-Identifier: GPL-2.0
+// Copyright (C) 2021 INTEL Corporation
+
+/dts-v1/;
+
+#include "axc67xx.dtsi"
+#include "axc6716-cpus.dtsi"
+
+/ {
+	model = "Lionfish Simulator";
+	compatible = "axxia,axc6732";
+
+	memory {
+		device_type = "memory";
+		reg = <0 0x00000000 0 0x40000000>;
+	};
+
+	soc {
+		virtio_block@8021000000 {
+			compatible = "virtio,mmio";
+			reg = <0x80 0x34000000 0 0x1000>;
+			interrupts = <GIC_SPI 639 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		vmfs@8034010000 {
+			compatible = "arm,messagebox";
+			reg = <0x80 0x34010000 0 0x1000>;
+			interrupts = <GIC_SPI 638 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		ethernet@8020000000 {
+			compatible = "smsc,lan91c111";
+			reg = <0x80 0x33000000 0 0x1000000>;
+			interrupts = <GIC_SPI 640 IRQ_TYPE_LEVEL_HIGH>;
+			phy-mode = "mii";
+			reg-io-width = <4>;
+			smsc,irq-active-high;
+			smsc,irq-push-pull;
+		};
+	};
+};
+
+&serial0 {
+	status = "okay";
+};
+
+&serial1 {
+	status = "okay";
+};
+
+&serial2 {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&gpio1 {
+	status = "okay";
+};
+
+&gpio2 {
+	status = "okay";
+};
+
+&gpio3 {
+	status = "okay";
+};
+
+&gpio4 {
+	status = "okay";
+};
+
+&gpio5 {
+	status = "okay";
+};
+
+&gpio6 {
+	status = "okay";
+};
+
+&gpio7 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+
+	flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "spansion,s25fl016k", "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		pl022,com-mode = <1>;
+
+		partition@0 {
+			label = "spl-0";
+			reg = <0x0 0x40000>;
+		};
+		partition@40000 {
+			label = "spl-1";
+			reg = <0x40000 0x40000>;
+		};
+		partition@80000 {
+			label = "parameters-0";
+			reg = <0x80000 0x10000>;
+		};
+		partition@90000 {
+			label = "parameters-1";
+			reg = <0x90000 0x10000>;
+		};
+		partition@a0000 {
+			label = "env-0";
+			reg = <0xa0000 0x10000>;
+		};
+		partition@b0000 {
+			label = "env-1";
+			reg = <0xb0000 0x10000>;
+		};
+		partition@100000 {
+			label = "u-boot-0";
+			reg = <0x100000 0x200000>;
+		};
+		partition@300000 {
+			label = "u-boot-1";
+			reg = <0x300000 0x200000>;
+		};
+	};
+};
+
+&spi1 {
+	status = "okay";
+};
+
+&spi2 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c1 {
+	status = "okay";
+};
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c4 {
+	status = "okay";
+};
+
+&i2c5 {
+	status = "okay";
+};
+
+&i2c6 {
+	status = "okay";
+};
+
+&i2c7 {
+	status = "okay";
+};
+
+&i2c8 {
+	status = "okay";
+};
+
+&i2c9 {
+	status = "okay";
+};
+
+&i2c10 {
+	status = "okay";
+};
+
+&i2c11 {
+	status = "okay";
+};
+
+&gpdma0 {
+	status = "okay";
+};
+
+&gpdma1 {
+	status = "okay";
+};
+
+&pci0 {
+	status = "okay";
+};

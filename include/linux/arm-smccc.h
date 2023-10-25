@@ -191,6 +191,8 @@
 #define SMCCC_RET_NOT_REQUIRED			-2
 #define SMCCC_RET_INVALID_PARAMETER		-3
 
+#define ARM_SMCCC_UNKNOWN		0xffffffff
+
 #ifndef __ASSEMBLY__
 
 #include <linux/linkage.h>

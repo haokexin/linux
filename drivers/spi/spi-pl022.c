@@ -2080,6 +2080,8 @@ pl022_platform_data_dt_get(struct device *dev)
 {
 	struct device_node *np = dev->of_node;
 	struct pl022_ssp_controller *pd;
+	int ret = -1;
+	u32 tmp = 0;
 
 	if (!np) {
 		dev_err(dev, "no dt node defined\n");
@@ -2091,7 +2093,17 @@ pl022_platform_data_dt_get(struct device *dev)
 		return NULL;
 
 	pd->bus_id = -1;
-	pd->enable_dma = 1;
+
+	/*
+	 * If the dma property is not valid assume dma is enabled, as code
+	 * was before.
+	 */
+	ret = of_property_read_u32(np, "enable-dma", &tmp);
+	if (ret == 0)
+		pd->enable_dma = tmp;
+	else
+		pd->enable_dma = 1;
+
 	of_property_read_u32(np, "pl022,autosuspend-delay",
 			     &pd->autosuspend_delay);
 	pd->rt = of_property_read_bool(np, "pl022,rt");
@@ -2107,6 +2119,7 @@ static int pl022_probe(struct amba_device *adev, const struct amba_id *id)
 	struct spi_master *master;
 	struct pl022 *pl022 = NULL;	/*Data for this driver */
 	int status = 0;
+	u32 tmp = 0;
 
 	dev_info(&adev->dev,
 		 "ARM PL022 driver, device ID: 0x%08x\n", adev->periphid);
@@ -2144,6 +2157,8 @@ static int pl022_probe(struct amba_device *adev, const struct amba_id *id)
 	master->rt = platform_info->rt;
 	master->dev.of_node = dev->of_node;
 	master->use_gpio_descriptors = true;
+	of_property_read_u32(dev->of_node, "num-cs", &tmp);
+	master->num_chipselect = tmp;
 
 	/*
 	 * Supports mode 0-3, loopback, and active low CS. Transfers are

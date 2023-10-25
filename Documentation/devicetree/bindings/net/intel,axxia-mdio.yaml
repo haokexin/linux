@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/intel,axxia-mdio.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia Fast Ethernet MDIO Controller interface
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: Provides access to the Axxia MDIO bus.
+
+properties:
+  compatible:
+    oneOf:
+      - const: axxia,axxia-mdio1
+      - items:
+        - const: axxia,axm-mdio
+        - const: axxia,axxia-mdio0
+
+  "#address-cells":
+    const: 1
+
+  "#size-cells":
+    const: 0
+
+  reg:
+    maxItems: 1
+
+  axxia,mdio-clk-offset:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: |
+      Set value used to offset the MDIO output signal. A value of N
+      means the MDIO output signal is held for (N + 1) clk_per units
+      long. (optional)
+
+  axxia,mdio-clk-period:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description: |
+      Set value used to offset the MDC signal. A value of N  means the
+      MDC signal is 2 x (N + 1) clk_per units long. (optional)
+
+  max-speed:
+    maxItems: 1
+
+required:
+  - compatible
+  - "#address-cells"
+  - "#size-cells"
+  - reg
+
+additionalProperties: true
+
+examples:
+  - |
+    mdio0: mdio@8080260000 {
+           compatible = "axxia,axm-mdio", "axxia,axxia-mdio0";
+           #address-cells = <1>;
+           #size-cells = <0>;
+           reg = <0x80 0x80260000 0 0x1000>;
+    };
+
+...

@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2021 INTEL Corporation
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x00>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x01>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x02>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x03>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x100>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@101 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x101>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@102 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x102>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@103 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x103>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@200 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x200>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@201 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x201>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@202 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x202>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+		cpu@203 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a15";
+			reg = <0x203>;
+			cpu-release-addr = <0>; // Fixed by the boot loader
+			clock-frequency = <0>;  // Placeholder
+		};
+
+	};
+};
