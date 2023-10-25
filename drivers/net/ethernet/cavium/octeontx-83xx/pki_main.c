@@ -35,7 +35,7 @@ static irqreturn_t pki_gen_intr_handler(int irq, void *pki_irq)
 
 static irqreturn_t pki_ecc_intr_handler(int irq, void *pki_irq)
 {
-	struct pki_t *pki = (struct pki_t *)pki;
+	struct pki_t *pki = (struct pki_t *)pki_irq;
 	u64 reg;
 
 	dev_err(&pki->pdev->dev, "Received ECC INT\n");
