@@ -677,7 +677,7 @@ static int dom_data_init(struct rdt_resource *r)
 	int i;
 
 	rmid_ptrs = kcalloc(nr_idx, sizeof(struct rmid_entry), GFP_KERNEL);
-	if (!rmid_ptrs)
+	if (ZERO_OR_NULL_PTR(rmid_ptrs))
 		return -ENOMEM;
 
 	for (i = 0; i < nr_idx; i++) {
