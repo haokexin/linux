@@ -199,13 +199,13 @@ struct ncr_io_fns {
 };
 
 struct ncr_io_fns ncr_io_fn_lock = {
-	ncr_register_read_lock,
-	ncr_register_write_lock
+	.rd 	= ncr_register_read_lock,
+	.wr 	= ncr_register_write_lock,
 };
 
 struct ncr_io_fns ncr_io_fn_nolock = {
-	ncr_register_read,
-	ncr_register_write
+	.rd 	= ncr_register_read,
+	.wr 	= ncr_register_write,
 };
 
 struct ncr_io_fns *default_io_fn;
