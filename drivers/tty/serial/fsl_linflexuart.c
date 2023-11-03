@@ -626,7 +626,7 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 			break;
 
 		rx = readb(sport->membase + BDRM);
-		writel(~LINFLEXD_UARTSR_DTFTFF, sport->membase + UARTSR);
+		writel(~(u32)LINFLEXD_UARTSR_DTFTFF, sport->membase + UARTSR);
 
 		flg = TTY_NORMAL;
 		sport->icount.rx++;
