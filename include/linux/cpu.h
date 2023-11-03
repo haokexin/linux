@@ -217,4 +217,6 @@ static inline void cpuhp_report_idle_dead(void) { }
 extern bool cpu_mitigations_off(void);
 extern bool cpu_mitigations_auto_nosmt(void);
 
+extern void print_arch_cpu_state(int cpu);
+
 #endif /* _LINUX_CPU_H_ */
