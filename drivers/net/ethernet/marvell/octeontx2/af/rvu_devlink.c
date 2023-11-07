@@ -1992,8 +1992,6 @@ void rvu_unregister_dl(struct rvu *rvu)
 	if (!dl)
 		return;
 
-	devlink_unregister(dl);
-
 	devlink_params_unregister(dl, rvu_af_dl_params, ARRAY_SIZE(rvu_af_dl_params));
 
 	/* Unregister exact match devlink only for CN10K-B */
