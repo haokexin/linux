@@ -3637,6 +3637,10 @@ static void rvu_dbg_npc_mcam_show_flows(struct seq_file *s,
 			seq_printf(s, "%d ", ntohl(rule->packet.gtpc_teid));
 			seq_printf(s, "mask 0x%x\n", ntohl(rule->mask.gtpc_teid));
 			break;
+		case NPC_IPSEC_SPI:
+			seq_printf(s, "0x%x ", ntohl(rule->packet.spi));
+			seq_printf(s, "mask 0x%x\n", ntohl(rule->mask.spi));
+			break;
 		default:
 			seq_puts(s, "\n");
 			break;
@@ -3664,10 +3668,6 @@ static void rvu_dbg_npc_mcam_show_action(struct seq_file *s,
 			break;
 		case NIX_TX_ACTIONOP_DROP_VIOL:
 			seq_puts(s, "\taction: Lockdown Violation Drop\n");
-			break;
-		case NPC_IPSEC_SPI:
-			seq_printf(s, "0x%x ", ntohl(rule->packet.spi));
-			seq_printf(s, "mask 0x%x\n", ntohl(rule->mask.spi));
 			break;
 		default:
 			break;
