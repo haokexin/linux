@@ -126,6 +126,11 @@
 #define	SDHCI_CDNS_SD6_PHY_DLL_SLAVE_READ_DQS_DELAY		GENMASK(7, 0)
 
 #define SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0				0x201C
+#define SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK		BIT(0)
+#define SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_MODE		GENMASK(2, 1)
+#define SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_UNLOCK_CNT		GENMASK(7, 3)
+#define SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_VALUE		GENMASK(15, 8)
+
 #define SDHCI_CDNS_SD6_PHY_DLL_OBS_REG1				0x2020
 #define SDHCI_CDNS_SD6_PHY_DLL_OBS_REG2				0x2024
 
@@ -426,7 +431,7 @@ static void init_emmc_ddr(struct sdhci_cdns_sd6_phy_timings *t, int t_sdclk)
 {
 	*t = (struct sdhci_cdns_sd6_phy_timings){
 		.t_cmd_output_min = 3000, .t_cmd_output_max = t_sdclk - 3000,
-		.t_dat_output_min = 2500, .t_dat_output_max = t_sdclk - 2500,
+		.t_dat_output_min = 3200, .t_dat_output_max = t_sdclk - 2500,
 		.t_cmd_input_min = 13700, .t_cmd_input_max = t_sdclk + 2500,
 		.t_dat_input_min = 7000, .t_dat_input_max = t_sdclk + 1500,
 		.t_sdclk_min = 1000000 / 50, .t_sdclk_max = 1000000 / 0.4
@@ -436,8 +441,8 @@ static void init_emmc_ddr(struct sdhci_cdns_sd6_phy_timings *t, int t_sdclk)
 static void init_emmc_hs200(struct sdhci_cdns_sd6_phy_timings *t, int t_sdclk)
 {
 	*t = (struct sdhci_cdns_sd6_phy_timings){
-		.t_cmd_output_min = 800, .t_cmd_output_max = t_sdclk - 1400,
-		.t_dat_output_min = 800, .t_dat_output_max = t_sdclk - 1400,
+		.t_cmd_output_min = 1400, .t_cmd_output_max = t_sdclk - 1400,
+		.t_dat_output_min = 1400, .t_dat_output_max = t_sdclk - 1400,
 		.t_cmd_input_min = 1000, .t_cmd_input_max = t_sdclk + 1000,
 		.t_dat_input_min = 1000, .t_dat_input_max = t_sdclk + 1000,
 		.t_sdclk_min = 1000000 / 200, .t_sdclk_max = 1000000 / 100
@@ -448,10 +453,10 @@ static void init_emmc_hs200(struct sdhci_cdns_sd6_phy_timings *t, int t_sdclk)
 static void init_emmc_hs400(struct sdhci_cdns_sd6_phy_timings *t, int t_sdclk)
 {
 	*t = (struct sdhci_cdns_sd6_phy_timings){
-		.t_cmd_output_min = 800, .t_cmd_output_max = t_sdclk - 1400,
-		.t_dat_output_min = 400, .t_dat_output_max = t_sdclk - 400,
-		.t_cmd_input_min = 1000, .t_cmd_input_max = t_sdclk + 1000,
-		.t_dat_input_min = 1000, .t_dat_input_max = t_sdclk + 1000,
+		.t_cmd_output_min = 1400, .t_cmd_output_max = t_sdclk - 1400,
+		.t_dat_output_min = 900, .t_dat_output_max = t_sdclk - 400,
+		.t_cmd_input_min = 1300, .t_cmd_input_max = t_sdclk + 1000,
+		.t_dat_input_min = 1300, .t_dat_input_max = t_sdclk + 1000,
 		.t_sdclk_min = 1000000 / 200, .t_sdclk_max = 1000000 / 100
 	};
 }
@@ -528,6 +533,7 @@ static int sdhci_cdns_sd6_phy_lock_dll(struct sdhci_cdns_sd6_phy *phy)
 	u32 delay_elements_in_sdmclk;
 	enum sdhci_cdns_sd6_phy_lock_mode mode;
 
+
 	delay_elements_in_sdmclk = DIV_ROUND_UP(phy->t_sdmclk, delay_element);
 	if (delay_elements_in_sdmclk > 256) {
 		delay_element *= 2;
@@ -562,6 +568,7 @@ static void sdhci_cdns_sd6_phy_dll_bypass(struct sdhci_cdns_sd6_phy *phy)
 
 static void sdhci_cdns_sd6_phy_configure_dll(struct sdhci_cdns_sd6_phy *phy)
 {
+
 	if (phy->settings.sdhc_extended_wr_mode == 0) {
 		if (sdhci_cdns_sd6_phy_lock_dll(phy) == 0)
 			return;
@@ -1267,6 +1274,92 @@ static void *sdhci_cdns_priv(struct sdhci_host *host)
 	return sdhci_pltfm_priv(pltfm_host);
 }
 
+static u16 sdhci_cdns_get_delay_element(struct sdhci_cdns_priv *priv)
+{
+	int timeout_counter = 1000;
+	u32 delay_element = 0xff;
+	u32 lock_mode = 0xff;
+	u32 locked = 0xff;
+	u32 reg_srs11 = 0;
+	u32 unlock_count = 0;
+	uint32_t reg = 0;
+	u16 dll_lock_value = 0xff;
+	u16 tmp_lock_value = 0;
+
+	// Setup the registers for 205Mhz clock at HS400 and wait for the DLL lock value
+	sdhci_cdns_sd6_write_phy_reg(priv, SDHCI_CDNS_SD6_PHY_DQS_TIMING, 0x780000);
+	sdhci_cdns_sd6_write_phy_reg(priv, SDHCI_CDNS_SD6_PHY_GATE_LPBK, 0x81a00040);
+	sdhci_cdns_sd6_write_phy_reg(priv, SDHCI_CDNS_SD6_PHY_DLL_MASTER, 0x200004);
+	sdhci_cdns_sd6_write_phy_reg(priv, SDHCI_CDNS_SD6_PHY_DLL_SLAVE, 0x404000);
+	sdhci_cdns_sd6_write_phy_reg(priv, SDHCI_CDNS_SD6_PHY_CTRL, 0x4000);
+	sdhci_cdns_sd6_write_phy_reg(priv, SDHCI_CDNS_SD6_PHY_DQ_TIMING, 0x1);
+
+	reg_srs11 = readl(priv->hrs_addr + SDHCI_CDNS_HRS11);
+	reg_srs11 |= 0x100; // set SDCFSL = 1
+	reg_srs11 &= ~0xc0; // set SDCFSH = 0
+	writel(reg_srs11, priv->hrs_addr + SDHCI_CDNS_HRS11);
+
+	writel(0xf1c00003, priv->hrs_addr + SDHCI_CDNS_HRS09);
+	writel(0x30004, priv->hrs_addr + SDHCI_CDNS_HRS02);
+	writel(0x5, priv->hrs_addr + SDHCI_CDNS_HRS06);
+
+	mdelay(1);
+
+	reg = sdhci_cdns_sd6_read_phy_reg(priv, SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0);
+	locked = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK, reg);
+	tmp_lock_value = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_VALUE, reg);
+
+	while (dll_lock_value != tmp_lock_value) {
+		locked = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK, reg);
+		lock_mode = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_MODE, reg);
+		unlock_count = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_UNLOCK_CNT, reg);
+
+		if (timeout_counter-- <= 0) {
+			// delay_element default is 8
+			return 8;
+		}
+
+		if (dll_lock_value != tmp_lock_value)
+			dll_lock_value = tmp_lock_value;
+
+		reg = sdhci_cdns_sd6_read_phy_reg(priv, SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0);
+		tmp_lock_value = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_VALUE, reg);
+	}
+
+	dll_lock_value = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_VALUE, reg);
+
+#ifdef CONFIG_MMC_SDHCI_CADENCE_DEBUG
+	locked = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK, reg);
+	lock_mode = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_MODE, reg);
+	unlock_count = FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_UNLOCK_CNT, reg);
+
+	DEBUG_DRV(">>>> %s locked: 0x%x lock_mode: 0x%x dll_lock_value: %x\n",
+		  __func__, locked, lock_mode, dll_lock_value);
+
+
+	DEBUG_DRV("SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0 0x%x value: 0x%x mode: 0x%lx locked: %ld\n",
+		 reg,
+		 dll_lock_value,
+		 FIELD_GET(SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK_MODE,
+		 reg), reg&SDHCI_CDNS_SD6_PHY_DLL_OBS_REG0_DLL_LOCK);
+
+#endif
+
+	// We are a setup for 250Mhz so the full clock period is 4000 and half-clock is 2000
+	if (lock_mode == 0) {
+		delay_element = 4000 / dll_lock_value;
+		tune_val_step = SDHCI_CDNS_TUNE_STEP;
+	} else if (lock_mode == 2) {
+		delay_element = 2000 / dll_lock_value;
+		tune_val_step = SDHCI_CDNS_TUNE_STEP/2;
+	} else {
+		// default delay_element is 8 in this case
+		delay_element = 8;
+	}
+
+	return delay_element;
+}
+
 static int sdhci_cdns_sd6_set_tune_val(struct sdhci_host *host,
 				       unsigned int val)
 {
@@ -1491,8 +1584,6 @@ static void sdhci_cdns_sd6_set_clock(struct sdhci_host *host,
 
 	phy->t_sdclk = DIV_ROUND_DOWN_ULL(1e12, clock);
 
-	pr_debug("%s %d %d\n", __func__, phy->mode, clock);
-
 	if (sdhci_cdns_sd6_phy_update_timings(host))
 		pr_debug("%s: update timings failed\n", __func__);
 
@@ -1583,6 +1674,7 @@ static int sdhci_cdns_sd6_phy_probe(struct platform_device *pdev,
 
 	ret = device_property_read_string(dev, "cdns,mode",
 					    &mode_name);
+
 	if (!ret) {
 		if (!strcmp("emmc_sdr", mode_name))
 			phy->mode = MMC_TIMING_MMC_HS;
@@ -1600,7 +1692,10 @@ static int sdhci_cdns_sd6_phy_probe(struct platform_device *pdev,
 		phy->mode = MMC_TIMING_MMC_HS;
 	}
 
-	phy->d.delay_element_org = phy->d.delay_element;
+	/* Override dts entry for now */
+
+	priv->phy = phy;
+
 	phy->d.iocell_input_delay = 650;
 	phy->d.iocell_output_delay = 1800;
 
@@ -1625,9 +1720,11 @@ static int sdhci_cdns_sd6_phy_probe(struct platform_device *pdev,
 		break;
 	}
 
-	priv->phy = phy;
-
 	sdhci_cdns_sd6_get_delay_params(dev, priv);
+
+	phy->d.delay_element = sdhci_cdns_get_delay_element(priv);
+
+	phy->d.delay_element_org = phy->d.delay_element;
 
 	sdhci_cdns_sd6_calc_phy(phy);
 	return 0;
