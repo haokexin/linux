@@ -461,16 +461,14 @@ static void init_emmc_hs400(struct sdhci_cdns_sd6_phy_timings *t, int t_sdclk)
 	};
 }
 
-static void (*init_timings[])(struct sdhci_cdns_sd6_phy_timings*, int) = {
-	&init_hs, &init_emmc_legacy, &init_emmc_sdr,
-	&init_emmc_ddr, &init_emmc_hs200, &init_emmc_hs400,
+static void (*(init_timings[]))(struct sdhci_cdns_sd6_phy_timings*, int) = {
+	&init_emmc_legacy, &init_hs, &init_emmc_sdr,
 	&init_uhs_sdr12, &init_uhs_sdr25, &init_uhs_sdr50,
-	&init_uhs_sdr104, &init_uhs_ddr50
+	&init_uhs_sdr104, &init_uhs_ddr50, &init_emmc_ddr,
+	&init_emmc_hs200, &init_emmc_hs400
 };
 
 static u32 read_dqs_cmd_delay, clk_wrdqs_delay, clk_wr_delay, read_dqs_delay;
-
-static u32 sdhci_cdns_sd6_get_mode(struct sdhci_host *host, unsigned int timing);
 
 #ifdef CONFIG_MMC_SDHCI_IO_ACCESSORS
 static u32 sdhci_cdns_sd6_readl(struct sdhci_host *host, int reg)
@@ -1476,14 +1474,11 @@ static int sdhci_cdns_sd6_phy_update_timings(struct sdhci_host *host)
 	struct sdhci_cdns_priv *priv = sdhci_cdns_priv(host);
 	struct sdhci_cdns_sd6_phy *phy = priv->phy;
 	int t_sdmclk = phy->t_sdmclk;
-	int mode;
-
-	mode = sdhci_cdns_sd6_get_mode(host, host->mmc->ios.timing);
-
-	/* initialize input */
-	init_timings[mode](&phy->t, phy->t_sdclk);
 
 	phy->mode = host->mmc->ios.timing;
+
+	init_timings[phy->mode](&phy->t, phy->t_sdclk);
+
 	phy->strobe_dat = false;
 
 	switch (phy->mode) {
@@ -1530,39 +1525,6 @@ static int sdhci_cdns_sd6_phy_update_timings(struct sdhci_host *host)
 	sdhci_cdns_sd6_phy_calc_settings(phy);
 
 	return 0;
-}
-
-static u32 sdhci_cdns_sd6_get_mode(struct sdhci_host *host,
-				   unsigned int timing)
-{
-	struct sdhci_cdns_priv *priv = sdhci_cdns_priv(host);
-	u32 mode;
-
-	switch (timing) {
-	case MMC_TIMING_MMC_HS:
-		mode = SDHCI_CDNS_HRS06_MODE_MMC_SDR;
-		break;
-	case MMC_TIMING_MMC_DDR52:
-		mode = SDHCI_CDNS_HRS06_MODE_MMC_DDR;
-		break;
-	case MMC_TIMING_MMC_HS200:
-		mode = SDHCI_CDNS_HRS06_MODE_MMC_HS200;
-		break;
-	case MMC_TIMING_MMC_HS400:
-		if (priv->enhanced_strobe)
-			mode = SDHCI_CDNS_HRS06_MODE_MMC_HS400ES;
-		else
-			mode = SDHCI_CDNS_HRS06_MODE_MMC_HS400;
-		break;
-	case MMC_TIMING_SD_HS:
-		mode = SDHCI_CDNS_HRS06_MODE_SD;
-		break;
-	default:
-		mode = SDHCI_CDNS_HRS06_MODE_MMC_SDR;
-		break;
-	}
-
-	return mode;
 }
 
 static uint32_t sdhci_cdns_sd6_irq(struct sdhci_host *host, u32 intmask)
