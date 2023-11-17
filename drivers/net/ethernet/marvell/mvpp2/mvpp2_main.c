@@ -2684,107 +2684,6 @@ static void mvpp2_txq_sent_counter_clear(void *arg)
 	}
 }
 
-/* Avoid wrong tx_done calling for netif_tx_wake at time of
- * dev-stop or linkDown processing by flag MVPP2_F_IF_TX_ON.
- * Set/clear it on each cpu.
- */
-static inline bool mvpp2_tx_stopped(struct mvpp2_port *port)
-{
-	return !(port->flags & MVPP2_F_IF_TX_ON);
-}
-
-static void mvpp2_txqs_on(void *arg)
-{
-	((struct mvpp2_port *)arg)->flags |= MVPP2_F_IF_TX_ON;
-}
-
-static void mvpp2_txqs_off(void *arg)
-{
-	((struct mvpp2_port *)arg)->flags &= ~MVPP2_F_IF_TX_ON;
-}
-
-static void mvpp2_txqs_on_tasklet_cb(unsigned long data)
-{
-	/* Activated/runs on 1 cpu only (with link_status_irq)
-	 * to update/guarantee TX_ON coherency on other cpus
-	 */
-	struct mvpp2_port *port = (struct mvpp2_port *)data;
-
-	if (mvpp2_tx_stopped(port))
-		on_each_cpu(mvpp2_txqs_off, port, 1);
-	else
-		on_each_cpu(mvpp2_txqs_on, port, 1);
-}
-
-static void mvpp2_txqs_on_tasklet_init(struct mvpp2_port *port)
-{
-	/* Init called only for port with link_status_isr */
-	tasklet_init(&port->txqs_on_tasklet,
-		     mvpp2_txqs_on_tasklet_cb,
-		     (unsigned long)port);
-}
-
-static void mvpp2_txqs_on_tasklet_kill(struct mvpp2_port *port)
-{
-	if (port->txqs_on_tasklet.func)
-		tasklet_kill(&port->txqs_on_tasklet);
-}
-
-/* Use mvpp2 APIs instead of netif_TX_ALL:
- *  netif_tx_start_all_queues -> mvpp2_tx_start_all_queues
- *  netif_tx_wake_all_queues  -> mvpp2_tx_wake_all_queues
- *  netif_tx_stop_all_queues  -> mvpp2_tx_stop_all_queues
- * But keep using per-queue APIs netif_tx_wake_queue,
- *  netif_tx_stop_queue and netif_tx_queue_stopped.
- */
-static void mvpp2_tx_start_all_queues(struct net_device *dev)
-{
-	struct mvpp2_port *port = netdev_priv(dev);
-
-	if (port->flags & MVPP22_F_IF_MUSDK)
-		return;
-
-	/* Never called from IRQ. Update all cpus directly */
-	on_each_cpu(mvpp2_txqs_on, port, 1);
-	netif_tx_start_all_queues(dev);
-}
-
-static void mvpp2_tx_wake_all_queues(struct net_device *dev)
-{
-	struct mvpp2_port *port = netdev_priv(dev);
-
-	if (port->flags & MVPP22_F_IF_MUSDK)
-		return;
-
-	if (irqs_disabled()) {
-		/* Link-status IRQ context (also ACPI).
-		 * Set for THIS cpu, update other cpus over tasklet
-		 */
-		mvpp2_txqs_on((void *)port);
-		tasklet_schedule(&port->txqs_on_tasklet);
-	} else {
-		on_each_cpu(mvpp2_txqs_on, port, 1);
-	}
-	netif_tx_wake_all_queues(dev);
-}
-
-static void mvpp2_tx_stop_all_queues(struct net_device *dev)
-{
-	struct mvpp2_port *port = netdev_priv(dev);
-
-	if (port->flags & MVPP22_F_IF_MUSDK)
-		return;
-
-	if (irqs_disabled()) {
-		/* IRQ context. Set for THIS, update other cpus over tasklet */
-		mvpp2_txqs_off((void *)port);
-		tasklet_schedule(&port->txqs_on_tasklet);
-	} else {
-		on_each_cpu(mvpp2_txqs_off, port, 1);
-	}
-	netif_tx_stop_all_queues(dev);
-}
-
 /* Set max sizes for Tx queues */
 static void mvpp2_txp_max_tx_size_set(struct mvpp2_port *port)
 {
@@ -3570,9 +3469,13 @@ static void mvpp2_isr_handle_link(struct mvpp2_port *port, bool link)
 		mvpp2_egress_enable(port);
 		mvpp2_ingress_enable(port);
 		netif_carrier_on(dev);
-		netif_tx_wake_all_queues(dev);
+
+		if (!(port->flags & MVPP22_F_IF_MUSDK))
+			netif_tx_wake_all_queues(dev);
 	} else {
-		netif_tx_stop_all_queues(dev);
+		if (!(port->flags & MVPP22_F_IF_MUSDK))
+			netif_tx_stop_all_queues(dev);
+
 		netif_carrier_off(dev);
 		mvpp2_ingress_disable(port);
 		mvpp2_egress_disable(port);
@@ -4761,11 +4664,11 @@ static void mvpp2_start_dev(struct mvpp2_port *port)
 		mvpp2_acpi_start(port);
 	}
 
-	netif_tx_start_all_queues(port->dev);
+	if (!(port->flags & MVPP22_F_IF_MUSDK))
+		netif_tx_start_all_queues(port->dev);
 
 	clear_bit(0, &port->state);
 
-	mvpp2_tx_start_all_queues(port->dev);
 }
 
 /* Set hw internals when stopping port */
@@ -4774,7 +4677,6 @@ static void mvpp2_stop_dev(struct mvpp2_port *port)
 	int i;
 
 	set_bit(0, &port->state);
-	mvpp2_tx_stop_all_queues(port->dev);
 	/* Disable interrupts on all threads */
 	mvpp2_interrupts_disable(port);
 
@@ -4979,7 +4881,6 @@ skip_musdk_parser:
 	}
 
 	if (priv->hw_version >= MVPP22 && port->port_irq) {
-		mvpp2_txqs_on_tasklet_init(port);
 		err = request_irq(port->port_irq, mvpp2_port_isr, 0,
 				  dev->name, port);
 		if (err) {
@@ -5053,7 +4954,6 @@ static int mvpp2_stop(struct net_device *dev)
 			port_pcpu->timer_scheduled = false;
 		}
 	}
-	mvpp2_txqs_on_tasklet_kill(port);
 	mvpp2_cleanup_rxqs(port);
 	mvpp2_cleanup_txqs(port);
 
@@ -5170,7 +5070,8 @@ static int mvpp2_bm_switch_buffers(struct mvpp2 *priv, bool percpu)
 		mvpp2_bm_pool_destroy(port->dev->dev.parent, priv, &priv->bm_pools[i]);
 
 	devm_kfree(port->dev->dev.parent, priv->bm_pools);
-	priv->percpu_pools = percpu;
+	/*TODO:handle or remove when merging porting changes*/
+	/* priv->percpu_pools = percpu; */
 	mvpp2_bm_init(port->dev->dev.parent, priv);
 
 	for (i = 0; i < priv->port_count; i++) {
@@ -6970,8 +6871,9 @@ static void mvpp2_mac_link_up(struct phylink_config *config,
 
 	mvpp2_egress_enable(port);
 	mvpp2_ingress_enable(port);
-	netif_tx_wake_all_queues(port->dev);
-	mvpp2_tx_wake_all_queues(port->dev);
+
+	if (!(port->flags & MVPP22_F_IF_MUSDK))
+		netif_tx_wake_all_queues(port->dev);
 }
 
 static void mvpp2_mac_link_down(struct phylink_config *config,
@@ -6994,8 +6896,8 @@ static void mvpp2_mac_link_down(struct phylink_config *config,
 		}
 	}
 
-	mvpp2_tx_stop_all_queues(port->dev);
-	netif_tx_stop_all_queues(port->dev);
+	if (!(port->flags & MVPP22_F_IF_MUSDK))
+		netif_tx_stop_all_queues(port->dev);
 	mvpp2_egress_disable(port);
 	mvpp2_ingress_disable(port);
 
