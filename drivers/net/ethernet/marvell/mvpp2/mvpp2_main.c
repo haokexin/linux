@@ -3420,9 +3420,13 @@ static void mvpp2_isr_handle_link(struct mvpp2_port *port, bool link)
 		mvpp2_egress_enable(port);
 		mvpp2_ingress_enable(port);
 		netif_carrier_on(dev);
-		netif_tx_wake_all_queues(dev);
+
+		if (!(port->flags & MVPP22_F_IF_MUSDK))
+			netif_tx_wake_all_queues(dev);
 	} else {
-		netif_tx_stop_all_queues(dev);
+		if (!(port->flags & MVPP22_F_IF_MUSDK))
+			netif_tx_stop_all_queues(dev);
+
 		netif_carrier_off(dev);
 		mvpp2_ingress_disable(port);
 		mvpp2_egress_disable(port);
@@ -4611,7 +4615,8 @@ static void mvpp2_start_dev(struct mvpp2_port *port)
 		mvpp2_acpi_start(port);
 	}
 
-	netif_tx_start_all_queues(port->dev);
+	if (!(port->flags & MVPP22_F_IF_MUSDK))
+		netif_tx_start_all_queues(port->dev);
 
 	clear_bit(0, &port->state);
 }
@@ -5010,7 +5015,8 @@ static int mvpp2_bm_switch_buffers(struct mvpp2 *priv, bool percpu)
 		mvpp2_bm_pool_destroy(port->dev->dev.parent, priv, &priv->bm_pools[i]);
 
 	devm_kfree(port->dev->dev.parent, priv->bm_pools);
-	priv->percpu_pools = percpu;
+	/*TODO:handle or remove when merging porting changes*/
+	/* priv->percpu_pools = percpu; */
 	mvpp2_bm_init(port->dev->dev.parent, priv);
 
 	for (i = 0; i < priv->port_count; i++) {
@@ -6596,7 +6602,9 @@ static void mvpp2_mac_link_up(struct phylink_config *config,
 
 	mvpp2_egress_enable(port);
 	mvpp2_ingress_enable(port);
-	netif_tx_wake_all_queues(port->dev);
+
+	if (!(port->flags & MVPP22_F_IF_MUSDK))
+		netif_tx_wake_all_queues(port->dev);
 }
 
 static void mvpp2_mac_link_down(struct phylink_config *config,
@@ -6619,7 +6627,8 @@ static void mvpp2_mac_link_down(struct phylink_config *config,
 		}
 	}
 
-	netif_tx_stop_all_queues(port->dev);
+	if (!(port->flags & MVPP22_F_IF_MUSDK))
+		netif_tx_stop_all_queues(port->dev);
 	mvpp2_egress_disable(port);
 	mvpp2_ingress_disable(port);
 
