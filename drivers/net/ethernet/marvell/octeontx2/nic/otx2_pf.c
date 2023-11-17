@@ -2171,14 +2171,20 @@ static void otx2_set_rx_mode(struct net_device *netdev)
 	queue_work(pf->otx2_wq, &pf->rx_mode_work);
 }
 
-static bool is_anyvf_trusted(struct otx2_nic *pf)
+static bool otx2_promisc_use_mce_list(struct otx2_nic *pfvf)
 {
 	int vf;
 
-	for (vf = 0; vf <= pci_num_vf(pf->pdev); vf++)
-		if (pf->vf_configs[vf].trusted)
+	/* The AF driver will determine whether to allow the VF netdev or not */
+	if (is_otx2_vf(pfvf->pcifunc))
+		return true;
+
+	/* check if there are any trusted VFs associated with the PF netdev */
+	for (vf = 0; vf < pci_num_vf(pfvf->pdev); vf++)
+		if (pfvf->vf_configs[vf].trusted)
 			return true;
 	return false;
+
 }
 
 static void otx2_do_set_rx_mode(struct otx2_nic *pf)
@@ -2213,8 +2219,7 @@ static void otx2_do_set_rx_mode(struct otx2_nic *pf)
 	if (netdev->flags & (IFF_ALLMULTI | IFF_MULTICAST))
 		req->mode |= NIX_RX_MODE_ALLMULTI;
 
-	/* Install mce list if PF has a trusted VF */
-	if (is_anyvf_trusted(pf))
+	if (otx2_promisc_use_mce_list(pf))
 		req->mode |= NIX_RX_MODE_USE_MCE;
 
 	otx2_sync_mbox_msg(&pf->mbox);
