@@ -1138,7 +1138,9 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		}
+#if IS_ENABLED(CONFIG_SPI_CADENCE_MRVL_XSPI)
 		cdns_xspi->cs_defined |= BIT(cs);
+#endif
 	}
 
 	return 0;
