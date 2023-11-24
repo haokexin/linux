@@ -289,7 +289,7 @@ static int tidss_probe(struct platform_device *pdev)
 	}
 
 	/* Remove possible early fb before setting up the fbdev */
-	ret = drm_aperture_remove_framebuffers(false, &tidss_driver);
+	ret = drm_aperture_remove_framebuffers(&tidss_driver);
 	if (ret)
 		goto err_drm_dev_unreg;
 
@@ -360,6 +360,7 @@ static const struct of_device_id tidss_of_table[] = {
 	{ .compatible = "ti,am625-dss", .data = &dispc_am625_feats, },
 	{ .compatible = "ti,am62a7-dss", .data = &dispc_am62a7_feats, },
 	{ .compatible = "ti,am62p51-dss", .data = &dispc_am62p51_feats, },
+	{ .compatible = "ti,am62p52-dss", .data = &dispc_am62p52_feats, },
 	{ .compatible = "ti,am65x-dss", .data = &dispc_am65x_feats, },
 	{ .compatible = "ti,j721e-dss", .data = &dispc_j721e_feats, },
 	{ }
