@@ -82,6 +82,7 @@ static int bcm2835_rng_read(struct hwrng *rng, void *buf, size_t max,
 		usleep_range((u32)RNG_US_PER_WORD,
 			     (u32)RNG_US_PER_WORD * RNG_FIFO_WORDS);
 		num_words = rng_readl(priv, RNG_STATUS) >> 24;
+		hwrng_yield(rng);
 	}
 
 	num_words = min(num_words, max_words);
