@@ -37,11 +37,15 @@
 
 &gmac0 {
 	/* Before enabling SJA1110, set it to be "disabled" */
-	status = "disabled";
+	status = "okay";
 	phy-mode = "rgmii";
 	phy-handle = <&gmac0_mdio_c_phy19>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&gmac0rgmiic_pins>, <&gmac0mdioc_pins>;
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
 };
 
 &gmac0_mdio {
