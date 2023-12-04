@@ -90,8 +90,8 @@ int otx2_update_sq_stats(struct otx2_nic *pfvf, int qidx)
 	if (!pfvf->qset.sq)
 		return 0;
 
-	if (qidx >= pfvf->hw.tot_tx_queues) {
-		if (!test_bit(qidx - pfvf->hw.tot_tx_queues, pfvf->qos.qos_sq_bmap))
+	if (qidx >= pfvf->hw.non_qos_queues) {
+		if (!test_bit(qidx - pfvf->hw.non_qos_queues, pfvf->qos.qos_sq_bmap))
 			return 0;
 	}
 
@@ -563,8 +563,8 @@ static int otx2_alloc_pool_buf(struct otx2_nic *pfvf, struct otx2_pool *pool,
 	return 0;
 }
 
-int __otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
-		      dma_addr_t *dma)
+static int __otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
+			     dma_addr_t *dma)
 {
 	u8 *buf;
 
@@ -585,8 +585,8 @@ int __otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
 	return 0;
 }
 
-static int otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
-			   dma_addr_t *dma)
+int otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
+		    dma_addr_t *dma)
 {
 	int ret;
 
@@ -885,11 +885,11 @@ void otx2_sqb_flush(struct otx2_nic *pfvf)
 	u64 incr, *ptr, val;
 
 	ptr = (u64 *)otx2_get_regaddr(pfvf, NIX_LF_SQ_OP_STATUS);
-	for (qidx = 0; qidx < pfvf->hw.tot_tx_queues + pfvf->hw.tc_tx_queues;
-	     qidx++) {
+	for (qidx = 0; qidx < otx2_get_total_tx_queues(pfvf); qidx++) {
 		sq = &pfvf->qset.sq[qidx];
 		if (!sq->sqb_ptrs)
 			continue;
+
 		incr = (u64)qidx << 32;
 		val = otx2_atomic64_add(incr, ptr);
 		sqe_head = (val >> 20) & 0x3F;
@@ -1181,7 +1181,7 @@ int otx2_config_nix_queues(struct otx2_nic *pfvf)
 	}
 
 	/* Initialize TX queues */
-	for (qidx = 0; qidx < pfvf->hw.tot_tx_queues; qidx++) {
+	for (qidx = 0; qidx < pfvf->hw.non_qos_queues; qidx++) {
 		u16 sqb_aura = otx2_get_pool_idx(pfvf, AURA_NIX_SQ, qidx);
 
 		err = otx2_sq_init(pfvf, qidx, sqb_aura);
@@ -1228,7 +1228,7 @@ int otx2_config_nix(struct otx2_nic *pfvf)
 
 	/* Set RQ/SQ/CQ counts */
 	nixlf->rq_cnt = pfvf->hw.rx_queues;
-	nixlf->sq_cnt = pfvf->hw.tot_tx_queues + pfvf->hw.tc_tx_queues;
+	nixlf->sq_cnt = otx2_get_total_tx_queues(pfvf);
 	nixlf->cq_cnt = pfvf->qset.cq_cnt;
 	nixlf->rss_sz = MAX_RSS_INDIR_TBL_SIZE;
 	nixlf->rss_grps = MAX_RSS_GROUPS;
@@ -1266,7 +1266,7 @@ void otx2_sq_free_sqbs(struct otx2_nic *pfvf)
 	int sqb, qidx;
 	u64 iova, pa;
 
-	for (qidx = 0; qidx < hw->tot_tx_queues + hw->tc_tx_queues; qidx++) {
+	for (qidx = 0; qidx < otx2_get_total_tx_queues(pfvf); qidx++) {
 		sq = &qset->sq[qidx];
 		if (!sq->sqb_ptrs)
 			continue;
@@ -1521,7 +1521,7 @@ int otx2_sq_aura_pool_init(struct otx2_nic *pfvf)
 	stack_pages =
 		(num_sqbs + hw->stack_pg_ptrs - 1) / hw->stack_pg_ptrs;
 
-	for (qidx = 0; qidx < hw->tot_tx_queues; qidx++) {
+	for (qidx = 0; qidx < hw->non_qos_queues; qidx++) {
 		pool_id = otx2_get_pool_idx(pfvf, AURA_NIX_SQ, qidx);
 		/* Initialize aura context */
 		err = otx2_aura_init(pfvf, pool_id, pool_id, num_sqbs);
@@ -1541,7 +1541,7 @@ int otx2_sq_aura_pool_init(struct otx2_nic *pfvf)
 		goto fail;
 
 	/* Allocate pointers and free them to aura/pool */
-	for (qidx = 0; qidx < hw->tot_tx_queues; qidx++) {
+	for (qidx = 0; qidx < hw->non_qos_queues; qidx++) {
 		pool_id = otx2_get_pool_idx(pfvf, AURA_NIX_SQ, qidx);
 		pool = &pfvf->qset.pool[pool_id];
 

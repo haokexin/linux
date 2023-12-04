@@ -90,7 +90,7 @@ static int otx2_qos_sq_aura_pool_init(struct otx2_nic *pfvf, int qidx)
 	}
 
 	for (ptr = 0; ptr < num_sqbs; ptr++) {
-		err = __otx2_alloc_rbuf(pfvf, pool, &bufptr);
+		err = otx2_alloc_rbuf(pfvf, pool, &bufptr);
 		if (err)
 			goto sqb_free;
 		pfvf->hw_ops->aura_freeptr(pfvf, pool_id, bufptr);
@@ -249,7 +249,7 @@ int otx2_qos_enable_sq(struct otx2_nic *pfvf, int qidx)
 	if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
 		return -EPERM;
 
-	sq_idx = hw->tot_tx_queues + qidx;
+	sq_idx = hw->non_qos_queues + qidx;
 
 	mutex_lock(&pfvf->mbox.lock);
 	err = otx2_qos_sq_aura_pool_init(pfvf, sq_idx);
@@ -273,7 +273,7 @@ void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx)
 	struct otx2_cq_queue *cq;
 	int pool_id, sq_idx;
 
-	sq_idx = hw->tot_tx_queues + qidx;
+	sq_idx = hw->non_qos_queues + qidx;
 
 	/* If the DOWN flag is set SQs are already freed */
 	if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
@@ -283,8 +283,8 @@ void otx2_qos_disable_sq(struct otx2_nic *pfvf, int qidx)
 	if (!sq->sqb_ptrs)
 		return;
 
-	if (sq_idx < hw->tot_tx_queues ||
-	    sq_idx >= hw->tot_tx_queues + hw->tc_tx_queues) {
+	if (sq_idx < hw->non_qos_queues ||
+	    sq_idx >= otx2_get_total_tx_queues(pfvf)) {
 		netdev_err(pfvf->netdev, "Send Queue is not a QoS queue\n");
 		return;
 	}

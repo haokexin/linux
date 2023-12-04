@@ -1157,6 +1157,7 @@ static int rvu_dbg_npa_ctx_display(struct seq_file *m, void *unused, int ctype)
 	for (aura = id; aura < max_id; aura++) {
 		aq_req.aura_id = aura;
 
+		/* Skip if queue is uninitialized */
 		if (ctype == NPA_AQ_CTYPE_POOL && !test_bit(aura, pfvf->pool_bmap))
 			continue;
 
