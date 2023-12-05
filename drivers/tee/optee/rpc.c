@@ -13,6 +13,7 @@
 #include "optee_private.h"
 #include "optee_smc.h"
 #include "optee_rpc_cmd.h"
+#include <linux/kmemleak.h>
 
 struct wq_entry {
 	struct list_head link;
@@ -516,6 +517,7 @@ void optee_handle_rpc(struct tee_context *ctx, struct optee_rpc_param *param,
 			param->a4 = 0;
 			param->a5 = 0;
 		}
+		kmemleak_not_leak(shm);
 		break;
 	case OPTEE_SMC_RPC_FUNC_FREE:
 		shm = reg_pair_to_ptr(param->a1, param->a2);
