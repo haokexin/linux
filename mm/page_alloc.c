@@ -6423,8 +6423,7 @@ static void __build_all_zonelists(void *data)
 	 * to prevent any IRQ handler from calling into the page allocator
 	 * (e.g. GFP_ATOMIC) that could hit zonelist_iter_begin and livelock.
 	 */
-	local_irq_save(flags);
-	write_seqlock(&zonelist_update_seq);
+	write_seqlock_irqsave(&zonelist_update_seq, flags);
 
 #ifdef CONFIG_NUMA
 	memset(node_load, 0, sizeof(node_load));
@@ -6457,8 +6456,7 @@ static void __build_all_zonelists(void *data)
 #endif
 	}
 
-	write_sequnlock(&zonelist_update_seq);
-	local_irq_restore(flags);
+	write_sequnlock_irqrestore(&zonelist_update_seq, flags);
 }
 
 static noinline void __init
