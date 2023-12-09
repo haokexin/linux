@@ -138,7 +138,7 @@ EXPORT_SYMBOL(__skb_flow_get_ports);
 
 static void __skb_flow_dissect_ah(const struct sk_buff *skb,
 				  struct flow_dissector *flow_dissector,
-				  void *target_container, void *data,
+				  void *target_container, const void *data,
 				  int nhoff, int hlen)
 {
 	struct flow_dissector_key_ipsec *key_ah;
@@ -160,7 +160,7 @@ static void __skb_flow_dissect_ah(const struct sk_buff *skb,
 
 static void __skb_flow_dissect_esp(const struct sk_buff *skb,
 				   struct flow_dissector *flow_dissector,
-				   void *target_container, void *data,
+				   void *target_container, const void *data,
 				   int nhoff, int hlen)
 {
 	struct flow_dissector_key_ipsec *key_esp;
