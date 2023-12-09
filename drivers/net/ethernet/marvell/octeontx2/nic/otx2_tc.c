@@ -888,11 +888,17 @@ static int otx2_del_mcam_flow_entry(struct otx2_nic *nic, u16 entry, u16 *cntr_v
 	if (cntr_val) {
 		rsp = (struct npc_delete_flow_rsp *)otx2_mbox_get_rsp(&nic->mbox.mbox,
 								      0, &req->hdr);
+		if (IS_ERR(rsp)) {
+			netdev_err(nic->netdev, "Failed to get MCAM delete response for entry %d\n",
+				   entry);
+			mutex_unlock(&nic->mbox.lock);
+			return -EFAULT;
+		}
+
 		*cntr_val = rsp->cntr_val;
 	}
 
 	mutex_unlock(&nic->mbox.lock);
-
 	return 0;
 }
 
@@ -903,7 +909,7 @@ static int otx2_tc_update_mcam_table_del_req(struct otx2_nic *nic,
 	struct list_head *pos, *n;
 	struct otx2_tc_flow *tmp;
 	int i = 0, index = 0;
-	u16 cntr_val;
+	u16 cntr_val = 0;
 
 	/* Find and delete the entry from the list and re-install
 	 * all the entries from beginning to the index of the
@@ -926,6 +932,7 @@ static int otx2_tc_update_mcam_table_del_req(struct otx2_nic *nic,
 	list_for_each_safe(pos, n, &flow_cfg->flow_list_tc) {
 		if (i == index)
 			break;
+
 		tmp = list_entry(pos, struct otx2_tc_flow, list);
 		otx2_add_mcam_flow_entry(nic, &tmp->req);
 		i++;
@@ -941,7 +948,7 @@ static int otx2_tc_update_mcam_table_add_req(struct otx2_nic *nic,
 	int mcam_idx = flow_cfg->max_flows - flow_cfg->nr_flows - 1;
 	struct otx2_tc_flow *tmp;
 	int list_idx, i;
-	u16 cntr_val;
+	u16 cntr_val = 0;
 
 	/* Find the index of the entry(list_idx) whose priority
 	 * is greater than the new entry and re-install all
@@ -1021,7 +1028,6 @@ free_mcam_flow:
 	kfree_rcu(flow_node, rcu);
 
 	flow_cfg->nr_flows--;
-
 	return 0;
 }
 
@@ -1093,11 +1099,11 @@ static int otx2_tc_add_flow(struct otx2_nic *nic,
 		mutex_unlock(&nic->mbox.lock);
 		goto free_leaf;
 	}
+
 	mutex_unlock(&nic->mbox.lock);
-
 	memcpy(&new_node->req, req, sizeof(struct npc_install_flow_req));
-	flow_cfg->nr_flows++;
 
+	flow_cfg->nr_flows++;
 	return 0;
 
 free_leaf:
@@ -1288,7 +1294,7 @@ static int otx2_setup_tc_block_ingress_cb(enum tc_setup_type type,
 	if (!tc_cls_can_offload_and_chain0(nic->netdev, type_data))
 		return -EOPNOTSUPP;
 
-	ntuple = !!(nic->netdev->features & NETIF_F_NTUPLE);
+	ntuple = nic->netdev->features & NETIF_F_NTUPLE;
 	switch (type) {
 	case TC_SETUP_CLSFLOWER:
 		if (ntuple) {
@@ -1402,8 +1408,8 @@ void otx2_shutdown_tc(struct otx2_nic *nic)
 }
 EXPORT_SYMBOL(otx2_shutdown_tc);
 
-void otx2_tc_config_ingress_rule(struct otx2_nic *nic,
-				 struct otx2_tc_flow *node)
+static void otx2_tc_config_ingress_rule(struct otx2_nic *nic,
+					struct otx2_tc_flow *node)
 {
 	struct npc_install_flow_req *req;
 
