@@ -74,6 +74,17 @@ config MARVELL_RETIMER_MGMT
 	  Currently, works only with cn10k platforms
 	  If unsure, say N here.
 
+config MARVELL_PORTM_BOOT_CFG
+	bool "Marvell PORTM boot mode configuration interface"
+	depends on HAVE_ARM_SMCCC
+	select MARVELL_UB_GEN_DRIVER
+	default n
+	help
+	  Enable sysfs interface for PORTM mode configuration
+	  that will be effective from the next boot.
+	  Currently, only cn10k platforms are supported.
+	  If unsure, say N here.
+
 config MARVELL_CN10K_RPRAM
 	tristate "Octeontx RPRAM configuration interface"
 	depends on HAVE_ARM_SMCCC
