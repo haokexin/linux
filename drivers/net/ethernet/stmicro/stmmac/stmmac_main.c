@@ -3840,7 +3840,8 @@ static int stmmac_open(struct net_device *dev)
 	stmmac_enable_all_dma_irq(priv);
 
 	/* Indicate that the MAC is responsible for PHY PM */
-	dev->phydev->mac_managed_pm = true;
+	if (dev->phydev)
+		dev->phydev->mac_managed_pm = true;
 
 	return 0;
 
