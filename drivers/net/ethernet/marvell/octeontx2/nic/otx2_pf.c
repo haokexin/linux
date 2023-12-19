@@ -3376,12 +3376,12 @@ static void otx2_remove(struct pci_dev *pdev)
 
 	otx2_unregister_dl(pf);
 	unregister_netdev(netdev);
-	otx2_sriov_disable(pf->pdev);
+	otx2_ptp_destroy(pf);
 	otx2_sriov_vfcfg_cleanup(pf);
+	otx2_sriov_disable(pf->pdev);
 	if (pf->otx2_wq)
 		destroy_workqueue(pf->otx2_wq);
 
-	otx2_ptp_destroy(pf);
 	otx2_mcam_flow_del(pf);
 	otx2_shutdown_tc(pf);
 	otx2_detach_resources(&pf->mbox);
