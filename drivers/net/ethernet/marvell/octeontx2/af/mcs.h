@@ -149,7 +149,7 @@ struct mcs {
 	u16			num_vec;
 	void			*rvu;
 	u16			*tx_sa_active;
-	u8                      bypass;
+	bool                      bypass;
 };
 
 struct mcs_ops {

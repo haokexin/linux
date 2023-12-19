@@ -410,7 +410,7 @@ struct nix_hw {
 	struct nix_ipolicer *ipolicer;
 	struct nix_bp bp;
 	u64    *tx_credits;
-	u64 cc_mcs_cnt;
+	u8	cc_mcs_cnt;
 };
 
 /* RVU block's capabilities or functionality,

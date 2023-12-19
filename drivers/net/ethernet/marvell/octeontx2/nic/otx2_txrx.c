@@ -542,8 +542,10 @@ static void otx2_adjust_adaptive_coalese(struct otx2_nic *pfvf, struct otx2_cq_p
 	tx_bytes = OTX2_GET_TX_STATS(TX_OCTS);
 	tx_frames = OTX2_GET_TX_STATS(TX_UCAST);
 
-	dim_update_sample(pfvf->napi_events, rx_frames + tx_frames,
-			  rx_bytes + tx_bytes, &dim_sample);
+	dim_update_sample(pfvf->napi_events,
+			  rx_frames + tx_frames,
+			  rx_bytes + tx_bytes,
+			  &dim_sample);
 	net_dim(&cq_poll->dim, dim_sample);
 }
 

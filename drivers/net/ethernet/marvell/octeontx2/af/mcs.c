@@ -1406,7 +1406,7 @@ static int mcs_x2p_calibration(struct mcs *mcs)
 	return err;
 }
 
-static void mcs_set_external_bypass(struct mcs *mcs, u8 bypass)
+static void mcs_set_external_bypass(struct mcs *mcs, bool bypass)
 {
 	u64 val;
 
