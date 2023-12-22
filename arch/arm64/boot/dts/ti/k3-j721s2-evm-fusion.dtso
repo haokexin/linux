@@ -84,24 +84,32 @@
 	};
 };
 
-&csi0_port0 {
-	status = "okay";
+&cdns_csi2rx0 {
+	ports {
+		port@0 {
+			status = "okay";
 
-	csi2_phy0: endpoint {
-		remote-endpoint = <&ds90ub960_0_csi_out>;
-		clock-lanes = <0>;
-		data-lanes = <1 2 3 4>;
-		link-frequencies = /bits/ 64 <800000000>;
+			csi2_phy0: endpoint {
+				remote-endpoint = <&ds90ub960_0_csi_out>;
+				clock-lanes = <0>;
+				data-lanes = <1 2 3 4>;
+				link-frequencies = /bits/ 64 <800000000>;
+			};
+		};
 	};
 };
 
-&csi1_port0 {
-	status = "okay";
+&cdns_csi2rx1 {
+	ports {
+		port@0 {
+			status = "okay";
 
-	csi2_phy1: endpoint {
-		remote-endpoint = <&ds90ub960_1_csi_out>;
-		clock-lanes = <0>;
-		data-lanes = <1 2 3 4>;
-		link-frequencies = /bits/ 64 <800000000>;
+			csi2_phy1: endpoint {
+				remote-endpoint = <&ds90ub960_1_csi_out>;
+				clock-lanes = <0>;
+				data-lanes = <1 2 3 4>;
+				link-frequencies = /bits/ 64 <800000000>;
+			};
+		};
 	};
 };
