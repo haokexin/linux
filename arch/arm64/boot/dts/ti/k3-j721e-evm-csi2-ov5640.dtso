@@ -40,13 +40,17 @@
 	};
 };
 
-&csi0_port0 {
-	status = "okay";
+&cdns_csi2rx0 {
+	ports {
+		port@0 {
+			status = "okay";
 
-	csi2rx0_in_sensor: endpoint {
-		remote-endpoint = <&csi2_cam0>;
-		bus-type = <4>; /* CSI2 DPHY */
-		clock-lanes = <0>;
-		data-lanes = <1 2>;
+			csi2rx0_in_sensor: endpoint {
+				remote-endpoint = <&csi2_cam0>;
+				bus-type = <4>; /* CSI2 DPHY */
+				clock-lanes = <0>;
+				data-lanes = <1 2>;
+			};
+		};
 	};
 };
