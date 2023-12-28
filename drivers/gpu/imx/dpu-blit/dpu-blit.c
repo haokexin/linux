@@ -59,7 +59,7 @@ static int dpu_cs_alloc_command_buffer(struct dpu_bliteng *dpu_be)
 	/* command buffer need 32 bit address */
 	dpu_be->buffer_addr_virt =
 		alloc_pages_exact(COMMAND_BUFFER_SIZE,
-			GFP_KERNEL | GFP_DMA | GFP_DMA32 | __GFP_ZERO);
+			GFP_KERNEL | GFP_DMA | __GFP_ZERO);
 	if (!dpu_be->buffer_addr_virt) {
 		dev_err(dpu_be->dev, "memory alloc failed for dpu command buffer\n");
 		return -ENOMEM;
