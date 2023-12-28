@@ -2104,9 +2104,6 @@ static int dpaa2_switch_port_attr_set_event(struct net_device *netdev,
 	return notifier_from_errno(err);
 }
 
-static struct notifier_block dpaa2_switch_port_switchdev_nb;
-static struct notifier_block dpaa2_switch_port_switchdev_blocking_nb;
-
 static struct net_device *dpaa2_switch_port_to_bridge_port(struct ethsw_port_priv *port_priv)
 {
 	if (!port_priv->fdb->bridge_dev)
@@ -2167,9 +2164,7 @@ static int dpaa2_switch_port_bridge_join(struct net_device *netdev,
 
 	brport_dev = dpaa2_switch_port_to_bridge_port(port_priv);
 	err = switchdev_bridge_port_offload(brport_dev, netdev, port_priv,
-					    &dpaa2_switch_port_switchdev_nb,
-					    &dpaa2_switch_port_switchdev_blocking_nb,
-					    false, extack);
+					    NULL, NULL, false, extack);
 	if (err)
 		goto err_switchdev_offload;
 
@@ -2208,9 +2203,7 @@ static void dpaa2_switch_port_pre_bridge_leave(struct net_device *netdev)
 
 	brport_dev = dpaa2_switch_port_to_bridge_port(port_priv);
 
-	switchdev_bridge_port_unoffload(brport_dev, port_priv,
-					&dpaa2_switch_port_switchdev_nb,
-					&dpaa2_switch_port_switchdev_blocking_nb);
+	switchdev_bridge_port_unoffload(brport_dev, port_priv, NULL, NULL);
 }
 
 static int dpaa2_switch_port_bridge_leave(struct net_device *netdev)
