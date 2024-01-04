@@ -15,6 +15,13 @@
 
 #include <asm/mpam.h>
 
+/* Flags for acpi_mpam_msc_node .*_interrupt_flags */
+#define ACPI_MPAM_MSC_IRQ_MODE_EDGE                    1
+#define ACPI_MPAM_MSC_IRQ_TYPE_MASK                    (3<<1)
+#define ACPI_MPAM_MSC_IRQ_TYPE_WIRED                   0
+#define ACPI_MPAM_MSC_IRQ_AFFINITY_PROCESSOR_CONTAINER (1<<3)
+#define ACPI_MPAM_MSC_IRQ_AFFINITY_VALID               (1<<4)
+
 static bool frob_irq(struct platform_device *pdev, int intid, u32 flags,
 		     int *irq, u32 processor_container_uid)
 {
@@ -54,7 +61,7 @@ static bool frob_irq(struct platform_device *pdev, int intid, u32 flags,
 }
 
 static void acpi_mpam_parse_irqs(struct platform_device *pdev,
-				 struct acpi_table_mpam_msc *tbl_msc,
+				 struct acpi_mpam_msc_node  *tbl_msc,
 				 struct resource *res, int *res_idx)
 {
 	u32 flags, aff = ~0;
@@ -90,14 +97,14 @@ static void acpi_mpam_parse_irqs(struct platform_device *pdev,
 }
 
 static int acpi_mpam_parse_resource(struct mpam_msc *msc,
-				    struct acpi_table_mpam_msc_res *res)
+				    struct acpi_mpam_resource_node *res)
 {
 	u32 cache_id;
 	int level;
 
 	switch (res->locator_type) {
 	case ACPI_MPAM_LOCATION_TYPE_PROCESSOR_CACHE:
-		cache_id = res->locator1;
+		cache_id = res->locator.cache_locator.cache_reference;
 		level = find_acpi_cache_level_from_id(cache_id);
 		if (level < 0) {
 			pr_err_once("Bad level for cache with id %u\n", cache_id);
@@ -107,7 +114,7 @@ static int acpi_mpam_parse_resource(struct mpam_msc *msc,
 				       level, cache_id);
 	case ACPI_MPAM_LOCATION_TYPE_MEMORY:
 		return mpam_ris_create(msc, res->ris_index, MPAM_CLASS_MEMORY,
-				       255, res->locator1);
+				       255, res->locator.memory_locator.proximity_domain);
 	default:
 		/* These get discovered later and treated as unknown */
 		return 0;
@@ -115,12 +122,14 @@ static int acpi_mpam_parse_resource(struct mpam_msc *msc,
 }
 
 int acpi_mpam_parse_resources(struct mpam_msc *msc,
-			      struct acpi_table_mpam_msc *tbl_msc)
+			      struct acpi_mpam_msc_node  *tbl_msc)
 {
 	int i, err;
+	struct acpi_mpam_resource_node *resources;
 
-	for (i = 0; i < tbl_msc->num_mpam_resources; i++) {
-		err = acpi_mpam_parse_resource(msc, &tbl_msc->resources[i]);
+	resources = (struct acpi_mpam_resource_node *)(tbl_msc + 1);
+	for (i = 0; i < tbl_msc->num_resouce_nodes; i++) {
+		err = acpi_mpam_parse_resource(msc, &resources[i]);
 		if (err)
 			return err;
 	}
@@ -128,7 +137,7 @@ int acpi_mpam_parse_resources(struct mpam_msc *msc,
 	return 0;
 }
 
-static bool __init parse_msc_pm_link(struct acpi_table_mpam_msc *tbl_msc,
+static bool __init parse_msc_pm_link(struct acpi_mpam_msc_node  *tbl_msc,
 				     struct platform_device *pdev,
 				     u32 *acpi_id)
 {
@@ -138,14 +147,16 @@ static bool __init parse_msc_pm_link(struct acpi_table_mpam_msc *tbl_msc,
 	int err;
 
 	memset(&hid, 0, sizeof(hid));
-	memcpy(hid, &tbl_msc->pm_link_hid, sizeof(tbl_msc->pm_link_hid));
+	memcpy(hid, &tbl_msc->hardware_id_linked_device,
+		sizeof(tbl_msc->hardware_id_linked_device));
 
 	if (!strcmp(hid, ACPI_PROCESSOR_CONTAINER_HID)) {
-		*acpi_id = tbl_msc->pm_link_uid;
+		*acpi_id = tbl_msc->instance_id_linked_device;
 		acpi_id_valid = true;
 	}
 
-	err = snprintf(uid, sizeof(uid), "%u", tbl_msc->pm_link_uid);
+	err = snprintf(uid, sizeof(uid), "%u",
+			tbl_msc->instance_id_linked_device);
 	if (err < 0 || err >= sizeof(uid))
 		return acpi_id_valid;
 
@@ -157,7 +168,7 @@ static bool __init parse_msc_pm_link(struct acpi_table_mpam_msc *tbl_msc,
 	return acpi_id_valid;
 }
 
-static int decode_interface_type(struct acpi_table_mpam_msc *tbl_msc,
+static int decode_interface_type(struct acpi_mpam_msc_node *tbl_msc,
 				 enum mpam_msc_iface *iface)
 {
 	switch (tbl_msc->interface_type) {
@@ -176,7 +187,7 @@ static int __init _parse_table(struct acpi_table_header *table)
 {
 	char *table_end, *table_offset = (char *)(table + 1);
 	struct property_entry props[4]; /* needs a sentinel */
-	struct acpi_table_mpam_msc *tbl_msc;
+	struct acpi_mpam_msc_node *tbl_msc;
 	int next_res, next_prop, err = 0;
 	struct acpi_device *companion;
 	struct platform_device *pdev;
@@ -188,7 +199,7 @@ static int __init _parse_table(struct acpi_table_header *table)
 	table_end = (char *)table + table->length;
 
 	while (table_offset < table_end) {
-		tbl_msc = (struct acpi_table_mpam_msc *)table_offset;
+		tbl_msc = (struct acpi_mpam_msc_node  *)table_offset;
 		table_offset += tbl_msc->length;
 
 		/*
@@ -316,10 +327,10 @@ static int __init acpi_mpam_parse(void)
 static int _count_msc(struct acpi_table_header *table)
 {
 	char *table_end, *table_offset = (char *)(table + 1);
-	struct acpi_table_mpam_msc *tbl_msc;
+	struct acpi_mpam_msc_node *tbl_msc;
 	int ret = 0;
 
-	tbl_msc = (struct acpi_table_mpam_msc *)table_offset;
+	tbl_msc = (struct acpi_mpam_msc_node *)table_offset;
 	table_end = (char *)table + table->length;
 
 	while (table_offset < table_end) {
@@ -329,7 +340,7 @@ static int _count_msc(struct acpi_table_header *table)
 		ret++;
 
 		table_offset += tbl_msc->length;
-		tbl_msc = (struct acpi_table_mpam_msc *)table_offset;
+		tbl_msc = (struct acpi_mpam_msc_node  *)table_offset;
 	}
 
 	return ret;
