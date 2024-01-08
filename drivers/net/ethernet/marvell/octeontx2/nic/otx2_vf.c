@@ -737,7 +737,6 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_shutdown_tc;
 #endif
-	otx2_qos_sq_setup(vf, qos_txqs);
 	otx2_qos_init(vf, qos_txqs);
 
 	return 0;
