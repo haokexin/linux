@@ -3172,7 +3172,6 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_pf_sriov_init;
 #endif
 
-	otx2_qos_sq_setup(pf, qos_txqs);
 	otx2_qos_init(pf, qos_txqs);
 
 	return 0;

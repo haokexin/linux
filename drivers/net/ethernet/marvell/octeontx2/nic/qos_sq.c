@@ -16,14 +16,6 @@
 
 #define OTX2_QOS_MAX_LEAF_NODES 16
 
-void otx2_qos_sq_setup(struct otx2_nic *pfvf, int qos_txqs)
-{
-	struct otx2_hw *hw = &pfvf->hw;
-
-	hw->tc_tx_queues = qos_txqs;
-}
-EXPORT_SYMBOL(otx2_qos_sq_setup);
-
 static void otx2_qos_aura_pool_free(struct otx2_nic *pfvf, int pool_id)
 {
 	struct otx2_pool *pool;
