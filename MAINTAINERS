@@ -7559,6 +7559,11 @@ L:	linux-edac@vger.kernel.org
 S:	Maintained
 F:	drivers/edac/mpc85xx_edac.[ch]
 
+EDAC-OCTEONTX
+M:	Vasyl Gomonovych <vgomonovych@marvell.com>
+S:	Maintained
+F:	drivers/edac/octeontx_edac.c
+
 EDAC-NPCM
 M:	Marvin Lin <kflin@nuvoton.com>
 M:	Stanley Chu <yschu@nuvoton.com>
