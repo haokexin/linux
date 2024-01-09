@@ -1145,8 +1145,6 @@ static int mpam_restore_mbwu_state(void *_ris)
 	struct mon_read mwbu_arg;
 	struct mpam_msc_ris *ris = _ris;
 
-	lockdep_assert_held(&ris->msc->lock);
-
 	for (i = 0; i < ris->props.num_mbwu_mon; i++) {
 		if (ris->mbwu_state[i].enabled) {
 			mwbu_arg.ris = ris;
@@ -1170,8 +1168,6 @@ static int mpam_save_mbwu_state(void *arg)
 	struct mpam_msc_ris *ris = arg;
 	struct mpam_msc *msc = ris->msc;
 	struct msmon_mbwu_state *mbwu_state;
-
-	lockdep_assert_held(&msc->lock);
 
 	for (i = 0; i < ris->props.num_mbwu_mon; i++) {
 		mbwu_state = &ris->mbwu_state[i];
@@ -1237,6 +1233,7 @@ static int mpam_touch_msc(struct mpam_msc *msc, int (*fn)(void *a), void *arg)
 {
 	lockdep_assert_irqs_enabled();
 	lockdep_assert_cpus_held();
+	lockdep_assert_held(&msc->lock);
 
 	return smp_call_on_cpu(mpam_get_msc_preferred_cpu(msc), fn, arg, true);
 }
@@ -1480,7 +1477,7 @@ static int mpam_dt_parse_resource(struct mpam_msc *msc, struct device_node *np,
 				break;
 			}
 		} else if (of_device_is_compatible(np->parent, "cache")) {
-			cache = np->parent;
+			cache = of_node_get(np->parent);
 		} else {
 			/* For now, only caches are supported */
 			cache = NULL;

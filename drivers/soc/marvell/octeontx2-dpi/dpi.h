@@ -50,8 +50,8 @@
 #define DPI_MAX_VFS			32
 
 /****************  Macros for register modification ************/
-#define DPI_DMA_IBUFF_CSIZE_CSIZE(x)		((x) & 0x1fff)
-#define DPI_DMA_IBUFF_CSIZE_GET_CSIZE(x)	((x) & 0x1fff)
+#define DPI_DMA_IBUFF_CSIZE_CSIZE(x)		((x) & 0x3fff)
+#define DPI_DMA_IBUFF_CSIZE_GET_CSIZE(x)	((x) & 0x3fff)
 
 #define DPI_DMA_IBUFF_CSIZE_NPA_FREE		(1 << 16)
 
@@ -193,6 +193,69 @@
 		offset = (0x10100ULL | ((x) << 3));	\
 	offset; })					\
 
+#define DPI_EBUS_PORTX_ERR_INFO(x) ({			\
+	u64 offset;					\
+							\
+	offset = (0x4200ULL | (x) << 3);		\
+	if (is_cn10k_dpi(dpi))				\
+		offset = (0x10200ULL | ((x) << 3));	\
+	offset; })					\
+
+#define DPI_EBUS_PORTX_ERR(x) ({			\
+	u64 offset;					\
+							\
+	offset = (0x4280ULL | (x) << 3);		\
+	if (is_cn10k_dpi(dpi))				\
+		offset = (0x10280ULL | ((x) << 3));	\
+	offset; })					\
+
+#define DPI_REQ_ERR_RSP ({				\
+	u64 offset;					\
+							\
+	offset = 0x4078ULL;				\
+	if (is_cn10k_dpi(dpi))				\
+		offset = 0x10070ULL;			\
+	offset; })					\
+
+#define DPI_PKT_ERR_RSP ({				\
+	u64 offset;					\
+							\
+	offset = 0x4098ULL;				\
+	if (is_cn10k_dpi(dpi))				\
+		offset = 0x10080ULL;			\
+	offset; })					\
+
+#define DPI_EPFX_MAX_CNT ({				\
+	u32 val;					\
+	val = 16;					\
+	if (is_cn10k_dpi(dpi))				\
+		val = 4;				\
+	val; })						\
+
+#define DPI_EPFX_DMA_VF_LINTX(x, y) ({			\
+	u64 offset;					\
+							\
+	offset = (0x6800ULL | (x) << 5 | (y) << 4);	\
+	if (is_cn10k_dpi(dpi))				\
+		offset = (0x14000ULL | ((x) << 5));	\
+	offset; })					\
+
+#define DPI_EPFX_PP_VF_LINTX(x, y) ({			\
+	u64 offset;					\
+							\
+	offset = (0x7200ULL | (x) << 5 | (y) << 4);	\
+	if (is_cn10k_dpi(dpi))				\
+		offset = (0x14C00ULL | ((x) << 5));	\
+	offset; })					\
+
+#define DPI_EPFX_MISC_LINTX(x) ({			\
+	u64 offset;					\
+							\
+	offset = (0x7000ULL | (x) << 5);		\
+	if (is_cn10k_dpi(dpi))				\
+		offset = (0x14A00ULL | ((x) << 5));	\
+	offset; })					\
+
 #define DPI_PF_RAS ({					\
 	u64 offset;					\
 							\
@@ -310,6 +373,7 @@ struct dpipf {
 #define DPI_QUEUE_CLOSE 0x2
 #define DPI_REG_DUMP    0x3
 #define DPI_GET_REG_CFG 0x4
+#define DPI_QUEUE_OPEN_V2 0x5
 
 union dpi_mbox_message_t {
 	uint64_t u[2];

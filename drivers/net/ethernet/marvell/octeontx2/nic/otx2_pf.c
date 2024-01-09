@@ -596,7 +596,7 @@ static int otx2_pfvf_mbox_init(struct otx2_nic *pf, int numvfs)
 
 	pf->mbox_pfvf_wq = alloc_workqueue("otx2_pfvf_mailbox",
 					   WQ_UNBOUND | WQ_HIGHPRI |
-					   WQ_MEM_RECLAIM, 1);
+					   WQ_MEM_RECLAIM, 0);
 	if (!pf->mbox_pfvf_wq)
 		return -ENOMEM;
 
@@ -1692,7 +1692,6 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 		else
 			otx2_cleanup_tx_cqes(pf, cq);
 	}
-	otx2_free_pending_sqe(pf);
 
 	otx2_free_pending_sqe(pf);
 
@@ -1865,7 +1864,7 @@ int otx2_open(struct net_device *netdev)
 	if (!qset->cq)
 		goto err_free_mem;
 
-	qset->sq = kcalloc(pf->hw.non_qos_queues,
+	qset->sq = kcalloc(otx2_get_total_tx_queues(pf),
 			   sizeof(struct otx2_snd_queue), GFP_KERNEL);
 	if (!qset->sq)
 		goto err_free_mem;
@@ -2095,6 +2094,10 @@ int otx2_stop(struct net_device *netdev)
 
 	netif_tx_disable(netdev);
 
+	for (wrk = 0; wrk < pf->qset.cq_cnt; wrk++)
+		cancel_delayed_work_sync(&pf->refill_wrk[wrk].pool_refill_work);
+	devm_kfree(pf->dev, pf->refill_wrk);
+
 	otx2_free_hw_resources(pf);
 	otx2_free_cints(pf, pf->hw.cint_cnt);
 	otx2_disable_napi(pf);
@@ -2102,9 +2105,6 @@ int otx2_stop(struct net_device *netdev)
 	for (qidx = 0; qidx < netdev->num_tx_queues; qidx++)
 		netdev_tx_reset_queue(netdev_get_tx_queue(netdev, qidx));
 
-	for (wrk = 0; wrk < pf->qset.cq_cnt; wrk++)
-		cancel_delayed_work_sync(&pf->refill_wrk[wrk].pool_refill_work);
-	devm_kfree(pf->dev, pf->refill_wrk);
 
 	otx2_free_queue_mem(qset);
 
@@ -3172,7 +3172,6 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_pf_sriov_init;
 #endif
 
-	otx2_qos_sq_setup(pf, qos_txqs);
 	otx2_qos_init(pf, qos_txqs);
 
 	return 0;
@@ -3241,7 +3240,7 @@ static void otx2_vf_link_event_task(struct work_struct *work)
 
 	otx2_mbox_wait_for_zero(&pf->mbox_pfvf[0].mbox_up, vf_idx);
 
-	otx2_mbox_msg_send_up(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+	otx2_sync_mbox_up_msg(&pf->mbox_pfvf[0], vf_idx);
 
 	mutex_unlock(&pf->mbox.lock);
 }
@@ -3276,7 +3275,7 @@ static void otx2_vf_ptp_info_task(struct work_struct *work)
 
 	otx2_mbox_wait_for_zero(&pf->mbox_pfvf[0].mbox_up, vf_idx);
 
-	otx2_mbox_msg_send_up(&pf->mbox_pfvf[0].mbox_up, vf_idx);
+	otx2_sync_mbox_up_msg(&pf->mbox_pfvf[0], vf_idx);
 
 	mutex_unlock(&pf->mbox.lock);
 }

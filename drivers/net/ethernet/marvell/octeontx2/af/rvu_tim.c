@@ -143,6 +143,15 @@ static int rvu_tim_disable_lf(struct rvu *rvu, int lf, int blkaddr)
 	rvu_poll_reg(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf),
 			TIM_AF_RINGX_CTL1_RCF_BUSY, true);
 
+	/* Clear ring state after disable. */
+	regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf));
+	regval &= GENMASK_ULL(31, 0);
+	rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf), regval);
+
+	regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf));
+	regval &= ~GENMASK_ULL(39, 20);
+	rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf), regval);
+
 	return 0;
 }
 
@@ -362,8 +371,8 @@ int rvu_mbox_handler_tim_enable_ring(struct rvu *rvu,
 				     struct tim_enable_rsp *rsp)
 {
 	u16 pcifunc = req->hdr.pcifunc;
+	u64 ctl0, ctl1, clk_src, wrap;
 	u64 start_cyc, end_cyc, low;
-	u64 regval, clk_src;
 	u32 expiry, intvl;
 	int retries, ret;
 	int lf, blkaddr;
@@ -377,55 +386,60 @@ int rvu_mbox_handler_tim_enable_ring(struct rvu *rvu,
 		return TIM_AF_LF_INVALID;
 
 	/* Error out if the ring is already running. */
-	regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf));
-	if (regval & TIM_AF_RINGX_CTL1_ENA)
+	ctl1 = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf));
+	if (ctl1 & TIM_AF_RINGX_CTL1_ENA)
 		return TIM_AF_RING_STILL_RUNNING;
 
-	/* Enable, the ring. */
-	regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf));
 	/* Get the clock source. */
 	if (is_rvu_otx2(rvu))
-		clk_src = (regval >> 51) & 0x3;
+		clk_src = (ctl1 >> 51) & 0x3;
 	else
-		clk_src = (regval >> 40) & 0x7;
+		clk_src = (ctl1 >> 40) & 0x7;
 
 	ret = tim_get_free_running_counter_offset(&clk_src);
 	if (ret)
 		return ret;
 
+	ctl0 = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf));
+	intvl = ctl0 & GENMASK_ULL(31, 0);
+
 	retries = 10;
 	do {
-		regval |= TIM_AF_RINGX_CTL1_ENA;
-		regval &= ~GENMASK_ULL(39, 20);
-		/* Make sure that below reads don't get hoisted out. */
-		mb();
+		ctl1 |= TIM_AF_RINGX_CTL1_ENA;
+		ctl1 &= ~GENMASK_ULL(39, 20);
+		local_irq_disable();
+		preempt_disable();
+		dsb(sy);
 		start_cyc = rvu_read64(rvu, blkaddr, clk_src);
-		rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf), regval);
-		regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf));
+		rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf), ctl1);
+		ctl1 = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf));
+		ctl0 = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf));
 		end_cyc = rvu_read64(rvu, blkaddr, clk_src);
-		/* Make sure that above reads and writes complete. */
-		mb();
+		dsb(sy);
+		local_irq_enable();
+		preempt_enable();
 		low = end_cyc & GENMASK_ULL(31, 0);
+		wrap = start_cyc & GENMASK_ULL(31, 0);
 		start_cyc >>= 32;
 		end_cyc >>= 32;
-		if (start_cyc - end_cyc) {
-			regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf));
-			regval &= ~TIM_AF_RINGX_CTL1_ENA;
-			rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf), regval);
-			regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf));
-			rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf),
-				    regval & GENMASK_ULL(31, 0));
-			regval = rvu_read64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf));
+		wrap += intvl;
+		wrap &= ~GENMASK_ULL(31, 0);
+		if (start_cyc - end_cyc || (!wrap && low > (ctl0 >> 32)) ||
+		    ctl0 == intvl) {
+			ctl1 &= ~TIM_AF_RINGX_CTL1_ENA;
+			rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL1(lf), ctl1);
+			rvu_write64(rvu, blkaddr, TIM_AF_RINGX_CTL0(lf), intvl);
+			start_cyc += end_cyc;
 		}
-	} while ((start_cyc - end_cyc) && retries--);
+	} while ((start_cyc - end_cyc) && --retries);
 
 	if (!retries && (start_cyc - end_cyc))
 		return TIM_AF_LF_START_SYNC_FAIL;
 
-	expiry = regval >> 32;
-	intvl = regval & GENMASK_ULL(31, 0);
+	expiry = ctl0 >> 32;
+	intvl = ctl0 & GENMASK_ULL(31, 0);
 	rsp->timestarted = (start_cyc << 32) | expiry;
-	if (low > expiry)
+	if (wrap)
 		rsp->timestarted += BIT_ULL(32);
 	rsp->timestarted -= intvl;
 	rsp->currentbucket = 0;
@@ -451,6 +465,46 @@ int rvu_mbox_handler_tim_disable_ring(struct rvu *rvu,
 	return rvu_tim_disable_lf(rvu, lf, blkaddr);
 }
 
+int rvu_mbox_handler_tim_capture_counters(struct rvu *rvu, struct msg_req *req,
+					  struct tim_capture_rsp *rsp)
+{
+	int blkaddr;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_TIM, 0);
+	if (blkaddr < 0)
+		return TIM_AF_LF_INVALID;
+
+	if (is_rvu_otx2(rvu))
+		return TIM_AF_LF_INVALID;
+
+	rvu_write64(rvu, blkaddr, TIM_AF_CAPTURE_TIMERS, 0x0);
+	rvu_write64(rvu, blkaddr, TIM_AF_CAPTURE_TIMERS, 0x1);
+	rsp->counter[TIM_CLK_SRCS_TENNS] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_TENNS);
+	rsp->counter[TIM_CLK_SRCS_GPIO] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_GPIOS);
+	rsp->counter[TIM_CLK_SRCS_GTI] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_GTI);
+	rsp->counter[TIM_CLK_SRCS_PTP] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_PTP);
+	rsp->counter[TIM_CLK_SRCS_SYNCE] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_SYNCE);
+	rsp->counter[TIM_CLK_SRCS_BTS] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_BTS);
+	rsp->counter[TIM_CLK_SRCS_EXT_MIO] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_EXT_MIO);
+	rsp->counter[TIM_CLK_SRCS_EXT_GTI] =
+		rvu_read64(rvu, blkaddr, TIM_AF_CAPTURE_EXT_GTI);
+	rvu_write64(rvu, blkaddr, TIM_AF_CAPTURE_TIMERS, 0x0);
+
+	if (rvu_tim_ptp_has_errata(rvu->pdev))
+		rsp->counter[TIM_CLK_SRCS_PTP] =
+			rvu_tim_ptp_rollover_errata_fix(rvu,
+							rsp->counter[TIM_CLK_SRCS_PTP]);
+
+	return 0;
+}
+
 int rvu_tim_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 {
 	int blkaddr;
@@ -465,6 +519,137 @@ int rvu_tim_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 	rvu_write64(rvu, blkaddr, TIM_AF_RINGX_GMCTL(lf), 0);
 
 	return 0;
+}
+
+static int rvu_tim_do_register_interrupt(struct rvu *rvu, int irq_offs,
+					 irq_handler_t handler,
+					 const char *name)
+{
+	int ret = 0;
+
+	ret = request_irq(pci_irq_vector(rvu->pdev, irq_offs), handler, 0, name,
+			  rvu);
+	if (ret) {
+		dev_err(rvu->dev, "TIMAF: %s irq registration failed", name);
+		goto err;
+	}
+
+	WARN_ON(rvu->irq_allocated[irq_offs]);
+	rvu->irq_allocated[irq_offs] = true;
+err:
+	return ret;
+}
+
+static irqreturn_t rvu_tim_af_rvu_intr_handler(int irq, void *ptr)
+{
+	struct rvu *rvu = (struct rvu *)ptr;
+	struct rvu_block *block;
+	int blkaddr;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_TIM, 0);
+	if (blkaddr < 0)
+		return IRQ_NONE;
+
+	block = &rvu->hw->block[blkaddr];
+	reg = rvu_read64(rvu, blkaddr, TIM_AF_RVU_INT);
+	dev_err_ratelimited(rvu->dev, "Received TIM_AF_RVU_INT irq : 0x%llx",
+			    reg);
+
+	rvu_write64(rvu, blkaddr, TIM_AF_RVU_INT, reg);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t rvu_tim_af_bsk_intr_handler(int irq, void *ptr)
+{
+	struct rvu *rvu = (struct rvu *)ptr;
+	struct rvu_block *block;
+	int i, blkaddr;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_TIM, 0);
+	if (blkaddr < 0)
+		return IRQ_NONE;
+
+	block = &rvu->hw->block[blkaddr];
+	for (i = 0; i < 4; i++) {
+		reg = rvu_read64(rvu, blkaddr, TIM_AF_BKT_SKIP_INTX(i));
+		if (!reg)
+			continue;
+		dev_err_ratelimited(rvu->dev,
+				    "Received TIM_AF_BKT_SKIP_INTX(%d) irq : 0x%llx",
+				    i, reg);
+		rvu_write64(rvu, blkaddr, TIM_AF_BKT_SKIP_INTX(i), reg);
+	}
+
+	return IRQ_HANDLED;
+}
+
+int rvu_tim_register_interrupts(struct rvu *rvu)
+{
+	int blkaddr, offs, ret = 0, i;
+
+	if (!is_block_implemented(rvu->hw, BLKADDR_TIM))
+		return 0;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_TIM, 0);
+	if (blkaddr < 0)
+		return blkaddr;
+
+	offs = rvu_read64(rvu, blkaddr, TIM_PRIV_AF_INT_CFG) & 0x7FF;
+	if (!offs) {
+		dev_warn(rvu->dev, "Failed to get TIM_AF_INT vector offsets\n");
+		return 0;
+	}
+
+	ret = rvu_tim_do_register_interrupt(rvu, offs + TIM_AF_INT_VEC_RVU,
+					    rvu_tim_af_rvu_intr_handler,
+					    "TIM_AF_RVU_INT");
+	if (ret)
+		goto err;
+	rvu_write64(rvu, blkaddr, TIM_AF_RVU_INT_ENA_W1S, ~0ULL);
+
+	for (i = 0; i < 4; i++) {
+		ret = rvu_tim_do_register_interrupt(rvu, offs +
+						    TIM_AF_INT_VEC_BKT_SKIP + i,
+						    rvu_tim_af_bsk_intr_handler,
+						    "TIM_AF_BKT_SKIP_INTX");
+		if (ret)
+			goto err;
+		rvu_write64(rvu, blkaddr, TIM_AF_BKT_SKIP_INTX_ENA_W1S(i),
+			    ~0ULL);
+	}
+
+	return 0;
+err:
+	rvu_tim_unregister_interrupts(rvu);
+	return ret;
+}
+
+void rvu_tim_unregister_interrupts(struct rvu *rvu)
+{
+	int i, blkaddr, offs;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_TIM, 0);
+	if (blkaddr < 0)
+		return;
+
+	offs = rvu_read64(rvu, blkaddr, TIM_PRIV_AF_INT_CFG) & 0x7FF;
+	if (!offs)
+		return;
+
+	rvu_write64(rvu, blkaddr, TIM_AF_RVU_INT_ENA_W1C, ~0ULL);
+
+	for (i = 0; i < 4; i++) {
+		rvu_write64(rvu, blkaddr, TIM_AF_BKT_SKIP_INTX_ENA_W1C(i),
+			    ~0ULL);
+	}
+
+	for (i = 0; i < TIM_AF_INT_VEC_CNT; i++)
+		if (rvu->irq_allocated[offs + i]) {
+			free_irq(pci_irq_vector(rvu->pdev, offs + i), rvu);
+			rvu->irq_allocated[offs + i] = false;
+		}
 }
 
 #define FOR_EACH_TIM_LF(lf)	\
@@ -525,4 +710,11 @@ int rvu_tim_init(struct rvu *rvu)
 		rvu_tim_hw_fixes(rvu, blkaddr);
 
 	return rc;
+}
+
+void rvu_tim_deinit(struct rvu *rvu)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+
+	kfree(hw->tim.ring_intvls);
 }

@@ -578,14 +578,24 @@ static void npc_copy_mcam_entry(struct rvu *rvu, struct npc_mcam *mcam,
 		    NPC_AF_MCAMEX_BANKX_CFG(dest, dbank), cfg);
 }
 
-static u64 npc_get_mcam_action(struct rvu *rvu, struct npc_mcam *mcam,
-			       int blkaddr, int index)
+u64 npc_get_mcam_action(struct rvu *rvu, struct npc_mcam *mcam,
+			int blkaddr, int index)
 {
 	int bank = npc_get_bank(mcam, index);
 
 	index &= (mcam->banksize - 1);
 	return rvu_read64(rvu, blkaddr,
 			  NPC_AF_MCAMEX_BANKX_ACTION(index, bank));
+}
+
+void npc_set_mcam_action(struct rvu *rvu, struct npc_mcam *mcam,
+			 int blkaddr, int index, u64 cfg)
+{
+	int bank = npc_get_bank(mcam, index);
+
+	index &= (mcam->banksize - 1);
+	return rvu_write64(rvu, blkaddr,
+			   NPC_AF_MCAMEX_BANKX_ACTION(index, bank), cfg);
 }
 
 u32 rvu_get_cpt_chan_mask(struct rvu *rvu)
@@ -1643,7 +1653,7 @@ static int npc_fwdb_detect_load_prfl_img(struct rvu *rvu, uint64_t prfl_sz,
 	struct npc_coalesced_kpu_prfl *img_data = NULL;
 	int i = 0, rc = -EINVAL;
 	void __iomem *kpu_prfl_addr;
-	u16 offset;
+	u32 offset;
 
 	img_data = (struct npc_coalesced_kpu_prfl __force *)rvu->kpu_prfl_addr;
 	if (le64_to_cpu(img_data->signature) == KPU_SIGN &&
@@ -1814,7 +1824,21 @@ static void npc_parser_profile_init(struct rvu *rvu, int blkaddr)
 		npc_program_kpu_profile(rvu, blkaddr, idx, &rvu->kpu.kpu[idx]);
 }
 
-static int npc_mcam_rsrcs_init(struct rvu *rvu, int blkaddr)
+void npc_mcam_rsrcs_deinit(struct rvu *rvu)
+{
+	struct npc_mcam *mcam = &rvu->hw->mcam;
+
+	kfree(mcam->bmap);
+	kfree(mcam->bmap_reverse);
+	kfree(mcam->entry2pfvf_map);
+	kfree(mcam->cntr2pfvf_map);
+	kfree(mcam->entry2cntr_map);
+	kfree(mcam->cntr_refcnt);
+	kfree(mcam->entry2target_pffunc);
+	kfree(mcam->counters.bmap);
+}
+
+int npc_mcam_rsrcs_init(struct rvu *rvu, int blkaddr)
 {
 	int nixlf_count = rvu_get_nixlf_count(rvu);
 	struct npc_mcam *mcam = &rvu->hw->mcam;
@@ -1858,24 +1882,23 @@ static int npc_mcam_rsrcs_init(struct rvu *rvu, int blkaddr)
 	mcam->pf_offset = mcam->nixlf_offset + nixlf_count;
 
 	/* Allocate bitmaps for managing MCAM entries */
-	mcam->bmap = devm_kcalloc(rvu->dev, BITS_TO_LONGS(mcam->bmap_entries),
-				  sizeof(long), GFP_KERNEL);
+	mcam->bmap = kmalloc_array(BITS_TO_LONGS(mcam->bmap_entries),
+				   sizeof(long), GFP_KERNEL);
 	if (!mcam->bmap)
 		return -ENOMEM;
 
-	mcam->bmap_reverse = devm_kcalloc(rvu->dev,
-					  BITS_TO_LONGS(mcam->bmap_entries),
-					  sizeof(long), GFP_KERNEL);
+	mcam->bmap_reverse = kmalloc_array(BITS_TO_LONGS(mcam->bmap_entries),
+					   sizeof(long), GFP_KERNEL);
 	if (!mcam->bmap_reverse)
-		return -ENOMEM;
+		goto free_bmap;
 
 	mcam->bmap_fcnt = mcam->bmap_entries;
 
 	/* Alloc memory for saving entry to RVU PFFUNC allocation mapping */
-	mcam->entry2pfvf_map = devm_kcalloc(rvu->dev, mcam->bmap_entries,
-					    sizeof(u16), GFP_KERNEL);
+	mcam->entry2pfvf_map = kmalloc_array(mcam->bmap_entries,
+					     sizeof(u16), GFP_KERNEL);
 	if (!mcam->entry2pfvf_map)
-		return -ENOMEM;
+		goto free_bmap_reverse;
 
 	/* Reserve 1/8th of MCAM entries at the bottom for low priority
 	 * allocations and another 1/8th at the top for high priority
@@ -1894,31 +1917,31 @@ static int npc_mcam_rsrcs_init(struct rvu *rvu, int blkaddr)
 	 */
 	err = rvu_alloc_bitmap(&mcam->counters);
 	if (err)
-		return err;
+		goto free_entry_map;
 
-	mcam->cntr2pfvf_map = devm_kcalloc(rvu->dev, mcam->counters.max,
-					   sizeof(u16), GFP_KERNEL);
+	mcam->cntr2pfvf_map = kmalloc_array(mcam->counters.max,
+					    sizeof(u16), GFP_KERNEL);
 	if (!mcam->cntr2pfvf_map)
-		goto free_mem;
+		goto free_cntr_bmap;
 
 	/* Alloc memory for MCAM entry to counter mapping and for tracking
 	 * counter's reference count.
 	 */
-	mcam->entry2cntr_map = devm_kcalloc(rvu->dev, mcam->bmap_entries,
-					    sizeof(u16), GFP_KERNEL);
+	mcam->entry2cntr_map = kmalloc_array(mcam->bmap_entries,
+					     sizeof(u16), GFP_KERNEL);
 	if (!mcam->entry2cntr_map)
-		goto free_mem;
+		goto free_cntr_map;
 
-	mcam->cntr_refcnt = devm_kcalloc(rvu->dev, mcam->counters.max,
-					 sizeof(u16), GFP_KERNEL);
+	mcam->cntr_refcnt = kmalloc_array(mcam->counters.max,
+					  sizeof(u16), GFP_KERNEL);
 	if (!mcam->cntr_refcnt)
-		goto free_mem;
+		goto free_entry_cntr_map;
 
 	/* Alloc memory for saving target device of mcam rule */
-	mcam->entry2target_pffunc = devm_kcalloc(rvu->dev, mcam->total_entries,
-						 sizeof(u16), GFP_KERNEL);
+	mcam->entry2target_pffunc = kmalloc_array(mcam->total_entries,
+						  sizeof(u16), GFP_KERNEL);
 	if (!mcam->entry2target_pffunc)
-		goto free_mem;
+		goto free_cntr_refcnt;
 
 	for (index = 0; index < mcam->bmap_entries; index++) {
 		mcam->entry2pfvf_map[index] = NPC_MCAM_INVALID_MAP;
@@ -1932,8 +1955,21 @@ static int npc_mcam_rsrcs_init(struct rvu *rvu, int blkaddr)
 
 	return 0;
 
-free_mem:
+free_cntr_refcnt:
+	kfree(mcam->cntr_refcnt);
+free_entry_cntr_map:
+	kfree(mcam->entry2cntr_map);
+free_cntr_map:
+	kfree(mcam->cntr2pfvf_map);
+free_cntr_bmap:
 	kfree(mcam->counters.bmap);
+free_entry_map:
+	kfree(mcam->entry2pfvf_map);
+free_bmap_reverse:
+	kfree(mcam->bmap_reverse);
+free_bmap:
+	kfree(mcam->bmap);
+
 	return -ENOMEM;
 }
 
@@ -2141,7 +2177,7 @@ void rvu_npc_freemem(struct rvu *rvu)
 	struct npc_mcam *mcam = &rvu->hw->mcam;
 
 	kfree(pkind->rsrc.bmap);
-	kfree(mcam->counters.bmap);
+	npc_mcam_rsrcs_deinit(rvu);
 	if (rvu->kpu_prfl_addr)
 		iounmap(rvu->kpu_prfl_addr);
 	else
@@ -2480,7 +2516,17 @@ static int npc_mcam_alloc_entries(struct npc_mcam *mcam, u16 pcifunc,
 	 * - when available free entries are less.
 	 * Lower priority ones out of avaialble free entries are always
 	 * chosen when 'high vs low' question arises.
+	 *
+	 * For a VF base MCAM match rule is set by its PF. And all the
+	 * further MCAM rules installed by VF on its own are
+	 * concatenated with the base rule set by its PF. Hence PF entries
+	 * should be at lower priority compared to VF entries. Otherwise
+	 * base rule is hit always and rules installed by VF will be of
+	 * no use. Hence if the request is from PF then allocate low
+	 * priority entries.
 	 */
+	if (!(pcifunc & RVU_PFVF_FUNC_MASK))
+		goto lprio_alloc;
 
 	/* Get the search range for priority allocation request */
 	if (req->priority) {
@@ -2488,17 +2534,6 @@ static int npc_mcam_alloc_entries(struct npc_mcam *mcam, u16 pcifunc,
 						   &start, &end, &reverse);
 		goto alloc;
 	}
-
-	/* For a VF base MCAM match rule is set by its PF. And all the
-	 * further MCAM rules installed by VF on its own are
-	 * concatenated with the base rule set by its PF. Hence PF entries
-	 * should be at lower priority compared to VF entries. Otherwise
-	 * base rule is hit always and rules installed by VF will be of
-	 * no use. Hence if the request is from PF and NOT a priority
-	 * allocation request then allocate low priority entries.
-	 */
-	if (!(pcifunc & RVU_PFVF_FUNC_MASK))
-		goto lprio_alloc;
 
 	/* Find out the search range for non-priority allocation request
 	 *
@@ -2529,6 +2564,18 @@ lprio_alloc:
 		reverse = true;
 		start = 0;
 		end = mcam->bmap_entries;
+		/* Ensure PF requests are always at bottom and if PF requests
+		 * for higher/lower priority entry wrt reference entry then
+		 * honour that criteria and start search for entries from bottom
+		 * and not in mid zone.
+		 */
+		if (!(pcifunc & RVU_PFVF_FUNC_MASK) &&
+		    req->priority == NPC_MCAM_HIGHER_PRIO)
+			end = req->ref_entry;
+
+		if (!(pcifunc & RVU_PFVF_FUNC_MASK) &&
+		    req->priority == NPC_MCAM_LOWER_PRIO)
+			start = req->ref_entry;
 	}
 
 alloc:

@@ -28,6 +28,10 @@ static int mrrs = 128;
 module_param(mrrs, int, 0644);
 MODULE_PARM_DESC(mrrs, "Maximum read request size, Supported sizes are 128, 256, 512 and 1024 bytes");
 
+static unsigned long eng_fifo_buf = 0x101008080808;
+module_param(eng_fifo_buf, ulong, 0644);
+MODULE_PARM_DESC(eng_fifo_buf, "Per engine buffer size. Each byte corresponds to engine number");
+
 static inline bool is_cn10k_dpi(struct dpipf *dpi)
 {
 	if (dpi->pdev->subsystem_device >= PCI_SUBDEVID_OCTEONTX3_DPI_PF)
@@ -74,7 +78,7 @@ static int dpi_queue_init(struct dpipf *dpi, struct dpipf_vf *dpivf, u8 vf)
 	u64 reg = 0ULL;
 	int cnt = 0xFFFFF;
 	u32 aura = dpivf->vf_config.aura;
-	u16 buf_size = dpivf->vf_config.csize;
+	u16 csize = dpivf->vf_config.csize;
 	u16 sso_pf_func = dpivf->vf_config.sso_pf_func;
 	u16 npa_pf_func = dpivf->vf_config.npa_pf_func;
 
@@ -111,7 +115,7 @@ static int dpi_queue_init(struct dpipf *dpi, struct dpipf_vf *dpivf, u8 vf)
 	dpi_reg_write(dpi, DPI_DMAX_IDS2(queue), 0ULL);
 	dpi_reg_write(dpi, DPI_DMAX_IDS(queue), 0ULL);
 
-	reg = DPI_DMA_IBUFF_CSIZE_CSIZE((u64)(buf_size / 8));
+	reg = DPI_DMA_IBUFF_CSIZE_CSIZE(csize);
 	if (is_cn10k_dpi(dpi))
 		reg |= DPI_DMA_IBUFF_CSIZE_NPA_FREE;
 	dpi_reg_write(dpi, DPI_DMAX_IBUFF_CSIZE(queue), reg);
@@ -194,13 +198,10 @@ static int dpi_init(struct dpipf *dpi)
 	int engine = 0, port = 0;
 	u8 mrrs_val, mps_val;
 	u64 reg = 0ULL;
+	uint8_t *eng_buf = (uint8_t *)&eng_fifo_buf;
 
 	for (engine = 0; engine < dpi_dma_engine_get_num(); engine++) {
-		if (engine == 4 || engine == 5)
-			reg = DPI_ENG_BUF_BLKS(16);
-		else
-			reg = DPI_ENG_BUF_BLKS(8);
-
+		reg = DPI_ENG_BUF_BLKS(eng_buf[engine & 0x7]);
 		dpi_reg_write(dpi, DPI_ENGX_BUF(engine), reg);
 
 		/* Here qmap for the engines are set to 0.
@@ -469,7 +470,8 @@ static ssize_t dpi_device_config_show(struct device *dev,
 {
 	struct pci_dev *pdev = container_of(dev, struct pci_dev, dev);
 	struct dpipf *dpi = pci_get_drvdata(pdev);
-	int vf_idx;
+	u64 reg_val = 0;
+	int vf_idx, i;
 
 	for (vf_idx = 0; vf_idx < dpi->total_vfs; vf_idx++) {
 		struct dpipf_vf *dpivf = &dpi->vf[vf_idx];
@@ -484,6 +486,43 @@ static ssize_t dpi_device_config_show(struct device *dev,
 			dpivf->vf_config.sso_pf_func,
 			dpivf->vf_config.npa_pf_func);
 	}
+	for (i = 0; i < DPI_MAX_REQQ_INT; i++) {
+		reg_val = dpi_reg_read(dpi, DPI_REQQX_INT(i));
+		sprintf(buf + strlen(buf), "DPI_REQQ%d_INT: 0x%016llx\n", i, reg_val);
+		reg_val = dpi_reg_read(dpi, DPI_DMAX_REQBANK0(i));
+		sprintf(buf + strlen(buf), "DPI_DMA%d_REQBANK0: 0x%016llx\n", i, reg_val);
+		reg_val = dpi_reg_read(dpi, DPI_DMAX_REQBANK1(i));
+		sprintf(buf + strlen(buf), "DPI_DMA%d_REQBANK1: 0x%016llx\n", i, reg_val);
+		reg_val = dpi_reg_read(dpi, DPI_DMAX_ERR_RSP_STATUS(i));
+		sprintf(buf + strlen(buf), "DPI_DMA%d_ERR_RSP_STATUS: 0x%016llx\n", i, reg_val);
+	}
+	reg_val = dpi_reg_read(dpi, DPI_REQ_ERR_RSP);
+	sprintf(buf + strlen(buf), "DPI_REQ_ERR_RSP: 0x%016llx\n", reg_val);
+	reg_val = dpi_reg_read(dpi, DPI_PKT_ERR_RSP);
+	sprintf(buf + strlen(buf), "DPI_PKT_ERR_RSP: 0x%016llx\n", reg_val);
+	reg_val = dpi_reg_read(dpi, DPI_EBUS_PORTX_ERR(0));
+	sprintf(buf + strlen(buf), "DPI_EBUS_PORT0_ERR: 0x%016llx\n", reg_val);
+	reg_val = dpi_reg_read(dpi, DPI_EBUS_PORTX_ERR(1));
+	sprintf(buf + strlen(buf), "DPI_EBUS_PORT1_ERR: 0x%016llx\n", reg_val);
+	reg_val = dpi_reg_read(dpi, DPI_EBUS_PORTX_ERR_INFO(0));
+	sprintf(buf + strlen(buf), "DPI_EBUS_PORT0_ERR_INFO: 0x%016llx\n", reg_val);
+	reg_val = dpi_reg_read(dpi, DPI_EBUS_PORTX_ERR_INFO(1));
+	sprintf(buf + strlen(buf), "DPI_EBUS_PORT1_ERR_INFO: 0x%016llx\n", reg_val);
+	for (i = 0; i < DPI_EPFX_MAX_CNT; i++) {
+		reg_val = dpi_reg_read(dpi, DPI_EPFX_DMA_VF_LINTX(i, 0));
+		sprintf(buf + strlen(buf), "DPI_EPF%d_DMA_VF_LINT0: 0x%016llx\n", i, reg_val);
+		reg_val = dpi_reg_read(dpi, DPI_EPFX_PP_VF_LINTX(i, 0));
+		sprintf(buf + strlen(buf), "DPI_EPF%d_PP_VF_LINT0: 0x%016llx\n", i, reg_val);
+		reg_val = dpi_reg_read(dpi, DPI_EPFX_MISC_LINTX(i));
+		sprintf(buf + strlen(buf), "DPI_EPF%d_MISC_LINT: 0x%016llx\n", i, reg_val);
+		if (is_cn10k_dpi(dpi))
+			continue;
+		reg_val = dpi_reg_read(dpi, DPI_EPFX_DMA_VF_LINTX(i, 1));
+		sprintf(buf + strlen(buf), "DPI_EPF%d_DMA_VF_LINT1: 0x%016llx\n", i, reg_val);
+		reg_val = dpi_reg_read(dpi, DPI_EPFX_PP_VF_LINTX(i, 1));
+		sprintf(buf + strlen(buf), "DPI_EPF%d_PP_VF_LINT1: 0x%016llx\n", i, reg_val);
+	}
+
 	return strlen(buf);
 }
 
@@ -492,6 +531,16 @@ static int queue_config(struct dpipf *dpi, struct dpipf_vf *dpivf,
 {
 	switch (msg->s.cmd) {
 	case DPI_QUEUE_OPEN:
+		dpivf->vf_config.aura = msg->s.aura;
+		dpivf->vf_config.csize = msg->s.csize / 8;
+		dpivf->vf_config.sso_pf_func = msg->s.sso_pf_func;
+		dpivf->vf_config.npa_pf_func = msg->s.npa_pf_func;
+		dpi_queue_init(dpi, dpivf, msg->s.vfid);
+		if (msg->s.wqecs)
+			dpi_wqe_cs_offset(dpi, msg->s.wqecsoff);
+		dpivf->setup_done = true;
+		break;
+	case DPI_QUEUE_OPEN_V2:
 		dpivf->vf_config.aura = msg->s.aura;
 		dpivf->vf_config.csize = msg->s.csize;
 		dpivf->vf_config.sso_pf_func = msg->s.sso_pf_func;

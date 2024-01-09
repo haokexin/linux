@@ -160,7 +160,7 @@ int rvu_alloc_rsrc_contig(struct rsrc_bmap *rsrc, int nrsrc)
 	return start;
 }
 
-static void rvu_free_rsrc_contig(struct rsrc_bmap *rsrc, int nrsrc, int start)
+void rvu_free_rsrc_contig(struct rsrc_bmap *rsrc, int nrsrc, int start)
 {
 	if (!rsrc->bmap)
 		return;
@@ -3104,6 +3104,9 @@ static void __rvu_flr_handler(struct rvu *rvu, u16 pcifunc)
 	/* Free allocated BPIDs */
 	rvu_nix_flr_free_bpids(rvu, pcifunc);
 
+	/* Free multicast/mirror node associated with the 'pcifunc' */
+	rvu_nix_mcast_flr_free_entries(rvu, pcifunc);
+
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_NIX0);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_NIX1);
 	rvu_blklf_teardown(rvu, pcifunc, BLKADDR_CPT0);
@@ -3302,6 +3305,7 @@ static void rvu_unregister_interrupts(struct rvu *rvu)
 	int irq;
 
 	rvu_sso_unregister_interrupts(rvu);
+	rvu_tim_unregister_interrupts(rvu);
 	rvu_cpt_unregister_interrupts(rvu);
 	rvu_ree_unregister_interrupts(rvu);
 
@@ -3516,6 +3520,10 @@ static int rvu_register_interrupts(struct rvu *rvu)
 	rvu->irq_allocated[offset] = true;
 
 	ret = rvu_sso_register_interrupts(rvu);
+	if (ret)
+		goto fail;
+
+	ret = rvu_tim_register_interrupts(rvu);
 	if (ret)
 		goto fail;
 

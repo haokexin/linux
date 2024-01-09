@@ -23,6 +23,7 @@ struct ptp {
 	u32 clock_period;
 };
 
+struct rvu;
 struct ptp *ptp_get(void);
 void ptp_put(struct ptp *ptp);
 void ptp_start(struct rvu *rvu, u64 sclk, u32 ext_clk_freq, u32 extts);

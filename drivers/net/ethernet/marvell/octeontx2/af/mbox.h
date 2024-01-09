@@ -10,6 +10,7 @@
 
 #include <linux/etherdevice.h>
 #include <linux/sizes.h>
+#include <linux/ethtool.h>
 
 #include "rvu_struct.h"
 #include "common.h"
@@ -232,6 +233,8 @@ M(TIM_ENABLE_RING,	0x803, tim_enable_ring, tim_ring_req, tim_enable_rsp)\
 M(TIM_DISABLE_RING,	0x804, tim_disable_ring, tim_ring_req, msg_rsp)	\
 M(TIM_GET_MIN_INTVL,	0x805, tim_get_min_intvl, tim_intvl_req,	\
 			       tim_intvl_rsp)				\
+M(TIM_CAPTURE_COUNTERS,	0x806, tim_capture_counters, msg_req,		\
+			       tim_capture_rsp)				\
 /* CPT mbox IDs (range 0xA00 - 0xBFF) */				\
 M(CPT_LF_ALLOC,		0xA00, cpt_lf_alloc, cpt_lf_alloc_req_msg,	\
 			       msg_rsp)					\
@@ -384,6 +387,13 @@ M(NIX_SPI_TO_SA_DELETE, 0x8027, nix_spi_to_sa_delete, nix_spi_to_sa_delete_req, 
 M(NIX_ALLOC_BPIDS,	0x8028,	nix_alloc_bpids, nix_alloc_bpid_req, nix_bpids)	\
 M(NIX_FREE_BPIDS,	0x8029, nix_free_bpids, nix_bpids, msg_rsp)		\
 M(NIX_RX_CHAN_CFG,	0x802a, nix_rx_chan_cfg, nix_rx_chan_cfg, nix_rx_chan_cfg)	\
+M(NIX_MCAST_GRP_CREATE,	0x802b, nix_mcast_grp_create, nix_mcast_grp_create_req,	\
+				nix_mcast_grp_create_rsp)			\
+M(NIX_MCAST_GRP_DESTROY, 0x802c, nix_mcast_grp_destroy, nix_mcast_grp_destroy_req,	\
+				msg_rsp)					\
+M(NIX_MCAST_GRP_UPDATE, 0x802d, nix_mcast_grp_update,				\
+				nix_mcast_grp_update_req,			\
+				nix_mcast_grp_update_rsp)			\
 /* MCS mbox IDs (range 0xA000 - 0xBFFF) */					\
 M(MCS_ALLOC_RESOURCES,	0xa000, mcs_alloc_resources, mcs_alloc_rsrc_req,	\
 				mcs_alloc_rsrc_rsp)				\
@@ -710,7 +720,8 @@ struct cgx_lmac_fwdata_s {
 	u64 supported_link_modes;
 	/* only applicable if AN is supported */
 	u64 advertised_fec;
-	u64 advertised_link_modes;
+	u64 advertised_link_modes_own:1; /* CGX_CMD_OWN */
+	u64 advertised_link_modes:63;
 	/* Only applicable if SFP/QSFP slot is present */
 	struct sfp_eeprom_s sfp_eeprom;
 	struct phy_s phy;
@@ -728,11 +739,12 @@ struct cgx_set_link_mode_args {
 	u8 duplex;
 	u8 an;
 	u8 mode_baseidx;
+	u8 multimode;
 	u64 mode;
+	__ETHTOOL_DECLARE_LINK_MODE_MASK(advertising);
 };
 
 struct cgx_set_link_mode_req {
-#define AUTONEG_UNKNOWN		0xff
 	struct mbox_msghdr hdr;
 	struct cgx_set_link_mode_args args;
 };
@@ -936,6 +948,9 @@ enum nix_af_status {
 	NIX_AF_ERR_TL1_RR_PRIO_PERM_DENIED  = -433,
 	NIX_AF_ERR_INVALID_BPID		= -434,
 	NIX_AF_ERR_INVALID_BPID_REQ	= -435,
+	NIX_AF_ERR_INVALID_MCAST_GRP	= -436,
+	NIX_AF_ERR_INVALID_MCAST_DEL_REQ = -437,
+	NIX_AF_ERR_NON_CONTIG_MCE_LIST = -438,
 };
 
 /* For NIX RX vtag action  */
@@ -1068,7 +1083,7 @@ struct nix_aq_enq_req {
 		struct nix_cq_ctx_s cq;
 		struct nix_rsse_s   rss;
 		struct nix_rx_mce_s mce;
-		u64 prof;
+		struct nix_bandprof_s prof;
 	};
 	union {
 		struct nix_rq_ctx_s rq_mask;
@@ -1076,7 +1091,7 @@ struct nix_aq_enq_req {
 		struct nix_cq_ctx_s cq_mask;
 		struct nix_rsse_s   rss_mask;
 		struct nix_rx_mce_s mce_mask;
-		u64 prof_mask;
+		struct nix_bandprof_s prof_mask;
 	};
 };
 
@@ -1377,6 +1392,60 @@ struct nix_rx_chan_cfg {
 	u16 chan;	/* RX channel to be configured */
 	u64 val;	/* NIX_AF_RX_CHAN_CFG value */
 	u64 rsvd;
+};
+
+struct nix_mcast_grp_create_req {
+	struct mbox_msghdr hdr;
+#define NIX_MCAST_INGRESS	0
+#define NIX_MCAST_EGRESS	1
+	u8 dir;
+	u8 reserved[11];
+	/* Reserving few bytes for future requirement */
+};
+
+struct nix_mcast_grp_create_rsp {
+	struct mbox_msghdr hdr;
+	/* This mcast_grp_idx should be passed during MCAM
+	 * write entry for multicast. AF will identify the
+	 * corresponding multicast table index associated
+	 * with the group id and program the same to MCAM entry.
+	 * This group id is also needed during group delete
+	 * and update request.
+	 */
+	u32 mcast_grp_idx;
+};
+
+struct nix_mcast_grp_destroy_req {
+	struct mbox_msghdr hdr;
+	/* Group id returned by nix_mcast_grp_create_rsp */
+	u32 mcast_grp_idx;
+};
+
+struct nix_mcast_grp_update_req {
+	struct mbox_msghdr hdr;
+	/* Group id returned by nix_mcast_grp_create_rsp */
+	u32 mcast_grp_idx;
+	/* Number of multicast/mirror entries requested */
+	u32 num_mce_entry;
+#define NIX_MCE_ENTRY_MAX 64
+#define NIX_RX_RQ	0
+#define NIX_RX_RSS	1
+	/* Receive queue or RSS index within pf_func */
+	u32 rq_rss_index[NIX_MCE_ENTRY_MAX];
+	/* pcifunc is required for both ingress and egress multicast */
+	u16 pcifunc[NIX_MCE_ENTRY_MAX];
+	/* channel is required for egress multicast */
+	u16 channel[NIX_MCE_ENTRY_MAX];
+#define NIX_MCAST_OP_ADD_ENTRY	0
+#define NIX_MCAST_OP_DEL_ENTRY	1
+	/* Destination type. 0:Receive queue, 1:RSS*/
+	u8 dest_type[NIX_MCE_ENTRY_MAX];
+	u8 op;
+};
+
+struct nix_mcast_grp_update_rsp {
+	struct mbox_msghdr hdr;
+	u32 mce_start_index;
 };
 
 /* Global NIX inline IPSec configuration */
@@ -1771,6 +1840,12 @@ struct npc_get_kex_cfg_rsp {
 	u8 mkex_pfl_name[MKEX_NAME_LEN];
 };
 
+struct ptp_get_cap_rsp {
+	struct mbox_msghdr hdr;
+#define        PTP_CAP_HW_ATOMIC_UPDATE BIT_ULL(0)
+	u64 cap;
+};
+
 struct flow_msg {
 	unsigned char dmac[6];
 	unsigned char smac[6];
@@ -1785,6 +1860,10 @@ struct flow_msg {
 		__be32 ip4dst;
 		__be32 ip6dst[4];
 	};
+	union {
+		__be32 spi;
+	};
+
 	u8 tos;
 	u8 ip_ver;
 	u8 ip_proto;
@@ -1796,8 +1875,17 @@ struct flow_msg {
 		u8 next_header;
 	};
 	__be16 vlan_itci;
+	u8 icmp_type;
+	u8 icmp_code;
+	__be16 tcp_flags;
 	__be32 gtpu_teid;
 	__be32 gtpc_teid;
+#define OTX2_FLOWER_MASK_MPLS_LB		GENMASK(31, 12)
+#define OTX2_FLOWER_MASK_MPLS_TC		GENMASK(11, 9)
+#define OTX2_FLOWER_MASK_MPLS_BOS		BIT(8)
+#define OTX2_FLOWER_MASK_MPLS_TTL		GENMASK(7, 0)
+#define OTX2_FLOWER_MASK_MPLS_NON_TTL		GENMASK(31, 8)
+	__be32 mpls_lse[4];
 };
 
 struct npc_install_flow_req {
@@ -1951,6 +2039,8 @@ enum tim_clk_srcs {
 	TIM_CLK_SRCS_PTP	= 3,
 	TIM_CLK_SRCS_SYNCE	= 4,
 	TIM_CLK_SRCS_BTS	= 5,
+	TIM_CLK_SRCS_EXT_MIO	= 6,
+	TIM_CLK_SRCS_EXT_GTI	= 7,
 	TIM_CLK_SRSC_INVALID,
 };
 
@@ -2013,6 +2103,11 @@ struct tim_intvl_rsp {
 	u64	intvl_ns;
 };
 
+struct tim_capture_rsp {
+	struct mbox_msghdr hdr;
+	u64 counter[TIM_CLK_SRSC_INVALID];
+};
+
 enum ptp_op {
 	PTP_OP_ADJFINE = 0,
 	PTP_OP_GET_CLOCK = 1,
@@ -2039,12 +2134,6 @@ struct ptp_rsp {
 	struct mbox_msghdr hdr;
 	u64 clk;
 	u64 tsc;
-};
-
-struct ptp_get_cap_rsp {
-	struct mbox_msghdr hdr;
-#define        PTP_CAP_HW_ATOMIC_UPDATE BIT_ULL(0)
-	u64 cap;
 };
 
 struct set_vf_perm  {
@@ -2106,6 +2195,8 @@ struct cpt_lf_alloc_req_msg {
 	u8 blkaddr;
 	u8 ctx_ilen_valid : 1;
 	u8 ctx_ilen : 7;
+	u8 rxc_ena : 1;
+	u8 rxc_ena_lf_id : 7;
 };
 
 #define CPT_INLINE_INBOUND      0
@@ -2206,8 +2297,9 @@ struct cpt_flt_eng_info_req {
 
 struct cpt_flt_eng_info_rsp {
 	struct mbox_msghdr hdr;
-	u64 flt_eng_map[CPT_10K_AF_INT_VEC_RVU];
-	u64 rcvrd_eng_map[CPT_10K_AF_INT_VEC_RVU];
+#define CPT_AF_MAX_FLT_INT_VECS 3
+	u64 flt_eng_map[CPT_AF_MAX_FLT_INT_VECS];
+	u64 rcvrd_eng_map[CPT_AF_MAX_FLT_INT_VECS];
 	u64 rsvd;
 };
 

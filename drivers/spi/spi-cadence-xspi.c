@@ -248,8 +248,8 @@ struct dentry *mrvl_spi_debug_root;
 #define CDNS_XSPI_SPIX_INTR_AUX				0x2000
 #define CDNS_MSIX_CLEAR_IRQ					0x01
 
-#define SPIX_XFER_FUNC_CTRL 0x8210
-#define SPIX_XFER_FUNC_CTRL_READ_DATA(i) (0x8000 + 8 * (i))
+#define SPIX_XFER_FUNC_CTRL 0x210
+#define SPIX_XFER_FUNC_CTRL_READ_DATA(i) (0x000 + 8 * (i))
 
 #define XFER_SOFT_RESET		BIT(11)
 #define XFER_CS_N_HOLD		GENMASK(9, 6)
@@ -318,6 +318,7 @@ struct cdns_xspi_dev {
 	void __iomem *iobase;
 	void __iomem *auxbase;
 	void __iomem *sdmabase;
+	void __iomem *xferbase;
 
 	int irq;
 	int cur_cs;
@@ -332,6 +333,7 @@ struct cdns_xspi_dev {
 	const void *out_buffer;
 
 	u8 hw_num_banks;
+
 	enum cdns_xspi_sdma_size read_size;
 
 #if IS_ENABLED(CONFIG_SPI_CADENCE_MRVL_XSPI)
@@ -340,6 +342,7 @@ struct cdns_xspi_dev {
 	int write_len;
 	int xspi_id;
 	bool wo_mode;
+	int cs_defined;
 #endif
 };
 
@@ -382,7 +385,7 @@ static int lock_spi_bus(struct cdns_xspi_dev *cdns_xspi)
 	uint32_t val = 0;
 	int timeout = SPI_LOCK_TIMEOUT; //10 second timeout
 
-	while (timeout-- >= 0) {
+	while (timeout >= 0) {
 		val = readl(cdns_xspi->auxbase + CDNS_XSPI_PHY_CTB_RFILE_PHY_GPIO_CTRL_1);
 		if (val == SPI_NOT_CLAIMED || val == SPI_AP_NS_OWN) {
 			writel(SPI_AP_NS_OWN,
@@ -390,19 +393,21 @@ static int lock_spi_bus(struct cdns_xspi_dev *cdns_xspi)
 			break;
 		}
 		mdelay(SPI_LOCK_SLEEP_DURATION_MS);
+		timeout--;
 	}
 
-	if (timeout <= 0)
+	if (timeout < 0)
 		goto fail;
 
 	timeout = SPI_LOCK_CHECK_TIMEOUT;
-	while (timeout-- >= 0) {
+	while (timeout >= 0) {
 		if (readl(cdns_xspi->auxbase + CDNS_XSPI_PHY_CTB_RFILE_PHY_GPIO_CTRL_1) !=
 			  SPI_AP_NS_OWN)
 			break;
+		timeout--;
 	}
 
-	if (timeout > 0)
+	if (timeout != -1)
 		goto fail;
 
 	return 0;
@@ -464,15 +469,19 @@ static void spi_gpio_prepare(struct cdns_xspi_dev *cdns_xspi)
 	ret = gpio_request(pin, namestr);
 	gpio_export(pin, false);
 
-	sprintf(namestr, "spi%d_cs0", cdns_xspi->xspi_id);
-	pin = cdns_xspi->xspi_id == 0 ? (SPI_GPIO(SPI0_CS0)) : (SPI_GPIO(SPI1_CS0));
-	ret = gpio_request(pin, namestr);
-	gpio_export(pin, false);
+	if (cdns_xspi->cs_defined & BIT(0)) {
+		sprintf(namestr, "spi%d_cs0", cdns_xspi->xspi_id);
+		pin = cdns_xspi->xspi_id == 0 ? (SPI_GPIO(SPI0_CS0)) : (SPI_GPIO(SPI1_CS0));
+		ret = gpio_request(pin, namestr);
+		gpio_export(pin, false);
+	}
 
-	sprintf(namestr, "spi%d_cs1", cdns_xspi->xspi_id);
-	pin = cdns_xspi->xspi_id == 0 ? (SPI_GPIO(SPI0_CS1)) : (SPI_GPIO(SPI1_CS1));
-	ret = gpio_request(pin, namestr);
-	gpio_export(pin, false);
+	if (cdns_xspi->cs_defined & BIT(1)) {
+		sprintf(namestr, "spi%d_cs1", cdns_xspi->xspi_id);
+		pin = cdns_xspi->xspi_id == 0 ? (SPI_GPIO(SPI0_CS1)) : (SPI_GPIO(SPI1_CS1));
+		ret = gpio_request(pin, namestr);
+		gpio_export(pin, false);
+	}
 
 	sprintf(namestr, "spi%d_io0", cdns_xspi->xspi_id);
 	pin = cdns_xspi->xspi_id == 0 ? (SPI_GPIO(SPI0_IO0)) : (SPI_GPIO(SPI1_IO0));
@@ -594,6 +603,8 @@ static bool cdns_xspi_setup_clock(struct cdns_xspi_dev *cdns_xspi, int requested
 	clk_reg = readl(cdns_xspi->auxbase + CDNS_XSPI_CLK_CTRL_AUX_REG);
 
 	if (FIELD_GET(CDNS_XSPI_CLK_DIV, clk_reg) != i) {
+		clk_reg &= ~CDNS_XSPI_CLK_ENABLE;
+		writel(clk_reg, cdns_xspi->auxbase + CDNS_XSPI_CLK_CTRL_AUX_REG);
 		clk_reg &= ~CDNS_XSPI_CLK_DIV;
 		clk_reg |= FIELD_PREP(CDNS_XSPI_CLK_DIV, i);
 		clk_reg |= CDNS_XSPI_CLK_ENABLE;
@@ -1128,6 +1139,7 @@ static int cdns_xspi_of_get_plat_data(struct platform_device *pdev)
 			fwnode_handle_put(fwnode_child);
 			return -ENXIO;
 		}
+		cdns_xspi->cs_defined |= BIT(cs);
 	}
 
 	return 0;
@@ -1217,7 +1229,7 @@ unsigned char reverse_bits(unsigned char num)
 
 static void cdns_xspi_read_single_qword(struct cdns_xspi_dev *cdns_xspi, u8 **buffer)
 {
-	u64 d = readq(cdns_xspi->iobase +
+	u64 d = readq(cdns_xspi->xferbase +
 		      SPIX_XFER_FUNC_CTRL_READ_DATA(cdns_xspi->current_xfer_qword));
 	u8 *ptr = (u8 *)&d;
 	int k;
@@ -1234,7 +1246,7 @@ static void cdns_xspi_read_single_qword(struct cdns_xspi_dev *cdns_xspi, u8 **bu
 
 static void cdns_xspi_finish_read(struct cdns_xspi_dev *cdns_xspi, u8 **buffer, u32 data_count)
 {
-	u64 d = readq(cdns_xspi->iobase +
+	u64 d = readq(cdns_xspi->xferbase +
 		      SPIX_XFER_FUNC_CTRL_READ_DATA(cdns_xspi->current_xfer_qword));
 	u8 *ptr = (u8 *)&d;
 	int k;
@@ -1281,7 +1293,7 @@ int cdns_xspi_transfer_one_message(struct spi_controller *master,
 
 	/* Enable xfer state machine */
 	if (!cdns_xspi->xfer_in_progress) {
-		u32 xfer_control = readl(cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+		u32 xfer_control = readl(cdns_xspi->xferbase + SPIX_XFER_FUNC_CTRL);
 
 		cdns_xspi->current_xfer_qword = 0;
 		cdns_xspi->xfer_in_progress = true;
@@ -1291,7 +1303,7 @@ int cdns_xspi_transfer_one_message(struct spi_controller *master,
 				 XFER_SOFT_RESET |
 				 FIELD_PREP(XFER_CS_N_HOLD, (1 << cs)));
 		xfer_control &= ~(XFER_FUNC_ENABLE | XFER_CLK_DRIVE_POL);
-		writel(xfer_control, cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+		writel(xfer_control, cdns_xspi->xferbase + SPIX_XFER_FUNC_CTRL);
 	}
 
 	list_for_each_entry(t, &m->transfers, transfer_list) {
@@ -1352,11 +1364,11 @@ int cdns_xspi_transfer_one_message(struct spi_controller *master,
 	}
 
 	if (!cs_change) {
-		u32 xfer_control = readl(cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+		u32 xfer_control = readl(cdns_xspi->xferbase + SPIX_XFER_FUNC_CTRL);
 
 		xfer_control &= ~(XFER_RECEIVE_ENABLE |
 				  XFER_SOFT_RESET);
-		writel(xfer_control, cdns_xspi->iobase + SPIX_XFER_FUNC_CTRL);
+		writel(xfer_control, cdns_xspi->xferbase + SPIX_XFER_FUNC_CTRL);
 		cdns_xspi->xfer_in_progress = false;
 	}
 
@@ -1608,6 +1620,9 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 	cdns_xspi->pdev = pdev;
 	cdns_xspi->dev = &pdev->dev;
 	cdns_xspi->cur_cs = 0;
+#if IS_ENABLED(CONFIG_SPI_CADENCE_MRVL_XSPI)
+	cdns_xspi->cs_defined = 0;
+#endif
 
 	init_completion(&cdns_xspi->cmd_complete);
 	init_completion(&cdns_xspi->auto_cmd_complete);
@@ -1636,6 +1651,16 @@ static int cdns_xspi_probe(struct platform_device *pdev)
 		dev_err(dev, "Failed to remap AUX address\n");
 		return PTR_ERR(cdns_xspi->auxbase);
 	}
+
+#if IS_ENABLED(CONFIG_SPI_CADENCE_MRVL_XSPI)
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 3);
+	cdns_xspi->xferbase = devm_ioremap_resource(dev, res);
+	if (IS_ERR(cdns_xspi->xferbase)) {
+		dev_info(dev, "XFER register base not found, set it\n");
+		// For compatibility with older firmware
+		cdns_xspi->xferbase = cdns_xspi->iobase + 0x8000;
+	}
+#endif
 
 	cdns_xspi->irq = platform_get_irq(pdev, 0);
 	if (cdns_xspi->irq < 0)

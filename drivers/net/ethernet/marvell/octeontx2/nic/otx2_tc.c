@@ -42,6 +42,10 @@
 #define CN10K_TLX_BURST_MANTISSA	GENMASK_ULL(43, 29)
 #define CN10K_TLX_BURST_EXPONENT	GENMASK_ULL(47, 44)
 
+#define OTX2_UNSUPP_LSE_DEPTH		GENMASK(6, 4)
+
+#define MCAST_INVALID_GRP		(-1U)
+
 struct otx2_tc_flow_stats {
 	u64 bytes;
 	u64 pkts;
@@ -62,6 +66,7 @@ struct otx2_tc_flow {
 	struct npc_install_flow_req	req;
 	u64				rate;
 	u32				burst;
+	u32				mcast_grp_idx;
 	bool				is_pps;
 };
 
@@ -371,22 +376,95 @@ static int otx2_tc_act_set_police(struct otx2_nic *nic,
 	return rc;
 }
 
+static int otx2_tc_update_mcast(struct otx2_nic *nic,
+				struct npc_install_flow_req *req,
+				struct netlink_ext_ack *extack,
+				struct otx2_tc_flow *node,
+				struct nix_mcast_grp_update_req *ureq,
+				u8 num_intf)
+{
+	struct nix_mcast_grp_update_req *grp_update_req;
+	struct nix_mcast_grp_create_req *creq;
+	struct nix_mcast_grp_create_rsp *crsp;
+	u32 grp_index;
+	int rc;
+
+	mutex_lock(&nic->mbox.lock);
+	creq = otx2_mbox_alloc_msg_nix_mcast_grp_create(&nic->mbox);
+	if (!creq) {
+		mutex_unlock(&nic->mbox.lock);
+		return -ENOMEM;
+	}
+
+	creq->dir = NIX_MCAST_INGRESS;
+	/* Send message to AF */
+	rc = otx2_sync_mbox_msg(&nic->mbox);
+	if (rc) {
+		NL_SET_ERR_MSG_MOD(extack, "Failed to create multicast group");
+		mutex_unlock(&nic->mbox.lock);
+		return rc;
+	}
+
+	crsp = (struct nix_mcast_grp_create_rsp *)otx2_mbox_get_rsp(&nic->mbox.mbox,
+			0,
+			&creq->hdr);
+	if (IS_ERR(crsp)) {
+		mutex_unlock(&nic->mbox.lock);
+		return PTR_ERR(crsp);
+	}
+
+	grp_index = crsp->mcast_grp_idx;
+	grp_update_req = otx2_mbox_alloc_msg_nix_mcast_grp_update(&nic->mbox);
+	if (!grp_update_req) {
+		NL_SET_ERR_MSG_MOD(extack, "Failed to update multicast group");
+		mutex_unlock(&nic->mbox.lock);
+		return -ENOMEM;
+	}
+
+	ureq->op = NIX_MCAST_OP_ADD_ENTRY;
+	ureq->mcast_grp_idx = grp_index;
+	ureq->num_mce_entry = num_intf;
+	ureq->pcifunc[0] = nic->pcifunc;
+	ureq->channel[0] = nic->hw.tx_chan_base;
+
+	ureq->dest_type[0] = NIX_RX_RSS;
+	ureq->rq_rss_index[0] = 0;
+	memcpy(&ureq->hdr, &grp_update_req->hdr, sizeof(struct mbox_msghdr));
+	memcpy(grp_update_req, ureq, sizeof(struct nix_mcast_grp_update_req));
+
+	/* Send message to AF */
+	rc = otx2_sync_mbox_msg(&nic->mbox);
+	if (rc) {
+		NL_SET_ERR_MSG_MOD(extack, "Failed to update multicast group");
+		mutex_unlock(&nic->mbox.lock);
+		return rc;
+	}
+
+	mutex_unlock(&nic->mbox.lock);
+	req->op = NIX_RX_ACTIONOP_MCAST;
+	req->index = grp_index;
+	node->mcast_grp_idx = grp_index;
+	return 0;
+}
+
 static int otx2_tc_parse_actions(struct otx2_nic *nic,
 				 struct flow_action *flow_action,
 				 struct npc_install_flow_req *req,
 				 struct flow_cls_offload *f,
 				 struct otx2_tc_flow *node)
 {
+	struct nix_mcast_grp_update_req dummy_grp_update_req = { 0 };
 	struct netlink_ext_ack *extack = f->common.extack;
+	bool pps = false, mcast = false;
 	struct flow_action_entry *act;
 	struct net_device *target;
 	struct otx2_nic *priv;
 	u32 burst, mark = 0;
 	u8 nr_police = 0;
-	bool pps = false;
+	u8 num_intf = 1;
+	int rc, i;
 	u64 rate;
 	int err;
-	int i;
 
 	if (!flow_action_has_entries(flow_action)) {
 		NL_SET_ERR_MSG_MOD(extack, "no tc actions specified");
@@ -450,17 +528,43 @@ static int otx2_tc_parse_actions(struct otx2_nic *nic,
 			nr_police++;
 			break;
 		case FLOW_ACTION_MARK:
+			if (act->mark & ~OTX2_RX_MATCH_ID_MASK) {
+				NL_SET_ERR_MSG_MOD(extack, "Bad flow mark, only 16 bit supported");
+				return -EOPNOTSUPP;
+			}
 			mark = act->mark;
+			req->match_id = mark & 0xFFFFULL;
+			req->op = NIX_RX_ACTION_DEFAULT;
+			nic->flags |= OTX2_FLAG_TC_MARK_ENABLED;
+			nic->flow_cfg->mark_flows++;
 			break;
-
 		case FLOW_ACTION_RX_QUEUE_MAPPING:
 			req->op = NIX_RX_ACTIONOP_UCAST;
 			req->index = act->rx_queue;
 			break;
 
+		case FLOW_ACTION_MIRRED_INGRESS:
+			target = act->dev;
+			priv = netdev_priv(target);
+			dummy_grp_update_req.pcifunc[num_intf] = priv->pcifunc;
+			dummy_grp_update_req.channel[num_intf] = priv->hw.tx_chan_base;
+			dummy_grp_update_req.dest_type[num_intf] = NIX_RX_RSS;
+			dummy_grp_update_req.rq_rss_index[num_intf] = 0;
+			mcast = true;
+			num_intf++;
+			break;
+
 		default:
 			return -EOPNOTSUPP;
 		}
+	}
+
+	if (mcast) {
+		rc = otx2_tc_update_mcast(nic, req, extack, node,
+					  &dummy_grp_update_req,
+					  num_intf);
+		if (rc)
+			return rc;
 	}
 
 	if (nr_police > 1) {
@@ -548,16 +652,20 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 	dissector = rule->match.dissector;
 
 	if ((dissector->used_keys &
-	    ~(BIT(FLOW_DISSECTOR_KEY_CONTROL) |
-	      BIT(FLOW_DISSECTOR_KEY_BASIC) |
-	      BIT(FLOW_DISSECTOR_KEY_ETH_ADDRS) |
-	      BIT(FLOW_DISSECTOR_KEY_VLAN) |
-	      BIT(FLOW_DISSECTOR_KEY_CVLAN) |
-	      BIT(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
-	      BIT(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
-	      BIT(FLOW_DISSECTOR_KEY_PORTS) |
-	      BIT(FLOW_DISSECTOR_KEY_IP))))  {
-		netdev_info(nic->netdev, "unsupported flow used key 0x%x",
+	    ~(BIT_ULL(FLOW_DISSECTOR_KEY_CONTROL) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_BASIC) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_ETH_ADDRS) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_VLAN) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_CVLAN) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_PORTS) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_IPSEC) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_MPLS) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_ICMP) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_TCP) |
+	      BIT_ULL(FLOW_DISSECTOR_KEY_IP))))  {
+		netdev_info(nic->netdev, "unsupported flow used key 0x%llx",
 			    dissector->used_keys);
 		return -EOPNOTSUPP;
 	}
@@ -577,6 +685,8 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 		     match.key->ip_proto != IPPROTO_UDP &&
 		     match.key->ip_proto != IPPROTO_SCTP &&
 		     match.key->ip_proto != IPPROTO_ICMP &&
+		     match.key->ip_proto != IPPROTO_ESP &&
+		     match.key->ip_proto != IPPROTO_AH &&
 		     match.key->ip_proto != IPPROTO_ICMPV6)) {
 			netdev_info(nic->netdev,
 				    "ip_proto=0x%x not supported\n",
@@ -596,6 +706,10 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 			req->features |= BIT_ULL(NPC_IPPROTO_ICMP);
 		else if (ip_proto == IPPROTO_ICMPV6)
 			req->features |= BIT_ULL(NPC_IPPROTO_ICMP6);
+		else if (ip_proto == IPPROTO_ESP)
+			req->features |= BIT_ULL(NPC_IPPROTO_ESP);
+		else if (ip_proto == IPPROTO_AH)
+			req->features |= BIT_ULL(NPC_IPPROTO_AH);
 	}
 
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CONTROL)) {
@@ -638,6 +752,26 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 					(u8 *)&match.mask->dst);
 			req->features |= BIT_ULL(NPC_DMAC);
 		}
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IPSEC)) {
+		struct flow_match_ipsec match;
+
+		flow_rule_match_ipsec(rule, &match);
+		if (!match.mask->spi) {
+			NL_SET_ERR_MSG_MOD(extack, "spi index not specified");
+			return -EOPNOTSUPP;
+		}
+		if (ip_proto != IPPROTO_ESP &&
+		    ip_proto != IPPROTO_AH) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "SPI index is valid only for ESP/AH proto");
+			return -EOPNOTSUPP;
+		}
+
+		flow_spec->spi = match.key->spi;
+		flow_mask->spi = match.mask->spi;
+		req->features |= BIT_ULL(NPC_IPSEC_SPI);
 	}
 
 	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_IP)) {
@@ -747,6 +881,81 @@ static int otx2_tc_prepare_flow(struct otx2_nic *nic, struct otx2_tc_flow *node,
 			else if (ip_proto == IPPROTO_SCTP)
 				req->features |= BIT_ULL(NPC_SPORT_SCTP);
 		}
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_TCP)) {
+		struct flow_match_tcp match;
+
+		flow_rule_match_tcp(rule, &match);
+
+		flow_spec->tcp_flags = match.key->flags;
+		flow_mask->tcp_flags = match.mask->flags;
+		req->features |= BIT_ULL(NPC_TCP_FLAGS);
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_MPLS)) {
+		struct flow_match_mpls match;
+		u8 bit;
+
+		flow_rule_match_mpls(rule, &match);
+
+		if (match.mask->used_lses & OTX2_UNSUPP_LSE_DEPTH) {
+			NL_SET_ERR_MSG_MOD(extack,
+					   "unsupported LSE depth for MPLS match offload");
+			return -EOPNOTSUPP;
+		}
+
+		for_each_set_bit(bit, (unsigned long *)&match.mask->used_lses,
+				 FLOW_DIS_MPLS_MAX)  {
+			/* check if any of the fields LABEL,TC,BOS are set */
+			if (*((u32 *)&match.mask->ls[bit]) & 0xffffff00) {
+				/* Hardware will capture 4 byte MPLS header into two
+				 * fields NPC_MPLSX_LBTCBOS and NPC_MPLSX_TTL. Derive
+				 * the associated NPC key based on header index and offset.
+				 */
+
+				req->features |= BIT_ULL(NPC_MPLS1_LBTCBOS + 2 * bit);
+				flow_spec->mpls_lse[bit] =
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_LB,
+						   match.key->ls[bit].mpls_label) |
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_TC,
+						   match.key->ls[bit].mpls_tc) |
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_BOS,
+						   match.key->ls[bit].mpls_bos);
+
+				flow_mask->mpls_lse[bit] =
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_LB,
+						   match.mask->ls[bit].mpls_label) |
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_TC,
+						   match.mask->ls[bit].mpls_tc) |
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_BOS,
+						   match.mask->ls[bit].mpls_bos);
+			}
+
+			if (match.mask->ls[bit].mpls_ttl) {
+				req->features |= BIT_ULL(NPC_MPLS1_TTL + 2 * bit);
+				flow_spec->mpls_lse[bit] |=
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_TTL,
+						   match.key->ls[bit].mpls_ttl);
+				flow_mask->mpls_lse[bit] |=
+					FIELD_PREP(OTX2_FLOWER_MASK_MPLS_TTL,
+						   match.mask->ls[bit].mpls_ttl);
+			}
+		}
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_ICMP)) {
+		struct flow_match_icmp match;
+
+		flow_rule_match_icmp(rule, &match);
+
+		flow_spec->icmp_type = match.key->type;
+		flow_mask->icmp_type = match.mask->type;
+		req->features |= BIT_ULL(NPC_TYPE_ICMP);
+
+		flow_spec->icmp_code = match.key->code;
+		flow_mask->icmp_code = match.mask->code;
+		req->features |= BIT_ULL(NPC_CODE_ICMP);
 	}
 
 	return otx2_tc_parse_actions(nic, &rule->action, req, f, node);
@@ -987,6 +1196,7 @@ static int otx2_tc_del_flow(struct otx2_nic *nic,
 			    struct flow_cls_offload *tc_flow_cmd)
 {
 	struct otx2_flow_config *flow_cfg = nic->flow_cfg;
+	struct nix_mcast_grp_destroy_req *grp_destroy_req;
 	struct otx2_tc_flow *flow_node;
 	int err;
 
@@ -996,6 +1206,11 @@ static int otx2_tc_del_flow(struct otx2_nic *nic,
 			   tc_flow_cmd->cookie);
 		return -EINVAL;
 	}
+
+	/* Disable TC MARK flag if they are no rules with skbedit mark action */
+	if (flow_node->req.match_id)
+		if (!(--flow_cfg->mark_flows))
+			nic->flags &= ~OTX2_FLAG_TC_MARK_ENABLED;
 
 	if (flow_node->is_act_police) {
 		__clear_bit(flow_node->rq, &nic->rq_bmap);
@@ -1022,11 +1237,18 @@ static int otx2_tc_del_flow(struct otx2_nic *nic,
 	}
 
 free_mcam_flow:
+	/* Remove the multicast/mirror related nodes */
+	if (flow_node->mcast_grp_idx != MCAST_INVALID_GRP) {
+		mutex_lock(&nic->mbox.lock);
+		grp_destroy_req = otx2_mbox_alloc_msg_nix_mcast_grp_destroy(&nic->mbox);
+		grp_destroy_req->mcast_grp_idx = flow_node->mcast_grp_idx;
+		otx2_sync_mbox_msg(&nic->mbox);
+		mutex_unlock(&nic->mbox.lock);
+	}
+
 	otx2_del_mcam_flow_entry(nic, flow_node->entry, NULL);
 	otx2_tc_update_mcam_table(nic, flow_cfg, flow_node, false);
-
 	kfree_rcu(flow_node, rcu);
-
 	flow_cfg->nr_flows--;
 	return 0;
 }
@@ -1061,6 +1283,7 @@ static int otx2_tc_add_flow(struct otx2_nic *nic,
 	spin_lock_init(&new_node->lock);
 	new_node->cookie = tc_flow_cmd->cookie;
 	new_node->prio = tc_flow_cmd->common.prio;
+	new_node->mcast_grp_idx = MCAST_INVALID_GRP;
 
 	memset(&dummy, 0, sizeof(struct npc_install_flow_req));
 

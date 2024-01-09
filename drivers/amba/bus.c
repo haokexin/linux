@@ -552,11 +552,21 @@ static void amba_device_release(struct device *dev)
  */
 int amba_device_add(struct amba_device *dev, struct resource *parent)
 {
-	int ret;
+	int ret, cpu;
+	struct device_node *dn;
 
 	ret = request_resource(parent, &dev->res);
 	if (ret)
 		return ret;
+
+	dn = of_parse_phandle(dev->dev.of_node, "cpu", 0);
+	if (dn) {
+		cpu = of_cpu_node_to_id(dn);
+		of_node_put(dn);
+
+		if (!cpu_online(cpu))
+			return -ENODEV;
+	}
 
 	/* If primecell ID isn't hard-coded, figure it out */
 	if (!dev->periphid) {

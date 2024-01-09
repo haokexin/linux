@@ -16,17 +16,20 @@ static bool is_tstmp_atomic_update_supported(struct otx2_ptp *ptp)
 	int err;
 
 	if (!ptp->nic)
-		return 0;
+		return false;
 
 	mutex_lock(&ptp->nic->mbox.lock);
 	req = otx2_mbox_alloc_msg_ptp_get_cap(&ptp->nic->mbox);
-	if (!req)
-		return 0;
+	if (!req) {
+		mutex_unlock(&ptp->nic->mbox.lock);
+		return false;
+	}
 
 	err = otx2_sync_mbox_msg(&ptp->nic->mbox);
-	if (err)
-		return 0;
-
+	if (err) {
+		mutex_unlock(&ptp->nic->mbox.lock);
+		return false;
+	}
 	rsp = (struct ptp_get_cap_rsp *)otx2_mbox_get_rsp(&ptp->nic->mbox.mbox, 0,
 							  &req->hdr);
 	mutex_unlock(&ptp->nic->mbox.lock);
@@ -228,9 +231,6 @@ static int otx2_ptp_tc_adjtime(struct ptp_clock_info *ptp_info, s64 delta)
 	struct otx2_ptp *ptp = container_of(ptp_info, struct otx2_ptp,
 					    ptp_info);
 	struct otx2_nic *pfvf = ptp->nic;
-
-	if (!ptp->nic)
-		return -ENODEV;
 
 	mutex_lock(&pfvf->mbox.lock);
 	timecounter_adjtime(&ptp->time_counter, delta);

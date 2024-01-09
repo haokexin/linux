@@ -15,6 +15,7 @@
 
 #include "otx2_common.h"
 #include "otx2_ptp.h"
+#include <cgx_fw_if.h>
 
 #define DRV_NAME	"rvu-nicpf"
 #define DRV_VF_NAME	"rvu-nicvf"
@@ -1176,17 +1177,9 @@ static void otx2_get_link_mode_info(u64 link_mode_bmap,
 				    *link_ksettings)
 {
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(otx2_link_modes) = { 0, };
-	const int otx2_sgmii_features[6] = {
-		ETHTOOL_LINK_MODE_10baseT_Half_BIT,
-		ETHTOOL_LINK_MODE_10baseT_Full_BIT,
-		ETHTOOL_LINK_MODE_100baseT_Half_BIT,
-		ETHTOOL_LINK_MODE_100baseT_Full_BIT,
-		ETHTOOL_LINK_MODE_1000baseT_Half_BIT,
-		ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
-	};
 	/* CGX link modes to Ethtool link mode mapping */
-	const int cgx_link_mode[51] = {
-		0, /* SGMII  Mode */
+	const int cgx_link_mode[CGX_MODE_MAX] = {
+		0, /* SGMII 1000base T */
 		ETHTOOL_LINK_MODE_1000baseX_Full_BIT,
 		ETHTOOL_LINK_MODE_10000baseT_Full_BIT,
 		ETHTOOL_LINK_MODE_10000baseSR_Full_BIT,
@@ -1226,8 +1219,8 @@ static void otx2_get_link_mode_info(u64 link_mode_bmap,
 		ETHTOOL_LINK_MODE_56000baseSR4_Full_BIT,
 		0,
 		0,
-		0,
-		0,
+		0, /* SGMII 10baseT */
+		0, /* SGMII 100baseT */
 		ETHTOOL_LINK_MODE_2500baseX_Full_BIT,
 		ETHTOOL_LINK_MODE_5000baseT_Full_BIT,
 		ETHTOOL_LINK_MODE_100baseT1_Full_BIT,
@@ -1242,13 +1235,18 @@ static void otx2_get_link_mode_info(u64 link_mode_bmap,
 
 	for_each_set_bit(bit, (unsigned long *)&link_mode_bmap,
 			 ARRAY_SIZE(cgx_link_mode)) {
-		/* SGMII mode is set */
-		if (bit == 0)
-			linkmode_set_bit_array(otx2_sgmii_features,
-					       ARRAY_SIZE(otx2_sgmii_features),
-					       otx2_link_modes);
-		else
+		if (bit == ETH_MODE_SGMII_10M_BIT) {
+			linkmode_set_bit(ETHTOOL_LINK_MODE_10baseT_Half_BIT, otx2_link_modes);
+			linkmode_set_bit(ETHTOOL_LINK_MODE_10baseT_Full_BIT, otx2_link_modes);
+		} else if (bit == ETH_MODE_SGMII_100M_BIT) {
+			linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Half_BIT, otx2_link_modes);
+			linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT, otx2_link_modes);
+		} else if (bit == CGX_MODE_SGMII) {
+			linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Half_BIT, otx2_link_modes);
+			linkmode_set_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT, otx2_link_modes);
+		} else {
 			linkmode_set_bit(cgx_link_mode[bit], otx2_link_modes);
+		}
 	}
 
 	if (req_mode == OTX2_MODE_ADVERTISED)
@@ -1322,27 +1320,14 @@ static int otx2_get_link_ksettings(struct net_device *netdev,
 	return 0;
 }
 
-static void otx2_get_advertised_mode(const struct ethtool_link_ksettings *cmd,
-				     u64 *mode)
-{
-	u32 bit_pos;
-
-	/* Firmware does not support requesting multiple advertised modes
-	 * return first set bit
-	 */
-	bit_pos = find_first_bit(cmd->link_modes.advertising,
-				 __ETHTOOL_LINK_MODE_MASK_NBITS);
-	if (bit_pos != __ETHTOOL_LINK_MODE_MASK_NBITS)
-		*mode = bit_pos;
-}
-
-#define OTX2_OVERWRITE_DEF 1
 static int otx2_set_link_ksettings(struct net_device *netdev,
 				   const struct ethtool_link_ksettings *cmd)
 {
+	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
 	struct otx2_nic *pf = netdev_priv(netdev);
 	struct ethtool_link_ksettings cur_ks;
 	struct cgx_set_link_mode_req *req;
+	struct cgx_set_link_mode_rsp *rsp;
 	struct mbox *mbox = &pf->mbox;
 	int err = 0;
 
@@ -1370,22 +1355,33 @@ static int otx2_set_link_ksettings(struct net_device *netdev,
 		goto end;
 	}
 
-	if (cmd->base.phy_address == OTX2_OVERWRITE_DEF) {
-		req->args.speed = cmd->base.speed;
-		/* firmware expects 1 for half duplex and 0 for full duplex
-		 * hence inverting
-		 */
-		req->args.duplex = cmd->base.duplex ^ 0x1;
-		req->args.an = cmd->base.autoneg;
-	} else {
-		req->args.speed = SPEED_UNKNOWN;
-		req->args.duplex = DUPLEX_UNKNOWN;
-		req->args.an = AUTONEG_UNKNOWN;
+	req->args.speed = cmd->base.speed;
+	/* firmware expects 1 for half duplex and 0 for full duplex
+	 * hence inverting
+	 */
+	req->args.duplex = cmd->base.duplex ^ 0x1;
+	req->args.an = cmd->base.autoneg;
+
+	/* Mask unsupported modes and send message to AF */
+	linkmode_set_bit(ETHTOOL_LINK_MODE_FEC_NONE_BIT, mask);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_FEC_BASER_BIT, mask);
+	linkmode_set_bit(ETHTOOL_LINK_MODE_FEC_RS_BIT, mask);
+
+	linkmode_copy(req->args.advertising,
+		      cmd->link_modes.advertising);
+	linkmode_andnot(req->args.advertising,
+			req->args.advertising, mask);
+
+	/* inform AF that we need parse this differently */
+	if (bitmap_weight(req->args.advertising,
+			  __ETHTOOL_LINK_MODE_MASK_NBITS) >= 2)
+		req->args.multimode = true;
+
+	if (!otx2_sync_mbox_msg(&pf->mbox)) {
+		rsp = (struct cgx_set_link_mode_rsp *)
+		       otx2_mbox_get_rsp(&pf->mbox.mbox, 0, &req->hdr);
+		err = rsp->status;
 	}
-
-	otx2_get_advertised_mode(cmd, &req->args.mode);
-
-	err = otx2_sync_mbox_msg(&pf->mbox);
 end:
 	mutex_unlock(&mbox->lock);
 	return err;

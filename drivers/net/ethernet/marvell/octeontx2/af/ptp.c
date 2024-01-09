@@ -13,8 +13,8 @@
 #include <linux/ktime.h>
 
 #include "mbox.h"
-#include "rvu.h"
 #include "ptp.h"
+#include "rvu.h"
 
 #define DRV_NAME				"Marvell PTP Driver"
 
@@ -64,6 +64,9 @@
 
 #define CYCLE_MULT				1000
 
+#define is_rev_A0(ptp) (((ptp)->pdev->revision & 0x0F) == 0x0)
+#define is_rev_A1(ptp) (((ptp)->pdev->revision & 0x0F) == 0x1)
+
 /* PTP atomic update operation type */
 enum atomic_opcode {
 	ATOMIC_SET = 1,
@@ -76,49 +79,38 @@ static const struct pci_device_id ptp_id_table[];
 
 static bool is_ptp_dev_cnf10ka(struct ptp *ptp)
 {
-	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP) ? true : false;
+	return ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP;
 }
 
 static bool is_ptp_dev_cn10ka(struct ptp *ptp)
 {
-	return (ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP) ? true : false;
+	return ptp->pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP;
 }
 
 static bool cn10k_ptp_errata(struct ptp *ptp)
 {
-	if ((is_ptp_dev_cn10ka(ptp) &&
-	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)) ||
-	    (is_ptp_dev_cnf10ka(ptp) &&
-	     ((ptp->pdev->revision & 0x0F) == 0x0 || (ptp->pdev->revision & 0x0F) == 0x1)))
+	if ((is_ptp_dev_cn10ka(ptp) || is_ptp_dev_cnf10ka(ptp)) &&
+	    (is_rev_A0(ptp) || is_rev_A1(ptp)))
 		return true;
 
 	return false;
 }
 
-static inline bool is_tstmp_atomic_update_supported(struct rvu *rvu)
+static bool is_tstmp_atomic_update_supported(struct rvu *rvu)
 {
 	struct ptp *ptp = rvu->ptp;
-	struct pci_dev *pdev;
 
 	if (is_rvu_otx2(rvu))
 		return false;
 
-	pdev = ptp->pdev;
-
 	/* On older silicon variants of CN10K, atomic update feature
 	 * is not available.
 	 */
-	if ((pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP &&
-	     (pdev->revision & 0x0F) == 0x0) ||
-	     (pdev->subsystem_device == PCI_SUBSYS_DEVID_CN10K_A_PTP &&
-	     (pdev->revision & 0x0F) == 0x1) ||
-	     (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP &&
-	     (pdev->revision & 0x0F) == 0x0) ||
-	     (pdev->subsystem_device == PCI_SUBSYS_DEVID_CNF10K_A_PTP &&
-	     (pdev->revision & 0x0F) == 0x1))
+	if ((is_ptp_dev_cn10ka(ptp) || is_ptp_dev_cnf10ka(ptp)) &&
+	    (is_rev_A0(ptp) || is_rev_A1(ptp)))
 		return false;
-	else
-		return true;
+
+	return true;
 }
 
 static enum hrtimer_restart ptp_reset_thresh(struct hrtimer *hrtimer)
@@ -261,9 +253,6 @@ void ptp_put(struct ptp *ptp)
 static void ptp_atomic_update(struct ptp *ptp, u64 timestamp)
 {
 	u64 regval, curr_rollover_set, nxt_rollover_set;
-	struct pci_dev *pdev;
-
-	pdev = ptp->pdev;
 
 	/* First setup NSECs and SECs */
 	writeq(timestamp, ptp->reg_base + PTP_NANO_TIMESTAMP);

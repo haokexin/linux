@@ -74,7 +74,7 @@ enum cpt_af_int_vec_e {
 	CPT_AF_INT_VEC_CNT	= 0x4,
 };
 
-enum cpt_10k_af_int_vec_e {
+enum cpt_cn10k_flt_int_vec_e {
 	CPT_10K_AF_INT_VEC_FLT0	= 0x0,
 	CPT_10K_AF_INT_VEC_FLT1	= 0x1,
 	CPT_10K_AF_INT_VEC_FLT2	= 0x2,
@@ -118,6 +118,13 @@ enum sso_af_int_vec_e {
 	SSO_AF_INT_VEC_ERR2 = 0x1,
 	SSO_AF_INT_VEC_RAS  = 0x2,
 	SSO_AF_INT_VEC_CNT  = 0x3,
+};
+
+/* TIM Admin function Interrupt Vector Enumeration */
+enum tim_af_int_vec_e {
+	TIM_AF_INT_VEC_BKT_SKIP = 0x0,
+	TIM_AF_INT_VEC_RVU      = 0x4,
+	TIM_AF_INT_VEC_CNT      = 0x5,
 };
 
 /**
