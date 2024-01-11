@@ -1974,7 +1974,6 @@ static int cgx_lmac_init(struct cgx *cgx)
 	u64 lmac_list = 0;
 	int i, err;
 
-	cgx->lmac_count = cgx->mac_ops->get_nr_lmacs(cgx);
 	/* lmac_list specifies which lmacs are enabled
 	 * when bit n is set to 1, LMAC[n] is enabled
 	 */

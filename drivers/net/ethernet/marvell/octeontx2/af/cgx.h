@@ -19,7 +19,6 @@
 #define PCI_CFG_REG_BAR_NUM		0
 
 #define CGX_ID_MASK			0xF
-#define CGX_FIFO_LEN			65536 /* 64K for both Rx & Tx */
 
 /* Registers */
 #define CGXX_CMRX_CFG			0x00
