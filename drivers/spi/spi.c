@@ -360,6 +360,18 @@ const struct spi_device_id *spi_get_device_id(const struct spi_device *sdev)
 }
 EXPORT_SYMBOL_GPL(spi_get_device_id);
 
+const void *spi_get_device_match_data(const struct spi_device *sdev)
+{
+	const void *match;
+
+	match = device_get_match_data(&sdev->dev);
+	if (match)
+		return match;
+
+	return (const void *)spi_get_device_id(sdev)->driver_data;
+}
+EXPORT_SYMBOL_GPL(spi_get_device_match_data);
+
 static int spi_match_device(struct device *dev, struct device_driver *drv)
 {
 	const struct spi_device	*spi = to_spi_device(dev);
@@ -626,7 +638,8 @@ static int __spi_add_device(struct spi_device *spi)
 	 */
 	status = bus_for_each_dev(&spi_bus_type, NULL, spi, spi_dev_check);
 	if (status) {
-		dev_err(dev, "chipselect %d already in use\n", spi_get_chipselect(spi, 0));
+		dev_err(dev, "chipselect %d already in use\n",
+				spi_get_chipselect(spi, 0));
 		return status;
 	}
 
@@ -3695,6 +3708,37 @@ static int __spi_validate_bits_per_word(struct spi_controller *ctlr,
 }
 
 /**
+ * spi_set_cs_timing - configure CS setup, hold, and inactive delays
+ * @spi: the device that requires specific CS timing configuration
+ *
+ * Return: zero on success, else a negative error code.
+ */
+static int spi_set_cs_timing(struct spi_device *spi)
+{
+	struct device *parent = spi->controller->dev.parent;
+	int status = 0;
+
+	if (spi->controller->set_cs_timing && !spi_get_csgpiod(spi, 0)) {
+		if (spi->controller->auto_runtime_pm) {
+			status = pm_runtime_get_sync(parent);
+			if (status < 0) {
+				pm_runtime_put_noidle(parent);
+				dev_err(&spi->controller->dev, "Failed to power device: %d\n",
+					status);
+				return status;
+			}
+
+			status = spi->controller->set_cs_timing(spi);
+			pm_runtime_mark_last_busy(parent);
+			pm_runtime_put_autosuspend(parent);
+		} else {
+			status = spi->controller->set_cs_timing(spi);
+		}
+	}
+	return status;
+}
+
+/**
  * spi_setup - setup SPI mode and clock rate
  * @spi: the device whose settings are being modified
  * Context: can sleep, and no requests are queued to the device
@@ -3788,6 +3832,12 @@ int spi_setup(struct spi_device *spi)
 				status);
 			return status;
 		}
+	}
+
+	status = spi_set_cs_timing(spi);
+	if (status) {
+		mutex_unlock(&spi->controller->io_mutex);
+		return status;
 	}
 
 	if (spi->controller->auto_runtime_pm && spi->controller->set_cs) {
