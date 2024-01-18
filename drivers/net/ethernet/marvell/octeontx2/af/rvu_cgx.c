@@ -514,7 +514,7 @@ int rvu_cgx_tx_enable(struct rvu *rvu, u16 pcifunc, bool enable)
 	void *cgxd;
 
 	if (!is_cgx_config_permitted(rvu, pcifunc))
-		return 0;
+		return LMAC_AF_ERR_PERM_DENIED;
 
 	rvu_get_cgx_lmac_id(rvu->pf2cgxlmac_map[pf], &cgx_id, &lmac_id);
 	cgxd = rvu_cgx_pdata(cgx_id, rvu);
