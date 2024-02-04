@@ -1435,7 +1435,7 @@ static int uart_rs485_config(struct uart_port *port)
 	uart_port_lock_irqsave(port, &flags);
 	ret = port->rs485_config(port, NULL, rs485);
 	uart_port_unlock_irqrestore(port, flags);
-	if (ret)
+	if (ret) {
 		memset(rs485, 0, sizeof(*rs485));
 		/* unset GPIOs */
 		gpiod_set_value_cansleep(port->rs485_term_gpio, 0);
