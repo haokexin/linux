@@ -3306,6 +3306,10 @@ static int dispc_softreset(struct dispc_device *dispc)
 		}
 	}
 
+	/* K2G display controller does not support soft reset */
+	if (dispc->feat->subrev == DISPC_K2G)
+		return 0;
+
 	/* Soft reset */
 	REG_FLD_MOD(dispc, DSS_SYSCONFIG, 1, 1, 1);
 	/* Wait for reset to complete */
@@ -3553,6 +3557,10 @@ int dispc_init(struct tidss_device *tidss)
 		if (r)
 			return r;
 	}
+
+	r = dispc_init_hw(dispc);
+	if (r)
+		return r;
 
 	tidss->dispc = dispc;
 
