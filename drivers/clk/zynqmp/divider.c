@@ -2,8 +2,7 @@
 /*
  * Zynq UltraScale+ MPSoC Divider support
  *
- * Copyright (C), 2016 - 2019 Xilinx
- * Copyright (C), 2023 Advanced Micro Devices, Inc.
+ *  Copyright (C) 2016-2019 Xilinx
  *
  * Adjustable divider clock implementation
  */
@@ -129,7 +128,7 @@ static long zynqmp_clk_divider_round_rate(struct clk_hw *hw,
 	u32 div_type = divider->div_type;
 	u32 bestdiv;
 	int ret;
-	u8 width = 0;
+	u8 width;
 
 	/* if read only, just return current value */
 	if (divider->flags & CLK_DIVIDER_READ_ONLY) {
