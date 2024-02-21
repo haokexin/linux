@@ -2081,6 +2081,8 @@ static const struct usb_audio_quirk_flags_table quirk_flags_table[] = {
 		   QUIRK_FLAG_IGNORE_CTL_ERROR),
 	DEVICE_FLG(0x0951, 0x16ad, /* Kingston HyperX */
 		   QUIRK_FLAG_CTL_MSG_DELAY_1M),
+	DEVICE_FLG(0x09da, 0x2695, /* A4Tech FHD 1080p webcam */
+		   QUIRK_FLAG_DISABLE_AUTOSUSPEND | QUIRK_FLAG_GET_SAMPLE_RATE),
 	DEVICE_FLG(0x0b0e, 0x0349, /* Jabra 550a */
 		   QUIRK_FLAG_CTL_MSG_DELAY_1M),
 	DEVICE_FLG(0x0ecb, 0x205c, /* JBL Quantum610 Wireless */
@@ -2183,24 +2185,7 @@ static const struct usb_audio_quirk_flags_table quirk_flags_table[] = {
 		   QUIRK_FLAG_ALIGN_TRANSFER),
 	DEVICE_FLG(0x534d, 0x2109, /* MacroSilicon MS2109 */
 		   QUIRK_FLAG_ALIGN_TRANSFER),
-	DEVICE_FLG(0x1224, 0x2a25, /* Jieli Technology USB PHY 2.0 */
-		   QUIRK_FLAG_GET_SAMPLE_RATE),
-	DEVICE_FLG(0x2b53, 0x0023, /* Fiero SC-01 (firmware v1.0.0 @ 48 kHz) */
-		   QUIRK_FLAG_GENERIC_IMPLICIT_FB),
-	DEVICE_FLG(0x2b53, 0x0024, /* Fiero SC-01 (firmware v1.0.0 @ 96 kHz) */
-		   QUIRK_FLAG_GENERIC_IMPLICIT_FB),
-	DEVICE_FLG(0x2b53, 0x0031, /* Fiero SC-01 (firmware v1.1.0) */
-		   QUIRK_FLAG_GENERIC_IMPLICIT_FB),
-	DEVICE_FLG(0x0525, 0xa4ad, /* Hamedal C20 usb camero */
-		   QUIRK_FLAG_IFACE_SKIP_CLOSE),
-	DEVICE_FLG(0x0ecb, 0x205c, /* JBL Quantum610 Wireless */
-		   QUIRK_FLAG_FIXED_RATE),
-	DEVICE_FLG(0x0ecb, 0x2069, /* JBL Quantum810 Wireless */
-		   QUIRK_FLAG_FIXED_RATE),
-	DEVICE_FLG(0x09da, 0x2695, /* A4Tech FHD 1080p webcam */
-		   QUIRK_FLAG_DISABLE_AUTOSUSPEND | QUIRK_FLAG_GET_SAMPLE_RATE),
-	DEVICE_FLG(0x1bcf, 0x2283, /* NexiGo N930AF FHD Webcam */
-		   QUIRK_FLAG_GET_SAMPLE_RATE),
+
 	/* Vendor matches */
 	VENDOR_FLG(0x045e, /* MS Lifecam */
 		   QUIRK_FLAG_GET_SAMPLE_RATE),
