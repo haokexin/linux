@@ -645,7 +645,7 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 		goto err_disable_clk;
 	}
 
-	clkout_name = kasprintf(GFP_KERNEL, "%s_out0", dev_name(&pdev->dev));
+	clkout_name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "%s_out0", dev_name(&pdev->dev));
 	if (nr_outputs == 1) {
 		clk_wzrd->clkout[0] = clk_wzrd_register_divider
 				(&pdev->dev, clkout_name,
@@ -666,7 +666,7 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 	reg = reg & WZRD_CLKFBOUT_MULT_MASK;
 	reg =  reg >> WZRD_CLKFBOUT_MULT_SHIFT;
 	mult = (reg * 1000) + reg_f;
-	clk_name = kasprintf(GFP_KERNEL, "%s_mul", dev_name(&pdev->dev));
+	clk_name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "%s_mul", dev_name(&pdev->dev));
 	if (!clk_name) {
 		ret = -ENOMEM;
 		goto err_disable_clk;
@@ -675,14 +675,13 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 			(&pdev->dev, clk_name,
 			 __clk_get_name(clk_wzrd->clk_in1),
 			0, mult, 1000);
-	kfree(clk_name);
 	if (IS_ERR(clk_wzrd->clks_internal[wzrd_clk_mul])) {
 		dev_err(&pdev->dev, "unable to register fixed-factor clock\n");
 		ret = PTR_ERR(clk_wzrd->clks_internal[wzrd_clk_mul]);
 		goto err_disable_clk;
 	}
 
-	clk_name = kasprintf(GFP_KERNEL, "%s_mul_div", dev_name(&pdev->dev));
+	clk_name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "%s_mul_div", dev_name(&pdev->dev));
 	if (!clk_name) {
 		ret = -ENOMEM;
 		goto err_rm_int_clk;
@@ -703,7 +702,8 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 
 	/* register div per output */
 	for (i = nr_outputs - 1; i >= 0 ; i--) {
-		clkout_name = kasprintf(GFP_KERNEL, "%s_out%d", dev_name(&pdev->dev), i);
+		clkout_name = devm_kasprintf(&pdev->dev, GFP_KERNEL, "%s_out%d",
+				dev_name(&pdev->dev), i);
 		if (!clkout_name) {
 			ret = -ENOMEM;
 			goto err_rm_int_clk;
@@ -739,7 +739,6 @@ static int clk_wzrd_probe(struct platform_device *pdev)
 		}
 	}
 
-	kfree(clk_name);
 out:
 	clk_wzrd->clk_data.clks = clk_wzrd->clkout;
 	clk_wzrd->clk_data.clk_num = ARRAY_SIZE(clk_wzrd->clkout);
@@ -765,7 +764,6 @@ out:
 err_rm_int_clks:
 	clk_unregister(clk_wzrd->clks_internal[1]);
 err_rm_int_clk:
-	kfree(clk_name);
 	clk_unregister(clk_wzrd->clks_internal[0]);
 err_disable_clk:
 	clk_disable_unprepare(clk_wzrd->axi_clk);
