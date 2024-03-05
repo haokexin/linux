@@ -102,6 +102,31 @@ static void cnf10k_rfoe_update_rx_stats(struct cnf10k_rfoe_ndev_priv *priv,
 	priv->stats.rx_bytes += len;
 }
 
+static void cnf10k_rfoe_set_rx_state(struct cnf10k_rfoe_ndev_priv *priv,
+				     bool enabled)
+{
+	struct rfoe_rx_ctrl *rx_ctrl;
+	u64 value;
+
+	value = readq(priv->rfoe_reg_base +
+		      CNF10K_RFOEX_RX_CTL(priv->rfoe_num));
+
+	rx_ctrl = (struct rfoe_rx_ctrl *)&value;
+
+	if (enabled)
+		rx_ctrl->data_pkt_rx_en |= (1 << priv->lmac_id);
+	else
+		rx_ctrl->data_pkt_rx_en &= ~(1 << priv->lmac_id);
+
+	netdev_printk(KERN_INFO, priv->netdev,
+		      "%s RX for RFOE %u LMAC %u data_pkt_rx_en 0x%x\n",
+		      (enabled ? "Enabling" : "Disabling"),
+		      priv->rfoe_num, priv->lmac_id, rx_ctrl->data_pkt_rx_en);
+
+	writeq(value,
+	       priv->rfoe_reg_base + CNF10K_RFOEX_RX_CTL(priv->rfoe_num));
+}
+
 void cnf10k_bphy_intr_handler(struct otx2_bphy_cdev_priv *cdev_priv, u32 status)
 {
 	struct cnf10k_rfoe_drv_ctx *cnf10k_drv_ctx;
@@ -164,6 +189,7 @@ void cnf10k_bphy_rfoe_cleanup(void)
 			netdev = drv_ctx->netdev;
 			netif_tx_stop_all_queues(netdev);
 			priv = netdev_priv(netdev);
+			cnf10k_rfoe_set_rx_state(priv, false);
 			--(priv->ptp_cfg->refcnt);
 			if (!priv->ptp_cfg->refcnt) {
 				del_timer_sync(&priv->ptp_cfg->ptp_timer);
@@ -547,7 +573,8 @@ static void cnf10k_rfoe_process_rx_pkt(struct cnf10k_rfoe_ndev_priv *priv,
 		return;
 	}
 
-	if (unlikely(psw->mac_err_sts || psw->mcs_err_sts)) {
+	if (unlikely(psw->mac_err_sts || (psw->mcs_err_sts &&
+					  ((psw->mcs_err_sts >> 2) != 0x1)))) {
 		if (netif_msg_rx_err(priv2))
 			net_warn_ratelimited("%s: psw mac_err_sts = 0x%x, mcs_err_sts=0x%x\n",
 					     priv2->netdev->name,
@@ -1155,6 +1182,9 @@ static netdev_tx_t cnf10k_rfoe_eth_start_xmit(struct sk_buff *skb,
 	}
 
 	pkt_len = skb->len;
+
+	if (skb->len < 64)
+		memset((void __force *)job_entry->pkt_dma_addr, 0, 64);
 
 	/* Copy packet data to dma buffer */
 	memcpy((void __force *)job_entry->pkt_dma_addr, skb->data, skb->len);

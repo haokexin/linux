@@ -171,6 +171,10 @@
 						 ((unsigned long)(a) << 36) | \
 						 ((unsigned long)(b) << 11))
 
+/* PSM register offset */
+#define PSM_RST					(0xF0200ULL)
+#define PSM_MAX_QUEUE_ID			127
+
 /* MHAB definitions */
 struct mhbw_jd_dma_cfg_word_0_s {
 	u64 dma_mode		: 3;
@@ -340,6 +344,16 @@ struct rfoex_abx_slotx_configuration2 {
 	u64 ecpri_id		: 16;
 	u64 ecpri_seq_id	: 16;
 	u64 reserved1		: 8;
+};
+
+struct rfoex_rx_ctrl {
+	u64 data_pkt_rx_en		: 1;
+	u64 rx_idle			: 1;
+	u64 reserved_2_3		: 2;
+	u64 rx_ptp_mode			: 4;
+	u64 reserved_8_15		: 8;
+	u64 vlan_tpid_err_drop_ena	: 4;
+	u64 reserved_20_63		: 44;
 };
 
 struct mhab_job_desc_cfg {
