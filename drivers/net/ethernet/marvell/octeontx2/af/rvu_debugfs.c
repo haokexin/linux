@@ -2856,6 +2856,22 @@ static void rvu_dbg_npc_mcam_show_flows(struct seq_file *s,
 			RVU_DBG_PRINT_MPLS_TTL(rule->packet.mpls_lse[3],
 					       rule->mask.mpls_lse[3]);
 			break;
+		case NPC_TYPE_ICMP:
+			seq_printf(s, "%d ", rule->packet.icmp_type);
+			seq_printf(s, "mask 0x%x\n", rule->mask.icmp_type);
+			break;
+		case NPC_CODE_ICMP:
+			seq_printf(s, "%d ", rule->packet.icmp_code);
+			seq_printf(s, "mask 0x%x\n", rule->mask.icmp_code);
+			break;
+		case NPC_TCP_FLAGS:
+			seq_printf(s, "%d ", rule->packet.tcp_flags);
+			seq_printf(s, "mask 0x%x\n", rule->mask.tcp_flags);
+			break;
+		case NPC_IPSEC_SPI:
+			seq_printf(s, "0x%x ", ntohl(rule->packet.spi));
+			seq_printf(s, "mask 0x%x\n", ntohl(rule->mask.spi));
+			break;
 		default:
 			seq_puts(s, "\n");
 			break;
@@ -2883,10 +2899,6 @@ static void rvu_dbg_npc_mcam_show_action(struct seq_file *s,
 			break;
 		case NIX_TX_ACTIONOP_DROP_VIOL:
 			seq_puts(s, "\taction: Lockdown Violation Drop\n");
-			break;
-		case NPC_IPSEC_SPI:
-			seq_printf(s, "0x%x ", ntohl(rule->packet.spi));
-			seq_printf(s, "mask 0x%x\n", ntohl(rule->mask.spi));
 			break;
 		default:
 			break;
