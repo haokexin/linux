@@ -1378,6 +1378,7 @@ enum rvu_af_dl_param_id {
 	RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_BTS,
 	RVU_AF_DEVLINK_PARAM_ID_NPC_MCAM_ZONE_PERCENT,
 	RVU_AF_DEVLINK_PARAM_ID_NPC_EXACT_FEATURE_DISABLE,
+	RVU_AF_DEVLINK_PARAM_ID_NIX_MAXLF,
 };
 
 static u64 rvu_af_dl_tim_param_id_to_offset(u32 id)
@@ -1601,10 +1602,6 @@ static int rvu_af_dl_tim_adjust_timer_get(struct devlink *devlink, u32 id,
 	struct rvu *rvu = rvu_dl->rvu;
 	u64 offset, delta;
 
-	if (id == RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI &&
-	    cn10k_tim_adjust_gti_errata(rvu->pdev))
-		return -ENXIO;
-
 	offset = rvu_af_dl_tim_param_id_to_offset(id);
 	delta = rvu_read64(rvu, BLKADDR_TIM, offset);
 	snprintf(ctx->val.vstr, sizeof(ctx->val.vstr), "%llu", delta);
@@ -1621,10 +1618,6 @@ static int rvu_af_dl_tim_adjust_timer_set(struct devlink *devlink, u32 id,
 
 	if (kstrtoull(ctx->val.vstr, 10, &delta))
 		return -EINVAL;
-
-	if (id == RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI &&
-	    cn10k_tim_adjust_gti_errata(rvu->pdev))
-		return -ENXIO;
 
 	offset = rvu_af_dl_tim_param_id_to_offset(id);
 	rvu_write64(rvu, BLKADDR_TIM, offset, delta);
@@ -1762,6 +1755,82 @@ static int rvu_af_dl_npc_mcam_high_zone_percent_validate(struct devlink *devlink
 	return 0;
 }
 
+static int rvu_af_dl_nix_maxlf_get(struct devlink *devlink, u32 id,
+				   struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+
+	ctx->val.vu16 = (u16)rvu_get_nixlf_count(rvu);
+
+	return 0;
+}
+
+static int rvu_af_dl_nix_maxlf_set(struct devlink *devlink, u32 id,
+				   struct devlink_param_gset_ctx *ctx)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	struct rvu_block *block;
+	int blkaddr = 0;
+
+	npc_mcam_rsrcs_deinit(rvu);
+	rvu_tim_deinit(rvu);
+
+	blkaddr = rvu_get_next_nix_blkaddr(rvu, blkaddr);
+	while (blkaddr) {
+		block = &rvu->hw->block[blkaddr];
+		block->lf.max = ctx->val.vu16;
+		blkaddr = rvu_get_next_nix_blkaddr(rvu, blkaddr);
+	}
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
+	npc_mcam_rsrcs_init(rvu, blkaddr);
+	rvu_tim_init(rvu);
+
+	return 0;
+}
+
+static int rvu_af_dl_nix_maxlf_validate(struct devlink *devlink, u32 id,
+					union devlink_param_value val,
+					struct netlink_ext_ack *extack)
+{
+	struct rvu_devlink *rvu_dl = devlink_priv(devlink);
+	struct rvu *rvu = rvu_dl->rvu;
+	u16 max_nix0_lf, max_nix1_lf;
+	struct npc_mcam *mcam;
+	u64 cfg;
+
+	cfg = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_CONST2);
+	max_nix0_lf = cfg & 0xFFF;
+	cfg = rvu_read64(rvu, BLKADDR_NIX1, NIX_AF_CONST2);
+	max_nix1_lf = cfg & 0xFFF;
+
+	/* Do not allow user to modify maximum NIX LFs while mcam entries
+	 * have already been assigned.
+	 */
+	mcam = &rvu->hw->mcam;
+	if (mcam->bmap_fcnt < mcam->bmap_entries) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "mcam entries have already been assigned, can't resize");
+		return -EPERM;
+	}
+
+	if (max_nix0_lf && val.vu16 > max_nix0_lf) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "requested nixlf is greater than the max supported nix0_lf");
+		return -EINVAL;
+	}
+
+	if (max_nix1_lf && val.vu16 > max_nix1_lf) {
+		NL_SET_ERR_MSG_MOD(extack,
+				   "requested nixlf is greater than the max supported nix1_lf");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static const struct devlink_param rvu_af_dl_params[] = {
 	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_DWRR_MTU,
 			     "dwrr_mtu", DEVLINK_PARAM_TYPE_U32,
@@ -1826,12 +1895,6 @@ static const struct devlink_param rvu_af_dl_params[] = {
 			     rvu_af_dl_tim_adjust_timer_get,
 			     rvu_af_dl_tim_adjust_timer_set,
 			     rvu_af_dl_tim_adjust_timer_validate),
-	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI,
-			     "tim_adjust_gti", DEVLINK_PARAM_TYPE_STRING,
-			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
-			     rvu_af_dl_tim_adjust_timer_get,
-			     rvu_af_dl_tim_adjust_timer_set,
-			     rvu_af_dl_tim_adjust_timer_validate),
 	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_PTP,
 			     "tim_adjust_ptp", DEVLINK_PARAM_TYPE_STRING,
 			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
@@ -1850,6 +1913,21 @@ static const struct devlink_param rvu_af_dl_params[] = {
 			     rvu_af_dl_npc_mcam_high_zone_percent_get,
 			     rvu_af_dl_npc_mcam_high_zone_percent_set,
 			     rvu_af_dl_npc_mcam_high_zone_percent_validate),
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_NIX_MAXLF,
+			     "nix_maxlf", DEVLINK_PARAM_TYPE_U16,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_nix_maxlf_get,
+			     rvu_af_dl_nix_maxlf_set,
+			     rvu_af_dl_nix_maxlf_validate),
+};
+
+static const struct devlink_param rvu_af_dl_param_tim_adj_gti[] = {
+	DEVLINK_PARAM_DRIVER(RVU_AF_DEVLINK_PARAM_ID_TIM_ADJUST_GTI,
+			     "tim_adjust_gti", DEVLINK_PARAM_TYPE_STRING,
+			     BIT(DEVLINK_PARAM_CMODE_RUNTIME),
+			     rvu_af_dl_tim_adjust_timer_get,
+			     rvu_af_dl_tim_adjust_timer_set,
+			     rvu_af_dl_tim_adjust_timer_validate),
 };
 
 static const struct devlink_param rvu_af_dl_param_exact_match[] = {
@@ -1951,6 +2029,16 @@ int rvu_register_dl(struct rvu *rvu)
 		goto err_dl_health;
 	}
 
+	if (!cn10k_tim_adjust_gti_errata(rvu->pdev)) {
+		err = devlink_params_register(dl, rvu_af_dl_param_tim_adj_gti,
+					      ARRAY_SIZE(rvu_af_dl_param_tim_adj_gti));
+		if (err) {
+			dev_err(rvu->dev,
+				"devlink TIM adjust GTI param register failed with error %d", err);
+			goto err_dl_tim_gti;
+		}
+	}
+
 	/* Register exact match devlink only for CN10K-B */
 	if (!rvu_npc_exact_has_match_table(rvu))
 		goto done;
@@ -1969,6 +2057,10 @@ done:
 	return 0;
 
 err_dl_exact_match:
+	if (!cn10k_tim_adjust_gti_errata(rvu->pdev))
+		devlink_params_unregister(dl, rvu_af_dl_param_tim_adj_gti,
+					  ARRAY_SIZE(rvu_af_dl_param_tim_adj_gti));
+err_dl_tim_gti:
 	devlink_params_unregister(dl, rvu_af_dl_params, ARRAY_SIZE(rvu_af_dl_params));
 
 err_dl_health:
@@ -1987,6 +2079,10 @@ void rvu_unregister_dl(struct rvu *rvu)
 		return;
 
 	devlink_params_unregister(dl, rvu_af_dl_params, ARRAY_SIZE(rvu_af_dl_params));
+
+	if (!cn10k_tim_adjust_gti_errata(rvu->pdev))
+		devlink_params_unregister(dl, rvu_af_dl_param_tim_adj_gti,
+					  ARRAY_SIZE(rvu_af_dl_param_tim_adj_gti));
 
 	/* Unregister exact match devlink only for CN10K-B */
 	if (rvu_npc_exact_has_match_table(rvu))
