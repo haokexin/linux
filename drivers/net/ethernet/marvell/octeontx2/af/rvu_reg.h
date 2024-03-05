@@ -445,6 +445,9 @@
 #define NIX_AF_MDQX_IN_MD_COUNT(a)	(0x14e0 | (a) << 16)
 #define NIX_AF_RX_RQX_MASKX(a, b)       (0x4A40 | (a) << 16 | (b) << 3)
 #define NIX_AF_RX_RQX_SETX(a, b)        (0x4A80 | (a) << 16 | (b) << 3)
+#define NIX_AF_SMQX_STATUS(a)		(0x730 | (a) << 16)
+#define NIX_AF_MDQX_MD_COUNT		0xda0
+#define NIX_AF_MDQX_OUT_MD_COUNT(a)	(0xdb0 | (a) << 16)
 
 #define NIX_PRIV_AF_INT_CFG		(0x8000000)
 #define NIX_PRIV_LFX_CFG		(0x8000010)
@@ -718,6 +721,13 @@
 #define TIM_AF_RING_GMCTL_SHIFT		3
 #define TIM_AF_RING_SSO_PF_FUNC_SHIFT	0
 #define TIM_AF_FLAGS_REG_GPIO_EDGE_MASK	GENMASK_ULL(6, 5)
+#define TIM_AF_BKT_SKIP_INTX(a)		(0x10000 | (a) << 5)
+#define TIM_AF_BKT_SKIP_INTX_ENA_W1S(a)	(0x10010 | (a) << 5)
+#define TIM_AF_BKT_SKIP_INTX_ENA_W1C(a)	(0x10018 | (a) << 5)
+#define TIM_AF_RVU_INT			(0x10200)
+#define TIM_AF_RVU_INT_ENA_W1S		(0x10210)
+#define TIM_AF_RVU_INT_ENA_W1C		(0x10218)
+#define TIM_PRIV_AF_INT_CFG		(0x22000)
 
 /* CPT */
 #define CPT_AF_CONSTANTS0               (0x0000)
