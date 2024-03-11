@@ -813,6 +813,7 @@ static inline unsigned int blk_queue_depth(struct request_queue *q)
  */
 #define BLK_DEFAULT_SG_TIMEOUT	(60 * HZ)
 #define BLK_MIN_SG_TIMEOUT	(7 * HZ)
+#define GD_SUPPRESS_PART_SCAN		5
 
 struct rq_map_data {
 	struct page **pages;
