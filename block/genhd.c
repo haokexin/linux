@@ -372,6 +372,9 @@ static void disk_scan_partitions(struct gendisk *disk)
 {
 	struct block_device *bdev;
 
+	if (test_bit(GD_SUPPRESS_PART_SCAN, &disk->state))
+		return;
+
 	if (!get_capacity(disk) || !disk_part_scan_enabled(disk))
 		return;
 
