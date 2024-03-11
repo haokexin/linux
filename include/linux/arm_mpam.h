@@ -30,7 +30,7 @@ int acpi_mpam_parse_resources(struct mpam_msc *msc,
 int acpi_mpam_count_msc(void);
 #else
 static inline int acpi_mpam_parse_resources(struct mpam_msc *msc,
-					    struct acpi_table_mpam_msc *tbl_msc)
+					    struct acpi_mpam_msc_node *tbl_msc)
 {
 	return -EINVAL;
 }
