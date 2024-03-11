@@ -96,6 +96,9 @@ static int blkdev_reread_part(struct block_device *bdev, fmode_t mode)
 	if (bdev->bd_disk->open_partitions)
 		return -EBUSY;
 
+	if (test_bit(GD_SUPPRESS_PART_SCAN, &bdev->bd_disk->state))
+		return -EINVAL;
+
 	/*
 	 * Reopen the device to revalidate the driver state and force a
 	 * partition rescan.
