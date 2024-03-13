@@ -26,6 +26,7 @@
 #include <linux/phy/phy.h>
 #include <linux/reset.h>
 #include <linux/uaccess.h>
+#include <sound/hdmi-codec.h>
 
 #include "zynqmp_disp.h"
 #include "zynqmp_dp.h"
@@ -329,6 +330,7 @@ struct zynqmp_dp {
 	void __iomem *iomem;
 	struct reset_control *reset;
 	int irq;
+	struct platform_device *audio_pdev;
 
 	struct zynqmp_dp_config config;
 	struct drm_dp_aux aux;
@@ -373,6 +375,53 @@ static void zynqmp_dp_clr(void __iomem *base, int offset, u32 clr)
 static void zynqmp_dp_set(void __iomem *base, int offset, u32 set)
 {
 	zynqmp_dp_write(base, offset, zynqmp_dp_read(base, offset) | set);
+}
+
+static int zynqmp_dp_audio_hw_params(struct device *dev,  void *data,
+				   struct hdmi_codec_daifmt *daifmt,
+				   struct hdmi_codec_params *params)
+{
+	return 0;
+}
+
+static int zynqmp_dp_audio_startup(struct device *dev, void *data)
+{
+	struct zynqmp_dp *dp = data;
+
+	if (zynqmp_disp_aud_enabled(dp->dpsub->disp))
+		zynqmp_dp_write(dp->iomem, ZYNQMP_DP_TX_AUDIO_CONTROL, 1);
+
+	return 0;
+}
+
+static void zynqmp_dp_audio_shutdown(struct device *dev, void *data)
+{
+	struct zynqmp_dp *dp = data;
+
+	if (zynqmp_disp_aud_enabled(dp->dpsub->disp))
+		zynqmp_dp_write(dp->iomem, ZYNQMP_DP_TX_AUDIO_CONTROL, 0);
+}
+
+static const struct hdmi_codec_ops audio_codec_ops = {
+	.hw_params = zynqmp_dp_audio_hw_params,
+	.audio_shutdown = zynqmp_dp_audio_shutdown,
+	.audio_startup = zynqmp_dp_audio_startup,
+};
+
+static int zynqmp_dp_audio_init(struct zynqmp_dp *dp,
+				   struct device *dev)
+{
+	struct hdmi_codec_pdata codec_data = {
+		.ops = &audio_codec_ops,
+		.spdif = 1,
+		.data = dp,
+	};
+
+	dp->audio_pdev = platform_device_register_data(
+			 dev, HDMI_CODEC_DRV_NAME, PLATFORM_DEVID_NONE,
+			 &codec_data, sizeof(codec_data));
+
+	return PTR_ERR_OR_ZERO(dp->audio_pdev);
 }
 
 /* -----------------------------------------------------------------------------
@@ -1947,6 +1996,12 @@ int zynqmp_dp_probe(struct platform_device *pdev)
 	ret = drm_dp_aux_register(&dp->aux);
 	if (ret < 0) {
 		dev_err(dp->dev, "failed to initialize DP aux\n");
+		goto error;
+	}
+
+	ret = zynqmp_dp_audio_init(dp, dp->dev);
+	if (ret < 0) {
+		dev_err(dp->dev, "failed to initialize DP audio codec\n");
 		goto error;
 	}
 
