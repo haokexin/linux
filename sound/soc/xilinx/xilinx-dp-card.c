@@ -36,12 +36,12 @@ static const struct snd_soc_ops xilinx_dp_ops = {
 
 SND_SOC_DAILINK_DEFS(xilinx_dp0,
 		DAILINK_COMP_ARRAY(COMP_CPU("xilinx-dp-snd-codec-dai")),
-		DAILINK_COMP_ARRAY(COMP_CODEC(NULL, "xilinx-dp-snd-codec-dai")),
+		DAILINK_COMP_ARRAY(COMP_CODEC("hdmi-audio-codec", "spdif-hifi")),
 		DAILINK_COMP_ARRAY(COMP_PLATFORM(NULL)));
 
 SND_SOC_DAILINK_DEFS(xilinx_dp1,
 		DAILINK_COMP_ARRAY(COMP_CPU("xilinx-dp-snd-codec-dai")),
-		DAILINK_COMP_ARRAY(COMP_CODEC(NULL, "xilinx-dp-snd-codec-dai")),
+		DAILINK_COMP_ARRAY(COMP_CODEC("hdmi-audio-codec", "spdif-hifi")),
 		DAILINK_COMP_ARRAY(COMP_PLATFORM(NULL)));
 
 static struct snd_soc_dai_link xilinx_dp_dai_links[] = {
@@ -71,28 +71,20 @@ static int xilinx_dp_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &xilinx_dp_card;
 	struct device_node *node = pdev->dev.of_node;
-	struct device_node *codec, *pcm;
+	struct device_node *pcm;
 	int ret;
 
 	card->dev = &pdev->dev;
-
-	codec = of_parse_phandle(node, "xlnx,dp-snd-codec", 0);
-	if (!codec)
-		return -ENODEV;
 
 	pcm = of_parse_phandle(node, "xlnx,dp-snd-pcm", 0);
 	if (!pcm)
 		return -ENODEV;
 	xilinx_dp_dai_links[0].platforms->of_node = pcm;
-	xilinx_dp_dai_links[0].cpus->of_node = codec;
-	xilinx_dp_dai_links[0].codecs->of_node = codec;
 
 	pcm = of_parse_phandle(node, "xlnx,dp-snd-pcm", 1);
 	if (!pcm)
 		return -ENODEV;
 	xilinx_dp_dai_links[1].platforms->of_node = pcm;
-	xilinx_dp_dai_links[1].cpus->of_node = codec;
-	xilinx_dp_dai_links[1].codecs->of_node = codec;
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)
