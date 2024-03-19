@@ -269,6 +269,7 @@ static int tilcdc_init(const struct drm_driver *ddrv, struct device *dev)
 
 	pm_runtime_put_sync(dev);
 
+	ddev->mode_config.preferred_depth = 16;
 	if (priv->rev == 1) {
 		DBG("Revision 1 LCDC supports only RGB565 format");
 		priv->pixelformats = tilcdc_rev1_formats;
@@ -284,6 +285,7 @@ static int tilcdc_init(const struct drm_driver *ddrv, struct device *dev)
 			priv->num_pixelformats =
 				ARRAY_SIZE(tilcdc_crossed_formats);
 			bpp = 32; /* Choose bpp with RGB support for fbdef */
+			ddev->mode_config.preferred_depth = 24;
 		} else if (0 == strcmp(str, "straight")) {
 			DBG("Configured for straight blue and red wires");
 			priv->pixelformats = tilcdc_straight_formats;
