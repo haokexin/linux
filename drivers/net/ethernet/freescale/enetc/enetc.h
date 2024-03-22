@@ -396,6 +396,8 @@ struct enetc_ndev_priv {
 
 	struct work_struct	tx_onestep_tstamp;
 	struct sk_buff_head	tx_skbs;
+
+	bool fp_enabled_admin;
 };
 
 /* Messaging */
@@ -440,6 +442,7 @@ int enetc_xsk_wakeup(struct net_device *dev, u32 queue, u32 flags);
 
 /* ethtool */
 void enetc_set_ethtool_ops(struct net_device *ndev);
+int enetc_pmac_reset(struct net_device *ndev, bool enable);
 
 /* control buffer descriptor ring (CBDR) */
 int enetc_setup_cbdr(struct device *dev, struct enetc_hw *hw, int bd_count,
@@ -594,11 +597,13 @@ static inline int enetc_set_psfp(struct net_device *ndev, bool en)
 void enetc_tsn_pf_init(struct net_device *netdev, struct pci_dev *pdev);
 void enetc_tsn_pf_deinit(struct net_device *netdev);
 void enetc_pspeed_set(struct enetc_ndev_priv *priv, int speed);
+void enetc_ptp_clock_update(void);
 
 #else
 
 #define enetc_tsn_pf_init(netdev, pdev) (void)0
 #define enetc_tsn_pf_deinit(netdev) (void)0
 #define enetc_pspeed_set(priv, speed) (void)0
+#define enetc_ptp_clock_update() (void)0
 
 #endif

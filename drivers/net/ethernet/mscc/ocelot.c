@@ -210,6 +210,12 @@ static void ocelot_vcap_enable(struct ocelot *ocelot, int port)
 	ocelot_write_gix(ocelot, ANA_PORT_VCAP_CFG_S1_ENA,
 			 ANA_PORT_VCAP_CFG, port);
 
+	/* Use key S1_5TUPLE_IP4 in second lookup. */
+	ocelot_write_ix(ocelot,
+			ANA_PORT_VCAP_S1_KEY_CFG_S1_KEY_IP6_CFG(2) |
+			ANA_PORT_VCAP_S1_KEY_CFG_S1_KEY_IP4_CFG(2),
+			ANA_PORT_VCAP_S1_KEY_CFG, port, 1);
+
 	ocelot_rmw_gix(ocelot, REW_PORT_CFG_ES0_EN,
 		       REW_PORT_CFG_ES0_EN,
 		       REW_PORT_CFG, port);
@@ -343,6 +349,8 @@ static void ocelot_port_manage_port_tag(struct ocelot *ocelot, int port)
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
 	enum ocelot_port_tag_config tag_cfg;
 	bool uses_native_vlan = false;
+	u32 port_tpid = 0;
+	u32 tag_tpid = 0;
 
 	if (ocelot_port->vlan_aware) {
 		uses_native_vlan = ocelot_port_uses_native_vlan(ocelot, port);
@@ -353,12 +361,17 @@ static void ocelot_port_manage_port_tag(struct ocelot *ocelot, int port)
 			tag_cfg = OCELOT_PORT_TAG_DISABLED;
 		else
 			tag_cfg = OCELOT_PORT_TAG_TRUNK;
+
+		if (ocelot->qinq_enable && ocelot_port->qinq_mode)
+			tag_tpid = REW_TAG_CFG_TAG_TPID_CFG(1);
+		else
+			tag_tpid = REW_TAG_CFG_TAG_TPID_CFG(0);
 	} else {
 		tag_cfg = OCELOT_PORT_TAG_DISABLED;
 	}
 
-	ocelot_rmw_gix(ocelot, REW_TAG_CFG_TAG_CFG(tag_cfg),
-		       REW_TAG_CFG_TAG_CFG_M,
+	ocelot_rmw_gix(ocelot, REW_TAG_CFG_TAG_CFG(tag_cfg) | tag_tpid,
+		       REW_TAG_CFG_TAG_CFG_M | REW_TAG_CFG_TAG_TPID_CFG_M,
 		       REW_TAG_CFG, port);
 
 	if (uses_native_vlan) {
@@ -370,9 +383,16 @@ static void ocelot_port_manage_port_tag(struct ocelot *ocelot, int port)
 		 */
 		native_vlan = ocelot_port_find_native_vlan(ocelot, port);
 
+		if (ocelot->qinq_enable && ocelot_port->qinq_mode)
+			port_tpid = REW_PORT_VLAN_CFG_PORT_TPID(ETH_P_8021AD);
+		else
+			port_tpid = REW_PORT_VLAN_CFG_PORT_TPID(ETH_P_8021Q);
+
 		ocelot_rmw_gix(ocelot,
-			       REW_PORT_VLAN_CFG_PORT_VID(native_vlan->vid),
-			       REW_PORT_VLAN_CFG_PORT_VID_M,
+			       REW_PORT_VLAN_CFG_PORT_VID(native_vlan->vid) |
+			       port_tpid,
+			       REW_PORT_VLAN_CFG_PORT_VID_M |
+			       REW_PORT_VLAN_CFG_PORT_TPID_M,
 			       REW_PORT_VLAN_CFG, port);
 	}
 }
@@ -417,6 +437,10 @@ static void ocelot_port_set_pvid(struct ocelot *ocelot, int port,
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
 	u16 pvid = ocelot_vlan_unaware_pvid(ocelot, ocelot_port->bridge);
 	u32 val = 0;
+	u32 tag_type = 0;
+
+	if (ocelot->qinq_enable && ocelot_port->qinq_mode)
+		tag_type = ANA_PORT_VLAN_CFG_VLAN_TAG_TYPE;
 
 	ocelot_port->pvid_vlan = pvid_vlan;
 
@@ -424,8 +448,8 @@ static void ocelot_port_set_pvid(struct ocelot *ocelot, int port,
 		pvid = pvid_vlan->vid;
 
 	ocelot_rmw_gix(ocelot,
-		       ANA_PORT_VLAN_CFG_VLAN_VID(pvid),
-		       ANA_PORT_VLAN_CFG_VLAN_VID_M,
+		       ANA_PORT_VLAN_CFG_VLAN_VID(pvid) | tag_type,
+		       ANA_PORT_VLAN_CFG_VLAN_VID_M | tag_type,
 		       ANA_PORT_VLAN_CFG, port);
 
 	/* If there's no pvid, we should drop not only untagged traffic (which
@@ -583,6 +607,15 @@ int ocelot_port_vlan_filtering(struct ocelot *ocelot, int port,
 		      ANA_PORT_VLAN_CFG_VLAN_POP_CNT(1);
 	else
 		val = 0;
+
+	/* if switch is enabled for QinQ, the port for LAN should set
+	 * VLAN_CFG.VLAN_POP_CNT=0 && VLAN_CFG.VLAN_AWARE_ENA=0.
+	 * the port for MAN should set VLAN_CFG.VLAN_POP_CNT=1 &&
+	 * VLAN_CFG.VLAN_AWARE_ENA=1. referring to 4.3.3 in VSC9959_1_00_TS.pdf
+	 */
+	if (ocelot->qinq_enable && !ocelot_port->qinq_mode)
+		val = 0;
+
 	ocelot_rmw_gix(ocelot, val,
 		       ANA_PORT_VLAN_CFG_VLAN_AWARE_ENA |
 		       ANA_PORT_VLAN_CFG_VLAN_POP_CNT_M,
@@ -1464,7 +1497,12 @@ u32 ocelot_get_bridge_fwd_mask(struct ocelot *ocelot, int src_port)
 		if (!ocelot_port)
 			continue;
 
-		if (ocelot_port->stp_state == BR_STATE_FORWARDING &&
+		/* Keep the bridge port in forward mask if the port is forward
+		 * state or force_forward mode.
+		 * FRER need to set the port to force_forward mode.
+		 */
+		if ((ocelot_port->stp_state == BR_STATE_FORWARDING ||
+		     ocelot_port->force_forward) &&
 		    ocelot_port->bridge == bridge)
 			mask |= BIT(port);
 	}

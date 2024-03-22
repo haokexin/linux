@@ -494,10 +494,12 @@ static int felix_cb_streamid_set(struct net_device *ndev, u32 index, bool enable
 		if (!stream)
 			return -EINVAL;
 
+		dst_idx = stream->dst_idx;
 		ocelot_mact_forget(ocelot, stream->mac, stream->vid);
+
 		felix_stream_table_del(index);
 
-		felix_streamid_force_forward_clear(ocelot, stream->dst_idx);
+		felix_streamid_force_forward_clear(ocelot, dst_idx);
 
 		return 0;
 	}
@@ -1532,7 +1534,7 @@ static int felix_pcpmap_set(struct net_device *ndev,
 	ocelot = dp->ds->priv;
 	port = dp->index;
 
-	index = (c->pcp & GENMASK(2, 0)) * ((c->dei & BIT(0)) + 1);
+	index = (c->dei & BIT(0)) * 8 + (c->pcp & GENMASK(2, 0));
 
 	ocelot_rmw_ix(ocelot,
 		     (ANA_PORT_PCP_DEI_MAP_DP_PCP_DEI_VAL & (c->dpl << 3)) |
