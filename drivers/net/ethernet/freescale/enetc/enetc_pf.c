@@ -590,25 +590,10 @@ static void enetc_mac_enable(struct enetc_hw *hw, bool en)
 	enetc_port_wr(hw, ENETC_PM1_CMD_CFG, val);
 }
 
-static void enetc_configure_port_pmac(struct enetc_hw *hw)
-{
-	u32 temp;
-
-	/* Set pMAC step lock */
-	temp = enetc_port_rd(hw, ENETC_PFPMR);
-	enetc_port_wr(hw, ENETC_PFPMR,
-		      temp | ENETC_PFPMR_PMACE | ENETC_PFPMR_MWLM);
-
-	temp = enetc_port_rd(hw, ENETC_MMCSR);
-	enetc_port_wr(hw, ENETC_MMCSR, temp | ENETC_MMCSR_ME);
-}
-
 static void enetc_configure_port(struct enetc_pf *pf)
 {
 	u8 hash_key[ENETC_RSSHASH_KEY_SIZE];
 	struct enetc_hw *hw = &pf->si->hw;
-
-	enetc_configure_port_pmac(hw);
 
 	enetc_configure_port_mac(hw);
 
@@ -1117,6 +1102,7 @@ static void enetc_pl_mac_link_down(struct phylink_config *config,
 	struct enetc_pf *pf = phylink_to_enetc_pf(config);
 
 	enetc_mac_enable(&pf->si->hw, false);
+	enetc_pmac_reset(pf->si->ndev, 0);
 }
 
 static const struct phylink_mac_ops enetc_mac_phylink_ops = {

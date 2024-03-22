@@ -746,6 +746,7 @@ dtb-$(CONFIG_SOC_IMX6SX) += \
 	imx6sx-udoo-neo-full.dtb
 dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ul-14x14-evk.dtb \
+	imx6ul-14x14-evk-ecat.dtb \
 	imx6ul-14x14-evk-csi.dtb \
 	imx6ul-14x14-evk-emmc.dtb \
 	imx6ul-14x14-evk-btwifi.dtb \
@@ -777,6 +778,10 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ul-tx6ul-0011.dtb \
 	imx6ul-tx6ul-mainboard.dtb \
 	imx6ull-14x14-evk.dtb \
+	imx6ull-14x14-evk-ecat.dtb \
+	imx6ull-14x14-evk-lpuart.dtb \
+	imx6ull-14x14-evk-avb.dtb \
+	imx6ull-14x14-evk-avb-mcr.dtb \
 	imx6ull-14x14-evk-emmc.dtb \
 	imx6ull-14x14-evk-btwifi.dtb \
 	imx6ull-14x14-evk-gpmi-weim.dtb \
@@ -915,7 +920,8 @@ dtb-$(CONFIG_SOC_LS1021A) += \
 	ls1021a-moxa-uc-8410a.dtb \
 	ls1021a-qds.dtb \
 	ls1021a-tsn.dtb \
-	ls1021a-twr.dtb
+	ls1021a-twr.dtb \
+	ls1021a-iot.dtb
 dtb-$(CONFIG_SOC_VF610) += \
 	vf500-colibri-eval-v3.dtb \
 	vf610-bk4.dtb \

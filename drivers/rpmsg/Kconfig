@@ -81,10 +81,17 @@ config RPMSG_VIRTIO
 	select RPMSG_NS
 	select VIRTIO
 
+config RPMSG_PERF
+	tristate "RPMSG performance test driver"
+	depends on RPMSG
+	default m
+	help
+	  Say Y here to enable the RPMSG performance test driver.
+
 config HAVE_IMX_RPMSG
 	bool "IMX RPMSG driver on the AMP SOCs"
 	default y
-	depends on IMX_MBOX
+	depends on IMX_MBOX || GENERIC_SOFTWARE_MAILBOX
 	select RPMSG_VIRTIO
 	help
 	  Say y here to enable support for the iMX Rpmsg Driver	providing
@@ -117,5 +124,12 @@ config IMX_RPMSG_TTY
 	  would be created after this module is insmoded. the demo would be
 	  executed by the command "echo <string> > <accordingly node>", thus
 	  remote M core would receive the string.
+
+config RPMSG_8M_BUF
+	bool "RPMSG 8M bytes buffer support"
+	default n
+	depends on HAVE_IMX_RPMSG
+	help
+	  Say y here to enable support for 8M bytes Vring buffer for rpmsg.
 
 endmenu

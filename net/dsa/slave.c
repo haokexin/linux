@@ -1610,6 +1610,41 @@ static int dsa_slave_get_ts_info(struct net_device *dev,
 	return ds->ops->get_ts_info(ds, p->dp->index, ts);
 }
 
+static int dsa_slave_reset_preempt(struct net_device *dev, bool enable)
+{
+	struct dsa_slave_priv *p = netdev_priv(dev);
+	struct dsa_switch *ds = p->dp->ds;
+
+	if (!ds->ops->reset_preempt)
+		return -EOPNOTSUPP;
+
+	return ds->ops->reset_preempt(ds, p->dp->index, enable);
+}
+
+static int dsa_slave_set_preempt(struct net_device *dev,
+				 struct ethtool_fp *fpcmd)
+{
+	struct dsa_slave_priv *p = netdev_priv(dev);
+	struct dsa_switch *ds = p->dp->ds;
+
+	if (!ds->ops->set_preempt)
+		return -EOPNOTSUPP;
+
+	return ds->ops->set_preempt(ds, p->dp->index, fpcmd);
+}
+
+static int dsa_slave_get_preempt(struct net_device *dev,
+				 struct ethtool_fp *fpcmd)
+{
+	struct dsa_slave_priv *p = netdev_priv(dev);
+	struct dsa_switch *ds = p->dp->ds;
+
+	if (!ds->ops->get_preempt)
+		return -EOPNOTSUPP;
+
+	return ds->ops->get_preempt(ds, p->dp->index, fpcmd);
+}
+
 static int dsa_slave_vlan_rx_add_vid(struct net_device *dev, __be16 proto,
 				     u16 vid)
 {
@@ -1619,6 +1654,7 @@ static int dsa_slave_vlan_rx_add_vid(struct net_device *dev, __be16 proto,
 		.vid = vid,
 		/* This API only allows programming tagged, non-PVID VIDs */
 		.flags = 0,
+		.proto = ntohs(proto),
 	};
 	struct netlink_ext_ack extack = {0};
 	int ret;
@@ -1632,6 +1668,7 @@ static int dsa_slave_vlan_rx_add_vid(struct net_device *dev, __be16 proto,
 	}
 
 	/* And CPU port... */
+	vlan.proto = ETH_P_8021Q;
 	ret = dsa_port_host_vlan_add(dp, &vlan, &extack);
 	if (ret) {
 		if (extack._msg)
@@ -1651,6 +1688,7 @@ static int dsa_slave_vlan_rx_kill_vid(struct net_device *dev, __be16 proto,
 		.vid = vid,
 		/* This API only allows programming tagged, non-PVID VIDs */
 		.flags = 0,
+		.proto = ntohs(proto),
 	};
 	int err;
 
@@ -2159,6 +2197,9 @@ static const struct ethtool_ops dsa_slave_ethtool_ops = {
 	.set_rxnfc		= dsa_slave_set_rxnfc,
 	.get_ts_info		= dsa_slave_get_ts_info,
 	.self_test		= dsa_slave_net_selftest,
+	.set_preempt		= dsa_slave_set_preempt,
+	.get_preempt		= dsa_slave_get_preempt,
+	.reset_preempt		= dsa_slave_reset_preempt,
 };
 
 static const struct dcbnl_rtnl_ops __maybe_unused dsa_slave_dcbnl_ops = {
@@ -2770,7 +2811,9 @@ dsa_slave_check_8021q_upper(struct net_device *dev,
 	struct net_device *br = dsa_port_bridge_dev_get(dp);
 	struct bridge_vlan_info br_info;
 	struct netlink_ext_ack *extack;
+	bool update_proto = false;
 	int err = NOTIFY_DONE;
+	u16 br_proto, proto;
 	u16 vid;
 
 	if (!br || !br_vlan_enabled(br))
@@ -2778,13 +2821,17 @@ dsa_slave_check_8021q_upper(struct net_device *dev,
 
 	extack = netdev_notifier_info_to_extack(&info->info);
 	vid = vlan_dev_vlan_id(info->upper_dev);
+	proto = vlan_dev_vlan_proto(info->upper_dev);
+	err = br_vlan_get_proto(br, &br_proto);
+	if (err == 0 && br_proto != proto)
+		update_proto = true;
 
 	/* br_vlan_get_info() returns -EINVAL or -ENOENT if the
 	 * device, respectively the VID is not found, returning
 	 * 0 means success, which is a failure for us here.
 	 */
 	err = br_vlan_get_info(br, vid, &br_info);
-	if (err == 0) {
+	if (err == 0 && !update_proto) {
 		NL_SET_ERR_MSG_MOD(extack,
 				   "This VLAN is already configured by the bridge");
 		return notifier_from_errno(-EBUSY);

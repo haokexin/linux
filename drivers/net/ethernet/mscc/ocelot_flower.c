@@ -468,20 +468,27 @@ static int ocelot_flower_parse_action(struct ocelot *ocelot, int port,
 			switch (ntohs(a->vlan.proto)) {
 			case ETH_P_8021Q:
 				tpid = OCELOT_TAG_TPID_SEL_8021Q;
+				filter->action.tag_b_tpid_sel = tpid;
+				filter->action.push_inner_tag = OCELOT_ES0_TAG;
+				filter->action.tag_b_vid_sel = OCELOT_ES0_VID;
+				filter->action.tag_b_pcp_sel = OCELOT_ES0_PCP;
+				filter->action.vid_b_val = a->vlan.vid;
+				filter->action.pcp_b_val = a->vlan.prio;
 				break;
 			case ETH_P_8021AD:
 				tpid = OCELOT_TAG_TPID_SEL_8021AD;
+				filter->action.tag_a_tpid_sel = tpid;
+				filter->action.push_outer_tag = OCELOT_ES0_TAG;
+				filter->action.tag_a_vid_sel = OCELOT_ES0_VID;
+				filter->action.tag_a_pcp_sel = OCELOT_ES0_PCP;
+				filter->action.vid_a_val = a->vlan.vid;
+				filter->action.pcp_a_val = a->vlan.prio;
 				break;
 			default:
 				NL_SET_ERR_MSG_MOD(extack,
 						   "Cannot push custom TPID");
 				return -EOPNOTSUPP;
 			}
-			filter->action.tag_a_tpid_sel = tpid;
-			filter->action.push_outer_tag = OCELOT_ES0_TAG;
-			filter->action.tag_a_vid_sel = OCELOT_ES0_VID;
-			filter->action.vid_a_val = a->vlan.vid;
-			filter->action.pcp_a_val = a->vlan.prio;
 			filter->type = OCELOT_VCAP_FILTER_OFFLOAD;
 			break;
 		case FLOW_ACTION_GATE:
@@ -586,6 +593,7 @@ ocelot_flower_parse_key(struct ocelot *ocelot, int port, bool ingress,
 	      BIT(FLOW_DISSECTOR_KEY_META) |
 	      BIT(FLOW_DISSECTOR_KEY_PORTS) |
 	      BIT(FLOW_DISSECTOR_KEY_VLAN) |
+	      BIT(FLOW_DISSECTOR_KEY_CVLAN) |
 	      BIT(FLOW_DISSECTOR_KEY_IPV4_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_IPV6_ADDRS) |
 	      BIT(FLOW_DISSECTOR_KEY_ETH_ADDRS))) {
@@ -614,6 +622,18 @@ ocelot_flower_parse_key(struct ocelot *ocelot, int port, bool ingress,
 		filter->vlan.vid.mask = match.mask->vlan_id;
 		filter->vlan.pcp.value[0] = match.key->vlan_priority;
 		filter->vlan.pcp.mask[0] = match.mask->vlan_priority;
+		match_protocol = false;
+	}
+
+	if (flow_rule_match_key(rule, FLOW_DISSECTOR_KEY_CVLAN)) {
+		struct flow_match_vlan match;
+
+		flow_rule_match_cvlan(rule, &match);
+		filter->key_type = OCELOT_VCAP_KEY_ANY;
+		filter->cvlan.vid.value = match.key->vlan_id;
+		filter->cvlan.vid.mask = match.mask->vlan_id;
+		filter->cvlan.pcp.value[0] = match.key->vlan_priority;
+		filter->cvlan.pcp.mask[0] = match.mask->vlan_priority;
 		match_protocol = false;
 	}
 

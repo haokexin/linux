@@ -55,6 +55,7 @@ struct phylink_link_state;
 #define DSA_TAG_PROTO_RTL8_4T_VALUE		25
 #define DSA_TAG_PROTO_RZN1_A5PSW_VALUE		26
 #define DSA_TAG_PROTO_LAN937X_VALUE		27
+#define DSA_TAG_PROTO_NETC_VALUE		28
 
 enum dsa_tag_protocol {
 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
@@ -85,6 +86,7 @@ enum dsa_tag_protocol {
 	DSA_TAG_PROTO_RTL8_4T		= DSA_TAG_PROTO_RTL8_4T_VALUE,
 	DSA_TAG_PROTO_RZN1_A5PSW	= DSA_TAG_PROTO_RZN1_A5PSW_VALUE,
 	DSA_TAG_PROTO_LAN937X		= DSA_TAG_PROTO_LAN937X_VALUE,
+	DSA_TAG_PROTO_NETC		= DSA_TAG_PROTO_NETC_VALUE,
 };
 
 struct dsa_switch;
@@ -955,6 +957,22 @@ struct dsa_switch_ops {
 	int	(*port_del_dscp_prio)(struct dsa_switch *ds, int port, u8 dscp,
 				      u8 prio);
 
+	/*
+	 * ethtool --set-frame-preemption
+	 */
+	int	(*set_preempt)(struct dsa_switch *ds, int port,
+			       struct ethtool_fp *fpcmd);
+
+	/*
+	 * ethtool --show-frame-preemption
+	 */
+	int	(*get_preempt)(struct dsa_switch *ds, int port,
+			       struct ethtool_fp *fpcmd);
+
+	/*
+	 * ethtool --reset-frame-preemption
+	 */
+	int	(*reset_preempt)(struct dsa_switch *ds, int port, bool enable);
 	/*
 	 * Suspend and resume
 	 */

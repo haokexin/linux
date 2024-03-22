@@ -262,9 +262,8 @@ static struct sk_buff *sja1105_xmit(struct sk_buff *skb,
 				    struct net_device *netdev)
 {
 	struct dsa_port *dp = dsa_slave_to_port(netdev);
-	u16 queue_mapping = skb_get_queue_mapping(skb);
-	u8 pcp = netdev_txq_to_tc(netdev, queue_mapping);
 	u16 tx_vid = dsa_tag_8021q_standalone_vid(dp);
+	u8 pcp = skb->priority;
 
 	if (skb->offload_fwd_mark)
 		return sja1105_imprecise_xmit(skb, netdev);
@@ -474,7 +473,7 @@ static bool sja1110_skb_has_inband_control_extension(const struct sk_buff *skb)
 static void sja1105_vlan_rcv(struct sk_buff *skb, int *source_port,
 			     int *switch_id, int *vbid, u16 *vid)
 {
-	struct vlan_ethhdr *hdr = (struct vlan_ethhdr *)skb_mac_header(skb);
+	struct vlan_ethhdr *hdr = vlan_eth_hdr(skb);
 	u16 vlan_tci;
 
 	if (skb_vlan_tag_present(skb))

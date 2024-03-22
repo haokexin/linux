@@ -863,7 +863,7 @@ static int sja1105_init_general_params(struct sja1105_private *priv)
 		/* Priority queue for link-local management frames
 		 * (both ingress to and egress from CPU - PTP, STP etc)
 		 */
-		.hostprio = 7,
+		.hostprio = priv->hostprio,
 		.mac_fltres1 = SJA1105_LINKLOCAL_FILTER_A,
 		.mac_flt1    = SJA1105_LINKLOCAL_FILTER_A_MASK,
 		.incl_srcpt1 = true,
@@ -1255,6 +1255,15 @@ static int sja1105_parse_dt(struct sja1105_private *priv)
 		dev_err(dev, "Incorrect bindings: absent \"ports\" node\n");
 		return -ENODEV;
 	}
+
+	if (of_property_read_u32(switch_node, "hostprio", &priv->hostprio) < 0) {
+		priv->hostprio = 7;
+	} else if (priv->hostprio >= SJA1105_NUM_TC) {
+		dev_err(dev, "Out of range hostprio, must be between 0 and %d\n", (SJA1105_NUM_TC - 1));
+		return -ERANGE;
+	}
+
+	dev_info(dev, "Configured hostprio: using queue %u\n", priv->hostprio);
 
 	rc = sja1105_parse_ports_node(priv, ports_node);
 	of_node_put(ports_node);
@@ -2236,8 +2245,8 @@ static int sja1105_setup_tc_cbs(struct dsa_switch *ds, int port,
 	 * but deduce the port transmit rate from idleslope - sendslope.
 	 */
 	port_transmit_rate_kbps = offload->idleslope - offload->sendslope;
-	cbs->idle_slope = div_s64(offload->idleslope * BYTES_PER_KBIT,
-				  port_transmit_rate_kbps);
+	cbs->idle_slope = DIV_ROUND_UP_ULL(offload->idleslope * BYTES_PER_KBIT,
+					  port_transmit_rate_kbps);
 	cbs->send_slope = div_s64(abs(offload->sendslope * BYTES_PER_KBIT),
 				  port_transmit_rate_kbps);
 	/* Convert the negative values from 64-bit 2's complement
@@ -2282,6 +2291,7 @@ static const char * const sja1105_reset_reasons[] = {
 	[SJA1105_SCHEDULING] = "Time-aware scheduling",
 	[SJA1105_BEST_EFFORT_POLICING] = "Best-effort policing",
 	[SJA1105_VIRTUAL_LINKS] = "Virtual links",
+	[SJA1105_VLAN_PCP_TO_TXQ_MAPPING] = "VLAN PCP to TX queue mapping",
 };
 
 /* For situations where we need to change a setting at runtime that is only
@@ -2431,6 +2441,56 @@ sja1105_get_tag_protocol(struct dsa_switch *ds, int port,
 	struct sja1105_private *priv = ds->priv;
 
 	return priv->info->tag_proto;
+}
+
+int sja1105_setup_tc_mqprio(struct dsa_switch *ds, int port,
+			    struct tc_mqprio_qopt_offload *mqprio)
+{
+	struct sja1105_l2_forwarding_entry *l2fwd;
+	struct sja1105_private *priv = ds->priv;
+	struct sja1105_table *table;
+	int pcp, tc;
+
+	if (mqprio->qopt.num_tc > SJA1105_MAX_NUM_PCP) {
+		dev_err(ds->dev,
+			"Only a maximum of %u traffic classes are supported by hardware\n",
+			SJA1105_MAX_NUM_PCP);
+		return -ERANGE;
+	}
+
+	table = &priv->static_config.tables[BLK_IDX_L2_FORWARDING];
+
+	l2fwd = table->entries;
+
+	if (!mqprio->qopt.num_tc) {
+		/* Delete qdisc: reset to default 1:1 mapping. */
+		for (pcp = 0; pcp < SJA1105_MAX_NUM_PCP; pcp++)
+			l2fwd[ds->num_ports + pcp].vlan_pmap[port] = pcp;
+	} else {
+		/* We restrict a single TXQ per traffic class
+		 * The SJA1105 doesn't offer round robin among TXQs of the same priority
+		 */
+		for (tc = 0; tc < mqprio->qopt.num_tc; tc++) {
+			if (mqprio->qopt.count[tc] != 1) {
+				dev_err(ds->dev,
+					"Only a single TXQ per traffic class is supported\n");
+				return -EOPNOTSUPP;
+			}
+		}
+
+		/* Use MQPRIO mapping to configure Egress PCP to HW queue mapping. */
+		for (pcp = 0; pcp < SJA1105_MAX_NUM_PCP; pcp++)
+			l2fwd[ds->num_ports + pcp].vlan_pmap[port] = mqprio->qopt.prio_tc_map[pcp];
+	}
+
+	/* Although, the Egress PCP to HW queue mapping (the latter 8 entries)
+	 * should be configured dynamically (once max_dynp is properly set: e.g 7),
+	 * that did not work in practice. The switch (SJA1105Q) kept using
+	 * the old mapping until a switch reset appears and force the reload of
+	 * the static configuration.
+	 * So, force a switch reset on mapping offload from here.
+	 */
+	return sja1105_static_config_reload(priv, SJA1105_VLAN_PCP_TO_TXQ_MAPPING);
 }
 
 /* The TPID setting belongs to the General Parameters table,
@@ -2834,6 +2894,8 @@ static int sja1105_port_setup_tc(struct dsa_switch *ds, int port,
 		return sja1105_setup_tc_taprio(ds, port, type_data);
 	case TC_SETUP_QDISC_CBS:
 		return sja1105_setup_tc_cbs(ds, port, type_data);
+	case TC_SETUP_QDISC_MQPRIO:
+		return sja1105_setup_tc_mqprio(ds, port, type_data);
 	default:
 		return -EOPNOTSUPP;
 	}
