@@ -292,11 +292,10 @@ bool otx2_mbox_wait_for_zero(struct otx2_mbox *mbox, int devid)
 	/* If data is non-zero wait for ~1ms and return to caller
 	 * whether data has changed to zero or not after the wait.
 	 */
-
-	if (data)
-		usleep_range(950, 1000);
-	else
+	if (!data)
 		return true;
+
+	usleep_range(950, 1000);
 
 	data = readq((void __iomem *)mbox->reg_base +
 		     (mbox->trigger | (devid << mbox->tr_shift)));

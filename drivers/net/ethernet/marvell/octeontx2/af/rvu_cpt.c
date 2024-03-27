@@ -106,7 +106,8 @@ static irqreturn_t cpt_af_flt_intr_handler(int vec, void *ptr)
 		spin_lock(&rvu->cpt_intr_lock);
 		block->cpt_flt_eng_map[vec] |= BIT_ULL(i);
 		val = rvu_read64(rvu, blkaddr, CPT_AF_EXEX_STS(eng));
-		if ((val & 0x2) || (!(val & 0x2) && (val & 0x1)))
+		val = val & 0x3;
+		if (val == 0x1 || val == 0x2)
 			block->cpt_rcvrd_eng_map[vec] |= BIT_ULL(i);
 		spin_unlock(&rvu->cpt_intr_lock);
 	}
@@ -182,17 +183,14 @@ static void cpt_10k_unregister_interrupts(struct rvu_block *block, int off)
 	struct rvu *rvu = block->rvu;
 	int blkaddr = block->addr;
 	u32 max_engs;
-	u8 nr;
 	int i;
 
 	max_engs = cpt_max_engines_get(rvu);
 
 	/* Disable all CPT AF interrupts */
-	for (i = CPT_10K_AF_INT_VEC_FLT0; i < cpt_10k_flt_nvecs_get(rvu); i++) {
-		nr = (max_engs > 64) ? 64 : max_engs;
-		max_engs -= nr;
-		rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1C(i), INTR_MASK(nr));
-	}
+	rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1C(0), ~0ULL);
+	rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1C(1), ~0ULL);
+	rvu_write64(rvu, blkaddr, CPT_AF_FLTX_INT_ENA_W1C(2), 0xFFFF);
 
 	rvu_write64(rvu, blkaddr, CPT_AF_RVU_INT_ENA_W1C, 0x1);
 	rvu_write64(rvu, blkaddr, CPT_AF_RAS_INT_ENA_W1C, 0x1);

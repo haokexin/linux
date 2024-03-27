@@ -128,8 +128,10 @@ static int mcs_notify_pfvf(struct mcs_intr_event *event, struct rvu *rvu)
 	mutex_lock(&rvu->mbox_lock);
 
 	req = otx2_mbox_alloc_msg_mcs_intr_notify(rvu, pf);
-	if (!req)
+	if (!req) {
+		mutex_unlock(&rvu->mbox_lock);
 		return -ENOMEM;
+	}
 
 	req->mcs_id = event->mcs_id;
 	req->intr_mask = event->intr_mask;
