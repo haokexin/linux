@@ -1353,9 +1353,11 @@ static void intel_fpga_qse_mac_link_down(struct phylink_config *config,
 }
 
 static void intel_fpga_qse_mac_link_up(struct phylink_config *config,
+				       struct phy_device *phy,
 				       unsigned int mode,
-				       phy_interface_t interface,
-				       struct phy_device *phy)
+				       phy_interface_t interface, int speed,
+				       int duplex, bool tx_pause,
+				       bool rx_pause)
 {
 	struct intel_fpga_qse_private *priv =
 			netdev_priv(to_net_dev(config->dev));
@@ -1594,7 +1596,7 @@ static int intel_fpga_qse_ll_probe(struct platform_device *pdev)
 	ndev->features |= NETIF_F_HW_VLAN_CTAG_RX;
 
 	/* setup NAPI interface */
-	netif_napi_add(ndev, &priv->napi, qse_poll, NAPI_POLL_WEIGHT);
+	netif_napi_add(ndev, &priv->napi, qse_poll);
 
 	spin_lock_init(&priv->mac_cfg_lock);
 	spin_lock_init(&priv->tx_lock);
@@ -1659,7 +1661,9 @@ static int intel_fpga_qse_ll_remove(struct platform_device *pdev)
 	if (priv->ptp_enable)
 		intel_fpga_tod_unregister(&priv->ptp_priv);
 
-	phylink_destroy(priv->phylink);
+	if (priv->phylink)
+		phylink_destroy(priv->phylink);
+
 	platform_set_drvdata(pdev, NULL);
 	unregister_netdev(ndev);
 	free_netdev(ndev);

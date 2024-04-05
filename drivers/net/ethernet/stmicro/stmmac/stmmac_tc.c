@@ -11,6 +11,8 @@
 #include "dwmac5.h"
 #include "stmmac.h"
 
+#define MAX_IDLE_SLOPE_CREDIT 0x1FFFFF
+
 static void tc_fill_all_pass_entry(struct stmmac_tc_entry *entry)
 {
 	memset(entry, 0, sizeof(*entry));
@@ -342,12 +344,13 @@ static int tc_init(struct stmmac_priv *priv)
 static int tc_setup_cbs(struct stmmac_priv *priv,
 			struct tc_cbs_qopt_offload *qopt)
 {
+	u64 value, scaling = 0, cycle_time_ns = 0, open_time = 0, tti_ns = 0;
 	u32 tx_queues_count = priv->plat->tx_queues_to_use;
+	u32 ptr, speed_div, idle_slope;
+	u32 gate = 0x1 << qopt->queue;
 	u32 queue = qopt->queue;
-	u32 ptr, speed_div;
 	u32 mode_to_use;
-	u64 value;
-	int ret;
+	int ret, row;
 
 	/* Queue 0 is not AVB capable */
 	if (queue <= 0 || queue >= tx_queues_count)
@@ -410,6 +413,52 @@ static int tc_setup_cbs(struct stmmac_priv *priv,
 	value = qopt->locredit * 1024ll * 8;
 	priv->plat->tx_queues_cfg[queue].low_credit = value & GENMASK(31, 0);
 
+	/* If EST is not enable, no need to recalibrate idle slope */
+	if (!priv->plat->est)
+		goto config_cbs;
+	if (!priv->plat->est->enable)
+		goto config_cbs;
+
+	/* Check the GCL cycle time. If 0, no need to recalibrate idle slope */
+	cycle_time_ns = (priv->plat->est->ctr[1] * NSEC_PER_SEC) +
+			 priv->plat->est->ctr[0];
+	if (!cycle_time_ns)
+		goto config_cbs;
+
+	/* Calculate the total open time for the queue. GCL which exceeds the
+	 * cycle time will be truncated. So, time interval that exceeds the
+	 * cycle time will not be included. The gates wihtout any setting of
+	 * open/close within the cycle time are considered as open. The queue
+	 * that having open time of 0, no need idle slope recalibration.
+	 */
+	for (row = 0; row < priv->plat->est->gcl_size; row++) {
+		tti_ns += priv->plat->est->ti_ns[row];
+		if (priv->plat->est->gates[row] & gate)
+			open_time += priv->plat->est->ti_ns[row];
+		if (tti_ns > cycle_time_ns) {
+			if (priv->plat->est->gates[row] & gate)
+				open_time -= tti_ns - cycle_time_ns;
+			break;
+		}
+	}
+	if (tti_ns < cycle_time_ns)
+		open_time += cycle_time_ns - tti_ns;
+	if (!open_time)
+		goto config_cbs;
+
+	/* Calculate the scaling factor to be used to recalculate new idle
+	 * slope.
+	 */
+	scaling = cycle_time_ns;
+	do_div(scaling, open_time);
+	idle_slope = priv->plat->tx_queues_cfg[queue].idle_slope;
+	idle_slope *= scaling;
+	if (idle_slope > MAX_IDLE_SLOPE_CREDIT)
+		idle_slope = MAX_IDLE_SLOPE_CREDIT;
+
+	priv->plat->tx_queues_cfg[queue].idle_slope = idle_slope;
+
+config_cbs:
 	ret = stmmac_config_cbs(priv, priv->hw,
 				priv->plat->tx_queues_cfg[queue].send_slope,
 				priv->plat->tx_queues_cfg[queue].idle_slope,
@@ -454,6 +503,7 @@ static int tc_parse_flow_actions(struct stmmac_priv *priv,
 }
 
 #define ETHER_TYPE_FULL_MASK	cpu_to_be16(~0)
+#define IP_PROTO_FULL_MASK	0xFF
 
 static int tc_add_basic_flow(struct stmmac_priv *priv,
 			     struct flow_cls_offload *cls,
@@ -468,6 +518,24 @@ static int tc_add_basic_flow(struct stmmac_priv *priv,
 		return -EINVAL;
 
 	flow_rule_match_basic(rule, &match);
+
+	/* Both network proto and transport proto not present in the key */
+	if (!match.mask || !(match.mask->n_proto || match.mask->ip_proto))
+		return -EOPNOTSUPP;
+
+	/* If the proto is present in the key and is not full mask */
+	if ((match.mask->n_proto && match.mask->n_proto != ETHER_TYPE_FULL_MASK) ||
+	    (match.mask->ip_proto && match.mask->ip_proto != IP_PROTO_FULL_MASK))
+		return -EOPNOTSUPP;
+
+	/* Network proto is present in the key and is not IPv4 */
+	if (match.mask->n_proto && match.key->n_proto != cpu_to_be16(ETH_P_IP))
+		return -EOPNOTSUPP;
+
+	/* Transport proto is present in the key and is not TCP or UDP */
+	if (match.mask->ip_proto && !(match.key->ip_proto == IPPROTO_TCP ||
+	    match.key->ip_proto == IPPROTO_UDP))
+		return -EOPNOTSUPP;
 
 	entry->ip_proto = match.key->ip_proto;
 	return 0;
@@ -606,6 +674,12 @@ static int tc_add_flow(struct stmmac_priv *priv,
 		ret = tc_flow_parsers[i].fn(priv, cls, entry);
 		if (!ret)
 			entry->in_use = true;
+		else if (ret == -EOPNOTSUPP)
+			/* The basic flow parser will return EOPNOTSUPP, if a
+			 * requested offload not fully supported by the hw. And
+			 * in that case fail early.
+			 */
+			break;
 	}
 
 	if (!entry->in_use)
@@ -915,12 +989,16 @@ struct timespec64 stmmac_calc_tas_basetime(ktime_t old_base_time,
 	return time;
 }
 
+#define FPE_FMT	"If both EST and FPE are enabled, TxQ0 must not be express "\
+		"queue. So, changing TxQ0 setting to preemptible queue.\n"
 static int tc_setup_taprio(struct stmmac_priv *priv,
 			   struct tc_taprio_qopt_offload *qopt)
 {
 	u32 size, wid = priv->dma_cap.estwid, dep = priv->dma_cap.estdep;
+	u32 txqmask = (1 << priv->dma_cap.number_tx_queues) - 1;
 	struct plat_stmmacenet_data *plat = priv->plat;
 	struct timespec64 time, current_time, qopt_time;
+	u32 txqpec = priv->plat->fpe_cfg->txqpec;
 	ktime_t current_time_ns;
 	bool fpe = false;
 	int i, ret = 0;
@@ -969,6 +1047,8 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 		return -EINVAL;
 	if (!qopt->cycle_time)
 		return -ERANGE;
+	if (qopt->cycle_time_extension >= BIT(wid + 7))
+		return -ERANGE;
 
 	if (!plat->est) {
 		plat->est = devm_kzalloc(priv->device, sizeof(*plat->est),
@@ -1015,6 +1095,8 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 		}
 
 		priv->plat->est->gcl[i] = delta_ns | (gates << wid);
+		priv->plat->est->ti_ns[i] = delta_ns;
+		priv->plat->est->gates[i] = gates;
 	}
 
 	mutex_lock(&priv->plat->est->lock);
@@ -1035,9 +1117,46 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 	priv->plat->est->ctr[0] = do_div(ctr, NSEC_PER_SEC);
 	priv->plat->est->ctr[1] = (u32)ctr;
 
+	priv->plat->est->ter = qopt->cycle_time_extension;
+
+	for (i = 0; i < plat->tx_queues_to_use; i++) {
+		if (qopt->max_sdu[i])
+			plat->est->max_sdu[i] = qopt->max_sdu[i] +
+						priv->dev->hard_header_len -
+						ETH_TLEN;
+		else
+			plat->est->max_sdu[i] = 0;
+	}
+
 	if (fpe && !priv->dma_cap.fpesel) {
 		mutex_unlock(&priv->plat->est->lock);
 		return -EOPNOTSUPP;
+	}
+
+	if (fpe) {
+		if (!txqpec) {
+			netdev_err(priv->dev, "FPE preempt must not all 0s!\n");
+			mutex_unlock(&priv->plat->est->lock);
+			return -EINVAL;
+		}
+
+		/* Check PEC is within TxQ range */
+		if (txqpec & ~txqmask) {
+			netdev_err(priv->dev, "FPE preempt is out-of-bound.\n");
+			mutex_unlock(&priv->plat->est->lock);
+			return -EINVAL;
+		}
+
+		/* When EST and FPE are both enabled, TxQ0 is always preemptible
+		 * queue. If FPE is enabled, we expect at least lsb is set.
+		 */
+		if (txqpec && !(txqpec & BIT(0))) {
+			netdev_warn(priv->dev, FPE_FMT);
+			priv->plat->fpe_cfg->txqpec |= BIT(0);
+		}
+
+		netdev_info(priv->dev, "FPE: TxQ PEC = 0x%X\n",
+			    priv->plat->fpe_cfg->txqpec);
 	}
 
 	/* Actual FPE register configuration will be done after FPE handshake
@@ -1072,11 +1191,10 @@ disable:
 	}
 
 	priv->plat->fpe_cfg->enable = false;
-	stmmac_fpe_configure(priv, priv->ioaddr,
-			     priv->plat->fpe_cfg,
-			     priv->plat->tx_queues_to_use,
-			     priv->plat->rx_queues_to_use,
-			     false);
+	stmmac_fpe_tx_configure(priv, priv->ioaddr,
+				priv->plat->fpe_cfg,
+				priv->plat->tx_queues_to_use,
+				0, false);
 	netdev_info(priv->dev, "disabled FPE\n");
 
 	stmmac_fpe_handshake(priv, false);
@@ -1105,6 +1223,32 @@ static int tc_setup_etf(struct stmmac_priv *priv,
 	return 0;
 }
 
+static int tc_setup_preempt(struct stmmac_priv *priv,
+			    struct tc_preempt_qopt_offload *qopt)
+{
+	priv->plat->fpe_cfg->txqpec = qopt->preemptible_queues;
+	return 0;
+}
+
+static int tc_query_caps(struct stmmac_priv *priv,
+			 struct tc_query_caps_base *base)
+{
+	switch (base->type) {
+	case TC_SETUP_QDISC_TAPRIO: {
+		struct tc_taprio_caps *caps = base->caps;
+
+		if (!priv->dma_cap.estsel)
+			return -EOPNOTSUPP;
+
+		caps->supports_queue_max_sdu = true;
+
+		return 0;
+	}
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
 const struct stmmac_tc_ops dwmac510_tc_ops = {
 	.init = tc_init,
 	.setup_cls_u32 = tc_setup_cls_u32,
@@ -1112,4 +1256,6 @@ const struct stmmac_tc_ops dwmac510_tc_ops = {
 	.setup_cls = tc_setup_cls,
 	.setup_taprio = tc_setup_taprio,
 	.setup_etf = tc_setup_etf,
+	.setup_preempt = tc_setup_preempt,
+	.query_caps = tc_query_caps,
 };

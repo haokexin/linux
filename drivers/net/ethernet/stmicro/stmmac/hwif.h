@@ -404,9 +404,9 @@ struct stmmac_ops {
 			     unsigned int ptp_rate);
 	void (*est_irq_status)(void __iomem *ioaddr, struct net_device *dev,
 			       struct stmmac_extra_stats *x, u32 txqcnt);
-	void (*fpe_configure)(void __iomem *ioaddr, struct stmmac_fpe_cfg *cfg,
-			      u32 num_txq, u32 num_rxq,
-			      bool enable);
+	void (*fpe_tx_configure)(void __iomem *ioaddr, struct stmmac_fpe_cfg *cfg, u32 num_txq, u32 txqpec,
+				 bool enable);
+	void (*fpe_rx_configure)(void __iomem *ioaddr, u32 num_rxq);
 	void (*fpe_send_mpacket)(void __iomem *ioaddr,
 				 struct stmmac_fpe_cfg *cfg,
 				 enum stmmac_mpacket_type type);
@@ -513,8 +513,10 @@ struct stmmac_ops {
 	stmmac_do_callback(__priv, mac, est_configure, __args)
 #define stmmac_est_irq_status(__priv, __args...) \
 	stmmac_do_void_callback(__priv, mac, est_irq_status, __args)
-#define stmmac_fpe_configure(__priv, __args...) \
-	stmmac_do_void_callback(__priv, mac, fpe_configure, __args)
+#define stmmac_fpe_tx_configure(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, fpe_tx_configure, __args)
+#define stmmac_fpe_rx_configure(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, fpe_rx_configure, __args)
 #define stmmac_fpe_send_mpacket(__priv, __args...) \
 	stmmac_do_void_callback(__priv, mac, fpe_send_mpacket, __args)
 #define stmmac_fpe_irq_status(__priv, __args...) \
@@ -585,6 +587,8 @@ struct tc_cbs_qopt_offload;
 struct flow_cls_offload;
 struct tc_taprio_qopt_offload;
 struct tc_etf_qopt_offload;
+struct tc_preempt_qopt_offload;
+struct tc_query_caps_base;
 
 struct stmmac_tc_ops {
 	int (*init)(struct stmmac_priv *priv);
@@ -598,6 +602,10 @@ struct stmmac_tc_ops {
 			    struct tc_taprio_qopt_offload *qopt);
 	int (*setup_etf)(struct stmmac_priv *priv,
 			 struct tc_etf_qopt_offload *qopt);
+	int (*setup_preempt)(struct stmmac_priv *priv,
+			     struct tc_preempt_qopt_offload *qopt);
+	int (*query_caps)(struct stmmac_priv *priv,
+			  struct tc_query_caps_base *base);
 };
 
 #define stmmac_tc_init(__priv, __args...) \
@@ -612,6 +620,10 @@ struct stmmac_tc_ops {
 	stmmac_do_callback(__priv, tc, setup_taprio, __args)
 #define stmmac_tc_setup_etf(__priv, __args...) \
 	stmmac_do_callback(__priv, tc, setup_etf, __args)
+#define stmmac_tc_setup_preempt(__priv, __args...) \
+	stmmac_do_callback(__priv, tc, setup_preempt, __args)
+#define stmmac_tc_query_caps(__priv, __args...) \
+	stmmac_do_callback(__priv, tc, query_caps, __args)
 
 struct stmmac_counters;
 

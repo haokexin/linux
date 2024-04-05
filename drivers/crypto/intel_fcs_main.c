@@ -87,6 +87,14 @@
 /*SDM required minimun 8 bytes of data for crypto service*/
 #define CRYPTO_SERVICE_MIN_DATA_SIZE	8
 
+/**
+ * struct socfpga_fcs_data - FCS platform data structure.
+ * @hwrng		Flag to indicate support for HW random number generator.
+ */
+struct socfpga_fcs_data {
+	bool have_hwrng;
+};
+
 static char *source_ptr;
 
 typedef void (*fcs_callback)(struct stratix10_svc_client *client,
@@ -340,10 +348,8 @@ static int fcs_request_service(struct intel_fcs_priv *priv,
 	reinit_completion(&priv->completion);
 
 	ret = stratix10_svc_send(priv->chan, p_msg);
-	if (ret) {
-		mutex_unlock(&priv->lock);
+	if (ret)
 		return -EINVAL;
-	}
 
 	ret = wait_for_completion_timeout(&priv->completion,
 							timeout);
@@ -471,7 +477,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -547,13 +552,16 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			ret = fcs_request_service(priv, (void *)msg,
 						  FCS_COMPLETED_TIMEOUT);
 			dev_dbg(dev, "request service ret=%d\n", ret);
-			if (!ret && !priv->status)
+			if (!ret && !priv->status) {
 				data->status = 0;
-			else {
-				if (priv->kbuf)
+				data->mbox_status = 0;
+			} else {
+				if (priv->kbuf) {
 					data->com_paras.c_request.c_status =
 						(*(u32 *)priv->kbuf);
-				else
+					data->mbox_status = priv->status;
+					pr_info("data->mbox_status:0x%x\n", data->mbox_status);
+				} else
 					data->com_paras.c_request.c_status =
 						INVALID_STATUS;
 			}
@@ -562,7 +570,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -651,7 +658,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -867,8 +873,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_free_memory(priv, ps_buf, s_buf, d_buf);
-			fcs_close_services(priv, NULL, NULL);
 			ret = -EFAULT;
 		}
 
@@ -995,8 +999,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_free_memory(priv, ps_buf, s_buf, d_buf);
-			fcs_close_services(priv, NULL, NULL);
 			ret = -EFAULT;
 		}
 
@@ -1106,6 +1108,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 						      SUBKEY_RSP_MAX_SZ);
 		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate subkey RSP buf\n");
+			stratix10_svc_free_memory(priv->chan, s_buf);
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
@@ -1154,7 +1157,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			mutex_unlock(&priv->lock);
+			fcs_close_services(priv, s_buf, d_buf);
 			return -EFAULT;
 		}
 
@@ -1206,6 +1209,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 						      MEASUREMENT_RSP_MAX_SZ);
 		if (IS_ERR(d_buf)) {
 			dev_err(dev, "failed allocate measurement RSP buf\n");
+			stratix10_svc_free_memory(priv->chan, s_buf);
 			mutex_unlock(&priv->lock);
 			return -ENOMEM;
 		}
@@ -1311,7 +1315,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, NULL, d_buf);
 			ret = -EFAULT;
 		}
 
@@ -1321,6 +1324,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 	case INTEL_FCS_DEV_ATTESTATION_CERTIFICATE_RELOAD:
 		if (copy_from_user(data, (void __user *)arg, sizeof(*data))) {
 			dev_err(dev, "failure on copy_from_user\n");
+			mutex_unlock(&priv->lock);
 			return -EFAULT;
 		}
 
@@ -1377,7 +1381,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 			if (priv->size > SHA384_SIZE) {
 				dev_err(dev, "returned size is incorrect\n");
 				fcs_close_services(priv, s_buf, NULL);
-				ret = -EFAULT;
+				return -EFAULT;
 			}
 
 			for (i = 0; i < 12; i++)
@@ -1396,7 +1400,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, NULL);
 			ret = -EFAULT;
 		}
 
@@ -1491,7 +1494,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 				      data->com_paras.k_import.obj_data_sz);
 		 if (ret) {
 			 dev_err(dev, "failed copy buf ret=%d\n", ret);
-			 fcs_free_memory(priv, ps_buf, s_buf, d_buf);
+			 fcs_free_memory(priv, ps_buf, s_buf, NULL);
 			 mutex_unlock(&priv->lock);
 			 return -EFAULT;
 		 }
@@ -1528,13 +1531,11 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, NULL);
-			 fcs_free_memory(priv, ps_buf, s_buf, NULL);
+			 fcs_close_services(priv, s_buf, ps_buf);
 			 return -EFAULT;
 		 }
 
-		 fcs_close_services(priv, NULL, NULL);
-		 fcs_free_memory(priv, ps_buf, s_buf, NULL);
+		 fcs_close_services(priv, s_buf, ps_buf);
 		 break;
 
 	case INTEL_FCS_DEV_CRYPTO_EXPORT_KEY:
@@ -1591,7 +1592,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -1679,7 +1679,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -1955,7 +1954,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2085,7 +2083,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2171,7 +2168,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2287,7 +2283,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2373,7 +2368,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2505,7 +2499,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, s_buf, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2580,7 +2573,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		 if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			 dev_err(dev, "failure on copy_to_user\n");
-			 fcs_close_services(priv, NULL, d_buf);
 			 ret = -EFAULT;
 		 }
 
@@ -2685,7 +2677,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (copy_to_user((void __user *)arg, data, sizeof(*data))) {
 			dev_err(dev, "failure on copy_to_user\n");
-			fcs_close_services(priv, s_buf, d_buf);
 			ret = -EFAULT;
 		}
 
@@ -2979,8 +2970,10 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 
 		if (!ret && !priv->status)
 			data->status = -1;
-		else
+		else {
+			mutex_unlock(&priv->lock);
 			return -EFAULT;
+		}
 
 		data->status = priv->status;
 
@@ -3047,13 +3040,6 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		fcs_free_memory(priv, iv_field_buf, NULL, NULL);
 
 		remaining_size = data->com_paras.a_crypt.src_size;
-
-		ps_buf = stratix10_svc_allocate_memory(priv->chan, PS_BUF_SIZE);
-		if (IS_ERR(ps_buf)) {
-			dev_err(dev, "failed to allocate p-status buf\n");
-			fcs_close_services(priv, NULL, NULL);
-			return -ENOMEM;
-		}
 
 		if (remaining_size > AES_BUFFER_CMD_MAX_SZ) {
 			msg->command = COMMAND_FCS_CRYPTO_AES_CRYPT_UPDATE_SMMU;
@@ -3627,6 +3613,7 @@ static long fcs_ioctl(struct file *file, unsigned int cmd,
 		break;
 
 	default:
+		mutex_unlock(&priv->lock);
 		dev_warn(dev, "shouldn't be here [0x%x]\n", cmd);
 		break;
 	}
@@ -3787,23 +3774,18 @@ static int fcs_driver_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(dev, "can't register on minor=%d\n",
 			MISC_DYNAMIC_MINOR);
-		return ret;
+		goto release_channel;
 	}
 
-	/* register hwrng device */
-	priv->rng.name = "intel-rng";
-	priv->rng.read = fcs_rng_read;
-	priv->rng.priv = (unsigned long)priv;
-
-	ret = hwrng_register(&priv->rng);
+	priv->p_data = of_device_get_match_data(dev);
+	if (!priv->p_data)
+		goto cleanup;
+	
+	ret = of_property_read_string(dev->of_node, "platform", &platform);
 	if (ret) {
-		dev_err(dev, "can't register RNG device (%d)\n", ret);
-		return ret;
+		dev_err(dev, "can't find platform");
+		goto cleanup;
 	}
-
-	platform_set_drvdata(pdev, priv);
-
-	of_property_read_string(dev->of_node, "platform", &platform);
 
 	/* Proceed only if platform is agilex as
 	 * register addresses are platform specific
@@ -3814,9 +3796,16 @@ static int fcs_driver_probe(struct platform_device *pdev)
 		priv->client.receive_cb = fcs_atf_version_smmu_check_callback;
 
 		ret = stratix10_svc_send(priv->chan, &msg);
+		if (ret)
+			return -EINVAL;
 
 		ret = wait_for_completion_timeout(&priv->completion,
 							FCS_REQUEST_TIMEOUT);
+		if (!ret) {
+			dev_err(priv->client.dev, "timeout waiting for SMC call\n");
+			ret = -ETIMEDOUT;
+			return ret;
+		}
 
 		/* Program registers only if ATF support programming
 		 * SMMU secure register addresses
@@ -3865,7 +3854,39 @@ static int fcs_driver_probe(struct platform_device *pdev)
 		}
 	}
 
+	/* only register the HW RNG if the platform supports it! */
+	if (priv->p_data->have_hwrng) {
+		/* register hwrng device */
+		priv->rng.name = "intel-rng";
+		priv->rng.read = fcs_rng_read;
+		priv->rng.priv = (unsigned long)priv;
+
+		ret = hwrng_register(&priv->rng);
+		if (ret) {
+			dev_err(dev, "can't register RNG device (%d)\n", ret);
+			return ret;
+		}
+	} else {
+		/* Notes of registering /dev/hwrng:
+		 * 1 For now, /dev/hwrng is not supported on Agilex devices
+		 *   due to hardware implementation.
+		 * 2 It means On Agilex devices, /dev/hwrng is a dummy node
+		 *   without HW backend. You can get the HW RNG function by
+		 *   IOCTL command provided from this driver on Agilex devices.
+		 * 3 In the future, it may be implemented in a different way.
+		 */
+		dev_notice(dev, "/dev/hwrng is not supported on Agilex devices.\n");
+	}
+
+	platform_set_drvdata(pdev, priv);
+
 	return 0;
+
+cleanup:
+	misc_deregister(&priv->miscdev);
+release_channel:
+	stratix10_svc_free_channel(priv->chan);
+	return -ENODEV;
 }
 
 static int fcs_driver_remove(struct platform_device *pdev)
@@ -3876,7 +3897,9 @@ static int fcs_driver_remove(struct platform_device *pdev)
 	int i, ret;
 	const char *platform;
 
-	of_property_read_string(dev->of_node, "platform", &platform);
+	ret = of_property_read_string(dev->of_node, "platform", &platform);
+	if (ret)
+		goto no_platform;
 
 	if (!strncmp(platform, AGILEX_PLATFORM, AGILEX_PLATFORM_STR_LEN)) {
 		msg.command = COMMAND_SMC_SVC_VERSION;
@@ -3904,16 +3927,38 @@ static int fcs_driver_remove(struct platform_device *pdev)
 		}
 	}
 
-	hwrng_unregister(&priv->rng);
+no_platform:
+	if (priv->p_data->have_hwrng)
+		hwrng_unregister(&priv->rng);
 	misc_deregister(&priv->miscdev);
 	stratix10_svc_free_channel(priv->chan);
 
 	return 0;
 }
 
+/* Note: /dev/hwrng is not supported on Agilex devices now! */
+static const struct socfpga_fcs_data agilex_fcs_data = {
+	.have_hwrng	= false,
+};
+
+static const struct socfpga_fcs_data n5x_fcs_data = {
+	.have_hwrng	= true,
+};
+
+static const struct socfpga_fcs_data s10_fcs_data = {
+	.have_hwrng	= true,
+};
+
 static const struct of_device_id fcs_of_match[] = {
-	{.compatible = "intel,stratix10-soc-fcs"},
-	{.compatible = "intel,agilex-soc-fcs"},
+	{.compatible = "intel,stratix10-soc-fcs",
+	 .data = &s10_fcs_data
+	},
+	{.compatible = "intel,agilex-soc-fcs",
+	 .data = &agilex_fcs_data
+	},
+	{.compatible = "intel,n5x-soc-fcs",
+	 .data = &n5x_fcs_data
+	},
 	{},
 };
 

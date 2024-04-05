@@ -2444,6 +2444,13 @@ static bool stmmac_xdp_xmit_zc(struct stmmac_priv *priv, u32 queue, u32 budget)
 		if (!xsk_tx_peek_desc(pool, &xdp_desc))
 			break;
 
+		if (priv->plat->est && priv->plat->est->enable &&
+		    priv->plat->est->max_sdu[queue] &&
+		    xdp_desc.len > priv->plat->est->max_sdu[queue]) {
+			priv->xstats.max_sdu_txq_drop[queue]++;
+			continue;
+		}
+
 		if (likely(priv->extend_desc))
 			tx_desc = (struct dma_desc *)(tx_q->dma_etx + entry);
 		else if (tx_q->tbs & STMMAC_TBS_AVAIL)
@@ -3425,6 +3432,8 @@ static int stmmac_hw_setup(struct net_device *dev, bool ptp_register)
 	stmmac_start_all_dma(priv);
 
 	if (priv->dma_cap.fpesel) {
+		stmmac_fpe_rx_configure(priv, priv->ioaddr,
+				     priv->plat->rx_queues_to_use);
 		stmmac_fpe_start_wq(priv);
 
 		if (priv->plat->fpe_cfg->enable)
@@ -3767,12 +3776,14 @@ stmmac_setup_dma_desc(struct stmmac_priv *priv, unsigned int mtu)
 		dma_conf->dma_rx_size = DMA_DEFAULT_RX_SIZE;
 
 	/* Earlier check for TBS */
-	for (chan = 0; chan < priv->plat->tx_queues_to_use; chan++) {
-		struct stmmac_tx_queue *tx_q = &dma_conf->tx_queue[chan];
-		int tbs_en = priv->plat->tx_queues_cfg[chan].tbs_en;
+	if (priv->dma_cap.tbssel) {
+		for (chan = 0; chan < priv->plat->tx_queues_to_use; chan++) {
+			struct stmmac_tx_queue *tx_q = &dma_conf->tx_queue[chan];
+			int tbs_en = priv->plat->tx_queues_cfg[chan].tbs_en;
 
-		/* Setup per-TXQ tbs flag before TX descriptor alloc */
-		tx_q->tbs |= tbs_en ? STMMAC_TBS_AVAIL : 0;
+			/* Setup per-TXQ tbs flag before TX descriptor alloc */
+			tx_q->tbs |= tbs_en ? STMMAC_TBS_AVAIL : 0;
+		}
 	}
 
 	ret = alloc_dma_desc_resources(priv, dma_conf);
@@ -4379,6 +4390,13 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 			return stmmac_tso_xmit(skb, dev);
 	}
 
+	if (priv->plat->est && priv->plat->est->enable &&
+	    priv->plat->est->max_sdu[queue] &&
+	    skb->len > priv->plat->est->max_sdu[queue]) {
+		priv->xstats.max_sdu_txq_drop[queue]++;
+		goto qbv_pkt_drop;
+	}
+
 	if (unlikely(stmmac_tx_avail(priv, queue) < nfrags + 1)) {
 		if (!netif_tx_queue_stopped(netdev_get_tx_queue(dev, queue))) {
 			netif_tx_stop_queue(netdev_get_tx_queue(priv->dev,
@@ -4399,6 +4417,17 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 	WARN_ON(tx_q->tx_skbuff[first_entry]);
 
 	csum_insertion = (skb->ip_summed == CHECKSUM_PARTIAL);
+	/* Some DWMAC IPs support tx coe only for a few initial tx queues,
+	 * starting from tx queue 0. So checksum offloading for those queues
+	 * that doesn't support tx coe need to fallback to software checksum
+	 * calculation.
+	 */
+	if (csum_insertion && priv->tx_q_coe_lmt &&
+	    queue >= priv->tx_q_with_coe) {
+		if (unlikely(skb_checksum_help(skb)))
+			goto dma_map_err;
+		csum_insertion = !csum_insertion;
+	}
 
 	if (likely(priv->extend_desc))
 		desc = (struct dma_desc *)(tx_q->dma_etx + entry);
@@ -4579,6 +4608,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 
 dma_map_err:
 	netdev_err(priv->dev, "Tx DMA map failed\n");
+qbv_pkt_drop:
 	dev_kfree_skb(skb);
 	priv->dev->stats.tx_dropped++;
 	return NETDEV_TX_OK;
@@ -4731,6 +4761,13 @@ static int stmmac_xdp_xmit_xdpf(struct stmmac_priv *priv, int queue,
 
 	if (stmmac_tx_avail(priv, queue) < STMMAC_TX_THRESH(priv))
 		return STMMAC_XDP_CONSUMED;
+
+	if (priv->plat->est && priv->plat->est->enable &&
+	    priv->plat->est->max_sdu[queue] &&
+	    xdpf->len > priv->plat->est->max_sdu[queue]) {
+		priv->xstats.max_sdu_txq_drop[queue]++;
+		return STMMAC_XDP_CONSUMED;
+	}
 
 	if (likely(priv->extend_desc))
 		tx_desc = (struct dma_desc *)(tx_q->dma_etx + entry);
@@ -5725,20 +5762,22 @@ static void stmmac_fpe_event_status(struct stmmac_priv *priv, int status)
 	enum stmmac_fpe_state *lp_state = &fpe_cfg->lp_fpe_state;
 	bool *hs_enable = &fpe_cfg->hs_enable;
 
-	if (status == FPE_EVENT_UNKNOWN || !*hs_enable)
-		return;
-
 	/* If LP has sent verify mPacket, LP is FPE capable */
 	if ((status & FPE_EVENT_RVER) == FPE_EVENT_RVER) {
 		if (*lp_state < FPE_STATE_CAPABLE)
 			*lp_state = FPE_STATE_CAPABLE;
 
-		/* If user has requested FPE enable, quickly response */
-		if (*hs_enable)
-			stmmac_fpe_send_mpacket(priv, priv->ioaddr,
-						fpe_cfg,
-						MPACKET_RESPONSE);
+		/* If FPE is supported by default the rx side FPE is enabled.
+		 * And this callback will be called only if FPE is supported. So
+		 * quickly send response mPacket.
+		 */
+		stmmac_fpe_send_mpacket(priv, priv->ioaddr,
+					fpe_cfg,
+					MPACKET_RESPONSE);
 	}
+
+	if (status == FPE_EVENT_UNKNOWN || !*hs_enable)
+		return;
 
 	/* If Local has sent verify mPacket, Local is FPE capable */
 	if ((status & FPE_EVENT_TVER) == FPE_EVENT_TVER) {
@@ -5749,10 +5788,6 @@ static void stmmac_fpe_event_status(struct stmmac_priv *priv, int status)
 	/* If LP has sent response mPacket, LP is entering FPE ON */
 	if ((status & FPE_EVENT_RRSP) == FPE_EVENT_RRSP)
 		*lp_state = FPE_STATE_ENTERING_ON;
-
-	/* If Local has sent response mPacket, Local is entering FPE ON */
-	if ((status & FPE_EVENT_TRSP) == FPE_EVENT_TRSP)
-		*lo_state = FPE_STATE_ENTERING_ON;
 
 	if (!test_bit(__FPE_REMOVING, &priv->fpe_task_state) &&
 	    !test_and_set_bit(__FPE_TASK_SCHED, &priv->fpe_task_state) &&
@@ -5782,8 +5817,8 @@ static void stmmac_common_interrupt(struct stmmac_priv *priv)
 	if (priv->dma_cap.fpesel) {
 		int status = stmmac_fpe_irq_status(priv, priv->ioaddr,
 						   priv->dev);
-
-		stmmac_fpe_event_status(priv, status);
+		if (status >= 0)
+			stmmac_fpe_event_status(priv, status);
 	}
 
 	/* To handle GMAC own interrupts */
@@ -6021,6 +6056,8 @@ static int stmmac_setup_tc(struct net_device *ndev, enum tc_setup_type type,
 	struct stmmac_priv *priv = netdev_priv(ndev);
 
 	switch (type) {
+	case TC_QUERY_CAPS:
+		return stmmac_tc_query_caps(priv, priv, type_data);
 	case TC_SETUP_BLOCK:
 		return flow_block_cb_setup_simple(type_data,
 						  &stmmac_block_cb_list,
@@ -6032,6 +6069,8 @@ static int stmmac_setup_tc(struct net_device *ndev, enum tc_setup_type type,
 		return stmmac_tc_setup_taprio(priv, priv, type_data);
 	case TC_SETUP_QDISC_ETF:
 		return stmmac_tc_setup_etf(priv, priv, type_data);
+	case TC_SETUP_PREEMPT:
+		return stmmac_tc_setup_preempt(priv, priv, type_data);
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -7031,6 +7070,7 @@ static void stmmac_fpe_lp_task(struct work_struct *work)
 	enum stmmac_fpe_state *lp_state = &fpe_cfg->lp_fpe_state;
 	bool *hs_enable = &fpe_cfg->hs_enable;
 	bool *enable = &fpe_cfg->enable;
+	u32 *txqpec = &fpe_cfg->txqpec;
 	int retries = 20;
 
 	while (retries-- > 0) {
@@ -7038,13 +7078,12 @@ static void stmmac_fpe_lp_task(struct work_struct *work)
 		if (*lo_state == FPE_STATE_OFF || !*hs_enable)
 			break;
 
-		if (*lo_state == FPE_STATE_ENTERING_ON &&
+		if (*lo_state == FPE_STATE_CAPABLE &&
 		    *lp_state == FPE_STATE_ENTERING_ON) {
-			stmmac_fpe_configure(priv, priv->ioaddr,
-					     fpe_cfg,
-					     priv->plat->tx_queues_to_use,
-					     priv->plat->rx_queues_to_use,
-					     *enable);
+			stmmac_fpe_tx_configure(priv, priv->ioaddr,
+						fpe_cfg,
+						priv->plat->tx_queues_to_use,
+						*txqpec, *enable);
 
 			netdev_info(priv->dev, "configured FPE\n");
 
@@ -7217,6 +7256,14 @@ int stmmac_dvr_probe(struct device *device,
 		priv->sph_cap = true;
 		priv->sph = priv->sph_cap;
 		dev_info(priv->device, "SPH feature enabled\n");
+	}
+
+	if (priv->plat->tx_coe &&
+	    priv->plat->tx_queues_with_coe < priv->plat->tx_queues_to_use) {
+		priv->tx_q_coe_lmt = true;
+		priv->tx_q_with_coe = priv->plat->tx_queues_with_coe;
+		dev_info(priv->device, "TX COE limited to %u tx queues\n",
+			 priv->tx_q_with_coe);
 	}
 
 	/* Ideally our host DMA address width is the same as for the
@@ -7492,10 +7539,10 @@ int stmmac_suspend(struct device *dev)
 
 	if (priv->dma_cap.fpesel) {
 		/* Disable FPE */
-		stmmac_fpe_configure(priv, priv->ioaddr,
-				     priv->plat->fpe_cfg,
-				     priv->plat->tx_queues_to_use,
-				     priv->plat->rx_queues_to_use, false);
+		stmmac_fpe_tx_configure(priv, priv->ioaddr,
+					priv->plat->fpe_cfg,
+					priv->plat->tx_queues_to_use,
+					0, false);
 
 		stmmac_fpe_handshake(priv, false);
 		stmmac_fpe_stop_wq(priv);
