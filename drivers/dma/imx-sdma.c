@@ -898,6 +898,8 @@ static int sdma_load_script(struct sdma_engine *sdma)
 	if (!buf_virt)
 		return -ENOMEM;
 
+	memcpy(buf_virt, ram_code, header->ram_code_size);
+
 	buf_phys = dma_map_single(sdma->dev, buf_virt,
 					header->ram_code_size,
 					DMA_TO_DEVICE);
@@ -911,8 +913,6 @@ static int sdma_load_script(struct sdma_engine *sdma)
 	bd0->mode.count = header->ram_code_size / 2;
 	bd0->buffer_addr = buf_phys;
 	bd0->ext_buffer_addr = addr->ram_code_start_addr;
-
-	memcpy(buf_virt, ram_code, header->ram_code_size);
 
 	ret = sdma_run_channel0(sdma);
 
