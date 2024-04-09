@@ -1420,10 +1420,8 @@ static void autoconfig_irq(struct uart_8250_port *up)
 
 	is_console = uart_console(port);
 
-	if (is_console) {
-		console_lock();
+	if (is_console)
 		printk_cpu_sync_get_irqsave(flags);
-	}
 
 	/* forget possible initially masked and pending IRQ */
 	probe_irq_off(probe_irq_on());
@@ -1455,10 +1453,8 @@ static void autoconfig_irq(struct uart_8250_port *up)
 	if (port->flags & UPF_FOURPORT)
 		outb_p(save_ICP, ICP);
 
-	if (is_console) {
+	if (is_console)
 		printk_cpu_sync_put_irqrestore(flags);
-		console_unlock();
-	}
 
 	port->irq = (irq > 0) ? irq : 0;
 }
