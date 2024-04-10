@@ -55,8 +55,9 @@ properties:
           - enum:
               - fsl,imx8mn-usdhc
               - fsl,imx8mp-usdhc
-              - fsl,imx93-usdhc
               - fsl,imx8ulp-usdhc
+              - fsl,imx93-usdhc
+              - fsl,imx95-usdhc
           - const: fsl,imx8mm-usdhc
       - items:
           - enum:
@@ -101,6 +102,10 @@ properties:
     description: |
       boolean, if present, indicate to use controller internal write protection.
     type: boolean
+
+  fsl,cd-gpio-wakeup-disable:
+    description: |
+      boolean, if present, indicate this card detect gpio pin is NOT a wakeup source.
 
   fsl,delay-line:
     $ref: /schemas/types.yaml#/definitions/uint32

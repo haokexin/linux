@@ -8,42 +8,10 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/pm_runtime.h>
-#include <linux/regmap.h>
-#include <linux/reset.h>
-#include <sound/dmaengine_pcm.h>
-#include <sound/pcm_iec958.h>
 #include <sound/pcm_params.h>
 
 #include "fsl_xcvr.h"
 #include "imx-pcm.h"
-
-#define FSL_XCVR_CAPDS_SIZE	256
-
-struct fsl_xcvr_soc_data {
-	const char *fw_name;
-	bool spdif_only;
-	bool use_edma;
-};
-
-struct fsl_xcvr {
-	const struct fsl_xcvr_soc_data *soc_data;
-	struct platform_device *pdev;
-	struct regmap *regmap;
-	struct clk *ipg_clk;
-	struct clk *pll_ipg_clk;
-	struct clk *phy_clk;
-	struct clk *spba_clk;
-	struct reset_control *reset;
-	u8 streams;
-	u32 mode;
-	u32 arc_mode;
-	void __iomem *ram_addr;
-	struct snd_dmaengine_dai_dma_data dma_prms_rx;
-	struct snd_dmaengine_dai_dma_data dma_prms_tx;
-	struct snd_aes_iec958 rx_iec958;
-	struct snd_aes_iec958 tx_iec958;
-	u8 cap_ds[FSL_XCVR_CAPDS_SIZE];
-};
 
 static const struct fsl_xcvr_pll_conf {
 	u8 mfi;   /* min=0x18, max=0x38 */
@@ -544,7 +512,8 @@ static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
 {
 	struct fsl_xcvr *xcvr = snd_soc_dai_get_drvdata(dai);
 	bool tx = substream->stream == SNDRV_PCM_STREAM_PLAYBACK;
-	int ret = 0;
+	int ret = 0, i, j, k = 0;
+	u64 clk_rate[2];
 
 	if (xcvr->streams & BIT(substream->stream)) {
 		dev_err(dai->dev, "%sX busy\n", tx ? "T" : "R");
@@ -564,8 +533,25 @@ static int fsl_xcvr_startup(struct snd_pcm_substream *substream,
 	switch (xcvr->mode) {
 	case FSL_XCVR_MODE_SPDIF:
 	case FSL_XCVR_MODE_ARC:
+		xcvr->spdif_constr_rates = fsl_xcvr_spdif_rates_constr;
+		if (xcvr->soc_data->spdif_only && tx) {
+			xcvr->spdif_constr_rates.list = xcvr->spdif_constr_rates_list;
+			xcvr->spdif_constr_rates.count = 0;
+			for (i = 0; i < SPDIF_NUM_RATES; i++) {
+				clk_rate[0] = clk_get_rate(xcvr->pll8k_clk);
+				clk_rate[1] = clk_get_rate(xcvr->pll11k_clk);
+				for (j = 0; j < 2; j++) {
+					if (clk_rate[j] != 0 &&
+					    do_div(clk_rate[j], fsl_xcvr_spdif_rates[i]) == 0) {
+						xcvr->spdif_constr_rates_list[k++] =
+						fsl_xcvr_spdif_rates[i];
+						xcvr->spdif_constr_rates.count++;
+					}
+				}
+			}
+		}
 		ret = fsl_xcvr_constr(substream, &fsl_xcvr_spdif_channels_constr,
-				      &fsl_xcvr_spdif_rates_constr);
+				      &xcvr->spdif_constr_rates);
 		break;
 	case FSL_XCVR_MODE_EARC:
 		ret = fsl_xcvr_constr(substream, &fsl_xcvr_earc_channels_constr,
@@ -1287,6 +1273,14 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 		return PTR_ERR(xcvr->pll_ipg_clk);
 	}
 
+	xcvr->pll8k_clk = devm_clk_get(dev, "pll8k");
+	if (IS_ERR(xcvr->pll8k_clk))
+		xcvr->pll8k_clk = NULL;
+
+	xcvr->pll11k_clk = devm_clk_get(dev, "pll11k");
+	if (IS_ERR(xcvr->pll11k_clk))
+		xcvr->pll11k_clk = NULL;
+
 	xcvr->ram_addr = devm_platform_ioremap_resource_byname(pdev, "ram");
 	if (IS_ERR(xcvr->ram_addr))
 		return PTR_ERR(xcvr->ram_addr);
@@ -1354,13 +1348,19 @@ static int fsl_xcvr_probe(struct platform_device *pdev)
 		pm_runtime_disable(dev);
 		dev_err(dev, "failed to register component %s\n",
 			fsl_xcvr_comp.name);
+		return ret;
 	}
+
+	ret = sysfs_create_group(&pdev->dev.kobj, fsl_xcvr_get_attr_grp());
+	if (ret)
+		dev_err(&pdev->dev, "fail to create sys group\n");
 
 	return ret;
 }
 
 static void fsl_xcvr_remove(struct platform_device *pdev)
 {
+	sysfs_remove_group(&pdev->dev.kobj, fsl_xcvr_get_attr_grp());
 	pm_runtime_disable(&pdev->dev);
 }
 
