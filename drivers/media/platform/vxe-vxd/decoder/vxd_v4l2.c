@@ -364,21 +364,6 @@ static void return_worker(void *work)
 	kfree(res);
 }
 
-static void vxd_error_recovery(struct vxd_dec_ctx *ctx)
-{
-	int ret = -1;
-
-	/*
-	 * In the previous frame decoding fatal error has been detected
-	 * so we need to reload the firmware to make it alive.
-	 */
-	pr_debug("Reloading the firmware because of previous error\n");
-	vxd_clean_fw_resources(ctx->dev);
-	ret = vxd_prepare_fw(ctx->dev);
-	if (ret)
-		pr_err("Reloading the firmware failed!!");
-}
-
 static struct vxd_dec_q_data *get_q_data(struct vxd_dec_ctx *ctx,
 					 enum v4l2_buf_type type)
 {
@@ -894,7 +879,6 @@ static void vxd_dec_stop_streaming(struct vb2_queue *vq)
 	struct list_head *list;
 	struct list_head *temp;
 	struct vxd_buffer *buf = NULL;
-	struct vxd_mapping *mapping = NULL;
 
 	if (V4L2_TYPE_IS_OUTPUT(vq->type))
 		ctx->dst_streaming = FALSE;
