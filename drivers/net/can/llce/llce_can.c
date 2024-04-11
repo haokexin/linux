@@ -821,7 +821,6 @@ static int register_devlink_params(struct llce_can *llce, struct device *dev)
 unreg_devlink:
 	if (ret)
 		devlink_unregister(devlink);
-free_devlink:
 	if (ret)
 		devlink_free(devlink);
 
