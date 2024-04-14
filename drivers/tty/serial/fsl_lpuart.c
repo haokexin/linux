@@ -1964,7 +1964,7 @@ static void lpuart_dma_shutdown(struct lpuart_port *sport)
 	if (sport->dma_tx_chan)
 		dma_release_channel(sport->dma_tx_chan);
 	if (sport->dma_rx_chan) {
-		lpuart_del_timer_sync(sport);
+		del_timer_sync(&sport->lpuart_timer);
 		dma_release_channel(sport->dma_rx_chan);
 	}
 }
