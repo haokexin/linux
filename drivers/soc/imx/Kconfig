@@ -28,7 +28,7 @@ config IMX8M_PM_DOMAINS
 	select PM_GENERIC_DOMAINS
 
 config SOC_DEV_IMX9
-	ristate "i.MX9 SoC device support"
+	tristate "i.MX9 SoC device support"
 	depends on ARCH_MXC || COMPILE_TEST
 	depends on NVMEM_IMX_OCOTP_FSB_S400
 	default ARCH_MXC && ARM64
