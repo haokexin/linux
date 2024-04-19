@@ -70,7 +70,9 @@ static void dwmac4_core_init(struct mac_device_info *hw,
 
 static void dwmac4_phylink_get_caps(struct stmmac_priv *priv)
 {
-	if (priv->plat->tx_queues_to_use > 1)
+	if (priv->plat->has_xgmac)
+		priv->hw->link.caps |= (MAC_10HD | MAC_100HD);
+	else if (priv->plat->tx_queues_to_use > 1)
 		priv->hw->link.caps &= ~(MAC_10HD | MAC_100HD | MAC_1000HD);
 	else
 		priv->hw->link.caps |= (MAC_10HD | MAC_100HD | MAC_1000HD);
