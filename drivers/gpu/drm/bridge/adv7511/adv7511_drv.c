@@ -1422,13 +1422,7 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 						IRQF_ONESHOT, dev_name(dev),
 						adv7511);
 		if (ret)
-			goto err_unregister_audio;
-	}
-
-	if (adv7511->type == ADV7533 || adv7511->type == ADV7535) {
-		ret = adv7533_attach_dsi(adv7511);
-		if (ret)
-			goto err_unregister_audio;
+			goto err_unregister_cec;
 	}
 
 	return 0;
