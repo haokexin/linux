@@ -536,6 +536,14 @@ static const struct midr_range marvell_erratum_38500_cpus[] = {
 	MIDR_ALL_VERSIONS(MIDR_THUNDERX_83XX),
 };
 
+#ifdef CONFIG_ARM64_ERRATUM_SSBS2
+static const struct midr_range erratum_ssbs2_list[] = {
+	/* Neoverse-N2 */
+	MIDR_ALL_VERSIONS(MIDR_NEOVERSE_N2),
+	{},
+};
+#endif
+
 #ifdef CONFIG_ARM64_WORKAROUND_TRBE_OVERWRITE_FILL_MODE
 static const struct midr_range trbe_overwrite_fill_mode_cpus[] = {
 #ifdef CONFIG_ARM64_ERRATUM_2139208
@@ -839,6 +847,13 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.type = ARM64_CPUCAP_WEAK_LOCAL_CPU_FEATURE,
 		/* Cortex-A510 r0p0-r1p1 */
 		CAP_MIDR_RANGE(MIDR_CORTEX_A510, 0, 0, 1, 1)
+	},
+#endif
+#ifdef CONFIG_ARM64_ERRATUM_SSBS2
+	{
+		.desc = "ARM erratum SSBS2",
+		.capability = ARM64_WORKAROUND_SSBS2,
+		ERRATA_MIDR_RANGE_LIST(erratum_ssbs2_list),
 	},
 #endif
 #ifdef CONFIG_ARM64_ERRATUM_1742098

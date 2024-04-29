@@ -558,6 +558,9 @@ static enum mitigation_state spectre_v4_enable_hw_mitigation(void)
 
 	/* SCTLR_EL1.DSSBS was initialised to 0 during boot */
 	set_pstate_ssbs(0);
+	if (IS_ENABLED(CONFIG_ARM64_ERRATUM_SSBS2) &&
+		this_cpu_has_cap(ARM64_WORKAROUND_SSBS2))
+		asm volatile(SB_BARRIER_INSN);
 
 	/*
 	 * SSBS is self-synchronizing and is intended to affect subsequent
