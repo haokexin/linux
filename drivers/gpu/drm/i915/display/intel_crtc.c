@@ -684,7 +684,7 @@ void intel_pipe_update_end(struct intel_atomic_state *state,
 	intel_psr_unlock(new_crtc_state);
 
 	if (new_crtc_state->do_async_flip)
-		goto out;
+		return;
 
 	trace_intel_pipe_update_end(crtc, end_vbl_count, scanline_end);
 
@@ -736,7 +736,7 @@ void intel_pipe_update_end(struct intel_atomic_state *state,
 		local_irq_enable();
 
 	if (intel_vgpu_active(dev_priv))
-		goto out;
+		return;
 
 	if (crtc->debug.start_vbl_count &&
 	    crtc->debug.start_vbl_count != end_vbl_count) {
@@ -751,7 +751,4 @@ void intel_pipe_update_end(struct intel_atomic_state *state,
 	}
 
 	dbg_vblank_evade(crtc, end_vbl_time);
-
-out:
-	intel_psr_unlock(new_crtc_state);
 }
