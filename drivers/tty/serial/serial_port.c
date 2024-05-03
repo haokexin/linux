@@ -42,7 +42,7 @@ static int serial_port_runtime_resume(struct device *dev)
 		port->ops->start_tx(port);
 
 unlock:
-	spin_unlock_irqrestore(&port->lock, flags);
+	uart_port_unlock_irqrestore(port, flags);
 
 out:
 	pm_runtime_mark_last_busy(dev);
