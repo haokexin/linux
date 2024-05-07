@@ -96,9 +96,13 @@ static void dwc2_set_s3c6400_params(struct dwc2_hsotg *hsotg)
 static void dwc2_set_socfpga_agilex_params(struct dwc2_hsotg *hsotg)
 {
 	struct dwc2_core_params *p = &hsotg->params;
+	u32 max_speed;
 
 	p->power_down = DWC2_POWER_DOWN_PARAM_NONE;
 	p->no_clock_gating = true;
+	max_speed = usb_get_maximum_speed(hsotg->dev);
+	if (max_speed)
+		p->speed = max_speed;
 }
 
 static void dwc2_set_rk_params(struct dwc2_hsotg *hsotg)
