@@ -553,6 +553,7 @@ static const struct pinmux_ops s32cc_pmx_ops = {
 	.gpio_request_enable = s32cc_pmx_gpio_request_enable,
 	.gpio_disable_free = s32cc_pmx_gpio_disable_free,
 	.gpio_set_direction = s32cc_pmx_gpio_set_direction,
+	.strict = true,
 };
 
 static int s32cc_pinconf_get(struct pinctrl_dev *pctldev,
