@@ -76,6 +76,7 @@ static int imx9_soc_device_register(struct device *dev)
 	nvmem_cell_put(cell);
 
 	memcpy(v, buf, min(len, sizeof(v)));
+	kfree(buf);
 	attr->serial_number = kasprintf(GFP_KERNEL, "%08x%08x%08x%08x", v[0], v[1], v[2], v[3]);
 
 	if (DIGPROG_MAJOR_UPPER(device_id) == 0x9 && DIGPROG_MAJOR_LOWER(device_id) == 0x2) {
