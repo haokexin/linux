@@ -323,7 +323,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb imx8qxp-mek-ov5640.dtb \
 			  imx8qxp-mek-dsi-rm67199-rpmsg.dtb \
 			  imx8qxp-mek-ov5640-rpmsg.dtb \
 			  imx8qxp-mek-dpu-lcdif.dtb \
-			  mx8qxp-mek-dpu-lcdif-rpmsg.dtb \
+			  imx8qxp-mek-dpu-lcdif-rpmsg.dtb \
 			  imx8qxp-mek-pcie-ep.dtb \
 			  imx8dx-mek.dtb imx8dx-mek-rpmsg.dtb \
 			  imx8dx-mek-enet2-tja1100.dtb \
