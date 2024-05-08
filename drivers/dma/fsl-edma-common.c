@@ -328,6 +328,7 @@ void fsl_edma_get_realcnt(struct fsl_edma_chan *fsl_chan)
 {
 	fsl_chan->chn_real_count = fsl_edma_desc_residue(fsl_chan, NULL, true);
 }
+EXPORT_SYMBOL_GPL(fsl_edma_get_realcnt);
 
 enum dma_status fsl_edma_tx_status(struct dma_chan *chan,
 		dma_cookie_t cookie, struct dma_tx_state *txstate)
