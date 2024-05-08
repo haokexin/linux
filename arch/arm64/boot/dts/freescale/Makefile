@@ -87,7 +87,6 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mm-evk-8mic-revE.dtb imx8mm-evk-8mic-swpdm.dtb \
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-ddr4-evk.dtb imx8mm-ddr4-evk-rm67191.dtb imx8mm-ddr4-evk-revb.dtb \
 			  imx8mm-ddr4-evk-revb-rm67191.dtb \
 			  imx8mm-ddr4-evk-revb-rm67191-cmd-ram.dtb \
-			  imx8mm-ddr4-evk-root.dtb \
 			  imx8mm-ddr4-evk-pcie-ep.dtb \
 			  imx8mm-ddr4-evk-revb-rm67199.dtb \
 			  imx8mm-ddr4-evk-revb-rm67199-cmd-ram.dtb \
@@ -246,8 +245,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek.dtb imx8qm-mek-ov5640.dtb \
 			  imx8qp-lpddr4-val.dtb imx8dm-lpddr4-val.dtb imx8qm-pcieax2pciebx1.dtb \
 			  imx8qm-mek-cockpit-a53.dtb imx8qm-mek-cockpit-a72.dtb \
 			  imx8qm-mek-esai.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-dom0.dtb imx8qm-mek-domu.dtb \
-			  imx8qm-mek-root.dtb imx8qm-mek-inmate.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-dom0.dtb imx8qm-mek-domu.dtb
 
 imx8qm-mek-revd-dtbs := imx8qm-mek.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-rpmsg-dtbs := imx8qm-mek-rpmsg.dtb imx8qm-mek-revd.dtbo
@@ -267,7 +265,6 @@ imx8qm-mek-revd-dsi-rm67191-dtbs := imx8qm-mek-dsi-rm67191.dtb imx8qm-mek-revd.d
 imx8qm-mek-revd-dsi-rm67199-dtbs := imx8qm-mek-dsi-rm67199.dtb imx8qm-mek-revd.dtbo
 imx8qm-pcieax2pciebx1-revd-dtbs := imx8qm-pcieax2pciebx1.dtb imx8qm-mek-revd.dtbo
 imx8qm-mek-revd-esai-dtbs := imx8qm-mek-esai.dtb imx8qm-mek-revd.dtbo
-imx8qm-mek-revd-root-dtbs := imx8qm-mek-root.dtb imx8qm-mek-revd.dtbo
 
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-rpmsg.dtb
@@ -287,7 +284,6 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-dsi-rm67191.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-dsi-rm67199.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-pcieax2pciebx1-revd.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-esai.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qm-mek-revd-root.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-colibri-eval-v3.dtb
@@ -347,7 +343,7 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb imx8qxp-mek-ov5640.dtb \
 			  imx8qxp-lpddr4-val-lpspi.dtb imx8qxp-lpddr4-val-lpspi-slave.dtb \
 			  imx8qxp-lpddr4-val-spdif.dtb imx8qxp-lpddr4-val-gpmi-nand.dtb imx8dxp-lpddr4-val.dtb \
 			  imx8qxp-17x17-val.dtb imx8dx-lpddr4-val.dtb imx8dx-17x17-val.dtb
-dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek-dom0.dtb imx8qxp-mek-root.dtb
+dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek-dom0.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8ulp-evk.dtb imx8ulp-evk-lpspi-slave.dtb \
 			  imx8ulp-evk-i3c.dtb imx8ulp-evk-rk055hdmipi4m.dtb imx8ulp-evk-rk055hdmipi4mv2.dtb \
 			  imx8ulp-evk-epdc.dtb imx8ulp-evk-sof-btsco.dtb \
