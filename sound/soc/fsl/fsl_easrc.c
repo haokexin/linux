@@ -1435,6 +1435,8 @@ static int fsl_easrc_trigger(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+#include "fsl_easrc_m2m.c"
+
 static int fsl_easrc_hw_params(struct snd_pcm_substream *substream,
 			       struct snd_pcm_hw_params *params,
 			       struct snd_soc_dai *dai)
@@ -1750,8 +1752,6 @@ static const struct regmap_config fsl_easrc_regmap_config = {
 	.volatile_table = &fsl_easrc_volatileable_table,
 	.cache_type = REGCACHE_RBTREE,
 };
-
-#include "fsl_easrc_m2m.c"
 
 #ifdef DEBUG
 static void fsl_easrc_dump_firmware(struct fsl_asrc *easrc)
