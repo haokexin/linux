@@ -36,7 +36,7 @@ int ethosu_rpmsg_register(struct ethosu_rpmsg *erp,
 			  struct ethosu_rpmsg_msg *msg)
 {
 	write_lock(&erp->lock);
-	msg->id = idr_alloc_cyclic(&erp->msg_idr, msg, 0, INT_MAX, GFP_KERNEL);
+	msg->id = idr_alloc_cyclic(&erp->msg_idr, msg, 0, INT_MAX, GFP_ATOMIC);
 	write_unlock(&erp->lock);
 	if (msg->id < 0)
 		return msg->id;
