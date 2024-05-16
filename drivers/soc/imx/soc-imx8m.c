@@ -135,14 +135,14 @@ static void __init imx8mm_soc_uid(void)
 	soc_uid <<= 32;
 	soc_uid |= readl_relaxed(ocotp_base + OCOTP_UID_LOW + offset);
 
-	clk_disable_unprepare(clk);
-	clk_put(clk);
-
 	if (offset) {
 		soc_uid_h = readl_relaxed(ocotp_base + IMX8MP_OCOTP_UID_HIGH + 0x10);
 		soc_uid_h <<= 32;
 		soc_uid_h |= readl_relaxed(ocotp_base + IMX8MP_OCOTP_UID_HIGH);
 	}
+
+	clk_disable_unprepare(clk);
+	clk_put(clk);
 
 	iounmap(ocotp_base);
 	of_node_put(np);
