@@ -1391,7 +1391,8 @@ static void linflex_console_putchar(struct uart_port *port, unsigned char ch)
 }
 
 static void linflex_string_write(struct uart_port *sport, const char *s,
-				 unsigned int count)
+				 unsigned int count,
+				 int wakeup)
 {
 	struct circ_buf *xmit = &sport->state->xmit;
 	unsigned long cr;
@@ -1404,7 +1405,7 @@ static void linflex_string_write(struct uart_port *sport, const char *s,
 
 	uart_console_write(sport, s, count, linflex_console_putchar);
 
-	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+	if (wakeup && uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
 		uart_write_wakeup(sport);
 	linflex_start_tx(sport);
 }
@@ -1414,17 +1415,19 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct uart_port *sport = linflex_ports[co->index];
 	unsigned long flags;
+	int locked = 1;
 
-	if (sport->sysrq) {
-		linflex_string_write(sport, s, count);
-	} else {
-		if (oops_in_progress)
-			spin_trylock_irqsave(&sport->lock, flags);
-		else
-			spin_lock_irqsave(&sport->lock, flags);
-		linflex_string_write(sport, s, count);
+	if (sport->sysrq)
+		locked = 0;
+	else if (oops_in_progress)
+		locked = spin_trylock_irqsave(&sport->lock, flags);
+	else
+		spin_lock_irqsave(&sport->lock, flags);
+
+	linflex_string_write(sport, s, count, locked);
+
+	if (locked)
 		spin_unlock_irqrestore(&sport->lock, flags);
-	}
 }
 
 /*
