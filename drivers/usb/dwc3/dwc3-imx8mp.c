@@ -18,6 +18,8 @@
 
 #include "core.h"
 
+#include "../host/xhci.h"
+
 /* USB wakeup registers */
 #define USB_WAKEUP_CTRL			0x00
 
