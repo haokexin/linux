@@ -9,6 +9,8 @@
 
 #include <linux/acpi.h>
 #include <linux/platform_device.h>
+#include <linux/usb.h>
+#include <linux/usb/hcd.h>
 
 #include "../host/xhci-plat.h"
 #include "../host/xhci.h"
@@ -56,6 +58,23 @@ static void dwc3_power_off_all_roothub_ports(struct dwc3 *dwc)
 	} else
 		dev_err(dwc->dev, "xhci base reg invalid\n");
 }
+static void dwc3_xhci_plat_start(struct usb_hcd *hcd)
+{
+	struct platform_device *pdev;
+	struct dwc3 *dwc;
+
+	if (!usb_hcd_is_primary_hcd(hcd))
+		return;
+
+	pdev = to_platform_device(hcd->self.controller);
+	dwc = dev_get_drvdata(pdev->dev.parent);
+
+	dwc3_enable_susphy(dwc, true);
+}
+
+static const struct xhci_plat_priv dwc3_xhci_plat_quirk = {
+	.plat_start = dwc3_xhci_plat_start,
+};
 
 static int dwc3_host_get_irq(struct dwc3 *dwc)
 {
@@ -178,6 +197,11 @@ int dwc3_host_init(struct dwc3 *dwc)
 			goto err;
 	}
 
+	ret = platform_device_add_data(xhci, &dwc3_xhci_plat_quirk,
+				       sizeof(struct xhci_plat_priv));
+	if (ret)
+		goto err;
+
 	ret = platform_device_add(xhci);
 	if (ret) {
 		dev_err(dwc->dev, "failed to register xHCI device\n");
@@ -192,6 +216,7 @@ err:
 
 void dwc3_host_exit(struct dwc3 *dwc)
 {
+	dwc3_enable_susphy(dwc, false);
 	platform_device_unregister(dwc->xhci);
 	dwc->xhci = NULL;
 }
