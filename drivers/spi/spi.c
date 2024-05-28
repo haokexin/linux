@@ -2783,6 +2783,7 @@ int spi_target_abort(struct spi_device *spi)
 
 	return -ENOTSUPP;
 }
+EXPORT_SYMBOL_GPL(spi_target_abort);
 
 static ssize_t slave_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
@@ -4216,6 +4217,7 @@ static int __spi_sync(struct spi_device *spi, struct spi_message *message)
 		wait_for_completion(&done);
 		status = message->status;
 	}
+	message->complete = NULL;
 	message->context = NULL;
 
 	return status;
