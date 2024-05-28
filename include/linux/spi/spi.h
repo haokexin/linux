@@ -560,9 +560,9 @@ struct spi_controller {
 
 	union {
 		/* Flag indicating this is an SPI slave controller */
-		bool                    slave;
+		bool			slave;
 		/* Flag indicating this is an SPI target controller */
-		bool                    target;
+		bool			target;
 	};
 
 	/*
