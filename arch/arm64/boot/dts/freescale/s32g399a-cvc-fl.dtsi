@@ -11,6 +11,16 @@
 	compatible = "fsl,s32g399", "arm,vexpress";
 };
 
+/* UART (J2) to Micro USB port */
+&uart0 {
+	status = "okay";
+};
+
+/* UART (J1) to Micro USB port */
+&uart1 {
+	status = "okay";
+};
+
 &swt8 {
 	status = "okay";
 };
