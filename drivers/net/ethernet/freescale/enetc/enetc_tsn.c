@@ -743,6 +743,8 @@ static int enetc_qci_sfi_counters_get(struct net_device *ndev, u32 index,
 		le32_to_cpu(sfi_counter_data->flow_meter_dropl);
 
 	memset(cbdr, 0, sizeof(*cbdr));
+	dma_unmap_single(&priv->si->pdev->dev, dma, data_size, DMA_FROM_DEVICE);
+	kfree(sfi_counter_data);
 	return 0;
 }
 
@@ -1363,6 +1365,10 @@ static int enetc_qci_fmi_get(struct net_device *ndev, u32 index,
 
 	memcpy(counters, fmi_counter_data, sizeof(*counters));
 
+	dma_unmap_single(&priv->si->pdev->dev, dma, data_size, DMA_FROM_DEVICE);
+	memset(cbdr, 0, sizeof(*cbdr));
+	kfree(fmi_counter_data);
+
 	return 0;
 }
 
@@ -1646,6 +1652,12 @@ static void enetc_cbs_init(struct enetc_si *si)
 	}
 }
 
+static void enetc_cbs_free(struct enetc_si *si)
+{
+	kfree(si->ecbs);
+	si->ecbs = NULL;
+}
+
 static void enetc_qbv_init(struct enetc_hw *hw)
 {
 	/* Set PSPEED to be 1Gbps */
@@ -1685,6 +1697,9 @@ static void enetc_tsn_deinit(struct net_device *ndev)
 
 	if (capability & TSN_CAP_QCI)
 		enetc_qci_disable(&si->hw);
+
+	if (capability & TSN_CAP_CBS)
+		enetc_cbs_free(si);
 
 	dev_info(&si->pdev->dev, "%s: release\n", __func__);
 }
