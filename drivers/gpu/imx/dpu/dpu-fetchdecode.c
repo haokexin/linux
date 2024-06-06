@@ -79,15 +79,15 @@ int fetchdecode_pixengcfg_dynamic_src_sel(struct dpu_fetchunit *fu,
 {
 	int i;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	for (i = 0; i < 4; i++) {
 		if (fd_srcs[fu->id][i] == src) {
 			dpu_pec_fu_write(fu, PIXENGCFG_DYNAMIC, src);
-			mutex_unlock(&fu->mutex);
+			raw_spin_unlock(&fu->lock);
 			return 0;
 		}
 	}
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	return -EINVAL;
 }
@@ -116,21 +116,21 @@ fetchdecode_set_baseaddress(struct dpu_fetchunit *fu, unsigned int width,
 		baddr += (dma_addr_t)(y_offset % mt_h) * stride;
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, BASEADDRESS0, baddr);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void fetchdecode_set_src_bpp(struct dpu_fetchunit *fu, int bpp)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, SOURCEBUFFERATTRIBUTES0);
 	val &= ~0x3f0000;
 	val |= BITSPERPIXEL(bpp);
 	dpu_fu_write(fu, SOURCEBUFFERATTRIBUTES0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void
@@ -155,12 +155,12 @@ fetchdecode_set_src_stride(struct dpu_fetchunit *fu,
 							  baddr, nonzero_mod);
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, SOURCEBUFFERATTRIBUTES0);
 	val &= ~0xffff;
 	val |= STRIDE(stride);
 	dpu_fu_write(fu, SOURCEBUFFERATTRIBUTES0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void
@@ -175,9 +175,9 @@ fetchdecode_set_src_buf_dimensions(struct dpu_fetchunit *fu,
 
 	val = LINEWIDTH(w) | LINECOUNT(h);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, SOURCEBUFFERDIMENSION0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void fetchdecode_set_fmt(struct dpu_fetchunit *fu,
@@ -224,7 +224,7 @@ static void fetchdecode_set_fmt(struct dpu_fetchunit *fu,
 		break;
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, CONTROL);
 	val &= ~YUV422UPSAMPLINGMODE_MASK;
 	val &= ~INPUTSELECT_MASK;
@@ -258,7 +258,7 @@ static void fetchdecode_set_fmt(struct dpu_fetchunit *fu,
 		val |= YUVCONVERSIONMODE(YUVCONVERSIONMODE__OFF);
 	}
 	dpu_fu_write(fu, LAYERPROPERTY0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	for (i = 0; i < ARRAY_SIZE(dpu_pixel_format_matrix); i++) {
 		if (dpu_pixel_format_matrix[i].pixel_format == fmt) {
@@ -270,10 +270,10 @@ static void fetchdecode_set_fmt(struct dpu_fetchunit *fu,
 				shift &= ~(U_SHIFT_MASK | V_SHIFT_MASK);
 			}
 
-			mutex_lock(&fu->mutex);
+			raw_spin_lock(&fu->lock);
 			dpu_fu_write(fu, COLORCOMPONENTBITS0, bits);
 			dpu_fu_write(fu, COLORCOMPONENTSHIFT0, shift);
-			mutex_unlock(&fu->mutex);
+			raw_spin_unlock(&fu->lock);
 			return;
 		}
 	}
@@ -288,9 +288,9 @@ void fetchdecode_layeroffset(struct dpu_fetchunit *fu, unsigned int x,
 
 	val = LAYERXOFFSET(x) | LAYERYOFFSET(y);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, LAYEROFFSET0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchdecode_layeroffset);
 
@@ -301,9 +301,9 @@ void fetchdecode_clipoffset(struct dpu_fetchunit *fu, unsigned int x,
 
 	val = CLIPWINDOWXOFFSET(x) | CLIPWINDOWYOFFSET(y);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CLIPWINDOWOFFSET0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchdecode_clipoffset);
 
@@ -328,7 +328,7 @@ fetchdecode_set_pixel_blend_mode(struct dpu_fetchunit *fu,
 		}
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY0);
 	val &= ~(PREMULCONSTRGB | ALPHA_ENABLE_MASK | RGB_ENABLE_MASK);
 	val |= mode;
@@ -338,38 +338,38 @@ fetchdecode_set_pixel_blend_mode(struct dpu_fetchunit *fu,
 	val &= ~CONSTANTALPHA_MASK;
 	val |= CONSTANTALPHA(alpha >> 8);
 	dpu_fu_write(fu, CONSTANTCOLOR0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void fetchdecode_enable_src_buf(struct dpu_fetchunit *fu)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY0);
 	val |= SOURCEBUFFERENABLE;
 	dpu_fu_write(fu, LAYERPROPERTY0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void fetchdecode_disable_src_buf(struct dpu_fetchunit *fu)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY0);
 	val &= ~SOURCEBUFFERENABLE;
 	dpu_fu_write(fu, LAYERPROPERTY0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static bool fetchdecode_is_enabled(struct dpu_fetchunit *fu)
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, LAYERPROPERTY0);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	return !!(val & SOURCEBUFFERENABLE);
 }
@@ -381,9 +381,9 @@ void fetchdecode_clipdimensions(struct dpu_fetchunit *fu, unsigned int w,
 
 	val = CLIPWINDOWWIDTH(w) | CLIPWINDOWHEIGHT(h);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CLIPWINDOWDIMENSIONS0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchdecode_clipdimensions);
 
@@ -399,9 +399,9 @@ fetchdecode_set_framedimensions(struct dpu_fetchunit *fu,
 
 	val = FRAMEWIDTH(w) | FRAMEHEIGHT(h);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, FRAMEDIMENSIONS, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 void fetchdecode_rgb_constantcolor(struct dpu_fetchunit *fu,
@@ -411,9 +411,9 @@ void fetchdecode_rgb_constantcolor(struct dpu_fetchunit *fu,
 
 	val = rgb_color(r, g, b, a);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CONSTANTCOLOR0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchdecode_rgb_constantcolor);
 
@@ -423,17 +423,17 @@ void fetchdecode_yuv_constantcolor(struct dpu_fetchunit *fu, u8 y, u8 u, u8 v)
 
 	val = yuv_color(y, u, v);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CONSTANTCOLOR0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetchdecode_yuv_constantcolor);
 
 static void fetchdecode_set_controltrigger(struct dpu_fetchunit *fu)
 {
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CONTROLTRIGGER, SHDTOKGEN);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 int fetchdecode_fetchtype(struct dpu_fetchunit *fu, fetchtype_t *type)
@@ -441,10 +441,10 @@ int fetchdecode_fetchtype(struct dpu_fetchunit *fu, fetchtype_t *type)
 	struct dpu_soc *dpu = fu->dpu;
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, FETCHTYPE);
 	val &= FETCHTYPE_MASK;
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	switch (val) {
 	case FETCHTYPE__DECODE:
@@ -563,16 +563,16 @@ struct dpu_fetchunit *dpu_fd_get(struct dpu_soc *dpu, int id)
 
 	fu = dpu->fd_priv[i];
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 
 	if (fu->inuse) {
-		mutex_unlock(&fu->mutex);
+		raw_spin_unlock(&fu->lock);
 		return ERR_PTR(-EBUSY);
 	}
 
 	fu->inuse = true;
 
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	return fu;
 }
@@ -580,11 +580,11 @@ EXPORT_SYMBOL_GPL(dpu_fd_get);
 
 void dpu_fd_put(struct dpu_fetchunit *fu)
 {
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 
 	fu->inuse = false;
 
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(dpu_fd_put);
 
@@ -623,10 +623,10 @@ void _dpu_fd_init(struct dpu_soc *dpu, unsigned int id)
 	fetchunit_baddr_autoupdate(fu, 0x0);
 	fetchunit_shden(fu, true);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, BURSTBUFFERMANAGEMENT,
 			SETNUMBUFFERS(16) | SETBURSTLENGTH(16));
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 int dpu_fd_init(struct dpu_soc *dpu, unsigned int id,
@@ -657,7 +657,7 @@ int dpu_fd_init(struct dpu_soc *dpu, unsigned int id,
 	fu->ops = &fd_ops;
 	fu->name = "fetchdecode";
 
-	mutex_init(&fu->mutex);
+	raw_spin_lock_init(&fu->lock);
 
 	ret = fetchdecode_pixengcfg_dynamic_src_sel(fu, FD_SRC_DISABLE);
 	if (ret < 0)
