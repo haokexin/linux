@@ -24,6 +24,26 @@ static const struct reg_sequence adv7533_cec_fixed_registers[] = {
 	{ 0x05, 0xc8 },
 };
 
+/*
+ * TODO: Currently, filter-out unsupported modes by their clocks.
+ * Need to find a better way to do this.
+ * These are the pixel clocks that the converter can handle successfully.
+ */
+
+static const int valid_clocks[] = {
+	148500,
+	135000,
+	132000,
+	119000,
+	108000,
+	78750,
+	74250,
+	65000,
+	49500,
+	40000,
+	31500,
+};
+
 static void adv7511_dsi_config_timing_gen(struct adv7511 *adv)
 {
 	struct drm_display_mode *mode = &adv->curr_mode;
@@ -136,6 +156,8 @@ enum drm_mode_status adv7533_mode_valid(struct adv7511 *adv,
 	unsigned long max_lane_freq;
 	struct mipi_dsi_device *dsi = adv->dsi;
 	u8 bpp = mipi_dsi_pixel_format_to_bpp(dsi->format);
+	size_t i, num_modes = ARRAY_SIZE(valid_clocks);
+	bool clock_ok = false;
 
 	/* Check max clock for either 7533 or 7535 */
 	if (mode->clock > (adv->type == ADV7533 ? 80000 : 148500))
@@ -146,6 +168,15 @@ enum drm_mode_status adv7533_mode_valid(struct adv7511 *adv,
 
 	if (mode->clock * bpp > max_lane_freq * adv->num_dsi_lanes)
 		return MODE_CLOCK_HIGH;
+
+	for (i = 0; i < num_modes; i++)
+		if (mode->clock == valid_clocks[i]) {
+			clock_ok = true;
+			break;
+	}
+
+	if (!clock_ok)
+		return MODE_NOCLOCK;
 
 	return MODE_OK;
 }
