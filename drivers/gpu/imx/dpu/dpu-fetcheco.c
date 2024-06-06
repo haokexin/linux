@@ -74,9 +74,9 @@ fetcheco_set_src_buf_dimensions(struct dpu_fetchunit *fu,
 
 	val = LINEWIDTH(width) | LINECOUNT(height);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, SOURCEBUFFERDIMENSION0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 static void fetcheco_set_fmt(struct dpu_fetchunit *fu,
@@ -128,7 +128,7 @@ static void fetcheco_set_fmt(struct dpu_fetchunit *fu,
 		return;
 	}
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, FRAMERESAMPLING);
 	val &= ~(DELTAX_MASK | DELTAY_MASK);
 	val |= DELTAX(x) | DELTAY(y);
@@ -138,7 +138,7 @@ static void fetcheco_set_fmt(struct dpu_fetchunit *fu,
 	val &= ~RASTERMODE_MASK;
 	val |= RASTERMODE(RASTERMODE__NORMAL);
 	dpu_fu_write(fu, CONTROL, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	for (i = 0; i < ARRAY_SIZE(dpu_pixel_format_matrix); i++) {
 		if (dpu_pixel_format_matrix[i].pixel_format == fmt) {
@@ -148,10 +148,10 @@ static void fetcheco_set_fmt(struct dpu_fetchunit *fu,
 			bits &= ~Y_BITS_MASK;
 			shift &= ~Y_SHIFT_MASK;
 
-			mutex_lock(&fu->mutex);
+			raw_spin_lock(&fu->lock);
 			dpu_fu_write(fu, COLORCOMPONENTBITS0, bits);
 			dpu_fu_write(fu, COLORCOMPONENTSHIFT0, shift);
-			mutex_unlock(&fu->mutex);
+			raw_spin_unlock(&fu->lock);
 			return;
 		}
 	}
@@ -166,9 +166,9 @@ void fetcheco_layeroffset(struct dpu_fetchunit *fu, unsigned int x,
 
 	val = LAYERXOFFSET(x) | LAYERYOFFSET(y);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, LAYEROFFSET0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetcheco_layeroffset);
 
@@ -179,9 +179,9 @@ void fetcheco_clipoffset(struct dpu_fetchunit *fu, unsigned int x,
 
 	val = CLIPWINDOWXOFFSET(x) | CLIPWINDOWYOFFSET(y);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CLIPWINDOWOFFSET0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetcheco_clipoffset);
 
@@ -192,9 +192,9 @@ void fetcheco_clipdimensions(struct dpu_fetchunit *fu, unsigned int w,
 
 	val = CLIPWINDOWWIDTH(w) | CLIPWINDOWHEIGHT(h);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CLIPWINDOWDIMENSIONS0, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetcheco_clipdimensions);
 
@@ -210,9 +210,9 @@ fetcheco_set_framedimensions(struct dpu_fetchunit *fu,
 
 	val = FRAMEWIDTH(w) | FRAMEHEIGHT(h);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, FRAMEDIMENSIONS, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 void fetcheco_frameresampling(struct dpu_fetchunit *fu, unsigned int x,
@@ -220,20 +220,20 @@ void fetcheco_frameresampling(struct dpu_fetchunit *fu, unsigned int x,
 {
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, FRAMERESAMPLING);
 	val &= ~(DELTAX_MASK | DELTAY_MASK);
 	val |= DELTAX(x) | DELTAY(y);
 	dpu_fu_write(fu, FRAMERESAMPLING, val);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(fetcheco_frameresampling);
 
 static void fetcheco_set_controltrigger(struct dpu_fetchunit *fu)
 {
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, CONTROLTRIGGER, SHDTOKGEN);
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 int fetcheco_fetchtype(struct dpu_fetchunit *fu, fetchtype_t *type)
@@ -241,10 +241,10 @@ int fetcheco_fetchtype(struct dpu_fetchunit *fu, fetchtype_t *type)
 	struct dpu_soc *dpu = fu->dpu;
 	u32 val;
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	val = dpu_fu_read(fu, FETCHTYPE);
 	val &= FETCHTYPE_MASK;
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	switch (val) {
 	case FETCHTYPE__DECODE:
@@ -301,16 +301,16 @@ struct dpu_fetchunit *dpu_fe_get(struct dpu_soc *dpu, int id)
 
 	fu = dpu->fe_priv[i];
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 
 	if (fu->inuse) {
-		mutex_unlock(&fu->mutex);
+		raw_spin_unlock(&fu->lock);
 		return ERR_PTR(-EBUSY);
 	}
 
 	fu->inuse = true;
 
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 
 	return fu;
 }
@@ -318,11 +318,11 @@ EXPORT_SYMBOL_GPL(dpu_fe_get);
 
 void dpu_fe_put(struct dpu_fetchunit *fu)
 {
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 
 	fu->inuse = false;
 
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 EXPORT_SYMBOL_GPL(dpu_fe_put);
 
@@ -358,10 +358,10 @@ void _dpu_fe_init(struct dpu_soc *dpu, unsigned int id)
 
 	fetchunit_shden(fu, true);
 
-	mutex_lock(&fu->mutex);
+	raw_spin_lock(&fu->lock);
 	dpu_fu_write(fu, BURSTBUFFERMANAGEMENT,
 			SETNUMBUFFERS(16) | SETBURSTLENGTH(16));
-	mutex_unlock(&fu->mutex);
+	raw_spin_unlock(&fu->lock);
 }
 
 int dpu_fe_init(struct dpu_soc *dpu, unsigned int id,
@@ -399,7 +399,7 @@ int dpu_fe_init(struct dpu_soc *dpu, unsigned int id,
 	fu->ops = &fe_ops;
 	fu->name = "fetcheco";
 
-	mutex_init(&fu->mutex);
+	raw_spin_lock_init(&fu->lock);
 
 	_dpu_fe_init(dpu, id);
 
