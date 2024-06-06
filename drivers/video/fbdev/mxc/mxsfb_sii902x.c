@@ -396,7 +396,7 @@ static int mxsfb_get_of_property(void)
 static int sii902x_probe(struct i2c_client *client)
 {
 	int i, dat, ret;
-	struct fb_info edid_fbi;
+	struct fb_info edid_fbi = {};
 	struct fb_info *init_fbi = sii902x.fbi;
 
 	memset(&sii902x, 0, sizeof(sii902x));
