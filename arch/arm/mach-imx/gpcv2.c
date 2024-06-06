@@ -109,7 +109,7 @@ static u32 gpcv2_saved_imrs[IMR_NUM];
 static u32 gpcv2_saved_imrs_m4[IMR_NUM];
 static u32 gpcv2_mf_irqs[IMR_NUM];
 static u32 gpcv2_mf_request_on[IMR_NUM];
-static DEFINE_SPINLOCK(gpcv2_lock);
+static DEFINE_RAW_SPINLOCK(gpcv2_lock);
 
 void imx_gpcv2_add_m4_wake_up_irq(u32 hwirq, bool enable)
 {
@@ -122,10 +122,10 @@ void imx_gpcv2_add_m4_wake_up_irq(u32 hwirq, bool enable)
 		return;
 
 	mask = 1 << hwirq % 32;
-	spin_lock_irqsave(&gpcv2_lock, flags);
+	raw_spin_lock_irqsave(&gpcv2_lock, flags);
 	gpcv2_wake_irqs[idx] = enable ? gpcv2_wake_irqs[idx] | mask :
 		gpcv2_wake_irqs[idx] & ~mask;
-	spin_unlock_irqrestore(&gpcv2_lock, flags);
+	raw_spin_unlock_irqrestore(&gpcv2_lock, flags);
 }
 
 static int imx_gpcv2_irq_set_wake(struct irq_data *d, unsigned int on)
@@ -137,10 +137,10 @@ static int imx_gpcv2_irq_set_wake(struct irq_data *d, unsigned int on)
 	BUG_ON(idx >= IMR_NUM);
 
 	mask = 1 << d->hwirq % 32;
-	spin_lock_irqsave(&gpcv2_lock, flags);
+	raw_spin_lock_irqsave(&gpcv2_lock, flags);
 	gpcv2_wake_irqs[idx] = on ? gpcv2_wake_irqs[idx] | mask :
 				  gpcv2_wake_irqs[idx] & ~mask;
-	spin_unlock_irqrestore(&gpcv2_lock, flags);
+	raw_spin_unlock_irqrestore(&gpcv2_lock, flags);
 
 	return 0;
 }
@@ -226,7 +226,7 @@ void imx_gpcv2_set_lpm_mode(enum mxc_cpu_pwr_mode mode)
 	unsigned long flags;
 	u32 val1, val2;
 
-	spin_lock_irqsave(&gpcv2_lock, flags);
+	raw_spin_lock_irqsave(&gpcv2_lock, flags);
 
 	val1 = readl_relaxed(gpc_base + GPC_LPCR_A7_BSC);
 	val2 = readl_relaxed(gpc_base + GPC_SLPCR);
@@ -283,7 +283,7 @@ void imx_gpcv2_set_lpm_mode(enum mxc_cpu_pwr_mode mode)
 	writel_relaxed(val1, gpc_base + GPC_LPCR_A7_BSC);
 	writel_relaxed(val2, gpc_base + GPC_SLPCR);
 
-	spin_unlock_irqrestore(&gpcv2_lock, flags);
+	raw_spin_unlock_irqrestore(&gpcv2_lock, flags);
 }
 
 void imx_gpcv2_set_plat_power_gate_by_lpm(bool pdn)
@@ -329,7 +329,7 @@ void imx_gpcv2_set_cpu_power_gate_by_wfi(u32 cpu, bool pdn)
 	unsigned long flags;
 	u32 val;
 
-	spin_lock_irqsave(&gpcv2_lock, flags);
+	raw_spin_lock_irqsave(&gpcv2_lock, flags);
 	val = readl_relaxed(gpc_base + GPC_LPCR_A7_AD);
 
 	if (cpu == 0) {
@@ -355,7 +355,7 @@ void imx_gpcv2_set_cpu_power_gate_by_wfi(u32 cpu, bool pdn)
 		}
 	}
 	writel_relaxed(val, gpc_base + GPC_LPCR_A7_AD);
-	spin_unlock_irqrestore(&gpcv2_lock, flags);
+	raw_spin_unlock_irqrestore(&gpcv2_lock, flags);
 }
 
 void imx_gpcv2_set_cpu_power_gate_by_lpm(u32 cpu, bool pdn)
@@ -363,7 +363,7 @@ void imx_gpcv2_set_cpu_power_gate_by_lpm(u32 cpu, bool pdn)
 	unsigned long flags;
 	u32 val;
 
-	spin_lock_irqsave(&gpcv2_lock, flags);
+	raw_spin_lock_irqsave(&gpcv2_lock, flags);
 
 	val = readl_relaxed(gpc_base + GPC_LPCR_A7_AD);
 	if (cpu == 0) {
@@ -384,7 +384,7 @@ void imx_gpcv2_set_cpu_power_gate_by_lpm(u32 cpu, bool pdn)
 	}
 
 	writel_relaxed(val, gpc_base + GPC_LPCR_A7_AD);
-	spin_unlock_irqrestore(&gpcv2_lock, flags);
+	raw_spin_unlock_irqrestore(&gpcv2_lock, flags);
 }
 
 void imx_gpcv2_set_cpu_power_gate_in_idle(bool pdn)
@@ -395,7 +395,7 @@ void imx_gpcv2_set_cpu_power_gate_in_idle(bool pdn)
 	for_each_possible_cpu(cpu)
 		imx_gpcv2_set_cpu_power_gate_by_lpm(cpu, pdn);
 
-	spin_lock_irqsave(&gpcv2_lock, flags);
+	raw_spin_lock_irqsave(&gpcv2_lock, flags);
 
 	imx_gpcv2_set_m_core_pgc(pdn, GPC_PGC_C0);
 	if (num_online_cpus() > 1)
@@ -424,7 +424,7 @@ void imx_gpcv2_set_cpu_power_gate_in_idle(bool pdn)
 			gpc_base + GPC_PGC_ACK_SEL_A7);
 		imx_gpcv2_enable_rbc(false);
 	}
-	spin_unlock_irqrestore(&gpcv2_lock, flags);
+	raw_spin_unlock_irqrestore(&gpcv2_lock, flags);
 }
 
 void imx_gpcv2_set_mix_phy_gate_by_lpm(u32 pdn_index, u32 pup_index)
@@ -468,10 +468,10 @@ int imx_gpcv2_mf_power_on(unsigned int irq, unsigned int on)
 
 	BUG_ON(idx >= IMR_NUM);
 
-	spin_lock_irqsave(&gpcv2_lock, flags);
+	raw_spin_lock_irqsave(&gpcv2_lock, flags);
 	gpcv2_mf_request_on[idx] = on ? gpcv2_mf_request_on[idx] | mask :
 				  gpcv2_mf_request_on[idx] & ~mask;
-	spin_unlock_irqrestore(&gpcv2_lock, flags);
+	raw_spin_unlock_irqrestore(&gpcv2_lock, flags);
 
 	return 0;
 }
