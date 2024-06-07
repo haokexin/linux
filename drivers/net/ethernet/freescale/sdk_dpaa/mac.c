@@ -82,6 +82,7 @@ static const char phy_str[][11] = {
 	[PHY_INTERFACE_MODE_XGMII]	= "xgmii",
 	[PHY_INTERFACE_MODE_2500BASEX] = "sgmii-2500",
 	[PHY_INTERFACE_MODE_10GKR]	= "10gbase-kr",
+	[PHY_INTERFACE_MODE_USXGMII]	= "usxgmii",
 };
 
 static phy_interface_t __pure __attribute__((nonnull)) str2phy(const char *str)
@@ -110,6 +111,7 @@ static const uint16_t phy2speed[] = {
 	[PHY_INTERFACE_MODE_XGMII]	= SPEED_10000,
 	[PHY_INTERFACE_MODE_2500BASEX] = SPEED_2500,
 	[PHY_INTERFACE_MODE_10GKR]	= SPEED_10000,
+	[PHY_INTERFACE_MODE_USXGMII]	= SPEED_10000,
 };
 
 static struct mac_device * __cold
