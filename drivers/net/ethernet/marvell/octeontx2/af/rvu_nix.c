@@ -4165,7 +4165,6 @@ static int set_flowkey_fields(struct nix_rx_flowkey_alg *alg, u32 flow_cfg)
 	struct nix_rx_flowkey_alg *field;
 	struct nix_rx_flowkey_alg tmp;
 	u32 key_type, valid_key;
-	u32 l3_l4_src_dst;
 	int l4_key_offset = 0;
 	u32 l3_l4_src_dst;
 
@@ -5598,24 +5597,6 @@ void rvu_nix_lf_teardown(struct rvu *rvu, u16 pcifunc, int blkaddr, int nixlf)
 	rvu_cgx_cfg_pause_frm(rvu, pcifunc, 0, 0);
 
 	nix_ctx_free(rvu, pfvf);
-
-	sa_base = rvu_read64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_SA_BASE(nixlf));
-	if (FIELD_GET(RX_SA_BASE, sa_base)) {
-		err = rvu_cpt_ctx_flush(rvu, pcifunc);
-		if (err)
-			dev_err(rvu->dev,
-				"CPT ctx flush failed with error: %d\n", err);
-	}
-
-	if (is_block_implemented(rvu->hw, BLKADDR_CPT0)) {
-	/* reset the configuration related to inline ipsec */
-		rvu_write64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_CFG0(nixlf),
-			    0x0);
-		rvu_write64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_CFG1(nixlf),
-			    0x0);
-		rvu_write64(rvu, blkaddr, NIX_AF_LFX_RX_IPSEC_SA_BASE(nixlf),
-			    0x0);
-	}
 
 	nix_free_all_bandprof(rvu, pcifunc);
 
