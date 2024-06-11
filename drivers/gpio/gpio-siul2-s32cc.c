@@ -401,6 +401,22 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	return ret;
 }
 
+static int suil2_gpio_irq_reqres(struct irq_data *d)
+{
+	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+	irq_hw_number_t gpio = irqd_to_hwirq(d);
+	int ret;
+
+	ret = siul2_gpio_dir_in(gc, gpio);
+	if (ret) {
+		dev_err(gc->parent, "Failed to configure GPIO %lu as input\n",
+			gpio);
+		return ret;
+	}
+
+	return gpiochip_reqres_irq(gc, d->hwirq);
+}
+
 static irqreturn_t siul2_gpio_irq_handler(int irq, void *data)
 {
 	struct siul2_gpio_dev *gpio_dev = data;
@@ -1116,8 +1132,9 @@ static const struct irq_chip siul2_irqchip = {
 	.irq_mask		= siul2_gpio_irq_mask,
 	.irq_unmask		= siul2_gpio_irq_unmask,
 	.irq_set_type		= siul2_gpio_irq_set_type,
+	.irq_request_resources	= suil2_gpio_irq_reqres,
+	.irq_release_resources  = gpiochip_irq_relres,
 	.flags = IRQCHIP_IMMUTABLE,
-	GPIOCHIP_IRQ_RESOURCE_HELPERS,
 };
 
 static int siul2_gpio_probe(struct platform_device *pdev)
