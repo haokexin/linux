@@ -1,7 +1,9 @@
-/* SPDX-License-Identifier: GPL-2.0-or-later */
+/* SPDX-License-Identifier: GPL-2.0 */
+
 /*
- * Copyright(c) 2004 - 2006 Intel Corporation. All rights reserved.
+ * Copyright (C) 2021 INTEL Corporation
  */
+
 #ifndef LINUX_DMAENGINE_H
 #define LINUX_DMAENGINE_H
 
@@ -57,6 +59,7 @@ enum dma_transaction_type {
 	DMA_MEMSET,
 	DMA_MEMSET_SG,
 	DMA_INTERRUPT,
+	DMA_SG,
 	DMA_PRIVATE,
 	DMA_ASYNC_TX,
 	DMA_SLAVE,
@@ -202,6 +205,25 @@ enum dma_ctrl_flags {
 	DMA_PREP_CMD = (1 << 7),
 	DMA_PREP_REPEAT = (1 << 8),
 	DMA_PREP_LOAD_EOT = (1 << 9),
+};
+
+/**
+ * enum dma_ctrl_cmd - DMA operations that can optionally be exercised
+ * on a running channel.
+ * @DMA_TERMINATE_ALL: terminate all ongoing transfers
+ * @DMA_PAUSE: pause ongoing transfers
+ * @DMA_RESUME: resume paused transfer
+ * @DMA_SLAVE_CONFIG: this command is only implemented by DMA controllers
+ * that need to runtime reconfigure the slave channels (as opposed to passing
+ * configuration data in statically from the platform). An additional
+ * argument of struct dma_slave_config must be passed in with this
+ * command.
+ */
+enum dma_ctrl_cmd {
+	DMA_TERMINATE_ALL,
+	DMA_PAUSE,
+	DMA_RESUME,
+	DMA_SLAVE_CONFIG,
 };
 
 /**

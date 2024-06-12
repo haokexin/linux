@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/bindings/misc/intel,axxia-mtc.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia Master Test Controller (MTC)
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Intel Axxia Master Test Controller (MTC) is a test generator that
+  is fully compliant with IEEE 1149.1 and can run JTAG test sequences
+  on external devices.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,mtc
+
+  reg:
+    maxItems: 1
+    description: |
+      Address and length of the register set for the device registers.
+
+  interrupts:
+    maxItems: 1
+
+required:
+  - compatible
+  - reg
+  - interrupts
+
+additionalProperties: true
+
+examples:
+  - |
+    mtc: mtc@8080210000 {
+         compatible = "axxia,mtc";
+         reg = <0x80 0x80210000 0x10000>;
+         interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+...

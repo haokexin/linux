@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/intel,axxia-nemac.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia Gigabit Ethernet Controller (NEMAC)
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Bindings for the Intel Axxia NEMAC gigabit Ethernet controller
+  found on the Axxia AXM56xx and AXC67xx families of devices.
+
+properties:
+  compatible:
+    items:
+      - const: intel,nemac
+
+  device_type:
+    const: network
+
+  reg:
+    maxItems: 1
+
+  interrupts:
+    maxItems: 2
+
+  dma-coherent:
+    description: Present if DMA operations are coherent.
+
+  mac-address:
+    $ref: ethernet-controller.yaml#/properties/mac-address
+
+required:
+  - compatible
+  - device_type
+  - reg
+  - interrupts
+
+additionalProperties: true
+
+examples:
+  - |
+    nemac: ethernet@8080240000 {
+           compatible = "intel,nemac";
+           device_type = "network";
+           reg = <0x80 0x80240000 0 0x10000>;
+           interrupts = <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>,
+                        <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>;
+           dma-coherent;
+           mac-address = [00 00 00 00 00 00];
+    };
+
+...

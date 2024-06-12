@@ -120,7 +120,12 @@ ENTRY(stext)
 
 #ifndef CONFIG_XIP_KERNEL
 	adr_l	r8, _text			@ __pa(_text)
+#ifdef CONFIG_ARCH_AXXIA
+	ldr	r3, =TEXT_OFFSET
+	sub	r8, r8, r3			@ PHYS_OFFSET
+#else
 	sub	r8, r8, #TEXT_OFFSET		@ PHYS_OFFSET
+#endif
 #else
 	ldr	r8, =PLAT_PHYS_OFFSET		@ always constant in this case
 #endif
@@ -336,6 +341,10 @@ __create_page_tables:
 #endif
 #else
 	orr	r3, r3, #PMD_SECT_XN
+#ifdef CONFIG_ARCH_AXXIA
+	/* Axxia memory is non-secure, so set NS. */
+	orr	r3, r3, #0x20
+#endif
 	str	r3, [r0], #4
 #endif
 

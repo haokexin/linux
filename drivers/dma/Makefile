@@ -44,6 +44,7 @@ obj-$(CONFIG_IMG_MDC_DMA) += img-mdc-dma.o
 obj-$(CONFIG_IMX_DMA) += imx-dma.o
 obj-$(CONFIG_IMX_SDMA) += imx-sdma.o
 obj-$(CONFIG_INTEL_IDMA64) += idma64.o
+obj-$(CONFIG_AXXIA_DMA) += axxia-dma32.o
 obj-$(CONFIG_INTEL_IOATDMA) += ioat/
 obj-y += idxd/
 obj-$(CONFIG_K3_DMA) += k3dma.o

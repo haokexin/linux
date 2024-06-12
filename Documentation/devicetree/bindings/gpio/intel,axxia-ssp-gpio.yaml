@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/gpio/intel,axxia-ssp-gpio.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: Intel Axxia GPIO interface for SSP chip select pins
+
+maintainers:
+  - John Jacques <john.jacques@intel.com>
+
+description: |
+  Intel Axxia GPIO interface for SSP chip select pins for AXM55xx.
+
+properties:
+  compatible:
+    items:
+      - const: axxia,ssp-gpio
+
+  "#gpio-cells":
+    const: 2
+
+  gpio-controller: true
+
+  reg:
+    maxItems: 1
+
+required:
+  - compatible
+  - "#gpio-cells"
+  - igpio-controller
+  - reg
+
+additionalProperties: true
+
+examples:
+  - |
+    spics: sspgpio@2010088030 {
+           #gpio-cells = <2>;
+           compatible = "axxia,ssp-gpio";
+           gpio-controller;
+           reg = <0x20 0x10088000 0x00 0x1000>;
+    };
+
+...
