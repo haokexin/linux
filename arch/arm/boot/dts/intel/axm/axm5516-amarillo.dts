@@ -174,16 +174,6 @@
 		reg = <0x2e>;
 	};
 
-	temp@18 {
-		compatible = "jedec,jc-42.4-temp";
-		reg = <0x18>;
-	};
-
-	temp@1a {
-		compatible = "jedec,jc-42.4-temp";
-		reg = <0x1a>;
-	};
-
 	spd@50 {
 		compatible = "spd";
 		reg = <0x50>;
