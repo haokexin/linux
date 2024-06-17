@@ -105,12 +105,6 @@ static int fec_ptp_enable_pps(struct fec_enet_private *fep, uint enable)
 	struct timespec64 ts;
 	u64 ns;
 
-	if (fep->pps_enable == enable)
-		return 0;
-
-	fep->pps_channel = DEFAULT_PPS_CHANNEL;
-	fep->reload_period = PPS_OUPUT_RELOAD_PERIOD;
-
 	raw_spin_lock_irqsave(&fep->tmreg_lock, flags);
 
 #ifdef CONFIG_AVB_SUPPORT
@@ -119,6 +113,11 @@ static int fec_ptp_enable_pps(struct fec_enet_private *fep, uint enable)
 		return -EBUSY;
 	}
 #endif
+
+	if (fep->pps_enable == enable) {
+		raw_spin_unlock_irqrestore(&fep->tmreg_lock, flags);
+		return 0;
+	}
 
 	if (enable) {
 		/* clear capture or output compare interrupt status if have.
@@ -843,6 +842,9 @@ static int fec_ptp_enable(struct ptp_clock_info *ptp,
 	int ret = 0;
 
 	if (rq->type == PTP_CLK_REQ_PPS) {
+		fep->pps_channel = DEFAULT_PPS_CHANNEL;
+		fep->reload_period = PPS_OUPUT_RELOAD_PERIOD;
+
 		ret = fec_ptp_enable_pps(fep, on);
 
 		return ret;
