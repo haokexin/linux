@@ -259,6 +259,7 @@ static struct nvmem_config s32cc_gpr_nvmem_config = {
 	.read_only = false,
 	.word_size = 1,
 	.size = 4,
+	.add_legacy_fixed_of_cells = true,
 };
 
 static const struct of_device_id s32cc_gpr_nvmem_match[] = {

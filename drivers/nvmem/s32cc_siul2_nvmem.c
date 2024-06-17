@@ -44,6 +44,7 @@ static struct nvmem_config econfig_0 = {
 	.word_size = 4,
 	.size = 4,
 	.read_only = true,
+	.add_legacy_fixed_of_cells = true,
 };
 
 static struct nvmem_config econfig_1 = {
@@ -52,6 +53,7 @@ static struct nvmem_config econfig_1 = {
 	.word_size = 4,
 	.size = 4,
 	.read_only = true,
+	.add_legacy_fixed_of_cells = true,
 };
 
 static const struct s32cc_nvmem_drvdata s32cc_siul2_0_data = {

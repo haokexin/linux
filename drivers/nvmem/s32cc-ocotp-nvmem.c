@@ -150,6 +150,7 @@ static struct nvmem_config s32cc_ocotp_nvmem_config = {
 	.read_only = true,
 	.word_size = 4,
 	.reg_read = s32cc_ocotp_read,
+	.add_legacy_fixed_of_cells = true,
 };
 
 static int s32cc_ocotp_probe(struct platform_device *pdev)
