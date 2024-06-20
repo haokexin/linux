@@ -52,6 +52,12 @@
 /* Max when CPI_ALG is IP diffserv */
 #define	NIC_MAX_CPI_PER_LMAC		64
 
+#define	NIC_LBK_PKIO			0
+#define	NIC_LBK_VNIC			1
+#define	NIC_LBK_PKIO_LMAC		16
+#define	NIC_LBK_VNIC_LMAC		17
+#define	NIC_LBK_CHAN_BASE		128
+
 /* NIC VF Interrupts */
 #define	NICVF_INTR_CQ			0
 #define	NICVF_INTR_SQ			1
@@ -287,6 +293,8 @@ struct nicvf {
 	bool                    sqs_mode;
 	bool			hw_tso;
 	bool			t88;
+	u8			port_ctx;
+	u8			port_dp_idx;
 
 	/* Receive buffer alloc */
 	u32			rb_page_offset;
@@ -378,6 +386,7 @@ struct nicvf {
 	bool			pf_acked;
 	bool			pf_nacked;
 	bool			set_mac_pending;
+	bool			lbk_mode;
 } ____cacheline_aligned_in_smp;
 
 /* PF <--> VF Mailbox communication
@@ -416,6 +425,9 @@ struct nicvf {
 #define	NIC_MBOX_MSG_RESET_STAT_COUNTER 0x17	/* Reset statistics counters */
 #define	NIC_MBOX_MSG_PFC		0x18	/* Pause frame control */
 #define	NIC_MBOX_MSG_PTP_CFG		0x19	/* HW packet timestamp */
+#define	NIC_MBOX_MSG_PORT_CTX		0x20	/* Change port oper.context */
+#define	NIC_MBOX_MSG_SET_LINK		0x21	/* Set link up and down */
+#define NIC_MBOX_MSG_CHANGE_MODE	0x22	/* Change Ethernet mode */
 #define	NIC_MBOX_MSG_CFG_DONE		0xF0	/* VF configuration done */
 #define	NIC_MBOX_MSG_SHUTDOWN		0xF1	/* VF is being shutdown */
 #define	NIC_MBOX_MSG_RESET_XCAST	0xF2    /* Reset DCAM filtering mode */
@@ -429,6 +441,7 @@ struct nic_cfg_msg {
 	u8    tns_mode:1;
 	u8    sqs_mode:1;
 	u8    loopback_supported:1;
+	u8    lbk_mode:1;
 	u8    mac_addr[ETH_ALEN];
 };
 
@@ -514,11 +527,12 @@ struct bgx_link_status {
 	u32   speed;
 };
 
-/* Get Extra Qset IDs */
+/* Allocate additional SQS to VF */
 struct sqs_alloc {
 	u8    msg;
-	u8    vf_id;
+	u8    spec; /* 1 - For specific SQS allocation, 0 - For PF's choice */
 	u8    qs_count;
+	u8    svf[MAX_SQS_PER_VF]; /* SQS VF ids for specific allocation */
 };
 
 struct nicvf_ptr {
@@ -534,6 +548,52 @@ struct set_loopback {
 	u8    msg;
 	u8    vf_id;
 	bool  enable;
+};
+
+/* Set link up/down */
+struct set_link_state {
+	u8    msg;
+	u8    vf_id;
+	bool  enable;
+};
+
+/* Change Ethernet mode */
+struct change_mode {
+	u8    msg;
+	u8    vf_id;
+	u8    qlm_mode;
+	bool  autoneg;
+	u8    duplex;
+	u32   speed;
+};
+
+#define NIC_PORT_CTX_LINUX	0 /* Control plane/Linux */
+#define NIC_PORT_CTX_DATAPLANE	1 /* Data plane */
+
+#define LBK_IF_IDX	0xff /* LBK virtual port index */
+#define NUM_LBK_IFS 4    /* Number of LBK netdevices in kernel */
+#define INVALID_VF 0xFF
+
+struct port_context {
+	u8    msg;
+	u8    vf_id;
+	u8    ctx;
+	u8    dp_idx;
+};
+
+/* Packet tunnelling 32-bytes meta block (Ethernet header + meta data).
+ * It needs to be consistent with Dataplane version of this structure.
+ */
+#define PKT_TMH_TYPE		0x0770
+#define PKT_TMH_FLAG_STRIP	0x01	/* Strip TMH. */
+
+#define PKT_TMH_DATA_LEN	(32 - (6 + 6 + 2 + 1))
+struct __attribute__((__packed__)) pkt_tmhdr {
+	u8 dmac[6];
+	u8 smac[6];
+	u16 etype;
+	u8 flags;	/* PKT_TMH_FLAG_nnn */
+	u8 data[PKT_TMH_DATA_LEN];
 };
 
 /* Reset statistics counters */
@@ -601,6 +661,9 @@ union nic_mbx {
 	struct pfc		pfc;
 	struct set_ptp		ptp;
 	struct xcast            xcast;
+	struct port_context	ctx;
+	struct set_link_state	set_link;
+	struct change_mode	cm;
 };
 
 #define NIC_NODE_ID_MASK	0x03

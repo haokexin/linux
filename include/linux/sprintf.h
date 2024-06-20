@@ -7,6 +7,12 @@
 
 int num_to_str(char *buf, int size, unsigned long long num, unsigned int width);
 
+#ifdef CONFIG_MRVL_OCTEONTX_EL0_INTR
+struct task_struct;
+int task_cleanup_handler_add(void (*handler)(struct task_struct *));
+int task_cleanup_handler_remove(void (*handler)(struct task_struct *));
+#endif
+
 __printf(2, 3) int sprintf(char *buf, const char * fmt, ...);
 __printf(2, 0) int vsprintf(char *buf, const char *, va_list);
 __printf(3, 4) int snprintf(char *buf, size_t size, const char *fmt, ...);

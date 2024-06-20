@@ -8,7 +8,7 @@
 #include <linux/bitfield.h>
 #include "rvu.h"
 
-static void rvu_switch_enable_lbk_link(struct rvu *rvu, u16 pcifunc, bool enable)
+void rvu_switch_enable_lbk_link(struct rvu *rvu, u16 pcifunc, bool enable)
 {
 	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, pcifunc);
 	struct nix_hw *nix_hw;
@@ -27,10 +27,12 @@ static int rvu_switch_install_rx_rule(struct rvu *rvu, u16 pcifunc,
 	struct rvu_pfvf *pfvf;
 
 	pfvf = rvu_get_pfvf(rvu, pcifunc);
+
 	/* If the pcifunc is not initialized then nothing to do.
 	 * This same function will be called again via rvu_switch_update_rules
 	 * after pcifunc is initialized.
 	 */
+
 	if (!test_bit(NIXLF_INITIALIZED, &pfvf->flags))
 		return 0;
 
@@ -44,7 +46,6 @@ static int rvu_switch_install_rx_rule(struct rvu *rvu, u16 pcifunc,
 	req.intf = pfvf->nix_rx_intf;
 	req.op = NIX_RX_ACTION_DEFAULT;
 	req.default_rule = 1;
-
 	return rvu_mbox_handler_npc_install_flow(rvu, &req, &rsp);
 }
 
@@ -64,19 +65,18 @@ static int rvu_switch_install_tx_rule(struct rvu *rvu, u16 pcifunc, u16 entry)
 		return 0;
 
 	rvu_switch_enable_lbk_link(rvu, pcifunc, true);
-
 	lbkid = pfvf->nix_blkaddr == BLKADDR_NIX0 ? 0 : 1;
 	ether_addr_copy(req.packet.dmac, pfvf->mac_addr);
 	eth_broadcast_addr((u8 *)&req.mask.dmac);
 	req.hdr.pcifunc = 0; /* AF is requester */
 	req.vf = pcifunc;
+
 	req.entry = entry;
 	req.features = BIT_ULL(NPC_DMAC);
 	req.intf = pfvf->nix_tx_intf;
 	req.op = NIX_TX_ACTIONOP_UCAST_CHAN;
 	req.index = (lbkid << 8) | RVU_SWITCH_LBK_CHAN;
 	req.set_cntr = 1;
-
 	return rvu_mbox_handler_npc_install_flow(rvu, &req, &rsp);
 }
 
@@ -121,7 +121,6 @@ static int rvu_switch_install_rules(struct rvu *rvu)
 				pf, err);
 			return err;
 		}
-
 		rswitch->entry2pcifunc[entry++] = pcifunc;
 
 		rvu_get_pf_numvfs(rvu, pf, &numvfs, NULL);
@@ -166,6 +165,8 @@ void rvu_switch_enable(struct rvu *rvu)
 
 	alloc_req.contig = true;
 	alloc_req.count = rvu->cgx_mapped_pfs + rvu->cgx_mapped_vfs;
+	if (rvu->rep_mode)
+		alloc_req.count = alloc_req.count * 4;
 	ret = rvu_mbox_handler_npc_mcam_alloc_entry(rvu, &alloc_req,
 						    &alloc_rsp);
 	if (ret) {
@@ -189,7 +190,12 @@ void rvu_switch_enable(struct rvu *rvu)
 	rswitch->used_entries = alloc_rsp.count;
 	rswitch->start_entry = alloc_rsp.entry;
 
-	ret = rvu_switch_install_rules(rvu);
+	if (rvu->rep_mode) {
+		rvu_rep_pf_init(rvu);
+		ret = rvu_rep_install_mcam_rules(rvu);
+	} else {
+		ret = rvu_switch_install_rules(rvu);
+	}
 	if (ret)
 		goto uninstall_rules;
 
@@ -222,6 +228,9 @@ void rvu_switch_disable(struct rvu *rvu)
 	if (!rswitch->used_entries)
 		return;
 
+	if (rvu->rep_mode)
+		goto free_ents;
+
 	for (pf = 1; pf < hw->total_pfs; pf++) {
 		if (!is_pf_cgxmapped(rvu, pf))
 			continue;
@@ -249,6 +258,7 @@ void rvu_switch_disable(struct rvu *rvu)
 		}
 	}
 
+free_ents:
 	uninstall_req.start = rswitch->start_entry;
 	uninstall_req.end =  rswitch->start_entry + rswitch->used_entries - 1;
 	free_req.all = 1;
@@ -258,11 +268,15 @@ void rvu_switch_disable(struct rvu *rvu)
 	kfree(rswitch->entry2pcifunc);
 }
 
-void rvu_switch_update_rules(struct rvu *rvu, u16 pcifunc)
+void rvu_switch_update_rules(struct rvu *rvu, u16 pcifunc, bool ena)
 {
+	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, pcifunc);
 	struct rvu_switch *rswitch = &rvu->rswitch;
 	u32 max = rswitch->used_entries;
 	u16 entry;
+
+	if (rvu->rep_mode || pfvf->esw_rules)
+		return rvu_rep_update_rules(rvu, pcifunc, ena);
 
 	if (!rswitch->used_entries)
 		return;
@@ -271,9 +285,6 @@ void rvu_switch_update_rules(struct rvu *rvu, u16 pcifunc)
 		if (rswitch->entry2pcifunc[entry] == pcifunc)
 			break;
 	}
-
-	if (entry >= max)
-		return;
 
 	rvu_switch_install_tx_rule(rvu, pcifunc, rswitch->start_entry + entry);
 	rvu_switch_install_rx_rule(rvu, pcifunc, 0x0);

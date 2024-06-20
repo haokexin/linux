@@ -5,6 +5,9 @@
 #ifndef __ASSEMBLER__
 
 #include <asm-generic/irq.h>
+#include <linux/irqchip/arm-gic-common.h>
+
+#define ACPI_IRQCHIP_FWSPEC_ARG0	GIC_IRQ_TYPE_GSI
 
 struct pt_regs;
 

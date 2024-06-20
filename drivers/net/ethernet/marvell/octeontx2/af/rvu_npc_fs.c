@@ -39,10 +39,24 @@ static const char * const npc_flow_names[] = {
 	[NPC_DPORT_TCP]	= "tcp destination port",
 	[NPC_SPORT_UDP]	= "udp source port",
 	[NPC_DPORT_UDP]	= "udp destination port",
+	[NPC_TYPE_ICMP] = "icmp type",
+	[NPC_CODE_ICMP] = "icmp code",
+	[NPC_TCP_FLAGS] = "tcp flags",
+	[NPC_FDSA_VAL]	= "FDSA tag value ",
 	[NPC_SPORT_SCTP] = "sctp source port",
 	[NPC_DPORT_SCTP] = "sctp destination port",
 	[NPC_LXMB]	= "Mcast/Bcast header ",
+	[NPC_GTPU_TEID]	= "gtp-u teid ",
+	[NPC_GTPC_TEID]	= "gtp-c teid ",
 	[NPC_IPSEC_SPI] = "SPI ",
+	[NPC_MPLS1_LBTCBOS] = "lse depth 1 label tc bos",
+	[NPC_MPLS1_TTL]     = "lse depth 1 ttl",
+	[NPC_MPLS2_LBTCBOS] = "lse depth 2 label tc bos",
+	[NPC_MPLS2_TTL]     = "lse depth 2 ttl",
+	[NPC_MPLS3_LBTCBOS] = "lse depth 3 label tc bos",
+	[NPC_MPLS3_TTL]     = "lse depth 3 ttl",
+	[NPC_MPLS4_LBTCBOS] = "lse depth 4 label tc bos",
+	[NPC_MPLS4_TTL]     = "lse depth 4",
 	[NPC_UNKNOWN]	= "unknown",
 };
 
@@ -518,28 +532,41 @@ do {									       \
 	NPC_SCAN_HDR(NPC_DPORT_TCP, NPC_LID_LD, NPC_LT_LD_TCP, 2, 2);
 	NPC_SCAN_HDR(NPC_SPORT_SCTP, NPC_LID_LD, NPC_LT_LD_SCTP, 0, 2);
 	NPC_SCAN_HDR(NPC_DPORT_SCTP, NPC_LID_LD, NPC_LT_LD_SCTP, 2, 2);
+	NPC_SCAN_HDR(NPC_TYPE_ICMP, NPC_LID_LD, NPC_LT_LD_ICMP, 0, 1);
+	NPC_SCAN_HDR(NPC_CODE_ICMP, NPC_LID_LD, NPC_LT_LD_ICMP, 1, 1);
+	NPC_SCAN_HDR(NPC_TCP_FLAGS, NPC_LID_LD, NPC_LT_LD_TCP, 12, 2);
 	NPC_SCAN_HDR(NPC_ETYPE_ETHER, NPC_LID_LA, NPC_LT_LA_ETHER, 12, 2);
 	NPC_SCAN_HDR(NPC_ETYPE_TAG1, NPC_LID_LB, NPC_LT_LB_CTAG, 4, 2);
 	NPC_SCAN_HDR(NPC_ETYPE_TAG2, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 8, 2);
 	NPC_SCAN_HDR(NPC_VLAN_TAG1, NPC_LID_LB, NPC_LT_LB_CTAG, 2, 2);
 	NPC_SCAN_HDR(NPC_VLAN_TAG2, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 2, 2);
 	NPC_SCAN_HDR(NPC_VLAN_TAG3, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 6, 2);
+	NPC_SCAN_HDR(NPC_FDSA_VAL, NPC_LID_LB, NPC_LT_LB_FDSA, 1, 1);
+	NPC_SCAN_HDR(NPC_GTPU_TEID, NPC_LID_LE, NPC_LT_LE_GTPU, 4, 4);
+	NPC_SCAN_HDR(NPC_GTPC_TEID, NPC_LID_LE, NPC_LT_LE_GTPC, 4, 4);
+	NPC_SCAN_HDR(NPC_MPLS1_LBTCBOS, NPC_LID_LC, NPC_LT_LC_MPLS, 0, 3);
+	NPC_SCAN_HDR(NPC_MPLS1_TTL, NPC_LID_LC, NPC_LT_LC_MPLS, 3, 1);
+	NPC_SCAN_HDR(NPC_MPLS2_LBTCBOS, NPC_LID_LC, NPC_LT_LC_MPLS, 4, 3);
+	NPC_SCAN_HDR(NPC_MPLS2_TTL, NPC_LID_LC, NPC_LT_LC_MPLS, 7, 1);
+	NPC_SCAN_HDR(NPC_MPLS3_LBTCBOS, NPC_LID_LC, NPC_LT_LC_MPLS, 8, 3);
+	NPC_SCAN_HDR(NPC_MPLS3_TTL, NPC_LID_LC, NPC_LT_LC_MPLS, 11, 1);
+	NPC_SCAN_HDR(NPC_MPLS4_LBTCBOS, NPC_LID_LC, NPC_LT_LC_MPLS, 12, 3);
+	NPC_SCAN_HDR(NPC_MPLS4_TTL, NPC_LID_LC, NPC_LT_LC_MPLS, 15, 1);
 	NPC_SCAN_HDR(NPC_DMAC, NPC_LID_LA, la_ltype, la_start, 6);
 
 	NPC_SCAN_HDR(NPC_IPSEC_SPI, NPC_LID_LD, NPC_LT_LD_AH, 4, 4);
 	NPC_SCAN_HDR(NPC_IPSEC_SPI, NPC_LID_LE, NPC_LT_LE_ESP, 0, 4);
 
-	/* SMAC follows the DMAC(which is 6 bytes) */
-	NPC_SCAN_HDR(NPC_SMAC, NPC_LID_LA, la_ltype, la_start + 6, 6);
 	/* PF_FUNC is 2 bytes at 0th byte of NPC_LT_LA_IH_NIX_ETHER */
 	NPC_SCAN_HDR(NPC_PF_FUNC, NPC_LID_LA, NPC_LT_LA_IH_NIX_ETHER, 0, 2);
+	NPC_SCAN_HDR(NPC_SQ_ID, NPC_LID_LA, NPC_LT_LA_IH_NIX_ETHER, 2, 3);
 }
 
 static void npc_set_features(struct rvu *rvu, int blkaddr, u8 intf)
 {
 	struct npc_mcam *mcam = &rvu->hw->mcam;
 	u64 *features = &mcam->rx_features;
-	u64 tcp_udp_sctp;
+	u64 proto_flags;
 	int hdr;
 
 	if (is_npc_intf_tx(intf))
@@ -550,18 +577,22 @@ static void npc_set_features(struct rvu *rvu, int blkaddr, u8 intf)
 			*features |= BIT_ULL(hdr);
 	}
 
-	tcp_udp_sctp = BIT_ULL(NPC_SPORT_TCP) | BIT_ULL(NPC_SPORT_UDP) |
+	proto_flags = BIT_ULL(NPC_SPORT_TCP) | BIT_ULL(NPC_SPORT_UDP) |
 		       BIT_ULL(NPC_DPORT_TCP) | BIT_ULL(NPC_DPORT_UDP) |
-		       BIT_ULL(NPC_SPORT_SCTP) | BIT_ULL(NPC_DPORT_SCTP);
+		       BIT_ULL(NPC_SPORT_SCTP) | BIT_ULL(NPC_DPORT_SCTP) |
+		       BIT_ULL(NPC_SPORT_SCTP) | BIT_ULL(NPC_DPORT_SCTP) |
+		       BIT_ULL(NPC_TYPE_ICMP) | BIT_ULL(NPC_CODE_ICMP) |
+		       BIT_ULL(NPC_TCP_FLAGS);
 
 	/* for tcp/udp/sctp corresponding layer type should be in the key */
-	if (*features & tcp_udp_sctp) {
+	if (*features & proto_flags) {
 		if (!npc_check_field(rvu, blkaddr, NPC_LD, intf))
-			*features &= ~tcp_udp_sctp;
+			*features &= ~proto_flags;
 		else
 			*features |= BIT_ULL(NPC_IPPROTO_TCP) |
 				     BIT_ULL(NPC_IPPROTO_UDP) |
-				     BIT_ULL(NPC_IPPROTO_SCTP);
+				     BIT_ULL(NPC_IPPROTO_SCTP) |
+				     BIT_ULL(NPC_IPPROTO_ICMP);
 	}
 
 	/* for AH/ICMP/ICMPv6/, check if corresponding layer type is present in the key */
@@ -571,14 +602,18 @@ static void npc_set_features(struct rvu *rvu, int blkaddr, u8 intf)
 		*features |= BIT_ULL(NPC_IPPROTO_ICMP6);
 	}
 
-	/* for ESP, check if corresponding layer type is present in the key */
+	/* for ESP/GTP-U/GTP-C check if corresponding layer type is present in the key */
 	if (npc_check_field(rvu, blkaddr, NPC_LE, intf))
-		*features |= BIT_ULL(NPC_IPPROTO_ESP);
+		*features |= BIT_ULL(NPC_IPPROTO_ESP) | BIT_ULL(NPC_GTPU_TEID) |
+			     BIT_ULL(NPC_GTPC_TEID);
 
 	/* for vlan corresponding layer type should be in the key */
-	if (*features & BIT_ULL(NPC_OUTER_VID))
-		if (!npc_check_field(rvu, blkaddr, NPC_LB, intf))
+	if (*features & BIT_ULL(NPC_OUTER_VID) ||
+	    *features & BIT_ULL(NPC_FDSA_VAL))
+		if (!npc_check_field(rvu, blkaddr, NPC_LB, intf)) {
 			*features &= ~BIT_ULL(NPC_OUTER_VID);
+			*features &= ~BIT_ULL(NPC_FDSA_VAL);
+		}
 
 	/* Set SPI flag only if AH/ESP and IPSEC_SPI are in the key */
 	if (npc_check_field(rvu, blkaddr, NPC_IPSEC_SPI, intf) &&
@@ -593,6 +628,11 @@ static void npc_set_features(struct rvu *rvu, int blkaddr, u8 intf)
 	/* for L2M/L2B/L3M/L3B, check if the type is present in the key */
 	if (npc_check_field(rvu, blkaddr, NPC_LXMB, intf))
 		*features |= BIT_ULL(NPC_LXMB);
+
+	for (hdr = NPC_MPLS1_LBTCBOS; hdr <= NPC_MPLS4_TTL; hdr++) {
+		if (npc_check_field(rvu, blkaddr, hdr, intf))
+			*features |= BIT_ULL(hdr);
+	}
 }
 
 /* Scan key extraction profile and record how fields of our interest
@@ -623,7 +663,7 @@ static int npc_scan_kex(struct rvu *rvu, int blkaddr, u8 intf)
 	 * exact match code.
 	 */
 	masked_cfg = cfg & NPC_EXACT_NIBBLE;
-	bitnr = NPC_EXACT_NIBBLE_START;
+	bitnr = NPC_EXACT_NIBBLE_START - 1;
 	for_each_set_bit_from(bitnr, (unsigned long *)&masked_cfg, NPC_EXACT_NIBBLE_END + 1) {
 		npc_scan_exact_result(mcam, bitnr, key_nibble, intf);
 		key_nibble++;
@@ -797,6 +837,10 @@ void npc_update_entry(struct rvu *rvu, enum key_fields type,
 
 		entry->kw[i] |= dummy.kw[i];
 		entry->kw_mask[i] |= dummy.kw_mask[i];
+		if (type == NPC_SQ_ID) {
+			entry->kw[i] = entry->kw[i] << 8;
+			entry->kw_mask[i] = entry->kw_mask[i] << 8;
+		}
 	}
 }
 
@@ -902,6 +946,10 @@ static void npc_update_flow(struct rvu *rvu, struct mcam_entry *entry,
 		npc_update_entry(rvu, NPC_LD, entry, NPC_LT_LD_ICMP6,
 				 0, ~0ULL, 0, intf);
 
+	if (features & BIT_ULL(NPC_FDSA_VAL))
+		npc_update_entry(rvu, NPC_LB, entry, NPC_LT_LB_FDSA,
+				 0, ~0ULL, 0, intf);
+
 	/* For AH, LTYPE should be present in entry */
 	if (features & BIT_ULL(NPC_IPPROTO_AH))
 		npc_update_entry(rvu, NPC_LD, entry, NPC_LT_LD_AH,
@@ -909,6 +957,14 @@ static void npc_update_flow(struct rvu *rvu, struct mcam_entry *entry,
 	/* For ESP, LTYPE should be present in entry */
 	if (features & BIT_ULL(NPC_IPPROTO_ESP))
 		npc_update_entry(rvu, NPC_LE, entry, NPC_LT_LE_ESP,
+				 0, ~0ULL, 0, intf);
+
+	if (features & BIT_ULL(NPC_GTPU_TEID))
+		npc_update_entry(rvu, NPC_LE, entry, NPC_LT_LE_GTPU,
+				 0, ~0ULL, 0, intf);
+
+	if (features & BIT_ULL(NPC_GTPC_TEID))
+		npc_update_entry(rvu, NPC_LE, entry, NPC_LT_LE_GTPC,
 				 0, ~0ULL, 0, intf);
 
 	if (features & BIT_ULL(NPC_LXMB)) {
@@ -951,6 +1007,12 @@ do {									      \
 	NPC_WRITE_FLOW(NPC_DPORT_SCTP, dport, ntohs(pkt->dport), 0,
 		       ntohs(mask->dport), 0);
 
+	NPC_WRITE_FLOW(NPC_TYPE_ICMP, icmp_type, pkt->icmp_type, 0,
+		       mask->icmp_type, 0);
+	NPC_WRITE_FLOW(NPC_CODE_ICMP, icmp_code, pkt->icmp_code, 0,
+		       mask->icmp_code, 0);
+	NPC_WRITE_FLOW(NPC_TCP_FLAGS, tcp_flags, ntohs(pkt->tcp_flags), 0,
+		       ntohs(mask->tcp_flags), 0);
 	NPC_WRITE_FLOW(NPC_IPSEC_SPI, spi, ntohl(pkt->spi), 0,
 		       ntohl(mask->spi), 0);
 
@@ -958,9 +1020,39 @@ do {									      \
 		       ntohs(mask->vlan_tci), 0);
 	NPC_WRITE_FLOW(NPC_INNER_VID, vlan_itci, ntohs(pkt->vlan_itci), 0,
 		       ntohs(mask->vlan_itci), 0);
+	NPC_WRITE_FLOW(NPC_FDSA_VAL, vlan_tci, ntohs(pkt->vlan_tci), 0,
+		       ntohs(mask->vlan_tci), 0);
 
 	NPC_WRITE_FLOW(NPC_IPFRAG_IPV6, next_header, pkt->next_header, 0,
 		       mask->next_header, 0);
+	NPC_WRITE_FLOW(NPC_GTPU_TEID, gtpu_teid, ntohl(pkt->gtpu_teid), 0,
+		       ntohl(mask->gtpu_teid), 0);
+	NPC_WRITE_FLOW(NPC_GTPC_TEID, gtpc_teid, ntohl(pkt->gtpc_teid), 0,
+		       ntohl(mask->gtpc_teid), 0);
+	NPC_WRITE_FLOW(NPC_MPLS1_LBTCBOS, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, pkt->mpls_lse[0]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, mask->mpls_lse[0]), 0);
+	NPC_WRITE_FLOW(NPC_MPLS1_TTL, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, pkt->mpls_lse[0]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, mask->mpls_lse[0]), 0);
+	NPC_WRITE_FLOW(NPC_MPLS2_LBTCBOS, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, pkt->mpls_lse[1]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, mask->mpls_lse[1]), 0);
+	NPC_WRITE_FLOW(NPC_MPLS2_TTL, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, pkt->mpls_lse[1]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, mask->mpls_lse[1]), 0);
+	NPC_WRITE_FLOW(NPC_MPLS3_LBTCBOS, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, pkt->mpls_lse[2]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, mask->mpls_lse[2]), 0);
+	NPC_WRITE_FLOW(NPC_MPLS3_TTL, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, pkt->mpls_lse[2]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, mask->mpls_lse[2]), 0);
+	NPC_WRITE_FLOW(NPC_MPLS4_LBTCBOS, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, pkt->mpls_lse[3]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_NON_TTL, mask->mpls_lse[3]), 0);
+	NPC_WRITE_FLOW(NPC_MPLS4_TTL, mpls_lse,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, pkt->mpls_lse[3]), 0,
+		       FIELD_GET(OTX2_FLOWER_MASK_MPLS_TTL, mask->mpls_lse[3]), 0);
 	npc_update_ipv6_flow(rvu, entry, features, pkt, mask, output, intf);
 	npc_update_vlan_features(rvu, entry, features, intf);
 
@@ -1044,13 +1136,14 @@ static void rvu_mcam_add_counter_to_rule(struct rvu *rvu, u16 pcifunc,
 	}
 }
 
-static void npc_update_rx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
-				struct mcam_entry *entry,
-				struct npc_install_flow_req *req,
-				u16 target, bool pf_set_vfs_mac)
+static int npc_update_rx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
+			       struct mcam_entry *entry,
+			       struct npc_install_flow_req *req,
+			       u16 target, bool pf_set_vfs_mac)
 {
 	struct rvu_switch *rswitch = &rvu->rswitch;
 	struct nix_rx_action action;
+	int mce_index;
 
 	if (rswitch->mode == DEVLINK_ESWITCH_MODE_SWITCHDEV && pf_set_vfs_mac)
 		req->chan_mask = 0x0; /* Do not care channel */
@@ -1062,6 +1155,21 @@ static void npc_update_rx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
 	action.pf_func = target;
 	action.op = req->op;
 	action.index = req->index;
+
+	/* If a PF/VF is installing a multicast rule then it is expected
+	 * that the PF/VF should have created a group for the multicast/mirror
+	 * list. Otherwise reject the configuration.
+	 * During this scenario, req->index is set as multicast/mirror
+	 * group index.
+	 */
+	if (req->hdr.pcifunc && action.op == NIX_RX_ACTIONOP_MCAST) {
+		mce_index = rvu_nix_mcast_get_mce_index(rvu, req->hdr.pcifunc, req->index);
+		if (mce_index < 0)
+			return mce_index;
+
+		action.index = mce_index;
+	}
+
 	action.match_id = req->match_id;
 	action.flow_key_alg = req->flow_key_alg;
 
@@ -1078,6 +1186,8 @@ static void npc_update_rx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
 			action.pf_func = target;
 			action.op = NIX_RX_ACTIONOP_UCAST;
 		}
+		if (req->match_id)
+			action.match_id = req->match_id;
 	}
 
 	entry->action = *(u64 *)&action;
@@ -1093,27 +1203,44 @@ static void npc_update_rx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
 			     FIELD_PREP(RX_VTAG1_TYPE_MASK, req->vtag1_type) |
 			     FIELD_PREP(RX_VTAG1_LID_MASK, NPC_LID_LB) |
 			     FIELD_PREP(RX_VTAG1_RELPTR_MASK, 4);
+
+	return 0;
 }
 
-static void npc_update_tx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
-				struct mcam_entry *entry,
-				struct npc_install_flow_req *req, u16 target)
+static int npc_update_tx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
+			       struct mcam_entry *entry,
+			       struct npc_install_flow_req *req, u16 target)
 {
 	struct nix_tx_action action;
 	u64 mask = ~0ULL;
+	int mce_index;
 
-	/* If AF is installing then do not care about
-	 * PF_FUNC in Send Descriptor
-	 */
-	if (is_pffunc_af(req->hdr.pcifunc))
+	if (is_pffunc_af(req->hdr.pcifunc) && !rvu->rep_mode)
 		mask = 0;
 
 	npc_update_entry(rvu, NPC_PF_FUNC, entry, (__force u16)htons(target),
 			 0, mask, 0, NIX_INTF_TX);
 
+	npc_update_entry(rvu, NPC_SQ_ID, entry, (__force u16)htonl(req->packet.sq_id),
+			 0, req->mask.sq_id, 0, NIX_INTF_TX);
+
 	*(u64 *)&action = 0x00;
 	action.op = req->op;
 	action.index = req->index;
+	/* If a PF/VF is installing a multicast rule then it is expected
+	 * that the PF/VF should have created a group for the multicast/mirror
+	 * list. Otherwise reject the configuration.
+	 * During this scenario, req->index is set as multicast/mirror
+	 * group index.
+	 */
+	if (req->hdr.pcifunc && action.op == NIX_TX_ACTIONOP_MCAST) {
+		mce_index = rvu_nix_mcast_get_mce_index(rvu, req->hdr.pcifunc, req->index);
+		if (mce_index < 0)
+			return mce_index;
+
+		action.index = mce_index;
+	}
+
 	action.match_id = req->match_id;
 
 	entry->action = *(u64 *)&action;
@@ -1129,6 +1256,8 @@ static void npc_update_tx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
 			     FIELD_PREP(TX_VTAG1_OP_MASK, req->vtag1_op) |
 			     FIELD_PREP(TX_VTAG1_LID_MASK, NPC_LID_LA) |
 			     FIELD_PREP(TX_VTAG1_RELPTR_MASK, 24);
+
+	return 0;
 }
 
 static int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
@@ -1158,10 +1287,15 @@ static int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
 	npc_update_flow(rvu, entry, features, &req->packet, &req->mask, &dummy,
 			req->intf, blkaddr);
 
-	if (is_npc_intf_rx(req->intf))
-		npc_update_rx_entry(rvu, pfvf, entry, req, target, pf_set_vfs_mac);
-	else
-		npc_update_tx_entry(rvu, pfvf, entry, req, target);
+	if (is_npc_intf_rx(req->intf)) {
+		err = npc_update_rx_entry(rvu, pfvf, entry, req, target, pf_set_vfs_mac);
+		if (err < 0)
+			return err;
+	} else {
+		err = npc_update_tx_entry(rvu, pfvf, entry, req, target);
+		if (err < 0)
+			return err;
+	}
 
 	/* Default unicast rules do not exist for TX */
 	if (is_npc_intf_tx(req->intf))
@@ -1273,10 +1407,22 @@ find_rule:
 	    req->vtag0_type == NIX_AF_LFX_RX_VTAG_TYPE7)
 		rule->vfvlan_cfg = true;
 
+	/* Scenario where representor installing rule for PFVF and respective
+	 * PFVF NIX LF is started, updating switch rules only once.
+	 */
+	if (is_rep_dev(rvu, req->hdr.pcifunc) &&
+	    test_bit(NIXLF_INITIALIZED, &pfvf->flags) &&
+	    pfvf->esw_rules == 1)
+		rvu_switch_update_rules(rvu, req->vf, true);
+
 	if (is_npc_intf_rx(req->intf) && req->match_id &&
 	    (req->op == NIX_RX_ACTIONOP_UCAST || req->op == NIX_RX_ACTIONOP_RSS))
 		return rvu_nix_setup_ratelimit_aggr(rvu, req->hdr.pcifunc,
 					     req->index, req->match_id);
+
+	if (owner && req->op == NIX_RX_ACTIONOP_MCAST)
+		return rvu_nix_mcast_update_mcam_entry(rvu, req->hdr.pcifunc,
+						       req->index, entry_index);
 
 	return 0;
 }
@@ -1286,6 +1432,7 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 				      struct npc_install_flow_rsp *rsp)
 {
 	bool from_vf = !!(req->hdr.pcifunc & RVU_PFVF_FUNC_MASK);
+	bool from_rep_dev = !!is_rep_dev(rvu, req->hdr.pcifunc);
 	struct rvu_switch *rswitch = &rvu->rswitch;
 	int blkaddr, nixlf, err;
 	struct rvu_pfvf *pfvf;
@@ -1342,19 +1489,24 @@ process_flow:
 	/* AF installing for a PF/VF */
 	if (!req->hdr.pcifunc)
 		target = req->vf;
+
 	/* PF installing for its VF */
-	else if (!from_vf && req->vf) {
+	else if (!from_vf && req->vf && !from_rep_dev) {
 		target = (req->hdr.pcifunc & ~RVU_PFVF_FUNC_MASK) | req->vf;
 		pf_set_vfs_mac = req->default_rule &&
 				(req->features & BIT_ULL(NPC_DMAC));
 	}
+	/* Representor device installing for a representee */
+	else if (from_rep_dev && req->vf)
+		target = req->vf;
+
 	/* msg received from PF/VF */
 	else
 		target = req->hdr.pcifunc;
 
 	/* ignore chan_mask in case pf func is not AF, revisit later */
 	if (!is_pffunc_af(req->hdr.pcifunc))
-		req->chan_mask = 0xFFF;
+		req->chan_mask = rvu_get_cpt_chan_mask(rvu);
 
 	err = npc_check_unsupported_flows(rvu, req->features, req->intf);
 	if (err)
@@ -1363,8 +1515,12 @@ process_flow:
 	pfvf = rvu_get_pfvf(rvu, target);
 
 	/* PF installing for its VF */
-	if (req->hdr.pcifunc && !from_vf && req->vf)
+	if (req->hdr.pcifunc && !from_vf && req->vf && !from_rep_dev)
 		set_bit(PF_SET_VF_CFG, &pfvf->flags);
+
+	/* Representor installing for PFVF */
+	if (from_rep_dev)
+		pfvf->esw_rules++;
 
 	/* update req destination mac addr */
 	if ((req->features & BIT_ULL(NPC_DMAC)) && is_npc_intf_rx(req->intf) &&
@@ -1439,6 +1595,7 @@ int rvu_mbox_handler_npc_delete_flow(struct rvu *rvu,
 	struct rvu_npc_mcam_rule *iter, *tmp;
 	u16 pcifunc = req->hdr.pcifunc;
 	struct list_head del_list;
+	struct rvu_pfvf *pfvf;
 	int blkaddr;
 
 	INIT_LIST_HEAD(&del_list);
@@ -1475,6 +1632,11 @@ int rvu_mbox_handler_npc_delete_flow(struct rvu *rvu,
 			dev_err(rvu->dev, "rule deletion failed for entry:%u",
 				entry);
 	}
+
+	/* In case of representor installing for PF/VF clear esw rule count */
+	pfvf = rvu_get_pfvf(rvu, req->vf);
+	if (is_rep_dev(rvu, req->hdr.pcifunc) && pfvf->esw_rules)
+		pfvf->esw_rules--;
 
 	return 0;
 }
@@ -1695,6 +1857,69 @@ int rvu_mbox_handler_npc_get_field_status(struct rvu *rvu,
 
 	if (npc_check_field(rvu, blkaddr, req->field, req->intf))
 		rsp->enable = 1;
+
+	return 0;
+}
+
+int rvu_mbox_handler_npc_mcam_get_hit_status(struct rvu *rvu,
+					     struct npc_mcam_get_hit_status_req *req,
+					     struct npc_mcam_get_hit_status_rsp *rsp)
+{
+	struct npc_mcam *mcam = &rvu->hw->mcam;
+	u8 mcam_entry_per_hit_counter = 64;
+	u8 bank_inc, bank_start, bank_end;
+	u8 hit_start, hit_end;
+	u8 bank, arr_idx;
+	u64 val, bitmap;
+	u32 start, end;
+	int blkaddr;
+	u8 hit_max;
+	bool clear;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
+	if (blkaddr < 0)
+		return NPC_MCAM_INVALID_REQ;
+
+	bank_inc = 1;
+	start = req->mcam_id_start;
+	end = req->mcam_id_end;
+	bank_start = npc_get_bank(mcam, start);
+	bank_end = npc_get_bank(mcam, end);
+	if (bank_start < 0 || bank_start > 3 ||
+	    bank_end < 0 || bank_end > 3)
+		return NPC_MCAM_INVALID_REQ;
+
+	arr_idx = start / mcam_entry_per_hit_counter;
+	hit_start = (start % mcam->banksize) / mcam_entry_per_hit_counter;
+	hit_end = (end % mcam->banksize) / mcam_entry_per_hit_counter;
+	hit_max = mcam->banksize / mcam_entry_per_hit_counter;
+	clear = req->clear;
+	if (mcam->keysize == NPC_MCAM_KEY_X2)
+		bank_inc = 2;
+
+	bank = bank_start;
+	while (bank <= bank_end) {
+		for (; hit_start < hit_max; hit_start++) {
+			if (bank == bank_end && hit_start > hit_end)
+				return 0;
+
+			bitmap = req->mcam_ids[arr_idx];
+			if (bitmap) {
+				val = rvu_read64(rvu, blkaddr,
+						 NPC_AF_MCAM_BANKX_HITX(bank, hit_start));
+				rsp->mcam_hit_status[arr_idx] = val & bitmap;
+				if (clear)
+					rvu_write64(rvu, blkaddr,
+						    NPC_AF_MCAM_BANKX_HITX(bank, hit_start),
+						    bitmap);
+			}
+
+			arr_idx++;
+		}
+
+		hit_start = 0;
+		bank += bank_inc;
+	}
 
 	return 0;
 }
