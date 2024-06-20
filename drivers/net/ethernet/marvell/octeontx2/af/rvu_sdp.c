@@ -40,8 +40,12 @@ bool is_sdp_pf(u16 pcifunc)
 		!(pcifunc & RVU_PFVF_FUNC_MASK));
 }
 
-bool is_sdp_vf(u16 pcifunc)
+#define	RVU_SDP_VF_DEVID	0xA0F7
+bool is_sdp_vf(struct rvu *rvu, u16 pcifunc)
 {
+	if (!(pcifunc & ~RVU_PFVF_FUNC_MASK))
+		return (rvu->vf_devid == RVU_SDP_VF_DEVID);
+
 	return (is_sdp_pfvf(pcifunc) &&
 		!!(pcifunc & RVU_PFVF_FUNC_MASK));
 }
@@ -51,6 +55,14 @@ int rvu_sdp_init(struct rvu *rvu)
 	struct pci_dev *pdev = NULL;
 	struct rvu_pfvf *pfvf;
 	u32 i = 0;
+
+	if (rvu->fwdata && rvu->fwdata->channel_data.valid) {
+		sdp_pf_num[0] = 0;
+		pfvf = &rvu->pf[sdp_pf_num[0]];
+		pfvf->sdp_info = &rvu->fwdata->channel_data.info;
+
+		return 0;
+	}
 
 	while ((i < MAX_SDP) && (pdev = pci_get_device(PCI_VENDOR_ID_CAVIUM,
 						       PCI_DEVID_OTX2_SDP_PF,
@@ -85,8 +97,8 @@ rvu_mbox_handler_set_sdp_chan_info(struct rvu *rvu,
 	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, req->hdr.pcifunc);
 
 	memcpy(pfvf->sdp_info, &req->info, sizeof(struct sdp_node_info));
-	dev_info(rvu->dev, "AF: SDP%d max_vfs %d num_pf_rings %d pf_srn %d\n",
-		 req->info.node_id, req->info.max_vfs, req->info.num_pf_rings,
+	dev_info(rvu->dev, "AF: SDP%d max_rvu_vfs %d num_pf_rings %d pf_srn %d\n",
+		 req->info.node_id, req->info.max_rvu_vfs, req->info.num_pf_rings,
 		 req->info.pf_srn);
 	return 0;
 }

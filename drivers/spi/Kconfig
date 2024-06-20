@@ -267,6 +267,42 @@ config SPI_CADENCE_XSPI
 	  device with a Cadence XSPI controller and want to access the
 	  Flash as an MTD device.
 
+config SPI_CADENCE_MRVL_XSPI
+	tristate "Marvell mods for XSPI controller"
+	depends on SPI_CADENCE_XSPI
+	depends on GPIOLIB
+
+	help
+	  Enable support for Marvell XSPI modifications
+
+	  During implementation of Cadence XSPI core Marvell
+	  has added some additional features like clock divider,
+	  PHY config support or non-memory SPI capabilities.
+	  Enable that option if you want to enable these features.
+
+	  Based on HW support, xfer workaround may be needed for earlier
+	  revisions of silicon.
+	  Default workaround is based on GPIO.
+	  xfer can be emulated via SW based GPIO - that option can
+	  operate in full-duplex mode, but it will be slow
+	  Switch GPIO to SW control, and bitbang all requested data.
+	  Uses Software based SPI with dedicated SPI_0 or SPI_1 pins.
+
+config SPI_CADENCE_HW_WO
+	bool "Cadence XSPI controller HW xfer workaround"
+	depends on SPI_CADENCE_MRVL_XSPI
+	depends on DEBUG_FS
+	help
+	  Enable HW based workaround for Cadence xSPI controller
+
+	  Without full-duplex mode, HW workaround can do only write or
+	  write then read operation
+
+	  HW workaround uses specific xspi commands to create requested
+	  waveform. Workaround is not supporting full duplex mode.
+	  Workaround will use combination of generic instruction and
+	  data transfer STIG commands.
+
 config SPI_CLPS711X
 	tristate "CLPS711X host SPI controller"
 	depends on ARCH_CLPS711X || COMPILE_TEST
@@ -734,6 +770,15 @@ config SPI_OCTEON
 	help
 	  SPI host driver for the hardware found on some Cavium OCTEON
 	  SOCs.
+
+config SPI_OCTEONTX2
+	tristate "Marvell OcteonTX2 SPI controller"
+	depends on PCI && 64BIT && (ARM64 || COMPILE_TEST)
+	help
+	  This driver supports the OcteonTX2 SPI controller in master
+	  mode. It supports single, dual and quad mode transfers.
+	  This controller hardware is found on some of Marvell
+	  OcteonTX2 SoCs.
 
 config SPI_OMAP_UWIRE
 	tristate "OMAP1 MicroWire"

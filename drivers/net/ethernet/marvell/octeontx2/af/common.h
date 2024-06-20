@@ -61,7 +61,7 @@ static inline int qmem_alloc(struct device *dev, struct qmem **q,
 	qmem->entry_sz = entry_sz;
 	qmem->alloc_sz = (qsize * entry_sz) + OTX2_ALIGN;
 	qmem->base = dma_alloc_attrs(dev, qmem->alloc_sz, &qmem->iova,
-				     GFP_KERNEL, DMA_ATTR_FORCE_CONTIGUOUS);
+				     GFP_ATOMIC, DMA_ATTR_FORCE_CONTIGUOUS);
 	if (!qmem->base)
 		return -ENOMEM;
 
@@ -155,9 +155,12 @@ enum nix_scheduler {
 /* Min/Max packet sizes, excluding FCS */
 #define	NIC_HW_MIN_FRS			40
 #define	NIC_HW_MAX_FRS			9212
+#define	SDP_HW_MIN_FRS			16
 #define	SDP_HW_MAX_FRS			65535
 #define CN10K_LMAC_LINK_MAX_FRS		16380 /* 16k - FCS */
 #define CN10K_LBK_LINK_MAX_FRS		65535 /* 64k */
+
+#define SDP_LINK_CREDIT			0x320202
 
 /* NIX RX action operation*/
 #define NIX_RX_ACTIONOP_DROP		(0x0ull)
@@ -189,6 +192,7 @@ enum nix_scheduler {
 #define NIX_INTF_TYPE_CGX		0
 #define NIX_INTF_TYPE_LBK		1
 #define NIX_INTF_TYPE_SDP		2
+#define NIX_INTF_TYPE_CPT		3
 
 #define MAX_LMAC_PKIND			12
 #define NIX_LINK_CGX_LMAC(a, b)		(0 + 4 * (a) + (b))
@@ -237,5 +241,8 @@ enum ndc_ctype_e {
 #define NDC_MAX_PORT 6
 #define NDC_READ_TRANS 0
 #define NDC_WRITE_TRANS 1
+
+/* SSO max timeout to drain queues in ms */
+#define SSO_FLUSH_TMO_MAX 60000 /* 1 minute */
 
 #endif /* COMMON_H */
