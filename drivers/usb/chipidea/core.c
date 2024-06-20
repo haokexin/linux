@@ -215,9 +215,30 @@ static void ci_hdrc_enter_lpm(struct ci_hdrc *ci, bool enable)
 	return ci->platdata->enter_lpm(ci, enable);
 }
 
+/**
+ * hw_controller_reset: do controller reset
+ * @ci: the controller
+  *
+ * This function returns an error code
+ */
+static int hw_controller_reset(struct ci_hdrc *ci)
+{
+	int count = 0;
+
+	hw_write(ci, OP_USBCMD, USBCMD_RST, USBCMD_RST);
+	while (hw_read(ci, OP_USBCMD, USBCMD_RST)) {
+		udelay(10);
+		if (count++ > 1000)
+			return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
 static int hw_device_init(struct ci_hdrc *ci, void __iomem *base)
 {
 	u32 reg;
+	int ret;
 
 	/* bank is a module variable */
 	ci->hw_bank.abs = base;
@@ -242,6 +263,15 @@ static int hw_device_init(struct ci_hdrc *ci, void __iomem *base)
 
 	if (ci->hw_ep_max > ENDPT_MAX)
 		return -ENODEV;
+
+	/* should flush & stop before reset */
+	hw_write(ci, OP_ENDPTFLUSH, ~0, ~0);
+	hw_write(ci, OP_USBCMD, USBCMD_RS, 0);
+	ret = hw_controller_reset(ci);
+	if (ret) {
+		dev_err(ci->dev, "error resetting controller, ret=%d\n", ret);
+		return ret;
+	}
 
 	ci_hdrc_enter_lpm(ci, false);
 
@@ -449,26 +479,6 @@ void ci_platform_configure(struct ci_hdrc *ci)
 			hw_write(ci, OP_BURSTSIZE, RX_BURST_MASK,
 				ci->platdata->rx_burst_size);
 	}
-}
-
-/**
- * hw_controller_reset: do controller reset
- * @ci: the controller
-  *
- * This function returns an error code
- */
-static int hw_controller_reset(struct ci_hdrc *ci)
-{
-	int count = 0;
-
-	hw_write(ci, OP_USBCMD, USBCMD_RST, USBCMD_RST);
-	while (hw_read(ci, OP_USBCMD, USBCMD_RST)) {
-		udelay(10);
-		if (count++ > 1000)
-			return -ETIMEDOUT;
-	}
-
-	return 0;
 }
 
 /**
@@ -1092,6 +1102,7 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 		ci->phy = ci->platdata->phy;
 	} else if (ci->platdata->usb_phy) {
 		ci->usb_phy = ci->platdata->usb_phy;
+		ci->usb_phy->io_priv = ci->hw_bank.regmap[OP_ULPI_VIEWPORT];
 	} else {
 		/* Look for a generic PHY first */
 		ci->phy = devm_phy_get(dev->parent, "usb-phy");
@@ -1162,6 +1173,7 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 			else
 				goto deinit_phy;
 		}
+		otg_set_vbus(ci->usb_phy->otg, true);
 	}
 
 	if (dr_mode == USB_DR_MODE_OTG || dr_mode == USB_DR_MODE_PERIPHERAL) {

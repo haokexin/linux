@@ -263,11 +263,47 @@ static void scmi_dev_remove(struct device *dev)
 		scmi_drv->remove(scmi_dev);
 }
 
+static int scmi_dev_suspend(struct device *dev, pm_message_t state)
+{
+	struct scmi_driver *scmi_drv;
+	struct scmi_device *scmi_dev;
+
+	if (!dev->driver)
+		return 0;
+
+	scmi_drv = to_scmi_driver(dev->driver);
+	scmi_dev = to_scmi_dev(dev);
+
+	if (scmi_drv->suspend)
+		return scmi_drv->suspend(scmi_dev, state);
+
+	return 0;
+}
+
+static int scmi_dev_resume(struct device *dev)
+{
+	struct scmi_driver *scmi_drv;
+	struct scmi_device *scmi_dev;
+
+	if (!dev->driver)
+		return 0;
+
+	scmi_drv = to_scmi_driver(dev->driver);
+	scmi_dev = to_scmi_dev(dev);
+
+	if (scmi_drv->resume)
+		return scmi_drv->resume(scmi_dev);
+
+	return 0;
+}
+
 struct bus_type scmi_bus_type = {
 	.name =	"scmi_protocol",
 	.match = scmi_dev_match,
 	.probe = scmi_dev_probe,
 	.remove = scmi_dev_remove,
+	.suspend = scmi_dev_suspend,
+	.resume = scmi_dev_resume,
 };
 EXPORT_SYMBOL_GPL(scmi_bus_type);
 
@@ -495,7 +531,7 @@ static int __init scmi_bus_init(void)
 
 	return retval;
 }
-subsys_initcall(scmi_bus_init);
+arch_initcall_sync(scmi_bus_init);
 
 static void __exit scmi_bus_exit(void)
 {

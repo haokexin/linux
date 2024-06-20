@@ -1,23 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /*
- * NXP S32G pinctrl driver
+ * NXP S32G pinctrl definitions
  *
  * Copyright 2015-2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2018, 2020-2022 NXP
+ * Copyright 2017-2024 NXP
  * Copyright (C) 2022 SUSE LLC
  */
 
-#include <linux/err.h>
-#include <linux/init.h>
-#include <linux/io.h>
-#include <linux/module.h>
-#include <linux/of.h>
-#include <linux/platform_device.h>
-#include <linux/pinctrl/pinctrl.h>
-
 #include "pinctrl-s32.h"
 
-enum s32_pins {
+enum s32g_pins {
 	S32G_MSCR_PA_00 =  0,
 	S32G_MSCR_PA_01 =  1,
 	S32G_MSCR_PA_02 =  2,
@@ -216,6 +208,12 @@ enum s32_pins {
 	S32G_IMCR_CAN1_RXD = 631,
 	S32G_IMCR_CAN2_RXD = 632,
 	S32G_IMCR_CAN3_RXD = 633,
+
+	/* JTAG IMCRs */
+	S32G_IMCR_JTAG_TMS = 562,
+	S32G_IMCR_JTAG_TCK = 572,
+	S32G_IMCR_JTAG_TDI = 573,
+
 	/* GMAC0 */
 	S32G_IMCR_Ethernet_MDIO = 527,
 	S32G_IMCR_Ethernet_CRS = 526,
@@ -230,6 +228,18 @@ enum s32_pins {
 	S32G_IMCR_Ethernet_TX_CLK = 538,
 	S32G_IMCR_Ethernet_REF_CLK = 535,
 	/* PFE EMAC 0 MII */
+	S32G_IMCR_PFE_EMAC_0_MDIO = 837,
+	S32G_IMCR_PFE_EMAC_0_CRS = 836,
+	S32G_IMCR_PFE_EMAC_0_COL = 835,
+	S32G_IMCR_PFE_EMAC_0_RX_D0 = 841,
+	S32G_IMCR_PFE_EMAC_0_RX_D1 = 842,
+	S32G_IMCR_PFE_EMAC_0_RX_D2 = 843,
+	S32G_IMCR_PFE_EMAC_0_RX_D3 = 844,
+	S32G_IMCR_PFE_EMAC_0_RX_ER = 840,
+	S32G_IMCR_PFE_EMAC_0_RX_CLK = 839,
+	S32G_IMCR_PFE_EMAC_0_RX_DV = 845,
+	S32G_IMCR_PFE_EMAC_0_TX_CLK = 846,
+	S32G_IMCR_PFE_EMAC_0_REF_CLK = 838,
 	/* PFE EMAC 1 MII */
 	S32G_IMCR_PFE_EMAC_1_MDIO = 857,
 	S32G_IMCR_PFE_EMAC_1_CRS = 856,
@@ -317,6 +327,13 @@ enum s32_pins {
 	S32G_IMCR_LLCE_CAN13_RXD = 758,
 	S32G_IMCR_LLCE_CAN14_RXD = 759,
 	S32G_IMCR_LLCE_CAN15_RXD = 760,
+	S32G_IMCR_LLCE_UART0_RXD = 790,
+	S32G_IMCR_LLCE_UART1_RXD = 791,
+	S32G_IMCR_LLCE_UART2_RXD = 792,
+	S32G_IMCR_LLCE_UART3_RXD = 793,
+	S32G_IMCR_LLCE_LPSPI2_PCS0 = 811,
+	S32G_IMCR_LLCE_LPSPI2_SCK = 816,
+	S32G_IMCR_LLCE_LPSPI2_SIN = 817,
 	S32G_IMCR_USB_CLK = 895,
 	S32G_IMCR_USB_DATA0 = 896,
 	S32G_IMCR_USB_DATA1 = 897,
@@ -503,6 +520,12 @@ static const struct pinctrl_pin_desc s32_pinctrl_pads_siul2[] = {
 	S32_PINCTRL_PIN(S32G_IMCR_USDHC_DAT7),
 	S32_PINCTRL_PIN(S32G_IMCR_USDHC_DQS),
 	S32_PINCTRL_PIN(S32G_IMCR_CAN0_RXD),
+
+	/* JTAG IMCRs */
+	S32_PINCTRL_PIN(S32G_IMCR_JTAG_TMS),
+	S32_PINCTRL_PIN(S32G_IMCR_JTAG_TCK),
+	S32_PINCTRL_PIN(S32G_IMCR_JTAG_TDI),
+
 	/* GMAC0 */
 	S32_PINCTRL_PIN(S32G_IMCR_Ethernet_MDIO),
 	S32_PINCTRL_PIN(S32G_IMCR_Ethernet_CRS),
@@ -638,6 +661,13 @@ static const struct pinctrl_pin_desc s32_pinctrl_pads_siul2[] = {
 	S32_PINCTRL_PIN(S32G_IMCR_LLCE_CAN13_RXD),
 	S32_PINCTRL_PIN(S32G_IMCR_LLCE_CAN14_RXD),
 	S32_PINCTRL_PIN(S32G_IMCR_LLCE_CAN15_RXD),
+	S32_PINCTRL_PIN(S32G_IMCR_LLCE_UART0_RXD),
+	S32_PINCTRL_PIN(S32G_IMCR_LLCE_UART1_RXD),
+	S32_PINCTRL_PIN(S32G_IMCR_LLCE_UART2_RXD),
+	S32_PINCTRL_PIN(S32G_IMCR_LLCE_UART3_RXD),
+	S32_PINCTRL_PIN(S32G_IMCR_LLCE_LPSPI2_PCS0),
+	S32_PINCTRL_PIN(S32G_IMCR_LLCE_LPSPI2_SCK),
+	S32_PINCTRL_PIN(S32G_IMCR_LLCE_LPSPI2_SIN),
 	S32_PINCTRL_PIN(S32G_IMCR_CAN1_RXD),
 	S32_PINCTRL_PIN(S32G_IMCR_CAN2_RXD),
 	S32_PINCTRL_PIN(S32G_IMCR_CAN3_RXD),
@@ -652,6 +682,18 @@ static const struct pinctrl_pin_desc s32_pinctrl_pads_siul2[] = {
 	S32_PINCTRL_PIN(S32G_IMCR_USB_DATA7),
 	S32_PINCTRL_PIN(S32G_IMCR_USB_DIR),
 	S32_PINCTRL_PIN(S32G_IMCR_USB_NXT),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_MDIO),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_CRS),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_COL),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_RX_D0),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_RX_D1),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_RX_D2),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_RX_D3),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_RX_ER),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_RX_CLK),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_RX_DV),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_TX_CLK),
+	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_0_REF_CLK),
 	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_1_MDIO),
 	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_1_CRS),
 	S32_PINCTRL_PIN(S32G_IMCR_PFE_EMAC_1_COL),
@@ -710,57 +752,47 @@ static const struct pinctrl_pin_desc s32_pinctrl_pads_siul2[] = {
 	S32_PINCTRL_PIN(S32G_IMCR_SIUL_EIRQ31),
 };
 
-static const struct s32_pin_range s32_pin_ranges_siul2[] = {
+static const struct s32_pin_range s32g_pin_ranges_siul2[] = {
 	/* MSCR pin ID ranges */
 	S32_PIN_RANGE(0, 101),
 	S32_PIN_RANGE(112, 122),
 	S32_PIN_RANGE(144, 190),
 	/* IMCR pin ID ranges */
-	S32_PIN_RANGE(512, 595),
-	S32_PIN_RANGE(631, 909),
-	S32_PIN_RANGE(942, 1007),
+	S32_PIN_RANGE(512, 513),
+	S32_PIN_RANGE(515, 573),
+	S32_PIN_RANGE(580, 595),
+	S32_PIN_RANGE(631, 633),
+	S32_PIN_RANGE(640, 641),
+	S32_PIN_RANGE(655, 663),
+	S32_PIN_RANGE(665, 673),
+	S32_PIN_RANGE(717, 724),
+	S32_PIN_RANGE(736, 737),
+	S32_PIN_RANGE(745, 760),
+	S32_PIN_RANGE(785, 786),
+	S32_PIN_RANGE(790, 793),
+	S32_PIN_RANGE(795, 798),
+	S32_PIN_RANGE(800, 806),
+	S32_PIN_RANGE(808, 814),
+	S32_PIN_RANGE(816, 822),
+	S32_PIN_RANGE(824, 826),
+	S32_PIN_RANGE(828, 828),
+	S32_PIN_RANGE(830, 830),
+	S32_PIN_RANGE(834, 852),
+	S32_PIN_RANGE(855, 872),
+	S32_PIN_RANGE(875, 892),
+	S32_PIN_RANGE(895, 905),
+	S32_PIN_RANGE(942, 945),
+	S32_PIN_RANGE(979, 982),
+	S32_PIN_RANGE(985, 987),
+	S32_PIN_RANGE(990, 992),
+	S32_PIN_RANGE(995, 997),
+	S32_PIN_RANGE(1000, 1002),
+	S32_PIN_RANGE(1005, 1007),
 };
 
-static const struct s32_pinctrl_soc_data s32_pinctrl_data = {
+static const struct s32_pinctrl_soc_data s32g_pinctrl_data = {
 	.pins = s32_pinctrl_pads_siul2,
 	.npins = ARRAY_SIZE(s32_pinctrl_pads_siul2),
-	.mem_pin_ranges = s32_pin_ranges_siul2,
-	.mem_regions = ARRAY_SIZE(s32_pin_ranges_siul2),
+	.mem_pin_ranges = s32g_pin_ranges_siul2,
+	.mem_regions = ARRAY_SIZE(s32g_pin_ranges_siul2),
 };
-
-static const struct of_device_id s32_pinctrl_of_match[] = {
-	{
-		.compatible = "nxp,s32g2-siul2-pinctrl",
-		.data = &s32_pinctrl_data,
-	},
-	{ /* sentinel */ }
-};
-MODULE_DEVICE_TABLE(of, s32_pinctrl_of_match);
-
-static int s32g_pinctrl_probe(struct platform_device *pdev)
-{
-	const struct s32_pinctrl_soc_data *soc_data;
-
-	soc_data = of_device_get_match_data(&pdev->dev);
-
-	return s32_pinctrl_probe(pdev, soc_data);
-}
-
-static const struct dev_pm_ops s32g_pinctrl_pm_ops = {
-	LATE_SYSTEM_SLEEP_PM_OPS(s32_pinctrl_suspend, s32_pinctrl_resume)
-};
-
-static struct platform_driver s32g_pinctrl_driver = {
-	.driver = {
-		.name = "s32g-siul2-pinctrl",
-		.of_match_table = s32_pinctrl_of_match,
-		.pm = pm_sleep_ptr(&s32g_pinctrl_pm_ops),
-		.suppress_bind_attrs = true,
-	},
-	.probe = s32g_pinctrl_probe,
-};
-builtin_platform_driver(s32g_pinctrl_driver);
-
-MODULE_AUTHOR("Matthew Nunez <matthew.nunez@nxp.com>");
-MODULE_DESCRIPTION("NXP S32G pinctrl driver");
-MODULE_LICENSE("GPL");

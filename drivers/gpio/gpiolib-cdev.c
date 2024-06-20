@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
+// Copyright 2023,2024 NXP
 
 #include <linux/anon_inodes.h>
 #include <linux/atomic.h>
@@ -2457,6 +2458,7 @@ static void gpio_desc_to_lineinfo(struct gpio_desc *desc,
 	struct gpio_chip *gc = desc->gdev->chip;
 	bool ok_for_pinctrl;
 	unsigned long flags;
+	int ret;
 
 	memset(info, 0, sizeof(*info));
 	info->offset = gpio_chip_hwgpio(desc);
@@ -2471,19 +2473,28 @@ static void gpio_desc_to_lineinfo(struct gpio_desc *desc,
 	ok_for_pinctrl =
 		pinctrl_gpio_can_use_line(gc->base + info->offset);
 
+	/* pinctrl_gpio_get_mux_owner acquires a mutex so it needs to
+	 * called before taking the spinlock below.
+	 */
+	ret = pinctrl_gpio_get_mux_owner(gc->base + info->offset, info->consumer,
+						 sizeof(info->consumer));
+
 	spin_lock_irqsave(&gpio_lock, flags);
 
 	if (desc->name)
 		strscpy(info->name, desc->name, sizeof(info->name));
-
-	if (desc->label)
-		strscpy(info->consumer, desc->label, sizeof(info->consumer));
 
 	/*
 	 * Userspace only need to know that the kernel is using this GPIO so
 	 * it can't use it.
 	 */
 	info->flags = 0;
+
+	if (desc->label)
+		strscpy(info->consumer, desc->label, sizeof(info->consumer));
+	else if (!ret)
+		info->flags |= GPIO_V2_LINE_FLAG_USED;
+
 	if (test_bit(FLAG_REQUESTED, &desc->flags) ||
 	    test_bit(FLAG_IS_HOGGED, &desc->flags) ||
 	    test_bit(FLAG_USED_AS_IRQ, &desc->flags) ||

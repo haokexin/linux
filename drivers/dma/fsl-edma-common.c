@@ -2,6 +2,7 @@
 //
 // Copyright (c) 2013-2014 Freescale Semiconductor, Inc
 // Copyright (c) 2017 Sysam, Angelo Dureghello  <angelo@sysam.it>
+// Copyright 2020, 2023-2024 NXP
 
 #include <linux/dmapool.h>
 #include <linux/module.h>
@@ -128,10 +129,17 @@ static void fsl_edma_enable_request(struct fsl_edma_chan *fsl_chan)
 
 static void fsl_edma3_disable_request(struct fsl_edma_chan *fsl_chan)
 {
+	struct fsl_edma_engine *fsl_edma = fsl_chan->edma;
 	u32 val = edma_readl_chreg(fsl_chan, ch_csr);
+	u32 ch = fsl_chan->vchan.chan.chan_id;
 	u32 flags;
 
 	flags = fsl_edma_drvflags(fsl_chan);
+
+	/* Make sure there is no hardware request in progress. */
+	while (edma_readl(fsl_edma, fsl_edma->membase + EDMA_V3_MP_HRS) &
+	       EDMA_V3_MP_HRS_CH(ch))
+		;
 
 	if (flags & FSL_EDMA_DRV_HAS_CHMUX)
 		edma_writel_chreg(fsl_chan, 0, ch_mux);
@@ -186,6 +194,11 @@ static void mux_configure32(struct fsl_edma_chan *fsl_chan, void __iomem *addr,
 	iowrite32(val, addr + off * 4);
 }
 
+static unsigned int reversed_mux_mapping(u32 channel_id)
+{
+	return 4 * (channel_id / 4) + ((4 - channel_id % 4) - 1);
+}
+
 void fsl_edma_chan_mux(struct fsl_edma_chan *fsl_chan,
 		       unsigned int slot, bool enable)
 {
@@ -199,7 +212,10 @@ void fsl_edma_chan_mux(struct fsl_edma_chan *fsl_chan,
 		return;
 
 	chans_per_mux = fsl_chan->edma->n_chans / dmamux_nr;
-	ch_off = fsl_chan->vchan.chan.chan_id % chans_per_mux;
+	if (fsl_chan->edma->drvdata->flags & FSL_EDMA_DRV_REVERSED_CHANNEL_MUX)
+		ch_off = reversed_mux_mapping(ch % chans_per_mux);
+	else
+		ch_off = fsl_chan->vchan.chan.chan_id % chans_per_mux;
 
 	if (fsl_chan->edma->drvdata->flags & FSL_EDMA_DRV_MUX_SWAP)
 		ch_off += endian_diff[ch_off % 4];
@@ -485,7 +501,7 @@ void fsl_edma_fill_tcd(struct fsl_edma_chan *fsl_chan,
 {
 	struct dma_slave_config *cfg = &fsl_chan->cfg;
 	u16 csr = 0;
-	u32 burst;
+	u32 burst = 0;
 
 	/*
 	 * eDMA hardware SGs require the TCDs to be stored in little
@@ -500,16 +516,30 @@ void fsl_edma_fill_tcd(struct fsl_edma_chan *fsl_chan,
 
 	tcd->soff = cpu_to_le16(soff);
 
-	if (fsl_chan->is_multi_fifo) {
-		/* set mloff to support multiple fifo */
-		burst = cfg->direction == DMA_DEV_TO_MEM ?
-				cfg->src_maxburst : cfg->dst_maxburst;
-		nbytes |= EDMA_V3_TCD_NBYTES_MLOFF(-(burst * 4));
-		/* enable DMLOE/SMLOE */
-		if (cfg->direction == DMA_MEM_TO_DEV) {
+	/* If we expect to have either multi_fifo or a port window size,
+	 * we will use minor loop offset, meaning bits 29-10 will be used for
+	 * address offset, while bits 9-0 will be used to tell DMA how much
+	 * data to read from addr.
+	 * If we don't have either of those, will use a major loop reading from addr
+	 * nbytes (29bits).
+	 */
+	if (cfg->direction == DMA_MEM_TO_DEV) {
+		if (fsl_chan->is_multi_fifo)
+			burst  = cfg->dst_maxburst * 4;
+		if (cfg->dst_port_window_size)
+			burst = cfg->dst_port_window_size * cfg->dst_addr_width;
+		if (burst) {
+			nbytes |= EDMA_V3_TCD_NBYTES_MLOFF(-burst);
 			nbytes |= EDMA_V3_TCD_NBYTES_DMLOE;
 			nbytes &= ~EDMA_V3_TCD_NBYTES_SMLOE;
-		} else {
+		}
+	} else {
+		if (fsl_chan->is_multi_fifo)
+			burst  = cfg->src_maxburst * 4;
+		if (cfg->src_port_window_size)
+			burst = cfg->src_port_window_size * cfg->src_addr_width;
+		if (burst) {
+			nbytes |= EDMA_V3_TCD_NBYTES_MLOFF(-burst);
 			nbytes |= EDMA_V3_TCD_NBYTES_SMLOE;
 			nbytes &= ~EDMA_V3_TCD_NBYTES_DMLOE;
 		}
@@ -623,11 +653,15 @@ struct dma_async_tx_descriptor *fsl_edma_prep_dma_cyclic(
 			dst_addr = fsl_chan->dma_dev_addr;
 			soff = fsl_chan->cfg.dst_addr_width;
 			doff = fsl_chan->is_multi_fifo ? 4 : 0;
+			if (fsl_chan->cfg.dst_port_window_size)
+				doff = fsl_chan->cfg.dst_addr_width;
 		} else if (direction == DMA_DEV_TO_MEM) {
 			src_addr = fsl_chan->dma_dev_addr;
 			dst_addr = dma_buf_next;
 			soff = fsl_chan->is_multi_fifo ? 4 : 0;
 			doff = fsl_chan->cfg.src_addr_width;
+			if (fsl_chan->cfg.src_port_window_size)
+				soff = fsl_chan->cfg.src_addr_width;
 		} else {
 			/* DMA_DEV_TO_DEV */
 			src_addr = fsl_chan->cfg.src_addr;

@@ -1,0 +1,670 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/*
+ * Copyright 2017-2022, 2024 NXP
+ */
+
+/dts-v1/;
+#include "s32cc.dtsi"
+#include <dt-bindings/clock/s32r45-scmi-clock.h>
+#include <dt-bindings/mux/nxp-s32r45-can-ts.h>
+#include <dt-bindings/nvmem/s32r45-gpr-nvmem.h>
+#include <dt-bindings/thermal/thermal.h>
+
+/ {
+	compatible = "nxp,s32r45";
+
+	aliases {
+		can4 = &can4;
+		can5 = &can5;
+		can6 = &can6;
+		can7 = &can7;
+		ethernet1 = &gmac1;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	cpus {
+		cpu-map {
+			cluster0 {
+				core0 {
+					cpu = <&cpu0>;
+				};
+
+				core1 {
+					cpu = <&cpu1>;
+				};
+			};
+
+			cluster1 {
+				core0 {
+					cpu = <&cpu2>;
+				};
+
+				core1 {
+					cpu = <&cpu3>;
+				};
+			};
+		};
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster0_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x1>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster0_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu2: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x100>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster1_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu3: cpu@101 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x101>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster1_l2>;
+			#cooling-cells = <2>;
+		};
+	};
+
+	reserved-memory {
+		ddr_errata_reserved: ddr@85000000 {
+			reg = <0x0 0x85000000 0x0 0x1000>; /* 4 KB */
+			no-map;
+		};
+	};
+
+	soc {
+		siul2@4009c000 {
+			compatible = "simple-mfd";
+			status = "okay";
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+				 /* MIDR */
+			ranges = <MIDR_SIUL2_0 0 0x0 0x4009c000 0x0 0x10>,
+				 <MIDR_SIUL2_1 0 0x0 0x4403c000 0x0 0x10>,
+
+				 /* MSCR 0-101 */
+				 <MSCRS_SIUL2_0 0 0x0 0x4009c240 0x0 0x198>,
+				 /* MSCR 102-133 */
+				 <MSCRS_SIUL2_1 0 0x0 0x4403c3d8 0x0 0x80>,
+
+				 /* IMCR range 512-513 */
+				 <IMCRS_SIUL2_0_0 0 0x0 0x4009ca40 0x0 0x8>,
+				 /* IMCR range 515-573 */
+				 <IMCRS_SIUL2_0_1 0 0x0 0x4009ca4c 0x0 0xec>,
+				 /* IMCR range 580-595 */
+				 <IMCRS_SIUL2_0_2 0 0x0 0x4009cb50 0x0 0x40>,
+
+				 /* IMCR range 603-603 */
+				 <IMCRS_SIUL2_1_0 0 0x0 0x4403cbac 0x0 0x4>,
+				 /* IMCR range 605-606 */
+				 <IMCRS_SIUL2_1_1 0 0x0 0x4403cbb4 0x0 0x8>,
+				 /* IMCR range 608-612 */
+				 <IMCRS_SIUL2_1_2 0 0x0 0x4403cbc0 0x0 0x14>,
+				 /* IMCR range 615-617 */
+				 <IMCRS_SIUL2_1_3 0 0x0 0x4403cbdc 0x0 0xc>,
+				 /* IMCR range 619-619 */
+				 <IMCRS_SIUL2_1_4 0 0x0 0x4403cbec 0x0 0x4>,
+				 /* IMCR range 622-623 */
+				 <IMCRS_SIUL2_1_5 0 0x0 0x4403cbf8 0x0 0x8>,
+				 /* IMCR range 626-626 */
+				 <IMCRS_SIUL2_1_6 0 0x0 0x4403cc08 0x0 0x4>,
+				 /* IMCR range 632-633 */
+				 <IMCRS_SIUL2_1_7 0 0x0 0x4403cc20 0x0 0x8>,
+				 /* IMCR range 635-636 */
+				 <IMCRS_SIUL2_1_8 0 0x0 0x4403cc2c 0x0 0x8>,
+				 /* IMCR range 643-643 */
+				 <IMCRS_SIUL2_1_9 0 0x0 0x4403cc4c 0x0 0x4>,
+				 /* IMCR range 646-647 */
+				 <IMCRS_SIUL2_1_10 0 0x0 0x4403cc58 0x0 0x8>,
+				 /* IMCR range 649-649 */
+				 <IMCRS_SIUL2_1_11 0 0x0 0x4403cc64 0x0 0x4>,
+				 /* IMCR range 651-651 */
+				 <IMCRS_SIUL2_1_12 0 0x0 0x4403cc6c 0x0 0x4>,
+				 /* IMCR range 654-655 */
+				 <IMCRS_SIUL2_1_13 0 0x0 0x4403cc78 0x0 0x8>,
+				 /* IMCR range 657-669 */
+				 <IMCRS_SIUL2_1_14 0 0x0 0x4403cc84 0x0 0x34>,
+				 /* IMCR range 672-674 */
+				 <IMCRS_SIUL2_1_15 0 0x0 0x4403ccc0 0x0 0xc>,
+				 /* IMCR range 681-681 */
+				 <IMCRS_SIUL2_1_16 0 0x0 0x4403cce4 0x0 0x4>,
+				 /* IMCR range 685-685 */
+				 <IMCRS_SIUL2_1_17 0 0x0 0x4403ccf4 0x0 0x4>,
+				 /* IMCR range 694-695 */
+				 <IMCRS_SIUL2_1_18 0 0x0 0x4403cd18 0x0 0x8>,
+				 /* IMCR range 696 - 727 (EIRQs) */
+				 <IMCRS_SIUL2_1_EIRQS 0 0x0 0x4403cd20 0x0 0x80>,
+				 /* IMCR range 728-731 */
+				 <IMCRS_SIUL2_1_19 0 0x0 0x4403cda0 0x0 0x10>,
+				 /* IMCR range 749-751 */
+				 <IMCRS_SIUL2_1_21 0 0x0 0x4403cdf4 0x0 0xc>,
+				 /* IMCR range 754-760 */
+				 <IMCRS_SIUL2_1_22 0 0x0 0x4403ce08 0x0 0x1c>,
+				 /* IMCR range 771-774 */
+				 <IMCRS_SIUL2_1_23 0 0x0 0x4403ce4c 0x0 0x10>,
+				 /* IMCR range 777-785 */
+				 <IMCRS_SIUL2_1_24 0 0x0 0x4403ce64 0x0 0x24>,
+
+				 /* Output pads */
+				 <OPADS_SIUL2_0 0 0x0 0x4009d700 0x0 0x10>,
+				 <OPADS_SIUL2_1 0 0x0 0x4403d700 0x0 0x14>,
+
+				 /* Input pads */
+				 <IPADS_SIUL2_0 0 0x0 0x4009d740 0x0 0x10>,
+				 <IPADS_SIUL2_1 0 0x0 0x4403d740 0x0 0x14>,
+
+				/* EIRQs */
+				 <EIRQS_SIUL2_1 0 0x0 0x4403c010 0x0 0xb4>;
+
+			pinctrl: siul2-pinctrl@4009c240 {
+				compatible = "nxp,s32r45-siul2-pinctrl";
+				#pinctrl-cells = <2>;
+
+				reg =
+				      /* MSCR 0-101 */
+				      <MSCRS_SIUL2_0 0 0x0 0x198>,
+
+				      /* MSCR 102-133 */
+				      <MSCRS_SIUL2_1 0 0x0 0x80>,
+
+				      /* IMCR range 512-513 */
+				      <IMCRS_SIUL2_0_0 0 0x0 0x8>,
+				      /* IMCR range 515-573 */
+				      <IMCRS_SIUL2_0_1 0 0x0 0xec>,
+				      /* IMCR range 580-595 */
+				      <IMCRS_SIUL2_0_2 0 0x0 0x40>,
+
+				      /* IMCR range 603-603 */
+				      <IMCRS_SIUL2_1_0 0 0x0 0x4>,
+				      /* IMCR range 605-606 */
+				      <IMCRS_SIUL2_1_1 0 0x0 0x8>,
+				      /* IMCR range 608-612 */
+				      <IMCRS_SIUL2_1_2 0 0x0 0x14>,
+				      /* IMCR range 615-617 */
+				      <IMCRS_SIUL2_1_3 0 0x0 0xc>,
+				      /* IMCR range 619-619 */
+				      <IMCRS_SIUL2_1_4 0 0x0 0x4>,
+				      /* IMCR range 622-623 */
+				      <IMCRS_SIUL2_1_5 0 0x0 0x8>,
+				      /* IMCR range 626-626 */
+				      <IMCRS_SIUL2_1_6 0 0x0 0x4>,
+				      /* IMCR range 632-633 */
+				      <IMCRS_SIUL2_1_7 0 0x0 0x8>,
+				      /* IMCR range 635-636 */
+				      <IMCRS_SIUL2_1_8 0 0x0 0x8>,
+				      /* IMCR range 643-643 */
+				      <IMCRS_SIUL2_1_9 0 0x0 0x4>,
+				      /* IMCR range 646-647 */
+				      <IMCRS_SIUL2_1_10 0 0x0 0x8>,
+				      /* IMCR range 649-649 */
+				      <IMCRS_SIUL2_1_11 0 0x0 0x4>,
+				      /* IMCR range 651-651 */
+				      <IMCRS_SIUL2_1_12 0 0x0 0x4>,
+				      /* IMCR range 654-655 */
+				      <IMCRS_SIUL2_1_13 0 0x0 0x8>,
+				      /* IMCR range 657-669 */
+				      <IMCRS_SIUL2_1_14 0 0x0 0x34>,
+				      /* IMCR range 672-674 */
+				      <IMCRS_SIUL2_1_15 0 0x0 0xc>,
+				      /* IMCR range 681-681 */
+				      <IMCRS_SIUL2_1_16 0 0x0 0x4>,
+				      /* IMCR range 685-685 */
+				      <IMCRS_SIUL2_1_17 0 0x0 0x4>,
+				      /* IMCR range 694-695 */
+				      <IMCRS_SIUL2_1_18 0 0x0 0x8>,
+				      /* IMCR range 728-731 */
+				      <IMCRS_SIUL2_1_19 0 0x0 0x10>,
+				      /* IMCR range 749-751 */
+				      <IMCRS_SIUL2_1_21 0 0x0 0xc>,
+				      /* IMCR range 754-760 */
+				      <IMCRS_SIUL2_1_22 0 0x0 0x1c>,
+				      /* IMCR range 771-774 */
+				      <IMCRS_SIUL2_1_23 0 0x0 0x10>,
+				      /* IMCR range 777-785 */
+				      <IMCRS_SIUL2_1_24 0 0x0 0x24>;
+
+				/* MSCR range */
+				nxp,pins = <0   101
+					    102 133
+				/* IMCR range */
+					    512 513
+					    515 573
+					    580 595
+					    603 603
+					    605 606
+					    608 612
+					    615 617
+					    619 619
+					    622 623
+					    626 626
+					    632 633
+					    635 636
+					    643 643
+					    646 647
+					    649 649
+					    651 651
+					    654 655
+					    657 669
+					    672 674
+					    681 681
+					    685 685
+					    694 695
+					    728 731
+					    749 751
+					    754 760
+					    771 774
+					    777 785>;
+				status = "okay";
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&jtag_pins>;
+
+				jtag_pins: jtag_pins {
+
+					jtag_grp0 {
+						pinmux = <S32CC_PINMUX(0, FUNC0)>;
+						input-enable;
+						bias-pull-up;
+						slew-rate = <S32CC_JTAG_50MHZ>;
+					};
+
+					jtag_grp1 {
+						pinmux = <S32CC_PINMUX(1, FUNC1)>;
+						slew-rate = <S32CC_JTAG_50MHZ>;
+					};
+
+					jtag_grp2 {
+						pinmux = <S32CC_PINMUX(4, FUNC0)>;
+						input-enable;
+						bias-pull-down;
+						slew-rate = <S32CC_JTAG_50MHZ>;
+					};
+
+					jtag_grp3 {
+						pinmux = <S32CC_PINMUX(572, FUNC0)>,
+							 <S32CC_PINMUX(573, FUNC0)>,
+							 <S32CC_PINMUX(562, FUNC0)>;
+					};
+
+					jtag_grp4 {
+						pinmux = <S32CC_PINMUX(5, FUNC1)>;
+						input-enable;
+						bias-pull-up;
+						slew-rate = <S32CC_JTAG_50MHZ>;
+					};
+				};
+			};
+
+			gpio: siul2-gpio@4009d700 {
+				compatible = "nxp,s32r-siul2-gpio", "nxp,s32cc-siul2-gpio";
+
+				reg = <OPADS_SIUL2_0       0 0x0 0x10>,
+				      <OPADS_SIUL2_1       0 0x0 0x14>,
+				      <IPADS_SIUL2_0       0 0x0 0x10>,
+				      <IPADS_SIUL2_1       0 0x0 0x14>,
+				      <EIRQS_SIUL2_1       0 0x0 0xb4>,
+				      <IMCRS_SIUL2_1_EIRQS 0 0x0 0x80>;
+				reg-names = "opads0", "opads1", "ipads0",
+					    "ipads1", "eirqs", "eirq-imcrs";
+
+				#gpio-cells = <2>;
+				gpio-controller;
+					/* GPIO 0-101 */
+				gpio-ranges = <&pinctrl 0   0   102>,
+					/* GPIO 102-133 */
+					      <&pinctrl 102 102 32>;
+
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				interrupts = <GIC_SPI 237 IRQ_TYPE_LEVEL_HIGH>;
+				status = "okay";
+			};
+
+			nvram1: nvram@4403C000 {
+				compatible = "nxp,s32cc-siul2_1-nvmem";
+				reg = <MIDR_SIUL2_1 0 0x0 0x10>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				status = "okay";
+
+				serdes_presence: serdes_presence@0 {
+					reg = <SERDES_PRESENCE_OFFSET NVRAM_CELL_SIZE>;
+				};
+			};
+		};
+
+		can4: can@44000000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x44000000 0x0 0x4000>;
+			interrupts = <GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 194 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		can5: can@44004000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x44004000 0x0 0x4000>;
+			interrupts = <GIC_SPI 196 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 199 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		can6: can@44008000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x44008000 0x0 0x4000>;
+			interrupts = <GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 203 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		can7: can@4400c000 {
+			compatible = "nxp,s32cc-flexcan";
+			reg = <0x0 0x4400c000 0x0 0x4000>;
+			interrupts = <GIC_SPI 204 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 206 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 207 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
+			clocks = <&clks S32CC_SCMI_CLK_FLEXCAN_REG>,
+				 <&clks S32CC_SCMI_CLK_FLEXCAN_CAN>;
+			clock-names = "ipg", "per";
+			status = "disabled";
+		};
+
+		gmac1: ethernet@44010000 {
+			compatible = "nxp,s32cc-dwmac";
+			reg = <0x0 0x44010000 0x0 0x2000>, /* gmac IP */
+			      <0x0 0x4007ca00 0x0 0x4>;    /* GMAC_CTRL_REG */
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 220 IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "macirq";
+			phy-names = "gmac_xpcs";
+			phys = <&serdes1 PHY_TYPE_XPCS 0 0>;
+			dma-coherent;
+			snps,mtl-rx-config = <&mtl_rx_setup_gmac1>;
+			snps,mtl-tx-config = <&mtl_tx_setup_gmac1>;
+			clocks = <&clks S32R45_SCMI_CLK_GMAC1_AXI>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_AXI>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_SGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_RGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_RMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TX_MII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_SGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_RGMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_RMII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_RX_MII>,
+				 <&clks S32R45_SCMI_CLK_GMAC1_TS>;
+			clock-names = "stmmaceth", "pclk",
+				"tx_sgmii", "tx_rgmii",
+				"tx_rmii", "tx_mii",
+				"rx_sgmii", "rx_rgmii",
+				"rx_rmii", "rx_mii",
+				"ptp_ref";
+			status = "disabled";
+			nvmem-cell-names = "gmac_phy_intf_sel";
+			nvmem-cells = <&gmac1_phy_intf_sel>;
+
+			mtl_rx_setup_gmac1: rx-queues-config {
+				snps,rx-queues-to-use = <5>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				queue@0 {
+				};
+				queue@1 {
+				};
+				queue@2 {
+				};
+				queue@3 {
+				};
+				queue@4 {
+				};
+			};
+
+			mtl_tx_setup_gmac1: tx-queues-config {
+				snps,tx-queues-to-use = <5>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				queue@0 {
+				};
+				queue@1 {
+				};
+				queue@2 {
+				};
+				queue@3 {
+				};
+				queue@4 {
+				};
+			};
+
+			gmac1_mdio: mdio0 {
+				compatible = "snps,dwmac-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+	};
+
+	thermal-zones {
+		a53_cores {
+			/* Monitorization is done using IRQ. */
+			polling-delay-passive = <0>;
+			polling-delay = <0>;
+			thermal-sensors = <&tmu 0>;
+
+			trips {
+				cpu_alert0: cpu-alert {
+					temperature = <80000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+
+				cpu-crit {
+					temperature = <100000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device =
+					<&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+
+		radar_lax {
+			polling-delay-passive = <60000>;
+			polling-delay = <60000>;
+			thermal-sensors = <&tmu 1>;
+
+			trips {
+				radar_lax_alert0: trip-point0 {
+					temperature = <80000>;
+					hysteresis = <2000>;
+					type = "hot";
+				};
+			};
+		};
+
+		analog_ips {
+			polling-delay-passive = <60000>;
+			polling-delay = <60000>;
+			thermal-sensors = <&tmu 2>;
+
+			trips {
+				analog_ips_alert0: trip-point0 {
+					temperature = <80000>;
+					hysteresis = <2000>;
+					type = "hot";
+				};
+			};
+		};
+	};
+};
+
+&pinctrl {
+	sd0_pins_default: sd0_default {
+		sd0_default_grp0 {
+			pinmux = <S32CC_PINMUX(46, FUNC1)>,
+				 <S32CC_PINMUX(56, FUNC1)>;
+			output-enable;
+			slew-rate = <S32CC_FAST_SLEW_150MHZ>;
+			bias-pull-down;
+		};
+
+		sd0_default_grp1 {
+			pinmux = <S32CC_PINMUX(47, FUNC1)>,
+				 <S32CC_PINMUX(48, FUNC1)>,
+				 <S32CC_PINMUX(49, FUNC1)>,
+				 <S32CC_PINMUX(50, FUNC1)>,
+				 <S32CC_PINMUX(51, FUNC1)>,
+				 <S32CC_PINMUX(52, FUNC1)>,
+				 <S32CC_PINMUX(53, FUNC1)>,
+				 <S32CC_PINMUX(54, FUNC1)>,
+				 <S32CC_PINMUX(55, FUNC1)>;
+			output-enable;
+			input-enable;
+			slew-rate = <S32CC_FAST_SLEW_150MHZ>;
+			bias-pull-up;
+		};
+
+		sd0_default_grp2 {
+			pinmux = <S32CC_PINMUX(57, FUNC1)>;
+			output-enable;
+			slew-rate = <S32CC_FAST_SLEW_150MHZ>;
+		};
+
+		sd0_default_grp3 {
+			pinmux = <S32CC_PINMUX(515, FUNC2)>,
+				 <S32CC_PINMUX(516, FUNC2)>,
+				 <S32CC_PINMUX(517, FUNC2)>,
+				 <S32CC_PINMUX(518, FUNC2)>,
+				 <S32CC_PINMUX(519, FUNC2)>,
+				 <S32CC_PINMUX(520, FUNC2)>,
+				 <S32CC_PINMUX(521, FUNC2)>,
+				 <S32CC_PINMUX(522, FUNC2)>,
+				 <S32CC_PINMUX(523, FUNC2)>;
+		};
+	};
+};
+
+&stm0 {
+	status = "okay";
+};
+
+&stm1 {
+	status = "okay";
+};
+
+&ocotp {
+	compatible = "nxp,s32r45-ocotp";
+};
+
+&tmu {
+	fsl,tmu-range = <0xe4 0xe9 0xfd 0x12a 0x1a7 0x1ac>;
+	fsl,tmu-calibration = <0 0x20  0x7c0
+			       1 0x29  0x7c0
+			       2 0x4e  0x0
+			       3 0xa3  0x0
+			       4 0x195 0x1f
+			       5 0x19f 0x1f>;
+};
+
+&ddr_errata {
+	memory-region = <&ddr_errata_reserved>;
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+};
+
+&pcie1 {
+	interrupts =  <GIC_SPI 209 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 210 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 211 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 212 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 217 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>,
+			<GIC_SPI 219 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "link_req_stat", "dma", "msi",
+				"phy_link_down", "phy_link_up", "misc",
+				"pcs", "tlp_req_no_comp";
+	#interrupt-cells = <1>;
+	interrupt-map-mask = <0 0 0 0x7>;
+	interrupt-map = <0 0 0 1 &gic 0 0 0 213 4>,
+				<0 0 0 2 &gic 0 0 0 214 4>,
+				<0 0 0 3 &gic 0 0 0 215 4>,
+				<0 0 0 4 &gic 0 0 0 216 4>;
+	msi-parent = <&gic>;
+};
+
+&ocotp {
+	compatible = "nxp,s32r45-ocotp";
+};
+
+/* Used for FlexCAN timestamping */
+&stm7 {
+	status = "okay";
+};
+
+&can_ts_ctrl {
+	idle-states = <S32R45_CAN_TS_STM7>;
+};
+
+&gpr {
+	compatible = "nxp,s32r45-gpr-nvmem";
+
+	gmac1_phy_intf_sel: gmac1_phy_intf_sel@100 {
+		reg = <S32R45_GPR_GMAC1_PHY_INTF_SEL_OFFSET
+			S32R45_GPR_CELL_SIZE>;
+	};
+};
