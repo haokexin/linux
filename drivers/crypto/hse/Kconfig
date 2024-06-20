@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: BSD-3-Clause
+
+config CRYPTO_DEV_NXP_HSE
+	tristate "Support for NXP HSE cryptographic engine"
+	depends on SOC_S32CC
+	default m
+	help
+	  Enables crypto driver support for NXP Hardware Security Engine (HSE).
+
+choice
+	prompt "Messaging Unit Interface"
+	depends on CRYPTO_DEV_NXP_HSE
+	default CRYPTO_DEV_NXP_HSE_MU0
+	help
+	  Configures the Messaging Unit instance reserved for the crypto driver.
+
+config CRYPTO_DEV_NXP_HSE_MU0
+	bool "MU0"
+config CRYPTO_DEV_NXP_HSE_MU1
+	bool "MU1"
+config CRYPTO_DEV_NXP_HSE_MU2
+	bool "MU2"
+config CRYPTO_DEV_NXP_HSE_MU3
+	bool "MU3"
+endchoice
+
+config CRYPTO_DEV_NXP_HSE_MU
+	string
+	depends on CRYPTO_DEV_NXP_HSE
+	default mu0b if CRYPTO_DEV_NXP_HSE_MU0
+	default mu1b if CRYPTO_DEV_NXP_HSE_MU1
+	default mu2b if CRYPTO_DEV_NXP_HSE_MU2
+	default mu3b if CRYPTO_DEV_NXP_HSE_MU3
+
+comment "MU interface must be activated by HSE firmware before use"
+	depends on CRYPTO_DEV_NXP_HSE && !CRYPTO_DEV_NXP_HSE_MU0
+
+config CRYPTO_DEV_NXP_HSE_AHASH
+	bool "Message Digest Support"
+	depends on CRYPTO_DEV_NXP_HSE
+	select CRYPTO_HASH
+	default y
+	help
+	  Enables hash and hash-based MAC offloading to HSE.
+
+config CRYPTO_DEV_NXP_HSE_SKCIPHER
+	bool "Symmetric Key Cipher Support"
+	depends on CRYPTO_DEV_NXP_HSE
+	select CRYPTO_SKCIPHER
+	default y
+	help
+	  Enables symmetric key cipher offloading to HSE.
+
+config CRYPTO_DEV_NXP_HSE_AEAD
+	bool "AuthEnc and AEAD Support"
+	depends on CRYPTO_DEV_NXP_HSE
+	select CRYPTO_AEAD
+	default y
+	help
+	  Enables authenticated encryption and AEAD offloading to HSE.
+
+config CRYPTO_DEV_NXP_HSE_RNG
+	bool "Hardware TRNG support"
+	depends on CRYPTO_DEV_NXP_HSE
+	select HW_RANDOM
+	default y
+	help
+	  Enables hardware true random number generation via HSE.
+
+config CRYPTO_DEV_NXP_HSE_RNG_CACHE
+	int "Entropy cache maximum size"
+	depends on CRYPTO_DEV_NXP_HSE_RNG
+	range 64 512
+	default 512
+	help
+	  Total size of driver entropy cache. Used to improve request latency.
+
+menu "RAM Key Catalog AES Group Configuration"
+depends on CRYPTO_DEV_NXP_HSE
+visible if CRYPTO_DEV_NXP_HSE_SKCIPHER || CRYPTO_DEV_NXP_HSE_AEAD
+
+config CRYPTO_DEV_NXP_HSE_AES_KEY_GROUP_ID
+	int "AES 256-bit Key Group ID within RAM Key Catalog"
+	depends on CRYPTO_DEV_NXP_HSE
+	range 0 255
+	default "0" if CRYPTO_DEV_NXP_HSE_SKCIPHER || CRYPTO_DEV_NXP_HSE_AEAD
+	default "0"
+	help
+	  The AES 256-bit Key Group ID within RAM Key Catalog.
+
+config CRYPTO_DEV_NXP_HSE_AES_KEY_GROUP_SIZE
+	int "Number of key slots in the AES 256-bit Key Group"
+	depends on CRYPTO_DEV_NXP_HSE
+	range 0 255
+	default "4" if CRYPTO_DEV_NXP_HSE_SKCIPHER || CRYPTO_DEV_NXP_HSE_AEAD
+	default "0"
+	help
+	  Number of key slots available in the 256-bit AES Key Group.
+
+endmenu
+
+menu "RAM Key Catalog HMAC Group Configuration"
+depends on CRYPTO_DEV_NXP_HSE
+visible if CRYPTO_DEV_NXP_HSE_AHASH
+
+config CRYPTO_DEV_NXP_HSE_HMAC_KEY_GROUP_ID
+	int "HMAC 1024-bit Key Group ID within RAM Key Catalog"
+	depends on CRYPTO_DEV_NXP_HSE
+	range 0 255
+	default "1" if CRYPTO_DEV_NXP_HSE_AHASH
+	default "0"
+	help
+	  The HMAC 1024-bit Key Group ID within RAM Key Catalog.
+
+config CRYPTO_DEV_NXP_HSE_HMAC_KEY_GROUP_SIZE
+	int "Number of key slots in the HMAC 1024-bit Key Group"
+	depends on CRYPTO_DEV_NXP_HSE
+	range 0 255
+	default "4" if CRYPTO_DEV_NXP_HSE_AHASH
+	default "0"
+	help
+	  Number of key slots available in the HMAC 1024-bit Key Group.
+
+endmenu
+
+config CRYPTO_DEV_NXP_HSE_DEBUG
+        bool "Debug information for HSE crypto driver"
+	depends on CRYPTO_DEV_NXP_HSE
+        default n
+	help
+	  Enables printing crypto driver debug messages to the kernel log.

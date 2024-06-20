@@ -21,7 +21,9 @@
 #define DMA_DEBUG_STATUS_0		0x0000100c
 #define DMA_DEBUG_STATUS_1		0x00001010
 #define DMA_DEBUG_STATUS_2		0x00001014
-#define DMA_AXI_BUS_MODE		0x00001028
+#define DMA_AXI4_TX_AR_ACE_CONTROL	0x00001020
+#define DMA_AXI4_RX_AW_ACE_CONTROL	0x00001024
+#define DMA_AXI4_TXRX_AWAR_ACE_CONTROL	0x00001028
 #define DMA_TBS_CTRL			0x00001050
 
 /* DMA Bus Mode bitmap */
@@ -224,6 +226,10 @@ static inline u32 dma_chanx_base_addr(const struct dwmac4_addrs *addrs,
 					 DMA_CHAN_INTR_ABNORMAL_4_10)
 #define DMA_CHAN_INTR_DEFAULT_RX_4_10	(DMA_CHAN_INTR_ENA_RIE)
 #define DMA_CHAN_INTR_DEFAULT_TX_4_10	(DMA_CHAN_INTR_ENA_TIE)
+
+/* RX watchdog interrupt timer bits */
+#define DMA_CHAN_RX_WATCHDOG_RWT	GENMASK(7, 0)
+#define DMA_CHAN_RX_WATCHDOG_RWTU	GENMASK(17, 16)
 
 /* channel 0 specific fields */
 #define DMA_CHAN0_DBG_STAT_TPS		GENMASK(15, 12)

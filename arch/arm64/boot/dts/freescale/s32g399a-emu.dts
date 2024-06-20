@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/*
+ * Copyright 2021-2023 NXP
+ */
+
+/dts-v1/;
+#include "s32g3.dtsi"
+
+/* Emulator has 1GB of RAM, remove reserved memory above this limit */
+/delete-node/ &pci_shared_memory0;
+/delete-node/ &pci_shared_memory1;
+
+/ {
+	model = "Emulator for NXP S32G399A";
+
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
+};
+
+&uart0 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&uart1 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&uart2 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&timer {
+	clock-frequency = <5000000>;
+};
+
+&usdhc0 {
+	pinctrl-names = "default", "state_100mhz", "state_200mhz";
+	pinctrl-0 = <&sd0_pins_default>;
+	pinctrl-1 = <&sd0_pins_100mhz>;
+	pinctrl-2 = <&sd0_pins_200mhz>;
+	no-1-8-v;
+	status = "okay";
+};
+
+&pfe_reserved  {
+	status = "disabled";
+};
+
+&pcie0 {
+	/delete-property/ shared-mem;
+	status = "disabled";
+};
+
+&pcie1 {
+	/delete-property/ shared-mem;
+	status = "disabled";
+};

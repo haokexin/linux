@@ -23,17 +23,17 @@ static void dwmac4_dma_axi(void __iomem *ioaddr, struct stmmac_axi *axi)
 	pr_info("dwmac4: Master AXI performs %s burst length\n",
 		(value & DMA_SYS_BUS_FB) ? "fixed" : "any");
 
-	if (axi->axi_lpi_en)
+	if (axi->lpi_en)
 		value |= DMA_AXI_EN_LPI;
-	if (axi->axi_xit_frm)
+	if (axi->xit_frm)
 		value |= DMA_AXI_LPI_XIT_FRM;
 
 	value &= ~DMA_AXI_WR_OSR_LMT;
-	value |= (axi->axi_wr_osr_lmt & DMA_AXI_OSR_MAX) <<
+	value |= (axi->wr_osr_lmt & DMA_AXI_OSR_MAX) <<
 		 DMA_AXI_WR_OSR_LMT_SHIFT;
 
 	value &= ~DMA_AXI_RD_OSR_LMT;
-	value |= (axi->axi_rd_osr_lmt & DMA_AXI_OSR_MAX) <<
+	value |= (axi->rd_osr_lmt & DMA_AXI_OSR_MAX) <<
 		 DMA_AXI_RD_OSR_LMT_SHIFT;
 
 	/* Depending on the UNDEF bit the Master AXI will perform any burst
@@ -41,7 +41,7 @@ static void dwmac4_dma_axi(void __iomem *ioaddr, struct stmmac_axi *axi)
 	 * set).
 	 */
 	for (i = 0; i < AXI_BLEN; i++) {
-		switch (axi->axi_blen[i]) {
+		switch (axi->blen[i]) {
 		case 256:
 			value |= DMA_AXI_BLEN256;
 			break;
@@ -246,6 +246,21 @@ static void dwmac4_rx_watchdog(struct stmmac_priv *priv, void __iomem *ioaddr,
 			       u32 riwt, u32 queue)
 {
 	const struct dwmac4_addrs *dwmac4_addrs = priv->plat->dwmac4_addrs;
+
+	/* NXP Errata E50082 requires RWT to be written before RWTU */
+	if (priv->plat->flags & STMMAC_FLAG_HAS_S32CC) {
+		u32 temp;
+
+		temp = readl(ioaddr + DMA_CHAN_RX_WATCHDOG(dwmac4_addrs, queue));
+		/* Update only RWT first */
+		temp = (temp & ~DMA_CHAN_RX_WATCHDOG_RWT) | (riwt & DMA_CHAN_RX_WATCHDOG_RWT);
+		writel(temp, ioaddr + DMA_CHAN_RX_WATCHDOG(dwmac4_addrs, queue));
+		/* Update RWTU */
+		temp = (temp & ~DMA_CHAN_RX_WATCHDOG_RWTU) | (riwt & DMA_CHAN_RX_WATCHDOG_RWTU);
+		writel(temp, ioaddr + DMA_CHAN_RX_WATCHDOG(dwmac4_addrs, queue));
+
+		return;
+	}
 
 	writel(riwt, ioaddr + DMA_CHAN_RX_WATCHDOG(dwmac4_addrs, queue));
 }
@@ -556,6 +571,15 @@ static int dwmac4_enable_tbs(struct stmmac_priv *priv, void __iomem *ioaddr,
 	return 0;
 }
 
+static void dwmac4_axi4_cc(void __iomem *ioaddr,
+			   struct stmmac_axi *axi)
+{
+	/* Configure AXI4 cache coherency for Tx/Rx DMA channels */
+	writel(axi->tx_ar_reg, ioaddr + DMA_AXI4_TX_AR_ACE_CONTROL);
+	writel(axi->rx_aw_reg, ioaddr + DMA_AXI4_RX_AW_ACE_CONTROL);
+	writel(axi->txrx_awar_reg, ioaddr + DMA_AXI4_TXRX_AWAR_ACE_CONTROL);
+}
+
 const struct stmmac_dma_ops dwmac4_dma_ops = {
 	.reset = dwmac4_dma_reset,
 	.init = dwmac4_dma_init,
@@ -613,4 +637,5 @@ const struct stmmac_dma_ops dwmac410_dma_ops = {
 	.set_bfsize = dwmac4_set_bfsize,
 	.enable_sph = dwmac4_enable_sph,
 	.enable_tbs = dwmac4_enable_tbs,
+	.axi4_cc = dwmac4_axi4_cc,
 };

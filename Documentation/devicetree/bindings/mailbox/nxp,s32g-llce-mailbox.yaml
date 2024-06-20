@@ -1,0 +1,185 @@
+# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/mailbox/nxp,s32g-llce-mailbox.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: NXP LLCE Mailbox
+
+maintainers:
+  - Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+
+description: |
+  This mailbox is present on NXP SoC's where LLCE accelerator is present.
+  It facilitates the communication between Linux and LLCE cores.
+
+properties:
+  compatible:
+    const: nxp,s32g-llce-mailbox
+
+  '#mbox-cells':
+    description:
+      First number represents the channel type and the second
+      represents the ID of the channel.
+      Channel types
+        * S32G_LLCE_CAN_CONF_MB
+        * S32G_LLCE_CAN_LOGGER_MB
+        * S32G_LLCE_CAN_LOGGER_CONFIG_MB
+        * S32G_LLCE_CAN_RX_MB
+        * S32G_LLCE_CAN_TX_MB
+    const: 2
+
+  memory-region:
+    description:
+      A set of phandles to memory regions corresponding to LLCE shared memory region.
+    maxItems: 1
+
+  memory-region-names:
+    items:
+      - const: shmem
+
+  reg-names:
+    items:
+      - const: rxin_fifo
+      - const: rxout_fifo
+      - const: icsr
+      - const: blrin_fifo
+      - const: blrout_fifo
+      - const: txack_fifo
+      - const: sema42
+      - const: core2core
+      - const: system_control
+
+  reg:
+    items:
+      - description: Address and Size of the RXIN fifo memory region
+      - description: Address and Size of the RXOUT fifo memory region
+      - description: Address and Size of the Interrupt concentrator memory region
+      - description: Address and Size of the BLRIN fifo memory region
+      - description: Address and Size of the BLROUT fifo memory region
+      - description: Address and Size of the TXACK fifo memory region
+      - description: Address and Size of the SEMA42 region
+      - description: Address and Size of the CORE2CORE region
+      - description: Address and Size of the System control memory region
+
+  interrupt-names:
+    items:
+      - const: lpspi_irq
+      - const: linflex_irq
+      - const: rxin_fifo_0_7
+      - const: rxin_fifo_8_15
+      - const: rxout_fifo_0_7
+      - const: rxout_fifo_8_15
+      - const: txack_fifo_0_7
+      - const: txack_fifo_8_15
+      - const: logger_rx
+
+  interrupt-controller: true
+
+  '#interrupt-cells':
+    const: 1
+
+  interrupts:
+    items:
+      - description: Shared interrupt line for LPSPI channels
+      - description: Shared interrupt line for LIN channels
+      - description: Shared interrupt line for RXIN 0-7 fifos
+      - description: Shared interrupt line for RXIN 8-15 fifos
+      - description: Shared interrupt line for RXOUT 0-7 fifos
+      - description: Shared interrupt line for RXOUT 8-15 fifos
+      - description: Shared interrupt line for TXACK 0-7 fifos
+      - description: Shared interrupt line for TXACK 8-15 fifos
+      - description: Interrupt line for LLCE CAN logger
+
+  clock-names:
+    const: llce_sys
+
+  clocks:
+    description: LLCE system clock
+
+  nxp,hif-id:
+    $ref: /schemas/types.yaml#/definitions/uint32
+    description:
+      The ID of the host interface used during communication with the firmware. 0 will be used
+      in case this property is missing.
+    enum: [ 0, 1 ]
+
+  nxp,multi-hif:
+    description:
+      Switch to a multi-host configuration where Linux can configure up to 8 FIFOs.
+    type: boolean
+
+required:
+  - compatible
+  - '#mbox-cells'
+  - memory-region
+  - reg-names
+  - reg
+  - interrupt-names
+  - interrupt-controller
+  - interrupts
+  - clock-names
+  - clocks
+
+additionalProperties: false
+
+examples:
+  - |
+    #include <dt-bindings/interrupt-controller/irq.h>
+    #define S32G_SCMI_CLK_LLCE_SYS
+    bus {
+      #address-cells = <2>;
+      #size-cells = <2>;
+
+      llce_mb: llce_mb@43a00000 {
+        compatible = "nxp,s32g-llce-mailbox";
+        #mbox-cells = <2>;
+
+        reg = <0x0 0x0 0x0 0x6000>,
+            <0x1 0x0 0x0 0x8000>,
+            <0x2 0x0 0x0 0x1000>,
+            <0x3 0x0 0x0 0x6000>,
+            <0x4 0x0 0x0 0x6000>,
+            <0x5 0x0 0x0 0x8000>,
+            <0x6 0x0 0x0 0x44>,
+            <0x11 0x0 0x0 0x70>,
+            <0x16 0x0 0x0 0x20>;
+        reg-names = "rxin_fifo",
+            "rxout_fifo",
+            "icsr",
+            "blrin_fifo",
+            "blrout_fifo",
+            "txack_fifo",
+            "sema42",
+            "core2core",
+            "system_control";
+        clocks = <&clks S32G_SCMI_CLK_LLCE_SYS>;
+        clock-names = "llce_sys";
+
+        memory-region = <&llce_shmem>;
+        memory-region-names = "shmem";
+        interrupt-controller;
+        #interrupt-cells = <1>;
+        interrupts = <0 171 IRQ_TYPE_LEVEL_HIGH>,
+            <0 172 IRQ_TYPE_LEVEL_HIGH>,
+            <0 174 IRQ_TYPE_LEVEL_HIGH>,
+            <0 175 IRQ_TYPE_LEVEL_HIGH>,
+            <0 176 IRQ_TYPE_LEVEL_HIGH>,
+            <0 177 IRQ_TYPE_LEVEL_HIGH>,
+            <0 182 IRQ_TYPE_LEVEL_HIGH>,
+            <0 183 IRQ_TYPE_LEVEL_HIGH>,
+            <0 184 IRQ_TYPE_LEVEL_HIGH>;
+        interrupt-names = "lpspi_irq",
+          "linflex_irq",
+          "rxin_fifo_0_7",
+          "rxin_fifo_8_15",
+          "rxout_fifo_0_7",
+          "rxout_fifo_8_15",
+          "txack_fifo_0_7",
+          "txack_fifo_8_15",
+          "logger_rx";
+        nxp,hif-id = <1>;
+        status = "okay";
+      };
+    };
+

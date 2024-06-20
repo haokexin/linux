@@ -14,6 +14,7 @@
 #include <linux/bitfield.h>
 #include <linux/bitops.h>
 #include <linux/clk.h>
+#include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/dma/edma.h>
 #include <linux/gpio/consumer.h>
@@ -68,6 +69,10 @@
 /* Parameters for the waiting for iATU enabled routine */
 #define LINK_WAIT_MAX_IATU_RETRIES	5
 #define LINK_WAIT_IATU			9
+
+/* Parameters for the waiting for DBI R/W enabled routine */
+#define LINK_WAIT_MAX_DBI_RW_EN_RETRIES		1000
+#define LINK_WAIT_DBI_RW_EN			10
 
 /* Synopsys-specific PCIe configuration registers */
 #define PCIE_PORT_AFR			0x70C
@@ -341,6 +346,11 @@ struct dw_pcie_ep_ops {
 	 * driver.
 	 */
 	unsigned int (*func_conf_select)(struct dw_pcie_ep *ep, u8 func_no);
+#if (IS_ENABLED(CONFIG_PCI_EPF_TEST))
+	int	(*start_dma)(struct dw_pcie_ep *ep, bool dir,
+			     dma_addr_t src, dma_addr_t dst, u32 len,
+			     struct completion *complete);
+#endif
 };
 
 struct dw_pcie_ep_func {
@@ -485,11 +495,26 @@ static inline void dw_pcie_dbi_ro_wr_en(struct dw_pcie *pci)
 {
 	u32 reg;
 	u32 val;
+	u32 ret;
 
 	reg = PCIE_MISC_CONTROL_1_OFF;
 	val = dw_pcie_readl_dbi(pci, reg);
 	val |= PCIE_DBI_RO_WR_EN;
 	dw_pcie_writel_dbi(pci, reg, val);
+
+	/*
+	 * Make sure DBI R/W is really enabled.
+	 */
+	for (ret = 0; ret < LINK_WAIT_MAX_DBI_RW_EN_RETRIES; ret++) {
+		u32 val2 = dw_pcie_readl_dbi(pci, reg);
+
+		if (val2 & PCIE_DBI_RO_WR_EN)
+			return;
+
+		dw_pcie_writel_dbi(pci, reg, val);
+		udelay(LINK_WAIT_DBI_RW_EN);
+	}
+	dev_err(pci->dev, "DBI R/W is not being enabled\n");
 }
 
 static inline void dw_pcie_dbi_ro_wr_dis(struct dw_pcie *pci)
@@ -531,6 +556,7 @@ static inline enum dw_pcie_ltssm dw_pcie_get_ltssm(struct dw_pcie *pci)
 
 #ifdef CONFIG_PCIE_DW_HOST
 irqreturn_t dw_handle_msi_irq(struct dw_pcie_rp *pp);
+void dw_pcie_msi_init(struct dw_pcie_rp *pp);
 int dw_pcie_setup_rc(struct dw_pcie_rp *pp);
 int dw_pcie_host_init(struct dw_pcie_rp *pp);
 void dw_pcie_host_deinit(struct dw_pcie_rp *pp);

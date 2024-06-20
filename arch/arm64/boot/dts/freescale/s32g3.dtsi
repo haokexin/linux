@@ -1,0 +1,278 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright 2021-2023 NXP
+ */
+
+/dts-v1/;
+#include "s32g.dtsi"
+
+/delete-node/ &gic;
+
+/ {
+	compatible = "nxp,s32g3";
+
+	cpus {
+		cpu-map {
+			cluster0 {
+				core0 {
+					cpu = <&cpu0>;
+				};
+
+				core1 {
+					cpu = <&cpu1>;
+				};
+
+				core2 {
+					cpu = <&cpu2>;
+				};
+
+				core3 {
+					cpu = <&cpu3>;
+				};
+			};
+
+			cluster1 {
+				core0 {
+					cpu = <&cpu4>;
+				};
+
+				core1 {
+					cpu = <&cpu5>;
+				};
+
+				core2 {
+					cpu = <&cpu6>;
+				};
+
+				core3 {
+					cpu = <&cpu7>;
+				};
+			};
+		};
+
+		cpu0: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x0>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster0_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu1: cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x1>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster0_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu2: cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x2>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster0_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu3: cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x3>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster0_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu4: cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x100>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster1_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu5: cpu@101 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x101>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster1_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu6: cpu@102 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x102>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster1_l2>;
+			#cooling-cells = <2>;
+		};
+
+		cpu7: cpu@103 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x103>;
+			enable-method = "psci";
+			clocks = <&dfs S32CC_SCMI_PERF_A53>;
+			next-level-cache = <&cluster1_l2>;
+			#cooling-cells = <2>;
+		};
+	};
+
+	soc {
+		swt8: watchdog@40500000 {
+			compatible = "nxp,s32cc-wdt";
+			reg = <0x0 0x40500000 0x0 0x1000>;
+			clocks = <&clks S32CC_SCMI_CLK_SWT_COUNTER>;
+			clock-names = "swt";
+			status = "disabled";
+		};
+
+		swt9: watchdog@40504000 {
+			compatible = "nxp,s32cc-wdt";
+			reg = <0x0 0x40504000 0x0 0x1000>;
+			clocks = <&clks S32CC_SCMI_CLK_SWT_COUNTER>;
+			clock-names = "swt";
+			status = "disabled";
+		};
+
+		swt10: watchdog@40508000 {
+			compatible = "nxp,s32cc-wdt";
+			reg = <0x0 0x40508000 0x0 0x1000>;
+			clocks = <&clks S32CC_SCMI_CLK_SWT_COUNTER>;
+			clock-names = "swt";
+			status = "disabled";
+		};
+
+		swt11: watchdog@4050c000 {
+			compatible = "nxp,s32cc-wdt";
+			reg = <0x0 0x4050c000 0x0 0x1000>;
+			clocks = <&clks S32CC_SCMI_CLK_SWT_COUNTER>;
+			clock-names = "swt";
+			status = "disabled";
+		};
+
+		stm8: stm@40520000 {
+			compatible = "nxp,s32cc-stm-global";
+			reg = <0x0 0x40520000 0x0 0x3000>;
+			clocks = <&clks S32CC_SCMI_CLK_STM_MODULE>;
+			clock-names = "stm";
+			status = "disabled";
+		};
+
+		stm9: stm@40524000 {
+			compatible = "nxp,s32cc-stm-global";
+			reg = <0x0 0x40524000 0x0 0x3000>;
+			clocks = <&clks S32CC_SCMI_CLK_STM_MODULE>;
+			clock-names = "stm";
+			status = "disabled";
+		};
+
+		stm10: stm@40528000 {
+			compatible = "nxp,s32cc-stm-global";
+			reg = <0x0 0x40528000 0x0 0x3000>;
+			clocks = <&clks S32CC_SCMI_CLK_STM_MODULE>;
+			clock-names = "stm";
+			status = "disabled";
+		};
+
+		stm11: stm@4052c000 {
+			compatible = "nxp,s32cc-stm-global";
+			reg = <0x0 0x4052c000 0x0 0x3000>;
+			clocks = <&clks S32CC_SCMI_CLK_STM_MODULE>;
+			clock-names = "stm";
+			status = "disabled";
+		};
+
+		gic: interrupt-controller@50800000 {
+			compatible = "arm,gic-v3";
+			#interrupt-cells = <3>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			interrupt-controller;
+			reg = <0 0x50800000 0 0x10000>,
+				<0 0x50900000 0 0x200000>,
+				<0 0x50400000 0 0x2000>,
+				<0 0x50410000 0 0x2000>,
+				<0 0x50420000 0 0x2000>;
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+
+			msi-controller;
+			/* GIC interrupts between 167 and 182 can be used as MBIs. */
+			mbi-ranges = <167 16>;
+		};
+	};
+};
+
+&mscm0 {
+	/* CPU2CPU interrupts */
+	interrupts = <GIC_SPI 1 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 164 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 165 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 166 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>;
+};
+
+&usbmisc {
+	compatible = "nxp,s32g3-usbmisc";
+};
+
+&llce_dte_sram {
+	reg = <0x0 0x43000000 0x0 0x4000>;
+};
+
+&llce_ppe_rx_sram {
+	reg = <0x0 0x43100000 0x0 0x18000>;
+};
+
+&llce_frpe_sram {
+	reg = <0x0 0x43300000 0x0 0x40000>;
+};
+
+&pcie0 {
+	pcie_device_id = <0x4300>;
+};
+
+&pcie1 {
+	pcie_device_id = <0x4300>;
+};
+
+&qspi {
+	compatible = "nxp,s32g3-qspi";
+	pinctrl-names = "default";
+	pinctrl-0 = <&qspi_pins_200mhz_slow_sre>;
+	status = "okay";
+};
+
+&tmu {
+	fsl,tmu-range = <0xe4 0xe9 0x100 0x12a 0x18e 0x193>;
+	fsl,tmu-calibration = <0 0x1f  0x7c0
+			       1 0x28  0x7c0
+			       2 0x53  0x0
+			       3 0xa2  0x0
+			       4 0x162 0x1f
+			       5 0x16c 0x1f>;
+};
+
+&llce_spi2 {
+	nxp,reset-at-underrun;
+};
