@@ -24,7 +24,6 @@ module_param(setup_test, int, 0644);
 MODULE_PARM_DESC(setup_test, "does a test after doing setup");
 
 static DEFINE_MUTEX(octeontx_fpavf_devices_lock);
-static DEFINE_MUTEX(octeontx_fpavf_alloc_lock);
 static LIST_HEAD(octeontx_fpavf_devices);
 
 /* In Cavium OcteonTX SoCs, all accesses to the device registers are
