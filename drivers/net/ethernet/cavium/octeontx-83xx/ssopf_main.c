@@ -1374,7 +1374,7 @@ static void sso_remove(struct pci_dev *pdev)
 	if (!sso)
 		return;
 
-	flush_scheduled_work();
+	flush_work(&sso->mbox_work);
 	/* Make sure the SSO is disabled */
 	sso_reg = sso_reg_read(sso, SSO_PF_AW_CFG);
 	sso_reg &= (~1ULL);
