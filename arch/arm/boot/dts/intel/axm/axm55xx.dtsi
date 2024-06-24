@@ -65,7 +65,7 @@
 			     <1 10 0xf08>;
 	};
 
-	edac: edac0@0x1000 {
+	edac: edac0@1000 {
 		compatible = "axxia,edac";
 		reg = <0 0x00220000 0 0x1000>,
 			<0 0x000f0000 0 0x1000>,
@@ -84,7 +84,7 @@
 		status = "disabled";
 	};
 
-	ccn: ccn@0x2000000000 {
+	ccn: ccn@2000000000 {
 		compatible = "arm,ccn-504";
 		reg = <0x20 0x00000000 0 0x1000000>;
 		interrupts = <0 181 4>;
@@ -96,7 +96,7 @@
 		status = "disabled";
 	};
 
-	sm0: sm0@00220000 {
+	sm0: sm0@220000 {
 		compatible = "axxia,smmon";
 		reg = <0 0x00220000 0 0x1000>,
 			<0x20 0x10030000 0 0001000>;
@@ -104,7 +104,7 @@
 		status = "disabled";
 	};
 
-	sm1: sm1@00220000 {
+	sm1: sm1@220000 {
 		compatible = "axxia,smmon";
 		reg = <0 0x000f0000 0 0x1000>,
 			<0x20 0x10030000 0 0001000>;
@@ -112,7 +112,7 @@
 		status = "disabled";
 	};
 
-	femac: femac@0x2010120000 {
+	femac: femac@2010120000 {
 		compatible = "axxia,acp-femac";
 		device_type = "network";
 		reg = <0x20 0x10120000 0 0x1000>,
