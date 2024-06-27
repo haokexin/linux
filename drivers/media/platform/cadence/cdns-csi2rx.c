@@ -336,7 +336,7 @@ static int csi2rx_start(struct csi2rx_priv *csi2rx)
 
 	ret = v4l2_subdev_call(csi2rx->source_subdev, video, s_stream, true);
 	if (ret)
-		goto err_disable_sysclk;
+		goto err_disable_pixclk;
 
 	clk_disable_unprepare(csi2rx->p_clk);
 
