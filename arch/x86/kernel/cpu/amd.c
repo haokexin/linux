@@ -338,9 +338,13 @@ static void init_amd_k7(struct cpuinfo_x86 *c)
 	 * Don't taint if we are running SMP kernel on a single non-MP
 	 * approved Athlon
 	 */
-	WARN_ONCE(1, "WARNING: This combination of AMD"
-		" processors is not suitable for SMP.\n");
-	add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_NOW_UNRELIABLE);
+	/* disable the warning if qemux86 is configured, since the warning
+	   is not accurate for the virtualized cpu and host combination */
+	if (!IS_ENABLED(CONFIG_QEMUX86)) {
+		WARN_ONCE(1, "WARNING: This combination of AMD"
+			" processors is not suitable for SMP.\n");
+		add_taint(TAINT_CPU_OUT_OF_SPEC, LOCKDEP_NOW_UNRELIABLE);
+	}
 #endif
 }
 
