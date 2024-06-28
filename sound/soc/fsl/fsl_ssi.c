@@ -1596,7 +1596,7 @@ static int fsl_ssi_probe(struct platform_device *pdev)
 	}
 
 	dev_set_drvdata(dev, ssi);
-	pm_runtime_enable(&pdev->dev);
+	devm_pm_runtime_enable(&pdev->dev);
 
 	if (ssi->soc->imx) {
 		ret = fsl_ssi_imx_probe(pdev, ssi, iomem);
