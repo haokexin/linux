@@ -52,6 +52,7 @@ void cn10k_cpt_send_cmd(union otx2_cpt_inst_s *cptinst, u32 insts_num,
 			struct otx2_cptlf_info *lf);
 int cn10k_cptpf_lmtst_init(struct otx2_cptpf_dev *cptpf);
 int cn10k_cptvf_lmtst_init(struct otx2_cptvf_dev *cptvf);
+void cn10k_cpt_lmtst_free(struct pci_dev *pdev, struct otx2_cptlfs_info *lfs);
 void cn10k_cpt_ctx_flush(struct pci_dev *pdev, u64 cptr, bool inval);
 int cn10k_cpt_hw_ctx_init(struct pci_dev *pdev, struct cn10k_cpt_errata_ctx *er_ctx);
 void cn10k_cpt_hw_ctx_clear(struct pci_dev *pdev, struct cn10k_cpt_errata_ctx *er_ctx);
