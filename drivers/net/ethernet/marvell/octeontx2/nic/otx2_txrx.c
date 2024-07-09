@@ -1171,9 +1171,8 @@ bool otx2_sq_append_skb(struct net_device *netdev, struct otx2_snd_queue *sq,
 		if (skb_vlan_tag_present(skb)) {
 			skb = __vlan_hwaccel_push_inside(skb);
 			if (!skb)
-				return false;
+				return true;
 		}
-
 		otx2_sq_append_tso(pfvf, sq, skb, qidx);
 		return true;
 	}
