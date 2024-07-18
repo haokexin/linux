@@ -360,6 +360,7 @@
 	codec_audio: sound {
 		compatible = "ti,j7200-cpb-audio";
 		model = "j784s4-cpb";
+		status = "disabled";
 
 		ti,cpb-mcasp = <&mcasp0>;
 		ti,cpb-codec = <&pcm3168a_1>;
@@ -1676,6 +1677,7 @@
 		VCCAD2-supply = <&vsys_5v0>;
 		VCCDA1-supply = <&vsys_5v0>;
 		VCCDA2-supply = <&vsys_5v0>;
+		status = "disabled";
 	};
 };
 
