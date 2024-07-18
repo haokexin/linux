@@ -8,6 +8,8 @@
 #ifndef __NET_TI_ICSSG_PRUETH_H
 #define __NET_TI_ICSSG_PRUETH_H
 
+#include <linux/bpf.h>
+#include <linux/bpf_trace.h>
 #include <linux/etherdevice.h>
 #include <linux/genalloc.h>
 #include <linux/if_vlan.h>
@@ -33,10 +35,13 @@
 #include <linux/dma/k3-udma-glue.h>
 
 #include <net/devlink.h>
+#include <net/xdp.h>
+#include <net/page_pool/helpers.h>
 
 #include "icssg_config.h"
 #include "icss_iep.h"
 #include "icssg_switch_map.h"
+#include "icssg_qos.h"
 
 #define PRUETH_MAX_MTU          (2000 - ETH_HLEN - ETH_FCS_LEN)
 #define PRUETH_MIN_PKT_SIZE     (VLAN_ETH_ZLEN)
@@ -50,10 +55,12 @@
 
 #define ICSSG_MAX_RFLOWS	8	/* per slice */
 
+#define ICSSG_NUM_PA_STATS 5
+#define ICSSG_NUM_MII_G_RT_STATS 60
 /* Number of ICSSG related stats */
-#define ICSSG_NUM_STATS 60
+#define ICSSG_NUM_STATS (ICSSG_NUM_MII_G_RT_STATS + ICSSG_NUM_PA_STATS)
 #define ICSSG_NUM_STANDARD_STATS 31
-#define ICSSG_NUM_ETHTOOL_STATS (ICSSG_NUM_STATS - ICSSG_NUM_STANDARD_STATS)
+#define ICSSG_NUM_ETHTOOL_STATS (ICSSG_NUM_MII_G_RT_STATS - ICSSG_NUM_STANDARD_STATS)
 
 #define IEP_DEFAULT_CYCLE_TIME_NS	1000000	/* 1 ms */
 
@@ -98,6 +105,17 @@ enum prueth_mac {
 	PRUETH_MAC_INVALID,
 };
 
+enum prueth_devlink_param_id {
+	PRUETH_DEVLINK_PARAM_ID_BASE = DEVLINK_PARAM_GENERIC_ID_MAX,
+	PRUETH_DL_PARAM_SWITCH_MODE,
+	PRUETH_DL_PARAM_HSR_OFFLOAD_MODE,
+	PRUETH_DL_PARAM_CUT_THRU_EN,
+};
+
+struct prueth_devlink {
+	struct prueth *prueth;
+};
+
 struct prueth_tx_chn {
 	struct device *dma_dev;
 	struct napi_struct napi_tx;
@@ -120,6 +138,29 @@ struct prueth_rx_chn {
 	u32 descs_num;
 	unsigned int irq[ICSSG_MAX_RFLOWS];	/* separate irq per flow */
 	char name[32];
+	struct page_pool *pg_pool;
+	struct xdp_rxq_info xdp_rxq;
+};
+
+enum prueth_swdata_type {
+	PRUETH_SWDATA_INVALID = 0,
+	PRUETH_SWDATA_SKB,
+	PRUETH_SWDATA_PAGE,
+	PRUETH_SWDATA_CMD,
+	PRUETH_SWDATA_XDPF,
+};
+
+union prueth_data {
+	struct sk_buff *skb;
+	struct page *page;
+	u32 cmd;
+	struct xdp_frame *xdpf;
+};
+
+struct prueth_swdata {
+	union prueth_data data;
+	struct prueth_rx_chn *rx_chn;
+	enum prueth_swdata_type type;
 };
 
 /* There are 4 Tx DMA channels, but the highest priority is CH3 (thread 3)
@@ -128,6 +169,12 @@ struct prueth_rx_chn {
 #define PRUETH_MAX_TX_QUEUES	4
 
 #define PRUETH_MAX_TX_TS_REQUESTS	50 /* Max simultaneous TX_TS requests */
+
+/* XDP BPF state */
+#define ICSSG_XDP_PASS           0
+#define ICSSG_XDP_CONSUMED       BIT(0)
+#define ICSSG_XDP_TX             BIT(1)
+#define ICSSG_XDP_REDIR          BIT(2)
 
 /* Minimum coalesce time in usecs for both Tx and Rx */
 #define ICSSG_MIN_COALESCE_USECS 20
@@ -186,8 +233,12 @@ struct prueth_emac {
 
 	struct pruss_mem_region dram;
 
+	struct devlink_port devlink_port;
+	u8 cut_thru_queue_map;
 	bool offload_fwd_mark;
 	int port_vlan;
+
+	struct prueth_qos qos;
 
 	struct delayed_work stats_work;
 	u64 stats[ICSSG_NUM_STATS];
@@ -195,7 +246,14 @@ struct prueth_emac {
 	/* RX IRQ Coalescing Related */
 	struct hrtimer rx_hrtimer;
 	unsigned long rx_pace_timeout_ns;
+
+	struct bpf_prog *xdp_prog;
+	struct xdp_attachment_info xdpi;
 };
+
+/* The buf includes headroom compatible with both skb and xdpf */
+#define PRUETH_HEADROOM_NA (max(XDP_PACKET_HEADROOM, NET_SKB_PAD) + NET_IP_ALIGN)
+#define PRUETH_HEADROOM  ALIGN(PRUETH_HEADROOM_NA, sizeof(long))
 
 /**
  * struct prueth_pdata - PRUeth platform data
@@ -247,6 +305,7 @@ struct icssg_firmwares {
  * @is_switchmode_supported: indicates platform support for switch mode
  * @switch_id: ID for mapping switch ports to bridge
  * @default_vlan: Default VLAN for host
+ * @devlink: pointer to devlink
  */
 struct prueth {
 	struct device *dev;
@@ -263,6 +322,7 @@ struct prueth {
 	struct net_device *registered_netdevs[PRUETH_NUM_MACS];
 	struct regmap *miig_rt;
 	struct regmap *mii_rt;
+	struct regmap *pa_stats;
 
 	enum pruss_pru_id pru_id[PRUSS_NUM_PRUS];
 	struct platform_device *pdev;
@@ -282,6 +342,7 @@ struct prueth {
 	bool is_switchmode_supported;
 	unsigned char switch_id[MAX_PHYS_ITEM_ID_LEN];
 	int default_vlan;
+	struct devlink *devlink;
 };
 
 struct emac_tx_ts_response {
@@ -349,12 +410,15 @@ void icssg_vtbl_modify(struct prueth_emac *emac, u8 vid, u8 port_mask,
 		       u8 untag_mask, bool add);
 u16 icssg_get_pvid(struct prueth_emac *emac);
 void icssg_set_pvid(struct prueth *prueth, u8 vid, u8 port);
+int emac_fdb_flow_id_updated(struct prueth_emac *emac);
 #define prueth_napi_to_tx_chn(pnapi) \
 	container_of(pnapi, struct prueth_tx_chn, napi_tx)
 
 void emac_stats_work_handler(struct work_struct *work);
 void emac_update_hardware_stats(struct prueth_emac *emac);
 int emac_get_stat_by_name(struct prueth_emac *emac, char *stat_name);
+
+u64 prueth_iep_gettime(void *clockops_data, struct ptp_system_timestamp *sts);
 
 /* Common functions */
 void prueth_cleanup_rx_chns(struct prueth_emac *emac,
@@ -404,5 +468,9 @@ void prueth_put_cores(struct prueth *prueth, int slice);
 
 /* Revision specific helper */
 u64 icssg_ts_to_ns(u32 hi_sw, u32 hi, u32 lo, u32 cycle_time_ns);
+
+/* XDP Related helpers */
+int emac_run_xdp(struct prueth_emac *emac, struct xdp_buff *xdp,
+		 struct page *page);
 
 #endif /* __NET_TI_ICSSG_PRUETH_H */
