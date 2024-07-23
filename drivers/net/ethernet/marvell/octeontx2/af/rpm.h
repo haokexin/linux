@@ -17,6 +17,8 @@
 
 /* Registers */
 #define RPMX_CMRX_CFG			0x00
+#define RPMX_CMR_GLOBAL_CFG		0x08
+#define RPM_NIX0_RESET			BIT_ULL(3)
 #define RPMX_RX_TS_PREPEND              BIT_ULL(22)
 #define RPMX_TX_PTP_1S_SUPPORT          BIT_ULL(17)
 #define RPMX_CMRX_RX_ID_MAP		0x80
@@ -140,4 +142,6 @@ int rpm_lmac_reset(void *rpmd, int lmac_id, u8 pf_req_flr);
 int rpm2_get_nr_lmacs(void *rpmd);
 bool is_dev_rpm2(void *rpmd);
 int rpm_stats_reset(void *rpmd, int lmac_id);
+void rpm_x2p_reset(void *rpmd, bool enable);
+int rpm_enadis_rx(void *rpmd, int lmac_id, bool enable);
 #endif /* RPM_H */
