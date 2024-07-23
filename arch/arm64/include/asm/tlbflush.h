@@ -54,19 +54,24 @@
 #define IS_ERR050481_ADDR(addr_shr_12)  \
 	(((addr_shr_12) & GENMASK_ULL(36, 29)) != 0)
 
-#define S32CC_TLBI_ALT(OP, ADDR) do {\
+#define S32CC_TLBI_ALT(OP, ADDR, EL) do {\
 	unsigned long __temp_050481 = (ADDR);\
 	if (cpu_has_nxp_err050481() && IS_ERR050481_ADDR(__temp_050481))\
-		__TLBI_0(vmalle1is, 0);\
+		if ((EL) == 1)\
+			__TLBI_0(vmalle1is, 0);\
+		else\
+			__TLBI_0(alle2is, 0);\
 	else\
 		__TLBI_1(OP, __temp_050481);\
 } while (0)
 
-#define __tlbi_vaae1is(ADDR, ...)	S32CC_TLBI_ALT(vaae1is, ADDR)
-#define __tlbi_vaae1is(ADDR, ...)	S32CC_TLBI_ALT(vaae1is, ADDR)
-#define __tlbi_vaale1is(ADDR, ...)	S32CC_TLBI_ALT(vaale1is, ADDR)
-#define __tlbi_vae1is(ADDR, ...)	S32CC_TLBI_ALT(vae1is, ADDR)
-#define __tlbi_vale1is(ADDR, ...)	S32CC_TLBI_ALT(vale1is, ADDR)
+#define __tlbi_vaae1is(ADDR, ...)	S32CC_TLBI_ALT(vaae1is, ADDR, 1)
+#define __tlbi_vaae1is(ADDR, ...)	S32CC_TLBI_ALT(vaae1is, ADDR, 1)
+#define __tlbi_vaale1is(ADDR, ...)	S32CC_TLBI_ALT(vaale1is, ADDR, 1)
+#define __tlbi_vae1is(ADDR, ...)	S32CC_TLBI_ALT(vae1is, ADDR, 1)
+#define __tlbi_vale1is(ADDR, ...)	S32CC_TLBI_ALT(vale1is, ADDR, 1)
+#define __tlbi_vae2is(ADDR, ...)	S32CC_TLBI_ALT(vae2is, ADDR, 2)
+#define __tlbi_vale2is(ADDR, ...)	S32CC_TLBI_ALT(vale2is, ADDR, 2)
 #define __tlbi_vmalle1()		__TLBI_0(vmalle1, 0)
 #define __tlbi_vmalle1is()		__TLBI_0(vmalle1is, 0)
 #define __tlbi_alle1is()		__TLBI_0(alle1is, 0)
