@@ -136,6 +136,17 @@ static void mmc_set_erase_size(struct mmc_card *card)
 	mmc_init_erase(card);
 }
 
+
+static void mmc_set_wp_grp_size(struct mmc_card *card)
+{
+	if (card->ext_csd.erase_group_def & 1)
+		card->wp_grp_size = card->ext_csd.hc_erase_size *
+			card->ext_csd.raw_hc_erase_gap_size;
+	else
+		card->wp_grp_size = card->csd.erase_size *
+			(card->csd.wp_grp_size + 1);
+}
+
 /*
  * Given a 128-bit response, decode to our card CSD structure.
  */
@@ -186,6 +197,7 @@ static int mmc_decode_csd(struct mmc_card *card)
 		b = UNSTUFF_BITS(resp, 37, 5);
 		csd->erase_size = (a + 1) * (b + 1);
 		csd->erase_size <<= csd->write_blkbits - 9;
+		csd->wp_grp_size = UNSTUFF_BITS(resp, 32, 5);
 	}
 
 	return 0;
@@ -419,7 +431,6 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 
 	card->ext_csd.strobe_support = ext_csd[EXT_CSD_STROBE_SUPPORT];
 	card->ext_csd.raw_card_type = ext_csd[EXT_CSD_CARD_TYPE];
-	mmc_select_card_type(card);
 
 	card->ext_csd.raw_s_a_timeout = ext_csd[EXT_CSD_S_A_TIMEOUT];
 	card->ext_csd.raw_erase_timeout_mult =
@@ -614,11 +625,6 @@ static int mmc_decode_ext_csd(struct mmc_card *card, u8 *ext_csd)
 		} else {
 			card->ext_csd.data_tag_unit_size = 0;
 		}
-
-		card->ext_csd.max_packed_writes =
-			ext_csd[EXT_CSD_MAX_PACKED_WRITES];
-		card->ext_csd.max_packed_reads =
-			ext_csd[EXT_CSD_MAX_PACKED_READS];
 	} else {
 		card->ext_csd.data_sector_size = 512;
 	}
@@ -791,6 +797,7 @@ MMC_DEV_ATTR(csd, "%08x%08x%08x%08x\n", card->raw_csd[0], card->raw_csd[1],
 MMC_DEV_ATTR(date, "%02d/%04d\n", card->cid.month, card->cid.year);
 MMC_DEV_ATTR(erase_size, "%u\n", card->erase_size << 9);
 MMC_DEV_ATTR(preferred_erase_size, "%u\n", card->pref_erase << 9);
+MMC_DEV_ATTR(wp_grp_size, "%u\n", card->wp_grp_size << 9);
 MMC_DEV_ATTR(ffu_capable, "%d\n", card->ext_csd.ffu_capable);
 MMC_DEV_ATTR(hwrev, "0x%x\n", card->cid.hwrev);
 MMC_DEV_ATTR(manfid, "0x%06x\n", card->cid.manfid);
@@ -851,6 +858,7 @@ static struct attribute *mmc_std_attrs[] = {
 	&dev_attr_date.attr,
 	&dev_attr_erase_size.attr,
 	&dev_attr_preferred_erase_size.attr,
+	&dev_attr_wp_grp_size.attr,
 	&dev_attr_fwrev.attr,
 	&dev_attr_ffu_capable.attr,
 	&dev_attr_hwrev.attr,
@@ -1542,6 +1550,9 @@ static int mmc_select_timing(struct mmc_card *card)
 	if (!mmc_can_ext_csd(card))
 		goto bus_speed;
 
+	if (card->quirks & MMC_QUIRK_HS_CLK_REVERSED)
+		mmc_set_bus_speed(card);
+
 	if (card->mmc_avail_type & EXT_CSD_CARD_TYPE_HS400ES) {
 		err = mmc_select_hs400es(card);
 		goto out;
@@ -1666,6 +1677,9 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		memcpy(card->raw_cid, cid, sizeof(card->raw_cid));
 	}
 
+	/* Fixup init methods */
+	mmc_fixup_device(card, mmc_init_methods);
+
 	/*
 	 * Call the optional HC's init_card function to handle quirks.
 	 */
@@ -1734,6 +1748,12 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		mmc_set_erase_size(card);
 	}
 
+	/*
+	 * Reselect the card type since host caps could have been changed when
+	 * debugging even if the card is not new.
+	 */
+	mmc_select_card_type(card);
+
 	/* Enable ERASE_GRP_DEF. This bit is lost after a reset or power off. */
 	if (card->ext_csd.rev >= 3) {
 		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
@@ -1761,7 +1781,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			mmc_set_erase_size(card);
 		}
 	}
-
+	mmc_set_wp_grp_size(card);
 	/*
 	 * Ensure eMMC user default partition is enabled
 	 */
