@@ -23,12 +23,12 @@
 /* Number of MSI IRQs */
 #define MC_MAX_NUM_MSI_IRQS			32
 
+#define MC_MAX_NUM_INBOUND_WINDOWS		8
+#define MC_ATT_MASK				GENMASK_ULL(63, 31)
+
 /* PCIe Bridge Phy and Controller Phy offsets */
 #define MC_PCIE1_BRIDGE_ADDR			0x00008000u
 #define MC_PCIE1_CTRL_ADDR			0x0000a000u
-
-#define MC_PCIE_BRIDGE_ADDR			(MC_PCIE1_BRIDGE_ADDR)
-#define MC_PCIE_CTRL_ADDR			(MC_PCIE1_CTRL_ADDR)
 
 /* PCIe Bridge Phy Regs */
 #define PCIE_PCI_IRQ_DW0			0xa8
@@ -86,27 +86,45 @@
 #define IMSI_ADDR				0x190
 #define ISTATUS_MSI				0x194
 
+#define ATR_WINDOW_DESC_SIZE			32
+#define ATR_SIZE_SHIFT				1
+#define ATR_IMPL_ENABLE				1
+
+#define ATR_PCIE_WIN0_SRCADDR			0x80000000
+#define ATR_PCIE_ATR_SIZE			(512 * 1024 * 1024ul)
+#define ATR_PCIE_NUM_WINDOWS			8
+
 /* PCIe Master table init defines */
 #define ATR0_PCIE_WIN0_SRCADDR_PARAM		0x600u
-#define  ATR0_PCIE_ATR_SIZE			0x25
-#define  ATR0_PCIE_ATR_SIZE_SHIFT		1
 #define ATR0_PCIE_WIN0_SRC_ADDR			0x604u
 #define ATR0_PCIE_WIN0_TRSL_ADDR_LSB		0x608u
 #define ATR0_PCIE_WIN0_TRSL_ADDR_UDW		0x60cu
 #define ATR0_PCIE_WIN0_TRSL_PARAM		0x610u
 
+enum {
+	TRSL_ID_PCIE_TXRX,
+	TRSL_ID_PCIE_CONFIG,
+	TRSL_ID_AXI4_LITE_MASTER,
+	TRSL_ID_AXI4_MASTER_0 = 4,
+	TRSL_ID_AXI4_MASTER_1,
+	TRSL_ID_AXI4_MASTER_2,
+	TRSL_ID_AXI4_MASTER_3,
+	TRSL_ID_AXI4_STREAM_0,
+	TRSL_ID_AXI4_STREAM_1,
+	TRSL_ID_AXI4_STREAM_2,
+	TRSL_ID_AXI4_STREAM_3,
+	TRSL_ID_INTERNAL_BRIDGE_REGISTERS
+};
+
+#define ATR0_PCIE_WIN0_TRSL_MASK_LSB		0x618u
+#define ATR0_PCIE_WIN0_TRSL_MASK_UDW		0x61cu
+
 /* PCIe AXI slave table init defines */
 #define ATR0_AXI4_SLV0_SRCADDR_PARAM		0x800u
-#define  ATR_SIZE_SHIFT				1
-#define  ATR_IMPL_ENABLE			1
 #define ATR0_AXI4_SLV0_SRC_ADDR			0x804u
 #define ATR0_AXI4_SLV0_TRSL_ADDR_LSB		0x808u
 #define ATR0_AXI4_SLV0_TRSL_ADDR_UDW		0x80cu
 #define ATR0_AXI4_SLV0_TRSL_PARAM		0x810u
-#define  PCIE_TX_RX_INTERFACE			0x00000000u
-#define  PCIE_CONFIG_INTERFACE			0x00000001u
-
-#define ATR_ENTRY_SIZE				32
 
 /* PCIe Controller Phy Regs */
 #define SEC_ERROR_EVENT_CNT			0x20
@@ -207,7 +225,6 @@
 	[EVENT_LOCAL_ ## x] = { __stringify(x), s }
 
 #define PCIE_EVENT(x) \
-	.base = MC_PCIE_CTRL_ADDR, \
 	.offset = PCIE_EVENT_INT, \
 	.mask_offset = PCIE_EVENT_INT, \
 	.mask_high = 1, \
@@ -215,7 +232,6 @@
 	.enb_mask = PCIE_EVENT_INT_ENB_MASK
 
 #define SEC_EVENT(x) \
-	.base = MC_PCIE_CTRL_ADDR, \
 	.offset = SEC_ERROR_INT, \
 	.mask_offset = SEC_ERROR_INT_MASK, \
 	.mask = SEC_ERROR_INT_ ## x ## _INT, \
@@ -223,7 +239,6 @@
 	.enb_mask = 0
 
 #define DED_EVENT(x) \
-	.base = MC_PCIE_CTRL_ADDR, \
 	.offset = DED_ERROR_INT, \
 	.mask_offset = DED_ERROR_INT_MASK, \
 	.mask_high = 1, \
@@ -231,7 +246,6 @@
 	.enb_mask = 0
 
 #define LOCAL_EVENT(x) \
-	.base = MC_PCIE_BRIDGE_ADDR, \
 	.offset = ISTATUS_LOCAL, \
 	.mask_offset = IMASK_LOCAL, \
 	.mask_high = 0, \
@@ -264,13 +278,23 @@ struct mc_msi {
 	DECLARE_BITMAP(used, MC_MAX_NUM_MSI_IRQS);
 };
 
+struct inbound_windows {
+	u64 axi_addr;
+	u64 pci_addr;
+	u64 size;
+};
+
 struct mc_pcie {
-	void __iomem *axi_base_addr;
+	void __iomem *bridge_base_addr;
+	void __iomem *ctrl_base_addr;
 	struct device *dev;
 	struct irq_domain *intx_domain;
 	struct irq_domain *event_domain;
 	raw_spinlock_t lock;
 	struct mc_msi msi;
+	u64 outbound_range_offset;
+	u32 num_inbound_windows;
+	struct inbound_windows inbound_windows[MC_MAX_NUM_INBOUND_WINDOWS];
 };
 
 struct cause {
@@ -344,7 +368,6 @@ static struct event_map local_status_to_event[] = {
 };
 
 static struct {
-	u32 base;
 	u32 offset;
 	u32 mask;
 	u32 shift;
@@ -415,18 +438,17 @@ static void mc_handle_msi(struct irq_desc *desc)
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	struct device *dev = port->dev;
 	struct mc_msi *msi = &port->msi;
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	unsigned long status;
 	u32 bit;
 	int ret;
 
 	chained_irq_enter(chip, desc);
 
-	status = readl_relaxed(bridge_base_addr + ISTATUS_LOCAL);
+	status = readl_relaxed(port->bridge_base_addr + ISTATUS_LOCAL);
 	if (status & PM_MSI_INT_MSI_MASK) {
-		writel_relaxed(status & PM_MSI_INT_MSI_MASK, bridge_base_addr + ISTATUS_LOCAL);
-		status = readl_relaxed(bridge_base_addr + ISTATUS_MSI);
+		writel_relaxed(status & PM_MSI_INT_MSI_MASK,
+			       port->bridge_base_addr + ISTATUS_LOCAL);
+		status = readl_relaxed(port->bridge_base_addr + ISTATUS_MSI);
 		for_each_set_bit(bit, &status, msi->num_vectors) {
 			ret = generic_handle_domain_irq(msi->dev_domain, bit);
 			if (ret)
@@ -441,11 +463,9 @@ static void mc_handle_msi(struct irq_desc *desc)
 static void mc_msi_bottom_irq_ack(struct irq_data *data)
 {
 	struct mc_pcie *port = irq_data_get_irq_chip_data(data);
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	u32 bitpos = data->hwirq;
 
-	writel_relaxed(BIT(bitpos), bridge_base_addr + ISTATUS_MSI);
+	writel_relaxed(BIT(bitpos), port->bridge_base_addr + ISTATUS_MSI);
 }
 
 static void mc_compose_msi_msg(struct irq_data *data, struct msi_msg *msg)
@@ -564,15 +584,13 @@ static void mc_handle_intx(struct irq_desc *desc)
 	struct mc_pcie *port = irq_desc_get_handler_data(desc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	struct device *dev = port->dev;
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	unsigned long status;
 	u32 bit;
 	int ret;
 
 	chained_irq_enter(chip, desc);
 
-	status = readl_relaxed(bridge_base_addr + ISTATUS_LOCAL);
+	status = readl_relaxed(port->bridge_base_addr + ISTATUS_LOCAL);
 	if (status & PM_MSI_INT_INTX_MASK) {
 		status &= PM_MSI_INT_INTX_MASK;
 		status >>= PM_MSI_INT_INTX_SHIFT;
@@ -590,42 +608,36 @@ static void mc_handle_intx(struct irq_desc *desc)
 static void mc_ack_intx_irq(struct irq_data *data)
 {
 	struct mc_pcie *port = irq_data_get_irq_chip_data(data);
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	u32 mask = BIT(data->hwirq + PM_MSI_INT_INTX_SHIFT);
 
-	writel_relaxed(mask, bridge_base_addr + ISTATUS_LOCAL);
+	writel_relaxed(mask, port->bridge_base_addr + ISTATUS_LOCAL);
 }
 
 static void mc_mask_intx_irq(struct irq_data *data)
 {
 	struct mc_pcie *port = irq_data_get_irq_chip_data(data);
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	unsigned long flags;
 	u32 mask = BIT(data->hwirq + PM_MSI_INT_INTX_SHIFT);
 	u32 val;
 
 	raw_spin_lock_irqsave(&port->lock, flags);
-	val = readl_relaxed(bridge_base_addr + IMASK_LOCAL);
+	val = readl_relaxed(port->bridge_base_addr + IMASK_LOCAL);
 	val &= ~mask;
-	writel_relaxed(val, bridge_base_addr + IMASK_LOCAL);
+	writel_relaxed(val, port->bridge_base_addr + IMASK_LOCAL);
 	raw_spin_unlock_irqrestore(&port->lock, flags);
 }
 
 static void mc_unmask_intx_irq(struct irq_data *data)
 {
 	struct mc_pcie *port = irq_data_get_irq_chip_data(data);
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	unsigned long flags;
 	u32 mask = BIT(data->hwirq + PM_MSI_INT_INTX_SHIFT);
 	u32 val;
 
 	raw_spin_lock_irqsave(&port->lock, flags);
-	val = readl_relaxed(bridge_base_addr + IMASK_LOCAL);
+	val = readl_relaxed(port->bridge_base_addr + IMASK_LOCAL);
 	val |= mask;
-	writel_relaxed(val, bridge_base_addr + IMASK_LOCAL);
+	writel_relaxed(val, port->bridge_base_addr + IMASK_LOCAL);
 	raw_spin_unlock_irqrestore(&port->lock, flags);
 }
 
@@ -656,8 +668,7 @@ static inline u32 reg_to_event(u32 reg, struct event_map field)
 
 static u32 pcie_events(struct mc_pcie *port)
 {
-	void __iomem *ctrl_base_addr = port->axi_base_addr + MC_PCIE_CTRL_ADDR;
-	u32 reg = readl_relaxed(ctrl_base_addr + PCIE_EVENT_INT);
+	u32 reg = readl_relaxed(port->ctrl_base_addr + PCIE_EVENT_INT);
 	u32 val = 0;
 	int i;
 
@@ -669,8 +680,7 @@ static u32 pcie_events(struct mc_pcie *port)
 
 static u32 sec_errors(struct mc_pcie *port)
 {
-	void __iomem *ctrl_base_addr = port->axi_base_addr + MC_PCIE_CTRL_ADDR;
-	u32 reg = readl_relaxed(ctrl_base_addr + SEC_ERROR_INT);
+	u32 reg = readl_relaxed(port->ctrl_base_addr + SEC_ERROR_INT);
 	u32 val = 0;
 	int i;
 
@@ -682,8 +692,7 @@ static u32 sec_errors(struct mc_pcie *port)
 
 static u32 ded_errors(struct mc_pcie *port)
 {
-	void __iomem *ctrl_base_addr = port->axi_base_addr + MC_PCIE_CTRL_ADDR;
-	u32 reg = readl_relaxed(ctrl_base_addr + DED_ERROR_INT);
+	u32 reg = readl_relaxed(port->ctrl_base_addr + DED_ERROR_INT);
 	u32 val = 0;
 	int i;
 
@@ -695,8 +704,7 @@ static u32 ded_errors(struct mc_pcie *port)
 
 static u32 local_events(struct mc_pcie *port)
 {
-	void __iomem *bridge_base_addr = port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
-	u32 reg = readl_relaxed(bridge_base_addr + ISTATUS_LOCAL);
+	u32 reg = readl_relaxed(port->bridge_base_addr + ISTATUS_LOCAL);
 	u32 val = 0;
 	int i;
 
@@ -758,8 +766,12 @@ static void mc_ack_event_irq(struct irq_data *data)
 	void __iomem *addr;
 	u32 mask;
 
-	addr = port->axi_base_addr + event_descs[event].base +
-		event_descs[event].offset;
+	if (event_descs[event].offset == ISTATUS_LOCAL)
+		addr = port->bridge_base_addr;
+	else
+		addr = port->ctrl_base_addr;
+
+	addr += event_descs[event].offset;
 	mask = event_descs[event].mask;
 	mask |= event_descs[event].enb_mask;
 
@@ -774,8 +786,12 @@ static void mc_mask_event_irq(struct irq_data *data)
 	u32 mask;
 	u32 val;
 
-	addr = port->axi_base_addr + event_descs[event].base +
-		event_descs[event].mask_offset;
+	if (event_descs[event].offset == ISTATUS_LOCAL)
+		addr = port->bridge_base_addr;
+	else
+		addr = port->ctrl_base_addr;
+
+	addr += event_descs[event].mask_offset;
 	mask = event_descs[event].mask;
 	if (event_descs[event].enb_mask) {
 		mask <<= PCIE_EVENT_INT_ENB_SHIFT;
@@ -804,8 +820,12 @@ static void mc_unmask_event_irq(struct irq_data *data)
 	u32 mask;
 	u32 val;
 
-	addr = port->axi_base_addr + event_descs[event].base +
-		event_descs[event].mask_offset;
+	if (event_descs[event].offset == ISTATUS_LOCAL)
+		addr = port->bridge_base_addr;
+	else
+		addr = port->ctrl_base_addr;
+
+	addr += event_descs[event].mask_offset;
 	mask = event_descs[event].mask;
 
 	if (event_descs[event].enb_mask)
@@ -931,60 +951,89 @@ static int mc_pcie_init_irq_domains(struct mc_pcie *port)
 	return mc_allocate_msi_domains(port);
 }
 
+static int mc_pcie_setup_inbound_ranges(struct platform_device *pdev, struct mc_pcie *port)
+{
+	phys_addr_t pcie_addr;
+	phys_addr_t axi_addr;
+	u32 atr_size;
+	u32 val;
+	int i;
+
+	for (i = 0; i < port->num_inbound_windows; i++) {
+		atr_size = ilog2(port->inbound_windows[i].size) - 1;
+		atr_size &= GENMASK(5, 0);
+
+		pcie_addr = port->inbound_windows[i].pci_addr;
+
+		val = lower_32_bits(pcie_addr) & GENMASK(31, 12);
+		val |= (atr_size << ATR_SIZE_SHIFT);
+		val |= ATR_IMPL_ENABLE;
+		writel(val, port->bridge_base_addr +
+		       ATR0_PCIE_WIN0_SRCADDR_PARAM + (i * ATR_WINDOW_DESC_SIZE));
+		writel(upper_32_bits(pcie_addr), port->bridge_base_addr +
+		       ATR0_PCIE_WIN0_SRC_ADDR + (i * ATR_WINDOW_DESC_SIZE));
+
+		axi_addr = port->inbound_windows[i].axi_addr;
+
+		writel(lower_32_bits(axi_addr), port->bridge_base_addr +
+		       ATR0_PCIE_WIN0_TRSL_ADDR_LSB + (i * ATR_WINDOW_DESC_SIZE));
+		writel(upper_32_bits(axi_addr), port->bridge_base_addr +
+		       ATR0_PCIE_WIN0_TRSL_ADDR_UDW + (i * ATR_WINDOW_DESC_SIZE));
+
+		writel(TRSL_ID_AXI4_MASTER_0, port->bridge_base_addr +
+		       ATR0_PCIE_WIN0_TRSL_PARAM + (i * ATR_WINDOW_DESC_SIZE));
+	}
+
+	return 0;
+}
+
 static void mc_pcie_setup_window(void __iomem *bridge_base_addr, u32 index,
 				 phys_addr_t axi_addr, phys_addr_t pci_addr,
 				 size_t size)
 {
-	u32 atr_sz = ilog2(size) - 1;
+	u32 atr_size = ilog2(size) - 1;
 	u32 val;
 
 	if (index == 0)
-		val = PCIE_CONFIG_INTERFACE;
+		val = TRSL_ID_PCIE_CONFIG;
 	else
-		val = PCIE_TX_RX_INTERFACE;
+		val = TRSL_ID_PCIE_TXRX;
 
-	writel(val, bridge_base_addr + (index * ATR_ENTRY_SIZE) +
+	writel(val, bridge_base_addr + (index * ATR_WINDOW_DESC_SIZE) +
 	       ATR0_AXI4_SLV0_TRSL_PARAM);
 
-	val = lower_32_bits(axi_addr) | (atr_sz << ATR_SIZE_SHIFT) |
+	val = lower_32_bits(axi_addr) | (atr_size << ATR_SIZE_SHIFT) |
 			    ATR_IMPL_ENABLE;
-	writel(val, bridge_base_addr + (index * ATR_ENTRY_SIZE) +
+	writel(val, bridge_base_addr + (index * ATR_WINDOW_DESC_SIZE) +
 	       ATR0_AXI4_SLV0_SRCADDR_PARAM);
 
 	val = upper_32_bits(axi_addr);
-	writel(val, bridge_base_addr + (index * ATR_ENTRY_SIZE) +
+	writel(val, bridge_base_addr + (index * ATR_WINDOW_DESC_SIZE) +
 	       ATR0_AXI4_SLV0_SRC_ADDR);
 
 	val = lower_32_bits(pci_addr);
-	writel(val, bridge_base_addr + (index * ATR_ENTRY_SIZE) +
+	writel(val, bridge_base_addr + (index * ATR_WINDOW_DESC_SIZE) +
 	       ATR0_AXI4_SLV0_TRSL_ADDR_LSB);
 
 	val = upper_32_bits(pci_addr);
-	writel(val, bridge_base_addr + (index * ATR_ENTRY_SIZE) +
+	writel(val, bridge_base_addr + (index * ATR_WINDOW_DESC_SIZE) +
 	       ATR0_AXI4_SLV0_TRSL_ADDR_UDW);
-
-	val = readl(bridge_base_addr + ATR0_PCIE_WIN0_SRCADDR_PARAM);
-	val |= (ATR0_PCIE_ATR_SIZE << ATR0_PCIE_ATR_SIZE_SHIFT);
-	writel(val, bridge_base_addr + ATR0_PCIE_WIN0_SRCADDR_PARAM);
-	writel(0, bridge_base_addr + ATR0_PCIE_WIN0_SRC_ADDR);
 }
 
 static int mc_pcie_setup_windows(struct platform_device *pdev,
 				 struct mc_pcie *port)
 {
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	struct pci_host_bridge *bridge = platform_get_drvdata(pdev);
 	struct resource_entry *entry;
 	u64 pci_addr;
-	u32 index = 1;
+	u32 index = 1; /* Window 0 used for config space */
 
 	resource_list_for_each_entry(entry, &bridge->windows) {
 		if (resource_type(entry->res) == IORESOURCE_MEM) {
 			pci_addr = entry->res->start - entry->offset;
-			mc_pcie_setup_window(bridge_base_addr, index,
-					     entry->res->start, pci_addr,
-					     resource_size(entry->res));
+			mc_pcie_setup_window(port->bridge_base_addr, index,
+					     entry->res->start - port->outbound_range_offset,
+					     pci_addr, resource_size(entry->res));
 			index++;
 		}
 	}
@@ -994,26 +1043,20 @@ static int mc_pcie_setup_windows(struct platform_device *pdev,
 
 static inline void mc_clear_secs(struct mc_pcie *port)
 {
-	void __iomem *ctrl_base_addr = port->axi_base_addr + MC_PCIE_CTRL_ADDR;
-
-	writel_relaxed(SEC_ERROR_INT_ALL_RAM_SEC_ERR_INT, ctrl_base_addr +
+	writel_relaxed(SEC_ERROR_INT_ALL_RAM_SEC_ERR_INT, port->ctrl_base_addr +
 		       SEC_ERROR_INT);
-	writel_relaxed(0, ctrl_base_addr + SEC_ERROR_EVENT_CNT);
+	writel_relaxed(0, port->ctrl_base_addr + SEC_ERROR_EVENT_CNT);
 }
 
 static inline void mc_clear_deds(struct mc_pcie *port)
 {
-	void __iomem *ctrl_base_addr = port->axi_base_addr + MC_PCIE_CTRL_ADDR;
-
-	writel_relaxed(DED_ERROR_INT_ALL_RAM_DED_ERR_INT, ctrl_base_addr +
+	writel_relaxed(DED_ERROR_INT_ALL_RAM_DED_ERR_INT, port->ctrl_base_addr +
 		       DED_ERROR_INT);
-	writel_relaxed(0, ctrl_base_addr + DED_ERROR_EVENT_CNT);
+	writel_relaxed(0, port->ctrl_base_addr + DED_ERROR_EVENT_CNT);
 }
 
 static void mc_disable_interrupts(struct mc_pcie *port)
 {
-	void __iomem *bridge_base_addr = port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
-	void __iomem *ctrl_base_addr = port->axi_base_addr + MC_PCIE_CTRL_ADDR;
 	u32 val;
 
 	/* Ensure ECC bypass is enabled */
@@ -1021,22 +1064,22 @@ static void mc_disable_interrupts(struct mc_pcie *port)
 	      ECC_CONTROL_RX_RAM_ECC_BYPASS |
 	      ECC_CONTROL_PCIE2AXI_RAM_ECC_BYPASS |
 	      ECC_CONTROL_AXI2PCIE_RAM_ECC_BYPASS;
-	writel_relaxed(val, ctrl_base_addr + ECC_CONTROL);
+	writel_relaxed(val, port->ctrl_base_addr + ECC_CONTROL);
 
 	/* Disable SEC errors and clear any outstanding */
-	writel_relaxed(SEC_ERROR_INT_ALL_RAM_SEC_ERR_INT, ctrl_base_addr +
+	writel_relaxed(SEC_ERROR_INT_ALL_RAM_SEC_ERR_INT, port->ctrl_base_addr +
 		       SEC_ERROR_INT_MASK);
 	mc_clear_secs(port);
 
 	/* Disable DED errors and clear any outstanding */
-	writel_relaxed(DED_ERROR_INT_ALL_RAM_DED_ERR_INT, ctrl_base_addr +
+	writel_relaxed(DED_ERROR_INT_ALL_RAM_DED_ERR_INT, port->ctrl_base_addr +
 		       DED_ERROR_INT_MASK);
 	mc_clear_deds(port);
 
 	/* Disable local interrupts and clear any outstanding */
-	writel_relaxed(0, bridge_base_addr + IMASK_LOCAL);
-	writel_relaxed(GENMASK(31, 0), bridge_base_addr + ISTATUS_LOCAL);
-	writel_relaxed(GENMASK(31, 0), bridge_base_addr + ISTATUS_MSI);
+	writel_relaxed(0, port->bridge_base_addr + IMASK_LOCAL);
+	writel_relaxed(GENMASK(31, 0), port->bridge_base_addr + ISTATUS_LOCAL);
+	writel_relaxed(GENMASK(31, 0), port->bridge_base_addr + ISTATUS_MSI);
 
 	/* Disable PCIe events and clear any outstanding */
 	val = PCIE_EVENT_INT_L2_EXIT_INT |
@@ -1045,11 +1088,11 @@ static void mc_disable_interrupts(struct mc_pcie *port)
 	      PCIE_EVENT_INT_L2_EXIT_INT_MASK |
 	      PCIE_EVENT_INT_HOTRST_EXIT_INT_MASK |
 	      PCIE_EVENT_INT_DLUP_EXIT_INT_MASK;
-	writel_relaxed(val, ctrl_base_addr + PCIE_EVENT_INT);
+	writel_relaxed(val, port->ctrl_base_addr + PCIE_EVENT_INT);
 
 	/* Disable host interrupts and clear any outstanding */
-	writel_relaxed(0, bridge_base_addr + IMASK_HOST);
-	writel_relaxed(GENMASK(31, 0), bridge_base_addr + ISTATUS_HOST);
+	writel_relaxed(0, port->bridge_base_addr + IMASK_HOST);
+	writel_relaxed(GENMASK(31, 0), port->bridge_base_addr + ISTATUS_HOST);
 }
 
 static int mc_init_interrupts(struct platform_device *pdev, struct mc_pcie *port)
@@ -1108,17 +1151,178 @@ static int mc_init_interrupts(struct platform_device *pdev, struct mc_pcie *port
 	return 0;
 }
 
+static int mc_check_for_parent_range_handling(struct platform_device *pdev, struct mc_pcie *port)
+{
+	struct device *dev = &pdev->dev;
+	struct device_node *dn = dev->of_node;
+	struct of_range_parser parser;
+	struct of_range range;
+	u64 cpu_addr;
+
+	/* Find any pcie range */
+	if (of_range_parser_init(&parser, dn)) {
+		dev_err(dev, "missing ranges property\n");
+		return -EINVAL;
+	}
+
+	for_each_of_range(&parser, &range) {
+		cpu_addr = range.cpu_addr;
+		/*
+		 * First range is enough - extend if anyone ever needs more
+		 * than one fabric interface
+		 */
+		break;
+	}
+
+	/* Check for one level up; that is enough */
+	dn = of_get_parent(dn);
+	if (dn) {
+		of_range_parser_init(&parser, dn);
+		for_each_of_range(&parser, &range) {
+			/* Find the parent range that contains cpu_addr */
+			if (range.cpu_addr > port->outbound_range_offset &&
+			    range.cpu_addr < cpu_addr)
+				port->outbound_range_offset = range.cpu_addr;
+		}
+	}
+
+	return 0;
+}
+
+static int mc_check_for_parent_dma_range_handling(struct platform_device *pdev,
+						  struct mc_pcie *port)
+{
+	struct device *dev = &pdev->dev;
+	struct device_node *dn = dev->of_node;
+	struct of_range_parser parser;
+	struct of_range range;
+	int num_parent_ranges = 0;
+	int num_ranges = 0;
+	struct inbound_windows ranges[MC_MAX_NUM_INBOUND_WINDOWS] = { 0 };
+	u64 start_axi = GENMASK_ULL(63, 0);
+	u64 end_axi = 0;
+	u64 start_pci = GENMASK_ULL(63, 0);
+	s64 size;
+	u64 window_size;
+	int i;
+
+	/* Find all dma-ranges */
+	if (of_pci_dma_range_parser_init(&parser, dn)) {
+		dev_err(dev, "missing dma-ranges property\n");
+		return -EINVAL;
+	}
+
+	for_each_of_range(&parser, &range) {
+		if (num_ranges > MC_MAX_NUM_INBOUND_WINDOWS) {
+			dev_err(dev, "too many inbound ranges; %d available tables\n",
+				MC_MAX_NUM_INBOUND_WINDOWS);
+			return -EINVAL;
+		}
+		ranges[num_ranges].axi_addr = range.cpu_addr;
+		ranges[num_ranges].pci_addr = range.pci_addr;
+		ranges[num_ranges].size = range.size;
+
+		num_ranges++;
+	}
+
+	/*
+	 * Check for one level up; will need to adjust address translation
+	 * tables for these
+	 */
+	dn = of_get_parent(dn);
+	if (dn) {
+		of_pci_dma_range_parser_init(&parser, dn);
+
+		for_each_of_range(&parser, &range) {
+			if (num_parent_ranges > MC_MAX_NUM_INBOUND_WINDOWS) {
+				dev_err(dev, "too many parent inbound ranges; %d available tables\n",
+					MC_MAX_NUM_INBOUND_WINDOWS);
+				return -EINVAL;
+			}
+			ranges[num_parent_ranges].axi_addr = range.pci_addr;
+			num_parent_ranges++;
+		}
+	}
+
+	if (num_parent_ranges) {
+		if (num_ranges != num_parent_ranges) {
+			dev_err(dev, "num parent inbound ranges must be 0 or match num inbound ranges\n");
+			return -EINVAL;
+		}
+	}
+
+	/* Merge ranges */
+	for (i = 0; i < num_ranges; i++) {
+		struct inbound_windows *range = &ranges[i];
+
+		if (range->axi_addr < start_axi) {
+			start_axi = range->axi_addr;
+			start_pci = range->pci_addr;
+		}
+
+		if (range->axi_addr + range->size > end_axi)
+			end_axi = range->axi_addr + range->size;
+	}
+
+	/* Move starts back as far as possible */
+	start_axi &= MC_ATT_MASK;
+	start_pci &= MC_ATT_MASK;
+
+	/* Adjust size to take account of that change */
+	size = end_axi - start_axi;
+
+	/* May need to adjust size up to the next largest power of 2 */
+	if (size < 1ull << ilog2(size))
+		size = 1ull << (ilog2(size) + 1);
+
+	window_size = 1ull << (ilog2(size) - 1);
+
+	/* Divide merged range into windows */
+	i = 0;
+	while (size > 0 && i < MC_MAX_NUM_INBOUND_WINDOWS) {
+		port->inbound_windows[i].axi_addr = start_axi;
+		port->inbound_windows[i].pci_addr = start_pci;
+		port->inbound_windows[i].size = window_size;
+
+		size -= window_size;
+		start_axi += window_size;
+		start_pci += window_size;
+		i++;
+		port->num_inbound_windows = i;
+	}
+
+	if (size < 0) {
+		dev_err(dev, "insufficient windows to map inbound ranges\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int mc_platform_init(struct pci_config_window *cfg)
 {
 	struct device *dev = cfg->parent;
 	struct platform_device *pdev = to_platform_device(dev);
-	void __iomem *bridge_base_addr =
-		port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
 	int ret;
 
+	/*
+	 * Need information about any parent bus that may be performing some
+	 * of the outbound address translation to setup outbound address
+	 * translation tables later
+	 */
+	ret = mc_check_for_parent_range_handling(pdev, port);
+	if (ret)
+		return ret;
+
+	/* And similarly, check for inbound address translation */
+	ret = mc_check_for_parent_dma_range_handling(pdev, port);
+	if (ret)
+		return ret;
+
 	/* Configure address translation table 0 for PCIe config space */
-	mc_pcie_setup_window(bridge_base_addr, 0, cfg->res.start,
-			     cfg->res.start,
+	mc_pcie_setup_window(port->bridge_base_addr, 0,
+			     cfg->res.start - port->outbound_range_offset,
+			     cfg->res.start - port->outbound_range_offset,
 			     resource_size(&cfg->res));
 
 	/* Need some fixups in config space */
@@ -1126,6 +1330,11 @@ static int mc_platform_init(struct pci_config_window *cfg)
 
 	/* Configure non-config space outbound ranges */
 	ret = mc_pcie_setup_windows(pdev, port);
+	if (ret)
+		return ret;
+
+	/* Configure inbound translation tables */
+	ret = mc_pcie_setup_inbound_ranges(pdev, port);
 	if (ret)
 		return ret;
 
@@ -1140,7 +1349,7 @@ static int mc_platform_init(struct pci_config_window *cfg)
 static int mc_host_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
-	void __iomem *bridge_base_addr;
+	void __iomem *axi_base_addr;
 	int ret;
 	u32 val;
 
@@ -1150,28 +1359,40 @@ static int mc_host_probe(struct platform_device *pdev)
 
 	port->dev = dev;
 
-	port->axi_base_addr = devm_platform_ioremap_resource(pdev, 1);
-	if (IS_ERR(port->axi_base_addr))
-		return PTR_ERR(port->axi_base_addr);
+	port->bridge_base_addr = devm_platform_ioremap_resource_byname(pdev, "bridge");
+	port->ctrl_base_addr = devm_platform_ioremap_resource_byname(pdev, "ctrl");
+	if(!IS_ERR(port->bridge_base_addr) && !IS_ERR(port->ctrl_base_addr))
+		goto addrs_set;
 
+	/*
+	 * The original, incorrect, binding that lumped the control and
+	 * bridge addresses together still needs to be handled by the driver.
+	 */
+	axi_base_addr = devm_platform_ioremap_resource_byname(pdev, "apb");
+	if (IS_ERR(axi_base_addr))
+		return dev_err_probe(dev, PTR_ERR(port->bridge_base_addr),
+				     "both legacy apb register and ctrl/bridge regions missing");
+
+	port->bridge_base_addr = axi_base_addr + MC_PCIE1_BRIDGE_ADDR;
+	port->ctrl_base_addr = axi_base_addr + MC_PCIE1_CTRL_ADDR;
+
+addrs_set:
 	mc_disable_interrupts(port);
 
-	bridge_base_addr = port->axi_base_addr + MC_PCIE_BRIDGE_ADDR;
-
 	/* Allow enabling MSI by disabling MSI-X */
-	val = readl(bridge_base_addr + PCIE_PCI_IRQ_DW0);
+	val = readl(port->bridge_base_addr + PCIE_PCI_IRQ_DW0);
 	val &= ~MSIX_CAP_MASK;
-	writel(val, bridge_base_addr + PCIE_PCI_IRQ_DW0);
+	writel(val, port->bridge_base_addr + PCIE_PCI_IRQ_DW0);
 
 	/* Pick num vectors from bitfile programmed onto FPGA fabric */
-	val = readl(bridge_base_addr + PCIE_PCI_IRQ_DW0);
+	val = readl(port->bridge_base_addr + PCIE_PCI_IRQ_DW0);
 	val &= NUM_MSI_MSGS_MASK;
 	val >>= NUM_MSI_MSGS_SHIFT;
 
 	port->msi.num_vectors = 1 << val;
 
 	/* Pick vector address from design */
-	port->msi.vector_phy = readl_relaxed(bridge_base_addr + IMSI_ADDR);
+	port->msi.vector_phy = readl_relaxed(port->bridge_base_addr+ IMSI_ADDR);
 
 	ret = mc_pcie_init_clks(dev);
 	if (ret) {
