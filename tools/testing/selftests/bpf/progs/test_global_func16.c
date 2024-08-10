@@ -12,6 +12,7 @@ __noinline int foo(int (*arr)[10])
 }
 
 SEC("cgroup_skb/ingress")
+__success
 int test_cls(struct __sk_buff *skb)
 {
 	int array[10];
