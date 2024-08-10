@@ -18,6 +18,8 @@ if ($#ARGV != 1) {
     exit(2);
 }
 
+my $abs_srctree = abs_path($ENV{'srctree'});
+
 #
 # Open the file to read from
 #
