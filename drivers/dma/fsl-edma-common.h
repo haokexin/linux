@@ -131,6 +131,7 @@ struct fsl_edma_chan {
 	enum dma_data_direction		dma_dir;
 	char				chan_name[16];
 	u32				chn_real_count;
+	void __iomem			*mux_addr;
 };
 
 struct fsl_edma_desc {
@@ -153,6 +154,8 @@ struct fsl_edma_drvdata {
 	u32			dmamuxs;
 	bool			has_dmaclk;
 	bool			mux_swap;
+	u32			mux_off;	/* channel mux register offset */
+	u32			mux_skip;	/* how much skip for each channel */
 	int			(*setup_irq)(struct platform_device *pdev,
 					     struct fsl_edma_engine *fsl_edma);
 	u8			txirq_count;
