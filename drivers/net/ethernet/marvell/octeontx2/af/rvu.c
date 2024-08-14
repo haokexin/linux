@@ -3744,6 +3744,8 @@ err:
 	return ret;
 }
 
+#define PCI_DEVID_OCTEONTX2_RVU_AFVF	0xA0F8
+
 static int rvu_enable_sriov(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
@@ -3778,7 +3780,7 @@ static int rvu_enable_sriov(struct rvu *rvu)
 	/* LBK channel number 63 is used for switching packets between
 	 * CGX mapped VFs. Hence limit LBK pairs till 62 only.
 	 */
-	if (vfs > 62)
+	if (rvu->vf_devid == PCI_DEVID_OCTEONTX2_RVU_AFVF && vfs > 62)
 		vfs = 62;
 
 	/* Save VFs number for reference in VF interrupts handlers.
