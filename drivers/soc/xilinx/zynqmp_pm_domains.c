@@ -161,6 +161,11 @@ static int zynqmp_gpd_attach_dev(struct generic_pm_domain *domain,
 		dev_dbg(&domain->dev, "failed to create device link for %s\n",
 			dev_name(dev));
 
+	link = device_link_add(dev, &domain->dev, DL_FLAG_SYNC_STATE_ONLY);
+	if (!link)
+		dev_dbg(&domain->dev, "failed to create device link for %s\n",
+			dev_name(dev));
+
 	/* If this is not the first device to attach there is nothing to do */
 	if (domain->device_count)
 		return 0;
