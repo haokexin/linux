@@ -142,13 +142,13 @@
 		};
 	};
 
-	mux0: mux-controller {
+	mux0: mux-controller-0 {
 		compatible = "gpio-mux";
 		#mux-state-cells = <1>;
 		mux-gpios = <&exp_som 1 GPIO_ACTIVE_HIGH>;
 	};
 
-	mux1: mux-controller {
+	mux1: mux-controller-1 {
 		compatible = "gpio-mux";
 		#mux-state-cells = <1>;
 		mux-gpios = <&exp_som 2 GPIO_ACTIVE_HIGH>;
@@ -531,12 +531,12 @@
 		reg = <0x0>;
 		spi-tx-bus-width = <8>;
 		spi-rx-bus-width = <8>;
-		spi-max-frequency = <50000000>;
+		spi-max-frequency = <25000000>;
 		cdns,tshsl-ns = <60>;
 		cdns,tsd2d-ns = <60>;
 		cdns,tchsh-ns = <60>;
 		cdns,tslch-ns = <60>;
-		cdns,read-delay = <1>;
+		cdns,read-delay = <2>;
 		status = "disabled";
 
 		partitions {
