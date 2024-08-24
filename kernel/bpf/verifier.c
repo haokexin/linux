@@ -862,9 +862,9 @@ static int grow_stack_state(struct bpf_verifier_env *env, struct bpf_func_state 
 
 	state->allocated_stack = size;
 
-    /* update known max for given subprogram */
-    if (env->subprog_info[state->subprogno].stack_depth < size)
-        env->subprog_info[state->subprogno].stack_depth = size;
+	/* update known max for given subprogram */
+	if (env->subprog_info[state->subprogno].stack_depth < size)
+		env->subprog_info[state->subprogno].stack_depth = size;
 
 	return 0;
 }
