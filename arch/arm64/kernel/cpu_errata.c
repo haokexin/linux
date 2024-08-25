@@ -529,11 +529,13 @@ static const struct midr_range cavium_erratum_36890_cpus[] = {
 	MIDR_RANGE(MIDR_OCTX2_96XX, 0, 0, 1, 0),
 	/* Marvell OcteonTX 2, 95 pass A0/A1 */
 	MIDR_RANGE(MIDR_OCTX2_95XX, 0, 0, 0, 1),
+	{},
 };
 
 static const struct midr_range marvell_erratum_38500_cpus[] = {
 	/* ThunderX, T83 all passes */
 	MIDR_ALL_VERSIONS(MIDR_THUNDERX_83XX),
+	{},
 };
 
 #ifdef CONFIG_ARM64_ERRATUM_SSBS2
