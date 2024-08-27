@@ -389,8 +389,10 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf,
 				      pkind);
 			rvu_npc_set_pkind(rvu, pkind, pfvf);
 		}
+
 		/* Notify RVU REP PF about representee coming up */
-		rvu_rep_notify_representee_state(rvu, pcifunc, true);
+		if (rvu->rep_cnt)
+			rvu_rep_notify_pfvf_state(rvu, pcifunc, true);
 
 		break;
 	case NIX_INTF_TYPE_LBK:
@@ -529,7 +531,8 @@ static void nix_interface_deinit(struct rvu *rvu, u16 pcifunc, u8 nixlf)
 	/* Disable DMAC filters used */
 	rvu_cgx_disable_dmac_entries(rvu, pcifunc);
 	/* Notify RVU REP PF about representee going down */
-	rvu_rep_notify_representee_state(rvu, pcifunc, false);
+	if (rvu->rep_cnt)
+		rvu_rep_notify_pfvf_state(rvu, pcifunc, false);
 }
 
 #define NIX_BPIDS_PER_LMAC	8
@@ -2738,6 +2741,8 @@ static int nix_smq_flush(struct rvu *rvu, int blkaddr,
 		link = (cgx_id * rvu->hw->lmac_per_cgx) + lmac_id;
 		dev_info(rvu->dev, "NIX_AF_TX_LINKX_NORM_CREDIT:0x%llx\n",
 			 rvu_read64(rvu, blkaddr, NIX_AF_TX_LINKX_NORM_CREDIT(link)));
+		dev_info(rvu->dev, "NIX_AF_AQ_STATUS:0x%llx\n",
+			 rvu_read64(rvu, blkaddr, NIX_AF_AQ_STATUS));
 	}
 
 	/* Set NIX_AF_TL3_TL2_LINKX_CFG[ENA] for the TL3/TL2 queue */
@@ -4182,11 +4187,17 @@ int rvu_mbox_handler_nix_get_lf_stats(struct rvu *rvu,
 {
 	u16 pcifunc = req->pcifunc;
 	int nixlf, blkaddr, err;
+	struct msg_req rst_req;
+	struct msg_rsp rst_rsp;
 
 	err = nix_get_nixlf(rvu, pcifunc, &nixlf, &blkaddr);
 	if (err)
 		return 0;
 
+	if (req->reset) {
+		rst_req.hdr.pcifunc = pcifunc;
+		return rvu_mbox_handler_nix_stats_rst(rvu, &rst_req, &rst_rsp);
+	}
 	rsp->rx.octs = RVU_LF_RX_STATS(RX_OCTS);
 	rsp->rx.ucast = RVU_LF_RX_STATS(RX_UCAST);
 	rsp->rx.bcast = RVU_LF_RX_STATS(RX_BCAST);
@@ -4898,7 +4909,6 @@ int rvu_mbox_handler_nix_set_hw_frs(struct rvu *rvu, struct nix_frs_cfg *req,
 	struct rvu_pfvf *pfvf;
 	u8 cgx = 0, lmac = 0;
 	u16 max_mtu;
-	u16 rep_id;
 	u64 cfg;
 
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
@@ -4933,9 +4943,6 @@ int rvu_mbox_handler_nix_set_hw_frs(struct rvu *rvu, struct nix_frs_cfg *req,
 		/* Get CGX and LMAC to which this PF is mapped and find link */
 		rvu_get_cgx_lmac_id(rvu->pf2cgxlmac_map[pf], &cgx, &lmac);
 		link = (cgx * hw->lmac_per_cgx) + lmac;
-		if (is_mapped_to_rep(rvu, pcifunc, &rep_id)) {
-			rvu_rep_mtu_event_notify(rvu, req->minlen, pcifunc, rep_id);
-		}
 	} else if (pf == 0) {
 		/* For VFs of PF0 ingress is LBK port, so config LBK link */
 		pfvf = rvu_get_pfvf(rvu, pcifunc);
