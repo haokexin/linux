@@ -806,18 +806,16 @@ static int k3_dsp_rproc_probe(struct platform_device *pdev)
 	} else {
 		dev_info(dev, "configured DSP for remoteproc mode\n");
 		/*
-		 * ensure the DSP local reset is asserted to ensure the DSP
+		 * ensure the DSP reset is asserted to ensure the DSP
 		 * doesn't execute bogus code in .prepare() when the module
 		 * reset is released.
 		 */
-		if (data->uses_lreset) {
-			ret = reset_control_status(kproc->reset);
-			if (ret < 0) {
-				return dev_err_probe(dev, ret, "failed to get reset status\n");
-			} else if (ret == 0) {
-				dev_warn(dev, "local reset is deasserted for device\n");
-				k3_dsp_rproc_reset(kproc);
-			}
+		ret = reset_control_status(kproc->reset);
+		if (ret < 0) {
+			return dev_err_probe(dev, ret, "failed to get reset status\n");
+		} else if (ret == 0) {
+			dev_warn(dev, "local reset is deasserted for device\n");
+			k3_dsp_rproc_reset(kproc);
 		}
 	}
 
