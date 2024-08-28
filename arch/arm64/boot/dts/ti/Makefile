@@ -162,6 +162,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-j784s4-evm-pcie0-pcie1-ep.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j784s4-evm-quad-port-eth-exp1.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j784s4-evm-usxgmii-exp1-exp2.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j784s4-vision-apps.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-j784s4-edgeai-apps.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-am69-sk-rpi-hdr-ehrpwm.dtbo
 
 # Boards with J742S2 SoC
