@@ -124,6 +124,8 @@ dtb-$(CONFIG_ARCH_K3) += k3-j721e-sk-csi2-ov5640.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-sk-csi2-dual-imx219.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-sk-fpdlink-fusion.dtbo
 dtb-$(CONFIG_ARCH_K3) += k3-j721e-sk-rpi-hdr-ehrpwm.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-j721e-edgeai-apps.dtbo
+dtb-$(CONFIG_ARCH_K3) += k3-j721e-vision-apps.dtbo
 
 # Boards with J721s2 SoC
 dtb-$(CONFIG_ARCH_K3) += k3-am68-sk-base-board.dtb
@@ -357,6 +359,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-v3link-imx219-0-0.dtbo \
 			 k3-v3link-imx219-0-3.dtbo
 
 # Enable support for device-tree overlays
+DTC_FLAGS_k3-j721e-evm-ethfw += -@
 DTC_FLAGS_k3-am625-beagleplay += -@
 DTC_FLAGS_k3-am625-sk += -@
 DTC_FLAGS_k3-am62-lp-sk += -@
