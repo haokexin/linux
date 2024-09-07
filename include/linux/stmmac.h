@@ -99,6 +99,7 @@ struct stmmac_dma_cfg {
 	bool aal;
 	bool eame;
 	bool multi_msi_en;
+	bool multi_irq_en;
 	bool dche;
 };
 
@@ -126,7 +127,10 @@ struct stmmac_est {
 	u32 ter;
 	u32 gcl_unaligned[EST_GCL];
 	u32 gcl[EST_GCL];
+	u32 ti_ns[EST_GCL];
+	u32 gates[EST_GCL];
 	u32 gcl_size;
+	u32 max_sdu[MTL_MAX_TX_QUEUES];
 };
 
 struct stmmac_rxq_cfg {
@@ -305,6 +309,10 @@ struct plat_stmmacenet_data {
 	struct pci_dev *pdev;
 	int int_snapshot_num;
 	int ext_snapshot_num;
+	bool int_snapshot_en;
+	bool ext_snapshot_en;
+	bool multi_msi_en;
+	bool multi_irq_en;
 	int msi_mac_vec;
 	int msi_wol_vec;
 	int msi_lpi_vec;
@@ -314,5 +322,7 @@ struct plat_stmmacenet_data {
 	int msi_tx_base_vec;
 	const struct dwmac4_addrs *dwmac4_addrs;
 	unsigned int flags;
+	bool has_integrated_pcs;
+	bool use_hw_vlan;
 };
 #endif

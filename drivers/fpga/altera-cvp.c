@@ -24,6 +24,9 @@
 /* Vendor Specific Extended Capability Registers */
 #define VSE_PCIE_EXT_CAP_ID		0x0
 #define VSE_PCIE_EXT_CAP_ID_VAL		0x000b	/* 16bit */
+#define VSE_PCIE_SPECIFIC_HEADER	0x4	/* VSEC ID, Revision, length*/
+#define VSEC_LENGTH_BIT_OFFSET		20	/* Bit 20 to 31 */
+#define AGILEX5_VSEC_LENGTH		0x60	/* Agilex5 only */
 
 #define VSE_CVP_STATUS			0x1c	/* 32bit */
 #define VSE_CVP_STATUS_CFG_RDY		BIT(18)	/* CVP_CONFIG_READY */
@@ -51,8 +54,9 @@
 #define V1_VSEC_OFFSET			0x200	/* Vendor Specific Offset V1 */
 /* V2 Defines */
 #define VSE_CVP_TX_CREDITS		0x49	/* 8bit */
+#define VSE_CVP_AG5_TX_CREDITS		0x5C	/* 8bit credits for Agilex5*/
 
-#define V2_CREDIT_TIMEOUT_US		20000
+#define V2_CREDIT_TIMEOUT_US		40000
 #define V2_CHECK_CREDIT_US		10
 #define V2_POLL_TIMEOUT_US		1000000
 #define V2_USER_TIMEOUT_US		500000
@@ -61,11 +65,16 @@
 
 #define DRV_NAME		"altera-cvp"
 #define ALTERA_CVP_MGR_NAME	"Altera CvP FPGA Manager"
+#define SOCFPGA_CVP_V1_OTHERS	0x1
+#define SOCFPGA_CVP_V2_OTHERS	0x2
+#define SOCFPGA_CVP_V2_AGILEX5	0x3
 
 /* Write block sizes */
 #define ALTERA_CVP_V1_SIZE	4
 #define ALTERA_CVP_V2_SIZE	4096
 
+/* Tear-down retry */
+#define CVP_TEARDOWN_MAX_RETRY 10
 /* Optional CvP config error status check for debugging */
 static bool altera_cvp_chkcfg;
 
@@ -81,7 +90,9 @@ struct altera_cvp_conf {
 	u8			numclks;
 	u32			sent_packets;
 	u32			vsec_offset;
+	u8			*send_buf;
 	const struct cvp_priv	*priv;
+	u32			device_family_type;
 };
 
 struct cvp_priv {
@@ -92,13 +103,6 @@ struct cvp_priv {
 	int	poll_time_us;
 	int	user_time_us;
 };
-
-static int altera_read_config_byte(struct altera_cvp_conf *conf,
-				   int where, u8 *val)
-{
-	return pci_read_config_byte(conf->pci_dev, conf->vsec_offset + where,
-				    val);
-}
 
 static int altera_read_config_dword(struct altera_cvp_conf *conf,
 				    int where, u32 *val)
@@ -232,18 +236,27 @@ static int altera_cvp_v2_wait_for_credit(struct fpga_manager *mgr,
 	u32 timeout = V2_CREDIT_TIMEOUT_US / V2_CHECK_CREDIT_US;
 	struct altera_cvp_conf *conf = mgr->priv;
 	int ret;
-	u8 val;
+	u32 val;
+	u32 credit_mask = 0xFF;
+	u32 vse_cvp_tx_credits_offset = VSE_CVP_TX_CREDITS;
+
+	if (conf->device_family_type == SOCFPGA_CVP_V2_AGILEX5) {
+		vse_cvp_tx_credits_offset = VSE_CVP_AG5_TX_CREDITS;
+		credit_mask = 0xFFF;
+	}
 
 	do {
-		ret = altera_read_config_byte(conf, VSE_CVP_TX_CREDITS, &val);
+		ret = altera_read_config_dword(conf, vse_cvp_tx_credits_offset, &val);
 		if (ret) {
 			dev_err(&conf->pci_dev->dev,
 				"Error reading CVP Credit Register\n");
 			return ret;
 		}
 
+		val = val & credit_mask;
+
 		/* Return if there is space in FIFO */
-		if (val - (u8)conf->sent_packets)
+		if (val - conf->sent_packets)
 			return 0;
 
 		ret = altera_cvp_chk_error(mgr, blocks * ALTERA_CVP_V2_SIZE);
@@ -309,12 +322,40 @@ static int altera_cvp_teardown(struct fpga_manager *mgr,
 	/* STEP 15 - poll CVP_CONFIG_READY bit for 0 with 10us timeout */
 	ret = altera_cvp_wait_status(conf, VSE_CVP_STATUS_CFG_RDY, 0,
 				     conf->priv->poll_time_us);
-	if (ret)
+	if (ret) {
 		dev_err(&mgr->dev, "CFG_RDY == 0 timeout\n");
+		goto error_path;
+	}
 
 	return ret;
+
+error_path:
+	/* reset CVP_MODE and HIP_CLK_SEL bit */
+	altera_read_config_dword(conf, VSE_CVP_MODE_CTRL, &val);
+	val &= ~VSE_CVP_MODE_CTRL_HIP_CLK_SEL;
+	val &= ~VSE_CVP_MODE_CTRL_CVP_MODE;
+	altera_write_config_dword(conf, VSE_CVP_MODE_CTRL, val);
+
+	return -EAGAIN;
+
 }
 
+static int altera_cvp_recovery(struct fpga_manager *mgr,
+			      struct fpga_image_info *info)
+{
+	int ret = 0, retry = 0;
+
+	for (retry = 0; retry < CVP_TEARDOWN_MAX_RETRY; retry++) {
+		ret = altera_cvp_teardown(mgr, info);
+		if (!ret)
+			break;
+		dev_warn(&mgr->dev,
+				 "%s: [%d] Tear-down failed. Retrying\n",
+				 __func__,
+				 retry);
+	}
+	return ret;
+}
 static int altera_cvp_write_init(struct fpga_manager *mgr,
 				 struct fpga_image_info *info,
 				 const char *buf, size_t count)
@@ -347,7 +388,7 @@ static int altera_cvp_write_init(struct fpga_manager *mgr,
 
 	if (val & VSE_CVP_STATUS_CFG_RDY) {
 		dev_warn(&mgr->dev, "CvP already started, tear down first\n");
-		ret = altera_cvp_teardown(mgr, info);
+		ret = altera_cvp_recovery(mgr, info);
 		if (ret)
 			return ret;
 	}
@@ -453,7 +494,11 @@ static int altera_cvp_write(struct fpga_manager *mgr, const char *buf,
 		}
 
 		len = min(conf->priv->block_size, remaining);
-		altera_cvp_send_block(conf, data, len);
+		/* Copy the requested host data into the transmit buffer */
+
+		memcpy(conf->send_buf, data, len);
+		altera_cvp_send_block(conf, (const u32 *)conf->send_buf,
+		conf->priv->block_size);
 		data += len / sizeof(u32);
 		done += len;
 		remaining -= len;
@@ -488,14 +533,17 @@ static int altera_cvp_write_complete(struct fpga_manager *mgr,
 	u32 mask, val;
 	int ret;
 
-	ret = altera_cvp_teardown(mgr, info);
+	ret = altera_cvp_recovery(mgr, info);
 	if (ret)
 		return ret;
 
-	/* STEP 16 - check CVP_CONFIG_ERROR_LATCHED bit */
-	altera_read_config_dword(conf, VSE_UNCOR_ERR_STATUS, &val);
-	if (val & VSE_UNCOR_ERR_CVP_CFG_ERR) {
-		dev_err(&mgr->dev, "detected CVP_CONFIG_ERROR_LATCHED!\n");
+	/*
+	 * STEP 16 - If bitstream error (truncated/miss-matched),
+	 * we shall exit here.
+	 */
+	ret = altera_read_config_dword(conf, VSE_CVP_STATUS, &val);
+	if (ret || (val & VSE_CVP_STATUS_CFG_ERR)) {
+		dev_err(&mgr->dev, "CVP_CONFIG_ERROR!\n");
 		return -EPROTO;
 	}
 
@@ -511,6 +559,8 @@ static int altera_cvp_write_complete(struct fpga_manager *mgr,
 				     conf->priv->user_time_us);
 	if (ret)
 		dev_err(&mgr->dev, "PLD_CLK_IN_USE|USERMODE timeout\n");
+	else
+		dev_notice(&mgr->dev, "CVP write completed successfully.\n");
 
 	return ret;
 }
@@ -561,7 +611,7 @@ static int altera_cvp_probe(struct pci_dev *pdev,
 static void altera_cvp_remove(struct pci_dev *pdev);
 
 static struct pci_device_id altera_cvp_id_tbl[] = {
-	{ PCI_VDEVICE(ALTERA, PCI_ANY_ID) },
+	{ PCI_VDEVICE(ALTERA, 0x00) },
 	{ }
 };
 MODULE_DEVICE_TABLE(pci, altera_cvp_id_tbl);
@@ -638,10 +688,23 @@ static int altera_cvp_probe(struct pci_dev *pdev,
 	conf->pci_dev = pdev;
 	conf->write_data = altera_cvp_write_data_iomem;
 
-	if (conf->vsec_offset == V1_VSEC_OFFSET)
+	/* To differentiate the target SOCFPGA */
+	if (conf->vsec_offset == V1_VSEC_OFFSET) {
 		conf->priv = &cvp_priv_v1;
-	else
+		conf->device_family_type = SOCFPGA_CVP_V1_OTHERS;
+		dev_notice(&pdev->dev, "V1 target SOCFPGA detected.\n");
+	} else {
+		/* Agilex7, Stratix10, Agilex5*/
 		conf->priv = &cvp_priv_v2;
+		pci_read_config_dword(pdev, offset + VSE_PCIE_SPECIFIC_HEADER, &regval);
+		if ((regval >> VSEC_LENGTH_BIT_OFFSET) == AGILEX5_VSEC_LENGTH) {
+			conf->device_family_type = SOCFPGA_CVP_V2_AGILEX5;
+			dev_notice(&pdev->dev, "V2 target SOCFPGA Agilex5 detected.\n");
+		} else {
+			conf->device_family_type = SOCFPGA_CVP_V2_OTHERS;
+			dev_notice(&pdev->dev, "V2 target SOCFPGA detected.\n");
+		}
+	}
 
 	conf->map = pci_iomap(pdev, CVP_BAR, 0);
 	if (!conf->map) {
@@ -661,6 +724,13 @@ static int altera_cvp_probe(struct pci_dev *pdev,
 
 	pci_set_drvdata(pdev, mgr);
 
+	/* Allocate the 4096 block size transmit buffer */
+	conf->send_buf = devm_kzalloc(&pdev->dev, conf->priv->block_size, GFP_KERNEL);
+	if (!conf->send_buf) {
+		ret = -ENOMEM;
+		fpga_mgr_unregister(mgr);
+		goto err_unmap;
+	}
 	return 0;
 
 err_unmap:

@@ -19,6 +19,7 @@ menuconfig ARCH_INTEL_SOCFPGA
 	select PL310_ERRATA_753970 if PL310
 	select PL310_ERRATA_769419
 	select RESET_CONTROLLER
+	select HAVE_ARM_ARCH_TIMER
 
 if ARCH_INTEL_SOCFPGA
 config SOCFPGA_SUSPEND
@@ -27,3 +28,8 @@ config SOCFPGA_SUSPEND
 	  Select this if you want to enable Suspend-to-RAM on SOCFPGA
 	  platforms.
 endif
+config FPGADMA
+	tristate "FPGA DMA FIFO driver"
+	depends on DMA_ENGINE
+	help
+		Sample FPGA DMA driver, for testing with special FPGA FIFO image
