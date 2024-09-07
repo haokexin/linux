@@ -458,6 +458,12 @@ config DW_XDATA_PCIE
 
 	  If unsure, say N.
 
+config ALTERA_HWMUTEX
+	tristate "Altera Hardware Mutex"
+	help
+	  This option enables device driver support for Altera Hardware Mutex.
+	  Say Y here if you want to use the Altera hardware mutex support.
+
 config PCI_ENDPOINT_TEST
 	depends on PCI
 	select CRC32
@@ -519,25 +525,10 @@ config VCPU_STALL_DETECTOR
 
 	  If you do not intend to run this kernel as a guest, say N.
 
-config TMR_MANAGER
-	tristate "Select TMR Manager"
-	depends on MICROBLAZE && MB_MANAGER
+config ALTERA_SYSID
+	tristate "Altera System ID"
 	help
-	  This option enables the driver developed for TMR Manager.
-	  The Triple Modular Redundancy(TMR) manager provides support for
-	  fault detection.
-
-	  Say N here unless you know what you are doing.
-
-config TMR_INJECT
-	tristate "Select TMR Inject"
-	depends on TMR_MANAGER && FAULT_INJECTION_DEBUG_FS
-	help
-	  This option enables the driver developed for TMR Inject.
-	  The Triple Modular Redundancy(TMR) Inject provides
-	  fault injection.
-
-	  Say N here unless you know what you are doing.
+	This enables Altera System ID soft core driver.
 
 config TPS6594_ESM
 	tristate "TI TPS6594 Error Signal Monitor support"
@@ -561,6 +552,12 @@ config TPS6594_PFSM
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called tps6594-pfsm.
+
+config ALTERA_ILC
+	tristate "Altera Interrupt Latency Counter driver"
+	help
+	  This enables the Interrupt Latency Counter driver for the Altera
+	  SOCFPGA platform.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

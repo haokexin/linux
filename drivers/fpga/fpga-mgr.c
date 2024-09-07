@@ -17,6 +17,7 @@
 #include <linux/slab.h>
 #include <linux/scatterlist.h>
 #include <linux/highmem.h>
+#include "fpga-mgr-debugfs.h"
 
 static DEFINE_IDA(fpga_mgr_ida);
 static const struct class fpga_mgr_class;
@@ -843,6 +844,10 @@ __fpga_mgr_register_full(struct device *parent, const struct fpga_manager_info *
 		return ERR_PTR(ret);
 	}
 
+	fpga_mgr_debugfs_add(mgr);
+
+	dev_info(&mgr->dev, "%s registered\n", mgr->name);
+
 	return mgr;
 
 error_device:
@@ -893,6 +898,8 @@ EXPORT_SYMBOL_GPL(__fpga_mgr_register);
 void fpga_mgr_unregister(struct fpga_manager *mgr)
 {
 	dev_info(&mgr->dev, "%s %s\n", __func__, mgr->name);
+
+	fpga_mgr_debugfs_remove(mgr);
 
 	/*
 	 * If the low level driver provides a method for putting fpga into

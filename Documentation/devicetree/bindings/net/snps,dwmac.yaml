@@ -103,17 +103,39 @@ properties:
 
   interrupts:
     minItems: 1
-    items:
-      - description: Combined signal for various interrupt events
-      - description: The interrupt to manage the remote wake-up packet detection
-      - description: The interrupt that occurs when Rx exits the LPI state
+    maxItems: 19
+    description:
+      DWMAC supports following interrupts,
+        * Combined signal for various interrupt events
+        * The interrupt to manage the remote wake-up packet detection
+        * The interrupt that occurs when Rx exits the LPI state
+        * Individual signal for per channel interrupt events
+      Except combined interrupt, all interrupts are optional. If per channel
+      interrupts are enabled there should be interrupt entries for every tx and
+      rx channels.
 
   interrupt-names:
     minItems: 1
     items:
       - const: macirq
-      - enum: [eth_wake_irq, eth_lpi]
-      - const: eth_lpi
+      - pattern: '^eth_wake_irq|eth_lpi|macirq_[tr]x[0-7]$'
+      - pattern: '^eth_lpi|macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
+      - pattern: '^macirq_[tr]x[0-7]$'
 
   clocks:
     minItems: 1
@@ -139,15 +161,18 @@ properties:
 
   resets:
     minItems: 1
+    maxItems: 8
+    additionalItems: true
     items:
-      - description: GMAC stmmaceth reset
-      - description: AHB reset
+      - description: MAC Reset signal
 
   reset-names:
     minItems: 1
-    items:
-      - const: stmmaceth
-      - const: ahb
+    maxItems: 8
+    additionalItems: true
+    contains:
+      enum:
+        - stmmaceth
 
   power-domains:
     maxItems: 1
@@ -399,6 +424,10 @@ properties:
             type: boolean
             description: TX checksum offload is unsupported by the TX queue.
 
+          snps,tbs-enable:
+            type: boolean
+            description: Enable Time Based Scheduling(TBS) for TX queue.
+
         allOf:
           - if:
               required:
@@ -468,6 +497,11 @@ properties:
     description:
       Enable gating of the MAC TX clock during TX low-power mode
 
+  snps,multi-irq-en:
+    $ref: /schemas/types.yaml#/definitions/flag
+    description:
+      Enable interrupt for each TX or RX channel.
+
   snps,multicast-filter-bins:
     $ref: /schemas/types.yaml#/definitions/uint32
     description:
@@ -491,6 +525,16 @@ properties:
     $ref: /schemas/types.yaml#/definitions/uint32
     description:
       Frequency division factor for MDC clock.
+
+  snps,rx-vlan-offload:
+    $ref: /schemas/types.yaml#/definitions/flag
+    description:
+      Enable hardware-accelerated RX VLAN stripping.
+
+  altr,smtg-hub:
+    $ref: /schemas/types.yaml#/definitions/flag
+    description:
+      Enable Synchronized Multidrop Timestamp Gathering(SMTG).
 
   mdio:
     $ref: mdio.yaml#

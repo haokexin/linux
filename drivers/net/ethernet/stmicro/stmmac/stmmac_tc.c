@@ -11,6 +11,8 @@
 #include "dwmac5.h"
 #include "stmmac.h"
 
+#define MAX_IDLE_SLOPE_CREDIT 0x1FFFFF
+
 static void tc_fill_all_pass_entry(struct stmmac_tc_entry *entry)
 {
 	memset(entry, 0, sizeof(*entry));
@@ -342,13 +344,14 @@ static int tc_init(struct stmmac_priv *priv)
 static int tc_setup_cbs(struct stmmac_priv *priv,
 			struct tc_cbs_qopt_offload *qopt)
 {
+	u64 value, scaling = 0, cycle_time_ns = 0, open_time = 0, tti_ns = 0;
 	u32 tx_queues_count = priv->plat->tx_queues_to_use;
+	u32 ptr, idle_slope;
+	u32 gate = 0x1 << qopt->queue;
 	s64 port_transmit_rate_kbps;
 	u32 queue = qopt->queue;
 	u32 mode_to_use;
-	u64 value;
-	u32 ptr;
-	int ret;
+	int ret, row;
 
 	/* Queue 0 is not AVB capable */
 	if (queue <= 0 || queue >= tx_queues_count)
@@ -411,6 +414,52 @@ static int tc_setup_cbs(struct stmmac_priv *priv,
 	value = qopt->locredit * 1024ll * 8;
 	priv->plat->tx_queues_cfg[queue].low_credit = value & GENMASK(31, 0);
 
+	/* If EST is not enable, no need to recalibrate idle slope */
+	if (!priv->plat->est)
+		goto config_cbs;
+	if (!priv->plat->est->enable)
+		goto config_cbs;
+
+	/* Check the GCL cycle time. If 0, no need to recalibrate idle slope */
+	cycle_time_ns = (priv->plat->est->ctr[1] * NSEC_PER_SEC) +
+			 priv->plat->est->ctr[0];
+	if (!cycle_time_ns)
+		goto config_cbs;
+
+	/* Calculate the total open time for the queue. GCL which exceeds the
+	 * cycle time will be truncated. So, time interval that exceeds the
+	 * cycle time will not be included. The gates wihtout any setting of
+	 * open/close within the cycle time are considered as open. The queue
+	 * that having open time of 0, no need idle slope recalibration.
+	 */
+	for (row = 0; row < priv->plat->est->gcl_size; row++) {
+		tti_ns += priv->plat->est->ti_ns[row];
+		if (priv->plat->est->gates[row] & gate)
+			open_time += priv->plat->est->ti_ns[row];
+		if (tti_ns > cycle_time_ns) {
+			if (priv->plat->est->gates[row] & gate)
+				open_time -= tti_ns - cycle_time_ns;
+			break;
+		}
+	}
+	if (tti_ns < cycle_time_ns)
+		open_time += cycle_time_ns - tti_ns;
+	if (!open_time)
+		goto config_cbs;
+
+	/* Calculate the scaling factor to be used to recalculate new idle
+	 * slope.
+	 */
+	scaling = cycle_time_ns;
+	do_div(scaling, open_time);
+	idle_slope = priv->plat->tx_queues_cfg[queue].idle_slope;
+	idle_slope *= scaling;
+	if (idle_slope > MAX_IDLE_SLOPE_CREDIT)
+		idle_slope = MAX_IDLE_SLOPE_CREDIT;
+
+	priv->plat->tx_queues_cfg[queue].idle_slope = idle_slope;
+
+config_cbs:
 	ret = stmmac_config_cbs(priv, priv->hw,
 				priv->plat->tx_queues_cfg[queue].send_slope,
 				priv->plat->tx_queues_cfg[queue].idle_slope,
@@ -455,6 +504,7 @@ static int tc_parse_flow_actions(struct stmmac_priv *priv,
 }
 
 #define ETHER_TYPE_FULL_MASK	cpu_to_be16(~0)
+#define IP_PROTO_FULL_MASK	0xFF
 
 static int tc_add_basic_flow(struct stmmac_priv *priv,
 			     struct flow_cls_offload *cls,
@@ -469,6 +519,24 @@ static int tc_add_basic_flow(struct stmmac_priv *priv,
 		return -EINVAL;
 
 	flow_rule_match_basic(rule, &match);
+
+	/* Both network proto and transport proto not present in the key */
+	if (!match.mask || !(match.mask->n_proto || match.mask->ip_proto))
+		return -EOPNOTSUPP;
+
+	/* If the proto is present in the key and is not full mask */
+	if ((match.mask->n_proto && match.mask->n_proto != ETHER_TYPE_FULL_MASK) ||
+	    (match.mask->ip_proto && match.mask->ip_proto != IP_PROTO_FULL_MASK))
+		return -EOPNOTSUPP;
+
+	/* Network proto is present in the key and is not IPv4 */
+	if (match.mask->n_proto && match.key->n_proto != cpu_to_be16(ETH_P_IP))
+		return -EOPNOTSUPP;
+
+	/* Transport proto is present in the key and is not TCP or UDP */
+	if (match.mask->ip_proto && !(match.key->ip_proto == IPPROTO_TCP ||
+	    match.key->ip_proto == IPPROTO_UDP))
+		return -EOPNOTSUPP;
 
 	entry->ip_proto = match.key->ip_proto;
 	return 0;
@@ -607,6 +675,12 @@ static int tc_add_flow(struct stmmac_priv *priv,
 		ret = tc_flow_parsers[i].fn(priv, cls, entry);
 		if (!ret)
 			entry->in_use = true;
+		else if (ret == -EOPNOTSUPP)
+			/* The basic flow parser will return EOPNOTSUPP, if a
+			 * requested offload not fully supported by the hw. And
+			 * in that case fail early.
+			 */
+			break;
 	}
 
 	if (!entry->in_use)
@@ -976,6 +1050,8 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 		return -EINVAL;
 	if (!qopt->cycle_time)
 		return -ERANGE;
+	if (qopt->cycle_time_extension >= BIT(wid + 7))
+		return -ERANGE;
 
 	if (!plat->est) {
 		plat->est = devm_kzalloc(priv->device, sizeof(*plat->est),
@@ -1022,6 +1098,8 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 		}
 
 		priv->plat->est->gcl[i] = delta_ns | (gates << wid);
+		priv->plat->est->ti_ns[i] = delta_ns;
+		priv->plat->est->gates[i] = gates;
 	}
 
 	mutex_lock(&priv->plat->est->lock);
@@ -1041,6 +1119,17 @@ static int tc_setup_taprio(struct stmmac_priv *priv,
 	ctr = qopt->cycle_time;
 	priv->plat->est->ctr[0] = do_div(ctr, NSEC_PER_SEC);
 	priv->plat->est->ctr[1] = (u32)ctr;
+
+	priv->plat->est->ter = qopt->cycle_time_extension;
+
+	for (i = 0; i < plat->tx_queues_to_use; i++) {
+		if (qopt->max_sdu[i])
+			plat->est->max_sdu[i] = qopt->max_sdu[i] +
+						priv->dev->hard_header_len -
+						ETH_TLEN;
+		else
+			plat->est->max_sdu[i] = 0;
+	}
 
 	if (fpe && !priv->dma_cap.fpesel) {
 		mutex_unlock(&priv->plat->est->lock);
@@ -1123,6 +1212,7 @@ static int tc_query_caps(struct stmmac_priv *priv,
 			return -EOPNOTSUPP;
 
 		caps->gate_mask_per_txq = true;
+		caps->supports_queue_max_sdu = true;
 
 		return 0;
 	}
