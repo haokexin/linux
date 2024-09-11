@@ -8,8 +8,6 @@
 /dts-v1/;
 /plugin/;
 
-#include <dt-bindings/mux/ti-serdes.h>
-
 &main_r5fss0_core0_shared_memory_queue_region {
 	status = "disabled";
 };
