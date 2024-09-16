@@ -57,6 +57,9 @@
 #define SMTG_REG_0x13          0x13
 #define SMTG_TIME_SHIFT        16
 
+#define TSE_PCS_CONTROL_AN_EN_MASK                      BIT(12)
+#define TSE_PCS_CONTROL_REG                             0x00
+
 struct socfpga_dwmac;
 struct socfpga_dwmac_ops {
 	int (*set_phy_mode)(struct socfpga_dwmac *dwmac_priv);
@@ -111,9 +114,16 @@ static void socfpga_dwmac_fix_mac_speed(void *priv, unsigned int speed, unsigned
 		writel(val, splitter_base + EMAC_SPLITTER_CTRL_REG);
 	}
 
-	if (phy_dev && sgmii_adapter_base)
+	if (phy_dev && sgmii_adapter_base){
 		writew(SGMII_ADAPTER_ENABLE,
 		       sgmii_adapter_base + SGMII_ADAPTER_CTRL_REG);
+
+		if (phy_dev->autoneg == AUTONEG_ENABLE) {
+			val = readw(dwmac->tse_pcs_base + TSE_PCS_CONTROL_REG);
+			val |= TSE_PCS_CONTROL_AN_EN_MASK;
+			writew(val, dwmac->tse_pcs_base + TSE_PCS_CONTROL_REG);
+		}
+	}
 }
 
 static void get_smtgtime(struct mii_bus *mii, int smtg_addr,
