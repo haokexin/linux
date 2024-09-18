@@ -85,7 +85,6 @@ struct sa_match_data {
 	u8 priv;
 	u8 priv_id;
 	u32 supported_algos;
-	bool skip_engine_control;
 };
 
 static struct device *sa_k3_dev;
@@ -1299,6 +1298,7 @@ static int sa_cipher_run(struct skcipher_request *req, u8 *iv, int enc)
 	    crypto_skcipher_ctx(crypto_skcipher_reqtfm(req));
 	struct crypto_alg *alg = req->base.tfm->__crt_alg;
 	struct sa_req sa_req = { 0 };
+	struct sa_crypto_data *data = dev_get_drvdata(sa_k3_dev);
 
 	if (!req->cryptlen)
 		return 0;
@@ -1307,7 +1307,8 @@ static int sa_cipher_run(struct skcipher_request *req, u8 *iv, int enc)
 		return -EINVAL;
 
 	/* Use SW fallback if the data size is not supported */
-	if (req->cryptlen > SA_MAX_DATA_SZ ||
+	if (req->cryptlen <= data->fallback_sz ||
+	    req->cryptlen > SA_MAX_DATA_SZ ||
 	    (req->cryptlen >= SA_UNSAFE_DATA_SZ_MIN &&
 	     req->cryptlen <= SA_UNSAFE_DATA_SZ_MAX)) {
 		struct skcipher_request *subreq = skcipher_request_ctx(req);
@@ -1404,13 +1405,15 @@ static int sa_sha_run(struct ahash_request *req)
 	struct sa_sha_req_ctx *rctx = ahash_request_ctx(req);
 	struct sa_req sa_req = { 0 };
 	size_t auth_len;
+	struct sa_crypto_data *data = dev_get_drvdata(sa_k3_dev);
 
 	auth_len = req->nbytes;
 
 	if (!auth_len)
 		return zero_message_process(req);
 
-	if (auth_len > SA_MAX_DATA_SZ ||
+	if (auth_len <= data->fallback_sz ||
+	    auth_len > SA_MAX_DATA_SZ ||
 	    (auth_len >= SA_UNSAFE_DATA_SZ_MIN &&
 	     auth_len <= SA_UNSAFE_DATA_SZ_MAX)) {
 		struct ahash_request *subreq = &rctx->fallback_req;
@@ -1911,6 +1914,7 @@ static int sa_aead_run(struct aead_request *req, u8 *iv, int enc)
 	struct sa_tfm_ctx *ctx = crypto_aead_ctx(tfm);
 	struct sa_req sa_req = { 0 };
 	size_t auth_size, enc_size;
+	struct sa_crypto_data *data = dev_get_drvdata(sa_k3_dev);
 
 	enc_size = req->cryptlen;
 	auth_size = req->assoclen + req->cryptlen;
@@ -1920,7 +1924,7 @@ static int sa_aead_run(struct aead_request *req, u8 *iv, int enc)
 		auth_size -= crypto_aead_authsize(tfm);
 	}
 
-	if (auth_size > SA_MAX_DATA_SZ ||
+	if (auth_size <= data->fallback_sz || auth_size > SA_MAX_DATA_SZ ||
 	    (auth_size >= SA_UNSAFE_DATA_SZ_MIN &&
 	     auth_size <= SA_UNSAFE_DATA_SZ_MAX)) {
 		struct aead_request *subreq = aead_request_ctx(req);
@@ -2356,6 +2360,41 @@ static int sa_link_child(struct device *dev, void *data)
 	return 0;
 }
 
+static ssize_t fallback_show(struct device *dev, struct device_attribute *attr,
+			     char *buf)
+{
+	struct sa_crypto_data *data = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", data->fallback_sz);
+}
+
+static ssize_t fallback_store(struct device *dev, struct device_attribute *attr,
+			      const char *buf, size_t size)
+{
+	struct sa_crypto_data *data = dev_get_drvdata(dev);
+	ssize_t status;
+	long value;
+
+	status = kstrtol(buf, 0, &value);
+	if (status)
+		return status;
+
+	data->fallback_sz = value;
+
+	return size;
+}
+
+static DEVICE_ATTR_RW(fallback);
+
+static struct attribute *sa_ul_attrs[] = {
+	&dev_attr_fallback.attr,
+	NULL,
+};
+
+static struct attribute_group sa_ul_attr_group = {
+	.attrs = sa_ul_attrs,
+};
+
 static struct sa_match_data am654_match_data = {
 	.priv = 1,
 	.priv_id = 1,
@@ -2370,13 +2409,13 @@ static struct sa_match_data am64_match_data = {
 			   BIT(SA_ALG_SHA256) |
 			   BIT(SA_ALG_SHA512) |
 			   BIT(SA_ALG_AUTHENC_SHA256_AES),
-	.skip_engine_control = true,
 };
 
 static const struct of_device_id of_match[] = {
 	{ .compatible = "ti,j721e-sa2ul", .data = &am654_match_data, },
 	{ .compatible = "ti,am654-sa2ul", .data = &am654_match_data, },
 	{ .compatible = "ti,am64-sa2ul", .data = &am64_match_data, },
+	{ .compatible = "ti,am62-sa3ul", .data = &am64_match_data, },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_match);
@@ -2387,6 +2426,7 @@ static int sa_ul_probe(struct platform_device *pdev)
 	struct device_node *node = dev->of_node;
 	static void __iomem *saul_base;
 	struct sa_crypto_data *dev_data;
+	u32 status, val;
 	int ret;
 
 	dev_data = devm_kzalloc(dev, sizeof(*dev_data), GFP_KERNEL);
@@ -2424,23 +2464,32 @@ static int sa_ul_probe(struct platform_device *pdev)
 
 	spin_lock_init(&dev_data->scid_lock);
 
-	if (!dev_data->match_data->skip_engine_control) {
-		u32 val = SA_EEC_ENCSS_EN | SA_EEC_AUTHSS_EN | SA_EEC_CTXCACH_EN |
-			  SA_EEC_CPPI_PORT_IN_EN | SA_EEC_CPPI_PORT_OUT_EN |
-			  SA_EEC_TRNG_EN;
-
+	val = SA_EEC_ENCSS_EN | SA_EEC_AUTHSS_EN | SA_EEC_CTXCACH_EN |
+	      SA_EEC_CPPI_PORT_IN_EN | SA_EEC_CPPI_PORT_OUT_EN |
+	      SA_EEC_TRNG_EN;
+	status = readl_relaxed(saul_base + SA_ENGINE_STATUS);
+	/* Only enable engines if all are not already enabled */
+	if (val & ~status)
 		writel_relaxed(val, saul_base + SA_ENGINE_ENABLE_CONTROL);
-	}
 
 	sa_register_algos(dev_data);
 
+	ret = sysfs_create_group(&dev->kobj, &sa_ul_attr_group);
+	if (ret) {
+		dev_err(dev, "failed to create sysfs attrs.\n");
+		goto release_dma;
+	}
+
 	ret = of_platform_populate(node, NULL, NULL, &pdev->dev);
 	if (ret)
-		goto release_dma;
+		goto remove_sysfs;
 
 	device_for_each_child(&pdev->dev, &pdev->dev, sa_link_child);
 
 	return 0;
+
+remove_sysfs:
+	sysfs_remove_group(&pdev->dev.kobj, &sa_ul_attr_group);
 
 release_dma:
 	sa_unregister_algos(&pdev->dev);
@@ -2463,6 +2512,8 @@ static int sa_ul_remove(struct platform_device *pdev)
 	struct sa_crypto_data *dev_data = platform_get_drvdata(pdev);
 
 	of_platform_depopulate(&pdev->dev);
+
+	sysfs_remove_group(&pdev->dev.kobj, &sa_ul_attr_group);
 
 	sa_unregister_algos(&pdev->dev);
 

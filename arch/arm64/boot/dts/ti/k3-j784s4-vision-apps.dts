@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * vision-apps: device-tree overlay
+ *
+ * Copyright (C) 2019 - 2022 Texas Instruments Incorporated - http://www.ti.com/
+ */
+
+#include "k3-j784s4-rtos-memory-map.dtsi"
+
+&main_i2c1 {
+    status = "disabled";
+};
+
+&main_i2c4 {
+	status = "disabled";
+};
+
+&main_i2c5 {
+	status = "disabled";
+};
+
+&dss {
+    status = "disabled";
+};
+
+&serdes_wiz4 {
+    status = "disabled";
+};
+
+&ti_csi2rx0 {
+    status = "disabled";
+};
+
+&ti_csi2rx1 {
+    status = "disabled";
+};

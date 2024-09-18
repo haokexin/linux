@@ -1561,6 +1561,16 @@ config SERIAL_LITEUART_CONSOLE
 	  and warnings and which allows logins in single user mode).
 	  Otherwise, say 'N'.
 
+config SERIAL_PRU_SWUART
+	tristate "TI PRU Software UART support"
+	depends on PRU_REMOTEPROC && !ARCH_K3
+	select SERIAL_CORE
+	help
+	  This driver is to support software UART over PRUSS, provided through
+	  PRU firmware.
+	  Say 'Y' here if you wish to use PRU software based UART.
+	  Otherwise, say 'N'.
+
 endmenu
 
 config SERIAL_MCTRL_GPIO

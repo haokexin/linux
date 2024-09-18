@@ -311,7 +311,7 @@ static int __maybe_unused ti_sn65dsi86_resume(struct device *dev)
 	/* td2: min 100 us after regulators before enabling the GPIO */
 	usleep_range(100, 110);
 
-	gpiod_set_value(pdata->enable_gpio, 1);
+	gpiod_set_value_cansleep(pdata->enable_gpio, 1);
 
 	/*
 	 * If we have a reference clock we can enable communication w/ the
@@ -334,7 +334,7 @@ static int __maybe_unused ti_sn65dsi86_suspend(struct device *dev)
 	if (pdata->refclk)
 		ti_sn65dsi86_disable_comms(pdata);
 
-	gpiod_set_value(pdata->enable_gpio, 0);
+	gpiod_set_value_cansleep(pdata->enable_gpio, 0);
 
 	ret = regulator_bulk_disable(SN_REGULATOR_SUPPLY_NUM, pdata->supplies);
 	if (ret)
@@ -682,14 +682,8 @@ static struct ti_sn65dsi86 *bridge_to_ti_sn65dsi86(struct drm_bridge *bridge)
 static int ti_sn_bridge_attach(struct drm_bridge *bridge,
 			       enum drm_bridge_attach_flags flags)
 {
-	int ret, val;
+	int ret;
 	struct ti_sn65dsi86 *pdata = bridge_to_ti_sn65dsi86(bridge);
-	struct mipi_dsi_host *host;
-	struct mipi_dsi_device *dsi;
-	const struct mipi_dsi_device_info info = { .type = "ti_sn_bridge",
-						   .channel = 0,
-						   .node = NULL,
-						 };
 
 	if (flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR) {
 		DRM_ERROR("Fix bridge driver to make connector optional!");
@@ -707,67 +701,8 @@ static int ti_sn_bridge_attach(struct drm_bridge *bridge,
 	if (ret < 0)
 		goto err_conn_init;
 
-	/*
-	 * TODO: ideally finding host resource and dsi dev registration needs
-	 * to be done in bridge probe. But some existing DSI host drivers will
-	 * wait for any of the drm_bridge/drm_panel to get added to the global
-	 * bridge/panel list, before completing their probe. So if we do the
-	 * dsi dev registration part in bridge probe, before populating in
-	 * the global bridge list, then it will cause deadlock as dsi host probe
-	 * will never complete, neither our bridge probe. So keeping it here
-	 * will satisfy most of the existing host drivers. Once the host driver
-	 * is fixed we can move the below code to bridge probe safely.
-	 */
-	host = of_find_mipi_dsi_host_by_node(pdata->host_node);
-	if (!host) {
-		DRM_ERROR("failed to find dsi host\n");
-		ret = -ENODEV;
-		goto err_dsi_host;
-	}
-
-	dsi = mipi_dsi_device_register_full(host, &info);
-	if (IS_ERR(dsi)) {
-		DRM_ERROR("failed to create dsi device\n");
-		ret = PTR_ERR(dsi);
-		goto err_dsi_host;
-	}
-
-	/* TODO: setting to 4 MIPI lanes always for now */
-	dsi->lanes = 4;
-	dsi->format = MIPI_DSI_FMT_RGB888;
-	dsi->mode_flags = MIPI_DSI_MODE_VIDEO;
-
-	/* check if continuous dsi clock is required or not */
-	pm_runtime_get_sync(pdata->dev);
-	regmap_read(pdata->regmap, SN_DPPLL_SRC_REG, &val);
-	pm_runtime_put_autosuspend(pdata->dev);
-	if (!(val & DPPLL_CLK_SRC_DSICLK))
-		dsi->mode_flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
-
-	ret = mipi_dsi_attach(dsi);
-	if (ret < 0) {
-		DRM_ERROR("failed to attach dsi to host\n");
-		goto err_dsi_attach;
-	}
-	pdata->dsi = dsi;
-
-	/* We never want the next bridge to *also* create a connector: */
-	flags |= DRM_BRIDGE_ATTACH_NO_CONNECTOR;
-
-	/* Attach the next bridge */
-	ret = drm_bridge_attach(bridge->encoder, pdata->next_bridge,
-				&pdata->bridge, flags);
-	if (ret < 0)
-		goto err_dsi_detach;
-
 	return 0;
 
-err_dsi_detach:
-	mipi_dsi_detach(dsi);
-err_dsi_attach:
-	mipi_dsi_device_unregister(dsi);
-err_dsi_host:
-	drm_connector_cleanup(&pdata->connector);
 err_conn_init:
 	drm_dp_aux_unregister(&pdata->aux);
 	return ret;
@@ -1047,6 +982,15 @@ static void ti_sn_bridge_enable(struct drm_bridge *bridge)
 	int ret = -EINVAL;
 	int max_dp_lanes;
 
+	/*
+	 * Disable ASSR Display Authentication, since its supported only in eDP
+	 * and not spupperted in DP
+	 */
+	regmap_write(pdata->regmap, 0xFF, 0x7);
+	regmap_write(pdata->regmap, 0x16, 0x1);
+	regmap_write(pdata->regmap, 0xFF, 0x0);
+	regmap_update_bits(pdata->regmap, 0x5A, BIT(0), 0);
+
 	max_dp_lanes = ti_sn_get_max_lanes(pdata);
 	pdata->dp_lanes = min(pdata->dp_lanes, max_dp_lanes);
 
@@ -1061,15 +1005,6 @@ static void ti_sn_bridge_enable(struct drm_bridge *bridge)
 
 	/* set dsi clk frequency value */
 	ti_sn_bridge_set_dsi_rate(pdata);
-
-	/*
-	 * The SN65DSI86 only supports ASSR Display Authentication method and
-	 * this method is enabled by default. An eDP panel must support this
-	 * authentication method. We need to enable this method in the eDP panel
-	 * at DisplayPort address 0x0010A prior to link training.
-	 */
-	drm_dp_dpcd_writeb(&pdata->aux, DP_EDP_CONFIGURATION_SET,
-			   DP_ALTERNATE_SCRAMBLER_RESET_ENABLE);
 
 	/* Set the DP output format (18 bpp or 24 bpp) */
 	val = (ti_sn_bridge_get_bpp(pdata) == 18) ? BPP_18_RGB : 0;
@@ -1214,7 +1149,13 @@ static int ti_sn_bridge_probe(struct auxiliary_device *adev,
 	struct ti_sn65dsi86 *pdata = dev_get_drvdata(adev->dev.parent);
 	struct device_node *np = pdata->dev->of_node;
 	struct drm_panel *panel;
-	int ret;
+	int ret, val;
+	struct mipi_dsi_host *host;
+	struct mipi_dsi_device *dsi;
+	const struct mipi_dsi_device_info info = { .type = "ti_sn_bridge",
+						   .channel = 0,
+						   .node = np,
+						 };
 
 	ret = drm_of_find_panel_or_bridge(np, 1, 0, &panel, NULL);
 	if (ret)
@@ -1236,7 +1177,42 @@ static int ti_sn_bridge_probe(struct auxiliary_device *adev,
 	pdata->bridge.funcs = &ti_sn_bridge_funcs;
 	pdata->bridge.of_node = np;
 
+	host = of_find_mipi_dsi_host_by_node(pdata->host_node);
+	if (!host) {
+		DRM_ERROR("failed to find dsi host\n");
+		return -EPROBE_DEFER;
+	}
+
 	drm_bridge_add(&pdata->bridge);
+
+	/*
+	 * Attach to DSI host.
+	 */
+	dsi = mipi_dsi_device_register_full(host, &info);
+	if (IS_ERR(dsi)) {
+		DRM_ERROR("failed to create dsi device\n");
+		return PTR_ERR(dsi);
+	}
+
+	/* TODO: setting to 4 MIPI lanes always for now */
+	dsi->lanes = 2;
+	dsi->format = MIPI_DSI_FMT_RGB888;
+	dsi->mode_flags = MIPI_DSI_MODE_VIDEO;
+	dsi->mode_flags |= MIPI_DSI_MODE_NO_EOT_PACKET | MIPI_DSI_MODE_VIDEO_SYNC_PULSE;
+
+	/* check if continuous dsi clock is required or not */
+	pm_runtime_get_sync(pdata->dev);
+	regmap_read(pdata->regmap, SN_DPPLL_SRC_REG, &val);
+	pm_runtime_put(pdata->dev);
+	if (!(val & DPPLL_CLK_SRC_DSICLK))
+		dsi->mode_flags |= MIPI_DSI_CLOCK_NON_CONTINUOUS;
+
+	ret = mipi_dsi_attach(dsi);
+	if (ret < 0) {
+		DRM_ERROR("failed to attach dsi to host\n");
+		return ret;
+	}
+	pdata->dsi = dsi;
 
 	return 0;
 }

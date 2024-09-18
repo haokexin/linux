@@ -1299,6 +1299,7 @@ static int irq_thread(void *data)
 	irqreturn_t (*handler_fn)(struct irq_desc *desc,
 			struct irqaction *action);
 
+	sched_set_fifo(current);
 	irq_thread_set_ready(desc, action);
 
 	if (force_irqthreads() && test_bit(IRQTF_FORCED_THREAD,
@@ -1321,6 +1322,11 @@ static int irq_thread(void *data)
 		if (action_ret == IRQ_WAKE_THREAD)
 			irq_wake_secondary(desc, action);
 
+		if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
+			migrate_disable();
+			add_interrupt_randomness(action->irq);
+			migrate_enable();
+		}
 		wake_threads_waitq(desc);
 	}
 
@@ -1465,8 +1471,6 @@ setup_irq_thread(struct irqaction *new, unsigned int irq, bool secondary)
 
 	if (IS_ERR(t))
 		return PTR_ERR(t);
-
-	sched_set_fifo(t);
 
 	/*
 	 * We keep the reference to the task struct even if
@@ -2861,7 +2865,7 @@ EXPORT_SYMBOL_GPL(irq_get_irqchip_state);
  *	This call sets the internal irqchip state of an interrupt,
  *	depending on the value of @which.
  *
- *	This function should be called with preemption disabled if the
+ *	This function should be called with migration disabled if the
  *	interrupt controller has per-cpu registers.
  */
 int irq_set_irqchip_state(unsigned int irq, enum irqchip_irq_state which,

@@ -896,6 +896,18 @@ config VIDEO_OV02A10
 	  To compile this driver as a module, choose M here: the
 	  module will be called ov02a10.
 
+config VIDEO_IMX390
+	tristate "Sony IMX390 sensor support"
+	depends on I2C && VIDEO_V4L2
+	select MEDIA_CONTROLLER
+	select VIDEO_V4L2_SUBDEV_API
+	help
+	  This is a Video4Linux2 sensor driver for the Sony
+	  IMX390 camera.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called imx390.
+
 config VIDEO_OV2640
 	tristate "OmniVision OV2640 sensor support"
 	depends on VIDEO_V4L2 && I2C
@@ -958,7 +970,7 @@ config VIDEO_OV2740
 
 config VIDEO_OV5640
 	tristate "OmniVision OV5640 sensor support"
-	depends on OF
+	depends on OF && PM
 	depends on GPIOLIB && VIDEO_V4L2 && I2C
 	select MEDIA_CONTROLLER
 	select VIDEO_V4L2_SUBDEV_API
@@ -1186,6 +1198,18 @@ config VIDEO_OV13858
 	help
 	  This is a Video4Linux2 sensor driver for the OmniVision
 	  OV13858 camera.
+
+config VIDEO_OV1063X
+	tristate "OmniVision OV1063X sensor support"
+	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
+	depends on MEDIA_CAMERA_SUPPORT && OF && GPIOLIB
+	select V4L2_FWNODE
+	help
+	  This is a Video4Linux2 sensor-level driver for the OmniVision
+	  OV1063X Sensor.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called ov1063x.
 
 config VIDEO_VS6624
 	tristate "ST VS6624 sensor support"
@@ -1485,6 +1509,28 @@ config VIDEO_LM3646
 	help
 	  This is a driver for the lm3646 dual flash controllers. It controls
 	  flash, torch LEDs.
+endmenu
+
+#
+# Video serializers and deserializers (e.g. FPDLink)
+#
+
+menu "Video serializers and deserializers"
+
+config VIDEO_DS90UB953
+	tristate "TI DS90UB953 Serializer"
+	help
+	  Device driver for the Texas Instruments DS90UB953
+	  FPD-Link III Serializer.
+
+config VIDEO_DS90UB960
+	tristate "TI DS90UB960 Deserializer"
+	depends on OF_GPIO
+	select I2C_ATR
+	help
+	  Device driver for the Texas Instruments DS90UB960
+	  FPD-Link III Deserializer
+
 endmenu
 
 endif # VIDEO_V4L2

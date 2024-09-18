@@ -301,6 +301,7 @@ struct sk_buff_head {
 
 	__u32		qlen;
 	spinlock_t	lock;
+	raw_spinlock_t	raw_lock;
 };
 
 struct sk_buff;
@@ -548,6 +549,27 @@ int skb_zerocopy_iter_stream(struct sock *sk, struct sk_buff *skb,
 			     struct msghdr *msg, int len,
 			     struct ubuf_info *uarg);
 
+/* Bit fields of redundant info io_port */
+#define PTP_MSG_IN      (0x3 << 6)
+#define PTP_EVT_OUT     (0x2 << 6)
+#define DIRECTED_TX     (0x1 << 6)
+#define PORT_B          BIT(1)
+#define PORT_A          BIT(0)
+
+struct skb_redundant_info {
+	__u8  io_port;     /* tx/rx port of the skb */
+	__u8  pathid;      /* pathid in tag */
+	__u16 ethertype;   /* ethertype in tag */
+	__u16 lsdu_size;   /* lsdu size in tag */
+	__u16 seqnr;       /* seqnr in tag */
+};
+
+#define REDINFO_T(skb)      (skb_redinfo(skb)->io_port & (0x3 << 6))
+#define REDINFO_PORTS(skb)  (skb_redinfo(skb)->io_port & 0x3)
+#define REDINFO_PATHID(skb) (skb_redinfo(skb)->pathid)
+#define REDINFO_SEQNR(skb)  (skb_redinfo(skb)->seqnr)
+#define REDINFO_LSDU_SIZE(skb)  (skb_redinfo(skb)->lsdu_size)
+
 /* This data is invariant across clones and lives at
  * the end of the header data, ie. at skb->end.
  */
@@ -562,6 +584,8 @@ struct skb_shared_info {
 	struct sk_buff	*frag_list;
 	struct skb_shared_hwtstamps hwtstamps;
 	unsigned int	gso_type;
+	struct skb_shared_hwtstamps red_hwtstamps;
+	struct skb_redundant_info redinfo;
 	u32		tskey;
 
 	/*
@@ -1605,6 +1629,17 @@ static inline void skb_list_del_init(struct sk_buff *skb)
 	skb_mark_not_on_list(skb);
 }
 
+static inline struct skb_redundant_info *skb_redinfo(struct sk_buff *skb)
+{
+	return &skb_shinfo(skb)->redinfo;
+}
+
+static inline struct skb_shared_hwtstamps *
+skb_redinfo_hwtstamps(struct sk_buff *skb)
+{
+	return &skb_shinfo(skb)->red_hwtstamps;
+}
+
 /**
  *	skb_queue_empty - check if a queue is empty
  *	@list: queue head
@@ -1990,6 +2025,12 @@ static inline void __skb_queue_head_init(struct sk_buff_head *list)
 static inline void skb_queue_head_init(struct sk_buff_head *list)
 {
 	spin_lock_init(&list->lock);
+	__skb_queue_head_init(list);
+}
+
+static inline void skb_queue_head_init_raw(struct sk_buff_head *list)
+{
+	raw_spin_lock_init(&list->raw_lock);
 	__skb_queue_head_init(list);
 }
 
