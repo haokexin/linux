@@ -1177,3 +1177,4 @@ MODULE_AUTHOR("Freescale Semiconductor, Inc.");
 MODULE_DESCRIPTION("MXC Media Device driver");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:" MXC_MD_DRIVER_NAME);
+MODULE_SOFTDEP("pre: ap1302");
