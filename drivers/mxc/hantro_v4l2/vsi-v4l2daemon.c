@@ -164,13 +164,11 @@ static int getMsg(struct file *fh, char __user *buf, size_t size)
 	int id, offset = 0;
 	struct vsi_v4l2_msg *obj;
 
-	if (mutex_lock_interruptible(&cmd_lock))
-		return -EBUSY;
 	idr_for_each_entry(cmdarray, obj, id) {
 		if (offset >= size)
 			break;
 		if (obj) {
-			if (copy_to_user((void __user *)buf + offset, (void *)obj, sizeof(struct vsi_v4l2_msg_hdr) + obj->size) != 0)
+			if (__copy_to_user_inatomic((void __user *)buf + offset, (void *)obj, sizeof(struct vsi_v4l2_msg_hdr) + obj->size) != 0)
 				break;
 			v4l2_klog(LOGLVL_VERBOSE, "%llx send msg  id = %d", obj->inst_id, obj->cmd_id);
 			offset += sizeof(struct vsi_v4l2_msg_hdr) + obj->size;
@@ -180,7 +178,6 @@ static int getMsg(struct file *fh, char __user *buf, size_t size)
 			break;
 		}
 	}
-	mutex_unlock(&cmd_lock);
 	return offset;
 }
 
@@ -626,7 +623,10 @@ static ssize_t v4l2_msg_read(struct file *fh, char __user *buf, size_t size, lof
 {
 	int ret, r;
 
+	if (mutex_lock_interruptible(&cmd_lock))
+		return -EBUSY;
 	ret = wait_event_interruptible_timeout(cmd_queue, ((r = getMsg(fh, buf, size)) != 0), msecs_to_jiffies(100));
+	mutex_unlock(&cmd_lock);
 	if (ret == -ERESTARTSYS)
 		return -EIO;
 	else if (ret == 0)
