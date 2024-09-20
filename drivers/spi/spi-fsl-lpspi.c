@@ -91,6 +91,9 @@
 #define TCR_TXMSK	BIT(18)
 
 #define SR_CLEAR_MASK	GENMASK(13, 8)
+struct fsl_lpspi_devtype_data {
+	u8 prescale_max;
+};
 
 struct lpspi_config {
 	u8 bpw;
@@ -134,10 +137,24 @@ struct fsl_lpspi_data {
 	struct spi_transfer	*t;
 	bool			last;
 	bool			cs_asserted;
+	const struct fsl_lpspi_devtype_data *devtype_data;
+};
+
+/*
+ * ERR051608 fixed or not:
+ * https://www.nxp.com/docs/en/errata/i.MX93_1P87f.pdf
+ */
+static struct fsl_lpspi_devtype_data imx93_lpspi_devtype_data = {
+	.prescale_max = 1,
+};
+
+static struct fsl_lpspi_devtype_data imx7ulp_lpspi_devtype_data = {
+	.prescale_max = 7,
 };
 
 static const struct of_device_id fsl_lpspi_dt_ids[] = {
-	{ .compatible = "fsl,imx7ulp-spi"},
+	{ .compatible = "fsl,imx7ulp-spi", .data = &imx7ulp_lpspi_devtype_data,},
+	{ .compatible = "fsl,imx93-spi", .data = &imx93_lpspi_devtype_data,},
 	{ .compatible = "nxp,s32g-lpspi"},
 	{ /* sentinel */ }
 };
@@ -331,9 +348,11 @@ static int fsl_lpspi_set_bitrate(struct fsl_lpspi_data *fsl_lpspi)
 {
 	struct lpspi_config config = fsl_lpspi->config;
 	unsigned int perclk_rate, scldiv, div;
+	u8 prescale_max;
 	u8 prescale;
 
 	perclk_rate = clk_get_rate(fsl_lpspi->clk_per);
+	prescale_max = fsl_lpspi->devtype_data->prescale_max;
 
 	if (!config.speed_hz) {
 		dev_err(fsl_lpspi->dev,
@@ -349,7 +368,7 @@ static int fsl_lpspi_set_bitrate(struct fsl_lpspi_data *fsl_lpspi)
 
 	div = DIV_ROUND_UP(perclk_rate, config.speed_hz);
 
-	for (prescale = 0; prescale < 8; prescale++) {
+	for (prescale = 0; prescale <= prescale_max; prescale++) {
 		scldiv = div / (1 << prescale) - 2;
 		if (scldiv < 256) {
 			fsl_lpspi->config.prescale = prescale;
@@ -932,6 +951,7 @@ static u16 fsl_lpspi_get_num_cs(struct platform_device *pdev, u32 param)
 
 static int fsl_lpspi_probe(struct platform_device *pdev)
 {
+	const struct fsl_lpspi_devtype_data *devtype_data;
 	struct fsl_lpspi_data *fsl_lpspi;
 	struct spi_controller *controller;
 	struct resource *res;
@@ -939,6 +959,10 @@ static int fsl_lpspi_probe(struct platform_device *pdev)
 	u16 num_cs;
 	u32 temp;
 	bool is_target;
+
+	devtype_data = of_device_get_match_data(&pdev->dev);
+	if (!devtype_data)
+		return -ENODEV;
 
 	is_target = of_property_read_bool((&pdev->dev)->of_node, "spi-slave");
 	if (is_target)
@@ -959,6 +983,7 @@ static int fsl_lpspi_probe(struct platform_device *pdev)
 	fsl_lpspi->is_only_cs1 = of_property_read_bool((&pdev->dev)->of_node,
 						"fsl,spi-only-use-cs1-sel");
 	fsl_lpspi->cs_asserted = false;
+	fsl_lpspi->devtype_data = devtype_data;
 
 	init_completion(&fsl_lpspi->xfer_done);
 
