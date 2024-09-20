@@ -112,6 +112,11 @@ struct mac_ops *get_mac_ops(void *cgxd)
 	return ((struct cgx *)cgxd)->mac_ops;
 }
 
+u32 cgx_get_fifo_len(void *cgxd)
+{
+	return ((struct cgx *)cgxd)->fifo_len;
+}
+
 void cgx_write(struct cgx *cgx, u64 lmac, u64 offset, u64 val)
 {
 	writeq(val, cgx->reg_base + (lmac << cgx->mac_ops->lmac_offset) +
@@ -538,7 +543,7 @@ static u32 cgx_get_lmac_fifo_len(void *cgxd, int lmac_id)
 	u8 num_lmacs;
 	u32 fifo_len;
 
-	fifo_len = cgx->mac_ops->fifo_len;
+	fifo_len = cgx->fifo_len;
 	num_lmacs = cgx->mac_ops->get_nr_lmacs(cgx);
 
 	switch (num_lmacs) {
@@ -730,7 +735,7 @@ u64 cgx_get_dmacflt_dropped_pktcnt(void *cgxd, int lmac_id)
 	return cgx_read(cgx, lmac_id, CGXX_CMRX_RX_STAT4);
 }
 
-int cgx_stats_rst(void *cgxd, int lmac_id)
+int cgx_stats_reset(void *cgxd, int lmac_id)
 {
 	struct cgx *cgx = cgxd;
 	int stat_id;
@@ -2047,6 +2052,8 @@ static int cgx_lmac_init(struct cgx *cgx)
 		lmac->lmac_type = cgx->mac_ops->get_lmac_type(cgx, lmac->lmac_id);
 	}
 
+	/* Start X2P reset on given MAC block */
+	cgx->mac_ops->mac_x2p_reset(cgx, true);
 	return cgx_lmac_verify_fwi_version(cgx);
 
 err_bitmap_free:
@@ -2092,7 +2099,7 @@ static void cgx_populate_features(struct cgx *cgx)
 	u64 cfg;
 
 	cfg = cgx_read(cgx, 0, CGX_CONST);
-	cgx->mac_ops->fifo_len = FIELD_GET(CGX_CONST_RXFIFO_SIZE, cfg);
+	cgx->fifo_len = FIELD_GET(CGX_CONST_RXFIFO_SIZE, cfg);
 	cgx->max_lmac_per_mac = FIELD_GET(CGX_CONST_MAX_LMACS, cfg);
 
 	if (is_dev_rpm(cgx))
@@ -2110,6 +2117,16 @@ static u8 cgx_get_rxid_mapoffset(struct cgx *cgx)
 		return 0x80;
 	else
 		return 0x60;
+}
+
+/* TODO implement x2p reset */
+void cgx_x2p_reset(void *rpmd, bool enable)
+{
+}
+
+int cgx_enadis_rx(void *rpmd, int lmac_id, bool enable)
+{
+	return 0;
 }
 
 struct mac_ops	cgx_mac_ops    = {
@@ -2143,6 +2160,9 @@ struct mac_ops	cgx_mac_ops    = {
 	.mac_get_pfc_frm_cfg   =        cgx_lmac_get_pfc_frm_cfg,
 	.mac_reset                       =      cgx_lmac_reset,
 	.get_dmacflt_dropped_pktcnt      =      cgx_get_dmacflt_dropped_pktcnt,
+	.mac_stats_reset                 =	cgx_stats_reset,
+	.mac_x2p_reset                   =      cgx_x2p_reset,
+	.mac_enadis_rx			 =      cgx_enadis_rx,
 };
 
 static int cgx_probe(struct pci_dev *pdev, const struct pci_device_id *id)
