@@ -2509,24 +2509,21 @@ static void nix_smq_flush_fill_ctx(struct rvu *rvu, int blkaddr, int smq,
 	schq = smq;
 	for (lvl = NIX_TXSCH_LVL_SMQ; lvl <= NIX_TXSCH_LVL_TL1; lvl++) {
 		smq_tree_ctx = &smq_flush_ctx->smq_tree_ctx[lvl];
+		smq_tree_ctx->schq = schq;
 		if (lvl == NIX_TXSCH_LVL_TL1) {
-			smq_flush_ctx->tl1_schq = schq;
 			smq_tree_ctx->cir_off = NIX_AF_TL1X_CIR(schq);
 			smq_tree_ctx->pir_off = 0;
 			smq_tree_ctx->pir_val = 0;
 			parent_off = 0;
 		} else if (lvl == NIX_TXSCH_LVL_TL2) {
-			smq_flush_ctx->tl2_schq = schq;
 			smq_tree_ctx->cir_off = NIX_AF_TL2X_CIR(schq);
 			smq_tree_ctx->pir_off = NIX_AF_TL2X_PIR(schq);
 			parent_off = NIX_AF_TL2X_PARENT(schq);
 		} else if (lvl == NIX_TXSCH_LVL_TL3) {
-			smq_flush_ctx->tl3_schq = schq;
 			smq_tree_ctx->cir_off = NIX_AF_TL3X_CIR(schq);
 			smq_tree_ctx->pir_off = NIX_AF_TL3X_PIR(schq);
 			parent_off = NIX_AF_TL3X_PARENT(schq);
 		} else if (lvl == NIX_TXSCH_LVL_TL4) {
-			smq_flush_ctx->tl4_schq = schq;
 			smq_tree_ctx->cir_off = NIX_AF_TL4X_CIR(schq);
 			smq_tree_ctx->pir_off = NIX_AF_TL4X_PIR(schq);
 			parent_off = NIX_AF_TL4X_PARENT(schq);
@@ -2550,8 +2547,14 @@ static void nix_smq_flush_fill_ctx(struct rvu *rvu, int blkaddr, int smq,
 
 static void nix_dump_smq_status(struct rvu *rvu, int blkaddr, struct nix_smq_flush_ctx *ctx)
 {
-	dev_info(rvu->dev, "smq:%d tl1_schq:%d tl2:%d tl3:%d tl4:%d\n", ctx->smq, ctx->tl1_schq,
-		 ctx->tl2_schq, ctx->tl3_schq, ctx->tl4_schq);
+	u16 tl1_schq = ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL1].schq;
+	u16 tl2_schq = ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL2].schq;
+
+	dev_info(rvu->dev, "smq:%d tl1:%d tl2:%d tl3:%d tl4:%d\n", ctx->smq,
+		 ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL1].schq,
+		 ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL2].schq,
+		 ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL3].schq,
+		 ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL4].schq);
 
 	dev_info(rvu->dev, "NIX_AF_SMQX_CFG:0x%llx\n",
 		 rvu_read64(rvu, blkaddr, NIX_AF_SMQX_CFG(ctx->smq)));
@@ -2564,9 +2567,9 @@ static void nix_dump_smq_status(struct rvu *rvu, int blkaddr, struct nix_smq_flu
 	dev_info(rvu->dev, "NIX_AF_MDQX_OUT_MD_COUNT:0x%llx\n",
 		 rvu_read64(rvu, blkaddr, NIX_AF_MDQX_OUT_MD_COUNT(ctx->smq)));
 	dev_info(rvu->dev, "NIX_AF_TL1X_SW_XOFF:0x%llx\n",
-		 rvu_read64(rvu, blkaddr, NIX_AF_TL1X_SW_XOFF(ctx->tl1_schq)));
+		 rvu_read64(rvu, blkaddr, NIX_AF_TL1X_SW_XOFF(tl1_schq)));
 	dev_info(rvu->dev, "NIX_AF_TL2X_SW_XOFF=0x%llx\n",
-		 rvu_read64(rvu, blkaddr, NIX_AF_TL2X_SW_XOFF(ctx->tl2_schq)));
+		 rvu_read64(rvu, blkaddr, NIX_AF_TL2X_SW_XOFF(tl2_schq)));
 }
 
 static void nix_smq_flush_enadis_xoff(struct rvu *rvu, int blkaddr,
@@ -2574,8 +2577,8 @@ static void nix_smq_flush_enadis_xoff(struct rvu *rvu, int blkaddr,
 {
 	struct nix_txsch *txsch;
 	struct nix_hw *nix_hw;
+	int tl2, tl2_schq;
 	u64 regoff;
-	int tl2;
 
 	nix_hw = get_nix_hw(rvu->hw, blkaddr);
 	if (!nix_hw)
@@ -2583,16 +2586,17 @@ static void nix_smq_flush_enadis_xoff(struct rvu *rvu, int blkaddr,
 
 	/* loop through all TL2s with matching PF_FUNC */
 	txsch = &nix_hw->txsch[NIX_TXSCH_LVL_TL2];
+	tl2_schq = smq_flush_ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL2].schq;
 	for (tl2 = 0; tl2 < txsch->schq.max; tl2++) {
 		/* skip the smq(flush) TL2 */
-		if (tl2 == smq_flush_ctx->tl2_schq)
+		if (tl2 == tl2_schq)
 			continue;
 		/* skip unused TL2s */
 		if (TXSCH_MAP_FLAGS(txsch->pfvf_map[tl2]) & NIX_TXSCHQ_FREE)
 			continue;
 		/* skip if PF_FUNC doesn't match */
 		if ((TXSCH_MAP_FUNC(txsch->pfvf_map[tl2]) & ~RVU_PFVF_FUNC_MASK) !=
-		    (TXSCH_MAP_FUNC(txsch->pfvf_map[smq_flush_ctx->tl2_schq] &
+		    (TXSCH_MAP_FUNC(txsch->pfvf_map[tl2_schq] &
 				    ~RVU_PFVF_FUNC_MASK)))
 			continue;
 		/* enable/disable XOFF */
@@ -2634,11 +2638,12 @@ static int nix_smq_flush(struct rvu *rvu, int blkaddr,
 			 int smq, u16 pcifunc, int nixlf)
 {
 	struct nix_smq_flush_ctx *smq_flush_ctx;
+	int err, restore_tx_en = 0, i;
 	int pf = rvu_get_pf(pcifunc);
 	u8 cgx_id = 0, lmac_id = 0;
-	int err, restore_tx_en = 0;
-	u64 cfg;
-	u8 link;
+	u16 tl2_tl3_link_schq;
+	u8 link, link_level;
+	u64 cfg, bmap;
 
 	if (!is_rvu_otx2(rvu)) {
 		/* Skip SMQ flush if pkt count is zero */
@@ -2662,15 +2667,37 @@ static int nix_smq_flush(struct rvu *rvu, int blkaddr,
 	nix_smq_flush_enadis_xoff(rvu, blkaddr, smq_flush_ctx, true);
 	nix_smq_flush_enadis_rate(rvu, blkaddr, smq_flush_ctx, false);
 
-	cfg = rvu_read64(rvu, blkaddr, NIX_AF_SMQX_CFG(smq));
-	/* Do SMQ flush and set enqueue xoff */
-	cfg |= BIT_ULL(50) | BIT_ULL(49);
-	rvu_write64(rvu, blkaddr, NIX_AF_SMQX_CFG(smq), cfg);
-
 	/* Disable backpressure from physical link,
 	 * otherwise SMQ flush may stall.
 	 */
 	rvu_cgx_enadis_rx_bp(rvu, pf, false);
+
+	link_level = rvu_read64(rvu, blkaddr, NIX_AF_PSE_CHANNEL_LEVEL) & 0x01 ?
+			NIX_TXSCH_LVL_TL3 : NIX_TXSCH_LVL_TL2;
+	tl2_tl3_link_schq = smq_flush_ctx->smq_tree_ctx[link_level].schq;
+	link = smq_flush_ctx->smq_tree_ctx[NIX_TXSCH_LVL_TL1].schq;
+
+	/* SMQ set enqueue xoff */
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_SMQX_CFG(smq));
+	cfg |= BIT_ULL(50);
+	rvu_write64(rvu, blkaddr, NIX_AF_SMQX_CFG(smq), cfg);
+
+	/* Clear all NIX_AF_TL3_TL2_LINK_CFG[ENA] for the TL3/TL2 queue */
+	for (i = 0; i < (rvu->hw->cgx_links + rvu->hw->lbk_links); i++) {
+		cfg = rvu_read64(rvu, blkaddr,
+				 NIX_AF_TL3_TL2X_LINKX_CFG(tl2_tl3_link_schq, link));
+		if (!(cfg & BIT_ULL(12)))
+			continue;
+		bmap |= (1 << i);
+		cfg &= ~BIT_ULL(12);
+		rvu_write64(rvu, blkaddr,
+			    NIX_AF_TL3_TL2X_LINKX_CFG(tl2_tl3_link_schq, link), cfg);
+	}
+
+	/* Do SMQ flush and set enqueue xoff */
+	cfg = rvu_read64(rvu, blkaddr, NIX_AF_SMQX_CFG(smq));
+	cfg |= BIT_ULL(50) | BIT_ULL(49);
+	rvu_write64(rvu, blkaddr, NIX_AF_SMQX_CFG(smq), cfg);
 
 	/* Wait for flush to complete */
 	err = rvu_poll_reg(rvu, blkaddr,
@@ -2684,6 +2711,19 @@ static int nix_smq_flush(struct rvu *rvu, int blkaddr,
 		link = (cgx_id * rvu->hw->lmac_per_cgx) + lmac_id;
 		dev_info(rvu->dev, "NIX_AF_TX_LINKX_NORM_CREDIT:0x%llx\n",
 			 rvu_read64(rvu, blkaddr, NIX_AF_TX_LINKX_NORM_CREDIT(link)));
+		dev_info(rvu->dev, "NIX_AF_AQ_STATUS:0x%llx\n",
+			 rvu_read64(rvu, blkaddr, NIX_AF_AQ_STATUS));
+	}
+
+	/* Set NIX_AF_TL3_TL2_LINKX_CFG[ENA] for the TL3/TL2 queue */
+	for (i = 0; i < (rvu->hw->cgx_links + rvu->hw->lbk_links); i++) {
+		if (!(bmap & (1 << i)))
+			continue;
+		cfg = rvu_read64(rvu, blkaddr,
+				 NIX_AF_TL3_TL2X_LINKX_CFG(tl2_tl3_link_schq, link));
+		cfg |= BIT_ULL(12);
+		rvu_write64(rvu, blkaddr,
+			    NIX_AF_TL3_TL2X_LINKX_CFG(tl2_tl3_link_schq, link), cfg);
 	}
 
 	/* clear XOFF on TL2s */
@@ -7046,4 +7086,52 @@ unlock_grp:
 		mutex_unlock(&mcast_grp->mcast_grp_lock);
 
 	return ret;
+}
+
+int rvu_nix_tl1_xoff_wait_for_link_credits(struct rvu *rvu, u16 pcifunc)
+{
+	int link, blkaddr, count = 1000;
+	u64 tx_credits, regval;
+	struct nix_hw *nix_hw;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
+	if (blkaddr < 0)
+		return NIX_AF_ERR_AF_LF_INVALID;
+
+	nix_hw =  get_nix_hw(rvu->hw, blkaddr);
+	if (!nix_hw)
+		return NIX_AF_ERR_INVALID_NIXBLK;
+
+	/* set TL1 sw_xoff */
+	link = nix_get_tx_link(rvu, pcifunc);
+	rvu_write64(rvu, blkaddr, NIX_AF_TL1X_SW_XOFF(link), 1);
+
+	/* wait for link credits to return */
+	tx_credits = nix_hw->tx_credits[link];
+	while (1) {
+		regval = rvu_read64(rvu, blkaddr, NIX_AF_TX_LINKX_NORM_CREDIT(link));
+		if (((regval >> 12) & 0xFFFFF) == tx_credits)
+			break;
+		count--;
+		if (!count) {
+			dev_err(rvu->dev, "TX link(%d) credit poll timeout\n", link);
+			return -ETIMEDOUT;
+		}
+		cpu_relax();
+		udelay(1);
+	}
+	return 0;
+}
+
+int rvu_nix_tl1_xoff_clear(struct rvu *rvu, u16 pcifunc)
+{
+	int blkaddr;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
+	if (blkaddr < 0)
+		return NIX_AF_ERR_AF_LF_INVALID;
+
+	nix_clear_tx_xoff(rvu, blkaddr, NIX_TXSCH_LVL_TL1,
+			  nix_get_tx_link(rvu, pcifunc));
+	return 0;
 }
