@@ -65,6 +65,7 @@ MODULE_PARM_DESC(kpu_profile, "KPU profile name string");
 static void rvu_setup_hw_capabilities(struct rvu *rvu)
 {
 	struct rvu_hwinfo *hw = rvu->hw;
+	u64 regval;
 
 	hw->cap.nix_tx_aggr_lvl = NIX_TXSCH_LVL_TL1;
 	hw->cap.nix_fixed_txschq_mapping = false;
@@ -97,6 +98,11 @@ static void rvu_setup_hw_capabilities(struct rvu *rvu)
 
 	if (is_rvu_nix_spi_to_sa_en(rvu))
 		hw->cap.spi_to_sas = 0x2000;
+
+	hw->cap.second_cpt_pass = false;
+	regval = rvu_read64(rvu, BLKADDR_NIX0, NIX_AF_CONST);
+	if (regval & BIT_ULL(62))
+		hw->cap.second_cpt_pass = true;
 }
 
 /* Poll a RVU block's register 'offset', for a 'zero'
@@ -665,9 +671,9 @@ static void rvu_check_min_msix_vec(struct rvu *rvu, int nvecs, int pf, int vf)
 
 check_pf:
 	if (pf == 0)
-		min_vecs = RVU_AF_INT_VEC_CNT + RVU_PF_INT_VEC_CNT;
+		min_vecs = rvu_af_int_vec_cnt(rvu) + rvu_pf_int_vec_cnt(rvu);
 	else
-		min_vecs = RVU_PF_INT_VEC_CNT;
+		min_vecs = rvu_pf_int_vec_cnt(rvu);
 
 	if (!(nvecs < min_vecs))
 		return;
@@ -968,7 +974,7 @@ static int rvu_setup_cpt_hw_resource(struct rvu *rvu, int blkaddr)
 		return 0;
 	blkid = (blkaddr == BLKADDR_CPT0) ? 0 : 1;
 	cfg = rvu_read64(rvu, blkaddr, CPT_AF_CONSTANTS0);
-	block->lf.max = cfg & 0xFF;
+	block->lf.max = cfg & 0x1FF;
 	block->addr = blkaddr;
 	block->type = BLKTYPE_CPT;
 	block->multislot = true;
@@ -983,7 +989,6 @@ static int rvu_setup_cpt_hw_resource(struct rvu *rvu, int blkaddr)
 	sprintf(block->name, "CPT%d", blkid);
 	return rvu_alloc_bitmap(&block->lf);
 }
-
 
 static void rvu_get_lbk_bufsize(struct rvu *rvu)
 {
@@ -1601,6 +1606,12 @@ static int rvu_detach_rsrcs(struct rvu *rvu, struct rsrc_detach *detach,
 			else if ((blkid == BLKADDR_REE1) && !detach->reelfs)
 				continue;
 		}
+
+		if (detach_all ||
+		    (detach && (blkid == BLKADDR_NIX0 || blkid == BLKADDR_NIX1) &&
+		     detach->nixlf))
+			npc_cn20k_dft_rules_free(rvu, pcifunc);
+
 		rvu_detach_block(rvu, pcifunc, block->type);
 	}
 
@@ -1894,8 +1905,14 @@ int rvu_mbox_handler_attach_resources(struct rvu *rvu,
 		goto exit;
 
 	/* Now attach the requested resources */
-	if (attach->nixlf)
+	if (attach->nixlf) {
 		rvu_attach_block(rvu, pcifunc, BLKTYPE_NIX, 1, attach);
+		if (is_cn20k(rvu->pdev)) {
+			err = npc_cn20k_dft_rules_alloc(rvu, pcifunc);
+			if (err)
+				goto exit;
+		}
+	}
 
 	if (attach->npalf)
 		rvu_attach_block(rvu, pcifunc, BLKTYPE_NPA, 1, attach);
@@ -3228,6 +3245,10 @@ static void rvu_flr_handler(struct work_struct *work)
 
 	__rvu_flr_handler(rvu, pcifunc);
 
+	if (is_cn20k(rvu->pdev)) {
+		cn20k_flr_finish(rvu, pf);
+		return;
+	}
 	/* Signal FLR finish */
 	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFTRPEND, BIT_ULL(pf));
 
@@ -3235,7 +3256,7 @@ static void rvu_flr_handler(struct work_struct *work)
 	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFFLR_INT_ENA_W1S,  BIT_ULL(pf));
 }
 
-static void rvu_afvf_queue_flr_work(struct rvu *rvu, int start_vf, int numvfs)
+void rvu_afvf_queue_flr_work(struct rvu *rvu, int start_vf, int numvfs)
 {
 	int dev, vf, reg = 0;
 	u64 intr;
@@ -3366,13 +3387,17 @@ static void rvu_unregister_interrupts(struct rvu *rvu)
 	else
 		cn20k_rvu_unregister_interrupts(rvu);
 
-	/* Disable the PF FLR interrupt */
-	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFFLR_INT_ENA_W1C,
-		    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
+	if (is_cn20k(rvu->pdev)) {
+		cn20k_disable_flr_me(rvu);
+	} else {
+		/* Disable the PF FLR interrupt */
+		rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFFLR_INT_ENA_W1C,
+			    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
 
-	/* Disable the PF ME interrupt */
-	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFME_INT_ENA_W1C,
-		    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
+		/* Disable the PF ME interrupt */
+		rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFME_INT_ENA_W1C,
+			    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
+	}
 
 	for (irq = 0; irq < rvu->num_vec; irq++) {
 		if (rvu->irq_allocated[irq]) {
@@ -3397,12 +3422,62 @@ static int rvu_afvf_msix_vectors_num_ok(struct rvu *rvu)
 	 * VF interrupts can be handled. Offset equal to zero means
 	 * that PF vectors are not configured and overlapping AF vectors.
 	 */
-	if (is_cn20k(rvu->pdev))
-		return (pfvf->msix.max >= RVU_MBOX_AF_INT_VEC_CNT +
-			RVU_MBOX_PF_INT_VEC_CNT) && offset;
+	return (pfvf->msix.max >= rvu_af_int_vec_cnt(rvu) +
+		rvu_pf_int_vec_cnt(rvu)) && offset;
+}
 
-	return (pfvf->msix.max >= RVU_AF_INT_VEC_CNT + RVU_PF_INT_VEC_CNT) &&
-	       offset;
+static int rvu_register_flr_me_afpf_interrupts(struct rvu *rvu)
+{
+	int ret;
+
+	if (is_cn20k(rvu->pdev))
+		return cn20k_register_flr_me_afpf_interrupts(rvu);
+
+	/* Register FLR interrupt handler */
+	sprintf(&rvu->irq_name[RVU_AF_INT_VEC_PFFLR * NAME_SIZE],
+		"RVUAF FLR");
+	ret = request_irq(pci_irq_vector(rvu->pdev, RVU_AF_INT_VEC_PFFLR),
+			  rvu_flr_intr_handler, 0,
+			  &rvu->irq_name[RVU_AF_INT_VEC_PFFLR * NAME_SIZE],
+			  rvu);
+	if (ret) {
+		dev_err(rvu->dev,
+			"RVUAF: IRQ registration failed for FLR\n");
+		return ret;
+	}
+	rvu->irq_allocated[RVU_AF_INT_VEC_PFFLR] = true;
+
+	/* Enable FLR interrupt for all PFs*/
+	rvu_write64(rvu, BLKADDR_RVUM,
+		    RVU_AF_PFFLR_INT, INTR_MASK(rvu->hw->total_pfs));
+
+	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFFLR_INT_ENA_W1S,
+		    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
+
+	/* Register ME interrupt handler */
+	sprintf(&rvu->irq_name[RVU_AF_INT_VEC_PFME * NAME_SIZE],
+		"RVUAF ME");
+	ret = request_irq(pci_irq_vector(rvu->pdev, RVU_AF_INT_VEC_PFME),
+			  rvu_me_pf_intr_handler, 0,
+			  &rvu->irq_name[RVU_AF_INT_VEC_PFME * NAME_SIZE],
+			  rvu);
+	if (ret) {
+		dev_err(rvu->dev,
+			"RVUAF: IRQ registration failed for ME\n");
+	}
+	rvu->irq_allocated[RVU_AF_INT_VEC_PFME] = true;
+
+	/* Clear TRPEND bit for all PF */
+	rvu_write64(rvu, BLKADDR_RVUM,
+		    RVU_AF_PFTRPEND, INTR_MASK(rvu->hw->total_pfs));
+	/* Enable ME interrupt for all PFs*/
+	rvu_write64(rvu, BLKADDR_RVUM,
+		    RVU_AF_PFME_INT, INTR_MASK(rvu->hw->total_pfs));
+
+	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFME_INT_ENA_W1S,
+		    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
+
+	return 0;
 }
 
 static int rvu_register_interrupts(struct rvu *rvu)
@@ -3459,49 +3534,9 @@ static int rvu_register_interrupts(struct rvu *rvu)
 	/* Enable mailbox interrupts from all PFs */
 	rvu_enable_mbox_intr(rvu);
 
-	/* Register FLR interrupt handler */
-	sprintf(&rvu->irq_name[RVU_AF_INT_VEC_PFFLR * NAME_SIZE],
-		"RVUAF FLR");
-	ret = request_irq(pci_irq_vector(rvu->pdev, RVU_AF_INT_VEC_PFFLR),
-			  rvu_flr_intr_handler, 0,
-			  &rvu->irq_name[RVU_AF_INT_VEC_PFFLR * NAME_SIZE],
-			  rvu);
-	if (ret) {
-		dev_err(rvu->dev,
-			"RVUAF: IRQ registration failed for FLR\n");
+	ret = rvu_register_flr_me_afpf_interrupts(rvu);
+	if (ret)
 		goto fail;
-	}
-	rvu->irq_allocated[RVU_AF_INT_VEC_PFFLR] = true;
-
-	/* Enable FLR interrupt for all PFs*/
-	rvu_write64(rvu, BLKADDR_RVUM,
-		    RVU_AF_PFFLR_INT, INTR_MASK(rvu->hw->total_pfs));
-
-	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFFLR_INT_ENA_W1S,
-		    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
-
-	/* Register ME interrupt handler */
-	sprintf(&rvu->irq_name[RVU_AF_INT_VEC_PFME * NAME_SIZE],
-		"RVUAF ME");
-	ret = request_irq(pci_irq_vector(rvu->pdev, RVU_AF_INT_VEC_PFME),
-			  rvu_me_pf_intr_handler, 0,
-			  &rvu->irq_name[RVU_AF_INT_VEC_PFME * NAME_SIZE],
-			  rvu);
-	if (ret) {
-		dev_err(rvu->dev,
-			"RVUAF: IRQ registration failed for ME\n");
-	}
-	rvu->irq_allocated[RVU_AF_INT_VEC_PFME] = true;
-
-	/* Clear TRPEND bit for all PF */
-	rvu_write64(rvu, BLKADDR_RVUM,
-		    RVU_AF_PFTRPEND, INTR_MASK(rvu->hw->total_pfs));
-	/* Enable ME interrupt for all PFs*/
-	rvu_write64(rvu, BLKADDR_RVUM,
-		    RVU_AF_PFME_INT, INTR_MASK(rvu->hw->total_pfs));
-
-	rvu_write64(rvu, BLKADDR_RVUM, RVU_AF_PFME_INT_ENA_W1S,
-		    INTR_MASK(rvu->hw->total_pfs) & ~1ULL);
 
 	if (!rvu_afvf_msix_vectors_num_ok(rvu))
 		return 0;
@@ -3733,6 +3768,8 @@ err:
 	return ret;
 }
 
+#define PCI_DEVID_OCTEONTX2_RVU_AFVF	0xA0F8
+
 static int rvu_enable_sriov(struct rvu *rvu)
 {
 	struct pci_dev *pdev = rvu->pdev;
@@ -3765,10 +3802,10 @@ static int rvu_enable_sriov(struct rvu *rvu)
 		return 0;
 
 	/* LBK channel number 63 is used for switching packets between
-	 * CGX mapped VFs. Hence limit LBK pairs till 62 only.
+	 * CGX mapped VFs. Hence limit LBK pairs.
 	 */
-	if (vfs > 62)
-		vfs = 62;
+	if (rvu->vf_devid == PCI_DEVID_OCTEONTX2_RVU_AFVF && vfs > (chans - 2))
+		vfs = chans - 2;
 
 	/* Save VFs number for reference in VF interrupts handlers.
 	 * Since interrupts might start arriving during SRIOV enablement

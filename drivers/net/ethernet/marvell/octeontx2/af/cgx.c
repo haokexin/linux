@@ -16,6 +16,7 @@
 #include <linux/of.h>
 #include <linux/of_mdio.h>
 #include <linux/of_net.h>
+#include <linux/soc/marvell/silicons.h>
 
 #include "cgx.h"
 #include "rvu.h"
@@ -212,6 +213,24 @@ u8 cgx_lmac_get_p2x(int cgx_id, int lmac_id)
 	cfg = cgx_read(cgx_dev, lmac_id, CGXX_CMRX_CFG);
 
 	return (cfg & CMR_P2X_SEL_MASK) >> CMR_P2X_SEL_SHIFT;
+}
+
+u8 cgx_get_nix_resetbit(struct cgx *cgx)
+{
+	int first_lmac;
+	u8 p2x;
+
+	/* non 98XX silicons supports only NIX0 block */
+	if (cgx->pdev->subsystem_device != PCI_SUBSYS_DEVID_98XX)
+		return CGX_NIX0_RESET;
+
+	first_lmac = find_first_bit(&cgx->lmac_bmap, cgx->max_lmac_per_mac);
+	p2x = cgx_lmac_get_p2x(cgx->cgx_id, first_lmac);
+
+	if (p2x == CMR_P2X_SEL_NIX1)
+		return CGX_NIX1_RESET;
+	else
+		return CGX_NIX0_RESET;
 }
 
 /* Ensure the required lock for event queue(where asynchronous events are
@@ -1962,9 +1981,11 @@ bool is_higig2_enabled(void *cgxd, int lmac_id)
 
 static int cgx_lmac_init(struct cgx *cgx)
 {
+	u8 max_dmac_filters;
 	struct lmac *lmac;
 	u64 lmac_list = 0;
 	int i, err;
+	int filter;
 
 	/* lmac_list specifies which lmacs are enabled
 	 * when bit n is set to 1, LMAC[n] is enabled
@@ -2003,6 +2024,8 @@ static int cgx_lmac_init(struct cgx *cgx)
 				cgx->mac_ops->dmac_filter_count /
 				cgx->lmac_count;
 
+		max_dmac_filters = lmac->mac_to_index_bmap.max;
+
 		err = rvu_alloc_bitmap(&lmac->mac_to_index_bmap);
 		if (err)
 			goto err_name_free;
@@ -2032,6 +2055,15 @@ static int cgx_lmac_init(struct cgx *cgx)
 		set_bit(lmac->lmac_id, &cgx->lmac_bmap);
 		cgx->mac_ops->mac_pause_frm_config(cgx, lmac->lmac_id, true);
 		lmac->lmac_type = cgx->mac_ops->get_lmac_type(cgx, lmac->lmac_id);
+
+		/* Disable stale DMAC filters for sane state */
+		for (filter = 0; filter < max_dmac_filters; filter++)
+			cgx_lmac_addr_del(cgx->cgx_id, lmac->lmac_id, filter);
+
+		/* As cgx_lmac_addr_del does not clear entry for index 0
+		 * so it needs to be done explicitly
+		 */
+		cgx_lmac_addr_reset(cgx->cgx_id, lmac->lmac_id);
 	}
 
 	/* Start X2P reset on given MAC block */
@@ -2101,13 +2133,42 @@ static u8 cgx_get_rxid_mapoffset(struct cgx *cgx)
 		return 0x60;
 }
 
-/* TODO implement x2p reset */
-void cgx_x2p_reset(void *rpmd, bool enable)
+void cgx_x2p_reset(void *cgxd, bool enable)
 {
+	struct cgx *cgx = cgxd;
+	int lmac_id;
+	u64 cfg;
+
+	if (enable) {
+		for_each_set_bit(lmac_id, &cgx->lmac_bmap, cgx->max_lmac_per_mac)
+			cgx->mac_ops->mac_enadis_rx(cgx, lmac_id, false);
+
+		usleep_range(1000, 2000);
+
+		cfg = cgx_read(cgx, 0, CGXX_CMR_GLOBAL_CONFIG);
+		cfg |= cgx_get_nix_resetbit(cgx) | CGX_NSCI_DROP;
+		cgx_write(cgx, 0, CGXX_CMR_GLOBAL_CONFIG, cfg);
+	} else {
+		cfg = cgx_read(cgx, 0, CGXX_CMR_GLOBAL_CONFIG);
+		cfg &= ~(cgx_get_nix_resetbit(cgx) | CGX_NSCI_DROP);
+		cgx_write(cgx, 0, CGXX_CMR_GLOBAL_CONFIG, cfg);
+	}
 }
 
-int cgx_enadis_rx(void *rpmd, int lmac_id, bool enable)
+int cgx_enadis_rx(void *cgxd, int lmac_id, bool enable)
 {
+	struct cgx *cgx = cgxd;
+	u64 cfg;
+
+	if (!is_lmac_valid(cgx, lmac_id))
+		return -ENODEV;
+
+	cfg = cgx_read(cgx, lmac_id, CGXX_CMRX_CFG);
+	if (enable)
+		cfg |= DATA_PKT_RX_EN;
+	else
+		cfg &= ~DATA_PKT_RX_EN;
+	cgx_write(cgx, lmac_id, CGXX_CMRX_CFG, cfg);
 	return 0;
 }
 
@@ -2181,6 +2242,12 @@ static int cgx_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_disable_device;
 	}
 
+	err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(48));
+	if (err) {
+		dev_err(dev, "DMA mask config failed, abort\n");
+		goto err_release_regions;
+	}
+
 	/* MAP configuration registers */
 	cgx->reg_base = pcim_iomap(pdev, PCI_CFG_REG_BAR_NUM, 0);
 	if (!cgx->reg_base) {
@@ -2193,8 +2260,16 @@ static int cgx_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	cgx->cgx_id = (pci_resource_start(pdev, PCI_CFG_REG_BAR_NUM) >> 24)
 		& CGX_ID_MASK;
 
+	if (is_cn20k(pdev)) {
+		err = pci_read_config_byte(pdev, PCI_REVISION_ID, &cgx->cgx_id);
+		if (err) {
+			dev_err(dev, "Unable to set CGX id\n");
+			return err;
+		}
+	}
+
 	 /* Skip probe if CGX is not mapped to NIX */
-	if (!is_cgx_mapped_to_nix(pdev->subsystem_device, cgx->cgx_id)) {
+	if (!is_cn20k(pdev) && !is_cgx_mapped_to_nix(pdev->subsystem_device, cgx->cgx_id)) {
 		dev_notice(dev, "CGX %d not mapped to NIX, skipping probe\n", cgx->cgx_id);
 		goto err_release_regions;
 	}

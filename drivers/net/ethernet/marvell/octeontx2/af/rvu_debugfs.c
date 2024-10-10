@@ -623,8 +623,8 @@ static int get_max_column_width(struct rvu *rvu)
 		return -ENOMEM;
 
 	for (pf = 0; pf < rvu->hw->total_pfs; pf++) {
-		for (vf = 0; vf <= rvu->hw->total_vfs; vf++) {
-			pcifunc = pf << 10 | vf;
+		for (vf = 0; vf <= rvu->hw->max_vfs_per_pf; vf++) {
+			pcifunc = pf << RVU_PFVF_PF_SHIFT | vf;
 			if (!pcifunc)
 				continue;
 
@@ -692,10 +692,10 @@ static ssize_t rvu_dbg_rsrc_attach_status(struct file *filp,
 	i++;
 	*ppos += off;
 	for (pf = 0; pf < rvu->hw->total_pfs; pf++) {
-		for (vf = 0; vf <= rvu->hw->total_vfs; vf++) {
+		for (vf = 0; vf <= rvu->hw->max_vfs_per_pf; vf++) {
 			off = 0;
 			flag = 0;
-			pcifunc = pf << 10 | vf;
+			pcifunc = pf << RVU_PFVF_PF_SHIFT | vf;
 			if (!pcifunc)
 				continue;
 
@@ -760,6 +760,7 @@ static int rvu_dbg_rvu_pf_cgx_map_display(struct seq_file *filp, void *unused)
 	int pf, domain, blkid;
 	u8 cgx_id, lmac_id;
 	u16 pcifunc;
+	u8 start;
 
 	domain = 2;
 	mac_ops = get_mac_ops(rvu_first_cgx_pdata(rvu));
@@ -768,17 +769,22 @@ static int rvu_dbg_rvu_pf_cgx_map_display(struct seq_file *filp, void *unused)
 		return 0;
 	seq_printf(filp, "PCI dev\t\tRVU PF Func\tNIX block\t%s\tLMAC\tCHAN\n",
 		   mac_ops->name);
+
+	/* All the PF devices are on contiguous PCI bus numbers, but the PF0(AF)
+	 * may not start from 1 always. Hence get bus number from PCI device.
+	 */
+	start = rvu->pdev->bus->number;
 	for (pf = 0; pf < rvu->hw->total_pfs; pf++) {
 		if (!is_pf_cgxmapped(rvu, pf))
 			continue;
 
-		pdev =  pci_get_domain_bus_and_slot(domain, pf + 1, 0);
+		pdev =  pci_get_domain_bus_and_slot(domain, pf + start, 0);
 		if (!pdev)
 			continue;
 
 		cgx[0] = 0;
 		lmac[0] = 0;
-		pcifunc = pf << 10;
+		pcifunc = pf << RVU_PFVF_PF_SHIFT;
 		pfvf = rvu_get_pfvf(rvu, pcifunc);
 
 		if (pfvf->nix_blkaddr == BLKADDR_NIX0)
@@ -980,8 +986,10 @@ static void print_npa_aura_ctx(struct seq_file *m, struct npa_aq_enq_rsp *rsp)
 	struct npa_aura_s *aura = &rsp->aura;
 	struct rvu *rvu = m->private;
 
-	if (is_cn20k(rvu->pdev))
+	if (is_cn20k(rvu->pdev)) {
 		print_npa_cn20k_aura_ctx(m, (struct npa_cn20k_aq_enq_rsp *)rsp);
+		return;
+	}
 
 	seq_printf(m, "W0: Pool addr\t\t%llx\n", aura->pool_addr);
 
@@ -1031,8 +1039,10 @@ static void print_npa_pool_ctx(struct seq_file *m, struct npa_aq_enq_rsp *rsp)
 	struct npa_pool_s *pool = &rsp->pool;
 	struct rvu *rvu = m->private;
 
-	if (is_cn20k(rvu->pdev))
+	if (is_cn20k(rvu->pdev)) {
 		print_npa_cn20k_pool_ctx(m, (struct npa_cn20k_aq_enq_rsp *)rsp);
+		return;
+	}
 
 	seq_printf(m, "W0: Stack base\t\t%llx\n", pool->stack_base);
 
@@ -2964,6 +2974,8 @@ static void rvu_print_npc_mcam_info(struct seq_file *s,
 static int rvu_dbg_npc_mcam_info_display(struct seq_file *filp, void *unsued)
 {
 	struct rvu *rvu = filp->private;
+	int x4_free, x2_free, sb_free;
+	struct npc_priv_t *npc_priv;
 	int pf, vf, numvfs, blkaddr;
 	struct npc_mcam *mcam;
 	u16 pcifunc, counters;
@@ -2978,16 +2990,31 @@ static int rvu_dbg_npc_mcam_info_display(struct seq_file *filp, void *unsued)
 
 	seq_puts(filp, "\nNPC MCAM info:\n");
 	/* MCAM keywidth on receive and transmit sides */
-	cfg = rvu_read64(rvu, blkaddr, NPC_AF_INTFX_KEX_CFG(NIX_INTF_RX));
-	cfg = (cfg >> 32) & 0x07;
-	seq_printf(filp, "\t\t RX keywidth \t: %s\n", (cfg == NPC_MCAM_KEY_X1) ?
-		   "112bits" : ((cfg == NPC_MCAM_KEY_X2) ?
-		   "224bits" : "448bits"));
-	cfg = rvu_read64(rvu, blkaddr, NPC_AF_INTFX_KEX_CFG(NIX_INTF_TX));
-	cfg = (cfg >> 32) & 0x07;
-	seq_printf(filp, "\t\t TX keywidth \t: %s\n", (cfg == NPC_MCAM_KEY_X1) ?
-		   "112bits" : ((cfg == NPC_MCAM_KEY_X2) ?
-		   "224bits" : "448bits"));
+
+	if (is_cn20k(rvu->pdev)) {
+		npc_priv = npc_priv_get();
+		seq_printf(filp, "\t\t RX keywidth \t: %s\n",
+			   (npc_priv->kw == NPC_MCAM_KEY_X1) ?
+			   "256bits" : "512bits");
+
+		npc_cn20k_subbank_calc_free(rvu, &x2_free, &x4_free, &sb_free);
+		seq_printf(filp, "\t\t free x4 slots\t: %d\n", x4_free);
+
+		seq_printf(filp, "\t\t free x2 slots\t: %d\n", x2_free);
+
+		seq_printf(filp, "\t\t free subbanks\t: %d\n", sb_free);
+	} else {
+		cfg = rvu_read64(rvu, blkaddr, NPC_AF_INTFX_KEX_CFG(NIX_INTF_RX));
+		cfg = (cfg >> 32) & 0x07;
+		seq_printf(filp, "\t\t RX keywidth \t: %s\n", (cfg == NPC_MCAM_KEY_X1) ?
+			   "112bits" : ((cfg == NPC_MCAM_KEY_X2) ?
+					"224bits" : "448bits"));
+		cfg = rvu_read64(rvu, blkaddr, NPC_AF_INTFX_KEX_CFG(NIX_INTF_TX));
+		cfg = (cfg >> 32) & 0x07;
+		seq_printf(filp, "\t\t TX keywidth \t: %s\n", (cfg == NPC_MCAM_KEY_X1) ?
+			   "112bits" : ((cfg == NPC_MCAM_KEY_X2) ?
+					"224bits" : "448bits"));
+	}
 
 	mutex_lock(&mcam->lock);
 	/* MCAM entries */
@@ -3329,6 +3356,8 @@ static int rvu_dbg_npc_mcam_show_rules(struct seq_file *s, void *unused)
 
 		enabled = is_mcam_entry_enabled(rvu, mcam, blkaddr, iter->entry);
 		seq_printf(s, "\tenabled: %s\n", enabled ? "yes" : "no");
+		if (is_cn20k(rvu->pdev))
+			seq_printf(s, "\tpriority: %u\n", iter->hw_prio);
 
 		if (!iter->has_cntr)
 			continue;
@@ -3520,6 +3549,9 @@ static void rvu_dbg_npc_init(struct rvu *rvu)
 	debugfs_create_file("rx_miss_act_stats", 0444, rvu->rvu_dbg.npc, rvu,
 			    &rvu_dbg_npc_rx_miss_act_fops);
 
+	if (is_cn20k(rvu->pdev))
+		npc_cn20k_debugfs_init(rvu);
+
 	if (!rvu->hw->cap.npc_exact_match_enabled)
 		return;
 
@@ -3536,10 +3568,10 @@ static void rvu_dbg_npc_init(struct rvu *rvu)
 
 static int cpt_eng_sts_display(struct seq_file *filp, u8 eng_type)
 {
+	u16 max_ses, max_aes, max_ies, max_re;
 	struct cpt_ctx *ctx = filp->private;
+	u32 e_min = 0, e_max = 0, e, index;
 	u64 busy_sts = 0, free_sts = 0;
-	u32 e_min = 0, e_max = 0, e, i;
-	u16 max_ses, max_ies, max_aes;
 	struct rvu *rvu = ctx->rvu;
 	int blkaddr = ctx->blkaddr;
 	u64 reg;
@@ -3548,11 +3580,12 @@ static int cpt_eng_sts_display(struct seq_file *filp, u8 eng_type)
 	max_ses = reg & 0xffff;
 	max_ies = (reg >> 16) & 0xffff;
 	max_aes = (reg >> 32) & 0xffff;
+	max_re = (reg >> 48) & 0xffff;
 
 	switch (eng_type) {
 	case CPT_AE_TYPE:
-		e_min = max_ses + max_ies;
-		e_max = max_ses + max_ies + max_aes;
+		e_min = max_ses + max_ies + max_re;
+		e_max = e_min + max_aes;
 		break;
 	case CPT_SE_TYPE:
 		e_min = 0;
@@ -3566,16 +3599,35 @@ static int cpt_eng_sts_display(struct seq_file *filp, u8 eng_type)
 		return -EINVAL;
 	}
 
-	for (e = e_min, i = 0; e < e_max; e++, i++) {
+	for (e = e_min, index = 0; e < e_max; e++) {
 		reg = rvu_read64(rvu, blkaddr, CPT_AF_EXEX_STS(e));
 		if (reg & 0x1)
-			busy_sts |= 1ULL << i;
+			busy_sts |= 1ULL << index;
 
 		if (reg & 0x2)
-			free_sts |= 1ULL << i;
+			free_sts |= 1ULL << index;
+
+		if (++index < 64)
+			continue;
+
+		/* Status of last 64 engines */
+		seq_printf(filp, "FREE STS : Engines %d to %d \t: 0x%016llx\n",
+			   ((e - e_min) / 64) * 64, (e - e_min), free_sts);
+		seq_printf(filp, "BUSY STS : Engines %d to %d \t: 0x%016llx\n",
+			   ((e - e_min) / 64) * 64, (e - e_min), busy_sts);
+		free_sts = 0;
+		busy_sts = 0;
+		index = 0;
 	}
-	seq_printf(filp, "FREE STS : 0x%016llx\n", free_sts);
-	seq_printf(filp, "BUSY STS : 0x%016llx\n", busy_sts);
+
+	/* Status of remaining engines */
+	if (index) {
+		e--;
+		seq_printf(filp, "FREE STS : Engines %d to %d \t: 0x%016llx\n",
+			   ((e - e_min) / 64) * 64, (e - e_min), free_sts);
+		seq_printf(filp, "BUSY STS : Engines %d to %d \t: 0x%016llx\n",
+			   ((e - e_min) / 64) * 64, (e - e_min), busy_sts);
+	}
 
 	return 0;
 }
@@ -3603,8 +3655,8 @@ RVU_DEBUG_SEQ_FOPS(cpt_ie_sts, cpt_ie_sts_display, NULL);
 
 static int rvu_dbg_cpt_engines_info_display(struct seq_file *filp, void *unused)
 {
+	u16 max_ses, max_aes, max_ies, max_re;
 	struct cpt_ctx *ctx = filp->private;
-	u16 max_ses, max_ies, max_aes;
 	struct rvu *rvu = ctx->rvu;
 	int blkaddr = ctx->blkaddr;
 	u32 e_max, e;
@@ -3614,8 +3666,9 @@ static int rvu_dbg_cpt_engines_info_display(struct seq_file *filp, void *unused)
 	max_ses = reg & 0xffff;
 	max_ies = (reg >> 16) & 0xffff;
 	max_aes = (reg >> 32) & 0xffff;
+	max_re = (reg >> 48) & 0xffff;
 
-	e_max = max_ses + max_ies + max_aes;
+	e_max = max_ses + max_ies + max_aes + max_re;
 
 	seq_puts(filp, "===========================================\n");
 	for (e = 0; e < e_max; e++) {
@@ -3877,7 +3930,7 @@ static void sso_hwgrp_display_taq_list(struct rvu *rvu, int ssolf, u8 wae_head,
 				 SSO_AF_TAQX_LINK(ent_head));
 		pr_info("SSO HWGGRP[%d] TAQ[%d] LINK         0x%llx\n",
 			ssolf, ent_head, reg);
-		ent_head = reg & 0x7FF;
+		ent_head = reg & 0xFFF;
 		pr_info("--------------------------------------------------\n");
 	} while (ent_head && wae_used);
 }
@@ -4086,8 +4139,8 @@ static void read_sso_hwgrp_taq_list(struct rvu *rvu, int ssolf, bool all)
 		reg = rvu_read64(rvu, blkaddr, SSO_AF_TOAQX_STATUS(ssolf));
 		pr_info("SSO HWGGRP[%d] TOAQ Status          0x%llx\n", ssolf,
 			reg);
-		ent_head = (reg >> 12) & 0x7FF;
-		cl_used = (reg >> 32) & 0x7FF;
+		ent_head = (reg >> 12) & 0xFFF;
+		cl_used = (reg >> 32) & 0xFFF;
 		if (reg & BIT_ULL(61) && cl_used) {
 			pr_info("SSO HWGGRP[%d] TOAQ CL_USED         0x%x\n",
 				ssolf, cl_used);
@@ -4103,7 +4156,7 @@ static void read_sso_hwgrp_taq_list(struct rvu *rvu, int ssolf, bool all)
 			reg);
 		wae_head = (reg >> 60) & 0xF;
 		cl_used = (reg >> 32) & 0x7FFF;
-		ent_head = (reg >> 12) & 0x7FF;
+		ent_head = (reg >> 12) & 0xFFF;
 		if (reg & BIT_ULL(61) && cl_used) {
 			pr_info("SSO HWGGRP[%d] TIAQ WAE_USED         0x%x\n",
 				ssolf, cl_used);
