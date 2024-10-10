@@ -38,7 +38,6 @@
 /*    Debug routines (externals)                        */
 /*------------------------------------------------------*/
 #include "string_ext.h"
-#include "stdlib_ext.h"
 #include "stdarg_ext.h"
 #include "sprint_ext.h"
 #include "std_ext.h"
