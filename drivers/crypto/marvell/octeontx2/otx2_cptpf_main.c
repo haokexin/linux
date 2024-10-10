@@ -9,6 +9,7 @@
 #include "otx2_cptpf.h"
 #include "cn10k_cpt.h"
 #include "rvu_reg.h"
+#include "cn20k/reg.h"
 
 #define OTX2_CPT_DRV_NAME    "rvu_cptpf"
 #define OTX2_CPT_DRV_STRING  "Marvell RVU CPT Physical Function Driver"
@@ -16,6 +17,7 @@
 #define CPT_UC_RID_CN9K_B0   1
 #define CPT_UC_RID_CN10K_A   4
 #define CPT_UC_RID_CN10K_B   5
+#define CPT_UC_RID_CN20K     6
 
 static void cptpf_enable_vfpf_mbox_intr(struct otx2_cptpf_dev *cptpf,
 					int num_vfs)
@@ -65,6 +67,41 @@ static void cptpf_disable_vfpf_mbox_intr(struct otx2_cptpf_dev *cptpf,
 				 RVU_PF_VFPF_MBOX_INTX(1), ~0ULL);
 		vector = pci_irq_vector(cptpf->pdev, RVU_PF_INT_VEC_VFPF_MBOX1);
 		free_irq(vector, cptpf);
+	}
+}
+
+void cptpf_cn20k_disable_vfpf_mbox_intr(struct otx2_cptpf_dev *cptpf,
+					int numvfs)
+{
+	int vector = 0, intr_vec;
+
+	/* Disable PF <=> VF mailbox IRQ */
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF_INT_ENA_W1CX(0), ~0ull);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF_INT_ENA_W1CX(1), ~0ull);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF1_INT_ENA_W1CX(0), ~0ull);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF1_INT_ENA_W1CX(1), ~0ull);
+
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF_INTX(0), ~0ull);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF1_INTX(0), ~0ull);
+
+	if (numvfs > 64) {
+		otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+				 RVU_MBOX_PF_VFPF_INTX(1), ~0ull);
+		otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+				 RVU_MBOX_PF_VFPF1_INTX(1), ~0ull);
+	}
+
+	for (intr_vec = RVU_MBOX_PF_INT_VEC_VFPF_MBOX0; intr_vec <=
+			RVU_MBOX_PF_INT_VEC_VFPF1_MBOX1; intr_vec++) {
+		free_irq(pci_irq_vector(cptpf->pdev, intr_vec),
+			 &cptpf->irq_data[vector]);
+		vector++;
 	}
 }
 
@@ -235,8 +272,96 @@ static irqreturn_t cptpf_vf_me_intr(int __always_unused irq, void *arg)
 static void cptpf_unregister_vfpf_intr(struct otx2_cptpf_dev *cptpf,
 				       int num_vfs)
 {
-	cptpf_disable_vfpf_mbox_intr(cptpf, num_vfs);
+	if (is_cn20k(cptpf->pdev))
+		cptpf_cn20k_disable_vfpf_mbox_intr(cptpf, num_vfs);
+	else
+		cptpf_disable_vfpf_mbox_intr(cptpf, num_vfs);
 	cptpf_disable_vf_flr_me_intrs(cptpf, num_vfs);
+}
+
+void cptpf_cn20k_enable_vfpf_mbox_intr(struct otx2_cptpf_dev *cptpf,
+				       int numvfs)
+{
+	/* Clear PF <=> VF mailbox IRQ */
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF_INTX(0), ~0ull);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF_INTX(1), ~0ull);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF1_INTX(0), ~0ull);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF1_INTX(1), ~0ull);
+
+	/* Enable PF <=> VF mailbox IRQ */
+	otx2_cpt_write64(cptpf->reg_base,  BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF_INT_ENA_W1SX(0), INTR_MASK(numvfs));
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_MBOX_PF_VFPF1_INT_ENA_W1SX(0), INTR_MASK(numvfs));
+	if (numvfs > 64) {
+		numvfs -= 64;
+		otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+				 RVU_MBOX_PF_VFPF_INT_ENA_W1SX(1),
+				 INTR_MASK(numvfs));
+		otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+				 RVU_MBOX_PF_VFPF1_INT_ENA_W1SX(1),
+				 INTR_MASK(numvfs));
+	}
+}
+
+int cptpf_cn20k_register_vfpf_mbox_intr(struct otx2_cptpf_dev *cptpf,
+					int num_vfs)
+{
+	struct cptpf_irq_data *irq_data = &cptpf->irq_data[0];
+	int intr_vec, ret, vec = 0;
+	char *irq_name;
+
+	for (intr_vec = RVU_MBOX_PF_INT_VEC_VFPF_MBOX0; intr_vec <=
+			RVU_MBOX_PF_INT_VEC_VFPF1_MBOX1; intr_vec++, vec++) {
+		switch (intr_vec) {
+		case RVU_MBOX_PF_INT_VEC_VFPF_MBOX0:
+			/* VF(0..63) Request messages(MBOX0) to PF */
+			irq_data[vec].intr_status = RVU_MBOX_PF_VFPF_INTX(0);
+			irq_data[vec].start = 0;
+			irq_data[vec].mdevs = 64;
+			break;
+		case RVU_MBOX_PF_INT_VEC_VFPF_MBOX1:
+			/* VF(64..127) Request messages(MBOX0) to PF */
+			irq_data[vec].intr_status = RVU_MBOX_PF_VFPF_INTX(1);
+			irq_data[vec].start = 64;
+			irq_data[vec].mdevs = 128;
+			break;
+		case RVU_MBOX_PF_INT_VEC_VFPF1_MBOX0:
+			/* PF ACK messages(MBOX1) to VF(0..63) */
+			irq_data[vec].intr_status = RVU_MBOX_PF_VFPF1_INTX(0);
+			irq_data[vec].start = 0;
+			irq_data[vec].mdevs = 64;
+			break;
+		case RVU_MBOX_PF_INT_VEC_VFPF1_MBOX1:
+			/* PF ACK messages(MBOX1) to VF(64..127) */
+			irq_data[vec].intr_status = RVU_MBOX_PF_VFPF1_INTX(1);
+			irq_data[vec].start = 64;
+			irq_data[vec].mdevs = 128;
+			break;
+		}
+		irq_data[vec].vec_num = intr_vec;
+		irq_data[vec].pf = cptpf;
+
+		irq_name = &irq_data[vec].irq_name[0];
+		snprintf(irq_name, CPT_CN20K_PFVF_MBOX_IRQ_NAME,
+			 "CPTPF PFVF%d Mbox%d", (vec % 2), (vec / 2));
+		ret = request_irq(pci_irq_vector(cptpf->pdev, intr_vec),
+				  cptpf_cn20k_vfpf_mbox_intr, 0,
+				  irq_name, &irq_data[vec]);
+		if (ret) {
+			dev_err(&cptpf->pdev->dev,
+				"IRQ registration fail for CPT PFVF mbox %d\n",
+				vec);
+			return ret;
+		}
+	}
+
+	cptpf_cn20k_enable_vfpf_mbox_intr(cptpf, num_vfs);
+	return 0;
 }
 
 static int cptpf_register_vfpf_intr(struct otx2_cptpf_dev *cptpf, int num_vfs)
@@ -245,10 +370,14 @@ static int cptpf_register_vfpf_intr(struct otx2_cptpf_dev *cptpf, int num_vfs)
 	struct device *dev = &pdev->dev;
 	int ret, vector;
 
-	vector = pci_irq_vector(pdev, RVU_PF_INT_VEC_VFPF_MBOX0);
 	/* Register VF-PF mailbox interrupt handler */
-	ret = request_irq(vector, otx2_cptpf_vfpf_mbox_intr, 0, "CPTVFPF Mbox0",
-			  cptpf);
+	if (is_cn20k(cptpf->pdev)) {
+		ret = cptpf_cn20k_register_vfpf_mbox_intr(cptpf, num_vfs);
+	} else {
+		vector = pci_irq_vector(pdev, RVU_PF_INT_VEC_VFPF_MBOX0);
+		ret = request_irq(vector, otx2_cptpf_vfpf_mbox_intr, 0,
+				  "CPTVFPF Mbox0", cptpf);
+	}
 	if (ret) {
 		dev_err(dev,
 			"IRQ registration failed for PFVF mbox0 irq\n");
@@ -355,6 +484,26 @@ destroy_wq:
 	return -ENOMEM;
 }
 
+static void *cptpf_cn20k_pfvf_mbox_alloc(struct otx2_cptpf_dev *cptpf,
+					 int num_vfs)
+{
+	int err;
+
+	err = qmem_alloc(&cptpf->pdev->dev, &cptpf->mbox_qmem, num_vfs,
+			 MBOX_SIZE);
+	if (err) {
+		dev_err(&cptpf->pdev->dev,
+			"Error %d while allocating memory for PF-VF mailbox\n",
+			err);
+		return NULL;
+	}
+
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_PF_VF_MBOX_ADDR, (u64)cptpf->mbox_qmem->iova);
+
+	return cptpf->mbox_qmem->base;
+}
+
 static int cptpf_vfpf_mbox_init(struct otx2_cptpf_dev *cptpf, int num_vfs)
 {
 	struct device *dev = &cptpf->pdev->dev;
@@ -367,19 +516,27 @@ static int cptpf_vfpf_mbox_init(struct otx2_cptpf_dev *cptpf, int num_vfs)
 	if (!cptpf->vfpf_mbox_wq)
 		return -ENOMEM;
 
-	/* Map VF-PF mailbox memory */
-	if (test_bit(CN10K_MBOX, &cptpf->cap_flag))
-		vfpf_mbox_base = readq(cptpf->reg_base + RVU_PF_VF_MBOX_ADDR);
-	else
-		vfpf_mbox_base = readq(cptpf->reg_base + RVU_PF_VF_BAR4_ADDR);
+	if (is_cn20k(cptpf->pdev)) {
+		cptpf->vfpf_mbox_base = cptpf_cn20k_pfvf_mbox_alloc(cptpf,
+								    num_vfs);
+	} else {
+		/* Map VF-PF mailbox memory */
+		if (test_bit(CN10K_MBOX, &cptpf->cap_flag))
+			vfpf_mbox_base = readq(cptpf->reg_base +
+					       RVU_PF_VF_MBOX_ADDR);
+		else
+			vfpf_mbox_base = readq(cptpf->reg_base +
+					       RVU_PF_VF_BAR4_ADDR);
 
-	if (!vfpf_mbox_base) {
-		dev_err(dev, "VF-PF mailbox address not configured\n");
-		err = -ENOMEM;
-		goto free_wqe;
+		if (!vfpf_mbox_base) {
+			dev_err(dev, "VF-PF mailbox address not configured\n");
+			err = -ENOMEM;
+			goto free_wqe;
+		}
+		cptpf->vfpf_mbox_base = devm_ioremap_wc(dev, vfpf_mbox_base,
+							MBOX_SIZE *
+							cptpf->max_vfs);
 	}
-	cptpf->vfpf_mbox_base = devm_ioremap_wc(dev, vfpf_mbox_base,
-						MBOX_SIZE * cptpf->max_vfs);
 	if (!cptpf->vfpf_mbox_base) {
 		dev_err(dev, "Mapping of VF-PF mailbox address failed\n");
 		err = -ENOMEM;
@@ -408,16 +565,19 @@ free_wqe:
 static void cptpf_vfpf_mbox_destroy(struct otx2_cptpf_dev *cptpf)
 {
 	destroy_workqueue(cptpf->vfpf_mbox_wq);
+	if (is_cn20k(cptpf->pdev))
+		qmem_free(&cptpf->pdev->dev, cptpf->mbox_qmem);
 	otx2_mbox_destroy(&cptpf->vfpf_mbox);
 }
 
 static void cptpf_disable_afpf_mbox_intr(struct otx2_cptpf_dev *cptpf)
 {
 	/* Disable AF-PF interrupt */
-	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0, RVU_PF_INT_ENA_W1C,
-			 0x1ULL);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_PF_INT_ENA_W1C, BIT_ULL(0) | BIT_ULL(1));
 	/* Clear interrupt if any */
-	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0, RVU_PF_INT, 0x1ULL);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_PF_INT, BIT_ULL(0) | BIT_ULL(1));
 }
 
 static int cptpf_register_afpf_mbox_intr(struct otx2_cptpf_dev *cptpf)
@@ -426,20 +586,28 @@ static int cptpf_register_afpf_mbox_intr(struct otx2_cptpf_dev *cptpf)
 	struct device *dev = &pdev->dev;
 	int ret, irq;
 
-	irq = pci_irq_vector(pdev, RVU_PF_INT_VEC_AFPF_MBOX);
-	/* Register AF-PF mailbox interrupt handler */
-	ret = devm_request_irq(dev, irq, otx2_cptpf_afpf_mbox_intr, 0,
-			       "CPTAFPF Mbox", cptpf);
+	if (is_cn20k(cptpf->pdev)) {
+		irq = pci_irq_vector(pdev, RVU_MBOX_PF_INT_VEC_AFPF_MBOX);
+		/* Register AF-PF mailbox interrupt handler */
+		ret = devm_request_irq(dev, irq,
+				       cptpf_cn20k_afpf_mbox_intr, 0,
+				       "CPTAFPF Mbox", cptpf);
+	} else {
+		irq = pci_irq_vector(pdev, RVU_PF_INT_VEC_AFPF_MBOX);
+		/* Register AF-PF mailbox interrupt handler */
+		ret = devm_request_irq(dev, irq, otx2_cptpf_afpf_mbox_intr, 0,
+				       "CPTAFPF Mbox", cptpf);
+	}
 	if (ret) {
-		dev_err(dev,
-			"IRQ registration failed for PFAF mbox irq\n");
+		dev_err(dev, "IRQ registration failed for PFAF mbox irq\n");
 		return ret;
 	}
 	/* Clear interrupt if any, to avoid spurious interrupts */
-	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0, RVU_PF_INT, 0x1ULL);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_PF_INT, BIT_ULL(0) | BIT_ULL(1));
 	/* Enable AF-PF interrupt */
-	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0, RVU_PF_INT_ENA_W1S,
-			 0x1ULL);
+	otx2_cpt_write64(cptpf->reg_base, BLKADDR_RVUM, 0,
+			 RVU_PF_INT_ENA_W1S, BIT_ULL(0) | BIT_ULL(1));
 
 	ret = otx2_cpt_send_ready_msg(&cptpf->afpf_mbox, cptpf->pdev);
 	if (ret) {
@@ -463,13 +631,22 @@ static int cptpf_afpf_mbox_init(struct otx2_cptpf_dev *cptpf)
 	if (!cptpf->afpf_mbox_wq)
 		return -ENOMEM;
 
-	offset = pci_resource_start(pdev, PCI_MBOX_BAR_NUM);
-	/* Map AF-PF mailbox memory */
-	cptpf->afpf_mbox_base = devm_ioremap_wc(&pdev->dev, offset, MBOX_SIZE);
-	if (!cptpf->afpf_mbox_base) {
-		dev_err(&pdev->dev, "Unable to map BAR4\n");
-		err = -ENOMEM;
-		goto error;
+	if (is_cn20k(cptpf->pdev)) {
+		cptpf->afpf_mbox_base = cptpf->reg_base +
+					CPT_CN20K_PFAF_MBOX_BASE +
+					((u64)BLKADDR_MBOX <<
+					OTX2_CPT_RVU_FUNC_BLKADDR_SHIFT);
+	} else {
+		offset = pci_resource_start(pdev, PCI_MBOX_BAR_NUM);
+
+		/* Map AF-PF mailbox memory */
+		cptpf->afpf_mbox_base = devm_ioremap_wc(&pdev->dev, offset,
+							MBOX_SIZE);
+		if (!cptpf->afpf_mbox_base) {
+			dev_err(&pdev->dev, "Unable to map BAR4\n");
+			err = -ENOMEM;
+			goto error;
+		}
 	}
 
 	err = otx2_mbox_init(&cptpf->afpf_mbox, cptpf->afpf_mbox_base,
@@ -574,9 +751,15 @@ static int cpt_is_pf_usable(struct otx2_cptpf_dev *cptpf)
 {
 	u64 rev;
 
-	rev = otx2_cpt_read64(cptpf->reg_base, BLKADDR_RVUM, 0,
-			      RVU_PF_BLOCK_ADDRX_DISC(BLKADDR_RVUM));
-	rev = (rev >> 12) & 0xFF;
+	if (is_cn20k(cptpf->pdev)) {
+		rev = otx2_cpt_read64(cptpf->reg_base, BLKADDR_RVUM, 0,
+				      RVU_PF_DISC);
+		rev = FIELD_GET(BIT_ULL(BLKADDR_RVUM), rev);
+	} else {
+		rev = otx2_cpt_read64(cptpf->reg_base, BLKADDR_RVUM, 0,
+				      RVU_PF_BLOCK_ADDRX_DISC(BLKADDR_RVUM));
+		rev = FIELD_GET(GENMASK(19, 12), rev);
+	}
 	/*
 	 * Check if AF has setup revision for RVUM block, otherwise
 	 * driver probe should be deferred until AF driver comes up
@@ -598,6 +781,12 @@ static int cptpf_get_rid(struct pci_dev *pdev, struct otx2_cptpf_dev *cptpf)
 		eng_grps->rid = pdev->revision;
 		return 0;
 	}
+
+	if (is_cn20k(pdev)) {
+		eng_grps->rid = CPT_UC_RID_CN20K;
+		return 0;
+	}
+
 	otx2_cpt_read_af_reg(&cptpf->afpf_mbox, pdev, CPT_AF_CTL, &reg_val,
 			     BLKADDR_CPT0);
 	if ((cpt_feature_sgv2(pdev) && (reg_val & BIT_ULL(18))) ||
@@ -637,6 +826,7 @@ static int cptpf_device_init(struct otx2_cptpf_dev *cptpf)
 	cptpf->eng_grps.avail.max_se_cnt = af_cnsts1.s.se;
 	cptpf->eng_grps.avail.max_ie_cnt = af_cnsts1.s.ie;
 	cptpf->eng_grps.avail.max_ae_cnt = af_cnsts1.s.ae;
+	cptpf->eng_grps.avail.max_re_cnt = af_cnsts1.s.re;
 
 	/* Disable all cores */
 	ret = otx2_cpt_disable_all_cores(cptpf);
@@ -783,6 +973,10 @@ static int otx2_cptpf_probe(struct pci_dev *pdev,
 		goto clear_drvdata;
 	/* Register mailbox interrupt */
 	err = cptpf_register_afpf_mbox_intr(cptpf);
+	if (err)
+		goto destroy_afpf_mbox;
+
+	err = otx2_cptpf_mbox_bbuf_init(cptpf, pdev);
 	if (err)
 		goto destroy_afpf_mbox;
 

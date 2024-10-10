@@ -5,7 +5,8 @@
 #include "otx2_cptvf.h"
 #include <rvu_reg.h>
 
-int otx2_cpt_mbox_bbuf_init(struct otx2_cptvf_dev *cptvf, struct pci_dev *pdev)
+int otx2_cptvf_mbox_bbuf_init(struct otx2_cptvf_dev *cptvf,
+			      struct pci_dev *pdev)
 {
 	struct otx2_mbox_dev *mdev;
 	struct otx2_mbox *otx2_mbox;
@@ -25,26 +26,24 @@ int otx2_cpt_mbox_bbuf_init(struct otx2_cptvf_dev *cptvf, struct pci_dev *pdev)
 	return 0;
 }
 
-static void otx2_cpt_sync_mbox_bbuf(struct otx2_mbox *mbox, int devid)
+irqreturn_t cptvf_cn20k_pfvf_mbox_intr(int __always_unused irq, void *arg)
 {
-	u16 msgs_offset = ALIGN(sizeof(struct mbox_hdr), MBOX_MSG_ALIGN);
-	void *hw_mbase = mbox->hwbase + (devid * MBOX_SIZE);
-	struct otx2_mbox_dev *mdev = &mbox->dev[devid];
-	struct mbox_hdr *hdr;
-	u64 msg_size;
+	struct otx2_cptvf_dev *cptvf = arg;
+	u64 intr;
 
-	if (mdev->mbase == hw_mbase)
-		return;
+	/* Read the interrupt bits */
+	intr = otx2_cpt_read64(cptvf->reg_base, BLKADDR_RVUM, 0,
+			       OTX2_RVU_VF_INT);
 
-	hdr = hw_mbase + mbox->rx_start;
-	msg_size = hdr->msg_size;
+	if (intr & BIT_ULL(1)) {
+		/* Schedule work queue function to process the MBOX request */
+		queue_work(cptvf->pfvf_mbox_wq, &cptvf->pfvf_mbox_work);
+		/* Clear and ack the interrupt */
+		otx2_cpt_write64(cptvf->reg_base, BLKADDR_RVUM, 0,
+				 OTX2_RVU_VF_INT, BIT_ULL(1));
+	}
 
-	if (msg_size > mbox->rx_size - msgs_offset)
-		msg_size = mbox->rx_size - msgs_offset;
-
-	/* Copy mbox messages from mbox memory to bounce buffer */
-	memcpy(mdev->mbase + mbox->rx_start,
-	       hw_mbase + mbox->rx_start, msg_size + msgs_offset);
+	return IRQ_HANDLED;
 }
 
 irqreturn_t otx2_cptvf_pfvf_mbox_intr(int __always_unused irq, void *arg)
@@ -75,6 +74,7 @@ static void process_pfvf_mbox_mbox_msg(struct otx2_cptvf_dev *cptvf,
 	struct otx2_cpt_caps_rsp *eng_caps;
 	struct cpt_rd_wr_reg_msg *rsp_reg;
 	struct msix_offset_rsp *rsp_msix;
+	u8 grp_num;
 	int i;
 
 	if (msg->id >= MBOX_MSG_MAX) {
@@ -125,7 +125,11 @@ static void process_pfvf_mbox_mbox_msg(struct otx2_cptvf_dev *cptvf,
 		break;
 	case MBOX_MSG_GET_ENG_GRP_NUM:
 		rsp_grp = (struct otx2_cpt_egrp_num_rsp *) msg;
-		cptvf->lfs.kcrypto_eng_grp_num = rsp_grp->eng_grp_num;
+		grp_num = rsp_grp->eng_grp_num;
+		if (rsp_grp->eng_type == OTX2_CPT_SE_TYPES)
+			cptvf->lfs.kcrypto_se_eng_grp_num = grp_num;
+		else if (rsp_grp->eng_type == OTX2_CPT_AE_TYPES)
+			cptvf->lfs.kcrypto_ae_eng_grp_num = grp_num;
 		break;
 	case MBOX_MSG_GET_KVF_LIMITS:
 		rsp_limits = (struct otx2_cpt_kvf_limits_rsp *) msg;

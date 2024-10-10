@@ -3825,7 +3825,7 @@ static int nix_update_mce_rule(struct rvu *rvu, u16 pcifunc,
 
 	nix_get_mce_list(rvu, pcifunc, type, &mce_list, &mce_idx);
 
-	mcam_index = npc_get_nixlf_mcam_index(mcam,
+	mcam_index = npc_get_nixlf_mcam_index(rvu, mcam,
 					      pcifunc & ~RVU_PFVF_FUNC_MASK,
 					      nixlf, type);
 	err = nix_update_mce_list(rvu, pcifunc, mce_list,
@@ -4116,7 +4116,7 @@ static int nix_af_mark_format_setup(struct rvu *rvu, struct nix_hw *nix_hw,
 static void rvu_get_lbk_link_max_frs(struct rvu *rvu,  u16 *max_mtu)
 {
 	/* CN10K supports LBK FIFO size 72 KB */
-	if (rvu->hw->lbk_bufsize == 0x12000)
+	if (rvu->hw->lbk_bufsize == 0x12000 || rvu->hw->lbk_bufsize == 0x20000)
 		*max_mtu = CN10K_LBK_LINK_MAX_FRS;
 	else
 		*max_mtu = NIC_HW_MAX_FRS;
@@ -5445,6 +5445,9 @@ int rvu_nix_init(struct rvu *rvu)
 		blkaddr = rvu_get_next_nix_blkaddr(rvu, blkaddr);
 		i++;
 	}
+	/* Install CPT 2nd pass drop rule */
+	if (hw->cap.second_cpt_pass)
+		rvu_npc_install_cpt_pass2_entry(rvu);
 
 	return 0;
 }

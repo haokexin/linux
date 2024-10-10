@@ -359,7 +359,7 @@ int rvu_sso_lf_drain_queues(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 	reg = rvu_read64(rvu, blkaddr, SSO_AF_CONST1);
 	has_lsw = !!(reg & SSO_AF_CONST1_LSW_PRESENT);
 	has_nsched = !!!(reg & SSO_AF_CONST1_NO_NSCHED);
-	has_prefetch = !!(reg & SSO_AF_CONST1_PRF_PRESENT);
+	has_prefetch = !!(reg & SSO_AF_CONST1_HW_PRF_PRESENT);
 
 	ssow_blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSOW, 0);
 	if (ssow_blkaddr < 0)
@@ -669,6 +669,32 @@ int rvu_sso_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 	return 0;
 }
 
+static void rvu_sso_grp_mask_set(struct rvu *rvu, int blkaddr, int hws, u8 set,
+				 u64 grpmsk, u64 val)
+{
+	struct sso_rsrc *sso = &rvu->hw->sso;
+
+	if (sso->sso_hwgrps > 256)
+		rvu_write64(rvu, blkaddr,
+			    SSO_AF_HWSX_SX_GRPMSKX_EXT(hws, set, grpmsk), val);
+	else
+		rvu_write64(rvu, blkaddr,
+			    SSO_AF_HWSX_SX_GRPMSKX(hws, set, grpmsk), val);
+}
+
+static u64 rvu_sso_grp_mask_get(struct rvu *rvu, int blkaddr, int hws, u8 set,
+				u64 grpmsk)
+{
+	struct sso_rsrc *sso = &rvu->hw->sso;
+
+	if (sso->sso_hwgrps > 256)
+		return rvu_read64(rvu, blkaddr,
+				  SSO_AF_HWSX_SX_GRPMSKX_EXT(hws, set, grpmsk));
+	else
+		return rvu_read64(rvu, blkaddr,
+				  SSO_AF_HWSX_SX_GRPMSKX(hws, set, grpmsk));
+}
+
 int rvu_ssow_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 {
 	bool has_prefetch, has_lsw, has_hw_flr;
@@ -687,7 +713,7 @@ int rvu_ssow_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot)
 	/* Read hardware capabilities */
 	reg = rvu_read64(rvu, blkaddr, SSO_AF_CONST1);
 	has_lsw = !!(reg & SSO_AF_CONST1_LSW_PRESENT);
-	has_prefetch = !!(reg & SSO_AF_CONST1_PRF_PRESENT);
+	has_prefetch = !!(reg & SSO_AF_CONST1_HW_PRF_PRESENT);
 	has_hw_flr = !!(reg & SSO_AF_CONST1_HW_FLR);
 
 	mutex_lock(&rvu->alias_lock);
@@ -757,12 +783,8 @@ skip_hw_flr_steps:
 
 	/* Unset the HWS Hardware Group Mask. */
 	for (grpmsk = 0; grpmsk < (sso->sso_hwgrps / 64); grpmsk++) {
-		rvu_write64(rvu, blkaddr,
-			    SSO_AF_HWSX_SX_GRPMSKX(lf, 0, grpmsk),
-			    0x0);
-		rvu_write64(rvu, blkaddr,
-			    SSO_AF_HWSX_SX_GRPMSKX(lf, 1, grpmsk),
-			    0x0);
+		rvu_sso_grp_mask_set(rvu, blkaddr, lf, 0, grpmsk, 0x0);
+		rvu_sso_grp_mask_set(rvu, blkaddr, lf, 1, grpmsk, 0x0);
 	}
 
 	rvu_bar2_sel_write64(rvu, ssow_blkaddr, SSOW_AF_BAR2_SEL, 0x0);
@@ -825,7 +847,6 @@ void rvu_sso_deinit_xaq_aura(struct rvu *rvu, int blkaddr, int npa_blkaddr,
 	reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_AW_STATUS(lf));
 	if (reg & SSO_HWGRP_AW_STS_TPTR_NEXT_VLD) {
 		reg = rvu_read64(rvu, blkaddr, SSO_AF_XAQX_TAIL_NEXT(lf));
-		reg &= ~0x7F;
 		if (npa_blkaddr && reg)
 			rvu_sso_store_pair(reg, (u64)aura, free_addr);
 
@@ -837,7 +858,7 @@ void rvu_sso_deinit_xaq_aura(struct rvu *rvu, int blkaddr, int npa_blkaddr,
 	reg = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_AW_STATUS(lf));
 	if (reg & SSO_HWGRP_AW_STS_TPTR_VLD) {
 		reg = rvu_read64(rvu, blkaddr, SSO_AF_XAQX_TAIL_PTR(lf));
-		reg &= ~0x7F;
+		reg &= ~0x3F;
 		if (npa_blkaddr && reg)
 			rvu_sso_store_pair(reg, (u64)aura, free_addr);
 
@@ -910,6 +931,38 @@ fail:
 	}
 
 	return err;
+}
+
+int rvu_mbox_handler_sso_get_hw_info(struct rvu *rvu, struct msg_req *req,
+				     struct sso_hw_info *rsp)
+{
+	int blkaddr;
+	u64 reg;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, req->hdr.pcifunc);
+	if (blkaddr < 0)
+		return SSO_AF_ERR_LF_INVALID;
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_CONST);
+	rsp->hws = (reg >> 56) & 0xFF;
+	rsp->hwgrps = (reg & 0xFFFF);
+	rsp->iue = (reg >> 16) & 0xFFFF;
+	rsp->taq_ent_per_line = (reg >> 48) & 0xFF;
+	rsp->taq_lines = (reg >> 32) & 0xFFFF;
+
+	reg = rvu_read64(rvu, blkaddr, SSO_AF_CONST1);
+	rsp->xaq_wq_entries = (reg >> 16) & 0xFFFF;
+	rsp->xaq_buf_size = (reg & 0xFFFF);
+	rsp->hw_flr = !!(reg & SSO_AF_CONST1_HW_FLR);
+	rsp->lsw = !!(reg & SSO_AF_CONST1_LSW_PRESENT);
+	rsp->no_nsched = !!(reg & SSO_AF_CONST1_NO_NSCHED);
+	rsp->hw_prefetch = !!(reg & SSO_AF_CONST1_HW_PRF_PRESENT);
+	rsp->fwd_grp = !!(reg & SSO_AF_CONST1_GRP_FWD);
+	rsp->tag_cfg = !!(reg & SSO_AF_CONST1_TAG_CFG_PRESENT);
+	rsp->sw_prefetch = !!(reg & SSO_AF_CONST1_SW_PRF_PRESENT);
+	rsp->eva_present = !!(reg & SSO_AF_CONST1_EVA_PRESENT);
+
+	return 0;
 }
 
 int rvu_mbox_handler_sso_hw_release_xaq_aura(struct rvu *rvu,
@@ -1169,6 +1222,63 @@ int rvu_mbox_handler_sso_hws_get_stats(struct rvu *rvu,
 	return 0;
 }
 
+int rvu_mbox_handler_sso_aggr_setconfig(struct rvu *rvu,
+					struct sso_aggr_setconfig *req,
+					struct msg_rsp *rsp)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	u16 pcifunc = req->hdr.pcifunc;
+	int lf, blkaddr;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, pcifunc);
+	if (blkaddr < 0)
+		return SSO_AF_ERR_LF_INVALID;
+
+	/* Check if requested 'SSOLF <=> NPALF' mapping is valid */
+	if (req->npa_pf_func) {
+		/* If default, use 'this' SSOLF's PFFUNC */
+		if (req->npa_pf_func == RVU_DEFAULT_PF_FUNC)
+			req->npa_pf_func = pcifunc;
+		if (!is_pffunc_map_valid(rvu, req->npa_pf_func, BLKTYPE_NPA))
+			return SSO_AF_INVAL_NPA_PF_FUNC;
+	}
+
+	lf = rvu_get_lf(rvu, &hw->block[blkaddr], pcifunc, req->hwgrp);
+	if (lf < 0)
+		return SSO_AF_ERR_LF_INVALID;
+
+	rvu_write64(rvu, blkaddr, SSO_AF_HWGRPX_AGGR_GMCTL(lf),
+		    req->npa_pf_func);
+
+	return 0;
+}
+
+int rvu_mbox_handler_sso_aggr_get_stats(struct rvu *rvu,
+					struct sso_info_req *req,
+					struct sso_aggr_stats *rsp)
+{
+	struct rvu_hwinfo *hw = rvu->hw;
+	u16 pcifunc = req->hdr.pcifunc;
+	int lf, blkaddr;
+
+	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_SSO, pcifunc);
+	if (blkaddr < 0)
+		return SSO_AF_ERR_LF_INVALID;
+
+	lf = rvu_get_lf(rvu, &hw->block[blkaddr], pcifunc, req->grp);
+	if (lf < 0)
+		return SSO_AF_ERR_LF_INVALID;
+
+	rsp->flushed = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_VWQE_FLUSHED(lf));
+	rsp->completed =
+		rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_VWQE_NORM_COMPL(lf));
+	rsp->npa_fail =
+		rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_VWQE_NPA_FAIL(lf));
+	rsp->timeout = rvu_read64(rvu, blkaddr, SSO_AF_HWGRPX_VWQE_TIMEOUT(lf));
+
+	return 0;
+}
+
 int rvu_mbox_handler_sso_lf_alloc(struct rvu *rvu, struct sso_lf_alloc_req *req,
 				  struct sso_lf_alloc_rsp *rsp)
 {
@@ -1363,17 +1473,13 @@ int rvu_mbox_handler_ssow_chng_mship(struct rvu *rvu,
 		pos = ssolf / 64;
 		bit = ssolf % 64;
 
-		reg = rvu_read64(rvu, blkaddr, SSO_AF_HWSX_SX_GRPMSKX(ssowlf,
-								      req->set,
-								      pos));
+		reg = rvu_sso_grp_mask_get(rvu, blkaddr, ssowlf, req->set, pos);
 		if (req->enable)
 			reg |= BIT_ULL(bit);
 		else
 			reg &= ~BIT_ULL(bit);
 
-		rvu_write64(rvu, blkaddr, SSO_AF_HWSX_SX_GRPMSKX(ssowlf,
-								 req->set,
-								 pos), reg);
+		rvu_sso_grp_mask_set(rvu, blkaddr, ssowlf, req->set, pos, reg);
 	}
 
 	return 0;
@@ -1503,6 +1609,36 @@ static irqreturn_t rvu_sso_af_err0_intr_handler(int irq, void *ptr)
 	block = &rvu->hw->block[blkaddr];
 	reg = rvu_read64(rvu, blkaddr, SSO_AF_ERR0);
 	dev_err_ratelimited(rvu->dev, "Received SSO_AF_ERR0 irq : 0x%llx", reg);
+
+	if (reg & BIT_ULL(21)) {
+		dev_err_ratelimited(rvu->dev,
+				    "NCB detected poison on EVA load data.");
+		SSO_AF_INT_DIGEST_PRNT(SSO_AF_EVA_POISON);
+	}
+
+	if (reg & BIT_ULL(20)) {
+		dev_err_ratelimited(rvu->dev,
+				    "Event Aggregation encountered an Error while tying to store the contents of a VWQE to main memory.");
+		SSO_AF_INT_DIGEST_PRNT(SSO_AF_VWQE_ST_DIGEST);
+	}
+
+	if (reg & BIT_ULL(19)) {
+		dev_err_ratelimited(rvu->dev,
+				    "Event Aggregation received aggregation request from Guest Groups, for which SSO_LF()_AGGR_CFG[VWQE_ENA] was not set,");
+		SSO_AF_INT_DIGEST_PRNT(SSO_AF_AGGRDIS_DIGEST);
+	}
+
+	if (reg & BIT_ULL(18)) {
+		dev_err_ratelimited(rvu->dev,
+				    "Event Aggregation encountered an Error while tying to read the Context Structure of an Aggregation Queue from main memory.");
+		SSO_AF_INT_DIGEST_PRNT(SSO_AF_AGGR_CTX_DIGEST);
+	}
+
+	if (reg & BIT_ULL(17)) {
+		dev_err_ratelimited(rvu->dev,
+				    "The NPA Pointer Fetch from Event Aggregation returned an error indication.");
+		SSO_AF_INT_DIGEST_PRNT(SSO_AF_AGGR_NPA_DIGEST);
+	}
 
 	if (reg & BIT_ULL(16)) {
 		dev_err_ratelimited(rvu->dev, "Fault when performing a stash request");
@@ -1655,9 +1791,16 @@ static irqreturn_t rvu_sso_af_ras_intr_handler(int irq, void *ptr)
 	block = &rvu->hw->block[blkaddr];
 
 	reg = rvu_read64(rvu, blkaddr, SSO_AF_RAS);
-	dev_err_ratelimited(rvu->dev, "received SSO_AF_RAS irq : 0x%llx", reg);
+	if (reg & BIT_ULL(1)) {
+		dev_err_ratelimited(rvu->dev, "	An EVA read returned poison.");
+		SSO_AF_INT_DIGEST_PRNT(SSO_AF_EVA_POISON)
+	}
+
+	if (reg & BIT_ULL(0)) {
+		dev_err_ratelimited(rvu->dev, "An XAQ read returned poison.");
+		SSO_AF_INT_DIGEST_PRNT(SSO_AF_POISON)
+	}
 	rvu_write64(rvu, blkaddr, SSO_AF_RAS, reg);
-	SSO_AF_INT_DIGEST_PRNT(SSO_AF_POISON)
 
 	return IRQ_HANDLED;
 }
@@ -1831,14 +1974,8 @@ int rvu_sso_init(struct rvu *rvu)
 	 * using SSOW_LF_GWS_GRPMSK_CHG based on the LF allocations.
 	 */
 	for (grpmsk = 0; grpmsk < (sso->sso_hwgrps / 64); grpmsk++) {
-		for (hws = 0; hws < sso->sso_hws; hws++) {
-			rvu_write64(rvu, blkaddr,
-				    SSO_AF_HWSX_SX_GRPMSKX(hws, 0, grpmsk),
-				    0x0);
-			rvu_write64(rvu, blkaddr,
-				    SSO_AF_HWSX_SX_GRPMSKX(hws, 1, grpmsk),
-				    0x0);
-		}
+		for (hws = 0; hws < sso->sso_hws; hws++)
+			rvu_sso_grp_mask_set(rvu, blkaddr, hws, 0, grpmsk, 0);
 	}
 
 	/* Allocate SSO_AF_CONST::HWS + 1. As the total number of pf/vf are

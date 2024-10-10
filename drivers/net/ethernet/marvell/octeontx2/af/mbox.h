@@ -58,6 +58,14 @@ extern u16 rvu_pcifunc_func_shift;
 extern u16 rvu_pcifunc_func_mask;
 
 enum {
+	NPC_MCAM_KEY_X1 = 0,
+	NPC_MCAM_KEY_DYN = NPC_MCAM_KEY_X1,
+	NPC_MCAM_KEY_X2,
+	NPC_MCAM_KEY_X4,
+	NPC_MCAM_KEY_MAX,
+};
+
+enum {
 	TYPE_AFVF,
 	TYPE_AFPF,
 };
@@ -240,6 +248,10 @@ M(SSO_CONFIG_LSW,	0x612, ssow_config_lsw,			\
 M(SSO_HWS_CHNG_MSHIP,   0x613, ssow_chng_mship, ssow_chng_mship, msg_rsp)\
 M(SSO_GRP_STASH_CONFIG, 0x614, sso_grp_stash_config, sso_grp_stash_cfg, \
 				msg_rsp)				\
+M(SSO_AGGR_SET_CONFIG,	0x615, sso_aggr_setconfig, sso_aggr_setconfig, msg_rsp)\
+M(SSO_AGGR_GET_STATS,	0x616, sso_aggr_get_stats, sso_info_req,	\
+				sso_aggr_stats)				\
+M(SSO_GET_HW_INFO,	0x617, sso_get_hw_info, msg_req, sso_hw_info)	\
 /* TIM mbox IDs (range 0x800 - 0x9FF) */				\
 M(TIM_LF_ALLOC,		0x800, tim_lf_alloc,				\
 				tim_lf_alloc_req, tim_lf_alloc_rsp)	\
@@ -251,6 +263,9 @@ M(TIM_GET_MIN_INTVL,	0x805, tim_get_min_intvl, tim_intvl_req,	\
 			       tim_intvl_rsp)				\
 M(TIM_CAPTURE_COUNTERS,	0x806, tim_capture_counters, msg_req,		\
 			       tim_capture_rsp)				\
+M(TIM_CONFIG_HWWQE,	0x807, tim_config_hwwqe, tim_cfg_hwwqe_req,	\
+			       msg_rsp)					\
+M(TIM_GET_HW_INFO,	0x808, tim_get_hw_info, msg_req, tim_hw_info)	\
 /* CPT mbox IDs (range 0xA00 - 0xBFF) */				\
 M(CPT_LF_ALLOC,		0xA00, cpt_lf_alloc, cpt_lf_alloc_req_msg,	\
 			       msg_rsp)					\
@@ -322,6 +337,23 @@ M(NPC_GET_FIELD_STATUS, 0x6014, npc_get_field_status,                     \
 M(NPC_MCAM_GET_HIT_STATUS, 0x6015, npc_mcam_get_hit_status,                     \
 				   npc_mcam_get_hit_status_req,              \
 				   npc_mcam_get_hit_status_rsp)              \
+M(NPC_MCAM_DEFRAG,	 0x6016,	npc_defrag,			\
+					msg_req,			\
+					msg_rsp)		\
+M(NPC_CN20K_GET_KEX_CFG, 0x6017, npc_cn20k_get_kex_cfg,			\
+				   msg_req, npc_cn20k_get_kex_cfg_rsp)	\
+M(NPC_CN20K_MCAM_GET_FREE_COUNT, 0x6018, npc_cn20k_get_free_count,			\
+				 msg_req, npc_cn20k_get_free_count_rsp)	\
+M(NPC_CN20K_MCAM_WRITE_ENTRY,	0x6019, npc_cn20k_mcam_write_entry,			\
+				 npc_cn20k_mcam_write_entry_req, msg_rsp)	\
+M(NPC_CN20K_MCAM_ALLOC_AND_WRITE_ENTRY, 0x601a, npc_cn20k_mcam_alloc_and_write_entry,	\
+				npc_cn20k_mcam_alloc_and_write_entry_req,  \
+				npc_mcam_alloc_and_write_entry_rsp)  \
+M(NPC_CN20K_MCAM_READ_ENTRY,	0x601b, npc_cn20k_mcam_read_entry,	\
+				  npc_mcam_read_entry_req,		\
+				  npc_cn20k_mcam_read_entry_rsp)	\
+M(NPC_CN20K_MCAM_READ_BASE_RULE, 0x601c, npc_cn20k_read_base_steer_rule,            \
+				   msg_req, npc_cn20k_mcam_read_base_rule_rsp)  \
 /* NIX mbox IDs (range 0x8000 - 0xFFFF) */				\
 M(NIX_LF_ALLOC,		0x8000, nix_lf_alloc,				\
 				 nix_lf_alloc_req, nix_lf_alloc_rsp)	\
@@ -738,6 +770,7 @@ struct cgx_lmac_fwdata_s {
 	u32 lmac_type;
 	u32 portm_idx;
 	u64 mgmt_port:1;
+	u64 advertised_an:1;
 #define LMAC_FWDATA_RESERVED_MEM 1019
 	u64 reserved[LMAC_FWDATA_RESERVED_MEM];
 };
@@ -1715,6 +1748,36 @@ struct sso_grp_priority {
 	u8 weight;
 };
 
+struct sso_aggr_setconfig {
+	struct mbox_msghdr hdr;
+	u16	npa_pf_func;
+	u16	hwgrp;
+	u64	rsvd[2];
+};
+
+struct sso_hw_info {
+	struct mbox_msghdr hdr;
+	u8	hw_flr : 1;
+	u8	hw_prefetch : 1;
+	u8	sw_prefetch : 1;
+	u8	lsw : 1;
+	u8	fwd_grp : 1;
+	u8	eva_present : 1;
+	u8	no_nsched : 1;
+	u8	tag_cfg : 1;
+	u8	gwc_per_core;
+	u16	hws;
+	u16	hwgrps;
+	u16	hwgrps_per_pf;
+	u16	iue;
+	u16 	taq_lines;
+	u16	taq_ent_per_line;
+	u16	xaq_buf_size;
+	u16	xaq_wq_entries;
+	u32	eva_ctx_per_hwgrp;
+	u64	rsvd[2];
+};
+
 /* SSOW mailbox error codes
  * Range 601 - 700.
  */
@@ -1798,6 +1861,16 @@ struct sso_hws_stats {
 	u64 arbitration;
 };
 
+struct sso_aggr_stats {
+	struct mbox_msghdr hdr;
+	u16 grp;
+	u64 flushed;
+	u64 completed;
+	u64 npa_fail;
+	u64 timeout;
+	u64 rsvd[4];
+};
+
 struct nix_tl1_rr_prio_req {
 	struct mbox_msghdr hdr;
 	u8 tl1_rr_prio;
@@ -1834,9 +1907,12 @@ struct npc_mcam_alloc_entry_req {
 #define NPC_MCAM_ANY_PRIO		0
 #define NPC_MCAM_LOWER_PRIO		1
 #define NPC_MCAM_HIGHER_PRIO		2
-	u8  priority; /* Lower or higher w.r.t ref_entry */
+	u8  ref_prio; /* Lower or higher w.r.t ref_entry */
 	u16 ref_entry;
 	u16 count;    /* Number of entries requested */
+	u8 kw_type; /* entry key type, valid for cn20k */
+	u8 virt;    /* Request virtual index */
+	u16 rsvd[16];	/* Reserved */
 };
 
 struct npc_mcam_alloc_entry_rsp {
@@ -1847,6 +1923,7 @@ struct npc_mcam_alloc_entry_rsp {
 	u16 count; /* Number of entries allocated */
 	u16 free_count; /* Number of entries available */
 	u16 entry_list[NPC_MAX_NONCONTIG_ENTRIES];
+	u16 rsvd[16];	/* Reserved */
 };
 
 struct npc_mcam_free_entry_req {
@@ -1871,6 +1948,25 @@ struct npc_mcam_write_entry_req {
 	u8  intf;	 /* Rx or Tx interface */
 	u8  enable_entry;/* Enable this MCAM entry ? */
 	u8  set_cntr;    /* Set counter for this entry ? */
+};
+
+struct cn20k_mcam_entry {
+#define NPC_CN20K_MAX_KWS_IN_KEY	8 /* Number of keywords in max keywidth */
+	u64	kw[NPC_CN20K_MAX_KWS_IN_KEY];
+	u64	kw_mask[NPC_CN20K_MAX_KWS_IN_KEY];
+	u64	action;
+	u64	vtag_action;
+};
+
+struct npc_cn20k_mcam_write_entry_req {
+	struct mbox_msghdr hdr;
+	struct cn20k_mcam_entry entry_data;
+	u16 entry;	 /* MCAM entry to write this match key */
+	u16 cntr;	 /* Counter for this MCAM entry */
+	u8  intf;	 /* Rx or Tx interface */
+	u8  enable_entry;/* Enable this MCAM entry ? */
+	u8  hw_prio;	 /* hardware priority, valid for cn20k */
+	u64 reserved;	 /* reserved for future use */
 };
 
 /* Enable/Disable a given entry */
@@ -1929,7 +2025,7 @@ struct npc_mcam_alloc_and_write_entry_req {
 	struct mbox_msghdr hdr;
 	struct mcam_entry entry_data;
 	u16 ref_entry;
-	u8  priority;    /* Lower or higher w.r.t ref_entry */
+	u8  ref_prio;    /* Lower or higher w.r.t ref_entry */
 	u8  intf;	 /* Rx or Tx interface */
 	u8  enable_entry;/* Enable this MCAM entry ? */
 	u8  alloc_cntr;  /* Allocate counter and map ? */
@@ -1939,6 +2035,18 @@ struct npc_mcam_alloc_and_write_entry_rsp {
 	struct mbox_msghdr hdr;
 	u16 entry;
 	u16 cntr;
+};
+
+struct npc_cn20k_mcam_alloc_and_write_entry_req {
+	struct mbox_msghdr hdr;
+	struct cn20k_mcam_entry entry_data;
+	u16 ref_entry;
+	u8  ref_prio;    /* Lower or higher w.r.t ref_entry */
+	u8  intf;	 /* Rx or Tx interface */
+	u8  enable_entry;/* Enable this MCAM entry ? */
+	u8  hw_prio;	 /* hardware priority, valid for cn20k */
+	u8  virt;	 /* Allcate virtual index */
+	u16 reserved[4]; /* reserved for future use */
 };
 
 struct npc_get_kex_cfg_rsp {
@@ -1958,6 +2066,27 @@ struct npc_get_kex_cfg_rsp {
 	u64 intf_ld_flags[NPC_MAX_INTF][NPC_MAX_LD][NPC_MAX_LFL];
 #define MKEX_NAME_LEN 128
 	u8 mkex_pfl_name[MKEX_NAME_LEN];
+};
+
+struct npc_cn20k_get_kex_cfg_rsp {
+	struct mbox_msghdr hdr;
+	u64 rx_keyx_cfg;   /* NPC_AF_INTF(0)_KEX_CFG */
+	u64 tx_keyx_cfg;   /* NPC_AF_INTF(1)_KEX_CFG */
+#define NPC_MAX_EXTRACTOR 24
+	/* MKEX Extractor data */
+	u64 intf_extr_lid[NPC_MAX_INTF][NPC_MAX_EXTRACTOR];
+	/* KEX configuration per extractor */
+	u64 intf_extr_lt[NPC_MAX_INTF][NPC_MAX_EXTRACTOR][NPC_MAX_LT];
+#define MKEX_NAME_LEN 128
+	u8 mkex_pfl_name[MKEX_NAME_LEN];
+};
+
+/* Available entries to use */
+struct npc_cn20k_get_free_count_rsp {
+	struct mbox_msghdr hdr;
+	int free_x2;
+	int free_x4;
+	int free_subbanks;
 };
 
 struct ptp_get_cap_rsp {
@@ -2071,6 +2200,8 @@ struct npc_install_flow_req {
 	u8  vtag1_op;
 	/* old counter value */
 	u16 cntr_val;
+	/* hardware priority, supported for cn20k */
+	u8 hw_prio;
 };
 
 struct npc_install_flow_rsp {
@@ -2104,9 +2235,22 @@ struct npc_mcam_read_entry_rsp {
 	u8 enable;
 };
 
+struct npc_cn20k_mcam_read_entry_rsp {
+	struct mbox_msghdr hdr;
+	struct cn20k_mcam_entry entry_data;
+	u8 intf;
+	u8 enable;
+	u8 hw_prio; /* valid for cn20k */
+};
+
 struct npc_mcam_read_base_rule_rsp {
 	struct mbox_msghdr hdr;
 	struct mcam_entry entry;
+};
+
+struct npc_cn20k_mcam_read_base_rule_rsp {
+	struct mbox_msghdr hdr;
+	struct cn20k_mcam_entry entry;
 };
 
 struct npc_mcam_get_stats_req {
@@ -2184,6 +2328,12 @@ enum tim_af_status {
 	TIM_AF_ENA_DONTFRE_NSET_PERIODIC	= -816,
 	TIM_AF_RING_ALREADY_DISABLED		= -817,
 	TIM_AF_LF_START_SYNC_FAIL		= -818,
+	TIM_AF_HWWQE_NOT_SUPPORTED		= -819,
+	TIM_AF_INVALID_HWWQE_ENA_VALUE		= -820,
+	TIM_AF_INVALID_WQE_RD_CLR_VALUE		= -821,
+	TIM_AF_INVALID_GRP_ENA_VALUE		= -822,
+	TIM_AF_INVALID_FLW_CTRL_ENA_VALUE	= -823,
+	TIM_AF_INTERVAL_EXT_NOT_SUPPORTED	= -824,
 };
 
 enum tim_clk_srcs {
@@ -2227,11 +2377,37 @@ struct tim_config_req {
 	u8	enabledontfreebuffer;
 	u32	bucketsize;
 	u32	chunksize;
-	u32	interval;   /* Cycles between traversal */
+	u32	interval_lo;   /* Cycles between traversal */
 	u8	gpioedge;
-	u8	rsvd[7];
+	u8	rsvd[3];
+	u32	interval_hi;
 	u64	intervalns; /* Nanoseconds between traversal */
 	u64	clockfreq;
+};
+
+struct tim_cfg_hwwqe_req {
+	struct mbox_msghdr hdr;
+	u16	ring;
+	u8	grp_ena;
+	u8	hwwqe_ena;
+	u8	ins_min_gap;
+	u8	flw_ctrl_ena;
+	u8	wqe_rd_clr_ena;
+	u16	grp_tmo_cntr;
+	u16	npa_tmo_cntr;
+	u16	result_offset;
+	u16	event_count_offset;
+	u64	rsvd[2];
+};
+
+struct tim_hw_info {
+	struct mbox_msghdr hdr;
+	u16	rings;
+	u8	engines;
+	u8	hwwqe : 1;
+	u8	intvl_ext : 1;
+	u8	rsvd8[4];
+	u64 rsvd[2];
 };
 
 struct tim_lf_alloc_rsp {
@@ -2328,7 +2504,8 @@ enum cpt_af_status {
 	CPT_AF_ERR_SSO_PF_FUNC_INVALID	= -905,
 	CPT_AF_ERR_NIX_PF_FUNC_INVALID	= -906,
 	CPT_AF_ERR_INLINE_IPSEC_INB_ENA	= -907,
-	CPT_AF_ERR_INLINE_IPSEC_OUT_ENA	= -908
+	CPT_AF_ERR_INLINE_IPSEC_OUT_ENA	= -908,
+	CPT_AF_ERR_RXC_QUE_INVALID	= -909
 };
 
 /* CPT mbox message formats */
@@ -2425,6 +2602,7 @@ struct cpt_rxc_time_cfg_req {
 	u16 zombie_limit;
 	u16 active_thres;
 	u16 active_limit;
+	u16 queue_id;
 };
 
 /* Mailbox message request format to request for CPT_INST_S lmtst. */

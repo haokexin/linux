@@ -19,6 +19,7 @@
 #include "mcs_fips_mbox.h"
 #include "npc.h"
 #include "rvu_reg.h"
+#include "cn20k/reg.h"
 #include "ptp.h"
 #include "cn20k/rvum_reg.h"
 
@@ -173,7 +174,7 @@ struct npc_key_field {
 	/* Masks where all set bits indicate position
 	 * of a field in the key
 	 */
-	u64 kw_mask[NPC_MAX_KWS_IN_KEY];
+	u64 kw_mask[NPC_CN20K_MAX_KWS_IN_KEY];
 	/* Number of words in the key a field spans. If a field is
 	 * of 16 bytes and key offset is 4 then the field will use
 	 * 4 bytes in KW0, 8 bytes in KW1 and 4 bytes in KW2 and
@@ -203,6 +204,7 @@ struct npc_mcam {
 	u16	total_entries;	/* Total number of MCAM entries */
 	u16	nixlf_offset;	/* Offset of nixlf rsvd uncast entries */
 	u16	pf_offset;	/* Offset of PF's rsvd bcast, promisc entries */
+	u16	cpt_pass2_offset;
 	u16	lprio_count;
 	u16	lprio_start;
 	u16	hprio_count;
@@ -318,6 +320,7 @@ struct rvu_pfvf {
 	struct  sdp_node_info *sdp_info;
 	u8	tl1_rr_prio; /* RR PRIORITY set by PF */
 	u8	esw_rules; /* Rules installed by ESW */
+	u8	hw_prio;   /* Hw priority of default rules */
 };
 
 enum rvu_pfvf_flags {
@@ -466,9 +469,11 @@ struct rvu_hwinfo {
 	u8	sdp_links;
 	u8	cpt_links;	/* Number of CPT links */
 	u8	npc_kpus;          /* No of parser units */
+	u8	npc_kpms;	/* Number of enhanced parser units */
+	u8	npc_kex_extr;	/* Number of LDATA extractors per KEX */
 	u8	npc_pkinds;        /* No of port kinds */
 	u8	npc_intfs;         /* No of interfaces */
-	u8	npc_kpu_entries;   /* No of KPU entries */
+	u16	npc_kpu_entries; /* No of KPU entries */
 	u16	npc_counters;	   /* No of match stats counters */
 	u32	lbk_bufsize;	   /* FIFO size supported by LBK */
 	bool	npc_ext_set;	   /* Extended register set */
@@ -565,7 +570,10 @@ struct npc_kpu_profile_adapter {
 	const struct npc_lt_def_cfg	*lt_def;
 	const struct npc_kpu_profile_action	*ikpu; /* array[pkinds] */
 	const struct npc_kpu_profile	*kpu; /* array[kpus] */
-	struct npc_mcam_kex		*mkex;
+	union npc_mcam_key_prfl {
+		struct npc_mcam_kex		*mkex; /* used for cn9k and cn10k */
+		struct npc_mcam_kex_extr	*mkex_extr; /* used for cn20k */
+	} mcam_kex_prfl;
 	struct npc_mcam_kex_hash	*mkex_hash;
 	bool				custom;
 	size_t				pkinds;
@@ -740,6 +748,22 @@ static inline bool is_rvu_95xx_A0(struct rvu *rvu)
 	struct pci_dev *pdev = rvu->pdev;
 
 	return (pdev->revision == 0x10) || (pdev->revision == 0x11);
+}
+
+static inline int rvu_af_int_vec_cnt(struct rvu *rvu)
+{
+	if (is_cn20k(rvu->pdev))
+		return RVU_AF_CN20K_INT_VEC_CNT;
+	else
+		return RVU_AF_INT_VEC_CNT;
+}
+
+static inline int rvu_pf_int_vec_cnt(struct rvu *rvu)
+{
+	if (is_cn20k(rvu->pdev))
+		return RVU_MBOX_PF_INT_VEC_CNT;
+	else
+		return RVU_PF_INT_VEC_CNT;
 }
 
 /* REVID for PCIe devices.
@@ -1137,7 +1161,6 @@ int rvu_nix_tl1_xoff_clear(struct rvu *rvu, u16 pcifunc);
 int rvu_nix_aq_enq_inst(struct rvu *rvu, struct nix_aq_enq_req *req,
 			struct nix_aq_enq_rsp *rsp);
 
-
 /* NPC APIs */
 void rvu_npc_freemem(struct rvu *rvu);
 int rvu_npc_get_pkind(struct rvu *rvu, u16 pf);
@@ -1184,7 +1207,7 @@ bool is_npc_interface_valid(struct rvu *rvu, u8 intf);
 int rvu_npc_get_tx_nibble_cfg(struct rvu *rvu, u64 nibble_ena);
 int npc_flow_steering_init(struct rvu *rvu, int blkaddr);
 const char *npc_get_field_name(u8 hdr);
-int npc_get_bank(struct npc_mcam *mcam, int index);
+int npc_get_bank(struct rvu *rvu, struct npc_mcam *mcam, int index);
 void npc_mcam_enable_flows(struct rvu *rvu, u16 target);
 void npc_mcam_disable_flows(struct rvu *rvu, u16 target);
 void npc_enable_mcam_entry(struct rvu *rvu, struct npc_mcam *mcam,
@@ -1212,8 +1235,8 @@ void rvu_mac_reset(struct rvu *rvu, u16 pcifunc);
 u64 rvu_cgx_get_dmacflt_dropped_pktcnt(void *cgxd, int lmac_id);
 u32 rvu_cgx_get_lmac_fifolen(struct rvu *rvu, int cgx, int lmac);
 void cgx_start_linkup(struct rvu *rvu);
-int npc_get_nixlf_mcam_index(struct npc_mcam *mcam, u16 pcifunc, int nixlf,
-			     int type);
+int npc_get_nixlf_mcam_index(struct rvu *rvu, struct npc_mcam *mcam,
+			     u16 pcifunc, int nixlf, int type);
 bool is_mcam_entry_enabled(struct rvu *rvu, struct npc_mcam *mcam, int blkaddr,
 			   int index);
 int rvu_npc_init(struct rvu *rvu);
@@ -1222,8 +1245,15 @@ int npc_install_mcam_drop_rule(struct rvu *rvu, int mcam_idx, u16 *counter_idx,
 			       u64 bcast_mcast_val, u64 bcast_mcast_mask);
 void npc_mcam_rsrcs_reserve(struct rvu *rvu, int blkaddr, int entry_idx);
 bool npc_is_feature_supported(struct rvu *rvu, u64 features, u8 intf);
+int npc_mcam_verify_entry(struct npc_mcam *mcam, u16 pcifunc, int entry);
 int npc_mcam_rsrcs_init(struct rvu *rvu, int blkaddr);
 void npc_mcam_rsrcs_deinit(struct rvu *rvu);
+int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
+		     int nixlf, struct rvu_pfvf *pfvf,
+		     struct npc_install_flow_req *req,
+		     struct npc_install_flow_rsp *rsp, bool enable,
+		     bool pf_set_vfs_mac);
+int rvu_npc_install_cpt_pass2_entry(struct rvu *rvu);
 
 /* CPT APIs */
 int rvu_cpt_register_interrupts(struct rvu *rvu);
@@ -1240,6 +1270,8 @@ u32 rvu_get_cpt_chan_mask(struct rvu *rvu);
 /* CN10K RVU */
 int rvu_set_channels_base(struct rvu *rvu);
 void rvu_program_channels(struct rvu *rvu);
+
+void rvu_afvf_queue_flr_work(struct rvu *rvu, int start_vf, int numvfs);
 
 /* CN10K NIX */
 void rvu_nix_block_cn10k_init(struct rvu *rvu, struct nix_hw *nix_hw);
