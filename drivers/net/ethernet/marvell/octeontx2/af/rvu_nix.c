@@ -2643,7 +2643,7 @@ static int nix_smq_flush(struct rvu *rvu, int blkaddr,
 	u8 cgx_id = 0, lmac_id = 0;
 	u16 tl2_tl3_link_schq;
 	u8 link, link_level;
-	u64 cfg, bmap;
+	u64 cfg, bmap = 0;
 
 	if (!is_rvu_otx2(rvu)) {
 		/* Skip SMQ flush if pkt count is zero */
