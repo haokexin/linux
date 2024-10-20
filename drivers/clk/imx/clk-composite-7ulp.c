@@ -89,8 +89,10 @@ static struct clk_hw *imx_ulp_clk_hw_composite(const char *name,
 	u32 val;
 
 	val = readl(reg);
-	if (!(val & PCG_PR_MASK))
-		return ERR_PTR(-ENODEV);
+	if (!(val & PCG_PR_MASK)) {
+		pr_info("PCC PR is 1 for clk:%s, bypass\n", name);
+		return 0;
+	}
 
 	if (mux_present) {
 		mux = kzalloc(sizeof(*mux), GFP_KERNEL);
