@@ -1,0 +1,75 @@
+&csi0_out0 {
+	remote-endpoint = <&isp_chn0>;
+};
+&csi0_out1 {
+	remote-endpoint = <&isp_chn1>;
+};
+&csi0_out2 {
+	remote-endpoint = <&isp_chn2>;
+};
+&csi0_out3 {
+	remote-endpoint = <&isp_chn3>;
+};
+
+&csi1_out0 {
+	remote-endpoint = <&isp_chn4>;
+};
+&csi1_out1 {
+	remote-endpoint = <&isp_chn5>;
+};
+&csi1_out2 {
+	remote-endpoint = <&isp_chn6>;
+};
+&csi1_out3 {
+	remote-endpoint = <&isp_chn7>;
+};
+
+&csi2_out0 {
+	remote-endpoint = <&isp_chn8>;
+};
+&csi2_out1 {
+	remote-endpoint = <&isp_chn9>;
+};
+&csi2_out2 {
+	remote-endpoint = <&isp_chn10>;
+};
+&csi2_out3 {
+	remote-endpoint = <&isp_chn11>;
+};
+
+&isp_chn0 {
+	remote-endpoint = <&csi0_out0>;
+};
+&isp_chn1 {
+	remote-endpoint = <&csi0_out1>;
+};
+&isp_chn2 {
+	remote-endpoint = <&csi0_out2>;
+};
+&isp_chn3 {
+	remote-endpoint = <&csi0_out3>;
+};
+&isp_chn4 {
+	remote-endpoint = <&csi1_out0>;
+};
+&isp_chn5 {
+	remote-endpoint = <&csi1_out1>;
+};
+&isp_chn6 {
+	remote-endpoint = <&csi1_out2>;
+};
+&isp_chn7 {
+	remote-endpoint = <&csi1_out3>;
+};
+&isp_chn8 {
+	remote-endpoint = <&csi2_out0>;
+};
+&isp_chn9 {
+	remote-endpoint = <&csi2_out1>;
+};
+&isp_chn10 {
+	remote-endpoint = <&csi2_out2>;
+};
+&isp_chn11 {
+	remote-endpoint = <&csi2_out3>;
+};

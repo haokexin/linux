@@ -1,0 +1,12 @@
+import "net-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as bstn_client {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_3
+    FID = DEF
+    SID = 10
+    instance com.bst.ipc.coreip.net {
+        DstEndID = NET_0
+    }
+}

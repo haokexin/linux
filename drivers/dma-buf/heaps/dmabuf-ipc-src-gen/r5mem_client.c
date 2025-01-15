@@ -1,0 +1,321 @@
+// SPDX-License-Identifier: GPL-2.0 OR Apache 2.0
+/*
+ * Copyright (c) 2024 Black Sesame Technologies
+ *
+ * This program is also distributed under the terms of the Apache 2.0
+ * License.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* This file is auto generated for message box v1.2.0.
+ * All manual modifications will be LOST by next generation.
+ * It is recommended NOT modify it.
+ * Generator Version: francaidl cb46a82 msgbx_ipc f2e1e48
+ */
+
+#include "r5mem_client.h"
+
+// macro definitions
+#define CID DMA_0
+#define MAJOR 1U
+#define MINOR 1U
+
+
+#define CMD_METHOD_SEND2R5 1U
+
+
+// local variables
+static com_client_data_t *s_data;
+static r5mem_client_ext_t *s_ext;
+
+#ifndef IPC_RTE_BAREMETAL
+
+struct _send2r5_out_t {
+	r5mem_driver_ipc_msg_t *output;
+	r5mem_ErrorEnum_t *err;
+};
+#define send2r5_out_t struct _send2r5_out_t
+
+#endif
+// interface implementation
+// get interface version
+static ipc_inf_version_t get_ipc_inf_version(void)
+{
+	ipc_inf_version_t ret = { .major = MAJOR, .minor = MINOR };
+
+	return ret;
+}
+
+// method
+
+static inline int32_t serialize_send2r5(
+				serdes_t *ser,
+				const r5mem_driver_ipc_msg_t input
+				)
+{
+	int32_t ret = 0;
+
+	if (ret >= 0)
+		ret = serialize_r5mem_driver_ipc_msg(ser, &input);
+
+	if (ret < 0)
+		return -ERR_APP_SERDES;
+	else
+		return RESULT_SUCCESS;
+}
+#ifndef IPC_RTE_BAREMETAL
+
+static void send2r5_sync_callback(
+				const r5mem_driver_ipc_msg_t output,
+				const r5mem_ErrorEnum_t err,
+				void *ext,
+				const ext_info_t *info
+				)
+{
+	send2r5_out_t *out = (send2r5_out_t *)ext;
+
+	if (!out)
+		return;
+	out->output->cmd = output.cmd;
+	out->output->mem_type = output.mem_type;
+	out->output->payload.size = output.payload.size;
+	out->output->payload.data = output.payload.data;
+	*out->err = err;
+}
+
+static int32_t call_send2r5_sync(const r5mem_driver_ipc_msg_t input,
+				r5mem_driver_ipc_msg_t *output,
+				r5mem_ErrorEnum_t *err,
+				int64_t timeout_ms,
+				des_buf_t *ext_buf)
+{
+	int32_t ret = 0;
+	serdes_t serdes = { 0 };
+	serdes_t *ser = NULL;
+	send2r5_out_t out = {.output = output,
+				.err = err};
+	callback_registration_t *reg = NULL;
+	com_client_data_t *data = s_data;
+
+	if (!data || !s_ext)
+		return -ERR_APP_PARAM;
+	ser = &serdes;
+	(void)ipc_ser_init(ser);
+
+	ret = serialize_send2r5(ser, input);
+	if (ret != 0) {
+		IPC_LOG_ERR("serialize fail.\n");
+		return -ERR_APP_SERDES;
+	}
+
+	// send request
+	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SEND2R5,
+				send2r5_sync_callback, &out, ext_buf);
+	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
+		IPC_LOG_ERR("send method fail %d.\n", ret);
+		return ret;
+	}
+
+	//wait for reply
+	reg = &data->method_registry[ret];
+	reg->disable_gc = true;
+	if (timeout_ms <= 0)
+		ret = wait_on_registry(reg);
+	else
+		ret = timedwait_on_registry(reg, timeout_ms);
+	if (ret < 0) {
+		clear_registry(reg);
+		IPC_LOG_ERR("wait timeout\n");
+	}
+
+	return ret;
+}
+#endif
+
+static int32_t call_send2r5_async(const r5mem_driver_ipc_msg_t input,
+				r5mem_send2r5_callback_t cb,
+				void *ext,
+				des_buf_t *ext_buf)
+{
+	int32_t ret = 0;
+#ifdef IPC_SHARED_SERIALIZER
+	serdes_t *ser = NULL;
+#else
+	serdes_t serdes = { 0 };
+	serdes_t *ser = &serdes;
+#endif
+	com_client_data_t *data = s_data;
+
+	if (!data || !s_ext)
+		return -ERR_APP_PARAM;
+#ifdef IPC_SHARED_SERIALIZER
+	ser = &data->serializer;
+#endif
+	(void)ipc_ser_init(ser);
+
+	ret = serialize_send2r5(ser, input);
+	if (ret != 0) {
+		IPC_LOG_ERR("serialize fail.\n");
+		return -ERR_APP_SERDES;
+	}
+
+	// send request
+	ret = send_request(data, ser, s_ext->cid, CMD_METHOD_SEND2R5,
+				cb, ext, ext_buf);
+	if (ret < 0 || ret >= IPC_TOKEN_NUM) {
+		IPC_LOG_ERR("send method fail %d.\n", ret);
+		return ret;
+	}
+
+	return RESULT_SUCCESS;
+}
+
+static inline int32_t call_send2r5_callback(serdes_t *des)
+{
+	int32_t ret = 0;
+	callback_registration_t *reg = NULL;
+	des_buf_t *buf = NULL;
+	uint32_t len = 0;
+	com_client_data_t *data = s_data;
+	r5mem_send2r5_callback_t cb = NULL;
+	r5mem_driver_ipc_msg_t output = { 0 };
+	r5mem_ErrorEnum_t err = 0;
+
+
+	if (!des || !data)
+		return -ERR_APP_PARAM;
+
+	reg = &data->method_registry[des->header.tok];
+	if (!reg->busy || reg->cmd != CMD_METHOD_SEND2R5) {
+		IPC_LOG_ERR("callback registry is invalid.\n");
+		return -ERR_APP_TOK;
+	}
+	buf = reg->ext_buf ? reg->ext_buf : &data->des_buf;
+	clear_des_buf(buf);
+	data->info.uuid = ipc_msg_get_uuid(des->header);
+	data->info.timestamp = des->recv_end_time;
+
+	// deserialize arguments
+	len = ipc_des_get_all(des, (uint8_t *)buf->data_buf);
+	if (len <= 0)
+		return -ERR_APP_SERDES;
+	buf->unavail_data_size = IPC_MAX_DATA_SIZE - len;
+
+	if (ret >= 0)
+		ret = deserialize_r5mem_ErrorEnum(buf, &err);
+
+	if (ret < 0)
+		return -ERR_APP_SERDES;
+	if (err == R5MEM_NO_ERROR) {
+		if (ret >= 0)
+			ret = deserialize_r5mem_driver_ipc_msg(buf, &output);
+		if (ret < 0)
+			return -ERR_APP_SERDES;
+	}
+
+	// call callback function
+	cb = (r5mem_send2r5_callback_t)(reg->cb);
+	if (cb)
+		cb(output, err, reg->ext, &data->info);
+#ifndef IPC_RTE_BAREMETAL
+	notify_callback_registry(reg);
+#endif
+	clear_registry(reg);
+
+	return RESULT_SUCCESS;
+}
+
+// broadcast
+
+// dispatch_broadcast
+static inline int32_t dispatch_broadcast(serdes_t *des)
+{
+	int32_t ret = 0;
+
+	if (!des || des->header.pid != s_ext->cid)
+		return -ERR_APP_PARAM;
+
+	switch (des->header.cmd) {
+
+	default:
+		ret = -ERR_APP_UNKNOWN_CMD;
+		IPC_LOG_ERR("unknown broadcast message %d.\n", des->header.cmd);
+		break;
+	}
+
+	return ret;
+}
+
+// dispatch_reply
+static inline int32_t dispatch_reply(serdes_t *des)
+{
+	int32_t ret = 0;
+
+	if (!des || des->header.pid != s_ext->cid)
+		return -ERR_APP_PARAM;
+
+	switch (des->header.cmd) {
+	case CMD_METHOD_SEND2R5:
+		ret = call_send2r5_callback(des);
+		break;
+
+	default:
+		ret = -ERR_APP_UNKNOWN_CMD;
+		IPC_LOG_ERR("unknown reply message %d.\n", des->header.cmd);
+		break;
+	}
+
+	return ret;
+}
+
+// register availablity changed callback function
+static int32_t register_avail_changed_cb(avail_changed_callback_t cb, void *ext)
+{
+	return reg_avail_changed_cb(s_data, cb, ext);
+}
+
+// initialize client
+int32_t r5mem_client_init(com_client_data_t *data, r5mem_client_t *client,
+			r5mem_client_ext_t *ext)
+{
+	if (!data || !client || !ext)
+		return -1;
+
+	s_data = data;
+	s_ext = ext;
+
+	// set client
+	client->version = get_ipc_inf_version;
+	client->register_avail_changed = register_avail_changed_cb;
+#ifndef IPC_RTE_BAREMETAL
+	client->send2r5_sync = call_send2r5_sync;
+#endif
+	client->send2r5_async = call_send2r5_async;
+
+
+	client->dispatch_broadcast = dispatch_broadcast;
+	client->dispatch_reply = dispatch_reply;
+
+	// set ext
+	if (ext->cid == 0)
+		ext->cid = CID;
+
+	return 0;
+}
+// destroy client
+void r5mem_client_destroy(void)
+{
+
+	s_data = NULL;
+	s_ext = NULL;
+}

@@ -1,0 +1,424 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * ALSA SoC Synopsys PIO PCM for TDM driver
+ * pcm driver for BST
+ * sound/soc/bst/bst-pcm-tdm.c
+ *
+ * Copyright (C) 2016 Synopsys
+ * Copyright (C) 2024 Black Sesame Technologies. All Rights Reserved.
+ */
+
+#include <linux/io.h>
+#include <linux/rcupdate.h>
+#include <sound/pcm.h>
+#include <sound/pcm_params.h>
+#include "local1-tdm.h"
+
+#define BUFFER_BYTES_MAX	(3 * 2 * 8 * PERIOD_BYTES_MIN)
+#define PERIOD_BYTES_MIN	2048
+#define PERIODS_MIN		2
+
+#if 1
+#define dw_pcm_tx_fn(sample_bits) \
+static unsigned int dw_pcm_tx_##sample_bits(struct dw_tdm_dev *dev, \
+		struct snd_pcm_runtime *runtime, unsigned int tx_ptr, \
+		bool *period_elapsed) \
+{ \
+	int i,j; \
+	int chan_nr = dev->config.tx_chan_nr;\
+	const u##sample_bits(*p1)[1] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p2)[2] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p3)[3] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p4)[4] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p5)[5] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p6)[6] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p7)[7] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p8)[8] = (void *)runtime->dma_area; \
+	unsigned int period_pos = tx_ptr % runtime->period_size; \
+\
+	if(chan_nr == 1) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p1[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} else if (chan_nr == 2) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p2[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} else if (chan_nr == 3) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p3[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} else if (chan_nr == 4) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p4[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} else if (chan_nr == 5) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p5[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} else if (chan_nr == 6) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p6[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} else if (chan_nr == 7) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p7[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} else if (chan_nr == 8) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for(j=0; j<chan_nr; j++){ \
+				iowrite32(p8[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++tx_ptr >= runtime->buffer_size) \
+				tx_ptr = 0; \
+		} \
+	} \
+	*period_elapsed = period_pos >= runtime->period_size; \
+	return tx_ptr; \
+}
+#else
+
+#define dw_pcm_tx_fn(sample_bits) \
+static unsigned int dw_pcm_tx_##sample_bits(struct dw_tdm_dev *dev, \
+		struct snd_pcm_runtime *runtime, unsigned int tx_ptr, \
+		bool *period_elapsed) \
+{ \
+	int chan_nr = dev->config.chan_nr;\
+	const u##sample_bits(*p)[chan_nr] = (void *)runtime->dma_area; \
+	unsigned int period_pos = tx_ptr % runtime->period_size; \
+	int i,j; \
+\
+	for (i = 0; i < dev->fifo_th; i++) { \
+		for(j=0; j<chan_nr; j++){ \
+			iowrite32(p[tx_ptr][j], dev->tdm_base + TDM_REG_TSLOT(j)); \
+		} \
+		iowrite32(p[tx_ptr][0], dev->tdm_base + TDM_REG_TSLOT(2)); \
+		iowrite32(p[tx_ptr][1], dev->tdm_base + TDM_REG_TSLOT(3)); \
+		iowrite32(p[tx_ptr][0], dev->tdm_base + TDM_REG_TSLOT(4)); \
+		iowrite32(p[tx_ptr][1], dev->tdm_base + TDM_REG_TSLOT(5)); \
+		iowrite32(p[tx_ptr][0], dev->tdm_base + TDM_REG_TSLOT(6)); \
+		iowrite32(p[tx_ptr][1], dev->tdm_base + TDM_REG_TSLOT(7)); \
+		period_pos++; \
+		if (++tx_ptr >= runtime->buffer_size) \
+			tx_ptr = 0; \
+	} \
+	*period_elapsed = period_pos >= runtime->period_size; \
+	return tx_ptr; \
+}
+
+#endif
+
+#define dw_pcm_rx_fn(sample_bits) \
+static unsigned int dw_pcm_rx_##sample_bits(struct dw_tdm_dev *dev, \
+		struct snd_pcm_runtime *runtime, unsigned int rx_ptr, \
+		bool *period_elapsed) \
+{ \
+	int i,j; \
+	int chan_nr = dev->config.rx_chan_nr;\
+	u##sample_bits(*p1)[1] = (void *)runtime->dma_area; \
+	u##sample_bits(*p2)[2] = (void *)runtime->dma_area; \
+	u##sample_bits(*p3)[3] = (void *)runtime->dma_area; \
+	u##sample_bits(*p4)[4] = (void *)runtime->dma_area; \
+	u##sample_bits(*p5)[5] = (void *)runtime->dma_area; \
+	u##sample_bits(*p6)[6] = (void *)runtime->dma_area; \
+	unsigned int period_pos = rx_ptr % runtime->period_size; \
+\
+	if (chan_nr == 1) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for (j = 0; j < chan_nr; j++) { \
+				p1[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++rx_ptr >= runtime->buffer_size) \
+				rx_ptr = 0; \
+		} \
+	} else if (chan_nr == 2) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for (j = 0; j < chan_nr; j++) { \
+				p2[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++rx_ptr >= runtime->buffer_size) \
+				rx_ptr = 0; \
+		} \
+	} else if (chan_nr == 3) {\
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for (j = 0; j < chan_nr; j++) { \
+				p3[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++rx_ptr >= runtime->buffer_size) \
+				rx_ptr = 0; \
+		} \
+	} else if (chan_nr == 4) { \
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for (j = 0; j < chan_nr; j++) { \
+				p4[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++rx_ptr >= runtime->buffer_size) \
+				rx_ptr = 0; \
+		} \
+	} else if (chan_nr == 5) {\
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for (j = 0; j < chan_nr; j++) { \
+				p5[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++rx_ptr >= runtime->buffer_size) \
+				rx_ptr = 0; \
+		} \
+	} else if (chan_nr == 6) {\
+		for (i = 0; i < dev->fifo_th; i++) { \
+			for (j = 0; j < chan_nr; j++) { \
+				p6[rx_ptr][j] = ioread32(dev->tdm_base + TDM_REG_RSLOT(j)); \
+			} \
+			period_pos++; \
+			if (++rx_ptr >= runtime->buffer_size) \
+				rx_ptr = 0; \
+		} \
+	} \
+ \
+	*period_elapsed = period_pos >= runtime->period_size; \
+	return rx_ptr; \
+}
+
+dw_pcm_tx_fn(16);
+dw_pcm_tx_fn(32);
+dw_pcm_rx_fn(16);
+dw_pcm_rx_fn(32);
+
+#undef dw_pcm_tx_fn
+#undef dw_pcm_rx_fn
+
+static const struct snd_pcm_hardware dw_pcm_hardware = {
+	.info = SNDRV_PCM_INFO_INTERLEAVED |
+	    SNDRV_PCM_INFO_MMAP |
+	    SNDRV_PCM_INFO_MMAP_VALID | SNDRV_PCM_INFO_BLOCK_TRANSFER,
+	.rates = SNDRV_PCM_RATE_32000 |
+	    SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
+	.rate_min = 32000,
+	.rate_max = 48000,
+	.formats = SNDRV_PCM_FMTBIT_S16_LE |
+	    SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S32_LE,
+	.channels_min = 2,
+	.channels_max = 2,
+	.buffer_bytes_max = BUFFER_BYTES_MAX,
+	.period_bytes_min = PERIOD_BYTES_MIN,
+	.period_bytes_max = BUFFER_BYTES_MAX / PERIODS_MIN,
+	.periods_min = PERIODS_MIN,
+	.periods_max = BUFFER_BYTES_MAX / PERIOD_BYTES_MIN,
+	.fifo_size = 16,
+};
+
+static void dw_pcm_transfer(struct dw_tdm_dev *dev, bool push)
+{
+	struct snd_pcm_substream *substream;
+	bool active, period_elapsed;
+
+	rcu_read_lock();
+	if (push)
+		substream = rcu_dereference(dev->tx_substream);
+	else
+		substream = rcu_dereference(dev->rx_substream);
+	active = substream && snd_pcm_running(substream);
+	if (active) {
+		unsigned int ptr;
+		unsigned int new_ptr;
+
+		if (push) {
+			ptr = READ_ONCE(dev->tx_ptr);
+			new_ptr = dev->tx_fn(dev, substream->runtime, ptr,
+					     &period_elapsed);
+			cmpxchg(&dev->tx_ptr, ptr, new_ptr);
+		} else {
+			ptr = READ_ONCE(dev->rx_ptr);
+			new_ptr = dev->rx_fn(dev, substream->runtime, ptr,
+					     &period_elapsed);
+			cmpxchg(&dev->rx_ptr, ptr, new_ptr);
+		}
+
+		if (period_elapsed)
+			snd_pcm_period_elapsed(substream);
+	}
+	rcu_read_unlock();
+}
+
+void dw_pcm_tdm_push_tx(struct dw_tdm_dev *dev)
+{
+	dw_pcm_transfer(dev, true);
+}
+
+void dw_pcm_tdm_pop_rx(struct dw_tdm_dev *dev)
+{
+	dw_pcm_transfer(dev, false);
+}
+
+static int dw_pcm_open(struct snd_soc_component *component,
+		       struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct snd_soc_pcm_runtime *rtd = asoc_substream_to_rtd(substream);
+	struct dw_tdm_dev *dev =
+	    snd_soc_dai_get_drvdata(asoc_rtd_to_cpu(rtd, 0));
+
+	snd_soc_set_runtime_hwparams(substream, &dw_pcm_hardware);
+	snd_pcm_hw_constraint_integer(runtime, SNDRV_PCM_HW_PARAM_PERIODS);
+	runtime->private_data = dev;
+
+	return 0;
+}
+
+static int dw_pcm_close(struct snd_soc_component *component,
+			struct snd_pcm_substream *substream)
+{
+	synchronize_rcu();
+	return 0;
+}
+
+static int dw_pcm_hw_params(struct snd_soc_component *component,
+			    struct snd_pcm_substream *substream,
+			    struct snd_pcm_hw_params *hw_params)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct dw_tdm_dev *dev = runtime->private_data;
+	int chan_nr;
+
+	chan_nr = params_channels(hw_params);
+
+	if (chan_nr < MIN_CHANNEL_NUM || chan_nr > MAX_CHANNEL_NUM) {
+		
+		dev_err(dev->dev, "invalid channels number\n");
+		return -EINVAL;
+	}
+
+	switch (params_format(hw_params)) {
+	case SNDRV_PCM_FORMAT_S16_LE:
+		dev->tx_fn = dw_pcm_tx_16;
+		dev->rx_fn = dw_pcm_rx_16;
+		break;
+	case SNDRV_PCM_FORMAT_S24_LE:
+	case SNDRV_PCM_FORMAT_S32_LE:
+		dev->tx_fn = dw_pcm_tx_32;
+		dev->rx_fn = dw_pcm_rx_32;
+		break;
+	default:
+		dev_err(dev->dev, "invalid format\n");
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int dw_pcm_trigger(struct snd_soc_component *component,
+			  struct snd_pcm_substream *substream, int cmd)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct dw_tdm_dev *dev = runtime->private_data;
+	int ret = 0;
+
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+			WRITE_ONCE(dev->tx_ptr, 0);
+			rcu_assign_pointer(dev->tx_substream, substream);
+		} else {
+			WRITE_ONCE(dev->rx_ptr, 0);
+			rcu_assign_pointer(dev->rx_substream, substream);
+		}
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			rcu_assign_pointer(dev->tx_substream, NULL);
+		else
+			rcu_assign_pointer(dev->rx_substream, NULL);
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+	return ret;
+}
+
+static snd_pcm_uframes_t dw_pcm_pointer(struct snd_soc_component *component,
+					struct snd_pcm_substream *substream)
+{
+	struct snd_pcm_runtime *runtime = substream->runtime;
+	struct dw_tdm_dev *dev = runtime->private_data;
+	snd_pcm_uframes_t pos;
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		pos = READ_ONCE(dev->tx_ptr);
+	else
+		pos = READ_ONCE(dev->rx_ptr);
+
+	return pos < runtime->buffer_size ? pos : 0;
+}
+
+static int dw_pcm_new(struct snd_soc_component *component,
+		      struct snd_soc_pcm_runtime *rtd)
+{
+	size_t size = dw_pcm_hardware.buffer_bytes_max;
+
+	snd_pcm_set_managed_buffer_all(rtd->pcm,
+				       SNDRV_DMA_TYPE_CONTINUOUS,
+				       NULL, size, size);
+	return 0;
+}
+
+static const struct snd_soc_component_driver dw_pcm_component = {
+	.open = dw_pcm_open,
+	.close = dw_pcm_close,
+	.hw_params = dw_pcm_hw_params,
+	.trigger = dw_pcm_trigger,
+	.pointer = dw_pcm_pointer,
+	.pcm_construct = dw_pcm_new,
+	.name = "bst_tdm_pcm_driver",
+};
+
+int dw_tdm_pcm_register(struct platform_device *pdev)
+{
+	return devm_snd_soc_register_component(&pdev->dev, &dw_pcm_component,
+					       NULL, 0);
+}

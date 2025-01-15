@@ -1,0 +1,16 @@
+menu "HIFI5 XRP driver"
+config XRP
+    tristate "XRP driver" 
+config XRP_DEBUG
+    bool "Debug XRP"
+    depends on XRP    
+config XRP_HW_SIMPLE
+    tristate "XRP for simple hardware"
+    depends on XRP    
+config XRP_HW_HIKEY960
+    tristate "XRP for HiKey960"
+    depends on XRP
+config XRP_HW_BST
+    tristate "XRP for BST"
+    depends on XRP 
+endmenu

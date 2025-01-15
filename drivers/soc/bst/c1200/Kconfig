@@ -1,0 +1,4 @@
+config SIP_SMC_CLK
+	tristate "BST clk rst driver smcc"
+	help
+	  This is essentially kernel send message to user for safety function to excute el3.

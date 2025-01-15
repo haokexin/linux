@@ -1,0 +1,11 @@
+if (ARCH_BST || COMPILE_TEST)
+
+ 
+config BST_PINCTRL_C1200
+        tristate "bst pinctrl c1200"
+        help
+        This is the pinctrl, pinmux, pinconf driver for the
+        iomux block found in the BST C1200 platform.
+
+endif
+

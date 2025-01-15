@@ -1,0 +1,57 @@
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "cvdsp.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.coreip.cvdsp {
+    MaxMethodNum = 2
+
+    method disp_req {
+        MethodID = 0
+    }
+    method disp_run {
+        MethodID = 1
+    }
+}
+
+define com.bst.ipc.deployment for interface com.bst.ipc.coreip.cvdsp0 {
+    MaxMethodNum = 2
+
+    method disp_req {
+        MethodID = 0
+    }
+    method disp_run {
+        MethodID = 1
+    }
+}
+
+define com.bst.ipc.deployment for interface com.bst.ipc.coreip.cvdsp1 {
+    MaxMethodNum = 2
+
+    method disp_req {
+        MethodID = 0
+    }
+    method disp_run {
+        MethodID = 1
+    }
+}
+
+define com.bst.ipc.deployment for interface com.bst.ipc.coreip.cvdsp2 {
+    MaxMethodNum = 2
+
+    method disp_req {
+        MethodID = 0
+    }
+    method disp_run {
+        MethodID = 1
+    }
+}
+
+define com.bst.ipc.deployment for interface com.bst.ipc.coreip.cvdsp3 {
+    MaxMethodNum = 2
+
+    method disp_req {
+        MethodID = 0
+    }
+    method disp_run {
+        MethodID = 1
+    }
+}

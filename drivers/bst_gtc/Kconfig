@@ -1,0 +1,7 @@
+
+config BST_GTC
+    tristate "Support BST GTC"
+    depends on ARM64
+    help
+        BST gtc driver is included
+    default n

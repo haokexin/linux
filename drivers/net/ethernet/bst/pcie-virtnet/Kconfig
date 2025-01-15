@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# BST virtual ethernet configuration
+#
+
+config BST_PCIE_VIRTNET
+	tristate "BST_PCIE new virtual ethernet support"
+	default y
+	depends on PCIE_BST
+	help
+	  This is the driver for the PCIE virtual ethernet built around a
+	  BlackSesame SOC.

@@ -1,0 +1,28 @@
+config VIRTUAL_QSPI
+	tristate "qspi virtual support"
+	help
+	  This supports qspi virtual block.
+
+	  Note that this application programming interface is EXPERIMENTAL
+	  and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
+	  
+
+config VIRTUAL_TOTAL_SIZE
+	int "virtual device size in KiB"
+	depends on VIRTUAL_QSPI
+	default "32768"
+	help
+	  This allows you to configure the total size of the virtual device
+	  emulated by the virtual driver.  If the virtual driver is built
+	  as a module, it is also possible to specify this as a parameter when
+	  loading the module.
+
+config VIRTUAL_ERASE_SIZE
+	int "virtual erase block size in KiB"
+	depends on VIRTUAL_QSPI
+	default "4"
+	help
+	  This allows you to configure the size of the erase blocks in the
+	  device emulated by the virtual driver.  If the virtual driver is built
+	  as a module, it is also possible to specify this as a parameter when
+	  loading the module.

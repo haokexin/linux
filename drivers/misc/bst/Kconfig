@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Minidump support for BST.
+#
+
+menuconfig BST_SOLUTION
+	bool "Bst Properitary Configuration"
+	depends on KEXEC
+	default n
+	help
+	  Say y here to get to see options for minidump support for
+	  BST. This option depends on KEXEC.
+
+	  If you say N, all options in this submenu will be skipped
+	  and disabled.
+
+if BST_SOLUTION
+
+source "drivers/misc/bst/aee/Kconfig"
+
+endif

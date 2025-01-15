@@ -1,0 +1,14 @@
+//display-server.fdepl
+import "display-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as DisplayServer {
+    ProviderType = Server
+    RTE = BareMetal
+    SrcEndID = SAFETY_0
+    FID = DEF
+    SID = 1
+    instance com.bst.ipc.display.display {
+    // Note: Server FID MUST be set to DEF
+        GenerateReplyMethod = true
+    }
+}

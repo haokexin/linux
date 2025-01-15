@@ -1,0 +1,37 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "switch0-can-gateway.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.switch.switch0_can_gateway {
+    MaxMethodNum = 10
+    MaxBroadcastNum = 10
+    method notify_Eth_2_Can_enqueue {
+        MethodID = 1
+    }
+    method notify_Eth_2_Can_dequeue {
+        MethodID = 2
+    }
+    method notify_Can_2_Eth_enqueue {
+        MethodID = 3
+    }
+    method notify_Can_2_Eth_dequeue {
+        MethodID = 4
+    }
+    method vmac_method {
+        MethodID = 5
+    }
+    method get_ETH_statistics {
+        MethodID = 6
+    } 
+    method vcan_method {
+        MethodID = 7
+    }
+    method can_gateway_send {
+        MethodID = 8
+    }
+    broadcast can_gateway_recv {
+        SubscribeMethodID = 10
+        UnsubscribeMethodID = 11
+        BroadcastID = 1
+    }
+}

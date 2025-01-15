@@ -1,0 +1,167 @@
+package com.bst.ipc.coreip
+
+
+interface cvdsp{
+    version {major 1  minor 0}
+    
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_PARA = -2
+        ERROR_SYS = -3
+    }
+
+    method disp_req {
+        in {
+            UInt32 req
+        }
+        out {
+            UInt32 rep
+        }
+        error ErrorEnum
+    }
+
+    method disp_run {
+        in {
+            UInt32 opcode
+            UInt32 opdata
+        }
+        out {
+            UInt32 status
+            UInt32 perf_us      //性能记录
+        }
+        error ErrorEnum
+    }
+}
+
+interface cvdsp0{
+    version {major 1  minor 0}
+    
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_PARA = -2
+        ERROR_SYS = -3
+    }
+
+    method disp_req {
+        in {
+            UInt32 req
+        }
+        out {
+            UInt32 rep
+        }
+        error ErrorEnum
+    }
+
+    method disp_run {
+        in {
+            UInt32 opcode
+            UInt32 opdata
+        }
+        out {
+            UInt32 status
+            UInt32 perf_us      //性能记录
+        }
+        error ErrorEnum
+    }
+}
+
+interface cvdsp1{
+    version {major 1  minor 0}
+    
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_PARA = -2
+        ERROR_SYS = -3
+    }
+
+    method disp_req {
+        in {
+            UInt32 req
+        }
+        out {
+            UInt32 rep
+        }
+        error ErrorEnum
+    }
+
+    method disp_run {
+        in {
+            UInt32 opcode
+            UInt32 opdata
+        }
+        out {
+            UInt32 status
+            UInt32 perf_us      //性能记录
+        }
+        error ErrorEnum
+    }
+}
+
+interface cvdsp2{
+    version {major 1  minor 0}
+    
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_PARA = -2
+        ERROR_SYS = -3
+    }
+
+    method disp_req {
+        in {
+            UInt32 req
+        }
+        out {
+            UInt32 rep
+        }
+        error ErrorEnum
+    }
+
+    method disp_run {
+        in {
+            UInt32 opcode
+            UInt32 opdata
+        }
+        out {
+            UInt32 status
+            UInt32 perf_us      //性能记录
+        }
+        error ErrorEnum
+    }
+}
+
+interface cvdsp3{
+    version {major 1  minor 0}
+    
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_PARA = -2
+        ERROR_SYS = -3
+    }
+
+    method disp_req {
+        in {
+            UInt32 req
+        }
+        out {
+            UInt32 rep
+        }
+        error ErrorEnum
+    }
+
+    method disp_run {
+        in {
+            UInt32 opcode
+            UInt32 opdata
+        }
+        out {
+            UInt32 status
+            UInt32 perf_us      //性能记录
+        }
+        error ErrorEnum
+    }
+}

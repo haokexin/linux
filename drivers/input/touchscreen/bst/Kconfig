@@ -1,0 +1,4 @@
+config TOUCHSCREEN_VIRT_BST
+	tristate "BST virt touch driver support"
+	help
+	  general driver for virt touch from BST

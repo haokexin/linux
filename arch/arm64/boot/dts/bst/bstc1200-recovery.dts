@@ -1,0 +1,250 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "bstc1200.dtsi"
+
+/ {
+	compatible = "bst,c1200";
+	model = "BST C1200 CDCU";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x20008000 console=ttyS0,115200n8 rdinit=/sbin/init root=/dev/ram rw init=/linuxrc rodata=n";
+		stdout-path = "uart0";
+	};
+
+	// OS 7GB
+	memory@9c0000000 {
+		device_type = "memory";
+		reg = <0xc 0x00000000 0x1 0xc0000000>;
+	};
+
+// eMMC 512K
+    /* memory@5100000 {
+        device_type = "memory";
+        reg = <0x00000000 0x5100000 0x00000000 0x20000>;
+    }; */
+
+	memory@800000000 {
+        device_type = "memory";
+        reg = <0x8 0x00000000 0x0 0x20000>;
+    };
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		bst_ufs_reserved: bst_ufs@800000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x000000 0x0 0x20000>;
+			no-map;
+		};
+		
+
+		bst_sramemmc0_reserved: bst_sramemmc0@5160000{
+			compatible = "shared-dma-pool";
+			reg = <0x0 0x5160000 0x0 0x10000>;
+			no-map;
+		};
+		
+		
+		bst_nor_flash_code_reserved: bst_nor_flash@800140000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x140000 0x0 0x10000>;
+			no-map;
+		};
+	};
+
+
+
+
+
+/****************************************************************************************/
+/*	c0_lockstep/c1_split	1 + 5: c0 0x0 + c0 0x100 \ c1 0x0 ~ 0x300
+ *	c0_lockstep/c1_lockstep	1 + 3: c0 0x0 + c0 0x100 \ c1 0x0 ~ 0x100
+ *	split			2 + 6: c0 0x0 ~ 0x100 + c0 0x200 ~ 0x300 \ c1 0x0 ~ 0x300
+ *	split			4 + 4: c0 0x0 ~ 0x300 + c1 0x0 ~ 0x300
+ */
+/****************************************************************************************/
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* cluster 0 */
+		cpu_l0: cpu@0 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x0>;
+		};
+		cpu_l1: cpu@1 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x100>;
+		};
+		cpu_l2: cpu@2 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x200>;
+		};
+		cpu_l3: cpu@3 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x300>;
+		};
+
+		l2_0: l2-cache-0 {
+			compatible = "cache";
+		};
+
+		/* cluster 1
+		cpu_b0: cpu@100 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10000>;
+		};
+		cpu_b1: cpu@101 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10100>;
+		};
+		cpu_b2: cpu@102 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10200>;
+		};
+		cpu_b3: cpu@103 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10300>;
+		};
+
+		l2_1: l2-cache-1 {
+			compatible = "cache";
+		};*/
+	};
+
+	psci {
+		compatible	= "arm,psci-1.0";
+		method		= "smc";
+		cpu_on		= <0xC4000003>;
+		cpu_off		= <0x84000002>;
+		cpu_suspend	= <0xC4000001>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+&uart1 {
+	status = "disable";
+};
+&uart2 {
+	status = "disable";
+};
+&uart3 {
+	status = "disable";
+};
+
+&usbdwc3 {
+	iommus = <&mmu600_soc 1>;
+};
+
+&usbdrd_dwc3 {
+	status = "okay";
+	/delete-property/ clock-names;
+	/delete-property/ clocks;
+	/delete-property/ resets;
+	/delete-property/ reset-names;
+};
+
+&usbdwc2 {
+	iommus = <&mmu600_soc 2>;
+	role-switch-default-mode="peripheral";
+};
+&dwc3 {
+	status = "okay";
+	/delete-property/ clock-names;
+	/delete-property/ clocks;
+	/delete-property/ resets;
+	/delete-property/ reset-names;
+};
+
+
+
+
+&mmc0 {
+	memory-region = <&bst_sramemmc0_reserved>;
+	//iommus = <&mmu600_soc 8>;  //when use this, comment out memory-region attr
+	status = "okay";
+};
+
+&nor_flash {
+	memory-region = <&bst_nor_flash_code_reserved>;
+	status = "okay";
+};
+&mmu600_soc {
+	status = "okay";
+};
+
+
+&mmc1 {
+	status = "disable";
+};
+
+&ufs {
+	memory-region = <&bst_ufs_reserved>;
+	interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH
+			GIC_SPI 185 IRQ_TYPE_LEVEL_HIGH
+			GIC_SPI 186 IRQ_TYPE_LEVEL_HIGH>;
+	status = "okay";
+};
+
+&gic600 {
+	status = "okay";
+};
+
+&msgbox {
+	status = "okay";
+	spi-irq-num = <4>;
+	filter-num = <8>;
+	// id = <0x0>;
+	// end0 and end1 spi irq
+	interrupts =    <
+			GIC_PPI 2 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 3 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 15 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+            GIC_SPI 560 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 561 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 562 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 563 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 564 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 565 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 566 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 567 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 568 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 569 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 570 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 571 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 572 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 573 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 574 (IRQ_TYPE_LEVEL_HIGH)
+            GIC_SPI 575 (IRQ_TYPE_LEVEL_HIGH)
+			>;
+	#mbox-cells = <0x1>;
+};

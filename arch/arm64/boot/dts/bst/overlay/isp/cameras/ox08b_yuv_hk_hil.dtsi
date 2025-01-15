@@ -1,0 +1,9 @@
+compatible = "bst,ox08b-yuv-hil";
+sensor-id = <0x36>;
+data-type = <0x1e>;
+serializer = "max9295";
+
+clock-frequency = <24>;
+sensor-fps = <20>;
+trigger-tx-pin = <8>;
+serializer-id = <0x42>;

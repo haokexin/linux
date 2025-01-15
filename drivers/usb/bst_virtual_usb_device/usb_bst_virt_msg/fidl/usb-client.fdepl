@@ -1,0 +1,13 @@
+//usb-client.fdepl
+import "usb-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as UsbClient {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_4
+    FID = F1
+    SID = 6
+    instance com.bst.ipc.usb.usb {
+        DstEndID = SAFETY_0
+    }
+}

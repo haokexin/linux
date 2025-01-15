@@ -1,0 +1,7 @@
+config BST_CVSMM
+    tristate "Support BST CVSMM"
+    depends on ARM64
+    depends on HAS_DMA
+    help
+        BST CVSMM driver is included
+    default y

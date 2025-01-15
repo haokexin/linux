@@ -1,0 +1,10 @@
+
+config BSTN
+    tristate "Support BSTN IP"
+    depends on ARM64
+    depends on HAS_DMA
+    depends on BST_IPC
+    depends on BST_IPC_MSGBX
+    help
+        BSTN Core driver is included
+    default m

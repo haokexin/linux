@@ -1,0 +1,13 @@
+//display-client.fdepl
+import "display-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as DisplayClient {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_4
+    FID = DEF
+    SID = 2
+    instance com.bst.ipc.display.display {
+        DstEndID = SAFETY_0
+    }
+}

@@ -1,0 +1,78 @@
+
+package com.bst.ipc.switch
+
+
+interface switch0_can_gateway{
+    version {major 1  minor 0}
+    
+    array MyArray of UInt8
+    
+    enumeration ErrorEnum {
+        NO_ERROR = 0
+        SERVER_FAIL = -1
+        ERROR_2 = -2
+        ERROR_3 = -3
+    }
+
+    method notify_Eth_2_Can_enqueue fireAndForget {
+        in {
+            UInt32 element_ptr
+            UInt16 element_count
+        }
+    }
+
+    method notify_Eth_2_Can_dequeue fireAndForget {
+        in {
+            UInt32 element_ptr
+            UInt16 element_count
+        }
+    }
+
+   method notify_Can_2_Eth_enqueue fireAndForget {
+        in {
+            UInt32 element_ptr
+            UInt16 element_count
+        }
+    }
+
+    method notify_Can_2_Eth_dequeue fireAndForget {
+        in {
+            UInt32 element_ptr
+            UInt16 element_count
+        }
+    }
+
+    method get_ETH_statistics {
+        out {
+            UInt32 statistics_data_ptr
+        }
+        error ErrorEnum
+    }
+
+    method vmac_method {
+        in {
+			MyArray vmac_msg
+			UInt32 flag
+        }
+        error ErrorEnum
+    }
+
+    method vcan_method {
+        in {
+            UInt8  command           //命令编号
+            UInt32 param             //命令参数(指针)，具体参数需要双方通过结构体自行约定
+        }
+        error ErrorEnum
+    }
+
+    method can_gateway_send {
+        in {
+            UInt8[128] x2can
+        }
+        error ErrorEnum
+    }
+
+    broadcast can_gateway_recv selective{
+    }
+}
+

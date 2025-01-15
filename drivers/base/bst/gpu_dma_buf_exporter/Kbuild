@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0+
+#
+# Copyright (C) 2024 Black Sesame Technologies. All Rights Reserved.
+#
+
+ifeq ($(CONFIG_G78_DMA_SHARED_BUFFER_EXPORTER), y)
+obj-y += gpu_dma_buf_exporter.o
+endif

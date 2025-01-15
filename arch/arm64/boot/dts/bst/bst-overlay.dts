@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * dts file for dtbo plugin demo
+ *
+ * (C) Copyright 2016 - 2020, BlackSesame, Inc.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ */
+/dts-v1/;
+/plugin/;
+&config_manage {
+	usb_gadget {
+		functions = "adb,rndis";
+		idVendor = "0x18D1";
+		idProduct = "0x4EE4";
+		UDC = "";
+		MaxPower = "250";
+		strings {
+			manufacturer = "bst";
+			product = "bst usb Gadget";
+			serialnumber = "12345678";
+			configstring = "usb config";
+		};
+		os_desc {
+			b_vendor_code = "";
+			qw_sign = "";
+			use = "";
+		};
+		mass_storage {
+			file = "";
+			size = "100";
+			auto_del = "0";
+		};
+		adb {
+			idVendor = "0x18D1";
+			idProduct = "0x4EE4";
+		};
+	};
+	host_blacklist {
+		usbmouse = "";
+	};
+};

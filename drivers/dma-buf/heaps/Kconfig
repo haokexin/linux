@@ -1,0 +1,53 @@
+menuconfig DMABUF_HEAPS_DEFERRED_FREE
+	bool "DMA-BUF heaps deferred-free library"
+	help
+	  Choose this option to enable the DMA-BUF heaps deferred-free library.
+
+menuconfig DMABUF_HEAPS_PAGE_POOL
+	bool "DMA-BUF heaps page-pool library"
+	help
+	  Choose this option to enable the DMA-BUF heaps page-pool library.
+
+config DMABUF_HEAPS_SYSTEM
+	tristate "DMA-BUF System Heap"
+	depends on DMABUF_HEAPS
+	select DMABUF_HEAPS_PAGE_POOL
+	help
+	  Choose this option to enable the system dmabuf heap. The system heap
+	  is backed by pages from the buddy allocator. If in doubt, say Y.
+
+config DMABUF_HEAPS_SECURE
+	tristate "DMA-BUF Secure Heap"
+	depends on DMABUF_HEAPS && DMABUF_HEAPS_DEFERRED_FREE
+	help
+	  Choose this option to enable the secure dmabuf heap. The secure heap
+	  is allocated by gen allocater. it's allocated according the dts.
+	  If in doubt, say Y.
+
+config DMABUF_HEAPS_CMA
+	tristate "DMA-BUF CMA Heap"
+	depends on DMABUF_HEAPS && DMA_CMA
+	help
+	  Choose this option to enable dma-buf CMA heap. This heap is backed
+	  by the Contiguous Memory Allocator (CMA). If your system has these
+	  regions, you should say Y here.
+
+config DMABUF_HEAPS_CMA_BST
+	tristate "DMA-BUF CMA Heap for BST"
+	depends on DMABUF_HEAPS && DMA_CMA
+	select DMABUF_MSGBX_R5MEM
+	default n
+	help
+	  Choose this option to enable dma-buf CMA heap for BST. This heap is
+	  backed by the Contiguous Memory Allocator (CMA). If your system has
+	  these regions, you should say Y here.
+
+config DMABUF_MSGBX_R5MEM
+	bool "DMA-BUF Gotten by Msbox from SOC R5"
+	depends on DMABUF_HEAPS && DMA_CMA && BST_IPC_MSGBX
+	default n
+	help
+	  Choose this option to enable dma-buf CMA heap gotten by msgbox from
+	  SOC R5. If your board supports msgbx, you will get dma-buf address 
+	  from SOC R5. And you can use this buffer with dma-buf API. All pids
+	  are PID0(ADAS : CPU_0, IVI : CPU_4, DB : CPUMP2_0)

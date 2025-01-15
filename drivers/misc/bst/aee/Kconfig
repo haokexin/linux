@@ -1,0 +1,57 @@
+config BST_AEE_FEATURE
+	tristate "Enable Android Exception Enhancement"
+	default y
+	select TRACER_SNAPSHOT if FTRACE
+	help
+	  AEE (Android Exception Engine) that designed by  Mediatek is an
+	  exception catching and debugging information generation mechanism.
+	  It can collect and dump information to filesystem
+	  (/sdcard/bstlog/aee_exp)  when fatel occur(E.g. kernel
+	  panic/android system server crash and ..)
+
+config BST_AEE_AED
+	tristate "Enable AEE Kernel Exception Report Daemon"
+	default y
+	help
+	  BST_AEE_AED is the kernel config of aed, which is the base support for
+	  aee features. Such as:
+	  aed debug: some test case for aee driver itself
+	  aed main: aed main function and ioctl for user space aee
+	  monitor hang: detect hang feature...
+
+config BST_AEE_IPANIC
+	tristate "Enable AEE Kernel Panic Dump"
+	default y
+	help
+	  BST_AEE_IPANIC is the kernel config of ipanic feature designed by
+	  BST, which is the enhancement of kernel defaut panic flow, and combine
+	  with aee.
+	  It do some hook function and get some kernel panic information for debug.
+
+config BST_AEE_POWERKEY_HANG_DETECT
+	bool "powerkey monitor"
+	default n
+	help
+	  BST_AEE_POWERKEY_HANG_DETECT is the kernel config of hang feature
+	  designed by BST, which is a debug feature for detect device hang.
+	  When the device hang and can detect by this mechanism, it will notice
+	  user space aee and get some debug information.
+
+config BST_AEE_MRDUMP
+	bool "BST-RAMDUMP support"
+	default y
+	help
+	  BST_AEE_MRDUMP is the kernel config of MRDUMP feature
+	  MRDUMP (Memory RAM Dump) based on MT-RAMDUMP is designed as a memory
+	  dump mechanism for debugging system to dump DRAM content at BST
+	  android phone platform
+
+config BST_AEE_MRDUMP_WDT
+	bool "BST-MRDUMP WDT support"
+	default n
+	help
+	  Support dump crash information from watchdog.
+
+	  If say y, you can dump information from watchdog, and it will send SMC to ATF.
+	  The current BST ATF doesn't support the type of SMC call from mrdump.
+	  So you should use this function after supporting the type of SMC.

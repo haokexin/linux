@@ -1,0 +1,14 @@
+import "net-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as bstn_server {
+    ProviderType = Server
+    RTE = BareMetal
+    SrcEndID = NET_0
+    // Note: Server FID MUST be set to DEF
+    FID = DEF
+    SID = 0
+    instance com.bst.ipc.coreip.net {
+        GenerateReplyMethod = true
+        NotUseSwitchCase = false
+    }
+}

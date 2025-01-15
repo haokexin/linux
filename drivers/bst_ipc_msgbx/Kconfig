@@ -1,0 +1,71 @@
+
+menuconfig BST_IPC_MSGBX
+	bool "Support BST IPC Msgbox"
+	depends on ARM64
+	help
+	  BST IPC Msgbox driver is included
+	default n
+
+if BST_IPC_MSGBX
+config MSGBOX_DEBUG
+	bool "Support BST IPC Msgbox Debug"
+	depends on BST_IPC_MSGBX
+	select IPC_LOG_SUPPORT
+	default n
+
+config MSGBOX_DEBUG_FS
+	bool "Support BST IPC Msgbox Debug_fs"
+	depends on BST_IPC_MSGBX
+	default y
+
+config MSGBOX_DEBUG_TEST
+	bool "Support BST IPC Msgbox Debug Test"
+	depends on BST_IPC_MSGBX
+	default n
+
+config MSGBOX_TEST_MODULE
+	tristate "Support BST IPC Msgbox Test Module"
+	depends on MSGBOX_DEBUG_TEST
+	default m
+
+config TRANS_LAYER_RECV_USE_INT
+	bool "BST IPC Msgbox receive mode"
+	depends on BST_IPC_MSGBX
+	default y
+
+config MSGBOX_CHANNEL_COUNT
+	int
+	depends on BST_IPC_MSGBX
+	default 8 if BST_C1200_ADAS || BST_C1200_IVI
+	default 2 if BST_C1200_DB
+
+config MSGBOX_DEF_FLT_ST_ADDR
+	int "BST IPC Msgbox Channel count"
+	depends on BST_IPC_MSGBX
+	default 0
+
+config MSGBOX_DEF_FLT_END_ADDR
+	int "BST IPC Msgbox Channel count"
+	depends on BST_IPC_MSGBX
+	default 63 if BST_C1200_ADAS || BST_C1200_IVI
+	default 15 if BST_C1200_DB
+
+config MSGBOX_MISCDEV_MOD
+	bool "Compile Msgbox Miscdev Independly"
+	depends on BST_IPC_MSGBX
+	default y
+
+config IPC_MAX_SUB_MSG_NUM
+	int "BST IPC Max Sub msg of Msgbox"
+	depends on BST_IPC_MSGBX
+	default 16
+
+config IPC_LOG_SUPPORT
+	bool
+	depends on BST_IPC_MSGBX
+
+config IPC_STATE_MGT_ENABLE
+	bool "Support IPC State Management"
+	depends on BST_IPC_MSGBX
+	default y
+endif

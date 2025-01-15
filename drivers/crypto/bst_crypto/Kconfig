@@ -1,0 +1,26 @@
+
+config CRYPTO_DEV_HFE
+	bool "Enable support for hash on bst devices"
+	depends on CRYPTO_DEV_BST
+	select CRYPTO_MD5
+	select CRYPTO_SHA1
+	select CRYPTO_SHA256
+	select CRYPTO_SHA512
+	help
+	  Say y to enable support for hash algorithms.
+
+config CRYPTO_DEV_SKE
+	bool "Enable support for Symmetric Key Engine on bst devices"
+	depends on CRYPTO_DEV_BST
+	select CRYPTO_SM4
+	select CRYPTO_AES
+	help
+	  Say y to enable support for hash symmetric key algorithms.
+
+config CRYPTO_DEV_PKE
+	bool "Enable support for Symmetric Key Engine on bst devices"
+	depends on CRYPTO_DEV_BST
+	select CRYPTO_RSA
+	select CRYPTO_SM2
+	help
+	  Say y to enable support for hash symmetric key algorithms.

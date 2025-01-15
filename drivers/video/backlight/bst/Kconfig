@@ -1,0 +1,5 @@
+config BACKLIGHT_BST
+	tristate "BST virtual backlight driver support"
+	help
+	  general driver for backlight from BST
+

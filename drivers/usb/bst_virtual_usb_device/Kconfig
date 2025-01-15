@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0+
+config USB_BST_VIRT_DEVICE
+      tristate "Virtual USB host device driver"
+      select BST_VIRT_USB_MSG
+      help
+          This option enables the building of the Virtual USB host device driver,
+          which provides support for a virtual USB device over the msgbox interface.
+          If you have a system that uses a virtual USB device for communication,
+          you should select this option. It will also automatically select the
+          necessary Virtual USB msgbox driver if it is not already selected,
+          ensuring the proper interaction between the host device and the msgbox system.
+
+config USB_BST_VIRT_MSG
+       tristate "Virtual USB msgbox driver"
+       help
+           The Virtual USB msgbox driver provides a communication interface for
+           virtual USB devices. This driver is necessary for systems that
+           implement a message-based communication mechanism over USB, allowing
+           for efficient data transfer and device management.
+
+           If you have a device that requires the Virtual USB msgbox driver for
+           proper operation, you should select this option. It will be built
+           into the kernel if you choose M or Y. If you are unsure, selecting
+           N is safe, but your device may not function correctly without this driver.
+
+           Note that this driver is automatically selected when the Virtual USB
+           host device driver is enabled, ensuring that both components are
+           available for systems that require them.

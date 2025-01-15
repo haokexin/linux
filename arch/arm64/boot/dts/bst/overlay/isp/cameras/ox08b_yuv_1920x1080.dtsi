@@ -1,0 +1,6 @@
+compatible = "bst,ox08b-yuv";
+sensor-id = <0x48>;
+data-type = <0x1e>;
+serializer = "max9295";
+
+trigger-tx-pin = <1>;

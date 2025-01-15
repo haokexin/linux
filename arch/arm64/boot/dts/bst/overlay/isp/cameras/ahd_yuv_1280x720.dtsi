@@ -1,0 +1,2 @@
+compatible = "bst,ahd-yuv";
+data-type = <0x1e>;

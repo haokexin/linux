@@ -1,0 +1,19 @@
+Black Sesame Technologies Msgbox
+================================
+
+THe Black Sesame Technologies Msgbox provides msgbox for the communication between cores.
+
+Required Properties:
+
+- compatible: Should be:
+	- "bst,bst-msgbox"
+- spi-irq-num: 0 or 4
+- filter-num: 2 or 8
+
+Example:
+bst-msgbox: msgbox@0x32a00000 {
+	compatible = "bst,bst-msgbox";
+	reg =   <0x0 0x32a00000 0 0x100000>;
+	spi-irq-num = <4>;
+	filter-num = <8>;
+};

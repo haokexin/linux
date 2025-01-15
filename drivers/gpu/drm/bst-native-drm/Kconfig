@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-2.0
+menu "BST native display devices"
+
+config DRM_BST_NATIVE_DISPLAY
+	tristate "BST Display Processor for native"
+	depends on DRM && OF && (ARM || ARM64 || COMPILE_TEST)
+	depends on COMMON_CLK
+	select DRM_GEM_DMA_HELPER
+	select DRM_KMS_HELPER
+	select VIDEOMODE_HELPERS
+	help
+	  Choose this option if you want to compile the BST Display
+	  Processor driver.
+
+	  If compiled as a module it will be called bst-native-drm.
+
+config DRM_BST_DC
+	tristate "BST DC: control DC driver"
+	default y
+	help
+	  Choose y to include the dc driver. Driver controls the dc
+	  functionalities.
+
+
+config DRM_BST_DPTX
+	tristate "BST DP TX: control DP Tx driver"
+	select DRM_DISPLAY_HELPER
+	select DRM_DISPLAY_DP_HELPER
+	default y
+	help
+	  Choose y to include the dptx driver. Driver controls the main DP Tx
+	  functionalities.
+config DRM_BST_LVDS
+	tristate "BST LVDS: control LVDS driver"
+	default y
+	help
+	  Choose y to include the LVDS driver. Driver controls the LVDS
+	  functionalities.
+config DRM_BST_MIPI_DSI
+	tristate "BST MIPI DSI: control MIPI DSI driver"
+	default y
+	help
+	  Choose y to include the MIPI DSI driver. Driver controls the MIPI DSI
+	  functionalities.
+
+endmenu
+

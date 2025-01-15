@@ -1,0 +1,60 @@
+config SCSI_UFS_BST
+	tristate "DesignWare platform support using a BST C1200 Chip"
+	depends on SCSI_UFSHCD_PLATFORM
+	help
+	  Synopsys Test Chip is a PHY for prototyping purposes.
+
+	  If unsure, say N.
+
+config BST_UFS_MULSYS
+	tristate "ufs used for multisystem"
+	depends on SCSI_UFS_BST
+	help
+	  ufs used for multisystem.
+
+	  If unsure, say N.
+
+config BST_UFS_UTRD_SLOT_START
+	int "ufs's utrd used slot"
+	depends on BST_UFS_MULSYS
+	default 0
+	help
+	  ufs's utrd used slot.
+
+	  If unsure, say N.
+
+config BST_UFS_UTRD_SLOT_NUMBER
+	int "ufs's utrd used slot number"
+	depends on BST_UFS_MULSYS
+	default 1
+	help
+	  ufs's utrd used slot number.
+
+	  If unsure, say N.
+
+config BST_UFS_UTMRD_SLOT_START
+	int "ufs's utmrd used slot"
+	depends on BST_UFS_MULSYS
+	default 0
+	help
+	  ufs's utmrd used slot.
+
+	  If unsure, say N.
+
+config BST_UFS_UTMRD_SLOT_NUMBER
+	int "ufs's utmrd used slot number"
+	depends on BST_UFS_MULSYS
+	default 1
+	help
+	  ufs's utmrd used slot number.
+
+	  If unsure, say N.
+
+config BST_UFS_DEVICE_NUMBER
+	int "ufs used devices number"
+	depends on BST_UFS_MULSYS
+	default 0
+	help
+	  ufs used devices number.
+
+	  If unsure, say N.

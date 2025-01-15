@@ -1,0 +1,13 @@
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "net.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.coreip.net {
+    MaxMethodNum = 2
+
+    method disp_req {
+        MethodID = 0
+    }
+    method disp_run {
+        MethodID = 1
+    }
+}

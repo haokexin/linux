@@ -1,0 +1,1 @@
+obj-$(CONFIG_BST_COREIP)	+= genProtoCommon.o

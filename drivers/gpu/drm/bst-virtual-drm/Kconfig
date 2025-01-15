@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-2.0+
+menu "BST Virtual Display devices"
+
+config DRM_BST_VIRTUAL_DISPLAY
+	tristate "BST Display Processor for Vritual"
+	depends on DRM && OF && (ARM || ARM64 || COMPILE_TEST)
+	depends on COMMON_CLK
+	select DRM_GEM_DMA_HELPER
+	select DRM_KMS_HELPER
+	select VIDEOMODE_HELPERS
+	select DRM_DISPLAY_HELPER
+	select DRM_DISPLAY_DP_HELPER
+	help
+	  Choose this option if you want to compile the BST Display
+	  Processor driver.
+
+	  If compiled as a module it will be called bst-virtual-drm.
+
+config DRM_BST_FW_MSG
+	tristate "BST Display Firmware Message Dirver"
+	default y
+	help
+	  Choose this option if you want to compile the display firmware.
+	  functionalities.
+
+endmenu
+

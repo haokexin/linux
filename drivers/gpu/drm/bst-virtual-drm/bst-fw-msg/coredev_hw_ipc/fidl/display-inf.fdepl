@@ -1,0 +1,73 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "display.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.display.display {
+    MaxMethodNum = 10
+    MaxBroadcastNum = 10
+    //method hello {
+    //    MethodID = 7
+    //}
+    method fw_msg_send {
+        MethodID = 8
+    }
+   // broadcast heartbeat {
+   //     SubscribeMethodID = 10
+   //     UnsubscribeMethodID = 11
+   //     BroadcastID = 1
+   // }
+
+    broadcast dc_pipe0_event {
+         SubscribeMethodID = 10
+        UnsubscribeMethodID = 11
+        BroadcastID = 0
+    }
+    broadcast dc_pipe1_event {
+        SubscribeMethodID = 12
+        UnsubscribeMethodID = 13
+        BroadcastID = 1
+    }
+    broadcast dc_pipe2_event {
+        SubscribeMethodID = 14
+        UnsubscribeMethodID = 15
+        BroadcastID = 2
+    }
+    broadcast dc_pipe3_event {
+        SubscribeMethodID = 16
+        UnsubscribeMethodID = 17
+        BroadcastID = 3
+    }
+    broadcast dc_pipe4_event {
+        SubscribeMethodID = 18
+        UnsubscribeMethodID = 19
+        BroadcastID = 4
+    }
+
+    broadcast edp_event {
+        SubscribeMethodID = 20
+        UnsubscribeMethodID = 21
+        BroadcastID = 5
+    }
+
+    broadcast dsi0_event {
+        SubscribeMethodID = 22
+        UnsubscribeMethodID = 23
+        BroadcastID = 6
+    }
+
+    broadcast dsi1_event {
+        SubscribeMethodID = 24
+        UnsubscribeMethodID = 25
+        BroadcastID = 7
+    }
+    broadcast lvds0_event {
+        SubscribeMethodID = 26
+        UnsubscribeMethodID = 27
+        BroadcastID = 8
+    }
+    broadcast lvds1_event {
+        SubscribeMethodID = 28
+        UnsubscribeMethodID = 29
+        BroadcastID = 9
+    }
+}

@@ -1,0 +1,21 @@
+import "cvdsp-inf.fdepl"
+
+define com.bst.ipc.deployment for provider as lwnn_client {
+    ProviderType = Client
+    RTE = LinuxKernel
+    SrcEndID = CPU_1
+    FID = DEF
+    SID = 11
+    instance com.bst.ipc.coreip.cvdsp0 {
+        DstEndID = ISPCV_0
+    }
+    instance com.bst.ipc.coreip.cvdsp1 {
+        DstEndID = ISPCV_1
+    }
+    instance com.bst.ipc.coreip.cvdsp2 {
+        DstEndID = ISPCV_2
+    }
+    instance com.bst.ipc.coreip.cvdsp3 {
+        DstEndID = ISPCV_3
+    }
+}

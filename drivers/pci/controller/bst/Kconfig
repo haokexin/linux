@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menu "BlackSesame SOC PCIe Core Support"
+	depends on PCI && ARCH_BST
+
+config PCIE_BST
+	bool
+
+config PCIE_BST_HOST
+	bool
+	select PCIE_BST
+
+config PCIE_BST_EP
+	bool
+	select PCIE_BST
+
+config PCIE_BST_PLAT
+	bool
+
+config PCIE_BST_PLAT_HOST
+	bool "BlackSesame SOC PCIe controller - Host mode"
+	depends on PCI_MSI_IRQ_DOMAIN
+	select PCIE_BST_HOST
+	select PCIE_BST_PLAT
+
+config PCIE_BST_PLAT_EP
+	bool "BlackSesame SOC PCIe controller - Endpoint mode"
+	depends on PCI && PCI_MSI_IRQ_DOMAIN
+	depends on PCI_ENDPOINT
+	select PCIE_BST_EP
+	select PCIE_BST_PLAT
+
+config PCIE_BST_EP_USE_OUTBOUND
+	bool "C1200 EP mode uses outbound"
+	default n
+	select PCIE_BST_PLAT_EP
+
+endmenu

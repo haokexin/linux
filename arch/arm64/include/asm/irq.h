@@ -1,0 +1,32 @@
+/* SPDX-License-Identifier: GPL-2.0 */
+#ifndef __ASM_IRQ_H
+#define __ASM_IRQ_H
+
+#ifndef __ASSEMBLER__
+
+#include <asm-generic/irq.h>
+
+#ifndef IRQ_STACK_SIZE
+#define IRQ_STACK_SIZE			THREAD_SIZE
+#endif
+
+#ifndef IRQ_STACK_START_SP
+#define IRQ_STACK_START_SP		THREAD_START_SP
+#endif
+
+struct pt_regs;
+
+int set_handle_irq(void (*handle_irq)(struct pt_regs *));
+#define set_handle_irq	set_handle_irq
+int set_handle_fiq(void (*handle_fiq)(struct pt_regs *));
+
+DECLARE_PER_CPU(unsigned long [IRQ_STACK_SIZE/sizeof(long)], irq_stack);
+#define IRQ_STACK_PTR(cpu) ((unsigned long)per_cpu(irq_stack, cpu) + IRQ_STACK_START_SP)
+
+static inline int nr_legacy_irqs(void)
+{
+	return 0;
+}
+
+#endif /* !__ASSEMBLER__ */
+#endif

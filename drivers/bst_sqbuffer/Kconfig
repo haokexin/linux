@@ -1,0 +1,10 @@
+config BST_SQBUFFER
+	tristate "Support BST sqbuffer"
+	depends on ARM64
+	default y
+	help
+	  BST sqbuffer is a circular queue based on the producer-consumer model,
+	  used for sharing data between multiple cores.
+
+	  To compile as a module, choose M here: the module will be called
+	  bst_sqbuffer.

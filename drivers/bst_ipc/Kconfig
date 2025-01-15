@@ -1,0 +1,7 @@
+config BST_IPC
+	bool "Support BST IPC"
+	depends on ARM64
+	help
+	  BST IPC driver is included
+	default y
+	

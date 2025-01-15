@@ -1,0 +1,18 @@
+//xxx-inf.fdepl
+import "platform:/plugin/com.bst.os.idl/deployment/ipc_spec.fdepl"
+import "usb.fidl"
+
+define com.bst.ipc.deployment for interface com.bst.ipc.usb.usb {
+    MaxMethodNum = 38
+    MaxBroadcastNum = 1
+
+    method usb_proxy_method {
+        MethodID = 36
+    }
+  
+    broadcast usb_proxy_event {
+        SubscribeMethodID = 39
+        UnsubscribeMethodID = 40
+        BroadcastID = 0
+    }
+}

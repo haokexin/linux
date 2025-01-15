@@ -1,0 +1,1050 @@
+// SPDX-License-Identifier: GPL-2.0+
+/dts-v1/;
+#include "bstc1200.dtsi"
+
+/ {
+	compatible = "bst,c1200";
+	model = "BST C1200";
+
+	chosen {
+		bootargs = "earlycon=uart8250,mmio32,0x20007000 console=ttyS0,115200n8 rdinit=/sbin/init root=/dev/ram rw init=/linuxrc rodata=n";
+		stdout-path = "uart0";
+	};
+
+	/* This is used to push the total usable DDR to Normal Zone
+	 * DON NOT USE IT !!!
+	 */
+	memory@1000000 {
+	device_type = "memory";
+	reg = <0x0 0x1000000 0x0 0x1000>;
+	};
+
+	memory@c00000000 {
+	device_type = "memory";
+	reg = <0xc 0x40000000 0x1 0x80000000>;
+	};
+
+	memory@800000000 {
+	device_type = "memory";
+	reg = <0x8 0x00000000 0x0 0x20000>;
+	};
+
+	memory@800000000 {
+        device_type = "memory";
+        reg = <0x8 0x6400000 0x0 0x100000>;
+    };
+
+	memory@837000000 {
+        device_type = "memory";
+        reg = <0x8 0x37000000 0x0 0x09000000
+			   0x8 0x50000000 0x0 0x03000000
+			   0xc 0x50000000 0x0 0x03000000
+		>;
+    };
+
+	memory@806a10000 {
+		device_type = "memory";
+		reg = <0x8 0x06a10000 0x0 0x100000>;
+	};
+	memory@80e800000 {
+		device_type = "memory";
+		reg = <0x8 0x0e800000 0x0 0x800000>;
+	};
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		its_table_reserved: its_table@806a10000 {
+			reg = <0x8 0x06a10000 0x0 0x100000>;
+			no-map;
+		};
+
+		bst_ufs_reserved: bst_ufs@800000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x000000 0x0 0x20000>;
+			no-map;
+		};
+
+		scmi_buf_reserved: scmi_buf@800152000 {
+            compatible = "shared-dma-pool";
+            reg = <0x8 0x152000 0x0 0x1000>;
+            no-map;
+        };
+
+
+		reserved_for_normal_zone: reserved@1000000 {
+			reg = <0x0 0x1000000 0x0 0x1000>;
+			no-map;
+		};
+
+		bst_nor_flash_code_reserved: bst_nor_flash@800140000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x140000 0x0 0x10000>;
+			no-map;
+		};
+
+		/* bst vpu private memory pool */
+		bst_vpu_reserved: bst_vpu_reserved {
+			compatible = "secure-dma-pool";
+			align-shift = <8>;
+			reg = <0xc 0x60000000 0x0 0x20000000>;
+			reusable;
+		};
+
+		bst_dpu_reserved: bst_dpu_cma@c80000000 {
+			compatible = "shared-dma-pool";
+			reg = <0xc 0x80000000 0x0 0x10000000>;
+			reusable;
+		};
+
+
+		bst_ipc_reserved: bst_ipc@800400000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x00400000 0x0 0x100000>;
+			no-map;
+		};
+
+
+
+		bst_sramxrp_reserved: bst_sramxrp0@806400000{
+            compatible = "shared-dma-pool";
+            reg = <0x8 0x6400000 0x0 0x100000>;
+            no-map;
+		};
+
+		bst_touchscreen_reserved: bst_touchscreen@806690000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x06690000 0x0 0x40000>; //256k
+			no-map;
+		};
+
+		bst_minidump_reserved: bst_minidump@d00000000 {
+			compatible = "bst,minidump";
+			reg = <0xd 0x00000000 0x0 0xA00000>;
+			no-map;
+		};
+
+		bst_mrdump_cb_reserved: bst_mrdump@d00a00000 {
+			compatible = "bst,mrdump_cb";
+			reg = <0xd 0xa00000 0x0 0x200000>;
+			no-map;
+		};
+
+		bst_hif_reserved: bst_hif_des@d00c00000 {
+			compatible = "shared-dma-pool";
+			reg = <0xd 0xc00000 0x0 0x40000>;
+			no-map;
+		};
+
+		/*reserved for global secure dmabuf */
+		global_dmabuf_secure_reserved: global_secure_dmabuf@850000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x50000000 0x0 0x03000000
+                   0xc 0x50000000 0x0 0x03000000
+			>;
+			no-map;
+		};
+		/*reserved for global normal dmabuf */
+		global_dmabuf_normal_reserved: global_normal_dmabuf@837000000 {
+			compatible = "shared-dma-pool";
+			reg = <0x8 0x37000000 0x0 0x09000000>;
+			no-map;
+		};
+		bst_usb_virt_reserved: usb_virt@80e800000 {
+			reg = <0x8 0x0e800000 0x0 0x800000>;
+			no-map;
+		};
+	};
+
+/****************************************************************************************/
+/*	c0_lockstep/c1_split	1 + 5: c0 0x0 + c0 0x100 \ c1 0x0 ~ 0x300
+ *	c0_lockstep/c1_lockstep	1 + 3: c0 0x0 + c0 0x100 \ c1 0x0 ~ 0x100
+ *	split			2 + 6: c0 0x0 ~ 0x100 + c0 0x200 ~ 0x300 \ c1 0x0 ~ 0x300
+ *	split			4 + 4: c0 0x0 ~ 0x300 + c1 0x0 ~ 0x300
+ */
+/****************************************************************************************/
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		/* cluster 0 */
+		cpu_l0: cpu@0 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x0>;
+			freq-domain = <&cpufreq 0>;
+		};
+		cpu_l1: cpu@1 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x100>;
+			freq-domain = <&cpufreq 0>;
+		};
+		cpu_l2: cpu@2 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x200>;
+			freq-domain = <&cpufreq 0>;
+		};
+		cpu_l3: cpu@3 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_0>;
+			reg = <0x300>;
+			freq-domain = <&cpufreq 0>;
+		};
+
+		l2_0: l2-cache-0 {
+			compatible = "cache";
+		};
+		
+
+		/* cluster 1 */
+		/*
+		cpu_b0: cpu@100 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10000>;
+			freq-domain = <&cpufreq 1>;
+		};
+		cpu_b1: cpu@101 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10100>;
+			freq-domain = <&cpufreq 1>;
+		};
+		cpu_b2: cpu@102 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10200>;
+			freq-domain = <&cpufreq 1>;
+		};
+		cpu_b3: cpu@103 {
+			compatible = "arm,cortex-a78", "arm,armv8";
+			device_type = "cpu";
+			enable-method = "psci";
+			next-level-cache = <&l2_1>;
+			reg = <0x10300>;
+			freq-domain = <&cpufreq 1>;
+		};
+
+		l2_1: l2-cache-1 {
+			compatible = "cache";
+		};*/
+	};
+
+	psci {
+		compatible	= "arm,psci-1.0";
+		method		= "smc";
+		cpu_on		= <0xC4000003>;
+		cpu_off		= <0x84000002>;
+		cpu_suspend	= <0xC4000001>;
+	};
+
+
+    es8316-sound {
+        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,name = "everest,es8316-codec";
+        simple-audio-card,mclk-fs = <256>;
+        //simple-audio-card,bitclock-master = <&sndcodec>;
+        //simple-audio-card,frame-master = <&sndcodec>;
+
+        simple-audio-card,cpu {
+            sound-dai = <&i2s0>;
+        };
+
+        sndcodec: simple-audio-card,codec {
+            sound-dai = <&es8316>;
+        };
+    };
+
+
+    pcm3168a-sound {
+        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,name = "everest,pcm3168a-codec";
+        simple-audio-card,mclk-fs = <256>;
+
+        simple-audio-card,cpu {
+            sound-dai = <&tdm2>;
+        };
+
+        simple-audio-card,codec {
+            sound-dai = <&pcm3168a>;
+        };
+    };
+
+    bst_adsp_i2s_codec0:adsp_i2s_codec0 {
+         compatible = "linux,i2s-adsp-codec0";
+         #sound-dai-cells = <0>;
+         status = "disable";
+    };
+    bst_adsp_i2s_codec1:adsp_i2s_codec1 {
+         compatible = "linux,i2s-adsp-codec1";
+         #sound-dai-cells = <0>;
+         status = "disable";
+    };
+    bst_adsp_tdm_codec0:adsp_tdm_codec0 {
+         compatible = "linux,tdm-adsp-codec0";
+         #sound-dai-cells = <0>;
+         status = "disable";
+    };
+    bst_adsp_tdm_codec1:adsp_tdm_codec1 {
+         compatible = "linux,tdm-adsp-codec1";
+         #sound-dai-cells = <0>;
+         status = "disable";
+    };
+
+    bst_rfkill_bt: rfkill_bt {
+        status = "disable"; 
+        compatible = "bst,rfkill_bt";
+        type = "bluetooth";
+        reset-gpios = <&porte 24 GPIO_ACTIVE_HIGH>;
+    };
+
+    adsp21569_sound0 {
+        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,name = "everest,adsp21569-codec-tdm0";
+        simple-audio-card,mclk-fs = <256>;
+
+        simple-audio-card,cpu {
+            sound-dai = <&tdm0>;
+        };
+
+        simple-audio-card,codec {
+            sound-dai = <&bst_adsp_tdm_codec0>;
+        };
+    };
+
+    adsp21569_sound1 {
+        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,name = "everest,adsp21569-codec-i2s1";
+        simple-audio-card,mclk-fs = <256>;
+
+        simple-audio-card,cpu {
+            sound-dai = <&i2s1>;
+        };
+
+        simple-audio-card,codec {
+            sound-dai = <&bst_adsp_i2s_codec0>;
+        };
+    };
+
+    adsp21569_sound2 {
+        status = "okay";
+        compatible = "simple-audio-card";
+        simple-audio-card,format = "i2s";
+        simple-audio-card,name = "everest,adsp21569-codec-i2s2";
+        simple-audio-card,mclk-fs = <256>;
+
+        simple-audio-card,cpu {
+            sound-dai = <&i2s2>;
+        };
+
+        simple-audio-card,codec {
+            sound-dai = <&bst_adsp_i2s_codec1>;
+        };
+    };
+
+};
+
+&firmware_scmi {
+
+	shmem = <&scmi_buf_reserved>;
+	reg = <0x0 0x20011000 0 0x14>;
+
+
+	status = "okay";
+};
+
+
+
+&i2c0 {
+	status = "disable";
+};
+
+&i2c1 {
+	status = "disable";
+};
+
+&i2c2 {
+	status = "okay";
+	es8316: es8316@11 {
+		compatible = "everest,es8316";
+		reg = <0x11>;
+		#sound-dai-cells = <0>;
+		es8316,analog-input-mux = <1>;
+	};
+
+	pcm3168a: pcm3168a-codec@44 {
+		compatible = "ti,pcm3168a";
+		reg = <0x44>;
+		#sound-dai-cells = <0>;
+	};
+};
+
+&i2c3 {
+	status = "disable";
+};
+
+&i2c4 {
+	status = "okay";
+
+	ccg7d@8 {
+		compatible = "bst,ccgx";
+		reg = <0x08>;
+		status = "okay";
+		int-gpio = <&porte 25 GPIO_ACTIVE_LOW>;
+		connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			data-role = "dual";
+			power-role = "source";
+			//try-power-role = "sink";
+			//source-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)>;
+			//sink-pdos = <PDO_FIXED(5000, 2000, PDO_FIXED_USB_COMM)
+			//             PDO_VAR(5000, 12000, 2000)>;
+			//op-sink-microwatt = <10000000>;
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+						reg = <0>;
+						typec_usb_port: endpoint@0 {
+								remote-endpoint = <&usb3_role_switch>;
+						};
+						typec_switch_port: endpoint@1 {
+								remote-endpoint = <&usb3_orientation_switch>;
+						};
+						typec_mode_switch_port: endpoint@2 {
+								remote-endpoint = <&usb3_mode_switch>;
+						};
+				};
+			};
+		};
+	};
+};
+
+&i2c5 {
+	status = "disable";
+};
+
+&i2c6 {
+	status = "disable";
+};
+
+&i2c7 {
+	status = "disable";
+};
+
+&i2cq0 {
+	status = "disable";
+};
+
+&i2cq1 {
+	status = "disable";
+};
+
+&i2cq2 {
+	status = "disable";
+};
+
+&uart0 {
+	status = "okay";
+};
+&uart1 {
+	status = "disable";
+};
+&uart2 {
+	status = "disable";
+};
+&uart3 {
+	status = "disable";
+};
+
+&spi0 {
+	status = "disable";
+};
+&spi1 {
+	status = "disable";
+};
+&spi2 {
+	status = "okay";
+};
+&spi3 {
+	status = "disable";
+};
+
+&i2s0 {
+	status = "disable";
+};
+&i2s1 {
+	status = "disable";
+};
+&i2s2 {
+	status = "disable";
+};
+&i2s3 {
+	status = "disable";
+};
+
+&tdm0 {
+	status = "disable";
+};
+&tdm1 {
+	status = "disable";
+};
+&tdm2 {
+	status = "disable";
+};
+&tdm3 {
+	status = "disable";
+};
+
+&bst_adsp_i2s_codec0 {
+    status = "disable";
+};
+
+&bst_adsp_i2s_codec1 {
+    status = "disable";
+};
+
+&bst_adsp_tdm_codec0 {
+    status = "disable";
+};
+
+&bst_adsp_tdm_codec1 {
+    status = "disable";
+};
+
+&bst_rfkill_bt {
+    status = "disable";
+};
+
+&watchdog0 {
+	status = "disable";
+};
+&watchdog1 {
+	status = "disable";
+};
+&watchdog2 {
+	status = "disable";
+};
+&watchdog3 {
+	status = "disable";
+};
+&watchdog_soc0 {
+	status = "okay";
+};
+&watchdog_soc1 {
+	status = "okay";
+};
+&watchdog_soc2 {
+	status = "okay";
+};
+&watchdog_soc3 {
+	status = "okay";
+};
+
+&watchdog_soc4 {
+	status = "disable";
+};
+&watchdog_soc5 {
+	status = "disable";
+};
+&watchdog_soc6 {
+	status = "disable";
+};
+&watchdog_soc7 {
+	status = "disable";
+};
+&watchdog_db0 {
+	status = "disable";
+};
+&watchdog_db1 {
+	status = "disable";
+};
+&watchdog_db2 {
+	status = "disable";
+};
+&watchdog_db3 {
+	status = "disable";
+};
+
+&lsp0_pwm0 {
+	status = "disable";
+};
+&lsp1_pwm0 {
+	status = "disable";
+};
+
+&gpio0 {
+	status = "okay";
+};
+&gpio1 {
+	status = "okay";
+};
+&gpio2 {
+	status = "okay";
+};
+&gpio3 {
+	status = "okay";
+};
+&gpio4 {
+	status = "okay";
+	exclusive_gpio = <153>;
+};
+&gpio5 {
+	status = "okay";
+};
+&gpio6 {
+	status = "okay";
+};
+&gpio7 {
+	status = "okay";
+};
+&gpiokeys {
+	status = "okay";
+	};
+
+&gdma0 {
+	status = "okay";
+        dma-channels = <16>;
+        snps,chan-start = <0>;
+        snps,block-size = <1048576 1048576 1048576 1048576 1048576 1048576 1048576 1048576
+                           1048576 1048576 1048576 1048576 1048576 1048576 1048576 1048576>;
+
+        snps,priority = <15 14 13 12 11 10 9 8
+                                 7 6 5 4 3 2 1 0>;
+        interrupts =    <GIC_SPI 385 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 386 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 387 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 388 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 389 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 390 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 391 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 392 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 393 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 394 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 395 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 396 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 397 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 398 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 399 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)
+                  GIC_SPI 400 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)>;
+
+};
+
+&swdma0 {
+	status = "disable";
+};
+
+&usb2_phy {
+	orientation-switch;
+	mode_switch;
+	port {
+		usb3_orientation_switch: endpoint@0 {
+			//remote-endpoint = <&typec_switch_port>;
+		};
+		usb3_mode_switch: endpoint@1 {
+			//remote-endpoint = <&typec_mode_switch_port>;
+		};
+	};
+};
+
+&usbdwc3 {
+	//iommus = <&mmu600_soc 1>;
+};
+
+&usbdrd_dwc3 {
+	status = "disable";
+};
+
+&bst_usb_msg{
+	msgbox-pid = "CPU_0";
+};
+
+&usbdwc2 {
+	iommus = <&mmu600_soc 2>;
+	port {
+		usb3_role_switch: endpoint {
+			//remote-endpoint = <&typec_usb_port>;
+		};
+	};
+};
+
+&dwc3 {
+	status = "okay";
+};
+
+&mmc0 {
+	status = "disable";
+};
+&mmc1 {
+	status = "disable";
+};
+
+&nor_flash {
+	memory-region = <&bst_nor_flash_code_reserved>;
+	status = "okay";
+};
+
+
+&mmu600_pcie {
+	status = "okay";
+};
+&mmu600_codec {
+	status = "disable";
+};
+&mmu600_soc {
+	status = "okay";
+};
+
+&ufs {
+    interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
+	status = "okay";
+};
+
+&pcie_phy {
+	dmc-lane = <0x1>; /* bit0: 1=2x2ports, 0=1x4ports */
+	dmc-mode = <0x3>; /* (bit1 for ctl0)/(bit0 for ctl1):1=RC-mode, 0=EP-mode */
+	pcie-ctl0 = <1>;  /* Controller reset */
+	pcie-ctl1 = <1>;  /* Controller reset */
+	pcie-ref-clk0 = <1>; /* 0=onchip_clk, 1=pad_clk*/
+	pcie-ref-clk1 = <1>; /* 0=onchip_clk, 1=pad_clk, 2=repeat_clk */
+};
+
+&pcie0 {
+	status = "okay";
+	reset-gpio = <&portg 24 GPIO_ACTIVE_HIGH>;
+	reset-gpio-active-high;
+	pre-init;
+	iommus = <&mmu600_pcie 0x0>;
+	iommu-map = <0x0  &mmu600_pcie 0x00 0x1000>;
+};
+
+&codec0 {
+	status = "okay";
+};
+&codec1 {
+	status = "disable";
+};
+
+&mipi_dsi0 {
+	status = "disable";
+};
+&mipi_dsi1 {
+	status = "disable";
+};
+&mipi_csr {
+	status = "disable";
+};
+
+&bst_dptx {
+	status = "disable";
+};
+
+&dp_panel {
+	status = "disable";
+};
+
+&xrp0 {
+	status = "okay";
+	memory-region = <&bst_sramxrp_reserved>;	
+};
+
+&bst_dpu0 {
+	status = "disable";
+	memory-region = <&bst_dpu_reserved>;
+};
+&bst_dpu2 {
+	status = "disable";
+	memory-region = <&bst_dpu_reserved>;
+};
+&bst_dpu1 {
+	status = "disable";
+	memory-region = <&bst_dpu_reserved>;
+};
+
+&lvds_conn {
+	status = "disable";
+};
+
+&bst_disp_fw {
+	status = "okay";
+	msgbx-pid = "CPU_0"; /* "CPU_0" - "CPU_3" */
+};
+
+&bst_virt_dpu0 {
+	status = "okay";
+	memory-region = <&bst_dpu_reserved>;
+	os-type = "IVI_ANDROID";
+	pipeline@0 {
+		status = "okay";
+		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE2";
+		layer-num = <3>;
+		port@0 {
+			virt_pipe0_out: endpoint@0 {
+				remote-endpoint = <&virt_dptx_in>;
+			};
+		};
+	};
+	pipeline@1 {
+		status = "okay";
+		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE0";
+		layer-num = <4>;
+		port@0 {
+			virt_pipe1_out: endpoint@0 {
+				remote-endpoint = <&virt_dsi1_in>;
+			};
+		};
+	};
+	pipeline@2 {
+		status = "okay";
+		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE4";
+		layer-num = <4>;
+		port@0 {
+			reg = <0>;
+			virt_pipe2_out: endpoint@0 {
+				remote-endpoint = <&virt_dsi0_in>;
+			};
+		};
+	};
+	pipeline@3 {
+		status = "okay";
+		dc-type = "DEVICE_TYPE_VIRT_DC_PIPE3";
+		layer-num = <1>;
+		port@0 {
+			reg = <0>;
+			virt_shared_pipe0_out: endpoint@0 {
+				remote-endpoint = <&virt_lvds1_in>;
+			};
+		};
+	};
+};
+
+&bst_virt_dptx {
+	status = "okay";
+	ports {
+		port@0 {
+			virt_dptx_in: endpoint@0 {
+				remote-endpoint = <&virt_pipe0_out>;
+			};
+		};
+	};
+};
+
+&bst_virt_dsi0 {
+	status = "okay";
+	ports {
+		port@0 {
+			virt_dsi0_in: endpoint@0 {
+				remote-endpoint = <&virt_pipe2_out>;
+			};
+		};
+	};
+};
+
+&bst_virt_dsi1 {
+	status = "okay";
+	ports {
+		port@0 {
+			virt_dsi1_in: endpoint@0 {
+				remote-endpoint = <&virt_pipe1_out>;
+			};
+		};
+	};
+};
+
+&bst_virt_lvds1 {
+	status = "okay";
+	ports {
+		port@0 {
+			virt_lvds1_in: endpoint@0 {
+				remote-endpoint = <&virt_shared_pipe0_out>;
+			};
+		};
+	};
+};
+
+&gpu_ivi {
+	status = "okay";
+};
+
+&gpu_adas {
+	status = "disable";
+};
+
+&gpu_db {
+	status = "disable";
+};
+
+&pinctrl {
+	status = "disable";
+};
+
+&clkc {
+	status = "disable";
+};
+
+&gtc {
+	status = "okay";
+};
+
+&xgmac0 {
+	status = "disable";
+};
+
+&gic600 {
+	status = "okay";
+	};
+
+&its0_x4 {
+	status = "okay";
+	memory-region = <&its_table_reserved>;
+};
+
+&hif {
+	status = "okay";
+	interrupt-parent = <&gic600>;
+	interrupts = <GIC_SPI 480 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI 481 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI 482 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI 483 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI 484 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI 485 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI 486 IRQ_TYPE_LEVEL_HIGH>,
+			   <GIC_SPI 487 IRQ_TYPE_LEVEL_HIGH>;
+	interrupt-names = "hif_irq0", "hif_irq1", "hif_irq2", "hif_irq3",
+		"hif_irq4", "hif_irq5", "hif_irq6", "hif_irq7";
+	mac-address = [52AECD28264B];
+	channel-bit = <0x00000000 0x00010000>;
+	max-frame-size = <3800>;
+	memory-region = <&bst_hif_reserved>;
+};
+
+
+&ipc {
+	status = "okay";
+	memory-region = <&bst_ipc_reserved>;
+};
+
+&mbox {
+	status = "okay";
+	memory-region = <&bst_ipc_reserved>;
+};
+
+
+
+&msgbox {
+	status = "okay";
+	spi-irq-num = <4>;
+	filter-num = <8>;
+	// id = <0x0>;
+	// end0 and end1 spi irq
+	interrupts =    <
+			GIC_PPI 2 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 3 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 4 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_PPI 15 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)
+			GIC_SPI 544 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 545 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 546 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 547 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 548 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 549 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 550 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 551 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 552 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 553 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 554 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 555 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 556 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 557 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 558 (IRQ_TYPE_LEVEL_HIGH)
+			GIC_SPI 559 (IRQ_TYPE_LEVEL_HIGH)
+			>;
+	#mbox-cells = <0x1>;
+};
+
+&arm_pmu {
+	status = "disable";
+};
+
+&gmac0 {
+	status = "disable";
+	phy-handle = <&eth_phy1>;
+	extend-op = <20>;
+	phy-mode = "sgmii";
+	mac-mode = "gmii";
+	mdio {
+		compatible = "snps,dwmac-mdio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		status = "okay";		
+		eth_phy1: eth_phy1@1 {
+			compatible = "marvell,88E1510", "ethernet-phy-id0141.0DD1", "ethernet-phy-ieee802.3-c22";
+			device_type = "ethernet-phy";
+			max-speed = <1000>;
+			reg = <0x1>;
+			reset-active-low;
+			reset-gpios = <&porte 16 1>; //gpio 144
+			reset-assert-us = <20000>;
+			reset-deassert-us = <20000>;
+		};
+		
+	};
+};
+
+&virtouch {
+	status = "disable";
+	memory-region = <&bst_touchscreen_reserved>;
+	client-id = <0xBADC2143>;//100, as same as display client id
+	/*
+	 * screens-id:
+	 * 0x43210000: screen_lvds0  adas
+	 * 0x43210001: screen_lvds1  adas/ivi/db
+	 * 0x43210002: screen_dsi0  ivi
+	 * 0x43210003: screen_dsi1  ivi
+	 * 0x43210004: screen_edp   adas/ivi
+	 */
+	screens-id = <0x43210001>, <0x43210002>,  <0x43210003>, <0x43210004>;
+};
+
+&backlight_lvds1 {
+	client-id = <0xBADC2143>;
+	status = "okay";
+};
+&backlight_dsi0 {
+	client-id = <0xBADC2143>;
+	status = "okay";
+};
+&backlight_dsi1 {
+	client-id = <0xBADC2143>;
+	status = "okay";
+};
+&backlight_edp {
+	client-id = <0xBADC2143>;
+	status = "okay";
+};
