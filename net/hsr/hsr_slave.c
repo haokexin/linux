@@ -144,7 +144,7 @@ static int hsr_portdev_setup(struct hsr_priv *hsr, struct net_device *dev,
 	/* Don't use promiscuous mode for offload since L2 frame forward
 	 * happens at the offloaded hardware.
 	 */
-	if (!port->hsr->rx_offloaded) {
+	if (!(port->hsr->rx_offloaded || port->hsr->fwd_offloaded)) {
 		res = dev_set_promiscuity(dev, 1);
 		if (res)
 			return res;
@@ -167,7 +167,7 @@ static int hsr_portdev_setup(struct hsr_priv *hsr, struct net_device *dev,
 fail_rx_handler:
 	netdev_upper_dev_unlink(dev, hsr_dev);
 fail_upper_dev_link:
-	if (!port->hsr->rx_offloaded)
+	if (!(port->hsr->rx_offloaded || port->hsr->fwd_offloaded))
 		dev_set_promiscuity(dev, -1);
 
 	return res;
@@ -230,7 +230,8 @@ void hsr_del_port(struct hsr_port *port)
 		netdev_update_features(master->dev);
 		dev_set_mtu(master->dev, hsr_get_max_mtu(hsr));
 		netdev_rx_handler_unregister(port->dev);
-		dev_set_promiscuity(port->dev, -1);
+		if (!port->hsr->fwd_offloaded)
+			dev_set_promiscuity(port->dev, -1);
 		netdev_upper_dev_unlink(port->dev, master->dev);
 	}
 
