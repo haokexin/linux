@@ -2117,6 +2117,13 @@ static const struct sdhci_cdns_drv_data sdhci_elba_drv_data = {
 	},
 };
 
+static const struct sdhci_cdns_drv_data sdhci_eyeq_drv_data = {
+	.pltfm_data = {
+		.ops = &sdhci_cdns_sd4_ops,
+		.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+	},
+};
+
 static const struct sdhci_cdns_drv_data sdhci_cdns_drv_data = {
 	.pltfm_data = {
 		.ops = &sdhci_cdns_sd4_ops,
@@ -2381,6 +2388,10 @@ static const struct of_device_id sdhci_cdns_match[] = {
 	{
 		.compatible = "cdns,sd6hc",
 		.data = &sdhci_cdns_sd6_of_data,
+	},
+	{
+		.compatible = "mobileye,eyeq-sd4hc",
+		.data = &sdhci_eyeq_drv_data,
 	},
 	{ /* sentinel */ }
 };
