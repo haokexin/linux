@@ -22,11 +22,6 @@
 #include "topazmmu.h"
 #include "vxe_enc.h"
 
-#define MAX(a, b, type) ({ \
-		type __a = a; \
-		type __b = b; \
-		(((__a) >= (__b)) ? (__a) : (__b)); })
-
 void mmu_callback(enum mmu_callback_type callback_type,
 		  int buff_id, void *data)
 {
@@ -171,7 +166,7 @@ int calculate_h264_level(unsigned int width, unsigned int height, unsigned int f
 		temp_level = 100;
 	}
 
-	level = MAX(level, temp_level, unsigned int);
+	level = MAX(level, temp_level);
 
 	/* now restrict based on the number of macroblocks per second */
 	if (mbs > 2073600) {
@@ -207,7 +202,7 @@ int calculate_h264_level(unsigned int width, unsigned int height, unsigned int f
 		temp_level = 100;
 	}
 
-	level = MAX(level, temp_level, unsigned int);
+	level = MAX(level, temp_level);
 
 	if (rc_enable) {
 		/*
@@ -249,13 +244,13 @@ int calculate_h264_level(unsigned int width, unsigned int height, unsigned int f
 		else
 			temp_level = 100;
 
-		level = MAX(level, temp_level, unsigned int);
+		level = MAX(level, temp_level);
 	} else {
 		level = 510;
 	}
 
 	if (lossless)
-		level = MAX(level, lossless_min_level, unsigned int);
+		level = MAX(level, lossless_min_level);
 
 	return level;
 }
