@@ -2145,6 +2145,13 @@ static const struct sdhci_cdns_data sdhci_cdns_sd6_data = {
 	.set_tune_val = sdhci_cdns_sd6_set_tune_val,
 };
 
+static const struct sdhci_cdns_drv_data sdhci_eyeq_drv_data = {
+	.pltfm_data = {
+		.ops = &sdhci_cdns_sd4_ops,
+		.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+	},
+};
+
 static const struct sdhci_cdns_drv_data sdhci_cdns_sd4_drv_data = {
 	.pltfm_data = {
 		.ops = &sdhci_cdns_sd4_ops,
@@ -2407,6 +2414,10 @@ static const struct of_device_id sdhci_cdns_match[] = {
 	{
 		.compatible = "cdns,sd6hc",
 		.data = &sdhci_cdns_sd6_drv_data,
+	},
+	{
+		.compatible = "mobileye,eyeq-sd4hc",
+		.data = &sdhci_eyeq_drv_data,
 	},
 	{ /* sentinel */ }
 };
