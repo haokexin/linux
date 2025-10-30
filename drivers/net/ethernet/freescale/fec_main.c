@@ -2732,7 +2732,7 @@ rx_processing_done:
 
 #ifndef CONFIG_AVB_SUPPORT
 	if (xdp_result & FEC_ENET_XDP_REDIR)
-		xdp_do_flush_map();
+		xdp_do_flush();
 #endif
 
 	return pkt_received;
