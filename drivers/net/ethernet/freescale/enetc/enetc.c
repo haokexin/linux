@@ -1777,6 +1777,7 @@ static int enetc_clean_rx_ring(struct enetc_bdr *rx_ring,
 	rx_ring->stats.bytes += rx_byte_cnt;
 
 	enetc_unlock_mdio();
+
 	return rx_frm_cnt;
 }
 
@@ -2223,7 +2224,9 @@ static int enetc_clean_rx_ring_xdp(struct enetc_bdr *rx_ring,
 
 			break;
 		case XDP_REDIRECT:
+			enetc_unlock_mdio();
 			err = xdp_do_redirect(rx_ring->ndev, xdp_buff, prog);
+			enetc_lock_mdio();
 			if (unlikely(err)) {
 				enetc_xdp_drop(rx_ring, orig_i, i);
 				rx_ring->stats.xdp_redirect_failures++;
@@ -2243,8 +2246,11 @@ out:
 	rx_ring->stats.packets += rx_frm_cnt;
 	rx_ring->stats.bytes += rx_byte_cnt;
 
-	if (xdp_redirect_frm_cnt)
+	if (xdp_redirect_frm_cnt) {
+		enetc_unlock_mdio();
 		xdp_do_flush();
+		enetc_lock_mdio();
+	}
 
 	if (xdp_tx_frm_cnt) {
 		enetc_tx_queue_lock(tx_ring, cpu);
@@ -2257,6 +2263,7 @@ out:
 				     rx_ring->xdp.xdp_tx_in_flight);
 
 	enetc_unlock_mdio();
+
 	return rx_frm_cnt;
 }
 
@@ -2935,9 +2942,8 @@ static int enetc_poll(struct napi_struct *napi, int budget)
 	if (work_done)
 		v->rx_napi_work = true;
 
-	if (!complete) {
+	if (!complete)
 		return budget;
-	}
 
 	napi_complete_done(napi, work_done);
 
