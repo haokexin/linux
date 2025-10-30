@@ -211,8 +211,11 @@ static int _rmid_read(void *_arg)
 		prev_msr = atomic64_read(&am->prev_msr);
 
 	arg->err = __rmid_read(rmid, eventid, &msr_val);
-	if (arg->err)
+	if (arg->err) {
+		if (am && arg->err == -EINVAL)
+			am->prev_msr = 0;
 		return arg->err;
+	}
 
 	if (am) {
 		chunks = mbm_overflow_count(prev_msr, msr_val,
