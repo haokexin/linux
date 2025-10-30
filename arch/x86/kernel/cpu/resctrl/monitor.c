@@ -247,6 +247,7 @@ int resctrl_arch_rmid_read(struct rdt_resource *r, struct rdt_mon_domain *d,
 		return ret;
 
 	am = get_arch_mbm_state(hw_dom, rmid, eventid);
+
 	if (am) {
 		am->chunks += mbm_overflow_count(am->prev_msr, msr_val,
 						 hw_res->mbm_width);
