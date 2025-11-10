@@ -106,6 +106,8 @@ static void rp1_mask_irq(struct irq_data *irqd)
 	struct rp1_dev *rp1 = irqd->domain->host_data;
 	struct irq_data *pcie_irqd = rp1->pcie_irqds[irqd->hwirq];
 
+	if (!pcie_irqd)
+		return;
 	pci_msi_mask_irq(pcie_irqd);
 }
 
@@ -114,6 +116,8 @@ static void rp1_unmask_irq(struct irq_data *irqd)
 	struct rp1_dev *rp1 = irqd->domain->host_data;
 	struct irq_data *pcie_irqd = rp1->pcie_irqds[irqd->hwirq];
 
+	if (!pcie_irqd)
+		return;
 	pci_msi_unmask_irq(pcie_irqd);
 }
 
