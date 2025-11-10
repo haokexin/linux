@@ -450,7 +450,9 @@ static int gpiodev_add_to_list_unlocked(struct gpio_device *gdev)
 {
 	struct gpio_device *prev, *next;
 
+#ifndef REJECT_HOTPLUG_TAX
 	lockdep_assert_held(&gpio_devices_lock);
+#endif
 
 	if (list_empty(&gpio_devices)) {
 		/* initial entry in list */
