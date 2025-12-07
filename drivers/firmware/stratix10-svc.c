@@ -3629,6 +3629,7 @@ static int stratix10_svc_drv_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		return ret;
 	}
+	controller->svc = svc;
 
 	controller->svc = svc;
 
