@@ -104,7 +104,6 @@ struct stratix10_svc_chan;
 /**
  * struct stratix10_svc - svc private data
  * @stratix10_svc_rsu: pointer to stratix10 RSU device
- * @intel_svc_fcs: pointer to fcs client device
  */
 struct stratix10_svc {
 	struct platform_device *stratix10_svc_rsu;
